@@ -92,14 +92,33 @@ namespace Loadout.Host
             _menu.Items.Add(new ToolStripSeparator());
 
             var update = new ToolStripMenuItem(_hasUpdate
-                ? $"⬆  Update to {_pendingRelease?.TagName ?? "new version"}"
+                ? "⬆  Apply update to " + (_pendingRelease?.TagName ?? "new version")
                 : "Check for updates");
             update.Click += async (_, __) =>
             {
                 if (_hasUpdate && _pendingRelease != null)
                 {
-                    try { System.Diagnostics.Process.Start(_pendingRelease.HtmlUrl ?? "https://github.com"); }
-                    catch { }
+                    update.Enabled = false;
+                    update.Text = "Downloading...";
+                    var ok = await UpdateChecker.Instance.DownloadUpdateAsync(_pendingRelease).ConfigureAwait(true);
+                    update.Enabled = true;
+                    if (ok)
+                    {
+                        try
+                        {
+                            _icon.ShowBalloonTip(10000,
+                                "Loadout update downloaded",
+                                "Restart Streamer.bot to apply " + _pendingRelease.TagName + ".",
+                                ToolTipIcon.Info);
+                        }
+                        catch { }
+                        update.Text = "✓  Restart SB to apply " + _pendingRelease.TagName;
+                    }
+                    else
+                    {
+                        try { System.Diagnostics.Process.Start(_pendingRelease.HtmlUrl ?? "https://github.com"); } catch { }
+                        update.Text = "⬆  Apply update to " + _pendingRelease.TagName;
+                    }
                 }
                 else
                 {

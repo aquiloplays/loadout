@@ -21,6 +21,37 @@ public class CPHInline
             Directory.CreateDirectory(dataDir);
             var dllPath = Path.Combine(dataDir, "Loadout.dll");
 
+            // Stage-and-swap update path. The tray icon's "Apply update" button
+            // downloads the new DLL to Loadout.dll.new while SB is running.
+            // The old DLL is locked by the running process, so we swap on the
+            // NEXT boot — right here, BEFORE Assembly.LoadFrom locks the file
+            // again for this session.
+            var stagedDll = dllPath + ".new";
+            if (File.Exists(stagedDll))
+            {
+                try
+                {
+                    if (File.Exists(dllPath)) File.Delete(dllPath);
+                    File.Move(stagedDll, dllPath);
+                    CPH.LogInfo("[Loadout] Applied staged DLL update");
+                }
+                catch (Exception swapEx)
+                {
+                    CPH.LogWarn("[Loadout] Failed to swap staged DLL: " + swapEx.Message);
+                }
+            }
+            var stagedNj = Path.Combine(dataDir, "Newtonsoft.Json.dll.new");
+            if (File.Exists(stagedNj))
+            {
+                try
+                {
+                    var njDll = Path.Combine(dataDir, "Newtonsoft.Json.dll");
+                    if (File.Exists(njDll)) File.Delete(njDll);
+                    File.Move(stagedNj, njDll);
+                }
+                catch { /* non-fatal */ }
+            }
+
             if (!File.Exists(dllPath))
             {
                 var url = "https://github.com/" + Repo + "/releases/download/v" + Version + "/Loadout.dll";

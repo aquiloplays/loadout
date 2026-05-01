@@ -32,6 +32,17 @@ namespace Loadout.UI
         private readonly ObservableCollection<Counter> _counters = new ObservableCollection<Counter>();
         private readonly ObservableCollection<PatreonSupporter> _supporters = new ObservableCollection<PatreonSupporter>();
 
+        // Plays the window-open fade + slide-up storyboard from Styles.xaml.
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var sb = (System.Windows.Media.Animation.Storyboard)FindResource("WindowFadeIn");
+                if (sb != null) sb.Begin(this);
+            }
+            catch { Opacity = 1; }
+        }
+
         private SettingsWindow()
         {
             InitializeComponent();

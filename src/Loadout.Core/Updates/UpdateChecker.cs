@@ -129,6 +129,63 @@ namespace Loadout.Updates
             return Version.TryParse(clean, out var v) ? v : new Version(0, 0, 0);
         }
 
+        // -------------------- Apply update --------------------
+
+        /// <summary>
+        /// Downloads <see cref="ReleaseInfo.DllAssetUrl"/> to
+        /// <c>&lt;data&gt;/Loadout.dll.new</c>. The boot action picks this up
+        /// on next SB startup, swaps it for <c>Loadout.dll</c>, and loads
+        /// the new build. The running DLL is locked while SB is alive, so
+        /// we cannot replace it in-process — an SB restart is required.
+        /// </summary>
+        public async Task<bool> DownloadUpdateAsync(ReleaseInfo release)
+        {
+            if (release == null || string.IsNullOrEmpty(release.DllAssetUrl))
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] DownloadUpdate: no DllAssetUrl on release");
+                return false;
+            }
+            try
+            {
+                var dataDir = Settings.SettingsManager.Instance.DataFolder;
+                if (string.IsNullOrEmpty(dataDir)) return false;
+                var stagedPath = System.IO.Path.Combine(dataDir, "Loadout.dll.new");
+
+                using var resp = await _http.GetAsync(release.DllAssetUrl).ConfigureAwait(false);
+                if (!resp.IsSuccessStatusCode)
+                {
+                    System.Diagnostics.Debug.WriteLine("[Loadout] DownloadUpdate HTTP " + (int)resp.StatusCode);
+                    return false;
+                }
+                var bytes = await resp.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                if (bytes == null || bytes.Length < 1024) return false;
+                System.IO.File.WriteAllBytes(stagedPath, bytes);
+
+                // Newtonsoft.Json sometimes ships alongside the DLL on releases.
+                var njUrl = (release.DllAssetUrl ?? "").Replace("/Loadout.dll", "/Newtonsoft.Json.dll");
+                if (njUrl != release.DllAssetUrl)
+                {
+                    try
+                    {
+                        using var njResp = await _http.GetAsync(njUrl).ConfigureAwait(false);
+                        if (njResp.IsSuccessStatusCode)
+                        {
+                            var njBytes = await njResp.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                            if (njBytes != null && njBytes.Length > 1024)
+                                System.IO.File.WriteAllBytes(System.IO.Path.Combine(dataDir, "Newtonsoft.Json.dll.new"), njBytes);
+                        }
+                    }
+                    catch { /* optional asset */ }
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] DownloadUpdate failed: " + ex.Message);
+                return false;
+            }
+        }
+
         public void Dispose() => Stop();
     }
 
