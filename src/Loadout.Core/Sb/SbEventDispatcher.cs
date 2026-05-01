@@ -1,0 +1,138 @@
+using System;
+using System.Collections.Generic;
+using Loadout.Modules;
+using Loadout.Settings;
+
+namespace Loadout.Sb
+{
+    /// <summary>
+    /// Single funnel for every event coming out of Streamer.bot. The SB-side
+    /// trampoline actions all call <see cref="DispatchEvent"/> with a string event
+    /// kind ("follow", "sub", "raid", ...) and the raw CPH args dictionary; from
+    /// there, this class fans out to module handlers.
+    ///
+    /// Why string-keyed routing instead of an enum: SB invents new event types
+    /// over time and we want users to receive them on a DLL update without re-
+    /// importing the SB bundle. The bundle-side C# is intentionally stupid.
+    /// </summary>
+    public sealed class SbEventDispatcher
+    {
+        private static readonly SbEventDispatcher _instance = new SbEventDispatcher();
+        public static SbEventDispatcher Instance => _instance;
+
+        private readonly List<IEventModule> _modules = new List<IEventModule>();
+
+        private SbEventDispatcher() { }
+
+        public void RegisterDefaultModules()
+        {
+            lock (_modules)
+            {
+                if (_modules.Count > 0) return;
+                _modules.Add(new EngagementFeederModule());     // must be first - feeds the tracker before consumers read
+                _modules.Add(new InfoCommandsModule());
+                _modules.Add(new WelcomesModule());
+                _modules.Add(new AlertsModule());
+                _modules.Add(new TimedMessagesModule());
+                _modules.Add(new HateRaidModule());
+                _modules.Add(new HypeTrainModule());
+                _modules.Add(new CountersModule());
+                _modules.Add(new CheckInModule());
+                _modules.Add(new FirstWordsModule());
+                _modules.Add(new AdBreakModule());
+                _modules.Add(new ChatVelocityModule());
+                _modules.Add(new AiShoutoutsModule());
+                _modules.Add(new DiscordLiveStatusModule());
+                _modules.Add(new WebhookInboxModule());
+                _modules.Add(new StreamRecapModule());
+                _modules.Add(new SubRaidTrainModule());
+                _modules.Add(new AutoPollModule());
+                _modules.Add(new GoalsModule());
+                _modules.Add(new VipRotationModule());
+                _modules.Add(new CcCoinTrackerModule());
+                _modules.Add(new SubAnniversaryModule());
+                _modules.Add(new BoltsModule());
+                _modules.Add(new ApexModule());
+            }
+        }
+
+        public void DispatchEvent(string kind, IDictionary<string, object> args)
+        {
+            if (string.IsNullOrEmpty(kind)) return;
+            args = args ?? new Dictionary<string, object>();
+
+            var ctx = EventContext.From(kind, args);
+            List<IEventModule> snapshot;
+            lock (_modules) snapshot = new List<IEventModule>(_modules);
+
+            foreach (var m in snapshot)
+            {
+                try { m.OnEvent(ctx); }
+                catch (Exception ex)
+                {
+                    Util.ErrorLog.Write(m.GetType().Name + ".OnEvent[" + kind + "]", ex);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Tick hook — invoked once a minute by the SB-side timer trigger. Modules
+        /// that care about wall-clock cadence (timed messages, hype-train decay)
+        /// implement <see cref="IEventModule.OnTick"/>.
+        /// </summary>
+        public void Tick()
+        {
+            List<IEventModule> snapshot;
+            lock (_modules) snapshot = new List<IEventModule>(_modules);
+            foreach (var m in snapshot)
+            {
+                try { m.OnTick(); }
+                catch (Exception ex)
+                {
+                    Util.ErrorLog.Write(m.GetType().Name + ".OnTick", ex);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Normalized event payload — module handlers read this rather than the raw
+    /// CPH dictionary, so adding a new platform later is a one-place change.
+    /// </summary>
+    public sealed class EventContext
+    {
+        public string Kind        { get; private set; }
+        public PlatformMask Platform { get; private set; }
+        public string User        { get; private set; }
+        public string UserType    { get; private set; }      // viewer | sub | vip | mod | broadcaster
+        public string Message     { get; private set; }
+        public IDictionary<string, object> Raw { get; private set; }
+
+        public static EventContext From(string kind, IDictionary<string, object> raw)
+        {
+            string source = TryGet(raw, "eventSource", "");
+            return new EventContext
+            {
+                Kind = kind,
+                Platform = PlatformMaskExtensions.FromShortName(source),
+                User     = TryGet(raw, "user", TryGet(raw, "userName", "")),
+                UserType = TryGet(raw, "userType", "viewer"),
+                Message  = TryGet(raw, "message", TryGet(raw, "rawInput", "")),
+                Raw      = raw
+            };
+        }
+
+        public T Get<T>(string key, T fallback = default)
+        {
+            if (Raw == null || !Raw.TryGetValue(key, out var v)) return fallback;
+            if (v is T t) return t;
+            try { return (T)Convert.ChangeType(v, typeof(T)); } catch { return fallback; }
+        }
+
+        private static string TryGet(IDictionary<string, object> d, string key, string fallback)
+        {
+            if (d == null) return fallback;
+            return d.TryGetValue(key, out var v) ? (v?.ToString() ?? fallback) : fallback;
+        }
+    }
+}

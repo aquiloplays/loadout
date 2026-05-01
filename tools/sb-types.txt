@@ -1,0 +1,93 @@
+﻿# Streamer.bot type-number reference, mined from actions.json
+# Generated 2026-04-29T13:02:15.5789103-04:00
+
+## Trigger types
+type | count | sample fields | first-seen action
+---- | ----- | ------------- | -----------------
+101 | 2 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+102 | 4 | enabled, exclusions, id, max, min, type | Printer Bot | Events
+103 | 5 | enabled, exclusions, id, tiers, type | Printer Bot | Events
+104 | 5 | enabled, exclusions, id, max, min, tiers, type | Printer Bot | Events
+105 | 5 | enabled, exclusions, id, max, min, monthsGifted, subType, tiers, type | Printer Bot | Events
+106 | 5 | enabled, exclusions, id, max, min, subType, tiers, type | Printer Bot | Events
+107 | 5 | enabled, exclusions, id, max, min, type | Printer Bot | Events
+108 | 2 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+109 | 2 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+110 | 2 | enabled, exclusions, id, max, min, type | Discord Stream Logger | Stream Events
+111 | 2 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+112 | 4 | enabled, exclusions, id, rewardId, type | Discord Stream Logger | Stream Events
+118 | 1 | enabled, exclusions, gameId, gameName, gameOnly, id, type | Discord Stream Logger | Stream Events
+125 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+127 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+128 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+130 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+133 | 1 | enabled, exclusions, id, type | Multistream Polls | Vote Scanner
+135 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+136 | 1 | enabled, exclusions, id, max, min, type | Discord Stream Logger | Stream Events
+137 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+141 | 1 | enabled, exclusions, id, max, min, type | [THRONE HOLDER] [#] 1 - Handler
+145 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+158 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+178 | 1 | enabled, exclusions, id, type | [THRONE HOLDER] [#] 1 - Handler
+179 | 1 | enabled, exclusions, id, type | [THRONE HOLDER] [#] 1 - Handler
+191 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+192 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+193 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+194 | 1 | enabled, exclusions, id, rewardType, type | [THRONE HOLDER] [#] 1 - Handler
+195 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+201 | 4 | enabled, exclusions, id, max, min, type | Printer Bot | Events
+401 | 9 | commandId, enabled, exclusions, id, type | !pushup10
+467 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+471 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+701 | 2 | enabled, exclusions, id, timerId, type | First
+702 | 14 | enabled, exclusions, id, type, variables | First
+1201 | 4 | enabled, exclusions, id, max, min, type | Printer Bot | Events
+4003 | 1 | enabled, exclusions, id, type | Multistream Polls | Vote Scanner
+4005 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+4006 | 7 | enabled, exclusions, id, max, min, type | Printer Bot | Events
+4007 | 4 | enabled, exclusions, id, max, min, type | Printer Bot | Events
+4008 | 5 | enabled, exclusions, id, type | Printer Bot | Events
+4009 | 1 | enabled, exclusions, id, type | [THRONE HOLDER] [#] 1 - Handler
+4014 | 1 | enabled, exclusions, id, type | [THRONE HOLDER] [#] 1 - Handler
+4015 | 2 | enabled, exclusions, id, type | Printer Bot | Events
+4016 | 1 | enabled, exclusions, id, isUserId, type, username | [THRONE HOLDER] [#] 0 - Settings
+4018 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+7001 | 1 | enabled, exclusions, id, max, min, type | [THRONE HOLDER] [#] 1 - Handler
+10001 | 1 | enabled, exclusions, id, max, min, type | [THRONE HOLDER] [#] 1 - Handler
+18002 | 26 | enabled, eventName, exclusions, id, name, type | Printer Bot | Events
+24004 | 3 | enabled, exclusions, id, type | Printer Bot | Events
+24006 | 4 | enabled, exclusions, id, max, min, type | Printer Bot | Events
+24007 | 3 | enabled, exclusions, id, type | Printer Bot | Events
+35010 | 1 | enabled, exclusions, id, type | Multistream Polls | Vote Scanner
+35011 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+35014 | 4 | enabled, exclusions, id, type | Printer Bot | Events
+35015 | 4 | enabled, exclusions, id, type | Printer Bot | Events
+35016 | 3 | enabled, exclusions, id, type | Printer Bot | Events
+35017 | 2 | enabled, exclusions, id, type | Printer Bot | Events
+35018 | 1 | enabled, exclusions, id, max, min, type | Discord Stream Logger | Stream Events
+35019 | 1 | enabled, exclusions, id, type | Discord Stream Logger | Stream Events
+35020 | 1 | enabled, exclusions, gameId, gameName, gameOnly, id, type | Discord Stream Logger | Stream Events
+
+## SubAction types
+type | count | sample fields
+---- | ----- | -------------
+3 | 3 | append, enabled, file, id, index, parentId, text, type, weight
+10 | 2 | enabled, fallback, id, index, parentId, text, type, useBot, weight
+21 | 1 | enabled, id, index, parentId, type, weight
+23 | 10 | color, enabled, fallback, id, index, parentId, text, type, useBot, weight
+120 | 1 | autoType, enabled, id, index, input, operation, parentId, subActions, type, value, weight
+121 | 2 | defaultValue, destinationVariable, enabled, id, index, parentId, persisted, source, type, variableName, weight
+122 | 5 | autoType, destination, enabled, id, index, parentId, persisted, source, type, value, variableName, weight
+123 | 7 | autoType, enabled, id, index, parentId, type, value, variableName, weight
+127 | 1 | autoType, enabled, id, index, input, parentId, subActions, type, weight
+1009 | 53 | color, enabled, id, index, parentId, type, value, weight
+4001 | 10 | broadcast, enabled, fallback, id, index, parentId, text, type, useBot, weight
+35001 | 3 | enabled, fallback, id, index, parentId, text, type, useBot, weight
+99900 | 25 | color, enabled, id, index, name, parentId, random, subActions, type, weight
+99901 | 1 | enabled, id, index, parentId, random, subActions, type, weight
+99902 | 1 | enabled, id, index, parentId, random, subActions, type, weight
+99903 | 7 | caseSensitive, enabled, id, index, parentId, random, subActions, type, values, weight
+99904 | 1 | enabled, id, index, parentId, random, subActions, type, weight
+99998 | 16 | enabled, executeCodeId, id, index, method, parentId, runOnUiThread, saveResultToVariable, saveToVariable, type, weight
+99999 | 31 | byteCode, delayStart, description, enabled, id, index, name, parentId, precompile, references, saveResultToVariable, saveToVariable, type, weight
+

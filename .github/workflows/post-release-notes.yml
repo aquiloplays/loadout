@@ -1,0 +1,113 @@
+name: Post release notes to Discord
+
+# Same pattern as the StreamFusion repo's post-release-notes.yml. Fires
+# every time a GitHub Release on this repo is published (draft → live)
+# and POSTs the formatted release notes to the SF bot service's
+# /post-release endpoint, which renders an embed in the community
+# Discord.
+#
+# Manual re-run: Actions tab → "Post release notes to Discord" → Run
+# workflow → pick a tag.
+#
+# ──────────────────────────────────────────────────────────────────────
+# Required repo secrets (Settings → Secrets and variables → Actions)
+# ──────────────────────────────────────────────────────────────────────
+#   SF_RELEASE_POST_SECRET    Shared with the Railway bot service.
+#                             Same value used by StreamFusion's repo.
+#   SF_RELEASE_PING_ROLE_ID   (optional) Discord role ID to @-ping.
+#                             Suggested: a "Loadout Updates" role.
+#   SF_RELEASE_EMBED_COLOR    (optional) Hex/decimal sidebar color.
+#                             Default: 0x3A86FF (Loadout blue).
+#   SF_BOT_SERVICE_URL        (optional) Override for the bot host.
+#   SF_RELEASE_CHANNEL_ID     (optional) Override target channel.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to post (e.g. v0.1.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  post-to-discord:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Resolve release tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "value=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post release notes via SF bot
+        env:
+          SF_RELEASE_POST_SECRET:    ${{ secrets.SF_RELEASE_POST_SECRET }}
+          SF_BOT_SERVICE_URL:        ${{ secrets.SF_BOT_SERVICE_URL }}
+          SF_RELEASE_PING_ROLE_ID:   ${{ secrets.SF_RELEASE_PING_ROLE_ID }}
+          SF_RELEASE_EMBED_COLOR:    ${{ secrets.SF_RELEASE_EMBED_COLOR }}
+          SF_RELEASE_CHANNEL_ID:     ${{ secrets.SF_RELEASE_CHANNEL_ID }}
+          GITHUB_TOKEN:              ${{ secrets.GITHUB_TOKEN }}
+          REPO:                      ${{ github.repository }}
+          TAG:                       ${{ steps.tag.outputs.value }}
+        run: |
+          set -e
+          if [ -z "$SF_RELEASE_POST_SECRET" ]; then
+            echo "::warning::SF_RELEASE_POST_SECRET not set — skipping Discord post"
+            exit 0
+          fi
+          BOT_URL="${SF_BOT_SERVICE_URL:-https://sf-bot.up.railway.app}"
+          PRODUCT="Loadout"
+          DEFAULT_COLOR="0x3A86FF"
+          COLOR="${SF_RELEASE_EMBED_COLOR:-$DEFAULT_COLOR}"
+
+          # Fetch the release body from GitHub.
+          BODY_FILE="$RUNNER_TEMP/release-body.txt"
+          curl -sS -H "Authorization: Bearer $GITHUB_TOKEN" \
+               -H "Accept: application/vnd.github+json" \
+               "https://api.github.com/repos/$REPO/releases/tags/$TAG" \
+            | node -e "
+                const j=JSON.parse(require('fs').readFileSync(0,'utf8'));
+                require('fs').writeFileSync(process.env.OUT, j.body || '(no notes)');
+                console.error('release name:', j.name || j.tag_name);
+              " OUT="$BODY_FILE"
+
+          BODY="$(cat "$BODY_FILE")"
+
+          # Hand off to the SF bot.
+          PAYLOAD=$(node -e "
+            console.log(JSON.stringify({
+              product: process.env.PRODUCT,
+              repo:    process.env.REPO,
+              tag:     process.env.TAG,
+              url:     'https://github.com/' + process.env.REPO + '/releases/tag/' + process.env.TAG,
+              notes:   require('fs').readFileSync(process.env.BODY_FILE, 'utf8'),
+              ping_role_id: process.env.SF_RELEASE_PING_ROLE_ID || null,
+              channel_id:   process.env.SF_RELEASE_CHANNEL_ID   || null,
+              color:        process.env.COLOR
+            }));
+          " PRODUCT="$PRODUCT" REPO="$REPO" TAG="$TAG" BODY_FILE="$BODY_FILE" \
+            SF_RELEASE_PING_ROLE_ID="$SF_RELEASE_PING_ROLE_ID" \
+            SF_RELEASE_CHANNEL_ID="$SF_RELEASE_CHANNEL_ID" COLOR="$COLOR")
+
+          curl -sS -X POST "$BOT_URL/post-release" \
+            -H "Authorization: Bearer $SF_RELEASE_POST_SECRET" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            --fail-with-body

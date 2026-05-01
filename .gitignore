@@ -1,0 +1,29 @@
+# Build artifacts
+bin/
+obj/
+*.user
+*.suo
+.vs/
+
+# Rider / VS Code
+.idea/
+.vscode/
+
+# NuGet
+packages/
+*.nupkg
+
+# Local settings
+local.json
+*.local.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Test output
+TestResults/
+
+# Loadout — never commit user data dumps
+data-dump/
+*.loadout-backup.zip

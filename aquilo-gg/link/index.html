@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Link your Patreon — aquilo.gg</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Connect your Patreon to your Twitch / YouTube / Kick / TikTok handle so Loadout shows your supporter flair.">
+<style>
+:root {
+  --bg: #0E0E10;
+  --surface: #18181B;
+  --surface-2: #1F1F23;
+  --border: #2A2A30;
+  --text: #EFEFF1;
+  --muted: #ADADB8;
+  --accent: #3A86FF;
+  --accent-hover: #5A9CFF;
+  --tw: #9147FF;
+  --yt: #FF0000;
+  --tt: #00F2EA;
+  --kk: #53FC18;
+  --gold: #F0B429;
+  --error: #F85149;
+  --success: #3FB950;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; }
+body { min-height: 100vh; padding: 32px 16px; display: flex; flex-direction: column; align-items: center; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { color: var(--accent-hover); }
+
+.shell { width: 100%; max-width: 540px; }
+.title { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.title svg { width: 32px; height: 32px; }
+.title h1 { font-size: 22px; font-weight: 700; }
+.title .sub { color: var(--muted); font-size: 13px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+.card h2 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.card p { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-family: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn:hover { background: var(--accent-hover); }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.btn.secondary { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+.btn.patreon { background: linear-gradient(135deg, #FF424D, #F1465A); }
+
+.row { display: flex; gap: 8px; align-items: center; }
+.row > * { flex: 1; }
+.row > .narrow { flex: 0 0 140px; }
+
+label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: .8px; }
+select, input {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+}
+select:focus, input:focus { outline: none; border-color: var(--accent); }
+
+.handle-list { margin-top: 12px; }
+.handle-row {
+  display: flex; gap: 8px; align-items: center;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+.handle-row .platform-tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); }
+.handle-row .twitch  { color: var(--tw); border-color: var(--tw); }
+.handle-row .youtube { color: var(--yt); border-color: var(--yt); }
+.handle-row .kick    { color: var(--kk); border-color: var(--kk); }
+.handle-row .tiktok  { color: var(--tt); border-color: var(--tt); }
+.handle-row .handle  { flex: 1; font-weight: 600; }
+.handle-row .delete {
+  background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 18px; padding: 0 6px;
+}
+.handle-row .delete:hover { color: var(--error); }
+
+.tier-pill {
+  display: inline-block; padding: 4px 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px;
+}
+.tier-tier3 { background: linear-gradient(90deg, #F55D44, #FFCD3C); color: #1a0d00; }
+.tier-tier2 { background: rgba(245,93,68,.25); border: 1px solid #F55D44; color: #ffb7a8; }
+.tier-tier1 { background: rgba(241,103,53,.20); border: 1px solid #F16735; color: #ffc8b3; }
+.tier-none  { background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); }
+
+.alert {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin-bottom: 12px;
+  display: none;
+}
+.alert.error   { background: rgba(248,81,73,.15);  border: 1px solid var(--error);   color: #ffc1bd; display: block; }
+.alert.success { background: rgba(63,185,80,.15);  border: 1px solid var(--success); color: #c1ffd0; display: block; }
+
+.footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px; }
+.footer a { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="title">
+    <!-- inline Loadout-style mark, kept tiny on purpose -->
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <defs>
+        <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stop-color="#5A9CFF"/>
+          <stop offset="1" stop-color="#00F2EA"/>
+        </linearGradient>
+      </defs>
+      <circle cx="50" cy="50" r="46" fill="#0E0E10" stroke="url(#g)" stroke-width="3"/>
+      <path d="M35 25 L35 70 L65 70" fill="none" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div>
+      <h1>Link your Patreon</h1>
+      <div class="sub">aquilo.gg supporter flair across Loadout &amp; StreamFusion</div>
+    </div>
+  </div>
+
+  <div id="alert" class="alert"></div>
+
+  <!-- Step 1: connect Patreon -->
+  <div id="cardConnect" class="card">
+    <h2>1. Connect Patreon</h2>
+    <p>You'll sign in on Patreon's site - we never see your password. Aquilo only stores your Patreon user ID, your tier, and the handles you list below.</p>
+    <button id="btnConnect" class="btn patreon">Connect with Patreon</button>
+  </div>
+
+  <!-- Step 2: claimed identity + handle list (hidden until signed in) -->
+  <div id="cardClaim" class="card" style="display:none;">
+    <h2>2. Add your stream handles</h2>
+    <p>Your supporter flair will appear on Loadout overlays whenever you chat under any of these handles.</p>
+
+    <div id="signedInAs" style="margin-bottom: 16px; padding: 12px; background: var(--surface-2); border-radius: 8px; font-size: 13px;">
+      <span style="color: var(--muted);">Signed in as</span>
+      <strong id="patreonName"></strong>
+      <span id="patreonTier" class="tier-pill tier-none" style="margin-left: 8px;"></span>
+    </div>
+
+    <div class="row">
+      <div class="narrow">
+        <label for="platform">Platform</label>
+        <select id="platform">
+          <option value="twitch">Twitch</option>
+          <option value="youtube">YouTube</option>
+          <option value="kick">Kick</option>
+          <option value="tiktok">TikTok</option>
+        </select>
+      </div>
+      <div>
+        <label for="handle">Handle / username</label>
+        <input id="handle" type="text" placeholder="aquilo_plays" autocomplete="off">
+      </div>
+    </div>
+    <button id="btnAddHandle" class="btn" style="margin-top: 12px;">Add handle</button>
+
+    <div id="handleList" class="handle-list"></div>
+
+    <button id="btnSignOut" class="btn secondary" style="margin-top: 16px;">Sign out</button>
+  </div>
+
+  <div class="footer">
+    Need to set this up in your tools? See <a href="/loadout">Loadout</a> &middot; <a href="/streamfusion">StreamFusion</a>
+  </div>
+</div>
+
+<script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Goals Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Drop into OBS:
+
+    https://aquilo.gg/overlays/goals?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
+
+  Optional:
+    goals      csv list of goal names to render (defaults to all enabled)
+    layout     "stack" (default) | "row"
+    theme      "dark" (default) | "neon"
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark" data-layout="stack">
+  <div id="root"></div>
+  <script src="main.js"></script>
+</body>
+</html>

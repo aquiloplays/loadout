@@ -1,0 +1,238 @@
+/*
+ * Loadout landing page. On-brand with StreamFusion + Loadout DLL UI:
+ * same palette, same Segoe UI, same 8 px radius. If brand colors change,
+ * update them here AND in src/Loadout.Core/UI/Styles.xaml AND in StreamFusion.
+ */
+:root {
+  --bg: #0E0E10;
+  --surface: #18181B;
+  --surface-2: #1F1F23;
+  --surface-3: #26262C;
+  --border: #2A2A30;
+  --text: #EFEFF1;
+  --muted: #ADADB8;
+  --accent: #3A86FF;
+  --accent-hi: #5A9CFF;
+  --tt: #00F2EA;
+  --gold: #F0B429;
+  --pink: #FF5DA2;
+  --grad: linear-gradient(135deg, #5A9CFF 0%, #00F2EA 100%);
+  --grad-warm: linear-gradient(135deg, #F55D44 0%, #FFCD3C 100%);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+a { color: var(--accent); text-decoration: none; transition: color .15s; }
+a:hover { color: var(--accent-hi); }
+code { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; background: var(--surface-2); padding: 1px 6px; border-radius: 4px; font-size: .9em; }
+
+/* ── Top bar ─────────────────────────────────────────────────────── */
+.topbar {
+  position: sticky; top: 0; z-index: 50;
+  display: flex; align-items: center; gap: 24px;
+  padding: 14px 28px;
+  background: rgba(14,14,16,.78);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; color: var(--text); }
+.brand:hover { color: var(--text); }
+.brand svg { width: 30px; height: 30px; }
+.topbar nav { margin-left: auto; display: flex; gap: 22px; }
+.topbar nav a { color: var(--muted); font-size: 14px; }
+.topbar nav a:hover { color: var(--text); }
+
+/* ── Hero ────────────────────────────────────────────────────────── */
+.hero {
+  padding: 64px 28px 80px;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(58,134,255,.18), transparent 50%),
+    radial-gradient(ellipse at 80% 60%, rgba(0,242,234,.12), transparent 55%);
+}
+.hero-inner {
+  max-width: 1140px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 40px;
+  align-items: center;
+}
+.hero h1 { font-size: 44px; font-weight: 800; line-height: 1.12; letter-spacing: -.5px; }
+.hero h1 .grad {
+  background: var(--grad);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+.hero .lede { color: var(--muted); margin: 22px 0 26px; max-width: 580px; font-size: 17px; }
+.hero .tag { color: var(--muted); margin-top: 18px; font-size: 13px; opacity: .8; }
+
+.cta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 11px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: transform .15s, background .15s, border-color .15s;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn.primary   { background: var(--accent); color: white; }
+.btn.primary:hover { background: var(--accent-hi); color: white; }
+.btn.secondary { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+.btn.secondary:hover { background: var(--surface-3); border-color: var(--accent); color: var(--text); }
+.btn.outline   { background: transparent; color: var(--text); border: 1px solid var(--border); }
+.btn.outline:hover { border-color: var(--accent); color: var(--text); }
+
+/* Hero status card — mimics the tray menu health row */
+.hero-card {
+  background: linear-gradient(180deg, rgba(24,24,27,.95), rgba(15,15,17,.95));
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 22px 24px;
+  box-shadow: 0 18px 36px rgba(0,0,0,.55);
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 13px;
+}
+.hero-card .card-row { display: flex; align-items: baseline; gap: 8px; padding: 4px 0; }
+.hero-card .card-row.hint { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
+.hero-card .lbl { color: var(--muted); min-width: 88px; }
+.hero-card .val { color: var(--text); }
+.hero-card .val.muted { color: var(--muted); }
+.hero-card .meta { color: var(--text); font-weight: 600; }
+.hero-card .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #3FB950;
+  box-shadow: 0 0 10px #3FB950;
+  flex-shrink: 0;
+  margin-top: 6px;
+}
+
+/* ── Features ────────────────────────────────────────────────────── */
+section { padding: 64px 28px; }
+section h2 { font-size: 30px; font-weight: 800; margin-bottom: 8px; letter-spacing: -.3px; }
+section .sub { color: var(--muted); margin-bottom: 32px; }
+
+.features { max-width: 1140px; margin: 0 auto; }
+.feat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 18px;
+  margin-top: 28px;
+}
+.feat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+  transition: border-color .15s, transform .15s;
+}
+.feat:hover { border-color: var(--accent); transform: translateY(-2px); }
+.feat h3 { font-size: 16px; margin-bottom: 8px; font-weight: 700; }
+.feat p  { color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+/* ── Tiers ───────────────────────────────────────────────────────── */
+.tiers { max-width: 1140px; margin: 0 auto; }
+.tier-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-top: 28px;
+}
+.tier {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 26px 22px;
+  display: flex;
+  flex-direction: column;
+}
+.tier.featured {
+  background: linear-gradient(180deg, rgba(58,134,255,.10), var(--surface) 60%);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(58,134,255,.18), 0 12px 30px rgba(0,0,0,.5);
+}
+.tier.pro {
+  background: linear-gradient(180deg, rgba(245,93,68,.10), var(--surface) 60%);
+  border-color: rgba(245,93,68,.6);
+}
+.tier-head h3 { font-size: 22px; font-weight: 800; margin-bottom: 4px; }
+.tier-head p  { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+.tier ul { list-style: none; padding: 0; margin: 0 0 22px; flex: 1; }
+.tier li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 14px; color: var(--text); }
+.tier li:last-child { border: none; }
+.tier li::before { content: '✓ '; color: var(--accent); font-weight: 700; margin-right: 4px; }
+.tier.pro li::before { color: #F55D44; }
+.tier .btn { align-self: flex-start; }
+
+/* ── Install ─────────────────────────────────────────────────────── */
+.install { max-width: 900px; margin: 0 auto; }
+.steps {
+  list-style: none;
+  counter-reset: step;
+  display: grid;
+  gap: 14px;
+  margin-top: 28px;
+}
+.steps li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 22px 18px 70px;
+  position: relative;
+  font-size: 15px;
+}
+.steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  position: absolute;
+  left: 22px;
+  top: 18px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+.install .links { margin-top: 28px; display: flex; gap: 22px; flex-wrap: wrap; }
+
+/* ── Footer ──────────────────────────────────────────────────────── */
+.foot {
+  padding: 32px 28px 60px;
+  text-align: center;
+  border-top: 1px solid var(--border);
+  margin-top: 32px;
+  color: var(--muted);
+}
+.foot div { padding: 4px 0; }
+.foot .muted, .foot a { font-size: 13px; }
+.foot a { color: var(--muted); }
+.foot a:hover { color: var(--text); }
+
+/* ── Mobile ──────────────────────────────────────────────────────── */
+@media (max-width: 860px) {
+  .hero { padding: 40px 20px 60px; }
+  .hero-inner { grid-template-columns: 1fr; gap: 28px; }
+  .hero h1 { font-size: 34px; }
+  .topbar { padding: 12px 20px; gap: 12px; }
+  .topbar nav { gap: 14px; font-size: 13px; }
+  .topbar nav a:not([href="#install"]):not([href*="github"]) { display: none; }
+  section { padding: 48px 20px; }
+  section h2 { font-size: 26px; }
+  .tier-grid { grid-template-columns: 1fr; }
+  .feat-grid { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Bolts Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Unified Bolts overlay. ONE OBS browser source, every Bolts visualization.
+  Each layer renders into its own positional zone and only takes screen real
+  estate when it has something to show.
+
+  Drop into OBS:
+    https://aquilo.gg/overlays/bolts?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
+
+  Layer toggles (default: all on):
+    ?layers=leaderboard,toast,rain,streak,giftburst
+
+  Position overrides (each layer can move independently):
+    ?lbPos=br      bottom-right (default) | bl | tr | tl
+    ?toastPos=tr   top-right (default)
+    ?streakPos=tc  top-center (default)
+
+  Future Bolts features (duels, slots, lootboxes) will register additional
+  layers in this same file - no overlay rewrite needed.
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Persistent leaderboard ticker -->
+  <div id="leaderboard" class="layer hidden" data-pos="br">
+    <div class="lb-title">⚡ Top Bolts</div>
+    <ol class="lb-rows"></ol>
+  </div>
+
+  <!-- Transient earn toasts -->
+  <div id="toastTrack" class="layer" data-pos="tr"></div>
+
+  <!-- Bolt rain (fullscreen) -->
+  <div id="rain" class="layer rain hidden"></div>
+
+  <!-- Daily streak banner -->
+  <div id="streak" class="layer streak hidden" data-pos="tc">
+    <div class="streak-inner">
+      <span class="streak-fire">🔥</span>
+      <span class="streak-text"></span>
+    </div>
+  </div>
+
+  <!-- Gift burst (transient toast in center) -->
+  <div id="giftburst" class="layer giftburst hidden">
+    <div class="gift-text"></div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

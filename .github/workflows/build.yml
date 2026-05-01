@@ -1,0 +1,65 @@
+name: Build
+
+# Compiles Loadout.dll on every push and PR. Catches breakage before it
+# lands. Doesn't publish anything — see release.yml for tag-driven
+# release builds that produce GitHub Release artifacts.
+#
+# Targets net48 from the .NET SDK 8 toolchain (works fine; net48
+# reference assemblies are bundled).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build DLL + import bundle
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Loadout.dll (Release)
+        shell: pwsh
+        run: |
+          dotnet build src/Loadout.Core/Loadout.Core.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw "Build failed (exit $LASTEXITCODE)" }
+
+      - name: Generate import bundle
+        shell: pwsh
+        run: |
+          .\tools\build-sb-import.ps1
+          if (-not (Test-Path streamerbot/loadout-import.sb.txt)) {
+            throw "Bundle generator did not produce loadout-import.sb.txt"
+          }
+
+      - name: Verify bundle round-trips
+        shell: pwsh
+        run: |
+          $b64 = (Get-Content streamerbot/loadout-import.sb.txt -Raw).Trim()
+          .\tools\decode-sb-export.ps1 -Base64 $b64 -OutPath verify-roundtrip.json
+          $size = (Get-Item verify-roundtrip.json).Length
+          if ($size -lt 1000) { throw "Round-trip output suspiciously small: $size bytes" }
+          Write-Host "Round-trip OK: $size bytes"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: loadout-build-${{ github.sha }}
+          path: |
+            src/Loadout.Core/bin/Release/net48/Loadout.dll
+            src/Loadout.Core/bin/Release/net48/Newtonsoft.Json.dll
+            streamerbot/loadout-import.sb.txt
+          retention-days: 14

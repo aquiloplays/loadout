@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Daily Check-In Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  This page is intentionally static. Drop the URL into OBS (Browser Source):
+
+    https://aquilo.gg/overlays/check-in?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
+
+  Required query params:
+    bus      WebSocket URL of the local Aquilo Bus
+    secret   Shared secret from %APPDATA%\Aquilo\bus-secret.txt
+
+  Optional:
+    debug    1 to render a static demo card (also fires when no bus connects)
+    width    fixed width in px (default 540)
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="root" data-state="hidden">
+    <div class="card" id="card">
+      <div class="ring" id="ring"></div>
+      <img id="pfp" alt="" />
+      <div class="initials" id="initials"></div>
+
+      <div class="content">
+        <div class="line-user">
+          <span id="user" class="user"></span>
+          <span id="flairs" class="flairs"></span>
+        </div>
+        <div class="stats" id="stats"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
+</body>
+</html>

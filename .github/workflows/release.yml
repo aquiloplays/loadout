@@ -1,0 +1,121 @@
+name: Release
+
+# Tag-driven release builds. Push a tag like `v0.2.0` and this workflow:
+#   1. Compiles Loadout.dll in Release config
+#   2. Generates the SB import bundle (loadout-import.sb.txt)
+#   3. Packages the release zip (Loadout-vX.Y.Z.zip) with DLL + bundle + readme
+#   4. Creates a GitHub Release as draft (you flip to published when ready)
+#   5. The post-release-notes.yml workflow takes over once you publish
+#
+# Versioning convention: tag must start with `v` and match the csproj
+# Version. tools/release.ps1 keeps these in sync; CI fails the release
+# step if they diverge.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to (re-)build a release for (must already exist)'
+        required: true
+        type: string
+
+permissions:
+  contents: write    # required to create the GitHub Release
+
+jobs:
+  release:
+    name: Build + publish release
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0   # release notes generation walks history
+
+      - name: Set up .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Resolve tag + version
+        id: ver
+        shell: pwsh
+        run: |
+          $tag = if ('${{ inputs.tag }}') { '${{ inputs.tag }}' } else { '${{ github.ref_name }}' }
+          if ($tag -notmatch '^v\d+\.\d+\.\d+') {
+            throw "Tag '$tag' must look like v0.1.0"
+          }
+          $version = $tag.TrimStart('v')
+
+          # Sanity-check that the csproj version matches the tag.
+          $csproj = Get-Content src/Loadout.Core/Loadout.Core.csproj -Raw
+          if ($csproj -notmatch "<Version>$([regex]::Escape($version))</Version>") {
+            throw "csproj version does not match tag $tag. Run tools/release.ps1 -Version $version before tagging."
+          }
+
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Build Loadout.dll
+        shell: pwsh
+        run: |
+          dotnet build src/Loadout.Core/Loadout.Core.csproj -c Release --nologo
+          if ($LASTEXITCODE -ne 0) { throw "Build failed" }
+
+      - name: Generate import bundle
+        shell: pwsh
+        run: |
+          .\tools\build-sb-import.ps1 -Version ${{ steps.ver.outputs.version }}
+
+      - name: Stage release artifacts
+        shell: pwsh
+        run: |
+          $stage = "release-stage"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item src/Loadout.Core/bin/Release/net48/Loadout.dll        $stage/
+          Copy-Item src/Loadout.Core/bin/Release/net48/Newtonsoft.Json.dll $stage/
+          Copy-Item streamerbot/loadout-import.sb.txt                     $stage/
+          Copy-Item README.md                                              $stage/README.md
+          Copy-Item INSTALL.md                                             $stage/INSTALL.md
+          Copy-Item CHANGELOG.md                                           $stage/CHANGELOG.md
+          Copy-Item LICENSE                                                $stage/LICENSE
+
+          # Quick-start txt for users who only download the zip.
+          @"
+Loadout v${{ steps.ver.outputs.version }}
+==========================================
+
+QUICK INSTALL:
+
+1. Drop Loadout.dll into <Streamerbot>/data/Loadout/.
+2. Open Streamer.bot, click Import (top-right), paste the contents
+   of loadout-import.sb.txt.
+3. Restart SB or right-click 'Loadout: Boot' and Run Now.
+4. The onboarding wizard opens. Pick what you want enabled.
+
+See INSTALL.md and CONFIG.md for the full walkthrough.
+Issues: https://github.com/aquiloplays/loadout/issues
+"@ | Out-File "$stage/QUICKSTART.txt" -Encoding utf8
+
+          Compress-Archive -Path "$stage/*" -DestinationPath "Loadout-${{ steps.ver.outputs.tag }}.zip" -Force
+          Get-ChildItem "Loadout-${{ steps.ver.outputs.tag }}.zip"
+
+      - name: Create / update GitHub Release (draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.tag }}
+          name: Loadout ${{ steps.ver.outputs.tag }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            src/Loadout.Core/bin/Release/net48/Loadout.dll
+            src/Loadout.Core/bin/Release/net48/Newtonsoft.Json.dll
+            streamerbot/loadout-import.sb.txt
+            Loadout-${{ steps.ver.outputs.tag }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

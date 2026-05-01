@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Counters Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Drop into OBS:
+
+    https://aquilo.gg/overlays/counters?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET&counters=deaths,wins
+
+  Required:
+    bus, secret   - same as check-in overlay
+    counters      - csv list of counter names to display (defaults to all)
+
+  Optional:
+    layout        - "row" (default) | "stack" | "compact"
+    theme         - "dark" (default) | "neon" | "minimal"
+    bumpMs        - flash duration on update (default 600)
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark" data-layout="row">
+  <div id="root"></div>
+  <script src="main.js"></script>
+</body>
+</html>

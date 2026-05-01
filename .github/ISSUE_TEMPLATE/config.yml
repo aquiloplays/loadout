@@ -1,0 +1,13 @@
+# Force users to pick a template — keeps the issue queue clean.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Patreon support
+    url: https://patreon.com/aquiloplays
+    about: Tier 2 / Tier 3 supporter perks across Loadout + StreamFusion.
+  - name: aquilo.gg
+    url: https://aquilo.gg
+    about: Other tools, overlays, and contact info.
+  - name: StreamFusion
+    url: https://github.com/aquiloplays/StreamFusion
+    about: The companion multi-chat app.

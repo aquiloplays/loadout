@@ -1,0 +1,232 @@
+<Window x:Class="Loadout.UI.OnboardingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Loadout — Welcome"
+        Width="780" Height="560"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Loadout;component/UI/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Step indicator -->
+        <Border Grid.Row="0" Background="{StaticResource Brush.Bg.Surface}" Padding="24 18"
+                BorderBrush="{StaticResource Brush.Border}" BorderThickness="0 0 0 1">
+            <StackPanel>
+                <TextBlock Text="Loadout Setup" Style="{StaticResource H1}" />
+                <TextBlock x:Name="StepLabel" Text="Step 1 of 7 — Welcome" Style="{StaticResource Muted}" />
+            </StackPanel>
+        </Border>
+
+        <!-- Step content -->
+        <Grid Grid.Row="1" Margin="32 24">
+            <!-- Step 1: Welcome -->
+            <StackPanel x:Name="Step1" Visibility="Visible">
+                <TextBlock Text="Welcome to Loadout 🎒" Style="{StaticResource H1}" />
+                <TextBlock TextWrapping="Wrap" Margin="0 8 0 16">
+                    Loadout is a complete Streamer.bot suite — info commands, alerts, timed messages,
+                    AI-personalized shoutouts, hate-raid detection, Discord live status, and more.
+                    Everything works across <Bold>Twitch</Bold>, <Bold>TikTok</Bold>, <Bold>YouTube</Bold>,
+                    and <Bold>Kick</Bold>.
+                </TextBlock>
+                <TextBlock TextWrapping="Wrap" Style="{StaticResource Muted}">
+                    This wizard takes about 3 minutes. You can change anything later in Settings.
+                </TextBlock>
+                <Border Style="{StaticResource Card}" Margin="0 24 0 0">
+                    <StackPanel>
+                        <TextBlock Text="What we'll set up" Style="{StaticResource H2}" />
+                        <TextBlock Text="• Which platforms you stream on" Margin="0 2" />
+                        <TextBlock Text="• Which modules you want enabled by default" Margin="0 2" />
+                        <TextBlock Text="• Discord webhook for go-live posts (optional)" Margin="0 2" />
+                        <TextBlock Text="• AI provider for personalized shoutouts (optional)" Margin="0 2" />
+                        <TextBlock Text="• Webhook inbox port for external integrations (optional)" Margin="0 2" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Step 2: Platforms -->
+            <StackPanel x:Name="Step2" Visibility="Collapsed">
+                <TextBlock Text="Which platforms do you stream on?" Style="{StaticResource H1}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 16">
+                    Loadout will only listen to and post on platforms you enable here. You can flip these any time.
+                </TextBlock>
+                <CheckBox x:Name="ChkTwitch"  Content="Twitch"   Style="{StaticResource ToggleRow}" />
+                <CheckBox x:Name="ChkTikTok"  Content="TikTok (via TikFinity)"  Style="{StaticResource ToggleRow}" />
+                <CheckBox x:Name="ChkYouTube" Content="YouTube"  Style="{StaticResource ToggleRow}" />
+                <CheckBox x:Name="ChkKick"    Content="Kick"     Style="{StaticResource ToggleRow}" />
+
+                <Border Style="{StaticResource Card}" Margin="0 24 0 0">
+                    <StackPanel>
+                        <TextBlock Text="Your broadcaster name" Style="{StaticResource H2}" />
+                        <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 6"
+                                   Text="Used in welcomes, recaps, and Discord posts. Usually your Twitch login." />
+                        <TextBox x:Name="TxtBroadcaster" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Step 3: Modules -->
+            <StackPanel x:Name="Step3" Visibility="Collapsed">
+                <TextBlock Text="Pick your modules" Style="{StaticResource H1}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 12" TextWrapping="Wrap">
+                    Loadout ships with everything OFF. Tick what you want active — you can change anything later in Settings → Modules.
+                </TextBlock>
+                <StackPanel Orientation="Horizontal" Margin="0 0 0 12">
+                    <Button Content="Recommended" Style="{StaticResource SecondaryButton}" Click="BtnPresetRecommended_Click" Margin="0 0 8 0" />
+                    <Button Content="Enable all"  Style="{StaticResource SecondaryButton}" Click="BtnPresetAll_Click"         Margin="0 0 8 0" />
+                    <Button Content="Disable all" Style="{StaticResource SecondaryButton}" Click="BtnPresetNone_Click" />
+                </StackPanel>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                    <StackPanel>
+                        <CheckBox x:Name="ChkInfo"     Content="Info commands (uptime, followage, socials, etc.)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkWelcomes" Content="Context-aware welcomes" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkLoyalty"  Content="Bolts wallet (with !link to merge platforms)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkAlerts"   Content="Alerts (follows, subs, raids, super chats, etc.)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkTimers"   Content="Auto-timed messages" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkAi"       Content="AI personalized shoutouts (BYOK or Tier 3)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkHype"     Content="TikTok hype train (Tier 3)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkRecap"    Content="Stream recap (post-stream summary)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkDiscord"  Content="Discord live status auto-poster" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkWebhook"  Content="Webhook inbox" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkMod"      Content="Hate-raid detector (Tier 3)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkFun"      Content="Counters (deaths/wins + custom)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkGoals"    Content="Goal tracking (followers/subs/bits)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkCheckIn"  Content="Daily Check-In overlay" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkFirstWords" Content="First words celebration" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkAdBreak"  Content="Ad break heads-up" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkSubRaid"  Content="Sub raid train" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkSubAnniv" Content="Sub anniversary milestones" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkCcCoins"  Content="Crowd Control coin tracker" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkVip"      Content="VIP rotation auto-magic (Tier 3)" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkAutoPoll" Content="Auto-poll on category change" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkApex"     Content="Apex (top-viewer mode with cross-platform damage)" Style="{StaticResource ToggleRow}" />
+                    </StackPanel>
+                </ScrollViewer>
+            </StackPanel>
+
+            <!-- Step 4: Discord -->
+            <StackPanel x:Name="Step4" Visibility="Collapsed">
+                <TextBlock Text="Discord live-status (optional)" Style="{StaticResource H1}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 16" TextWrapping="Wrap">
+                    Paste a Discord webhook URL and Loadout will post a "live now" embed when you go live,
+                    edit it when title/category changes, and archive it when you go offline. Skip this and you can add it later.
+                </TextBlock>
+                <TextBlock Text="Webhook URL" Style="{StaticResource H2}" />
+                <TextBox x:Name="TxtDiscordWebhook" />
+                <TextBlock Margin="0 12 0 4" Text="Go-live message template" Style="{StaticResource H2}" />
+                <TextBox x:Name="TxtDiscordTemplate" AcceptsReturn="True" Height="70" TextWrapping="Wrap" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0 4 0 0">
+                    Variables: {broadcaster} {title} {game} {url}
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Step 5: AI -->
+            <StackPanel x:Name="Step5" Visibility="Collapsed">
+                <TextBlock Text="AI personalized shoutouts (optional)" Style="{StaticResource H1}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 16" TextWrapping="Wrap">
+                    When someone raids, Loadout looks up their last category/title and writes a hype, specific
+                    shoutout. Without an API key, falls back to a template. Anthropic Claude or OpenAI work.
+                </TextBlock>
+                <TextBlock Text="Provider" Style="{StaticResource H2}" />
+                <ComboBox x:Name="CmbAiProvider" SelectedIndex="0">
+                    <ComboBoxItem Content="Anthropic Claude" Tag="anthropic" />
+                    <ComboBoxItem Content="OpenAI"           Tag="openai" />
+                    <ComboBoxItem Content="None (use template)" Tag="none" />
+                </ComboBox>
+                <TextBlock Margin="0 12 0 4" Text="API key" Style="{StaticResource H2}" />
+                <TextBox x:Name="TxtAiKey" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0 4 0 0">
+                    Stored locally only, never transmitted except to your chosen provider.
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Step 6: Webhook inbox -->
+            <StackPanel x:Name="Step6" Visibility="Collapsed">
+                <TextBlock Text="Webhook inbox (optional)" Style="{StaticResource H1}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 16" TextWrapping="Wrap">
+                    Loadout can listen on a local port and trigger SB actions when external services
+                    (Ko-fi, Throne, Patreon, custom) hit it. Map paths → actions in Settings later.
+                </TextBlock>
+                <TextBlock Text="Listen port" Style="{StaticResource H2}" />
+                <TextBox x:Name="TxtWebhookPort" Text="7474" />
+                <TextBlock Margin="0 12 0 4" Text="Shared secret (recommended)" Style="{StaticResource H2}" />
+                <TextBox x:Name="TxtWebhookSecret" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0 4 0 0" TextWrapping="Wrap">
+                    Senders include this in an X-Loadout-Secret header. Leave blank to allow unauthenticated requests
+                    (only safe if you bind to localhost).
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Step 7: Patreon -->
+            <StackPanel x:Name="Step7" Visibility="Collapsed">
+                <TextBlock Text="Connect Patreon (optional)" Style="{StaticResource H1}" />
+                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 16">
+                    Loadout is fully free for the basics. Tier 2 ($6) unlocks multi-platform alerts, unlimited timers,
+                    Discord live status, webhook inbox, and stream recap. Tier 3 ($10) adds AI shoutouts, hate-raid
+                    detection, TikTok hype train, and the cross-platform loyalty wallet.
+                </TextBlock>
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock x:Name="TxtPatreonStatus" Style="{StaticResource Muted}" Margin="0 0 0 12" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="BtnPatreonConnect" Content="Connect Patreon"
+                                    Style="{StaticResource PrimaryButton}" Click="BtnPatreonConnect_Click"
+                                    Margin="0 0 8 0" />
+                            <Button x:Name="BtnPatreonSkip" Content="Skip - I'm staying free"
+                                    Style="{StaticResource SecondaryButton}" Click="BtnPatreonSkip_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                <TextBlock Style="{StaticResource Muted}" Margin="0 16 0 0" TextWrapping="Wrap">
+                    Sign-in opens in your default browser. Loadout never sees your password — Patreon does the auth.
+                </TextBlock>
+            </StackPanel>
+
+            <!-- Step 8: Done -->
+            <StackPanel x:Name="Step8" Visibility="Collapsed">
+                <TextBlock Text="You're ready 🎉" Style="{StaticResource H1}" />
+                <TextBlock TextWrapping="Wrap" Margin="0 8 0 16">
+                    Loadout is configured. The tray icon (bottom-right of your screen) is your hub —
+                    right-click any time for quick toggles or to open Settings.
+                </TextBlock>
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Next steps" Style="{StaticResource H2}" />
+                        <TextBlock Text="• Test a command in chat: !uptime" Margin="0 2" />
+                        <TextBlock Text="• Edit timed messages in Settings → Timers" Margin="0 2" />
+                        <TextBlock Text="• Customize alerts in Settings → Alerts" Margin="0 2" />
+                        <TextBlock Text="• Map webhook paths in Settings → Webhooks" Margin="0 2" />
+                    </StackPanel>
+                </Border>
+                <CheckBox x:Name="ChkOpenSettings" Content="Open Settings now" IsChecked="True"
+                          Style="{StaticResource ToggleRow}" Margin="0 16 0 0" />
+            </StackPanel>
+        </Grid>
+
+        <!-- Nav -->
+        <Border Grid.Row="2" Background="{StaticResource Brush.Bg.Surface}" Padding="24 16"
+                BorderBrush="{StaticResource Brush.Border}" BorderThickness="0 1 0 0">
+            <Grid>
+                <Button x:Name="BtnSkip"  Content="Skip setup" Style="{StaticResource SecondaryButton}"
+                        HorizontalAlignment="Left" Click="BtnSkip_Click" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="BtnBack" Content="Back" Style="{StaticResource SecondaryButton}"
+                            Margin="0 0 8 0" Click="BtnBack_Click" />
+                    <Button x:Name="BtnNext" Content="Next" Style="{StaticResource PrimaryButton}"
+                            Click="BtnNext_Click" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

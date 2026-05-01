@@ -1,0 +1,801 @@
+﻿{
+    "meta":  {
+                 "name":  "Loadout",
+                 "author":  "aquiloplays",
+                 "version":  "0.1.0",
+                 "description":  "The ultimate Streamer.bot suite. One import, everything ready.",
+                 "autoRunAction":  null,
+                 "minimumVersion":  null
+             },
+    "data":  {
+                 "actions":  [
+                                 {
+                                     "id":  "043c5f23-4d1d-4993-a808-98345be28085",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Loadout: Boot",
+                                     "group":  "Loadout",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+                                                      {
+                                                          "id":  "a419f54b-e036-4924-9971-f07a0d8e4bdb",
+                                                          "type":  706,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      }
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Loadout: Boot",
+                                                            "description":  "Bootstrap. Downloads Loadout.dll on first run, opens onboarding.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Net.Http.dll"
+                                                                           ],
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDDouKCrOKAnSBCT09UCi8vIFRyaWdnZXJlZCBvbiBTdHJlYW1lci5ib3QgU3RhcnRlZC4gRG93bmxvYWRzIExvYWRvdXQuZGxsIG9uIGZpcnN0IHJ1biwgbG9hZHMKLy8gaXQgdmlhIEFzc2VtYmx5LkxvYWRGcm9tIChubyBSZWZlcmVuY2VzLXRhYiBlZGl0aW5nIG5lZWRlZCksIGFuZCBjYWxscwovLyBMb2Fkb3V0RW50cnkuQm9vdChDUEgpLiBJZGVtcG90ZW50IMOi4oKs4oCdIHN1YnNlcXVlbnQgcnVucyBzaG9ydC1jaXJjdWl0Lgp1c2luZyBTeXN0ZW07CnVzaW5nIFN5c3RlbS5JTzsKdXNpbmcgU3lzdGVtLk5ldDsKdXNpbmcgU3lzdGVtLlJlZmxlY3Rpb247CgpwdWJsaWMgY2xhc3MgQ1BISW5saW5lCnsKICAgIHByaXZhdGUgY29uc3Qgc3RyaW5nIFJlcG8gICAgPSAiYXF1aWxvcGxheXMvbG9hZG91dCI7CiAgICBwcml2YXRlIGNvbnN0IHN0cmluZyBWZXJzaW9uID0gIjAuMS4wIjsKCiAgICBwdWJsaWMgYm9vbCBFeGVjdXRlKCkKICAgIHsKICAgICAgICB0cnkKICAgICAgICB7CiAgICAgICAgICAgIFNlcnZpY2VQb2ludE1hbmFnZXIuU2VjdXJpdHlQcm90b2NvbCB8PSBTZWN1cml0eVByb3RvY29sVHlwZS5UbHMxMjsKICAgICAgICAgICAgdmFyIGRhdGFEaXIgPSBQYXRoLkNvbWJpbmUoQXBwRG9tYWluLkN1cnJlbnREb21haW4uQmFzZURpcmVjdG9yeSwgImRhdGEiLCAiTG9hZG91dCIpOwogICAgICAgICAgICBEaXJlY3RvcnkuQ3JlYXRlRGlyZWN0b3J5KGRhdGFEaXIpOwogICAgICAgICAgICB2YXIgZGxsUGF0aCA9IFBhdGguQ29tYmluZShkYXRhRGlyLCAiTG9hZG91dC5kbGwiKTsKCiAgICAgICAgICAgIGlmICghRmlsZS5FeGlzdHMoZGxsUGF0aCkpCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIHZhciB1cmwgPSAiaHR0cHM6Ly9naXRodWIuY29tLyIgKyBSZXBvICsgIi9yZWxlYXNlcy9kb3dubG9hZC92IiArIFZlcnNpb24gKyAiL0xvYWRvdXQuZGxsIjsKICAgICAgICAgICAgICAgIENQSC5Mb2dJbmZvKCJbTG9hZG91dF0gRG93bmxvYWRpbmcgRExMOiAiICsgdXJsKTsKICAgICAgICAgICAgICAgIHVzaW5nICh2YXIgd2MgPSBuZXcgV2ViQ2xpZW50KCkpCiAgICAgICAgICAgICAgICB7CiAgICAgICAgICAgICAgICAgICAgd2MuSGVhZGVycy5BZGQoIlVzZXItQWdlbnQiLCAiTG9hZG91dC1Cb290LyIgKyBWZXJzaW9uKTsKICAgICAgICAgICAgICAgICAgICB3Yy5Eb3dubG9hZEZpbGUodXJsLCBkbGxQYXRoKTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQoKICAgICAgICAgICAgdmFyIGFzbSA9IEFzc2VtYmx5LkxvYWRGcm9tKGRsbFBhdGgpOwogICAgICAgICAgICB2YXIgZW50cnkgPSBhc20uR2V0VHlwZSgiTG9hZG91dC5Mb2Fkb3V0RW50cnkiLCB0aHJvd09uRXJyb3I6IHRydWUpOwogICAgICAgICAgICB2YXIgYm9vdCA9IGVudHJ5LkdldE1ldGhvZCgiQm9vdCIsIEJpbmRpbmdGbGFncy5QdWJsaWMgfCBCaW5kaW5nRmxhZ3MuU3RhdGljKTsKICAgICAgICAgICAgdmFyIG9rID0gKGJvb2wpYm9vdC5JbnZva2UobnVsbCwgbmV3IG9iamVjdFtdIHsgQ1BIIH0pOwoKICAgICAgICAgICAgQ1BILlNldEdsb2JhbFZhcigibG9hZG91dC5ib290ZWQiLCBvaywgdHJ1ZSk7CiAgICAgICAgICAgIENQSC5TZXRHbG9iYWxWYXIoImxvYWRvdXQudmVyc2lvbiIsIFZlcnNpb24sIHRydWUpOwogICAgICAgICAgICByZXR1cm4gb2s7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24gZXgpCiAgICAgICAgewogICAgICAgICAgICBDUEguTG9nRXJyb3IoIltMb2Fkb3V0XSBCb290IGZhaWxlZDogIiArIGV4Lk1lc3NhZ2UpOwogICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgfQogICAgfQp9Cg==",
+                                                            "precompile":  false,
+                                                            "delayStart":  0,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "832bc0c9-aaa3-4f26-946f-cd539d3d6ab9",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "69977559-1853-4270-b3c1-96a5721a54b0",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Loadout: Event",
+                                     "group":  "Loadout",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+                                                      {
+                                                          "id":  "7ad92fc4-d22d-46a7-87a8-84cd69583829",
+                                                          "type":  101,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "26fa26e3-1f67-4d25-b4ce-3fab40727d3d",
+                                                          "type":  103,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "39b2c793-0944-4411-89e1-828fdde8b1bf",
+                                                          "type":  104,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "00dd7b21-c2b5-4e06-9593-8b24311649b4",
+                                                          "type":  105,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "1a28f5a1-be9b-4213-8153-f177b34c4048",
+                                                          "type":  106,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "a2e857f8-eda9-4ca0-a4c1-06d641d34e5c",
+                                                          "type":  102,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "c2507f65-fe47-4b24-8cd5-523afab9db0d",
+                                                          "type":  107,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "7afbe3fc-3d29-4105-a3e3-6be9e586e468",
+                                                          "type":  112,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "d80aa551-4373-4f74-9160-0e703554a6cf",
+                                                          "type":  194,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "580e7256-06f1-46a9-990b-422fc413fe78",
+                                                          "type":  120,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "f6be9419-5765-4136-ac04-c8169d7d9ffd",
+                                                          "type":  186,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "51ec5b04-321a-41b8-96ca-aec56c79e3f9",
+                                                          "type":  118,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "cbaad632-a236-4ec3-9b5b-9db3712b7588",
+                                                          "type":  122,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "04f28c23-dd44-4ccb-8c9f-94ab707296fa",
+                                                          "type":  154,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "d047a1fc-8ebc-4263-b4a5-c0e7de540c1b",
+                                                          "type":  155,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "298cd541-122b-4f1c-b67d-440fa71255a0",
+                                                          "type":  4008,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "049daf42-39e4-4848-9a08-445cbf492b85",
+                                                          "type":  4009,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "4d82d4a2-920b-4e08-ac75-ea5a899c3ed0",
+                                                          "type":  4014,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "9f5c458d-e49a-4146-b97b-3a71c6307f14",
+                                                          "type":  4018,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "6759a63a-2bd2-46b0-b7f2-1ba30a22fae8",
+                                                          "type":  4006,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "a60d14d8-1199-405c-94b5-dc202cba8bc9",
+                                                          "type":  4007,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "1d17c346-480a-4338-b666-bec838764f63",
+                                                          "type":  4016,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "0cbffa5e-b5c3-4e4f-a206-2cad1bf7261b",
+                                                          "type":  121,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "7d650a5a-d4b8-48c7-bac4-95ae6b1c6f3d",
+                                                          "type":  20001,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "671c366e-b703-4ffe-b0cf-fd6e5036abf4",
+                                                          "type":  20004,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "b652a639-679e-4f8c-86db-caf3387c4f99",
+                                                          "type":  20005,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "6f478402-1bdf-4827-a048-721044afa120",
+                                                          "type":  20009,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "9a47ba1f-052f-4050-881e-e65b628b8298",
+                                                          "type":  2003,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      }
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Loadout: Event",
+                                                            "description":  "Funnel for follows, subs, raids, super chats, TikTok gifts (via custom WS).",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Net.Http.dll"
+                                                                           ],
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDDouKCrOKAnSBFVkVOVCBUUkFNUE9MSU5FCi8vIE9uZSBhY3Rpb24gaGFuZGxlcyBldmVyeSBwbGF0Zm9ybSBldmVudC4gVHJpZ2dlcnMgYXR0YWNoZWQ6IEZvbGxvdyAvIFN1YiAvCi8vIFJlc3ViIC8gR2lmdCBTdWIgLyBDaGVlciAvIFJhaWQgLyBTdXBlciBDaGF0IC8gTWVtYmVyc2hpcCAvIEtpY2sgU3ViIC8gS2ljawovLyBHaWZ0IC8gVGlrVG9rIEdpZnQgYWNyb3NzIFR3aXRjaCwgWW91VHViZSwgS2ljay4gVGhlIFNCIHRyaWdnZXJOYW1lIGFyZwovLyBkaXNhbWJpZ3VhdGVzIHdoaWNoIGtpbmQgZmlyZWQgc28gdGhlIERMTCByb3V0ZXMgY29ycmVjdGx5Lgp1c2luZyBTeXN0ZW07CnVzaW5nIFN5c3RlbS5Db2xsZWN0aW9ucy5HZW5lcmljOwp1c2luZyBTeXN0ZW0uSU87CnVzaW5nIFN5c3RlbS5SZWZsZWN0aW9uOwoKcHVibGljIGNsYXNzIENQSElubGluZQp7CiAgICBwcml2YXRlIHN0YXRpYyBUeXBlIF9lbnRyeTsKCiAgICBwdWJsaWMgYm9vbCBFeGVjdXRlKCkKICAgIHsKICAgICAgICB0cnkKICAgICAgICB7CiAgICAgICAgICAgIGlmIChfZW50cnkgPT0gbnVsbCkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgdmFyIGRsbCA9IFBhdGguQ29tYmluZShBcHBEb21haW4uQ3VycmVudERvbWFpbi5CYXNlRGlyZWN0b3J5LCAiZGF0YSIsICJMb2Fkb3V0IiwgIkxvYWRvdXQuZGxsIik7CiAgICAgICAgICAgICAgICBpZiAoIUZpbGUuRXhpc3RzKGRsbCkpIHsgQ1BILkxvZ1dhcm4oIltMb2Fkb3V0XSBFdmVudCBiZWZvcmUgYm9vdCDDouKCrOKAnSBza2lwcGluZy4iKTsgcmV0dXJuIGZhbHNlOyB9CiAgICAgICAgICAgICAgICBfZW50cnkgPSBBc3NlbWJseS5Mb2FkRnJvbShkbGwpLkdldFR5cGUoIkxvYWRvdXQuTG9hZG91dEVudHJ5Iik7CiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIC8vIE1hcCBTQidzIHRyaWdnZXJOYW1lIMOi4oCg4oCZIG91ciBub3JtYWxpemVkIGV2ZW50IGtpbmQuIEFkZCBuZXcgbWFwcGluZ3MKICAgICAgICAgICAgLy8gaGVyZSB3aGVuIFNCIGludHJvZHVjZXMgYSBuZXcgZXZlbnQgdHlwZSDDouKCrOKAnSBETEwgY2hhbmdlcyBkb24ndCByZXF1aXJlIGl0LgogICAgICAgICAgICB2YXIgdHJpZ2dlciA9IChhcmdzLkNvbnRhaW5zS2V5KCJ0cmlnZ2VyTmFtZSIpID8gYXJnc1sidHJpZ2dlck5hbWUiXT8uVG9TdHJpbmcoKSA6ICIiKSA/PyAiIjsKICAgICAgICAgICAgc3RyaW5nIGtpbmQgPSBNYXBLaW5kKHRyaWdnZXIpOwogICAgICAgICAgICBpZiAoc3RyaW5nLklzTnVsbE9yRW1wdHkoa2luZCkpIHsgQ1BILkxvZ0RlYnVnKCJbTG9hZG91dF0gVW5tYXBwZWQgdHJpZ2dlcjogIiArIHRyaWdnZXIpOyByZXR1cm4gZmFsc2U7IH0KCiAgICAgICAgICAgIHZhciBkaXNwYXRjaCA9IF9lbnRyeS5HZXRNZXRob2QoIkRpc3BhdGNoRXZlbnQiLCBCaW5kaW5nRmxhZ3MuUHVibGljIHwgQmluZGluZ0ZsYWdzLlN0YXRpYyk7CiAgICAgICAgICAgIGRpc3BhdGNoLkludm9rZShudWxsLCBuZXcgb2JqZWN0W10geyBDUEgsIGtpbmQsIChJRGljdGlvbmFyeTxzdHJpbmcsIG9iamVjdD4pYXJncyB9KTsKICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24gZXgpCiAgICAgICAgewogICAgICAgICAgICBDUEguTG9nRXJyb3IoIltMb2Fkb3V0XSBFdmVudCBkaXNwYXRjaCBmYWlsZWQ6ICIgKyBleC5NZXNzYWdlKTsKICAgICAgICAgICAgcmV0dXJuIGZhbHNlOwogICAgICAgIH0KICAgIH0KCiAgICBwcml2YXRlIHN0YXRpYyBzdHJpbmcgTWFwS2luZChzdHJpbmcgdCkKICAgIHsKICAgICAgICBpZiAoc3RyaW5nLklzTnVsbE9yRW1wdHkodCkpIHJldHVybiAiIjsKICAgICAgICB2YXIgbGMgPSB0LlRvTG93ZXJJbnZhcmlhbnQoKTsKICAgICAgICBpZiAobGMuQ29udGFpbnMoInR3aXRjaGZvbGxvdyIpICAgIHx8IGxjLkNvbnRhaW5zKCJ5b3V0dWJlZm9sbG93IikgfHwgbGMuQ29udGFpbnMoImtpY2tmb2xsb3ciKSkgcmV0dXJuICJmb2xsb3ciOwogICAgICAgIGlmIChsYy5Db250YWlucygidHdpdGNocmVzdWIiKSB8fCBsYy5Db250YWlucygieW91dHViZW1lbWJlcm1pbGVzdG9uZSIpKSByZXR1cm4gInJlc3ViIjsKICAgICAgICBpZiAobGMuQ29udGFpbnMoInR3aXRjaHN1YiIpIHx8IGxjLkNvbnRhaW5zKCJ5b3V0dWJlbWVtYmVyam9pbmVkIikgfHwgbGMuQ29udGFpbnMoInlvdXR1YmVuZXdzdWIiKSB8fCBsYy5Db250YWlucygieW91dHViZW5ld3Nwb25zb3IiKSkgcmV0dXJuICJzdWIiOwogICAgICAgIGlmIChsYy5Db250YWlucygiZ2lmdHN1YiIpIHx8IGxjLkNvbnRhaW5zKCJnaWZ0Ym9tYiIpIHx8IGxjLkNvbnRhaW5zKCJ5b3V0dWJlZ2lmdG1lbWJlciIpIHx8IGxjLkNvbnRhaW5zKCJ5b3V0dWJlbWVtYmVyc2hpcGdpZnQiKSkgcmV0dXJuICJnaWZ0U3ViIjsKICAgICAgICBpZiAobGMuQ29udGFpbnMoInR3aXRjaGNoZWVyIikpIHJldHVybiAiY2hlZXIiOwogICAgICAgIGlmIChsYy5Db250YWlucygidHdpdGNocmFpZCIpKSByZXR1cm4gInJhaWQiOwogICAgICAgIGlmIChsYy5Db250YWlucygieW91dHViZXN1cGVyY2hhdCIpIHx8IGxjLkNvbnRhaW5zKCJ5b3V0dWJlc3VwZXIiKSkgcmV0dXJuICJzdXBlckNoYXQiOwogICAgICAgIGlmIChsYy5Db250YWlucygieW91dHViZW1lbWJlcnNoaXAiKSkgcmV0dXJuICJtZW1iZXJzaGlwIjsKICAgICAgICBpZiAobGMuQ29udGFpbnMoImtpY2tzdWIiKSkgcmV0dXJuICJraWNrU3ViIjsKICAgICAgICBpZiAobGMuQ29udGFpbnMoImtpY2tnaWZ0IikpIHJldHVybiAia2lja0dpZnQiOwogICAgICAgIGlmIChsYy5Db250YWlucygidGlrdG9rZ2lmdCIpIHx8IGxjLkNvbnRhaW5zKCJ0aWtmaW5pdHkiKSkgcmV0dXJuICJ0aWt0b2tHaWZ0IjsKICAgICAgICBpZiAobGMuQ29udGFpbnMoInJld2FyZHJlZGVtcHRpb24iKSB8fCBsYy5Db250YWlucygiYXV0b21hdGljcmV3YXJkIikpIHJldHVybiAicmV3YXJkUmVkZW1wdGlvbiI7CiAgICAgICAgaWYgKGxjLkNvbnRhaW5zKCJmaXJzdHdvcmQiKSB8fCBsYy5Db250YWlucygiZmlyc3R3b3JkcyIpKSByZXR1cm4gImZpcnN0V29yZHMiOwogICAgICAgIGlmIChsYy5Db250YWlucygidXBjb21pbmdhZCIpIHx8IGxjLkNvbnRhaW5zKCJhZHJ1biIpKSByZXR1cm4gInVwY29taW5nQWQiOwogICAgICAgIGlmIChsYy5Db250YWlucygic3RyZWFtb25saW5lIikgfHwgbGMuQ29udGFpbnMoImJyb2FkY2FzdHN0YXJ0ZWQiKSB8fCBsYy5Db250YWlucygic3RyZWFtaW5nc3RhcnRlZCIpKSByZXR1cm4gInN0cmVhbU9ubGluZSI7CiAgICAgICAgaWYgKGxjLkNvbnRhaW5zKCJzdHJlYW1vZmZsaW5lIikgfHwgbGMuQ29udGFpbnMoImJyb2FkY2FzdGVuZGVkIikgfHwgbGMuQ29udGFpbnMoInN0cmVhbWluZ3N0b3BwZWQiKSkgcmV0dXJuICJzdHJlYW1PZmZsaW5lIjsKICAgICAgICBpZiAobGMuQ29udGFpbnMoInN0cmVhbXVwZGF0ZSIpIHx8IGxjLkNvbnRhaW5zKCJicm9hZGNhc3R1cGRhdGUiKSkgcmV0dXJuICJzdHJlYW1VcGRhdGUiOwogICAgICAgIGlmIChsYy5Db250YWlucygiY3Jvd2Rjb250cm9sZ2FtZXNlc3Npb25zdGFydCIpKSByZXR1cm4gImNjR2FtZVNlc3Npb25TdGFydCI7CiAgICAgICAgaWYgKGxjLkNvbnRhaW5zKCJjcm93ZGNvbnRyb2xlZmZlY3RzdWNjZXNzIikpICAgIHJldHVybiAiY2NFZmZlY3RTdWNjZXNzIjsKICAgICAgICBpZiAobGMuQ29udGFpbnMoImNyb3dkY29udHJvbGVmZmVjdGZhaWx1cmUiKSkgICAgcmV0dXJuICJjY0VmZmVjdEZhaWx1cmUiOwogICAgICAgIGlmIChsYy5Db250YWlucygiY3Jvd2Rjb250cm9sY29pbmV4Y2hhbmdlIikpICAgICByZXR1cm4gImNjQ29pbkV4Y2hhbmdlIjsKICAgICAgICBpZiAobGMuQ29udGFpbnMoInN1YmNvdW50ZXJyb2xsb3ZlciIpKSAgICAgICAgICAgcmV0dXJuICJzdWJDb3VudGVyUm9sbG92ZXIiOwogICAgICAgIHJldHVybiAiIjsKICAgIH0KfQo=",
+                                                            "precompile":  false,
+                                                            "delayStart":  0,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "fd25761a-ddfa-43d9-b58a-3775ae3ca9ad",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "ef6b3792-9d0e-46b3-adb0-12e1c1b577a9",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Loadout: Chat",
+                                     "group":  "Loadout",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+                                                      {
+                                                          "id":  "7fff8988-2524-4fb8-84ae-62f5e3965e92",
+                                                          "type":  133,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      },
+                                                      {
+                                                          "id":  "eaf20cd6-041d-456a-b286-d24e91e93cac",
+                                                          "type":  4003,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ]
+                                                      }
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Loadout: Chat",
+                                                            "description":  "Every chat message - drives welcomes, hate-raid detection, activity gate.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Net.Http.dll"
+                                                                           ],
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDDouKCrOKAnSBDSEFUIFRSQU1QT0xJTkUKLy8gVHJpZ2dlcmVkIG9uIGV2ZXJ5IGNoYXQgbWVzc2FnZSBhY3Jvc3MgVHdpdGNoIC8gWW91VHViZSAvIEtpY2suIEZvcndhcmRzIHRvCi8vIHRoZSBETEwgd2hpY2ggcnVucyB3ZWxjb21lcywgaGF0ZS1yYWlkIGRldGVjdGlvbiwgY29weXBhc3RhIGZpbHRlcnMsIGFuZAovLyBhY3Rpdml0eSB0cmFja2luZyBmb3IgdGltZWQgbWVzc2FnZXMuCnVzaW5nIFN5c3RlbTsKdXNpbmcgU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWM7CnVzaW5nIFN5c3RlbS5JTzsKdXNpbmcgU3lzdGVtLlJlZmxlY3Rpb247CgpwdWJsaWMgY2xhc3MgQ1BISW5saW5lCnsKICAgIHByaXZhdGUgc3RhdGljIFR5cGUgX2VudHJ5OwoKICAgIHB1YmxpYyBib29sIEV4ZWN1dGUoKQogICAgewogICAgICAgIHRyeQogICAgICAgIHsKICAgICAgICAgICAgaWYgKF9lbnRyeSA9PSBudWxsKQogICAgICAgICAgICB7CiAgICAgICAgICAgICAgICB2YXIgZGxsID0gUGF0aC5Db21iaW5lKEFwcERvbWFpbi5DdXJyZW50RG9tYWluLkJhc2VEaXJlY3RvcnksICJkYXRhIiwgIkxvYWRvdXQiLCAiTG9hZG91dC5kbGwiKTsKICAgICAgICAgICAgICAgIGlmICghRmlsZS5FeGlzdHMoZGxsKSkgcmV0dXJuIGZhbHNlOwogICAgICAgICAgICAgICAgX2VudHJ5ID0gQXNzZW1ibHkuTG9hZEZyb20oZGxsKS5HZXRUeXBlKCJMb2Fkb3V0LkxvYWRvdXRFbnRyeSIpOwogICAgICAgICAgICB9CgogICAgICAgICAgICB2YXIgZGlzcGF0Y2ggPSBfZW50cnkuR2V0TWV0aG9kKCJEaXNwYXRjaEV2ZW50IiwgQmluZGluZ0ZsYWdzLlB1YmxpYyB8IEJpbmRpbmdGbGFncy5TdGF0aWMpOwogICAgICAgICAgICBkaXNwYXRjaC5JbnZva2UobnVsbCwgbmV3IG9iamVjdFtdIHsgQ1BILCAiY2hhdCIsIChJRGljdGlvbmFyeTxzdHJpbmcsIG9iamVjdD4pYXJncyB9KTsKICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24gZXgpCiAgICAgICAgewogICAgICAgICAgICBDUEguTG9nRXJyb3IoIltMb2Fkb3V0XSBDaGF0IGRpc3BhdGNoIGZhaWxlZDogIiArIGV4Lk1lc3NhZ2UpOwogICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgfQogICAgfQp9Cg==",
+                                                            "precompile":  false,
+                                                            "delayStart":  0,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "9b801470-f249-4d25-8a1b-d6deb0867f37",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "7d0a0cbb-8b46-4c4c-bd89-1a0cec5bec8c",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Loadout: Tick",
+                                     "group":  "Loadout",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+                                                      {
+                                                          "id":  "068c1aa3-1fc5-4b48-a735-c6f9de2471af",
+                                                          "type":  701,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ],
+                                                          "timerId":  "33a5be6b-96c8-49bd-a580-24e282ec96f7"
+                                                      }
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Loadout: Tick",
+                                                            "description":  "60-second tick. Drives timed messages and hype-train decay.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Net.Http.dll"
+                                                                           ],
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDDouKCrOKAnSBUSUNLCi8vIEZpcmVzIGV2ZXJ5IDYwIHNlY29uZHMgdmlhIFNCIFRpbWVyIHRyaWdnZXIuIERyaXZlcyB0aW1lZCBtZXNzYWdlcywgaHlwZQovLyB0cmFpbiBkZWNheSwgYW5kIGFueSBmdXR1cmUgY2FkZW5jZS1kcml2ZW4gbW9kdWxlLiBLZWVwIHRoaXMgbGlnaHR3ZWlnaHQgw6LigqzigJ0KLy8gaXQgcnVucyBldmVuIHdoZW4gdGhlIHN0cmVhbWVyIGlzIG9mZmxpbmUuCnVzaW5nIFN5c3RlbTsKdXNpbmcgU3lzdGVtLklPOwp1c2luZyBTeXN0ZW0uUmVmbGVjdGlvbjsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgcHJpdmF0ZSBzdGF0aWMgVHlwZSBfZW50cnk7CgogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgdHJ5CiAgICAgICAgewogICAgICAgICAgICBpZiAoX2VudHJ5ID09IG51bGwpCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIHZhciBkbGwgPSBQYXRoLkNvbWJpbmUoQXBwRG9tYWluLkN1cnJlbnREb21haW4uQmFzZURpcmVjdG9yeSwgImRhdGEiLCAiTG9hZG91dCIsICJMb2Fkb3V0LmRsbCIpOwogICAgICAgICAgICAgICAgaWYgKCFGaWxlLkV4aXN0cyhkbGwpKSByZXR1cm4gZmFsc2U7CiAgICAgICAgICAgICAgICBfZW50cnkgPSBBc3NlbWJseS5Mb2FkRnJvbShkbGwpLkdldFR5cGUoIkxvYWRvdXQuTG9hZG91dEVudHJ5Iik7CiAgICAgICAgICAgIH0KICAgICAgICAgICAgX2VudHJ5LkdldE1ldGhvZCgiVGljayIsIEJpbmRpbmdGbGFncy5QdWJsaWMgfCBCaW5kaW5nRmxhZ3MuU3RhdGljKQogICAgICAgICAgICAgICAgICAuSW52b2tlKG51bGwsIG5ldyBvYmplY3RbXSB7IENQSCB9KTsKICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24gZXgpCiAgICAgICAgewogICAgICAgICAgICBDUEguTG9nRXJyb3IoIltMb2Fkb3V0XSBUaWNrIGZhaWxlZDogIiArIGV4Lk1lc3NhZ2UpOwogICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgfQogICAgfQp9Cg==",
+                                                            "precompile":  false,
+                                                            "delayStart":  0,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "4f0c24b5-778c-491d-83a6-3cf1f9c71dca",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "e755cb24-f4ff-4b2d-87e6-c2abfbcd5d02",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Loadout: !link",
+                                     "group":  "Loadout",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+                                                      {
+                                                          "id":  "e4540bab-fecc-4193-a7b1-cfb3de556e1c",
+                                                          "type":  401,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ],
+                                                          "commandId":  "e8cf047f-4014-4e7c-b623-bfc7c773fc88"
+                                                      }
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Loadout: !link",
+                                                            "description":  "!link \u003cplatform\u003e \u003cuser\u003e - request cross-platform identity link.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Net.Http.dll"
+                                                                           ],
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDDouKCrOKAnSAhbGluawovLyBWaWV3ZXJzIHJ1bjogIWxpbmsgPHBsYXRmb3JtPiA8dXNlcm5hbWU+Ci8vIENyZWF0ZXMgYSBwZW5kaW5nIGlkZW50aXR5LWxpbmsgcmVxdWVzdCB0aGF0IHRoZSBicm9hZGNhc3Rlci9tb2RzIGFwcHJvdmUgdmlhCi8vIHRoZSBTZXR0aW5ncyBVSSdzIElkZW50aXR5IHRhYiBvciB3aXRoICFsaW5rYXBwcm92ZS4KdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uSU87CnVzaW5nIFN5c3RlbS5SZWZsZWN0aW9uOwoKcHVibGljIGNsYXNzIENQSElubGluZQp7CiAgICBwcml2YXRlIHN0YXRpYyBUeXBlIF9lbnRyeTsKCiAgICBwdWJsaWMgYm9vbCBFeGVjdXRlKCkKICAgIHsKICAgICAgICB0cnkKICAgICAgICB7CiAgICAgICAgICAgIGlmIChfZW50cnkgPT0gbnVsbCkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgdmFyIGRsbCA9IFBhdGguQ29tYmluZShBcHBEb21haW4uQ3VycmVudERvbWFpbi5CYXNlRGlyZWN0b3J5LCAiZGF0YSIsICJMb2Fkb3V0IiwgIkxvYWRvdXQuZGxsIik7CiAgICAgICAgICAgICAgICBpZiAoIUZpbGUuRXhpc3RzKGRsbCkpIHJldHVybiBmYWxzZTsKICAgICAgICAgICAgICAgIF9lbnRyeSA9IEFzc2VtYmx5LkxvYWRGcm9tKGRsbCkuR2V0VHlwZSgiTG9hZG91dC5Mb2Fkb3V0RW50cnkiKTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgdmFyIHNyY1VzZXIgICAgID0gYXJncy5Db250YWluc0tleSgidXNlciIpICAgICAgICA/IGFyZ3NbInVzZXIiXT8uVG9TdHJpbmcoKSA/PyAiIiA6ICIiOwogICAgICAgICAgICB2YXIgcmF3SW5wdXQgICAgPSBhcmdzLkNvbnRhaW5zS2V5KCJyYXdJbnB1dCIpICAgID8gYXJnc1sicmF3SW5wdXQiXT8uVG9TdHJpbmcoKSA/PyAiIiA6ICIiOwogICAgICAgICAgICB2YXIgZXZlbnRTb3VyY2UgPSBhcmdzLkNvbnRhaW5zS2V5KCJldmVudFNvdXJjZSIpID8gYXJnc1siZXZlbnRTb3VyY2UiXT8uVG9TdHJpbmcoKSA/PyAidHdpdGNoIiA6ICJ0d2l0Y2giOwoKICAgICAgICAgICAgdmFyIHBhcnRzID0gcmF3SW5wdXQuVHJpbSgpLlNwbGl0KG5ld1tdIHsgJyAnIH0sIDIsIFN0cmluZ1NwbGl0T3B0aW9ucy5SZW1vdmVFbXB0eUVudHJpZXMpOwogICAgICAgICAgICBpZiAocGFydHMuTGVuZ3RoIDwgMikKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgQ1BILlNlbmRNZXNzYWdlKCJAIiArIHNyY1VzZXIgKyAiIHVzYWdlOiAhbGluayA8cGxhdGZvcm0+IDx1c2VybmFtZT4gICh0d2l0Y2gsIHRpa3RvaywgeW91dHViZSwga2ljaykiKTsKICAgICAgICAgICAgICAgIHJldHVybiBmYWxzZTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgdmFyIHJlcUlkID0gKHN0cmluZylfZW50cnkuR2V0TWV0aG9kKCJSZXF1ZXN0TGluayIsIEJpbmRpbmdGbGFncy5QdWJsaWMgfCBCaW5kaW5nRmxhZ3MuU3RhdGljKQogICAgICAgICAgICAgICAgLkludm9rZShudWxsLCBuZXcgb2JqZWN0W10geyBldmVudFNvdXJjZSwgc3JjVXNlciwgcGFydHNbMF0sIHBhcnRzWzFdIH0pOwoKICAgICAgICAgICAgaWYgKHN0cmluZy5Jc051bGxPckVtcHR5KHJlcUlkKSkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgQ1BILlNlbmRNZXNzYWdlKCJAIiArIHNyY1VzZXIgKyAiIGNvdWxkbid0IGNyZWF0ZSBsaW5rIHJlcXVlc3Qgw6LigqzigJ0gY2hlY2sgdGhlIHBsYXRmb3JtIG5hbWUgYW5kIHVzZXJuYW1lLiIpOwogICAgICAgICAgICAgICAgcmV0dXJuIGZhbHNlOwogICAgICAgICAgICB9CgogICAgICAgICAgICB2YXIgc2hvcnRJZCA9IHJlcUlkLlN1YnN0cmluZygwLCBNYXRoLk1pbig4LCByZXFJZC5MZW5ndGgpKTsKICAgICAgICAgICAgQ1BILlNlbmRNZXNzYWdlKCJAIiArIHNyY1VzZXIgKyAiIGxpbmsgcmVxdWVzdCBjcmVhdGVkIChpZCAiICsgc2hvcnRJZCArICIpLiBBIG1vZCB3aWxsIGFwcHJvdmUgaXQgc2hvcnRseS4iKTsKICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24gZXgpCiAgICAgICAgewogICAgICAgICAgICBDUEguTG9nRXJyb3IoIltMb2Fkb3V0XSAhbGluayBmYWlsZWQ6ICIgKyBleC5NZXNzYWdlKTsKICAgICAgICAgICAgcmV0dXJuIGZhbHNlOwogICAgICAgIH0KICAgIH0KfQo=",
+                                                            "precompile":  false,
+                                                            "delayStart":  0,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "840a1d54-171a-4a74-9b1f-c37b08542d15",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "6f516eaa-cf12-4158-b786-42f1c31933d8",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Loadout: !linkapprove",
+                                     "group":  "Loadout",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+                                                      {
+                                                          "id":  "2092b9e5-a53a-4b06-a861-5224acd2c212",
+                                                          "type":  401,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ],
+                                                          "commandId":  "66513798-3c28-4285-af34-0ffd3a29cb26"
+                                                      }
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Loadout: !linkapprove",
+                                                            "description":  "!linkapprove \u003cid\u003e - mod-only approval of a link request.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Net.Http.dll"
+                                                                           ],
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDDouKCrOKAnSAhbGlua2FwcHJvdmUgKG1vZC1vbmx5KQovLyBNb2RzIHJ1bjogIWxpbmthcHByb3ZlIDxyZXF1ZXN0LWlkLXByZWZpeD4KdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uSU87CnVzaW5nIFN5c3RlbS5SZWZsZWN0aW9uOwoKcHVibGljIGNsYXNzIENQSElubGluZQp7CiAgICBwcml2YXRlIHN0YXRpYyBUeXBlIF9lbnRyeTsKCiAgICBwdWJsaWMgYm9vbCBFeGVjdXRlKCkKICAgIHsKICAgICAgICB0cnkKICAgICAgICB7CiAgICAgICAgICAgIGlmIChfZW50cnkgPT0gbnVsbCkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgdmFyIGRsbCA9IFBhdGguQ29tYmluZShBcHBEb21haW4uQ3VycmVudERvbWFpbi5CYXNlRGlyZWN0b3J5LCAiZGF0YSIsICJMb2Fkb3V0IiwgIkxvYWRvdXQuZGxsIik7CiAgICAgICAgICAgICAgICBpZiAoIUZpbGUuRXhpc3RzKGRsbCkpIHJldHVybiBmYWxzZTsKICAgICAgICAgICAgICAgIF9lbnRyeSA9IEFzc2VtYmx5LkxvYWRGcm9tKGRsbCkuR2V0VHlwZSgiTG9hZG91dC5Mb2Fkb3V0RW50cnkiKTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgdmFyIGFwcHJvdmVyID0gYXJncy5Db250YWluc0tleSgidXNlciIpID8gYXJnc1sidXNlciJdPy5Ub1N0cmluZygpID8/ICJtb2QiIDogIm1vZCI7CiAgICAgICAgICAgIHZhciByYXdJbnB1dCA9IGFyZ3MuQ29udGFpbnNLZXkoInJhd0lucHV0IikgPyBhcmdzWyJyYXdJbnB1dCJdPy5Ub1N0cmluZygpID8/ICIiIDogIiI7CiAgICAgICAgICAgIHZhciBwcmVmaXggPSByYXdJbnB1dC5UcmltKCk7CgogICAgICAgICAgICBpZiAoc3RyaW5nLklzTnVsbE9yRW1wdHkocHJlZml4KSkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgQ1BILlNlbmRNZXNzYWdlKCJAIiArIGFwcHJvdmVyICsgIiB1c2FnZTogIWxpbmthcHByb3ZlIDxpZC1wcmVmaXg+Iik7CiAgICAgICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIHZhciBvayA9IChib29sKV9lbnRyeS5HZXRNZXRob2QoIkFwcHJvdmVMaW5rIiwgQmluZGluZ0ZsYWdzLlB1YmxpYyB8IEJpbmRpbmdGbGFncy5TdGF0aWMpCiAgICAgICAgICAgICAgICAuSW52b2tlKG51bGwsIG5ldyBvYmplY3RbXSB7IHByZWZpeCwgYXBwcm92ZXIgfSk7CgogICAgICAgICAgICBDUEguU2VuZE1lc3NhZ2Uob2sKICAgICAgICAgICAgICAgID8gIsOixZPigKYgTGluayAiICsgcHJlZml4ICsgIiBhcHByb3ZlZCBieSAiICsgYXBwcm92ZXIgKyAiLiIKICAgICAgICAgICAgICAgIDogIsOiwp3FkiBObyBwZW5kaW5nIGxpbmsgd2l0aCBpZCAiICsgcHJlZml4ICsgIi4iKTsKICAgICAgICAgICAgcmV0dXJuIG9rOwogICAgICAgIH0KICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIGV4KQogICAgICAgIHsKICAgICAgICAgICAgQ1BILkxvZ0Vycm9yKCJbTG9hZG91dF0gIWxpbmthcHByb3ZlIGZhaWxlZDogIiArIGV4Lk1lc3NhZ2UpOwogICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgfQogICAgfQp9Cg==",
+                                                            "precompile":  false,
+                                                            "delayStart":  0,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "6050ec00-5ed9-41ce-a4c9-7a212d4494c4",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "04cff62b-541d-4c04-a8bf-d2504263407b",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Loadout: !loadout",
+                                     "group":  "Loadout",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+                                                      {
+                                                          "id":  "3ada83a0-7fc7-40c5-8214-29fec2c4c998",
+                                                          "type":  401,
+                                                          "enabled":  true,
+                                                          "exclusions":  [
+
+                                                                         ],
+                                                          "commandId":  "838668c7-2ebb-4890-bf3d-be1a347f3846"
+                                                      }
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Loadout: !loadout",
+                                                            "description":  "!loadout - version, !loadout settings - opens UI.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Net.Http.dll"
+                                                                           ],
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDDouKCrOKAnSAhbG9hZG91dAovLyBQdWJsaWMgY29tbWFuZDogcmVwbGllcyB3aXRoIHZlcnNpb24gKyBzZXR0aW5ncyBsb2NhdGlvbi4gTW9kLW9ubHkgYnJhbmNoZXM6Ci8vICFsb2Fkb3V0IHNldHRpbmdzIChvcGVucyBVSSksICFsb2Fkb3V0IHJlbG9hZCAocmVsb2FkcyBzZXR0aW5ncy5qc29uKS4KdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uSU87CnVzaW5nIFN5c3RlbS5SZWZsZWN0aW9uOwoKcHVibGljIGNsYXNzIENQSElubGluZQp7CiAgICBwcml2YXRlIHN0YXRpYyBUeXBlIF9lbnRyeTsKCiAgICBwdWJsaWMgYm9vbCBFeGVjdXRlKCkKICAgIHsKICAgICAgICB0cnkKICAgICAgICB7CiAgICAgICAgICAgIGlmIChfZW50cnkgPT0gbnVsbCkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgdmFyIGRsbCA9IFBhdGguQ29tYmluZShBcHBEb21haW4uQ3VycmVudERvbWFpbi5CYXNlRGlyZWN0b3J5LCAiZGF0YSIsICJMb2Fkb3V0IiwgIkxvYWRvdXQuZGxsIik7CiAgICAgICAgICAgICAgICBpZiAoIUZpbGUuRXhpc3RzKGRsbCkpIHJldHVybiBmYWxzZTsKICAgICAgICAgICAgICAgIF9lbnRyeSA9IEFzc2VtYmx5LkxvYWRGcm9tKGRsbCkuR2V0VHlwZSgiTG9hZG91dC5Mb2Fkb3V0RW50cnkiKTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgdmFyIHJhd0lucHV0ID0gYXJncy5Db250YWluc0tleSgicmF3SW5wdXQiKSA/IChhcmdzWyJyYXdJbnB1dCJdPy5Ub1N0cmluZygpID8/ICIiKS5UcmltKCkgOiAiIjsKICAgICAgICAgICAgdmFyIHN1YiAgICAgID0gcmF3SW5wdXQuU3BsaXQoJyAnKVswXS5Ub0xvd2VySW52YXJpYW50KCk7CgogICAgICAgICAgICBpZiAoc3ViID09ICJzZXR0aW5ncyIpCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIF9lbnRyeS5HZXRNZXRob2QoIk9wZW5TZXR0aW5ncyIsIEJpbmRpbmdGbGFncy5QdWJsaWMgfCBCaW5kaW5nRmxhZ3MuU3RhdGljKS5JbnZva2UobnVsbCwgbnVsbCk7CiAgICAgICAgICAgICAgICBDUEguU2VuZE1lc3NhZ2UoIsOixaHihKLDr8K4wo8gU2V0dGluZ3Mgb3BlbmVkIG9uIHRoZSBzdHJlYW1lcidzIHNjcmVlbi4iKTsKICAgICAgICAgICAgICAgIHJldHVybiB0cnVlOwogICAgICAgICAgICB9CgogICAgICAgICAgICBpZiAoc3ViID09ICJoZWxwIiB8fCBzdWIgPT0gIj8iKQogICAgICAgICAgICB7CiAgICAgICAgICAgICAgICBDUEguU2VuZE1lc3NhZ2UoIkxvYWRvdXQgY29tbWFuZHM6ICFib2x0cyDDgsK3ICFsZWFkZXJib2FyZCDDgsK3ICFnaWZ0IMOCwrcgIWxpbmsgw4LCtyAhbG9hZG91dCBzZXR0aW5ncyDDgsK3ICFsb2Fkb3V0IHF1aWV0IMOCwrcgIWxvYWRvdXQgcmVsb2FkIChtb2QpIik7CiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgdmFyIHJvbGUgPSAoYXJncy5Db250YWluc0tleSgidXNlclR5cGUiKSA/IGFyZ3NbInVzZXJUeXBlIl0/LlRvU3RyaW5nKCkgPz8gIiIgOiAiIikuVG9Mb3dlckludmFyaWFudCgpOwogICAgICAgICAgICB2YXIgaXNNb2QgPSByb2xlID09ICJicm9hZGNhc3RlciIgfHwgcm9sZSA9PSAibW9kZXJhdG9yIiB8fCByb2xlID09ICJtb2QiOwoKICAgICAgICAgICAgLy8gTW9kLW9ubHkgY2hhdCBub2lzZSB0b2dnbGUuCiAgICAgICAgICAgIGlmIChzdWIgPT0gInF1aWV0IiB8fCBzdWIgPT0gInVucXVpZXQiKQogICAgICAgICAgICB7CiAgICAgICAgICAgICAgICBpZiAoIWlzTW9kKSByZXR1cm4gZmFsc2U7CiAgICAgICAgICAgICAgICB2YXIgbm93UXVpZXQgPSAoYm9vbClfZW50cnkuR2V0TWV0aG9kKCJUb2dnbGVRdWlldCIsIEJpbmRpbmdGbGFncy5QdWJsaWMgfCBCaW5kaW5nRmxhZ3MuU3RhdGljKS5JbnZva2UobnVsbCwgbnVsbCk7CiAgICAgICAgICAgICAgICBDUEguU2VuZE1lc3NhZ2Uobm93UXVpZXQKICAgICAgICAgICAgICAgICAgICA/ICLDsMW44oCd4oChIExvYWRvdXQgcXVpZXQgbW9kZSBPTiDDouKCrOKAnSBvdmVybGF5cyBzdGlsbCB1cGRhdGU7IGNoYXQgaXMgY2FsbS4iCiAgICAgICAgICAgICAgICAgICAgOiAiw7DFuOKAncWgIExvYWRvdXQgcXVpZXQgbW9kZSBPRkYuIik7CiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgLy8gTW9kLW9ubHk6IHJlLXJlYWQgc2V0dGluZ3MuanNvbiB3aXRob3V0IHJlc3RhcnRpbmcgU0IuCiAgICAgICAgICAgIGlmIChzdWIgPT0gInJlbG9hZCIpCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIGlmICghaXNNb2QpIHJldHVybiBmYWxzZTsKICAgICAgICAgICAgICAgIHZhciBvayA9IChib29sKV9lbnRyeS5HZXRNZXRob2QoIlJlbG9hZFNldHRpbmdzIiwgQmluZGluZ0ZsYWdzLlB1YmxpYyB8IEJpbmRpbmdGbGFncy5TdGF0aWMpLkludm9rZShudWxsLCBudWxsKTsKICAgICAgICAgICAgICAgIENQSC5TZW5kTWVzc2FnZShvayA/ICLDouKEosK7w6/CuMKPIExvYWRvdXQgc2V0dGluZ3MgcmVsb2FkZWQuIiA6ICLDosKdxZIgUmVsb2FkIGZhaWxlZCDDouKCrOKAnSBjaGVjayBsb2dzLiIpOwogICAgICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIHZhciB2ZXJzaW9uID0gKHN0cmluZylfZW50cnkuR2V0TWV0aG9kKCJWZXJzaW9uIiwgQmluZGluZ0ZsYWdzLlB1YmxpYyB8IEJpbmRpbmdGbGFncy5TdGF0aWMpLkludm9rZShudWxsLCBudWxsKTsKICAgICAgICAgICAgQ1BILlNlbmRNZXNzYWdlKCLDsMW4xb3igJkgTG9hZG91dCB2IiArIHZlcnNpb24gKyAiIMOi4oKs4oCdIHRyeSAhbG9hZG91dCBoZWxwIik7CiAgICAgICAgICAgIHJldHVybiB0cnVlOwogICAgICAgIH0KICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIGV4KQogICAgICAgIHsKICAgICAgICAgICAgQ1BILkxvZ0Vycm9yKCJbTG9hZG91dF0gIWxvYWRvdXQgZmFpbGVkOiAiICsgZXguTWVzc2FnZSk7CiAgICAgICAgICAgIHJldHVybiBmYWxzZTsKICAgICAgICB9CiAgICB9Cn0K",
+                                                            "precompile":  false,
+                                                            "delayStart":  0,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "c3c329ea-a4b5-492c-bddd-375fb34f4ec1",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "c2873e1d-88d1-4998-9113-b4547d3712a9",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Open Loadout Settings",
+                                     "group":  "Loadout",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Open Loadout Settings",
+                                                            "description":  "Right-click and Run Now to open the Settings window.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Net.Http.dll"
+                                                                           ],
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDDouKCrOKAnSBPcGVuIFNldHRpbmdzCi8vIE1hbnVhbCBydW4gZnJvbSB0aGUgU3RyZWFtZXIuYm90IFVJIChyaWdodC1jbGljayDDouKAoOKAmSBSdW4gTm93LCBvciBwaW4gdG8KLy8gZmF2b3JpdGVzLCBvciBhc3NpZ24gYSBob3RrZXkpLiBPcGVucyB0aGUgV1BGIFNldHRpbmdzIHdpbmRvdy4KdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uSU87CnVzaW5nIFN5c3RlbS5SZWZsZWN0aW9uOwoKcHVibGljIGNsYXNzIENQSElubGluZQp7CiAgICBwdWJsaWMgYm9vbCBFeGVjdXRlKCkKICAgIHsKICAgICAgICB0cnkKICAgICAgICB7CiAgICAgICAgICAgIHZhciBkbGwgPSBQYXRoLkNvbWJpbmUoQXBwRG9tYWluLkN1cnJlbnREb21haW4uQmFzZURpcmVjdG9yeSwgImRhdGEiLCAiTG9hZG91dCIsICJMb2Fkb3V0LmRsbCIpOwogICAgICAgICAgICBpZiAoIUZpbGUuRXhpc3RzKGRsbCkpIHsgQ1BILkxvZ0Vycm9yKCJbTG9hZG91dF0gRExMIG1pc3Npbmcgw6LigqzigJ0gcnVuICdMb2Fkb3V0OiBCb290JyBmaXJzdC4iKTsgcmV0dXJuIGZhbHNlOyB9CiAgICAgICAgICAgIHZhciBlbnRyeSA9IEFzc2VtYmx5LkxvYWRGcm9tKGRsbCkuR2V0VHlwZSgiTG9hZG91dC5Mb2Fkb3V0RW50cnkiKTsKICAgICAgICAgICAgZW50cnkuR2V0TWV0aG9kKCJCb290IiwgQmluZGluZ0ZsYWdzLlB1YmxpYyB8IEJpbmRpbmdGbGFncy5TdGF0aWMpLkludm9rZShudWxsLCBuZXcgb2JqZWN0W10geyBDUEggfSk7CiAgICAgICAgICAgIGVudHJ5LkdldE1ldGhvZCgiT3BlblNldHRpbmdzIiwgQmluZGluZ0ZsYWdzLlB1YmxpYyB8IEJpbmRpbmdGbGFncy5TdGF0aWMpLkludm9rZShudWxsLCBudWxsKTsKICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24gZXgpCiAgICAgICAgewogICAgICAgICAgICBDUEguTG9nRXJyb3IoIltMb2Fkb3V0XSBPcGVuU2V0dGluZ3MgZmFpbGVkOiAiICsgZXguTWVzc2FnZSk7CiAgICAgICAgICAgIHJldHVybiBmYWxzZTsKICAgICAgICB9CiAgICB9Cn0K",
+                                                            "precompile":  false,
+                                                            "delayStart":  0,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "5764afd4-500e-4314-ae07-2fe54e05ca09",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "3c027977-d5e0-4312-b636-4cf2e1a4d9d5",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Open Loadout Onboarding",
+                                     "group":  "Loadout",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Open Loadout Onboarding",
+                                                            "description":  "Right-click and Run Now to re-open the onboarding wizard.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Net.Http.dll"
+                                                                           ],
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDDouKCrOKAnSBPcGVuIE9uYm9hcmRpbmcKLy8gTWFudWFsIHJ1biB0byByZS1vcGVuIHRoZSBvbmJvYXJkaW5nIHdpemFyZCAoYXV0by1vcGVucyBvbiBmaXJzdCBib290KS4KdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uSU87CnVzaW5nIFN5c3RlbS5SZWZsZWN0aW9uOwoKcHVibGljIGNsYXNzIENQSElubGluZQp7CiAgICBwdWJsaWMgYm9vbCBFeGVjdXRlKCkKICAgIHsKICAgICAgICB0cnkKICAgICAgICB7CiAgICAgICAgICAgIHZhciBkbGwgPSBQYXRoLkNvbWJpbmUoQXBwRG9tYWluLkN1cnJlbnREb21haW4uQmFzZURpcmVjdG9yeSwgImRhdGEiLCAiTG9hZG91dCIsICJMb2Fkb3V0LmRsbCIpOwogICAgICAgICAgICBpZiAoIUZpbGUuRXhpc3RzKGRsbCkpIHsgQ1BILkxvZ0Vycm9yKCJbTG9hZG91dF0gRExMIG1pc3Npbmcgw6LigqzigJ0gcnVuICdMb2Fkb3V0OiBCb290JyBmaXJzdC4iKTsgcmV0dXJuIGZhbHNlOyB9CiAgICAgICAgICAgIHZhciBlbnRyeSA9IEFzc2VtYmx5LkxvYWRGcm9tKGRsbCkuR2V0VHlwZSgiTG9hZG91dC5Mb2Fkb3V0RW50cnkiKTsKICAgICAgICAgICAgZW50cnkuR2V0TWV0aG9kKCJCb290IiwgQmluZGluZ0ZsYWdzLlB1YmxpYyB8IEJpbmRpbmdGbGFncy5TdGF0aWMpLkludm9rZShudWxsLCBuZXcgb2JqZWN0W10geyBDUEggfSk7CiAgICAgICAgICAgIGVudHJ5LkdldE1ldGhvZCgiT3Blbk9uYm9hcmRpbmciLCBCaW5kaW5nRmxhZ3MuUHVibGljIHwgQmluZGluZ0ZsYWdzLlN0YXRpYykuSW52b2tlKG51bGwsIG51bGwpOwogICAgICAgICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICB9CiAgICAgICAgY2F0Y2ggKEV4Y2VwdGlvbiBleCkKICAgICAgICB7CiAgICAgICAgICAgIENQSC5Mb2dFcnJvcigiW0xvYWRvdXRdIE9wZW5PbmJvYXJkaW5nIGZhaWxlZDogIiArIGV4Lk1lc3NhZ2UpOwogICAgICAgICAgICByZXR1cm4gZmFsc2U7CiAgICAgICAgfQogICAgfQp9Cg==",
+                                                            "precompile":  false,
+                                                            "delayStart":  0,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "94ce8a49-9575-4187-bdfa-020adf9a42e7",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 }
+                             ],
+                 "queues":  [
+
+                            ],
+                 "commands":  [
+                                  {
+                                      "id":  "e8cf047f-4014-4e7c-b623-bfc7c773fc88",
+                                      "name":  "!link",
+                                      "commands":  [
+                                                       "!link"
+                                                   ],
+                                      "actionId":  "e755cb24-f4ff-4b2d-87e6-c2abfbcd5d02",
+                                      "enabled":  true,
+                                      "ignoreInternal":  true,
+                                      "ignoreBotAccount":  false,
+                                      "useBotAccount":  false,
+                                      "sources":  7,
+                                      "permittedUserIds":  [
+
+                                                           ],
+                                      "excludedUserIds":  [
+
+                                                          ],
+                                      "accessLevel":  0,
+                                      "permittedUsers":  [
+
+                                                         ],
+                                      "permittedGroups":  [
+
+                                                          ],
+                                      "excludedUsers":  [
+
+                                                        ],
+                                      "excludedGroups":  [
+
+                                                         ],
+                                      "cooldown":  0,
+                                      "userCooldown":  0,
+                                      "groupCooldown":  0,
+                                      "case":  false,
+                                      "caseSensitive":  false,
+                                      "commandSourceVersion":  1
+                                  },
+                                  {
+                                      "id":  "66513798-3c28-4285-af34-0ffd3a29cb26",
+                                      "name":  "!linkapprove",
+                                      "commands":  [
+                                                       "!linkapprove"
+                                                   ],
+                                      "actionId":  "6f516eaa-cf12-4158-b786-42f1c31933d8",
+                                      "enabled":  true,
+                                      "ignoreInternal":  true,
+                                      "ignoreBotAccount":  false,
+                                      "useBotAccount":  false,
+                                      "sources":  7,
+                                      "permittedUserIds":  [
+
+                                                           ],
+                                      "excludedUserIds":  [
+
+                                                          ],
+                                      "accessLevel":  0,
+                                      "permittedUsers":  [
+
+                                                         ],
+                                      "permittedGroups":  [
+
+                                                          ],
+                                      "excludedUsers":  [
+
+                                                        ],
+                                      "excludedGroups":  [
+
+                                                         ],
+                                      "cooldown":  0,
+                                      "userCooldown":  0,
+                                      "groupCooldown":  0,
+                                      "case":  false,
+                                      "caseSensitive":  false,
+                                      "commandSourceVersion":  1
+                                  },
+                                  {
+                                      "id":  "838668c7-2ebb-4890-bf3d-be1a347f3846",
+                                      "name":  "!loadout",
+                                      "commands":  [
+                                                       "!loadout"
+                                                   ],
+                                      "actionId":  "04cff62b-541d-4c04-a8bf-d2504263407b",
+                                      "enabled":  true,
+                                      "ignoreInternal":  true,
+                                      "ignoreBotAccount":  false,
+                                      "useBotAccount":  false,
+                                      "sources":  7,
+                                      "permittedUserIds":  [
+
+                                                           ],
+                                      "excludedUserIds":  [
+
+                                                          ],
+                                      "accessLevel":  0,
+                                      "permittedUsers":  [
+
+                                                         ],
+                                      "permittedGroups":  [
+
+                                                          ],
+                                      "excludedUsers":  [
+
+                                                        ],
+                                      "excludedGroups":  [
+
+                                                         ],
+                                      "cooldown":  0,
+                                      "userCooldown":  0,
+                                      "groupCooldown":  0,
+                                      "case":  false,
+                                      "caseSensitive":  false,
+                                      "commandSourceVersion":  1
+                                  }
+                              ],
+                 "websocketServers":  [
+
+                                      ],
+                 "websocketClients":  [
+
+                                      ],
+                 "timers":  [
+                                {
+                                    "id":  "33a5be6b-96c8-49bd-a580-24e282ec96f7",
+                                    "name":  "Loadout: Tick (60s)",
+                                    "enabled":  true,
+                                    "repeat":  true,
+                                    "interval":  60,
+                                    "randomInterval":  false,
+                                    "upperInterval":  0,
+                                    "lines":  0,
+                                    "counter":  0
+                                }
+                            ]
+             },
+    "version":  23,
+    "exportedFrom":  "1.0.4",
+    "minimumVersion":  "1.0.0-alpha.1"
+}

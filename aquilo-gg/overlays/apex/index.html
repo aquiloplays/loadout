@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Apex Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Apex overlay. Always-visible card showing the current Apex viewer's HP bar
+  and a feed of recent damage. Crown change fires a flash animation.
+
+    https://aquilo.gg/overlays/apex?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
+
+  Optional:
+    pos     "bc" (bottom-center, default) | "br" | "bl" | "tc" | "tl" | "tr"
+    width   card width in px (default 540)
+    debug   1 → run a static demo cycle
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="root" data-pos="bc" data-state="empty">
+    <div class="apex-card" id="card">
+      <div class="ring"><img id="pfp" alt="" /><div id="initials"></div></div>
+      <div class="content">
+        <div class="topline">
+          <span class="crown">👑</span>
+          <span class="name" id="name"></span>
+          <span class="platform" id="platform"></span>
+          <span class="reign" id="reign"></span>
+        </div>
+        <div class="hp-row">
+          <div class="hp-bar"><div class="hp-fill" id="hpFill"></div></div>
+          <div class="hp-text"><span id="hpCurrent">0</span> / <span id="hpMax">0</span></div>
+        </div>
+        <div class="damage-feed" id="feed"></div>
+      </div>
+    </div>
+
+    <div class="empty-msg" id="emptyMsg">
+      👑 Apex spot is open — first sub / gift / cheer / TikTok gift / channel point takes the crown.
+    </div>
+
+    <div class="dethrone-splash hidden" id="splash">
+      <div class="splash-text">APEX DOWN</div>
+      <div class="splash-sub" id="splashSub"></div>
+    </div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

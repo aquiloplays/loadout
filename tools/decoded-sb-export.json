@@ -1,0 +1,389 @@
+﻿{
+  "meta": {
+    "name": "My Export",
+    "author": "aquilo_plays",
+    "version": "1.0.0",
+    "description": "",
+    "autoRunAction": null,
+    "minimumVersion": null
+  },
+  "data": {
+    "actions": [
+      {
+        "id": "a638358c-a9a7-4955-918c-cb1ccdd02ee6",
+        "queue": "00000000-0000-0000-0000-000000000000",
+        "enabled": true,
+        "excludeFromHistory": false,
+        "excludeFromPending": false,
+        "name": "First",
+        "group": "Timed Messages",
+        "alwaysRun": false,
+        "randomAction": false,
+        "concurrent": false,
+        "triggers": [
+          {
+            "variables": {},
+            "id": "94098e90-bc02-4f99-8b5e-5a5ba5f2bcd5",
+            "type": 702,
+            "enabled": true,
+            "exclusions": []
+          },
+          {
+            "timerId": "62aa96b1-2a76-4cdf-a169-e396d6509229",
+            "id": "005cd982-f2d6-493d-a169-6a5538ae67d2",
+            "type": 701,
+            "enabled": true,
+            "exclusions": []
+          }
+        ],
+        "subActions": [
+          {
+            "destination": 0,
+            "variableName": "sequenceindex",
+            "persisted": true,
+            "source": 1,
+            "value": 1,
+            "autoType": true,
+            "id": "d7c0b65e-3b0b-4307-b36b-551714784ec8",
+            "weight": 0.0,
+            "type": 122,
+            "parentId": null,
+            "enabled": true,
+            "index": 0
+          },
+          {
+            "input": "~sequenceindex~",
+            "autoType": false,
+            "subActions": [
+              {
+                "caseSensitive": true,
+                "values": [
+                  "1"
+                ],
+                "random": false,
+                "subActions": [
+                  {
+                    "text": "Join our Discord Community! https://discord.gg/aquilo",
+                    "color": 0,
+                    "useBot": true,
+                    "fallback": true,
+                    "id": "4806cec5-3d67-4f95-abec-5ff49c8c70ca",
+                    "weight": 0.0,
+                    "type": 23,
+                    "parentId": "8bb2278b-9513-453a-af0a-038c0995f3b6",
+                    "enabled": true,
+                    "index": 0
+                  },
+                  {
+                    "text": "Want to interact with the stream? Go to https://crowdcontrol.live/@aquilo to get 250 Crowd Control Coins every 30 minutes!",
+                    "useBot": true,
+                    "fallback": true,
+                    "broadcast": 0,
+                    "id": "2fa9473a-f2c9-4d23-9bb3-55031cb6b6ed",
+                    "weight": 0.0,
+                    "type": 4001,
+                    "parentId": "8bb2278b-9513-453a-af0a-038c0995f3b6",
+                    "enabled": true,
+                    "index": 1
+                  }
+                ],
+                "id": "8bb2278b-9513-453a-af0a-038c0995f3b6",
+                "weight": 0.0,
+                "type": 99903,
+                "parentId": "81390e43-395a-4812-a059-397d5c10e42d",
+                "enabled": true,
+                "index": 0
+              },
+              {
+                "caseSensitive": true,
+                "values": [
+                  "2"
+                ],
+                "random": false,
+                "subActions": [
+                  {
+                    "text": "Subs, gifted subs, and cheers of 200 bits or more get printed out and put on the wall!",
+                    "color": 0,
+                    "useBot": true,
+                    "fallback": true,
+                    "id": "7fd926ce-0f36-4c02-a1d2-92615249aada",
+                    "weight": 0.0,
+                    "type": 23,
+                    "parentId": "ac1b3e2e-2db2-4c5d-b129-659063ccbfd7",
+                    "enabled": true,
+                    "index": 0
+                  },
+                  {
+                    "text": "Want to interact with the stream? Go to https://crowdcontrol.live/@aquilo to get 250 Crowd Control Coins every 30 minutes!",
+                    "useBot": true,
+                    "fallback": true,
+                    "broadcast": 0,
+                    "id": "c1ddd1fe-6180-4982-8308-18794bde21c6",
+                    "weight": 0.0,
+                    "type": 4001,
+                    "parentId": "ac1b3e2e-2db2-4c5d-b129-659063ccbfd7",
+                    "enabled": true,
+                    "index": 1
+                  }
+                ],
+                "id": "ac1b3e2e-2db2-4c5d-b129-659063ccbfd7",
+                "weight": 0.0,
+                "type": 99903,
+                "parentId": "81390e43-395a-4812-a059-397d5c10e42d",
+                "enabled": true,
+                "index": 1
+              },
+              {
+                "caseSensitive": true,
+                "values": [
+                  "3"
+                ],
+                "random": false,
+                "subActions": [
+                  {
+                    "text": "STOP! Don't use bits to get CC coins! Go to https://crowdcontrol.live/@aquilo to get more Crowd Control Coins for less!",
+                    "color": 0,
+                    "useBot": true,
+                    "fallback": true,
+                    "id": "195ae80e-cef2-4f02-87a9-ff9bdedbdfa5",
+                    "weight": 0.0,
+                    "type": 23,
+                    "parentId": "44ebd695-f745-4178-a5fd-dbc14ac88c94",
+                    "enabled": true,
+                    "index": 0
+                  },
+                  {
+                    "text": "Want to interact with the stream? Go to https://crowdcontrol.live/@aquilo to get 250 Crowd Control Coins every 30 minutes!",
+                    "useBot": true,
+                    "fallback": true,
+                    "broadcast": 0,
+                    "id": "5c2e4564-adb5-487e-8743-23589db89103",
+                    "weight": 0.0,
+                    "type": 4001,
+                    "parentId": "44ebd695-f745-4178-a5fd-dbc14ac88c94",
+                    "enabled": true,
+                    "index": 1
+                  }
+                ],
+                "id": "44ebd695-f745-4178-a5fd-dbc14ac88c94",
+                "weight": 0.0,
+                "type": 99903,
+                "parentId": "81390e43-395a-4812-a059-397d5c10e42d",
+                "enabled": true,
+                "index": 2
+              },
+              {
+                "caseSensitive": true,
+                "values": [
+                  "4"
+                ],
+                "random": false,
+                "subActions": [
+                  {
+                    "text": "Consider leaving a tip! https://streamelements.com/aquilo_plays/tip Type !tip to see workouts per tipped amount.",
+                    "color": 0,
+                    "useBot": true,
+                    "fallback": true,
+                    "id": "7f444240-7386-4626-94bb-e1a1d113605b",
+                    "weight": 0.0,
+                    "type": 23,
+                    "parentId": "5dc25ad7-5ed4-446c-9666-cfa98a1c9823",
+                    "enabled": true,
+                    "index": 0
+                  },
+                  {
+                    "text": "Want to interact with the stream? Go to https://crowdcontrol.live/@aquilo to get 250 Crowd Control Coins every 30 minutes!",
+                    "useBot": true,
+                    "fallback": true,
+                    "broadcast": 0,
+                    "id": "e4939f10-ce68-45f4-80f3-e1bbdf4a3686",
+                    "weight": 0.0,
+                    "type": 4001,
+                    "parentId": "5dc25ad7-5ed4-446c-9666-cfa98a1c9823",
+                    "enabled": true,
+                    "index": 1
+                  }
+                ],
+                "id": "5dc25ad7-5ed4-446c-9666-cfa98a1c9823",
+                "weight": 0.0,
+                "type": 99903,
+                "parentId": "81390e43-395a-4812-a059-397d5c10e42d",
+                "enabled": true,
+                "index": 3
+              },
+              {
+                "caseSensitive": true,
+                "values": [
+                  "5"
+                ],
+                "random": false,
+                "subActions": [
+                  {
+                    "text": "Get 30% off your order of GFuel with my code AQUILO30 at check out! ",
+                    "color": 0,
+                    "useBot": true,
+                    "fallback": true,
+                    "id": "8da668ae-a5a6-4c7f-86ed-162496b088f7",
+                    "weight": 0.0,
+                    "type": 23,
+                    "parentId": "38ac2c40-9484-4cb0-a042-2d6f6c53641b",
+                    "enabled": true,
+                    "index": 0
+                  },
+                  {
+                    "text": "Want to interact with the stream? Go to https://crowdcontrol.live/@aquilo to get 250 Crowd Control Coins every 30 minutes!",
+                    "useBot": true,
+                    "fallback": true,
+                    "broadcast": 0,
+                    "id": "fab45e61-e914-4514-bb6e-c1e8c1f652e3",
+                    "weight": 0.0,
+                    "type": 4001,
+                    "parentId": "38ac2c40-9484-4cb0-a042-2d6f6c53641b",
+                    "enabled": true,
+                    "index": 1
+                  }
+                ],
+                "id": "38ac2c40-9484-4cb0-a042-2d6f6c53641b",
+                "weight": 0.0,
+                "type": 99903,
+                "parentId": "81390e43-395a-4812-a059-397d5c10e42d",
+                "enabled": true,
+                "index": 4
+              },
+              {
+                "caseSensitive": true,
+                "values": [
+                  "6"
+                ],
+                "random": false,
+                "subActions": [
+                  {
+                    "text": "Cheer 100 bits to request a song! Add the Artist - Title or paste the Spotify link",
+                    "color": 0,
+                    "useBot": true,
+                    "fallback": true,
+                    "id": "6c154730-c5b2-40b5-a8b3-291c1126f0b1",
+                    "weight": 0.0,
+                    "type": 23,
+                    "parentId": "4683dfb1-39a3-4550-842c-5224595c9342",
+                    "enabled": true,
+                    "index": 0
+                  },
+                  {
+                    "text": "Want to interact with the stream? Go to https://crowdcontrol.live/@aquilo to get 250 Crowd Control Coins every 30 minutes!",
+                    "useBot": true,
+                    "fallback": true,
+                    "broadcast": 0,
+                    "id": "dd00244e-1e8a-40a9-827e-a506ea9a7689",
+                    "weight": 0.0,
+                    "type": 4001,
+                    "parentId": "4683dfb1-39a3-4550-842c-5224595c9342",
+                    "enabled": true,
+                    "index": 1
+                  }
+                ],
+                "id": "4683dfb1-39a3-4550-842c-5224595c9342",
+                "weight": 0.0,
+                "type": 99903,
+                "parentId": "81390e43-395a-4812-a059-397d5c10e42d",
+                "enabled": true,
+                "index": 5
+              },
+              {
+                "caseSensitive": true,
+                "values": [
+                  "7"
+                ],
+                "random": false,
+                "subActions": [
+                  {
+                    "text": "Snag some of my merch! https://aquilo-plays-shop.fourthwall.com/",
+                    "color": 0,
+                    "useBot": true,
+                    "fallback": true,
+                    "id": "9ca90e31-b0ed-4115-a1a5-aebf06002863",
+                    "weight": 0.0,
+                    "type": 23,
+                    "parentId": "79fae81b-4ade-495e-8ecf-abb56b174b0d",
+                    "enabled": true,
+                    "index": 0
+                  },
+                  {
+                    "text": "Want to interact with the stream? Go to https://crowdcontrol.live/@aquilo to get 250 Crowd Control Coins every 30 minutes!",
+                    "useBot": true,
+                    "fallback": true,
+                    "broadcast": 0,
+                    "id": "452b9491-4d6f-43fb-b821-08975396b36a",
+                    "weight": 0.0,
+                    "type": 4001,
+                    "parentId": "79fae81b-4ade-495e-8ecf-abb56b174b0d",
+                    "enabled": true,
+                    "index": 1
+                  }
+                ],
+                "id": "79fae81b-4ade-495e-8ecf-abb56b174b0d",
+                "weight": 0.0,
+                "type": 99903,
+                "parentId": "81390e43-395a-4812-a059-397d5c10e42d",
+                "enabled": true,
+                "index": 6
+              },
+              {
+                "random": false,
+                "subActions": [
+                  {
+                    "destination": 0,
+                    "variableName": "sequenceindex",
+                    "persisted": true,
+                    "source": 0,
+                    "value": 0,
+                    "autoType": true,
+                    "id": "10b85f4e-ac28-439d-a8b4-6b246f16daa6",
+                    "weight": 0.0,
+                    "type": 122,
+                    "parentId": "f99edd81-7e2a-4660-aa45-58d02e2b1578",
+                    "enabled": true,
+                    "index": 0
+                  }
+                ],
+                "id": "f99edd81-7e2a-4660-aa45-58d02e2b1578",
+                "weight": 0.0,
+                "type": 99904,
+                "parentId": null,
+                "enabled": true,
+                "index": 8
+              }
+            ],
+            "id": "81390e43-395a-4812-a059-397d5c10e42d",
+            "weight": 0.0,
+            "type": 127,
+            "parentId": null,
+            "enabled": true,
+            "index": 1
+          }
+        ],
+        "collapsedGroups": []
+      }
+    ],
+    "queues": [],
+    "commands": [],
+    "websocketServers": [],
+    "websocketClients": [],
+    "timers": [
+      {
+        "id": "62aa96b1-2a76-4cdf-a169-e396d6509229",
+        "name": "Every 5 Min",
+        "enabled": false,
+        "repeat": true,
+        "interval": 300,
+        "randomInterval": false,
+        "upperInterval": 0,
+        "lines": 0,
+        "counter": 0
+      }
+    ]
+  },
+  "version": 23,
+  "exportedFrom": "1.0.4",
+  "minimumVersion": "1.0.0-alpha.1"
+}

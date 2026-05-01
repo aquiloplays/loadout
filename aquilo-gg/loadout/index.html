@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — the complete Streamer.bot suite</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="One Streamer.bot import string. Multi-platform alerts, smart timed messages, AI shoutouts, hate-raid detection, a Bolts wallet, an Apex top-viewer mode, and more. Built by aquilo_plays.">
+<meta property="og:title" content="Loadout — the complete Streamer.bot suite">
+<meta property="og:description" content="One import. Everything ready. Built for streamers who don't want to spend a weekend wiring SB actions.">
+<meta property="og:image" content="https://aquilo.gg/loadout/og.png">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://aquilo.gg/loadout">
+<meta name="theme-color" content="#0E0E10">
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="https://aquilo.gg">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <defs>
+        <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stop-color="#5A9CFF"/>
+          <stop offset="1" stop-color="#00F2EA"/>
+        </linearGradient>
+      </defs>
+      <circle cx="50" cy="50" r="46" fill="#0E0E10" stroke="url(#g)" stroke-width="3"/>
+      <path d="M35 25 L35 70 L65 70" fill="none" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span>Loadout</span>
+  </a>
+  <nav>
+    <a href="#features">Features</a>
+    <a href="#tiers">Tiers</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/aquiloplays/loadout">GitHub</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-inner">
+    <div class="hero-text">
+      <h1>The complete Streamer.bot suite.<br><span class="grad">One import. Everything ready.</span></h1>
+      <p class="lede">
+        Multi-platform alerts. Smart timed messages. AI-personalized shoutouts. Hate-raid detection. A Bolts wallet
+        across Twitch, YouTube, Kick, and TikTok. Apex top-viewer mode where TikTok gifts chip away just like Twitch subs.
+        24 modules, 5 OBS overlays, one DLL, no References-tab editing.
+      </p>
+      <div class="cta-row">
+        <a class="btn primary" href="https://github.com/aquiloplays/loadout/releases/latest">Download</a>
+        <a class="btn secondary" href="https://github.com/aquiloplays/loadout/blob/main/INSTALL.md">5-min install →</a>
+      </div>
+      <p class="tag">Built for streamers who don't want to spend a weekend wiring SB actions.</p>
+    </div>
+    <div class="hero-card">
+      <div class="card-row"><span class="dot"></span><span class="meta">Loadout · ready</span></div>
+      <div class="card-row"><span class="lbl">Bus:</span><span class="val">running on 7470</span></div>
+      <div class="card-row"><span class="lbl">Patreon:</span><span class="val">Loadout Pro (Tier 3)</span></div>
+      <div class="card-row"><span class="lbl">Modules:</span><span class="val">12 enabled</span></div>
+      <div class="card-row"><span class="lbl">Quiet mode:</span><span class="val muted">off</span></div>
+      <div class="card-row hint">⚡ Tray icon → right-click for quick toggles</div>
+    </div>
+  </div>
+</section>
+
+<section id="features" class="features">
+  <h2>What's in the kit</h2>
+  <div class="feat-grid">
+
+    <div class="feat">
+      <h3>⚡ Bolts wallet</h3>
+      <p>Cross-platform points wallet with sub multipliers, Patreon multipliers, and a daily-streak bonus.
+         Earn from chat, subs, gifts, raids, TikTok coins, CC coins, channel points. Spend with <code>!gift</code> and <code>!boltrain</code>.
+         One unified OBS overlay handles leaderboard, earn toasts, bolt rain, streak banners, and gift bursts.</p>
+    </div>
+
+    <div class="feat">
+      <h3>👑 Apex top-viewer</h3>
+      <p>One viewer holds the spot. Every spend event from anyone else chips away at their HP.
+         Cross-platform damage — TikTok gifts hit just like Twitch subs.
+         Finisher takes the crown. Reign timer, animated HP bar, dethrone splash.</p>
+    </div>
+
+    <div class="feat">
+      <h3>🎯 Daily Check-In</h3>
+      <p>Twitch channel-point reward or <code>!checkin</code> on any platform. Overlay shows the viewer's avatar,
+         sub-tier flair, Patreon flair, and rotating stream stats underneath.</p>
+    </div>
+
+    <div class="feat">
+      <h3>🤖 AI shoutouts</h3>
+      <p>On raid, the bot pulls the raider's last category and writes a hype, specific shoutout via Anthropic Claude
+         or OpenAI. Bring your own key (free) or use the bundled key on Tier 3.</p>
+    </div>
+
+    <div class="feat">
+      <h3>🛡️ Hate-raid detector</h3>
+      <p>Pattern-based detection: short window, brand-new accounts, similar messages.
+         DMs the broadcaster, no chat noise. Tier 3.</p>
+    </div>
+
+    <div class="feat">
+      <h3>📊 Counters &amp; goals</h3>
+      <p><code>!deaths +1</code>, <code>!wins +1</code>, custom counters. Follower / sub / bit / coin goals
+         with kind-themed progress bars. Live OBS overlays update on every change.</p>
+    </div>
+
+    <div class="feat">
+      <h3>🚂 Sub raid trains</h3>
+      <p>Burst detection at 3, 6, 10, 20 subs in 60s.
+         Plus synthetic TikTok hype train for TikFinity gifts (TikTok has none natively).</p>
+    </div>
+
+    <div class="feat">
+      <h3>🪙 Crowd Control coins</h3>
+      <p>Per-viewer leaderboard for CC effect spend. <code>!cccoins</code> top 5 this stream,
+         <code>!cccoinsall</code> all-time, <code>!mycoins</code> personal stats.</p>
+    </div>
+
+    <div class="feat">
+      <h3>📨 Discord live status</h3>
+      <p>Auto-posts a go-live embed. Edits in place when you change title or category.
+         Strikethroughs and footers it when you go offline. End-of-stream recap to a separate webhook.</p>
+    </div>
+
+    <div class="feat">
+      <h3>🔌 Webhook inbox</h3>
+      <p>HTTP listener for Ko-fi, Throne, Patreon, custom apps. Secret-authenticated.
+         Publishes to the Aquilo Bus AND can fire any SB action by id. Tier 2.</p>
+    </div>
+
+    <div class="feat">
+      <h3>👥 VIP rotation</h3>
+      <p>Weekly auto-rotation: promotes most engaged non-VIPs, demotes least active VIPs.
+         Mods can force <code>!viprotate</code> any time. Posts to Discord. Tier 3.</p>
+    </div>
+
+    <div class="feat">
+      <h3>🤫 Chat noise control</h3>
+      <p>Global cap of 30 messages/minute total. Per-area mute. Per-command cooldowns.
+         Quiet mode silences ambient chat while overlays keep updating. <code>!loadout quiet</code>.</p>
+    </div>
+
+  </div>
+</section>
+
+<section id="tiers" class="tiers">
+  <h2>Free, Plus, or Pro</h2>
+  <p class="sub">Same Patreon as StreamFusion — one sign-in, both products.</p>
+  <div class="tier-grid">
+
+    <div class="tier">
+      <div class="tier-head">
+        <h3>Free</h3>
+        <p>Forever</p>
+      </div>
+      <ul>
+        <li>Info commands</li>
+        <li>Basic Twitch alerts</li>
+        <li>3 timed messages</li>
+        <li>Basic welcomes</li>
+        <li>Bolts wallet</li>
+        <li>Counters &amp; goals</li>
+        <li>Sub anniversary</li>
+        <li>First words celebration</li>
+        <li><code>!link</code> identity</li>
+        <li>AI shoutouts (BYOK)</li>
+      </ul>
+      <a class="btn outline" href="https://github.com/aquiloplays/loadout/releases/latest">Download</a>
+    </div>
+
+    <div class="tier featured">
+      <div class="tier-head">
+        <h3>Loadout Plus</h3>
+        <p>Tier 2 · $6 / mo</p>
+      </div>
+      <ul>
+        <li>Multi-platform alerts</li>
+        <li>Unlimited timed messages</li>
+        <li>All welcome tiers</li>
+        <li>Alert sounds</li>
+        <li>Webhook inbox</li>
+        <li>Discord live-status</li>
+        <li>Stream recap</li>
+        <li>Backup &amp; restore</li>
+        <li>Daily Check-In overlay</li>
+        <li>Unlimited counters</li>
+      </ul>
+      <a class="btn primary" href="https://patreon.com/aquiloplays">Become a supporter</a>
+    </div>
+
+    <div class="tier pro">
+      <div class="tier-head">
+        <h3>Loadout Pro</h3>
+        <p>Tier 3 · $10 / mo</p>
+      </div>
+      <ul>
+        <li><strong>Everything in Plus</strong></li>
+        <li>AI shoutouts (bundled key)</li>
+        <li>TikTok hype train</li>
+        <li>Hate-raid detector</li>
+        <li>Smart auto-clipper</li>
+        <li>VOD chapter markers</li>
+        <li>Cross-platform Bolts</li>
+        <li>VIP rotation auto-magic</li>
+        <li>Apex animated flairs</li>
+        <li>Beta channel access</li>
+      </ul>
+      <a class="btn primary" href="https://patreon.com/aquiloplays">Become a supporter</a>
+    </div>
+
+  </div>
+</section>
+
+<section id="install" class="install">
+  <h2>5 minute install</h2>
+  <ol class="steps">
+    <li><strong>Download</strong> <code>Loadout.dll</code> and <code>loadout-import.sb.txt</code> from the
+      <a href="https://github.com/aquiloplays/loadout/releases/latest">latest release</a>.</li>
+    <li><strong>Drop the DLL</strong> into <code>&lt;Streamerbot&gt;/data/Loadout/</code>. (Optional — the bootstrap action will download it for you on first run.)</li>
+    <li><strong>Import the bundle.</strong> In Streamer.bot click <em>Import</em> top-right and paste the contents of <code>loadout-import.sb.txt</code>.</li>
+    <li><strong>Run <code>Loadout: Boot</code>.</strong> Right-click in the SB action panel → <em>Run Now</em>. Or restart SB.</li>
+    <li><strong>Walk the wizard.</strong> Pick what you want enabled. Click Recommended if you don't want to think about it.</li>
+  </ol>
+  <p class="links">
+    <a href="https://github.com/aquiloplays/loadout/blob/main/INSTALL.md">Full install walkthrough →</a>
+    <a href="https://github.com/aquiloplays/loadout/blob/main/CONFIG.md">Settings reference →</a>
+    <a href="https://github.com/aquiloplays/loadout/blob/main/PRIVACY.md">Privacy →</a>
+  </p>
+</section>
+
+<footer class="foot">
+  <div>
+    Built by <a href="https://aquilo.gg">aquilo_plays</a> · pairs with <a href="https://github.com/aquiloplays/StreamFusion">StreamFusion</a>
+  </div>
+  <div class="muted">
+    © 2026 aquilo_plays · <a href="https://github.com/aquiloplays/loadout/blob/main/LICENSE">License</a> · <a href="https://patreon.com/aquiloplays">Patreon</a>
+  </div>
+</footer>
+
+</body>
+</html>

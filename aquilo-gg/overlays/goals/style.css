@@ -1,0 +1,63 @@
+:root {
+  --bg: transparent;
+  --surface: #18181B;
+  --surface-2: #1F1F23;
+  --border: #2A2A30;
+  --text: #EFEFF1;
+  --muted: #ADADB8;
+  --accent: #3A86FF;
+  --tt: #00F2EA;
+  --gold: #F0B429;
+  --pink: #FF5DA2;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; width: 100%; height: 100%; overflow: hidden; }
+
+#root { padding: 16px; display: flex; gap: 12px; }
+body[data-layout="stack"] #root { flex-direction: column; align-items: stretch; }
+body[data-layout="row"]   #root { flex-direction: row; flex-wrap: wrap; }
+
+.goal {
+  min-width: 280px;
+  background: linear-gradient(180deg, rgba(24,24,27,.92), rgba(15,15,17,.92));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.4);
+}
+.goal .head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 6px;
+}
+.goal .name { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+.goal .progress { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.goal .progress strong { color: var(--text); }
+
+.bar {
+  height: 10px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+.bar .fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent), var(--tt));
+  border-radius: 999px;
+  transition: width .6s cubic-bezier(.2,.7,.2,1);
+}
+.bar .fill.bump {
+  box-shadow: 0 0 12px rgba(58,134,255,.7);
+}
+
+.goal[data-kind="subs"] .fill { background: linear-gradient(90deg, #9147FF, var(--accent)); }
+.goal[data-kind="bits"] .fill { background: linear-gradient(90deg, var(--gold), #FFCD3C); }
+.goal[data-kind="followers"] .fill { background: linear-gradient(90deg, var(--pink), var(--accent)); }
+.goal[data-kind="coins"] .fill { background: linear-gradient(90deg, var(--tt), #B6FFF8); }
+.goal[data-complete="true"] .fill { background: linear-gradient(90deg, #3FB950, #2AD4B9); }
+
+body[data-theme="neon"] .goal { background: rgba(0,0,0,.85); border-color: rgba(0,242,234,.35); box-shadow: 0 0 18px rgba(0,242,234,.25); }
+body[data-theme="neon"] .name { color: var(--tt); }
+
+.dev-status { position: fixed; bottom: 6px; right: 8px; font-size: 10px; color: var(--muted); background: rgba(0,0,0,.5); padding: 3px 6px; border-radius: 4px; }

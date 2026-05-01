@@ -1,0 +1,175 @@
+/*
+ * Loadout - Bolts overlay. Unified styles for every layer. Each layer is
+ * independently positioned via [data-pos]; layers without something to show
+ * are .hidden so OBS source captures nothing visible.
+ */
+:root {
+  --bg: transparent;
+  --surface: #18181B;
+  --surface-2: #1F1F23;
+  --border: #2A2A30;
+  --text: #EFEFF1;
+  --muted: #ADADB8;
+  --accent: #3A86FF;
+  --tt: #00F2EA;
+  --gold: #F0B429;
+  --pink: #FF5DA2;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  width: 100%; height: 100%;
+  overflow: hidden;
+}
+
+.layer { position: fixed; pointer-events: none; }
+.layer.hidden { display: none; }
+
+[data-pos="br"] { right: 18px; bottom: 18px; }
+[data-pos="bl"] { left: 18px; bottom: 18px; }
+[data-pos="tr"] { right: 18px; top: 18px; }
+[data-pos="tl"] { left: 18px; top: 18px; }
+[data-pos="tc"] { top: 24px; left: 50%; transform: translateX(-50%); }
+
+/* ── Leaderboard ─────────────────────────────────────────────────────── */
+#leaderboard {
+  width: 240px;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, rgba(24,24,27,.94), rgba(15,15,17,.94));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.45);
+}
+.lb-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.lb-rows { list-style: none; counter-reset: lb; }
+.lb-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  font-size: 13px; padding: 3px 0;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.lb-row:last-child { border-bottom: 0; }
+.lb-row .rank { font-size: 10px; color: var(--muted); width: 18px; }
+.lb-row .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 8px; }
+.lb-row .val  { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 600; }
+.lb-row.first .val  { color: var(--gold); }
+.lb-row.second .val { color: var(--tt); }
+.lb-row.third .val  { color: var(--pink); }
+
+/* ── Earn toasts ─────────────────────────────────────────────────────── */
+#toastTrack { display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.toast {
+  pointer-events: none;
+  background: rgba(15,15,17,.92);
+  border: 1px solid rgba(58,134,255,.4);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+  animation: slideInOut 4s cubic-bezier(.2,.7,.2,1) forwards;
+}
+.toast .who { color: var(--text); font-weight: 600; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toast .amt { color: var(--accent); font-weight: 700; }
+.toast.big  { font-size: 14px; padding: 8px 14px; border-color: var(--gold); }
+.toast.big .amt { color: var(--gold); }
+
+@keyframes slideInOut {
+  0%   { opacity: 0; transform: translateX(20px); }
+  10%  { opacity: 1; transform: translateX(0); }
+  85%  { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(20px); }
+}
+
+/* ── Streak banner ───────────────────────────────────────────────────── */
+.streak {
+  pointer-events: none;
+  animation: streakPop 5s cubic-bezier(.2,.7,.2,1) forwards;
+}
+.streak-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, rgba(245,93,68,.95), rgba(255,205,60,.95));
+  color: #1a0d00;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgba(245,93,68,.4);
+}
+.streak-fire { font-size: 18px; }
+
+@keyframes streakPop {
+  0%   { opacity: 0; transform: translate(-50%, -10px); }
+  10%  { opacity: 1; transform: translate(-50%, 0); }
+  90%  { opacity: 1; transform: translate(-50%, 0); }
+  100% { opacity: 0; transform: translate(-50%, -10px); }
+}
+
+/* ── Bolt rain (fullscreen) ──────────────────────────────────────────── */
+.rain {
+  inset: 0;
+  overflow: hidden;
+}
+.rain.active::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, rgba(58,134,255,.15) 0%, transparent 70%);
+  animation: flash 2s ease-out forwards;
+}
+@keyframes flash { 0%, 100% { opacity: 0; } 30% { opacity: 1; } }
+
+.bolt-particle {
+  position: absolute;
+  font-size: 28px;
+  pointer-events: none;
+  animation: fall linear forwards;
+  text-shadow: 0 0 14px rgba(58,134,255,.7);
+  user-select: none;
+}
+@keyframes fall {
+  0%   { transform: translateY(-10vh) rotate(0deg);  opacity: 0; }
+  10%  { opacity: 1; }
+  100% { transform: translateY(110vh) rotate(360deg); opacity: 1; }
+}
+
+/* ── Gift burst (centered transient) ─────────────────────────────────── */
+.giftburst {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gift-text {
+  background: linear-gradient(135deg, rgba(255,93,162,.95), rgba(58,134,255,.95));
+  color: white;
+  padding: 14px 24px;
+  border-radius: 14px;
+  font-size: 18px;
+  font-weight: 700;
+  box-shadow: 0 12px 32px rgba(0,0,0,.5);
+  animation: giftPop 3s cubic-bezier(.2,.7,.2,1) forwards;
+}
+@keyframes giftPop {
+  0%   { opacity: 0; transform: scale(0.7); }
+  15%  { opacity: 1; transform: scale(1.05); }
+  25%  { transform: scale(1); }
+  85%  { opacity: 1; }
+  100% { opacity: 0; transform: scale(0.95); }
+}
+
+/* Connection indicator (debug only) */
+.dev-status { position: fixed; bottom: 4px; right: 6px; font-size: 10px; color: var(--muted); background: rgba(0,0,0,.5); padding: 3px 6px; border-radius: 4px; }
