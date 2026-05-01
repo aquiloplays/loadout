@@ -23,11 +23,11 @@ namespace Loadout.Patreon
         AlertSounds,            // attach .wav / .mp3 to alerts
         WebhookInbox,           // Ko-fi / Throne / Patreon endpoint
         DiscordLiveStatus,      // go-live auto-poster
+        TwitterLiveStatus,      // X webhook auto-poster
         BackupRestore,          // zip-export of settings + viewer data
         StreamRecap,            // post-stream summary
 
         // ── Patreon Tier 3 ($10) ───────────────────────────────────────────────
-        AiShoutouts,            // AI-personalized raid shoutouts (or BYOK in free)
         TikTokHypeTrain,        // synthetic hype train on TikTok gifts
         HateRaidDetector,       // pattern-based hate-raid alerts
         SmartAutoClipper,       // chat-velocity / sub-burst clip triggers (Phase 2)
@@ -50,13 +50,6 @@ namespace Loadout.Patreon
     /// </summary>
     public static class Entitlements
     {
-        /// <summary>
-        /// Allows BYOK to unlock <see cref="Feature.AiShoutouts"/> in free tier
-        /// (the user pays their own API costs, we don't subsidize).
-        /// </summary>
-        public static bool HasOwnAiKey =>
-            !string.IsNullOrWhiteSpace(Settings.SettingsManager.Instance.Current.Ai.ApiKey);
-
         public static bool IsUnlocked(Feature f)
         {
             var tier = (PatreonClient.Instance.Current.Entitled
@@ -86,6 +79,7 @@ namespace Loadout.Patreon
                 case Feature.AlertSounds:
                 case Feature.WebhookInbox:
                 case Feature.DiscordLiveStatus:
+                case Feature.TwitterLiveStatus:
                 case Feature.BackupRestore:
                 case Feature.StreamRecap:
                 case Feature.UnlimitedCounters:
@@ -104,10 +98,6 @@ namespace Loadout.Patreon
                 case Feature.BoltsCrossPlatform:
                     return tier == "tier3";
 
-                // BYOK-eligible: Tier 3 OR your own API key
-                case Feature.AiShoutouts:
-                    return tier == "tier3" || HasOwnAiKey;
-
                 default:
                     return false;
             }
@@ -121,10 +111,6 @@ namespace Loadout.Patreon
             var tier = PatreonClient.Instance.Current.Tier ?? "none";
             switch (f)
             {
-                case Feature.AiShoutouts:
-                    return tier == "tier2"
-                        ? "Add your own AI API key (free) or upgrade to Tier 3 for the bundled key."
-                        : "Add your own AI API key in Settings -> AI, or join Loadout Pro for the bundled key.";
                 case Feature.TikTokHypeTrain:
                 case Feature.HateRaidDetector:
                 case Feature.SmartAutoClipper:

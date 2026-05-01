@@ -37,6 +37,22 @@ namespace Loadout.Modules
         private readonly Dictionary<string, DateTime> _activeChatters = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private DateTime _lastLeaderboardBroadcastUtc = DateTime.MinValue;
 
+        public BoltsModule()
+        {
+            // Register bus handlers so other aquilo.gg products (Rotation
+            // music widget, future tools) can transact in Bolts.
+            // Protocol:
+            //   bolts.spend.request   { user, platform, amount, reason, requestId }
+            //                         → bolts.spend.completed | bolts.spend.failed
+            //   bolts.refund          { user, platform, amount, reason, requestId }
+            //                         → bolts.refund.completed
+            //   bolts.balance.query   { user, platform }
+            //                         → bolts.balance.result { balance }
+            AquiloBus.Instance.RegisterHandler("bolts.spend.request",  HandleSpendRequest);
+            AquiloBus.Instance.RegisterHandler("bolts.refund",         HandleRefund);
+            AquiloBus.Instance.RegisterHandler("bolts.balance.query",  HandleBalanceQuery);
+        }
+
         public void OnEvent(EventContext ctx)
         {
             var s = SettingsManager.Instance.Current;
@@ -81,11 +97,37 @@ namespace Loadout.Modules
                 case "checkin":
                     HandleCheckIn(ctx, s);
                     return;
+
+                // Rotation widget sends these via the bus. Forwarded to us as
+                // events from the dispatcher's bus → event bridge (registered
+                // by AquiloBus on receipt of these specific kinds).
+                case "rotation.song.accepted":
+                    HandleRotationAck(ctx.Get<string>("requestId", ""), accepted: true,  reason: null);
+                    return;
+                case "rotation.song.rejected":
+                    HandleRotationAck(ctx.Get<string>("requestId", ""), accepted: false,
+                        reason: ctx.Get<string>("reason", "rejected"));
+                    return;
             }
         }
 
         public void OnTick()
         {
+            // Auto-refund any !boltsong that the Rotation widget never acknowledged
+            // within the deadline. Failure mode = widget offline / wedged.
+            List<string> toRefund = null;
+            lock (_pendingBoltSongs)
+            {
+                foreach (var kv in _pendingBoltSongs)
+                {
+                    if (kv.Value.Done) continue;
+                    if (DateTime.UtcNow < kv.Value.Deadline) continue;
+                    (toRefund ??= new List<string>()).Add(kv.Key);
+                }
+            }
+            if (toRefund != null)
+                foreach (var id in toRefund) HandleRotationAck(id, accepted: false, reason: "no-ack");
+
             // Leaderboard snapshot once a minute for the overlay.
             if ((DateTime.UtcNow - _lastLeaderboardBroadcastUtc).TotalSeconds < 60) return;
             _lastLeaderboardBroadcastUtc = DateTime.UtcNow;
@@ -198,6 +240,123 @@ namespace Loadout.Modules
                 case "lb":            CmdLeaderboard(ctx, s);       return;
                 case "gift":          CmdGift(ctx, rest, s);        return;
                 case "boltrain":      CmdBoltRain(ctx, rest, s);    return;
+            }
+
+            // Rotation widget integration: !boltsong <song> spends Bolts to
+            // push a priority song request into the Rotation queue. Configurable
+            // command name (default !boltsong).
+            if (s.RotationIntegration.Enabled &&
+                ("!" + cmd).Equals(s.RotationIntegration.Command, StringComparison.OrdinalIgnoreCase))
+            {
+                CmdBoltSong(ctx, rest, s);
+            }
+        }
+
+        // Per-viewer cooldown for !boltsong so a single supporter can't queue
+        // a hundred songs in a row.
+        private readonly Dictionary<string, DateTime> _boltSongLastUse = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        private void CmdBoltSong(EventContext ctx, string rest, LoadoutSettings s)
+        {
+            if (string.IsNullOrWhiteSpace(rest))
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:boltsong-help", TimeSpan.FromSeconds(15)))
+                    new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform,
+                        "@" + ctx.User + " usage: " + s.RotationIntegration.Command + " <artist - song>", s.Platforms);
+                return;
+            }
+
+            // Per-user cooldown.
+            var userKey = ctx.Platform.ToShortName() + ":" + ctx.User.ToLowerInvariant();
+            if (_boltSongLastUse.TryGetValue(userKey, out var last))
+            {
+                var since = (DateTime.UtcNow - last).TotalSeconds;
+                if (since < s.RotationIntegration.PerUserCooldownSec)
+                {
+                    var wait = (int)(s.RotationIntegration.PerUserCooldownSec - since);
+                    if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:boltsong-cd:" + userKey, TimeSpan.FromSeconds(20)))
+                        new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform,
+                            "@" + ctx.User + " hold up — " + wait + "s before another " + s.RotationIntegration.Command + ".", s.Platforms);
+                    return;
+                }
+            }
+
+            // Charge Bolts up front. If the Rotation widget rejects the request,
+            // the auto-refund timer below puts them back.
+            var cost = Math.Max(1, s.RotationIntegration.Cost);
+            var ok = BoltsWallet.Instance.Spend(ctx.Platform.ToShortName(), ctx.User, cost,
+                "boltsong:" + rest);
+            if (!ok)
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:boltsong-poor:" + userKey, TimeSpan.FromSeconds(8)))
+                    new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform,
+                        "@" + ctx.User + " not enough " + s.Bolts.Emoji + " (" + cost + " needed).", s.Platforms);
+                return;
+            }
+            _boltSongLastUse[userKey] = DateTime.UtcNow;
+            var requestId = Guid.NewGuid().ToString("N");
+
+            // Publish to the bus for Rotation to pick up. Priority flag so it
+            // bypasses the widget's normal !sr cooldowns / gating.
+            AquiloBus.Instance.Publish("rotation.song.request", new
+            {
+                requestId,
+                user = ctx.User,
+                displayName = ctx.User,
+                platform = ctx.Platform.ToShortName(),
+                text = rest,
+                priority = true,
+                paid = new { currency = "bolts", amount = cost }
+            });
+
+            // Schedule a refund check: if Rotation hasn't acknowledged with
+            // rotation.song.accepted within RefundOnFailureSec, refund the
+            // Bolts. Rotation can also actively reject by publishing
+            // rotation.song.rejected — handled in OnEvent below.
+            ScheduleRefundIfUnacknowledged(ctx, s, requestId, cost, rest);
+
+            if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:boltsong:" + userKey, TimeSpan.FromSeconds(2)))
+                new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform,
+                    "🎵 " + ctx.User + " spent " + cost + " " + s.Bolts.Emoji + " for a song request — '" + rest + "'", s.Platforms);
+        }
+
+        // requestId → (user, platform, amount, songText, deadlineUtc, acknowledged)
+        private readonly Dictionary<string, (string User, string Platform, int Amount, string Text, DateTime Deadline, bool Done)> _pendingBoltSongs
+            = new Dictionary<string, (string, string, int, string, DateTime, bool)>();
+
+        private void ScheduleRefundIfUnacknowledged(EventContext ctx, LoadoutSettings s, string requestId, int cost, string songText)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(Math.Max(5, s.RotationIntegration.RefundOnFailureSec));
+            lock (_pendingBoltSongs)
+                _pendingBoltSongs[requestId] = (ctx.User, ctx.Platform.ToShortName(), cost, songText, deadline, false);
+        }
+
+        // Called from OnEvent's rotation.song.accepted / .rejected handler below.
+        private void HandleRotationAck(string requestId, bool accepted, string reason)
+        {
+            (string User, string Platform, int Amount, string Text, DateTime Deadline, bool Done) entry;
+            lock (_pendingBoltSongs)
+            {
+                if (!_pendingBoltSongs.TryGetValue(requestId, out entry)) return;
+                entry.Done = true;
+                _pendingBoltSongs[requestId] = entry;
+            }
+
+            if (!accepted)
+            {
+                // Refund.
+                BoltsWallet.Instance.Earn(entry.Platform, entry.User, entry.Amount,
+                    "boltsong-refund:" + (reason ?? "rejected"));
+                AquiloBus.Instance.Publish("bolts.refunded", new
+                {
+                    user = entry.User, platform = entry.Platform, amount = entry.Amount,
+                    reason = "rotation-rejected:" + (reason ?? "")
+                });
+                var s = SettingsManager.Instance.Current;
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:boltsong-refund", TimeSpan.FromSeconds(5)))
+                    new MultiPlatformSender(CphPlatformSender.Instance).Send(PlatformMaskExtensions.FromShortName(entry.Platform),
+                        "@" + entry.User + " song request couldn't queue (" + (reason ?? "rejected") + "). Bolts refunded.",
+                        s.Platforms);
             }
         }
 
@@ -323,6 +482,102 @@ namespace Loadout.Modules
             new MultiPlatformSender(CphPlatformSender.Instance)
                 .Send(ctx.Platform, "⚡ Bolt rain! " + total + " " + s.Bolts.Emoji + " split across " + picked.Count + " active chatters.", s.Platforms);
         }
+
+        // ── Cross-product bus handlers (#17) ─────────────────────────────────
+
+        // Idempotency cache: requestId → (success, balanceAfter). Prevents
+        // double-charging if a client retries a flaky request.
+        private readonly Dictionary<string, (bool ok, long balance, string reason)> _spendIdempotency
+            = new Dictionary<string, (bool, long, string)>();
+
+        private Bus.BusMessage HandleSpendRequest(string fromClient, Bus.BusMessage incoming)
+        {
+            var s = SettingsManager.Instance.Current;
+            BoltsWallet.Instance.Initialize();
+
+            var data      = incoming.Data;
+            var user      = (string)data?["user"];
+            var platform  = (string)data?["platform"];
+            var amount    = (long?)data?["amount"] ?? 0;
+            var reason    = (string)data?["reason"] ?? "external";
+            var requestId = (string)data?["requestId"];
+
+            if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(platform) || amount <= 0)
+                return Reply("bolts.spend.failed", new { requestId, error = "bad-request" });
+
+            // Idempotency: if we've already processed this requestId, replay the result.
+            if (!string.IsNullOrEmpty(requestId) && _spendIdempotency.TryGetValue(requestId, out var prior))
+            {
+                return Reply(prior.ok ? "bolts.spend.completed" : "bolts.spend.failed", new
+                {
+                    requestId, balance = prior.balance, reason = prior.reason, replay = true
+                });
+            }
+
+            var ok = BoltsWallet.Instance.Spend(platform, user, amount, reason);
+            var balance = BoltsWallet.Instance.Balance(platform, user);
+
+            if (!string.IsNullOrEmpty(requestId))
+                _spendIdempotency[requestId] = (ok, balance, ok ? reason : "insufficient");
+
+            // Bus event so overlays can render.
+            AquiloBus.Instance.Publish(ok ? "bolts.spent" : "bolts.spend.declined", new
+            {
+                user, platform, amount, reason, balance, by = fromClient
+            });
+
+            return Reply(ok ? "bolts.spend.completed" : "bolts.spend.failed", new
+            {
+                requestId,
+                user, platform, amount, balance,
+                error = ok ? null : "insufficient-funds"
+            });
+        }
+
+        private Bus.BusMessage HandleRefund(string fromClient, Bus.BusMessage incoming)
+        {
+            BoltsWallet.Instance.Initialize();
+            var data      = incoming.Data;
+            var user      = (string)data?["user"];
+            var platform  = (string)data?["platform"];
+            var amount    = (long?)data?["amount"] ?? 0;
+            var reason    = (string)data?["reason"] ?? "refund";
+            var requestId = (string)data?["requestId"];
+
+            if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(platform) || amount <= 0)
+                return Reply("bolts.refund.failed", new { requestId, error = "bad-request" });
+
+            var balance = BoltsWallet.Instance.Earn(platform, user, amount, "refund:" + reason);
+
+            // Drop any earlier spend's idempotency so a retry doesn't double-spend
+            // after a refund.
+            if (!string.IsNullOrEmpty(requestId)) _spendIdempotency.Remove(requestId);
+
+            AquiloBus.Instance.Publish("bolts.refunded", new
+            {
+                user, platform, amount, reason, balance, by = fromClient
+            });
+            return Reply("bolts.refund.completed", new { requestId, user, platform, amount, balance });
+        }
+
+        private Bus.BusMessage HandleBalanceQuery(string fromClient, Bus.BusMessage incoming)
+        {
+            BoltsWallet.Instance.Initialize();
+            var data     = incoming.Data;
+            var user     = (string)data?["user"];
+            var platform = (string)data?["platform"];
+            if (string.IsNullOrEmpty(user) || string.IsNullOrEmpty(platform))
+                return Reply("bolts.balance.result", new { balance = 0L });
+            var balance = BoltsWallet.Instance.Balance(platform, user);
+            return Reply("bolts.balance.result", new { user, platform, balance });
+        }
+
+        private static Bus.BusMessage Reply(string kind, object data) => new Bus.BusMessage
+        {
+            V = 1,
+            Kind = kind,
+            Data = data == null ? null : Newtonsoft.Json.Linq.JToken.FromObject(data)
+        };
 
         // ── Bus snapshots ─────────────────────────────────────────────────────
 

@@ -262,7 +262,7 @@ namespace Loadout.UI
             ModLoyalty.IsChecked  = s.Modules.LoyaltyWallet;
             ModAlerts.IsChecked   = s.Modules.Alerts;
             ModTimers.IsChecked   = s.Modules.TimedMessages;
-            ModAi.IsChecked       = s.Modules.AiShoutouts;
+            // AI module removed in v0.1.1 — line intentionally blank
             ModHype.IsChecked     = s.Modules.TikTokHypeTrain;
             ModRecap.IsChecked    = s.Modules.StreamRecap;
             ModDiscord.IsChecked  = s.Modules.DiscordLiveStatus;
@@ -274,15 +274,6 @@ namespace Loadout.UI
             TxtDiscordWebhook.Text  = s.Discord.LiveStatusWebhook ?? "";
             TxtDiscordRecap.Text    = s.Discord.RecapWebhook ?? "";
             TxtDiscordTemplate.Text = s.Discord.GoLiveTemplate ?? "";
-
-            switch ((s.Ai.Provider ?? "anthropic").ToLowerInvariant())
-            {
-                case "openai": CmbAiProvider.SelectedIndex = 1; break;
-                case "none":   CmbAiProvider.SelectedIndex = 2; break;
-                default:       CmbAiProvider.SelectedIndex = 0; break;
-            }
-            TxtAiKey.Text   = s.Ai.ApiKey ?? "";
-            TxtAiModel.Text = s.Ai.Model ?? "";
 
             TxtWebhookPort.Text   = s.Webhooks.Port.ToString();
             TxtWebhookSecret.Text = s.Webhooks.SharedSecret ?? "";
@@ -324,7 +315,7 @@ namespace Loadout.UI
                 s.Modules.LoyaltyWallet    = ModLoyalty.IsChecked == true;
                 s.Modules.Alerts           = ModAlerts.IsChecked == true;
                 s.Modules.TimedMessages    = ModTimers.IsChecked == true;
-                s.Modules.AiShoutouts      = ModAi.IsChecked == true;
+                // AI module removed in v0.1.1
                 s.Modules.TikTokHypeTrain  = ModHype.IsChecked == true;
                 s.Modules.StreamRecap      = ModRecap.IsChecked == true;
                 s.Modules.DiscordLiveStatus = ModDiscord.IsChecked == true;
@@ -336,10 +327,6 @@ namespace Loadout.UI
                 s.Discord.LiveStatusWebhook = (TxtDiscordWebhook.Text ?? "").Trim();
                 s.Discord.RecapWebhook      = (TxtDiscordRecap.Text ?? "").Trim();
                 s.Discord.GoLiveTemplate    = TxtDiscordTemplate.Text ?? s.Discord.GoLiveTemplate;
-
-                s.Ai.Provider = ((ComboBoxItem)CmbAiProvider.SelectedItem)?.Tag?.ToString() ?? "anthropic";
-                s.Ai.ApiKey   = (TxtAiKey.Text ?? "").Trim();
-                s.Ai.Model    = (TxtAiModel.Text ?? "").Trim();
 
                 if (int.TryParse(TxtWebhookPort.Text, out var port) && port > 0 && port < 65536)
                     s.Webhooks.Port = port;

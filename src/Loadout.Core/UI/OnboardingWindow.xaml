@@ -102,7 +102,6 @@
                         <CheckBox x:Name="ChkLoyalty"  Content="Bolts wallet (with !link to merge platforms)" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ChkAlerts"   Content="Alerts (follows, subs, raids, super chats, etc.)" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ChkTimers"   Content="Auto-timed messages" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkAi"       Content="AI personalized shoutouts (BYOK or Tier 3)" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ChkHype"     Content="TikTok hype train (Tier 3)" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ChkRecap"    Content="Stream recap (post-stream summary)" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ChkDiscord"  Content="Discord live status auto-poster" Style="{StaticResource ToggleRow}" />
@@ -139,28 +138,8 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Step 5: AI -->
+            <!-- Step 5: Webhook inbox -->
             <StackPanel x:Name="Step5" Visibility="Collapsed">
-                <TextBlock Text="AI personalized shoutouts (optional)" Style="{StaticResource H1}" />
-                <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 16" TextWrapping="Wrap">
-                    When someone raids, Loadout looks up their last category/title and writes a hype, specific
-                    shoutout. Without an API key, falls back to a template. Anthropic Claude or OpenAI work.
-                </TextBlock>
-                <TextBlock Text="Provider" Style="{StaticResource H2}" />
-                <ComboBox x:Name="CmbAiProvider" SelectedIndex="0">
-                    <ComboBoxItem Content="Anthropic Claude" Tag="anthropic" />
-                    <ComboBoxItem Content="OpenAI"           Tag="openai" />
-                    <ComboBoxItem Content="None (use template)" Tag="none" />
-                </ComboBox>
-                <TextBlock Margin="0 12 0 4" Text="API key" Style="{StaticResource H2}" />
-                <TextBox x:Name="TxtAiKey" />
-                <TextBlock Style="{StaticResource Muted}" Margin="0 4 0 0">
-                    Stored locally only, never transmitted except to your chosen provider.
-                </TextBlock>
-            </StackPanel>
-
-            <!-- Step 6: Webhook inbox -->
-            <StackPanel x:Name="Step6" Visibility="Collapsed">
                 <TextBlock Text="Webhook inbox (optional)" Style="{StaticResource H1}" />
                 <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 16" TextWrapping="Wrap">
                     Loadout can listen on a local port and trigger SB actions when external services
@@ -176,8 +155,8 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Step 7: Patreon -->
-            <StackPanel x:Name="Step7" Visibility="Collapsed">
+            <!-- Step 6: Patreon -->
+            <StackPanel x:Name="Step6" Visibility="Collapsed">
                 <TextBlock Text="Connect Patreon (optional)" Style="{StaticResource H1}" />
                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 16">
                     Loadout is fully free for the basics. Tier 2 ($6) unlocks multi-platform alerts, unlimited timers,
@@ -201,8 +180,8 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Step 8: Done -->
-            <StackPanel x:Name="Step8" Visibility="Collapsed">
+            <!-- Step 7: Done -->
+            <StackPanel x:Name="Step7" Visibility="Collapsed">
                 <TextBlock Text="You're ready 🎉" Style="{StaticResource H1}" />
                 <TextBlock TextWrapping="Wrap" Margin="0 8 0 16">
                     Loadout is configured. The tray icon (bottom-right of your screen) is your hub —

@@ -57,6 +57,27 @@ namespace Loadout.Bus
         /// <summary>Path that StreamFusion / others read to find the shared secret.</summary>
         public string SecretFilePath => _secretPath;
 
+        // In-process handlers for messages whose <c>kind</c> matches the
+        // registered prefix. Used by BoltsModule to handle bolts.spend.request
+        // server-side instead of just forwarding it to other subscribers.
+        // Returns the response message to send back to the originating client
+        // (or null to do default fan-out behavior).
+        public delegate BusMessage InProcessHandler(string fromClient, BusMessage incoming);
+        private readonly ConcurrentDictionary<string, InProcessHandler> _handlers =
+            new ConcurrentDictionary<string, InProcessHandler>();
+
+        /// <summary>
+        /// Register an in-process handler for an exact <c>kind</c>. When a
+        /// client publishes a message with that kind, the handler runs
+        /// server-side and the response is sent back ONLY to that client
+        /// (rather than fanned out to all subscribers).
+        /// </summary>
+        public void RegisterHandler(string kind, InProcessHandler handler)
+        {
+            if (string.IsNullOrEmpty(kind) || handler == null) return;
+            _handlers[kind] = handler;
+        }
+
         public void Start()
         {
             if (IsRunning) return;
@@ -222,7 +243,26 @@ namespace Loadout.Bus
                     return;
 
                 default:
-                    // Anything else is a fan-out publish from this client to all others.
+                    // Server-side handler? Run synchronously, reply to sender only.
+                    if (_handlers.TryGetValue(msg.Kind, out var handler))
+                    {
+                        BusMessage response = null;
+                        try { response = handler(s.ClientName ?? "anon", msg); }
+                        catch (Exception ex)
+                        {
+                            response = new BusMessage
+                            {
+                                V = ProtocolVersion,
+                                Kind = msg.Kind + ".error",
+                                Data = JToken.FromObject(new { error = ex.Message })
+                            };
+                        }
+                        if (response != null)
+                            await SendJsonAsync(s, response, ct).ConfigureAwait(false);
+                        return;
+                    }
+
+                    // Otherwise fan out from this client to all others.
                     var json = JsonConvert.SerializeObject(msg);
                     var bytes = Encoding.UTF8.GetBytes(json);
                     foreach (var c in _clients.Values)

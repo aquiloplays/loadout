@@ -41,8 +41,8 @@ namespace Loadout.Sb
                 _modules.Add(new FirstWordsModule());
                 _modules.Add(new AdBreakModule());
                 _modules.Add(new ChatVelocityModule());
-                _modules.Add(new AiShoutoutsModule());
                 _modules.Add(new DiscordLiveStatusModule());
+                _modules.Add(new TwitterLiveStatusModule());
                 _modules.Add(new WebhookInboxModule());
                 _modules.Add(new StreamRecapModule());
                 _modules.Add(new SubRaidTrainModule());

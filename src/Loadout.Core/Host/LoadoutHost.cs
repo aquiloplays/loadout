@@ -46,6 +46,13 @@ namespace Loadout.Host
                 Patreon.PatreonClient.Instance.Initialize(SettingsManager.Instance.DataFolder);
                 Bus.AquiloBus.Instance.Start();
 
+                // Bridge select bus messages into the event dispatcher so
+                // modules can react to rotation widget responses (etc.) via
+                // their normal OnEvent path. Add new prefixes here when
+                // future products need to push events into Loadout's modules.
+                Bus.AquiloBus.Instance.RegisterHandler("rotation.song.accepted", BridgeBusToDispatcher);
+                Bus.AquiloBus.Instance.RegisterHandler("rotation.song.rejected", BridgeBusToDispatcher);
+
                 var ready = new ManualResetEventSlim(false);
                 _uiThread = new Thread(() =>
                 {
@@ -123,6 +130,24 @@ namespace Loadout.Host
                 win.Show();
                 win.Activate();
             }));
+        }
+
+        // Funnels bus events into the regular dispatcher so modules see them
+        // through OnEvent instead of having to subscribe to the bus separately.
+        // Returns null because we don't owe the sending client a synchronous
+        // reply for these notification-style messages.
+        private static Bus.BusMessage BridgeBusToDispatcher(string fromClient, Bus.BusMessage incoming)
+        {
+            try
+            {
+                var args = new System.Collections.Generic.Dictionary<string, object>();
+                if (incoming.Data is Newtonsoft.Json.Linq.JObject obj)
+                    foreach (var p in obj.Properties())
+                        args[p.Name] = p.Value?.ToObject<object>();
+                Sb.SbEventDispatcher.Instance.DispatchEvent(incoming.Kind, args);
+            }
+            catch (Exception ex) { Util.ErrorLog.Write("BridgeBus", ex); }
+            return null;
         }
 
         public static void Shutdown()

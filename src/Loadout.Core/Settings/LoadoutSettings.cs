@@ -20,7 +20,7 @@ namespace Loadout.Settings
         public AlertsConfig       Alerts       { get; set; } = new AlertsConfig();
         public TimersConfig       Timers       { get; set; } = new TimersConfig();
         public DiscordConfig      Discord      { get; set; } = new DiscordConfig();
-        public AiConfig           Ai           { get; set; } = new AiConfig();
+        public TwitterConfig      Twitter      { get; set; } = new TwitterConfig();
         public WebhookConfig      Webhooks     { get; set; } = new WebhookConfig();
         public ModerationConfig   Moderation   { get; set; } = new ModerationConfig();
         public WelcomesConfig     Welcomes     { get; set; } = new WelcomesConfig();
@@ -34,6 +34,7 @@ namespace Loadout.Settings
         public BoltsConfig        Bolts        { get; set; } = new BoltsConfig();
         public ChatNoiseConfig    ChatNoise    { get; set; } = new ChatNoiseConfig();
         public ApexConfig         Apex         { get; set; } = new ApexConfig();
+        public RotationIntegrationConfig RotationIntegration { get; set; } = new RotationIntegrationConfig();
     }
 
     public class PlatformsConfig
@@ -72,9 +73,9 @@ namespace Loadout.Settings
         public bool Alerts             { get; set; } = false;
         public bool TikTokHypeTrain    { get; set; } = false;
         public bool TimedMessages      { get; set; } = false;
-        public bool AiShoutouts        { get; set; } = false;
         public bool StreamRecap        { get; set; } = false;
         public bool DiscordLiveStatus  { get; set; } = false;
+        public bool TwitterLiveStatus  { get; set; } = false;
         public bool WebhookInbox       { get; set; } = false;
         public bool Moderation         { get; set; } = false;
         public bool HateRaidDetector   { get; set; } = false;
@@ -150,6 +151,21 @@ namespace Loadout.Settings
         public DateTime LastFiredUtc { get; set; } = DateTime.MinValue;
     }
 
+    public class TwitterConfig
+    {
+        // Webhook-based, NOT direct X API. Why: X charges $100/mo for the
+        // Basic API tier needed for write access. A webhook (Zapier / IFTTT
+        // / Make / n8n / custom worker) lets the user wire their own posting
+        // path with zero infra cost on our side. Loadout sends a JSON payload
+        // describing the live event; the user's webhook decides what to do
+        // with it (post a tweet, file an Airtable row, send themselves an
+        // email, whatever).
+        public string LiveWebhook       { get; set; } = "";
+        public string LiveTemplate      { get; set; } = "🔴 LIVE: {title}\nNow playing {game} → {url}\n#twitch";
+        public string OfflineTemplate   { get; set; } = "Stream's wrapped for the day. Thanks for hanging out 💜";
+        public bool   PostOnUpdate      { get; set; } = false;     // most users don't want a tweet on every title change
+    }
+
     public class DiscordConfig
     {
         public string LiveStatusWebhook   { get; set; } = "";
@@ -157,16 +173,6 @@ namespace Loadout.Settings
         public string GoLiveTemplate      { get; set; } = "🔴 **{broadcaster}** is now live!\n**{title}** — *{game}*\n{url}";
         public bool   AutoEditOnChange    { get; set; } = true;
         public bool   ArchiveOnOffline    { get; set; } = true;
-    }
-
-    public class AiConfig
-    {
-        public string Provider   { get; set; } = "anthropic"; // anthropic | openai | none
-        public string ApiKey     { get; set; } = "";
-        public string Model      { get; set; } = "claude-haiku-4-5";
-        public bool   ShoutoutsEnabled { get; set; } = true;
-        public string ShoutoutPromptPrefix { get; set; } =
-            "Write a short, hype, friendly Twitch shoutout (1-2 sentences) for the streamer below. Be specific to what they play. No hashtags.";
     }
 
     public class WebhookConfig
@@ -334,6 +340,21 @@ namespace Loadout.Settings
         public int  CounterAckCooldownSec  { get; set; } = 5;
         // Counter chat ack mode: 0 silent, 1 every change, N every Nth change.
         public int  CounterAckEveryN       { get; set; } = 1;
+    }
+
+    public class RotationIntegrationConfig
+    {
+        // Lets viewers spend Bolts via !boltsong <song> to push a priority
+        // request into the Rotation music widget. The widget subscribes to
+        // rotation.song.request on the Aquilo Bus and treats messages from
+        // Loadout as priority requests (skip their own cooldowns / gates).
+        // Refunds Bolts automatically if the widget rejects the request
+        // (queue full, blocked artist, etc.).
+        public bool   Enabled              { get; set; } = false;
+        public string Command              { get; set; } = "!boltsong";
+        public int    Cost                 { get; set; } = 200;
+        public int    PerUserCooldownSec   { get; set; } = 120;
+        public int    RefundOnFailureSec   { get; set; } = 30;
     }
 
     public class BoltsConfig

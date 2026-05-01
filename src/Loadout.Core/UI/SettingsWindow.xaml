@@ -77,7 +77,6 @@
                         <CheckBox x:Name="ModLoyalty"  Content="Loyalty wallet" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ModAlerts"   Content="Alerts" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ModTimers"   Content="Auto-timed messages" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ModAi"       Content="AI personalized shoutouts" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ModHype"     Content="TikTok hype train" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ModRecap"    Content="Stream recap" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ModDiscord"  Content="Discord live status" Style="{StaticResource ToggleRow}" />
@@ -255,21 +254,6 @@
             </TabItem>
 
             <!-- AI -->
-            <TabItem Header="AI">
-                <StackPanel Margin="20">
-                    <TextBlock Text="Provider" Style="{StaticResource H2}" />
-                    <ComboBox x:Name="CmbAiProvider" Width="240" HorizontalAlignment="Left">
-                        <ComboBoxItem Content="Anthropic Claude" Tag="anthropic" />
-                        <ComboBoxItem Content="OpenAI" Tag="openai" />
-                        <ComboBoxItem Content="None" Tag="none" />
-                    </ComboBox>
-                    <TextBlock Text="API key" Style="{StaticResource H2}" Margin="0 16 0 4" />
-                    <TextBox x:Name="TxtAiKey" />
-                    <TextBlock Text="Model" Style="{StaticResource H2}" Margin="0 16 0 4" />
-                    <TextBox x:Name="TxtAiModel" Width="320" HorizontalAlignment="Left" />
-                </StackPanel>
-            </TabItem>
-
             <!-- Webhooks -->
             <TabItem Header="Webhooks">
                 <StackPanel Margin="20">

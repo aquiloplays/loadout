@@ -8,7 +8,7 @@ namespace Loadout.UI
 {
     public partial class OnboardingWindow : Window
     {
-        private const int TotalSteps = 8;
+        private const int TotalSteps = 7;
         private int _currentStep = 1;
 
         public OnboardingWindow()
@@ -45,7 +45,6 @@ namespace Loadout.UI
             ChkLoyalty.IsChecked    = s.Modules.Bolts;
             ChkAlerts.IsChecked     = s.Modules.Alerts;
             ChkTimers.IsChecked     = s.Modules.TimedMessages;
-            ChkAi.IsChecked         = s.Modules.AiShoutouts;
             ChkHype.IsChecked       = s.Modules.TikTokHypeTrain;
             ChkRecap.IsChecked      = s.Modules.StreamRecap;
             ChkDiscord.IsChecked    = s.Modules.DiscordLiveStatus;
@@ -65,14 +64,6 @@ namespace Loadout.UI
 
             TxtDiscordWebhook.Text  = s.Discord.LiveStatusWebhook ?? "";
             TxtDiscordTemplate.Text = s.Discord.GoLiveTemplate ?? "";
-
-            TxtAiKey.Text = s.Ai.ApiKey ?? "";
-            switch ((s.Ai.Provider ?? "anthropic").ToLowerInvariant())
-            {
-                case "openai": CmbAiProvider.SelectedIndex = 1; break;
-                case "none":   CmbAiProvider.SelectedIndex = 2; break;
-                default:       CmbAiProvider.SelectedIndex = 0; break;
-            }
 
             TxtWebhookPort.Text   = s.Webhooks.Port.ToString();
             TxtWebhookSecret.Text = s.Webhooks.SharedSecret ?? "";
@@ -97,7 +88,6 @@ namespace Loadout.UI
                     s.Modules.Bolts            = ChkLoyalty.IsChecked == true;
                     s.Modules.Alerts           = ChkAlerts.IsChecked == true;
                     s.Modules.TimedMessages    = ChkTimers.IsChecked == true;
-                    s.Modules.AiShoutouts      = ChkAi.IsChecked == true;
                     s.Modules.TikTokHypeTrain  = ChkHype.IsChecked == true;
                     s.Modules.StreamRecap      = ChkRecap.IsChecked == true;
                     s.Modules.DiscordLiveStatus = ChkDiscord.IsChecked == true;
@@ -122,11 +112,6 @@ namespace Loadout.UI
                 }
                 else if (step == 5)
                 {
-                    s.Ai.Provider = ((ComboBoxItem)CmbAiProvider.SelectedItem)?.Tag?.ToString() ?? "anthropic";
-                    s.Ai.ApiKey   = (TxtAiKey.Text ?? "").Trim();
-                }
-                else if (step == 6)
-                {
                     if (int.TryParse(TxtWebhookPort.Text, out var port) && port > 0 && port < 65536)
                         s.Webhooks.Port = port;
                     s.Webhooks.SharedSecret = (TxtWebhookSecret.Text ?? "").Trim();
@@ -136,7 +121,7 @@ namespace Loadout.UI
 
         private void UpdateView()
         {
-            var stepNames = new[] { "Welcome", "Platforms", "Modules", "Discord", "AI shoutouts", "Webhook inbox", "Patreon", "Done" };
+            var stepNames = new[] { "Welcome", "Platforms", "Modules", "Discord", "Webhook inbox", "Patreon", "Done" };
             StepLabel.Text = "Step " + _currentStep + " of " + TotalSteps + " - " + stepNames[_currentStep - 1];
 
             Step1.Visibility = _currentStep == 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -146,9 +131,8 @@ namespace Loadout.UI
             Step5.Visibility = _currentStep == 5 ? Visibility.Visible : Visibility.Collapsed;
             Step6.Visibility = _currentStep == 6 ? Visibility.Visible : Visibility.Collapsed;
             Step7.Visibility = _currentStep == 7 ? Visibility.Visible : Visibility.Collapsed;
-            Step8.Visibility = _currentStep == 8 ? Visibility.Visible : Visibility.Collapsed;
 
-            if (_currentStep == 7) RefreshPatreonStep();
+            if (_currentStep == 6) RefreshPatreonStep();
 
             BtnBack.IsEnabled = _currentStep > 1;
             BtnSkip.Visibility = _currentStep == TotalSteps ? Visibility.Hidden : Visibility.Visible;
@@ -243,7 +227,7 @@ namespace Loadout.UI
 
         private System.Windows.Controls.CheckBox[] AllModuleChecks() => new[]
         {
-            ChkInfo, ChkWelcomes, ChkLoyalty, ChkAlerts, ChkTimers, ChkAi,
+            ChkInfo, ChkWelcomes, ChkLoyalty, ChkAlerts, ChkTimers,
             ChkHype, ChkRecap, ChkDiscord, ChkWebhook, ChkMod, ChkFun,
             ChkGoals, ChkCheckIn, ChkFirstWords, ChkAdBreak, ChkSubRaid,
             ChkSubAnniv, ChkCcCoins, ChkVip, ChkAutoPoll, ChkApex

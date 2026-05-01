@@ -148,9 +148,9 @@ namespace Loadout.Modules
             target = (target ?? "").Trim().TrimStart('@');
             if (string.IsNullOrEmpty(target)) return "Usage: !so <username>";
 
-            // If AI shoutouts are entitled, AiShoutoutsModule will pick this up via
-            // the bus and replace this with a personalized message. Otherwise we
-            // ship a safe template.
+            // Bus event so overlays / external products can react if they want
+            // (e.g., a stream-deck shortcut to bring up the channel page on a
+            // second monitor).
             AquiloBus.Instance.Publish("shoutout.requested", new { target, requestedBy = ctx.User, platform = ctx.Platform.ToShortName() });
             return "🎯 Go check out https://twitch.tv/" + target + " — they're awesome!";
         }
