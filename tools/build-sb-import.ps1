@@ -96,18 +96,21 @@ function New-InlineCSharpAction {
         concurrent          = $false
         triggers            = @($Triggers)
         subActions          = @(
+            # Field shape MUST match SB's deserializer exactly. Verified via
+            # tools/diff-sb-shape.ps1 → real-inline-cs-sample.json. Order is
+            # the order SB writes back on save; not alphabetical. Two fields
+            # SB does NOT store: executeCodeFromCompiled, referencedAssemblies
+            # — adding them broke imports on SB 1.0.4. Don't re-add.
             [ordered]@{
                 name                  = $Name
                 description           = $Description
                 references            = @(
                     'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\mscorlib.dll',
-                    'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.dll',
-                    'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Core.dll',
-                    'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Net.Http.dll'
+                    'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.dll'
                 )
                 byteCode              = (ConvertTo-Base64Utf8 $Code)
                 precompile            = $false
-                delayStart            = 0
+                delayStart            = $false      # SB stores this as BOOL, not number
                 saveResultToVariable  = $false
                 saveToVariable        = ""
                 id                    = $subId
@@ -150,30 +153,44 @@ function Read-CSharp([string]$file) {
 # reference them by id. Match each Command entry to a CommandTrigger.
 # ------------------------------------------------------------------------------
 function New-Command {
-    param([string]$CommandId, [string]$Name, [string[]]$Aliases, [string]$ActionId)
+    # Field shape MUST match what SB writes to data/commands.json. Verified via
+    # tools/diff-sb-shape.ps1 against a real export. Notes:
+    #   - command is a SINGULAR string (not "commands" array)
+    #   - the command-to-action link is via the action's CommandTriggered
+    #     trigger (type 401) carrying commandId — NOT via an actionId field
+    #     on the command itself
+    #   - sources is a bitmask: 1=Twitch, 2=YouTube, 4=Kick (per SB EventSource enum)
+    #   - grantType: 0=anyone, 1=mod+, 2=vip+, 3=sub+, etc.
+    param(
+        [string]$CommandId,
+        [string]$Name,
+        [string]$Command,    # the actual chat token (e.g. "!link")
+        [int]$GlobalCooldown = 0,
+        [int]$UserCooldown   = 0,
+        [int]$Sources        = 7,    # Twitch + YouTube + Kick
+        [int]$GrantType      = 0     # 0 = anyone
+    )
     return [ordered]@{
-        id           = $CommandId
-        name         = $Name
-        commands     = $Aliases
-        actionId     = $ActionId
-        enabled      = $true
-        ignoreInternal = $true
-        ignoreBotAccount = $false
-        useBotAccount = $false
-        sources      = 7        # bitmask: 1 Twitch + 2 YouTube + 4 Trovo. SB widens this on import.
-        permittedUserIds = @()
-        excludedUserIds = @()
-        accessLevel  = 0
-        permittedUsers = @()
-        permittedGroups = @()
-        excludedUsers = @()
-        excludedGroups = @()
-        cooldown     = 0
-        userCooldown = 0
-        groupCooldown = 0
-        case         = $false
-        caseSensitive = $false
-        commandSourceVersion = 1
+        permittedUsers       = @()
+        permittedGroups      = @()
+        id                   = $CommandId
+        name                 = $Name
+        enabled              = $true
+        include              = $false
+        mode                 = 0
+        command              = $Command
+        regexExplicitCapture = $false
+        location             = 0
+        ignoreBotAccount     = $true
+        ignoreInternal       = $false
+        sources              = $Sources
+        persistCounter       = $false
+        persistUserCounter   = $false
+        caseSensitive        = $false
+        globalCooldown       = $GlobalCooldown
+        userCooldown         = $UserCooldown
+        group                = $null
+        grantType            = $GrantType
     }
 }
 
@@ -278,9 +295,10 @@ $actions += New-InlineCSharpAction -Name "Open Loadout Onboarding" -Group "Loado
 # Bundle
 # ------------------------------------------------------------------------------
 $commands = @(
-    (New-Command -CommandId $cmdLinkId        -Name "!link"        -Aliases @("!link")        -ActionId $actLink.id),
-    (New-Command -CommandId $cmdLinkApproveId -Name "!linkapprove" -Aliases @("!linkapprove") -ActionId $actLinkApprove.id),
-    (New-Command -CommandId $cmdSuiteId       -Name "!loadout"     -Aliases @("!loadout")     -ActionId $actSuite.id)
+    # GrantType: 0 = anyone (link / loadout); 1 = mod+ for linkapprove
+    (New-Command -CommandId $cmdLinkId        -Name "Loadout: !link"        -Command "!link"        -GrantType 0 -GlobalCooldown 5),
+    (New-Command -CommandId $cmdLinkApproveId -Name "Loadout: !linkapprove" -Command "!linkapprove" -GrantType 1 -GlobalCooldown 0),
+    (New-Command -CommandId $cmdSuiteId       -Name "Loadout: !loadout"     -Command "!loadout"     -GrantType 0 -GlobalCooldown 10)
 )
 
 $bundle = [ordered]@{

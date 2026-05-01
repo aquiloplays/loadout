@@ -1,0 +1,19 @@
+﻿{
+    "name":  "",
+    "description":  "",
+    "references":  [
+                       "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                       "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                   ],
+    "byteCode":  "dXNpbmcgU3lzdGVtOw0KdXNpbmcgTmV3dG9uc29mâ€¦(truncated)",
+    "precompile":  false,
+    "delayStart":  false,
+    "saveResultToVariable":  false,
+    "saveToVariable":  "",
+    "id":  "a6121906-a443-4c68-a32e-92d047c8f632",
+    "weight":  0.0,
+    "type":  99999,
+    "parentId":  null,
+    "enabled":  true,
+    "index":  1
+}
