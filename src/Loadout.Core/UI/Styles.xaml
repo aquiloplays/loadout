@@ -484,13 +484,16 @@
         </Style.Triggers>
     </Style>
 
-    <!-- Window-open fade-in storyboard. Wire via Window.Loaded handler:
-         BeginStoryboard(FindResource("WindowFadeIn"))  -->
+    <!-- Window-open fade-in storyboard. Animates ONLY Opacity (and the
+         window starts at Opacity=1 so it's still visible if this storyboard
+         never fires). The previous version animated a TranslateTransform
+         target that required matching shape on the Window's RenderTransform;
+         when that mismatched, WPF threw on Begin and the window was left at
+         Opacity=0 - i.e. invisible. Lesson: animate properties that are
+         already there, don't introduce new shape from the storyboard. -->
     <Storyboard x:Key="WindowFadeIn">
         <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                         From="0" To="1" Duration="0:0:0.25" />
-        <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                         From="12" To="0" Duration="0:0:0.30">
+                         From="0.85" To="1" Duration="0:0:0.20">
             <DoubleAnimation.EasingFunction>
                 <CubicEase EasingMode="EaseOut" />
             </DoubleAnimation.EasingFunction>

@@ -7,10 +7,7 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         Loaded="Window_Loaded"
-        Opacity="0">
-    <Window.RenderTransform>
-        <TranslateTransform Y="12" />
-    </Window.RenderTransform>
+        Opacity="1">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

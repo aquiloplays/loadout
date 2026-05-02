@@ -113,11 +113,18 @@ namespace Loadout.Host
             EnsureStarted(null);
             _dispatcher?.BeginInvoke(new Action(() =>
             {
-                var win = SettingsWindow.GetOrCreate();
-                win.Show();
-                win.Activate();
-                win.Topmost = true;
-                win.Topmost = false;
+                try
+                {
+                    var win = SettingsWindow.GetOrCreate();
+                    win.Show();
+                    win.Activate();
+                    win.Topmost = true;
+                    win.Topmost = false;
+                }
+                catch (Exception ex)
+                {
+                    Util.ErrorLog.Write("LoadoutHost.OpenSettings", ex);
+                }
             }));
         }
 
@@ -126,9 +133,18 @@ namespace Loadout.Host
             EnsureStarted(null);
             _dispatcher?.BeginInvoke(new Action(() =>
             {
-                var win = new OnboardingWindow();
-                win.Show();
-                win.Activate();
+                try
+                {
+                    var win = new OnboardingWindow();
+                    win.Show();
+                    win.Activate();
+                    win.Topmost = true;
+                    win.Topmost = false;
+                }
+                catch (Exception ex)
+                {
+                    Util.ErrorLog.Write("LoadoutHost.OpenOnboarding", ex);
+                }
             }));
         }
 
