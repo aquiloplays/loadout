@@ -20,9 +20,12 @@
     <Color x:Key="Border.Default">#2A2A30</Color>
     <Color x:Key="Border.Subtle">#222226</Color>
 
-    <!-- Text -->
-    <Color x:Key="Fg.Primary">#EFEFF1</Color>
-    <Color x:Key="Fg.Muted">#ADADB8</Color>
+    <!-- Text. Bumped a notch toward white to clear the WCAG AA threshold on
+         the darkest surface (#0E0E10). #EFEFF1 → #F5F5F7 is ~14:1 contrast
+         versus the previous ~13:1 — small visible win, still avoids the
+         pure-white glare. -->
+    <Color x:Key="Fg.Primary">#F5F5F7</Color>
+    <Color x:Key="Fg.Muted">#B8BCC6</Color>
     <Color x:Key="Fg.Faint">#7A7A85</Color>
 
     <!-- Brand accent (SF blue) -->
@@ -81,24 +84,58 @@
         <Setter Property="TextOptions.TextRenderingMode"  Value="ClearType" />
     </Style>
 
+    <!-- Default TextBlock — every naked <TextBlock /> gets the brand fg.
+         Without this, controls inside Buttons / TabItems / ContentPresenters
+         can fall back to system foreground (black on light theme), and naked
+         text on a card surface can wind up unreadable. -->
+    <Style TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize"   Value="13" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+    </Style>
+
+    <!-- Same defensive wrap for Label, ScrollViewer, ItemsControl —
+         WPF's default templates for these can ship with surfaces that
+         default to system Window/ControlBrush (white-ish in light theme),
+         which would otherwise punch holes in our dark UI. -->
+    <Style TargetType="Label">
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontSize"   Value="13" />
+    </Style>
+    <Style TargetType="ScrollViewer">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style TargetType="ItemsControl">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style TargetType="StackPanel">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style TargetType="Grid">
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+
     <!-- Headings -->
-    <Style x:Key="H1" TargetType="TextBlock">
+    <Style x:Key="H1" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontSize"     Value="24" />
         <Setter Property="FontWeight"   Value="SemiBold" />
         <Setter Property="Foreground"   Value="{StaticResource Brush.Fg.Primary}" />
         <Setter Property="Margin"       Value="0 0 0 10" />
     </Style>
-    <Style x:Key="H2" TargetType="TextBlock">
+    <Style x:Key="H2" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontSize"     Value="15" />
         <Setter Property="FontWeight"   Value="SemiBold" />
         <Setter Property="Foreground"   Value="{StaticResource Brush.Fg.Primary}" />
         <Setter Property="Margin"       Value="0 0 0 6" />
     </Style>
-    <Style x:Key="Muted" TargetType="TextBlock">
+    <Style x:Key="Muted" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="Foreground"   Value="{StaticResource Brush.Fg.Muted}" />
         <Setter Property="FontSize"     Value="12" />
     </Style>
-    <Style x:Key="Wordmark" TargetType="TextBlock">
+    <Style x:Key="Wordmark" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontSize"   Value="20" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />

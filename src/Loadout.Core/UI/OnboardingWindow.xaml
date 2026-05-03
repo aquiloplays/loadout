@@ -9,7 +9,14 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         Loaded="Window_Loaded"
-        Opacity="1">
+        Opacity="1"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        Background="#0E0E10"
+        Foreground="#EFEFF1"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        TextElement.Foreground="#EFEFF1">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
