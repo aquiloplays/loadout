@@ -159,6 +159,232 @@
                 </Grid>
             </TabItem>
 
+            <!-- Games -->
+            <TabItem Header="Games">
+                <Grid Margin="20">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="Games you've streamed" Style="{StaticResource H1}" />
+                    <TextBlock Grid.Row="1" Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 12">
+                        Auto-tracked from every Twitch category change while Loadout is running.
+                        Tick "Reset on switch" if you want counters (deaths, wins, etc.) to zero out
+                        when you stop streaming that game.
+                    </TextBlock>
+
+                    <DataGrid Grid.Row="2" x:Name="GrdGames" AutoGenerateColumns="False" CanUserAddRows="False"
+                              SelectionMode="Single" SelectionUnit="FullRow" IsReadOnly="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn  Header="Game"           Binding="{Binding GameName}"            Width="*"  IsReadOnly="True" />
+                            <DataGridTextColumn  Header="Sessions"       Binding="{Binding SessionCount}"        Width="100" IsReadOnly="True" />
+                            <DataGridTextColumn  Header="Total hours"    Binding="{Binding TotalHoursDisplay}"   Width="120" IsReadOnly="True" />
+                            <DataGridTextColumn  Header="Peak viewers"   Binding="{Binding PeakViewers}"         Width="120" IsReadOnly="True" />
+                            <DataGridTextColumn  Header="Last streamed" Binding="{Binding LastStreamedDisplay}" Width="160" IsReadOnly="True" />
+                            <DataGridCheckBoxColumn Header="Reset on switch" Binding="{Binding ResetCountersOnSwitch, UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0 12 0 0">
+                        <Button Content="Refresh"      Style="{StaticResource SecondaryButton}" Click="BtnGamesRefresh_Click" Margin="0 0 8 0" />
+                        <Button Content="Reset stats"  Style="{StaticResource SecondaryButton}" Click="BtnGamesReset_Click"   Margin="0 0 8 0" />
+                        <TextBlock x:Name="TxtCurrentGame" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Overlays -->
+            <TabItem Header="Overlays">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20" x:Name="OverlaysStack">
+                        <TextBlock Text="OBS browser sources" Style="{StaticResource H1}" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 16">
+                            Each overlay is one URL. Drop into OBS as a Browser Source. The bus secret is auto-pulled from
+                            <Run FontFamily="Consolas">%APPDATA%\Aquilo\bus-secret.txt</Run> below — keep it private.
+                        </TextBlock>
+
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 12">
+                            <StackPanel>
+                                <TextBlock Text="Bus secret (read-only)" Style="{StaticResource H2}" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtBusSecret" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Click="BtnCopyBusSecret_Click" Margin="8 0 0 0" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Check-In overlay -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <TextBlock Text="🎯 Daily Check-In" Style="{StaticResource H2}" />
+                                    <Button HorizontalAlignment="Right" Content="Test in browser"
+                                            Style="{StaticResource SecondaryButton}" Tag="check-in" Click="BtnOverlayOpen_Click" />
+                                </Grid>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlCheckIn" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="check-in" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <ComboBox x:Name="CmbCheckInOverlayPos" Width="160" SelectionChanged="OnOverlayUrlChange">
+                                        <ComboBoxItem Content="Bottom-left"   Tag="bl" IsSelected="True" />
+                                        <ComboBoxItem Content="Bottom-right"  Tag="br" />
+                                        <ComboBoxItem Content="Top-left"      Tag="tl" />
+                                        <ComboBoxItem Content="Top-right"     Tag="tr" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Counters overlay -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <TextBlock Text="📊 Counters" Style="{StaticResource H2}" />
+                                    <Button HorizontalAlignment="Right" Content="Test in browser"
+                                            Style="{StaticResource SecondaryButton}" Tag="counters" Click="BtnOverlayOpen_Click" />
+                                </Grid>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlCounters" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="counters" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Theme:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <ComboBox x:Name="CmbCountersTheme" Width="120" SelectionChanged="OnOverlayUrlChange">
+                                            <ComboBoxItem Content="Dark"    Tag="dark" IsSelected="True" />
+                                            <ComboBoxItem Content="Neon"    Tag="neon" />
+                                            <ComboBoxItem Content="Minimal" Tag="minimal" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Layout:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <ComboBox x:Name="CmbCountersLayout" Width="120" SelectionChanged="OnOverlayUrlChange">
+                                            <ComboBoxItem Content="Row"     Tag="row" IsSelected="True" />
+                                            <ComboBoxItem Content="Stack"   Tag="stack" />
+                                            <ComboBoxItem Content="Compact" Tag="compact" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Goals overlay -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <TextBlock Text="🎯 Goals" Style="{StaticResource H2}" />
+                                    <Button HorizontalAlignment="Right" Content="Test in browser"
+                                            Style="{StaticResource SecondaryButton}" Tag="goals" Click="BtnOverlayOpen_Click" />
+                                </Grid>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlGoals" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="goals" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Theme:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <ComboBox x:Name="CmbGoalsTheme" Width="120" SelectionChanged="OnOverlayUrlChange">
+                                        <ComboBoxItem Content="Dark" Tag="dark" IsSelected="True" />
+                                        <ComboBoxItem Content="Neon" Tag="neon" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Bolts overlay -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <TextBlock Text="⚡ Bolts (unified)" Style="{StaticResource H2}" />
+                                    <Button HorizontalAlignment="Right" Content="Test in browser"
+                                            Style="{StaticResource SecondaryButton}" Tag="bolts" Click="BtnOverlayOpen_Click" />
+                                </Grid>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlBolts" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="bolts" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <TextBlock Text="Layers visible:" Style="{StaticResource Muted}" Margin="0 0 0 4" />
+                                <WrapPanel>
+                                    <CheckBox x:Name="ChkLayerLeaderboard" Content="Leaderboard" IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkLayerToast"       Content="Earn toasts" IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkLayerRain"        Content="Bolt rain"   IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkLayerStreak"      Content="Streak banner" IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkLayerGiftBurst"   Content="Gift bursts" IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Apex overlay -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <TextBlock Text="👑 Apex" Style="{StaticResource H2}" />
+                                    <Button HorizontalAlignment="Right" Content="Test in browser"
+                                            Style="{StaticResource SecondaryButton}" Tag="apex" Click="BtnOverlayOpen_Click" />
+                                </Grid>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlApex" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="apex" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <ComboBox x:Name="CmbApexPos" Width="160" SelectionChanged="OnOverlayUrlChange">
+                                        <ComboBoxItem Content="Bottom-center" Tag="bc" IsSelected="True" />
+                                        <ComboBoxItem Content="Bottom-right"  Tag="br" />
+                                        <ComboBoxItem Content="Bottom-left"   Tag="bl" />
+                                        <ComboBoxItem Content="Top-center"    Tag="tc" />
+                                        <ComboBoxItem Content="Top-right"     Tag="tr" />
+                                        <ComboBoxItem Content="Top-left"      Tag="tl" />
+                                    </ComboBox>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Overlay base URL" Style="{StaticResource H2}" />
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 6">
+                                    Defaults to https://aquilo.gg/overlays. Change if you self-host.
+                                </TextBlock>
+                                <TextBox x:Name="TxtOverlayBaseUrl" TextChanged="OnOverlayUrlChange" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- Check-In -->
             <TabItem Header="Check-In">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">

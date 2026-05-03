@@ -93,6 +93,7 @@ namespace Loadout.Settings
         public bool SubAnniversary     { get; set; } = false;
         public bool Bolts              { get; set; } = false;
         public bool Apex               { get; set; } = false;
+        public bool GameTracker        { get; set; } = true;   // free, on by default
     }
 
     public class AlertsConfig

@@ -53,6 +53,7 @@ namespace Loadout.Sb
                 _modules.Add(new SubAnniversaryModule());
                 _modules.Add(new BoltsModule());
                 _modules.Add(new ApexModule());
+                _modules.Add(new GameTrackerModule());
             }
         }
 

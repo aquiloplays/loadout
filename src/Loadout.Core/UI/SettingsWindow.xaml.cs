@@ -1,10 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Web;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Loadout.Bus;
+using Loadout.Games;
 using Loadout.Identity;
 using Loadout.Patreon;
 using Loadout.Settings;
@@ -51,6 +55,8 @@ namespace Loadout.UI
             RefreshPendingLinks();
             RefreshPatreonState();
             BindCountersAndCheckIn();
+            BindGamesTab();
+            BindOverlaysTab();
 
             PatreonClient.Instance.StateChanged += OnPatreonStateChanged;
             Closed += (_, __) => {
@@ -378,6 +384,165 @@ namespace Loadout.UI
                 TxtSavedHint.Text = "You're on the latest version.";
             else
                 TxtSavedHint.Text = "Update check failed (" + result + ").";
+        }
+
+        // ── Games tab ────────────────────────────────────────────────────────
+
+        private readonly ObservableCollection<GameStat> _games = new ObservableCollection<GameStat>();
+
+        private void BindGamesTab()
+        {
+            GameStatsStore.Instance.Initialize();
+            GrdGames.ItemsSource = _games;
+            ReloadGames();
+        }
+
+        private void ReloadGames()
+        {
+            _games.Clear();
+            foreach (var g in GameStatsStore.Instance.All()) _games.Add(g);
+            var current = GameStatsStore.Instance.CurrentGame;
+            TxtCurrentGame.Text = string.IsNullOrEmpty(current)
+                ? "  No active session."
+                : "  Currently streaming: " + current;
+        }
+
+        private void BtnGamesRefresh_Click(object sender, RoutedEventArgs e) => ReloadGames();
+
+        private void BtnGamesReset_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(this,
+                "Wipe all tracked game stats? Sessions counts, total hours, and peak viewers will reset to zero. Per-game 'reset on switch' choices stay.",
+                "Reset game stats", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.OK) return;
+            GameStatsStore.Instance.Reset();
+            ReloadGames();
+        }
+
+        // ── Overlays tab ─────────────────────────────────────────────────────
+
+        // The overlay base URL the broadcaster targets in OBS. Default is the
+        // hosted aquilo.gg copy; advanced users can self-host or test a local
+        // checkout by changing it (e.g., http://127.0.0.1:8765/overlays).
+        private const string DefaultOverlayBase = "https://aquilo.gg/overlays";
+
+        private void BindOverlaysTab()
+        {
+            // Show the bus secret read-only so the user can copy it elsewhere.
+            TxtBusSecret.Text = TryReadBusSecret();
+            TxtOverlayBaseUrl.Text = DefaultOverlayBase;
+            RefreshOverlayUrls();
+        }
+
+        private void OnOverlayUrlChange(object sender, RoutedEventArgs e) => RefreshOverlayUrls();
+        private void OnOverlayUrlChange(object sender, TextChangedEventArgs e) => RefreshOverlayUrls();
+        private void OnOverlayUrlChange(object sender, SelectionChangedEventArgs e) => RefreshOverlayUrls();
+
+        private void RefreshOverlayUrls()
+        {
+            // Defensive: this fires before BindOverlaysTab on some XAML init paths.
+            if (TxtUrlCheckIn == null) return;
+
+            var baseUrl = (TxtOverlayBaseUrl?.Text ?? DefaultOverlayBase).TrimEnd('/');
+            var secret  = TxtBusSecret?.Text ?? "";
+
+            TxtUrlCheckIn.Text = BuildOverlayUrl(baseUrl, "check-in", secret, new Dictionary<string, string>
+            {
+                ["pos"] = SelectedTag(CmbCheckInOverlayPos)
+            });
+
+            TxtUrlCounters.Text = BuildOverlayUrl(baseUrl, "counters", secret, new Dictionary<string, string>
+            {
+                ["theme"]  = SelectedTag(CmbCountersTheme),
+                ["layout"] = SelectedTag(CmbCountersLayout)
+            });
+
+            TxtUrlGoals.Text = BuildOverlayUrl(baseUrl, "goals", secret, new Dictionary<string, string>
+            {
+                ["theme"] = SelectedTag(CmbGoalsTheme)
+            });
+
+            // Bolts: collect enabled layers into a CSV.
+            var layers = new List<string>();
+            if (ChkLayerLeaderboard?.IsChecked == true) layers.Add("leaderboard");
+            if (ChkLayerToast?.IsChecked       == true) layers.Add("toast");
+            if (ChkLayerRain?.IsChecked        == true) layers.Add("rain");
+            if (ChkLayerStreak?.IsChecked      == true) layers.Add("streak");
+            if (ChkLayerGiftBurst?.IsChecked   == true) layers.Add("giftburst");
+            TxtUrlBolts.Text = BuildOverlayUrl(baseUrl, "bolts", secret, new Dictionary<string, string>
+            {
+                ["layers"] = layers.Count == 5 ? null : string.Join(",", layers)
+            });
+
+            TxtUrlApex.Text = BuildOverlayUrl(baseUrl, "apex", secret, new Dictionary<string, string>
+            {
+                ["pos"] = SelectedTag(CmbApexPos)
+            });
+        }
+
+        private static string BuildOverlayUrl(string baseUrl, string overlay, string secret, Dictionary<string, string> extras)
+        {
+            var qs = new List<string>
+            {
+                "bus=" + HttpUtility.UrlEncode("ws://127.0.0.1:7470/aquilo/bus/")
+            };
+            if (!string.IsNullOrEmpty(secret)) qs.Add("secret=" + HttpUtility.UrlEncode(secret));
+            if (extras != null)
+                foreach (var kv in extras)
+                    if (!string.IsNullOrEmpty(kv.Value)) qs.Add(kv.Key + "=" + HttpUtility.UrlEncode(kv.Value));
+            return baseUrl + "/" + overlay + "?" + string.Join("&", qs);
+        }
+
+        private static string SelectedTag(ComboBox cb) =>
+            (cb?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+
+        private static string TryReadBusSecret()
+        {
+            try
+            {
+                var path = System.IO.Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Aquilo", "bus-secret.txt");
+                return File.Exists(path) ? File.ReadAllText(path).Trim() : "(bus not started yet — boot Loadout first)";
+            }
+            catch { return ""; }
+        }
+
+        private void BtnCopyBusSecret_Click(object sender, RoutedEventArgs e)
+        {
+            try { Clipboard.SetText(TxtBusSecret.Text ?? ""); TxtSavedHint.Text = "Bus secret copied."; }
+            catch (Exception ex) { TxtSavedHint.Text = "Copy failed: " + ex.Message; }
+        }
+
+        private void BtnOverlayCopy_Click(object sender, RoutedEventArgs e)
+        {
+            var tag = (sender as Button)?.Tag?.ToString();
+            var url = OverlayUrlByTag(tag);
+            if (string.IsNullOrEmpty(url)) return;
+            try { Clipboard.SetText(url); TxtSavedHint.Text = "URL copied: " + tag; }
+            catch (Exception ex) { TxtSavedHint.Text = "Copy failed: " + ex.Message; }
+        }
+
+        private void BtnOverlayOpen_Click(object sender, RoutedEventArgs e)
+        {
+            var tag = (sender as Button)?.Tag?.ToString();
+            var url = OverlayUrlByTag(tag);
+            if (string.IsNullOrEmpty(url)) return;
+            try { System.Diagnostics.Process.Start(url); }
+            catch (Exception ex) { TxtSavedHint.Text = "Open failed: " + ex.Message; }
+        }
+
+        private string OverlayUrlByTag(string tag)
+        {
+            switch (tag)
+            {
+                case "check-in": return TxtUrlCheckIn?.Text;
+                case "counters": return TxtUrlCounters?.Text;
+                case "goals":    return TxtUrlGoals?.Text;
+                case "bolts":    return TxtUrlBolts?.Text;
+                case "apex":     return TxtUrlApex?.Text;
+                default:         return null;
+            }
         }
     }
 }
