@@ -63,6 +63,13 @@ namespace Loadout.Settings
         public bool YouTube { get; set; } = true;
         public bool Kick    { get; set; } = true;
 
+        // Outgoing TikTok messages route through a Streamer.bot action that
+        // TikFinity (or another bridge) registers — there's no native CPH
+        // SendTikTokMessage. Set this to the action name TikFinity exposes
+        // (or your own custom one); the message is passed via the
+        // "loadoutTikTokMessage" CPH global var.
+        public string TikTokSendActionName { get; set; } = "";
+
         [JsonIgnore]
         public PlatformMask AsMask
         {

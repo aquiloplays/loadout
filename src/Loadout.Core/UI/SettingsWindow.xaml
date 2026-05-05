@@ -191,9 +191,19 @@
                                     Untick a platform to mute Loadout output to it without disconnecting it in SB.
                                 </TextBlock>
                                 <CheckBox x:Name="ChkTwitch"  Content="Twitch"   Style="{StaticResource ToggleRow}" />
-                                <CheckBox x:Name="ChkTikTok"  Content="TikTok (read-only via TikFinity)" Style="{StaticResource ToggleRow}" />
+                                <CheckBox x:Name="ChkTikTok"  Content="TikTok (via TikFinity)" Style="{StaticResource ToggleRow}" />
                                 <CheckBox x:Name="ChkYouTube" Content="YouTube"  Style="{StaticResource ToggleRow}" />
                                 <CheckBox x:Name="ChkKick"    Content="Kick"     Style="{StaticResource ToggleRow}" />
+
+                                <TextBlock Text="TikTok send action (optional)" Style="{StaticResource H2}" Margin="0 14 0 4" />
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 6">
+                                    Streamer.bot has no native TikTok send. To let timed messages, alerts, etc. post to
+                                    your TikTok stream, configure TikFinity's bot mode (or your own bridge) to register
+                                    an SB action that reads the <Run FontFamily="Consolas">loadoutTikTokMessage</Run>
+                                    global var and posts it. Paste that action's exact name here. Leave blank to skip
+                                    TikTok sending entirely.
+                                </TextBlock>
+                                <TextBox x:Name="TxtTikTokSendAction" />
                             </StackPanel>
                         </Border>
 
@@ -2479,6 +2489,50 @@
                                         <TextBox x:Name="TxtViewerBgOpacity" Width="50" TextChanged="OnOverlayUrlChange" />
                                     </StackPanel>
                                 </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- All-in-one composite overlay. One OBS browser source renders
+                             every layer the streamer ticks below; each layer is an iframe of
+                             the standalone overlay so per-overlay theming stays unchanged. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Overlays}" Margin="0 0 8 0" Width="14" Height="14" />
+                                        <TextBlock Text="All-in-one (composite)" Style="{StaticResource H2}" Margin="0" />
+                                    </StackPanel>
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="all" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires every enabled layer's test event so an OBS source for the all-in-one URL renders the lot." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="all" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block)." />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    One browser source, one URL — rendering whichever layers you tick. Each layer
+                                    is an iframe of the standalone overlay so per-overlay theming (accent / bg
+                                    opacity / etc.) is configured on those cards above; this card just picks
+                                    which layers are visible.
+                                </TextBlock>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlAll" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="all" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <TextBlock Text="Layers visible:" Style="{StaticResource Muted}" Margin="0 0 0 4" />
+                                <WrapPanel>
+                                    <CheckBox x:Name="ChkAllBolts"    Content="Bolts"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllCounters" Content="Counters"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllGoals"    Content="Goals"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllCheckIn"  Content="Check-in"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllApex"     Content="Apex"      IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllCommands" Content="Commands"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllRecap"    Content="Recap"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllViewer"   Content="Viewer"    IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
 

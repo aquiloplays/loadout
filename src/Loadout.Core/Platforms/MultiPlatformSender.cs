@@ -21,7 +21,7 @@ namespace Loadout.Platforms
                 { PlatformMask.Twitch,  90 },  // mod = 100/30s, regular = 20/30s. We aim safe.
                 { PlatformMask.YouTube, 15 },  // YT live chat is much stricter
                 { PlatformMask.Kick,    30 },
-                { PlatformMask.TikTok,  0  }   // TikTok via TikFinity is read-only
+                { PlatformMask.TikTok,  6  }   // sent via PlatformsConfig.TikTokSendActionName (TikFinity bridge)
             };
 
         public MultiPlatformSender(IPlatformSender sender)

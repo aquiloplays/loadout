@@ -576,6 +576,7 @@ namespace Loadout.UI
             ChkTikTok.IsChecked  = s.Platforms.TikTok;
             ChkYouTube.IsChecked = s.Platforms.YouTube;
             ChkKick.IsChecked    = s.Platforms.Kick;
+            TxtTikTokSendAction.Text = s.Platforms.TikTokSendActionName ?? "";
 
             CmbChannel.SelectedIndex = string.Equals(s.Updates.Channel, "beta", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
             ChkAutoCheckUpdates.IsChecked = s.Updates.AutoCheck;
@@ -769,6 +770,7 @@ namespace Loadout.UI
                 s.Platforms.TikTok  = ChkTikTok.IsChecked  == true;
                 s.Platforms.YouTube = ChkYouTube.IsChecked == true;
                 s.Platforms.Kick    = ChkKick.IsChecked    == true;
+                s.Platforms.TikTokSendActionName = (TxtTikTokSendAction.Text ?? "").Trim();
 
                 s.Updates.Channel   = ((ComboBoxItem)CmbChannel.SelectedItem)?.Tag?.ToString() ?? "stable";
                 s.Updates.AutoCheck = ChkAutoCheckUpdates.IsChecked == true;
@@ -1630,6 +1632,29 @@ namespace Loadout.UI
                     ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtViewerBgOpacity?.Text) ? null : ClampInt(TxtViewerBgOpacity.Text, 0, 100, 94)
                 });
             }
+
+            // All-in-one composite. Picks up the layer checkboxes, builds a
+            // CSV, and emits one URL the streamer drops into a single OBS
+            // browser source. Each layer is an iframe of the standalone
+            // overlay so per-overlay theming on the cards above stays in
+            // effect inside the composite.
+            if (TxtUrlAll != null)
+            {
+                var allLayers = new System.Collections.Generic.List<string>();
+                if (ChkAllBolts?.IsChecked    == true) allLayers.Add("bolts");
+                if (ChkAllCounters?.IsChecked == true) allLayers.Add("counters");
+                if (ChkAllGoals?.IsChecked    == true) allLayers.Add("goals");
+                if (ChkAllCheckIn?.IsChecked  == true) allLayers.Add("check-in");
+                if (ChkAllApex?.IsChecked     == true) allLayers.Add("apex");
+                if (ChkAllCommands?.IsChecked == true) allLayers.Add("commands");
+                if (ChkAllRecap?.IsChecked    == true) allLayers.Add("recap");
+                if (ChkAllViewer?.IsChecked   == true) allLayers.Add("viewer");
+
+                TxtUrlAll.Text = BuildOverlayUrl(baseUrl, "all", secret, new Dictionary<string, string>
+                {
+                    ["layers"] = allLayers.Count == 8 ? null : string.Join(",", allLayers)
+                });
+            }
         }
 
         private static string BuildOverlayUrl(string baseUrl, string overlay, string secret, Dictionary<string, string> extras)
@@ -1884,6 +1909,19 @@ namespace Loadout.UI
                             ts         = DateTime.UtcNow
                         });
                         break;
+
+                    case "all":
+                        // Composite test: fire each enabled layer's test
+                        // event so the all-in-one overlay renders the lot.
+                        if (ChkAllBolts?.IsChecked    == true) FireOverlayTestEvent("bolts");
+                        if (ChkAllCounters?.IsChecked == true) FireOverlayTestEvent("counters");
+                        if (ChkAllGoals?.IsChecked    == true) FireOverlayTestEvent("goals");
+                        if (ChkAllCheckIn?.IsChecked  == true) FireOverlayTestEvent("check-in");
+                        if (ChkAllApex?.IsChecked     == true) FireOverlayTestEvent("apex");
+                        if (ChkAllCommands?.IsChecked == true) FireOverlayTestEvent("commands");
+                        if (ChkAllRecap?.IsChecked    == true) FireOverlayTestEvent("recap");
+                        if (ChkAllViewer?.IsChecked   == true) FireOverlayTestEvent("viewer");
+                        break;
                 }
             }
             catch { /* publish is best-effort; the browser open already succeeded */ }
@@ -1901,6 +1939,7 @@ namespace Loadout.UI
                 case "commands": return TxtUrlCommands?.Text;
                 case "recap":    return TxtUrlRecap?.Text;
                 case "viewer":   return TxtUrlViewer?.Text;
+                case "all":      return TxtUrlAll?.Text;
                 default:         return null;
             }
         }

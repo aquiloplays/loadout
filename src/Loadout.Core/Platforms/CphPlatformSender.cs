@@ -52,12 +52,21 @@ namespace Loadout.Platforms
         public void Send(PlatformMask platform, string message)
         {
             if (_cph == null || string.IsNullOrEmpty(message)) return;
+
+            // TikTok has no native CPH send method. Route through a
+            // Streamer.bot action the user (or TikFinity) registers, with
+            // the message handed off via a global var.
+            if (platform == PlatformMask.TikTok)
+            {
+                SendViaTikTokAction(message);
+                return;
+            }
+
             var method = platform switch
             {
                 PlatformMask.Twitch  => "SendMessage",
                 PlatformMask.YouTube => "SendYouTubeMessage",
                 PlatformMask.Kick    => "KickSendMessage",
-                // TikTok is read-only on TikFinity — sending happens on Twitch/YT mirror or overlay.
                 _                    => null
             };
             if (method == null) return;
@@ -81,6 +90,45 @@ namespace Loadout.Platforms
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("[Loadout] Send failed on " + platform + ": " + ex.Message);
+            }
+        }
+
+        private void SendViaTikTokAction(string message)
+        {
+            var actionName = SettingsManager.Instance.Current.Platforms?.TikTokSendActionName;
+            if (string.IsNullOrWhiteSpace(actionName)) return;   // not configured
+
+            try
+            {
+                var t = _cph.GetType();
+
+                // Hand the message to the SB action via a CPH global var.
+                // Action picks it up with %loadoutTikTokMessage% / args.
+                var setMi = t.GetMethod("SetGlobalVar",
+                    new[] { typeof(string), typeof(object), typeof(bool) });
+                if (setMi != null)
+                    setMi.Invoke(_cph, new object[] { "loadoutTikTokMessage", message, false });
+                else
+                {
+                    var setMi2 = t.GetMethod("SetGlobalVar",
+                        new[] { typeof(string), typeof(object) });
+                    setMi2?.Invoke(_cph, new object[] { "loadoutTikTokMessage", message });
+                }
+
+                // Trigger the action. RunAction signatures: (name) or (name, bool runImmediately).
+                var runMi = t.GetMethod("RunAction",
+                    new[] { typeof(string), typeof(bool) });
+                if (runMi != null)
+                {
+                    runMi.Invoke(_cph, new object[] { actionName, false });
+                    return;
+                }
+                var runMi1 = t.GetMethod("RunAction", new[] { typeof(string) });
+                runMi1?.Invoke(_cph, new object[] { actionName });
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] TikTok action invoke failed: " + ex.Message);
             }
         }
     }

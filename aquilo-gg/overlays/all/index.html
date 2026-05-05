@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — All-in-one overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Composite overlay. ONE OBS browser source renders every Loadout
+  overlay you've enabled below. Each layer is an <iframe> pointing at
+  the standalone overlay, so per-overlay theming + bus subscription
+  logic stay exactly the same. The iframe doesn't get pointer events,
+  so OBS click-through works as expected.
+
+  Drop into OBS:
+    https://widget.aquilo.gg/overlays/all/?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
+
+  Layer toggle (CSV; default = all 8 on):
+    ?layers=bolts,counters,goals,check-in
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layer" data-name="bolts"     data-src="../bolts/"></div>
+  <div class="layer" data-name="counters"  data-src="../counters/"></div>
+  <div class="layer" data-name="goals"     data-src="../goals/"></div>
+  <div class="layer" data-name="check-in"  data-src="../check-in/"></div>
+  <div class="layer" data-name="apex"      data-src="../apex/"></div>
+  <div class="layer" data-name="commands"  data-src="../commands/"></div>
+  <div class="layer" data-name="recap"     data-src="../recap/"></div>
+  <div class="layer" data-name="viewer"    data-src="../viewer/"></div>
+  <script src="main.js"></script>
+</body>
+</html>
