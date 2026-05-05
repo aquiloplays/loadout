@@ -30,9 +30,18 @@ namespace Loadout.Sb
             {
                 if (_modules.Count > 0) return;
                 _modules.Add(new EngagementFeederModule());     // must be first - feeds the tracker before consumers read
+                // GameProfilesModule must run before WelcomesModule + TimedMessagesModule
+                // so the active-profile pointer is set before they consult it on
+                // their next chat / tick. Order on the same event matters here.
+                _modules.Add(new GameProfilesModule());
+                // FollowBatchModule must run BEFORE AlertsModule so the
+                // "loadout.suppress.alert" flag is set on the EventContext
+                // before AlertsModule sees the follow event.
+                _modules.Add(new FollowBatchModule());
                 _modules.Add(new InfoCommandsModule());
                 _modules.Add(new WelcomesModule());
                 _modules.Add(new AlertsModule());
+                _modules.Add(new ChannelPointsModule());
                 _modules.Add(new TimedMessagesModule());
                 _modules.Add(new HateRaidModule());
                 _modules.Add(new HypeTrainModule());
@@ -54,6 +63,13 @@ namespace Loadout.Sb
                 _modules.Add(new BoltsModule());
                 _modules.Add(new ApexModule());
                 _modules.Add(new GameTrackerModule());
+                _modules.Add(new ClipsModule());
+                _modules.Add(new BoltsShopModule());
+                // Last - just publishes the canonical command list to the bus
+                // for the "Available commands" overlay. Must come AFTER every
+                // module that contributes commands so the snapshot it builds
+                // at construction reflects the full set.
+                _modules.Add(new CommandsBroadcaster());
             }
         }
 

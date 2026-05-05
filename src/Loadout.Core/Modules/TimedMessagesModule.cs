@@ -24,7 +24,8 @@ namespace Loadout.Modules
         private const int RecentChatsWindowMinutes = 30;
 
         private DateTime _lastBroadcasterMessageUtc = DateTime.MinValue;
-        private string _lastFiredName;
+        private DateTime _lastFiredUtc = DateTime.MinValue;
+        private int _seqIndex;
 
         public void OnEvent(EventContext ctx)
         {
@@ -46,7 +47,7 @@ namespace Loadout.Modules
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.TimedMessages || !s.Timers.Enabled) return;
 
-            var due = SelectDueTimer(s);
+            var due = SelectNextMessage(s);
             if (due == null) return;
 
             var sender = new MultiPlatformSender(CphPlatformSender.Instance);
@@ -55,38 +56,50 @@ namespace Loadout.Modules
 
             sender.Send(target, due.Message, s.Platforms);
 
-            due.LastFiredUtc = DateTime.UtcNow;
-            _lastFiredName = due.Name;
+            _lastFiredUtc = DateTime.UtcNow;
         }
 
-        private TimedMessage SelectDueTimer(LoadoutSettings s)
+        private TimedMessage SelectNextMessage(LoadoutSettings s)
         {
             var now = DateTime.UtcNow;
 
-            // Block if broadcaster just talked (configurable per timer).
-            // We use the longest pause of any candidate as a global gate to keep
-            // the logic simple — a streamer chatting actively means none should fire.
-            int maxPause = s.Timers.Messages.Count == 0 ? 0
-                : s.Timers.Messages.Max(t => t.BroadcasterPauseSec);
-            if (maxPause > 0 && (now - _lastBroadcasterMessageUtc).TotalSeconds < maxPause)
+            // Global broadcaster pause: streamer just talked, so hold off.
+            if (s.Timers.BroadcasterPauseSec > 0 &&
+                (now - _lastBroadcasterMessageUtc).TotalSeconds < s.Timers.BroadcasterPauseSec)
                 return null;
 
-            // Free tier caps to first 3 enabled timers. UnlimitedTimers removes the cap.
-            IEnumerable<TimedMessage> source = s.Timers.Messages.Where(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Message));
+            // Global sequence interval: one message per IntervalMinutes.
+            var interval = Math.Max(1, s.Timers.IntervalMinutes);
+            if ((now - _lastFiredUtc).TotalMinutes < interval)
+                return null;
+
+            // Activity gate: chat must have had MinChatMessages in the last
+            // MinChatWindowMinutes — keeps us from yelling into an empty room.
+            var window = TimeSpan.FromMinutes(Math.Max(1, s.Timers.MinChatWindowMinutes));
+            if (ChatCountIn(window) < s.Timers.MinChatMessages)
+                return null;
+
+            // Per-game profile group filter (unchanged behavior).
+            var p = GameProfilesModule.ActiveProfile;
+            string[] activeGroups = null;
+            if (p != null && !string.IsNullOrEmpty(p.ActiveTimerGroups))
+                activeGroups = p.ActiveTimerGroups.Split(',')
+                    .Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).ToArray();
+
+            IEnumerable<TimedMessage> source = s.Timers.Messages
+                .Where(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Message));
+            if (activeGroups != null && activeGroups.Length > 0)
+                source = source.Where(t => activeGroups.Contains(t.Group ?? "Default", StringComparer.OrdinalIgnoreCase));
             if (!Entitlements.IsUnlocked(Feature.UnlimitedTimers))
                 source = source.Take(3);
 
-            // Eligible = enabled, interval elapsed, activity gate met, not the last one we fired.
-            var candidates = source
-                .Where(t => (now - t.LastFiredUtc).TotalMinutes >= Math.Max(1, t.IntervalMinutes))
-                .Where(t => ChatCountIn(TimeSpan.FromMinutes(Math.Max(1, t.MinChatWindowMinutes))) >= t.MinChatMessages)
-                .Where(t => t.Name != _lastFiredName || s.Timers.Messages.Count == 1)
-                .ToList();
+            var list = source.ToList();
+            if (list.Count == 0) return null;
 
-            if (candidates.Count == 0) return null;
-
-            // Prefer the timer that's been waiting longest — keeps cadence fair when several are due.
-            return candidates.OrderBy(t => t.LastFiredUtc).First();
+            // Sequential pick: cycle through in order; wrap when we hit the end.
+            var msg = list[_seqIndex % list.Count];
+            _seqIndex = (_seqIndex + 1) % list.Count;
+            return msg;
         }
 
         private int ChatCountIn(TimeSpan window)

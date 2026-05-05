@@ -119,22 +119,49 @@ namespace Loadout.Modules
             var game  = SbBridge.Instance.GetGlobal<string>("twitch.streamCategory", "(no category)");
             var url   = "https://twitch.tv/" + broadcaster;
 
+            string Sub(string raw) => (raw ?? "")
+                .Replace("{broadcaster}", broadcaster)
+                .Replace("{title}",       title)
+                .Replace("{game}",        game)
+                .Replace("{url}",         url);
+
             string contentLine;
             if (archived)
-            {
-                contentLine = "~~" + (s.Discord.GoLiveTemplate ?? "")
-                    .Replace("{broadcaster}", broadcaster)
-                    .Replace("{title}",       title)
-                    .Replace("{game}",        game)
-                    .Replace("{url}",         url) + "~~  *(stream ended)*";
-            }
+                contentLine = "~~" + Sub(s.Discord.GoLiveTemplate) + "~~  *(stream ended)*";
             else
+                contentLine = Sub(s.Discord.GoLiveTemplate ?? "🔴 **{broadcaster}** is now live!\n**{title}** — *{game}*\n{url}");
+
+            // Embed branch: when DiscordEmbedConfig.Use is true, ship a
+            // structured embed instead of (or alongside) the plain content.
+            // We always still include `content` because it's what edit-on-
+            // change expects to update if the user later turns embeds off.
+            var embed = s.Discord.Embed;
+            if (embed != null && embed.Use)
             {
-                contentLine = (s.Discord.GoLiveTemplate ?? "🔴 **{broadcaster}** is now live!\n**{title}** — *{game}*\n{url}")
-                    .Replace("{broadcaster}", broadcaster)
-                    .Replace("{title}",       title)
-                    .Replace("{game}",        game)
-                    .Replace("{url}",         url);
+                int color;
+                if (!TryParseHexColor(embed.ColorHex, out color)) color = 0x3A86FF;
+
+                var embedObj = new System.Collections.Generic.Dictionary<string, object>
+                {
+                    ["title"]       = Sub(embed.Title),
+                    ["description"] = Sub(embed.Description) + (archived ? "\n\n*(stream ended)*" : ""),
+                    ["color"]       = color,
+                    ["url"]         = url,
+                    ["timestamp"]   = DateTime.UtcNow.ToString("o")
+                };
+                if (!string.IsNullOrEmpty(embed.ImageUrl)) embedObj["image"]     = new { url = embed.ImageUrl };
+                if (!string.IsNullOrEmpty(embed.ThumbUrl)) embedObj["thumbnail"] = new { url = embed.ThumbUrl };
+                if (!string.IsNullOrEmpty(embed.AuthorName))
+                    embedObj["author"] = new { name = Sub(embed.AuthorName), icon_url = embed.AuthorIcon ?? "" };
+                if (!string.IsNullOrEmpty(embed.FooterText))
+                    embedObj["footer"] = new { text = Sub(embed.FooterText), icon_url = embed.FooterIcon ?? "" };
+
+                return new
+                {
+                    content = contentLine,
+                    embeds  = new[] { embedObj },
+                    allowed_mentions = new { parse = new string[] { } }
+                };
             }
 
             return new
@@ -142,6 +169,20 @@ namespace Loadout.Modules
                 content = contentLine,
                 allowed_mentions = new { parse = new string[] { } }
             };
+        }
+
+        // Accepts "#3A86FF", "3A86FF", or a decimal int. Returns false on
+        // garbage so the caller can fall back to the brand default.
+        private static bool TryParseHexColor(string hex, out int color)
+        {
+            color = 0;
+            if (string.IsNullOrEmpty(hex)) return false;
+            hex = hex.Trim();
+            if (hex.StartsWith("#")) hex = hex.Substring(1);
+            // Try plain int first (Discord format).
+            if (int.TryParse(hex, out color)) return true;
+            return int.TryParse(hex, System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture, out color);
         }
 
         // -------------------- State persistence --------------------

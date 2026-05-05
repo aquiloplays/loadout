@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout - Viewer profile overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Drop into OBS as a full-canvas browser source:
+
+    https://aquilo.gg/overlays/viewer?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
+
+  Normally invisible. When a viewer types !profile (or !profile @user),
+  Loadout publishes `viewer.profile.shown` and this overlay slides a
+  card in for ~10 seconds, then back out.
+
+  Optional URL params:
+    duration  - ms the card stays visible (default 10000)
+    align     - "br" (default) | "bl" | "tr" | "tl" | "bc" | "tc"
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-align="br">
+  <div id="root">
+    <div class="card" id="card">
+      <div class="head">
+        <div class="avatar" id="avatar">
+          <span id="initial">A</span>
+        </div>
+        <div class="who">
+          <div class="kicker" id="kicker">VIEWER PROFILE</div>
+          <div class="handle" id="handle">@user</div>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+    </div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

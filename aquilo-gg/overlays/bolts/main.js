@@ -24,6 +24,31 @@
     if (v) $(id).dataset.pos = v;
   }
 
+  // ── Theme overrides via URL params ────────────────────────────────────
+  // Drive per-streamer theming without forking the overlay. Settings UI
+  // builds the URL with these knobs; we apply them as CSS vars (for color
+  // and opacity) and JS state (for things that affect render math).
+  let _lbRows = 5;
+  let _toastDurationMs = 4000;
+  (() => {
+    const root = document.documentElement.style;
+    const accent = params.get('accent');
+    if (accent) root.setProperty('--accent', '#' + accent.replace(/^#/, ''));
+    const goldHex = params.get('gold');
+    if (goldHex) root.setProperty('--gold', '#' + goldHex.replace(/^#/, ''));
+    const bgOpacity = parseFloat(params.get('bgOpacity'));
+    if (!isNaN(bgOpacity) && bgOpacity >= 0 && bgOpacity <= 100) {
+      root.setProperty('--bg-alpha', String(bgOpacity / 100));
+    }
+    const lbRows = parseInt(params.get('lbRows'), 10);
+    if (!isNaN(lbRows) && lbRows >= 1 && lbRows <= 10) _lbRows = lbRows;
+    const toastDurSec = parseFloat(params.get('toastDur'));
+    if (!isNaN(toastDurSec) && toastDurSec > 0) {
+      _toastDurationMs = toastDurSec * 1000;
+      root.setProperty('--toast-dur', toastDurSec + 's');
+    }
+  })();
+
   // Hide layers the user didn't enable.
   const allLayers = ['leaderboard', 'toastTrack', 'rain', 'streak', 'giftburst'];
   for (const id of allLayers) {
@@ -44,7 +69,7 @@
         if (top.length === 0) { el.classList.add('hidden'); return; }
         el.classList.remove('hidden');
         rows.innerHTML = '';
-        top.slice(0, 5).forEach((entry, i) => {
+        top.slice(0, _lbRows).forEach((entry, i) => {
           const li = document.createElement('li');
           li.className = 'lb-row ' + (['first','second','third'][i] || '');
           li.innerHTML =
@@ -76,7 +101,7 @@
         el.querySelector('.who').textContent = item.user || '?';
         track.appendChild(el);
         active++;
-        setTimeout(() => { el.remove(); active--; pump(); }, 4000);
+        setTimeout(() => { el.remove(); active--; pump(); }, _toastDurationMs);
       }
     }
 

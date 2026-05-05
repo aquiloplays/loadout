@@ -1,0 +1,169 @@
+:root {
+  --bg: transparent;
+  --surface: #18181B;
+  --surface-2: #1F1F23;
+  --border: #2A2A30;
+  --text: #F5F5F7;
+  --muted: #B8BCC6;
+  --accent: #3A86FF;
+  --cyan: #00F2EA;
+  --azure: #3AC8FF;
+  --shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(58,134,255,.12);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  width: 100%; height: 100%;
+  overflow: hidden;
+}
+
+/* Position presets. Each anchors the root in one corner / edge so OBS's
+   browser-source bounding box can be the full canvas without us caring
+   where the actual visible card sits. */
+#root {
+  position: fixed;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  pointer-events: none;
+}
+body[data-pos="bl"] #root { bottom: 0; left: 0; }
+body[data-pos="br"] #root { bottom: 0; right: 0; flex-direction: row-reverse; }
+body[data-pos="tl"] #root { top: 0; left: 0; }
+body[data-pos="tr"] #root { top: 0; right: 0; flex-direction: row-reverse; }
+body[data-pos="bc"] #root { bottom: 0; left: 50%; transform: translateX(-50%); }
+body[data-pos="tc"] #root { top: 0; left: 50%; transform: translateX(-50%); }
+
+/* Card. Small, content-hugging. The blur + tiny accent border keeps it
+   from competing with the streamer's gameplay; the gradient is just on
+   the badge. */
+.card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px 10px 10px;
+  min-width: 220px; max-width: 360px;
+  background: linear-gradient(180deg, rgba(24,24,27,.92), rgba(15,15,17,.92));
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0;
+  transform: translateY(8px);
+  animation: enter 380ms cubic-bezier(.2,.7,.2,1) forwards;
+}
+
+/* Card swap animation: when the JS swaps text, it momentarily flips
+   .swap on then off; the keyframe handles a 1-shot fade-up. */
+.card.swap { animation: swap 380ms cubic-bezier(.2,.7,.2,1); }
+@keyframes enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes swap {
+  0%   { opacity: 0; transform: translateY(6px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* The little accent pill on the left of the card. The category drives
+   its color (info/custom/counter/bolts/clip/checkin). */
+.badge {
+  flex: 0 0 auto;
+  width: 38px; height: 38px;
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 800; letter-spacing: 0.5px;
+  color: white;
+  background: linear-gradient(135deg, var(--accent) 0%, var(--azure) 55%, var(--cyan) 100%);
+  text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+}
+.badge[data-cat="info"]    { background: linear-gradient(135deg, #3A86FF, #3AC8FF); }
+.badge[data-cat="custom"]  { background: linear-gradient(135deg, #9147FF, #3AC8FF); }
+.badge[data-cat="counter"] { background: linear-gradient(135deg, #F0B429, #F0883E); }
+.badge[data-cat="bolts"]   { background: linear-gradient(135deg, #3A86FF, #00F2EA); }
+.badge[data-cat="clip"]    { background: linear-gradient(135deg, #F85149, #F0883E); }
+.badge[data-cat="checkin"] { background: linear-gradient(135deg, #3FB950, #00F2EA); }
+.badge[data-cat="mod"]     { background: linear-gradient(135deg, #53FC18, #3FB950); }
+
+.body { display: flex; flex-direction: column; min-width: 0; }
+.name {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.1px;
+  background: linear-gradient(90deg, #F5F5F7 0%, #DCE9FF 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.desc {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+body[data-show-desc="0"] .desc { display: none; }
+
+/* The pulsing accent dot - subtle "live" indicator. */
+.dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 10px var(--cyan);
+  opacity: 0.85;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50%      { opacity: 1;    transform: scale(1.25); }
+}
+body[data-pos="br"] .dot, body[data-pos="tr"] .dot { order: -1; }
+
+/* ------------ Theme variants ------------ */
+body[data-theme="neon"] .card {
+  border-color: rgba(58,134,255,.7);
+  box-shadow: 0 0 0 1px rgba(58,134,255,.4),
+              0 0 24px rgba(58,134,255,.45),
+              0 8px 22px rgba(0,0,0,.55);
+}
+body[data-theme="neon"] .name {
+  background: linear-gradient(90deg, #5A9CFF 0%, #00F2EA 100%);
+  -webkit-background-clip: text; background-clip: text;
+  color: transparent;
+}
+
+body[data-theme="minimal"] .card {
+  background: rgba(15,15,17,.85);
+  border-color: rgba(255,255,255,.10);
+  box-shadow: 0 4px 12px rgba(0,0,0,.4);
+  backdrop-filter: blur(4px);
+}
+body[data-theme="minimal"] .name {
+  background: none;
+  -webkit-text-fill-color: var(--text);
+  color: var(--text);
+}
+body[data-theme="minimal"] .badge {
+  background: rgba(58,134,255,.15);
+  color: var(--accent);
+}
+
+/* Dev status, only shown with ?debug=1 */
+.dev-status {
+  position: fixed;
+  top: 4px; right: 4px;
+  background: rgba(0,0,0,.75);
+  color: #ddd;
+  font: 11px/1 ui-monospace, monospace;
+  padding: 4px 6px;
+  border-radius: 4px;
+  pointer-events: none;
+}

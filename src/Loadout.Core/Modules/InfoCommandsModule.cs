@@ -64,6 +64,8 @@ namespace Loadout.Modules
                 case "socials":    reply = s.InfoCommands.Socials; break;
                 case "discord":    reply = s.InfoCommands.Discord; break;
                 case "quote":      reply = ReplyQuote(s, rest, ctx); break;
+                case "profile":
+                case "card":       reply = ReplyProfile(ctx, rest); break;
                 default:
                     var custom = s.InfoCommands.Custom.FirstOrDefault(c =>
                         string.Equals(c.Name, cmd, StringComparison.OrdinalIgnoreCase));
@@ -141,6 +143,37 @@ namespace Loadout.Modules
                 return "@" + ctx.User + " — your account is " + Format(span) + " old.";
             }
             return "@" + ctx.User + " — I can't see your account age from here.";
+        }
+
+        // !profile [@user] - publish a viewer-profile event so the viewer
+        // overlay can render a stat card. Returns a chat acknowledgement
+        // so the chatter sees something happened. The actual stat lookup
+        // is done by whichever overlay/widget is subscribed - we're just
+        // the request publisher here.
+        private static string ReplyProfile(EventContext ctx, string target)
+        {
+            target = (target ?? "").Trim().TrimStart('@');
+            if (string.IsNullOrEmpty(target)) target = ctx.User;
+
+            // Pull the bolts balance ourselves so the overlay payload is
+            // useful out of the box even before the overlay enriches it.
+            long bolts = 0;
+            try
+            {
+                Bolts.BoltsWallet.Instance.Initialize();
+                bolts = Bolts.BoltsWallet.Instance.Balance(ctx.Platform.ToShortName(), target);
+            }
+            catch { }
+
+            AquiloBus.Instance.Publish("viewer.profile.shown", new
+            {
+                handle    = target,
+                platform  = ctx.Platform.ToShortName(),
+                bolts     = bolts,
+                requester = ctx.User,
+                ts        = DateTime.UtcNow
+            });
+            return "🪪  Pulling " + target + "'s profile to the overlay...";
         }
 
         private static string ReplyShoutout(EventContext ctx, string target)

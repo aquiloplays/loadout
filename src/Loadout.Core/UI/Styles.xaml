@@ -1,39 +1,53 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!--
-        aquilo.gg / StreamFusion brand palette + premium WPF treatment.
-        Pulled from StreamFusion/index.html :root vars so Loadout reads
-        as part of the same product family. If you change a brand color
-        here, change it in StreamFusion too.
+    <!-- Icon library lives in its own file - keeps Styles.xaml from
+         exploding past 1k lines and makes it easy to redesign the
+         icon set without touching the rest of the theme. -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Icons.xaml" />
+    </ResourceDictionary.MergedDictionaries>
 
-        Polish layer adds: focus glow, drop shadows on cards, smooth
-        easing on hovers, custom ScrollBar template (the WPF default
-        looks like Windows 7), refined CheckBox + ComboBox treatment.
+    <!--
+        Loadout / aquilo.gg brand palette + premium WPF treatment.
+        Pulled from StreamFusion :root vars so Loadout reads as part of
+        the same product family. If you change a brand color here,
+        change it in StreamFusion too.
+
+        v3 polish layer:
+          - Accent gradient brushes (azure -> cyan) for the wordmark + primary CTAs
+          - Sidebar nav tab template with left accent bar + icon slot
+          - Section labels for grouping the sidebar
+          - Status pills / chips for tier + saved indicators
+          - Refined focus ring (softer, thicker glow)
+          - Subtle vertical surface gradient on the chrome bars
+          - Toggle switch (true switch, not just a checkbox)
     -->
 
-    <!-- Surfaces -->
+    <!-- ============== Surfaces ============================================ -->
     <Color x:Key="Bg.Primary">#0E0E10</Color>
-    <Color x:Key="Bg.Surface">#18181B</Color>
-    <Color x:Key="Bg.Surface2">#1F1F23</Color>
-    <Color x:Key="Bg.Surface3">#26262C</Color>
-    <Color x:Key="Border.Default">#2A2A30</Color>
-    <Color x:Key="Border.Subtle">#222226</Color>
+    <Color x:Key="Bg.Surface">#15151A</Color>
+    <Color x:Key="Bg.Surface2">#1C1C22</Color>
+    <Color x:Key="Bg.Surface3">#23232A</Color>
+    <Color x:Key="Bg.Sidebar">#101014</Color>
+    <Color x:Key="Border.Default">#2A2A32</Color>
+    <Color x:Key="Border.Subtle">#1F1F25</Color>
+    <Color x:Key="Border.Strong">#3A3A44</Color>
 
-    <!-- Text. Bumped a notch toward white to clear the WCAG AA threshold on
-         the darkest surface (#0E0E10). #EFEFF1 → #F5F5F7 is ~14:1 contrast
-         versus the previous ~13:1 — small visible win, still avoids the
-         pure-white glare. -->
+    <!-- Foregrounds. ~14:1 contrast on the darkest surface (#0E0E10). -->
     <Color x:Key="Fg.Primary">#F5F5F7</Color>
     <Color x:Key="Fg.Muted">#B8BCC6</Color>
     <Color x:Key="Fg.Faint">#7A7A85</Color>
+    <Color x:Key="Fg.Dim">#5A5A65</Color>
 
-    <!-- Brand accent (SF blue) -->
+    <!-- Accent: SF blue at the head, cyan at the tail. -->
     <Color x:Key="Accent.Primary">#3A86FF</Color>
     <Color x:Key="Accent.Hover">#5A9CFF</Color>
     <Color x:Key="Accent.Pressed">#2A6FE0</Color>
     <Color x:Key="Accent.Faint">#3A86FF22</Color>
     <Color x:Key="Accent.Glow">#3A86FF66</Color>
+    <Color x:Key="Accent.Cyan">#00F2EA</Color>
+    <Color x:Key="Accent.Mid">#3AC8FF</Color>
 
     <!-- Platforms -->
     <Color x:Key="Platform.Twitch">#9147FF</Color>
@@ -47,21 +61,25 @@
     <Color x:Key="Status.Error">#F85149</Color>
     <Color x:Key="Status.Event">#F0B429</Color>
 
-    <!-- Brushes -->
+    <!-- ============== Brushes ============================================= -->
     <SolidColorBrush x:Key="Brush.Bg.Primary"   Color="{StaticResource Bg.Primary}" />
     <SolidColorBrush x:Key="Brush.Bg.Surface"   Color="{StaticResource Bg.Surface}" />
     <SolidColorBrush x:Key="Brush.Bg.Surface2"  Color="{StaticResource Bg.Surface2}" />
     <SolidColorBrush x:Key="Brush.Bg.Surface3"  Color="{StaticResource Bg.Surface3}" />
+    <SolidColorBrush x:Key="Brush.Bg.Sidebar"   Color="{StaticResource Bg.Sidebar}" />
     <SolidColorBrush x:Key="Brush.Border"       Color="{StaticResource Border.Default}" />
     <SolidColorBrush x:Key="Brush.Border.Subtle" Color="{StaticResource Border.Subtle}" />
+    <SolidColorBrush x:Key="Brush.Border.Strong" Color="{StaticResource Border.Strong}" />
     <SolidColorBrush x:Key="Brush.Fg.Primary"   Color="{StaticResource Fg.Primary}" />
     <SolidColorBrush x:Key="Brush.Fg.Muted"     Color="{StaticResource Fg.Muted}" />
     <SolidColorBrush x:Key="Brush.Fg.Faint"     Color="{StaticResource Fg.Faint}" />
+    <SolidColorBrush x:Key="Brush.Fg.Dim"       Color="{StaticResource Fg.Dim}" />
     <SolidColorBrush x:Key="Brush.Accent"       Color="{StaticResource Accent.Primary}" />
     <SolidColorBrush x:Key="Brush.Accent.Hover" Color="{StaticResource Accent.Hover}" />
     <SolidColorBrush x:Key="Brush.Accent.Pressed" Color="{StaticResource Accent.Pressed}" />
     <SolidColorBrush x:Key="Brush.Accent.Faint" Color="{StaticResource Accent.Faint}" />
     <SolidColorBrush x:Key="Brush.Accent.Glow"  Color="{StaticResource Accent.Glow}" />
+    <SolidColorBrush x:Key="Brush.Accent.Cyan"  Color="{StaticResource Accent.Cyan}" />
     <SolidColorBrush x:Key="Brush.Twitch"       Color="{StaticResource Platform.Twitch}" />
     <SolidColorBrush x:Key="Brush.YouTube"      Color="{StaticResource Platform.YouTube}" />
     <SolidColorBrush x:Key="Brush.TikTok"       Color="{StaticResource Platform.TikTok}" />
@@ -70,11 +88,43 @@
     <SolidColorBrush x:Key="Brush.Warn"         Color="{StaticResource Status.Warn}" />
     <SolidColorBrush x:Key="Brush.Error"        Color="{StaticResource Status.Error}" />
 
-    <!-- Card drop shadows -->
-    <DropShadowEffect x:Key="Shadow.Card" Color="Black" BlurRadius="20" ShadowDepth="6" Opacity="0.45" Direction="270" />
-    <DropShadowEffect x:Key="Shadow.Window" Color="Black" BlurRadius="32" ShadowDepth="0" Opacity="0.55" />
+    <!-- Brand gradient: blue -> cyan, used on the wordmark + primary CTA -->
+    <LinearGradientBrush x:Key="Brush.Brand.Gradient" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0"   Color="{StaticResource Accent.Primary}" />
+        <GradientStop Offset="0.55" Color="{StaticResource Accent.Mid}" />
+        <GradientStop Offset="1"   Color="{StaticResource Accent.Cyan}" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Brush.Brand.GradientHover" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0"   Color="{StaticResource Accent.Hover}" />
+        <GradientStop Offset="0.55" Color="#5AD2FF" />
+        <GradientStop Offset="1"   Color="#33FFF4" />
+    </LinearGradientBrush>
 
-    <!-- Window default -->
+    <!-- Header chrome: subtle vertical fade so it lifts off the body -->
+    <LinearGradientBrush x:Key="Brush.HeaderBackground" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#1A1A20" />
+        <GradientStop Offset="1" Color="#13131A" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="Brush.SidebarBackground" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0" Color="#15151B" />
+        <GradientStop Offset="1" Color="#0E0E12" />
+    </LinearGradientBrush>
+
+    <!-- Window body: subtle radial glow from the top-left corner, fading
+         to near-black bottom-right. Gives the chrome a premium "spotlight"
+         feel without distracting from card content. -->
+    <RadialGradientBrush x:Key="Brush.Bg.Window" GradientOrigin="0.05,0.0" Center="0.05,0.0" RadiusX="1.6" RadiusY="1.4">
+        <GradientStop Offset="0"   Color="#1B2034" />
+        <GradientStop Offset="0.35" Color="#11121A" />
+        <GradientStop Offset="1"   Color="#0A0A0C" />
+    </RadialGradientBrush>
+
+    <!-- ============== Shadows ============================================= -->
+    <DropShadowEffect x:Key="Shadow.Card"   Color="Black" BlurRadius="22" ShadowDepth="6" Opacity="0.40" Direction="270" />
+    <DropShadowEffect x:Key="Shadow.Window" Color="Black" BlurRadius="32" ShadowDepth="0" Opacity="0.55" />
+    <DropShadowEffect x:Key="Shadow.Pill"   Color="Black" BlurRadius="6"  ShadowDepth="2" Opacity="0.30" Direction="270" />
+
+    <!-- ============== Defaults ============================================ -->
     <Style TargetType="Window">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Primary}" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
@@ -84,73 +134,76 @@
         <Setter Property="TextOptions.TextRenderingMode"  Value="ClearType" />
     </Style>
 
-    <!-- Default TextBlock — every naked <TextBlock /> gets the brand fg.
-         Without this, controls inside Buttons / TabItems / ContentPresenters
-         can fall back to system foreground (black on light theme), and naked
-         text on a card surface can wind up unreadable. -->
     <Style TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="FontSize"   Value="13" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
     </Style>
-
-    <!-- Same defensive wrap for Label, ScrollViewer, ItemsControl —
-         WPF's default templates for these can ship with surfaces that
-         default to system Window/ControlBrush (white-ish in light theme),
-         which would otherwise punch holes in our dark UI. -->
     <Style TargetType="Label">
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="FontSize"   Value="13" />
     </Style>
-    <Style TargetType="ScrollViewer">
-        <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style TargetType="ItemsControl">
-        <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style TargetType="StackPanel">
-        <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style TargetType="Grid">
-        <Setter Property="Background" Value="Transparent" />
-    </Style>
+    <Style TargetType="ScrollViewer"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style TargetType="ItemsControl"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style TargetType="StackPanel"><Setter Property="Background" Value="Transparent" /></Style>
+    <Style TargetType="Grid"><Setter Property="Background" Value="Transparent" /></Style>
 
-    <!-- Headings -->
+    <!-- ============== Typography scale ==================================== -->
     <Style x:Key="H1" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-        <Setter Property="FontSize"     Value="24" />
-        <Setter Property="FontWeight"   Value="SemiBold" />
-        <Setter Property="Foreground"   Value="{StaticResource Brush.Fg.Primary}" />
-        <Setter Property="Margin"       Value="0 0 0 10" />
+        <Setter Property="FontSize"   Value="22" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+        <Setter Property="Margin"     Value="0 0 0 6" />
     </Style>
     <Style x:Key="H2" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-        <Setter Property="FontSize"     Value="15" />
-        <Setter Property="FontWeight"   Value="SemiBold" />
-        <Setter Property="Foreground"   Value="{StaticResource Brush.Fg.Primary}" />
-        <Setter Property="Margin"       Value="0 0 0 6" />
+        <Setter Property="FontSize"   Value="14" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+        <Setter Property="Margin"     Value="0 0 0 6" />
+    </Style>
+    <Style x:Key="H3" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize"   Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Faint}" />
+        <Setter Property="Margin"     Value="0 14 0 6" />
     </Style>
     <Style x:Key="Muted" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-        <Setter Property="Foreground"   Value="{StaticResource Brush.Fg.Muted}" />
-        <Setter Property="FontSize"     Value="12" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Muted}" />
+        <Setter Property="FontSize"   Value="12" />
     </Style>
+    <Style x:Key="Faint" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Faint}" />
+        <Setter Property="FontSize"   Value="11" />
+    </Style>
+    <!-- Wordmark: gradient fill via OpacityMask trick -->
     <Style x:Key="Wordmark" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-        <Setter Property="FontSize"   Value="20" />
+        <Setter Property="FontSize"   Value="22" />
         <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
     </Style>
+    <!-- Sidebar group label - tiny caps, dim, used between sections -->
+    <Style x:Key="SidebarGroupLabel" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize"     Value="10" />
+        <Setter Property="FontWeight"   Value="SemiBold" />
+        <Setter Property="Foreground"   Value="{StaticResource Brush.Fg.Dim}" />
+        <Setter Property="Margin"       Value="20 18 20 6" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
+    </Style>
 
-    <!-- Primary button - smooth easing on hover, scale on press -->
+    <!-- ============== Buttons ============================================= -->
+    <!-- Primary button - brand gradient, scale-on-press, smooth hover. -->
     <Style x:Key="PrimaryButton" TargetType="Button">
-        <Setter Property="Background" Value="{StaticResource Brush.Accent}" />
         <Setter Property="Foreground" Value="White" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="18 9" />
+        <Setter Property="Padding" Value="20 10" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
+        <Setter Property="Background" Value="{StaticResource Brush.Brand.Gradient}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -159,28 +212,12 @@
                         <Border.RenderTransform>
                             <ScaleTransform x:Name="scale" ScaleX="1" ScaleY="1" CenterX="0.5" CenterY="0.5" />
                         </Border.RenderTransform>
-                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="White" />
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Trigger.EnterActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <ColorAnimation Storyboard.TargetName="bd"
-                                                        Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                        To="{StaticResource Accent.Hover}" Duration="0:0:0.15" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.EnterActions>
-                            <Trigger.ExitActions>
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <ColorAnimation Storyboard.TargetName="bd"
-                                                        Storyboard.TargetProperty="(Border.Background).(SolidColorBrush.Color)"
-                                                        To="{StaticResource Accent.Primary}" Duration="0:0:0.15" />
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </Trigger.ExitActions>
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Brush.Brand.GradientHover}" />
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
                             <Trigger.EnterActions>
@@ -194,8 +231,8 @@
                             <Trigger.ExitActions>
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1.0" Duration="0:0:0.12" />
-                                        <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1.0" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.12" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
@@ -209,20 +246,20 @@
         </Setter>
     </Style>
 
-    <!-- Secondary button -->
+    <!-- Secondary button - flat dark surface with subtle border, accent on hover. -->
     <Style x:Key="SecondaryButton" TargetType="Button">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Surface2}" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="18 9" />
+        <Setter Property="Padding" Value="16 9" />
         <Setter Property="FontWeight" Value="SemiBold" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="12" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="8"
+                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="7"
                             BorderBrush="{StaticResource Brush.Border}" BorderThickness="1"
                             Padding="{TemplateBinding Padding}">
                         <Border.RenderTransform>
@@ -269,8 +306,8 @@
                             <Trigger.ExitActions>
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1.0" Duration="0:0:0.12" />
-                                        <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1.0" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleX" To="1" Duration="0:0:0.12" />
+                                        <DoubleAnimation Storyboard.TargetName="scale" Storyboard.TargetProperty="ScaleY" To="1" Duration="0:0:0.12" />
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
@@ -281,7 +318,33 @@
         </Setter>
     </Style>
 
-    <!-- TextBox - focus glow -->
+    <!-- Tiny ghost button for "x" / "..." style chrome -->
+    <Style x:Key="GhostButton" TargetType="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Muted}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="10 6" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Brush.Bg.Surface2}" />
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============== Inputs ============================================= -->
     <Style TargetType="TextBox">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Surface}" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
@@ -311,12 +374,12 @@
                             <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
                             <Setter TargetName="bd" Property="Effect">
                                 <Setter.Value>
-                                    <DropShadowEffect Color="#3A86FF" BlurRadius="10" ShadowDepth="0" Opacity="0.45" />
+                                    <DropShadowEffect Color="#3A86FF" BlurRadius="12" ShadowDepth="0" Opacity="0.45" />
                                 </Setter.Value>
                             </Setter>
                         </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="bd" Property="BorderBrush" Value="#3F3F45" />
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brush.Border.Strong}" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.55" />
@@ -327,16 +390,137 @@
         </Setter>
     </Style>
 
-    <!-- ComboBox -->
-    <Style TargetType="ComboBox">
+    <!-- PasswordBox parallels TextBox styling so secret fields don't look out of place. -->
+    <Style TargetType="PasswordBox">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Surface}" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
-        <Setter Property="Padding" Value="10 6" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="11 8" />
         <Setter Property="MinHeight" Value="34" />
     </Style>
 
-    <!-- Card with drop shadow -->
+    <!-- ComboBox: full ControlTemplate. The default WPF template uses the
+         system theme for the dropdown popup, which renders white-on-white in
+         a dark app. We re-template both the closed control and the popup so
+         every state stays on-theme. -->
+    <Style TargetType="ComboBox">
+        <Setter Property="Background"  Value="{StaticResource Brush.Bg.Surface}" />
+        <Setter Property="Foreground"  Value="{StaticResource Brush.Fg.Primary}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding"     Value="10 6" />
+        <Setter Property="MinHeight"   Value="34" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <Border x:Name="bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4"
+                                SnapsToDevicePixels="True">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ContentPresenter Grid.Column="0"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Left"
+                                                  IsHitTestVisible="False"
+                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                  ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                                <ToggleButton Grid.Column="1"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Width="28"
+                                              Focusable="False"
+                                              ClickMode="Press"
+                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                    <ToggleButton.Template>
+                                        <ControlTemplate TargetType="ToggleButton">
+                                            <Border Background="{TemplateBinding Background}">
+                                                <Path Data="M 0 0 L 5 5 L 10 0 Z"
+                                                      Fill="{StaticResource Brush.Fg.Muted}"
+                                                      Width="10" Height="6"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                            </Border>
+                                        </ControlTemplate>
+                                    </ToggleButton.Template>
+                                </ToggleButton>
+                            </Grid>
+                        </Border>
+                        <Popup x:Name="PART_Popup"
+                               Placement="Bottom"
+                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                               AllowsTransparency="True"
+                               PopupAnimation="Slide"
+                               Focusable="False">
+                            <Border Background="{StaticResource Brush.Bg.Surface2}"
+                                    BorderBrush="{StaticResource Brush.Border}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    MinWidth="{TemplateBinding ActualWidth}"
+                                    MaxHeight="{TemplateBinding MaxDropDownHeight}"
+                                    Margin="0 4 0 0"
+                                    Effect="{StaticResource Shadow.Card}">
+                                <ScrollViewer SnapsToDevicePixels="True">
+                                    <ItemsPresenter />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ComboBoxItem: the dropdown row. Without an explicit style, system
+         theme paints these white-on-white. -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+        <Setter Property="Padding" Value="12 6" />
+        <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="bd"
+                            Background="{TemplateBinding Background}"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Brush.Bg.Surface3}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Brush.Accent.Faint}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============== Surfaces (cards, dividers) ========================== -->
     <Style x:Key="Card" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Surface}" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
@@ -346,11 +530,39 @@
         <Setter Property="Effect" Value="{StaticResource Shadow.Card}" />
     </Style>
 
-    <!-- Toggle (CheckBox) - refined with smooth check animation -->
+    <Style x:Key="HairlineDivider" TargetType="Border">
+        <Setter Property="Height" Value="1" />
+        <Setter Property="Background" Value="{StaticResource Brush.Border.Subtle}" />
+        <Setter Property="Margin" Value="0 14 0 14" />
+    </Style>
+
+    <!-- Pill / Chip - true pill shape (fully rounded ends, rectangular body).
+         CornerRadius 999 clamps to half-height; the wider Padding + MinWidth
+         keep short content elongated so it doesn't collapse to a circle. -->
+    <Style x:Key="Pill" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Brush.Bg.Surface2}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="999" />
+        <Setter Property="Padding" Value="14 5" />
+        <Setter Property="MinWidth" Value="68" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="Effect" Value="{StaticResource Shadow.Pill}" />
+    </Style>
+    <Style x:Key="PillAccent" TargetType="Border" BasedOn="{StaticResource Pill}">
+        <Setter Property="Background" Value="{StaticResource Brush.Accent.Faint}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+    </Style>
+    <Style x:Key="PillSuccess" TargetType="Border" BasedOn="{StaticResource Pill}">
+        <Setter Property="Background" Value="#1F2D26" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Success}" />
+    </Style>
+
+    <!-- ============== Toggle (CheckBox) =================================== -->
     <Style x:Key="ToggleRow" TargetType="CheckBox">
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
         <Setter Property="Margin" Value="0 5" />
-        <Setter Property="Padding" Value="8 0 0 0" />
+        <Setter Property="Padding" Value="10 0 0 0" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Template">
@@ -384,7 +596,44 @@
         </Setter>
     </Style>
 
-    <!-- TabControl + TabItem - accent underline on selected -->
+    <!-- True toggle switch (pill with sliding thumb). Use for binary
+         "enabled / off" decisions where a checkbox feels too form-like. -->
+    <Style x:Key="ToggleSwitch" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+        <Setter Property="Margin" Value="0 5" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal">
+                        <Border x:Name="track" Width="34" Height="18" CornerRadius="9"
+                                Background="{StaticResource Brush.Bg.Surface3}"
+                                BorderBrush="{StaticResource Brush.Border}"
+                                BorderThickness="1"
+                                VerticalAlignment="Center">
+                            <Border x:Name="thumb" Width="12" Height="12" CornerRadius="6"
+                                    Background="#A0A0AA"
+                                    HorizontalAlignment="Left" VerticalAlignment="Center"
+                                    Margin="2 0 0 0" />
+                        </Border>
+                        <ContentPresenter Margin="10 0 0 0" VerticalAlignment="Center"
+                                          TextElement.FontSize="13" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="track" Property="Background" Value="{StaticResource Brush.Accent}" />
+                            <Setter TargetName="track" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                            <Setter TargetName="thumb" Property="Background" Value="White" />
+                            <Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right" />
+                            <Setter TargetName="thumb" Property="Margin" Value="0 0 2 0" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============== Top tabs (legacy fallback) ========================== -->
     <Style TargetType="TabControl">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Primary}" />
         <Setter Property="BorderThickness" Value="0" />
@@ -418,7 +667,121 @@
         </Setter>
     </Style>
 
-    <!-- Custom ScrollBar - slim, accent thumb on hover -->
+    <!-- ============== Sidebar nav =========================================
+         The TabControl uses TabStripPlacement="Left" with this template,
+         giving us a real left-rail of tabs that read like a settings
+         sidebar in modern desktop apps. The selected tab gets a left
+         accent bar + slightly raised surface. Hover gets an inset
+         highlight on the left.
+
+         Use Style="{StaticResource SidebarNavTabControl}" on the TabControl
+         and Style="{StaticResource SidebarNavTabItem}" on each TabItem.
+         The tab Header can be a plain string or any FrameworkElement
+         (we put icon + label inside).
+    -->
+    <Style x:Key="SidebarNavTabControl" TargetType="TabControl">
+        <Setter Property="Background" Value="{StaticResource Brush.Bg.Primary}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="TabStripPlacement" Value="Left" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Background="{StaticResource Brush.SidebarBackground}"
+                                BorderBrush="{StaticResource Brush.Border.Subtle}" BorderThickness="0 0 1 0"
+                                Width="220">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <TabPanel x:Name="HeaderPanel" IsItemsHost="True"
+                                          Margin="0 14 0 14" />
+                            </ScrollViewer>
+                        </Border>
+                        <Border Grid.Column="1" Background="{TemplateBinding Background}">
+                            <ContentPresenter ContentSource="SelectedContent" />
+                        </Border>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="SidebarNavTabItem" TargetType="TabItem">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Muted}" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Margin" Value="10 1 10 1" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="bd"
+                            Background="Transparent"
+                            CornerRadius="7"
+                            Padding="0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="3" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border x:Name="accent" Grid.Column="0"
+                                    Background="Transparent" CornerRadius="2"
+                                    Margin="0 6 0 6" />
+                            <ContentPresenter Grid.Column="1"
+                                              ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Center"
+                                              Margin="10 8 10 8" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="bd"     Property="Background" Value="{StaticResource Brush.Bg.Surface}" />
+                            <Setter TargetName="accent" Property="Background" Value="{StaticResource Brush.Accent}" />
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsSelected" Value="False" />
+                                <Condition Property="IsMouseOver" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="bd" Property="Background" Value="{StaticResource Brush.Bg.Surface2}" />
+                            <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+                        </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A non-clickable TabItem that renders only the Header text in muted
+         small caps - used to group sidebar tabs visually. Set IsEnabled=
+         False on the TabItem so it's never the SelectedIndex; keep it in
+         the Items collection so it occupies vertical space in the strip. -->
+    <Style x:Key="SidebarNavSectionHeader" TargetType="TabItem">
+        <Setter Property="IsTabStop" Value="False" />
+        <Setter Property="IsHitTestVisible" Value="False" />
+        <Setter Property="Focusable" Value="False" />
+        <Setter Property="Margin" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <ContentPresenter ContentSource="Header" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- ============== ScrollBar =========================================== -->
     <Style x:Key="ScrollThumbStyle" TargetType="Thumb">
         <Setter Property="Template">
             <Setter.Value>
@@ -484,7 +847,7 @@
         </Style.Triggers>
     </Style>
 
-    <!-- DataGrid -->
+    <!-- ============== DataGrid ============================================ -->
     <Style TargetType="DataGrid">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Surface}" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
@@ -521,13 +884,12 @@
         </Style.Triggers>
     </Style>
 
-    <!-- Window-open fade-in storyboard. Animates ONLY Opacity (and the
-         window starts at Opacity=1 so it's still visible if this storyboard
-         never fires). The previous version animated a TranslateTransform
-         target that required matching shape on the Window's RenderTransform;
-         when that mismatched, WPF threw on Begin and the window was left at
-         Opacity=0 - i.e. invisible. Lesson: animate properties that are
-         already there, don't introduce new shape from the storyboard. -->
+    <!-- ============== Window-open fade-in =================================
+         Animates ONLY Opacity (and the window starts at Opacity=1 so it's
+         still visible if this storyboard never fires). Earlier versions
+         animated a TranslateTransform that required matching shape on the
+         Window's RenderTransform; mismatch threw on Begin and left the
+         window invisible. Lesson: animate properties already there. -->
     <Storyboard x:Key="WindowFadeIn">
         <DoubleAnimation Storyboard.TargetProperty="Opacity"
                          From="0.85" To="1" Duration="0:0:0.20">

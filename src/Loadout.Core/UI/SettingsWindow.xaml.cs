@@ -7,12 +7,18 @@ using System.Web;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using Loadout.Bolts;
 using Loadout.Bus;
+using Loadout.Discord;
 using Loadout.Games;
 using Loadout.Identity;
 using Loadout.Patreon;
+using Loadout.Modules;
+using Loadout.Sb;
 using Loadout.Settings;
 using Loadout.Updates;
+using Loadout.Util;
+using Microsoft.Win32;
 
 namespace Loadout.UI
 {
@@ -31,12 +37,21 @@ namespace Loadout.UI
             return _instance;
         }
 
-        // ObservableCollections are bound to the DataGrids; mutations are visible
-        // in the UI immediately, and we copy back to settings on Save.
-        private readonly ObservableCollection<Counter> _counters = new ObservableCollection<Counter>();
-        private readonly ObservableCollection<PatreonSupporter> _supporters = new ObservableCollection<PatreonSupporter>();
+        // ObservableCollections back the various DataGrids; mutations are
+        // visible in the UI immediately and we copy back to settings on Save.
+        private readonly ObservableCollection<Counter>          _counters       = new ObservableCollection<Counter>();
+        private readonly ObservableCollection<PatreonSupporter> _supporters     = new ObservableCollection<PatreonSupporter>();
+        private readonly ObservableCollection<TimedMessage>     _timers         = new ObservableCollection<TimedMessage>();
+        private readonly ObservableCollection<Goal>             _goals          = new ObservableCollection<Goal>();
+        private readonly ObservableCollection<WebhookMapping>   _webhooks       = new ObservableCollection<WebhookMapping>();
+        private readonly ObservableCollection<CustomCommand>    _customCmds     = new ObservableCollection<CustomCommand>();
+        private readonly ObservableCollection<AlertRow>         _alertRows      = new ObservableCollection<AlertRow>();
+        private readonly ObservableCollection<GameProfile>      _gameProfiles   = new ObservableCollection<GameProfile>();
+        private readonly ObservableCollection<ChannelPointMapping> _channelPoints = new ObservableCollection<ChannelPointMapping>();
+        private readonly ObservableCollection<WalletRow>        _wallets        = new ObservableCollection<WalletRow>();
+        private readonly ObservableCollection<BoltsShopItem>    _shopItems      = new ObservableCollection<BoltsShopItem>();
 
-        // Plays the window-open fade + slide-up storyboard from Styles.xaml.
+        // Plays the window-open fade storyboard from Styles.xaml.
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             try
@@ -49,14 +64,39 @@ namespace Loadout.UI
 
         private SettingsWindow()
         {
-            InitializeComponent();
-            LoadFromSettings();
-            RefreshVersionLine();
-            RefreshPendingLinks();
-            RefreshPatreonState();
-            BindCountersAndCheckIn();
-            BindGamesTab();
-            BindOverlaysTab();
+            // Each step is wrapped so the error log tells us WHICH bind failed
+            // when a user has an old settings.json that's missing a section.
+            // InitializeComponent() is the one we ALSO wrap on its own because
+            // a malformed BAML resource (rare but possible across SB versions)
+            // would otherwise propagate before any Step() can log its name.
+            try { InitializeComponent(); }
+            catch (Exception ex)
+            {
+                Util.ErrorLog.Write("SettingsWindow.InitializeComponent", ex);
+                throw; // propagate - we can't continue without a built tree
+            }
+
+            Step("LoadHeaderLogo",         LoadHeaderLogo);
+            EnsureSettingsShape();   // populate any nulls left by old-version JSON
+            Step("LoadFromSettings",       LoadFromSettings);
+            Step("RefreshVersionLine",     RefreshVersionLine);
+            Step("RefreshPendingLinks",    RefreshPendingLinks);
+            Step("RefreshPatreonState",    RefreshPatreonState);
+            Step("RefreshHeaderPills",     RefreshHeaderPills);
+            Step("BindCountersAndCheckIn", BindCountersAndCheckIn);
+            Step("BindGamesTab",           BindGamesTab);
+            Step("BindOverlaysTab",        BindOverlaysTab);
+            Step("BindAlertsTab",          BindAlertsTab);
+            Step("BindTimersTab",          BindTimersTab);
+            Step("BindGoalsTab",           BindGoalsTab);
+            Step("BindWebhooksTab",        BindWebhooksTab);
+            Step("BindCustomCommandsTab",  BindCustomCommandsTab);
+            Step("BindGameProfilesTab",    BindGameProfilesTab);
+            Step("BindChannelPointsTab",   BindChannelPointsTab);
+            Step("BindLogTab",             BindLogTab);
+            Step("BindDiscordBotTab",      BindDiscordBotTab);
+            Step("BindWalletsAndShop",     BindWalletsAndShop);
+            Step("BindTuningTab",          BindTuningTab);
 
             PatreonClient.Instance.StateChanged += OnPatreonStateChanged;
             Closed += (_, __) => {
@@ -64,6 +104,127 @@ namespace Loadout.UI
                 _instance = null;
             };
         }
+
+        // Tiny helper that lets each binding step log on its own context if it
+        // throws. We keep going on failure - one bad section shouldn't lock
+        // the user out of the whole window.
+        private void Step(string name, Action body)
+        {
+            try { body(); }
+            catch (Exception ex) { Util.ErrorLog.Write("SettingsWindow." + name, ex); }
+        }
+
+        // Loads the brand mark from an embedded resource stream. The pack URI
+        // form (`pack://application:,,,/Loadout;component/assets/Loadout.png`)
+        // would have worked too, except SB hosts the DLL via Assembly.LoadFrom
+        // in a process that doesn't own a WPF Application, and pack-URI
+        // resolution in that scenario is flaky. Stream-load is reliable - same
+        // technique the tray icon uses for the .ico.
+        private void LoadHeaderLogo()
+        {
+            try
+            {
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                using (var s = asm.GetManifestResourceStream("Loadout.assets.Loadout.png"))
+                {
+                    if (s == null) return;
+                    var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                    bmp.BeginInit();
+                    bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bmp.StreamSource = s;
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    HeaderLogo.Source = bmp;
+                }
+            }
+            catch (Exception ex) { Util.ErrorLog.Write("SettingsWindow.LoadHeaderLogo", ex); }
+        }
+
+        // Defensively backfill any root-level config that an older settings.json
+        // doesn't have. Newtonsoft normally honors property initializers when a
+        // JSON key is missing, but if the saved file was written by a build that
+        // emitted `null` for a freshly-added field, the in-memory copy comes back
+        // null. We patch here so the bind methods can dot through fields without
+        // null-guarding every member access.
+        private static void EnsureSettingsShape()
+        {
+            try
+            {
+                SettingsManager.Instance.Mutate(s =>
+                {
+                    if (s.Platforms       == null) s.Platforms       = new PlatformsConfig();
+                    if (s.Modules         == null) s.Modules         = new ModulesConfig();
+                    if (s.Alerts          == null) s.Alerts          = new AlertsConfig();
+                    if (s.Timers          == null) s.Timers          = new TimersConfig();
+                    if (s.Discord         == null) s.Discord         = new DiscordConfig();
+                    if (s.Discord.Embed   == null) s.Discord.Embed   = new DiscordEmbedConfig();
+                    if (s.Twitter         == null) s.Twitter         = new TwitterConfig();
+                    if (s.Webhooks        == null) s.Webhooks        = new WebhookConfig();
+                    if (s.Webhooks.Mappings == null) s.Webhooks.Mappings = new System.Collections.Generic.List<WebhookMapping>();
+                    if (s.Moderation      == null) s.Moderation      = new ModerationConfig();
+                    if (s.Welcomes        == null) s.Welcomes        = new WelcomesConfig();
+                    if (s.Updates         == null) s.Updates         = new UpdatesConfig();
+                    if (s.Counters        == null) s.Counters        = new CountersConfig();
+                    if (s.Counters.Counters == null) s.Counters.Counters = new System.Collections.Generic.List<Counter>();
+                    if (s.CheckIn         == null) s.CheckIn         = new CheckInConfig();
+                    if (s.PatreonSupporters == null) s.PatreonSupporters = new PatreonSupportersConfig();
+                    if (s.PatreonSupporters.Supporters == null) s.PatreonSupporters.Supporters = new System.Collections.Generic.List<PatreonSupporter>();
+                    if (s.InfoCommands    == null) s.InfoCommands    = new InfoCommandsConfig();
+                    if (s.InfoCommands.Custom == null) s.InfoCommands.Custom = new System.Collections.Generic.List<CustomCommand>();
+                    if (s.Goals           == null) s.Goals           = new GoalsConfig();
+                    if (s.Goals.Goals     == null) s.Goals.Goals     = new System.Collections.Generic.List<Goal>();
+                    if (s.VipRotation     == null) s.VipRotation     = new VipRotationConfig();
+                    if (s.VipRotation.ExemptHandles == null) s.VipRotation.ExemptHandles = new System.Collections.Generic.List<string>();
+                    if (s.Bolts           == null) s.Bolts           = new BoltsConfig();
+                    if (s.ChatNoise       == null) s.ChatNoise       = new ChatNoiseConfig();
+                    if (s.Apex            == null) s.Apex            = new ApexConfig();
+                    if (s.RotationIntegration == null) s.RotationIntegration = new RotationIntegrationConfig();
+                    if (s.Clips           == null) s.Clips           = new ClipsConfig();
+                    if (s.FollowBatch     == null) s.FollowBatch     = new FollowBatchConfig();
+                    if (s.GameProfiles    == null) s.GameProfiles    = new GameProfilesConfig();
+                    if (s.GameProfiles.Profiles == null) s.GameProfiles.Profiles = new System.Collections.Generic.List<GameProfile>();
+                    if (s.ChannelPoints   == null) s.ChannelPoints   = new ChannelPointsConfig();
+                    if (s.ChannelPoints.Mappings == null) s.ChannelPoints.Mappings = new System.Collections.Generic.List<ChannelPointMapping>();
+                    if (s.Timers.Messages == null) s.Timers.Messages = new System.Collections.Generic.List<TimedMessage>();
+
+                    // Each AlertTemplate should be non-null too. An "Alerts": {}
+                    // in the JSON nukes them all to null otherwise.
+                    var a = s.Alerts;
+                    if (a.Follow      == null) a.Follow      = new AlertTemplate { Enabled = true, Message = "{user} just followed!" };
+                    if (a.Sub         == null) a.Sub         = new AlertTemplate { Enabled = true, Message = "{user} subscribed!" };
+                    if (a.Resub       == null) a.Resub       = new AlertTemplate { Enabled = true, Message = "{user} resubbed for {months} months!" };
+                    if (a.GiftSub     == null) a.GiftSub     = new AlertTemplate { Enabled = true, Message = "{gifter} gifted {count} subs!" };
+                    if (a.Cheer       == null) a.Cheer       = new AlertTemplate { Enabled = true, Message = "{user} cheered {bits} bits!" };
+                    if (a.Raid        == null) a.Raid        = new AlertTemplate { Enabled = true, Message = "Raid from {user} with {viewers} viewers!" };
+                    if (a.SuperChat   == null) a.SuperChat   = new AlertTemplate { Enabled = true, Message = "{user} sent a Super Chat: {amount}!" };
+                    if (a.Membership  == null) a.Membership  = new AlertTemplate { Enabled = true, Message = "{user} just became a member!" };
+                    if (a.KickSub     == null) a.KickSub     = new AlertTemplate { Enabled = true, Message = "{user} subscribed on Kick!" };
+                    if (a.KickGift    == null) a.KickGift    = new AlertTemplate { Enabled = true, Message = "{gifter} gifted {count} subs on Kick!" };
+                    if (a.TikTokGift  == null) a.TikTokGift  = new AlertTemplate { Enabled = true, Message = "{user} sent {gift} ({coins} coins)!" };
+                });
+            }
+            catch (Exception ex) { Util.ErrorLog.Write("SettingsWindow.EnsureSettingsShape", ex); }
+        }
+
+        // -------------------- Header pills --------------------
+
+        private void RefreshHeaderPills()
+        {
+            var s = SettingsManager.Instance.Current;
+            TxtPillTier.Text    = Entitlements.CurrentTierDisplay();
+            TxtPillChannel.Text = (s.Updates.Channel ?? "stable").ToLower();
+            // Bus secret presence is a decent liveness check.
+            try
+            {
+                var path = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Aquilo", "bus-secret.txt");
+                TxtPillBus.Text = File.Exists(path) ? "Bus :7470" : "Bus offline";
+            }
+            catch { TxtPillBus.Text = "Bus :7470"; }
+        }
+
+        // -------------------- Counters / supporters / check-in --------------------
 
         private void BindCountersAndCheckIn()
         {
@@ -81,7 +242,7 @@ namespace Loadout.UI
             TxtCheckInCommand.Text  = s.CheckIn.CrossPlatformCommand ?? "";
             TxtCheckInCooldown.Text = s.CheckIn.CooldownPerUserHours.ToString();
             TxtCheckInRotateSec.Text = s.CheckIn.RotateIntervalSec.ToString();
-            TxtCheckInStats.Text    = string.Join(",", s.CheckIn.RotatingStats ?? new System.Collections.Generic.List<string>());
+            TxtCheckInStats.Text    = string.Join(",", s.CheckIn.RotatingStats ?? new List<string>());
 
             ChkSubFlair.IsChecked     = s.CheckIn.ShowSubFlair;
             ChkVipModFlair.IsChecked  = s.CheckIn.ShowVipModFlair;
@@ -96,34 +257,27 @@ namespace Loadout.UI
             }
         }
 
-        // -------------------- Counter buttons --------------------
-
         private void BtnCounterAdd_Click(object sender, RoutedEventArgs e)
         {
             _counters.Add(new Counter { Name = "newcounter", Display = "New counter", Value = 0 });
             GrdCounters.SelectedItem = _counters[_counters.Count - 1];
         }
-
         private void BtnCounterRemove_Click(object sender, RoutedEventArgs e)
         {
             if (GrdCounters.SelectedItem is Counter c) _counters.Remove(c);
         }
-
         private void BtnCounterPlus_Click(object sender, RoutedEventArgs e)
         {
             if (GrdCounters.SelectedItem is Counter c) { c.Value++; GrdCounters.Items.Refresh(); PublishCounter(c); }
         }
-
         private void BtnCounterMinus_Click(object sender, RoutedEventArgs e)
         {
             if (GrdCounters.SelectedItem is Counter c) { c.Value--; GrdCounters.Items.Refresh(); PublishCounter(c); }
         }
-
         private void BtnCounterReset_Click(object sender, RoutedEventArgs e)
         {
             if (GrdCounters.SelectedItem is Counter c) { c.Value = 0; GrdCounters.Items.Refresh(); PublishCounter(c); }
         }
-
         private static void PublishCounter(Counter c)
         {
             AquiloBus.Instance.Publish("counter.updated", new
@@ -135,14 +289,11 @@ namespace Loadout.UI
             });
         }
 
-        // -------------------- Supporter buttons --------------------
-
         private void BtnSupporterAdd_Click(object sender, RoutedEventArgs e)
         {
             _supporters.Add(new PatreonSupporter { Platform = "twitch", Handle = "username", Tier = "tier2" });
             GrdSupporters.SelectedItem = _supporters[_supporters.Count - 1];
         }
-
         private void BtnSupporterRemove_Click(object sender, RoutedEventArgs e)
         {
             if (GrdSupporters.SelectedItem is PatreonSupporter p) _supporters.Remove(p);
@@ -152,8 +303,6 @@ namespace Loadout.UI
 
         private void BtnCheckInTest_Click(object sender, RoutedEventArgs e)
         {
-            // Synthesize a payload identical in shape to the real one so an
-            // overlay developer can iterate without poking SB.
             var s = SettingsManager.Instance.Current;
             AquiloBus.Instance.Publish("checkin.shown", new
             {
@@ -168,20 +317,21 @@ namespace Loadout.UI
                 showFlairs     = new { sub = s.CheckIn.ShowSubFlair, vipMod = s.CheckIn.ShowVipModFlair, patreon = s.CheckIn.ShowPatreonFlair },
                 stats          = new object[]
                 {
-                    new { kind = "uptime",         label = "Uptime",   value = "1:23:45" },
-                    new { kind = "viewers",        label = "Viewers",  value = "127" },
-                    new { kind = "counter",        label = "Deaths",   value = "12" }
+                    new { kind = "uptime",  label = "Uptime",  value = "1:23:45" },
+                    new { kind = "viewers", label = "Viewers", value = "127" },
+                    new { kind = "counter", label = "Deaths",  value = "12" }
                 },
                 rotateSeconds  = s.CheckIn.RotateIntervalSec,
                 source         = "test",
                 ts             = DateTime.UtcNow
             });
-            TxtSavedHint.Text = "Test event published.";
+            ShowSavedHint("Test event published.");
         }
+
+        // -------------------- Patreon --------------------
 
         private void OnPatreonStateChanged(object sender, PatreonState e)
         {
-            // The event can fire on a background thread; marshal back.
             Dispatcher.BeginInvoke(new Action(RefreshPatreonState));
         }
 
@@ -200,7 +350,6 @@ namespace Loadout.UI
             BtnPatreonRefresh.Visibility = s.SignedIn ? Visibility.Visible : Visibility.Collapsed;
             BtnPatreonSignOut.Visibility = s.SignedIn ? Visibility.Visible : Visibility.Collapsed;
 
-            // Build the feature list with check / lock indicators.
             LstFeatures.Items.Clear();
             foreach (Feature f in Enum.GetValues(typeof(Feature)))
             {
@@ -217,6 +366,9 @@ namespace Loadout.UI
                 if (!unlocked) line.ToolTip = Entitlements.GetLockReason(f);
                 LstFeatures.Items.Add(line);
             }
+
+            // Header pill should also reflect any tier change.
+            TxtPillTier.Text = Entitlements.CurrentTierDisplay();
         }
 
         private async void BtnPatreonConnect_Click(object sender, RoutedEventArgs e)
@@ -237,119 +389,582 @@ namespace Loadout.UI
                 RefreshPatreonState();
             }
         }
-
         private async void BtnPatreonRefresh_Click(object sender, RoutedEventArgs e)
         {
             BtnPatreonRefresh.IsEnabled = false;
             try { await PatreonClient.Instance.RefreshEntitlementAsync(); }
             finally { BtnPatreonRefresh.IsEnabled = true; RefreshPatreonState(); }
         }
-
         private void BtnPatreonSignOut_Click(object sender, RoutedEventArgs e)
         {
             PatreonClient.Instance.SignOut();
             RefreshPatreonState();
         }
 
+        // -------------------- Alerts --------------------
+
+        /// <summary>
+        /// Row VM for the Alerts ItemsControl. Edits flow back to the underlying
+        /// AlertTemplate via the Apply method called from Save.
+        /// </summary>
+        public sealed class AlertRow : System.ComponentModel.INotifyPropertyChanged
+        {
+            public string Label   { get; set; }
+            public string Kind    { get; set; }
+            private bool   _enabled;
+            private string _message;
+            public bool   Enabled { get { return _enabled; } set { _enabled = value; OnPC("Enabled"); } }
+            public string Message { get { return _message; } set { _message = value; OnPC("Message"); } }
+            public AlertTemplate Backing { get; set; }
+            public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+            private void OnPC(string n) { var h = PropertyChanged; if (h != null) h(this, new System.ComponentModel.PropertyChangedEventArgs(n)); }
+            public void Apply()
+            {
+                if (Backing == null) return;
+                Backing.Enabled = Enabled;
+                Backing.Message = Message;
+            }
+        }
+
+        private void BindAlertsTab()
+        {
+            _alertRows.Clear();
+            var a = SettingsManager.Instance.Current.Alerts;
+            Action<string, string, AlertTemplate> add = (label, kind, t) =>
+                _alertRows.Add(new AlertRow { Label = label, Kind = kind, Backing = t, Enabled = t.Enabled, Message = t.Message });
+            add("Follow",          "follow",      a.Follow);
+            add("Sub",             "sub",         a.Sub);
+            add("Resub",           "resub",       a.Resub);
+            add("Gift sub",        "giftSub",     a.GiftSub);
+            add("Cheer (bits)",    "cheer",       a.Cheer);
+            add("Raid",            "raid",        a.Raid);
+            add("Super chat",      "superChat",   a.SuperChat);
+            add("YouTube member",  "membership",  a.Membership);
+            add("Kick sub",        "kickSub",     a.KickSub);
+            add("Kick gift",       "kickGift",    a.KickGift);
+            add("TikTok gift",     "tiktokGift",  a.TikTokGift);
+            LstAlerts.ItemsSource = _alertRows;
+        }
+
+        // -------------------- Timers --------------------
+
+        private void BindTimersTab()
+        {
+            var s = SettingsManager.Instance.Current;
+            _timers.Clear();
+            foreach (var t in s.Timers.Messages) _timers.Add(t);
+            GrdTimers.ItemsSource = _timers;
+
+            TxtTimersInterval.Text = s.Timers.IntervalMinutes.ToString();
+            TxtTimersMinChat.Text  = s.Timers.MinChatMessages.ToString();
+            TxtTimersMinWin.Text   = s.Timers.MinChatWindowMinutes.ToString();
+            TxtTimersBcPause.Text  = s.Timers.BroadcasterPauseSec.ToString();
+        }
+        private void BtnTimerAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _timers.Add(new TimedMessage
+            {
+                Name = "New timer",
+                Message = "Hey chat, did you know...",
+                Enabled = true,
+                Group = "Default"
+            });
+            GrdTimers.SelectedItem = _timers[_timers.Count - 1];
+        }
+        private void BtnTimerRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdTimers.SelectedItem is TimedMessage t) _timers.Remove(t);
+        }
+
+        // -------------------- Goals --------------------
+
+        private void BindGoalsTab()
+        {
+            _goals.Clear();
+            foreach (var g in SettingsManager.Instance.Current.Goals.Goals) _goals.Add(g);
+            GrdGoals.ItemsSource = _goals;
+        }
+        private void BtnGoalAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _goals.Add(new Goal { Name = "New goal", Kind = "subs", Target = 100, Current = 0, Enabled = false });
+            GrdGoals.SelectedItem = _goals[_goals.Count - 1];
+        }
+        private void BtnGoalRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdGoals.SelectedItem is Goal g) _goals.Remove(g);
+        }
+
+        // -------------------- Webhooks --------------------
+
+        private void BindWebhooksTab()
+        {
+            _webhooks.Clear();
+            foreach (var w in SettingsManager.Instance.Current.Webhooks.Mappings) _webhooks.Add(w);
+            GrdWebhooks.ItemsSource = _webhooks;
+        }
+        private void BtnWebhookAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _webhooks.Add(new WebhookMapping { Path = "/new", SbActionId = "", Description = "" });
+            GrdWebhooks.SelectedItem = _webhooks[_webhooks.Count - 1];
+        }
+        private void BtnWebhookRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdWebhooks.SelectedItem is WebhookMapping w) _webhooks.Remove(w);
+        }
+
+        // -------------------- Custom commands --------------------
+
+        private void BindCustomCommandsTab()
+        {
+            _customCmds.Clear();
+            foreach (var c in SettingsManager.Instance.Current.InfoCommands.Custom) _customCmds.Add(c);
+            GrdCustomCommands.ItemsSource = _customCmds;
+        }
+        private void BtnCustomCmdAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _customCmds.Add(new CustomCommand { Name = "newcmd", Response = "Hello {user}!" });
+            GrdCustomCommands.SelectedItem = _customCmds[_customCmds.Count - 1];
+        }
+        private void BtnCustomCmdRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdCustomCommands.SelectedItem is CustomCommand c) _customCmds.Remove(c);
+        }
+
+        // -------------------- Load all settings into UI --------------------
+
         private void LoadFromSettings()
         {
             var s = SettingsManager.Instance.Current;
             TxtBroadcaster.Text  = s.BroadcasterName ?? "";
 
+            // Platforms
             ChkTwitch.IsChecked  = s.Platforms.Twitch;
             ChkTikTok.IsChecked  = s.Platforms.TikTok;
             ChkYouTube.IsChecked = s.Platforms.YouTube;
             ChkKick.IsChecked    = s.Platforms.Kick;
 
             CmbChannel.SelectedIndex = string.Equals(s.Updates.Channel, "beta", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
+            ChkAutoCheckUpdates.IsChecked = s.Updates.AutoCheck;
 
-            ModInfo.IsChecked     = s.Modules.InfoCommands;
-            ModWelcomes.IsChecked = s.Modules.ContextWelcomes;
-            ModLoyalty.IsChecked  = s.Modules.LoyaltyWallet;
-            ModAlerts.IsChecked   = s.Modules.Alerts;
-            ModTimers.IsChecked   = s.Modules.TimedMessages;
-            // AI module removed in v0.1.1 — line intentionally blank
-            ModHype.IsChecked     = s.Modules.TikTokHypeTrain;
-            ModRecap.IsChecked    = s.Modules.StreamRecap;
-            ModDiscord.IsChecked  = s.Modules.DiscordLiveStatus;
-            ModWebhook.IsChecked  = s.Modules.WebhookInbox;
-            ModMod.IsChecked      = s.Modules.Moderation;
-            ModFun.IsChecked      = s.Modules.Fun;
-            ModGoals.IsChecked    = s.Modules.Goals;
+            // Modules
+            ModInfo.IsChecked        = s.Modules.InfoCommands;
+            ModWelcomes.IsChecked    = s.Modules.ContextWelcomes;
+            ModFun.IsChecked         = s.Modules.Fun;
+            ModFirstWords.IsChecked  = s.Modules.FirstWords;
+            ModAutoPoll.IsChecked    = s.Modules.AutoPoll;
+            ModAlerts.IsChecked      = s.Modules.Alerts;
+            ModTimers.IsChecked      = s.Modules.TimedMessages;
+            ModGoals.IsChecked       = s.Modules.Goals;
+            ModCounters.IsChecked    = s.Modules.Counters;
+            ModSubAnniv.IsChecked    = s.Modules.SubAnniversary;
+            ModSubRaidTrain.IsChecked = s.Modules.SubRaidTrain;
+            ModBolts.IsChecked       = s.Modules.Bolts;
+            ModLoyalty.IsChecked     = s.Modules.LoyaltyWallet;
+            ModApex.IsChecked        = s.Modules.Apex;
+            ModCheckIn.IsChecked     = s.Modules.DailyCheckIn;
+            ModHype.IsChecked        = s.Modules.TikTokHypeTrain;
+            ModHateRaid.IsChecked    = s.Modules.HateRaidDetector;
+            ModAdBreak.IsChecked     = s.Modules.AdBreak;
+            ModChatVel.IsChecked     = s.Modules.ChatVelocity;
+            ModVip.IsChecked         = s.Modules.VipRotation;
+            ModMod.IsChecked         = s.Modules.Moderation;
+            ModCcCoin.IsChecked      = s.Modules.CcCoinTracker;
+            ModClips.IsChecked       = s.Modules.Clips;
+            ModRecap.IsChecked       = s.Modules.StreamRecap;
+            ModGameTracker.IsChecked = s.Modules.GameTracker;
+            ModDiscord.IsChecked     = s.Modules.DiscordLiveStatus;
+            ModTwitter.IsChecked     = s.Modules.TwitterLiveStatus;
+            ModWebhook.IsChecked     = s.Modules.WebhookInbox;
 
+            // Welcomes
+            ChkWelcomesEnabled.IsChecked = s.Welcomes.Enabled;
+            TxtWelcomeFirstTime.Text = s.Welcomes.FirstTime ?? "";
+            TxtWelcomeReturning.Text = s.Welcomes.Returning ?? "";
+            TxtWelcomeRegular.Text   = s.Welcomes.Regular   ?? "";
+            TxtWelcomeSub.Text       = s.Welcomes.Sub       ?? "";
+            TxtWelcomeVip.Text       = s.Welcomes.Vip       ?? "";
+            TxtWelcomeMod.Text       = s.Welcomes.Mod       ?? "";
+
+            // Info commands
+            TxtInfoDiscord.Text = s.InfoCommands.Discord ?? "";
+            TxtInfoSocials.Text = s.InfoCommands.Socials ?? "";
+
+            // Quiet / chat noise
+            ChkQuietMode.IsChecked     = s.ChatNoise.QuietMode;
+            TxtMaxChatPerMin.Text      = s.ChatNoise.MaxChatPerMinute.ToString();
+            ChkAreaAlerts.IsChecked    = s.ChatNoise.AlertsToChat;
+            ChkAreaWelcomes.IsChecked  = s.ChatNoise.WelcomesToChat;
+            ChkAreaInfo.IsChecked      = s.ChatNoise.InfoCommandsToChat;
+            ChkAreaCounters.IsChecked  = s.ChatNoise.CountersToChat;
+            ChkAreaBolts.IsChecked     = s.ChatNoise.BoltsToChat;
+            ChkAreaGoals.IsChecked     = s.ChatNoise.GoalsToChat;
+            TxtInfoCooldown.Text       = s.ChatNoise.InfoCommandCooldownSec.ToString();
+            TxtCounterAckCooldown.Text = s.ChatNoise.CounterAckCooldownSec.ToString();
+            TxtCounterAckEveryN.Text   = s.ChatNoise.CounterAckEveryN.ToString();
+
+            // Bolts
+            TxtBoltsName.Text         = s.Bolts.DisplayName ?? "";
+            TxtBoltsEmoji.Text        = s.Bolts.Emoji ?? "";
+            TxtBoltsPerChat.Text      = s.Bolts.PerChatMessage.ToString();
+            TxtBoltsPerSub.Text       = s.Bolts.PerSub.ToString();
+            TxtBoltsPerGiftSub.Text   = s.Bolts.PerGiftSub.ToString();
+            TxtBoltsPerRaid.Text      = s.Bolts.PerRaidBrought.ToString();
+            TxtBoltsBitsDivisor.Text  = s.Bolts.PerCheerBitDivisor.ToString();
+            TxtBoltsCcDivisor.Text    = s.Bolts.PerCcCoinDivisor.ToString();
+            TxtBoltsCheckIn.Text      = s.Bolts.PerDailyCheckIn.ToString();
+            TxtBoltsAnnivBase.Text    = s.Bolts.SubAnniversaryBonusBase.ToString();
+            TxtBoltsMulSub.Text       = s.Bolts.SubMultiplier.ToString();
+            TxtBoltsMulT1.Text        = s.Bolts.PatreonTier1Bonus.ToString();
+            TxtBoltsMulT2.Text        = s.Bolts.PatreonTier2Bonus.ToString();
+            TxtBoltsMulT3.Text        = s.Bolts.PatreonTier3Bonus.ToString();
+            TxtBoltsStreakPer.Text    = s.Bolts.DailyStreakPerDay.ToString();
+            TxtBoltsStreakCap.Text    = s.Bolts.DailyStreakCap.ToString();
+            TxtBoltsAfkCap.Text       = s.Bolts.MaxChatEarnsPerMinute.ToString();
+            TxtBoltsGiftFloor.Text    = s.Bolts.GiftMinAmount.ToString();
+            TxtBoltsRainMin.Text      = s.Bolts.BoltRainMinTotal.ToString();
+            TxtBoltsRainMax.Text      = s.Bolts.BoltRainMaxRecipients.ToString();
+
+            ChkRotationEnabled.IsChecked = s.RotationIntegration.Enabled;
+            TxtRotationCmd.Text          = s.RotationIntegration.Command ?? "";
+            TxtRotationCost.Text         = s.RotationIntegration.Cost.ToString();
+            TxtRotationCd.Text           = s.RotationIntegration.PerUserCooldownSec.ToString();
+            TxtRotationRefund.Text       = s.RotationIntegration.RefundOnFailureSec.ToString();
+
+            // Apex
+            TxtApexStartHP.Text     = s.Apex.StartingHealth.ToString();
+            TxtApexChatThr.Text     = s.Apex.ChatAnnounceDamageThreshold.ToString();
+            TxtApexDmgSub.Text      = s.Apex.DamageSub.ToString();
+            TxtApexDmgResub.Text    = s.Apex.DamageResub.ToString();
+            TxtApexDmgGift.Text     = s.Apex.DamageGiftSub.ToString();
+            TxtApexDmgBits.Text     = s.Apex.DamagePerHundredBits.ToString();
+            TxtApexDmgTikTok.Text   = s.Apex.DamagePerTikTokCoin.ToString();
+            TxtApexDmgCcCoin.Text   = s.Apex.DamagePerCcCoin.ToString();
+            TxtApexDmgBolts.Text    = s.Apex.DamagePerBoltsSpent.ToString();
+            TxtApexDmgChanPt.Text   = s.Apex.DamagePerChannelPointRedemption.ToString();
+            TxtApexDmgCheckIn.Text  = s.Apex.DamagePerCheckIn.ToString();
+            TxtApexDmgRaid.Text     = s.Apex.DamagePerRaidViewer.ToString();
+            ChkApexAutoCrown.IsChecked  = s.Apex.AutoCrownFinisher;
+            ChkApexSelfImm.IsChecked    = s.Apex.SelfImmunity;
+            ChkApexIncBcaster.IsChecked = s.Apex.IncludeBroadcaster;
+            ChkApexAnnounce.IsChecked   = s.Apex.AnnounceCrownChange;
+            TxtApexDiscord.Text         = s.Apex.DiscordWebhook ?? "";
+
+            // Hate raid / moderation
+            TxtHateAccountAge.Text   = s.Moderation.HateRaidAccountAgeHrs.ToString();
+            TxtHateWindow.Text       = s.Moderation.HateRaidWindowSec.ToString();
+            TxtHateMinAccounts.Text  = s.Moderation.HateRaidMinAccounts.ToString();
+            ChkHateRaidDet.IsChecked = s.Moderation.HateRaidDetector;
+            ChkLinkPerms.IsChecked   = s.Moderation.LinkPermsByRole;
+            ChkCopypasta.IsChecked   = s.Moderation.CopypastaDetect;
+
+            // VIP rotation
+            TxtVipInterval.Text  = s.VipRotation.IntervalDays.ToString();
+            TxtVipPerCycle.Text  = s.VipRotation.RotationsPerCycle.ToString();
+            TxtVipMinMsg.Text    = s.VipRotation.MinMessages.ToString();
+            TxtVipExempt.Text    = string.Join(Environment.NewLine, s.VipRotation.ExemptHandles ?? new List<string>());
+            TxtVipDiscord.Text   = s.VipRotation.DiscordWebhook ?? "";
+
+            // Clips
+            ChkClipsEnabled.IsChecked = s.Clips.Enabled;
+            TxtClipCommand.Text       = s.Clips.Command ?? "";
+            TxtClipRoles.Text         = s.Clips.AllowedRoles ?? "";
+            TxtClipUserCd.Text        = s.Clips.PerUserCooldownSec.ToString();
+            TxtClipModCd.Text         = s.Clips.ModCooldownSec.ToString();
+            TxtClipChannelCd.Text     = s.Clips.ChannelCooldownSec.ToString();
+            TxtClipBoltsAward.Text    = s.Clips.AwardBolts.ToString();
+            ChkClipBotAcct.IsChecked  = s.Clips.UseBotAccount;
+            ChkClipDelay.IsChecked    = s.Clips.HasDelay;
+            ChkClipAck.IsChecked      = s.Clips.AckInChat;
+            TxtClipAck.Text           = s.Clips.AckTemplate ?? "";
+            TxtClipPost.Text          = s.Clips.PostTemplate ?? "";
+            TxtClipDiscordWebhook.Text  = s.Clips.DiscordWebhook ?? "";
+            TxtClipDiscordTemplate.Text = s.Clips.DiscordTemplate ?? "";
+
+            // Discord
             TxtDiscordWebhook.Text  = s.Discord.LiveStatusWebhook ?? "";
             TxtDiscordRecap.Text    = s.Discord.RecapWebhook ?? "";
             TxtDiscordTemplate.Text = s.Discord.GoLiveTemplate ?? "";
+            ChkDiscordAutoEdit.IsChecked = s.Discord.AutoEditOnChange;
+            ChkDiscordArchive.IsChecked  = s.Discord.ArchiveOnOffline;
 
-            TxtWebhookPort.Text   = s.Webhooks.Port.ToString();
-            TxtWebhookSecret.Text = s.Webhooks.SharedSecret ?? "";
+            // Twitter / X
+            TxtTwitterWebhook.Text         = s.Twitter.LiveWebhook ?? "";
+            TxtTwitterLiveTemplate.Text    = s.Twitter.LiveTemplate ?? "";
+            TxtTwitterOfflineTemplate.Text = s.Twitter.OfflineTemplate ?? "";
+            ChkTwitterPostOnUpdate.IsChecked = s.Twitter.PostOnUpdate;
+
+            // Webhooks
+            ChkWebhookEnabled.IsChecked = s.Webhooks.Enabled;
+            TxtWebhookPort.Text         = s.Webhooks.Port.ToString();
+            TxtWebhookSecret.Text       = s.Webhooks.SharedSecret ?? "";
+
+            // Follow batch (Welcomes tab)
+            ChkFollowBatchEnabled.IsChecked = s.FollowBatch.Enabled;
+            TxtFollowBatchWindow.Text       = s.FollowBatch.WindowSeconds.ToString();
+            TxtFollowBatchMin.Text          = s.FollowBatch.MinToTrigger.ToString();
+            TxtFollowBatchMaxNames.Text     = s.FollowBatch.MaxNamesShown.ToString();
+            TxtFollowBatchTemplate.Text     = s.FollowBatch.Template ?? "";
+
+            // Discord embed
+            var em = s.Discord.Embed ?? new DiscordEmbedConfig();
+            ChkEmbedUse.IsChecked     = em.Use;
+            TxtEmbedTitle.Text        = em.Title ?? "";
+            TxtEmbedDescription.Text  = em.Description ?? "";
+            TxtEmbedColor.Text        = em.ColorHex ?? "#3A86FF";
+            TxtEmbedImage.Text        = em.ImageUrl ?? "";
+            TxtEmbedThumb.Text        = em.ThumbUrl ?? "";
+            TxtEmbedAuthor.Text       = em.AuthorName ?? "";
+            TxtEmbedAuthorIcon.Text   = em.AuthorIcon ?? "";
+            TxtEmbedFooter.Text       = em.FooterText ?? "";
+            TxtEmbedFooterIcon.Text   = em.FooterIcon ?? "";
         }
 
-        private void RefreshVersionLine()
-        {
-            var s = SettingsManager.Instance.Current;
-            var lastChecked = s.Updates.LastCheckedUtc == DateTime.MinValue
-                ? "never"
-                : s.Updates.LastCheckedUtc.ToLocalTime().ToString("g");
-            TxtVersionLine.Text = $"Version {s.SuiteVersion} — channel: {s.Updates.Channel} — last checked: {lastChecked}";
-        }
-
-        private void RefreshPendingLinks()
-        {
-            var pending = IdentityLinker.Instance.PendingRequests();
-            TxtPendingLinks.Text = pending.Count == 0
-                ? "No pending requests."
-                : string.Join("\n", pending.Select(r =>
-                    $"• {r.SourcePlatform.ToShortName()}:{r.SourceUser} ↔ {r.TargetPlatform.ToShortName()}:{r.TargetUser} (id {r.Id.Substring(0, 8)})"));
-        }
+        // -------------------- Save --------------------
 
         private void BtnSave_Click(object sender, RoutedEventArgs e)
         {
+            // Push every alert row's edits back to the AlertTemplate it wraps.
+            foreach (var row in _alertRows) row.Apply();
+
             SettingsManager.Instance.Mutate(s =>
             {
                 s.BroadcasterName = (TxtBroadcaster.Text ?? "").Trim();
 
+                // Platforms
                 s.Platforms.Twitch  = ChkTwitch.IsChecked  == true;
                 s.Platforms.TikTok  = ChkTikTok.IsChecked  == true;
                 s.Platforms.YouTube = ChkYouTube.IsChecked == true;
                 s.Platforms.Kick    = ChkKick.IsChecked    == true;
 
-                s.Updates.Channel = ((ComboBoxItem)CmbChannel.SelectedItem)?.Tag?.ToString() ?? "stable";
+                s.Updates.Channel   = ((ComboBoxItem)CmbChannel.SelectedItem)?.Tag?.ToString() ?? "stable";
+                s.Updates.AutoCheck = ChkAutoCheckUpdates.IsChecked == true;
 
-                s.Modules.InfoCommands     = ModInfo.IsChecked == true;
-                s.Modules.ContextWelcomes  = ModWelcomes.IsChecked == true;
-                s.Modules.LoyaltyWallet    = ModLoyalty.IsChecked == true;
-                s.Modules.Alerts           = ModAlerts.IsChecked == true;
-                s.Modules.TimedMessages    = ModTimers.IsChecked == true;
-                // AI module removed in v0.1.1
-                s.Modules.TikTokHypeTrain  = ModHype.IsChecked == true;
-                s.Modules.StreamRecap      = ModRecap.IsChecked == true;
-                s.Modules.DiscordLiveStatus = ModDiscord.IsChecked == true;
-                s.Modules.WebhookInbox     = ModWebhook.IsChecked == true;
-                s.Modules.Moderation       = ModMod.IsChecked == true;
-                s.Modules.Fun              = ModFun.IsChecked == true;
-                s.Modules.Goals            = ModGoals.IsChecked == true;
+                // Modules
+                s.Modules.InfoCommands       = ModInfo.IsChecked == true;
+                s.Modules.ContextWelcomes    = ModWelcomes.IsChecked == true;
+                s.Modules.Fun                = ModFun.IsChecked == true;
+                s.Modules.FirstWords         = ModFirstWords.IsChecked == true;
+                s.Modules.AutoPoll           = ModAutoPoll.IsChecked == true;
+                s.Modules.Alerts             = ModAlerts.IsChecked == true;
+                s.Modules.TimedMessages      = ModTimers.IsChecked == true;
+                s.Modules.Goals              = ModGoals.IsChecked == true;
+                s.Modules.Counters           = ModCounters.IsChecked == true;
+                s.Modules.SubAnniversary     = ModSubAnniv.IsChecked == true;
+                s.Modules.SubRaidTrain       = ModSubRaidTrain.IsChecked == true;
+                s.Modules.Bolts              = ModBolts.IsChecked == true;
+                s.Modules.LoyaltyWallet      = ModLoyalty.IsChecked == true;
+                s.Modules.Apex               = ModApex.IsChecked == true;
+                s.Modules.DailyCheckIn       = ModCheckIn.IsChecked == true;
+                s.Modules.TikTokHypeTrain    = ModHype.IsChecked == true;
+                s.Modules.HateRaidDetector   = ModHateRaid.IsChecked == true;
+                s.Modules.AdBreak            = ModAdBreak.IsChecked == true;
+                s.Modules.ChatVelocity       = ModChatVel.IsChecked == true;
+                s.Modules.VipRotation        = ModVip.IsChecked == true;
+                s.Modules.Moderation         = ModMod.IsChecked == true;
+                s.Modules.CcCoinTracker      = ModCcCoin.IsChecked == true;
+                s.Modules.Clips              = ModClips.IsChecked == true;
+                s.Modules.StreamRecap        = ModRecap.IsChecked == true;
+                s.Modules.GameTracker        = ModGameTracker.IsChecked == true;
+                s.Modules.DiscordLiveStatus  = ModDiscord.IsChecked == true;
+                s.Modules.TwitterLiveStatus  = ModTwitter.IsChecked == true;
+                s.Modules.WebhookInbox       = ModWebhook.IsChecked == true;
 
+                // Welcomes
+                s.Welcomes.Enabled   = ChkWelcomesEnabled.IsChecked == true;
+                s.Welcomes.FirstTime = TxtWelcomeFirstTime.Text ?? "";
+                s.Welcomes.Returning = TxtWelcomeReturning.Text ?? "";
+                s.Welcomes.Regular   = TxtWelcomeRegular.Text   ?? "";
+                s.Welcomes.Sub       = TxtWelcomeSub.Text       ?? "";
+                s.Welcomes.Vip       = TxtWelcomeVip.Text       ?? "";
+                s.Welcomes.Mod       = TxtWelcomeMod.Text       ?? "";
+
+                // Info commands
+                s.InfoCommands.Discord = TxtInfoDiscord.Text ?? "";
+                s.InfoCommands.Socials = TxtInfoSocials.Text ?? "";
+                s.InfoCommands.Custom  = _customCmds.ToList();
+
+                // Quiet / chat noise
+                s.ChatNoise.QuietMode             = ChkQuietMode.IsChecked == true;
+                int iv;
+                if (int.TryParse(TxtMaxChatPerMin.Text, out iv) && iv >= 1)
+                    s.ChatNoise.MaxChatPerMinute = iv;
+                s.ChatNoise.AlertsToChat          = ChkAreaAlerts.IsChecked    == true;
+                s.ChatNoise.WelcomesToChat        = ChkAreaWelcomes.IsChecked  == true;
+                s.ChatNoise.InfoCommandsToChat    = ChkAreaInfo.IsChecked      == true;
+                s.ChatNoise.CountersToChat        = ChkAreaCounters.IsChecked  == true;
+                s.ChatNoise.BoltsToChat           = ChkAreaBolts.IsChecked     == true;
+                s.ChatNoise.GoalsToChat           = ChkAreaGoals.IsChecked     == true;
+                if (int.TryParse(TxtInfoCooldown.Text, out iv)       && iv >= 0) s.ChatNoise.InfoCommandCooldownSec = iv;
+                if (int.TryParse(TxtCounterAckCooldown.Text, out iv) && iv >= 0) s.ChatNoise.CounterAckCooldownSec  = iv;
+                if (int.TryParse(TxtCounterAckEveryN.Text, out iv)   && iv >= 0) s.ChatNoise.CounterAckEveryN        = iv;
+
+                // Counters / supporters
+                s.Counters.Counters = _counters.ToList();
+                s.PatreonSupporters.Supporters = _supporters.ToList();
+
+                // Timers
+                s.Timers.Messages = _timers.ToList();
+                if (int.TryParse(TxtTimersInterval.Text, out iv) && iv >= 1) s.Timers.IntervalMinutes      = iv;
+                if (int.TryParse(TxtTimersMinChat.Text,  out iv) && iv >= 0) s.Timers.MinChatMessages      = iv;
+                if (int.TryParse(TxtTimersMinWin.Text,   out iv) && iv >= 1) s.Timers.MinChatWindowMinutes = iv;
+                if (int.TryParse(TxtTimersBcPause.Text,  out iv) && iv >= 0) s.Timers.BroadcasterPauseSec  = iv;
+
+                // Goals
+                s.Goals.Goals = _goals.ToList();
+
+                // Bolts
+                s.Bolts.DisplayName     = (TxtBoltsName.Text  ?? "Bolts").Trim();
+                s.Bolts.Emoji           = (TxtBoltsEmoji.Text ?? "⚡").Trim();
+                if (int.TryParse(TxtBoltsPerChat.Text,    out iv) && iv >= 0) s.Bolts.PerChatMessage     = iv;
+                if (int.TryParse(TxtBoltsPerSub.Text,     out iv) && iv >= 0) s.Bolts.PerSub             = iv;
+                if (int.TryParse(TxtBoltsPerGiftSub.Text, out iv) && iv >= 0) s.Bolts.PerGiftSub         = iv;
+                if (int.TryParse(TxtBoltsPerRaid.Text,    out iv) && iv >= 0) s.Bolts.PerRaidBrought     = iv;
+                if (int.TryParse(TxtBoltsBitsDivisor.Text,out iv) && iv >= 1) s.Bolts.PerCheerBitDivisor = iv;
+                if (int.TryParse(TxtBoltsCcDivisor.Text,  out iv) && iv >= 1) s.Bolts.PerCcCoinDivisor   = iv;
+                if (int.TryParse(TxtBoltsCheckIn.Text,    out iv) && iv >= 0) s.Bolts.PerDailyCheckIn    = iv;
+                if (int.TryParse(TxtBoltsAnnivBase.Text,  out iv) && iv >= 0) s.Bolts.SubAnniversaryBonusBase = iv;
+                double dv;
+                if (double.TryParse(TxtBoltsMulSub.Text,    out dv) && dv >= 0) s.Bolts.SubMultiplier     = dv;
+                if (double.TryParse(TxtBoltsMulT1.Text,     out dv) && dv >= 0) s.Bolts.PatreonTier1Bonus = dv;
+                if (double.TryParse(TxtBoltsMulT2.Text,     out dv) && dv >= 0) s.Bolts.PatreonTier2Bonus = dv;
+                if (double.TryParse(TxtBoltsMulT3.Text,     out dv) && dv >= 0) s.Bolts.PatreonTier3Bonus = dv;
+                if (double.TryParse(TxtBoltsStreakPer.Text, out dv) && dv >= 0) s.Bolts.DailyStreakPerDay = dv;
+                if (double.TryParse(TxtBoltsStreakCap.Text, out dv) && dv >= 0) s.Bolts.DailyStreakCap    = dv;
+                if (int.TryParse(TxtBoltsAfkCap.Text,    out iv) && iv >= 0) s.Bolts.MaxChatEarnsPerMinute = iv;
+                if (int.TryParse(TxtBoltsGiftFloor.Text, out iv) && iv >= 0) s.Bolts.GiftMinAmount         = iv;
+                if (int.TryParse(TxtBoltsRainMin.Text,   out iv) && iv >= 0) s.Bolts.BoltRainMinTotal      = iv;
+                if (int.TryParse(TxtBoltsRainMax.Text,   out iv) && iv >= 1) s.Bolts.BoltRainMaxRecipients = iv;
+
+                // Rotation integration
+                s.RotationIntegration.Enabled = ChkRotationEnabled.IsChecked == true;
+                s.RotationIntegration.Command = (TxtRotationCmd.Text ?? "!boltsong").Trim();
+                if (int.TryParse(TxtRotationCost.Text, out iv)   && iv >= 0) s.RotationIntegration.Cost                = iv;
+                if (int.TryParse(TxtRotationCd.Text, out iv)     && iv >= 0) s.RotationIntegration.PerUserCooldownSec  = iv;
+                if (int.TryParse(TxtRotationRefund.Text, out iv) && iv >= 0) s.RotationIntegration.RefundOnFailureSec  = iv;
+
+                // Apex
+                if (int.TryParse(TxtApexStartHP.Text,    out iv) && iv >= 1) s.Apex.StartingHealth                  = iv;
+                if (int.TryParse(TxtApexChatThr.Text,    out iv) && iv >= 0) s.Apex.ChatAnnounceDamageThreshold     = iv;
+                if (int.TryParse(TxtApexDmgSub.Text,     out iv) && iv >= 0) s.Apex.DamageSub                       = iv;
+                if (int.TryParse(TxtApexDmgResub.Text,   out iv) && iv >= 0) s.Apex.DamageResub                     = iv;
+                if (int.TryParse(TxtApexDmgGift.Text,    out iv) && iv >= 0) s.Apex.DamageGiftSub                   = iv;
+                if (int.TryParse(TxtApexDmgBits.Text,    out iv) && iv >= 0) s.Apex.DamagePerHundredBits            = iv;
+                if (int.TryParse(TxtApexDmgTikTok.Text,  out iv) && iv >= 0) s.Apex.DamagePerTikTokCoin             = iv;
+                if (int.TryParse(TxtApexDmgCcCoin.Text,  out iv) && iv >= 0) s.Apex.DamagePerCcCoin                 = iv;
+                if (int.TryParse(TxtApexDmgBolts.Text,   out iv) && iv >= 0) s.Apex.DamagePerBoltsSpent             = iv;
+                if (int.TryParse(TxtApexDmgChanPt.Text,  out iv) && iv >= 0) s.Apex.DamagePerChannelPointRedemption = iv;
+                if (int.TryParse(TxtApexDmgCheckIn.Text, out iv) && iv >= 0) s.Apex.DamagePerCheckIn                = iv;
+                if (int.TryParse(TxtApexDmgRaid.Text,    out iv) && iv >= 0) s.Apex.DamagePerRaidViewer             = iv;
+                s.Apex.AutoCrownFinisher    = ChkApexAutoCrown.IsChecked  == true;
+                s.Apex.SelfImmunity         = ChkApexSelfImm.IsChecked    == true;
+                s.Apex.IncludeBroadcaster   = ChkApexIncBcaster.IsChecked == true;
+                s.Apex.AnnounceCrownChange  = ChkApexAnnounce.IsChecked   == true;
+                s.Apex.DiscordWebhook       = (TxtApexDiscord.Text ?? "").Trim();
+
+                // Hate raid / moderation
+                if (int.TryParse(TxtHateAccountAge.Text,  out iv) && iv >= 0) s.Moderation.HateRaidAccountAgeHrs = iv;
+                if (int.TryParse(TxtHateWindow.Text,      out iv) && iv >= 1) s.Moderation.HateRaidWindowSec     = iv;
+                if (int.TryParse(TxtHateMinAccounts.Text, out iv) && iv >= 1) s.Moderation.HateRaidMinAccounts   = iv;
+                s.Moderation.HateRaidDetector = ChkHateRaidDet.IsChecked == true;
+                s.Moderation.LinkPermsByRole  = ChkLinkPerms.IsChecked   == true;
+                s.Moderation.CopypastaDetect  = ChkCopypasta.IsChecked   == true;
+
+                // VIP rotation
+                if (int.TryParse(TxtVipInterval.Text, out iv) && iv >= 1) s.VipRotation.IntervalDays      = iv;
+                if (int.TryParse(TxtVipPerCycle.Text, out iv) && iv >= 1) s.VipRotation.RotationsPerCycle = iv;
+                if (int.TryParse(TxtVipMinMsg.Text,   out iv) && iv >= 0) s.VipRotation.MinMessages       = iv;
+                s.VipRotation.ExemptHandles = (TxtVipExempt.Text ?? "")
+                    .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).ToList();
+                s.VipRotation.DiscordWebhook = (TxtVipDiscord.Text ?? "").Trim();
+
+                // Clips
+                s.Clips.Enabled            = ChkClipsEnabled.IsChecked == true;
+                s.Clips.Command            = (TxtClipCommand.Text ?? "!clip").Trim();
+                s.Clips.AllowedRoles       = (TxtClipRoles.Text ?? "").Trim();
+                if (int.TryParse(TxtClipUserCd.Text,    out iv) && iv >= 0) s.Clips.PerUserCooldownSec = iv;
+                if (int.TryParse(TxtClipModCd.Text,     out iv) && iv >= 0) s.Clips.ModCooldownSec     = iv;
+                if (int.TryParse(TxtClipChannelCd.Text, out iv) && iv >= 0) s.Clips.ChannelCooldownSec = iv;
+                if (int.TryParse(TxtClipBoltsAward.Text,out iv) && iv >= 0) s.Clips.AwardBolts         = iv;
+                s.Clips.UseBotAccount      = ChkClipBotAcct.IsChecked == true;
+                s.Clips.HasDelay           = ChkClipDelay.IsChecked   == true;
+                s.Clips.AckInChat          = ChkClipAck.IsChecked     == true;
+                s.Clips.AckTemplate        = TxtClipAck.Text  ?? "";
+                s.Clips.PostTemplate       = TxtClipPost.Text ?? "";
+                s.Clips.DiscordWebhook     = (TxtClipDiscordWebhook.Text  ?? "").Trim();
+                s.Clips.DiscordTemplate    = TxtClipDiscordTemplate.Text  ?? "";
+
+                // Discord
                 s.Discord.LiveStatusWebhook = (TxtDiscordWebhook.Text ?? "").Trim();
-                s.Discord.RecapWebhook      = (TxtDiscordRecap.Text ?? "").Trim();
+                s.Discord.RecapWebhook      = (TxtDiscordRecap.Text   ?? "").Trim();
                 s.Discord.GoLiveTemplate    = TxtDiscordTemplate.Text ?? s.Discord.GoLiveTemplate;
+                s.Discord.AutoEditOnChange  = ChkDiscordAutoEdit.IsChecked == true;
+                s.Discord.ArchiveOnOffline  = ChkDiscordArchive.IsChecked  == true;
 
+                // Twitter / X
+                s.Twitter.LiveWebhook     = (TxtTwitterWebhook.Text ?? "").Trim();
+                s.Twitter.LiveTemplate    = TxtTwitterLiveTemplate.Text    ?? "";
+                s.Twitter.OfflineTemplate = TxtTwitterOfflineTemplate.Text ?? "";
+                s.Twitter.PostOnUpdate    = ChkTwitterPostOnUpdate.IsChecked == true;
+
+                // Webhooks
+                s.Webhooks.Enabled = ChkWebhookEnabled.IsChecked == true;
                 if (int.TryParse(TxtWebhookPort.Text, out var port) && port > 0 && port < 65536)
                     s.Webhooks.Port = port;
                 s.Webhooks.SharedSecret = (TxtWebhookSecret.Text ?? "").Trim();
+                s.Webhooks.Mappings = _webhooks.ToList();
 
-                // Counters: replace the persisted list with the edited collection.
-                s.Counters.Counters = _counters.ToList();
+                // Follow batch
+                s.FollowBatch.Enabled  = ChkFollowBatchEnabled.IsChecked == true;
+                if (int.TryParse(TxtFollowBatchWindow.Text,   out iv) && iv >= 5)  s.FollowBatch.WindowSeconds = iv;
+                if (int.TryParse(TxtFollowBatchMin.Text,      out iv) && iv >= 2)  s.FollowBatch.MinToTrigger  = iv;
+                if (int.TryParse(TxtFollowBatchMaxNames.Text, out iv) && iv >= 1)  s.FollowBatch.MaxNamesShown = iv;
+                s.FollowBatch.Template = TxtFollowBatchTemplate.Text ?? s.FollowBatch.Template;
 
-                // Patreon supporters: same.
-                s.PatreonSupporters.Supporters = _supporters.ToList();
+                // Discord embed
+                if (s.Discord.Embed == null) s.Discord.Embed = new DiscordEmbedConfig();
+                s.Discord.Embed.Use         = ChkEmbedUse.IsChecked == true;
+                s.Discord.Embed.Title       = TxtEmbedTitle.Text       ?? "";
+                s.Discord.Embed.Description = TxtEmbedDescription.Text ?? "";
+                s.Discord.Embed.ColorHex    = (TxtEmbedColor.Text      ?? "#3A86FF").Trim();
+                s.Discord.Embed.ImageUrl    = (TxtEmbedImage.Text      ?? "").Trim();
+                s.Discord.Embed.ThumbUrl    = (TxtEmbedThumb.Text      ?? "").Trim();
+                s.Discord.Embed.AuthorName  = TxtEmbedAuthor.Text       ?? "";
+                s.Discord.Embed.AuthorIcon  = (TxtEmbedAuthorIcon.Text ?? "").Trim();
+                s.Discord.Embed.FooterText  = TxtEmbedFooter.Text      ?? "";
+                s.Discord.Embed.FooterIcon  = (TxtEmbedFooterIcon.Text ?? "").Trim();
+
+                // Game profiles + channel points
+                s.GameProfiles.Enabled = ChkGameProfilesEnabled.IsChecked == true;
+                s.GameProfiles.Profiles = _gameProfiles.ToList();
+                s.ChannelPoints.Enabled = ChkChannelPointsEnabled.IsChecked == true;
+                s.ChannelPoints.Mappings = _channelPoints.ToList();
+
+                // Discord bot. Most fields are managed by the claim-flow
+                // handlers; Save just captures the few free-form ones.
+                s.DiscordBot.Enabled   = ChkDiscordBotEnabled.IsChecked == true;
+                s.DiscordBot.WorkerUrl = (TxtDcbWorkerUrl.Text ?? "").Trim();
+                s.DiscordBot.SyncMode  = ((ComboBoxItem)CmbDcbSyncMode.SelectedItem)?.Tag?.ToString() ?? "merge";
+                if (int.TryParse(TxtDcbAutoSync.Text, out iv) && iv >= 0) s.DiscordBot.AutoSyncMinutes = iv;
+
+                // Bolts shop
+                s.BoltsShop.Enabled     = ChkShopEnabled.IsChecked == true;
+                s.BoltsShop.ShopCommand = (TxtShopCmd.Text ?? "!shop").Trim();
+                s.BoltsShop.BuyCommand  = (TxtBuyCmd.Text  ?? "!buy").Trim();
+                s.BoltsShop.Items       = _shopItems.ToList();
+
+                // Tuning tab — pushes every numeric / template config for
+                // the previously-hardcoded modules (HypeTrain / AdBreak /
+                // ChatVelocity / AutoPoll / SubAnniversary / SubRaidTrain
+                // / CcCoin / FirstWords).
+                SaveTuningTab(s);
 
                 // Check-In fields.
                 s.CheckIn.TwitchRewardName     = (TxtCheckInReward.Text   ?? "").Trim();
                 s.CheckIn.CrossPlatformCommand = (TxtCheckInCommand.Text  ?? "").Trim();
-                if (int.TryParse(TxtCheckInCooldown.Text, out var cdh) && cdh >= 0)
+                int cdh; if (int.TryParse(TxtCheckInCooldown.Text, out cdh) && cdh >= 0)
                     s.CheckIn.CooldownPerUserHours = cdh;
-                if (int.TryParse(TxtCheckInRotateSec.Text, out var rsec) && rsec > 0)
+                int rsec; if (int.TryParse(TxtCheckInRotateSec.Text, out rsec) && rsec > 0)
                     s.CheckIn.RotateIntervalSec = rsec;
                 s.CheckIn.AnimationTheme = ((ComboBoxItem)CmbCheckInTheme.SelectedItem)?.Tag?.ToString() ?? "shimmer";
                 s.CheckIn.ShowSubFlair     = ChkSubFlair.IsChecked     == true;
@@ -362,8 +977,19 @@ namespace Loadout.UI
                     .ToList();
             });
             SettingsManager.Instance.SaveNow();
-            TxtSavedHint.Text = "Saved at " + DateTime.Now.ToString("HH:mm:ss");
+            ShowSavedHint("Saved at " + DateTime.Now.ToString("HH:mm:ss"));
+            RefreshHeaderPills();
         }
+
+        // -------------------- Footer status pill --------------------
+
+        private void ShowSavedHint(string text)
+        {
+            TxtSavedHint.Text = text;
+            PillSaved.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        // -------------------- Versions / closing / re-onboard --------------------
 
         private void BtnClose_Click(object sender, RoutedEventArgs e) => Close();
 
@@ -379,11 +1005,29 @@ namespace Loadout.UI
             var result = await UpdateChecker.Instance.CheckNowAsync();
             RefreshVersionLine();
             if (result == UpdateCheckResult.NewerAvailable)
-                TxtSavedHint.Text = "Update available — see tray icon or release page.";
+                ShowSavedHint("Update available - see tray icon or release page.");
             else if (result == UpdateCheckResult.UpToDate)
-                TxtSavedHint.Text = "You're on the latest version.";
+                ShowSavedHint("You're on the latest version.");
             else
-                TxtSavedHint.Text = "Update check failed (" + result + ").";
+                ShowSavedHint("Update check failed (" + result + ").");
+        }
+
+        private void RefreshVersionLine()
+        {
+            var s = SettingsManager.Instance.Current;
+            var lastChecked = s.Updates.LastCheckedUtc == DateTime.MinValue
+                ? "never"
+                : s.Updates.LastCheckedUtc.ToLocalTime().ToString("g");
+            TxtVersionLine.Text = "Version " + s.SuiteVersion + " · channel " + s.Updates.Channel + " · last checked " + lastChecked;
+        }
+
+        private void RefreshPendingLinks()
+        {
+            var pending = IdentityLinker.Instance.PendingRequests();
+            TxtPendingLinks.Text = pending.Count == 0
+                ? "No pending requests."
+                : string.Join("\n", pending.Select(r =>
+                    "• " + r.SourcePlatform.ToShortName() + ":" + r.SourceUser + " ↔ " + r.TargetPlatform.ToShortName() + ":" + r.TargetUser + " (id " + r.Id.Substring(0, 8) + ")"));
         }
 
         // ── Games tab ────────────────────────────────────────────────────────
@@ -421,18 +1065,28 @@ namespace Loadout.UI
 
         // ── Overlays tab ─────────────────────────────────────────────────────
 
-        // The overlay base URL the broadcaster targets in OBS. Default is the
-        // hosted aquilo.gg copy; advanced users can self-host or test a local
-        // checkout by changing it (e.g., http://127.0.0.1:8765/overlays).
-        private const string DefaultOverlayBase = "https://aquilo.gg/overlays";
+        private const string DefaultOverlayBase = "https://widget.aquilo.gg/overlays";
 
         private void BindOverlaysTab()
         {
-            // Show the bus secret read-only so the user can copy it elsewhere.
             TxtBusSecret.Text = TryReadBusSecret();
             TxtOverlayBaseUrl.Text = DefaultOverlayBase;
+            // BAML parsing is complete by the time we reach BindOverlaysTab in
+            // the constructor (it runs after InitializeComponent's parse + every
+            // child element is materialized), so it's safe to flip the gate.
+            // From here on, ComboBox / TextBox change handlers can run.
+            _overlayTabReady = true;
             RefreshOverlayUrls();
         }
+
+        // Tracks whether the Overlays tab is fully bound. ComboBoxes with
+        // IsSelected="True" raise SelectionChanged during BAML parsing -
+        // each one fires OnOverlayUrlChange BEFORE the rest of the tree
+        // exists. We swallow those calls until BindOverlaysTab signals
+        // that every named control is materialized. Without this guard,
+        // RefreshOverlayUrls dereferences a null TxtUrlCounters/Bolts/etc.
+        // and the whole window construction fails with NRE.
+        private bool _overlayTabReady;
 
         private void OnOverlayUrlChange(object sender, RoutedEventArgs e) => RefreshOverlayUrls();
         private void OnOverlayUrlChange(object sender, TextChangedEventArgs e) => RefreshOverlayUrls();
@@ -440,7 +1094,11 @@ namespace Loadout.UI
 
         private void RefreshOverlayUrls()
         {
-            // Defensive: this fires before BindOverlaysTab on some XAML init paths.
+            // Bail out cleanly if we're being called from XAML parsing's
+            // initial selection-changed events (the offending path was a
+            // ComboBox raising SelectionChanged before TxtUrlCounters etc.
+            // had been instantiated by the parser).
+            if (!_overlayTabReady) return;
             if (TxtUrlCheckIn == null) return;
 
             var baseUrl = (TxtOverlayBaseUrl?.Text ?? DefaultOverlayBase).TrimEnd('/');
@@ -450,34 +1108,90 @@ namespace Loadout.UI
             {
                 ["pos"] = SelectedTag(CmbCheckInOverlayPos)
             });
-
             TxtUrlCounters.Text = BuildOverlayUrl(baseUrl, "counters", secret, new Dictionary<string, string>
             {
                 ["theme"]  = SelectedTag(CmbCountersTheme),
                 ["layout"] = SelectedTag(CmbCountersLayout)
             });
-
             TxtUrlGoals.Text = BuildOverlayUrl(baseUrl, "goals", secret, new Dictionary<string, string>
             {
                 ["theme"] = SelectedTag(CmbGoalsTheme)
             });
-
-            // Bolts: collect enabled layers into a CSV.
             var layers = new List<string>();
             if (ChkLayerLeaderboard?.IsChecked == true) layers.Add("leaderboard");
             if (ChkLayerToast?.IsChecked       == true) layers.Add("toast");
             if (ChkLayerRain?.IsChecked        == true) layers.Add("rain");
             if (ChkLayerStreak?.IsChecked      == true) layers.Add("streak");
             if (ChkLayerGiftBurst?.IsChecked   == true) layers.Add("giftburst");
+            // Bolts theme knobs - hex inputs and small numeric fields. Empty
+            // values (or out-of-range) drop the param so the overlay falls back
+            // to its baked-in defaults rather than a broken URL.
+            string boltsAccent = NormalizeHex(TxtBoltsAccent?.Text);
+            string boltsLbRows = ClampInt(TxtBoltsLbRows?.Text, 1, 10, 5);
+            string boltsToastDur = ClampInt(TxtBoltsToastDur?.Text, 1, 30, 4);
+            string boltsBgOpacity = ClampInt(TxtBoltsBgOpacity?.Text, 0, 100, 94);
             TxtUrlBolts.Text = BuildOverlayUrl(baseUrl, "bolts", secret, new Dictionary<string, string>
             {
-                ["layers"] = layers.Count == 5 ? null : string.Join(",", layers)
+                ["layers"]    = layers.Count == 5 ? null : string.Join(",", layers),
+                ["accent"]    = boltsAccent,
+                ["lbRows"]    = boltsLbRows == "5"  ? null : boltsLbRows,
+                ["toastDur"]  = boltsToastDur == "4"  ? null : boltsToastDur,
+                ["bgOpacity"] = boltsBgOpacity == "94" ? null : boltsBgOpacity
             });
-
             TxtUrlApex.Text = BuildOverlayUrl(baseUrl, "apex", secret, new Dictionary<string, string>
             {
                 ["pos"] = SelectedTag(CmbApexPos)
             });
+
+            // Commands rotator overlay. The "include" param is a CSV of
+            // category filters; we omit it entirely if every category is on
+            // (cleaner URL).
+            var includes = new List<string>();
+            if (ChkCmdInfo?.IsChecked    == true) includes.Add("info");
+            if (ChkCmdCustom?.IsChecked  == true) includes.Add("custom");
+            if (ChkCmdCounter?.IsChecked == true) includes.Add("counter");
+            if (ChkCmdBolts?.IsChecked   == true) includes.Add("bolts");
+            if (ChkCmdClip?.IsChecked    == true) includes.Add("clip");
+            if (ChkCmdCheckIn?.IsChecked == true) includes.Add("checkin");
+            string includeCsv = (includes.Count == 6) ? null : string.Join(",", includes);
+
+            // Cap rotate to a sane range; the overlay clamps to >= 2s anyway.
+            var rotateText = (TxtCommandsRotate?.Text ?? "4").Trim();
+            int rotateSec; if (!int.TryParse(rotateText, out rotateSec) || rotateSec < 2) rotateSec = 4;
+
+            if (TxtUrlCommands != null)
+            {
+                TxtUrlCommands.Text = BuildOverlayUrl(baseUrl, "commands", secret, new Dictionary<string, string>
+                {
+                    ["pos"]     = SelectedTag(CmbCommandsPos),
+                    ["theme"]   = SelectedTag(CmbCommandsTheme),
+                    ["rotate"]  = rotateSec.ToString(),
+                    ["include"] = includeCsv
+                });
+            }
+
+            // End-of-stream recap card. Duration is in milliseconds at the
+            // overlay layer, but for the UI we expose seconds (more natural).
+            if (TxtUrlRecap != null)
+            {
+                int recapSec; if (!int.TryParse((TxtRecapDuration?.Text ?? "25").Trim(), out recapSec) || recapSec < 5) recapSec = 25;
+                TxtUrlRecap.Text = BuildOverlayUrl(baseUrl, "recap", secret, new Dictionary<string, string>
+                {
+                    ["align"]    = SelectedTag(CmbRecapAlign),
+                    ["duration"] = (recapSec * 1000).ToString()
+                });
+            }
+
+            // Viewer profile card (!profile @user).
+            if (TxtUrlViewer != null)
+            {
+                int viewerSec; if (!int.TryParse((TxtViewerDuration?.Text ?? "10").Trim(), out viewerSec) || viewerSec < 3) viewerSec = 10;
+                TxtUrlViewer.Text = BuildOverlayUrl(baseUrl, "viewer", secret, new Dictionary<string, string>
+                {
+                    ["align"]    = SelectedTag(CmbViewerAlign),
+                    ["duration"] = (viewerSec * 1000).ToString()
+                });
+            }
         }
 
         private static string BuildOverlayUrl(string baseUrl, string overlay, string secret, Dictionary<string, string> extras)
@@ -496,22 +1210,51 @@ namespace Loadout.UI
         private static string SelectedTag(ComboBox cb) =>
             (cb?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
 
+        // Strip leading '#', validate 3- or 6-char hex, uppercase. Returns ""
+        // for empty/invalid input so BuildOverlayUrl drops the param entirely
+        // rather than emitting a broken URL.
+        private static string NormalizeHex(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s)) return "";
+            var t = s.Trim().TrimStart('#');
+            if (t.Length != 3 && t.Length != 6) return "";
+            for (int i = 0; i < t.Length; i++)
+            {
+                var c = t[i];
+                if (!((c >= '0' && c <= '9') || (c >= 'A' && c <= 'F') || (c >= 'a' && c <= 'f')))
+                    return "";
+            }
+            return t.ToUpperInvariant();
+        }
+
+        // Parse + clamp an integer. Returns the clamped value as a string, or
+        // the fallback if the input doesn't parse. Used by overlay theme inputs
+        // so the URL builder never emits out-of-range values.
+        private static string ClampInt(string s, int min, int max, int fallback)
+        {
+            int v;
+            if (!int.TryParse((s ?? "").Trim(), out v)) v = fallback;
+            if (v < min) v = min;
+            if (v > max) v = max;
+            return v.ToString();
+        }
+
         private static string TryReadBusSecret()
         {
             try
             {
-                var path = System.IO.Path.Combine(
+                var path = Path.Combine(
                     Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
                     "Aquilo", "bus-secret.txt");
-                return File.Exists(path) ? File.ReadAllText(path).Trim() : "(bus not started yet — boot Loadout first)";
+                return File.Exists(path) ? File.ReadAllText(path).Trim() : "(bus not started yet - boot Loadout first)";
             }
             catch { return ""; }
         }
 
         private void BtnCopyBusSecret_Click(object sender, RoutedEventArgs e)
         {
-            try { Clipboard.SetText(TxtBusSecret.Text ?? ""); TxtSavedHint.Text = "Bus secret copied."; }
-            catch (Exception ex) { TxtSavedHint.Text = "Copy failed: " + ex.Message; }
+            try { Clipboard.SetText(TxtBusSecret.Text ?? ""); ShowSavedHint("Bus secret copied."); }
+            catch (Exception ex) { ShowSavedHint("Copy failed: " + ex.Message); }
         }
 
         private void BtnOverlayCopy_Click(object sender, RoutedEventArgs e)
@@ -519,8 +1262,8 @@ namespace Loadout.UI
             var tag = (sender as Button)?.Tag?.ToString();
             var url = OverlayUrlByTag(tag);
             if (string.IsNullOrEmpty(url)) return;
-            try { Clipboard.SetText(url); TxtSavedHint.Text = "URL copied: " + tag; }
-            catch (Exception ex) { TxtSavedHint.Text = "Copy failed: " + ex.Message; }
+            try { Clipboard.SetText(url); ShowSavedHint("URL copied: " + tag); }
+            catch (Exception ex) { ShowSavedHint("Copy failed: " + ex.Message); }
         }
 
         private void BtnOverlayOpen_Click(object sender, RoutedEventArgs e)
@@ -529,7 +1272,7 @@ namespace Loadout.UI
             var url = OverlayUrlByTag(tag);
             if (string.IsNullOrEmpty(url)) return;
             try { System.Diagnostics.Process.Start(url); }
-            catch (Exception ex) { TxtSavedHint.Text = "Open failed: " + ex.Message; }
+            catch (Exception ex) { ShowSavedHint("Open failed: " + ex.Message); }
         }
 
         private string OverlayUrlByTag(string tag)
@@ -541,7 +1284,537 @@ namespace Loadout.UI
                 case "goals":    return TxtUrlGoals?.Text;
                 case "bolts":    return TxtUrlBolts?.Text;
                 case "apex":     return TxtUrlApex?.Text;
+                case "commands": return TxtUrlCommands?.Text;
+                case "recap":    return TxtUrlRecap?.Text;
+                case "viewer":   return TxtUrlViewer?.Text;
                 default:         return null;
+            }
+        }
+
+        // ── Game profiles tab ────────────────────────────────────────────────
+
+        private void BindGameProfilesTab()
+        {
+            _gameProfiles.Clear();
+            var s = SettingsManager.Instance.Current;
+            if (s.GameProfiles?.Profiles != null)
+                foreach (var p in s.GameProfiles.Profiles) _gameProfiles.Add(p);
+            GrdGameProfiles.ItemsSource = _gameProfiles;
+            ChkGameProfilesEnabled.IsChecked = s.GameProfiles?.Enabled ?? false;
+        }
+        private void BtnGameProfileAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _gameProfiles.Add(new GameProfile { GameName = "Game name", WelcomeFirstTime = "", WelcomeSub = "", ActiveTimerGroups = "" });
+            GrdGameProfiles.SelectedItem = _gameProfiles[_gameProfiles.Count - 1];
+        }
+        private void BtnGameProfileRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdGameProfiles.SelectedItem is GameProfile p) _gameProfiles.Remove(p);
+        }
+
+        // ── Channel points tab ───────────────────────────────────────────────
+
+        private void BindChannelPointsTab()
+        {
+            _channelPoints.Clear();
+            var s = SettingsManager.Instance.Current;
+            if (s.ChannelPoints?.Mappings != null)
+                foreach (var m in s.ChannelPoints.Mappings) _channelPoints.Add(m);
+            GrdChannelPoints.ItemsSource = _channelPoints;
+            ChkChannelPointsEnabled.IsChecked = s.ChannelPoints?.Enabled ?? false;
+        }
+        private void BtnChannelPointAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _channelPoints.Add(new ChannelPointMapping { RewardName = "Reward name", Action = "chat:Hello {user}!", Enabled = true });
+            GrdChannelPoints.SelectedItem = _channelPoints[_channelPoints.Count - 1];
+        }
+        private void BtnChannelPointRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdChannelPoints.SelectedItem is ChannelPointMapping m) _channelPoints.Remove(m);
+        }
+
+        // ── Backup tab ───────────────────────────────────────────────────────
+
+        private void BtnBackupExport_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new SaveFileDialog
+            {
+                FileName = "loadout-backup-" + DateTime.Now.ToString("yyyy-MM-dd") + ".zip",
+                Filter   = "Loadout backup (*.zip)|*.zip|All files (*.*)|*.*",
+                AddExtension = true,
+                DefaultExt = ".zip"
+            };
+            if (dlg.ShowDialog(this) != true) return;
+            try
+            {
+                var n = BackupManager.Export(dlg.FileName);
+                TxtBackupStatus.Text = "Exported " + n + " files to " + dlg.FileName;
+                ShowSavedHint("Backup written.");
+            }
+            catch (Exception ex)
+            {
+                TxtBackupStatus.Text = "Export failed: " + ex.Message;
+            }
+        }
+        private void BtnBackupImport_Click(object sender, RoutedEventArgs e)
+        {
+            var confirm = MessageBox.Show(this,
+                "Restoring a backup overwrites your current settings, counters, and wallet data with whatever's in the .zip. " +
+                "Pre-existing files NOT in the backup are kept. Continue?",
+                "Restore Loadout backup", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.OK) return;
+
+            var dlg = new OpenFileDialog
+            {
+                Filter = "Loadout backup (*.zip)|*.zip|All files (*.*)|*.*",
+                CheckFileExists = true
+            };
+            if (dlg.ShowDialog(this) != true) return;
+            try
+            {
+                var n = BackupManager.Import(dlg.FileName);
+                TxtBackupStatus.Text = "Restored " + n + " files from " + dlg.FileName + ". Reloading window state...";
+                // Re-bind everything from disk so the UI shows the imported settings.
+                LoadFromSettings();
+                BindCountersAndCheckIn();
+                BindAlertsTab();
+                BindTimersTab();
+                BindGoalsTab();
+                BindWebhooksTab();
+                BindCustomCommandsTab();
+                BindGameProfilesTab();
+                BindChannelPointsTab();
+                BindGamesTab();
+                ShowSavedHint("Backup restored.");
+            }
+            catch (Exception ex)
+            {
+                TxtBackupStatus.Text = "Restore failed: " + ex.Message;
+            }
+        }
+
+        // ── Log tab ──────────────────────────────────────────────────────────
+
+        private void BindLogTab() => RefreshLogTail();
+        private void RefreshLogTail()
+        {
+            var path = LogTail.ErrorLogPath;
+            TxtLogTail.Text = LogTail.ReadTail(path, 200);
+        }
+        private void BtnLogRefresh_Click(object sender, RoutedEventArgs e) => RefreshLogTail();
+        private void BtnLogOpen_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var folder = SettingsManager.Instance.DataFolder;
+                if (!string.IsNullOrEmpty(folder)) System.Diagnostics.Process.Start("explorer.exe", folder);
+            }
+            catch (Exception ex) { ShowSavedHint("Open folder failed: " + ex.Message); }
+        }
+        private void BtnLogClear_Click(object sender, RoutedEventArgs e)
+        {
+            var path = LogTail.ErrorLogPath;
+            if (LogTail.Clear(path)) RefreshLogTail();
+            else ShowSavedHint("Couldn't clear log (file in use).");
+        }
+
+        // ── Discord bot tab ──────────────────────────────────────────────────
+
+        private System.Windows.Threading.DispatcherTimer _claimPollTimer;
+
+        private void BindDiscordBotTab()
+        {
+            var d = SettingsManager.Instance.Current.DiscordBot;
+            ChkDiscordBotEnabled.IsChecked = d.Enabled;
+            TxtDcbWorkerUrl.Text   = d.WorkerUrl ?? "";
+            TxtDcbGuildId.Text     = string.IsNullOrEmpty(d.GuildId) ? "(not bound yet)" : d.GuildId;
+            TxtDcbAutoSync.Text    = d.AutoSyncMinutes.ToString();
+            TxtDcbClaimCode.Text   = d.PendingClaimCode ?? "";
+            switch ((d.SyncMode ?? "merge").ToLowerInvariant())
+            {
+                case "push": CmbDcbSyncMode.SelectedIndex = 1; break;
+                case "pull": CmbDcbSyncMode.SelectedIndex = 2; break;
+                default:     CmbDcbSyncMode.SelectedIndex = 0; break;
+            }
+            TxtDcbStatus.Text = string.IsNullOrEmpty(d.LastSyncStatus)
+                ? (string.IsNullOrEmpty(d.GuildId) ? "Not bound yet — invite the bot, then claim." : "Bound to guild " + d.GuildId)
+                : "Last: " + d.LastSyncUtc.ToLocalTime().ToString("g") + " - " + d.LastSyncStatus;
+        }
+
+        // Persist the form state before talking to the worker.
+        private void StashDiscordFromUi()
+        {
+            SettingsManager.Instance.Mutate(cfg =>
+            {
+                cfg.DiscordBot.Enabled   = ChkDiscordBotEnabled.IsChecked == true;
+                cfg.DiscordBot.WorkerUrl = (TxtDcbWorkerUrl.Text ?? "").Trim();
+                cfg.DiscordBot.SyncMode  = ((ComboBoxItem)CmbDcbSyncMode.SelectedItem)?.Tag?.ToString() ?? "merge";
+                if (int.TryParse(TxtDcbAutoSync.Text, out var m) && m >= 0)
+                    cfg.DiscordBot.AutoSyncMinutes = m;
+            });
+            SettingsManager.Instance.SaveNow();
+        }
+
+        private async void BtnDcbMintCode_Click(object sender, RoutedEventArgs e)
+        {
+            StashDiscordFromUi();
+            TxtDcbClaimHint.Text = "Asking worker for a fresh code...";
+            var r = await DiscordSync.Instance.MintClaimCodeAsync();
+            if (!r.Ok) { TxtDcbClaimHint.Text = "Failed: " + r.Message; return; }
+            TxtDcbClaimCode.Text = r.Code;
+            TxtDcbClaimHint.Text =
+                "Type  /loadout-claim " + r.Code + "  in your Discord server. " +
+                "Code expires in " + (r.ExpiresInSec / 60) + " minutes.";
+            // Start polling for claim status. Stops on success / expiry.
+            StartClaimPolling();
+        }
+
+        private void BtnDcbCopyCode_Click(object sender, RoutedEventArgs e)
+        {
+            try { Clipboard.SetText(TxtDcbClaimCode.Text ?? ""); ShowSavedHint("Code copied."); }
+            catch (Exception ex) { ShowSavedHint("Copy failed: " + ex.Message); }
+        }
+
+        private void BtnDcbOpenInvite_Click(object sender, RoutedEventArgs e)
+        {
+            // Public invite URL for the shared "Loadout" bot. Self-hosters
+            // override by changing the WorkerUrl AND minting their own bot -
+            // in that case they should ignore this button. Permissions:
+            // Send Messages + Embed Links + Use Application Commands = 2147502080.
+            const string url = "https://discord.com/oauth2/authorize?client_id=1500849448866025573&permissions=2147502080&scope=bot+applications.commands";
+            try { System.Diagnostics.Process.Start(url); }
+            catch (Exception ex) { ShowSavedHint("Open failed: " + ex.Message); }
+        }
+
+        private void StartClaimPolling()
+        {
+            if (_claimPollTimer == null)
+            {
+                _claimPollTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(3)
+                };
+                _claimPollTimer.Tick += async (s, e) =>
+                {
+                    var (claimed, guildId, message) = await DiscordSync.Instance.PollClaimAsync();
+                    if (claimed)
+                    {
+                        _claimPollTimer.Stop();
+                        TxtDcbClaimHint.Text = "✓ Server claimed: " + guildId + ". You're set.";
+                        BindDiscordBotTab();
+                    }
+                    else if (message == "expired")
+                    {
+                        _claimPollTimer.Stop();
+                        TxtDcbClaimHint.Text = "⏰ Code expired. Click \"Get my code\" again.";
+                    }
+                };
+            }
+            _claimPollTimer.Start();
+        }
+
+        private async void BtnDcbPull_Click(object sender, RoutedEventArgs e)
+        {
+            StashDiscordFromUi();
+            TxtDcbStatus.Text = "Pulling...";
+            var (ok, n, msg) = await DiscordSync.Instance.PullAsync();
+            TxtDcbStatus.Text = (ok ? "✓ " : "✗ ") + msg;
+        }
+        private async void BtnDcbPush_Click(object sender, RoutedEventArgs e)
+        {
+            StashDiscordFromUi();
+            TxtDcbStatus.Text = "Pushing...";
+            var (ok, n, msg) = await DiscordSync.Instance.PushAsync();
+            TxtDcbStatus.Text = (ok ? "✓ " : "✗ ") + msg;
+        }
+        private async void BtnDcbUnlink_Click(object sender, RoutedEventArgs e)
+        {
+            var ok = MessageBox.Show(this,
+                "Unlink this server from your Loadout install? Wallet data on the worker will be cleared. Discord-side balances will reset.",
+                "Unlink Discord server", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            if (ok != MessageBoxResult.OK) return;
+            TxtDcbStatus.Text = "Unlinking...";
+            var (success, msg) = await DiscordSync.Instance.UnlinkAsync();
+            TxtDcbStatus.Text = (success ? "✓ " : "✗ ") + msg;
+            BindDiscordBotTab();
+        }
+
+        // ── Wallets + shop ───────────────────────────────────────────────────
+
+        // Lightweight VM for the wallets DataGrid - flattens BoltsAccount
+        // into platform/handle/balance/timestamps so the grid binds cleanly.
+        public sealed class WalletRow
+        {
+            public string Platform { get; set; }
+            public string Display  { get; set; }
+            public string Key      { get; set; }
+            public long   Balance  { get; set; }
+            public long   LifetimeEarned { get; set; }
+            public int    StreakDays { get; set; }
+            public DateTime LastActivityUtc { get; set; }
+            public string LastActivityDisplay =>
+                LastActivityUtc.Ticks == 0 ? "(never)" : LastActivityUtc.ToLocalTime().ToString("g");
+        }
+
+        private void BindWalletsAndShop()
+        {
+            var s = SettingsManager.Instance.Current;
+            // Shop
+            ChkShopEnabled.IsChecked = s.BoltsShop.Enabled;
+            TxtShopCmd.Text          = s.BoltsShop.ShopCommand ?? "!shop";
+            TxtBuyCmd.Text           = s.BoltsShop.BuyCommand  ?? "!buy";
+            _shopItems.Clear();
+            if (s.BoltsShop.Items != null)
+                foreach (var it in s.BoltsShop.Items) _shopItems.Add(it);
+            GrdShop.ItemsSource = _shopItems;
+
+            // Wallets - load on-demand; the grid is empty until the user clicks Refresh
+            // (or the constructor flips through here for the initial pass).
+            GrdWallets.ItemsSource = _wallets;
+            ReloadWallets();
+        }
+
+        private void ReloadWallets()
+        {
+            _wallets.Clear();
+            try
+            {
+                BoltsWallet.Instance.Initialize();
+                foreach (var a in BoltsWallet.Instance.AllAccounts())
+                {
+                    BoltsWallet.SplitKey(a.Key, out var p, out var h);
+                    _wallets.Add(new WalletRow
+                    {
+                        Platform = p ?? "?",
+                        Display  = a.Display ?? h ?? a.Key,
+                        Key      = a.Key,
+                        Balance  = a.Balance,
+                        LifetimeEarned = a.LifetimeEarned,
+                        StreakDays = a.StreakDays,
+                        LastActivityUtc = a.LastActivityUtc
+                    });
+                }
+            }
+            catch (Exception ex) { Util.ErrorLog.Write("ReloadWallets", ex); }
+        }
+
+        private void BtnWalletsRefresh_Click(object sender, RoutedEventArgs e) => ReloadWallets();
+
+        private void BtnWalletApply_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(GrdWallets.SelectedItem is WalletRow w))
+            {
+                TxtWalletHint.Text = "Pick a wallet first.";
+                return;
+            }
+            if (!long.TryParse((TxtWalletDelta.Text ?? "0").Trim(), out var delta) || delta == 0)
+            {
+                TxtWalletHint.Text = "Enter a non-zero integer (use - for debit).";
+                return;
+            }
+            BoltsWallet.SplitKey(w.Key, out var platform, out var handle);
+            try
+            {
+                if (delta > 0)
+                    BoltsWallet.Instance.Earn(platform, handle, delta, "manual:" + ((TxtWalletReason.Text ?? "ui").Trim()));
+                else
+                    BoltsWallet.Instance.Spend(platform, handle, -delta, "manual:" + ((TxtWalletReason.Text ?? "ui").Trim()));
+                TxtWalletHint.Text = "Applied " + (delta > 0 ? "+" : "") + delta + " to " + w.Display + ".";
+                TxtWalletDelta.Text = "";
+                ReloadWallets();
+            }
+            catch (Exception ex)
+            {
+                TxtWalletHint.Text = "Failed: " + ex.Message;
+            }
+        }
+
+        private void BtnWalletZero_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(GrdWallets.SelectedItem is WalletRow w)) { TxtWalletHint.Text = "Pick a wallet first."; return; }
+            if (w.Balance == 0) { TxtWalletHint.Text = "Already zero."; return; }
+            BoltsWallet.SplitKey(w.Key, out var platform, out var handle);
+            BoltsWallet.Instance.Spend(platform, handle, w.Balance, "manual:zero");
+            TxtWalletHint.Text = "Zeroed " + w.Display + ".";
+            ReloadWallets();
+        }
+
+        private void BtnShopAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _shopItems.Add(new BoltsShopItem { Name = "newitem", Cost = 100, Action = "chat:Thanks {user} for buying {item}!", Enabled = true });
+            GrdShop.SelectedItem = _shopItems[_shopItems.Count - 1];
+        }
+        private void BtnShopRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdShop.SelectedItem is BoltsShopItem it) _shopItems.Remove(it);
+        }
+        private void BtnShopResetStock_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var it in _shopItems) it.StockSold = 0;
+            GrdShop.Items.Refresh();
+        }
+
+        // ── Tuning tab ───────────────────────────────────────────────────────
+
+        private void BindTuningTab()
+        {
+            var s = SettingsManager.Instance.Current;
+
+            // Hype train
+            TxtHypeLevelThr.Text   = s.HypeTrain.LevelThreshold.ToString();
+            TxtHypeMaxLevel.Text   = s.HypeTrain.MaxLevel.ToString();
+            TxtHypeDecay.Text      = s.HypeTrain.DecayPerMinute.ToString();
+            TxtHypeBoltsBase.Text  = s.HypeTrain.BoltsRewardBase.ToString();
+            TxtHypeLevelUpTemplate.Text = s.HypeTrain.LevelUpTemplate ?? "";
+            TxtHypeEndTemplate.Text     = s.HypeTrain.EndTemplate ?? "";
+            ChkHypeAnnounceLvl.IsChecked = s.HypeTrain.AnnounceLevelUps;
+            ChkHypeAnnounceEnd.IsChecked = s.HypeTrain.AnnounceEnd;
+
+            // Ad break
+            TxtAdPreWarn.Text       = s.AdBreak.PreWarnSeconds.ToString();
+            TxtAdPreTemplate.Text   = s.AdBreak.PreWarnTemplate ?? "";
+            TxtAdPostTemplate.Text  = s.AdBreak.PostTemplate ?? "";
+            ChkAdPostThanks.IsChecked  = s.AdBreak.PostBackThanks;
+            ChkAdPauseTimers.IsChecked = s.AdBreak.PauseTimedMessages;
+
+            // Chat velocity
+            TxtVelWindow.Text       = s.ChatVelocity.WindowSeconds.ToString();
+            TxtVelHypeThr.Text      = s.ChatVelocity.HypeThreshold.ToString();
+            TxtVelSuperThr.Text     = s.ChatVelocity.SuperHypeThreshold.ToString();
+            ChkVelAutoClip.IsChecked  = s.ChatVelocity.AutoClipOnSuperHype;
+            ChkVelAnnounce.IsChecked  = s.ChatVelocity.AnnounceHype;
+            TxtVelHypeTemplate.Text   = s.ChatVelocity.HypeTemplate ?? "";
+
+            // Auto poll
+            TxtAutoPollIdle.Text    = s.AutoPoll.IdleMinutesToTrigger.ToString();
+            TxtAutoPollWindow.Text  = s.AutoPoll.VoteWindowSeconds.ToString();
+            TxtAutoPollPool.Text    = string.Join(Environment.NewLine, s.AutoPoll.QuestionPool ?? new List<string>());
+            ChkAutoPollAnnounce.IsChecked = s.AutoPoll.AnnounceResults;
+
+            // Sub anniversary
+            TxtAnnivMilestones.Text = string.Join(",", s.SubAnniversary.Milestones ?? new List<int>());
+            TxtAnnivTemplate.Text   = s.SubAnniversary.Template ?? "";
+            ChkAnnivAnnounce.IsChecked = s.SubAnniversary.AnnounceInChat;
+            TxtAnnivWebhook.Text    = s.SubAnniversary.DiscordWebhook ?? "";
+
+            // Sub raid train
+            TxtSrtWindow.Text       = s.SubRaidTrain.WindowSeconds.ToString();
+            TxtSrtMin.Text          = s.SubRaidTrain.MinSubsToTrigger.ToString();
+            TxtSrtAnnounceAt.Text   = string.Join(",", s.SubRaidTrain.AnnounceAt ?? new List<int>());
+            TxtSrtTemplate.Text     = s.SubRaidTrain.Template ?? "";
+
+            // CC coin
+            ChkCcAnnounce.IsChecked  = s.CcCoin.AnnounceCoinEarn;
+            TxtCcTemplate.Text       = s.CcCoin.EarnTemplate ?? "";
+            ChkCcAwardBolts.IsChecked = s.CcCoin.AwardBolts;
+
+            // First words
+            ChkFwResetOnOnline.IsChecked = s.FirstWords.ResetOnStreamOnline;
+            ChkFwAnnounce.IsChecked      = s.FirstWords.AnnounceFirstChatter;
+            TxtFwTemplate.Text           = s.FirstWords.Template ?? "";
+        }
+
+        private void SaveTuningTab(LoadoutSettings s)
+        {
+            int iv;
+            // Hype train
+            if (int.TryParse(TxtHypeLevelThr.Text,  out iv) && iv >= 1) s.HypeTrain.LevelThreshold  = iv;
+            if (int.TryParse(TxtHypeMaxLevel.Text,  out iv) && iv >= 1) s.HypeTrain.MaxLevel        = iv;
+            if (int.TryParse(TxtHypeDecay.Text,     out iv) && iv >= 0) s.HypeTrain.DecayPerMinute  = iv;
+            if (int.TryParse(TxtHypeBoltsBase.Text, out iv) && iv >= 0) s.HypeTrain.BoltsRewardBase = iv;
+            s.HypeTrain.LevelUpTemplate = TxtHypeLevelUpTemplate.Text ?? s.HypeTrain.LevelUpTemplate;
+            s.HypeTrain.EndTemplate     = TxtHypeEndTemplate.Text     ?? s.HypeTrain.EndTemplate;
+            s.HypeTrain.AnnounceLevelUps = ChkHypeAnnounceLvl.IsChecked == true;
+            s.HypeTrain.AnnounceEnd      = ChkHypeAnnounceEnd.IsChecked == true;
+
+            // Ad break
+            if (int.TryParse(TxtAdPreWarn.Text, out iv) && iv >= 0) s.AdBreak.PreWarnSeconds = iv;
+            s.AdBreak.PreWarnTemplate = TxtAdPreTemplate.Text  ?? s.AdBreak.PreWarnTemplate;
+            s.AdBreak.PostTemplate    = TxtAdPostTemplate.Text ?? s.AdBreak.PostTemplate;
+            s.AdBreak.PostBackThanks      = ChkAdPostThanks.IsChecked == true;
+            s.AdBreak.PauseTimedMessages  = ChkAdPauseTimers.IsChecked == true;
+
+            // Chat velocity
+            if (int.TryParse(TxtVelWindow.Text,   out iv) && iv >= 5) s.ChatVelocity.WindowSeconds       = iv;
+            if (int.TryParse(TxtVelHypeThr.Text,  out iv) && iv >= 1) s.ChatVelocity.HypeThreshold       = iv;
+            if (int.TryParse(TxtVelSuperThr.Text, out iv) && iv >= 1) s.ChatVelocity.SuperHypeThreshold  = iv;
+            s.ChatVelocity.AutoClipOnSuperHype = ChkVelAutoClip.IsChecked == true;
+            s.ChatVelocity.AnnounceHype        = ChkVelAnnounce.IsChecked == true;
+            s.ChatVelocity.HypeTemplate        = TxtVelHypeTemplate.Text ?? s.ChatVelocity.HypeTemplate;
+
+            // Auto poll
+            if (int.TryParse(TxtAutoPollIdle.Text,   out iv) && iv >= 1) s.AutoPoll.IdleMinutesToTrigger = iv;
+            if (int.TryParse(TxtAutoPollWindow.Text, out iv) && iv >= 5) s.AutoPoll.VoteWindowSeconds    = iv;
+            s.AutoPoll.QuestionPool = (TxtAutoPollPool.Text ?? "")
+                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim()).Where(x => x.Length > 0).ToList();
+            s.AutoPoll.AnnounceResults = ChkAutoPollAnnounce.IsChecked == true;
+
+            // Sub anniversary
+            s.SubAnniversary.Milestones = ParseIntCsv(TxtAnnivMilestones.Text);
+            s.SubAnniversary.Template = TxtAnnivTemplate.Text ?? s.SubAnniversary.Template;
+            s.SubAnniversary.AnnounceInChat = ChkAnnivAnnounce.IsChecked == true;
+            s.SubAnniversary.DiscordWebhook = (TxtAnnivWebhook.Text ?? "").Trim();
+
+            // Sub raid train
+            if (int.TryParse(TxtSrtWindow.Text, out iv) && iv >= 30) s.SubRaidTrain.WindowSeconds    = iv;
+            if (int.TryParse(TxtSrtMin.Text,    out iv) && iv >= 2)  s.SubRaidTrain.MinSubsToTrigger = iv;
+            s.SubRaidTrain.AnnounceAt = ParseIntCsv(TxtSrtAnnounceAt.Text);
+            s.SubRaidTrain.Template   = TxtSrtTemplate.Text ?? s.SubRaidTrain.Template;
+
+            // CC coin
+            s.CcCoin.AnnounceCoinEarn = ChkCcAnnounce.IsChecked == true;
+            s.CcCoin.EarnTemplate     = TxtCcTemplate.Text ?? s.CcCoin.EarnTemplate;
+            s.CcCoin.AwardBolts       = ChkCcAwardBolts.IsChecked == true;
+
+            // First words
+            s.FirstWords.ResetOnStreamOnline  = ChkFwResetOnOnline.IsChecked == true;
+            s.FirstWords.AnnounceFirstChatter = ChkFwAnnounce.IsChecked == true;
+            s.FirstWords.Template             = TxtFwTemplate.Text ?? s.FirstWords.Template;
+        }
+
+        private static List<int> ParseIntCsv(string raw) =>
+            (raw ?? "").Split(',')
+                .Select(x => x.Trim())
+                .Where(x => int.TryParse(x, out _))
+                .Select(int.Parse).ToList();
+
+        // ── Test alert ───────────────────────────────────────────────────────
+
+        // Fires a synthetic event of the row's Kind through the dispatcher so
+        // AlertsModule renders it like a real one - chat post (gated) + bus
+        // event for overlays. Sample args are filled in from common SB-style
+        // shapes; the streamer can sanity-check templates against {user},
+        // {tier}, {bits}, {viewers}, etc.
+        private void BtnAlertTest_Click(object sender, RoutedEventArgs e)
+        {
+            var kind = (sender as Button)?.Tag?.ToString();
+            if (string.IsNullOrEmpty(kind)) return;
+            var s = SettingsManager.Instance.Current;
+            var args = new Dictionary<string, object>
+            {
+                ["user"]        = s.BroadcasterName ?? "test_user",
+                ["userName"]    = s.BroadcasterName ?? "test_user",
+                ["userType"]    = "viewer",
+                ["eventSource"] = "twitch",
+                ["tier"]        = "1",
+                ["months"]      = 6,
+                ["count"]       = 3,
+                ["gifter"]      = (s.BroadcasterName ?? "test_user") + "_friend",
+                ["bits"]        = 500,
+                ["viewers"]     = 42,
+                ["amount"]      = "$5.00",
+                ["gift"]        = "Rose",
+                ["coins"]       = 1,
+            };
+            try
+            {
+                SbEventDispatcher.Instance.DispatchEvent(kind, args);
+                ShowSavedHint("Fired test " + kind + ".");
+            }
+            catch (Exception ex)
+            {
+                ShowSavedHint("Test failed: " + ex.Message);
             }
         }
     }

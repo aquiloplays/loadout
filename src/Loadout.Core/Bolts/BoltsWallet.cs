@@ -75,6 +75,30 @@ namespace Loadout.Bolts
             }
         }
 
+        /// <summary>Snapshot of every wallet, sorted by balance desc. Used by
+        /// the manual-adjust UI and the Discord sync push.</summary>
+        public List<BoltsAccount> AllAccounts()
+        {
+            lock (_gate)
+            {
+                return _accounts.Values
+                    .OrderByDescending(a => a.Balance)
+                    .ToList();
+            }
+        }
+
+        /// <summary>Splits a wallet key (e.g. "twitch:rosie") into its
+        /// platform/handle pair. Returns nulls if malformed.</summary>
+        public static void SplitKey(string key, out string platform, out string handle)
+        {
+            platform = null; handle = null;
+            if (string.IsNullOrEmpty(key)) return;
+            var idx = key.IndexOf(':');
+            if (idx <= 0) { handle = key; return; }
+            platform = key.Substring(0, idx);
+            handle   = key.Substring(idx + 1);
+        }
+
         // ── Mutation API ──────────────────────────────────────────────────────
 
         public long Earn(string platform, string handle, long amount, string reason)

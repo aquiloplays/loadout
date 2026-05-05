@@ -42,7 +42,15 @@ namespace Loadout.Util
         public static void Write(string source, Exception ex)
         {
             if (ex == null) return;
-            Write(source, ex.GetType().Name + ": " + ex.Message);
+            // Include the call stack so a bare "NullReferenceException" is
+            // actually traceable. Stripping AT_System.Runtime / AT_xunit etc.
+            // would be nice but the volume here is low - logging the full
+            // stack uses < 2KB per failure and disambiguates everything.
+            var inner = ex.InnerException == null
+                ? ""
+                : "  >> " + ex.InnerException.GetType().Name + ": " + ex.InnerException.Message;
+            var stack = ex.StackTrace == null ? "" : "\n" + ex.StackTrace.TrimEnd();
+            Write(source, ex.GetType().Name + ": " + ex.Message + inner + stack);
         }
 
         private static void Rotate(string path)

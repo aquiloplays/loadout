@@ -98,8 +98,31 @@ namespace Loadout.Host
                 UpdateChecker.Instance.UpdateAvailable += OnUpdateAvailable;
                 UpdateChecker.Instance.Start();
 
+                // Hook process exit so the tray icon (a WinForms NotifyIcon)
+                // gets disposed before the CLR tears down the AppDomain. If we
+                // don't, SB's exit can race with our background UI thread and
+                // surface a "Fatal UI exception" on the way out: the WinForms
+                // message pump tries to clean up while the dispatcher is mid-
+                // shutdown, the NotifyIcon's hidden window has already gone,
+                // and WPF's exception path catches the resulting access fault.
+                // Keeping the handler narrow (Shutdown only, no work that can
+                // throw) keeps process exit fast.
+                try
+                {
+                    AppDomain.CurrentDomain.ProcessExit -= OnProcessExit;
+                    AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+                    AppDomain.CurrentDomain.DomainUnload -= OnProcessExit;
+                    AppDomain.CurrentDomain.DomainUnload += OnProcessExit;
+                }
+                catch { /* non-fatal */ }
+
                 _started = true;
             }
+        }
+
+        private static void OnProcessExit(object sender, EventArgs e)
+        {
+            try { Shutdown(); } catch { /* swallow - we're exiting anyway */ }
         }
 
         private static void OnUpdateAvailable(object sender, UpdateAvailableEventArgs e)
@@ -111,20 +134,24 @@ namespace Loadout.Host
         public static void OpenSettings()
         {
             EnsureStarted(null);
-            _dispatcher?.BeginInvoke(new Action(() =>
+            if (_dispatcher == null)
             {
-                try
-                {
-                    var win = SettingsWindow.GetOrCreate();
-                    win.Show();
-                    win.Activate();
-                    win.Topmost = true;
-                    win.Topmost = false;
-                }
-                catch (Exception ex)
-                {
-                    Util.ErrorLog.Write("LoadoutHost.OpenSettings", ex);
-                }
+                Util.ErrorLog.Write("LoadoutHost.OpenSettings", "dispatcher is null after EnsureStarted");
+                return;
+            }
+            _dispatcher.BeginInvoke(new Action(() =>
+            {
+                // Each phase logs separately so the stack trace tells us EXACTLY
+                // which call threw, not just "something in OpenSettings died".
+                Loadout.UI.SettingsWindow win = null;
+                try { win = Loadout.UI.SettingsWindow.GetOrCreate(); }
+                catch (Exception ex) { Util.ErrorLog.Write("LoadoutHost.OpenSettings.GetOrCreate", ex); return; }
+
+                try { win.Show(); }
+                catch (Exception ex) { Util.ErrorLog.Write("LoadoutHost.OpenSettings.Show", ex); return; }
+
+                try { win.Activate(); win.Topmost = true; win.Topmost = false; }
+                catch (Exception ex) { Util.ErrorLog.Write("LoadoutHost.OpenSettings.Activate", ex); }
             }));
         }
 
@@ -171,8 +198,46 @@ namespace Loadout.Host
             lock (_gate)
             {
                 if (!_started) return;
+
+                // Order matters here:
+                //   1. Stop background timers so they don't fire mid-teardown.
+                //   2. Dispose the tray icon ON THE UI THREAD (NotifyIcon's
+                //      cleanup must run on the thread that owns the message
+                //      pump, otherwise we get cross-thread access faults when
+                //      the OS tries to remove the tray window).
+                //   3. Stop the bus.
+                //   4. Shut down the dispatcher.
                 try { UpdateChecker.Instance.Stop(); } catch { }
-                _dispatcher?.BeginInvokeShutdown(DispatcherPriority.Normal);
+
+                try
+                {
+                    var d = _dispatcher;
+                    if (d != null && !d.HasShutdownStarted)
+                    {
+                        // Synchronous so we don't return before the icon is
+                        // gone from the tray. If the dispatcher is already
+                        // dead, fall back to a best-effort dispose on this
+                        // thread - worst case we leak a ghost icon for a few
+                        // seconds until Windows reaps it, which beats crashing.
+                        try
+                        {
+                            d.Invoke(new Action(() => { try { _tray?.Dispose(); _tray = null; } catch { } }),
+                                     DispatcherPriority.Send,
+                                     System.Threading.CancellationToken.None,
+                                     TimeSpan.FromSeconds(2));
+                        }
+                        catch { try { _tray?.Dispose(); _tray = null; } catch { } }
+                    }
+                    else
+                    {
+                        try { _tray?.Dispose(); _tray = null; } catch { }
+                    }
+                }
+                catch { /* swallow */ }
+
+                try { Bus.AquiloBus.Instance.Stop(); } catch { }
+
+                try { _dispatcher?.BeginInvokeShutdown(DispatcherPriority.Normal); } catch { }
                 _started = false;
             }
         }

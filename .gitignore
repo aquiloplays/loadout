@@ -27,3 +27,10 @@ TestResults/
 # Loadout — never commit user data dumps
 data-dump/
 *.loadout-backup.zip
+
+# Node (discord-bot Worker)
+node_modules/
+
+# Cloudflare Wrangler local state + secrets
+.wrangler/
+.dev.vars

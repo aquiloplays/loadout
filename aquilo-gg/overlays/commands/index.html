@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout - Commands Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Drop into OBS:
+
+    https://aquilo.gg/overlays/commands?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
+
+  Required:
+    bus, secret   - same as every other Loadout overlay
+
+  Optional:
+    pos           - "tl" | "tr" | "bl" (default) | "br" | "tc" | "bc"
+    theme         - "dark" (default) | "neon" | "minimal"
+    rotate        - seconds per command (default 4)
+    include       - csv filter: info,custom,counters,bolts,clip,checkin (default: all)
+    showDesc      - "1" (default) shows the one-line hint, "0" hides it
+    fontSize      - body font-size in px (default 14; the card scales off this)
+
+  How it works:
+    Loadout publishes `commands.list` on the bus whenever the command set
+    changes (boot, settings save, custom-command edit). This overlay caches
+    the latest list and rotates one entry every `rotate` seconds.
+
+  Tiny by design:
+    The card sits in a corner and stays small (~280x70 by default). It's a
+    viewer-helper, not chrome - you won't fight it for screen real estate.
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-theme="dark" data-pos="bl">
+  <div id="root">
+    <div class="card" id="card">
+      <div class="badge" id="badge">CMD</div>
+      <div class="body">
+        <div class="name" id="name">!loading</div>
+        <div class="desc" id="desc">Connecting to Loadout...</div>
+      </div>
+    </div>
+    <div class="dot" id="dot"></div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

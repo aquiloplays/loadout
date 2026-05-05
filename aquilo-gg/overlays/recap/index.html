@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout - End of Stream Recap</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Drop into OBS as a full-canvas browser source:
+
+    https://aquilo.gg/overlays/recap?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
+
+  This overlay is normally invisible. When the stream goes offline,
+  StreamRecapModule publishes `recap.posted` on the bus and the card
+  fades in for ~25 seconds, then fades back out. While it's up the
+  streamer can right-click the OBS source and Save Image to share it.
+
+  Optional URL params:
+    duration   - ms the card stays visible (default 25000)
+    align      - "center" (default) | "bottom" | "top"
+    debug      - "1" to render demo data without bus
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-align="center">
+  <div id="root">
+    <div class="card" id="card">
+      <div class="title">
+        <div class="badge">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M5 12h2m4 0h2m4 0h2M7 6l-2 6 2 6m10-12l2 6-2 6M12 4v16" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div>
+          <div class="kicker">stream complete</div>
+          <div class="headline" id="headline">Stream Recap</div>
+        </div>
+      </div>
+      <div class="stats" id="stats"></div>
+      <div class="meta" id="meta">duration · top chatter · raids</div>
+    </div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

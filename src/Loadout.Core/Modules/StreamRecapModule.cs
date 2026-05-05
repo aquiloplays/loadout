@@ -108,13 +108,16 @@ namespace Loadout.Modules
             }
 
             // Bus event so OBS overlays / SF can show a "stream ended" card.
+            // The recap overlay (aquilo-gg/overlays/recap) renders this into
+            // a screenshot-friendly stat card.
             AquiloBus.Instance.Publish("recap.posted", new
             {
-                duration = duration.ToString(@"hh\:mm\:ss"),
-                follows  = _follows,
-                subs     = _subs + _resubs + _giftSubs,
-                bits     = _bits,
-                superChats = _superChats,
+                broadcaster = s.BroadcasterName,
+                duration    = duration.ToString(@"hh\:mm\:ss"),
+                follows     = _follows,
+                subs        = _subs + _resubs + _giftSubs,
+                bits        = _bits,
+                superChats  = _superChats,
                 topChatters,
                 raidsReceived = _raidsReceived
             });

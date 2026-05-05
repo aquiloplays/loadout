@@ -54,6 +54,16 @@ namespace Loadout.Modules
                 return;
             }
 
+            // Honor cooperative suppression. FollowBatchModule sets this on
+            // the EventContext when a follow burst is being coalesced; the
+            // batch flush fires its own chat line later, so we skip the
+            // per-event one here. Other modules can set this for the same
+            // reason (e.g., a future "first-time chatter" gate).
+            var suppressed = ctx.Raw != null
+                && ctx.Raw.TryGetValue("loadout.suppress.alert", out var sup)
+                && sup is bool b && b;
+            if (suppressed) return;
+
             // Coalesce alert spam: per-kind 3s cooldown so a sub burst posts one
             // line, not five. The underlying bus events fire normally so overlays
             // see every individual alert.

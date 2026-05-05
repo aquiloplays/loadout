@@ -102,6 +102,67 @@ namespace Loadout.Sb
             catch { /* swallow */ }
         }
 
+        // -------------------- Twitch clips --------------------
+
+        /// <summary>
+        /// Creates a Twitch clip via CPH and returns the public URL, or null
+        /// if the clip couldn't be made (channel offline, no Twitch auth,
+        /// rate-limited, etc.). Tries multiple method names + signatures
+        /// since SB has shifted them across versions:
+        ///   - TwitchClipCreate(useBotAccount, hasDelay)        - newer
+        ///   - TwitchCreateClip(useBotAccount, hasDelay)        - older
+        ///   - TwitchCreateClip()                                - very old
+        /// The returned object has been .Url, .EditUrl, .url depending on
+        /// version; we read whichever is non-null.
+        /// </summary>
+        public string CreateTwitchClip(bool useBotAccount, bool hasDelay)
+        {
+            if (_cph == null) return null;
+            try
+            {
+                // Probe candidate method names in order of likelihood.
+                MethodInfo mi = null;
+                string[] candidates = { "TwitchClipCreate", "TwitchCreateClip", "CreateTwitchClip" };
+                foreach (var name in candidates)
+                {
+                    foreach (var m in _cphType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+                    {
+                        if (m.Name == name) { mi = m; break; }
+                    }
+                    if (mi != null) break;
+                }
+                if (mi == null) return null;
+
+                var pars = mi.GetParameters();
+                object[] callArgs;
+                if (pars.Length == 0)      callArgs = new object[0];
+                else if (pars.Length == 1) callArgs = new object[] { useBotAccount };
+                else if (pars.Length == 2) callArgs = new object[] { useBotAccount, hasDelay };
+                else                       callArgs = new object[pars.Length]; // best effort
+
+                var result = mi.Invoke(_cph, callArgs);
+                if (result == null) return null;
+                // Result is a ClipData-like POCO; pull whichever URL field exists.
+                var rt = result.GetType();
+                foreach (var pn in new[] { "Url", "url", "ClipUrl", "EditUrl" })
+                {
+                    var p = rt.GetProperty(pn, BindingFlags.Public | BindingFlags.Instance);
+                    if (p != null)
+                    {
+                        var v = p.GetValue(result, null) as string;
+                        if (!string.IsNullOrEmpty(v)) return v;
+                    }
+                }
+                // Some versions return the raw URL string directly.
+                if (result is string s) return s;
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
         // -------------------- Action dispatch --------------------
 
         public bool RunAction(string actionName)

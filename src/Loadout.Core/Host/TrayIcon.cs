@@ -36,6 +36,24 @@ namespace Loadout.Host
             _icon.DoubleClick += (_, __) => LoadoutHost.OpenSettings();
 
             SettingsManager.Instance.SettingsChanged += (_, __) => RebuildMenu();
+
+            // One-shot "Loadout is ready" toast so users notice it auto-loaded
+            // on SB startup. The boot trigger fires every SB launch, but with
+            // no UI on screen most streamers don't realize Loadout is up - they
+            // assume they need to manually fire the action. The toast
+            // disambiguates: see the balloon -> bot is running, just open
+            // Settings from the tray. Suppressed in BalloonShown for re-runs.
+            try
+            {
+                var s = SettingsManager.Instance.Current;
+                var ready = s.OnboardingDone ? "ready" : "ready - first run, onboarding open";
+                _icon.ShowBalloonTip(
+                    5000,
+                    "Loadout " + (s.SuiteVersion ?? "") + " " + ready,
+                    "Double-click the tray icon to open Settings. Right-click for quick toggles.",
+                    ToolTipIcon.Info);
+            }
+            catch { /* balloon tips occasionally fail on Win Server / minimal Win10; non-fatal */ }
         }
 
         public void NotifyUpdateAvailable(ReleaseInfo release)
@@ -72,11 +90,11 @@ namespace Loadout.Host
             _menu.Items.Add(new ToolStripMenuItem("  • Quiet mode: " + (s.ChatNoise.QuietMode ? "ON" : "off")) { Enabled = false });
             _menu.Items.Add(new ToolStripSeparator());
 
-            var openSettings = new ToolStripMenuItem("⚙️  Open Settings");
+            var openSettings = new ToolStripMenuItem("Open Settings");
             openSettings.Click += (_, __) => LoadoutHost.OpenSettings();
             _menu.Items.Add(openSettings);
 
-            var openOnboarding = new ToolStripMenuItem("🎓  Onboarding");
+            var openOnboarding = new ToolStripMenuItem("Onboarding wizard");
             openOnboarding.Click += (_, __) => LoadoutHost.OpenOnboarding();
             _menu.Items.Add(openOnboarding);
 
@@ -92,7 +110,7 @@ namespace Loadout.Host
             _menu.Items.Add(new ToolStripSeparator());
 
             var update = new ToolStripMenuItem(_hasUpdate
-                ? "⬆  Apply update to " + (_pendingRelease?.TagName ?? "new version")
+                ? "Apply update to " + (_pendingRelease?.TagName ?? "new version")
                 : "Check for updates");
             update.Click += async (_, __) =>
             {
@@ -112,12 +130,12 @@ namespace Loadout.Host
                                 ToolTipIcon.Info);
                         }
                         catch { }
-                        update.Text = "✓  Restart SB to apply " + _pendingRelease.TagName;
+                        update.Text = "Restart SB to apply " + _pendingRelease.TagName;
                     }
                     else
                     {
                         try { System.Diagnostics.Process.Start(_pendingRelease.HtmlUrl ?? "https://github.com"); } catch { }
-                        update.Text = "⬆  Apply update to " + _pendingRelease.TagName;
+                        update.Text = "Apply update to " + _pendingRelease.TagName;
                     }
                 }
                 else

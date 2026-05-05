@@ -58,6 +58,11 @@ namespace Loadout.Modules
             // VIP / mod / regular variants.
             var allTiers = Entitlements.IsUnlocked(Feature.AllWelcomeTiers);
 
+            // Per-game profile override: if a profile is active and has a
+            // non-empty value for this role, prefer it over the global
+            // template. Empty profile fields fall through.
+            var p = GameProfilesModule.ActiveProfile;
+
             switch ((userType ?? "viewer").ToLowerInvariant())
             {
                 case "broadcaster": return null;
@@ -65,8 +70,10 @@ namespace Loadout.Modules
                 case "mod":         return allTiers ? cfg.Mod : null;
                 case "vip":         return allTiers ? cfg.Vip : null;
                 case "subscriber":
-                case "sub":         return cfg.Sub;
-                default:            return cfg.FirstTime;
+                case "sub":
+                    return !string.IsNullOrEmpty(p?.WelcomeSub) ? p.WelcomeSub : cfg.Sub;
+                default:
+                    return !string.IsNullOrEmpty(p?.WelcomeFirstTime) ? p.WelcomeFirstTime : cfg.FirstTime;
             }
         }
     }

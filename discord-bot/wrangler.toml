@@ -1,0 +1,23 @@
+name = "loadout-discord"
+main = "worker.js"
+compatibility_date = "2025-09-01"
+
+# Free-tier Workers limits: 100k requests/day, 10ms CPU/request. Plenty
+# for typical channels. Slash commands are sub-1ms each (KV reads + RNG);
+# the only "slow" path is Ed25519 verification (~5ms in WebCrypto).
+
+[vars]
+# Public env. Per-guild secrets are stored in KV, not here.
+ALLOW_ANY_GUILD = "true"   # set to "false" to lock down to specific guild IDs
+DISCORD_APP_ID = "1500849448866025573"
+# Aquilo's Vault → Loadout Bolts integration: only this guild can be credited.
+# AQUILO_VAULT_BOLTS_SECRET is a worker secret (set via `wrangler secret put`).
+AQUILO_VAULT_GUILD_ID = "1334146273854619709"
+
+[[kv_namespaces]]
+binding = "LOADOUT_BOLTS"
+id = "ffa4638187fd4c71b65f62e00b9437fa"
+
+# Public route: hosted by aquilo.gg. Self-hosters can either set their own
+# route here or leave the default *.workers.dev URL after `wrangler deploy`.
+# routes = [{ pattern = "loadout-discord.aquilo.gg/*", zone_name = "aquilo.gg" }]
