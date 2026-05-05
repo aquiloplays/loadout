@@ -24,6 +24,18 @@ namespace Loadout.Settings
 
         public event EventHandler SettingsChanged;
 
+        // ObjectCreationHandling.Replace prevents Newtonsoft from appending
+        // JSON array items to the property's collection-initializer default
+        // (e.g. TimersConfig.Messages = new List<TimedMessage>{ ... }).
+        // Without this, every load grew the list by the default size — that's
+        // how settings.json ended up with 30+ duplicate "Follow reminder"
+        // timers, duplicate counters, duplicate goals, etc.
+        private static readonly JsonSerializerSettings _jsonSettings =
+            new JsonSerializerSettings
+            {
+                ObjectCreationHandling = ObjectCreationHandling.Replace
+            };
+
         private SettingsManager() { }
 
         /// <summary>
@@ -114,7 +126,7 @@ namespace Loadout.Settings
                 }
 
                 var json = File.ReadAllText(_path);
-                var loaded = JsonConvert.DeserializeObject<LoadoutSettings>(json);
+                var loaded = JsonConvert.DeserializeObject<LoadoutSettings>(json, _jsonSettings);
                 return loaded ?? new LoadoutSettings();
             }
             catch (Exception ex)

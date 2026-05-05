@@ -190,6 +190,37 @@ namespace Loadout.UI
                     if (s.ChannelPoints.Mappings == null) s.ChannelPoints.Mappings = new System.Collections.Generic.List<ChannelPointMapping>();
                     if (s.Timers.Messages == null) s.Timers.Messages = new System.Collections.Generic.List<TimedMessage>();
 
+                    // One-shot dedup migration: existing settings files
+                    // accumulated duplicate timers / counters / goals from
+                    // the old append-on-deserialize bug. Collapse identical
+                    // entries to one (Name + Message for timers; Name for
+                    // counters; Name + Kind for goals). Safe — only drops
+                    // exact duplicates, leaves intentional variants alone.
+                    if (s.Timers.Messages.Count > 1)
+                    {
+                        var seen = new System.Collections.Generic.HashSet<string>();
+                        var deduped = new System.Collections.Generic.List<TimedMessage>();
+                        foreach (var m in s.Timers.Messages)
+                            if (seen.Add((m.Name ?? "") + "||" + (m.Message ?? ""))) deduped.Add(m);
+                        s.Timers.Messages = deduped;
+                    }
+                    if (s.Counters.Counters.Count > 1)
+                    {
+                        var seen = new System.Collections.Generic.HashSet<string>();
+                        var deduped = new System.Collections.Generic.List<Counter>();
+                        foreach (var c in s.Counters.Counters)
+                            if (seen.Add(c.Name ?? "")) deduped.Add(c);
+                        s.Counters.Counters = deduped;
+                    }
+                    if (s.Goals.Goals.Count > 1)
+                    {
+                        var seen = new System.Collections.Generic.HashSet<string>();
+                        var deduped = new System.Collections.Generic.List<Goal>();
+                        foreach (var g in s.Goals.Goals)
+                            if (seen.Add((g.Name ?? "") + "||" + (g.Kind ?? ""))) deduped.Add(g);
+                        s.Goals.Goals = deduped;
+                    }
+
                     // Each AlertTemplate should be non-null too. An "Alerts": {}
                     // in the JSON nukes them all to null otherwise.
                     var a = s.Alerts;

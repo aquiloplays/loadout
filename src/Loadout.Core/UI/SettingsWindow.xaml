@@ -659,12 +659,44 @@
                         </StackPanel>
                     </Border>
                     <DataGrid Grid.Row="3" x:Name="GrdTimers" AutoGenerateColumns="False" CanUserAddRows="False"
-                              SelectionMode="Single" SelectionUnit="FullRow">
+                              SelectionMode="Single" SelectionUnit="FullRow"
+                              RowHeight="34" ColumnHeaderHeight="32">
                         <DataGrid.Columns>
                             <DataGridCheckBoxColumn Header="On" Binding="{Binding Enabled}" Width="40" />
-                            <DataGridTextColumn Header="Name"    Binding="{Binding Name,    UpdateSourceTrigger=PropertyChanged}" Width="160" />
+                            <DataGridTextColumn Header="Name"    Binding="{Binding Name,    UpdateSourceTrigger=PropertyChanged}" Width="140" />
                             <DataGridTextColumn Header="Message" Binding="{Binding Message, UpdateSourceTrigger=PropertyChanged}" Width="*" />
-                            <DataGridTextColumn Header="Group"   Binding="{Binding Group,   UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                            <DataGridCheckBoxColumn Width="40" Binding="{Binding Platforms.Twitch}">
+                                <DataGridCheckBoxColumn.Header>
+                                    <Path Data="{StaticResource IconGeo.PlatformTwitch}" Stretch="Uniform" Width="16" Height="16"
+                                          Stroke="{StaticResource Brush.Twitch}" StrokeThickness="1.6"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          ToolTip="Twitch" />
+                                </DataGridCheckBoxColumn.Header>
+                            </DataGridCheckBoxColumn>
+                            <DataGridCheckBoxColumn Width="40" Binding="{Binding Platforms.TikTok}">
+                                <DataGridCheckBoxColumn.Header>
+                                    <Path Data="{StaticResource IconGeo.PlatformTikTok}" Stretch="Uniform" Width="16" Height="16"
+                                          Stroke="{StaticResource Brush.TikTok}" StrokeThickness="1.6"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          ToolTip="TikTok" />
+                                </DataGridCheckBoxColumn.Header>
+                            </DataGridCheckBoxColumn>
+                            <DataGridCheckBoxColumn Width="40" Binding="{Binding Platforms.YouTube}">
+                                <DataGridCheckBoxColumn.Header>
+                                    <Path Data="{StaticResource IconGeo.PlatformYouTube}" Stretch="Uniform" Width="16" Height="16"
+                                          Stroke="{StaticResource Brush.YouTube}" StrokeThickness="1.6"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          ToolTip="YouTube" />
+                                </DataGridCheckBoxColumn.Header>
+                            </DataGridCheckBoxColumn>
+                            <DataGridCheckBoxColumn Width="40" Binding="{Binding Platforms.Kick}">
+                                <DataGridCheckBoxColumn.Header>
+                                    <Path Data="{StaticResource IconGeo.PlatformKick}" Stretch="Uniform" Width="16" Height="16"
+                                          Stroke="{StaticResource Brush.Kick}" StrokeThickness="1.6"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          ToolTip="Kick" />
+                                </DataGridCheckBoxColumn.Header>
+                            </DataGridCheckBoxColumn>
                         </DataGrid.Columns>
                     </DataGrid>
                     <TextBlock Grid.Row="3" x:Name="TxtTimersEmpty"

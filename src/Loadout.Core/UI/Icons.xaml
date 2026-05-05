@@ -207,4 +207,22 @@
     <!-- Check (mark) -->
     <StreamGeometry x:Key="IconGeo.Check">M 5 12 l 4 4 l 10 -10</StreamGeometry>
 
+    <!-- ============== Platform marks =====================================
+         Simplified monoline shapes recognizable as each streaming
+         platform. Render with the matching brand brush at the call site
+         (e.g. Stroke="{StaticResource Brush.Twitch}" gives the brand
+         color). -->
+
+    <!-- Twitch: chat-bubble silhouette with two stream-tally bars -->
+    <StreamGeometry x:Key="IconGeo.PlatformTwitch">M 5 4 h 14 v 11 l -3 3 v -3 h -11 z M 9 8 v 5 M 14 8 v 5</StreamGeometry>
+
+    <!-- TikTok: stylized music note with the side-flag -->
+    <StreamGeometry x:Key="IconGeo.PlatformTikTok">M 13 3 v 11 a 4 4 0 1 1 -4 -4 M 13 3 c 0 2 2 4 5 4</StreamGeometry>
+
+    <!-- YouTube: rounded rectangle with a play triangle -->
+    <StreamGeometry x:Key="IconGeo.PlatformYouTube">M 4 7 a 3 3 0 0 1 3 -3 h 10 a 3 3 0 0 1 3 3 v 10 a 3 3 0 0 1 -3 3 h -10 a 3 3 0 0 1 -3 -3 z M 10 9 v 6 l 5 -3 z</StreamGeometry>
+
+    <!-- Kick: bold K -->
+    <StreamGeometry x:Key="IconGeo.PlatformKick">M 6 4 v 16 M 6 12 l 8 -8 M 6 12 l 8 8</StreamGeometry>
+
 </ResourceDictionary>
