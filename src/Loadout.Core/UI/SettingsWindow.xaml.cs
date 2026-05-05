@@ -84,6 +84,8 @@ namespace Loadout.UI
             Step("RefreshPatreonState",    RefreshPatreonState);
             Step("RefreshHeaderPills",     RefreshHeaderPills);
             Step("RefreshStatusChips",     RefreshStatusChips);
+            Step("HookEmptyStates",        HookEmptyStates);
+            Step("BindHealthTab",          BindHealthTab);
             Step("BindCountersAndCheckIn", BindCountersAndCheckIn);
             Step("BindGamesTab",           BindGamesTab);
             Step("BindOverlaysTab",        BindOverlaysTab);
@@ -1046,6 +1048,137 @@ namespace Loadout.UI
                 "Loadout - template variables",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);
+        }
+
+        // Module health dashboard: a row per module with the icon, name,
+        // and an On/Off pill. Total count + summary lands at the top. The
+        // landing tab on window open so the streamer sees what's wired up
+        // before drilling into individual settings.
+        private void BindHealthTab()
+        {
+            if (HealthList == null) return;
+            HealthList.Children.Clear();
+
+            var s = SettingsManager.Instance.Current;
+            var modules = new System.Collections.Generic.List<(string Name, bool Enabled, string IconKey)>
+            {
+                ("Info commands",       s.Modules.InfoCommands,       "IconGeo.Commands"),
+                ("Welcomes",            s.Modules.ContextWelcomes,    "IconGeo.Welcomes"),
+                ("Alerts",              s.Modules.Alerts,             "IconGeo.Alerts"),
+                ("Auto-messages",       s.Modules.TimedMessages,      "IconGeo.Timers"),
+                ("Goals",               s.Modules.Goals,              "IconGeo.Goals"),
+                ("Counters",            s.Modules.Counters,           "IconGeo.Counters"),
+                ("Bolts wallet",        s.Modules.Bolts,              "IconGeo.Bolts"),
+                ("Apex (top viewer)",   s.Modules.Apex,               "IconGeo.Apex"),
+                ("Daily check-in",      s.Modules.DailyCheckIn,       "IconGeo.CheckIn"),
+                ("Stream recap",        s.Modules.StreamRecap,        "IconGeo.Recap"),
+                ("Discord live status", s.Modules.DiscordLiveStatus,  "IconGeo.Discord"),
+                ("Hate-raid detector",  s.Modules.HateRaidDetector,   "IconGeo.HateRaid"),
+                ("Hype train",          s.Modules.TikTokHypeTrain,    "IconGeo.HypeTrain"),
+                ("Sub raid train",      s.Modules.SubRaidTrain,       "IconGeo.SubRaidTrain"),
+                ("Sub anniversary",     s.Modules.SubAnniversary,     "IconGeo.SubAnniv"),
+                ("Ad break heads-up",   s.Modules.AdBreak,            "IconGeo.AdBreak"),
+                ("First words",         s.Modules.FirstWords,         "IconGeo.Welcomes"),
+                ("Auto-poll",           s.Modules.AutoPoll,           "IconGeo.AutoPoll"),
+                ("VIP rotation",        s.Modules.VipRotation,        "IconGeo.Vip"),
+                ("CC coins",            s.Modules.CcCoinTracker,      "IconGeo.CcCoin"),
+                ("Webhook inbox",       s.Modules.WebhookInbox,       "IconGeo.Webhooks"),
+                ("Clips",               s.Modules.Clips,              "IconGeo.Clips"),
+                ("Channel points",      s.ChannelPoints?.Enabled ?? false, "IconGeo.ChannelPoints"),
+                ("Game profiles",       s.GameProfiles?.Enabled ?? false,  "IconGeo.GameProfiles"),
+            };
+
+            int onCount = 0;
+            var pillStyleOn   = (Style)FindResource("PillSuccess");
+            var pillStyle     = (Style)FindResource("Pill");
+            var iconStyle     = (Style)FindResource("Icon");
+            var iconStyleDim  = (Style)FindResource("IconMuted");
+            var mutedBrush    = (System.Windows.Media.Brush)FindResource("Brush.Fg.Muted");
+
+            foreach (var m in modules)
+            {
+                if (m.Enabled) onCount++;
+
+                var row = new Grid { Margin = new Thickness(0, 5, 0, 5) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var iconPath = new System.Windows.Shapes.Path
+                {
+                    Style = m.Enabled ? iconStyle : iconStyleDim,
+                    Data = (Geometry)FindResource(m.IconKey),
+                    Width = 14, Height = 14,
+                    Margin = new Thickness(0, 0, 12, 0)
+                };
+                Grid.SetColumn(iconPath, 0);
+                row.Children.Add(iconPath);
+
+                var name = new TextBlock
+                {
+                    Text = m.Name,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = m.Enabled ? (System.Windows.Media.Brush)FindResource("Brush.Fg.Primary") : mutedBrush
+                };
+                Grid.SetColumn(name, 1);
+                row.Children.Add(name);
+
+                var pill = new Border
+                {
+                    Style = m.Enabled ? pillStyleOn : pillStyle,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                var pillStack = new StackPanel { Orientation = Orientation.Horizontal };
+                if (m.Enabled)
+                    pillStack.Children.Add(new System.Windows.Shapes.Ellipse
+                    {
+                        Width = 6, Height = 6,
+                        Fill = (System.Windows.Media.Brush)FindResource("Brush.Success"),
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0, 0, 6, 0)
+                    });
+                pillStack.Children.Add(new TextBlock
+                {
+                    Text = m.Enabled ? "On" : "Off",
+                    FontSize = 11,
+                    Foreground = mutedBrush,
+                    VerticalAlignment = VerticalAlignment.Center
+                });
+                pill.Child = pillStack;
+                Grid.SetColumn(pill, 2);
+                row.Children.Add(pill);
+
+                HealthList.Children.Add(row);
+            }
+
+            TxtHealthSummary.Text = onCount + " of " + modules.Count + " modules enabled. " +
+                "Click a module's tab on the left to configure or toggle it.";
+        }
+
+        private void BtnHealthRefresh_Click(object sender, RoutedEventArgs e)
+        {
+            BindHealthTab();
+            RefreshStatusChips();
+            ShowSavedHint("Health refreshed.");
+        }
+
+        // Empty-state hints: subscribe to the ObservableCollections that
+        // back the data grids and toggle the "no items yet" hint visibility
+        // on every change. Beats remembering to call Refresh from each
+        // Add/Remove handler.
+        private void HookEmptyStates()
+        {
+            _timers.CollectionChanged   += (s, e) => RefreshEmptyStates();
+            _goals.CollectionChanged    += (s, e) => RefreshEmptyStates();
+            _counters.CollectionChanged += (s, e) => RefreshEmptyStates();
+            RefreshEmptyStates();
+        }
+
+        private void RefreshEmptyStates()
+        {
+            if (TxtTimersEmpty   != null) TxtTimersEmpty.Visibility   = _timers.Count   == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (TxtGoalsEmpty    != null) TxtGoalsEmpty.Visibility    = _goals.Count    == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (TxtCountersEmpty != null) TxtCountersEmpty.Visibility = _counters.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // Footer connection chips: at-a-glance health for each integration.
