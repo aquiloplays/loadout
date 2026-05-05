@@ -1589,9 +1589,9 @@ namespace Loadout.UI
             if (ChkCmdCheckIn?.IsChecked == true) includes.Add("checkin");
             string includeCsv = (includes.Count == 6) ? null : string.Join(",", includes);
 
-            // Cap rotate to a sane range; the overlay clamps to >= 2s anyway.
-            var rotateText = (TxtCommandsRotate?.Text ?? "4").Trim();
-            int rotateSec; if (!int.TryParse(rotateText, out rotateSec) || rotateSec < 2) rotateSec = 4;
+            // Cap rotate to a sane range; the overlay clamps to >= 3s anyway.
+            var rotateText = (TxtCommandsRotate?.Text ?? "8").Trim();
+            int rotateSec; if (!int.TryParse(rotateText, out rotateSec) || rotateSec < 3) rotateSec = 8;
 
             if (TxtUrlCommands != null)
             {
@@ -1974,6 +1974,13 @@ namespace Loadout.UI
 
         // ── Channel points tab ───────────────────────────────────────────────
 
+        // Bound from the channel-points DataGrid's ComboBox via
+        // {Binding RelativeSource={RelativeSource AncestorType=Window}, Path=TwitchRewardNames}.
+        // Filled from CPH.TwitchGetRewards on demand by the Refresh button;
+        // empty until then so the ComboBox falls back to free-text entry.
+        public System.Collections.ObjectModel.ObservableCollection<string> TwitchRewardNames { get; } =
+            new System.Collections.ObjectModel.ObservableCollection<string>();
+
         private void BindChannelPointsTab()
         {
             _channelPoints.Clear();
@@ -1982,6 +1989,32 @@ namespace Loadout.UI
                 foreach (var m in s.ChannelPoints.Mappings) _channelPoints.Add(m);
             GrdChannelPoints.ItemsSource = _channelPoints;
             ChkChannelPointsEnabled.IsChecked = s.ChannelPoints?.Enabled ?? false;
+
+            // Try a silent first pull — populates the dropdown if Twitch is
+            // already connected on SB's side. Failure is fine; the user can
+            // hit "Pull rewards from Twitch" manually after connecting.
+            if (TwitchRewardNames.Count == 0)
+            {
+                try { RefreshTwitchRewards(silent: true); } catch { }
+            }
+        }
+
+        private void RefreshTwitchRewards(bool silent = false)
+        {
+            var titles = Loadout.Platforms.CphPlatformSender.Instance.GetTwitchRewardTitles();
+            TwitchRewardNames.Clear();
+            foreach (var t in titles) TwitchRewardNames.Add(t);
+            if (!silent)
+            {
+                ShowSavedHint(titles.Count > 0
+                    ? "Pulled " + titles.Count + " reward(s) from Twitch."
+                    : "No rewards returned — is Twitch connected in Streamer.bot?");
+            }
+        }
+
+        private void BtnRefreshTwitchRewards_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshTwitchRewards(silent: false);
         }
         private void BtnChannelPointAdd_Click(object sender, RoutedEventArgs e)
         {

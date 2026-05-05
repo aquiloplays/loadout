@@ -93,6 +93,38 @@ namespace Loadout.Platforms
             }
         }
 
+        /// <summary>
+        /// Reflectively calls CPH.TwitchGetRewards and returns the titles of
+        /// every channel-point reward currently configured on the streamer's
+        /// Twitch channel. Returns an empty list on any failure (CPH not
+        /// bound, Twitch not connected, method missing on this SB version).
+        /// </summary>
+        public System.Collections.Generic.List<string> GetTwitchRewardTitles()
+        {
+            var result = new System.Collections.Generic.List<string>();
+            if (_cph == null) return result;
+            try
+            {
+                var mi = _cph.GetType().GetMethod("TwitchGetRewards",
+                    BindingFlags.Public | BindingFlags.Instance);
+                if (mi == null) return result;
+                var rewards = mi.Invoke(_cph, null) as System.Collections.IEnumerable;
+                if (rewards == null) return result;
+                foreach (var r in rewards)
+                {
+                    if (r == null) continue;
+                    var titleProp = r.GetType().GetProperty("Title");
+                    var title = titleProp?.GetValue(r) as string;
+                    if (!string.IsNullOrWhiteSpace(title)) result.Add(title);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] TwitchGetRewards failed: " + ex.Message);
+            }
+            return result;
+        }
+
         private void SendViaTikTokAction(string message)
         {
             var actionName = SettingsManager.Instance.Current.Platforms?.TikTokSendActionName;

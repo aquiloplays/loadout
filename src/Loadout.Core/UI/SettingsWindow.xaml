@@ -1600,13 +1600,30 @@
                               SelectionMode="Single" SelectionUnit="FullRow">
                         <DataGrid.Columns>
                             <DataGridCheckBoxColumn Header="On" Binding="{Binding Enabled}" Width="40" />
-                            <DataGridTextColumn Header="Reward name (Twitch)" Binding="{Binding RewardName, UpdateSourceTrigger=PropertyChanged}" Width="220" />
+                            <DataGridTemplateColumn Header="Reward (Twitch)" Width="220">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding RewardName}" VerticalAlignment="Center" Padding="6 0" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                                <DataGridTemplateColumn.CellEditingTemplate>
+                                    <DataTemplate>
+                                        <ComboBox ItemsSource="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=TwitchRewardNames}"
+                                                  Text="{Binding RewardName, UpdateSourceTrigger=PropertyChanged, Mode=TwoWay}"
+                                                  IsEditable="True"
+                                                  StaysOpenOnEdit="True"
+                                                  VerticalContentAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellEditingTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTextColumn Header="Action"               Binding="{Binding Action,     UpdateSourceTrigger=PropertyChanged}" Width="*" />
                         </DataGrid.Columns>
                     </DataGrid>
                     <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0 12 0 0">
                         <Button Content="Add mapping" Style="{StaticResource SecondaryButton}" Click="BtnChannelPointAdd_Click"    Margin="0 0 8 0" />
-                        <Button Content="Remove"      Style="{StaticResource SecondaryButton}" Click="BtnChannelPointRemove_Click" />
+                        <Button Content="Remove"      Style="{StaticResource SecondaryButton}" Click="BtnChannelPointRemove_Click" Margin="0 0 8 0" />
+                        <Button Content="Pull rewards from Twitch" Style="{StaticResource SecondaryButton}" Click="BtnRefreshTwitchRewards_Click"
+                                ToolTip="Asks Streamer.bot for the current set of channel-point rewards on your Twitch channel and populates the Reward dropdown above." />
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -2314,7 +2331,7 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal">
                                         <TextBlock Text="Rotate (sec):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
-                                        <TextBox x:Name="TxtCommandsRotate" Width="60" Text="4" TextChanged="OnOverlayUrlChange" />
+                                        <TextBox x:Name="TxtCommandsRotate" Width="60" Text="8" TextChanged="OnOverlayUrlChange" />
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock Text="Show categories:" Style="{StaticResource Muted}" Margin="0 4 0 4" />

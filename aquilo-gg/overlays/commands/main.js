@@ -24,7 +24,10 @@
   const showDesc = params.get('showDesc');
   if (showDesc != null) document.body.dataset.showDesc = showDesc;
 
-  const rotateSec = Math.max(2, parseInt(params.get('rotate') || '4', 10));
+  // Default 8s per command — long enough for a viewer to read the
+  // name + description before the next swap. URL param overrides;
+  // anything below 3s reads as a strobe at this card size.
+  const rotateSec = Math.max(3, parseInt(params.get('rotate') || '8', 10));
 
   // Category include filter. Empty / unset = include all.
   const includeRaw = (params.get('include') || '').toLowerCase();
