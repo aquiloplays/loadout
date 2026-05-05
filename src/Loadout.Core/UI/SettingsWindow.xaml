@@ -83,6 +83,9 @@
 
                 <!-- Header actions -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Variables" Style="{StaticResource SecondaryButton}"
+                            Margin="0 0 8 0" Click="BtnVariables_Click"
+                            ToolTip="Quick reference of {user}, {tier}, {bits}, etc. for any template field." />
                     <Button Content="Re-run onboarding" Style="{StaticResource SecondaryButton}"
                             Margin="0 0 8 0" Click="BtnReonboard_Click" />
                     <Button Content="Check for updates" Style="{StaticResource SecondaryButton}"
@@ -2225,7 +2228,7 @@
                             <StackPanel>
                                 <TextBlock Text="Overlay base URL" Style="{StaticResource H2}" />
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 6">
-                                    Defaults to https://aquilo.gg/overlays. Change if you self-host.
+                                    Defaults to https://widget.aquilo.gg/overlays. Change if you self-host.
                                 </TextBlock>
                                 <TextBox x:Name="TxtOverlayBaseUrl" TextChanged="OnOverlayUrlChange" />
                             </StackPanel>
@@ -2237,22 +2240,51 @@
         </TabControl>
 
         <!-- ============================ FOOTER ============================ -->
-        <Border Grid.Row="2" Background="{StaticResource Brush.HeaderBackground}" Padding="22 12"
+        <Border Grid.Row="2" Background="{StaticResource Brush.HeaderBackground}" Padding="22 10"
                 BorderBrush="{StaticResource Brush.Border}" BorderThickness="0 1 0 0">
             <Grid>
-                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <!-- Connection chips: live status of each integration. Solid
+                     dot = connected, dim dot = configured-but-not-checked,
+                     warn dot = misconfigured. Hover for details. -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Border x:Name="ChipTwitch" Style="{StaticResource Pill}" Margin="0 0 6 0" ToolTip="Twitch (chat + EventSub)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="ChipTwitchDot" Width="6" Height="6" Fill="{StaticResource Brush.Border.Strong}" VerticalAlignment="Center" Margin="0 0 6 0" />
+                            <TextBlock Text="Twitch" FontSize="11" Foreground="{StaticResource Brush.Fg.Muted}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="ChipTikTok" Style="{StaticResource Pill}" Margin="0 0 6 0" ToolTip="TikTok via TikFinity">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="ChipTikTokDot" Width="6" Height="6" Fill="{StaticResource Brush.Border.Strong}" VerticalAlignment="Center" Margin="0 0 6 0" />
+                            <TextBlock Text="TikTok" FontSize="11" Foreground="{StaticResource Brush.Fg.Muted}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="ChipBus" Style="{StaticResource Pill}" Margin="0 0 6 0" ToolTip="Aquilo Bus (overlay event WebSocket)">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="ChipBusDot" Width="6" Height="6" Fill="{StaticResource Brush.Border.Strong}" VerticalAlignment="Center" Margin="0 0 6 0" />
+                            <TextBlock Text="Bus" FontSize="11" Foreground="{StaticResource Brush.Fg.Muted}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
+                    <Border x:Name="ChipWorker" Style="{StaticResource Pill}" Margin="0 0 12 0" ToolTip="Loadout Discord bot Worker">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="ChipWorkerDot" Width="6" Height="6" Fill="{StaticResource Brush.Border.Strong}" VerticalAlignment="Center" Margin="0 0 6 0" />
+                            <TextBlock Text="Worker" FontSize="11" Foreground="{StaticResource Brush.Fg.Muted}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Border>
                     <Border x:Name="PillSaved" Style="{StaticResource Pill}" Visibility="Collapsed">
                         <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="6" Height="6" Fill="{StaticResource Brush.Success}"
-                                     VerticalAlignment="Center" Margin="0 0 6 0" />
-                            <TextBlock x:Name="TxtSavedHint" FontSize="11"
-                                       Foreground="{StaticResource Brush.Fg.Muted}" VerticalAlignment="Center" />
+                            <Ellipse Width="6" Height="6" Fill="{StaticResource Brush.Success}" VerticalAlignment="Center" Margin="0 0 6 0" />
+                            <TextBlock x:Name="TxtSavedHint" FontSize="11" Foreground="{StaticResource Brush.Fg.Muted}" VerticalAlignment="Center" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Content="Close" Style="{StaticResource SecondaryButton}" Click="BtnClose_Click"
-                            Margin="0 0 8 0" />
+                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Close" Style="{StaticResource SecondaryButton}" Click="BtnClose_Click" Margin="0 0 8 0" />
                     <Button Content="Save changes" Style="{StaticResource PrimaryButton}" Click="BtnSave_Click" />
                 </StackPanel>
             </Grid>

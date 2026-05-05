@@ -110,13 +110,15 @@
         <GradientStop Offset="1" Color="#0E0E12" />
     </LinearGradientBrush>
 
-    <!-- Window body: subtle radial glow from the top-left corner, fading
-         to near-black bottom-right. Gives the chrome a premium "spotlight"
-         feel without distracting from card content. -->
-    <RadialGradientBrush x:Key="Brush.Bg.Window" GradientOrigin="0.05,0.0" Center="0.05,0.0" RadiusX="1.6" RadiusY="1.4">
-        <GradientStop Offset="0"   Color="#1B2034" />
-        <GradientStop Offset="0.35" Color="#11121A" />
-        <GradientStop Offset="1"   Color="#0A0A0C" />
+    <!-- Window body: brand-blue radial glow from the top-left corner,
+         fading to near-black bottom-right. Saturated enough to read as
+         intentionally gradient (not just a darker corner). Cards still
+         dominate visually because they have their own surface fill. -->
+    <RadialGradientBrush x:Key="Brush.Bg.Window" GradientOrigin="0.0,0.0" Center="0.0,0.0" RadiusX="1.7" RadiusY="1.5">
+        <GradientStop Offset="0"   Color="#1F2D5A" />
+        <GradientStop Offset="0.35" Color="#12141F" />
+        <GradientStop Offset="0.75" Color="#0A0A0E" />
+        <GradientStop Offset="1"   Color="#070709" />
     </RadialGradientBrush>
 
     <!-- ============== Shadows ============================================= -->

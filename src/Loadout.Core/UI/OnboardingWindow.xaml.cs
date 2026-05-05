@@ -124,6 +124,17 @@ namespace Loadout.UI
             var stepNames = new[] { "Welcome", "Platforms", "Modules", "Discord", "Webhook inbox", "Patreon", "Done" };
             StepLabel.Text = "Step " + _currentStep + " of " + TotalSteps + " - " + stepNames[_currentStep - 1];
 
+            // Progress dots: completed = faint accent glow, current = full
+            // accent, future = strong border. Gives a clear visual of how
+            // far the user has come without relying on the text alone.
+            var dots = new System.Windows.Shapes.Ellipse[]
+                { StepDot1, StepDot2, StepDot3, StepDot4, StepDot5, StepDot6, StepDot7 };
+            var done = (System.Windows.Media.Brush)FindResource("Brush.Accent.Glow");
+            var here = (System.Windows.Media.Brush)FindResource("Brush.Accent");
+            var soon = (System.Windows.Media.Brush)FindResource("Brush.Border.Strong");
+            for (int i = 0; i < dots.Length; i++)
+                dots[i].Fill = (i + 1 < _currentStep) ? done : (i + 1 == _currentStep) ? here : soon;
+
             Step1.Visibility = _currentStep == 1 ? Visibility.Visible : Visibility.Collapsed;
             Step2.Visibility = _currentStep == 2 ? Visibility.Visible : Visibility.Collapsed;
             Step3.Visibility = _currentStep == 3 ? Visibility.Visible : Visibility.Collapsed;

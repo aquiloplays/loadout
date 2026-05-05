@@ -83,6 +83,7 @@ namespace Loadout.UI
             Step("RefreshPendingLinks",    RefreshPendingLinks);
             Step("RefreshPatreonState",    RefreshPatreonState);
             Step("RefreshHeaderPills",     RefreshHeaderPills);
+            Step("RefreshStatusChips",     RefreshStatusChips);
             Step("BindCountersAndCheckIn", BindCountersAndCheckIn);
             Step("BindGamesTab",           BindGamesTab);
             Step("BindOverlaysTab",        BindOverlaysTab);
@@ -264,7 +265,7 @@ namespace Loadout.UI
         }
         private void BtnCounterRemove_Click(object sender, RoutedEventArgs e)
         {
-            if (GrdCounters.SelectedItem is Counter c) _counters.Remove(c);
+            if (GrdCounters.SelectedItem is Counter c && ConfirmRemove("counter")) _counters.Remove(c);
         }
         private void BtnCounterPlus_Click(object sender, RoutedEventArgs e)
         {
@@ -296,7 +297,7 @@ namespace Loadout.UI
         }
         private void BtnSupporterRemove_Click(object sender, RoutedEventArgs e)
         {
-            if (GrdSupporters.SelectedItem is PatreonSupporter p) _supporters.Remove(p);
+            if (GrdSupporters.SelectedItem is PatreonSupporter p && ConfirmRemove("Patreon supporter")) _supporters.Remove(p);
         }
 
         // -------------------- Test check-in --------------------
@@ -473,7 +474,7 @@ namespace Loadout.UI
         }
         private void BtnTimerRemove_Click(object sender, RoutedEventArgs e)
         {
-            if (GrdTimers.SelectedItem is TimedMessage t) _timers.Remove(t);
+            if (GrdTimers.SelectedItem is TimedMessage t && ConfirmRemove("timer")) _timers.Remove(t);
         }
 
         // -------------------- Goals --------------------
@@ -491,7 +492,7 @@ namespace Loadout.UI
         }
         private void BtnGoalRemove_Click(object sender, RoutedEventArgs e)
         {
-            if (GrdGoals.SelectedItem is Goal g) _goals.Remove(g);
+            if (GrdGoals.SelectedItem is Goal g && ConfirmRemove("goal")) _goals.Remove(g);
         }
 
         // -------------------- Webhooks --------------------
@@ -509,7 +510,7 @@ namespace Loadout.UI
         }
         private void BtnWebhookRemove_Click(object sender, RoutedEventArgs e)
         {
-            if (GrdWebhooks.SelectedItem is WebhookMapping w) _webhooks.Remove(w);
+            if (GrdWebhooks.SelectedItem is WebhookMapping w && ConfirmRemove("webhook mapping")) _webhooks.Remove(w);
         }
 
         // -------------------- Custom commands --------------------
@@ -527,7 +528,7 @@ namespace Loadout.UI
         }
         private void BtnCustomCmdRemove_Click(object sender, RoutedEventArgs e)
         {
-            if (GrdCustomCommands.SelectedItem is CustomCommand c) _customCmds.Remove(c);
+            if (GrdCustomCommands.SelectedItem is CustomCommand c && ConfirmRemove("custom command")) _customCmds.Remove(c);
         }
 
         // -------------------- Load all settings into UI --------------------
@@ -983,10 +984,119 @@ namespace Loadout.UI
 
         // -------------------- Footer status pill --------------------
 
+        private System.Windows.Threading.DispatcherTimer _savedHintTimer;
+
         private void ShowSavedHint(string text)
         {
             TxtSavedHint.Text = text;
             PillSaved.Visibility = string.IsNullOrEmpty(text) ? Visibility.Collapsed : Visibility.Visible;
+
+            // Auto-hide after 3 seconds so the toast doesn't linger forever.
+            if (_savedHintTimer == null)
+            {
+                _savedHintTimer = new System.Windows.Threading.DispatcherTimer
+                    { Interval = TimeSpan.FromSeconds(3) };
+                _savedHintTimer.Tick += (s, e) =>
+                {
+                    _savedHintTimer.Stop();
+                    PillSaved.Visibility = Visibility.Collapsed;
+                };
+            }
+            _savedHintTimer.Stop();
+            if (!string.IsNullOrEmpty(text)) _savedHintTimer.Start();
+        }
+
+        // Confirm dialog before destructive removes. Each Remove handler
+        // gates the actual collection mutation on the return value so a
+        // misclick on the Remove button doesn't lose user data.
+        private bool ConfirmRemove(string what)
+        {
+            var r = System.Windows.MessageBox.Show(
+                "Remove this " + what + "?\n\nThe change applies on Save.",
+                "Confirm remove",
+                System.Windows.MessageBoxButton.OKCancel,
+                System.Windows.MessageBoxImage.Question,
+                System.Windows.MessageBoxResult.Cancel);
+            return r == System.Windows.MessageBoxResult.OK;
+        }
+
+        // Quick reference popup for template variables. Wired to the
+        // "Variables" button in the header so it's reachable from any tab
+        // without scrolling around looking for the right Variables: hint.
+        private void BtnVariables_Click(object sender, RoutedEventArgs e)
+        {
+            System.Windows.MessageBox.Show(
+                "Common variables you can use in templates:\n\n" +
+                "Streamer-context:\n" +
+                "  {broadcaster}        your channel name\n" +
+                "  {title} {game} {url} current stream\n\n" +
+                "User-context:\n" +
+                "  {user} {handle}      viewer username\n" +
+                "  {tier}               sub tier (1, 2, 3)\n" +
+                "  {months}             sub anniversary count\n" +
+                "  {viewers}            raid viewer count\n" +
+                "  {gifter} {count}     gift-sub source + total\n" +
+                "  {bits} {amount}      cheer / super-chat amount\n" +
+                "  {gift} {coins}       TikTok gift name + coins\n\n" +
+                "Counters / wallets:\n" +
+                "  {display} {value}    counter name + value\n" +
+                "  {balance} {streak}   bolts wallet\n\n" +
+                "Variables that aren't relevant to a given event resolve\n" +
+                "to empty. Use them anywhere a TextBox accepts a template.",
+                "Loadout - template variables",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
+        }
+
+        // Footer connection chips: at-a-glance health for each integration.
+        // Twitch / TikTok reflect what's enabled in settings; Bus reads the
+        // local secret file; Worker probes /health asynchronously so the
+        // window paints fast and the chip lights up when the response lands.
+        private void RefreshStatusChips()
+        {
+            var s = SettingsManager.Instance.Current;
+            var ok  = (System.Windows.Media.Brush)FindResource("Brush.Success");
+            var dim = (System.Windows.Media.Brush)FindResource("Brush.Border.Strong");
+
+            if (ChipTwitchDot != null) ChipTwitchDot.Fill = s.Platforms.Twitch ? ok : dim;
+            if (ChipTikTokDot != null) ChipTikTokDot.Fill = s.Platforms.TikTok ? ok : dim;
+
+            if (ChipBusDot != null)
+            {
+                var sec = TryReadBusSecret();
+                ChipBusDot.Fill = (!string.IsNullOrEmpty(sec) && !sec.Contains("not started")) ? ok : dim;
+            }
+
+            if (ChipWorkerDot != null) ChipWorkerDot.Fill = dim;
+            _ = ProbeWorkerHealthAsync();
+        }
+
+        private async System.Threading.Tasks.Task ProbeWorkerHealthAsync()
+        {
+            var workerUrl = SettingsManager.Instance.Current.DiscordBot?.WorkerUrl;
+            if (string.IsNullOrEmpty(workerUrl)) return;
+            try
+            {
+                using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) })
+                {
+                    var r = await http.GetAsync(workerUrl.TrimEnd('/') + "/health");
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (ChipWorkerDot == null) return;
+                        ChipWorkerDot.Fill = r.IsSuccessStatusCode
+                            ? (System.Windows.Media.Brush)FindResource("Brush.Success")
+                            : (System.Windows.Media.Brush)FindResource("Brush.Warn");
+                    });
+                }
+            }
+            catch
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (ChipWorkerDot == null) return;
+                    ChipWorkerDot.Fill = (System.Windows.Media.Brush)FindResource("Brush.Error");
+                });
+            }
         }
 
         // -------------------- Versions / closing / re-onboard --------------------
@@ -1204,7 +1314,10 @@ namespace Loadout.UI
             if (extras != null)
                 foreach (var kv in extras)
                     if (!string.IsNullOrEmpty(kv.Value)) qs.Add(kv.Key + "=" + HttpUtility.UrlEncode(kv.Value));
-            return baseUrl + "/" + overlay + "?" + string.Join("&", qs);
+            // Trailing slash before the query string so Cloudflare Pages
+            // serves <overlay>/index.html cleanly without relying on its
+            // (configurable) extension-stripping/redirect behavior.
+            return baseUrl + "/" + overlay + "/?" + string.Join("&", qs);
         }
 
         private static string SelectedTag(ComboBox cb) =>
@@ -1309,7 +1422,7 @@ namespace Loadout.UI
         }
         private void BtnGameProfileRemove_Click(object sender, RoutedEventArgs e)
         {
-            if (GrdGameProfiles.SelectedItem is GameProfile p) _gameProfiles.Remove(p);
+            if (GrdGameProfiles.SelectedItem is GameProfile p && ConfirmRemove("game profile")) _gameProfiles.Remove(p);
         }
 
         // ── Channel points tab ───────────────────────────────────────────────
@@ -1330,7 +1443,7 @@ namespace Loadout.UI
         }
         private void BtnChannelPointRemove_Click(object sender, RoutedEventArgs e)
         {
-            if (GrdChannelPoints.SelectedItem is ChannelPointMapping m) _channelPoints.Remove(m);
+            if (GrdChannelPoints.SelectedItem is ChannelPointMapping m && ConfirmRemove("channel-point reward mapping")) _channelPoints.Remove(m);
         }
 
         // ── Backup tab ───────────────────────────────────────────────────────
@@ -1646,7 +1759,7 @@ namespace Loadout.UI
         }
         private void BtnShopRemove_Click(object sender, RoutedEventArgs e)
         {
-            if (GrdShop.SelectedItem is BoltsShopItem it) _shopItems.Remove(it);
+            if (GrdShop.SelectedItem is BoltsShopItem it && ConfirmRemove("Bolts shop item")) _shopItems.Remove(it);
         }
         private void BtnShopResetStock_Click(object sender, RoutedEventArgs e)
         {

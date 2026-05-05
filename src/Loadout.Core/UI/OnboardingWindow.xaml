@@ -12,7 +12,7 @@
         Opacity="1"
         FontFamily="Segoe UI"
         FontSize="13"
-        Background="#0E0E10"
+        Background="{DynamicResource Brush.Bg.Window}"
         Foreground="#EFEFF1"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType"
@@ -36,8 +36,19 @@
         <Border Grid.Row="0" Background="{StaticResource Brush.Bg.Surface}" Padding="24 18"
                 BorderBrush="{StaticResource Brush.Border}" BorderThickness="0 0 0 1">
             <StackPanel>
-                <TextBlock Text="Loadout Setup" Style="{StaticResource H1}" />
-                <TextBlock x:Name="StepLabel" Text="Step 1 of 7 — Welcome" Style="{StaticResource Muted}" />
+                <Grid>
+                    <TextBlock Text="Loadout Setup" Style="{StaticResource H1}" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Ellipse x:Name="StepDot1" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Accent}" />
+                        <Ellipse x:Name="StepDot2" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Border.Strong}" />
+                        <Ellipse x:Name="StepDot3" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Border.Strong}" />
+                        <Ellipse x:Name="StepDot4" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Border.Strong}" />
+                        <Ellipse x:Name="StepDot5" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Border.Strong}" />
+                        <Ellipse x:Name="StepDot6" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Border.Strong}" />
+                        <Ellipse x:Name="StepDot7" Width="9" Height="9" Fill="{StaticResource Brush.Border.Strong}" />
+                    </StackPanel>
+                </Grid>
+                <TextBlock x:Name="StepLabel" Text="Step 1 of 7 — Welcome" Style="{StaticResource Muted}" Margin="0 4 0 0" />
             </StackPanel>
         </Border>
 
@@ -48,9 +59,8 @@
                 <TextBlock Text="Welcome to Loadout 🎒" Style="{StaticResource H1}" />
                 <TextBlock TextWrapping="Wrap" Margin="0 8 0 16">
                     Loadout is a complete Streamer.bot suite — info commands, alerts, timed messages,
-                    AI-personalized shoutouts, hate-raid detection, Discord live status, and more.
-                    Everything works across <Bold>Twitch</Bold>, <Bold>TikTok</Bold>, <Bold>YouTube</Bold>,
-                    and <Bold>Kick</Bold>.
+                    hate-raid detection, Discord live status, off-stream Bolts, and more. Everything works
+                    across <Bold>Twitch</Bold>, <Bold>TikTok</Bold>, <Bold>YouTube</Bold>, and <Bold>Kick</Bold>.
                 </TextBlock>
                 <TextBlock TextWrapping="Wrap" Style="{StaticResource Muted}">
                     This wizard takes about 3 minutes. You can change anything later in Settings.
@@ -61,7 +71,7 @@
                         <TextBlock Text="• Which platforms you stream on" Margin="0 2" />
                         <TextBlock Text="• Which modules you want enabled by default" Margin="0 2" />
                         <TextBlock Text="• Discord webhook for go-live posts (optional)" Margin="0 2" />
-                        <TextBlock Text="• AI provider for personalized shoutouts (optional)" Margin="0 2" />
+                        <TextBlock Text="• Discord bot for off-stream Bolts (optional)" Margin="0 2" />
                         <TextBlock Text="• Webhook inbox port for external integrations (optional)" Margin="0 2" />
                     </StackPanel>
                 </Border>
@@ -164,8 +174,8 @@
                 <TextBlock Text="Connect Patreon (optional)" Style="{StaticResource H1}" />
                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 16">
                     Loadout is fully free for the basics. Tier 2 ($6) unlocks multi-platform alerts, unlimited timers,
-                    Discord live status, webhook inbox, and stream recap. Tier 3 ($10) adds AI shoutouts, hate-raid
-                    detection, TikTok hype train, and the cross-platform loyalty wallet.
+                    Discord live status, webhook inbox, and stream recap. Tier 3 ($10) adds hate-raid detection,
+                    TikTok hype train, the cross-platform loyalty wallet, and the off-stream Discord bot.
                 </TextBlock>
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
