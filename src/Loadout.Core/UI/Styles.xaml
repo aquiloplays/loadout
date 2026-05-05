@@ -538,18 +538,18 @@
         <Setter Property="Margin" Value="0 14 0 14" />
     </Style>
 
-    <!-- Pill / Chip - true pill shape (fully rounded ends, rectangular body).
-         CornerRadius 999 clamps to half-height; the wider Padding + MinWidth
-         keep short content elongated so it doesn't collapse to a circle. -->
+    <!-- Pill / Chip - flat compact badge. Earlier iterations leaned on
+         a drop shadow + half-height rounding which read as elevated/
+         oval-y at this size. Modern look: tight padding, low-contrast
+         subtle border, sharp 4px corners, no shadow. Lets the content
+         (the dot + tiny text) carry the visual weight. -->
     <Style x:Key="Pill" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Surface2}" />
-        <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Subtle}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="CornerRadius" Value="999" />
-        <Setter Property="Padding" Value="14 5" />
-        <Setter Property="MinWidth" Value="68" />
-        <Setter Property="HorizontalAlignment" Value="Left" />
-        <Setter Property="Effect" Value="{StaticResource Shadow.Pill}" />
+        <Setter Property="CornerRadius" Value="4" />
+        <Setter Property="Padding" Value="9 3" />
+        <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style x:Key="PillAccent" TargetType="Border" BasedOn="{StaticResource Pill}">
         <Setter Property="Background" Value="{StaticResource Brush.Accent.Faint}" />

@@ -1681,8 +1681,168 @@ namespace Loadout.UI
             var tag = (sender as Button)?.Tag?.ToString();
             var url = OverlayUrlByTag(tag);
             if (string.IsNullOrEmpty(url)) return;
-            try { System.Diagnostics.Process.Start(url); }
+            try
+            {
+                // 1. Open the overlay URL in the default browser. UseShellExecute=true
+                //    is required on modern .NET — without it Process.Start tries to
+                //    exec the URL as a binary path and fails silently.
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url)
+                {
+                    UseShellExecute = true
+                });
+
+                // 2. Fire a synthetic event of the overlay's subscribed kind so the
+                //    page (and any open OBS browser source) renders sample content
+                //    immediately — that's what makes this useful for placement.
+                FireOverlayTestEvent(tag);
+
+                ShowSavedHint("Opened " + tag + " + fired test event.");
+            }
             catch (Exception ex) { ShowSavedHint("Open failed: " + ex.Message); }
+        }
+
+        // Publishes one event of the right kind for each overlay so its
+        // page renders something. Each kind here matches the overlay's
+        // own subscribe list in main.js — keep them in sync if either
+        // side changes.
+        private void FireOverlayTestEvent(string tag)
+        {
+            var s = SettingsManager.Instance.Current;
+            var sampleUser = s.BroadcasterName ?? "test_user";
+
+            try
+            {
+                switch (tag)
+                {
+                    case "bolts":
+                        AquiloBus.Instance.Publish("bolts.leaderboard", new
+                        {
+                            top = new[]
+                            {
+                                new { handle = sampleUser,                balance = 12450 },
+                                new { handle = sampleUser + "_friend",    balance = 8200  },
+                                new { handle = "viewer_three",            balance = 5410  },
+                                new { handle = "viewer_four",             balance = 1100  },
+                                new { handle = "viewer_five",             balance = 920   }
+                            }
+                        });
+                        AquiloBus.Instance.Publish("bolts.earned",  new { user = sampleUser, amount = 250 });
+                        AquiloBus.Instance.Publish("bolts.streak",  new { user = sampleUser, streakDays = 12 });
+                        break;
+
+                    case "check-in":
+                        AquiloBus.Instance.Publish("checkin.shown", new
+                        {
+                            user           = sampleUser,
+                            userId         = "test",
+                            platform       = "twitch",
+                            role           = "sub",
+                            subTier        = "1000",
+                            patreonTier    = (string)null,
+                            pfp            = (string)null,
+                            animationTheme = s.CheckIn.AnimationTheme,
+                            showFlairs     = new { sub = s.CheckIn.ShowSubFlair, vipMod = s.CheckIn.ShowVipModFlair, patreon = s.CheckIn.ShowPatreonFlair },
+                            stats          = new object[]
+                            {
+                                new { kind = "uptime",  label = "Uptime",  value = "1:23:45" },
+                                new { kind = "viewers", label = "Viewers", value = "127" },
+                                new { kind = "counter", label = "Deaths",  value = "12" }
+                            },
+                            rotateSeconds  = s.CheckIn.RotateIntervalSec,
+                            source         = "test",
+                            ts             = DateTime.UtcNow
+                        });
+                        break;
+
+                    case "counters":
+                        AquiloBus.Instance.Publish("counter.updated", new
+                        {
+                            name    = "deaths",
+                            display = "Deaths",
+                            value   = 12,
+                            ts      = DateTime.UtcNow
+                        });
+                        AquiloBus.Instance.Publish("counter.updated", new
+                        {
+                            name    = "wins",
+                            display = "Wins",
+                            value   = 7,
+                            ts      = DateTime.UtcNow
+                        });
+                        break;
+
+                    case "goals":
+                        AquiloBus.Instance.Publish("goal.advanced", new
+                        {
+                            name    = "Sub goal",
+                            kind    = "subs",
+                            target  = 100,
+                            current = 47,
+                            ts      = DateTime.UtcNow
+                        });
+                        break;
+
+                    case "apex":
+                        AquiloBus.Instance.Publish("apex.crowned", new
+                        {
+                            topUser   = sampleUser,
+                            health    = 850,
+                            maxHealth = 1000,
+                            ts        = DateTime.UtcNow
+                        });
+                        AquiloBus.Instance.Publish("apex.state", new
+                        {
+                            topUser   = sampleUser,
+                            health    = 850,
+                            maxHealth = 1000,
+                            ts        = DateTime.UtcNow
+                        });
+                        break;
+
+                    case "commands":
+                        AquiloBus.Instance.Publish("commands.list", new
+                        {
+                            items = new object[]
+                            {
+                                new { name = "!discord", desc = "Join the Discord" },
+                                new { name = "!socials", desc = "Find me everywhere" },
+                                new { name = "!uptime",  desc = "Stream uptime" },
+                                new { name = "!clip",    desc = "Clip a moment" },
+                                new { name = "!checkin", desc = "Daily check-in" }
+                            }
+                        });
+                        break;
+
+                    case "recap":
+                        AquiloBus.Instance.Publish("recap.posted", new
+                        {
+                            title = "Stream wrap",
+                            stats = new object[]
+                            {
+                                new { label = "Stream length", value = "3:42" },
+                                new { label = "Peak viewers",  value = "127"  },
+                                new { label = "New followers", value = "+12"  },
+                                new { label = "New subs",      value = "+3"   },
+                                new { label = "Bits cheered",  value = "850"  }
+                            },
+                            ts = DateTime.UtcNow
+                        });
+                        break;
+
+                    case "viewer":
+                        AquiloBus.Instance.Publish("viewer.profile.shown", new
+                        {
+                            user       = sampleUser,
+                            platform   = "twitch",
+                            bolts      = 12450,
+                            streakDays = 7,
+                            firstSeen  = "Mar 2024",
+                            ts         = DateTime.UtcNow
+                        });
+                        break;
+                }
+            }
+            catch { /* publish is best-effort; the browser open already succeeded */ }
         }
 
         private string OverlayUrlByTag(string tag)
