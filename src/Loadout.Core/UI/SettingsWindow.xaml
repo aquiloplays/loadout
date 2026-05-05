@@ -2074,6 +2074,8 @@
                                     <TextBox x:Name="TxtUrlCheckIn" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="check-in" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 1920×1080 (centered animation needs full canvas)" />
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                     <ComboBox x:Name="CmbCheckInOverlayPos" Width="160" SelectionChanged="OnOverlayUrlChange">
@@ -2120,6 +2122,8 @@
                                     <TextBox x:Name="TxtUrlCounters" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="counters" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 600×140 (lower-third strip)" />
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -2176,6 +2180,8 @@
                                     <TextBox x:Name="TxtUrlGoals" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="goals" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 480×120 (small badge)" />
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Theme:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                     <ComboBox x:Name="CmbGoalsTheme" Width="120" SelectionChanged="OnOverlayUrlChange">
@@ -2220,6 +2226,8 @@
                                     <TextBox x:Name="TxtUrlBolts" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="bolts" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 1920×1080 (rain + giftburst layers fill the canvas)" />
                                 <TextBlock Text="Layers visible:" Style="{StaticResource Muted}" Margin="0 0 0 4" />
                                 <WrapPanel>
                                     <CheckBox x:Name="ChkLayerLeaderboard" Content="Leaderboard"    IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
@@ -2281,6 +2289,8 @@
                                     <TextBox x:Name="TxtUrlCommands" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="commands" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 380×100 (ticker card)" />
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -2353,6 +2363,8 @@
                                     <TextBox x:Name="TxtUrlApex" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="apex" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 480×100 (top-viewer status bar)" />
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                     <ComboBox x:Name="CmbApexPos" Width="160" SelectionChanged="OnOverlayUrlChange">
@@ -2404,6 +2416,8 @@
                                     <TextBox x:Name="TxtUrlRecap" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="recap" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 1920×1080 (end-of-stream full-frame card)" />
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -2458,6 +2472,8 @@
                                     <TextBox x:Name="TxtUrlViewer" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="viewer" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 380×140 (profile card)" />
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -2522,6 +2538,15 @@
                                     <TextBox x:Name="TxtUrlAll" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="all" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 1920×1080 (one source replaces every overlay above)" />
+                                <Border Background="{StaticResource Brush.Bg.Surface3}" CornerRadius="6" Padding="10" Margin="0 0 0 10">
+                                    <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap">
+                                        Heads-up: each layer renders at the position you've set on its own card above. If two layers
+                                        share a corner (e.g. Bolts leaderboard at bottom-right + Viewer profile at bottom-right) they
+                                        overlap. Give each visible overlay a different corner / alignment up there to avoid collisions.
+                                    </TextBlock>
+                                </Border>
                                 <TextBlock Text="Layers visible:" Style="{StaticResource Muted}" Margin="0 0 0 4" />
                                 <WrapPanel>
                                     <CheckBox x:Name="ChkAllBolts"    Content="Bolts"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />

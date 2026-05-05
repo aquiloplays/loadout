@@ -1869,16 +1869,23 @@ namespace Loadout.UI
                         break;
 
                     case "commands":
+                        // Overlay reads payload.commands (with cat field) and
+                        // rotates between them. Match the shape that
+                        // CommandsBroadcaster.Publish emits at runtime.
                         AquiloBus.Instance.Publish("commands.list", new
                         {
-                            items = new object[]
+                            commands = new object[]
                             {
-                                new { name = "!discord", desc = "Join the Discord" },
-                                new { name = "!socials", desc = "Find me everywhere" },
-                                new { name = "!uptime",  desc = "Stream uptime" },
-                                new { name = "!clip",    desc = "Clip a moment" },
-                                new { name = "!checkin", desc = "Daily check-in" }
-                            }
+                                new { name = "!uptime",     desc = "how long the stream has been live", cat = "info" },
+                                new { name = "!discord",    desc = "join the streamer's Discord",       cat = "info" },
+                                new { name = "!socials",    desc = "find me everywhere",                cat = "info" },
+                                new { name = "!commands",   desc = "list every command available",      cat = "info" },
+                                new { name = "!balance",    desc = "check your bolts balance",          cat = "bolts" },
+                                new { name = "!leaderboard",desc = "top bolts holders",                 cat = "bolts" },
+                                new { name = "!clip",       desc = "clip the last moment",              cat = "clip" },
+                                new { name = "!checkin",    desc = "daily check-in",                    cat = "checkin" }
+                            },
+                            ts = DateTime.UtcNow
                         });
                         break;
 
