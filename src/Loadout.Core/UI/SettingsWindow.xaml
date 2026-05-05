@@ -2026,8 +2026,14 @@
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.CheckIn}" Margin="0 0 8 0" Width="14" Height="14" />
                                         <TextBlock Text="Daily check-in" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" Content="Test in browser"
-                                            Style="{StaticResource SecondaryButton}" Tag="check-in" Click="BtnOverlayOpen_Click" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="check-in" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="check-in" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -2066,8 +2072,14 @@
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Counters}" Margin="0 0 8 0" Width="14" Height="14" />
                                         <TextBlock Text="Counters" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" Content="Test in browser"
-                                            Style="{StaticResource SecondaryButton}" Tag="counters" Click="BtnOverlayOpen_Click" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="counters" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="counters" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -2116,8 +2128,14 @@
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Goals}" Margin="0 0 8 0" Width="14" Height="14" />
                                         <TextBlock Text="Goals" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" Content="Test in browser"
-                                            Style="{StaticResource SecondaryButton}" Tag="goals" Click="BtnOverlayOpen_Click" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="goals" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="goals" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -2154,8 +2172,14 @@
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Bolts}" Margin="0 0 8 0" Width="14" Height="14" />
                                         <TextBlock Text="Bolts (unified)" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" Content="Test in browser"
-                                            Style="{StaticResource SecondaryButton}" Tag="bolts" Click="BtnOverlayOpen_Click" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="bolts" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="bolts" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -2209,8 +2233,14 @@
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Commands}" Margin="0 0 8 0" Width="14" Height="14" />
                                         <TextBlock Text="Available commands" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" Content="Test in browser"
-                                            Style="{StaticResource SecondaryButton}" Tag="commands" Click="BtnOverlayOpen_Click" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="commands" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="commands" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -2275,8 +2305,14 @@
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Apex}" Margin="0 0 8 0" Width="14" Height="14" />
                                         <TextBlock Text="Apex" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" Content="Test in browser"
-                                            Style="{StaticResource SecondaryButton}" Tag="apex" Click="BtnOverlayOpen_Click" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="apex" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="apex" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -2320,8 +2356,14 @@
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Recap}" Margin="0 0 8 0" Width="14" Height="14" />
                                         <TextBlock Text="End-of-stream recap" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" Content="Test in browser"
-                                            Style="{StaticResource SecondaryButton}" Tag="recap" Click="BtnOverlayOpen_Click" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="recap" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="recap" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -2368,8 +2410,14 @@
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Viewer}" Margin="0 0 8 0" Width="14" Height="14" />
                                         <TextBlock Text="Viewer profile (!profile)" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
-                                    <Button HorizontalAlignment="Right" Content="Test in browser"
-                                            Style="{StaticResource SecondaryButton}" Tag="viewer" Click="BtnOverlayOpen_Click" />
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="viewer" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="viewer" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>

@@ -1683,22 +1683,35 @@ namespace Loadout.UI
             if (string.IsNullOrEmpty(url)) return;
             try
             {
-                // 1. Open the overlay URL in the default browser. UseShellExecute=true
-                //    is required on modern .NET — without it Process.Start tries to
-                //    exec the URL as a binary path and fails silently.
+                // UseShellExecute=true routes the URL through the default browser
+                // on modern .NET. Note: a regular browser tab will likely show a
+                // blank page because https → ws://127.0.0.1 is mixed-content
+                // blocked. The overlay still works in OBS browser sources (those
+                // don't enforce mixed-content). Use "Send test" instead to fire
+                // a sample event into the OBS source for placement testing.
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url)
                 {
                     UseShellExecute = true
                 });
-
-                // 2. Fire a synthetic event of the overlay's subscribed kind so the
-                //    page (and any open OBS browser source) renders sample content
-                //    immediately — that's what makes this useful for placement.
-                FireOverlayTestEvent(tag);
-
-                ShowSavedHint("Opened " + tag + " + fired test event.");
+                ShowSavedHint("Opened " + tag + " URL in browser.");
             }
             catch (Exception ex) { ShowSavedHint("Open failed: " + ex.Message); }
+        }
+
+        // Fires a sample event of the overlay's subscribed kind into the
+        // Aquilo Bus. Any OBS browser source already attached to the bus
+        // for that overlay renders the test content, letting the streamer
+        // size + position the source against real-shape sample data.
+        private void BtnOverlaySendTest_Click(object sender, RoutedEventArgs e)
+        {
+            var tag = (sender as Button)?.Tag?.ToString();
+            if (string.IsNullOrEmpty(tag)) return;
+            try
+            {
+                FireOverlayTestEvent(tag);
+                ShowSavedHint("Sent test " + tag + " to overlay (check OBS).");
+            }
+            catch (Exception ex) { ShowSavedHint("Send failed: " + ex.Message); }
         }
 
         // Publishes one event of the right kind for each overlay so its
