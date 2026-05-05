@@ -1153,6 +1153,9 @@ namespace Loadout.UI
 
             TxtHealthSummary.Text = onCount + " of " + modules.Count + " modules enabled. " +
                 "Click a module's tab on the left to configure or toggle it.";
+
+            // Dry-run toggle reflects whatever the current settings hold.
+            if (ChkDryRun != null) ChkDryRun.IsChecked = s.DryRun;
         }
 
         private void BtnHealthRefresh_Click(object sender, RoutedEventArgs e)
@@ -1160,6 +1163,18 @@ namespace Loadout.UI
             BindHealthTab();
             RefreshStatusChips();
             ShowSavedHint("Health refreshed.");
+        }
+
+        // Dry-run toggle: written through to settings immediately so it
+        // takes effect this session without needing a Save click. Save
+        // still persists the value to disk for next launch.
+        private void ChkDryRun_Click(object sender, RoutedEventArgs e)
+        {
+            var on = ChkDryRun?.IsChecked == true;
+            SettingsManager.Instance.Current.DryRun = on;
+            ShowSavedHint(on
+                ? "Dry-run ON — chat sends are logged, not posted."
+                : "Dry-run OFF — chat sends go live again.");
         }
 
         // Empty-state hints: subscribe to the ObservableCollections that

@@ -15,6 +15,11 @@ namespace Loadout.Settings
         public bool   OnboardingDone  { get; set; } = false;
         public string BroadcasterName { get; set; } = "";
 
+        // Dry-run: when true, MultiPlatformSender logs intended sends to
+        // Util.ErrorLog but doesn't actually post to chat. Lets a streamer
+        // verify alert / timer / welcome behavior without spamming.
+        public bool   DryRun          { get; set; } = false;
+
         public PlatformsConfig    Platforms    { get; set; } = new PlatformsConfig();
         public ModulesConfig      Modules      { get; set; } = new ModulesConfig();
         public AlertsConfig       Alerts       { get; set; } = new AlertsConfig();

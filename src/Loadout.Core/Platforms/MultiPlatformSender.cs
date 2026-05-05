@@ -41,6 +41,24 @@ namespace Loadout.Platforms
         {
             if (string.IsNullOrEmpty(message)) return PlatformMask.None;
 
+            // Dry-run mode: log what would have been sent and bail out.
+            // Honors the per-platform enabled mask + 0-cap (read-only TikTok)
+            // skip so the log mirrors the live path's destination set.
+            if (SettingsManager.Instance.Current.DryRun)
+            {
+                var would = PlatformMask.None;
+                foreach (var p in EnumeratePlatforms(target))
+                {
+                    if (!IsEnabled(p, enabled)) continue;
+                    if (DefaultPerMinuteCaps.TryGetValue(p, out var dryCap) && dryCap == 0) continue;
+                    would |= p;
+                }
+                Loadout.Util.ErrorLog.Write(
+                    "DryRun.Send",
+                    new Exception("[dry-run] would have sent to " + would + ": " + message));
+                return would;
+            }
+
             var sent = PlatformMask.None;
             foreach (var p in EnumeratePlatforms(target))
             {

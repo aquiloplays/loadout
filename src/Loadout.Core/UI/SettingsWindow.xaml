@@ -125,6 +125,19 @@
                         <Border Style="{StaticResource Card}" Margin="0 0 0 14">
                             <StackPanel x:Name="HealthList" />
                         </Border>
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <TextBlock Text="Diagnostics" Style="{StaticResource H2}" />
+                                <CheckBox x:Name="ChkDryRun" Style="{StaticResource ToggleSwitch}"
+                                          Content="Dry-run mode (log chat sends instead of posting)"
+                                          Margin="0 8 0 0" Click="ChkDryRun_Click" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0 4 0 0" TextWrapping="Wrap">
+                                    Useful while testing alerts or auto-messages — every chat-bound send is
+                                    logged to the error log instead of going out, so chat stays quiet.
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
                         <StackPanel Orientation="Horizontal">
                             <Button Content="Refresh" Style="{StaticResource SecondaryButton}"
                                     Click="BtnHealthRefresh_Click" Margin="0 0 8 0" />
