@@ -2331,7 +2331,7 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal">
                                         <TextBlock Text="Rotate (sec):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
-                                        <TextBox x:Name="TxtCommandsRotate" Width="60" Text="8" TextChanged="OnOverlayUrlChange" />
+                                        <TextBox x:Name="TxtCommandsRotate" Width="60" Text="12" TextChanged="OnOverlayUrlChange" />
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock Text="Show categories:" Style="{StaticResource Muted}" Margin="0 4 0 4" />
@@ -2525,6 +2525,53 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Cross-platform hype train: aggregates fuel from sub / gift /
+                             cheer / raid / TikTok-gift / Kick-sub / super-chat events. Runs
+                             alongside Twitch's native train; 15-min cooldown after end. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.HypeTrain}" Margin="0 0 8 0" Width="14" Height="14" />
+                                        <TextBlock Text="Cross-platform hype train" Style="{StaticResource H2}" Margin="0" />
+                                    </StackPanel>
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="hypetrain" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample start + contribution + level-up so an OBS source for this overlay renders the train." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="hypetrain" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlHypeTrain" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="hypetrain" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 400×120 (compact card; sits beside Twitch's native train if you keep both visible)" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <ComboBox x:Name="CmbHypeTrainPos" Width="140" SelectionChanged="OnOverlayUrlChange">
+                                            <ComboBoxItem Content="Top-center"    Tag="tc" IsSelected="True" />
+                                            <ComboBoxItem Content="Top-right"     Tag="tr" />
+                                            <ComboBoxItem Content="Top-left"      Tag="tl" />
+                                            <ComboBoxItem Content="Bottom-center" Tag="bc" />
+                                            <ComboBoxItem Content="Bottom-right"  Tag="br" />
+                                            <ComboBoxItem Content="Bottom-left"   Tag="bl" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtHypeTrainAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                         <!-- All-in-one composite overlay. One OBS browser source renders
                              every layer the streamer ticks below; each layer is an iframe of
                              the standalone overlay so per-overlay theming stays unchanged. -->
@@ -2573,7 +2620,8 @@
                                     <CheckBox x:Name="ChkAllApex"     Content="Apex"      IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkAllCommands" Content="Commands"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkAllRecap"    Content="Recap"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllViewer"   Content="Viewer"    IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllViewer"   Content="Viewer"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllHypeTrain" Content="Hype train" IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                 </WrapPanel>
                             </StackPanel>
                         </Border>

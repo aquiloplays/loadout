@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Hype Train Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Cross-platform hype train. Loadout's HypeTrainModule aggregates spend
+  from sub / resub / gift / cheer / raid / TikTok-gift / Kick-sub /
+  super-chat events and publishes hypetrain.* events on the bus. This
+  overlay renders the current level, fuel-to-next, and latest
+  contributor — appears only while a train is active, slides out when
+  the train ends and the cooldown begins.
+
+  Drop into OBS:
+    https://widget.aquilo.gg/overlays/hypetrain/?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
+
+  Optional URL params:
+    pos     - "tc" (default) | "tl" | "tr" | "bc" | "bl" | "br"
+    accent  - hex (overrides --accent via _shared/theme.js)
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-pos="tc">
+  <div id="card" class="hidden">
+    <div class="row top">
+      <span class="train">🚂</span>
+      <span class="title">HYPE TRAIN</span>
+      <span class="level">LV <span id="lvl">1</span></span>
+    </div>
+    <div class="bar">
+      <div id="fill" class="fill"></div>
+    </div>
+    <div class="row bot">
+      <span id="contributor" class="contributor"></span>
+      <span id="fuelText" class="fuel"></span>
+    </div>
+  </div>
+
+  <script src="../_shared/theme.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

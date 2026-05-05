@@ -24,10 +24,11 @@
   const showDesc = params.get('showDesc');
   if (showDesc != null) document.body.dataset.showDesc = showDesc;
 
-  // Default 8s per command — long enough for a viewer to read the
-  // name + description before the next swap. URL param overrides;
-  // anything below 3s reads as a strobe at this card size.
-  const rotateSec = Math.max(3, parseInt(params.get('rotate') || '8', 10));
+  // Default 12s per command. The transition itself takes ~1.1s
+  // (fade-out + fade-in), leaving ~11s of fully visible read time —
+  // plenty for the slowest viewer to absorb name + description
+  // before the next swap. URL param overrides; floor 4s.
+  const rotateSec = Math.max(4, parseInt(params.get('rotate') || '12', 10));
 
   // Category include filter. Empty / unset = include all.
   const includeRaw = (params.get('include') || '').toLowerCase();
@@ -83,15 +84,22 @@
   function show(c) {
     if (!c) return;
     const cat = categorize(c);
-    badge.dataset.cat = cat;
-    badge.textContent = badgeLabel(cat);
-    nameEl.textContent = c.name || '';
-    descEl.textContent = c.desc || c.description || '';
 
-    // Replay the swap animation on the card by toggling the class.
+    // Smooth transition: fade the current content out, swap text while
+    // invisible, then fade-in the new content. The two-stage feels far
+    // less jarring than the previous in-place keyframe blip.
     card.classList.remove('swap');
-    void card.offsetWidth; // force reflow so the next add re-fires the keyframe
-    card.classList.add('swap');
+    card.classList.add('fading');
+    setTimeout(() => {
+      badge.dataset.cat = cat;
+      badge.textContent = badgeLabel(cat);
+      nameEl.textContent = c.name || '';
+      descEl.textContent = c.desc || c.description || '';
+
+      card.classList.remove('fading');
+      void card.offsetWidth;     // reflow so the keyframe re-fires
+      card.classList.add('swap');
+    }, 450);
   }
 
   function badgeLabel(cat) {

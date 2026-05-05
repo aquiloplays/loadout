@@ -1589,9 +1589,9 @@ namespace Loadout.UI
             if (ChkCmdCheckIn?.IsChecked == true) includes.Add("checkin");
             string includeCsv = (includes.Count == 6) ? null : string.Join(",", includes);
 
-            // Cap rotate to a sane range; the overlay clamps to >= 3s anyway.
-            var rotateText = (TxtCommandsRotate?.Text ?? "8").Trim();
-            int rotateSec; if (!int.TryParse(rotateText, out rotateSec) || rotateSec < 3) rotateSec = 8;
+            // Cap rotate to a sane range; the overlay clamps to >= 4s anyway.
+            var rotateText = (TxtCommandsRotate?.Text ?? "12").Trim();
+            int rotateSec; if (!int.TryParse(rotateText, out rotateSec) || rotateSec < 4) rotateSec = 12;
 
             if (TxtUrlCommands != null)
             {
@@ -1633,6 +1633,16 @@ namespace Loadout.UI
                 });
             }
 
+            // Cross-platform hype train.
+            if (TxtUrlHypeTrain != null)
+            {
+                TxtUrlHypeTrain.Text = BuildOverlayUrl(baseUrl, "hypetrain", secret, new Dictionary<string, string>
+                {
+                    ["pos"]    = SelectedTag(CmbHypeTrainPos),
+                    ["accent"] = NormalizeHex(TxtHypeTrainAccent?.Text)
+                });
+            }
+
             // All-in-one composite. Picks up the layer checkboxes, builds a
             // CSV, and emits one URL the streamer drops into a single OBS
             // browser source. Each layer is an iframe of the standalone
@@ -1641,18 +1651,19 @@ namespace Loadout.UI
             if (TxtUrlAll != null)
             {
                 var allLayers = new System.Collections.Generic.List<string>();
-                if (ChkAllBolts?.IsChecked    == true) allLayers.Add("bolts");
-                if (ChkAllCounters?.IsChecked == true) allLayers.Add("counters");
-                if (ChkAllGoals?.IsChecked    == true) allLayers.Add("goals");
-                if (ChkAllCheckIn?.IsChecked  == true) allLayers.Add("check-in");
-                if (ChkAllApex?.IsChecked     == true) allLayers.Add("apex");
-                if (ChkAllCommands?.IsChecked == true) allLayers.Add("commands");
-                if (ChkAllRecap?.IsChecked    == true) allLayers.Add("recap");
-                if (ChkAllViewer?.IsChecked   == true) allLayers.Add("viewer");
+                if (ChkAllBolts?.IsChecked     == true) allLayers.Add("bolts");
+                if (ChkAllCounters?.IsChecked  == true) allLayers.Add("counters");
+                if (ChkAllGoals?.IsChecked     == true) allLayers.Add("goals");
+                if (ChkAllCheckIn?.IsChecked   == true) allLayers.Add("check-in");
+                if (ChkAllApex?.IsChecked      == true) allLayers.Add("apex");
+                if (ChkAllCommands?.IsChecked  == true) allLayers.Add("commands");
+                if (ChkAllRecap?.IsChecked     == true) allLayers.Add("recap");
+                if (ChkAllViewer?.IsChecked    == true) allLayers.Add("viewer");
+                if (ChkAllHypeTrain?.IsChecked == true) allLayers.Add("hypetrain");
 
                 TxtUrlAll.Text = BuildOverlayUrl(baseUrl, "all", secret, new Dictionary<string, string>
                 {
-                    ["layers"] = allLayers.Count == 8 ? null : string.Join(",", allLayers)
+                    ["layers"] = allLayers.Count == 9 ? null : string.Join(",", allLayers)
                 });
             }
         }
@@ -1917,17 +1928,39 @@ namespace Loadout.UI
                         });
                         break;
 
+                    case "hypetrain":
+                        // Fire start → contribute → level-up so the overlay
+                        // animates through the full life cycle in one click.
+                        AquiloBus.Instance.Publish("hypetrain.start", new
+                        {
+                            level = 1, fuel = 60, threshold = 100, maxLevel = 5,
+                            fromUser = sampleUser, kind = "cheer", ts = DateTime.UtcNow
+                        });
+                        AquiloBus.Instance.Publish("hypetrain.contribute", new
+                        {
+                            user = sampleUser + "_friend", kind = "tiktokGift",
+                            fuel = 30, totalFuel = 90, level = 1, threshold = 100,
+                            ts = DateTime.UtcNow
+                        });
+                        AquiloBus.Instance.Publish("hypetrain.level", new
+                        {
+                            level = 2, fuel = 120, threshold = 100, maxLevel = 5,
+                            fromUser = "viewer_three", kind = "giftSub", ts = DateTime.UtcNow
+                        });
+                        break;
+
                     case "all":
                         // Composite test: fire each enabled layer's test
                         // event so the all-in-one overlay renders the lot.
-                        if (ChkAllBolts?.IsChecked    == true) FireOverlayTestEvent("bolts");
-                        if (ChkAllCounters?.IsChecked == true) FireOverlayTestEvent("counters");
-                        if (ChkAllGoals?.IsChecked    == true) FireOverlayTestEvent("goals");
-                        if (ChkAllCheckIn?.IsChecked  == true) FireOverlayTestEvent("check-in");
-                        if (ChkAllApex?.IsChecked     == true) FireOverlayTestEvent("apex");
-                        if (ChkAllCommands?.IsChecked == true) FireOverlayTestEvent("commands");
-                        if (ChkAllRecap?.IsChecked    == true) FireOverlayTestEvent("recap");
-                        if (ChkAllViewer?.IsChecked   == true) FireOverlayTestEvent("viewer");
+                        if (ChkAllBolts?.IsChecked     == true) FireOverlayTestEvent("bolts");
+                        if (ChkAllCounters?.IsChecked  == true) FireOverlayTestEvent("counters");
+                        if (ChkAllGoals?.IsChecked     == true) FireOverlayTestEvent("goals");
+                        if (ChkAllCheckIn?.IsChecked   == true) FireOverlayTestEvent("check-in");
+                        if (ChkAllApex?.IsChecked      == true) FireOverlayTestEvent("apex");
+                        if (ChkAllCommands?.IsChecked  == true) FireOverlayTestEvent("commands");
+                        if (ChkAllRecap?.IsChecked     == true) FireOverlayTestEvent("recap");
+                        if (ChkAllViewer?.IsChecked    == true) FireOverlayTestEvent("viewer");
+                        if (ChkAllHypeTrain?.IsChecked == true) FireOverlayTestEvent("hypetrain");
                         break;
                 }
             }
@@ -1945,8 +1978,9 @@ namespace Loadout.UI
                 case "apex":     return TxtUrlApex?.Text;
                 case "commands": return TxtUrlCommands?.Text;
                 case "recap":    return TxtUrlRecap?.Text;
-                case "viewer":   return TxtUrlViewer?.Text;
-                case "all":      return TxtUrlAll?.Text;
+                case "viewer":    return TxtUrlViewer?.Text;
+                case "hypetrain": return TxtUrlHypeTrain?.Text;
+                case "all":       return TxtUrlAll?.Text;
                 default:         return null;
             }
         }

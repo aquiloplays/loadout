@@ -1,0 +1,136 @@
+/*
+ * Loadout — Hype Train overlay. Slides in from the top-center on
+ * hypetrain.start, animates the bar on every level / contribute event,
+ * slides out on hypetrain.end. Compact card so it doesn't fight Twitch's
+ * native hype train when both are visible.
+ */
+:root {
+  --bg-alpha: 0.94;
+  --accent: #F0B429;
+  --accent-2: #F85149;
+  --text: #FFEBC1;
+  --muted: #C9A67A;
+  --border: rgba(240, 180, 41, 0.45);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100vw; height: 100vh;
+  background: transparent;
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+#card {
+  position: fixed;
+  width: 360px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg,
+    rgba(58, 26, 8, var(--bg-alpha)) 0%,
+    rgba(40, 14, 4, var(--bg-alpha)) 100%);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 24px rgba(240, 180, 41, 0.15);
+  transition: opacity 380ms ease-in-out, transform 380ms cubic-bezier(.2,.7,.2,1);
+}
+#card.hidden { opacity: 0; transform: translateY(-12px); pointer-events: none; }
+
+body[data-pos="tc"] #card { top: 24px; left: 50%; transform: translateX(-50%); }
+body[data-pos="tc"] #card.hidden { transform: translate(-50%, -12px); }
+body[data-pos="tl"] #card { top: 18px; left: 18px; }
+body[data-pos="tr"] #card { top: 18px; right: 18px; }
+body[data-pos="bc"] #card { bottom: 24px; left: 50%; transform: translateX(-50%); }
+body[data-pos="bc"] #card.hidden { transform: translate(-50%, 12px); }
+body[data-pos="bl"] #card { bottom: 18px; left: 18px; }
+body[data-pos="br"] #card { bottom: 18px; right: 18px; }
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.row.top { font-weight: 700; font-size: 13px; letter-spacing: 1px; }
+.row.bot { margin-top: 6px; font-size: 11px; color: var(--muted); }
+
+.train {
+  font-size: 18px;
+  filter: drop-shadow(0 0 6px rgba(240, 180, 41, 0.6));
+  animation: chug 1.2s ease-in-out infinite;
+}
+@keyframes chug {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(2px); }
+}
+
+.title {
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  flex: 1;
+}
+
+.level {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(240, 180, 41, 0.18);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+
+.bar {
+  margin-top: 8px;
+  width: 100%;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
+  box-shadow: 0 0 12px rgba(248, 81, 73, 0.5);
+  transition: width 600ms cubic-bezier(.2,.7,.2,1);
+}
+
+.contributor {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fuel {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Pulse on level-up for a brief celebratory spike. */
+#card.pulse {
+  animation: pulse 700ms cubic-bezier(.2,.7,.2,1);
+}
+@keyframes pulse {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+body[data-pos="tc"] #card.pulse,
+body[data-pos="bc"] #card.pulse { animation-name: pulseCenter; }
+@keyframes pulseCenter {
+  0%   { transform: translateX(-50%) scale(1); }
+  35%  { transform: translateX(-50%) scale(1.06); }
+  100% { transform: translateX(-50%) scale(1); }
+}
+
+.dev-status {
+  position: fixed; bottom: 4px; right: 6px;
+  font-size: 10px; color: var(--muted);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 3px 6px; border-radius: 4px;
+}

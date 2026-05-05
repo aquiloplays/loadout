@@ -375,6 +375,7 @@ namespace Loadout.Settings
         public int    MaxLevel           { get; set; } = 5;
         public int    DecayPerMinute     { get; set; } = 10;      // fuel lost when idle
         public int    BoltsRewardBase    { get; set; } = 50;      // total = base * level
+        public int    CooldownMinutes    { get; set; } = 15;      // dead-time after a train ends before another can start
         public string LevelUpTemplate    { get; set; } = "🚂 Hype train hit level {level}! +{bolts} bolts to recent contributors.";
         public string EndTemplate        { get; set; } = "🚂 Hype train ended at level {level}.";
         public bool   AnnounceLevelUps   { get; set; } = true;
