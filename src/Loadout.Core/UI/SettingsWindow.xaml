@@ -668,33 +668,25 @@
                             <DataGridCheckBoxColumn Width="40" Binding="{Binding Platforms.Twitch}">
                                 <DataGridCheckBoxColumn.Header>
                                     <Path Data="{StaticResource IconGeo.PlatformTwitch}" Stretch="Uniform" Width="16" Height="16"
-                                          Stroke="{StaticResource Brush.Twitch}" StrokeThickness="1.6"
-                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                          ToolTip="Twitch" />
+                                          Fill="{StaticResource Brush.Twitch}" ToolTip="Twitch" />
                                 </DataGridCheckBoxColumn.Header>
                             </DataGridCheckBoxColumn>
                             <DataGridCheckBoxColumn Width="40" Binding="{Binding Platforms.TikTok}">
                                 <DataGridCheckBoxColumn.Header>
                                     <Path Data="{StaticResource IconGeo.PlatformTikTok}" Stretch="Uniform" Width="16" Height="16"
-                                          Stroke="{StaticResource Brush.TikTok}" StrokeThickness="1.6"
-                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                          ToolTip="TikTok" />
+                                          Fill="{StaticResource Brush.TikTok}" ToolTip="TikTok" />
                                 </DataGridCheckBoxColumn.Header>
                             </DataGridCheckBoxColumn>
                             <DataGridCheckBoxColumn Width="40" Binding="{Binding Platforms.YouTube}">
                                 <DataGridCheckBoxColumn.Header>
                                     <Path Data="{StaticResource IconGeo.PlatformYouTube}" Stretch="Uniform" Width="16" Height="16"
-                                          Stroke="{StaticResource Brush.YouTube}" StrokeThickness="1.6"
-                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                          ToolTip="YouTube" />
+                                          Fill="{StaticResource Brush.YouTube}" ToolTip="YouTube" />
                                 </DataGridCheckBoxColumn.Header>
                             </DataGridCheckBoxColumn>
                             <DataGridCheckBoxColumn Width="40" Binding="{Binding Platforms.Kick}">
                                 <DataGridCheckBoxColumn.Header>
                                     <Path Data="{StaticResource IconGeo.PlatformKick}" Stretch="Uniform" Width="16" Height="16"
-                                          Stroke="{StaticResource Brush.Kick}" StrokeThickness="1.6"
-                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                          ToolTip="Kick" />
+                                          Fill="{StaticResource Brush.Kick}" ToolTip="Kick" />
                                 </DataGridCheckBoxColumn.Header>
                             </DataGridCheckBoxColumn>
                         </DataGrid.Columns>
