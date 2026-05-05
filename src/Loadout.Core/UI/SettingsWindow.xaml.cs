@@ -1364,16 +1364,22 @@ namespace Loadout.UI
 
             TxtUrlCheckIn.Text = BuildOverlayUrl(baseUrl, "check-in", secret, new Dictionary<string, string>
             {
-                ["pos"] = SelectedTag(CmbCheckInOverlayPos)
+                ["pos"]       = SelectedTag(CmbCheckInOverlayPos),
+                ["accent"]    = NormalizeHex(TxtCheckInAccent?.Text),
+                ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtCheckInBgOpacity?.Text) ? null : ClampInt(TxtCheckInBgOpacity.Text, 0, 100, 94)
             });
             TxtUrlCounters.Text = BuildOverlayUrl(baseUrl, "counters", secret, new Dictionary<string, string>
             {
-                ["theme"]  = SelectedTag(CmbCountersTheme),
-                ["layout"] = SelectedTag(CmbCountersLayout)
+                ["theme"]     = SelectedTag(CmbCountersTheme),
+                ["layout"]    = SelectedTag(CmbCountersLayout),
+                ["accent"]    = NormalizeHex(TxtCountersAccent?.Text),
+                ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtCountersBgOpacity?.Text) ? null : ClampInt(TxtCountersBgOpacity.Text, 0, 100, 94)
             });
             TxtUrlGoals.Text = BuildOverlayUrl(baseUrl, "goals", secret, new Dictionary<string, string>
             {
-                ["theme"] = SelectedTag(CmbGoalsTheme)
+                ["theme"]     = SelectedTag(CmbGoalsTheme),
+                ["accent"]    = NormalizeHex(TxtGoalsAccent?.Text),
+                ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtGoalsBgOpacity?.Text) ? null : ClampInt(TxtGoalsBgOpacity.Text, 0, 100, 94)
             });
             var layers = new List<string>();
             if (ChkLayerLeaderboard?.IsChecked == true) layers.Add("leaderboard");
@@ -1398,7 +1404,9 @@ namespace Loadout.UI
             });
             TxtUrlApex.Text = BuildOverlayUrl(baseUrl, "apex", secret, new Dictionary<string, string>
             {
-                ["pos"] = SelectedTag(CmbApexPos)
+                ["pos"]       = SelectedTag(CmbApexPos),
+                ["accent"]    = NormalizeHex(TxtApexAccent?.Text),
+                ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtApexBgOpacity?.Text) ? null : ClampInt(TxtApexBgOpacity.Text, 0, 100, 94)
             });
 
             // Commands rotator overlay. The "include" param is a CSV of
@@ -1421,10 +1429,12 @@ namespace Loadout.UI
             {
                 TxtUrlCommands.Text = BuildOverlayUrl(baseUrl, "commands", secret, new Dictionary<string, string>
                 {
-                    ["pos"]     = SelectedTag(CmbCommandsPos),
-                    ["theme"]   = SelectedTag(CmbCommandsTheme),
-                    ["rotate"]  = rotateSec.ToString(),
-                    ["include"] = includeCsv
+                    ["pos"]       = SelectedTag(CmbCommandsPos),
+                    ["theme"]     = SelectedTag(CmbCommandsTheme),
+                    ["rotate"]    = rotateSec.ToString(),
+                    ["include"]   = includeCsv,
+                    ["accent"]    = NormalizeHex(TxtCommandsAccent?.Text),
+                    ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtCommandsBgOpacity?.Text) ? null : ClampInt(TxtCommandsBgOpacity.Text, 0, 100, 94)
                 });
             }
 
@@ -1435,8 +1445,10 @@ namespace Loadout.UI
                 int recapSec; if (!int.TryParse((TxtRecapDuration?.Text ?? "25").Trim(), out recapSec) || recapSec < 5) recapSec = 25;
                 TxtUrlRecap.Text = BuildOverlayUrl(baseUrl, "recap", secret, new Dictionary<string, string>
                 {
-                    ["align"]    = SelectedTag(CmbRecapAlign),
-                    ["duration"] = (recapSec * 1000).ToString()
+                    ["align"]     = SelectedTag(CmbRecapAlign),
+                    ["duration"]  = (recapSec * 1000).ToString(),
+                    ["accent"]    = NormalizeHex(TxtRecapAccent?.Text),
+                    ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtRecapBgOpacity?.Text) ? null : ClampInt(TxtRecapBgOpacity.Text, 0, 100, 94)
                 });
             }
 
@@ -1446,8 +1458,10 @@ namespace Loadout.UI
                 int viewerSec; if (!int.TryParse((TxtViewerDuration?.Text ?? "10").Trim(), out viewerSec) || viewerSec < 3) viewerSec = 10;
                 TxtUrlViewer.Text = BuildOverlayUrl(baseUrl, "viewer", secret, new Dictionary<string, string>
                 {
-                    ["align"]    = SelectedTag(CmbViewerAlign),
-                    ["duration"] = (viewerSec * 1000).ToString()
+                    ["align"]     = SelectedTag(CmbViewerAlign),
+                    ["duration"]  = (viewerSec * 1000).ToString(),
+                    ["accent"]    = NormalizeHex(TxtViewerAccent?.Text),
+                    ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtViewerBgOpacity?.Text) ? null : ClampInt(TxtViewerBgOpacity.Text, 0, 100, 94)
                 });
             }
         }

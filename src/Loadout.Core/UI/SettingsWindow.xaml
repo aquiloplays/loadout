@@ -2006,6 +2006,19 @@
                                         <ComboBoxItem Content="Top-right"     Tag="tr" />
                                     </ComboBox>
                                 </StackPanel>
+                                <Grid Margin="0 8 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtCheckInAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtCheckInBgOpacity" Width="50" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                </Grid>
                             </StackPanel>
                         </Border>
 
@@ -2043,6 +2056,19 @@
                                         </ComboBox>
                                     </StackPanel>
                                 </Grid>
+                                <Grid Margin="0 8 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtCountersAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtCountersBgOpacity" Width="50" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                </Grid>
                             </StackPanel>
                         </Border>
 
@@ -2068,6 +2094,19 @@
                                         <ComboBoxItem Content="Neon" Tag="neon" />
                                     </ComboBox>
                                 </StackPanel>
+                                <Grid Margin="0 8 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtGoalsAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtGoalsBgOpacity" Width="50" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                </Grid>
                             </StackPanel>
                         </Border>
 
@@ -2176,6 +2215,19 @@
                                     <CheckBox x:Name="ChkCmdClip"    Content="Clip"          IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkCmdCheckIn" Content="Check-in"      IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                 </WrapPanel>
+                                <Grid Margin="0 8 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtCommandsAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtCommandsBgOpacity" Width="50" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                </Grid>
                             </StackPanel>
                         </Border>
 
@@ -2205,6 +2257,19 @@
                                         <ComboBoxItem Content="Top-left"      Tag="tl" />
                                     </ComboBox>
                                 </StackPanel>
+                                <Grid Margin="0 8 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtApexAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtApexBgOpacity" Width="50" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                </Grid>
                             </StackPanel>
                         </Border>
 
@@ -2239,6 +2304,19 @@
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Visible (sec):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtRecapDuration" Width="60" Text="25" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0 8 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtRecapAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtRecapBgOpacity" Width="50" TextChanged="OnOverlayUrlChange" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -2277,6 +2355,19 @@
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Visible (sec):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtViewerDuration" Width="60" Text="10" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0 8 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtViewerAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtViewerBgOpacity" Width="50" TextChanged="OnOverlayUrlChange" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
