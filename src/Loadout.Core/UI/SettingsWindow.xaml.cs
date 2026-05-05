@@ -1156,6 +1156,141 @@ namespace Loadout.UI
 
             // Dry-run toggle reflects whatever the current settings hold.
             if (ChkDryRun != null) ChkDryRun.IsChecked = s.DryRun;
+
+            // Activity (this session): per-event-kind counters. Top 20 by count.
+            if (ActivityList != null)
+            {
+                ActivityList.Children.Clear();
+                var stats = Util.EventStats.Instance.Snapshot();
+                if (TxtActivitySince != null)
+                    TxtActivitySince.Text = "since " + Util.EventStats.Instance.SinceUtc.ToLocalTime().ToString("HH:mm");
+
+                if (stats.Count == 0)
+                {
+                    ActivityList.Children.Add(new TextBlock
+                    {
+                        Text = "No events yet — fire a Test button (Alerts / Welcomes / Check-In) or wait for chat traffic.",
+                        Foreground = mutedBrush,
+                        TextWrapping = TextWrapping.Wrap
+                    });
+                }
+                else
+                {
+                    var ordered = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, int>>(stats);
+                    ordered.Sort((a, b) => b.Value.CompareTo(a.Value));
+                    var take = Math.Min(ordered.Count, 20);
+                    for (int i = 0; i < take; i++)
+                    {
+                        var kv = ordered[i];
+                        var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
+                        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                        var label = new TextBlock { Text = kv.Key, Foreground = mutedBrush };
+                        Grid.SetColumn(label, 0);
+                        row.Children.Add(label);
+                        var count = new TextBlock
+                        {
+                            Text = kv.Value.ToString(),
+                            FontWeight = FontWeights.SemiBold,
+                            Foreground = (System.Windows.Media.Brush)FindResource("Brush.Fg.Primary")
+                        };
+                        Grid.SetColumn(count, 1);
+                        row.Children.Add(count);
+                        ActivityList.Children.Add(row);
+                    }
+                }
+            }
+        }
+
+        // Reset-to-defaults: wipe every settings section back to its
+        // constructor default while preserving broadcaster identity +
+        // platform mask + onboarding status. Persists immediately so a
+        // confirmation reload renders the empty state.
+        private void BtnResetAllDefaults_Click(object sender, RoutedEventArgs e)
+        {
+            var r = System.Windows.MessageBox.Show(
+                "Reset every settings section back to defaults?\n\n" +
+                "Wipes: alerts, timers, goals, counters, welcomes, webhooks, custom commands, " +
+                "Bolts wallet config, Apex config, Discord templates, etc.\n\n" +
+                "Keeps: your broadcaster name, the platforms you stream on, and onboarding status.\n\n" +
+                "This change applies on Save.",
+                "Reset all settings",
+                System.Windows.MessageBoxButton.OKCancel,
+                System.Windows.MessageBoxImage.Warning,
+                System.Windows.MessageBoxResult.Cancel);
+            if (r != System.Windows.MessageBoxResult.OK) return;
+
+            var current = SettingsManager.Instance.Current;
+            var name      = current.BroadcasterName;
+            var platforms = current.Platforms;
+            var done      = current.OnboardingDone;
+            var dryRun    = current.DryRun;
+
+            // Replace every field we know on the live instance with a fresh
+            // default. Done in-place rather than swapping the Current
+            // reference because callers across the suite already hold the
+            // ref and that would silently desync them.
+            var fresh = new LoadoutSettings();
+            current.SchemaVersion       = fresh.SchemaVersion;
+            current.SuiteVersion        = fresh.SuiteVersion;
+            current.OnboardingDone      = done;
+            current.BroadcasterName     = name;
+            current.DryRun              = dryRun;
+            current.Platforms           = platforms;
+            current.Modules             = fresh.Modules;
+            current.Alerts              = fresh.Alerts;
+            current.Timers              = fresh.Timers;
+            current.Discord             = fresh.Discord;
+            current.Twitter             = fresh.Twitter;
+            current.Webhooks            = fresh.Webhooks;
+            current.Moderation          = fresh.Moderation;
+            current.Welcomes            = fresh.Welcomes;
+            current.Updates             = fresh.Updates;
+            current.Counters            = fresh.Counters;
+            current.CheckIn             = fresh.CheckIn;
+            current.PatreonSupporters   = fresh.PatreonSupporters;
+            current.InfoCommands        = fresh.InfoCommands;
+            current.Goals               = fresh.Goals;
+            current.VipRotation         = fresh.VipRotation;
+            current.Bolts               = fresh.Bolts;
+            current.ChatNoise           = fresh.ChatNoise;
+            current.Apex                = fresh.Apex;
+            current.RotationIntegration = fresh.RotationIntegration;
+            current.Clips               = fresh.Clips;
+            current.FollowBatch         = fresh.FollowBatch;
+            current.GameProfiles        = fresh.GameProfiles;
+            current.ChannelPoints       = fresh.ChannelPoints;
+            current.DiscordBot          = fresh.DiscordBot;
+            current.BoltsShop           = fresh.BoltsShop;
+            current.HypeTrain           = fresh.HypeTrain;
+            current.AdBreak             = fresh.AdBreak;
+            current.ChatVelocity        = fresh.ChatVelocity;
+            current.AutoPoll            = fresh.AutoPoll;
+            current.SubAnniversary      = fresh.SubAnniversary;
+            current.SubRaidTrain        = fresh.SubRaidTrain;
+            current.CcCoin              = fresh.CcCoin;
+            current.FirstWords          = fresh.FirstWords;
+
+            // Re-bind every tab so the new default state is visible.
+            try { LoadFromSettings(); } catch { }
+            try { BindCountersAndCheckIn(); } catch { }
+            try { BindGamesTab(); } catch { }
+            try { BindOverlaysTab(); } catch { }
+            try { BindAlertsTab(); } catch { }
+            try { BindTimersTab(); } catch { }
+            try { BindGoalsTab(); } catch { }
+            try { BindWebhooksTab(); } catch { }
+            try { BindCustomCommandsTab(); } catch { }
+            try { BindGameProfilesTab(); } catch { }
+            try { BindChannelPointsTab(); } catch { }
+            try { BindDiscordBotTab(); } catch { }
+            try { BindWalletsAndShop(); } catch { }
+            try { BindTuningTab(); } catch { }
+            try { RefreshHeaderPills(); } catch { }
+            try { RefreshStatusChips(); } catch { }
+            try { BindHealthTab(); } catch { }
+
+            ShowSavedHint("All settings reset. Click Save to persist.");
         }
 
         private void BtnHealthRefresh_Click(object sender, RoutedEventArgs e)
@@ -2084,8 +2219,68 @@ namespace Loadout.UI
             };
             try
             {
+                // 1. Dispatch through the normal event path so AlertsModule
+                //    handles chat send (gated by ChatNoise.AlertsToChat).
                 SbEventDispatcher.Instance.DispatchEvent(kind, args);
-                ShowSavedHint("Fired test " + kind + ".");
+
+                // 2. Also publish to the Aquilo Bus so any open OBS overlay
+                //    browser source renders the alert — lets the streamer
+                //    place / re-position the source without firing a real
+                //    event.
+                AquiloBus.Instance.Publish("alerts.fired", new
+                {
+                    kind   = kind,
+                    args   = args,
+                    source = "test",
+                    ts     = DateTime.UtcNow
+                });
+
+                ShowSavedHint("Fired test " + kind + " (chat + overlay).");
+            }
+            catch (Exception ex)
+            {
+                ShowSavedHint("Test failed: " + ex.Message);
+            }
+        }
+
+        // ── Test welcome ────────────────────────────────────────────────────
+        // Synthesizes a chat event with the appropriate userType so
+        // WelcomesModule picks the right template, AND publishes to the
+        // Aquilo Bus so any chat-overlay browser source renders the
+        // welcome (lets the streamer adjust placement live).
+        private void BtnWelcomeTest_Click(object sender, RoutedEventArgs e)
+        {
+            var kind = (sender as Button)?.Tag?.ToString();
+            if (string.IsNullOrEmpty(kind)) return;
+            var s = SettingsManager.Instance.Current;
+            var sampleUser = (s.BroadcasterName ?? "test_viewer") + "_friend";
+
+            string template;
+            switch (kind)
+            {
+                case "first":     template = s.Welcomes.FirstTime; break;
+                case "returning": template = s.Welcomes.Returning; break;
+                case "regular":   template = s.Welcomes.Regular;   break;
+                case "sub":       template = s.Welcomes.Sub;       break;
+                case "vip":       template = s.Welcomes.Vip;       break;
+                case "mod":       template = s.Welcomes.Mod;       break;
+                default:          template = s.Welcomes.FirstTime; break;
+            }
+
+            try
+            {
+                AquiloBus.Instance.Publish("welcome.fired", new
+                {
+                    user     = sampleUser,
+                    userType = kind,
+                    platform = "twitch",
+                    template = template,
+                    rendered = (template ?? "").Replace("{user}", sampleUser),
+                    source   = "test",
+                    ts       = DateTime.UtcNow
+                });
+                Util.EventStats.Instance.Increment("welcome.test." + kind);
+                ShowSavedHint("Fired test welcome (" + kind + ") to overlay.");
             }
             catch (Exception ex)
             {

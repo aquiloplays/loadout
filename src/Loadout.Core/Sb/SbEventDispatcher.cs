@@ -78,6 +78,9 @@ namespace Loadout.Sb
             if (string.IsNullOrEmpty(kind)) return;
             args = args ?? new Dictionary<string, object>();
 
+            // Per-kind counter for the Health tab's "Activity (session)" row.
+            Util.EventStats.Instance.Increment(kind);
+
             var ctx = EventContext.From(kind, args);
             List<IEventModule> snapshot;
             lock (_modules) snapshot = new List<IEventModule>(_modules);
