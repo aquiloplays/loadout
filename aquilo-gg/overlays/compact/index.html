@@ -44,6 +44,28 @@
       <span id="actTitle" class="title"></span>
       <span id="actSub"   class="sub"></span>
     </div>
+
+    <!-- Game layer: the badge slot becomes a 56px-square visual that
+         flips / rolls / spins per the bolts.minigame.* event kind, then
+         settles on the result. Styled to read at the compact card's
+         88px height — coin and die are 56x56 circles/squares, slots
+         are 3 ~14x40 mini reels with staggered settle. -->
+    <div id="game" class="layer hidden">
+      <div class="game-visual">
+        <div class="g-coin">
+          <span class="g-coin-face heads">H</span>
+          <span class="g-coin-face tails">T</span>
+        </div>
+        <div class="g-die"><span class="g-die-pip"></span></div>
+        <div class="g-slots">
+          <div class="g-reel" id="gReel0"></div>
+          <div class="g-reel" id="gReel1"></div>
+          <div class="g-reel" id="gReel2"></div>
+        </div>
+      </div>
+      <span id="gameTitle" class="title"></span>
+      <span id="gameSub"   class="sub"></span>
+    </div>
   </div>
   <script src="../_shared/theme.js"></script>
   <script src="../_shared/tiktok-gifts.js"></script>

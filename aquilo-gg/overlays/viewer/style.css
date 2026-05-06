@@ -74,7 +74,22 @@ body[data-align="tc"] #root { align-items: flex-start; justify-content: center; 
   color: white;
   text-shadow: 0 1px 0 rgba(0,0,0,.25);
   box-shadow: 0 6px 18px rgba(58,134,255,.32);
+  position: relative;
+  overflow: hidden;
 }
+/* Avatar img: rendered when the viewer set !setpfp. Hidden by default;
+   .has-img on the avatar reveals it and hides the initial-letter
+   fallback. */
+.avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+.avatar.has-img img         { display: block; }
+.avatar.has-img #initial    { display: none; }
 .avatar[data-platform="twitch"]  { background: linear-gradient(135deg, var(--twitch), #B97AFF); }
 .avatar[data-platform="kick"]    { background: linear-gradient(135deg, var(--kick), #B5FF98); color: #103D11; text-shadow: none; }
 .avatar[data-platform="tiktok"]  { background: linear-gradient(135deg, var(--tiktok), #FF6FB3); }
@@ -99,6 +114,55 @@ body[data-align="tc"] #root { align-items: flex-start; justify-content: center; 
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.pronouns {
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Bio: viewer-supplied short blurb. Up to 200 chars; we let it wrap
+   onto two lines and clip with ellipsis on overflow so the card height
+   stays predictable. */
+.bio {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+  margin-bottom: 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Social + gamer-tag chips row beneath stats. */
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.05);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text);
+  max-width: 160px;
+}
+.chip[data-kind="game"] {
+  background: rgba(240,180,41,.10);
+  border-color: rgba(240,180,41,.35);
+}
+.chip .g  { font-size: 12px; }
+.chip .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .stats {
   display: grid;

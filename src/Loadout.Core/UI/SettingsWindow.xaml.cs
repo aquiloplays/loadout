@@ -910,6 +910,26 @@ namespace Loadout.UI
                 s.OverlayTheme.Accent2 = NormalizeHex(TxtOverlayAccent2?.Text) ?? "";
                 s.OverlayTheme.Text    = NormalizeHex(TxtOverlayText?.Text)    ?? "";
 
+                // Custom commands-ticker icons. Empty textboxes drop
+                // the entry so the overlay falls back to its default.
+                if (s.CommandsTickerIcons == null) s.CommandsTickerIcons = new CommandsTickerIconsConfig();
+                if (s.CommandsTickerIcons.ByCategory == null) s.CommandsTickerIcons.ByCategory = new Dictionary<string, string>();
+                var iconDict = s.CommandsTickerIcons.ByCategory;
+                iconDict.Clear();
+                void StoreIcon(string cat, string val)
+                {
+                    var t = (val ?? "").Trim();
+                    if (!string.IsNullOrEmpty(t)) iconDict[cat] = t;
+                }
+                StoreIcon("info",    TxtIconInfo?.Text);
+                StoreIcon("custom",  TxtIconCustom?.Text);
+                StoreIcon("bolts",   TxtIconBolts?.Text);
+                StoreIcon("clip",    TxtIconClip?.Text);
+                StoreIcon("checkin", TxtIconCheckin?.Text);
+                StoreIcon("counter", TxtIconCounter?.Text);
+                StoreIcon("mod",     TxtIconMod?.Text);
+                StoreIcon("song",    TxtIconSong?.Text);
+
                 // Rotation connection (typed config — drives !song chat
                 // command behaviour through NowPlayingModule).
                 if (s.RotationConnection == null) s.RotationConnection = new RotationConnectionConfig();
@@ -1669,6 +1689,21 @@ namespace Loadout.UI
             if (TxtOverlayAccent2 != null) TxtOverlayAccent2.Text = theme.Accent2 ?? "";
             if (TxtOverlayText    != null) TxtOverlayText.Text    = theme.Text    ?? "";
 
+            // Custom commands-ticker icons (per-category badge override).
+            // Stored as a flat dict; load each known category into its
+            // textbox. Empty values are fine — they signal "use default".
+            var icons = SettingsManager.Instance.Current.CommandsTickerIcons?.ByCategory
+                        ?? new Dictionary<string, string>();
+            string IconVal(string cat) => icons.TryGetValue(cat, out var v) ? v : "";
+            if (TxtIconInfo    != null) TxtIconInfo.Text    = IconVal("info");
+            if (TxtIconCustom  != null) TxtIconCustom.Text  = IconVal("custom");
+            if (TxtIconBolts   != null) TxtIconBolts.Text   = IconVal("bolts");
+            if (TxtIconClip    != null) TxtIconClip.Text    = IconVal("clip");
+            if (TxtIconCheckin != null) TxtIconCheckin.Text = IconVal("checkin");
+            if (TxtIconCounter != null) TxtIconCounter.Text = IconVal("counter");
+            if (TxtIconMod     != null) TxtIconMod.Text     = IconVal("mod");
+            if (TxtIconSong    != null) TxtIconSong.Text    = IconVal("song");
+
             // Rotation connection: typed config (drives runtime behaviour
             // through NowPlayingModule), so load via SettingsManager rather
             // than the opaque CardValues bag.
@@ -2094,6 +2129,66 @@ namespace Loadout.UI
         {
             try { Clipboard.SetText(TxtBusSecret.Text ?? ""); ShowSavedHint("Bus secret copied."); }
             catch (Exception ex) { ShowSavedHint("Copy failed: " + ex.Message); }
+        }
+
+        // Upload handler for the "Custom badge icons" rows. Pops a file
+        // picker for the chosen category (Tag), reads the image bytes,
+        // base64-encodes into a data: URL, and stuffs the result into
+        // the matching TextBox. The data URL flows through Save +
+        // CommandsBroadcaster.Publish to overlays via commands.icons.
+        // Cap the image at 64 KB so a 4-megapixel screenshot doesn't
+        // bloat settings.json into a multi-MB file.
+        private void BtnIconUpload_Click(object sender, RoutedEventArgs e)
+        {
+            const int MaxBytes = 64 * 1024;
+            var cat = (sender as Button)?.Tag?.ToString();
+            if (string.IsNullOrEmpty(cat)) return;
+            TextBox target = null;
+            switch (cat)
+            {
+                case "info":    target = TxtIconInfo;    break;
+                case "custom":  target = TxtIconCustom;  break;
+                case "bolts":   target = TxtIconBolts;   break;
+                case "clip":    target = TxtIconClip;    break;
+                case "checkin": target = TxtIconCheckin; break;
+                case "counter": target = TxtIconCounter; break;
+                case "mod":     target = TxtIconMod;     break;
+                case "song":    target = TxtIconSong;    break;
+            }
+            if (target == null) return;
+
+            var dlg = new Microsoft.Win32.OpenFileDialog
+            {
+                Title  = "Pick a badge image (PNG / JPG / WebP, ≤ 64 KB)",
+                Filter = "Images (*.png;*.jpg;*.jpeg;*.gif;*.webp)|*.png;*.jpg;*.jpeg;*.gif;*.webp|All files (*.*)|*.*"
+            };
+            if (dlg.ShowDialog(this) != true) return;
+
+            try
+            {
+                var bytes = File.ReadAllBytes(dlg.FileName);
+                if (bytes.Length > MaxBytes)
+                {
+                    System.Windows.MessageBox.Show(this,
+                        "That image is " + (bytes.Length / 1024) + " KB — keep it under " +
+                        (MaxBytes / 1024) + " KB so the bus payload stays snappy. Try a smaller PNG / WebP.",
+                        "Image too large", System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+                var ext = (Path.GetExtension(dlg.FileName) ?? "").ToLowerInvariant().TrimStart('.');
+                var mime = ext == "jpg" ? "jpeg" : ext;
+                if (string.IsNullOrEmpty(mime)) mime = "png";
+                var b64 = Convert.ToBase64String(bytes);
+                target.Text = "data:image/" + mime + ";base64," + b64;
+                ShowSavedHint("Loaded " + cat + " icon (" + (bytes.Length / 1024) + " KB). Save to apply.");
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show(this, "Couldn't read that file: " + ex.Message,
+                    "Upload failed", System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error);
+            }
         }
 
         private void BtnOverlayCopy_Click(object sender, RoutedEventArgs e)

@@ -77,7 +77,77 @@ const commands = [
       { type: TYPE_STRING, name: 'username', description: 'Your handle on that platform', required: true }
     ]
   },
-  { name: 'help', description: 'List all Loadout commands' }
+  { name: 'help', description: 'List all Loadout commands' },
+
+  // ── Viewer profile self-edit commands ─────────────────────────────────
+  // Mirror the chat-side !setbio / !setpfp / !setsocial / !setgamertag /
+  // !setpronouns / !clearprofile commands so off-stream editing works.
+  // The Worker stores edits in KV; the DLL polls /sync/<guild>/profiles
+  // to pull them into the local store and re-publish on the bus.
+  {
+    name: 'profile-set-bio', description: 'Save your !profile bio',
+    options: [
+      { type: TYPE_STRING, name: 'text', description: 'Up to 200 chars', required: true, max_length: 200 }
+    ]
+  },
+  {
+    name: 'profile-set-pfp', description: 'Save your !profile picture URL',
+    options: [
+      { type: TYPE_STRING, name: 'url', description: 'PNG/JPG/WebP image URL', required: true, max_length: 400 }
+    ]
+  },
+  {
+    name: 'profile-set-pronouns', description: 'Save your pronouns (e.g. they/them)',
+    options: [
+      { type: TYPE_STRING, name: 'text', description: 'Short pronoun string', required: true, max_length: 24 }
+    ]
+  },
+  {
+    name: 'profile-set-social', description: 'Save a social handle on your profile',
+    options: [
+      { type: TYPE_STRING, name: 'platform', description: 'twitter / instagram / bluesky / etc.', required: true,
+        choices: [
+          { name: 'Twitter / X', value: 'twitter' },
+          { name: 'Instagram',   value: 'instagram' },
+          { name: 'TikTok',      value: 'tiktok' },
+          { name: 'YouTube',     value: 'youtube' },
+          { name: 'Twitch',      value: 'twitch' },
+          { name: 'Kick',        value: 'kick' },
+          { name: 'Bluesky',     value: 'bluesky' },
+          { name: 'Threads',     value: 'threads' },
+          { name: 'GitHub',      value: 'github' },
+          { name: 'LinkedIn',    value: 'linkedin' }
+        ]
+      },
+      { type: TYPE_STRING, name: 'handle', description: 'Your username on that platform', required: true, max_length: 80 }
+    ]
+  },
+  {
+    name: 'profile-set-gamertag', description: 'Save a gaming handle on your profile',
+    options: [
+      { type: TYPE_STRING, name: 'platform', description: 'psn / xbox / steam / riot / ...', required: true,
+        choices: [
+          { name: 'PSN',       value: 'psn' },
+          { name: 'Xbox',      value: 'xbox' },
+          { name: 'Steam',     value: 'steam' },
+          { name: 'Riot',      value: 'riot' },
+          { name: 'Valorant',  value: 'valorant' },
+          { name: 'Minecraft', value: 'minecraft' },
+          { name: 'Fortnite',  value: 'fortnite' },
+          { name: 'Nintendo',  value: 'nintendo' },
+          { name: 'Epic',      value: 'epic' }
+        ]
+      },
+      { type: TYPE_STRING, name: 'tag', description: 'Your tag on that platform', required: true, max_length: 60 }
+    ]
+  },
+  { name: 'profile-clear', description: 'Wipe all profile data you saved here' },
+  {
+    name: 'profile', description: 'Show your (or someone else\'s) profile',
+    options: [
+      { type: TYPE_USER, name: 'user', description: 'Optional viewer to look up', required: false }
+    ]
+  }
 ];
 
 const url = GUILD_ID

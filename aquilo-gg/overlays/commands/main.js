@@ -101,7 +101,20 @@
 
     swapTimer = setTimeout(() => {
       badge.dataset.cat = cat;
-      badge.textContent = badgeLabel(cat);
+      // Photo override: render <img> instead of text. Reset DOM each
+      // swap so a previous image doesn't linger when the next badge
+      // is plain text.
+      const lbl = badgeLabel(cat);
+      if (isImageUrl(lbl)) {
+        badge.innerHTML = '';
+        const img = document.createElement('img');
+        img.src = lbl;
+        img.alt = '';
+        img.className = 'badge-img';
+        badge.appendChild(img);
+      } else {
+        badge.textContent = lbl;
+      }
       nameEl.textContent = c.name || '';
       descEl.textContent = c.desc || c.description || '';
 
@@ -110,7 +123,11 @@
     }, 700);   // slightly > transition (650ms) so the fade-out fully completes
   }
 
-  function badgeLabel(cat) {
+  // Streamer-supplied per-category icon overrides. Map values are
+  // either a short emoji/text or a data:image/* URL (uploaded photo).
+  // Empty / missing key falls back to the hardcoded default emoji.
+  let iconOverrides = {};
+  function defaultBadge(cat) {
     switch (cat) {
       case 'custom':  return '💬';
       case 'counter': return '🔢';
@@ -122,6 +139,15 @@
       case 'music':   return '🎵';
       default:        return '💬';
     }
+  }
+  function badgeLabel(cat) {
+    const v = iconOverrides[cat] || iconOverrides[(cat || '').toLowerCase()];
+    if (typeof v === 'string' && v.length > 0) return v;
+    return defaultBadge(cat);
+  }
+  function isImageUrl(s) {
+    if (!s) return false;
+    return /^data:image\//i.test(s) || /^https?:\/\/.+\.(png|jpe?g|gif|webp|svg)/i.test(s);
   }
 
   function tick() {
@@ -172,15 +198,19 @@
       setStatus('connected');
       backoff = 1000;
       ws.send(JSON.stringify({ v: 1, kind: 'hello',     client: 'overlay-commands' }));
-      ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: ['commands.list'] }));
+      ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: ['commands.list', 'commands.icons'] }));
       // Politely ask for a fresh snapshot. Server may or may not honor; if
       // it doesn't, we'll get one on the next save.
       ws.send(JSON.stringify({ v: 1, kind: 'commands.requestList' }));
     };
     ws.onmessage = (e) => {
       let msg; try { msg = JSON.parse(e.data); } catch { return; }
-      if (!msg || msg.kind !== 'commands.list') return;
-      ingestList(msg.data);
+      if (!msg || !msg.kind) return;
+      if (msg.kind === 'commands.list')  { ingestList(msg.data); return; }
+      if (msg.kind === 'commands.icons') {
+        iconOverrides = (msg.data && msg.data.byCategory) || {};
+        return;
+      }
     };
     ws.onclose = () => {
       setStatus('disconnected, retrying in ' + Math.round(backoff/1000) + 's');

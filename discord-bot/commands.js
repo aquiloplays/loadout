@@ -6,6 +6,9 @@
 
 import { getWallet, transfer, leaderboard } from './wallet.js';
 import { coinflip, dice, daily } from './games.js';
+import {
+  getProfile, clearProfile, setField, setSocial, setGamerTag
+} from './profiles.js';
 
 // Discord interaction types
 const TYPE_PING            = 1;
@@ -45,7 +48,14 @@ export async function handleInteraction(req, env, body) {
   // Link gate: every command except /link and /help requires the caller
   // to have linked at least one stream identity. Keeps off-stream bolts
   // tied to a real viewer so cross-platform reconciliation works.
-  const allowWithoutLink = new Set(['link', 'help']);
+  // Profile commands skip the gate — they store Discord-side data the
+  // DLL bridge will later map to a linked identity. Lets viewers edit
+  // their card before they ever stream-link.
+  const allowWithoutLink = new Set([
+    'link', 'help',
+    'profile', 'profile-set-bio', 'profile-set-pfp', 'profile-set-pronouns',
+    'profile-set-social', 'profile-set-gamertag', 'profile-clear'
+  ]);
   if (!allowWithoutLink.has(cmd)) {
     const w = await getWallet(env, guild, userId);
     if (!Array.isArray(w.links) || w.links.length === 0) {
@@ -67,6 +77,19 @@ export async function handleInteraction(req, env, body) {
     case 'dice':        return reply(await cmdDice(env, guild, userId, opts.bet, opts.target, userName));
     case 'link':        return reply(await cmdLink(env, guild, userId, opts.platform, opts.username, userName));
     case 'help':        return reply(cmdHelp());
+
+    // ── Profile self-edit (mirrors chat-side !set* commands). DLL polls
+    //    the changes in via /sync/<guild>/profiles and merges into its
+    //    local store, so a Discord-set bio shows up on the !profile
+    //    overlay next time someone runs the chat command. ─────────────
+    case 'profile-set-bio':       return reply(await cmdProfileBio(env, guild, userId, opts.text));
+    case 'profile-set-pfp':       return reply(await cmdProfilePfp(env, guild, userId, opts.url));
+    case 'profile-set-pronouns':  return reply(await cmdProfilePronouns(env, guild, userId, opts.text));
+    case 'profile-set-social':    return reply(await cmdProfileSocial(env, guild, userId, opts.platform, opts.handle));
+    case 'profile-set-gamertag':  return reply(await cmdProfileGamerTag(env, guild, userId, opts.platform, opts.tag));
+    case 'profile-clear':         return reply(await cmdProfileClear(env, guild, userId));
+    case 'profile':               return reply(await cmdProfileShow(env, guild, opts.user?.id || userId, userName));
+
     default:            return reply({ content: 'Unknown command: ' + cmd, ephemeral: true });
   }
 }
@@ -212,6 +235,64 @@ async function cmdLink(env, guild, userId, platform, username, callerName) {
     content: '🔗 Linked Discord account to **' + p + ':' + u + '**. Off-stream bolts will reconcile when ' + callerName + ' is seen on stream.',
     ephemeral: true
   };
+}
+
+// ---------- Viewer profile commands ----------
+// All profile-set commands are ephemeral — only the caller sees the
+// "saved" reply, so chat doesn't get spammed when a bunch of viewers
+// edit their profiles at once.
+
+async function cmdProfileBio(env, guildId, userId, text) {
+  if (!text) return { content: 'Bio is required.', ephemeral: true };
+  await setField(env, guildId, userId, 'bio', text);
+  return { content: '📝 Bio saved (' + text.length + ' chars).', ephemeral: true };
+}
+
+async function cmdProfilePfp(env, guildId, userId, url) {
+  url = (url || '').trim();
+  if (!url || !/^https?:\/\//i.test(url))
+    return { content: 'URL must start with http(s)://', ephemeral: true };
+  await setField(env, guildId, userId, 'pfp', url);
+  return { content: '🖼️ Profile picture saved.', ephemeral: true };
+}
+
+async function cmdProfilePronouns(env, guildId, userId, text) {
+  if (!text) return { content: 'Pronouns required.', ephemeral: true };
+  await setField(env, guildId, userId, 'pronouns', text);
+  return { content: '✨ Pronouns saved.', ephemeral: true };
+}
+
+async function cmdProfileSocial(env, guildId, userId, platform, handle) {
+  if (!platform || !handle) return { content: 'Platform + handle required.', ephemeral: true };
+  await setSocial(env, guildId, userId, platform, handle);
+  return { content: '🔗 Saved ' + platform + ': ' + handle, ephemeral: true };
+}
+
+async function cmdProfileGamerTag(env, guildId, userId, platform, tag) {
+  if (!platform || !tag) return { content: 'Platform + tag required.', ephemeral: true };
+  await setGamerTag(env, guildId, userId, platform, tag);
+  return { content: '🎮 Saved ' + platform + ': ' + tag, ephemeral: true };
+}
+
+async function cmdProfileClear(env, guildId, userId) {
+  await clearProfile(env, guildId, userId);
+  return { content: '🧹 Profile wiped.', ephemeral: true };
+}
+
+async function cmdProfileShow(env, guildId, targetId, callerName) {
+  const p = await getProfile(env, guildId, targetId);
+  const lines = [];
+  lines.push('🪪 **<@' + targetId + '>**' + (p.pronouns ? '  *(' + p.pronouns + ')*' : ''));
+  if (p.bio)             lines.push('> ' + p.bio);
+  if (p.pfp)             lines.push('🖼️ ' + p.pfp);
+  const socials = Object.entries(p.socials || {});
+  if (socials.length > 0)
+    lines.push('🔗 ' + socials.map(([k, v]) => k + ':' + v).join(' · '));
+  const tags = Object.entries(p.gamerTags || {});
+  if (tags.length > 0)
+    lines.push('🎮 ' + tags.map(([k, v]) => k + ':' + v).join(' · '));
+  if (lines.length === 1) lines.push('*(no profile saved yet — try `/profile-set-bio`)*');
+  return { content: lines.join('\n'), ephemeral: targetId !== callerName };
 }
 
 function cmdHelp() {

@@ -38,6 +38,9 @@ namespace Loadout
                 // /dice results from the Worker into the local bus, so the
                 // OBS bolts minigames overlay renders them too.
                 DiscordMinigameBridge.Instance.Start();
+                // Background poller that mirrors Discord-side /profile-set-*
+                // edits into the local ViewerProfileStore.
+                DiscordProfileBridge.Instance.Start();
 
                 SbBridge.Instance.LogInfo("[Loadout] Booted. Settings: " + SettingsManager.Instance.SettingsPath);
 

@@ -17,6 +17,9 @@
 //                                      republish them on the local Aquilo
 //                                      Bus and the OBS overlay can render
 //                                      them (HMAC).
+//   GET  /sync/:guildId/profiles?since= - Loadout-side: pull viewer profile
+//                                      edits made via /profile-set-* slash
+//                                      commands (HMAC).
 //   GET  /health                     - liveness probe
 //
 // KV layout:
@@ -33,6 +36,7 @@
 import { verifyDiscordSignature, verifyHmac } from './auth.js';
 import { handleInteraction } from './commands.js';
 import { applySnapshot, readSnapshot, getSecret, setSecret, applyVaultDelta } from './wallet.js';
+import { readSince as readProfilesSince } from './profiles.js';
 
 // Discord interaction "claim" command custom handler — defined here rather
 // than commands.js because it touches the claim KV and cross-cuts the
@@ -256,6 +260,18 @@ async function handleSync(req, env, path) {
     const fresh = all.filter(e => (e.ts || 0) > sinceMs);
     const latest = fresh.length > 0 ? fresh[fresh.length - 1].ts : (all.length > 0 ? all[all.length - 1].ts : sinceMs);
     return new Response(JSON.stringify({ events: fresh, ts: latest }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+
+  // /sync/:guildId/profiles?since=<ms> — DLL pulls Discord-side profile
+  // edits (/profile-set-bio, etc.) and merges them into its local
+  // ViewerProfileStore via the wallet's identity links. Returns
+  // { profiles: [{userId, profile, deleted, ts}], ts } so the DLL can
+  // advance its cursor to the latest seen.
+  if (sub === 'profiles' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const sinceMs = parseInt(url.searchParams.get('since') || '0', 10) || 0;
+    const page = await readProfilesSince(env, guildId, sinceMs);
+    return new Response(JSON.stringify(page), { status: 200, headers: { 'content-type': 'application/json' } });
   }
 
   if (req.method === 'GET') {

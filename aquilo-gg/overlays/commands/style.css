@@ -88,6 +88,15 @@ body[data-pos="tc"] #root { top: 0; left: 50%; transform: translateX(-50%); }
 .badge[data-cat="clip"]    { background: linear-gradient(135deg, #F85149, #F0883E); }
 .badge[data-cat="checkin"] { background: linear-gradient(135deg, #3FB950, #00F2EA); }
 .badge[data-cat="mod"]     { background: linear-gradient(135deg, #53FC18, #3FB950); }
+/* Streamer-supplied photo badge: <img class="badge-img"> fills the
+   pill. Background gradient still shows through the rounded edges. */
+.badge-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  display: block;
+}
 
 .body { display: flex; flex-direction: column; min-width: 0; }
 .name {

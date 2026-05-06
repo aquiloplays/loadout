@@ -28,12 +28,22 @@
   const card     = $('card');
   const idleEl   = $('idle');
   const activeEl = $('active');
+  const gameEl   = $('game');
   const idleBadge = $('idleBadge');
   const idleName  = $('idleName');
   const idleDesc  = $('idleDesc');
   const actIcon   = $('actIcon');
   const actTitle  = $('actTitle');
   const actSub    = $('actSub');
+  const gameTitle = $('gameTitle');
+  const gameSub   = $('gameSub');
+  const gCoin     = gameEl.querySelector('.g-coin');
+  const gCoinFaceHeads = gameEl.querySelector('.g-coin-face.heads');
+  const gCoinFaceTails = gameEl.querySelector('.g-coin-face.tails');
+  const gDie      = gameEl.querySelector('.g-die');
+  const gDiePip   = gameEl.querySelector('.g-die-pip');
+  const gSlots    = gameEl.querySelector('.g-slots');
+  const gReels    = [$('gReel0'), $('gReel1'), $('gReel2')];
 
   // ── Idle: commands ticker ────────────────────────────────────────────
   const fallbackCommands = [
@@ -50,7 +60,10 @@
   let idleIdx = 0;
   let idleTimer = null;
 
-  function badgeForCat(cat) {
+  // Streamer-supplied per-category icon overrides. Set on receipt of
+  // commands.icons; falls back to the hardcoded default emoji per cat.
+  let iconOverrides = {};
+  function defaultBadgeForCat(cat) {
     switch ((cat || 'info').toLowerCase()) {
       case 'bolts':   return '⚡';
       case 'clip':    return '🎬';
@@ -63,10 +76,31 @@
       default:        return '💬';
     }
   }
+  function badgeForCat(cat) {
+    const v = iconOverrides[cat] || iconOverrides[(cat || '').toLowerCase()];
+    if (typeof v === 'string' && v.length > 0) return v;
+    return defaultBadgeForCat(cat);
+  }
+  function isImageBadge(s) {
+    if (!s) return false;
+    return /^data:image\//i.test(s) || /^https?:\/\/.+\.(png|jpe?g|gif|webp|svg)/i.test(s);
+  }
+  function applyBadge(el, value) {
+    if (isImageBadge(value)) {
+      el.innerHTML = '';
+      const img = document.createElement('img');
+      img.src = value;
+      img.alt = '';
+      img.className = 'badge-img';
+      el.appendChild(img);
+    } else {
+      el.textContent = value;
+    }
+  }
   function tickIdle() {
     if (commands.length === 0) return;
     const c = commands[idleIdx % commands.length]; idleIdx++;
-    idleBadge.textContent = badgeForCat(c.cat);
+    applyBadge(idleBadge, badgeForCat(c.cat));
     idleName.textContent  = c.name || '!commands';
     idleDesc.textContent  = c.desc || c.description || '';
   }
@@ -95,24 +129,34 @@
     if (!next) return;
     active = true;
 
-    // Update the active card's contents and tone, fade idle out, fade active in.
-    actIcon.textContent  = next.badge || '';
-    actTitle.textContent = next.title || '';
-    actSub.textContent   = next.sub   || '';
-
     // Reset every tone- class then add the right one. Keeping this
     // imperative beats juggling N CSS rules per data attribute.
     card.classList.remove('tone-bolts','tone-welcome','tone-counter','tone-streak','tone-hype','tone-win','tone-lose','tone-info');
     card.classList.add('tone-' + (next.tone || 'info'));
 
-    idleEl.classList.add('hidden');
-    activeEl.classList.remove('hidden');
-    // Restart the pop animation.
-    activeEl.classList.remove('popped'); void activeEl.offsetWidth; activeEl.classList.add('popped');
+    if (next.game) {
+      // Game events get the animated visual layer instead of the
+      // emoji-badge text card. The runner schedules its own settle +
+      // text reveal; pump just times the auto-hide.
+      runGame(next);
+    } else {
+      // Update the active card's contents and tone, fade idle out, fade active in.
+      // Use applyBadge so streamer-supplied photo overrides render as <img>.
+      applyBadge(actIcon, next.badge || '');
+      actTitle.textContent = next.title || '';
+      actSub.textContent   = next.sub   || '';
+
+      idleEl.classList.add('hidden');
+      gameEl.classList.add('hidden');
+      activeEl.classList.remove('hidden');
+      // Restart the pop animation.
+      activeEl.classList.remove('popped'); void activeEl.offsetWidth; activeEl.classList.add('popped');
+    }
 
     if (activeTimer) clearTimeout(activeTimer);
     activeTimer = setTimeout(() => {
       activeEl.classList.add('hidden');
+      gameEl.classList.add('hidden');
       idleEl.classList.remove('hidden');
       // After the crossfade completes, mark idle and pump the next event.
       setTimeout(() => {
@@ -122,6 +166,91 @@
     }, next.ttlMs || HOLD_MS);
   }
 
+  // ── Game runner (coin / die / slots) ─────────────────────────────────
+  // Mirrors the standalone minigames overlay's animation timings but
+  // compressed for the 56px-square visual slot. The settle phase
+  // updates the title + sub text so chat doesn't see the result before
+  // the visual lands.
+  function resetGameVisuals() {
+    gCoin.classList.remove('show', 'flipping', 'show-heads', 'show-tails');
+    gDie.classList.remove('show', 'rolling');
+    gSlots.classList.remove('show');
+    gReels.forEach(r => { r.classList.remove('spinning', 'locked'); r.innerHTML = ''; });
+  }
+  function runGame(item) {
+    resetGameVisuals();
+    const d = item._data || {};
+    // Title shows during animation; sub is filled at settle so the
+    // payout reveal lands with the visual.
+    gameTitle.textContent = item.title || (d.user || '?');
+    gameSub.textContent   = item.sub   || '';
+
+    idleEl.classList.add('hidden');
+    activeEl.classList.add('hidden');
+    gameEl.classList.remove('hidden');
+    gameEl.classList.remove('popped'); void gameEl.offsetWidth; gameEl.classList.add('popped');
+
+    if (item.game === 'coinflip') return runCoin(d);
+    if (item.game === 'dice')     return runDie(d);
+    if (item.game === 'slots')    return runSlots(d);
+  }
+  function runCoin(d) {
+    gCoin.classList.add('show', 'flipping', d.result === 'tails' ? 'show-tails' : 'show-heads');
+    setTimeout(() => {
+      // Settle: keep current sub (already set with payout); just pulse.
+      gameEl.classList.remove('popped'); void gameEl.offsetWidth; gameEl.classList.add('popped');
+    }, 1300);
+  }
+  function runDie(d) {
+    gDie.classList.add('show', 'rolling');
+    gDiePip.textContent = String(d.rolled || '?');
+    setTimeout(() => {
+      gameEl.classList.remove('popped'); void gameEl.offsetWidth; gameEl.classList.add('popped');
+    }, 1300);
+  }
+  function runSlots(d) {
+    gSlots.classList.add('show');
+    // Render symbols using the same isUrl heuristic the standalone
+    // slots overlay uses so emoji-pool entries render as text glyphs.
+    const pool = (d.pool && d.pool.length ? d.pool : null) ||
+                 (d.reels && d.reels.length ? d.reels : null) ||
+                 ['🍒', '🔔', '💎', '⭐', '🍇', '🍋'];
+    function isUrl(s) { return /^https?:\/\//i.test(s) || /^\/\//.test(s); }
+    function setSym(reel, sym) {
+      if (isUrl(sym)) {
+        let img = reel.firstElementChild;
+        if (!img || img.tagName !== 'IMG') {
+          reel.innerHTML = ''; img = document.createElement('img'); reel.appendChild(img);
+        }
+        img.src = sym;
+      } else {
+        let span = reel.firstElementChild;
+        if (!span || span.tagName !== 'SPAN') {
+          reel.innerHTML = ''; span = document.createElement('span');
+          span.className = 'g-reel-glyph'; reel.appendChild(span);
+        }
+        span.textContent = sym;
+      }
+    }
+    const cyclers = gReels.map(reel => {
+      reel.classList.add('spinning');
+      setSym(reel, pool[Math.floor(Math.random() * pool.length)]);
+      return setInterval(() => setSym(reel, pool[Math.floor(Math.random() * pool.length)]), 90);
+    });
+    const match = d.reels && d.reels.length === 3;
+    [700, 1000, 1300].forEach((t, i) => {
+      setTimeout(() => {
+        clearInterval(cyclers[i]);
+        if (match) setSym(gReels[i], d.reels[i]);
+        gReels[i].classList.remove('spinning');
+        gReels[i].classList.add('locked');
+        if (i === 2) {
+          gameEl.classList.remove('popped'); void gameEl.offsetWidth; gameEl.classList.add('popped');
+        }
+      }, t);
+    });
+  }
+
   // ── Bus event → active-card mapping ──────────────────────────────────
   function onMsg(msg) {
     if (!msg || !msg.kind) return;
@@ -129,6 +258,10 @@
     const d = msg.data || {};
     if (k === 'commands.list') {
       ingestCommands(d);
+      return;
+    }
+    if (k === 'commands.icons') {
+      iconOverrides = (d && d.byCategory) || {};
       return;
     }
 
@@ -187,18 +320,24 @@
         break;
       case 'bolts.minigame.coinflip':
         if (!d.user) return;
-        evt = { tone: d.won ? 'win' : 'lose', badge: '🪙', title: d.user + (d.won ? ' won' : ' lost'),
-                sub: 'coinflip ' + (d.result || '?') + '  ' + (d.won ? '+' : '-') + Math.abs(d.payout || d.wager || 0) + ' bolts' };
+        // Route to the game layer so the coin actually flips before
+        // text reveals. The pump path special-cases evt.game and
+        // animates the badge slot for HOLD_MS milliseconds.
+        evt = { tone: d.won ? 'win' : 'lose', game: 'coinflip',
+                title: d.user, sub: '!coinflip ' + Math.abs(d.payout || d.wager || 0) + ' ⚡',
+                _data: d };
         break;
       case 'bolts.minigame.dice':
         if (!d.user) return;
-        evt = { tone: d.won ? 'win' : 'lose', badge: '🎲', title: d.user + (d.won ? ' won' : ' lost'),
-                sub: 'rolled ' + (d.rolled || '?') + (d.target ? ' / target ' + d.target : '') + '  ' + (d.won ? '+' : '-') + Math.abs(d.payout || d.wager || 0) + ' bolts' };
+        evt = { tone: d.won ? 'win' : 'lose', game: 'dice',
+                title: d.user, sub: '!dice ' + Math.abs(d.payout || d.wager || 0) + ' ⚡',
+                _data: d };
         break;
       case 'bolts.minigame.slots':
         if (!d.user) return;
-        evt = { tone: d.won ? 'win' : 'lose', badge: '🎰', title: d.user + (d.won ? ' jackpot!' : ' spun the slots'),
-                sub: (d.won ? '+' : '-') + Math.abs(d.payout || d.wager || 0) + ' bolts' };
+        evt = { tone: d.won ? 'win' : 'lose', game: 'slots',
+                title: d.user, sub: '!slots ' + Math.abs(d.payout || d.wager || 0) + ' ⚡',
+                _data: d };
         break;
       case 'viewer.profile.shown':
         if (!d.user) return;
@@ -249,9 +388,9 @@
       backoff = 1000;
       ws.send(JSON.stringify({ v: 1, kind: 'hello',     client: 'overlay-compact' }));
       ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: [
-        'commands.list', 'bolts.*', 'welcome.*', 'hypetrain.*',
-        'counter.*', 'viewer.profile.shown', 'rotation.song.playing',
-        'rotation.song.queued'
+        'commands.list', 'commands.icons', 'bolts.*', 'welcome.*',
+        'hypetrain.*', 'counter.*', 'viewer.profile.shown',
+        'rotation.song.playing', 'rotation.song.queued'
       ]}));
       ws.send(JSON.stringify({ v: 1, kind: 'commands.requestList' }));
     };

@@ -2500,6 +2500,59 @@
                                         <TextBox x:Name="TxtCommandsBgOpacity" Width="50" TextChanged="OnOverlayUrlChange" />
                                     </StackPanel>
                                 </Grid>
+
+                                <!-- Custom badge icons. Each row's textbox accepts an
+                                     emoji (just type / paste it) or a data: URL (the
+                                     "Upload" button reads a PNG/JPG and writes the
+                                     base64 here). Empty = use the overlay's hardcoded
+                                     default. Published as commands.icons on the bus
+                                     so commands + compact overlays update live. -->
+                                <Border Margin="0 14 0 0" Padding="0 10 0 0" BorderThickness="0 1 0 0" BorderBrush="{StaticResource Brush.Border}">
+                                    <StackPanel>
+                                        <TextBlock Text="Custom badge icons" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0 0 0 4" />
+                                        <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 8">
+                                            Type an emoji, paste a PNG URL, or click Upload to embed your own image. Empty = default.
+                                        </TextBlock>
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="80" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="80" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Info"     Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                            <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtIconInfo"    Margin="0 4 6 0" />
+                                            <Button   Grid.Row="0" Grid.Column="2" Content="Upload" Tag="info" Click="BtnIconUpload_Click" Style="{StaticResource SecondaryButton}" Margin="0 4 14 0" />
+                                            <TextBlock Grid.Row="0" Grid.Column="3" Text="Custom"   Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                            <TextBox  Grid.Row="0" Grid.Column="4" x:Name="TxtIconCustom"  Margin="0 4 6 0" />
+                                            <Button   Grid.Row="0" Grid.Column="5" Content="Upload" Tag="custom" Click="BtnIconUpload_Click" Style="{StaticResource SecondaryButton}" Margin="0 4 0 0" />
+
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Bolts"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                            <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtIconBolts"   Margin="0 4 6 0" />
+                                            <Button   Grid.Row="1" Grid.Column="2" Content="Upload" Tag="bolts" Click="BtnIconUpload_Click" Style="{StaticResource SecondaryButton}" Margin="0 4 14 0" />
+                                            <TextBlock Grid.Row="1" Grid.Column="3" Text="Clip"     Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                            <TextBox  Grid.Row="1" Grid.Column="4" x:Name="TxtIconClip"    Margin="0 4 6 0" />
+                                            <Button   Grid.Row="1" Grid.Column="5" Content="Upload" Tag="clip" Click="BtnIconUpload_Click" Style="{StaticResource SecondaryButton}" Margin="0 4 0 0" />
+
+                                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Check-in" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                            <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtIconCheckin" Margin="0 4 6 0" />
+                                            <Button   Grid.Row="2" Grid.Column="2" Content="Upload" Tag="checkin" Click="BtnIconUpload_Click" Style="{StaticResource SecondaryButton}" Margin="0 4 14 0" />
+                                            <TextBlock Grid.Row="2" Grid.Column="3" Text="Counter"  Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                            <TextBox  Grid.Row="2" Grid.Column="4" x:Name="TxtIconCounter" Margin="0 4 6 0" />
+                                            <Button   Grid.Row="2" Grid.Column="5" Content="Upload" Tag="counter" Click="BtnIconUpload_Click" Style="{StaticResource SecondaryButton}" Margin="0 4 0 0" />
+
+                                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Mod"      Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                            <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TxtIconMod"     Margin="0 4 6 0" />
+                                            <Button   Grid.Row="3" Grid.Column="2" Content="Upload" Tag="mod" Click="BtnIconUpload_Click" Style="{StaticResource SecondaryButton}" Margin="0 4 14 0" />
+                                            <TextBlock Grid.Row="3" Grid.Column="3" Text="Song"     Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                            <TextBox  Grid.Row="3" Grid.Column="4" x:Name="TxtIconSong"    Margin="0 4 6 0" />
+                                            <Button   Grid.Row="3" Grid.Column="5" Content="Upload" Tag="song" Click="BtnIconUpload_Click" Style="{StaticResource SecondaryButton}" Margin="0 4 0 0" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 

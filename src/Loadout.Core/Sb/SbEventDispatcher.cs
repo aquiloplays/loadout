@@ -69,6 +69,9 @@ namespace Loadout.Sb
                 // and serves !song. Register before CommandsBroadcaster so
                 // !song shows up in the published commands.list snapshot.
                 _modules.Add(new NowPlayingModule());
+                // ProfileModule serves !setbio / !setpfp / !setsocial /
+                // !setgamertag / !setpronouns / !clearprofile.
+                _modules.Add(new ProfileModule());
                 // Last - just publishes the canonical command list to the bus
                 // for the "Available commands" overlay. Must come AFTER every
                 // module that contributes commands so the snapshot it builds

@@ -56,6 +56,51 @@ namespace Loadout.Settings
         public CcCoinConfig        CcCoin       { get; set; } = new CcCoinConfig();
         public FirstWordsConfig    FirstWords   { get; set; } = new FirstWordsConfig();
         public OverlayThemeConfig  OverlayTheme { get; set; } = new OverlayThemeConfig();
+        public CommandsTickerIconsConfig CommandsTickerIcons { get; set; } = new CommandsTickerIconsConfig();
+        public ViewerProfilesConfig ViewerProfiles { get; set; } = new ViewerProfilesConfig();
+    }
+
+    /// <summary>
+    /// Self-served viewer profiles - !setbio, !setpfp, !setsocial, etc.
+    /// Profiles live in ~/Loadout/viewer-profiles.json (separate from
+    /// the bolts wallet); this config gates the chat commands and
+    /// constrains length / allowed platforms.
+    /// </summary>
+    public class ViewerProfilesConfig
+    {
+        // Master switch. When false, !profile still works (read-only)
+        // but the !set* commands are silent no-ops.
+        public bool ChatCommandsEnabled { get; set; } = true;
+
+        // Per-field limits so a single chat message can't store a novel.
+        public int MaxBioChars      { get; set; } = 200;
+        public int MaxSocialChars   { get; set; } = 80;
+        public int MaxGamerTagChars { get; set; } = 60;
+        public int MaxPronounsChars { get; set; } = 24;
+        public int MaxPfpUrlChars   { get; set; } = 400;
+
+        // Per-user channel-wide cooldown across all profile commands so
+        // a viewer can't spam !setbio every 2s. Mods + broadcaster bypass.
+        public int PerUserCooldownSec { get; set; } = 10;
+
+        // Whitelist of social / game platform tokens the streamer
+        // accepts. Empty = allow any. Lowercase, comma-separated.
+        public string AllowedSocials      { get; set; } = "twitter,x,instagram,ig,tiktok,youtube,twitch,kick,bluesky,bsky,threads,linkedin,github,discord";
+        public string AllowedGamePlatforms { get; set; } = "psn,xbox,steam,riot,valorant,leagueoflegends,lol,minecraft,fortnite,nintendo,switch,activision,epic";
+    }
+
+    /// <summary>
+    /// Per-category badge override for the commands ticker (and the
+    /// compact overlay's badge slot when an idle command rolls).
+    /// Streamers can replace the default emoji with their own emoji,
+    /// short text, or a data: URL for an uploaded PNG/JPG. Empty /
+    /// missing key = use the overlay's hardcoded default. Published
+    /// to the bus as <c>commands.icons</c> alongside
+    /// <c>commands.list</c>; overlays cache and apply.
+    /// </summary>
+    public class CommandsTickerIconsConfig
+    {
+        public Dictionary<string, string> ByCategory { get; set; } = new Dictionary<string, string>();
     }
 
     /// <summary>

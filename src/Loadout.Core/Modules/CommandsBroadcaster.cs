@@ -67,6 +67,17 @@ namespace Loadout.Modules
                 commands = list,
                 ts       = DateTime.UtcNow
             });
+
+            // Per-category icon overrides. Overlays cache and use these
+            // instead of their hardcoded emoji defaults. Re-published
+            // alongside commands.list so a freshly-connected overlay
+            // client gets both atomically.
+            var icons = s.CommandsTickerIcons?.ByCategory ?? new Dictionary<string, string>();
+            AquiloBus.Instance.Publish("commands.icons", new
+            {
+                byCategory = icons,
+                ts         = DateTime.UtcNow
+            });
         }
 
         /// <summary>
@@ -163,6 +174,18 @@ namespace Loadout.Modules
                 var cmd = s.RotationConnection.SongCommand ?? "!song";
                 if (!cmd.StartsWith("!")) cmd = "!" + cmd;
                 list.Add(new CommandEntry(cmd, "info", "what's playing on the streamer's Spotify"));
+            }
+
+            // ------ Viewer profile self-edit ------
+            if (s.ViewerProfiles != null && s.ViewerProfiles.ChatCommandsEnabled)
+            {
+                list.Add(new CommandEntry("!profile [@user]",       "info", "show a viewer's profile + bolts"));
+                list.Add(new CommandEntry("!setbio <text>",         "info", "save your own bio for !profile"));
+                list.Add(new CommandEntry("!setpfp <url>",          "info", "set your !profile picture (PNG/JPG link)"));
+                list.Add(new CommandEntry("!setpronouns <txt>",     "info", "save your pronouns"));
+                list.Add(new CommandEntry("!setsocial <plat> <h>",  "info", "save a social handle (twitter/ig/bsky/...)"));
+                list.Add(new CommandEntry("!setgamertag <plat> <t>","info", "save a gamer tag (psn/xbox/steam/...)"));
+                list.Add(new CommandEntry("!clearprofile",          "info", "wipe your saved profile"));
             }
 
             // ------ Daily check-in ------

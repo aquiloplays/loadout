@@ -168,35 +168,58 @@ namespace Loadout.Modules
             return "@" + ctx.User + " — couldn't fetch your account age from Twitch right now.";
         }
 
-        // !profile [@user] - publish a viewer-profile event so the viewer
-        // overlay can render a stat card. Returns a chat acknowledgement
-        // so the chatter sees something happened. The actual stat lookup
-        // is done by whichever overlay/widget is subscribed - we're just
-        // the request publisher here.
+        // !profile [@user] - publishes the viewer's profile (bio + pfp +
+        // socials + gamer tags + bolts) for the overlay AND returns a
+        // short chat summary so chatters see something even without the
+        // overlay open. Reads from ViewerProfileStore so !setbio / etc.
+        // edits are reflected immediately.
         private static string ReplyProfile(EventContext ctx, string target)
         {
             target = (target ?? "").Trim().TrimStart('@');
             if (string.IsNullOrEmpty(target)) target = ctx.User;
+            var platform = ctx.Platform.ToShortName();
 
-            // Pull the bolts balance ourselves so the overlay payload is
-            // useful out of the box even before the overlay enriches it.
             long bolts = 0;
+            int  streakDays = 0;
             try
             {
                 Bolts.BoltsWallet.Instance.Initialize();
-                bolts = Bolts.BoltsWallet.Instance.Balance(ctx.Platform.ToShortName(), target);
+                bolts = Bolts.BoltsWallet.Instance.Balance(platform, target);
+                var acct = Bolts.BoltsWallet.Instance.AllAccounts()
+                    .FirstOrDefault(a => string.Equals(a.Key, platform + ":" + target, StringComparison.OrdinalIgnoreCase));
+                if (acct != null) streakDays = acct.StreakDays;
             }
             catch { }
 
+            ViewerProfile.ViewerProfile profile = null;
+            try { profile = ViewerProfile.ViewerProfileStore.Instance.Get(platform, target); } catch { }
+
             AquiloBus.Instance.Publish("viewer.profile.shown", new
             {
-                handle    = target,
-                platform  = ctx.Platform.ToShortName(),
-                bolts     = bolts,
-                requester = ctx.User,
-                ts        = DateTime.UtcNow
+                handle     = target,
+                platform   = platform,
+                bolts      = bolts,
+                streakDays = streakDays,
+                bio        = profile?.Bio,
+                pfp        = profile?.Pfp,
+                pronouns   = profile?.Pronouns,
+                socials    = profile?.Socials,
+                gamerTags  = profile?.GamerTags,
+                requester  = ctx.User,
+                ts         = DateTime.UtcNow
             });
-            return "🪪  Pulling " + target + "'s profile to the overlay...";
+
+            // Chat summary: if the user has a bio, lead with that; else
+            // fall back to a friendly stat blurb. Caps avoid wall-of-text.
+            if (profile != null && !string.IsNullOrEmpty(profile.Bio))
+            {
+                var bio = profile.Bio.Length > 120 ? profile.Bio.Substring(0, 120) + "…" : profile.Bio;
+                return "🪪 " + target + (string.IsNullOrEmpty(profile.Pronouns) ? "" : " (" + profile.Pronouns + ")") +
+                       ": " + bio + "  ·  " + bolts + " ⚡";
+            }
+            return "🪪 " + target + " — " + bolts + " ⚡" +
+                   (streakDays > 1 ? " · " + streakDays + "-day streak" : "") +
+                   "  (no bio yet — try !setbio)";
         }
 
         private static string ReplyShoutout(EventContext ctx, string target)
