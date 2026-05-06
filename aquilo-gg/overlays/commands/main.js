@@ -82,26 +82,32 @@
     return list.filter(c => includeSet.has(categorize(c)));
   }
 
+  // Track the in-flight setTimeout so a fast tick or an ingestList
+  // restart doesn't leave a stale swap pending. Without this, two
+  // overlapping show() calls each schedule their own text-swap and
+  // both fight to flip .fading on / off — the card can land in the
+  // fading state with no follow-up swap.
+  let swapTimer = null;
+
   function show(c) {
     if (!c) return;
     const cat = categorize(c);
 
-    // Smooth transition: fade the current content out (650ms),
-    // swap text while invisible, then fade-in the new content
-    // (~1.0s via the .swap keyframe). Net ~1.6s slow crossfade so
-    // the swap reads as a deliberate transition, not a blink.
-    card.classList.remove('swap');
+    // Cancel any pending swap from a previous show() so we never
+    // race the .fading remove. The newest show() always wins.
+    if (swapTimer) { clearTimeout(swapTimer); swapTimer = null; }
+
     card.classList.add('fading');
-    setTimeout(() => {
+
+    swapTimer = setTimeout(() => {
       badge.dataset.cat = cat;
       badge.textContent = badgeLabel(cat);
       nameEl.textContent = c.name || '';
       descEl.textContent = c.desc || c.description || '';
 
       card.classList.remove('fading');
-      void card.offsetWidth;     // reflow so the keyframe re-fires
-      card.classList.add('swap');
-    }, 650);
+      swapTimer = null;
+    }, 700);   // slightly > transition (650ms) so the fade-out fully completes
   }
 
   function badgeLabel(cat) {

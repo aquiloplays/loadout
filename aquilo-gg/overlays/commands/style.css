@@ -38,9 +38,14 @@ body[data-pos="tr"] #root { top: 0; right: 0; flex-direction: row-reverse; }
 body[data-pos="bc"] #root { bottom: 0; left: 50%; transform: translateX(-50%); }
 body[data-pos="tc"] #root { top: 0; left: 50%; transform: translateX(-50%); }
 
-/* Card. Small, content-hugging. The blur + tiny accent border keeps it
-   from competing with the streamer's gameplay; the gradient is just on
-   the badge. */
+/* Card. Small, content-hugging. Single transition on opacity +
+   transform — no @keyframes battling each other for the swap.
+   Earlier iterations stacked an `enter` keyframe with forwards plus
+   a `swap` keyframe without forwards; when the swap animation ended,
+   the enter forwards state didn't always re-apply (CEF inside OBS
+   was inconsistent here) and the card sometimes stuck at opacity 0.
+   This is the simplest possible state machine: opacity 1 by default,
+   add .fading to fade out, remove .fading to fade back in. */
 .card {
   display: flex;
   align-items: center;
@@ -53,26 +58,15 @@ body[data-pos="tc"] #root { top: 0; left: 50%; transform: translateX(-50%); }
   box-shadow: var(--shadow);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity   650ms ease-in-out,
+    transform 650ms cubic-bezier(.2,.7,.2,1);
+}
+.card.fading {
   opacity: 0;
   transform: translateY(8px);
-  animation: enter 380ms cubic-bezier(.2,.7,.2,1) forwards;
-}
-
-/* Card swap: explicit fade-out (650ms) before content change, then a
-   gentle fade-up in (1000ms). Net ~1.65s per transition — paced so a
-   viewer reads the old command, watches it fade, sees the new one
-   rise. Combined with the 20s default rotate, every command sits
-   fully visible for ~18s. */
-.card { transition: opacity 650ms ease-in-out; }
-.card.fading { opacity: 0; }
-.card.swap   { animation: swap 1000ms cubic-bezier(.2,.7,.2,1); }
-@keyframes enter {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes swap {
-  0%   { opacity: 0; transform: translateY(10px); }
-  100% { opacity: 1; transform: translateY(0); }
 }
 
 /* The little accent pill on the left of the card. The category drives
