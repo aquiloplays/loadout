@@ -268,6 +268,11 @@ namespace Loadout.UI
             foreach (var c in s.Counters.Counters) _counters.Add(c);
             GrdCounters.ItemsSource = _counters;
 
+            // Counters overlay behavior
+            if (TxtCountersOpacity   != null) TxtCountersOpacity.Text   = s.Counters.Opacity.ToString();
+            if (TxtCountersHideAfter != null) TxtCountersHideAfter.Text = s.Counters.HideAfterSeconds.ToString();
+            if (ChkCountersOnTrigger != null) ChkCountersOnTrigger.IsChecked = s.Counters.ShowOnTriggerOnly;
+
             _supporters.Clear();
             foreach (var p in s.PatreonSupporters.Supporters) _supporters.Add(p);
             GrdSupporters.ItemsSource = _supporters;
@@ -836,6 +841,9 @@ namespace Loadout.UI
 
                 // Counters / supporters
                 s.Counters.Counters = _counters.ToList();
+                if (int.TryParse(TxtCountersOpacity?.Text,   out iv) && iv >= 0 && iv <= 100) s.Counters.Opacity = iv;
+                if (int.TryParse(TxtCountersHideAfter?.Text, out iv) && iv >= 1)              s.Counters.HideAfterSeconds = iv;
+                s.Counters.ShowOnTriggerOnly = ChkCountersOnTrigger?.IsChecked == true;
                 s.PatreonSupporters.Supporters = _supporters.ToList();
 
                 // Timers
@@ -1053,6 +1061,61 @@ namespace Loadout.UI
                 System.Windows.MessageBoxImage.Question,
                 System.Windows.MessageBoxResult.Cancel);
             return r == System.Windows.MessageBoxResult.OK;
+        }
+
+        // Opens the streamer's Twitch dashboard for managing channel-point
+        // rewards. SB's CPH API can read rewards (TwitchGetRewards) but
+        // not create / edit / delete them — that's done on Twitch.tv.
+        private void BtnOpenTwitchRewards_Click(object sender, RoutedEventArgs e)
+        {
+            var name = SettingsManager.Instance.Current.BroadcasterName;
+            var url = string.IsNullOrWhiteSpace(name)
+                ? "https://dashboard.twitch.tv/u/_/viewer-rewards/channel-points/rewards"
+                : "https://dashboard.twitch.tv/u/" + System.Net.WebUtility.UrlEncode(name) +
+                  "/viewer-rewards/channel-points/rewards";
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+                ShowSavedHint("Opened Twitch dashboard.");
+            }
+            catch (Exception ex) { ShowSavedHint("Open failed: " + ex.Message); }
+        }
+
+        // Step-by-step popup for connecting TikFinity's bot to Loadout's
+        // TikTok send path. Reachable via the "TikFinity setup guide"
+        // button next to the TikTok send action field.
+        private void BtnTikFinityGuide_Click(object sender, RoutedEventArgs e)
+        {
+            System.Windows.MessageBox.Show(
+                "TikFinity bot setup — let Loadout post to TikTok\n\n" +
+                "1. Open TikFinity. Settings → Bot Mode → enable. Sign your TikTok\n" +
+                "   account into TikFinity's bot. (TikFinity walks you through the\n" +
+                "   account auth.)\n\n" +
+                "2. Once Bot Mode is on, TikFinity registers a Streamer.bot Action\n" +
+                "   you can call. Look in SB's Actions list for it (commonly named\n" +
+                "   something like \"TikFinity: Send Bot Message\" — exact name\n" +
+                "   varies by TikFinity version).\n\n" +
+                "3. Open that action in SB. Add a sub-action:\n" +
+                "     • Get Global Variable → loadoutTikTokMessage → into a local var\n" +
+                "     • Set Argument 'message' (or whatever TikFinity's send sub-action\n" +
+                "       reads) to that local var\n" +
+                "     • TikFinity's bot send sub-action runs with the message\n\n" +
+                "4. Note the action's exact name in SB.\n\n" +
+                "5. Back in Loadout (this Settings window) → General → \"TikTok send\n" +
+                "   action\". Paste the action name. Click Save.\n\n" +
+                "6. Test it: tick TikTok on a timer in Settings → Timers (the platform\n" +
+                "   tickbox column), hit Save, and wait for the sequence interval. Or\n" +
+                "   fire any alert that targets TikTok.\n\n" +
+                "Tips\n" +
+                "  • Dry-run mode (Health → Diagnostics) logs would-have-sent messages\n" +
+                "    instead of posting — verify wiring without spamming chat.\n" +
+                "  • Loadout caps outbound TikTok at 6 messages/min so a flood of timer\n" +
+                "    fires can't trip TikFinity's rate-limit.\n" +
+                "  • Command responses (e.g. !uptime asked from TikTok chat) route back\n" +
+                "    through this same path automatically.",
+                "Loadout — TikFinity setup",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Information);
         }
 
         // Quick reference popup for template variables. Wired to the

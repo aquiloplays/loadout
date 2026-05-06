@@ -195,7 +195,12 @@
                                 <CheckBox x:Name="ChkYouTube" Content="YouTube"  Style="{StaticResource ToggleRow}" />
                                 <CheckBox x:Name="ChkKick"    Content="Kick"     Style="{StaticResource ToggleRow}" />
 
-                                <TextBlock Text="TikTok send action (optional)" Style="{StaticResource H2}" Margin="0 14 0 4" />
+                                <Grid Margin="0 14 0 4">
+                                    <TextBlock Text="TikTok send action (optional)" Style="{StaticResource H2}" />
+                                    <Button HorizontalAlignment="Right" Content="TikFinity setup guide" Style="{StaticResource SecondaryButton}"
+                                            Click="BtnTikFinityGuide_Click"
+                                            ToolTip="Step-by-step: enable TikFinity bot, register an SB action, paste its name here." />
+                                </Grid>
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 6">
                                     Streamer.bot has no native TikTok send. To let timed messages, alerts, etc. post to
                                     your TikTok stream, configure TikFinity's bot mode (or your own bridge) to register
@@ -486,8 +491,24 @@
                         <DataGrid x:Name="GrdCustomCommands" AutoGenerateColumns="False" CanUserAddRows="False"
                                   SelectionMode="Single" SelectionUnit="FullRow" Height="240">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Name (no !)" Binding="{Binding Name,     UpdateSourceTrigger=PropertyChanged}" Width="160" />
-                                <DataGridTextColumn Header="Response"    Binding="{Binding Response, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                                <DataGridTextColumn Header="Name (no !)" Binding="{Binding Name,         UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                                <DataGridTextColumn Header="Response"    Binding="{Binding Response,     UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                                <DataGridTextColumn Header="Allowed roles (csv)" Binding="{Binding AllowedRoles, UpdateSourceTrigger=PropertyChanged}" Width="180"
+                                                    >
+                                    <DataGridTextColumn.HeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                            <Setter Property="ToolTip" Value="Comma-separated. broadcaster, mod, vip, sub, viewer. 'everyone' = all chatters." />
+                                        </Style>
+                                    </DataGridTextColumn.HeaderStyle>
+                                </DataGridTextColumn>
+                                <DataGridTextColumn Header="Cooldown (s)" Binding="{Binding CooldownSec, UpdateSourceTrigger=PropertyChanged}" Width="100"
+                                                    >
+                                    <DataGridTextColumn.HeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+                                            <Setter Property="ToolTip" Value="Per-command cooldown in seconds. 0 = use the global Quiet-mode cooldown." />
+                                        </Style>
+                                    </DataGridTextColumn.HeaderStyle>
+                                </DataGridTextColumn>
                             </DataGrid.Columns>
                         </DataGrid>
                         <StackPanel Orientation="Horizontal" Margin="0 10 0 0">
@@ -767,6 +788,7 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
@@ -776,24 +798,48 @@
                         Free tier shows the first 3; Plus removes the cap. Counters publish to the Aquilo Bus
                         on every change so overlays update live.
                     </TextBlock>
-                    <DataGrid Grid.Row="2" x:Name="GrdCounters" AutoGenerateColumns="False" CanUserAddRows="False"
+                    <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0 0 0 14">
+                        <StackPanel>
+                            <TextBlock Text="Overlay behavior" Style="{StaticResource H2}" />
+                            <Grid Margin="0 8 0 0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="240" />
+                                    <ColumnDefinition Width="120" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Opacity (0-100)" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox   Grid.Row="0" Grid.Column="1" x:Name="TxtCountersOpacity" Margin="0 4 0 0" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Hide after (seconds)" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox   Grid.Row="1" Grid.Column="1" x:Name="TxtCountersHideAfter" Margin="0 4 0 0" />
+                                <CheckBox  Grid.Row="2" Grid.ColumnSpan="2" x:Name="ChkCountersOnTrigger"
+                                           Content="Only show overlay when a counter is triggered (auto-hides after the time above)"
+                                           Style="{StaticResource ToggleSwitch}" Margin="0 12 0 0" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+                    <DataGrid Grid.Row="3" x:Name="GrdCounters" AutoGenerateColumns="False" CanUserAddRows="False"
                               SelectionMode="Single" SelectionUnit="FullRow">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Name (chat token)"      Binding="{Binding Name,           UpdateSourceTrigger=PropertyChanged}" Width="160" />
-                            <DataGridTextColumn Header="Display"                Binding="{Binding Display,        UpdateSourceTrigger=PropertyChanged}" Width="160" />
-                            <DataGridTextColumn Header="Value"                  Binding="{Binding Value,          UpdateSourceTrigger=PropertyChanged}" Width="80" />
-                            <DataGridTextColumn Header="Modify roles (csv)"     Binding="{Binding ModifyRoles,    UpdateSourceTrigger=PropertyChanged}" Width="180" />
+                            <DataGridTextColumn Header="Name (chat token)"      Binding="{Binding Name,           UpdateSourceTrigger=PropertyChanged}" Width="140" />
+                            <DataGridTextColumn Header="Display"                Binding="{Binding Display,        UpdateSourceTrigger=PropertyChanged}" Width="140" />
+                            <DataGridTextColumn Header="Emoji"                  Binding="{Binding Emoji,          UpdateSourceTrigger=PropertyChanged}" Width="60" />
+                            <DataGridTextColumn Header="Value"                  Binding="{Binding Value,          UpdateSourceTrigger=PropertyChanged}" Width="70" />
+                            <DataGridTextColumn Header="Modify roles (csv)"     Binding="{Binding ModifyRoles,    UpdateSourceTrigger=PropertyChanged}" Width="160" />
                             <DataGridTextColumn Header="Response template"      Binding="{Binding ResponseTemplate,UpdateSourceTrigger=PropertyChanged}" Width="*" />
                             <DataGridCheckBoxColumn Header="Reset/stream"       Binding="{Binding ResetEachStream}" Width="80" />
                         </DataGrid.Columns>
                     </DataGrid>
-                    <TextBlock Grid.Row="2" x:Name="TxtCountersEmpty"
+                    <TextBlock Grid.Row="3" x:Name="TxtCountersEmpty"
                                Text="No counters yet — click 'Add counter' to start tracking deaths, wins, or anything else with !&lt;name&gt; +/- N."
                                Style="{StaticResource Muted}"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                TextAlignment="Center" MaxWidth="500"
                                IsHitTestVisible="False" Visibility="Collapsed" />
-                    <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0 12 0 0">
+                    <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0 12 0 0">
                         <Button Content="Add counter"  Style="{StaticResource SecondaryButton}" Click="BtnCounterAdd_Click"  Margin="0 0 8 0" />
                         <Button Content="Remove"       Style="{StaticResource SecondaryButton}" Click="BtnCounterRemove_Click" Margin="0 0 8 0" />
                         <Button Content="-1"           Style="{StaticResource SecondaryButton}" Click="BtnCounterMinus_Click"  Margin="0 0 8 0" />
@@ -1622,8 +1668,10 @@
                     <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0 12 0 0">
                         <Button Content="Add mapping" Style="{StaticResource SecondaryButton}" Click="BtnChannelPointAdd_Click"    Margin="0 0 8 0" />
                         <Button Content="Remove"      Style="{StaticResource SecondaryButton}" Click="BtnChannelPointRemove_Click" Margin="0 0 8 0" />
-                        <Button Content="Pull rewards from Twitch" Style="{StaticResource SecondaryButton}" Click="BtnRefreshTwitchRewards_Click"
+                        <Button Content="Pull rewards from Twitch" Style="{StaticResource SecondaryButton}" Click="BtnRefreshTwitchRewards_Click" Margin="0 0 8 0"
                                 ToolTip="Asks Streamer.bot for the current set of channel-point rewards on your Twitch channel and populates the Reward dropdown above." />
+                        <Button Content="Manage on Twitch.tv ↗" Style="{StaticResource SecondaryButton}" Click="BtnOpenTwitchRewards_Click"
+                                ToolTip="Opens the Twitch dashboard's channel-point rewards page in your default browser. Streamer.bot's CPH API can read but not create / edit rewards — that's done on Twitch.tv." />
                     </StackPanel>
                 </Grid>
             </TabItem>

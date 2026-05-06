@@ -524,10 +524,20 @@ namespace Loadout.Settings
     public class CountersConfig
     {
         public bool Enabled { get; set; } = true;
+        // Counters overlay opacity (0-100). 100 = fully opaque.
+        public int  Opacity { get; set; } = 100;
+        // When true, the counters overlay only shows briefly after a
+        // command triggers a counter change, then auto-hides. Off by
+        // default — most streamers want the counters persistently visible.
+        public bool ShowOnTriggerOnly { get; set; } = false;
+        // Seconds the overlay stays visible after a trigger when
+        // ShowOnTriggerOnly is on.
+        public int  HideAfterSeconds { get; set; } = 6;
+
         public List<Counter> Counters { get; set; } = new List<Counter>
         {
-            new Counter { Name = "deaths", Display = "Deaths", Value = 0 },
-            new Counter { Name = "wins",   Display = "Wins",   Value = 0 }
+            new Counter { Name = "deaths", Display = "Deaths", Emoji = "💀", Value = 0 },
+            new Counter { Name = "wins",   Display = "Wins",   Emoji = "🏆", Value = 0 }
         };
     }
 
@@ -537,6 +547,9 @@ namespace Loadout.Settings
         public string Name    { get; set; } = "";
         // Pretty label shown in overlays / responses.
         public string Display { get; set; } = "";
+        // Optional emoji rendered next to the counter in the overlay
+        // and chat response (e.g. 💀 for deaths, 🏆 for wins).
+        public string Emoji   { get; set; } = "";
         public int    Value   { get; set; } = 0;
         // Optional template the response message uses; "{display}: {value}" by default.
         public string ResponseTemplate { get; set; } = "{display}: {value}";
@@ -592,9 +605,15 @@ namespace Loadout.Settings
 
     public class CustomCommand
     {
-        public string Name     { get; set; } = "";       // chat token, lowercase, no leading !
-        public string Response { get; set; } = "";       // {user}, {rest} interpolated
-        public string ModifyRoles { get; set; } = "";    // unused for now, reserved
+        public string Name         { get; set; } = "";   // chat token, lowercase, no leading !
+        public string Response     { get; set; } = "";   // {user}, {rest} interpolated
+        // Comma-separated roles that may invoke this command. Empty / "*"
+        // / "everyone" means anyone. Recognized roles: broadcaster, mod,
+        // vip, sub, viewer. ModifyRoles is the legacy alias.
+        public string AllowedRoles { get; set; } = "everyone";
+        public string ModifyRoles  { get; set; } = "";   // legacy alias for AllowedRoles
+        // Per-command cooldown in seconds. 0 = uses ChatNoise.InfoCommandCooldownSec.
+        public int    CooldownSec  { get; set; } = 0;
     }
 
     public class GoalsConfig
