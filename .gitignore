@@ -1,6 +1,7 @@
 # Build artifacts
 bin/
 obj/
+dist/
 *.user
 *.suo
 .vs/
