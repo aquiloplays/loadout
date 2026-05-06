@@ -706,6 +706,18 @@ namespace Loadout.Settings
         public int    GiftMinAmount       { get; set; } = 10;     // !gift floor
         public int    BoltRainMinTotal    { get; set; } = 100;
         public int    BoltRainMaxRecipients { get; set; } = 100;
+
+        // Slots minigame (!slots <wager>). Symbols pulled from
+        // SlotsImagePool — newline-separated image URLs (Twitch
+        // emote CDN URLs work great). Empty = use the overlay's
+        // built-in default global-emote pool. Match payouts:
+        // 3-of-a-kind = wager × SlotsPayoutAllSame; any 2-of-a-kind
+        // returns wager × SlotsPayoutTwoSame (default 1 = wash).
+        public string SlotsImagePool       { get; set; } = "";
+        public int    SlotsMinWager        { get; set; } = 5;
+        public int    SlotsMaxWager        { get; set; } = 500;
+        public int    SlotsPayoutAllSame   { get; set; } = 5;     // 3 same → wager × 5
+        public int    SlotsPayoutTwoSame   { get; set; } = 1;     // 2 same → wager × 1 (returns wager)
     }
 
     public class ApexConfig

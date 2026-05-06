@@ -138,6 +138,50 @@ body[data-pos="tr"] #card { top: 24px; right: 24px; }
 .outcome.win  { background: rgba(63, 185, 80, 0.18);  color: var(--win); }
 .outcome.lose { background: rgba(248, 81, 73, 0.18);  color: var(--lose); }
 
+/* ---- Slots ---- */
+.slots {
+  display: none;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+.slots.show { display: flex; }
+.reel {
+  width: 64px;
+  height: 64px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #2A2A30 0%, #18181B 100%);
+  border: 2px solid rgba(58, 134, 255, 0.4);
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 -3px 0 rgba(0, 0, 0, 0.3);
+  position: relative;
+}
+.reel img {
+  width: 48px; height: 48px;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+}
+.reel.spinning img { animation: reelBlur 90ms linear infinite; }
+@keyframes reelBlur {
+  0%   { transform: translateY(-12px); filter: blur(2px); opacity: 0.85; }
+  50%  { transform: translateY(0);     filter: blur(2px); opacity: 1; }
+  100% { transform: translateY(12px);  filter: blur(2px); opacity: 0.85; }
+}
+.reel.locked {
+  border-color: var(--gold);
+  box-shadow: 0 0 18px rgba(240, 180, 41, 0.55), 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+.reel.locked img { animation: reelLand 320ms cubic-bezier(.2,.7,.2,1); }
+@keyframes reelLand {
+  0%   { transform: translateY(-8px) scale(0.85); }
+  100% { transform: translateY(0)    scale(1); }
+}
+
 /* Pulse on reveal so it punches when the result lands. */
 #card.pulse { animation: pulse 600ms cubic-bezier(.2,.7,.2,1); }
 @keyframes pulse {

@@ -2024,8 +2024,9 @@ namespace Loadout.UI
                         break;
 
                     case "minigames":
-                        // Fire a coinflip win, then (after 4s on the overlay
-                        // it'd auto-hide) a dice loss for variety.
+                        // Fire a coinflip, dice, and a slots jackpot in
+                        // succession so the overlay animates each in turn
+                        // (each visualization auto-hides after ~3-4s).
                         AquiloBus.Instance.Publish("bolts.minigame.coinflip", new
                         {
                             user    = sampleUser,
@@ -2046,6 +2047,29 @@ namespace Loadout.UI
                             payout  = 0,
                             balance = 920,
                             ts      = DateTime.UtcNow
+                        });
+                        // Slots jackpot — 3 same. Reels and pool are Twitch
+                        // global emote URLs so the overlay's reel animation
+                        // has real images to cycle / land on.
+                        var jackpotEmote = "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/2.0";
+                        AquiloBus.Instance.Publish("bolts.minigame.slots", new
+                        {
+                            user    = sampleUser,
+                            wager   = 100,
+                            reels   = new[] { jackpotEmote, jackpotEmote, jackpotEmote },
+                            won     = true,
+                            payout  = 500,
+                            balance = 1750,
+                            pool    = new[]
+                            {
+                                "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/2.0",
+                                "https://static-cdn.jtvnw.net/emoticons/v2/86/default/dark/2.0",
+                                "https://static-cdn.jtvnw.net/emoticons/v2/354/default/dark/2.0",
+                                "https://static-cdn.jtvnw.net/emoticons/v2/245/default/dark/2.0",
+                                "https://static-cdn.jtvnw.net/emoticons/v2/425618/default/dark/2.0",
+                                "https://static-cdn.jtvnw.net/emoticons/v2/305954156/default/dark/2.0"
+                            },
+                            ts = DateTime.UtcNow
                         });
                         break;
 

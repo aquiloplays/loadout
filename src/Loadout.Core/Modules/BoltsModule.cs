@@ -240,6 +240,7 @@ namespace Loadout.Modules
                 case "lb":            CmdLeaderboard(ctx, s);       return;
                 case "gift":          CmdGift(ctx, rest, s);        return;
                 case "boltrain":      CmdBoltRain(ctx, rest, s);    return;
+                case "slots":         CmdSlots(ctx, rest, s);       return;
             }
 
             // Rotation widget integration: !boltsong <song> spends Bolts to
@@ -427,6 +428,109 @@ namespace Loadout.Modules
             if (!ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:gift", TimeSpan.FromSeconds(2))) return;
             new MultiPlatformSender(CphPlatformSender.Instance)
                 .Send(ctx.Platform, "💝 " + ctx.User + " sent " + amount + " " + s.Bolts.Emoji + " to " + target + "!", s.Platforms);
+        }
+
+        // ── !slots <wager> ───────────────────────────────────────────────
+        // Spends `wager` bolts, picks 3 random reels from the configured
+        // image pool (or built-in defaults), publishes
+        // bolts.minigame.slots so the minigames overlay animates the spin,
+        // and pays out per BoltsConfig.SlotsPayoutAllSame / TwoSame.
+        private static readonly string[] DefaultSlotsPool = new[]
+        {
+            "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/2.0",
+            "https://static-cdn.jtvnw.net/emoticons/v2/86/default/dark/2.0",
+            "https://static-cdn.jtvnw.net/emoticons/v2/354/default/dark/2.0",
+            "https://static-cdn.jtvnw.net/emoticons/v2/245/default/dark/2.0",
+            "https://static-cdn.jtvnw.net/emoticons/v2/425618/default/dark/2.0",
+            "https://static-cdn.jtvnw.net/emoticons/v2/305954156/default/dark/2.0"
+        };
+
+        private readonly Random _slotsRng = new Random();
+
+        private void CmdSlots(EventContext ctx, string rest, LoadoutSettings s)
+        {
+            if (!long.TryParse((rest ?? "").Trim(), out var wager) ||
+                wager < s.Bolts.SlotsMinWager || wager > s.Bolts.SlotsMaxWager)
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:slots:usage", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " usage: !slots <wager> (" +
+                            s.Bolts.SlotsMinWager + "-" + s.Bolts.SlotsMaxWager + " " + s.Bolts.Emoji + ")",
+                            s.Platforms);
+                return;
+            }
+
+            var platform = ctx.Platform.ToShortName();
+            var spent = BoltsWallet.Instance.Spend(platform, ctx.User, wager, "slots");
+            if (!spent)
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:slots:nofunds", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " not enough " + s.Bolts.Emoji + " to slot " + wager + ".",
+                            s.Platforms);
+                return;
+            }
+
+            var pool = ResolveSlotsPool(s);
+            var reels = new[]
+            {
+                pool[_slotsRng.Next(pool.Length)],
+                pool[_slotsRng.Next(pool.Length)],
+                pool[_slotsRng.Next(pool.Length)]
+            };
+
+            bool allSame = reels[0] == reels[1] && reels[1] == reels[2];
+            bool twoSame = !allSame && (
+                reels[0] == reels[1] ||
+                reels[1] == reels[2] ||
+                reels[0] == reels[2]);
+
+            long payout = 0;
+            if (allSame)
+            {
+                payout = wager * Math.Max(1, (long)s.Bolts.SlotsPayoutAllSame);
+                BoltsWallet.Instance.Earn(platform, ctx.User, payout, "slots:jackpot");
+            }
+            else if (twoSame && s.Bolts.SlotsPayoutTwoSame > 0)
+            {
+                payout = wager * (long)s.Bolts.SlotsPayoutTwoSame;
+                BoltsWallet.Instance.Earn(platform, ctx.User, payout, "slots:two");
+            }
+
+            var balance = BoltsWallet.Instance.Balance(platform, ctx.User);
+
+            AquiloBus.Instance.Publish("bolts.minigame.slots", new
+            {
+                user    = ctx.User,
+                wager,
+                reels,
+                won     = payout > 0,
+                payout,
+                balance,
+                pool,
+                ts      = DateTime.UtcNow
+            });
+
+            if (!ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:slots:result", TimeSpan.FromSeconds(2))) return;
+            string text;
+            if (allSame)
+                text = "🎰 JACKPOT @" + ctx.User + "! +" + payout + " " + s.Bolts.Emoji + " (×" + s.Bolts.SlotsPayoutAllSame + ")";
+            else if (twoSame && payout > 0)
+                text = "🎰 @" + ctx.User + " hit two — got " + payout + " " + s.Bolts.Emoji + " back";
+            else
+                text = "🎰 @" + ctx.User + " spun " + wager + " " + s.Bolts.Emoji + " — no match";
+            new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform, text, s.Platforms);
+        }
+
+        private static string[] ResolveSlotsPool(LoadoutSettings s)
+        {
+            var raw = s.Bolts.SlotsImagePool ?? "";
+            if (string.IsNullOrWhiteSpace(raw)) return DefaultSlotsPool;
+            var lines = raw.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            var trimmed = lines.Select(l => l.Trim()).Where(l => l.Length > 0).ToArray();
+            return trimmed.Length >= 2 ? trimmed : DefaultSlotsPool;
         }
 
         private void CmdBoltRain(EventContext ctx, string rest, LoadoutSettings s)

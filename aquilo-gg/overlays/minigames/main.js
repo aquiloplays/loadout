@@ -20,19 +20,39 @@
   const coin    = card.querySelector('.coin');
   const die     = card.querySelector('.die');
   const diePip  = card.querySelector('.die-pip');
+  const slots   = card.querySelector('.slots');
+  const reels   = [$('reel0'), $('reel1'), $('reel2')];
   const userEl  = $('user');
   const wagerEl = $('wager');
   const outcome = $('outcome');
 
+  // Default emote pool — always-available Twitch global emotes. Used
+  // when the bus payload doesn't supply a `pool` array, so the overlay
+  // has visual filler during the spin animation. Streamer can override
+  // by configuring Bolts → Slots image pool in Loadout settings; the
+  // chosen pool ships with each event so this is just the floor.
+  const defaultPool = [
+    'https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/2.0',         // Kappa
+    'https://static-cdn.jtvnw.net/emoticons/v2/86/default/dark/2.0',         // BibleThump
+    'https://static-cdn.jtvnw.net/emoticons/v2/354/default/dark/2.0',        // 4Head
+    'https://static-cdn.jtvnw.net/emoticons/v2/245/default/dark/2.0',        // ResidentSleeper
+    'https://static-cdn.jtvnw.net/emoticons/v2/425618/default/dark/2.0',     // LUL
+    'https://static-cdn.jtvnw.net/emoticons/v2/305954156/default/dark/2.0'   // PogChamp
+  ];
+
   let hideTimer = null;
   let pulseTimer = null;
+  let slotsTimer = null;
 
   function resetVisuals() {
     coin.style.display = 'none';
     die.style.display  = 'none';
+    slots.classList.remove('show');
     coin.classList.remove('flipping', 'show-heads', 'show-tails');
     die.classList.remove('rolling');
+    reels.forEach(r => r.classList.remove('spinning', 'locked'));
     card.classList.remove('win', 'lose', 'pulse');
+    if (slotsTimer) { clearTimeout(slotsTimer); slotsTimer = null; }
   }
 
   function showCoin(result, won, user, wager, payout) {
@@ -51,6 +71,55 @@
     fillLines(user, wager, won, payout,
       'rolled ' + (rolled || '?') + (target ? ' (target ' + target + ')' : ''));
     schedulePulse();
+  }
+
+  // Slots: 3 reels, each spins independently then locks onto its result
+  // image with a staggered delay (left → middle → right). During the
+  // spin we cycle a random sequence of images from the pool so it
+  // *looks* like a real slot machine rather than 3 still frames.
+  function showSlots(reelImgs, won, user, wager, payout, pool) {
+    resetVisuals();
+    slots.classList.add('show');
+
+    var symbols = (pool && pool.length ? pool : null)
+                  || (reelImgs && reelImgs.length ? reelImgs : null)
+                  || defaultPool;
+
+    // Start every reel spinning + cycling random pool images.
+    var cyclers = reels.map(function (reel) {
+      var img = reel.querySelector('img');
+      reel.classList.add('spinning');
+      img.src = symbols[Math.floor(Math.random() * symbols.length)];
+      return setInterval(function () {
+        img.src = symbols[Math.floor(Math.random() * symbols.length)];
+      }, 90);
+    });
+
+    var match = (reelImgs && reelImgs.length === 3 && reelImgs[0] && reelImgs[1] && reelImgs[2]);
+    var settleTimes = [900, 1300, 1700];   // staggered settle per reel
+
+    settleTimes.forEach(function (t, i) {
+      setTimeout(function () {
+        clearInterval(cyclers[i]);
+        var img = reels[i].querySelector('img');
+        if (match) img.src = reelImgs[i];
+        reels[i].classList.remove('spinning');
+        reels[i].classList.add('locked');
+      }, t);
+    });
+
+    fillLines(user, wager, won, payout, won ? 'JACKPOT!' : 'spinning the reels');
+    // Pulse times with the third reel landing.
+    if (pulseTimer) clearTimeout(pulseTimer);
+    pulseTimer = setTimeout(function () {
+      card.classList.remove('pulse');
+      void card.offsetWidth;
+      card.classList.add('pulse');
+    }, 1700);
+
+    // Override the auto-hide so the streamer / viewer can savor the result.
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () { card.classList.add('hidden'); }, 4500);
   }
 
   function fillLines(user, wager, won, payout, mid) {
@@ -91,6 +160,9 @@
         break;
       case 'bolts.minigame.dice':
         showDie(d.rolled, d.target, !!d.won, d.user, d.wager, d.payout);
+        break;
+      case 'bolts.minigame.slots':
+        showSlots(d.reels, !!d.won, d.user, d.wager, d.payout, d.pool);
         break;
     }
   }
