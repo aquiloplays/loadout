@@ -24,11 +24,12 @@
   const showDesc = params.get('showDesc');
   if (showDesc != null) document.body.dataset.showDesc = showDesc;
 
-  // Default 12s per command. The transition itself takes ~1.1s
-  // (fade-out + fade-in), leaving ~11s of fully visible read time —
-  // plenty for the slowest viewer to absorb name + description
-  // before the next swap. URL param overrides; floor 4s.
-  const rotateSec = Math.max(4, parseInt(params.get('rotate') || '12', 10));
+  // Default 20s per command. ~1.6s of that goes to the transition
+  // (fade-out + fade-in), leaving ~18s of fully visible read time —
+  // long enough for a TikTok viewer who just walked in mid-stream
+  // to read both name and description without rushing. URL param
+  // overrides; floor 6s.
+  const rotateSec = Math.max(6, parseInt(params.get('rotate') || '20', 10));
 
   // Category include filter. Empty / unset = include all.
   const includeRaw = (params.get('include') || '').toLowerCase();
@@ -85,9 +86,10 @@
     if (!c) return;
     const cat = categorize(c);
 
-    // Smooth transition: fade the current content out, swap text while
-    // invisible, then fade-in the new content. The two-stage feels far
-    // less jarring than the previous in-place keyframe blip.
+    // Smooth transition: fade the current content out (650ms),
+    // swap text while invisible, then fade-in the new content
+    // (~1.0s via the .swap keyframe). Net ~1.6s slow crossfade so
+    // the swap reads as a deliberate transition, not a blink.
     card.classList.remove('swap');
     card.classList.add('fading');
     setTimeout(() => {
@@ -99,7 +101,7 @@
       card.classList.remove('fading');
       void card.offsetWidth;     // reflow so the keyframe re-fires
       card.classList.add('swap');
-    }, 450);
+    }, 650);
   }
 
   function badgeLabel(cat) {

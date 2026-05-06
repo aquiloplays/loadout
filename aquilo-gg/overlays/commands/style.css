@@ -58,18 +58,20 @@ body[data-pos="tc"] #root { top: 0; left: 50%; transform: translateX(-50%); }
   animation: enter 380ms cubic-bezier(.2,.7,.2,1) forwards;
 }
 
-/* Card swap: explicit fade-out before content change, then a smooth
-   fade-up in. Net ~1.1s per transition so a viewer reads the old
-   command, watches it fade, sees the new one rise. */
-.card { transition: opacity 450ms ease-in-out; }
+/* Card swap: explicit fade-out (650ms) before content change, then a
+   gentle fade-up in (1000ms). Net ~1.65s per transition — paced so a
+   viewer reads the old command, watches it fade, sees the new one
+   rise. Combined with the 20s default rotate, every command sits
+   fully visible for ~18s. */
+.card { transition: opacity 650ms ease-in-out; }
 .card.fading { opacity: 0; }
-.card.swap   { animation: swap 700ms cubic-bezier(.2,.7,.2,1); }
+.card.swap   { animation: swap 1000ms cubic-bezier(.2,.7,.2,1); }
 @keyframes enter {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 @keyframes swap {
-  0%   { opacity: 0; transform: translateY(8px); }
+  0%   { opacity: 0; transform: translateY(10px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 

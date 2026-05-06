@@ -1652,9 +1652,9 @@ namespace Loadout.UI
             if (ChkCmdCheckIn?.IsChecked == true) includes.Add("checkin");
             string includeCsv = (includes.Count == 6) ? null : string.Join(",", includes);
 
-            // Cap rotate to a sane range; the overlay clamps to >= 4s anyway.
-            var rotateText = (TxtCommandsRotate?.Text ?? "12").Trim();
-            int rotateSec; if (!int.TryParse(rotateText, out rotateSec) || rotateSec < 4) rotateSec = 12;
+            // Cap rotate to a sane range; the overlay clamps to >= 6s anyway.
+            var rotateText = (TxtCommandsRotate?.Text ?? "20").Trim();
+            int rotateSec; if (!int.TryParse(rotateText, out rotateSec) || rotateSec < 6) rotateSec = 20;
 
             if (TxtUrlCommands != null)
             {
