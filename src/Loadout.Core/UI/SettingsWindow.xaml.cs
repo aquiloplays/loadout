@@ -1706,6 +1706,16 @@ namespace Loadout.UI
                 });
             }
 
+            // Bolts minigames (coinflip / dice visualizer).
+            if (TxtUrlMinigames != null)
+            {
+                TxtUrlMinigames.Text = BuildOverlayUrl(baseUrl, "minigames", secret, new Dictionary<string, string>
+                {
+                    ["pos"]    = SelectedTag(CmbMinigamesPos),
+                    ["accent"] = NormalizeHex(TxtMinigamesAccent?.Text)
+                });
+            }
+
             // All-in-one composite. Picks up the layer checkboxes, builds a
             // CSV, and emits one URL the streamer drops into a single OBS
             // browser source. Each layer is an iframe of the standalone
@@ -1723,10 +1733,11 @@ namespace Loadout.UI
                 if (ChkAllRecap?.IsChecked     == true) allLayers.Add("recap");
                 if (ChkAllViewer?.IsChecked    == true) allLayers.Add("viewer");
                 if (ChkAllHypeTrain?.IsChecked == true) allLayers.Add("hypetrain");
+                if (ChkAllMinigames?.IsChecked == true) allLayers.Add("minigames");
 
                 TxtUrlAll.Text = BuildOverlayUrl(baseUrl, "all", secret, new Dictionary<string, string>
                 {
-                    ["layers"] = allLayers.Count == 9 ? null : string.Join(",", allLayers)
+                    ["layers"] = allLayers.Count == 10 ? null : string.Join(",", allLayers)
                 });
             }
         }
@@ -2012,6 +2023,32 @@ namespace Loadout.UI
                         });
                         break;
 
+                    case "minigames":
+                        // Fire a coinflip win, then (after 4s on the overlay
+                        // it'd auto-hide) a dice loss for variety.
+                        AquiloBus.Instance.Publish("bolts.minigame.coinflip", new
+                        {
+                            user    = sampleUser,
+                            wager   = 50,
+                            result  = "heads",
+                            won     = true,
+                            payout  = 100,
+                            balance = 1250,
+                            ts      = DateTime.UtcNow
+                        });
+                        AquiloBus.Instance.Publish("bolts.minigame.dice", new
+                        {
+                            user    = sampleUser + "_friend",
+                            wager   = 25,
+                            target  = 6,
+                            rolled  = 3,
+                            won     = false,
+                            payout  = 0,
+                            balance = 920,
+                            ts      = DateTime.UtcNow
+                        });
+                        break;
+
                     case "all":
                         // Composite test: fire each enabled layer's test
                         // event so the all-in-one overlay renders the lot.
@@ -2024,6 +2061,7 @@ namespace Loadout.UI
                         if (ChkAllRecap?.IsChecked     == true) FireOverlayTestEvent("recap");
                         if (ChkAllViewer?.IsChecked    == true) FireOverlayTestEvent("viewer");
                         if (ChkAllHypeTrain?.IsChecked == true) FireOverlayTestEvent("hypetrain");
+                        if (ChkAllMinigames?.IsChecked == true) FireOverlayTestEvent("minigames");
                         break;
                 }
             }
@@ -2043,6 +2081,7 @@ namespace Loadout.UI
                 case "recap":    return TxtUrlRecap?.Text;
                 case "viewer":    return TxtUrlViewer?.Text;
                 case "hypetrain": return TxtUrlHypeTrain?.Text;
+                case "minigames": return TxtUrlMinigames?.Text;
                 case "all":       return TxtUrlAll?.Text;
                 default:         return null;
             }

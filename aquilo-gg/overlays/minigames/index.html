@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Bolts Minigames Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Bolts minigames visualizer. Subscribes to bolts.minigame.* on the
+  Aquilo Bus and renders a quick animated take on each game (coinflip
+  spins, dice tumble) with the wager / result / payout. Ephemeral —
+  card slides in, animates, reveals the outcome, slides out.
+
+  Drop into OBS:
+    https://widget.aquilo.gg/overlays/minigames/?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
+
+  Optional URL params:
+    pos     - "tc" | "tr" | "tl" | "bc" (default) | "bl" | "br"
+    accent  - hex (overrides --accent via _shared/theme.js)
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-pos="bc">
+  <div id="card" class="hidden">
+    <div id="visual" class="visual">
+      <div class="coin"><span class="coin-face heads">H</span><span class="coin-face tails">T</span></div>
+      <div class="die"><span class="die-pip"></span></div>
+    </div>
+    <div class="lines">
+      <div id="user" class="user"></div>
+      <div id="wager" class="wager"></div>
+      <div id="outcome" class="outcome"></div>
+    </div>
+  </div>
+  <script src="../_shared/theme.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

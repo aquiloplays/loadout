@@ -2573,6 +2573,53 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Bolts minigames: visualizes coinflip + dice when they fire
+                             through chat / Discord-bot commands. Card slides in, animates,
+                             reveals win/lose, slides out. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Bolts}" Margin="0 0 8 0" Width="14" Height="14" />
+                                        <TextBlock Text="Bolts minigames" Style="{StaticResource H2}" Margin="0" />
+                                    </StackPanel>
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="minigames" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a coinflip and a dice roll so an OBS source for this overlay renders both visualizations." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="minigames" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlMinigames" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="minigames" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 380×220 (animated card pops in for ~3s per game)" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <ComboBox x:Name="CmbMinigamesPos" Width="140" SelectionChanged="OnOverlayUrlChange">
+                                            <ComboBoxItem Content="Bottom-center" Tag="bc" IsSelected="True" />
+                                            <ComboBoxItem Content="Top-center"    Tag="tc" />
+                                            <ComboBoxItem Content="Bottom-right"  Tag="br" />
+                                            <ComboBoxItem Content="Bottom-left"   Tag="bl" />
+                                            <ComboBoxItem Content="Top-right"     Tag="tr" />
+                                            <ComboBoxItem Content="Top-left"      Tag="tl" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtMinigamesAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Cross-platform hype train: aggregates fuel from sub / gift /
                              cheer / raid / TikTok-gift / Kick-sub / super-chat events. Runs
                              alongside Twitch's native train; 15-min cooldown after end. -->
@@ -2670,6 +2717,7 @@
                                     <CheckBox x:Name="ChkAllRecap"    Content="Recap"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkAllViewer"   Content="Viewer"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkAllHypeTrain" Content="Hype train" IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
+                                    <CheckBox x:Name="ChkAllMinigames" Content="Minigames"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                 </WrapPanel>
                             </StackPanel>
                         </Border>
