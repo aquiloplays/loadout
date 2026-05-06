@@ -1205,12 +1205,11 @@ namespace Loadout.UI
         // misclick on the Remove button doesn't lose user data.
         private bool ConfirmRemove(string what)
         {
-            var r = System.Windows.MessageBox.Show(
+            var r = LoadoutDialog.Show(this,
                 "Remove this " + what + "?\n\nThe change applies on Save.",
                 "Confirm remove",
                 System.Windows.MessageBoxButton.OKCancel,
-                System.Windows.MessageBoxImage.Question,
-                System.Windows.MessageBoxResult.Cancel);
+                System.Windows.MessageBoxImage.Question);
             return r == System.Windows.MessageBoxResult.OK;
         }
 
@@ -1237,7 +1236,7 @@ namespace Loadout.UI
         // button next to the TikTok send action field.
         private void BtnTikFinityGuide_Click(object sender, RoutedEventArgs e)
         {
-            System.Windows.MessageBox.Show(
+            LoadoutDialog.Show(this,
                 "TikFinity bot setup — let Loadout post to TikTok\n\n" +
                 "1. Open TikFinity. Settings → Bot Mode → enable. Sign your TikTok\n" +
                 "   account into TikFinity's bot. (TikFinity walks you through the\n" +
@@ -1274,7 +1273,7 @@ namespace Loadout.UI
         // without scrolling around looking for the right Variables: hint.
         private void BtnVariables_Click(object sender, RoutedEventArgs e)
         {
-            System.Windows.MessageBox.Show(
+            LoadoutDialog.Show(this,
                 "Common variables you can use in templates:\n\n" +
                 "Streamer-context:\n" +
                 "  {broadcaster}        your channel name\n" +
@@ -1490,7 +1489,7 @@ namespace Loadout.UI
         // confirmation reload renders the empty state.
         private void BtnResetAllDefaults_Click(object sender, RoutedEventArgs e)
         {
-            var r = System.Windows.MessageBox.Show(
+            var r = LoadoutDialog.Show(this,
                 "Reset every settings section back to defaults?\n\n" +
                 "Wipes: alerts, timers, goals, counters, welcomes, webhooks, custom commands, " +
                 "Bolts wallet config, Apex config, Discord templates, etc.\n\n" +
@@ -1498,8 +1497,7 @@ namespace Loadout.UI
                 "This change applies on Save.",
                 "Reset all settings",
                 System.Windows.MessageBoxButton.OKCancel,
-                System.Windows.MessageBoxImage.Warning,
-                System.Windows.MessageBoxResult.Cancel);
+                System.Windows.MessageBoxImage.Warning);
             if (r != System.Windows.MessageBoxResult.OK) return;
 
             var current = SettingsManager.Instance.Current;
@@ -1730,7 +1728,7 @@ namespace Loadout.UI
 
         private void BtnGamesReset_Click(object sender, RoutedEventArgs e)
         {
-            var confirm = MessageBox.Show(this,
+            var confirm = LoadoutDialog.Show(this,
                 "Wipe all tracked game stats? Sessions counts, total hours, and peak viewers will reset to zero. Per-game 'reset on switch' choices stay.",
                 "Reset game stats", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.OK) return;
@@ -2271,7 +2269,7 @@ namespace Loadout.UI
                 var bytes = File.ReadAllBytes(dlg.FileName);
                 if (bytes.Length > MaxBytes)
                 {
-                    System.Windows.MessageBox.Show(this,
+                    LoadoutDialog.Show(this,
                         "That image is " + (bytes.Length / 1024) + " KB — keep it under " +
                         (MaxBytes / 1024) + " KB so the bus payload stays snappy. Try a smaller PNG / WebP.",
                         "Image too large", System.Windows.MessageBoxButton.OK,
@@ -2287,7 +2285,7 @@ namespace Loadout.UI
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show(this, "Couldn't read that file: " + ex.Message,
+                LoadoutDialog.Show(this, "Couldn't read that file: " + ex.Message,
                     "Upload failed", System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Error);
             }
@@ -2923,7 +2921,7 @@ namespace Loadout.UI
         }
         private void BtnBackupImport_Click(object sender, RoutedEventArgs e)
         {
-            var confirm = MessageBox.Show(this,
+            var confirm = LoadoutDialog.Show(this,
                 "Restoring a backup overwrites your current settings, counters, and wallet data with whatever's in the .zip. " +
                 "Pre-existing files NOT in the backup are kept. Continue?",
                 "Restore Loadout backup", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
@@ -3094,7 +3092,7 @@ namespace Loadout.UI
         }
         private async void BtnDcbUnlink_Click(object sender, RoutedEventArgs e)
         {
-            var ok = MessageBox.Show(this,
+            var ok = LoadoutDialog.Show(this,
                 "Unlink this server from your Loadout install? Wallet data on the worker will be cleared. Discord-side balances will reset.",
                 "Unlink Discord server", MessageBoxButton.OKCancel, MessageBoxImage.Warning);
             if (ok != MessageBoxResult.OK) return;

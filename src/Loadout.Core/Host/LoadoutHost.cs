@@ -73,6 +73,11 @@ namespace Loadout.Host
                     }
 
                     _dispatcher = Dispatcher.CurrentDispatcher;
+                    // Flip every Loadout window's title bar dark via DWM
+                    // so the OS chrome stops fighting our XAML dark mode.
+                    // Has to be set up on the UI thread before any
+                    // window is constructed.
+                    Loadout.UI.WindowChrome.EnableForApp();
                     _tray = new TrayIcon();
                     _tray.Show();
 
