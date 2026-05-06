@@ -97,6 +97,48 @@ body[data-pos="tc"] #root { top: 0; left: 50%; transform: translateX(-50%); }
   border-radius: inherit;
   display: block;
 }
+/* When the badge is rendering a single brand logo (Discord, etc.),
+   slim the gradient padding so the SVG breathes a bit. */
+.badge.platforms { padding: 6px; background: rgba(58,134,255,.18); }
+.badge.platforms .badge-img { object-fit: contain; }
+
+/* Multi-platform commands (!socials, !gamertags) render a 2x2 grid
+   of small brand logos inside the badge box. Up to 4 visible; an
+   overflow chip ("+5") slots in if the streamer added more. */
+.badge.platforms-strip {
+  padding: 4px;
+  background: rgba(58,134,255,.12);
+  display: grid;
+  align-items: center;
+  justify-items: center;
+}
+.badge .icon-strip {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-items: center;
+}
+.badge .icon-strip[data-count="1"] { grid-template-columns: 1fr; }
+.badge .icon-strip[data-count="2"] { grid-template-columns: 1fr 1fr; }
+.badge .icon-strip[data-count="3"],
+.badge .icon-strip[data-count="4"] { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+.badge .icon-strip-item {
+  width: 100%;
+  height: 100%;
+  max-width: 14px;
+  max-height: 14px;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.4));
+}
+.badge .icon-strip-more {
+  font-size: 9px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: .3px;
+}
 
 .body { display: flex; flex-direction: column; min-width: 0; }
 .name {

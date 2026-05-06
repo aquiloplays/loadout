@@ -31,67 +31,17 @@
 
   let hideTimer = null;
 
-  // Real brand logos via the simpleicons.org CDN — every chip pulls a
-  // proper SVG (Twitter's bird, Bluesky's butterfly, Steam's gear, etc.)
-  // rendered in white so it sits cleanly on the dark chip background.
-  // Slug map below normalizes streamer-friendly tokens onto simpleicons
-  // canonical slugs; unknown tokens fall back to a plain "@" pill.
-  //
-  // CDN docs: https://github.com/simple-icons/simple-icons-cdn
-  // Format:   https://cdn.simpleicons.org/<slug>/<hex-color>
-  const SIMPLEICONS = 'https://cdn.simpleicons.org/';
-  const ICON_COLOR  = 'ffffff';
-  const SOCIAL_SLUGS = {
-    twitter:   'x',          // X (formerly Twitter) → simpleicons "x"
-    x:         'x',
-    instagram: 'instagram',
-    ig:        'instagram',
-    tiktok:    'tiktok',
-    youtube:   'youtube',
-    twitch:    'twitch',
-    kick:      'kick',
-    bluesky:   'bluesky',
-    bsky:      'bluesky',
-    threads:   'threads',
-    linkedin:  'linkedin',
-    github:    'github',
-    discord:   'discord',
-    facebook:  'facebook',
-    mastodon:  'mastodon',
-    reddit:    'reddit',
-    snapchat:  'snapchat',
-    spotify:   'spotify',
-    soundcloud:'soundcloud'
-  };
-  const GAME_SLUGS = {
-    psn:             'playstation',
-    playstation:     'playstation',
-    xbox:            'xbox',
-    steam:           'steam',
-    riot:            'riotgames',
-    valorant:        'valorant',
-    leagueoflegends: 'leagueoflegends',
-    lol:             'leagueoflegends',
-    minecraft:       'minecraft',
-    fortnite:        'epicgames',
-    nintendo:        'nintendoswitch',
-    switch:          'nintendoswitch',
-    activision:      'activision',
-    epic:            'epicgames',
-    epicgames:       'epicgames',
-    blizzard:        'battledotnet',
-    battlenet:       'battledotnet',
-    ubisoft:         'ubisoft',
-    ea:              'ea'
-  };
-  function iconUrl(slug) { return SIMPLEICONS + slug + '/' + ICON_COLOR; }
+  // Brand logos resolve through the shared _shared/platform-icons.js
+  // registry so the commands ticker, compact pane, and this overlay
+  // all read from one source of truth. Unknown platform tokens fall
+  // back to a plain "@" pill.
   function socialIcon(platform) {
-    const slug = SOCIAL_SLUGS[(platform || '').toLowerCase()];
-    return slug ? iconUrl(slug) : null;
+    return (window.PlatformIcons && window.PlatformIcons.isSocial(platform))
+      ? window.PlatformIcons.iconUrl(platform) : null;
   }
   function gameIcon(platform) {
-    const slug = GAME_SLUGS[(platform || '').toLowerCase()];
-    return slug ? iconUrl(slug) : null;
+    return (window.PlatformIcons && window.PlatformIcons.isGame(platform))
+      ? window.PlatformIcons.iconUrl(platform) : null;
   }
 
   function render(p) {

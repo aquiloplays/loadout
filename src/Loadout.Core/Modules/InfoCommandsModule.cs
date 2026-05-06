@@ -62,8 +62,10 @@ namespace Loadout.Modules
                 case "lurk":       reply = "👋 Thanks for lurking, " + ctx.User + "! Catch you later."; break;
                 case "unlurk":     reply = "🎉 Welcome back, " + ctx.User + "!"; break;
                 case "commands":   reply = ReplyCommandsList(s); break;
-                case "socials":    reply = s.InfoCommands.Socials; break;
-                case "discord":    reply = s.InfoCommands.Discord; break;
+                case "socials":    reply = ReplySocials(s); break;
+                case "discord":    reply = ReplyDiscord(s); break;
+                case "gamertags":
+                case "tags":       reply = ReplyGamerTags(s); break;
                 case "quote":      reply = ReplyQuote(s, rest, ctx); break;
                 case "profile":
                 case "card":       reply = ReplyProfile(ctx, rest); break;
@@ -232,6 +234,122 @@ namespace Loadout.Modules
             // second monitor).
             AquiloBus.Instance.Publish("shoutout.requested", new { target, requestedBy = ctx.User, platform = ctx.Platform.ToShortName() });
             return "🎯 Go check out https://twitch.tv/" + target + " — they're awesome!";
+        }
+
+        // !socials — formats InfoCommands.SocialLinks (platform → handle/link)
+        // as a friendly chat line. Falls back to the legacy single-string
+        // Socials field for older settings files. Empty result returns null
+        // so the dispatcher silently skips the command.
+        private static string ReplySocials(LoadoutSettings s)
+        {
+            var links = s.InfoCommands?.SocialLinks;
+            if (links != null && links.Count > 0)
+            {
+                var parts = new List<string>();
+                foreach (var kv in links)
+                {
+                    var k = (kv.Key ?? "").Trim();
+                    var v = (kv.Value ?? "").Trim();
+                    if (k.Length == 0 || v.Length == 0) continue;
+                    parts.Add(PrettyPlatform(k) + ": " + v);
+                }
+                if (parts.Count > 0) return "🔗 Find me here · " + string.Join("  ·  ", parts);
+            }
+            return string.IsNullOrWhiteSpace(s.InfoCommands?.Socials) ? null : s.InfoCommands.Socials;
+        }
+
+        // !discord — prefer the structured SocialLinks["discord"] entry,
+        // fall back to the legacy Discord string, fall back to a polite
+        // "no discord set" message.
+        private static string ReplyDiscord(LoadoutSettings s)
+        {
+            var links = s.InfoCommands?.SocialLinks;
+            if (links != null && links.TryGetValue("discord", out var dv) && !string.IsNullOrWhiteSpace(dv))
+                return "💬 Join the Discord: " + dv.Trim();
+            return string.IsNullOrWhiteSpace(s.InfoCommands?.Discord) ? null : s.InfoCommands.Discord;
+        }
+
+        // !gamertags — replies with each configured platform:tag pair so
+        // chat can friend the streamer. Off by default (toggle in config);
+        // returns null when disabled or empty so the command silently
+        // does nothing.
+        private static string ReplyGamerTags(LoadoutSettings s)
+        {
+            var cfg = s.InfoCommands;
+            if (cfg == null || !cfg.GamerTagsEnabled) return null;
+            var tags = cfg.GamerTags;
+            if (tags == null || tags.Count == 0) return null;
+
+            var parts = new List<string>();
+            foreach (var kv in tags)
+            {
+                var k = (kv.Key ?? "").Trim();
+                var v = (kv.Value ?? "").Trim();
+                if (k.Length == 0 || v.Length == 0) continue;
+                parts.Add(PrettyPlatform(k) + ": " + v);
+            }
+            return parts.Count == 0 ? null : "🎮 Friend me · " + string.Join("  ·  ", parts);
+        }
+
+        // Friendly display name for a platform token. Most are just
+        // capitalized; a few have specific casing the chat reply should
+        // honor (X, GitHub, PSN, LoL, etc.).
+        private static string PrettyPlatform(string p)
+        {
+            switch ((p ?? "").Trim().ToLowerInvariant())
+            {
+                case "x":
+                case "twitter":         return "Twitter";
+                case "ig":
+                case "instagram":       return "Instagram";
+                case "tt":
+                case "tiktok":          return "TikTok";
+                case "yt":
+                case "youtube":         return "YouTube";
+                case "twitch":          return "Twitch";
+                case "kick":            return "Kick";
+                case "bsky":
+                case "bluesky":         return "Bluesky";
+                case "threads":         return "Threads";
+                case "linkedin":        return "LinkedIn";
+                case "gh":
+                case "github":          return "GitHub";
+                case "discord":         return "Discord";
+                case "fb":
+                case "facebook":        return "Facebook";
+                case "mastodon":        return "Mastodon";
+                case "reddit":          return "Reddit";
+                case "snap":
+                case "snapchat":        return "Snapchat";
+                case "spotify":         return "Spotify";
+                case "soundcloud":      return "SoundCloud";
+                case "patreon":         return "Patreon";
+                case "kofi":
+                case "ko-fi":           return "Ko-fi";
+                case "throne":          return "Throne";
+                case "psn":
+                case "playstation":     return "PSN";
+                case "xbox":
+                case "xbl":             return "Xbox";
+                case "steam":           return "Steam";
+                case "riot":
+                case "riotgames":       return "Riot";
+                case "valorant":        return "Valorant";
+                case "lol":
+                case "leagueoflegends": return "LoL";
+                case "minecraft":       return "Minecraft";
+                case "fortnite":        return "Fortnite";
+                case "switch":
+                case "nintendo":        return "Nintendo";
+                case "epic":
+                case "epicgames":       return "Epic";
+                case "battlenet":
+                case "battle.net":
+                case "blizzard":        return "Battle.net";
+                default:
+                    var t = (p ?? "").Trim();
+                    return t.Length == 0 ? "" : char.ToUpperInvariant(t[0]) + t.Substring(1);
+            }
         }
 
         private static string ReplyCommandsList(LoadoutSettings s)

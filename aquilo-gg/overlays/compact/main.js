@@ -100,7 +100,30 @@
   function tickIdle() {
     if (commands.length === 0) return;
     const c = commands[idleIdx % commands.length]; idleIdx++;
-    applyBadge(idleBadge, badgeForCat(c.cat));
+    // Branded badge: real brand logo if the command has a platforms
+    // array (Discord, Steam, etc.); icon strip if multiple; emoji
+    // fallback otherwise.
+    idleBadge.classList.remove('platforms', 'platforms-strip');
+    const plats = Array.isArray(c.platforms) ? c.platforms : [];
+    if (plats.length === 1 && window.PlatformIcons) {
+      const url = window.PlatformIcons.iconUrl(plats[0]);
+      if (url) {
+        idleBadge.classList.add('platforms');
+        idleBadge.innerHTML = '<img class="badge-img" src="' + url + '" alt="" loading="lazy" />';
+      } else {
+        applyBadge(idleBadge, badgeForCat(c.cat));
+      }
+    } else if (plats.length > 1 && window.PlatformIcons) {
+      const html = window.PlatformIcons.renderStrip(plats, { max: 3 });
+      if (html) {
+        idleBadge.classList.add('platforms-strip');
+        idleBadge.innerHTML = html;
+      } else {
+        applyBadge(idleBadge, badgeForCat(c.cat));
+      }
+    } else {
+      applyBadge(idleBadge, badgeForCat(c.cat));
+    }
     idleName.textContent  = c.name || '!commands';
     idleDesc.textContent  = c.desc || c.description || '';
   }
@@ -364,7 +387,9 @@
     commands = payload.commands.map(c => ({
       name: c.name,
       desc: c.desc || c.description || '',
-      cat:  (c.cat || c.category || '').toLowerCase()
+      cat:  (c.cat || c.category || '').toLowerCase(),
+      // Optional platforms[] drives the brand-logo badge in tickIdle.
+      platforms: Array.isArray(c.platforms) ? c.platforms : null
     })).filter(c => c.name);
     idleIdx = 0;
     if (idleTimer) clearInterval(idleTimer);

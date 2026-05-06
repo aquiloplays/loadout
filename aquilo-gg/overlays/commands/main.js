@@ -101,20 +101,7 @@
 
     swapTimer = setTimeout(() => {
       badge.dataset.cat = cat;
-      // Photo override: render <img> instead of text. Reset DOM each
-      // swap so a previous image doesn't linger when the next badge
-      // is plain text.
-      const lbl = badgeLabel(cat);
-      if (isImageUrl(lbl)) {
-        badge.innerHTML = '';
-        const img = document.createElement('img');
-        img.src = lbl;
-        img.alt = '';
-        img.className = 'badge-img';
-        badge.appendChild(img);
-      } else {
-        badge.textContent = lbl;
-      }
+      renderBadge(c);
       nameEl.textContent = c.name || '';
       descEl.textContent = c.desc || c.description || '';
 
@@ -150,6 +137,41 @@
     return /^data:image\//i.test(s) || /^https?:\/\/.+\.(png|jpe?g|gif|webp|svg)/i.test(s);
   }
 
+  // Render the badge slot for a command. Three modes:
+  //   1. command has platforms[] array (size 1) → render that single
+  //      brand logo (Discord, Twitch, etc.)
+  //   2. command has platforms[] array (size 2+) → render a small
+  //      icon strip (up to 4 logos + overflow indicator)
+  //   3. otherwise → fall back to badgeLabel(cat) which is either the
+  //      streamer's icon override or the category emoji.
+  function renderBadge(c) {
+    badge.classList.remove('platforms', 'platforms-strip');
+    const plats = Array.isArray(c.platforms) ? c.platforms : [];
+    if (plats.length === 1 && window.PlatformIcons) {
+      const url = window.PlatformIcons.iconUrl(plats[0]);
+      if (url) {
+        badge.classList.add('platforms');
+        badge.innerHTML = '<img class="badge-img" src="' + url + '" alt="" loading="lazy" />';
+        return;
+      }
+    }
+    if (plats.length > 1 && window.PlatformIcons) {
+      const html = window.PlatformIcons.renderStrip(plats, { max: 4 });
+      if (html) {
+        badge.classList.add('platforms-strip');
+        badge.innerHTML = html;
+        return;
+      }
+    }
+    // Fall back to category emoji / streamer override.
+    const lbl = badgeLabel(c.cat);
+    if (isImageUrl(lbl)) {
+      badge.innerHTML = '<img class="badge-img" src="' + lbl + '" alt="" />';
+    } else {
+      badge.textContent = lbl;
+    }
+  }
+
   function tick() {
     const visible = applyFilter(commands);
     if (visible.length === 0) {
@@ -173,7 +195,10 @@
     commands = payload.commands.map(c => ({
       name: c.name,
       desc: c.desc || c.description || '',
-      cat:  (c.cat || c.category || '').toLowerCase()
+      cat:  (c.cat || c.category || '').toLowerCase(),
+      // Optional brand-platform list. When present, the badge renders
+      // the actual logo(s) instead of the category emoji.
+      platforms: Array.isArray(c.platforms) ? c.platforms : null
     })).filter(c => c.name);
     if (commands.length === 0) return;
     usingFallback = false;

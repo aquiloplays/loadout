@@ -679,8 +679,28 @@ namespace Loadout.Settings
 
     public class InfoCommandsConfig
     {
+        // Legacy single-string fields. Still respected when the new
+        // structured maps are empty so existing settings.json files
+        // keep working. New onboarding flows go through SocialLinks +
+        // GamerTags.
         public string Discord { get; set; } = "Join the Discord: https://discord.gg/example";
-        public string Socials { get; set; } = "Find me everywhere: https://aquilo.gg";
+        public string Socials { get; set; } = "";
+
+        // Structured streamer socials. Keys are platform tokens
+        // (twitter / ig / bluesky / youtube / ...) — see
+        // _shared/platform-icons.js for the full set. Values are
+        // the link or @handle the streamer wants chat to see.
+        // !socials chat reply formats this as a friendly line; the
+        // commands ticker renders the brand logos for each entry.
+        public Dictionary<string, string> SocialLinks { get; set; } = new Dictionary<string, string>();
+
+        // Streamer's gamer tags for !gamertags. Keys are platform
+        // tokens (psn / xbox / steam / riot / ...). Off by default
+        // so streamers opt in.
+        public bool   GamerTagsEnabled { get; set; } = false;
+        public string GamerTagsCommand { get; set; } = "!gamertags";
+        public Dictionary<string, string> GamerTags { get; set; } = new Dictionary<string, string>();
+
         public List<CustomCommand> Custom { get; set; } = new List<CustomCommand>();
     }
 

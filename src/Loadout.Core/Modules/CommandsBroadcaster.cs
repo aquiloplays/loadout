@@ -102,10 +102,44 @@ namespace Loadout.Modules
                 list.Add(new CommandEntry("!so @user",   "info", "shoutout another streamer"));
                 list.Add(new CommandEntry("!lurk",       "info", "mark yourself as lurking"));
                 list.Add(new CommandEntry("!unlurk",     "info", "you're back from lurking"));
-                if (!string.IsNullOrEmpty(s.InfoCommands.Discord))
-                    list.Add(new CommandEntry("!discord", "info", "join the streamer's Discord"));
-                if (!string.IsNullOrEmpty(s.InfoCommands.Socials))
-                    list.Add(new CommandEntry("!socials", "info", "all social links"));
+                // !discord — surface only when the streamer set a link
+                // either via the structured SocialLinks["discord"] entry
+                // or the legacy Discord string. Real Discord brand logo
+                // shows up in the ticker via platforms=["discord"].
+                var hasDiscord =
+                    (s.InfoCommands.SocialLinks != null && s.InfoCommands.SocialLinks.TryGetValue("discord", out var dv) && !string.IsNullOrWhiteSpace(dv)) ||
+                    !string.IsNullOrEmpty(s.InfoCommands.Discord);
+                if (hasDiscord)
+                    list.Add(new CommandEntry("!discord", "info", "join the streamer's Discord", new[] { "discord" }));
+
+                // !socials — drives the badge from the streamer's actual
+                // configured platforms. Up to ~4 logos render as a strip;
+                // legacy single-string Socials still surfaces the command
+                // but with no platforms array (falls back to default).
+                var socialPlatforms = (s.InfoCommands.SocialLinks != null && s.InfoCommands.SocialLinks.Count > 0)
+                    ? s.InfoCommands.SocialLinks
+                        .Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && !string.IsNullOrWhiteSpace(kv.Value))
+                        .Select(kv => kv.Key.ToLowerInvariant())
+                        .ToArray()
+                    : null;
+                if ((socialPlatforms != null && socialPlatforms.Length > 0) ||
+                    !string.IsNullOrEmpty(s.InfoCommands.Socials))
+                    list.Add(new CommandEntry("!socials", "info", "all my social links", socialPlatforms));
+
+                // !gamertags — opt-in. Same multi-icon strip trick as
+                // !socials, scoped to game platforms.
+                if (s.InfoCommands.GamerTagsEnabled && s.InfoCommands.GamerTags != null && s.InfoCommands.GamerTags.Count > 0)
+                {
+                    var gtCmd = string.IsNullOrWhiteSpace(s.InfoCommands.GamerTagsCommand)
+                        ? "!gamertags"
+                        : (s.InfoCommands.GamerTagsCommand.StartsWith("!") ? s.InfoCommands.GamerTagsCommand : "!" + s.InfoCommands.GamerTagsCommand);
+                    var gamePlatforms = s.InfoCommands.GamerTags
+                        .Where(kv => !string.IsNullOrWhiteSpace(kv.Key) && !string.IsNullOrWhiteSpace(kv.Value))
+                        .Select(kv => kv.Key.ToLowerInvariant())
+                        .ToArray();
+                    list.Add(new CommandEntry(gtCmd, "info", "friend the streamer on these platforms", gamePlatforms));
+                }
+
                 list.Add(new CommandEntry("!quote",      "info", "pull a saved quote"));
                 list.Add(new CommandEntry("!profile",    "info", "show your stat card on stream"));
             }
@@ -205,12 +239,17 @@ namespace Loadout.Modules
         }
 
         // POCO so Newtonsoft serializes camelCase via the bus envelope.
+        // `platforms` is optional — when set, overlays render the brand
+        // logo(s) instead of the category emoji (one platform = single
+        // logo, multiple = icon strip in the badge slot).
         private sealed class CommandEntry
         {
-            public string name { get; }
-            public string cat  { get; }
-            public string desc { get; }
+            public string   name      { get; }
+            public string   cat       { get; }
+            public string   desc      { get; }
+            public string[] platforms { get; set; }
             public CommandEntry(string n, string c, string d) { name = n; cat = c; desc = d; }
+            public CommandEntry(string n, string c, string d, string[] p) { name = n; cat = c; desc = d; platforms = p; }
         }
     }
 }

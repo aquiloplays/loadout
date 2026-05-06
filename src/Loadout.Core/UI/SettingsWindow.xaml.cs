@@ -50,6 +50,11 @@ namespace Loadout.UI
         private readonly ObservableCollection<ChannelPointMapping> _channelPoints = new ObservableCollection<ChannelPointMapping>();
         private readonly ObservableCollection<WalletRow>        _wallets        = new ObservableCollection<WalletRow>();
         private readonly ObservableCollection<BoltsShopItem>    _shopItems      = new ObservableCollection<BoltsShopItem>();
+        // !socials + !gamertags rows. PlatformLinkRow is a simple
+        // {Platform, Link} POCO so the DataGrid binding is trivial;
+        // saved/loaded as Dictionary<string,string> on the settings.
+        private readonly ObservableCollection<PlatformLinkRow>  _socialRows     = new ObservableCollection<PlatformLinkRow>();
+        private readonly ObservableCollection<PlatformLinkRow>  _gamerTagRows   = new ObservableCollection<PlatformLinkRow>();
 
         // Plays the window-open fade storyboard from Styles.xaml.
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -569,6 +574,28 @@ namespace Loadout.UI
             if (GrdCustomCommands.SelectedItem is CustomCommand c && ConfirmRemove("custom command")) _customCmds.Remove(c);
         }
 
+        // ── !socials + !gamertags row management ──────────────────────────
+        // Defaults to `twitter` / `psn` (most common per kind) so the
+        // streamer just edits the handle field on a fresh row.
+        private void BtnSocialAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _socialRows.Add(new PlatformLinkRow { Platform = "twitter", Link = "" });
+            if (GrdSocials != null) GrdSocials.SelectedItem = _socialRows[_socialRows.Count - 1];
+        }
+        private void BtnSocialRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdSocials?.SelectedItem is PlatformLinkRow r && ConfirmRemove("social link")) _socialRows.Remove(r);
+        }
+        private void BtnGamerTagAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _gamerTagRows.Add(new PlatformLinkRow { Platform = "psn", Link = "" });
+            if (GrdGamerTags != null) GrdGamerTags.SelectedItem = _gamerTagRows[_gamerTagRows.Count - 1];
+        }
+        private void BtnGamerTagRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdGamerTags?.SelectedItem is PlatformLinkRow r && ConfirmRemove("gamer tag")) _gamerTagRows.Remove(r);
+        }
+
         // -------------------- Load all settings into UI --------------------
 
         private void LoadFromSettings()
@@ -628,6 +655,28 @@ namespace Loadout.UI
             // Info commands
             TxtInfoDiscord.Text = s.InfoCommands.Discord ?? "";
             TxtInfoSocials.Text = s.InfoCommands.Socials ?? "";
+
+            // Structured social + gamer-tag rows. Bind once; subsequent
+            // loads clear + repopulate the existing collection so the
+            // grid keeps its column widths and selection.
+            if (GrdSocials != null)
+            {
+                if (GrdSocials.ItemsSource == null) GrdSocials.ItemsSource = _socialRows;
+                _socialRows.Clear();
+                if (s.InfoCommands.SocialLinks != null)
+                    foreach (var kv in s.InfoCommands.SocialLinks)
+                        _socialRows.Add(new PlatformLinkRow { Platform = kv.Key ?? "", Link = kv.Value ?? "" });
+            }
+            if (GrdGamerTags != null)
+            {
+                if (GrdGamerTags.ItemsSource == null) GrdGamerTags.ItemsSource = _gamerTagRows;
+                _gamerTagRows.Clear();
+                if (s.InfoCommands.GamerTags != null)
+                    foreach (var kv in s.InfoCommands.GamerTags)
+                        _gamerTagRows.Add(new PlatformLinkRow { Platform = kv.Key ?? "", Link = kv.Value ?? "" });
+            }
+            if (ChkGamerTagsEnabled != null) ChkGamerTagsEnabled.IsChecked = s.InfoCommands.GamerTagsEnabled;
+            if (TxtGamerTagsCommand != null) TxtGamerTagsCommand.Text = string.IsNullOrWhiteSpace(s.InfoCommands.GamerTagsCommand) ? "!gamertags" : s.InfoCommands.GamerTagsCommand;
 
             // Quiet / chat noise
             ChkQuietMode.IsChecked     = s.ChatNoise.QuietMode;
@@ -831,6 +880,33 @@ namespace Loadout.UI
                 // Info commands
                 s.InfoCommands.Discord = TxtInfoDiscord.Text ?? "";
                 s.InfoCommands.Socials = TxtInfoSocials.Text ?? "";
+                // Roll the DataGrid rows back into the typed dicts.
+                // Empty rows + duplicate platforms are dropped so a
+                // stray blank line in the grid doesn't pollute the
+                // !socials / !gamertags chat reply.
+                if (s.InfoCommands.SocialLinks == null) s.InfoCommands.SocialLinks = new Dictionary<string, string>();
+                else                                     s.InfoCommands.SocialLinks.Clear();
+                foreach (var r in _socialRows)
+                {
+                    var p = (r?.Platform ?? "").Trim().ToLowerInvariant();
+                    var v = (r?.Link ?? "").Trim();
+                    if (p.Length == 0 || v.Length == 0) continue;
+                    s.InfoCommands.SocialLinks[p] = v;   // dedup: last write wins
+                }
+                if (s.InfoCommands.GamerTags == null) s.InfoCommands.GamerTags = new Dictionary<string, string>();
+                else                                   s.InfoCommands.GamerTags.Clear();
+                foreach (var r in _gamerTagRows)
+                {
+                    var p = (r?.Platform ?? "").Trim().ToLowerInvariant();
+                    var v = (r?.Link ?? "").Trim();
+                    if (p.Length == 0 || v.Length == 0) continue;
+                    s.InfoCommands.GamerTags[p] = v;
+                }
+                s.InfoCommands.GamerTagsEnabled = ChkGamerTagsEnabled?.IsChecked == true;
+                var gtCmd = (TxtGamerTagsCommand?.Text ?? "!gamertags").Trim();
+                if (gtCmd.Length > 0 && gtCmd[0] != '!') gtCmd = "!" + gtCmd;
+                if (gtCmd.Length < 2) gtCmd = "!gamertags";
+                s.InfoCommands.GamerTagsCommand = gtCmd;
                 s.InfoCommands.Custom  = _customCmds.ToList();
 
                 // Quiet / chat noise
@@ -3043,6 +3119,15 @@ namespace Loadout.UI
             public DateTime LastActivityUtc { get; set; }
             public string LastActivityDisplay =>
                 LastActivityUtc.Ticks == 0 ? "(never)" : LastActivityUtc.ToLocalTime().ToString("g");
+        }
+
+        // Two-string row for the !socials + !gamertags DataGrids on
+        // the Info Commands tab. Same shape for both — the only thing
+        // that differs is which dictionary they save back to.
+        public sealed class PlatformLinkRow
+        {
+            public string Platform { get; set; } = "";
+            public string Link     { get; set; } = "";
         }
 
         private void BindWalletsAndShop()

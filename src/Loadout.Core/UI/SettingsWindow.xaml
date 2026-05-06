@@ -478,9 +478,80 @@
                         <Border Style="{StaticResource Card}" Margin="0 0 0 14">
                             <StackPanel>
                                 <TextBlock Text="!discord response" Style="{StaticResource H2}" />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 4">
+                                    Direct invite link or full message. The Discord brand logo shows up in the commands ticker for !discord. Tip: also add a "discord" entry in the social links table below to give Discord the same treatment as your other socials.
+                                </TextBlock>
                                 <TextBox x:Name="TxtInfoDiscord" />
-                                <TextBlock Text="!socials response" Style="{StaticResource H2}" Margin="0 14 0 4" />
+                                <TextBlock Text="!socials response (legacy plain text)" Style="{StaticResource H2}" Margin="0 14 0 4" />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 4">
+                                    Used only when the social links table below is empty. Once you add platform entries, the !socials reply auto-formats and the ticker shows the actual brand logos.
+                                </TextBlock>
                                 <TextBox x:Name="TxtInfoSocials" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Streamer's social links. Each row registers a
+                             platform → handle/link entry that the !socials
+                             chat reply formats and the commands ticker
+                             renders as a strip of brand logos. Platform
+                             tokens drive icon resolution via the shared
+                             _shared/platform-icons.js registry. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 4">
+                                    <TextBlock Text="Your socials" Style="{StaticResource H2}" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="Add"    Click="BtnSocialAdd_Click"    Style="{StaticResource SecondaryButton}" Margin="0 0 6 0" />
+                                        <Button Content="Remove" Click="BtnSocialRemove_Click" Style="{StaticResource SecondaryButton}" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    Platform tokens: twitter / x / instagram / ig / tiktok / youtube / twitch / kick / bluesky / threads / linkedin / github / discord / facebook / spotify / soundcloud / patreon / kofi / threads / mastodon. The ticker pulls the real brand logo per row.
+                                </TextBlock>
+                                <DataGrid x:Name="GrdSocials" AutoGenerateColumns="False" CanUserAddRows="False"
+                                          SelectionMode="Single" SelectionUnit="FullRow" Height="160">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Platform" Binding="{Binding Platform, UpdateSourceTrigger=PropertyChanged}" Width="160" />
+                                        <DataGridTextColumn Header="Link / handle" Binding="{Binding Link, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- !gamertags: optional command. Off by default;
+                             toggle on plus add at least one row to surface
+                             the command in chat and the ticker. Same
+                             platform-token → brand-logo path as socials. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 4">
+                                    <TextBlock Text="!gamertags" Style="{StaticResource H2}" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="Add"    Click="BtnGamerTagAdd_Click"    Style="{StaticResource SecondaryButton}" Margin="0 0 6 0" />
+                                        <Button Content="Remove" Click="BtnGamerTagRemove_Click" Style="{StaticResource SecondaryButton}" />
+                                    </StackPanel>
+                                </Grid>
+                                <CheckBox x:Name="ChkGamerTagsEnabled" Content="Enable !gamertags command"
+                                          Style="{StaticResource ToggleSwitch}" Margin="0 0 0 8" />
+                                <Grid Margin="0 0 0 8">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="200" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Command:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <TextBox  Grid.Column="1" x:Name="TxtGamerTagsCommand" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    Platform tokens: psn / xbox / steam / riot / valorant / leagueoflegends / lol / minecraft / fortnite / nintendo / switch / epic / blizzard / battle.net / ubisoft / ea / rockstar / bethesda / gog / itch.
+                                </TextBlock>
+                                <DataGrid x:Name="GrdGamerTags" AutoGenerateColumns="False" CanUserAddRows="False"
+                                          SelectionMode="Single" SelectionUnit="FullRow" Height="160">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Platform" Binding="{Binding Platform, UpdateSourceTrigger=PropertyChanged}" Width="160" />
+                                        <DataGridTextColumn Header="Tag / username" Binding="{Binding Link, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
                             </StackPanel>
                         </Border>
 
