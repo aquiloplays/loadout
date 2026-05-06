@@ -2414,8 +2414,13 @@
                                     <TextBox x:Name="TxtUrlCheckIn" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="check-in" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 1920×1080 (centered animation needs full canvas)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 1920×1080" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — centered animation needs full canvas" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                     <ComboBox x:Name="CmbCheckInOverlayPos" Width="160" SelectionChanged="OnOverlayUrlChange">
@@ -2466,8 +2471,13 @@
                                     <TextBox x:Name="TxtUrlCounters" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="counters" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 600×140 (lower-third strip)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 600×140" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — lower-third strip" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -2528,8 +2538,13 @@
                                     <TextBox x:Name="TxtUrlGoals" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="goals" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 480×120 (small badge)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 480×120" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — small badge" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Theme:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                     <ComboBox x:Name="CmbGoalsTheme" Width="120" SelectionChanged="OnOverlayUrlChange">
@@ -2578,8 +2593,13 @@
                                     <TextBox x:Name="TxtUrlBolts" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="bolts" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 1920×1080 (rain + giftburst layers fill the canvas)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 1920×1080" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — rain + giftburst layers fill the canvas" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <TextBlock Text="Layers visible:" Style="{StaticResource Muted}" Margin="0 0 0 4" />
                                 <WrapPanel>
                                     <CheckBox x:Name="ChkLayerLeaderboard" Content="Leaderboard"    IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
@@ -2646,8 +2666,13 @@
                                     <TextBox x:Name="TxtUrlCommands" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="commands" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 380×100 (ticker card)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 380×100" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — ticker card" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -2777,8 +2802,13 @@
                                     <TextBox x:Name="TxtUrlApex" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="apex" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 480×100 (top-viewer status bar)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 480×100" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — top-viewer status bar" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                     <ComboBox x:Name="CmbApexPos" Width="160" SelectionChanged="OnOverlayUrlChange">
@@ -2834,8 +2864,13 @@
                                     <TextBox x:Name="TxtUrlRecap" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="recap" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 1920×1080 (end-of-stream full-frame card)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 1920×1080" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — end-of-stream full-frame card" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -2894,8 +2929,13 @@
                                     <TextBox x:Name="TxtUrlViewer" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="viewer" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 380×140 (profile card)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 380×140" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — profile card" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -2967,8 +3007,13 @@
                                     <TextBox x:Name="TxtUrlMinigames" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="minigames" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 380×220 (animated card pops in for ~3s per game)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 380×220" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — animated card pops in for ~3s per game" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -3018,8 +3063,13 @@
                                     <TextBox x:Name="TxtUrlHypeTrain" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="hypetrain" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 400×120 (compact card; sits beside Twitch's native train if you keep both visible)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 400×120" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — compact card; sits beside Twitch's native train if you keep both visible" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
@@ -3042,89 +3092,47 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Rotation Spotify widget. The streamer's Rotation widget
-                             connects to the local Aquilo Bus via busUrl + busSecret
-                             URL params (read on first load and persisted to its
-                             localStorage). Once connected, !boltsong from chat
-                             routes through here, and the widget publishes
-                             rotation.song.playing as the Spotify track changes —
-                             which powers the !song chat command + the compact
-                             overlay's now-playing card. -->
+                        <!-- Now playing (!song chat command).
+                             The Rotation widget itself is a separate product (lives at
+                             widget.aquilo.gg/rotation) — it's not configured from here.
+                             Loadout just listens for whatever publishes rotation.song.*
+                             on the local Aquilo Bus and surfaces it as a chat command +
+                             a now-playing card on the compact overlay. -->
                         <Border Style="{StaticResource Card}" Margin="0 0 0 10">
                             <StackPanel>
                                 <Grid Margin="0 0 0 8">
                                     <StackPanel Orientation="Horizontal">
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Bolts}" Margin="0 0 8 0" Width="14" Height="14" />
-                                        <TextBlock Text="Rotation widget (Spotify)" Style="{StaticResource H2}" Margin="0" />
+                                        <TextBlock Text="Now playing (!song)" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
                                     <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
-                                                Tag="rotation" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
-                                                ToolTip="Publishes a synthetic rotation.song.playing event so the !song command + compact overlay show a sample track without needing Spotify to actually change songs." />
-                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
-                                                Tag="rotation" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
-                                                ToolTip="Opens with ?debug=1 — useful for tweaking the widget URL without needing Spotify to actually be playing." />
-                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
-                                                Tag="rotation" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. The widget's status pill turns green once it connects to your local Loadout bus." />
+                                                Tag="rotation" Click="BtnOverlaySendTest_Click"
+                                                ToolTip="Publishes a synthetic rotation.song.playing event so the !song command and the compact overlay's now-playing card render with a sample track." />
                                     </StackPanel>
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
-                                    Connection point between Loadout and your Rotation Spotify widget. Use the URL
-                                    below either as an OBS browser source or open it as a regular tab — the bus
-                                    params bake in your local secret on first load.
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 10">
+                                    Replies with the current track when a viewer types !song. Loadout listens for
+                                    rotation.song.playing on the bus — anything that publishes that event (the
+                                    Rotation Spotify widget at widget.aquilo.gg/rotation, a custom Streamer.bot
+                                    action, etc.) feeds it. Silent until a track is reported. Mods + broadcaster
+                                    bypass the cooldown.
                                 </TextBlock>
-                                <Grid Margin="0 0 0 6">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <TextBox x:Name="TxtUrlRotation" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
-                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="rotation" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
-                                </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 10"
-                                           Text="Recommended OBS browser source size depends on the variant — widget.html ~480x180, now-playing.html 1920x1080, queue.html ~480x720." />
-                                <Grid Margin="0 0 0 10">
+                                <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="100" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Text="Variant" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 12 0" />
-                                    <ComboBox  Grid.Column="1" x:Name="CmbRotationVariant" SelectionChanged="OnOverlayUrlChange">
-                                        <ComboBoxItem Content="widget.html (compact card)"          Tag="widget" IsSelected="True" />
-                                        <ComboBoxItem Content="now-playing.html (large hero)"       Tag="now-playing" />
-                                        <ComboBoxItem Content="queue.html (upcoming list)"          Tag="queue" />
-                                        <ComboBoxItem Content="moderator.html (mod control panel)"  Tag="moderator" />
-                                        <ComboBoxItem Content="config.html (configuration)"         Tag="config" />
-                                    </ComboBox>
-                                    <TextBlock Grid.Column="2" Text="Base URL" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12 0 12 0" />
-                                    <TextBox   Grid.Column="3" x:Name="TxtRotationBaseUrl" TextChanged="OnOverlayUrlChange"
-                                               ToolTip="Defaults to https://widget.aquilo.gg/rotation. Override only if you self-host the Rotation widget." />
+                                    <CheckBox Grid.Column="0" x:Name="ChkRotationSongCmd" Content="Enabled"
+                                              Style="{StaticResource ToggleRow}" Margin="0 0 16 0" />
+                                    <TextBlock Grid.Column="2" Text="Command" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <TextBox   Grid.Column="3" x:Name="TxtRotationSongCmd" />
+                                    <TextBlock Grid.Column="4" Text="Cooldown (sec)" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="16 0 8 0" />
+                                    <TextBox   Grid.Column="5" x:Name="TxtRotationSongCooldown" Width="60" HorizontalAlignment="Left" />
                                 </Grid>
-                                <Border Background="{StaticResource Brush.Bg.Surface3}" CornerRadius="6" Padding="10">
-                                    <StackPanel>
-                                        <TextBlock Text="!song chat command" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0 0 0 4" />
-                                        <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 6">
-                                            Replies with the current track when a viewer types !song. Powered by rotation.song.playing on the bus —
-                                            silent until the widget reports a track. Mods + broadcaster bypass the cooldown.
-                                        </TextBlock>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="120" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="100" />
-                                                <ColumnDefinition Width="Auto" />
-                                                <ColumnDefinition Width="60" />
-                                            </Grid.ColumnDefinitions>
-                                            <CheckBox Grid.Column="0" x:Name="ChkRotationSongCmd" Content="Enabled"
-                                                      Style="{StaticResource ToggleRow}" Margin="0 0 16 0" />
-                                            <TextBlock Grid.Column="2" Text="Command" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
-                                            <TextBox   Grid.Column="3" x:Name="TxtRotationSongCmd" />
-                                            <TextBlock Grid.Column="4" Text="Cooldown (sec)" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="16 0 8 0" />
-                                            <TextBox   Grid.Column="5" x:Name="TxtRotationSongCooldown" />
-                                        </Grid>
-                                    </StackPanel>
-                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -3164,8 +3172,13 @@
                                     <TextBox x:Name="TxtUrlCompact" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="compact" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 460×148 (the card is 440×128 with a tiny shadow margin)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 460×148" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — the card is 440×128 with a tiny shadow margin" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -3230,8 +3243,13 @@
                                     <TextBox x:Name="TxtUrlAll" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="all" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 1920×1080 (one source replaces every overlay above)" />
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 1920×1080" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — one source replaces every overlay above" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
                                 <Border Background="{StaticResource Brush.Bg.Surface3}" CornerRadius="6" Padding="10" Margin="0 0 0 10">
                                     <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap">
                                         Heads-up: each layer renders at the position you've set on its own card above. If two layers

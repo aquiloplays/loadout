@@ -1318,12 +1318,10 @@ namespace Loadout.UI
                 StoreIcon("mod",     TxtIconMod?.Text);
                 StoreIcon("song",    TxtIconSong?.Text);
 
-                // Rotation connection (typed config — drives !song chat
-                // command behaviour through NowPlayingModule).
+                // !song chat command (NowPlayingModule listens for rotation.song.*
+                // on the bus). The Rotation widget itself is a separate product;
+                // we only configure how Loadout reacts to its events here.
                 if (s.RotationConnection == null) s.RotationConnection = new RotationConnectionConfig();
-                s.RotationConnection.BaseUrl  = (TxtRotationBaseUrl?.Text ?? "").Trim();
-                s.RotationConnection.Variant  = SelectedTag(CmbRotationVariant);
-                if (string.IsNullOrEmpty(s.RotationConnection.Variant)) s.RotationConnection.Variant = "widget";
                 s.RotationConnection.SongCommandEnabled = ChkRotationSongCmd?.IsChecked == true;
                 var rotCmd = (TxtRotationSongCmd?.Text ?? "!song").Trim();
                 if (rotCmd.Length > 0 && rotCmd[0] != '!') rotCmd = "!" + rotCmd;
@@ -2129,22 +2127,16 @@ namespace Loadout.UI
             if (TxtIconMod     != null) TxtIconMod.Text     = IconVal("mod");
             if (TxtIconSong    != null) TxtIconSong.Text    = IconVal("song");
 
-            // Rotation connection: typed config (drives runtime behaviour
-            // through NowPlayingModule), so load via SettingsManager rather
-            // than the opaque CardValues bag.
+            // !song command: typed config (drives runtime behaviour through
+            // NowPlayingModule), so load via SettingsManager rather than the
+            // opaque CardValues bag. The widget URL builder + variant picker
+            // were removed from XAML — Rotation is a separate product, not a
+            // Loadout-configured overlay. Loadout only listens for whatever
+            // publishes rotation.song.* on the bus.
             var rot = SettingsManager.Instance.Current.RotationConnection ?? new RotationConnectionConfig();
-            if (TxtRotationBaseUrl     != null) TxtRotationBaseUrl.Text     = rot.BaseUrl ?? "";
             if (TxtRotationSongCmd     != null) TxtRotationSongCmd.Text     = string.IsNullOrEmpty(rot.SongCommand) ? "!song" : rot.SongCommand;
             if (TxtRotationSongCooldown!= null) TxtRotationSongCooldown.Text= (rot.SongCooldownSec > 0 ? rot.SongCooldownSec : 30).ToString();
             if (ChkRotationSongCmd     != null) ChkRotationSongCmd.IsChecked= rot.SongCommandEnabled;
-            if (CmbRotationVariant     != null && !string.IsNullOrEmpty(rot.Variant))
-            {
-                foreach (ComboBoxItem item in CmbRotationVariant.Items)
-                {
-                    if (string.Equals(item.Tag?.ToString(), rot.Variant, StringComparison.Ordinal))
-                    { CmbRotationVariant.SelectedItem = item; break; }
-                }
-            }
 
             // Restore every per-overlay textbox / combo / checkbox from
             // the saved CardValues bag. Must happen AFTER TxtOverlayBaseUrl
@@ -2319,27 +2311,10 @@ namespace Loadout.UI
                 });
             }
 
-            // Rotation Spotify widget. Different URL shape than the
-            // OBS overlays: lives at widget.aquilo.gg/rotation/<page>.html
-            // and reads busUrl + busSecret from URL params on first load
-            // (then persists them to localStorage). We bake both in so
-            // the streamer's URL "just works" the moment they load it.
-            if (TxtUrlRotation != null)
-            {
-                var rotBase = (TxtRotationBaseUrl?.Text ?? "").Trim();
-                if (string.IsNullOrEmpty(rotBase)) rotBase = "https://widget.aquilo.gg/rotation";
-                rotBase = rotBase.TrimEnd('/');
-                var variant = SelectedTag(CmbRotationVariant);
-                if (string.IsNullOrEmpty(variant)) variant = "widget";
-
-                var qs = new List<string>
-                {
-                    "busUrl="    + HttpUtility.UrlEncode("ws://127.0.0.1:7470/aquilo/bus/")
-                };
-                if (!string.IsNullOrEmpty(secret))
-                    qs.Add("busSecret=" + HttpUtility.UrlEncode(secret));
-                TxtUrlRotation.Text = rotBase + "/" + variant + ".html?" + string.Join("&", qs);
-            }
+            // (Rotation widget URL builder lived here; removed because the
+            // Rotation widget is a separate product - widget.aquilo.gg/rotation
+            // builds + persists its own bus URL on first load. Loadout only
+            // listens for rotation.song.* events from whatever publishes them.)
 
             // Compact one-pane overlay (commands ticker idle + crossfade
             // event cards when the bus fires something). Defaults are
@@ -2442,8 +2417,6 @@ namespace Loadout.UI
             "CmbMinigamesPos", "TxtMinigamesAccent",
             // Compact (one-pane)
             "CmbCompactPos", "TxtCompactHoldMs", "TxtCompactIdleRotate",
-            // Rotation widget (Spotify) connection card
-            "CmbRotationVariant", "TxtRotationBaseUrl",
             // All-in-one composite layer toggles
             "ChkAllBolts", "ChkAllCounters", "ChkAllGoals", "ChkAllCheckIn",
             "ChkAllApex", "ChkAllCommands", "ChkAllRecap", "ChkAllViewer",
@@ -3190,7 +3163,6 @@ namespace Loadout.UI
                 case "hypetrain": return TxtUrlHypeTrain?.Text;
                 case "minigames": return TxtUrlMinigames?.Text;
                 case "compact":   return TxtUrlCompact?.Text;
-                case "rotation":  return TxtUrlRotation?.Text;
                 case "all":       return TxtUrlAll?.Text;
                 default:         return null;
             }
