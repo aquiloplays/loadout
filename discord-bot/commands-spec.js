@@ -1,48 +1,24 @@
-// One-shot Node script: publishes the Loadout slash commands to Discord.
-// Two ways to invoke:
-//
-//   1. Standalone Node (first-time setup, before the guild is bound):
-//        APP_ID=123 BOT_TOKEN=abc node register-commands.js
-//        (optionally GUILD_ID=456 for instant per-guild registration)
-//
-//   2. From inside Loadout once a guild is claimed: the DLL hits
-//      POST /admin/register-commands/:guildId on the Worker, signed
-//      with the streamer's syncSecret. The Worker uses its own
-//      DISCORD_BOT_TOKEN secret so the token never has to be pasted
-//      anywhere by the user.
-//
-// commands-spec.js is the single source of truth for the command list;
-// both this script and worker.js's self-register endpoint import it.
+// Single source of truth for the Loadout Discord slash command list.
+// Imported by both register-commands.js (one-shot Node CLI) and worker.js
+// (self-register endpoint). Adding a command means editing one file.
 
-import { COMMANDS } from './commands-spec.js';
+// https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-option-type
+const TYPE_USER    = 6;
+const TYPE_INTEGER = 4;
+const TYPE_STRING  = 3;
 
-const APP_ID    = process.env.APP_ID    || '';
-const BOT_TOKEN = process.env.BOT_TOKEN || '';
-const GUILD_ID  = process.env.GUILD_ID  || '';
-
-if (!APP_ID || !BOT_TOKEN) {
-  console.error('APP_ID and BOT_TOKEN env vars are required.');
-  process.exit(1);
-}
-
-// Inline list left in place for reference. The actual list used at
-// runtime is imported from commands-spec.js above. Removing this stub
-// would be cleaner but keeps the diff small for now.
-const _UNUSED_INLINE_COMMANDS = [
+export const COMMANDS = [
   {
     name: 'loadout-claim', description: '(server admins) Bind this server to a Loadout install',
     options: [
       { type: TYPE_STRING, name: 'code', description: 'The 8-char code from Loadout Settings → Discord bot', required: true }
     ],
-    // Discord-side default permission gate. We re-check inside the handler
-    // since this surface is advisory only (Discord lets server owners
-    // configure visibility).
     default_member_permissions: '32'   // MANAGE_GUILD
   },
   {
     name: 'balance', description: 'Check your bolts balance (or @user)',
     options: [
-      { type: TYPE_USER,    name: 'user',  description: 'Optional viewer to look up', required: false }
+      { type: TYPE_USER, name: 'user', description: 'Optional viewer to look up', required: false }
     ]
   },
   {
@@ -84,10 +60,6 @@ const _UNUSED_INLINE_COMMANDS = [
   { name: 'help', description: 'List all Loadout commands' },
 
   // ── Viewer profile self-edit commands ─────────────────────────────────
-  // Mirror the chat-side !setbio / !setpfp / !setsocial / !setgamertag /
-  // !setpronouns / !clearprofile commands so off-stream editing works.
-  // The Worker stores edits in KV; the DLL polls /sync/<guild>/profiles
-  // to pull them into the local store and re-publish on the bus.
   {
     name: 'profile-set-bio', description: 'Save your !profile bio',
     options: [
@@ -153,25 +125,3 @@ const _UNUSED_INLINE_COMMANDS = [
     ]
   }
 ];
-
-const url = GUILD_ID
-  ? `https://discord.com/api/v10/applications/${APP_ID}/guilds/${GUILD_ID}/commands`
-  : `https://discord.com/api/v10/applications/${APP_ID}/commands`;
-
-(async () => {
-  const resp = await fetch(url, {
-    method: 'PUT',
-    headers: {
-      'Authorization': 'Bot ' + BOT_TOKEN,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(COMMANDS)
-  });
-  const text = await resp.text();
-  if (!resp.ok) {
-    console.error('FAILED:', resp.status, text);
-    process.exit(1);
-  }
-  console.log('Registered', COMMANDS.length, 'commands at', url);
-  console.log('Discord response:', text.slice(0, 200));
-})();

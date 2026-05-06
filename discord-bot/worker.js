@@ -37,6 +37,7 @@ import { verifyDiscordSignature, verifyHmac } from './auth.js';
 import { handleInteraction } from './commands.js';
 import { applySnapshot, readSnapshot, getSecret, setSecret, applyVaultDelta } from './wallet.js';
 import { readSince as readProfilesSince } from './profiles.js';
+import { COMMANDS } from './commands-spec.js';
 
 // Discord interaction "claim" command custom handler — defined here rather
 // than commands.js because it touches the claim KV and cross-cuts the
@@ -119,6 +120,14 @@ export default {
 
     // Aquilo's Vault integration: gated to the guild in env.AQUILO_VAULT_GUILD_ID
     if (method === 'POST' && path === '/credit-bolts')               return handleVaultCredit(req, env);
+
+    // Self-register Loadout slash commands using the Worker's bot
+    // token secret. HMAC-gated (same scheme as wallet sync). Lets a
+    // Loadout install push the latest commands.spec without the
+    // streamer needing to paste the bot token into a shell.
+    if (method === 'POST' && path.startsWith('/admin/register-commands/')) {
+      return handleRegisterCommands(req, env, path);
+    }
 
     return new Response('not found', { status: 404 });
   }
@@ -304,6 +313,49 @@ async function handleSyncInit(req, env, guildId) {
   const stored = await getSecret(env, guildId);
   if (!stored?.secret) return new Response('not registered', { status: 404 });
   return json({ ok: true, registeredUtc: stored.registeredUtc });
+}
+
+// ---- /admin/register-commands/:guildId (HMAC) ---------------------------
+// POST body: optional. Empty body is fine — the commands list is baked
+// into the deployed Worker. Returns Discord's response so the caller can
+// confirm the new command count.
+
+async function handleRegisterCommands(req, env, path) {
+  // Parse guildId out of /admin/register-commands/:guildId so we can
+  // verify the HMAC against THAT guild's secret.
+  const parts = path.split('/').filter(Boolean);   // ['admin', 'register-commands', ':guildId']
+  const guildId = parts[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+
+  const ts  = req.headers.get('x-loadout-ts');
+  const sig = req.headers.get('x-loadout-sig');
+  const body = await req.text();
+  const stored = await getSecret(env, guildId);
+  if (!stored?.secret) return new Response('guild not registered', { status: 404 });
+  const ok = await verifyHmac(stored.secret, ts || '', body, sig || '');
+  if (!ok) return new Response('bad signature', { status: 401 });
+
+  const appId = env.DISCORD_APP_ID;
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!appId || !token)
+    return new Response('worker not provisioned (DISCORD_APP_ID + DISCORD_BOT_TOKEN required)', { status: 503 });
+
+  // Discord's PUT /applications/:id/commands replaces the entire global
+  // command set with the body, which is exactly what we want — push
+  // commands-spec.js as the canonical list.
+  const url = `https://discord.com/api/v10/applications/${appId}/commands`;
+  const r = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Authorization': 'Bot ' + token, 'Content-Type': 'application/json' },
+    body: JSON.stringify(COMMANDS)
+  });
+  const text = await r.text();
+  if (!r.ok)
+    return new Response(JSON.stringify({ ok: false, status: r.status, body: text.slice(0, 800) }),
+                        { status: 502, headers: { 'content-type': 'application/json' } });
+
+  return new Response(JSON.stringify({ ok: true, registered: COMMANDS.length, status: r.status }),
+                      { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
 // ---- helpers ------------------------------------------------------------

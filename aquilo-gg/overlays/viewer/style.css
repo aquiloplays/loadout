@@ -161,7 +161,15 @@ body[data-align="tc"] #root { align-items: flex-start; justify-content: center; 
   background: rgba(240,180,41,.10);
   border-color: rgba(240,180,41,.35);
 }
-.chip .g  { font-size: 12px; }
+/* Real platform SVG (simpleicons CDN) sized to match the chip text. */
+.chip .g.brand {
+  width: 12px;
+  height: 12px;
+  display: block;
+  filter: drop-shadow(0 0 1px rgba(0,0,0,.35));
+}
+/* Fallback "@" glyph when the platform isn't on the slug map. */
+.chip .g.fallback { font-size: 12px; }
 .chip .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .stats {

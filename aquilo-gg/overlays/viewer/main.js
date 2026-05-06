@@ -31,41 +31,68 @@
 
   let hideTimer = null;
 
-  // Common social platform → glyph + base URL. Used to render social
-  // chips with the right brand letter and (when possible) a working
-  // link in the alt text. Strict whitelist: anything else falls back
-  // to a plain "@" pill.
-  const SOCIAL_BRANDS = {
-    twitter:   { g: '𝕏',  base: 'https://x.com/' },
-    x:         { g: '𝕏',  base: 'https://x.com/' },
-    instagram: { g: '📸', base: 'https://instagram.com/' },
-    ig:        { g: '📸', base: 'https://instagram.com/' },
-    tiktok:    { g: '🎵', base: 'https://tiktok.com/@' },
-    youtube:   { g: '▶️', base: 'https://youtube.com/@' },
-    twitch:    { g: '🎮', base: 'https://twitch.tv/' },
-    kick:      { g: '⚡', base: 'https://kick.com/' },
-    bluesky:   { g: '🦋', base: 'https://bsky.app/profile/' },
-    bsky:      { g: '🦋', base: 'https://bsky.app/profile/' },
-    threads:   { g: '@',  base: 'https://threads.net/@' },
-    linkedin:  { g: '💼', base: 'https://linkedin.com/in/' },
-    github:    { g: '🐙', base: 'https://github.com/' },
-    discord:   { g: '💬', base: '' }
+  // Real brand logos via the simpleicons.org CDN — every chip pulls a
+  // proper SVG (Twitter's bird, Bluesky's butterfly, Steam's gear, etc.)
+  // rendered in white so it sits cleanly on the dark chip background.
+  // Slug map below normalizes streamer-friendly tokens onto simpleicons
+  // canonical slugs; unknown tokens fall back to a plain "@" pill.
+  //
+  // CDN docs: https://github.com/simple-icons/simple-icons-cdn
+  // Format:   https://cdn.simpleicons.org/<slug>/<hex-color>
+  const SIMPLEICONS = 'https://cdn.simpleicons.org/';
+  const ICON_COLOR  = 'ffffff';
+  const SOCIAL_SLUGS = {
+    twitter:   'x',          // X (formerly Twitter) → simpleicons "x"
+    x:         'x',
+    instagram: 'instagram',
+    ig:        'instagram',
+    tiktok:    'tiktok',
+    youtube:   'youtube',
+    twitch:    'twitch',
+    kick:      'kick',
+    bluesky:   'bluesky',
+    bsky:      'bluesky',
+    threads:   'threads',
+    linkedin:  'linkedin',
+    github:    'github',
+    discord:   'discord',
+    facebook:  'facebook',
+    mastodon:  'mastodon',
+    reddit:    'reddit',
+    snapchat:  'snapchat',
+    spotify:   'spotify',
+    soundcloud:'soundcloud'
   };
-  const GAME_BRANDS = {
-    psn:           '🕹',
-    xbox:          '🎮',
-    steam:         '⚙',
-    riot:          '⚔',
-    valorant:      '⚔',
-    leagueoflegends:'🛡',
-    lol:           '🛡',
-    minecraft:     '⛏',
-    fortnite:      '🌪',
-    nintendo:      '🍄',
-    switch:        '🍄',
-    activision:    '🎯',
-    epic:          '🎯'
+  const GAME_SLUGS = {
+    psn:             'playstation',
+    playstation:     'playstation',
+    xbox:            'xbox',
+    steam:           'steam',
+    riot:            'riotgames',
+    valorant:        'valorant',
+    leagueoflegends: 'leagueoflegends',
+    lol:             'leagueoflegends',
+    minecraft:       'minecraft',
+    fortnite:        'epicgames',
+    nintendo:        'nintendoswitch',
+    switch:          'nintendoswitch',
+    activision:      'activision',
+    epic:            'epicgames',
+    epicgames:       'epicgames',
+    blizzard:        'battledotnet',
+    battlenet:       'battledotnet',
+    ubisoft:         'ubisoft',
+    ea:              'ea'
   };
+  function iconUrl(slug) { return SIMPLEICONS + slug + '/' + ICON_COLOR; }
+  function socialIcon(platform) {
+    const slug = SOCIAL_SLUGS[(platform || '').toLowerCase()];
+    return slug ? iconUrl(slug) : null;
+  }
+  function gameIcon(platform) {
+    const slug = GAME_SLUGS[(platform || '').toLowerCase()];
+    return slug ? iconUrl(slug) : null;
+  }
 
   function render(p) {
     if (!p) return;
@@ -117,26 +144,33 @@
          <div class="value">${escapeHtml(String(c.value))}</div>
        </div>`).join('');
 
-    // Socials + gamer tags chips.
+    // Socials + gamer tags chips. Each chip renders the real brand
+    // SVG from simpleicons.org rather than an emoji approximation —
+    // a Twitter chip shows the X bird, a PSN chip shows the Sony
+    // PlayStation logo, etc. Falls back to a plain "@" pill if the
+    // platform isn't in the slug map (rare; whitelist covers the
+    // common cases).
     const chips = [];
     const socials = (p.socials && typeof p.socials === 'object') ? p.socials : {};
     for (const [k, v] of Object.entries(socials)) {
       if (!v) continue;
-      const brand = SOCIAL_BRANDS[k.toLowerCase()] || { g: '@', base: '' };
-      chips.push({ glyph: brand.g, label: v, kind: 'social', platform: k });
+      chips.push({ icon: socialIcon(k), label: v, kind: 'social', platform: k });
     }
     const tags = (p.gamerTags && typeof p.gamerTags === 'object') ? p.gamerTags : {};
     for (const [k, v] of Object.entries(tags)) {
       if (!v) continue;
-      const g = GAME_BRANDS[k.toLowerCase()] || '🎮';
-      chips.push({ glyph: g, label: v, kind: 'game', platform: k });
+      chips.push({ icon: gameIcon(k), label: v, kind: 'game', platform: k });
     }
     if (chips.length > 0) {
-      linksEl.innerHTML = chips.map(c =>
-        `<div class="chip" data-kind="${c.kind}" title="${escapeHtml(c.platform + ': ' + c.label)}">
-           <span class="g">${escapeHtml(c.glyph)}</span>
-           <span class="lab">${escapeHtml(c.label)}</span>
-         </div>`).join('');
+      linksEl.innerHTML = chips.map(c => {
+        const visual = c.icon
+          ? `<img class="g brand" src="${escapeHtml(c.icon)}" alt="" loading="lazy" />`
+          : `<span class="g fallback">@</span>`;
+        return `<div class="chip" data-kind="${c.kind}" title="${escapeHtml(c.platform + ': ' + c.label)}">
+                  ${visual}
+                  <span class="lab">${escapeHtml(c.label)}</span>
+                </div>`;
+      }).join('');
       linksEl.style.display = '';
     } else {
       linksEl.innerHTML = '';
