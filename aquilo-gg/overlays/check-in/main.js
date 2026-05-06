@@ -42,6 +42,19 @@
     root.dataset.theme = ev.animationTheme || 'shimmer';
     userEl.textContent = ev.user || 'Anonymous';
 
+    // Premium-tier hook: paid roles (Patreon T2/T3, sub T2/T3) get
+    // a richer animation layer — aurora swirl, particle trails, gold
+    // beams. The CSS keys off this attribute so we can extend with
+    // more tiers without touching JS.
+    const premium = computePremium(ev);
+    if (premium) {
+      root.dataset.premium = premium;
+      card.classList.add('is-premium');
+    } else {
+      delete root.dataset.premium;
+      card.classList.remove('is-premium');
+    }
+
     // Avatar / initials fallback
     if (ev.pfp) {
       pfpEl.src = ev.pfp;
@@ -52,8 +65,28 @@
       card.dataset.hasPfp = 'false';
     }
 
+    // TikTok "Heart Me" overlay for Fan Club check-ins. Renders a
+    // pink heart in the corner of the avatar so the streamer can
+    // tell at a glance the chatter pays for fan-club status.
+    const heartEl = $('tt-heart');
+    if (ev.tikTokHeart || ev.tikTokFanClub) {
+      heartEl.classList.add('show');
+    } else {
+      heartEl.classList.remove('show');
+    }
+
     // Flairs
     flairsEl.innerHTML = '';
+    // Sub badge image gets rendered before the text flairs so it
+    // sits next to the username, not buried at the end of the row.
+    if (ev.subBadgeUrl) {
+      const img = document.createElement('img');
+      img.src = ev.subBadgeUrl;
+      img.alt = '';
+      img.className = 'sub-badge';
+      img.title = 'Subscriber';
+      flairsEl.appendChild(img);
+    }
     const flairs = computeFlairs(ev);
     for (const f of flairs) {
       const el = document.createElement('span');
@@ -110,6 +143,20 @@
       pfpEl.src = ev.pfp;
       card.dataset.hasPfp = 'true';
     }
+  }
+
+  // Returns the premium-tier key for the CSS overlay, or empty
+  // string if this checkin doesn't qualify. Patreon outranks sub
+  // when both apply (T3 wins over T2, T2 wins over T1) so paying
+  // viewers always get the showier animation.
+  function computePremium(ev) {
+    if (!ev) return '';
+    if (ev.patreonTier === 'tier3') return 'patreon-t3';
+    if (ev.patreonTier === 'tier2') return 'patreon-t2';
+    if (ev.subTier === '3000')      return 'sub-t3';
+    if (ev.subTier === '2000')      return 'sub-t2';
+    if (ev.subTier === '1000' && ev.role === 'sub') return 'sub-t1';
+    return '';
   }
 
   function computeFlairs(ev) {

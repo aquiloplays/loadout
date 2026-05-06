@@ -171,6 +171,207 @@ html, body {
 .stat .label { text-transform: uppercase; font-size: 10px; letter-spacing: 1px; color: var(--muted); }
 .stat .value { color: var(--text); font-weight: 600; }
 
+/* Sub badge image rendered inline with text flairs (the streamer's
+   actual channel sub badge if we have it; falls back to Twitch
+   global subscriber badges per tier in tests). */
+.sub-badge {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  vertical-align: middle;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,.5));
+}
+
+/* TikTok Heart Me overlay — pink heart bottom-right of the avatar.
+   Only visible when JS adds .show (set when the event payload has
+   tikTokHeart=true or tikTokFanClub set). */
+.tt-heart {
+  position: absolute;
+  z-index: 3;
+  /* Sits at the avatar's bottom-right corner. The avatar is in the
+     left grid column at width 88px starting at the card's left
+     padding. */
+  left: 64px;
+  top: 70px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(circle at 30% 25%, #FF5DA2 0%, #FF1F7A 60%, #C20055 100%);
+  color: #FFFFFF;
+  box-shadow: 0 0 12px rgba(255, 31, 122, 0.65),
+              0 4px 10px rgba(0, 0, 0, 0.5);
+  animation: ttHeartBeat 1.4s cubic-bezier(.2,.7,.2,1) infinite;
+}
+.tt-heart.show { display: flex; }
+.tt-heart svg { display: block; }
+@keyframes ttHeartBeat {
+  0%, 100% { transform: scale(1); }
+  20%      { transform: scale(1.18); }
+  40%      { transform: scale(0.98); }
+}
+
+/* ───────────────── Premium tier overlays ─────────────────────────
+   Layered effects for paid roles. Aurora + particles are part of
+   the card's HTML (always present in the DOM); they sit at opacity
+   0 by default and only fade in when the card has .is-premium and
+   the right [data-premium] tier on #root.
+
+   Tier hierarchy (lowest → highest visual loudness):
+   sub-t1 < sub-t2 < sub-t3 < patreon-t2 < patreon-t3
+*/
+.aurora {
+  position: absolute;
+  inset: -20px;
+  border-radius: calc(var(--radius) + 6px);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .6s ease;
+  z-index: 0;
+  filter: blur(14px) saturate(1.3);
+}
+.particles {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  pointer-events: none;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity .6s ease;
+  z-index: 0;
+}
+.particles span {
+  position: absolute;
+  bottom: -8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  filter: blur(.4px);
+  box-shadow: 0 0 6px currentColor;
+}
+/* Stagger: each child gets a different x-position, delay, duration,
+   and drift amount so the particles don't move in lockstep. */
+.particles span:nth-child(1) { left: 6%;  animation: pFloat 4.2s ease-in-out infinite       0s; }
+.particles span:nth-child(2) { left: 18%; animation: pFloat 5.1s ease-in-out infinite      .6s; }
+.particles span:nth-child(3) { left: 32%; animation: pFloat 4.6s ease-in-out infinite     1.2s; }
+.particles span:nth-child(4) { left: 47%; animation: pFloat 5.4s ease-in-out infinite      .3s; }
+.particles span:nth-child(5) { left: 60%; animation: pFloat 4.0s ease-in-out infinite     1.8s; }
+.particles span:nth-child(6) { left: 73%; animation: pFloat 5.6s ease-in-out infinite      .9s; }
+.particles span:nth-child(7) { left: 85%; animation: pFloat 4.4s ease-in-out infinite     1.5s; }
+.particles span:nth-child(8) { left: 95%; animation: pFloat 5.2s ease-in-out infinite      .2s; }
+@keyframes pFloat {
+  0%   { transform: translateY(0) translateX(0); opacity: 0; }
+  10%  { opacity: 1; }
+  100% { transform: translateY(-180px) translateX(8px); opacity: 0; }
+}
+
+/* Activate the layers + tune colors per tier. The card itself also
+   gains a tier-specific border / shadow so the overall vibe matches. */
+.card.is-premium .aurora    { opacity: 1; }
+.card.is-premium .particles { opacity: 1; }
+
+/* ── Sub T1 — soft purple sheen ─────────────────────────────────── */
+[data-premium="sub-t1"] .aurora {
+  background:
+    conic-gradient(from 0deg at 30% 50%, transparent 0deg, var(--tw) 60deg, transparent 120deg),
+    radial-gradient(closest-side at 50% 50%, rgba(145, 71, 255, .35), transparent 70%);
+  animation: auroraSpin 18s linear infinite;
+}
+[data-premium="sub-t1"] .particles { color: #cbb1ff; }
+[data-premium="sub-t1"].is-premium .card,
+.card.is-premium[data-premium="sub-t1"] {
+  border-color: rgba(145, 71, 255, .55);
+  box-shadow: 0 0 28px rgba(145, 71, 255, .35), 0 18px 40px rgba(0,0,0,.55);
+}
+
+/* ── Sub T2 — gold sparkle ──────────────────────────────────────── */
+[data-premium="sub-t2"] .aurora {
+  background:
+    conic-gradient(from 90deg at 50% 50%, transparent 0deg, var(--gold-2) 60deg, transparent 140deg),
+    radial-gradient(closest-side at 50% 50%, rgba(240, 180, 41, .45), transparent 70%);
+  animation: auroraSpin 14s linear infinite;
+}
+[data-premium="sub-t2"] .particles { color: #ffd86b; }
+.card.is-premium[data-premium="sub-t2"] {
+  border-color: rgba(240, 180, 41, .65);
+  box-shadow: 0 0 36px rgba(240, 180, 41, .45), 0 18px 40px rgba(0,0,0,.55);
+}
+
+/* ── Sub T3 — cyan pulse ────────────────────────────────────────── */
+[data-premium="sub-t3"] .aurora {
+  background:
+    conic-gradient(from 180deg at 50% 50%, transparent 0deg, var(--tt) 90deg, transparent 180deg),
+    radial-gradient(closest-side at 50% 50%, rgba(0, 242, 234, .45), transparent 70%);
+  animation: auroraSpin 12s linear infinite, premiumPulse 3.2s ease-in-out infinite;
+}
+[data-premium="sub-t3"] .particles { color: #5cf5ee; }
+.card.is-premium[data-premium="sub-t3"] {
+  border-color: rgba(0, 242, 234, .7);
+  box-shadow: 0 0 40px rgba(0, 242, 234, .5), 0 18px 40px rgba(0,0,0,.55);
+}
+
+/* ── Patreon T2 — orange-amber aurora ─────────────────────────────── */
+[data-premium="patreon-t2"] .aurora {
+  background:
+    conic-gradient(from 0deg at 50% 50%, var(--gold) 0deg, #F55D44 80deg, transparent 160deg, var(--gold) 320deg),
+    radial-gradient(closest-side at 50% 50%, rgba(245, 93, 68, .55), transparent 70%);
+  animation: auroraSpin 10s linear infinite, premiumPulse 2.8s ease-in-out infinite;
+}
+[data-premium="patreon-t2"] .particles { color: #ffb780; }
+.card.is-premium[data-premium="patreon-t2"] {
+  border-color: rgba(245, 93, 68, .75);
+  box-shadow: 0 0 44px rgba(245, 93, 68, .55), 0 0 90px rgba(245, 93, 68, .25), 0 18px 40px rgba(0,0,0,.55);
+}
+
+/* ── Patreon T3 — full aurora + gold beam (top of the food chain) ── */
+[data-premium="patreon-t3"] .aurora {
+  background:
+    conic-gradient(from 0deg, var(--accent), var(--tt), var(--gold-2), var(--pink), #F55D44, var(--accent)),
+    radial-gradient(closest-side at 50% 50%, rgba(255, 205, 60, .5), transparent 65%);
+  animation: auroraSpin 8s linear infinite, premiumPulse 2.4s ease-in-out infinite;
+}
+[data-premium="patreon-t3"] .particles { color: #fff1a8; }
+.card.is-premium[data-premium="patreon-t3"] {
+  border-color: rgba(255, 205, 60, .85);
+  box-shadow:
+    0 0 48px rgba(255, 205, 60, .55),
+    0 0 100px rgba(245, 93, 68, .3),
+    0 18px 40px rgba(0,0,0,.55);
+}
+/* Adds a vertical gold beam behind the card for the loudest tier. */
+[data-premium="patreon-t3"] .card::before {
+  content: '';
+  position: absolute;
+  inset: -40px 40% -40px 40%;
+  background: linear-gradient(180deg, transparent, rgba(255, 205, 60, .18) 30%, rgba(255, 205, 60, .18) 70%, transparent);
+  filter: blur(18px);
+  z-index: -1;
+  pointer-events: none;
+  animation: goldBeam 6s ease-in-out infinite;
+}
+@keyframes goldBeam {
+  0%, 100% { opacity: .6; transform: scaleY(.95); }
+  50%      { opacity: 1;  transform: scaleY(1.05); }
+}
+
+/* Aurora + pulse keyframes shared across tiers. */
+@keyframes auroraSpin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes premiumPulse {
+  0%, 100% { filter: blur(14px) saturate(1.3) brightness(1); }
+  50%      { filter: blur(16px) saturate(1.5) brightness(1.2); }
+}
+
+/* Make sure the card content sits ABOVE the aurora/particles.
+   Listed explicitly so the .tt-heart's higher z-index (3) wins. */
+.ring, .content, #pfp, #initials { position: relative; z-index: 1; }
+
 /* Theme: shimmer */
 [data-theme="shimmer"] .ring {
   background: conic-gradient(from var(--rot,0deg), var(--accent), var(--tt), var(--accent));

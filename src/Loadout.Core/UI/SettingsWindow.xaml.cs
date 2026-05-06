@@ -2113,6 +2113,32 @@ namespace Loadout.UI
             return v.ToString();
         }
 
+        // Cached broadcaster pfp + the login it was fetched for. Helix
+        // lookups aren't free so we keep the URL across multiple test
+        // clicks; if the streamer changes their broadcaster name the
+        // cache invalidates on the mismatch.
+        private static string _cachedBroadcasterPfp;
+        private static string _cachedBroadcasterFor;
+        private static string ResolveBroadcasterPfpCached()
+        {
+            try
+            {
+                var login = (SettingsManager.Instance.Current.BroadcasterName ?? "").Trim();
+                if (string.IsNullOrEmpty(login)) return null;
+                if (string.Equals(login, _cachedBroadcasterFor, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrEmpty(_cachedBroadcasterPfp))
+                    return _cachedBroadcasterPfp;
+                var url = SbBridge.Instance.GetTwitchProfilePicture(login);
+                if (!string.IsNullOrEmpty(url))
+                {
+                    _cachedBroadcasterPfp = url;
+                    _cachedBroadcasterFor = login;
+                }
+                return url;
+            }
+            catch { return null; }
+        }
+
         private static string TryReadBusSecret()
         {
             try
@@ -2320,6 +2346,15 @@ namespace Loadout.UI
                         if (ciExtraStat != null)
                             ciStats.Insert(0, new { kind = "raid", label = "Raid", value = ciExtraStat });
 
+                        // Stable Twitch global subscriber-badge image URLs
+                        // per tier. The overlay renders them inline with
+                        // the user line. Real check-ins later swap to the
+                        // broadcaster's CHANNEL badges via a Helix lookup.
+                        string ciSubBadgeUrl = null;
+                        if (ciSubTier == "1000") ciSubBadgeUrl = "https://static-cdn.jtvnw.net/badges/v1/5d9f2208-5dd8-11e7-8513-2ff4adfae661/3";
+                        if (ciSubTier == "2000") ciSubBadgeUrl = "https://static-cdn.jtvnw.net/badges/v1/25a03e36-2bb2-4625-bd37-d6d9d406238e/3";
+                        if (ciSubTier == "3000") ciSubBadgeUrl = "https://static-cdn.jtvnw.net/badges/v1/e8984705-d091-4e54-8241-e53b30a84b0e/3";
+
                         AquiloBus.Instance.Publish("checkin.shown", new
                         {
                             user           = isFirstTime ? sampleUser + "_new" : sampleUser,
@@ -2327,10 +2362,18 @@ namespace Loadout.UI
                             platform       = ciPlatform,
                             role           = ciRole,
                             subTier        = ciSubTier,
+                            subBadgeUrl    = ciSubBadgeUrl,
                             patreonTier    = ciPatreon,
                             tikTokFanClub  = ciFan,
+                            // Fan-club checkins surface TikTok's "Heart Me"
+                            // gift visual so chatters / mods can tell at a
+                            // glance the chatter pays for in-app status.
+                            tikTokHeart    = (ciFan != null),
                             firstTime      = isFirstTime,
-                            pfp            = (string)null,
+                            // Use the streamer's own Twitch pfp for the
+                            // preview avatar so the test card looks like
+                            // a real check-in (cached after first call).
+                            pfp            = ResolveBroadcasterPfpCached(),
                             animationTheme = s.CheckIn.AnimationTheme,
                             showFlairs     = new { sub = s.CheckIn.ShowSubFlair, vipMod = s.CheckIn.ShowVipModFlair, patreon = s.CheckIn.ShowPatreonFlair },
                             stats          = ciStats.ToArray(),

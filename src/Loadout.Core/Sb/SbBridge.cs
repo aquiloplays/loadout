@@ -196,6 +196,35 @@ namespace Loadout.Sb
             catch { return null; }
         }
 
+        /// <summary>
+        /// Returns the Twitch profile picture URL for a given login, via
+        /// the same reflective CPH call as <see cref="GetTwitchUserCreatedUtc"/>.
+        /// Used by Settings test buttons so a check-in preview shows the
+        /// streamer's actual face instead of a generic letter circle.
+        /// Returns null if CPH isn't bound or the user doesn't exist.
+        /// </summary>
+        public string GetTwitchProfilePicture(string login)
+        {
+            if (_cph == null || string.IsNullOrEmpty(login)) return null;
+            try
+            {
+                var mi = FindMethodByName("TwitchGetExtendedUserInfoByLogin")
+                      ?? FindMethodByName("TwitchGetUserInfoByLogin");
+                if (mi == null) return null;
+                var result = mi.Invoke(_cph, new object[] { login });
+                if (result == null) return null;
+                var t = result.GetType();
+                // Same property-name fan-out as the created_at lookup —
+                // CPH's casing varies across SB versions.
+                var prop = t.GetProperty("profile_image_url")
+                        ?? t.GetProperty("ProfileImageUrl")
+                        ?? t.GetProperty("profileImageUrl");
+                if (prop == null) return null;
+                return prop.GetValue(result) as string;
+            }
+            catch { return null; }
+        }
+
         // -------------------- Action dispatch --------------------
 
         public bool RunAction(string actionName)

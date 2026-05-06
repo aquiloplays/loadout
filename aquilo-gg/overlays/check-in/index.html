@@ -22,9 +22,28 @@
 <body>
   <div id="root" data-state="hidden">
     <div class="card" id="card">
+      <!-- Aurora overlay: only visible for premium tiers via CSS;
+           three layered conic gradients give a slow-rotating rainbow
+           sheen behind the card. -->
+      <div class="aurora" aria-hidden="true"></div>
+
+      <!-- Particle trails: 8 dots that float up the card's edge.
+           Empty container; CSS pseudo-elements handle the visual. -->
+      <div class="particles" aria-hidden="true">
+        <span></span><span></span><span></span><span></span>
+        <span></span><span></span><span></span><span></span>
+      </div>
+
       <div class="ring" id="ring"></div>
       <img id="pfp" alt="" />
       <div class="initials" id="initials"></div>
+
+      <!-- TikTok Heart Me overlay: pink heart that pulses in the
+           lower-right corner of the avatar when a fan-club member
+           checks in. CSS-only animation. -->
+      <div class="tt-heart" id="tt-heart" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 21s-7.5-4.6-9.5-9.4C1.4 8.4 3.6 5 7 5c1.9 0 3.5 1 4.5 2.5h.9C13.5 6 15.1 5 17 5c3.5 0 5.6 3.4 4.5 6.6C19.5 16.4 12 21 12 21z" fill="currentColor" /></svg>
+      </div>
 
       <div class="content">
         <div class="line-user">
