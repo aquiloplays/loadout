@@ -2708,6 +2708,89 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Rotation Spotify widget. The streamer's Rotation widget
+                             connects to the local Aquilo Bus via busUrl + busSecret
+                             URL params (read on first load and persisted to its
+                             localStorage). Once connected, !boltsong from chat
+                             routes through here, and the widget publishes
+                             rotation.song.playing as the Spotify track changes —
+                             which powers the !song chat command + the compact
+                             overlay's now-playing card. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Bolts}" Margin="0 0 8 0" Width="14" Height="14" />
+                                        <TextBlock Text="Rotation widget (Spotify)" Style="{StaticResource H2}" Margin="0" />
+                                    </StackPanel>
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="rotation" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Publishes a synthetic rotation.song.playing event so the !song command + compact overlay show a sample track without needing Spotify to actually change songs." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="rotation" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. The widget's status pill turns green once it connects to your local Loadout bus." />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    Connection point between Loadout and your Rotation Spotify widget. Use the URL
+                                    below either as an OBS browser source or open it as a regular tab — the bus
+                                    params bake in your local secret on first load.
+                                </TextBlock>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlRotation" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="rotation" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 10"
+                                           Text="Recommended OBS browser source size depends on the variant — widget.html ~480x180, now-playing.html 1920x1080, queue.html ~480x720." />
+                                <Grid Margin="0 0 0 10">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Variant" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 12 0" />
+                                    <ComboBox  Grid.Column="1" x:Name="CmbRotationVariant" SelectionChanged="OnOverlayUrlChange">
+                                        <ComboBoxItem Content="widget.html (compact card)"          Tag="widget" IsSelected="True" />
+                                        <ComboBoxItem Content="now-playing.html (large hero)"       Tag="now-playing" />
+                                        <ComboBoxItem Content="queue.html (upcoming list)"          Tag="queue" />
+                                        <ComboBoxItem Content="moderator.html (mod control panel)"  Tag="moderator" />
+                                        <ComboBoxItem Content="config.html (configuration)"         Tag="config" />
+                                    </ComboBox>
+                                    <TextBlock Grid.Column="2" Text="Base URL" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="12 0 12 0" />
+                                    <TextBox   Grid.Column="3" x:Name="TxtRotationBaseUrl" TextChanged="OnOverlayUrlChange"
+                                               ToolTip="Defaults to https://widget.aquilo.gg/rotation. Override only if you self-host the Rotation widget." />
+                                </Grid>
+                                <Border Background="{StaticResource Brush.Bg.Surface3}" CornerRadius="6" Padding="10">
+                                    <StackPanel>
+                                        <TextBlock Text="!song chat command" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0 0 0 4" />
+                                        <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 6">
+                                            Replies with the current track when a viewer types !song. Powered by rotation.song.playing on the bus —
+                                            silent until the widget reports a track. Mods + broadcaster bypass the cooldown.
+                                        </TextBlock>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="120" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="100" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="60" />
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox Grid.Column="0" x:Name="ChkRotationSongCmd" Content="Enabled"
+                                                      Style="{StaticResource ToggleRow}" Margin="0 0 16 0" />
+                                            <TextBlock Grid.Column="2" Text="Command" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                            <TextBox   Grid.Column="3" x:Name="TxtRotationSongCmd" />
+                                            <TextBlock Grid.Column="4" Text="Cooldown (sec)" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="16 0 8 0" />
+                                            <TextBox   Grid.Column="5" x:Name="TxtRotationSongCooldown" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Compact: single small pane that crossfades between
                              event cards (welcome / bolt earn / streak / counter
                              / hype / minigame) and falls back to the commands

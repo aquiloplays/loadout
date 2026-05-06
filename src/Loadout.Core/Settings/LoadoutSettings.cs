@@ -40,6 +40,7 @@ namespace Loadout.Settings
         public ChatNoiseConfig    ChatNoise    { get; set; } = new ChatNoiseConfig();
         public ApexConfig         Apex         { get; set; } = new ApexConfig();
         public RotationIntegrationConfig RotationIntegration { get; set; } = new RotationIntegrationConfig();
+        public RotationConnectionConfig  RotationConnection  { get; set; } = new RotationConnectionConfig();
         public ClipsConfig        Clips        { get; set; } = new ClipsConfig();
         public FollowBatchConfig  FollowBatch  { get; set; } = new FollowBatchConfig();
         public GameProfilesConfig GameProfiles { get; set; } = new GameProfilesConfig();
@@ -708,6 +709,35 @@ namespace Loadout.Settings
         public int    Cost                 { get; set; } = 200;
         public int    PerUserCooldownSec   { get; set; } = 120;
         public int    RefundOnFailureSec   { get; set; } = 30;
+    }
+
+    /// <summary>
+    /// Connection between Loadout and the streamer's Rotation Spotify widget.
+    /// The widget runs at widget.aquilo.gg/rotation/* and connects to the
+    /// local Aquilo Bus so it can both ack !boltsong requests and publish
+    /// rotation.song.playing as the Spotify track changes. We surface
+    /// the URL with bus params pre-baked, plus a "!song" chat command
+    /// that NowPlayingModule serves from the cached payload.
+    /// </summary>
+    public class RotationConnectionConfig
+    {
+        // Override the deploy host if the streamer self-hosts the
+        // Rotation widget. Empty = use the default widget.aquilo.gg.
+        public string BaseUrl { get; set; } = "";
+        // Which page variant the streamer's URL points at. The bus
+        // wiring is identical across pages — this is purely the visual
+        // surface. "widget" = compact card, "queue" = upcoming list,
+        // "now-playing" = large hero card.
+        public string Variant { get; set; } = "widget";
+
+        // Chat command for now-playing. When enabled, viewers can type
+        // !song (or whatever Command is set to) and Loadout replies
+        // with the cached rotation.song.playing payload.
+        public bool   SongCommandEnabled  { get; set; } = true;
+        public string SongCommand         { get; set; } = "!song";
+        // Channel-wide cooldown so chat can't spam !song. Mods +
+        // broadcaster bypass like other info commands.
+        public int    SongCooldownSec     { get; set; } = 30;
     }
 
     public class BoltsConfig

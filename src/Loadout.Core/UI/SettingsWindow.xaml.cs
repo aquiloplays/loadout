@@ -892,6 +892,20 @@ namespace Loadout.UI
                 s.OverlayTheme.Accent2 = NormalizeHex(TxtOverlayAccent2?.Text) ?? "";
                 s.OverlayTheme.Text    = NormalizeHex(TxtOverlayText?.Text)    ?? "";
 
+                // Rotation connection (typed config — drives !song chat
+                // command behaviour through NowPlayingModule).
+                if (s.RotationConnection == null) s.RotationConnection = new RotationConnectionConfig();
+                s.RotationConnection.BaseUrl  = (TxtRotationBaseUrl?.Text ?? "").Trim();
+                s.RotationConnection.Variant  = SelectedTag(CmbRotationVariant);
+                if (string.IsNullOrEmpty(s.RotationConnection.Variant)) s.RotationConnection.Variant = "widget";
+                s.RotationConnection.SongCommandEnabled = ChkRotationSongCmd?.IsChecked == true;
+                var rotCmd = (TxtRotationSongCmd?.Text ?? "!song").Trim();
+                if (rotCmd.Length > 0 && rotCmd[0] != '!') rotCmd = "!" + rotCmd;
+                if (rotCmd.Length < 2) rotCmd = "!song";
+                s.RotationConnection.SongCommand = rotCmd;
+                if (int.TryParse((TxtRotationSongCooldown?.Text ?? "30").Trim(), out var rotCd) && rotCd >= 0)
+                    s.RotationConnection.SongCooldownSec = rotCd;
+
                 // Capture every per-overlay control's current value so the
                 // streamer's per-card customizations (positions, accents,
                 // bgOpacity, layer toggles, command-include filters, etc.)
@@ -1637,6 +1651,23 @@ namespace Loadout.UI
             if (TxtOverlayAccent2 != null) TxtOverlayAccent2.Text = theme.Accent2 ?? "";
             if (TxtOverlayText    != null) TxtOverlayText.Text    = theme.Text    ?? "";
 
+            // Rotation connection: typed config (drives runtime behaviour
+            // through NowPlayingModule), so load via SettingsManager rather
+            // than the opaque CardValues bag.
+            var rot = SettingsManager.Instance.Current.RotationConnection ?? new RotationConnectionConfig();
+            if (TxtRotationBaseUrl     != null) TxtRotationBaseUrl.Text     = rot.BaseUrl ?? "";
+            if (TxtRotationSongCmd     != null) TxtRotationSongCmd.Text     = string.IsNullOrEmpty(rot.SongCommand) ? "!song" : rot.SongCommand;
+            if (TxtRotationSongCooldown!= null) TxtRotationSongCooldown.Text= (rot.SongCooldownSec > 0 ? rot.SongCooldownSec : 30).ToString();
+            if (ChkRotationSongCmd     != null) ChkRotationSongCmd.IsChecked= rot.SongCommandEnabled;
+            if (CmbRotationVariant     != null && !string.IsNullOrEmpty(rot.Variant))
+            {
+                foreach (ComboBoxItem item in CmbRotationVariant.Items)
+                {
+                    if (string.Equals(item.Tag?.ToString(), rot.Variant, StringComparison.Ordinal))
+                    { CmbRotationVariant.SelectedItem = item; break; }
+                }
+            }
+
             // Restore every per-overlay textbox / combo / checkbox from
             // the saved CardValues bag. Must happen AFTER TxtOverlayBaseUrl
             // is seeded above so a saved BaseUrl override wins, but BEFORE
@@ -1810,6 +1841,28 @@ namespace Loadout.UI
                 });
             }
 
+            // Rotation Spotify widget. Different URL shape than the
+            // OBS overlays: lives at widget.aquilo.gg/rotation/<page>.html
+            // and reads busUrl + busSecret from URL params on first load
+            // (then persists them to localStorage). We bake both in so
+            // the streamer's URL "just works" the moment they load it.
+            if (TxtUrlRotation != null)
+            {
+                var rotBase = (TxtRotationBaseUrl?.Text ?? "").Trim();
+                if (string.IsNullOrEmpty(rotBase)) rotBase = "https://widget.aquilo.gg/rotation";
+                rotBase = rotBase.TrimEnd('/');
+                var variant = SelectedTag(CmbRotationVariant);
+                if (string.IsNullOrEmpty(variant)) variant = "widget";
+
+                var qs = new List<string>
+                {
+                    "busUrl="    + HttpUtility.UrlEncode("ws://127.0.0.1:7470/aquilo/bus/")
+                };
+                if (!string.IsNullOrEmpty(secret))
+                    qs.Add("busSecret=" + HttpUtility.UrlEncode(secret));
+                TxtUrlRotation.Text = rotBase + "/" + variant + ".html?" + string.Join("&", qs);
+            }
+
             // Compact one-pane overlay (commands ticker idle + crossfade
             // event cards when the bus fires something). Defaults are
             // dropped from the URL so the streamer's link stays compact.
@@ -1911,6 +1964,8 @@ namespace Loadout.UI
             "CmbMinigamesPos", "TxtMinigamesAccent",
             // Compact (one-pane)
             "CmbCompactPos", "TxtCompactHoldMs", "TxtCompactIdleRotate",
+            // Rotation widget (Spotify) connection card
+            "CmbRotationVariant", "TxtRotationBaseUrl",
             // All-in-one composite layer toggles
             "ChkAllBolts", "ChkAllCounters", "ChkAllGoals", "ChkAllCheckIn",
             "ChkAllApex", "ChkAllCommands", "ChkAllRecap", "ChkAllViewer",
@@ -2384,6 +2439,27 @@ namespace Loadout.UI
                         break;
                     }
 
+                    case "rotation":
+                        // Synthetic now-playing event so the streamer can verify
+                        // their compact overlay + !song chat reply without
+                        // waiting on Spotify to actually change tracks.
+                        AquiloBus.Instance.Publish("rotation.song.playing", new
+                        {
+                            title         = "Sample Track",
+                            artist        = "Aquilo Test Artist",
+                            album         = "Loadout Demo",
+                            art           = (string)null,
+                            durationMs    = 215000,
+                            progressMs    = 47000,
+                            source        = "Spotify",
+                            trackId       = "test-track-id",
+                            isPlaying     = true,
+                            requestedBy   = (string)null,
+                            requesterPlatform = (string)null,
+                            ts            = DateTime.UtcNow
+                        });
+                        break;
+
                     case "compact":
                         // Compact overlay listens broadly. Fire a sample of
                         // the kinds it cares about so the streamer can
@@ -2460,6 +2536,7 @@ namespace Loadout.UI
                 case "hypetrain": return TxtUrlHypeTrain?.Text;
                 case "minigames": return TxtUrlMinigames?.Text;
                 case "compact":   return TxtUrlCompact?.Text;
+                case "rotation":  return TxtUrlRotation?.Text;
                 case "all":       return TxtUrlAll?.Text;
                 default:         return null;
             }

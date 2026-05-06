@@ -148,6 +148,14 @@ namespace Loadout.Modules
                 list.Add(new CommandEntry(cmd, "clip", "clip the last 30s and post the URL"));
             }
 
+            // ------ Now playing (Rotation widget) ------
+            if (s.RotationConnection != null && s.RotationConnection.SongCommandEnabled)
+            {
+                var cmd = s.RotationConnection.SongCommand ?? "!song";
+                if (!cmd.StartsWith("!")) cmd = "!" + cmd;
+                list.Add(new CommandEntry(cmd, "info", "what's playing on the streamer's Spotify"));
+            }
+
             // ------ Daily check-in ------
             if (s.Modules.DailyCheckIn && s.CheckIn != null)
             {

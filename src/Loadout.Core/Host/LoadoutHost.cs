@@ -52,6 +52,10 @@ namespace Loadout.Host
                 // future products need to push events into Loadout's modules.
                 Bus.AquiloBus.Instance.RegisterHandler("rotation.song.accepted", BridgeBusToDispatcher);
                 Bus.AquiloBus.Instance.RegisterHandler("rotation.song.rejected", BridgeBusToDispatcher);
+                // NowPlayingModule reads these to power the !song chat
+                // command and the compact overlay's now-playing card.
+                Bus.AquiloBus.Instance.RegisterHandler("rotation.song.playing", BridgeBusToDispatcher);
+                Bus.AquiloBus.Instance.RegisterHandler("rotation.song.queued",  BridgeBusToDispatcher);
 
                 var ready = new ManualResetEventSlim(false);
                 _uiThread = new Thread(() =>

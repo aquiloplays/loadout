@@ -65,6 +65,10 @@ namespace Loadout.Sb
                 _modules.Add(new GameTrackerModule());
                 _modules.Add(new ClipsModule());
                 _modules.Add(new BoltsShopModule());
+                // NowPlayingModule caches rotation.song.playing payloads
+                // and serves !song. Register before CommandsBroadcaster so
+                // !song shows up in the published commands.list snapshot.
+                _modules.Add(new NowPlayingModule());
                 // Last - just publishes the canonical command list to the bus
                 // for the "Available commands" overlay. Must come AFTER every
                 // module that contributes commands so the snapshot it builds

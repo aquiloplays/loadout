@@ -193,6 +193,18 @@
         if (!d.user) return;
         evt = { tone: 'info', badge: '🪪', title: d.user, sub: (d.bolts || 0) + ' bolts' + (d.streakDays ? ' · ' + d.streakDays + 'd streak' : '') };
         break;
+      case 'rotation.song.playing':
+        if (!d.title) return;
+        evt = { tone: 'welcome', badge: '🎵',
+                title: d.title + (d.artist ? ' — ' + d.artist : ''),
+                sub: (d.source || 'Spotify') + (d.requestedBy ? '  · req by ' + d.requestedBy : '') };
+        break;
+      case 'rotation.song.queued':
+        if (!d.title) return;
+        evt = { tone: 'info', badge: '➕',
+                title: 'Queued: ' + d.title + (d.artist ? ' — ' + d.artist : ''),
+                sub: (d.requestedBy ? 'by ' + d.requestedBy : 'priority request') };
+        break;
     }
     if (evt) enqueue(evt);
   }
@@ -227,7 +239,8 @@
       ws.send(JSON.stringify({ v: 1, kind: 'hello',     client: 'overlay-compact' }));
       ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: [
         'commands.list', 'bolts.*', 'welcome.*', 'hypetrain.*',
-        'counter.*', 'viewer.profile.shown'
+        'counter.*', 'viewer.profile.shown', 'rotation.song.playing',
+        'rotation.song.queued'
       ]}));
       ws.send(JSON.stringify({ v: 1, kind: 'commands.requestList' }));
     };
