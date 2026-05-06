@@ -22,19 +22,15 @@
 <body>
   <div id="root" data-state="hidden">
     <div class="card" id="card">
-      <!-- Aurora overlay: only visible for premium tiers via CSS;
-           three layered conic gradients give a slow-rotating rainbow
-           sheen behind the card. -->
-      <div class="aurora" aria-hidden="true"></div>
+      <!-- Premium tier sheen: subtle highlight that sweeps across the
+           card surface for paid tiers. CSS-only animation, fully
+           contained inside the card via overflow: hidden. -->
+      <div class="sheen" aria-hidden="true"></div>
 
-      <!-- Particle trails: 8 dots that float up the card's edge.
-           Empty container; CSS pseudo-elements handle the visual. -->
-      <div class="particles" aria-hidden="true">
-        <span></span><span></span><span></span><span></span>
-        <span></span><span></span><span></span><span></span>
-      </div>
+      <!-- Premium tier tint: stationary radial glow in a card corner
+           per tier. Contained inside the card; sits behind content. -->
+      <div class="tint" aria-hidden="true"></div>
 
-      <div class="ring" id="ring"></div>
       <img id="pfp" alt="" />
       <div class="initials" id="initials"></div>
 

@@ -63,45 +63,33 @@ html, body {
   box-shadow: 0 18px 40px rgba(0,0,0,.55);
   transform: translateY(0) scale(1);
   opacity: 1;
-  transition: transform .45s cubic-bezier(.2,.7,.2,1.1), opacity .45s ease;
+  transition: transform .45s cubic-bezier(.2,.7,.2,1.1), opacity .45s ease,
+              border-color .35s ease, box-shadow .35s ease;
+  /* Clip premium animations (.sheen + .tint) at the card boundary so
+     no layer ever extends outside the rounded rectangle. The card's
+     own box-shadow is unaffected (rendered outside the box's clip). */
+  overflow: hidden;
 }
 
-/* Avatar ring */
-.ring {
+/* Avatar — plain image, no ring. Sits at full 88×88 in column 1. */
+#pfp, #initials {
   grid-column: 1;
   grid-row: 1;
   width: 88px; height: 88px;
   border-radius: 50%;
-  padding: 3px;
-  background: conic-gradient(from 0deg, var(--accent), var(--tt), var(--accent));
-  position: relative;
-}
-.ring::after {
-  content: '';
-  position: absolute;
-  inset: 3px;
-  border-radius: 50%;
-  background: var(--surface-2);
-}
-#pfp, #initials {
-  position: relative;
-  z-index: 1;
-  width: 82px; height: 82px;
-  border-radius: 50%;
-  margin: 0 0 0 -85px;          /* sits inside the ring */
   align-self: center;
   object-fit: cover;
   background: var(--surface-2);
+  position: relative;
+  z-index: 1;
 }
 #initials {
   display: none;
   align-items: center;
   justify-content: center;
-  font-size: 30px;
+  font-size: 32px;
   font-weight: 700;
   color: var(--text);
-  width: 82px; height: 82px;
-  margin-left: -85px;
 }
 .card[data-has-pfp="false"] #pfp { display: none; }
 .card[data-has-pfp="false"] #initials { display: flex; }
@@ -213,191 +201,170 @@ html, body {
   40%      { transform: scale(0.98); }
 }
 
-/* ───────────────── Premium tier overlays ─────────────────────────
-   Layered effects for paid roles. Aurora + particles are part of
-   the card's HTML (always present in the DOM); they sit at opacity
-   0 by default and only fade in when the card has .is-premium and
-   the right [data-premium] tier on #root.
+/* ───────────────── Premium tier animations ──────────────────────────
+   Two contained layers (.sheen + .tint) live inside .card and never
+   extend past its rounded rectangle (the card itself has overflow:
+   hidden). Border colour + outer box-shadow are the only effects
+   that render outside the card, and the box-shadow is intentional
+   ambient lighting — not chrome.
 
    Tier hierarchy (lowest → highest visual loudness):
    sub-t1 < sub-t2 < sub-t3 < patreon-t2 < patreon-t3
 */
-.aurora {
-  position: absolute;
-  inset: -20px;
-  border-radius: calc(var(--radius) + 6px);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity .6s ease;
-  z-index: 0;
-  filter: blur(14px) saturate(1.3);
-}
-.particles {
+
+/* .sheen — diagonal highlight that sweeps left-to-right across the
+   card surface. Inside-the-card only; opacity 0 by default. The
+   skewed gradient acts like light glinting off a glossy surface. */
+.sheen {
   position: absolute;
   inset: 0;
-  border-radius: var(--radius);
   pointer-events: none;
-  overflow: hidden;
+  z-index: 0;
+  background: linear-gradient(110deg,
+              transparent 30%,
+              rgba(255, 255, 255, 0.10) 50%,
+              transparent 70%);
+  opacity: 0;
+  transform: translateX(-100%);
+  transition: opacity .6s ease;
+}
+
+/* .tint — stationary radial glow biased toward the top-right corner
+   of the card so it doesn't sit behind the avatar. Inside-the-card
+   only; opacity 0 by default. Per-tier colour overrides below. */
+.tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
   opacity: 0;
   transition: opacity .6s ease;
-  z-index: 0;
-}
-.particles span {
-  position: absolute;
-  bottom: -8px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0;
-  filter: blur(.4px);
-  box-shadow: 0 0 6px currentColor;
-}
-/* Stagger: each child gets a different x-position, delay, duration,
-   and drift amount so the particles don't move in lockstep. */
-.particles span:nth-child(1) { left: 6%;  animation: pFloat 4.2s ease-in-out infinite       0s; }
-.particles span:nth-child(2) { left: 18%; animation: pFloat 5.1s ease-in-out infinite      .6s; }
-.particles span:nth-child(3) { left: 32%; animation: pFloat 4.6s ease-in-out infinite     1.2s; }
-.particles span:nth-child(4) { left: 47%; animation: pFloat 5.4s ease-in-out infinite      .3s; }
-.particles span:nth-child(5) { left: 60%; animation: pFloat 4.0s ease-in-out infinite     1.8s; }
-.particles span:nth-child(6) { left: 73%; animation: pFloat 5.6s ease-in-out infinite      .9s; }
-.particles span:nth-child(7) { left: 85%; animation: pFloat 4.4s ease-in-out infinite     1.5s; }
-.particles span:nth-child(8) { left: 95%; animation: pFloat 5.2s ease-in-out infinite      .2s; }
-@keyframes pFloat {
-  0%   { transform: translateY(0) translateX(0); opacity: 0; }
-  10%  { opacity: 1; }
-  100% { transform: translateY(-180px) translateX(8px); opacity: 0; }
 }
 
-/* Activate the layers + tune colors per tier. The card itself also
-   gains a tier-specific border / shadow so the overall vibe matches. */
-.card.is-premium .aurora    { opacity: 1; }
-.card.is-premium .particles { opacity: 1; }
-
-/* ── Sub T1 — soft purple sheen ─────────────────────────────────── */
-[data-premium="sub-t1"] .aurora {
-  background:
-    conic-gradient(from 0deg at 30% 50%, transparent 0deg, var(--tw) 60deg, transparent 120deg),
-    radial-gradient(closest-side at 50% 50%, rgba(145, 71, 255, .35), transparent 70%);
-  animation: auroraSpin 18s linear infinite;
+/* When .is-premium lands on the card, both layers fade in and the
+   sheen starts sweeping. Sweep duration scales by tier — louder
+   tiers sweep faster (visually busier without being visually larger). */
+.card.is-premium .sheen {
+  opacity: 1;
+  animation: sheenSweep 5.0s ease-in-out infinite;
 }
-[data-premium="sub-t1"] .particles { color: #cbb1ff; }
-[data-premium="sub-t1"].is-premium .card,
+.card.is-premium .tint  { opacity: 1; }
+
+@keyframes sheenSweep {
+  0%   { transform: translateX(-100%); }
+  60%  { transform: translateX( 100%); }
+  100% { transform: translateX( 100%); }
+}
+
+/* ── Sub T1 — soft purple ────────────────────────────────────────── */
+[data-premium="sub-t1"] .tint {
+  background: radial-gradient(ellipse at 80% 25%, rgba(145, 71, 255, .25), transparent 65%);
+}
 .card.is-premium[data-premium="sub-t1"] {
   border-color: rgba(145, 71, 255, .55);
-  box-shadow: 0 0 28px rgba(145, 71, 255, .35), 0 18px 40px rgba(0,0,0,.55);
+  box-shadow: 0 0 24px rgba(145, 71, 255, .30), 0 18px 40px rgba(0, 0, 0, .55);
 }
 
-/* ── Sub T2 — gold sparkle ──────────────────────────────────────── */
-[data-premium="sub-t2"] .aurora {
-  background:
-    conic-gradient(from 90deg at 50% 50%, transparent 0deg, var(--gold-2) 60deg, transparent 140deg),
-    radial-gradient(closest-side at 50% 50%, rgba(240, 180, 41, .45), transparent 70%);
-  animation: auroraSpin 14s linear infinite;
+/* ── Sub T2 — gold ────────────────────────────────────────────────── */
+[data-premium="sub-t2"] .tint {
+  background: radial-gradient(ellipse at 80% 25%, rgba(240, 180, 41, .28), transparent 65%);
 }
-[data-premium="sub-t2"] .particles { color: #ffd86b; }
+[data-premium="sub-t2"] .sheen { animation-duration: 4.2s; }
 .card.is-premium[data-premium="sub-t2"] {
   border-color: rgba(240, 180, 41, .65);
-  box-shadow: 0 0 36px rgba(240, 180, 41, .45), 0 18px 40px rgba(0,0,0,.55);
+  box-shadow: 0 0 30px rgba(240, 180, 41, .35), 0 18px 40px rgba(0, 0, 0, .55);
 }
 
-/* ── Sub T3 — cyan pulse ────────────────────────────────────────── */
-[data-premium="sub-t3"] .aurora {
-  background:
-    conic-gradient(from 180deg at 50% 50%, transparent 0deg, var(--tt) 90deg, transparent 180deg),
-    radial-gradient(closest-side at 50% 50%, rgba(0, 242, 234, .45), transparent 70%);
-  animation: auroraSpin 12s linear infinite, premiumPulse 3.2s ease-in-out infinite;
+/* ── Sub T3 — cyan ────────────────────────────────────────────────── */
+[data-premium="sub-t3"] .tint {
+  background: radial-gradient(ellipse at 80% 25%, rgba(0, 242, 234, .28), transparent 65%);
+  animation: tintBreathe 3.6s ease-in-out infinite;
 }
-[data-premium="sub-t3"] .particles { color: #5cf5ee; }
+[data-premium="sub-t3"] .sheen { animation-duration: 3.6s; }
 .card.is-premium[data-premium="sub-t3"] {
-  border-color: rgba(0, 242, 234, .7);
-  box-shadow: 0 0 40px rgba(0, 242, 234, .5), 0 18px 40px rgba(0,0,0,.55);
+  border-color: rgba(0, 242, 234, .70);
+  box-shadow: 0 0 32px rgba(0, 242, 234, .42), 0 18px 40px rgba(0, 0, 0, .55);
 }
 
-/* ── Patreon T2 — orange-amber aurora ─────────────────────────────── */
-[data-premium="patreon-t2"] .aurora {
+/* ── Patreon T2 — orange / amber ───────────────────────────────────── */
+[data-premium="patreon-t2"] .tint {
   background:
-    conic-gradient(from 0deg at 50% 50%, var(--gold) 0deg, #F55D44 80deg, transparent 160deg, var(--gold) 320deg),
-    radial-gradient(closest-side at 50% 50%, rgba(245, 93, 68, .55), transparent 70%);
-  animation: auroraSpin 10s linear infinite, premiumPulse 2.8s ease-in-out infinite;
+    radial-gradient(ellipse at 80% 25%, rgba(245, 93, 68, .35), transparent 65%),
+    radial-gradient(ellipse at 20% 80%, rgba(240, 180, 41, .22), transparent 65%);
+  animation: tintBreathe 3.2s ease-in-out infinite;
 }
-[data-premium="patreon-t2"] .particles { color: #ffb780; }
+[data-premium="patreon-t2"] .sheen {
+  animation-duration: 3.2s;
+  background: linear-gradient(110deg,
+              transparent 30%,
+              rgba(255, 205, 100, 0.16) 50%,
+              transparent 70%);
+}
 .card.is-premium[data-premium="patreon-t2"] {
   border-color: rgba(245, 93, 68, .75);
-  box-shadow: 0 0 44px rgba(245, 93, 68, .55), 0 0 90px rgba(245, 93, 68, .25), 0 18px 40px rgba(0,0,0,.55);
+  box-shadow: 0 0 36px rgba(245, 93, 68, .42), 0 18px 40px rgba(0, 0, 0, .55);
 }
 
-/* ── Patreon T3 — full aurora + gold beam (top of the food chain) ── */
-[data-premium="patreon-t3"] .aurora {
+/* ── Patreon T3 — full saturation, dual sheen, dual-corner tint ───── */
+[data-premium="patreon-t3"] .tint {
   background:
-    conic-gradient(from 0deg, var(--accent), var(--tt), var(--gold-2), var(--pink), #F55D44, var(--accent)),
-    radial-gradient(closest-side at 50% 50%, rgba(255, 205, 60, .5), transparent 65%);
-  animation: auroraSpin 8s linear infinite, premiumPulse 2.4s ease-in-out infinite;
+    radial-gradient(ellipse at 80% 20%, rgba(255, 205, 60, .35), transparent 60%),
+    radial-gradient(ellipse at 20% 80%, rgba(245, 93, 68, .25), transparent 60%),
+    radial-gradient(ellipse at 50% 50%, rgba(255, 93, 162, .12), transparent 70%);
+  animation: tintBreathe 2.6s ease-in-out infinite;
 }
-[data-premium="patreon-t3"] .particles { color: #fff1a8; }
+[data-premium="patreon-t3"] .sheen {
+  animation-duration: 2.8s;
+  background: linear-gradient(110deg,
+              transparent 25%,
+              rgba(255, 235, 150, 0.22) 50%,
+              transparent 75%);
+}
 .card.is-premium[data-premium="patreon-t3"] {
   border-color: rgba(255, 205, 60, .85);
   box-shadow:
-    0 0 48px rgba(255, 205, 60, .55),
-    0 0 100px rgba(245, 93, 68, .3),
-    0 18px 40px rgba(0,0,0,.55);
-}
-/* Adds a vertical gold beam behind the card for the loudest tier. */
-[data-premium="patreon-t3"] .card::before {
-  content: '';
-  position: absolute;
-  inset: -40px 40% -40px 40%;
-  background: linear-gradient(180deg, transparent, rgba(255, 205, 60, .18) 30%, rgba(255, 205, 60, .18) 70%, transparent);
-  filter: blur(18px);
-  z-index: -1;
-  pointer-events: none;
-  animation: goldBeam 6s ease-in-out infinite;
-}
-@keyframes goldBeam {
-  0%, 100% { opacity: .6; transform: scaleY(.95); }
-  50%      { opacity: 1;  transform: scaleY(1.05); }
+    0 0 40px rgba(255, 205, 60, .50),
+    0 0 80px rgba(245, 93, 68, .25),
+    0 18px 40px rgba(0, 0, 0, .55);
 }
 
-/* Aurora + pulse keyframes shared across tiers. */
-@keyframes auroraSpin {
-  0%   { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-@keyframes premiumPulse {
-  0%, 100% { filter: blur(14px) saturate(1.3) brightness(1); }
-  50%      { filter: blur(16px) saturate(1.5) brightness(1.2); }
+/* Tint breathe: slow opacity pulse for higher tiers so the colour
+   feels alive without sweeping anywhere. Stays inside the card. */
+@keyframes tintBreathe {
+  0%, 100% { opacity: .85; }
+  50%      { opacity: 1.00; }
 }
 
-/* Make sure the card content sits ABOVE the aurora/particles.
+/* Make sure card content sits ABOVE the .sheen + .tint layers.
    Listed explicitly so the .tt-heart's higher z-index (3) wins. */
-.ring, .content, #pfp, #initials { position: relative; z-index: 1; }
+.content, #pfp, #initials { position: relative; z-index: 1; }
 
-/* Theme: shimmer */
-[data-theme="shimmer"] .ring {
-  background: conic-gradient(from var(--rot,0deg), var(--accent), var(--tt), var(--accent));
-  animation: rot 4s linear infinite;
+/* The four base themes (shimmer / bounce / glow / minimal) used to
+   theme the avatar ring; with the ring removed they now adjust the
+   card's accent treatment instead. The themes keep their identifiers
+   so streamers' existing settings keep working. */
+
+/* Theme: shimmer — gentle accent border pulse. */
+[data-theme="shimmer"][data-state="visible"] .card { animation: shimmerBorder 4s ease-in-out infinite; }
+@keyframes shimmerBorder {
+  0%, 100% { border-color: var(--border); }
+  50%      { border-color: var(--accent); }
 }
-@keyframes rot { to { --rot: 360deg; } }
 
-/* Theme: bounce */
+/* Theme: bounce — card subtly bobs while visible. */
 [data-theme="bounce"][data-state="visible"] .card { animation: bounce 1.6s ease-in-out infinite; }
 @keyframes bounce {
-  0%,100% { transform: translateY(0) scale(1); }
-  50%     { transform: translateY(-8px) scale(1.01); }
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-8px) scale(1.01); }
 }
 
-/* Theme: glow */
+/* Theme: glow — soft accent halo on the card. */
 [data-theme="glow"] .card {
-  box-shadow: 0 0 28px rgba(58,134,255,.45), 0 18px 40px rgba(0,0,0,.55);
-}
-[data-theme="glow"] .ring {
-  background: radial-gradient(closest-side, var(--accent), transparent 70%);
-  filter: blur(0.5px);
+  box-shadow: 0 0 28px rgba(58, 134, 255, .45), 0 18px 40px rgba(0, 0, 0, .55);
 }
 
-/* Theme: minimal */
-[data-theme="minimal"] .ring { background: var(--border); }
-[data-theme="minimal"] .ring::after { background: var(--surface); }
+/* Theme: minimal — flat surface colour, accent text remains. */
+[data-theme="minimal"] .card { background: var(--surface); border-color: var(--border); }
 [data-theme="minimal"] .user { color: var(--text); -webkit-text-fill-color: currentColor; }
 
 /* Connection indicator (dev only) */
