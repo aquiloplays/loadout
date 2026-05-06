@@ -664,6 +664,14 @@ namespace Loadout.UI
             TxtBoltsRainMin.Text      = s.Bolts.BoltRainMinTotal.ToString();
             TxtBoltsRainMax.Text      = s.Bolts.BoltRainMaxRecipients.ToString();
             if (TxtBoltsSlotsPool != null) TxtBoltsSlotsPool.Text = s.Bolts.SlotsImagePool ?? "";
+            // Minigames bounds + per-user cooldown + result delay.
+            if (TxtBoltsGameCd       != null) TxtBoltsGameCd.Text       = s.Bolts.GamePerUserCooldownSec.ToString();
+            if (TxtBoltsGameDelay    != null) TxtBoltsGameDelay.Text    = s.Bolts.GameResultDelayMs.ToString();
+            if (TxtBoltsCoinflipMin  != null) TxtBoltsCoinflipMin.Text  = s.Bolts.CoinflipMinWager.ToString();
+            if (TxtBoltsCoinflipMax  != null) TxtBoltsCoinflipMax.Text  = s.Bolts.CoinflipMaxWager.ToString();
+            if (TxtBoltsDiceMin      != null) TxtBoltsDiceMin.Text      = s.Bolts.DiceMinWager.ToString();
+            if (TxtBoltsDiceMax      != null) TxtBoltsDiceMax.Text      = s.Bolts.DiceMaxWager.ToString();
+            if (TxtBoltsDiceMult     != null) TxtBoltsDiceMult.Text     = s.Bolts.DicePayoutMultiplier.ToString();
 
             ChkRotationEnabled.IsChecked = s.RotationIntegration.Enabled;
             TxtRotationCmd.Text          = s.RotationIntegration.Command ?? "";
@@ -882,6 +890,16 @@ namespace Loadout.UI
                 // Slots reel pool: collapse Windows CRLF -> LF so what the
                 // overlay reads matches what the user typed in the textbox.
                 if (TxtBoltsSlotsPool != null) s.Bolts.SlotsImagePool = (TxtBoltsSlotsPool.Text ?? "").Replace("\r\n", "\n").Trim();
+                // Minigames knobs. Wide range guards (0..3600 cd, 0..30000
+                // delay, 0..million wager) so the streamer can lower bounds
+                // to zero to disable a game without a separate toggle.
+                if (int.TryParse(TxtBoltsGameCd?.Text,      out iv) && iv >= 0 && iv <= 3600)   s.Bolts.GamePerUserCooldownSec = iv;
+                if (int.TryParse(TxtBoltsGameDelay?.Text,   out iv) && iv >= 0 && iv <= 30000)  s.Bolts.GameResultDelayMs      = iv;
+                if (int.TryParse(TxtBoltsCoinflipMin?.Text, out iv) && iv >= 0)                 s.Bolts.CoinflipMinWager       = iv;
+                if (int.TryParse(TxtBoltsCoinflipMax?.Text, out iv) && iv >= 0)                 s.Bolts.CoinflipMaxWager       = iv;
+                if (int.TryParse(TxtBoltsDiceMin?.Text,     out iv) && iv >= 0)                 s.Bolts.DiceMinWager           = iv;
+                if (int.TryParse(TxtBoltsDiceMax?.Text,     out iv) && iv >= 0)                 s.Bolts.DiceMaxWager           = iv;
+                if (int.TryParse(TxtBoltsDiceMult?.Text,    out iv) && iv >= 2 && iv <= 100)    s.Bolts.DicePayoutMultiplier   = iv;
 
                 // Global overlay theme (font / scale / accent2 / text).
                 if (s.OverlayTheme == null) s.OverlayTheme = new OverlayThemeConfig();
@@ -2155,23 +2173,72 @@ namespace Loadout.UI
                         break;
 
                     case "check-in":
+                    case "checkin:viewer":
+                    case "checkin:sub-t1":
+                    case "checkin:sub-t2":
+                    case "checkin:sub-t3":
+                    case "checkin:vip":
+                    case "checkin:mod":
+                    case "checkin:patreon-t2":
+                    case "checkin:patreon-t3":
+                    case "checkin:tiktok-fan-club":
+                    case "checkin:yt-member":
+                    case "checkin:kick-sub":
+                    case "checkin:raider":
+                    case "checkin:first":
+                        // Resolve viewer-type knobs from the tag so the
+                        // streamer can preview every flair variant. The
+                        // overlay reads role / subTier / patreonTier /
+                        // platform / showFlairs to decide what badges
+                        // to render around the avatar.
+                        string ciRole = "viewer", ciSubTier = null, ciPatreon = null, ciPlatform = "twitch";
+                        string ciFan = null;   // tiktok fan-club tier name
+                        string ciExtraStat = null;
+                        bool isFirstTime = false;
+                        switch (tag)
+                        {
+                            case "checkin:sub-t1":          ciRole = "sub"; ciSubTier = "1000"; break;
+                            case "checkin:sub-t2":          ciRole = "sub"; ciSubTier = "2000"; break;
+                            case "checkin:sub-t3":          ciRole = "sub"; ciSubTier = "3000"; break;
+                            case "checkin:vip":             ciRole = "vip"; break;
+                            case "checkin:mod":             ciRole = "moderator"; break;
+                            case "checkin:patreon-t2":      ciRole = "viewer"; ciPatreon = "tier2"; break;
+                            case "checkin:patreon-t3":      ciRole = "viewer"; ciPatreon = "tier3"; break;
+                            case "checkin:tiktok-fan-club": ciRole = "fan-club"; ciPlatform = "tiktok"; ciFan = "level3"; break;
+                            case "checkin:yt-member":       ciRole = "member"; ciPlatform = "youtube"; break;
+                            case "checkin:kick-sub":        ciRole = "sub"; ciSubTier = "1000"; ciPlatform = "kick"; break;
+                            case "checkin:raider":          ciRole = "raider"; ciExtraStat = "raid:from "+sampleUser+"_friend ×42"; break;
+                            case "checkin:first":           ciRole = "viewer"; isFirstTime = true; break;
+                            // "checkin:viewer" + "check-in" fall through with defaults
+                        }
+
+                        // Build the stats list — first-time gets a dedicated
+                        // "first time here" stat instead of generic counters.
+                        var ciStats = new System.Collections.Generic.List<object>
+                        {
+                            new { kind = "uptime",  label = "Uptime",  value = "1:23:45" },
+                            new { kind = "viewers", label = "Viewers", value = "127" },
+                            new { kind = "counter", label = "Deaths",  value = "12" }
+                        };
+                        if (isFirstTime)
+                            ciStats.Insert(0, new { kind = "first", label = "First time", value = "👋 welcome!" });
+                        if (ciExtraStat != null)
+                            ciStats.Insert(0, new { kind = "raid", label = "Raid", value = ciExtraStat });
+
                         AquiloBus.Instance.Publish("checkin.shown", new
                         {
-                            user           = sampleUser,
+                            user           = isFirstTime ? sampleUser + "_new" : sampleUser,
                             userId         = "test",
-                            platform       = "twitch",
-                            role           = "sub",
-                            subTier        = "1000",
-                            patreonTier    = (string)null,
+                            platform       = ciPlatform,
+                            role           = ciRole,
+                            subTier        = ciSubTier,
+                            patreonTier    = ciPatreon,
+                            tikTokFanClub  = ciFan,
+                            firstTime      = isFirstTime,
                             pfp            = (string)null,
                             animationTheme = s.CheckIn.AnimationTheme,
                             showFlairs     = new { sub = s.CheckIn.ShowSubFlair, vipMod = s.CheckIn.ShowVipModFlair, patreon = s.CheckIn.ShowPatreonFlair },
-                            stats          = new object[]
-                            {
-                                new { kind = "uptime",  label = "Uptime",  value = "1:23:45" },
-                                new { kind = "viewers", label = "Viewers", value = "127" },
-                                new { kind = "counter", label = "Deaths",  value = "12" }
-                            },
+                            stats          = ciStats.ToArray(),
                             rotateSeconds  = s.CheckIn.RotateIntervalSec,
                             source         = "test",
                             ts             = DateTime.UtcNow

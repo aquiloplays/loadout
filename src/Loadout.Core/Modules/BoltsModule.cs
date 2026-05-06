@@ -242,6 +242,9 @@ namespace Loadout.Modules
                 case "gift":          CmdGift(ctx, rest, s);        return;
                 case "boltrain":      CmdBoltRain(ctx, rest, s);    return;
                 case "slots":         CmdSlots(ctx, rest, s);       return;
+                case "coinflip":
+                case "cf":            CmdCoinflip(ctx, rest, s);    return;
+                case "dice":          CmdDice(ctx, rest, s);        return;
             }
 
             // Rotation widget integration: !boltsong <song> spends Bolts to
@@ -448,6 +451,196 @@ namespace Loadout.Modules
 
         private readonly Random _slotsRng = new Random();
 
+        // Per-user, per-game cooldown bookkeeping. Keyed by
+        // "<game>:<platform>:<user>" so the same viewer's coinflip and
+        // dice cooldowns are tracked independently. Mods + broadcaster
+        // bypass the gate.
+        private readonly Dictionary<string, DateTime> _gameLastUse =
+            new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+
+        // Returns true if the user is allowed to play; false if they're
+        // still cooling down. On false, sends a "wait Ns" reply (gated
+        // by ChatGate so we don't spam if the user spams the command).
+        private bool TryGameGate(EventContext ctx, string game, LoadoutSettings s)
+        {
+            var u = (ctx.UserType ?? "").ToLowerInvariant();
+            var bypass = (u == "broadcaster" || u == "moderator" || u == "mod");
+            if (bypass) return true;
+
+            var cdSec = Math.Max(0, s.Bolts.GamePerUserCooldownSec);
+            if (cdSec <= 0) return true;
+
+            var key = game + ":" + ctx.Platform.ToShortName() + ":" + ctx.User.ToLowerInvariant();
+            if (_gameLastUse.TryGetValue(key, out var last))
+            {
+                var since = (DateTime.UtcNow - last).TotalSeconds;
+                if (since < cdSec)
+                {
+                    var wait = (int)(cdSec - since);
+                    if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:" + game + "-cd:" + key, TimeSpan.FromSeconds(20)))
+                    {
+                        new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform,
+                            "@" + ctx.User + " hold up — " + wait + "s before another !" + game + ".",
+                            s.Platforms);
+                    }
+                    return false;
+                }
+            }
+            _gameLastUse[key] = DateTime.UtcNow;
+            return true;
+        }
+
+        // Schedules a chat reply after the configured GameResultDelayMs
+        // so the on-screen overlay animation lands first and chat
+        // doesn't spoiler the outcome. Fire-and-forget — failures are
+        // swallowed (the bus event already published the win/loss).
+        private static void ScheduleResultReply(EventContext ctx, string text, LoadoutSettings s)
+        {
+            var delay = Math.Max(0, s.Bolts.GameResultDelayMs);
+            if (delay == 0)
+            {
+                new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform, text, s.Platforms);
+                return;
+            }
+            System.Threading.Tasks.Task.Delay(delay).ContinueWith(_ =>
+            {
+                try { new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform, text, s.Platforms); }
+                catch (Exception ex) { ErrorLog.Write("Bolts.ScheduleResultReply", ex); }
+            });
+        }
+
+        private void CmdCoinflip(EventContext ctx, string rest, LoadoutSettings s)
+        {
+            // Disabled when both bounds are zero so streamers can hide
+            // the chat-side game without removing it from the ticker
+            // wholesale (CommandsBroadcaster respects Bolts.Enabled).
+            if (s.Bolts.CoinflipMinWager <= 0 && s.Bolts.CoinflipMaxWager <= 0) return;
+
+            if (!long.TryParse((rest ?? "").Trim(), out var wager) ||
+                wager < s.Bolts.CoinflipMinWager || wager > s.Bolts.CoinflipMaxWager)
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:coinflip:usage", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " usage: !coinflip <wager> (" +
+                            s.Bolts.CoinflipMinWager + "-" + s.Bolts.CoinflipMaxWager + " " + s.Bolts.Emoji + ")",
+                            s.Platforms);
+                return;
+            }
+            if (!TryGameGate(ctx, "coinflip", s)) return;
+
+            var platform = ctx.Platform.ToShortName();
+            if (!BoltsWallet.Instance.Spend(platform, ctx.User, wager, "coinflip"))
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:coinflip:nofunds", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " not enough " + s.Bolts.Emoji + " to flip " + wager + ".",
+                            s.Platforms);
+                return;
+            }
+
+            // 50/50 fair flip. On heads: credit 2× wager (net +wager).
+            var heads = _slotsRng.Next(2) == 0;
+            long payout = 0;
+            if (heads)
+            {
+                payout = wager;
+                BoltsWallet.Instance.Earn(platform, ctx.User, wager * 2, "coinflip:win");
+            }
+            var balance = BoltsWallet.Instance.Balance(platform, ctx.User);
+
+            // Fire the bus event immediately so the overlay starts
+            // animating; chat reply comes after GameResultDelayMs.
+            AquiloBus.Instance.Publish("bolts.minigame.coinflip", new
+            {
+                user    = ctx.User,
+                wager,
+                result  = heads ? "heads" : "tails",
+                won     = heads,
+                payout,
+                balance,
+                source  = "chat",
+                ts      = DateTime.UtcNow
+            });
+            EventStats.Instance.Hit(ctx.Kind, nameof(BoltsModule));
+
+            string text = heads
+                ? "🪙 @" + ctx.User + " flipped HEADS — +" + payout + " " + s.Bolts.Emoji + " (balance " + balance + ")"
+                : "🪙 @" + ctx.User + " flipped tails — lost " + wager + " " + s.Bolts.Emoji;
+            ScheduleResultReply(ctx, text, s);
+        }
+
+        private void CmdDice(EventContext ctx, string rest, LoadoutSettings s)
+        {
+            if (s.Bolts.DiceMinWager <= 0 && s.Bolts.DiceMaxWager <= 0) return;
+
+            // Args: "<wager> <target>". Target = 1-6.
+            var parts = (rest ?? "").Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            long wager = 0; int target = 0;
+            bool argsOk = parts.Length == 2 &&
+                          long.TryParse(parts[0], out wager) &&
+                          int.TryParse(parts[1], out target) &&
+                          target >= 1 && target <= 6 &&
+                          wager >= s.Bolts.DiceMinWager && wager <= s.Bolts.DiceMaxWager;
+            if (!argsOk)
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:dice:usage", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " usage: !dice <wager> <1-6> (" +
+                            s.Bolts.DiceMinWager + "-" + s.Bolts.DiceMaxWager + " " + s.Bolts.Emoji + ", " +
+                            s.Bolts.DicePayoutMultiplier + "x payout on hit)",
+                            s.Platforms);
+                return;
+            }
+            if (!TryGameGate(ctx, "dice", s)) return;
+
+            var platform = ctx.Platform.ToShortName();
+            if (!BoltsWallet.Instance.Spend(platform, ctx.User, wager, "dice"))
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:dice:nofunds", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " not enough " + s.Bolts.Emoji + " to roll " + wager + ".",
+                            s.Platforms);
+                return;
+            }
+
+            var rolled = _slotsRng.Next(6) + 1;
+            var won = (rolled == target);
+            long payout = 0;
+            if (won)
+            {
+                // mult * wager net payout = mult * wager + wager already
+                // deducted, so we credit (mult + 1) * wager to net
+                // mult * wager. Matches Discord /dice math.
+                var mult = Math.Max(2, s.Bolts.DicePayoutMultiplier);
+                payout = wager * mult;
+                BoltsWallet.Instance.Earn(platform, ctx.User, wager * (mult + 1), "dice:win:" + rolled);
+            }
+            var balance = BoltsWallet.Instance.Balance(platform, ctx.User);
+
+            AquiloBus.Instance.Publish("bolts.minigame.dice", new
+            {
+                user    = ctx.User,
+                wager,
+                target,
+                rolled,
+                won,
+                payout,
+                balance,
+                source  = "chat",
+                ts      = DateTime.UtcNow
+            });
+            EventStats.Instance.Hit(ctx.Kind, nameof(BoltsModule));
+
+            string text = won
+                ? "🎲 @" + ctx.User + " rolled " + rolled + " — JACKPOT +" + payout + " " + s.Bolts.Emoji + " (balance " + balance + ")"
+                : "🎲 @" + ctx.User + " rolled " + rolled + " (needed " + target + ") — lost " + wager + " " + s.Bolts.Emoji;
+            ScheduleResultReply(ctx, text, s);
+        }
+
         private void CmdSlots(EventContext ctx, string rest, LoadoutSettings s)
         {
             if (!long.TryParse((rest ?? "").Trim(), out var wager) ||
@@ -461,6 +654,7 @@ namespace Loadout.Modules
                             s.Platforms);
                 return;
             }
+            if (!TryGameGate(ctx, "slots", s)) return;
 
             var platform = ctx.Platform.ToShortName();
             var spent = BoltsWallet.Instance.Spend(platform, ctx.User, wager, "slots");
@@ -522,7 +716,9 @@ namespace Loadout.Modules
                 text = "🎰 @" + ctx.User + " hit two — got " + payout + " " + s.Bolts.Emoji + " back";
             else
                 text = "🎰 @" + ctx.User + " spun " + wager + " " + s.Bolts.Emoji + " — no match";
-            new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform, text, s.Platforms);
+            // Delayed reply so the on-screen reels finish settling
+            // before chat sees the outcome.
+            ScheduleResultReply(ctx, text, s);
         }
 
         private static string[] ResolveSlotsPool(LoadoutSettings s)

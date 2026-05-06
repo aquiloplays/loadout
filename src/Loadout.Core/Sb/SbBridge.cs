@@ -163,6 +163,39 @@ namespace Loadout.Sb
             }
         }
 
+        // -------------------- Twitch user lookup --------------------
+
+        /// <summary>
+        /// Reflective call to SB's CPH.TwitchGetExtendedUserInfoByLogin so
+        /// !accountage can read the chatter's account-creation date. CPH
+        /// chat events don't carry this field — it has to come from a
+        /// Helix lookup, and SB exposes the helper natively. Falls through
+        /// to TwitchGetUserInfoByLogin if the extended variant isn't on
+        /// this SB version.
+        /// </summary>
+        public DateTime? GetTwitchUserCreatedUtc(string login)
+        {
+            if (_cph == null || string.IsNullOrEmpty(login)) return null;
+            try
+            {
+                var mi = FindMethodByName("TwitchGetExtendedUserInfoByLogin")
+                      ?? FindMethodByName("TwitchGetUserInfoByLogin");
+                if (mi == null) return null;
+                var result = mi.Invoke(_cph, new object[] { login });
+                if (result == null) return null;
+                var t = result.GetType();
+                // Different CPH versions name this property created_at,
+                // CreatedAt, or createdAt. Try them all.
+                var prop = t.GetProperty("created_at") ?? t.GetProperty("CreatedAt") ?? t.GetProperty("createdAt");
+                if (prop == null) return null;
+                var v = prop.GetValue(result);
+                if (v is DateTime dt) return DateTime.SpecifyKind(dt, DateTimeKind.Utc);
+                if (v is string s && DateTime.TryParse(s, out var ds)) return DateTime.SpecifyKind(ds.ToUniversalTime(), DateTimeKind.Utc);
+                return null;
+            }
+            catch { return null; }
+        }
+
         // -------------------- Action dispatch --------------------
 
         public bool RunAction(string actionName)

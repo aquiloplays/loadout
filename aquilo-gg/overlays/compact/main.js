@@ -53,12 +53,14 @@
   function badgeForCat(cat) {
     switch ((cat || 'info').toLowerCase()) {
       case 'bolts':   return '⚡';
-      case 'clip':    return 'CLP';
-      case 'checkin': return 'CHK';
-      case 'counter': return '#';
-      case 'mod':     return 'MOD';
-      case 'custom':  return 'CMD';
-      default:        return 'CMD';
+      case 'clip':    return '🎬';
+      case 'checkin': return '✅';
+      case 'counter': return '🔢';
+      case 'mod':     return '🛡️';
+      case 'custom':  return '💬';
+      case 'song':
+      case 'music':   return '🎵';
+      default:        return '💬';
     }
   }
   function tickIdle() {
@@ -169,7 +171,16 @@
         break;
       case 'hypetrain.contribute':
         if (!d.user) return;
-        evt = { tone: 'hype', badge: '⛽', title: d.user, sub: '+' + (d.fuel || 0) + ' fuel (' + (d.kind || '?') + ')' };
+        // For TikTok gifts, surface the actual gift name + emoji
+        // (Rose, Lion, Galaxy, etc.) instead of the generic
+        // "tiktokGift" string. TikTokGifts.label is provided by
+        // _shared/tiktok-gifts.js — falls through to a 🎁 if the
+        // gift isn't in the curated map.
+        var contribKind = d.kind || '?';
+        if (contribKind === 'tiktokGift' && window.TikTokGifts) {
+          contribKind = window.TikTokGifts.label({ giftName: d.giftName, coins: d.coins });
+        }
+        evt = { tone: 'hype', badge: '⛽', title: d.user, sub: '+' + (d.fuel || 0) + ' fuel (' + contribKind + ')' };
         break;
       case 'hypetrain.end':
         evt = { tone: 'hype', badge: '🏁', title: 'Hype train ended', sub: 'final level ' + (d.finalLevel || '?') };

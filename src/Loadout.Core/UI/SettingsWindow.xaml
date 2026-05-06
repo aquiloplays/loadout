@@ -964,6 +964,50 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Bolts minigames: shared per-user cooldown +
+                             result-reply delay across !coinflip / !dice /
+                             !slots, plus per-game wager bounds. The chat
+                             reply is delayed so the on-screen overlay
+                             animation lands before viewers see "WIN" /
+                             "LOSE" in chat. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <TextBlock Text="Minigames (!coinflip / !dice / !slots)" Style="{StaticResource H2}" />
+                                <Grid Margin="0 6 0 0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="80" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Per-user cooldown (sec, mods bypass)" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsGameCd" Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Result-reply delay (ms)" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsGameDelay" Margin="0 4 0 0" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="!coinflip min wager" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsCoinflipMin" Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="!coinflip max wager" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsCoinflipMax" Margin="0 4 0 0" />
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="!dice min wager" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtBoltsDiceMin" Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="!dice max wager" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="2" Grid.Column="3" x:Name="TxtBoltsDiceMax" Margin="0 4 0 0" />
+
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="!dice payout multiplier" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TxtBoltsDiceMult" Margin="0 4 12 0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 6 0 0">
+                                    Set min/max to 0 to disable a game (the chat command becomes silent and it drops out of the commands ticker).
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Slots minigame (!slots <wager>). Image pool drives
                              the reels; defaults to 6 Twitch global emotes
                              when blank. -->
@@ -2159,12 +2203,32 @@
                                     <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="check-in" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
-                                                ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                                ToolTip="Fires a generic viewer check-in. Use the row below to preview specific viewer types (sub tier, Patreon, TikTok Fan Club, etc.)." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="check-in" Click="BtnOverlayOpen_Click"
                                                 ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
                                     </StackPanel>
                                 </Grid>
+                                <!-- Per-viewer-type test row. Each Tag is "checkin:<role>"
+                                     and BtnOverlaySendTest_Click dispatches accordingly so
+                                     streamers can preview every flair variant without
+                                     triggering real check-ins. -->
+                                <WrapPanel Margin="0 0 0 8">
+                                    <TextBlock Text="Preview viewer type:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 4" />
+                                    <Button Content="Viewer"        Tag="checkin:viewer"   Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="Sub T1"        Tag="checkin:sub-t1"   Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="Sub T2"        Tag="checkin:sub-t2"   Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="Sub T3"        Tag="checkin:sub-t3"   Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="VIP"           Tag="checkin:vip"      Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="Mod"           Tag="checkin:mod"      Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="Patreon T2"    Tag="checkin:patreon-t2" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="Patreon T3"    Tag="checkin:patreon-t3" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="TikTok Fan"    Tag="checkin:tiktok-fan-club" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="YouTube Member" Tag="checkin:yt-member" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="Kick Sub"      Tag="checkin:kick-sub" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="Raider"        Tag="checkin:raider"   Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="First-time"    Tag="checkin:first"    Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                </WrapPanel>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <TextBox x:Name="TxtUrlCheckIn" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
@@ -2825,7 +2889,7 @@
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="compact" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
                                 <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 420×140 (the card is 400×120 with a tiny shadow margin)" />
+                                           Text="Recommended OBS browser source: 360×108 (the card is 340×88 with a tiny shadow margin)" />
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />

@@ -783,6 +783,32 @@ namespace Loadout.Settings
         public int    SlotsMaxWager        { get; set; } = 500;
         public int    SlotsPayoutAllSame   { get; set; } = 5;     // 3 same → wager × 5
         public int    SlotsPayoutTwoSame   { get; set; } = 1;     // 2 same → wager × 1 (returns wager)
+
+        // Coinflip + dice chat games (chat-side equivalents of the
+        // Discord /coinflip and /dice slash commands). Same wallet,
+        // same bus events, same minigames overlay rendering. Streamers
+        // can disable individually by setting Min/Max to 0.
+        public int    CoinflipMinWager     { get; set; } = 5;
+        public int    CoinflipMaxWager     { get; set; } = 500;
+        public int    DiceMinWager         { get; set; } = 5;
+        public int    DiceMaxWager         { get; set; } = 500;
+        // Dice payout multiplier when the rolled face matches the
+        // target (1-6, 1/6 chance). 5 = wager × 5 net win, matching
+        // the off-stream Discord /dice math.
+        public int    DicePayoutMultiplier { get; set; } = 5;
+
+        // Per-user cooldown applied to ALL three minigames. Stops a
+        // single supporter from spamming a hundred spins. Mods +
+        // broadcaster bypass.
+        public int    GamePerUserCooldownSec { get; set; } = 30;
+
+        // Delay (ms) between the bus event firing (which kicks the
+        // overlay's spin / flip / roll animation) and the chat reply
+        // posting the result. Lets the on-screen game play out so
+        // chat doesn't spoiler the outcome before viewers see it.
+        // Default 1800 ms tracks the longest minigames-overlay
+        // animation (slots, ~1700 ms settle).
+        public int    GameResultDelayMs    { get; set; } = 1800;
     }
 
     public class ApexConfig

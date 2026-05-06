@@ -112,13 +112,15 @@
 
   function badgeLabel(cat) {
     switch (cat) {
-      case 'custom':  return 'CMD';
-      case 'counter': return '#';
-      case 'bolts':   return '⚡';   // lightning
-      case 'clip':    return 'CLP';
-      case 'checkin': return 'CHK';
-      case 'mod':     return 'MOD';
-      default:        return 'CMD';
+      case 'custom':  return '💬';
+      case 'counter': return '🔢';
+      case 'bolts':   return '⚡';
+      case 'clip':    return '🎬';
+      case 'checkin': return '✅';
+      case 'mod':     return '🛡️';
+      case 'song':
+      case 'music':   return '🎵';
+      default:        return '💬';
     }
   }
 

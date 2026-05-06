@@ -138,6 +138,15 @@ namespace Loadout.Modules
                     list.Add(new CommandEntry(cmd + " <song>", "bolts",
                         "spend " + cost + " " + bolts + " to request a song"));
                 }
+                // ------ Bolts minigames ------
+                // The three games are baked into BoltsModule and surface
+                // through the same wallet, so they live under the "bolts"
+                // category in the ticker. Streamers can hide them by
+                // disabling the Bolts module entirely (the games can't
+                // run without a wallet).
+                list.Add(new CommandEntry("!coinflip <wager>",  "bolts", "50/50 double-or-nothing flip"));
+                list.Add(new CommandEntry("!dice <wager> <1-6>","bolts", "roll a d6 against your target — 5x payout"));
+                list.Add(new CommandEntry("!slots <wager>",     "bolts", "spin the reels — 3-of-a-kind jackpot"));
             }
 
             // ------ Clip ------

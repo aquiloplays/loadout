@@ -96,6 +96,10 @@ namespace Loadout.Modules
                     return;
                 }
 
+                // Include the TikTok gift name + coin count when available
+                // so overlays can render the actual gift (🌹 Rose, etc.)
+                // instead of a generic "tiktokGift" string. TikFinity
+                // surfaces these as giftName + coins on the CPH event.
                 AquiloBus.Instance.Publish("hypetrain.contribute", new
                 {
                     user      = ctx.Get<string>("user", ""),
@@ -103,6 +107,9 @@ namespace Loadout.Modules
                     fuel      = fuel,
                     totalFuel = _fuel,
                     level     = _level,
+                    giftName  = ctx.Get<string>("giftName", null),
+                    giftId    = ctx.Get<string>("giftId", null),
+                    coins     = ctx.Get<int>("coins", 0),
                     ts        = now
                 });
                 Util.EventStats.Instance.Hit(ctx.Kind, nameof(HypeTrainModule));

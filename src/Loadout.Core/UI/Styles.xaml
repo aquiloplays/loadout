@@ -55,8 +55,12 @@
     <Color x:Key="Platform.TikTok">#00F2EA</Color>
     <Color x:Key="Platform.Kick">#53FC18</Color>
 
-    <!-- Status -->
-    <Color x:Key="Status.Success">#3FB950</Color>
+    <!-- Status. Success was a github-y green (#3FB950) which clashed with
+         the app's blue/teal palette in the status pills + module-enabled
+         dots. Switched to an Aquilo-flavoured cyan (matches Platform.TikTok
+         hue but slightly desaturated so it doesn't fight with TikTok pills)
+         so "good" indicators read as "themed ok" rather than "leaf green". -->
+    <Color x:Key="Status.Success">#22D3EE</Color>
     <Color x:Key="Status.Warn">#F0883E</Color>
     <Color x:Key="Status.Error">#F85149</Color>
     <Color x:Key="Status.Event">#F0B429</Color>
@@ -555,8 +559,12 @@
         <Setter Property="Background" Value="{StaticResource Brush.Accent.Faint}" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
     </Style>
+    <!-- Background was a green-tinted dark (#1F2D26) chosen for the old
+         leaf-green Brush.Success. Now using a cyan-tinted dark to match
+         the new teal Status.Success so the pill reads as a single themed
+         unit rather than green-on-teal. -->
     <Style x:Key="PillSuccess" TargetType="Border" BasedOn="{StaticResource Pill}">
-        <Setter Property="Background" Value="#1F2D26" />
+        <Setter Property="Background" Value="#1B2A33" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.Success}" />
     </Style>
 

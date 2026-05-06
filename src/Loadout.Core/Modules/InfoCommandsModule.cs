@@ -150,13 +150,22 @@ namespace Loadout.Modules
 
         private static string ReplyAccountAge(EventContext ctx)
         {
-            var created = ctx.Get<string>("accountCreated", ctx.Get<string>("createdAt", null));
-            if (DateTime.TryParse(created, out var when))
+            // CPH chat events don't carry account creation - the previous
+            // accountCreated / createdAt event-arg lookup was speculative
+            // and never actually fired. Fix: ask SB to do the Helix lookup
+            // (TwitchGetExtendedUserInfoByLogin), which is supported back
+            // to SB 0.2.0. Twitch-only by design - other platforms' chat
+            // events expose nothing comparable.
+            if (ctx.Platform != PlatformMask.Twitch)
+                return "@" + ctx.User + " — !accountage is Twitch-only.";
+
+            var created = SbBridge.Instance.GetTwitchUserCreatedUtc(ctx.User);
+            if (created.HasValue)
             {
-                var span = DateTime.UtcNow - when.ToUniversalTime();
+                var span = DateTime.UtcNow - created.Value;
                 return "@" + ctx.User + " — your account is " + Format(span) + " old.";
             }
-            return "@" + ctx.User + " — I can't see your account age from here.";
+            return "@" + ctx.User + " — couldn't fetch your account age from Twitch right now.";
         }
 
         // !profile [@user] - publish a viewer-profile event so the viewer
