@@ -27,10 +27,11 @@ html, body {
 
 #card {
   position: fixed;
-  /* 340x88 default — tighter than the previous 400x120, fits comfortably
-     in a top-corner OBS slot without crowding the rest of the canvas. */
-  width: 340px;
-  height: 88px;
+  /* 380x100 default — small enough to live in a corner without crowding
+     the canvas, big enough that the two-line content reads at OBS-source
+     scale. Earlier 340x88 was too cramped for the 18/13px type. */
+  width: 380px;
+  height: 100px;
   background: linear-gradient(180deg,
               rgba(24,24,27, var(--bg-alpha)) 0%,
               rgba(15,15,17, var(--bg-alpha)) 100%);
@@ -53,16 +54,24 @@ body[data-pos="bl"] #card { bottom: 22px; left: 22px; }
 body[data-pos="tc"] #card { top: 22px;    left: 50%; transform: translateX(-50%); }
 body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%); }
 
-/* Layers stack on top of each other so we can crossfade */
+/* Layers stack on top of each other so we can crossfade. Two key
+   layout decisions:
+     1. grid-template-rows uses auto/auto (NOT auto/1fr) — the 1fr
+        row used to consume all leftover vertical space, leaving the
+        title + sub stuck at the top with a void below them. With
+        auto rows + align-content: center, the text block is
+        vertically centred against the badge.
+     2. Padding tightened on the left where the accent stripe lives
+        so the content uses the full card real estate. */
 .layer {
   position: absolute;
   inset: 0;
   display: grid;
   grid-template-columns: auto 1fr;
-  grid-template-rows: auto 1fr;
-  column-gap: 10px;
-  row-gap: 2px;
-  padding: 12px 14px 12px 18px;
+  grid-template-rows: auto auto;
+  column-gap: 14px;
+  row-gap: 4px;
+  padding: 14px 18px 14px 18px;
   align-content: center;
   opacity: 1;
   transform: translateY(0);
@@ -74,19 +83,18 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   pointer-events: none;
 }
 
-/* Visual elements shared between idle + active. Sized down to match
-   the 88px card so the badge + two-line text comfortably fit. */
+/* Badge: 44×44 brand square, big enough to read at OBS-scale. */
 .badge {
   grid-column: 1; grid-row: 1 / span 2;
   align-self: center;
   display: inline-flex;
   align-items: center; justify-content: center;
-  width: 36px; height: 36px;
+  width: 44px; height: 44px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 9px;
   background: rgba(58,134,255,.18);
   color: var(--accent);
-  font-size: 18px;
+  font-size: 22px;
   font-weight: 700;
   letter-spacing: 0.5px;
   overflow: hidden;
@@ -118,21 +126,22 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   height: 100%;
 }
 .badge .icon-strip-item {
-  width: 10px;
-  height: 10px;
+  width: 13px;
+  height: 13px;
   object-fit: contain;
   display: block;
   filter: drop-shadow(0 1px 1px rgba(0,0,0,.4));
 }
 .badge .icon-strip-more {
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 800;
   color: var(--text);
   letter-spacing: .2px;
 }
 .title {
   grid-column: 2; grid-row: 1;
-  font-size: 15px;
+  font-size: 18px;
+  line-height: 1.15;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -141,7 +150,8 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
 }
 .sub {
   grid-column: 2; grid-row: 2;
-  font-size: 11px;
+  font-size: 13px;
+  line-height: 1.25;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;

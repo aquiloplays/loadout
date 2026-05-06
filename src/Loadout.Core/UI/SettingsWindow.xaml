@@ -3165,7 +3165,7 @@
                                     <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="compact" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
                                 </Grid>
                                 <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
-                                           Text="Recommended OBS browser source: 360×108 (the card is 340×88 with a tiny shadow margin)" />
+                                           Text="Recommended OBS browser source: 400×120 (the card is 380×100 with a tiny shadow margin)" />
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
