@@ -563,6 +563,133 @@
          leaf-green Brush.Success. Now using a cyan-tinted dark to match
          the new teal Status.Success so the pill reads as a single themed
          unit rather than green-on-teal. -->
+    <!-- Collapsible variant of the Card style. Drop-in for a section
+         the streamer occasionally needs to scan but doesn't want to
+         scroll past every time. Header is the section title; body is
+         whatever was inside the StackPanel of the original Card.
+         Default is expanded so existing setups don't need to re-expand
+         on first open. -->
+    <Style x:Key="ExpandableCard" TargetType="Expander">
+        <Setter Property="Background" Value="{StaticResource Brush.Bg.Surface}" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
+        <Setter Property="Padding" Value="16" />
+        <Setter Property="IsExpanded" Value="True" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Expander">
+                    <Border CornerRadius="10"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <ToggleButton Grid.Row="0" x:Name="HeaderSite"
+                                          IsChecked="{Binding IsExpanded, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
+                                          Padding="{TemplateBinding Padding}"
+                                          Background="Transparent" BorderThickness="0"
+                                          HorizontalContentAlignment="Stretch" Cursor="Hand">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <ContentPresenter Grid.Column="0" Content="{TemplateBinding Content}"
+                                                                  TextElement.FontSize="15"
+                                                                  TextElement.FontWeight="SemiBold"
+                                                                  TextElement.Foreground="{StaticResource Brush.Fg.Primary}"
+                                                                  VerticalAlignment="Center" />
+                                                <Path x:Name="chev" Grid.Column="1"
+                                                      Data="M0,0 L8,8 L16,0 Z"
+                                                      Width="14" Height="9" Stretch="Uniform"
+                                                      Fill="{StaticResource Brush.Fg.Muted}"
+                                                      VerticalAlignment="Center"
+                                                      RenderTransformOrigin="0.5,0.5">
+                                                    <Path.RenderTransform>
+                                                        <RotateTransform x:Name="chevRot" Angle="-90" />
+                                                    </Path.RenderTransform>
+                                                </Path>
+                                            </Grid>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="chev" Property="Fill" Value="{StaticResource Brush.Accent}" />
+                                                <Trigger.EnterActions>
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation Storyboard.TargetName="chevRot" Storyboard.TargetProperty="Angle"
+                                                                             To="0" Duration="0:0:0.18" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </Trigger.EnterActions>
+                                                <Trigger.ExitActions>
+                                                    <BeginStoryboard>
+                                                        <Storyboard>
+                                                            <DoubleAnimation Storyboard.TargetName="chevRot" Storyboard.TargetProperty="Angle"
+                                                                             To="-90" Duration="0:0:0.18" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </Trigger.ExitActions>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="chev" Property="Fill" Value="{StaticResource Brush.Accent}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter Grid.Row="1" x:Name="BodySite"
+                                              Margin="16 0 16 16"
+                                              Visibility="Collapsed" />
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsExpanded" Value="True">
+                            <Setter TargetName="BodySite" Property="Visibility" Value="Visible" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Color swatch button. Used next to every hex-color TextBox so the
+         streamer can click to open the system color picker. The button's
+         background is updated live in code-behind to reflect whatever
+         hex is in the companion TextBox. -->
+    <Style x:Key="ColorSwatch" TargetType="Button">
+        <Setter Property="Width"  Value="22" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Strong}" />
+        <Setter Property="Background" Value="{StaticResource Brush.Bg.Surface3}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="bd" CornerRadius="4"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            SnapsToDevicePixels="True" />
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style x:Key="PillSuccess" TargetType="Border" BasedOn="{StaticResource Pill}">
         <Setter Property="Background" Value="#1B2A33" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.Success}" />

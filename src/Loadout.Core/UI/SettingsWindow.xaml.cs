@@ -105,12 +105,324 @@ namespace Loadout.UI
             Step("BindDiscordBotTab",      BindDiscordBotTab);
             Step("BindWalletsAndShop",     BindWalletsAndShop);
             Step("BindTuningTab",          BindTuningTab);
+            Step("HookColorSwatches",      HookColorSwatches);
+            Step("BindQuickSettings",      BindQuickSettings);
 
             PatreonClient.Instance.StateChanged += OnPatreonStateChanged;
             Closed += (_, __) => {
                 PatreonClient.Instance.StateChanged -= OnPatreonStateChanged;
                 _instance = null;
             };
+
+            // Dirty-state tracking. Routed events bubble up to the window
+            // so a single set of handlers catches every form change.
+            // _settingsLoaded gates out the noise from the initial bind
+            // pass — every TextBox.Text = "..." in LoadFromSettings would
+            // otherwise mark dirty before the user has done anything.
+            _settingsLoaded = true;
+            AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+                       new System.Windows.Controls.TextChangedEventHandler((_, __) => MarkDirty()), true);
+            AddHandler(System.Windows.Controls.Primitives.Selector.SelectionChangedEvent,
+                       new System.Windows.Controls.SelectionChangedEventHandler((s, e) =>
+                       {
+                           // Tab navigation also raises SelectionChanged on
+                           // the root TabControl; ignore that — only treat
+                           // ComboBox / DataGrid selections as edits.
+                           if (e.OriginalSource is System.Windows.Controls.TabControl) return;
+                           MarkDirty();
+                       }), true);
+            AddHandler(System.Windows.Controls.Primitives.ToggleButton.CheckedEvent,
+                       new RoutedEventHandler((_, __) => MarkDirty()), true);
+            AddHandler(System.Windows.Controls.Primitives.ToggleButton.UncheckedEvent,
+                       new RoutedEventHandler((_, __) => MarkDirty()), true);
+        }
+
+        // Set true after the constructor's bind pass finishes, so that the
+        // routed-event handlers know to start treating field changes as
+        // user edits (not LoadFromSettings noise).
+        private bool _settingsLoaded;
+        private void MarkDirty()
+        {
+            if (!_settingsLoaded) return;
+            if (DirtyDot != null) DirtyDot.Visibility = Visibility.Visible;
+        }
+        private void ClearDirty()
+        {
+            if (DirtyDot != null) DirtyDot.Visibility = Visibility.Collapsed;
+        }
+
+        // ── Quick Settings tab ───────────────────────────────────────────
+        // Read + sync mode: any change here propagates to the matching
+        // checkbox / textbox on the detailed tab (and vice versa) via
+        // Binding-style two-way wiring on Loaded. Save flow uses the
+        // detailed-tab fields as the source of truth, so this is just
+        // a fast-edit surface — no new persistence.
+        private void BindQuickSettings()
+        {
+            var s = SettingsManager.Instance.Current;
+            if (TxtQuickBroadcaster   != null) TxtQuickBroadcaster.Text   = s.BroadcasterName ?? "";
+            if (ChkQuickDryRun        != null) ChkQuickDryRun.IsChecked   = s.DryRun;
+            if (ChkQuickQuietMode     != null) ChkQuickQuietMode.IsChecked= s.ChatNoise?.QuietMode == true;
+            if (ChkQuickAlerts        != null) ChkQuickAlerts.IsChecked   = s.Modules.Alerts;
+            if (ChkQuickWelcomes      != null) ChkQuickWelcomes.IsChecked = s.Modules.ContextWelcomes;
+            if (ChkQuickBolts         != null) ChkQuickBolts.IsChecked    = s.Modules.Bolts;
+            if (ChkQuickTimers        != null) ChkQuickTimers.IsChecked   = s.Modules.TimedMessages;
+            if (ChkQuickCounters      != null) ChkQuickCounters.IsChecked = s.Modules.Counters;
+            if (ChkQuickInfoCmd       != null) ChkQuickInfoCmd.IsChecked  = s.Modules.InfoCommands;
+            if (ChkQuickRecap         != null) ChkQuickRecap.IsChecked    = s.Modules.StreamRecap;
+            if (ChkQuickCheckin       != null) ChkQuickCheckin.IsChecked  = s.Modules.DailyCheckIn;
+
+            RefreshQuickPatreon();
+
+            // Two-way sync. Quick edits push the value back into the
+            // detailed-tab control so save logic stays single-source.
+            // The detailed-tab control's own change handler keeps
+            // running so the Save flow doesn't need to know about the
+            // Quick controls at all.
+            void Pair(CheckBox quick, CheckBox real)
+            {
+                if (quick == null || real == null) return;
+                quick.Checked   += (_, __) => { if (real.IsChecked != true)  real.IsChecked = true;  };
+                quick.Unchecked += (_, __) => { if (real.IsChecked != false) real.IsChecked = false; };
+                real.Checked    += (_, __) => { if (quick.IsChecked != true)  quick.IsChecked = true;  };
+                real.Unchecked  += (_, __) => { if (quick.IsChecked != false) quick.IsChecked = false; };
+            }
+            Pair(ChkQuickDryRun,    ChkDryRun);
+            Pair(ChkQuickAlerts,    ModAlerts);
+            Pair(ChkQuickWelcomes,  ModWelcomes);
+            Pair(ChkQuickBolts,     ModBolts);
+            Pair(ChkQuickTimers,    ModTimers);
+            Pair(ChkQuickCounters,  ModCounters);
+            Pair(ChkQuickInfoCmd,   ModInfo);
+            Pair(ChkQuickRecap,     ModRecap);
+            Pair(ChkQuickCheckin,   ModCheckIn);
+            Pair(ChkQuickQuietMode, ChkQuietMode);
+
+            if (TxtQuickBroadcaster != null && TxtBroadcaster != null)
+            {
+                TxtQuickBroadcaster.TextChanged += (_, __) => { if (TxtBroadcaster.Text != TxtQuickBroadcaster.Text) TxtBroadcaster.Text = TxtQuickBroadcaster.Text; };
+                TxtBroadcaster.TextChanged      += (_, __) => { if (TxtQuickBroadcaster.Text != TxtBroadcaster.Text) TxtQuickBroadcaster.Text = TxtBroadcaster.Text; };
+            }
+        }
+
+        private void RefreshQuickPatreon()
+        {
+            if (TxtQuickPatreon != null)
+                TxtQuickPatreon.Text = Patreon.Entitlements.CurrentTierDisplay();
+        }
+
+        private void BtnQuickPatreon_Click(object sender, RoutedEventArgs e)
+        {
+            // Jump to the Patreon tab. Search-filter respects the user's
+            // current query so we always have a path.
+            for (int i = 0; i < MainTabs.Items.Count; i++)
+            {
+                if (MainTabs.Items[i] is TabItem ti && ExtractTabHeaderText(ti).IndexOf("Patreon", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    MainTabs.SelectedIndex = i; break;
+                }
+            }
+        }
+
+        private void BtnQuickOpenDataFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var path = SettingsManager.Instance.DataFolder ?? "";
+                if (!string.IsNullOrEmpty(path) && System.IO.Directory.Exists(path))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = path, UseShellExecute = true
+                    });
+            }
+            catch (Exception ex) { ShowSavedHint("Open failed: " + ex.Message); }
+        }
+
+        private void BtnQuickOpenLog_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var path = System.IO.Path.Combine(SettingsManager.Instance.DataFolder ?? "", "loadout-errors.log");
+                if (System.IO.File.Exists(path))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = path, UseShellExecute = true
+                    });
+                else
+                    ShowSavedHint("No errors logged yet — file doesn't exist.");
+            }
+            catch (Exception ex) { ShowSavedHint("Open failed: " + ex.Message); }
+        }
+
+        private void BtnQuickReloadSettings_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Loadout.LoadoutEntry.ReloadSettings();
+                LoadFromSettings();
+                ShowSavedHint("settings.json reloaded from disk.");
+            }
+            catch (Exception ex) { ShowSavedHint("Reload failed: " + ex.Message); }
+        }
+
+        // ── Sidebar tab search ───────────────────────────────────────────
+        // Filters MainTabs.Items by header text. Section divider tabs
+        // (the all-caps SETUP / DATA / OVERLAYS labels) stay visible
+        // since they're zero-height anyway and dropping them would
+        // cluster the matched items confusingly.
+        private void TxtTabSearch_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyTabFilter(TxtTabSearch?.Text ?? "");
+        }
+        private void TxtTabSearch_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Escape)
+            {
+                if (TxtTabSearch != null) TxtTabSearch.Text = "";
+                e.Handled = true;
+            }
+        }
+        private void ApplyTabFilter(string query)
+        {
+            if (MainTabs == null) return;
+            var q = (query ?? "").Trim().ToLowerInvariant();
+            int firstVisibleIdx = -1;
+            int currentIdx = -1;
+            for (int i = 0; i < MainTabs.Items.Count; i++)
+            {
+                var item = MainTabs.Items[i] as TabItem;
+                if (item == null) continue;
+                // Section-divider tabs use the SidebarNavSectionHeader
+                // style and are always visible; they're not selectable.
+                var styleKey = (item.Style?.ToString() ?? "");
+                bool isSection = styleKey.IndexOf("SidebarNavSectionHeader", StringComparison.OrdinalIgnoreCase) >= 0;
+                if (isSection)
+                {
+                    item.Visibility = Visibility.Visible;
+                    continue;
+                }
+                bool match = q.Length == 0 || ExtractTabHeaderText(item).ToLowerInvariant().Contains(q);
+                item.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
+                if (match && firstVisibleIdx < 0) firstVisibleIdx = i;
+                if (item.IsSelected) currentIdx = i;
+            }
+            // If the currently-selected tab got hidden, jump to the
+            // first visible match so the body content stays in sync
+            // with what the user can see.
+            if (currentIdx >= 0 && (MainTabs.Items[currentIdx] as TabItem)?.Visibility != Visibility.Visible
+                && firstVisibleIdx >= 0)
+            {
+                MainTabs.SelectedIndex = firstVisibleIdx;
+            }
+        }
+        private static string ExtractTabHeaderText(TabItem item)
+        {
+            if (item.Header is string s) return s;
+            if (item.Header is FrameworkElement fe)
+            {
+                // Walk descendants for any TextBlock and concatenate
+                // its text (most sidebar tabs nest the label inside a
+                // StackPanel with an icon Path + a TextBlock).
+                var sb = new System.Text.StringBuilder();
+                CollectText(fe, sb);
+                return sb.ToString();
+            }
+            return item.Header?.ToString() ?? "";
+        }
+        private static void CollectText(System.Windows.DependencyObject d, System.Text.StringBuilder sb)
+        {
+            if (d is TextBlock tb) { if (sb.Length > 0) sb.Append(' '); sb.Append(tb.Text ?? ""); }
+            int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);
+            for (int i = 0; i < n; i++)
+                CollectText(System.Windows.Media.VisualTreeHelper.GetChild(d, i), sb);
+            if (d is FrameworkElement fe)
+            {
+                // Logical tree fallback for items not yet realized in
+                // the visual tree (collapsed tabs).
+                foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(fe))
+                    if (child is System.Windows.DependencyObject cd) CollectText(cd, sb);
+            }
+        }
+
+        // Color-picker button handler. Each swatch's Tag points at the
+        // x:Name of the TextBox holding the hex value; we read the
+        // current colour from there as the dialog's starting point,
+        // open the WinForms ColorDialog, and write the chosen hex back
+        // (uppercase, no #, matching NormalizeHex's expectations).
+        // Also live-updates the swatch's background so the colour is
+        // visible without saving first.
+        private void BtnPickColor_Click(object sender, RoutedEventArgs e)
+        {
+            var btn = sender as Button;
+            var targetName = btn?.Tag?.ToString();
+            if (string.IsNullOrEmpty(targetName)) return;
+            var target = FindName(targetName) as TextBox;
+            if (target == null) return;
+
+            using (var dlg = new System.Windows.Forms.ColorDialog())
+            {
+                dlg.AnyColor = true;
+                dlg.FullOpen = true;
+                // Seed the picker from the current TextBox value (if it
+                // parses as a 3- or 6-digit hex). Bad / empty values
+                // start the picker at white, which is harmless.
+                var seed = (target.Text ?? "").Trim().TrimStart('#');
+                try
+                {
+                    if (seed.Length == 6)
+                        dlg.Color = System.Drawing.Color.FromArgb(
+                            Convert.ToInt32(seed.Substring(0, 2), 16),
+                            Convert.ToInt32(seed.Substring(2, 2), 16),
+                            Convert.ToInt32(seed.Substring(4, 2), 16));
+                }
+                catch { }
+                if (dlg.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    var hex = dlg.Color.R.ToString("X2") + dlg.Color.G.ToString("X2") + dlg.Color.B.ToString("X2");
+                    target.Text = hex;
+                    UpdateColorSwatch(btn, hex);
+                }
+            }
+        }
+
+        // Paints the swatch button's background to reflect the current
+        // hex in its companion TextBox. Called both after the picker
+        // saves and on TextChanged so manual edits stay in sync.
+        private void UpdateColorSwatch(Button btn, string hex)
+        {
+            try
+            {
+                var t = (hex ?? "").Trim().TrimStart('#');
+                if (t.Length != 6) { btn.Background = (System.Windows.Media.Brush)FindResource("Brush.Bg.Surface3"); return; }
+                var r = Convert.ToByte(t.Substring(0, 2), 16);
+                var g = Convert.ToByte(t.Substring(2, 2), 16);
+                var b = Convert.ToByte(t.Substring(4, 2), 16);
+                btn.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(r, g, b));
+            }
+            catch { }
+        }
+
+        // Hooks every <TextBox>'s TextChanged to its sibling swatch
+        // button via convention: the button's name is "Sw" + the
+        // TextBox name (e.g. SwTxtBoltsAccent). Wired after every bind
+        // pass so manual edits update the swatch live.
+        private void HookColorSwatches()
+        {
+            var pairs = new[]
+            {
+                "TxtCheckInAccent", "TxtCountersAccent", "TxtGoalsAccent", "TxtBoltsAccent",
+                "TxtApexAccent",    "TxtCommandsAccent", "TxtRecapAccent", "TxtViewerAccent",
+                "TxtHypeTrainAccent", "TxtMinigamesAccent",
+                "TxtOverlayAccent2", "TxtOverlayText"
+            };
+            foreach (var name in pairs)
+            {
+                var tb  = FindName(name)        as TextBox;
+                var btn = FindName("Sw" + name) as Button;
+                if (tb == null || btn == null) continue;
+                UpdateColorSwatch(btn, tb.Text);
+                tb.TextChanged += (_, __) => UpdateColorSwatch(btn, tb.Text);
+            }
         }
 
         // Tiny helper that lets each binding step log on its own context if it
@@ -1174,6 +1486,7 @@ namespace Loadout.UI
             SettingsManager.Instance.SaveNow();
             ShowSavedHint("Saved at " + DateTime.Now.ToString("HH:mm:ss"));
             RefreshHeaderPills();
+            ClearDirty();
         }
 
         // -------------------- Footer status pill --------------------
@@ -1623,43 +1936,81 @@ namespace Loadout.UI
 
             if (ChipTwitchDot != null) ChipTwitchDot.Fill = s.Platforms.Twitch ? ok : dim;
             if (ChipTikTokDot != null) ChipTikTokDot.Fill = s.Platforms.TikTok ? ok : dim;
+            // Tooltip: explain why each chip is the colour it is. Hover
+            // before this we just had "Twitch (chat + EventSub)"; now it
+            // surfaces the actual reason it's lit (or dim) so the
+            // streamer doesn't have to guess.
+            if (ChipTwitch != null)
+                ChipTwitch.ToolTip = s.Platforms.Twitch
+                    ? "Twitch enabled in Settings → Platforms. Loadout listens for follow / sub / cheer / raid via SB."
+                    : "Twitch disabled. Tick it in Settings → Platforms to receive chat + EventSub.";
+            if (ChipTikTok != null)
+                ChipTikTok.ToolTip = s.Platforms.TikTok
+                    ? "TikTok via TikFinity is enabled. Outbound goes through your configured TikFinity action."
+                    : "TikTok disabled. Enable in Settings → Platforms (requires TikFinity Bot Mode for outbound).";
 
             if (ChipBusDot != null)
             {
                 var sec = TryReadBusSecret();
-                ChipBusDot.Fill = (!string.IsNullOrEmpty(sec) && !sec.Contains("not started")) ? ok : dim;
+                var busOk = (!string.IsNullOrEmpty(sec) && !sec.Contains("not started"));
+                ChipBusDot.Fill = busOk ? ok : dim;
+                if (ChipBus != null)
+                    ChipBus.ToolTip = busOk
+                        ? ("Aquilo Bus running on ws://127.0.0.1:7470. Secret loaded from %APPDATA%\\Aquilo\\bus-secret.txt. Overlays connect with that secret in their URL.")
+                        : ("Bus secret not found at %APPDATA%\\Aquilo\\bus-secret.txt. Restart Streamer.bot — Loadout creates the secret on boot.");
             }
 
-            if (ChipWorkerDot != null) ChipWorkerDot.Fill = dim;
+            if (ChipWorkerDot != null)
+            {
+                ChipWorkerDot.Fill = dim;
+                if (ChipWorker != null)
+                    ChipWorker.ToolTip = "Probing the Loadout Discord bot Worker — hover after the dot lights up for the latest /health result.";
+            }
             _ = ProbeWorkerHealthAsync();
         }
 
         private async System.Threading.Tasks.Task ProbeWorkerHealthAsync()
         {
             var workerUrl = SettingsManager.Instance.Current.DiscordBot?.WorkerUrl;
-            if (string.IsNullOrEmpty(workerUrl)) return;
+            if (string.IsNullOrEmpty(workerUrl))
+            {
+                await Dispatcher.InvokeAsync(() =>
+                {
+                    if (ChipWorker != null)
+                        ChipWorker.ToolTip = "No Worker URL configured. Set Settings → Discord bot → Worker URL.";
+                });
+                return;
+            }
+            string tipText;
+            System.Windows.Media.Brush fill;
             try
             {
                 using (var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(5) })
                 {
                     var r = await http.GetAsync(workerUrl.TrimEnd('/') + "/health");
-                    await Dispatcher.InvokeAsync(() =>
+                    if (r.IsSuccessStatusCode)
                     {
-                        if (ChipWorkerDot == null) return;
-                        ChipWorkerDot.Fill = r.IsSuccessStatusCode
-                            ? (System.Windows.Media.Brush)FindResource("Brush.Success")
-                            : (System.Windows.Media.Brush)FindResource("Brush.Warn");
-                    });
+                        var body = (await r.Content.ReadAsStringAsync())?.Trim();
+                        tipText = "Worker /health 200 — " + (string.IsNullOrEmpty(body) ? "ok" : body) + "  ·  " + workerUrl;
+                        fill = (System.Windows.Media.Brush)FindResource("Brush.Success");
+                    }
+                    else
+                    {
+                        tipText = "Worker /health " + (int)r.StatusCode + " " + r.ReasonPhrase + "  ·  " + workerUrl;
+                        fill = (System.Windows.Media.Brush)FindResource("Brush.Warn");
+                    }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                await Dispatcher.InvokeAsync(() =>
-                {
-                    if (ChipWorkerDot == null) return;
-                    ChipWorkerDot.Fill = (System.Windows.Media.Brush)FindResource("Brush.Error");
-                });
+                tipText = "Worker unreachable: " + ex.Message + "  ·  " + workerUrl;
+                fill = (System.Windows.Media.Brush)FindResource("Brush.Error");
             }
+            await Dispatcher.InvokeAsync(() =>
+            {
+                if (ChipWorkerDot != null) ChipWorkerDot.Fill = fill;
+                if (ChipWorker != null)    ChipWorker.ToolTip = tipText;
+            });
         }
 
         // -------------------- Versions / closing / re-onboard --------------------

@@ -236,6 +236,20 @@ namespace Loadout.UI
 
         private void BtnSkip_Click(object sender, RoutedEventArgs e)
         {
+            // Confirm before skipping — too easy to lose half-configured
+            // setup with a single Esc-then-click. The hint about re-opening
+            // from the tray icon prevents the "wait, where did setup go?"
+            // anxiety that the previous one-click skip caused.
+            var r = LoadoutDialog.Show(this,
+                "Skip the rest of setup?\n\n" +
+                "You'll land at a partly-configured Loadout. Anything you've ticked so far " +
+                "will save, but later steps (modules, Discord, webhooks, your links, Patreon) " +
+                "stay at defaults.\n\n" +
+                "You can re-open this wizard any time from the tray icon (Onboarding).",
+                "Skip setup",
+                System.Windows.MessageBoxButton.OKCancel,
+                System.Windows.MessageBoxImage.Question);
+            if (r != System.Windows.MessageBoxResult.OK) return;
             FinishWizard();
         }
 

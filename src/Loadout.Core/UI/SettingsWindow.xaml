@@ -83,6 +83,30 @@
 
                 <!-- Header actions -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Tab search. Hides any sidebar TabItem whose header
+                         text doesn't contain the query (case-insensitive)
+                         so 20+ tabs become scannable. Section dividers
+                         (SETUP / DATA / etc.) stay visible. -->
+                    <Border Background="{StaticResource Brush.Bg.Surface3}"
+                            BorderBrush="{StaticResource Brush.Border}" BorderThickness="1"
+                            CornerRadius="4" Padding="8 0" Margin="0 0 8 0" VerticalAlignment="Center" Height="28">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="160" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="🔍" FontSize="11"
+                                       Foreground="{StaticResource Brush.Fg.Muted}"
+                                       VerticalAlignment="Center" Margin="0 0 6 0" />
+                            <TextBox Grid.Column="1" x:Name="TxtTabSearch"
+                                     BorderThickness="0" Background="Transparent"
+                                     Foreground="{StaticResource Brush.Fg.Primary}"
+                                     VerticalAlignment="Center" FontSize="12"
+                                     ToolTip="Filter sidebar tabs by name. Esc to clear."
+                                     TextChanged="TxtTabSearch_TextChanged"
+                                     KeyDown="TxtTabSearch_KeyDown" />
+                        </Grid>
+                    </Border>
                     <Button Content="Variables" Style="{StaticResource SecondaryButton}"
                             Margin="0 0 8 0" Click="BtnVariables_Click"
                             ToolTip="Quick reference of {user}, {tier}, {bits}, etc. for any template field." />
@@ -106,10 +130,101 @@
                 </TabItem.Header>
             </TabItem>
 
+            <!-- Quick Settings: the 8 most-tweaked knobs. Lands here on
+                 first open so streamers don't have to hunt for the
+                 things they actually change. Everything here also lives
+                 in its detailed tab — this is just a fast path. -->
+            <TabItem Style="{StaticResource SidebarNavTabItem}" IsSelected="True">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Modules}" Margin="0 0 10 0" />
+                        <TextBlock Text="Quick" VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="32 28" MaxWidth="780" HorizontalAlignment="Left">
+                        <TextBlock Text="Quick settings" Style="{StaticResource H1}" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 18">
+                            The handful of knobs streamers actually touch every stream. Use the search box up top to jump to anything else.
+                        </TextBlock>
+
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <TextBlock Text="Identity" Style="{StaticResource H2}" />
+                                <Grid Margin="0 6 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="140" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Broadcaster name" Style="{StaticResource Muted}" VerticalAlignment="Center" />
+                                    <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtQuickBroadcaster" Margin="0 4 0 0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Patreon tier" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 8 0 0" />
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0 8 0 0">
+                                        <TextBlock x:Name="TxtQuickPatreon" Text="Free" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 12 0" />
+                                        <Button Content="Manage Patreon" Style="{StaticResource SecondaryButton}" Click="BtnQuickPatreon_Click" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <TextBlock Text="Behaviour" Style="{StaticResource H2}" />
+                                <CheckBox x:Name="ChkQuickDryRun"   Content="Dry-run mode (log what would have been sent without actually posting)" Style="{StaticResource ToggleSwitch}" Margin="0 6 0 0" />
+                                <CheckBox x:Name="ChkQuickQuietMode" Content="Quiet mode (chat-side replies silenced; overlays still update)" Style="{StaticResource ToggleSwitch}" Margin="0 6 0 0" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <TextBlock Text="Modules at a glance" Style="{StaticResource H2}" />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0 0 0 8" TextWrapping="Wrap">
+                                    The most-toggled modules. Full list lives in Settings → Modules.
+                                </TextBlock>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <CheckBox x:Name="ChkQuickAlerts"   Content="Alerts"      Style="{StaticResource ToggleRow}" />
+                                        <CheckBox x:Name="ChkQuickWelcomes" Content="Welcomes"    Style="{StaticResource ToggleRow}" />
+                                        <CheckBox x:Name="ChkQuickBolts"    Content="Bolts wallet" Style="{StaticResource ToggleRow}" />
+                                        <CheckBox x:Name="ChkQuickTimers"   Content="Auto-timed messages" Style="{StaticResource ToggleRow}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1">
+                                        <CheckBox x:Name="ChkQuickCounters" Content="Counters"   Style="{StaticResource ToggleRow}" />
+                                        <CheckBox x:Name="ChkQuickInfoCmd"  Content="Info commands" Style="{StaticResource ToggleRow}" />
+                                        <CheckBox x:Name="ChkQuickRecap"    Content="Stream recap" Style="{StaticResource ToggleRow}" />
+                                        <CheckBox x:Name="ChkQuickCheckin"  Content="Daily check-in" Style="{StaticResource ToggleRow}" />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Quick links" Style="{StaticResource H2}" />
+                                <WrapPanel Margin="0 6 0 0">
+                                    <Button Content="Open data folder"     Style="{StaticResource SecondaryButton}" Click="BtnQuickOpenDataFolder_Click" Margin="0 0 6 6" />
+                                    <Button Content="Open error log"       Style="{StaticResource SecondaryButton}" Click="BtnQuickOpenLog_Click"        Margin="0 0 6 6" />
+                                    <Button Content="Re-run onboarding"    Style="{StaticResource SecondaryButton}" Click="BtnReonboard_Click"           Margin="0 0 6 6" />
+                                    <Button Content="Reload settings.json" Style="{StaticResource SecondaryButton}" Click="BtnQuickReloadSettings_Click" Margin="0 0 6 6" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- Health dashboard: at-a-glance status of every module. New
                  landing tab so a streamer opening Loadout sees what's wired
                  up before drilling into individual settings. -->
-            <TabItem Style="{StaticResource SidebarNavTabItem}" IsSelected="True">
+            <TabItem Style="{StaticResource SidebarNavTabItem}">
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Modules}" Margin="0 0 10 0" />
@@ -989,51 +1104,45 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
-                            <StackPanel>
-                                <TextBlock Text="Multipliers (additive, decimal: 0.5 = +50%)" Style="{StaticResource H2}" />
-                                <Grid>
-                                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Subscribers"        Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsMulSub"   Margin="0 4 12 0" />
-                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Patreon Tier 1"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsMulT1"    Margin="0 4 0 0" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Patreon Tier 2"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsMulT2"    Margin="0 4 12 0" />
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="Patreon Tier 3"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsMulT3"    Margin="0 4 0 0" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Per daily streak day" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtBoltsStreakPer" Margin="0 4 12 0" />
-                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="Streak bonus cap"  Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="2" Grid.Column="3" x:Name="TxtBoltsStreakCap" Margin="0 4 0 0" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
+                        <Expander Style="{StaticResource ExpandableCard}" Header="Multipliers (additive, decimal: 0.5 = +50%)" Margin="0 0 0 14" IsExpanded="False">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Subscribers"        Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsMulSub"   Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Patreon Tier 1"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsMulT1"    Margin="0 4 0 0" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Patreon Tier 2"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsMulT2"    Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="Patreon Tier 3"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsMulT3"    Margin="0 4 0 0" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Per daily streak day" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtBoltsStreakPer" Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="Streak bonus cap"  Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="2" Grid.Column="3" x:Name="TxtBoltsStreakCap" Margin="0 4 0 0" />
+                            </Grid>
+                        </Expander>
 
-                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
-                            <StackPanel>
-                                <TextBlock Text="Spend / safety" Style="{StaticResource H2}" />
-                                <Grid>
-                                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Anti-AFK chat earns/min" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsAfkCap"        Margin="0 4 12 0" />
-                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="!gift floor"            Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsGiftFloor"     Margin="0 4 0 0" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="!boltrain min total"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsRainMin"       Margin="0 4 12 0" />
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="!boltrain max recipients" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsRainMax"       Margin="0 4 0 0" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
+                        <Expander Style="{StaticResource ExpandableCard}" Header="Spend / safety" Margin="0 0 0 14">
+                            <Grid>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Anti-AFK chat earns/min" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsAfkCap"        Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="!gift floor"            Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsGiftFloor"     Margin="0 4 0 0" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="!boltrain min total"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsRainMin"       Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="!boltrain max recipients" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsRainMax"       Margin="0 4 0 0" />
+                            </Grid>
+                        </Expander>
 
                         <!-- Bolts minigames: shared per-user cooldown +
                              result-reply delay across !coinflip / !dice /
@@ -2323,6 +2432,7 @@
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtCheckInAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtCheckInAccent" Tag="TxtCheckInAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
@@ -2381,6 +2491,7 @@
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtCountersAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtCountersAccent" Tag="TxtCountersAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
@@ -2427,6 +2538,7 @@
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtGoalsAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtGoalsAccent" Tag="TxtGoalsAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
@@ -2481,6 +2593,7 @@
                                     <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0 2 0 2">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtBoltsAccent" Width="80" Text="3A86FF" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtBoltsAccent" Tag="TxtBoltsAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal" Margin="0 2 0 2">
                                         <TextBlock Text="Leaderboard rows:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
@@ -2565,6 +2678,7 @@
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtCommandsAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtCommandsAccent" Tag="TxtCommandsAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
@@ -2668,6 +2782,7 @@
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtApexAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtApexAccent" Tag="TxtApexAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
@@ -2725,6 +2840,7 @@
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtRecapAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtRecapAccent" Tag="TxtRecapAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
@@ -2784,6 +2900,7 @@
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtViewerAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtViewerAccent" Tag="TxtViewerAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Bg opacity:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
@@ -2844,6 +2961,7 @@
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtMinigamesAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtMinigamesAccent" Tag="TxtMinigamesAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -2891,6 +3009,7 @@
                                     <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtHypeTrainAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtHypeTrainAccent" Tag="TxtHypeTrainAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                 </Grid>
                             </StackPanel>
@@ -3137,9 +3256,15 @@
                                     <TextBox   Grid.Row="0" Grid.Column="3" x:Name="TxtOverlayFontScale" Margin="0 4 0 0" Text="1.0" TextChanged="OnOverlayUrlChange" />
 
                                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Secondary color" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox   Grid.Row="1" Grid.Column="1" x:Name="TxtOverlayAccent2" Margin="0 4 12 0" TextChanged="OnOverlayUrlChange" />
+                                    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="0 4 12 0">
+                                        <TextBox  x:Name="TxtOverlayAccent2" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button   x:Name="SwTxtOverlayAccent2" Tag="TxtOverlayAccent2" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
+                                    </StackPanel>
                                     <TextBlock Grid.Row="1" Grid.Column="2" Text="Text color"      Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox   Grid.Row="1" Grid.Column="3" x:Name="TxtOverlayText" Margin="0 4 0 0" TextChanged="OnOverlayUrlChange" />
+                                    <StackPanel Grid.Row="1" Grid.Column="3" Orientation="Horizontal" Margin="0 4 0 0">
+                                        <TextBox  x:Name="TxtOverlayText" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button   x:Name="SwTxtOverlayText" Tag="TxtOverlayText" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
+                                    </StackPanel>
                                 </Grid>
                             </StackPanel>
                         </Border>
@@ -3204,8 +3329,18 @@
                     </Border>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <!-- Dirty marker. A small accent dot fades in when any
+                         form field changes; fades back out after Save.
+                         Catches the "I changed something but forgot to
+                         save" case without an annoying confirm-on-close. -->
+                    <Ellipse x:Name="DirtyDot" Width="8" Height="8"
+                             Fill="{StaticResource Brush.Accent}"
+                             VerticalAlignment="Center"
+                             Margin="0 0 6 0"
+                             Visibility="Collapsed"
+                             ToolTip="You have unsaved changes. Click Save changes to persist." />
                     <Button Content="Close" Style="{StaticResource SecondaryButton}" Click="BtnClose_Click" Margin="0 0 8 0" />
-                    <Button Content="Save changes" Style="{StaticResource PrimaryButton}" Click="BtnSave_Click" />
+                    <Button x:Name="BtnSaveChanges" Content="Save changes" Style="{StaticResource PrimaryButton}" Click="BtnSave_Click" />
                 </StackPanel>
             </Grid>
         </Border>
