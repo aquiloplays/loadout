@@ -166,7 +166,15 @@ body[data-pos="tr"] #card { top: 24px; right: 24px; }
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
 }
-.reel.spinning img { animation: reelBlur 90ms linear infinite; }
+.reel-glyph {
+  font-size: 40px;
+  line-height: 1;
+  user-select: none;
+  /* Emojis render slightly inset; nudge so the visual centre matches imgs. */
+  transform: translateY(-1px);
+}
+.reel.spinning img,
+.reel.spinning .reel-glyph { animation: reelBlur 90ms linear infinite; }
 @keyframes reelBlur {
   0%   { transform: translateY(-12px); filter: blur(2px); opacity: 0.85; }
   50%  { transform: translateY(0);     filter: blur(2px); opacity: 1; }
@@ -176,7 +184,8 @@ body[data-pos="tr"] #card { top: 24px; right: 24px; }
   border-color: var(--gold);
   box-shadow: 0 0 18px rgba(240, 180, 41, 0.55), 0 4px 12px rgba(0, 0, 0, 0.5);
 }
-.reel.locked img { animation: reelLand 320ms cubic-bezier(.2,.7,.2,1); }
+.reel.locked img,
+.reel.locked .reel-glyph { animation: reelLand 320ms cubic-bezier(.2,.7,.2,1); }
 @keyframes reelLand {
   0%   { transform: translateY(-8px) scale(0.85); }
   100% { transform: translateY(0)    scale(1); }

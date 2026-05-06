@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Compact Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  One pane that fades to whichever Loadout event is currently happening
+  (welcome / sub / bolt earn / counter bump / streak / hype train /
+  minigame result / etc.) and falls back to the commands ticker when
+  nothing else is going on. Designed as a single OBS browser source
+  (~400x120) for streamers who don't want a different overlay per zone.
+
+  Drop into OBS:
+    https://widget.aquilo.gg/overlays/compact/?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
+
+  URL params:
+    pos        - tr (default) | tl | br | bl | tc | bc
+    holdMs     - active card hold time (default 4500, min 1500)
+    idleRotate - seconds between commands while idle (default 30, min 10)
+    accent     - hex (overrides --accent via _shared/theme.js)
+    accent2    - hex (overrides --accent2 — used for gradients)
+    font       - css font-family stack
+    fontScale  - 0.5..2.0 multiplier on size
+
+  Subscribes to:
+    commands.list, bolts.*, welcome.*, hypetrain.*, counter.*,
+    viewer.profile.shown
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-pos="tr">
+  <div id="card">
+    <!-- Idle layer: commands ticker -->
+    <div id="idle" class="layer">
+      <span id="idleBadge" class="badge">CMD</span>
+      <span id="idleName" class="title">!commands</span>
+      <span id="idleDesc" class="sub">list every command available</span>
+    </div>
+
+    <!-- Active layer: one of these classes is added to set tone -->
+    <div id="active" class="layer hidden">
+      <span id="actIcon" class="badge"></span>
+      <span id="actTitle" class="title"></span>
+      <span id="actSub"   class="sub"></span>
+    </div>
+  </div>
+  <script src="../_shared/theme.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

@@ -54,6 +54,28 @@ namespace Loadout.Settings
         public SubRaidTrainConfig  SubRaidTrain { get; set; } = new SubRaidTrainConfig();
         public CcCoinConfig        CcCoin       { get; set; } = new CcCoinConfig();
         public FirstWordsConfig    FirstWords   { get; set; } = new FirstWordsConfig();
+        public OverlayThemeConfig  OverlayTheme { get; set; } = new OverlayThemeConfig();
+    }
+
+    /// <summary>
+    /// Global overlay theming applied to every overlay's URL via params.
+    /// Per-overlay accent / opacity inputs continue to take precedence on
+    /// their own colors; this card just adds shared font + secondary
+    /// color knobs without forcing every overlay card to grow more inputs.
+    /// </summary>
+    public class OverlayThemeConfig
+    {
+        // CSS font-family stack ("Inter, system-ui, sans-serif"). Empty =
+        // use the overlay's baked-in default.
+        public string Font     { get; set; } = "";
+        // 0.5 .. 2.0 typical. 1 = no scale.
+        public double FontScale { get; set; } = 1.0;
+        // Secondary accent (hex without #). Used by overlays that draw
+        // gradients or two-color emphasis (welcomes toast, gift burst).
+        public string Accent2  { get; set; } = "";
+        // Foreground / body text color (hex without #). Empty = use the
+        // overlay's default (typically a near-white).
+        public string Text     { get; set; } = "";
     }
 
     public class PlatformsConfig

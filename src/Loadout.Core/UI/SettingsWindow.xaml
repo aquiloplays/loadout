@@ -969,11 +969,19 @@
                              when blank. -->
                         <Border Style="{StaticResource Card}" Margin="0 0 0 14">
                             <StackPanel>
-                                <TextBlock Text="!slots reel images" Style="{StaticResource H2}" />
+                                <TextBlock Text="!slots reel symbols" Style="{StaticResource H2}" />
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
-                                    One image URL per line. The slot machine picks 3 at random per spin.
-                                    Twitch global emote URLs work great (https://static-cdn.jtvnw.net/emoticons/v2/...).
-                                    Leave blank to use the built-in default pool.
+                                    One symbol per line — either an image URL OR an emoji / short text.
+                                    The slot machine picks 3 at random per spin. Mix freely:
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8" FontFamily="Consolas, monospace" FontSize="11">
+                                    🍒
+                                    🔔
+                                    💎
+                                    https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/2.0
+                                </TextBlock>
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    Leave blank for the built-in default pool (6 Twitch global emotes).
                                 </TextBlock>
                                 <TextBox x:Name="TxtBoltsSlotsPool"
                                          AcceptsReturn="True"
@@ -2403,7 +2411,7 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal">
                                         <TextBlock Text="Rotate (sec):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
-                                        <TextBox x:Name="TxtCommandsRotate" Width="60" Text="20" TextChanged="OnOverlayUrlChange" />
+                                        <TextBox x:Name="TxtCommandsRotate" Width="60" Text="30" TextChanged="OnOverlayUrlChange" />
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock Text="Show categories:" Style="{StaticResource Muted}" Margin="0 4 0 4" />
@@ -2608,9 +2616,18 @@
                                         <TextBlock Text="Bolts minigames" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
                                     <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
-                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                        <Button Content="Coin"  Style="{StaticResource SecondaryButton}"
+                                                Tag="coinflip" Click="BtnOverlaySendTest_Click" Margin="0 0 4 0"
+                                                ToolTip="Fires a single coinflip event (random heads/tails)." />
+                                        <Button Content="Dice"  Style="{StaticResource SecondaryButton}"
+                                                Tag="dice"     Click="BtnOverlaySendTest_Click" Margin="0 0 4 0"
+                                                ToolTip="Fires a single dice roll (random 1-6 against target 6)." />
+                                        <Button Content="Slots" Style="{StaticResource SecondaryButton}"
+                                                Tag="slots"    Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Spins the slot machine using your configured reel pool (alternates jackpot / no-match each click)." />
+                                        <Button Content="All"   Style="{StaticResource PrimaryButton}"
                                                 Tag="minigames" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
-                                                ToolTip="Fires a coinflip and a dice roll so an OBS source for this overlay renders both visualizations." />
+                                                ToolTip="Fires coinflip + dice + slots in succession so the OBS source renders all three visualizations back-to-back." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="minigames" Click="BtnOverlayOpen_Click"
                                                 ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
@@ -2691,6 +2708,72 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Compact: single small pane that crossfades between
+                             event cards (welcome / bolt earn / streak / counter
+                             / hype / minigame) and falls back to the commands
+                             ticker when nothing's happening. Alternative to
+                             the per-zone overlays above for streamers who
+                             want one source instead of ten. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Overlays}" Margin="0 0 8 0" Width="14" Height="14" />
+                                        <TextBlock Text="Compact (one-pane)" Style="{StaticResource H2}" Margin="0" />
+                                    </StackPanel>
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Send test" Style="{StaticResource PrimaryButton}"
+                                                Tag="compact" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a sample sequence (commands tick → bolt earn → welcome → counter → minigame) so the OBS source previews the full crossfade behaviour." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="compact" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    One small card. Idle = your commands ticker. When a bus event lands (welcome,
+                                    bolts earn, streak, counter, hype train, minigame result) it crossfades to
+                                    that event's card, holds, then fades back. Replaces the multi-overlay layout
+                                    if you'd rather have a single OBS source.
+                                </TextBlock>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlCompact" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="compact" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 0 0 8"
+                                           Text="Recommended OBS browser source: 420×140 (the card is 400×120 with a tiny shadow margin)" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <ComboBox x:Name="CmbCompactPos" Width="120" SelectionChanged="OnOverlayUrlChange">
+                                            <ComboBoxItem Content="Top-right"     Tag="tr" IsSelected="True" />
+                                            <ComboBoxItem Content="Top-left"      Tag="tl" />
+                                            <ComboBoxItem Content="Top-center"    Tag="tc" />
+                                            <ComboBoxItem Content="Bottom-right"  Tag="br" />
+                                            <ComboBoxItem Content="Bottom-left"   Tag="bl" />
+                                            <ComboBoxItem Content="Bottom-center" Tag="bc" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Hold (ms):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtCompactHoldMs" Width="70" Text="4500" TextChanged="OnOverlayUrlChange"
+                                                 ToolTip="How long an event card stays visible before fading back to the idle commands ticker. Min 1500 ms." />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                        <TextBlock Text="Idle rotate (s):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtCompactIdleRotate" Width="60" Text="30" TextChanged="OnOverlayUrlChange"
+                                                 ToolTip="Seconds between commands while idle. Min 10 s." />
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
                         <!-- All-in-one composite overlay. One OBS browser source renders
                              every layer the streamer ticks below; each layer is an iframe of
                              the standalone overlay so per-overlay theming stays unchanged. -->
@@ -2743,6 +2826,50 @@
                                     <CheckBox x:Name="ChkAllHypeTrain" Content="Hype train" IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkAllMinigames" Content="Minigames"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                 </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Global theme: applies to every overlay's URL.
+                             Per-overlay accent / bgOpacity inputs above
+                             still take precedence on their own colors. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <TextBlock Text="Global theme" Style="{StaticResource H2}" />
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    Pushed to every overlay via URL params (font, accent2, fontScale, text).
+                                    Per-overlay accent + opacity above stay independent.
+                                </TextBlock>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="120" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Font family" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <ComboBox  Grid.Row="0" Grid.Column="1" x:Name="CmbOverlayFont" Margin="0 4 12 0" SelectionChanged="OnOverlayUrlChange">
+                                        <ComboBoxItem Content="Default (Segoe UI)" Tag="" IsSelected="True" />
+                                        <ComboBoxItem Content="Inter"             Tag="Inter, system-ui, sans-serif" />
+                                        <ComboBoxItem Content="Roboto"            Tag="Roboto, system-ui, sans-serif" />
+                                        <ComboBoxItem Content="Poppins"           Tag="Poppins, system-ui, sans-serif" />
+                                        <ComboBoxItem Content="Bebas Neue"        Tag="'Bebas Neue', Impact, sans-serif" />
+                                        <ComboBoxItem Content="Space Grotesk"     Tag="'Space Grotesk', system-ui, sans-serif" />
+                                        <ComboBoxItem Content="JetBrains Mono"    Tag="'JetBrains Mono', Consolas, monospace" />
+                                        <ComboBoxItem Content="System UI"         Tag="system-ui, sans-serif" />
+                                    </ComboBox>
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Font scale" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox   Grid.Row="0" Grid.Column="3" x:Name="TxtOverlayFontScale" Margin="0 4 0 0" Text="1.0" TextChanged="OnOverlayUrlChange" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Secondary color" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox   Grid.Row="1" Grid.Column="1" x:Name="TxtOverlayAccent2" Margin="0 4 12 0" TextChanged="OnOverlayUrlChange" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="Text color"      Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox   Grid.Row="1" Grid.Column="3" x:Name="TxtOverlayText" Margin="0 4 0 0" TextChanged="OnOverlayUrlChange" />
+                                </Grid>
                             </StackPanel>
                         </Border>
 

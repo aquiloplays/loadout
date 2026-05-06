@@ -24,12 +24,12 @@
   const showDesc = params.get('showDesc');
   if (showDesc != null) document.body.dataset.showDesc = showDesc;
 
-  // Default 20s per command. ~1.6s of that goes to the transition
-  // (fade-out + fade-in), leaving ~18s of fully visible read time —
+  // Default 30s per command. ~1.6s of that goes to the transition
+  // (fade-out + fade-in), leaving ~28s of fully visible read time —
   // long enough for a TikTok viewer who just walked in mid-stream
   // to read both name and description without rushing. URL param
-  // overrides; floor 6s.
-  const rotateSec = Math.max(6, parseInt(params.get('rotate') || '20', 10));
+  // overrides; floor 10s.
+  const rotateSec = Math.max(10, parseInt(params.get('rotate') || '30', 10));
 
   // Category include filter. Empty / unset = include all.
   const includeRaw = (params.get('include') || '').toLowerCase();

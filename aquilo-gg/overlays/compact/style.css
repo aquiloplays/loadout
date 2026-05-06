@@ -1,0 +1,151 @@
+/*
+ * Loadout — compact unified overlay. ONE OBS browser source, one pane.
+ * Idle = commands ticker. Active = whatever just happened on the bus
+ * (welcome / sub / bolt earn / streak / counter / hype train / minigame
+ * result). Crossfades between the two; events that arrive while
+ * another is on screen are queued.
+ */
+:root {
+  --accent: #3A86FF;
+  --accent2: #00F2EA;
+  --gold: #F0B429;
+  --pink: #FF5DA2;
+  --win: #3FB950;
+  --lose: #F85149;
+  --text: #EFEFF1;
+  --muted: #ADADB8;
+  --bg-alpha: 0.92;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100vw; height: 100vh;
+  background: transparent;
+  color: var(--text);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  overflow: hidden;
+}
+
+#card {
+  position: fixed;
+  width: 400px;
+  height: 120px;
+  background: linear-gradient(180deg,
+              rgba(24,24,27, var(--bg-alpha)) 0%,
+              rgba(15,15,17, var(--bg-alpha)) 100%);
+  border: 1px solid rgba(58,134,255,.4);
+  border-radius: 14px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.55);
+  overflow: hidden;
+  /* Color of the accent stripe down the left edge */
+  border-left: 4px solid var(--accent);
+  transition: border-color .35s ease, box-shadow .35s ease;
+}
+
+/* Position presets */
+body[data-pos="tr"] #card { top: 22px;    right: 22px; }
+body[data-pos="tl"] #card { top: 22px;    left: 22px; }
+body[data-pos="br"] #card { bottom: 22px; right: 22px; }
+body[data-pos="bl"] #card { bottom: 22px; left: 22px; }
+body[data-pos="tc"] #card { top: 22px;    left: 50%; transform: translateX(-50%); }
+body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%); }
+
+/* Layers stack on top of each other so we can crossfade */
+.layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto 1fr;
+  column-gap: 12px;
+  row-gap: 4px;
+  padding: 16px 18px 16px 22px;
+  align-content: center;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity .32s ease, transform .32s ease;
+}
+.layer.hidden {
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+}
+
+/* Visual elements shared between idle + active */
+.badge {
+  grid-column: 1; grid-row: 1 / span 2;
+  align-self: center;
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  min-width: 38px; height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  background: rgba(58,134,255,.18);
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.title {
+  grid-column: 2; grid-row: 1;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sub {
+  grid-column: 2; grid-row: 2;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Active-card tone variants. Each adjusts the accent stripe and the
+   badge tint to make the type of event scannable at a glance. */
+#card.tone-bolts   { border-left-color: var(--accent); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(58,134,255,.32); }
+#card.tone-bolts   .badge { background: rgba(58,134,255,.22); color: var(--accent); }
+
+#card.tone-welcome { border-left-color: var(--accent2); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(0,242,234,.32); }
+#card.tone-welcome .badge { background: rgba(0,242,234,.22); color: var(--accent2); }
+
+#card.tone-counter { border-left-color: var(--gold); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 16px rgba(240,180,41,.32); }
+#card.tone-counter .badge { background: rgba(240,180,41,.22); color: var(--gold); }
+
+#card.tone-streak  { border-left-color: var(--pink); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(255,93,162,.36); }
+#card.tone-streak  .badge { background: rgba(255,93,162,.22); color: var(--pink); }
+
+#card.tone-hype    { border-left-color: var(--gold); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 22px rgba(240,180,41,.45); }
+#card.tone-hype    .badge { background: rgba(240,180,41,.24); color: var(--gold); }
+
+#card.tone-win     { border-left-color: var(--win); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(63,185,80,.36); }
+#card.tone-win     .badge { background: rgba(63,185,80,.22); color: var(--win); }
+
+#card.tone-lose    { border-left-color: var(--lose); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(248,81,73,.32); }
+#card.tone-lose    .badge { background: rgba(248,81,73,.22); color: var(--lose); }
+
+#card.tone-info    { border-left-color: var(--accent); }
+#card.tone-info    .badge { background: rgba(58,134,255,.18); color: var(--accent); }
+
+/* Brief pulse to draw the eye when an active card lands */
+.layer.popped { animation: pop .55s cubic-bezier(.2,.7,.2,1); }
+@keyframes pop {
+  0%   { transform: translateY(8px) scale(.985); opacity: 0; }
+  20%  { transform: translateY(-2px) scale(1.015); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+/* Connection indicator (debug only) */
+.dev-status {
+  position: fixed;
+  bottom: 6px; right: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  background: rgba(0,0,0,.5);
+  padding: 3px 6px;
+  border-radius: 4px;
+}

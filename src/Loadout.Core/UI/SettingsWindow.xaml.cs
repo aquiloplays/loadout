@@ -883,6 +883,15 @@ namespace Loadout.UI
                 // overlay reads matches what the user typed in the textbox.
                 if (TxtBoltsSlotsPool != null) s.Bolts.SlotsImagePool = (TxtBoltsSlotsPool.Text ?? "").Replace("\r\n", "\n").Trim();
 
+                // Global overlay theme (font / scale / accent2 / text).
+                if (s.OverlayTheme == null) s.OverlayTheme = new OverlayThemeConfig();
+                var themeFont = (CmbOverlayFont?.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+                s.OverlayTheme.Font = string.IsNullOrWhiteSpace(themeFont) ? "" : themeFont;
+                if (double.TryParse((TxtOverlayFontScale?.Text ?? "1").Trim(), System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var scaleVal)
+                    && scaleVal > 0 && scaleVal <= 3) s.OverlayTheme.FontScale = scaleVal;
+                s.OverlayTheme.Accent2 = NormalizeHex(TxtOverlayAccent2?.Text) ?? "";
+                s.OverlayTheme.Text    = NormalizeHex(TxtOverlayText?.Text)    ?? "";
+
                 // Rotation integration
                 s.RotationIntegration.Enabled = ChkRotationEnabled.IsChecked == true;
                 s.RotationIntegration.Command = (TxtRotationCmd.Text ?? "!boltsong").Trim();
@@ -1599,6 +1608,25 @@ namespace Loadout.UI
         {
             TxtBusSecret.Text = TryReadBusSecret();
             TxtOverlayBaseUrl.Text = DefaultOverlayBase;
+
+            // Load persisted global theme so streamers don't have to re-pick
+            // their font / accent2 / text every time SB starts. Per-overlay
+            // accent + bgOpacity remain transient (each overlay's URL bakes
+            // them in once the streamer drops it into OBS).
+            var theme = SettingsManager.Instance.Current.OverlayTheme ?? new OverlayThemeConfig();
+            if (CmbOverlayFont != null && !string.IsNullOrEmpty(theme.Font))
+            {
+                foreach (ComboBoxItem item in CmbOverlayFont.Items)
+                {
+                    if (string.Equals(item.Tag?.ToString(), theme.Font, StringComparison.Ordinal))
+                    { CmbOverlayFont.SelectedItem = item; break; }
+                }
+            }
+            if (TxtOverlayFontScale != null) TxtOverlayFontScale.Text =
+                theme.FontScale > 0 ? theme.FontScale.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) : "1.0";
+            if (TxtOverlayAccent2 != null) TxtOverlayAccent2.Text = theme.Accent2 ?? "";
+            if (TxtOverlayText    != null) TxtOverlayText.Text    = theme.Text    ?? "";
+
             // BAML parsing is complete by the time we reach BindOverlaysTab in
             // the constructor (it runs after InitializeComponent's parse + every
             // child element is materialized), so it's safe to flip the gate.
@@ -1702,8 +1730,8 @@ namespace Loadout.UI
             string includeCsv = (includes.Count == 6) ? null : string.Join(",", includes);
 
             // Cap rotate to a sane range; the overlay clamps to >= 6s anyway.
-            var rotateText = (TxtCommandsRotate?.Text ?? "20").Trim();
-            int rotateSec; if (!int.TryParse(rotateText, out rotateSec) || rotateSec < 6) rotateSec = 20;
+            var rotateText = (TxtCommandsRotate?.Text ?? "30").Trim();
+            int rotateSec; if (!int.TryParse(rotateText, out rotateSec) || rotateSec < 10) rotateSec = 30;
 
             if (TxtUrlCommands != null)
             {
@@ -1765,6 +1793,21 @@ namespace Loadout.UI
                 });
             }
 
+            // Compact one-pane overlay (commands ticker idle + crossfade
+            // event cards when the bus fires something). Defaults are
+            // dropped from the URL so the streamer's link stays compact.
+            if (TxtUrlCompact != null)
+            {
+                string compactHold   = ClampInt(TxtCompactHoldMs?.Text, 1500, 30000, 4500);
+                string compactIdle   = ClampInt(TxtCompactIdleRotate?.Text, 10, 600, 30);
+                TxtUrlCompact.Text = BuildOverlayUrl(baseUrl, "compact", secret, new Dictionary<string, string>
+                {
+                    ["pos"]        = SelectedTag(CmbCompactPos),
+                    ["holdMs"]     = compactHold == "4500" ? null : compactHold,
+                    ["idleRotate"] = compactIdle == "30"   ? null : compactIdle
+                });
+            }
+
             // All-in-one composite. Picks up the layer checkboxes, builds a
             // CSV, and emits one URL the streamer drops into a single OBS
             // browser source. Each layer is an iframe of the standalone
@@ -1791,13 +1834,21 @@ namespace Loadout.UI
             }
         }
 
-        private static string BuildOverlayUrl(string baseUrl, string overlay, string secret, Dictionary<string, string> extras)
+        private string BuildOverlayUrl(string baseUrl, string overlay, string secret, Dictionary<string, string> extras)
         {
             var qs = new List<string>
             {
                 "bus=" + HttpUtility.UrlEncode("ws://127.0.0.1:7470/aquilo/bus/")
             };
             if (!string.IsNullOrEmpty(secret)) qs.Add("secret=" + HttpUtility.UrlEncode(secret));
+
+            // Global theme params (font / accent2 / fontScale / text) get
+            // appended to every overlay URL when the streamer set them.
+            // Per-overlay extras come last so a per-overlay accent
+            // overrides whatever was on the global theme card.
+            foreach (var kv in GlobalThemeParams())
+                if (!string.IsNullOrEmpty(kv.Value)) qs.Add(kv.Key + "=" + HttpUtility.UrlEncode(kv.Value));
+
             if (extras != null)
                 foreach (var kv in extras)
                     if (!string.IsNullOrEmpty(kv.Value)) qs.Add(kv.Key + "=" + HttpUtility.UrlEncode(kv.Value));
@@ -1805,6 +1856,28 @@ namespace Loadout.UI
             // serves <overlay>/index.html cleanly without relying on its
             // (configurable) extension-stripping/redirect behavior.
             return baseUrl + "/" + overlay + "/?" + string.Join("&", qs);
+        }
+
+        private Dictionary<string, string> GlobalThemeParams()
+        {
+            var d = new Dictionary<string, string>();
+            // Font family from the dropdown's Tag (empty Tag = "use overlay default").
+            var fontTag = (CmbOverlayFont?.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+            if (!string.IsNullOrWhiteSpace(fontTag)) d["font"] = fontTag;
+
+            // Font scale: only emit when ≠ 1.0 to keep URLs tidy.
+            var scaleText = (TxtOverlayFontScale?.Text ?? "").Trim();
+            if (!string.IsNullOrEmpty(scaleText) && scaleText != "1" && scaleText != "1.0"
+                && double.TryParse(scaleText, out var sv) && sv > 0 && sv <= 3)
+                d["fontScale"] = sv.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+            var accent2 = NormalizeHex(TxtOverlayAccent2?.Text);
+            if (!string.IsNullOrEmpty(accent2)) d["accent2"] = accent2;
+
+            var text = NormalizeHex(TxtOverlayText?.Text);
+            if (!string.IsNullOrEmpty(text)) d["text"] = text;
+
+            return d;
         }
 
         private static string SelectedTag(ComboBox cb) =>
@@ -2122,6 +2195,144 @@ namespace Loadout.UI
                         });
                         break;
 
+                    // Per-game test events so the streamer can preview each
+                    // visualization in isolation (handy when tweaking the
+                    // SlotsImagePool emoji/url mix or the dice/coinflip
+                    // colors without re-firing the other two).
+                    case "coinflip":
+                    case "minigames-coinflip":
+                        AquiloBus.Instance.Publish("bolts.minigame.coinflip", new
+                        {
+                            user    = sampleUser,
+                            wager   = 50,
+                            result  = (DateTime.UtcNow.Millisecond % 2 == 0) ? "heads" : "tails",
+                            won     = (DateTime.UtcNow.Millisecond % 2 == 0),
+                            payout  = (DateTime.UtcNow.Millisecond % 2 == 0) ? 100 : 0,
+                            balance = 1250,
+                            source  = "test",
+                            ts      = DateTime.UtcNow
+                        });
+                        break;
+
+                    case "dice":
+                    case "minigames-dice":
+                    {
+                        var rolled = (DateTime.UtcNow.Millisecond % 6) + 1;
+                        var target = 6;
+                        var won    = (rolled == target);
+                        AquiloBus.Instance.Publish("bolts.minigame.dice", new
+                        {
+                            user    = sampleUser,
+                            wager   = 25,
+                            target  = target,
+                            rolled  = rolled,
+                            won     = won,
+                            payout  = won ? 125 : 0,
+                            balance = 920,
+                            source  = "test",
+                            ts      = DateTime.UtcNow
+                        });
+                        break;
+                    }
+
+                    case "slots":
+                    case "minigames-slots":
+                    {
+                        // Build the test from the user's actual configured pool
+                        // so emoji entries get exercised. Fall back to the
+                        // built-in default if the pool is empty.
+                        string[] pool;
+                        var raw = (s.Bolts.SlotsImagePool ?? "").Replace("\r\n", "\n");
+                        var lines = raw.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        var trimmed = new List<string>();
+                        foreach (var l in lines) { var t = l.Trim(); if (t.Length > 0) trimmed.Add(t); }
+                        if (trimmed.Count >= 3) pool = trimmed.ToArray();
+                        else pool = new[]
+                        {
+                            "https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/2.0",
+                            "https://static-cdn.jtvnw.net/emoticons/v2/86/default/dark/2.0",
+                            "https://static-cdn.jtvnw.net/emoticons/v2/354/default/dark/2.0",
+                            "https://static-cdn.jtvnw.net/emoticons/v2/245/default/dark/2.0",
+                            "https://static-cdn.jtvnw.net/emoticons/v2/425618/default/dark/2.0",
+                            "https://static-cdn.jtvnw.net/emoticons/v2/305954156/default/dark/2.0"
+                        };
+                        // Pick a jackpot reel from the pool every other test
+                        // and a non-match the alternate time so the streamer
+                        // can preview both win and lose visuals.
+                        bool jackpot = (DateTime.UtcNow.Second % 2 == 0);
+                        var rng = new Random();
+                        string[] reels;
+                        if (jackpot)
+                        {
+                            var pick = pool[rng.Next(pool.Length)];
+                            reels = new[] { pick, pick, pick };
+                        }
+                        else
+                        {
+                            reels = new[]
+                            {
+                                pool[rng.Next(pool.Length)],
+                                pool[rng.Next(pool.Length)],
+                                pool[rng.Next(pool.Length)]
+                            };
+                        }
+                        AquiloBus.Instance.Publish("bolts.minigame.slots", new
+                        {
+                            user    = sampleUser,
+                            wager   = 100,
+                            reels   = reels,
+                            won     = jackpot,
+                            payout  = jackpot ? 500 : 0,
+                            balance = jackpot ? 1750 : 1150,
+                            pool    = pool,
+                            source  = "test",
+                            ts      = DateTime.UtcNow
+                        });
+                        break;
+                    }
+
+                    case "compact":
+                        // Compact overlay listens broadly. Fire a sample of
+                        // the kinds it cares about so the streamer can
+                        // preview the full crossfade behaviour: a commands
+                        // tick (free, just from the idle source), then an
+                        // event from each major bucket spread out in time
+                        // so the queue + crossfade is exercised.
+                        AquiloBus.Instance.Publish("commands.list", new
+                        {
+                            commands = new object[]
+                            {
+                                new { name = "!uptime",    desc = "how long the stream has been live", cat = "info" },
+                                new { name = "!balance",   desc = "check your bolts balance",          cat = "bolts" },
+                                new { name = "!discord",   desc = "join the streamer's Discord",       cat = "info" },
+                                new { name = "!leaderboard", desc = "top bolts holders",               cat = "bolts" },
+                                new { name = "!clip",      desc = "clip the last moment",              cat = "clip" }
+                            },
+                            ts = DateTime.UtcNow
+                        });
+                        AquiloBus.Instance.Publish("bolts.earned", new { user = sampleUser, amount = 50, source = "test", ts = DateTime.UtcNow });
+                        // Welcome a beat later, then counter, hype, minigame.
+                        // Each lands while the previous holds, queueing
+                        // through the overlay's pump.
+                        var compactScheduler = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1200) };
+                        var compactStep = 0;
+                        compactScheduler.Tick += (_, __) =>
+                        {
+                            compactStep++;
+                            if (compactStep == 1)
+                                AquiloBus.Instance.Publish("welcome.fired", new { user = sampleUser + "_friend", userType = "firstTime", platform = "twitch", rendered = "👋 Welcome " + sampleUser + "_friend, glad you found us!", source = "test", ts = DateTime.UtcNow });
+                            else if (compactStep == 2)
+                                AquiloBus.Instance.Publish("counter.updated", new { name = "deaths", display = "Deaths", value = 12, ts = DateTime.UtcNow });
+                            else if (compactStep == 3)
+                                AquiloBus.Instance.Publish("hypetrain.contribute", new { user = "viewer_three", kind = "tiktokGift", fuel = 30, totalFuel = 90, level = 1, threshold = 100, ts = DateTime.UtcNow });
+                            else if (compactStep == 4)
+                                AquiloBus.Instance.Publish("bolts.minigame.coinflip", new { user = sampleUser, wager = 50, result = "heads", won = true, payout = 50, source = "test", ts = DateTime.UtcNow });
+                            else
+                                compactScheduler.Stop();
+                        };
+                        compactScheduler.Start();
+                        break;
+
                     case "all":
                         // Composite test: fire each enabled layer's test
                         // event so the all-in-one overlay renders the lot.
@@ -2155,6 +2366,7 @@ namespace Loadout.UI
                 case "viewer":    return TxtUrlViewer?.Text;
                 case "hypetrain": return TxtUrlHypeTrain?.Text;
                 case "minigames": return TxtUrlMinigames?.Text;
+                case "compact":   return TxtUrlCompact?.Text;
                 case "all":       return TxtUrlAll?.Text;
                 default:         return null;
             }

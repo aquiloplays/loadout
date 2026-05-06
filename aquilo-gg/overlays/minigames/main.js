@@ -26,11 +26,14 @@
   const wagerEl = $('wager');
   const outcome = $('outcome');
 
-  // Default emote pool — always-available Twitch global emotes. Used
+  // Default symbol pool — always-available Twitch global emotes. Used
   // when the bus payload doesn't supply a `pool` array, so the overlay
   // has visual filler during the spin animation. Streamer can override
   // by configuring Bolts → Slots image pool in Loadout settings; the
   // chosen pool ships with each event so this is just the floor.
+  // Each entry can be a URL (rendered as <img>) or any text/emoji
+  // (rendered as inline text). Detection is heuristic: URLs start with
+  // http(s):// or contain a "/" and a known image extension.
   const defaultPool = [
     'https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/2.0',         // Kappa
     'https://static-cdn.jtvnw.net/emoticons/v2/86/default/dark/2.0',         // BibleThump
@@ -39,6 +42,36 @@
     'https://static-cdn.jtvnw.net/emoticons/v2/425618/default/dark/2.0',     // LUL
     'https://static-cdn.jtvnw.net/emoticons/v2/305954156/default/dark/2.0'   // PogChamp
   ];
+
+  function isUrl(s) {
+    if (!s) return false;
+    return /^https?:\/\//i.test(s) || /^\/\//.test(s);
+  }
+  function setReelSymbol(reel, sym) {
+    if (isUrl(sym)) {
+      // Reuse an existing <img> if present so we don't thrash the DOM
+      // every spin frame; otherwise insert one.
+      var img = reel.firstElementChild;
+      if (!img || img.tagName !== 'IMG') {
+        reel.innerHTML = '';
+        img = document.createElement('img');
+        img.alt = '';
+        reel.appendChild(img);
+      }
+      img.src = sym;
+    } else {
+      // Text / emoji mode. Drop any image; use a span we can scale
+      // independently so emojis fill the reel like images do.
+      var span = reel.firstElementChild;
+      if (!span || span.tagName !== 'SPAN') {
+        reel.innerHTML = '';
+        span = document.createElement('span');
+        span.className = 'reel-glyph';
+        reel.appendChild(span);
+      }
+      span.textContent = sym;
+    }
+  }
 
   let hideTimer = null;
   let pulseTimer = null;
@@ -85,13 +118,14 @@
                   || (reelImgs && reelImgs.length ? reelImgs : null)
                   || defaultPool;
 
-    // Start every reel spinning + cycling random pool images.
+    // Start every reel spinning + cycling random pool symbols. Each
+    // symbol may be a URL (img) or a text/emoji glyph; setReelSymbol
+    // handles both.
     var cyclers = reels.map(function (reel) {
-      var img = reel.querySelector('img');
       reel.classList.add('spinning');
-      img.src = symbols[Math.floor(Math.random() * symbols.length)];
+      setReelSymbol(reel, symbols[Math.floor(Math.random() * symbols.length)]);
       return setInterval(function () {
-        img.src = symbols[Math.floor(Math.random() * symbols.length)];
+        setReelSymbol(reel, symbols[Math.floor(Math.random() * symbols.length)]);
       }, 90);
     });
 
@@ -101,8 +135,7 @@
     settleTimes.forEach(function (t, i) {
       setTimeout(function () {
         clearInterval(cyclers[i]);
-        var img = reels[i].querySelector('img');
-        if (match) img.src = reelImgs[i];
+        if (match) setReelSymbol(reels[i], reelImgs[i]);
         reels[i].classList.remove('spinning');
         reels[i].classList.add('locked');
       }, t);
