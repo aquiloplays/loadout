@@ -62,10 +62,10 @@ namespace Loadout.Modules
                 case "lurk":       reply = "👋 Thanks for lurking, " + ctx.User + "! Catch you later."; break;
                 case "unlurk":     reply = "🎉 Welcome back, " + ctx.User + "!"; break;
                 case "commands":   reply = ReplyCommandsList(s); break;
-                case "socials":    reply = ReplySocials(s); break;
-                case "discord":    reply = ReplyDiscord(s); break;
+                case "socials":    reply = ReplySocials(s, ctx); break;
+                case "discord":    reply = ReplyDiscord(s, ctx); break;
                 case "gamertags":
-                case "tags":       reply = ReplyGamerTags(s); break;
+                case "tags":       reply = ReplyGamerTags(s, ctx); break;
                 case "quote":      reply = ReplyQuote(s, rest, ctx); break;
                 case "profile":
                 case "card":       reply = ReplyProfile(ctx, rest); break;
@@ -238,9 +238,10 @@ namespace Loadout.Modules
 
         // !socials — formats InfoCommands.SocialLinks (platform → handle/link)
         // as a friendly chat line. Falls back to the legacy single-string
-        // Socials field for older settings files. Empty result returns null
-        // so the dispatcher silently skips the command.
-        private static string ReplySocials(LoadoutSettings s)
+        // Socials field for older settings files. Empty + legacy-empty
+        // returns a config hint to mods/broadcaster only; viewers get
+        // silence (no chat noise from unconfigured commands).
+        private static string ReplySocials(LoadoutSettings s, EventContext ctx)
         {
             var links = s.InfoCommands?.SocialLinks;
             if (links != null && links.Count > 0)
@@ -255,30 +256,33 @@ namespace Loadout.Modules
                 }
                 if (parts.Count > 0) return "🔗 Find me here · " + string.Join("  ·  ", parts);
             }
-            return string.IsNullOrWhiteSpace(s.InfoCommands?.Socials) ? null : s.InfoCommands.Socials;
+            if (!string.IsNullOrWhiteSpace(s.InfoCommands?.Socials)) return s.InfoCommands.Socials;
+            return ConfigHint(ctx, "Settings → Info commands → Your socials", "!socials has no entries yet");
         }
 
         // !discord — prefer the structured SocialLinks["discord"] entry,
-        // fall back to the legacy Discord string, fall back to a polite
-        // "no discord set" message.
-        private static string ReplyDiscord(LoadoutSettings s)
+        // fall back to the legacy Discord string, fall back to a config
+        // hint visible only to mods/broadcaster.
+        private static string ReplyDiscord(LoadoutSettings s, EventContext ctx)
         {
             var links = s.InfoCommands?.SocialLinks;
             if (links != null && links.TryGetValue("discord", out var dv) && !string.IsNullOrWhiteSpace(dv))
                 return "💬 Join the Discord: " + dv.Trim();
-            return string.IsNullOrWhiteSpace(s.InfoCommands?.Discord) ? null : s.InfoCommands.Discord;
+            if (!string.IsNullOrWhiteSpace(s.InfoCommands?.Discord)) return s.InfoCommands.Discord;
+            return ConfigHint(ctx, "Settings → Info commands → !discord response", "!discord has no link set");
         }
 
         // !gamertags — replies with each configured platform:tag pair so
-        // chat can friend the streamer. Off by default (toggle in config);
-        // returns null when disabled or empty so the command silently
-        // does nothing.
-        private static string ReplyGamerTags(LoadoutSettings s)
+        // chat can friend the streamer. Disabled or empty returns a
+        // config hint to mods only.
+        private static string ReplyGamerTags(LoadoutSettings s, EventContext ctx)
         {
             var cfg = s.InfoCommands;
-            if (cfg == null || !cfg.GamerTagsEnabled) return null;
+            if (cfg == null || !cfg.GamerTagsEnabled)
+                return ConfigHint(ctx, "Settings → Info commands → !gamertags", "!gamertags is disabled");
             var tags = cfg.GamerTags;
-            if (tags == null || tags.Count == 0) return null;
+            if (tags == null || tags.Count == 0)
+                return ConfigHint(ctx, "Settings → Info commands → !gamertags", "!gamertags has no entries yet");
 
             var parts = new List<string>();
             foreach (var kv in tags)
@@ -288,7 +292,23 @@ namespace Loadout.Modules
                 if (k.Length == 0 || v.Length == 0) continue;
                 parts.Add(PrettyPlatform(k) + ": " + v);
             }
-            return parts.Count == 0 ? null : "🎮 Friend me · " + string.Join("  ·  ", parts);
+            if (parts.Count == 0)
+                return ConfigHint(ctx, "Settings → Info commands → !gamertags", "!gamertags has no entries yet");
+            return "🎮 Friend me · " + string.Join("  ·  ", parts);
+        }
+
+        // Config-hint pattern: when a streamer-configured command has
+        // nothing to say (no link saved, dict empty, toggle off), show
+        // the broadcaster + mods a one-liner pointing at the right
+        // Settings tab — viewers see silence so chat never gets
+        // "this command isn't set up" spam. Returns null when the
+        // invoker is a viewer.
+        private static string ConfigHint(EventContext ctx, string settingsPath, string what)
+        {
+            var u = (ctx?.UserType ?? "").ToLowerInvariant();
+            var isModOrCaster = (u == "broadcaster" || u == "moderator" || u == "mod");
+            if (!isModOrCaster) return null;
+            return "🛠️ " + what + ". Configure in " + settingsPath + ".";
         }
 
         // Friendly display name for a platform token. Most are just

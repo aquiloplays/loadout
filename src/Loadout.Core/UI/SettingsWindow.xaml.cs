@@ -2651,6 +2651,30 @@ namespace Loadout.UI
             catch (Exception ex) { ShowSavedHint("Copy failed: " + ex.Message); }
         }
 
+        // Live preview: opens the overlay URL in the streamer's default
+        // browser with ?debug=1 appended. Each overlay's main.js fakes
+        // demo events when debug=1, so the streamer sees the actual
+        // rendered overlay against current theme settings — no OBS
+        // round-trip, no bus needed, no mixed-content blocking. Use
+        // for "what does this colour look like?" iteration.
+        private void BtnOverlayPreview_Click(object sender, RoutedEventArgs e)
+        {
+            var tag = (sender as Button)?.Tag?.ToString();
+            var url = OverlayUrlByTag(tag);
+            if (string.IsNullOrEmpty(url)) return;
+            try
+            {
+                var sep = url.Contains("?") ? "&" : "?";
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = url + sep + "debug=1",
+                    UseShellExecute = true
+                });
+                ShowSavedHint("Opened " + tag + " preview (debug=1) in your browser.");
+            }
+            catch (Exception ex) { ShowSavedHint("Preview failed: " + ex.Message); }
+        }
+
         private void BtnOverlayOpen_Click(object sender, RoutedEventArgs e)
         {
             var tag = (sender as Button)?.Tag?.ToString();

@@ -1,14 +1,146 @@
 Loadout
-Copyright (c) 2026 aquiloplays
+Copyright (c) 2026 aquiloplays. All rights reserved.
 
-All Rights Reserved.
+LOADOUT END USER LICENSE AGREEMENT
 
-This software and its source code are proprietary and confidential.
-No part of this software may be reproduced, distributed, or transmitted
-in any form or by any means, including photocopying, recording, or other
-electronic or mechanical methods, without the prior written permission
-of the copyright holder, except in the case of brief quotations embodied
-in critical reviews and certain other noncommercial uses permitted by
-copyright law.
+This Loadout End User License Agreement ("Agreement") is a binding
+contract between you (the "User") and aquiloplays ("Licensor")
+governing your use of the Loadout software, which includes the
+Loadout.dll runtime, the Streamer.bot action bundle, the OBS browser
+overlays hosted at widget.aquilo.gg, the Loadout Discord bot Worker,
+and any related documentation or source code (collectively, the
+"Software"). By installing, copying, or using the Software, you
+accept this Agreement. If you do not accept it, do not install or
+use the Software.
 
-For permission requests, contact the copyright holder.
+1. LICENSE GRANT
+
+Subject to your compliance with this Agreement, Licensor grants you
+a non-exclusive, non-transferable, revocable license to install and
+use the Software on devices you own or control, solely for your
+personal or business streaming activities on platforms such as
+Twitch, YouTube, Kick, and TikTok.
+
+2. RESTRICTIONS
+
+You may not, and may not permit any third party to:
+
+  (a) sell, rent, lease, sublicense, distribute, redistribute,
+      republish, or otherwise commercially exploit the Software or
+      any portion of it, except as expressly permitted in writing
+      by Licensor;
+  (b) modify, translate, adapt, or create derivative works of the
+      Software for distribution to third parties;
+  (c) reverse engineer, decompile, or disassemble the Software,
+      except to the extent that applicable law expressly prohibits
+      this restriction;
+  (d) remove, alter, or obscure any proprietary notices on the
+      Software, including copyright, trademark, or attribution;
+  (e) use the Software to develop a competing product offering
+      substantially similar functionality;
+  (f) circumvent any technical measures used to enforce the tier
+      gating in the Patreon entitlement check (Free / Loadout Plus
+      / Loadout Pro). Tier gating is the Software's revenue model;
+      bypassing it is a material breach of this Agreement.
+
+3. SOURCE AVAILABILITY
+
+The Software's source code is published on GitHub at
+https://github.com/aquiloplays/loadout for transparency and to
+allow the community to inspect, report bugs, and propose changes.
+Public source code does NOT grant a license to copy, modify, or
+redistribute the Software. The license you have is the one in this
+file. If you wish to use any portion of the source under different
+terms, contact Licensor via aquilo.gg for written permission.
+
+4. TIER GATING (PATREON ENTITLEMENT)
+
+The Software offers a free tier and one or more paid tiers. Paid
+tiers unlock additional features through an entitlement check
+against an active Patreon pledge to Licensor's campaign. You agree
+that:
+
+  (a) the entitlement check is part of the Software and may not be
+      bypassed, modified, or stubbed;
+  (b) tier feature lists may change as the Software evolves;
+      Licensor will not retroactively reduce features on a tier
+      that a User has already paid for during the period that
+      pledge is active, but reserves the right to add new features
+      to higher tiers without obligation to backport;
+  (c) cancellation of a Patreon pledge results in the Software
+      reverting to the free tier on the next entitlement refresh
+      (typically within 6 hours).
+
+5. THIRD-PARTY SERVICES
+
+The Software integrates with third-party services including but
+not limited to Twitch, YouTube, Kick, TikTok (via TikFinity),
+Discord, Patreon, Cloudflare, Spotify, OBS, and Streamer.bot. Your
+use of those services is governed by their own terms; Licensor is
+not responsible for the availability, reliability, or behaviour of
+third-party services.
+
+6. DATA + PRIVACY
+
+The Software stores configuration and operational data locally on
+your device. Off-stream features (Discord bot wallet, viewer
+profile editing) store data in Cloudflare KV under per-streamer
+HMAC-gated keys. Patreon OAuth tokens are stored locally and
+exchanged with Patreon only via a Cloudflare Worker proxy
+controlled by Licensor. Licensor does not sell, share, or
+otherwise transmit your personal data except as needed to operate
+the Software's documented features.
+
+7. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT
+WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT
+LIMITED TO THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR
+A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND ANY WARRANTY ARISING
+OUT OF COURSE OF DEALING OR USAGE OF TRADE. LICENSOR DOES NOT
+WARRANT THAT THE SOFTWARE WILL BE ERROR-FREE OR UNINTERRUPTED.
+
+8. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT
+SHALL LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+CONSEQUENTIAL, OR PUNITIVE DAMAGES, INCLUDING LOST PROFITS, LOST
+DATA, OR LOST REVENUE, ARISING OUT OF OR IN CONNECTION WITH YOUR
+USE OF THE SOFTWARE, EVEN IF LICENSOR HAS BEEN ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGES. LICENSOR'S TOTAL CUMULATIVE LIABILITY
+SHALL NOT EXCEED THE AMOUNT YOU PAID, IF ANY, FOR THE SOFTWARE
+DURING THE TWELVE (12) MONTHS PRECEDING THE EVENT GIVING RISE TO
+LIABILITY, OR US$50, WHICHEVER IS GREATER.
+
+9. TERMINATION
+
+This Agreement is effective until terminated. Licensor may
+terminate it at any time if you breach any of its terms. Upon
+termination, you must cease all use of the Software and remove
+all copies from your devices. Sections 2, 3, 7, 8, 10, and 11
+survive termination.
+
+10. EXPORT + COMPLIANCE
+
+You may not use or export the Software in violation of any
+applicable laws or regulations, including U.S. export control
+laws and regulations of the country in which you reside.
+
+11. GOVERNING LAW
+
+This Agreement is governed by the laws of the State / Country in
+which Licensor is established (United States, unless otherwise
+specified at aquilo.gg/contact). Any disputes shall be resolved in
+the competent courts of that jurisdiction.
+
+12. ENTIRE AGREEMENT
+
+This Agreement is the entire agreement between you and Licensor
+regarding the Software and supersedes all prior or contemporaneous
+agreements, communications, and proposals, whether written or
+oral. If any provision is found unenforceable, the remaining
+provisions remain in effect.
+
+For permission requests, partnerships, or commercial inquiries
+beyond the scope of this Agreement, contact Licensor via
+https://aquilo.gg or the Loadout Discord.

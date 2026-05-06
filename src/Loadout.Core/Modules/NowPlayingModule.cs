@@ -71,8 +71,17 @@ namespace Loadout.Modules
             {
                 if (_current == null || string.IsNullOrEmpty(_current.Title))
                 {
-                    // Stay quiet if there's nothing to say — chatty bots that
-                    // post "no song detected" every minute clutter chat.
+                    // No track reported yet. Viewers get silence — chatty
+                    // bots that post "no song detected" every minute
+                    // clutter chat. Mods + broadcaster see a config hint
+                    // so they know to check the Rotation widget setup.
+                    var u2 = (ctx.UserType ?? "").ToLowerInvariant();
+                    if (u2 == "broadcaster" || u2 == "moderator" || u2 == "mod")
+                    {
+                        var hint = "🛠️ !song has no track yet. Open your Rotation widget so it can publish rotation.song.playing on the bus. (Settings → Overlays → Rotation widget)";
+                        if (ChatGate.TrySend(ChatGate.Area.InfoCommands, "song:hint", TimeSpan.FromSeconds(60)))
+                            new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform, hint, s.Platforms);
+                    }
                     return;
                 }
                 var title  = _current.Title;

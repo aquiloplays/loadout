@@ -137,7 +137,7 @@
             <TabItem Style="{StaticResource SidebarNavTabItem}" IsSelected="True">
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
-                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Modules}" Margin="0 0 10 0" />
+                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Quick}" Margin="0 0 10 0" />
                         <TextBlock Text="Quick" VerticalAlignment="Center" />
                     </StackPanel>
                 </TabItem.Header>
@@ -1072,37 +1072,34 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
-                            <StackPanel>
-                                <TextBlock Text="Earn rates (per event)" Style="{StaticResource H2}" />
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
-                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Per chat message"      Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsPerChat"      Margin="0 4 12 0" />
-                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Per sub"               Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsPerSub"       Margin="0 4 0 0" />
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Per gift sub"          Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsPerGiftSub"   Margin="0 4 12 0" />
-                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="Per raid brought"      Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsPerRaid"      Margin="0 4 0 0" />
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Bits per 1 bolt"       Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtBoltsBitsDivisor"  Margin="0 4 12 0" />
-                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="CC coins per 1 bolt"   Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="2" Grid.Column="3" x:Name="TxtBoltsCcDivisor"    Margin="0 4 0 0" />
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Per daily check-in"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TxtBoltsCheckIn"      Margin="0 4 12 0" />
-                                    <TextBlock Grid.Row="3" Grid.Column="2" Text="Sub-anniv bonus base"  Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                    <TextBox  Grid.Row="3" Grid.Column="3" x:Name="TxtBoltsAnnivBase"    Margin="0 4 0 0" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
+                        <Expander Style="{StaticResource ExpandableCard}" Header="Earn rates (per event)" Margin="0 0 0 14" IsExpanded="False">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
+                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Per chat message"      Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsPerChat"      Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Per sub"               Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsPerSub"       Margin="0 4 0 0" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Per gift sub"          Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsPerGiftSub"   Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="Per raid brought"      Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsPerRaid"      Margin="0 4 0 0" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Bits per 1 bolt"       Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtBoltsBitsDivisor"  Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="2" Grid.Column="2" Text="CC coins per 1 bolt"   Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="2" Grid.Column="3" x:Name="TxtBoltsCcDivisor"    Margin="0 4 0 0" />
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Per daily check-in"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TxtBoltsCheckIn"      Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="Sub-anniv bonus base"  Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="3" Grid.Column="3" x:Name="TxtBoltsAnnivBase"    Margin="0 4 0 0" />
+                            </Grid>
+                        </Expander>
 
                         <Expander Style="{StaticResource ExpandableCard}" Header="Multipliers (additive, decimal: 0.5 = +50%)" Margin="0 0 0 14" IsExpanded="False">
                             <Grid>
@@ -2384,9 +2381,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="check-in" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a generic viewer check-in. Use the row below to preview specific viewer types (sub tier, Patreon, TikTok Fan Club, etc.)." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="check-in" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens the URL with ?debug=1 in your browser — each overlay self-feeds demo events in debug mode, so you see the actual rendered look against current theme settings without an OBS round-trip." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="check-in" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens the URL without debug. Renders blank outside OBS (mixed-content block on the bus WebSocket); use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <!-- Per-viewer-type test row. Each Tag is "checkin:<role>"
@@ -2453,9 +2453,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="counters" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="counters" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="counters" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens the URL without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
@@ -2512,9 +2515,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="goals" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="goals" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="goals" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
@@ -2559,9 +2565,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="bolts" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="bolts" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="bolts" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
@@ -2624,9 +2633,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="commands" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="commands" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="commands" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
@@ -2752,9 +2764,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="apex" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="apex" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="apex" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
@@ -2806,9 +2821,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="recap" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="recap" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="recap" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
@@ -2863,9 +2881,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="viewer" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a sample event so an OBS browser source for this overlay renders it live — use this for placement + sizing." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="viewer" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="viewer" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
@@ -2933,9 +2954,12 @@
                                         <Button Content="All"   Style="{StaticResource PrimaryButton}"
                                                 Tag="minigames" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires coinflip + dice + slots in succession so the OBS source renders all three visualizations back-to-back." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="minigames" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="minigames" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
@@ -2981,9 +3005,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="hypetrain" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a sample start + contribution + level-up so an OBS source for this overlay renders the train." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="hypetrain" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="hypetrain" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <Grid Margin="0 0 0 6">
@@ -3034,6 +3061,9 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="rotation" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Publishes a synthetic rotation.song.playing event so the !song command + compact overlay show a sample track without needing Spotify to actually change songs." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="rotation" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — useful for tweaking the widget URL without needing Spotify to actually be playing." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="rotation" Click="BtnOverlayOpen_Click"
                                                 ToolTip="Opens the URL in your default browser. The widget's status pill turns green once it connects to your local Loadout bus." />
@@ -3115,9 +3145,12 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="compact" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires a sample sequence (commands tick → bolt earn → welcome → counter → minigame) so the OBS source previews the full crossfade behaviour." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="compact" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="compact" Click="BtnOverlayOpen_Click"
-                                                ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block); use Send test for actual placement." />
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
@@ -3178,6 +3211,9 @@
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
                                                 Tag="all" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
                                                 ToolTip="Fires every enabled layer's test event so an OBS source for the all-in-one URL renders the lot." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="all" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — every enabled layer self-feeds demo events for a full composite preview." />
                                         <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
                                                 Tag="all" Click="BtnOverlayOpen_Click"
                                                 ToolTip="Opens the URL in your default browser. Renders blank outside OBS (mixed-content block)." />

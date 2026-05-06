@@ -65,6 +65,10 @@
     <!-- Modules: 4-square grid (modular) -->
     <StreamGeometry x:Key="IconGeo.Modules">M 4 4 h 7 v 7 h -7 z M 13 4 h 7 v 7 h -7 z M 4 13 h 7 v 7 h -7 z M 13 13 h 7 v 7 h -7 z</StreamGeometry>
 
+    <!-- Quick: 8-ray sparkle / burst — used for the Quick Settings tab.
+         Four cardinal rays + four diagonal half-rays around a centre point. -->
+    <StreamGeometry x:Key="IconGeo.Quick">M 12 4 v 4 M 12 16 v 4 M 4 12 h 4 M 16 12 h 4 M 7 7 l 2 2 M 17 17 l -2 -2 M 17 7 l -2 2 M 7 17 l 2 -2</StreamGeometry>
+
     <!-- Patreon: filled diamond (premium tier marker) -->
     <StreamGeometry x:Key="IconGeo.Patreon">M 12 2 l 5 7 l -5 13 l -5 -13 z M 7 9 h 10</StreamGeometry>
 
