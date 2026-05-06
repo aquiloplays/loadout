@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using Loadout.Patreon;
@@ -8,7 +9,7 @@ namespace Loadout.UI
 {
     public partial class OnboardingWindow : Window
     {
-        private const int TotalSteps = 7;
+        private const int TotalSteps = 8;
         private int _currentStep = 1;
 
         public OnboardingWindow()
@@ -67,6 +68,28 @@ namespace Loadout.UI
 
             TxtWebhookPort.Text   = s.Webhooks.Port.ToString();
             TxtWebhookSecret.Text = s.Webhooks.SharedSecret ?? "";
+
+            // Step 6 — Your links. Pull whatever's already in the
+            // structured dicts into the preset textboxes so re-running
+            // the wizard reflects current values.
+            var soc = s.InfoCommands?.SocialLinks ?? new Dictionary<string, string>();
+            string Soc(string key) => soc.TryGetValue(key, out var v) ? v : "";
+            TxtSocDiscord.Text   = Soc("discord");
+            TxtSocTwitter.Text   = Soc("twitter");
+            TxtSocInstagram.Text = Soc("instagram");
+            TxtSocTikTok.Text    = Soc("tiktok");
+            TxtSocYouTube.Text   = Soc("youtube");
+            TxtSocBluesky.Text   = Soc("bluesky");
+            TxtSocThreads.Text   = Soc("threads");
+            TxtSocPatreon.Text   = Soc("patreon");
+
+            var tags = s.InfoCommands?.GamerTags ?? new Dictionary<string, string>();
+            string Tag(string key) => tags.TryGetValue(key, out var v) ? v : "";
+            TxtTagPsn.Text   = Tag("psn");
+            TxtTagXbox.Text  = Tag("xbox");
+            TxtTagSteam.Text = Tag("steam");
+            TxtTagRiot.Text  = Tag("riot");
+            ChkOnbGamerTagsEnabled.IsChecked = s.InfoCommands?.GamerTagsEnabled == true;
         }
 
         private void SaveStep(int step)
@@ -116,19 +139,55 @@ namespace Loadout.UI
                         s.Webhooks.Port = port;
                     s.Webhooks.SharedSecret = (TxtWebhookSecret.Text ?? "").Trim();
                 }
+                else if (step == 6)
+                {
+                    // Roll the eight social presets + four gamer-tag
+                    // presets back into the structured dicts. Empty
+                    // textboxes drop the entry so a value the user
+                    // cleared doesn't linger in settings.
+                    if (s.InfoCommands.SocialLinks == null) s.InfoCommands.SocialLinks = new Dictionary<string, string>();
+                    void Soc(string key, string val)
+                    {
+                        var v = (val ?? "").Trim();
+                        if (v.Length == 0) s.InfoCommands.SocialLinks.Remove(key);
+                        else                s.InfoCommands.SocialLinks[key] = v;
+                    }
+                    Soc("discord",   TxtSocDiscord.Text);
+                    Soc("twitter",   TxtSocTwitter.Text);
+                    Soc("instagram", TxtSocInstagram.Text);
+                    Soc("tiktok",    TxtSocTikTok.Text);
+                    Soc("youtube",   TxtSocYouTube.Text);
+                    Soc("bluesky",   TxtSocBluesky.Text);
+                    Soc("threads",   TxtSocThreads.Text);
+                    Soc("patreon",   TxtSocPatreon.Text);
+
+                    if (s.InfoCommands.GamerTags == null) s.InfoCommands.GamerTags = new Dictionary<string, string>();
+                    void Tag(string key, string val)
+                    {
+                        var v = (val ?? "").Trim();
+                        if (v.Length == 0) s.InfoCommands.GamerTags.Remove(key);
+                        else                s.InfoCommands.GamerTags[key] = v;
+                    }
+                    Tag("psn",   TxtTagPsn.Text);
+                    Tag("xbox",  TxtTagXbox.Text);
+                    Tag("steam", TxtTagSteam.Text);
+                    Tag("riot",  TxtTagRiot.Text);
+
+                    s.InfoCommands.GamerTagsEnabled = ChkOnbGamerTagsEnabled.IsChecked == true;
+                }
             });
         }
 
         private void UpdateView()
         {
-            var stepNames = new[] { "Welcome", "Platforms", "Modules", "Discord", "Webhook inbox", "Patreon", "Done" };
+            var stepNames = new[] { "Welcome", "Platforms", "Modules", "Discord", "Webhook inbox", "Your links", "Patreon", "Done" };
             StepLabel.Text = "Step " + _currentStep + " of " + TotalSteps + " - " + stepNames[_currentStep - 1];
 
             // Progress dots: completed = faint accent glow, current = full
             // accent, future = strong border. Gives a clear visual of how
             // far the user has come without relying on the text alone.
             var dots = new System.Windows.Shapes.Ellipse[]
-                { StepDot1, StepDot2, StepDot3, StepDot4, StepDot5, StepDot6, StepDot7 };
+                { StepDot1, StepDot2, StepDot3, StepDot4, StepDot5, StepDot6, StepDot7, StepDot8 };
             var done = (System.Windows.Media.Brush)FindResource("Brush.Accent.Glow");
             var here = (System.Windows.Media.Brush)FindResource("Brush.Accent");
             var soon = (System.Windows.Media.Brush)FindResource("Brush.Border.Strong");
@@ -142,8 +201,10 @@ namespace Loadout.UI
             Step5.Visibility = _currentStep == 5 ? Visibility.Visible : Visibility.Collapsed;
             Step6.Visibility = _currentStep == 6 ? Visibility.Visible : Visibility.Collapsed;
             Step7.Visibility = _currentStep == 7 ? Visibility.Visible : Visibility.Collapsed;
+            Step8.Visibility = _currentStep == 8 ? Visibility.Visible : Visibility.Collapsed;
 
-            if (_currentStep == 6) RefreshPatreonStep();
+            // Patreon now sits at step 7 (was 6 before "Your links" was inserted).
+            if (_currentStep == 7) RefreshPatreonStep();
 
             BtnBack.IsEnabled = _currentStep > 1;
             BtnSkip.Visibility = _currentStep == TotalSteps ? Visibility.Hidden : Visibility.Visible;

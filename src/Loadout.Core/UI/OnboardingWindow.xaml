@@ -45,10 +45,11 @@
                         <Ellipse x:Name="StepDot4" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Border.Strong}" />
                         <Ellipse x:Name="StepDot5" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Border.Strong}" />
                         <Ellipse x:Name="StepDot6" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Border.Strong}" />
-                        <Ellipse x:Name="StepDot7" Width="9" Height="9" Fill="{StaticResource Brush.Border.Strong}" />
+                        <Ellipse x:Name="StepDot7" Width="9" Height="9" Margin="0 0 6 0" Fill="{StaticResource Brush.Border.Strong}" />
+                        <Ellipse x:Name="StepDot8" Width="9" Height="9" Fill="{StaticResource Brush.Border.Strong}" />
                     </StackPanel>
                 </Grid>
-                <TextBlock x:Name="StepLabel" Text="Step 1 of 7 — Welcome" Style="{StaticResource Muted}" Margin="0 4 0 0" />
+                <TextBlock x:Name="StepLabel" Text="Step 1 of 8 — Welcome" Style="{StaticResource Muted}" Margin="0 4 0 0" />
             </StackPanel>
         </Border>
 
@@ -169,8 +170,98 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Step 6: Patreon -->
+            <!-- Step 6: Your links (socials + gamer tags) -->
             <StackPanel x:Name="Step6" Visibility="Collapsed">
+                <TextBlock Text="Your channel links (optional)" Style="{StaticResource H1}" />
+                <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 12" TextWrapping="Wrap">
+                    Drop in whatever you want chat to find. The commands ticker shows the real brand
+                    logos for each link you fill in — Twitter shows the X bird, Bluesky the butterfly,
+                    Steam the gear, etc. Skip what you don't have; add more later in Settings.
+                </TextBlock>
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="380">
+                    <StackPanel>
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 12">
+                            <StackPanel>
+                                <TextBlock Text="!socials" Style="{StaticResource H2}" />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    Type the @handle or full URL. Whatever's filled in gets the brand logo on the ticker.
+                                </TextBlock>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" /><ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="120" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Discord invite" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtSocDiscord"   Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Twitter / X"     Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtSocTwitter"   Margin="0 4 0 0" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Instagram"        Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtSocInstagram" Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="TikTok"           Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtSocTikTok"    Margin="0 4 0 0" />
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="YouTube"          Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtSocYouTube"   Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="Bluesky"          Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="2" Grid.Column="3" x:Name="TxtSocBluesky"   Margin="0 4 0 0" />
+
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Threads"          Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TxtSocThreads"   Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="3" Grid.Column="2" Text="Patreon"          Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="3" Grid.Column="3" x:Name="TxtSocPatreon"   Margin="0 4 0 0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 8 0 0" TextWrapping="Wrap"
+                                           Text="More platforms (Kick, GitHub, Spotify, SoundCloud, Throne, Ko-fi…) live in Settings → Info commands → Your socials." />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <Grid>
+                                    <TextBlock Text="!gamertags" Style="{StaticResource H2}" />
+                                    <CheckBox x:Name="ChkOnbGamerTagsEnabled" HorizontalAlignment="Right"
+                                              Content="Enable !gamertags command"
+                                              Style="{StaticResource ToggleSwitch}" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    For viewers to friend you. Each filled tag shows up with the real platform logo.
+                                </TextBlock>
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="120" /><ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="120" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="PSN"      Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtTagPsn"     Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Xbox"     Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtTagXbox"    Margin="0 4 0 0" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Steam"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtTagSteam"   Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="Riot"     Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtTagRiot"    Margin="0 4 0 0" />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="10" Margin="0 8 0 0" TextWrapping="Wrap"
+                                           Text="More platforms (Valorant, LoL, Minecraft, Fortnite, Nintendo Switch, Epic, Battle.net, Ubisoft, EA, Rockstar, Bethesda, GOG, itch.io) live in Settings → Info commands → !gamertags." />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </StackPanel>
+
+            <!-- Step 7: Patreon -->
+            <StackPanel x:Name="Step7" Visibility="Collapsed">
                 <TextBlock Text="Connect Patreon (optional)" Style="{StaticResource H1}" />
                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 16">
                     Loadout is fully free for the basics. Tier 2 ($6) unlocks multi-platform alerts, unlimited timers,
@@ -194,8 +285,8 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Step 7: Done -->
-            <StackPanel x:Name="Step7" Visibility="Collapsed">
+            <!-- Step 8: Done -->
+            <StackPanel x:Name="Step8" Visibility="Collapsed">
                 <TextBlock Text="You're ready 🎉" Style="{StaticResource H1}" />
                 <TextBlock TextWrapping="Wrap" Margin="0 8 0 16">
                     Loadout is configured. The tray icon (bottom-right of your screen) is your hub —
