@@ -13,7 +13,7 @@
     https://aquilo.gg/overlays/bolts?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
 
   Layer toggles (default: all on):
-    ?layers=leaderboard,toast,rain,streak,giftburst
+    ?layers=leaderboard,toast,rain,streak,giftburst,welcomes
 
   Position overrides (each layer can move independently):
     ?lbPos=br      bottom-right (default) | bl | tr | tl
@@ -50,6 +50,10 @@
   <div id="giftburst" class="layer giftburst hidden">
     <div class="gift-text"></div>
   </div>
+
+  <!-- Context welcomes (chat-toast on its own track so a chatty channel
+       can disable bolts.earned toasts and keep welcomes, or vice versa) -->
+  <div id="welcomeTrack" class="layer" data-pos="tl"></div>
 
   <script src="main.js"></script>
 </body>

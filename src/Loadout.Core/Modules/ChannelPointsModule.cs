@@ -49,6 +49,7 @@ namespace Loadout.Modules
             try { Execute(mapping.Action.Trim(), ctx, s); }
             catch (Exception ex) { ErrorLog.Write("ChannelPointsModule.Execute[" + rewardName + "]", ex); }
 
+            Util.EventStats.Instance.Hit(ctx.Kind, nameof(ChannelPointsModule));
             AquiloBus.Instance.Publish("channelpoints.redeemed", new
             {
                 reward = rewardName,

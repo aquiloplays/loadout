@@ -178,6 +178,7 @@ namespace Loadout.Modules
                 balance,
                 emoji       = s.Bolts.Emoji
             });
+            Util.EventStats.Instance.Hit(ctx.Kind, nameof(BoltsModule));
         }
 
         private static double ComputeMultiplier(EventContext ctx, LoadoutSettings s)

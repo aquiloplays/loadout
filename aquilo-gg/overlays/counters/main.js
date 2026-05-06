@@ -20,6 +20,26 @@
   if (layout) document.body.dataset.layout = layout;
   if (theme)  document.body.dataset.theme  = theme;
 
+  // Overlay-behavior params (mirrored from CountersConfig in the DLL):
+  //   opacity        0..100      — overlay-wide alpha. 100 = fully opaque.
+  //   showOnTrigger  1/0         — when 1, hide root by default and reveal
+  //                                only briefly after each counter update.
+  //   hideAfter      seconds     — auto-hide delay used with showOnTrigger.
+  const opacityPct  = parseInt(params.get('opacity'), 10);
+  if (Number.isFinite(opacityPct) && opacityPct >= 0 && opacityPct <= 100) {
+    root.style.opacity = String(opacityPct / 100);
+  }
+  const showOnTrigger = params.get('showOnTrigger') === '1';
+  const hideAfterSec  = Math.max(1, parseInt(params.get('hideAfter') || '6', 10) || 6);
+  if (showOnTrigger) root.classList.add('trigger-hidden');
+  let hideTimer = null;
+  function pulseVisible() {
+    if (!showOnTrigger) return;
+    root.classList.remove('trigger-hidden');
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => root.classList.add('trigger-hidden'), hideAfterSec * 1000);
+  }
+
   // name -> { el, valueEl, display }
   const cards = new Map();
   // If user listed counters explicitly, prerender them at 0 so the layout doesn't pop in later.
@@ -54,6 +74,7 @@
 
     card.el.classList.add('bump');
     setTimeout(() => card.el.classList.remove('bump'), bumpMs);
+    pulseVisible();
   }
 
   // ── Bus connection ────────────────────────────────────────────────────────

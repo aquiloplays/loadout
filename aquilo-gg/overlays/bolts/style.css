@@ -95,6 +95,45 @@ html, body {
   100% { opacity: 0; transform: translateX(20px); }
 }
 
+/* ── Welcomes (own track, slides in from the left) ────────────────────── */
+#welcomeTrack { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.welcome-toast {
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(58,134,255,.95), rgba(0,242,234,.85));
+  color: #0d1421;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.45);
+  max-width: 460px;
+  animation: welcomeSlide var(--toast-dur, 4s) cubic-bezier(.2,.7,.2,1) forwards;
+}
+.welcome-toast .role {
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  background: rgba(13,20,33,.18);
+  padding: 2px 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.welcome-toast .body {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 380px;
+}
+@keyframes welcomeSlide {
+  0%   { opacity: 0; transform: translateX(-20px); }
+  10%  { opacity: 1; transform: translateX(0); }
+  85%  { opacity: 1; transform: translateX(0); }
+  100% { opacity: 0; transform: translateX(-20px); }
+}
+
 /* ── Streak banner ───────────────────────────────────────────────────── */
 .streak {
   pointer-events: none;

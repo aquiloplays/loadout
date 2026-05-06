@@ -50,6 +50,7 @@ namespace Loadout.Modules
             // Reply on the platform that originated the chat — never cross-post welcomes.
             new MultiPlatformSender(CphPlatformSender.Instance)
                 .Send(ctx.Platform, msg, s.Platforms);
+            EventStats.Instance.Hit(ctx.Kind, nameof(WelcomesModule));
         }
 
         private static string PickTemplate(string userType, WelcomesConfig cfg)

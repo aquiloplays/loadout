@@ -49,6 +49,7 @@ namespace Loadout.Modules
             var rest = spaceIdx < 0 ? "" : msg.Substring(spaceIdx + 1).Trim();
 
             string reply = null;
+            CustomCommand custom = null;
 
             switch (cmd)
             {
@@ -67,10 +68,18 @@ namespace Loadout.Modules
                 case "profile":
                 case "card":       reply = ReplyProfile(ctx, rest); break;
                 default:
-                    var custom = s.InfoCommands.Custom.FirstOrDefault(c =>
+                    custom = s.InfoCommands.Custom.FirstOrDefault(c =>
                         string.Equals(c.Name, cmd, StringComparison.OrdinalIgnoreCase));
                     if (custom != null && !string.IsNullOrEmpty(custom.Response))
+                    {
+                        // Per-command role gate. AllowedRoles is the canonical
+                        // field; ModifyRoles is the legacy alias kept around
+                        // for older settings.json files. Broadcaster always
+                        // bypasses (they own the channel).
+                        var gate = !string.IsNullOrWhiteSpace(custom.AllowedRoles) ? custom.AllowedRoles : custom.ModifyRoles;
+                        if (!RoleAllowed(ResolveRole(ctx.UserType), gate)) return;
                         reply = custom.Response.Replace("{user}", ctx.User).Replace("{rest}", rest);
+                    }
                     break;
             }
 
@@ -78,11 +87,15 @@ namespace Loadout.Modules
 
             // Per-command cooldown so bored viewers can't spam !uptime / !title.
             // Mods + broadcaster always bypass — they have a reason to repeat.
+            // Custom commands may override the global cooldown via CooldownSec.
             var u = (ctx.UserType ?? "").ToLowerInvariant();
             var bypass = (u == "broadcaster" || u == "moderator" || u == "mod");
             if (!bypass)
             {
-                var cd = TimeSpan.FromSeconds(Math.Max(0, s.ChatNoise.InfoCommandCooldownSec));
+                var cdSec = (custom != null && custom.CooldownSec > 0)
+                    ? custom.CooldownSec
+                    : s.ChatNoise.InfoCommandCooldownSec;
+                var cd = TimeSpan.FromSeconds(Math.Max(0, cdSec));
                 if (!ChatGate.TrySend(ChatGate.Area.InfoCommands, "info:" + cmd, cd)) return;
             }
             else
@@ -92,6 +105,7 @@ namespace Loadout.Modules
 
             // Reply on the originating platform - replies don't cross-post.
             new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform, reply, s.Platforms);
+            EventStats.Instance.Hit(ctx.Kind, nameof(InfoCommandsModule));
         }
 
         // -------------------- Per-command renderers --------------------
@@ -228,6 +242,40 @@ namespace Loadout.Modules
         {
             var u = (userType ?? "").ToLowerInvariant();
             return u == "broadcaster" || u == "moderator" || u == "mod";
+        }
+
+        // Map CPH UserType strings ("Moderator", "Subscriber", ...) to the
+        // canonical lowercase tokens used in CustomCommand.AllowedRoles
+        // (broadcaster / mod / vip / sub / viewer).
+        private static string ResolveRole(string userType)
+        {
+            var u = (userType ?? "").Trim().ToLowerInvariant();
+            if (u == "broadcaster") return "broadcaster";
+            if (u == "moderator" || u == "mod") return "mod";
+            if (u == "vip") return "vip";
+            if (u == "subscriber" || u == "sub") return "sub";
+            return "viewer";
+        }
+
+        // Check whether `role` is permitted by an AllowedRoles csv. Empty,
+        // "*", "everyone", and "all" all mean no gate. Broadcaster always
+        // bypasses (owner of the channel).
+        private static bool RoleAllowed(string role, string allowedCsv)
+        {
+            if (role == "broadcaster") return true;
+            if (string.IsNullOrWhiteSpace(allowedCsv)) return true;
+            var t = allowedCsv.Trim().ToLowerInvariant();
+            if (t == "*" || t == "everyone" || t == "all") return true;
+            foreach (var raw in t.Split(','))
+            {
+                var r = raw.Trim();
+                if (r.Length == 0) continue;
+                if (r == "*" || r == "everyone" || r == "all") return true;
+                if (r == role) return true;
+                // Mods imply moderator, sub implies subscriber - already
+                // canonicalized by ResolveRole, so straight comparison works.
+            }
+            return false;
         }
 
         // -------------------- Helpers --------------------

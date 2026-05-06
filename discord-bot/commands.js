@@ -141,6 +141,19 @@ async function cmdCoinflip(env, guild, userId, bet, userName) {
   if (!Number.isInteger(bet) || bet <= 0)
     return { content: 'Bet must be a positive integer.', ephemeral: true };
   const r = await coinflip(env, guild, userId, bet);
+  // Mirror to the per-guild games ring so the OBS bolts minigames overlay
+  // (via DiscordMinigameBridge in the DLL) can render the same animation
+  // chat-side games drive. Best-effort - never block the Discord reply.
+  await recordGame(env, guild, {
+    kind:    'coinflip',
+    user:    userName,
+    userId:  userId,
+    wager:   bet,
+    won:     !!r.won,
+    payout:  r.payout || 0,
+    result:  r.won ? 'heads' : 'tails',
+    ts:      Date.now()
+  });
   return { content: '<@' + userId + '> ' + r.explanation };
 }
 
@@ -150,7 +163,37 @@ async function cmdDice(env, guild, userId, bet, target, userName) {
   if (!Number.isInteger(target) || target < 1 || target > 6)
     return { content: 'Target must be 1-6.', ephemeral: true };
   const r = await dice(env, guild, userId, bet, target);
+  await recordGame(env, guild, {
+    kind:    'dice',
+    user:    userName,
+    userId:  userId,
+    wager:   bet,
+    target:  target,
+    rolled:  r.roll,
+    won:     !!r.won,
+    payout:  r.payout || 0,
+    ts:      Date.now()
+  });
   return { content: '<@' + userId + '> ' + r.explanation };
+}
+
+// Per-guild ring buffer of recent minigame results. Capped at 32 entries so
+// a chatty server can't blow KV write quota. TTL is 5 min — long enough for
+// the DLL's 5s poll to catch every event even if the streamer's OBS was
+// briefly offline; short enough that we don't accumulate forever.
+const GAMES_RING_MAX = 32;
+async function recordGame(env, guildId, evt) {
+  if (!guildId) return;
+  try {
+    const key = 'games:' + guildId;
+    const existing = (await env.LOADOUT_BOLTS.get(key, { type: 'json' })) || [];
+    existing.push(evt);
+    while (existing.length > GAMES_RING_MAX) existing.shift();
+    await env.LOADOUT_BOLTS.put(key, JSON.stringify(existing), { expirationTtl: 300 });
+  } catch (e) {
+    // Logging only - the Discord reply already went out.
+    console.warn('recordGame failed for ' + guildId + ': ' + (e && e.message));
+  }
 }
 
 async function cmdLink(env, guild, userId, platform, username, callerName) {

@@ -71,6 +71,7 @@ namespace Loadout.Modules
 
             var rendered = Render(template, ctx);
             new MultiPlatformSender(CphPlatformSender.Instance).Send(target, rendered, s.Platforms);
+            Util.EventStats.Instance.Hit(ctx.Kind, nameof(AlertsModule));
         }
 
         private static string If(AlertTemplate t) =>

@@ -94,6 +94,7 @@ namespace Loadout.Modules
                     value   = counter.Value,
                     by      = ctx.User
                 });
+                Util.EventStats.Instance.Hit(ctx.Kind, nameof(CountersModule));
             }
             else
             {

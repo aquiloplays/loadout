@@ -12,6 +12,11 @@
 //   POST /sync/:guildId/init         - Loadout-side: complete registration after claim
 //   GET  /sync/:guildId              - Loadout-side: pull wallet snapshot (HMAC)
 //   POST /sync/:guildId              - Loadout-side: push wallet snapshot (HMAC)
+//   GET  /sync/:guildId/games?since= - Loadout-side: pull recent off-stream
+//                                      minigame results so the DLL can
+//                                      republish them on the local Aquilo
+//                                      Bus and the OBS overlay can render
+//                                      them (HMAC).
 //   GET  /health                     - liveness probe
 //
 // KV layout:
@@ -20,6 +25,10 @@
 //   secret:<guildId>                 - { secret, registeredUtc, ownerStreamerName }
 //   wallet:<guildId>:<userId>        - per-viewer wallet (see wallet.js)
 //   guildowner:<guildId>             - { discordUserId, claimedAt } - the claimer
+//   games:<guildId>                  - JSON array (cap 32) of recent minigame
+//                                      results, 5-min TTL. DLL polls via
+//                                      /sync/:guildId/games to republish on
+//                                      the local Aquilo Bus.
 
 import { verifyDiscordSignature, verifyHmac } from './auth.js';
 import { handleInteraction } from './commands.js';
@@ -221,7 +230,7 @@ async function claimStatus(req, env, path) {
 // ---- /sync/:guildId... --------------------------------------------------
 
 async function handleSync(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['sync', ':guildId', maybe 'init']
+  const parts = path.split('/').filter(Boolean);   // ['sync', ':guildId', maybe 'init'|'games']
   const guildId = parts[1];
   const sub = parts[2];
   if (!guildId) return new Response('guildId required', { status: 400 });
@@ -236,6 +245,18 @@ async function handleSync(req, env, path) {
 
   const ok = await verifyHmac(stored.secret, ts || '', body, sig || '');
   if (!ok) return new Response('bad signature', { status: 401 });
+
+  // /sync/:guildId/games?since=<ms> — DLL pulls recent minigame results so
+  // they can be republished on the local Aquilo Bus. Same HMAC scheme as
+  // the wallet endpoints; ts+\n is the signed payload for GETs.
+  if (sub === 'games' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const sinceMs = parseInt(url.searchParams.get('since') || '0', 10) || 0;
+    const all = (await env.LOADOUT_BOLTS.get('games:' + guildId, { type: 'json' })) || [];
+    const fresh = all.filter(e => (e.ts || 0) > sinceMs);
+    const latest = fresh.length > 0 ? fresh[fresh.length - 1].ts : (all.length > 0 ? all[all.length - 1].ts : sinceMs);
+    return new Response(JSON.stringify({ events: fresh, ts: latest }), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
 
   if (req.method === 'GET') {
     const snap = await readSnapshot(env, guildId);

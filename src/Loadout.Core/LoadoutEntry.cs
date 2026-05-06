@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Loadout.Discord;
 using Loadout.Host;
 using Loadout.Identity;
 using Loadout.Platforms;
@@ -32,6 +33,11 @@ namespace Loadout
                 CphPlatformSender.Instance.Bind(cph);
                 LoadoutHost.EnsureStarted(null);
                 SbEventDispatcher.Instance.RegisterDefaultModules();
+
+                // Background poller that mirrors Discord-side /coinflip and
+                // /dice results from the Worker into the local bus, so the
+                // OBS bolts minigames overlay renders them too.
+                DiscordMinigameBridge.Instance.Start();
 
                 SbBridge.Instance.LogInfo("[Loadout] Booted. Settings: " + SettingsManager.Instance.SettingsPath);
 

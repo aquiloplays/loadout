@@ -25,7 +25,10 @@ html, body {
   gap: 12px;
   padding: 16px;
   align-items: flex-start;
+  transition: opacity .35s ease;
 }
+/* showOnTrigger=1: root starts hidden and pulses visible on each update. */
+#root.trigger-hidden { opacity: 0 !important; }
 body[data-layout="stack"] #root { flex-direction: column; }
 body[data-layout="compact"] #root { padding: 8px; gap: 6px; }
 

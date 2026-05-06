@@ -663,6 +663,7 @@ namespace Loadout.UI
             TxtBoltsGiftFloor.Text    = s.Bolts.GiftMinAmount.ToString();
             TxtBoltsRainMin.Text      = s.Bolts.BoltRainMinTotal.ToString();
             TxtBoltsRainMax.Text      = s.Bolts.BoltRainMaxRecipients.ToString();
+            if (TxtBoltsSlotsPool != null) TxtBoltsSlotsPool.Text = s.Bolts.SlotsImagePool ?? "";
 
             ChkRotationEnabled.IsChecked = s.RotationIntegration.Enabled;
             TxtRotationCmd.Text          = s.RotationIntegration.Command ?? "";
@@ -878,6 +879,9 @@ namespace Loadout.UI
                 if (int.TryParse(TxtBoltsGiftFloor.Text, out iv) && iv >= 0) s.Bolts.GiftMinAmount         = iv;
                 if (int.TryParse(TxtBoltsRainMin.Text,   out iv) && iv >= 0) s.Bolts.BoltRainMinTotal      = iv;
                 if (int.TryParse(TxtBoltsRainMax.Text,   out iv) && iv >= 1) s.Bolts.BoltRainMaxRecipients = iv;
+                // Slots reel pool: collapse Windows CRLF -> LF so what the
+                // overlay reads matches what the user typed in the textbox.
+                if (TxtBoltsSlotsPool != null) s.Bolts.SlotsImagePool = (TxtBoltsSlotsPool.Text ?? "").Replace("\r\n", "\n").Trim();
 
                 // Rotation integration
                 s.RotationIntegration.Enabled = ChkRotationEnabled.IsChecked == true;
@@ -1275,23 +1279,58 @@ namespace Loadout.UI
                     var ordered = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, int>>(stats);
                     ordered.Sort((a, b) => b.Value.CompareTo(a.Value));
                     var take = Math.Min(ordered.Count, 20);
+                    // Per-(kind → module → count) drill-down. Modules call
+                    // EventStats.Hit() at the moment they actually act
+                    // (send chat, fire alert, publish to bus) so the chip
+                    // counts represent work done, not "saw the dispatch".
+                    var actions = Util.EventStats.Instance.SnapshotActions();
+                    var primaryBrush = (System.Windows.Media.Brush)FindResource("Brush.Fg.Primary");
                     for (int i = 0; i < take; i++)
                     {
                         var kv = ordered[i];
-                        var row = new Grid { Margin = new Thickness(0, 2, 0, 2) };
-                        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                        var row = new StackPanel { Margin = new Thickness(0, 4, 0, 4) };
+
+                        var head = new Grid();
+                        head.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                        head.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                         var label = new TextBlock { Text = kv.Key, Foreground = mutedBrush };
                         Grid.SetColumn(label, 0);
-                        row.Children.Add(label);
+                        head.Children.Add(label);
                         var count = new TextBlock
                         {
                             Text = kv.Value.ToString(),
                             FontWeight = FontWeights.SemiBold,
-                            Foreground = (System.Windows.Media.Brush)FindResource("Brush.Fg.Primary")
+                            Foreground = primaryBrush
                         };
                         Grid.SetColumn(count, 1);
-                        row.Children.Add(count);
+                        head.Children.Add(count);
+                        row.Children.Add(head);
+
+                        // Inline module chips beneath the kind row, e.g.
+                        // "Welcomes 4 · Alerts 2". Trims module suffix
+                        // ("WelcomesModule" -> "Welcomes") for readability.
+                        if (actions.TryGetValue(kv.Key, out var byModule) && byModule.Count > 0)
+                        {
+                            var modOrdered = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, int>>(byModule);
+                            modOrdered.Sort((a, b) => b.Value.CompareTo(a.Value));
+                            var chips = new System.Text.StringBuilder();
+                            for (int j = 0; j < modOrdered.Count; j++)
+                            {
+                                if (j > 0) chips.Append("  ·  ");
+                                var name = modOrdered[j].Key;
+                                if (name.EndsWith("Module", StringComparison.Ordinal))
+                                    name = name.Substring(0, name.Length - "Module".Length);
+                                chips.Append(name).Append(' ').Append(modOrdered[j].Value);
+                            }
+                            row.Children.Add(new TextBlock
+                            {
+                                Text = chips.ToString(),
+                                Foreground = mutedBrush,
+                                FontSize = 11,
+                                Margin = new Thickness(0, 1, 0, 0)
+                            });
+                        }
+
                         ActivityList.Children.Add(row);
                     }
                 }
@@ -1599,12 +1638,21 @@ namespace Loadout.UI
                 ["accent"]    = NormalizeHex(TxtCheckInAccent?.Text),
                 ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtCheckInBgOpacity?.Text) ? null : ClampInt(TxtCheckInBgOpacity.Text, 0, 100, 94)
             });
+            // Counters overlay-behavior knobs surface to the URL only when
+            // they diverge from defaults (opacity 100 / hideAfter 6 /
+            // showOnTrigger off) so the URL stays compact in the common case.
+            string countersOpacity     = ClampInt(TxtCountersOpacity?.Text, 0, 100, 100);
+            string countersHideAfter   = ClampInt(TxtCountersHideAfter?.Text, 1, 600, 6);
+            bool   countersShowTrigger = ChkCountersOnTrigger?.IsChecked == true;
             TxtUrlCounters.Text = BuildOverlayUrl(baseUrl, "counters", secret, new Dictionary<string, string>
             {
-                ["theme"]     = SelectedTag(CmbCountersTheme),
-                ["layout"]    = SelectedTag(CmbCountersLayout),
-                ["accent"]    = NormalizeHex(TxtCountersAccent?.Text),
-                ["bgOpacity"] = string.IsNullOrWhiteSpace(TxtCountersBgOpacity?.Text) ? null : ClampInt(TxtCountersBgOpacity.Text, 0, 100, 94)
+                ["theme"]         = SelectedTag(CmbCountersTheme),
+                ["layout"]        = SelectedTag(CmbCountersLayout),
+                ["accent"]        = NormalizeHex(TxtCountersAccent?.Text),
+                ["bgOpacity"]     = string.IsNullOrWhiteSpace(TxtCountersBgOpacity?.Text) ? null : ClampInt(TxtCountersBgOpacity.Text, 0, 100, 94),
+                ["opacity"]       = countersOpacity == "100" ? null : countersOpacity,
+                ["showOnTrigger"] = countersShowTrigger ? "1" : null,
+                ["hideAfter"]     = countersShowTrigger && countersHideAfter != "6" ? countersHideAfter : null
             });
             TxtUrlGoals.Text = BuildOverlayUrl(baseUrl, "goals", secret, new Dictionary<string, string>
             {
@@ -1618,6 +1666,7 @@ namespace Loadout.UI
             if (ChkLayerRain?.IsChecked        == true) layers.Add("rain");
             if (ChkLayerStreak?.IsChecked      == true) layers.Add("streak");
             if (ChkLayerGiftBurst?.IsChecked   == true) layers.Add("giftburst");
+            if (ChkLayerWelcomes?.IsChecked    == true) layers.Add("welcomes");
             // Bolts theme knobs - hex inputs and small numeric fields. Empty
             // values (or out-of-range) drop the param so the overlay falls back
             // to its baked-in defaults rather than a broken URL.
@@ -1627,7 +1676,7 @@ namespace Loadout.UI
             string boltsBgOpacity = ClampInt(TxtBoltsBgOpacity?.Text, 0, 100, 94);
             TxtUrlBolts.Text = BuildOverlayUrl(baseUrl, "bolts", secret, new Dictionary<string, string>
             {
-                ["layers"]    = layers.Count == 5 ? null : string.Join(",", layers),
+                ["layers"]    = layers.Count == 6 ? null : string.Join(",", layers),
                 ["accent"]    = boltsAccent,
                 ["lbRows"]    = boltsLbRows == "5"  ? null : boltsLbRows,
                 ["toastDur"]  = boltsToastDur == "4"  ? null : boltsToastDur,

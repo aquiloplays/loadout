@@ -12,13 +12,13 @@
   const busUrl   = params.get('bus')    || 'ws://127.0.0.1:7470/aquilo/bus/';
   const secret   = params.get('secret') || '';
   const debug    = params.get('debug')  === '1';
-  const enabled  = (params.get('layers') || 'leaderboard,toast,rain,streak,giftburst')
+  const enabled  = (params.get('layers') || 'leaderboard,toast,rain,streak,giftburst,welcomes')
                      .split(',').map(x => x.trim()).filter(Boolean);
 
   // Per-layer position overrides.
   for (const [param, id] of [
     ['lbPos', 'leaderboard'], ['toastPos', 'toastTrack'],
-    ['streakPos', 'streak']
+    ['streakPos', 'streak'], ['welcomePos', 'welcomeTrack']
   ]) {
     const v = params.get(param);
     if (v) $(id).dataset.pos = v;
@@ -50,11 +50,13 @@
   })();
 
   // Hide layers the user didn't enable.
-  const allLayers = ['leaderboard', 'toastTrack', 'rain', 'streak', 'giftburst'];
+  const allLayers = ['leaderboard', 'toastTrack', 'rain', 'streak', 'giftburst', 'welcomeTrack'];
   for (const id of allLayers) {
     const el = $(id);
     if (!el) continue;
-    const wantedKey = id === 'toastTrack' ? 'toast' : id;
+    const wantedKey = id === 'toastTrack' ? 'toast'
+                    : id === 'welcomeTrack' ? 'welcomes'
+                    : id;
     if (!enabled.includes(wantedKey)) el.style.display = 'none';
   }
 
@@ -190,9 +192,53 @@
     };
   })();
 
+  // ── Scene: Welcomes ───────────────────────────────────────────────────
+  // Renders welcome.fired events as chat-toasts on a left-edge track. Same
+  // queue pattern as earn toasts so a burst at start-of-stream doesn't
+  // cascade off-screen.
+  const welcomes = (() => {
+    const track = $('welcomeTrack');
+    const queue = [];
+    let active = 0;
+    const MAX_VISIBLE = 3;
+
+    function pump() {
+      while (active < MAX_VISIBLE && queue.length > 0) {
+        const item = queue.shift();
+        const el = document.createElement('div');
+        el.className = 'welcome-toast';
+        const role = (item.userType || 'viewer').toString().toLowerCase();
+        el.innerHTML = '<span class="role"></span><span class="body"></span>';
+        el.querySelector('.role').textContent =
+          role === 'firsttime' ? 'first time'
+          : role === 'sub' || role === 'subscriber' ? 'sub'
+          : role === 'moderator' ? 'mod'
+          : role;
+        el.querySelector('.body').textContent = item.text;
+        track.appendChild(el);
+        active++;
+        setTimeout(() => { el.remove(); active--; pump(); }, _toastDurationMs);
+      }
+    }
+
+    return {
+      kinds: ['welcome.fired'],
+      onEvent: (msg) => {
+        const d = msg.data || {};
+        // `rendered` already has {user} substituted by the DLL; fall back to
+        // the raw template + user only if the publisher didn't pre-render.
+        const text = d.rendered || (d.template || '').replace('{user}', d.user || '');
+        if (!text) return;
+        queue.push({ userType: d.userType, text });
+        while (queue.length > 12) queue.shift();
+        pump();
+      }
+    };
+  })();
+
   // ── Scene table (Phase 2 features add a row here) ────────────────────
   const SCENES = {
-    leaderboard, toast, rain, streak, giftburst
+    leaderboard, toast, rain, streak, giftburst, welcomes
   };
 
   // Build kind→[scene] dispatch map for fast lookups.
@@ -218,7 +264,7 @@
       setStatus('connected');
       backoff = 1000;
       ws.send(JSON.stringify({ v: 1, kind: 'hello',     client: 'overlay-bolts' }));
-      ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: ['bolts.*'] }));
+      ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: ['bolts.*', 'welcome.*'] }));
     };
     ws.onmessage = (e) => {
       let msg; try { msg = JSON.parse(e.data); } catch { return; }
@@ -260,6 +306,8 @@
     setTimeout(() => streak.onEvent({ kind: 'bolts.streak', data: { user: 'viewer_three', streakDays: 12 }}), 2400);
     setTimeout(() => rain.onEvent({   kind: 'bolts.rain',   data: { recipients: Array(30).fill('x') }}), 4000);
     setTimeout(() => giftburst.onEvent({ kind: 'bolts.gifted', data: { from: 'a', to: 'b', amount: 500 }}), 8000);
+    setTimeout(() => welcomes.onEvent({ kind: 'welcome.fired', data: { user: 'new_friend', userType: 'firstTime', rendered: '👋 Welcome new_friend, glad you found us!' }}), 1100);
+    setTimeout(() => welcomes.onEvent({ kind: 'welcome.fired', data: { user: 'sub_returner', userType: 'sub', rendered: '✨ sub_returner is back!' }}), 2200);
   }
   connect();
 })();

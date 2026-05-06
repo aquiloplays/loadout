@@ -105,6 +105,7 @@ namespace Loadout.Modules
                     level     = _level,
                     ts        = now
                 });
+                Util.EventStats.Instance.Hit(ctx.Kind, nameof(HypeTrainModule));
             }
         }
 
