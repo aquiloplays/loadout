@@ -58,10 +58,17 @@ namespace Loadout.Settings
     }
 
     /// <summary>
-    /// Global overlay theming applied to every overlay's URL via params.
-    /// Per-overlay accent / opacity inputs continue to take precedence on
-    /// their own colors; this card just adds shared font + secondary
-    /// color knobs without forcing every overlay card to grow more inputs.
+    /// Persisted state for every control on the Overlays tab (the global
+    /// theme card AND every per-overlay card). Without this, reopening
+    /// Settings shows blank textboxes / default combos every time, and
+    /// the streamer has to re-paste values into OBS to keep their look.
+    ///
+    /// Global theme params (Font / FontScale / Accent2 / Text) get added
+    /// to every overlay's URL via SettingsWindow.GlobalThemeParams().
+    /// Per-overlay UI state (accent, bgOpacity, position, layer toggles,
+    /// etc.) lives in <see cref="CardValues"/> keyed by the control's
+    /// XAML name — opaque blob so adding a new card means listing it in
+    /// SettingsWindow.OverlayControlNames, no settings migration needed.
     /// </summary>
     public class OverlayThemeConfig
     {
@@ -76,6 +83,12 @@ namespace Loadout.Settings
         // Foreground / body text color (hex without #). Empty = use the
         // overlay's default (typically a near-white).
         public string Text     { get; set; } = "";
+
+        // Per-overlay UI values keyed by control name. TextBox.Text,
+        // ComboBoxItem.Tag (for ComboBox), and "0"/"1" for CheckBox.
+        // Unknown / removed keys are silently ignored on load so the
+        // schema can grow without breaking older settings.json.
+        public Dictionary<string, string> CardValues { get; set; } = new Dictionary<string, string>();
     }
 
     public class PlatformsConfig

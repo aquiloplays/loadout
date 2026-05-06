@@ -892,6 +892,16 @@ namespace Loadout.UI
                 s.OverlayTheme.Accent2 = NormalizeHex(TxtOverlayAccent2?.Text) ?? "";
                 s.OverlayTheme.Text    = NormalizeHex(TxtOverlayText?.Text)    ?? "";
 
+                // Capture every per-overlay control's current value so the
+                // streamer's per-card customizations (positions, accents,
+                // bgOpacity, layer toggles, command-include filters, etc.)
+                // survive a Settings restart and aren't transient anymore.
+                if (s.OverlayTheme.CardValues == null)
+                    s.OverlayTheme.CardValues = new Dictionary<string, string>();
+                else
+                    s.OverlayTheme.CardValues.Clear();
+                CaptureOverlayCardValues(s.OverlayTheme.CardValues);
+
                 // Rotation integration
                 s.RotationIntegration.Enabled = ChkRotationEnabled.IsChecked == true;
                 s.RotationIntegration.Command = (TxtRotationCmd.Text ?? "!boltsong").Trim();
@@ -1627,6 +1637,13 @@ namespace Loadout.UI
             if (TxtOverlayAccent2 != null) TxtOverlayAccent2.Text = theme.Accent2 ?? "";
             if (TxtOverlayText    != null) TxtOverlayText.Text    = theme.Text    ?? "";
 
+            // Restore every per-overlay textbox / combo / checkbox from
+            // the saved CardValues bag. Must happen AFTER TxtOverlayBaseUrl
+            // is seeded above so a saved BaseUrl override wins, but BEFORE
+            // _overlayTabReady = true so we don't generate a flurry of URL
+            // refreshes for each control as it gets set.
+            RestoreOverlayCardValues(theme.CardValues);
+
             // BAML parsing is complete by the time we reach BindOverlaysTab in
             // the constructor (it runs after InitializeComponent's parse + every
             // child element is materialized), so it's safe to flip the gate.
@@ -1856,6 +1873,82 @@ namespace Loadout.UI
             // serves <overlay>/index.html cleanly without relying on its
             // (configurable) extension-stripping/redirect behavior.
             return baseUrl + "/" + overlay + "/?" + string.Join("&", qs);
+        }
+
+        // Every per-overlay control on the Overlays tab whose value should
+        // survive a Settings restart. Add new overlay cards here when
+        // building them. The persistence helper below is type-agnostic
+        // (TextBox / ComboBox / CheckBox handled uniformly) so the only
+        // maintenance is keeping this list current.
+        private static readonly string[] OverlayControlNames = new[]
+        {
+            // Global
+            "TxtOverlayBaseUrl",
+            // Check-in
+            "CmbCheckInOverlayPos", "TxtCheckInAccent", "TxtCheckInBgOpacity",
+            // Counters
+            "CmbCountersTheme", "CmbCountersLayout", "TxtCountersAccent", "TxtCountersBgOpacity",
+            // Goals
+            "CmbGoalsTheme", "TxtGoalsAccent", "TxtGoalsBgOpacity",
+            // Bolts
+            "ChkLayerLeaderboard", "ChkLayerToast", "ChkLayerRain",
+            "ChkLayerStreak", "ChkLayerGiftBurst", "ChkLayerWelcomes",
+            "TxtBoltsAccent", "TxtBoltsLbRows", "TxtBoltsToastDur", "TxtBoltsBgOpacity",
+            // Apex
+            "CmbApexPos", "TxtApexAccent", "TxtApexBgOpacity",
+            // Commands
+            "CmbCommandsPos", "CmbCommandsTheme", "TxtCommandsRotate",
+            "TxtCommandsAccent", "TxtCommandsBgOpacity",
+            "ChkCmdInfo", "ChkCmdBolts", "ChkCmdCounters",
+            "ChkCmdMod", "ChkCmdClip", "ChkCmdCheckIn",
+            // Recap
+            "CmbRecapAlign", "TxtRecapAccent", "TxtRecapDuration", "TxtRecapBgOpacity",
+            // Viewer
+            "CmbViewerAlign", "TxtViewerAccent", "TxtViewerDuration", "TxtViewerBgOpacity",
+            // Hype train
+            "CmbHypeTrainPos", "TxtHypeTrainAccent",
+            // Minigames
+            "CmbMinigamesPos", "TxtMinigamesAccent",
+            // Compact (one-pane)
+            "CmbCompactPos", "TxtCompactHoldMs", "TxtCompactIdleRotate",
+            // All-in-one composite layer toggles
+            "ChkAllBolts", "ChkAllCounters", "ChkAllGoals", "ChkAllCheckIn",
+            "ChkAllApex", "ChkAllCommands", "ChkAllRecap", "ChkAllViewer",
+            "ChkAllHypeTrain", "ChkAllMinigames"
+        };
+
+        private void RestoreOverlayCardValues(Dictionary<string, string> values)
+        {
+            if (values == null || values.Count == 0) return;
+            foreach (var name in OverlayControlNames)
+            {
+                if (!values.TryGetValue(name, out var v) || v == null) continue;
+                var el = FindName(name) as FrameworkElement;
+                if (el == null) continue;
+                if (el is TextBox t) { t.Text = v; }
+                else if (el is ComboBox c)
+                {
+                    foreach (ComboBoxItem item in c.Items)
+                    {
+                        if (string.Equals(item?.Tag?.ToString(), v, StringComparison.Ordinal))
+                        { c.SelectedItem = item; break; }
+                    }
+                }
+                else if (el is CheckBox cb) { cb.IsChecked = (v == "1"); }
+            }
+        }
+
+        private void CaptureOverlayCardValues(Dictionary<string, string> sink)
+        {
+            if (sink == null) return;
+            foreach (var name in OverlayControlNames)
+            {
+                var el = FindName(name) as FrameworkElement;
+                if (el == null) continue;
+                if (el is TextBox t)        sink[name] = t.Text ?? "";
+                else if (el is ComboBox c)  sink[name] = (c.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+                else if (el is CheckBox cb) sink[name] = (cb.IsChecked == true) ? "1" : "0";
+            }
         }
 
         private Dictionary<string, string> GlobalThemeParams()
