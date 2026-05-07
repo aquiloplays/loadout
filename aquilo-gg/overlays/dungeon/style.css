@@ -155,11 +155,12 @@ body.has-custom-bg::before {
 }
 
 /* Class sprite mode — when the avatar slot renders the inline SVG
-   pixel-art instead of an avatar URL, drop the centre-text styling
-   and let the SVG fill its parent. We keep the round border ring for
-   tint, paint a slightly darker base behind the sprite so the figure
-   reads against any underlying canvas, and disable smoothing so the
-   pixels stay crisp at every avatar size. */
+   pixel-art instead of an avatar URL, swap the round 1:1 container
+   for a TALL rounded rectangle (3:4 aspect) that matches the sprite's
+   16×24 viewBox. The class-tinted ring becomes a 3px border around
+   the rectangle. Pixels stay crisp via image-rendering: pixelated.
+   Backdrop is a slightly-darker fill so the figure reads against any
+   underlying canvas. */
 .pt-avatar.has-sprite,
 .lc-avatar.has-sprite,
 .d-avatar.has-sprite {
@@ -167,6 +168,7 @@ body.has-custom-bg::before {
   padding: 0;
   font-size: 0;
   line-height: 0;
+  border-radius: 6px;          /* was 50% (round) */
 }
 .pt-avatar.has-sprite svg,
 .lc-avatar.has-sprite svg,
@@ -175,6 +177,27 @@ body.has-custom-bg::before {
   display: block;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
+}
+
+/* Per-context sprite container sizes — each tile gets a 3:4 portrait
+   slot scaled appropriately. The original round avatar widths are
+   preserved as the base width so the layout doesn't shift; only the
+   height extends. */
+.party-tile .pt-avatar.has-sprite {
+  width: 48px;
+  height: 72px;            /* 3:4 — was 48 round */
+  margin: 0 auto 6px;
+}
+.loot-card .lc-avatar.has-sprite {
+  width: 56px;
+  height: 84px;            /* 3:4 — was 56 round */
+  margin: 0 auto 8px;
+}
+.duelist .d-avatar.has-sprite {
+  width: 72px;
+  height: 108px;           /* 3:4 — was 80 round; 72 wide leaves room
+                              for the bigger card content */
+  margin: 0 auto 10px;
 }
 .party-tile .pt-name { font-size: 13px; font-weight: 700; }
 .party-tile .pt-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }

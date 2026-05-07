@@ -341,6 +341,26 @@ namespace Loadout.Modules
                         var refreshed = DungeonGameStore.Instance.Get(o.Platform, o.Handle)
                                         ?? new HeroState { Handle = o.Handle, Platform = o.Platform };
                         var cls = DungeonContent.ClassByName(refreshed.ClassName);
+                        // Resolve equipped slots → small dicts the overlay
+                        // sprite composer reads. Same shape HeroToPayload uses.
+                        var refreshedEquipped = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                        if (refreshed.Equipped != null && refreshed.Bag != null && refreshed.Equipped.Count > 0)
+                        {
+                            var byId = new Dictionary<string, InventoryItem>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var it in refreshed.Bag) if (!string.IsNullOrEmpty(it.Id)) byId[it.Id] = it;
+                            foreach (var kv in refreshed.Equipped)
+                            {
+                                if (!byId.TryGetValue(kv.Value ?? "", out var item)) continue;
+                                refreshedEquipped[kv.Key] = new
+                                {
+                                    slot    = item.Slot ?? "",
+                                    rarity  = item.Rarity ?? "",
+                                    name    = item.Name ?? "",
+                                    glyph   = item.Glyph ?? "",
+                                    setName = item.SetName ?? ""
+                                };
+                            }
+                        }
                         return new
                         {
                             user      = o.Handle,
@@ -355,6 +375,7 @@ namespace Loadout.Modules
                             classGlyph = cls?.Glyph     ?? "",
                             classTint  = cls?.TintColor ?? "",
                             custom     = refreshed.Custom ?? new Dictionary<string, string>(),
+                            equipped   = refreshedEquipped,
                             loot      = o.Loot.Select(it => new
                             {
                                 id     = it.Id,
@@ -489,6 +510,8 @@ namespace Loadout.Modules
                     defenderTint      = defClass?.TintColor ?? "",
                     challengerCustom  = attacker.Custom ?? new Dictionary<string, string>(),
                     defenderCustom    = defender.Custom ?? new Dictionary<string, string>(),
+                    challengerEquipped = ResolveEquippedSnapshot(attacker),
+                    defenderEquipped   = ResolveEquippedSnapshot(defender),
                     challengerHpMax   = attacker.HpMax,
                     defenderHpMax     = defender.HpMax
                 });
@@ -602,11 +625,39 @@ namespace Loadout.Modules
             return HeroToPayload(h);
         }
 
+        /// <summary>Build the slot→item-snapshot dict used by the overlay's
+        /// pixel-art sprite composer. Same shape HeroToPayload emits but
+        /// callable from the duel + outcome paths so we don't duplicate
+        /// the bag-id lookup three times.</summary>
+        private static Dictionary<string, object> ResolveEquippedSnapshot(HeroState h)
+        {
+            var equipped = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+            if (h?.Equipped == null || h.Bag == null || h.Equipped.Count == 0) return equipped;
+            var byId = new Dictionary<string, InventoryItem>(StringComparer.OrdinalIgnoreCase);
+            foreach (var it in h.Bag) if (!string.IsNullOrEmpty(it.Id)) byId[it.Id] = it;
+            foreach (var kv in h.Equipped)
+            {
+                if (string.IsNullOrEmpty(kv.Value)) continue;
+                if (!byId.TryGetValue(kv.Value, out var item)) continue;
+                equipped[kv.Key] = new
+                {
+                    slot    = item.Slot    ?? "",
+                    rarity  = item.Rarity  ?? "",
+                    name    = item.Name    ?? "",
+                    glyph   = item.Glyph   ?? "",
+                    setName = item.SetName ?? ""
+                };
+            }
+            return equipped;
+        }
+
         /// <summary>Shared shape for every "hero on the wire" event so the
         /// overlay only needs one rendering path. Includes the custom
-        /// map (skin / hair / outfit / cape) so the composed pixel-art
-        /// sprite renders consistently in party tile / loot card / duel
-        /// avatar.</summary>
+        /// map (skin / hair / outfit / cape) AND a slot→item dict for
+        /// every equipped piece so the composed sprite can render the
+        /// actual armour the viewer is wearing — ironclad helmet, dragon-
+        /// scale plate, shadow cowl, etc. — instead of a generic class-
+        /// default outfit.</summary>
         private static object HeroToPayload(HeroState h)
         {
             var cls = DungeonContent.ClassByName(h.ClassName);
@@ -621,7 +672,8 @@ namespace Loadout.Modules
                 className   = h.ClassName  ?? "",
                 classGlyph  = cls?.Glyph     ?? "",
                 classTint   = cls?.TintColor ?? "",
-                custom      = h.Custom     ?? new Dictionary<string, string>()
+                custom      = h.Custom     ?? new Dictionary<string, string>(),
+                equipped    = ResolveEquippedSnapshot(h)
             };
         }
 

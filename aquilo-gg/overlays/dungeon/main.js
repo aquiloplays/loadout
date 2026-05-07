@@ -90,26 +90,33 @@
     return (u || '?').replace(/[^\w]/g,'').slice(0,2).toUpperCase() || '?';
   }
 
-  // ─── Pixel-art class sprites ─────────────────────────────────────
+  // ─── Medieval pixel-art class sprites ───────────────────────────
   //
-  // Each class has a 16×16 pixel sprite composed from layers at render
-  // time so customization (skin tone / hair / outfit colours / cape)
-  // can flow through cleanly. The composer reads hero.custom from the
-  // bus payload — see HeroState.Custom on the DLL side for the canonical
-  // set of keys.
+  // 16×24 viewBox so the figure has proper full-body proportions —
+  // head, torso, legs, feet all visible. Composed from layers at
+  // render time:
   //
-  // Layer z-order (bottom to top):
-  //   1. Cape (behind body, visible as a triangle behind the legs)
-  //   2. Legs + boots
-  //   3. Body torso (class-default outfit primary, override via custom.primary)
-  //   4. Arms
-  //   5. Face (skin) + eyes
-  //   6. Hair (only visible on classes whose headgear leaves hair showing — ranger, healer)
-  //   7. Class-specific headgear (helmet / hat / hood / cap / halo)
-  //   8. Held weapon (right side)
+  //   1. Cape (behind everything, peeks out by hips)
+  //   2. Legs (pants OR equipped leg armour)
+  //   3. Boots (default OR equipped boots)
+  //   4. Torso (class-default outfit OR equipped chest armour)
+  //   5. Arms (skin)
+  //   6. Face (skin + eyes)
+  //   7. Hair (visible only on classes without full headgear)
+  //   8. Head (class hat OR equipped helm)
+  //   9. Held weapon (class default OR equipped weapon)
+  //   10. Trinket accent
   //
-  // Each sprite uses shape-rendering="crispEdges" + image-rendering:
-  // pixelated so the pixels stay sharp at every avatar size.
+  // Armour SETS — when an equipped piece's setName matches one of
+  // SET_PALETTES, that slot's render uses the set palette instead
+  // of the class default. Four sets coexist with mixed pieces:
+  //   ironclad     — silver plate, riveted look
+  //   dragonscale  — olive scales with gold trim
+  //   shadow       — deep purple cuirass with red trim
+  //   arcane       — violet robes with cyan runes
+  //
+  // shape-rendering="crispEdges" + image-rendering: pixelated keep
+  // pixels sharp at every avatar size.
 
   // ── Customization palettes ──────────────────────────────────────
   const SKIN_TONES = {
@@ -163,166 +170,350 @@
     scarf:  { color: '#F85149', short: true }
   };
 
-  // Hair-style families that are visible. Classes that fully cover the
-  // head (warrior helmet, mage hat, rogue hood) only render hair
-  // peeking out below the ear line at most. Classes with a partial cap
-  // (ranger) show side bangs. Healer has full hair under the halo.
-  function hairLayer(style, color, classKey) {
-    style = (style || 'short').toLowerCase();
-    if (classKey === 'warrior' || classKey === 'mage' || classKey === 'rogue') {
-      // Headgear hides hair entirely (intentional silhouette choice).
-      return '';
-    }
-    // For ranger / healer — render visible hair under cap / halo.
-    const c = HAIR_COLORS[color] || HAIR_COLORS.brown;
-    if (style === 'bald') return '';
-    if (style === 'long') {
-      // Hair flows down past the shoulders.
-      return rect(5, 4, 6, 1, c) + rect(4, 5, 1, 4, c) + rect(11, 5, 1, 4, c) + rect(4, 7, 8, 1, c);
-    }
-    if (style === 'spiky') {
-      return rect(5, 2, 1, 2, c) + rect(7, 1, 1, 3, c) + rect(9, 2, 1, 2, c) +
-             rect(11, 3, 1, 1, c) + rect(4, 3, 1, 1, c) + rect(5, 4, 6, 1, c);
-    }
-    if (style === 'mohawk') {
-      return rect(7, 1, 2, 4, c);
-    }
-    if (style === 'braids') {
-      return rect(5, 4, 6, 1, c) + rect(4, 5, 1, 5, c) + rect(11, 5, 1, 5, c);
-    }
-    // default: short
-    return rect(5, 4, 6, 1, c) + rect(4, 5, 1, 1, c) + rect(11, 5, 1, 1, c);
-  }
-
+  // SVG primitive — every layer below builds out of these calls.
   function rect(x, y, w, h, color) {
     return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + color + '"/>';
   }
 
-  // Cape layer — rendered before the body so it sits "behind" the
-  // figure visually.
-  function capeLayer(capeKey, primary) {
-    const def = CAPE_PRESETS[(capeKey || 'none').toLowerCase()];
-    if (!def) return '';
-    if (def.short) {
-      // Short scarf around the neck.
-      return rect(5, 6, 6, 1, def.color);
-    }
-    // Long cloak / wing-cape — drawn behind body, peeks out either side.
-    return rect(2, 7, 1, 7, def.color) + rect(13, 7, 1, 7, def.color) + rect(3, 13, 11, 2, def.color);
+  // Per-armour-set palettes — when an equipped piece carries one of
+  // these set names, the slot's render switches to its colours and
+  // pattern. Mixed sets coexist (e.g. Ironclad helm + Dragonscale
+  // chest is fine — each slot renders independently). Keep these in
+  // sync with DungeonContent.Sets on the DLL side.
+  const SET_PALETTES = {
+    ironclad:    { primary: '#8B8B96', secondary: '#5A5A66', accent: '#C4C4D0' },
+    dragonscale: { primary: '#5A6B3F', secondary: '#3A4A26', accent: '#C7A14A' },
+    shadow:      { primary: '#2A1F3A', secondary: '#0F0A1F', accent: '#B452FF' },
+    arcane:      { primary: '#3A1F5A', secondary: '#5A2A7F', accent: '#00F2EA' }
+  };
+
+  // Hair styles — rendered behind the head layer. Classes with full
+  // headgear (warrior helmet, mage hat, rogue hood) hide hair on
+  // purpose; classes with partial hats (ranger, healer) leave hair
+  // visible. The y/height offsets below assume 16×24 viewBox.
+  function hairLayer(style, color, classKey) {
+    style = (style || 'short').toLowerCase();
+    if (classKey === 'warrior' || classKey === 'mage' || classKey === 'rogue') return '';
+    const c = HAIR_COLORS[color] || HAIR_COLORS.brown;
+    if (style === 'bald') return '';
+    if (style === 'long')   return rect(4, 3, 8, 1, c) + rect(3, 4, 1, 5, c) + rect(12, 4, 1, 5, c) + rect(3, 8, 10, 1, c);
+    if (style === 'spiky')  return rect(4, 1, 1, 2, c) + rect(6, 0, 1, 3, c) + rect(8, 0, 1, 3, c) + rect(10, 1, 1, 2, c) + rect(4, 3, 8, 1, c);
+    if (style === 'mohawk') return rect(7, 0, 2, 4, c);
+    if (style === 'braids') return rect(4, 3, 8, 1, c) + rect(3, 4, 1, 7, c) + rect(12, 4, 1, 7, c);
+    return                   rect(4, 3, 8, 1, c) + rect(3, 4, 1, 1, c) + rect(12, 4, 1, 1, c);
   }
 
-  // Compose a sprite for a given class with custom layered in.
-  // `custom` is the dict from the bus payload.
-  function characterSprite(className, custom) {
+  // Cape — rendered first so it sits behind the body. Peeks out at
+  // the shoulders + below the legs to read as a long flowing cloak.
+  function capeLayer(capeKey) {
+    const def = CAPE_PRESETS[(capeKey || 'none').toLowerCase()];
+    if (!def) return '';
+    if (def.short) return rect(5, 7, 6, 1, def.color);   // scarf at neckline
+    // Long cloak — covers shoulders down to the boots.
+    return rect(2, 8, 1, 12, def.color) +
+           rect(13, 8, 1, 12, def.color) +
+           rect(3, 19, 10, 2, def.color);
+  }
+
+  // ── Slot layers ─────────────────────────────────────────────────
+  // Each slot has TWO render paths: the class default (when nothing's
+  // equipped or the equipped item has no setName) and a set-themed
+  // override (when an equipped item carries a known setName). Every
+  // function returns SVG-rect string fragments.
+
+  // Boots: rows 21-23 (3 px tall feet).
+  function bootsLayer(eq, classKey) {
+    const set = eq && eq.boots && SET_PALETTES[(eq.boots.setName || '').toLowerCase()];
+    if (set) {
+      // Ironclad sabatons — silver, with metal sheen highlight on top
+      return rect(5, 21, 2, 3, set.secondary) + rect(9, 21, 2, 3, set.secondary) +
+             rect(5, 21, 2, 1, set.accent)    + rect(9, 21, 2, 1, set.accent);
+    }
+    // Class default — leather boots for most, sandals for healer
+    if (classKey === 'healer') {
+      return rect(5, 22, 2, 2, '#5A3F1B') + rect(9, 22, 2, 2, '#5A3F1B');
+    }
+    return rect(5, 21, 2, 3, '#3A2200') + rect(9, 21, 2, 3, '#3A2200');
+  }
+
+  // Legs/pants: rows 16-20 (5 px tall — calves through to ankles).
+  function legsLayer(eq, classKey) {
+    const set = eq && eq.legs && SET_PALETTES[(eq.legs.setName || '').toLowerCase()];
+    if (set) {
+      // Plate greaves — vertical seam line down each leg
+      return rect(5, 16, 2, 5, set.primary) + rect(9, 16, 2, 5, set.primary) +
+             rect(5, 16, 1, 5, set.accent)  + rect(9, 16, 1, 5, set.accent);
+    }
+    if (classKey === 'mage' || classKey === 'healer') {
+      // Robe extends down here — handled by torsoLayer; this layer
+      // returns nothing so the robe is unbroken.
+      return '';
+    }
+    if (classKey === 'rogue') {
+      return rect(5, 16, 2, 5, '#0A1F11') + rect(9, 16, 2, 5, '#0A1F11');
+    }
+    if (classKey === 'ranger') {
+      return rect(5, 16, 2, 5, '#5A3F1B') + rect(9, 16, 2, 5, '#5A3F1B');
+    }
+    // warrior default trousers
+    return rect(5, 16, 2, 5, '#1A1A22') + rect(9, 16, 2, 5, '#1A1A22');
+  }
+
+  // Torso: rows 8-13 (6 px tall — chest down to hip). Belt sits at
+  // row 14 and is part of this layer because belts always render.
+  function torsoLayer(eq, classKey, primaryOverride) {
+    const set = eq && eq.chest && SET_PALETTES[(eq.chest.setName || '').toLowerCase()];
+    if (set) {
+      // Plate chest with shoulder pauldrons + central rivet line
+      let s = rect(4, 8, 8, 6, set.primary) +
+              rect(3, 8, 1, 4, set.secondary) + rect(12, 8, 1, 4, set.secondary) +    // pauldrons
+              rect(3, 8, 1, 1, set.accent)    + rect(12, 8, 1, 1, set.accent) +       // pauldron rivets
+              rect(7, 9, 2, 4, set.secondary) +                                       // central seam
+              rect(7, 10, 2, 1, set.accent);                                          // rivet
+      // Dragonscale: add scale chevron pattern across the chest
+      if ((eq.chest.setName || '').toLowerCase() === 'dragonscale') {
+        s += rect(5, 9,  1, 1, set.accent) + rect(9, 9,  1, 1, set.accent) +
+             rect(4, 11, 1, 1, set.accent) + rect(8, 11, 1, 1, set.accent) + rect(11, 11, 1, 1, set.accent) +
+             rect(5, 13, 1, 1, set.accent) + rect(9, 13, 1, 1, set.accent);
+      }
+      // Shadow: red trim on the lapels
+      if ((eq.chest.setName || '').toLowerCase() === 'shadow') {
+        s += rect(5, 8, 1, 6, '#F85149') + rect(10, 8, 1, 6, '#F85149');
+      }
+      // Arcane: glowing rune on the chest
+      if ((eq.chest.setName || '').toLowerCase() === 'arcane') {
+        s += rect(7, 10, 2, 1, set.accent) + rect(8, 9, 1, 3, set.accent);
+      }
+      // Belt
+      s += rect(4, 14, 8, 1, '#3A2200');
+      return s;
+    }
+
+    // Class defaults — distinctive silhouettes per class.
+    const primary = primaryOverride || CLASS_PRIMARY[classKey] || '#3A86FF';
+    const secondary = CLASS_SECONDARY[classKey] || '#3A2200';
+
+    if (classKey === 'mage') {
+      // Long robe — covers torso AND legs, cinched at the waist
+      let s = rect(4, 8, 8, 12, primary) +                       // robe top→bottom
+              rect(3, 19, 10, 1, primary) +                      // hem flares out
+              rect(4, 14, 8, 1, secondary) +                     // sash
+              rect(7, 9, 2, 4, secondary);                       // center stripe
+      return s;
+    }
+    if (classKey === 'healer') {
+      // White flowing robe with cyan cross-sash
+      let s = rect(4, 8, 8, 12, '#EFEFF1') +
+              rect(3, 19, 10, 1, '#EFEFF1') +
+              rect(4, 14, 8, 1, '#C4C4D0') +
+              rect(7, 9, 2, 6, '#00F2EA') +     // vertical sash
+              rect(6, 11, 4, 1, '#00F2EA');     // horizontal cross
+      return s;
+    }
+    if (classKey === 'rogue') {
+      // Leather jerkin with crossed straps
+      return rect(4, 8, 8, 6, '#1F3A2A') +
+             rect(6, 8, 1, 6, '#0A1F11') +    // crossing strap
+             rect(4, 14, 8, 1, '#3A2200');    // belt
+    }
+    if (classKey === 'ranger') {
+      // Tunic with quiver-strap diagonal
+      return rect(4, 8, 8, 6, '#5A3F1B') +
+             rect(4, 8, 8, 1, '#3FB950') +    // green collar
+             rect(8, 8, 1, 6, '#3A2200') +    // quiver strap
+             rect(4, 14, 8, 1, '#3A2200');
+    }
+    // warrior — gambeson + chest plate
+    return rect(4, 8, 8, 6, primary) +
+           rect(7, 9, 2, 4, secondary) +      // central seam
+           rect(7, 10, 2, 1, '#C4C4D0') +     // metal rivet
+           rect(4, 14, 8, 1, '#3A2200');      // belt
+  }
+
+  // Arms — skin coloured strips on either side of the torso. Lengths
+  // depend on the class robe coverage.
+  function armsLayer(skin, classKey) {
+    if (classKey === 'mage' || classKey === 'healer') {
+      // Robed arms only show forearms peeking out
+      return rect(2, 9,  1, 4, skin) + rect(13, 9,  1, 4, skin);
+    }
+    return rect(3, 8, 1, 6, skin) + rect(12, 8, 1, 6, skin);
+  }
+
+  // Face — skin patch + eyes. Always renders the same shape; class
+  // headgear may obscure parts of it.
+  function faceLayer(skin, eye, classKey) {
+    if (classKey === 'rogue') {
+      // Hood casts shadow over face — only glowing eyes visible
+      return rect(5, 4, 6, 4, '#0A1F11') +
+             rect(6, 6, 1, 1, '#3FB950') + rect(9, 6, 1, 1, '#3FB950');
+    }
+    return rect(5, 4, 6, 4, skin) +
+           rect(6, 6, 1, 1, eye) + rect(9, 6, 1, 1, eye);
+  }
+
+  // Headgear — class default OR equipped helm/hood/circlet.
+  function headLayer(eq, classKey) {
+    const set = eq && eq.head && SET_PALETTES[(eq.head.setName || '').toLowerCase()];
+    if (set) {
+      const setKey = (eq.head.setName || '').toLowerCase();
+      if (setKey === 'ironclad') {
+        // Iron helm — silver dome, horizontal visor slit, side flaps
+        return rect(4, 1, 8, 3, set.primary) +
+               rect(4, 4, 8, 1, set.secondary) +    // visor slit
+               rect(4, 5, 1, 3, set.primary)  + rect(11, 5, 1, 3, set.primary) +   // cheek guards
+               rect(5, 1, 1, 1, set.accent);        // top highlight
+      }
+      if (setKey === 'dragonscale') {
+        // Dragon-themed helm with horns
+        return rect(4, 2, 8, 3, set.primary) +
+               rect(3, 1, 1, 2, set.accent)   + rect(12, 1, 1, 2, set.accent) +    // horns
+               rect(5, 5, 6, 1, set.secondary) +    // brow ridge
+               rect(6, 6, 1, 1, '#F0B429')    + rect(9, 6, 1, 1, '#F0B429');       // glowing eyes
+      }
+      if (setKey === 'shadow') {
+        // Shadow cowl — extended hood
+        return rect(4, 1, 8, 4, set.primary) +
+               rect(3, 4, 10, 3, set.primary) +
+               rect(5, 5, 6, 2, set.secondary) +    // shadow inside cowl
+               rect(6, 6, 1, 1, set.accent) + rect(9, 6, 1, 1, set.accent);
+      }
+      if (setKey === 'arcane') {
+        // Arcane circlet with glowing centre stone
+        return rect(4, 4, 8, 1, set.accent) +
+               rect(7, 3, 2, 1, set.accent) +       // centre stone
+               rect(7, 4, 2, 1, '#FFFFFF');         // gleam
+      }
+      // Generic plate helm fallback
+      return rect(4, 2, 8, 4, set.primary) + rect(4, 5, 8, 1, set.secondary);
+    }
+
+    // Class defaults
+    if (classKey === 'warrior') {
+      // Steel helm with red plume and visor slit
+      return rect(7, 0, 2, 1, '#F85149') +              // plume
+             rect(4, 1, 8, 3, '#3F3F46') +              // helmet dome
+             rect(4, 4, 8, 1, '#1A1A22') +              // visor slit
+             rect(4, 5, 1, 3, '#3F3F46') + rect(11, 5, 1, 3, '#3F3F46');   // cheek guards
+    }
+    if (classKey === 'mage') {
+      // Tall pointy hat with star tip + brim
+      return rect(7, 0, 2, 1, '#F0B429') +
+             rect(7, 1, 2, 1, CLASS_PRIMARY.mage) +
+             rect(6, 2, 4, 1, CLASS_PRIMARY.mage) +
+             rect(5, 3, 6, 1, CLASS_PRIMARY.mage) +
+             rect(4, 4, 8, 1, '#3F3F46');               // hat brim
+    }
+    if (classKey === 'rogue') {
+      // Hood (covers head + shoulders)
+      return rect(5, 1, 6, 2, CLASS_PRIMARY.rogue) +
+             rect(4, 3, 8, 4, CLASS_PRIMARY.rogue);
+    }
+    if (classKey === 'ranger') {
+      // Forest cap with feather + visible hair underneath
+      return rect(9, 0, 1, 2, '#3FB950') + rect(10, 1, 1, 1, '#3FB950') +   // feather
+             rect(5, 2, 6, 2, '#5A3F1B') +                                  // cap
+             rect(4, 4, 8, 1, '#3A2200');                                   // brim
+    }
+    if (classKey === 'healer') {
+      // Halo above the head
+      return rect(5, 0, 6, 1, '#F0B429') +
+             rect(4, 1, 1, 1, '#F0B429') + rect(11, 1, 1, 1, '#F0B429');
+    }
+    return '';
+  }
+
+  // Held weapon — class default OR equipped weapon (shows distinctive
+  // weapon types per class). Set-equipped weapons get a small accent
+  // overlay matching the set palette.
+  function weaponLayer(eq, classKey) {
+    const w = eq && eq.weapon;
+    const setKey = (w && w.setName || '').toLowerCase();
+    const set = SET_PALETTES[setKey];
+
+    // Hand-drawn weapon per class. We treat the equipped weapon's
+    // set as a tint signal — full custom weapon shapes per item
+    // would explode the sprite system. Rarity-tier instead drives
+    // a glow halo around the weapon.
+    let svg = '';
+    if (classKey === 'warrior') {
+      // Sword on the right
+      svg = rect(13, 5, 1, 8, '#C4C4D0') +    // blade
+            rect(12, 12, 3, 1, '#3A2200') +   // crossguard
+            rect(13, 13, 1, 2, '#3A2200');    // hilt
+      if (set) svg = svg.replace(/#C4C4D0/g, set.accent);
+    } else if (classKey === 'mage') {
+      // Staff on the left with glowing orb
+      svg = rect(2, 9,  1, 9, '#3A2200') +     // staff
+            rect(2, 8,  1, 1, '#3A2200') +
+            rect(1, 6,  3, 2, '#00F2EA') +     // glowing orb
+            rect(2, 5,  1, 1, '#00F2EA');      // gleam
+    } else if (classKey === 'rogue') {
+      // Dagger held close to the chest
+      svg = rect(13, 8, 1, 3, '#C4C4D0') +    // blade
+            rect(12, 11, 1, 1, '#3FB950');     // pommel
+    } else if (classKey === 'ranger') {
+      // Longbow on the right side
+      svg = rect(14, 6, 1, 12, '#3A2200') +    // limb
+            rect(13, 6, 1, 1, '#3A2200') +
+            rect(13, 17, 1, 1, '#3A2200') +
+            rect(15, 11, 1, 1, '#3FB950');     // bowstring tension
+    } else if (classKey === 'healer') {
+      // Glowing palm of light at the side
+      svg = rect(2, 11, 2, 2, '#00F2EA') +
+            rect(1, 12, 1, 1, '#00F2EA') +
+            rect(4, 12, 1, 1, '#00F2EA');
+    }
+
+    // Rarity halo — epic / legendary / mythic get a subtle glow rect
+    // behind the weapon to call attention.
+    if (w && (w.rarity === 'legendary' || w.rarity === 'mythic')) {
+      svg = rect(11, 4, 5, 11, '#F0B429') +
+            // overlay original weapon on top of the halo
+            svg.replace(/<rect/g, '<rect') +    // no-op — keeps the order
+            // dim the halo by overlaying a darker rect
+            rect(11, 4, 5, 11, 'rgba(15,15,17,.85)') + svg;
+    }
+    return svg;
+  }
+
+  // Trinket — small accent on the chest when equipped. Doesn't have
+  // a set palette of its own; just shows the item's glyph.
+  function trinketLayer(eq) {
+    const t = eq && eq.trinket;
+    if (!t) return '';
+    // Tiny chest pin / amulet
+    return rect(7, 11, 2, 1, '#F0B429') + rect(7, 12, 2, 1, '#C4C4D0');
+  }
+
+  // ── Sprite composer ────────────────────────────────────────────
+  // characterSprite(className, custom, equipped) returns the full
+  // composed SVG. equipped is { slot: { rarity, setName, glyph,
+  // name, slot } } — see DungeonModule.HeroToPayload.
+  function characterSprite(className, custom, equipped) {
     const c = (className || '').toLowerCase();
     if (!c || !CLASS_PRIMARY[c]) return '';
     custom = custom || {};
+    equipped = equipped || {};
+
     const skin     = SKIN_TONES[(custom.skinTone || 'fair').toLowerCase()] || SKIN_TONES.fair;
     const eye      = EYE_COLORS[(custom.eyeColor || 'brown').toLowerCase()] || EYE_COLORS.brown;
-    const primary  = (custom.primary || '').match(/^#[0-9a-f]{6}$/i) ? custom.primary : CLASS_PRIMARY[c];
-    const secondary = (custom.secondary || '').match(/^#[0-9a-f]{6}$/i) ? custom.secondary : CLASS_SECONDARY[c];
-    const cape     = capeLayer(custom.cape, primary);
-    const hair     = hairLayer(custom.hairStyle, custom.hairColor, c);
+    const primary  = (custom.primary || '').match(/^#[0-9a-f]{6}$/i) ? custom.primary : null;
 
-    // Class-specific top half (headgear + held weapon) + shared body
-    // template. We hand-write each class's top so the silhouette stays
-    // recognisable at the 48px party-tile size.
-    let top, weapon;
-    switch (c) {
-      case 'warrior':
-        top =
-          // helmet plume + dome + visor
-          rect(6, 0, 4, 1, primary) +
-          rect(5, 1, 6, 2, '#3F3F46') +
-          rect(5, 3, 6, 1, '#1A1A22') +
-          // face peek through visor
-          rect(5, 4, 6, 2, skin) +
-          rect(6, 4, 1, 1, eye) + rect(9, 4, 1, 1, eye);
-        weapon =
-          rect(13, 3, 1, 6, '#C4C4D0') +
-          rect(12, 9, 3, 1, secondary) +
-          rect(13, 10, 1, 1, secondary);
-        break;
-      case 'mage':
-        top =
-          // pointy hat with star tip
-          rect(7, 0, 2, 1, '#F0B429') +
-          rect(7, 1, 2, 1, primary) +
-          rect(6, 2, 4, 1, primary) +
-          rect(5, 3, 6, 1, primary) +
-          rect(4, 4, 8, 1, '#3F3F46') +
-          rect(6, 5, 4, 2, skin) +
-          rect(6, 5, 1, 1, eye) + rect(9, 5, 1, 1, eye);
-        weapon =
-          rect(2, 7, 1, 6, '#3A2200') +
-          rect(2, 6, 1, 1, '#3A2200') +
-          rect(1, 5, 3, 1, secondary) +
-          rect(2, 4, 1, 1, secondary);
-        break;
-      case 'rogue':
-        top =
-          rect(5, 1, 6, 2, primary) +
-          rect(4, 3, 8, 2, primary) +
-          rect(6, 4, 4, 2, secondary) +    // shadow inside hood
-          rect(6, 5, 1, 1, '#3FB950') + rect(9, 5, 1, 1, '#3FB950');   // glowing eyes
-        weapon =
-          rect(13, 6, 1, 2, '#C4C4D0') +
-          rect(12, 8, 1, 1, '#3FB950');
-        break;
-      case 'ranger':
-        top =
-          rect(5, 2, 6, 2, secondary) +
-          rect(4, 4, 8, 1, secondary) +
-          rect(9, 0, 1, 2, '#3FB950') +    // feather
-          rect(10, 1, 1, 1, '#3FB950') +
-          rect(5, 5, 6, 2, skin) +
-          rect(6, 5, 1, 1, eye) + rect(9, 5, 1, 1, eye);
-        weapon =
-          rect(14, 6, 1, 6, '#3A2200') +
-          rect(13, 6, 1, 1, '#3A2200') +
-          rect(13, 11, 1, 1, '#3A2200') +
-          rect(14, 9, 1, 1, '#3FB950');
-        break;
-      case 'healer':
-        top =
-          rect(5, 0, 6, 1, '#F0B429') +    // halo
-          rect(4, 1, 1, 1, '#F0B429') +
-          rect(11, 1, 1, 1, '#F0B429') +
-          rect(5, 2, 6, 3, skin) +
-          rect(6, 3, 1, 1, eye) + rect(9, 3, 1, 1, eye);
-        weapon =
-          rect(2, 9, 2, 2, secondary) +
-          rect(1, 10, 1, 1, secondary) +
-          rect(4, 10, 1, 1, secondary);
-        break;
-      default:
-        return '';
-    }
+    const cape    = capeLayer(custom.cape);
+    const legs    = legsLayer(equipped, c);
+    const boots   = bootsLayer(equipped, c);
+    const torso   = torsoLayer(equipped, c, primary);
+    const arms    = armsLayer(skin, c);
+    const face    = faceLayer(skin, eye, c);
+    const hair    = hairLayer(custom.hairStyle, custom.hairColor, c);
+    const head    = headLayer(equipped, c);
+    const weapon  = weaponLayer(equipped, c);
+    const trinket = trinketLayer(equipped);
 
-    // Shared body template — torso uses primary, belt uses a darker
-    // shade derived from the class default secondary, arms are skin.
-    const body =
-      // Torso
-      rect(4, c === 'mage' || c === 'healer' ? 7 : 6, 8, c === 'mage' || c === 'healer' ? 6 : 4, primary) +
-      // Arms (skin)
-      rect(3, c === 'mage' || c === 'healer' ? 6 : 6, 1, c === 'mage' || c === 'healer' ? 3 : 4, skin) +
-      rect(12, c === 'mage' || c === 'healer' ? 6 : 6, 1, c === 'mage' || c === 'healer' ? 3 : 4, skin) +
-      // Belt
-      (c === 'mage' || c === 'healer'
-        ? rect(3, 13, 10, 1, primary)
-        : rect(4, 10, 8, 1, secondary)) +
-      // Healer accent sash overlay
-      (c === 'healer' ? rect(7, 6, 2, 6, '#00F2EA') + rect(6, 9, 4, 1, '#00F2EA') : '') +
-      // Legs + boots
-      (c === 'mage' || c === 'healer'
-        ? rect(5, 14, 2, 2, '#1A1A22') + rect(9, 14, 2, 2, '#1A1A22')
-        : rect(5, 11, 2, 3, secondary === '#3A2200' ? '#1A1A22' : '#1A1A22') +
-          rect(9, 11, 2, 3, '#1A1A22') +
-          rect(5, 14, 2, 2, secondary) +
-          rect(9, 14, 2, 2, secondary));
-
-    return '<svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
-      cape + body + hair + top + weapon +
+    // Z-order: cape (back) → legs → boots → torso → arms → face → hair → head → weapon → trinket
+    return '<svg viewBox="0 0 16 24" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
+      cape + legs + boots + torso + arms + face + hair + head + weapon + trinket +
       '</svg>';
   }
 
@@ -333,10 +524,10 @@
   // The container element gets a `.has-sprite` class added when the
   // SVG path wins, so CSS can drop padding / change background to
   // make the sprite read crisply.
-  function renderClassFallback(el, className, glyph, user, custom) {
+  function renderClassFallback(el, className, glyph, user, custom, equipped) {
     if (!el) return;
     el.classList.remove('has-sprite');
-    const svg = characterSprite(className, custom);
+    const svg = characterSprite(className, custom, equipped);
     if (svg) {
       el.classList.add('has-sprite');
       el.innerHTML = svg;
@@ -399,11 +590,11 @@
       img.className = 'pt-avatar-img';
       img.addEventListener('error', () => {
         img.remove();
-        renderClassFallback(av, m.className, m.classGlyph, m.user, m.custom);
+        renderClassFallback(av, m.className, m.classGlyph, m.user, m.custom, m.equipped);
       });
       av.appendChild(img);
     } else {
-      renderClassFallback(av, m.className, m.classGlyph, m.user, m.custom);
+      renderClassFallback(av, m.className, m.classGlyph, m.user, m.custom, m.equipped);
     }
 
     const name = document.createElement('div');
@@ -484,11 +675,11 @@
       img.alt = '';
       img.addEventListener('error', () => {
         img.remove();
-        renderClassFallback(avatar, o.className, o.classGlyph, o.user, o.custom);
+        renderClassFallback(avatar, o.className, o.classGlyph, o.user, o.custom, o.equipped);
       });
       avatar.appendChild(img);
     } else {
-      renderClassFallback(avatar, o.className, o.classGlyph, o.user, o.custom);
+      renderClassFallback(avatar, o.className, o.classGlyph, o.user, o.custom, o.equipped);
     }
 
     const name = document.createElement('div');
@@ -551,8 +742,8 @@
     // Render the duelists' actual characters: avatar URL or class glyph,
     // with class tint on the ring. Same pattern as party tiles — keeps
     // the visual story consistent across the overlay.
-    paintDuelist($('duelist-l'), { avatar: p.challengerAvatar, className: p.challengerClass, custom: p.challengerCustom, glyph: p.challengerGlyph, tint: p.challengerTint, fallback: '⚔' });
-    paintDuelist($('duelist-r'), { avatar: p.defenderAvatar,   className: p.defenderClass,   custom: p.defenderCustom,   glyph: p.defenderGlyph,   tint: p.defenderTint,   fallback: '🛡' });
+    paintDuelist($('duelist-l'), { avatar: p.challengerAvatar, className: p.challengerClass, custom: p.challengerCustom, equipped: p.challengerEquipped, glyph: p.challengerGlyph, tint: p.challengerTint, fallback: '⚔' });
+    paintDuelist($('duelist-r'), { avatar: p.defenderAvatar,   className: p.defenderClass,   custom: p.defenderCustom,   equipped: p.defenderEquipped,   glyph: p.defenderGlyph,   tint: p.defenderTint,   fallback: '🛡' });
   }
   function paintDuelist(panelEl, src) {
     if (!panelEl) return;
@@ -568,12 +759,12 @@
       img.className = 'd-avatar-img';
       img.addEventListener('error', () => {
         img.remove();
-        renderClassFallback(ring, src.className, src.glyph, '', src.custom);
+        renderClassFallback(ring, src.className, src.glyph, '', src.custom, src.equipped);
         if (!ring.classList.contains('has-sprite')) ring.textContent = src.glyph || src.fallback;
       });
       ring.appendChild(img);
     } else {
-      renderClassFallback(ring, src.className, src.glyph, '', src.custom);
+      renderClassFallback(ring, src.className, src.glyph, '', src.custom, src.equipped);
       if (!ring.classList.contains('has-sprite')) ring.textContent = src.glyph || src.fallback;
     }
   }
@@ -678,27 +869,52 @@
       joinCommand: '!join',
       openSec: 8,
       party: [
-        // Warrior — default look, no custom (vanilla red plume).
+        // Warrior in full Ironclad set (every armour slot ironclad-themed)
         { user: 'aquilo_plays', platform: 'twitch', level: 5, hpMax: 35, hpCurrent: 35,
           className: 'warrior', classGlyph: '⚔', classTint: '#F85149', avatar: '',
-          custom: { skinTone: 'tan', cape: 'cloak' } },
-        // Rogue with cyan-ish primary override + cape.
+          custom: { skinTone: 'tan', cape: 'cloak' },
+          equipped: {
+            head:  { slot: 'head',  rarity: 'uncommon', name: 'Iron Helm',     glyph: '⛑', setName: 'ironclad' },
+            chest: { slot: 'chest', rarity: 'uncommon', name: 'Chainmail',      glyph: '🦺', setName: 'ironclad' },
+            legs:  { slot: 'legs',  rarity: 'uncommon', name: 'Iron Greaves',   glyph: '🦿', setName: 'ironclad' },
+            boots: { slot: 'boots', rarity: 'uncommon', name: 'Iron Sabatons',  glyph: '👢', setName: 'ironclad' },
+            weapon:{ slot: 'weapon',rarity: 'rare',     name: 'Frost Hammer',   glyph: '🔨', setName: '' }
+          }
+        },
+        // Rogue in Shadow set
         { user: 'fearless_fox', platform: 'twitch', level: 2, hpMax: 25, hpCurrent: 25,
           className: 'rogue',   classGlyph: '🗡', classTint: '#3FB950', avatar: '',
-          custom: { skinTone: 'olive', cape: 'cloak', primary: '#1F2D3A' } }
+          custom: { skinTone: 'olive', cape: 'cloak' },
+          equipped: {
+            head:  { slot: 'head',  rarity: 'epic', name: 'Shadow Cowl',    glyph: '🥷', setName: 'shadow' },
+            chest: { slot: 'chest', rarity: 'epic', name: 'Shadow Cuirass', glyph: '🌙', setName: 'shadow' },
+            weapon:{ slot: 'weapon',rarity: 'rare', name: 'Wraithblade',    glyph: '🗡', setName: '' }
+          }
+        }
       ]
     });
-    // Late-joiners cycle through the remaining class sprites with
-    // custom-variant flair so the streamer can see what changes.
+    // Late-joiners cycle through the remaining classes with assorted
+    // armour mixes so the streamer sees how every set + class combines.
     setTimeout(() => addPartyTile({ user: 'mason42',     platform: 'twitch', level: 3, hpMax: 30, hpCurrent: 30,
                                     className: 'mage',   classGlyph: '🪄', classTint: '#B452FF', avatar: '',
-                                    custom: { skinTone: 'fair', primary: '#3A86FF' } }), 1500);
+                                    custom: { skinTone: 'fair' },
+                                    equipped: {
+                                      head:  { slot: 'head',  rarity: 'uncommon', name: "Mage's Circlet", glyph: '🔮', setName: 'arcane' },
+                                      chest: { slot: 'chest', rarity: 'uncommon', name: 'Arcane Robes',   glyph: '🥋', setName: 'arcane' },
+                                      weapon:{ slot: 'weapon',rarity: 'epic',     name: 'Stormcaller Staff', glyph: '⚡', setName: '' }
+                                    } }), 1500);
     setTimeout(() => addPartyTile({ user: 'pine_archer', platform: 'twitch', level: 4, hpMax: 32, hpCurrent: 32,
                                     className: 'ranger', classGlyph: '🏹', classTint: '#F0B429', avatar: '',
-                                    custom: { skinTone: 'deep', hairColor: 'red', hairStyle: 'long', cape: 'wing' } }), 3000);
+                                    custom: { skinTone: 'deep', hairColor: 'red', hairStyle: 'long', cape: 'wing' },
+                                    equipped: {
+                                      chest: { slot: 'chest', rarity: 'rare',      name: 'Dragonscale Plate',   glyph: '🐲', setName: 'dragonscale' },
+                                      legs:  { slot: 'legs',  rarity: 'rare',      name: 'Dragonscale Tassets', glyph: '🐲', setName: 'dragonscale' },
+                                      weapon:{ slot: 'weapon',rarity: 'legendary', name: 'Bow of the North Star', glyph: '🌟', setName: '' }
+                                    } }), 3000);
     setTimeout(() => addPartyTile({ user: 'lume',        platform: 'twitch', level: 6, hpMax: 40, hpCurrent: 40,
                                     className: 'healer', classGlyph: '✨', classTint: '#00F2EA', avatar: '',
-                                    custom: { skinTone: 'pale-blue', hairColor: 'pink', hairStyle: 'long' } }), 4500);
+                                    custom: { skinTone: 'pale-blue', hairColor: 'pink', hairStyle: 'long' },
+                                    equipped: {} }), 4500);
     setTimeout(() => {
       showAdventure({ dungeonName: 'Crypt of Whispers' });
       [
@@ -713,12 +929,22 @@
         outcomes: [
           { user: 'aquilo_plays', survived: true,  goldGained: 57, xpGained: 37,
             className: 'warrior', classGlyph: '⚔', classTint: '#F85149', avatar: '',
+            custom: { skinTone: 'tan' },
+            equipped: {
+              head:  { slot: 'head',  rarity: 'uncommon', name: 'Iron Helm', setName: 'ironclad' },
+              chest: { slot: 'chest', rarity: 'uncommon', name: 'Chainmail',  setName: 'ironclad' }
+            },
             loot: [{ name: 'Drakebane Sword', rarity: 'epic',     glyph: '🗡️', powerBonus: 7, defenseBonus: 1 }] },
           { user: 'fearless_fox', survived: true,  goldGained: 57, xpGained: 37,
             className: 'rogue',   classGlyph: '🗡', classTint: '#3FB950', avatar: '',
+            custom: { skinTone: 'olive' },
+            equipped: {
+              chest: { slot: 'chest', rarity: 'epic', name: 'Shadow Cuirass', setName: 'shadow' }
+            },
             loot: [{ name: 'Lucky Charm',     rarity: 'uncommon', glyph: '🍀', powerBonus: 1, defenseBonus: 1 }] },
           { user: 'mason42',      survived: false, goldGained: 0,  xpGained: 6,
-            className: 'mage',    classGlyph: '🪄', classTint: '#B452FF', avatar: '', loot: [] }
+            className: 'mage',    classGlyph: '🪄', classTint: '#B452FF', avatar: '',
+            equipped: {}, loot: [] }
         ]
       }), 13000);
     }, 9000);
