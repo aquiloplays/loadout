@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Threading.Tasks;
@@ -69,6 +70,109 @@ namespace Loadout.Modules
             }
         }
 
+        /// <summary>
+        /// Pulls the streamer-/viewer-supplied text that should appear on the
+        /// overlay card. Two paths:
+        ///   - Chat command: everything after the command word (e.g.
+        ///     "!checkin gn from Norway" -> "gn from Norway").
+        ///   - Channel-Points reward: the redeemer's input text (the reward
+        ///     prompt). SB exposes this under several keys depending on the
+        ///     event source.
+        /// Returns "" when nothing was supplied (overlay then hides the line).
+        /// </summary>
+        private static string ExtractUserMessage(EventContext ctx, string source)
+        {
+            if (source == "command")
+            {
+                var raw = ctx.Message ?? "";
+                // Strip the command prefix using the original casing so the
+                // viewer's typed text round-trips intact (preserves their
+                // capitalization, emote tokens, punctuation).
+                var cmd = (SettingsManager.Instance.Current.CheckIn.CrossPlatformCommand ?? "!checkin").Trim();
+                if (raw.Length > cmd.Length &&
+                    raw.StartsWith(cmd, StringComparison.OrdinalIgnoreCase) &&
+                    char.IsWhiteSpace(raw[cmd.Length]))
+                {
+                    return raw.Substring(cmd.Length + 1).Trim();
+                }
+                return "";
+            }
+
+            // Reward redemption: the viewer's prompt input. Different SB
+            // versions / event sources name this differently — try them all.
+            return FirstNonEmpty(
+                ctx.Get<string>("userInput",         null),
+                ctx.Get<string>("input",             null),
+                ctx.Get<string>("redemptionInput",   null),
+                ctx.Get<string>("redemption.userInput", null),
+                ctx.Get<string>("prompt",            null),
+                ctx.Get<string>("rewardInput",       null),
+                ctx.Get<string>("user_input",        null)) ?? "";
+        }
+
+        /// <summary>
+        /// Best-effort emote extraction from the SB event args. Handles two
+        /// shapes SB has used historically:
+        ///   1. Flat numbered keys: emoteCount, emote0Name, emote0ImageUrl,
+        ///      emote0StartIndex, emote0EndIndex (also accepts emote0Url /
+        ///      emote0Id where the URL is missing — Twitch CDN URL is then
+        ///      reconstructed).
+        ///   2. A JArray under "emotes" with {Name, ImageUrl, StartIndex,
+        ///      EndIndex} per item.
+        /// Returns objects shaped {name, url, start, end} the overlay walks
+        /// to splice <img> tags into the rendered message. Empty array if
+        /// no emotes were typed (most check-ins).
+        /// </summary>
+        private static object[] ExtractEmotes(EventContext ctx)
+        {
+            var list = new List<object>();
+
+            // Shape 1: numbered keys.
+            var count = ctx.Get<int>("emoteCount", 0);
+            for (int i = 0; i < count; i++)
+            {
+                var name = ctx.Get<string>("emote" + i + "Name", null);
+                var url  = ctx.Get<string>("emote" + i + "ImageUrl",
+                            ctx.Get<string>("emote" + i + "Url", null));
+                var id   = ctx.Get<string>("emote" + i + "Id",
+                            ctx.Get<string>("emote" + i + "ID", null));
+                int start = ctx.Get<int>("emote" + i + "StartIndex", -1);
+                int end   = ctx.Get<int>("emote" + i + "EndIndex", -1);
+                if (string.IsNullOrEmpty(url) && !string.IsNullOrEmpty(id))
+                    url = "https://static-cdn.jtvnw.net/emoticons/v2/" + id + "/default/dark/3.0";
+                if (start < 0 || end < start) continue;
+                list.Add(new { name = name ?? "", url = url ?? "", start = start, end = end });
+            }
+
+            // Shape 2: JArray.
+            if (list.Count == 0)
+            {
+                var raw = ctx.Get<object>("emotes", null);
+                if (raw is JArray arr)
+                {
+                    foreach (var t in arr)
+                    {
+                        var name = (string)t["Name"] ?? (string)t["name"] ?? "";
+                        var url  = (string)t["ImageUrl"] ?? (string)t["imageUrl"]
+                                ?? (string)t["Url"] ?? (string)t["url"] ?? "";
+                        var id   = (string)t["Id"] ?? (string)t["id"] ?? (string)t["ID"];
+                        int start = (int?)t["StartIndex"] ?? (int?)t["startIndex"] ?? -1;
+                        int end   = (int?)t["EndIndex"]   ?? (int?)t["endIndex"]   ?? -1;
+                        if (string.IsNullOrEmpty(url) && !string.IsNullOrEmpty(id))
+                            url = "https://static-cdn.jtvnw.net/emoticons/v2/" + id + "/default/dark/3.0";
+                        if (start < 0 || end < start) continue;
+                        list.Add(new { name = name, url = url, start = start, end = end });
+                    }
+                }
+            }
+
+            // Sort by start index so the overlay can walk left-to-right
+            // without re-sorting on every render.
+            return list
+                .OrderBy(e => (int)e.GetType().GetProperty("start").GetValue(e, null))
+                .ToArray();
+        }
+
         private void FireCheckIn(EventContext ctx, string source)
         {
             var s = SettingsManager.Instance.Current;
@@ -83,10 +187,16 @@ namespace Loadout.Modules
             }
             _lastCheckIn[key] = DateTime.UtcNow;
 
+            // Capture the viewer-supplied text + Twitch-style emote tokens once,
+            // then thread them through both the initial and the enriched payload
+            // so the overlay's message line stays consistent if a late PFP lands.
+            var userMessage = ExtractUserMessage(ctx, source);
+            var emotes      = ExtractEmotes(ctx);
+
             // Resolve profile picture and other identity bits in the background;
             // we publish a fast initial event so the overlay shows immediately,
             // then enrich on a follow-up event if needed.
-            var initialPayload = BuildPayload(ctx, source, profilePictureUrl: null);
+            var initialPayload = BuildPayload(ctx, source, profilePictureUrl: null, message: userMessage, emotes: emotes);
             AquiloBus.Instance.Publish("checkin.shown", initialPayload);
 
             // Re-dispatch as a "checkin" event kind so BoltsModule can credit
@@ -98,7 +208,7 @@ namespace Loadout.Modules
             {
                 var pfp = await TryResolveProfilePictureAsync(ctx).ConfigureAwait(false);
                 if (string.IsNullOrEmpty(pfp)) return;
-                AquiloBus.Instance.Publish("checkin.enriched", BuildPayload(ctx, source, pfp));
+                AquiloBus.Instance.Publish("checkin.enriched", BuildPayload(ctx, source, pfp, userMessage, emotes));
             });
 
             // Best-effort chat ack (Twitch only - reward redemptions don't post to chat by default).
@@ -109,7 +219,8 @@ namespace Loadout.Modules
             }
         }
 
-        private static object BuildPayload(EventContext ctx, string source, string profilePictureUrl)
+        private static object BuildPayload(EventContext ctx, string source, string profilePictureUrl,
+                                           string message, object[] emotes)
         {
             var s = SettingsManager.Instance.Current;
             var role = NormalizeRole(ctx.UserType);
@@ -133,6 +244,12 @@ namespace Loadout.Modules
                 },
                 stats          = CollectStats(s),
                 rotateSeconds  = s.CheckIn.RotateIntervalSec,
+                // Viewer-supplied text + emote tokens. Empty string when the
+                // viewer just typed "!checkin" with no message, or redeemed
+                // the reward without filling in the prompt; overlay keys off
+                // the empty string to skip rendering the message line.
+                message        = message ?? "",
+                emotes         = emotes ?? new object[0],
                 source         = source,
                 ts             = DateTime.UtcNow
             };

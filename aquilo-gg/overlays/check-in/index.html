@@ -46,6 +46,12 @@
           <span id="user" class="user"></span>
           <span id="flairs" class="flairs"></span>
         </div>
+        <!-- Viewer-supplied message: text after the !checkin command, OR the
+             channel-points reward prompt input. Hidden when empty. Twitch
+             emotes are spliced in as <img> using the {start, end} ranges from
+             the bus payload; YouTube / TikTok emoji come through as Unicode
+             in the text and render naturally. -->
+        <div class="message" id="message" hidden></div>
         <div class="stats" id="stats"></div>
       </div>
     </div>

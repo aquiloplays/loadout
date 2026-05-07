@@ -108,6 +108,37 @@ html, body {
 }
 
 /* Flairs */
+/* Viewer-supplied message: text the viewer typed after !checkin, or the
+   channel-points reward prompt input. Two lines max with ellipsis so a
+   long copypasta doesn't blow out the card height. Emote <img> tags
+   spliced in by main.js sit on the text baseline at 22px tall. */
+.message {
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  /* Subtle quoted-text feel without committing to actual quotes — keeps the
+     line readable next to the username row above. */
+  opacity: .94;
+}
+.message[hidden] { display: none; }
+.message .emote {
+  display: inline-block;
+  height: 22px;
+  width: auto;
+  vertical-align: -5px;
+  margin: 0 1px;
+  /* Hide alt text + broken-image glyphs if a CDN URL ever fails so a
+     broken emote becomes invisible instead of a noisy [📛] placeholder. */
+  font-size: 0;
+  color: transparent;
+}
+
 .flairs { display: flex; gap: 6px; flex-wrap: wrap; }
 .flair {
   font-size: 11px;

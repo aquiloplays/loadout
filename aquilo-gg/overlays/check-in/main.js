@@ -17,6 +17,7 @@
   const pfpEl = $('pfp');
   const initialsEl = $('initials');
   const statsEl = $('stats');
+  const messageEl = $('message');
 
   // ── Query params ──────────────────────────────────────────────────────────
   const params = new URLSearchParams(location.search);
@@ -94,6 +95,14 @@
       el.textContent = f.text;
       flairsEl.appendChild(el);
     }
+
+    // Viewer-supplied message: shows whatever the viewer typed after
+    // !checkin (or the channel-points reward prompt input). Twitch emote
+    // tokens get spliced in as <img> from the {start, end} ranges; YouTube
+    // / TikTok emoji come through as Unicode and render as text — no special
+    // handling needed because we use textContent + DOM nodes (no innerHTML)
+    // so the page stays XSS-safe even if a viewer types a < or & in chat.
+    renderMessage(ev.message || '', ev.emotes || []);
 
     // Stats — render every entry, then animate one at a time.
     statsEl.innerHTML = '';
@@ -179,6 +188,57 @@
 
   function safe(s) { return String(s == null ? '' : s).replace(/[<>&]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;'}[c])); }
 
+  /**
+   * Render the viewer's message line with Twitch emote tokens spliced in.
+   *
+   * The bus payload carries `message` (raw text the viewer typed) plus
+   * `emotes` (sorted by start index — see CheckInModule.ExtractEmotes).
+   * Each emote has {name, url, start, end} where start/end are character
+   * indices into `message` (Twitch IRC-style, end is INCLUSIVE).
+   *
+   * We walk left-to-right, appending the in-between text as Text nodes
+   * and the emote ranges as <img> elements. textContent + appendChild
+   * keep the rendering XSS-safe even though chat is a hostile input
+   * surface — never use innerHTML with viewer-supplied strings.
+   *
+   * YouTube / TikTok emoji are unicode characters in `message`; they
+   * render naturally without needing emote ranges. The emotes array is
+   * generally empty for those platforms.
+   */
+  function renderMessage(text, emotes) {
+    if (!text) {
+      messageEl.hidden = true;
+      messageEl.replaceChildren();
+      return;
+    }
+    messageEl.replaceChildren();
+    messageEl.hidden = false;
+
+    // Walk codepoint-by-codepoint using Array.from so a high-codepoint
+    // emoji doesn't shift Twitch's emote indices off by one.
+    const chars = Array.from(text);
+    const sortedEmotes = (emotes || [])
+      .filter(e => e && e.url && e.start >= 0 && e.end >= e.start)
+      .sort((a, b) => a.start - b.start);
+
+    let cursor = 0;
+    for (const e of sortedEmotes) {
+      if (e.start > cursor) {
+        messageEl.appendChild(document.createTextNode(chars.slice(cursor, e.start).join('')));
+      }
+      const img = document.createElement('img');
+      img.className = 'emote';
+      img.src = e.url;
+      img.alt = e.name || '';
+      img.title = e.name || '';
+      messageEl.appendChild(img);
+      cursor = e.end + 1;
+    }
+    if (cursor < chars.length) {
+      messageEl.appendChild(document.createTextNode(chars.slice(cursor).join('')));
+    }
+  }
+
   // ── Bus connection ────────────────────────────────────────────────────────
   function connect() {
     let url = busUrl;
@@ -218,12 +278,19 @@
 
   if (debug) {
     // Demo card so you can preview without the bus running.
+    // Includes a message + a single Twitch emote (Kappa, ID 25) so the
+    // streamer can verify the new message line + emote rendering pipeline
+    // before going live.
     show({
       user: 'aquilo_plays', role: 'broadcaster',
       pfp: '', subTier: '',
       patreonTier: 'tier3',
       showFlairs: { sub: true, vipMod: true, patreon: true },
       animationTheme: 'shimmer',
+      message: 'gn from Norway Kappa thanks for the stream!',
+      emotes: [
+        { name: 'Kappa', url: 'https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/3.0', start: 15, end: 19 }
+      ],
       stats: [
         { kind: 'uptime', label: 'Uptime', value: '1:23:45' },
         { kind: 'viewers', label: 'Viewers', value: '127' },
