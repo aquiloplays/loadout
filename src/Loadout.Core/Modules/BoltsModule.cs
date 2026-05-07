@@ -494,8 +494,14 @@ namespace Loadout.Modules
         // so the on-screen overlay animation lands first and chat
         // doesn't spoiler the outcome. Fire-and-forget — failures are
         // swallowed (the bus event already published the win/loss).
+        // Skipped entirely when GameChatReplies is off — overlay-only
+        // streamers can silence the chat side without losing the
+        // overlay animation or the wallet update.
         private static void ScheduleResultReply(EventContext ctx, string text, LoadoutSettings s)
         {
+            if (!s.Bolts.GameChatReplies) return;
+            if (string.IsNullOrEmpty(text)) return;
+
             var delay = Math.Max(0, s.Bolts.GameResultDelayMs);
             if (delay == 0)
             {
@@ -507,6 +513,23 @@ namespace Loadout.Modules
                 try { new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform, text, s.Platforms); }
                 catch (Exception ex) { ErrorLog.Write("Bolts.ScheduleResultReply", ex); }
             });
+        }
+
+        // Lightweight template interpolator for minigame chat replies.
+        // Placeholders are bare {keys}; missing keys render literally so
+        // a typo in the template stays debuggable. Empty template falls
+        // back to the supplied default so clear-then-save doesn't blank
+        // the reply.
+        private static string FormatTemplate(string template, string fallback,
+                                             Dictionary<string, string> values)
+        {
+            var t = string.IsNullOrWhiteSpace(template) ? fallback : template;
+            if (string.IsNullOrEmpty(t)) return "";
+            foreach (var kv in values)
+            {
+                t = t.Replace("{" + kv.Key + "}", kv.Value ?? "");
+            }
+            return t;
         }
 
         private void CmdCoinflip(EventContext ctx, string rest, LoadoutSettings s)
@@ -565,9 +588,18 @@ namespace Loadout.Modules
             });
             EventStats.Instance.Hit(ctx.Kind, nameof(BoltsModule));
 
+            var values = new Dictionary<string, string>
+            {
+                ["user"]    = ctx.User ?? "",
+                ["wager"]   = wager.ToString(),
+                ["payout"]  = payout.ToString(),
+                ["balance"] = balance.ToString(),
+                ["emoji"]   = s.Bolts.Emoji ?? "",
+                ["result"]  = heads ? "heads" : "tails"
+            };
             string text = heads
-                ? "🪙 @" + ctx.User + " flipped HEADS — +" + payout + " " + s.Bolts.Emoji + " (balance " + balance + ")"
-                : "🪙 @" + ctx.User + " flipped tails — lost " + wager + " " + s.Bolts.Emoji;
+                ? FormatTemplate(s.Bolts.CoinflipWinTemplate,  "🪙 @{user} flipped HEADS — +{payout} {emoji} (balance {balance})", values)
+                : FormatTemplate(s.Bolts.CoinflipLoseTemplate, "🪙 @{user} flipped tails — lost {wager} {emoji}",                  values);
             ScheduleResultReply(ctx, text, s);
         }
 
@@ -635,9 +667,19 @@ namespace Loadout.Modules
             });
             EventStats.Instance.Hit(ctx.Kind, nameof(BoltsModule));
 
+            var diceValues = new Dictionary<string, string>
+            {
+                ["user"]    = ctx.User ?? "",
+                ["wager"]   = wager.ToString(),
+                ["payout"]  = payout.ToString(),
+                ["balance"] = balance.ToString(),
+                ["emoji"]   = s.Bolts.Emoji ?? "",
+                ["result"]  = rolled.ToString(),
+                ["target"]  = target.ToString()
+            };
             string text = won
-                ? "🎲 @" + ctx.User + " rolled " + rolled + " — JACKPOT +" + payout + " " + s.Bolts.Emoji + " (balance " + balance + ")"
-                : "🎲 @" + ctx.User + " rolled " + rolled + " (needed " + target + ") — lost " + wager + " " + s.Bolts.Emoji;
+                ? FormatTemplate(s.Bolts.DiceWinTemplate,  "🎲 @{user} rolled {result} — JACKPOT +{payout} {emoji} (balance {balance})", diceValues)
+                : FormatTemplate(s.Bolts.DiceLoseTemplate, "🎲 @{user} rolled {result} (needed {target}) — lost {wager} {emoji}",       diceValues);
             ScheduleResultReply(ctx, text, s);
         }
 
@@ -709,13 +751,22 @@ namespace Loadout.Modules
             });
 
             if (!ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:slots:result", TimeSpan.FromSeconds(2))) return;
+            var slotsValues = new Dictionary<string, string>
+            {
+                ["user"]       = ctx.User ?? "",
+                ["wager"]      = wager.ToString(),
+                ["payout"]     = payout.ToString(),
+                ["balance"]    = balance.ToString(),
+                ["emoji"]      = s.Bolts.Emoji ?? "",
+                ["multiplier"] = s.Bolts.SlotsPayoutAllSame.ToString()
+            };
             string text;
             if (allSame)
-                text = "🎰 JACKPOT @" + ctx.User + "! +" + payout + " " + s.Bolts.Emoji + " (×" + s.Bolts.SlotsPayoutAllSame + ")";
+                text = FormatTemplate(s.Bolts.SlotsJackpotTemplate, "🎰 JACKPOT @{user}! +{payout} {emoji} (×{multiplier})",  slotsValues);
             else if (twoSame && payout > 0)
-                text = "🎰 @" + ctx.User + " hit two — got " + payout + " " + s.Bolts.Emoji + " back";
+                text = FormatTemplate(s.Bolts.SlotsTwoTemplate,     "🎰 @{user} hit two — got {payout} {emoji} back",         slotsValues);
             else
-                text = "🎰 @" + ctx.User + " spun " + wager + " " + s.Bolts.Emoji + " — no match";
+                text = FormatTemplate(s.Bolts.SlotsNoneTemplate,    "🎰 @{user} spun {wager} {emoji} — no match",             slotsValues);
             // Delayed reply so the on-screen reels finish settling
             // before chat sees the outcome.
             ScheduleResultReply(ctx, text, s);

@@ -1034,6 +1034,15 @@ namespace Loadout.UI
             if (TxtBoltsDiceMin      != null) TxtBoltsDiceMin.Text      = s.Bolts.DiceMinWager.ToString();
             if (TxtBoltsDiceMax      != null) TxtBoltsDiceMax.Text      = s.Bolts.DiceMaxWager.ToString();
             if (TxtBoltsDiceMult     != null) TxtBoltsDiceMult.Text     = s.Bolts.DicePayoutMultiplier.ToString();
+            // Minigame chat-reply config: master toggle + 7 templates.
+            if (ChkBoltsGameChatReplies != null) ChkBoltsGameChatReplies.IsChecked = s.Bolts.GameChatReplies;
+            if (TxtBoltsCoinflipWinTpl  != null) TxtBoltsCoinflipWinTpl.Text  = s.Bolts.CoinflipWinTemplate  ?? "";
+            if (TxtBoltsCoinflipLoseTpl != null) TxtBoltsCoinflipLoseTpl.Text = s.Bolts.CoinflipLoseTemplate ?? "";
+            if (TxtBoltsDiceWinTpl      != null) TxtBoltsDiceWinTpl.Text      = s.Bolts.DiceWinTemplate      ?? "";
+            if (TxtBoltsDiceLoseTpl     != null) TxtBoltsDiceLoseTpl.Text     = s.Bolts.DiceLoseTemplate     ?? "";
+            if (TxtBoltsSlotsJackpotTpl != null) TxtBoltsSlotsJackpotTpl.Text = s.Bolts.SlotsJackpotTemplate ?? "";
+            if (TxtBoltsSlotsTwoTpl     != null) TxtBoltsSlotsTwoTpl.Text     = s.Bolts.SlotsTwoTemplate     ?? "";
+            if (TxtBoltsSlotsNoneTpl    != null) TxtBoltsSlotsNoneTpl.Text    = s.Bolts.SlotsNoneTemplate    ?? "";
 
             // Dungeon Crawler + Duel game card.
             if (s.Dungeon == null) s.Dungeon = new DungeonConfig();
@@ -1308,6 +1317,15 @@ namespace Loadout.UI
                 if (int.TryParse(TxtBoltsDiceMin?.Text,     out iv) && iv >= 0)                 s.Bolts.DiceMinWager           = iv;
                 if (int.TryParse(TxtBoltsDiceMax?.Text,     out iv) && iv >= 0)                 s.Bolts.DiceMaxWager           = iv;
                 if (int.TryParse(TxtBoltsDiceMult?.Text,    out iv) && iv >= 2 && iv <= 100)    s.Bolts.DicePayoutMultiplier   = iv;
+                // Minigame chat-reply config.
+                if (ChkBoltsGameChatReplies != null) s.Bolts.GameChatReplies      = ChkBoltsGameChatReplies.IsChecked == true;
+                if (TxtBoltsCoinflipWinTpl  != null) s.Bolts.CoinflipWinTemplate  = (TxtBoltsCoinflipWinTpl.Text  ?? "").Trim();
+                if (TxtBoltsCoinflipLoseTpl != null) s.Bolts.CoinflipLoseTemplate = (TxtBoltsCoinflipLoseTpl.Text ?? "").Trim();
+                if (TxtBoltsDiceWinTpl      != null) s.Bolts.DiceWinTemplate      = (TxtBoltsDiceWinTpl.Text      ?? "").Trim();
+                if (TxtBoltsDiceLoseTpl     != null) s.Bolts.DiceLoseTemplate     = (TxtBoltsDiceLoseTpl.Text     ?? "").Trim();
+                if (TxtBoltsSlotsJackpotTpl != null) s.Bolts.SlotsJackpotTemplate = (TxtBoltsSlotsJackpotTpl.Text ?? "").Trim();
+                if (TxtBoltsSlotsTwoTpl     != null) s.Bolts.SlotsTwoTemplate     = (TxtBoltsSlotsTwoTpl.Text     ?? "").Trim();
+                if (TxtBoltsSlotsNoneTpl    != null) s.Bolts.SlotsNoneTemplate    = (TxtBoltsSlotsNoneTpl.Text    ?? "").Trim();
 
                 // Dungeon Crawler + Duel — chat command names, cooldowns,
                 // run shape. Bounds keep the engine in safe ranges
@@ -1583,38 +1601,60 @@ namespace Loadout.UI
             catch (Exception ex) { ShowSavedHint("Open failed: " + ex.Message); }
         }
 
-        // Step-by-step popup for connecting TikFinity's bot to Loadout's
-        // TikTok send path. Reachable via the "TikFinity setup guide"
-        // button next to the TikTok send action field.
+        // Step-by-step popup for routing Loadout's TikTok-bound chat
+        // messages through TikFinity. Reachable via the "TikFinity setup
+        // guide" button next to the TikTok send-action field.
+        //
+        // The actual TikFinity workflow: TikFinity connects to your
+        // Streamer.bot install as a CLIENT (ws://localhost:21213) — it
+        // doesn't have a "Bot Mode" toggle. To send to TikTok chat, you
+        // create your own SB action that reads the loadoutTikTokMessage
+        // global var and tells TikFinity to post that text. The action
+        // name goes into the textbox below.
         private void BtnTikFinityGuide_Click(object sender, RoutedEventArgs e)
         {
             LoadoutDialog.Show(this,
-                "TikFinity bot setup — let Loadout post to TikTok\n\n" +
-                "1. Open TikFinity. Settings → Bot Mode → enable. Sign your TikTok\n" +
-                "   account into TikFinity's bot. (TikFinity walks you through the\n" +
-                "   account auth.)\n\n" +
-                "2. Once Bot Mode is on, TikFinity registers a Streamer.bot Action\n" +
-                "   you can call. Look in SB's Actions list for it (commonly named\n" +
-                "   something like \"TikFinity: Send Bot Message\" — exact name\n" +
-                "   varies by TikFinity version).\n\n" +
-                "3. Open that action in SB. Add a sub-action:\n" +
-                "     • Get Global Variable → loadoutTikTokMessage → into a local var\n" +
-                "     • Set Argument 'message' (or whatever TikFinity's send sub-action\n" +
-                "       reads) to that local var\n" +
-                "     • TikFinity's bot send sub-action runs with the message\n\n" +
-                "4. Note the action's exact name in SB.\n\n" +
-                "5. Back in Loadout (this Settings window) → General → \"TikTok send\n" +
-                "   action\". Paste the action name. Click Save.\n\n" +
-                "6. Test it: tick TikTok on a timer in Settings → Timers (the platform\n" +
-                "   tickbox column), hit Save, and wait for the sequence interval. Or\n" +
-                "   fire any alert that targets TikTok.\n\n" +
+                "Routing Loadout → TikFinity → TikTok chat\n\n" +
+                "TikFinity connects to Streamer.bot as a client and exposes a\n" +
+                "\"Send TikTok Chat\" sub-action. We just need a tiny SB action\n" +
+                "that pulls Loadout's outbound message from a global var and\n" +
+                "hands it to TikFinity's send.\n\n" +
+                "Prereqs (one-time)\n" +
+                "  • TikFinity is running and connected to Streamer.bot — open\n" +
+                "    TikFinity → Connections, point it at ws://localhost:21213.\n" +
+                "  • In SB → Servers/Clients → Streamer.bot, the TikFinity client\n" +
+                "    shows green/connected.\n\n" +
+                "Create the SB action\n" +
+                "  1. In Streamer.bot, click ➕ Add Action. Name it (e.g.\n" +
+                "     \"Loadout TikTok Send\").\n" +
+                "  2. Inside that action, add a Core → Get Global Variable\n" +
+                "     sub-action:\n" +
+                "        Variable name: loadoutTikTokMessage\n" +
+                "        Save to:       %message%   (an action argument)\n" +
+                "  3. Add a TikFinity → Send Chat Message sub-action under\n" +
+                "     it. (If you don't see TikFinity in the sub-action picker,\n" +
+                "     the TikFinity client isn't connected yet — fix the\n" +
+                "     connection first.)\n" +
+                "        Message: %message%\n" +
+                "  4. Save the action.\n\n" +
+                "Wire Loadout to it\n" +
+                "  5. Copy the action's exact name from SB.\n" +
+                "  6. Paste it into the \"TikTok send action\" textbox on this\n" +
+                "     page (right above this button) and click Save.\n\n" +
+                "Test\n" +
+                "  7. Tick the TikTok column on any timed message or alert\n" +
+                "     and trigger it. Loadout sets loadoutTikTokMessage and\n" +
+                "     fires your action — TikFinity posts to TikTok chat.\n" +
+                "  8. Or use Settings → Health → \"Send test\" buttons.\n\n" +
                 "Tips\n" +
-                "  • Dry-run mode (Health → Diagnostics) logs would-have-sent messages\n" +
-                "    instead of posting — verify wiring without spamming chat.\n" +
-                "  • Loadout caps outbound TikTok at 6 messages/min so a flood of timer\n" +
-                "    fires can't trip TikFinity's rate-limit.\n" +
-                "  • Command responses (e.g. !uptime asked from TikTok chat) route back\n" +
-                "    through this same path automatically.",
+                "  • Dry-run mode (Health → Diagnostics) logs would-have-sent\n" +
+                "    messages instead of posting — verify wiring without\n" +
+                "    spamming chat.\n" +
+                "  • Loadout caps outbound TikTok at 6 messages/min so a flood\n" +
+                "    of timer fires can't trip TikFinity's rate-limit.\n" +
+                "  • Inbound TikTok chat (viewers typing !uptime in TikTok) is\n" +
+                "    handled by SB's TikFinity events automatically — Loadout\n" +
+                "    only needs the SEND-side wired up here.",
                 "Loadout — TikFinity setup",
                 System.Windows.MessageBoxButton.OK,
                 System.Windows.MessageBoxImage.Information);
@@ -1986,8 +2026,8 @@ namespace Loadout.UI
                     : "Twitch disabled. Tick it in Settings → Platforms to receive chat + EventSub.";
             if (ChipTikTok != null)
                 ChipTikTok.ToolTip = s.Platforms.TikTok
-                    ? "TikTok via TikFinity is enabled. Outbound goes through your configured TikFinity action."
-                    : "TikTok disabled. Enable in Settings → Platforms (requires TikFinity Bot Mode for outbound).";
+                    ? "TikTok via TikFinity is enabled. Outbound goes through your configured TikFinity send action."
+                    : "TikTok disabled. Enable in Settings → Platforms — outbound requires a TikFinity-bridge SB action (see the setup guide on the General tab).";
 
             if (ChipBusDot != null)
             {

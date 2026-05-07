@@ -314,14 +314,14 @@
                                     <TextBlock Text="TikTok send action (optional)" Style="{StaticResource H2}" />
                                     <Button HorizontalAlignment="Right" Content="TikFinity setup guide" Style="{StaticResource SecondaryButton}"
                                             Click="BtnTikFinityGuide_Click"
-                                            ToolTip="Step-by-step: enable TikFinity bot, register an SB action, paste its name here." />
+                                            ToolTip="Step-by-step: build a tiny SB action that reads loadoutTikTokMessage and calls TikFinity's Send-Chat sub-action, then paste its name here." />
                                 </Grid>
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 6">
-                                    Streamer.bot has no native TikTok send. To let timed messages, alerts, etc. post to
-                                    your TikTok stream, configure TikFinity's bot mode (or your own bridge) to register
-                                    an SB action that reads the <Run FontFamily="Consolas">loadoutTikTokMessage</Run>
-                                    global var and posts it. Paste that action's exact name here. Leave blank to skip
-                                    TikTok sending entirely.
+                                    Streamer.bot has no native TikTok send. TikFinity (running alongside SB and connected as
+                                    a client) provides a "Send Chat Message" sub-action. Build a small SB action that reads
+                                    the <Run FontFamily="Consolas">loadoutTikTokMessage</Run> global var and passes it to that
+                                    sub-action; paste the action's exact name here. Leave blank to skip TikTok sending entirely.
+                                    Click the setup guide for a 3-minute walkthrough.
                                 </TextBlock>
                                 <TextBox x:Name="TxtTikTokSendAction" />
                             </StackPanel>
@@ -1181,9 +1181,55 @@
                                     <TextBlock Grid.Row="3" Grid.Column="0" Text="!dice payout multiplier" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
                                     <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TxtBoltsDiceMult" Margin="0 4 12 0" />
                                 </Grid>
-                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 6 0 0">
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 6 0 8">
                                     Set min/max to 0 to disable a game (the chat command becomes silent and it drops out of the commands ticker).
                                 </TextBlock>
+
+                                <!-- Chat replies on minigame results. Bus events
+                                     fire (and so does the overlay animation)
+                                     regardless; this gates ONLY the win/loss
+                                     line in chat. Templates use {user} {wager}
+                                     {payout} {balance} {emoji} {result} {target}
+                                     {multiplier} placeholders. -->
+                                <CheckBox x:Name="ChkBoltsGameChatReplies" Style="{StaticResource ToggleSwitch}" Margin="0 6 0 8"
+                                          Content="Send chat replies on minigame results" />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    Customize the win/loss messages below. Available placeholders:
+                                    <Run FontFamily="Consolas">{user}</Run>,
+                                    <Run FontFamily="Consolas">{wager}</Run>,
+                                    <Run FontFamily="Consolas">{payout}</Run>,
+                                    <Run FontFamily="Consolas">{balance}</Run>,
+                                    <Run FontFamily="Consolas">{emoji}</Run>,
+                                    <Run FontFamily="Consolas">{result}</Run>,
+                                    <Run FontFamily="Consolas">{target}</Run>,
+                                    <Run FontFamily="Consolas">{multiplier}</Run>.
+                                    Leave a field blank to use the default. The result-reply delay above lets the on-screen animation land first.
+                                </TextBlock>
+                                <Grid Margin="0 0 0 0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="160" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="!coinflip win:"  Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsCoinflipWinTpl"  FontFamily="Consolas, monospace" FontSize="11" Margin="0 2 0 0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="!coinflip loss:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsCoinflipLoseTpl" FontFamily="Consolas, monospace" FontSize="11" Margin="0 2 0 0" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="!dice win:"      Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtBoltsDiceWinTpl"      FontFamily="Consolas, monospace" FontSize="11" Margin="0 2 0 0" />
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="!dice loss:"     Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TxtBoltsDiceLoseTpl"     FontFamily="Consolas, monospace" FontSize="11" Margin="0 2 0 0" />
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="!slots jackpot:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="4" Grid.Column="1" x:Name="TxtBoltsSlotsJackpotTpl" FontFamily="Consolas, monospace" FontSize="11" Margin="0 2 0 0" />
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="!slots two:"     Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="5" Grid.Column="1" x:Name="TxtBoltsSlotsTwoTpl"     FontFamily="Consolas, monospace" FontSize="11" Margin="0 2 0 0" />
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="!slots no match:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 4 8 0" />
+                                    <TextBox  Grid.Row="6" Grid.Column="1" x:Name="TxtBoltsSlotsNoneTpl"    FontFamily="Consolas, monospace" FontSize="11" Margin="0 2 0 0" />
+                                </Grid>
                             </StackPanel>
                         </Border>
 

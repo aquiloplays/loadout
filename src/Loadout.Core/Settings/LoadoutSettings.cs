@@ -936,6 +936,26 @@ namespace Loadout.Settings
         // Default 1800 ms tracks the longest minigames-overlay
         // animation (slots, ~1700 ms settle).
         public int    GameResultDelayMs    { get; set; } = 1800;
+
+        // Master toggle for the chat-side win/loss replies on minigame
+        // results. Bus events and overlay animations always fire; this
+        // controls only whether chat ALSO gets a "@user flipped HEADS
+        // — +N bolts" line. Some streamers prefer the overlay-only
+        // experience; others want the visibility in chat. Default on.
+        public bool   GameChatReplies      { get; set; } = true;
+
+        // Editable templates for each minigame outcome — placeholders
+        // {user} {wager} {payout} {balance} {emoji} {result} {target}
+        // get substituted at send time. Empty string falls back to the
+        // hardcoded default (matches the original message verbatim so
+        // a clear-then-save still produces a sensible reply).
+        public string CoinflipWinTemplate  { get; set; } = "🪙 @{user} flipped HEADS — +{payout} {emoji} (balance {balance})";
+        public string CoinflipLoseTemplate { get; set; } = "🪙 @{user} flipped tails — lost {wager} {emoji}";
+        public string DiceWinTemplate      { get; set; } = "🎲 @{user} rolled {result} — JACKPOT +{payout} {emoji} (balance {balance})";
+        public string DiceLoseTemplate     { get; set; } = "🎲 @{user} rolled {result} (needed {target}) — lost {wager} {emoji}";
+        public string SlotsJackpotTemplate { get; set; } = "🎰 JACKPOT @{user}! +{payout} {emoji} (×{multiplier})";
+        public string SlotsTwoTemplate     { get; set; } = "🎰 @{user} hit two — got {payout} {emoji} back";
+        public string SlotsNoneTemplate    { get; set; } = "🎰 @{user} spun {wager} {emoji} — no match";
     }
 
     public class ApexConfig
