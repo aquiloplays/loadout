@@ -252,6 +252,9 @@ namespace Loadout.Modules
                 case "coinflip":
                 case "cf":            CmdCoinflip(ctx, rest, s);    return;
                 case "dice":          CmdDice(ctx, rest, s);        return;
+                case "rps":           CmdRps(ctx, rest, s);         return;
+                case "roulette":
+                case "rl":            CmdRoulette(ctx, rest, s);    return;
             }
 
             // Rotation widget integration: !boltsong <song> spends Bolts to
@@ -777,6 +780,217 @@ namespace Loadout.Modules
             // Delayed reply so the on-screen reels finish settling
             // before chat sees the outcome.
             ScheduleResultReply(ctx, text, s);
+        }
+
+        // ── !rps <rock|paper|scissors> <wager> — chat-side rock paper
+        // scissors against the bot. Standard 3x3 outcome matrix. Tie
+        // returns the wager untouched (no win, no loss); win pays
+        // wager × 1 (net +wager); loss takes the wager. Same wager
+        // bounds + per-user game cooldown as the other minigames.
+        private void CmdRps(EventContext ctx, string rest, LoadoutSettings s)
+        {
+            // Use coinflip wager bounds as the bounds for !rps too —
+            // same risk profile (50/50-ish odds with a tie escape).
+            // Streamers can disable by setting CoinflipMin/Max to 0.
+            if (s.Bolts.CoinflipMinWager <= 0 && s.Bolts.CoinflipMaxWager <= 0) return;
+
+            var parts = (rest ?? "").Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            string viewerPick = parts.Length > 0 ? parts[0].ToLowerInvariant() : "";
+            string normalized = NormalizeRps(viewerPick);
+            if (string.IsNullOrEmpty(normalized) || parts.Length < 2 ||
+                !long.TryParse(parts[1], out var wager) ||
+                wager < s.Bolts.CoinflipMinWager || wager > s.Bolts.CoinflipMaxWager)
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:rps:usage", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " usage: !rps <rock|paper|scissors> <wager> (" +
+                            s.Bolts.CoinflipMinWager + "-" + s.Bolts.CoinflipMaxWager + " " + s.Bolts.Emoji + ")",
+                            s.Platforms);
+                return;
+            }
+            if (!TryGameGate(ctx, "rps", s)) return;
+
+            var platform = ctx.Platform.ToShortName();
+            if (!BoltsWallet.Instance.Spend(platform, ctx.User, wager, "rps"))
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:rps:nofunds", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " not enough " + s.Bolts.Emoji + " to play.",
+                            s.Platforms);
+                return;
+            }
+
+            // Bot picks uniform-random. Outcome model:
+            //   tie  → 33% — viewer's wager refunded (no payout, no loss)
+            //   win  → 33% — viewer earns wager × 2 (net +wager)
+            //   loss → 33% — viewer loses wager
+            string[] choices = { "rock", "paper", "scissors" };
+            string botPick = choices[_slotsRng.Next(choices.Length)];
+
+            string outcome;
+            long payout = 0;
+            if (botPick == normalized)
+            {
+                outcome = "tie";
+                BoltsWallet.Instance.Earn(platform, ctx.User, wager, "rps:tie:refund");
+            }
+            else if (BeatsRps(normalized, botPick))
+            {
+                outcome = "win";
+                payout = wager;
+                BoltsWallet.Instance.Earn(platform, ctx.User, wager * 2, "rps:win");
+            }
+            else
+            {
+                outcome = "loss";
+            }
+            var balance = BoltsWallet.Instance.Balance(platform, ctx.User);
+
+            AquiloBus.Instance.Publish("bolts.minigame.rps", new
+            {
+                user    = ctx.User,
+                wager,
+                viewer  = normalized,
+                bot     = botPick,
+                outcome,
+                payout,
+                balance,
+                source  = "chat",
+                ts      = DateTime.UtcNow
+            });
+            EventStats.Instance.Hit(ctx.Kind, nameof(BoltsModule));
+
+            string botGlyph = RpsGlyph(botPick);
+            string viewerGlyph = RpsGlyph(normalized);
+            string text;
+            if (outcome == "tie")
+                text = "✊✋✌ @" + ctx.User + " " + viewerGlyph + " vs " + botGlyph + " — tie. Wager refunded.";
+            else if (outcome == "win")
+                text = "✊✋✌ @" + ctx.User + " " + viewerGlyph + " beats " + botGlyph + " — +" + payout + " " + s.Bolts.Emoji + " (balance " + balance + ")";
+            else
+                text = "✊✋✌ @" + ctx.User + " " + viewerGlyph + " falls to " + botGlyph + " — lost " + wager + " " + s.Bolts.Emoji;
+            ScheduleResultReply(ctx, text, s);
+        }
+
+        private static string NormalizeRps(string raw)
+        {
+            switch ((raw ?? "").ToLowerInvariant())
+            {
+                case "r": case "rock":     return "rock";
+                case "p": case "paper":    return "paper";
+                case "s": case "scissors": return "scissors";
+                case "✊": return "rock";
+                case "✋": return "paper";
+                case "✌": return "scissors";
+                default: return "";
+            }
+        }
+        private static bool BeatsRps(string a, string b)
+        {
+            return (a == "rock"     && b == "scissors") ||
+                   (a == "paper"    && b == "rock")     ||
+                   (a == "scissors" && b == "paper");
+        }
+        private static string RpsGlyph(string c)
+        {
+            switch (c) { case "rock": return "✊"; case "paper": return "✋"; case "scissors": return "✌"; default: return "?"; }
+        }
+
+        // ── !roulette <red|black|green> <wager> — colour bet on a
+        // single-zero (European) wheel. 18 red + 18 black + 1 green
+        // = 37 pockets. Red/black pay 2× (net +wager), green pays
+        // 14× (net +13× — long-shot reward to make green tempting
+        // without breaking the wallet). Wager bounds reuse Dice's
+        // since roulette feels like a bigger-risk option.
+        private void CmdRoulette(EventContext ctx, string rest, LoadoutSettings s)
+        {
+            if (s.Bolts.DiceMinWager <= 0 && s.Bolts.DiceMaxWager <= 0) return;
+
+            var parts = (rest ?? "").Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+            string color = parts.Length > 0 ? parts[0].ToLowerInvariant() : "";
+            if (color == "r") color = "red";
+            else if (color == "b") color = "black";
+            else if (color == "g") color = "green";
+            if (color != "red" && color != "black" && color != "green" || parts.Length < 2 ||
+                !long.TryParse(parts[1], out var wager) ||
+                wager < s.Bolts.DiceMinWager || wager > s.Bolts.DiceMaxWager)
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:roulette:usage", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " usage: !roulette <red|black|green> <wager> (" +
+                            s.Bolts.DiceMinWager + "-" + s.Bolts.DiceMaxWager + " " + s.Bolts.Emoji + ")",
+                            s.Platforms);
+                return;
+            }
+            if (!TryGameGate(ctx, "roulette", s)) return;
+
+            var platform = ctx.Platform.ToShortName();
+            if (!BoltsWallet.Instance.Spend(platform, ctx.User, wager, "roulette"))
+            {
+                if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:roulette:nofunds", TimeSpan.FromSeconds(2)))
+                    new MultiPlatformSender(CphPlatformSender.Instance)
+                        .Send(ctx.Platform,
+                            "@" + ctx.User + " not enough " + s.Bolts.Emoji + " to bet.",
+                            s.Platforms);
+                return;
+            }
+
+            // 0..36; 0 = green, odds 18 red + 18 black on a real wheel.
+            // We map the result with a fixed pocket → colour table so
+            // the overlay can render the actual number (single zero is
+            // the green pocket).
+            int pocket = _slotsRng.Next(37);
+            string resultColor = (pocket == 0)
+                ? "green"
+                : (IsRedPocket(pocket) ? "red" : "black");
+            bool won = (resultColor == color);
+
+            long payout = 0;
+            if (won)
+            {
+                int multiplier = (color == "green") ? 14 : 2;   // green long-shot
+                payout = wager * (multiplier - 1);              // net win after returning the wager
+                BoltsWallet.Instance.Earn(platform, ctx.User, wager * multiplier, "roulette:win:" + color);
+            }
+            var balance = BoltsWallet.Instance.Balance(platform, ctx.User);
+
+            AquiloBus.Instance.Publish("bolts.minigame.roulette", new
+            {
+                user    = ctx.User,
+                wager,
+                pick    = color,
+                pocket,
+                resultColor,
+                won,
+                payout,
+                balance,
+                source  = "chat",
+                ts      = DateTime.UtcNow
+            });
+            EventStats.Instance.Hit(ctx.Kind, nameof(BoltsModule));
+
+            string colorGlyph = (resultColor == "red") ? "🟥" : (resultColor == "black" ? "⬛" : "🟩");
+            string text = won
+                ? "🎡 @" + ctx.User + " bet " + color + " — landed " + pocket + " " + colorGlyph + " — +" + payout + " " + s.Bolts.Emoji + " (balance " + balance + ")"
+                : "🎡 @" + ctx.User + " bet " + color + " — landed " + pocket + " " + colorGlyph + " — lost " + wager + " " + s.Bolts.Emoji;
+            ScheduleResultReply(ctx, text, s);
+        }
+
+        // Standard European single-zero wheel red pockets. 18 of them.
+        private static bool IsRedPocket(int n)
+        {
+            switch (n)
+            {
+                case 1: case 3: case 5: case 7: case 9: case 12:
+                case 14: case 16: case 18: case 19: case 21: case 23:
+                case 25: case 27: case 30: case 32: case 34: case 36:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         private static string[] ResolveSlotsPool(LoadoutSettings s)

@@ -3093,6 +3093,33 @@ namespace Loadout.UI
                             },
                             ts = DateTime.UtcNow
                         });
+                        // RPS — viewer wins this preview run
+                        AquiloBus.Instance.Publish("bolts.minigame.rps", new
+                        {
+                            user    = sampleUser,
+                            wager   = 50,
+                            viewer  = "rock",
+                            bot     = "scissors",
+                            outcome = "win",
+                            payout  = 50,
+                            balance = 1100,
+                            source  = "test",
+                            ts      = DateTime.UtcNow
+                        });
+                        // Roulette — green long-shot for the showy reveal
+                        AquiloBus.Instance.Publish("bolts.minigame.roulette", new
+                        {
+                            user    = sampleUser,
+                            wager   = 50,
+                            pick    = "green",
+                            pocket  = 0,
+                            resultColor = "green",
+                            won     = true,
+                            payout  = 650,
+                            balance = 1700,
+                            source  = "test",
+                            ts      = DateTime.UtcNow
+                        });
                         break;
 
                     // Per-game test events so the streamer can preview each
@@ -3185,6 +3212,71 @@ namespace Loadout.UI
                             payout  = jackpot ? 500 : 0,
                             balance = jackpot ? 1750 : 1150,
                             pool    = pool,
+                            source  = "test",
+                            ts      = DateTime.UtcNow
+                        });
+                        break;
+                    }
+
+                    case "rps":
+                    {
+                        // Random pick vs random bot pick. Cycles through
+                        // outcomes so successive clicks show win / loss /
+                        // tie variation in the overlay.
+                        var rng = new Random();
+                        string[] choices = { "rock", "paper", "scissors" };
+                        var viewerPick = choices[rng.Next(3)];
+                        var botPick    = choices[rng.Next(3)];
+                        string outcome;
+                        if (viewerPick == botPick) outcome = "tie";
+                        else if ((viewerPick == "rock"     && botPick == "scissors") ||
+                                 (viewerPick == "paper"    && botPick == "rock")     ||
+                                 (viewerPick == "scissors" && botPick == "paper")) outcome = "win";
+                        else outcome = "loss";
+                        AquiloBus.Instance.Publish("bolts.minigame.rps", new
+                        {
+                            user    = sampleUser,
+                            wager   = 50,
+                            viewer  = viewerPick,
+                            bot     = botPick,
+                            outcome = outcome,
+                            payout  = outcome == "win" ? 50 : 0,
+                            balance = outcome == "win" ? 1100 : (outcome == "tie" ? 1050 : 1000),
+                            source  = "test",
+                            ts      = DateTime.UtcNow
+                        });
+                        break;
+                    }
+
+                    case "roulette":
+                    {
+                        // Pick a random pocket; alternate green/red/black
+                        // colours so the streamer sees the colour-tinted
+                        // pocket reveal in the overlay.
+                        var rng = new Random();
+                        int pocket = rng.Next(37);   // 0..36
+                        string color;
+                        if (pocket == 0) color = "green";
+                        else
+                        {
+                            int[] reds = { 1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36 };
+                            color = ((IList<int>)reds).Contains(pocket) ? "red" : "black";
+                        }
+                        string[] options = { "red", "black", "green" };
+                        var pick = options[rng.Next(3)];
+                        bool won = (pick == color);
+                        long wager = 50;
+                        long mult = (color == "green") ? 14 : 2;
+                        AquiloBus.Instance.Publish("bolts.minigame.roulette", new
+                        {
+                            user    = sampleUser,
+                            wager,
+                            pick,
+                            pocket,
+                            resultColor = color,
+                            won,
+                            payout  = won ? wager * (mult - 1) : 0,
+                            balance = won ? 1500 : 950,
                             source  = "test",
                             ts      = DateTime.UtcNow
                         });

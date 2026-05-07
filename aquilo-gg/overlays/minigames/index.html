@@ -37,6 +37,20 @@
           <div class="lever-base"></div>
         </div>
       </div>
+      <!-- !rps face-off — viewer's pick on the left, bot's pick on the
+           right. JS swaps the glyph after the "shake" animation lands. -->
+      <div class="rps">
+        <div class="rps-side viewer"><span class="rps-glyph" id="rps-viewer">✊</span><span class="rps-label">YOU</span></div>
+        <div class="rps-vs">VS</div>
+        <div class="rps-side bot"><span class="rps-glyph" id="rps-bot">✊</span><span class="rps-label">BOT</span></div>
+      </div>
+      <!-- !roulette wheel — outer ring spins, ball drifts toward the
+           winning pocket. JS sets the result color via data attr. -->
+      <div class="roulette">
+        <div class="wheel" id="roulette-wheel"></div>
+        <div class="ball"  id="roulette-ball"></div>
+        <div class="pocket" id="roulette-pocket">0</div>
+      </div>
     </div>
     <div class="lines">
       <div id="user" class="user"></div>

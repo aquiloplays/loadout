@@ -3144,11 +3144,17 @@
                                                 Tag="dice"     Click="BtnOverlaySendTest_Click" Margin="0 0 4 0"
                                                 ToolTip="Fires a single dice roll (random 1-6 against target 6)." />
                                         <Button Content="Slots" Style="{StaticResource SecondaryButton}"
-                                                Tag="slots"    Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                Tag="slots"    Click="BtnOverlaySendTest_Click" Margin="0 0 4 0"
                                                 ToolTip="Spins the slot machine using your configured reel pool (alternates jackpot / no-match each click)." />
+                                        <Button Content="RPS"   Style="{StaticResource SecondaryButton}"
+                                                Tag="rps"      Click="BtnOverlaySendTest_Click" Margin="0 0 4 0"
+                                                ToolTip="Fires a single rock-paper-scissors event (random viewer pick vs random bot pick)." />
+                                        <Button Content="Roulette" Style="{StaticResource SecondaryButton}"
+                                                Tag="roulette" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Spins the roulette wheel — randomly picks red / black / green and a pocket number." />
                                         <Button Content="All"   Style="{StaticResource PrimaryButton}"
                                                 Tag="minigames" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
-                                                ToolTip="Fires coinflip + dice + slots in succession so the OBS source renders all three visualizations back-to-back." />
+                                                ToolTip="Fires coinflip + dice + slots + rps + roulette in succession so the OBS source renders every visualizer back-to-back." />
                                         <Button Content="Preview" Style="{StaticResource SecondaryButton}"
                                                 Tag="minigames" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
                                                 ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />

@@ -288,6 +288,125 @@ body[data-pos="tc"] #card.pulse { animation-name: pulseCenter; }
   100% { transform: translateX(-50%) scale(1); }
 }
 
+/* ---- Rock / Paper / Scissors ---- */
+.rps {
+  display: none;
+  align-items: center;
+  gap: 14px;
+}
+.rps.show { display: flex; }
+.rps-side {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 64px;
+}
+.rps-glyph {
+  font-size: 56px;
+  line-height: 1;
+  /* Three-shake "ROCK PAPER SCISSORS!" preroll. JS adds .shaking
+     for ~700ms then removes it; the glyph swap to the final pick
+     happens after the shake completes. */
+  animation: rpsShake .22s steps(2, jump-end) infinite;
+  animation-play-state: paused;
+}
+.rps-side.shaking .rps-glyph { animation-play-state: running; }
+@keyframes rpsShake {
+  0%   { transform: translateY(0)    rotate(0); }
+  50%  { transform: translateY(-10px) rotate(-6deg); }
+  100% { transform: translateY(0)    rotate(0); }
+}
+.rps-label {
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--muted);
+}
+.rps-side.win  .rps-label { color: var(--win); }
+.rps-side.lose .rps-label { color: var(--lose); }
+.rps-vs {
+  font-size: 18px; font-weight: 800;
+  color: var(--accent);
+  text-shadow: 0 0 8px rgba(58,134,255,.5);
+}
+
+/* ---- Roulette ---- */
+.roulette {
+  display: none;
+  position: relative;
+  width: 96px; height: 96px;
+}
+.roulette.show { display: block; }
+.roulette .wheel {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  /* Conic gradient approximates the 37 alternating red/black/green
+     pockets — close enough at this size that the eye reads it as a
+     real wheel, much cheaper than 37 individual segments. */
+  background:
+    conic-gradient(from 0deg,
+      #3FB950 0deg 9.7deg,
+      #F85149 9.7deg 19.5deg,  #1A1A22 19.5deg 29.2deg,
+      #F85149 29.2deg 38.9deg, #1A1A22 38.9deg 48.6deg,
+      #F85149 48.6deg 58.4deg, #1A1A22 58.4deg 68.1deg,
+      #F85149 68.1deg 77.8deg, #1A1A22 77.8deg 87.6deg,
+      #F85149 87.6deg 97.3deg, #1A1A22 97.3deg 107deg,
+      #F85149 107deg 116.8deg, #1A1A22 116.8deg 126.5deg,
+      #F85149 126.5deg 136.2deg, #1A1A22 136.2deg 146deg,
+      #F85149 146deg 155.7deg, #1A1A22 155.7deg 165.4deg,
+      #F85149 165.4deg 175.1deg, #1A1A22 175.1deg 184.9deg,
+      #F85149 184.9deg 194.6deg, #1A1A22 194.6deg 204.3deg,
+      #F85149 204.3deg 214deg, #1A1A22 214deg 223.8deg,
+      #F85149 223.8deg 233.5deg, #1A1A22 233.5deg 243.2deg,
+      #F85149 243.2deg 253deg, #1A1A22 253deg 262.7deg,
+      #F85149 262.7deg 272.4deg, #1A1A22 272.4deg 282.1deg,
+      #F85149 282.1deg 291.9deg, #1A1A22 291.9deg 301.6deg,
+      #F85149 301.6deg 311.3deg, #1A1A22 311.3deg 321deg,
+      #F85149 321deg 330.8deg, #1A1A22 330.8deg 340.5deg,
+      #F85149 340.5deg 350.2deg, #1A1A22 350.2deg 360deg);
+  border: 3px solid #C4C4D0;
+  box-shadow: 0 0 18px rgba(0,0,0,.5), inset 0 0 8px rgba(0,0,0,.6);
+  transform-origin: center;
+}
+.roulette.spinning .wheel { animation: rouletteSpin 2.4s cubic-bezier(.15,.7,.25,1) forwards; }
+@keyframes rouletteSpin {
+  0%   { transform: rotate(0); }
+  100% { transform: rotate(1440deg); }    /* 4 full turns */
+}
+.roulette .ball {
+  position: absolute;
+  top: 6px; left: 50%;
+  width: 8px; height: 8px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, #c4c4d0 60%, #6b6b76 100%);
+  box-shadow: 0 0 6px rgba(255,255,255,.5);
+  transform-origin: 50% 42px;
+}
+.roulette.spinning .ball { animation: rouletteBall 2.4s cubic-bezier(.15,.7,.25,1) forwards; }
+@keyframes rouletteBall {
+  0%   { transform: rotate(0); }
+  100% { transform: rotate(-1080deg); }   /* counter-rotate against wheel */
+}
+.roulette .pocket {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px; font-weight: 800;
+  color: #EFEFF1;
+  text-shadow: 0 0 6px rgba(0,0,0,.7);
+  background: rgba(0,0,0,.5);
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.18);
+  opacity: 0;
+  transition: opacity .25s ease;
+}
+.roulette.show .pocket.shown { opacity: 1; }
+.roulette .pocket[data-color="red"]   { background: rgba(248,81,73,.85); }
+.roulette .pocket[data-color="black"] { background: rgba(20,20,28,.95); }
+.roulette .pocket[data-color="green"] { background: rgba(63,185,80,.85); }
+
 .dev-status {
   position: fixed; bottom: 4px; right: 6px;
   font-size: 10px; color: var(--muted);

@@ -22,6 +22,8 @@
   const diePip  = card.querySelector('.die-pip');
   const slots   = card.querySelector('.slots');
   const reels   = [$('reel0'), $('reel1'), $('reel2')];
+  const rps     = card.querySelector('.rps');
+  const roulette = card.querySelector('.roulette');
   const userEl  = $('user');
   const wagerEl = $('wager');
   const outcome = $('outcome');
@@ -81,6 +83,8 @@
     coin.style.display = 'none';
     die.style.display  = 'none';
     slots.classList.remove('show');
+    if (rps)      rps.classList.remove('show');
+    if (roulette) roulette.classList.remove('show', 'spinning');
     coin.classList.remove('flipping', 'show-heads', 'show-tails');
     die.classList.remove('rolling');
     reels.forEach(r => r.classList.remove('spinning', 'locked'));
@@ -90,6 +94,17 @@
     // finished yet.
     var lever = $('lever');
     if (lever) lever.classList.remove('pulling');
+    // Reset RPS sides so the previous run's win/lose tinting doesn't
+    // bleed into the next match.
+    if (rps) {
+      rps.querySelectorAll('.rps-side').forEach(function (el) {
+        el.classList.remove('shaking', 'win', 'lose');
+      });
+    }
+    if (roulette) {
+      var pocketEl = $('roulette-pocket');
+      if (pocketEl) pocketEl.classList.remove('shown');
+    }
     if (slotsTimer) { clearTimeout(slotsTimer); slotsTimer = null; }
   }
 
@@ -185,6 +200,93 @@
     hideTimer = setTimeout(function () { card.classList.add('hidden'); }, 4500);
   }
 
+  // Rock / paper / scissors: shake both sides for ~700ms, swap glyphs to
+  // the actual picks, then tint the winning side. Tie shows a draw line.
+  function showRps(viewer, bot, outcome, won, user, wager, payout) {
+    resetVisuals();
+    if (!rps) return;
+    card.classList.remove('hidden');
+    rps.classList.add('show');
+    var viewerEl = $('rps-viewer');
+    var botEl    = $('rps-bot');
+    var sides    = rps.querySelectorAll('.rps-side');
+
+    // Pre-shake glyph is always rock — the reveal happens after the
+    // shake animation lands so the viewer "sees" the throw.
+    if (viewerEl) viewerEl.textContent = '✊';
+    if (botEl)    botEl.textContent    = '✊';
+    sides.forEach(function (el) { el.classList.add('shaking'); });
+    fillLines(user, wager, won, payout, 'rock... paper... scissors');
+
+    setTimeout(function () {
+      sides.forEach(function (el) { el.classList.remove('shaking'); });
+      if (viewerEl) viewerEl.textContent = rpsGlyph(viewer);
+      if (botEl)    botEl.textContent    = rpsGlyph(bot);
+      if (outcome === 'win') {
+        sides[0].classList.add('win');
+        sides[2].classList.add('lose');
+      } else if (outcome === 'loss') {
+        sides[0].classList.add('lose');
+        sides[2].classList.add('win');
+      }
+      // Update the lines now that we know the result.
+      fillLines(user, wager, won, payout,
+        outcome === 'win'  ? 'WINS RPS' :
+        outcome === 'loss' ? 'loses RPS' :
+                              'ties RPS');
+      if (pulseTimer) clearTimeout(pulseTimer);
+      pulseTimer = setTimeout(function () {
+        card.classList.remove('pulse');
+        void card.offsetWidth;
+        card.classList.add('pulse');
+      }, 50);
+    }, 700);
+
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () { card.classList.add('hidden'); }, 4500);
+  }
+  function rpsGlyph(c) {
+    return c === 'rock'     ? '✊' :
+           c === 'paper'    ? '✋' :
+           c === 'scissors' ? '✌' : '?';
+  }
+
+  // Roulette: spin the wheel + counter-rotating ball for ~2.4s, then
+  // reveal the winning pocket number tinted by colour. CSS handles
+  // the actual rotation; we just toggle classes + set the pocket text.
+  function showRoulette(pick, pocket, resultColor, won, user, wager, payout) {
+    resetVisuals();
+    if (!roulette) return;
+    card.classList.remove('hidden');
+    roulette.classList.add('show');
+    var pocketEl = $('roulette-pocket');
+    if (pocketEl) {
+      pocketEl.textContent = String(pocket);
+      pocketEl.dataset.color = resultColor;
+      pocketEl.classList.remove('shown');
+    }
+    // Two-frame swap to (re)kick the spin animation when this fires
+    // back-to-back without a hide cycle.
+    void roulette.offsetWidth;
+    roulette.classList.add('spinning');
+
+    fillLines(user, wager, won, payout, 'placing bet on ' + pick + '...');
+
+    setTimeout(function () {
+      if (pocketEl) pocketEl.classList.add('shown');
+      fillLines(user, wager, won, payout, 'landed on ' + resultColor + ' ' + pocket);
+      if (pulseTimer) clearTimeout(pulseTimer);
+      pulseTimer = setTimeout(function () {
+        card.classList.remove('pulse');
+        void card.offsetWidth;
+        card.classList.add('pulse');
+      }, 50);
+    }, 2400);
+
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () { card.classList.add('hidden'); }, 5500);
+  }
+
   function fillLines(user, wager, won, payout, mid) {
     userEl.textContent = (user || '?') + ' — ' + mid;
     wagerEl.textContent = 'wagered ' + (wager || 0) + ' ⚡';
@@ -226,6 +328,12 @@
         break;
       case 'bolts.minigame.slots':
         showSlots(d.reels, !!d.won, d.user, d.wager, d.payout, d.pool);
+        break;
+      case 'bolts.minigame.rps':
+        showRps(d.viewer, d.bot, d.outcome, d.outcome === 'win', d.user, d.wager, d.payout);
+        break;
+      case 'bolts.minigame.roulette':
+        showRoulette(d.pick, d.pocket, d.resultColor, !!d.won, d.user, d.wager, d.payout);
         break;
     }
   }

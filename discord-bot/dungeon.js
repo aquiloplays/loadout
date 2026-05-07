@@ -219,6 +219,31 @@ export function discordAvatarUrl(user) {
   return 'https://cdn.discordapp.com/embed/avatars/' + idx + '.png';
 }
 
+/// Build a deterministic pixel-art portrait URL for a hero using
+/// DiceBear's public pixel-art generator. Same seed always produces
+/// the same character; different classes get different seeds so a
+/// warrior and a mage on the same Discord account look different.
+/// Class tint becomes the background colour.
+///
+/// Why DiceBear instead of the overlay's own SVG sprite: Discord's
+/// embed media proxy reliably renders DiceBear's PNG output. Inline
+/// SVGs from a Worker route get filtered out of embeds. The portrait
+/// here is a "Discord-side" character — viewers still see their
+/// composed pixel-art sprite (with chosen skin/hair/cape) on the
+/// dungeon overlay; the two surfaces stay distinct on purpose.
+export function characterPortraitUrl(hero, callerUser, callerName, fallback) {
+  if (hero?.avatar) return hero.avatar;
+  if (hero?.className && CLASSES[hero.className]) {
+    const cls = CLASSES[hero.className];
+    const bgHex = cls.tint.toString(16).padStart(6, '0');
+    const seedSrc = (callerName || callerUser?.id || 'hero') + '-' + hero.className;
+    return 'https://api.dicebear.com/9.x/pixel-art/png?seed=' +
+           encodeURIComponent(seedSrc) +
+           '&size=256&backgroundColor=' + bgHex;
+  }
+  return fallback || '';
+}
+
 export async function cmdHero(env, guild, callerId, targetUser, callerName, callerUser) {
   const targetId = targetUser?.id || callerId;
   const targetName = targetUser?.username || (targetId === callerId ? callerName : 'that hero');
@@ -246,15 +271,24 @@ export async function cmdHero(env, guild, callerId, targetUser, callerName, call
       '\n\n' + equippedLines.join('\n'),
     color: cls?.tint || 0x3A86FF
   };
-  // Embed thumbnail slot (top-right ~80px). Use whatever avatar source
-  // is available, in priority order:
-  //   1. hero.avatar — explicit URL the viewer pasted (legacy / advanced)
-  //   2. their Twitch/etc. profile pic from on-stream play (synced from DLL)
-  //   3. their Discord avatar (auto, no setup required)
-  // If the URL ever 404s Discord just hides the thumbnail; the rest
-  // of the embed still renders.
-  const thumbUrl = hero.avatar || (callerUser ? discordAvatarUrl(callerUser) : '');
+  // Embed thumbnail slot (top-right ~80px). Three-tier portrait:
+  //   1. hero.avatar — explicit URL the viewer pasted (legacy)
+  //   2. DiceBear pixel-art portrait when a class is set — gives
+  //      every viewer a distinct character that actually LOOKS like
+  //      a pixel-art hero rather than just their Discord pic.
+  //   3. Discord avatar fallback — for viewers who haven't picked a
+  //      class yet, so they still see something.
+  // If a fetch fails Discord just hides the thumbnail; the rest of
+  // the embed still renders.
+  const thumbUrl = characterPortraitUrl(hero, callerUser, targetName,
+    callerUser ? discordAvatarUrl(callerUser) : '');
   if (thumbUrl) embed.thumbnail = { url: thumbUrl };
+  // Also use the portrait as the embed image (bigger render, below
+  // the description) when the viewer has actually set a class.
+  // Otherwise the embed only has the small thumbnail in the corner.
+  if (hero.className && CLASSES[hero.className]) {
+    embed.image = { url: thumbUrl };
+  }
 
   return {
     embeds: [embed],
