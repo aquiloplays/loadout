@@ -906,6 +906,15 @@ namespace Loadout.Settings
         // 3-of-a-kind = wager × SlotsPayoutAllSame; any 2-of-a-kind
         // returns wager × SlotsPayoutTwoSame (default 1 = wash).
         public string SlotsImagePool       { get; set; } = "";
+        // When true, the slots reels auto-populate from the Twitch
+        // emotes the broadcaster's chat actually uses. The DLL
+        // harvests emote URLs out of every chat event (TwitchEmoteCache)
+        // and the !slots resolver prefers that rolling pool over
+        // SlotsImagePool. Channel + sub emotes naturally dominate
+        // because they show up most often in the broadcaster's chat.
+        // Falls back to SlotsImagePool / built-in defaults when fewer
+        // than ~3 unique emotes have been observed yet.
+        public bool   SlotsUseTwitchEmotes { get; set; } = false;
         public int    SlotsMinWager        { get; set; } = 5;
         public int    SlotsMaxWager        { get; set; } = 500;
         public int    SlotsPayoutAllSame   { get; set; } = 5;     // 3 same → wager × 5

@@ -85,6 +85,11 @@
     die.classList.remove('rolling');
     reels.forEach(r => r.classList.remove('spinning', 'locked'));
     card.classList.remove('win', 'lose', 'pulse');
+    // Clear lever state so back-to-back !slots events don't leave the
+    // arm half-rotated when the previous run's spring-back hadn't
+    // finished yet.
+    var lever = $('lever');
+    if (lever) lever.classList.remove('pulling');
     if (slotsTimer) { clearTimeout(slotsTimer); slotsTimer = null; }
   }
 
@@ -118,9 +123,43 @@
                   || (reelImgs && reelImgs.length ? reelImgs : null)
                   || defaultPool;
 
-    // Start every reel spinning + cycling random pool symbols. Each
-    // symbol may be a URL (img) or a text/emoji glyph; setReelSymbol
-    // handles both.
+    // Lever pull — happens BEFORE the reels start spinning so the
+    // visual reads as "pull → spin → settle" in that order. CSS
+    // animation runs ~260ms down + ~350ms spring-back, but we kick
+    // the spin off as soon as the down-stroke peaks (260ms) so the
+    // reels are already cycling while the knob rebounds.
+    var lever = $('lever');
+    if (lever) {
+      // Use rAF + setTimeout combo so the .pulling class re-applies
+      // even if showSlots fired back-to-back (the previous pull's
+      // class was just removed; without rAF the class-add would
+      // collapse with the class-remove and produce no transition).
+      lever.classList.remove('pulling');
+      void lever.offsetWidth;
+      lever.classList.add('pulling');
+      setTimeout(function () { if (lever) lever.classList.remove('pulling'); }, 260);
+    }
+
+    // Defer the reel-spin start so the lever's down-stroke lands first.
+    // Settle times are now relative-to-spin-start; total slots
+    // sequence reads as: pull (0-260ms) → spin (260ms-1960ms) →
+    // pulse (1960ms).
+    var SPIN_START = 260;
+    setTimeout(function () { startSlotSpin(reelImgs, won, user, wager, payout, symbols); }, SPIN_START);
+    fillLines(user, wager, won, payout, won ? 'JACKPOT!' : 'spinning the reels');
+    // Pulse times with the third reel landing.
+    if (pulseTimer) clearTimeout(pulseTimer);
+    pulseTimer = setTimeout(function () {
+      card.classList.remove('pulse');
+      void card.offsetWidth;
+      card.classList.add('pulse');
+    }, SPIN_START + 1700);
+  }
+
+  // Reel-spin half of the slots sequence. Split out from showSlots so
+  // the lever pull can fire first and these reels start once the lever
+  // bottoms out.
+  function startSlotSpin(reelImgs, won, user, wager, payout, symbols) {
     var cyclers = reels.map(function (reel) {
       reel.classList.add('spinning');
       setReelSymbol(reel, symbols[Math.floor(Math.random() * symbols.length)]);
@@ -140,15 +179,6 @@
         reels[i].classList.add('locked');
       }, t);
     });
-
-    fillLines(user, wager, won, payout, won ? 'JACKPOT!' : 'spinning the reels');
-    // Pulse times with the third reel landing.
-    if (pulseTimer) clearTimeout(pulseTimer);
-    pulseTimer = setTimeout(function () {
-      card.classList.remove('pulse');
-      void card.offsetWidth;
-      card.classList.add('pulse');
-    }, 1700);
 
     // Override the auto-hide so the streamer / viewer can savor the result.
     if (hideTimer) clearTimeout(hideTimer);

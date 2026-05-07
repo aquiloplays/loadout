@@ -62,6 +62,13 @@ namespace Loadout.Modules
             switch (ctx.Kind)
             {
                 case "chat":
+                    // Auto-populate the !slots reel pool from emotes that
+                    // actually show up in the broadcaster's chat. Cheap
+                    // (just dict adds when emoteCount > 0); harvested on
+                    // every chat event regardless of the toggle so the
+                    // pool's already warm the moment the streamer flips
+                    // SlotsUseTwitchEmotes on.
+                    TwitchEmoteCache.Instance.Harvest(ctx);
                     EarnChat(ctx, s);
                     HandleChatCommands(ctx, s);
                     return;
@@ -774,6 +781,18 @@ namespace Loadout.Modules
 
         private static string[] ResolveSlotsPool(LoadoutSettings s)
         {
+            // Priority chain when SlotsUseTwitchEmotes is on:
+            //   1. Live cache, if enough unique emotes have been observed
+            //      (3+, otherwise the reels would all roll the same
+            //      emote and the spin reads boring).
+            //   2. Manual SlotsImagePool, if non-empty.
+            //   3. Built-in default pool (six Twitch global emotes).
+            // When the toggle is off we go straight to manual / default.
+            if (s.Bolts.SlotsUseTwitchEmotes)
+            {
+                var live = TwitchEmoteCache.Instance.SnapshotUrls();
+                if (live.Count >= 3) return live.ToArray();
+            }
             var raw = s.Bolts.SlotsImagePool ?? "";
             if (string.IsNullOrWhiteSpace(raw)) return DefaultSlotsPool;
             var lines = raw.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);

@@ -1026,6 +1026,7 @@ namespace Loadout.UI
             TxtBoltsRainMin.Text      = s.Bolts.BoltRainMinTotal.ToString();
             TxtBoltsRainMax.Text      = s.Bolts.BoltRainMaxRecipients.ToString();
             if (TxtBoltsSlotsPool != null) TxtBoltsSlotsPool.Text = s.Bolts.SlotsImagePool ?? "";
+            if (ChkBoltsSlotsUseTwitchEmotes != null) ChkBoltsSlotsUseTwitchEmotes.IsChecked = s.Bolts.SlotsUseTwitchEmotes;
             // Minigames bounds + per-user cooldown + result delay.
             if (TxtBoltsGameCd       != null) TxtBoltsGameCd.Text       = s.Bolts.GamePerUserCooldownSec.ToString();
             if (TxtBoltsGameDelay    != null) TxtBoltsGameDelay.Text    = s.Bolts.GameResultDelayMs.ToString();
@@ -1307,6 +1308,7 @@ namespace Loadout.UI
                 // Slots reel pool: collapse Windows CRLF -> LF so what the
                 // overlay reads matches what the user typed in the textbox.
                 if (TxtBoltsSlotsPool != null) s.Bolts.SlotsImagePool = (TxtBoltsSlotsPool.Text ?? "").Replace("\r\n", "\n").Trim();
+                if (ChkBoltsSlotsUseTwitchEmotes != null) s.Bolts.SlotsUseTwitchEmotes = ChkBoltsSlotsUseTwitchEmotes.IsChecked == true;
                 // Minigames knobs. Wide range guards (0..3600 cd, 0..30000
                 // delay, 0..million wager) so the streamer can lower bounds
                 // to zero to disable a game without a separate toggle.

@@ -28,6 +28,14 @@
         <div class="reel" id="reel0"></div>
         <div class="reel" id="reel1"></div>
         <div class="reel" id="reel2"></div>
+        <!-- Spring-loaded lever pulled before the reels start spinning.
+             JS toggles `.pulling` for the down-stroke, removes it for
+             the spring-back; CSS keyframes handle the rest. -->
+        <div class="lever" id="lever">
+          <div class="lever-arm"></div>
+          <div class="lever-knob"></div>
+          <div class="lever-base"></div>
+        </div>
       </div>
     </div>
     <div class="lines">

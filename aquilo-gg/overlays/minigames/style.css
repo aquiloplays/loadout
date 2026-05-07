@@ -144,8 +144,90 @@ body[data-pos="tr"] #card { top: 24px; right: 24px; }
   gap: 8px;
   align-items: center;
   justify-content: center;
+  position: relative;
+  /* Right-pad reserves space for the lever so it can sit beside the
+     reels rather than overlapping them. */
+  padding-right: 28px;
 }
 .slots.show { display: flex; }
+
+/* The lever — three pieces:
+     .lever-base : grey hex socket bolted to the cabinet
+     .lever-arm  : the rod (origin at its bottom = the socket)
+     .lever-knob : red ball at the top of the rod
+   Default state: arm is upright (rotate 0), knob at the top. The
+   .pulling class swings the arm down 80° around the socket pivot.
+   When .pulling is removed, the arm springs back via CSS transition
+   with a slight overshoot. JS toggles .pulling for ~280ms before
+   the reels start spinning. */
+.lever {
+  position: absolute;
+  right: -2px;
+  top: 4px;
+  width: 22px;
+  height: 64px;
+  pointer-events: none;
+}
+.lever-base {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 18px;
+  height: 8px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #4a4a52 0%, #2a2a30 100%);
+  border: 1px solid #1a1a22;
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.5);
+}
+.lever-arm {
+  position: absolute;
+  bottom: 4px;        /* sit on top of the socket */
+  left: 50%;
+  width: 4px;
+  height: 50px;
+  margin-left: -2px;
+  background: linear-gradient(180deg, #c4c4d0 0%, #8b8b96 100%);
+  border-radius: 2px;
+  transform-origin: bottom center;
+  transform: rotate(0deg);
+  /* Spring-back curve — overshoots slightly past 0deg before settling. */
+  transition: transform .35s cubic-bezier(.4, 1.6, .55, 1);
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.4);
+}
+.lever-knob {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff6e63 0%, #d12d22 60%, #7a1410 100%);
+  border: 1px solid #5a0e0a;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  transform-origin: bottom center;
+  /* Same transition as the arm so the knob tracks the arm's rotation
+     when the lever pulls. We rotate the wrapper, not the knob, so
+     instead just inherit by living inside .lever which rotates as a
+     unit when the arm-pull class flips. */
+}
+/* Pulling state — the lever rotates ~80deg toward the viewer (right
+   side, since the lever sits on the right of the reels). The knob
+   sits at the top of the arm so it traces an arc as the rotation
+   plays out. */
+.lever.pulling .lever-arm,
+.lever.pulling .lever-knob {
+  transform: rotate(80deg);
+  transition: transform .26s cubic-bezier(.55, .09, .68, .53);
+}
+.lever.pulling .lever-knob {
+  /* Pivot from the arm-base, not the knob centre, so it follows the arm. */
+  transform-origin: 50% 50px;
+}
+.lever .lever-knob {
+  transform-origin: 50% 50px;
+}
 .reel {
   width: 64px;
   height: 64px;

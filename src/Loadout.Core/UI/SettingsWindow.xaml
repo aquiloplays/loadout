@@ -1233,12 +1233,34 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Slots minigame (!slots <wager>). Image pool drives
-                             the reels; defaults to 6 Twitch global emotes
-                             when blank. -->
+                        <!-- Slots minigame (!slots <wager>). Reel symbols
+                             come from one of three sources, in priority:
+                             live Twitch chat (when the toggle is on),
+                             the manual list below, or the built-in
+                             6-emote default. -->
                         <Border Style="{StaticResource Card}" Margin="0 0 0 14">
                             <StackPanel>
                                 <TextBlock Text="!slots reel symbols" Style="{StaticResource H2}" />
+
+                                <!-- Auto-mode: harvest emotes from chat. The
+                                     DLL's TwitchEmoteCache observes every chat
+                                     event so channel-tier sub emotes naturally
+                                     fill the pool. Falls back to the manual
+                                     list below if fewer than 3 emotes have
+                                     shown up yet — the reels would otherwise
+                                     all roll the same image. -->
+                                <CheckBox x:Name="ChkBoltsSlotsUseTwitchEmotes" Style="{StaticResource ToggleSwitch}" Margin="0 6 0 6"
+                                          Content="Auto-use emotes from your Twitch channel"
+                                          ToolTip="When on, the slots reels populate from emotes that show up in your chat — channel-tier subs and global emotes. Updates live as new emotes are used." />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 10">
+                                    The DLL listens to chat events and caches the emote URLs Twitch attaches.
+                                    The reel pool refreshes the moment a new emote shows up. Channel-tier sub
+                                    emotes, bit emotes, and global emotes all feed the cache. Until ~3 unique
+                                    emotes have been seen, the manual list below is used as a fallback so the
+                                    reels still spin with variety.
+                                </TextBlock>
+
+                                <TextBlock Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0 4 0 4" Text="Manual reel pool (used when auto is off, or as fallback)" />
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
                                     One symbol per line — either an image URL OR an emoji / short text.
                                     The slot machine picks 3 at random per spin. Mix freely:
