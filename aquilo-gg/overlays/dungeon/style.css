@@ -153,6 +153,29 @@ body.has-custom-bg::before {
   display: block;
   border-radius: inherit;
 }
+
+/* Class sprite mode — when the avatar slot renders the inline SVG
+   pixel-art instead of an avatar URL, drop the centre-text styling
+   and let the SVG fill its parent. We keep the round border ring for
+   tint, paint a slightly darker base behind the sprite so the figure
+   reads against any underlying canvas, and disable smoothing so the
+   pixels stay crisp at every avatar size. */
+.pt-avatar.has-sprite,
+.lc-avatar.has-sprite,
+.d-avatar.has-sprite {
+  background: rgba(15, 15, 20, 0.55);
+  padding: 0;
+  font-size: 0;
+  line-height: 0;
+}
+.pt-avatar.has-sprite svg,
+.lc-avatar.has-sprite svg,
+.d-avatar.has-sprite svg {
+  width: 100%; height: 100%;
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
 .party-tile .pt-name { font-size: 13px; font-weight: 700; }
 .party-tile .pt-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
