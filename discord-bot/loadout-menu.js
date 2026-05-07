@@ -397,21 +397,10 @@ async function customizeView(env, guild, userId, userName) {
   // colour, plus a list of their current customization values.)
   const r = await cmdHero(env, guild, userId, null, userName);
   const heroEmbed = r.embeds?.[0];
-  // Read the raw hero so we can show the picked customizations. We
-  // don't expose the underlying dungeon.js loadHero here so do a
-  // best-effort pull from the canonical KV key via the wallet link.
-  const w = await getWallet(env, guild, userId);
-  const link = (w.links || [])[0];
-  let hero = null;
-  if (link?.platform && link?.username) {
-    const raw = await env.LOADOUT_BOLTS.get(
-      `d:hero-by-handle:${guild}:${link.platform.toLowerCase()}:${link.username.toLowerCase()}`);
-    if (raw) { try { hero = JSON.parse(raw); } catch {} }
-  }
-  if (!hero) {
-    const raw = await env.LOADOUT_BOLTS.get('d:hero:' + guild + ':' + userId);
-    if (raw) { try { hero = JSON.parse(raw); } catch {} }
-  }
+  // Read the merged hero so we surface the customizations the viewer
+  // just picked. Goes through loadHeroFor (which now merges local +
+  // DLL push) so /loadout-set avatar / className / custom show up.
+  const hero = await loadHeroFor(env, guild, userId);
   const c = hero?.custom || {};
 
   const summary =
@@ -959,31 +948,45 @@ function sortBag(bag) {
   return [...(bag || [])].sort((a, b) => (order[b.rarity] || 0) - (order[a.rarity] || 0));
 }
 
-// Hero state lookup. Two layers:
-//   1. DLL-pushed hero (d:hero-by-handle:<guild>:<platform>:<handle>).
-//      The DLL pushes its dungeon-heroes.json on the existing 5-minute
-//      sync cadence; this is the "what stream-side play has earned"
-//      surface. Looked up via wallet → first link → handle key.
-//   2. Worker-local hero (d:hero:<guild>:<userId>). Per-Discord-user
-//      progression for viewers who haven't linked yet, plus the place
-//      Discord-side actions (/loadout shop-buy, /loadout train, equip)
-//      write into. Used as fallback when no linked hero is found.
+// Hero state lookup for the picker views (equip / unequip / sell).
+// Two storage layers, merged on read so Discord-set fields (avatar /
+// className / custom) survive the DLL's 5-minute hero snapshot push:
 //
-// The two layers diverge until a real bidirectional bridge exists
-// (Phase 3) — for now off-stream and on-stream hero progression are
-// separate but a linked viewer always sees their stream-earned gear
-// in /loadout.
+//   1. d:hero-by-handle:<guild>:<platform>:<handle> — DLL push. Holds
+//      progression stats from on-stream play.
+//   2. d:hero:<guild>:<userId>                       — Worker-local,
+//      where /loadout writes Discord-side mutations.
+//
+// Bag is unioned across both; equipped slots merged. Earlier this
+// returned the DLL hero outright when present — local was ignored
+// entirely, so any /loadout-set avatar / class / custom was invisible.
 async function loadHeroFor(env, guild, userId) {
   const w = await getWallet(env, guild, userId);
   const link = (w.links || [])[0];
+  let dllHero = null;
   if (link?.platform && link?.username) {
     const raw = await env.LOADOUT_BOLTS.get(
       `d:hero-by-handle:${guild}:${link.platform.toLowerCase()}:${link.username.toLowerCase()}`);
-    if (raw) {
-      try { return JSON.parse(raw); } catch { /* fall through to local */ }
-    }
+    if (raw) { try { dllHero = JSON.parse(raw); } catch {} }
   }
   const raw = await env.LOADOUT_BOLTS.get(`d:hero:${guild}:${userId}`);
-  if (!raw) return { bag: [], equipped: {} };
-  try { return JSON.parse(raw); } catch { return { bag: [], equipped: {} }; }
+  let local = null;
+  if (raw) { try { local = JSON.parse(raw); } catch {} }
+
+  if (!dllHero && !local) return { bag: [], equipped: {} };
+  if (!dllHero) return local;
+  if (!local)   return dllHero;
+  // Merge with the same rules dungeon.js's loadHero uses — keep them
+  // in sync. Discord-set fields prefer local; progression stats prefer
+  // DLL; bag is unioned; equipped merged with DLL winning on conflict.
+  const merged = Object.assign({}, dllHero);
+  if (local.avatar)    merged.avatar    = local.avatar;
+  if (local.className) merged.className = local.className;
+  if (local.custom && Object.keys(local.custom).length > 0) {
+    merged.custom = Object.assign({}, dllHero.custom || {}, local.custom);
+  }
+  const ids = new Set((dllHero.bag || []).map(it => it.id));
+  merged.bag = [...(dllHero.bag || []), ...((local.bag || []).filter(it => !ids.has(it.id)))];
+  merged.equipped = Object.assign({}, local.equipped || {}, dllHero.equipped || {});
+  return merged;
 }

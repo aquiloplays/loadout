@@ -80,12 +80,29 @@ async function loadHero(env, guild, userId) {
   if (raw) { try { local = JSON.parse(raw); } catch { /* swallow */ } }
 
   if (dllHero && local) {
-    // Merge: DLL is canonical for level/XP/HP/dungeons-stats; bag is
-    // unioned (Discord shop additions live alongside dungeon drops);
-    // equipped slots merged with DLL winning when both have an entry
-    // for the same slot.
+    // Merge plan — different fields have different sources of truth:
+    //
+    //   DLL canonical (set by !dungeon runs, can't be set on Discord):
+    //     level, xp, hpMax, hpCurrent, dungeonsSurvived, bossesSlain,
+    //     legendariesFound, mythicsFound, achievements, dungeonsVisited.
+    //
+    //   Discord canonical (set by /loadout, never touched by !dungeon):
+    //     avatar, className, custom. Earlier this was lost — the merge
+    //     overwrote them with the DLL's empty defaults on every read.
+    //     Fix is to keep local's value for each whenever it's set,
+    //     falling back to the DLL-pushed value only when local is blank.
+    //
+    //   Both can mutate (union):
+    //     bag — DLL adds dungeon drops, Discord adds /shop-buy items.
+    //     equipped — Discord sets via /equip, DLL only when a !dungeon
+    //                drop is auto-equipped (rare).
     const merged = newHero();
     Object.assign(merged, dllHero);
+    if (local.avatar)    merged.avatar    = local.avatar;
+    if (local.className) merged.className = local.className;
+    if (local.custom && Object.keys(local.custom).length > 0) {
+      merged.custom = Object.assign({}, dllHero.custom || {}, local.custom);
+    }
     const ids = new Set((dllHero.bag || []).map(it => it.id));
     merged.bag = [...(dllHero.bag || []), ...((local.bag || []).filter(it => !ids.has(it.id)))];
     merged.equipped = Object.assign({}, local.equipped || {}, dllHero.equipped || {});
