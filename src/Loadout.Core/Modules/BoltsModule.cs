@@ -500,17 +500,46 @@ namespace Loadout.Modules
             return true;
         }
 
+        // Global throttle: when more than one minigame fires inside the
+        // configured window, only the first reply posts. Prevents a
+        // back-to-back !slots / !coinflip flood from carpet-bombing
+        // chat with seven near-identical lines while still letting an
+        // occasional reply land.
+        private static long _lastReplyPostedTicks = 0;
+        private static readonly object _replyGate = new object();
+
+        /// <summary>True when we're allowed to post another result reply
+        /// right now. Updates the cursor as a side-effect when it lets
+        /// the call through (so the next caller sees the new floor).</summary>
+        private static bool TryReserveResultReply(LoadoutSettings s)
+        {
+            int sec = Math.Max(0, s.Bolts.GameReplyMinIntervalSec);
+            if (sec <= 0) return true;        // throttle disabled
+            var window = TimeSpan.FromSeconds(sec);
+            lock (_replyGate)
+            {
+                var now = DateTime.UtcNow.Ticks;
+                if (_lastReplyPostedTicks > 0 &&
+                    new TimeSpan(now - _lastReplyPostedTicks) < window) return false;
+                _lastReplyPostedTicks = now;
+                return true;
+            }
+        }
+
         // Schedules a chat reply after the configured GameResultDelayMs
         // so the on-screen overlay animation lands first and chat
-        // doesn't spoiler the outcome. Fire-and-forget — failures are
-        // swallowed (the bus event already published the win/loss).
-        // Skipped entirely when GameChatReplies is off — overlay-only
-        // streamers can silence the chat side without losing the
-        // overlay animation or the wallet update.
+        // doesn't spoiler the outcome. Skipped entirely when
+        // GameChatReplies is off (overlay-only streamers) OR when the
+        // global reply throttle has fired recently. Bus event +
+        // overlay animation always fire regardless.
         private static void ScheduleResultReply(EventContext ctx, string text, LoadoutSettings s)
         {
             if (!s.Bolts.GameChatReplies) return;
             if (string.IsNullOrEmpty(text)) return;
+            // Check the throttle BEFORE scheduling the delay so a flood
+            // of contemporaneous spends shows one reply max — not five
+            // delayed ones that all fire when the delay window elapses.
+            if (!TryReserveResultReply(s)) return;
 
             var delay = Math.Max(0, s.Bolts.GameResultDelayMs);
             if (delay == 0)
@@ -864,13 +893,20 @@ namespace Loadout.Modules
 
             string botGlyph = RpsGlyph(botPick);
             string viewerGlyph = RpsGlyph(normalized);
-            string text;
-            if (outcome == "tie")
-                text = "✊✋✌ @" + ctx.User + " " + viewerGlyph + " vs " + botGlyph + " — tie. Wager refunded.";
-            else if (outcome == "win")
-                text = "✊✋✌ @" + ctx.User + " " + viewerGlyph + " beats " + botGlyph + " — +" + payout + " " + s.Bolts.Emoji + " (balance " + balance + ")";
-            else
-                text = "✊✋✌ @" + ctx.User + " " + viewerGlyph + " falls to " + botGlyph + " — lost " + wager + " " + s.Bolts.Emoji;
+            var rpsValues = new Dictionary<string, string>
+            {
+                ["user"]    = ctx.User ?? "",
+                ["wager"]   = wager.ToString(),
+                ["payout"]  = payout.ToString(),
+                ["balance"] = balance.ToString(),
+                ["emoji"]   = s.Bolts.Emoji ?? "",
+                ["viewer"]  = viewerGlyph,
+                ["bot"]     = botGlyph
+            };
+            string text =
+                outcome == "tie"  ? FormatTemplate(s.Bolts.RpsTieTemplate,  "✊✋✌ @{user} {viewer}={bot} tie",                  rpsValues) :
+                outcome == "win"  ? FormatTemplate(s.Bolts.RpsWinTemplate,  "✊✋✌ @{user} {viewer}>{bot} +{payout}{emoji}",      rpsValues) :
+                                    FormatTemplate(s.Bolts.RpsLoseTemplate, "✊✋✌ @{user} {viewer}<{bot} -{wager}{emoji}",       rpsValues);
             ScheduleResultReply(ctx, text, s);
         }
 
@@ -973,9 +1009,21 @@ namespace Loadout.Modules
             EventStats.Instance.Hit(ctx.Kind, nameof(BoltsModule));
 
             string colorGlyph = (resultColor == "red") ? "🟥" : (resultColor == "black" ? "⬛" : "🟩");
+            var rouletteValues = new Dictionary<string, string>
+            {
+                ["user"]       = ctx.User ?? "",
+                ["wager"]      = wager.ToString(),
+                ["payout"]     = payout.ToString(),
+                ["balance"]    = balance.ToString(),
+                ["emoji"]      = s.Bolts.Emoji ?? "",
+                ["pick"]       = color,
+                ["pocket"]     = pocket.ToString(),
+                ["color"]      = resultColor,
+                ["colorGlyph"] = colorGlyph
+            };
             string text = won
-                ? "🎡 @" + ctx.User + " bet " + color + " — landed " + pocket + " " + colorGlyph + " — +" + payout + " " + s.Bolts.Emoji + " (balance " + balance + ")"
-                : "🎡 @" + ctx.User + " bet " + color + " — landed " + pocket + " " + colorGlyph + " — lost " + wager + " " + s.Bolts.Emoji;
+                ? FormatTemplate(s.Bolts.RouletteWinTemplate,  "🎡 @{user} {pick} → {pocket}{colorGlyph} +{payout}{emoji}", rouletteValues)
+                : FormatTemplate(s.Bolts.RouletteLoseTemplate, "🎡 @{user} {pick} → {pocket}{colorGlyph} -{wager}{emoji}", rouletteValues);
             ScheduleResultReply(ctx, text, s);
         }
 

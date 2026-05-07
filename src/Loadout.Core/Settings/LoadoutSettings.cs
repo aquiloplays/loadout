@@ -955,16 +955,31 @@ namespace Loadout.Settings
 
         // Editable templates for each minigame outcome — placeholders
         // {user} {wager} {payout} {balance} {emoji} {result} {target}
-        // get substituted at send time. Empty string falls back to the
-        // hardcoded default (matches the original message verbatim so
-        // a clear-then-save still produces a sensible reply).
-        public string CoinflipWinTemplate  { get; set; } = "🪙 @{user} flipped HEADS — +{payout} {emoji} (balance {balance})";
-        public string CoinflipLoseTemplate { get; set; } = "🪙 @{user} flipped tails — lost {wager} {emoji}";
-        public string DiceWinTemplate      { get; set; } = "🎲 @{user} rolled {result} — JACKPOT +{payout} {emoji} (balance {balance})";
-        public string DiceLoseTemplate     { get; set; } = "🎲 @{user} rolled {result} (needed {target}) — lost {wager} {emoji}";
-        public string SlotsJackpotTemplate { get; set; } = "🎰 JACKPOT @{user}! +{payout} {emoji} (×{multiplier})";
-        public string SlotsTwoTemplate     { get; set; } = "🎰 @{user} hit two — got {payout} {emoji} back";
-        public string SlotsNoneTemplate    { get; set; } = "🎰 @{user} spun {wager} {emoji} — no match";
+        // {multiplier} get substituted at send time. Empty string falls
+        // back to the hardcoded default. Defaults are intentionally
+        // SHORT — chat already gets a flood when several viewers play
+        // back-to-back; long replies make it worse. Streamers who want
+        // the balance / wager spelled out can re-add {balance} to the
+        // template manually.
+        public string CoinflipWinTemplate  { get; set; } = "🪙 @{user} HEADS +{payout}{emoji}";
+        public string CoinflipLoseTemplate { get; set; } = "🪙 @{user} tails -{wager}{emoji}";
+        public string DiceWinTemplate      { get; set; } = "🎲 @{user} rolled {result} — JACKPOT +{payout}{emoji}";
+        public string DiceLoseTemplate     { get; set; } = "🎲 @{user} rolled {result}, missed {target} -{wager}{emoji}";
+        public string SlotsJackpotTemplate { get; set; } = "🎰 JACKPOT @{user} +{payout}{emoji}";
+        public string SlotsTwoTemplate     { get; set; } = "🎰 @{user} two-match +{payout}{emoji}";
+        public string SlotsNoneTemplate    { get; set; } = "🎰 @{user} -{wager}{emoji}";
+        public string RpsWinTemplate       { get; set; } = "✊✋✌ @{user} {viewer}>{bot} +{payout}{emoji}";
+        public string RpsLoseTemplate      { get; set; } = "✊✋✌ @{user} {viewer}<{bot} -{wager}{emoji}";
+        public string RpsTieTemplate       { get; set; } = "✊✋✌ @{user} {viewer}={bot} tie";
+        public string RouletteWinTemplate  { get; set; } = "🎡 @{user} {pick} → {pocket}{colorGlyph} +{payout}{emoji}";
+        public string RouletteLoseTemplate { get; set; } = "🎡 @{user} {pick} → {pocket}{colorGlyph} -{wager}{emoji}";
+
+        // Global throttle on minigame result chat replies — max 1
+        // posted reply per N seconds across ALL games. Prevents a
+        // back-to-back hit train from flooding chat. Bus events and
+        // overlay animations always fire; this only gates the chat
+        // send. Set to 0 to disable throttling.
+        public int    GameReplyMinIntervalSec { get; set; } = 4;
     }
 
     public class ApexConfig

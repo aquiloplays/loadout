@@ -281,17 +281,64 @@ if (Test-Path $handoffDoc) {
     Warn "LOADOUT-HANDOFF.md not found at $handoffDoc"
 }
 
+# ── Queued for next session ───────────────────────────────────────────────
+# Prioritised punch-list the user has already asked for but hasn't shipped
+# yet. Edit this list as items get queued / completed across sessions —
+# every snapshot regenerates from this single source of truth so the
+# next Claude reads the latest queue.
+$queuedItems = @(
+    @{
+        Title  = "3D-style dice on the dice-roll overlay"
+        Detail = "Replace the flat 2D die in /overlays/minigames/ with a CSS / SVG 3D-cube " +
+                 "render that tumbles between faces during the roll. Should land on the rolled " +
+                 "value matching the bus payload's d.rolled. Same delay budget as today (~1.4s " +
+                 "settle). Goal: the die READS as actually rolling rather than a flat number " +
+                 "wiggling. Files: aquilo-gg/overlays/minigames/{index.html,style.css,main.js} " +
+                 "(showDie function around line 119)."
+    },
+    @{
+        Title  = "3D-style coin on the coinflip overlay"
+        Detail = "Same overhaul for the coinflip visual: a CSS-3D rotateY flip on a two-faced " +
+                 "disc, lands heads / tails per d.result. Currently the coin is a static H/T " +
+                 "label that fades; want a 3D flip animation that lasts ~1.4s and ends with " +
+                 "the correct face up. Files: showCoin around line 111."
+    },
+    @{
+        Title  = "Minigame chat replies are now throttled + tightened (DONE)"
+        Detail = "Replies now go through a global throttle (Bolts.GameReplyMinIntervalSec, " +
+                 "default 4s) so a flood of !slots / !coinflip drops to one reply per window. " +
+                 "Default templates were also slimmed (no balance, compact format). Streamers " +
+                 "can re-add {balance} / {wager} via Settings."
+        Done   = $true
+    }
+)
+
+Add-MdHeader 2 "Queued for the next session"
+Add-Md ""
+Add-Md ("_(Maintained in tools/handoff-snapshot.ps1. Edit the queuedItems array " +
+        "to add or remove tasks; every snapshot regenerates from that single list.)_")
+Add-Md ""
+foreach ($q in $queuedItems) {
+    if ($q.Done) {
+        Add-Md ("- [x] **" + $q.Title + "** -- " + $q.Detail)
+    } else {
+        Add-Md ("- [ ] **" + $q.Title + "**")
+        Add-Md ("  " + $q.Detail)
+    }
+}
+
 # ── Bootstrap prompt for the next session ─────────────────────────────────
 Add-MdHeader 2 "Bootstrap prompt for the next Claude session"
 Add-Md ""
 Add-Md '```'
 Add-Md "I'm continuing work on the Loadout product (Streamer.bot kit + off-stream"
 Add-Md "Discord bot Worker + 11 OBS overlays + composite all-in-one). Read"
-Add-Md "~/Desktop/LOADOUT-HANDOFF.md for the architecture and active issues, then"
+Add-Md "~/Desktop/LOADOUT-HANDOFF.md for the architecture, then"
 Add-Md "~/Desktop/loadout-session-snapshot.md for the current work-tree state"
-Add-Md "(repo HEADs, dirty files, build artifacts, Worker health). Run"
-Add-Md "~/Desktop/loadout-up.ps1 to confirm what's actually live, then ask me"
-Add-Md "which active issue I want to tackle next."
+Add-Md "(repo HEADs, dirty files, build artifacts, Worker health, AND the"
+Add-Md "queued-for-next-session punch-list at the bottom). Run"
+Add-Md "~/Desktop/loadout-up.ps1 to confirm what's actually live, then start"
+Add-Md "the next queued item (or ask me if you have a question first)."
 Add-Md '```'
 
 # ── Write the file ────────────────────────────────────────────────────────
