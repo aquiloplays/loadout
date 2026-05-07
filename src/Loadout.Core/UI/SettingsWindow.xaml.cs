@@ -2438,10 +2438,10 @@ namespace Loadout.UI
                 // dimensions for the two layouts. The XAML chip's Run
                 // is updated by name.
                 if (TxtCompactSizeHint != null)
-                    TxtCompactSizeHint.Text = compactVert ? " 1100×210" : " 460×148";
+                    TxtCompactSizeHint.Text = compactVert ? " 900×164" : " 460×148";
                 if (TxtCompactSizeNote != null)
                     TxtCompactSizeNote.Text = compactVert
-                        ? " — vertical-stream card (sized for 1080×1920 canvas)"
+                        ? " — vertical-stream card (880×144, sized for 1080×1920 canvas)"
                         : " — the card is 440×128 with a tiny shadow margin";
             }
 
