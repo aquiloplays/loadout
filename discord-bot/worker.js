@@ -283,6 +283,31 @@ async function handleSync(req, env, path) {
     return new Response(JSON.stringify(page), { status: 200, headers: { 'content-type': 'application/json' } });
   }
 
+  // /sync/:guildId/heroes — DLL pushes the dungeon hero registry
+  // (DungeonGameStore) so the /loadout menu can render stream-earned
+  // gear without polling the DLL on every Hero / Bag click. Body:
+  //   { ts: <ms>, heroes: { "twitch:bish":  {level,xp,bag,equipped,...}, ... } }
+  // Stored under d:hero-by-handle:<guild>:<platform>:<handle> so the
+  // /loadout menu can resolve a Discord user → wallet → first link →
+  // hero in two KV reads. The Worker's own per-Discord-user hero
+  // (d:hero:<guild>:<userId>) stays as fallback for users who haven't
+  // linked yet — it's the off-stream-only progression path.
+  if (sub === 'heroes' && req.method === 'POST') {
+    let payload; try { payload = JSON.parse(body); } catch { return new Response('bad json', { status: 400 }); }
+    const heroes = payload?.heroes || {};
+    let count = 0;
+    for (const key of Object.keys(heroes)) {
+      // key is "platform:handle" lowercase. Mirror that into the KV key.
+      const safeKey = key.replace(/[^a-z0-9_:.-]/gi, '');
+      if (!safeKey.includes(':')) continue;
+      await env.LOADOUT_BOLTS.put('d:hero-by-handle:' + guildId + ':' + safeKey,
+                                  JSON.stringify(heroes[key]));
+      count++;
+    }
+    return new Response(JSON.stringify({ ok: true, applied: count }),
+                        { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+
   if (req.method === 'GET') {
     const snap = await readSnapshot(env, guildId);
     return new Response(JSON.stringify(snap), { status: 200, headers: { 'content-type': 'application/json' } });

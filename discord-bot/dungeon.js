@@ -34,10 +34,44 @@ const HERO_KEY = (guild, userId) => 'd:hero:' + guild + ':' + userId;
 // -------------------- store ops --------------------
 
 async function loadHero(env, guild, userId) {
+  // Two-layer lookup so /loadout reflects stream-earned gear from the
+  // DLL push:
+  //   1. d:hero-by-handle:<guild>:<platform>:<handle> — DLL pushes
+  //      dungeon-heroes.json on the existing sync cadence; resolve via
+  //      wallet → first identity link.
+  //   2. d:hero:<guild>:<userId> — Worker-local progression (off-stream
+  //      shop buys, training, equips). Used as fallback for unlinked
+  //      viewers and merged on top so Discord-side mutations win for
+  //      slots the DLL hasn't touched.
+  const w = await getWallet(env, guild, userId);
+  const link = (w.links || [])[0];
+  let dllHero = null;
+  if (link?.platform && link?.username) {
+    const raw = await env.LOADOUT_BOLTS.get(
+      `d:hero-by-handle:${guild}:${link.platform.toLowerCase()}:${link.username.toLowerCase()}`);
+    if (raw) {
+      try { dllHero = JSON.parse(raw); } catch { /* swallow */ }
+    }
+  }
   const raw = await env.LOADOUT_BOLTS.get(HERO_KEY(guild, userId));
-  if (!raw) return newHero();
-  try { return Object.assign(newHero(), JSON.parse(raw)); }
-  catch { return newHero(); }
+  let local = null;
+  if (raw) { try { local = JSON.parse(raw); } catch { /* swallow */ } }
+
+  if (dllHero && local) {
+    // Merge: DLL is canonical for level/XP/HP/dungeons-stats; bag is
+    // unioned (Discord shop additions live alongside dungeon drops);
+    // equipped slots merged with DLL winning when both have an entry
+    // for the same slot.
+    const merged = newHero();
+    Object.assign(merged, dllHero);
+    const ids = new Set((dllHero.bag || []).map(it => it.id));
+    merged.bag = [...(dllHero.bag || []), ...((local.bag || []).filter(it => !ids.has(it.id)))];
+    merged.equipped = Object.assign({}, local.equipped || {}, dllHero.equipped || {});
+    return merged;
+  }
+  if (dllHero) return Object.assign(newHero(), dllHero);
+  if (local)   return Object.assign(newHero(), local);
+  return newHero();
 }
 
 async function saveHero(env, guild, userId, hero) {

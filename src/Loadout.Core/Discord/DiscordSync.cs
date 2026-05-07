@@ -249,11 +249,66 @@ namespace Loadout.Discord
                     {
                         if (!resp.IsSuccessStatusCode) return (false, 0, "Push failed: " + (int)resp.StatusCode);
                         Stamp("pushed " + snap.wallets.Count);
-                        return (true, snap.wallets.Count, "Pushed " + snap.wallets.Count + " wallets.");
                     }
                 }
+
+                // Piggyback dungeon hero state on the same push cadence —
+                // separate endpoint so the wallet/profile path is unchanged
+                // and a hero-side schema bump doesn't risk wallet writes.
+                // Best-effort: a hero push failure doesn't fail the whole
+                // sync since wallets already landed.
+                int heroCount = await PushHeroesAsync(s).ConfigureAwait(false);
+
+                return (true, snap.wallets.Count, "Pushed " + snap.wallets.Count + " wallets" +
+                        (heroCount >= 0 ? ", " + heroCount + " heroes." : "."));
             }
             catch (Exception ex) { ErrorLog.Write("DiscordSync.Push", ex); return (false, 0, ex.Message); }
+        }
+
+        /// <summary>
+        /// Push the dungeon hero registry (DungeonGameStore) up to the
+        /// Worker so the /loadout menu's Hero / Bag views can render
+        /// stream-earned gear without polling the DLL on every click.
+        /// Worker stores the snapshot under d:hero-by-handle:&lt;guild&gt;:&lt;platform&gt;:&lt;handle&gt;
+        /// and the menu does wallet → first-link → hero lookup. Returns
+        /// item count, or -1 on failure (logged, not thrown — wallet
+        /// push already committed by the time we get here).
+        /// </summary>
+        private async Task<int> PushHeroesAsync(Loadout.Settings.DiscordBotConfig s)
+        {
+            try
+            {
+                var heroes = Games.Dungeon.DungeonGameStore.Instance.RecentlyActive(500);
+                if (heroes == null || heroes.Count == 0) return 0;
+                var payload = new HeroSnapshotPush
+                {
+                    ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    heroes = new Dictionary<string, Games.Dungeon.HeroState>(StringComparer.OrdinalIgnoreCase)
+                };
+                foreach (var kv in heroes) payload.heroes[kv.Key] = kv.Value;
+
+                var json = JsonConvert.SerializeObject(payload);
+                var ts   = NowTs();
+                var sig  = HmacHex(s.SyncSecret, ts + "\n" + json);
+                var url  = TrimUrl(s.WorkerUrl) + "/sync/" + Uri.EscapeDataString(s.GuildId) + "/heroes";
+                using (var req = new HttpRequestMessage(HttpMethod.Post, url) { Content = new StringContent(json, Encoding.UTF8, "application/json") })
+                {
+                    req.Headers.Add("x-loadout-ts", ts);
+                    req.Headers.Add("x-loadout-sig", sig);
+                    using (var resp = await _http.SendAsync(req).ConfigureAwait(false))
+                    {
+                        if (!resp.IsSuccessStatusCode) return -1;
+                    }
+                }
+                return payload.heroes.Count;
+            }
+            catch (Exception ex) { ErrorLog.Write("DiscordSync.PushHeroes", ex); return -1; }
+        }
+
+        private sealed class HeroSnapshotPush
+        {
+            public long ts { get; set; }
+            public Dictionary<string, Games.Dungeon.HeroState> heroes { get; set; }
         }
 
         // -------------------- Snapshot shapes + merge --------------------
