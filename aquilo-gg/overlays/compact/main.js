@@ -22,6 +22,19 @@
   const pos = params.get('pos');
   if (pos) document.body.dataset.pos = pos;
 
+  // Vertical / portrait mode for TikTok / YouTube Shorts / Reels
+  // (9:16 streams). Switches the card to a much wider footprint with
+  // bumped type so it reads on a phone-screen-sized canvas. CSS does
+  // the actual layout via body[data-vertical="1"]; main.js is just
+  // the flag setter. Defaults the position to bottom-center when the
+  // streamer hasn't picked one — TikTok's UI chrome sits along the
+  // right edge so a centered card reads cleaner.
+  const vertical = params.get('vertical') === '1';
+  if (vertical) {
+    document.body.dataset.vertical = '1';
+    if (!pos) document.body.dataset.pos = 'bc';
+  }
+
   const HOLD_MS     = Math.max(1500, parseInt(params.get('holdMs')     || '4500', 10) || 4500);
   const IDLE_ROTATE = Math.max(10,   parseInt(params.get('idleRotate') || '30',   10) || 30) * 1000;
 

@@ -2419,16 +2419,30 @@ namespace Loadout.UI
             // Compact one-pane overlay (commands ticker idle + crossfade
             // event cards when the bus fires something). Defaults are
             // dropped from the URL so the streamer's link stays compact.
+            // ?vertical=1 switches the card to a 9:16-stream layout
+            // (TikTok / YouTube Shorts / Reels) with bumped type +
+            // wider footprint.
             if (TxtUrlCompact != null)
             {
                 string compactHold   = ClampInt(TxtCompactHoldMs?.Text, 1500, 30000, 4500);
                 string compactIdle   = ClampInt(TxtCompactIdleRotate?.Text, 10, 600, 30);
+                bool   compactVert   = ChkCompactVertical?.IsChecked == true;
                 TxtUrlCompact.Text = BuildOverlayUrl(baseUrl, "compact", secret, new Dictionary<string, string>
                 {
                     ["pos"]        = SelectedTag(CmbCompactPos),
                     ["holdMs"]     = compactHold == "4500" ? null : compactHold,
-                    ["idleRotate"] = compactIdle == "30"   ? null : compactIdle
+                    ["idleRotate"] = compactIdle == "30"   ? null : compactIdle,
+                    ["vertical"]   = compactVert ? "1" : null
                 });
+                // Size chip — different recommended OBS browser-source
+                // dimensions for the two layouts. The XAML chip's Run
+                // is updated by name.
+                if (TxtCompactSizeHint != null)
+                    TxtCompactSizeHint.Text = compactVert ? " 1100×210" : " 460×148";
+                if (TxtCompactSizeNote != null)
+                    TxtCompactSizeNote.Text = compactVert
+                        ? " — vertical-stream card (sized for 1080×1920 canvas)"
+                        : " — the card is 440×128 with a tiny shadow margin";
             }
 
             // All-in-one composite. Picks up the layer checkboxes, builds a
@@ -2516,7 +2530,7 @@ namespace Loadout.UI
             // Minigames
             "CmbMinigamesPos", "TxtMinigamesAccent",
             // Compact (one-pane)
-            "CmbCompactPos", "TxtCompactHoldMs", "TxtCompactIdleRotate",
+            "CmbCompactPos", "TxtCompactHoldMs", "TxtCompactIdleRotate", "ChkCompactVertical",
             // All-in-one composite layer toggles
             "ChkAllBolts", "ChkAllCounters", "ChkAllGoals", "ChkAllCheckIn",
             "ChkAllApex", "ChkAllCommands", "ChkAllRecap", "ChkAllViewer",

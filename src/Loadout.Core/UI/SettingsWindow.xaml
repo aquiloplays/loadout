@@ -3379,8 +3379,8 @@
                                 <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
                                     <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
                                         <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
-                                        <Run Text=" 460×148" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
-                                        <Run Text=" — the card is 440×128 with a tiny shadow margin" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run x:Name="TxtCompactSizeHint" Text=" 460×148" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run x:Name="TxtCompactSizeNote" Text=" — the card is 440×128 with a tiny shadow margin" Foreground="{StaticResource Brush.Fg.Muted}" />
                                     </TextBlock>
                                 </Border>
                                 <Grid>
@@ -3411,6 +3411,20 @@
                                                  ToolTip="Seconds between commands while idle. Min 10 s." />
                                     </StackPanel>
                                 </Grid>
+                                <!-- Vertical-stream layout — switches the card to a
+                                     wider 880x184 footprint with bumped type sized
+                                     for 9:16 streams (TikTok / YouTube Shorts /
+                                     Reels). Default position becomes bottom-center
+                                     when this is on so the card sits above TikTok's
+                                     gesture chrome rather than fighting it. -->
+                                <CheckBox x:Name="ChkCompactVertical" Style="{StaticResource ToggleSwitch}" Margin="0 8 0 0"
+                                          Content="Vertical layout (TikTok / YouTube Shorts / Reels)"
+                                          ToolTip="Bigger card, larger fonts, sized for 9:16 streams. Recommended OBS browser source: 1100×210 (or any width up to 1080). Position auto-defaults to bottom-center when this is on."
+                                          Click="OnOverlayUrlChange" />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 4 0 0">
+                                    Switches the card to a wider 880×184 footprint with bumped fonts so it reads on a phone-screen 9:16
+                                    canvas (1080×1920). Recommended OBS browser source size shown above will update when the toggle changes.
+                                </TextBlock>
                             </StackPanel>
                         </Border>
 

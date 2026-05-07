@@ -295,6 +295,79 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   100% { transform: translateY(0) scale(1); opacity: 1; }
 }
 
+/* ── Vertical / portrait mode (TikTok / YouTube Shorts / Reels) ──────
+   When the URL param ?vertical=1 is set, main.js stamps body[data-vertical="1"]
+   and we rebuild the card for a 1080-wide canvas. Goal is a card that
+   reads at phone-screen size (the canvas gets letterboxed but viewers
+   actually watch at native 9:16 on their phones). Layout stays
+   horizontal — stacking would waste the precious vertical space on
+   TikTok where the streamer's camera + game footage fill the middle.
+   Recommended OBS browser-source size: 1100×210. */
+body[data-vertical="1"] #card {
+  width: 880px;
+  height: 184px;
+  border-radius: 18px;
+  border-left-width: 6px;
+}
+
+/* Wider gutters + roomier rhythm so the bigger type doesn't crowd. */
+body[data-vertical="1"] .layer {
+  column-gap: 26px;
+  row-gap: 8px;
+  padding: 22px 32px;
+}
+
+/* Badge: 88px brand square — about double the regular size so it
+   still reads as a brand glyph when downscaled to a 1080-px canvas
+   on a 6-inch phone. */
+body[data-vertical="1"] .badge {
+  width: 88px; height: 88px;
+  border-radius: 16px;
+  font-size: 38px;
+}
+body[data-vertical="1"] .badge .icon-strip-item {
+  width: 26px; height: 26px;
+}
+body[data-vertical="1"] .badge .icon-strip-more {
+  font-size: 16px;
+}
+
+/* Title + sub bumped for readability at 9:16 viewing distance.
+   Line-heights kept tight so the two-line block still vertical-
+   centers cleanly against the badge. */
+body[data-vertical="1"] .title {
+  font-size: 32px;
+  line-height: 1.12;
+}
+body[data-vertical="1"] .sub {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+/* Game animation slot scales to match the badge so the coin / die /
+   slots reels stay the same visual weight as the brand badge they
+   replace — same chunky "badge-size" presence on the card. */
+body[data-vertical="1"] .game-visual {
+  width: 112px; height: 112px;
+}
+body[data-vertical="1"] .g-coin   { width: 100px; height: 100px; }
+body[data-vertical="1"] .g-coin-face { font-size: 44px; }
+body[data-vertical="1"] .g-die    { width: 100px; height: 100px; font-size: 52px; border-radius: 18px; }
+body[data-vertical="1"] .g-slots  { height: 84px; gap: 6px; }
+body[data-vertical="1"] .g-reel   { width: 32px; height: 84px; border-radius: 9px; font-size: 26px; }
+body[data-vertical="1"] .g-reel img { width: 26px; height: 26px; }
+body[data-vertical="1"] .g-reel .g-reel-glyph { font-size: 32px; }
+
+/* Position presets re-anchored for the bigger card. The 22px corner
+   inset feels thin against a 1080-px canvas, bump to 36 so the card
+   doesn't kiss the bezel. */
+body[data-vertical="1"][data-pos="tr"] #card { top: 36px;    right: 36px;  bottom: auto; left: auto; }
+body[data-vertical="1"][data-pos="tl"] #card { top: 36px;    left: 36px;   bottom: auto; right: auto; }
+body[data-vertical="1"][data-pos="br"] #card { bottom: 36px; right: 36px;  top: auto;    left: auto; }
+body[data-vertical="1"][data-pos="bl"] #card { bottom: 36px; left: 36px;   top: auto;    right: auto; }
+body[data-vertical="1"][data-pos="tc"] #card { top: 36px;    left: 50%;    transform: translateX(-50%); }
+body[data-vertical="1"][data-pos="bc"] #card { bottom: 36px; left: 50%;    transform: translateX(-50%); }
+
 /* Connection indicator (debug only) */
 .dev-status {
   position: fixed;
