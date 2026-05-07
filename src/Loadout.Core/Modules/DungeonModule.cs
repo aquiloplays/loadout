@@ -252,27 +252,56 @@ namespace Loadout.Modules
 
                 // Apply outcomes: hero state, then award bolts so survivors
                 // see the +N bolts toast simultaneously with the loot reveal.
+                // Achievement unlocks bubble out of ApplyDungeonResult and
+                // get broadcast as their own bus event so the overlay can
+                // render an inline 🏆 toast even after the loot reveal
+                // settles.
                 BoltsWallet.Instance.Initialize();
                 foreach (var o in result.Outcomes)
                 {
+                    List<string> newAchievements;
+                    int achievementBolts;
                     DungeonGameStore.Instance.ApplyDungeonResult(
                         o.Platform, o.Handle,
                         o.HpDelta, o.XpGained, o.GoldGained,
-                        o.Loot, o.Survived, result.DungeonName);
-                    if (o.GoldGained > 0)
+                        o.Loot, o.Survived, result.DungeonName,
+                        o.SlewBoss,
+                        out newAchievements, out achievementBolts);
+                    int totalGold = o.GoldGained + achievementBolts;
+                    if (totalGold > 0)
                     {
-                        BoltsWallet.Instance.Earn(o.Platform, o.Handle, o.GoldGained, "dungeon");
+                        BoltsWallet.Instance.Earn(o.Platform, o.Handle, totalGold, "dungeon");
+                    }
+                    if (newAchievements != null && newAchievements.Count > 0)
+                    {
+                        foreach (var id in newAchievements)
+                        {
+                            var def = Array.Find(DungeonContent.Achievements, a => a.Id == id);
+                            if (def == null) continue;
+                            Publish("achievement.unlocked", new
+                            {
+                                user      = o.Handle,
+                                platform  = o.Platform,
+                                id        = def.Id,
+                                name      = def.Name,
+                                description = def.Description,
+                                glyph     = def.Glyph,
+                                bolts     = def.BoltsReward
+                            });
+                        }
                     }
                 }
 
                 Publish("dungeon.completed", new
                 {
                     dungeonName = result.DungeonName,
+                    biome       = result.Biome,
+                    hadBoss     = result.HadBoss,
                     partySize   = party.Count,
                     outcomes    = result.Outcomes.Select(o =>
                     {
                         // Re-read the post-apply hero so the loot card has
-                        // the avatar/class state the streamer/viewer just
+                        // the avatar/class/custom state the viewer just
                         // configured (and to confirm the level-up if XP
                         // bumped them).
                         var refreshed = DungeonGameStore.Instance.Get(o.Platform, o.Handle)
@@ -283,6 +312,7 @@ namespace Loadout.Modules
                             user      = o.Handle,
                             platform  = o.Platform,
                             survived  = o.Survived,
+                            slewBoss  = o.SlewBoss,
                             hpDelta   = o.HpDelta,
                             xpGained  = o.XpGained,
                             goldGained = o.GoldGained,
@@ -290,6 +320,7 @@ namespace Loadout.Modules
                             className  = refreshed.ClassName  ?? "",
                             classGlyph = cls?.Glyph     ?? "",
                             classTint  = cls?.TintColor ?? "",
+                            custom     = refreshed.Custom ?? new Dictionary<string, string>(),
                             loot      = o.Loot.Select(it => new
                             {
                                 id     = it.Id,
@@ -299,7 +330,8 @@ namespace Loadout.Modules
                                 glyph  = it.Glyph,
                                 powerBonus   = it.PowerBonus,
                                 defenseBonus = it.DefenseBonus,
-                                goldValue    = it.GoldValue
+                                goldValue    = it.GoldValue,
+                                setName      = it.SetName ?? ""
                             }).ToArray()
                         };
                     }).ToArray()
@@ -421,6 +453,8 @@ namespace Loadout.Modules
                     defenderGlyph     = defClass?.Glyph     ?? "",
                     challengerTint    = attClass?.TintColor ?? "",
                     defenderTint      = defClass?.TintColor ?? "",
+                    challengerCustom  = attacker.Custom ?? new Dictionary<string, string>(),
+                    defenderCustom    = defender.Custom ?? new Dictionary<string, string>(),
                     challengerHpMax   = attacker.HpMax,
                     defenderHpMax     = defender.HpMax
                 });
@@ -535,9 +569,10 @@ namespace Loadout.Modules
         }
 
         /// <summary>Shared shape for every "hero on the wire" event so the
-        /// overlay only needs one rendering path. New: avatar URL +
-        /// className + classGlyph + classTint so each tile / loot card
-        /// can show the viewer's actual character.</summary>
+        /// overlay only needs one rendering path. Includes the custom
+        /// map (skin / hair / outfit / cape) so the composed pixel-art
+        /// sprite renders consistently in party tile / loot card / duel
+        /// avatar.</summary>
         private static object HeroToPayload(HeroState h)
         {
             var cls = DungeonContent.ClassByName(h.ClassName);
@@ -551,7 +586,8 @@ namespace Loadout.Modules
                 avatar      = h.Avatar     ?? "",
                 className   = h.ClassName  ?? "",
                 classGlyph  = cls?.Glyph     ?? "",
-                classTint   = cls?.TintColor ?? ""
+                classTint   = cls?.TintColor ?? "",
+                custom      = h.Custom     ?? new Dictionary<string, string>()
             };
         }
 

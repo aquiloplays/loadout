@@ -12,8 +12,10 @@ namespace Loadout.Games.Dungeon
     public sealed class DungeonRunResult
     {
         public string DungeonName { get; set; }
+        public string Biome       { get; set; }
         public List<DungeonScene>     Scenes  { get; set; } = new List<DungeonScene>();
         public List<DungeonOutcome>   Outcomes { get; set; } = new List<DungeonOutcome>();
+        public bool   HadBoss     { get; set; }
     }
 
     public sealed class DungeonScene
@@ -33,6 +35,7 @@ namespace Loadout.Games.Dungeon
         public int    HpDelta    { get; set; }
         public int    XpGained   { get; set; }
         public int    GoldGained { get; set; }   // bolts awarded
+        public bool   SlewBoss   { get; set; }    // for the legendkiller achievement
         public List<InventoryItem> Loot { get; set; } = new List<InventoryItem>();
     }
 
@@ -49,27 +52,17 @@ namespace Loadout.Games.Dungeon
     /// </summary>
     public static class DungeonEngine
     {
-        private static readonly string[] DungeonNames = new[]
-        {
-            "Crypt of Whispers",
-            "Sunken Vault",
-            "Forgotten Catacombs",
-            "Wyvern's Hollow",
-            "Skyreach Spire",
-            "Bonemarsh Depths",
-            "Howling Mines",
-            "Iron Shrine"
-        };
-
         public static DungeonRunResult Run(IList<HeroState> party,
                                            int difficulty,
                                            int runDurationSec,
                                            int sceneCount,
                                            Random r)
         {
+            var dungeon = DungeonContent.PickDungeonType(r);
             var result = new DungeonRunResult
             {
-                DungeonName = DungeonNames[r.Next(DungeonNames.Length)]
+                DungeonName = dungeon.Name,
+                Biome       = dungeon.Biome
             };
             if (party == null || party.Count == 0) return result;
 
@@ -80,28 +73,44 @@ namespace Loadout.Games.Dungeon
             runDurationSec = Math.Max(15, Math.Min(120, runDurationSec));
             sceneCount = Math.Max(3, Math.Min(8, sceneCount));
 
-            // Opening flavour line.
+            // Opening flavour line — biome-aware.
             result.Scenes.Add(new DungeonScene
             {
                 DelayMs = 200,
                 Kind    = "story",
-                Text    = "The party enters the " + result.DungeonName + "..."
+                Text    = "The party enters " + dungeon.Theme + " " + dungeon.Name + "..."
             });
 
             // Schedule scenes evenly across the run, leaving a tail for
-            // the loot reveal animation.
+            // the loot reveal animation. Difficulty 4+ runs always end
+            // with a boss encounter so the climactic moment lands at the
+            // right beat.
+            bool spawnBossFinale = difficulty >= 4;
             int sceneSpacing = Math.Max(1500, (runDurationSec * 1000 - 4000) / sceneCount);
             int t = 1500;
 
             for (int i = 0; i < sceneCount; i++)
             {
                 t += sceneSpacing;
-                var pick = r.Next(100);
+                bool isFinale = (i == sceneCount - 1);
                 DungeonScene scene;
-                if      (pick < 50) scene = MakeEncounter(heroes, difficulty, r);
-                else if (pick < 75) scene = MakeTrap     (heroes, r);
-                else if (pick < 90) scene = MakeTreasure (heroes, difficulty, r);
-                else                scene = MakeFlavour  (r);
+                if (spawnBossFinale && isFinale)
+                {
+                    // Big set-piece encounter — uses the boss monster pool.
+                    scene = MakeBossEncounter(heroes, difficulty, r, dungeon.Biome);
+                    result.HadBoss = true;
+                }
+                else
+                {
+                    var pick = r.Next(100);
+                    if      (pick < 38) scene = MakeEncounter(heroes, difficulty, r, dungeon.Biome);
+                    else if (pick < 60) scene = MakeTrap     (heroes, r, dungeon.Biome);
+                    else if (pick < 75) scene = MakeTreasure (heroes, difficulty, r);
+                    else if (pick < 84) scene = MakeNpc      (heroes, r);
+                    else if (pick < 90) scene = MakeShrine   (heroes, r);
+                    else if (pick < 94) scene = MakeCurse    (heroes, r);
+                    else                scene = MakeFlavour  (r);
+                }
                 scene.DelayMs = t;
                 result.Scenes.Add(scene);
 
@@ -112,8 +121,9 @@ namespace Loadout.Games.Dungeon
             }
 
             // Each survivor rolls a final loot drop based on difficulty.
-            // Fallen heroes get a half-XP consolation prize so a viewer
-            // who joined for the meme isn't penalised hard.
+            // Fallen heroes get a half-XP consolation prize. Bosses
+            // guarantee a rare-or-better drop on top, plus a small chance
+            // of a mythic on max difficulty.
             t += 1500;
             foreach (var rh in heroes)
             {
@@ -124,13 +134,22 @@ namespace Loadout.Games.Dungeon
                     Survived   = rh.HpRemaining > 0,
                     HpDelta    = rh.HpRemaining - rh.Hero.HpCurrent,
                     XpGained   = rh.XpGained,
-                    GoldGained = rh.GoldGained
+                    GoldGained = rh.GoldGained,
+                    SlewBoss   = result.HadBoss && rh.HpRemaining > 0
                 };
 
                 if (outcome.Survived)
                 {
                     var rarity = DungeonContent.RollRarity(r, difficulty);
-                    var def    = DungeonContent.PickLootByRarity(r, rarity);
+                    // Boss kill upgrades the rarity by one tier — common→
+                    // uncommon, uncommon→rare, etc. Mythic stays gated to
+                    // a 5% roll on difficulty 5 boss kills.
+                    if (result.HadBoss)
+                    {
+                        rarity = UpgradeRarity(rarity);
+                        if (difficulty >= 5 && r.Next(100) < 5) rarity = "mythic";
+                    }
+                    var def = DungeonContent.PickLootByRarity(r, rarity);
                     outcome.Loot.Add(new InventoryItem
                     {
                         Id     = Guid.NewGuid().ToString("N"),
@@ -141,6 +160,7 @@ namespace Loadout.Games.Dungeon
                         PowerBonus   = def.PowerBonus,
                         DefenseBonus = def.DefenseBonus,
                         GoldValue    = def.GoldValue,
+                        SetName      = def.SetName ?? "",
                         FoundIn      = result.DungeonName,
                         FoundUtc     = DateTime.UtcNow
                     });
@@ -157,56 +177,81 @@ namespace Loadout.Games.Dungeon
             return result;
         }
 
+        private static string UpgradeRarity(string r)
+        {
+            switch ((r ?? "common").ToLowerInvariant())
+            {
+                case "common":    return "uncommon";
+                case "uncommon":  return "rare";
+                case "rare":      return "epic";
+                case "epic":      return "legendary";
+                case "legendary": return "legendary";
+                default:          return "rare";
+            }
+        }
+
         // -------------------- scene builders --------------------
 
-        private static DungeonScene MakeEncounter(IList<RunningHero> heroes, int difficulty, Random r)
+        private static DungeonScene MakeEncounter(IList<RunningHero> heroes, int difficulty, Random r, string biome)
         {
-            var monster = DungeonContent.PickMonster(r, difficulty);
-            // Random survivor is the protagonist of the encounter line.
+            var monster = DungeonContent.PickMonster(r, difficulty, biome, false);
+            return RunMonsterFight(heroes, monster, r, isBoss: false);
+        }
+
+        private static DungeonScene MakeBossEncounter(IList<RunningHero> heroes, int difficulty, Random r, string biome)
+        {
+            var monster = DungeonContent.PickMonster(r, difficulty, biome, true);
+            // Falls back to a tier-5 elite if no biome-tagged boss exists.
+            if (monster == null) monster = DungeonContent.Monsters.First(m => m.IsBoss);
+            return RunMonsterFight(heroes, monster, r, isBoss: true);
+        }
+
+        private static DungeonScene RunMonsterFight(IList<RunningHero> heroes, DungeonContent.MonsterDef monster, Random r, bool isBoss)
+        {
             var alive = heroes.Where(h => h.HpRemaining > 0).ToList();
             if (alive.Count == 0)
             {
-                return new DungeonScene { Kind = "encounter", Text = "Silence. The dungeon has claimed all." , Glyph = "💀" };
+                return new DungeonScene { Kind = isBoss ? "miniboss" : "encounter", Text = "Silence. The dungeon has claimed all." , Glyph = "💀" };
             }
-            var hero = alive[r.Next(alive.Count)];
 
-            // Group attack vs monster — every survivor contributes attack.
             int partyAttack = alive.Sum(h => h.Hero.Attack(BagIndex(h.Hero)));
-            int monsterDamageTaken = Math.Max(2, partyAttack - r.Next(0, 4));
-            // Counter-damage spread randomly across alive heroes.
             int monsterAttack = Math.Max(1, monster.Power + r.Next(0, 3) - r.Next(0, 2));
             var victim = alive[r.Next(alive.Count)];
             int victimDef = victim.Hero.Defense(BagIndex(victim.Hero));
             int dmg = Math.Max(0, monsterAttack - victimDef);
             victim.HpRemaining -= dmg;
 
-            // Reward distributed among survivors (averaged + jittered).
             int gold = r.Next(monster.GoldMin, monster.GoldMax + 1);
             int xp   = r.Next(monster.XpMin, monster.XpMax + 1);
             int perGold = Math.Max(1, gold / alive.Count);
             int perXp   = Math.Max(1, xp   / alive.Count);
             foreach (var h in alive) { h.GoldGained += perGold; h.XpGained += perXp; }
+            _ = partyAttack;
 
             string text;
+            string prefix = isBoss ? "BOSS — " : "";
             if (victim.HpRemaining <= 0)
             {
                 victim.HpRemaining = 0;
-                text = victim.Hero.Handle + " falls to a " + monster.Name + "! The party defeats it for " + perGold + " bolts each.";
+                text = prefix + victim.Hero.Handle + " falls to the " + monster.Name + "! The party slays it for " + perGold + " bolts each.";
             }
             else
             {
-                text = "A " + monster.Name + " ambushes the party! It strikes " + victim.Hero.Handle + " for " + dmg + " damage, but falls. (+" + perGold + " bolts, +" + perXp + " XP each)";
+                text = prefix + "A " + monster.Name + " strikes! " + victim.Hero.Handle + " takes " + dmg + " damage but the party prevails. (+" + perGold + " bolts, +" + perXp + " XP each)";
             }
-            _ = monsterDamageTaken; // silence unused
-            return new DungeonScene { Kind = "encounter", Text = text, Glyph = monster.Glyph, TargetUser = victim.Hero.Handle };
+            return new DungeonScene
+            {
+                Kind = isBoss ? "miniboss" : "encounter",
+                Text = text, Glyph = monster.Glyph, TargetUser = victim.Hero.Handle
+            };
         }
 
-        private static DungeonScene MakeTrap(IList<RunningHero> heroes, Random r)
+        private static DungeonScene MakeTrap(IList<RunningHero> heroes, Random r, string biome)
         {
             var alive = heroes.Where(h => h.HpRemaining > 0).ToList();
             if (alive.Count == 0)
                 return new DungeonScene { Kind = "trap", Text = "An old trap clicks against empty stone." , Glyph = "🪤" };
-            var trap   = DungeonContent.PickTrap(r);
+            var trap   = DungeonContent.PickTrap(r, biome);
             var victim = alive[r.Next(alive.Count)];
             int dmg = Math.Max(1, r.Next(trap.DamageMin, trap.DamageMax + 1) - victim.Hero.Defense(BagIndex(victim.Hero)) / 2);
             victim.HpRemaining -= dmg;
@@ -237,6 +282,48 @@ namespace Loadout.Games.Dungeon
                 Text = "The party finds a hoard! Each survivor pockets " + per + " bolts.",
                 Glyph = "💰"
             };
+        }
+
+        private static DungeonScene MakeNpc(IList<RunningHero> heroes, Random r)
+        {
+            var alive = heroes.Where(h => h.HpRemaining > 0).ToList();
+            if (alive.Count == 0)
+                return new DungeonScene { Kind = "story", Text = "A figure passes by, paying the dead no mind.", Glyph = "🚶" };
+            var npc = DungeonContent.PickNpc(r);
+            // Apply outcome to all survivors so the chat reads it as a
+            // group event ("the party met …") not a single-target reward.
+            int perGold = Math.Max(0, npc.GoldDelta);
+            int hpDelta = npc.HpDelta;
+            foreach (var h in alive)
+            {
+                h.GoldGained += perGold;
+                if (hpDelta != 0) h.HpRemaining = Math.Min(h.Hero.HpMax, h.HpRemaining + hpDelta);
+            }
+            return new DungeonScene { Kind = "npc", Text = npc.FlavorText, Glyph = npc.Glyph };
+        }
+
+        private static DungeonScene MakeShrine(IList<RunningHero> heroes, Random r)
+        {
+            var alive = heroes.Where(h => h.HpRemaining > 0).ToList();
+            if (alive.Count == 0)
+                return new DungeonScene { Kind = "story", Text = "A shrine glows quietly over the fallen.", Glyph = "⛩" };
+            var s = DungeonContent.PickShrine(r);
+            foreach (var h in alive)
+            {
+                if (s.HpDelta > 0) h.HpRemaining = Math.Min(h.Hero.HpMax, h.HpRemaining + s.HpDelta);
+                if (s.XpDelta > 0) h.XpGained += s.XpDelta;
+            }
+            return new DungeonScene { Kind = "shrine", Text = s.FlavorText, Glyph = s.Glyph };
+        }
+
+        private static DungeonScene MakeCurse(IList<RunningHero> heroes, Random r)
+        {
+            var alive = heroes.Where(h => h.HpRemaining > 0).ToList();
+            if (alive.Count == 0)
+                return new DungeonScene { Kind = "story", Text = "A faint hex echoes off the empty walls.", Glyph = "♨" };
+            var c = DungeonContent.PickCurse(r);
+            foreach (var h in alive) h.HpRemaining = Math.Max(0, h.HpRemaining + c.HpDelta);
+            return new DungeonScene { Kind = "curse", Text = c.FlavorText, Glyph = c.Glyph };
         }
 
         private static DungeonScene MakeFlavour(Random r)

@@ -92,185 +92,251 @@
 
   // ─── Pixel-art class sprites ─────────────────────────────────────
   //
-  // Each class has a hand-drawn 16×16 pixel sprite that renders inline
-  // as SVG (no external assets, no font loading, scales crisply at any
-  // avatar size). The SVG fills its container; the avatar circle's
-  // class-tinted ring still wraps it so the figure reads as "this
-  // viewer's character" at a glance even when shrunk to the 48px
-  // party-tile size.
+  // Each class has a 16×16 pixel sprite composed from layers at render
+  // time so customization (skin tone / hair / outfit colours / cape)
+  // can flow through cleanly. The composer reads hero.custom from the
+  // bus payload — see HeroState.Custom on the DLL side for the canonical
+  // set of keys.
   //
-  // Each sprite uses shape-rendering="crispEdges" so the pixels stay
-  // sharp instead of getting anti-aliased into mush. Colors are baked
-  // in (rather than CSS variables) so a single innerHTML assignment
-  // gets the whole figure in one pass.
+  // Layer z-order (bottom to top):
+  //   1. Cape (behind body, visible as a triangle behind the legs)
+  //   2. Legs + boots
+  //   3. Body torso (class-default outfit primary, override via custom.primary)
+  //   4. Arms
+  //   5. Face (skin) + eyes
+  //   6. Hair (only visible on classes whose headgear leaves hair showing — ranger, healer)
+  //   7. Class-specific headgear (helmet / hat / hood / cap / halo)
+  //   8. Held weapon (right side)
   //
-  // Color palette per class is a darker variant of the class tint for
-  // the body, plus a couple of universal colors (skin/leather/metal)
-  // shared across all sprites. Keeping the palette tight makes the
-  // sprites read as a coherent set rather than five random doodles.
-  //
-  // Authoring note: each rect is a 1×1 pixel cell. Bigger bodies use
-  // overlapping rects with a width/height > 1. Sprites are designed
-  // around a base humanoid (head row 1-4, body row 5-9, legs row 10-13,
-  // feet row 14-15) with the held weapon / hat occupying the
-  // remaining cells.
-  const SKIN = '#F4C28A';
+  // Each sprite uses shape-rendering="crispEdges" + image-rendering:
+  // pixelated so the pixels stay sharp at every avatar size.
 
-  const SPRITES = {
-    warrior:
-      '<svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
-        // Helmet top + plume
-        '<rect x="6" y="0" width="4" height="1" fill="#F85149"/>' +
-        '<rect x="5" y="1" width="6" height="2" fill="#3F3F46"/>' +
-        // Visor + face
-        '<rect x="5" y="3" width="6" height="1" fill="#1A1A22"/>' +
-        '<rect x="5" y="4" width="6" height="2" fill="' + SKIN + '"/>' +
-        '<rect x="6" y="4" width="1" height="1" fill="#1A1A22"/>' +
-        '<rect x="9" y="4" width="1" height="1" fill="#1A1A22"/>' +
-        // Body + arms
-        '<rect x="4" y="6" width="8" height="4" fill="#F85149"/>' +
-        '<rect x="3" y="6" width="1" height="4" fill="' + SKIN + '"/>' +
-        '<rect x="12" y="6" width="1" height="4" fill="' + SKIN + '"/>' +
-        // Belt
-        '<rect x="4" y="10" width="8" height="1" fill="#3A2200"/>' +
-        // Sword (held in right hand, blade up)
-        '<rect x="13" y="3" width="1" height="6" fill="#C4C4D0"/>' +
-        '<rect x="12" y="9" width="3" height="1" fill="#3A2200"/>' +
-        '<rect x="13" y="10" width="1" height="1" fill="#3A2200"/>' +
-        // Legs + boots
-        '<rect x="5" y="11" width="2" height="3" fill="#1A1A22"/>' +
-        '<rect x="9" y="11" width="2" height="3" fill="#1A1A22"/>' +
-        '<rect x="5" y="14" width="2" height="2" fill="#3A2200"/>' +
-        '<rect x="9" y="14" width="2" height="2" fill="#3A2200"/>' +
-      '</svg>',
-
-    mage:
-      '<svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
-        // Pointy hat
-        '<rect x="7" y="0" width="2" height="1" fill="#F0B429"/>' +     // star tip
-        '<rect x="7" y="1" width="2" height="1" fill="#B452FF"/>' +
-        '<rect x="6" y="2" width="4" height="1" fill="#B452FF"/>' +
-        '<rect x="5" y="3" width="6" height="1" fill="#B452FF"/>' +
-        '<rect x="4" y="4" width="8" height="1" fill="#3F3F46"/>' +     // hat brim
-        // Face
-        '<rect x="6" y="5" width="4" height="2" fill="' + SKIN + '"/>' +
-        '<rect x="6" y="5" width="1" height="1" fill="#1A1A22"/>' +
-        '<rect x="9" y="5" width="1" height="1" fill="#1A1A22"/>' +
-        // Robe
-        '<rect x="4" y="7" width="8" height="6" fill="#B452FF"/>' +
-        '<rect x="3" y="13" width="10" height="1" fill="#B452FF"/>' +
-        // Arm + staff (held diagonally, glowing tip)
-        '<rect x="3" y="7" width="1" height="3" fill="' + SKIN + '"/>' +
-        '<rect x="2" y="6" width="1" height="1" fill="#3A2200"/>' +
-        '<rect x="2" y="7" width="1" height="6" fill="#3A2200"/>' +
-        '<rect x="1" y="5" width="3" height="1" fill="#00F2EA"/>' +     // glowing orb
-        '<rect x="2" y="4" width="1" height="1" fill="#00F2EA"/>' +
-        // Right hand
-        '<rect x="12" y="7" width="1" height="3" fill="' + SKIN + '"/>' +
-        // Boots peeking out
-        '<rect x="5" y="14" width="2" height="2" fill="#1A1A22"/>' +
-        '<rect x="9" y="14" width="2" height="2" fill="#1A1A22"/>' +
-      '</svg>',
-
-    rogue:
-      '<svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
-        // Hood
-        '<rect x="5" y="1" width="6" height="2" fill="#1F3A2A"/>' +
-        '<rect x="4" y="3" width="8" height="2" fill="#1F3A2A"/>' +
-        // Face shadow inside hood
-        '<rect x="6" y="4" width="4" height="2" fill="#0A1F11"/>' +
-        '<rect x="6" y="5" width="1" height="1" fill="#3FB950"/>' +    // glowing eyes
-        '<rect x="9" y="5" width="1" height="1" fill="#3FB950"/>' +
-        // Body + arms
-        '<rect x="4" y="6" width="8" height="4" fill="#1F3A2A"/>' +
-        '<rect x="3" y="6" width="1" height="3" fill="' + SKIN + '"/>' +
-        '<rect x="12" y="6" width="1" height="3" fill="' + SKIN + '"/>' +
-        // Belt + crossing strap
-        '<rect x="4" y="10" width="8" height="1" fill="#3A2200"/>' +
-        '<rect x="6" y="6" width="1" height="4" fill="#3A2200"/>' +
-        // Dagger in right hand (small + slightly angled visual via two rects)
-        '<rect x="13" y="6" width="1" height="2" fill="#C4C4D0"/>' +
-        '<rect x="12" y="8" width="1" height="1" fill="#3FB950"/>' +
-        // Legs + boots
-        '<rect x="5" y="11" width="2" height="3" fill="#0A1F11"/>' +
-        '<rect x="9" y="11" width="2" height="3" fill="#0A1F11"/>' +
-        '<rect x="5" y="14" width="2" height="2" fill="#1A1A22"/>' +
-        '<rect x="9" y="14" width="2" height="2" fill="#1A1A22"/>' +
-      '</svg>',
-
-    ranger:
-      '<svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
-        // Cap with feather
-        '<rect x="5" y="2" width="6" height="2" fill="#5A3F1B"/>' +
-        '<rect x="4" y="4" width="8" height="1" fill="#5A3F1B"/>' +
-        '<rect x="9" y="0" width="1" height="2" fill="#3FB950"/>' +    // feather
-        '<rect x="10" y="1" width="1" height="1" fill="#3FB950"/>' +
-        // Face
-        '<rect x="5" y="5" width="6" height="2" fill="' + SKIN + '"/>' +
-        '<rect x="6" y="5" width="1" height="1" fill="#1A1A22"/>' +
-        '<rect x="9" y="5" width="1" height="1" fill="#1A1A22"/>' +
-        // Tunic
-        '<rect x="4" y="7" width="8" height="3" fill="#F0B429"/>' +
-        // Belt
-        '<rect x="4" y="10" width="8" height="1" fill="#3A2200"/>' +
-        // Arms
-        '<rect x="3" y="7" width="1" height="3" fill="' + SKIN + '"/>' +
-        '<rect x="12" y="7" width="1" height="3" fill="' + SKIN + '"/>' +
-        // Bow held vertical-ish in right side
-        '<rect x="14" y="6" width="1" height="6" fill="#3A2200"/>' +
-        '<rect x="13" y="6" width="1" height="1" fill="#3A2200"/>' +
-        '<rect x="13" y="11" width="1" height="1" fill="#3A2200"/>' +
-        '<rect x="14" y="9" width="1" height="1" fill="#3FB950"/>' +    // bowstring tension highlight
-        // Legs + boots
-        '<rect x="5" y="11" width="2" height="3" fill="#5A3F1B"/>' +
-        '<rect x="9" y="11" width="2" height="3" fill="#5A3F1B"/>' +
-        '<rect x="5" y="14" width="2" height="2" fill="#1A1A22"/>' +
-        '<rect x="9" y="14" width="2" height="2" fill="#1A1A22"/>' +
-      '</svg>',
-
-    healer:
-      '<svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
-        // Halo
-        '<rect x="5" y="0" width="6" height="1" fill="#F0B429"/>' +
-        '<rect x="4" y="1" width="1" height="1" fill="#F0B429"/>' +
-        '<rect x="11" y="1" width="1" height="1" fill="#F0B429"/>' +
-        // Face
-        '<rect x="5" y="2" width="6" height="3" fill="' + SKIN + '"/>' +
-        '<rect x="6" y="3" width="1" height="1" fill="#1A1A22"/>' +
-        '<rect x="9" y="3" width="1" height="1" fill="#1A1A22"/>' +
-        // Robe (white with cyan accents)
-        '<rect x="4" y="5" width="8" height="8" fill="#EFEFF1"/>' +
-        '<rect x="3" y="13" width="10" height="1" fill="#EFEFF1"/>' +
-        '<rect x="7" y="6" width="2" height="6" fill="#00F2EA"/>' +    // sash
-        '<rect x="6" y="9" width="4" height="1" fill="#00F2EA"/>' +    // cross
-        // Arms
-        '<rect x="3" y="6" width="1" height="3" fill="' + SKIN + '"/>' +
-        '<rect x="12" y="6" width="1" height="3" fill="' + SKIN + '"/>' +
-        // Glowing palm (held out in left hand)
-        '<rect x="2" y="9" width="2" height="2" fill="#00F2EA"/>' +
-        '<rect x="1" y="10" width="1" height="1" fill="#00F2EA"/>' +
-        '<rect x="4" y="10" width="1" height="1" fill="#00F2EA"/>' +
-        // Boots peeking
-        '<rect x="5" y="14" width="2" height="2" fill="#1A1A22"/>' +
-        '<rect x="9" y="14" width="2" height="2" fill="#1A1A22"/>' +
-      '</svg>'
+  // ── Customization palettes ──────────────────────────────────────
+  const SKIN_TONES = {
+    fair:       '#F4C28A',
+    tan:        '#C99064',
+    olive:      '#A87850',
+    deep:       '#7B4A2D',
+    'pale-blue':  '#B7D4E8',  // fantasy variant
+    'pale-green': '#B8DDB0'
+  };
+  const HAIR_COLORS = {
+    black:    '#2A1A0F',
+    brown:    '#5A3F1B',
+    blonde:   '#E0C070',
+    red:      '#B43F1F',
+    white:    '#E8E8E8',
+    pink:     '#FF8FB0',
+    blue:     '#5A8FFF',
+    green:    '#4FB05A'
+  };
+  const EYE_COLORS = {
+    brown:  '#3A2200',
+    blue:   '#3A86FF',
+    green:  '#3FB950',
+    amber:  '#F0B429',
+    red:    '#F85149'
   };
 
-  function characterSprite(className) {
-    return SPRITES[(className || '').toLowerCase()] || '';
+  // Class default outfit colours — used when custom.primary / .secondary
+  // are not set. Keep these in sync with DungeonContent.Classes' tint.
+  const CLASS_PRIMARY = {
+    warrior: '#F85149',
+    mage:    '#B452FF',
+    rogue:   '#1F3A2A',
+    ranger:  '#F0B429',
+    healer:  '#EFEFF1'
+  };
+  const CLASS_SECONDARY = {
+    warrior: '#3A2200',
+    mage:    '#00F2EA',
+    rogue:   '#0A1F11',
+    ranger:  '#5A3F1B',
+    healer:  '#00F2EA'
+  };
+
+  // Cape options — drawn behind the body. "none" omits the layer.
+  const CAPE_PRESETS = {
+    none:   null,
+    cloak:  { color: '#3A2200' },
+    wing:   { color: '#3FB950' },
+    scarf:  { color: '#F85149', short: true }
+  };
+
+  // Hair-style families that are visible. Classes that fully cover the
+  // head (warrior helmet, mage hat, rogue hood) only render hair
+  // peeking out below the ear line at most. Classes with a partial cap
+  // (ranger) show side bangs. Healer has full hair under the halo.
+  function hairLayer(style, color, classKey) {
+    style = (style || 'short').toLowerCase();
+    if (classKey === 'warrior' || classKey === 'mage' || classKey === 'rogue') {
+      // Headgear hides hair entirely (intentional silhouette choice).
+      return '';
+    }
+    // For ranger / healer — render visible hair under cap / halo.
+    const c = HAIR_COLORS[color] || HAIR_COLORS.brown;
+    if (style === 'bald') return '';
+    if (style === 'long') {
+      // Hair flows down past the shoulders.
+      return rect(5, 4, 6, 1, c) + rect(4, 5, 1, 4, c) + rect(11, 5, 1, 4, c) + rect(4, 7, 8, 1, c);
+    }
+    if (style === 'spiky') {
+      return rect(5, 2, 1, 2, c) + rect(7, 1, 1, 3, c) + rect(9, 2, 1, 2, c) +
+             rect(11, 3, 1, 1, c) + rect(4, 3, 1, 1, c) + rect(5, 4, 6, 1, c);
+    }
+    if (style === 'mohawk') {
+      return rect(7, 1, 2, 4, c);
+    }
+    if (style === 'braids') {
+      return rect(5, 4, 6, 1, c) + rect(4, 5, 1, 5, c) + rect(11, 5, 1, 5, c);
+    }
+    // default: short
+    return rect(5, 4, 6, 1, c) + rect(4, 5, 1, 1, c) + rect(11, 5, 1, 1, c);
+  }
+
+  function rect(x, y, w, h, color) {
+    return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + color + '"/>';
+  }
+
+  // Cape layer — rendered before the body so it sits "behind" the
+  // figure visually.
+  function capeLayer(capeKey, primary) {
+    const def = CAPE_PRESETS[(capeKey || 'none').toLowerCase()];
+    if (!def) return '';
+    if (def.short) {
+      // Short scarf around the neck.
+      return rect(5, 6, 6, 1, def.color);
+    }
+    // Long cloak / wing-cape — drawn behind body, peeks out either side.
+    return rect(2, 7, 1, 7, def.color) + rect(13, 7, 1, 7, def.color) + rect(3, 13, 11, 2, def.color);
+  }
+
+  // Compose a sprite for a given class with custom layered in.
+  // `custom` is the dict from the bus payload.
+  function characterSprite(className, custom) {
+    const c = (className || '').toLowerCase();
+    if (!c || !CLASS_PRIMARY[c]) return '';
+    custom = custom || {};
+    const skin     = SKIN_TONES[(custom.skinTone || 'fair').toLowerCase()] || SKIN_TONES.fair;
+    const eye      = EYE_COLORS[(custom.eyeColor || 'brown').toLowerCase()] || EYE_COLORS.brown;
+    const primary  = (custom.primary || '').match(/^#[0-9a-f]{6}$/i) ? custom.primary : CLASS_PRIMARY[c];
+    const secondary = (custom.secondary || '').match(/^#[0-9a-f]{6}$/i) ? custom.secondary : CLASS_SECONDARY[c];
+    const cape     = capeLayer(custom.cape, primary);
+    const hair     = hairLayer(custom.hairStyle, custom.hairColor, c);
+
+    // Class-specific top half (headgear + held weapon) + shared body
+    // template. We hand-write each class's top so the silhouette stays
+    // recognisable at the 48px party-tile size.
+    let top, weapon;
+    switch (c) {
+      case 'warrior':
+        top =
+          // helmet plume + dome + visor
+          rect(6, 0, 4, 1, primary) +
+          rect(5, 1, 6, 2, '#3F3F46') +
+          rect(5, 3, 6, 1, '#1A1A22') +
+          // face peek through visor
+          rect(5, 4, 6, 2, skin) +
+          rect(6, 4, 1, 1, eye) + rect(9, 4, 1, 1, eye);
+        weapon =
+          rect(13, 3, 1, 6, '#C4C4D0') +
+          rect(12, 9, 3, 1, secondary) +
+          rect(13, 10, 1, 1, secondary);
+        break;
+      case 'mage':
+        top =
+          // pointy hat with star tip
+          rect(7, 0, 2, 1, '#F0B429') +
+          rect(7, 1, 2, 1, primary) +
+          rect(6, 2, 4, 1, primary) +
+          rect(5, 3, 6, 1, primary) +
+          rect(4, 4, 8, 1, '#3F3F46') +
+          rect(6, 5, 4, 2, skin) +
+          rect(6, 5, 1, 1, eye) + rect(9, 5, 1, 1, eye);
+        weapon =
+          rect(2, 7, 1, 6, '#3A2200') +
+          rect(2, 6, 1, 1, '#3A2200') +
+          rect(1, 5, 3, 1, secondary) +
+          rect(2, 4, 1, 1, secondary);
+        break;
+      case 'rogue':
+        top =
+          rect(5, 1, 6, 2, primary) +
+          rect(4, 3, 8, 2, primary) +
+          rect(6, 4, 4, 2, secondary) +    // shadow inside hood
+          rect(6, 5, 1, 1, '#3FB950') + rect(9, 5, 1, 1, '#3FB950');   // glowing eyes
+        weapon =
+          rect(13, 6, 1, 2, '#C4C4D0') +
+          rect(12, 8, 1, 1, '#3FB950');
+        break;
+      case 'ranger':
+        top =
+          rect(5, 2, 6, 2, secondary) +
+          rect(4, 4, 8, 1, secondary) +
+          rect(9, 0, 1, 2, '#3FB950') +    // feather
+          rect(10, 1, 1, 1, '#3FB950') +
+          rect(5, 5, 6, 2, skin) +
+          rect(6, 5, 1, 1, eye) + rect(9, 5, 1, 1, eye);
+        weapon =
+          rect(14, 6, 1, 6, '#3A2200') +
+          rect(13, 6, 1, 1, '#3A2200') +
+          rect(13, 11, 1, 1, '#3A2200') +
+          rect(14, 9, 1, 1, '#3FB950');
+        break;
+      case 'healer':
+        top =
+          rect(5, 0, 6, 1, '#F0B429') +    // halo
+          rect(4, 1, 1, 1, '#F0B429') +
+          rect(11, 1, 1, 1, '#F0B429') +
+          rect(5, 2, 6, 3, skin) +
+          rect(6, 3, 1, 1, eye) + rect(9, 3, 1, 1, eye);
+        weapon =
+          rect(2, 9, 2, 2, secondary) +
+          rect(1, 10, 1, 1, secondary) +
+          rect(4, 10, 1, 1, secondary);
+        break;
+      default:
+        return '';
+    }
+
+    // Shared body template — torso uses primary, belt uses a darker
+    // shade derived from the class default secondary, arms are skin.
+    const body =
+      // Torso
+      rect(4, c === 'mage' || c === 'healer' ? 7 : 6, 8, c === 'mage' || c === 'healer' ? 6 : 4, primary) +
+      // Arms (skin)
+      rect(3, c === 'mage' || c === 'healer' ? 6 : 6, 1, c === 'mage' || c === 'healer' ? 3 : 4, skin) +
+      rect(12, c === 'mage' || c === 'healer' ? 6 : 6, 1, c === 'mage' || c === 'healer' ? 3 : 4, skin) +
+      // Belt
+      (c === 'mage' || c === 'healer'
+        ? rect(3, 13, 10, 1, primary)
+        : rect(4, 10, 8, 1, secondary)) +
+      // Healer accent sash overlay
+      (c === 'healer' ? rect(7, 6, 2, 6, '#00F2EA') + rect(6, 9, 4, 1, '#00F2EA') : '') +
+      // Legs + boots
+      (c === 'mage' || c === 'healer'
+        ? rect(5, 14, 2, 2, '#1A1A22') + rect(9, 14, 2, 2, '#1A1A22')
+        : rect(5, 11, 2, 3, secondary === '#3A2200' ? '#1A1A22' : '#1A1A22') +
+          rect(9, 11, 2, 3, '#1A1A22') +
+          rect(5, 14, 2, 2, secondary) +
+          rect(9, 14, 2, 2, secondary));
+
+    return '<svg viewBox="0 0 16 16" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">' +
+      cape + body + hair + top + weapon +
+      '</svg>';
   }
 
   // Three-way fallback renderer used by every avatar slot:
-  //   1. Pixel-art class sprite if a class is set
+  //   1. Pixel-art class sprite if a class is set (composed from custom)
   //   2. Class glyph emoji (the previous default) if we have one
   //   3. Letter initials from the username
   // The container element gets a `.has-sprite` class added when the
   // SVG path wins, so CSS can drop padding / change background to
   // make the sprite read crisply.
-  function renderClassFallback(el, className, glyph, user) {
+  function renderClassFallback(el, className, glyph, user, custom) {
     if (!el) return;
     el.classList.remove('has-sprite');
-    const svg = characterSprite(className);
+    const svg = characterSprite(className, custom);
     if (svg) {
       el.classList.add('has-sprite');
       el.innerHTML = svg;
@@ -332,15 +398,12 @@
       img.alt = '';
       img.className = 'pt-avatar-img';
       img.addEventListener('error', () => {
-        // CDN swap or 404 — drop back to the pixel-art class sprite
-        // (or class glyph as last resort) so the tile never shows a
-        // broken-image icon next to the name.
         img.remove();
-        renderClassFallback(av, m.className, m.classGlyph, m.user);
+        renderClassFallback(av, m.className, m.classGlyph, m.user, m.custom);
       });
       av.appendChild(img);
     } else {
-      renderClassFallback(av, m.className, m.classGlyph, m.user);
+      renderClassFallback(av, m.className, m.classGlyph, m.user, m.custom);
     }
 
     const name = document.createElement('div');
@@ -421,11 +484,11 @@
       img.alt = '';
       img.addEventListener('error', () => {
         img.remove();
-        renderClassFallback(avatar, o.className, o.classGlyph, o.user);
+        renderClassFallback(avatar, o.className, o.classGlyph, o.user, o.custom);
       });
       avatar.appendChild(img);
     } else {
-      renderClassFallback(avatar, o.className, o.classGlyph, o.user);
+      renderClassFallback(avatar, o.className, o.classGlyph, o.user, o.custom);
     }
 
     const name = document.createElement('div');
@@ -488,8 +551,8 @@
     // Render the duelists' actual characters: avatar URL or class glyph,
     // with class tint on the ring. Same pattern as party tiles — keeps
     // the visual story consistent across the overlay.
-    paintDuelist($('duelist-l'), { avatar: p.challengerAvatar, className: p.challengerClass, glyph: p.challengerGlyph, tint: p.challengerTint, fallback: '⚔' });
-    paintDuelist($('duelist-r'), { avatar: p.defenderAvatar,   className: p.defenderClass,   glyph: p.defenderGlyph,   tint: p.defenderTint,   fallback: '🛡' });
+    paintDuelist($('duelist-l'), { avatar: p.challengerAvatar, className: p.challengerClass, custom: p.challengerCustom, glyph: p.challengerGlyph, tint: p.challengerTint, fallback: '⚔' });
+    paintDuelist($('duelist-r'), { avatar: p.defenderAvatar,   className: p.defenderClass,   custom: p.defenderCustom,   glyph: p.defenderGlyph,   tint: p.defenderTint,   fallback: '🛡' });
   }
   function paintDuelist(panelEl, src) {
     if (!panelEl) return;
@@ -505,12 +568,12 @@
       img.className = 'd-avatar-img';
       img.addEventListener('error', () => {
         img.remove();
-        renderClassFallback(ring, src.className, src.glyph, '');
+        renderClassFallback(ring, src.className, src.glyph, '', src.custom);
         if (!ring.classList.contains('has-sprite')) ring.textContent = src.glyph || src.fallback;
       });
       ring.appendChild(img);
     } else {
-      renderClassFallback(ring, src.className, src.glyph, '');
+      renderClassFallback(ring, src.className, src.glyph, '', src.custom);
       if (!ring.classList.contains('has-sprite')) ring.textContent = src.glyph || src.fallback;
     }
   }
@@ -615,22 +678,27 @@
       joinCommand: '!join',
       openSec: 8,
       party: [
-        // Warrior — sprite-only so the pixel art shows (no avatar URL).
+        // Warrior — default look, no custom (vanilla red plume).
         { user: 'aquilo_plays', platform: 'twitch', level: 5, hpMax: 35, hpCurrent: 35,
-          className: 'warrior', classGlyph: '⚔', classTint: '#F85149', avatar: '' },
-        // Rogue — sprite preview.
+          className: 'warrior', classGlyph: '⚔', classTint: '#F85149', avatar: '',
+          custom: { skinTone: 'tan', cape: 'cloak' } },
+        // Rogue with cyan-ish primary override + cape.
         { user: 'fearless_fox', platform: 'twitch', level: 2, hpMax: 25, hpCurrent: 25,
-          className: 'rogue',   classGlyph: '🗡', classTint: '#3FB950', avatar: '' }
+          className: 'rogue',   classGlyph: '🗡', classTint: '#3FB950', avatar: '',
+          custom: { skinTone: 'olive', cape: 'cloak', primary: '#1F2D3A' } }
       ]
     });
-    // Late-joiners cycle through the remaining class sprites so the
-    // streamer can eyeball each one in the demo.
+    // Late-joiners cycle through the remaining class sprites with
+    // custom-variant flair so the streamer can see what changes.
     setTimeout(() => addPartyTile({ user: 'mason42',     platform: 'twitch', level: 3, hpMax: 30, hpCurrent: 30,
-                                    className: 'mage',   classGlyph: '🪄', classTint: '#B452FF', avatar: '' }), 1500);
+                                    className: 'mage',   classGlyph: '🪄', classTint: '#B452FF', avatar: '',
+                                    custom: { skinTone: 'fair', primary: '#3A86FF' } }), 1500);
     setTimeout(() => addPartyTile({ user: 'pine_archer', platform: 'twitch', level: 4, hpMax: 32, hpCurrent: 32,
-                                    className: 'ranger', classGlyph: '🏹', classTint: '#F0B429', avatar: '' }), 3000);
+                                    className: 'ranger', classGlyph: '🏹', classTint: '#F0B429', avatar: '',
+                                    custom: { skinTone: 'deep', hairColor: 'red', hairStyle: 'long', cape: 'wing' } }), 3000);
     setTimeout(() => addPartyTile({ user: 'lume',        platform: 'twitch', level: 6, hpMax: 40, hpCurrent: 40,
-                                    className: 'healer', classGlyph: '✨', classTint: '#00F2EA', avatar: '' }), 4500);
+                                    className: 'healer', classGlyph: '✨', classTint: '#00F2EA', avatar: '',
+                                    custom: { skinTone: 'pale-blue', hairColor: 'pink', hairStyle: 'long' } }), 4500);
     setTimeout(() => {
       showAdventure({ dungeonName: 'Crypt of Whispers' });
       [

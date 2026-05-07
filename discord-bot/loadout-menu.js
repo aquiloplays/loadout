@@ -44,7 +44,7 @@ import {
 import {
   cmdHero, cmdInventory, cmdEquip, cmdUnequip, cmdSell,
   cmdShop, cmdShopBuy, cmdTraining,
-  cmdSetAvatar, cmdSetClass, CLASSES
+  cmdSetAvatar, cmdSetClass, cmdSetCustom, CLASSES, CUSTOM_OPTIONS
 } from './dungeon.js';
 
 // ── Discord wire constants ─────────────────────────────────────────
@@ -104,14 +104,26 @@ export async function handleComponent(data, env) {
     case 'hero':        return updateMessage(await heroView      (env, guild, userId, userName));
     case 'character':   {
       // Character customisation sub-view. parts[2] paths:
-      //   (none)              — show the Character panel
-      //   avatar              — open the "set avatar URL" modal
-      //   class               — show class picker
-      //   class:do:<key>      — set the class
+      //   (none)               — show the Character panel
+      //   avatar               — open the "set avatar URL" modal
+      //   class                — show class picker
+      //   class:do:<key>       — set the class
+      //   customize            — show appearance customization panel
+      //   customize:<attr>     — open select-menu for skinTone / hairColor / hairStyle / eyeColor / cape
+      //   customize:do:<attr>  — apply selected value (from select submit)
       if (parts[2] === 'avatar')           return openModal(avatarModal());
       if (parts[2] === 'class' && parts[3] === 'do')
         return updateMessage(await classDo(env, guild, userId, parts[4]));
       if (parts[2] === 'class')            return updateMessage(classPicker());
+      if (parts[2] === 'customize') {
+        if (parts[3] === 'do') {
+          const attr  = parts[4];
+          const value = data.data?.values?.[0] || '';
+          return updateMessage(await customizeApply(env, guild, userId, attr, value));
+        }
+        if (parts[3]) return updateMessage(customizeAttrPicker(parts[3]));
+        return updateMessage(await customizeView(env, guild, userId, userName));
+      }
       return updateMessage(await characterView(env, guild, userId, userName));
     }
     case 'bag':         return updateMessage(await bagView       (env, guild, userId));
@@ -364,12 +376,94 @@ async function characterView(env, guild, userId, userName) {
     embeds: e ? [e] : undefined,
     components: [
       row(
-        button('🖼 Set avatar URL',  'lo:character:avatar', BTN_PRIMARY),
-        button('🎭 Pick class',      'lo:character:class',  BTN_PRIMARY)
+        button('🖼 Set avatar URL',   'lo:character:avatar',    BTN_PRIMARY),
+        button('🎭 Pick class',       'lo:character:class',     BTN_PRIMARY),
+        button('🎨 Customize look',  'lo:character:customize', BTN_SUCCESS)
       ),
       backRow('lo:hero')
     ]
   };
+}
+
+// ── Appearance customization ────────────────────────────────────────
+
+async function customizeView(env, guild, userId, userName) {
+  // Show what's currently picked, with one button per attribute. Each
+  // button opens a select-menu of options for that attribute. The
+  // sprite that renders on the dungeon overlay updates as soon as the
+  // viewer picks a new value — no save button.
+  // (There's also no preview render here yet; for now we surface the
+  // hero's full embed so the viewer can see the class glyph + class
+  // colour, plus a list of their current customization values.)
+  const r = await cmdHero(env, guild, userId, null, userName);
+  const heroEmbed = r.embeds?.[0];
+  // Read the raw hero so we can show the picked customizations. We
+  // don't expose the underlying dungeon.js loadHero here so do a
+  // best-effort pull from the canonical KV key via the wallet link.
+  const w = await getWallet(env, guild, userId);
+  const link = (w.links || [])[0];
+  let hero = null;
+  if (link?.platform && link?.username) {
+    const raw = await env.LOADOUT_BOLTS.get(
+      `d:hero-by-handle:${guild}:${link.platform.toLowerCase()}:${link.username.toLowerCase()}`);
+    if (raw) { try { hero = JSON.parse(raw); } catch {} }
+  }
+  if (!hero) {
+    const raw = await env.LOADOUT_BOLTS.get('d:hero:' + guild + ':' + userId);
+    if (raw) { try { hero = JSON.parse(raw); } catch {} }
+  }
+  const c = hero?.custom || {};
+
+  const summary =
+    '🎨 **Customize your look** — picks render on the dungeon overlay.\n' +
+    '`Skin tone:` ' + (c.skinTone  || '_default_') + '\n' +
+    '`Hair color:` ' + (c.hairColor || '_default_') + '\n' +
+    '`Hair style:` ' + (c.hairStyle || '_default_') + '\n' +
+    '`Eye color:` '  + (c.eyeColor  || '_default_') + '\n' +
+    '`Cape:` '       + (c.cape      || '_none_');
+
+  return {
+    content: summary,
+    embeds: heroEmbed ? [heroEmbed] : undefined,
+    components: [
+      row(
+        button('🧴 Skin tone',  'lo:character:customize:skinTone',  BTN_SECONDARY),
+        button('💇 Hair color', 'lo:character:customize:hairColor', BTN_SECONDARY),
+        button('✂ Hair style',  'lo:character:customize:hairStyle', BTN_SECONDARY),
+        button('👁 Eye color',  'lo:character:customize:eyeColor',  BTN_SECONDARY),
+        button('🦸 Cape',        'lo:character:customize:cape',     BTN_SECONDARY)
+      ),
+      backRow('lo:character')
+    ]
+  };
+}
+
+function customizeAttrPicker(attr) {
+  const opts = CUSTOM_OPTIONS[attr];
+  if (!opts) return { content: '❌ Unknown customization attribute.', components: [backRow('lo:character:customize')] };
+  // Each select option's value becomes the customize:do:<attr> custom_id.
+  const options = opts.map(o => ({
+    label: o.charAt(0).toUpperCase() + o.slice(1),
+    value: o
+  }));
+  // Add an explicit "default / none" option so the viewer can clear
+  // the slot back to class default.
+  options.push({ label: 'Default', value: 'none', description: 'Clear this slot back to class default' });
+  return {
+    content: '🎨 **Pick a ' + attr + '** — overlay updates immediately.',
+    components: [
+      selectRow('lo:character:customize:do:' + attr, 'Pick a ' + attr, options),
+      backRow('lo:character:customize')
+    ]
+  };
+}
+
+async function customizeApply(env, guild, userId, attr, value) {
+  const r = await cmdSetCustom(env, guild, userId, attr, value);
+  // Bounce back into customizeView so the streamer sees the update +
+  // their other picks side-by-side without an extra click.
+  const back = await customizeView(env, guild, userId, '');
+  return { content: (r.content || '') + '\n\n' + back.content, embeds: back.embeds, components: back.components };
 }
 
 function classPicker() {

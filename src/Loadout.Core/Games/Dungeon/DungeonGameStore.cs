@@ -67,13 +67,21 @@ namespace Loadout.Games.Dungeon
             }
         }
 
-        /// <summary>Apply a dungeon result: hp delta, xp + gold awarded, items dropped.</summary>
+        /// <summary>Apply a dungeon result: hp delta, xp + gold awarded,
+        /// items dropped, dungeon-name tracking. Also triggers achievement
+        /// checks; out param surfaces newly-unlocked achievements so the
+        /// caller can broadcast them on the bus and award the bolts bonus.</summary>
         public HeroState ApplyDungeonResult(string platform, string handle,
                                             int hpDelta, int xpGained, int goldGained,
                                             IList<InventoryItem> drops, bool survived,
-                                            string dungeonName)
+                                            string dungeonName,
+                                            bool slewBoss,
+                                            out List<string> newAchievements,
+                                            out int achievementBoltsBonus)
         {
             EnsureLoaded();
+            newAchievements = new List<string>();
+            achievementBoltsBonus = 0;
             var key = MakeKey(platform, handle);
             lock (_gate)
             {
@@ -91,17 +99,27 @@ namespace Loadout.Games.Dungeon
                 h.HpCurrent = Math.Max(0, Math.Min(h.HpMax, h.HpCurrent + hpDelta));
                 if (survived) h.DungeonsSurvived++;
                 else          h.DungeonsFallen++;
+                if (slewBoss) h.BossesSlain++;
+
+                if (!string.IsNullOrEmpty(dungeonName))
+                {
+                    if (h.DungeonsVisited == null) h.DungeonsVisited = new List<string>();
+                    if (!h.DungeonsVisited.Contains(dungeonName, StringComparer.OrdinalIgnoreCase))
+                        h.DungeonsVisited.Add(dungeonName);
+                }
 
                 if (xpGained > 0)
                 {
                     h.Xp += xpGained;
-                    while (h.Xp >= DungeonContent.XpForLevel(h.Level))
+                    while (h.Level < DungeonContent.MaxLevel &&
+                           h.Xp >= DungeonContent.XpForLevel(h.Level))
                     {
                         h.Xp   -= DungeonContent.XpForLevel(h.Level);
                         h.Level++;
                         h.HpMax += 5;
                         h.HpCurrent = h.HpMax; // refill on level up
                     }
+                    if (h.Level >= DungeonContent.MaxLevel) h.Xp = 0;
                 }
 
                 if (drops != null)
@@ -113,6 +131,8 @@ namespace Loadout.Games.Dungeon
                         d.FoundIn = string.IsNullOrEmpty(d.FoundIn) ? dungeonName : d.FoundIn;
                         d.FoundUtc = DateTime.UtcNow;
                         h.Bag.Add(d);
+                        if (string.Equals(d.Rarity, "legendary", StringComparison.OrdinalIgnoreCase)) h.LegendariesFound++;
+                        if (string.Equals(d.Rarity, "mythic",    StringComparison.OrdinalIgnoreCase)) h.MythicsFound++;
                     }
                     // Bag cap — auto-sell oldest items beyond the cap. The
                     // gold goes back to the hero so a packed bag isn't
@@ -125,9 +145,56 @@ namespace Loadout.Games.Dungeon
                     }
                 }
 
+                // Achievement check — runs every dungeon apply because the
+                // milestones depend on aggregate state (level, dungeons
+                // survived, drops found). New unlocks bubble out so the
+                // module can fire a celebratory bus event + credit the
+                // achievement's BoltsReward.
+                CheckAchievements(h, newAchievements, ref achievementBoltsBonus);
+
                 h.LastUpdatedUtc = DateTime.UtcNow;
                 Save();
                 return Clone(h);
+            }
+        }
+
+        /// <summary>Idempotent backwards-compat overload — older callsites
+        /// don't pass slewBoss / newAchievements. Kept so DiscordSync push
+        /// and any third-party caller that links the DLL keeps working.</summary>
+        public HeroState ApplyDungeonResult(string platform, string handle,
+                                            int hpDelta, int xpGained, int goldGained,
+                                            IList<InventoryItem> drops, bool survived,
+                                            string dungeonName)
+            => ApplyDungeonResult(platform, handle, hpDelta, xpGained, goldGained,
+                                  drops, survived, dungeonName, false, out _, out _);
+
+        private static void CheckAchievements(HeroState h, List<string> newOnes, ref int boltsBonus)
+        {
+            if (h.Achievements == null) h.Achievements = new List<string>();
+            // Use a list-of-tuples to evaluate conditions without a local
+            // function closure (closures can't capture ref params in C#).
+            var checks = new (string id, bool ok)[]
+            {
+                ("first-blood",    h.DungeonsSurvived >= 1),
+                ("veteran",        h.DungeonsSurvived >= 10),
+                ("dungeoneer",     h.DungeonsSurvived >= 50),
+                ("duelist",        h.DuelsWon         >= 10),
+                ("champion",       h.DuelsWon         >= 50),
+                ("legendkiller",   h.BossesSlain      >= 1),
+                ("lootmaster",     h.LegendariesFound >= 1),
+                ("myth-touched",   h.MythicsFound     >= 1),
+                ("ascended",       h.Level            >= 25),
+                ("legendary-rank", h.Level            >= DungeonContent.MaxLevel),
+                ("explorer",       (h.DungeonsVisited?.Count ?? 0) >= DungeonContent.DungeonTypes.Length)
+            };
+            foreach (var c in checks)
+            {
+                if (!c.ok) continue;
+                if (h.Achievements.Contains(c.id, StringComparer.OrdinalIgnoreCase)) continue;
+                h.Achievements.Add(c.id);
+                newOnes.Add(c.id);
+                var def = Array.Find(DungeonContent.Achievements, a => a.Id == c.id);
+                if (def != null) boltsBonus += def.BoltsReward;
             }
         }
 
@@ -167,6 +234,30 @@ namespace Loadout.Games.Dungeon
             return Mutate(platform, handle, h =>
             {
                 if (won) h.DuelsWon++; else h.DuelsLost++;
+                // Achievement re-check so the duelist / champion unlocks
+                // fire on the duel that crosses the threshold, not on the
+                // next dungeon run. Bonus is silently absorbed here — the
+                // /loadout menu reads h.Achievements next time the viewer
+                // looks. (Bolts payout for those is small enough that
+                // not surfacing it inline is fine; achievements unlocked
+                // mid-dungeon DO get surfaced via ApplyDungeonResult.)
+                var ignored = new List<string>();
+                int bonus = 0;
+                CheckAchievements(h, ignored, ref bonus);
+            });
+        }
+
+        /// <summary>Save / merge a per-key character customization value.
+        /// Value of "" or null clears the key. Unknown keys are accepted
+        /// (HeroState.Custom is a free-form dict, see the field comment).</summary>
+        public HeroState SetCustom(string platform, string handle, string key, string value)
+        {
+            return Mutate(platform, handle, h =>
+            {
+                if (h.Custom == null) h.Custom = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                if (string.IsNullOrEmpty(key)) return;
+                if (string.IsNullOrEmpty(value)) h.Custom.Remove(key);
+                else                              h.Custom[key] = value;
             });
         }
 

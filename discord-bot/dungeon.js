@@ -10,21 +10,43 @@
 
 import { getWallet, applyVaultDelta } from './wallet.js';
 
-// Static loot pool — duplicated from DLL/Games/Dungeon/DungeonContent.cs
-// so the Worker can roll without round-tripping. Subset chosen to fit
-// the 6 equip slots + a couple of consumables.
+// Worker-side shop pool — ~25 entries spanning every slot + multiple
+// rarities so /loadout shop has variety even at low levels. Mirror of
+// (a subset of) DLL DungeonContent.Loot — keep names and stats in
+// sync so a viewer who saw "Steel Sword" in chat can buy the same
+// thing here.
 const SHOP_POOL = [
-  // slot, rarity, name, glyph, atk, def, gold (price)
-  ['weapon',  'common',    'Bronze Shortsword', '🗡️', 1, 0,  20 ],
-  ['weapon',  'uncommon',  'Steel Longsword',   '⚔️', 2, 0,  60 ],
-  ['weapon',  'rare',      'Frost Hammer',      '🔨', 4, 0, 180 ],
-  ['head',    'common',    'Leather Cap',       '🧢', 0, 1,  18 ],
-  ['head',    'uncommon',  'Iron Helm',         '⛑️', 0, 2,  55 ],
-  ['chest',   'common',    'Cloth Tunic',       '👕', 0, 1,  18 ],
-  ['chest',   'uncommon',  'Chainmail',         '🦺', 0, 2,  60 ],
-  ['boots',   'common',    'Worn Boots',        '🥾', 0, 1,  16 ],
-  ['trinket', 'uncommon',  'Lucky Charm',       '🍀', 1, 1,  70 ],
-  ['trinket', 'rare',      'Healing Amulet',    '📿', 0, 3, 220 ],
+  // slot, rarity, name, glyph, atk, def, gold (price), setName
+  // ── Common ──
+  ['weapon',  'common',    'Bronze Shortsword', '🗡',  1, 0,  20, ''],
+  ['weapon',  'common',    'Wooden Club',       '🏏',  1, 0,  16, ''],
+  ['weapon',  'common',    'Hand Axe',          '🪓',  1, 0,  18, ''],
+  ['weapon',  'common',    'Apprentice Wand',   '🪄',  1, 0,  22, ''],
+  ['head',    'common',    'Leather Cap',       '🧢',  0, 1,  18, ''],
+  ['head',    'common',    'Cloth Hood',        '👤',  0, 1,  18, ''],
+  ['chest',   'common',    'Cloth Tunic',       '👕',  0, 1,  18, ''],
+  ['chest',   'common',    'Hide Vest',         '🦬',  0, 1,  16, ''],
+  ['legs',    'common',    'Hempen Trousers',   '👖',  0, 1,  16, ''],
+  ['boots',   'common',    'Worn Boots',        '🥾',  0, 1,  16, ''],
+  // ── Uncommon ──
+  ['weapon',  'uncommon',  'Steel Longsword',   '⚔',   2, 0,  60, ''],
+  ['weapon',  'uncommon',  'Hunter\'s Bow',      '🏹', 2, 0,  60, ''],
+  ['weapon',  'uncommon',  'Iron War Axe',      '🪓',  2, 0,  65, ''],
+  ['weapon',  'uncommon',  'Apprentice Tome',   '📕',  2, 0,  70, ''],
+  ['weapon',  'uncommon',  'Quarterstaff',      '🥢',  2, 1,  72, ''],
+  ['head',    'uncommon',  'Iron Helm',         '⛑',   0, 2,  55, 'ironclad'],
+  ['chest',   'uncommon',  'Chainmail',         '🦺',  0, 2,  60, 'ironclad'],
+  ['legs',    'uncommon',  'Iron Greaves',      '🦿',  0, 2,  55, 'ironclad'],
+  ['boots',   'uncommon',  'Iron Sabatons',     '👢',  0, 2,  55, 'ironclad'],
+  ['trinket', 'uncommon',  'Lucky Charm',       '🍀',  1, 1,  70, ''],
+  ['trinket', 'uncommon',  'Iron Ring',         '💍',  0, 2,  75, 'ironclad'],
+  // ── Rare ──
+  ['weapon',  'rare',      'Frost Hammer',      '🔨',  4, 0, 180, ''],
+  ['weapon',  'rare',      'Shadow Staff',      '🪄',  4, 1, 200, ''],
+  ['weapon',  'rare',      'Silver Crossbow',   '🎯',  4, 0, 180, ''],
+  ['chest',   'rare',      'Plated Cuirass',    '🛡',  1, 4, 200, ''],
+  ['trinket', 'rare',      'Healing Amulet',    '📿',  0, 3, 220, ''],
+  ['trinket', 'rare',      'Shadow Cloak Pin',  '🎗',  2, 2, 240, 'shadow']
 ];
 
 const SLOTS = ['weapon', 'head', 'chest', 'legs', 'boots', 'trinket'];
@@ -83,19 +105,36 @@ function newHero() {
   return {
     avatar: '',         // viewer-supplied URL (Twitch profile pic, custom upload, etc.)
     className: '',      // one of: warrior / mage / rogue / ranger / healer
+    custom: {},         // free-form: skinTone, hairColor, hairStyle, eyeColor, primary, secondary, cape
     level: 1,
     xp: 0,
     hpMax: 25,
     hpCurrent: 25,
-    bag: [],            // [{id, slot, rarity, name, glyph, powerBonus, defenseBonus, goldValue}]
+    bag: [],            // [{id, slot, rarity, name, glyph, powerBonus, defenseBonus, goldValue, setName}]
     equipped: {},       // slot -> id
     duelsWon: 0,
     duelsLost: 0,
     dungeonsSurvived: 0,
+    bossesSlain: 0,
+    legendariesFound: 0,
+    mythicsFound: 0,
+    achievements: [],
+    dungeonsVisited: [],
     createdUtc: new Date().toISOString(),
     lastUpdatedUtc: new Date().toISOString()
   };
 }
+
+// Customization palettes mirrored from the overlay so /loadout
+// pickers can offer the same options. Keep in sync with main.js
+// SKIN_TONES / HAIR_COLORS / EYE_COLORS / CAPE_PRESETS.
+export const CUSTOM_OPTIONS = {
+  skinTone:  ['fair', 'tan', 'olive', 'deep', 'pale-blue', 'pale-green'],
+  hairColor: ['black', 'brown', 'blonde', 'red', 'white', 'pink', 'blue', 'green'],
+  hairStyle: ['short', 'long', 'spiky', 'mohawk', 'braids', 'bald'],
+  eyeColor:  ['brown', 'blue', 'green', 'amber', 'red'],
+  cape:      ['none', 'cloak', 'wing', 'scarf']
+};
 
 // Class table — mirrors DungeonContent.Classes on the DLL side. Used
 // for stat bonuses + tint colour + glyph rendering in /loadout. Keep
@@ -214,6 +253,24 @@ export async function cmdSetClass(env, guild, userId, className) {
   return { content: '🎭 Class set to ' + cls.glyph + ' **' + cls.name + '** (+' + cls.atk + ' ATK · +' + cls.def + ' DEF · +' + cls.hp + ' HP).' };
 }
 
+/// Customization mutator — accepts any (key, value) pair where the
+/// value comes from the curated CUSTOM_OPTIONS list. "" / "none"
+/// clears the slot. Keeps the customization map small + sane.
+export async function cmdSetCustom(env, guild, userId, key, value) {
+  const k = (key || '').trim();
+  const v = (value || '').trim().toLowerCase();
+  if (!CUSTOM_OPTIONS[k]) return { content: '❌ Unknown customization key.', ephemeral: true };
+  if (v && !CUSTOM_OPTIONS[k].includes(v)) {
+    return { content: '❌ Unknown ' + k + ' value. Pick from: ' + CUSTOM_OPTIONS[k].join(', '), ephemeral: true };
+  }
+  const hero = await loadHero(env, guild, userId);
+  if (!hero.custom) hero.custom = {};
+  if (!v || v === 'none') delete hero.custom[k];
+  else hero.custom[k] = v;
+  await saveHero(env, guild, userId, hero);
+  return { content: '🎨 ' + k + ' = ' + (v || 'default') + '.' };
+}
+
 export async function cmdInventory(env, guild, userId) {
   const hero = await loadHero(env, guild, userId);
   if (!Array.isArray(hero.bag) || hero.bag.length === 0) {
@@ -302,7 +359,7 @@ export async function cmdShopBuy(env, guild, userId, itemName) {
   const hit = SHOP_POOL.find(([_s, _r, name]) =>
     name.toLowerCase().includes((itemName || '').toLowerCase()));
   if (!hit) return { content: 'No shop item matches `' + itemName + '`. Run `/shop` for the list.', ephemeral: true };
-  const [slot, rarity, name, glyph, atk, def, price] = hit;
+  const [slot, rarity, name, glyph, atk, def, price, setName] = hit;
 
   const w = await getWallet(env, guild, userId);
   if ((w.balance || 0) < price) {
@@ -324,6 +381,7 @@ export async function cmdShopBuy(env, guild, userId, itemName) {
     slot, rarity, name, glyph,
     powerBonus: atk, defenseBonus: def,
     goldValue: price,
+    setName: setName || '',
     foundIn: 'shop',
     foundUtc: new Date().toISOString()
   });

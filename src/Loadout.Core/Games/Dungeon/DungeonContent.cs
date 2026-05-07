@@ -9,6 +9,15 @@ namespace Loadout.Games.Dungeon
     /// JSON config) so a streamer can't accidentally delete the monster
     /// pool and brick the game; tweaks ride along with code updates.
     ///
+    /// Content sizes (post-expansion):
+    ///   12 dungeon types — each tied to a biome-specific monster pool
+    ///   ~35 monsters     — including 5 boss-tier with guaranteed rare+ drops
+    ///   16 traps         — biome-flavoured where it matters
+    ///   ~60 loot items   — across 5 rarities, 6 slots, multiple set themes
+    ///   ~50 scenes       — encounter / trap / treasure / story / npc /
+    ///                      shrine / curse / miniboss (8 scene kinds)
+    ///   50-cap leveling  — XP curve scales quadratically
+    ///
     /// Encounter scenes are intentionally short (one sentence each). The
     /// overlay shows them as a typewriter-style text rotation while the
     /// party is "in the dungeon" so the streamer's chat reads like a
@@ -18,27 +27,24 @@ namespace Loadout.Games.Dungeon
     {
         // Item rarities ordered by drop weight (common → mythic). Each
         // rarity carries a colour the overlay reads from a CSS variable.
-        public static readonly string[] Rarities = { "common", "uncommon", "rare", "epic", "legendary" };
+        public static readonly string[] Rarities = { "common", "uncommon", "rare", "epic", "legendary", "mythic" };
 
         // Equipment slots a hero can fill. Inventory items beyond what's
         // equipped sit in the bag (size capped per Discord-side decisions).
         public static readonly string[] Slots = { "weapon", "head", "chest", "legs", "boots", "trinket" };
 
+        // ── Classes ─────────────────────────────────────────────────────
         public sealed class ClassDef
         {
-            public string Name;       // canonical key (lowercase) — stored in HeroState.ClassName
+            public string Name;
             public string DisplayName;
-            public string Glyph;      // emoji rendered in the avatar circle when no avatar URL is set
-            public string TintColor;  // hex used for the avatar ring + class chip on the overlay
-            public int    AtkBonus;   // additive on top of level + gear
+            public string Glyph;
+            public string TintColor;
+            public int    AtkBonus;
             public int    DefBonus;
-            public int    HpBonus;    // additive on top of HpMax baseline (25 + level scaling)
+            public int    HpBonus;
         }
 
-        // Five archetypes — narrow enough that the picker fits in one
-        // ActionRow on Discord (5 buttons), wide enough that viewers
-        // pick something they identify with. Bonuses are intentionally
-        // small (+/- 2 at most) so a class doesn't overshadow gear.
         public static readonly ClassDef[] Classes = new[]
         {
             new ClassDef { Name = "warrior", DisplayName = "Warrior", Glyph = "⚔",  TintColor = "#F85149", AtkBonus = 2, DefBonus = 0, HpBonus = 0  },
@@ -56,123 +62,220 @@ namespace Loadout.Games.Dungeon
             return null;
         }
 
+        // ── Monsters ────────────────────────────────────────────────────
         public sealed class MonsterDef
         {
             public string Name;
-            public string Glyph;     // emoji shown on the overlay tile
-            public int    Power;     // baseline damage range source
+            public string Glyph;
+            public int    Power;
             public int    Hp;
             public int    GoldMin;
             public int    GoldMax;
             public int    XpMin;
             public int    XpMax;
+            public int    DifficultyTier;   // 1..5 — the floor where this monster starts appearing
+            public string Biome;             // matches DungeonType.Biome ("undead", "elemental", etc.) or "any"
+            public bool   IsBoss;            // bosses guarantee a rare+ drop and broadcast a special scene line
         }
 
+        // Curated monster pool. Tier 1-5 governs when a monster starts
+        // showing up; biome ties it to specific dungeon types so a
+        // Wyvern's Hollow run never spawns a sky harpy. "any"-biome
+        // monsters can show up in any dungeon — used for filler beasts
+        // (slime, rat) so even an unusual biome has variety.
+        public static readonly MonsterDef[] Monsters = new[]
+        {
+            // ── Tier 1 (any biome / weakest) ──
+            new MonsterDef { Name = "Goblin Sneak",    Glyph = "👹", Power = 4,  Hp = 12, GoldMin = 5,  GoldMax = 15, XpMin = 8,  XpMax = 14, DifficultyTier = 1, Biome = "any" },
+            new MonsterDef { Name = "Cave Bat",        Glyph = "🦇", Power = 3,  Hp = 8,  GoldMin = 3,  GoldMax = 10, XpMin = 6,  XpMax = 10, DifficultyTier = 1, Biome = "earth" },
+            new MonsterDef { Name = "Slime",           Glyph = "🟢", Power = 2,  Hp = 18, GoldMin = 4,  GoldMax = 12, XpMin = 7,  XpMax = 12, DifficultyTier = 1, Biome = "any" },
+            new MonsterDef { Name = "Plague Rat",      Glyph = "🐀", Power = 3,  Hp = 10, GoldMin = 4,  GoldMax = 11, XpMin = 7,  XpMax = 11, DifficultyTier = 1, Biome = "swamp" },
+            new MonsterDef { Name = "Tomb Spider",     Glyph = "🕷", Power = 4,  Hp = 12, GoldMin = 6,  GoldMax = 14, XpMin = 9,  XpMax = 13, DifficultyTier = 1, Biome = "undead" },
+
+            // ── Tier 2 ──
+            new MonsterDef { Name = "Skeleton Archer", Glyph = "💀", Power = 5,  Hp = 14, GoldMin = 8,  GoldMax = 18, XpMin = 10, XpMax = 16, DifficultyTier = 2, Biome = "undead" },
+            new MonsterDef { Name = "Bog Hag",         Glyph = "🧌", Power = 6,  Hp = 16, GoldMin = 10, GoldMax = 20, XpMin = 12, XpMax = 18, DifficultyTier = 2, Biome = "swamp" },
+            new MonsterDef { Name = "Drowned Warrior", Glyph = "🧜", Power = 5,  Hp = 18, GoldMin = 9,  GoldMax = 19, XpMin = 11, XpMax = 17, DifficultyTier = 2, Biome = "water" },
+            new MonsterDef { Name = "Fire Imp",        Glyph = "🔥", Power = 5,  Hp = 12, GoldMin = 10, GoldMax = 18, XpMin = 12, XpMax = 16, DifficultyTier = 2, Biome = "fire" },
+            new MonsterDef { Name = "Ice Sprite",      Glyph = "❄️", Power = 4,  Hp = 14, GoldMin = 9,  GoldMax = 18, XpMin = 11, XpMax = 16, DifficultyTier = 2, Biome = "ice" },
+            new MonsterDef { Name = "Wisp",            Glyph = "💡", Power = 4,  Hp = 12, GoldMin = 8,  GoldMax = 16, XpMin = 11, XpMax = 16, DifficultyTier = 2, Biome = "nature" },
+            new MonsterDef { Name = "Dryad",           Glyph = "🌿", Power = 5,  Hp = 14, GoldMin = 9,  GoldMax = 18, XpMin = 11, XpMax = 17, DifficultyTier = 2, Biome = "nature" },
+            new MonsterDef { Name = "Harpy",           Glyph = "🪶", Power = 5,  Hp = 14, GoldMin = 10, GoldMax = 18, XpMin = 12, XpMax = 17, DifficultyTier = 2, Biome = "sky" },
+
+            // ── Tier 3 ──
+            new MonsterDef { Name = "Orc Brute",       Glyph = "🪓", Power = 7,  Hp = 22, GoldMin = 12, GoldMax = 24, XpMin = 14, XpMax = 22, DifficultyTier = 3, Biome = "any" },
+            new MonsterDef { Name = "Mummy",           Glyph = "🧟", Power = 7,  Hp = 24, GoldMin = 14, GoldMax = 26, XpMin = 16, XpMax = 24, DifficultyTier = 3, Biome = "undead" },
+            new MonsterDef { Name = "Necromancer",     Glyph = "🧙‍♂️", Power = 8, Hp = 20, GoldMin = 16, GoldMax = 30, XpMin = 18, XpMax = 26, DifficultyTier = 3, Biome = "undead" },
+            new MonsterDef { Name = "Treant",          Glyph = "🌳", Power = 6,  Hp = 32, GoldMin = 14, GoldMax = 26, XpMin = 16, XpMax = 24, DifficultyTier = 3, Biome = "nature" },
+            new MonsterDef { Name = "Salamander",      Glyph = "🦎", Power = 8,  Hp = 22, GoldMin = 16, GoldMax = 28, XpMin = 18, XpMax = 26, DifficultyTier = 3, Biome = "fire" },
+            new MonsterDef { Name = "Frost Troll",     Glyph = "❄️", Power = 9,  Hp = 26, GoldMin = 17, GoldMax = 29, XpMin = 20, XpMax = 28, DifficultyTier = 3, Biome = "ice" },
+            new MonsterDef { Name = "Iron Sentinel",   Glyph = "🛡", Power = 8,  Hp = 30, GoldMin = 16, GoldMax = 28, XpMin = 18, XpMax = 26, DifficultyTier = 3, Biome = "construct" },
+            new MonsterDef { Name = "Sky Knight",      Glyph = "🪽", Power = 9,  Hp = 24, GoldMin = 18, GoldMax = 32, XpMin = 20, XpMax = 28, DifficultyTier = 3, Biome = "sky" },
+            new MonsterDef { Name = "Siren",           Glyph = "🎵", Power = 7,  Hp = 20, GoldMin = 16, GoldMax = 28, XpMin = 18, XpMax = 26, DifficultyTier = 3, Biome = "water" },
+            new MonsterDef { Name = "Rotted Golem",    Glyph = "🪦", Power = 8,  Hp = 28, GoldMin = 16, GoldMax = 28, XpMin = 18, XpMax = 26, DifficultyTier = 3, Biome = "swamp" },
+            new MonsterDef { Name = "Shadow Stalker",  Glyph = "🦂", Power = 8,  Hp = 18, GoldMin = 14, GoldMax = 26, XpMin = 16, XpMax = 24, DifficultyTier = 3, Biome = "any" },
+
+            // ── Tier 4 ──
+            new MonsterDef { Name = "Lich",            Glyph = "🧛",  Power = 9,  Hp = 28, GoldMin = 18, GoldMax = 36, XpMin = 22, XpMax = 32, DifficultyTier = 4, Biome = "undead" },
+            new MonsterDef { Name = "Magma Elemental", Glyph = "🌋", Power = 10, Hp = 32, GoldMin = 22, GoldMax = 38, XpMin = 24, XpMax = 34, DifficultyTier = 4, Biome = "fire" },
+            new MonsterDef { Name = "Storm Elemental", Glyph = "⛈",  Power = 10, Hp = 30, GoldMin = 22, GoldMax = 38, XpMin = 24, XpMax = 34, DifficultyTier = 4, Biome = "sky" },
+            new MonsterDef { Name = "Yeti",            Glyph = "❄",  Power = 11, Hp = 36, GoldMin = 24, GoldMax = 40, XpMin = 26, XpMax = 36, DifficultyTier = 4, Biome = "ice" },
+            new MonsterDef { Name = "Stone Golem",     Glyph = "🗿", Power = 10, Hp = 40, GoldMin = 22, GoldMax = 40, XpMin = 24, XpMax = 36, DifficultyTier = 4, Biome = "earth" },
+            new MonsterDef { Name = "Clockwork Guard", Glyph = "⚙️",  Power = 11, Hp = 38, GoldMin = 24, GoldMax = 42, XpMin = 26, XpMax = 36, DifficultyTier = 4, Biome = "construct" },
+            new MonsterDef { Name = "Plague Bringer",  Glyph = "☣",  Power = 10, Hp = 32, GoldMin = 22, GoldMax = 38, XpMin = 24, XpMax = 34, DifficultyTier = 4, Biome = "swamp" },
+            new MonsterDef { Name = "Dragonkin",       Glyph = "🐲", Power = 11, Hp = 34, GoldMin = 26, GoldMax = 44, XpMin = 28, XpMax = 38, DifficultyTier = 4, Biome = "dragon" },
+            new MonsterDef { Name = "Void Wraith",     Glyph = "👻", Power = 12, Hp = 28, GoldMin = 24, GoldMax = 42, XpMin = 28, XpMax = 38, DifficultyTier = 4, Biome = "void" },
+            new MonsterDef { Name = "Ancient Mimic",   Glyph = "📦", Power = 10, Hp = 28, GoldMin = 36, GoldMax = 80, XpMin = 24, XpMax = 36, DifficultyTier = 4, Biome = "any" },
+
+            // ── Tier 5 ──
+            new MonsterDef { Name = "Wyvern",          Glyph = "🐉", Power = 13, Hp = 42, GoldMin = 32, GoldMax = 56, XpMin = 32, XpMax = 48, DifficultyTier = 5, Biome = "dragon" },
+            new MonsterDef { Name = "Mind Flayer",     Glyph = "🧠", Power = 14, Hp = 38, GoldMin = 30, GoldMax = 54, XpMin = 32, XpMax = 48, DifficultyTier = 5, Biome = "void" },
+            new MonsterDef { Name = "Kraken",          Glyph = "🐙", Power = 14, Hp = 50, GoldMin = 34, GoldMax = 60, XpMin = 34, XpMax = 50, DifficultyTier = 5, Biome = "water" },
+
+            // ── BOSSES (each guarantees a rare+ drop) ──
+            new MonsterDef { Name = "Lich King",       Glyph = "👑", Power = 16, Hp = 70, GoldMin = 80,  GoldMax = 140, XpMin = 60, XpMax = 90, DifficultyTier = 5, Biome = "undead",   IsBoss = true },
+            new MonsterDef { Name = "Ancient Wyrm",    Glyph = "🐲", Power = 18, Hp = 90, GoldMin = 100, GoldMax = 180, XpMin = 70, XpMax = 110, DifficultyTier = 5, Biome = "dragon",   IsBoss = true },
+            new MonsterDef { Name = "Voidlord",        Glyph = "🌑", Power = 19, Hp = 80, GoldMin = 110, GoldMax = 200, XpMin = 75, XpMax = 120, DifficultyTier = 5, Biome = "void",     IsBoss = true },
+            new MonsterDef { Name = "Frostmother",     Glyph = "❄",  Power = 17, Hp = 80, GoldMin = 90,  GoldMax = 160, XpMin = 65, XpMax = 100, DifficultyTier = 5, Biome = "ice",      IsBoss = true },
+            new MonsterDef { Name = "Eldritch Horror", Glyph = "👁",  Power = 20, Hp = 100, GoldMin = 120, GoldMax = 220, XpMin = 80, XpMax = 130, DifficultyTier = 5, Biome = "void",    IsBoss = true }
+        };
+
+        // ── Traps ────────────────────────────────────────────────────────
         public sealed class TrapDef
         {
             public string Name;
             public string Glyph;
             public int    DamageMin;
             public int    DamageMax;
-            public string Verb;      // "spikes pierce", "flames lick", etc.
+            public string Verb;
+            public string Biome;     // "any" or specific
         }
-
-        public sealed class LootDef
-        {
-            public string Slot;      // weapon / head / chest / legs / boots / trinket / consumable
-            public string Rarity;
-            public string Name;      // "Rusty Dagger", "Wyvern Helm"
-            public string Glyph;     // emoji shown on overlay tile
-            public int    PowerBonus;
-            public int    DefenseBonus;
-            public int    GoldValue; // resale price baseline (Discord shop)
-        }
-
-        public sealed class SceneDef
-        {
-            public string Kind;      // "encounter" | "trap" | "treasure" | "rest" | "peril" | "story"
-            public string Template;  // {user}, {monster}, {damage}, {loot}, {xp}
-            public int    Weight;    // pick weight inside its kind
-        }
-
-        // Distinct foe pool — slim enough that a 4-room run almost always
-        // pulls 4 different glyphs, fat enough that two back-to-back runs
-        // rarely repeat. Power is in the same scale as hero attack so the
-        // outcome model below stays simple (attacker - defender = damage).
-        public static readonly MonsterDef[] Monsters = new[]
-        {
-            new MonsterDef { Name = "Goblin Sneak",    Glyph = "👹", Power = 4,  Hp = 12, GoldMin = 5,  GoldMax = 15, XpMin = 8,  XpMax = 14 },
-            new MonsterDef { Name = "Cave Bat",        Glyph = "🦇", Power = 3,  Hp = 8,  GoldMin = 3,  GoldMax = 10, XpMin = 6,  XpMax = 10 },
-            new MonsterDef { Name = "Skeleton Archer", Glyph = "💀", Power = 5,  Hp = 14, GoldMin = 8,  GoldMax = 18, XpMin = 10, XpMax = 16 },
-            new MonsterDef { Name = "Slime",           Glyph = "🟢", Power = 2,  Hp = 18, GoldMin = 4,  GoldMax = 12, XpMin = 7,  XpMax = 12 },
-            new MonsterDef { Name = "Orc Brute",       Glyph = "🪓", Power = 7,  Hp = 22, GoldMin = 12, GoldMax = 24, XpMin = 14, XpMax = 22 },
-            new MonsterDef { Name = "Lich",            Glyph = "🧙", Power = 9,  Hp = 28, GoldMin = 18, GoldMax = 36, XpMin = 22, XpMax = 32 },
-            new MonsterDef { Name = "Wyvern",          Glyph = "🐉", Power = 11, Hp = 36, GoldMin = 28, GoldMax = 48, XpMin = 30, XpMax = 44 },
-            new MonsterDef { Name = "Ancient Mimic",   Glyph = "📦", Power = 6,  Hp = 20, GoldMin = 24, GoldMax = 60, XpMin = 18, XpMax = 28 },
-            new MonsterDef { Name = "Shadow Stalker",  Glyph = "🦂", Power = 8,  Hp = 18, GoldMin = 14, GoldMax = 26, XpMin = 16, XpMax = 24 },
-            new MonsterDef { Name = "Stone Golem",     Glyph = "🗿", Power = 10, Hp = 40, GoldMin = 22, GoldMax = 40, XpMin = 24, XpMax = 36 }
-        };
 
         public static readonly TrapDef[] Traps = new[]
         {
-            new TrapDef { Name = "Spike Pit",      Glyph = "🪤", DamageMin = 4, DamageMax = 9,  Verb = "spikes pierce" },
-            new TrapDef { Name = "Poison Dart",    Glyph = "🏹", DamageMin = 3, DamageMax = 7,  Verb = "darts strike" },
-            new TrapDef { Name = "Falling Stones", Glyph = "🪨", DamageMin = 5, DamageMax = 11, Verb = "rocks crash down on" },
-            new TrapDef { Name = "Fire Jet",       Glyph = "🔥", DamageMin = 4, DamageMax = 10, Verb = "flames lick" },
-            new TrapDef { Name = "Cursed Rune",    Glyph = "♨️", DamageMin = 2, DamageMax = 8,  Verb = "a cursed rune flares against" },
-            new TrapDef { Name = "Rusted Blade",   Glyph = "🗡️", DamageMin = 3, DamageMax = 8,  Verb = "a rusted blade swings into" }
+            new TrapDef { Name = "Spike Pit",      Glyph = "🪤", DamageMin = 4, DamageMax = 9,  Verb = "spikes pierce",                         Biome = "any" },
+            new TrapDef { Name = "Poison Dart",    Glyph = "🏹", DamageMin = 3, DamageMax = 7,  Verb = "darts strike",                          Biome = "any" },
+            new TrapDef { Name = "Falling Stones", Glyph = "🪨", DamageMin = 5, DamageMax = 11, Verb = "rocks crash down on",                   Biome = "earth" },
+            new TrapDef { Name = "Fire Jet",       Glyph = "🔥", DamageMin = 4, DamageMax = 10, Verb = "flames lick",                           Biome = "fire" },
+            new TrapDef { Name = "Cursed Rune",    Glyph = "♨️", DamageMin = 2, DamageMax = 8,  Verb = "a cursed rune flares against",          Biome = "undead" },
+            new TrapDef { Name = "Rusted Blade",   Glyph = "🗡", DamageMin = 3, DamageMax = 8,  Verb = "a rusted blade swings into",            Biome = "any" },
+            new TrapDef { Name = "Acid Pool",      Glyph = "🧪", DamageMin = 5, DamageMax = 10, Verb = "acid eats into",                        Biome = "swamp" },
+            new TrapDef { Name = "Tripwire",       Glyph = "🪢", DamageMin = 2, DamageMax = 6,  Verb = "a tripwire snaps under",                Biome = "any" },
+            new TrapDef { Name = "Pendulum Blade", Glyph = "🪓", DamageMin = 6, DamageMax = 12, Verb = "a pendulum blade swings through",       Biome = "construct" },
+            new TrapDef { Name = "Lightning Coil", Glyph = "⚡", DamageMin = 4, DamageMax = 10, Verb = "a lightning coil arcs into",            Biome = "construct" },
+            new TrapDef { Name = "Sleeping Gas",   Glyph = "💨", DamageMin = 1, DamageMax = 5,  Verb = "sleeping gas wafts over",               Biome = "any" },
+            new TrapDef { Name = "Frost Floor",    Glyph = "🧊", DamageMin = 3, DamageMax = 7,  Verb = "the floor freezes beneath",             Biome = "ice" },
+            new TrapDef { Name = "Mage Sigil",     Glyph = "✨", DamageMin = 4, DamageMax = 9,  Verb = "a mage sigil ignites under",            Biome = "any" },
+            new TrapDef { Name = "Whirlwind",      Glyph = "🌀", DamageMin = 5, DamageMax = 9,  Verb = "a sudden whirlwind buffets",            Biome = "sky" },
+            new TrapDef { Name = "Thorn Vine",     Glyph = "🥀", DamageMin = 3, DamageMax = 8,  Verb = "thorned vines lash",                    Biome = "nature" },
+            new TrapDef { Name = "Void Tear",      Glyph = "🌑", DamageMin = 6, DamageMax = 12, Verb = "a tear in reality bites at",            Biome = "void" }
         };
 
-        // Loot pool — the rarity weights at the bottom drive how often
-        // each tier rolls. Names + glyphs are paired so the overlay tile
-        // and chat reply read the same.
+        // ── Loot ────────────────────────────────────────────────────────
+        public sealed class LootDef
+        {
+            public string Slot;
+            public string Rarity;
+            public string Name;
+            public string Glyph;
+            public int    PowerBonus;
+            public int    DefenseBonus;
+            public int    GoldValue;
+            public string SetName;          // empty string if not part of a set
+        }
+
+        // 60+ items spanning 5 rarities + 6 set themes. Multiple weapons
+        // per class theme (sword/axe/hammer/polearm for warriors, staff/
+        // tome/orb for mages, etc.) so the bag stays interesting across
+        // dozens of runs.
         public static readonly LootDef[] Loot = new[]
         {
-            // Common
-            new LootDef { Slot = "weapon",  Rarity = "common",   Name = "Rusty Dagger",     Glyph = "🗡️", PowerBonus = 1, DefenseBonus = 0, GoldValue = 5  },
-            new LootDef { Slot = "weapon",  Rarity = "common",   Name = "Wooden Club",      Glyph = "🏏", PowerBonus = 1, DefenseBonus = 0, GoldValue = 4  },
-            new LootDef { Slot = "head",    Rarity = "common",   Name = "Leather Cap",      Glyph = "🧢", PowerBonus = 0, DefenseBonus = 1, GoldValue = 5  },
-            new LootDef { Slot = "chest",   Rarity = "common",   Name = "Cloth Tunic",      Glyph = "👕", PowerBonus = 0, DefenseBonus = 1, GoldValue = 4  },
-            new LootDef { Slot = "boots",   Rarity = "common",   Name = "Worn Boots",       Glyph = "🥾", PowerBonus = 0, DefenseBonus = 1, GoldValue = 4  },
+            // ── Common (drop weight ~70% at d=1) ──
+            new LootDef { Slot = "weapon", Rarity = "common", Name = "Rusty Dagger",     Glyph = "🗡", PowerBonus = 1, DefenseBonus = 0, GoldValue = 5  },
+            new LootDef { Slot = "weapon", Rarity = "common", Name = "Wooden Club",      Glyph = "🏏", PowerBonus = 1, DefenseBonus = 0, GoldValue = 4  },
+            new LootDef { Slot = "weapon", Rarity = "common", Name = "Hand Axe",         Glyph = "🪓", PowerBonus = 1, DefenseBonus = 0, GoldValue = 5  },
+            new LootDef { Slot = "weapon", Rarity = "common", Name = "Hunter's Sling",   Glyph = "🪨", PowerBonus = 1, DefenseBonus = 0, GoldValue = 5  },
+            new LootDef { Slot = "weapon", Rarity = "common", Name = "Apprentice Wand",  Glyph = "🪄", PowerBonus = 1, DefenseBonus = 0, GoldValue = 6  },
+            new LootDef { Slot = "head",   Rarity = "common", Name = "Leather Cap",      Glyph = "🧢", PowerBonus = 0, DefenseBonus = 1, GoldValue = 5  },
+            new LootDef { Slot = "head",   Rarity = "common", Name = "Cloth Hood",       Glyph = "👤", PowerBonus = 0, DefenseBonus = 1, GoldValue = 5  },
+            new LootDef { Slot = "chest",  Rarity = "common", Name = "Cloth Tunic",      Glyph = "👕", PowerBonus = 0, DefenseBonus = 1, GoldValue = 4  },
+            new LootDef { Slot = "chest",  Rarity = "common", Name = "Hide Vest",        Glyph = "🦬", PowerBonus = 0, DefenseBonus = 1, GoldValue = 4  },
+            new LootDef { Slot = "legs",   Rarity = "common", Name = "Hempen Trousers",  Glyph = "👖", PowerBonus = 0, DefenseBonus = 1, GoldValue = 4  },
+            new LootDef { Slot = "legs",   Rarity = "common", Name = "Patchwork Greaves", Glyph = "🧱", PowerBonus = 0, DefenseBonus = 1, GoldValue = 5  },
+            new LootDef { Slot = "boots",  Rarity = "common", Name = "Worn Boots",       Glyph = "🥾", PowerBonus = 0, DefenseBonus = 1, GoldValue = 4  },
+            new LootDef { Slot = "boots",  Rarity = "common", Name = "Sandals",          Glyph = "🩴", PowerBonus = 0, DefenseBonus = 1, GoldValue = 3  },
+            new LootDef { Slot = "trinket", Rarity = "common", Name = "Crow Feather",    Glyph = "🪶", PowerBonus = 0, DefenseBonus = 1, GoldValue = 5  },
 
-            // Uncommon
-            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Steel Sword",      Glyph = "⚔️", PowerBonus = 2, DefenseBonus = 0, GoldValue = 18 },
-            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Hunter's Bow",     Glyph = "🏹", PowerBonus = 2, DefenseBonus = 0, GoldValue = 18 },
-            new LootDef { Slot = "head",    Rarity = "uncommon", Name = "Iron Helm",        Glyph = "⛑️", PowerBonus = 0, DefenseBonus = 2, GoldValue = 18 },
-            new LootDef { Slot = "chest",   Rarity = "uncommon", Name = "Chainmail",        Glyph = "🦺", PowerBonus = 0, DefenseBonus = 2, GoldValue = 20 },
-            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Lucky Charm",      Glyph = "🍀", PowerBonus = 1, DefenseBonus = 1, GoldValue = 22 },
+            // ── Uncommon ──
+            new LootDef { Slot = "weapon", Rarity = "uncommon", Name = "Steel Sword",      Glyph = "⚔",  PowerBonus = 2, DefenseBonus = 0, GoldValue = 18 },
+            new LootDef { Slot = "weapon", Rarity = "uncommon", Name = "Hunter's Bow",     Glyph = "🏹", PowerBonus = 2, DefenseBonus = 0, GoldValue = 18 },
+            new LootDef { Slot = "weapon", Rarity = "uncommon", Name = "Iron War Axe",     Glyph = "🪓", PowerBonus = 2, DefenseBonus = 0, GoldValue = 20 },
+            new LootDef { Slot = "weapon", Rarity = "uncommon", Name = "Apprentice Tome",  Glyph = "📕", PowerBonus = 2, DefenseBonus = 0, GoldValue = 22 },
+            new LootDef { Slot = "weapon", Rarity = "uncommon", Name = "Stiletto",         Glyph = "🗡", PowerBonus = 2, DefenseBonus = 0, GoldValue = 20 },
+            new LootDef { Slot = "weapon", Rarity = "uncommon", Name = "Quarterstaff",     Glyph = "🥢", PowerBonus = 2, DefenseBonus = 1, GoldValue = 22 },
+            new LootDef { Slot = "head",   Rarity = "uncommon", Name = "Iron Helm",        Glyph = "⛑",  PowerBonus = 0, DefenseBonus = 2, GoldValue = 18, SetName = "ironclad" },
+            new LootDef { Slot = "chest",  Rarity = "uncommon", Name = "Chainmail",        Glyph = "🦺", PowerBonus = 0, DefenseBonus = 2, GoldValue = 20, SetName = "ironclad" },
+            new LootDef { Slot = "legs",   Rarity = "uncommon", Name = "Iron Greaves",     Glyph = "🦿", PowerBonus = 0, DefenseBonus = 2, GoldValue = 18, SetName = "ironclad" },
+            new LootDef { Slot = "boots",  Rarity = "uncommon", Name = "Iron Sabatons",    Glyph = "👢", PowerBonus = 0, DefenseBonus = 2, GoldValue = 18, SetName = "ironclad" },
+            new LootDef { Slot = "head",   Rarity = "uncommon", Name = "Mage's Circlet",   Glyph = "🔮", PowerBonus = 1, DefenseBonus = 1, GoldValue = 22, SetName = "arcane" },
+            new LootDef { Slot = "chest",  Rarity = "uncommon", Name = "Arcane Robes",     Glyph = "🥋", PowerBonus = 1, DefenseBonus = 1, GoldValue = 22, SetName = "arcane" },
+            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Lucky Charm",     Glyph = "🍀", PowerBonus = 1, DefenseBonus = 1, GoldValue = 22 },
+            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Iron Ring",       Glyph = "💍", PowerBonus = 0, DefenseBonus = 2, GoldValue = 24, SetName = "ironclad" },
 
-            // Rare
-            new LootDef { Slot = "weapon",  Rarity = "rare",     Name = "Frost Hammer",     Glyph = "🔨", PowerBonus = 4, DefenseBonus = 0, GoldValue = 60  },
-            new LootDef { Slot = "weapon",  Rarity = "rare",     Name = "Shadow Staff",     Glyph = "🪄", PowerBonus = 4, DefenseBonus = 1, GoldValue = 65  },
-            new LootDef { Slot = "chest",   Rarity = "rare",     Name = "Plated Cuirass",   Glyph = "🛡️", PowerBonus = 1, DefenseBonus = 4, GoldValue = 65  },
-            new LootDef { Slot = "trinket", Rarity = "rare",     Name = "Healing Amulet",   Glyph = "📿", PowerBonus = 0, DefenseBonus = 3, GoldValue = 70  },
+            // ── Rare ──
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Frost Hammer",       Glyph = "🔨", PowerBonus = 4, DefenseBonus = 0, GoldValue = 60  },
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Shadow Staff",       Glyph = "🪄", PowerBonus = 4, DefenseBonus = 1, GoldValue = 65  },
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Silver Crossbow",    Glyph = "🎯", PowerBonus = 4, DefenseBonus = 0, GoldValue = 60  },
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Flamberge",          Glyph = "⚔",  PowerBonus = 5, DefenseBonus = 0, GoldValue = 70  },
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Wraithblade",        Glyph = "🗡", PowerBonus = 4, DefenseBonus = 1, GoldValue = 65  },
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Druid's Staff",      Glyph = "🌿", PowerBonus = 3, DefenseBonus = 2, GoldValue = 65  },
+            new LootDef { Slot = "head",   Rarity = "rare", Name = "Dragon Helm",        Glyph = "🐉", PowerBonus = 1, DefenseBonus = 4, GoldValue = 70, SetName = "dragonscale" },
+            new LootDef { Slot = "chest",  Rarity = "rare", Name = "Plated Cuirass",     Glyph = "🛡", PowerBonus = 1, DefenseBonus = 4, GoldValue = 65 },
+            new LootDef { Slot = "chest",  Rarity = "rare", Name = "Dragonscale Plate",  Glyph = "🐲", PowerBonus = 2, DefenseBonus = 4, GoldValue = 80, SetName = "dragonscale" },
+            new LootDef { Slot = "legs",   Rarity = "rare", Name = "Dragonscale Tassets", Glyph = "🐲", PowerBonus = 1, DefenseBonus = 4, GoldValue = 75, SetName = "dragonscale" },
+            new LootDef { Slot = "boots",  Rarity = "rare", Name = "Stormstride Boots",  Glyph = "⛈", PowerBonus = 1, DefenseBonus = 3, GoldValue = 70  },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Healing Amulet",    Glyph = "📿", PowerBonus = 0, DefenseBonus = 3, GoldValue = 70  },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Shadow Cloak Pin",  Glyph = "🎗", PowerBonus = 2, DefenseBonus = 2, GoldValue = 75, SetName = "shadow" },
 
-            // Epic
-            new LootDef { Slot = "weapon",  Rarity = "epic",     Name = "Drakebane Sword",  Glyph = "🗡️", PowerBonus = 7, DefenseBonus = 1, GoldValue = 180 },
-            new LootDef { Slot = "head",    Rarity = "epic",     Name = "Wyvern Crown",     Glyph = "👑", PowerBonus = 2, DefenseBonus = 5, GoldValue = 200 },
-            new LootDef { Slot = "trinket", Rarity = "epic",     Name = "Phoenix Feather",  Glyph = "🪶", PowerBonus = 3, DefenseBonus = 4, GoldValue = 220 },
+            // ── Epic ──
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Drakebane Sword",    Glyph = "🗡", PowerBonus = 7, DefenseBonus = 1, GoldValue = 180 },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Soulreaver",         Glyph = "💀", PowerBonus = 8, DefenseBonus = 0, GoldValue = 200 },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Stormcaller Staff",  Glyph = "⚡", PowerBonus = 7, DefenseBonus = 2, GoldValue = 220 },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Vorpal Bow",         Glyph = "🏹", PowerBonus = 8, DefenseBonus = 0, GoldValue = 210 },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Grimoire of Storms", Glyph = "📘", PowerBonus = 7, DefenseBonus = 2, GoldValue = 220 },
+            new LootDef { Slot = "head",   Rarity = "epic", Name = "Wyvern Crown",       Glyph = "👑", PowerBonus = 2, DefenseBonus = 5, GoldValue = 200 },
+            new LootDef { Slot = "head",   Rarity = "epic", Name = "Shadow Cowl",        Glyph = "🥷", PowerBonus = 3, DefenseBonus = 4, GoldValue = 210, SetName = "shadow" },
+            new LootDef { Slot = "chest",  Rarity = "epic", Name = "Voidweave Robe",     Glyph = "🌑", PowerBonus = 4, DefenseBonus = 4, GoldValue = 230 },
+            new LootDef { Slot = "chest",  Rarity = "epic", Name = "Shadow Cuirass",     Glyph = "🌙", PowerBonus = 3, DefenseBonus = 5, GoldValue = 220, SetName = "shadow" },
+            new LootDef { Slot = "boots",  Rarity = "epic", Name = "Sevenleague Boots",  Glyph = "👢", PowerBonus = 2, DefenseBonus = 5, GoldValue = 220 },
+            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Phoenix Feather",   Glyph = "🪶", PowerBonus = 3, DefenseBonus = 4, GoldValue = 220 },
+            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Soul Lantern",      Glyph = "🏮", PowerBonus = 4, DefenseBonus = 3, GoldValue = 240 },
 
-            // Legendary
-            new LootDef { Slot = "weapon",  Rarity = "legendary", Name = "Aquilo's Edge",   Glyph = "⚡", PowerBonus = 12, DefenseBonus = 2, GoldValue = 600 },
-            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Bolt Sigil",       Glyph = "💎", PowerBonus = 6,  DefenseBonus = 6, GoldValue = 700 }
+            // ── Legendary ──
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Aquilo's Edge",  Glyph = "⚡", PowerBonus = 12, DefenseBonus = 2, GoldValue = 600 },
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Worldbreaker",   Glyph = "🌋", PowerBonus = 14, DefenseBonus = 1, GoldValue = 700 },
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Staff of the Void", Glyph = "🌑", PowerBonus = 12, DefenseBonus = 4, GoldValue = 720 },
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Bow of the North Star", Glyph = "🌟", PowerBonus = 13, DefenseBonus = 2, GoldValue = 700 },
+            new LootDef { Slot = "head",   Rarity = "legendary", Name = "Crown of Aeons", Glyph = "👑", PowerBonus = 4, DefenseBonus = 8, GoldValue = 700 },
+            new LootDef { Slot = "chest",  Rarity = "legendary", Name = "Aegis Plate",    Glyph = "🛡", PowerBonus = 3, DefenseBonus = 10, GoldValue = 720 },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Bolt Sigil",    Glyph = "💎", PowerBonus = 6, DefenseBonus = 6, GoldValue = 700 },
+
+            // ── Mythic (only from bosses, super rare) ──
+            new LootDef { Slot = "weapon", Rarity = "mythic", Name = "Reality Splitter",  Glyph = "✨", PowerBonus = 20, DefenseBonus = 4, GoldValue = 1500 },
+            new LootDef { Slot = "trinket", Rarity = "mythic", Name = "Heart of the Void", Glyph = "🖤", PowerBonus = 10, DefenseBonus = 10, GoldValue = 1500 }
         };
 
-        /// <summary>
-        /// Roll weights — picks an item rarity tier given the dungeon
-        /// difficulty. Higher difficulty shifts the curve right; this is
-        /// the only knob the streamer adjusts on the Settings card.
-        /// </summary>
+        /// <summary>Picks a rarity bucket given dungeon difficulty (1..5).
+        /// Higher difficulty pushes the curve right toward epic/legendary.
+        /// Mythic is intentionally excluded — only bosses drop it.</summary>
         public static string RollRarity(Random r, int difficulty)
         {
-            // difficulty: 1..5
-            // Common drops dominate at d=1; legendary tops out near 4% at d=5.
             int[] weights;
-            if (difficulty <= 1)      weights = new[] { 70, 22, 6, 2, 0 };
-            else if (difficulty == 2) weights = new[] { 55, 28, 12, 4, 1 };
-            else if (difficulty == 3) weights = new[] { 40, 32, 18, 8, 2 };
-            else if (difficulty == 4) weights = new[] { 28, 32, 24, 13, 3 };
-            else                      weights = new[] { 18, 30, 28, 20, 4 };
+            if (difficulty <= 1)      weights = new[] { 70, 22, 6, 2, 0, 0 };
+            else if (difficulty == 2) weights = new[] { 55, 28, 12, 4, 1, 0 };
+            else if (difficulty == 3) weights = new[] { 40, 32, 18, 8, 2, 0 };
+            else if (difficulty == 4) weights = new[] { 28, 32, 24, 13, 3, 0 };
+            else                      weights = new[] { 18, 30, 28, 20, 4, 0 };
             int total = 0; foreach (var w in weights) total += w;
             int pick  = r.Next(total);
             int acc   = 0;
@@ -184,17 +287,34 @@ namespace Loadout.Games.Dungeon
             return Rarities[0];
         }
 
-        public static MonsterDef PickMonster(Random r, int difficulty)
+        /// <summary>Pick a monster from the pool that fits both the dungeon
+        /// biome and the difficulty tier. Falls back to "any"-biome if a
+        /// pure biome filter would leave nothing in range.</summary>
+        public static MonsterDef PickMonster(Random r, int difficulty, string biome = "any", bool boss = false)
         {
-            // Stronger monsters more likely at higher difficulty — pick
-            // by sliding window over the sorted-by-power Monsters list.
-            int n = Monsters.Length;
-            int floor = Math.Max(0, Math.Min(n - 3, (difficulty - 1) * 2));
-            int top   = Math.Min(n, floor + 4);
-            return Monsters[r.Next(floor, top)];
+            var d = Math.Max(1, Math.Min(5, difficulty));
+            var pool = Monsters
+                .Where(m => m.IsBoss == boss)
+                .Where(m => m.DifficultyTier <= d + 1)              // allow up to one tier above
+                .Where(m => m.DifficultyTier >= Math.Max(1, d - 1)) // and one tier below
+                .Where(m => string.IsNullOrEmpty(biome) || m.Biome == "any" || m.Biome == biome)
+                .ToArray();
+            // If the biome filter would empty the pool (e.g. tier-1 biome
+            // with no biome-tagged monster), widen to "any" rather than
+            // silently failing.
+            if (pool.Length == 0)
+                pool = Monsters.Where(m => m.IsBoss == boss && m.DifficultyTier <= d + 1).ToArray();
+            if (pool.Length == 0) pool = new[] { Monsters[0] };
+            return pool[r.Next(pool.Length)];
         }
 
-        public static TrapDef PickTrap(Random r) => Traps[r.Next(Traps.Length)];
+        /// <summary>Pick a trap that fits the dungeon biome (or "any").</summary>
+        public static TrapDef PickTrap(Random r, string biome = "any")
+        {
+            var pool = Traps.Where(t => t.Biome == "any" || t.Biome == biome).ToArray();
+            if (pool.Length == 0) pool = Traps;
+            return pool[r.Next(pool.Length)];
+        }
 
         public static LootDef PickLootByRarity(Random r, string rarity)
         {
@@ -203,11 +323,39 @@ namespace Loadout.Games.Dungeon
             return pool[r.Next(pool.Length)];
         }
 
-        // ── Story scene templates ──────────────────────────────────────
-        // Every dungeon run interleaves these between the mechanical
-        // outcomes (combat / trap / loot) so the chat narrative doesn't
-        // read as "fight, fight, fight". They're flavour-only — no HP /
-        // XP / loot mutations come out of these.
+        // ── Dungeon types ──────────────────────────────────────────────
+        public sealed class DungeonType
+        {
+            public string Name;
+            public string Biome;
+            public string Theme;        // short adjective for scene flavour ("an undead", "a frozen")
+        }
+
+        public static readonly DungeonType[] DungeonTypes = new[]
+        {
+            new DungeonType { Name = "Crypt of Whispers",    Biome = "undead",     Theme = "an undead" },
+            new DungeonType { Name = "Sunken Vault",         Biome = "water",      Theme = "a flooded" },
+            new DungeonType { Name = "Forgotten Catacombs",  Biome = "undead",     Theme = "a forgotten" },
+            new DungeonType { Name = "Wyvern's Hollow",      Biome = "dragon",     Theme = "a dragon-haunted" },
+            new DungeonType { Name = "Skyreach Spire",       Biome = "sky",        Theme = "a wind-swept" },
+            new DungeonType { Name = "Bonemarsh Depths",     Biome = "swamp",      Theme = "a rotting" },
+            new DungeonType { Name = "Howling Mines",        Biome = "earth",      Theme = "a deep" },
+            new DungeonType { Name = "Iron Shrine",          Biome = "construct",  Theme = "an automaton" },
+            new DungeonType { Name = "Ashfall Pits",         Biome = "fire",       Theme = "a burning" },
+            new DungeonType { Name = "Frostpeak Caverns",    Biome = "ice",        Theme = "a frozen" },
+            new DungeonType { Name = "Verdant Sanctum",      Biome = "nature",     Theme = "an overgrown" },
+            new DungeonType { Name = "Void Reliquary",       Biome = "void",       Theme = "a void-touched" }
+        };
+
+        public static DungeonType PickDungeonType(Random r)
+        {
+            return DungeonTypes[r.Next(DungeonTypes.Length)];
+        }
+
+        // ── Scenes (story flavour) ─────────────────────────────────────
+        // Story scenes are pure flavour — no HP/XP changes — woven between
+        // mechanical scenes so the chat narrative reads as a journey, not
+        // a slot machine.
         public static readonly string[] FlavourScenes = new[]
         {
             "The torches flicker as the party pushes deeper.",
@@ -219,17 +367,158 @@ namespace Loadout.Games.Dungeon
             "A door creaks open by itself.",
             "Whispers swirl just out of earshot.",
             "Cobwebs tangle on someone's torch.",
-            "The walls feel warmer here..."
+            "The walls feel warmer here...",
+            "A faint melody hums up from below.",
+            "Old armour rattles in a forgotten corner.",
+            "Glowing eyes blink and vanish.",
+            "A prayer is scrawled on the stones.",
+            "Something massive shifts in the dark.",
+            "Wax pools from candles long since burned out.",
+            "Petals from impossible flowers carpet the floor.",
+            "A shrine to a forgotten god stands silent.",
+            "Mushrooms light the path with pale blue.",
+            "A gust of cold air races past the party.",
+            "Crystal veins pulse in the walls.",
+            "Bones arrange themselves into a circle.",
+            "A skull on a pike turns to follow you.",
+            "The ground here is unnaturally smooth.",
+            "Distant thunder rumbles even underground.",
+            "A locked grate blocks one passage.",
+            "Coins from a dead empire scatter underfoot.",
+            "Carved warnings line the next chamber.",
+            "Statues seem to watch the party pass.",
+            "Wind howls through unseen cracks."
         };
 
-        /// <summary>
-        /// XP needed to advance to the next level. Quadratic-ish so a
-        /// hero progresses fast at first, slows after L5. Pure function.
-        /// </summary>
+        // ── NPC encounters (a wandering merchant / prisoner / hero) ────
+        public sealed class NpcDef
+        {
+            public string Name;
+            public string Glyph;
+            public string OfferKind;      // "trade" | "buff" | "join" | "warn"
+            public string FlavorText;     // template with {user} placeholder
+            public int    GoldDelta;      // for trade outcomes (negative = fee, positive = reward)
+            public int    HpDelta;        // for buff/heal outcomes
+        }
+
+        public static readonly NpcDef[] Npcs = new[]
+        {
+            new NpcDef { Name = "Wandering Merchant", Glyph = "🧙", OfferKind = "trade", FlavorText = "A wandering merchant offers strange wares — the party haggles for a deal.", GoldDelta = 10, HpDelta = 0 },
+            new NpcDef { Name = "Trapped Prisoner",   Glyph = "🔓", OfferKind = "join",  FlavorText = "The party frees a prisoner who slips them a small purse before fleeing.", GoldDelta = 18, HpDelta = 0 },
+            new NpcDef { Name = "Old Healer",         Glyph = "💉", OfferKind = "buff",  FlavorText = "An old healer tends the party's wounds in exchange for a story.",        GoldDelta = 0,  HpDelta = 8  },
+            new NpcDef { Name = "Lost Adventurer",    Glyph = "🗺", OfferKind = "warn",  FlavorText = "A wounded adventurer warns of dangers ahead and shares their map.",      GoldDelta = 5,  HpDelta = 0  },
+            new NpcDef { Name = "Shrine Keeper",      Glyph = "⛩",  OfferKind = "buff",  FlavorText = "The shrine keeper blesses the party — wounds knit, spirits rise.",      GoldDelta = 0,  HpDelta = 12 },
+            new NpcDef { Name = "Travelling Bard",    Glyph = "🎻", OfferKind = "buff",  FlavorText = "A travelling bard sings of heroes — the party feels emboldened.",       GoldDelta = 0,  HpDelta = 5  },
+            new NpcDef { Name = "Goblin Tinker",      Glyph = "🛠",  OfferKind = "trade", FlavorText = "A goblin tinker swaps trinkets — coin clinks into the party's purse.",  GoldDelta = 14, HpDelta = 0  }
+        };
+
+        public static NpcDef PickNpc(Random r) => Npcs[r.Next(Npcs.Length)];
+
+        // ── Shrines (random buffs) ─────────────────────────────────────
+        public sealed class ShrineDef
+        {
+            public string Name;
+            public string Glyph;
+            public string FlavorText;
+            public int    HpDelta;
+            public int    XpDelta;
+        }
+
+        public static readonly ShrineDef[] Shrines = new[]
+        {
+            new ShrineDef { Name = "Shrine of Mending",   Glyph = "⛩",  FlavorText = "A glowing shrine restores the party's vitality.", HpDelta = 8,  XpDelta = 0  },
+            new ShrineDef { Name = "Shrine of Wisdom",    Glyph = "🔮", FlavorText = "Ancient knowledge fills the party — they grow more capable.", HpDelta = 0, XpDelta = 12 },
+            new ShrineDef { Name = "Shrine of the Star",  Glyph = "⭐", FlavorText = "A starlit shrine strengthens body and mind.",      HpDelta = 5,  XpDelta = 8 },
+            new ShrineDef { Name = "Shrine of the Moon",  Glyph = "🌙", FlavorText = "Moonlight heals the party's deepest wounds.",     HpDelta = 12, XpDelta = 0 }
+        };
+
+        public static ShrineDef PickShrine(Random r) => Shrines[r.Next(Shrines.Length)];
+
+        // ── Curses (negative buffs) ────────────────────────────────────
+        public sealed class CurseDef
+        {
+            public string Name;
+            public string Glyph;
+            public string FlavorText;
+            public int    HpDelta;       // typically negative
+        }
+
+        public static readonly CurseDef[] Curses = new[]
+        {
+            new CurseDef { Name = "Wraith's Whisper",   Glyph = "👻", FlavorText = "A wraith whispers the party's true names — they shudder.", HpDelta = -4 },
+            new CurseDef { Name = "Hexed Coin",         Glyph = "💀", FlavorText = "Someone pockets a hexed coin — bad luck spreads through the party.", HpDelta = -3 },
+            new CurseDef { Name = "Soul-Sap Sigil",     Glyph = "♨", FlavorText = "A soul-sap sigil drains the party's vitality.", HpDelta = -5 },
+            new CurseDef { Name = "Nightmare Echo",     Glyph = "🌑", FlavorText = "Echoes of nightmares past chip at the party's resolve.", HpDelta = -3 }
+        };
+
+        public static CurseDef PickCurse(Random r) => Curses[r.Next(Curses.Length)];
+
+        // ── Levelling ──────────────────────────────────────────────────
+        // XP curve: 50 to L2, scales quadratically up to L50. Cap kept
+        // at 50 because an active streamer's most-engaged viewers would
+        // hit L10 in a couple of weeks at the old curve.
+        public const int MaxLevel = 50;
+
         public static int XpForLevel(int level)
         {
             if (level <= 1) return 50;
             return 50 + (level - 1) * 35 + (level - 1) * (level - 1) * 8;
         }
+
+        // ── Set bonuses ────────────────────────────────────────────────
+        public sealed class SetDef
+        {
+            public string Name;
+            public int    PiecesForBonus;     // typically 4
+            public int    AtkBonus;
+            public int    DefBonus;
+            public int    HpBonus;
+            public string DisplayName;
+        }
+
+        public static readonly SetDef[] Sets = new[]
+        {
+            new SetDef { Name = "ironclad",    DisplayName = "Ironclad",    PiecesForBonus = 4, AtkBonus = 0, DefBonus = 4, HpBonus = 8 },
+            new SetDef { Name = "dragonscale", DisplayName = "Dragonscale", PiecesForBonus = 3, AtkBonus = 2, DefBonus = 3, HpBonus = 0 },
+            new SetDef { Name = "shadow",      DisplayName = "Shadow",      PiecesForBonus = 3, AtkBonus = 4, DefBonus = 1, HpBonus = 0 },
+            new SetDef { Name = "arcane",      DisplayName = "Arcane",      PiecesForBonus = 2, AtkBonus = 2, DefBonus = 2, HpBonus = 0 }
+        };
+
+        public static SetDef SetByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            var k = name.Trim().ToLowerInvariant();
+            foreach (var s in Sets) if (s.Name == k) return s;
+            return null;
+        }
+
+        // ── Achievements ───────────────────────────────────────────────
+        public sealed class AchievementDef
+        {
+            public string Id;
+            public string Name;
+            public string Description;
+            public string Glyph;
+            public int    BoltsReward;
+        }
+
+        // Long-tail goals to chase. Tracked in HeroState.Achievements
+        // (string set). Each unlock pays a one-time bolts bonus when
+        // the condition first flips.
+        public static readonly AchievementDef[] Achievements = new[]
+        {
+            new AchievementDef { Id = "first-blood",    Name = "First Blood",    Description = "Complete your first dungeon.",          Glyph = "🩸", BoltsReward = 25  },
+            new AchievementDef { Id = "veteran",        Name = "Veteran",        Description = "Survive 10 dungeons.",                  Glyph = "🛡", BoltsReward = 100 },
+            new AchievementDef { Id = "dungeoneer",     Name = "Dungeoneer",     Description = "Survive 50 dungeons.",                  Glyph = "🗺", BoltsReward = 500 },
+            new AchievementDef { Id = "duelist",        Name = "Duelist",        Description = "Win 10 duels.",                          Glyph = "⚔",  BoltsReward = 75  },
+            new AchievementDef { Id = "champion",       Name = "Champion",       Description = "Win 50 duels.",                          Glyph = "🏆", BoltsReward = 400 },
+            new AchievementDef { Id = "legendkiller",   Name = "Legendkiller",   Description = "Slay a boss monster.",                   Glyph = "👑", BoltsReward = 200 },
+            new AchievementDef { Id = "lootmaster",     Name = "Lootmaster",     Description = "Find a legendary item.",                Glyph = "💎", BoltsReward = 250 },
+            new AchievementDef { Id = "myth-touched",   Name = "Myth-Touched",   Description = "Find a mythic item.",                   Glyph = "✨", BoltsReward = 1000 },
+            new AchievementDef { Id = "set-collector",  Name = "Set Collector",  Description = "Equip a full armour set.",              Glyph = "🎽", BoltsReward = 200 },
+            new AchievementDef { Id = "ascended",       Name = "Ascended",       Description = "Reach level 25.",                       Glyph = "🌟", BoltsReward = 600 },
+            new AchievementDef { Id = "legendary-rank", Name = "Legendary",      Description = "Reach level 50.",                       Glyph = "🌠", BoltsReward = 2000 },
+            new AchievementDef { Id = "explorer",       Name = "Explorer",       Description = "Visit every dungeon type.",             Glyph = "🧭", BoltsReward = 300 }
+        };
     }
 }
