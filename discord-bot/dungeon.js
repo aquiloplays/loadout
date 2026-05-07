@@ -10,44 +10,240 @@
 
 import { getWallet, applyVaultDelta } from './wallet.js';
 
-// Worker-side shop pool — ~25 entries spanning every slot + multiple
-// rarities so /loadout shop has variety even at low levels. Mirror of
-// (a subset of) DLL DungeonContent.Loot — keep names and stats in
-// sync so a viewer who saw "Steel Sword" in chat can buy the same
-// thing here.
+// Worker-side shop pool — full catalog mirror of the DLL's
+// DungeonContent.Loot. The /loadout shop view doesn't show this
+// whole list; instead, the Worker picks a deterministic 12-item
+// rotation each day (date-seeded) so viewers come back daily for
+// new stock. Keep names + stats in sync with the DLL catalog.
 const SHOP_POOL = [
-  // slot, rarity, name, glyph, atk, def, gold (price), setName
+  // slot, rarity, name, glyph, atk, def, gold (price), setName, weaponType, preferredClass
   // ── Common ──
-  ['weapon',  'common',    'Bronze Shortsword', '🗡',  1, 0,  20, ''],
-  ['weapon',  'common',    'Wooden Club',       '🏏',  1, 0,  16, ''],
-  ['weapon',  'common',    'Hand Axe',          '🪓',  1, 0,  18, ''],
-  ['weapon',  'common',    'Apprentice Wand',   '🪄',  1, 0,  22, ''],
-  ['head',    'common',    'Leather Cap',       '🧢',  0, 1,  18, ''],
-  ['head',    'common',    'Cloth Hood',        '👤',  0, 1,  18, ''],
-  ['chest',   'common',    'Cloth Tunic',       '👕',  0, 1,  18, ''],
-  ['chest',   'common',    'Hide Vest',         '🦬',  0, 1,  16, ''],
-  ['legs',    'common',    'Hempen Trousers',   '👖',  0, 1,  16, ''],
-  ['boots',   'common',    'Worn Boots',        '🥾',  0, 1,  16, ''],
+  ['weapon',  'common', 'Wooden Sword',     '🗡',  1, 0,  16, '',          'sword',   'warrior'],
+  ['weapon',  'common', 'Bronze Shortsword', '🗡', 1, 0,  20, '',          'sword',   'warrior'],
+  ['weapon',  'common', 'Wooden Club',      '🏏',  1, 0,  16, '',          'hammer',  'warrior'],
+  ['weapon',  'common', 'Hand Axe',         '🪓',  1, 0,  18, '',          'axe',     'warrior'],
+  ['weapon',  'common', 'Rusty Dagger',     '🗡',  1, 0,  18, '',          'dagger',  'rogue'],
+  ['weapon',  'common', 'Throwing Knives',  '🔪',  1, 0,  18, '',          'dagger',  'rogue'],
+  ['weapon',  'common', 'Shortbow',         '🏹',  1, 0,  20, '',          'bow',     'ranger'],
+  ['weapon',  'common', 'Hunter\'s Sling',   '🪨', 1, 0,  18, '',          'sling',   'ranger'],
+  ['weapon',  'common', 'Apprentice Wand',  '🪄',  1, 0,  22, '',          'wand',    'mage'],
+  ['weapon',  'common', 'Twigwand',         '🌿',  1, 0,  20, '',          'wand',    'mage'],
+  ['weapon',  'common', 'Walking Staff',    '🥢',  1, 1,  22, '',          'staff',   'healer'],
+  ['weapon',  'common', 'Quarterstaff',     '🥢',  1, 1,  24, '',          'staff',   'healer'],
+  ['head',    'common', 'Leather Cap',      '🧢',  0, 1,  18, '',          '', ''],
+  ['head',    'common', 'Cloth Hood',       '👤',  0, 1,  18, '',          '', ''],
+  ['head',    'common', 'Wayfarer Hat',     '🎩',  0, 1,  22, 'wayfarer',  '', ''],
+  ['head',    'common', 'Padded Coif',      '🧣',  0, 1,  18, '',          '', ''],
+  ['chest',   'common', 'Cloth Tunic',      '👕',  0, 1,  18, '',          '', ''],
+  ['chest',   'common', 'Hide Vest',        '🦬',  0, 1,  16, '',          '', ''],
+  ['chest',   'common', 'Wayfarer Vest',    '👔',  0, 1,  22, 'wayfarer',  '', ''],
+  ['chest',   'common', 'Quilted Doublet',  '🧥',  0, 1,  20, '',          '', ''],
+  ['legs',    'common', 'Hempen Trousers',  '👖',  0, 1,  16, '',          '', ''],
+  ['legs',    'common', 'Patchwork Greaves', '🧱', 0, 1,  18, '',          '', ''],
+  ['legs',    'common', 'Wayfarer Trousers', '👖', 0, 1,  22, 'wayfarer',  '', ''],
+  ['boots',   'common', 'Worn Boots',       '🥾',  0, 1,  16, '',          '', ''],
+  ['boots',   'common', 'Sandals',          '🩴',  0, 1,  14, '',          '', ''],
+  ['boots',   'common', 'Wayfarer Shoes',   '👟',  0, 1,  22, 'wayfarer',  '', ''],
+  ['trinket', 'common', 'Crow Feather',     '🪶',  0, 1,  18, '',          '', ''],
+  ['trinket', 'common', 'Wooden Charm',     '🪵',  0, 1,  16, '',          '', ''],
+  ['trinket', 'common', 'Brass Ring',       '💍',  0, 1,  18, '',          '', ''],
+  ['trinket', 'common', 'Lucky Coin',       '🪙',  1, 0,  22, '',          '', ''],
+
   // ── Uncommon ──
-  ['weapon',  'uncommon',  'Steel Longsword',   '⚔',   2, 0,  60, ''],
-  ['weapon',  'uncommon',  'Hunter\'s Bow',      '🏹', 2, 0,  60, ''],
-  ['weapon',  'uncommon',  'Iron War Axe',      '🪓',  2, 0,  65, ''],
-  ['weapon',  'uncommon',  'Apprentice Tome',   '📕',  2, 0,  70, ''],
-  ['weapon',  'uncommon',  'Quarterstaff',      '🥢',  2, 1,  72, ''],
-  ['head',    'uncommon',  'Iron Helm',         '⛑',   0, 2,  55, 'ironclad'],
-  ['chest',   'uncommon',  'Chainmail',         '🦺',  0, 2,  60, 'ironclad'],
-  ['legs',    'uncommon',  'Iron Greaves',      '🦿',  0, 2,  55, 'ironclad'],
-  ['boots',   'uncommon',  'Iron Sabatons',     '👢',  0, 2,  55, 'ironclad'],
-  ['trinket', 'uncommon',  'Lucky Charm',       '🍀',  1, 1,  70, ''],
-  ['trinket', 'uncommon',  'Iron Ring',         '💍',  0, 2,  75, 'ironclad'],
+  ['weapon',  'uncommon', 'Steel Longsword',  '⚔',   2, 0,  60, '',         'sword',   'warrior'],
+  ['weapon',  'uncommon', 'Knight\'s Sword',  '⚔',   3, 0,  68, '',         'sword',   'warrior'],
+  ['weapon',  'uncommon', 'Iron War Axe',     '🪓',  2, 0,  65, '',         'axe',     'warrior'],
+  ['weapon',  'uncommon', 'Battle Axe',       '🪓',  3, 0,  72, '',         'axe',     'warrior'],
+  ['weapon',  'uncommon', 'Steel Maul',       '🔨',  3, 0,  70, '',         'hammer',  'warrior'],
+  ['weapon',  'uncommon', 'Iron Halberd',     '⚔',   3, 1,  78, '',         'polearm', 'warrior'],
+  ['weapon',  'uncommon', 'Hunter\'s Bow',    '🏹',  2, 0,  60, '',         'bow',     'ranger'],
+  ['weapon',  'uncommon', 'Yew Longbow',      '🏹',  3, 0,  72, '',         'bow',     'ranger'],
+  ['weapon',  'uncommon', 'Hand Crossbow',    '🎯',  3, 0,  74, '',         'crossbow','ranger'],
+  ['weapon',  'uncommon', 'Stiletto',         '🗡',  2, 0,  60, '',         'dagger',  'rogue'],
+  ['weapon',  'uncommon', 'Pair of Daggers',  '🗡',  3, 0,  72, '',         'dagger',  'rogue'],
+  ['weapon',  'uncommon', 'Apprentice Tome',  '📕',  2, 0,  68, '',         'tome',    'mage'],
+  ['weapon',  'uncommon', 'Crystal Wand',     '🪄',  3, 0,  76, '',         'wand',    'mage'],
+  ['weapon',  'uncommon', 'Apprentice Staff', '🥢',  2, 1,  68, '',         'staff',   'mage'],
+  ['weapon',  'uncommon', 'Glass Orb',        '🔮',  2, 1,  72, '',         'orb',     'mage'],
+  ['weapon',  'uncommon', 'Healer\'s Cane',   '🪄',  1, 2,  68, '',         'staff',   'healer'],
+  ['weapon',  'uncommon', 'Oaken Holy Symbol','✝',   2, 1,  72, '',         'holy',    'healer'],
+  ['head',    'uncommon', 'Iron Helm',        '⛑',   0, 2,  55, 'ironclad', '', 'warrior'],
+  ['chest',   'uncommon', 'Chainmail',        '🦺',  0, 2,  60, 'ironclad', '', 'warrior'],
+  ['legs',    'uncommon', 'Iron Greaves',     '🦿',  0, 2,  55, 'ironclad', '', 'warrior'],
+  ['boots',   'uncommon', 'Iron Sabatons',    '👢',  0, 2,  55, 'ironclad', '', 'warrior'],
+  ['head',    'uncommon', 'Mage\'s Circlet',  '🔮',  1, 1,  70, 'arcane',   '', 'mage'],
+  ['chest',   'uncommon', 'Arcane Robes',     '🥋',  1, 1,  70, 'arcane',   '', 'mage'],
+  ['legs',    'uncommon', 'Arcane Skirt',     '🧣',  1, 1,  65, 'arcane',   '', 'mage'],
+  ['boots',   'uncommon', 'Arcane Slippers',  '🥿',  1, 1,  60, 'arcane',   '', 'mage'],
+  ['head',    'uncommon', 'Forester\'s Cap',  '🧢',  1, 1,  60, 'forester', '', 'ranger'],
+  ['chest',   'uncommon', 'Hunter\'s Garb',   '🦺',  1, 1,  65, 'forester', '', 'ranger'],
+  ['legs',    'uncommon', 'Forest Trousers',  '👖',  1, 1,  60, 'forester', '', 'ranger'],
+  ['boots',   'uncommon', 'Soft Soles',       '🥾',  1, 1,  58, 'forester', '', 'ranger'],
+  ['head',    'uncommon', 'Holy Coif',        '🥽',  0, 2,  65, 'vestal',   '', 'healer'],
+  ['chest',   'uncommon', 'Vestal Robes',     '👘',  0, 2,  70, 'vestal',   '', 'healer'],
+  ['legs',    'uncommon', 'Vestal Skirt',     '🧣',  0, 2,  60, 'vestal',   '', 'healer'],
+  ['boots',   'uncommon', 'Vestal Slippers',  '🩰',  0, 2,  55, 'vestal',   '', 'healer'],
+  ['trinket', 'uncommon', 'Lucky Charm',      '🍀',  1, 1,  70, '',         '', ''],
+  ['trinket', 'uncommon', 'Iron Ring',        '💍',  0, 2,  75, 'ironclad', '', 'warrior'],
+  ['trinket', 'uncommon', 'Owl Pendant',      '🦉',  1, 1,  72, '',         '', ''],
+  ['trinket', 'uncommon', 'Compass',          '🧭',  0, 2,  70, '',         '', ''],
+
   // ── Rare ──
-  ['weapon',  'rare',      'Frost Hammer',      '🔨',  4, 0, 180, ''],
-  ['weapon',  'rare',      'Shadow Staff',      '🪄',  4, 1, 200, ''],
-  ['weapon',  'rare',      'Silver Crossbow',   '🎯',  4, 0, 180, ''],
-  ['chest',   'rare',      'Plated Cuirass',    '🛡',  1, 4, 200, ''],
-  ['trinket', 'rare',      'Healing Amulet',    '📿',  0, 3, 220, ''],
-  ['trinket', 'rare',      'Shadow Cloak Pin',  '🎗',  2, 2, 240, 'shadow']
+  ['weapon',  'rare', 'Frost Hammer',         '🔨',  4, 0, 180, '',           'hammer', 'warrior'],
+  ['weapon',  'rare', 'Flamberge',            '⚔',   5, 0, 200, '',           'sword',  'warrior'],
+  ['weapon',  'rare', 'Greataxe',             '🪓',  5, 0, 195, '',           'axe',    'warrior'],
+  ['weapon',  'rare', 'Steel Halberd',        '⚔',   4, 1, 200, '',           'polearm','warrior'],
+  ['weapon',  'rare', 'Wraithblade',          '🗡',  4, 1, 195, '',           'dagger', 'rogue'],
+  ['weapon',  'rare', 'Shadow Daggers',       '🗡',  5, 0, 220, 'shadow',     'dagger', 'rogue'],
+  ['weapon',  'rare', 'Silver Crossbow',      '🎯',  4, 0, 180, '',           'crossbow','ranger'],
+  ['weapon',  'rare', 'Composite Longbow',    '🏹',  5, 0, 200, '',           'bow',    'ranger'],
+  ['weapon',  'rare', 'Shadow Staff',         '🪄',  4, 1, 195, '',           'staff',  'mage'],
+  ['weapon',  'rare', 'Druid\'s Staff',       '🌿',  3, 2, 195, '',           'staff',  'mage'],
+  ['weapon',  'rare', 'Crystal Orb',          '🔮',  4, 1, 200, '',           'orb',    'mage'],
+  ['weapon',  'rare', 'Forbidden Tome',       '📕',  4, 1, 205, '',           'tome',   'mage'],
+  ['weapon',  'rare', 'Sun Cross',            '✝',   3, 2, 200, '',           'holy',   'healer'],
+  ['weapon',  'rare', 'Healing Staff',        '🥢',  2, 3, 200, '',           'staff',  'healer'],
+  ['head',    'rare', 'Knight\'s Helm',       '⛑',   1, 4, 200, 'knights',    '', 'warrior'],
+  ['chest',   'rare', 'Knight\'s Cuirass',    '🛡',  1, 4, 220, 'knights',    '', 'warrior'],
+  ['legs',    'rare', 'Knight\'s Tassets',    '🦿',  1, 4, 200, 'knights',    '', 'warrior'],
+  ['boots',   'rare', 'Knight\'s Sabatons',   '👢',  1, 4, 195, 'knights',    '', 'warrior'],
+  ['head',    'rare', 'Dragon Helm',          '🐉',  1, 4, 220, 'dragonscale','', 'warrior'],
+  ['chest',   'rare', 'Dragonscale Plate',    '🐲',  2, 4, 240, 'dragonscale','', 'warrior'],
+  ['legs',    'rare', 'Dragonscale Tassets',  '🐲',  1, 4, 220, 'dragonscale','', 'warrior'],
+  ['head',    'rare', 'Antlered Hood',        '🦌',  2, 3, 200, 'druidic',    '', 'ranger'],
+  ['chest',   'rare', 'Druidic Robes',        '🌿',  2, 3, 220, 'druidic',    '', 'ranger'],
+  ['legs',    'rare', 'Druidic Pants',        '🍃',  2, 3, 200, 'druidic',    '', 'ranger'],
+  ['boots',   'rare', 'Mossfoot Boots',       '🍂',  2, 3, 195, 'druidic',    '', 'ranger'],
+  ['head',    'rare', 'Sun Crown',            '☀',   1, 4, 210, 'suntouched', '', 'healer'],
+  ['chest',   'rare', 'Sun-touched Robes',    '👘',  1, 4, 230, 'suntouched', '', 'healer'],
+  ['legs',    'rare', 'Sun-touched Skirt',    '🧣',  1, 4, 210, 'suntouched', '', 'healer'],
+  ['head',    'rare', 'Stormcaller Cowl',     '⛈',  3, 2, 215, 'stormcaller','', 'mage'],
+  ['chest',   'rare', 'Stormcaller Vest',     '⚡',  3, 2, 230, 'stormcaller','', 'mage'],
+  ['chest',   'rare', 'Plated Cuirass',       '🛡',  1, 4, 220, '',           '', ''],
+  ['boots',   'rare', 'Stormstride Boots',    '⛈',  1, 3, 200, '',           '', ''],
+  ['trinket', 'rare', 'Healing Amulet',       '📿',  0, 3, 220, '',           '', ''],
+  ['trinket', 'rare', 'Shadow Cloak Pin',     '🎗',  2, 2, 240, 'shadow',     '', 'rogue'],
+  ['trinket', 'rare', 'Phoenix Down',         '🔥',  2, 2, 230, '',           '', ''],
+  ['trinket', 'rare', 'Wolf Tooth',           '🐺',  2, 2, 220, '',           '', ''],
+  ['trinket', 'rare', 'Forest Pendant',       '🍃',  2, 2, 220, 'druidic',    '', 'ranger'],
+  ['trinket', 'rare', 'Vestal Pendant',       '📿',  1, 3, 220, 'vestal',     '', 'healer'],
+  ['trinket', 'rare', 'Storm Sigil',          '⚡',  3, 2, 220, 'stormcaller','', 'mage'],
+
+  // ── Epic ──
+  ['weapon',  'epic', 'Drakebane Sword',      '🗡',  7, 1, 600, '',           'sword',  'warrior'],
+  ['weapon',  'epic', 'Soulreaver',           '💀',  8, 0, 650, '',           'sword',  'warrior'],
+  ['weapon',  'epic', 'Doomhammer',           '🔨',  8, 1, 660, '',           'hammer', 'warrior'],
+  ['weapon',  'epic', 'Cleaver of Kings',     '🪓',  8, 0, 640, '',           'axe',    'warrior'],
+  ['weapon',  'epic', 'Stormcaller Staff',    '⚡',  7, 2, 680, 'stormcaller','staff',  'mage'],
+  ['weapon',  'epic', 'Grimoire of Storms',   '📘',  7, 2, 680, '',           'tome',   'mage'],
+  ['weapon',  'epic', 'Voidcaller Wand',      '🪄',  8, 1, 690, '',           'wand',   'mage'],
+  ['weapon',  'epic', 'Vorpal Bow',           '🏹',  8, 0, 650, '',           'bow',    'ranger'],
+  ['weapon',  'epic', 'Skywatcher Crossbow',  '🎯',  8, 0, 660, '',           'crossbow','ranger'],
+  ['weapon',  'epic', 'Whisperblades',        '🗡',  8, 0, 660, '',           'dagger', 'rogue'],
+  ['weapon',  'epic', 'Heartseeker',          '🗡',  9, 0, 700, '',           'dagger', 'rogue'],
+  ['weapon',  'epic', 'Phoenix Staff',        '🔥',  6, 4, 700, '',           'staff',  'healer'],
+  ['head',    'epic', 'Voidweave Hood',       '🌑',  4, 3, 660, 'voidweave',  '', 'mage'],
+  ['chest',   'epic', 'Voidweave Robe',       '🌑',  4, 4, 700, 'voidweave',  '', 'mage'],
+  ['head',    'epic', 'Shadow Cowl',          '🥷',  3, 4, 660, 'shadow',     '', 'rogue'],
+  ['chest',   'epic', 'Shadow Cuirass',       '🌙',  3, 5, 700, 'shadow',     '', 'rogue'],
+  ['boots',   'epic', 'Shadowstep Boots',     '👞',  4, 3, 680, 'shadow',     '', 'rogue'],
+  ['head',    'epic', 'Highborn Helm',        '👑',  3, 5, 700, 'highborn',   '', 'warrior'],
+  ['chest',   'epic', 'Highborn Plate',       '🛡',  3, 6, 740, 'highborn',   '', 'warrior'],
+  ['head',    'epic', 'Wyvern Crown',         '👑',  2, 5, 600, '',           '', ''],
+  ['boots',   'epic', 'Sevenleague Boots',    '👢',  2, 5, 660, '',           '', ''],
+  ['trinket', 'epic', 'Phoenix Feather',      '🪶',  3, 4, 660, '',           '', ''],
+  ['trinket', 'epic', 'Soul Lantern',         '🏮',  4, 3, 720, '',           '', ''],
+  ['trinket', 'epic', 'Storm Heart',          '⚡',  4, 3, 700, '',           '', ''],
+  ['trinket', 'epic', 'Voidstone',            '🌑',  5, 2, 680, 'voidweave',  '', 'mage'],
+  ['trinket', 'epic', 'Shadow Mask',          '🎭',  4, 3, 690, 'shadow',     '', 'rogue']
 ];
+
+// ── Daily shop rotation ─────────────────────────────────────────────
+// The Worker picks a deterministic 12-item subset from SHOP_POOL each
+// UTC day and caches it in KV so repeat /loadout shop opens within
+// the same day return identical stock. Date is the seed so the same
+// guild sees the same rotation across viewers (no per-viewer
+// fairness games), and rotates at midnight UTC on the dot.
+const SHOP_DAILY_PICKS = 12;
+
+function dayKey() {
+  // ISO YYYY-MM-DD in UTC.
+  const d = new Date();
+  return d.getUTCFullYear() + '-' +
+         String(d.getUTCMonth() + 1).padStart(2, '0') + '-' +
+         String(d.getUTCDate()).padStart(2, '0');
+}
+
+function dailySeed(guildId) {
+  // 32-bit hash of (guildId + dayKey). Mulberry32-friendly seed.
+  const s = (guildId || '') + ':' + dayKey();
+  let h = 2166136261 >>> 0;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function mulberry32(seed) {
+  let t = seed;
+  return function () {
+    t = (t + 0x6D2B79F5) >>> 0;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r;
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+export async function getDailyShop(env, guildId) {
+  const today = dayKey();
+  const cacheKey = 'd:shop-daily:' + guildId + ':' + today;
+  const cached = await env.LOADOUT_BOLTS.get(cacheKey);
+  if (cached) {
+    try { return JSON.parse(cached); } catch { /* fall through */ }
+  }
+  // Build the rotation: weighted picks with rarity tiers represented.
+  // Quotas: 4 common, 4 uncommon, 3 rare, 1 epic — feels like a real
+  // shop window where the cool stuff costs more.
+  const rng = mulberry32(dailySeed(guildId));
+  const byRarity = { common: [], uncommon: [], rare: [], epic: [] };
+  for (const row of SHOP_POOL) {
+    const r = row[1];
+    if (byRarity[r]) byRarity[r].push(row);
+  }
+  const quotas = { common: 4, uncommon: 4, rare: 3, epic: 1 };
+  const picks = [];
+  for (const tier of Object.keys(quotas)) {
+    const pool = byRarity[tier];
+    const need = Math.min(quotas[tier], pool.length);
+    // Weighted shuffle: each pool entry gets a random key, sort, take N.
+    const tagged = pool.map(p => [rng(), p]);
+    tagged.sort((a, b) => a[0] - b[0]);
+    for (let i = 0; i < need; i++) picks.push(tagged[i][1]);
+  }
+
+  const stock = {
+    day: today,
+    items: picks
+  };
+  // Cache for ~26 hours (slack past midnight) so a request right at
+  // the rollover doesn't double-fetch. KV TTL is at-least-once;
+  // expirationTtl in seconds.
+  await env.LOADOUT_BOLTS.put(cacheKey, JSON.stringify(stock), { expirationTtl: 26 * 60 * 60 });
+  return stock;
+}
+
+function msUntilNextUtcMidnight() {
+  const now = new Date();
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0, 0);
+  return next - now.getTime();
+}
+function fmtRotateIn(ms) {
+  if (ms <= 0) return '0m';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  return h > 0 ? (h + 'h ' + m + 'm') : (m + 'm');
+}
 
 const SLOTS = ['weapon', 'head', 'chest', 'legs', 'boots', 'trinket'];
 
@@ -416,24 +612,44 @@ export async function cmdSell(env, guild, userId, itemIdPrefix) {
 }
 
 export async function cmdShop(env, guild, userId) {
-  const lines = SHOP_POOL.map(([slot, rarity, name, glyph, atk, def, gold]) => {
+  const stock = await getDailyShop(env, guild);
+  const hero = await loadHero(env, guild, userId);
+  const heroClass = (hero?.className || '').toLowerCase();
+  const lines = stock.items.map(row => {
+    const [slot, rarity, name, glyph, atk, def, gold, setName, weaponType, preferredClass] = row;
     const stats = [];
     if (atk) stats.push('+' + atk + ' ATK');
     if (def) stats.push('+' + def + ' DEF');
-    return '`' + String(gold).padStart(4) + 'b` ' + glyph + ' **' + name + '** _(' + rarity + ' ' + slot + ')_  ' + stats.join(' ');
+    if (setName)        stats.push('_set:_ ' + setName);
+    // Class-affinity tag — viewers spot at-a-glance which items
+    // match their class so they buy gear that pulls extra weight.
+    let suffix = '';
+    if (preferredClass) {
+      const matches = heroClass && preferredClass === heroClass;
+      suffix = matches ? '  ✨ **YOUR CLASS**' : '  _(for ' + preferredClass + ')_';
+    }
+    return '`' + String(gold).padStart(4) + 'b` ' + glyph + ' **' + name + '** _(' + rarity + ' ' + slot + ')_  ' +
+           stats.join(' ') + suffix;
   });
+  const rotateIn = fmtRotateIn(msUntilNextUtcMidnight());
   return {
-    content: '🏪 **Dungeon Shop**\n' + lines.join('\n') +
-             '\n\n_Use_ `/shop-buy item:<name>` _to purchase. Bolts are deducted from your wallet._',
+    content: '🏪 **Dungeon Shop** — _stock rotates in ' + rotateIn + '_\n' +
+             lines.join('\n') +
+             '\n\n_Use_ `/loadout` _→ Shop → Buy to purchase. Today\'s stock is fixed; new items tomorrow._',
     ephemeral: true
   };
 }
 
 export async function cmdShopBuy(env, guild, userId, itemName) {
-  const hit = SHOP_POOL.find(([_s, _r, name]) =>
+  // Daily-rotation gate: only items in today's stock are buyable. The
+  // viewer might know the name of an item from a previous day — surface
+  // a clear "not in today's stock" reply instead of letting them buy
+  // anything from the full pool.
+  const stock = await getDailyShop(env, guild);
+  const hit = stock.items.find(([_s, _r, name]) =>
     name.toLowerCase().includes((itemName || '').toLowerCase()));
-  if (!hit) return { content: 'No shop item matches `' + itemName + '`. Run `/shop` for the list.', ephemeral: true };
-  const [slot, rarity, name, glyph, atk, def, price, setName] = hit;
+  if (!hit) return { content: 'That item isn\'t in today\'s stock. Run `/loadout` → Shop to see the rotation — restocks at midnight UTC.', ephemeral: true };
+  const [slot, rarity, name, glyph, atk, def, price, setName, weaponType, preferredClass] = hit;
 
   const w = await getWallet(env, guild, userId);
   if ((w.balance || 0) < price) {
@@ -456,6 +672,8 @@ export async function cmdShopBuy(env, guild, userId, itemName) {
     powerBonus: atk, defenseBonus: def,
     goldValue: price,
     setName: setName || '',
+    weaponType: weaponType || '',
+    preferredClass: preferredClass || '',
     foundIn: 'shop',
     foundUtc: new Date().toISOString()
   });

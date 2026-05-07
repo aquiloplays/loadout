@@ -44,7 +44,8 @@ import {
 import {
   cmdHero, cmdInventory, cmdEquip, cmdUnequip, cmdSell,
   cmdShop, cmdShopBuy, cmdTraining,
-  cmdSetAvatar, cmdSetClass, cmdSetCustom, CLASSES, CUSTOM_OPTIONS
+  cmdSetAvatar, cmdSetClass, cmdSetCustom, CLASSES, CUSTOM_OPTIONS,
+  getDailyShop
 } from './dungeon.js';
 
 // ── Discord wire constants ─────────────────────────────────────────
@@ -604,28 +605,25 @@ async function shopView(env, guild, userId) {
 }
 
 async function buyPicker(env, guild, userId) {
-  // Mirror dungeon.js's SHOP_POOL — duplicated here so the picker doesn't
-  // require an extra round-trip just to enumerate. If pool changes there,
-  // change here too. Same names so cmdShopBuy(name) resolves correctly.
-  const pool = [
-    ['Bronze Shortsword', '🗡️', 'common',    'weapon',  20 ],
-    ['Steel Longsword',   '⚔️', 'uncommon',  'weapon',  60 ],
-    ['Frost Hammer',      '🔨', 'rare',      'weapon', 180 ],
-    ['Leather Cap',       '🧢', 'common',    'head',    18 ],
-    ['Iron Helm',         '⛑️', 'uncommon',  'head',    55 ],
-    ['Cloth Tunic',       '👕', 'common',    'chest',   18 ],
-    ['Chainmail',         '🦺', 'uncommon',  'chest',   60 ],
-    ['Worn Boots',        '🥾', 'common',    'boots',   16 ],
-    ['Lucky Charm',       '🍀', 'uncommon',  'trinket', 70 ],
-    ['Healing Amulet',    '📿', 'rare',      'trinket',220 ],
-  ];
-  const options = pool.map(([name, glyph, rarity, slot, gold]) => ({
-    label: `${glyph} ${name}`.slice(0, 100),
-    description: `${gold} bolts · ${rarity} ${slot}`.slice(0, 100),
-    value: `lo:buy:do:${encodeURIComponent(name)}`
-  }));
+  // Pull TODAY'S rotation from the Worker — same items the shop view
+  // shows. Picks are fixed for the UTC day so a viewer can compare,
+  // think it over, and come back to buy without the stock changing
+  // mid-decision. cmdShopBuy enforces the same gate when the select
+  // submission lands so a stale picker can't bypass the rotation.
+  const stock = await getDailyShop(env, guild);
+  const options = stock.items.slice(0, 25).map(row => {
+    const [slot, rarity, name, glyph, atk, def, gold] = row;
+    const stats = [];
+    if (atk) stats.push('+' + atk + ' ATK');
+    if (def) stats.push('+' + def + ' DEF');
+    return {
+      label: `${glyph} ${name}`.slice(0, 100),
+      description: `${gold} bolts · ${rarity} ${slot}${stats.length ? ' · ' + stats.join(' ') : ''}`.slice(0, 100),
+      value: `lo:buy:do:${encodeURIComponent(name)}`
+    };
+  });
   return {
-    content: '🛒 **Buy from the shop** — pick one:',
+    content: '🛒 **Buy from today\'s rotation** — pick one. Stock changes at midnight UTC.',
     components: [
       selectRow('lo:buy:do', 'Pick an item to buy', options),
       backRow('lo:shop')

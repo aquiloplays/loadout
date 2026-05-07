@@ -160,7 +160,9 @@ namespace Loadout.Games.Dungeon
                         PowerBonus   = def.PowerBonus,
                         DefenseBonus = def.DefenseBonus,
                         GoldValue    = def.GoldValue,
-                        SetName      = def.SetName ?? "",
+                        SetName        = def.SetName        ?? "",
+                        PreferredClass = def.PreferredClass ?? "",
+                        WeaponType     = def.WeaponType     ?? "",
                         FoundIn      = result.DungeonName,
                         FoundUtc     = DateTime.UtcNow
                     });

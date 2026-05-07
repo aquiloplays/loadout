@@ -423,56 +423,117 @@
     return '';
   }
 
-  // Held weapon — class default OR equipped weapon (shows distinctive
-  // weapon types per class). Set-equipped weapons get a small accent
-  // overlay matching the set palette.
+  // Per-weapon-type SVG renderers. Each function returns a fragment
+  // for a 16×24 viewBox. The held weapon picks a type either from
+  // the equipped weapon's `weaponType` (DLL emits it from the
+  // LootDef catalog) or from a class-default fallback when nothing
+  // is equipped. Rarity drives a subtle glow halo around the weapon.
+  const WEAPON_RENDERERS = {
+    // ── Right-side weapons ──
+    sword: function () {
+      return rect(13, 5, 1, 9, '#C4C4D0') +    // blade
+             rect(13, 13, 1, 1, '#3A2200') +   // grip top
+             rect(12, 13, 3, 1, '#3A2200') +   // crossguard
+             rect(13, 14, 1, 2, '#3A2200');    // hilt
+    },
+    axe: function () {
+      return rect(13, 5, 1, 11, '#3A2200') +   // haft
+             rect(12, 6, 3, 2, '#C4C4D0') +    // axe head outline
+             rect(11, 7, 1, 1, '#C4C4D0') +
+             rect(15, 7, 1, 1, '#C4C4D0');
+    },
+    hammer: function () {
+      return rect(13, 5, 1, 11, '#3A2200') +   // haft
+             rect(11, 5, 5, 3, '#8B8B96') +    // head block
+             rect(11, 5, 1, 1, '#C4C4D0') +    // highlight
+             rect(15, 5, 1, 1, '#C4C4D0');
+    },
+    polearm: function () {
+      return rect(13, 4, 1, 14, '#3A2200') +   // long haft
+             rect(12, 3, 3, 2, '#C4C4D0') +    // halberd head
+             rect(11, 4, 1, 1, '#C4C4D0');
+    },
+    dagger: function () {
+      return rect(13, 8, 1, 4, '#C4C4D0') +    // short blade
+             rect(12, 12, 3, 1, '#3A2200') +   // crossguard
+             rect(13, 13, 1, 1, '#3A2200');    // hilt
+    },
+    bow: function () {
+      return rect(14, 4, 1, 14, '#3A2200') +   // limb
+             rect(13, 4, 1, 1, '#3A2200') +
+             rect(13, 17, 1, 1, '#3A2200') +
+             rect(15, 11, 1, 1, '#3FB950');    // bowstring tension
+    },
+    crossbow: function () {
+      return rect(13, 9, 1, 4, '#3A2200') +    // stock
+             rect(12, 8, 3, 1, '#5A3F1B') +    // bow body
+             rect(11, 9, 1, 1, '#3A2200') + rect(15, 9, 1, 1, '#3A2200') +   // limbs
+             rect(13, 7, 1, 1, '#C4C4D0');     // bolt tip
+    },
+    sling: function () {
+      return rect(13, 9, 1, 4, '#5A3F1B') +    // strap
+             rect(12, 13, 3, 1, '#5A3F1B');    // pouch
+    },
+    // ── Left-side caster weapons ──
+    staff: function () {
+      return rect(2, 8,  1, 11, '#3A2200') +    // shaft
+             rect(2, 7,  1, 1, '#3A2200') +
+             rect(1, 5,  3, 2, '#00F2EA') +     // glowing orb
+             rect(2, 4,  1, 1, '#00F2EA');      // gleam
+    },
+    wand: function () {
+      return rect(2, 9,  1, 6, '#3A2200') +
+             rect(1, 7,  3, 2, '#B452FF');     // pommel gem
+    },
+    tome: function () {
+      return rect(1, 9,  4, 5, '#3A2200') +    // book cover
+             rect(2, 10, 2, 3, '#B452FF') +    // glowing rune
+             rect(3, 10, 1, 3, '#F0B429');     // spine inlay
+    },
+    orb: function () {
+      return rect(1, 9, 3, 3, '#00F2EA') +     // floating orb
+             rect(2, 8, 1, 1, '#00F2EA');      // sparkle
+    },
+    holy: function () {
+      return rect(2, 9, 1, 5, '#F0B429') +     // shaft
+             rect(1, 10, 3, 1, '#F0B429') +    // crossbar
+             rect(1, 8, 3, 2, '#FFFFFF');      // glow
+    }
+  };
+
   function weaponLayer(eq, classKey) {
     const w = eq && eq.weapon;
+    // Resolve weapon type — equipped item wins, otherwise class default.
+    const wtype = (w && w.weaponType) ||
+                  (classKey === 'warrior' ? 'sword'  :
+                   classKey === 'mage'    ? 'staff'  :
+                   classKey === 'rogue'   ? 'dagger' :
+                   classKey === 'ranger'  ? 'bow'    :
+                   classKey === 'healer'  ? 'holy'   : '');
+    let svg = WEAPON_RENDERERS[wtype] ? WEAPON_RENDERERS[wtype]() : '';
+
+    // Set-themed weapon: tint the silver/wood colours with the set's
+    // accent so a Shadow dagger reads purple, etc.
     const setKey = (w && w.setName || '').toLowerCase();
     const set = SET_PALETTES[setKey];
-
-    // Hand-drawn weapon per class. We treat the equipped weapon's
-    // set as a tint signal — full custom weapon shapes per item
-    // would explode the sprite system. Rarity-tier instead drives
-    // a glow halo around the weapon.
-    let svg = '';
-    if (classKey === 'warrior') {
-      // Sword on the right
-      svg = rect(13, 5, 1, 8, '#C4C4D0') +    // blade
-            rect(12, 12, 3, 1, '#3A2200') +   // crossguard
-            rect(13, 13, 1, 2, '#3A2200');    // hilt
-      if (set) svg = svg.replace(/#C4C4D0/g, set.accent);
-    } else if (classKey === 'mage') {
-      // Staff on the left with glowing orb
-      svg = rect(2, 9,  1, 9, '#3A2200') +     // staff
-            rect(2, 8,  1, 1, '#3A2200') +
-            rect(1, 6,  3, 2, '#00F2EA') +     // glowing orb
-            rect(2, 5,  1, 1, '#00F2EA');      // gleam
-    } else if (classKey === 'rogue') {
-      // Dagger held close to the chest
-      svg = rect(13, 8, 1, 3, '#C4C4D0') +    // blade
-            rect(12, 11, 1, 1, '#3FB950');     // pommel
-    } else if (classKey === 'ranger') {
-      // Longbow on the right side
-      svg = rect(14, 6, 1, 12, '#3A2200') +    // limb
-            rect(13, 6, 1, 1, '#3A2200') +
-            rect(13, 17, 1, 1, '#3A2200') +
-            rect(15, 11, 1, 1, '#3FB950');     // bowstring tension
-    } else if (classKey === 'healer') {
-      // Glowing palm of light at the side
-      svg = rect(2, 11, 2, 2, '#00F2EA') +
-            rect(1, 12, 1, 1, '#00F2EA') +
-            rect(4, 12, 1, 1, '#00F2EA');
+    if (set) {
+      svg = svg.replace(/#C4C4D0/g, set.accent)
+               .replace(/#8B8B96/g, set.primary);
     }
 
-    // Rarity halo — epic / legendary / mythic get a subtle glow rect
-    // behind the weapon to call attention.
-    if (w && (w.rarity === 'legendary' || w.rarity === 'mythic')) {
-      svg = rect(11, 4, 5, 11, '#F0B429') +
-            // overlay original weapon on top of the halo
-            svg.replace(/<rect/g, '<rect') +    // no-op — keeps the order
-            // dim the halo by overlaying a darker rect
-            rect(11, 4, 5, 11, 'rgba(15,15,17,.85)') + svg;
+    // Rarity halo — epic / legendary / mythic gets an accent glow rect
+    // beneath the weapon. The halo colour matches the rarity tier.
+    if (w && (w.rarity === 'epic' || w.rarity === 'legendary' || w.rarity === 'mythic')) {
+      const halo = w.rarity === 'mythic'   ? '#FF8FB0' :
+                   w.rarity === 'legendary' ? '#F0B429' :
+                                              '#B452FF';
+      // For left-side casters draw the halo on the left, otherwise right.
+      const leftSide = (wtype === 'staff' || wtype === 'wand' || wtype === 'tome' || wtype === 'orb' || wtype === 'holy');
+      const halox = leftSide ? 0 : 11;
+      const haloy = leftSide ? 4 : 4;
+      svg = rect(halox, haloy, 5, 14, halo) +
+            rect(halox, haloy, 5, 14, '#0F0F14') +    // dim overlay so the weapon stays legible
+            svg;
     }
     return svg;
   }

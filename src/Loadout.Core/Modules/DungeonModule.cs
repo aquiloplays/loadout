@@ -639,13 +639,27 @@ namespace Loadout.Modules
             {
                 if (string.IsNullOrEmpty(kv.Value)) continue;
                 if (!byId.TryGetValue(kv.Value, out var item)) continue;
+                // Prefer the item's own stored WeaponType (set on drop
+                // post-expansion); fall back to a catalog name-match for
+                // pre-expansion bag entries that lack the field.
+                string weaponType = item.WeaponType ?? "";
+                if (string.IsNullOrEmpty(weaponType) &&
+                    string.Equals(item.Slot, "weapon", StringComparison.OrdinalIgnoreCase))
+                {
+                    foreach (var def in DungeonContent.Loot)
+                    {
+                        if (string.Equals(def.Name, item.Name, StringComparison.OrdinalIgnoreCase))
+                        { weaponType = def.WeaponType ?? ""; break; }
+                    }
+                }
                 equipped[kv.Key] = new
                 {
-                    slot    = item.Slot    ?? "",
-                    rarity  = item.Rarity  ?? "",
-                    name    = item.Name    ?? "",
-                    glyph   = item.Glyph   ?? "",
-                    setName = item.SetName ?? ""
+                    slot       = item.Slot    ?? "",
+                    rarity     = item.Rarity  ?? "",
+                    name       = item.Name    ?? "",
+                    glyph      = item.Glyph   ?? "",
+                    setName    = item.SetName ?? "",
+                    weaponType
                 };
             }
             return equipped;

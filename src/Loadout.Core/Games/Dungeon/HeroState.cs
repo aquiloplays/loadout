@@ -71,38 +71,65 @@ namespace Loadout.Games.Dungeon
         public DateTime CreatedUtc     { get; set; } = DateTime.UtcNow;
 
         /// <summary>Total attack including equipped weapon + level scaling
-        /// + class bonus + set bonus when the equipped pieces hit a set
-        /// threshold.</summary>
+        /// + class bonus + set bonus + per-item class-affinity bonus when
+        /// the wearer matches an item's PreferredClass.</summary>
         public int Attack(IReadOnlyDictionary<string, InventoryItem> bagById)
         {
             int gear = 0;
+            int affinityAtk = 0;
             foreach (var slot in Equipped)
             {
-                if (bagById.TryGetValue(slot.Value, out var item)) gear += item.PowerBonus;
+                if (!bagById.TryGetValue(slot.Value, out var item)) continue;
+                gear += item.PowerBonus;
+                affinityAtk += ClassAffinityBonus(item, true);
             }
             int classBonus = DungeonContent.ClassByName(ClassName)?.AtkBonus ?? 0;
             int setBonus   = SetBonus(bagById, b => b.AtkBonus);
-            return 4 + (Level - 1) + gear + classBonus + setBonus;
+            return 4 + (Level - 1) + gear + classBonus + setBonus + affinityAtk;
         }
 
         /// <summary>Total defense including equipped armour + level scaling
-        /// + class bonus + set bonus.</summary>
+        /// + class bonus + set bonus + per-item class-affinity bonus.</summary>
         public int Defense(IReadOnlyDictionary<string, InventoryItem> bagById)
         {
             int gear = 0;
+            int affinityDef = 0;
             foreach (var slot in Equipped)
             {
-                if (bagById.TryGetValue(slot.Value, out var item)) gear += item.DefenseBonus;
+                if (!bagById.TryGetValue(slot.Value, out var item)) continue;
+                gear += item.DefenseBonus;
+                affinityDef += ClassAffinityBonus(item, false);
             }
             int classBonus = DungeonContent.ClassByName(ClassName)?.DefBonus ?? 0;
             int setBonus   = SetBonus(bagById, b => b.DefBonus);
-            return (Level - 1) / 2 + gear + classBonus + setBonus;
+            return (Level - 1) / 2 + gear + classBonus + setBonus + affinityDef;
+        }
+
+        /// <summary>Items with a PreferredClass that matches the wearer get
+        /// a +1 bonus to whichever stat the item leans toward (attack-
+        /// heavy items boost ATK, defence-heavy items boost DEF). The
+        /// bump is intentionally small per-item so the cumulative reward
+        /// for matching gear scales linearly with how many slots line
+        /// up rather than swinging wildly off one piece.</summary>
+        private int ClassAffinityBonus(InventoryItem item, bool atkPath)
+        {
+            if (item == null || string.IsNullOrEmpty(item.PreferredClass)) return 0;
+            if (!string.Equals(item.PreferredClass, ClassName, StringComparison.OrdinalIgnoreCase)) return 0;
+            // Pick the path that matches the item's bias: attack-heavy
+            // items grant +1 ATK on the atk path; defence-heavy items
+            // grant +1 DEF on the def path. Items that lean both ways
+            // (like a class-themed trinket) grant +1 on each.
+            if (atkPath  && item.PowerBonus   >= item.DefenseBonus) return 1;
+            if (!atkPath && item.DefenseBonus >= item.PowerBonus)   return 1;
+            return 0;
         }
 
         /// <summary>Counts equipped pieces per set name, then adds the
         /// set's bonus selector when piece-count meets the threshold.
-        /// Sums across every active set (a hero with full Ironclad +
-        /// 3-piece Dragonscale would get both bonuses).</summary>
+        /// Doubles the bonus when the wearer's class matches the set's
+        /// PreferredClass — encourages building toward a class-matched
+        /// set without locking other classes out of using one. Sums
+        /// across every active set so mixed-set builds still work.</summary>
         public int SetBonus(IReadOnlyDictionary<string, InventoryItem> bagById, Func<DungeonContent.SetDef, int> selector)
         {
             var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
@@ -117,7 +144,13 @@ namespace Loadout.Games.Dungeon
             {
                 var def = DungeonContent.SetByName(kv.Key);
                 if (def == null) continue;
-                if (kv.Value >= def.PiecesForBonus) total += selector(def);
+                if (kv.Value < def.PiecesForBonus) continue;
+                int v = selector(def);
+                // Class-matched set: double the bonus.
+                if (!string.IsNullOrEmpty(def.PreferredClass) &&
+                    string.Equals(def.PreferredClass, ClassName, StringComparison.OrdinalIgnoreCase))
+                    v *= 2;
+                total += v;
             }
             return total;
         }
@@ -161,6 +194,13 @@ namespace Loadout.Games.Dungeon
         public int    DefenseBonus { get; set; }
         public int    GoldValue    { get; set; }   // resale price baseline
         public string SetName      { get; set; }   // empty if not part of a set
+        // Class this item was designed for. Wearer with matching
+        // ClassName gets a +1 ATK / +1 DEF affinity bonus through
+        // HeroState.Attack/Defense. Empty = generic, no bonus.
+        public string PreferredClass { get; set; }
+        // Visual: drives the overlay's weaponLayer renderer when
+        // Slot == "weapon". Empty = use class default.
+        public string WeaponType   { get; set; }
         public int    EnchantLevel { get; set; }   // 0..3 — adds +1 ATK or +1 DEF per level (whichever is higher)
         public DateTime FoundUtc   { get; set; } = DateTime.UtcNow;
         public string FoundIn      { get; set; }   // e.g. "Crypt of Whispers" — the dungeon name
