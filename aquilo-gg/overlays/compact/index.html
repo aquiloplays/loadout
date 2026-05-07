@@ -30,6 +30,17 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body data-pos="tr">
+  <!-- "How to advance the train" tip — only shown when a hype train
+       is active. Sits ABOVE the card so the takeover doesn't crowd it.
+       Lists the cross-platform actions that fuel the aggregate train. -->
+  <div id="hypeTip" class="hype-tip" hidden>
+    <span class="hype-tip-label">⚡ Fuel the train:</span>
+    <span class="hype-tip-item"><span class="ico" data-platform="twitch">▶</span><span>sub · gift · cheer · raid</span></span>
+    <span class="hype-tip-item"><span class="ico" data-platform="tiktok">♪</span><span>send any gift</span></span>
+    <span class="hype-tip-item"><span class="ico" data-platform="youtube">▶</span><span>super-chat · membership</span></span>
+    <span class="hype-tip-item"><span class="ico" data-platform="kick">K</span><span>sub</span></span>
+  </div>
+
   <div id="card">
     <!-- Idle layer: commands ticker -->
     <div id="idle" class="layer">
@@ -65,6 +76,29 @@
       </div>
       <span id="gameTitle" class="title"></span>
       <span id="gameSub"   class="sub"></span>
+    </div>
+
+    <!-- Hype-train takeover layer. Shows from hypetrain.start through
+         hypetrain.end, taking over the entire card so the train read
+         is unmistakable. Three sub-states:
+           * banner   — train glides right-to-left, "HYPE TRAIN!" trails
+           * bar      — fuel-fill bar + level + countdown timer
+           * level-up — banner re-runs with the new level number
+         Banner overlays the bar during animations; CSS handles the
+         z-stack. -->
+    <div id="hype" class="layer hidden hype">
+      <div class="hype-banner" id="hypeBanner">
+        <div class="hype-train" id="hypeTrain">🚂🚃🚃</div>
+        <div class="hype-banner-text" id="hypeBannerText">HYPE TRAIN!</div>
+      </div>
+      <div class="hype-meta">
+        <div class="hype-level" id="hypeLevel">LEVEL 1</div>
+        <div class="hype-bar"><div class="hype-bar-fill" id="hypeBarFill"></div></div>
+        <div class="hype-row">
+          <span class="hype-fuel" id="hypeFuel">0 / 100 fuel</span>
+          <span class="hype-countdown" id="hypeCountdown">5:00</span>
+        </div>
+      </div>
     </div>
   </div>
   <script src="../_shared/theme.js"></script>

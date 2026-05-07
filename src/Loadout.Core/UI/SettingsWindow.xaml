@@ -3421,10 +3421,38 @@
                                           Content="Vertical layout (TikTok / YouTube Shorts / Reels)"
                                           ToolTip="Bigger card, larger fonts, sized for 9:16 streams. Recommended OBS browser source: 1100×210 (or any width up to 1080). Position auto-defaults to bottom-center when this is on."
                                           Click="OnOverlayUrlChange" />
-                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 4 0 0">
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 4 0 8">
                                     Switches the card to a wider 880×184 footprint with bumped fonts so it reads on a phone-screen 9:16
                                     canvas (1080×1920). Recommended OBS browser source size shown above will update when the toggle changes.
                                 </TextBlock>
+
+                                <!-- Per-category gate. The compact's URL bakes ?show=<csv>
+                                     of whichever boxes are ticked. All ticked = no show
+                                     param, render everything (back-compat). Excluded
+                                     categories produce no card whatsoever — viewers
+                                     don't see a "skipped" placeholder. Hype train,
+                                     when ticked, takes over the entire card from
+                                     hypetrain.start through hypetrain.end. -->
+                                <TextBlock Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0 6 0 4" Text="What shows up on this overlay" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <CheckBox Grid.Row="0" Grid.Column="0" x:Name="ChkCompactShowBolts"     Content="Bolts events"     IsChecked="True" Click="OnOverlayUrlChange" Margin="0 2 8 2" />
+                                    <CheckBox Grid.Row="0" Grid.Column="1" x:Name="ChkCompactShowWelcome"   Content="Welcomes"         IsChecked="True" Click="OnOverlayUrlChange" Margin="0 2 8 2" />
+                                    <CheckBox Grid.Row="0" Grid.Column="2" x:Name="ChkCompactShowCounter"  Content="Counters"         IsChecked="True" Click="OnOverlayUrlChange" Margin="0 2 8 2" />
+                                    <CheckBox Grid.Row="0" Grid.Column="3" x:Name="ChkCompactShowViewer"   Content="Viewer profiles"  IsChecked="True" Click="OnOverlayUrlChange" Margin="0 2 0 2" />
+                                    <CheckBox Grid.Row="1" Grid.Column="0" x:Name="ChkCompactShowHype"     Content="Hype train"       IsChecked="True" Click="OnOverlayUrlChange" Margin="0 2 8 2"
+                                              ToolTip="When on, a hype train takes over the whole card from start to end — train animation, fuel bar, level-up flash, countdown, plus a cross-platform 'how to fuel' tip above the card." />
+                                    <CheckBox Grid.Row="1" Grid.Column="1" x:Name="ChkCompactShowMinigames" Content="Mini-games"      IsChecked="True" Click="OnOverlayUrlChange" Margin="0 2 8 2" />
+                                    <CheckBox Grid.Row="1" Grid.Column="2" x:Name="ChkCompactShowRotation" Content="Now playing"      IsChecked="True" Click="OnOverlayUrlChange" Margin="0 2 8 2" />
+                                    <CheckBox Grid.Row="1" Grid.Column="3" x:Name="ChkCompactShowCommands" Content="Commands ticker (idle)" IsChecked="True" Click="OnOverlayUrlChange" Margin="0 2 0 2"
+                                              ToolTip="When off, the card disappears between events instead of cycling through your command list while idle." />
+                                </Grid>
                             </StackPanel>
                         </Border>
 

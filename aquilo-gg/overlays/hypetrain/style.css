@@ -23,8 +23,8 @@ html, body {
 
 #card {
   position: fixed;
-  width: 360px;
-  padding: 12px 14px;
+  width: 380px;
+  padding: 0 14px 12px 14px;   /* zero top — banner row owns the header */
   background: linear-gradient(135deg,
     rgba(58, 26, 8, var(--bg-alpha)) 0%,
     rgba(40, 14, 4, var(--bg-alpha)) 100%);
@@ -34,6 +34,56 @@ html, body {
   -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55), 0 0 24px rgba(240, 180, 41, 0.15);
   transition: opacity 380ms ease-in-out, transform 380ms cubic-bezier(.2,.7,.2,1);
+  overflow: hidden;
+}
+
+/* Train banner — sits above the regular row(s). 🚂🚃🚃 glides
+   right-to-left in 1.4s; "HYPE TRAIN!" trails ~250ms behind into
+   centre. JS toggles `.running` on the wrapper to (re)trigger;
+   the wrapper drops the running class after the headline lands so
+   subsequent level-ups can re-trigger by re-adding it. */
+.banner {
+  position: relative;
+  height: 44px;
+  margin: 8px -14px 6px;
+  padding: 0 14px;
+  overflow: hidden;
+}
+.banner .train {
+  position: absolute;
+  right: -200px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 30px;
+  white-space: nowrap;
+  filter: drop-shadow(0 0 8px rgba(240, 180, 41, 0.7));
+}
+.banner.running .train {
+  animation: trainRun 1.4s cubic-bezier(.4,.6,.5,1) forwards;
+}
+@keyframes trainRun {
+  0%   { right: -200px; }
+  100% { right: calc(100% + 16px); }
+}
+.banner-text {
+  position: absolute;
+  right: -260px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--accent);
+  text-shadow: 0 0 14px rgba(240, 180, 41, 0.9);
+  white-space: nowrap;
+}
+.banner.running .banner-text {
+  animation: bannerRun 1.6s 0.25s cubic-bezier(.4,.6,.5,1) forwards;
+}
+@keyframes bannerRun {
+  0%   { right: -260px; transform: translateY(-50%); }
+  60%  { right: 50%;     transform: translate(50%, -50%); }
+  100% { right: 50%;     transform: translate(50%, -50%); }
 }
 #card.hidden { opacity: 0; transform: translateY(-12px); pointer-events: none; }
 
@@ -54,7 +104,9 @@ body[data-pos="br"] #card { bottom: 18px; right: 18px; }
 .row.top { font-weight: 700; font-size: 13px; letter-spacing: 1px; }
 .row.bot { margin-top: 6px; font-size: 11px; color: var(--muted); }
 
-.train {
+/* The .row .train left here for back-compat — the new banner train
+   uses .banner > .train and is the primary visual. */
+.row .train {
   font-size: 18px;
   filter: drop-shadow(0 0 6px rgba(240, 180, 41, 0.6));
   animation: chug 1.2s ease-in-out infinite;
@@ -62,6 +114,17 @@ body[data-pos="br"] #card { bottom: 18px; right: 18px; }
 @keyframes chug {
   0%, 100% { transform: translateX(0); }
   50%      { transform: translateX(2px); }
+}
+
+.countdown {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(240, 180, 41, 0.12);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
 }
 
 .title {
@@ -98,6 +161,16 @@ body[data-pos="br"] #card { bottom: 18px; right: 18px; }
   box-shadow: 0 0 12px rgba(248, 81, 73, 0.5);
   transition: width 600ms cubic-bezier(.2,.7,.2,1);
 }
+/* Brief brighter flash on each contribute event so a watcher sees the
+   bar acknowledge the new fuel even if the % gain is small. */
+.bar.flash .fill {
+  animation: barContribFlash .55s ease-out;
+}
+@keyframes barContribFlash {
+  0%   { box-shadow: 0 0 12px rgba(248, 81, 73, 0.5); }
+  40%  { box-shadow: 0 0 28px rgba(255, 213, 107, 0.95); }
+  100% { box-shadow: 0 0 12px rgba(248, 81, 73, 0.5); }
+}
 
 .contributor {
   flex: 1;
@@ -127,6 +200,53 @@ body[data-pos="bc"] #card.pulse { animation-name: pulseCenter; }
   35%  { transform: translateX(-50%) scale(1.06); }
   100% { transform: translateX(-50%) scale(1); }
 }
+
+/* ── Cross-platform "fuel the train" tip ──────────────────────────
+   Sits above the card so viewers see at a glance how to fuel the
+   train across every connected platform. JS shows the tip while a
+   train is active; the card stays auto-hidden during cooldown. */
+.hype-tip {
+  position: fixed;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text);
+  background: rgba(15, 15, 20, 0.92);
+  border: 1px solid rgba(240, 180, 41, 0.4);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 6px 10px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.hype-tip[hidden] { display: none; }
+.hype-tip-label   { font-weight: 800; color: var(--accent); }
+.hype-tip-item    { display: inline-flex; align-items: center; gap: 5px; }
+.hype-tip-item .ico {
+  width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 3px;
+  font-size: 10px; font-weight: 800;
+}
+.hype-tip-item .ico[data-platform="twitch"]  { background: #9146FF; color: #fff; }
+.hype-tip-item .ico[data-platform="tiktok"]  { background: #000; color: #00F2EA; }
+.hype-tip-item .ico[data-platform="youtube"] { background: #FF0000; color: #fff; }
+.hype-tip-item .ico[data-platform="kick"]    { background: #53FC18; color: #000; }
+
+/* Park the tip just above the card so it reads as a natural hint
+   line. Position varies with the card's data-pos. */
+body[data-pos="tc"] .hype-tip { top: 6px; left: 50%; transform: translateX(-50%); }
+body[data-pos="tl"] .hype-tip { top: 6px; left: 18px; }
+body[data-pos="tr"] .hype-tip { top: 6px; right: 18px; }
+body[data-pos="bc"] .hype-tip { bottom: 144px; left: 50%; transform: translateX(-50%); }
+body[data-pos="bl"] .hype-tip { bottom: 144px; left: 18px; }
+body[data-pos="br"] .hype-tip { bottom: 144px; right: 18px; }
 
 .dev-status {
   position: fixed; bottom: 4px; right: 6px;

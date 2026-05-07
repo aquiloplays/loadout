@@ -374,6 +374,214 @@ body[data-vertical="1"][data-pos="bl"] #card { bottom: 36px; left: 36px;   top: 
 body[data-vertical="1"][data-pos="tc"] #card { top: 36px;    left: 50%;    transform: translateX(-50%); }
 body[data-vertical="1"][data-pos="bc"] #card { bottom: 36px; left: 50%;    transform: translateX(-50%); }
 
+/* ── Hype-train takeover ───────────────────────────────────────────
+   Only shows from hypetrain.start through hypetrain.end. JS toggles
+   `.hype-active` on body to position the tip + clear the regular
+   layers from the takeover region. The takeover layer (`#hype`) sits
+   on top of the others so a contribute / level-up flash plays over
+   the bar without resetting it. */
+.layer.hype {
+  /* Disable the default grid for the hype layer — we paint it as
+     full-card content instead. */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  padding: 12px 18px;
+  row-gap: 0;
+  column-gap: 0;
+  background: linear-gradient(180deg,
+              rgba(45, 22, 8, 0.92) 0%,
+              rgba(20, 8, 2, 0.94) 100%);
+}
+.hype-banner {
+  position: relative;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.hype-train {
+  font-size: 28px;
+  white-space: nowrap;
+  line-height: 1;
+  /* Train slides from the right edge to the left in 1.4s. JS
+     toggles .running to (re)trigger; we add it on every banner
+     state (start / level / end) so the train re-traverses. */
+  position: absolute;
+  right: -180px;
+  top: 50%;
+  transform: translateY(-50%);
+  filter: drop-shadow(0 0 6px rgba(240, 180, 41, 0.55));
+}
+.hype-banner.running .hype-train {
+  animation: hypeTrainRun 1.4s cubic-bezier(.4,.6,.5,1) forwards;
+}
+@keyframes hypeTrainRun {
+  0%   { right: -180px; }
+  100% { right: calc(100% + 16px); }
+}
+.hype-banner-text {
+  position: absolute;
+  right: -200px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-shadow: 0 0 12px rgba(240, 180, 41, 0.8);
+  white-space: nowrap;
+  /* Trails the train by ~250ms — staggered animation timing so the
+     headline rolls in just behind the locomotive. */
+}
+.hype-banner.running .hype-banner-text {
+  animation: hypeBannerRun 1.6s 0.25s cubic-bezier(.4,.6,.5,1) forwards;
+}
+@keyframes hypeBannerRun {
+  0%   { right: -200px; }
+  60%  { right: 50%; transform: translate(50%, -50%); }
+  100% { right: 50%; transform: translate(50%, -50%); }
+}
+
+.hype-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+.hype-level {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--gold);
+  text-shadow: 0 0 6px rgba(240, 180, 41, 0.4);
+}
+.hype-bar {
+  width: 100%;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 5px;
+  overflow: hidden;
+  border: 1px solid rgba(240, 180, 41, 0.3);
+}
+.hype-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #F0B429 0%, #FFD56B 50%, #F0B429 100%);
+  background-size: 200% 100%;
+  /* Subtle shimmer on the fill so a static bar still feels alive. */
+  animation: hypeShimmer 2.4s linear infinite;
+  transition: width .35s cubic-bezier(.4, .6, .5, 1);
+  box-shadow: 0 0 8px rgba(240, 180, 41, 0.5);
+}
+@keyframes hypeShimmer {
+  0%   { background-position: 0%   0%; }
+  100% { background-position: 200% 0%; }
+}
+.hype-bar.flash .hype-bar-fill {
+  /* Brief brighter flash on each contribute event. */
+  animation: hypeShimmer 2.4s linear infinite, hypeContribFlash .55s ease-out;
+}
+@keyframes hypeContribFlash {
+  0%   { box-shadow: 0 0 8px rgba(240, 180, 41, 0.5); }
+  40%  { box-shadow: 0 0 22px rgba(255, 213, 107, 0.95); }
+  100% { box-shadow: 0 0 8px rgba(240, 180, 41, 0.5); }
+}
+.hype-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.hype-countdown {
+  color: var(--gold);
+  font-weight: 700;
+}
+
+/* Vertical-mode adjustments — bigger banner, bigger train, bigger bar
+   so the takeover reads at 9:16 phone-screen size. */
+body[data-vertical="1"] .hype-banner       { height: 56px; }
+body[data-vertical="1"] .hype-train        { font-size: 44px; right: -240px; }
+body[data-vertical="1"] .hype-banner-text  { font-size: 32px; letter-spacing: 3px; }
+body[data-vertical="1"] @keyframes hypeTrainRun {
+  0%   { right: -240px; }
+  100% { right: calc(100% + 24px); }
+}
+body[data-vertical="1"] .hype-meta         { gap: 8px; margin-top: 6px; }
+body[data-vertical="1"] .hype-level        { font-size: 18px; }
+body[data-vertical="1"] .hype-bar          { height: 14px; }
+body[data-vertical="1"] .hype-row          { font-size: 16px; }
+
+/* ── Cross-platform "fuel the train" tip ──────────────────────────
+   Hidden by default; JS shows it while a hype train is active. Sits
+   above the card via fixed positioning so the takeover layer below
+   stays untouched. */
+.hype-tip {
+  position: fixed;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: rgba(15, 15, 20, 0.92);
+  border: 1px solid rgba(240, 180, 41, 0.4);
+  border-left: 3px solid var(--gold);
+  border-radius: 8px;
+  padding: 6px 10px;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  white-space: nowrap;
+  /* Position relative to the card via inheritance from the body
+     `data-pos` so the tip parks just above wherever the card sits. */
+}
+.hype-tip[hidden] { display: none; }
+.hype-tip-label   { font-weight: 800; color: var(--gold); }
+.hype-tip-item    { display: inline-flex; align-items: center; gap: 5px; }
+.hype-tip-item .ico {
+  width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 3px;
+  font-size: 10px; font-weight: 800;
+}
+.hype-tip-item .ico[data-platform="twitch"]  { background: #9146FF; color: #fff; }
+.hype-tip-item .ico[data-platform="tiktok"]  { background: #000; color: #00F2EA; }
+.hype-tip-item .ico[data-platform="youtube"] { background: #FF0000; color: #fff; }
+.hype-tip-item .ico[data-platform="kick"]    { background: #53FC18; color: #000; }
+
+/* Position the tip just above the card. data-pos drives anchor; tip
+   parks 12-16px above the card edge regardless of horizontal/vertical. */
+body[data-pos="tr"] .hype-tip,
+body[data-pos="tl"] .hype-tip,
+body[data-pos="tc"] .hype-tip {
+  /* Card is at top — tip sits ABOVE the card stack at the top edge. */
+  top: 4px;
+}
+body[data-pos="tr"] .hype-tip { right: 22px; }
+body[data-pos="tl"] .hype-tip { left:  22px; }
+body[data-pos="tc"] .hype-tip { left: 50%; transform: translateX(-50%); }
+body[data-pos="br"] .hype-tip,
+body[data-pos="bl"] .hype-tip,
+body[data-pos="bc"] .hype-tip {
+  /* Card is at bottom — tip parks above the card so it reads in
+     normal "tip-line above content" cadence. */
+  bottom: calc(100% - 4px);
+}
+body[data-pos="br"] .hype-tip { right: 22px; bottom: 130px; }
+body[data-pos="bl"] .hype-tip { left:  22px; bottom: 130px; }
+body[data-pos="bc"] .hype-tip { left: 50%; transform: translateX(-50%); bottom: 130px; }
+body[data-vertical="1"][data-pos="bc"] .hype-tip { bottom: 188px; }
+body[data-vertical="1"][data-pos="br"] .hype-tip { bottom: 188px; }
+body[data-vertical="1"][data-pos="bl"] .hype-tip { bottom: 188px; }
+
 /* Connection indicator (debug only) */
 .dev-status {
   position: fixed;

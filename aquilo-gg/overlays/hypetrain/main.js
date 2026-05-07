@@ -3,9 +3,19 @@
  *
  * Subscribes to `hypetrain.*` from the local Aquilo Bus. Loadout's
  * HypeTrainModule aggregates fuel from every supported platform and
- * publishes start / level / contribute / end events. We render the
- * train (slide in), bump the level on level-ups, animate the fill bar
- * on every contribution, and slide out on end.
+ * publishes start / level / contribute / end events.
+ *
+ * Render lifecycle:
+ *   start       — slide card in, run the train banner animation,
+ *                 show the cross-platform "fuel the train" tip,
+ *                 start the 5-min countdown
+ *   contribute  — bump the fill bar, brief flash, reset countdown
+ *   level       — re-run the train banner with a "LEVEL N" headline
+ *   end         — final celebration, hide tip, fade out
+ *
+ * Train banner: 🚂🚃🚃 glides right→left, "HYPE TRAIN!" trails behind
+ * staggered ~250ms. CSS owns the keyframes; JS just toggles .running
+ * to (re)trigger.
  */
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -17,24 +27,63 @@
   const pos = params.get('pos');
   if (pos) document.body.dataset.pos = pos;
 
-  const card    = $('card');
-  const lvl     = $('lvl');
-  const fill    = $('fill');
-  const contrib = $('contributor');
-  const fuelTxt = $('fuelText');
+  const card        = $('card');
+  const lvl         = $('lvl');
+  const fill        = $('fill');
+  const contrib     = $('contributor');
+  const fuelTxt     = $('fuelText');
+  const banner      = $('banner');
+  const bannerText  = $('bannerText');
+  const countdown   = $('countdown');
+  const tip         = $('tip');
 
-  let pulseTimer = null;
+  const HYPE_DEFAULT_MS = 5 * 60 * 1000;
+  let hypeDeadline = 0;
+  let tickHandle   = null;
+  let pulseTimer   = null;
+  let lastThreshold = 100;
+  let lastFuel     = 0;
+  let active       = false;
 
-  function show(level, fuel, threshold) {
-    lvl.textContent = String(level);
-    const pct = Math.max(0, Math.min(100, (fuel / threshold) * 100));
-    fill.style.width = pct.toFixed(1) + '%';
-    fuelTxt.textContent = Math.max(0, fuel) + ' / ' + threshold;
-    card.classList.remove('hidden');
+  function fmtMmSs(ms) {
+    if (ms <= 0) return '0:00';
+    const s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+  function tickCountdown() {
+    if (!active || !countdown) return;
+    const remaining = hypeDeadline - Date.now();
+    countdown.textContent = fmtMmSs(remaining);
+    if (remaining <= 0) {
+      // Train timed out without an explicit end event — clean up.
+      cleanupAfterEnd(lvl ? Number(lvl.textContent) || 1 : 1);
+    }
   }
 
-  function hide() {
-    card.classList.add('hidden');
+  function runBanner() {
+    if (!banner) return;
+    banner.classList.remove('running');
+    void banner.offsetWidth;          // re-trigger CSS animation
+    banner.classList.add('running');
+  }
+
+  function setBar(level, fuel, threshold) {
+    if (lvl) lvl.textContent = String(level);
+    const t = Math.max(1, threshold);
+    const pct = Math.max(0, Math.min(100, (fuel / t) * 100));
+    if (fill) fill.style.width = pct.toFixed(1) + '%';
+    if (fuelTxt) fuelTxt.textContent = Math.max(0, fuel) + ' / ' + t;
+    lastThreshold = t;
+    lastFuel = fuel;
+  }
+
+  function flashBar() {
+    const bar = fill && fill.parentElement;
+    if (!bar) return;
+    bar.classList.remove('flash');
+    void bar.offsetWidth;
+    bar.classList.add('flash');
+    setTimeout(() => bar && bar.classList.remove('flash'), 600);
   }
 
   function pulse() {
@@ -49,35 +98,73 @@
     contrib.textContent = text || '';
   }
 
+  function setBannerText(text) {
+    if (bannerText) bannerText.textContent = text;
+  }
+
+  function startCountdown() {
+    if (tickHandle) clearInterval(tickHandle);
+    hypeDeadline = Date.now() + HYPE_DEFAULT_MS;
+    tickHandle = setInterval(tickCountdown, 1000);
+    tickCountdown();
+  }
+
+  function cleanupAfterEnd(finalLevel) {
+    active = false;
+    if (tickHandle) { clearInterval(tickHandle); tickHandle = null; }
+    if (tip) tip.hidden = true;
+    setContributor('ended at lv ' + finalLevel);
+    setTimeout(() => card.classList.add('hidden'), 2400);
+  }
+
   function handle(msg) {
     const d = msg.data || {};
     switch (msg.kind) {
       case 'hypetrain.start':
-        show(d.level || 1, d.fuel || 0, d.threshold || 100);
+        active = true;
+        if (tip) tip.hidden = false;
+        setBar(d.level || 1, d.fuel || 0, d.threshold || 100);
         setContributor(d.fromUser ? d.fromUser + ' kicked it off' : 'starting…');
+        setBannerText('HYPE TRAIN!');
+        card.classList.remove('hidden');
+        runBanner();
         pulse();
+        startCountdown();
         break;
       case 'hypetrain.contribute':
-        show(d.level || 1, d.totalFuel || 0,
-             (msg.threshold || 100));   // threshold may not be on contribute
+        // threshold may not be on contribute — main bus payload reuses
+        // lastThreshold from the most recent event that did include it.
+        setBar(d.level || (lvl ? Number(lvl.textContent) || 1 : 1),
+               d.totalFuel != null ? d.totalFuel : (lastFuel + (d.fuel || 0)),
+               d.threshold || lastThreshold);
         setContributor((d.user || '') + ' +' + (d.fuel || 0) + ' fuel');
+        flashBar();
+        // Each contribution resets the countdown — matches Twitch's
+        // hype-train extension behaviour.
+        hypeDeadline = Date.now() + HYPE_DEFAULT_MS;
+        tickCountdown();
         break;
       case 'hypetrain.level':
-        show(d.level || 1, d.fuel || 0, d.threshold || 100);
+        setBar(d.level || 1, d.fuel || 0, d.threshold || 100);
         setContributor((d.fromUser || '') + ' pushed it to lv ' + (d.level || 1));
+        setBannerText('LEVEL ' + (d.level || 1) + '!');
+        runBanner();
         pulse();
+        // After the level-up banner, restore the running headline so
+        // the panel reads as "still going" rather than locked on the
+        // level-up moment.
+        setTimeout(() => active && setBannerText('HYPE TRAIN!'), 2200);
         break;
       case 'hypetrain.end':
-        setContributor('ended at lv ' + (d.finalLevel || 1));
-        // Hold visibility for a beat, then slide out.
-        setTimeout(hide, 2400);
+        setBannerText('FINAL LEVEL ' + (d.finalLevel || 1));
+        runBanner();
+        cleanupAfterEnd(d.finalLevel || 1);
         break;
     }
   }
 
   // ---- Bus connection (same shape as every other Loadout overlay) ----
   let ws = null, backoff = 1000;
-  let lastThreshold = 100;
 
   function connect() {
     let url = busUrl;
@@ -97,11 +184,6 @@
       let msg; try { msg = JSON.parse(e.data); } catch { return; }
       if (!msg || !msg.kind) return;
       if (msg.data && msg.data.threshold) lastThreshold = msg.data.threshold;
-      // Carry the most recent threshold onto contribute messages that
-      // omit it, so the bar stays accurate between level-ups.
-      if (msg.kind === 'hypetrain.contribute' && !msg.data.threshold) {
-        msg.threshold = lastThreshold;
-      }
       try { handle(msg); } catch (err) { console.error(err); }
     };
     ws.onclose = () => {
@@ -122,6 +204,15 @@
       document.body.appendChild(el);
     }
     el.textContent = 'bus: ' + t;
+  }
+
+  if (debug) {
+    setTimeout(() => handle({ kind: 'hypetrain.start',      data: { level: 1, fuel: 30,  threshold: 200, fromUser: 'aquilo_plays' }}), 600);
+    setTimeout(() => handle({ kind: 'hypetrain.contribute', data: { user: 'fearless_fox', fuel: 50,  totalFuel: 80, kind: 'sub' }}), 2400);
+    setTimeout(() => handle({ kind: 'hypetrain.contribute', data: { user: 'mason42',      fuel: 100, totalFuel: 180, kind: 'cheer' }}), 4400);
+    setTimeout(() => handle({ kind: 'hypetrain.level',      data: { level: 2, fuel: 0,    threshold: 350, fromUser: 'mason42' }}), 6200);
+    setTimeout(() => handle({ kind: 'hypetrain.contribute', data: { user: 'lume',         fuel: 75,  totalFuel: 75,  kind: 'tiktokGift' }}), 8500);
+    setTimeout(() => handle({ kind: 'hypetrain.end',        data: { finalLevel: 2 }}), 12000);
   }
 
   connect();

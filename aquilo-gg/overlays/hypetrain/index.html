@@ -22,11 +22,30 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body data-pos="tc">
+  <!-- Cross-platform "fuel the train" hint — sits ABOVE the card so
+       viewers see at a glance how to push the train across every
+       connected platform. Hidden when no train is active; only the
+       card shows during cooldown / idle. -->
+  <div id="tip" class="hype-tip" hidden>
+    <span class="hype-tip-label">⚡ Fuel the train:</span>
+    <span class="hype-tip-item"><span class="ico" data-platform="twitch">▶</span><span>sub · gift · cheer · raid</span></span>
+    <span class="hype-tip-item"><span class="ico" data-platform="tiktok">♪</span><span>send any gift</span></span>
+    <span class="hype-tip-item"><span class="ico" data-platform="youtube">▶</span><span>super-chat · membership</span></span>
+    <span class="hype-tip-item"><span class="ico" data-platform="kick">K</span><span>sub</span></span>
+  </div>
+
   <div id="card" class="hidden">
+    <!-- Banner row: animated train + headline. .running class kicks
+         the right→left glide animation; toggled on every banner state
+         (start, level-up, end). -->
+    <div class="banner" id="banner">
+      <span class="train" id="train">🚂🚃🚃</span>
+      <span class="banner-text" id="bannerText">HYPE TRAIN!</span>
+    </div>
     <div class="row top">
-      <span class="train">🚂</span>
       <span class="title">HYPE TRAIN</span>
       <span class="level">LV <span id="lvl">1</span></span>
+      <span class="countdown" id="countdown">5:00</span>
     </div>
     <div class="bar">
       <div id="fill" class="fill"></div>

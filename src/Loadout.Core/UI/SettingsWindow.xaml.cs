@@ -2421,18 +2421,38 @@ namespace Loadout.UI
             // dropped from the URL so the streamer's link stays compact.
             // ?vertical=1 switches the card to a 9:16-stream layout
             // (TikTok / YouTube Shorts / Reels) with bumped type +
-            // wider footprint.
+            // wider footprint. ?show=<csv> gates which event categories
+            // render — all-checked emits no param (back-compat default).
             if (TxtUrlCompact != null)
             {
                 string compactHold   = ClampInt(TxtCompactHoldMs?.Text, 1500, 30000, 4500);
                 string compactIdle   = ClampInt(TxtCompactIdleRotate?.Text, 10, 600, 30);
                 bool   compactVert   = ChkCompactVertical?.IsChecked == true;
+                // Build the show CSV from the per-category checkboxes.
+                // Each entry name matches the JS-side category tag in
+                // overlays/compact/main.js#categoryOf.
+                var compactShow = new List<string>();
+                if (ChkCompactShowBolts?.IsChecked     == true) compactShow.Add("bolts");
+                if (ChkCompactShowWelcome?.IsChecked   == true) compactShow.Add("welcome");
+                if (ChkCompactShowCounter?.IsChecked   == true) compactShow.Add("counter");
+                if (ChkCompactShowViewer?.IsChecked    == true) compactShow.Add("viewer");
+                if (ChkCompactShowHype?.IsChecked      == true) compactShow.Add("hype");
+                if (ChkCompactShowMinigames?.IsChecked == true) compactShow.Add("minigames");
+                if (ChkCompactShowRotation?.IsChecked  == true) compactShow.Add("rotation");
+                if (ChkCompactShowCommands?.IsChecked  == true) compactShow.Add("commands");
+                // 8 = all categories on. Drop the param entirely in that
+                // case so the URL stays clean for the common path.
+                string showParam = (compactShow.Count == 8 || compactShow.Count == 0)
+                    ? null
+                    : string.Join(",", compactShow);
+
                 TxtUrlCompact.Text = BuildOverlayUrl(baseUrl, "compact", secret, new Dictionary<string, string>
                 {
                     ["pos"]        = SelectedTag(CmbCompactPos),
                     ["holdMs"]     = compactHold == "4500" ? null : compactHold,
                     ["idleRotate"] = compactIdle == "30"   ? null : compactIdle,
-                    ["vertical"]   = compactVert ? "1" : null
+                    ["vertical"]   = compactVert ? "1" : null,
+                    ["show"]       = showParam
                 });
                 // Size chip — different recommended OBS browser-source
                 // dimensions for the two layouts. The XAML chip's Run
@@ -2531,6 +2551,8 @@ namespace Loadout.UI
             "CmbMinigamesPos", "TxtMinigamesAccent",
             // Compact (one-pane)
             "CmbCompactPos", "TxtCompactHoldMs", "TxtCompactIdleRotate", "ChkCompactVertical",
+            "ChkCompactShowBolts", "ChkCompactShowWelcome", "ChkCompactShowCounter", "ChkCompactShowViewer",
+            "ChkCompactShowHype", "ChkCompactShowMinigames", "ChkCompactShowRotation", "ChkCompactShowCommands",
             // All-in-one composite layer toggles
             "ChkAllBolts", "ChkAllCounters", "ChkAllGoals", "ChkAllCheckIn",
             "ChkAllApex", "ChkAllCommands", "ChkAllRecap", "ChkAllViewer",

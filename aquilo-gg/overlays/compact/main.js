@@ -38,6 +38,38 @@
   const HOLD_MS     = Math.max(1500, parseInt(params.get('holdMs')     || '4500', 10) || 4500);
   const IDLE_ROTATE = Math.max(10,   parseInt(params.get('idleRotate') || '30',   10) || 30) * 1000;
 
+  // Per-layer allow-list. ?show=<csv> picks which event categories
+  // are rendered on the card; everything else is silently ignored.
+  // Default (no param, or 'all') = every category. Categories:
+  //   bolts | welcome | counter | viewer | hype | minigames |
+  //   rotation | commands
+  // The Settings UI bakes this into the URL based on the streamer's
+  // checkboxes; chat events for excluded categories don't even
+  // populate the active layer.
+  const SHOW_ALL = ['bolts','welcome','counter','viewer','hype','minigames','rotation','commands'];
+  const showRaw = (params.get('show') || '').toLowerCase().trim();
+  const showSet = (() => {
+    if (!showRaw || showRaw === 'all') return new Set(SHOW_ALL);
+    return new Set(showRaw.split(/[\s,]+/).filter(Boolean));
+  })();
+  function shows(cat) { return showSet.has(cat); }
+
+  // Map a bus event kind to one of the SHOW_ALL category tags so the
+  // ?show= filter can drop events from disabled categories early.
+  // Returns '' for events that should always render (commands.list /
+  // .icons control the idle ticker but are gated separately).
+  function categoryOf(kind) {
+    if (!kind) return '';
+    if (kind.indexOf('bolts.minigame.')   === 0) return 'minigames';
+    if (kind.indexOf('bolts.')             === 0) return 'bolts';
+    if (kind.indexOf('welcome.')           === 0) return 'welcome';
+    if (kind.indexOf('counter.')           === 0) return 'counter';
+    if (kind.indexOf('viewer.profile.')    === 0) return 'viewer';
+    if (kind.indexOf('hypetrain.')         === 0) return 'hype';
+    if (kind.indexOf('rotation.song.')     === 0) return 'rotation';
+    return '';
+  }
+
   const card     = $('card');
   const idleEl   = $('idle');
   const activeEl = $('active');
@@ -57,6 +89,134 @@
   const gDiePip   = gameEl.querySelector('.g-die-pip');
   const gSlots    = gameEl.querySelector('.g-slots');
   const gReels    = [$('gReel0'), $('gReel1'), $('gReel2')];
+
+  // Show / hide a layer by toggling the existing `.hidden` class —
+  // the rest of the overlay's transitions key off it.
+  function showLayer(el) {
+    if (!el) return;
+    [idleEl, activeEl, gameEl, hypeEl].forEach(function (l) { if (l && l !== el) l.classList.add('hidden'); });
+    el.classList.remove('hidden');
+  }
+  function hideLayer(el) { if (el) el.classList.add('hidden'); }
+
+  // Hype-train takeover refs.
+  const hypeEl       = $('hype');
+  const hypeTip      = $('hypeTip');
+  const hypeBanner   = $('hypeBanner');
+  const hypeBannerText = $('hypeBannerText');
+  const hypeLevel    = $('hypeLevel');
+  const hypeBarFill  = $('hypeBarFill');
+  const hypeFuel     = $('hypeFuel');
+  const hypeCountdown = $('hypeCountdown');
+
+  // Takeover lifecycle state.
+  let hypeActive    = false;
+  let hypeFuelNow   = 0;
+  let hypeThreshold = 100;
+  let hypeLevelNow  = 1;
+  // Twitch-style ~5min hype-train timer; resets on each contribution.
+  // We store the deadline (ms epoch) and tick a 1Hz countdown render.
+  // hypetrain.start optionally provides endsAt (ms); otherwise we
+  // assume 5 minutes from now and let contribute events extend it.
+  let hypeDeadline  = 0;
+  let hypeTickHandle = null;
+  const HYPE_DEFAULT_MS = 5 * 60 * 1000;
+
+  function fmtMmSs(ms) {
+    if (ms <= 0) return '0:00';
+    var s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+  function tickHypeCountdown() {
+    if (!hypeActive) return;
+    const remaining = hypeDeadline - Date.now();
+    if (hypeCountdown) hypeCountdown.textContent = fmtMmSs(remaining);
+    if (remaining <= 0) {
+      // Train timed out without an explicit end event — clean up.
+      hypeEnd({ finalLevel: hypeLevelNow });
+    }
+  }
+  function runTrainAnim() {
+    if (!hypeBanner) return;
+    hypeBanner.classList.remove('running');
+    void hypeBanner.offsetWidth;   // re-trigger CSS animation
+    hypeBanner.classList.add('running');
+  }
+  function setHypeBar(fuel, threshold) {
+    hypeFuelNow   = fuel;
+    hypeThreshold = Math.max(1, threshold);
+    if (hypeBarFill) hypeBarFill.style.width = Math.min(100, (fuel / hypeThreshold) * 100) + '%';
+    if (hypeFuel)    hypeFuel.textContent = fuel + ' / ' + hypeThreshold + ' fuel';
+  }
+  function flashBar() {
+    if (!hypeBarFill) return;
+    var bar = hypeBarFill.parentElement;
+    if (!bar) return;
+    bar.classList.remove('flash');
+    void bar.offsetWidth;
+    bar.classList.add('flash');
+    setTimeout(function () { bar && bar.classList.remove('flash'); }, 600);
+  }
+  function hypeStart(d) {
+    if (!shows('hype')) return;
+    hypeActive   = true;
+    hypeLevelNow = d.level || 1;
+    hypeDeadline = d.endsAt ? Number(d.endsAt) : (Date.now() + HYPE_DEFAULT_MS);
+    document.body.dataset.hype = '1';
+    if (hypeTip)   hypeTip.hidden = false;
+    if (hypeLevel) hypeLevel.textContent = 'LEVEL ' + hypeLevelNow;
+    if (hypeBannerText) hypeBannerText.textContent = 'HYPE TRAIN!';
+    setHypeBar(d.fuel || 0, d.threshold || 100);
+    showLayer(hypeEl);
+    runTrainAnim();
+    if (hypeTickHandle) clearInterval(hypeTickHandle);
+    hypeTickHandle = setInterval(tickHypeCountdown, 1000);
+    tickHypeCountdown();
+    // Clear the queue / pending-active so other events don't slip
+    // through under the takeover.
+    queue.length = 0;
+    if (activeTimer) { clearTimeout(activeTimer); activeTimer = null; }
+  }
+  function hypeContribute(d) {
+    if (!hypeActive) return;
+    setHypeBar(d.totalFuel != null ? d.totalFuel : (hypeFuelNow + (d.fuel || 0)),
+               d.threshold || hypeThreshold);
+    flashBar();
+    // Each contribution resets the timer to the default duration —
+    // matches Twitch's hype-train behaviour where new fuel extends
+    // the window.
+    hypeDeadline = Date.now() + HYPE_DEFAULT_MS;
+    tickHypeCountdown();
+  }
+  function hypeLevelUp(d) {
+    if (!hypeActive) return;
+    hypeLevelNow = d.level || hypeLevelNow + 1;
+    if (hypeLevel) hypeLevel.textContent = 'LEVEL ' + hypeLevelNow + '!';
+    if (hypeBannerText) hypeBannerText.textContent = 'LEVEL ' + hypeLevelNow + '!';
+    setHypeBar(d.fuel || 0, d.threshold || hypeThreshold);
+    runTrainAnim();
+    // After 1.6s the banner text fades and we re-set it back to the
+    // running headline — UX cue that the level-up moment is over.
+    setTimeout(function () {
+      if (hypeBannerText && hypeActive) hypeBannerText.textContent = 'HYPE TRAIN!';
+    }, 1800);
+  }
+  function hypeEnd(d) {
+    if (!hypeActive) return;
+    hypeLevelNow = d.finalLevel || hypeLevelNow;
+    if (hypeBannerText) hypeBannerText.textContent = 'FINAL LEVEL ' + hypeLevelNow;
+    runTrainAnim();
+    // Linger ~3.5s on the celebration before clearing.
+    setTimeout(function () {
+      hypeActive = false;
+      delete document.body.dataset.hype;
+      if (hypeTip) hypeTip.hidden = true;
+      if (hypeTickHandle) { clearInterval(hypeTickHandle); hypeTickHandle = null; }
+      hideLayer(hypeEl);
+      // Resume normal idle ticker.
+      showLayer(idleEl);
+    }, 3500);
+  }
 
   // ── Idle: commands ticker ────────────────────────────────────────────
   const fallbackCommands = [
@@ -142,6 +302,14 @@
   }
   function startIdle() {
     if (idleTimer) clearInterval(idleTimer);
+    // Honour the ?show= filter — when 'commands' is excluded the idle
+    // ticker stays hidden entirely. The card just disappears between
+    // events, which is what streamers who flip it off explicitly
+    // want.
+    if (!shows('commands')) {
+      idleEl.classList.add('hidden');
+      return;
+    }
     tickIdle();
     idleTimer = setInterval(tickIdle, IDLE_ROTATE);
   }
@@ -301,6 +469,24 @@
       return;
     }
 
+    // Hype-train events are routed to the takeover state machine
+    // BEFORE the regular event-card path, regardless of category
+    // filter. (Hype's category gate runs inside hypeStart.)
+    if (k === 'hypetrain.start')      { hypeStart(d);      return; }
+    if (k === 'hypetrain.contribute') { hypeContribute(d); return; }
+    if (k === 'hypetrain.level')      { hypeLevelUp(d);    return; }
+    if (k === 'hypetrain.end')        { hypeEnd(d);        return; }
+
+    // Drop any non-hype event during the takeover so the train read
+    // doesn't get interrupted by a !slots / !checkin / etc.
+    if (hypeActive) return;
+
+    // Per-category gate. The compact's Settings card lets streamers
+    // pick which event types render here; everything else is silently
+    // ignored. `show` tags map roughly 1:1 to event prefixes.
+    const cat = categoryOf(k);
+    if (cat && !shows(cat)) return;
+
     let evt = null;
     switch (k) {
       case 'bolts.earned':
@@ -332,28 +518,8 @@
         if (!d.name) return;
         evt = { tone: 'counter', badge: '#', title: (d.display || d.name), sub: (d.value != null ? String(d.value) : '?') };
         break;
-      case 'hypetrain.start':
-        evt = { tone: 'hype', badge: '🚂', title: 'Hype train started!', sub: 'level ' + (d.level || 1) + (d.fromUser ? ' — ' + d.fromUser : '') };
-        break;
-      case 'hypetrain.level':
-        evt = { tone: 'hype', badge: '🚂', title: 'Train hit level ' + (d.level || '?'), sub: (d.fuel || 0) + ' / ' + (d.threshold || 0) + ' fuel' };
-        break;
-      case 'hypetrain.contribute':
-        if (!d.user) return;
-        // For TikTok gifts, surface the actual gift name + emoji
-        // (Rose, Lion, Galaxy, etc.) instead of the generic
-        // "tiktokGift" string. TikTokGifts.label is provided by
-        // _shared/tiktok-gifts.js — falls through to a 🎁 if the
-        // gift isn't in the curated map.
-        var contribKind = d.kind || '?';
-        if (contribKind === 'tiktokGift' && window.TikTokGifts) {
-          contribKind = window.TikTokGifts.label({ giftName: d.giftName, coins: d.coins });
-        }
-        evt = { tone: 'hype', badge: '⛽', title: d.user, sub: '+' + (d.fuel || 0) + ' fuel (' + contribKind + ')' };
-        break;
-      case 'hypetrain.end':
-        evt = { tone: 'hype', badge: '🏁', title: 'Hype train ended', sub: 'final level ' + (d.finalLevel || '?') };
-        break;
+      // hypetrain.* short-circuited to the takeover state machine
+      // above — no event-card pump path for them anymore.
       case 'bolts.minigame.coinflip':
         if (!d.user) return;
         // Route to the game layer so the coin actually flips before
