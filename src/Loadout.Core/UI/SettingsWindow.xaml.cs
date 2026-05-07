@@ -2338,6 +2338,12 @@ namespace Loadout.UI
                 });
             }
 
+            // Dungeon Crawler + Duel — full-canvas, no per-card knobs.
+            if (TxtUrlDungeon != null)
+            {
+                TxtUrlDungeon.Text = BuildOverlayUrl(baseUrl, "dungeon", secret, new Dictionary<string, string>());
+            }
+
             // Bolts minigames (coinflip / dice visualizer).
             if (TxtUrlMinigames != null)
             {
@@ -3192,9 +3198,164 @@ namespace Loadout.UI
                         if (ChkAllHypeTrain?.IsChecked == true) FireOverlayTestEvent("hypetrain");
                         if (ChkAllMinigames?.IsChecked == true) FireOverlayTestEvent("minigames");
                         break;
+
+                    case "dungeon":
+                        FireDungeonTest();
+                        break;
+
+                    case "duel":
+                        FireDuelTest();
+                        break;
                 }
             }
             catch { /* publish is best-effort; the browser open already succeeded */ }
+        }
+
+        // Synthetic dungeon run for placement / animation testing. Publishes
+        // dungeon.recruiting -> dungeon.joined×3 -> dungeon.started -> 5
+        // scenes -> dungeon.completed on real wall-clock delays so the
+        // overlay renders the same flow as a live !dungeon. Three fake
+        // heroes, mixed survival outcomes, one legendary loot drop so the
+        // streamer can see the legendary glow animation.
+        private void FireDungeonTest()
+        {
+            try
+            {
+                var bus = Loadout.Bus.AquiloBus.Instance;
+                var dungeonName = "Crypt of Whispers";
+                var heroes = new[]
+                {
+                    new { user = "aquilo_test",   platform = "twitch", level = 5, hpMax = 35, hpCurrent = 35 },
+                    new { user = "fearless_fox",  platform = "twitch", level = 3, hpMax = 28, hpCurrent = 28 },
+                    new { user = "mason42",       platform = "twitch", level = 2, hpMax = 25, hpCurrent = 25 }
+                };
+
+                bus.Publish("dungeon.recruiting", new
+                {
+                    dungeonName = dungeonName,
+                    openSec     = 8,
+                    hostUser    = heroes[0].user,
+                    joinCommand = "!join",
+                    party       = new object[] { heroes[0] }
+                });
+
+                // Stagger the join events so the overlay's tile pop-in
+                // animation actually plays on each viewer.
+                System.Threading.Tasks.Task.Delay(1500).ContinueWith(_ => bus.Publish("dungeon.joined", new
+                {
+                    user = heroes[1].user, platform = heroes[1].platform, partySize = 2, hero = heroes[1]
+                }));
+                System.Threading.Tasks.Task.Delay(3000).ContinueWith(_ => bus.Publish("dungeon.joined", new
+                {
+                    user = heroes[2].user, platform = heroes[2].platform, partySize = 3, hero = heroes[2]
+                }));
+
+                // Run starts after the recruit window closes.
+                System.Threading.Tasks.Task.Delay(8500).ContinueWith(_ =>
+                {
+                    bus.Publish("dungeon.started", new { dungeonName = dungeonName, partySize = 3 });
+
+                    // Scenes carry their own delayMs offsets — overlay schedules
+                    // each render relative to receipt, so we publish the whole
+                    // batch immediately and let the client space them.
+                    var scenes = new (int delay, string kind, string text, string glyph, string target)[]
+                    {
+                        (   0, "story",     "The party enters the " + dungeonName + "...",                                            "📜", null),
+                        (1800, "encounter", "A Goblin Sneak ambushes the party! It strikes mason42 for 3 damage, but falls. (+11 bolts, +9 XP each)", "👹", "mason42"),
+                        (4400, "trap",      "A Spike Pit! spikes pierce fearless_fox for 5 damage.",                                  "🪤", "fearless_fox"),
+                        (7200, "treasure",  "The party finds a hoard! Each survivor pockets 12 bolts.",                                "💰", null),
+                        (10000,"encounter", "A Wyvern descends! mason42 falls. The party defeats it for 34 bolts each.",              "🐉", "mason42")
+                    };
+                    foreach (var s in scenes)
+                    {
+                        bus.Publish("dungeon.scene", new
+                        {
+                            delayMs    = s.delay,
+                            kind       = s.kind,
+                            text       = s.text,
+                            glyph      = s.glyph,
+                            targetUser = s.target
+                        });
+                    }
+                });
+
+                // Loot reveal lands shortly after the last scene.
+                System.Threading.Tasks.Task.Delay(20000).ContinueWith(_ => bus.Publish("dungeon.completed", new
+                {
+                    dungeonName = dungeonName,
+                    partySize   = 3,
+                    outcomes = new object[]
+                    {
+                        new {
+                            user = "aquilo_test", platform = "twitch", survived = true, hpDelta = -3, xpGained = 37, goldGained = 57,
+                            loot = new object[] { new { id = "test1", slot = "weapon", rarity = "legendary", name = "Aquilo's Edge",
+                                                         glyph = "⚡", powerBonus = 12, defenseBonus = 2, goldValue = 600 } }
+                        },
+                        new {
+                            user = "fearless_fox", platform = "twitch", survived = true, hpDelta = -5, xpGained = 37, goldGained = 57,
+                            loot = new object[] { new { id = "test2", slot = "trinket", rarity = "uncommon", name = "Lucky Charm",
+                                                         glyph = "🍀", powerBonus = 1, defenseBonus = 1, goldValue = 22 } }
+                        },
+                        new {
+                            user = "mason42", platform = "twitch", survived = false, hpDelta = -25, xpGained = 6, goldGained = 0,
+                            loot = new object[0]
+                        }
+                    }
+                }));
+
+                ShowSavedHint("Synthetic dungeon run fired (~22s end-to-end on the overlay).");
+            }
+            catch (Exception ex)
+            {
+                ShowSavedHint("Dungeon test failed: " + ex.Message);
+            }
+        }
+
+        // Synthetic 1v1 duel — recruit phase then 3-round skirmish then a
+        // result banner. Same shape as a real !duel-then-!join sequence so
+        // the overlay's HP-bar drain animation is exercised.
+        private void FireDuelTest()
+        {
+            try
+            {
+                var bus = Loadout.Bus.AquiloBus.Instance;
+                bus.Publish("duel.recruiting", new
+                {
+                    challenger  = "aquilo_test",
+                    target      = "fearless_fox",
+                    openSec     = 4,
+                    joinCommand = "!join"
+                });
+
+                System.Threading.Tasks.Task.Delay(2000).ContinueWith(_ =>
+                {
+                    bus.Publish("duel.started", new { challenger = "aquilo_test", defender = "fearless_fox" });
+                    var scenes = new (int delay, string kind, string text, string glyph)[]
+                    {
+                        ( 200, "duel-start",  "aquilo_test challenges fearless_fox to a duel!", "⚔️"),
+                        (1500, "duel-strike", "Round 1: aquilo_test strikes for 6.",            "⚔️"),
+                        (3000, "duel-strike", "Round 1: fearless_fox counters for 4.",          "⚔️"),
+                        (4500, "duel-strike", "Round 2: aquilo_test strikes for 7.",            "⚔️"),
+                        (6000, "duel-end",    "aquilo_test wins the duel! +24 XP, +18 bolts.",  "🏆")
+                    };
+                    foreach (var s in scenes)
+                        bus.Publish("duel.scene", new { delayMs = s.delay, kind = s.kind, text = s.text, glyph = s.glyph });
+
+                    System.Threading.Tasks.Task.Delay(7500).ContinueWith(__ => bus.Publish("duel.completed", new
+                    {
+                        winner = "aquilo_test",
+                        loser  = "fearless_fox",
+                        xp     = 24,
+                        gold   = 18
+                    }));
+                });
+
+                ShowSavedHint("Synthetic duel fired (~10s on the overlay).");
+            }
+            catch (Exception ex)
+            {
+                ShowSavedHint("Duel test failed: " + ex.Message);
+            }
         }
 
         private string OverlayUrlByTag(string tag)
@@ -3212,6 +3373,7 @@ namespace Loadout.UI
                 case "hypetrain": return TxtUrlHypeTrain?.Text;
                 case "minigames": return TxtUrlMinigames?.Text;
                 case "compact":   return TxtUrlCompact?.Text;
+                case "dungeon":   return TxtUrlDungeon?.Text;
                 case "all":       return TxtUrlAll?.Text;
                 default:         return null;
             }

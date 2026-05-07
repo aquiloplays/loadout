@@ -3102,6 +3102,49 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Dungeon Crawler + Duel: full-canvas (1920×1080) overlay
+                             for the !dungeon / !join / !duel game. Four states
+                             (recruit / adventure / loot reveal / duel panel)
+                             switch on bus events. Send test fires a synthetic
+                             party run end-to-end; Send duel test fires a
+                             two-character skirmish. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Games}" Margin="0 0 8 0" Width="14" Height="14" />
+                                        <TextBlock Text="Dungeon Crawler + Duel" Style="{StaticResource H2}" Margin="0" />
+                                    </StackPanel>
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Test dungeon" Style="{StaticResource PrimaryButton}"
+                                                Tag="dungeon" Click="BtnOverlaySendTest_Click" Margin="0 0 4 0"
+                                                ToolTip="Fires a full synthetic dungeon run — recruit window + 3 fake heroes joining + 5 scenes + loot reveal — so an OBS source for this overlay renders end-to-end." />
+                                        <Button Content="Test duel" Style="{StaticResource SecondaryButton}"
+                                                Tag="duel" Click="BtnOverlaySendTest_Click" Margin="0 0 8 0"
+                                                ToolTip="Fires a synthetic 1v1 duel between two fake heroes (3 rounds)." />
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="dungeon" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="dungeon" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlDungeon" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="dungeon" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 4" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 1920×1080" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — full canvas; only renders while a dungeon or duel is active" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Cross-platform hype train: aggregates fuel from sub / gift /
                              cheer / raid / TikTok-gift / Kick-sub / super-chat events. Runs
                              alongside Twitch's native train; 15-min cooldown after end. -->
