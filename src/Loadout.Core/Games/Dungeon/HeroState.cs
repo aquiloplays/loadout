@@ -14,6 +14,15 @@ namespace Loadout.Games.Dungeon
         public string Platform   { get; set; } = "twitch";
         public string Handle     { get; set; } = "";
 
+        // Per-viewer character look. Avatar is a URL (uploaded asset, the
+        // viewer's Twitch profile picture, anything reachable from the
+        // overlay's CEF). ClassName picks from DungeonContent.Classes —
+        // drives a glyph + accent colour on the overlay and a tiny stat
+        // bonus through Attack / Defense / HpMax. Both are cosmetic-by-
+        // default — the hero still works if both are empty.
+        public string Avatar     { get; set; } = "";
+        public string ClassName  { get; set; } = "";
+
         public int    Level      { get; set; } = 1;
         public int    Xp         { get; set; } = 0;
         public int    HpMax      { get; set; } = 25;
@@ -36,7 +45,7 @@ namespace Loadout.Games.Dungeon
         public DateTime LastUpdatedUtc { get; set; } = DateTime.UtcNow;
         public DateTime CreatedUtc     { get; set; } = DateTime.UtcNow;
 
-        /// <summary>Total attack including equipped weapon + level scaling.</summary>
+        /// <summary>Total attack including equipped weapon + level scaling + class bonus.</summary>
         public int Attack(IReadOnlyDictionary<string, InventoryItem> bagById)
         {
             int gear = 0;
@@ -44,10 +53,11 @@ namespace Loadout.Games.Dungeon
             {
                 if (bagById.TryGetValue(slot.Value, out var item)) gear += item.PowerBonus;
             }
-            return 4 + (Level - 1) + gear;
+            int classBonus = DungeonContent.ClassByName(ClassName)?.AtkBonus ?? 0;
+            return 4 + (Level - 1) + gear + classBonus;
         }
 
-        /// <summary>Total defense including equipped armour + level scaling.</summary>
+        /// <summary>Total defense including equipped armour + level scaling + class bonus.</summary>
         public int Defense(IReadOnlyDictionary<string, InventoryItem> bagById)
         {
             int gear = 0;
@@ -55,7 +65,8 @@ namespace Loadout.Games.Dungeon
             {
                 if (bagById.TryGetValue(slot.Value, out var item)) gear += item.DefenseBonus;
             }
-            return (Level - 1) / 2 + gear;
+            int classBonus = DungeonContent.ClassByName(ClassName)?.DefBonus ?? 0;
+            return (Level - 1) / 2 + gear + classBonus;
         }
     }
 

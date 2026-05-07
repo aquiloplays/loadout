@@ -112,6 +112,13 @@ namespace Loadout.Settings
         // Comma-separated whitelist of additional handles allowed to
         // summon dungeons (beyond mods + broadcaster). e.g. "@regular1, @regular2".
         public string ExtraHosts { get; set; } = "";
+
+        // Streamer-supplied custom assets for the dungeon overlay. The
+        // overlay reads these from URL params (?bg= / ?bgOpacity=) so a
+        // single browser-source URL bakes the whole theme in. Both are
+        // optional — empty values render the default look.
+        public string BackgroundImageUrl { get; set; } = "";
+        public int    BackgroundDimPercent { get; set; } = 50;   // 0..100
     }
 
     /// <summary>

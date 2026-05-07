@@ -269,25 +269,39 @@ namespace Loadout.Modules
                 {
                     dungeonName = result.DungeonName,
                     partySize   = party.Count,
-                    outcomes    = result.Outcomes.Select(o => new
+                    outcomes    = result.Outcomes.Select(o =>
                     {
-                        user      = o.Handle,
-                        platform  = o.Platform,
-                        survived  = o.Survived,
-                        hpDelta   = o.HpDelta,
-                        xpGained  = o.XpGained,
-                        goldGained = o.GoldGained,
-                        loot      = o.Loot.Select(it => new
+                        // Re-read the post-apply hero so the loot card has
+                        // the avatar/class state the streamer/viewer just
+                        // configured (and to confirm the level-up if XP
+                        // bumped them).
+                        var refreshed = DungeonGameStore.Instance.Get(o.Platform, o.Handle)
+                                        ?? new HeroState { Handle = o.Handle, Platform = o.Platform };
+                        var cls = DungeonContent.ClassByName(refreshed.ClassName);
+                        return new
                         {
-                            id     = it.Id,
-                            slot   = it.Slot,
-                            rarity = it.Rarity,
-                            name   = it.Name,
-                            glyph  = it.Glyph,
-                            powerBonus   = it.PowerBonus,
-                            defenseBonus = it.DefenseBonus,
-                            goldValue    = it.GoldValue
-                        }).ToArray()
+                            user      = o.Handle,
+                            platform  = o.Platform,
+                            survived  = o.Survived,
+                            hpDelta   = o.HpDelta,
+                            xpGained  = o.XpGained,
+                            goldGained = o.GoldGained,
+                            avatar     = refreshed.Avatar     ?? "",
+                            className  = refreshed.ClassName  ?? "",
+                            classGlyph = cls?.Glyph     ?? "",
+                            classTint  = cls?.TintColor ?? "",
+                            loot      = o.Loot.Select(it => new
+                            {
+                                id     = it.Id,
+                                slot   = it.Slot,
+                                rarity = it.Rarity,
+                                name   = it.Name,
+                                glyph  = it.Glyph,
+                                powerBonus   = it.PowerBonus,
+                                defenseBonus = it.DefenseBonus,
+                                goldValue    = it.GoldValue
+                            }).ToArray()
+                        };
                     }).ToArray()
                 });
             }
@@ -390,10 +404,25 @@ namespace Loadout.Modules
                 var attacker = DungeonGameStore.Instance.GetOrCreate(duel.ChallengerPlatform, duel.Challenger);
                 var defender = DungeonGameStore.Instance.GetOrCreate(duel.DefenderPlatform, duel.Defender);
 
+                // Include both duelists' character bits so the duel panel
+                // can render avatars + class-tinted rings instead of the
+                // hardcoded ⚔ / 🛡 placeholders.
+                var attClass = DungeonContent.ClassByName(attacker.ClassName);
+                var defClass = DungeonContent.ClassByName(defender.ClassName);
                 Publish("duel.started", new
                 {
-                    challenger = duel.Challenger,
-                    defender   = duel.Defender
+                    challenger        = duel.Challenger,
+                    defender          = duel.Defender,
+                    challengerAvatar  = attacker.Avatar    ?? "",
+                    defenderAvatar    = defender.Avatar    ?? "",
+                    challengerClass   = attacker.ClassName ?? "",
+                    defenderClass     = defender.ClassName ?? "",
+                    challengerGlyph   = attClass?.Glyph     ?? "",
+                    defenderGlyph     = defClass?.Glyph     ?? "",
+                    challengerTint    = attClass?.TintColor ?? "",
+                    defenderTint      = defClass?.TintColor ?? "",
+                    challengerHpMax   = attacker.HpMax,
+                    defenderHpMax     = defender.HpMax
                 });
 
                 var result = DungeonEngine.RunDuel(attacker, defender, _rng);
@@ -495,27 +524,34 @@ namespace Loadout.Modules
         {
             lock (r.Sync)
             {
-                return r.Members.Values.Select(h => new
-                {
-                    user     = h.Handle,
-                    platform = h.Platform,
-                    level    = h.Level,
-                    hpMax    = h.HpMax,
-                    hpCurrent = h.HpCurrent
-                }).ToArray();
+                return r.Members.Values.Select(h => HeroToPayload(h)).ToArray();
             }
         }
 
         private static object HeroSnapshot(EventContext ctx)
         {
             var h = DungeonGameStore.Instance.GetOrCreate(ctx.Platform.ToShortName(), ctx.User);
+            return HeroToPayload(h);
+        }
+
+        /// <summary>Shared shape for every "hero on the wire" event so the
+        /// overlay only needs one rendering path. New: avatar URL +
+        /// className + classGlyph + classTint so each tile / loot card
+        /// can show the viewer's actual character.</summary>
+        private static object HeroToPayload(HeroState h)
+        {
+            var cls = DungeonContent.ClassByName(h.ClassName);
             return new
             {
-                user     = h.Handle,
-                platform = h.Platform,
-                level    = h.Level,
-                hpMax    = h.HpMax,
-                hpCurrent = h.HpCurrent
+                user        = h.Handle,
+                platform    = h.Platform,
+                level       = h.Level,
+                hpMax       = h.HpMax,
+                hpCurrent   = h.HpCurrent,
+                avatar      = h.Avatar     ?? "",
+                className   = h.ClassName  ?? "",
+                classGlyph  = cls?.Glyph     ?? "",
+                classTint   = cls?.TintColor ?? ""
             };
         }
 

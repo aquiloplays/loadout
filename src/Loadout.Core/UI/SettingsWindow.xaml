@@ -1385,6 +1385,27 @@
                                     <TextBox  Grid.Column="5" x:Name="TxtDungeonExtraHosts"
                                               ToolTip="Comma-separated viewer handles allowed to summon dungeons in addition to mods + broadcaster. Leave blank for mods-only." />
                                 </Grid>
+                                <!-- Custom dungeon assets. Streamer-supplied background
+                                     image bakes into the overlay URL via the ?bg= query
+                                     param so a single browser-source URL captures the
+                                     whole theme. Per-viewer character assets (avatar,
+                                     class) are managed by viewers themselves through the
+                                     /loadout Discord menu. -->
+                                <TextBlock Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0 14 0 4" Text="Custom dungeon assets" />
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="80" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Background image URL:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <TextBox  Grid.Column="1" x:Name="TxtDungeonBgUrl" TextChanged="OnOverlayUrlChange"
+                                              ToolTip="HTTPS URL to a PNG / JPG / WebP. Painted behind every overlay panel, dim layer over it (controlled by Dim %). Leave blank for the default look." />
+                                    <TextBlock Grid.Column="2" Text="Dim %:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14 0 8 0" />
+                                    <TextBox  Grid.Column="3" x:Name="TxtDungeonBgDim" TextChanged="OnOverlayUrlChange"
+                                              ToolTip="0 (clear, image only) — 100 (fully dark, image hidden). 50 is a readable default for most images." />
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0 6 0 0" TextWrapping="Wrap"
+                                           Text="Viewer characters (avatar + class) are managed by each viewer through the /loadout Discord menu — no streamer setup needed." />
                             </StackPanel>
                         </Border>
                     </StackPanel>

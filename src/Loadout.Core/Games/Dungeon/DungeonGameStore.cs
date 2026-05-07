@@ -139,6 +139,29 @@ namespace Loadout.Games.Dungeon
             });
         }
 
+        /// <summary>Save the viewer's character avatar URL. Empty clears it.</summary>
+        public HeroState SetAvatar(string platform, string handle, string url)
+        {
+            return Mutate(platform, handle, h => { h.Avatar = (url ?? "").Trim(); });
+        }
+
+        /// <summary>Switch class and re-base HpMax/HpCurrent so the HP bonus
+        /// (DungeonContent.ClassByName(c).HpBonus) lands correctly even when
+        /// switching mid-progression. Old class's HP bonus is removed first.</summary>
+        public HeroState SetClass(string platform, string handle, string className)
+        {
+            return Mutate(platform, handle, h =>
+            {
+                var oldBonus = DungeonContent.ClassByName(h.ClassName)?.HpBonus ?? 0;
+                var newClass = DungeonContent.ClassByName(className);
+                var newBonus = newClass?.HpBonus ?? 0;
+                int delta = newBonus - oldBonus;
+                h.HpMax = Math.Max(1, h.HpMax + delta);
+                h.HpCurrent = Math.Max(0, Math.Min(h.HpMax, h.HpCurrent + delta));
+                h.ClassName = newClass?.Name ?? "";
+            });
+        }
+
         public HeroState RecordDuel(string platform, string handle, bool won)
         {
             return Mutate(platform, handle, h =>

@@ -43,7 +43,8 @@ import {
 } from './profiles.js';
 import {
   cmdHero, cmdInventory, cmdEquip, cmdUnequip, cmdSell,
-  cmdShop, cmdShopBuy, cmdTraining
+  cmdShop, cmdShopBuy, cmdTraining,
+  cmdSetAvatar, cmdSetClass, CLASSES
 } from './dungeon.js';
 
 // ── Discord wire constants ─────────────────────────────────────────
@@ -101,6 +102,18 @@ export async function handleComponent(data, env) {
     case 'daily':       return updateMessage(await dailyAction   (env, guild, userId, userName));
     case 'leaderboard': return updateMessage(await leaderboardView(env, guild));
     case 'hero':        return updateMessage(await heroView      (env, guild, userId, userName));
+    case 'character':   {
+      // Character customisation sub-view. parts[2] paths:
+      //   (none)              — show the Character panel
+      //   avatar              — open the "set avatar URL" modal
+      //   class               — show class picker
+      //   class:do:<key>      — set the class
+      if (parts[2] === 'avatar')           return openModal(avatarModal());
+      if (parts[2] === 'class' && parts[3] === 'do')
+        return updateMessage(await classDo(env, guild, userId, parts[4]));
+      if (parts[2] === 'class')            return updateMessage(classPicker());
+      return updateMessage(await characterView(env, guild, userId, userName));
+    }
     case 'bag':         return updateMessage(await bagView       (env, guild, userId));
     case 'equip':       return parts[2] === 'do' ? updateMessage(await equipDo  (env, guild, userId, parts[3])) : updateMessage(await equipPicker  (env, guild, userId));
     case 'unequip':     return parts[2] === 'do' ? updateMessage(await unequipDo(env, guild, userId, parts[3])) : updateMessage(await unequipPicker(env, guild, userId));
@@ -181,6 +194,10 @@ export async function handleModal(data, env) {
       const field = parts[3];
       const r = await profileFieldAction(env, guild, userId, field, fields);
       return updateMessage({ ...r, components: backRow('lo:profile') });
+    }
+    case 'avatar': {
+      const r = await cmdSetAvatar(env, guild, userId, fields.url || '');
+      return updateMessage({ content: r.content, components: backRow('lo:character') });
     }
     default:
       return updateMessage(await mainView(env, guild, userId, userName));
@@ -324,12 +341,71 @@ async function heroView(env, guild, userId, userName) {
     embeds: r.embeds,
     components: [
       row(
-        button('🎒 Bag',     'lo:bag',     BTN_PRIMARY),
-        button('🥋 Train',   'lo:train',   BTN_PRIMARY),
-        button('🏪 Shop',    'lo:shop',    BTN_SECONDARY)
+        button('👤 Character', 'lo:character', BTN_SUCCESS),
+        button('🎒 Bag',      'lo:bag',       BTN_PRIMARY),
+        button('🥋 Train',    'lo:train',     BTN_PRIMARY),
+        button('🏪 Shop',     'lo:shop',      BTN_SECONDARY)
       ),
       backRow()
     ]
+  };
+}
+
+// ── Character (avatar + class) ─────────────────────────────────────
+
+async function characterView(env, guild, userId, userName) {
+  // Pull the merged hero (Worker-local + DLL push) so the panel
+  // matches what the dungeon overlay would render. The avatar
+  // preview rides as embed.thumbnail just like the Hero embed.
+  const heroEmbed = await cmdHero(env, guild, userId, null, userName);
+  const e = heroEmbed.embeds?.[0];
+  return {
+    content: '👤 **Your character** — visible to chat in `!dungeon` runs and on the dungeon overlay.',
+    embeds: e ? [e] : undefined,
+    components: [
+      row(
+        button('🖼 Set avatar URL',  'lo:character:avatar', BTN_PRIMARY),
+        button('🎭 Pick class',      'lo:character:class',  BTN_PRIMARY)
+      ),
+      backRow('lo:hero')
+    ]
+  };
+}
+
+function classPicker() {
+  // One ActionRow can hold up to 5 buttons — exactly fits the 5 classes.
+  // Style each button with the class glyph + display name so the picker
+  // reads like a character-creation screen.
+  const order = ['warrior', 'mage', 'rogue', 'ranger', 'healer'];
+  return {
+    content:
+      '🎭 **Pick a class** — affects your avatar tint, dungeon-overlay glyph, and small stat bonuses.\n' +
+      '• **Warrior** ⚔ +2 ATK\n' +
+      '• **Mage** 🪄 +1 ATK · +1 DEF\n' +
+      '• **Rogue** 🗡 +2 ATK · −1 DEF\n' +
+      '• **Ranger** 🏹 +1 ATK\n' +
+      '• **Healer** ✨ +1 DEF · +5 HP',
+    components: [
+      row(...order.map(k => button(CLASSES[k].glyph + ' ' + CLASSES[k].name,
+                                   'lo:character:class:do:' + k,
+                                   BTN_SECONDARY))),
+      backRow('lo:character')
+    ]
+  };
+}
+
+async function classDo(env, guild, userId, key) {
+  const r = await cmdSetClass(env, guild, userId, key);
+  return { content: r.content, components: backRow('lo:character') };
+}
+
+function avatarModal() {
+  return {
+    custom_id: 'lo:m:avatar',
+    title: 'Set your character avatar',
+    components: [{ type: COMPONENT_ROW, components: [{ type: COMPONENT_TEXT_INPUT, custom_id: 'url',
+      label: 'Avatar URL (https://...) — blank to clear', style: INPUT_SHORT, required: false, max_length: 400,
+      placeholder: 'https://your-stream.com/avatar.png' }] }]
   };
 }
 

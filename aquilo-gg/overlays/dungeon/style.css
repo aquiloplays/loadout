@@ -38,6 +38,25 @@ html, body {
   overflow: hidden;
 }
 
+/* Streamer-supplied background image. main.js sets this via the ?bg=
+   URL param. We center + cover-fit the image and lay a dim scrim
+   over it so the recruit / adventure / loot panels still read at
+   full contrast. The dim is a CSS variable so the streamer can
+   tune transparency via ?bgOpacity= without re-deploying anything. */
+body.has-custom-bg {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+body.has-custom-bg::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0, var(--custom-bg-dim, .5));
+  z-index: 0;
+  pointer-events: none;
+}
+
 #root {
   position: fixed;
   inset: 0;
@@ -116,12 +135,23 @@ html, body {
   animation: tileIn .35s cubic-bezier(.2,.8,.2,1) both;
 }
 .party-tile .pt-avatar {
-  width: 44px; height: 44px;
+  width: 48px; height: 48px;
   margin: 0 auto 6px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   display: flex; align-items: center; justify-content: center;
   font-size: 22px; font-weight: 800; color: #0B1525;
+  /* Class tint paints the ring around the avatar. main.js sets --ring
+     inline per-tile from the bus payload so each viewer's class colour
+     reads instantly. Fallback is the default accent. */
+  border: 2px solid var(--ring, var(--accent));
+  overflow: hidden;
+}
+.party-tile .pt-avatar-img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  border-radius: inherit;
 }
 .party-tile .pt-name { font-size: 13px; font-weight: 700; }
 .party-tile .pt-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
@@ -220,6 +250,23 @@ html, body {
 .loot-card.rarity-legendary { border-color: var(--r-legendary); box-shadow: 0 0 36px rgba(240,180,41,.55); animation: lootCardIn .55s cubic-bezier(.2,.8,.2,1) both, legendaryShimmer 2.4s ease-in-out infinite; }
 .loot-card.fallen { border-color: var(--lose); opacity: .7; }
 
+/* Avatar header on the loot card — viewer's character above the loot
+   image so the card reads as "this is YOUR loot" rather than a generic
+   item. Class tint paints the ring; main.js sets --ring inline. */
+.loot-card .lc-avatar {
+  width: 56px; height: 56px;
+  margin: 0 auto 8px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(58,134,255,.14);
+  font-size: 26px; font-weight: 800;
+  border: 2px solid var(--ring, var(--accent));
+  overflow: hidden;
+}
+.loot-card .lc-avatar img {
+  width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit;
+}
+
 .loot-card .lc-user { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
 .loot-card .lc-glyph { font-size: 56px; line-height: 1; margin: 8px 0; }
 .loot-card .lc-name  { font-size: 16px; font-weight: 800; margin-bottom: 4px; }
@@ -266,10 +313,16 @@ html, body {
   display: flex; align-items: center; justify-content: center;
   font-size: 40px;
   border: 3px solid var(--accent);
+  overflow: hidden;
 }
 .duelist.right .d-avatar {
   background: linear-gradient(135deg, var(--pink), var(--gold));
   border-color: var(--pink);
+}
+/* Avatar <img> fill — main.js drops one of these into .d-avatar when
+   the duelist set an avatar URL on their character. */
+.duelist .d-avatar-img {
+  width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit;
 }
 .duelist .d-name { font-size: 18px; font-weight: 800; }
 .duelist .d-hp { width: 100%; height: 10px; background: rgba(255,255,255,.10); border-radius: 5px; margin-top: 8px; overflow: hidden; }

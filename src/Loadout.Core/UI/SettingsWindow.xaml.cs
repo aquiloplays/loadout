@@ -1050,6 +1050,8 @@ namespace Loadout.UI
             if (TxtDuelCooldown           != null) TxtDuelCooldown.Text                = s.Dungeon.DuelCooldownSec.ToString();
             if (TxtDuelJoinWindowSec      != null) TxtDuelJoinWindowSec.Text           = s.Dungeon.DuelJoinWindowSec.ToString();
             if (TxtDungeonExtraHosts      != null) TxtDungeonExtraHosts.Text           = s.Dungeon.ExtraHosts ?? "";
+            if (TxtDungeonBgUrl           != null) TxtDungeonBgUrl.Text                = s.Dungeon.BackgroundImageUrl ?? "";
+            if (TxtDungeonBgDim           != null) TxtDungeonBgDim.Text                = (s.Dungeon.BackgroundDimPercent > 0 ? s.Dungeon.BackgroundDimPercent : 50).ToString();
 
             ChkRotationEnabled.IsChecked = s.RotationIntegration.Enabled;
             TxtRotationCmd.Text          = s.RotationIntegration.Command ?? "";
@@ -1324,6 +1326,9 @@ namespace Loadout.UI
                 if (int.TryParse(TxtDuelCooldown?.Text,         out iv) && iv >= 0  && iv <= 7200) s.Dungeon.DuelCooldownSec    = iv;
                 if (int.TryParse(TxtDuelJoinWindowSec?.Text,    out iv) && iv >= 10 && iv <= 120) s.Dungeon.DuelJoinWindowSec  = iv;
                 if (TxtDungeonExtraHosts != null) s.Dungeon.ExtraHosts = (TxtDungeonExtraHosts.Text ?? "").Trim();
+                if (TxtDungeonBgUrl      != null) s.Dungeon.BackgroundImageUrl = (TxtDungeonBgUrl.Text ?? "").Trim();
+                if (int.TryParse((TxtDungeonBgDim?.Text ?? "50").Trim(), out iv) && iv >= 0 && iv <= 100)
+                    s.Dungeon.BackgroundDimPercent = iv;
 
                 // Global overlay theme (font / scale / accent2 / text).
                 if (s.OverlayTheme == null) s.OverlayTheme = new OverlayThemeConfig();
@@ -2338,10 +2343,20 @@ namespace Loadout.UI
                 });
             }
 
-            // Dungeon Crawler + Duel — full-canvas, no per-card knobs.
+            // Dungeon Crawler + Duel — full-canvas. Streamer's optional
+            // custom-asset params (background image + dim) ride along on
+            // the URL so a single OBS browser-source URL bakes the whole
+            // theme. Empty-string values get dropped by BuildOverlayUrl.
             if (TxtUrlDungeon != null)
             {
-                TxtUrlDungeon.Text = BuildOverlayUrl(baseUrl, "dungeon", secret, new Dictionary<string, string>());
+                var dungeonCfg = SettingsManager.Instance.Current.Dungeon ?? new DungeonConfig();
+                var bgUrl  = (TxtDungeonBgUrl?.Text ?? dungeonCfg.BackgroundImageUrl ?? "").Trim();
+                int bgDim  = ClampPercent(TxtDungeonBgDim?.Text, dungeonCfg.BackgroundDimPercent);
+                TxtUrlDungeon.Text = BuildOverlayUrl(baseUrl, "dungeon", secret, new Dictionary<string, string>
+                {
+                    ["bg"]        = bgUrl,
+                    ["bgOpacity"] = bgUrl.Length == 0 ? null : bgDim.ToString()
+                });
             }
 
             // Bolts minigames (coinflip / dice visualizer).
@@ -2524,6 +2539,19 @@ namespace Loadout.UI
 
         private static string SelectedTag(ComboBox cb) =>
             (cb?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+
+        // Clamp a percent value to [0, 100], falling back if parsing fails.
+        // Used by overlay knobs that ride into the URL as integers.
+        private static int ClampPercent(string raw, int fallback)
+        {
+            if (int.TryParse((raw ?? "").Trim(), out var v))
+            {
+                if (v < 0) return 0;
+                if (v > 100) return 100;
+                return v;
+            }
+            return Math.Max(0, Math.Min(100, fallback));
+        }
 
         // Trim whitespace, ensure leading '!', lowercase. Used by chat-command
         // textboxes so the streamer can type "dungeon" or "!Dungeon" or

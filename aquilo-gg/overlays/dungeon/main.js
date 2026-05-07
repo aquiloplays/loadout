@@ -47,6 +47,27 @@
   const secret = params.get('secret') || '';
   const debug  = params.get('debug') === '1';
 
+  // Streamer-supplied custom assets (drop-in via URL params so the
+  // streamer can swap themes per-game / per-stream without restarting
+  // OBS):
+  //   ?bg=https://...  — background image painted behind every panel.
+  //                       Image is centered + cover-fit so any aspect
+  //                       ratio works; CSS handles the dim layer.
+  //   ?bgOpacity=0..100 — how strong the dim layer is over the image
+  //                       (defaults to 50 so panels stay readable on
+  //                       a busy background).
+  //   ?titleBg=#hex      — hex tint for the recruit / adventure cards
+  //                       (overrides the default cyan/blue gradient).
+  // Stay in sync with whatever the Settings → Overlays card writes.
+  const bgUrl     = params.get('bg') || '';
+  const bgOpacity = parseInt(params.get('bgOpacity') || '50', 10);
+  if (bgUrl) {
+    document.body.style.backgroundImage = 'url(' + JSON.stringify(bgUrl).slice(1, -1).replace(/"/g, '%22') + ')';
+    document.body.classList.add('has-custom-bg');
+    document.documentElement.style.setProperty('--custom-bg-dim',
+      (Math.max(0, Math.min(100, isNaN(bgOpacity) ? 50 : bgOpacity)) / 100).toFixed(2));
+  }
+
   let ws = null;
   let backoff = 1000;
 
@@ -106,15 +127,41 @@
     party.set(key, m);
     const tile = document.createElement('div');
     tile.className = 'party-tile';
+    if (m.className) tile.dataset.cls = m.className;
+
+    // Build the avatar circle. If the viewer set an avatar URL, render
+    // it as <img>; otherwise show the class glyph; otherwise fall back
+    // to letter initials (the original behaviour). Class tint becomes
+    // the ring colour via inline style so we don't need a class-per-
+    // archetype rule.
     const av = document.createElement('div');
     av.className = 'pt-avatar';
-    av.textContent = initials(m.user);
+    if (m.classTint) av.style.setProperty('--ring', m.classTint);
+    if (m.avatar) {
+      const img = document.createElement('img');
+      img.src = m.avatar;
+      img.alt = '';
+      img.className = 'pt-avatar-img';
+      img.addEventListener('error', () => {
+        // CDN swap or 404 — drop back to a glyph/initials so the tile
+        // never shows a broken-image icon next to the name.
+        img.remove();
+        av.textContent = m.classGlyph || initials(m.user);
+      });
+      av.appendChild(img);
+    } else {
+      av.textContent = m.classGlyph || initials(m.user);
+    }
+
     const name = document.createElement('div');
     name.className = 'pt-name';
     name.textContent = safe(m.user);
+
     const meta = document.createElement('div');
     meta.className = 'pt-meta';
-    meta.textContent = 'Lv ' + (m.level || 1) + ' · ' + (m.hpCurrent || m.hpMax || 25) + ' HP';
+    const cls = m.className ? (m.className.charAt(0).toUpperCase() + m.className.slice(1) + ' · ') : '';
+    meta.textContent = cls + 'Lv ' + (m.level || 1) + ' · ' + (m.hpCurrent || m.hpMax || 25) + ' HP';
+
     tile.append(av, name, meta);
     partyEl.appendChild(tile);
   }
@@ -171,6 +218,25 @@
       card.classList.add('rarity-' + (item.rarity || 'common'));
     }
     if (!o.survived) card.classList.add('fallen');
+    if (o.classTint) card.style.setProperty('--ring', o.classTint);
+
+    // Avatar header — viewer's character, class-tinted ring, slotted
+    // above their name so the loot card reads as "this is THEIR card"
+    // and not just generic loot from a generic encounter.
+    const avatar = document.createElement('div');
+    avatar.className = 'lc-avatar';
+    if (o.avatar) {
+      const img = document.createElement('img');
+      img.src = o.avatar;
+      img.alt = '';
+      img.addEventListener('error', () => {
+        img.remove();
+        avatar.textContent = o.classGlyph || (o.user ? o.user.slice(0, 2).toUpperCase() : '?');
+      });
+      avatar.appendChild(img);
+    } else {
+      avatar.textContent = o.classGlyph || (o.user ? o.user.slice(0, 2).toUpperCase() : '?');
+    }
 
     const name = document.createElement('div');
     name.className = 'lc-user';
@@ -206,7 +272,7 @@
       bolts.textContent = 'Returned to camp';
     }
 
-    card.append(name, glyph, itemName, rarity, stats, bolts);
+    card.append(avatar, name, glyph, itemName, rarity, stats, bolts);
     return card;
   }
 
@@ -229,6 +295,31 @@
     duelRhp.style.transform = 'scaleX(1)';
     duelLog.replaceChildren();
     duelResult.textContent = '';
+    // Render the duelists' actual characters: avatar URL or class glyph,
+    // with class tint on the ring. Same pattern as party tiles — keeps
+    // the visual story consistent across the overlay.
+    paintDuelist($('duelist-l'), { avatar: p.challengerAvatar, glyph: p.challengerGlyph, tint: p.challengerTint, fallback: '⚔' });
+    paintDuelist($('duelist-r'), { avatar: p.defenderAvatar,   glyph: p.defenderGlyph,   tint: p.defenderTint,   fallback: '🛡' });
+  }
+  function paintDuelist(panelEl, src) {
+    if (!panelEl) return;
+    const ring = panelEl.querySelector('.d-avatar');
+    if (!ring) return;
+    if (src.tint) ring.style.borderColor = src.tint;
+    ring.replaceChildren();
+    if (src.avatar) {
+      const img = document.createElement('img');
+      img.src = src.avatar;
+      img.alt = '';
+      img.className = 'd-avatar-img';
+      img.addEventListener('error', () => {
+        img.remove();
+        ring.textContent = src.glyph || src.fallback;
+      });
+      ring.appendChild(img);
+    } else {
+      ring.textContent = src.glyph || src.fallback;
+    }
   }
   function appendDuelScene(p) {
     const h = setTimeout(() => {
@@ -331,11 +422,15 @@
       joinCommand: '!join',
       openSec: 8,
       party: [
-        { user: 'aquilo_plays', platform: 'twitch', level: 5, hpMax: 35, hpCurrent: 35 },
-        { user: 'fearless_fox', platform: 'twitch', level: 2, hpMax: 25, hpCurrent: 25 }
+        { user: 'aquilo_plays', platform: 'twitch', level: 5, hpMax: 35, hpCurrent: 35,
+          className: 'warrior', classGlyph: '⚔', classTint: '#F85149',
+          avatar: 'https://static-cdn.jtvnw.net/jtv_user_pictures/00bbf509-0ad7-4e72-bd5f-f2dca1d35d24-profile_image-300x300.png' },
+        { user: 'fearless_fox', platform: 'twitch', level: 2, hpMax: 25, hpCurrent: 25,
+          className: 'rogue',   classGlyph: '🗡', classTint: '#3FB950', avatar: '' }
       ]
     });
-    setTimeout(() => addPartyTile({ user: 'mason42', platform: 'twitch', level: 3, hpMax: 30, hpCurrent: 30 }), 1500);
+    setTimeout(() => addPartyTile({ user: 'mason42', platform: 'twitch', level: 3, hpMax: 30, hpCurrent: 30,
+                                    className: 'mage', classGlyph: '🪄', classTint: '#B452FF', avatar: '' }), 1500);
     setTimeout(() => {
       showAdventure({ dungeonName: 'Crypt of Whispers' });
       [
@@ -349,10 +444,14 @@
         dungeonName: 'Crypt of Whispers',
         outcomes: [
           { user: 'aquilo_plays', survived: true,  goldGained: 57, xpGained: 37,
+            className: 'warrior', classGlyph: '⚔', classTint: '#F85149',
+            avatar: 'https://static-cdn.jtvnw.net/jtv_user_pictures/00bbf509-0ad7-4e72-bd5f-f2dca1d35d24-profile_image-300x300.png',
             loot: [{ name: 'Drakebane Sword', rarity: 'epic',     glyph: '🗡️', powerBonus: 7, defenseBonus: 1 }] },
           { user: 'fearless_fox', survived: true,  goldGained: 57, xpGained: 37,
+            className: 'rogue',   classGlyph: '🗡', classTint: '#3FB950',
             loot: [{ name: 'Lucky Charm',     rarity: 'uncommon', glyph: '🍀', powerBonus: 1, defenseBonus: 1 }] },
-          { user: 'mason42',      survived: false, goldGained: 0,  xpGained: 6, loot: [] }
+          { user: 'mason42',      survived: false, goldGained: 0,  xpGained: 6,
+            className: 'mage',    classGlyph: '🪄', classTint: '#B452FF', loot: [] }
         ]
       }), 13000);
     }, 9000);

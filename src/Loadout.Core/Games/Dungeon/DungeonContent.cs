@@ -24,6 +24,38 @@ namespace Loadout.Games.Dungeon
         // equipped sit in the bag (size capped per Discord-side decisions).
         public static readonly string[] Slots = { "weapon", "head", "chest", "legs", "boots", "trinket" };
 
+        public sealed class ClassDef
+        {
+            public string Name;       // canonical key (lowercase) — stored in HeroState.ClassName
+            public string DisplayName;
+            public string Glyph;      // emoji rendered in the avatar circle when no avatar URL is set
+            public string TintColor;  // hex used for the avatar ring + class chip on the overlay
+            public int    AtkBonus;   // additive on top of level + gear
+            public int    DefBonus;
+            public int    HpBonus;    // additive on top of HpMax baseline (25 + level scaling)
+        }
+
+        // Five archetypes — narrow enough that the picker fits in one
+        // ActionRow on Discord (5 buttons), wide enough that viewers
+        // pick something they identify with. Bonuses are intentionally
+        // small (+/- 2 at most) so a class doesn't overshadow gear.
+        public static readonly ClassDef[] Classes = new[]
+        {
+            new ClassDef { Name = "warrior", DisplayName = "Warrior", Glyph = "⚔",  TintColor = "#F85149", AtkBonus = 2, DefBonus = 0, HpBonus = 0  },
+            new ClassDef { Name = "mage",    DisplayName = "Mage",    Glyph = "🪄", TintColor = "#B452FF", AtkBonus = 1, DefBonus = 1, HpBonus = 0  },
+            new ClassDef { Name = "rogue",   DisplayName = "Rogue",   Glyph = "🗡", TintColor = "#3FB950", AtkBonus = 2, DefBonus = -1, HpBonus = 0 },
+            new ClassDef { Name = "ranger",  DisplayName = "Ranger",  Glyph = "🏹", TintColor = "#F0B429", AtkBonus = 1, DefBonus = 0, HpBonus = 0  },
+            new ClassDef { Name = "healer",  DisplayName = "Healer",  Glyph = "✨", TintColor = "#00F2EA", AtkBonus = 0, DefBonus = 1, HpBonus = 5  }
+        };
+
+        public static ClassDef ClassByName(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            var k = name.Trim().ToLowerInvariant();
+            foreach (var c in Classes) if (c.Name == k) return c;
+            return null;
+        }
+
         public sealed class MonsterDef
         {
             public string Name;

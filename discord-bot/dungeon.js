@@ -81,6 +81,8 @@ async function saveHero(env, guild, userId, hero) {
 
 function newHero() {
   return {
+    avatar: '',         // viewer-supplied URL (Twitch profile pic, custom upload, etc.)
+    className: '',      // one of: warrior / mage / rogue / ranger / healer
     level: 1,
     xp: 0,
     hpMax: 25,
@@ -95,6 +97,17 @@ function newHero() {
   };
 }
 
+// Class table — mirrors DungeonContent.Classes on the DLL side. Used
+// for stat bonuses + tint colour + glyph rendering in /loadout. Keep
+// in sync with src/Loadout.Core/Games/Dungeon/DungeonContent.cs.
+export const CLASSES = {
+  warrior: { name: 'Warrior', glyph: '⚔',  tint: 0xF85149, atk: 2, def: 0,  hp: 0 },
+  mage:    { name: 'Mage',    glyph: '🪄', tint: 0xB452FF, atk: 1, def: 1,  hp: 0 },
+  rogue:   { name: 'Rogue',   glyph: '🗡', tint: 0x3FB950, atk: 2, def: -1, hp: 0 },
+  ranger:  { name: 'Ranger',  glyph: '🏹', tint: 0xF0B429, atk: 1, def: 0,  hp: 0 },
+  healer:  { name: 'Healer',  glyph: '✨', tint: 0x00F2EA, atk: 0, def: 1,  hp: 5 }
+};
+
 function bagIndex(hero) {
   const ix = {};
   for (const it of hero.bag || []) ix[it.id] = it;
@@ -105,14 +118,16 @@ function attackOf(hero) {
   let g = 0;
   const ix = bagIndex(hero);
   for (const id of Object.values(hero.equipped || {})) if (ix[id]) g += ix[id].powerBonus || 0;
-  return 4 + (hero.level - 1) + g;
+  const cls = CLASSES[hero.className];
+  return 4 + (hero.level - 1) + g + (cls?.atk || 0);
 }
 
 function defenseOf(hero) {
   let g = 0;
   const ix = bagIndex(hero);
   for (const id of Object.values(hero.equipped || {})) if (ix[id]) g += ix[id].defenseBonus || 0;
-  return Math.floor((hero.level - 1) / 2) + g;
+  const cls = CLASSES[hero.className];
+  return Math.floor((hero.level - 1) / 2) + g + (cls?.def || 0);
 }
 
 function rarityColour(r) {
@@ -136,26 +151,67 @@ export async function cmdHero(env, guild, callerId, targetUser, callerName) {
 
   const atk = attackOf(hero);
   const def = defenseOf(hero);
+  const cls = CLASSES[hero.className];
   const equippedLines = SLOTS.map(s => {
     const id = hero.equipped?.[s];
     const it = id ? (hero.bag || []).find(x => x.id === id) : null;
     return '`' + s.padEnd(7) + '` ' + (it ? (it.glyph + ' ' + it.name + ' (' + it.rarity + ')') : '_empty_');
   });
+
+  const titleClass = cls ? (cls.glyph + ' ' + cls.name) : '⚔';
+  const embed = {
+    title: titleClass + '   ' + targetName + ' — Lv ' + hero.level,
+    description:
+      '**HP** ' + hero.hpCurrent + ' / ' + hero.hpMax +
+      '   **ATK** ' + atk +
+      '   **DEF** ' + def + '\n' +
+      '**XP** ' + hero.xp + '\n' +
+      '**Dungeons** ' + (hero.dungeonsSurvived || 0) + ' survived' +
+      (hero.duelsWon ? '   **Duels** ' + hero.duelsWon + 'W / ' + (hero.duelsLost || 0) + 'L' : '') +
+      '\n\n' + equippedLines.join('\n'),
+    color: cls?.tint || 0x3A86FF
+  };
+  // Avatar shows in the embed's thumbnail slot — Discord renders it
+  // top-right at ~80px, exactly the right size for a viewer's
+  // character portrait. If the URL ever 404s Discord just hides the
+  // thumbnail; the rest of the embed still renders.
+  if (hero.avatar) embed.thumbnail = { url: hero.avatar };
+
   return {
-    embeds: [{
-      title: '⚔ ' + targetName + ' — Lv ' + hero.level,
-      description:
-        '**HP** ' + hero.hpCurrent + ' / ' + hero.hpMax +
-        '   **ATK** ' + atk +
-        '   **DEF** ' + def + '\n' +
-        '**XP** ' + hero.xp + '\n' +
-        '**Dungeons** ' + (hero.dungeonsSurvived || 0) + ' survived' +
-        (hero.duelsWon ? '   **Duels** ' + hero.duelsWon + 'W / ' + (hero.duelsLost || 0) + 'L' : '') +
-        '\n\n' + equippedLines.join('\n'),
-      color: 0x3A86FF
-    }],
+    embeds: [embed],
     ephemeral: targetId !== callerId
   };
+}
+
+// Mutators for the /loadout Character sub-view. Worker-side state
+// is the source of truth here; the DLL respects whatever the Worker
+// pushed last when both sides have a hero (see loadHero merge).
+export async function cmdSetAvatar(env, guild, userId, url) {
+  const trimmed = (url || '').trim();
+  if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+    return { content: '❌ Avatar must be an https:// URL (or blank to clear).', ephemeral: true };
+  }
+  const hero = await loadHero(env, guild, userId);
+  hero.avatar = trimmed;
+  await saveHero(env, guild, userId, hero);
+  return { content: trimmed ? '👤 Avatar saved.' : '👤 Avatar cleared.' };
+}
+
+export async function cmdSetClass(env, guild, userId, className) {
+  const key = (className || '').toLowerCase().trim();
+  if (!CLASSES[key]) return { content: '❌ Unknown class.', ephemeral: true };
+  const hero = await loadHero(env, guild, userId);
+  // Re-base HpMax so the class-specific HP bonus lands correctly when
+  // switching mid-progression. Old class bonus comes off first.
+  const oldBonus = (CLASSES[hero.className]?.hp) || 0;
+  const newBonus = CLASSES[key].hp;
+  const delta = newBonus - oldBonus;
+  hero.hpMax = Math.max(1, hero.hpMax + delta);
+  hero.hpCurrent = Math.max(0, Math.min(hero.hpMax, hero.hpCurrent + delta));
+  hero.className = key;
+  await saveHero(env, guild, userId, hero);
+  const cls = CLASSES[key];
+  return { content: '🎭 Class set to ' + cls.glyph + ' **' + cls.name + '** (+' + cls.atk + ' ATK · +' + cls.def + ' DEF · +' + cls.hp + ' HP).' };
 }
 
 export async function cmdInventory(env, guild, userId) {
