@@ -101,17 +101,18 @@ export async function handleComponent(data, env) {
     case 'wallet':      return updateMessage(await walletView    (env, guild, userId, userName));
     case 'daily':       return updateMessage(await dailyAction   (env, guild, userId, userName));
     case 'leaderboard': return updateMessage(await leaderboardView(env, guild));
-    case 'hero':        return updateMessage(await heroView      (env, guild, userId, userName));
+    case 'hero':        return updateMessage(await heroView      (env, guild, userId, userName, user));
     case 'character':   {
       // Character customisation sub-view. parts[2] paths:
       //   (none)               — show the Character panel
-      //   avatar               — open the "set avatar URL" modal
       //   class                — show class picker
       //   class:do:<key>       — set the class
       //   customize            — show appearance customization panel
       //   customize:<attr>     — open select-menu for skinTone / hairColor / hairStyle / eyeColor / cape
       //   customize:do:<attr>  — apply selected value (from select submit)
-      if (parts[2] === 'avatar')           return openModal(avatarModal());
+      // (No "avatar" path — avatars now come from the viewer's Discord
+      // avatar in the menu and their stream-platform profile pic on
+      // the overlay. Removed the manual URL paste step entirely.)
       if (parts[2] === 'class' && parts[3] === 'do')
         return updateMessage(await classDo(env, guild, userId, parts[4]));
       if (parts[2] === 'class')            return updateMessage(classPicker());
@@ -119,12 +120,12 @@ export async function handleComponent(data, env) {
         if (parts[3] === 'do') {
           const attr  = parts[4];
           const value = data.data?.values?.[0] || '';
-          return updateMessage(await customizeApply(env, guild, userId, attr, value));
+          return updateMessage(await customizeApply(env, guild, userId, attr, value, user));
         }
         if (parts[3]) return updateMessage(customizeAttrPicker(parts[3]));
-        return updateMessage(await customizeView(env, guild, userId, userName));
+        return updateMessage(await customizeView(env, guild, userId, userName, user));
       }
-      return updateMessage(await characterView(env, guild, userId, userName));
+      return updateMessage(await characterView(env, guild, userId, userName, user));
     }
     case 'bag':         return updateMessage(await bagView       (env, guild, userId));
     case 'equip':       return parts[2] === 'do' ? updateMessage(await equipDo  (env, guild, userId, parts[3])) : updateMessage(await equipPicker  (env, guild, userId));
@@ -207,10 +208,10 @@ export async function handleModal(data, env) {
       const r = await profileFieldAction(env, guild, userId, field, fields);
       return updateMessage({ ...r, components: [backRow('lo:profile')] });
     }
-    case 'avatar': {
-      const r = await cmdSetAvatar(env, guild, userId, fields.url || '');
-      return updateMessage({ content: r.content, components: [backRow('lo:character')] });
-    }
+    // (Modal `avatar` removed in 2025-05 — avatars auto-resolve from
+    // the viewer's Discord avatar in the menu and their stream profile
+    // pic on the overlay. cmdSetAvatar stays exported in case we want
+    // to re-add a custom-URL slot later.)
     default:
       return updateMessage(await mainView(env, guild, userId, userName));
   }
@@ -346,8 +347,8 @@ async function giftAction(env, guild, fromId, toId, amount) {
 
 // ── Hero / Bag / Equip / Sell ──────────────────────────────────────
 
-async function heroView(env, guild, userId, userName) {
-  const r = await cmdHero(env, guild, userId, null, userName);
+async function heroView(env, guild, userId, userName, callerUser) {
+  const r = await cmdHero(env, guild, userId, null, userName, callerUser);
   return {
     content: r.content || '',
     embeds: r.embeds,
@@ -365,18 +366,21 @@ async function heroView(env, guild, userId, userName) {
 
 // ── Character (avatar + class) ─────────────────────────────────────
 
-async function characterView(env, guild, userId, userName) {
+async function characterView(env, guild, userId, userName, callerUser) {
   // Pull the merged hero (Worker-local + DLL push) so the panel
   // matches what the dungeon overlay would render. The avatar
   // preview rides as embed.thumbnail just like the Hero embed.
-  const heroEmbed = await cmdHero(env, guild, userId, null, userName);
+  // Avatar source: hero.avatar (legacy URL field) → stream profile
+  // pic (synced from DLL) → Discord avatar (auto, via callerUser).
+  // Viewer doesn't paste URLs anywhere — removed in 2025-05.
+  const heroEmbed = await cmdHero(env, guild, userId, null, userName, callerUser);
   const e = heroEmbed.embeds?.[0];
   return {
-    content: '👤 **Your character** — visible to chat in `!dungeon` runs and on the dungeon overlay.',
+    content: '👤 **Your character** — visible to chat in `!dungeon` runs and on the dungeon overlay.\n' +
+             '_Your avatar comes from your Discord profile here, and from your Twitch / Kick / YouTube profile pic on the stream overlay — no URL setup required._',
     embeds: e ? [e] : undefined,
     components: [
       row(
-        button('🖼 Set avatar URL',   'lo:character:avatar',    BTN_PRIMARY),
         button('🎭 Pick class',       'lo:character:class',     BTN_PRIMARY),
         button('🎨 Customize look',  'lo:character:customize', BTN_SUCCESS)
       ),
@@ -387,7 +391,7 @@ async function characterView(env, guild, userId, userName) {
 
 // ── Appearance customization ────────────────────────────────────────
 
-async function customizeView(env, guild, userId, userName) {
+async function customizeView(env, guild, userId, userName, callerUser) {
   // Show what's currently picked, with one button per attribute. Each
   // button opens a select-menu of options for that attribute. The
   // sprite that renders on the dungeon overlay updates as soon as the
@@ -395,7 +399,7 @@ async function customizeView(env, guild, userId, userName) {
   // (There's also no preview render here yet; for now we surface the
   // hero's full embed so the viewer can see the class glyph + class
   // colour, plus a list of their current customization values.)
-  const r = await cmdHero(env, guild, userId, null, userName);
+  const r = await cmdHero(env, guild, userId, null, userName, callerUser);
   const heroEmbed = r.embeds?.[0];
   // Read the merged hero so we surface the customizations the viewer
   // just picked. Goes through loadHeroFor (which now merges local +
@@ -447,11 +451,11 @@ function customizeAttrPicker(attr) {
   };
 }
 
-async function customizeApply(env, guild, userId, attr, value) {
+async function customizeApply(env, guild, userId, attr, value, callerUser) {
   const r = await cmdSetCustom(env, guild, userId, attr, value);
   // Bounce back into customizeView so the streamer sees the update +
   // their other picks side-by-side without an extra click.
-  const back = await customizeView(env, guild, userId, '');
+  const back = await customizeView(env, guild, userId, '', callerUser);
   return { content: (r.content || '') + '\n\n' + back.content, embeds: back.embeds, components: back.components };
 }
 
@@ -482,15 +486,9 @@ async function classDo(env, guild, userId, key) {
   return { content: r.content, components: [backRow('lo:character')] };
 }
 
-function avatarModal() {
-  return {
-    custom_id: 'lo:m:avatar',
-    title: 'Set your character avatar',
-    components: [{ type: COMPONENT_ROW, components: [{ type: COMPONENT_TEXT_INPUT, custom_id: 'url',
-      label: 'Avatar URL (https://...) — blank to clear', style: INPUT_SHORT, required: false, max_length: 400,
-      placeholder: 'https://your-stream.com/avatar.png' }] }]
-  };
-}
+// (avatarModal removed — avatars now auto-resolve. See dungeon.js
+// discordAvatarUrl + the DLL profile-pic-on-join lookup in
+// DungeonModule. cmdSetAvatar stays callable from third-party code.)
 
 async function bagView(env, guild, userId) {
   const r = await cmdInventory(env, guild, userId);

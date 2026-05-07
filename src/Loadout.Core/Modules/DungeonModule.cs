@@ -131,8 +131,9 @@ namespace Loadout.Modules
             }
 
             // Auto-include the host so the "summon-and-do-nothing" UX is
-            // not a thing. The host gets first-on-the-roster.
-            AddPartyMember(recruit, ctx.Platform.ToShortName(), ctx.User);
+            // not a thing. The host gets first-on-the-roster + the avatar
+            // auto-resolve from the !dungeon chat event.
+            AddPartyMember(recruit, ctx.Platform.ToShortName(), ctx.User, ctx);
 
             Publish("dungeon.recruiting", new
             {
@@ -171,7 +172,7 @@ namespace Loadout.Modules
                     Reply(ctx, "The party is full (" + cfg.MaxPartySize + ").");
                     return;
                 }
-                if (AddPartyMember(recruit, ctx.Platform.ToShortName(), ctx.User))
+                if (AddPartyMember(recruit, ctx.Platform.ToShortName(), ctx.User, ctx))
                 {
                     Publish("dungeon.joined", new
                     {
@@ -209,16 +210,49 @@ namespace Loadout.Modules
             }
         }
 
-        private bool AddPartyMember(DungeonRecruit recruit, string platform, string user)
+        private bool AddPartyMember(DungeonRecruit recruit, string platform, string user, EventContext ctx = null)
         {
             lock (recruit.Sync)
             {
                 var key = (platform + ":" + (user ?? "")).ToLowerInvariant();
                 if (recruit.Members.ContainsKey(key)) return false;
                 var hero = DungeonGameStore.Instance.GetOrCreate(platform, user);
+
+                // Best-effort auto-avatar — if the hero has no avatar set
+                // AND the chat event SB just dispatched carries a Twitch /
+                // YouTube / Kick profile-pic URL, store it. Means viewers
+                // never need to paste a URL: their stream avatar shows up
+                // on the dungeon overlay automatically.
+                // (CheckInModule does the same thing for !checkin.)
+                if (string.IsNullOrEmpty(hero.Avatar) && ctx != null)
+                {
+                    var pfp = TryReadProfilePic(ctx);
+                    if (!string.IsNullOrEmpty(pfp))
+                    {
+                        hero = DungeonGameStore.Instance.SetAvatar(platform, user, pfp);
+                    }
+                }
                 recruit.Members[key] = hero;
                 return true;
             }
+        }
+
+        /// <summary>SB chat events expose the chatter's profile picture
+        /// under different argument keys depending on the platform / SB
+        /// version. Try the common ones in priority order.</summary>
+        private static string TryReadProfilePic(EventContext ctx)
+        {
+            if (ctx == null) return null;
+            foreach (var key in new[] { "userImage", "profileImageUrl",
+                                        "userProfileImageUrl", "user_profile_image_url",
+                                        "profilePictureUrl", "profilePicture",
+                                        "userImageUrl" })
+            {
+                var v = ctx.Get<string>(key, null);
+                if (!string.IsNullOrEmpty(v) && v.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+                    return v;
+            }
+            return null;
         }
 
         private void RunDungeonNow(DungeonRecruit recruit, DungeonConfig cfg)

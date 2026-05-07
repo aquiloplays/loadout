@@ -200,7 +200,26 @@ function rarityColour(r) {
 
 // -------------------- public command implementations --------------------
 
-export async function cmdHero(env, guild, callerId, targetUser, callerName) {
+/// Build a Discord CDN URL for a user's avatar. Used as the fallback
+/// when hero.avatar isn't set so viewers don't have to manually paste
+/// a URL — the avatar they already have in Discord just shows up.
+/// Falls back to Discord's default coloured-circle avatar (six images
+/// indexed by user-id) when the user has no custom upload.
+export function discordAvatarUrl(user) {
+  if (!user?.id) return '';
+  if (user.avatar) {
+    return 'https://cdn.discordapp.com/avatars/' + user.id + '/' + user.avatar + '.png?size=128';
+  }
+  // Default avatar bucket — Discord's six fallback images. The "new
+  // username system" formula uses (id >> 22) % 6; legacy discrim was
+  // discrim % 5. We use the new formula since legacy discriminators
+  // are gone everywhere now.
+  let idx = 0;
+  try { idx = Number((BigInt(user.id) >> 22n) % 6n); } catch { idx = 0; }
+  return 'https://cdn.discordapp.com/embed/avatars/' + idx + '.png';
+}
+
+export async function cmdHero(env, guild, callerId, targetUser, callerName, callerUser) {
   const targetId = targetUser?.id || callerId;
   const targetName = targetUser?.username || (targetId === callerId ? callerName : 'that hero');
   const hero = await loadHero(env, guild, targetId);
@@ -227,11 +246,15 @@ export async function cmdHero(env, guild, callerId, targetUser, callerName) {
       '\n\n' + equippedLines.join('\n'),
     color: cls?.tint || 0x3A86FF
   };
-  // Avatar shows in the embed's thumbnail slot — Discord renders it
-  // top-right at ~80px, exactly the right size for a viewer's
-  // character portrait. If the URL ever 404s Discord just hides the
-  // thumbnail; the rest of the embed still renders.
-  if (hero.avatar) embed.thumbnail = { url: hero.avatar };
+  // Embed thumbnail slot (top-right ~80px). Use whatever avatar source
+  // is available, in priority order:
+  //   1. hero.avatar — explicit URL the viewer pasted (legacy / advanced)
+  //   2. their Twitch/etc. profile pic from on-stream play (synced from DLL)
+  //   3. their Discord avatar (auto, no setup required)
+  // If the URL ever 404s Discord just hides the thumbnail; the rest
+  // of the embed still renders.
+  const thumbUrl = hero.avatar || (callerUser ? discordAvatarUrl(callerUser) : '');
+  if (thumbUrl) embed.thumbnail = { url: thumbUrl };
 
   return {
     embeds: [embed],
