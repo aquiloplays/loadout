@@ -176,28 +176,28 @@ export async function handleModal(data, env) {
     case 'coinflip': {
       const bet = parseInt(fields.bet || '', 10);
       const r = await cmdCoinflipInline(env, guild, userId, bet, userName);
-      return updateMessage({ ...r, components: backRow() });
+      return updateMessage({ ...r, components: [backRow()] });
     }
     case 'dice': {
       const bet = parseInt(fields.bet || '', 10);
       const target = parseInt(fields.target || '', 10);
       const r = await cmdDiceInline(env, guild, userId, bet, target, userName);
-      return updateMessage({ ...r, components: backRow() });
+      return updateMessage({ ...r, components: [backRow()] });
     }
     case 'link': {
       const platform = (fields.platform || '').toLowerCase().trim();
       const username = (fields.username || '').trim();
       const r = await linkAction(env, guild, userId, platform, username, userName);
-      return updateMessage({ ...r, components: backRow() });
+      return updateMessage({ ...r, components: [backRow()] });
     }
     case 'profile': {
       const field = parts[3];
       const r = await profileFieldAction(env, guild, userId, field, fields);
-      return updateMessage({ ...r, components: backRow('lo:profile') });
+      return updateMessage({ ...r, components: [backRow('lo:profile')] });
     }
     case 'avatar': {
       const r = await cmdSetAvatar(env, guild, userId, fields.url || '');
-      return updateMessage({ content: r.content, components: backRow('lo:character') });
+      return updateMessage({ content: r.content, components: [backRow('lo:character')] });
     }
     default:
       return updateMessage(await mainView(env, guild, userId, userName));
@@ -279,7 +279,7 @@ async function dailyAction(env, guild, userId, userName) {
   const r = await daily(env, guild, userId);
   return {
     content: r.explanation || (r.won ? `🎁 +${r.delta} bolts` : 'Daily already claimed.'),
-    components: backRow('lo:wallet')
+    components: [backRow('lo:wallet')]
   };
 }
 
@@ -288,7 +288,7 @@ async function leaderboardView(env, guild) {
   if (top.length === 0) {
     return {
       content: '📊 Nobody has any bolts here yet. Run **Claim daily** to start!',
-      components: backRow()
+      components: [backRow()]
     };
   }
   const lines = top.map((row, i) => {
@@ -297,7 +297,7 @@ async function leaderboardView(env, guild) {
   });
   return {
     content: '📊 **Top 10 — this server**\n' + lines.join('\n'),
-    components: backRow()
+    components: [backRow()]
   };
 }
 
@@ -320,15 +320,15 @@ async function giftPickerView() {
 }
 
 async function giftAction(env, guild, fromId, toId, amount) {
-  if (!toId)                                  return { content: 'Couldn\'t resolve that user.', components: backRow() };
-  if (toId === fromId)                        return { content: '❌ You can\'t gift yourself.', components: backRow() };
-  if (!Number.isInteger(amount) || amount <= 0) return { content: '❌ Amount must be a positive integer.', components: backRow() };
+  if (!toId)                                  return { content: 'Couldn\'t resolve that user.', components: [backRow()] };
+  if (toId === fromId)                        return { content: '❌ You can\'t gift yourself.', components: [backRow()] };
+  if (!Number.isInteger(amount) || amount <= 0) return { content: '❌ Amount must be a positive integer.', components: [backRow()] };
 
   const r = await transfer(env, guild, fromId, toId, amount);
-  if (!r.ok) return { content: '❌ ' + (r.reason || 'gift failed'), components: backRow() };
+  if (!r.ok) return { content: '❌ ' + (r.reason || 'gift failed'), components: [backRow()] };
   return {
     content: `🎁 You gifted **${amount}** bolts to <@${toId}>.\nTheir balance: ${r.recipient.balance} · yours: ${r.sender.balance}.`,
-    components: backRow('lo:wallet')
+    components: [backRow('lo:wallet')]
   };
 }
 
@@ -396,7 +396,7 @@ function classPicker() {
 
 async function classDo(env, guild, userId, key) {
   const r = await cmdSetClass(env, guild, userId, key);
-  return { content: r.content, components: backRow('lo:character') };
+  return { content: r.content, components: [backRow('lo:character')] };
 }
 
 function avatarModal() {
@@ -436,7 +436,7 @@ async function equipPicker(env, guild, userId) {
     value: `lo:equip:do:${it.id.slice(0, 16)}`
   }));
   if (options.length === 0) {
-    return { content: '🎒 Your bag is empty — nothing to equip.', components: backRow('lo:bag') };
+    return { content: '🎒 Your bag is empty — nothing to equip.', components: [backRow('lo:bag')] };
   }
   return {
     content: '🛡 **Equip an item** — pick from your bag:',
@@ -452,14 +452,14 @@ async function equipDo(env, guild, userId, itemIdPrefix) {
   // both `lo:equip:do:<id>` (custom_id of select option set) and bare id.
   const id = (itemIdPrefix || '').replace(/^lo:equip:do:/, '');
   const r = await cmdEquip(env, guild, userId, id);
-  return { content: r.content, components: backRow('lo:bag') };
+  return { content: r.content, components: [backRow('lo:bag')] };
 }
 
 async function unequipPicker(env, guild, userId) {
   const hero = await loadHeroFor(env, guild, userId);
   const slots = Object.keys(hero.equipped || {}).filter(k => hero.equipped[k]);
   if (slots.length === 0) {
-    return { content: '🧤 Nothing equipped right now.', components: backRow('lo:bag') };
+    return { content: '🧤 Nothing equipped right now.', components: [backRow('lo:bag')] };
   }
   const options = slots.map(slot => {
     const it = (hero.bag || []).find(x => x.id === hero.equipped[slot]);
@@ -480,7 +480,7 @@ async function unequipPicker(env, guild, userId) {
 async function unequipDo(env, guild, userId, slotKey) {
   const slot = (slotKey || '').replace(/^lo:unequip:do:/, '');
   const r = await cmdUnequip(env, guild, userId, slot);
-  return { content: r.content, components: backRow('lo:bag') };
+  return { content: r.content, components: [backRow('lo:bag')] };
 }
 
 async function sellPicker(env, guild, userId) {
@@ -491,7 +491,7 @@ async function sellPicker(env, guild, userId) {
     value: `lo:sell:do:${it.id.slice(0, 16)}`
   }));
   if (options.length === 0) {
-    return { content: '🎒 Your bag is empty — nothing to sell.', components: backRow('lo:bag') };
+    return { content: '🎒 Your bag is empty — nothing to sell.', components: [backRow('lo:bag')] };
   }
   return {
     content: '💰 **Sell an item** (back to the shop for half value):',
@@ -505,7 +505,7 @@ async function sellPicker(env, guild, userId) {
 async function sellDo(env, guild, userId, itemIdPrefix) {
   const id = (itemIdPrefix || '').replace(/^lo:sell:do:/, '');
   const r = await cmdSell(env, guild, userId, id);
-  return { content: r.content, components: backRow('lo:bag') };
+  return { content: r.content, components: [backRow('lo:bag')] };
 }
 
 // ── Shop / Buy ─────────────────────────────────────────────────────
@@ -555,7 +555,7 @@ async function buyPicker(env, guild, userId) {
 async function buyDo(env, guild, userId, encodedName) {
   const name = decodeURIComponent((encodedName || '').replace(/^lo:buy:do:/, ''));
   const r = await cmdShopBuy(env, guild, userId, name);
-  return { content: r.content, components: backRow('lo:shop') };
+  return { content: r.content, components: [backRow('lo:shop')] };
 }
 
 // ── Training ───────────────────────────────────────────────────────
@@ -578,7 +578,7 @@ async function trainPicker() {
 
 async function trainDo(env, guild, userId, focus) {
   const r = await cmdTraining(env, guild, userId, focus, 5);
-  return { content: r.content, components: backRow('lo:hero') };
+  return { content: r.content, components: [backRow('lo:hero')] };
 }
 
 // ── Quick games ────────────────────────────────────────────────────
@@ -672,7 +672,7 @@ async function profileFieldAction(env, guild, userId, field, fields) {
 
 async function profileClearAction(env, guild, userId) {
   await clearProfile(env, guild, userId);
-  return { content: '🪪 Profile wiped.', components: backRow() };
+  return { content: '🪪 Profile wiped.', components: [backRow()] };
 }
 
 // ── Help ───────────────────────────────────────────────────────────
@@ -689,7 +689,7 @@ function helpView() {
       '• **Profile** — !profile bio, pronouns, social handles, gamer tags. Same data the chat command + viewer overlay show.\n' +
       '• **Quick games** — coinflip / dice for grinding bolts.\n' +
       '• **Link account** — connect this Discord to your stream identity (Twitch / Kick / YouTube / TikTok). Required for most commands.',
-    components: backRow()
+    components: [backRow()]
   };
 }
 
@@ -828,13 +828,16 @@ function selectRow(customId, placeholder, options) {
     components: [{ type: COMPONENT_STRING_SELECT, custom_id: customId, placeholder, options, min_values: 1, max_values: 1 }]
   };
 }
+// Returns a single ActionRow (not wrapped in an array). The earlier
+// shape returned [ROW] which made `components: [row(...), backRow()]`
+// produce `[ROW, [ROW]]` — Discord rejected that as "interaction
+// failed". Callers now use `components: [backRow()]` for a single row
+// or `[row(...), backRow()]` for a top + bottom-row layout.
 function backRow(target = 'lo:home') {
-  return [
-    { type: COMPONENT_ROW, components: [
-      button('← Back to menu', target, BTN_SECONDARY),
-      button('❌ Close',        'lo:close', BTN_DANGER)
-    ]}
-  ];
+  return { type: COMPONENT_ROW, components: [
+    button('← Back to menu', target, BTN_SECONDARY),
+    button('❌ Close',        'lo:close', BTN_DANGER)
+  ]};
 }
 
 function updateMessage(view) {
