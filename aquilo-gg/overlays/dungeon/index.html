@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Dungeon Crawler Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Drop into OBS as a Browser Source:
+
+    https://widget.aquilo.gg/overlays/dungeon/?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
+
+  Recommended size: 1920x1080. The overlay uses the full canvas — recruit
+  card centred, party row across the bottom, scene log on the right, loot
+  reveal in the centre. Only renders while a dungeon or duel is active;
+  otherwise transparent so it can sit on top of gameplay.
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="root" data-state="idle">
+    <!-- Recruit panel: shown during the !join window. Counts down,
+         shows the join command, and the live party roster. -->
+    <div class="recruit-panel" id="recruit">
+      <div class="recruit-title">
+        <span class="r-icon">⚔</span>
+        <span id="recruit-name">A dungeon opens...</span>
+      </div>
+      <div class="recruit-sub">
+        Type <code id="recruit-cmd">!join</code> to enter the party
+      </div>
+      <div class="recruit-timer-bar"><div class="bar" id="recruit-bar"></div></div>
+      <div class="recruit-timer-text" id="recruit-timer">30</div>
+
+      <div class="party-grid" id="party"></div>
+    </div>
+
+    <!-- Adventure log: scrolling event feed during the run. -->
+    <div class="adventure" id="adventure">
+      <div class="adventure-header">
+        <span class="a-icon">🏰</span>
+        <span id="adv-name">Crypt of Whispers</span>
+      </div>
+      <div class="scenes" id="scenes"></div>
+    </div>
+
+    <!-- Loot reveal: per-survivor card flips at the end of the run. -->
+    <div class="loot-reveal" id="loot">
+      <div class="loot-title">
+        <span>🎁</span><span>Spoils</span>
+      </div>
+      <div class="loot-grid" id="loot-grid"></div>
+    </div>
+
+    <!-- Duel panel: shown for !duel encounters. Two avatars facing
+         off, HP bars, scene log between. -->
+    <div class="duel" id="duel">
+      <div class="duel-row">
+        <div class="duelist left" id="duelist-l">
+          <div class="d-avatar">⚔</div>
+          <div class="d-name" id="duel-l-name">—</div>
+          <div class="d-hp"><div class="d-hp-bar" id="duel-l-hp"></div></div>
+        </div>
+        <div class="duel-vs">VS</div>
+        <div class="duelist right" id="duelist-r">
+          <div class="d-avatar">🛡</div>
+          <div class="d-name" id="duel-r-name">—</div>
+          <div class="d-hp"><div class="d-hp-bar" id="duel-r-hp"></div></div>
+        </div>
+      </div>
+      <div class="duel-log" id="duel-log"></div>
+      <div class="duel-result" id="duel-result"></div>
+    </div>
+  </div>
+
+  <script src="../_shared/theme.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

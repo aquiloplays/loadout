@@ -9,6 +9,10 @@ import { coinflip, dice, daily } from './games.js';
 import {
   getProfile, clearProfile, setField, setSocial, setGamerTag
 } from './profiles.js';
+import {
+  cmdHero, cmdInventory, cmdEquip, cmdUnequip, cmdSell,
+  cmdShop, cmdShopBuy, cmdTraining
+} from './dungeon.js';
 
 // Discord interaction types
 const TYPE_PING            = 1;
@@ -89,6 +93,20 @@ export async function handleInteraction(req, env, body) {
     case 'profile-set-gamertag':  return reply(await cmdProfileGamerTag(env, guild, userId, opts.platform, opts.tag));
     case 'profile-clear':         return reply(await cmdProfileClear(env, guild, userId));
     case 'profile':               return reply(await cmdProfileShow(env, guild, opts.user?.id || userId, userName));
+
+    // ── Dungeon Crawler RPG hub. Hero state is stored Worker-side
+    //    (KV: d:hero:<guild>:<userId>). The DLL has its own canonical
+    //    store (dungeon-heroes.json) the hero earned from on-stream
+    //    !dungeon runs goes into; a future bridge will reconcile the
+    //    two so off-stream + on-stream play share gear. ──────────────
+    case 'hero':       return reply(await cmdHero      (env, guild, userId, opts.user, userName));
+    case 'inventory':  return reply(await cmdInventory (env, guild, userId));
+    case 'equip':      return reply(await cmdEquip     (env, guild, userId, opts.item_id));
+    case 'unequip':    return reply(await cmdUnequip   (env, guild, userId, opts.slot));
+    case 'sell':       return reply(await cmdSell      (env, guild, userId, opts.item_id));
+    case 'shop':       return reply(await cmdShop      (env, guild, userId));
+    case 'shop-buy':   return reply(await cmdShopBuy   (env, guild, userId, opts.item));
+    case 'training':   return reply(await cmdTraining  (env, guild, userId, opts.focus, opts.rounds));
 
     default:            return reply({ content: 'Unknown command: ' + cmd, ephemeral: true });
   }

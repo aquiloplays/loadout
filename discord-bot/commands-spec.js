@@ -123,5 +123,64 @@ export const COMMANDS = [
     options: [
       { type: TYPE_USER, name: 'user', description: 'Optional viewer to look up', required: false }
     ]
+  },
+
+  // ── Dungeon Crawler RPG hub ───────────────────────────────────────────
+  // Hero state lives in the DLL (dungeon-heroes.json). The Worker owns
+  // the off-stream RPG surface — viewers manage their character through
+  // these slash commands when the streamer is offline.
+  {
+    name: 'hero', description: 'Show your dungeon hero (level, HP, gear)',
+    options: [
+      { type: TYPE_USER, name: 'user', description: 'Optional viewer to look up', required: false }
+    ]
+  },
+  { name: 'inventory', description: 'List the items in your hero\'s bag' },
+  {
+    name: 'equip', description: 'Equip an item from your bag into its slot',
+    options: [
+      { type: TYPE_STRING, name: 'item_id', description: 'Item id from /inventory', required: true, max_length: 64 }
+    ]
+  },
+  {
+    name: 'unequip', description: 'Unequip the item in a given slot',
+    options: [
+      { type: TYPE_STRING, name: 'slot', description: 'weapon / head / chest / legs / boots / trinket', required: true,
+        choices: [
+          { name: 'Weapon',  value: 'weapon'  },
+          { name: 'Head',    value: 'head'    },
+          { name: 'Chest',   value: 'chest'   },
+          { name: 'Legs',    value: 'legs'    },
+          { name: 'Boots',   value: 'boots'   },
+          { name: 'Trinket', value: 'trinket' }
+        ]
+      }
+    ]
+  },
+  {
+    name: 'sell', description: 'Sell an item back to the shop for half its value',
+    options: [
+      { type: TYPE_STRING, name: 'item_id', description: 'Item id from /inventory', required: true, max_length: 64 }
+    ]
+  },
+  { name: 'shop',  description: 'Browse the dungeon shop (off-stream item store)' },
+  {
+    name: 'shop-buy', description: 'Buy a stocked item from the dungeon shop',
+    options: [
+      { type: TYPE_STRING, name: 'item', description: 'Item name from /shop', required: true, max_length: 64 }
+    ]
+  },
+  {
+    name: 'training', description: 'Spend bolts to train a stat (off-stream XP grind)',
+    options: [
+      { type: TYPE_STRING, name: 'focus', description: 'What to train', required: true,
+        choices: [
+          { name: 'Strength (more attack)', value: 'attack' },
+          { name: 'Endurance (more HP)',    value: 'hp' },
+          { name: 'Reflexes (more dodge)',  value: 'dodge' }
+        ]
+      },
+      { type: TYPE_INTEGER, name: 'rounds', description: 'How many rounds (10 bolts each)', required: false, min_value: 1, max_value: 50 }
+    ]
   }
 ];

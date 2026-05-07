@@ -40,7 +40,8 @@ namespace Loadout.Patreon
         DailyCheckIn,           // Daily Check-In overlay event + Patreon flair
         DailyCheckInFlairsPro,  // animated flairs / Patreon flair (Tier 3)
         VipRotationAuto,        // automatic weekly VIP rotation (Tier 3)
-        BoltsCrossPlatform      // Patreon multipliers + cross-platform wallet sync (Tier 3)
+        BoltsCrossPlatform,     // Patreon multipliers + cross-platform wallet sync (Tier 3)
+        DungeonGame             // Dungeon Crawler + Duel mini-game (free for all tiers)
     }
 
     /// <summary>
@@ -70,6 +71,7 @@ namespace Loadout.Patreon
                 case Feature.IdentityLink:
                 case Feature.UpdateNotifications:
                 case Feature.Bolts:
+                case Feature.DungeonGame:
                     return true;
 
                 // Tier 2 ($6) and up

@@ -65,6 +65,10 @@ namespace Loadout.Sb
                 _modules.Add(new GameTrackerModule());
                 _modules.Add(new ClipsModule());
                 _modules.Add(new BoltsShopModule());
+                // DungeonModule wires !dungeon / !join / !duel. Owns its
+                // own per-game state (DungeonGameStore) and publishes
+                // dungeon.* / duel.* bus events the OBS overlay reads.
+                _modules.Add(new DungeonModule());
                 // NowPlayingModule caches rotation.song.playing payloads
                 // and serves !song. Register before CommandsBroadcaster so
                 // !song shows up in the published commands.list snapshot.

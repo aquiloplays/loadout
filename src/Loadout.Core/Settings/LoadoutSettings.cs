@@ -58,6 +58,60 @@ namespace Loadout.Settings
         public OverlayThemeConfig  OverlayTheme { get; set; } = new OverlayThemeConfig();
         public CommandsTickerIconsConfig CommandsTickerIcons { get; set; } = new CommandsTickerIconsConfig();
         public ViewerProfilesConfig ViewerProfiles { get; set; } = new ViewerProfilesConfig();
+        public DungeonConfig       Dungeon       { get; set; } = new DungeonConfig();
+    }
+
+    /// <summary>
+    /// Dungeon Crawler + Duel mini-game knobs. The game is a chat-driven
+    /// party adventure that runs entirely on the bus — DungeonModule
+    /// publishes scene events the OBS overlay reads. Heroes (per-viewer
+    /// state) live in the dungeon-heroes.json store, NOT in this config.
+    /// </summary>
+    public class DungeonConfig
+    {
+        // Chat command names. Streamers can rename to whatever fits
+        // their community ("!raid", "!quest", etc.).
+        public string DungeonCommand { get; set; } = "!dungeon";
+        public string JoinCommand    { get; set; } = "!join";
+        public string DuelCommand    { get; set; } = "!duel";
+
+        // How long !dungeon's recruit window stays open before the run
+        // starts. Shorter = punchier; longer = more chances to !join.
+        public int JoinWindowSec { get; set; } = 30;
+
+        // How long the actual dungeon run takes. The engine spaces
+        // scenes evenly across this window then leaves a tail for the
+        // loot reveal animation.
+        public int RunDurationSec { get; set; } = 30;
+
+        // Number of scenes (encounters / traps / treasures / story) to
+        // schedule per run. 5 reads as a meaningful adventure without
+        // dragging on stream.
+        public int SceneCount { get; set; } = 5;
+
+        // Cap on party size. Above ~12 the overlay's avatar row gets
+        // crowded and the chat reply for outcomes turns into spam.
+        public int MaxPartySize { get; set; } = 8;
+
+        // 1..5. Higher difficulty pulls stronger monsters AND skews
+        // the rarity drop curve toward epic / legendary so risk pays.
+        public int Difficulty { get; set; } = 2;
+
+        // Cross-stream cooldown on !dungeon so a viewer can't summon
+        // ten in five minutes. Mods + broadcaster bypass cooldown.
+        public int DungeonCooldownSec { get; set; } = 600;   // 10 min default
+
+        // Per-user cooldown on !duel so chatters can't pick fights
+        // every 10 seconds. Cooldown sits on the challenger.
+        public int DuelCooldownSec { get; set; } = 300;
+
+        // How long !duel waits for an opponent to !join before
+        // forfeiting.
+        public int DuelJoinWindowSec { get; set; } = 30;
+
+        // Comma-separated whitelist of additional handles allowed to
+        // summon dungeons (beyond mods + broadcaster). e.g. "@regular1, @regular2".
+        public string ExtraHosts { get; set; } = "";
     }
 
     /// <summary>
@@ -202,6 +256,7 @@ namespace Loadout.Settings
         public bool Apex               { get; set; } = false;
         public bool GameTracker        { get; set; } = true;   // free, on by default
         public bool Clips              { get; set; } = false;
+        public bool Dungeon            { get; set; } = false;
     }
 
     public class AlertsConfig

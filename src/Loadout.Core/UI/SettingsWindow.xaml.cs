@@ -938,6 +938,7 @@ namespace Loadout.UI
             ModSubAnniv.IsChecked    = s.Modules.SubAnniversary;
             ModSubRaidTrain.IsChecked = s.Modules.SubRaidTrain;
             ModBolts.IsChecked       = s.Modules.Bolts;
+            if (ModDungeon != null) ModDungeon.IsChecked = s.Modules.Dungeon;
             ModLoyalty.IsChecked     = s.Modules.LoyaltyWallet;
             ModApex.IsChecked        = s.Modules.Apex;
             ModCheckIn.IsChecked     = s.Modules.DailyCheckIn;
@@ -1033,6 +1034,22 @@ namespace Loadout.UI
             if (TxtBoltsDiceMin      != null) TxtBoltsDiceMin.Text      = s.Bolts.DiceMinWager.ToString();
             if (TxtBoltsDiceMax      != null) TxtBoltsDiceMax.Text      = s.Bolts.DiceMaxWager.ToString();
             if (TxtBoltsDiceMult     != null) TxtBoltsDiceMult.Text     = s.Bolts.DicePayoutMultiplier.ToString();
+
+            // Dungeon Crawler + Duel game card.
+            if (s.Dungeon == null) s.Dungeon = new DungeonConfig();
+            if (ChkDungeonEnabled         != null) ChkDungeonEnabled.IsChecked         = s.Modules.Dungeon;
+            if (TxtDungeonCmd             != null) TxtDungeonCmd.Text                  = s.Dungeon.DungeonCommand ?? "!dungeon";
+            if (TxtDungeonJoinCmd         != null) TxtDungeonJoinCmd.Text              = s.Dungeon.JoinCommand    ?? "!join";
+            if (TxtDuelCmd                != null) TxtDuelCmd.Text                     = s.Dungeon.DuelCommand    ?? "!duel";
+            if (TxtDungeonJoinWindowSec   != null) TxtDungeonJoinWindowSec.Text        = s.Dungeon.JoinWindowSec.ToString();
+            if (TxtDungeonRunSec          != null) TxtDungeonRunSec.Text               = s.Dungeon.RunDurationSec.ToString();
+            if (TxtDungeonSceneCount      != null) TxtDungeonSceneCount.Text           = s.Dungeon.SceneCount.ToString();
+            if (TxtDungeonMaxParty        != null) TxtDungeonMaxParty.Text             = s.Dungeon.MaxPartySize.ToString();
+            if (TxtDungeonDifficulty      != null) TxtDungeonDifficulty.Text           = s.Dungeon.Difficulty.ToString();
+            if (TxtDungeonCooldown        != null) TxtDungeonCooldown.Text             = s.Dungeon.DungeonCooldownSec.ToString();
+            if (TxtDuelCooldown           != null) TxtDuelCooldown.Text                = s.Dungeon.DuelCooldownSec.ToString();
+            if (TxtDuelJoinWindowSec      != null) TxtDuelJoinWindowSec.Text           = s.Dungeon.DuelJoinWindowSec.ToString();
+            if (TxtDungeonExtraHosts      != null) TxtDungeonExtraHosts.Text           = s.Dungeon.ExtraHosts ?? "";
 
             ChkRotationEnabled.IsChecked = s.RotationIntegration.Enabled;
             TxtRotationCmd.Text          = s.RotationIntegration.Command ?? "";
@@ -1163,6 +1180,7 @@ namespace Loadout.UI
                 s.Modules.SubAnniversary     = ModSubAnniv.IsChecked == true;
                 s.Modules.SubRaidTrain       = ModSubRaidTrain.IsChecked == true;
                 s.Modules.Bolts              = ModBolts.IsChecked == true;
+                if (ModDungeon != null) s.Modules.Dungeon = ModDungeon.IsChecked == true;
                 s.Modules.LoyaltyWallet      = ModLoyalty.IsChecked == true;
                 s.Modules.Apex               = ModApex.IsChecked == true;
                 s.Modules.DailyCheckIn       = ModCheckIn.IsChecked == true;
@@ -1288,6 +1306,24 @@ namespace Loadout.UI
                 if (int.TryParse(TxtBoltsDiceMin?.Text,     out iv) && iv >= 0)                 s.Bolts.DiceMinWager           = iv;
                 if (int.TryParse(TxtBoltsDiceMax?.Text,     out iv) && iv >= 0)                 s.Bolts.DiceMaxWager           = iv;
                 if (int.TryParse(TxtBoltsDiceMult?.Text,    out iv) && iv >= 2 && iv <= 100)    s.Bolts.DicePayoutMultiplier   = iv;
+
+                // Dungeon Crawler + Duel — chat command names, cooldowns,
+                // run shape. Bounds keep the engine in safe ranges
+                // (party >= 1, scenes 3..8, difficulty 1..5).
+                if (s.Dungeon == null) s.Dungeon = new DungeonConfig();
+                if (ChkDungeonEnabled != null) s.Modules.Dungeon = ChkDungeonEnabled.IsChecked == true;
+                if (TxtDungeonCmd       != null) s.Dungeon.DungeonCommand = NormalizeCmd(TxtDungeonCmd.Text,       "!dungeon");
+                if (TxtDungeonJoinCmd   != null) s.Dungeon.JoinCommand    = NormalizeCmd(TxtDungeonJoinCmd.Text,    "!join");
+                if (TxtDuelCmd          != null) s.Dungeon.DuelCommand    = NormalizeCmd(TxtDuelCmd.Text,           "!duel");
+                if (int.TryParse(TxtDungeonJoinWindowSec?.Text, out iv) && iv >= 10 && iv <= 180) s.Dungeon.JoinWindowSec     = iv;
+                if (int.TryParse(TxtDungeonRunSec?.Text,        out iv) && iv >= 15 && iv <= 120) s.Dungeon.RunDurationSec    = iv;
+                if (int.TryParse(TxtDungeonSceneCount?.Text,    out iv) && iv >= 3  && iv <= 8)   s.Dungeon.SceneCount        = iv;
+                if (int.TryParse(TxtDungeonMaxParty?.Text,      out iv) && iv >= 1  && iv <= 16)  s.Dungeon.MaxPartySize      = iv;
+                if (int.TryParse(TxtDungeonDifficulty?.Text,    out iv) && iv >= 1  && iv <= 5)   s.Dungeon.Difficulty        = iv;
+                if (int.TryParse(TxtDungeonCooldown?.Text,      out iv) && iv >= 0  && iv <= 7200) s.Dungeon.DungeonCooldownSec = iv;
+                if (int.TryParse(TxtDuelCooldown?.Text,         out iv) && iv >= 0  && iv <= 7200) s.Dungeon.DuelCooldownSec    = iv;
+                if (int.TryParse(TxtDuelJoinWindowSec?.Text,    out iv) && iv >= 10 && iv <= 120) s.Dungeon.DuelJoinWindowSec  = iv;
+                if (TxtDungeonExtraHosts != null) s.Dungeon.ExtraHosts = (TxtDungeonExtraHosts.Text ?? "").Trim();
 
                 // Global overlay theme (font / scale / accent2 / text).
                 if (s.OverlayTheme == null) s.OverlayTheme = new OverlayThemeConfig();
@@ -1626,6 +1662,7 @@ namespace Loadout.UI
                 ("Goals",               s.Modules.Goals,              "IconGeo.Goals"),
                 ("Counters",            s.Modules.Counters,           "IconGeo.Counters"),
                 ("Bolts wallet",        s.Modules.Bolts,              "IconGeo.Bolts"),
+                ("Dungeon Crawler",     s.Modules.Dungeon,            "IconGeo.Games"),
                 ("Apex (top viewer)",   s.Modules.Apex,               "IconGeo.Apex"),
                 ("Daily check-in",      s.Modules.DailyCheckIn,       "IconGeo.CheckIn"),
                 ("Stream recap",        s.Modules.StreamRecap,        "IconGeo.Recap"),
@@ -2481,6 +2518,18 @@ namespace Loadout.UI
 
         private static string SelectedTag(ComboBox cb) =>
             (cb?.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
+
+        // Trim whitespace, ensure leading '!', lowercase. Used by chat-command
+        // textboxes so the streamer can type "dungeon" or "!Dungeon" or
+        // " ! dungeon " and we always store "!dungeon".
+        private static string NormalizeCmd(string raw, string fallback)
+        {
+            var c = (raw ?? "").Trim();
+            if (string.IsNullOrEmpty(c)) return fallback;
+            c = c.TrimStart('!').Trim();
+            if (string.IsNullOrEmpty(c)) return fallback;
+            return ("!" + c).ToLowerInvariant();
+        }
 
         // Strip leading '#', validate 3- or 6-char hex, uppercase. Returns ""
         // for empty/invalid input so BuildOverlayUrl drops the param entirely

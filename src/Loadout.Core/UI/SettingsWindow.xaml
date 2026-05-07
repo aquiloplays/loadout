@@ -388,6 +388,8 @@
 
                                 <TextBlock Text="WALLET &amp; TOP VIEWER" Style="{StaticResource H3}" />
                                 <CheckBox x:Name="ModBolts"    Content="Bolts wallet"           Style="{StaticResource ToggleSwitch}" />
+                                <CheckBox x:Name="ModDungeon"  Content="Dungeon Crawler + Duel" Style="{StaticResource ToggleSwitch}"
+                                          ToolTip="Chat-driven party adventure (!dungeon / !join) + 1v1 duels (!duel). Heroes persist between streams in dungeon-heroes.json; viewers manage gear via the Loadout Discord bot." />
                                 <CheckBox x:Name="ModLoyalty"  Content="Legacy loyalty wallet"  Style="{StaticResource ToggleSwitch}" />
                                 <CheckBox x:Name="ModApex"     Content="Apex top viewer"        Style="{StaticResource ToggleSwitch}" />
                                 <CheckBox x:Name="ModCheckIn"  Content="Daily check-in"         Style="{StaticResource ToggleSwitch}" />
@@ -1319,6 +1321,70 @@
                                     <Button Content="Remove"        Style="{StaticResource SecondaryButton}" Click="BtnShopRemove_Click"     Margin="0 0 8 0" />
                                     <Button Content="Reset stock"   Style="{StaticResource SecondaryButton}" Click="BtnShopResetStock_Click" />
                                 </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Dungeon Crawler + Duel game card. Chat-driven
+                             party adventure that runs on the bus. Full
+                             overlay lives at /overlays/dungeon. The DLL
+                             owns hero state in dungeon-heroes.json so
+                             every viewer's character persists between
+                             streams; the Discord bot exposes /inventory,
+                             /equip, /shop, etc. for off-stream RPG. -->
+                        <Border Style="{StaticResource Card}" Margin="14 0 0 0">
+                            <StackPanel>
+                                <TextBlock Text="Dungeon Crawler + Duel" Style="{StaticResource H2}" />
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    Mods type !dungeon to spawn a party-recruit window. Viewers !join during the
+                                    countdown, then the party "enters" the dungeon — about 30s of scenes (encounters,
+                                    traps, treasure) play on the overlay. Survivors keep their loot + bolts; fallen
+                                    heroes get a half-XP consolation. Viewers manage their character through the Loadout
+                                    Discord bot (/inventory, /equip, /shop, /sell). !duel @user fires a 1v1 — opponent
+                                    accepts with !join.
+                                </TextBlock>
+                                <CheckBox x:Name="ChkDungeonEnabled" Content="!dungeon / !join / !duel enabled" Style="{StaticResource ToggleSwitch}" />
+                                <Grid Margin="0 8 0 0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="100" />
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="100" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Dungeon command:"   Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 8 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtDungeonCmd"   Margin="0 4 14 0" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Join:"             Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 8 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtDungeonJoinCmd" Margin="0 4 14 0" />
+                                    <TextBlock Grid.Row="0" Grid.Column="4" Text="Duel:"             Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 8 0" />
+                                    <TextBox  Grid.Row="0" Grid.Column="5" x:Name="TxtDuelCmd"      Margin="0 4 0 0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Join window (sec):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 10 8 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtDungeonJoinWindowSec" Margin="0 8 14 0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="Run (sec):"        Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 10 8 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtDungeonRunSec" Margin="0 8 14 0" />
+                                    <TextBlock Grid.Row="1" Grid.Column="4" Text="Scenes:"          Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 10 8 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="5" x:Name="TxtDungeonSceneCount" Margin="0 8 0 0" />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Party cap:"        Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 10 8 0" />
+                                    <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtDungeonMaxParty" Margin="0 8 14 0" />
+                                    <TextBlock Grid.Row="2" Grid.Column="2" Text="Difficulty (1-5):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 10 8 0" />
+                                    <TextBox  Grid.Row="2" Grid.Column="3" x:Name="TxtDungeonDifficulty" Margin="0 8 14 0" />
+                                    <TextBlock Grid.Row="2" Grid.Column="4" Text="Cooldown (sec):"   Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 10 8 0" />
+                                    <TextBox  Grid.Row="2" Grid.Column="5" x:Name="TxtDungeonCooldown" Margin="0 8 0 0" />
+                                </Grid>
+                                <Grid Margin="0 10 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="Duel cooldown (sec):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <TextBox  Grid.Column="1" x:Name="TxtDuelCooldown" Margin="0 0 14 0" />
+                                    <TextBlock Grid.Column="2" Text="Duel join window:"   Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <TextBox  Grid.Column="3" x:Name="TxtDuelJoinWindowSec" Margin="0 0 14 0" />
+                                    <TextBlock Grid.Column="4" Text="Allow extra hosts (comma-sep):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <TextBox  Grid.Column="5" x:Name="TxtDungeonExtraHosts"
+                                              ToolTip="Comma-separated viewer handles allowed to summon dungeons in addition to mods + broadcaster. Leave blank for mods-only." />
+                                </Grid>
                             </StackPanel>
                         </Border>
                     </StackPanel>

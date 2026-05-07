@@ -45,6 +45,7 @@ namespace Loadout.Host
                 Identity.IdentityLinker.Instance.Initialize(SettingsManager.Instance.DataFolder);
                 Patreon.PatreonClient.Instance.Initialize(SettingsManager.Instance.DataFolder);
                 ViewerProfile.ViewerProfileStore.Instance.Initialize(SettingsManager.Instance.DataFolder);
+                Games.Dungeon.DungeonGameStore.Instance.Initialize(SettingsManager.Instance.DataFolder);
                 Bus.AquiloBus.Instance.Start();
 
                 // Bridge select bus messages into the event dispatcher so
