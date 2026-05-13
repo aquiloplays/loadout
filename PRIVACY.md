@@ -69,7 +69,7 @@ This endpoint is the only Loadout-controlled service Loadout queries during norm
 
 ### GitHub releases (update checking)
 
-Once every 6 hours Loadout calls `api.github.com/repos/aquiloplays/loadout/releases` to check for new versions. This is a public, anonymous read — GitHub sees the request as anonymous traffic. No token, no identifying header.
+Once every 6 hours Loadout calls `api.github.com/repos/aquiloplays/loadout-downloads/releases` to check for new versions. This is a public, anonymous read — GitHub sees the request as anonymous traffic. No token, no identifying header.
 
 ### Discord webhooks (optional, opt-in)
 

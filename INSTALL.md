@@ -10,7 +10,7 @@
 
 ## 1. Download the kit
 
-From the [latest release](https://github.com/aquiloplays/loadout/releases/latest), grab:
+From the [latest release](https://download.aquilo.gg/loadout), grab:
 
 - `Loadout.dll`
 - `Newtonsoft.Json.dll` (only if your Streamer.bot install doesn't already have it — newer SB versions ship with it; the bootstrap action will tell you if it's missing)

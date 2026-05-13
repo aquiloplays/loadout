@@ -10,7 +10,13 @@ namespace Loadout.Settings
     /// </summary>
     public class LoadoutSettings
     {
-        public int    SchemaVersion   { get; set; } = 1;
+        // Schema version for one-shot migrations. Bumped in
+        // SettingsManager.MigrateSchema after each migration runs so a
+        // rebalance never re-applies on subsequent launches. Migrations
+        // only touch fields still at their previous default — anything
+        // the streamer customized survives.
+        // Current = 2 (May 2026 economy rebalance — halved bolt rates).
+        public int    SchemaVersion   { get; set; } = 2;
         public string SuiteVersion    { get; set; } = "0.1.0";
         public bool   OnboardingDone  { get; set; } = false;
         public string BroadcasterName { get; set; } = "";
@@ -57,6 +63,7 @@ namespace Loadout.Settings
         public FirstWordsConfig    FirstWords   { get; set; } = new FirstWordsConfig();
         public OverlayThemeConfig  OverlayTheme { get; set; } = new OverlayThemeConfig();
         public CommandsTickerIconsConfig CommandsTickerIcons { get; set; } = new CommandsTickerIconsConfig();
+        public CommandsTickerEntriesConfig CommandsTickerEntries { get; set; } = new CommandsTickerEntriesConfig();
         public ViewerProfilesConfig ViewerProfiles { get; set; } = new ViewerProfilesConfig();
         public DungeonConfig       Dungeon       { get; set; } = new DungeonConfig();
     }
@@ -162,6 +169,41 @@ namespace Loadout.Settings
     public class CommandsTickerIconsConfig
     {
         public Dictionary<string, string> ByCategory { get; set; } = new Dictionary<string, string>();
+    }
+
+    /// <summary>
+    /// Per-command preferences for the commands ticker overlay (and the
+    /// compact overlay's idle ticker, which renders the same list).
+    ///
+    /// <see cref="HiddenCommands"/> drops a command from the ticker
+    /// entirely. <see cref="Groups"/> bundles multiple commands into a
+    /// single rotating card so a streamer can fold the noisy info
+    /// commands into one "Info: !uptime / !followage / !accountage" tile
+    /// rather than letting them eat three rotation slots.
+    ///
+    /// Match is exact (case-insensitive) on the visible command name —
+    /// e.g. "!uptime", "!gift @user N". A grouped command is replaced by
+    /// the group's tile; commands not in any group stay individual.
+    /// </summary>
+    public class CommandsTickerEntriesConfig
+    {
+        // List of command names (exact match, case-insensitive on the
+        // base name). One per line in the textbox. "!commands" hides
+        // !commands; "!gift @user N" hides the gift-with-args entry.
+        public List<string> HiddenCommands { get; set; } = new List<string>();
+        // Group definitions. Each group renders as a single ticker card
+        // whose name is the joined member list ("!uptime / !followage")
+        // and whose description is the group's <see cref="Label"/>.
+        public List<CommandsTickerGroup> Groups { get; set; } = new List<CommandsTickerGroup>();
+    }
+
+    public class CommandsTickerGroup
+    {
+        public string Label    { get; set; } = "";   // shown as the group's description in the ticker
+        public string Cat      { get; set; } = "info"; // ticker category — drives the badge icon
+        // Commands belonging to this group. Same matching rules as
+        // HiddenCommands above.
+        public List<string> Commands { get; set; } = new List<string>();
     }
 
     /// <summary>
@@ -658,7 +700,7 @@ namespace Loadout.Settings
         public bool   AutoCheck       { get; set; } = true;
         public int    CheckIntervalHr { get; set; } = 6;
         public string Channel         { get; set; } = "stable"; // stable | beta
-        public string GitHubRepo      { get; set; } = "aquiloplays/loadout";
+        public string GitHubRepo      { get; set; } = "aquiloplays/loadout-downloads";
 
         [JsonIgnore]
         public DateTime LastCheckedUtc { get; set; } = DateTime.MinValue;
@@ -872,15 +914,20 @@ namespace Loadout.Settings
         public string DisplayName         { get; set; } = "Bolts";
         public string Emoji               { get; set; } = "⚡";
 
-        // Earn rates (raw, before multipliers).
+        // Earn rates (raw, before multipliers). May 2026: cut to roughly
+        // half the previous defaults so the economy is a meaningful grind
+        // instead of a passive trickle. Channel-point coins took the
+        // hardest cut (10 → 25) since they're the most farmable source.
+        // Existing installs migrate to these via SettingsSchemaVersion=1
+        // — only fields still at the old defaults get bumped down.
         public int    PerChatMessage      { get; set; } = 1;
-        public int    PerSub              { get; set; } = 50;
-        public int    PerGiftSub          { get; set; } = 30;
-        public int    PerRaidBrought      { get; set; } = 100;
-        public int    PerCheerBitDivisor  { get; set; } = 100;   // 1 bolt per N bits
-        public int    PerCcCoinDivisor    { get; set; } = 10;
-        public int    PerDailyCheckIn     { get; set; } = 100;
-        public int    SubAnniversaryBonusBase { get; set; } = 100;   // total = base * milestoneMonths
+        public int    PerSub              { get; set; } = 25;
+        public int    PerGiftSub          { get; set; } = 15;
+        public int    PerRaidBrought      { get; set; } = 50;
+        public int    PerCheerBitDivisor  { get; set; } = 200;   // 1 bolt per N bits
+        public int    PerCcCoinDivisor    { get; set; } = 25;
+        public int    PerDailyCheckIn     { get; set; } = 50;
+        public int    SubAnniversaryBonusBase { get; set; } = 50;   // total = base * milestoneMonths
 
         // Multipliers applied at credit time. Stack additively (e.g. sub 0.5 +
         // patreon-tier3 1.0 = 2.5x final).
@@ -892,12 +939,43 @@ namespace Loadout.Settings
         public double DailyStreakCap        { get; set; } = 1.0;   // cap streak bonus alone
 
         // Anti-AFK: cap chat earns per minute per viewer (no point sitting and macro-spamming).
-        public int    MaxChatEarnsPerMinute { get; set; } = 6;
+        // Halved in May 2026 to make passive chat farming less productive
+        // alongside the rest of the economy rebalance. Migration bumps
+        // existing installs from 6 → 3 only when still at the old default.
+        public int    MaxChatEarnsPerMinute { get; set; } = 3;
 
         // Spend rules.
         public int    GiftMinAmount       { get; set; } = 10;     // !gift floor
         public int    BoltRainMinTotal    { get; set; } = 100;
         public int    BoltRainMaxRecipients { get; set; } = 100;
+
+        // Tip integration — when a viewer tips via Streamlabs / Stream
+        // Elements / Ko-fi / etc., the streamer wires their provider's
+        // webhook to the Worker's /tips/<guildId>/<secret> endpoint via
+        // a Streamer.bot HTTP request action. The DLL polls the Worker
+        // for new tip events, awards bolts at TipBoltsPerDollar, and
+        // republishes on the Aquilo Bus as `tips.received` so overlays
+        // can render a celebration. Set Enabled=false to opt out
+        // entirely; the polling loop also short-circuits.
+        public bool   TipsEnabled         { get; set; } = false;
+        public int    TipBoltsPerDollar   { get; set; } = 100;     // 100 bolts per $1 tipped (counts as on-stream earn)
+        public int    TipMinDollars       { get; set; } = 1;       // ignore tips below this floor
+        public string TipAlertTemplate    { get; set; } = "💖 {tipper} tipped {amount} {currency} — +{bolts}{emoji}!";
+
+        // Weekly digest — once a week the DLL POSTs a stats summary to
+        // the Worker, which formats it as a Discord embed and posts to
+        // the configured channel. Pure off-stream summary; no overlay
+        // surface. Set Enabled=false to opt out entirely.
+        public bool   WeeklyDigestEnabled    { get; set; } = false;
+        public int    WeeklyDigestDay        { get; set; } = 1;        // 0=Sun … 6=Sat (default Monday)
+        public int    WeeklyDigestHourUtc    { get; set; } = 14;       // 14:00 UTC (mid-morning US East / late afternoon EU)
+        public string WeeklyDigestChannelId  { get; set; } = "";       // Discord channel id (snowflake string)
+
+        // Daily quests — 3 quests per viewer per UTC day, completing
+        // each pays a bolt bonus. Bus-driven trackers; deterministic
+        // daily set seeded by viewer-key + date so a viewer always
+        // sees the same 3 quests across menu re-opens.
+        public bool   DailyQuestsEnabled { get; set; } = true;
 
         // Slots minigame (!slots <wager>). Symbols pulled from
         // SlotsImagePool — newline-separated image URLs (Twitch
@@ -928,6 +1006,40 @@ namespace Loadout.Settings
         public int    CoinflipMaxWager     { get; set; } = 500;
         public int    DiceMinWager         { get; set; } = 5;
         public int    DiceMaxWager         { get; set; } = 500;
+        // !rps and !roulette wager bounds — previously rode on the
+        // coinflip bounds, which made tuning the spread for one game
+        // affect the other. Defaults match coinflip so existing
+        // configs don't shift on upgrade.
+        public int    RpsMinWager          { get; set; } = 5;
+        public int    RpsMaxWager          { get; set; } = 500;
+        public int    RouletteMinWager     { get; set; } = 5;
+        public int    RouletteMaxWager     { get; set; } = 500;
+        // Master per-game enable. Min/Max=0 still disables, but these
+        // give the streamer an obvious on/off in the Settings card
+        // without having to zero the wager bounds (and remember the
+        // previous values when they want to re-enable).
+        public bool   CoinflipEnabled      { get; set; } = true;
+        public bool   DiceEnabled          { get; set; } = true;
+        public bool   SlotsEnabled         { get; set; } = true;
+        public bool   RpsEnabled           { get; set; } = true;
+        public bool   RouletteEnabled      { get; set; } = true;
+
+        // !heist <stake> — community heist mini-event. Initiator stakes
+        // bolts, opens a 60s window where everyone in chat can `!join`
+        // with their own stake. If the pot crosses TargetPot by deadline,
+        // the crew splits TargetPot × PayoutMultiplier proportional to
+        // each contributor's stake (so big-staker gets bigger payout).
+        // If the pot falls short, every contribution is lost — that's
+        // the "heist failed, nobody walks away clean" drama that makes
+        // viewers chip in instead of free-riding.
+        public bool   HeistEnabled              { get; set; } = true;
+        public int    HeistMinStake             { get; set; } = 25;
+        public int    HeistMaxStake             { get; set; } = 1000;
+        public int    HeistTargetPot            { get; set; } = 500;     // pot must reach this to succeed
+        public int    HeistJoinWindowSec        { get; set; } = 60;
+        public double HeistPayoutMultiplier     { get; set; } = 1.6;     // payout = TargetPot × this
+        public int    HeistPerUserCooldownSec   { get; set; } = 600;     // per-viewer initiator cooldown (10 min)
+        public int    HeistGlobalCooldownSec    { get; set; } = 180;     // chat-wide cooldown between heists (3 min)
         // Dice payout multiplier when the rolled face matches the
         // target (1-6, 1/6 chance). 5 = wager × 5 net win, matching
         // the off-stream Discord /dice math.
