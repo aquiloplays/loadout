@@ -4,8 +4,20 @@ name: Release
 #   1. Compiles Loadout.dll in Release config
 #   2. Generates the SB import bundle (loadout-import.sb.txt)
 #   3. Packages the release zip (Loadout-vX.Y.Z.zip) with DLL + bundle + readme
-#   4. Creates a GitHub Release as draft (you flip to published when ready)
-#   5. The post-release-notes.yml workflow takes over once you publish
+#   4. Creates a GitHub Release on aquiloplays/loadout-downloads as draft
+#      (this is the public binaries repo; download.aquilo.gg/loadout
+#       resolves against it via the aquilo-redirects worker)
+#   5. You flip the draft to Published when ready
+#   6. The post-release-notes.yml workflow takes over once you publish
+#
+# ─── Required repo secret ────────────────────────────────────────────────
+#   LOADOUT_DOWNLOADS_TOKEN  Fine-grained PAT with `Contents: read & write`
+#                            scoped to aquiloplays/loadout-downloads.
+#                            The default GITHUB_TOKEN is scoped to THIS
+#                            repo only, so we need a separate token to
+#                            push releases cross-repo. Generate at
+#                            https://github.com/settings/personal-access-tokens
+#                            and add as a secret on aquiloplays/loadout.
 #
 # Versioning convention: tag must start with `v` and match the csproj
 # Version. tools/release.ps1 keeps these in sync; CI fails the release
@@ -111,9 +123,16 @@ jobs:
           Compress-Archive -Path "$stage/*" -DestinationPath "Loadout-${{ steps.ver.outputs.tag }}.zip" -Force
           Get-ChildItem "Loadout-${{ steps.ver.outputs.tag }}.zip"
 
-      - name: Create / update GitHub Release (draft)
+      - name: Create / update GitHub Release on loadout-downloads (draft)
         uses: softprops/action-gh-release@v2
         with:
+          # Cross-repo publish to the public binaries-only repo so
+          # download.aquilo.gg/loadout (CF worker) resolves to the
+          # latest asset. The default GITHUB_TOKEN can't reach
+          # another repo — LOADOUT_DOWNLOADS_TOKEN is a PAT with
+          # Contents:write on loadout-downloads.
+          repository: aquiloplays/loadout-downloads
+          token: ${{ secrets.LOADOUT_DOWNLOADS_TOKEN }}
           tag_name: ${{ steps.ver.outputs.tag }}
           name: Loadout ${{ steps.ver.outputs.tag }}
           draft: true
@@ -123,5 +142,3 @@ jobs:
             src/Loadout.Core/bin/Release/net48/Newtonsoft.Json.dll
             streamerbot/loadout-import.sb.txt
             Loadout-${{ steps.ver.outputs.tag }}.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
