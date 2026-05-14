@@ -86,21 +86,27 @@ jobs:
           Copy-Item LICENSE                                                $stage/LICENSE
 
           # Quick-start txt for users who only download the zip.
-          @"
-Loadout v${{ steps.ver.outputs.version }}
-==========================================
-
-QUICK INSTALL:
-
-1. Drop Loadout.dll into <Streamerbot>/data/Loadout/.
-2. Open Streamer.bot, click Import (top-right), paste the contents
-   of loadout-import.sb.txt.
-3. Restart SB or right-click 'Loadout: Boot' and Run Now.
-4. The onboarding wizard opens. Pick what you want enabled.
-
-See INSTALL.md and CONFIG.md for the full walkthrough.
-Issues: https://github.com/aquiloplays/loadout/issues
-"@ | Out-File "$stage/QUICKSTART.txt" -Encoding utf8
+          # Built via array+join rather than a here-string: YAML's
+          # literal block scalar requires every line to be indented
+          # at least as much as the block, and a PowerShell here-string
+          # whose content sits at column 0 dedents below that, which
+          # makes the YAML parser reject the file before any job runs.
+          $qs = @(
+            "Loadout v${{ steps.ver.outputs.version }}"
+            "=========================================="
+            ""
+            "QUICK INSTALL:"
+            ""
+            "1. Drop Loadout.dll into <Streamerbot>/data/Loadout/."
+            "2. Open Streamer.bot, click Import (top-right), paste the contents"
+            "   of loadout-import.sb.txt."
+            "3. Restart SB or right-click 'Loadout: Boot' and Run Now."
+            "4. The onboarding wizard opens. Pick what you want enabled."
+            ""
+            "See INSTALL.md and CONFIG.md for the full walkthrough."
+            "Issues: https://github.com/aquiloplays/loadout/issues"
+          ) -join "`n"
+          $qs | Out-File "$stage/QUICKSTART.txt" -Encoding utf8
 
           Compress-Archive -Path "$stage/*" -DestinationPath "Loadout-${{ steps.ver.outputs.tag }}.zip" -Force
           Get-ChildItem "Loadout-${{ steps.ver.outputs.tag }}.zip"
