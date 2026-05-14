@@ -7,7 +7,17 @@ Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-(Nothing queued — see [issues](https://github.com/aquiloplays/loadout/issues) for what's coming.)
+(Nothing queued.)
+
+---
+
+## [1.0.0] - 2026-05-13
+
+First public release on `loadout-downloads`. Same kit as the prior 0.1.0 internal cut, repointed at the public binaries repo and auto-downloading via `download.aquilo.gg/loadout`.
+
+### Changed
+
+- Boot script (`00-boot.cs`) now downloads `Loadout.dll` from `aquiloplays/loadout-downloads` instead of the source repo so new installs work without source-repo access.
 
 ---
 
