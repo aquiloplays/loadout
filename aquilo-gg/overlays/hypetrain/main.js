@@ -27,6 +27,18 @@
   const pos = params.get('pos');
   if (pos) document.body.dataset.pos = pos;
 
+  // Source filter. Loadout runs two hype trains in parallel — a
+  // cross-platform aggregate (source="all") and a Twitch-only one
+  // (source="twitch"). Every hypetrain.* event carries a `source`
+  // field; this overlay renders only the events that match. Default
+  // "all" = the cross-platform train. Set ?source=twitch for a
+  // dedicated Twitch-native widget. The shared theme.js doesn't know
+  // about this param so we read it directly here.
+  const sourceFilter = (params.get('source') || 'all').toLowerCase();
+  // Tag the body so the streamer (or CSS) can tell the two apart in
+  // a preview; also lets us tweak the headline copy below.
+  document.body.dataset.source = sourceFilter;
+
   const card        = $('card');
   const lvl         = $('lvl');
   const fill        = $('fill');
@@ -119,6 +131,11 @@
 
   function handle(msg) {
     const d = msg.data || {};
+    // Source gate — drop events from the other train. A hypetrain.*
+    // event with no `source` is treated as "all" for back-compat with
+    // any pre-dual-train publisher.
+    const evtSource = (d.source || 'all').toLowerCase();
+    if (evtSource !== sourceFilter) return;
     switch (msg.kind) {
       case 'hypetrain.start':
         active = true;
@@ -207,12 +224,16 @@
   }
 
   if (debug) {
-    setTimeout(() => handle({ kind: 'hypetrain.start',      data: { level: 1, fuel: 30,  threshold: 200, fromUser: 'aquilo_plays' }}), 600);
-    setTimeout(() => handle({ kind: 'hypetrain.contribute', data: { user: 'fearless_fox', fuel: 50,  totalFuel: 80, kind: 'sub' }}), 2400);
-    setTimeout(() => handle({ kind: 'hypetrain.contribute', data: { user: 'mason42',      fuel: 100, totalFuel: 180, kind: 'cheer' }}), 4400);
-    setTimeout(() => handle({ kind: 'hypetrain.level',      data: { level: 2, fuel: 0,    threshold: 350, fromUser: 'mason42' }}), 6200);
-    setTimeout(() => handle({ kind: 'hypetrain.contribute', data: { user: 'lume',         fuel: 75,  totalFuel: 75,  kind: 'tiktokGift' }}), 8500);
-    setTimeout(() => handle({ kind: 'hypetrain.end',        data: { finalLevel: 2 }}), 12000);
+    // Synthetic preview events are tagged with the active sourceFilter
+    // so a ?source=twitch preview still renders (the handle() gate
+    // would otherwise drop them as "all").
+    const S = sourceFilter;
+    setTimeout(() => handle({ kind: 'hypetrain.start',      data: { source: S, level: 1, fuel: 30,  threshold: 200, fromUser: 'aquilo_plays' }}), 600);
+    setTimeout(() => handle({ kind: 'hypetrain.contribute', data: { source: S, user: 'fearless_fox', fuel: 50,  totalFuel: 80, kind: 'sub' }}), 2400);
+    setTimeout(() => handle({ kind: 'hypetrain.contribute', data: { source: S, user: 'mason42',      fuel: 100, totalFuel: 180, kind: 'cheer' }}), 4400);
+    setTimeout(() => handle({ kind: 'hypetrain.level',      data: { source: S, level: 2, fuel: 0,    threshold: 350, fromUser: 'mason42' }}), 6200);
+    setTimeout(() => handle({ kind: 'hypetrain.contribute', data: { source: S, user: 'lume',         fuel: 75,  totalFuel: 75,  kind: 'tiktokGift' }}), 8500);
+    setTimeout(() => handle({ kind: 'hypetrain.end',        data: { source: S, finalLevel: 2 }}), 12000);
   }
 
   connect();

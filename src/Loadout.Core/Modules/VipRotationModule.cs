@@ -50,7 +50,6 @@ namespace Loadout.Modules
             // Rotate at most once per Tick batch and only if the configured interval has elapsed.
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.VipRotation) return;
-            if (!Entitlements.IsUnlocked(Feature.VipRotationAuto)) return;
 
             var now = DateTime.UtcNow;
             // Don't run more than once per minute regardless of config (the tick is 60s anyway).

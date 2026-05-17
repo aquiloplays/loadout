@@ -706,23 +706,6 @@ namespace Loadout.UI
             BtnPatreonRefresh.Visibility = s.SignedIn ? Visibility.Visible : Visibility.Collapsed;
             BtnPatreonSignOut.Visibility = s.SignedIn ? Visibility.Visible : Visibility.Collapsed;
 
-            LstFeatures.Items.Clear();
-            foreach (Feature f in Enum.GetValues(typeof(Feature)))
-            {
-                var unlocked = Entitlements.IsUnlocked(f);
-                var prefix = unlocked ? "  ✓  " : "  🔒  ";
-                var line = new TextBlock
-                {
-                    Text = prefix + f,
-                    Margin = new Thickness(0, 2, 0, 2),
-                    Foreground = unlocked
-                        ? (Brush)FindResource("Brush.Fg.Primary")
-                        : (Brush)FindResource("Brush.Fg.Muted")
-                };
-                if (!unlocked) line.ToolTip = Entitlements.GetLockReason(f);
-                LstFeatures.Items.Add(line);
-            }
-
             // Header pill should also reflect any tier change.
             TxtPillTier.Text = Entitlements.CurrentTierDisplay();
         }
@@ -1035,6 +1018,15 @@ namespace Loadout.UI
             if (TxtBoltsDiceMin      != null) TxtBoltsDiceMin.Text      = s.Bolts.DiceMinWager.ToString();
             if (TxtBoltsDiceMax      != null) TxtBoltsDiceMax.Text      = s.Bolts.DiceMaxWager.ToString();
             if (TxtBoltsDiceMult     != null) TxtBoltsDiceMult.Text     = s.Bolts.DicePayoutMultiplier.ToString();
+            if (TxtBoltsRpsMin       != null) TxtBoltsRpsMin.Text       = s.Bolts.RpsMinWager.ToString();
+            if (TxtBoltsRpsMax       != null) TxtBoltsRpsMax.Text       = s.Bolts.RpsMaxWager.ToString();
+            if (TxtBoltsRouletteMin  != null) TxtBoltsRouletteMin.Text  = s.Bolts.RouletteMinWager.ToString();
+            if (TxtBoltsRouletteMax  != null) TxtBoltsRouletteMax.Text  = s.Bolts.RouletteMaxWager.ToString();
+            if (ChkGameCoinflipEnabled != null) ChkGameCoinflipEnabled.IsChecked = s.Bolts.CoinflipEnabled;
+            if (ChkGameDiceEnabled     != null) ChkGameDiceEnabled.IsChecked     = s.Bolts.DiceEnabled;
+            if (ChkGameSlotsEnabled    != null) ChkGameSlotsEnabled.IsChecked    = s.Bolts.SlotsEnabled;
+            if (ChkGameRpsEnabled      != null) ChkGameRpsEnabled.IsChecked      = s.Bolts.RpsEnabled;
+            if (ChkGameRouletteEnabled != null) ChkGameRouletteEnabled.IsChecked = s.Bolts.RouletteEnabled;
             // Minigame chat-reply config: master toggle + 7 templates.
             if (ChkBoltsGameChatReplies != null) ChkBoltsGameChatReplies.IsChecked = s.Bolts.GameChatReplies;
             if (TxtBoltsCoinflipWinTpl  != null) TxtBoltsCoinflipWinTpl.Text  = s.Bolts.CoinflipWinTemplate  ?? "";
@@ -1319,6 +1311,15 @@ namespace Loadout.UI
                 if (int.TryParse(TxtBoltsDiceMin?.Text,     out iv) && iv >= 0)                 s.Bolts.DiceMinWager           = iv;
                 if (int.TryParse(TxtBoltsDiceMax?.Text,     out iv) && iv >= 0)                 s.Bolts.DiceMaxWager           = iv;
                 if (int.TryParse(TxtBoltsDiceMult?.Text,    out iv) && iv >= 2 && iv <= 100)    s.Bolts.DicePayoutMultiplier   = iv;
+                if (int.TryParse(TxtBoltsRpsMin?.Text,      out iv) && iv >= 0)                 s.Bolts.RpsMinWager            = iv;
+                if (int.TryParse(TxtBoltsRpsMax?.Text,      out iv) && iv >= 0)                 s.Bolts.RpsMaxWager            = iv;
+                if (int.TryParse(TxtBoltsRouletteMin?.Text, out iv) && iv >= 0)                 s.Bolts.RouletteMinWager       = iv;
+                if (int.TryParse(TxtBoltsRouletteMax?.Text, out iv) && iv >= 0)                 s.Bolts.RouletteMaxWager       = iv;
+                if (ChkGameCoinflipEnabled != null) s.Bolts.CoinflipEnabled = ChkGameCoinflipEnabled.IsChecked == true;
+                if (ChkGameDiceEnabled     != null) s.Bolts.DiceEnabled     = ChkGameDiceEnabled.IsChecked     == true;
+                if (ChkGameSlotsEnabled    != null) s.Bolts.SlotsEnabled    = ChkGameSlotsEnabled.IsChecked    == true;
+                if (ChkGameRpsEnabled      != null) s.Bolts.RpsEnabled      = ChkGameRpsEnabled.IsChecked      == true;
+                if (ChkGameRouletteEnabled != null) s.Bolts.RouletteEnabled = ChkGameRouletteEnabled.IsChecked == true;
                 // Minigame chat-reply config.
                 if (ChkBoltsGameChatReplies != null) s.Bolts.GameChatReplies      = ChkBoltsGameChatReplies.IsChecked == true;
                 if (TxtBoltsCoinflipWinTpl  != null) s.Bolts.CoinflipWinTemplate  = (TxtBoltsCoinflipWinTpl.Text  ?? "").Trim();
@@ -1378,6 +1379,60 @@ namespace Loadout.UI
                 StoreIcon("counter", TxtIconCounter?.Text);
                 StoreIcon("mod",     TxtIconMod?.Text);
                 StoreIcon("song",    TxtIconSong?.Text);
+
+                // Per-command ticker prefs. Parse the two textboxes back
+                // into structured config:
+                //   Hidden — one command per line, blank lines ignored.
+                //   Groups — "Label | !cmd1, !cmd2, !cmd3" per line. The
+                //   pipe is required so a label that contains commas
+                //   (e.g. "Hi, friends") still works.
+                if (s.CommandsTickerEntries == null) s.CommandsTickerEntries = new CommandsTickerEntriesConfig();
+                var cte = s.CommandsTickerEntries;
+                cte.HiddenCommands = new List<string>();
+                if (TxtCommandsHidden != null)
+                {
+                    foreach (var raw in (TxtCommandsHidden.Text ?? "").Replace("\r\n", "\n").Split('\n'))
+                    {
+                        var t = raw.Trim();
+                        if (t.Length > 0) cte.HiddenCommands.Add(t);
+                    }
+                }
+                cte.Groups = new List<CommandsTickerGroup>();
+                if (TxtCommandsGroups != null)
+                {
+                    foreach (var raw in (TxtCommandsGroups.Text ?? "").Replace("\r\n", "\n").Split('\n'))
+                    {
+                        var line = raw.Trim();
+                        if (line.Length == 0) continue;
+                        var pipeIdx = line.IndexOf('|');
+                        string label;
+                        string membersStr;
+                        if (pipeIdx > 0)
+                        {
+                            label      = line.Substring(0, pipeIdx).Trim();
+                            membersStr = line.Substring(pipeIdx + 1).Trim();
+                        }
+                        else
+                        {
+                            // Tolerate "Label !cmd1, !cmd2" (no pipe) by
+                            // treating the first whitespace-separated word
+                            // as the label only if there's no comma in it.
+                            label      = "";
+                            membersStr = line;
+                        }
+                        var members = new List<string>();
+                        foreach (var m in membersStr.Split(','))
+                        {
+                            var mt = m.Trim();
+                            if (mt.Length > 0) members.Add(mt);
+                        }
+                        if (members.Count > 0)
+                            cte.Groups.Add(new CommandsTickerGroup
+                            {
+                                Label = label, Cat = "info", Commands = members
+                            });
+                    }
+                }
 
                 // !song chat command (NowPlayingModule listens for rotation.song.*
                 // on the bus). The Rotation widget itself is a separate product;
@@ -2211,6 +2266,35 @@ namespace Loadout.UI
             if (TxtIconMod     != null) TxtIconMod.Text     = IconVal("mod");
             if (TxtIconSong    != null) TxtIconSong.Text    = IconVal("song");
 
+            // Per-command ticker prefs: hidden + groups. Stored as
+            // structured config; we surface them as plain-text textboxes
+            // so a streamer can edit a long list without a DataGrid.
+            // Hidden: one command per line.
+            // Groups: one per line, "Label | !cmd1, !cmd2, !cmd3".
+            var cte = SettingsManager.Instance.Current.CommandsTickerEntries;
+            if (cte == null)
+            {
+                cte = new CommandsTickerEntriesConfig();
+                SettingsManager.Instance.Current.CommandsTickerEntries = cte;
+            }
+            if (TxtCommandsHidden != null)
+                TxtCommandsHidden.Text = string.Join("\r\n", cte.HiddenCommands ?? new List<string>());
+            if (TxtCommandsGroups != null)
+            {
+                var lines = new List<string>();
+                if (cte.Groups != null)
+                {
+                    foreach (var g in cte.Groups)
+                    {
+                        if (g == null) continue;
+                        var label = (g.Label ?? "").Trim();
+                        var members = string.Join(", ", g.Commands ?? new List<string>());
+                        lines.Add(label + " | " + members);
+                    }
+                }
+                TxtCommandsGroups.Text = string.Join("\r\n", lines);
+            }
+
             // !song command: typed config (drives runtime behaviour through
             // NowPlayingModule), so load via SettingsManager rather than the
             // opaque CardValues bag. The widget URL builder + variant picker
@@ -2222,12 +2306,18 @@ namespace Loadout.UI
             if (TxtRotationSongCooldown!= null) TxtRotationSongCooldown.Text= (rot.SongCooldownSec > 0 ? rot.SongCooldownSec : 30).ToString();
             if (ChkRotationSongCmd     != null) ChkRotationSongCmd.IsChecked= rot.SongCommandEnabled;
 
+            // Build the all-in-one composite layer grid. Rows default to
+            // enabled + non-overlapping home positions; RestoreAllLayers
+            // below overrides from the saved blob if there is one.
+            BuildAllLayersGrid();
+
             // Restore every per-overlay textbox / combo / checkbox from
             // the saved CardValues bag. Must happen AFTER TxtOverlayBaseUrl
             // is seeded above so a saved BaseUrl override wins, but BEFORE
             // _overlayTabReady = true so we don't generate a flurry of URL
             // refreshes for each control as it gets set.
             RestoreOverlayCardValues(theme.CardValues);
+            RestoreAllLayers(theme.CardValues);
 
             // BAML parsing is complete by the time we reach BindOverlaysTab in
             // the constructor (it runs after InitializeComponent's parse + every
@@ -2375,12 +2465,16 @@ namespace Loadout.UI
                 });
             }
 
-            // Cross-platform hype train.
+            // Hype train. Source = "all" (cross-platform) or "twitch"
+            // (the separate Twitch-only train). "all" is the default so
+            // the param is omitted for a clean URL.
             if (TxtUrlHypeTrain != null)
             {
+                var hypeSource = SelectedTag(CmbHypeTrainSource);
                 TxtUrlHypeTrain.Text = BuildOverlayUrl(baseUrl, "hypetrain", secret, new Dictionary<string, string>
                 {
                     ["pos"]    = SelectedTag(CmbHypeTrainPos),
+                    ["source"] = (string.IsNullOrEmpty(hypeSource) || hypeSource == "all") ? null : hypeSource,
                     ["accent"] = NormalizeHex(TxtHypeTrainAccent?.Text)
                 });
             }
@@ -2428,6 +2522,7 @@ namespace Loadout.UI
                 string compactHold   = ClampInt(TxtCompactHoldMs?.Text, 1500, 30000, 4500);
                 string compactIdle   = ClampInt(TxtCompactIdleRotate?.Text, 10, 600, 30);
                 bool   compactVert   = ChkCompactVertical?.IsChecked == true;
+                bool   compactBare   = ChkCompactBare?.IsChecked     == true;
                 // Build the show CSV from the per-category checkboxes.
                 // Each entry name matches the JS-side category tag in
                 // overlays/compact/main.js#categoryOf.
@@ -2452,43 +2547,201 @@ namespace Loadout.UI
                     ["holdMs"]     = compactHold == "4500" ? null : compactHold,
                     ["idleRotate"] = compactIdle == "30"   ? null : compactIdle,
                     ["vertical"]   = compactVert ? "1" : null,
+                    ["bare"]       = compactBare ? "1" : null,
                     ["show"]       = showParam
                 });
                 // Size chip — different recommended OBS browser-source
                 // dimensions for the two layouts. The XAML chip's Run
                 // is updated by name.
                 if (TxtCompactSizeHint != null)
-                    TxtCompactSizeHint.Text = compactVert ? " 900×164" : " 460×148";
+                    TxtCompactSizeHint.Text = compactVert ? " 600×128" : " 460×148";
                 if (TxtCompactSizeNote != null)
                     TxtCompactSizeNote.Text = compactVert
-                        ? " — vertical-stream card (880×144, sized for 1080×1920 canvas)"
+                        ? " — vertical-stream card (560×112 inside a 1080×1920 canvas)"
                         : " — the card is 440×128 with a tiny shadow margin";
             }
 
-            // All-in-one composite. Picks up the layer checkboxes, builds a
-            // CSV, and emits one URL the streamer drops into a single OBS
-            // browser source. Each layer is an iframe of the standalone
-            // overlay so per-overlay theming on the cards above stays in
-            // effect inside the composite.
-            if (TxtUrlAll != null)
+            // Vertical-stream dedicated overlay. Three layouts — tile /
+            // banner / side — pick one via the mode dropdown. Size chip
+            // shifts to match the active layout so OBS knows what
+            // browser-source dimensions to use.
+            if (TxtUrlVertical != null)
             {
-                var allLayers = new System.Collections.Generic.List<string>();
-                if (ChkAllBolts?.IsChecked     == true) allLayers.Add("bolts");
-                if (ChkAllCounters?.IsChecked  == true) allLayers.Add("counters");
-                if (ChkAllGoals?.IsChecked     == true) allLayers.Add("goals");
-                if (ChkAllCheckIn?.IsChecked   == true) allLayers.Add("check-in");
-                if (ChkAllApex?.IsChecked      == true) allLayers.Add("apex");
-                if (ChkAllCommands?.IsChecked  == true) allLayers.Add("commands");
-                if (ChkAllRecap?.IsChecked     == true) allLayers.Add("recap");
-                if (ChkAllViewer?.IsChecked    == true) allLayers.Add("viewer");
-                if (ChkAllHypeTrain?.IsChecked == true) allLayers.Add("hypetrain");
-                if (ChkAllMinigames?.IsChecked == true) allLayers.Add("minigames");
+                var verticalMode = SelectedTag(CmbVerticalMode) ?? "tile";
+                var verticalPos  = SelectedTag(CmbVerticalPos);
+                // If the picked pos doesn't make sense for the mode
+                // (e.g. lc/rc when mode=tile), the overlay's own JS
+                // snaps it to a default — but pre-empt that here so
+                // the URL chip reads sensibly.
+                if (verticalMode == "tile"   && (verticalPos == "tc" || verticalPos == "bc" || verticalPos == "lc" || verticalPos == "rc")) verticalPos = "br";
+                if (verticalMode == "banner" && verticalPos != "tc" && verticalPos != "bc") verticalPos = "tc";
+                if (verticalMode == "side"   && verticalPos != "lc" && verticalPos != "rc") verticalPos = "rc";
 
+                var verticalHold = (TxtVerticalHoldMs?.Text ?? "3500").Trim();
+                var verticalAccent = (TxtVerticalAccent?.Text ?? "").Trim();
+                TxtUrlVertical.Text = BuildOverlayUrl(baseUrl, "vertical", secret, new Dictionary<string, string>
+                {
+                    ["mode"]   = verticalMode == "tile" ? null : verticalMode,
+                    ["pos"]    = verticalPos,
+                    ["holdMs"] = verticalHold == "3500" ? null : verticalHold,
+                    ["accent"] = string.IsNullOrEmpty(verticalAccent) ? null : verticalAccent.TrimStart('#'),
+                });
+                if (TxtVerticalSizeHint != null)
+                {
+                    if (verticalMode == "banner")    TxtVerticalSizeHint.Text = " 1080×80";
+                    else if (verticalMode == "side") TxtVerticalSizeHint.Text = " 160×600";
+                    else                              TxtVerticalSizeHint.Text = " 240×120";
+                }
+                if (TxtVerticalSizeNote != null)
+                {
+                    if (verticalMode == "banner")
+                        TxtVerticalSizeNote.Text = " — slim band across the top or bottom edge";
+                    else if (verticalMode == "side")
+                        TxtVerticalSizeNote.Text = " — vertical strip down the left or right side";
+                    else
+                        TxtVerticalSizeNote.Text = " — corner-anchored tile (changes with the layout you pick)";
+                }
+            }
+
+            // All-in-one composite. Walks the per-layer DataGrid and
+            // builds a `layers` CSV of `name@pos*scale` entries — one
+            // URL the streamer drops into a single OBS browser source.
+            // Each layer is an iframe of the standalone overlay so its
+            // own theming (accent / opacity / etc.) still applies.
+            if (TxtUrlAll != null && _allLayers != null)
+            {
+                var entries = new System.Collections.Generic.List<string>();
+                foreach (var row in _allLayers)
+                {
+                    if (row == null || !row.Enabled) continue;
+                    var entry = row.Name;
+                    // "full" = whole-canvas takeover; emit no @pos so the
+                    // router leaves the overlay at its native layout.
+                    if (!string.IsNullOrEmpty(row.Position) && row.Position != "full")
+                        entry += "@" + row.Position;
+                    // Scale "100%" is the default — omit it for a clean URL.
+                    var scaleNum = AllLayerScaleToNumber(row.Scale);
+                    if (scaleNum != null && scaleNum != "1")
+                        entry += "*" + scaleNum;
+                    entries.Add(entry);
+                }
                 TxtUrlAll.Text = BuildOverlayUrl(baseUrl, "all", secret, new Dictionary<string, string>
                 {
-                    ["layers"] = allLayers.Count == 10 ? null : string.Join(",", allLayers)
+                    ["layers"] = entries.Count == 0 ? "none" : string.Join(",", entries)
                 });
             }
+        }
+
+        // ── All-in-one composite layer grid ──────────────────────────────
+        // Each row is a layer in the composite. Order here = the row
+        // order in the grid; the default Position values give every
+        // layer its own non-overlapping zone (mirrors the JS-side
+        // NON_OVERLAP_DEFAULTS in overlays/all/main.js).
+        public sealed class AllLayerRow : System.ComponentModel.INotifyPropertyChanged
+        {
+            private bool _enabled;
+            private string _position;
+            private string _scale;
+            public string Name        { get; set; }   // overlay folder name
+            public string DisplayName { get; set; }   // human label for the grid
+            public bool   Enabled
+            {
+                get => _enabled;
+                set { _enabled = value; Raise(nameof(Enabled)); }
+            }
+            public string Position
+            {
+                get => _position;
+                set { _position = value; Raise(nameof(Position)); }
+            }
+            public string Scale
+            {
+                get => _scale;
+                set { _scale = value; Raise(nameof(Scale)); }
+            }
+            public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+            private void Raise(string p) =>
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(p));
+        }
+
+        // Backing collection for GrdAllLayers. Built once in
+        // BindOverlaysTab; rows persist their state via the overlay
+        // CardValues bag (serialized as a compact string).
+        private System.Collections.ObjectModel.ObservableCollection<AllLayerRow> _allLayers;
+
+        // Non-overlapping default positions — must mirror
+        // NON_OVERLAP_DEFAULTS in overlays/all/main.js.
+        private static readonly (string name, string display, string pos)[] AllLayerDefaults = new[]
+        {
+            ("bolts",     "Bolts",      "tr"),
+            ("counters",  "Counters",   "tl"),
+            ("goals",     "Goals",      "lc"),
+            ("apex",      "Apex",       "tc"),
+            ("commands",  "Commands",   "bl"),
+            ("viewer",    "Viewer",     "br"),
+            ("hypetrain", "Hype train", "tc"),
+            ("minigames", "Minigames",  "bc"),
+            ("check-in",  "Check-in",   "full"),
+            ("recap",     "Recap",      "full"),
+        };
+
+        private static string AllLayerScaleToNumber(string label)
+        {
+            switch ((label ?? "100%").Trim())
+            {
+                case "50%":  return "0.5";
+                case "75%":  return "0.75";
+                case "90%":  return "0.9";
+                case "110%": return "1.1";
+                case "125%": return "1.25";
+                default:     return "1";
+            }
+        }
+
+        /// <summary>Build the layer grid (once) and bind it. Rows default
+        /// to enabled + their non-overlap home position + 100% scale.</summary>
+        private void BuildAllLayersGrid()
+        {
+            if (_allLayers != null) return;
+            _allLayers = new System.Collections.ObjectModel.ObservableCollection<AllLayerRow>();
+            foreach (var d in AllLayerDefaults)
+            {
+                _allLayers.Add(new AllLayerRow
+                {
+                    Name = d.name, DisplayName = d.display,
+                    Enabled = true, Position = d.pos, Scale = "100%"
+                });
+            }
+            if (GrdAllLayers != null) GrdAllLayers.ItemsSource = _allLayers;
+        }
+
+        // DataGrid cell-edit committed — rebuild the composite URL.
+        private void OnAllLayersGridChanged(object sender, DataGridCellEditEndingEventArgs e)
+        {
+            // The edit hasn't been pushed to the bound object yet when
+            // this fires; defer one dispatcher cycle so the URL builder
+            // reads the committed value.
+            Dispatcher.BeginInvoke(new Action(() => { try { RefreshOverlayUrls(); MarkDirty(); } catch { } }),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        // "Auto-arrange" — snap every layer back to its non-overlapping
+        // default position + 100% scale (enabled state is left alone).
+        private void BtnAllLayersAutoArrange_Click(object sender, RoutedEventArgs e)
+        {
+            BuildAllLayersGrid();
+            foreach (var d in AllLayerDefaults)
+            {
+                foreach (var row in _allLayers)
+                {
+                    if (row.Name != d.name) continue;
+                    row.Position = d.pos;
+                    row.Scale    = "100%";
+                }
+            }
+            GrdAllLayers?.Items.Refresh();
+            RefreshOverlayUrls();
+            MarkDirty();
         }
 
         private string BuildOverlayUrl(string baseUrl, string overlay, string secret, Dictionary<string, string> extras)
@@ -2546,18 +2799,60 @@ namespace Loadout.UI
             // Viewer
             "CmbViewerAlign", "TxtViewerAccent", "TxtViewerDuration", "TxtViewerBgOpacity",
             // Hype train
-            "CmbHypeTrainPos", "TxtHypeTrainAccent",
+            "CmbHypeTrainPos", "CmbHypeTrainSource", "TxtHypeTrainAccent",
             // Minigames
             "CmbMinigamesPos", "TxtMinigamesAccent",
             // Compact (one-pane)
-            "CmbCompactPos", "TxtCompactHoldMs", "TxtCompactIdleRotate", "ChkCompactVertical",
+            "CmbCompactPos", "TxtCompactHoldMs", "TxtCompactIdleRotate", "ChkCompactVertical", "ChkCompactBare",
             "ChkCompactShowBolts", "ChkCompactShowWelcome", "ChkCompactShowCounter", "ChkCompactShowViewer",
             "ChkCompactShowHype", "ChkCompactShowMinigames", "ChkCompactShowRotation", "ChkCompactShowCommands",
-            // All-in-one composite layer toggles
-            "ChkAllBolts", "ChkAllCounters", "ChkAllGoals", "ChkAllCheckIn",
-            "ChkAllApex", "ChkAllCommands", "ChkAllRecap", "ChkAllViewer",
-            "ChkAllHypeTrain", "ChkAllMinigames"
+            // Vertical-stream dedicated overlay
+            "CmbVerticalMode", "CmbVerticalPos", "TxtVerticalHoldMs", "TxtVerticalAccent",
+            // NOTE: the all-in-one composite is no longer a set of
+            // checkboxes — it's the GrdAllLayers DataGrid, persisted
+            // separately via Capture/RestoreAllLayers below under the
+            // synthetic "AllLayers" key.
         };
+
+        // Persist the all-in-one layer grid as one compact string in the
+        // CardValues bag under "AllLayers". Format per layer (semicolon-
+        // separated): name:enabled:pos:scale  e.g. "bolts:1:tr:100%".
+        private const string AllLayersKey = "AllLayers";
+
+        private void CaptureAllLayers(Dictionary<string, string> sink)
+        {
+            if (sink == null || _allLayers == null) return;
+            var parts = new List<string>();
+            foreach (var row in _allLayers)
+            {
+                if (row == null) continue;
+                parts.Add(string.Join(":",
+                    row.Name,
+                    row.Enabled ? "1" : "0",
+                    row.Position ?? "",
+                    row.Scale ?? "100%"));
+            }
+            sink[AllLayersKey] = string.Join(";", parts);
+        }
+
+        private void RestoreAllLayers(Dictionary<string, string> values)
+        {
+            if (values == null || _allLayers == null) return;
+            if (!values.TryGetValue(AllLayersKey, out var blob) || string.IsNullOrEmpty(blob)) return;
+            foreach (var rowStr in blob.Split(';'))
+            {
+                var f = rowStr.Split(':');
+                if (f.Length < 4) continue;
+                foreach (var row in _allLayers)
+                {
+                    if (row.Name != f[0]) continue;
+                    row.Enabled  = f[1] == "1";
+                    row.Position = string.IsNullOrEmpty(f[2]) ? row.Position : f[2];
+                    row.Scale    = string.IsNullOrEmpty(f[3]) ? "100%" : f[3];
+                }
+            }
+            GrdAllLayers?.Items.Refresh();
+        }
 
         private void RestoreOverlayCardValues(Dictionary<string, string> values)
         {
@@ -2591,6 +2886,8 @@ namespace Loadout.UI
                 else if (el is ComboBox c)  sink[name] = (c.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "";
                 else if (el is CheckBox cb) sink[name] = (cb.IsChecked == true) ? "1" : "0";
             }
+            // All-in-one layer grid persists as a single blob.
+            CaptureAllLayers(sink);
         }
 
         private Dictionary<string, string> GlobalThemeParams()
@@ -2847,6 +3144,21 @@ namespace Loadout.UI
             catch (Exception ex) { ShowSavedHint("Send failed: " + ex.Message); }
         }
 
+        // Schedule a bus publish on the UI dispatcher after a delay.
+        // Used by FireOverlayTestEvent to stagger multi-step tests
+        // (e.g. hypetrain start → contribute → level → end) so the
+        // overlay sees a real lifecycle rather than every event in the
+        // same frame. Fire-and-forget — we don't track or cancel; the
+        // test sequence is short enough (<10s) that a stale callback
+        // landing on a closed overlay is harmless.
+        private static void ScheduleBus(int delayMs, Action publish)
+        {
+            if (publish == null) return;
+            System.Threading.Tasks.Task.Delay(Math.Max(0, delayMs))
+                .ContinueWith(_ => { try { publish(); } catch (Exception ex) { Util.ErrorLog.Write("ScheduleBus.publish", ex); } },
+                              System.Threading.Tasks.TaskScheduler.Default);
+        }
+
         // Publishes one event of the right kind for each overlay so its
         // page renders something. Each kind here matches the overlay's
         // own subscribe list in main.js — keep them in sync if either
@@ -3063,22 +3375,46 @@ namespace Loadout.UI
                     case "hypetrain":
                         // Fire start → contribute → level-up so the overlay
                         // animates through the full life cycle in one click.
+                        // Each step is staggered so the overlay's own
+                        // animation lands before the next event arrives.
+                        // CRITICAL: the test ALSO fires `hypetrain.end`
+                        // after a few seconds — without that, the overlay
+                        // stays in active state until the streamer dismisses
+                        // it (or the real hype-train timeout, default 5
+                        // minutes). Tests should never leave overlay state
+                        // hanging, so we always close out here.
+                        // `source` matches the Source dropdown so the test
+                        // renders on whichever hype-train overlay the
+                        // streamer is currently configuring.
+                        var hypeTestSource = SelectedTag(CmbHypeTrainSource);
+                        if (string.IsNullOrEmpty(hypeTestSource)) hypeTestSource = "all";
                         AquiloBus.Instance.Publish("hypetrain.start", new
                         {
                             level = 1, fuel = 60, threshold = 100, maxLevel = 5,
-                            fromUser = sampleUser, kind = "cheer", ts = DateTime.UtcNow
+                            fromUser = sampleUser, kind = "cheer", source = hypeTestSource, ts = DateTime.UtcNow
                         });
-                        AquiloBus.Instance.Publish("hypetrain.contribute", new
+                        // Stagger the rest so chat sees the train build up
+                        // rather than all events landing in the same frame.
+                        ScheduleBus(2200, () => AquiloBus.Instance.Publish("hypetrain.contribute", new
                         {
                             user = sampleUser + "_friend", kind = "tiktokGift",
                             fuel = 30, totalFuel = 90, level = 1, threshold = 100,
-                            ts = DateTime.UtcNow
-                        });
-                        AquiloBus.Instance.Publish("hypetrain.level", new
+                            source = hypeTestSource, ts = DateTime.UtcNow
+                        }));
+                        ScheduleBus(4400, () => AquiloBus.Instance.Publish("hypetrain.level", new
                         {
                             level = 2, fuel = 120, threshold = 100, maxLevel = 5,
-                            fromUser = "viewer_three", kind = "giftSub", ts = DateTime.UtcNow
-                        });
+                            fromUser = "viewer_three", kind = "giftSub", source = hypeTestSource, ts = DateTime.UtcNow
+                        }));
+                        // Hard-stop the test ~7s in so the overlay doesn't
+                        // sit "active" until the real timeout. finalLevel
+                        // matches the highest level we sent.
+                        ScheduleBus(7000, () => AquiloBus.Instance.Publish("hypetrain.end", new
+                        {
+                            finalLevel = 2, durationMs = 7000,
+                            cooldownUntilUtc = DateTime.UtcNow.AddMinutes(1),
+                            source = hypeTestSource, ts = DateTime.UtcNow
+                        }));
                         break;
 
                     case "minigames":
@@ -3385,16 +3721,16 @@ namespace Loadout.UI
                     case "all":
                         // Composite test: fire each enabled layer's test
                         // event so the all-in-one overlay renders the lot.
-                        if (ChkAllBolts?.IsChecked     == true) FireOverlayTestEvent("bolts");
-                        if (ChkAllCounters?.IsChecked  == true) FireOverlayTestEvent("counters");
-                        if (ChkAllGoals?.IsChecked     == true) FireOverlayTestEvent("goals");
-                        if (ChkAllCheckIn?.IsChecked   == true) FireOverlayTestEvent("check-in");
-                        if (ChkAllApex?.IsChecked      == true) FireOverlayTestEvent("apex");
-                        if (ChkAllCommands?.IsChecked  == true) FireOverlayTestEvent("commands");
-                        if (ChkAllRecap?.IsChecked     == true) FireOverlayTestEvent("recap");
-                        if (ChkAllViewer?.IsChecked    == true) FireOverlayTestEvent("viewer");
-                        if (ChkAllHypeTrain?.IsChecked == true) FireOverlayTestEvent("hypetrain");
-                        if (ChkAllMinigames?.IsChecked == true) FireOverlayTestEvent("minigames");
+                        // Reads the per-layer grid; check-in maps to the
+                        // "check-in" overlay test, the rest map 1:1.
+                        if (_allLayers != null)
+                        {
+                            foreach (var row in _allLayers)
+                            {
+                                if (row == null || !row.Enabled) continue;
+                                FireOverlayTestEvent(row.Name);
+                            }
+                        }
                         break;
 
                     case "dungeon":
@@ -3571,6 +3907,7 @@ namespace Loadout.UI
                 case "hypetrain": return TxtUrlHypeTrain?.Text;
                 case "minigames": return TxtUrlMinigames?.Text;
                 case "compact":   return TxtUrlCompact?.Text;
+                case "vertical":  return TxtUrlVertical?.Text;
                 case "dungeon":   return TxtUrlDungeon?.Text;
                 case "all":       return TxtUrlAll?.Text;
                 default:         return null;
@@ -3964,6 +4301,38 @@ namespace Loadout.UI
             BoltsWallet.SplitKey(w.Key, out var platform, out var handle);
             BoltsWallet.Instance.Spend(platform, handle, w.Balance, "manual:zero");
             TxtWalletHint.Text = "Zeroed " + w.Display + ".";
+            ReloadWallets();
+        }
+
+        private async void BtnWalletResetAll_Click(object sender, RoutedEventArgs e)
+        {
+            // Hard reset across both surfaces. Two-step confirm because
+            // this wipes every viewer's balance. First step is the OS
+            // dialog; second step is a separate Yes/No so a stray Enter
+            // press on the first one can't drop the economy.
+            var first = LoadoutDialog.Show(this,
+                "This zeros the balance + lifetime counters for every wallet on this Loadout install AND the linked Discord guild. " +
+                "Links (which Discord users belong to which stream identities) are preserved so viewers don't have to re-link.\n\n" +
+                "Streaks reset to 0. There is no undo.",
+                "Reset every viewer's wallet?",
+                MessageBoxButton.OKCancel, MessageBoxImage.Warning);
+            if (first != MessageBoxResult.OK) return;
+            var second = LoadoutDialog.Show(this,
+                "Final check — last chance to back out. Reset every wallet?",
+                "Confirm reset",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (second != MessageBoxResult.Yes) return;
+
+            TxtWalletHint.Text = "Resetting…";
+            try
+            {
+                var (success, cleared, msg) = await Discord.DiscordSync.Instance.ResetAllWalletsAsync();
+                TxtWalletHint.Text = success ? "Reset " + cleared + " wallets." : "Reset failed: " + msg;
+            }
+            catch (Exception ex)
+            {
+                TxtWalletHint.Text = "Reset failed: " + ex.Message;
+            }
             ReloadWallets();
         }
 

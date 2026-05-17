@@ -15,12 +15,16 @@
   const enabled  = (params.get('layers') || 'leaderboard,toast,rain,streak,giftburst,welcomes')
                      .split(',').map(x => x.trim()).filter(Boolean);
 
-  // Per-layer position overrides.
+  // Per-layer position overrides. A bare `pos` param positions every
+  // sub-layer at once — that's what the all-in-one composite forwards
+  // so bolts lands in its assigned corner. A specific lbPos / toastPos /
+  // streakPos / welcomePos still wins over the bare default when set.
+  const posAll = params.get('pos');
   for (const [param, id] of [
     ['lbPos', 'leaderboard'], ['toastPos', 'toastTrack'],
     ['streakPos', 'streak'], ['welcomePos', 'welcomeTrack']
   ]) {
-    const v = params.get(param);
+    const v = params.get(param) || posAll;
     if (v) $(id).dataset.pos = v;
   }
 

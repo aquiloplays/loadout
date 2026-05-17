@@ -2,26 +2,44 @@
   --bg: transparent;
   --surface: #18181B;
   --surface-2: #1F1F23;
-  --border: #2A2A30;
-  --text: #EFEFF1;
-  --muted: #ADADB8;
-  --accent: #3A86FF;
-  --tt: #00F2EA;
-  --gold: #F0B429;
-  --pink: #FF5DA2;
+  --border: var(--ld-border);
+  --text: var(--ld-text);
+  --muted: var(--ld-muted);
+  --accent: var(--ld-accent);
+  --tt: var(--ld-cyan);
+  --gold: var(--ld-gold);
+  --pink: var(--ld-pink);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; width: 100%; height: 100%; overflow: hidden; }
+html, body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
+  width: 100%; height: 100%; overflow: hidden;
+}
 
-#root { padding: 16px; display: flex; gap: 12px; }
+#root { position: fixed; padding: 16px; display: flex; gap: 12px; }
 body[data-layout="stack"] #root { flex-direction: column; align-items: stretch; }
 body[data-layout="row"]   #root { flex-direction: row; flex-wrap: wrap; }
 
+/* Position anchors — driven by body[data-pos] (set by main.js). */
+body[data-pos="tl"] #root { top: 0;    left: 0; }
+body[data-pos="tr"] #root { top: 0;    right: 0; }
+body[data-pos="bl"] #root { bottom: 0; left: 0; }
+body[data-pos="br"] #root { bottom: 0; right: 0; }
+body[data-pos="tc"] #root { top: 0;    left: 50%; transform: translateX(-50%); }
+body[data-pos="bc"] #root { bottom: 0; left: 50%; transform: translateX(-50%); }
+body[data-pos="lc"] #root { top: 50%;  left: 0;  transform: translateY(-50%); }
+body[data-pos="rc"] #root { top: 50%;  right: 0; transform: translateY(-50%); }
+
 .goal {
   min-width: 280px;
-  background: linear-gradient(180deg, rgba(24,24,27,.92), rgba(15,15,17,.92));
-  border: 1px solid var(--border);
-  border-radius: 12px;
+  background: var(--ld-glass-tint), var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-md);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-soft), var(--ld-shadow-rim);
   padding: 12px 14px;
   box-shadow: 0 6px 18px rgba(0,0,0,.4);
 }

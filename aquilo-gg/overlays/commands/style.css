@@ -2,20 +2,21 @@
   --bg: transparent;
   --surface: #18181B;
   --surface-2: #1F1F23;
-  --border: #2A2A30;
-  --text: #F5F5F7;
-  --muted: #B8BCC6;
-  --accent: #3A86FF;
-  --cyan: #00F2EA;
+  --border: var(--ld-border);
+  --text: var(--ld-text);
+  --muted: var(--ld-muted);
+  --accent: var(--ld-accent);
+  --cyan: var(--ld-cyan);
   --azure: #3AC8FF;
-  --shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 0 1px rgba(58,134,255,.12);
+  --shadow: var(--ld-shadow-mid), var(--ld-shadow-rim);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
   width: 100%; height: 100%;
   overflow: hidden;
 }

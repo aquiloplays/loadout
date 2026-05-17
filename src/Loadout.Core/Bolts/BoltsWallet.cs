@@ -172,6 +172,90 @@ namespace Loadout.Bolts
             }
         }
 
+        /// <summary>After a new IdentityLinker link is registered, an
+        /// existing wallet keyed by the now-non-canonical identity (the
+        /// orphan) becomes unreachable through the normal Earn/Spend
+        /// path — those routes resolve through GetPrimary() and land on
+        /// the canonical wallet instead. This method migrates the orphan's
+        /// balance + lifetime counters into the canonical wallet and
+        /// drops the orphan entry. No-op when called for an identity
+        /// whose canonical key IS the raw key (i.e. unlinked or already-
+        /// primary identities).</summary>
+        public bool MergeIntoCanonical(string platform, string handle)
+        {
+            if (string.IsNullOrEmpty(handle)) return false;
+            // Compute the raw key (bypassing IdentityLinker) and the
+            // canonical key (post-link resolution). If they match, this
+            // identity is already canonical — nothing to merge.
+            var rawKey = (platform ?? "?").ToLowerInvariant() + ":" + handle.Trim().TrimStart('@').ToLowerInvariant();
+            var canonicalKey = ResolveKey(platform, handle);
+            if (string.Equals(rawKey, canonicalKey, StringComparison.OrdinalIgnoreCase)) return false;
+
+            bool merged = false;
+            lock (_gate)
+            {
+                if (!_accounts.TryGetValue(rawKey, out var orphan)) return false;
+                if (!_accounts.TryGetValue(canonicalKey, out var canonical))
+                {
+                    canonical = new BoltsAccount
+                    {
+                        Key = canonicalKey,
+                        Display = orphan.Display ?? handle,
+                        FirstSeenUtc = orphan.FirstSeenUtc
+                    };
+                    _accounts[canonicalKey] = canonical;
+                }
+                canonical.Balance        += orphan.Balance;
+                canonical.LifetimeEarned += orphan.LifetimeEarned;
+                canonical.LifetimeSpent  += orphan.LifetimeSpent;
+                if (orphan.StreakDays > canonical.StreakDays)
+                {
+                    canonical.StreakDays    = orphan.StreakDays;
+                    canonical.LastStreakUtc = orphan.LastStreakUtc;
+                }
+                if (orphan.LastActivityUtc > canonical.LastActivityUtc)
+                    canonical.LastActivityUtc = orphan.LastActivityUtc;
+                if (canonical.FirstSeenUtc == default(DateTime) ||
+                    (orphan.FirstSeenUtc != default(DateTime) && orphan.FirstSeenUtc < canonical.FirstSeenUtc))
+                    canonical.FirstSeenUtc = orphan.FirstSeenUtc;
+                _accounts.Remove(rawKey);
+                ScheduleSave();
+                merged = true;
+            }
+            // Save synchronously so a crash before the 5s debounce ticks
+            // doesn't leave the orphan re-appearing on next load.
+            if (merged) try { lock (_gate) WriteToDisk(); } catch { /* logged on retry */ }
+            return merged;
+        }
+
+        /// <summary>Streamer-initiated reset: zero balance + lifetime
+        /// counters on every account. Keeps the Display name and
+        /// FirstSeenUtc so we don't lose the canonical-key map; streaks
+        /// reset to 0 along with the rest. Returns the wallet count.</summary>
+        public int ResetAll()
+        {
+            int n;
+            lock (_gate)
+            {
+                n = _accounts.Count;
+                foreach (var a in _accounts.Values)
+                {
+                    a.Balance        = 0;
+                    a.LifetimeEarned = 0;
+                    a.LifetimeSpent  = 0;
+                    a.StreakDays     = 0;
+                    a.LastStreakUtc  = default(DateTime);
+                    a.LastReason     = "reset";
+                    a.LastActivityUtc = DateTime.UtcNow;
+                }
+                ScheduleSave();
+            }
+            // Save synchronously so the UI reflecting the reset doesn't
+            // race against the 5s debounce.
+            try { lock (_gate) WriteToDisk(); } catch { /* logged on retry */ }
+            return n;
+        }
+
         // ── Streak tracking (daily check-in driven) ───────────────────────────
 
         /// <summary>

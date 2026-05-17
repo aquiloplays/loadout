@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Vertical-stream overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Vertical-stream overlay. Optimized for 1080×1920 canvases where
+  screen real estate is tight (TikTok Live / YouTube Shorts Live /
+  Twitch vertical). Three layouts, picked via the `mode` URL param:
+
+    mode=tile    (default) — corner-mounted 240×120 card, fades in
+                             ~3s per event then disappears. Best for
+                             streamers who want minimal chrome.
+    mode=banner             — slim 1080×80 horizontal banner across
+                             the top or bottom edge. Best for
+                             streamers who want a constant feed.
+    mode=side               — narrow 160×600 vertical strip, stack
+                             of recent events. Best for streamers
+                             with empty side margin.
+
+  Drop into OBS:
+    https://widget.aquilo.gg/overlays/vertical/?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET&mode=tile&pos=br
+
+  Optional URL params:
+    mode      tile (default) | banner | side
+    pos       tile:   tl | tr | bl | br
+              banner: tc | bc                  (top-center / bottom-center)
+              side:   lc | rc                  (left-center / right-center)
+    accent    hex (overrides --ld-accent via _shared/theme.js)
+    holdMs    active-card hold time (default 3500, min 1500)
+    show      comma-list of allowed event kinds; default = everything
+
+  OBS browser sources (each fits inside a vertical 1080×1920 canvas):
+    tile:    240×120   (small, anchored to a corner)
+    banner:  1080×80   (slim band across one edge)
+    side:    160×600   (narrow strip down one side)
+-->
+<link rel="stylesheet" href="../_shared/loadout-design.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-mode="tile" data-pos="br">
+  <!-- Single root — the three modes share a renderer, the mode attr
+       on <body> selects which CSS layout takes over. -->
+  <div id="root">
+    <!-- Tile mode body. A single floating card. CSS hides this
+         block in other modes. -->
+    <div id="tile" class="vmode vmode-tile">
+      <div id="tileCard" class="tile-card hidden">
+        <span id="tileBadge" class="tile-badge">⚡</span>
+        <div class="tile-text">
+          <span id="tileTitle" class="tile-title">Loadout</span>
+          <span id="tileSub"   class="tile-sub">ready when you are</span>
+        </div>
+      </div>
+      <!-- Pinned idle widget — shows a quiet summary when nothing's
+           happening. Top earner / current streak / hype state. -->
+      <div id="tileIdle" class="tile-idle">
+        <span class="tile-idle-mark">⚡</span>
+        <span id="tileIdleText" class="tile-idle-text">Loadout</span>
+      </div>
+    </div>
+
+    <!-- Banner mode body. Thin band; crossfades event cards in place. -->
+    <div id="banner" class="vmode vmode-banner">
+      <div id="bannerCard" class="banner-card">
+        <span id="bannerBadge" class="banner-badge">⚡</span>
+        <span id="bannerTitle" class="banner-title">Loadout</span>
+        <span id="bannerSub"   class="banner-sub">ready when you are</span>
+      </div>
+    </div>
+
+    <!-- Side mode body. Vertical stack — most recent events on top,
+         oldest pushed down and fading. -->
+    <div id="side" class="vmode vmode-side">
+      <div class="side-head">
+        <span class="side-eyebrow">LIVE</span>
+        <span id="sideCount" class="side-count">0</span>
+      </div>
+      <div id="sideList" class="side-list"></div>
+    </div>
+  </div>
+
+  <script src="../_shared/theme.js"></script>
+  <script src="../_shared/tiktok-gifts.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

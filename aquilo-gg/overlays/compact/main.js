@@ -35,6 +35,15 @@
     if (!pos) document.body.dataset.pos = 'bc';
   }
 
+  // Bare mode — drops the card's solid background entirely so the
+  // overlay reads as floating text + chips against gameplay rather
+  // than a panel laid on top. CSS keeps everything legible against
+  // any backdrop via heavy text-shadows, outline glow on the badge,
+  // and a chip background instead of a card surface. Pairs cleanly
+  // with ?vertical=1 for the most minimal vertical-stream footprint.
+  const bare = params.get('bare') === '1';
+  if (bare) document.body.dataset.bare = '1';
+
   const HOLD_MS     = Math.max(1500, parseInt(params.get('holdMs')     || '4500', 10) || 4500);
   const IDLE_ROTATE = Math.max(10,   parseInt(params.get('idleRotate') || '30',   10) || 30) * 1000;
 
@@ -86,8 +95,8 @@
   const gCoinFaceHeads = gameEl.querySelector('.g-coin-face.heads');
   const gCoinFaceTails = gameEl.querySelector('.g-coin-face.tails');
   const gDie      = gameEl.querySelector('.g-die');
-  const gDiePip   = gameEl.querySelector('.g-die-pip');
   const gSlots    = gameEl.querySelector('.g-slots');
+  const gLever    = gameEl.querySelector('.g-lever');
   const gReels    = [$('gReel0'), $('gReel1'), $('gReel2')];
 
   // Show / hide a layer by toggling the existing `.hidden` class —
@@ -377,9 +386,11 @@
   // the visual lands.
   function resetGameVisuals() {
     gCoin.classList.remove('show', 'flipping', 'show-heads', 'show-tails');
-    gDie.classList.remove('show', 'rolling');
+    gDie.classList.remove('show', 'rolling',
+                          'land-1', 'land-2', 'land-3', 'land-4', 'land-5', 'land-6');
     gSlots.classList.remove('show');
     gReels.forEach(r => { r.classList.remove('spinning', 'locked'); r.innerHTML = ''; });
+    if (gLever) gLever.classList.remove('pulling');
   }
   function runGame(item) {
     resetGameVisuals();
@@ -399,21 +410,36 @@
     if (item.game === 'slots')    return runSlots(d);
   }
   function runCoin(d) {
-    gCoin.classList.add('show', 'flipping', d.result === 'tails' ? 'show-tails' : 'show-heads');
+    gCoin.classList.add('show');
+    void gCoin.offsetWidth;
+    gCoin.classList.add('flipping', d.result === 'tails' ? 'show-tails' : 'show-heads');
     setTimeout(() => {
       // Settle: keep current sub (already set with payout); just pulse.
       gameEl.classList.remove('popped'); void gameEl.offsetWidth; gameEl.classList.add('popped');
     }, 1300);
   }
   function runDie(d) {
-    gDie.classList.add('show', 'rolling');
-    gDiePip.textContent = String(d.rolled || '?');
+    var face = parseInt(d.rolled, 10);
+    if (!(face >= 1 && face <= 6)) face = 1;
+    gDie.classList.add('show', 'land-' + face);
+    void gDie.offsetWidth;
+    gDie.classList.add('rolling');
     setTimeout(() => {
       gameEl.classList.remove('popped'); void gameEl.offsetWidth; gameEl.classList.add('popped');
     }, 1300);
   }
   function runSlots(d) {
     gSlots.classList.add('show');
+    // Lever pull — fires ~240ms before reels lock so the read is
+    // "pull → spin → settle". Same retrigger trick as the standalone
+    // overlay: remove → reflow → add so back-to-back !slots events
+    // re-run the transition.
+    if (gLever) {
+      gLever.classList.remove('pulling');
+      void gLever.offsetWidth;
+      gLever.classList.add('pulling');
+      setTimeout(function () { if (gLever) gLever.classList.remove('pulling'); }, 240);
+    }
     // Render symbols using the same isUrl heuristic the standalone
     // slots overlay uses so emoji-pool entries render as text glyphs.
     const pool = (d.pool && d.pool.length ? d.pool : null) ||
@@ -472,6 +498,12 @@
     // Hype-train events are routed to the takeover state machine
     // BEFORE the regular event-card path, regardless of category
     // filter. (Hype's category gate runs inside hypeStart.)
+    // Loadout runs two trains — only render the cross-platform one
+    // ("all") here so a Twitch-only train doesn't double-fire the
+    // takeover. Events with no source default to "all".
+    if (k.indexOf('hypetrain.') === 0) {
+      if ((d.source || 'all').toLowerCase() !== 'all') return;
+    }
     if (k === 'hypetrain.start')      { hypeStart(d);      return; }
     if (k === 'hypetrain.contribute') { hypeContribute(d); return; }
     if (k === 'hypetrain.level')      { hypeLevelUp(d);    return; }
@@ -557,6 +589,30 @@
                 title: 'Queued: ' + d.title + (d.artist ? ' — ' + d.artist : ''),
                 sub: (d.requestedBy ? 'by ' + d.requestedBy : 'priority request') };
         break;
+      case 'tips.received':
+        if (!(d.amount > 0)) return;
+        evt = { tone: 'streak', badge: '💖',
+                title: (d.tipper || 'anonymous') + ' tipped ' + (d.currency || 'USD') + ' ' + (d.amount || 0).toFixed(2),
+                sub:   d.bolts > 0
+                       ? '+' + d.bolts + ' bolts' + (d.message ? '  ·  "' + d.message + '"' : '')
+                       : (d.message ? '"' + d.message + '"' : 'thanks!') };
+        break;
+      case 'bolts.heist.start':
+        if (!d.initiator) return;
+        evt = { tone: 'counter', badge: '🦹',
+                title: d.initiator + ' is pulling a heist',
+                sub: 'pot ' + (d.totalPot || d.stake || 0) + '/' + (d.target || 0) + ' ⚡  ·  !join to chip in' };
+        break;
+      case 'bolts.heist.success':
+        evt = { tone: 'win', badge: '💰',
+                title: 'HEIST SUCCESS',
+                sub: 'crew of ' + (d.contributors || 0) + ' splits ' + (d.payout || 0) + ' ⚡' };
+        break;
+      case 'bolts.heist.failure':
+        evt = { tone: 'lose', badge: '🚨',
+                title: 'HEIST FAILED',
+                sub: 'pot ' + (d.totalPot || 0) + '/' + (d.target || 0) + ' ⚡  ·  crew got nothing' };
+        break;
     }
     if (evt) enqueue(evt);
   }
@@ -593,7 +649,7 @@
       ws.send(JSON.stringify({ v: 1, kind: 'hello',     client: 'overlay-compact' }));
       ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: [
         'commands.list', 'commands.icons', 'bolts.*', 'welcome.*',
-        'hypetrain.*', 'counter.*', 'viewer.profile.shown',
+        'hypetrain.*', 'counter.*', 'viewer.profile.shown', 'tips.received',
         'rotation.song.playing', 'rotation.song.queued'
       ]}));
       ws.send(JSON.stringify({ v: 1, kind: 'commands.requestList' }));

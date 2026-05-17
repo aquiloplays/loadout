@@ -109,6 +109,21 @@ namespace Loadout.Host
                 UpdateChecker.Instance.UpdateAvailable += OnUpdateAvailable;
                 UpdateChecker.Instance.Start();
 
+                // Auto-sync the Bolts wallet with the Discord Worker every
+                // 30 seconds when the bot is enabled and bound to a guild.
+                // This is what makes /balance and the Loadout UI agree —
+                // before this timer existed, sync only ran when the user
+                // clicked Push or Pull in Settings, so the two surfaces
+                // drifted apart whenever a viewer used /coinflip etc.
+                Discord.DiscordSync.Instance.StartAutoSync();
+
+                // Tip bridge — polls the Worker for tip-provider webhooks
+                // (Streamlabs / StreamElements / Ko-fi / generic) and
+                // republishes them as `tips.received` on the local bus
+                // while awarding bolts to the linked tipper. No-op if
+                // the streamer hasn't enabled it in BoltsConfig.
+                Discord.TipBridge.Instance.Start();
+
                 // Hook process exit so the tray icon (a WinForms NotifyIcon)
                 // gets disposed before the CLR tears down the AppDomain. If we
                 // don't, SB's exit can race with our background UI thread and

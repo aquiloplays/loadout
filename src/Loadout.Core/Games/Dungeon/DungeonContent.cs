@@ -189,6 +189,49 @@ namespace Loadout.Games.Dungeon
             // for any class, but matched items reward the right one.
             public string WeaponType;       // sword | axe | hammer | polearm | dagger | bow | crossbow | staff | wand | tome | orb | holy | sling
             public string PreferredClass;   // warrior / mage / rogue / ranger / healer (empty = no preference)
+            // Optional ability keyword — fires through DungeonEngine when
+            // any equipped item has this set. See AbilityCatalog for the
+            // supported keywords. Empty = no ability.
+            public string Ability;
+            // When true this item NEVER drops from a regular dungeon run
+            // and NEVER appears in the shop — it's exclusive to hype-train
+            // end rewards. RollRarity / PickLootByRarity filter these out;
+            // PickHypeTrainLoot is the only path that surfaces them.
+            public bool   HypeTrainOnly;
+        }
+
+        // ── Abilities ──────────────────────────────────────────────────
+        // Catalog of ability keywords items can grant. The engine reads
+        // the equipped union of these per hero and applies them at the
+        // right scene-build hooks (monster fight / trap / treasure / boss).
+        // Keep this list small — adding a new ability requires wiring
+        // it into DungeonEngine; tweaking power can stay table-driven.
+        public sealed class AbilityDef
+        {
+            public string Keyword;
+            public string DisplayName;
+            public string Description;
+            public string Glyph;
+        }
+        public static readonly AbilityDef[] AbilityCatalog = new[]
+        {
+            new AbilityDef { Keyword = "lifesteal",       DisplayName = "Lifesteal",        Glyph = "🩸", Description = "Heal +2 HP after surviving each monster encounter." },
+            new AbilityDef { Keyword = "regen",           DisplayName = "Regeneration",     Glyph = "💚", Description = "Heal +1 HP each scene." },
+            new AbilityDef { Keyword = "nimble",          DisplayName = "Nimble",           Glyph = "💨", Description = "30% chance to dodge a trap entirely." },
+            new AbilityDef { Keyword = "lucky",           DisplayName = "Lucky",            Glyph = "🍀", Description = "+25% gold from monsters and treasure." },
+            new AbilityDef { Keyword = "scholar",         DisplayName = "Scholar",          Glyph = "📚", Description = "+25% XP from all sources." },
+            new AbilityDef { Keyword = "bulwark",         DisplayName = "Bulwark",          Glyph = "🛡", Description = "-2 damage from monster attacks (min 1)." },
+            new AbilityDef { Keyword = "wardstone",       DisplayName = "Wardstone",        Glyph = "🪨", Description = "-2 damage from traps (min 0)." },
+            new AbilityDef { Keyword = "boss-slayer",     DisplayName = "Boss Slayer",      Glyph = "👑", Description = "+50% gold and XP from boss encounters." },
+            new AbilityDef { Keyword = "phoenix",         DisplayName = "Phoenix",          Glyph = "🔥", Description = "Once per dungeon, revive at half HP if killed." },
+            new AbilityDef { Keyword = "treasure-hunter", DisplayName = "Treasure Hunter",  Glyph = "🗝", Description = "+50% gold from treasure scenes." }
+        };
+        public static AbilityDef AbilityByKeyword(string kw)
+        {
+            if (string.IsNullOrWhiteSpace(kw)) return null;
+            var k = kw.Trim().ToLowerInvariant();
+            foreach (var a in AbilityCatalog) if (a.Keyword == k) return a;
+            return null;
         }
 
         // ~220 items across 6 rarities + 10 set themes. Every weapon
@@ -233,7 +276,7 @@ namespace Loadout.Games.Dungeon
             new LootDef { Slot = "trinket", Rarity = "common", Name = "Crow Feather",    Glyph = "🪶", PowerBonus = 0, DefenseBonus = 1, GoldValue = 5  },
             new LootDef { Slot = "trinket", Rarity = "common", Name = "Wooden Charm",    Glyph = "🪵", PowerBonus = 0, DefenseBonus = 1, GoldValue = 4  },
             new LootDef { Slot = "trinket", Rarity = "common", Name = "Brass Ring",      Glyph = "💍", PowerBonus = 0, DefenseBonus = 1, GoldValue = 5  },
-            new LootDef { Slot = "trinket", Rarity = "common", Name = "Lucky Coin",      Glyph = "🪙", PowerBonus = 1, DefenseBonus = 0, GoldValue = 6  },
+            new LootDef { Slot = "trinket", Rarity = "common", Name = "Lucky Coin",      Glyph = "🪙", PowerBonus = 1, DefenseBonus = 0, GoldValue = 6,  Ability = "lucky" },
 
             // ─────────────────────────────── UNCOMMON ─────────────────────────
             // Class-themed weapon variety (most weapons now class-preferred).
@@ -281,7 +324,7 @@ namespace Loadout.Games.Dungeon
             new LootDef { Slot = "boots",  Rarity = "uncommon", Name = "Vestal Slippers",  Glyph = "🩰", PowerBonus = 0, DefenseBonus = 2, GoldValue = 55, SetName = "vestal", PreferredClass = "healer" },
 
             // Standalone uncommon trinkets
-            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Lucky Charm",     Glyph = "🍀", PowerBonus = 1, DefenseBonus = 1, GoldValue = 70 },
+            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Lucky Charm",     Glyph = "🍀", PowerBonus = 1, DefenseBonus = 1, GoldValue = 70, Ability = "lucky" },
             new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Owl Pendant",     Glyph = "🦉", PowerBonus = 1, DefenseBonus = 1, GoldValue = 72 },
             new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Compass",         Glyph = "🧭", PowerBonus = 0, DefenseBonus = 2, GoldValue = 70 },
 
@@ -331,11 +374,11 @@ namespace Loadout.Games.Dungeon
 
             // Standalone rare gear
             new LootDef { Slot = "chest",  Rarity = "rare", Name = "Plated Cuirass",      Glyph = "🛡", PowerBonus = 1, DefenseBonus = 4, GoldValue = 220 },
-            new LootDef { Slot = "boots",  Rarity = "rare", Name = "Stormstride Boots",   Glyph = "⛈", PowerBonus = 1, DefenseBonus = 3, GoldValue = 200 },
-            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Healing Amulet",     Glyph = "📿", PowerBonus = 0, DefenseBonus = 3, GoldValue = 220 },
+            new LootDef { Slot = "boots",  Rarity = "rare", Name = "Stormstride Boots",   Glyph = "⛈", PowerBonus = 1, DefenseBonus = 3, GoldValue = 200, Ability = "nimble" },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Healing Amulet",     Glyph = "📿", PowerBonus = 0, DefenseBonus = 3, GoldValue = 220, Ability = "regen" },
             new LootDef { Slot = "trinket", Rarity = "rare", Name = "Shadow Cloak Pin",   Glyph = "🎗", PowerBonus = 2, DefenseBonus = 2, GoldValue = 240, SetName = "shadow", PreferredClass = "rogue" },
-            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Phoenix Down",       Glyph = "🔥", PowerBonus = 2, DefenseBonus = 2, GoldValue = 230 },
-            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Wolf Tooth",         Glyph = "🐺", PowerBonus = 2, DefenseBonus = 2, GoldValue = 220 },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Phoenix Down",       Glyph = "🔥", PowerBonus = 2, DefenseBonus = 2, GoldValue = 230, Ability = "phoenix" },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Wolf Tooth",         Glyph = "🐺", PowerBonus = 2, DefenseBonus = 2, GoldValue = 220, Ability = "boss-slayer" },
             new LootDef { Slot = "trinket", Rarity = "rare", Name = "Forest Pendant",     Glyph = "🍃", PowerBonus = 2, DefenseBonus = 2, GoldValue = 220, SetName = "druidic", PreferredClass = "ranger" },
             new LootDef { Slot = "trinket", Rarity = "rare", Name = "Vestal Pendant",     Glyph = "📿", PowerBonus = 1, DefenseBonus = 3, GoldValue = 220, SetName = "vestal", PreferredClass = "healer" },
 
@@ -351,7 +394,7 @@ namespace Loadout.Games.Dungeon
             new LootDef { Slot = "weapon", Rarity = "epic", Name = "Skywatcher Crossbow", Glyph = "🎯", PowerBonus = 8, DefenseBonus = 0, GoldValue = 660, WeaponType = "crossbow", PreferredClass = "ranger" },
             new LootDef { Slot = "weapon", Rarity = "epic", Name = "Whisperblades",       Glyph = "🗡", PowerBonus = 8, DefenseBonus = 0, GoldValue = 660, WeaponType = "dagger", PreferredClass = "rogue" },
             new LootDef { Slot = "weapon", Rarity = "epic", Name = "Heartseeker",         Glyph = "🗡", PowerBonus = 9, DefenseBonus = 0, GoldValue = 700, WeaponType = "dagger", PreferredClass = "rogue" },
-            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Phoenix Staff",       Glyph = "🔥", PowerBonus = 6, DefenseBonus = 4, GoldValue = 700, WeaponType = "staff",  PreferredClass = "healer" },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Phoenix Staff",       Glyph = "🔥", PowerBonus = 6, DefenseBonus = 4, GoldValue = 700, WeaponType = "staff",  PreferredClass = "healer", Ability = "phoenix" },
 
             // Voidweave set (mage-preferred — full set epic-tier)
             new LootDef { Slot = "head",   Rarity = "epic", Name = "Voidweave Hood",      Glyph = "🌑", PowerBonus = 4, DefenseBonus = 3, GoldValue = 660, SetName = "voidweave", PreferredClass = "mage" },
@@ -373,8 +416,8 @@ namespace Loadout.Games.Dungeon
 
             // Standalone epic gear
             new LootDef { Slot = "head",   Rarity = "epic", Name = "Wyvern Crown",        Glyph = "👑", PowerBonus = 2, DefenseBonus = 5, GoldValue = 600 },
-            new LootDef { Slot = "boots",  Rarity = "epic", Name = "Sevenleague Boots",   Glyph = "👢", PowerBonus = 2, DefenseBonus = 5, GoldValue = 660 },
-            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Phoenix Feather",    Glyph = "🪶", PowerBonus = 3, DefenseBonus = 4, GoldValue = 660 },
+            new LootDef { Slot = "boots",  Rarity = "epic", Name = "Sevenleague Boots",   Glyph = "👢", PowerBonus = 2, DefenseBonus = 5, GoldValue = 660, Ability = "nimble" },
+            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Phoenix Feather",    Glyph = "🪶", PowerBonus = 3, DefenseBonus = 4, GoldValue = 660, Ability = "phoenix" },
             new LootDef { Slot = "trinket", Rarity = "epic", Name = "Soul Lantern",       Glyph = "🏮", PowerBonus = 4, DefenseBonus = 3, GoldValue = 720 },
             new LootDef { Slot = "trinket", Rarity = "epic", Name = "Storm Heart",        Glyph = "⚡", PowerBonus = 4, DefenseBonus = 3, GoldValue = 700 },
             new LootDef { Slot = "trinket", Rarity = "epic", Name = "Voidstone",          Glyph = "🌑", PowerBonus = 5, DefenseBonus = 2, GoldValue = 680, SetName = "voidweave", PreferredClass = "mage" },
@@ -393,14 +436,142 @@ namespace Loadout.Games.Dungeon
             // Standalone legendary
             new LootDef { Slot = "head",   Rarity = "legendary", Name = "Crown of Aeons", Glyph = "👑", PowerBonus = 4, DefenseBonus = 8, GoldValue = 2100 },
             new LootDef { Slot = "chest",  Rarity = "legendary", Name = "Aegis Plate",    Glyph = "🛡", PowerBonus = 3, DefenseBonus = 10, GoldValue = 2150 },
-            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Bolt Sigil",    Glyph = "💎", PowerBonus = 6, DefenseBonus = 6, GoldValue = 2100 },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Bolt Sigil",    Glyph = "💎", PowerBonus = 6, DefenseBonus = 6, GoldValue = 2100, Ability = "lucky" },
 
             // ─────────────────────────────── MYTHIC ───────────────────────────
             new LootDef { Slot = "weapon", Rarity = "mythic", Name = "Reality Splitter",   Glyph = "✨", PowerBonus = 20, DefenseBonus = 4, GoldValue = 5000, WeaponType = "sword", PreferredClass = "warrior" },
             new LootDef { Slot = "weapon", Rarity = "mythic", Name = "Voidpiercer",        Glyph = "🌑", PowerBonus = 18, DefenseBonus = 6, GoldValue = 5000, WeaponType = "staff", PreferredClass = "mage" },
             new LootDef { Slot = "weapon", Rarity = "mythic", Name = "Shadow of the End",  Glyph = "🗡", PowerBonus = 22, DefenseBonus = 2, GoldValue = 5200, WeaponType = "dagger", PreferredClass = "rogue" },
             new LootDef { Slot = "trinket", Rarity = "mythic", Name = "Heart of the Void", Glyph = "🖤", PowerBonus = 10, DefenseBonus = 10, GoldValue = 5000 },
-            new LootDef { Slot = "trinket", Rarity = "mythic", Name = "Aquilo's Mark",     Glyph = "🌟", PowerBonus = 12, DefenseBonus = 8,  GoldValue = 5200 }
+            new LootDef { Slot = "trinket", Rarity = "mythic", Name = "Aquilo's Mark",     Glyph = "🌟", PowerBonus = 12, DefenseBonus = 8,  GoldValue = 5200 },
+
+            // ─────────────────────────────── EXPANSION POOL ────────────────────
+            // 80+ new items added in the May 2026 dungeon expansion. Adds
+            // ability-bearing loot from uncommon onward, more weapon variety
+            // for under-served classes (especially healer/ranger crossbows
+            // and rogue dual-wield), three new sets (Highwayman / Marauder /
+            // Reaver), plus pure stat-bump filler so each rarity tier has a
+            // wider drop pool. Abilities tier-gate: uncommon items grant a
+            // single weak ability, rare items the same with better stats,
+            // epic+ stack stronger effects with +25% gold values.
+
+            // ── Uncommon expansion ─────────────────────────────────────────
+            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Adventurer's Pouch", Glyph = "👜", PowerBonus = 0, DefenseBonus = 1, GoldValue = 90,  Ability = "lucky" },
+            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Reading Glasses",    Glyph = "👓", PowerBonus = 0, DefenseBonus = 1, GoldValue = 95,  Ability = "scholar" },
+            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Healing Vial",       Glyph = "🧪", PowerBonus = 0, DefenseBonus = 1, GoldValue = 100, Ability = "regen" },
+            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Iron Ward",          Glyph = "🛡", PowerBonus = 0, DefenseBonus = 2, GoldValue = 95,  Ability = "wardstone" },
+            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Sneaker's Token",    Glyph = "👣", PowerBonus = 1, DefenseBonus = 0, GoldValue = 95,  Ability = "nimble" },
+            new LootDef { Slot = "boots",   Rarity = "uncommon", Name = "Stealth Boots",      Glyph = "🥾", PowerBonus = 1, DefenseBonus = 1, GoldValue = 88,  Ability = "nimble" },
+            new LootDef { Slot = "chest",   Rarity = "uncommon", Name = "Padded Bulwark",     Glyph = "🦺", PowerBonus = 0, DefenseBonus = 2, GoldValue = 92,  Ability = "bulwark" },
+            new LootDef { Slot = "head",    Rarity = "uncommon", Name = "Scholar's Cap",      Glyph = "🎓", PowerBonus = 0, DefenseBonus = 1, GoldValue = 92,  Ability = "scholar" },
+            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Bone Crossbow",      Glyph = "🎯", PowerBonus = 3, DefenseBonus = 0, GoldValue = 80,  WeaponType = "crossbow", PreferredClass = "ranger" },
+            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Spiked Mace",        Glyph = "🔨", PowerBonus = 3, DefenseBonus = 0, GoldValue = 80,  WeaponType = "hammer",   PreferredClass = "warrior" },
+            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Pilgrim's Cudgel",   Glyph = "🥢", PowerBonus = 1, DefenseBonus = 2, GoldValue = 78,  WeaponType = "staff",    PreferredClass = "healer" },
+            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Twin Stilettos",     Glyph = "🗡", PowerBonus = 3, DefenseBonus = 0, GoldValue = 82,  WeaponType = "dagger",   PreferredClass = "rogue" },
+
+            // ── Rare expansion ────────────────────────────────────────────
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Vampiric Sabre",      Glyph = "🩸", PowerBonus = 5, DefenseBonus = 0, GoldValue = 240, WeaponType = "sword",  PreferredClass = "warrior", Ability = "lifesteal" },
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Bloodthirst Mace",    Glyph = "🔨", PowerBonus = 5, DefenseBonus = 0, GoldValue = 240, WeaponType = "hammer", PreferredClass = "warrior", Ability = "lifesteal" },
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Wraith Bow",          Glyph = "🏹", PowerBonus = 5, DefenseBonus = 0, GoldValue = 250, WeaponType = "bow",    PreferredClass = "ranger",  Ability = "boss-slayer" },
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Hunter's Crossbow",   Glyph = "🎯", PowerBonus = 5, DefenseBonus = 0, GoldValue = 250, WeaponType = "crossbow", PreferredClass = "ranger", Ability = "boss-slayer" },
+            new LootDef { Slot = "weapon", Rarity = "rare", Name = "Lifedrinker Dagger",  Glyph = "🗡", PowerBonus = 5, DefenseBonus = 0, GoldValue = 245, WeaponType = "dagger", PreferredClass = "rogue",   Ability = "lifesteal" },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Wishing Stone",      Glyph = "🌠", PowerBonus = 1, DefenseBonus = 2, GoldValue = 260, Ability = "lucky" },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Hermit's Tome",      Glyph = "📕", PowerBonus = 2, DefenseBonus = 1, GoldValue = 260, Ability = "scholar" },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Lifestone Pendant",  Glyph = "💚", PowerBonus = 1, DefenseBonus = 2, GoldValue = 265, Ability = "regen" },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Hunter's Token",     Glyph = "🏹", PowerBonus = 2, DefenseBonus = 1, GoldValue = 270, Ability = "boss-slayer" },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Wardstone Amulet",   Glyph = "🪨", PowerBonus = 1, DefenseBonus = 2, GoldValue = 260, Ability = "wardstone" },
+            new LootDef { Slot = "boots",   Rarity = "rare", Name = "Whisperstep Boots",  Glyph = "👞", PowerBonus = 2, DefenseBonus = 2, GoldValue = 250, Ability = "nimble" },
+            new LootDef { Slot = "head",    Rarity = "rare", Name = "Wardstone Diadem",   Glyph = "💎", PowerBonus = 1, DefenseBonus = 3, GoldValue = 245, Ability = "wardstone" },
+            new LootDef { Slot = "chest",   Rarity = "rare", Name = "Bulwark Plate",      Glyph = "🛡", PowerBonus = 1, DefenseBonus = 4, GoldValue = 260, Ability = "bulwark" },
+            new LootDef { Slot = "head",    Rarity = "rare", Name = "Cap of Insight",     Glyph = "🎩", PowerBonus = 2, DefenseBonus = 2, GoldValue = 250, Ability = "scholar" },
+
+            // Highwayman set (rogue, 4-piece — lucky/lifesteal hybrid)
+            new LootDef { Slot = "head",   Rarity = "rare", Name = "Highwayman Mask",     Glyph = "🎭", PowerBonus = 2, DefenseBonus = 2, GoldValue = 250, SetName = "highwayman", PreferredClass = "rogue", Ability = "lucky" },
+            new LootDef { Slot = "chest",  Rarity = "rare", Name = "Highwayman Coat",     Glyph = "🧥", PowerBonus = 2, DefenseBonus = 3, GoldValue = 270, SetName = "highwayman", PreferredClass = "rogue" },
+            new LootDef { Slot = "legs",   Rarity = "rare", Name = "Highwayman Pants",    Glyph = "👖", PowerBonus = 2, DefenseBonus = 2, GoldValue = 250, SetName = "highwayman", PreferredClass = "rogue" },
+            new LootDef { Slot = "boots",  Rarity = "rare", Name = "Highwayman Boots",    Glyph = "🥾", PowerBonus = 2, DefenseBonus = 2, GoldValue = 245, SetName = "highwayman", PreferredClass = "rogue", Ability = "nimble" },
+
+            // ── Epic expansion ────────────────────────────────────────────
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Vampire Blade",      Glyph = "🩸", PowerBonus = 8, DefenseBonus = 1, GoldValue = 760, WeaponType = "sword",   PreferredClass = "warrior", Ability = "lifesteal" },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Lifedrinker Axe",    Glyph = "🪓", PowerBonus = 9, DefenseBonus = 0, GoldValue = 770, WeaponType = "axe",     PreferredClass = "warrior", Ability = "lifesteal" },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Bossreaver",         Glyph = "⚔",  PowerBonus = 9, DefenseBonus = 1, GoldValue = 800, WeaponType = "sword",   PreferredClass = "warrior", Ability = "boss-slayer" },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Kingbow",            Glyph = "🏹", PowerBonus = 9, DefenseBonus = 0, GoldValue = 790, WeaponType = "bow",     PreferredClass = "ranger",  Ability = "boss-slayer" },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Bloodfang Daggers",  Glyph = "🗡", PowerBonus = 8, DefenseBonus = 1, GoldValue = 780, WeaponType = "dagger",  PreferredClass = "rogue",   Ability = "lifesteal" },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Phoenix Wand",       Glyph = "🪄", PowerBonus = 7, DefenseBonus = 2, GoldValue = 790, WeaponType = "wand",    PreferredClass = "mage",    Ability = "phoenix" },
+            new LootDef { Slot = "weapon", Rarity = "epic", Name = "Sunburst Cane",      Glyph = "✝",  PowerBonus = 5, DefenseBonus = 4, GoldValue = 780, WeaponType = "holy",    PreferredClass = "healer",  Ability = "regen" },
+            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Wraith's Embrace",  Glyph = "👻", PowerBonus = 4, DefenseBonus = 3, GoldValue = 820, Ability = "phoenix" },
+            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Ember Phoenix Charm", Glyph = "🔥", PowerBonus = 4, DefenseBonus = 3, GoldValue = 820, Ability = "phoenix" },
+            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Sunken Idol",       Glyph = "🗿", PowerBonus = 3, DefenseBonus = 4, GoldValue = 800, Ability = "treasure-hunter" },
+            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Crown of Echoes",   Glyph = "👑", PowerBonus = 4, DefenseBonus = 3, GoldValue = 810, Ability = "scholar" },
+            new LootDef { Slot = "boots",   Rarity = "epic", Name = "Phantasm Greaves",  Glyph = "👻", PowerBonus = 3, DefenseBonus = 4, GoldValue = 740, Ability = "nimble" },
+            new LootDef { Slot = "boots",   Rarity = "epic", Name = "Stormstride Sabatons", Glyph = "⚡", PowerBonus = 3, DefenseBonus = 4, GoldValue = 750, Ability = "nimble" },
+            new LootDef { Slot = "chest",   Rarity = "epic", Name = "Aegis Bulwark",     Glyph = "🛡", PowerBonus = 2, DefenseBonus = 6, GoldValue = 800, Ability = "bulwark" },
+            new LootDef { Slot = "head",    Rarity = "epic", Name = "Helm of Resilience", Glyph = "⛑", PowerBonus = 2, DefenseBonus = 5, GoldValue = 760, Ability = "bulwark" },
+            new LootDef { Slot = "head",    Rarity = "epic", Name = "Wraith Crown",       Glyph = "💀", PowerBonus = 4, DefenseBonus = 3, GoldValue = 770, Ability = "lifesteal" },
+
+            // Marauder set (4-piece — gold/loot focused)
+            new LootDef { Slot = "head",   Rarity = "epic", Name = "Marauder Helm",       Glyph = "⛑", PowerBonus = 3, DefenseBonus = 4, GoldValue = 760, SetName = "marauder", Ability = "lucky" },
+            new LootDef { Slot = "chest",  Rarity = "epic", Name = "Marauder Plate",      Glyph = "🛡", PowerBonus = 3, DefenseBonus = 5, GoldValue = 800, SetName = "marauder", Ability = "treasure-hunter" },
+            new LootDef { Slot = "legs",   Rarity = "epic", Name = "Marauder Tassets",    Glyph = "🦿", PowerBonus = 3, DefenseBonus = 4, GoldValue = 770, SetName = "marauder" },
+            new LootDef { Slot = "boots",  Rarity = "epic", Name = "Marauder Sabatons",   Glyph = "👢", PowerBonus = 3, DefenseBonus = 4, GoldValue = 750, SetName = "marauder" },
+
+            // Reaver set (3-piece — lifesteal stack for warriors who go all-in)
+            new LootDef { Slot = "head",   Rarity = "epic", Name = "Reaver Visor",        Glyph = "🪖", PowerBonus = 4, DefenseBonus = 3, GoldValue = 780, SetName = "reaver", PreferredClass = "warrior", Ability = "lifesteal" },
+            new LootDef { Slot = "chest",  Rarity = "epic", Name = "Reaver Cuirass",      Glyph = "🛡", PowerBonus = 4, DefenseBonus = 4, GoldValue = 820, SetName = "reaver", PreferredClass = "warrior" },
+            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Reaver's Heart",     Glyph = "❤", PowerBonus = 5, DefenseBonus = 2, GoldValue = 820, SetName = "reaver", PreferredClass = "warrior", Ability = "lifesteal" },
+
+            // ── Legendary expansion ────────────────────────────────────────
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Heartrender",       Glyph = "❤", PowerBonus = 13, DefenseBonus = 2, GoldValue = 2400, WeaponType = "sword",  PreferredClass = "warrior", Ability = "lifesteal" },
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Kingslayer",        Glyph = "⚔", PowerBonus = 14, DefenseBonus = 1, GoldValue = 2500, WeaponType = "sword",  PreferredClass = "warrior", Ability = "boss-slayer" },
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Ash & Ember",       Glyph = "🔥", PowerBonus = 12, DefenseBonus = 3, GoldValue = 2450, WeaponType = "sword",  PreferredClass = "warrior", Ability = "phoenix" },
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Vorpal Edge",       Glyph = "🗡", PowerBonus = 14, DefenseBonus = 0, GoldValue = 2400, WeaponType = "dagger", PreferredClass = "rogue",   Ability = "lifesteal" },
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Hunter's Apex",     Glyph = "🏹", PowerBonus = 13, DefenseBonus = 2, GoldValue = 2400, WeaponType = "bow",    PreferredClass = "ranger",  Ability = "boss-slayer" },
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Eternity Codex",    Glyph = "📕", PowerBonus = 12, DefenseBonus = 3, GoldValue = 2450, WeaponType = "tome",   PreferredClass = "mage",    Ability = "scholar" },
+            new LootDef { Slot = "weapon", Rarity = "legendary", Name = "Sunwarden's Mace",  Glyph = "🔨", PowerBonus = 10, DefenseBonus = 5, GoldValue = 2450, WeaponType = "hammer", PreferredClass = "healer",  Ability = "regen" },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Phoenix Heart",    Glyph = "🔥", PowerBonus = 6, DefenseBonus = 6, GoldValue = 2500, Ability = "phoenix" },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Sunken Crown",     Glyph = "👑", PowerBonus = 5, DefenseBonus = 7, GoldValue = 2500, Ability = "treasure-hunter" },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Eye of Eternity",  Glyph = "👁", PowerBonus = 7, DefenseBonus = 5, GoldValue = 2550, Ability = "scholar" },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Heart of the Hunt", Glyph = "🐺", PowerBonus = 7, DefenseBonus = 5, GoldValue = 2550, Ability = "boss-slayer" },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Vial of Forever",  Glyph = "🧪", PowerBonus = 4, DefenseBonus = 8, GoldValue = 2500, Ability = "regen" },
+            new LootDef { Slot = "chest",   Rarity = "legendary", Name = "Worldforge Plate", Glyph = "🛡", PowerBonus = 4, DefenseBonus = 11, GoldValue = 2600, Ability = "bulwark" },
+            new LootDef { Slot = "boots",   Rarity = "legendary", Name = "Boots of the Wind", Glyph = "🌪", PowerBonus = 5, DefenseBonus = 7, GoldValue = 2500, Ability = "nimble" },
+            new LootDef { Slot = "head",    Rarity = "legendary", Name = "Helm of the Untouchable", Glyph = "👑", PowerBonus = 5, DefenseBonus = 9, GoldValue = 2550, Ability = "nimble" },
+            new LootDef { Slot = "boots",   Rarity = "legendary", Name = "Skystep Greaves",  Glyph = "☁", PowerBonus = 5, DefenseBonus = 8, GoldValue = 2520, Ability = "nimble" },
+            new LootDef { Slot = "legs",    Rarity = "legendary", Name = "Legs of the Lich", Glyph = "🦴", PowerBonus = 4, DefenseBonus = 10, GoldValue = 2500, Ability = "lifesteal" },
+
+            // ── Mythic expansion ───────────────────────────────────────────
+            new LootDef { Slot = "weapon", Rarity = "mythic", Name = "Star Eater",         Glyph = "✨", PowerBonus = 21, DefenseBonus = 3, GoldValue = 5400, WeaponType = "sword",  PreferredClass = "warrior", Ability = "lifesteal" },
+            new LootDef { Slot = "weapon", Rarity = "mythic", Name = "Worldsplitter",      Glyph = "🌋", PowerBonus = 22, DefenseBonus = 2, GoldValue = 5500, WeaponType = "hammer", PreferredClass = "warrior", Ability = "boss-slayer" },
+            new LootDef { Slot = "weapon", Rarity = "mythic", Name = "Sunwhisper",         Glyph = "☀", PowerBonus = 16, DefenseBonus = 8, GoldValue = 5400, WeaponType = "holy",  PreferredClass = "healer",   Ability = "regen" },
+            new LootDef { Slot = "trinket", Rarity = "mythic", Name = "Crown of Eternity", Glyph = "♾", PowerBonus = 11, DefenseBonus = 9, GoldValue = 5400, Ability = "phoenix" },
+            new LootDef { Slot = "trinket", Rarity = "mythic", Name = "Sun Sigil",         Glyph = "☀", PowerBonus = 12, DefenseBonus = 8, GoldValue = 5500, Ability = "boss-slayer" },
+            new LootDef { Slot = "trinket", Rarity = "mythic", Name = "Heart of Aquilo",   Glyph = "💎", PowerBonus = 10, DefenseBonus = 10, GoldValue = 5500, Ability = "lucky" },
+            new LootDef { Slot = "chest",   Rarity = "mythic", Name = "Voidplate Eternity", Glyph = "🌑", PowerBonus = 8, DefenseBonus = 14, GoldValue = 5600, Ability = "bulwark" },
+            new LootDef { Slot = "head",    Rarity = "mythic", Name = "Diadem of Stars",   Glyph = "🌟", PowerBonus = 9, DefenseBonus = 12, GoldValue = 5500, Ability = "scholar" },
+            new LootDef { Slot = "boots",   Rarity = "mythic", Name = "Steps of Forever",  Glyph = "👣", PowerBonus = 10, DefenseBonus = 10, GoldValue = 5500, Ability = "nimble" },
+
+            // ─────────────────────── HYPE TRAIN EXCLUSIVES ─────────────────────
+            // These NEVER drop from a dungeon run and NEVER show in the
+            // shop — HypeTrainOnly=true filters them out of RollRarity /
+            // PickLootByRarity. The only way to own one is to contribute
+            // to a hype train and be holding a hero when it ends. Themed
+            // around momentum / trains / community so the set reads as a
+            // distinct prestige tier. Stats sit at or above the regular
+            // legendary/mythic ceiling — earning one should feel special.
+            new LootDef { Slot = "weapon",  Rarity = "legendary", Name = "Momentum Edge",     Glyph = "🚄", PowerBonus = 14, DefenseBonus = 2, GoldValue = 2600, WeaponType = "sword",  PreferredClass = "warrior", Ability = "lifesteal",   HypeTrainOnly = true },
+            new LootDef { Slot = "weapon",  Rarity = "legendary", Name = "Coupling Iron",     Glyph = "🔗", PowerBonus = 15, DefenseBonus = 2, GoldValue = 2650, WeaponType = "hammer", PreferredClass = "warrior", Ability = "boss-slayer", HypeTrainOnly = true },
+            new LootDef { Slot = "weapon",  Rarity = "legendary", Name = "Whistlepiercer",    Glyph = "🚂", PowerBonus = 14, DefenseBonus = 2, GoldValue = 2600, WeaponType = "bow",    PreferredClass = "ranger",  Ability = "boss-slayer", HypeTrainOnly = true },
+            new LootDef { Slot = "weapon",  Rarity = "legendary", Name = "Steamcaller Staff", Glyph = "♨", PowerBonus = 13, DefenseBonus = 4, GoldValue = 2650, WeaponType = "staff",  PreferredClass = "mage",    Ability = "scholar",     HypeTrainOnly = true },
+            new LootDef { Slot = "weapon",  Rarity = "legendary", Name = "Express Daggers",   Glyph = "🗡", PowerBonus = 15, DefenseBonus = 1, GoldValue = 2600, WeaponType = "dagger", PreferredClass = "rogue",   Ability = "nimble",      HypeTrainOnly = true },
+            new LootDef { Slot = "head",    Rarity = "legendary", Name = "Conductor's Crown", Glyph = "🎩", PowerBonus = 5,  DefenseBonus = 9, GoldValue = 2600, Ability = "boss-slayer", HypeTrainOnly = true },
+            new LootDef { Slot = "chest",   Rarity = "legendary", Name = "Engineer's Plate",  Glyph = "🦺", PowerBonus = 4,  DefenseBonus = 11, GoldValue = 2650, Ability = "bulwark",    HypeTrainOnly = true },
+            new LootDef { Slot = "boots",   Rarity = "legendary", Name = "Platform Nine",     Glyph = "🛤", PowerBonus = 5,  DefenseBonus = 8, GoldValue = 2600, Ability = "nimble",      HypeTrainOnly = true },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "First-Class Ticket", Glyph = "🎟", PowerBonus = 6, DefenseBonus = 6, GoldValue = 2700, Ability = "treasure-hunter", HypeTrainOnly = true },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Hype Sigil",        Glyph = "📣", PowerBonus = 7,  DefenseBonus = 5, GoldValue = 2700, Ability = "lucky",       HypeTrainOnly = true },
+            // Mythic apex — only a max-level hype train can drop these.
+            new LootDef { Slot = "weapon",  Rarity = "mythic", Name = "The Last Carriage",    Glyph = "🚃", PowerBonus = 23, DefenseBonus = 4, GoldValue = 6000, WeaponType = "sword",  PreferredClass = "warrior", Ability = "lifesteal",   HypeTrainOnly = true },
+            new LootDef { Slot = "trinket", Rarity = "mythic", Name = "Hypecore",             Glyph = "💟", PowerBonus = 13, DefenseBonus = 11, GoldValue = 6200, Ability = "phoenix",     HypeTrainOnly = true },
+            new LootDef { Slot = "head",    Rarity = "mythic", Name = "Crown of the Terminus", Glyph = "👑", PowerBonus = 11, DefenseBonus = 14, GoldValue = 6100, Ability = "boss-slayer", HypeTrainOnly = true }
         };
 
         /// <summary>Picks a rarity bucket given dungeon difficulty (1..5).
@@ -456,9 +627,57 @@ namespace Loadout.Games.Dungeon
 
         public static LootDef PickLootByRarity(Random r, string rarity)
         {
-            var pool = Loot.Where(l => l.Rarity == rarity).ToArray();
-            if (pool.Length == 0) pool = Loot;
+            // Regular drop path — never surfaces HypeTrainOnly items.
+            var pool = Loot.Where(l => l.Rarity == rarity && !l.HypeTrainOnly).ToArray();
+            if (pool.Length == 0) pool = Loot.Where(l => !l.HypeTrainOnly).ToArray();
             return pool[r.Next(pool.Length)];
+        }
+
+        /// <summary>Picks a reward item for a hype-train contributor. The
+        /// final train level (1..MaxLevel) drives the rarity curve — a
+        /// level-1 train hands out uncommon/rare, a max-level train can
+        /// drop the mythic hype-train exclusives. The pool is the FULL
+        /// loot table INCLUDING HypeTrainOnly items, so the exclusives
+        /// are reachable here and nowhere else.</summary>
+        public static LootDef PickHypeTrainLoot(Random r, int trainLevel, int maxLevel)
+        {
+            int lvl = Math.Max(1, trainLevel);
+            int max = Math.Max(1, maxLevel);
+            // Rarity weights scale with how far the train climbed.
+            // [common, uncommon, rare, epic, legendary, mythic]
+            int[] weights;
+            double t = (double)lvl / max;            // 0..1 progress
+            if      (t <= 0.2) weights = new[] {  0, 55, 33, 12,  0,  0 };
+            else if (t <= 0.4) weights = new[] {  0, 30, 40, 25,  5,  0 };
+            else if (t <= 0.6) weights = new[] {  0, 12, 38, 35, 14,  1 };
+            else if (t <= 0.8) weights = new[] {  0,  0, 24, 42, 30,  4 };
+            else               weights = new[] {  0,  0, 10, 34, 46, 10 };
+
+            string rarity;
+            int total = 0; foreach (var w in weights) total += w;
+            int pick = r.Next(total), acc = 0;
+            rarity = Rarities[0];
+            for (int i = 0; i < weights.Length; i++)
+            {
+                acc += weights[i];
+                if (pick < acc) { rarity = Rarities[i]; break; }
+            }
+
+            // Build the pool for the rolled rarity. Crucially this does
+            // NOT filter HypeTrainOnly — exclusives are in-bounds here.
+            // Bias the roll: when an exclusive exists for the rarity,
+            // give it a meaningful share so contributors actually see
+            // the prestige drops rather than them being a rounding error.
+            var rarityPool = Loot.Where(l => l.Rarity == rarity).ToArray();
+            if (rarityPool.Length == 0) rarityPool = Loot.Where(l => !l.HypeTrainOnly).ToArray();
+            var exclusives = rarityPool.Where(l => l.HypeTrainOnly).ToArray();
+            var regulars   = rarityPool.Where(l => !l.HypeTrainOnly).ToArray();
+            // For legendary/mythic on a high train, lean exclusive (60%);
+            // otherwise pick uniformly from whatever the rarity offers.
+            if (exclusives.Length > 0 && regulars.Length > 0 &&
+                (rarity == "legendary" || rarity == "mythic") && r.Next(100) < 60)
+                return exclusives[r.Next(exclusives.Length)];
+            return rarityPool[r.Next(rarityPool.Length)];
         }
 
         // ── Dungeon types ──────────────────────────────────────────────
@@ -633,7 +852,10 @@ namespace Loadout.Games.Dungeon
             new SetDef { Name = "druidic",     DisplayName = "Druidic",     PiecesForBonus = 4, AtkBonus = 3, DefBonus = 3, HpBonus = 5,  PreferredClass = "ranger" },
             new SetDef { Name = "vestal",      DisplayName = "Vestal",      PiecesForBonus = 4, AtkBonus = 0, DefBonus = 4, HpBonus = 10, PreferredClass = "healer" },
             new SetDef { Name = "suntouched",  DisplayName = "Sun-touched", PiecesForBonus = 3, AtkBonus = 2, DefBonus = 4, HpBonus = 10, PreferredClass = "healer" },
-            new SetDef { Name = "wayfarer",    DisplayName = "Wayfarer",    PiecesForBonus = 4, AtkBonus = 1, DefBonus = 1, HpBonus = 3,  PreferredClass = "" }    // generic starter set
+            new SetDef { Name = "wayfarer",    DisplayName = "Wayfarer",    PiecesForBonus = 4, AtkBonus = 1, DefBonus = 1, HpBonus = 3,  PreferredClass = "" },    // generic starter set
+            new SetDef { Name = "highwayman",  DisplayName = "Highwayman",  PiecesForBonus = 4, AtkBonus = 4, DefBonus = 2, HpBonus = 5,  PreferredClass = "rogue" },
+            new SetDef { Name = "marauder",    DisplayName = "Marauder",    PiecesForBonus = 4, AtkBonus = 3, DefBonus = 4, HpBonus = 8,  PreferredClass = "" },     // class-agnostic — fits warrior/rogue
+            new SetDef { Name = "reaver",      DisplayName = "Reaver",      PiecesForBonus = 3, AtkBonus = 5, DefBonus = 2, HpBonus = 0,  PreferredClass = "warrior" }
         };
 
         public static SetDef SetByName(string name)

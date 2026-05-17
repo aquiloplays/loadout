@@ -163,6 +163,7 @@ namespace Loadout.Games.Dungeon
                         SetName        = def.SetName        ?? "",
                         PreferredClass = def.PreferredClass ?? "",
                         WeaponType     = def.WeaponType     ?? "",
+                        Ability        = def.Ability        ?? "",
                         FoundIn      = result.DungeonName,
                         FoundUtc     = DateTime.UtcNow
                     });
@@ -221,13 +222,50 @@ namespace Loadout.Games.Dungeon
             var victim = alive[r.Next(alive.Count)];
             int victimDef = victim.Hero.Defense(BagIndex(victim.Hero));
             int dmg = Math.Max(0, monsterAttack - victimDef);
+            // Bulwark: -2 dmg from monsters (min 1). Floor of 1 so a
+            // bulwark stack can't fully no-sell incoming damage; 0 is
+            // reserved for "Defense already cancelled it out".
+            if (dmg > 0 && victim.Has("bulwark")) dmg = Math.Max(1, dmg - 2);
             victim.HpRemaining -= dmg;
+            // Phoenix: if the killing blow lands and phoenix hasn't fired
+            // yet this run, revive at half max HP. The string stays as a
+            // standard fall message but Hp is restored before the next
+            // scene reads it. Surfacing the revive as a separate scene
+            // would need engine-side scene insertion; for now the heal
+            // is silent + the next scene's flavour will make it
+            // obvious the hero is still in.
+            if (victim.HpRemaining <= 0 && victim.Has("phoenix") && !victim.PhoenixUsed)
+            {
+                victim.PhoenixUsed = true;
+                victim.HpRemaining = Math.Max(1, victim.Hero.HpMax / 2);
+            }
 
             int gold = r.Next(monster.GoldMin, monster.GoldMax + 1);
             int xp   = r.Next(monster.XpMin, monster.XpMax + 1);
             int perGold = Math.Max(1, gold / alive.Count);
             int perXp   = Math.Max(1, xp   / alive.Count);
-            foreach (var h in alive) { h.GoldGained += perGold; h.XpGained += perXp; }
+            foreach (var h in alive)
+            {
+                int gAdd = perGold;
+                int xAdd = perXp;
+                if (h.Has("lucky"))   gAdd = (gAdd * 5) / 4;            // +25%
+                if (h.Has("scholar")) xAdd = (xAdd * 5) / 4;            // +25%
+                if (isBoss && h.Has("boss-slayer"))
+                {
+                    gAdd = (gAdd * 3) / 2;                              // +50% on bosses
+                    xAdd = (xAdd * 3) / 2;
+                }
+                h.GoldGained += gAdd;
+                h.XpGained   += xAdd;
+                // Lifesteal heals after a winning fight. Kept off the
+                // killing blow so a hero that just died doesn't bounce
+                // back to full — phoenix already covers that path.
+                if (h.HpRemaining > 0 && h.Has("lifesteal"))
+                    h.HpRemaining = Math.Min(h.Hero.HpMax, h.HpRemaining + 2);
+                // Regen: small heal each scene, even on monster fights.
+                if (h.HpRemaining > 0 && h.Has("regen"))
+                    h.HpRemaining = Math.Min(h.Hero.HpMax, h.HpRemaining + 1);
+            }
             _ = partyAttack;
 
             string text;
@@ -255,13 +293,44 @@ namespace Loadout.Games.Dungeon
                 return new DungeonScene { Kind = "trap", Text = "An old trap clicks against empty stone." , Glyph = "🪤" };
             var trap   = DungeonContent.PickTrap(r, biome);
             var victim = alive[r.Next(alive.Count)];
+            // Nimble: 30% chance to dodge a trap entirely. Roll before
+            // the damage calc so the dodge message reads cleanly.
+            if (victim.Has("nimble") && r.Next(100) < 30)
+            {
+                return new DungeonScene
+                {
+                    Kind = "trap",
+                    Text = "A " + trap.Name + "! " + victim.Hero.Handle + " sidesteps it cleanly.",
+                    Glyph = trap.Glyph, TargetUser = victim.Hero.Handle
+                };
+            }
             int dmg = Math.Max(1, r.Next(trap.DamageMin, trap.DamageMax + 1) - victim.Hero.Defense(BagIndex(victim.Hero)) / 2);
+            // Wardstone: -2 dmg from traps (min 0). Unlike Bulwark, this
+            // CAN bring trap damage to zero — wardstone is the trap-
+            // specialist amulet and a 0 outcome reads cleanly.
+            if (victim.Has("wardstone")) dmg = Math.Max(0, dmg - 2);
             victim.HpRemaining -= dmg;
+            // Phoenix on trap death too — same single-use rule.
+            if (victim.HpRemaining <= 0 && victim.Has("phoenix") && !victim.PhoenixUsed)
+            {
+                victim.PhoenixUsed = true;
+                victim.HpRemaining = Math.Max(1, victim.Hero.HpMax / 2);
+            }
+            // Regen ticks for survivors regardless of who got hit.
+            foreach (var h in alive)
+            {
+                if (h.HpRemaining > 0 && h.Has("regen"))
+                    h.HpRemaining = Math.Min(h.Hero.HpMax, h.HpRemaining + 1);
+            }
             string text;
             if (victim.HpRemaining <= 0)
             {
                 victim.HpRemaining = 0;
                 text = "A " + trap.Name + "! " + trap.Verb + " " + victim.Hero.Handle + " — they don't get up.";
+            }
+            else if (dmg == 0)
+            {
+                text = "A " + trap.Name + "! Wardstone hums against " + victim.Hero.Handle + " — no damage.";
             }
             else
             {
@@ -277,7 +346,19 @@ namespace Loadout.Games.Dungeon
                 return new DungeonScene { Kind = "treasure", Text = "A pile of gold gleams, untouched." , Glyph = "💰" };
             int gold = r.Next(8, 18) * difficulty;
             int per  = Math.Max(2, gold / alive.Count);
-            foreach (var h in alive) h.GoldGained += per;
+            // Treasure-hunter compounds with lucky — both apply per hero.
+            // Treasure-hunter lands +50% (this is the chest-cracker
+            // bonus) and lucky an additional +25%, so a stacked hero
+            // walks away with about double what a base hero gets here.
+            foreach (var h in alive)
+            {
+                int g = per;
+                if (h.Has("treasure-hunter")) g = (g * 3) / 2;
+                if (h.Has("lucky"))           g = (g * 5) / 4;
+                h.GoldGained += g;
+                if (h.Has("regen"))
+                    h.HpRemaining = Math.Min(h.Hero.HpMax, h.HpRemaining + 1);
+            }
             return new DungeonScene
             {
                 Kind = "treasure",
@@ -378,6 +459,13 @@ namespace Loadout.Games.Dungeon
             int dAtk = defender.Attack(BagIndex(defender));
             int dDef = defender.Defense(BagIndex(defender));
 
+            // Snapshot duel-relevant abilities so we don't re-walk the
+            // bag mid-round. Phoenix tracked separately because it's
+            // single-use per duel.
+            var aAbils = attacker.EquippedAbilities(BagIndex(attacker));
+            var dAbils = defender.EquippedAbilities(BagIndex(defender));
+            bool aPhoenixUsed = false, dPhoenixUsed = false;
+
             result.Scenes.Add(new DungeonScene
             {
                 DelayMs = 200, Kind = "duel-start", Glyph = "⚔️",
@@ -388,7 +476,15 @@ namespace Loadout.Games.Dungeon
             for (int round = 1; round <= 3 && result.AttackerHpAfter > 0 && result.DefenderHpAfter > 0; round++)
             {
                 int aDmg = Math.Max(1, aAtk + r.Next(0, 3) - dDef);
+                if (dAbils.Contains("bulwark")) aDmg = Math.Max(1, aDmg - 2);
                 result.DefenderHpAfter = Math.Max(0, result.DefenderHpAfter - aDmg);
+                if (result.DefenderHpAfter <= 0 && dAbils.Contains("phoenix") && !dPhoenixUsed)
+                {
+                    dPhoenixUsed = true;
+                    result.DefenderHpAfter = Math.Max(1, defender.HpMax / 2);
+                }
+                if (result.AttackerHpAfter > 0 && aAbils.Contains("lifesteal"))
+                    result.AttackerHpAfter = Math.Min(attacker.HpMax, result.AttackerHpAfter + 2);
                 result.Scenes.Add(new DungeonScene
                 {
                     DelayMs = t, Kind = "duel-strike", Glyph = "⚔️",
@@ -398,7 +494,15 @@ namespace Loadout.Games.Dungeon
                 if (result.DefenderHpAfter <= 0) break;
 
                 int dDmg = Math.Max(1, dAtk + r.Next(0, 3) - aDef);
+                if (aAbils.Contains("bulwark")) dDmg = Math.Max(1, dDmg - 2);
                 result.AttackerHpAfter = Math.Max(0, result.AttackerHpAfter - dDmg);
+                if (result.AttackerHpAfter <= 0 && aAbils.Contains("phoenix") && !aPhoenixUsed)
+                {
+                    aPhoenixUsed = true;
+                    result.AttackerHpAfter = Math.Max(1, attacker.HpMax / 2);
+                }
+                if (result.DefenderHpAfter > 0 && dAbils.Contains("lifesteal"))
+                    result.DefenderHpAfter = Math.Min(defender.HpMax, result.DefenderHpAfter + 2);
                 result.Scenes.Add(new DungeonScene
                 {
                     DelayMs = t, Kind = "duel-strike", Glyph = "⚔️",
@@ -446,6 +550,11 @@ namespace Loadout.Games.Dungeon
                 ? defender.Level : attacker.Level;
             result.XpToWinner   = 8 + winnerLevel * 4;
             result.GoldToWinner = 6 + winnerLevel * 3;
+            // Lucky / Scholar bump the winner's haul.
+            var winnerAbils = string.Equals(result.WinnerHandle, attacker.Handle, StringComparison.OrdinalIgnoreCase)
+                ? aAbils : dAbils;
+            if (winnerAbils.Contains("lucky"))   result.GoldToWinner = (result.GoldToWinner * 5) / 4;
+            if (winnerAbils.Contains("scholar")) result.XpToWinner   = (result.XpToWinner   * 5) / 4;
 
             result.Scenes.Add(new DungeonScene
             {
@@ -461,7 +570,20 @@ namespace Loadout.Games.Dungeon
             public int HpRemaining;
             public int XpGained;
             public int GoldGained;
-            public RunningHero(HeroState h) { Hero = h; HpRemaining = h.HpCurrent; }
+            // Snapshot of equipped abilities at run start. The engine
+            // reads from this rather than re-walking the bag every scene.
+            public HashSet<string> Abilities;
+            // Phoenix is single-use per run. Set true after the revive
+            // fires so the next would-be-killing-blow lands normally.
+            public bool PhoenixUsed;
+            public RunningHero(HeroState h)
+            {
+                Hero = h;
+                HpRemaining = h.HpCurrent;
+                Abilities = h.EquippedAbilities(BagIndex(h));
+            }
+            public bool Has(string ability) =>
+                Abilities != null && Abilities.Contains(ability);
         }
     }
 }

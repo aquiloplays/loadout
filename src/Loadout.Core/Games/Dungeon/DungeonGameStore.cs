@@ -299,6 +299,32 @@ namespace Loadout.Games.Dungeon
             return hero;
         }
 
+        /// <summary>Grant a single item straight into a viewer's bag —
+        /// used by reward paths outside a dungeon run (hype-train loot,
+        /// future quest rewards). Auto-creates the hero if the viewer
+        /// has never run a dungeon. Enforces the bag cap by auto-selling
+        /// the oldest item (gold returned to the hero) so a reward
+        /// never silently vanishes against a full bag. Bumps the
+        /// legendary / mythic counters so achievements still track.</summary>
+        public HeroState GrantLoot(string platform, string handle, InventoryItem item)
+        {
+            if (item == null) return null;
+            return Mutate(platform, handle, h =>
+            {
+                if (string.IsNullOrEmpty(item.Id)) item.Id = Guid.NewGuid().ToString("N");
+                item.FoundUtc = DateTime.UtcNow;
+                if (string.IsNullOrEmpty(item.FoundIn)) item.FoundIn = "Hype Train";
+                h.Bag.Add(item);
+                if (string.Equals(item.Rarity, "legendary", StringComparison.OrdinalIgnoreCase)) h.LegendariesFound++;
+                if (string.Equals(item.Rarity, "mythic",    StringComparison.OrdinalIgnoreCase)) h.MythicsFound++;
+                while (h.Bag.Count > BagCap)
+                {
+                    var oldest = h.Bag.OrderBy(i => i.FoundUtc).First();
+                    h.Bag.Remove(oldest);
+                }
+            });
+        }
+
         public IReadOnlyList<KeyValuePair<string, HeroState>> RecentlyActive(int max = 50)
         {
             EnsureLoaded();

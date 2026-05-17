@@ -185,12 +185,8 @@ namespace Loadout.Modules
                     }
                 }
 
-                // Discord webhook (Tier 2 unlocks multi-platform routing - we
-                // gate on the same flag so the user isn't surprised that this
-                // doesn't fire on free tier when other Discord features need
-                // a tier).
-                if (!string.IsNullOrEmpty(s.Clips.DiscordWebhook) &&
-                    Entitlements.IsUnlocked(Feature.MultiPlatformSend))
+                // Discord webhook — posts the clip whenever a webhook is configured.
+                if (!string.IsNullOrEmpty(s.Clips.DiscordWebhook))
                 {
                     try { PostToDiscord(s.Clips.DiscordWebhook, ctx.User, clipUrl, s.Clips.DiscordTemplate); }
                     catch (Exception ex) { ErrorLog.Write("ClipsModule.PostDiscord", ex); }

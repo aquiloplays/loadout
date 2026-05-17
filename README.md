@@ -25,7 +25,7 @@ Built to run on the [Aquilo Bus](#aquilo-bus) — a local WebSocket nervous syst
 - [Tip integration](#tip-integration)
 - [Weekly digest](#weekly-digest)
 - [Aquilo Bus](#aquilo-bus)
-- [Tiers](#tiers)
+- [Patreon — early access & support](#patreon--early-access--support)
 - [Architecture](#architecture)
 - [Build from source](#build-from-source)
 - [Contributing](#contributing)
@@ -88,7 +88,7 @@ Detailed walkthrough: [INSTALL.md](INSTALL.md)
 - **First-words celebration** — Twitch + YouTube native first-words events
 - **Ad-break heads-up** — chat warning + countdown overlay
 - **Auto-poll on category change** — chat reaction prompt
-- **VIP rotation auto-magic** — weekly engagement-based promotion/demotion (Tier 3)
+- **VIP rotation auto-magic** — weekly engagement-based promotion/demotion
 
 ### Integrations
 - **Discord live-status auto-poster** — go-live embed, edit on title/category change, archive on offline
@@ -282,15 +282,17 @@ OBS overlays at `widget.aquilo.gg/overlays/<name>/?bus=ws://127.0.0.1:7470/aquil
 
 ---
 
-## Tiers
+## Patreon — early access &amp; support
 
-Loadout's free tier is fully functional. Patreon supporters at [patreon.com/aquiloplays](https://patreon.com/aquiloplays) unlock features Loadout would otherwise have to charge separately for; same campaign as StreamFusion, so a single sign-in covers both products.
+**Every feature in Loadout is free for everyone.** Nothing is locked behind payment — the whole kit above works whether or not you ever sign in.
 
-| Tier | Unlocks |
+Patreon supporters at [patreon.com/aquiloplays](https://patreon.com/aquiloplays) get **early access**: brand-new features land for Tier 2 and Tier 3 patrons first, then roll out to everyone shortly after. Supporting on Patreon funds ongoing development and gives you a head start — it's never required. Same campaign as StreamFusion, so a single sign-in covers both products.
+
+| Tier | What you get |
 |---|---|
-| **Free** | Info commands · Twitch alerts · 3 timed messages · basic welcomes · `!link` · Bolts wallet · counters · sub anniversary · 3 minigames |
-| **Tier 2 ($6) — Loadout Plus** | Multi-platform alerts · unlimited timers · all welcome tiers · alert sounds · webhook inbox · Discord live-status · stream recap · backup/restore · weekly digest · tip integration |
-| **Tier 3 ($10) — Loadout Pro** | TikTok hype train · hate-raid detector · smart auto-clipper · VOD chapter markers · cross-platform Bolts · VIP rotation auto-magic · Apex animated flairs · dungeon RPG · daily quests · achievements · beta channel access |
+| **Free** | Every feature — info commands, multi-platform alerts, unlimited timers, all welcome tiers, counters, goals, Bolts wallet, daily check-in, hype train, hate-raid detector, VIP rotation, Discord live-status, stream recap, webhook inbox, Apex, the dungeon RPG, minigames, daily quests, achievements — the entire kit |
+| **Tier 2 ($6)** | Everything in Free, plus early access to new features as they ship — and a boosted Bolts earning rate |
+| **Tier 3 ($10)** | Everything in Tier 2, with the earliest access to new features — and the largest Bolts earning multiplier |
 
 ---
 

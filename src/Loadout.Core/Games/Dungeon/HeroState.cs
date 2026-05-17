@@ -155,6 +155,22 @@ namespace Loadout.Games.Dungeon
             return total;
         }
 
+        /// <summary>Set of ability keywords the hero has from currently
+        /// equipped items. Returns lowercase keywords; duplicates from
+        /// multiple equipped items are deduped (presence is binary).
+        /// Used by DungeonEngine to apply ability effects per scene.</summary>
+        public HashSet<string> EquippedAbilities(IReadOnlyDictionary<string, InventoryItem> bagById)
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var kv in Equipped)
+            {
+                if (!bagById.TryGetValue(kv.Value, out var item)) continue;
+                if (string.IsNullOrWhiteSpace(item.Ability)) continue;
+                set.Add(item.Ability.Trim().ToLowerInvariant());
+            }
+            return set;
+        }
+
         /// <summary>List of currently-active set names (each one piece-
         /// count meets PiecesForBonus). Used for the /loadout Hero embed
         /// + the Set Collector achievement.</summary>
@@ -201,6 +217,13 @@ namespace Loadout.Games.Dungeon
         // Visual: drives the overlay's weaponLayer renderer when
         // Slot == "weapon". Empty = use class default.
         public string WeaponType   { get; set; }
+        // Optional ability keyword — when this item is equipped its
+        // ability fires through the DungeonEngine. One ability per
+        // item; multiple equipped items stack (different abilities)
+        // but duplicate keywords don't (the union per hero is what
+        // the engine reads). See DungeonContent.AbilityCatalog for
+        // the supported keywords + their effects.
+        public string Ability      { get; set; }
         public int    EnchantLevel { get; set; }   // 0..3 — adds +1 ATK or +1 DEF per level (whichever is higher)
         public DateTime FoundUtc   { get; set; } = DateTime.UtcNow;
         public string FoundIn      { get; set; }   // e.g. "Crypt of Whispers" — the dungeon name

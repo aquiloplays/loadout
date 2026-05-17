@@ -50,41 +50,36 @@ On first boot:
 
 ## 5. Walk the wizard
 
-8 steps. Most can be skipped and revisited later from Settings.
+8 steps, about 3 minutes. Most can be skipped and revisited later — re-open the wizard any time from the tray icon → **Open Loadout Onboarding**.
 
 | Step | What you set |
 |---|---|
-| **Welcome** | Read-only intro |
+| **Welcome** | Read-only intro + a preview of what the wizard covers |
 | **Platforms** | Tick which platforms you stream on (Twitch / TikTok / YouTube / Kick) and your broadcaster name |
-| **Modules** | Pick which modules to enable. Default state: everything OFF. Use the Recommended button if you don't want to think about it |
-| **Discord** | (optional) Webhook URL for go-live posts and stream recap. Skippable — set later in Settings → Discord |
-| **AI shoutouts** | (optional) Anthropic or OpenAI API key. Without one, raid shoutouts use a template. Skip for now if you want |
-| **Webhook inbox** | (optional) Port + shared secret for external services like Ko-fi |
-| **Patreon** | Click *Connect Patreon* if you want supporter flair / multipliers. Skippable |
+| **Modules** | Pick which features start enabled. Default: everything OFF. Use **Essentials**, **Recommended**, or **Everything** presets if you don't want to think about it |
+| **Discord** | (optional) Webhook URL for go-live posts and stream recap. Set later in Settings → Discord |
+| **Webhook inbox** | (optional) Port + shared secret for external services like Ko-fi / Streamlabs tips |
+| **Your links** | (optional) Socials + gamer tags — populate `!socials` / `!gamertags` with real brand logos |
+| **Patreon** | Optional early-access sign-in. Every feature is free for everyone; connecting Patreon gets supporters new features early, plus supporter flair and a boosted Bolts earning rate. Skippable |
 | **Done** | Tick *Open Settings now* to dive deeper, or close and start streaming |
 
 ## 6. OBS browser sources
 
-Each overlay is one URL with two query params (`bus` and `secret`). Your secret is in `%APPDATA%\Aquilo\bus-secret.txt` — copy the whole line.
+**Easiest path: don't hand-write URLs.** Open Settings → **Overlays**. Every overlay card has a ready-to-paste URL with your `bus` + `secret` already baked in — just click **Copy** and paste into an OBS browser source. Each card also shows the recommended source size and a **Send test** button so you can place it without going live.
+
+The overlays are served from `https://widget.aquilo.gg/overlays/<name>/`. The bus URL is the full path `ws://127.0.0.1:7470/aquilo/bus/`. A finished URL looks like:
 
 ```
-Daily Check-In:
-https://aquilo.gg/overlays/check-in?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
-
-Counters:
-https://aquilo.gg/overlays/counters?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET&counters=deaths,wins
-
-Goals:
-https://aquilo.gg/overlays/goals?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
-
-Bolts (everything in one overlay):
-https://aquilo.gg/overlays/bolts?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
-
-Apex (top-viewer mode):
-https://aquilo.gg/overlays/apex?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
+https://widget.aquilo.gg/overlays/bolts/?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
 ```
 
-Recommended OBS browser source defaults: 1920×1080, transparent background, "Shutdown source when not visible" OFF (keeps the WebSocket alive).
+Your secret is in `%APPDATA%\Aquilo\bus-secret.txt` — copy the whole line (the Settings cards do this for you).
+
+**One source for everything:** the **All-in-one** card builds a single composite URL that renders every overlay you enable, each in its own non-overlapping zone — position + scale set per layer right in the Settings grid. Drop that one URL into a single 1920×1080 browser source instead of managing a dozen.
+
+**Vertical streams:** the **Vertical** overlay (tile / banner / side modes) and the compact overlay's bare mode are built for 9:16 canvases — see those cards in Settings → Overlays.
+
+Recommended OBS browser source defaults: transparent background, "Shutdown source when not visible" OFF (keeps the WebSocket alive). Each Settings card lists the exact width × height to use.
 
 ## 7. Day-2 commands
 
@@ -130,7 +125,7 @@ Beta channel: Settings → General → Update channel = beta. Pulls pre-release 
 
 **`!command` doesn't respond.** Free-tier info commands have a 30-second per-command global cooldown. Mods bypass. Wait 30 s and retry. To shorten: Settings → Chat noise → InfoCommandCooldownSec.
 
-**Bolts didn't credit.** Check earn rate isn't 0 in `BoltsConfig`. Anti-AFK caps chat earns at 6/min per viewer (so spammers don't farm).
+**Bolts didn't credit.** Check earn rate isn't 0 in `BoltsConfig`. Anti-AFK caps chat earns at 3/min per viewer (so spammers don't farm).
 
 ---
 

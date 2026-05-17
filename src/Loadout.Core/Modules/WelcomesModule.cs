@@ -55,10 +55,6 @@ namespace Loadout.Modules
 
         private static string PickTemplate(string userType, WelcomesConfig cfg)
         {
-            // Free tier: only first-time + sub welcomes. AllWelcomeTiers unlocks
-            // VIP / mod / regular variants.
-            var allTiers = Entitlements.IsUnlocked(Feature.AllWelcomeTiers);
-
             // Per-game profile override: if a profile is active and has a
             // non-empty value for this role, prefer it over the global
             // template. Empty profile fields fall through.
@@ -68,8 +64,8 @@ namespace Loadout.Modules
             {
                 case "broadcaster": return null;
                 case "moderator":
-                case "mod":         return allTiers ? cfg.Mod : null;
-                case "vip":         return allTiers ? cfg.Vip : null;
+                case "mod":         return cfg.Mod;
+                case "vip":         return cfg.Vip;
                 case "subscriber":
                 case "sub":
                     return !string.IsNullOrEmpty(p?.WelcomeSub) ? p.WelcomeSub : cfg.Sub;

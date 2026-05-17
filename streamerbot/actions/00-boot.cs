@@ -1,4 +1,4 @@
-// LOADOUT — BOOT
+﻿// LOADOUT — BOOT
 // Triggered on Streamer.bot Started. Downloads Loadout.dll on first run, loads
 // it via Assembly.LoadFrom (no References-tab editing needed), and calls
 // LoadoutEntry.Boot(CPH). Idempotent — subsequent runs short-circuit.
@@ -10,7 +10,7 @@ using System.Reflection;
 public class CPHInline
 {
     private const string Repo    = "aquiloplays/loadout-downloads";
-    private const string Version = "1.0.0";
+    private const string Version = "1.1.0";
 
     public bool Execute()
     {

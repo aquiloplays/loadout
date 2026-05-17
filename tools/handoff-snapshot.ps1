@@ -43,7 +43,6 @@ $workerFolder = Join-Path $loadoutRepo 'discord-bot'
 $liveDll      = 'C:\Users\bishe\Desktop\Streamerbot\data\Loadout\Loadout.dll'
 $stagedDll    = $liveDll + '.new'
 $builtDll     = Join-Path $loadoutRepo 'src\Loadout.Core\bin\Release\net48\Loadout.dll'
-$distZip      = Join-Path $loadoutRepo 'dist\Loadout-fourthwall.zip'
 $workerUrl    = 'https://loadout-discord.aquiloplays.workers.dev'
 $presenceUrl  = 'https://aquilo-presence-production.up.railway.app'
 $snapshotPath = "$env:USERPROFILE\Desktop\loadout-session-snapshot.md"
@@ -181,7 +180,6 @@ function Capture-File($path, $label) {
 Capture-File $builtDll  "Built Loadout.dll (Release)"
 Capture-File $liveDll   "Live Loadout.dll (Streamer.bot data)"
 Capture-File $stagedDll "Staged Loadout.dll.new (will swap on next SB launch)"
-Capture-File $distZip   "Fourthwall release zip"
 
 # Settings json + Bus secret presence
 $settingsPath = Join-Path $env:APPDATA 'Loadout\settings.json'

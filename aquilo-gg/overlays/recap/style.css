@@ -1,21 +1,22 @@
 :root {
   --bg: transparent;
   --surface: #18181B;
-  --border: #2A2A30;
-  --text: #F5F5F7;
-  --muted: #B8BCC6;
-  --faint: #7A7A85;
-  --accent: #3A86FF;
-  --cyan: #00F2EA;
+  --border: var(--ld-border);
+  --text: var(--ld-text);
+  --muted: var(--ld-muted);
+  --faint: var(--ld-dim);
+  --accent: var(--ld-accent);
+  --cyan: var(--ld-cyan);
   --azure: #3AC8FF;
-  --gold: #F0B429;
+  --gold: var(--ld-gold);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
   width: 100%; height: 100%;
   overflow: hidden;
 }

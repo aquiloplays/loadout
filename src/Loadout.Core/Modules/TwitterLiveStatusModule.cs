@@ -38,7 +38,6 @@ namespace Loadout.Modules
         {
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.TwitterLiveStatus) return;
-            if (!Entitlements.IsUnlocked(Feature.TwitterLiveStatus)) return;
             if (string.IsNullOrEmpty(s.Twitter.LiveWebhook)) return;
 
             switch (ctx.Kind)

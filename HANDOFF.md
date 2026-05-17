@@ -38,7 +38,6 @@ cd loadout
 - `aquilo-gg/overlays/` — 5 OBS overlays (check-in, counters, goals, bolts, apex)
 - `aquilo-gg/loadout/` — landing-page source for `aquilo.gg/loadout`
 - `aquilo-gg/worker/loadout-link-worker.js` — additive routes for the StreamFusion Patreon worker (KV-backed handle mappings)
-- `marketing/fourthwall/` — Fourthwall product copy + FAQ + integration spec + hero PNG
 - `integrations/streamfusion/` — drop-in Aquilo Bus client for SF (main + preload + IPC bridge)
 - `tools/` — build/release/install/diagnostic PowerShell scripts
 - `assets/Loadout.ico` + `Loadout.png` — branded multi-resolution icon
@@ -47,12 +46,12 @@ cd loadout
 
 | Where | What | Wires to Loadout via |
 |---|---|---|
-| `~/Desktop/aquilo-bot/` | Multi-product Discord announcements bot | Posts release notes, `/announce` slash command, Fourthwall webhook handler |
+| `~/Desktop/aquilo-bot/` | Multi-product Discord announcements bot | Posts release notes, `/announce` slash command |
 | `~/Desktop/aquilo-widget/` | TV widget + Rotation music widget + Cloudflare sync worker | TV: subscribes to bus; Rotation: handles `rotation.song.request` (the `!boltsong` flow) |
 | `~/Desktop/StreamFusion/` | Multi-chat viewer | Aquilo Bus client; Patreon shares the same campaign |
 | `~/Desktop/StreamFusion/bot-service/` | SF release-notes Discord bot | Mirrored pattern — same `SF_RELEASE_POST_SECRET` powers both |
 | Cloudflare Worker `streamfusion-patreon-proxy.bisherclay.workers.dev` | Patreon OAuth proxy + handle mappings | Loadout's PatreonClient + SupportersClient call it; `loadout-link-worker.js` adds the new routes |
-| Railway | aquilo-bot + SF bot-service hosting | aquilo-bot: `https://<railway>/announce`, `/fourthwall` |
+| Railway | aquilo-bot + SF bot-service hosting | aquilo-bot: `https://<railway>/announce` |
 
 ## Architecture in one paragraph
 
@@ -125,7 +124,7 @@ Brushes live in `src/Loadout.Core/UI/Styles.xaml` (DLL UI), `aquilo-gg/loadout/s
 
 ## Patreon shared infrastructure
 
-Loadout reuses the StreamFusion Patreon campaign (id `3410750`). Tier 2 = Loadout Plus ($6, id `28147937`). Tier 3 = Loadout Pro ($10, id `28147942`). Single OAuth sign-in covers both products. Owner email `bisherclay@gmail.com` is hard-coded as Tier 3 in `PatreonClient.cs` so creator-self-test works without pledging.
+Loadout reuses the StreamFusion Patreon campaign (id `3410750`). Tier 2 ($6, id `28147937`) and Tier 3 ($10, id `28147942`) are still detected, but **no feature is gated on them** — every Loadout feature is free for everyone. Tier membership only drives sign-in identity, early access to brand-new features (they reach Tier 2/3 first, then everyone), and a small Bolts earning multiplier as a thank-you perk. Single OAuth sign-in covers both products. Owner email `bisherclay@gmail.com` is hard-coded as Tier 3 in `PatreonClient.cs` so creator-self-test works without pledging.
 
 The same Cloudflare Worker (`streamfusion-patreon-proxy.bisherclay.workers.dev`) handles OAuth for both products. `aquilo-gg/worker/loadout-link-worker.js` is **additive** — it adds new routes (`/api/link/*` and the lifetime-license routes from INTEGRATION.md) without touching SF's existing routes. Merge by dispatching path-prefix `/api/link/` and `/api/loadout-license/` to `handleLink(request, env)`.
 
@@ -169,9 +168,7 @@ Full spec lives in `src/Loadout.Core/Bus/AquiloBus.cs` doc-comment.
 
 1. **Push v0.1.0** — `gh repo create aquiloplays/loadout --private --source=. --push` then `git push origin v0.1.0`
 2. **Deploy aquilo-bot to Railway** — `cd ~/Desktop/aquilo-bot && railway init && railway up`
-3. **Create Fourthwall products** — copy from `marketing/fourthwall/copy.md`; hero is `marketing/fourthwall/hero-1200x800.png`
-4. **Wire Fourthwall webhook** to `https://<railway>/fourthwall` with `X-Aquilo-Bot-Secret`
-5. Anything from `README.md` Phase 2 wishlist
+3. Anything from `README.md` Phase 2 wishlist
 
 ## Quick troubleshooting
 

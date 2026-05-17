@@ -41,7 +41,6 @@ namespace Loadout.Modules
             if (_started) return;
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.WebhookInbox || !s.Webhooks.Enabled) return;
-            if (!Entitlements.IsUnlocked(Feature.WebhookInbox)) return;
 
             try { Start(s); _started = true; }
             catch (Exception ex) { SbBridge.Instance.LogError("[Loadout] Webhook inbox start failed: " + ex.Message); }

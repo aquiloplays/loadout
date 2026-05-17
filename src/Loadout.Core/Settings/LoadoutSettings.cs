@@ -565,6 +565,17 @@ namespace Loadout.Settings
         public string EndTemplate        { get; set; } = "🚂 Hype train ended at level {level}.";
         public bool   AnnounceLevelUps   { get; set; } = true;
         public bool   AnnounceEnd        { get; set; } = true;
+        // When true, a SEPARATE Twitch-only hype train runs alongside
+        // the cross-platform one. Fed only by Twitch-sourced events; its
+        // bus events carry source="twitch" so a dedicated overlay
+        // (?source=twitch) can render it independently of the
+        // cross-platform aggregate.
+        public bool   TwitchOnlyTrain    { get; set; } = true;
+        // When true, the cross-platform hype train drops a dungeon item
+        // into every contributor's bag when it ends. Rarity scales with
+        // the final train level; a max-level train can drop the
+        // hype-train-exclusive legendaries + mythics. Off = no loot.
+        public bool   DropDungeonLoot    { get; set; } = true;
     }
 
     /// <summary>

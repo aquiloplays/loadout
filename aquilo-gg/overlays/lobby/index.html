@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Pre-stream Lobby</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Pre-stream lobby — full-canvas takeover for the streamer's "starting
+  soon" / "be right back" scene. Subscribes to lobby.* on the bus
+  (countdown timer, arrival list) and welcomes overlay events so early
+  viewers see their name appear on the arrival board.
+
+  Drop into OBS:
+    https://widget.aquilo.gg/overlays/lobby/?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
+
+  Optional URL params:
+    title       - main "starting soon" headline (default "Starting soon")
+    subtitle    - secondary line (default "loadout up")
+    countdownTo - ISO datetime to count down to (e.g. "2026-05-09T15:00Z")
+                  if absent, no countdown is shown
+    bg          - hex (overrides --lobby-bg)
+    accent      - hex (overrides --ld-accent)
+    showArrivals - "1" to show the arrival board (default 1)
+
+  OBS browser source: 1920×1080 — full-canvas takeover.
+-->
+<link rel="stylesheet" href="../_shared/loadout-design.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="bg-grid"></div>
+  <div id="bg-glow"></div>
+
+  <main id="stage">
+    <div id="brand">
+      <span class="brand-mark">⚡</span>
+      <span class="brand-text">LOADOUT</span>
+    </div>
+
+    <h1 id="title" class="title">Starting soon</h1>
+    <p  id="subtitle" class="subtitle">loadout up</p>
+
+    <div id="countdown" class="countdown">
+      <div class="countdown-cell"><span id="cd-h">00</span><span class="cd-label">hours</span></div>
+      <div class="countdown-sep">:</div>
+      <div class="countdown-cell"><span id="cd-m">00</span><span class="cd-label">min</span></div>
+      <div class="countdown-sep">:</div>
+      <div class="countdown-cell"><span id="cd-s">00</span><span class="cd-label">sec</span></div>
+    </div>
+
+    <div id="arrivals" class="arrivals">
+      <div class="arrivals-head">
+        <span class="arrivals-eyebrow">EARLY ARRIVALS</span>
+        <span class="arrivals-count" id="arrivals-count">0</span>
+      </div>
+      <div class="arrivals-list" id="arrivals-list"></div>
+    </div>
+  </main>
+
+  <footer id="hint">
+    <span class="hint-key">!ready</span>
+    <span class="hint-sep">·</span>
+    <span class="hint-text">type to mark yourself in the crew</span>
+  </footer>
+
+  <script src="../_shared/theme.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,263 @@
+/*
+ * Loadout — shared design tokens.
+ *
+ * Imported by every overlay so brand language stays consistent. Per-
+ * overlay stylesheets compose on top of this; never duplicate a token
+ * value in an overlay — extend or override here so a brand tweak only
+ * has to land in one place.
+ *
+ * The system is "premium glass on dark" — layered translucent surfaces,
+ * subtle inner highlights, and brand-accent rim lighting for state
+ * (win / lose / hype). Animations lean on `cubic-bezier(.2,.7,.2,1)`
+ * (Apple-style overshoot) and never run longer than 1.6s.
+ */
+:root {
+  /* ── Surface / chrome ─────────────────────────────────────────── */
+  --ld-bg-1:        #14141a;
+  --ld-bg-2:        #0c0c12;
+  --ld-bg-alpha:    0.92;
+  --ld-glass-bg:    linear-gradient(135deg,
+                      rgba(28, 28, 36, var(--ld-bg-alpha)) 0%,
+                      rgba(12, 12, 18, var(--ld-bg-alpha)) 100%);
+  --ld-glass-tint:  linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 35%);
+  --ld-blur:        14px;
+  --ld-saturate:    140%;
+
+  /* ── Brand ────────────────────────────────────────────────────── */
+  --ld-accent:      #3A86FF;
+  --ld-accent-2:    #6BA9FF;
+  --ld-accent-3:    #2767D8;
+  --ld-accent-soft: rgba(58, 134, 255, 0.18);
+  --ld-accent-line: rgba(58, 134, 255, 0.45);
+
+  /* ── Outcome ──────────────────────────────────────────────────── */
+  --ld-win:         #3FB950;
+  --ld-win-2:       #6FF18B;
+  --ld-win-soft:    rgba(63, 185, 80, 0.18);
+  --ld-lose:        #F85149;
+  --ld-lose-2:      #FF8B86;
+  --ld-lose-soft:   rgba(248, 81, 73, 0.18);
+  --ld-gold:        #F0B429;
+  --ld-gold-2:      #FFE082;
+  --ld-gold-deep:   #B7861E;
+  --ld-purple:      #B452FF;
+  --ld-pink:        #FF5DAA;
+  --ld-cyan:        #00F2EA;
+
+  /* ── Type ─────────────────────────────────────────────────────── */
+  --ld-text:        #F5F5F7;
+  --ld-text-soft:   rgba(245, 245, 247, 0.85);
+  --ld-muted:       #B8BCC6;
+  --ld-dim:         rgba(245, 245, 247, 0.55);
+  --ld-stack:       'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --ld-display:     'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --ld-mono:        'JetBrains Mono', 'Consolas', ui-monospace, monospace;
+
+  /* ── Border / radius ─────────────────────────────────────────── */
+  --ld-border:        rgba(255, 255, 255, 0.08);
+  --ld-border-strong: rgba(255, 255, 255, 0.16);
+  --ld-radius-sm:   8px;
+  --ld-radius-md:   14px;
+  --ld-radius-lg:   18px;
+  --ld-radius-xl:   24px;
+
+  /* ── Shadow / glow ───────────────────────────────────────────── */
+  --ld-shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --ld-shadow-mid:  0 12px 32px rgba(0, 0, 0, 0.55);
+  --ld-shadow-deep: 0 16px 48px rgba(0, 0, 0, 0.65);
+  --ld-shadow-rim:  inset 0 1px 0 rgba(255, 255, 255, 0.06),
+                    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  --ld-glow-accent: 0 0 28px rgba(58, 134, 255, 0.5);
+  --ld-glow-win:    0 0 32px rgba(63, 185, 80, 0.55);
+  --ld-glow-lose:   0 0 32px rgba(248, 81, 73, 0.45);
+  --ld-glow-gold:   0 0 32px rgba(240, 180, 41, 0.55);
+  --ld-glow-purple: 0 0 32px rgba(180, 82, 255, 0.45);
+
+  /* ── Motion ─────────────────────────────────────────────────────
+     Curated easing curves. Most overlay transitions use --ld-ease-out
+     (Apple-style decel) for arrivals and --ld-ease-spring for any
+     element that's meant to feel alive (pulses, badge bumps). The
+     emphasized curves trade a bit more overshoot for an extra hint
+     of life — use them sparingly so the design doesn't feel busy. */
+  --ld-ease-out:        cubic-bezier(.2, .7, .2, 1);          /* decel arrival */
+  --ld-ease-in:         cubic-bezier(.4, 0, .8, .4);          /* accel exit */
+  --ld-ease-emphasized: cubic-bezier(.22, 1.2, .36, 1);       /* arrival with subtle overshoot */
+  --ld-ease-spring:     cubic-bezier(.34, 1.56, .55, 1);      /* clear overshoot for pop-ins */
+  --ld-ease-spring-soft: cubic-bezier(.22, 1.25, .42, 1);     /* gentler spring for nudges */
+  --ld-ease-snap:       cubic-bezier(.55, .09, .68, .53);     /* snap-back, e.g. pulled lever */
+  --ld-ease-linear:     linear;
+  /* Durations — pick from these so transitions feel related rather
+     than each component rolling its own ms. */
+  --ld-dur-1: 120ms;     /* hover / press feedback */
+  --ld-dur-2: 220ms;     /* small state swaps */
+  --ld-dur-3: 320ms;     /* card hover / tone shift */
+  --ld-dur-4: 480ms;     /* arrival */
+  --ld-dur-5: 640ms;     /* hero entrance */
+
+  /* ── Spacing scale ───────────────────────────────────────────── */
+  --ld-sp-1:        4px;
+  --ld-sp-2:        8px;
+  --ld-sp-3:        12px;
+  --ld-sp-4:        16px;
+  --ld-sp-5:        24px;
+  --ld-sp-6:        32px;
+}
+
+/* ── Card primitive ───────────────────────────────────────────────
+   Apply by composing: `<div class="ld-card ld-card--win">`. The
+   ::before slot owns the top accent stripe so a state change can
+   swap colours by only touching one rule. Override `--ld-card-stripe`
+   on the card to retint the stripe without rewriting the gradient. */
+.ld-card {
+  position: relative;
+  background:
+    var(--ld-glass-tint),
+    var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-md);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-mid), var(--ld-shadow-rim);
+  isolation: isolate;
+  --ld-card-stripe: linear-gradient(90deg,
+    transparent 0%, var(--ld-accent) 22%, var(--ld-accent-2) 50%, var(--ld-accent) 78%, transparent 100%);
+}
+.ld-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 16px; right: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ld-card-stripe);
+  opacity: 0.85;
+  pointer-events: none;
+  transition: background 320ms var(--ld-ease-out), opacity 320ms var(--ld-ease-out);
+}
+.ld-card--win {
+  border-color: rgba(63, 185, 80, 0.55);
+  box-shadow: var(--ld-shadow-mid), var(--ld-glow-win), var(--ld-shadow-rim);
+  --ld-card-stripe: linear-gradient(90deg, transparent 0%, var(--ld-win) 22%, var(--ld-win-2) 50%, var(--ld-win) 78%, transparent 100%);
+}
+.ld-card--lose {
+  border-color: rgba(248, 81, 73, 0.55);
+  box-shadow: var(--ld-shadow-mid), var(--ld-glow-lose), var(--ld-shadow-rim);
+  --ld-card-stripe: linear-gradient(90deg, transparent 0%, var(--ld-lose) 22%, var(--ld-lose-2) 50%, var(--ld-lose) 78%, transparent 100%);
+}
+.ld-card--hype {
+  border-color: rgba(255, 145, 45, 0.55);
+  box-shadow: var(--ld-shadow-mid), 0 0 32px rgba(255, 145, 45, 0.5), var(--ld-shadow-rim);
+  --ld-card-stripe: linear-gradient(90deg, transparent 0%, #FF913B 22%, #FFCB5C 50%, #FF913B 78%, transparent 100%);
+}
+
+/* ── Type primitives ──────────────────────────────────────────── */
+.ld-eyebrow {
+  font-family: var(--ld-stack);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--ld-muted);
+}
+.ld-title {
+  font-family: var(--ld-display);
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  color: var(--ld-text);
+  line-height: 1.15;
+}
+.ld-body {
+  font-family: var(--ld-stack);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ld-text-soft);
+  line-height: 1.4;
+}
+.ld-mono-num {
+  font-family: var(--ld-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+}
+
+/* ── Animation primitives ─────────────────────────────────────── */
+@keyframes ld-pop-in {
+  0%   { opacity: 0; transform: translateY(12px) scale(.98); }
+  60%  { opacity: 1; transform: translateY(-2px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0)    scale(1); }
+}
+@keyframes ld-fade-out {
+  0%   { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(8px); }
+}
+@keyframes ld-pulse {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(1.06); }
+  100% { transform: scale(1); }
+}
+@keyframes ld-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+@keyframes ld-glow-breath {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+
+/* Shimmer utility — applies to text or backgrounds. The element must
+   have `background-size: 200% 100%` set elsewhere; this just animates
+   the position. */
+.ld-shimmer {
+  background-image: linear-gradient(90deg,
+    var(--ld-text) 0%,
+    var(--ld-gold-2) 35%,
+    var(--ld-gold) 50%,
+    var(--ld-gold-2) 65%,
+    var(--ld-text) 100%);
+  background-size: 200% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: ld-shimmer 2.4s linear infinite;
+}
+
+/* Subtle film-grain texture — overlay any surface with a
+   pseudo-element using `.ld-grain` to scuff the perfect gradient
+   slightly so the design doesn't feel too clinical. */
+.ld-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  border-radius: inherit;
+}
+
+/* ── Performance + accessibility utilities ─────────────────────────
+   `.ld-gpu` promotes an element to its own compositor layer so the
+   browser can transform it without re-rasterizing the parent. Apply
+   to anything that animates transform/opacity continuously (cards
+   that slide in, the heist dial, the hype train banner). The
+   trade-off is GPU memory + an extra layer — use sparingly.
+
+   `.ld-anim` declares the intent ahead of time via will-change so
+   the first frame after a class toggle doesn't drop a frame setting
+   up the layer. Pair with .ld-gpu for animation hot paths. */
+.ld-gpu  { transform: translateZ(0); backface-visibility: hidden; }
+.ld-anim { will-change: transform, opacity; }
+
+/* Respect prefers-reduced-motion at the root. Disabled across the
+   whole overlay family — overlay clients aren't decorative-only;
+   a hype train banner that slams in is communication, not flair.
+   So we keep arrival, just collapse the overshoot + shimmer cycles
+   to single-frame state changes. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

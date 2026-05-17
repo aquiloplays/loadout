@@ -65,7 +65,6 @@ namespace Loadout.Modules
         {
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.StreamRecap) return;
-            if (!Entitlements.IsUnlocked(Feature.StreamRecap)) return;
 
             var duration = _streamStartUtc.HasValue ? (DateTime.UtcNow - _streamStartUtc.Value) : TimeSpan.Zero;
             var topChatters = _chatCounts

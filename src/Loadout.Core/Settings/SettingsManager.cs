@@ -114,6 +114,37 @@ namespace Loadout.Settings
             }, null, SaveDebounceMs, Timeout.Infinite);
         }
 
+        /// <summary>One-shot migrations applied to settings loaded from
+        /// disk. Each migration is gated on the SchemaVersion field so a
+        /// rebalance doesn't re-apply every launch. Migrations only
+        /// touch fields that still match the OLD default — anything the
+        /// streamer customized is left alone.</summary>
+        private static void MigrateSchema(LoadoutSettings s)
+        {
+            if (s == null) return;
+            // v2: May 2026 economy rebalance — halve bolt earn rates
+            // for fields still at their previous defaults. Existing
+            // installs were at SchemaVersion=1 (the previous baseline);
+            // this is the first real migration. Channel-point coins
+            // took the largest cut since they're the most farmable.
+            if (s.SchemaVersion < 2)
+            {
+                if (s.Bolts != null)
+                {
+                    if (s.Bolts.PerSub                   == 50)  s.Bolts.PerSub                   = 25;
+                    if (s.Bolts.PerGiftSub               == 30)  s.Bolts.PerGiftSub               = 15;
+                    if (s.Bolts.PerRaidBrought           == 100) s.Bolts.PerRaidBrought           = 50;
+                    if (s.Bolts.PerCheerBitDivisor       == 100) s.Bolts.PerCheerBitDivisor       = 200;
+                    if (s.Bolts.PerCcCoinDivisor         == 10)  s.Bolts.PerCcCoinDivisor         = 25;
+                    if (s.Bolts.PerDailyCheckIn          == 100) s.Bolts.PerDailyCheckIn          = 50;
+                    if (s.Bolts.SubAnniversaryBonusBase  == 100) s.Bolts.SubAnniversaryBonusBase  = 50;
+                    if (s.Bolts.MaxChatEarnsPerMinute    == 6)   s.Bolts.MaxChatEarnsPerMinute    = 3;
+                }
+                s.SchemaVersion = 2;
+            }
+            // Add future migrations here, each gated on the next version.
+        }
+
         private LoadoutSettings LoadFromDisk()
         {
             try
@@ -127,7 +158,9 @@ namespace Loadout.Settings
 
                 var json = File.ReadAllText(_path);
                 var loaded = JsonConvert.DeserializeObject<LoadoutSettings>(json, _jsonSettings);
-                return loaded ?? new LoadoutSettings();
+                loaded = loaded ?? new LoadoutSettings();
+                MigrateSchema(loaded);
+                return loaded;
             }
             catch (Exception ex)
             {

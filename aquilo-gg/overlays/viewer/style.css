@@ -1,12 +1,13 @@
 :root {
   --bg: transparent;
   --surface: #18181B;
-  --border: #2A2A30;
-  --text: #F5F5F7;
-  --muted: #B8BCC6;
-  --faint: #7A7A85;
-  --accent: #3A86FF;
-  --cyan: #00F2EA;
+  --surface-2: rgba(255, 255, 255, 0.04);
+  --border: var(--ld-border);
+  --text: var(--ld-text);
+  --muted: var(--ld-muted);
+  --faint: var(--ld-dim);
+  --accent: var(--ld-accent);
+  --cyan: var(--ld-cyan);
   --azure: #3AC8FF;
   --twitch: #9147FF;
   --kick:   #53FC18;
@@ -18,7 +19,8 @@
 html, body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
   width: 100%; height: 100%;
   overflow: hidden;
 }
@@ -39,18 +41,39 @@ body[data-align="tc"] #root { align-items: flex-start; justify-content: center; 
 
 .card {
   width: 360px;
-  background: linear-gradient(180deg, rgba(24,24,30,.96), rgba(13,13,17,.96));
-  border: 1px solid rgba(58,134,255,.30);
-  border-radius: 16px;
-  padding: 18px;
-  box-shadow: 0 18px 38px rgba(0,0,0,.6),
-              0 0 0 1px rgba(58,134,255,.15),
-              0 0 60px rgba(0,242,234,.10);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* Layered glass — same recipe as the rest of the family. The cyan
+     glow on the secondary shadow is unique to viewer profiles to
+     telegraph "this card is about a person" rather than a system
+     event. */
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(58, 134, 255, 0.10) 0%, transparent 55%),
+    var(--ld-glass-tint),
+    var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-lg);
+  padding: 18px 18px 16px 18px;
+  box-shadow:
+    var(--ld-shadow-deep),
+    0 0 60px rgba(0, 242, 234, 0.10),
+    var(--ld-shadow-rim);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
   opacity: 0;
   transform: translateY(16px) scale(.98);
-  transition: opacity .45s cubic-bezier(.2,.7,.2,1), transform .45s cubic-bezier(.2,.7,.2,1);
+  transition: opacity .45s var(--ld-ease-out), transform .45s var(--ld-ease-out);
+  position: relative;
+  isolation: isolate;
+}
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 16px; right: 16px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg,
+    transparent 0%, var(--accent) 22%, var(--cyan) 50%, var(--accent) 78%, transparent 100%);
+  opacity: 0.85;
+  pointer-events: none;
 }
 .card.show {
   opacity: 1;

@@ -37,11 +37,7 @@ You may not, and may not permit any third party to:
   (d) remove, alter, or obscure any proprietary notices on the
       Software, including copyright, trademark, or attribution;
   (e) use the Software to develop a competing product offering
-      substantially similar functionality;
-  (f) circumvent any technical measures used to enforce the tier
-      gating in the Patreon entitlement check (Free / Loadout Plus
-      / Loadout Pro). Tier gating is the Software's revenue model;
-      bypassing it is a material breach of this Agreement.
+      substantially similar functionality.
 
 3. SOURCE AVAILABILITY
 
@@ -53,23 +49,21 @@ redistribute the Software. The license you have is the one in this
 file. If you wish to use any portion of the source under different
 terms, contact Licensor via aquilo.gg for written permission.
 
-4. TIER GATING (PATREON ENTITLEMENT)
+4. PATREON SUPPORT
 
-The Software offers a free tier and one or more paid tiers. Paid
-tiers unlock additional features through an entitlement check
-against an active Patreon pledge to Licensor's campaign. You agree
-that:
+The Software is free. Every feature is available to all Users at no
+charge, and no feature is locked behind payment. Patreon support is
+entirely optional and is not required to install or use any part of
+the Software. You agree that:
 
-  (a) the entitlement check is part of the Software and may not be
-      bypassed, modified, or stubbed;
-  (b) tier feature lists may change as the Software evolves;
-      Licensor will not retroactively reduce features on a tier
-      that a User has already paid for during the period that
-      pledge is active, but reserves the right to add new features
-      to higher tiers without obligation to backport;
-  (c) cancellation of a Patreon pledge results in the Software
-      reverting to the free tier on the next entitlement refresh
-      (typically within 6 hours).
+  (a) Patreon supporters may receive early access to new features
+      before those features are released to all Users; early access
+      is a head start, not a permanent or exclusive entitlement, and
+      every feature reaches all Users in the ordinary course;
+  (b) the Software includes an optional Patreon (and Discord)
+      sign-in used only to determine early-access eligibility; it
+      does not gate, lock, or remove any feature, and cancelling a
+      Patreon pledge does not reduce the features available to you.
 
 5. THIRD-PARTY SERVICES
 

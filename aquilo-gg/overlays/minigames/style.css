@@ -1,16 +1,43 @@
 /*
- * Loadout — Bolts minigames overlay. Two visuals: a flipping coin and
- * a rolling die, picked by the bus event kind. Card pops in from below,
- * animates ~1.6s, reveals the outcome with a colour beat, slides out.
+ * Loadout — Bolts minigames overlay. Visualizers for !coinflip / !dice /
+ * !slots / !rps / !roulette / !heist, picked by the bus event kind.
+ * Card pops in from below, animates ~1.6s, reveals the outcome with a
+ * colour beat, slides out.
+ *
+ * Design tokens are shared across the Loadout overlay family — when
+ * tuning, prefer adjusting the variables here over hand-rolling values
+ * inline so the brand language stays consistent.
  */
 :root {
-  --bg-alpha: 0.94;
+  /* Surface */
+  --bg-alpha: 0.92;
+  --bg-1: #14141a;
+  --bg-2: #0c0c12;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(58, 134, 255, 0.45);
+  /* Brand */
   --accent: #3A86FF;
+  --accent-2: #6BA9FF;
+  --accent-soft: rgba(58, 134, 255, 0.18);
+  /* Outcome */
   --win: #3FB950;
+  --win-soft: rgba(63, 185, 80, 0.18);
   --lose: #F85149;
+  --lose-soft: rgba(248, 81, 73, 0.18);
   --gold: #F0B429;
+  --gold-2: #FFE082;
+  --gold-deep: #B7861E;
+  /* Type */
   --text: #F5F5F7;
   --muted: #B8BCC6;
+  --dim: rgba(245, 245, 247, 0.6);
+  /* Shadow + glow */
+  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-deep: 0 16px 48px rgba(0, 0, 0, 0.65);
+  --glow-accent: 0 0 24px rgba(58, 134, 255, 0.45);
+  --glow-win:    0 0 28px rgba(63, 185, 80, 0.55);
+  --glow-lose:   0 0 28px rgba(248, 81, 73, 0.45);
+  --glow-gold:   0 0 28px rgba(240, 180, 41, 0.55);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
@@ -23,25 +50,58 @@ html, body {
 
 #card {
   position: fixed;
-  width: 320px;
-  padding: 16px 18px;
-  background: linear-gradient(135deg,
-    rgba(24, 24, 27, var(--bg-alpha)) 0%,
-    rgba(15, 15, 17, var(--bg-alpha)) 100%);
-  border: 1px solid rgba(58, 134, 255, 0.4);
-  border-radius: 14px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  width: 340px;
+  padding: 18px 20px;
+  /* Layer hint — the card slides in / out and pulses on outcome.
+     Without will-change CEF (and Chromium more broadly) recreates
+     the compositor layer on every animation start, dropping the
+     first frame of the fade in. The will-change cost is offset
+     because the card is one-of-one. */
+  will-change: transform, opacity;
+  /* Layered surface — base gradient, inner highlight, accent stripe via
+     a top border-image. Reads as a premium glass panel rather than the
+     plain rounded rectangle it used to be. */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 30%),
+    linear-gradient(135deg, rgba(28, 28, 36, var(--bg-alpha)) 0%, rgba(12, 12, 18, var(--bg-alpha)) 100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow:
+    var(--shadow-deep),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  transition: opacity 380ms ease-in-out, transform 380ms cubic-bezier(.2,.7,.2,1);
+  transition: opacity var(--ld-dur-4, 480ms) var(--ld-ease-out),
+              transform var(--ld-dur-4, 480ms) var(--ld-ease-emphasized),
+              box-shadow var(--ld-dur-3, 320ms) var(--ld-ease-out),
+              border-color var(--ld-dur-3, 320ms) var(--ld-ease-out);
+  position: fixed;
+  isolation: isolate;
+}
+/* Top accent stripe — positioned absolutely so a colour shift on
+   .win/.lose can flow through without rebuilding the gradient. */
+#card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 18px; right: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg,
+    transparent 0%, var(--accent) 22%, var(--accent-2) 50%, var(--accent) 78%, transparent 100%);
+  opacity: 0.85;
+  transition: background 320ms ease, opacity 320ms ease;
+  pointer-events: none;
 }
 #card.hidden { opacity: 0; transform: translateY(20px); pointer-events: none; }
-#card.win    { border-color: rgba(63, 185, 80, 0.55); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 24px rgba(63, 185, 80, 0.35); }
-#card.lose   { border-color: rgba(248, 81, 73, 0.55); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55), 0 0 24px rgba(248, 81, 73, 0.30); }
+#card.win    { border-color: rgba(63, 185, 80, 0.55); box-shadow: var(--shadow-deep), var(--glow-win),  inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+#card.win::before  { background: linear-gradient(90deg, transparent 0%, var(--win)  22%, #6FF18B 50%, var(--win)  78%, transparent 100%); }
+#card.lose   { border-color: rgba(248, 81, 73, 0.55); box-shadow: var(--shadow-deep), var(--glow-lose), inset 0 1px 0 rgba(255, 255, 255, 0.06); }
+#card.lose::before { background: linear-gradient(90deg, transparent 0%, var(--lose) 22%, #FF8B86 50%, var(--lose) 78%, transparent 100%); }
 
 body[data-pos="bc"] #card { bottom: 32px; left: 50%; transform: translateX(-50%); }
 body[data-pos="bc"] #card.hidden { transform: translate(-50%, 20px); }
@@ -53,68 +113,208 @@ body[data-pos="tl"] #card { top: 24px; left: 24px; }
 body[data-pos="tr"] #card { top: 24px; right: 24px; }
 
 .visual {
-  width: 80px;
-  height: 80px;
+  width: 96px;
+  height: 96px;
   display: flex;
   align-items: center;
   justify-content: center;
-  perspective: 600px;
+  perspective: 800px;
+  perspective-origin: 50% 50%;
 }
 
-/* ---- Coin ---- */
+/* ---- 3D Coin ---- */
+/* The coin is a flat cylinder built in CSS 3D. Two round faces + 24 thin
+   side panels arranged radially around the y-axis. During the spin the
+   side panels become visible at the edges so the spin reads as a real
+   coin tumbling rather than a flat heads/tails toggle. The thickness
+   is set via --coin-thick (translateZ on the faces, width on the
+   edges). 24 segments × 15° each closes the cylinder smoothly without
+   visible faceting at this size. */
 .coin {
   display: none;
   width: 72px;
   height: 72px;
   position: relative;
   transform-style: preserve-3d;
+  /* Idle pose has a slight Y-tilt + X-tilt so the coin reads as 3D even
+     before the spin starts. The flip animation overrides this. */
+  transform: rotateX(-12deg) rotateY(0deg);
+  --coin-thick: 6px;
 }
-.coin.flipping  { animation: coinFlip 1.4s cubic-bezier(.2,.7,.2,1); }
-.coin.show-heads { transform: rotateY(0deg); }
-.coin.show-tails { transform: rotateY(180deg); }
+.coin.show { display: block; }
+.coin.flipping  { animation: coinFlip 1.6s cubic-bezier(.2,.7,.2,1) forwards; }
+.coin.flipping.show-tails { animation-name: coinFlipTails; }
 .coin-face {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 32px; font-weight: 800;
-  border: 3px solid rgba(0, 0, 0, 0.35);
+  border: 3px solid rgba(120, 80, 0, 0.55);
   backface-visibility: hidden;
-  background: radial-gradient(circle at 30% 25%, #FFE082 0%, var(--gold) 60%, #B7861E 100%);
+  /* Layered radial highlight + offset secondary shine for depth */
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 38%),
+    radial-gradient(circle at 70% 78%, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 40%),
+    radial-gradient(circle at 50% 50%, #FFE082 0%, var(--gold) 55%, #B7861E 100%);
   color: #4A2D00;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5), 0 -1px 0 rgba(0, 0, 0, 0.18);
+  box-shadow:
+    inset 0 0 0 2px rgba(255, 220, 130, 0.35),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.28);
 }
-.coin-face.tails { transform: rotateY(180deg); }
+.coin-face.heads { transform: translateZ(calc(var(--coin-thick) / 2)); }
+.coin-face.tails { transform: rotateY(180deg) translateZ(calc(var(--coin-thick) / 2)); }
+/* Side panels: each one is a thin slice of the cylinder wall. A
+   --edge-angle inline custom property rotates it around the y-axis,
+   then a translateZ pushes it outward by the coin radius. Width is
+   tuned so 24 panels at 15° each tile cleanly. */
+.coin-edge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--coin-thick);
+  height: 72px;
+  margin-left: calc(var(--coin-thick) / -2);
+  margin-top: -36px;
+  /* The radial trick: rotateY first, then push out by the radius. The
+     panel's own width is the cylinder thickness so the edge actually
+     has volume. */
+  transform: rotateY(calc(var(--edge-angle) - 90deg)) translateZ(36px) rotateY(90deg);
+  background: linear-gradient(180deg, #B7861E 0%, var(--gold) 50%, #B7861E 100%);
+  border-top: 1px solid rgba(255, 220, 130, 0.4);
+  border-bottom: 1px solid rgba(120, 80, 0, 0.5);
+  /* Reeded-edge ridges — vertical hairlines via repeating-linear-gradient. */
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #B7861E 0%, var(--gold) 50%, #B7861E 100%);
+}
 @keyframes coinFlip {
-  0%   { transform: rotateY(0deg)    scale(0.9); }
-  60%  { transform: rotateY(1080deg) scale(1.05); }
-  100% { transform: rotateY(1080deg) scale(1); }
+  0%   { transform: rotateX(-12deg) rotateY(0deg)    scale(0.9); }
+  60%  { transform: rotateX(-12deg) rotateY(1080deg) scale(1.06); }
+  100% { transform: rotateX(-12deg) rotateY(1080deg) scale(1); }
+}
+@keyframes coinFlipTails {
+  0%   { transform: rotateX(-12deg) rotateY(0deg)    scale(0.9); }
+  60%  { transform: rotateX(-12deg) rotateY(1260deg) scale(1.06); }
+  100% { transform: rotateX(-12deg) rotateY(1260deg) scale(1); }
 }
 
-/* ---- Die ---- */
+/* ---- 3D Die ---- */
+/* Six-face cube built in CSS 3D. Each face is positioned with a
+   rotate*translateZ to land on the right side of the cube. Pips are
+   absolutely-positioned dots placed via :nth-child rules so a single
+   class selector drives the dot pattern for that face. Roll animation
+   does ~720° of tumble through staged keyframes, then a `data-roll`
+   attribute on the cube selects one of six final-orientation
+   transforms so it settles with the rolled value face-forward. */
 .die {
   display: none;
   width: 64px;
   height: 64px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #FFFFFF 0%, #C9CBD3 100%);
-  color: #1A1A22;
-  font-size: 36px; font-weight: 800;
-  display: none;
-  align-items: center; justify-content: center;
-  border: 2px solid rgba(0, 0, 0, 0.4);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45), inset 0 -3px 0 rgba(0, 0, 0, 0.15);
+  position: relative;
+  transform-style: preserve-3d;
+  --die-half: 32px;
+  /* Idle pose shows three faces — gives the die volume even at rest. */
+  transform: rotateX(-22deg) rotateY(-32deg);
 }
-.die.rolling { animation: dieRoll 1.4s cubic-bezier(.2,.7,.2,1); }
-@keyframes dieRoll {
-  0%   { transform: rotate(0deg)   scale(0.8); }
-  25%  { transform: rotate(180deg) scale(1.1); }
-  50%  { transform: rotate(360deg) scale(0.95); }
-  75%  { transform: rotate(540deg) scale(1.05); }
-  100% { transform: rotate(720deg) scale(1); }
+.die.show { display: block; }
+.die-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows:    repeat(3, 1fr);
+  padding: 6px;
+  background:
+    linear-gradient(135deg, #FFFFFF 0%, #ECEDF2 50%, #C9CBD3 100%);
+  border: 2px solid rgba(0, 0, 0, 0.35);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.12);
+  backface-visibility: hidden;
 }
-.die-pip { font-variant-numeric: tabular-nums; }
+/* Position each face to form the cube. Standard die opposite-pair
+   convention: 1↔6, 2↔5, 3↔4 (each pair sums to 7). */
+.die-face-1 { transform: translateZ(var(--die-half)); }                              /* +Z (front) */
+.die-face-6 { transform: rotateY(180deg) translateZ(var(--die-half)); }              /* -Z (back) */
+.die-face-3 { transform: rotateY( 90deg) translateZ(var(--die-half)); }              /* +X (right) */
+.die-face-4 { transform: rotateY(-90deg) translateZ(var(--die-half)); }              /* -X (left) */
+.die-face-2 { transform: rotateX( 90deg) translateZ(var(--die-half)); }              /* +Y (top) */
+.die-face-5 { transform: rotateX(-90deg) translateZ(var(--die-half)); }              /* -Y (bottom) */
+
+.pip {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #4a4a52 0%, #18181B 70%, #000 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2), 0 1px 1px rgba(0, 0, 0, 0.5);
+  align-self: center;
+  justify-self: center;
+}
+/* Pip placement per face — using grid-area on each pip in face order */
+.die-face-1 .pip:nth-child(1) { grid-area: 2 / 2; }
+.die-face-2 .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face-2 .pip:nth-child(2) { grid-area: 3 / 3; }
+.die-face-3 .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face-3 .pip:nth-child(2) { grid-area: 2 / 2; }
+.die-face-3 .pip:nth-child(3) { grid-area: 3 / 3; }
+.die-face-4 .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face-4 .pip:nth-child(2) { grid-area: 1 / 3; }
+.die-face-4 .pip:nth-child(3) { grid-area: 3 / 1; }
+.die-face-4 .pip:nth-child(4) { grid-area: 3 / 3; }
+.die-face-5 .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face-5 .pip:nth-child(2) { grid-area: 1 / 3; }
+.die-face-5 .pip:nth-child(3) { grid-area: 2 / 2; }
+.die-face-5 .pip:nth-child(4) { grid-area: 3 / 1; }
+.die-face-5 .pip:nth-child(5) { grid-area: 3 / 3; }
+.die-face-6 .pip:nth-child(1) { grid-area: 1 / 1; }
+.die-face-6 .pip:nth-child(2) { grid-area: 2 / 1; }
+.die-face-6 .pip:nth-child(3) { grid-area: 3 / 1; }
+.die-face-6 .pip:nth-child(4) { grid-area: 1 / 3; }
+.die-face-6 .pip:nth-child(5) { grid-area: 2 / 3; }
+.die-face-6 .pip:nth-child(6) { grid-area: 3 / 3; }
+
+/* Final-orientation classes — settle the cube with face N facing the
+   camera. Tilts kept slightly off-axis so chrome / depth stays
+   visible after the roll. */
+.die.land-1 { transform: rotateX(-22deg) rotateY(-32deg); }
+.die.land-2 { transform: rotateX( 68deg) rotateY(-32deg); }
+.die.land-3 { transform: rotateX(-22deg) rotateY(-122deg); }
+.die.land-4 { transform: rotateX(-22deg) rotateY( 58deg); }
+.die.land-5 { transform: rotateX(-112deg) rotateY(-32deg); }
+.die.land-6 { transform: rotateX(-22deg) rotateY(148deg); }
+.die.rolling.land-1 { animation: dieRoll1 1.6s cubic-bezier(.2,.7,.2,1) forwards; }
+.die.rolling.land-2 { animation: dieRoll2 1.6s cubic-bezier(.2,.7,.2,1) forwards; }
+.die.rolling.land-3 { animation: dieRoll3 1.6s cubic-bezier(.2,.7,.2,1) forwards; }
+.die.rolling.land-4 { animation: dieRoll4 1.6s cubic-bezier(.2,.7,.2,1) forwards; }
+.die.rolling.land-5 { animation: dieRoll5 1.6s cubic-bezier(.2,.7,.2,1) forwards; }
+.die.rolling.land-6 { animation: dieRoll6 1.6s cubic-bezier(.2,.7,.2,1) forwards; }
+@keyframes dieRoll1 {
+  0%   { transform: rotateX(  0deg) rotateY(  0deg) scale(0.85); }
+  100% { transform: rotateX(-382deg) rotateY(-392deg) scale(1); }
+}
+@keyframes dieRoll2 {
+  0%   { transform: rotateX(  0deg) rotateY(  0deg) scale(0.85); }
+  100% { transform: rotateX( 428deg) rotateY(-392deg) scale(1); }
+}
+@keyframes dieRoll3 {
+  0%   { transform: rotateX(  0deg) rotateY(  0deg) scale(0.85); }
+  100% { transform: rotateX(-382deg) rotateY(-482deg) scale(1); }
+}
+@keyframes dieRoll4 {
+  0%   { transform: rotateX(  0deg) rotateY(  0deg) scale(0.85); }
+  100% { transform: rotateX(-382deg) rotateY( 418deg) scale(1); }
+}
+@keyframes dieRoll5 {
+  0%   { transform: rotateX(  0deg) rotateY(  0deg) scale(0.85); }
+  100% { transform: rotateX(-472deg) rotateY(-392deg) scale(1); }
+}
+@keyframes dieRoll6 {
+  0%   { transform: rotateX(  0deg) rotateY(  0deg) scale(0.85); }
+  100% { transform: rotateX(-382deg) rotateY( 508deg) scale(1); }
+}
 
 .lines {
   text-align: center;
@@ -162,71 +362,80 @@ body[data-pos="tr"] #card { top: 24px; right: 24px; }
    the reels start spinning. */
 .lever {
   position: absolute;
-  right: -2px;
-  top: 4px;
-  width: 22px;
-  height: 64px;
+  right: -4px;
+  top: -2px;
+  width: 24px;
+  height: 72px;
   pointer-events: none;
+  filter: drop-shadow(2px 4px 4px rgba(0, 0, 0, 0.5));
 }
 .lever-base {
   position: absolute;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 18px;
-  height: 8px;
+  width: 20px;
+  height: 10px;
   border-radius: 3px;
-  background: linear-gradient(180deg, #4a4a52 0%, #2a2a30 100%);
+  background: linear-gradient(180deg, #5a5a62 0%, #2a2a30 100%);
   border: 1px solid #1a1a22;
-  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, 0.5);
+  box-shadow:
+    inset 0 -2px 0 rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.3);
 }
 .lever-arm {
   position: absolute;
-  bottom: 4px;        /* sit on top of the socket */
+  bottom: 6px;        /* sit on top of the socket */
   left: 50%;
-  width: 4px;
-  height: 50px;
-  margin-left: -2px;
-  background: linear-gradient(180deg, #c4c4d0 0%, #8b8b96 100%);
-  border-radius: 2px;
+  width: 5px;
+  height: 56px;
+  margin-left: -2.5px;
+  /* Brushed steel — multi-stop gradient with a darker center seam. */
+  background:
+    linear-gradient(90deg, #6a6a72 0%, #d4d4dc 40%, #fcfcfe 50%, #d4d4dc 60%, #6a6a72 100%);
+  border-radius: 2.5px;
   transform-origin: bottom center;
   transform: rotate(0deg);
   /* Spring-back curve — overshoots slightly past 0deg before settling. */
-  transition: transform .35s cubic-bezier(.4, 1.6, .55, 1);
-  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.4);
+  transition: transform .42s cubic-bezier(.34, 1.8, .55, 1);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.3),
+    1px 0 1px rgba(0, 0, 0, 0.5);
 }
 .lever-knob {
   position: absolute;
-  top: 0;
+  top: -4px;
   left: 50%;
-  width: 12px;
-  height: 12px;
-  margin-left: -6px;
+  width: 16px;
+  height: 16px;
+  margin-left: -8px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #ff6e63 0%, #d12d22 60%, #7a1410 100%);
-  border: 1px solid #5a0e0a;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  background:
+    radial-gradient(circle at 30% 25%, #ffb1a8 0%, #ff5044 30%, #c81d12 65%, #5a0a06 100%);
+  border: 1px solid #3a0604;
+  box-shadow:
+    inset 0 -3px 4px rgba(0, 0, 0, 0.5),
+    inset 0 2px 3px rgba(255, 200, 190, 0.45),
+    0 2px 6px rgba(0, 0, 0, 0.55),
+    0 0 8px rgba(255, 80, 60, 0.35);
   transform-origin: bottom center;
-  /* Same transition as the arm so the knob tracks the arm's rotation
-     when the lever pulls. We rotate the wrapper, not the knob, so
-     instead just inherit by living inside .lever which rotates as a
-     unit when the arm-pull class flips. */
 }
-/* Pulling state — the lever rotates ~80deg toward the viewer (right
-   side, since the lever sits on the right of the reels). The knob
-   sits at the top of the arm so it traces an arc as the rotation
-   plays out. */
+/* Pulling state — the lever rotates ~85° down. The knob sits at the
+   top of the arm so it traces a wide arc as the rotation plays out.
+   Easing on the down-stroke is fast/heavy (cubic-bezier feels like
+   the player's hand committing to the pull). */
 .lever.pulling .lever-arm,
 .lever.pulling .lever-knob {
-  transform: rotate(80deg);
-  transition: transform .26s cubic-bezier(.55, .09, .68, .53);
+  transform: rotate(85deg);
+  transition: transform .22s cubic-bezier(.55, .09, .68, .53);
 }
 .lever.pulling .lever-knob {
   /* Pivot from the arm-base, not the knob centre, so it follows the arm. */
-  transform-origin: 50% 50px;
+  transform-origin: 50% 56px;
 }
 .lever .lever-knob {
-  transform-origin: 50% 50px;
+  transform-origin: 50% 56px;
 }
 .reel {
   width: 64px;
@@ -406,6 +615,166 @@ body[data-pos="tc"] #card.pulse { animation-name: pulseCenter; }
 .roulette .pocket[data-color="red"]   { background: rgba(248,81,73,.85); }
 .roulette .pocket[data-color="black"] { background: rgba(20,20,28,.95); }
 .roulette .pocket[data-color="green"] { background: rgba(63,185,80,.85); }
+
+/* ---- Heist ----
+   Vault door + meter + crew counter. The vault dial rotates while
+   contributions land; the meter fill scales 0→100% as the pot
+   approaches target. Success/failure end states swap colours and
+   trigger a punctuated celebration / shake. */
+.heist {
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 4px;
+}
+.heist.show { display: flex; }
+.heist-vault {
+  position: relative;
+  width: 84px;
+  height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.55));
+}
+.heist-vault-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.18) 0%, transparent 35%),
+    radial-gradient(circle at 70% 80%, rgba(0, 0, 0, 0.45) 0%, transparent 50%),
+    conic-gradient(from 0deg,
+      #2a2a32 0deg, #4a4a55 30deg, #2a2a32 60deg, #4a4a55 90deg,
+      #2a2a32 120deg, #4a4a55 150deg, #2a2a32 180deg, #4a4a55 210deg,
+      #2a2a32 240deg, #4a4a55 270deg, #2a2a32 300deg, #4a4a55 330deg, #2a2a32 360deg);
+  box-shadow:
+    inset 0 0 0 3px #1a1a22,
+    inset 0 0 12px rgba(0, 0, 0, 0.6);
+}
+.heist-vault-spokes {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background:
+    repeating-conic-gradient(
+      from 0deg,
+      transparent 0 18deg,
+      rgba(255, 255, 255, 0.04) 18deg 20deg);
+  pointer-events: none;
+}
+.heist-vault-dial {
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.25) 0%, transparent 40%),
+    linear-gradient(135deg, #5a5a65 0%, #2c2c34 100%);
+  border: 1px solid #1a1a22;
+  /* Tick marks along the rim drawn with conic gradients. */
+  background-image:
+    repeating-conic-gradient(
+      from 0deg,
+      rgba(255, 255, 255, 0.5) 0deg 1deg,
+      transparent 1deg 30deg),
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.25) 0%, transparent 40%),
+    linear-gradient(135deg, #5a5a65 0%, #2c2c34 100%);
+  transition: transform .35s cubic-bezier(.2,.7,.2,1);
+}
+.heist.spinning .heist-vault-dial { animation: heistDialSpin 1.6s linear infinite; }
+@keyframes heistDialSpin {
+  0%   { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.heist-vault-center {
+  position: relative;
+  z-index: 1;
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--gold-2) 0%, var(--gold) 60%, var(--gold-deep) 100%);
+  color: #4A2D00;
+  font-weight: 800;
+  font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  box-shadow: inset 0 -2px 4px rgba(0, 0, 0, 0.35), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+.heist.success .heist-vault-center { animation: heistCenterPulse 600ms cubic-bezier(.2,.7,.2,1) 2; }
+@keyframes heistCenterPulse {
+  0%   { transform: scale(1);    box-shadow: inset 0 -2px 4px rgba(0,0,0,.35), 0 0 0 rgba(240,180,41,0); }
+  35%  { transform: scale(1.18); box-shadow: inset 0 -2px 4px rgba(0,0,0,.35), 0 0 24px rgba(240,180,41,.7); }
+  100% { transform: scale(1);    box-shadow: inset 0 -2px 4px rgba(0,0,0,.35), 0 0 0 rgba(240,180,41,0); }
+}
+.heist.failure .heist-vault { animation: heistShake 320ms cubic-bezier(.36,.07,.19,.97) 1; }
+@keyframes heistShake {
+  10%, 90% { transform: translate3d(-1px, 0, 0); }
+  20%, 80% { transform: translate3d( 2px, 0, 0); }
+  30%, 50%, 70% { transform: translate3d(-3px, 0, 0); }
+  40%, 60% { transform: translate3d( 3px, 0, 0); }
+}
+
+/* Pot meter — a flat horizontal bar; fill grows with contributions.
+   The 50% mark surfaces visually so viewers see "halfway" progress.
+   Gold fill below target, green when hit, red on failure. */
+.heist-meter {
+  position: relative;
+  width: 100%;
+  height: 18px;
+  border-radius: 9px;
+  background: linear-gradient(180deg, #14141c 0%, #1c1c25 100%);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.heist-meter-fill {
+  position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, var(--gold-deep) 0%, var(--gold) 50%, var(--gold-2) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 0 8px rgba(240, 180, 41, 0.4);
+  transition: width 380ms cubic-bezier(.2,.7,.2,1), background 320ms ease;
+}
+.heist.success .heist-meter-fill {
+  background: linear-gradient(90deg, #2A8B3A 0%, var(--win) 50%, #6FF18B 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 0 12px rgba(63,185,80,.55);
+}
+.heist.failure .heist-meter-fill {
+  background: linear-gradient(90deg, #8B2A2A 0%, var(--lose) 50%, #FF8B86 100%);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 0 12px rgba(248,81,73,.55);
+}
+.heist-meter-mark {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.heist-meter-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.7);
+  font-variant-numeric: tabular-nums;
+}
+.heist-crew {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.6px;
+}
+.heist-crew-label { text-transform: uppercase; font-size: 9px; letter-spacing: 1px; opacity: 0.65; }
+.heist-crew-count, .heist-crew-time { color: var(--text); font-variant-numeric: tabular-nums; }
+.heist-crew-sep { opacity: 0.35; }
 
 .dev-status {
   position: fixed; bottom: 4px; right: 6px;

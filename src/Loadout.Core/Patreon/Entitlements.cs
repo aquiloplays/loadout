@@ -3,22 +3,26 @@ using System;
 namespace Loadout.Patreon
 {
     /// <summary>
-    /// One enum, one method - the only place modules ask "can the user use this?".
+    /// Feature catalogue for the entitlement system. Every current feature is
+    /// free for everyone — no module gates on this any more. Kept as dormant
+    /// infrastructure so future early-access features can ship to Patreon
+    /// supporters first.
     /// </summary>
     public enum Feature
     {
-        // ── Free tier ──────────────────────────────────────────────────────────
+        // Feature catalogue. Every entry below is currently free for everyone;
+        // members are retained so future early-access features have an enum
+        // to gate on. Do not delete members — unused entries are harmless.
         InfoCommands,           // !uptime, !followage, !so, !lurk, etc.
-        BasicTwitchAlerts,      // follow / sub / cheer / raid on Twitch only
+        BasicTwitchAlerts,      // follow / sub / cheer / raid on Twitch
         BasicWelcomes,          // first-time + sub greetings
-        ThreeTimers,            // up to 3 timed messages
+        ThreeTimers,            // timed messages
         IdentityLink,           // !link / !linkapprove
         UpdateNotifications,    // tray icon update prompts
-        Bolts,                  // basic Bolts wallet (free tier - earn / leaderboard / gift)
+        Bolts,                  // Bolts wallet - earn / leaderboard / gift
 
-        // ── Patreon Tier 2 ($6) ────────────────────────────────────────────────
         MultiPlatformSend,      // YouTube + Kick + TikTok mirroring
-        UnlimitedTimers,        // beyond 3
+        UnlimitedTimers,        // timed messages
         AllWelcomeTiers,        // VIP / mod / regular variants
         AlertSounds,            // attach .wav / .mp3 to alerts
         WebhookInbox,           // Ko-fi / Throne / Patreon endpoint
@@ -27,27 +31,25 @@ namespace Loadout.Patreon
         BackupRestore,          // zip-export of settings + viewer data
         StreamRecap,            // post-stream summary
 
-        // ── Patreon Tier 3 ($10) ───────────────────────────────────────────────
         TikTokHypeTrain,        // synthetic hype train on TikTok gifts
         HateRaidDetector,       // pattern-based hate-raid alerts
         SmartAutoClipper,       // chat-velocity / sub-burst clip triggers (Phase 2)
         VodChapterMarkers,      // auto-mark scene/game changes (Phase 2)
         CrossPlatformWallet,    // loyalty currency that follows linked identities
-        BetaAccess,             // beta channel updates + early features
+        BetaAccess,             // early-access channel updates
 
-        // ── New gates for this round ───────────────────────────────────────────
-        UnlimitedCounters,      // free tier capped at 3 counters; Plus removes cap
+        UnlimitedCounters,      // counters
         DailyCheckIn,           // Daily Check-In overlay event + Patreon flair
-        DailyCheckInFlairsPro,  // animated flairs / Patreon flair (Tier 3)
-        VipRotationAuto,        // automatic weekly VIP rotation (Tier 3)
-        BoltsCrossPlatform,     // Patreon multipliers + cross-platform wallet sync (Tier 3)
-        DungeonGame             // Dungeon Crawler + Duel mini-game (free for all tiers)
+        DailyCheckInFlairsPro,  // animated flairs / Patreon flair
+        VipRotationAuto,        // automatic weekly VIP rotation
+        BoltsCrossPlatform,     // Patreon multipliers + cross-platform wallet sync
+        DungeonGame             // Dungeon Crawler + Duel mini-game
     }
 
     /// <summary>
-    /// Single source of truth for whether a feature is unlocked. Modules call
-    /// <see cref="IsUnlocked"/>; UI binds to <see cref="GetLockReason"/> for
-    /// the upsell tooltip.
+    /// Single source of truth for feature availability. Dormant today — every
+    /// current feature is free for everyone — but retained so future
+    /// early-access features can gate on Patreon tier before general rollout.
     /// </summary>
     public static class Entitlements
     {
@@ -105,26 +107,15 @@ namespace Loadout.Patreon
             }
         }
 
-        /// <summary>One-liner explaining why the feature is locked, suitable for tooltips.</summary>
+        /// <summary>
+        /// One-liner describing a feature's availability, suitable for tooltips.
+        /// Dormant: every current feature is free for everyone. Kept as
+        /// infrastructure for future early-access features.
+        /// </summary>
         public static string GetLockReason(Feature f)
         {
             if (IsUnlocked(f)) return null;
-
-            var tier = PatreonClient.Instance.Current.Tier ?? "none";
-            switch (f)
-            {
-                case Feature.TikTokHypeTrain:
-                case Feature.HateRaidDetector:
-                case Feature.SmartAutoClipper:
-                case Feature.VodChapterMarkers:
-                case Feature.CrossPlatformWallet:
-                case Feature.BetaAccess:
-                    return "Loadout Pro feature - join the Patreon Tier 3 to unlock.";
-                case Feature.UnlimitedTimers:
-                    return "Free tier is capped at 3 timers. Loadout Plus removes the limit.";
-                default:
-                    return "Loadout Plus feature - join the Patreon Tier 2 or above to unlock.";
-            }
+            return "This is an early-access feature for Patreon Tier 2 and Tier 3 supporters. It rolls out to everyone shortly after.";
         }
 
         public static string CurrentTierDisplay()
@@ -133,10 +124,10 @@ namespace Loadout.Patreon
             if (!s.SignedIn) return "Free";
             switch (s.Tier ?? "none")
             {
-                case "tier3":    return "Loadout Pro (Tier 3)";
-                case "tier2":    return "Loadout Plus (Tier 2)";
-                case "tier1":    return "Connected (Tier 1 - upgrade to unlock)";
-                case "follower": return "Connected (free follower - upgrade to unlock)";
+                case "tier3":    return "Patreon Tier 3 supporter";
+                case "tier2":    return "Patreon Tier 2 supporter";
+                case "tier1":    return "Connected (Patreon Tier 1)";
+                case "follower": return "Connected (Patreon follower)";
                 default:         return "Connected (no active tier)";
             }
         }

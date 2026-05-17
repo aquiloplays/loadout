@@ -6,22 +6,25 @@
  * another is on screen are queued.
  */
 :root {
-  --accent: #3A86FF;
-  --accent2: #00F2EA;
-  --gold: #F0B429;
-  --pink: #FF5DA2;
-  --win: #3FB950;
-  --lose: #F85149;
-  --text: #EFEFF1;
-  --muted: #ADADB8;
-  --bg-alpha: 0.92;
+  /* Inherit from the shared design system; alias them locally so any
+     overlay-specific overrides land in one place. */
+  --accent:  var(--ld-accent);
+  --accent2: var(--ld-accent-2);
+  --gold:    var(--ld-gold);
+  --pink:    var(--ld-pink);
+  --win:     var(--ld-win);
+  --lose:    var(--ld-lose);
+  --text:    var(--ld-text);
+  --muted:   var(--ld-muted);
+  --bg-alpha: var(--ld-bg-alpha);
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   width: 100vw; height: 100vh;
   background: transparent;
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
   overflow: hidden;
 }
 
@@ -33,18 +36,49 @@ html, body {
      (coin / die / slots) ended up tiny against canvas backgrounds. */
   width: 440px;
   height: 128px;
-  background: linear-gradient(180deg,
-              rgba(24,24,27, var(--bg-alpha)) 0%,
-              rgba(15,15,17, var(--bg-alpha)) 100%);
-  border: 1px solid rgba(58,134,255,.4);
-  border-radius: 12px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 10px 28px rgba(0,0,0,.55);
+  /* Premium glass surface — layered tint over a brand-tinted gradient,
+     subtle inner highlight on the top edge, deeper shadow stack. */
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(58, 134, 255, 0.08) 0%, transparent 50%),
+    var(--ld-glass-tint),
+    var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-md);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-mid), var(--ld-shadow-rim);
   overflow: hidden;
-  /* Color of the accent stripe down the left edge */
-  border-left: 4px solid var(--accent);
-  transition: border-color .35s ease, box-shadow .35s ease;
+  isolation: isolate;
+  transition: border-color .35s var(--ld-ease-out),
+              box-shadow .35s var(--ld-ease-out);
+}
+/* Accent stripe — top edge, gradient that matches the shared
+   --ld-card-stripe pattern; tone classes below retint via the
+   variable. Sits ABOVE the layers so a tone shift reads as a sweep
+   along the top rather than a colour swap on a hidden border. */
+#card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 16px; right: 16px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg,
+    transparent 0%, var(--accent) 22%, var(--accent2) 50%, var(--accent) 78%, transparent 100%);
+  opacity: 0.9;
+  pointer-events: none;
+  transition: background 320ms var(--ld-ease-out);
+  z-index: 2;
+}
+/* Vignette — barely-there inner shadow that anchors the card against
+   bright OBS backgrounds without going full opaque-modal. */
+#card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(120% 100% at 100% 100%, rgba(0, 0, 0, 0.25) 0%, transparent 55%);
+  pointer-events: none;
+  z-index: 1;
 }
 
 /* Position presets */
@@ -75,12 +109,20 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   padding: 16px 22px 16px 22px;
   align-content: center;
   opacity: 1;
-  transform: translateY(0);
-  transition: opacity .32s ease, transform .32s ease;
+  /* translate3d promotes the layer to its own compositor surface so
+     opacity + transform animate on the GPU without re-rasterizing
+     the parent. The 380ms duration paired with --ld-ease-out (Apple
+     decel curve) reads as a deliberate state swap rather than a
+     hurried opacity fade. */
+  transform: translate3d(0, 0, 0);
+  transition: opacity var(--ld-dur-4) var(--ld-ease-out),
+              transform var(--ld-dur-4) var(--ld-ease-out);
+  will-change: transform, opacity;
+  backface-visibility: hidden;
 }
 .layer.hidden {
   opacity: 0;
-  transform: translateY(6px);
+  transform: translate3d(0, 6px, 0);
   pointer-events: none;
 }
 
@@ -92,13 +134,28 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   align-items: center; justify-content: center;
   width: 60px; height: 60px;
   padding: 0;
-  border-radius: 12px;
+  border-radius: 14px;
   background: rgba(58,134,255,.18);
   color: var(--accent);
   font-size: 28px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
   overflow: hidden;
+  border: 1px solid rgba(58, 134, 255, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 10px rgba(0, 0, 0, 0.35);
+  transition: background 320ms var(--ld-ease-out), border-color 320ms var(--ld-ease-out), box-shadow 320ms var(--ld-ease-out);
+  position: relative;
+  z-index: 3;
+}
+/* Subtle inner highlight on the badge to give it depth — without this
+   the tile reads as flat tinted background. */
+.badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(60% 50% at 30% 20%, rgba(255, 255, 255, 0.18) 0%, transparent 70%);
+  pointer-events: none;
 }
 /* Streamer-supplied photo badge fills the pill. */
 .badge .badge-img {
@@ -142,48 +199,67 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
 .title {
   grid-column: 2; grid-row: 1;
   font-size: 22px;
-  line-height: 1.15;
-  font-weight: 700;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.3px;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: relative;
+  z-index: 3;
+  /* Subtle text-shadow keeps the title legible against any OBS scene
+     behind a translucent card. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
 .sub {
   grid-column: 2; grid-row: 2;
-  font-size: 16px;
+  font-size: 15px;
   line-height: 1.25;
+  font-weight: 500;
   color: var(--muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  position: relative;
+  z-index: 3;
 }
 
-/* Active-card tone variants. Each adjusts the accent stripe and the
-   badge tint to make the type of event scannable at a glance. */
-#card.tone-bolts   { border-left-color: var(--accent); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(58,134,255,.32); }
-#card.tone-bolts   .badge { background: rgba(58,134,255,.22); color: var(--accent); }
+/* Active-card tone variants. Each retints the top accent stripe (via
+   ::before) AND the badge tile so the event kind reads at a glance.
+   Glow on the box-shadow is kept consistent across tones — only the
+   colour changes — so the visual weight stays balanced regardless of
+   which event landed. */
+#card.tone-bolts::before   { background: linear-gradient(90deg, transparent 0%, var(--accent)  22%, var(--accent2) 50%, var(--accent)  78%, transparent 100%); }
+#card.tone-bolts           { border-color: rgba(58,134,255,.45);  box-shadow: var(--ld-shadow-mid), 0 0 24px rgba(58,134,255,.32),  var(--ld-shadow-rim); }
+#card.tone-bolts   .badge  { background: rgba(58,134,255,.22); color: var(--accent); border-color: rgba(58,134,255,.4); }
 
-#card.tone-welcome { border-left-color: var(--accent2); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(0,242,234,.32); }
-#card.tone-welcome .badge { background: rgba(0,242,234,.22); color: var(--accent2); }
+#card.tone-welcome::before { background: linear-gradient(90deg, transparent 0%, var(--accent2) 22%, var(--cyan,#7BFFFA) 50%, var(--accent2) 78%, transparent 100%); }
+#card.tone-welcome         { border-color: rgba(0,242,234,.45);   box-shadow: var(--ld-shadow-mid), 0 0 24px rgba(0,242,234,.32),   var(--ld-shadow-rim); }
+#card.tone-welcome .badge  { background: rgba(0,242,234,.22); color: var(--accent2); border-color: rgba(0,242,234,.4); }
 
-#card.tone-counter { border-left-color: var(--gold); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 16px rgba(240,180,41,.32); }
-#card.tone-counter .badge { background: rgba(240,180,41,.22); color: var(--gold); }
+#card.tone-counter::before { background: linear-gradient(90deg, transparent 0%, var(--gold)    22%, var(--ld-gold-2) 50%, var(--gold)    78%, transparent 100%); }
+#card.tone-counter         { border-color: rgba(240,180,41,.45);  box-shadow: var(--ld-shadow-mid), 0 0 22px rgba(240,180,41,.32),  var(--ld-shadow-rim); }
+#card.tone-counter .badge  { background: rgba(240,180,41,.22); color: var(--gold); border-color: rgba(240,180,41,.4); }
 
-#card.tone-streak  { border-left-color: var(--pink); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(255,93,162,.36); }
-#card.tone-streak  .badge { background: rgba(255,93,162,.22); color: var(--pink); }
+#card.tone-streak::before  { background: linear-gradient(90deg, transparent 0%, var(--pink)    22%, #FFB1D6 50%, var(--pink)    78%, transparent 100%); }
+#card.tone-streak          { border-color: rgba(255,93,162,.45);  box-shadow: var(--ld-shadow-mid), 0 0 24px rgba(255,93,162,.36),  var(--ld-shadow-rim); }
+#card.tone-streak  .badge  { background: rgba(255,93,162,.22); color: var(--pink); border-color: rgba(255,93,162,.4); }
 
-#card.tone-hype    { border-left-color: var(--gold); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 22px rgba(240,180,41,.45); }
-#card.tone-hype    .badge { background: rgba(240,180,41,.24); color: var(--gold); }
+#card.tone-hype::before    { background: linear-gradient(90deg, transparent 0%, #FF913B        22%, #FFCB5C 50%, #FF913B        78%, transparent 100%); }
+#card.tone-hype            { border-color: rgba(255,145,59,.55);  box-shadow: var(--ld-shadow-mid), 0 0 28px rgba(255,145,59,.5),   var(--ld-shadow-rim); }
+#card.tone-hype    .badge  { background: rgba(255,145,59,.22); color: #FFCB5C; border-color: rgba(255,145,59,.4); }
 
-#card.tone-win     { border-left-color: var(--win); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(63,185,80,.36); }
-#card.tone-win     .badge { background: rgba(63,185,80,.22); color: var(--win); }
+#card.tone-win::before     { background: linear-gradient(90deg, transparent 0%, var(--win)     22%, var(--ld-win-2) 50%, var(--win)     78%, transparent 100%); }
+#card.tone-win             { border-color: rgba(63,185,80,.55);   box-shadow: var(--ld-shadow-mid), var(--ld-glow-win),             var(--ld-shadow-rim); }
+#card.tone-win     .badge  { background: rgba(63,185,80,.22); color: var(--win); border-color: rgba(63,185,80,.4); }
 
-#card.tone-lose    { border-left-color: var(--lose); box-shadow: 0 10px 28px rgba(0,0,0,.55), 0 0 18px rgba(248,81,73,.32); }
-#card.tone-lose    .badge { background: rgba(248,81,73,.22); color: var(--lose); }
+#card.tone-lose::before    { background: linear-gradient(90deg, transparent 0%, var(--lose)    22%, var(--ld-lose-2) 50%, var(--lose)    78%, transparent 100%); }
+#card.tone-lose            { border-color: rgba(248,81,73,.45);   box-shadow: var(--ld-shadow-mid), var(--ld-glow-lose),            var(--ld-shadow-rim); }
+#card.tone-lose    .badge  { background: rgba(248,81,73,.22); color: var(--lose); border-color: rgba(248,81,73,.4); }
 
-#card.tone-info    { border-left-color: var(--accent); }
-#card.tone-info    .badge { background: rgba(58,134,255,.18); color: var(--accent); }
+#card.tone-info::before    { background: linear-gradient(90deg, transparent 0%, var(--accent)  22%, var(--accent2) 50%, var(--accent)  78%, transparent 100%); }
+#card.tone-info    .badge  { background: rgba(58,134,255,.18); color: var(--accent); }
 
 /* ── Game layer: animated coin / die / slots in the badge slot ──────── */
 .game-visual {
@@ -194,14 +270,20 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   display: flex;
   align-items: center;
   justify-content: center;
+  perspective: 600px;
+  perspective-origin: 50% 50%;
 }
 
-/* Coin: two faces, .heads or .tails class drives the rest */
+/* 3D Coin — same primitive as the minigames overlay scaled down. 16
+   side panels (vs 24) at this size — the eye doesn't read the
+   difference, and fewer cells helps frame cost. */
 .g-coin {
   display: none;
   position: relative;
-  width: 68px; height: 68px;
+  width: 60px; height: 60px;
   transform-style: preserve-3d;
+  transform: rotateX(-12deg) rotateY(0deg);
+  --g-coin-thick: 5px;
 }
 .g-coin.show { display: block; }
 .g-coin-face {
@@ -209,59 +291,199 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   inset: 0;
   border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  font-size: 30px; font-weight: 800;
-  border: 2px solid rgba(0, 0, 0, 0.35);
+  font-size: 26px; font-weight: 800;
+  border: 2px solid rgba(120, 80, 0, 0.55);
   backface-visibility: hidden;
-  background: radial-gradient(circle at 30% 25%, #FFE082 0%, var(--gold) 60%, #B7861E 100%);
+  background:
+    radial-gradient(circle at 28% 22%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 38%),
+    radial-gradient(circle at 70% 78%, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0) 40%),
+    radial-gradient(circle at 50% 50%, #FFE082 0%, var(--gold) 55%, #B7861E 100%);
   color: #4A2D00;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5), 0 -1px 0 rgba(0, 0, 0, 0.18);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 220, 130, 0.35),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.28);
 }
-.g-coin-face.tails { transform: rotateY(180deg); }
-.g-coin.flipping.show-heads { animation: gCoinFlipHeads 1.4s cubic-bezier(.2,.7,.2,1); }
-.g-coin.flipping.show-tails { animation: gCoinFlipTails 1.4s cubic-bezier(.2,.7,.2,1); }
+.g-coin-face.heads { transform: translateZ(calc(var(--g-coin-thick) / 2)); }
+.g-coin-face.tails { transform: rotateY(180deg) translateZ(calc(var(--g-coin-thick) / 2)); }
+.g-coin-edge {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: var(--g-coin-thick);
+  height: 60px;
+  margin-left: calc(var(--g-coin-thick) / -2);
+  margin-top: -30px;
+  transform: rotateY(calc(var(--edge-angle) - 90deg)) translateZ(30px) rotateY(90deg);
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, #B7861E 0%, var(--gold) 50%, #B7861E 100%);
+  border-top: 1px solid rgba(255, 220, 130, 0.4);
+  border-bottom: 1px solid rgba(120, 80, 0, 0.5);
+}
+.g-coin.flipping.show-heads { animation: gCoinFlipHeads 1.5s cubic-bezier(.2,.7,.2,1) forwards; }
+.g-coin.flipping.show-tails { animation: gCoinFlipTails 1.5s cubic-bezier(.2,.7,.2,1) forwards; }
 @keyframes gCoinFlipHeads {
-  0%   { transform: rotateY(0deg)   scale(0.8); }
-  60%  { transform: rotateY(900deg) scale(1.05); }
-  100% { transform: rotateY(1080deg) scale(1); }
+  0%   { transform: rotateX(-12deg) rotateY(0deg)    scale(0.85); }
+  60%  { transform: rotateX(-12deg) rotateY(1080deg) scale(1.06); }
+  100% { transform: rotateX(-12deg) rotateY(1080deg) scale(1); }
 }
 @keyframes gCoinFlipTails {
-  0%   { transform: rotateY(0deg)   scale(0.8); }
-  60%  { transform: rotateY(900deg) scale(1.05); }
-  100% { transform: rotateY(900deg) scale(1); }
+  0%   { transform: rotateX(-12deg) rotateY(0deg)    scale(0.85); }
+  60%  { transform: rotateX(-12deg) rotateY(1260deg) scale(1.06); }
+  100% { transform: rotateX(-12deg) rotateY(1260deg) scale(1); }
 }
 
-/* Die: square with a single big number; rolls 720° while tumbling */
+/* 3D Die — same primitive as the minigames overlay scaled down. */
 .g-die {
   display: none;
-  width: 68px; height: 68px;
-  border-radius: 12px;
-  background: linear-gradient(135deg, #FFFFFF 0%, #C9CBD3 100%);
-  color: #1A1A22;
-  font-size: 36px; font-weight: 800;
-  align-items: center; justify-content: center;
-  border: 2px solid rgba(0, 0, 0, 0.4);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45), inset 0 -2px 0 rgba(0, 0, 0, 0.15);
+  width: 56px; height: 56px;
+  position: relative;
+  transform-style: preserve-3d;
+  --g-die-half: 28px;
+  transform: rotateX(-22deg) rotateY(-32deg);
 }
-.g-die.show { display: flex; }
-.g-die.rolling { animation: gDieRoll 1.4s cubic-bezier(.2,.7,.2,1); }
-@keyframes gDieRoll {
-  0%   { transform: rotate(0deg)   scale(0.8); }
-  25%  { transform: rotate(180deg) scale(1.1); }
-  50%  { transform: rotate(360deg) scale(0.95); }
-  75%  { transform: rotate(540deg) scale(1.05); }
-  100% { transform: rotate(720deg) scale(1); }
+.g-die.show { display: block; }
+.g-die-face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows:    repeat(3, 1fr);
+  padding: 4px;
+  background: linear-gradient(135deg, #FFFFFF 0%, #ECEDF2 50%, #C9CBD3 100%);
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.7),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.12);
+  backface-visibility: hidden;
 }
+.g-die-face-1 { transform: translateZ(var(--g-die-half)); }
+.g-die-face-6 { transform: rotateY(180deg) translateZ(var(--g-die-half)); }
+.g-die-face-3 { transform: rotateY( 90deg) translateZ(var(--g-die-half)); }
+.g-die-face-4 { transform: rotateY(-90deg) translateZ(var(--g-die-half)); }
+.g-die-face-2 { transform: rotateX( 90deg) translateZ(var(--g-die-half)); }
+.g-die-face-5 { transform: rotateX(-90deg) translateZ(var(--g-die-half)); }
+.g-pip {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #4a4a52 0%, #18181B 70%, #000 100%);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2), 0 1px 1px rgba(0, 0, 0, 0.5);
+  align-self: center;
+  justify-self: center;
+}
+.g-die-face-1 .g-pip:nth-child(1) { grid-area: 2 / 2; }
+.g-die-face-2 .g-pip:nth-child(1) { grid-area: 1 / 1; }
+.g-die-face-2 .g-pip:nth-child(2) { grid-area: 3 / 3; }
+.g-die-face-3 .g-pip:nth-child(1) { grid-area: 1 / 1; }
+.g-die-face-3 .g-pip:nth-child(2) { grid-area: 2 / 2; }
+.g-die-face-3 .g-pip:nth-child(3) { grid-area: 3 / 3; }
+.g-die-face-4 .g-pip:nth-child(1) { grid-area: 1 / 1; }
+.g-die-face-4 .g-pip:nth-child(2) { grid-area: 1 / 3; }
+.g-die-face-4 .g-pip:nth-child(3) { grid-area: 3 / 1; }
+.g-die-face-4 .g-pip:nth-child(4) { grid-area: 3 / 3; }
+.g-die-face-5 .g-pip:nth-child(1) { grid-area: 1 / 1; }
+.g-die-face-5 .g-pip:nth-child(2) { grid-area: 1 / 3; }
+.g-die-face-5 .g-pip:nth-child(3) { grid-area: 2 / 2; }
+.g-die-face-5 .g-pip:nth-child(4) { grid-area: 3 / 1; }
+.g-die-face-5 .g-pip:nth-child(5) { grid-area: 3 / 3; }
+.g-die-face-6 .g-pip:nth-child(1) { grid-area: 1 / 1; }
+.g-die-face-6 .g-pip:nth-child(2) { grid-area: 2 / 1; }
+.g-die-face-6 .g-pip:nth-child(3) { grid-area: 3 / 1; }
+.g-die-face-6 .g-pip:nth-child(4) { grid-area: 1 / 3; }
+.g-die-face-6 .g-pip:nth-child(5) { grid-area: 2 / 3; }
+.g-die-face-6 .g-pip:nth-child(6) { grid-area: 3 / 3; }
+.g-die.land-1 { transform: rotateX(-22deg) rotateY(-32deg); }
+.g-die.land-2 { transform: rotateX( 68deg) rotateY(-32deg); }
+.g-die.land-3 { transform: rotateX(-22deg) rotateY(-122deg); }
+.g-die.land-4 { transform: rotateX(-22deg) rotateY( 58deg); }
+.g-die.land-5 { transform: rotateX(-112deg) rotateY(-32deg); }
+.g-die.land-6 { transform: rotateX(-22deg) rotateY(148deg); }
+.g-die.rolling.land-1 { animation: gDieRoll1 1.4s cubic-bezier(.2,.7,.2,1) forwards; }
+.g-die.rolling.land-2 { animation: gDieRoll2 1.4s cubic-bezier(.2,.7,.2,1) forwards; }
+.g-die.rolling.land-3 { animation: gDieRoll3 1.4s cubic-bezier(.2,.7,.2,1) forwards; }
+.g-die.rolling.land-4 { animation: gDieRoll4 1.4s cubic-bezier(.2,.7,.2,1) forwards; }
+.g-die.rolling.land-5 { animation: gDieRoll5 1.4s cubic-bezier(.2,.7,.2,1) forwards; }
+.g-die.rolling.land-6 { animation: gDieRoll6 1.4s cubic-bezier(.2,.7,.2,1) forwards; }
+@keyframes gDieRoll1 { 0% { transform: rotateX(  0deg) rotateY(  0deg) scale(0.8); } 100% { transform: rotateX(-382deg) rotateY(-392deg) scale(1); } }
+@keyframes gDieRoll2 { 0% { transform: rotateX(  0deg) rotateY(  0deg) scale(0.8); } 100% { transform: rotateX( 428deg) rotateY(-392deg) scale(1); } }
+@keyframes gDieRoll3 { 0% { transform: rotateX(  0deg) rotateY(  0deg) scale(0.8); } 100% { transform: rotateX(-382deg) rotateY(-482deg) scale(1); } }
+@keyframes gDieRoll4 { 0% { transform: rotateX(  0deg) rotateY(  0deg) scale(0.8); } 100% { transform: rotateX(-382deg) rotateY( 418deg) scale(1); } }
+@keyframes gDieRoll5 { 0% { transform: rotateX(  0deg) rotateY(  0deg) scale(0.8); } 100% { transform: rotateX(-472deg) rotateY(-392deg) scale(1); } }
+@keyframes gDieRoll6 { 0% { transform: rotateX(  0deg) rotateY(  0deg) scale(0.8); } 100% { transform: rotateX(-382deg) rotateY( 508deg) scale(1); } }
 
-/* Slots: 3 mini reels in a row, staggered settle */
+/* Slots: 3 mini reels in a row, staggered settle. Reserve space at
+   right for the lever so it can sit alongside the reels. */
 .g-slots {
   display: none;
   gap: 4px;
   align-items: center;
   justify-content: center;
   height: 56px;
+  position: relative;
+  padding-right: 16px;
 }
 .g-slots.show { display: flex; }
+
+/* Compact lever: same 3-piece structure as the minigames overlay,
+   scaled to fit alongside three 22-wide reels in a 76px badge slot. */
+.g-lever {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  width: 14px;
+  height: 56px;
+  pointer-events: none;
+  filter: drop-shadow(1px 2px 2px rgba(0, 0, 0, 0.5));
+}
+.g-lever-base {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 12px; height: 6px;
+  border-radius: 2px;
+  background: linear-gradient(180deg, #5a5a62 0%, #2a2a30 100%);
+  border: 1px solid #1a1a22;
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.6);
+}
+.g-lever-arm {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  width: 3px; height: 42px;
+  margin-left: -1.5px;
+  background: linear-gradient(90deg, #6a6a72 0%, #d4d4dc 50%, #6a6a72 100%);
+  border-radius: 1.5px;
+  transform-origin: bottom center;
+  transform: rotate(0deg);
+  transition: transform .42s cubic-bezier(.34, 1.8, .55, 1);
+  box-shadow: 1px 0 1px rgba(0, 0, 0, 0.5);
+}
+.g-lever-knob {
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  width: 11px; height: 11px;
+  margin-left: -5.5px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 30% 25%, #ffb1a8 0%, #ff5044 30%, #c81d12 65%, #5a0a06 100%);
+  border: 1px solid #3a0604;
+  box-shadow:
+    inset 0 -2px 3px rgba(0, 0, 0, 0.5),
+    inset 0 1px 2px rgba(255, 200, 190, 0.45),
+    0 1px 4px rgba(0, 0, 0, 0.5),
+    0 0 5px rgba(255, 80, 60, 0.35);
+  transform-origin: 50% 42px;
+}
+.g-lever-arm,
+.g-lever-knob { transform-origin: 50% 42px; }
+.g-lever.pulling .g-lever-arm,
+.g-lever.pulling .g-lever-knob {
+  transform: rotate(85deg);
+  transition: transform .22s cubic-bezier(.55, .09, .68, .53);
+}
 .g-reel {
   width: 22px; height: 56px;
   border-radius: 6px;
@@ -287,82 +509,177 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   100% { transform: translateY(0) scale(1); }
 }
 
-/* Brief pulse to draw the eye when an active card lands */
-.layer.popped { animation: pop .55s cubic-bezier(.2,.7,.2,1); }
+/* Brief pulse to draw the eye when an active card lands. Uses the
+   shared emphasized easing — a touch of spring without going full
+   bouncy-castle. translate3d keeps it on the GPU. */
+.layer.popped { animation: pop var(--ld-dur-5) var(--ld-ease-emphasized); }
 @keyframes pop {
-  0%   { transform: translateY(8px) scale(.985); opacity: 0; }
-  20%  { transform: translateY(-2px) scale(1.015); opacity: 1; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
+  0%   { transform: translate3d(0, 8px, 0)  scale(.985); opacity: 0; }
+  35%  { transform: translate3d(0, -2px, 0) scale(1.015); opacity: 1; }
+  100% { transform: translate3d(0, 0, 0)    scale(1);    opacity: 1; }
+}
+
+/* ── Bare mode ────────────────────────────────────────────────────
+   `?bare=1` strips the card surface entirely so the overlay reads
+   as floating elements against the gameplay rather than a panel
+   covering it. Tricky bit: text + small chips have to stay legible
+   over ANY backdrop — bright sky, dark cave, busy menu. We lean on
+   three things:
+     1. heavy layered text-shadows that produce a black halo
+        regardless of letter shape (4 directional 1px offsets +
+        a softer 4px drop)
+     2. badge tile keeps a solid background + thicker stroke so it
+        acts as the eye's anchor
+     3. each text node gets the same halo so the title + sub stay
+        crisp even if part of the card is over a bright frame */
+body[data-bare="1"] #card {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  overflow: visible;
+}
+body[data-bare="1"] #card::before,
+body[data-bare="1"] #card::after {
+  /* Kill the accent stripe + vignette in bare mode — they need the
+     card surface to read; floating in space they look like artifacts. */
+  display: none;
+}
+/* Badge keeps a small surface — it's the high-contrast anchor that
+   tells the eye where to land first. Thicker stroke + halo so it
+   still reads on a bright frame. */
+body[data-bare="1"] .badge {
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 0 0 1px rgba(0, 0, 0, 0.45),
+    0 4px 14px rgba(0, 0, 0, 0.6),
+    0 0 18px rgba(0, 0, 0, 0.4);
+  /* Slightly tinted dark base so the icon contrasts cleanly even
+     against the brightest backdrop. */
+  background-color: rgba(12, 12, 18, 0.72);
+}
+/* Text: heavy halo + drop shadow. Four 1px offsets approximate a
+   1px black outline without -webkit-text-stroke (which doesn't
+   sub-pixel render cleanly in CEF). The softer drop adds depth. */
+body[data-bare="1"] .title,
+body[data-bare="1"] .sub,
+body[data-bare="1"] .badge {
+  text-shadow:
+     1px  0   2px rgba(0, 0, 0, 0.95),
+    -1px  0   2px rgba(0, 0, 0, 0.95),
+     0    1px 2px rgba(0, 0, 0, 0.95),
+     0   -1px 2px rgba(0, 0, 0, 0.95),
+     0    2px 6px rgba(0, 0, 0, 0.8);
+}
+/* Slot for the game animations — the coin/die/slots are 3D so a
+   pure floating coin against gameplay reads fine without an
+   underlying card. Just add a drop-shadow halo so the lit edges
+   don't disappear against a bright frame. */
+body[data-bare="1"] .game-visual,
+body[data-bare="1"] .g-coin,
+body[data-bare="1"] .g-die {
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9))
+          drop-shadow(0 4px 12px rgba(0, 0, 0, 0.6));
+}
+body[data-bare="1"] .g-reel {
+  /* Reels are dark already; a strong stroke and shadow keep them
+     anchored against bright gameplay. */
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    0 6px 14px rgba(0, 0, 0, 0.55);
 }
 
 /* ── Vertical / portrait mode (TikTok / YouTube Shorts / Reels) ──────
-   When the URL param ?vertical=1 is set, main.js stamps body[data-vertical="1"]
-   and we rebuild the card for a 1080-wide canvas. Sized so the badge
-   fills the card height (no empty space above + below) — the previous
-   pass left a 184px-tall card with an 88px badge, which read as a
-   small icon floating in air. Now: badge ≈ card content height, type
-   bumped to fill the right column. Recommended OBS browser-source
-   size: 1080×164.
-   Layout stays horizontal — stacking would waste vertical space on
-   TikTok where camera + game footage fill the middle. */
+   When the URL param ?vertical=1 is set, main.js stamps
+   body[data-vertical="1"] and the compact card slims down for a
+   1080-wide canvas. Tightened in May 2026: previous build was
+   880×144 — too wide for streamers whose camera fills the middle
+   third. New default is 560×112, which sits comfortably in a corner
+   pocket below the streamer's face or above the chat track.
+   For an even smaller footprint use the standalone
+   `overlays/vertical/` overlay (tile / banner / side modes).
+   Recommended OBS browser-source size: 600×128. */
 body[data-vertical="1"] #card {
-  width: 880px;
-  height: 144px;        /* was 184 — 40px shorter, content now fills */
-  border-radius: 16px;
-  border-left-width: 6px;
-}
-
-/* Tighter padding so the bigger badge / type fills the card. The
-   row-gap collapses to 4 because the title + sub are sized to sit
-   close together as a single readable block, not float separately. */
-body[data-vertical="1"] .layer {
-  column-gap: 24px;
-  row-gap: 4px;
-  padding: 16px 28px;   /* was 22 32 */
-}
-
-/* Badge fills the card height — 144 - 32 padding = 112 content,
-   badge 108 sits inside that with ~2px breathing room. The previous
-   88px badge left ~12px slack above and below the badge tile that
-   read as empty space. */
-body[data-vertical="1"] .badge {
-  width: 108px; height: 108px;   /* was 88 */
+  width: 560px;
+  height: 112px;
   border-radius: 18px;
-  font-size: 46px;               /* was 38 — scales with the bigger tile */
+}
+
+/* Tighter padding so the (smaller) badge + type still feel airy
+   despite the reduced canvas. */
+body[data-vertical="1"] .layer {
+  column-gap: 16px;
+  row-gap: 2px;
+  padding: 12px 18px;
+}
+
+/* Badge sized to fit the new card height (112 - 24 padding = 88
+   content area, badge 80 sits inside that with breathing room). */
+body[data-vertical="1"] .badge {
+  width: 80px; height: 80px;
+  border-radius: 16px;
+  font-size: 34px;
 }
 body[data-vertical="1"] .badge .icon-strip-item {
-  width: 30px; height: 30px;
+  width: 24px; height: 24px;
 }
 body[data-vertical="1"] .badge .icon-strip-more {
-  font-size: 18px;
+  font-size: 14px;
 }
 
-/* Title + sub sized so the right column reads dense — title is the
-   primary line, sub is the supporting line. Together they sit just
-   under the badge's height, so the two columns visually balance.
-   line-height tightened so the block reads as one chunk. */
+/* Title + sub right-sized — large enough to read at OBS scale but
+   not crowding the badge column. */
 body[data-vertical="1"] .title {
-  font-size: 40px;     /* was 32 — primary line */
+  font-size: 26px;
   line-height: 1.08;
   font-weight: 800;
+  letter-spacing: -0.3px;
 }
 body[data-vertical="1"] .sub {
-  font-size: 24px;     /* was 22 */
-  line-height: 1.18;
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 500;
 }
 
-/* Game-visual slot matches the badge so coin/die/slots fill the
-   tile rather than floating inside it. */
+/* Game-visual slot matches the slimmer badge. The coin/die/slots
+   primitives all support a smaller --g-coin-thick / --g-die-half
+   so they still read as 3D at 80px. */
 body[data-vertical="1"] .game-visual {
-  width: 108px; height: 108px;
+  width: 80px; height: 80px;
+  perspective: 700px;
 }
-body[data-vertical="1"] .g-coin   { width: 96px; height: 96px; }
+/* 3D coin scaled up — recompute --g-coin-thick + edge height/translate
+   so the cylinder still reads as a proper disc at 96px. */
+body[data-vertical="1"] .g-coin   { width: 96px; height: 96px; --g-coin-thick: 8px; }
 body[data-vertical="1"] .g-coin-face { font-size: 42px; }
-body[data-vertical="1"] .g-die    { width: 96px; height: 96px; font-size: 50px; border-radius: 16px; }
-body[data-vertical="1"] .g-slots  { height: 80px; gap: 6px; }
-body[data-vertical="1"] .g-reel   { width: 30px; height: 80px; border-radius: 9px; font-size: 24px; }
-body[data-vertical="1"] .g-reel img { width: 24px; height: 24px; }
-body[data-vertical="1"] .g-reel .g-reel-glyph { font-size: 30px; }
+/* 3D coin scaled to the smaller badge — same primitive, just less
+   thickness so the cylinder still reads as a disc at 72px. */
+body[data-vertical="1"] .g-coin   { width: 72px; height: 72px; --g-coin-thick: 6px; }
+body[data-vertical="1"] .g-coin-face { font-size: 32px; }
+body[data-vertical="1"] .g-coin-edge {
+  height: 72px;
+  margin-top: -36px;
+  transform: rotateY(calc(var(--edge-angle) - 90deg)) translateZ(36px) rotateY(90deg);
+}
+/* 3D die — half-extent matches the new size. */
+body[data-vertical="1"] .g-die    { width: 72px; height: 72px; --g-die-half: 36px; }
+body[data-vertical="1"] .g-die-face { padding: 6px; border-radius: 8px; }
+body[data-vertical="1"] .g-pip { width: 9px; height: 9px; }
+body[data-vertical="1"] .g-slots  { height: 64px; gap: 4px; padding-right: 18px; }
+body[data-vertical="1"] .g-reel   { width: 22px; height: 64px; border-radius: 7px; font-size: 20px; }
+body[data-vertical="1"] .g-reel img { width: 18px; height: 18px; }
+body[data-vertical="1"] .g-reel .g-reel-glyph { font-size: 24px; }
+body[data-vertical="1"] .g-lever  { width: 16px; height: 64px; right: -2px; }
+body[data-vertical="1"] .g-lever-base { width: 14px; height: 6px; }
+body[data-vertical="1"] .g-lever-arm  { height: 48px; width: 3px; margin-left: -1.5px; }
+body[data-vertical="1"] .g-lever-knob { width: 12px; height: 12px; margin-left: -6px; }
+body[data-vertical="1"] .g-lever-arm,
+body[data-vertical="1"] .g-lever-knob { transform-origin: 50% 48px; }
 
 /* Position presets re-anchored for the bigger card. The 22px corner
    inset feels thin against a 1080-px canvas, bump to 36 so the card

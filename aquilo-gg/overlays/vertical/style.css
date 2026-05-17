@@ -1,0 +1,392 @@
+/*
+ * Loadout — vertical-stream overlay.
+ *
+ * Three modes share design tokens but lay themselves out completely
+ * differently. CSS gates everything off `[data-mode]` on <body> so a
+ * single index.html + main.js serves all three.
+ *
+ * Tile  : ~240×120 floating card, fades in/out per event.
+ * Banner: ~1080×80 slim band across the top or bottom edge.
+ * Side  : ~160×600 vertical strip with stacked event cards.
+ *
+ * Brand language matches the rest of the overlay family — top-edge
+ * accent stripe, layered glass, tone-aware tinting on win/lose/hype
+ * states. Inter / Segoe UI Variable; tabular numerals for figures.
+ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100vw; height: 100vh;
+  background: transparent;
+  color: var(--ld-text);
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide every mode block by default; the active mode reveals itself via
+   body[data-mode="…"] further down. */
+.vmode { display: none; position: fixed; }
+body[data-mode="tile"]   #tile   { display: block; }
+body[data-mode="banner"] #banner { display: block; }
+body[data-mode="side"]   #side   { display: block; }
+
+/* ──────────────────────────────────────────────────────────────────
+   TILE MODE — corner-anchored small card
+   ────────────────────────────────────────────────────────────────── */
+.vmode-tile {
+  width: 240px;
+  height: 120px;
+  pointer-events: none;
+}
+body[data-mode="tile"][data-pos="tl"] #tile { top: 24px;    left: 24px; }
+body[data-mode="tile"][data-pos="tr"] #tile { top: 24px;    right: 24px; }
+body[data-mode="tile"][data-pos="bl"] #tile { bottom: 24px; left: 24px; }
+body[data-mode="tile"][data-pos="br"] #tile { bottom: 24px; right: 24px; }
+
+.tile-card {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(58, 134, 255, 0.10) 0%, transparent 55%),
+    var(--ld-glass-tint),
+    var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-lg);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-mid), var(--ld-shadow-rim);
+  isolation: isolate;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity .38s var(--ld-ease-out),
+              transform .38s var(--ld-ease-out),
+              border-color .32s var(--ld-ease-out),
+              box-shadow .32s var(--ld-ease-out);
+}
+.tile-card.hidden { opacity: 0; transform: translateY(8px) scale(.98); }
+.tile-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 14px; right: 14px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg,
+    transparent 0%, var(--ld-accent) 22%, var(--ld-accent-2) 50%, var(--ld-accent) 78%, transparent 100%);
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+.tile-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: rgba(58, 134, 255, 0.18);
+  border: 1px solid rgba(58, 134, 255, 0.3);
+  color: var(--ld-accent);
+  font-size: 22px;
+  font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 3px 8px rgba(0, 0, 0, 0.35);
+  position: relative;
+  flex: 0 0 auto;
+}
+.tile-badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(60% 50% at 30% 20%, rgba(255, 255, 255, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.tile-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tile-title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  color: var(--ld-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.tile-sub {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ld-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Idle widget — sits behind the active card. When the card is shown
+   (i.e. an event landed) the idle widget fades out so the surface
+   isn't crowded; reappears between events. */
+.tile-idle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: var(--ld-radius-md);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  opacity: 0.78;
+  transition: opacity .32s var(--ld-ease-out);
+  z-index: -1;
+}
+.tile-card:not(.hidden) ~ .tile-idle { opacity: 0; }
+.tile-idle-mark { font-size: 18px; }
+.tile-idle-text { font-size: 11px; color: var(--ld-muted); letter-spacing: 0.6px; }
+
+/* Tone variants — retint the badge + stripe. Glow on box-shadow
+   keeps the visual weight roughly constant across tones. */
+.tile-card.tone-bolts            { border-color: rgba(58,134,255,.45); box-shadow: var(--ld-shadow-mid), 0 0 22px rgba(58,134,255,.32), var(--ld-shadow-rim); }
+.tile-card.tone-bolts   .tile-badge { background: rgba(58,134,255,.22); color: var(--ld-accent); }
+.tile-card.tone-welcome::before  { background: linear-gradient(90deg, transparent 0%, var(--ld-cyan) 22%, #7BFFFA 50%, var(--ld-cyan) 78%, transparent 100%); }
+.tile-card.tone-welcome          { border-color: rgba(0,242,234,.45); box-shadow: var(--ld-shadow-mid), 0 0 22px rgba(0,242,234,.32), var(--ld-shadow-rim); }
+.tile-card.tone-welcome .tile-badge { background: rgba(0,242,234,.22); color: var(--ld-cyan); }
+.tile-card.tone-counter::before  { background: linear-gradient(90deg, transparent 0%, var(--ld-gold) 22%, var(--ld-gold-2) 50%, var(--ld-gold) 78%, transparent 100%); }
+.tile-card.tone-counter          { border-color: rgba(240,180,41,.45); box-shadow: var(--ld-shadow-mid), 0 0 22px rgba(240,180,41,.32), var(--ld-shadow-rim); }
+.tile-card.tone-counter .tile-badge { background: rgba(240,180,41,.22); color: var(--ld-gold); }
+.tile-card.tone-streak::before   { background: linear-gradient(90deg, transparent 0%, var(--ld-pink) 22%, #FFB1D6 50%, var(--ld-pink) 78%, transparent 100%); }
+.tile-card.tone-streak           { border-color: rgba(255,93,170,.45); box-shadow: var(--ld-shadow-mid), 0 0 22px rgba(255,93,170,.36), var(--ld-shadow-rim); }
+.tile-card.tone-streak  .tile-badge { background: rgba(255,93,170,.22); color: var(--ld-pink); }
+.tile-card.tone-hype::before     { background: linear-gradient(90deg, transparent 0%, #FF913B 22%, #FFCB5C 50%, #FF913B 78%, transparent 100%); }
+.tile-card.tone-hype             { border-color: rgba(255,145,59,.5);  box-shadow: var(--ld-shadow-mid), 0 0 24px rgba(255,145,59,.45), var(--ld-shadow-rim); }
+.tile-card.tone-hype    .tile-badge { background: rgba(255,145,59,.22); color: #FFCB5C; }
+.tile-card.tone-win::before      { background: linear-gradient(90deg, transparent 0%, var(--ld-win) 22%, var(--ld-win-2) 50%, var(--ld-win) 78%, transparent 100%); }
+.tile-card.tone-win              { border-color: rgba(63,185,80,.55);  box-shadow: var(--ld-shadow-mid), var(--ld-glow-win), var(--ld-shadow-rim); }
+.tile-card.tone-win     .tile-badge { background: rgba(63,185,80,.22); color: var(--ld-win); }
+.tile-card.tone-lose::before     { background: linear-gradient(90deg, transparent 0%, var(--ld-lose) 22%, var(--ld-lose-2) 50%, var(--ld-lose) 78%, transparent 100%); }
+.tile-card.tone-lose             { border-color: rgba(248,81,73,.55);  box-shadow: var(--ld-shadow-mid), var(--ld-glow-lose), var(--ld-shadow-rim); }
+.tile-card.tone-lose    .tile-badge { background: rgba(248,81,73,.22); color: var(--ld-lose); }
+
+/* ──────────────────────────────────────────────────────────────────
+   BANNER MODE — slim 1080-wide band across the top or bottom edge.
+   ────────────────────────────────────────────────────────────────── */
+.vmode-banner {
+  width: 100vw;
+  height: 80px;
+  left: 0; right: 0;
+  pointer-events: none;
+}
+body[data-mode="banner"][data-pos="tc"] #banner { top: 0; }
+body[data-mode="banner"][data-pos="bc"] #banner { bottom: 0; }
+
+.banner-card {
+  position: absolute;
+  inset: 12px 24px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 18px;
+  background:
+    radial-gradient(120% 80% at 0% 50%, rgba(58, 134, 255, 0.10) 0%, transparent 50%),
+    var(--ld-glass-tint),
+    var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: 999px;
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-mid), var(--ld-shadow-rim);
+  transition: border-color .32s var(--ld-ease-out), box-shadow .32s var(--ld-ease-out);
+}
+.banner-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px; height: 40px;
+  border-radius: 999px;
+  background: rgba(58, 134, 255, 0.22);
+  border: 1px solid rgba(58, 134, 255, 0.35);
+  color: var(--ld-accent);
+  font-size: 20px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+.banner-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.2px;
+  color: var(--ld-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.banner-sub {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ld-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-left: auto;
+  max-width: 60%;
+}
+/* Banner tones reuse the same colour vocabulary as tile. */
+.banner-card.tone-bolts   { border-color: rgba(58,134,255,.45); box-shadow: var(--ld-shadow-mid), 0 0 22px rgba(58,134,255,.32),  var(--ld-shadow-rim); }
+.banner-card.tone-welcome { border-color: rgba(0,242,234,.45);  box-shadow: var(--ld-shadow-mid), 0 0 22px rgba(0,242,234,.32),   var(--ld-shadow-rim); }
+.banner-card.tone-counter { border-color: rgba(240,180,41,.45); box-shadow: var(--ld-shadow-mid), 0 0 22px rgba(240,180,41,.32),  var(--ld-shadow-rim); }
+.banner-card.tone-streak  { border-color: rgba(255,93,170,.45); box-shadow: var(--ld-shadow-mid), 0 0 22px rgba(255,93,170,.36),  var(--ld-shadow-rim); }
+.banner-card.tone-hype    { border-color: rgba(255,145,59,.5);  box-shadow: var(--ld-shadow-mid), 0 0 24px rgba(255,145,59,.45),  var(--ld-shadow-rim); }
+.banner-card.tone-win     { border-color: rgba(63,185,80,.55);  box-shadow: var(--ld-shadow-mid), var(--ld-glow-win),             var(--ld-shadow-rim); }
+.banner-card.tone-lose    { border-color: rgba(248,81,73,.55);  box-shadow: var(--ld-shadow-mid), var(--ld-glow-lose),            var(--ld-shadow-rim); }
+.banner-card.tone-bolts   .banner-badge { background: rgba(58,134,255,.22); color: var(--ld-accent); }
+.banner-card.tone-welcome .banner-badge { background: rgba(0,242,234,.22); color: var(--ld-cyan); }
+.banner-card.tone-counter .banner-badge { background: rgba(240,180,41,.22); color: var(--ld-gold); }
+.banner-card.tone-streak  .banner-badge { background: rgba(255,93,170,.22); color: var(--ld-pink); }
+.banner-card.tone-hype    .banner-badge { background: rgba(255,145,59,.22); color: #FFCB5C; }
+.banner-card.tone-win     .banner-badge { background: rgba(63,185,80,.22); color: var(--ld-win); }
+.banner-card.tone-lose    .banner-badge { background: rgba(248,81,73,.22); color: var(--ld-lose); }
+.banner-card.popped { animation: ld-pop-in .55s var(--ld-ease-out); }
+
+/* ──────────────────────────────────────────────────────────────────
+   SIDE MODE — narrow 160×600 vertical stack
+   ────────────────────────────────────────────────────────────────── */
+.vmode-side {
+  width: 160px;
+  height: 600px;
+  pointer-events: none;
+}
+body[data-mode="side"][data-pos="lc"] #side { left: 16px;  top: 50%; transform: translateY(-50%); }
+body[data-mode="side"][data-pos="rc"] #side { right: 16px; top: 50%; transform: translateY(-50%); }
+
+.side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  margin-bottom: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.side-eyebrow {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--ld-muted);
+}
+.side-count {
+  font-family: var(--ld-mono);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ld-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.side-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+  max-height: 560px;
+}
+
+/* Individual stacked card. New ones slide in from the right (or left,
+   if pos=lc — JS flips a class on body to swap directions); older
+   cards push down and fade. Max ~8 visible — JS prunes the rest. */
+.side-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-md);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-soft), var(--ld-shadow-rim);
+  font-size: 11px;
+  line-height: 1.2;
+  animation: sideCardIn .42s var(--ld-ease-spring);
+  position: relative;
+  overflow: hidden;
+}
+@keyframes sideCardIn {
+  0%   { opacity: 0; transform: translateX(12px) scale(.95); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+body[data-pos="lc"] .side-card { animation-name: sideCardInLeft; }
+@keyframes sideCardInLeft {
+  0%   { opacity: 0; transform: translateX(-12px) scale(.95); }
+  100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+.side-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 8px; right: 8px;
+  height: 1.5px;
+  border-radius: 0 0 1.5px 1.5px;
+  background: linear-gradient(90deg, transparent 0%, var(--ld-accent) 30%, var(--ld-accent-2) 50%, var(--ld-accent) 70%, transparent 100%);
+  opacity: 0.75;
+  pointer-events: none;
+}
+.side-card.tone-bolts::before   { background: linear-gradient(90deg, transparent 0%, var(--ld-accent) 30%, var(--ld-accent-2) 50%, var(--ld-accent) 70%, transparent 100%); }
+.side-card.tone-welcome::before { background: linear-gradient(90deg, transparent 0%, var(--ld-cyan) 30%, #7BFFFA 50%, var(--ld-cyan) 70%, transparent 100%); }
+.side-card.tone-counter::before { background: linear-gradient(90deg, transparent 0%, var(--ld-gold) 30%, var(--ld-gold-2) 50%, var(--ld-gold) 70%, transparent 100%); }
+.side-card.tone-streak::before  { background: linear-gradient(90deg, transparent 0%, var(--ld-pink) 30%, #FFB1D6 50%, var(--ld-pink) 70%, transparent 100%); }
+.side-card.tone-hype::before    { background: linear-gradient(90deg, transparent 0%, #FF913B 30%, #FFCB5C 50%, #FF913B 70%, transparent 100%); }
+.side-card.tone-win::before     { background: linear-gradient(90deg, transparent 0%, var(--ld-win) 30%, var(--ld-win-2) 50%, var(--ld-win) 70%, transparent 100%); }
+.side-card.tone-lose::before    { background: linear-gradient(90deg, transparent 0%, var(--ld-lose) 30%, var(--ld-lose-2) 50%, var(--ld-lose) 70%, transparent 100%); }
+
+.side-card-badge {
+  flex: 0 0 auto;
+  width: 24px; height: 24px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  background: rgba(58, 134, 255, 0.18);
+  border: 1px solid rgba(58, 134, 255, 0.3);
+}
+.side-card.tone-welcome .side-card-badge { background: rgba(0,242,234,.18); border-color: rgba(0,242,234,.3); }
+.side-card.tone-counter .side-card-badge { background: rgba(240,180,41,.18); border-color: rgba(240,180,41,.3); }
+.side-card.tone-streak  .side-card-badge { background: rgba(255,93,170,.18); border-color: rgba(255,93,170,.3); }
+.side-card.tone-hype    .side-card-badge { background: rgba(255,145,59,.18); border-color: rgba(255,145,59,.3); }
+.side-card.tone-win     .side-card-badge { background: rgba(63,185,80,.18); border-color: rgba(63,185,80,.3); }
+.side-card.tone-lose    .side-card-badge { background: rgba(248,81,73,.18); border-color: rgba(248,81,73,.3); }
+
+.side-card-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.side-card-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+  color: var(--ld-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.side-card-sub {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ld-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Aging fade — JS sets data-age="1|2|3" on each card by index in the
+   stack. The fade-out feels intentional rather than just "old". */
+.side-card[data-age="1"] { opacity: 0.85; }
+.side-card[data-age="2"] { opacity: 0.65; }
+.side-card[data-age="3"] { opacity: 0.42; }
+.side-card[data-age="4"] { opacity: 0.25; }

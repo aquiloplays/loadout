@@ -64,6 +64,38 @@ namespace Loadout.Identity
             }
         }
 
+        /// <summary>Add a cross-platform identity link directly, bypassing
+        /// the request → mod-approve flow. Used by the Discord sync path:
+        /// when a viewer has linked multiple stream identities to their
+        /// Discord account via /loadout link, the act of linking on Discord
+        /// IS the user's approval, so we register it on the DLL side
+        /// without making them re-do the chat ceremony. Idempotent — a
+        /// duplicate AddDirectLink for an already-linked pair is a no-op.</summary>
+        public bool AddDirectLink(PlatformMask srcPlatform, string srcUser,
+                                  PlatformMask dstPlatform, string dstUser)
+        {
+            if (string.IsNullOrEmpty(srcUser) || string.IsNullOrEmpty(dstUser)) return false;
+            var a = new IdentityKey(srcPlatform, srcUser.Trim().ToLowerInvariant());
+            var b = new IdentityKey(dstPlatform, dstUser.Trim().ToLowerInvariant());
+            if (a.Equals(b)) return false;
+            lock (_gate)
+            {
+                EnsureLoaded();
+                // De-dupe — same pair in either direction counts as already linked.
+                foreach (var existing in _store.Links)
+                {
+                    if ((existing.A.Equals(a) && existing.B.Equals(b)) ||
+                        (existing.A.Equals(b) && existing.B.Equals(a))) return false;
+                }
+                _store.Links.Add(new IdentityLink
+                {
+                    A = a, B = b, LinkedUtc = DateTime.UtcNow
+                });
+                Save();
+                return true;
+            }
+        }
+
         public bool Approve(string requestId, string approvedBy)
         {
             lock (_gate)

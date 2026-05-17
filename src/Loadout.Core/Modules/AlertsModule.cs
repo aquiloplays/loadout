@@ -40,19 +40,8 @@ namespace Loadout.Modules
 
             if (string.IsNullOrEmpty(template)) return;
 
-            // Gate: free tier gets Twitch-only alert mirroring; multi-platform
-            // send is a Plus feature.
-            var target = Entitlements.IsUnlocked(Feature.MultiPlatformSend)
-                ? PlatformMask.All
-                : PlatformMask.Twitch;
-
-            // Free tier additionally caps to "basic" alert kinds (follow/sub/cheer/raid).
-            if (!Entitlements.IsUnlocked(Feature.MultiPlatformSend) &&
-                ctx.Kind != "follow" && ctx.Kind != "sub" && ctx.Kind != "resub" &&
-                ctx.Kind != "cheer" && ctx.Kind != "raid")
-            {
-                return;
-            }
+            // Alerts mirror across every enabled platform.
+            var target = PlatformMask.All;
 
             // Honor cooperative suppression. FollowBatchModule sets this on
             // the EventContext when a follow burst is being coalesced; the

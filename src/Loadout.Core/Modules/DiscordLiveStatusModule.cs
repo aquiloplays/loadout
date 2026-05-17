@@ -30,7 +30,6 @@ namespace Loadout.Modules
         {
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.DiscordLiveStatus) return;
-            if (!Entitlements.IsUnlocked(Feature.DiscordLiveStatus)) return;
             if (string.IsNullOrEmpty(s.Discord.LiveStatusWebhook)) return;
 
             switch (ctx.Kind)

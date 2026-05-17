@@ -2,25 +2,27 @@
   --bg: transparent;
   --surface: #18181B;
   --surface-2: #1F1F23;
-  --border: #2A2A30;
-  --text: #EFEFF1;
-  --muted: #ADADB8;
-  --accent: #3A86FF;
-  --tt: #00F2EA;
-  --gold: #F0B429;
+  --border: var(--ld-border);
+  --text: var(--ld-text);
+  --muted: var(--ld-muted);
+  --accent: var(--ld-accent);
+  --tt: var(--ld-cyan);
+  --gold: var(--ld-gold);
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
   width: 100%;
   height: 100%;
   overflow: hidden;
 }
 
 #root {
+  position: fixed;
   display: flex;
   gap: 12px;
   padding: 16px;
@@ -32,17 +34,41 @@ html, body {
 body[data-layout="stack"] #root { flex-direction: column; }
 body[data-layout="compact"] #root { padding: 8px; gap: 6px; }
 
+/* Position anchors — driven by body[data-pos] (set by main.js). The
+   centered variants translate so the row's own width doesn't have
+   to be known ahead of time. */
+body[data-pos="tl"] #root { top: 0;    left: 0; }
+body[data-pos="tr"] #root { top: 0;    right: 0; }
+body[data-pos="bl"] #root { bottom: 0; left: 0; }
+body[data-pos="br"] #root { bottom: 0; right: 0; }
+body[data-pos="tc"] #root { top: 0;    left: 50%; transform: translateX(-50%); }
+body[data-pos="bc"] #root { bottom: 0; left: 50%; transform: translateX(-50%); }
+body[data-pos="lc"] #root { top: 50%;  left: 0;  transform: translateY(-50%); }
+body[data-pos="rc"] #root { top: 50%;  right: 0; transform: translateY(-50%); }
+
 .counter {
   display: inline-flex;
   align-items: baseline;
   gap: 10px;
   padding: 10px 14px;
-  background: linear-gradient(180deg, rgba(24,24,27,.92), rgba(15,15,17,.92));
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  backdrop-filter: blur(6px);
-  box-shadow: 0 6px 18px rgba(0,0,0,.45);
-  transition: transform .25s cubic-bezier(.2,.7,.2,1.3), box-shadow .25s ease;
+  background: var(--ld-glass-tint), var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-md);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-soft), var(--ld-shadow-rim);
+  transition: transform .25s var(--ld-ease-spring), box-shadow .25s ease;
+  position: relative;
+}
+.counter::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 14px; right: 14px;
+  height: 1.5px;
+  border-radius: 0 0 1.5px 1.5px;
+  background: linear-gradient(90deg, transparent 0%, var(--ld-accent) 30%, var(--ld-accent-2) 50%, var(--ld-accent) 70%, transparent 100%);
+  opacity: 0.7;
+  pointer-events: none;
 }
 body[data-layout="compact"] .counter { padding: 6px 10px; border-radius: 8px; }
 

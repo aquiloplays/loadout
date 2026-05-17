@@ -17,7 +17,11 @@
   const duration = parseInt(params.get('duration') || '10000', 10);
   const debug = params.get('debug') === '1';
 
-  const align = params.get('align'); if (align) document.body.dataset.align = align;
+  // Position — historically `align`; also accept `pos` so the
+  // all-in-one composite drives every overlay with one consistent
+  // param name. `align` wins if both are somehow set.
+  const align = params.get('align') || params.get('pos');
+  if (align) document.body.dataset.align = align;
 
   const card      = document.getElementById('card');
   const handle    = document.getElementById('handle');

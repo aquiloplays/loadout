@@ -20,6 +20,13 @@
   if (layout) document.body.dataset.layout = layout;
   if (theme)  document.body.dataset.theme  = theme;
 
+  // Position anchor — tl | tr | bl | br | tc | bc | lc | rc. Lets the
+  // all-in-one composite move the counter row out of another layer's
+  // way. Defaults to top-left when unset (matches the historic
+  // fixed-corner layout). CSS keys off body[data-pos].
+  const pos = params.get('pos');
+  document.body.dataset.pos = pos || 'tl';
+
   // Overlay-behavior params (mirrored from CountersConfig in the DLL):
   //   opacity        0..100      — overlay-wide alpha. 100 = fully opaque.
   //   showOnTrigger  1/0         — when 1, hide root by default and reveal

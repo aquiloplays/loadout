@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to Loadout. Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [SemVer](https://semver.org/).
@@ -10,6 +10,8 @@ Versioning: [SemVer](https://semver.org/).
 (Nothing queued.)
 
 ---
+
+## [1.1.0] - 2026-05-17
 
 ## [1.0.0] - 2026-05-13
 

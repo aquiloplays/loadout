@@ -57,7 +57,6 @@ namespace Loadout.Modules
         {
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.Dungeon) return;
-            if (!Entitlements.IsUnlocked(Feature.DungeonGame)) return;
             if (ctx.Kind != "chat") return;
 
             var raw = (ctx.Message ?? "").Trim();
@@ -599,14 +598,10 @@ namespace Loadout.Modules
 
         private static void Reply(EventContext ctx, string msg)
         {
-            // Free-tier respects the Twitch-only constraint; paid tier
-            // routes via MultiPlatformSender.
+            // Routes the reply on the platform the command came from.
             try
             {
-                if (Entitlements.IsUnlocked(Feature.MultiPlatformSend) || ctx.Platform == PlatformMask.Twitch)
-                {
-                    new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform, msg, SettingsManager.Instance.Current.Platforms);
-                }
+                new MultiPlatformSender(CphPlatformSender.Instance).Send(ctx.Platform, msg, SettingsManager.Instance.Current.Platforms);
             }
             catch { }
         }

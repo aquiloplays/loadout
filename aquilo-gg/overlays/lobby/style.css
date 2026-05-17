@@ -1,0 +1,315 @@
+/*
+ * Loadout — pre-stream lobby. Full-canvas takeover with a subtle
+ * animated background, big countdown digits, and an arrival board
+ * that slides in viewers as they show up.
+ *
+ * Designed for the streamer's "starting soon" scene — viewers who
+ * arrive early have something to look at, the streamer doesn't have
+ * to roll a video loop, and the brand stays consistent.
+ */
+:root {
+  --lobby-bg-1: #0a0a12;
+  --lobby-bg-2: #14081f;
+  --lobby-grid: rgba(58, 134, 255, 0.06);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100vw; height: 100vh;
+  background: transparent;
+  color: var(--ld-text);
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Animated grid background — perspective grid + pulse glow. Doesn't
+   move, just breathes; viewers can stare for 5 minutes and not get
+   nauseous. */
+#bg-grid {
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(180deg, var(--lobby-bg-1) 0%, var(--lobby-bg-2) 100%),
+    radial-gradient(60% 80% at 50% 100%, rgba(180, 82, 255, 0.18) 0%, transparent 70%);
+  background-blend-mode: normal, screen;
+  z-index: 0;
+}
+#bg-grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, var(--lobby-grid) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--lobby-grid) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(circle at 50% 50%, rgba(0,0,0,1) 30%, rgba(0,0,0,0.3) 80%, transparent 100%);
+  -webkit-mask-image: radial-gradient(circle at 50% 50%, rgba(0,0,0,1) 30%, rgba(0,0,0,0.3) 80%, transparent 100%);
+}
+#bg-glow {
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(40% 50% at 50% 40%, rgba(58, 134, 255, 0.18) 0%, transparent 70%),
+    radial-gradient(20% 30% at 20% 80%, rgba(180, 82, 255, 0.12) 0%, transparent 70%),
+    radial-gradient(20% 30% at 80% 80%, rgba(255, 93, 162, 0.10) 0%, transparent 70%);
+  filter: blur(40px);
+  animation: lobbyBreathe 8s var(--ld-ease-out) infinite alternate;
+  z-index: 1;
+}
+@keyframes lobbyBreathe {
+  0%   { opacity: 0.7; transform: scale(1); }
+  100% { opacity: 1;   transform: scale(1.08); }
+}
+
+/* ── Stage ───────────────────────────────────────────────────────── */
+#stage {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 80px;
+  z-index: 2;
+}
+
+#brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 32px;
+  padding: 10px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: var(--ld-glass-bg);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-soft);
+  animation: brandFloat 4s var(--ld-ease-out) infinite alternate;
+}
+@keyframes brandFloat {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-4px); }
+}
+.brand-mark {
+  font-size: 22px;
+  filter: drop-shadow(0 0 8px var(--ld-accent));
+}
+.brand-text {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 4px;
+  background: linear-gradient(90deg, var(--ld-accent) 0%, var(--ld-accent-2) 50%, var(--ld-purple) 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+
+.title {
+  font-size: 96px;
+  font-weight: 900;
+  letter-spacing: -3px;
+  line-height: 1;
+  margin-bottom: 12px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #C5C9D4 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 4px 32px rgba(58, 134, 255, 0.3);
+}
+.subtitle {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  color: var(--ld-muted);
+  margin-bottom: 60px;
+}
+
+/* ── Countdown ───────────────────────────────────────────────────── */
+.countdown {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 80px;
+}
+.countdown.hidden { display: none; }
+.countdown-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 130px;
+  height: 130px;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(58, 134, 255, 0.12) 0%, transparent 60%),
+    var(--ld-glass-tint),
+    var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-lg);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-deep), var(--ld-shadow-rim);
+  isolation: isolate;
+}
+.countdown-cell::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 16px; right: 16px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--ld-accent) 30%, var(--ld-accent-2) 50%, var(--ld-accent) 70%, transparent 100%);
+  opacity: 0.85;
+  pointer-events: none;
+}
+.countdown-cell > span:first-child {
+  font-family: var(--ld-mono);
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: -2px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, #FFFFFF 0%, #B0B5C2 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.cd-label {
+  margin-top: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ld-muted);
+}
+.countdown-sep {
+  font-size: 64px;
+  font-weight: 800;
+  color: var(--ld-accent);
+  margin-top: -36px;
+  filter: drop-shadow(0 0 8px var(--ld-accent));
+  animation: cdPulse 1s ease-in-out infinite;
+}
+@keyframes cdPulse {
+  0%, 100% { opacity: 0.5; }
+  50%      { opacity: 1; }
+}
+
+/* ── Arrival board ───────────────────────────────────────────────── */
+.arrivals {
+  width: 760px;
+  max-width: 80vw;
+  background: var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-lg);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-deep), var(--ld-shadow-rim);
+  padding: 18px 24px;
+  isolation: isolate;
+  position: relative;
+}
+.arrivals.hidden { display: none; }
+.arrivals::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 24px; right: 24px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--ld-purple) 30%, var(--ld-pink) 50%, var(--ld-purple) 70%, transparent 100%);
+  opacity: 0.85;
+}
+.arrivals-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.arrivals-eyebrow {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: var(--ld-muted);
+}
+.arrivals-count {
+  font-family: var(--ld-mono);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--ld-pink);
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 12px rgba(255, 93, 170, 0.5);
+}
+.arrivals-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 40px;
+}
+.arrival-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: rgba(180, 82, 255, 0.1);
+  border: 1px solid rgba(180, 82, 255, 0.3);
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ld-text);
+  animation: arrivalIn 480ms var(--ld-ease-spring);
+}
+@keyframes arrivalIn {
+  0%   { opacity: 0; transform: scale(0.85) translateY(8px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+.arrival-pill .arrival-platform {
+  width: 14px; height: 14px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 800;
+}
+.arrival-pill .arrival-platform[data-p="twitch"]  { background: #9146FF; color: #fff; }
+.arrival-pill .arrival-platform[data-p="kick"]    { background: #53FC18; color: #000; }
+.arrival-pill .arrival-platform[data-p="tiktok"]  { background: #000; color: #00F2EA; }
+.arrival-pill .arrival-platform[data-p="youtube"] { background: #FF0000; color: #fff; }
+
+/* ── Hint footer ─────────────────────────────────────────────────── */
+#hint {
+  position: fixed;
+  bottom: 36px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  z-index: 3;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.hint-key {
+  font-family: var(--ld-mono);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ld-accent);
+  padding: 2px 8px;
+  background: rgba(58, 134, 255, 0.15);
+  border-radius: 4px;
+}
+.hint-sep { color: var(--ld-dim); font-size: 14px; }
+.hint-text {
+  font-size: 13px;
+  color: var(--ld-muted);
+  letter-spacing: 0.3px;
+}

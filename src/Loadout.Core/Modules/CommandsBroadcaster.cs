@@ -62,6 +62,13 @@ namespace Loadout.Modules
         {
             var s = SettingsManager.Instance.Current;
             var list = BuildList(s);
+            // Apply per-command ticker preferences (hide / group) AFTER
+            // BuildList so the dynamic list (which depends on which
+            // modules are enabled, custom commands, counters, etc.) is
+            // the input to the rule set. Hidden first, then grouping
+            // collapses anything matching a group's command list into
+            // a single tile.
+            list = ApplyTickerEntryPrefs(list, s.CommandsTickerEntries);
             AquiloBus.Instance.Publish("commands.list", new
             {
                 commands = list,
@@ -236,6 +243,121 @@ namespace Loadout.Modules
             list.Add(new CommandEntry("!linkapprove <id>",         "mod",  "(mod) approve a pending link"));
 
             return list;
+        }
+
+        /// <summary>Apply hide/group preferences from settings. Hide drops
+        /// matching commands; groups collapse multiple commands into a
+        /// single entry whose name is the joined list and desc is the
+        /// group's Label. Order is preserved: a group lands at the
+        /// position of its first matched member, subsequent matches are
+        /// stripped.</summary>
+        private static List<CommandEntry> ApplyTickerEntryPrefs(List<CommandEntry> input, CommandsTickerEntriesConfig prefs)
+        {
+            if (input == null || input.Count == 0) return input ?? new List<CommandEntry>();
+            if (prefs == null) return input;
+
+            // Build a fast-match lookup for hidden commands. Comparison
+            // is case-insensitive on the entry's full name (which may
+            // include the args hint, e.g. "!gift @user N") — a streamer
+            // can paste the exact ticker text or the bare base name.
+            var hidden = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (prefs.HiddenCommands != null)
+            {
+                foreach (var h in prefs.HiddenCommands)
+                {
+                    var t = (h ?? "").Trim();
+                    if (t.Length == 0) continue;
+                    hidden.Add(t);
+                    // Also accept bare names without args (so "!gift" matches "!gift @user N")
+                    var spaceIdx = t.IndexOf(' ');
+                    if (spaceIdx > 0) hidden.Add(t.Substring(0, spaceIdx));
+                }
+            }
+
+            // For groups: build per-group member sets + assign each member
+            // to the FIRST group that claims it (earlier groups win on
+            // overlap). The output entry replaces the first matched
+            // member's slot and drops the rest.
+            var groups = (prefs.Groups ?? new List<CommandsTickerGroup>())
+                .Where(g => g != null && g.Commands != null && g.Commands.Count > 0)
+                .ToList();
+            var memberToGroup = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (int gi = 0; gi < groups.Count; gi++)
+            {
+                foreach (var c in groups[gi].Commands)
+                {
+                    var t = (c ?? "").Trim();
+                    if (t.Length == 0) continue;
+                    if (!memberToGroup.ContainsKey(t)) memberToGroup[t] = gi;
+                    var spaceIdx = t.IndexOf(' ');
+                    if (spaceIdx > 0)
+                    {
+                        var bare = t.Substring(0, spaceIdx);
+                        if (!memberToGroup.ContainsKey(bare)) memberToGroup[bare] = gi;
+                    }
+                }
+            }
+
+            var output = new List<CommandEntry>(input.Count);
+            // Track which groups have already been emitted so the second
+            // matched member doesn't double-render the group tile.
+            var emittedGroups = new HashSet<int>();
+            // And which member commands actually appeared (so the joined
+            // group name shows only the commands that are live this run).
+            var matchedMembers = new Dictionary<int, List<string>>();
+
+            // First pass: determine which commands match a group + collect
+            // their canonical names. We need this before pass two so the
+            // group tile's joined name reflects only the dynamically-live
+            // commands (e.g. !discord drops out when no discord link is set).
+            foreach (var entry in input)
+            {
+                if (entry == null || string.IsNullOrEmpty(entry.name)) continue;
+                if (hidden.Contains(entry.name)) continue;
+                int gi;
+                if (TryFindGroup(entry.name, memberToGroup, out gi))
+                {
+                    if (!matchedMembers.TryGetValue(gi, out var list)) { list = new List<string>(); matchedMembers[gi] = list; }
+                    list.Add(entry.name);
+                }
+            }
+
+            // Second pass: emit the actual ticker list. Hidden commands
+            // are dropped; the first member of a group gets replaced by
+            // the group tile; subsequent members are dropped.
+            foreach (var entry in input)
+            {
+                if (entry == null || string.IsNullOrEmpty(entry.name)) continue;
+                if (hidden.Contains(entry.name))
+                {
+                    // Also catch the "!gift @user N" → "!gift" hidden case.
+                    var spaceIdx = entry.name.IndexOf(' ');
+                    if (spaceIdx <= 0) continue;
+                }
+                int gi;
+                if (TryFindGroup(entry.name, memberToGroup, out gi))
+                {
+                    if (emittedGroups.Contains(gi)) continue;
+                    emittedGroups.Add(gi);
+                    var g = groups[gi];
+                    var joinedName = string.Join(" / ", matchedMembers[gi]);
+                    var groupCat   = string.IsNullOrWhiteSpace(g.Cat) ? "info" : g.Cat;
+                    var label      = string.IsNullOrWhiteSpace(g.Label) ? joinedName : g.Label;
+                    output.Add(new CommandEntry(joinedName, groupCat, label));
+                    continue;
+                }
+                output.Add(entry);
+            }
+            return output;
+        }
+
+        private static bool TryFindGroup(string entryName, Dictionary<string, int> memberToGroup, out int groupIndex)
+        {
+            if (memberToGroup.TryGetValue(entryName, out groupIndex)) return true;
+            var spaceIdx = entryName.IndexOf(' ');
+            if (spaceIdx > 0 && memberToGroup.TryGetValue(entryName.Substring(0, spaceIdx), out groupIndex)) return true;
+            groupIndex = -1;
+            return false;
         }
 
         // POCO so Newtonsoft serializes camelCase via the bus envelope.

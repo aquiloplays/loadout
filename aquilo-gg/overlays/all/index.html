@@ -6,30 +6,40 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!--
   Composite overlay. ONE OBS browser source renders every Loadout
-  overlay you've enabled below. Each layer is an <iframe> pointing at
-  the standalone overlay, so per-overlay theming + bus subscription
-  logic stay exactly the same. The iframe doesn't get pointer events,
-  so OBS click-through works as expected.
+  overlay you've enabled. Each layer is an <iframe> pointing at the
+  standalone overlay, so per-overlay theming + bus subscription logic
+  stay exactly the same. The iframe doesn't get pointer events, so
+  OBS click-through works as expected.
 
   Drop into OBS:
     https://widget.aquilo.gg/overlays/all/?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
 
-  Layer toggle (CSV; default = all 8 on):
-    ?layers=bolts,counters,goals,check-in
+  Per-layer config — `layers` is a CSV of `name[@pos][*scale][~opacity]`:
+    ?layers=bolts@tr,counters@tl*0.9,commands@bl~70
+  Bare names use the non-overlap defaults baked into main.js.
+
+  DOM order below = z-order (later = on top). Persistent panels sit
+  underneath; transient full-canvas takeovers (check-in, recap) sit
+  on top so their animation plays over everything else cleanly.
 -->
+<link rel="stylesheet" href="../_shared/loadout-design.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Persistent panels — corner / edge anchored, always present. -->
   <div class="layer" data-name="bolts"     data-src="../bolts/"></div>
   <div class="layer" data-name="counters"  data-src="../counters/"></div>
   <div class="layer" data-name="goals"     data-src="../goals/"></div>
-  <div class="layer" data-name="check-in"  data-src="../check-in/"></div>
   <div class="layer" data-name="apex"      data-src="../apex/"></div>
   <div class="layer" data-name="commands"  data-src="../commands/"></div>
-  <div class="layer" data-name="recap"     data-src="../recap/"></div>
   <div class="layer" data-name="viewer"    data-src="../viewer/"></div>
+  <!-- Transient cards — appear briefly per event, then dismiss. -->
   <div class="layer" data-name="hypetrain" data-src="../hypetrain/"></div>
   <div class="layer" data-name="minigames" data-src="../minigames/"></div>
+  <!-- Full-canvas takeovers — render on top so the animation owns
+       the screen for its few seconds. -->
+  <div class="layer" data-name="check-in"  data-src="../check-in/"></div>
+  <div class="layer" data-name="recap"     data-src="../recap/"></div>
   <script src="main.js"></script>
 </body>
 </html>

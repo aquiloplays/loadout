@@ -1,6 +1,7 @@
 <Window x:Class="Loadout.UI.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
         Title="Loadout Settings"
         Width="1180" Height="780"
         MinWidth="1080" MinHeight="700"
@@ -21,6 +22,29 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="pack://application:,,,/Loadout;component/UI/Styles.xaml" />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Position + scale option lists for the all-in-one
+                 composite DataGrid combos. "full" = whole-canvas
+                 takeover (no ?pos forwarded). -->
+            <x:Array x:Key="AllLayerPositions" Type="sys:String">
+                <sys:String>tl</sys:String>
+                <sys:String>tr</sys:String>
+                <sys:String>bl</sys:String>
+                <sys:String>br</sys:String>
+                <sys:String>tc</sys:String>
+                <sys:String>bc</sys:String>
+                <sys:String>lc</sys:String>
+                <sys:String>rc</sys:String>
+                <sys:String>full</sys:String>
+            </x:Array>
+            <x:Array x:Key="AllLayerScales" Type="sys:String">
+                <sys:String>50%</sys:String>
+                <sys:String>75%</sys:String>
+                <sys:String>90%</sys:String>
+                <sys:String>100%</sys:String>
+                <sys:String>110%</sys:String>
+                <sys:String>125%</sys:String>
+            </x:Array>
         </ResourceDictionary>
     </Window.Resources>
 
@@ -428,11 +452,12 @@
                 </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="32 28" MaxWidth="780">
-                        <TextBlock Text="Loadout Plus / Pro" Style="{StaticResource H1}" />
+                        <TextBlock Text="Patreon — early access &amp; support" Style="{StaticResource H1}" />
                         <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 18">
-                            Loadout's free tier covers info commands, Twitch alerts, basic welcomes, and 3 timed messages.
-                            Tier 2 ($6) unlocks multi-platform routing, unlimited timers, Discord live status, webhook inbox, and stream recap.
-                            Tier 3 ($10) adds hate-raid detection, TikTok hype train, the cross-platform Bolts wallet, and Apex top-viewer mode.
+                            Every Loadout feature is free for everyone — nothing here is locked behind payment.
+                            Patreon supporters get early access: brand-new features reach Tier 2 and Tier 3 patrons
+                            first, then roll out to everyone shortly after. Supporting on Patreon funds development
+                            and gives you a head start — it's never required to use anything.
                         </TextBlock>
 
                         <Border Style="{StaticResource Card}">
@@ -454,8 +479,14 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="What unlocks" Style="{StaticResource H2}" Margin="0 22 0 8" />
-                        <ItemsControl x:Name="LstFeatures" />
+                        <TextBlock Text="What supporters get" Style="{StaticResource H2}" Margin="0 22 0 8" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap">
+                            • Early access — Tier 2 and Tier 3 patrons get new features before they roll out to everyone.
+                            <LineBreak />
+                            • Faster Bolts — patrons earn Bolts at a boosted rate (set the multipliers in Settings → Bolts).
+                            <LineBreak />
+                            • Supporting development — Patreon keeps Loadout funded and moving.
+                        </TextBlock>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
@@ -1151,9 +1182,27 @@
                              "LOSE" in chat. -->
                         <Border Style="{StaticResource Card}" Margin="0 0 0 14">
                             <StackPanel>
-                                <TextBlock Text="Minigames (!coinflip / !dice / !slots)" Style="{StaticResource H2}" />
+                                <TextBlock Text="Minigames (!coinflip / !dice / !slots / !rps / !roulette)" Style="{StaticResource H2}" />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 4 0 8">
+                                    Per-game enable toggles, wager bounds, and shared timing. Disabling a game makes the chat command silent and drops it from the commands ticker.
+                                </TextBlock>
+                                <!-- Per-game enable toggles in a single row.
+                                     Each switch flips the corresponding
+                                     BoltsConfig.*Enabled flag — chat command
+                                     short-circuits when off (still validated
+                                     in BoltsModule.OnEvent so a viewer typing
+                                     the disabled command gets no reply). -->
+                                <UniformGrid Columns="5" Margin="0 0 0 8">
+                                    <CheckBox x:Name="ChkGameCoinflipEnabled" Style="{StaticResource ToggleSwitch}" Content="!coinflip" Margin="0 0 8 0" />
+                                    <CheckBox x:Name="ChkGameDiceEnabled"     Style="{StaticResource ToggleSwitch}" Content="!dice"     Margin="0 0 8 0" />
+                                    <CheckBox x:Name="ChkGameSlotsEnabled"    Style="{StaticResource ToggleSwitch}" Content="!slots"    Margin="0 0 8 0" />
+                                    <CheckBox x:Name="ChkGameRpsEnabled"      Style="{StaticResource ToggleSwitch}" Content="!rps"      Margin="0 0 8 0" />
+                                    <CheckBox x:Name="ChkGameRouletteEnabled" Style="{StaticResource ToggleSwitch}" Content="!roulette" />
+                                </UniformGrid>
                                 <Grid Margin="0 6 0 0">
                                     <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
@@ -1180,6 +1229,16 @@
 
                                     <TextBlock Grid.Row="3" Grid.Column="0" Text="!dice payout multiplier" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
                                     <TextBox  Grid.Row="3" Grid.Column="1" x:Name="TxtBoltsDiceMult" Margin="0 4 12 0" />
+
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="!rps min wager" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="4" Grid.Column="1" x:Name="TxtBoltsRpsMin" Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="4" Grid.Column="2" Text="!rps max wager" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="4" Grid.Column="3" x:Name="TxtBoltsRpsMax" Margin="0 4 0 0" />
+
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="!roulette min wager" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="5" Grid.Column="1" x:Name="TxtBoltsRouletteMin" Margin="0 4 12 0" />
+                                    <TextBlock Grid.Row="5" Grid.Column="2" Text="!roulette max wager" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                    <TextBox  Grid.Row="5" Grid.Column="3" x:Name="TxtBoltsRouletteMax" Margin="0 4 0 0" />
                                 </Grid>
                                 <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 6 0 8">
                                     Set min/max to 0 to disable a game (the chat command becomes silent and it drops out of the commands ticker).
@@ -1342,7 +1401,9 @@
                                 </Grid>
                                 <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
                                     <Button Content="Apply" Style="{StaticResource PrimaryButton}" Click="BtnWalletApply_Click" Margin="0 0 8 0" />
-                                    <Button Content="Zero out" Style="{StaticResource SecondaryButton}" Click="BtnWalletZero_Click" />
+                                    <Button Content="Zero out" Style="{StaticResource SecondaryButton}" Click="BtnWalletZero_Click" Margin="0 0 8 0" />
+                                    <Button Content="Reset everyone" Style="{StaticResource SecondaryButton}" Click="BtnWalletResetAll_Click"
+                                            ToolTip="Wipes balance + lifetime counters for every wallet, locally and on the linked Discord guild. Links and streamer config are preserved." />
                                     <TextBlock x:Name="TxtWalletHint" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14 0 0 0" />
                                 </StackPanel>
                             </StackPanel>
@@ -2448,7 +2509,7 @@
                                 <TextBlock Text="Flairs" Style="{StaticResource H2}" Margin="0 12 0 4" />
                                 <CheckBox x:Name="ChkSubFlair"     Content="Show sub-tier flair"        Style="{StaticResource ToggleRow}" />
                                 <CheckBox x:Name="ChkVipModFlair"  Content="Show VIP / mod flair"       Style="{StaticResource ToggleRow}" />
-                                <CheckBox x:Name="ChkPatreonFlair" Content="Show Patreon supporter flair (Tier 3)" Style="{StaticResource ToggleRow}" />
+                                <CheckBox x:Name="ChkPatreonFlair" Content="Show Patreon supporter flair" Style="{StaticResource ToggleRow}" />
                                 <TextBlock Text="Stat rotation interval (seconds)" Style="{StaticResource H2}" Margin="0 12 0 4" />
                                 <TextBox x:Name="TxtCheckInRotateSec" Width="120" HorizontalAlignment="Left" />
                                 <TextBlock Text="Stats to rotate (comma-separated)" Style="{StaticResource H2}" Margin="0 12 0 4" />
@@ -2930,6 +2991,51 @@
                                         </Grid>
                                     </StackPanel>
                                 </Border>
+
+                                <!-- Per-command ticker config: hide entries
+                                     and bundle commands into shared rotation
+                                     cards. Applies to both the standalone
+                                     commands overlay AND the compact
+                                     overlay's idle ticker (they read the
+                                     same commands.list bus event). -->
+                                <Border Margin="0 14 0 0" Padding="0 10 0 0" BorderThickness="0 1 0 0" BorderBrush="{StaticResource Brush.Border}">
+                                    <StackPanel>
+                                        <TextBlock Text="Show / group commands" Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0 0 0 4" />
+                                        <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 0 0 8">
+                                            Hide commands you don't want viewers to see in the ticker, or bundle several into a single rotating tile. Match is case-insensitive on the command name (e.g. <Run FontFamily="Consolas">!uptime</Run> or <Run FontFamily="Consolas">!gift @user N</Run>; the bare name without args also works).
+                                        </TextBlock>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0 0 8 0">
+                                                <TextBlock Text="Hide (one per line)" Style="{StaticResource Muted}" Margin="0 0 0 4" />
+                                                <TextBox x:Name="TxtCommandsHidden"
+                                                         AcceptsReturn="True"
+                                                         TextWrapping="NoWrap"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         Height="120"
+                                                         FontFamily="Consolas, monospace"
+                                                         FontSize="11" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="8 0 0 0">
+                                                <TextBlock Text="Group (one per line — &quot;Label | !cmd1, !cmd2, !cmd3&quot;)" Style="{StaticResource Muted}" Margin="0 0 0 4" />
+                                                <TextBox x:Name="TxtCommandsGroups"
+                                                         AcceptsReturn="True"
+                                                         TextWrapping="NoWrap"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         Height="120"
+                                                         FontFamily="Consolas, monospace"
+                                                         FontSize="11"
+                                                         ToolTip="One group per line. Format: &quot;Group label | !uptime, !followage, !accountage&quot; — produces a single rotating tile with all three commands joined." />
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 6 0 0">
+                                            Example group:  <Run FontFamily="Consolas" Foreground="{StaticResource Brush.Fg.Primary}">Stream info | !uptime, !followage, !accountage, !title, !game</Run>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                         </Border>
 
@@ -2960,7 +3066,7 @@
                                 <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
                                     <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
                                         <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
-                                        <Run Text=" 480×100" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" 580×140" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
                                         <Run Text=" — top-viewer status bar" Foreground="{StaticResource Brush.Fg.Muted}" />
                                     </TextBlock>
                                 </Border>
@@ -3087,8 +3193,8 @@
                                 <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
                                     <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
                                         <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
-                                        <Run Text=" 380×140" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
-                                        <Run Text=" — profile card" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 380×280" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — profile card (pfp + bio + socials + stats)" Foreground="{StaticResource Brush.Fg.Muted}" />
                                     </TextBlock>
                                 </Border>
                                 <Grid>
@@ -3171,8 +3277,8 @@
                                 <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
                                     <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
                                         <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
-                                        <Run Text=" 380×220" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
-                                        <Run Text=" — animated card pops in for ~3s per game" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=" 400×260" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run Text=" — animated card pops in for ~3s per game (3D coin / die / slots lever)" Foreground="{StaticResource Brush.Fg.Muted}" />
                                     </TextBlock>
                                 </Border>
                                 <Grid>
@@ -3240,15 +3346,17 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Cross-platform hype train: aggregates fuel from sub / gift /
-                             cheer / raid / TikTok-gift / Kick-sub / super-chat events. Runs
-                             alongside Twitch's native train; 15-min cooldown after end. -->
+                        <!-- Hype train overlay. Loadout runs TWO trains in
+                             parallel: a cross-platform aggregate and a
+                             Twitch-only one. This card's Source dropdown
+                             picks which the URL renders; run two browser
+                             sources (one per source) to show both. -->
                         <Border Style="{StaticResource Card}" Margin="0 0 0 10">
                             <StackPanel>
                                 <Grid Margin="0 0 0 8">
                                     <StackPanel Orientation="Horizontal">
                                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.HypeTrain}" Margin="0 0 8 0" Width="14" Height="14" />
-                                        <TextBlock Text="Cross-platform hype train" Style="{StaticResource H2}" Margin="0" />
+                                        <TextBlock Text="Hype train" Style="{StaticResource H2}" Margin="0" />
                                     </StackPanel>
                                     <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
                                         <Button Content="Send test" Style="{StaticResource PrimaryButton}"
@@ -3275,10 +3383,18 @@
                                     </TextBlock>
                                 </Border>
                                 <Grid>
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Source:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <ComboBox x:Name="CmbHypeTrainSource" Width="150" SelectionChanged="OnOverlayUrlChange"
+                                                  ToolTip="Cross-platform aggregates every platform's fuel. Twitch-only renders the separate Twitch-native train. Add a second browser source with the other choice to show both.">
+                                            <ComboBoxItem Content="Cross-platform" Tag="all"    IsSelected="True" />
+                                            <ComboBoxItem Content="Twitch-only"    Tag="twitch" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
                                         <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
-                                        <ComboBox x:Name="CmbHypeTrainPos" Width="140" SelectionChanged="OnOverlayUrlChange">
+                                        <ComboBox x:Name="CmbHypeTrainPos" Width="130" SelectionChanged="OnOverlayUrlChange">
                                             <ComboBoxItem Content="Top-center"    Tag="tc" IsSelected="True" />
                                             <ComboBoxItem Content="Top-right"     Tag="tr" />
                                             <ComboBoxItem Content="Top-left"      Tag="tl" />
@@ -3287,12 +3403,17 @@
                                             <ComboBoxItem Content="Bottom-left"   Tag="bl" />
                                         </ComboBox>
                                     </StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal">
                                         <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
                                         <TextBox x:Name="TxtHypeTrainAccent" Width="80" TextChanged="OnOverlayUrlChange" />
                                         <Button  x:Name="SwTxtHypeTrainAccent" Tag="TxtHypeTrainAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
                                     </StackPanel>
                                 </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 8 0 0">
+                                    The cross-platform train drops dungeon loot to every contributor when it ends — rarity scales with the
+                                    final level, and a max-level train can drop hype-train-exclusive legendary + mythic gear. Toggle this in
+                                    Settings → Tuning → Hype train.
+                                </TextBlock>
                             </StackPanel>
                         </Border>
 
@@ -3411,19 +3532,27 @@
                                                  ToolTip="Seconds between commands while idle. Min 10 s." />
                                     </StackPanel>
                                 </Grid>
-                                <!-- Vertical-stream layout — switches the card to a
-                                     wider 880x184 footprint with bumped type sized
-                                     for 9:16 streams (TikTok / YouTube Shorts /
-                                     Reels). Default position becomes bottom-center
-                                     when this is on so the card sits above TikTok's
-                                     gesture chrome rather than fighting it. -->
+                                <!-- Vertical-stream layout — slims the card to a
+                                     560×112 footprint with a tighter badge + type
+                                     scale sized for 9:16 streams (TikTok / YouTube
+                                     Shorts / Reels). Default position becomes
+                                     bottom-center when this is on so the card sits
+                                     above TikTok's gesture chrome rather than
+                                     fighting it. For an even smaller footprint, use
+                                     the standalone Vertical overlay below — three
+                                     dedicated layouts (tile / banner / side strip)
+                                     purpose-built for 1080×1920 canvases. -->
                                 <CheckBox x:Name="ChkCompactVertical" Style="{StaticResource ToggleSwitch}" Margin="0 8 0 0"
                                           Content="Vertical layout (TikTok / YouTube Shorts / Reels)"
-                                          ToolTip="Bigger card, larger fonts, sized for 9:16 streams. Recommended OBS browser source: 1100×210 (or any width up to 1080). Position auto-defaults to bottom-center when this is on."
+                                          ToolTip="Slims the compact card to a 560×112 footprint sized for 9:16 streams. Recommended OBS browser source: 600×128. Position auto-defaults to bottom-center when this is on."
+                                          Click="OnOverlayUrlChange" />
+                                <CheckBox x:Name="ChkCompactBare" Style="{StaticResource ToggleSwitch}" Margin="0 6 0 0"
+                                          Content="Bare mode — no background, floats over gameplay"
+                                          ToolTip="Drops the card surface entirely. Text + badge stay legible via heavy halos and a thicker stroke on the badge tile. Pairs cleanly with vertical mode for a minimal footprint."
                                           Click="OnOverlayUrlChange" />
                                 <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 4 0 8">
-                                    Switches the card to a wider 880×184 footprint with bumped fonts so it reads on a phone-screen 9:16
-                                    canvas (1080×1920). Recommended OBS browser source size shown above will update when the toggle changes.
+                                    Slims the compact card to a 560×112 footprint so it sits comfortably in a 9:16 canvas (1080×1920).
+                                    Recommended OBS browser source: 600×128. For an even tighter footprint, scroll down to the dedicated Vertical overlay.
                                 </TextBlock>
 
                                 <!-- Per-category gate. The compact's URL bakes ?show=<csv>
@@ -3456,6 +3585,98 @@
                             </StackPanel>
                         </Border>
 
+                        <!-- Vertical-stream dedicated overlay. Three layouts purpose-built
+                             for 9:16 canvases — tile / banner / side strip. Picks one of
+                             the three via the `mode` URL param. Smaller footprint than the
+                             compact overlay's vertical mode, ideal when the streamer's
+                             camera + chat track already fill most of the canvas. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                            <StackPanel>
+                                <Grid Margin="0 0 0 8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Overlays}" Margin="0 0 8 0" Width="14" Height="14" />
+                                        <TextBlock Text="Vertical-stream (TikTok / Shorts / Reels)" Style="{StaticResource H2}" Margin="0" />
+                                    </StackPanel>
+                                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                                        <Button Content="Preview" Style="{StaticResource SecondaryButton}"
+                                                Tag="vertical" Click="BtnOverlayPreview_Click" Margin="0 0 8 0"
+                                                ToolTip="Opens with ?debug=1 — overlay self-feeds demo events for live preview." />
+                                        <Button Content="Open URL" Style="{StaticResource SecondaryButton}"
+                                                Tag="vertical" Click="BtnOverlayOpen_Click"
+                                                ToolTip="Opens without debug. Renders blank outside OBS; use Preview for live render." />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
+                                    Built for 9:16 canvases where space is tight. Pick a layout:
+                                    <Run FontFamily="Consolas" Foreground="{StaticResource Brush.Fg.Primary}">tile</Run> (corner card),
+                                    <Run FontFamily="Consolas" Foreground="{StaticResource Brush.Fg.Primary}">banner</Run> (slim edge band), or
+                                    <Run FontFamily="Consolas" Foreground="{StaticResource Brush.Fg.Primary}">side</Run> (narrow strip).
+                                </TextBlock>
+                                <Grid Margin="0 0 0 6">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TxtUrlVertical" Grid.Column="0" IsReadOnly="True" FontFamily="Consolas" FontSize="11" />
+                                    <Button  Grid.Column="1" Content="Copy" Style="{StaticResource SecondaryButton}" Tag="vertical" Click="BtnOverlayCopy_Click" Margin="8 0 0 0" />
+                                </Grid>
+                                <Border Style="{StaticResource PillAccent}" HorizontalAlignment="Left" Margin="0 0 0 10" Padding="10 5">
+                                    <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
+                                        <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run x:Name="TxtVerticalSizeHint" Text=" 240×120" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
+                                        <Run x:Name="TxtVerticalSizeNote" Text=" — corner-anchored tile (changes with the layout you pick)" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </TextBlock>
+                                </Border>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Layout:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <ComboBox x:Name="CmbVerticalMode" Width="120" SelectionChanged="OnOverlayUrlChange">
+                                            <ComboBoxItem Content="Tile (corner)" Tag="tile" IsSelected="True" />
+                                            <ComboBoxItem Content="Banner"        Tag="banner" />
+                                            <ComboBoxItem Content="Side strip"    Tag="side" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                        <TextBlock Text="Position:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <ComboBox x:Name="CmbVerticalPos" Width="120" SelectionChanged="OnOverlayUrlChange">
+                                            <ComboBoxItem Content="Top-right"     Tag="tr" />
+                                            <ComboBoxItem Content="Top-left"      Tag="tl" />
+                                            <ComboBoxItem Content="Top-center"    Tag="tc" />
+                                            <ComboBoxItem Content="Bottom-right"  Tag="br" IsSelected="True" />
+                                            <ComboBoxItem Content="Bottom-left"   Tag="bl" />
+                                            <ComboBoxItem Content="Bottom-center" Tag="bc" />
+                                            <ComboBoxItem Content="Left-center"   Tag="lc" />
+                                            <ComboBoxItem Content="Right-center"  Tag="rc" />
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal">
+                                        <TextBlock Text="Hold (ms):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtVerticalHoldMs" Width="70" Text="3500" TextChanged="OnOverlayUrlChange"
+                                                 ToolTip="How long each event stays visible on the tile / banner mode. Min 1500 ms." />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid Margin="0 8 0 0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="Accent (hex):" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                        <TextBox x:Name="TxtVerticalAccent" Width="80" TextChanged="OnOverlayUrlChange" />
+                                        <Button  x:Name="SwTxtVerticalAccent" Tag="TxtVerticalAccent" Click="BtnPickColor_Click" Style="{StaticResource ColorSwatch}" Margin="6 0 0 0" ToolTip="Pick a color" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 8 0 0">
+                                    Layout sizes:
+                                    <Run FontFamily="Consolas" Foreground="{StaticResource Brush.Fg.Primary}">tile 240×120</Run>  ·
+                                    <Run FontFamily="Consolas" Foreground="{StaticResource Brush.Fg.Primary}">banner 1080×80</Run>  ·
+                                    <Run FontFamily="Consolas" Foreground="{StaticResource Brush.Fg.Primary}">side 160×600</Run>.
+                                    Subscribes to bolts / welcomes / hype train / minigames / heists / tips / achievements / quests.
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
                         <!-- All-in-one composite overlay. One OBS browser source renders
                              every layer the streamer ticks below; each layer is an iframe of
                              the standalone overlay so per-overlay theming stays unchanged. -->
@@ -3479,10 +3700,9 @@
                                     </StackPanel>
                                 </Grid>
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
-                                    One browser source, one URL — rendering whichever layers you tick. Each layer
-                                    is an iframe of the standalone overlay so per-overlay theming (accent / bg
-                                    opacity / etc.) is configured on those cards above; this card just picks
-                                    which layers are visible.
+                                    One browser source, one URL — rendering whichever layers you enable. Each layer is an
+                                    iframe of the standalone overlay. Set each layer's <Bold>position</Bold> and <Bold>scale</Bold>
+                                    right here — the composite hands every layer its own zone so nothing overlaps out of the box.
                                 </TextBlock>
                                 <Grid Margin="0 0 0 6">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
@@ -3496,26 +3716,44 @@
                                         <Run Text=" — one source replaces every overlay above" Foreground="{StaticResource Brush.Fg.Muted}" />
                                     </TextBlock>
                                 </Border>
-                                <Border Background="{StaticResource Brush.Bg.Surface3}" CornerRadius="6" Padding="10" Margin="0 0 0 10">
+                                <!-- Per-layer composite config. Each row: show toggle,
+                                     position anchor, and scale. The URL builder bakes
+                                     these into ?layers=name@pos*scale entries. Editing
+                                     a cell re-runs OnAllLayersGridChanged → rebuilds
+                                     the URL. -->
+                                <Grid Margin="0 0 0 4">
+                                    <TextBlock Text="Composite layers" Style="{StaticResource Muted}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                        <Button Content="Auto-arrange" Style="{StaticResource SecondaryButton}"
+                                                Click="BtnAllLayersAutoArrange_Click"
+                                                ToolTip="Reset every layer to its non-overlapping default position + 100% scale." />
+                                    </StackPanel>
+                                </Grid>
+                                <DataGrid x:Name="GrdAllLayers" AutoGenerateColumns="False" CanUserAddRows="False"
+                                          CanUserResizeRows="False" HeadersVisibility="Column"
+                                          SelectionMode="Single" GridLinesVisibility="Horizontal"
+                                          Height="290" Margin="0 0 0 8"
+                                          CellEditEnding="OnAllLayersGridChanged">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="Layer" Binding="{Binding DisplayName}" Width="*" IsReadOnly="True" />
+                                        <DataGridCheckBoxColumn Header="Show" Binding="{Binding Enabled, UpdateSourceTrigger=PropertyChanged}" Width="56" />
+                                        <DataGridComboBoxColumn Header="Position" Width="130"
+                                                                SelectedItemBinding="{Binding Position}"
+                                                                ItemsSource="{Binding Source={StaticResource AllLayerPositions}}" />
+                                        <DataGridComboBoxColumn Header="Scale" Width="86"
+                                                                SelectedItemBinding="{Binding Scale}"
+                                                                ItemsSource="{Binding Source={StaticResource AllLayerScales}}" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <Border Background="{StaticResource Brush.Bg.Surface3}" CornerRadius="6" Padding="10">
                                     <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap">
-                                        Heads-up: each layer renders at the position you've set on its own card above. If two layers
-                                        share a corner (e.g. Bolts leaderboard at bottom-right + Viewer profile at bottom-right) they
-                                        overlap. Give each visible overlay a different corner / alignment up there to avoid collisions.
+                                        Positions: <Run FontFamily="Consolas">tl tr bl br</Run> = corners,
+                                        <Run FontFamily="Consolas">tc bc</Run> = top/bottom-center,
+                                        <Run FontFamily="Consolas">lc rc</Run> = left/right-center,
+                                        <Run FontFamily="Consolas">full</Run> = whole-canvas takeover (check-in / recap animate over everything).
+                                        Each layer keeps its own theming from the cards above — this grid only sets placement.
                                     </TextBlock>
                                 </Border>
-                                <TextBlock Text="Layers visible:" Style="{StaticResource Muted}" Margin="0 0 0 4" />
-                                <WrapPanel>
-                                    <CheckBox x:Name="ChkAllBolts"    Content="Bolts"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllCounters" Content="Counters"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllGoals"    Content="Goals"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllCheckIn"  Content="Check-in"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllApex"     Content="Apex"      IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllCommands" Content="Commands"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllRecap"    Content="Recap"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllViewer"   Content="Viewer"     IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllHypeTrain" Content="Hype train" IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkAllMinigames" Content="Minigames"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                </WrapPanel>
                             </StackPanel>
                         </Border>
 

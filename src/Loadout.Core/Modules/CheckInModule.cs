@@ -44,7 +44,6 @@ namespace Loadout.Modules
         {
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.DailyCheckIn) return;
-            if (!Entitlements.IsUnlocked(Feature.DailyCheckIn)) return;
 
             // Twitch Channel Points path.
             if (ctx.Kind == "rewardRedemption")
@@ -211,12 +210,9 @@ namespace Loadout.Modules
                 AquiloBus.Instance.Publish("checkin.enriched", BuildPayload(ctx, source, pfp, userMessage, emotes));
             });
 
-            // Best-effort chat ack (Twitch only - reward redemptions don't post to chat by default).
-            if (Entitlements.IsUnlocked(Feature.MultiPlatformSend) || ctx.Platform == PlatformMask.Twitch)
-            {
-                new MultiPlatformSender(CphPlatformSender.Instance)
-                    .Send(ctx.Platform, "✅ Checked in, " + ctx.User + "!", s.Platforms);
-            }
+            // Best-effort chat ack on the platform the check-in came from.
+            new MultiPlatformSender(CphPlatformSender.Instance)
+                .Send(ctx.Platform, "✅ Checked in, " + ctx.User + "!", s.Platforms);
         }
 
         private static object BuildPayload(EventContext ctx, string source, string profilePictureUrl,

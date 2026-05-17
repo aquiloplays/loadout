@@ -27,6 +27,7 @@
     commands.list, bolts.*, welcome.*, hypetrain.*, counter.*,
     viewer.profile.shown, rotation.song.playing, rotation.song.queued
 -->
+<link rel="stylesheet" href="../_shared/loadout-design.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body data-pos="tr">
@@ -63,15 +64,52 @@
          are 3 ~14x40 mini reels with staggered settle. -->
     <div id="game" class="layer hidden">
       <div class="game-visual">
+        <!-- 3D coin: 2 round faces + 16 thin side panels around the
+             y-axis. Compact uses 16 segments (vs 24 in the full
+             overlay) — at 56px the eye doesn't read the difference,
+             and the smaller cell count keeps frame cost down. -->
         <div class="g-coin">
           <span class="g-coin-face heads">H</span>
           <span class="g-coin-face tails">T</span>
+          <span class="g-coin-edge" style="--edge-angle:0deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:22.5deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:45deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:67.5deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:90deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:112.5deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:135deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:157.5deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:180deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:202.5deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:225deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:247.5deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:270deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:292.5deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:315deg"></span>
+          <span class="g-coin-edge" style="--edge-angle:337.5deg"></span>
         </div>
-        <div class="g-die"><span class="g-die-pip"></span></div>
+        <!-- 3D die: 6-face cube. Same primitive as the minigames
+             overlay; different sizing knobs via CSS. -->
+        <div class="g-die">
+          <div class="g-die-face g-die-face-1"><span class="g-pip"></span></div>
+          <div class="g-die-face g-die-face-2"><span class="g-pip"></span><span class="g-pip"></span></div>
+          <div class="g-die-face g-die-face-3"><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span></div>
+          <div class="g-die-face g-die-face-4"><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span></div>
+          <div class="g-die-face g-die-face-5"><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span></div>
+          <div class="g-die-face g-die-face-6"><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span><span class="g-pip"></span></div>
+        </div>
         <div class="g-slots">
           <div class="g-reel" id="gReel0"></div>
           <div class="g-reel" id="gReel1"></div>
           <div class="g-reel" id="gReel2"></div>
+          <!-- Spring-loaded lever mirroring the minigames overlay.
+               JS toggles `.pulling` for the down-stroke before reels
+               start spinning. Sized smaller for the 56px badge slot. -->
+          <div class="g-lever" id="gLever">
+            <div class="g-lever-arm"></div>
+            <div class="g-lever-knob"></div>
+            <div class="g-lever-base"></div>
+          </div>
         </div>
       </div>
       <span id="gameTitle" class="title"></span>

@@ -76,6 +76,20 @@ namespace Loadout.Sb
                 // ProfileModule serves !setbio / !setpfp / !setsocial /
                 // !setgamertag / !setpronouns / !clearprofile.
                 _modules.Add(new ProfileModule());
+                // Weekly digest: bus-driven counters + a 1-min scheduler
+                // that posts to the Worker once a week. Pure listener;
+                // doesn't need to be in any particular order.
+                _modules.Add(new WeeklyDigestModule());
+                // Daily quests: 3 viewer quests per UTC day, bus-driven
+                // tracking + completion bonuses. Static singleton holds
+                // the per-viewer state; lookups from the /loadout menu
+                // hit DailyQuestsStore via this module.
+                _modules.Add(new DailyQuestsModule());
+                // Cross-product achievements: bus-driven trackers across
+                // bolts / hype train / minigames / heists / tips.
+                // Separate from the dungeon-specific achievement set
+                // which lives on HeroState.Achievements.
+                _modules.Add(new AchievementsModule());
                 // Last - just publishes the canonical command list to the bus
                 // for the "Available commands" overlay. Must come AFTER every
                 // module that contributes commands so the snapshot it builds

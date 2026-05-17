@@ -18,6 +18,19 @@
  *   fontScale   0.1-3   multiplies overlay font sizes (writes --font-scale)
  *   font        family  CSS font-family stack, URL-encoded.
  *                       e.g. font=Inter%2Csans-serif
+ *   scale       0.1-3   scales the whole overlay (body zoom). Distinct
+ *                       from fontScale conceptually — scale is "make
+ *                       the whole thing bigger/smaller", fontScale is
+ *                       "make the text bigger" — but both land on
+ *                       body zoom in CEF. When both are set, they
+ *                       multiply.
+ *   opacity     0-100   whole-overlay opacity (body opacity). Lets a
+ *                       streamer dial an overlay back so it sits
+ *                       quieter against busy gameplay.
+ *   offsetX     px      nudge the overlay horizontally (+ = right).
+ *   offsetY     px      nudge the overlay vertically (+ = down).
+ *                       Offsets apply as a body translate — handy for
+ *                       pixel-aligning against a webcam frame or HUD.
  */
 (() => {
   const params = new URLSearchParams(location.search);
@@ -66,6 +79,43 @@
     root.setProperty('--font', font);
     document.addEventListener('DOMContentLoaded', () => {
       document.body.style.fontFamily = font;
+    }, { once: true });
+  }
+
+  // ── Layout knobs: scale / opacity / offset ──────────────────────────
+  // These three are applied together in a single DOMContentLoaded pass
+  // so they don't fight each other (zoom + transform + opacity are
+  // independent body properties; zoom must be set before transform so
+  // the translate distances read in pre-zoom px the streamer expects).
+  const scale   = num(params.get('scale'));
+  const opacity = num(params.get('opacity'));
+  const offsetX = num(params.get('offsetX'));
+  const offsetY = num(params.get('offsetY'));
+
+  const hasLayout =
+    (scale   !== null && scale   > 0 && scale   <= 3) ||
+    (opacity !== null && opacity >= 0 && opacity <= 100) ||
+    (offsetX !== null) || (offsetY !== null);
+
+  if (hasLayout) {
+    document.addEventListener('DOMContentLoaded', () => {
+      const b = document.body;
+      // scale multiplies any existing zoom from fontScale above so a
+      // streamer can use both knobs without one clobbering the other.
+      if (scale !== null && scale > 0 && scale <= 3) {
+        const prior = parseFloat(b.style.zoom) || 1;
+        b.style.zoom = String(prior * scale);
+      }
+      if (opacity !== null && opacity >= 0 && opacity <= 100) {
+        b.style.opacity = String(opacity / 100);
+      }
+      if (offsetX !== null || offsetY !== null) {
+        const dx = offsetX || 0;
+        const dy = offsetY || 0;
+        // translate3d keeps the offset on the GPU layer and never
+        // re-flows the document.
+        b.style.transform = 'translate3d(' + dx + 'px, ' + dy + 'px, 0)';
+      }
     }, { once: true });
   }
 })();

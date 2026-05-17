@@ -39,6 +39,10 @@
 import { getWallet, transfer, leaderboard, applyVaultDelta } from './wallet.js';
 import { coinflip, dice, daily } from './games.js';
 import {
+  balanceEmbed, dailyEmbed, gameEmbed, heroEmbed, shopEmbed, achievementEmbed,
+  COLORS, n
+} from './embeds.js';
+import {
   getProfile, clearProfile, setField, setSocial, setGamerTag
 } from './profiles.js';
 import {
@@ -271,13 +275,8 @@ async function mainView(env, guild, userId, userName) {
 async function walletView(env, guild, userId, userName) {
   const w = await getWallet(env, guild, userId);
   return {
-    content:
-      `💰 **Wallet**\n` +
-      `Balance: **${w.balance ?? 0}** ⚡ bolts\n` +
-      `Lifetime earned: ${w.lifetimeEarned ?? w.balance ?? 0}\n` +
-      (w.dailyStreak ? `Daily streak: 🔥 ${w.dailyStreak} days\n` : '') +
-      (w.lastDailyUtc ? `Last daily: <t:${Math.floor(new Date(w.lastDailyUtc).getTime() / 1000)}:R>\n` : '') +
-      ((w.links || []).length ? `Linked: ${w.links.map(l => `\`${l.platform}:${l.username}\``).join(' · ')}` : ''),
+    content: '',
+    embeds: [balanceEmbed({ userId, userName, wallet: w, links: w.links || [] })],
     components: [
       row(
         button('🎁 Claim daily',   'lo:daily',       BTN_SUCCESS),
@@ -291,8 +290,17 @@ async function walletView(env, guild, userId, userName) {
 
 async function dailyAction(env, guild, userId, userName) {
   const r = await daily(env, guild, userId);
+  // Cooldown / error path keeps the plain-text reply — embeds shouldn't
+  // celebrate a "you already claimed" reply.
+  if (!r.won) {
+    return {
+      content: r.explanation || 'Daily already claimed.',
+      components: [backRow('lo:wallet')]
+    };
+  }
   return {
-    content: r.explanation || (r.won ? `🎁 +${r.delta} bolts` : 'Daily already claimed.'),
+    content: '',
+    embeds: [dailyEmbed({ userName, payout: r.payout, streak: r.streak })],
     components: [backRow('lo:wallet')]
   };
 }
@@ -514,7 +522,7 @@ async function equipPicker(env, guild, userId) {
   const hero = await loadHeroFor(env, guild, userId);
   const options = sortBag(hero.bag).slice(0, 25).map(it => ({
     label: `${it.glyph} ${it.name}`.slice(0, 100),
-    description: `${it.rarity} · ${it.slot}${it.powerBonus ? ` · +${it.powerBonus} ATK` : ''}${it.defenseBonus ? ` · +${it.defenseBonus} DEF` : ''}`.slice(0, 100),
+    description: `${it.rarity} · ${it.slot}${it.powerBonus ? ` · +${it.powerBonus} ATK` : ''}${it.defenseBonus ? ` · +${it.defenseBonus} DEF` : ''}${it.ability ? ` · ${it.ability}` : ''}`.slice(0, 100),
     value: `lo:equip:do:${it.id.slice(0, 16)}`
   }));
   if (options.length === 0) {
@@ -680,14 +688,34 @@ function gamesView() {
 async function cmdCoinflipInline(env, guild, userId, bet, userName) {
   if (!Number.isInteger(bet) || bet <= 0) return { content: '❌ Wager must be a positive integer.' };
   const r = await coinflip(env, guild, userId, bet);
-  return { content: r.explanation || (r.won ? `🪙 Won ${r.delta}!` : `🪙 Lost ${Math.abs(r.delta || bet)}.`) };
+  // Failure paths (insufficient balance, etc.) return won=false with a
+  // payout of 0; only render the embed when an actual flip happened.
+  if (r.payout === 0 && !r.won) return { content: r.explanation || '❌ ' + (r.reason || 'flip failed') };
+  return {
+    content: '',
+    embeds: [gameEmbed({
+      kind: 'coinflip', won: r.won, userName,
+      wager: bet,
+      payout: r.won ? r.payout : 0,
+      result: r.won ? 'heads' : 'tails'
+    })]
+  };
 }
 
 async function cmdDiceInline(env, guild, userId, bet, target, userName) {
   if (!Number.isInteger(bet) || bet <= 0)     return { content: '❌ Wager must be a positive integer.' };
   if (!Number.isInteger(target) || target < 1 || target > 6) return { content: '❌ Target must be 1-6.' };
   const r = await dice(env, guild, userId, bet, target);
-  return { content: r.explanation || (r.won ? `🎲 Won ${r.delta}!` : `🎲 Lost ${Math.abs(r.delta || bet)}.`) };
+  if (r.payout === 0 && !r.won && !r.roll) return { content: r.explanation || '❌ ' + (r.reason || 'roll failed') };
+  return {
+    content: '',
+    embeds: [gameEmbed({
+      kind: 'dice', won: r.won, userName,
+      wager: bet,
+      payout: r.won ? r.payout : 0,
+      target, rolled: r.roll
+    })]
+  };
 }
 
 // ── Link ───────────────────────────────────────────────────────────

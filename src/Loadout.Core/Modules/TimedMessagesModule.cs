@@ -90,8 +90,6 @@ namespace Loadout.Modules
                 .Where(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Message));
             if (activeGroups != null && activeGroups.Length > 0)
                 source = source.Where(t => activeGroups.Contains(t.Group ?? "Default", StringComparer.OrdinalIgnoreCase));
-            if (!Entitlements.IsUnlocked(Feature.UnlimitedTimers))
-                source = source.Take(3);
 
             var list = source.ToList();
             if (list.Count == 0) return null;

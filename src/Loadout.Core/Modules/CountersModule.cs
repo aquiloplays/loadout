@@ -19,8 +19,8 @@ namespace Loadout.Modules
     ///   !&lt;name&gt; reset       set to 0
     ///   !&lt;name&gt; set 7       set to 7
     ///
-    /// Mutating commands respect the counter's ModifyRoles. Free tier supports
-    /// up to 3 counters; Plus/Pro lifts the cap.
+    /// Mutating commands respect the counter's ModifyRoles. Any number of
+    /// counters is supported.
     ///
     /// Every change publishes counter.updated on the Aquilo Bus so OBS overlays
     /// update live without polling.
@@ -43,10 +43,7 @@ namespace Loadout.Modules
             var cmd = (spaceIdx < 0 ? msg.Substring(1) : msg.Substring(1, spaceIdx - 1)).ToLowerInvariant();
             var rest = spaceIdx < 0 ? "" : msg.Substring(spaceIdx + 1).Trim();
 
-            // Free tier cap: only the first 3 enabled counters respond to commands.
             var counters = s.Counters.Counters;
-            if (!Entitlements.IsUnlocked(Feature.UnlimitedCounters))
-                counters = counters.Take(3).ToList();
 
             var counter = counters.FirstOrDefault(c =>
                 string.Equals(c.Name, cmd, StringComparison.OrdinalIgnoreCase));

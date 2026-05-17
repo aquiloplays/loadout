@@ -1,4 +1,4 @@
-# Loadout - cut a release.
+﻿# Loadout - cut a release.
 #
 # Usage:
 #   .\tools\release.ps1 -Version 0.2.0
@@ -43,7 +43,7 @@ Write-Host ("=" * 60) -ForegroundColor Cyan
 
 # ── 1. Update csproj ───────────────────────────────────────────────────────
 $csprojPath = "src/Loadout.Core/Loadout.Core.csproj"
-$csproj = Get-Content $csprojPath -Raw
+$csproj = Get-Content $csprojPath -Raw -Encoding utf8
 $csproj = [regex]::Replace($csproj, '<Version>[^<]+</Version>',         "<Version>$Version</Version>")
 $csproj = [regex]::Replace($csproj, '<AssemblyVersion>[^<]+</AssemblyVersion>', "<AssemblyVersion>$assemblyVersion</AssemblyVersion>")
 $csproj = [regex]::Replace($csproj, '<FileVersion>[^<]+</FileVersion>', "<FileVersion>$assemblyVersion</FileVersion>")
@@ -52,7 +52,7 @@ Write-Host "  ✓ Updated csproj"
 
 # ── 2. Update 00-boot.cs ───────────────────────────────────────────────────
 $bootPath = "streamerbot/actions/00-boot.cs"
-$boot = Get-Content $bootPath -Raw
+$boot = Get-Content $bootPath -Raw -Encoding utf8
 $boot = [regex]::Replace($boot, 'private const string Version\s*=\s*"[^"]+";', "private const string Version = `"$Version`";")
 Set-Content -Path $bootPath -Value $boot -NoNewline -Encoding utf8
 Write-Host "  ✓ Updated 00-boot.cs"
@@ -60,7 +60,7 @@ Write-Host "  ✓ Updated 00-boot.cs"
 # ── 3. CHANGELOG ───────────────────────────────────────────────────────────
 $changelogPath = "CHANGELOG.md"
 if (Test-Path $changelogPath) {
-    $changelog = Get-Content $changelogPath -Raw
+    $changelog = Get-Content $changelogPath -Raw -Encoding utf8
     $today = (Get-Date).ToString("yyyy-MM-dd")
     if ($changelog -match '## \[Unreleased\]') {
         $newHeading = "## [Unreleased]`n`n(Nothing queued.)`n`n---`n`n## [$Version] - $today"

@@ -273,11 +273,11 @@ namespace Loadout.UI
         {
             var s = PatreonClient.Instance.Current;
             if (s.SignedIn && s.Entitled)
-                TxtPatreonStatus.Text = "Connected: " + Entitlements.CurrentTierDisplay() + " - all features unlocked.";
+                TxtPatreonStatus.Text = "Connected: " + Entitlements.CurrentTierDisplay() + " - thanks for supporting Loadout.";
             else if (s.SignedIn)
-                TxtPatreonStatus.Text = "Connected (no active tier yet). Pledge on Patreon to unlock Plus / Pro features.";
+                TxtPatreonStatus.Text = "Connected (no active tier yet). Every feature still works - a pledge gets you new features early.";
             else
-                TxtPatreonStatus.Text = "Not connected. The free tier still works fully.";
+                TxtPatreonStatus.Text = "Not connected. Every feature works without signing in.";
         }
 
         private async void BtnPatreonConnect_Click(object sender, RoutedEventArgs e)
@@ -345,6 +345,23 @@ namespace Loadout.UI
             ChkAdBreak.IsChecked    = true;
             ChkSubRaid.IsChecked    = true;
             ChkSubAnniv.IsChecked   = true;
+            ChkGoals.IsChecked      = true;     // Goal trackers
+            ChkCheckIn.IsChecked    = true;     // Daily check-in
+            ChkHype.IsChecked       = true;     // Hype train
+        }
+
+        /// <summary>Most-conservative preset — just the 6 modules every
+        /// streamer benefits from. No engagement loops, no integrations.
+        /// For brand-new installs who want to ease in.</summary>
+        private void BtnPresetEssentials_Click(object sender, RoutedEventArgs e)
+        {
+            foreach (var c in AllModuleChecks()) c.IsChecked = false;
+            ChkInfo.IsChecked     = true;
+            ChkWelcomes.IsChecked = true;
+            ChkAlerts.IsChecked   = true;
+            ChkTimers.IsChecked   = true;
+            ChkFun.IsChecked      = true;     // Counters
+            ChkSubAnniv.IsChecked = true;
         }
     }
 }

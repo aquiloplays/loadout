@@ -1,23 +1,20 @@
-# Loadout — one-command product launcher.
+﻿# Loadout — one-command product launcher.
 #
 # Wraps every safe-to-automate step into a single Confirm-prompted
 # pipeline. Things requiring your credentials (GitHub push, Railway
-# deploy, Fourthwall product creation) are NOT done here — those
-# require interactive sign-in and the script just prints the exact
-# commands at the end.
+# deploy) are NOT done here — those require interactive sign-in and
+# the script just prints the exact commands at the end.
 #
 # Usage:
 #   .\tools\launch.ps1                 # walks every step, asks per phase
 #   .\tools\launch.ps1 -Yes            # autoconfirm safe steps
 #   .\tools\launch.ps1 -Version 0.1.0  # bumps version + tags
 #   .\tools\launch.ps1 -SkipBuild      # skip rebuild
-#   .\tools\launch.ps1 -SkipImages     # skip Edge screenshots
 [CmdletBinding()]
 param(
     [string]$Version    = "0.1.0",
     [switch]$Yes,
     [switch]$SkipBuild,
-    [switch]$SkipImages,
     [switch]$SkipImport,
     [string]$SbPath     = "$env:USERPROFILE\Desktop\Streamerbot",
     [string]$BotPath    = "$env:USERPROFILE\Desktop\aquilo-bot"
@@ -62,42 +59,8 @@ if (-not (Test-Path $SbPath)) {
   Write-Host "Installed to $dataDir" -ForegroundColor Green
 }
 
-# ── 3. Render marketing images ─────────────────────────────────────────────
-Heading "3. Render marketing images via headless Edge"
-if ($SkipImages) {
-  Write-Host "Skipped (-SkipImages)" -ForegroundColor Yellow
-} elseif (Confirm "Render hero (1200x800) + og:image (1200x630) PNGs?") {
-  $edge = @(
-    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
-    "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
-  ) | Where-Object { Test-Path $_ } | Select-Object -First 1
-
-  if (-not $edge) {
-    Write-Host "Edge not found — skipping image render" -ForegroundColor Yellow
-  } else {
-    $banner = "$repoRoot\marketing\fourthwall\promo-banner.html"
-    $bannerUrl = "file:///" + $banner.Replace('\','/')
-
-    foreach ($spec in @(
-      @{ name = "hero-1200x800.png"; w = 1200; h = 800 },
-      @{ name = "og-1200x630.png";   w = 1200; h = 630 }
-    )) {
-      $out = Join-Path "$repoRoot\marketing\fourthwall" $spec.name
-      if (Test-Path $out) { Remove-Item $out }
-      & $edge --headless=new "--screenshot=$out" "--window-size=$($spec.w),$($spec.h)" --hide-scrollbars --default-background-color=00000000 $bannerUrl
-      Start-Sleep -Seconds 2
-      if (Test-Path $out) {
-        $kb = [math]::Round((Get-Item $out).Length / 1KB, 1)
-        Write-Host ("  + " + $out + " (" + $kb + " KB)") -ForegroundColor Gray
-      }
-    }
-    Copy-Item "$repoRoot\marketing\fourthwall\og-1200x630.png" "$repoRoot\aquilo-gg\loadout\og.png" -Force
-    Write-Host "  + copied og.png to landing page" -ForegroundColor Gray
-  }
-}
-
-# ── 4. Stage Loadout git commit ────────────────────────────────────────────
-Heading "4. Stage local git commits (no push)"
+# ── 3. Stage Loadout git commit ────────────────────────────────────────────
+Heading "3. Stage local git commits (no push)"
 if (Confirm "Stage and commit any uncommitted Loadout changes?") {
   Set-Location $repoRoot
   if (-not (Test-Path ".git")) { git init -b main; }
@@ -111,7 +74,7 @@ if (Confirm "Stage and commit any uncommitted Loadout changes?") {
   }
 }
 
-# ── 5. Stage aquilo-bot git commit ─────────────────────────────────────────
+# ── 4. Stage aquilo-bot git commit ─────────────────────────────────────────
 if ((Test-Path $BotPath) -and (Confirm "Stage and commit aquilo-bot?")) {
   Push-Location $BotPath
   try {
@@ -128,8 +91,8 @@ if ((Test-Path $BotPath) -and (Confirm "Stage and commit aquilo-bot?")) {
   finally { Pop-Location }
 }
 
-# ── 6. Tag local v$Version ─────────────────────────────────────────────────
-Heading "6. Tag Loadout v$Version (local)"
+# ── 5. Tag local v$Version ─────────────────────────────────────────────────
+Heading "5. Tag Loadout v$Version (local)"
 if (Confirm "Create local tag v$Version on Loadout?") {
   Set-Location $repoRoot
   $existing = git tag --list ("v" + $Version)
@@ -141,7 +104,7 @@ if (Confirm "Create local tag v$Version on Loadout?") {
   }
 }
 
-# ── 7. Print handoff ────────────────────────────────────────────────────────
+# ── 6. Print handoff ────────────────────────────────────────────────────────
 Heading "✓ Local prep complete — handoff steps below"
 Write-Host @"
 
@@ -167,11 +130,6 @@ Things you need to do (require your credentials):
     railway init                                     # link this folder
     railway up                                       # ships the Dockerfile
     Set env vars in Railway dashboard (.env.example has the list)
-
-  Fourthwall products
-    Use marketing/fourthwall/copy.md for descriptions
-    Upload marketing/fourthwall/hero-1200x800.png as the hero
-    Configure webhook → https://<railway>/fourthwall with X-Aquilo-Bot-Secret
 
 "@ -ForegroundColor White
 

@@ -19,11 +19,15 @@
   const card    = $('card');
   const coin    = card.querySelector('.coin');
   const die     = card.querySelector('.die');
-  const diePip  = card.querySelector('.die-pip');
   const slots   = card.querySelector('.slots');
   const reels   = [$('reel0'), $('reel1'), $('reel2')];
   const rps     = card.querySelector('.rps');
   const roulette = card.querySelector('.roulette');
+  const heist   = card.querySelector('.heist');
+  const heistFill  = $('heist-fill');
+  const heistText  = $('heist-text');
+  const heistCount = $('heist-count');
+  const heistTime  = $('heist-time');
   const userEl  = $('user');
   const wagerEl = $('wager');
   const outcome = $('outcome');
@@ -75,18 +79,25 @@
     }
   }
 
-  let hideTimer = null;
+  let hideTimer  = null;
   let pulseTimer = null;
   let slotsTimer = null;
+  let heistTimer = null;
+  let heistDeadline = 0;
+  let heistTarget   = 0;
 
   function resetVisuals() {
-    coin.style.display = 'none';
-    die.style.display  = 'none';
+    coin.classList.remove('show');
+    die.classList.remove('show');
     slots.classList.remove('show');
     if (rps)      rps.classList.remove('show');
     if (roulette) roulette.classList.remove('show', 'spinning');
+    if (heist)    heist.classList.remove('show', 'spinning', 'success', 'failure');
+    if (heistTimer) { clearInterval(heistTimer); heistTimer = null; }
     coin.classList.remove('flipping', 'show-heads', 'show-tails');
-    die.classList.remove('rolling');
+    // Strip every land-* class so the next roll's land-N is the only one
+    // active (otherwise the previous roll's settle transform leaks in).
+    die.classList.remove('rolling', 'land-1', 'land-2', 'land-3', 'land-4', 'land-5', 'land-6');
     reels.forEach(r => r.classList.remove('spinning', 'locked'));
     card.classList.remove('win', 'lose', 'pulse');
     // Clear lever state so back-to-back !slots events don't leave the
@@ -110,17 +121,26 @@
 
   function showCoin(result, won, user, wager, payout) {
     resetVisuals();
-    coin.style.display = 'block';
-    coin.classList.add('flipping', result === 'heads' ? 'show-heads' : 'show-tails');
+    // Two-frame swap to (re)kick the keyframe animation when this fires
+    // back-to-back. Without the offsetWidth read the second add-class
+    // collapses with the first remove-class and produces no flip.
+    coin.classList.add('show');
+    void coin.offsetWidth;
+    coin.classList.add('flipping', result === 'tails' ? 'show-tails' : 'show-heads');
     fillLines(user, wager, won, payout, 'flipped ' + (result || ''));
     schedulePulse();
   }
 
   function showDie(rolled, target, won, user, wager, payout) {
     resetVisuals();
-    die.style.display = 'flex';
+    // Clamp to 1..6; default to 1 if missing/invalid (the visual still
+    // needs to land on a face). The result text shows whatever was
+    // actually rolled even if out-of-range.
+    var face = parseInt(rolled, 10);
+    if (!(face >= 1 && face <= 6)) face = 1;
+    die.classList.add('show', 'land-' + face);
+    void die.offsetWidth;
     die.classList.add('rolling');
-    diePip.textContent = String(rolled || '?');
     fillLines(user, wager, won, payout,
       'rolled ' + (rolled || '?') + (target ? ' (target ' + target + ')' : ''));
     schedulePulse();
@@ -287,6 +307,111 @@
     hideTimer = setTimeout(function () { card.classList.add('hidden'); }, 5500);
   }
 
+  // ── Heist ──────────────────────────────────────────────────────────
+  // Three states: open (joining), success, failure. The card stays open
+  // for the full join window — we don't hide it until the deadline +
+  // a celebration buffer. setHeistMeter is called both on `start` and
+  // `contribute` to redraw the fill bar against the current target.
+  function setHeistMeter(totalPot, target) {
+    var pct = target > 0 ? Math.max(0, Math.min(100, (totalPot / target) * 100)) : 0;
+    if (heistFill) heistFill.style.width = pct.toFixed(1) + '%';
+    if (heistText) heistText.textContent = (totalPot || 0) + ' / ' + (target || 0) + ' ⚡';
+    heistTarget = target;
+  }
+  function fmtHeistTime(ms) {
+    if (ms <= 0) return '0s';
+    var s = Math.ceil(ms / 1000);
+    return s + 's';
+  }
+  function tickHeistCountdown() {
+    if (!heistTime) return;
+    heistTime.textContent = fmtHeistTime(heistDeadline - Date.now());
+  }
+  function startHeistCountdown(ms) {
+    heistDeadline = Date.now() + Math.max(0, ms || 0);
+    if (heistTimer) clearInterval(heistTimer);
+    heistTimer = setInterval(tickHeistCountdown, 250);
+    tickHeistCountdown();
+  }
+  function showHeistStart(d) {
+    resetVisuals();
+    if (!heist) return;
+    card.classList.remove('hidden');
+    heist.classList.add('show', 'spinning');
+    setHeistMeter(d.totalPot || d.stake || 0, d.target || 0);
+    if (heistCount) heistCount.textContent = '1';
+    startHeistCountdown(d.deadlineMs || 60000);
+    fillLines(d.initiator, d.stake, false, 0, 'pulled a heist! crew up with !join');
+    // Re-style the lines bottom-row — heist starts with no win/lose so
+    // we strip the loss tint that fillLines applies by default.
+    outcome.classList.remove('lose');
+    outcome.textContent = 'JOIN THE CREW';
+    outcome.classList.remove('win');
+    card.classList.remove('win', 'lose');
+    if (hideTimer) clearTimeout(hideTimer);
+    // Auto-hide if no settle event lands — defense in depth so a dropped
+    // bus connection can't pin the overlay forever.
+    hideTimer = setTimeout(function () {
+      card.classList.add('hidden');
+      if (heistTimer) { clearInterval(heistTimer); heistTimer = null; }
+    }, (d.deadlineMs || 60000) + 8000);
+  }
+  function showHeistContribute(d) {
+    if (!heist || !heist.classList.contains('show')) return;     // contribute without start = ignore
+    setHeistMeter(d.totalPot || 0, d.target || heistTarget);
+    if (heistCount) heistCount.textContent = String(d.contributors || 1);
+    // Brief flash on the meter to signal an incoming contribution.
+    if (heistFill) {
+      heistFill.style.boxShadow = 'inset 0 1px 0 rgba(255,255,255,.4), 0 0 18px rgba(240,180,41,.85)';
+      setTimeout(function () { if (heistFill) heistFill.style.boxShadow = ''; }, 260);
+    }
+    fillLines(d.initiator || '', '', false, 0,
+      (d.user || 'someone') + ' joined +' + (d.stake || 0) + ' ⚡');
+    outcome.textContent = 'POT ' + (d.totalPot || 0) + ' / ' + (d.target || heistTarget);
+  }
+  function showHeistSuccess(d) {
+    if (!heist) return;
+    if (!heist.classList.contains('show')) heist.classList.add('show');
+    heist.classList.remove('spinning');
+    heist.classList.add('success');
+    if (heistTimer) { clearInterval(heistTimer); heistTimer = null; }
+    if (heistTime) heistTime.textContent = '✓';
+    setHeistMeter(d.totalPot || heistTarget, d.target || heistTarget);
+    card.classList.remove('lose');
+    card.classList.add('win');
+    fillLines(d.initiator || '', '', true, d.payout,
+      'HEIST SUCCESS! crew of ' + (d.contributors || 0) + ' splits ' + (d.payout || 0) + ' ⚡');
+    if (pulseTimer) clearTimeout(pulseTimer);
+    pulseTimer = setTimeout(function () {
+      card.classList.remove('pulse');
+      void card.offsetWidth;
+      card.classList.add('pulse');
+    }, 50);
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () { card.classList.add('hidden'); }, 6500);
+  }
+  function showHeistFailure(d) {
+    if (!heist) return;
+    if (!heist.classList.contains('show')) heist.classList.add('show');
+    heist.classList.remove('spinning');
+    heist.classList.add('failure');
+    if (heistTimer) { clearInterval(heistTimer); heistTimer = null; }
+    if (heistTime) heistTime.textContent = '✗';
+    setHeistMeter(d.totalPot || 0, d.target || heistTarget);
+    card.classList.remove('win');
+    card.classList.add('lose');
+    fillLines(d.initiator || '', '', false, 0,
+      'HEIST FAILED — pot ' + (d.totalPot || 0) + '/' + (d.target || heistTarget));
+    if (pulseTimer) clearTimeout(pulseTimer);
+    pulseTimer = setTimeout(function () {
+      card.classList.remove('pulse');
+      void card.offsetWidth;
+      card.classList.add('pulse');
+    }, 50);
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () { card.classList.add('hidden'); }, 5500);
+  }
+
   function fillLines(user, wager, won, payout, mid) {
     userEl.textContent = (user || '?') + ' — ' + mid;
     wagerEl.textContent = 'wagered ' + (wager || 0) + ' ⚡';
@@ -335,6 +460,10 @@
       case 'bolts.minigame.roulette':
         showRoulette(d.pick, d.pocket, d.resultColor, !!d.won, d.user, d.wager, d.payout);
         break;
+      case 'bolts.heist.start':      showHeistStart(d); break;
+      case 'bolts.heist.contribute': showHeistContribute(d); break;
+      case 'bolts.heist.success':    showHeistSuccess(d); break;
+      case 'bolts.heist.failure':    showHeistFailure(d); break;
     }
   }
 
@@ -352,7 +481,7 @@
       setStatus('connected');
       backoff = 1000;
       ws.send(JSON.stringify({ v: 1, kind: 'hello',     client: 'overlay-minigames' }));
-      ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: ['bolts.minigame.*'] }));
+      ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: ['bolts.minigame.*', 'bolts.heist.*'] }));
     };
     ws.onmessage = (e) => {
       let msg; try { msg = JSON.parse(e.data); } catch { return; }

@@ -130,11 +130,19 @@
     <DropShadowEffect x:Key="Shadow.Window" Color="Black" BlurRadius="32" ShadowDepth="0" Opacity="0.55" />
     <DropShadowEffect x:Key="Shadow.Pill"   Color="Black" BlurRadius="6"  ShadowDepth="2" Opacity="0.30" Direction="270" />
 
-    <!-- ============== Defaults ============================================ -->
+    <!-- ============== Defaults ============================================
+         Font stack: Segoe UI Variable / Inter Display where available,
+         fall back to Segoe UI on every Win10+ install. The variable
+         font supports the same OpenType ss01 / cv11 features the
+         overlays use, so type renders consistently across the app
+         and the OBS surfaces. -->
+    <FontFamily x:Key="UiFont">Segoe UI Variable Display, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif</FontFamily>
+    <FontFamily x:Key="UiFontMono">Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
+
     <Style TargetType="Window">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Primary}" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
-        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
         <Setter Property="FontSize"   Value="13" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         <Setter Property="TextOptions.TextRenderingMode"  Value="ClearType" />
@@ -142,14 +150,14 @@
 
     <Style TargetType="TextBlock">
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
-        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
         <Setter Property="FontSize"   Value="13" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
     </Style>
     <Style TargetType="Label">
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="FontFamily" Value="Segoe UI" />
+        <Setter Property="FontFamily" Value="{StaticResource UiFont}" />
         <Setter Property="FontSize"   Value="13" />
     </Style>
     <Style TargetType="ScrollViewer"><Setter Property="Background" Value="Transparent" /></Style>
@@ -159,22 +167,22 @@
 
     <!-- ============== Typography scale ==================================== -->
     <Style x:Key="H1" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-        <Setter Property="FontSize"   Value="22" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize"   Value="24" />
+        <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
-        <Setter Property="Margin"     Value="0 0 0 6" />
+        <Setter Property="Margin"     Value="0 0 0 8" />
     </Style>
     <Style x:Key="H2" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
-        <Setter Property="FontSize"   Value="14" />
+        <Setter Property="FontSize"   Value="15" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Primary}" />
-        <Setter Property="Margin"     Value="0 0 0 6" />
+        <Setter Property="Margin"     Value="0 0 0 8" />
     </Style>
     <Style x:Key="H3" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="FontSize"   Value="11" />
-        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontWeight" Value="Bold" />
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Faint}" />
-        <Setter Property="Margin"     Value="0 14 0 6" />
+        <Setter Property="Margin"     Value="0 16 0 6" />
     </Style>
     <Style x:Key="Muted" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Muted}" />
@@ -183,6 +191,23 @@
     <Style x:Key="Faint" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
         <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Faint}" />
         <Setter Property="FontSize"   Value="11" />
+    </Style>
+    <!-- Eyebrow — small uppercase tracking for section headers above an H2.
+         Use sparingly; the contrast with H2 makes a labelled card feel
+         deliberate without an extra heading level. -->
+    <Style x:Key="Eyebrow" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontSize"   Value="10" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="Foreground" Value="{StaticResource Brush.Fg.Muted}" />
+        <Setter Property="Margin"     Value="0 0 0 4" />
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
+    </Style>
+    <!-- Mono num — for tabular figures (balances, deltas, IDs). Pair
+         with `FontVariantNumericTabular` on call site if WPF version
+         supports it (4.7+ does). -->
+    <Style x:Key="MonoNum" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="FontFamily" Value="{StaticResource UiFontMono}" />
+        <Setter Property="FontSize"   Value="13" />
     </Style>
     <!-- Wordmark: gradient fill via OpacityMask trick -->
     <Style x:Key="Wordmark" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">

@@ -17,13 +17,56 @@
     pos     - "tc" | "tr" | "tl" | "bc" (default) | "bl" | "br"
     accent  - hex (overrides --accent via _shared/theme.js)
 -->
+<link rel="stylesheet" href="../_shared/loadout-design.css">
 <link rel="stylesheet" href="style.css">
 </head>
 <body data-pos="bc">
   <div id="card" class="hidden">
     <div id="visual" class="visual">
-      <div class="coin"><span class="coin-face heads">H</span><span class="coin-face tails">T</span></div>
-      <div class="die"><span class="die-pip"></span></div>
+      <!-- 3D coin: two faces + a ring of side panels arranged radially around
+           the y-axis using preserve-3d. The whole thing rotates as a single
+           unit; the side panels make the edge sweep visible during the spin
+           rather than just opacity-flipping between heads and tails. -->
+      <div class="coin">
+        <span class="coin-face heads">H</span>
+        <span class="coin-face tails">T</span>
+        <span class="coin-edge" style="--edge-angle:0deg"></span>
+        <span class="coin-edge" style="--edge-angle:15deg"></span>
+        <span class="coin-edge" style="--edge-angle:30deg"></span>
+        <span class="coin-edge" style="--edge-angle:45deg"></span>
+        <span class="coin-edge" style="--edge-angle:60deg"></span>
+        <span class="coin-edge" style="--edge-angle:75deg"></span>
+        <span class="coin-edge" style="--edge-angle:90deg"></span>
+        <span class="coin-edge" style="--edge-angle:105deg"></span>
+        <span class="coin-edge" style="--edge-angle:120deg"></span>
+        <span class="coin-edge" style="--edge-angle:135deg"></span>
+        <span class="coin-edge" style="--edge-angle:150deg"></span>
+        <span class="coin-edge" style="--edge-angle:165deg"></span>
+        <span class="coin-edge" style="--edge-angle:180deg"></span>
+        <span class="coin-edge" style="--edge-angle:195deg"></span>
+        <span class="coin-edge" style="--edge-angle:210deg"></span>
+        <span class="coin-edge" style="--edge-angle:225deg"></span>
+        <span class="coin-edge" style="--edge-angle:240deg"></span>
+        <span class="coin-edge" style="--edge-angle:255deg"></span>
+        <span class="coin-edge" style="--edge-angle:270deg"></span>
+        <span class="coin-edge" style="--edge-angle:285deg"></span>
+        <span class="coin-edge" style="--edge-angle:300deg"></span>
+        <span class="coin-edge" style="--edge-angle:315deg"></span>
+        <span class="coin-edge" style="--edge-angle:330deg"></span>
+        <span class="coin-edge" style="--edge-angle:345deg"></span>
+      </div>
+      <!-- 3D die: 6-face cube. JS sets `data-roll="N"` on .die which selects
+           one of six final-orientation classes (.face-1 .. .face-6) so the
+           cube settles with the rolled value face-forward. Pips on each
+           face are positioned with CSS grid. -->
+      <div class="die">
+        <div class="die-face die-face-1"><span class="pip"></span></div>
+        <div class="die-face die-face-2"><span class="pip"></span><span class="pip"></span></div>
+        <div class="die-face die-face-3"><span class="pip"></span><span class="pip"></span><span class="pip"></span></div>
+        <div class="die-face die-face-4"><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></div>
+        <div class="die-face die-face-5"><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></div>
+        <div class="die-face die-face-6"><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span><span class="pip"></span></div>
+      </div>
       <div class="slots">
         <div class="reel" id="reel0"></div>
         <div class="reel" id="reel1"></div>
@@ -50,6 +93,31 @@
         <div class="wheel" id="roulette-wheel"></div>
         <div class="ball"  id="roulette-ball"></div>
         <div class="pocket" id="roulette-pocket">0</div>
+      </div>
+      <!-- !heist vault — pot fills as contributors join. JS toggles
+           .show / .success / .failure to drive the state.
+             .heist-vault-door  → animated bank-vault door + dial
+             .heist-meter-fill  → liquid-fill bar of the pot vs target
+             .heist-crew        → tally of contributors / countdown -->
+      <div class="heist">
+        <div class="heist-vault">
+          <div class="heist-vault-ring"></div>
+          <div class="heist-vault-dial"></div>
+          <div class="heist-vault-spokes"></div>
+          <div class="heist-vault-center">$</div>
+        </div>
+        <div class="heist-meter">
+          <div class="heist-meter-fill" id="heist-fill"></div>
+          <div class="heist-meter-mark" style="left:50%"></div>
+          <div class="heist-meter-text" id="heist-text">0 / 0</div>
+        </div>
+        <div class="heist-crew">
+          <span class="heist-crew-label">CREW</span>
+          <span class="heist-crew-count" id="heist-count">0</span>
+          <span class="heist-crew-sep">·</span>
+          <span class="heist-crew-label">⏱</span>
+          <span class="heist-crew-time" id="heist-time">0s</span>
+        </div>
       </div>
     </div>
     <div class="lines">

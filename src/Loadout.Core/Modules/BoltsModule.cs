@@ -248,13 +248,22 @@ namespace Loadout.Modules
                 case "lb":            CmdLeaderboard(ctx, s);       return;
                 case "gift":          CmdGift(ctx, rest, s);        return;
                 case "boltrain":      CmdBoltRain(ctx, rest, s);    return;
-                case "slots":         CmdSlots(ctx, rest, s);       return;
+                // Per-game enable gate. The streamer can disable any
+                // minigame from the Settings card (Bolts → Minigames)
+                // without having to zero its wager bounds. A disabled
+                // command silently no-ops so it doesn't show up in
+                // the commands ticker either.
+                case "slots":         if (!s.Bolts.SlotsEnabled)    return; CmdSlots(ctx, rest, s);    return;
                 case "coinflip":
-                case "cf":            CmdCoinflip(ctx, rest, s);    return;
-                case "dice":          CmdDice(ctx, rest, s);        return;
-                case "rps":           CmdRps(ctx, rest, s);         return;
+                case "cf":            if (!s.Bolts.CoinflipEnabled) return; CmdCoinflip(ctx, rest, s); return;
+                case "dice":          if (!s.Bolts.DiceEnabled)     return; CmdDice(ctx, rest, s);     return;
+                case "rps":           if (!s.Bolts.RpsEnabled)      return; CmdRps(ctx, rest, s);      return;
                 case "roulette":
-                case "rl":            CmdRoulette(ctx, rest, s);    return;
+                case "rl":            if (!s.Bolts.RouletteEnabled) return; CmdRoulette(ctx, rest, s); return;
+                // Community heist event — initiator stakes, opens a join
+                // window, crew splits the pot if it crosses the target.
+                case "heist":         if (!s.Bolts.HeistEnabled)    return; HeistController.Instance.HandleStart(ctx, rest, s); return;
+                case "join":          if (!s.Bolts.HeistEnabled)    return; HeistController.Instance.HandleJoin (ctx, rest, s); return;
             }
 
             // Rotation widget integration: !boltsong <song> spends Bolts to
@@ -814,27 +823,25 @@ namespace Loadout.Modules
         // ── !rps <rock|paper|scissors> <wager> — chat-side rock paper
         // scissors against the bot. Standard 3x3 outcome matrix. Tie
         // returns the wager untouched (no win, no loss); win pays
-        // wager × 1 (net +wager); loss takes the wager. Same wager
-        // bounds + per-user game cooldown as the other minigames.
+        // wager × 1 (net +wager); loss takes the wager. Wager bounds
+        // are now dedicated (RpsMin/MaxWager) — previously borrowed
+        // coinflip's bounds, which made independent tuning impossible.
         private void CmdRps(EventContext ctx, string rest, LoadoutSettings s)
         {
-            // Use coinflip wager bounds as the bounds for !rps too —
-            // same risk profile (50/50-ish odds with a tie escape).
-            // Streamers can disable by setting CoinflipMin/Max to 0.
-            if (s.Bolts.CoinflipMinWager <= 0 && s.Bolts.CoinflipMaxWager <= 0) return;
+            if (s.Bolts.RpsMinWager <= 0 && s.Bolts.RpsMaxWager <= 0) return;
 
             var parts = (rest ?? "").Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             string viewerPick = parts.Length > 0 ? parts[0].ToLowerInvariant() : "";
             string normalized = NormalizeRps(viewerPick);
             if (string.IsNullOrEmpty(normalized) || parts.Length < 2 ||
                 !long.TryParse(parts[1], out var wager) ||
-                wager < s.Bolts.CoinflipMinWager || wager > s.Bolts.CoinflipMaxWager)
+                wager < s.Bolts.RpsMinWager || wager > s.Bolts.RpsMaxWager)
             {
                 if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:rps:usage", TimeSpan.FromSeconds(2)))
                     new MultiPlatformSender(CphPlatformSender.Instance)
                         .Send(ctx.Platform,
                             "@" + ctx.User + " usage: !rps <rock|paper|scissors> <wager> (" +
-                            s.Bolts.CoinflipMinWager + "-" + s.Bolts.CoinflipMaxWager + " " + s.Bolts.Emoji + ")",
+                            s.Bolts.RpsMinWager + "-" + s.Bolts.RpsMaxWager + " " + s.Bolts.Emoji + ")",
                             s.Platforms);
                 return;
             }
@@ -942,7 +949,7 @@ namespace Loadout.Modules
         // since roulette feels like a bigger-risk option.
         private void CmdRoulette(EventContext ctx, string rest, LoadoutSettings s)
         {
-            if (s.Bolts.DiceMinWager <= 0 && s.Bolts.DiceMaxWager <= 0) return;
+            if (s.Bolts.RouletteMinWager <= 0 && s.Bolts.RouletteMaxWager <= 0) return;
 
             var parts = (rest ?? "").Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
             string color = parts.Length > 0 ? parts[0].ToLowerInvariant() : "";
@@ -951,13 +958,13 @@ namespace Loadout.Modules
             else if (color == "g") color = "green";
             if (color != "red" && color != "black" && color != "green" || parts.Length < 2 ||
                 !long.TryParse(parts[1], out var wager) ||
-                wager < s.Bolts.DiceMinWager || wager > s.Bolts.DiceMaxWager)
+                wager < s.Bolts.RouletteMinWager || wager > s.Bolts.RouletteMaxWager)
             {
                 if (ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:roulette:usage", TimeSpan.FromSeconds(2)))
                     new MultiPlatformSender(CphPlatformSender.Instance)
                         .Send(ctx.Platform,
                             "@" + ctx.User + " usage: !roulette <red|black|green> <wager> (" +
-                            s.Bolts.DiceMinWager + "-" + s.Bolts.DiceMaxWager + " " + s.Bolts.Emoji + ")",
+                            s.Bolts.RouletteMinWager + "-" + s.Bolts.RouletteMaxWager + " " + s.Bolts.Emoji + ")",
                             s.Platforms);
                 return;
             }

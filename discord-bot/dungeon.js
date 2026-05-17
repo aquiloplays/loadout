@@ -15,147 +15,218 @@ import { getWallet, applyVaultDelta } from './wallet.js';
 // whole list; instead, the Worker picks a deterministic 12-item
 // rotation each day (date-seeded) so viewers come back daily for
 // new stock. Keep names + stats in sync with the DLL catalog.
+//
+// Pricing tier (May 2026 grindy economy rebalance):
+//   common    ×2.5 — 35-70      (was 14-22)
+//   uncommon  ×2.5 — 140-220    (was 55-78)
+//   rare      ×2.7 — 480-810    (was 180-240)
+//   epic      ×2.7 — 1620-2460  (was 600-740)
+// Plus +25%-ish premium on items with abilities (the gameplay value
+// justifies the spend). Daily payout starts at 100 and scales with
+// streak (×1 → ×10 capped at 10-day streak), so a 7-day streak earns
+// 700/day. Buying an epic still takes 3-4 peak-streak days; rares
+// arrive within 1 streak day. Pairs with the training cost hike below
+// (10 → 30 bolts/round) so power-grinders can't sidestep the gear loop.
 const SHOP_POOL = [
-  // slot, rarity, name, glyph, atk, def, gold (price), setName, weaponType, preferredClass
+  // slot, rarity, name, glyph, atk, def, gold (price), setName, weaponType, preferredClass, ability
   // ── Common ──
-  ['weapon',  'common', 'Wooden Sword',     '🗡',  1, 0,  16, '',          'sword',   'warrior'],
-  ['weapon',  'common', 'Bronze Shortsword', '🗡', 1, 0,  20, '',          'sword',   'warrior'],
-  ['weapon',  'common', 'Wooden Club',      '🏏',  1, 0,  16, '',          'hammer',  'warrior'],
-  ['weapon',  'common', 'Hand Axe',         '🪓',  1, 0,  18, '',          'axe',     'warrior'],
-  ['weapon',  'common', 'Rusty Dagger',     '🗡',  1, 0,  18, '',          'dagger',  'rogue'],
-  ['weapon',  'common', 'Throwing Knives',  '🔪',  1, 0,  18, '',          'dagger',  'rogue'],
-  ['weapon',  'common', 'Shortbow',         '🏹',  1, 0,  20, '',          'bow',     'ranger'],
-  ['weapon',  'common', 'Hunter\'s Sling',   '🪨', 1, 0,  18, '',          'sling',   'ranger'],
-  ['weapon',  'common', 'Apprentice Wand',  '🪄',  1, 0,  22, '',          'wand',    'mage'],
-  ['weapon',  'common', 'Twigwand',         '🌿',  1, 0,  20, '',          'wand',    'mage'],
-  ['weapon',  'common', 'Walking Staff',    '🥢',  1, 1,  22, '',          'staff',   'healer'],
-  ['weapon',  'common', 'Quarterstaff',     '🥢',  1, 1,  24, '',          'staff',   'healer'],
-  ['head',    'common', 'Leather Cap',      '🧢',  0, 1,  18, '',          '', ''],
-  ['head',    'common', 'Cloth Hood',       '👤',  0, 1,  18, '',          '', ''],
-  ['head',    'common', 'Wayfarer Hat',     '🎩',  0, 1,  22, 'wayfarer',  '', ''],
-  ['head',    'common', 'Padded Coif',      '🧣',  0, 1,  18, '',          '', ''],
-  ['chest',   'common', 'Cloth Tunic',      '👕',  0, 1,  18, '',          '', ''],
-  ['chest',   'common', 'Hide Vest',        '🦬',  0, 1,  16, '',          '', ''],
-  ['chest',   'common', 'Wayfarer Vest',    '👔',  0, 1,  22, 'wayfarer',  '', ''],
-  ['chest',   'common', 'Quilted Doublet',  '🧥',  0, 1,  20, '',          '', ''],
-  ['legs',    'common', 'Hempen Trousers',  '👖',  0, 1,  16, '',          '', ''],
-  ['legs',    'common', 'Patchwork Greaves', '🧱', 0, 1,  18, '',          '', ''],
-  ['legs',    'common', 'Wayfarer Trousers', '👖', 0, 1,  22, 'wayfarer',  '', ''],
-  ['boots',   'common', 'Worn Boots',       '🥾',  0, 1,  16, '',          '', ''],
-  ['boots',   'common', 'Sandals',          '🩴',  0, 1,  14, '',          '', ''],
-  ['boots',   'common', 'Wayfarer Shoes',   '👟',  0, 1,  22, 'wayfarer',  '', ''],
-  ['trinket', 'common', 'Crow Feather',     '🪶',  0, 1,  18, '',          '', ''],
-  ['trinket', 'common', 'Wooden Charm',     '🪵',  0, 1,  16, '',          '', ''],
-  ['trinket', 'common', 'Brass Ring',       '💍',  0, 1,  18, '',          '', ''],
-  ['trinket', 'common', 'Lucky Coin',       '🪙',  1, 0,  22, '',          '', ''],
+  ['weapon',  'common', 'Wooden Sword',      '🗡',  1, 0,  40, '',         'sword',   'warrior', ''],
+  ['weapon',  'common', 'Bronze Shortsword', '🗡',  1, 0,  50, '',         'sword',   'warrior', ''],
+  ['weapon',  'common', 'Wooden Club',       '🏏',  1, 0,  40, '',         'hammer',  'warrior', ''],
+  ['weapon',  'common', 'Hand Axe',          '🪓',  1, 0,  45, '',         'axe',     'warrior', ''],
+  ['weapon',  'common', 'Rusty Dagger',      '🗡',  1, 0,  45, '',         'dagger',  'rogue',   ''],
+  ['weapon',  'common', 'Throwing Knives',   '🔪',  1, 0,  45, '',         'dagger',  'rogue',   ''],
+  ['weapon',  'common', 'Shortbow',          '🏹',  1, 0,  50, '',         'bow',     'ranger',  ''],
+  ['weapon',  'common', 'Hunter\'s Sling',   '🪨',  1, 0,  45, '',         'sling',   'ranger',  ''],
+  ['weapon',  'common', 'Apprentice Wand',   '🪄',  1, 0,  55, '',         'wand',    'mage',    ''],
+  ['weapon',  'common', 'Twigwand',          '🌿',  1, 0,  50, '',         'wand',    'mage',    ''],
+  ['weapon',  'common', 'Walking Staff',     '🥢',  1, 1,  55, '',         'staff',   'healer',  ''],
+  ['weapon',  'common', 'Quarterstaff',      '🥢',  1, 1,  60, '',         'staff',   'healer',  ''],
+  ['head',    'common', 'Leather Cap',       '🧢',  0, 1,  45, '',         '', '', ''],
+  ['head',    'common', 'Cloth Hood',        '👤',  0, 1,  45, '',         '', '', ''],
+  ['head',    'common', 'Wayfarer Hat',      '🎩',  0, 1,  55, 'wayfarer', '', '', ''],
+  ['head',    'common', 'Padded Coif',       '🧣',  0, 1,  45, '',         '', '', ''],
+  ['chest',   'common', 'Cloth Tunic',       '👕',  0, 1,  45, '',         '', '', ''],
+  ['chest',   'common', 'Hide Vest',         '🦬',  0, 1,  40, '',         '', '', ''],
+  ['chest',   'common', 'Wayfarer Vest',     '👔',  0, 1,  55, 'wayfarer', '', '', ''],
+  ['chest',   'common', 'Quilted Doublet',   '🧥',  0, 1,  50, '',         '', '', ''],
+  ['legs',    'common', 'Hempen Trousers',   '👖',  0, 1,  40, '',         '', '', ''],
+  ['legs',    'common', 'Patchwork Greaves', '🧱',  0, 1,  45, '',         '', '', ''],
+  ['legs',    'common', 'Wayfarer Trousers', '👖',  0, 1,  55, 'wayfarer', '', '', ''],
+  ['boots',   'common', 'Worn Boots',        '🥾',  0, 1,  40, '',         '', '', ''],
+  ['boots',   'common', 'Sandals',           '🩴',  0, 1,  35, '',         '', '', ''],
+  ['boots',   'common', 'Wayfarer Shoes',    '👟',  0, 1,  55, 'wayfarer', '', '', ''],
+  ['trinket', 'common', 'Crow Feather',      '🪶',  0, 1,  45, '',         '', '', ''],
+  ['trinket', 'common', 'Wooden Charm',      '🪵',  0, 1,  40, '',         '', '', ''],
+  ['trinket', 'common', 'Brass Ring',        '💍',  0, 1,  45, '',         '', '', ''],
+  ['trinket', 'common', 'Lucky Coin',        '🪙',  1, 0,  70, '',         '', '', 'lucky'],
 
   // ── Uncommon ──
-  ['weapon',  'uncommon', 'Steel Longsword',  '⚔',   2, 0,  60, '',         'sword',   'warrior'],
-  ['weapon',  'uncommon', 'Knight\'s Sword',  '⚔',   3, 0,  68, '',         'sword',   'warrior'],
-  ['weapon',  'uncommon', 'Iron War Axe',     '🪓',  2, 0,  65, '',         'axe',     'warrior'],
-  ['weapon',  'uncommon', 'Battle Axe',       '🪓',  3, 0,  72, '',         'axe',     'warrior'],
-  ['weapon',  'uncommon', 'Steel Maul',       '🔨',  3, 0,  70, '',         'hammer',  'warrior'],
-  ['weapon',  'uncommon', 'Iron Halberd',     '⚔',   3, 1,  78, '',         'polearm', 'warrior'],
-  ['weapon',  'uncommon', 'Hunter\'s Bow',    '🏹',  2, 0,  60, '',         'bow',     'ranger'],
-  ['weapon',  'uncommon', 'Yew Longbow',      '🏹',  3, 0,  72, '',         'bow',     'ranger'],
-  ['weapon',  'uncommon', 'Hand Crossbow',    '🎯',  3, 0,  74, '',         'crossbow','ranger'],
-  ['weapon',  'uncommon', 'Stiletto',         '🗡',  2, 0,  60, '',         'dagger',  'rogue'],
-  ['weapon',  'uncommon', 'Pair of Daggers',  '🗡',  3, 0,  72, '',         'dagger',  'rogue'],
-  ['weapon',  'uncommon', 'Apprentice Tome',  '📕',  2, 0,  68, '',         'tome',    'mage'],
-  ['weapon',  'uncommon', 'Crystal Wand',     '🪄',  3, 0,  76, '',         'wand',    'mage'],
-  ['weapon',  'uncommon', 'Apprentice Staff', '🥢',  2, 1,  68, '',         'staff',   'mage'],
-  ['weapon',  'uncommon', 'Glass Orb',        '🔮',  2, 1,  72, '',         'orb',     'mage'],
-  ['weapon',  'uncommon', 'Healer\'s Cane',   '🪄',  1, 2,  68, '',         'staff',   'healer'],
-  ['weapon',  'uncommon', 'Oaken Holy Symbol','✝',   2, 1,  72, '',         'holy',    'healer'],
-  ['head',    'uncommon', 'Iron Helm',        '⛑',   0, 2,  55, 'ironclad', '', 'warrior'],
-  ['chest',   'uncommon', 'Chainmail',        '🦺',  0, 2,  60, 'ironclad', '', 'warrior'],
-  ['legs',    'uncommon', 'Iron Greaves',     '🦿',  0, 2,  55, 'ironclad', '', 'warrior'],
-  ['boots',   'uncommon', 'Iron Sabatons',    '👢',  0, 2,  55, 'ironclad', '', 'warrior'],
-  ['head',    'uncommon', 'Mage\'s Circlet',  '🔮',  1, 1,  70, 'arcane',   '', 'mage'],
-  ['chest',   'uncommon', 'Arcane Robes',     '🥋',  1, 1,  70, 'arcane',   '', 'mage'],
-  ['legs',    'uncommon', 'Arcane Skirt',     '🧣',  1, 1,  65, 'arcane',   '', 'mage'],
-  ['boots',   'uncommon', 'Arcane Slippers',  '🥿',  1, 1,  60, 'arcane',   '', 'mage'],
-  ['head',    'uncommon', 'Forester\'s Cap',  '🧢',  1, 1,  60, 'forester', '', 'ranger'],
-  ['chest',   'uncommon', 'Hunter\'s Garb',   '🦺',  1, 1,  65, 'forester', '', 'ranger'],
-  ['legs',    'uncommon', 'Forest Trousers',  '👖',  1, 1,  60, 'forester', '', 'ranger'],
-  ['boots',   'uncommon', 'Soft Soles',       '🥾',  1, 1,  58, 'forester', '', 'ranger'],
-  ['head',    'uncommon', 'Holy Coif',        '🥽',  0, 2,  65, 'vestal',   '', 'healer'],
-  ['chest',   'uncommon', 'Vestal Robes',     '👘',  0, 2,  70, 'vestal',   '', 'healer'],
-  ['legs',    'uncommon', 'Vestal Skirt',     '🧣',  0, 2,  60, 'vestal',   '', 'healer'],
-  ['boots',   'uncommon', 'Vestal Slippers',  '🩰',  0, 2,  55, 'vestal',   '', 'healer'],
-  ['trinket', 'uncommon', 'Lucky Charm',      '🍀',  1, 1,  70, '',         '', ''],
-  ['trinket', 'uncommon', 'Iron Ring',        '💍',  0, 2,  75, 'ironclad', '', 'warrior'],
-  ['trinket', 'uncommon', 'Owl Pendant',      '🦉',  1, 1,  72, '',         '', ''],
-  ['trinket', 'uncommon', 'Compass',          '🧭',  0, 2,  70, '',         '', ''],
+  ['weapon',  'uncommon', 'Steel Longsword',  '⚔',   2, 0, 150, '',          'sword',   'warrior', ''],
+  ['weapon',  'uncommon', 'Knight\'s Sword',  '⚔',   3, 0, 170, '',          'sword',   'warrior', ''],
+  ['weapon',  'uncommon', 'Iron War Axe',     '🪓',  2, 0, 160, '',          'axe',     'warrior', ''],
+  ['weapon',  'uncommon', 'Battle Axe',       '🪓',  3, 0, 180, '',          'axe',     'warrior', ''],
+  ['weapon',  'uncommon', 'Steel Maul',       '🔨',  3, 0, 175, '',          'hammer',  'warrior', ''],
+  ['weapon',  'uncommon', 'Iron Halberd',     '⚔',   3, 1, 195, '',          'polearm', 'warrior', ''],
+  ['weapon',  'uncommon', 'Hunter\'s Bow',    '🏹',  2, 0, 150, '',          'bow',     'ranger',  ''],
+  ['weapon',  'uncommon', 'Yew Longbow',      '🏹',  3, 0, 180, '',          'bow',     'ranger',  ''],
+  ['weapon',  'uncommon', 'Hand Crossbow',    '🎯',  3, 0, 185, '',          'crossbow','ranger',  ''],
+  ['weapon',  'uncommon', 'Bone Crossbow',    '🎯',  3, 0, 200, '',          'crossbow','ranger',  ''],
+  ['weapon',  'uncommon', 'Stiletto',         '🗡',  2, 0, 150, '',          'dagger',  'rogue',   ''],
+  ['weapon',  'uncommon', 'Pair of Daggers',  '🗡',  3, 0, 180, '',          'dagger',  'rogue',   ''],
+  ['weapon',  'uncommon', 'Twin Stilettos',   '🗡',  3, 0, 205, '',          'dagger',  'rogue',   ''],
+  ['weapon',  'uncommon', 'Apprentice Tome',  '📕',  2, 0, 170, '',          'tome',    'mage',    ''],
+  ['weapon',  'uncommon', 'Crystal Wand',     '🪄',  3, 0, 190, '',          'wand',    'mage',    ''],
+  ['weapon',  'uncommon', 'Apprentice Staff', '🥢',  2, 1, 170, '',          'staff',   'mage',    ''],
+  ['weapon',  'uncommon', 'Glass Orb',        '🔮',  2, 1, 180, '',          'orb',     'mage',    ''],
+  ['weapon',  'uncommon', 'Healer\'s Cane',   '🪄',  1, 2, 170, '',          'staff',   'healer',  ''],
+  ['weapon',  'uncommon', 'Oaken Holy Symbol','✝',   2, 1, 180, '',          'holy',    'healer',  ''],
+  ['weapon',  'uncommon', 'Pilgrim\'s Cudgel','🥢',  1, 2, 195, '',          'staff',   'healer',  ''],
+  ['weapon',  'uncommon', 'Spiked Mace',      '🔨',  3, 0, 200, '',          'hammer',  'warrior', ''],
+  ['head',    'uncommon', 'Iron Helm',        '⛑',   0, 2, 140, 'ironclad',  '', 'warrior', ''],
+  ['chest',   'uncommon', 'Chainmail',        '🦺',  0, 2, 150, 'ironclad',  '', 'warrior', ''],
+  ['legs',    'uncommon', 'Iron Greaves',     '🦿',  0, 2, 140, 'ironclad',  '', 'warrior', ''],
+  ['boots',   'uncommon', 'Iron Sabatons',    '👢',  0, 2, 140, 'ironclad',  '', 'warrior', ''],
+  ['head',    'uncommon', 'Mage\'s Circlet',  '🔮',  1, 1, 175, 'arcane',    '', 'mage',    ''],
+  ['chest',   'uncommon', 'Arcane Robes',     '🥋',  1, 1, 175, 'arcane',    '', 'mage',    ''],
+  ['legs',    'uncommon', 'Arcane Skirt',     '🧣',  1, 1, 165, 'arcane',    '', 'mage',    ''],
+  ['boots',   'uncommon', 'Arcane Slippers',  '🥿',  1, 1, 150, 'arcane',    '', 'mage',    ''],
+  ['head',    'uncommon', 'Forester\'s Cap',  '🧢',  1, 1, 150, 'forester',  '', 'ranger',  ''],
+  ['chest',   'uncommon', 'Hunter\'s Garb',   '🦺',  1, 1, 165, 'forester',  '', 'ranger',  ''],
+  ['legs',    'uncommon', 'Forest Trousers',  '👖',  1, 1, 150, 'forester',  '', 'ranger',  ''],
+  ['boots',   'uncommon', 'Soft Soles',       '🥾',  1, 1, 145, 'forester',  '', 'ranger',  ''],
+  ['head',    'uncommon', 'Holy Coif',        '🥽',  0, 2, 165, 'vestal',    '', 'healer',  ''],
+  ['chest',   'uncommon', 'Vestal Robes',     '👘',  0, 2, 175, 'vestal',    '', 'healer',  ''],
+  ['legs',    'uncommon', 'Vestal Skirt',     '🧣',  0, 2, 150, 'vestal',    '', 'healer',  ''],
+  ['boots',   'uncommon', 'Vestal Slippers',  '🩰',  0, 2, 140, 'vestal',    '', 'healer',  ''],
+  ['trinket', 'uncommon', 'Lucky Charm',      '🍀',  1, 1, 220, '',          '', '', 'lucky'],
+  ['trinket', 'uncommon', 'Iron Ring',        '💍',  0, 2, 190, 'ironclad',  '', 'warrior', ''],
+  ['trinket', 'uncommon', 'Owl Pendant',      '🦉',  1, 1, 180, '',          '', '', ''],
+  ['trinket', 'uncommon', 'Compass',          '🧭',  0, 2, 175, '',          '', '', ''],
+  // Uncommon expansion items (Ability-bearing)
+  ['trinket', 'uncommon', 'Adventurer\'s Pouch', '👜', 0, 1, 220, '',         '', '', 'lucky'],
+  ['trinket', 'uncommon', 'Reading Glasses',     '👓', 0, 1, 235, '',         '', '', 'scholar'],
+  ['trinket', 'uncommon', 'Healing Vial',        '🧪', 0, 1, 250, '',         '', '', 'regen'],
+  ['trinket', 'uncommon', 'Iron Ward',           '🛡', 0, 2, 235, '',         '', '', 'wardstone'],
+  ['trinket', 'uncommon', 'Sneaker\'s Token',    '👣', 1, 0, 235, '',         '', '', 'nimble'],
+  ['boots',   'uncommon', 'Stealth Boots',       '🥾', 1, 1, 220, '',         '', '', 'nimble'],
+  ['chest',   'uncommon', 'Padded Bulwark',      '🦺', 0, 2, 230, '',         '', '', 'bulwark'],
+  ['head',    'uncommon', 'Scholar\'s Cap',      '🎓', 0, 1, 230, '',         '', '', 'scholar'],
 
   // ── Rare ──
-  ['weapon',  'rare', 'Frost Hammer',         '🔨',  4, 0, 180, '',           'hammer', 'warrior'],
-  ['weapon',  'rare', 'Flamberge',            '⚔',   5, 0, 200, '',           'sword',  'warrior'],
-  ['weapon',  'rare', 'Greataxe',             '🪓',  5, 0, 195, '',           'axe',    'warrior'],
-  ['weapon',  'rare', 'Steel Halberd',        '⚔',   4, 1, 200, '',           'polearm','warrior'],
-  ['weapon',  'rare', 'Wraithblade',          '🗡',  4, 1, 195, '',           'dagger', 'rogue'],
-  ['weapon',  'rare', 'Shadow Daggers',       '🗡',  5, 0, 220, 'shadow',     'dagger', 'rogue'],
-  ['weapon',  'rare', 'Silver Crossbow',      '🎯',  4, 0, 180, '',           'crossbow','ranger'],
-  ['weapon',  'rare', 'Composite Longbow',    '🏹',  5, 0, 200, '',           'bow',    'ranger'],
-  ['weapon',  'rare', 'Shadow Staff',         '🪄',  4, 1, 195, '',           'staff',  'mage'],
-  ['weapon',  'rare', 'Druid\'s Staff',       '🌿',  3, 2, 195, '',           'staff',  'mage'],
-  ['weapon',  'rare', 'Crystal Orb',          '🔮',  4, 1, 200, '',           'orb',    'mage'],
-  ['weapon',  'rare', 'Forbidden Tome',       '📕',  4, 1, 205, '',           'tome',   'mage'],
-  ['weapon',  'rare', 'Sun Cross',            '✝',   3, 2, 200, '',           'holy',   'healer'],
-  ['weapon',  'rare', 'Healing Staff',        '🥢',  2, 3, 200, '',           'staff',  'healer'],
-  ['head',    'rare', 'Knight\'s Helm',       '⛑',   1, 4, 200, 'knights',    '', 'warrior'],
-  ['chest',   'rare', 'Knight\'s Cuirass',    '🛡',  1, 4, 220, 'knights',    '', 'warrior'],
-  ['legs',    'rare', 'Knight\'s Tassets',    '🦿',  1, 4, 200, 'knights',    '', 'warrior'],
-  ['boots',   'rare', 'Knight\'s Sabatons',   '👢',  1, 4, 195, 'knights',    '', 'warrior'],
-  ['head',    'rare', 'Dragon Helm',          '🐉',  1, 4, 220, 'dragonscale','', 'warrior'],
-  ['chest',   'rare', 'Dragonscale Plate',    '🐲',  2, 4, 240, 'dragonscale','', 'warrior'],
-  ['legs',    'rare', 'Dragonscale Tassets',  '🐲',  1, 4, 220, 'dragonscale','', 'warrior'],
-  ['head',    'rare', 'Antlered Hood',        '🦌',  2, 3, 200, 'druidic',    '', 'ranger'],
-  ['chest',   'rare', 'Druidic Robes',        '🌿',  2, 3, 220, 'druidic',    '', 'ranger'],
-  ['legs',    'rare', 'Druidic Pants',        '🍃',  2, 3, 200, 'druidic',    '', 'ranger'],
-  ['boots',   'rare', 'Mossfoot Boots',       '🍂',  2, 3, 195, 'druidic',    '', 'ranger'],
-  ['head',    'rare', 'Sun Crown',            '☀',   1, 4, 210, 'suntouched', '', 'healer'],
-  ['chest',   'rare', 'Sun-touched Robes',    '👘',  1, 4, 230, 'suntouched', '', 'healer'],
-  ['legs',    'rare', 'Sun-touched Skirt',    '🧣',  1, 4, 210, 'suntouched', '', 'healer'],
-  ['head',    'rare', 'Stormcaller Cowl',     '⛈',  3, 2, 215, 'stormcaller','', 'mage'],
-  ['chest',   'rare', 'Stormcaller Vest',     '⚡',  3, 2, 230, 'stormcaller','', 'mage'],
-  ['chest',   'rare', 'Plated Cuirass',       '🛡',  1, 4, 220, '',           '', ''],
-  ['boots',   'rare', 'Stormstride Boots',    '⛈',  1, 3, 200, '',           '', ''],
-  ['trinket', 'rare', 'Healing Amulet',       '📿',  0, 3, 220, '',           '', ''],
-  ['trinket', 'rare', 'Shadow Cloak Pin',     '🎗',  2, 2, 240, 'shadow',     '', 'rogue'],
-  ['trinket', 'rare', 'Phoenix Down',         '🔥',  2, 2, 230, '',           '', ''],
-  ['trinket', 'rare', 'Wolf Tooth',           '🐺',  2, 2, 220, '',           '', ''],
-  ['trinket', 'rare', 'Forest Pendant',       '🍃',  2, 2, 220, 'druidic',    '', 'ranger'],
-  ['trinket', 'rare', 'Vestal Pendant',       '📿',  1, 3, 220, 'vestal',     '', 'healer'],
-  ['trinket', 'rare', 'Storm Sigil',          '⚡',  3, 2, 220, 'stormcaller','', 'mage'],
+  ['weapon',  'rare', 'Frost Hammer',         '🔨',  4, 0, 480, '',            'hammer',  'warrior', ''],
+  ['weapon',  'rare', 'Flamberge',            '⚔',   5, 0, 540, '',            'sword',   'warrior', ''],
+  ['weapon',  'rare', 'Greataxe',             '🪓',  5, 0, 525, '',            'axe',     'warrior', ''],
+  ['weapon',  'rare', 'Steel Halberd',        '⚔',   4, 1, 540, '',            'polearm', 'warrior', ''],
+  ['weapon',  'rare', 'Wraithblade',          '🗡',  4, 1, 525, '',            'dagger',  'rogue',   ''],
+  ['weapon',  'rare', 'Shadow Daggers',       '🗡',  5, 0, 590, 'shadow',      'dagger',  'rogue',   ''],
+  ['weapon',  'rare', 'Silver Crossbow',      '🎯',  4, 0, 480, '',            'crossbow','ranger',  ''],
+  ['weapon',  'rare', 'Composite Longbow',    '🏹',  5, 0, 540, '',            'bow',     'ranger',  ''],
+  ['weapon',  'rare', 'Shadow Staff',         '🪄',  4, 1, 525, '',            'staff',   'mage',    ''],
+  ['weapon',  'rare', 'Druid\'s Staff',       '🌿',  3, 2, 525, '',            'staff',   'mage',    ''],
+  ['weapon',  'rare', 'Crystal Orb',          '🔮',  4, 1, 540, '',            'orb',     'mage',    ''],
+  ['weapon',  'rare', 'Forbidden Tome',       '📕',  4, 1, 555, '',            'tome',    'mage',    ''],
+  ['weapon',  'rare', 'Sun Cross',            '✝',   3, 2, 540, '',            'holy',    'healer',  ''],
+  ['weapon',  'rare', 'Healing Staff',        '🥢',  2, 3, 540, '',            'staff',   'healer',  ''],
+  ['head',    'rare', 'Knight\'s Helm',       '⛑',   1, 4, 540, 'knights',     '', 'warrior', ''],
+  ['chest',   'rare', 'Knight\'s Cuirass',    '🛡',  1, 4, 595, 'knights',     '', 'warrior', ''],
+  ['legs',    'rare', 'Knight\'s Tassets',    '🦿',  1, 4, 540, 'knights',     '', 'warrior', ''],
+  ['boots',   'rare', 'Knight\'s Sabatons',   '👢',  1, 4, 525, 'knights',     '', 'warrior', ''],
+  ['head',    'rare', 'Dragon Helm',          '🐉',  1, 4, 595, 'dragonscale', '', 'warrior', ''],
+  ['chest',   'rare', 'Dragonscale Plate',    '🐲',  2, 4, 650, 'dragonscale', '', 'warrior', ''],
+  ['legs',    'rare', 'Dragonscale Tassets',  '🐲',  1, 4, 595, 'dragonscale', '', 'warrior', ''],
+  ['head',    'rare', 'Antlered Hood',        '🦌',  2, 3, 540, 'druidic',     '', 'ranger',  ''],
+  ['chest',   'rare', 'Druidic Robes',        '🌿',  2, 3, 595, 'druidic',     '', 'ranger',  ''],
+  ['legs',    'rare', 'Druidic Pants',        '🍃',  2, 3, 540, 'druidic',     '', 'ranger',  ''],
+  ['boots',   'rare', 'Mossfoot Boots',       '🍂',  2, 3, 525, 'druidic',     '', 'ranger',  ''],
+  ['head',    'rare', 'Sun Crown',            '☀',   1, 4, 565, 'suntouched',  '', 'healer',  ''],
+  ['chest',   'rare', 'Sun-touched Robes',    '👘',  1, 4, 620, 'suntouched',  '', 'healer',  ''],
+  ['legs',    'rare', 'Sun-touched Skirt',    '🧣',  1, 4, 565, 'suntouched',  '', 'healer',  ''],
+  ['head',    'rare', 'Stormcaller Cowl',     '⛈',   3, 2, 580, 'stormcaller', '', 'mage',    ''],
+  ['chest',   'rare', 'Stormcaller Vest',     '⚡',   3, 2, 620, 'stormcaller', '', 'mage',    ''],
+  ['chest',   'rare', 'Plated Cuirass',       '🛡',  1, 4, 595, '',            '', '', ''],
+  ['boots',   'rare', 'Stormstride Boots',    '⛈',   1, 3, 600, '',            '', '', 'nimble'],
+  ['trinket', 'rare', 'Healing Amulet',       '📿',  0, 3, 660, '',            '', '', 'regen'],
+  ['trinket', 'rare', 'Shadow Cloak Pin',     '🎗',  2, 2, 650, 'shadow',      '', 'rogue',  ''],
+  ['trinket', 'rare', 'Phoenix Down',         '🔥',  2, 2, 690, '',            '', '', 'phoenix'],
+  ['trinket', 'rare', 'Wolf Tooth',           '🐺',  2, 2, 660, '',            '', '', 'boss-slayer'],
+  ['trinket', 'rare', 'Forest Pendant',       '🍃',  2, 2, 595, 'druidic',     '', 'ranger', ''],
+  ['trinket', 'rare', 'Vestal Pendant',       '📿',  1, 3, 595, 'vestal',      '', 'healer', ''],
+  ['trinket', 'rare', 'Storm Sigil',          '⚡',   3, 2, 595, 'stormcaller', '', 'mage',   ''],
+  // Rare expansion items (Ability-bearing)
+  ['weapon',  'rare', 'Vampiric Sabre',     '🩸', 5, 0, 720, '',           'sword',   'warrior', 'lifesteal'],
+  ['weapon',  'rare', 'Bloodthirst Mace',   '🔨', 5, 0, 720, '',           'hammer',  'warrior', 'lifesteal'],
+  ['weapon',  'rare', 'Wraith Bow',         '🏹', 5, 0, 750, '',           'bow',     'ranger',  'boss-slayer'],
+  ['weapon',  'rare', 'Hunter\'s Crossbow', '🎯', 5, 0, 750, '',           'crossbow','ranger',  'boss-slayer'],
+  ['weapon',  'rare', 'Lifedrinker Dagger', '🗡', 5, 0, 735, '',           'dagger',  'rogue',   'lifesteal'],
+  ['trinket', 'rare', 'Wishing Stone',      '🌠', 1, 2, 780, '',           '', '', 'lucky'],
+  ['trinket', 'rare', 'Hermit\'s Tome',     '📕', 2, 1, 780, '',           '', '', 'scholar'],
+  ['trinket', 'rare', 'Lifestone Pendant',  '💚', 1, 2, 795, '',           '', '', 'regen'],
+  ['trinket', 'rare', 'Hunter\'s Token',    '🏹', 2, 1, 810, '',           '', '', 'boss-slayer'],
+  ['trinket', 'rare', 'Wardstone Amulet',   '🪨', 1, 2, 780, '',           '', '', 'wardstone'],
+  ['boots',   'rare', 'Whisperstep Boots',  '👞', 2, 2, 750, '',           '', '', 'nimble'],
+  ['head',    'rare', 'Wardstone Diadem',   '💎', 1, 3, 735, '',           '', '', 'wardstone'],
+  ['chest',   'rare', 'Bulwark Plate',      '🛡', 1, 4, 780, '',           '', '', 'bulwark'],
+  ['head',    'rare', 'Cap of Insight',     '🎩', 2, 2, 750, '',           '', '', 'scholar'],
+  // Highwayman set (rogue, 4 piece)
+  ['head',    'rare', 'Highwayman Mask',    '🎭', 2, 2, 750, 'highwayman', '', 'rogue', 'lucky'],
+  ['chest',   'rare', 'Highwayman Coat',    '🧥', 2, 3, 810, 'highwayman', '', 'rogue', ''],
+  ['legs',    'rare', 'Highwayman Pants',   '👖', 2, 2, 750, 'highwayman', '', 'rogue', ''],
+  ['boots',   'rare', 'Highwayman Boots',   '🥾', 2, 2, 735, 'highwayman', '', 'rogue', 'nimble'],
 
   // ── Epic ──
-  ['weapon',  'epic', 'Drakebane Sword',      '🗡',  7, 1, 600, '',           'sword',  'warrior'],
-  ['weapon',  'epic', 'Soulreaver',           '💀',  8, 0, 650, '',           'sword',  'warrior'],
-  ['weapon',  'epic', 'Doomhammer',           '🔨',  8, 1, 660, '',           'hammer', 'warrior'],
-  ['weapon',  'epic', 'Cleaver of Kings',     '🪓',  8, 0, 640, '',           'axe',    'warrior'],
-  ['weapon',  'epic', 'Stormcaller Staff',    '⚡',  7, 2, 680, 'stormcaller','staff',  'mage'],
-  ['weapon',  'epic', 'Grimoire of Storms',   '📘',  7, 2, 680, '',           'tome',   'mage'],
-  ['weapon',  'epic', 'Voidcaller Wand',      '🪄',  8, 1, 690, '',           'wand',   'mage'],
-  ['weapon',  'epic', 'Vorpal Bow',           '🏹',  8, 0, 650, '',           'bow',    'ranger'],
-  ['weapon',  'epic', 'Skywatcher Crossbow',  '🎯',  8, 0, 660, '',           'crossbow','ranger'],
-  ['weapon',  'epic', 'Whisperblades',        '🗡',  8, 0, 660, '',           'dagger', 'rogue'],
-  ['weapon',  'epic', 'Heartseeker',          '🗡',  9, 0, 700, '',           'dagger', 'rogue'],
-  ['weapon',  'epic', 'Phoenix Staff',        '🔥',  6, 4, 700, '',           'staff',  'healer'],
-  ['head',    'epic', 'Voidweave Hood',       '🌑',  4, 3, 660, 'voidweave',  '', 'mage'],
-  ['chest',   'epic', 'Voidweave Robe',       '🌑',  4, 4, 700, 'voidweave',  '', 'mage'],
-  ['head',    'epic', 'Shadow Cowl',          '🥷',  3, 4, 660, 'shadow',     '', 'rogue'],
-  ['chest',   'epic', 'Shadow Cuirass',       '🌙',  3, 5, 700, 'shadow',     '', 'rogue'],
-  ['boots',   'epic', 'Shadowstep Boots',     '👞',  4, 3, 680, 'shadow',     '', 'rogue'],
-  ['head',    'epic', 'Highborn Helm',        '👑',  3, 5, 700, 'highborn',   '', 'warrior'],
-  ['chest',   'epic', 'Highborn Plate',       '🛡',  3, 6, 740, 'highborn',   '', 'warrior'],
-  ['head',    'epic', 'Wyvern Crown',         '👑',  2, 5, 600, '',           '', ''],
-  ['boots',   'epic', 'Sevenleague Boots',    '👢',  2, 5, 660, '',           '', ''],
-  ['trinket', 'epic', 'Phoenix Feather',      '🪶',  3, 4, 660, '',           '', ''],
-  ['trinket', 'epic', 'Soul Lantern',         '🏮',  4, 3, 720, '',           '', ''],
-  ['trinket', 'epic', 'Storm Heart',          '⚡',  4, 3, 700, '',           '', ''],
-  ['trinket', 'epic', 'Voidstone',            '🌑',  5, 2, 680, 'voidweave',  '', 'mage'],
-  ['trinket', 'epic', 'Shadow Mask',          '🎭',  4, 3, 690, 'shadow',     '', 'rogue']
+  ['weapon',  'epic', 'Drakebane Sword',     '🗡',  7, 1, 1620, '',            'sword',   'warrior', ''],
+  ['weapon',  'epic', 'Soulreaver',          '💀',  8, 0, 1755, '',            'sword',   'warrior', ''],
+  ['weapon',  'epic', 'Doomhammer',          '🔨',  8, 1, 1785, '',            'hammer',  'warrior', ''],
+  ['weapon',  'epic', 'Cleaver of Kings',    '🪓',  8, 0, 1730, '',            'axe',     'warrior', ''],
+  ['weapon',  'epic', 'Stormcaller Staff',   '⚡',   7, 2, 1840, 'stormcaller', 'staff',   'mage',    ''],
+  ['weapon',  'epic', 'Grimoire of Storms',  '📘',  7, 2, 1840, '',            'tome',    'mage',    ''],
+  ['weapon',  'epic', 'Voidcaller Wand',     '🪄',  8, 1, 1865, '',            'wand',    'mage',    ''],
+  ['weapon',  'epic', 'Vorpal Bow',          '🏹',  8, 0, 1755, '',            'bow',     'ranger',  ''],
+  ['weapon',  'epic', 'Skywatcher Crossbow', '🎯',  8, 0, 1785, '',            'crossbow','ranger',  ''],
+  ['weapon',  'epic', 'Whisperblades',       '🗡',  8, 0, 1785, '',            'dagger',  'rogue',   ''],
+  ['weapon',  'epic', 'Heartseeker',         '🗡',  9, 0, 1890, '',            'dagger',  'rogue',   ''],
+  ['weapon',  'epic', 'Phoenix Staff',       '🔥',  6, 4, 1980, '',            'staff',   'healer',  'phoenix'],
+  ['head',    'epic', 'Voidweave Hood',      '🌑',  4, 3, 1785, 'voidweave',   '', 'mage',    ''],
+  ['chest',   'epic', 'Voidweave Robe',      '🌑',  4, 4, 1890, 'voidweave',   '', 'mage',    ''],
+  ['head',    'epic', 'Shadow Cowl',         '🥷',  3, 4, 1785, 'shadow',      '', 'rogue',   ''],
+  ['chest',   'epic', 'Shadow Cuirass',      '🌙',  3, 5, 1890, 'shadow',      '', 'rogue',   ''],
+  ['boots',   'epic', 'Shadowstep Boots',    '👞',  4, 3, 1840, 'shadow',      '', 'rogue',   ''],
+  ['head',    'epic', 'Highborn Helm',       '👑',  3, 5, 1890, 'highborn',    '', 'warrior', ''],
+  ['chest',   'epic', 'Highborn Plate',      '🛡',  3, 6, 2000, 'highborn',    '', 'warrior', ''],
+  ['head',    'epic', 'Wyvern Crown',        '👑',  2, 5, 1620, '',            '', '', ''],
+  ['boots',   'epic', 'Sevenleague Boots',   '👢',  2, 5, 1855, '',            '', '', 'nimble'],
+  ['trinket', 'epic', 'Phoenix Feather',     '🪶',  3, 4, 1860, '',            '', '', 'phoenix'],
+  ['trinket', 'epic', 'Soul Lantern',        '🏮',  4, 3, 1945, '',            '', '', ''],
+  ['trinket', 'epic', 'Storm Heart',         '⚡',   4, 3, 1890, '',            '', '', ''],
+  ['trinket', 'epic', 'Voidstone',           '🌑',  5, 2, 1840, 'voidweave',   '', 'mage',  ''],
+  ['trinket', 'epic', 'Shadow Mask',         '🎭',  4, 3, 1865, 'shadow',      '', 'rogue', ''],
+  // Epic expansion items (Ability-bearing)
+  ['weapon',  'epic', 'Vampire Blade',       '🩸',  8, 1, 2280, '',            'sword',   'warrior', 'lifesteal'],
+  ['weapon',  'epic', 'Lifedrinker Axe',     '🪓',  9, 0, 2310, '',            'axe',     'warrior', 'lifesteal'],
+  ['weapon',  'epic', 'Bossreaver',          '⚔',   9, 1, 2400, '',            'sword',   'warrior', 'boss-slayer'],
+  ['weapon',  'epic', 'Kingbow',             '🏹',  9, 0, 2370, '',            'bow',     'ranger',  'boss-slayer'],
+  ['weapon',  'epic', 'Bloodfang Daggers',   '🗡',  8, 1, 2340, '',            'dagger',  'rogue',   'lifesteal'],
+  ['weapon',  'epic', 'Phoenix Wand',        '🪄',  7, 2, 2370, '',            'wand',    'mage',    'phoenix'],
+  ['weapon',  'epic', 'Sunburst Cane',       '✝',   5, 4, 2340, '',            'holy',    'healer',  'regen'],
+  ['trinket', 'epic', 'Wraith\'s Embrace',   '👻',  4, 3, 2460, '',            '', '', 'phoenix'],
+  ['trinket', 'epic', 'Ember Phoenix Charm', '🔥',  4, 3, 2460, '',            '', '', 'phoenix'],
+  ['trinket', 'epic', 'Sunken Idol',         '🗿',  3, 4, 2400, '',            '', '', 'treasure-hunter'],
+  ['trinket', 'epic', 'Crown of Echoes',     '👑',  4, 3, 2430, '',            '', '', 'scholar'],
+  ['boots',   'epic', 'Phantasm Greaves',    '👻',  3, 4, 2080, '',            '', '', 'nimble'],
+  ['boots',   'epic', 'Stormstride Sabatons','⚡',   3, 4, 2110, '',            '', '', 'nimble'],
+  ['chest',   'epic', 'Aegis Bulwark',       '🛡',  2, 6, 2400, '',            '', '', 'bulwark'],
+  ['head',    'epic', 'Helm of Resilience',  '⛑',   2, 5, 2280, '',            '', '', 'bulwark'],
+  ['head',    'epic', 'Wraith Crown',        '💀',  4, 3, 2310, '',            '', '', 'lifesteal'],
+  // Marauder set (4-piece — gold/loot focused)
+  ['head',    'epic', 'Marauder Helm',       '⛑',   3, 4, 2280, 'marauder',    '', '', 'lucky'],
+  ['chest',   'epic', 'Marauder Plate',      '🛡',  3, 5, 2400, 'marauder',    '', '', 'treasure-hunter'],
+  ['legs',    'epic', 'Marauder Tassets',    '🦿',  3, 4, 2310, 'marauder',    '', '', ''],
+  ['boots',   'epic', 'Marauder Sabatons',   '👢',  3, 4, 2250, 'marauder',    '', '', ''],
+  // Reaver set (3-piece warrior lifesteal)
+  ['head',    'epic', 'Reaver Visor',        '🪖',  4, 3, 2340, 'reaver',      '', 'warrior', 'lifesteal'],
+  ['chest',   'epic', 'Reaver Cuirass',      '🛡',  4, 4, 2460, 'reaver',      '', 'warrior', ''],
+  ['trinket', 'epic', 'Reaver\'s Heart',     '❤',  5, 2, 2460, 'reaver',      '', 'warrior', 'lifesteal']
 ];
 
 // ── Daily shop rotation ─────────────────────────────────────────────
@@ -556,6 +627,7 @@ export async function cmdInventory(env, guild, userId) {
       const stats = [];
       if (it.powerBonus)   stats.push('+' + it.powerBonus + ' ATK');
       if (it.defenseBonus) stats.push('+' + it.defenseBonus + ' DEF');
+      if (it.ability)      stats.push('🔮 ' + it.ability);
       return '`' + it.id.slice(0, 6) + '`  ' + it.glyph + '  **' + it.name + '** _(' + it.rarity + ' ' + it.slot + ')_  ' +
              stats.join(' ') + eq;
     });
@@ -616,10 +688,11 @@ export async function cmdShop(env, guild, userId) {
   const hero = await loadHero(env, guild, userId);
   const heroClass = (hero?.className || '').toLowerCase();
   const lines = stock.items.map(row => {
-    const [slot, rarity, name, glyph, atk, def, gold, setName, weaponType, preferredClass] = row;
+    const [slot, rarity, name, glyph, atk, def, gold, setName, weaponType, preferredClass, ability] = row;
     const stats = [];
     if (atk) stats.push('+' + atk + ' ATK');
     if (def) stats.push('+' + def + ' DEF');
+    if (ability)        stats.push('🔮 ' + ability);
     if (setName)        stats.push('_set:_ ' + setName);
     // Class-affinity tag — viewers spot at-a-glance which items
     // match their class so they buy gear that pulls extra weight.
@@ -649,7 +722,7 @@ export async function cmdShopBuy(env, guild, userId, itemName) {
   const hit = stock.items.find(([_s, _r, name]) =>
     name.toLowerCase().includes((itemName || '').toLowerCase()));
   if (!hit) return { content: 'That item isn\'t in today\'s stock. Run `/loadout` → Shop to see the rotation — restocks at midnight UTC.', ephemeral: true };
-  const [slot, rarity, name, glyph, atk, def, price, setName, weaponType, preferredClass] = hit;
+  const [slot, rarity, name, glyph, atk, def, price, setName, weaponType, preferredClass, ability] = hit;
 
   const w = await getWallet(env, guild, userId);
   if ((w.balance || 0) < price) {
@@ -674,19 +747,28 @@ export async function cmdShopBuy(env, guild, userId, itemName) {
     setName: setName || '',
     weaponType: weaponType || '',
     preferredClass: preferredClass || '',
+    ability: ability || '',
     foundIn: 'shop',
     foundUtc: new Date().toISOString()
   });
   await saveHero(env, guild, userId, hero);
 
   return {
-    content: '🛒 Bought ' + glyph + ' **' + name + '** for **' + price + '** bolts. Equip it with `/equip item_id:' + id.slice(0, 6) + '`.'
+    content: '🛒 Bought ' + glyph + ' **' + name + '** for **' + price + '** bolts'
+             + (ability ? ' _(grants `' + ability + '`)_' : '')
+             + '. Equip it with `/equip item_id:' + id.slice(0, 6) + '`.'
   };
 }
 
 export async function cmdTraining(env, guild, userId, focus, rounds) {
   const r = Math.max(1, Math.min(50, rounds || 5));
-  const cost = r * 10;
+  // May 2026 grindy rebalance: training is now 30 bolts/round (was 10).
+  // The per-round payouts (HP / XP / heal) are unchanged so a viewer
+  // still gets the same gameplay value per round, just at a price that
+  // makes them earn it. Pairs with the shop-price hike — both pull on
+  // the same wallet so cheap training drained the meta from "earn gear"
+  // toward "spam-train to L20 in a single sub day."
+  const cost = r * 30;
 
   const w = await getWallet(env, guild, userId);
   if ((w.balance || 0) < cost) {

@@ -28,7 +28,6 @@ namespace Loadout.Modules
             if (ctx.Kind != "chat") return;
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.HateRaidDetector) return;
-            if (!Entitlements.IsUnlocked(Feature.HateRaidDetector)) return;
 
             // Pull account age in hours; if SB didn't supply it on this platform, abstain.
             var ageHours = ctx.Get<int>("accountAgeHours", -1);

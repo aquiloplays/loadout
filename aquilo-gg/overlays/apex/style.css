@@ -2,21 +2,28 @@
   --bg: transparent;
   --surface: #18181B;
   --surface-2: #1F1F23;
-  --border: #2A2A30;
-  --text: #EFEFF1;
-  --muted: #ADADB8;
-  --accent: #3A86FF;
-  --tt: #00F2EA;
-  --gold: #F0B429;
-  --hp-good: #3FB950;
-  --hp-warn: #F0B429;
-  --hp-low:  #F85149;
+  --border: var(--ld-border);
+  --text: var(--ld-text);
+  --muted: var(--ld-muted);
+  --accent: var(--ld-accent);
+  --tt: var(--ld-cyan);
+  --gold: var(--ld-gold);
+  --hp-good: var(--ld-win);
+  --hp-warn: var(--ld-gold);
+  --hp-low:  var(--ld-lose);
   --tw: #9147FF;
   --yt: #FF0000;
   --kk: #53FC18;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; width: 100%; height: 100%; overflow: hidden; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
+  width: 100%; height: 100%;
+  overflow: hidden;
+}
 
 #root { position: fixed; inset: 0; pointer-events: none; }
 #root[data-pos="bc"] .apex-card,
@@ -48,18 +55,38 @@ html, body { background: var(--bg); color: var(--text); font-family: 'Segoe UI',
 /* ── Card ──────────────────────────────────────────────────────────────── */
 .apex-card {
   position: absolute;
-  width: 540px;
+  width: 560px;
   display: grid;
   grid-template-columns: 92px 1fr;
-  gap: 16px;
+  gap: 18px;
   align-items: center;
-  padding: 14px;
-  background: linear-gradient(180deg, rgba(24,24,27,.95), rgba(15,15,17,.95));
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 16px 36px rgba(0,0,0,.55);
-  animation: cardEnter .5s cubic-bezier(.2,.7,.2,1.1);
+  padding: 16px 18px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(240, 180, 41, 0.10) 0%, transparent 55%),
+    var(--ld-glass-tint),
+    var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-lg);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow:
+    var(--ld-shadow-deep),
+    0 0 32px rgba(240, 180, 41, 0.18),
+    var(--ld-shadow-rim);
+  animation: cardEnter .5s var(--ld-ease-spring);
+  position: absolute;
+  isolation: isolate;
+}
+.apex-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 16px; right: 16px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg,
+    transparent 0%, var(--gold) 22%, var(--ld-gold-2, #FFE082) 50%, var(--gold) 78%, transparent 100%);
+  opacity: 0.85;
+  pointer-events: none;
 }
 @keyframes cardEnter {
   0%   { opacity: 0; transform: translate(-50%, 16px); }

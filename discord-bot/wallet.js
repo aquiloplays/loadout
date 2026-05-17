@@ -16,7 +16,7 @@ export async function getWallet(env, guildId, userId) {
   const key = `wallet:${guildId}:${userId}`;
   const raw = await env.LOADOUT_BOLTS.get(key, { type: 'json' });
   return raw || {
-    balance: 0, lifetimeEarned: 0, lastEarnUtc: 0,
+    balance: 0, lifetimeEarned: 0, lifetimeSpent: 0, lastEarnUtc: 0,
     dailyStreak: 0, lastDailyUtc: 0, links: []
   };
 }
@@ -48,7 +48,7 @@ export async function applyVaultDelta(env, guildId, userId, amount, reason) {
   const key = `wallet:${guildId}:${userId}`;
   const existing = await env.LOADOUT_BOLTS.get(key, { type: 'json' });
   const w = existing || {
-    balance: 0, lifetimeEarned: 0, lastEarnUtc: 0,
+    balance: 0, lifetimeEarned: 0, lifetimeSpent: 0, lastEarnUtc: 0,
     dailyStreak: 0, lastDailyUtc: 0, links: []
   };
   w.balance = Math.max(0, (w.balance || 0) + amount);
@@ -57,6 +57,11 @@ export async function applyVaultDelta(env, guildId, userId, amount, reason) {
     w.lastEarnUtc = Date.now();
     w.lastEarnReason = reason || 'vault';
   } else {
+    // Track lifetimeSpent for sync — DLL uses the (earned, spent) pair
+    // to reconcile balances across linked accounts. Without this the
+    // Worker side's spends never propagate back to the DLL via Pull,
+    // so the two surfaces drift after every Discord-side game.
+    w.lifetimeSpent = (w.lifetimeSpent || 0) + Math.abs(amount);
     w.lastSpendUtc = Date.now();
     w.lastSpendReason = reason || 'vault';
   }
@@ -69,6 +74,7 @@ export async function spend(env, guildId, userId, amount, reason) {
   const w = await getWallet(env, guildId, userId);
   if (w.balance < amount) return { ok: false, reason: 'insufficient balance', balance: w.balance };
   w.balance -= amount;
+  w.lifetimeSpent = (w.lifetimeSpent || 0) + amount;
   w.lastSpendUtc = Date.now();
   w.lastSpendReason = reason || '';
   await putWallet(env, guildId, userId, w);
@@ -123,21 +129,144 @@ export async function getSecret(env, guildId) {
   return await env.LOADOUT_BOLTS.get(key, { type: 'json' });
 }
 
-// Bulk apply a snapshot from Loadout. Snapshot is { wallets: { userId: { ... } } }.
-// We take Loadout's values verbatim - Loadout is the source of truth for
-// on-stream activity, the worker is the source of truth for off-stream.
-// The merge happens on the LOADOUT side before the push (last-write-wins by
-// kind: on-stream earns OR off-stream earns are merged, never blindly stomped).
+// Bulk apply a snapshot from Loadout.
+//
+// Snapshot shape:
+//   { wallets: { "<platform>:<handle>": { balance, lifetimeEarned, lifetimeSpent, lastEarnUtc, dailyStreak, links: [{platform, username}] } } }
+//
+// Sync model (May 2026 fix — was previously broken for linked accounts):
+//   Each entry in `wallets` is keyed by the DLL's "<platform>:<handle>"
+//   canonical key. To make balances visible from /balance and the menu,
+//   we have to land that data on the linked Discord user's wallet
+//   (`wallet:<guildId>:<discordUserId>`). The link map lives inside
+//   each Discord wallet's `links: []` array, so we build a reverse
+//   index (`platform:username` → discordUserId) by scanning every
+//   wallet once per push. This is O(walletCount) per sync but the
+//   alternative (an explicit linkidx KV) would need a backfill anyway.
+//
+// Merge strategy uses lifetime counters (which only grow) rather than
+// the absolute balance:
+//   merged.lifetimeEarned = max(local, remote)
+//   merged.lifetimeSpent  = max(local, remote)
+//   merged.balance        = lifetimeEarned - lifetimeSpent
+// This way an off-stream spend (which only the Worker knows) and an
+// on-stream earn (which only the DLL knows) compose to the right
+// total without either side clobbering the other's deltas.
+//
+// Unlinked DLL accounts (no Discord user has them in `links`) are
+// silently dropped — they only exist on stream, no syncing needed
+// until the viewer runs `/loadout link`.
 export async function applySnapshot(env, guildId, snapshot) {
   if (!snapshot || typeof snapshot !== 'object') return 0;
   const wallets = snapshot.wallets || {};
+  if (Object.keys(wallets).length === 0) return 0;
+
+  // Build the reverse-link index from existing Discord wallets.
+  const linkIndex = await buildLinkIndex(env, guildId);
   let n = 0;
-  for (const [userId, w] of Object.entries(wallets)) {
-    if (!userId || !w) continue;
-    await putWallet(env, guildId, userId, w);
+
+  for (const [streamKey, dllWallet] of Object.entries(wallets)) {
+    if (!streamKey || !dllWallet) continue;
+
+    // Find a linked Discord user via any of the wallet's link entries.
+    // The DLL push includes the same platform/handle pair the
+    // entry is keyed by, but we look at all links so this also picks
+    // up cases where the DLL has a multi-platform-merged wallet.
+    let discordUserId = null;
+    const links = Array.isArray(dllWallet.links) ? dllWallet.links : [];
+    for (const l of links) {
+      if (!l?.platform || !l?.username) continue;
+      const k = `${String(l.platform).toLowerCase()}:${String(l.username).toLowerCase()}`;
+      if (linkIndex.has(k)) { discordUserId = linkIndex.get(k); break; }
+    }
+    if (!discordUserId) continue;  // unlinked — skip silently.
+
+    const local = await getWallet(env, guildId, discordUserId);
+    const dllEarned = Number(dllWallet.lifetimeEarned) || 0;
+    const dllSpent  = Number(dllWallet.lifetimeSpent)  || 0;
+    const localEarned = Number(local.lifetimeEarned)   || 0;
+    const localSpent  = Number(local.lifetimeSpent)    || 0;
+
+    const mergedEarned = Math.max(dllEarned, localEarned);
+    const mergedSpent  = Math.max(dllSpent,  localSpent);
+    const mergedBalance = Math.max(0, mergedEarned - mergedSpent);
+
+    // Skip the write if nothing changed — saves KV writes (each one's
+    // a billable op) for the common case where the DLL pushes the
+    // same snapshot every 30s with no on-stream activity.
+    if (mergedEarned === localEarned &&
+        mergedSpent  === localSpent  &&
+        mergedBalance === (local.balance || 0)) continue;
+
+    local.balance        = mergedBalance;
+    local.lifetimeEarned = mergedEarned;
+    local.lifetimeSpent  = mergedSpent;
+    if (dllWallet.lastEarnUtc && dllWallet.lastEarnUtc > (local.lastEarnUtc || 0)) {
+      local.lastEarnUtc = dllWallet.lastEarnUtc;
+    }
+    await putWallet(env, guildId, discordUserId, local);
     n++;
   }
   return n;
+}
+
+// Reverse-lookup: scan every wallet for this guild and build a map of
+// every linked stream identity → Discord user id. Only used by the
+// snapshot apply path right now; if we end up needing this on hot
+// paths we can promote it to a `linkidx:` KV row maintained by /link.
+async function buildLinkIndex(env, guildId) {
+  const prefix = `wallet:${guildId}:`;
+  const idx = new Map();
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: LIST_LIMIT });
+    const fetches = r.keys.map(k => env.LOADOUT_BOLTS.get(k.name, { type: 'json' })
+      .then(v => [k.name.slice(prefix.length), v]));
+    for (const [discordUserId, w] of await Promise.all(fetches)) {
+      if (!w?.links) continue;
+      for (const l of w.links) {
+        if (!l?.platform || !l?.username) continue;
+        idx.set(`${String(l.platform).toLowerCase()}:${String(l.username).toLowerCase()}`, discordUserId);
+      }
+    }
+    if (r.list_complete || !r.cursor) break;
+    cursor = r.cursor;
+  }
+  return idx;
+}
+
+// Streamer-facing reset: wipe every wallet in the guild back to zero.
+// Returns the number of wallets cleared. Used by the /admin/reset-wallets
+// HMAC-gated endpoint (which the Loadout settings UI hits behind a
+// confirm dialog).
+export async function resetAllWallets(env, guildId) {
+  const prefix = `wallet:${guildId}:`;
+  let cleared = 0;
+  let cursor;
+  for (let i = 0; i < 10; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: LIST_LIMIT });
+    // Preserve the `links` array on each wallet so existing /link
+    // pairings survive the reset — only balance / lifetime counters
+    // get zeroed. Otherwise viewers would have to re-link everything.
+    for (const k of r.keys) {
+      const w = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!w) continue;
+      const reset = {
+        balance: 0,
+        lifetimeEarned: 0,
+        lifetimeSpent: 0,
+        lastEarnUtc: 0,
+        dailyStreak: 0,
+        lastDailyUtc: 0,
+        links: w.links || []
+      };
+      await env.LOADOUT_BOLTS.put(k.name, JSON.stringify(reset));
+      cleared++;
+    }
+    if (r.list_complete || !r.cursor) break;
+    cursor = r.cursor;
+  }
+  return cleared;
 }
 
 export async function readSnapshot(env, guildId) {

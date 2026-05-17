@@ -55,25 +55,52 @@
 
         <!-- Step content -->
         <Grid Grid.Row="1" Margin="32 24">
-            <!-- Step 1: Welcome -->
+            <!-- Step 1: Welcome — pro-grade landing screen.
+                 Layout: brand wordmark + tagline → friendly intro → an
+                 at-a-glance "what we'll set up" card with time estimate
+                 + reassurance that nothing's permanent. -->
             <StackPanel x:Name="Step1" Visibility="Visible">
-                <TextBlock Text="Welcome to Loadout 🎒" Style="{StaticResource H1}" />
-                <TextBlock TextWrapping="Wrap" Margin="0 8 0 16">
+                <StackPanel Orientation="Horizontal" Margin="0 0 0 6">
+                    <TextBlock Text="⚡" FontSize="32" Margin="0 0 10 0" VerticalAlignment="Center"
+                               Foreground="{StaticResource Brush.Accent}" />
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="L O A D O U T" FontSize="22" FontWeight="Bold" />
+                        <TextBlock Text="Your stream's command deck" Style="{StaticResource Muted}" Margin="0 -2 0 0" />
+                    </StackPanel>
+                </StackPanel>
+                <TextBlock Text="Let's get you set up." Style="{StaticResource H1}" Margin="0 14 0 6" />
+                <TextBlock TextWrapping="Wrap" Margin="0 0 0 16">
                     Loadout is a complete Streamer.bot suite — info commands, alerts, timed messages,
-                    hate-raid detection, Discord live status, off-stream Bolts, and more. Everything works
-                    across <Bold>Twitch</Bold>, <Bold>TikTok</Bold>, <Bold>YouTube</Bold>, and <Bold>Kick</Bold>.
+                    a unified bolts wallet, an off-stream Discord bot, eleven OBS overlays, and more.
+                    Everything works across <Bold>Twitch</Bold>, <Bold>TikTok</Bold>, <Bold>YouTube</Bold>,
+                    and <Bold>Kick</Bold> from a single import.
                 </TextBlock>
-                <TextBlock TextWrapping="Wrap" Style="{StaticResource Muted}">
-                    This wizard takes about 3 minutes. You can change anything later in Settings.
-                </TextBlock>
-                <Border Style="{StaticResource Card}" Margin="0 24 0 0">
+
+                <Border Style="{StaticResource Card}" Margin="0 8 0 0">
                     <StackPanel>
-                        <TextBlock Text="What we'll set up" Style="{StaticResource H2}" />
-                        <TextBlock Text="• Which platforms you stream on" Margin="0 2" />
-                        <TextBlock Text="• Which modules you want enabled by default" Margin="0 2" />
-                        <TextBlock Text="• Discord webhook for go-live posts (optional)" Margin="0 2" />
-                        <TextBlock Text="• Discord bot for off-stream Bolts (optional)" Margin="0 2" />
-                        <TextBlock Text="• Webhook inbox port for external integrations (optional)" Margin="0 2" />
+                        <StackPanel Orientation="Horizontal" Margin="0 0 0 4">
+                            <TextBlock Text="🧭" FontSize="14" Margin="0 0 8 0" />
+                            <TextBlock Text="What we'll do" Style="{StaticResource H2}" Margin="0" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0 0 0 8"
+                                   Text="Eight short steps, about 3 minutes. Skip any you don't need — you can fill them in later." />
+                        <TextBlock Margin="0 2" Text="① Pick your platforms (Twitch / TikTok / YouTube / Kick)" />
+                        <TextBlock Margin="0 2" Text="② Choose which features start enabled (recommended presets included)" />
+                        <TextBlock Margin="0 2" Text="③ Connect a Discord channel for go-live posts (optional)" />
+                        <TextBlock Margin="0 2" Text="④ Open a local port for tip webhooks (optional)" />
+                        <TextBlock Margin="0 2" Text="⑤ Drop in your socials + gamer tags (optional)" />
+                        <TextBlock Margin="0 2" Text="⑥ Connect Patreon for early access to new features (optional)" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0 12 0 0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="💡" FontSize="14" Margin="0 0 10 0" VerticalAlignment="Top" />
+                        <StackPanel>
+                            <TextBlock Text="Nothing's locked in" FontWeight="SemiBold" />
+                            <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0 2 0 0"
+                                       Text="Every choice here lands in Settings. Re-open this wizard any time from the tray-icon menu, or just tweak the saved value directly. Loadout ships with everything OFF — you opt in." />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -99,42 +126,71 @@
                 </Border>
             </StackPanel>
 
-            <!-- Step 3: Modules -->
+            <!-- Step 3: Modules — grouped by category for scannability.
+                 Three preset buttons drive the most common starting
+                 points: Essentials (5 core modules), Recommended (the
+                 default for active streamers), and Everything. Subhead
+                 captions explain each category in plain language. -->
             <StackPanel x:Name="Step3" Visibility="Collapsed">
-                <TextBlock Text="Pick your modules" Style="{StaticResource H1}" />
+                <TextBlock Text="Pick what comes on by default" Style="{StaticResource H1}" />
                 <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 12" TextWrapping="Wrap">
-                    Loadout ships with everything OFF. Tick what you want active — you can change anything later in Settings → Modules.
+                    Loadout ships with everything OFF. Pick a preset or tick individual modules — every toggle is also available later in Settings → Modules.
                 </TextBlock>
-                <StackPanel Orientation="Horizontal" Margin="0 0 0 12">
-                    <Button Content="Recommended" Style="{StaticResource SecondaryButton}" Click="BtnPresetRecommended_Click" Margin="0 0 8 0" />
-                    <Button Content="Enable all"  Style="{StaticResource SecondaryButton}" Click="BtnPresetAll_Click"         Margin="0 0 8 0" />
-                    <Button Content="Disable all" Style="{StaticResource SecondaryButton}" Click="BtnPresetNone_Click" />
+                <StackPanel Orientation="Horizontal" Margin="0 0 0 14">
+                    <Button Content="Essentials"   Style="{StaticResource SecondaryButton}" Click="BtnPresetEssentials_Click"  Margin="0 0 8 0"
+                            ToolTip="Just the basics: info commands, welcomes, alerts, timed messages, counters. Good for a brand-new install." />
+                    <Button Content="Recommended"  Style="{StaticResource PrimaryButton}"   Click="BtnPresetRecommended_Click" Margin="0 0 8 0"
+                            ToolTip="The default for an active streamer — adds bolts, goals, daily check-in, hype train, sub anniversary milestones." />
+                    <Button Content="Everything"   Style="{StaticResource SecondaryButton}" Click="BtnPresetAll_Click"         Margin="0 0 8 0"
+                            ToolTip="Enable every module. You'll likely want to come back and trim later." />
+                    <Button Content="Clear all"    Style="{StaticResource SecondaryButton}" Click="BtnPresetNone_Click"
+                            ToolTip="Untick everything — start clean." />
                 </StackPanel>
-                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
+
+                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="340">
                     <StackPanel>
-                        <CheckBox x:Name="ChkInfo"     Content="Info commands (uptime, followage, socials, etc.)" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkWelcomes" Content="Context-aware welcomes" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkLoyalty"  Content="Bolts wallet (with !link to merge platforms)" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkAlerts"   Content="Alerts (follows, subs, raids, super chats, etc.)" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkTimers"   Content="Auto-timed messages" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkHype"     Content="TikTok hype train (Tier 3)" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkRecap"    Content="Stream recap (post-stream summary)" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkDiscord"  Content="Discord live status auto-poster" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkWebhook"  Content="Webhook inbox" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkMod"      Content="Hate-raid detector (Tier 3)" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkFun"      Content="Counters (deaths/wins + custom)" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkGoals"    Content="Goal tracking (followers/subs/bits)" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkCheckIn"  Content="Daily Check-In overlay" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkFirstWords" Content="First words celebration" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkAdBreak"  Content="Ad break heads-up" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkSubRaid"  Content="Sub raid train" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkSubAnniv" Content="Sub anniversary milestones" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkCcCoins"  Content="Crowd Control coin tracker" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkVip"      Content="VIP rotation auto-magic (Tier 3)" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkAutoPoll" Content="Auto-poll on category change" Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkApex"     Content="Apex (top-viewer mode with cross-platform damage)" Style="{StaticResource ToggleRow}" />
+                        <!-- ─── Core ─── -->
+                        <TextBlock Text="CORE" Style="{StaticResource Eyebrow}" Margin="0 0 0 4" />
+                        <CheckBox x:Name="ChkInfo"     Content="Info commands — !uptime, !followage, !socials, custom commands"           Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkWelcomes" Content="Welcomes — first-time / returning / sub / VIP / mod"                      Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkAlerts"   Content="Alerts — follows / subs / cheers / raids / super chats / TikTok gifts"    Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkTimers"   Content="Auto-timed messages — randomized cadence with activity gating"             Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkFun"      Content="Counters — !deaths / !wins / custom, chat increment + overlay"             Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkGoals"    Content="Goals — followers / subs / bits trackers with live overlay"                Style="{StaticResource ToggleRow}" />
+
+                        <!-- ─── Engagement loops ─── -->
+                        <TextBlock Text="ENGAGEMENT" Style="{StaticResource Eyebrow}" Margin="0 12 0 4" />
+                        <CheckBox x:Name="ChkLoyalty"   Content="Bolts wallet — unified cross-platform points + minigames"   Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkCheckIn"   Content="Daily check-in — !checkin or channel-point reward"          Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkHype"      Content="Hype train — cross-platform fuel from Twitch + TikTok + YouTube + Kick" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkSubRaid"   Content="Sub raid train — 3+/6+/10+/20+ in 60s detection"             Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkSubAnniv"  Content="Sub anniversary milestones — auto-celebrate 3/6/12/24+ mo"   Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkApex"      Content="Apex — top-viewer mode with cross-platform damage"           Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkFirstWords" Content="First-words celebration — Twitch + YouTube native"          Style="{StaticResource ToggleRow}" />
+
+                        <!-- ─── Off-stream + integrations ─── -->
+                        <TextBlock Text="OFF-STREAM + INTEGRATIONS" Style="{StaticResource Eyebrow}" Margin="0 12 0 4" />
+                        <CheckBox x:Name="ChkDiscord"   Content="Discord live-status auto-poster — go-live embed + edit + archive" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkRecap"     Content="Stream recap — post-stream summary to Discord"                    Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkWebhook"   Content="Webhook inbox — Ko-fi / Throne / Patreon / Streamlabs in-bound"    Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkAdBreak"   Content="Ad-break heads-up — chat warning + countdown overlay"             Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkAutoPoll"  Content="Auto-poll on category change — chat reaction prompt"             Style="{StaticResource ToggleRow}" />
+
+                        <!-- ─── Safety + meta ─── -->
+                        <TextBlock Text="SAFETY + META" Style="{StaticResource Eyebrow}" Margin="0 12 0 4" />
+                        <CheckBox x:Name="ChkMod"       Content="Hate-raid detector — pattern-based, broadcaster DM only" Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkVip"       Content="VIP rotation auto-magic — weekly engagement-based promo"  Style="{StaticResource ToggleRow}" />
+                        <CheckBox x:Name="ChkCcCoins"   Content="Crowd Control coin tracker — !mycoins / !cccoins leaderboard"      Style="{StaticResource ToggleRow}" />
                     </StackPanel>
                 </ScrollViewer>
+
+                <Border Style="{StaticResource Card}" Margin="0 14 0 0">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="💡" FontSize="14" Margin="0 0 10 0" VerticalAlignment="Top" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12"
+                                   Text="Every module here is free for everyone — tick whatever you want. Patreon supporters just get brand-new features a little earlier." />
+                    </StackPanel>
+                </Border>
             </StackPanel>
 
             <!-- Step 4: Discord -->
@@ -264,9 +320,9 @@
             <StackPanel x:Name="Step7" Visibility="Collapsed">
                 <TextBlock Text="Connect Patreon (optional)" Style="{StaticResource H1}" />
                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 16">
-                    Loadout is fully free for the basics. Tier 2 ($6) unlocks multi-platform alerts, unlimited timers,
-                    Discord live status, webhook inbox, and stream recap. Tier 3 ($10) adds hate-raid detection,
-                    TikTok hype train, the cross-platform loyalty wallet, and the off-stream Discord bot.
+                    Every Loadout feature is free for everyone — you don't need to sign in to use anything.
+                    Connecting Patreon is for supporters: Tier 2 and Tier 3 patrons get brand-new features early,
+                    earn Bolts at a boosted rate, and help fund development. You can connect later from Settings.
                 </TextBlock>
                 <Border Style="{StaticResource Card}">
                     <StackPanel>
@@ -275,7 +331,7 @@
                             <Button x:Name="BtnPatreonConnect" Content="Connect Patreon"
                                     Style="{StaticResource PrimaryButton}" Click="BtnPatreonConnect_Click"
                                     Margin="0 0 8 0" />
-                            <Button x:Name="BtnPatreonSkip" Content="Skip - I'm staying free"
+                            <Button x:Name="BtnPatreonSkip" Content="Skip for now"
                                     Style="{StaticResource SecondaryButton}" Click="BtnPatreonSkip_Click" />
                         </StackPanel>
                     </StackPanel>
