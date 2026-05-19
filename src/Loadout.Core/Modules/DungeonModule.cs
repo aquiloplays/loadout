@@ -279,7 +279,11 @@ namespace Loadout.Modules
                         kind       = scene.Kind,
                         text       = scene.Text,
                         glyph      = scene.Glyph,
-                        targetUser = scene.TargetUser
+                        targetUser = scene.TargetUser,
+                        // Per-scene HP for the Twitch panel — anonymous-typed
+                        // so JSON property names match what panel.html reads.
+                        partyHp    = (scene.PartyHp ?? new List<Loadout.Games.Dungeon.HpSnapshot>())
+                                     .Select(h => new { name = h.Name, hp = h.Hp, hpMax = h.HpMax }),
                     });
                 }
 

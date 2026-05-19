@@ -25,6 +25,17 @@ namespace Loadout.Games.Dungeon
         public string Text      { get; set; }   // the line to render in the adventure log
         public string TargetUser { get; set; }  // optional — which hero this happened to
         public string Glyph     { get; set; }   // optional — emoji for the scene tile
+        // Per-scene HP snapshot of every party member after this scene's
+        // resolution — lets the Twitch panel tick HP bars down live as the
+        // scene replay plays out. Empty until the engine populates it.
+        public List<HpSnapshot> PartyHp { get; set; } = new List<HpSnapshot>();
+    }
+
+    public sealed class HpSnapshot
+    {
+        public string Name  { get; set; }
+        public int    Hp    { get; set; }
+        public int    HpMax { get; set; }
     }
 
     public sealed class DungeonOutcome
@@ -73,12 +84,14 @@ namespace Loadout.Games.Dungeon
             runDurationSec = Math.Max(15, Math.Min(120, runDurationSec));
             sceneCount = Math.Max(3, Math.Min(8, sceneCount));
 
-            // Opening flavour line — biome-aware.
+            // Opening flavour line — biome-aware. PartyHp captures the
+            // starting HP so the panel doesn't have to special-case scene 0.
             result.Scenes.Add(new DungeonScene
             {
                 DelayMs = 200,
                 Kind    = "story",
-                Text    = "The party enters " + dungeon.Theme + " " + dungeon.Name + "..."
+                Text    = "The party enters " + dungeon.Theme + " " + dungeon.Name + "...",
+                PartyHp = SnapshotHp(heroes),
             });
 
             // Schedule scenes evenly across the run, leaving a tail for
@@ -112,6 +125,11 @@ namespace Loadout.Games.Dungeon
                     else                scene = MakeFlavour  (r);
                 }
                 scene.DelayMs = t;
+                // Snapshot post-scene HP — the Make* call above has already
+                // mutated each RunningHero.HpRemaining for whatever the scene
+                // did (damage, heal, curse, etc.), so this records the new
+                // floor for the panel to render.
+                scene.PartyHp = SnapshotHp(heroes);
                 result.Scenes.Add(scene);
 
                 // A scene where everyone is at 0 HP is an end. Stop
@@ -191,6 +209,25 @@ namespace Loadout.Games.Dungeon
                 case "legendary": return "legendary";
                 default:          return "rare";
             }
+        }
+
+        // Snapshot every party member's current HP so the panel can tick
+        // their bars down in real time as the scene replay plays out. HP
+        // values are clamped at zero — fallen heroes show an empty bar
+        // rather than a negative one.
+        private static List<HpSnapshot> SnapshotHp(IEnumerable<RunningHero> heroes)
+        {
+            var list = new List<HpSnapshot>();
+            foreach (var h in heroes)
+            {
+                list.Add(new HpSnapshot
+                {
+                    Name  = h.Hero.Handle,
+                    Hp    = Math.Max(0, h.HpRemaining),
+                    HpMax = h.Hero.HpMax,
+                });
+            }
+            return list;
         }
 
         // -------------------- scene builders --------------------
