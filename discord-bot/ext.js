@@ -84,6 +84,16 @@ export async function handleExt(req, env) {
 async function extHero(env, guildId, userId) {
   const hero = await loadHero(env, guildId, userId);
   const cls = CLASSES[hero.className] || null;
+
+  // Resolve equipped slot -> item id into display name + glyph via the bag.
+  const bagById = {};
+  for (const it of hero.bag || []) bagById[it.id] = it;
+  const equipped = [];
+  for (const [slot, id] of Object.entries(hero.equipped || {})) {
+    const it = bagById[id];
+    equipped.push({ slot, name: it ? it.name : String(id), glyph: it ? it.glyph || '' : '' });
+  }
+
   return json({
     hero: {
       className: hero.className || '',
@@ -94,7 +104,7 @@ async function extHero(env, guildId, userId) {
       hpCurrent: hero.hpCurrent || 0,
       atk: attackOf(hero),
       def: defenseOf(hero),
-      equipped: hero.equipped || {},
+      equipped,
       bagCount: (hero.bag || []).length,
       dungeonsSurvived: hero.dungeonsSurvived || 0,
       bossesSlain: hero.bossesSlain || 0,
