@@ -37,6 +37,7 @@ import {
   enqueuePanelCmd,
   drainDllCommands,
 } from './ext-panelbridge.js';
+import { rollLootBox, readLootBoxCatalog } from './ext-lootbox.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -99,6 +100,12 @@ export async function handleExt(req, env) {
     }
     if (route === 'dungeon/state') return await panelBridgeState(env, 'dungeon');
     if (route === 'minigame/state') return await panelBridgeState(env, 'minigame');
+    if (req.method === 'GET' && route === 'lootbox/catalog') {
+      return await readLootBoxCatalog(env);
+    }
+    if (req.method === 'POST' && route === 'lootbox/roll') {
+      return await rollLootBox(env, guildId, userId, req);
+    }
     if (req.method === 'POST' && route === 'dungeon/cmd') {
       return await enqueuePanelCmd(env, 'dungeon', payload, req);
     }
