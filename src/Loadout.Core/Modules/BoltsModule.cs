@@ -15,7 +15,7 @@ namespace Loadout.Modules
 {
     /// <summary>
     /// Bolts wallet module. Earns on every meaningful event, spends via chat
-    /// commands. Multipliers stack additively (sub +0.5, patreon-tier3 +1.0,
+    /// commands. Multipliers stack additively (sub +0.5, patron +0.5,
     /// 5-day streak +0.5 → final 3.0×).
     ///
     /// Chat commands (every reply gated through ChatGate, so this can't clog
@@ -197,9 +197,7 @@ namespace Loadout.Modules
 
             var tier = SupportersClient.Instance.LookupCachedOrFireAndForget(
                 ctx.Platform.ToShortName(), ctx.User);
-            if (tier == "tier1") m += s.Bolts.PatreonTier1Bonus;
-            else if (tier == "tier2") m += s.Bolts.PatreonTier2Bonus;
-            else if (tier == "tier3") m += s.Bolts.PatreonTier3Bonus;
+            if (tier == "patron") m += s.Bolts.PatreonBonus;
 
             // Daily streak bonus (capped).
             var account = BoltsWallet.Instance.Get(ctx.Platform.ToShortName(), ctx.User);
@@ -215,6 +213,10 @@ namespace Loadout.Modules
         private static void HandleCheckIn(EventContext ctx, LoadoutSettings s)
         {
             if (string.IsNullOrEmpty(ctx.User)) return;
+            // Twitch-panel extension check-ins are paid out cloud-side by the
+            // Loadout Worker's /ext/checkin — skip the DLL-side credit so they
+            // are not double-counted.
+            if (ctx.Get<string>("source", "") == "extension") return;
             var (streak, grew) = BoltsWallet.Instance.BumpStreak(ctx.Platform.ToShortName(), ctx.User);
 
             // Award the configured check-in payout (multiplied like everything else).

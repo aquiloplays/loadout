@@ -10,6 +10,7 @@
 //   CLAY_TWITCH_CHANNEL_ID  var    — Clay's numeric Twitch channel id
 //   AQUILO_VAULT_GUILD_ID   var    — Clay's Discord guild, reused as the
 //                                    Loadout guild for his channel
+//   RELAY_TOKEN             secret — shared token for the /relay/pending poll
 // Until TWITCH_EXT_SECRET / CLAY_TWITCH_CHANNEL_ID are set every route
 // returns 401/403 — safe to deploy ahead of the Twitch app existing.
 //
@@ -72,13 +73,42 @@ export async function handleExt(req, env) {
     if (req.method === 'GET' && route === 'hero') return await extHero(env, guildId, userId);
     if (req.method === 'GET' && route === 'wallet') return await extWallet(env, guildId, userId);
     if (req.method === 'POST' && route === 'daily') return await extDaily(env, guildId, userId);
+    if (req.method === 'POST' && route === 'checkin') {
+      return await extCheckin(env, guildId, userId, req);
+    }
     if (req.method === 'GET' && route === 'leaderboard') {
-      return await extLeaderboard(env, guildId, userId);
+      return await extLeaderboard(env, guildId, userId, url.searchParams.get('type'));
     }
     return json({ error: 'not-found' }, 404);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
   }
+}
+
+// ---- Relay queue --------------------------------------------------------
+// GET /relay/pending — polled by a Streamer.bot action on Clay's PC, which
+// republishes each trigger as a `checkin.shown` event on the local Aquilo
+// Bus so the OBS check-in overlay plays. Gated by the RELAY_TOKEN shared
+// secret (Streamer.bot is not a Twitch viewer, so no JWT). Returns and
+// deletes the pending triggers — at-most-once delivery, single poller.
+export async function handleRelay(req, env) {
+  const url = new URL(req.url);
+  if (url.pathname.replace(/\/+$/, '') !== '/relay/pending') {
+    return json({ error: 'not-found' }, 404);
+  }
+  if (req.method !== 'GET') return json({ error: 'method' }, 405);
+  const token = req.headers.get('X-Relay-Token') || '';
+  if (!env.RELAY_TOKEN || token !== env.RELAY_TOKEN) {
+    return json({ error: 'unauthorized' }, 401);
+  }
+  const list = await env.LOADOUT_BOLTS.list({ prefix: 'relay:' });
+  const triggers = [];
+  for (const k of list.keys) {
+    const v = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+    if (v) triggers.push(v);
+    await env.LOADOUT_BOLTS.delete(k.name);
+  }
+  return json({ triggers });
 }
 
 async function extHero(env, guildId, userId) {
@@ -130,7 +160,10 @@ async function extDaily(env, guildId, userId) {
   return json({ result, balance: w.balance || 0 });
 }
 
-async function extLeaderboard(env, guildId, userId) {
+async function extLeaderboard(env, guildId, userId, type) {
+  if (type === 'checkin') return extCheckinLeaderboard(env, guildId, userId);
+
+  // type=bolts (default) — rank by wallet balance.
   // Big limit: leaderboard() lists every wallet key regardless, so the
   // limit only sizes the returned slice — 5000 makes the caller's rank
   // accurate without extra KV reads.
@@ -152,5 +185,135 @@ async function extLeaderboard(env, guildId, userId) {
     youRank = idx + 1;
     youBalance = all[idx].w.balance || 0;
   }
-  return json({ top, you: { rank: youRank, balance: youBalance } });
+  return json({ type: 'bolts', top, you: { rank: youRank, balance: youBalance } });
+}
+
+// ---- Daily check-in -----------------------------------------------------
+// Records a cloud check-in (count + streak + cooldown) and enqueues a relay
+// trigger so the OBS overlay plays. Separate from the bolts `daily` claim —
+// check-in is the presence action; it does not award bolts here.
+
+const CHECKIN_COOLDOWN_MS = 20 * 60 * 60 * 1000; // 20h
+const CHECKIN_STREAK_WINDOW_MS = 48 * 60 * 60 * 1000;
+const CHECKIN_KEY = (g, u) => `checkin:${g}:${u}`;
+
+// ASCII control characters (range 0x00-0x1f plus DEL 0x7f) — stripped
+// from viewer-supplied text so nothing can break the overlay markup.
+const CONTROL_CHARS = /[\x00-\x1f\x7f]/g;
+
+// Small starter profanity list — matched whole-word, case-insensitive, and
+// masked (not rejected) so the viewer still gets their check-in. Clay's
+// mods are the real backstop.
+const PROFANITY = [
+  'fuck', 'shit', 'bitch', 'cunt', 'asshole', 'dick', 'piss', 'bastard',
+  'slut', 'whore', 'nigger', 'nigga', 'faggot', 'retard', 'rape',
+];
+
+function maskProfanity(text) {
+  let out = text;
+  for (const w of PROFANITY) {
+    out = out.replace(new RegExp('\\b' + w + 's?\\b', 'gi'), (m) => '*'.repeat(m.length));
+  }
+  return out;
+}
+
+function cleanMessage(raw) {
+  let m = String(raw || '');
+  m = m.replace(/[<>]/g, '');
+  m = m.replace(CONTROL_CHARS, ' ');
+  m = m.replace(/\s+/g, ' ').trim().slice(0, 120);
+  return maskProfanity(m);
+}
+
+function cleanName(raw) {
+  return String(raw || '')
+    .replace(/[<>]/g, '')
+    .replace(CONTROL_CHARS, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 40);
+}
+
+async function extCheckin(env, guildId, userId, req) {
+  let body = {};
+  try {
+    body = await req.json();
+  } catch {
+    /* empty body is fine — a check-in with no message */
+  }
+
+  const key = CHECKIN_KEY(guildId, userId);
+  const rec = (await env.LOADOUT_BOLTS.get(key, { type: 'json' })) || {
+    count: 0,
+    streak: 0,
+    lastCheckinUtc: 0,
+    name: '',
+  };
+  const now = Date.now();
+  const since = now - (rec.lastCheckinUtc || 0);
+  if (rec.lastCheckinUtc && since < CHECKIN_COOLDOWN_MS) {
+    return json({ error: 'cooldown', cooldownMs: CHECKIN_COOLDOWN_MS - since }, 429);
+  }
+
+  const name = cleanName(body.displayName) || 'Anonymous viewer';
+  const message = cleanMessage(body.message);
+
+  rec.count = (rec.count || 0) + 1;
+  rec.streak =
+    rec.lastCheckinUtc && since < CHECKIN_STREAK_WINDOW_MS ? (rec.streak || 0) + 1 : 1;
+  rec.lastCheckinUtc = now;
+  rec.name = name;
+  await env.LOADOUT_BOLTS.put(key, JSON.stringify(rec));
+
+  // Enqueue the overlay trigger. A Streamer.bot action polls /relay/pending
+  // and republishes this as a `checkin.shown` bus event; `source:"extension"`
+  // is what the DLL's BoltsModule guard keys off to skip a double credit.
+  await env.LOADOUT_BOLTS.put(
+    `relay:checkin:${crypto.randomUUID()}`,
+    JSON.stringify({
+      type: 'checkin',
+      user: name,
+      message,
+      source: 'extension',
+      role: 'viewer',
+      platform: 'twitch',
+      ts: now,
+    }),
+    { expirationTtl: 300 },
+  );
+
+  return json({
+    ok: true,
+    count: rec.count,
+    streak: rec.streak,
+    cooldownMs: CHECKIN_COOLDOWN_MS,
+  });
+}
+
+async function extCheckinLeaderboard(env, guildId, userId) {
+  const prefix = `checkin:${guildId}:`;
+  const list = await env.LOADOUT_BOLTS.list({ prefix });
+  const all = [];
+  for (const k of list.keys) {
+    const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+    if (rec) all.push({ userId: k.name.slice(prefix.length), rec });
+  }
+  all.sort((a, b) => (b.rec.count || 0) - (a.rec.count || 0));
+
+  const top = all.slice(0, 10).map((e) => ({
+    name: e.rec.name || 'Anonymous viewer',
+    count: e.rec.count || 0,
+    streak: e.rec.streak || 0,
+  }));
+
+  let you = { rank: 0, count: 0, streak: 0 };
+  const idx = all.findIndex((e) => e.userId === userId);
+  if (idx >= 0) {
+    you = {
+      rank: idx + 1,
+      count: all[idx].rec.count || 0,
+      streak: all[idx].rec.streak || 0,
+    };
+  }
+  return json({ type: 'checkin', top, you });
 }
