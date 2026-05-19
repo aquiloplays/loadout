@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Loadout.Bus;
+using Loadout.Sb;
+using Loadout.Settings;
 using Loadout.Util;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -44,15 +46,21 @@ namespace Loadout.Modules
         private static readonly HttpClient Http =
             new HttpClient { Timeout = TimeSpan.FromSeconds(8) };
 
+        // How often the downstream command poll hits /relay/dll-pending.
+        private const int PollMs = 2000;
+
         private readonly bool _enabled;
         private readonly string _relayToken;
         private readonly string _ingestUrl;
+        private readonly string _pendingUrl;
 
         private readonly object _gate = new object();
         private JObject _dungeon;                       // snapshot being pushed
         private DateTime _runStartUtc;
         private readonly List<PendingUpdate> _pending = new List<PendingUpdate>();
         private Timer _replay;
+        private Timer _poll;                            // downstream command poll
+        private volatile bool _disposed;
 
         // A buffered step of the dungeon-run replay timeline.
         private sealed class PendingUpdate
@@ -85,6 +93,7 @@ namespace Loadout.Modules
                 if (_relayToken.Length == 0 || worker.Length == 0) return;
 
                 _ingestUrl = worker + "/relay/dll-ingest";
+                _pendingUrl = worker + "/relay/dll-pending";
                 _enabled = true;
             }
             catch (Exception ex)
@@ -111,15 +120,22 @@ namespace Loadout.Modules
         {
             if (!_enabled) return;
             AquiloBus.Instance.LocalPublished += OnBusPublished;
+            // Downstream: poll the Worker for panel-issued commands. Self-
+            // reschedules after each poll so a slow request can't stack.
+            _poll = new Timer(_ => { var _ignore = PollOnceAsync(); },
+                              null, PollMs, Timeout.Infinite);
         }
 
         public void Dispose()
         {
+            _disposed = true;
             if (_enabled) AquiloBus.Instance.LocalPublished -= OnBusPublished;
             lock (_gate)
             {
                 _replay?.Dispose();
                 _replay = null;
+                _poll?.Dispose();
+                _poll = null;
             }
         }
 
@@ -340,6 +356,139 @@ namespace Loadout.Modules
             {
                 ErrorLog.Write("PanelBridgeModule.Post", ex);
             }
+        }
+
+        // ---- downstream: panel commands -> engines ------------------------
+
+        // Polls /relay/dll-pending, replays each queued command, then
+        // reschedules itself. Runs on a thread-pool thread.
+        private async Task PollOnceAsync()
+        {
+            try
+            {
+                using (var req = new HttpRequestMessage(HttpMethod.Get, _pendingUrl))
+                {
+                    req.Headers.TryAddWithoutValidation("X-Relay-Token", _relayToken);
+                    using (var resp = await Http.SendAsync(req).ConfigureAwait(false))
+                    {
+                        if (resp.IsSuccessStatusCode)
+                        {
+                            var body = await resp.Content.ReadAsStringAsync()
+                                                 .ConfigureAwait(false);
+                            DispatchPanelCommands(body);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                ErrorLog.Write("PanelBridgeModule.Poll", ex);
+            }
+            finally
+            {
+                if (!_disposed)
+                {
+                    try { _poll?.Change(PollMs, Timeout.Infinite); } catch { }
+                }
+            }
+        }
+
+        private void DispatchPanelCommands(string body)
+        {
+            JArray cmds;
+            try { cmds = JObject.Parse(body)["commands"] as JArray; }
+            catch { return; }
+            if (cmds == null) return;
+
+            foreach (var c in cmds)
+            {
+                try { DispatchPanelCommand(c as JObject); }
+                catch (Exception ex)
+                {
+                    ErrorLog.Write("PanelBridgeModule.Dispatch", ex);
+                }
+            }
+        }
+
+        // Replays one panel command as a synthesized Twitch chat event, so
+        // the existing dungeon / mini-game engines handle it through their
+        // normal chat-command path — no engine changes needed. Role is
+        // JWT-derived (the Worker only trusts that field), so engine-side
+        // gates like "!dungeon is mods-only" still hold.
+        private void DispatchPanelCommand(JObject cmd)
+        {
+            if (cmd == null) return;
+
+            var kind   = (string)cmd["kind"];
+            var action = ((string)cmd["action"] ?? "").ToLowerInvariant();
+            var arg    = ((string)cmd["arg"] ?? "").Trim();
+            var user   = cmd["user"] as JObject;
+            var name   = (user?.Value<string>("name") ?? "").Trim();
+            var role   = (user?.Value<string>("role") ?? "viewer").ToLowerInvariant();
+            if (name.Length == 0) name = "viewer";
+
+            var message = BuildCommandMessage(kind, action, arg);
+            if (message == null) return;   // unknown kind / action — drop
+
+            var args = new Dictionary<string, object>
+            {
+                ["eventSource"] = "twitch",
+                ["user"]        = name,
+                ["userName"]    = name,
+                ["userType"]    = role == "broadcaster" ? "broadcaster"
+                                : role == "moderator"   ? "mod"
+                                                        : "viewer",
+                ["message"]     = message,
+                ["rawInput"]    = message,
+            };
+            SbEventDispatcher.Instance.DispatchEvent("chat", args);
+        }
+
+        // Maps a (kind, action) pair to the chat line a viewer would type.
+        // Dungeon verbs honour Clay's configured command words; mini-game
+        // verbs are fixed (BoltsModule matches them literally).
+        private static string BuildCommandMessage(string kind, string action, string arg)
+        {
+            string word;
+            if (kind == "dungeon")
+            {
+                var dc = SettingsManager.Instance.Current?.Dungeon;
+                switch (action)
+                {
+                    case "dungeon": word = NormalizeCmd(dc?.DungeonCommand, "!dungeon"); break;
+                    case "join":    word = NormalizeCmd(dc?.JoinCommand,    "!join");    break;
+                    case "duel":    word = NormalizeCmd(dc?.DuelCommand,    "!duel");    break;
+                    default: return null;
+                }
+            }
+            else if (kind == "minigame")
+            {
+                switch (action)
+                {
+                    case "coinflip":
+                    case "dice":
+                    case "slots":
+                    case "rps":
+                    case "roulette":
+                        word = "!" + action;
+                        break;
+                    default: return null;
+                }
+            }
+            else return null;
+
+            return arg.Length > 0 ? word + " " + arg : word;
+        }
+
+        // Mirror of DungeonModule.NormalizeCmd — ensures a leading '!' and
+        // lower-cases, so the synthesized line matches what the engine
+        // compares against.
+        private static string NormalizeCmd(string cfg, string fallback)
+        {
+            var c = (cfg ?? "").Trim();
+            if (c.Length == 0) c = fallback;
+            if (!c.StartsWith("!", StringComparison.Ordinal)) c = "!" + c;
+            return c.ToLowerInvariant();
         }
     }
 }

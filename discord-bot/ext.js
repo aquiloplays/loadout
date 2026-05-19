@@ -31,7 +31,12 @@ import { handleLoadout } from './ext-loadout.js';
 import { recordStat, getRecap, isStreamLive } from './recap.js';
 import { handleTier1 } from './ext-tier1.js';
 import { handleEngage } from './ext-engage.js';
-import { ingestDllState, panelBridgeState } from './ext-panelbridge.js';
+import {
+  ingestDllState,
+  panelBridgeState,
+  enqueuePanelCmd,
+  drainDllCommands,
+} from './ext-panelbridge.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -94,6 +99,12 @@ export async function handleExt(req, env) {
     }
     if (route === 'dungeon/state') return await panelBridgeState(env, 'dungeon');
     if (route === 'minigame/state') return await panelBridgeState(env, 'minigame');
+    if (req.method === 'POST' && route === 'dungeon/cmd') {
+      return await enqueuePanelCmd(env, 'dungeon', payload, req);
+    }
+    if (req.method === 'POST' && route === 'minigame/cmd') {
+      return await enqueuePanelCmd(env, 'minigame', payload, req);
+    }
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
     }
@@ -117,6 +128,7 @@ export async function handleRelay(req, env) {
   const path = url.pathname.replace(/\/+$/, '');
   if (path === '/relay/ingest') return ingestRotation(req, env);
   if (path === '/relay/dll-ingest') return ingestDllState(req, env);
+  if (path === '/relay/dll-pending') return drainDllCommands(req, env);
   if (path !== '/relay/pending') {
     return json({ error: 'not-found' }, 404);
   }
