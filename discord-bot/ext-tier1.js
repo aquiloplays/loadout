@@ -11,19 +11,7 @@
 
 import { getTwitchAppToken } from './ext-loadout.js';
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-  'Access-Control-Max-Age': '86400',
-};
-
-function json(obj, status) {
-  return new Response(JSON.stringify(obj), {
-    status: status || 200,
-    headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...CORS },
-  });
-}
+import { json } from './ext-shared.js';
 
 // ---- VODs --------------------------------------------------------------
 const VODS_CACHE_KEY = 'vods:cache';
