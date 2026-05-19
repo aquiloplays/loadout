@@ -2,7 +2,7 @@
     "meta":  {
                  "name":  "Loadout",
                  "author":  "aquiloplays",
-                 "version":  "1.5.0",
+                 "version":  "1.6.0",
                  "description":  "The ultimate Streamer.bot suite. One import, everything ready.",
                  "autoRunAction":  null,
                  "minimumVersion":  null
@@ -10,7 +10,7 @@
     "data":  {
                  "actions":  [
                                  {
-                                     "id":  "bcedcf29-1911-4079-bc7f-5cce45e3ed80",
+                                     "id":  "62abf900-b580-4a64-a41e-77c0a9258e10",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -22,7 +22,7 @@
                                      "concurrent":  false,
                                      "triggers":  [
                                                       {
-                                                          "id":  "a83f8038-0bd8-4017-9632-35a5b5fd3598",
+                                                          "id":  "e164d4a9-52ea-436b-8190-6761fbe17e7a",
                                                           "type":  706,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -38,12 +38,12 @@
                                                                                "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
                                                                                "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
                                                                            ],
-                                                            "byteCode":  "Ly8gTE9BRE9VVCDigJQgQk9PVA0KLy8gVHJpZ2dlcmVkIG9uIFN0cmVhbWVyLmJvdCBTdGFydGVkLiBEb3dubG9hZHMgTG9hZG91dC5kbGwgb24gZmlyc3QgcnVuLCBsb2Fkcw0KLy8gaXQgdmlhIEFzc2VtYmx5LkxvYWRGcm9tIChubyBSZWZlcmVuY2VzLXRhYiBlZGl0aW5nIG5lZWRlZCksIGFuZCBjYWxscw0KLy8gTG9hZG91dEVudHJ5LkJvb3QoQ1BIKS4gSWRlbXBvdGVudCDigJQgc3Vic2VxdWVudCBydW5zIHNob3J0LWNpcmN1aXQuDQp1c2luZyBTeXN0ZW07DQp1c2luZyBTeXN0ZW0uSU87DQp1c2luZyBTeXN0ZW0uTmV0Ow0KdXNpbmcgU3lzdGVtLlJlZmxlY3Rpb247DQoNCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUNCnsNCiAgICBwcml2YXRlIGNvbnN0IHN0cmluZyBSZXBvICAgID0gImFxdWlsb3BsYXlzL2xvYWRvdXQtZG93bmxvYWRzIjsNCiAgICBwcml2YXRlIGNvbnN0IHN0cmluZyBWZXJzaW9uID0gIjEuNS4wIjsNCg0KICAgIHB1YmxpYyBib29sIEV4ZWN1dGUoKQ0KICAgIHsNCiAgICAgICAgdHJ5DQogICAgICAgIHsNCiAgICAgICAgICAgIFNlcnZpY2VQb2ludE1hbmFnZXIuU2VjdXJpdHlQcm90b2NvbCB8PSBTZWN1cml0eVByb3RvY29sVHlwZS5UbHMxMjsNCiAgICAgICAgICAgIHZhciBkYXRhRGlyID0gUGF0aC5Db21iaW5lKEFwcERvbWFpbi5DdXJyZW50RG9tYWluLkJhc2VEaXJlY3RvcnksICJkYXRhIiwgIkxvYWRvdXQiKTsNCiAgICAgICAgICAgIERpcmVjdG9yeS5DcmVhdGVEaXJlY3RvcnkoZGF0YURpcik7DQogICAgICAgICAgICB2YXIgZGxsUGF0aCA9IFBhdGguQ29tYmluZShkYXRhRGlyLCAiTG9hZG91dC5kbGwiKTsNCg0KICAgICAgICAgICAgLy8gU3RhZ2UtYW5kLXN3YXAgdXBkYXRlIHBhdGguIFRoZSB0cmF5IGljb24ncyAiQXBwbHkgdXBkYXRlIiBidXR0b24NCiAgICAgICAgICAgIC8vIGRvd25sb2FkcyB0aGUgbmV3IERMTCB0byBMb2Fkb3V0LmRsbC5uZXcgd2hpbGUgU0IgaXMgcnVubmluZy4NCiAgICAgICAgICAgIC8vIFRoZSBvbGQgRExMIGlzIGxvY2tlZCBieSB0aGUgcnVubmluZyBwcm9jZXNzLCBzbyB3ZSBzd2FwIG9uIHRoZQ0KICAgICAgICAgICAgLy8gTkVYVCBib290IOKAlCByaWdodCBoZXJlLCBCRUZPUkUgQXNzZW1ibHkuTG9hZEZyb20gbG9ja3MgdGhlIGZpbGUNCiAgICAgICAgICAgIC8vIGFnYWluIGZvciB0aGlzIHNlc3Npb24uDQogICAgICAgICAgICB2YXIgc3RhZ2VkRGxsID0gZGxsUGF0aCArICIubmV3IjsNCiAgICAgICAgICAgIGlmIChGaWxlLkV4aXN0cyhzdGFnZWREbGwpKQ0KICAgICAgICAgICAgew0KICAgICAgICAgICAgICAgIHRyeQ0KICAgICAgICAgICAgICAgIHsNCiAgICAgICAgICAgICAgICAgICAgaWYgKEZpbGUuRXhpc3RzKGRsbFBhdGgpKSBGaWxlLkRlbGV0ZShkbGxQYXRoKTsNCiAgICAgICAgICAgICAgICAgICAgRmlsZS5Nb3ZlKHN0YWdlZERsbCwgZGxsUGF0aCk7DQogICAgICAgICAgICAgICAgICAgIENQSC5Mb2dJbmZvKCJbTG9hZG91dF0gQXBwbGllZCBzdGFnZWQgRExMIHVwZGF0ZSIpOw0KICAgICAgICAgICAgICAgIH0NCiAgICAgICAgICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIHN3YXBFeCkNCiAgICAgICAgICAgICAgICB7DQogICAgICAgICAgICAgICAgICAgIENQSC5Mb2dXYXJuKCJbTG9hZG91dF0gRmFpbGVkIHRvIHN3YXAgc3RhZ2VkIERMTDogIiArIHN3YXBFeC5NZXNzYWdlKTsNCiAgICAgICAgICAgICAgICB9DQogICAgICAgICAgICB9DQogICAgICAgICAgICB2YXIgc3RhZ2VkTmogPSBQYXRoLkNvbWJpbmUoZGF0YURpciwgIk5ld3RvbnNvZnQuSnNvbi5kbGwubmV3Iik7DQogICAgICAgICAgICBpZiAoRmlsZS5FeGlzdHMoc3RhZ2VkTmopKQ0KICAgICAgICAgICAgew0KICAgICAgICAgICAgICAgIHRyeQ0KICAgICAgICAgICAgICAgIHsNCiAgICAgICAgICAgICAgICAgICAgdmFyIG5qRGxsID0gUGF0aC5Db21iaW5lKGRhdGFEaXIsICJOZXd0b25zb2Z0Lkpzb24uZGxsIik7DQogICAgICAgICAgICAgICAgICAgIGlmIChGaWxlLkV4aXN0cyhuakRsbCkpIEZpbGUuRGVsZXRlKG5qRGxsKTsNCiAgICAgICAgICAgICAgICAgICAgRmlsZS5Nb3ZlKHN0YWdlZE5qLCBuakRsbCk7DQogICAgICAgICAgICAgICAgfQ0KICAgICAgICAgICAgICAgIGNhdGNoIHsgLyogbm9uLWZhdGFsICovIH0NCiAgICAgICAgICAgIH0NCg0KICAgICAgICAgICAgaWYgKCFGaWxlLkV4aXN0cyhkbGxQYXRoKSkNCiAgICAgICAgICAgIHsNCiAgICAgICAgICAgICAgICB2YXIgdXJsID0gImh0dHBzOi8vZ2l0aHViLmNvbS8iICsgUmVwbyArICIvcmVsZWFzZXMvZG93bmxvYWQvdiIgKyBWZXJzaW9uICsgIi9Mb2Fkb3V0LmRsbCI7DQogICAgICAgICAgICAgICAgQ1BILkxvZ0luZm8oIltMb2Fkb3V0XSBEb3dubG9hZGluZyBETEw6ICIgKyB1cmwpOw0KICAgICAgICAgICAgICAgIHVzaW5nICh2YXIgd2MgPSBuZXcgV2ViQ2xpZW50KCkpDQogICAgICAgICAgICAgICAgew0KICAgICAgICAgICAgICAgICAgICB3Yy5IZWFkZXJzLkFkZCgiVXNlci1BZ2VudCIsICJMb2Fkb3V0LUJvb3QvIiArIFZlcnNpb24pOw0KICAgICAgICAgICAgICAgICAgICB3Yy5Eb3dubG9hZEZpbGUodXJsLCBkbGxQYXRoKTsNCiAgICAgICAgICAgICAgICB9DQogICAgICAgICAgICB9DQoNCiAgICAgICAgICAgIHZhciBhc20gPSBBc3NlbWJseS5Mb2FkRnJvbShkbGxQYXRoKTsNCiAgICAgICAgICAgIHZhciBlbnRyeSA9IGFzbS5HZXRUeXBlKCJMb2Fkb3V0LkxvYWRvdXRFbnRyeSIsIHRocm93T25FcnJvcjogdHJ1ZSk7DQogICAgICAgICAgICB2YXIgYm9vdCA9IGVudHJ5LkdldE1ldGhvZCgiQm9vdCIsIEJpbmRpbmdGbGFncy5QdWJsaWMgfCBCaW5kaW5nRmxhZ3MuU3RhdGljKTsNCiAgICAgICAgICAgIHZhciBvayA9IChib29sKWJvb3QuSW52b2tlKG51bGwsIG5ldyBvYmplY3RbXSB7IENQSCB9KTsNCg0KICAgICAgICAgICAgQ1BILlNldEdsb2JhbFZhcigibG9hZG91dC5ib290ZWQiLCBvaywgdHJ1ZSk7DQogICAgICAgICAgICBDUEguU2V0R2xvYmFsVmFyKCJsb2Fkb3V0LnZlcnNpb24iLCBWZXJzaW9uLCB0cnVlKTsNCiAgICAgICAgICAgIHJldHVybiBvazsNCiAgICAgICAgfQ0KICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIGV4KQ0KICAgICAgICB7DQogICAgICAgICAgICBDUEguTG9nRXJyb3IoIltMb2Fkb3V0XSBCb290IGZhaWxlZDogIiArIGV4Lk1lc3NhZ2UpOw0KICAgICAgICAgICAgcmV0dXJuIGZhbHNlOw0KICAgICAgICB9DQogICAgfQ0KfQ0K",
+                                                            "byteCode":  "Ly8gTE9BRE9VVCDigJQgQk9PVA0KLy8gVHJpZ2dlcmVkIG9uIFN0cmVhbWVyLmJvdCBTdGFydGVkLiBEb3dubG9hZHMgTG9hZG91dC5kbGwgb24gZmlyc3QgcnVuLCBsb2Fkcw0KLy8gaXQgdmlhIEFzc2VtYmx5LkxvYWRGcm9tIChubyBSZWZlcmVuY2VzLXRhYiBlZGl0aW5nIG5lZWRlZCksIGFuZCBjYWxscw0KLy8gTG9hZG91dEVudHJ5LkJvb3QoQ1BIKS4gSWRlbXBvdGVudCDigJQgc3Vic2VxdWVudCBydW5zIHNob3J0LWNpcmN1aXQuDQp1c2luZyBTeXN0ZW07DQp1c2luZyBTeXN0ZW0uSU87DQp1c2luZyBTeXN0ZW0uTmV0Ow0KdXNpbmcgU3lzdGVtLlJlZmxlY3Rpb247DQoNCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUNCnsNCiAgICBwcml2YXRlIGNvbnN0IHN0cmluZyBSZXBvICAgID0gImFxdWlsb3BsYXlzL2xvYWRvdXQtZG93bmxvYWRzIjsNCiAgICBwcml2YXRlIGNvbnN0IHN0cmluZyBWZXJzaW9uID0gIjEuNi4wIjsNCg0KICAgIHB1YmxpYyBib29sIEV4ZWN1dGUoKQ0KICAgIHsNCiAgICAgICAgdHJ5DQogICAgICAgIHsNCiAgICAgICAgICAgIFNlcnZpY2VQb2ludE1hbmFnZXIuU2VjdXJpdHlQcm90b2NvbCB8PSBTZWN1cml0eVByb3RvY29sVHlwZS5UbHMxMjsNCiAgICAgICAgICAgIHZhciBkYXRhRGlyID0gUGF0aC5Db21iaW5lKEFwcERvbWFpbi5DdXJyZW50RG9tYWluLkJhc2VEaXJlY3RvcnksICJkYXRhIiwgIkxvYWRvdXQiKTsNCiAgICAgICAgICAgIERpcmVjdG9yeS5DcmVhdGVEaXJlY3RvcnkoZGF0YURpcik7DQogICAgICAgICAgICB2YXIgZGxsUGF0aCA9IFBhdGguQ29tYmluZShkYXRhRGlyLCAiTG9hZG91dC5kbGwiKTsNCg0KICAgICAgICAgICAgLy8gU3RhZ2UtYW5kLXN3YXAgdXBkYXRlIHBhdGguIFRoZSB0cmF5IGljb24ncyAiQXBwbHkgdXBkYXRlIiBidXR0b24NCiAgICAgICAgICAgIC8vIGRvd25sb2FkcyB0aGUgbmV3IERMTCB0byBMb2Fkb3V0LmRsbC5uZXcgd2hpbGUgU0IgaXMgcnVubmluZy4NCiAgICAgICAgICAgIC8vIFRoZSBvbGQgRExMIGlzIGxvY2tlZCBieSB0aGUgcnVubmluZyBwcm9jZXNzLCBzbyB3ZSBzd2FwIG9uIHRoZQ0KICAgICAgICAgICAgLy8gTkVYVCBib290IOKAlCByaWdodCBoZXJlLCBCRUZPUkUgQXNzZW1ibHkuTG9hZEZyb20gbG9ja3MgdGhlIGZpbGUNCiAgICAgICAgICAgIC8vIGFnYWluIGZvciB0aGlzIHNlc3Npb24uDQogICAgICAgICAgICB2YXIgc3RhZ2VkRGxsID0gZGxsUGF0aCArICIubmV3IjsNCiAgICAgICAgICAgIGlmIChGaWxlLkV4aXN0cyhzdGFnZWREbGwpKQ0KICAgICAgICAgICAgew0KICAgICAgICAgICAgICAgIHRyeQ0KICAgICAgICAgICAgICAgIHsNCiAgICAgICAgICAgICAgICAgICAgaWYgKEZpbGUuRXhpc3RzKGRsbFBhdGgpKSBGaWxlLkRlbGV0ZShkbGxQYXRoKTsNCiAgICAgICAgICAgICAgICAgICAgRmlsZS5Nb3ZlKHN0YWdlZERsbCwgZGxsUGF0aCk7DQogICAgICAgICAgICAgICAgICAgIENQSC5Mb2dJbmZvKCJbTG9hZG91dF0gQXBwbGllZCBzdGFnZWQgRExMIHVwZGF0ZSIpOw0KICAgICAgICAgICAgICAgIH0NCiAgICAgICAgICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIHN3YXBFeCkNCiAgICAgICAgICAgICAgICB7DQogICAgICAgICAgICAgICAgICAgIENQSC5Mb2dXYXJuKCJbTG9hZG91dF0gRmFpbGVkIHRvIHN3YXAgc3RhZ2VkIERMTDogIiArIHN3YXBFeC5NZXNzYWdlKTsNCiAgICAgICAgICAgICAgICB9DQogICAgICAgICAgICB9DQogICAgICAgICAgICB2YXIgc3RhZ2VkTmogPSBQYXRoLkNvbWJpbmUoZGF0YURpciwgIk5ld3RvbnNvZnQuSnNvbi5kbGwubmV3Iik7DQogICAgICAgICAgICBpZiAoRmlsZS5FeGlzdHMoc3RhZ2VkTmopKQ0KICAgICAgICAgICAgew0KICAgICAgICAgICAgICAgIHRyeQ0KICAgICAgICAgICAgICAgIHsNCiAgICAgICAgICAgICAgICAgICAgdmFyIG5qRGxsID0gUGF0aC5Db21iaW5lKGRhdGFEaXIsICJOZXd0b25zb2Z0Lkpzb24uZGxsIik7DQogICAgICAgICAgICAgICAgICAgIGlmIChGaWxlLkV4aXN0cyhuakRsbCkpIEZpbGUuRGVsZXRlKG5qRGxsKTsNCiAgICAgICAgICAgICAgICAgICAgRmlsZS5Nb3ZlKHN0YWdlZE5qLCBuakRsbCk7DQogICAgICAgICAgICAgICAgfQ0KICAgICAgICAgICAgICAgIGNhdGNoIHsgLyogbm9uLWZhdGFsICovIH0NCiAgICAgICAgICAgIH0NCg0KICAgICAgICAgICAgaWYgKCFGaWxlLkV4aXN0cyhkbGxQYXRoKSkNCiAgICAgICAgICAgIHsNCiAgICAgICAgICAgICAgICB2YXIgdXJsID0gImh0dHBzOi8vZ2l0aHViLmNvbS8iICsgUmVwbyArICIvcmVsZWFzZXMvZG93bmxvYWQvdiIgKyBWZXJzaW9uICsgIi9Mb2Fkb3V0LmRsbCI7DQogICAgICAgICAgICAgICAgQ1BILkxvZ0luZm8oIltMb2Fkb3V0XSBEb3dubG9hZGluZyBETEw6ICIgKyB1cmwpOw0KICAgICAgICAgICAgICAgIHVzaW5nICh2YXIgd2MgPSBuZXcgV2ViQ2xpZW50KCkpDQogICAgICAgICAgICAgICAgew0KICAgICAgICAgICAgICAgICAgICB3Yy5IZWFkZXJzLkFkZCgiVXNlci1BZ2VudCIsICJMb2Fkb3V0LUJvb3QvIiArIFZlcnNpb24pOw0KICAgICAgICAgICAgICAgICAgICB3Yy5Eb3dubG9hZEZpbGUodXJsLCBkbGxQYXRoKTsNCiAgICAgICAgICAgICAgICB9DQogICAgICAgICAgICB9DQoNCiAgICAgICAgICAgIHZhciBhc20gPSBBc3NlbWJseS5Mb2FkRnJvbShkbGxQYXRoKTsNCiAgICAgICAgICAgIHZhciBlbnRyeSA9IGFzbS5HZXRUeXBlKCJMb2Fkb3V0LkxvYWRvdXRFbnRyeSIsIHRocm93T25FcnJvcjogdHJ1ZSk7DQogICAgICAgICAgICB2YXIgYm9vdCA9IGVudHJ5LkdldE1ldGhvZCgiQm9vdCIsIEJpbmRpbmdGbGFncy5QdWJsaWMgfCBCaW5kaW5nRmxhZ3MuU3RhdGljKTsNCiAgICAgICAgICAgIHZhciBvayA9IChib29sKWJvb3QuSW52b2tlKG51bGwsIG5ldyBvYmplY3RbXSB7IENQSCB9KTsNCg0KICAgICAgICAgICAgQ1BILlNldEdsb2JhbFZhcigibG9hZG91dC5ib290ZWQiLCBvaywgdHJ1ZSk7DQogICAgICAgICAgICBDUEguU2V0R2xvYmFsVmFyKCJsb2Fkb3V0LnZlcnNpb24iLCBWZXJzaW9uLCB0cnVlKTsNCiAgICAgICAgICAgIHJldHVybiBvazsNCiAgICAgICAgfQ0KICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIGV4KQ0KICAgICAgICB7DQogICAgICAgICAgICBDUEguTG9nRXJyb3IoIltMb2Fkb3V0XSBCb290IGZhaWxlZDogIiArIGV4Lk1lc3NhZ2UpOw0KICAgICAgICAgICAgcmV0dXJuIGZhbHNlOw0KICAgICAgICB9DQogICAgfQ0KfQ0K",
                                                             "precompile":  false,
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "4460bbed-e67a-4c9b-893d-1fcf4e7f13db",
+                                                            "id":  "46f58ef2-e7c0-4daa-8454-5383b769bdc2",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -56,7 +56,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "b1d477fc-725b-4732-ab63-14d081741513",
+                                     "id":  "6cf9a057-aa60-4dcd-88f9-07e4fb188a0e",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -68,7 +68,7 @@
                                      "concurrent":  false,
                                      "triggers":  [
                                                       {
-                                                          "id":  "42da0c78-3c27-4ce6-93cd-10509224176a",
+                                                          "id":  "93abc0b4-586f-47b4-834a-b8a44565316d",
                                                           "type":  101,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -76,7 +76,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "d0821b78-369b-46e9-a1e3-561f47ecf977",
+                                                          "id":  "926e1e15-038f-4a70-8fbe-0d0b3f222221",
                                                           "type":  103,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -84,7 +84,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "bce32245-46e0-49f0-b30c-fb182c23cfa1",
+                                                          "id":  "fa5dd77b-acf7-47f1-b3c8-ac995ba8da14",
                                                           "type":  104,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -92,7 +92,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "0bfd7797-a52b-4bb4-856d-61e88f493fa9",
+                                                          "id":  "c8063bdf-5760-44ad-8d69-da55fd1b0baa",
                                                           "type":  105,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -100,7 +100,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "5c1d66bb-8371-40b2-8cc4-32428671c1a7",
+                                                          "id":  "e0ef6e23-b64f-444d-8f74-4f322a43a91f",
                                                           "type":  106,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -108,7 +108,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "20b3a04e-4c1b-400d-9b49-2ba416edb908",
+                                                          "id":  "63d6cd77-3f1c-4a0d-9baf-467d3871f233",
                                                           "type":  102,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -116,7 +116,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "83fadee1-2a2c-4138-9cc6-887b7c3116a6",
+                                                          "id":  "0314b4fb-92f1-4056-a141-01cd71ff77f1",
                                                           "type":  107,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -124,7 +124,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "a94dc1cf-244f-4b7f-83ed-238f3c46559b",
+                                                          "id":  "763742f2-bd3e-46ce-82f8-afbdc02d3e6e",
                                                           "type":  112,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -132,7 +132,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "3c0e84de-bd3a-46dc-8011-e3aa4d3606d7",
+                                                          "id":  "9cf0fe2a-5ca9-433d-9f6a-734bad4c6fe6",
                                                           "type":  194,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -140,7 +140,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "54568a93-d4c1-4654-b10d-0c0dd87b7eff",
+                                                          "id":  "bafcf6c9-bb8f-41c6-b208-14b9ea115546",
                                                           "type":  120,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -148,7 +148,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "8e467788-6e8a-4db2-9f47-0bac476dbf00",
+                                                          "id":  "9ad4a356-6478-4b8e-bcf3-eab6c21a5559",
                                                           "type":  186,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -156,7 +156,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "faa54bf8-5d05-4c34-b165-f64bd095c6dd",
+                                                          "id":  "4baef978-283f-4756-ad66-741424ad6781",
                                                           "type":  118,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -164,7 +164,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "d9832e93-4977-4946-9e66-94d8e1084c78",
+                                                          "id":  "f846a10e-4e5a-4bd2-957f-56a33acd5b63",
                                                           "type":  122,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -172,7 +172,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "ebc5b813-c733-4290-a9ff-cf0860f4b788",
+                                                          "id":  "61ce87ca-97aa-467d-aea2-2c5683ec066a",
                                                           "type":  154,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -180,7 +180,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "54ae8c4e-0ac4-45b0-b58a-35c9e7fae628",
+                                                          "id":  "0250ade4-e0b8-4b1f-be2e-504a261d9337",
                                                           "type":  155,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -188,7 +188,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "930dfc6c-2430-4216-b439-5c322e5c091b",
+                                                          "id":  "18f65149-2138-4495-b8f5-8e1556b787d0",
                                                           "type":  4008,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -196,7 +196,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "dfc1e557-ebd3-4f74-b2f3-e7542db63b57",
+                                                          "id":  "c47652b4-db46-4801-90c7-fac7a353bf6d",
                                                           "type":  4009,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -204,7 +204,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "b5f1ab13-80a6-4274-83b3-3a4733ce5131",
+                                                          "id":  "6e419595-5e1c-4e25-aec9-fcf84ce95e23",
                                                           "type":  4014,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -212,7 +212,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "4cf6ca46-a756-4354-9de1-dd33ecc29d99",
+                                                          "id":  "56bf49a2-8db4-4b6c-813d-1d27474b93ef",
                                                           "type":  4018,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -220,7 +220,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "bd466970-a39e-46eb-9913-1be673afe643",
+                                                          "id":  "4217b50b-bed0-440a-ac02-a6a204b63c4c",
                                                           "type":  4006,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -228,7 +228,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "10e38bfb-8631-49e4-a2ee-a0c50793ce59",
+                                                          "id":  "e05f7061-a62d-4617-ad90-e5eeb1382316",
                                                           "type":  4007,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -236,7 +236,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "dad05763-e71c-46ea-882c-5975288ad9fc",
+                                                          "id":  "9559b649-e083-43d1-88b0-8c9ba901ce96",
                                                           "type":  4016,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -244,7 +244,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "4be74438-4a95-4fed-bdca-f5a4b772d860",
+                                                          "id":  "da2e7525-435d-42d1-be00-148874df4400",
                                                           "type":  121,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -252,7 +252,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "65adbc3d-ca22-496a-9d75-11169bbbe7ce",
+                                                          "id":  "3756b0cb-1b23-4df6-924c-630b3397eb8c",
                                                           "type":  20001,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -260,7 +260,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "04a7cca3-daee-42bc-b964-4a4619327c01",
+                                                          "id":  "0e90688a-5127-4070-9f1b-4f16abdcee78",
                                                           "type":  20004,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -268,7 +268,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "c57b7f76-34e7-40e2-8253-7445cb4c436f",
+                                                          "id":  "dd26da62-f584-4bd2-9ef8-02cb7d969d71",
                                                           "type":  20005,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -276,7 +276,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "ed26775a-e88a-4d0b-be67-b128ade22f60",
+                                                          "id":  "1b1cbe88-3dc8-4ee0-855e-ce2db4d07274",
                                                           "type":  20009,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -284,7 +284,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "96f32717-221b-4fa0-8d0e-6b4922d4ea55",
+                                                          "id":  "ec302e42-68ec-4771-ac0e-afe3492ff42f",
                                                           "type":  2003,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -305,7 +305,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "8bdc75cd-cf06-422c-a825-9a8aacd32b32",
+                                                            "id":  "a37d20f4-87f8-4d7a-8f24-cf00326c1cc0",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -318,7 +318,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "8b26d86d-3032-4008-af95-df295159400b",
+                                     "id":  "bb296746-2cc2-4cd4-ba22-48c6ce3e55c9",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -330,7 +330,7 @@
                                      "concurrent":  false,
                                      "triggers":  [
                                                       {
-                                                          "id":  "a50b1dab-2d31-4cb3-9d9c-c5b93b4301cb",
+                                                          "id":  "0acd6430-d22f-41dc-bf76-a05a2c9ecdd9",
                                                           "type":  133,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -338,7 +338,7 @@
                                                                          ]
                                                       },
                                                       {
-                                                          "id":  "8b19d37b-56ef-4458-a682-7d84a3954bb2",
+                                                          "id":  "cd16ce41-dcaf-470c-a41c-7597075b0668",
                                                           "type":  4003,
                                                           "enabled":  true,
                                                           "exclusions":  [
@@ -359,7 +359,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "7887b6fd-0586-479b-ba09-d33fc4ec05ee",
+                                                            "id":  "4596d06d-df56-451c-9a74-337f0307b522",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -372,7 +372,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "0727a3a0-a0de-41ff-b2e2-fc1c08e617a7",
+                                     "id":  "2c32977b-8371-4868-969e-9dddd952e072",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -384,13 +384,13 @@
                                      "concurrent":  false,
                                      "triggers":  [
                                                       {
-                                                          "id":  "bbcaa0e3-6c10-4288-b661-078f61e5b59c",
+                                                          "id":  "c036777a-bb2a-474e-b1d4-0549a717a38c",
                                                           "type":  701,
                                                           "enabled":  true,
                                                           "exclusions":  [
 
                                                                          ],
-                                                          "timerId":  "b0afd568-77ff-44f5-aae5-8fd7a16f6595"
+                                                          "timerId":  "d2c0295b-0699-419b-8039-181c199b7376"
                                                       }
                                                   ],
                                      "subActions":  [
@@ -406,7 +406,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "ebe09d9a-4c94-4401-b0c5-bc6d3eb8e2b3",
+                                                            "id":  "c1de6880-cc65-4f48-89e1-95fdb5c4679d",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -419,7 +419,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "5fcbab50-7d99-405c-be55-d4480e5be62d",
+                                     "id":  "85387132-b0bb-4ffa-b86d-237779d3ec96",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -431,13 +431,13 @@
                                      "concurrent":  false,
                                      "triggers":  [
                                                       {
-                                                          "id":  "679e1d3e-59f6-4009-a8a3-8754c8bd9a29",
+                                                          "id":  "a3b4a764-aa51-4f4f-9b3a-ee6f92e7b5c3",
                                                           "type":  401,
                                                           "enabled":  true,
                                                           "exclusions":  [
 
                                                                          ],
-                                                          "commandId":  "d8d9d7f2-8cc1-4c73-af16-5ac2b16c5674"
+                                                          "commandId":  "b1e1bf72-8253-4c3d-8b0e-78fecb610891"
                                                       }
                                                   ],
                                      "subActions":  [
@@ -453,7 +453,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "274f4c29-e852-4729-90c5-5dfc04737a0c",
+                                                            "id":  "e1038bcd-f3da-465f-9acf-04c88e5e898c",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -466,7 +466,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "2edda7b3-cf67-4a34-a059-58f2db70a38f",
+                                     "id":  "670ca847-64bf-459e-be94-3c7e304ec935",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -478,13 +478,13 @@
                                      "concurrent":  false,
                                      "triggers":  [
                                                       {
-                                                          "id":  "12c92f4d-412c-4296-9889-0342a618596b",
+                                                          "id":  "851da88c-a252-45c6-8563-2d5182d0982c",
                                                           "type":  401,
                                                           "enabled":  true,
                                                           "exclusions":  [
 
                                                                          ],
-                                                          "commandId":  "31637ad7-5c27-4132-8c88-251a52d5d5a2"
+                                                          "commandId":  "e404b56a-8eb2-4b80-bd07-858e9277c292"
                                                       }
                                                   ],
                                      "subActions":  [
@@ -500,7 +500,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "812559cc-bde3-40be-8a90-8c9a135de541",
+                                                            "id":  "53c882d2-fa9a-494d-9653-868d872d7e3d",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -513,7 +513,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "8aa3bcf8-59e4-475b-8b21-751e21201e47",
+                                     "id":  "161d6fe2-c6f2-4c6b-b38e-f5078d81fcb9",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -525,13 +525,13 @@
                                      "concurrent":  false,
                                      "triggers":  [
                                                       {
-                                                          "id":  "b9f6ba22-40ec-49d7-9ab4-1fd544a6f7f0",
+                                                          "id":  "c9a84349-1f1b-495e-9efa-8692acbd9da5",
                                                           "type":  401,
                                                           "enabled":  true,
                                                           "exclusions":  [
 
                                                                          ],
-                                                          "commandId":  "40433a7e-ee99-4bc2-ab76-252b345c1cc1"
+                                                          "commandId":  "e721e149-bb42-4246-986c-8b94a437d500"
                                                       }
                                                   ],
                                      "subActions":  [
@@ -547,7 +547,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "e913d073-9186-4a41-ac17-a9a02a1374db",
+                                                            "id":  "4dfd563f-22dc-4da3-a536-19c1b74499f4",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -560,7 +560,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "a18c58a6-5fd5-4fe6-bd3c-972a92326ee7",
+                                     "id":  "97b1b988-63e0-48b1-bf09-9756a9adb6a8",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -586,7 +586,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "aa8e6c64-c147-4f4c-aa9f-a094f943f752",
+                                                            "id":  "4ce3a626-4e52-490c-8339-d961afe4365f",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -599,7 +599,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "445a9872-cee3-4aa1-ae51-407dba7243d3",
+                                     "id":  "b803b80c-9383-43d9-a550-12a6d8edf5e8",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -625,7 +625,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "f3c4f8ce-54c3-451e-9b90-c8d9a06c6662",
+                                                            "id":  "3f8a1301-10d6-45bd-9dbc-a99c017ad206",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -649,7 +649,7 @@
                                       "permittedGroups":  [
 
                                                           ],
-                                      "id":  "d8d9d7f2-8cc1-4c73-af16-5ac2b16c5674",
+                                      "id":  "b1e1bf72-8253-4c3d-8b0e-78fecb610891",
                                       "name":  "Loadout: !link",
                                       "enabled":  true,
                                       "include":  false,
@@ -675,7 +675,7 @@
                                       "permittedGroups":  [
 
                                                           ],
-                                      "id":  "31637ad7-5c27-4132-8c88-251a52d5d5a2",
+                                      "id":  "e404b56a-8eb2-4b80-bd07-858e9277c292",
                                       "name":  "Loadout: !linkapprove",
                                       "enabled":  true,
                                       "include":  false,
@@ -701,7 +701,7 @@
                                       "permittedGroups":  [
 
                                                           ],
-                                      "id":  "40433a7e-ee99-4bc2-ab76-252b345c1cc1",
+                                      "id":  "e721e149-bb42-4246-986c-8b94a437d500",
                                       "name":  "Loadout: !loadout",
                                       "enabled":  true,
                                       "include":  false,
@@ -729,7 +729,7 @@
                                       ],
                  "timers":  [
                                 {
-                                    "id":  "b0afd568-77ff-44f5-aae5-8fd7a16f6595",
+                                    "id":  "d2c0295b-0699-419b-8039-181c199b7376",
                                     "name":  "Loadout: Tick (60s)",
                                     "enabled":  true,
                                     "repeat":  true,

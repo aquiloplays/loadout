@@ -11,6 +11,17 @@ Versioning: [SemVer](https://semver.org/).
 
 ---
 
+## [1.6.0] - 2026-05-19
+
+HP deltas mid-scene.
+
+### Changed
+
+- `dungeon.scene` events now carry a per-scene HP snapshot for every party member (`partyHp: [{name, hp, hpMax}, ...]`). The Twitch panel uses it to tick HP bars down live as the scene replay plays back, instead of freezing on the starting roster.
+- Internal: new `HpSnapshot` type on `DungeonScene.PartyHp`, populated by `DungeonEngine.SnapshotHp` at every `Scenes.Add` site (opening flavour + main scene loop). `PanelBridgeModule` forwards the field as `scene.partyHp`.
+
+---
+
 ## [1.5.0] - 2026-05-19
 
 Tech-debt cleanup on the panel-bridge surface.
