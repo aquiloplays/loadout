@@ -11,6 +11,20 @@ Versioning: [SemVer](https://semver.org/).
 
 ---
 
+## [1.5.0] - 2026-05-19
+
+Tech-debt cleanup on the panel-bridge surface.
+
+### Changed
+
+- `dungeon.scene` snapshots now forward the engine's `targetUser` as `target`, so the Twitch panel can pulse the chip of whoever a scene happens to (spike trap, dragon strike, etc.).
+
+### Docs
+
+- Backfilled the bodyless CHANGELOG entries for 1.1.0 – 1.4.0 from the actual git history between release commits.
+
+---
+
 ## [1.4.0] - 2026-05-19
 
 B3 Panel Bridge sub-phase 2 — Commands UP.
