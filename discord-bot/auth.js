@@ -87,3 +87,29 @@ function b64urlToBytes(s) {
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
 }
+
+// Twitch Bits transaction receipt — signed with the same HS256 extension
+// secret as the auth JWT. Verifies the signature and returns the payload
+// ({ topic, exp?, data: { transactionId, userId, product: { sku, cost } } })
+// or null. `exp` is checked only when present (receipts may omit it).
+export async function verifyBitsReceipt(token, base64Secret) {
+  if (!token || !base64Secret) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const keyBytes = Uint8Array.from(atob(base64Secret), (c) => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey(
+      'raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+    );
+    const data = new TextEncoder().encode(parts[0] + '.' + parts[1]);
+    const ok = await crypto.subtle.verify('HMAC', key, b64urlToBytes(parts[2]), data);
+    if (!ok) return null;
+    const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1])));
+    if (payload && typeof payload.exp === 'number' && Date.now() / 1000 > payload.exp) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}

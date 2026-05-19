@@ -26,6 +26,7 @@ import { verifyTwitchExtJwt } from './auth.js';
 import { getWallet, leaderboard } from './wallet.js';
 import { daily } from './games.js';
 import { loadHero, attackOf, defenseOf, CLASSES } from './dungeon.js';
+import { handleRotation, ingestRotation } from './rotation.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -79,6 +80,9 @@ export async function handleExt(req, env) {
     if (req.method === 'GET' && route === 'leaderboard') {
       return await extLeaderboard(env, guildId, userId, url.searchParams.get('type'));
     }
+    if (route.indexOf('rotation/') === 0) {
+      return await handleRotation(env, guildId, userId, route.slice(9), req);
+    }
     return json({ error: 'not-found' }, 404);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
@@ -93,7 +97,9 @@ export async function handleExt(req, env) {
 // deletes the pending triggers — at-most-once delivery, single poller.
 export async function handleRelay(req, env) {
   const url = new URL(req.url);
-  if (url.pathname.replace(/\/+$/, '') !== '/relay/pending') {
+  const path = url.pathname.replace(/\/+$/, '');
+  if (path === '/relay/ingest') return ingestRotation(req, env);
+  if (path !== '/relay/pending') {
     return json({ error: 'not-found' }, 404);
   }
   if (req.method !== 'GET') return json({ error: 'method' }, 405);
