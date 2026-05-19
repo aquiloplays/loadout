@@ -10,7 +10,7 @@ using System.Reflection;
 public class CPHInline
 {
     private const string Repo    = "aquiloplays/loadout-downloads";
-    private const string Version = "1.2.0";
+    private const string Version = "1.3.0";
 
     public bool Execute()
     {
