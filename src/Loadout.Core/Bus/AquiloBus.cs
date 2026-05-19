@@ -78,6 +78,17 @@ namespace Loadout.Bus
             _handlers[kind] = handler;
         }
 
+        /// <summary>
+        /// Fires for every in-process <see cref="Publish"/> call, after the
+        /// event has fanned out to WebSocket subscribers. Lets local code
+        /// observe bus traffic without opening a WebSocket back to this same
+        /// process. <see cref="Loadout.Modules.PanelBridgeModule"/> uses this
+        /// to mirror dungeon / mini-game state up to the Twitch panel.
+        /// Handlers run on the publishing thread — keep them fast and
+        /// non-throwing (offload any I/O).
+        /// </summary>
+        public event Action<string, JToken> LocalPublished;
+
         public void Start()
         {
             if (IsRunning) return;
@@ -128,6 +139,14 @@ namespace Loadout.Bus
             {
                 if (!c.Wants(kind)) continue;
                 _ = SafeSendAsync(c, bytes);
+            }
+
+            // Notify in-process observers (e.g. PanelBridgeModule). Isolated
+            // so a misbehaving handler can't break bus fan-out.
+            var observers = LocalPublished;
+            if (observers != null)
+            {
+                try { observers(kind, msg.Data); } catch { }
             }
         }
 

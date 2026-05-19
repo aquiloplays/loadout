@@ -29,6 +29,7 @@ namespace Loadout.Host
         private static TrayIcon _tray;
         private static bool _started;
         private static bool _ownsApp;
+        private static Modules.PanelBridgeModule _panelBridge;
 
         public static Dispatcher UiDispatcher
         {
@@ -123,6 +124,11 @@ namespace Loadout.Host
                 // while awarding bolts to the linked tipper. No-op if
                 // the streamer hasn't enabled it in BoltsConfig.
                 Discord.TipBridge.Instance.Start();
+
+                // B3 panel-bridge — mirrors dungeon / mini-game bus state up
+                // to the Twitch panel. Inert unless Clay's opt-in config file
+                // (%APPDATA%\Aquilo\panel-bridge.json) is present.
+                _panelBridge = Modules.PanelBridgeModule.StartIfConfigured();
 
                 // Hook process exit so the tray icon (a WinForms NotifyIcon)
                 // gets disposed before the CLR tears down the AppDomain. If we
@@ -234,6 +240,7 @@ namespace Loadout.Host
                 //   3. Stop the bus.
                 //   4. Shut down the dispatcher.
                 try { UpdateChecker.Instance.Stop(); } catch { }
+                try { _panelBridge?.Dispose(); _panelBridge = null; } catch { }
 
                 try
                 {

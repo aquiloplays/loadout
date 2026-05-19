@@ -31,6 +31,7 @@ import { handleLoadout } from './ext-loadout.js';
 import { recordStat, getRecap, isStreamLive } from './recap.js';
 import { handleTier1 } from './ext-tier1.js';
 import { handleEngage } from './ext-engage.js';
+import { ingestDllState, panelBridgeState } from './ext-panelbridge.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -91,6 +92,8 @@ export async function handleExt(req, env) {
     if (route === 'cheer') {
       return await handleEngage(env, guildId, userId, route, req);
     }
+    if (route === 'dungeon/state') return await panelBridgeState(env, 'dungeon');
+    if (route === 'minigame/state') return await panelBridgeState(env, 'minigame');
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
     }
@@ -113,6 +116,7 @@ export async function handleRelay(req, env) {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, '');
   if (path === '/relay/ingest') return ingestRotation(req, env);
+  if (path === '/relay/dll-ingest') return ingestDllState(req, env);
   if (path !== '/relay/pending') {
     return json({ error: 'not-found' }, 404);
   }
