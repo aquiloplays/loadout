@@ -7,6 +7,7 @@
 // the JWT-gated /ext/dungeon/state and /ext/minigame/state routes.
 
 import { json } from './ext-shared.js';
+import { resolveTwitchLoginById } from './ext-loadout.js';
 
 // How long a pushed state stays "live". KV's own expirationTtl floors
 // at 60s; the tighter window is enforced here off the stored ts, so
@@ -98,16 +99,23 @@ export async function enqueuePanelCmd(env, kind, payload, req) {
   const action = String((body && body.action) || '').toLowerCase();
   if (actions.indexOf(action) < 0) return json({ error: 'bad-action' }, 400);
 
-  // role is JWT-derived (trusted); name is cosmetic — it only steers which
-  // wallet the DLL credits, and B3 is Clay-only, so a body value is fine.
+  // role is JWT-derived (trusted). For identity-shared viewers, resolve
+  // user_id -> canonical Twitch login via Helix so the wallet credits the
+  // same key as their chat play (cached per-id for 24 h). Opaque-only
+  // viewers can't be linked to a chat identity; fall back to the panel-
+  // body name (cosmetic — that wallet stays panel-only).
+  let canonicalName = '';
+  if (payload && payload.user_id) {
+    canonicalName = (await resolveTwitchLoginById(env, payload.user_id)) || '';
+  }
   const record = {
     kind,
     action,
     arg: cleanCmdArg(body && body.arg),
     user: {
-      id: String(payload.user_id || payload.opaque_user_id || ''),
-      name: cleanCmdArg(body && body.name) || 'viewer',
-      role: String(payload.role || 'viewer').toLowerCase(),
+      id: String((payload && (payload.user_id || payload.opaque_user_id)) || ''),
+      name: canonicalName || cleanCmdArg(body && body.name) || 'viewer',
+      role: String((payload && payload.role) || 'viewer').toLowerCase(),
     },
     ts: Date.now(),
   };
