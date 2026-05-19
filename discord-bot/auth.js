@@ -79,6 +79,33 @@ export async function verifyTwitchExtJwt(token, base64Secret) {
   }
 }
 
+// Sign an HS256 JWT with the same base64-encoded extension secret used
+// by verifyTwitchExtJwt. Used by the panel-bridge Patreon-link route to
+// mint a short-lived JWT that the aquilo-site Pages Function can verify
+// (both sides share TWITCH_EXT_SECRET). Caller supplies `payload`; an
+// `exp` should be set there.
+export async function signHs256(base64Secret, payload) {
+  const headerB64 = b64url(new TextEncoder().encode(
+    JSON.stringify({ alg: 'HS256', typ: 'JWT' }),
+  ));
+  const payloadB64 = b64url(new TextEncoder().encode(JSON.stringify(payload)));
+  const data = headerB64 + '.' + payloadB64;
+  const keyBytes = Uint8Array.from(atob(base64Secret), (c) => c.charCodeAt(0));
+  const key = await crypto.subtle.importKey(
+    'raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign(
+    'HMAC', key, new TextEncoder().encode(data),
+  );
+  return data + '.' + b64url(new Uint8Array(sig));
+}
+
+function b64url(bytes) {
+  let s = '';
+  for (const b of bytes) s += String.fromCharCode(b);
+  return btoa(s).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
 function b64urlToBytes(s) {
   let b = String(s).replace(/-/g, '+').replace(/_/g, '/');
   while (b.length % 4) b += '=';

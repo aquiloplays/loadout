@@ -118,6 +118,19 @@ async function routePatronCorner(env, guildId, userId, subscribed) {
   } catch {
     /* default to not-a-patron */
   }
+  // Phase P — direct tw→Patreon mapping (panel-driven OAuth). Set by
+  // aquilo-site's /api/link/callback when an extToken was supplied at
+  // /api/link/start. Independent of the wallet.links list above; an
+  // identity-shared viewer can light up "patron" without ever having
+  // touched the Discord-anchored wallet flow.
+  if (!isPatron) {
+    try {
+      const map = await env.LOADOUT_BOLTS.get(`tw_patreon:${userId}`, { type: 'json' });
+      if (map && Number(map.tier || 0) >= 1) isPatron = true;
+    } catch {
+      /* leave isPatron false */
+    }
+  }
   const eligible = isSub || isPatron;
   let kind = null;
   if (isSub && isPatron) kind = 'both';

@@ -38,6 +38,7 @@ import {
   drainDllCommands,
 } from './ext-panelbridge.js';
 import { rollLootBox, readLootBoxCatalog } from './ext-lootbox.js';
+import { startPanelPatreonLink } from './ext-patreon-link.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -105,6 +106,9 @@ export async function handleExt(req, env) {
     }
     if (req.method === 'POST' && route === 'lootbox/roll') {
       return await rollLootBox(env, guildId, userId, req);
+    }
+    if (req.method === 'GET' && route === 'patreon/link-start') {
+      return await startPanelPatreonLink(env, payload, req);
     }
     if (req.method === 'POST' && route === 'dungeon/cmd') {
       return await enqueuePanelCmd(env, 'dungeon', payload, req);
