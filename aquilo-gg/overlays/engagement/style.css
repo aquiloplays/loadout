@@ -1,0 +1,38 @@
+/* Aquilo engagement overlay — transparent OBS browser source. */
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+#stage,
+#panel {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+/* ── feature A — tap-to-cheer ── */
+.cheer-emote {
+  position: fixed;
+  bottom: -70px;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.55));
+  animation: cheer-rise 3.3s ease-out forwards;
+}
+@keyframes cheer-rise {
+  0% {
+    transform: translateY(0) translateX(0) scale(0.4);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(-12vh) translateX(0) scale(1);
+  }
+  100% {
+    transform: translateY(-106vh) translateX(var(--drift, 0)) scale(1);
+    opacity: 0;
+  }
+}
