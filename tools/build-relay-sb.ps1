@@ -1,20 +1,21 @@
 # Loadout - build a standalone Streamer.bot import (.sb) for the
-# Aquilo Check-in Relay action.
+# Aquilo Relay action.
 #
-# The action is a 4-second timed poll of the Loadout Worker's
-# /relay/pending?for=checkin endpoint; each pending check-in trigger is
-# republished onto the local Aquilo Bus as a checkin.shown event so the
-# OBS check-in overlay plays for panel-extension check-ins.
+# Unified, kind-agnostic relay: a 4-second timed poll of the Loadout
+# Worker's /relay/pending?for=overlay endpoint. Each pending trigger
+# carries its own `bus_kind`; the action republishes it onto the local
+# Aquilo Bus under that kind, so one Streamer.bot action drives every
+# overlay event (checkin.shown, cheer.shown, poll.shown, quiz.shown,
+# code.dropped, spotlight.shown, raisehand.picked, ...).
 #
-# SBAE container format + verified type numbers are documented in
-# tools/build-sb-import.ps1 - this script reuses the same shapes for a
-# single-action bundle so Clay can one-click import just this action.
+# Replaces the old per-feature aquilo-checkin-relay action. SBAE
+# container format + verified type numbers: see tools/build-sb-import.ps1.
 [CmdletBinding()]
-param([string]$Version = "1.0.0")
+param([string]$Version = "1.1.0")
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$csPath = Join-Path $repoRoot "streamerbot\actions\aquilo-checkin-relay.cs"
-$sbOut  = Join-Path $repoRoot "streamerbot\aquilo-checkin-relay.sb.txt"
+$csPath = Join-Path $repoRoot "streamerbot\actions\aquilo-relay.cs"
+$sbOut  = Join-Path $repoRoot "streamerbot\aquilo-relay.sb.txt"
 
 if (-not (Test-Path $csPath)) { throw "C# source not found: $csPath" }
 $code = Get-Content $csPath -Raw
@@ -38,7 +39,7 @@ $action = [ordered]@{
     enabled            = $true
     excludeFromHistory = $false
     excludeFromPending = $false
-    name               = "Aquilo Check-in Relay"
+    name               = "Aquilo Relay"
     group              = "Aquilo"
     alwaysRun          = $false
     randomAction       = $false
@@ -54,8 +55,8 @@ $action = [ordered]@{
     )
     subActions         = @(
         [ordered]@{
-            name                 = "Aquilo Check-in Relay"
-            description          = "Polls /relay/pending?for=checkin; republishes checkin.shown on the Aquilo Bus."
+            name                 = "Aquilo Relay"
+            description          = "Polls /relay/pending?for=overlay; republishes each trigger's bus_kind on the Aquilo Bus."
             references           = @(
                 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\mscorlib.dll',
                 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.dll'
@@ -80,10 +81,10 @@ $action = [ordered]@{
 # interval=60 for its documented "60-second tick"). 4s poll cadence.
 $bundle = [ordered]@{
     meta = [ordered]@{
-        name           = "Aquilo Check-in Relay"
+        name           = "Aquilo Relay"
         author         = "aquiloplays"
         version        = $Version
-        description    = "4s poll of the Loadout relay; republishes check-ins onto the Aquilo Bus."
+        description    = "4s poll of the Loadout relay; republishes overlay events onto the Aquilo Bus."
         autoRunAction  = $null
         minimumVersion = $null
     }
@@ -96,7 +97,7 @@ $bundle = [ordered]@{
         timers           = @(
             [ordered]@{
                 id             = $timerId
-                name           = "Aquilo Check-in Relay (4s)"
+                name           = "Aquilo Relay (4s)"
                 enabled        = $true
                 repeat         = $true
                 interval       = 4

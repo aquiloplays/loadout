@@ -6,7 +6,7 @@ public class CPHInline {
     string busSecret = System.IO.File.ReadAllText(
       Environment.ExpandEnvironmentVariables(@"%APPDATA%\Aquilo\bus-secret.txt")).Trim();
     var req = (HttpWebRequest)WebRequest.Create(
-      "https://loadout-discord.aquiloplays.workers.dev/relay/pending?for=checkin");
+      "https://loadout-discord.aquiloplays.workers.dev/relay/pending?for=overlay");
     req.Headers["X-Relay-Token"] = token;
     string body;
     using (var resp = (HttpWebResponse)req.GetResponse())
@@ -18,8 +18,13 @@ public class CPHInline {
       Uri.EscapeDataString(busSecret)), CancellationToken.None).Wait();
     Send(ws, "{\"v\":1,\"kind\":\"hello\",\"client\":\"aquilo-relay\"}");
     foreach (var t in triggers) {
+      // Each trigger carries its own bus_kind; legacy check-in triggers
+      // that predate the generalization fall back to checkin.shown.
+      var bk = t["bus_kind"];
+      string kind = (bk != null && bk.Type != Newtonsoft.Json.Linq.JTokenType.Null)
+        ? bk.ToString() : "checkin.shown";
       var f = new Newtonsoft.Json.Linq.JObject();
-      f["v"] = 1; f["kind"] = "checkin.shown"; f["data"] = t;
+      f["v"] = 1; f["kind"] = kind; f["data"] = t;
       Send(ws, f.ToString(Newtonsoft.Json.Formatting.None));
     }
     ws.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None).Wait();

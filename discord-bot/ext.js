@@ -124,9 +124,11 @@ export async function handleRelay(req, env) {
   const prefix =
     forParam === 'checkin'
       ? 'relay:checkin:'
-      : forParam === 'rotation'
-        ? 'relay:rotation-'
-        : null;
+      : forParam === 'overlay'
+        ? 'relay:overlay-'
+        : forParam === 'rotation'
+          ? 'relay:rotation-'
+          : null;
   if (!prefix) return json({ triggers: [] });
   const list = await env.LOADOUT_BOLTS.list({ prefix });
   const triggers = [];
@@ -319,9 +321,10 @@ async function extCheckin(env, guildId, userId, req) {
   // and republishes this as a `checkin.shown` bus event; `source:"extension"`
   // is what the DLL's BoltsModule guard keys off to skip a double credit.
   await env.LOADOUT_BOLTS.put(
-    `relay:checkin:${crypto.randomUUID()}`,
+    `relay:overlay-${crypto.randomUUID()}`,
     JSON.stringify({
       type: 'checkin',
+      bus_kind: 'checkin.shown',
       user: name,
       message,
       source: 'extension',
