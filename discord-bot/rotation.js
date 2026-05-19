@@ -1,25 +1,29 @@
 // Rotation song-request backend for the Twitch panel — /ext/rotation/*.
 //
-// R1 ships the cloud half: Spotify search + the validate/request/state
-// plumbing. The validate/request roundtrip needs the R2 Streamer.bot
-// relay + Rotation widget; until the relay reports in (rot:relay:alive,
-// refreshed by /relay/ingest), validate/request fast-fail with reason
-// "rotation-offline" so R1 degrades gracefully on its own.
+// Send path is HTTP poll/ingest: the Rotation widget's extension bridge
+// (gated on streamer.extensionEnabled) polls /relay/pending?for=rotation,
+// runs each trigger through its own engine, and POSTs results to
+// /relay/ingest. The panel reads now-playing/queue from the relay's
+// WebSocket room directly; this Worker only mediates the Bits-verified
+// send path + viewer-state.
 //
-// Config (Worker secrets): SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
-//   (client-credentials flow for search — until set, /search returns 503).
-//   TWITCH_EXT_SECRET is reused to verify Bits transaction receipts.
+// Config (Worker secrets / vars): SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET
+//   (search), TWITCH_EXT_SECRET (auth + Bits-receipt verify), RELAY_TOKEN
+//   (/relay/* gate), CLAY_TWITCH_CHANNEL_ID (relay room-key derivation).
+//
+// Relay room key (also computed widget-side in extension-bridge.js):
+//   roomKey = sha256hex("aquilo-extension|" + CLAY_TWITCH_CHANNEL_ID)
 //
 // KV (LOADOUT_BOLTS):
-//   spotify:apptoken                 cached Spotify app token (~50m TTL)
-//   rot:relay:alive                  relay heartbeat (R2 /relay/ingest)
-//   rot:state                        { nowPlaying, queue } (R2)
-//   rot:validated:<id>               validate result (R2 ingest)
-//   rot:reqresult:<requestId>        accept/reject result (R2 ingest)
+//   spotify:apptoken                 cached Spotify app token (~50m)
+//   rot:relay:alive                  relay heartbeat (/relay/ingest)
+//   rot:state                        { nowPlaying, queue } cache
+//   rot:validated:<id>               dry-run result
+//   rot:viewerstate:<id>             viewer-state result
+//   rot:reqresult:<requestId>        accept/reject result
 //   rot:cd:<guild>:<userId>          per-viewer request cooldown stamp
 //   rot:freecredit:<guild>:<userId>  "next request free" make-good credit
-//   relay:rotation-validate:<id>     queued trigger drained by /relay/pending
-//   relay:rotation-request:<id>      queued trigger drained by /relay/pending
+//   relay:rotation-{validate,request,viewer-query}:<id>  queued triggers
 
 import { verifyBitsReceipt } from './auth.js';
 
@@ -70,7 +74,6 @@ async function getSpotifyToken(env) {
     if (!res.ok) return null;
     const data = await res.json();
     if (!data || !data.access_token) return null;
-    // Tokens last 3600s; cache 3000s so we always refresh before expiry.
     await env.LOADOUT_BOLTS.put(SPOTIFY_TOKEN_KEY, data.access_token, {
       expirationTtl: 3000,
     });
@@ -112,32 +115,77 @@ async function rotSearch(env, q) {
   }
 }
 
-async function rotStateResponse(env) {
-  const s = await env.LOADOUT_BOLTS.get(STATE_KEY, { type: 'json' });
-  return json({
-    live: await relayAlive(env),
-    nowPlaying: (s && s.nowPlaying) || null,
-    queue: s && Array.isArray(s.queue) ? s.queue : [],
+// Generic enqueue-trigger + poll-for-result roundtrip.
+async function roundtrip(env, triggerKey, trigger, resultKeyPrefix, id) {
+  await env.LOADOUT_BOLTS.put(triggerKey, JSON.stringify(trigger), {
+    expirationTtl: 60,
   });
-}
-
-// Enqueue a validate trigger and poll for the widget's answer.
-async function runValidate(env, text, uri) {
-  const id = crypto.randomUUID();
-  await env.LOADOUT_BOLTS.put(
-    'relay:rotation-validate:' + id,
-    JSON.stringify({ type: 'rotation-validate', id, text, uri }),
-    { expirationTtl: 60 },
-  );
   for (let i = 0; i < POLL_TRIES; i++) {
     await sleep(POLL_INTERVAL_MS);
-    const r = await env.LOADOUT_BOLTS.get('rot:validated:' + id, { type: 'json' });
+    const r = await env.LOADOUT_BOLTS.get(resultKeyPrefix + id, { type: 'json' });
     if (r) {
-      await env.LOADOUT_BOLTS.delete('rot:validated:' + id);
-      return { ok: !!r.ok, reason: r.reason || null };
+      await env.LOADOUT_BOLTS.delete(resultKeyPrefix + id);
+      return r;
     }
   }
-  return { ok: false, reason: 'timeout' };
+  return null;
+}
+
+async function runValidate(env, text, uri, paid) {
+  const id = crypto.randomUUID();
+  const r = await roundtrip(
+    env,
+    'relay:rotation-validate:' + id,
+    { type: 'rotation-validate', id, text, uri, paid: !!paid },
+    'rot:validated:',
+    id,
+  );
+  return r ? { ok: !!r.ok, reason: r.reason || null } : { ok: false, reason: 'timeout' };
+}
+
+// Ask the widget for a viewer's request state. `status` is the panel's
+// Twitch.ext.viewer snapshot; the widget maps it to its role model.
+async function runViewerQuery(env, user, status) {
+  const id = crypto.randomUUID();
+  const r = await roundtrip(
+    env,
+    'relay:rotation-viewer-query:' + id,
+    { type: 'rotation-viewer-query', id, user, status: status || {} },
+    'rot:viewerstate:',
+    id,
+  );
+  return r || null;
+}
+
+function deriveBitsRequired(vs) {
+  if (!vs || !vs.allowedByStatus) return false;
+  return (vs.freeRequestsLeft || 0) === 0 || (vs.cooldownMsRemaining || 0) > 0;
+}
+
+async function rotState(env, guildId, userId, body) {
+  const cached = (await env.LOADOUT_BOLTS.get(STATE_KEY, { type: 'json' })) || {};
+  const live = await relayAlive(env);
+  let viewer = null;
+  if (live) {
+    const user = String(body.user || userId);
+    const vs = await runViewerQuery(env, user, body.status);
+    if (vs) {
+      const hasFree = (await env.LOADOUT_BOLTS.get(`rot:freecredit:${guildId}:${userId}`)) === '1';
+      viewer = {
+        freeRequestsLeft: vs.freeRequestsLeft || 0,
+        cooldownMsRemaining: vs.cooldownMsRemaining || 0,
+        allowedByStatus: !!vs.allowedByStatus,
+        statusReason: vs.statusReason || '',
+        bitsRequired: !hasFree && deriveBitsRequired(vs),
+      };
+    }
+  }
+  return json({
+    live,
+    nowPlaying: cached.nowPlaying || null,
+    queue: Array.isArray(cached.queue) ? cached.queue : [],
+    viewer,
+  });
 }
 
 async function rotValidate(env, body) {
@@ -145,8 +193,7 @@ async function rotValidate(env, body) {
   const text = String(body.text || '').slice(0, 300);
   const uri = String(body.uri || '').slice(0, 120);
   if (!text && !uri) return json({ ok: false, reason: 'empty' }, 400);
-  const r = await runValidate(env, text, uri);
-  return json(r);
+  return json(await runValidate(env, text, uri, !!body.paid));
 }
 
 async function rotRequest(env, guildId, userId, body) {
@@ -157,20 +204,23 @@ async function rotRequest(env, guildId, userId, body) {
   const displayName = String(body.displayName || '').slice(0, 40) || 'Anonymous viewer';
   if (!text && !uri) return json({ ok: false, reason: 'empty' }, 400);
 
-  const cdKey = 'rot:cd:' + guildId + ':' + userId;
-  const freeKey = 'rot:freecredit:' + guildId + ':' + userId;
+  const user = String(body.user || userId);
+  const cdKey = `rot:cd:${guildId}:${userId}`;
+  const freeKey = `rot:freecredit:${guildId}:${userId}`;
   const now = Date.now();
   const hasFree = (await env.LOADOUT_BOLTS.get(freeKey)) === '1';
   const last = parseInt((await env.LOADOUT_BOLTS.get(cdKey)) || '0', 10);
-  if (!hasFree && last && now - last < COOLDOWN_MS) {
-    return json({ ok: false, reason: 'cooldown', cooldownMs: COOLDOWN_MS - (now - last) }, 429);
-  }
 
-  // Payment — a redeemable free credit, else a verified Bits receipt.
-  let paidVia = 'bits';
-  if (hasFree) {
-    paidVia = 'free-credit';
-  } else {
+  // Authoritative viewer state from the widget decides bits vs free.
+  const vs = await runViewerQuery(env, user, body.status);
+  if (!vs) return json({ ok: false, reason: 'rotation-offline' });
+  if (!vs.allowedByStatus) {
+    return json({ ok: false, reason: 'status-locked', statusReason: vs.statusReason || '' });
+  }
+  const bitsRequired = !hasFree && deriveBitsRequired(vs);
+
+  // Payment gate — Bits receipt only required when bitsRequired.
+  if (bitsRequired) {
     const receipt = await verifyBitsReceipt(body.bits, env.TWITCH_EXT_SECRET);
     const product = receipt && receipt.data && receipt.data.product;
     if (
@@ -179,76 +229,63 @@ async function rotRequest(env, guildId, userId, body) {
       !product ||
       product.sku !== 'song_request'
     ) {
-      return json({ ok: false, reason: 'bad-payment' }, 402);
+      return json({ ok: false, reason: 'bad-payment', bitsRequired: true }, 402);
     }
+  } else if (!hasFree && last && now - last < COOLDOWN_MS) {
+    // Free path still respects the per-viewer Worker cooldown.
+    return json({ ok: false, reason: 'cooldown', cooldownMs: COOLDOWN_MS - (now - last) }, 429);
   }
 
-  // D+c hybrid: re-validate now that we hold the charge. If it fails the
-  // Bits are already spent client-side, so leave a "next request free"
-  // make-good credit.
-  const v = await runValidate(env, text, uri);
+  const paid = bitsRequired || hasFree;
+
+  // D+c hybrid — re-validate now we hold the charge.
+  const v = await runValidate(env, text, uri, paid);
   if (!v.ok) {
-    if (paidVia === 'bits') await env.LOADOUT_BOLTS.put(freeKey, '1');
+    if (bitsRequired) await env.LOADOUT_BOLTS.put(freeKey, '1');
     return json({
       ok: false,
       reason: v.reason || 'validate-failed',
-      refundCredit: paidVia === 'bits',
+      refundCredit: bitsRequired,
     });
   }
-
-  // Committed — consume the free credit (if that's how this was paid).
-  if (paidVia === 'free-credit') await env.LOADOUT_BOLTS.delete(freeKey);
+  if (hasFree) await env.LOADOUT_BOLTS.delete(freeKey);
 
   const requestId = crypto.randomUUID();
-  await env.LOADOUT_BOLTS.put(
+  const result = await roundtrip(
+    env,
     'relay:rotation-request:' + requestId,
-    JSON.stringify({
+    {
       type: 'rotation-request',
       requestId,
-      user: userId,
+      user,
       displayName,
       text,
       uri,
-      paid: true,
-    }),
-    { expirationTtl: 60 },
+      paid,
+    },
+    'rot:reqresult:',
+    requestId,
   );
-
-  let result = { ok: false, reason: 'timeout' };
-  for (let i = 0; i < POLL_TRIES; i++) {
-    await sleep(POLL_INTERVAL_MS);
-    const r = await env.LOADOUT_BOLTS.get('rot:reqresult:' + requestId, { type: 'json' });
-    if (r) {
-      await env.LOADOUT_BOLTS.delete('rot:reqresult:' + requestId);
-      result = { ok: !!r.ok, reason: r.reason || null };
-      break;
-    }
-  }
-
-  if (!result.ok) {
-    if (paidVia === 'bits') await env.LOADOUT_BOLTS.put(freeKey, '1');
+  if (!result || !result.ok) {
+    if (bitsRequired) await env.LOADOUT_BOLTS.put(freeKey, '1');
     return json({
       ok: false,
-      reason: result.reason || 'rejected',
-      refundCredit: paidVia === 'bits',
+      reason: (result && result.reason) || 'rejected',
+      refundCredit: bitsRequired,
     });
   }
 
   await env.LOADOUT_BOLTS.put(cdKey, String(now), {
     expirationTtl: Math.ceil(COOLDOWN_MS / 1000),
   });
-  return json({ ok: true, cooldownMs: COOLDOWN_MS });
+  return json({ ok: true });
 }
 
 // Dispatched from ext.js handleExt for routes under /ext/rotation/.
-// `sub` is the path after "rotation/" (search | validate | request | state).
 export async function handleRotation(env, guildId, userId, sub, req) {
   if (req.method === 'GET' && sub === 'search') {
     const url = new URL(req.url);
     return rotSearch(env, url.searchParams.get('q'));
-  }
-  if (req.method === 'GET' && sub === 'state') {
-    return rotStateResponse(env);
   }
   let body = {};
   if (req.method === 'POST') {
@@ -258,6 +295,9 @@ export async function handleRotation(env, guildId, userId, sub, req) {
       /* empty body tolerated */
     }
   }
+  if (req.method === 'POST' && sub === 'state') {
+    return rotState(env, guildId, userId, body);
+  }
   if (req.method === 'POST' && sub === 'validate') return rotValidate(env, body);
   if (req.method === 'POST' && sub === 'request') {
     return rotRequest(env, guildId, userId, body);
@@ -265,8 +305,7 @@ export async function handleRotation(env, guildId, userId, sub, req) {
   return json({ error: 'not-found' }, 404);
 }
 
-// POST /relay/ingest — the R2 Streamer.bot relay forwards bus events here.
-// RELAY_TOKEN-gated. Refreshes the relay heartbeat on every call.
+// POST /relay/ingest — the widget extension bridge forwards results here.
 export async function ingestRotation(req, env) {
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
   const token = req.headers.get('X-Relay-Token') || '';
@@ -280,8 +319,6 @@ export async function ingestRotation(req, env) {
     return json({ error: 'bad-json' }, 400);
   }
 
-  // KV's minimum expirationTtl is 60s; the R2 relay re-ingests well
-  // within that, so the heartbeat stays fresh.
   await env.LOADOUT_BOLTS.put(RELAY_ALIVE_KEY, '1', { expirationTtl: 60 });
 
   const kind = evt && evt.kind;
@@ -290,6 +327,17 @@ export async function ingestRotation(req, env) {
     await env.LOADOUT_BOLTS.put(
       'rot:validated:' + d.id,
       JSON.stringify({ ok: !!d.ok, reason: d.reason || null }),
+      { expirationTtl: 60 },
+    );
+  } else if (kind === 'rotation.viewer.state' && d.id) {
+    await env.LOADOUT_BOLTS.put(
+      'rot:viewerstate:' + d.id,
+      JSON.stringify({
+        freeRequestsLeft: d.freeRequestsLeft || 0,
+        cooldownMsRemaining: d.cooldownMsRemaining || 0,
+        allowedByStatus: !!d.allowedByStatus,
+        statusReason: d.statusReason || '',
+      }),
       { expirationTtl: 60 },
     );
   } else if (

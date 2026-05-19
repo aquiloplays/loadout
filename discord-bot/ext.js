@@ -107,7 +107,18 @@ export async function handleRelay(req, env) {
   if (!env.RELAY_TOKEN || token !== env.RELAY_TOKEN) {
     return json({ error: 'unauthorized' }, 401);
   }
-  const list = await env.LOADOUT_BOLTS.list({ prefix: 'relay:' });
+  // ?for= scopes the drain so the check-in Streamer.bot poller and the
+  // Rotation widget poller never race for each other's triggers.
+  // Absent / unknown -> drain nothing (safe default).
+  const forParam = url.searchParams.get('for');
+  const prefix =
+    forParam === 'checkin'
+      ? 'relay:checkin:'
+      : forParam === 'rotation'
+        ? 'relay:rotation-'
+        : null;
+  if (!prefix) return json({ triggers: [] });
+  const list = await env.LOADOUT_BOLTS.list({ prefix });
   const triggers = [];
   for (const k of list.keys) {
     const v = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
