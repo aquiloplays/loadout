@@ -13,11 +13,73 @@ Versioning: [SemVer](https://semver.org/).
 
 ## [1.4.0] - 2026-05-19
 
+B3 Panel Bridge sub-phase 2 — Commands UP.
+
+### Added
+
+- Twitch panel viewers can now drive dungeon and mini-game commands (Start dungeon · Join party · Duel · Coinflip / Dice / Slots / RPS / Roulette) directly from the extension; the DLL polls them back and replays each as a synthesized Twitch chat event, so the existing engines handle them with no engine changes.
+- Worker routes `POST /ext/{dungeon,minigame}/cmd` (JWT-gated, per-action allowlist, queues to KV with ~90 s TTL) and `GET /relay/dll-pending` (X-Relay-Token gated, drains the queue oldest-first).
+- `PanelBridgeModule` grows a ~2 s downstream poll loop against `/relay/dll-pending`; dispatched roles ride the JWT, so engine gates ("`!dungeon` is mods-only") still hold.
+
+---
+
 ## [1.3.0] - 2026-05-19
+
+B3 Panel Bridge sub-phase 1 — State DOWN.
+
+### Added
+
+- `PanelBridgeModule` mirrors in-process dungeon / mini-game bus state up to the Aquilo Worker so the Twitch panel can show a live, read-only view of a run. Opt-in + Clay-only: inert unless `%APPDATA%\Aquilo\panel-bridge.json` is present with `{enabled, relayToken, workerUrl}`.
+- Dungeon runs are buffered and replayed on a `delayMs`-keyed timer, so the panel sees `recruiting → running (scenes advancing) → complete` in real time rather than jumping straight to "complete".
+- Worker routes `POST /relay/dll-ingest` (token-gated, ~30 s effective TTL) and JWT-gated `GET /ext/{dungeon,minigame}/state` for the panel.
+- `AquiloBus.LocalPublished` event lets in-process observers tap bus traffic without opening a self-WebSocket.
+
+---
 
 ## [1.2.0] - 2026-05-18
 
+### Added
+
+- Twitch panel extension `/ext/*` route family on the Discord Worker: `/ext/hero`, `/ext/wallet`, `/ext/daily`, `/ext/checkin`, `/ext/leaderboard` (dual: bolts + check-ins), `/ext/recap`, `/ext/vods`, `/ext/goals`, `/ext/patron-corner`, `/ext/cheer`, plus the `/ext/loadout/*` Bag / Shop / Play surface.
+- Rotation (Songs) integration — Spotify-backed search, `!songrequest` plumbing, viewer-state-aware request flow, relay queue scoped via `?for=` so check-in and rotation pollers don't race.
+- Aquilo Check-in Relay action for Streamer.bot (bundled and standalone `.sb`).
+- Streamer.bot Aquilo Relay action — unified, kind-agnostic relay for every Tier 2 overlay event.
+- Tier 1 engagement read routes — VODs, goals, patron corner.
+- Tier 2 feature A — tap-to-cheer (Worker route + transparent OBS engagement overlay).
+- Rolling 24-hour per-viewer window for stream-recap stats.
+
+### Changed
+
+- Single Patron tier replaces the prior tiered model — every feature is included for any Patron.
+- Discord bot consolidates duplicated CORS / JSON / debounce helpers into `ext-shared.js`, imported by all four `/ext` modules.
+
+### Removed
+
+- `/link` slash command — Patreon linking now flows through the Loadout settings UI.
+- Unused `#panel` node and other unshipped scaffolding from the engagement overlay.
+
+### Fixed
+
+- `rotation.js` KV writes — clamp `expirationTtl` to the 60 s Cloudflare minimum.
+- `/ext/loadout/shop` returned a spurious "debit failed" when the buy was actually successful.
+
+---
+
 ## [1.1.0] - 2026-05-17
+
+### Removed
+
+- Feature paywalls — every module is now available to every Loadout user regardless of supporter tier. Patron multipliers on Bolts and shoutout polish stay as paid extras; everything else is free.
+
+### Changed
+
+- CI `release.yml` publishes binaries cross-repo to `aquiloplays/loadout-downloads` instead of attaching them to the source-repo release.
+
+### Fixed
+
+- `release.yml` YAML parse error that was blocking the publish job.
+
+---
 
 ## [1.0.0] - 2026-05-13
 
