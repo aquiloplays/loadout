@@ -72,6 +72,30 @@ const CMD_ACTIONS = {
   minigame: ['coinflip', 'dice', 'slots', 'rps', 'roulette'],
 };
 
+// Per-viewer-per-action debounce. KV's expirationTtl floors at 60 s, so
+// the entry lives at the cooldown record we actually want: a stored
+// ts that we compare against now() against COOLDOWN_MS. Anonymous
+// (no viewerId) requests skip the check — at-most-once is the goal,
+// not anonymous DoS protection.
+const COOLDOWN_MS = 2000;
+
+async function checkCooldown(env, viewerId, action) {
+  if (!viewerId) return 0;
+  const key = 'cmdcd:' + viewerId + ':' + action;
+  let stored = null;
+  try { stored = await env.LOADOUT_BOLTS.get(key); } catch { /* idle path */ }
+  if (stored) {
+    const prev = parseInt(stored, 10);
+    if (prev && Date.now() - prev < COOLDOWN_MS) {
+      return COOLDOWN_MS - (Date.now() - prev);
+    }
+  }
+  try {
+    await env.LOADOUT_BOLTS.put(key, String(Date.now()), { expirationTtl: 60 });
+  } catch { /* a missed re-stamp at worst means the next click also gates */ }
+  return 0;
+}
+
 // Freeform command argument (wager, dice target, rps pick, @duel-target).
 // Kept deliberately small + plain so a queued command can't smuggle
 // anything odd into the synthesized chat line on the DLL side.
@@ -99,6 +123,12 @@ export async function enqueuePanelCmd(env, kind, payload, req) {
   const action = String((body && body.action) || '').toLowerCase();
   if (actions.indexOf(action) < 0) return json({ error: 'bad-action' }, 400);
 
+  const viewerId = String(
+    (payload && (payload.user_id || payload.opaque_user_id)) || '',
+  );
+  const wait = await checkCooldown(env, viewerId, action);
+  if (wait > 0) return json({ error: 'cooldown', retryMs: wait }, 429);
+
   // role is JWT-derived (trusted). For identity-shared viewers, resolve
   // user_id -> canonical Twitch login via Helix so the wallet credits the
   // same key as their chat play (cached per-id for 24 h). Opaque-only
@@ -113,7 +143,7 @@ export async function enqueuePanelCmd(env, kind, payload, req) {
     action,
     arg: cleanCmdArg(body && body.arg),
     user: {
-      id: String((payload && (payload.user_id || payload.opaque_user_id)) || ''),
+      id: viewerId,
       name: canonicalName || cleanCmdArg(body && body.name) || 'viewer',
       role: String((payload && payload.role) || 'viewer').toLowerCase(),
     },
