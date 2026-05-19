@@ -12,7 +12,10 @@ ALLOW_ANY_GUILD = "true"   # set to "false" to lock down to specific guild IDs
 DISCORD_APP_ID = "1500849448866025573"
 # Aquilo's Vault → Loadout Bolts integration: only this guild can be credited.
 # AQUILO_VAULT_BOLTS_SECRET is a worker secret (set via `wrangler secret put`).
-AQUILO_VAULT_GUILD_ID = "1334146273854619709"
+AQUILO_VAULT_GUILD_ID = "1504103035951906883"
+# Clay's Twitch channel (login: aquilogg) — relay room-key derivation +
+# channel gate for /ext/* routes.
+CLAY_TWITCH_CHANNEL_ID = "1497793223"
 
 [[kv_namespaces]]
 binding = "LOADOUT_BOLTS"
