@@ -1,12 +1,6 @@
-// Aquilo engagement overlay — one OBS browser source for every Tier 2
-// on-stream event. Connects to the local Aquilo Bus and dispatches by
-// event kind. Handlers are added per feature:
-//   cheer.shown       floating tap-to-cheer emote          [feature A]
-//   code.dropped      code-drop banner                      [feature B]
-//   poll.shown        live poll panel                       [feature C]
-//   quiz.shown        quiz panel + reveal                   [feature D]
-//   raisehand.picked  "picked!" shout                       [feature E]
-//   spotlight.shown   viewer-of-the-hour card               [feature F]
+// Aquilo engagement overlay — OBS browser source for the tap-to-cheer
+// effect. Connects to the local Aquilo Bus and floats the tapped emote
+// up the screen on each cheer.shown event.
 (function () {
   "use strict";
 
@@ -30,7 +24,7 @@
         JSON.stringify({
           v: 1,
           kind: "subscribe",
-          kinds: ["cheer.*", "poll.*", "quiz.*", "code.*", "spotlight.*", "raisehand.*"],
+          kinds: ["cheer.*"],
         }),
       );
     };
@@ -58,8 +52,6 @@
 
   function dispatch(kind, data) {
     if (kind === "cheer.shown") return showCheer(data);
-    // poll.* / quiz.* / code.* / spotlight.* / raisehand.* handlers are
-    // registered by their features as Tier 2 ships.
   }
 
   // ── feature A — tap-to-cheer ─────────────────────────────────────────
