@@ -27,6 +27,7 @@ import { getWallet, leaderboard } from './wallet.js';
 import { daily } from './games.js';
 import { loadHero, attackOf, defenseOf, CLASSES } from './dungeon.js';
 import { handleRotation, ingestRotation } from './rotation.js';
+import { handleLoadout } from './ext-loadout.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -82,6 +83,9 @@ export async function handleExt(req, env) {
     }
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
+    }
+    if (route.indexOf('loadout/') === 0) {
+      return await handleLoadout(env, guildId, userId, route.slice(8), req);
     }
     return json({ error: 'not-found' }, 404);
   } catch (e) {

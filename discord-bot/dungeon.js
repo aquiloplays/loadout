@@ -612,18 +612,28 @@ export async function cmdSetCustom(env, guild, userId, key, value) {
   return { content: '🎨 ' + k + ' = ' + (v || 'default') + '.' };
 }
 
-export async function cmdInventory(env, guild, userId) {
+// Structured core — raw bag + equipped map for a hero. The /ext panel
+// routes consume this directly; cmdInventory below formats it for Discord.
+export async function doInventory(env, guild, userId) {
   const hero = await loadHero(env, guild, userId);
-  if (!Array.isArray(hero.bag) || hero.bag.length === 0) {
+  return {
+    bag: Array.isArray(hero.bag) ? hero.bag : [],
+    equipped: hero.equipped || {}
+  };
+}
+
+export async function cmdInventory(env, guild, userId) {
+  const { bag, equipped } = await doInventory(env, guild, userId);
+  if (bag.length === 0) {
     return { content: '🎒 Your bag is empty. Run a `!dungeon` on stream or `/shop-buy` here to acquire gear.', ephemeral: true };
   }
   // Sort by rarity (legendary first) so the best stuff is at the top.
   const order = { legendary: 4, epic: 3, rare: 2, uncommon: 1, common: 0 };
-  const lines = [...hero.bag]
+  const lines = [...bag]
     .sort((a, b) => (order[b.rarity] || 0) - (order[a.rarity] || 0))
     .slice(0, 25)
     .map(it => {
-      const eq = Object.values(hero.equipped || {}).includes(it.id) ? '  📌' : '';
+      const eq = Object.values(equipped).includes(it.id) ? '  📌' : '';
       const stats = [];
       if (it.powerBonus)   stats.push('+' + it.powerBonus + ' ATK');
       if (it.defenseBonus) stats.push('+' + it.defenseBonus + ' DEF');
@@ -632,40 +642,56 @@ export async function cmdInventory(env, guild, userId) {
              stats.join(' ') + eq;
     });
   return {
-    content: '🎒 **Bag** (' + hero.bag.length + ' items)\n' + lines.join('\n') +
+    content: '🎒 **Bag** (' + bag.length + ' items)\n' + lines.join('\n') +
              '\n\n_Use_ `/equip item_id:<6-char>` _from above to equip._',
     ephemeral: true
   };
 }
 
-export async function cmdEquip(env, guild, userId, itemIdPrefix) {
+export async function doEquip(env, guild, userId, itemIdPrefix) {
   const hero = await loadHero(env, guild, userId);
   const it = (hero.bag || []).find(x => x.id.startsWith(itemIdPrefix));
-  if (!it) return { content: 'No item with id `' + itemIdPrefix + '` in your bag. Run `/inventory` for ids.', ephemeral: true };
-  if (!SLOTS.includes(it.slot)) return { content: 'That item has no equip slot.', ephemeral: true };
+  if (!it) return { ok: false, reason: 'not-found' };
+  if (!SLOTS.includes(it.slot)) return { ok: false, reason: 'no-slot' };
   if (!hero.equipped) hero.equipped = {};
   hero.equipped[it.slot] = it.id;
   await saveHero(env, guild, userId, hero);
+  return { ok: true, item: it };
+}
+
+export async function cmdEquip(env, guild, userId, itemIdPrefix) {
+  const r = await doEquip(env, guild, userId, itemIdPrefix);
+  if (!r.ok) {
+    if (r.reason === 'not-found') {
+      return { content: 'No item with id `' + itemIdPrefix + '` in your bag. Run `/inventory` for ids.', ephemeral: true };
+    }
+    return { content: 'That item has no equip slot.', ephemeral: true };
+  }
+  const it = r.item;
   return {
     content: '✅ Equipped ' + it.glyph + ' **' + it.name + '** in your `' + it.slot + '` slot.',
     ephemeral: true
   };
 }
 
-export async function cmdUnequip(env, guild, userId, slot) {
+export async function doUnequip(env, guild, userId, slot) {
   const hero = await loadHero(env, guild, userId);
-  if (!hero.equipped || !hero.equipped[slot]) {
-    return { content: 'Nothing equipped in `' + slot + '`.', ephemeral: true };
-  }
+  if (!hero.equipped || !hero.equipped[slot]) return { ok: false, reason: 'empty' };
   delete hero.equipped[slot];
   await saveHero(env, guild, userId, hero);
+  return { ok: true };
+}
+
+export async function cmdUnequip(env, guild, userId, slot) {
+  const r = await doUnequip(env, guild, userId, slot);
+  if (!r.ok) return { content: 'Nothing equipped in `' + slot + '`.', ephemeral: true };
   return { content: '🧤 Unequipped your `' + slot + '`.', ephemeral: true };
 }
 
-export async function cmdSell(env, guild, userId, itemIdPrefix) {
+export async function doSell(env, guild, userId, itemIdPrefix) {
   const hero = await loadHero(env, guild, userId);
   const it = (hero.bag || []).find(x => x.id.startsWith(itemIdPrefix));
-  if (!it) return { content: 'No item with id `' + itemIdPrefix + '` in your bag.', ephemeral: true };
+  if (!it) return { ok: false, reason: 'not-found' };
 
   const refund = Math.max(1, Math.floor((it.goldValue || 1) / 2));
   hero.bag = hero.bag.filter(x => x.id !== it.id);
@@ -677,8 +703,15 @@ export async function cmdSell(env, guild, userId, itemIdPrefix) {
 
   // Refund as bolts to the wallet.
   await applyVaultDelta(env, guild, userId, refund, 'dungeon-sell');
+  return { ok: true, item: it, refund };
+}
+
+export async function cmdSell(env, guild, userId, itemIdPrefix) {
+  const r = await doSell(env, guild, userId, itemIdPrefix);
+  if (!r.ok) return { content: 'No item with id `' + itemIdPrefix + '` in your bag.', ephemeral: true };
+  const it = r.item;
   return {
-    content: '💰 Sold ' + it.glyph + ' **' + it.name + '** for **' + refund + '** bolts.',
+    content: '💰 Sold ' + it.glyph + ' **' + it.name + '** for **' + r.refund + '** bolts.',
     ephemeral: true
   };
 }
@@ -713,7 +746,7 @@ export async function cmdShop(env, guild, userId) {
   };
 }
 
-export async function cmdShopBuy(env, guild, userId, itemName) {
+export async function doShopBuy(env, guild, userId, itemName) {
   // Daily-rotation gate: only items in today's stock are buyable. The
   // viewer might know the name of an item from a previous day — surface
   // a clear "not in today's stock" reply instead of letting them buy
@@ -721,25 +754,25 @@ export async function cmdShopBuy(env, guild, userId, itemName) {
   const stock = await getDailyShop(env, guild);
   const hit = stock.items.find(([_s, _r, name]) =>
     name.toLowerCase().includes((itemName || '').toLowerCase()));
-  if (!hit) return { content: 'That item isn\'t in today\'s stock. Run `/loadout` → Shop to see the rotation — restocks at midnight UTC.', ephemeral: true };
+  if (!hit) return { ok: false, reason: 'not-in-stock' };
   const [slot, rarity, name, glyph, atk, def, price, setName, weaponType, preferredClass, ability] = hit;
 
   const w = await getWallet(env, guild, userId);
   if ((w.balance || 0) < price) {
-    return { content: '💸 You need **' + price + '** bolts (you have ' + (w.balance || 0) + '). Run `/daily` or earn more on stream.', ephemeral: true };
+    return { ok: false, reason: 'insufficient', price, balance: w.balance || 0 };
   }
 
   // Deduct via wallet's negative-delta path so the lifetime-earned counter
   // doesn't grow when the viewer is just shifting bolts → gear.
   const debit = await applyVaultDelta(env, guild, userId, -price, 'dungeon-shop');
-  if (!debit?.ok && debit?.balance == null) {
-    return { content: '❌ Couldn\'t debit your wallet. Try again.', ephemeral: true };
+  if (!debit || !debit.wallet) {
+    return { ok: false, reason: 'debit-failed' };
   }
 
   const hero = await loadHero(env, guild, userId);
   const id = crypto.randomUUID().replace(/-/g, '').slice(0, 16);
   hero.bag = hero.bag || [];
-  hero.bag.push({
+  const item = {
     id,
     slot, rarity, name, glyph,
     powerBonus: atk, defenseBonus: def,
@@ -750,17 +783,32 @@ export async function cmdShopBuy(env, guild, userId, itemName) {
     ability: ability || '',
     foundIn: 'shop',
     foundUtc: new Date().toISOString()
-  });
+  };
+  hero.bag.push(item);
   await saveHero(env, guild, userId, hero);
 
+  return { ok: true, item, price, id, glyph, name, ability };
+}
+
+export async function cmdShopBuy(env, guild, userId, itemName) {
+  const r = await doShopBuy(env, guild, userId, itemName);
+  if (!r.ok) {
+    if (r.reason === 'not-in-stock') {
+      return { content: 'That item isn\'t in today\'s stock. Run `/loadout` → Shop to see the rotation — restocks at midnight UTC.', ephemeral: true };
+    }
+    if (r.reason === 'insufficient') {
+      return { content: '💸 You need **' + r.price + '** bolts (you have ' + r.balance + '). Run `/daily` or earn more on stream.', ephemeral: true };
+    }
+    return { content: '❌ Couldn\'t debit your wallet. Try again.', ephemeral: true };
+  }
   return {
-    content: '🛒 Bought ' + glyph + ' **' + name + '** for **' + price + '** bolts'
-             + (ability ? ' _(grants `' + ability + '`)_' : '')
-             + '. Equip it with `/equip item_id:' + id.slice(0, 6) + '`.'
+    content: '🛒 Bought ' + r.glyph + ' **' + r.name + '** for **' + r.price + '** bolts'
+             + (r.ability ? ' _(grants `' + r.ability + '`)_' : '')
+             + '. Equip it with `/equip item_id:' + r.id.slice(0, 6) + '`.'
   };
 }
 
-export async function cmdTraining(env, guild, userId, focus, rounds) {
+export async function doTrain(env, guild, userId, focus, rounds) {
   const r = Math.max(1, Math.min(50, rounds || 5));
   // May 2026 grindy rebalance: training is now 30 bolts/round (was 10).
   // The per-round payouts (HP / XP / heal) are unchanged so a viewer
@@ -772,7 +820,7 @@ export async function cmdTraining(env, guild, userId, focus, rounds) {
 
   const w = await getWallet(env, guild, userId);
   if ((w.balance || 0) < cost) {
-    return { content: '💸 Training costs **' + cost + '** bolts (you have ' + (w.balance || 0) + ').', ephemeral: true };
+    return { ok: false, reason: 'insufficient', cost, balance: w.balance || 0 };
   }
   await applyVaultDelta(env, guild, userId, -cost, 'dungeon-training');
 
@@ -802,8 +850,16 @@ export async function cmdTraining(env, guild, userId, focus, rounds) {
   }
   await saveHero(env, guild, userId, hero);
 
+  return { ok: true, rounds: r, cost, focus, summary, hero };
+}
+
+export async function cmdTraining(env, guild, userId, focus, rounds) {
+  const res = await doTrain(env, guild, userId, focus, rounds);
+  if (!res.ok) {
+    return { content: '💸 Training costs **' + res.cost + '** bolts (you have ' + res.balance + ').', ephemeral: true };
+  }
   return {
-    content: '🥋 Trained **' + r + '** rounds (-' + cost + ' bolts). ' + summary + '.'
+    content: '🥋 Trained **' + res.rounds + '** rounds (-' + res.cost + ' bolts). ' + res.summary + '.'
   };
 }
 
