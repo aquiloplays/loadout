@@ -51,3 +51,39 @@ function hexToBytes(h) {
   }
   return out;
 }
+
+// Twitch Extension JWT verification (HS256). The extension "secret" from
+// the Twitch dev console is base64-encoded; decode it to the HMAC key.
+// Returns the decoded payload ({ channel_id, opaque_user_id, user_id?,
+// role, exp, ... }) on success, or null on any failure — so callers can
+// treat null as "unauthorized" without distinguishing the cause.
+export async function verifyTwitchExtJwt(token, base64Secret) {
+  if (!token || !base64Secret) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const keyBytes = Uint8Array.from(atob(base64Secret), (c) => c.charCodeAt(0));
+    const key = await crypto.subtle.importKey(
+      'raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']
+    );
+    const data = new TextEncoder().encode(parts[0] + '.' + parts[1]);
+    const ok = await crypto.subtle.verify('HMAC', key, b64urlToBytes(parts[2]), data);
+    if (!ok) return null;
+    const payload = JSON.parse(new TextDecoder().decode(b64urlToBytes(parts[1])));
+    if (!payload || typeof payload.exp !== 'number' || Date.now() / 1000 > payload.exp) {
+      return null;
+    }
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function b64urlToBytes(s) {
+  let b = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  while (b.length % 4) b += '=';
+  const bin = atob(b);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}

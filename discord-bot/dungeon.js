@@ -322,7 +322,7 @@ const HERO_KEY = (guild, userId) => 'd:hero:' + guild + ':' + userId;
 
 // -------------------- store ops --------------------
 
-async function loadHero(env, guild, userId) {
+export async function loadHero(env, guild, userId) {
   // Two-layer lookup so /loadout reflects stream-earned gear from the
   // DLL push:
   //   1. d:hero-by-handle:<guild>:<platform>:<handle> — DLL pushes
@@ -437,7 +437,7 @@ function bagIndex(hero) {
   return ix;
 }
 
-function attackOf(hero) {
+export function attackOf(hero) {
   let g = 0;
   const ix = bagIndex(hero);
   for (const id of Object.values(hero.equipped || {})) if (ix[id]) g += ix[id].powerBonus || 0;
@@ -445,7 +445,7 @@ function attackOf(hero) {
   return 4 + (hero.level - 1) + g + (cls?.atk || 0);
 }
 
-function defenseOf(hero) {
+export function defenseOf(hero) {
   let g = 0;
   const ix = bagIndex(hero);
   for (const id of Object.values(hero.equipped || {})) if (ix[id]) g += ix[id].defenseBonus || 0;

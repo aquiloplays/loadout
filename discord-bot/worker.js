@@ -38,6 +38,7 @@ import { handleInteraction } from './commands.js';
 import { applySnapshot, readSnapshot, getSecret, setSecret, applyVaultDelta, resetAllWallets, leaderboard } from './wallet.js';
 import { readSince as readProfilesSince } from './profiles.js';
 import { COMMANDS } from './commands-spec.js';
+import { handleExt } from './ext.js';
 
 // Discord interaction "claim" command custom handler — defined here rather
 // than commands.js because it touches the claim KV and cross-cuts the
@@ -142,6 +143,9 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/register-commands/')) {
       return handleRegisterCommands(req, env, path);
     }
+
+    // Twitch panel extension backend — additive, JWT- + channel-gated.
+    if (path.startsWith('/ext/')) return handleExt(req, env);
 
     return new Response('not found', { status: 404 });
   }
