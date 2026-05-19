@@ -48,8 +48,9 @@ async function debounced(env, action, guild, userId) {
 }
 
 // Twitch app token (client-credentials, cached) — used to resolve a
-// gift recipient's login name to a numeric id.
-async function getTwitchAppToken(env) {
+// gift recipient's login name to a numeric id, and reused by the
+// Tier 1 /ext/vods route.
+export async function getTwitchAppToken(env) {
   if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) return null;
   const cached = await env.LOADOUT_BOLTS.get('twitch:apptoken');
   if (cached) return cached;

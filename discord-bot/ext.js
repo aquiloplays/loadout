@@ -29,6 +29,7 @@ import { loadHero, attackOf, defenseOf, CLASSES } from './dungeon.js';
 import { handleRotation, ingestRotation } from './rotation.js';
 import { handleLoadout } from './ext-loadout.js';
 import { recordStat, getRecap, isStreamLive } from './recap.js';
+import { handleTier1 } from './ext-tier1.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -83,6 +84,9 @@ export async function handleExt(req, env) {
       return await extLeaderboard(env, guildId, userId, url.searchParams.get('type'));
     }
     if (req.method === 'GET' && route === 'recap') return await extRecap(env, guildId, userId);
+    if (route === 'vods' || route === 'goals' || route === 'patron-corner') {
+      return await handleTier1(env, guildId, userId, route, req);
+    }
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
     }
