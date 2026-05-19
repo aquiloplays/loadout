@@ -199,15 +199,18 @@ namespace Loadout.Modules
 
                     case "dungeon.scene":
                         // Buffered, not pushed — replayed on the timer once
-                        // the burst ends (see dungeon.completed).
+                        // the burst ends (see dungeon.completed). `target`
+                        // mirrors the engine's `targetUser` so the panel can
+                        // pulse the chip of whoever the scene happens to.
                         _pending.Add(new PendingUpdate
                         {
                             OffsetMs = data?["delayMs"]?.Value<long>() ?? 0,
                             Scene = new JObject
                             {
-                                ["kind"]  = data?["kind"],
-                                ["text"]  = data?["text"],
-                                ["glyph"] = data?["glyph"],
+                                ["kind"]   = data?["kind"],
+                                ["text"]   = data?["text"],
+                                ["glyph"]  = data?["glyph"],
+                                ["target"] = data?["targetUser"],
                             },
                         });
                         break;
