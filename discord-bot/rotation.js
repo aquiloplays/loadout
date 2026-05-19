@@ -26,6 +26,7 @@
 //   relay:rotation-{validate,request,viewer-query}:<id>  queued triggers
 
 import { verifyBitsReceipt } from './auth.js';
+import { recordStat } from './recap.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -278,6 +279,7 @@ async function rotRequest(env, guildId, userId, body) {
   await env.LOADOUT_BOLTS.put(cdKey, String(now), {
     expirationTtl: Math.ceil(COOLDOWN_MS / 1000),
   });
+  await recordStat(env, guildId, userId, { songs_requested: 1 });
   return json({ ok: true });
 }
 

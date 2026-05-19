@@ -28,6 +28,7 @@ import { daily } from './games.js';
 import { loadHero, attackOf, defenseOf, CLASSES } from './dungeon.js';
 import { handleRotation, ingestRotation } from './rotation.js';
 import { handleLoadout } from './ext-loadout.js';
+import { recordStat, getRecap, isStreamLive } from './recap.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -81,6 +82,7 @@ export async function handleExt(req, env) {
     if (req.method === 'GET' && route === 'leaderboard') {
       return await extLeaderboard(env, guildId, userId, url.searchParams.get('type'));
     }
+    if (req.method === 'GET' && route === 'recap') return await extRecap(env, guildId, userId);
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
     }
@@ -177,8 +179,31 @@ async function extWallet(env, guildId, userId) {
 
 async function extDaily(env, guildId, userId) {
   const result = await daily(env, guildId, userId);
+  if (result && result.won) {
+    await recordStat(env, guildId, userId, { bolts_earned: result.payout || 0 });
+  }
   const w = await getWallet(env, guildId, userId);
   return json({ result, balance: w.balance || 0 });
+}
+
+// GET /ext/recap — rolling-window recap stats for the "Your last
+// session" panel card. isLiveNow gates the card (hidden while live).
+async function extRecap(env, guildId, userId) {
+  const recap = await getRecap(env, guildId, userId);
+  const live = await isStreamLive(env);
+  let streak = 0;
+  try {
+    const ci = await env.LOADOUT_BOLTS.get(`checkin:${guildId}:${userId}`, { type: 'json' });
+    if (ci) streak = ci.streak || 0;
+  } catch {
+    /* streak is best-effort */
+  }
+  return json({
+    isLiveNow: live,
+    windowStart: recap.windowStart,
+    streak,
+    stats: recap.stats,
+  });
 }
 
 async function extLeaderboard(env, guildId, userId, type) {
@@ -303,6 +328,7 @@ async function extCheckin(env, guildId, userId, req) {
     { expirationTtl: 300 },
   );
 
+  await recordStat(env, guildId, userId, { checkins: 1 });
   return json({
     ok: true,
     count: rec.count,

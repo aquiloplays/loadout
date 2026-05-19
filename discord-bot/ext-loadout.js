@@ -16,6 +16,7 @@ import {
 import { coinflip, dice } from './games.js';
 import { getWallet, transfer } from './wallet.js';
 import { getProfile } from './profiles.js';
+import { recordStat } from './recap.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -182,12 +183,14 @@ export async function handleLoadout(env, guildId, userId, sub, req) {
     if (await debounced(env, 'buy', guildId, userId)) return json({ ok: false, reason: 'debounce' }, 429);
     const r = await doShopBuy(env, guildId, userId, String(body.itemName || ''));
     if (!r.ok) return json({ ok: false, reason: r.reason, price: r.price, balance: r.balance });
+    await recordStat(env, guildId, userId, { bolts_spent: r.price });
     return json({ ok: true, item: panelItem(r.item), price: r.price });
   }
   if (sub === 'sell') {
     if (await debounced(env, 'sell', guildId, userId)) return json({ ok: false, reason: 'debounce' }, 429);
     const r = await doSell(env, guildId, userId, String(body.itemId || ''));
     if (!r.ok) return json({ ok: false, reason: r.reason });
+    await recordStat(env, guildId, userId, { bolts_earned: r.refund });
     return json({ ok: true, item: panelItem(r.item), refund: r.refund });
   }
   if (sub === 'train') {
@@ -196,6 +199,7 @@ export async function handleLoadout(env, guildId, userId, sub, req) {
     if (!['hp', 'attack', 'dodge'].includes(focus)) return json({ ok: false, reason: 'bad-focus' }, 400);
     const r = await doTrain(env, guildId, userId, focus, Math.floor(Number(body.rounds) || 0));
     if (!r.ok) return json({ ok: false, reason: r.reason, cost: r.cost, balance: r.balance });
+    await recordStat(env, guildId, userId, { bolts_spent: r.cost });
     return json({
       ok: true, rounds: r.rounds, cost: r.cost, focus: r.focus, summary: r.summary,
       hero: { level: r.hero.level, xp: r.hero.xp, hpMax: r.hero.hpMax, hpCurrent: r.hero.hpCurrent },
@@ -207,6 +211,8 @@ export async function handleLoadout(env, guildId, userId, sub, req) {
     // coinflip returns payout 0 with no win only when the wager never
     // happened (bad bet / insufficient balance) — surface that as a reject.
     if (!r.won && r.payout === 0) return json({ ok: false, reason: r.explanation });
+    if (r.won) await recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
+    else await recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
     const w = await getWallet(env, guildId, userId);
     return json({ ok: true, won: r.won, payout: r.payout, explanation: r.explanation, balance: w.balance || 0 });
   }
@@ -214,6 +220,8 @@ export async function handleLoadout(env, guildId, userId, sub, req) {
     if (await debounced(env, 'dice', guildId, userId)) return json({ ok: false, reason: 'debounce' }, 429);
     const r = await dice(env, guildId, userId, Math.floor(Number(body.bet) || 0), Math.floor(Number(body.target) || 0));
     if (!r.won && r.payout === 0) return json({ ok: false, reason: r.explanation });
+    if (r.won) await recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
+    else await recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
     const w = await getWallet(env, guildId, userId);
     return json({ ok: true, won: r.won, roll: r.roll || 0, payout: r.payout, explanation: r.explanation, balance: w.balance || 0 });
   }
@@ -227,6 +235,8 @@ export async function handleLoadout(env, guildId, userId, sub, req) {
     if (!target) return json({ ok: false, reason: 'unknown-user' }, 404);
     const r = await transfer(env, guildId, userId, 'tw:' + target.id, amount);
     if (!r.ok) return json({ ok: false, reason: r.reason });
+    await recordStat(env, guildId, userId, { bolts_spent: amount });
+    await recordStat(env, guildId, 'tw:' + target.id, { bolts_earned: amount });
     return json({ ok: true, amount, to: target.displayName || target.login, balance: (r.sender && r.sender.balance) || 0 });
   }
 
