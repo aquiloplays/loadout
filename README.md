@@ -120,7 +120,7 @@ Single cross-platform points wallet. Default earn rates (May 2026 grindy rebalan
 | Sub anniversary | 50 × month milestone |
 | Tip | 100 per dollar (configurable) |
 
-**Multipliers** (additive): sub +0.5 · Patreon Tier 1 +0.2 · Tier 2 +0.5 · Tier 3 +1.0 · daily streak +0.1/day capped at +1.0.
+**Multipliers** (additive): sub +0.5 · Patron +0.5 · daily streak +0.1/day capped at +1.0.
 
 **Commands**: `!bolts [@user]` · `!leaderboard` · `!gift @user N` · `!boltrain N [count]` (mod) · `!shop` · `!buy <name>`.
 

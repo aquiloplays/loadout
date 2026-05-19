@@ -321,7 +321,7 @@
                 <TextBlock Text="Connect Patreon (optional)" Style="{StaticResource H1}" />
                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 16">
                     Every Loadout feature is free for everyone — you don't need to sign in to use anything.
-                    Connecting Patreon is for supporters: Tier 2 and Tier 3 patrons get brand-new features early,
+                    Connecting Patreon is for supporters: Patrons get brand-new features early,
                     earn Bolts at a boosted rate, and help fund development. You can connect later from Settings.
                 </TextBlock>
                 <Border Style="{StaticResource Card}">

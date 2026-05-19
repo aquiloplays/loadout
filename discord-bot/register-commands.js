@@ -67,20 +67,6 @@ const _UNUSED_INLINE_COMMANDS = [
       { type: TYPE_INTEGER, name: 'target', description: 'Target face (1-6)', required: true, min_value: 1, max_value: 6 }
     ]
   },
-  {
-    name: 'link', description: 'Link your Discord identity to a stream platform username',
-    options: [
-      { type: TYPE_STRING, name: 'platform', description: 'twitch / kick / youtube / tiktok', required: true,
-        choices: [
-          { name: 'Twitch',  value: 'twitch'  },
-          { name: 'Kick',    value: 'kick'    },
-          { name: 'YouTube', value: 'youtube' },
-          { name: 'TikTok',  value: 'tiktok'  }
-        ]
-      },
-      { type: TYPE_STRING, name: 'username', description: 'Your handle on that platform', required: true }
-    ]
-  },
   { name: 'help', description: 'List all Loadout commands' },
 
   // ── Viewer profile self-edit commands ─────────────────────────────────

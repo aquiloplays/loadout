@@ -8,7 +8,7 @@
 //                     menus + modals for everything else: wallet,
 //                     daily, gift, leaderboard, hero, bag, equip,
 //                     unequip, sell, shop, buy, train, profile,
-//                     coinflip, dice, link, help.
+//                     coinflip, dice, help.
 //
 // The unified menu lives in loadout-menu.js. Replacing 24 granular
 // slash commands with one menu command made discoverability much
@@ -30,6 +30,6 @@ export const COMMANDS = [
   },
   {
     name: 'loadout',
-    description: 'Open the Loadout menu — wallet, hero, bag, shop, daily, gift, profile, link, more'
+    description: 'Open the Loadout menu — wallet, hero, bag, shop, daily, gift, profile, more'
   }
 ];

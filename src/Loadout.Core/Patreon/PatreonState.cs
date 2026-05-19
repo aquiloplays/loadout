@@ -16,7 +16,7 @@ namespace Loadout.Patreon
 
         public bool     SignedIn            { get; set; }
         public bool     Entitled            { get; set; }
-        public string   Tier                { get; set; } = "none";   // tier3 | tier2 | tier1 | follower | none
+        public string   Tier                { get; set; } = "none";   // patron | none
         public string   PatronStatus        { get; set; }              // raw from Patreon
         public string   UserName            { get; set; }
         public string   Email               { get; set; }

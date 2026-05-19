@@ -455,7 +455,7 @@
                         <TextBlock Text="Patreon — early access &amp; support" Style="{StaticResource H1}" />
                         <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 18">
                             Every Loadout feature is free for everyone — nothing here is locked behind payment.
-                            Patreon supporters get early access: brand-new features reach Tier 2 and Tier 3 patrons
+                            Patreon supporters get early access: brand-new features reach Patrons
                             first, then roll out to everyone shortly after. Supporting on Patreon funds development
                             and gives you a head start — it's never required to use anything.
                         </TextBlock>
@@ -470,7 +470,7 @@
                                     <Button x:Name="BtnPatreonConnect" Content="Connect Patreon"
                                             Style="{StaticResource PrimaryButton}" Click="BtnPatreonConnect_Click"
                                             Margin="0 0 8 0" />
-                                    <Button x:Name="BtnPatreonRefresh" Content="Re-check tier"
+                                    <Button x:Name="BtnPatreonRefresh" Content="Re-check status"
                                             Style="{StaticResource SecondaryButton}" Click="BtnPatreonRefresh_Click"
                                             Margin="0 0 8 0" />
                                     <Button x:Name="BtnPatreonSignOut" Content="Sign out"
@@ -481,7 +481,7 @@
 
                         <TextBlock Text="What supporters get" Style="{StaticResource H2}" Margin="0 22 0 8" />
                         <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap">
-                            • Early access — Tier 2 and Tier 3 patrons get new features before they roll out to everyone.
+                            • Early access — Patrons get new features before they roll out to everyone.
                             <LineBreak />
                             • Faster Bolts — patrons earn Bolts at a boosted rate (set the multipliers in Settings → Bolts).
                             <LineBreak />
@@ -1086,7 +1086,7 @@
                         <TextBlock Text="Bolts wallet" Style="{StaticResource H1}" />
                         <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 18">
                             Cross-platform points viewers earn just by hanging out. Multipliers stack additively
-                            (sub +50% + Patreon Tier 3 +100% + 5-day streak +50% = 3.0× final).
+                            (sub +50% + Patron +50% + 5-day streak +50% = 2.5× final).
                         </TextBlock>
 
                         <Border Style="{StaticResource Card}" Margin="0 0 0 14">
@@ -1136,23 +1136,19 @@
 
                         <Expander Style="{StaticResource ExpandableCard}" Header="Multipliers (additive, decimal: 0.5 = +50%)" Margin="0 0 0 14" IsExpanded="False">
                             <Grid>
-                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Row="0" Grid.Column="0" Text="Subscribers"        Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
                                 <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsMulSub"   Margin="0 4 12 0" />
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Patreon Tier 1"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsMulT1"    Margin="0 4 0 0" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Patreon Tier 2"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsMulT2"    Margin="0 4 12 0" />
-                                <TextBlock Grid.Row="1" Grid.Column="2" Text="Patreon Tier 3"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsMulT3"    Margin="0 4 0 0" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Per daily streak day" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtBoltsStreakPer" Margin="0 4 12 0" />
-                                <TextBlock Grid.Row="2" Grid.Column="2" Text="Streak bonus cap"  Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                <TextBox  Grid.Row="2" Grid.Column="3" x:Name="TxtBoltsStreakCap" Margin="0 4 0 0" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Patron"            Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsMulPatron" Margin="0 4 0 0" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Per daily streak day" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsStreakPer" Margin="0 4 12 0" />
+                                <TextBlock Grid.Row="1" Grid.Column="2" Text="Streak bonus cap"  Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
+                                <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsStreakCap" Margin="0 4 0 0" />
                             </Grid>
                         </Expander>
 
@@ -2617,8 +2613,7 @@
                                     <Button Content="Sub T3"        Tag="checkin:sub-t3"   Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
                                     <Button Content="VIP"           Tag="checkin:vip"      Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
                                     <Button Content="Mod"           Tag="checkin:mod"      Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
-                                    <Button Content="Patreon T2"    Tag="checkin:patreon-t2" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
-                                    <Button Content="Patreon T3"    Tag="checkin:patreon-t3" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
+                                    <Button Content="Patron"        Tag="checkin:patreon" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
                                     <Button Content="TikTok Fan"    Tag="checkin:tiktok-fan-club" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
                                     <Button Content="YouTube Member" Tag="checkin:yt-member" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />
                                     <Button Content="Kick Sub"      Tag="checkin:kick-sub" Click="BtnOverlaySendTest_Click" Style="{StaticResource SecondaryButton}" Margin="0 0 4 4" />

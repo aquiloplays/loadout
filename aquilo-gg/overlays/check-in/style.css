@@ -157,9 +157,7 @@ html, body {
 .flair.vip     { background: rgba(255,93,162,.20); border-color: var(--pink); color: #ffc0d8; }
 .flair.mod     { background: rgba(83,252,24,.18);  border-color: var(--kk); color: #cbf6a8; }
 .flair.broadcaster { background: linear-gradient(90deg, var(--gold), var(--gold-2)); color: #1a1300; border-color: transparent; }
-.flair.patreon-tier1 { background: rgba(241,103,53,.20); border-color: #F16735; color: #ffc8b3; }
-.flair.patreon-tier2 { background: rgba(245,93,68,.25); border-color: #F55D44; color: #ffb7a8; }
-.flair.patreon-tier3 { background: linear-gradient(90deg,#F55D44,#FFCD3C); color: #1a0d00; border-color: transparent; }
+.flair.patreon { background: linear-gradient(90deg,#F55D44,#FFCD3C); color: #1a0d00; border-color: transparent; }
 
 /* Rotating stats line */
 .stats {
@@ -239,8 +237,8 @@ html, body {
    that render outside the card, and the box-shadow is intentional
    ambient lighting — not chrome.
 
-   Tier hierarchy (lowest → highest visual loudness):
-   sub-t1 < sub-t2 < sub-t3 < patreon-t2 < patreon-t3
+   Hierarchy (lowest → highest visual loudness):
+   sub-t1 < sub-t2 < sub-t3 < patreon
 */
 
 /* .sheen — diagonal highlight that sweeps left-to-right across the
@@ -317,41 +315,22 @@ html, body {
   box-shadow: 0 0 32px rgba(0, 242, 234, .42), 0 18px 40px rgba(0, 0, 0, .55);
 }
 
-/* ── Patreon T2 — orange / amber ───────────────────────────────────── */
-[data-premium="patreon-t2"] .tint {
-  background:
-    radial-gradient(ellipse at 80% 25%, rgba(245, 93, 68, .35), transparent 65%),
-    radial-gradient(ellipse at 20% 80%, rgba(240, 180, 41, .22), transparent 65%);
-  animation: tintBreathe 3.2s ease-in-out infinite;
-}
-[data-premium="patreon-t2"] .sheen {
-  animation-duration: 3.2s;
-  background: linear-gradient(110deg,
-              transparent 30%,
-              rgba(255, 205, 100, 0.16) 50%,
-              transparent 70%);
-}
-.card.is-premium[data-premium="patreon-t2"] {
-  border-color: rgba(245, 93, 68, .75);
-  box-shadow: 0 0 36px rgba(245, 93, 68, .42), 0 18px 40px rgba(0, 0, 0, .55);
-}
-
-/* ── Patreon T3 — full saturation, dual sheen, dual-corner tint ───── */
-[data-premium="patreon-t3"] .tint {
+/* ── Patron — full saturation, dual sheen, dual-corner tint ───────── */
+[data-premium="patreon"] .tint {
   background:
     radial-gradient(ellipse at 80% 20%, rgba(255, 205, 60, .35), transparent 60%),
     radial-gradient(ellipse at 20% 80%, rgba(245, 93, 68, .25), transparent 60%),
     radial-gradient(ellipse at 50% 50%, rgba(255, 93, 162, .12), transparent 70%);
   animation: tintBreathe 2.6s ease-in-out infinite;
 }
-[data-premium="patreon-t3"] .sheen {
+[data-premium="patreon"] .sheen {
   animation-duration: 2.8s;
   background: linear-gradient(110deg,
               transparent 25%,
               rgba(255, 235, 150, 0.22) 50%,
               transparent 75%);
 }
-.card.is-premium[data-premium="patreon-t3"] {
+.card.is-premium[data-premium="patreon"] {
   border-color: rgba(255, 205, 60, .85);
   box-shadow:
     0 0 40px rgba(255, 205, 60, .50),

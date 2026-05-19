@@ -229,7 +229,7 @@ namespace Loadout.Modules
                 platform       = ctx.Platform.ToShortName(),
                 role           = role,                       // viewer | sub | vip | mod | broadcaster
                 subTier        = ctx.Get<string>("subTier", ""),     // 1000 | 2000 | 3000 (Twitch)
-                patreonTier    = patreonTier,                // tier1 | tier2 | tier3 | null
+                patreonTier    = patreonTier,                // "patron" | null
                 pfp            = profilePictureUrl,
                 animationTheme = s.CheckIn.AnimationTheme,
                 showFlairs = new

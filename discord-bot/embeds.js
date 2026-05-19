@@ -57,7 +57,7 @@ export function streakLabel(days) {
 // Build a balance embed. Used by /balance and the menu's wallet view.
 export function balanceEmbed({ userId, userName, wallet, links }) {
   const linkRows = (links || []).length === 0
-    ? '_no stream identity linked yet_  ·  use **/loadout** → Link to claim your bolts'
+    ? '_no stream identity linked_'
     : links.map(l => `\`${l.platform}\` ${l.username}`).join('  ·  ');
 
   return {

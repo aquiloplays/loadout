@@ -789,7 +789,7 @@ namespace Loadout.Settings
     {
         public string Platform { get; set; } = "twitch";   // twitch | youtube | kick | tiktok
         public string Handle   { get; set; } = "";
-        public string Tier     { get; set; } = "tier2";    // tier1 | tier2 | tier3
+        public string Tier     { get; set; } = "patron";   // single Patreon tier
     }
 
     public class InfoCommandsConfig
@@ -941,11 +941,9 @@ namespace Loadout.Settings
         public int    SubAnniversaryBonusBase { get; set; } = 50;   // total = base * milestoneMonths
 
         // Multipliers applied at credit time. Stack additively (e.g. sub 0.5 +
-        // patreon-tier3 1.0 = 2.5x final).
+        // patron 0.5 + streak = final).
         public double SubMultiplier         { get; set; } = 0.5;   // +50%
-        public double PatreonTier1Bonus     { get; set; } = 0.2;
-        public double PatreonTier2Bonus     { get; set; } = 0.5;
-        public double PatreonTier3Bonus     { get; set; } = 1.0;
+        public double PatreonBonus          { get; set; } = 0.5;   // +50% for active Patrons
         public double DailyStreakPerDay     { get; set; } = 0.1;
         public double DailyStreakCap        { get; set; } = 1.0;   // cap streak bonus alone
 

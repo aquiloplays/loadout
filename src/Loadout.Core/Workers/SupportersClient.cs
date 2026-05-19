@@ -35,9 +35,9 @@ namespace Loadout.Workers
         }
 
         /// <summary>
-        /// Returns the tier ("tier1" / "tier2" / "tier3") or null if not a supporter
-        /// or unreachable. Falls back to the local <see cref="PatreonSupportersConfig"/>
-        /// list if the worker is offline.
+        /// Returns "patron" if the handle is an active Patreon supporter, or
+        /// null if not a supporter or unreachable. Falls back to the local
+        /// <see cref="PatreonSupportersConfig"/> list if the worker is offline.
         /// </summary>
         public async Task<string> LookupAsync(string platform, string handle)
         {
@@ -56,8 +56,10 @@ namespace Loadout.Workers
                 {
                     var body = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
                     var json = JObject.Parse(body);
+                    // Single-tier model: any non-empty tier from the worker
+                    // means "active supporter" — normalize to "patron".
                     var t = (string)json["tier"];
-                    if (!string.IsNullOrEmpty(t) && t != "none") tier = t;
+                    if (!string.IsNullOrEmpty(t) && t != "none") tier = "patron";
                 }
             }
             catch (Exception ex)
@@ -97,7 +99,7 @@ namespace Loadout.Workers
             {
                 if (string.Equals(s[i].Platform, platform, StringComparison.OrdinalIgnoreCase) &&
                     string.Equals(s[i].Handle,   handle,   StringComparison.OrdinalIgnoreCase))
-                    return s[i].Tier;
+                    return "patron";
             }
             return null;
         }

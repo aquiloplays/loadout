@@ -647,7 +647,7 @@ namespace Loadout.UI
 
         private void BtnSupporterAdd_Click(object sender, RoutedEventArgs e)
         {
-            _supporters.Add(new PatreonSupporter { Platform = "twitch", Handle = "username", Tier = "tier2" });
+            _supporters.Add(new PatreonSupporter { Platform = "twitch", Handle = "username", Tier = "patron" });
             GrdSupporters.SelectedItem = _supporters[_supporters.Count - 1];
         }
         private void BtnSupporterRemove_Click(object sender, RoutedEventArgs e)
@@ -999,9 +999,7 @@ namespace Loadout.UI
             TxtBoltsCheckIn.Text      = s.Bolts.PerDailyCheckIn.ToString();
             TxtBoltsAnnivBase.Text    = s.Bolts.SubAnniversaryBonusBase.ToString();
             TxtBoltsMulSub.Text       = s.Bolts.SubMultiplier.ToString();
-            TxtBoltsMulT1.Text        = s.Bolts.PatreonTier1Bonus.ToString();
-            TxtBoltsMulT2.Text        = s.Bolts.PatreonTier2Bonus.ToString();
-            TxtBoltsMulT3.Text        = s.Bolts.PatreonTier3Bonus.ToString();
+            TxtBoltsMulPatron.Text    = s.Bolts.PatreonBonus.ToString();
             TxtBoltsStreakPer.Text    = s.Bolts.DailyStreakPerDay.ToString();
             TxtBoltsStreakCap.Text    = s.Bolts.DailyStreakCap.ToString();
             TxtBoltsAfkCap.Text       = s.Bolts.MaxChatEarnsPerMinute.ToString();
@@ -1288,9 +1286,7 @@ namespace Loadout.UI
                 if (int.TryParse(TxtBoltsAnnivBase.Text,  out iv) && iv >= 0) s.Bolts.SubAnniversaryBonusBase = iv;
                 double dv;
                 if (double.TryParse(TxtBoltsMulSub.Text,    out dv) && dv >= 0) s.Bolts.SubMultiplier     = dv;
-                if (double.TryParse(TxtBoltsMulT1.Text,     out dv) && dv >= 0) s.Bolts.PatreonTier1Bonus = dv;
-                if (double.TryParse(TxtBoltsMulT2.Text,     out dv) && dv >= 0) s.Bolts.PatreonTier2Bonus = dv;
-                if (double.TryParse(TxtBoltsMulT3.Text,     out dv) && dv >= 0) s.Bolts.PatreonTier3Bonus = dv;
+                if (double.TryParse(TxtBoltsMulPatron.Text, out dv) && dv >= 0) s.Bolts.PatreonBonus = dv;
                 if (double.TryParse(TxtBoltsStreakPer.Text, out dv) && dv >= 0) s.Bolts.DailyStreakPerDay = dv;
                 if (double.TryParse(TxtBoltsStreakCap.Text, out dv) && dv >= 0) s.Bolts.DailyStreakCap    = dv;
                 if (int.TryParse(TxtBoltsAfkCap.Text,    out iv) && iv >= 0) s.Bolts.MaxChatEarnsPerMinute = iv;
@@ -3195,8 +3191,7 @@ namespace Loadout.UI
                     case "checkin:sub-t3":
                     case "checkin:vip":
                     case "checkin:mod":
-                    case "checkin:patreon-t2":
-                    case "checkin:patreon-t3":
+                    case "checkin:patreon":
                     case "checkin:tiktok-fan-club":
                     case "checkin:yt-member":
                     case "checkin:kick-sub":
@@ -3218,8 +3213,7 @@ namespace Loadout.UI
                             case "checkin:sub-t3":          ciRole = "sub"; ciSubTier = "3000"; break;
                             case "checkin:vip":             ciRole = "vip"; break;
                             case "checkin:mod":             ciRole = "moderator"; break;
-                            case "checkin:patreon-t2":      ciRole = "viewer"; ciPatreon = "tier2"; break;
-                            case "checkin:patreon-t3":      ciRole = "viewer"; ciPatreon = "tier3"; break;
+                            case "checkin:patreon":         ciRole = "viewer"; ciPatreon = "patron"; break;
                             case "checkin:tiktok-fan-club": ciRole = "fan-club"; ciPlatform = "tiktok"; ciFan = "level3"; break;
                             case "checkin:yt-member":       ciRole = "member"; ciPlatform = "youtube"; break;
                             case "checkin:kick-sub":        ciRole = "sub"; ciSubTier = "1000"; ciPlatform = "kick"; break;

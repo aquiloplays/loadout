@@ -158,7 +158,6 @@ export async function handleComponent(data, env) {
       return updateMessage(await giftPickerView());
     case 'coinflip':    return openModal(coinflipModal());
     case 'dice':        return openModal(diceModal());
-    case 'link':        return openModal(linkModal());
 
     default:
       return updateMessage(await mainView(env, guild, userId, userName));
@@ -202,12 +201,6 @@ export async function handleModal(data, env) {
       const r = await cmdDiceInline(env, guild, userId, bet, target, userName);
       return updateMessage({ ...r, components: [backRow()] });
     }
-    case 'link': {
-      const platform = (fields.platform || '').toLowerCase().trim();
-      const username = (fields.username || '').trim();
-      const r = await linkAction(env, guild, userId, platform, username, userName);
-      return updateMessage({ ...r, components: [backRow()] });
-    }
     case 'profile': {
       const field = parts[3];
       const r = await profileFieldAction(env, guild, userId, field, fields);
@@ -234,39 +227,31 @@ async function mainView(env, guild, userId, userName) {
     (w.dailyStreak ? ` · 🔥 ${w.dailyStreak}-day streak` : '') +
     (linked ? ` · 🔗 ${linked}` : ''),
     '',
-    linked
-      ? '_Tap a button to do anything below — only you can see this menu._'
-      : '_Linking your stream account unlocks the full menu — tap **Link account** below._'
+    '_Tap a button to do anything below — only you can see this menu._'
   ];
-
-  // Lock the locked-without-link buttons visually + functionally.
-  // We render them disabled rather than hidden so newcomers learn what's
-  // available. Discord buttons have a `disabled` field (true/false).
-  const needLink = !linked;
 
   return {
     content: '⚔ **Loadout**\n' + lines.join('\n'),
     components: [
       row(
-        button('💰 Wallet',         'lo:wallet',      BTN_SECONDARY, needLink),
-        button('🎁 Daily',          'lo:daily',       BTN_SUCCESS,   needLink),
-        button('🤝 Gift',           'lo:gift',        BTN_SECONDARY, needLink),
-        button('📊 Leaderboard',    'lo:leaderboard', BTN_SECONDARY, false)
+        button('💰 Wallet',         'lo:wallet',      BTN_SECONDARY),
+        button('🎁 Daily',          'lo:daily',       BTN_SUCCESS),
+        button('🤝 Gift',           'lo:gift',        BTN_SECONDARY),
+        button('📊 Leaderboard',    'lo:leaderboard', BTN_SECONDARY)
       ),
       row(
-        button('🦸 Hero',           'lo:hero',        BTN_PRIMARY,   needLink),
-        button('🎒 Bag',            'lo:bag',         BTN_PRIMARY,   needLink),
-        button('🏪 Shop',           'lo:shop',        BTN_PRIMARY,   needLink),
-        button('🥋 Train',          'lo:train',       BTN_PRIMARY,   needLink)
+        button('🦸 Hero',           'lo:hero',        BTN_PRIMARY),
+        button('🎒 Bag',            'lo:bag',         BTN_PRIMARY),
+        button('🏪 Shop',           'lo:shop',        BTN_PRIMARY),
+        button('🥋 Train',          'lo:train',       BTN_PRIMARY)
       ),
       row(
-        button('🪪 Profile',        'lo:profile',     BTN_SECONDARY, false),
-        button('🎲 Quick games',    'lo:games',       BTN_SECONDARY, needLink),
-        button('🔗 Link account',   'lo:link',        linked ? BTN_SECONDARY : BTN_SUCCESS, false),
-        button('❓ Help',           'lo:help',        BTN_SECONDARY, false)
+        button('🪪 Profile',        'lo:profile',     BTN_SECONDARY),
+        button('🎲 Quick games',    'lo:games',       BTN_SECONDARY),
+        button('❓ Help',           'lo:help',        BTN_SECONDARY)
       ),
       row(
-        button('❌ Close',          'lo:close',       BTN_DANGER,    false)
+        button('❌ Close',          'lo:close',       BTN_DANGER)
       )
     ]
   };
@@ -718,23 +703,6 @@ async function cmdDiceInline(env, guild, userId, bet, target, userName) {
   };
 }
 
-// ── Link ───────────────────────────────────────────────────────────
-
-async function linkAction(env, guild, userId, platform, username, userName) {
-  const allowed = new Set(['twitch', 'kick', 'youtube', 'tiktok']);
-  if (!allowed.has(platform)) return { content: '❌ Platform must be one of: twitch / kick / youtube / tiktok.' };
-  if (!username || username.length < 2) return { content: '❌ Username looks invalid.' };
-  // Reuse the same wallet-link plumbing that /link previously hit. We
-  // poke it via getWallet → mutate links → put.
-  const w = await getWallet(env, guild, userId);
-  w.links = w.links || [];
-  // De-dupe by platform: replace any existing link for the same platform.
-  w.links = w.links.filter(l => l.platform !== platform);
-  w.links.push({ platform, username });
-  await env.LOADOUT_BOLTS.put(`wallet:${guild}:${userId}`, JSON.stringify(w));
-  return { content: `🔗 Linked **${userName}** to \`${platform}:${username}\`.` };
-}
-
 // ── Profile ────────────────────────────────────────────────────────
 
 async function profileView(env, guild, userId, userName) {
@@ -794,8 +762,7 @@ function helpView() {
       '• **Shop** — buy gear off-stream with bolts.\n' +
       '• **Train** — spend bolts to grind XP / HP between streams.\n' +
       '• **Profile** — !profile bio, pronouns, social handles, gamer tags. Same data the chat command + viewer overlay show.\n' +
-      '• **Quick games** — coinflip / dice for grinding bolts.\n' +
-      '• **Link account** — connect this Discord to your stream identity (Twitch / Kick / YouTube / TikTok). Required for most commands.',
+      '• **Quick games** — coinflip / dice for grinding bolts.',
     components: [backRow()]
   };
 }
@@ -849,25 +816,6 @@ function diceModal() {
         type: COMPONENT_ROW,
         components: [{ type: COMPONENT_TEXT_INPUT, custom_id: 'target', label: 'Target face (1-6)', style: INPUT_SHORT,
                        required: true, min_length: 1, max_length: 1, placeholder: '1-6' }]
-      }
-    ]
-  };
-}
-
-function linkModal() {
-  return {
-    custom_id: 'lo:m:link',
-    title: 'Link your stream account',
-    components: [
-      {
-        type: COMPONENT_ROW,
-        components: [{ type: COMPONENT_TEXT_INPUT, custom_id: 'platform', label: 'Platform (twitch / kick / youtube / tiktok)',
-                       style: INPUT_SHORT, required: true, min_length: 4, max_length: 10, placeholder: 'twitch' }]
-      },
-      {
-        type: COMPONENT_ROW,
-        components: [{ type: COMPONENT_TEXT_INPUT, custom_id: 'username', label: 'Username on that platform',
-                       style: INPUT_SHORT, required: true, min_length: 2, max_length: 60, placeholder: 'your_handle' }]
       }
     ]
   };

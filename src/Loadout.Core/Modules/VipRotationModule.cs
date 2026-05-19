@@ -25,7 +25,7 @@ namespace Loadout.Modules
     /// version exposes them, falling back to the legacy chat slash commands
     /// (<c>/vip name</c>) which still work via IRC.
     ///
-    /// Tier 3 only — this is a Pro feature.
+    /// Patron early-access feature.
     /// </summary>
     public sealed class VipRotationModule : IEventModule
     {

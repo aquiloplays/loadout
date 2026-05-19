@@ -76,7 +76,7 @@ namespace Loadout.Patreon
                 case Feature.DungeonGame:
                     return true;
 
-                // Tier 2 ($6) and up
+                // Early-access features — gate on the Patron tier
                 case Feature.MultiPlatformSend:
                 case Feature.UnlimitedTimers:
                 case Feature.AllWelcomeTiers:
@@ -88,9 +88,6 @@ namespace Loadout.Patreon
                 case Feature.StreamRecap:
                 case Feature.UnlimitedCounters:
                 case Feature.DailyCheckIn:
-                    return tier == "tier2" || tier == "tier3";
-
-                // Tier 3 ($10) only
                 case Feature.TikTokHypeTrain:
                 case Feature.HateRaidDetector:
                 case Feature.SmartAutoClipper:
@@ -100,7 +97,7 @@ namespace Loadout.Patreon
                 case Feature.DailyCheckInFlairsPro:
                 case Feature.VipRotationAuto:
                 case Feature.BoltsCrossPlatform:
-                    return tier == "tier3";
+                    return tier == "patron";
 
                 default:
                     return false;
@@ -115,7 +112,7 @@ namespace Loadout.Patreon
         public static string GetLockReason(Feature f)
         {
             if (IsUnlocked(f)) return null;
-            return "This is an early-access feature for Patreon Tier 2 and Tier 3 supporters. It rolls out to everyone shortly after.";
+            return "This is an early-access feature for Patrons. It rolls out to everyone shortly after.";
         }
 
         public static string CurrentTierDisplay()
@@ -124,11 +121,8 @@ namespace Loadout.Patreon
             if (!s.SignedIn) return "Free";
             switch (s.Tier ?? "none")
             {
-                case "tier3":    return "Patreon Tier 3 supporter";
-                case "tier2":    return "Patreon Tier 2 supporter";
-                case "tier1":    return "Connected (Patreon Tier 1)";
-                case "follower": return "Connected (Patreon follower)";
-                default:         return "Connected (no active tier)";
+                case "patron":   return "Patron";
+                default:         return "Connected (no active pledge)";
             }
         }
     }

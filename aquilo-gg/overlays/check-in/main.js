@@ -43,10 +43,9 @@
     root.dataset.theme = ev.animationTheme || 'shimmer';
     userEl.textContent = ev.user || 'Anonymous';
 
-    // Premium-tier hook: paid roles (Patreon T2/T3, sub T2/T3) get
-    // a richer animation layer — aurora swirl, particle trails, gold
-    // beams. The CSS keys off this attribute so we can extend with
-    // more tiers without touching JS.
+    // Premium hook: paid roles (Patron, sub T1-T3) get a richer
+    // animation layer — aurora swirl, particle trails, gold beams.
+    // The CSS keys off this attribute.
     const premium = computePremium(ev);
     if (premium) {
       root.dataset.premium = premium;
@@ -154,14 +153,12 @@
     }
   }
 
-  // Returns the premium-tier key for the CSS overlay, or empty
-  // string if this checkin doesn't qualify. Patreon outranks sub
-  // when both apply (T3 wins over T2, T2 wins over T1) so paying
-  // viewers always get the showier animation.
+  // Returns the premium key for the CSS overlay, or empty string if
+  // this checkin doesn't qualify. Patron outranks sub when both apply
+  // so paying viewers always get the showier animation.
   function computePremium(ev) {
     if (!ev) return '';
-    if (ev.patreonTier === 'tier3') return 'patreon-t3';
-    if (ev.patreonTier === 'tier2') return 'patreon-t2';
+    if (ev.patreonTier)             return 'patreon';
     if (ev.subTier === '3000')      return 'sub-t3';
     if (ev.subTier === '2000')      return 'sub-t2';
     if (ev.subTier === '1000' && ev.role === 'sub') return 'sub-t1';
@@ -181,7 +178,7 @@
       out.push({ cls: 'sub-' + tier, text: 'Sub T' + tier });
     }
     if (showFlairs.patreon !== false && ev.patreonTier) {
-      out.push({ cls: 'patreon-' + ev.patreonTier, text: 'Patreon ' + ev.patreonTier.replace('tier','T') });
+      out.push({ cls: 'patreon', text: 'Patron' });
     }
     return out;
   }
@@ -284,7 +281,7 @@
     show({
       user: 'aquilo_plays', role: 'broadcaster',
       pfp: '', subTier: '',
-      patreonTier: 'tier3',
+      patreonTier: 'patron',
       showFlairs: { sub: true, vipMod: true, patreon: true },
       animationTheme: 'shimmer',
       message: 'gn from Norway Kappa thanks for the stream!',

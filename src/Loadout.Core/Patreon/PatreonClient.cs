@@ -16,8 +16,8 @@ namespace Loadout.Patreon
 {
     /// <summary>
     /// Patreon OAuth + entitlement check. Reuses the same Cloudflare Worker
-    /// proxy as StreamFusion (campaign 3410750) so a Tier 2/3 supporter is
-    /// entitled across both products with one sign-in.
+    /// proxy as StreamFusion (campaign 3410750) so a patron is entitled
+    /// across both products with one sign-in.
     ///
     /// OAuth flow:
     ///   1. <see cref="StartSignInAsync"/> generates a PKCE state, opens the
@@ -36,8 +36,6 @@ namespace Loadout.Patreon
         // Public values, safe to ship in the binary - same as StreamFusion's.
         private const string ClientId       = "tPN89A6Yz_NEpvQIQ2hDXcfCpyrrYha6YsgZ-aUcQP2y8Lcnaxm7-xSY8W3Zn4QO";
         private const string CampaignId     = "3410750";
-        private const string Tier2Id        = "28147937";
-        private const string Tier3Id        = "28147942";
         private const string TokenProxyUrl  = "https://streamfusion-patreon-proxy.bisherclay.workers.dev/";
 
         // Owner email is always entitled - lets the creator test EA features
@@ -254,9 +252,9 @@ namespace Loadout.Patreon
         }
 
         /// <summary>
-        /// Decide entitlement from a parsed /identity response. Mirrors the
-        /// logic in StreamFusion's verifyMembership: tier id wins; falls back
-        /// to amount_cents; rejects only declined/former patrons.
+        /// Decide entitlement from a parsed /identity response. Single-tier
+        /// model: any active pledge to the campaign counts; rejects only
+        /// declined / former patrons.
         /// </summary>
         private PatreonState ApplyIdentity(JObject identity)
         {
@@ -284,19 +282,17 @@ namespace Loadout.Patreon
                 var tiers = (JArray)member.SelectToken("relationships.currently_entitled_tiers.data") ?? new JArray();
                 var tierIds = tiers.Select(t => (string)t["id"]).ToList();
 
-                if (tierIds.Contains(Tier3Id))      tier = "tier3";
-                else if (tierIds.Contains(Tier2Id)) tier = "tier2";
-                else if (tier == "none" && cents >= 1000) tier = "tier3";
-                else if (tier == "none" && cents >= 600)  tier = "tier2";
-                else if (tier == "none" && cents > 0)     tier = "tier1";
+                // Single-tier model: the campaign has one paid tier, so any
+                // active pledge (entitled amount or an entitled tier) counts.
+                if (cents > 0 || tierIds.Count > 0) tier = "patron";
             }
 
             bool blocked = patronStatus == "declined_patron" || patronStatus == "former_patron";
-            bool entitled = !blocked && (tier == "tier2" || tier == "tier3");
+            bool entitled = !blocked && tier == "patron";
 
             if (!entitled && string.Equals(email, OwnerEmail, StringComparison.OrdinalIgnoreCase))
             {
-                tier = "tier3";
+                tier = "patron";
                 entitled = true;
             }
 
@@ -308,7 +304,7 @@ namespace Loadout.Patreon
                 _state.PatronStatus    = patronStatus;
                 _state.Entitled        = entitled;
                 _state.LastVerifiedUtc = DateTime.UtcNow;
-                _state.Reason          = entitled ? "ok" : (blocked ? "declined" : "tier-too-low");
+                _state.Reason          = entitled ? "ok" : (blocked ? "declined" : "no-pledge");
                 Persist();
             }
             StateChanged?.Invoke(this, _state);
