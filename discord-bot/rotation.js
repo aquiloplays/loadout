@@ -280,7 +280,9 @@ export async function ingestRotation(req, env) {
     return json({ error: 'bad-json' }, 400);
   }
 
-  await env.LOADOUT_BOLTS.put(RELAY_ALIVE_KEY, '1', { expirationTtl: 45 });
+  // KV's minimum expirationTtl is 60s; the R2 relay re-ingests well
+  // within that, so the heartbeat stays fresh.
+  await env.LOADOUT_BOLTS.put(RELAY_ALIVE_KEY, '1', { expirationTtl: 60 });
 
   const kind = evt && evt.kind;
   const d = (evt && evt.data) || {};
@@ -288,7 +290,7 @@ export async function ingestRotation(req, env) {
     await env.LOADOUT_BOLTS.put(
       'rot:validated:' + d.id,
       JSON.stringify({ ok: !!d.ok, reason: d.reason || null }),
-      { expirationTtl: 30 },
+      { expirationTtl: 60 },
     );
   } else if (
     (kind === 'rotation.song.accepted' || kind === 'rotation.song.rejected') &&
@@ -297,7 +299,7 @@ export async function ingestRotation(req, env) {
     await env.LOADOUT_BOLTS.put(
       'rot:reqresult:' + d.requestId,
       JSON.stringify({ ok: kind === 'rotation.song.accepted', reason: d.reason || null }),
-      { expirationTtl: 30 },
+      { expirationTtl: 60 },
     );
   } else if (kind === 'rotation.song.playing') {
     const s = (await env.LOADOUT_BOLTS.get(STATE_KEY, { type: 'json' })) || {};
