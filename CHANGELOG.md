@@ -11,6 +11,23 @@ Versioning: [SemVer](https://semver.org/).
 
 ---
 
+## [1.7.0] - 2026-05-19
+
+Phase BR-core — branching dungeons (vote + cooldown skip).
+
+### Added
+
+- `DungeonScene` gains `Options[]` and `DungeonRunResult` gains an optional `Branch` + `BranchEffects`. 20 % of non-wiped runs roll a branching finale picked from `DungeonContent.BranchScenes` (three sample scenes ship: Crossroads, Forge Antechamber, Treetop Glade).
+- `DungeonModule.RunDungeonNow` is split into the existing publish path + a new `ApplyAndCompleteRun`. Branching runs `Task.Delay` for the scene's `DelayMs + 30 s` vote window + a small buffer, then resolve plurality (first-vote tiebreak, no-vote default = first option), apply the winning `BranchEffect` to outcomes, publish `dungeon.choice {optionId, votes, resolveText, ...}`, then complete.
+- `!dungeon vote <id>` (any viewer) and `!dungeon skip` (Worker-validated only) chat commands on `DungeonModule.OnEvent`.
+
+### Changed
+
+- Worker `POST /ext/dungeon/skip-cooldown` accepts either a Bits receipt (SKU `dungeon_skip_cooldown`, 100 bits) **or** `{ bolts: true }` which debits 500 bolts via `wallet.spend`. On success the route enqueues a dungeon `skip` panel-bridge command; `PanelBridgeModule` stamps a `loadout.panel.skip` trust flag so `DungeonModule` honours the bypass exactly once.
+- `dungeon.scene` payload now carries `options` (vote-button data) alongside `partyHp` and `target`.
+
+---
+
 ## [1.6.0] - 2026-05-19
 
 HP deltas mid-scene.
