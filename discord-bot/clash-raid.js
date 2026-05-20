@@ -227,16 +227,15 @@ export function computeLoot(sim, defenderTreasury, defenderTier = 'bronze') {
   if (sim.stars === 0) {
     return { bolts: 0, scrap: 0, cores: 0, voltaic: null };
   }
-  const intensity = 0.4 + sim.pctDestroyed * 0.6;   // 0.4 .. 1.0
-  const starBonus = 1 + sim.stars * 0.25;            // 1.25 .. 1.75
-  const cap = Math.max(0, defenderTreasury?.bolts || 0) * LOOT_CAP_PCT;
-  const bolts = Math.min(
-    LOOT_CEILING_BOLTS, Math.floor(cap * intensity * starBonus)
-  );
+  // The 20% cap is a hard ceiling — `factor` modulates *within* it,
+  // never above. 1-star raids take ~30% of cap, 2-star ~65%, 3-star
+  // up to 100% of cap (and even then, gated by pctDestroyed).
+  const starShare = { 1: 0.30, 2: 0.65, 3: 1.00 }[sim.stars] || 0;
+  const factor = starShare * Math.max(0.3, sim.pctDestroyed);
+  const boltsCap = Math.max(0, defenderTreasury?.bolts || 0) * LOOT_CAP_PCT;
+  const bolts = Math.min(LOOT_CEILING_BOLTS, Math.floor(boltsCap * factor));
   const scrapCap = Math.max(0, defenderTreasury?.scrap || 0) * LOOT_CAP_PCT;
-  const scrap = Math.min(
-    LOOT_CEILING_SCRAP, Math.floor(scrapCap * intensity * starBonus)
-  );
+  const scrap = Math.min(LOOT_CEILING_SCRAP, Math.floor(scrapCap * factor));
   const coreCap = Math.max(0, defenderTreasury?.cores || 0) * LOOT_CAP_PCT;
   const cores = Math.min(LOOT_CEILING_CORES, Math.floor(coreCap * (sim.stars === 3 ? 1 : 0.5)));
   const voltaic = rollVoltaicDrop(sim.stars, defenderTier);

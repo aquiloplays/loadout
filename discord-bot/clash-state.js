@@ -291,6 +291,9 @@ export async function pickRaidTarget(env, viewerGuildId, viewerTier) {
       const shield = await getShield(env, entry.guildId);
       if (shield && shield.endsAt > Date.now()) continue;
       if (await isTownExcluded(env, entry.guildId)) continue;
+      // Honor a town's manual matchmaking pause (set via /clash town pause).
+      const t = await getTown(env, entry.guildId);
+      if (t?.matchmakingPaused) continue;
       candidates.push(entry);
     }
     if (candidates.length) {

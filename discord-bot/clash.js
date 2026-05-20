@@ -248,10 +248,24 @@ async function handleDonate(env, guildId, userId, amount) {
   if ((wallet.balance || 0) < n) {
     return `❌ Not enough Bolts. You have ${wallet.balance || 0}.`;
   }
-  await applyVaultDelta(env, guildId, userId, -n, 'clash:donate');
-  await addTreasury(env, guildId, { bolts: n });
-  await recordContribution(env, guildId, userId, n);
-  return `💰 Donated **${n}** Bolts to the town treasury. Thank you for your service.`;
+  // Treasury caps Bolts at its capacity. Donating into a full
+  // treasury would silently drop the donation (`addTreasury` clamps
+  // at cap) while still debiting the viewer's wallet — UX trap.
+  // Clamp the accepted donation here, refuse the rest with a clear
+  // message that points the streamer at the Storage upgrade.
+  const tres = await getTreasury(env, guildId);
+  const headroom = Math.max(0, (tres.capacity || 0) - (tres.bolts || 0));
+  if (headroom === 0) {
+    return `🏛 Treasury is full (${tres.bolts}/${tres.capacity}⚡). Streamer/mods can upgrade Storage to raise the cap.`;
+  }
+  const accepted = Math.min(n, headroom);
+  await applyVaultDelta(env, guildId, userId, -accepted, 'clash:donate');
+  await addTreasury(env, guildId, { bolts: accepted });
+  await recordContribution(env, guildId, userId, accepted);
+  if (accepted < n) {
+    return `💰 Donated **${accepted}** Bolts (treasury cap hit). The other ${n - accepted} stayed in your wallet — Storage upgrade raises the cap.`;
+  }
+  return `💰 Donated **${accepted}** Bolts to the town treasury. Thank you for your service.`;
 }
 
 async function handleRaid(env, guildId, userId, userName, kind) {
