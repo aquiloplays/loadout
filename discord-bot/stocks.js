@@ -133,7 +133,7 @@ function findTicker(catalog, ticker) {
   return (catalog.tickers || []).find((x) => String(x.ticker).toUpperCase() === t) || null;
 }
 
-async function getPrice(env, ticker) {
+export async function getPrice(env, ticker) {
   try {
     return await env.LOADOUT_BOLTS.get('stock:price:' + ticker, { type: 'json' });
   } catch { return null; }
@@ -143,7 +143,7 @@ async function putPrice(env, ticker, rec) {
   await env.LOADOUT_BOLTS.put('stock:price:' + ticker, JSON.stringify(rec));
 }
 
-async function getHistory(env, ticker) {
+export async function getHistory(env, ticker) {
   try {
     const h = await env.LOADOUT_BOLTS.get('stock:history:' + ticker, { type: 'json' });
     return Array.isArray(h) ? h : [];
@@ -155,7 +155,7 @@ async function putHistory(env, ticker, arr) {
   await env.LOADOUT_BOLTS.put('stock:history:' + ticker, JSON.stringify(arr));
 }
 
-async function getHoldings(env, guildId, userId) {
+export async function getHoldings(env, guildId, userId) {
   try {
     const h = await env.LOADOUT_BOLTS.get(`stock:holdings:${guildId}:${userId}`, { type: 'json' });
     return (h && typeof h === 'object') ? h : {};
@@ -417,7 +417,7 @@ function pctChange(history) {
   return ((last - first) / first) * 100;
 }
 
-async function renderStocksList(env) {
+export async function renderStocksList(env) {
   const catalog = await getCatalog(env);
   const tickers = catalog.tickers || [];
   if (tickers.length === 0) {
@@ -445,7 +445,7 @@ async function renderStocksList(env) {
   );
 }
 
-async function runBuy(env, guildId, userId, args) {
+export async function runBuy(env, guildId, userId, args) {
   const ticker = String(args.ticker || '').toUpperCase();
   const bolts = Math.max(1, Math.floor(Number(args.bolts) || 0));
   const catalog = await getCatalog(env);
@@ -486,7 +486,7 @@ async function runBuy(env, guildId, userId, args) {
   );
 }
 
-async function runSell(env, guildId, userId, args) {
+export async function runSell(env, guildId, userId, args) {
   const ticker = String(args.ticker || '').toUpperCase();
   const shares = Math.max(1, Math.floor(Number(args.shares) || 0));
   const catalog = await getCatalog(env);
@@ -517,7 +517,7 @@ async function runSell(env, guildId, userId, args) {
   );
 }
 
-async function renderPortfolio(env, guildId, userId) {
+export async function renderPortfolio(env, guildId, userId) {
   const holdings = await getHoldings(env, guildId, userId);
   const tickers = Object.keys(holdings)
     .filter((k) => (Number(holdings[k]) || 0) > 0)
@@ -549,7 +549,7 @@ async function renderPortfolio(env, guildId, userId) {
   );
 }
 
-async function renderChart(env, args) {
+export async function renderChart(env, args) {
   const ticker = String(args.ticker || '').toUpperCase();
   const catalog = await getCatalog(env);
   const def = findTicker(catalog, ticker);

@@ -24,6 +24,7 @@
 //   /bet sports history
 
 import { spend, earn, getWallet } from './wallet.js';
+import { noteTeamsFromGames, findSubscribersForGame } from './hub-menu.js';
 
 const FLAG_EPHEMERAL = 1 << 6;
 const RESP_CHAT = 4;
@@ -101,7 +102,7 @@ function normalizeEvent(label, ev) {
   };
 }
 
-async function refreshGamesCache(env) {
+export async function refreshGamesCache(env) {
   const games = [];
   for (const lg of LEAGUES) {
     const evs = await fetchLeague(lg.sport, lg.league);
@@ -116,7 +117,7 @@ async function refreshGamesCache(env) {
   return games;
 }
 
-async function readGamesCache(env) {
+export async function readGamesCache(env) {
   try {
     const d = await env.LOADOUT_BOLTS.get(GAMES_CACHE_KEY, { type: 'json' });
     if (d && Array.isArray(d.games)) return d.games;
@@ -124,7 +125,7 @@ async function readGamesCache(env) {
   return [];
 }
 
-function findGame(games, query) {
+export function findGame(games, query) {
   const q = String(query || '').toUpperCase().trim();
   if (!q) return null;
   // Match by id (exact, prefix, suffix) OR by "AWY@HOM" pair.
@@ -151,7 +152,7 @@ function payoutMultiplier(americanOdds) {
     : 1 + 100 / Math.abs(americanOdds);
 }
 
-function computeWinPayout(stake, americanOdds) {
+export function computeWinPayout(stake, americanOdds) {
   const m = payoutMultiplier(americanOdds);
   return Math.max(1, Math.floor(stake * m * (1 - HOUSE_EDGE)));
 }
@@ -206,6 +207,12 @@ export async function betCronTick(env) {
   try { games = await refreshGamesCache(env); }
   catch { games = await readGamesCache(env); }
 
+  // Keep the team registry warm for /hub team-subscription search.
+  try { await noteTeamsFromGames(env, games); } catch { /* idle */ }
+
+  // Post newly-seen games to every guild's bound sports feed channel.
+  try { await postNewGamesToFeeds(env, games); } catch { /* idle */ }
+
   const gamesById = {};
   for (const g of games) gamesById[g.id] = g;
 
@@ -250,6 +257,119 @@ export async function betCronTick(env) {
   return { games: games.length, settled };
 }
 
+// ---- Sports feed channel posting --------------------------------------
+//
+// Each guild can bind a "sports feed" channel via /admin. Every cron
+// tick, identify games whose IDs are new to that guild's tracker and
+// post each as a fresh embed (NOT edit-in-place — feed is chronological).
+// Pings subscribers via allowed_mentions.users; batches at 100 mentions
+// per post per Discord cap.
+
+const KNOWN_GAMES_CAP = 200;
+
+async function postNewGamesToFeeds(env, games) {
+  let cursor;
+  do {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'sports:channel:guild:', cursor });
+    for (const k of r.keys) {
+      const guildId = k.name.slice('sports:channel:guild:'.length);
+      const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!rec || !rec.channelId) continue;
+      const known = new Set(Array.isArray(rec.knownGameIds) ? rec.knownGameIds : []);
+      const fresh = games.filter((g) => g.state === 'pre' && !known.has(g.id));
+      for (const g of fresh) {
+        try { await postGameAnnouncement(env, rec.channelId, g); }
+        catch { /* idle */ }
+        known.add(g.id);
+      }
+      // Trim known list to keep KV record bounded.
+      const next = Array.from(known).slice(-KNOWN_GAMES_CAP);
+      await env.LOADOUT_BOLTS.put(
+        k.name,
+        JSON.stringify({ channelId: rec.channelId, knownGameIds: next, boundAt: rec.boundAt || Date.now() }),
+      );
+    }
+    cursor = r.list_complete ? null : r.cursor;
+  } while (cursor);
+}
+
+async function postGameAnnouncement(env, channelId, g) {
+  // Gather subscribers + dedupe.
+  let subs = [];
+  try {
+    subs = await findSubscribersForGame(env, g.label, g.away.id, g.home.id);
+  } catch { /* idle */ }
+  const oddsLine = (g.away.odds || g.home.odds)
+    ? '\nMoneyline · ' + (g.away.abbr || '?') + ' ' + fmtOddsLocal(g.away.odds) +
+      ' · ' + (g.home.abbr || '?') + ' ' + fmtOddsLocal(g.home.odds)
+    : '';
+  const embed = {
+    title: '🏈 ' + g.label + ': ' + (g.away.name || g.away.abbr) + ' @ ' + (g.home.name || g.home.abbr),
+    description:
+      '**Tip-off:** ' + fmtTime(g.date) + oddsLine + '\n\n' +
+      'Tap a button below to bet · 10% wallet cap · 1.95× even-money payout.',
+    color: 0xff6ab5,
+  };
+  const components = [
+    {
+      type: 1,
+      components: [
+        { type: 2, style: 1, label: '🏠 Bet ' + (g.home.abbr || 'Home'),
+          custom_id: 'hub:sports:bet:home:' + g.id },
+        { type: 2, style: 2, label: '✈ Bet ' + (g.away.abbr || 'Away'),
+          custom_id: 'hub:sports:bet:away:' + g.id },
+        { type: 2, style: 4, label: '🔕 Mute ' + g.label,
+          custom_id: 'hub:sports:mute:' + g.label.toLowerCase() },
+        { type: 2, style: 2, label: '◀ Open Hub', custom_id: 'hub:home' },
+      ],
+    },
+  ];
+  // Discord caps at 100 mentions per message; batch overflow into
+  // additional pure-mention posts after the main embed.
+  const CHUNK = 100;
+  const first = subs.slice(0, CHUNK);
+  const content = first.length ? first.map((u) => '<@' + u + '>').join(' ') : '';
+  await discordPostMessageLocal(env, channelId, {
+    content,
+    embeds: [embed],
+    components,
+    allowed_mentions: { users: first },
+  });
+  for (let i = CHUNK; i < subs.length; i += CHUNK) {
+    const slice = subs.slice(i, i + CHUNK);
+    await discordPostMessageLocal(env, channelId, {
+      content: slice.map((u) => '<@' + u + '>').join(' '),
+      allowed_mentions: { users: slice },
+    });
+  }
+}
+
+function fmtOddsLocal(americanOdds) {
+  if (typeof americanOdds !== 'number') return '—';
+  return americanOdds > 0 ? '+' + americanOdds : String(americanOdds);
+}
+
+async function discordPostMessageLocal(env, channelId, body) {
+  if (!env.DISCORD_BOT_TOKEN) return null;
+  try {
+    const res = await fetch(
+      'https://discord.com/api/v10/channels/' + encodeURIComponent(channelId) + '/messages',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 async function recordSettled(env, bet, outcome, payout) {
   const u = await getUserBets(env, bet.guildId, bet.userId);
   u.active = (u.active || []).filter((b) => b.betId !== bet.betId);
@@ -267,6 +387,54 @@ async function recordSettled(env, bet, outcome, payout) {
 }
 
 // ---- Slash command dispatcher ------------------------------------------
+
+// STRING_AUTOCOMPLETE handler for /bet sports place's `game` option.
+// The interaction payload nests options three deep (group -> subcommand
+// -> options), with one option carrying `focused: true`. We only need
+// to surface the upcoming-game choices for the `game` slot.
+export async function handleBetAutocomplete(env, options) {
+  const grp = (options && options[0]) || {};
+  const sub = (grp.options && grp.options[0]) || {};
+  const focused = (sub.options || []).find((o) => o && o.focused);
+  if (!focused || focused.name !== 'game') return { type: 8, data: { choices: [] } };
+  const q = String(focused.value || '').toLowerCase().trim();
+
+  let games = await readGamesCache(env);
+  if (games.length === 0) {
+    try { games = await refreshGamesCache(env); } catch { games = []; }
+  }
+  const now = Date.now();
+  const filtered = games.filter((g) => {
+    if (g.state === 'in') return true;
+    if (g.state !== 'pre') return false;
+    const ms = g.date ? new Date(g.date).getTime() : 0;
+    if (ms - now > UPCOMING_WINDOW_MS) return false;
+    if (ms - now < -60 * 60 * 1000) return false;
+    return true;
+  });
+  const scored = filtered
+    .map((g) => {
+      const hay =
+        (g.away.abbr + ' ' + g.home.abbr + ' ' +
+         (g.away.name || '') + ' ' + (g.home.name || '') + ' ' +
+         g.label + ' ' + g.id).toLowerCase();
+      const match = q === '' || hay.includes(q);
+      return { g, match, when: g.date ? new Date(g.date).getTime() : 0 };
+    })
+    .filter((x) => x.match)
+    .sort((a, b) => a.when - b.when)
+    .slice(0, 25);
+  const choices = scored.map(({ g }) => {
+    // Name max 100 chars; we stay well under. Time is the upstream
+    // ISO with seconds trimmed — local-time formatting belongs on
+    // the renderer, not on the autocomplete label.
+    const live = g.state === 'in' ? '[LIVE] ' : '';
+    const name = (live + g.label + ': ' + (g.away.abbr || '?') + ' @ ' +
+                  (g.home.abbr || '?') + ' — ' + fmtTime(g.date)).slice(0, 100);
+    return { name, value: String(g.id) };
+  });
+  return { type: 8, data: { choices } };
+}
 
 export async function handleBet(env, guildId, userId, userName, options) {
   // /bet has one group `sports` with subcommands beneath. Discord
@@ -309,7 +477,7 @@ function fmtTime(iso) {
   return d.toISOString().replace('T', ' ').slice(0, 16) + 'Z';
 }
 
-async function renderSportsList(env) {
+export async function renderSportsList(env) {
   let games = await readGamesCache(env);
   if (games.length === 0) {
     games = await refreshGamesCache(env);
@@ -330,10 +498,15 @@ async function renderSportsList(env) {
   const rows = filtered.slice(0, 25).map((g) => {
     const odds = '(' + fmtOdds(g.away.odds) + ' / ' + fmtOdds(g.home.odds) + ')';
     const tag = g.state === 'in' ? 'LIVE ' : '';
+    // padStart on the away abbr + padEnd on the home abbr lines the `@`
+    // up flush against both team names regardless of abbreviation
+    // length — much cleaner than the prior left-pad-only formatting.
+    const away = (g.away.abbr || '?').padStart(4);
+    const home = (g.home.abbr || '?').padEnd(4);
     return (
       '`' + g.id.padStart(9) + '` ' +
       g.label.padEnd(4) + '  ' +
-      (g.away.abbr || '?').padEnd(4) + '@' + (g.home.abbr || '?').padEnd(4) +
+      away + '@' + home +
       '  ' + odds + '  ' + tag + fmtTime(g.date)
     );
   });
@@ -345,7 +518,7 @@ async function renderSportsList(env) {
   );
 }
 
-async function runPlace(env, guildId, userId, args) {
+export async function runPlace(env, guildId, userId, args) {
   const gameIdInput = String(args.game || '').trim();
   const side = String(args.side || '').toLowerCase().trim();
   const stake = Math.max(1, Math.floor(Number(args.bolts) || 0));
@@ -401,7 +574,7 @@ async function runPlace(env, guildId, userId, args) {
   );
 }
 
-async function renderActive(env, guildId, userId) {
+export async function renderActive(env, guildId, userId) {
   const u = await getUserBets(env, guildId, userId);
   const active = u.active || [];
   if (active.length === 0) return 'No active bets. Run `/bet sports list` to find a game.';
@@ -416,7 +589,7 @@ async function renderActive(env, guildId, userId) {
   return '**Active bets**\n```\n' + rows.join('\n') + '\n```';
 }
 
-async function renderHistory(env, guildId, userId) {
+export async function renderHistory(env, guildId, userId) {
   const u = await getUserBets(env, guildId, userId);
   const hist = (u.history || []).slice(-20).reverse();
   if (hist.length === 0) return 'No settled bets yet.';

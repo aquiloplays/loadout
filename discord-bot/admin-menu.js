@@ -1,21 +1,29 @@
-// /admin — server-admin hub. MANAGE_GUILD only (enforced by Discord's
-// default_member_permissions in commands-spec.js).
+// /admin — server-admin hub. MANAGE_GUILD only (Discord enforces the
+// gate via the command's default_member_permissions in commands-spec).
 //
-// Today the admin surface is just the Loadout install bind. As more
-// admin actions land (e.g. resetting a guild's stocks ticker board,
-// purging a viewer's holdings, etc.) they slot in here as additional
-// buttons. Component routing prefix: "admin:".
+// Surfaces:
+//   - Install bind (/loadout-claim still exists as a direct command)
+//   - Stocks ticker board (/stocks ticker-setup / ticker-clear remain
+//     callable; this surfaces them in the admin UI)
+//   - Sports feed channel (bind / clear) — used by bet.js's :23 cron
+//     to post newly-seen games with @mentions
+//
+// Component routing prefix: "admin:".
 
 const RESP_CHAT            = 4;
-const RESP_UPDATE_MESSAGE  = 7;
 const RESP_DEFER_UPDATE    = 6;
+const RESP_UPDATE_MESSAGE  = 7;
 const FLAG_EPHEMERAL = 1 << 6;
 
 const COMPONENT_ROW    = 1;
 const COMPONENT_BUTTON = 2;
 const STYLE_PRIMARY    = 1;
 const STYLE_SECONDARY  = 2;
+const STYLE_SUCCESS    = 3;
+const STYLE_DANGER     = 4;
 const STYLE_LINK       = 5;
+
+const SPORTS_CHANNEL_KEY = (guildId) => 'sports:channel:guild:' + guildId;
 
 function json(obj) {
   return new Response(JSON.stringify(obj), {
@@ -24,24 +32,50 @@ function json(obj) {
   });
 }
 
-function mainView() {
+async function getSportsChannel(env, guildId) {
+  try {
+    return await env.LOADOUT_BOLTS.get(SPORTS_CHANNEL_KEY(guildId), { type: 'json' });
+  } catch { return null; }
+}
+
+async function setSportsChannel(env, guildId, channelId) {
+  await env.LOADOUT_BOLTS.put(
+    SPORTS_CHANNEL_KEY(guildId),
+    JSON.stringify({ channelId, knownGameIds: [], boundAt: Date.now() }),
+  );
+}
+
+async function clearSportsChannel(env, guildId) {
+  try { await env.LOADOUT_BOLTS.delete(SPORTS_CHANNEL_KEY(guildId)); } catch { /* idle */ }
+}
+
+async function mainView(env, guildId) {
+  const sports = await getSportsChannel(env, guildId);
+  const sportsLine = sports
+    ? 'Sports feed: 🟢 bound to <#' + sports.channelId + '>'
+    : 'Sports feed: ⚫ not bound';
   return {
     embeds: [{
       title: '🛠 Admin hub',
       description:
-        'Server-admin tools for Loadout.\n\n' +
-        '• **Bind** — link this server to a Loadout install (or run `/loadout-claim code:<…>`)\n' +
-        '• **Stocks board** — set or clear the auto-updating ticker channel (`/stocks ticker-setup` / `/stocks ticker-clear`)\n' +
-        '• **Web admin** — full content + catalog editors at https://aquilo.gg/admin',
+        'Server-admin tools for Aquilo.\n\n' + sportsLine + '\n\n' +
+        'Stocks ticker board uses `/stocks ticker-setup` in the target channel.',
       color: 0x9a82ff,
     }],
     components: [
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Bind server',     custom_id: 'admin:bind'   },
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Stocks board',    custom_id: 'admin:stocks' },
-          { type: COMPONENT_BUTTON, style: STYLE_LINK,      label: 'Web admin',       url: 'https://aquilo.gg/admin' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: 'Bind server',     custom_id: 'admin:bind' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: '📈 Stocks board', custom_id: 'admin:stocks' },
+        ],
+      },
+      {
+        type: COMPONENT_ROW,
+        components: [
+          { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: '🏈 Bind sports feed here', custom_id: 'admin:sports:bind' },
+          { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🛑 Clear sports feed',    custom_id: 'admin:sports:clear', disabled: !sports },
+          { type: COMPONENT_BUTTON, style: STYLE_LINK,      label: 'Web admin',                url: 'https://aquilo.gg/admin' },
         ],
       },
     ],
@@ -64,7 +98,7 @@ function bindInfo() {
       description:
         'Open Loadout in Streamer.bot and visit **Settings → Discord bot** to copy the 8-character bind code, then run:\n\n' +
         '`/loadout-claim code:XXXXXXXX`\n\n' +
-        'A successful bind ties this server to that Loadout install — wallets, holdings, and bets all live in the same KV namespace per guild.',
+        'A successful bind ties this server to that Loadout install.',
       color: 0x9a82ff,
     }],
     components: [backRow()],
@@ -76,8 +110,8 @@ function stocksInfo() {
     embeds: [{
       title: '📈 Stocks ticker board',
       description:
-        '`/stocks ticker-setup` — run it **in the channel you want to use as the board**. The bot posts a single embed and edits it in place every hour with the latest prices.\n\n' +
-        '`/stocks ticker-clear` — release the binding. The previous message stays; the bot just stops updating it.',
+        '`/stocks ticker-setup` — run it **in the channel you want to use as the board**. The bot posts a single embed and edits it every hour.\n\n' +
+        '`/stocks ticker-clear` — release the binding.',
       color: 0x9a82ff,
     }],
     components: [backRow()],
@@ -85,21 +119,70 @@ function stocksInfo() {
 }
 
 export async function renderAdminCommand() {
-  return { type: RESP_CHAT, data: { ...mainView(), flags: FLAG_EPHEMERAL } };
+  // Note: returned without env wiring — the dispatcher calls
+  // handleAdminComponent with env in scope for re-renders.
+  return {
+    type: RESP_CHAT,
+    data: { ...(await placeholderMain()), flags: FLAG_EPHEMERAL },
+  };
 }
 
-export async function handleAdminComponent(data) {
+// Slash-command entry uses this lazy initial render; the dispatcher
+// fills in real KV state when env is available on component clicks.
+async function placeholderMain() {
+  return {
+    embeds: [{
+      title: '🛠 Admin hub',
+      description: 'Loading…',
+      color: 0x9a82ff,
+    }],
+    components: [
+      {
+        type: COMPONENT_ROW,
+        components: [
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: 'Open', custom_id: 'admin:home' },
+        ],
+      },
+    ],
+  };
+}
+
+export async function handleAdminComponent(data, env) {
+  const guildId = data.guild_id;
+  const channelId = data.channel_id || data.channel?.id;
   const customId = data.data?.custom_id || '';
   if (!customId.startsWith('admin:')) {
     return json({ type: RESP_DEFER_UPDATE });
   }
-  const view = customId.slice('admin:'.length);
-  let payload;
-  switch (view) {
-    case 'home':   payload = mainView();    break;
-    case 'bind':   payload = bindInfo();    break;
-    case 'stocks': payload = stocksInfo();  break;
-    default:       return json({ type: RESP_DEFER_UPDATE });
+  const path = customId.slice('admin:'.length);
+  const segs = path.split(':');
+
+  if (segs[0] === 'home') {
+    return json({ type: RESP_UPDATE_MESSAGE, data: await mainView(env, guildId) });
   }
-  return json({ type: RESP_UPDATE_MESSAGE, data: payload });
+  if (segs[0] === 'bind') {
+    return json({ type: RESP_UPDATE_MESSAGE, data: bindInfo() });
+  }
+  if (segs[0] === 'stocks') {
+    return json({ type: RESP_UPDATE_MESSAGE, data: stocksInfo() });
+  }
+  if (segs[0] === 'sports' && segs[1] === 'bind') {
+    if (!channelId) {
+      return json({ type: RESP_UPDATE_MESSAGE, data: errorView("Couldn't read the current channel.") });
+    }
+    await setSportsChannel(env, guildId, channelId);
+    return json({ type: RESP_UPDATE_MESSAGE, data: await mainView(env, guildId) });
+  }
+  if (segs[0] === 'sports' && segs[1] === 'clear') {
+    await clearSportsChannel(env, guildId);
+    return json({ type: RESP_UPDATE_MESSAGE, data: await mainView(env, guildId) });
+  }
+  return json({ type: RESP_DEFER_UPDATE });
+}
+
+function errorView(msg) {
+  return {
+    embeds: [{ title: '⚠ Admin', description: msg, color: 0xff5c5c }],
+    components: [backRow()],
+  };
 }
