@@ -156,6 +156,18 @@ export default {
       return handleStreakFreezeRead(req, env);
     }
 
+    // Public read for the /admin-bound Discord check-in channel. Polled
+    // by aquilo-presence (decide which channels to forward) and by
+    // aquilo-bot's checkin.js (filter incoming forwarded messages).
+    // Unauthed -- channel IDs aren't sensitive and gating would force
+    // every poller through a secret-share setup that buys nothing.
+    if (method === 'GET' && path.startsWith('/checkin-channel/')) {
+      const guildId = path.slice('/checkin-channel/'.length).replace(/\/+$/, '');
+      if (!guildId) return new Response('guildId required', { status: 400 });
+      const { handleCheckinChannelRead } = await import('./admin-menu.js');
+      return handleCheckinChannelRead(env, guildId);
+    }
+
     // Self-register Loadout slash commands using the Worker's bot
     // token secret. HMAC-gated (same scheme as wallet sync). Lets a
     // Loadout install push the latest commands.spec without the

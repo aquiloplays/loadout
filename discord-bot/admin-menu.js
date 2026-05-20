@@ -61,7 +61,8 @@ const STYLE_LINK       = 5;
 // embeds that wouldn't render usefully in those.
 const CHANNEL_TYPES_TEXT = [0, 5];
 
-const SPORTS_CHANNEL_KEY = (guildId) => 'sports:channel:guild:' + guildId;
+const SPORTS_CHANNEL_KEY  = (guildId) => 'sports:channel:guild:' + guildId;
+const CHECKIN_CHANNEL_KEY = (guildId) => 'checkin:channel:guild:' + guildId;
 
 function json(obj) {
   return new Response(JSON.stringify(obj), {
@@ -92,6 +93,43 @@ async function setSportsChannel(env, guildId, channelId) {
 
 async function clearSportsChannel(env, guildId) {
   try { await env.LOADOUT_BOLTS.delete(SPORTS_CHANNEL_KEY(guildId)); } catch { /* idle */ }
+}
+
+// Discord pic/gif check-in channel binding. Read by aquilo-bot's
+// checkin.js (filter incoming MESSAGE_CREATE forwards) AND by
+// aquilo-presence (decide which channels to forward at all). Both
+// reach this binding through the public GET /checkin-channel/:guildId
+// endpoint at the bottom of this module -- no shared KV.
+export async function getCheckinChannel(env, guildId) {
+  try {
+    return await env.LOADOUT_BOLTS.get(CHECKIN_CHANNEL_KEY(guildId), { type: 'json' });
+  } catch { return null; }
+}
+
+async function setCheckinChannel(env, guildId, channelId) {
+  await env.LOADOUT_BOLTS.put(
+    CHECKIN_CHANNEL_KEY(guildId),
+    JSON.stringify({ channelId, boundAt: Date.now() }),
+  );
+}
+
+async function clearCheckinChannel(env, guildId) {
+  try { await env.LOADOUT_BOLTS.delete(CHECKIN_CHANNEL_KEY(guildId)); } catch { /* idle */ }
+}
+
+// Public read endpoint for cross-Worker / aquilo-presence consumers.
+// No auth -- channel IDs aren't sensitive (anyone in the guild can
+// see them), and gating this would force every poller through a
+// shared-secret setup that buys nothing.
+//
+// URL: GET /checkin-channel/:guildId
+// Response: { channelId: string | null, boundAt?: number }
+export async function handleCheckinChannelRead(env, guildId) {
+  const v = await getCheckinChannel(env, guildId);
+  return json({
+    channelId: (v && v.channelId) || null,
+    boundAt:   (v && v.boundAt)   || 0,
+  });
 }
 
 // ---- main view --------------------------------------------------------
@@ -231,14 +269,15 @@ async function runHealthChecks(env, guildId) {
   // Per-guild binding presence echoed back here as health signal, since
   // an unbound feed isn't surfaced anywhere else as "not configured."
   if (guildId) {
-    const sports = await getSportsChannel(env, guildId);
-    const stocks = await getTickerBoardForGuild(env, guildId);
-    const bolts  = await getBoltsFeed(env, guildId);
-    const boundCount = [sports, stocks, bolts].filter(Boolean).length;
+    const sports  = await getSportsChannel(env, guildId);
+    const stocks  = await getTickerBoardForGuild(env, guildId);
+    const bolts   = await getBoltsFeed(env, guildId);
+    const checkin = await getCheckinChannel(env, guildId);
+    const boundCount = [sports, stocks, bolts, checkin].filter(Boolean).length;
     checks.push({
       ok: boundCount > 0,
       label: 'Channel bindings (this guild)',
-      detail: boundCount + ' of 3 bound',
+      detail: boundCount + ' of 4 bound',
     });
   }
 
@@ -260,29 +299,81 @@ function manualChecklist() {
 }
 
 async function setupView(env, guildId) {
-  const sports = await getSportsChannel(env, guildId);
-  const stocks = await getTickerBoardForGuild(env, guildId);
-  const bolts  = await getBoltsFeed(env, guildId);
+  const sports  = await getSportsChannel(env, guildId);
+  const stocks  = await getTickerBoardForGuild(env, guildId);
+  const bolts   = await getBoltsFeed(env, guildId);
+  const checkin = await getCheckinChannel(env, guildId);
 
   const checks = await runHealthChecks(env, guildId);
   const checkLines = checks.map((c) => (c.ok ? '✓' : '✗') + ' ' + c.label + ' — ' + c.detail);
 
   const description =
     '**📡 Channel bindings**\n' +
-    bindLine('🏈', 'Sports feed',  sports) + '\n' +
-    bindLine('📈', 'Stocks ticker', stocks) + '\n' +
-    bindLine('⚡', 'Bolts feed',   bolts) + '\n\n' +
+    bindLine('🏈', 'Sports feed',   sports)  + '\n' +
+    bindLine('📈', 'Stocks ticker', stocks)  + '\n' +
+    bindLine('⚡', 'Bolts feed',    bolts)   + '\n' +
+    bindLine('📸', 'Check-in',      checkin) + '\n\n' +
     '**💚 Integration health**\n' +
     checkLines.join('\n') + '\n\n' +
     '**📋 Manual checklist** (bot can\'t verify; surface here so nothing slips)\n' +
     manualChecklist();
 
+  // Status view: read-only dashboard + clears + nav buttons. The
+  // editable channel selects live in a separate "Edit" view because
+  // 4 selects + 4 clears + nav exceeds Discord's 5-row message limit.
   return {
     embeds: [{
       title: '🔧 Setup & Status',
       description,
       color: 0x9a82ff,
-      footer: { text: 'Pick channels below to bind. Clears are one click each.' },
+      footer: { text: 'Click "Edit bindings" to pick channels; clears are one click each.' },
+    }],
+    components: [
+      {
+        type: COMPONENT_ROW,
+        components: [
+          { type: COMPONENT_BUTTON, style: STYLE_DANGER, label: '🛑 Clear sports',  custom_id: 'admin:setup:clr:sports',  disabled: !sports  },
+          { type: COMPONENT_BUTTON, style: STYLE_DANGER, label: '🛑 Clear stocks',  custom_id: 'admin:setup:clr:stocks',  disabled: !stocks  },
+          { type: COMPONENT_BUTTON, style: STYLE_DANGER, label: '🛑 Clear bolts',   custom_id: 'admin:setup:clr:bolts',   disabled: !bolts   },
+          { type: COMPONENT_BUTTON, style: STYLE_DANGER, label: '🛑 Clear check-in', custom_id: 'admin:setup:clr:checkin', disabled: !checkin },
+        ],
+      },
+      {
+        type: COMPONENT_ROW,
+        components: [
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back',           custom_id: 'admin:home' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '✏ Edit bindings',  custom_id: 'admin:setup:edit' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '🧪 Run pipe tests', custom_id: 'admin:setup:pipetest' },
+        ],
+      },
+    ],
+  };
+}
+
+// Edit view: 4 channel-select dropdowns + a back button. Lives behind
+// the Edit bindings button on setupView. Each select fires
+// admin:setup:sel:<feed>; the handler binds and re-renders the status
+// view so admins see the new state immediately.
+async function editBindingsView(env, guildId) {
+  const sports  = await getSportsChannel(env, guildId);
+  const stocks  = await getTickerBoardForGuild(env, guildId);
+  const bolts   = await getBoltsFeed(env, guildId);
+  const checkin = await getCheckinChannel(env, guildId);
+
+  return {
+    embeds: [{
+      title: '✏ Edit channel bindings',
+      description:
+        'Pick a channel from any dropdown to bind that feed. The bot needs ' +
+        '**View + Send Messages + Embed Links** in the chosen channel (plus ' +
+        '**Add Reactions** for the check-in channel). Updates take effect ' +
+        'within ~5 minutes for the check-in feed (presence-service poll) and ' +
+        'immediately for the rest.\n\n' +
+        bindLine('🏈', 'Sports feed',   sports)  + '\n' +
+        bindLine('📈', 'Stocks ticker', stocks)  + '\n' +
+        bindLine('⚡', 'Bolts feed',    bolts)   + '\n' +
+        bindLine('📸', 'Check-in',      checkin),
+      color: 0x9a82ff,
     }],
     components: [
       {
@@ -290,9 +381,7 @@ async function setupView(env, guildId) {
         components: [{
           type: COMPONENT_CHANNEL_SEL,
           custom_id: 'admin:setup:sel:sports',
-          placeholder: sports
-            ? 'Sports feed: currently #' + (sports.channelId ? sports.channelId : '?')
-            : '🏈 Bind sports feed channel...',
+          placeholder: '🏈 Bind sports feed channel...',
           channel_types: CHANNEL_TYPES_TEXT,
           min_values: 1, max_values: 1,
         }],
@@ -302,9 +391,7 @@ async function setupView(env, guildId) {
         components: [{
           type: COMPONENT_CHANNEL_SEL,
           custom_id: 'admin:setup:sel:stocks',
-          placeholder: stocks
-            ? 'Stocks ticker: currently #' + (stocks.channelId ? stocks.channelId : '?')
-            : '📈 Bind stocks ticker channel...',
+          placeholder: '📈 Bind stocks ticker channel...',
           channel_types: CHANNEL_TYPES_TEXT,
           min_values: 1, max_values: 1,
         }],
@@ -314,9 +401,17 @@ async function setupView(env, guildId) {
         components: [{
           type: COMPONENT_CHANNEL_SEL,
           custom_id: 'admin:setup:sel:bolts',
-          placeholder: bolts
-            ? 'Bolts feed: currently #' + (bolts.channelId ? bolts.channelId : '?')
-            : '⚡ Bind bolts feed channel...',
+          placeholder: '⚡ Bind bolts feed channel...',
+          channel_types: CHANNEL_TYPES_TEXT,
+          min_values: 1, max_values: 1,
+        }],
+      },
+      {
+        type: COMPONENT_ROW,
+        components: [{
+          type: COMPONENT_CHANNEL_SEL,
+          custom_id: 'admin:setup:sel:checkin',
+          placeholder: '📸 Bind check-in channel (image-post = daily check-in)...',
           channel_types: CHANNEL_TYPES_TEXT,
           min_values: 1, max_values: 1,
         }],
@@ -324,19 +419,7 @@ async function setupView(env, guildId) {
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🛑 Clear sports', custom_id: 'admin:setup:clr:sports', disabled: !sports },
-          { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🛑 Clear stocks', custom_id: 'admin:setup:clr:stocks', disabled: !stocks },
-          { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🛑 Clear bolts',  custom_id: 'admin:setup:clr:bolts',  disabled: !bolts },
-        ],
-      },
-      // Pipe tests + back. The Discord 5-rows-per-message limit forced the
-      // back button to share its row with the pipe-test trigger; both
-      // navigate cleanly so the doubled row is fine here.
-      {
-        type: COMPONENT_ROW,
-        components: [
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back',           custom_id: 'admin:home' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '🧪 Run pipe tests', custom_id: 'admin:setup:pipetest' },
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back to status', custom_id: 'admin:setup' },
         ],
       },
     ],
@@ -574,6 +657,13 @@ export async function handleAdminComponent(data, env, ctx) {
     return json({ type: RESP_UPDATE_MESSAGE, data: await setupView(env, guildId) });
   }
 
+  // Edit-bindings sub-view. Holds the 4 channel-select dropdowns
+  // (separated from the status view because 4 selects + clears + nav
+  // exceeds Discord's 5-row message limit).
+  if (segs[0] === 'setup' && segs[1] === 'edit') {
+    return json({ type: RESP_UPDATE_MESSAGE, data: await editBindingsView(env, guildId) });
+  }
+
   // Pipe tests: ACK with DEFERRED_UPDATE_MESSAGE so the user sees the
   // existing message stay (with a "thinking" indicator on the button),
   // then run the tests under ctx.waitUntil and PATCH the original.
@@ -611,6 +701,15 @@ export async function handleAdminComponent(data, env, ctx) {
       if (!r.ok) {
         return json({ type: RESP_UPDATE_MESSAGE, data: errorView('Bolts bind failed: ' + (r.reason || 'unknown')) });
       }
+    } else if (feed === 'checkin') {
+      // The Discord pic/gif check-in. Just stores the channel id;
+      // aquilo-bot's checkin.js polls this binding via the public
+      // /checkin-channel/:guildId endpoint and aquilo-presence does
+      // the same to know which channel to forward MESSAGE_CREATE for.
+      // Channel-perm validation deferred to first use -- if the bot
+      // can't see/post in the channel, the pipe-tests channel-reach
+      // check will surface it on the next dashboard refresh.
+      await setCheckinChannel(env, guildId, chosen);
     } else {
       return json({ type: RESP_UPDATE_MESSAGE, data: errorView('Unknown feed: ' + feed) });
     }
@@ -620,9 +719,10 @@ export async function handleAdminComponent(data, env, ctx) {
   // Clears
   if (segs[0] === 'setup' && segs[1] === 'clr') {
     const feed = segs[2];
-    if (feed === 'sports') await clearSportsChannel(env, guildId);
-    else if (feed === 'stocks') await unbindTickerBoard(env, guildId);
-    else if (feed === 'bolts')  await clearBoltsFeed(env, guildId);
+    if (feed === 'sports')       await clearSportsChannel(env, guildId);
+    else if (feed === 'stocks')  await unbindTickerBoard(env, guildId);
+    else if (feed === 'bolts')   await clearBoltsFeed(env, guildId);
+    else if (feed === 'checkin') await clearCheckinChannel(env, guildId);
     else return json({ type: RESP_UPDATE_MESSAGE, data: errorView('Unknown feed: ' + feed) });
     return json({ type: RESP_UPDATE_MESSAGE, data: await setupView(env, guildId) });
   }
