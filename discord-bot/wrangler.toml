@@ -17,9 +17,82 @@ AQUILO_VAULT_GUILD_ID = "1504103035951906883"
 # channel gate for /ext/* routes.
 CLAY_TWITCH_CHANNEL_ID = "1497793223"
 
+# ── aquilo-bot fold-in vars ─────────────────────────────────────────
+# Channels for the schedule/poll/queue cron features. Read at runtime;
+# the half-hourly cron resolves guild_id from one of them and caches.
+# (Original lived in aquilo-bot/worker/wrangler.toml.)
+SCHEDULE_CHANNEL_ID = "1501998830244200568"
+POLL_CHANNEL_ID     = "1501999398866125021"
+QUEUE_CHANNEL_ID    = "1502002899058688301"
+# Eligible roles for the community-night queue, top-priority first.
+# Members whose roles intersect can join; the highest-listed role wins.
+QUEUE_ELIGIBLE_ROLES_JSON = "[\"1342497898553802752\",\"1382096075913166878\",\"1482088968072990810\",\"1482092449609420982\",\"1483242263961407670\"]"
+PATREON_URL = "https://www.patreon.com/cw/aquilo"
+# Rotation widget integrations (song-prequeue role caps).
+SR_ROLE_LIMITS_JSON = "[]"
+# Default stream time in ET (HH:MM) for countdown + schedule defaults.
+STREAM_TIME_ET = "22:30"
+# Aquilo-bot optional channels (left blank = feature disabled).
+STAFF_ROLE_ID = ""
+PRODUCTS = ""
+FOURTHWALL_SALES_CHANNEL = ""
+ROTATION_POLL_CHANNEL_ID = ""
+ENGAGEMENT_CHANNEL_ID = ""
+COUNTDOWN_CHANNEL_ID = ""
+COUNTDOWN_VC_ID = "1502376108878856282"
+ROLES_CHANNEL_ID = ""
+COUNTING_CHANNEL_ID = ""
+COUNTING_FAIL_ROLE_ID = ""
+COUNTING_BASE_REWARD = "1"
+COUNTING_FAIL_PENALTY = "10"
+COUNTING_FAIL_DURATION_MIN = "60"
+# Pre-fold-in this Worker was the *target* of /counting/award-bolts;
+# post-fold it's the same Worker so the URL points back at itself.
+LOADOUT_BOLT_API = "https://loadout-discord.aquiloplays.workers.dev/counting/award-bolts"
+CLIPS_CHANNEL_ID = ""
+CHECKIN_CHANNEL_ID = ""
+LEADERBOARD_CHANNEL_ID = ""
+AQUILO_ADMIN_HUB_CHANNEL_ID = ""
+ACHIEVEMENT_ROLES_JSON = "{}"
+
 [[kv_namespaces]]
 binding = "LOADOUT_BOLTS"
 id = "ffa4638187fd4c71b65f62e00b9437fa"
+
+# Aquilo-bot fold-in: STATE KV — schedule/queue/check-in/etc state.
+# KV namespaces are account-scoped resources; binding from a second
+# Worker just gives that Worker access to the same keyspace. Keys
+# are unchanged from the aquilo-bot Worker's writes — no data
+# migration needed.
+[[kv_namespaces]]
+binding = "STATE"
+id = "4db0dbf47be44d49a6186aeafc0bdb2d"
+
+# Aquilo-bot fold-in: D1 database — poll history (games, polls,
+# options, votes). Same database, two Workers can bind it
+# concurrently; the aquilo-bot Worker keeps reading until we
+# decommission it.
+[[d1_databases]]
+binding = "DB"
+database_name = "aquilo_bot_db"
+database_id = "292de930-cfb3-49dd-aa65-e1d1d67ad3e4"
+
+# Aquilo-bot fold-in: OverlayBroadcaster Durable Object — WebSocket
+# broadcaster for the stream overlay's "today's game" channel.
+# CF DOs are pinned to the *script* that declares them, so we
+# declare a FRESH DO class here in the loadout-discord Worker (the
+# DO state in the old aquilo-bot Worker is the in-memory subscriber
+# set — overlays naturally rebuild it on reconnect). The aquilo-bot
+# Worker's DO continues to serve any clients still pointed at it
+# until that Worker is decommissioned; rollback = repoint the
+# overlay back to the old URL.
+[[durable_objects.bindings]]
+name = "OVERLAY_DO"
+class_name = "OverlayBroadcaster"
+
+[[migrations]]
+tag = "v1-aquilo-overlay-do"
+new_sqlite_classes = ["OverlayBroadcaster"]
 
 # Worker crons. worker.js's `scheduled` handler dispatches by
 # event.cron so each cron can drive a different job.
@@ -31,10 +104,19 @@ id = "ffa4638187fd4c71b65f62e00b9437fa"
 #                    gated by a clash:cron:last-decay KV marker
 #   0 1 * * *      queue auto-open at 21:00 EST  (1 UTC EST)
 #   0 2 * * *      queue auto-open at 21:00 EDT  (2 UTC EDT)
-# Both queue-auto crons fire every day; queue.js#autoOpenIfDue filters
-# on schedule.tz local hour == 21 so only the live one does anything.
-# We pack Clash into :23 instead of taking its own slot because
-# Cloudflare's free plan caps each worker at 5 cron triggers.
+# Aquilo-bot hourly tasks (CN poll lifecycle, daily prompts, T-or-T,
+# countdown, spotlight, recap, vote-reminders, weekly leaderboard,
+# trivia, achievements, birthday DMs, streak sweep) piggyback on the
+# :23 tick alongside Clash. The aquilo handler is idempotent by KV
+# marker, so the fact that :23 fires once per hour at the "wrong"
+# minute is fine — the per-task hour checks gate everything.
+#
+# Cloudflare's account caps this Worker at 4 cron triggers (the free-
+# plan ceiling on this account); the aquilo half-hourly model in the
+# old standalone worker was "minute===0 → hourly, minute===30 → queue
+# cleanup". Folding into :23 keeps the hourly path (still once per
+# hour) and shifts the 12:30 AM ET queue cleanup to 1:23 AM ET — a
+# cosmetic 30-min lag on a post-stream message cleanup.
 [triggers]
 crons = ["17 * * * *", "23 * * * *", "0 1 * * *", "0 2 * * *"]
 

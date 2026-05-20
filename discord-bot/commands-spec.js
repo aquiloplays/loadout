@@ -21,6 +21,7 @@ const TYPE_INTEGER          = 4;
 const TYPE_STRING           = 3;
 const TYPE_SUBCOMMAND       = 1;
 const TYPE_SUBCOMMAND_GROUP = 2;
+const TYPE_BOOLEAN          = 5;
 
 export const COMMANDS = [
   {
@@ -441,5 +442,138 @@ export const COMMANDS = [
         ],
       },
     ],
-  }
+  },
+
+  // ── Aquilo-bot fold-in commands ──────────────────────────────────
+  //
+  // Ten slash commands that used to ship on the standalone aquilo-bot
+  // Discord app (1500929968002044075). All now route through the
+  // unified Loadout bot (1500849448866025573) via the
+  // dispatchAquiloInteraction handler. /hub was renamed to /aquilo-hub
+  // to avoid colliding with Loadout's existing viewer hub command.
+  //
+  // The viewer-facing /suggest, /encounter, /sr-add, /sr-list,
+  // /sr-remove commands the original aquilo-bot worker dispatched
+  // are intentionally NOT registered — they migrated to button-driven
+  // UI inside the /aquilo-hub viewer-hub message (see aquilo/viewer-
+  // hub.js). The dispatch cases in commands.js handle stale clients.
+
+  {
+    // Post a product announcement embed to the configured channel.
+    name: 'announce',
+    description: 'Post a product announcement',
+    default_member_permissions: '8192',     // MANAGE_MESSAGES
+    options: [
+      { type: TYPE_STRING, name: 'product', description: 'Which product', required: true,
+        choices: [
+          { name: 'Loadout',      value: 'loadout' },
+          { name: 'StreamFusion', value: 'streamfusion' },
+          { name: 'aquilo.gg',    value: 'aquilo' },
+        ],
+      },
+      { type: TYPE_STRING,  name: 'title', description: 'Headline (≤256 chars)', required: true, max_length: 256 },
+      { type: TYPE_STRING,  name: 'body',  description: 'Body markdown (≤4000)', required: true, max_length: 4000 },
+      { type: TYPE_STRING,  name: 'url',   description: 'Optional URL',          required: false },
+      { type: TYPE_STRING,  name: 'kind',  description: 'Announcement kind',     required: false,
+        choices: [
+          { name: 'News',    value: 'news' },
+          { name: 'Beta',    value: 'beta' },
+          { name: 'Sale',    value: 'sale' },
+          { name: 'Partner', value: 'partner' },
+          { name: 'Update',  value: 'update' },
+        ],
+      },
+      { type: TYPE_BOOLEAN, name: 'ping',  description: 'Ping role',             required: false },
+    ],
+  },
+  {
+    // Renamed from /hub during the bot-consolidation fold-in to
+    // avoid colliding with Loadout's existing /hub viewer entry
+    // point. Posts the admin hub message (action buttons for
+    // schedule, polls, queue, games, engagement, self-roles,
+    // tickets, viewer-hub).
+    name: 'aquilo-hub',
+    description: 'Post the aquilo.gg admin hub in this channel',
+    default_member_permissions: '8192',     // MANAGE_MESSAGES
+  },
+  {
+    name: 'setup',
+    description: 'Walk through configuring the aquilo-side bot features for this server',
+    default_member_permissions: '32',       // MANAGE_GUILD
+  },
+  {
+    // Mod-only Rotation pre-queue wipe. /sr-add, /sr-list, /sr-remove
+    // moved to viewer-hub buttons.
+    name: 'sr-clear',
+    description: '(mod) Wipe the entire Rotation pre-queue',
+    default_member_permissions: '8192',     // MANAGE_MESSAGES
+  },
+  {
+    // Rotation pre-stream music poll. `new` posts the poll; `close`
+    // finalises with a winner highlight. Cron refreshes live tallies.
+    name: 'rotation-poll',
+    description: 'Post or close the pre-stream music poll',
+    default_member_permissions: '8192',     // MANAGE_MESSAGES
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'new',
+        description: 'Post a fresh poll with options (replaces any open one)',
+        options: [
+          { type: TYPE_STRING, name: 'option1', description: '"<emoji> <label>" (e.g. "🔥 Hype / energy")', required: true,  max_length: 100 },
+          { type: TYPE_STRING, name: 'option2', description: '"<emoji> <label>"', required: true,  max_length: 100 },
+          { type: TYPE_STRING, name: 'title',   description: 'Poll title',        required: false, max_length: 120 },
+          { type: TYPE_STRING, name: 'message', description: 'Body text',         required: false, max_length: 500 },
+          { type: TYPE_STRING, name: 'option3', description: '"<emoji> <label>" (optional)', required: false, max_length: 100 },
+          { type: TYPE_STRING, name: 'option4', description: '"<emoji> <label>" (optional)', required: false, max_length: 100 },
+          { type: TYPE_STRING, name: 'option5', description: '"<emoji> <label>" (optional)', required: false, max_length: 100 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'close',
+        description: 'Close the open poll and post final tallies',
+      },
+    ],
+  },
+  {
+    name: 'passport',
+    description: 'View your Aquilo profile — streak, achievements, stats',
+    options: [
+      { type: TYPE_USER, name: 'user', description: 'View someone else\'s passport', required: false },
+    ],
+  },
+  {
+    name: 'birthday',
+    description: 'Set or view a birthday for a callout',
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'set',
+        description: 'Set your birthday (MM-DD, no year stored)',
+        options: [
+          { type: TYPE_STRING, name: 'date', description: 'MM-DD, e.g. 03-14', required: true, max_length: 5 },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'clear', description: 'Remove your stored birthday' },
+      {
+        type: TYPE_SUBCOMMAND, name: 'show',
+        description: 'Show your or someone else\'s birthday',
+        options: [
+          { type: TYPE_USER, name: 'user', description: 'Whose birthday?', required: false },
+        ],
+      },
+    ],
+  },
+  {
+    name: 'shop',
+    description: 'Browse the Aquilo Bolts shop and spend Bolts',
+  },
+  {
+    name: 'trivia-add',
+    description: '(admin) Add a trivia question to the daily rotation',
+    default_member_permissions: '8192',     // MANAGE_MESSAGES
+  },
+  {
+    name: 'shop-add',
+    description: '(admin) Add or update a shop item',
+    default_member_permissions: '8192',     // MANAGE_MESSAGES
+  },
 ];
