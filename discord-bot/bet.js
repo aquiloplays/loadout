@@ -167,6 +167,11 @@ async function getUserBets(env, guildId, userId) {
   } catch { return { active: [], history: [] }; }
 }
 
+// Web /web/bet/snapshot reads this. Same store, no separate copy.
+export async function getUserBetsPublic(env, guildId, userId) {
+  return getUserBets(env, guildId, userId);
+}
+
 async function putUserBets(env, guildId, userId, data) {
   if (Array.isArray(data.history) && data.history.length > USER_HIST_CAP) {
     data.history = data.history.slice(-USER_HIST_CAP);
@@ -565,32 +570,36 @@ export async function renderSportsList(env) {
   );
 }
 
+// Discord call site (handleBet) takes the string form. Web /web/bet/place
+// reads the structured form; both share the same code path via runPlaceJson.
 export async function runPlace(env, guildId, userId, args) {
+  return (await runPlaceJson(env, guildId, userId, args)).message;
+}
+
+export async function runPlaceJson(env, guildId, userId, args) {
   const gameIdInput = String(args.game || '').trim();
   const side = String(args.side || '').toLowerCase().trim();
   const stake = Math.max(1, Math.floor(Number(args.bolts) || 0));
   if (side !== 'home' && side !== 'away') {
-    return '`side` must be `home` or `away`.';
+    return { ok: false, error: 'bad-side', message: '`side` must be `home` or `away`.' };
   }
   let games = await readGamesCache(env);
   if (games.length === 0) games = await refreshGamesCache(env);
   const g = findGame(games, gameIdInput);
-  if (!g) return 'Game not found. Run `/bet sports list` to see the current IDs.';
-  if (g.state !== 'pre') return 'That game is already in progress or finished.';
+  if (!g) return { ok: false, error: 'game-not-found', message: 'Game not found. Run `/bet sports list` to see the current IDs.' };
+  if (g.state !== 'pre') return { ok: false, error: 'game-locked', message: 'That game is already in progress or finished.' };
   const wallet = await getWallet(env, guildId, userId);
   const balance = wallet.balance || 0;
   const cap = Math.floor((balance * MAX_STAKE_PCT) / 100);
-  if (cap < 1) return 'Your wallet is too low to bet. Earn some bolts first.';
+  if (cap < 1) return { ok: false, error: 'wallet-low', balance, cap, message: 'Your wallet is too low to bet. Earn some bolts first.' };
   if (stake > cap) {
-    return 'Max stake is ' + MAX_STAKE_PCT + '% of your wallet (' + fmtBolts(cap) + ' bolts right now).';
+    return { ok: false, error: 'over-stake-cap', balance, cap, message: 'Max stake is ' + MAX_STAKE_PCT + '% of your wallet (' + fmtBolts(cap) + ' bolts right now).' };
   }
   if (stake > balance) {
-    return 'You only have ' + fmtBolts(balance) + ' bolts.';
+    return { ok: false, error: 'insufficient-bolts', balance, message: 'You only have ' + fmtBolts(balance) + ' bolts.' };
   }
-  // Debit stake up front; settlement returns either a win payout or
-  // a stake refund (push). Loss = nothing returned.
   const r = await spend(env, guildId, userId, stake, 'bet-stake:' + g.id);
-  if (!r || !r.ok) return "Couldn't debit stake: " + (r && r.reason || 'wallet error') + '.';
+  if (!r || !r.ok) return { ok: false, error: 'wallet-error', message: "Couldn't debit stake: " + (r && r.reason || 'wallet error') + '.' };
   const lockedOdds = side === 'home' ? g.home.odds : g.away.odds;
   const betId = g.id + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const bet = {
@@ -604,7 +613,6 @@ export async function runPlace(env, guildId, userId, args) {
     guildId,
     userId,
   };
-  // Index by user (active) + by game (open).
   const u = await getUserBets(env, guildId, userId);
   (u.active = u.active || []).push(bet);
   await putUserBets(env, guildId, userId, u);
@@ -613,12 +621,24 @@ export async function runPlace(env, guildId, userId, args) {
   await putOpenBets(env, g.id, open);
   const projected = computeWinPayout(stake, bet.lockedOdds);
   const sideTeam = side === 'home' ? g.home : g.away;
-  return (
-    '🎲 Bet **' + fmtBolts(stake) + ' bolts** on `' + (sideTeam.abbr || '?') +
-    '` (' + side + ') in ' + g.label + ' ' + g.name + '.\n' +
-    'If they win you take **' + fmtBolts(projected) + ' bolts** ' +
-    '(' + fmtOdds(bet.lockedOdds) + ' moneyline locked).'
-  );
+  const newBalance = (r.wallet && r.wallet.balance) || (balance - stake);
+  return {
+    ok: true,
+    betId,
+    gameId: g.id,
+    sport: g.label,
+    side,
+    sideAbbr: sideTeam.abbr || null,
+    stake,
+    lockedOdds: bet.lockedOdds,
+    projectedPayout: projected,
+    balance: newBalance,
+    message:
+      '🎲 Bet **' + fmtBolts(stake) + ' bolts** on `' + (sideTeam.abbr || '?') +
+      '` (' + side + ') in ' + g.label + ' ' + g.name + '.\n' +
+      'If they win you take **' + fmtBolts(projected) + ' bolts** ' +
+      '(' + fmtOdds(bet.lockedOdds) + ' moneyline locked).',
+  };
 }
 
 export async function renderActive(env, guildId, userId) {

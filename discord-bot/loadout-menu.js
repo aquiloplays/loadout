@@ -38,6 +38,7 @@
 
 import { getWallet, transfer, leaderboard, applyVaultDelta } from './wallet.js';
 import { coinflip, dice, daily } from './games.js';
+import { recordStat } from './recap.js';
 import {
   balanceEmbed, dailyEmbed, gameEmbed, heroEmbed, shopEmbed, achievementEmbed,
   COLORS, n
@@ -693,6 +694,11 @@ async function cmdCoinflipInline(env, guild, userId, bet, userName) {
   // Failure paths (insufficient balance, etc.) return won=false with a
   // payout of 0; only render the embed when an actual flip happened.
   if (r.payout === 0 && !r.won) return { content: r.explanation || '❌ ' + (r.reason || 'flip failed') };
+  // Parity with the Twitch panel + the website /play page: every
+  // resolved flip bumps the recap stats so "your last session" stays
+  // consistent across surfaces.
+  if (r.won) await recordStat(env, guild, userId, { games_won: 1, bolts_earned: r.payout });
+  else await recordStat(env, guild, userId, { games_lost: 1, bolts_spent: -r.payout });
   return {
     content: '',
     embeds: [gameEmbed({
@@ -709,6 +715,8 @@ async function cmdDiceInline(env, guild, userId, bet, target, userName) {
   if (!Number.isInteger(target) || target < 1 || target > 6) return { content: '❌ Target must be 1-6.' };
   const r = await dice(env, guild, userId, bet, target);
   if (r.payout === 0 && !r.won && !r.roll) return { content: r.explanation || '❌ ' + (r.reason || 'roll failed') };
+  if (r.won) await recordStat(env, guild, userId, { games_won: 1, bolts_earned: r.payout });
+  else await recordStat(env, guild, userId, { games_lost: 1, bolts_spent: -r.payout });
   return {
     content: '',
     embeds: [gameEmbed({

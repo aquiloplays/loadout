@@ -445,9 +445,13 @@ async function extCheckinLeaderboard(env, guildId, userId) {
     const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
     if (rec) all.push({ userId: k.name.slice(prefix.length), rec });
   }
-  all.sort((a, b) => (b.rec.count || 0) - (a.rec.count || 0));
+  // Drop Clay's accounts from the public board (excluded.js handles
+  // the "is this Clay?" check uniformly across surfaces).
+  const { isExcludedUserId } = await import('./excluded.js');
+  const visible = all.filter((e) => !isExcludedUserId(env, e.userId));
+  visible.sort((a, b) => (b.rec.count || 0) - (a.rec.count || 0));
 
-  const top = all.slice(0, 10).map((e) => ({
+  const top = visible.slice(0, 10).map((e) => ({
     name: e.rec.name || 'Anonymous viewer',
     count: e.rec.count || 0,
     streak: e.rec.streak || 0,

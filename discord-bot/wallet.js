@@ -107,8 +107,13 @@ export async function leaderboard(env, guildId, limit = 10) {
     cursor = r.cursor;
   }
   const resolved = (await Promise.all(all)).filter(x => x.w);
-  resolved.sort((a, b) => (b.w.balance || 0) - (a.w.balance || 0));
-  return resolved.slice(0, limit);
+  // Drop the leaderboard-excluded accounts (see excluded.js) BEFORE
+  // sorting + slicing, so the displayed top-N is the top-N of the
+  // included set, not the top-N minus an excluded account.
+  const { filterLeaderboardRows } = await import('./excluded.js');
+  const visible = filterLeaderboardRows(env, resolved);
+  visible.sort((a, b) => (b.w.balance || 0) - (a.w.balance || 0));
+  return visible.slice(0, limit);
 }
 
 export async function setSecret(env, guildId, secret, ownerName) {
