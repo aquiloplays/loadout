@@ -203,6 +203,29 @@ export default {
       const { handlePublicGamesHttp } = await import('./schedule.js');
       return handlePublicGamesHttp(env);
     }
+    // Public read-only queue snapshot for aquilo.gg /community page +
+    // the panel's Schedule tab. No auth -- counts only, no joiner
+    // names. See queue.js + SCHEDULE-SYSTEM-DESIGN.md Phase 3.
+    if (method === 'GET' && path === '/queues/public') {
+      const { snapshotQueue } = await import('./queue.js');
+      const guildId = env.AQUILO_VAULT_GUILD_ID;
+      if (!env.LOADOUT_BOLTS || !guildId) {
+        return new Response(JSON.stringify({ error: 'not-configured' }), {
+          status: 503, headers: { 'content-type': 'application/json' },
+        });
+      }
+      const url2 = new URL(req.url);
+      const date = url2.searchParams.get('date');
+      const snap = await snapshotQueue(env, guildId, date);
+      return new Response(JSON.stringify({ ok: true, ...snap }), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'cache-control': 'public, max-age=0, s-maxage=10',
+          'access-control-allow-origin': '*',
+        },
+      });
+    }
 
     if (path.startsWith('/ext/')) return handleExt(req, env);
 
@@ -220,10 +243,14 @@ export default {
     return new Response('not found', { status: 404 });
   },
 
-  // Hourly cron dispatcher. Wired via [triggers] crons in
-  // wrangler.toml — :17 past drives the stocks price refresh,
-  // :23 past drives the sports games/settlement tick. Errors caught
-  // per job so a single bad source can't break subsequent ticks.
+  // Cron dispatcher. Wired via [triggers] crons in wrangler.toml.
+  //   17 * * * *      stocks price refresh (stocks.js)
+  //   23 * * * *      sports games + bet settlement + bolts-feed digest
+  //   0 1,2 * * *     queue auto-open at 9 PM ET (1 UTC = 21 EST,
+  //                   2 UTC = 21 EDT — one fires per day depending on
+  //                   DST. autoOpenIfDue() filters on local hour == 21
+  //                   so only the live one actually does anything.)
+  // Errors caught per job so a single bad source can't break the rest.
   async scheduled(event, env, ctx) {
     try {
       if (event.cron === '17 * * * *') {
@@ -237,6 +264,28 @@ export default {
         // failure in one doesn't cancel the other.
         const { boltsFeedCronTick } = await import('./bolts-feed.js');
         ctx.waitUntil(boltsFeedCronTick(env));
+      } else if (event.cron === '0 1 * * *' || event.cron === '0 2 * * *') {
+        // Queue auto-open at 9 PM ET on variety/community nights.
+        // autoOpenIfDue is idempotent + bails if conditions aren't met.
+        const guildId = env.AQUILO_VAULT_GUILD_ID;
+        if (guildId) {
+          ctx.waitUntil((async () => {
+            const { autoOpenIfDue } = await import('./queue.js');
+            const r = await autoOpenIfDue(env, guildId);
+            if (!r.fired) {
+              console.log('queue auto-open: skipped (' + r.reason + ')');
+              return;
+            }
+            // Empty queue created; tell aquilo-site to fan out the PWA push
+            // (best-effort, never blocks the open).
+            try {
+              const { notifyQueueAutoOpened } = await import('./queue.js');
+              await notifyQueueAutoOpened(env, guildId, r.streamDate, r.kind);
+            } catch (e) {
+              console.error('queue auto-open notify failed:', e && e.message);
+            }
+          })());
+        }
       }
     } catch (e) {
       console.error('scheduled cron failed:', e && e.message);

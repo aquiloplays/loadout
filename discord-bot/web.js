@@ -40,6 +40,13 @@ import {
   runPlaceJson,
   getUserBetsPublic,
 } from './bet.js';
+import {
+  snapshotQueue,
+  openQueue,
+  closeQueue,
+  closeNight,
+  notifyQueueOpened,
+} from './queue.js';
 
 const ROUTES = new Set([
   'wallet',
@@ -51,7 +58,20 @@ const ROUTES = new Set([
   'stocks/sell',
   'bet/snapshot',
   'bet/place',
+  'queues/snapshot',
+  'queues/open',
+  'queues/close',
+  'queues/close-night',
 ]);
+
+// Only the bisherclay@gmail.com session is currently allowed to open
+// or close queues from aquilo-site /admin. Owner-side gating happens
+// on the site (functions/api/admin/queues/*) — we double-check here
+// by requiring the request to carry a `_owner: true` flag the site
+// stamps after verifying the aq_link cookie's `o:1` field.
+function ownerCheck(body) {
+  return body && body._owner === true;
+}
 
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -103,6 +123,19 @@ export async function handleWeb(req, env) {
     if (route === 'stocks/sell') return await routeStocksSell(env, guildId, discordId, body);
     if (route === 'bet/snapshot') return await routeBetSnapshot(env, guildId, discordId);
     if (route === 'bet/place')    return await routeBetPlace(env, guildId, discordId, body);
+    if (route === 'queues/snapshot') return await routeQueuesSnapshot(env, guildId, body);
+    if (route === 'queues/open') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeQueuesOpen(env, guildId, body);
+    }
+    if (route === 'queues/close') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeQueuesClose(env, guildId, body);
+    }
+    if (route === 'queues/close-night') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeQueuesCloseNight(env, guildId);
+    }
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
   }
@@ -277,6 +310,44 @@ async function routeBetPlace(env, guildId, userId, body) {
     side,
     bolts: Math.floor(bolts),
   });
+  return json(r, r.ok ? 200 : 400);
+}
+
+// ── Queue (Community / Variety Night) ─────────────────────────────────
+
+async function routeQueuesSnapshot(env, guildId, body) {
+  const date = body && body.streamDate ? String(body.streamDate) : null;
+  const snap = await snapshotQueue(env, guildId, date);
+  return json({ ok: true, ...snap });
+}
+
+async function routeQueuesOpen(env, guildId, body) {
+  const r = await openQueue(env, guildId, {
+    gameId: String(body && body.gameId || '').trim(),
+    capMode: body && body.capMode,
+    cap: body && body.cap,
+    source: 'web',
+  });
+  // If this is the FIRST queue of the night, fire the PWA push fan-out
+  // via the site's /api/push/queue-open receiver. Best-effort -- a
+  // failed push doesn't block the queue from opening.
+  if (r.ok) {
+    try {
+      await notifyQueueOpened(env, guildId, r.streamDate, r.gameId);
+    } catch (e) {
+      console.error('queue-open push notify failed:', e && e.message);
+    }
+  }
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeQueuesClose(env, guildId, body) {
+  const r = await closeQueue(env, guildId, String(body && body.gameId || '').trim());
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeQueuesCloseNight(env, guildId) {
+  const r = await closeNight(env, guildId);
   return json(r, r.ok ? 200 : 400);
 }
 

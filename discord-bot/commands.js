@@ -28,6 +28,7 @@ import { handleBet, handleBetAutocomplete } from './bet.js';
 import { renderHubCommand, handleHubComponent, handleHubModal } from './hub-menu.js';
 import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
 import { handleSchedule, handleGames } from './schedule.js';
+import { handleQueueSlash } from './queue.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -125,6 +126,12 @@ export async function handleInteraction(req, env, body, ctx) {
       // Game-catalog editor — companion to /schedule. Writes
       // `games:v1:<g>` shared with aquilo.gg/admin.
       return json(await handleGames(env, guild, data.data?.options || []));
+
+    case 'queue':
+      // Community / Variety Night per-game queue. Open / close are
+      // admin-gated by Discord (default_member_permissions on the
+      // subcommands); join / leave are anyone.
+      return json(await handleQueueSlash(env, guild, data));
 
     case 'loadout-claim':
       // /loadout-claim is handled inline in worker.js (separate path)

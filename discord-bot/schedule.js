@@ -106,7 +106,7 @@ function poolsFromChoice(raw) {
   }
 }
 
-async function readSchedule(env, guildId) {
+export async function readSchedule(env, guildId) {
   try {
     const raw = await env.LOADOUT_BOLTS.get(SCHEDULE_KEY(guildId), { type: 'json' });
     if (raw && Array.isArray(raw.days) && raw.days.length === 7) return raw;
@@ -157,7 +157,7 @@ function zonedTimeToEpoch(y, mo, d, h, mi, tz) {
   return naive - (wallClock - naive);
 }
 
-function nowInZone(tz, now = Date.now()) {
+export function nowInZone(tz, now = Date.now()) {
   const fmt = new Intl.DateTimeFormat('en-US', {
     timeZone: tz, hourCycle: 'h23',
     weekday: 'short', year: 'numeric', month: 'numeric',

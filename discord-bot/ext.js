@@ -100,6 +100,12 @@ export async function handleExt(req, env) {
       const payload2 = await handleExtSchedule(env, guildId);
       return json(payload2);
     }
+    if (req.method === 'GET' && route === 'queues') {
+      const { snapshotQueue } = await import('./queue.js');
+      const date = url.searchParams.get('date') || null;
+      const snap = await snapshotQueue(env, guildId, date);
+      return json({ ok: true, ...snap });
+    }
     if (route === 'vods' || route === 'goals' || route === 'patron-corner') {
       return await handleTier1(env, guildId, userId, route, req);
     }
