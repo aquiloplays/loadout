@@ -24,6 +24,9 @@
 
 import { renderLoadoutCommand, handleComponent, handleModal } from './loadout-menu.js';
 import { handleStocks } from './stocks.js';
+import { handleBet } from './bet.js';
+import { renderHubCommand, handleHubComponent } from './hub-menu.js';
+import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -54,6 +57,10 @@ export async function handleInteraction(req, env, body) {
   }
 
   if (data.type === TYPE_MESSAGE_COMPONENT) {
+    // Route by custom_id prefix so each menu's components stay scoped.
+    const cid = data.data?.custom_id || '';
+    if (cid.startsWith('hub:'))   return handleHubComponent(data, env);
+    if (cid.startsWith('admin:')) return handleAdminComponent(data, env);
     return handleComponent(data, env);
   }
   if (data.type === TYPE_MODAL_SUBMIT) {
@@ -71,9 +78,27 @@ export async function handleInteraction(req, env, body) {
       // they haven't connected a stream identity yet.
       return json(await renderLoadoutCommand(env, guild, userId, userName));
 
-    case 'stocks':
+    case 'stocks': {
       // Bolts-denominated stock market. Subcommands dispatched in stocks.js.
-      return json(await handleStocks(env, guild, userId, userName, data.data?.options || []));
+      const perms = data.member?.permissions;
+      const channelId = data.channel_id || data.channel?.id;
+      return json(await handleStocks(env, guild, userId, userName, data.data?.options || [], perms, channelId));
+    }
+
+    case 'bet':
+      // Sports betting — subcommand-group dispatch in bet.js.
+      return json(await handleBet(env, guild, userId, userName, data.data?.options || []));
+
+    case 'hub':
+      // Viewer-facing hub entry point.
+      return json(await renderHubCommand(env, guild, userId));
+
+    case 'admin':
+      // Admin-side hub. MANAGE_GUILD enforced by Discord via the
+      // command's default_member_permissions; an extra in-handler
+      // check would only fire if Discord changed its enforcement
+      // model, so we trust the platform here.
+      return json(await renderAdminCommand());
 
     case 'loadout-claim':
       // /loadout-claim is handled inline in worker.js (separate path)

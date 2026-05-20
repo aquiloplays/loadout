@@ -21,12 +21,12 @@ CLAY_TWITCH_CHANNEL_ID = "1497793223"
 binding = "LOADOUT_BOLTS"
 id = "ffa4638187fd4c71b65f62e00b9437fa"
 
-# Stock-market price tick. Hourly at :17 past so it doesn't collide
-# with anyone else's :00 / :30 cron. stocks.js iterates the catalog,
-# fetches each ticker's upstream signal, writes price + appends to
-# history. ~15 tickers × ~1 upstream call each = a sub-second job.
+# Hourly Worker crons. worker.js's `scheduled` handler dispatches by
+# event.cron so each minute can drive a different job.
+#   :17 — stocks price refresh (stocks.js stocksCronTick)
+#   :23 — sports games + bet settlement (bet.js betCronTick)
 [triggers]
-crons = ["17 * * * *"]
+crons = ["17 * * * *", "23 * * * *"]
 
 # Public route: hosted by aquilo.gg. Self-hosters can either set their own
 # route here or leave the default *.workers.dev URL after `wrangler deploy`.

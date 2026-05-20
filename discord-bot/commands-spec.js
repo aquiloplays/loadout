@@ -16,10 +16,11 @@
 // need to type structured arguments; the menu walks them through it.
 
 // https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-option-type
-const TYPE_USER       = 6;
-const TYPE_INTEGER    = 4;
-const TYPE_STRING     = 3;
-const TYPE_SUBCOMMAND = 1;
+const TYPE_USER             = 6;
+const TYPE_INTEGER          = 4;
+const TYPE_STRING           = 3;
+const TYPE_SUBCOMMAND       = 1;
+const TYPE_SUBCOMMAND_GROUP = 2;
 
 export const COMMANDS = [
   {
@@ -72,6 +73,64 @@ export const COMMANDS = [
           { type: TYPE_STRING, name: 'ticker', description: 'Ticker symbol', required: true },
         ],
       },
+      {
+        type: TYPE_SUBCOMMAND, name: 'ticker-setup',
+        description: '(admin) Bind this channel as the auto-updating stocks board',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'ticker-clear',
+        description: '(admin) Stop auto-updating the bound channel',
+      },
     ],
+  },
+  {
+    // Sports betting. Subcommand group so future expansion (e.g. esports,
+    // prop bets) slots in cleanly under /bet <group> <subcommand>.
+    name: 'bet',
+    description: 'Bolts-denominated sports betting',
+    options: [
+      {
+        type: TYPE_SUBCOMMAND_GROUP, name: 'sports',
+        description: 'Bet on NFL / NBA / MLB / NHL games',
+        options: [
+          {
+            type: TYPE_SUBCOMMAND, name: 'list',
+            description: 'List upcoming games across the four leagues',
+          },
+          {
+            type: TYPE_SUBCOMMAND, name: 'place',
+            description: 'Place a bet on a game',
+            options: [
+              { type: TYPE_STRING,  name: 'game',  description: 'Game ID from /bet sports list', required: true },
+              { type: TYPE_STRING,  name: 'side',  description: 'home or away', required: true },
+              { type: TYPE_INTEGER, name: 'bolts', description: 'Stake — capped at 10% of wallet', required: true, min_value: 1 },
+            ],
+          },
+          {
+            type: TYPE_SUBCOMMAND, name: 'active',
+            description: 'Show your open bets',
+          },
+          {
+            type: TYPE_SUBCOMMAND, name: 'history',
+            description: 'Show your last 20 settled bets',
+          },
+        ],
+      },
+    ],
+  },
+  {
+    // Viewer hub — entry point with category buttons (Loadout, Stocks,
+    // Sports, Profile, Help). The Loadout game menu stays at /loadout;
+    // this is the broader "everything Aquilo" surface.
+    name: 'hub',
+    description: 'Open the Aquilo hub — Loadout, Stocks, Sports, Profile',
+  },
+  {
+    // Admin-side hub. MANAGE_GUILD only via Discord's
+    // default_member_permissions; the existing /loadout-claim stays in
+    // place as the dedicated bind-code command.
+    name: 'admin',
+    description: '(server admins) Admin hub for Loadout install + tools',
+    default_member_permissions: '32', // MANAGE_GUILD
   }
 ];

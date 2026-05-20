@@ -153,15 +153,21 @@ export default {
     return new Response('not found', { status: 404 });
   },
 
-  // Hourly stock-market price tick. Wired via [triggers] crons in
-  // wrangler.toml. Catches errors so a single bad source can't
-  // break subsequent ticks.
+  // Hourly cron dispatcher. Wired via [triggers] crons in
+  // wrangler.toml — :17 past drives the stocks price refresh,
+  // :23 past drives the sports games/settlement tick. Errors caught
+  // per job so a single bad source can't break subsequent ticks.
   async scheduled(event, env, ctx) {
     try {
-      const { stocksCronTick } = await import('./stocks.js');
-      ctx.waitUntil(stocksCronTick(env));
+      if (event.cron === '17 * * * *') {
+        const { stocksCronTick } = await import('./stocks.js');
+        ctx.waitUntil(stocksCronTick(env));
+      } else if (event.cron === '23 * * * *') {
+        const { betCronTick } = await import('./bet.js');
+        ctx.waitUntil(betCronTick(env));
+      }
     } catch (e) {
-      console.error('stocks cron failed:', e && e.message);
+      console.error('scheduled cron failed:', e && e.message);
     }
   },
 };
