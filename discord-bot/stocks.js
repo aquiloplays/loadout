@@ -33,6 +33,7 @@
 //   /stocks ticker-setup   (admin) — bind the current channel as the auto-update ticker board
 //   /stocks ticker-clear   (admin) — release the binding
 
+import { json } from './ext-shared.js';
 import { spend, earn, getWallet } from './wallet.js';
 
 const CATALOG_KEY = 'stocks:catalog:v1';
@@ -584,6 +585,40 @@ export async function renderChart(env, args) {
     'Min ' + min + ' · Max ' + max + ' · Now ' + last + ' bolts · ' +
     sign + change.toFixed(1) + '% over the window.'
   );
+}
+
+// Public read-only snapshot for the aquilo.gg /stocks page + the Twitch
+// panel's read-only Stocks tab. Returns the catalog + every ticker's
+// current price + a downsampled history slice for sparklines. No auth
+// gate, no user data — viewers can browse without signing in.
+export async function publicStocksSnapshot(env) {
+  const catalog = await getCatalog(env);
+  const prices = {};
+  const history = {};
+  for (const t of (catalog.tickers || [])) {
+    const rec = await getPrice(env, t.ticker);
+    if (rec) prices[t.ticker] = { price: rec.price, raw: rec.raw, asOf: rec.asOf };
+    const h = await getHistory(env, t.ticker);
+    // Downsample to ~30 points so the response stays small + the
+    // sparkline reads cleanly without resampling client-side.
+    if (h.length === 0) { history[t.ticker] = []; continue; }
+    const N = Math.min(30, h.length);
+    const step = h.length / N;
+    const slice = [];
+    for (let i = 0; i < N; i++) {
+      const idx = Math.min(h.length - 1, Math.floor(i * step));
+      slice.push({ price: h[idx].price, asOf: h[idx].asOf });
+    }
+    history[t.ticker] = slice;
+  }
+  return json({
+    catalog: (catalog.tickers || []).map((t) => ({
+      ticker: t.ticker, name: t.name, source: t.source, sourceRef: t.sourceRef,
+    })),
+    prices,
+    history,
+    asOf: new Date().toISOString(),
+  });
 }
 
 async function setupTickerBoard(env, guildId, channelId, memberPermissions) {

@@ -145,6 +145,20 @@ export default {
     }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
+    // Public read-only stocks snapshot for the aquilo.gg /stocks page +
+    // the Twitch panel's read-only Stocks tab. No auth gate — returns
+    // catalog + prices + sparkline history slices.
+    if (method === 'GET' && path === '/stocks/public') {
+      const { publicStocksSnapshot } = await import('./stocks.js');
+      return publicStocksSnapshot(env);
+    }
+    // Public read-only sports snapshot for the panel's Sports tab — the
+    // 48h upcoming-games slice with optional moneyline odds.
+    if (method === 'GET' && path === '/sports/public') {
+      const { publicSportsSnapshot } = await import('./bet.js');
+      return publicSportsSnapshot(env);
+    }
+
     if (path.startsWith('/ext/')) return handleExt(req, env);
 
     // Overlay relay queue — polled by Streamer.bot, RELAY_TOKEN-gated.

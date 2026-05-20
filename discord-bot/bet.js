@@ -23,6 +23,7 @@
 //   /bet sports active
 //   /bet sports history
 
+import { json } from './ext-shared.js';
 import { spend, earn, getWallet } from './wallet.js';
 import { noteTeamsFromGames, findSubscribersForGame, seedTeamRegistry } from './hub-menu.js';
 
@@ -390,6 +391,34 @@ async function recordSettled(env, bet, outcome, payout) {
 }
 
 // ---- Slash command dispatcher ------------------------------------------
+
+// Public read-only snapshot for the aquilo.gg public page + the panel's
+// Sports tab. Returns the next-48h upcoming-and-live slice. No auth, no
+// user data.
+export async function publicSportsSnapshot(env) {
+  let games = await readGamesCache(env);
+  if (games.length === 0) {
+    try { games = await refreshGamesCache(env); } catch { games = []; }
+  }
+  const now = Date.now();
+  const slice = games
+    .filter((g) => {
+      if (g.state === 'in') return true;
+      if (g.state !== 'pre') return false;
+      const ms = g.date ? new Date(g.date).getTime() : 0;
+      return ms - now < UPCOMING_WINDOW_MS && ms - now > -60 * 60 * 1000;
+    })
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .map((g) => ({
+      id: g.id,
+      label: g.label,
+      date: g.date,
+      state: g.state,
+      home: { abbr: g.home.abbr, name: g.home.name, odds: g.home.odds },
+      away: { abbr: g.away.abbr, name: g.away.name, odds: g.away.odds },
+    }));
+  return json({ games: slice, asOf: new Date().toISOString() });
+}
 
 // STRING_AUTOCOMPLETE handler for /bet sports place's `game` option.
 // The interaction payload nests options three deep (group -> subcommand
