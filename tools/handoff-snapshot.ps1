@@ -37,8 +37,8 @@ function Fail($t) { Write-Host "   x $t" -ForegroundColor Red }
 function Info($t) { Write-Host "     $t" -ForegroundColor DarkGray }
 
 # ── Paths ─────────────────────────────────────────────────────────────────
-$loadoutRepo  = 'C:\Users\bishe\Desktop\Loadout'
-$widgetRepo   = 'C:\Users\bishe\Desktop\aquilo-widget'
+$loadoutRepo  = 'C:\Users\bishe\Desktop\Aquilo\Loadout'
+$widgetRepo   = 'C:\Users\bishe\Desktop\Aquilo\aquilo-widget'
 $workerFolder = Join-Path $loadoutRepo 'discord-bot'
 $liveDll      = 'C:\Users\bishe\Desktop\Streamerbot\data\Loadout\Loadout.dll'
 $stagedDll    = $liveDll + '.new'

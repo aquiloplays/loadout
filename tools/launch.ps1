@@ -17,7 +17,7 @@ param(
     [switch]$SkipBuild,
     [switch]$SkipImport,
     [string]$SbPath     = "$env:USERPROFILE\Desktop\Streamerbot",
-    [string]$BotPath    = "$env:USERPROFILE\Desktop\aquilo-bot"
+    [string]$BotPath    = "$env:USERPROFILE\Desktop\Aquilo\aquilo-bot"
 )
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
