@@ -39,7 +39,7 @@ import {
   skipCooldown,
   dungeonCooldownState,
 } from './ext-panelbridge.js';
-import { rollLootBox, readLootBoxCatalog } from './ext-lootbox.js';
+import { rollLootBox, readLootBoxCatalog, rollLootBoxFree, freeLootBoxState } from './ext-lootbox.js';
 import { startPanelPatreonLink } from './ext-patreon-link.js';
 
 const CORS = {
@@ -115,6 +115,12 @@ export async function handleExt(req, env) {
     }
     if (req.method === 'POST' && route === 'lootbox/roll') {
       return await rollLootBox(env, guildId, userId, req);
+    }
+    if (req.method === 'GET' && route === 'lootbox/free-state') {
+      return await freeLootBoxState(env, guildId, userId, req);
+    }
+    if (req.method === 'POST' && route === 'lootbox/free-roll') {
+      return await rollLootBoxFree(env, guildId, userId, req);
     }
     if (req.method === 'GET' && route === 'patreon/link-start') {
       return await startPanelPatreonLink(env, payload, req);

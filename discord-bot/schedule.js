@@ -59,6 +59,11 @@ function gameSlug(name) {
     .slice(0, 48) || 'game';
 }
 
+// Legacy deterministic URL guess — only correct for some pre-2024
+// titles. Used as a last-resort fallback when Steam's appdetails API
+// is unavailable. New adds always prefer fetchSteamArt() which returns
+// the real, possibly-hashed URLs (header_alt_assets_<n>.jpg variants
+// included) the way the games admin UI on aquilo.gg does.
 function steamArtUrls(appId) {
   const id = String(appId);
   return {
@@ -66,6 +71,30 @@ function steamArtUrls(appId) {
     capsuleUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${id}/capsule_616x353.jpg`,
     storeUrl:   `https://store.steampowered.com/app/${id}/`,
   };
+}
+
+async function fetchSteamArt(appId) {
+  const id = Number(appId);
+  if (!Number.isInteger(id) || id <= 0) return null;
+  try {
+    const res = await fetch(
+      `https://store.steampowered.com/api/appdetails?appids=${id}&filters=basic&cc=us`,
+      { headers: { 'User-Agent': 'aquilo.gg/1.0', Accept: 'application/json' } },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const entry = data && data[String(id)];
+    if (!entry || !entry.success || !entry.data) return null;
+    const dd = entry.data;
+    return {
+      name: typeof dd.name === 'string' ? dd.name : null,
+      headerUrl: typeof dd.header_image === 'string' ? dd.header_image : null,
+      capsuleUrl: typeof dd.capsule_image === 'string' ? dd.capsule_image : null,
+      storeUrl: `https://store.steampowered.com/app/${id}/`,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function poolsFromChoice(raw) {
@@ -419,13 +448,21 @@ async function gamesAdd(env, guildId, opts) {
     return reply('Need a positive Steam appid.');
   }
 
+  // One Steam call gives us the real name AND the real header/capsule URLs
+  // (the deterministic guess fails for newer titles served from hashed
+  // paths). Fall back to the legacy guess only when Steam is unreachable.
+  const real = await fetchSteamArt(appId);
   let name = String(map.name || '').trim();
-  if (!name) {
-    // Try to resolve the name from Steam's appdetails.
-    name = (await fetchSteamName(appId)) || `App ${appId}`;
-  }
+  if (!name) name = (real && real.name) || `App ${appId}`;
+  const art = real && real.headerUrl
+    ? {
+        headerUrl: real.headerUrl,
+        capsuleUrl: real.capsuleUrl || '',
+        storeUrl: real.storeUrl,
+      }
+    : steamArtUrls(appId);
+
   const id = gameSlug(name);
-  const art = steamArtUrls(appId);
   const pools = poolsFromChoice(map.pools);
 
   const cat = await readGames(env, guildId);
@@ -474,21 +511,6 @@ async function gamesSetPools(env, guildId, opts) {
   item.pools = pools;
   await writeGames(env, guildId, cat);
   return reply(`✅ **${item.name}** pools: ${pools.join('+')}.`);
-}
-
-// ── Steam appdetails name resolution ──────────────────────────────────
-async function fetchSteamName(appId) {
-  try {
-    const res = await fetch(
-      `https://store.steampowered.com/api/appdetails?appids=${encodeURIComponent(appId)}&filters=basic&cc=us`,
-      { headers: { 'User-Agent': 'aquilo.gg/1.0' } },
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const entry = data && data[String(appId)];
-    if (entry && entry.success && entry.data && entry.data.name) return String(entry.data.name);
-  } catch { /* ignore */ }
-  return null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
