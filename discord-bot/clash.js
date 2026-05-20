@@ -129,12 +129,24 @@ export async function handleClashCommand(env, data, userId, userName) {
   const guildId = data.guild_id;
   if (!guildId) return ephemeral('Run this in a server.');
 
-  // Ensure the town exists. First /clash run in a channel autocreates
-  // the town with TH 1 + a couple of walls + a cannon (defaults in
-  // ensureTown). The owner is the channel's guild owner (claim record),
-  // not the first caller, so the streamer ends up controlling builds.
+  // Ensure the channel's town exists. ONE communal town per server,
+  // keyed by guildId — not per-viewer. The town's owner is the
+  // streamer who ran /loadout-claim (the guildowner record); viewers
+  // can donate + raid but can't build or train the garrison.
+  //
+  // We refuse to autocreate the town before /loadout-claim has run,
+  // otherwise a random first-time viewer would pin their user id into
+  // the town's ownerUserId field. The streamer will still control
+  // builds via the guildowner record either way (canManageTown checks
+  // both), but the town record should never list a non-streamer as
+  // its owner.
   const ownerRec = await env.LOADOUT_BOLTS.get('guildowner:' + guildId, { type: 'json' });
-  await ensureTown(env, guildId, ownerRec?.discordUserId || userId);
+  if (!ownerRec?.discordUserId) {
+    return ephemeral(
+      'This server isn\'t bound to a Loadout install yet — Clash can\'t open until the streamer runs `/loadout-claim` with their bind code.'
+    );
+  }
+  await ensureTown(env, guildId, ownerRec.discordUserId);
   await syncCooldowns(env, guildId, userId);
 
   const opts = data.data?.options || [];
