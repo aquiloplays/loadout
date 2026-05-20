@@ -840,13 +840,21 @@ async function profileView(env, guild, userId) {
   catch { /* idle */ }
   const subbedLeagues = await getUserLeagueSubs(env, userId);
   const subbedTeams = await getUserTeamSubs(env, userId);
+  // Freeze inventory — lazy import so hub-menu has no module-load
+  // dependency on streak-freeze (keeps the import graph flat).
+  let freezes = { stream: 0, discord: 0 };
+  try {
+    const { getFreezes } = await import('./streak-freeze.js');
+    freezes = await getFreezes(env, guild, userId);
+  } catch { /* idle */ }
   const desc =
     '**Wallet:** ' + fmtBolts(w.balance || 0) + ' bolts\n' +
     '**Lifetime earned:** ' + fmtBolts(w.lifetimeEarned || 0) + '\n' +
     '**Daily streak:** ' + (w.dailyStreak || 0) + '\n' +
     '**Stock tickers held:** ' + holdingCount + '\n' +
     '**Active bets:** ' + ((bets.active || []).length) + ' · settled: ' + ((bets.history || []).length) + '\n' +
-    '**Subscriptions:** ' + subbedLeagues.length + ' league(s), ' + subbedTeams.length + ' team(s)';
+    '**Subscriptions:** ' + subbedLeagues.length + ' league(s), ' + subbedTeams.length + ' team(s)\n' +
+    '**❄ Streak Freezes:** stream ' + freezes.stream + ' · discord ' + freezes.discord;
   return {
     embeds: [{ title: '👤 Profile', description: desc, color: 0x9a82ff }],
     components: [backRow('hub:home')],

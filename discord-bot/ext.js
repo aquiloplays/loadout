@@ -348,12 +348,52 @@ async function extCheckin(env, guildId, userId, req) {
   const name = cleanName(body.displayName) || 'Anonymous viewer';
   const message = cleanMessage(body.message);
 
+  // Streak-resolve. Default behavior: if since >= 48h the streak resets
+  // to 1; otherwise it increments. Streak Freeze inserts itself BETWEEN
+  // "miss detected" and "reset" -- if the user holds a stream freeze,
+  // consume one and preserve the streak as if no miss occurred (still
+  // increment by 1 for this check-in).
+  let freezeConsumed = false;
+  let freezeRemaining = 0;
+  const wouldBreak = rec.lastCheckinUtc && since >= CHECKIN_STREAK_WINDOW_MS;
+  if (wouldBreak) {
+    try {
+      const { consumeFreeze, getFreezes } = await import('./streak-freeze.js');
+      const r = await consumeFreeze(env, guildId, userId, 'stream');
+      if (r.consumed) {
+        freezeConsumed = true;
+        freezeRemaining = r.remaining;
+        // Treat this as a continuous day: increment the existing streak.
+        rec.streak = (rec.streak || 0) + 1;
+      } else {
+        const f = await getFreezes(env, guildId, userId);
+        freezeRemaining = f.stream;
+        rec.streak = 1;
+      }
+    } catch {
+      // If the freeze module fails for any reason, fall back to the
+      // pre-freeze behavior so a check-in never errors on the user.
+      rec.streak = 1;
+    }
+  } else if (rec.lastCheckinUtc) {
+    rec.streak = (rec.streak || 0) + 1;
+  } else {
+    rec.streak = 1;
+  }
   rec.count = (rec.count || 0) + 1;
-  rec.streak =
-    rec.lastCheckinUtc && since < CHECKIN_STREAK_WINDOW_MS ? (rec.streak || 0) + 1 : 1;
   rec.lastCheckinUtc = now;
   rec.name = name;
   await env.LOADOUT_BOLTS.put(key, JSON.stringify(rec));
+
+  // Read freeze counts (if we didn't already during a miss) so the
+  // panel can show "Stream Freeze: 2" alongside the streak number.
+  if (!wouldBreak) {
+    try {
+      const { getFreezes } = await import('./streak-freeze.js');
+      const f = await getFreezes(env, guildId, userId);
+      freezeRemaining = f.stream;
+    } catch { /* idle */ }
+  }
 
   // Enqueue the overlay trigger. A Streamer.bot action polls /relay/pending
   // and republishes this as a `checkin.shown` bus event; `source:"extension"`
@@ -379,6 +419,10 @@ async function extCheckin(env, guildId, userId, req) {
     count: rec.count,
     streak: rec.streak,
     cooldownMs: CHECKIN_COOLDOWN_MS,
+    streakFreeze: {
+      consumed: freezeConsumed,
+      remaining: freezeRemaining,
+    },
   });
 }
 

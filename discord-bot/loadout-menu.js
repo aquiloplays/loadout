@@ -608,7 +608,7 @@ async function buyPicker(env, guild, userId) {
   // mid-decision. cmdShopBuy enforces the same gate when the select
   // submission lands so a stale picker can't bypass the rotation.
   const stock = await getDailyShop(env, guild);
-  const options = stock.items.slice(0, 25).map(row => {
+  const options = stock.items.slice(0, 23).map(row => {
     const [slot, rarity, name, glyph, atk, def, gold] = row;
     const stats = [];
     if (atk) stats.push('+' + atk + ' ATK');
@@ -619,8 +619,21 @@ async function buyPicker(env, guild, userId) {
       value: `lo:buy:do:${encodeURIComponent(name)}`
     };
   });
+  // Append the two always-available freezes after the rotation (25-cap
+  // Select limit; we sliced rotation to 23 so both freezes fit).
+  options.push({
+    label: '❄ Stream Streak Freeze',
+    description: '250 bolts · auto-saves Twitch check-in streak',
+    value: 'lo:buy:do:stream-streak-freeze',
+  });
+  options.push({
+    label: '❄ Discord Streak Freeze',
+    description: '250 bolts · auto-saves Discord pic-post streak',
+    value: 'lo:buy:do:discord-streak-freeze',
+  });
   return {
-    content: '🛒 **Buy from today\'s rotation** — pick one. Stock changes at midnight UTC.',
+    content: '🛒 **Buy from today\'s rotation** — pick one. Stock changes at midnight UTC.\n' +
+             '_The two ❄ Streak Freezes at the bottom are always available._',
     components: [
       selectRow('lo:buy:do', 'Pick an item to buy', options),
       backRow('lo:shop')

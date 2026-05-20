@@ -9,6 +9,9 @@
 //   d:shop:<guildId>                  ->  optional streamer-customised shop pool
 
 import { getWallet, applyVaultDelta } from './wallet.js';
+import {
+  addFreeze, getFreezes, FREEZE_PRICE, MAX_FREEZES_PER_TYPE,
+} from './streak-freeze.js';
 
 // Worker-side shop pool — full catalog mirror of the DLL's
 // DungeonContent.Loot. The /loadout shop view doesn't show this
@@ -738,15 +741,65 @@ export async function cmdShop(env, guild, userId) {
            stats.join(' ') + suffix;
   });
   const rotateIn = fmtRotateIn(msUntilNextUtcMidnight());
+
+  // Streak Freezes -- always available, separate from the rotation.
+  // Surfaces current owned counts so the viewer sees what they already
+  // hold before deciding to buy another.
+  const f = await getFreezes(env, guild, userId);
+  const freezeLines = [
+    '`' + String(FREEZE_PRICE).padStart(4) + 'b` ❄ **Stream Streak Freeze**'  + '  _(owned ' + f.stream  + '/' + MAX_FREEZES_PER_TYPE + ')_  _auto-saves your Twitch check-in streak on a miss_',
+    '`' + String(FREEZE_PRICE).padStart(4) + 'b` ❄ **Discord Streak Freeze**' + '  _(owned ' + f.discord + '/' + MAX_FREEZES_PER_TYPE + ')_  _auto-saves your Discord pic-post streak on a miss_',
+  ];
+
   return {
     content: '🏪 **Dungeon Shop** — _stock rotates in ' + rotateIn + '_\n' +
              lines.join('\n') +
-             '\n\n_Use_ `/loadout` _→ Shop → Buy to purchase. Today\'s stock is fixed; new items tomorrow._',
+             '\n\n🛡 **Utility (always available)**\n' +
+             freezeLines.join('\n') +
+             '\n\n_Use_ `/loadout` _→ Shop → Buy to purchase. Today\'s rotation is fixed; new items tomorrow._',
     ephemeral: true
   };
 }
 
+// Programmatic freeze purchase. Used by doShopBuy when the requested
+// itemName matches a freeze keyword, and exposed directly so the
+// panel-ext buy path can call it without parsing item names.
+export async function doBuyFreeze(env, guild, userId, type) {
+  if (type !== 'stream' && type !== 'discord') {
+    return { ok: false, reason: 'bad-type' };
+  }
+  const f = await getFreezes(env, guild, userId);
+  if ((f[type] || 0) >= MAX_FREEZES_PER_TYPE) {
+    return { ok: false, reason: 'cap', count: f[type] };
+  }
+  const w = await getWallet(env, guild, userId);
+  if ((w.balance || 0) < FREEZE_PRICE) {
+    return { ok: false, reason: 'insufficient', price: FREEZE_PRICE, balance: w.balance || 0 };
+  }
+  // Negative-delta debit so lifetimeEarned doesn't inflate (consistent
+  // with dungeon-shop and stocks-buy paths).
+  const debit = await applyVaultDelta(env, guild, userId, -FREEZE_PRICE, 'streak-freeze:' + type);
+  if (!debit || !debit.wallet) return { ok: false, reason: 'debit-failed' };
+  const a = await addFreeze(env, guild, userId, type);
+  if (!a.ok) {
+    // Cap raced; refund.
+    await applyVaultDelta(env, guild, userId, FREEZE_PRICE, 'streak-freeze:refund:' + type);
+    return { ok: false, reason: a.reason };
+  }
+  return { ok: true, type, count: a.count, price: FREEZE_PRICE };
+}
+
 export async function doShopBuy(env, guild, userId, itemName) {
+  // Streak freeze handling -- name matching is loose so "freeze",
+  // "stream freeze", "discord freeze" etc. all resolve cleanly.
+  const lo = (itemName || '').toLowerCase().trim();
+  if (lo.includes('stream') && lo.includes('freeze')) {
+    return doBuyFreeze(env, guild, userId, 'stream');
+  }
+  if (lo.includes('discord') && lo.includes('freeze')) {
+    return doBuyFreeze(env, guild, userId, 'discord');
+  }
+
   // Daily-rotation gate: only items in today's stock are buyable. The
   // viewer might know the name of an item from a previous day — surface
   // a clear "not in today's stock" reply instead of letting them buy
@@ -799,7 +852,22 @@ export async function cmdShopBuy(env, guild, userId, itemName) {
     if (r.reason === 'insufficient') {
       return { content: '💸 You need **' + r.price + '** bolts (you have ' + r.balance + '). Run `/daily` or earn more on stream.', ephemeral: true };
     }
+    if (r.reason === 'cap') {
+      return { content: '❄ You already hold **' + r.count + '/' + MAX_FREEZES_PER_TYPE + '** of that freeze — at the cap. Use one (miss a day) before stockpiling more.', ephemeral: true };
+    }
+    if (r.reason === 'bad-type') {
+      return { content: 'Unknown freeze type. Try "stream-streak-freeze" or "discord-streak-freeze".', ephemeral: true };
+    }
     return { content: '❌ Couldn\'t debit your wallet. Try again.', ephemeral: true };
+  }
+  // Freeze purchase: r.type is set, no item glyph.
+  if (r.type) {
+    const label = r.type === 'stream' ? 'Stream Streak Freeze' : 'Discord Streak Freeze';
+    return {
+      content: '❄ Bought **' + label + '** for **' + r.price + '** bolts. ' +
+               'You now hold **' + r.count + '/' + MAX_FREEZES_PER_TYPE + '**. ' +
+               'It auto-consumes the next time the streak would break.'
+    };
   }
   return {
     content: '🛒 Bought ' + r.glyph + ' **' + r.name + '** for **' + r.price + '** bolts'

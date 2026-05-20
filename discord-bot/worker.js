@@ -143,6 +143,19 @@ export default {
     // (set as LOADOUT_BOLT_API_SECRET on both workers).
     if (method === 'POST' && path === '/counting/award-bolts')       return handleCountingAward(req, env);
 
+    // Streak Freeze cross-Worker consume/read. aquilo-bot's Discord
+    // pic/gif check-in handler calls these when a streak-break is
+    // detected so it can decide whether to protect the streak. HMAC
+    // shares the same LOADOUT_BOLT_API_SECRET used by counting.
+    if (method === 'POST' && path === '/streak-freeze/consume') {
+      const { handleStreakFreezeConsume } = await import('./streak-freeze.js');
+      return handleStreakFreezeConsume(req, env);
+    }
+    if (method === 'GET'  && path === '/streak-freeze/get') {
+      const { handleStreakFreezeRead } = await import('./streak-freeze.js');
+      return handleStreakFreezeRead(req, env);
+    }
+
     // Self-register Loadout slash commands using the Worker's bot
     // token secret. HMAC-gated (same scheme as wallet sync). Lets a
     // Loadout install push the latest commands.spec without the
