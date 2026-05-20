@@ -40,6 +40,14 @@ import { readSince as readProfilesSince } from './profiles.js';
 import { COMMANDS } from './commands-spec.js';
 import { handleExt, handleRelay } from './ext.js';
 
+// Aquilo-bot fold-in: re-export the OverlayBroadcaster Durable Object
+// class at the entrypoint so wrangler can attach it to the OVERLAY_DO
+// binding declared in wrangler.toml. The DO state on Cloudflare lives
+// attached to the *script* that declares it, so even though the
+// implementation file is under aquilo/, the class needs to surface
+// from the top-level Worker entrypoint module.
+export { OverlayBroadcaster } from './aquilo/worker.js';
+
 // Discord interaction "claim" command custom handler — defined here rather
 // than commands.js because it touches the claim KV and cross-cuts the
 // invite flow's state. Returns a Discord interaction response object.
@@ -252,6 +260,17 @@ export default {
       return handlePostRelease(req, env);
     }
 
+    // Aquilo-bot fold-in HTTP routes. Returns null when none of the
+    // aquilo routes match so we fall through to the final 404.
+    // Covers: /today-game, /overlay/ws, /counting/message,
+    // /forward-channels, /announce, /broadcast, /fourthwall,
+    // /sr/pending. See discord-bot/aquilo/worker.js.
+    {
+      const { handleAquiloHttp } = await import('./aquilo/worker.js');
+      const r = await handleAquiloHttp(req, env, ctx, url);
+      if (r) return r;
+    }
+
     // ── Clash (Phase 4) ────────────────────────────────────────────
     // Public global leaderboard (top raiders + top towns) — no auth,
     // mirrors /leaderboard/<guildId>. Future aquilo.gg /clash page
@@ -330,13 +349,22 @@ export default {
       }
       // Clash housekeeping piggybacks on the :23 hourly tick — CF
       // free plan caps a Worker at 5 cron triggers and we're using
-      // all five for stocks/sports/queue. Inside clash-cron.js the
-      // tick gates the once-per-day trophy decay via a
-      // `clash:cron:last-decay` KV marker so it only runs once per
-      // UTC day even though the cron fires hourly.
+      // all five for stocks/sports/queue/aquilo. Inside
+      // clash-cron.js the tick gates the once-per-day trophy decay
+      // via a `clash:cron:last-decay` KV marker so it only runs once
+      // per UTC day even though the cron fires hourly.
       if (event.cron === '23 * * * *') {
         const { clashDailyCronTick } = await import('./clash-cron.js');
         ctx.waitUntil(clashDailyCronTick(env, event.cron));
+        // Aquilo-bot fold-in piggybacks on the same :23 tick (CF
+        // free-plan 4-cron ceiling on this account). The aquilo
+        // handler runs per-task hour checks and KV-marker dedupe so
+        // firing once per hour is correct and idempotent. The
+        // standalone worker's old 12:30 AM ET queue-cleanup minute-
+        // branch shifts to 1:23 AM ET, which is a cosmetic ~30 min
+        // delay on a post-stream message cleanup — fine.
+        const { aquiloScheduledTick } = await import('./aquilo/worker.js');
+        ctx.waitUntil(aquiloScheduledTick(event, env, ctx));
       }
     } catch (e) {
       console.error('scheduled cron failed:', e && e.message);

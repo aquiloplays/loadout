@@ -30,6 +30,9 @@ import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
 import { handleSchedule, handleGames } from './schedule.js';
 import { handleClashCommand, handleClashComponent } from './clash.js';
 import { handleQueueSlash } from './queue.js';
+// Aquilo-bot fold-in. Single dispatcher that owns the aquilo command
+// family — see discord-bot/aquilo/worker.js dispatchAquiloInteraction.
+import { dispatchAquiloInteraction } from './aquilo/worker.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -43,6 +46,15 @@ const RESP_CHAT                = 4;
 const FLAG_EPHEMERAL = 64;
 
 const ACK_PONG = { type: RESP_PONG };
+
+// Aquilo-bot fold-in: button/select custom_id prefixes that the aquilo
+// dispatch family owns. The hub:* prefix is intentionally NOT here —
+// it was rewritten to aquilo:* during the fold-in to avoid colliding
+// with Loadout's viewer hub. See BOT-CONSOLIDATION-STATUS.md.
+const AQUILO_COMPONENT_PREFIXES = [
+  'vote:', 'queue:', 'aquilo:', 'notify:', 'tot:', 'sug:', 'roles:',
+  'setup:', 'vh:', 'passport:', 'trivia:', 'shop:', 'ticket:',
+];
 
 export async function handleInteraction(req, env, body, ctx) {
   let data;
@@ -66,6 +78,13 @@ export async function handleInteraction(req, env, body, ctx) {
     if (cid.startsWith('hub:'))   return handleHubComponent(data, env);
     if (cid.startsWith('admin:')) return handleAdminComponent(data, env, ctx);
     if (cid.startsWith('clash:')) return json(await handleClashComponent(env, data));
+    // Aquilo-bot fold-in: every aquilo component custom_id is
+    // namespaced (vote:*, queue:*, aquilo:*, notify:*, tot:*, sug:*,
+    // roles:*, setup:*, vh:*, passport:*, trivia:*, shop:*,
+    // ticket:*) so we can just match the prefix here and delegate.
+    if (AQUILO_COMPONENT_PREFIXES.some(p => cid.startsWith(p))) {
+      return dispatchAquiloInteraction(data, env, ctx);
+    }
     return handleComponent(data, env);
   }
   if (data.type === TYPE_AUTOCOMPLETE) {
@@ -78,10 +97,12 @@ export async function handleInteraction(req, env, body, ctx) {
     return json({ type: 8, data: { choices: [] } });
   }
   if (data.type === TYPE_MODAL_SUBMIT) {
-    // Route hub-originated modals to their dedicated handler; everything
-    // else falls back to loadout-menu's handler.
+    // Route hub-originated modals to their dedicated handler.
+    // Aquilo-bot modals use a bare `modal:*` prefix; Loadout's
+    // viewer hub modals use `hub:modal:*` — the two don't collide.
     const cid = data.data?.custom_id || '';
     if (cid.startsWith('hub:modal:')) return handleHubModal(data, env);
+    if (cid.startsWith('modal:'))     return dispatchAquiloInteraction(data, env, ctx);
     return handleModal(data, env);
   }
   if (data.type !== TYPE_APPLICATION_CMD) {
@@ -138,6 +159,28 @@ export async function handleInteraction(req, env, body, ctx) {
       // admin-gated by Discord (default_member_permissions on the
       // subcommands); join / leave are anyone.
       return json(await handleQueueSlash(env, guild, data));
+
+    // ── Aquilo-bot fold-in: 13 command names dispatch to the shared
+    //    aquilo interaction handler. Single delegation point keeps
+    //    the routing flat here; the actual command bodies live in
+    //    discord-bot/aquilo/*.js. The /hub command was renamed to
+    //    /aquilo-hub to avoid colliding with Loadout's viewer hub.
+    case 'announce':
+    case 'aquilo-hub':
+    case 'setup':
+    case 'suggest':
+    case 'encounter':
+    case 'passport':
+    case 'birthday':
+    case 'shop':
+    case 'trivia-add':
+    case 'shop-add':
+    case 'sr-add':
+    case 'sr-list':
+    case 'sr-remove':
+    case 'sr-clear':
+    case 'rotation-poll':
+      return dispatchAquiloInteraction(data, env, ctx);
 
     case 'loadout-claim':
       // /loadout-claim is handled inline in worker.js (separate path)
