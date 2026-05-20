@@ -55,6 +55,92 @@ export const DEFAULT_CATALOG = {
 
 const HERO_KEY = (guild, userId) => `hero:${guild}:${userId}`;
 
+// ── Free-loot-box allowances (per stream) ─────────────────────────────
+//   - Twitch subscriber:  1 / stream
+//   - Patron (tier >= 1): 3 / stream
+//   - Both: the larger of the two (no stacking).
+//
+// "Per stream" is keyed off `recap:streamLiveStamp` (the live-online
+// epoch ms written by aquilo-site's EventSub receiver and deleted on
+// stream.offline). New stream -> fresh stamp -> fresh counter.
+// Counter TTL = 25h so the record self-cleans even if stream.offline
+// fires later than expected.
+
+const FREE_COUNTER_KEY = (guild, userId, stamp) =>
+  `lbfree:${guild}:${userId}:${stamp}`;
+const STREAM_LIVE_KEY = 'recap:streamLiveStamp';
+const TW_PATREON_KEY = (userId) => `tw_patreon:${userId}`;
+const FREE_COUNTER_TTL = 25 * 60 * 60; // 25h
+
+const SUB_ALLOWANCE = 1;
+const PATRON_ALLOWANCE = 3;
+
+async function currentStreamStamp(env) {
+  try {
+    const v = await env.LOADOUT_BOLTS.get(STREAM_LIVE_KEY);
+    return v ? String(v) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Read the panel's tw->Patreon mapping (populated by aquilo-site's
+// /api/link/callback when the viewer linked through the panel). No
+// fallback to wallet.links here — keep this path narrow and explicit.
+async function isPatronTw(env, userId) {
+  try {
+    const map = await env.LOADOUT_BOLTS.get(TW_PATREON_KEY(userId), {
+      type: 'json',
+    });
+    return !!(map && Number(map.tier || 0) >= 1);
+  } catch {
+    return false;
+  }
+}
+
+async function freeAllowance(env, userId, subscribed) {
+  const patron = await isPatronTw(env, userId);
+  let cap = 0;
+  if (patron) cap = Math.max(cap, PATRON_ALLOWANCE);
+  if (subscribed) cap = Math.max(cap, SUB_ALLOWANCE);
+  return { allowance: cap, patron, subscribed: !!subscribed };
+}
+
+async function getUsed(env, key) {
+  try {
+    const v = await env.LOADOUT_BOLTS.get(key);
+    return parseInt(v || '0', 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+function buildRolledItem(pick) {
+  return {
+    id: newItemId(),
+    slot: pick.slot || '',
+    rarity: pick.rarity || 'common',
+    name: pick.name || '',
+    glyph: pick.glyph || '',
+    powerBonus: pick.powerBonus || 0,
+    defenseBonus: pick.defenseBonus || 0,
+    ability: pick.ability || '',
+    goldValue: pick.goldValue || 0,
+    setName: pick.setName || '',
+    weaponType: pick.weaponType || '',
+    foundIn: 'Loot Box',
+    foundUtc: new Date().toISOString(),
+  };
+}
+
+async function appendToBag(env, guildId, userId, item) {
+  const key = HERO_KEY(guildId, userId);
+  const hero = (await env.LOADOUT_BOLTS.get(key, { type: 'json' })) || {};
+  if (!Array.isArray(hero.bag)) hero.bag = [];
+  hero.bag.push(item);
+  await env.LOADOUT_BOLTS.put(key, JSON.stringify(hero));
+}
+
 async function loadCatalog(env) {
   try {
     const c = await env.LOADOUT_BOLTS.get(CATALOG_KEY, { type: 'json' });
@@ -117,32 +203,124 @@ export async function rollLootBox(env, guildId, userId, req) {
   const pick = rollItem(catalog);
   if (!pick) return json({ error: 'empty-catalog' }, 500);
 
-  const item = {
-    id: newItemId(),
-    slot: pick.slot || '',
-    rarity: pick.rarity || 'common',
-    name: pick.name || '',
-    glyph: pick.glyph || '',
-    powerBonus: pick.powerBonus || 0,
-    defenseBonus: pick.defenseBonus || 0,
-    ability: pick.ability || '',
-    goldValue: pick.goldValue || 0,
-    setName: pick.setName || '',
-    weaponType: pick.weaponType || '',
-    foundIn: 'Loot Box',
-    foundUtc: new Date().toISOString(),
-  };
-
+  const item = buildRolledItem(pick);
   // Append to the hero's bag. The dungeon engine + shop write to the
   // same key with the same shape, so the new item shows up in the
   // existing /ext/loadout/inventory render without any panel changes.
-  const key = HERO_KEY(guildId, userId);
-  const hero = (await env.LOADOUT_BOLTS.get(key, { type: 'json' })) || {};
-  if (!Array.isArray(hero.bag)) hero.bag = [];
-  hero.bag.push(item);
-  await env.LOADOUT_BOLTS.put(key, JSON.stringify(hero));
+  await appendToBag(env, guildId, userId, item);
 
   return json({ ok: true, item: item });
+}
+
+// JWT-gated free-loot-box roll. Allowed when:
+//   - a stream is currently live (recap:streamLiveStamp present)
+//   - the viewer has free boxes remaining this stream
+//   - eligibility: subscribers get 1/stream, patrons get 3/stream
+//     (linked via tw_patreon:<userId> by aquilo-site's panel-driven
+//     Patreon link flow), the larger of the two when both apply.
+//
+// subscribed: passed by the panel as ?subscribed=1 from
+// Twitch.ext.viewer.subscriptionStatus — the JWT itself doesn't carry
+// subscription state, same pattern Tier-1 patron-corner uses.
+export async function rollLootBoxFree(env, guildId, userId, req) {
+  if (req.method !== 'POST') return json({ error: 'method' }, 405);
+  const url = new URL(req.url);
+  const subscribed = url.searchParams.get('subscribed') === '1';
+
+  const stamp = await currentStreamStamp(env);
+  if (!stamp) {
+    return json(
+      { error: 'no-stream', message: 'No stream is live right now.' },
+      400,
+    );
+  }
+  const { allowance, patron } = await freeAllowance(env, userId, subscribed);
+  if (allowance <= 0) {
+    return json(
+      {
+        error: 'not-eligible',
+        message:
+          'Free loot boxes are for Twitch subscribers (1/stream) and Patrons (3/stream).',
+      },
+      402,
+    );
+  }
+
+  const counterKey = FREE_COUNTER_KEY(guildId, userId, stamp);
+  const used = await getUsed(env, counterKey);
+  if (used >= allowance) {
+    return json(
+      { error: 'allowance-exceeded', allowance, used, remaining: 0, patron, subscribed },
+      429,
+    );
+  }
+
+  const catalog = await loadCatalog(env);
+  const pick = rollItem(catalog);
+  if (!pick) return json({ error: 'empty-catalog' }, 500);
+
+  const item = buildRolledItem(pick);
+  item.foundIn = 'Free Loot Box';
+  await appendToBag(env, guildId, userId, item);
+
+  // Increment AFTER the roll so a roll failure (catalog empty, KV
+  // write throwing) doesn't burn a free box. KV is eventually
+  // consistent — a fast double-click could in theory let a viewer
+  // claim allowance+1 on rare occasions; the blast radius is small
+  // enough that we don't pay the Durable-Objects price to avoid it.
+  await env.LOADOUT_BOLTS.put(counterKey, String(used + 1), {
+    expirationTtl: FREE_COUNTER_TTL,
+  });
+
+  return json({
+    ok: true,
+    item,
+    allowance,
+    used: used + 1,
+    remaining: Math.max(0, allowance - (used + 1)),
+    patron,
+    subscribed,
+  });
+}
+
+// GET /ext/lootbox/free-state — what the panel calls on load to decide
+// whether to show a "Free loot box" button + how many are left.
+export async function freeLootBoxState(env, guildId, userId, req) {
+  const url = new URL(req.url);
+  const subscribed = url.searchParams.get('subscribed') === '1';
+
+  const stamp = await currentStreamStamp(env);
+  const { allowance, patron } = await freeAllowance(env, userId, subscribed);
+
+  if (!stamp) {
+    return json({
+      live: false,
+      allowance,
+      used: 0,
+      remaining: 0,
+      patron,
+      subscribed: !!subscribed,
+    });
+  }
+  if (allowance <= 0) {
+    return json({
+      live: true,
+      allowance: 0,
+      used: 0,
+      remaining: 0,
+      patron,
+      subscribed: !!subscribed,
+    });
+  }
+  const used = await getUsed(env, FREE_COUNTER_KEY(guildId, userId, stamp));
+  return json({
+    live: true,
+    allowance,
+    used,
+    remaining: Math.max(0, allowance - used),
+    patron,
+    subscribed: !!subscribed,
+  });
 }
 
 // JWT-gated read so the panel can preview the pool (and Clay can sanity-

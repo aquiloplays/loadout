@@ -384,5 +384,62 @@ export const COMMANDS = [
         ],
       },
     ],
+  },
+  {
+    // Community / Variety Night queue. Admin opens game queues, viewers
+    // join (or leave) them. Both the website and the Twitch panel
+    // surface live counts read-only with a "Join in Discord" deep-link
+    // -- this is the only write surface for joiners. See
+    // aquilo-site/SCHEDULE-SYSTEM-DESIGN.md Phase 3.
+    name: 'queue',
+    description: 'Community / Variety Night queue — open, join, leave, view',
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'view',
+        description: 'Show tonight\'s open queues + counts',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'open',
+        description: '(admin) Open a queue for a game',
+        options: [
+          { type: TYPE_STRING, name: 'game', description: 'Game id (slug from /games view)', required: true },
+          { type: TYPE_STRING, name: 'cap_mode', description: 'Per-game cap, or one combined cap for the night', required: false,
+            choices: [
+              { name: 'per-match', value: 'per-match' },
+              { name: 'per-night', value: 'per-night' },
+            ],
+          },
+          { type: TYPE_INTEGER, name: 'cap', description: 'Cap value (defaults to 8, ignored if night cap is already set)', required: false, min_value: 1 },
+        ],
+        default_member_permissions: '32', // MANAGE_GUILD
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'close',
+        description: '(admin) Close a single game\'s queue',
+        options: [
+          { type: TYPE_STRING, name: 'game', description: 'Game id', required: true },
+        ],
+        default_member_permissions: '32',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'close-night',
+        description: '(admin) Close every queue and end the night',
+        default_member_permissions: '32',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'join',
+        description: 'Join an open game\'s queue',
+        options: [
+          { type: TYPE_STRING, name: 'game', description: 'Game id (see /queue view)', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'leave',
+        description: 'Leave a game\'s queue you\'re in',
+        options: [
+          { type: TYPE_STRING, name: 'game', description: 'Game id', required: true },
+        ],
+      },
+    ],
   }
 ];

@@ -39,7 +39,7 @@ import {
   skipCooldown,
   dungeonCooldownState,
 } from './ext-panelbridge.js';
-import { rollLootBox, readLootBoxCatalog } from './ext-lootbox.js';
+import { rollLootBox, readLootBoxCatalog, rollLootBoxFree, freeLootBoxState } from './ext-lootbox.js';
 import { startPanelPatreonLink } from './ext-patreon-link.js';
 
 const CORS = {
@@ -100,6 +100,12 @@ export async function handleExt(req, env) {
       const payload2 = await handleExtSchedule(env, guildId);
       return json(payload2);
     }
+    if (req.method === 'GET' && route === 'queues') {
+      const { snapshotQueue } = await import('./queue.js');
+      const date = url.searchParams.get('date') || null;
+      const snap = await snapshotQueue(env, guildId, date);
+      return json({ ok: true, ...snap });
+    }
     if (route === 'vods' || route === 'goals' || route === 'patron-corner') {
       return await handleTier1(env, guildId, userId, route, req);
     }
@@ -115,6 +121,12 @@ export async function handleExt(req, env) {
     }
     if (req.method === 'POST' && route === 'lootbox/roll') {
       return await rollLootBox(env, guildId, userId, req);
+    }
+    if (req.method === 'GET' && route === 'lootbox/free-state') {
+      return await freeLootBoxState(env, guildId, userId, req);
+    }
+    if (req.method === 'POST' && route === 'lootbox/free-roll') {
+      return await rollLootBoxFree(env, guildId, userId, req);
     }
     if (req.method === 'GET' && route === 'patreon/link-start') {
       return await startPanelPatreonLink(env, payload, req);
@@ -439,9 +451,13 @@ async function extCheckinLeaderboard(env, guildId, userId) {
     const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
     if (rec) all.push({ userId: k.name.slice(prefix.length), rec });
   }
-  all.sort((a, b) => (b.rec.count || 0) - (a.rec.count || 0));
+  // Drop Clay's accounts from the public board (excluded.js handles
+  // the "is this Clay?" check uniformly across surfaces).
+  const { isExcludedUserId } = await import('./excluded.js');
+  const visible = all.filter((e) => !isExcludedUserId(env, e.userId));
+  visible.sort((a, b) => (b.rec.count || 0) - (a.rec.count || 0));
 
-  const top = all.slice(0, 10).map((e) => ({
+  const top = visible.slice(0, 10).map((e) => ({
     name: e.rec.name || 'Anonymous viewer',
     count: e.rec.count || 0,
     streak: e.rec.streak || 0,

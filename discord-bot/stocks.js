@@ -473,61 +473,83 @@ export async function renderStocksList(env) {
   );
 }
 
+// Discord call site (handleStocks) takes the string form. Web /web/stocks/buy
+// reads the structured form; both share the same code path via runBuyJson.
 export async function runBuy(env, guildId, userId, args) {
+  return (await runBuyJson(env, guildId, userId, args)).message;
+}
+
+export async function runBuyJson(env, guildId, userId, args) {
   const ticker = String(args.ticker || '').toUpperCase();
   const bolts = Math.max(1, Math.floor(Number(args.bolts) || 0));
   const catalog = await getCatalog(env);
   const def = findTicker(catalog, ticker);
-  if (!def) return 'Unknown ticker: `' + ticker + '`.';
+  if (!def) return { ok: false, error: 'unknown-ticker', message: 'Unknown ticker: `' + ticker + '`.' };
   const rec = await getPrice(env, def.ticker);
   if (!rec || !rec.price) {
-    return 'No price yet for `' + def.ticker + '` — try again after the next cron tick.';
+    return { ok: false, error: 'no-price', message: 'No price yet for `' + def.ticker + '` — try again after the next cron tick.' };
   }
   const price = rec.price;
   const wallet = await getWallet(env, guildId, userId);
   if ((wallet.balance || 0) < bolts) {
-    return 'You have ' + fmtNum(wallet.balance || 0) + ' bolts; need ' + fmtNum(bolts) + '.';
+    return { ok: false, error: 'insufficient-bolts', balance: wallet.balance || 0, message: 'You have ' + fmtNum(wallet.balance || 0) + ' bolts; need ' + fmtNum(bolts) + '.' };
   }
   const grossPerShare = price * (1 + FEE_PCT / 100);
   const shares = Math.floor(bolts / grossPerShare);
   if (shares <= 0) {
-    return (
-      'At ' + price + ' bolts/share + ' + FEE_PCT + '% fee you need at least ' +
-      Math.ceil(grossPerShare) + ' bolts for one share.'
-    );
+    return {
+      ok: false,
+      error: 'too-small',
+      message: 'At ' + price + ' bolts/share + ' + FEE_PCT + '% fee you need at least ' + Math.ceil(grossPerShare) + ' bolts for one share.',
+    };
   }
   const cost = shares * price;
   const fee = calcFee(cost);
   const total = cost + fee;
   const r = await spend(env, guildId, userId, total, 'stocks-buy:' + def.ticker);
   if (!r || !r.ok) {
-    return "Couldn't debit " + fmtNum(total) + ' bolts: ' + (r && r.reason || 'wallet error') + '.';
+    return { ok: false, error: 'wallet-error', message: "Couldn't debit " + fmtNum(total) + ' bolts: ' + (r && r.reason || 'wallet error') + '.' };
   }
   const holdings = await getHoldings(env, guildId, userId);
   holdings[def.ticker] = (Number(holdings[def.ticker]) || 0) + shares;
   await putHoldings(env, guildId, userId, holdings);
-  return (
-    '📈 Bought **' + shares + '** share' + (shares === 1 ? '' : 's') +
-    ' of `' + def.ticker + '` at ' + price + ' bolts each.\n' +
-    'Cost ' + fmtNum(cost) + ' + ' + fmtNum(fee) + ' fee = ' + fmtNum(total) +
-    ' bolts · Balance ' + fmtNum(r.wallet && r.wallet.balance) + '.'
-  );
+  const balance = (r.wallet && r.wallet.balance) || 0;
+  return {
+    ok: true,
+    ticker: def.ticker,
+    shares,
+    price,
+    cost,
+    fee,
+    total,
+    balance,
+    holdings: holdings[def.ticker],
+    message:
+      '📈 Bought **' + shares + '** share' + (shares === 1 ? '' : 's') +
+      ' of `' + def.ticker + '` at ' + price + ' bolts each.\n' +
+      'Cost ' + fmtNum(cost) + ' + ' + fmtNum(fee) + ' fee = ' + fmtNum(total) +
+      ' bolts · Balance ' + fmtNum(balance) + '.',
+  };
 }
 
 export async function runSell(env, guildId, userId, args) {
+  return (await runSellJson(env, guildId, userId, args)).message;
+}
+
+export async function runSellJson(env, guildId, userId, args) {
   const ticker = String(args.ticker || '').toUpperCase();
   const shares = Math.max(1, Math.floor(Number(args.shares) || 0));
   const catalog = await getCatalog(env);
   const def = findTicker(catalog, ticker);
-  if (!def) return 'Unknown ticker: `' + ticker + '`.';
+  if (!def) return { ok: false, error: 'unknown-ticker', message: 'Unknown ticker: `' + ticker + '`.' };
   const rec = await getPrice(env, def.ticker);
   if (!rec || !rec.price) {
-    return 'No price yet for `' + def.ticker + '`.';
+    return { ok: false, error: 'no-price', message: 'No price yet for `' + def.ticker + '`.' };
   }
   const holdings = await getHoldings(env, guildId, userId);
   const held = Number(holdings[def.ticker]) || 0;
   if (held < shares) {
-    return 'You only hold ' + held + ' share' + (held === 1 ? '' : 's') + ' of `' + def.ticker + '`.';
+    return { ok: false, error: 'insufficient-shares', held, message: 'You only hold ' + held + ' share' + (held === 1 ? '' : 's') + ' of `' + def.ticker + '`.' };
   }
   const price = rec.price;
   const gross = shares * price;
@@ -537,12 +559,23 @@ export async function runSell(env, guildId, userId, args) {
   if (holdings[def.ticker] <= 0) delete holdings[def.ticker];
   await putHoldings(env, guildId, userId, holdings);
   const credited = await earn(env, guildId, userId, net, 'stocks-sell:' + def.ticker);
-  return (
-    '📉 Sold **' + shares + '** share' + (shares === 1 ? '' : 's') +
-    ' of `' + def.ticker + '` at ' + price + ' bolts each.\n' +
-    'Gross ' + fmtNum(gross) + ' − ' + fmtNum(fee) + ' fee = ' + fmtNum(net) +
-    ' bolts · Balance ' + fmtNum(credited.balance) + '.'
-  );
+  const balance = (credited && credited.balance) || 0;
+  return {
+    ok: true,
+    ticker: def.ticker,
+    shares,
+    price,
+    gross,
+    fee,
+    net,
+    balance,
+    holdings: holdings[def.ticker] || 0,
+    message:
+      '📉 Sold **' + shares + '** share' + (shares === 1 ? '' : 's') +
+      ' of `' + def.ticker + '` at ' + price + ' bolts each.\n' +
+      'Gross ' + fmtNum(gross) + ' − ' + fmtNum(fee) + ' fee = ' + fmtNum(net) +
+      ' bolts · Balance ' + fmtNum(balance) + '.',
+  };
 }
 
 export async function renderPortfolio(env, guildId, userId) {
