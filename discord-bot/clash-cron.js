@@ -14,7 +14,8 @@
 // the 30s cron CPU budget at expected community sizes (<10k towns).
 
 import { tierForPrestige } from './clash-state.js';
-import { pushShieldExpiring } from './clash-push.js';
+import { pushShieldExpiring, pushWarEnded } from './clash-push.js';
+import { sweepActiveWars } from './clash-war.js';
 
 // Trophies above this floor (per tier) trigger a 1/day decay tick.
 const TIER_CAPS = { bronze: 200, silver: 600, gold: 1500, platinum: 3500, diamond: 8000 };
@@ -29,6 +30,18 @@ export async function clashDailyCronTick(env, cronExpr) {
     await runTrophyDecay(env);
   }
   await runShieldNudges(env);
+  // Wars: sweep ACTIVE wars and resolve any whose 24h window has
+  // expired. Cheap — only walks the small clash:waractive:* index.
+  const endedWars = await sweepActiveWars(env);
+  for (const w of endedWars) {
+    if (!w.rewards) continue;
+    await pushWarEnded(env, {
+      winnerGuildId: w.rewards.winnerGuildId,
+      loserGuildId: w.rewards.winnerGuildId === w.attackerGuildId ? w.defenderGuildId : w.attackerGuildId,
+      scores: w.scores,
+      coresTribute: w.rewards.coresTribute || 0,
+    });
+  }
 }
 
 async function runTrophyDecay(env) {

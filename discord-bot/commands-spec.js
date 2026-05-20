@@ -308,6 +308,23 @@ export const COMMANDS = [
         ],
       },
       {
+        type: TYPE_SUBCOMMAND_GROUP, name: 'war',
+        description: 'Community-vs-community wars (Phase 2)',
+        options: [
+          {
+            type: TYPE_SUBCOMMAND, name: 'declare',
+            description: 'Open a declaration vote against another community\'s town',
+            options: [
+              { type: TYPE_STRING, name: 'target', description: 'Target guild id (find via /clash leaderboard)', required: true },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'view',    description: 'Show your community\'s current war + score' },
+          { type: TYPE_SUBCOMMAND, name: 'accept',  description: '(streamer/mods) accept a pending war without waiting for the vote' },
+          { type: TYPE_SUBCOMMAND, name: 'refuse',  description: '(streamer/mods) refuse a pending war without waiting for the vote' },
+          { type: TYPE_SUBCOMMAND, name: 'history', description: 'Last 5 wars your community has been in' },
+        ],
+      },
+      {
         type: TYPE_SUBCOMMAND_GROUP, name: 'town',
         description: 'Town management (streamer + mods)',
         options: [

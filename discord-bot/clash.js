@@ -41,7 +41,13 @@ import { simulate, computeLoot, computeTrophyDelta } from './clash-raid.js';
 import {
   pushRaidIncoming, pushRaidDefended, pushRaidSacked, pushRaidResult,
   pushBuildComplete,
+  pushWarDeclared, pushWarAccepted, pushWarRefused, pushWarCancelled, pushWarEnded,
 } from './clash-push.js';
+import {
+  declareWar, castVote, staffOverride, advanceWar, recordWarRaid,
+  findActiveWarForRaid, getActiveWarId, getWar, getWarCooldown, getWarBadge,
+  STATE as WAR_STATE,
+} from './clash-war.js';
 
 const RESP_CHAT = 4;
 const FLAG_EPHEMERAL = 64;
@@ -177,6 +183,16 @@ export async function handleClashCommand(env, data, userId, userName) {
       case 'garrison': return ephemeral(await handleTownGarrison(env, guildId, userId, getOpt('troop'), getOpt('count')));
       case 'pause':    return ephemeral(await handleTownPause(env, guildId, userId));
       default:         return ephemeral('Unknown /clash town subcommand.');
+    }
+  }
+  if (group === 'war') {
+    switch (leaf) {
+      case 'declare': return handleWarDeclare(env, guildId, userId, getOpt('target'));
+      case 'view':    return publicReply(await renderWarView(env, guildId));
+      case 'accept':  return ephemeral(await handleWarStaff(env, guildId, userId, 'accept'));
+      case 'refuse':  return ephemeral(await handleWarStaff(env, guildId, userId, 'refuse'));
+      case 'history': return ephemeral(await renderWarHistory(env, guildId));
+      default:        return ephemeral('Unknown /clash war subcommand.');
     }
   }
 
@@ -351,7 +367,13 @@ async function handleRaid(env, guildId, userId, userName, kind) {
       ? { bolts: 0, scrap: targetSnapshot.rewardScrapBase * (sim.stars + 1), cores: Math.random() < (targetSnapshot.rewardCoresChance * (sim.stars + 1)) ? 1 : 0 }
       : { bolts: 0, scrap: 400, cores: sim.stars === 3 ? 1 : 0 };
   }
-  const loot = computeLoot(sim, defenderTreasury, targetTier);
+  // If this is a war-pairing raid (attacker home guild + target match
+  // an active war), apply amplified loot/trophies and bank the stars
+  // into the war's running score.
+  const { warAmplify } = (target.kind === 'town')
+    ? await applyWarAmplification(env, guildId, target.guildId)
+    : { warAmplify: false };
+  const loot = computeLoot(sim, defenderTreasury, targetTier, { warAmplify });
 
   // Apply loot. Solo raid = 100% to attacker (per design Q's resolution).
   if (target.kind === 'town' && sim.stars > 0) {
@@ -370,17 +392,29 @@ async function handleRaid(env, guildId, userId, userName, kind) {
     await env.LOADOUT_BOLTS.put(`clash:army:${guildId}:${userId}`, JSON.stringify(a));
   }
 
-  // Trophies (PvP only).
+  // Trophies (PvP only). War amplification scales the deltas 1.5x.
   let trophyText = '';
   if (target.kind === 'town') {
     const defTrophies = await getPrestige(env, target.guildId);
-    const td = computeTrophyDelta(sim, trophies.tier, defTrophies.tier);
+    const td = computeTrophyDelta(sim, trophies.tier, defTrophies.tier, { warAmplify });
     await adjustTrophies(env, guildId, userId, td.attacker);
     await adjustPrestige(env, target.guildId, td.defender);
-    trophyText = `\n🏆 ${td.attacker >= 0 ? '+' : ''}${td.attacker} trophies`;
-    // Shields on the loser
-    if (sim.stars >= 2) await setShield(env, target.guildId, 12 * 3_600_000, 'sacked');
-    else if (sim.stars === 1) await setShield(env, target.guildId, 6 * 3_600_000, 'breached');
+    trophyText = `\n🏆 ${td.attacker >= 0 ? '+' : ''}${td.attacker} trophies${warAmplify ? ' (war ×1.5)' : ''}`;
+    // Shields on the loser — but NOT during an active war pairing,
+    // otherwise a single sacking would end the war early.
+    if (!warAmplify) {
+      if (sim.stars >= 2) await setShield(env, target.guildId, 12 * 3_600_000, 'sacked');
+      else if (sim.stars === 1) await setShield(env, target.guildId, 6 * 3_600_000, 'breached');
+    }
+  }
+
+  // War scoring (if applicable). Banks stars into the war's running
+  // total; may close the war if the active window has just expired.
+  if (warAmplify && target.kind === 'town') {
+    const ended = await recordWarRaidIfAny(env, guildId, target.guildId, raidId, sim.stars);
+    if (ended?.state === WAR_STATE.COMPLETED) {
+      trophyText += `\n⚔ War ended — score ${ended.scores.attacker}★ vs ${ended.scores.defender}★, winner: ${ended.winner}`;
+    }
   }
 
   // Receipt + logs.
@@ -694,4 +728,239 @@ function computeRaidTokens(army) {
   const minutesSinceRegen = Math.floor((hoursSince - regenned * 4) * 60);
   const nextInMin = Math.max(0, 4 * 60 - minutesSinceRegen);
   return { available: avail, nextInMin };
+}
+
+// ── War subcommands (Phase 2) ────────────────────────────────────────
+
+const COMPONENT_ACTION_ROW = 1;
+const COMPONENT_BUTTON     = 2;
+const STYLE_PRIMARY        = 1;
+const STYLE_SECONDARY      = 2;
+const STYLE_SUCCESS        = 3;
+const STYLE_DANGER         = 4;
+
+async function handleWarDeclare(env, guildId, userId, targetGuildId) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return ephemeral('🔒 Only the streamer + mods can declare wars.');
+  }
+  if (!targetGuildId || !/^\d{6,30}$/.test(String(targetGuildId).trim())) {
+    return ephemeral('❌ Target must be a guild id. Find one via `/clash leaderboard`.');
+  }
+  const r = await declareWar(env, guildId, String(targetGuildId).trim(), userId);
+  if (r.error) return ephemeral('❌ ' + (r.message || r.error));
+  const war = r.war;
+  // Public post in the attacker's channel with vote buttons.
+  return {
+    type: 4,
+    data: {
+      content:
+        `⚔ **War declared** — vote to confirm.\n` +
+        `Target: \`${targetGuildId}\`.  Vote ends in 10 min.  Need at least ${3} voters with majority **Yes** to proceed.`,
+      components: warVoteRow(war.warId, 'declare'),
+    },
+  };
+}
+
+async function renderWarView(env, guildId) {
+  const warId = await getActiveWarId(env, guildId);
+  if (!warId) {
+    const cd = await getWarCooldown(env, guildId);
+    const badge = await getWarBadge(env, guildId);
+    const lines = ['No active war.'];
+    if (cd) lines.push(`Cooldown ends in ${Math.ceil((cd.until - Date.now()) / 60_000)} min.`);
+    if (badge) lines.push(`🏅 **Victorious** banner active until <t:${Math.floor(badge.expiresUtc / 1000)}:R>.`);
+    return lines.join('\n');
+  }
+  let war = await getWar(env, warId);
+  war = await advanceWar(env, war);
+  const lines = [`**War ${war.warId.slice(-8)}** — ${war.state}`];
+  lines.push(`Attacker: \`${war.attackerGuildId}\``);
+  lines.push(`Defender: \`${war.defenderGuildId}\``);
+  if (war.state === WAR_STATE.DECLARING) {
+    const yes = war.declareVotes.yes.length;
+    const no = war.declareVotes.no.length;
+    lines.push(`🗳 Declaration vote: ${yes} Yes / ${no} No  ·  ends <t:${Math.floor(war.declarationEndsUtc / 1000)}:R>`);
+  } else if (war.state === WAR_STATE.PENDING_ACCEPT) {
+    const a = war.acceptVotes.accept.length;
+    const r = war.acceptVotes.refuse.length;
+    lines.push(`🗳 Accept/refuse vote: ${a} Accept / ${r} Refuse  ·  ends <t:${Math.floor(war.acceptEndsUtc / 1000)}:R>`);
+  } else if (war.state === WAR_STATE.ACTIVE) {
+    lines.push(`⚔ Live war  ·  ends <t:${Math.floor(war.activeEndsUtc / 1000)}:R>`);
+    lines.push(`Score: **${war.scores.attacker}★** (attacker) vs **${war.scores.defender}★** (defender)`);
+    lines.push(`Raids landed: ${war.raids.length}`);
+  } else {
+    lines.push(`Final score: ${war.scores.attacker}★ vs ${war.scores.defender}★`);
+    lines.push(`Winner: ${war.winner || '—'}`);
+  }
+  // Surface a button row for the current phase.
+  const components = (war.state === WAR_STATE.DECLARING)
+    ? warVoteRow(war.warId, 'declare')
+    : (war.state === WAR_STATE.PENDING_ACCEPT)
+      ? warVoteRow(war.warId, 'accept')
+      : [];
+  return { type: 4, data: { content: lines.join('\n'), components } };
+}
+
+async function handleWarStaff(env, guildId, userId, action) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return '🔒 Only the streamer + mods can override the community vote.';
+  }
+  const warId = await getActiveWarId(env, guildId);
+  if (!warId) return 'No active war.';
+  let war = await getWar(env, warId);
+  if (!war) return 'No active war.';
+  // Determine side
+  const side = guildId === war.attackerGuildId ? 'attacker'
+             : guildId === war.defenderGuildId ? 'defender'
+             : null;
+  if (!side) return 'Not a participant.';
+  if (action === 'accept' || action === 'refuse') {
+    if (side !== 'defender') return 'Only the defender can accept/refuse.';
+    const r = await staffOverride(env, warId, 'defender', action);
+    if (r?.error) return r.error;
+    war = r;
+    if (war.state === WAR_STATE.ACTIVE) {
+      await pushWarAccepted(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId, endsUtc: war.activeEndsUtc });
+      return `✅ War accepted. 24h window now open.`;
+    }
+    if (war.state === WAR_STATE.REFUSED) {
+      await pushWarRefused(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId });
+      return `❌ War refused.`;
+    }
+  }
+  return 'Nothing to do.';
+}
+
+async function renderWarHistory(env, guildId) {
+  // KV doesn't index by guild, so we list and filter. Cheap because
+  // wars are rare and 60d TTL caps the total count.
+  const lines = ['**Recent wars:**'];
+  let cursor;
+  let shown = 0;
+  for (let i = 0; i < 3 && shown < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'clash:war:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      if (shown >= 5) break;
+      const w = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!w) continue;
+      if (w.attackerGuildId !== guildId && w.defenderGuildId !== guildId) continue;
+      const role = w.attackerGuildId === guildId ? 'attacker' : 'defender';
+      const stamp = `<t:${Math.floor((w.completedUtc || w.declaredUtc) / 1000)}:R>`;
+      lines.push(`• ${stamp}  ·  ${role}  ·  ${w.state}  ·  ${w.scores.attacker}★ vs ${w.scores.defender}★${w.winner ? ` · winner: ${w.winner}` : ''}`);
+      shown++;
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  if (shown === 0) return 'No wars yet.';
+  return lines.join('\n');
+}
+
+function warVoteRow(warId, phase) {
+  if (phase === 'declare') {
+    return [{
+      type: COMPONENT_ACTION_ROW,
+      components: [
+        { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: '✅ Yes — declare', custom_id: `clash:war:vote:${warId}:declare:yes` },
+        { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '❌ No', custom_id: `clash:war:vote:${warId}:declare:no` },
+        { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '👁 View war', custom_id: `clash:war:view:${warId}` },
+      ],
+    }];
+  }
+  if (phase === 'accept') {
+    return [{
+      type: COMPONENT_ACTION_ROW,
+      components: [
+        { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: '⚔ Accept war', custom_id: `clash:war:vote:${warId}:accept:accept` },
+        { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🛡 Refuse', custom_id: `clash:war:vote:${warId}:accept:refuse` },
+        { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '👁 View war', custom_id: `clash:war:view:${warId}` },
+      ],
+    }];
+  }
+  return [];
+}
+
+// ── Component handler — war vote buttons ────────────────────────────
+//
+// Routed by commands.js for any custom_id that starts with "clash:".
+// We only handle "clash:war:*" prefixes here; future Clash component
+// surfaces (raid replay viewers etc.) can branch off this same entry.
+
+export async function handleClashComponent(env, data) {
+  const cid = data.data?.custom_id || '';
+  if (!cid.startsWith('clash:war:')) {
+    return ephemeral('Unknown Clash component.');
+  }
+  const userId = data.member?.user?.id || data.user?.id;
+  const guildId = data.guild_id;
+  if (!userId || !guildId) return ephemeral('Run this in a server.');
+
+  // clash:war:vote:<warId>:<phase>:<choice>
+  if (cid.startsWith('clash:war:vote:')) {
+    const parts = cid.split(':');
+    const warId = parts[3];
+    const phase = parts[4];       // declare | accept
+    const choice = parts[5];      // yes | no | accept | refuse
+    const before = await getWar(env, warId);
+    const r = await castVote(env, warId, userId, guildId, choice);
+    if (r.error) return ephemeral('❌ ' + (r.message || r.error));
+    const war = r.war;
+    // Side-effects: if the vote tripped a state transition, fire the
+    // matching push.
+    if (before && before.state !== war.state) {
+      if (war.state === WAR_STATE.PENDING_ACCEPT) {
+        await pushWarDeclared(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId });
+      } else if (war.state === WAR_STATE.ACTIVE) {
+        await pushWarAccepted(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId, endsUtc: war.activeEndsUtc });
+      } else if (war.state === WAR_STATE.REFUSED) {
+        await pushWarRefused(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId });
+      } else if (war.state === WAR_STATE.CANCELLED) {
+        await pushWarCancelled(env, { attackerGuildId: war.attackerGuildId, reason: 'Declaration vote failed.' });
+      }
+    }
+    const tallyText = war.state === WAR_STATE.DECLARING
+      ? `Vote recorded — ${war.declareVotes.yes.length} Yes / ${war.declareVotes.no.length} No.`
+      : war.state === WAR_STATE.PENDING_ACCEPT
+        ? `Vote recorded — ${war.acceptVotes.accept.length} Accept / ${war.acceptVotes.refuse.length} Refuse.`
+        : war.state === WAR_STATE.ACTIVE
+          ? `Your community voted **Accept** — the war window is open.`
+          : war.state === WAR_STATE.REFUSED
+            ? `Your community voted **Refuse**. War cancelled.`
+            : war.state === WAR_STATE.CANCELLED
+              ? `Declaration failed — not enough Yes votes.`
+              : `Vote recorded.`;
+    return ephemeral(tallyText);
+  }
+
+  // clash:war:view:<warId> — just rerender
+  if (cid.startsWith('clash:war:view:')) {
+    return renderWarView(env, guildId);
+  }
+  return ephemeral('Unknown Clash component.');
+}
+
+// ── War amplification hook (called inline by handleRaid) ─────────────
+export async function applyWarAmplification(env, attackerHomeGuildId, targetGuildId) {
+  const war = await findActiveWarForRaid(env, attackerHomeGuildId, targetGuildId);
+  return { war, warAmplify: !!war };
+}
+
+export async function recordWarRaidIfAny(env, attackerHomeGuildId, targetGuildId, raidId, stars) {
+  const war = await findActiveWarForRaid(env, attackerHomeGuildId, targetGuildId);
+  if (!war) return null;
+  const updated = await recordWarRaid(env, war, attackerHomeGuildId, raidId, stars);
+  // If this raid closed the active window via simultaneous expiry, advance.
+  if (updated.state === WAR_STATE.ACTIVE && Date.now() >= updated.activeEndsUtc) {
+    const ended = await advanceWar(env, updated);
+    if (ended.state === WAR_STATE.COMPLETED) {
+      await pushWarEnded(env, {
+        winnerGuildId: ended.rewards?.winnerGuildId,
+        loserGuildId: ended.rewards?.winnerGuildId === ended.attackerGuildId ? ended.defenderGuildId : ended.attackerGuildId,
+        scores: ended.scores,
+        coresTribute: ended.rewards?.coresTribute || 0,
+      });
+    }
+    return ended;
+  }
+  return updated;
 }

@@ -141,3 +141,67 @@ export const pushShieldExpiring = (env, { guildId, townName, minutesLeft }) =>
     audience: { kind: 'town', guildId },
     guildId,
   });
+
+// ── War push helpers (Phase 2) ───────────────────────────────────────
+//
+// All war pushes route through the existing clash.war.declared /
+// clash.war.ended notify kinds — the bitmask in clash-state.js doesn't
+// need a new slot for accept/refuse/cancel since those all happen
+// inside the same "declared war" lifecycle the viewer already opted
+// into.
+
+export const pushWarDeclared = (env, { attackerGuildId, defenderGuildId }) =>
+  firePush(env, {
+    kind: 'clash.war.declared',
+    title: `War declared against your town`,
+    body: 'Another community wants to raid your town. Vote to accept or refuse — open /clash war view.',
+    url: `https://aquilo.gg/clash/town/${defenderGuildId}/`,
+    audience: { kind: 'town', guildId: defenderGuildId },
+    guildId: defenderGuildId,
+    attackerGuildId,
+  });
+
+export const pushWarAccepted = (env, { attackerGuildId, defenderGuildId, endsUtc }) =>
+  firePush(env, {
+    kind: 'clash.war.declared',
+    title: `Your war was accepted`,
+    body: 'The 24h war window is open — raid for amplified rewards.',
+    url: `https://aquilo.gg/clash/town/${attackerGuildId}/`,
+    audience: { kind: 'town', guildId: attackerGuildId },
+    guildId: attackerGuildId,
+    defenderGuildId,
+    endsUtc,
+  });
+
+export const pushWarRefused = (env, { attackerGuildId, defenderGuildId }) =>
+  firePush(env, {
+    kind: 'clash.war.declared',
+    title: `Your war was refused`,
+    body: 'The target community voted to refuse the war. Cooldown applies before you can declare again.',
+    url: `https://aquilo.gg/clash/town/${attackerGuildId}/`,
+    audience: { kind: 'town', guildId: attackerGuildId },
+    guildId: attackerGuildId,
+    defenderGuildId,
+  });
+
+export const pushWarCancelled = (env, { attackerGuildId, reason }) =>
+  firePush(env, {
+    kind: 'clash.war.declared',
+    title: `Your war declaration was cancelled`,
+    body: reason || 'Not enough community votes to declare.',
+    url: `https://aquilo.gg/clash/town/${attackerGuildId}/`,
+    audience: { kind: 'town', guildId: attackerGuildId },
+    guildId: attackerGuildId,
+  });
+
+export const pushWarEnded = (env, { winnerGuildId, loserGuildId, scores, coresTribute }) =>
+  firePush(env, {
+    kind: 'clash.war.ended',
+    title: `War ended — ${scores.attacker}★ vs ${scores.defender}★`,
+    body: `Winner: <#${winnerGuildId}>. Tribute: +${coresTribute}⚙ to treasury, Victorious banner for 7 days.`,
+    url: `https://aquilo.gg/clash/town/${winnerGuildId}/`,
+    // Both communities should see this — broadcast to all subscribers.
+    audience: { kind: 'all' },
+    winnerGuildId,
+    loserGuildId,
+  });

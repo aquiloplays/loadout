@@ -28,7 +28,7 @@ import { handleBet, handleBetAutocomplete } from './bet.js';
 import { renderHubCommand, handleHubComponent, handleHubModal } from './hub-menu.js';
 import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
 import { handleSchedule, handleGames } from './schedule.js';
-import { handleClashCommand } from './clash.js';
+import { handleClashCommand, handleClashComponent } from './clash.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -64,6 +64,7 @@ export async function handleInteraction(req, env, body, ctx) {
     const cid = data.data?.custom_id || '';
     if (cid.startsWith('hub:'))   return handleHubComponent(data, env);
     if (cid.startsWith('admin:')) return handleAdminComponent(data, env, ctx);
+    if (cid.startsWith('clash:')) return json(await handleClashComponent(env, data));
     return handleComponent(data, env);
   }
   if (data.type === TYPE_AUTOCOMPLETE) {

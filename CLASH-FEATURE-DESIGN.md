@@ -632,3 +632,87 @@ worker.
   but every push subscriber still sees every Clash push, matching
   how stream.online already behaves. Identity-linking subscriptions
   to Discord users is a Phase 2 plumbing job.
+
+---
+
+## 14. Phase 2 build notes (shipped 2026-05-20)
+
+### File added
+- `discord-bot/clash-war.js` — war state machine. Five lifecycle
+  states (`declaring`, `pending_accept`, `active`, `completed`, plus
+  failure paths `cancelled` / `refused` / `timed_out`), pure
+  read-time advance via `advanceWar(env, war)`. KV layout:
+  `clash:war:<warId>` (60-day TTL), `clash:waractive:<guildId>`
+  (single-active-war-per-guild invariant), `clash:warvote:<warId>:<voterId>`
+  (per-voter records), `clash:warcd:<guildId>` (post-war cooldown),
+  `clash:warbadge:<guildId>` (7-day Victorious banner).
+
+### Files modified
+- `discord-bot/clash.js` — `/clash war` subgroup handlers
+  (`declare`, `view`, `accept`, `refuse`, `history`) + a component
+  handler for the button-driven vote UI (`handleClashComponent`).
+  `handleRaid` now applies war amplification when (attacker home
+  guild, target guild) matches an active war pairing.
+- `discord-bot/clash-raid.js` — `computeLoot` + `computeTrophyDelta`
+  accept an `opts.warAmplify` flag. Loot cap lifts from 20% to 30%;
+  trophy delta ×1.5; Voltaic drop chance gets a flat 15% bonus roll.
+- `discord-bot/clash-push.js` — five new helpers
+  (`pushWarDeclared`, `pushWarAccepted`, `pushWarRefused`,
+  `pushWarCancelled`, `pushWarEnded`). All ride the existing
+  `clash.war.declared` / `clash.war.ended` notify kinds — no new
+  bitmask slots needed.
+- `discord-bot/commands.js` — routes `clash:` custom_id components
+  to `handleClashComponent`.
+- `discord-bot/commands-spec.js` — adds the `/clash war` subgroup.
+- `discord-bot/clash-cron.js` — daily run now also sweeps active
+  wars and fires `pushWarEnded` for any whose 24h window closed
+  while no viewer interacted to advance the state.
+
+### War lifecycle (one diagram)
+
+```
+        /clash war declare
+                |
+                v
+        DECLARING (10 min, attacker community votes Yes/No)
+            |          \
+   majority Yes     deadline w/ no majority
+            v                \
+        PENDING_ACCEPT        CANCELLED  (6 h attacker cooldown)
+        (1 h, defender votes
+         Accept/Refuse)
+            |        \         \
+   majority    majority    deadline
+   Accept      Refuse      w/ no majority
+            v        v         v
+        ACTIVE   REFUSED    TIMED_OUT
+        (24 h)   (6 h cd)   (6 h cd)
+            |
+    window expires
+            v
+        COMPLETED — defender wins ties.
+        winner: +Victorious banner (7d) +Cores tribute +prestige
+        both: 24h post-war cooldown.
+```
+
+### Loot + trophy amplification (during ACTIVE war pairing)
+- Loot cap: 20% → **30%** of defender treasury.
+- Trophy delta: ×**1.5** (both attacker and defender).
+- Voltaic drop chance: extra 15% reroll if the first roll missed.
+- Shields are **suppressed** during a war pairing — otherwise a
+  single sacking would freeze further raids and end the war early.
+
+### Vote thresholds
+- Minimum **3 voters** per phase for the vote to count.
+- Simple majority.
+- Streamer + mods can override (`/clash war accept` /
+  `/clash war refuse` / etc.) without waiting for the community
+  vote.
+
+### What Phase 2 deliberately does not ship
+- Web/Twitch panel war scoreboard (Phase 4).
+- Hero defending the town (Phase 3 — War Tent).
+- Per-user push-notification filtering (still Phase 2+ identity
+  plumbing — `audience: { kind: 'town', guildId }` is recorded on
+  the outbound push payload but aquilo-site fans out to all
+  subscribers).

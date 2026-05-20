@@ -218,37 +218,53 @@ function hashStr(s) {
 // transferred AND any Voltaic drop. Cap loot at 20% of treasury per
 // raid + hard ceiling so a sustained loss doesn't drain a town in one
 // session.
+//
+// `opts.warAmplify` (Phase 2): when the raid happens inside an active
+// community-vs-community war pairing, the loot cap lifts to 30% and
+// the Voltaic drop chance gets a flat bonus. Trophy amplification
+// handled separately in computeTrophyDelta.
 const LOOT_CAP_PCT = 0.20;
+const LOOT_CAP_PCT_WAR = 0.30;
 const LOOT_CEILING_BOLTS = 25_000;
 const LOOT_CEILING_SCRAP = 1_200;
 const LOOT_CEILING_CORES = 4;
+const VOLTAIC_BONUS_WAR = 0.15;
 
-export function computeLoot(sim, defenderTreasury, defenderTier = 'bronze') {
+export function computeLoot(sim, defenderTreasury, defenderTier = 'bronze', opts = {}) {
   if (sim.stars === 0) {
     return { bolts: 0, scrap: 0, cores: 0, voltaic: null };
   }
-  // The 20% cap is a hard ceiling — `factor` modulates *within* it,
-  // never above. 1-star raids take ~30% of cap, 2-star ~65%, 3-star
-  // up to 100% of cap (and even then, gated by pctDestroyed).
+  const cap = opts.warAmplify ? LOOT_CAP_PCT_WAR : LOOT_CAP_PCT;
   const starShare = { 1: 0.30, 2: 0.65, 3: 1.00 }[sim.stars] || 0;
   const factor = starShare * Math.max(0.3, sim.pctDestroyed);
-  const boltsCap = Math.max(0, defenderTreasury?.bolts || 0) * LOOT_CAP_PCT;
+  const boltsCap = Math.max(0, defenderTreasury?.bolts || 0) * cap;
   const bolts = Math.min(LOOT_CEILING_BOLTS, Math.floor(boltsCap * factor));
-  const scrapCap = Math.max(0, defenderTreasury?.scrap || 0) * LOOT_CAP_PCT;
+  const scrapCap = Math.max(0, defenderTreasury?.scrap || 0) * cap;
   const scrap = Math.min(LOOT_CEILING_SCRAP, Math.floor(scrapCap * factor));
-  const coreCap = Math.max(0, defenderTreasury?.cores || 0) * LOOT_CAP_PCT;
+  const coreCap = Math.max(0, defenderTreasury?.cores || 0) * cap;
   const cores = Math.min(LOOT_CEILING_CORES, Math.floor(coreCap * (sim.stars === 3 ? 1 : 0.5)));
-  const voltaic = rollVoltaicDrop(sim.stars, defenderTier);
+  // Voltaic drop: war pairing bumps chance via a roll-twice-take-best.
+  let voltaic = rollVoltaicDrop(sim.stars, defenderTier);
+  if (!voltaic && opts.warAmplify && Math.random() < VOLTAIC_BONUS_WAR) {
+    voltaic = rollVoltaicDrop(sim.stars, defenderTier);
+  }
   return { bolts, scrap, cores, voltaic };
 }
 
 // Trophy delta — fixed by star count + a small tier-mismatch swing
-// (raiding above your weight = bonus on win, harder on loss).
-export function computeTrophyDelta(sim, attackerTier, defenderTier) {
+// (raiding above your weight = bonus on win, harder on loss). War
+// pairing multiplies both attacker and defender deltas by 1.5x.
+export function computeTrophyDelta(sim, attackerTier, defenderTier, opts = {}) {
   const tiers = ['bronze', 'silver', 'gold', 'platinum', 'diamond'];
   const swing = (tiers.indexOf(defenderTier) - tiers.indexOf(attackerTier)) * 3;
-  if (sim.stars === 0) return { attacker: -8 - Math.max(0, -swing), defender: +4 };
-  if (sim.stars === 1) return { attacker: +6 + Math.max(0, swing), defender: -6 };
-  if (sim.stars === 2) return { attacker: +14 + Math.max(0, swing * 1.5), defender: -14 };
-  return { attacker: +24 + Math.max(0, swing * 2), defender: -22 };
+  let raw;
+  if (sim.stars === 0) raw = { attacker: -8 - Math.max(0, -swing), defender: +4 };
+  else if (sim.stars === 1) raw = { attacker: +6 + Math.max(0, swing), defender: -6 };
+  else if (sim.stars === 2) raw = { attacker: +14 + Math.max(0, swing * 1.5), defender: -14 };
+  else raw = { attacker: +24 + Math.max(0, swing * 2), defender: -22 };
+  if (opts.warAmplify) {
+    raw.attacker = Math.round(raw.attacker * 1.5);
+    raw.defender = Math.round(raw.defender * 1.5);
+  }
+  return raw;
 }
