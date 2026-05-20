@@ -173,6 +173,23 @@ Produced by the Rotation widget; the Loadout DLL bridges via
 | `rotation.song.playing` | Rotation widget → bus | `{ name, artist, album, durationMs, coverUrl, ... }` |
 | `rotation.queue.snapshot` | Rotation widget → bus | `{ queue: [...] }` |
 
+### ChatAnnouncementsModule observers (`AquiloBus.LocalPublished`)
+
+Bus-driven chat announcements for game events that previously had no
+chat reply. Sends via `MultiPlatformSender` (target = `PlatformMask.All`,
+filtered to enabled platforms in `PlatformsConfig`, rate-limited).
+
+| Kind subscribed | Chat line (defaults) | Toggle |
+|---|---|---|
+| `dungeon.recruiting` | `⚔️ A party is forming for <name>! Type !dungeon join to enter (Xs).` | `ChatAnnouncements.DungeonRecruiting` (on) |
+| `dungeon.completed` | `🏆/🏁/💀 <name>: survived / N of M out / WIPED` | `ChatAnnouncements.DungeonCompleted` (on) |
+| `duel.completed` | `🗡️ <winner> defeated <loser> in a duel! (+N bolts)` | `ChatAnnouncements.DuelCompleted` (on) |
+| `bolts.minigame.*` | `🎰 <user> just won N bolts on <game>!` (only on win + payout ≥ threshold) | `ChatAnnouncements.MinigameBigWins` (off by default; threshold 250) |
+
+Master kill-switch: `ChatAnnouncements.Enabled`. Heist start/success/
+failure are NOT subscribed here -- `HeistController` already announces
+its own lifecycle in chat.
+
 ### PanelBridgeModule observers (`AquiloBus.LocalPublished`)
 
 These don't ride the bus directly — `PanelBridgeModule` taps the in-process

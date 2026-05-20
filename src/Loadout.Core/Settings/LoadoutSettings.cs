@@ -66,6 +66,40 @@ namespace Loadout.Settings
         public CommandsTickerEntriesConfig CommandsTickerEntries { get; set; } = new CommandsTickerEntriesConfig();
         public ViewerProfilesConfig ViewerProfiles { get; set; } = new ViewerProfilesConfig();
         public DungeonConfig       Dungeon       { get; set; } = new DungeonConfig();
+        public ChatAnnouncementsConfig ChatAnnouncements { get; set; } = new ChatAnnouncementsConfig();
+    }
+
+    /// <summary>
+    /// Chat announcements for bus-driven game events that lack their own
+    /// chat reply (dungeon recruiting / dungeon completed / duel completed).
+    /// Sent via the same MultiPlatformSender path the rest of the bot uses,
+    /// so they fan out to every enabled platform in PlatformsConfig.
+    ///
+    /// Mini-game wins are intentionally OFF by default -- BoltsModule's
+    /// own !coinflip / !dice / !slots responses already chat the result.
+    /// Toggle MinigameBigWins on if you want a SECOND celebratory line
+    /// for wins above MinigameBigWinThreshold bolts.
+    ///
+    /// Heist start / success / failure are not toggled here -- the
+    /// HeistController owns its own chat lifecycle. This module would
+    /// double-announce, so we leave heist to the controller.
+    /// </summary>
+    public class ChatAnnouncementsConfig
+    {
+        // Master kill-switch.
+        public bool Enabled                  { get; set; } = true;
+        // Per-event toggles -- all default ON because the events they
+        // cover currently have NO chat reply at all (the dungeon/duel
+        // lifecycle was overlay-only before this module).
+        public bool DungeonRecruiting        { get; set; } = true;
+        public bool DungeonCompleted         { get; set; } = true;
+        public bool DuelCompleted            { get; set; } = true;
+        // Mini-game big-win celebration -- OFF by default to avoid
+        // double-announcing on top of BoltsModule's own game responses.
+        public bool MinigameBigWins          { get; set; } = false;
+        // Mini-game win must be at LEAST this many bolts to announce.
+        // Stops a 5-bolt coinflip from ever tripping the celebration line.
+        public int  MinigameBigWinThreshold  { get; set; } = 250;
     }
 
     /// <summary>

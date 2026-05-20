@@ -90,6 +90,13 @@ namespace Loadout.Sb
                 // Separate from the dungeon-specific achievement set
                 // which lives on HeroState.Achievements.
                 _modules.Add(new AchievementsModule());
+                // Bus-driven chat announcements (dungeon recruiting,
+                // dungeon completed, duel completed, optional big mini-
+                // game wins). Subscribes to AquiloBus.LocalPublished so
+                // both in-process and client-published frames trigger.
+                // Sends via MultiPlatformSender -> rate-limited per
+                // platform, fans out to every enabled chat.
+                _modules.Add(new ChatAnnouncementsModule());
                 // Last - just publishes the canonical command list to the bus
                 // for the "Available commands" overlay. Must come AFTER every
                 // module that contributes commands so the snapshot it builds

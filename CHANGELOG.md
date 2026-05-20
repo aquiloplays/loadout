@@ -7,9 +7,30 @@ Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-Worker-only changes (no DLL release was cut for this stretch).
+DLL release recommended -- the ChatAnnouncementsModule below only takes
+effect after `tools/install-dev.ps1` (dev install) or a tagged release.
 
 ### Added
+
+- **ChatAnnouncementsModule (DLL)** -- bus-driven chat announcements for
+  game events that previously had no chat reply. Subscribes to
+  `AquiloBus.LocalPublished` (catches both in-process publishes and
+  client-published frames) and sends via `MultiPlatformSender` with
+  `PlatformMask.All` -> fans out to every enabled platform with per-
+  platform rate limiting. Covers:
+  - `dungeon.recruiting` -> "A party is forming!" with join command + window
+  - `dungeon.completed`  -> survived / partial / wiped with kill count
+  - `duel.completed`     -> "X defeated Y" with payout
+  - `bolts.minigame.*`   -> optional big-win celebration (OFF by default;
+    threshold 250 bolts when on -- avoids double-announcing on top of
+    BoltsModule's own game responses).
+  Master `Enabled` plus per-event toggles in `LoadoutSettings.ChatAnnouncements`.
+  Heist events are NOT subscribed -- `HeistController` already owns its own
+  chat lifecycle.
+
+### Worker-only changes (no DLL release required)
+
+
 
 - **Bolts stock market** — Yahoo Finance real-stock emulation. 20 starter tickers (AAPL, MSFT, GOOGL, META, AMZN, NVDA, AMD, INTC, TSLA, GME, EA, TTWO, RBLX, U, NFLX, DIS, SPOT, ROKU, COIN, MSTR). Hourly cron at `:17` writes prices + appends to history. Spot trading only, integer shares, 1% trade fee. `/stocks list / buy / sell / portfolio / chart` slash subcommands.
 - **Auto-updating stocks ticker board** — `/stocks ticker-setup` binds the current channel; a single embed is PATCHed in place every cron tick. `/stocks ticker-clear` releases the binding.
