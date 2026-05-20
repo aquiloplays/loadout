@@ -325,6 +325,14 @@ export const COMMANDS = [
         ],
       },
       {
+        type: TYPE_SUBCOMMAND_GROUP, name: 'defender',
+        description: 'Accept or decline a designated defending-Champion role',
+        options: [
+          { type: TYPE_SUBCOMMAND, name: 'accept',  description: 'Accept the role — your hero will defend the town on every raid' },
+          { type: TYPE_SUBCOMMAND, name: 'decline', description: 'Decline the role — the streamer can pick someone else' },
+        ],
+      },
+      {
         type: TYPE_SUBCOMMAND_GROUP, name: 'town',
         description: 'Town management (streamer + mods)',
         options: [
@@ -342,6 +350,7 @@ export const COMMANDS = [
                   { name: 'Trap',          value: 'trap' },
                   { name: 'Storage',       value: 'storage' },
                   { name: 'Barracks',      value: 'barracks' },
+                  { name: 'War Tent',      value: 'warTent' },
                 ],
               },
               { type: TYPE_INTEGER, name: 'building', description: 'Building id to upgrade (omit to place a new one)', required: false, min_value: 1 },
@@ -363,6 +372,15 @@ export const COMMANDS = [
             ],
           },
           { type: TYPE_SUBCOMMAND, name: 'pause', description: 'Toggle PvP matchmaking opt-out for this town' },
+          {
+            type: TYPE_SUBCOMMAND, name: 'designate-defender',
+            description: 'Designate a community member\'s hero as the town\'s defending Champion (needs a War Tent)',
+            options: [
+              { type: TYPE_USER, name: 'user', description: 'Community member whose hero defends the town', required: true },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'clear-defender', description: 'Clear the defending-Champion designation' },
+          { type: TYPE_SUBCOMMAND, name: 'skip',           description: 'Spend a Battle Plan to skip the oldest in-flight build cooldown' },
         ],
       },
     ],

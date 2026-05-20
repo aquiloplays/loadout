@@ -716,3 +716,209 @@ worker.
   plumbing — `audience: { kind: 'town', guildId }` is recorded on
   the outbound push payload but aquilo-site fans out to all
   subscribers).
+
+---
+
+## 15. Phase 3 build notes (shipped 2026-05-20)
+
+### Files modified
+- `discord-bot/clash-content.js` — new `warTent` building kind (3
+  levels, scales the defender Champion HP via `championHpMult`).
+  `TH_HERO_GATE` table — TH 4→5, TH 5→8, TH 6→12, TH 7→18, TH 8→24,
+  TH 9→30, TH 10→40 — community must have at least one hero at the
+  threshold before each TH upgrade.
+- `discord-bot/clash-state.js` — `TownState` extends with
+  `defenderChampion` (null | `{ userId, designatedByUserId,
+  designatedUtc, acceptedUtc, expiresUtc }`) and `battlePlans:
+  number` (capped at MAX_BATTLE_PLANS = 5). Helpers
+  `getActiveDefenderChampion`, `grantBattlePlan`, `spendBattlePlan`.
+  Backfill happens on `ensureTown` so existing towns get the new
+  fields the first time they're loaded.
+- `discord-bot/clash-raid.js` — `simulate()` accepts `opts.defenderHero`
+  + `opts.tentHpMult`. When present, a defending Champion unit
+  joins the defense each tick: it priority-targets the attacker's
+  Champion, and gets hit back by a random live attacker ~35 % of
+  ticks. Receipt gains `defenderHeroSurvived`.
+- `discord-bot/clash.js` — new subcommand handlers:
+  - `/clash town designate-defender user:<@u>` — streamer/mods
+    only; requires War Tent built.
+  - `/clash town clear-defender` — streamer/mods only.
+  - `/clash defender accept` — designated user's opt-in.
+  - `/clash defender decline` — designated user's opt-out.
+  - `/clash town skip` — spend a Battle Plan to fast-forward the
+    oldest in-flight build cooldown.
+  - TH-upgrade hero-level gate enforced in `handleTownBuild`.
+  - PvE wins (NPC town clears at ≥ 2★ and goblin camp clears) have
+    an 8 % / 3 % chance of granting a Battle Plan to the attacker's
+    home town. Caps at 5 stored.
+  - `readDefenderHeroForRaid` reads the designated hero's
+    `HeroState`, counts Voltaic pieces, sums equipped powerBonus +
+    defenseBonus the same way the attacker Champion does, and
+    returns the pack consumed by `simulate`.
+- `discord-bot/commands-spec.js` — adds the `/clash defender`
+  subgroup + `designate-defender`, `clear-defender`, `skip`
+  subcommands to `/clash town`, plus the `War Tent` choice in the
+  build-kind picker.
+
+### Designation lifecycle
+
+```
+streamer: /clash town designate-defender user:@bob
+                  │
+                  ▼
+          defenderChampion = { userId: bob, acceptedUtc: null,
+                               expiresUtc: now + tent.designationTtl }
+                  │
+                  ▼
+bob: /clash defender accept   ─▶  acceptedUtc = now
+                  │
+                  ▼            time passes …
+        bob's hero deploys              ─▶ acceptedUtc + expiresUtc
+        as defending Champion              both pass; defender
+        on every raid                      reverts to garrison-only
+                  │
+                  ▼
+bob: /clash defender decline  ─▶  defenderChampion = null
+streamer: /clash town clear-defender ─▶ defenderChampion = null
+```
+
+Tent level determines the designation TTL:
+- L1 → 7 days
+- L2 → 14 days
+- L3 → 30 days
+
+Stale designations (`expiresUtc < now`) are silently treated as
+inactive — they don't deploy in raids — but the record stays so the
+defender can re-accept without the streamer redesignating.
+
+### Battle Plan economy
+- **Sources**: 8 % drop chance on a 2★ + NPC-town clear, 3 % on a
+  goblin camp clear (≥ 2★ required). Future hook for a
+  dungeon-completion drop is sketched but unwired here.
+- **Sink**: `/clash town skip` (streamer/mods only) — clears the
+  oldest in-flight build cooldown.
+- **Cap**: 5 stored per town. Excess drops silently miss so the
+  community doesn't hoard infinity.
+
+---
+
+## 16. Phase 4 Loadout-side build notes (shipped 2026-05-20)
+
+The web base-editor + Twitch panel surfaces live in `aquilo-site` and
+are owned by a separate session. This phase ships only the
+**Loadout-side wiring** those surfaces need to read/write through:
+public leaderboard endpoint, signed sync endpoint, events ring
+buffer, OBS browser-source overlay.
+
+### File added (Loadout repo)
+- `discord-bot/clash-http.js` — four HTTP handlers:
+  - `handleClashLeaderboardHttp` — public, cached 60s, top-25
+    raiders + towns globally, exclude-list filtered.
+  - `handleClashTownPublic` — public, returns town + treasury +
+    contributors + active war pointer for a guildId. Excluded towns
+    return 404.
+  - `handleClashEventsPull` — HMAC, returns events from the
+    `clash:events:<guildId>` ring buffer since the caller's cursor.
+    DLL polls this and republishes on the local Aquilo Bus.
+  - `handleClashSync` — HMAC, GET returns full clash state for a
+    guild, POST `/build|/garrison|/donate` writes through the same
+    handler bodies the slash commands use (via `_editor*` adapters
+    in `clash.js`).
+  - Also exports `appendClashEvent` — the ring-buffer writer
+    consumed by `clash.js` after every raid + war state change.
+- `aquilo-gg/overlays/clash/index.html` + `style.css` + `main.js` —
+  OBS browser source. Subscribes to `clash.*` + `raid.*` + `war.*`
+  + `build.*` + `shield.*` kinds on the local bus, renders severity-
+  themed toasts. Drop the URL into OBS:
+  `https://aquilo.gg/overlays/clash?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=<your-secret>`
+
+### Files modified
+- `discord-bot/worker.js` — adds the four new routes (`/clash-leaderboard`,
+  `/clash/town/<g>`, `/sync/<g>/clash[/...]`, `/sync/<g>/clash-events`).
+- `discord-bot/clash.js` — every raid + war state transition writes
+  a compact event into `clash:events:<guildId>`; editor adapters
+  `_editorTownBuild`, `_editorTownGarrison`, `_editorDonate`
+  exported for `clash-http.js` to call.
+- `discord-bot/clash-push.js` — the three town-targeted push helpers
+  (`pushRaidIncoming` / `pushRaidDefended` / `pushRaidSacked`) now
+  populate `audience.userIds` with the list of viewers who've kept
+  the relevant `clash:notify` mask bit on. Aquilo-site fan-out
+  doesn't filter on this yet, but the payload contract is ready.
+
+### Events ring buffer
+
+```
+KV: clash:events:<guildId>  →  [ { id, ts, kind, payload }, … ]
+                              capped at 32 entries (oldest evicted)
+                              no TTL — events live until evicted
+
+DLL polls: GET /sync/<guildId>/clash-events?since=<ms>
+            → { events, ts }                  (HMAC-gated)
+DLL republishes each event onto ws://127.0.0.1:7470/aquilo/bus/
+Overlay subscribes to clash.* / raid.* / war.* / build.* / shield.*
+```
+
+Same shape as the existing `games:<guildId>` ring buffer (see
+`worker.js`).
+
+### Public Clash leaderboard endpoint
+
+```
+GET /clash-leaderboard
+
+200 OK  CORS: *  cache: 60s
+{
+  updatedAt,
+  raiders: [ { rank, userId, guildId, trophies, tier } × 25 ],
+  towns:   [ { rank, guildId, score, tier } × 25 ]
+}
+```
+
+Exclude list (`clash:exclude` — Clay's testing identifiers by
+default) filters both arrays at the source.
+
+### Signed sync endpoint
+
+```
+GET  /sync/<guildId>/clash                    HMAC-gated
+     → { town, treasury, prestige, queue, shield, war }
+
+POST /sync/<guildId>/clash/build              HMAC-gated
+     body: { userId, kind, buildingId? }
+     → { result: "<slash-style message>" }
+
+POST /sync/<guildId>/clash/garrison           HMAC-gated
+     body: { userId, troopId, count }
+     → { result: "..." }
+
+POST /sync/<guildId>/clash/donate             HMAC-gated
+     body: { userId, bolts }
+     → { result: "..." }
+```
+
+The web editor authenticates with the per-guild sync secret (same
+secret the wallet sync already uses). All validation flows through
+the same `handleTownBuild` / `handleTownGarrison` / `handleDonate`
+slash-command handlers — one set of rules, two transport surfaces.
+
+### Per-user push subscription filtering
+
+Loadout-side prep landed: every town-audience push now ships an
+`audience.userIds` list (the viewers who've kept the relevant
+notify bit on in `clash:notify:<guildId>:<userId>`). The aquilo-site
+push worker doesn't filter on this yet — the `push:sub:*` records
+there aren't identity-linked. Wiring that filter on the aquilo-site
+side is the remaining work for that session.
+
+### What Phase 4 deliberately does NOT ship (owned by aquilo-site)
+- **Twitch panel "Clash" tab** — town view + raid feed + leaderboard
+  + war scoreboard. Reads `/clash-leaderboard` + `/clash/town/<g>`.
+- **`loadout.aquilo.gg/clash/` base editor** — Next.js page with
+  drag-and-drop building placement, signed-sync POSTs to
+  `/sync/<g>/clash/build`. The web editor needs the per-guild sync
+  secret (Clay will likely paste it into an admin field).
+- **PWA push subscription → Discord identity linking** — required
+  for per-user push filtering to actually take effect on aquilo-site.
+  Loadout already ships the `audience.userIds` list; aquilo-site's
+  `/api/push/subscribe` needs to start accepting a Discord ID and
+  storing it next to the subscription endpoint.

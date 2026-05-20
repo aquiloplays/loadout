@@ -24,18 +24,20 @@ import {
   getArmy, addTroops, consumeTroops,
   getTrophies, adjustTrophies, getPrestige, adjustPrestige,
   pickRaidTarget, getShield, setShield,
-  enqueue, walkQueueComplete,
+  enqueue, walkQueueComplete, getQueue,
   recordContribution,
   NOTIFY_KINDS, getNotifyMask, setNotifyMask,
   putRaid, appendRaidLog, readRaidLog,
   refreshDefenseSnapshot, getDefenseSnapshot,
   topRaiders, topTowns, topContributors,
   isExcluded,
+  getActiveDefenderChampion, grantBattlePlan, spendBattlePlan, MAX_BATTLE_PLANS,
 } from './clash-state.js';
 import {
   BUILDINGS, TROOPS_PERSONAL, TROOPS_GARRISON,
   generateNpcTown, generateGoblinCamp,
   personalTroopCost, townBuildCost, townGarrisonCost,
+  TH_HERO_GATE,
 } from './clash-content.js';
 import { simulate, computeLoot, computeTrophyDelta } from './clash-raid.js';
 import {
@@ -48,6 +50,7 @@ import {
   findActiveWarForRaid, getActiveWarId, getWar, getWarCooldown, getWarBadge,
   STATE as WAR_STATE,
 } from './clash-war.js';
+import { appendClashEvent } from './clash-http.js';
 
 const RESP_CHAT = 4;
 const FLAG_EPHEMERAL = 64;
@@ -182,7 +185,19 @@ export async function handleClashCommand(env, data, userId, userName) {
       case 'build':    return ephemeral(await handleTownBuild(env, guildId, userId, getOpt('kind'), getOpt('building')));
       case 'garrison': return ephemeral(await handleTownGarrison(env, guildId, userId, getOpt('troop'), getOpt('count')));
       case 'pause':    return ephemeral(await handleTownPause(env, guildId, userId));
+      case 'designate-defender':
+                       return ephemeral(await handleDefenderDesignate(env, guildId, userId, getOpt('user')));
+      case 'clear-defender':
+                       return ephemeral(await handleDefenderClear(env, guildId, userId));
+      case 'skip':     return ephemeral(await handleSkipCooldown(env, guildId, userId));
       default:         return ephemeral('Unknown /clash town subcommand.');
+    }
+  }
+  if (group === 'defender') {
+    switch (leaf) {
+      case 'accept':  return ephemeral(await handleDefenderAccept(env, guildId, userId));
+      case 'decline': return ephemeral(await handleDefenderDecline(env, guildId, userId));
+      default:        return ephemeral('Unknown /clash defender subcommand.');
     }
   }
   if (group === 'war') {
@@ -353,9 +368,20 @@ async function handleRaid(env, guildId, userId, userName, kind) {
   const deployedArmy = { ...army.troops };
   await consumeTroops(env, guildId, userId, deployedArmy);
 
+  // Phase 3: defender Champion (only when the target is a real town
+  // with an active War Tent + accepted defender — never on NPCs or
+  // goblins).
+  let defenderHeroPack = null;
+  if (target.kind === 'town') {
+    defenderHeroPack = await readDefenderHeroForRaid(env, target.guildId);
+  }
+
   // Sim.
   const raidId = 'raid_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
-  const sim = simulate({ userId, army: deployedArmy, hero }, targetSnapshot, raidId);
+  const sim = simulate({ userId, army: deployedArmy, hero }, targetSnapshot, raidId, {
+    defenderHero: defenderHeroPack?.hero || null,
+    tentHpMult: defenderHeroPack?.tentHpMult || 1.0,
+  });
 
   // Loot.
   let defenderTreasury = null;
@@ -390,6 +416,14 @@ async function handleRaid(env, guildId, userId, userName, kind) {
     a.scrap = (a.scrap || 0) + loot.scrap;
     a.cores = (a.cores || 0) + loot.cores;
     await env.LOADOUT_BOLTS.put(`clash:army:${guildId}:${userId}`, JSON.stringify(a));
+    // Battle Plan drop (Phase 3) — 8% chance on NPC town clears,
+    // 3% chance on goblin camps. Goes to the attacker's home town
+    // pool (capped at MAX_BATTLE_PLANS). Solo PvE feeds the
+    // community in a small but visible way.
+    const dropChance = target.kind === 'npc' ? 0.08 : 0.03;
+    if (sim.stars >= 2 && Math.random() < dropChance) {
+      await grantBattlePlan(env, guildId);
+    }
   }
 
   // Trophies (PvP only). War amplification scales the deltas 1.5x.
@@ -443,16 +477,31 @@ async function handleRaid(env, guildId, userId, userName, kind) {
     await appendRaidLog(env, `clash:raidlog:${target.guildId}`, raidId);
   }
 
-  // Pushes.
+  // Pushes + local-bus ring-buffer events. The DLL polls
+  // /sync/<guildId>/clash-events to republish on the Aquilo Bus,
+  // which drives the OBS browser-source raid-alert overlay.
   if (target.kind === 'town') {
     await pushRaidIncoming(env, { guildId: target.guildId, attackerName: userName });
+    await appendClashEvent(env, target.guildId, 'raid.incoming', {
+      attackerUserId: userId, attackerName: userName, raidId,
+      stars: sim.stars, war: warAmplify,
+    });
     if (sim.stars >= 2) {
       await pushRaidSacked(env, { guildId: target.guildId, attackerName: userName, stars: sim.stars });
+      await appendClashEvent(env, target.guildId, 'raid.sacked', { attackerUserId: userId, attackerName: userName, stars: sim.stars, raidId });
     } else {
       await pushRaidDefended(env, { guildId: target.guildId, attackerName: userName, stars: sim.stars });
+      await appendClashEvent(env, target.guildId, 'raid.defended', { attackerUserId: userId, attackerName: userName, stars: sim.stars, raidId });
     }
   }
   await pushRaidResult(env, { userId, stars: sim.stars, targetName, voltaic: loot.voltaic });
+  // Also surface the attacker's result on their home channel's
+  // bus — useful for an "outgoing raid result" overlay.
+  await appendClashEvent(env, guildId, 'raid.result', {
+    userId, userName, stars: sim.stars, targetName,
+    targetGuildId: target.kind === 'town' ? target.guildId : null,
+    raidId, voltaic: loot.voltaic ? loot.voltaic[2] : null,
+  });
 
   // Add Voltaic to the hero's dungeon inventory if it dropped.
   if (loot.voltaic) {
@@ -629,6 +678,16 @@ async function handleTownBuild(env, guildId, userId, kind, buildingId) {
   if (targetBuilding) {
     const nextLevel = (targetBuilding.level || 1) + 1;
     if (kind === 'townhall' && nextLevel > 10) return '🏰 Town Hall is maxed.';
+    // Hero-level gate on TH tiers (Phase 3) — the community needs at
+    // least one hero meeting the threshold before upgrading. Forces
+    // them to engage with dungeons for late-game town power.
+    if (kind === 'townhall' && TH_HERO_GATE[nextLevel]) {
+      const need = TH_HERO_GATE[nextLevel];
+      const best = await highestHeroLevelInGuild(env, guildId);
+      if (best < need) {
+        return `🔒 TH${nextLevel} needs at least one community hero at level ${need}. Highest right now: L${best}. Train more in the dungeon.`;
+      }
+    }
     const c = townBuildCost(kind, nextLevel);
     if (!c) return '❌ Max level reached.';
     if ((tres.bolts || 0) < (c.cost.bolts || 0) || (tres.scrap || 0) < (c.cost.scrap || 0) || (tres.cores || 0) < (c.cost.cores || 0)) {
@@ -910,12 +969,18 @@ export async function handleClashComponent(env, data) {
     if (before && before.state !== war.state) {
       if (war.state === WAR_STATE.PENDING_ACCEPT) {
         await pushWarDeclared(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId });
+        await appendClashEvent(env, war.defenderGuildId, 'war.declared', { warId: war.warId, attackerGuildId: war.attackerGuildId });
+        await appendClashEvent(env, war.attackerGuildId, 'war.declaration.passed', { warId: war.warId, defenderGuildId: war.defenderGuildId });
       } else if (war.state === WAR_STATE.ACTIVE) {
         await pushWarAccepted(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId, endsUtc: war.activeEndsUtc });
+        await appendClashEvent(env, war.attackerGuildId, 'war.active', { warId: war.warId, defenderGuildId: war.defenderGuildId, endsUtc: war.activeEndsUtc });
+        await appendClashEvent(env, war.defenderGuildId, 'war.active', { warId: war.warId, attackerGuildId: war.attackerGuildId, endsUtc: war.activeEndsUtc });
       } else if (war.state === WAR_STATE.REFUSED) {
         await pushWarRefused(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId });
+        await appendClashEvent(env, war.attackerGuildId, 'war.refused', { warId: war.warId });
       } else if (war.state === WAR_STATE.CANCELLED) {
         await pushWarCancelled(env, { attackerGuildId: war.attackerGuildId, reason: 'Declaration vote failed.' });
+        await appendClashEvent(env, war.attackerGuildId, 'war.cancelled', { warId: war.warId });
       }
     }
     const tallyText = war.state === WAR_STATE.DECLARING
@@ -939,10 +1004,172 @@ export async function handleClashComponent(env, data) {
   return ephemeral('Unknown Clash component.');
 }
 
+// ── Phase 3: defender Champion + Battle Plans ───────────────────────
+
+async function handleDefenderDesignate(env, guildId, userId, targetUserOpt) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return '🔒 Only the streamer + mods can designate a defender.';
+  }
+  const targetUserId = String(targetUserOpt || '').trim();
+  if (!/^\d{6,30}$/.test(targetUserId)) {
+    return '❌ Pass a Discord user mention (USER type option).';
+  }
+  const town = await getTown(env, guildId);
+  // Must have a War Tent built (level >= 1, not currently being built)
+  const tent = (town.buildings || []).find(b => b.kind === 'warTent' && b.level >= 1 && b.status !== 'building');
+  if (!tent) {
+    return '⛺ Build a War Tent first: `/clash town build kind:warTent`.';
+  }
+  // The target must have a dungeon hero on this channel.
+  const hero = await env.LOADOUT_BOLTS.get(`d:hero:${guildId}:${targetUserId}`, { type: 'json' });
+  if (!hero) {
+    return '❌ That user has no dungeon hero on this channel yet — they need to run `/loadout` first.';
+  }
+  const ttl = (BUILDINGS.warTent.designationTtlMs[tent.level] || 7 * 86_400_000);
+  town.defenderChampion = {
+    userId: targetUserId,
+    designatedByUserId: userId,
+    designatedUtc: Date.now(),
+    acceptedUtc: null,
+    expiresUtc: Date.now() + ttl,
+  };
+  await putTown(env, guildId, town);
+  await refreshDefenseSnapshot(env, guildId);
+  const days = Math.round(ttl / 86_400_000);
+  return `⛺ Designated <@${targetUserId}> as the defending Champion. They need to run \`/clash defender accept\` within ${days} days for the role to go live.`;
+}
+
+async function handleDefenderClear(env, guildId, userId) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return '🔒 Only the streamer + mods can clear the defender.';
+  }
+  const town = await getTown(env, guildId);
+  town.defenderChampion = null;
+  await putTown(env, guildId, town);
+  await refreshDefenseSnapshot(env, guildId);
+  return '⛺ Defender slot cleared.';
+}
+
+async function handleDefenderAccept(env, guildId, userId) {
+  const town = await getTown(env, guildId);
+  const d = town.defenderChampion;
+  if (!d) return 'No defender designation pending.';
+  if (d.userId !== userId) return 'You\'re not the designated defender on this town.';
+  if (d.expiresUtc && d.expiresUtc < Date.now()) {
+    town.defenderChampion = null;
+    await putTown(env, guildId, town);
+    return 'Designation expired — ask the streamer to designate again.';
+  }
+  d.acceptedUtc = Date.now();
+  await putTown(env, guildId, town);
+  await refreshDefenseSnapshot(env, guildId);
+  return '🛡 You accepted the defending Champion role. Your dungeon hero now defends this town on every raid.';
+}
+
+async function handleDefenderDecline(env, guildId, userId) {
+  const town = await getTown(env, guildId);
+  const d = town.defenderChampion;
+  if (!d || d.userId !== userId) return 'No designation for you.';
+  town.defenderChampion = null;
+  await putTown(env, guildId, town);
+  await refreshDefenseSnapshot(env, guildId);
+  return '⛺ Declined. Streamer can designate someone else.';
+}
+
+async function handleSkipCooldown(env, guildId, userId) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return '🔒 Only the streamer + mods can spend Battle Plans.';
+  }
+  const town = await getTown(env, guildId);
+  if ((town.battlePlans || 0) <= 0) {
+    return `📜 No Battle Plans on hand. Earn them from PvE raids + dungeon training (max ${MAX_BATTLE_PLANS} stored).`;
+  }
+  // Find the oldest in-flight queue item.
+  const q = await getQueue(env, 'clash:queue:' + guildId);
+  if (!q.items?.length) {
+    return '📜 No in-flight builds to skip. Queue one first.';
+  }
+  const oldest = q.items.slice().sort((a, b) => (a.endsAt || 0) - (b.endsAt || 0))[0];
+  oldest.endsAt = Date.now();   // mark complete on next walk
+  await env.LOADOUT_BOLTS.put('clash:queue:' + guildId, JSON.stringify(q));
+  await spendBattlePlan(env, guildId);
+  await syncCooldowns(env, guildId, userId);
+  return `📜 Battle Plan consumed — the oldest in-flight build just finished. ${(town.battlePlans || 0) - 1} left.`;
+}
+
+// Walk every hero on the guild, return the max level. Cheap because
+// it's a single KV list-by-prefix; we cap iteration at 3 pages (3k
+// heroes) which is far more than any single community.
+async function highestHeroLevelInGuild(env, guildId) {
+  let best = 0;
+  let cursor;
+  for (let i = 0; i < 3; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: `d:hero:${guildId}:`, cursor, limit: 1000 });
+    for (const k of r.keys) {
+      const h = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!h) continue;
+      if ((h.level || 0) > best) best = h.level || 0;
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  return best;
+}
+
+// Read a defender hero (if any) for a raid resolution. Returns the
+// same shape readHeroForRaid uses for the attacker, plus the tent
+// HP multiplier so the resolver can scale the defending Champion.
+async function readDefenderHeroForRaid(env, defenderGuildId) {
+  const d = await getActiveDefenderChampion(env, defenderGuildId);
+  if (!d) return null;
+  const town = await getTown(env, defenderGuildId);
+  const tent = (town?.buildings || []).find(b => b.kind === 'warTent' && b.level >= 1 && b.status !== 'building');
+  if (!tent) return null;
+  const heroRaw = await env.LOADOUT_BOLTS.get(`d:hero:${defenderGuildId}:${d.userId}`, { type: 'json' });
+  if (!heroRaw) return null;
+  let voltaicPieces = 0;
+  let atkBonus = 0, defBonus = 0;
+  for (const slot of ['head', 'chest', 'legs', 'boots', 'weapon', 'trinket']) {
+    const itemId = heroRaw.equipped?.[slot];
+    if (!itemId) continue;
+    const inv = (heroRaw.bag || []).find(i => i.id === itemId);
+    if (inv?.setName === 'voltaic') voltaicPieces++;
+    atkBonus += inv?.powerBonus || 0;
+    defBonus += inv?.defenseBonus || 0;
+  }
+  return {
+    hero: {
+      level: heroRaw.level || 1,
+      cls: heroRaw.className || 'warrior',
+      atkBonus, defBonus, voltaicPieces,
+    },
+    tentHpMult: BUILDINGS.warTent.championHpMult[tent.level] || 1.0,
+  };
+}
+
 // ── War amplification hook (called inline by handleRaid) ─────────────
 export async function applyWarAmplification(env, attackerHomeGuildId, targetGuildId) {
   const war = await findActiveWarForRaid(env, attackerHomeGuildId, targetGuildId);
   return { war, warAmplify: !!war };
+}
+
+// ── Editor adapters (Phase 4) ────────────────────────────────────────
+//
+// Thin wrappers exposing the slash handlers so the HMAC-gated
+// /sync/<guildId>/clash POST endpoints can write through the same
+// validation + side-effect path as a Discord interaction. Prefixed
+// with _ because they're internal — only clash-http.js calls them.
+
+export async function _editorTownBuild(env, guildId, userId, kind, buildingId) {
+  await syncCooldowns(env, guildId, userId);
+  return handleTownBuild(env, guildId, userId, kind, buildingId);
+}
+export async function _editorTownGarrison(env, guildId, userId, troopId, count) {
+  await syncCooldowns(env, guildId, userId);
+  return handleTownGarrison(env, guildId, userId, troopId, count);
+}
+export async function _editorDonate(env, guildId, userId, amount) {
+  return handleDonate(env, guildId, userId, amount);
 }
 
 export async function recordWarRaidIfAny(env, attackerHomeGuildId, targetGuildId, raidId, stars) {

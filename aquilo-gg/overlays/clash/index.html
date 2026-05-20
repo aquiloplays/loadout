@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — Clash Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  This page is intentionally static. Drop the URL into OBS (Browser Source):
+
+    https://aquilo.gg/overlays/clash?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
+
+  Required query params:
+    bus      WebSocket URL of the local Aquilo Bus
+    secret   Shared secret from %APPDATA%\Aquilo\bus-secret.txt
+
+  Optional:
+    debug    1 to render a static demo toast (also fires when no bus connects)
+    width    fixed width in px (default 420)
+    side     'left' (default) or 'right' anchor for the toast track
+
+  Events rendered (kind glob `clash.*`):
+    clash.raid.incoming   "<name> is raiding your town!"   (toast)
+    clash.raid.sacked     "<name> sacked your town for X★" (red toast)
+    clash.raid.defended   "Held against <name> (X★)"        (green toast)
+    clash.raid.result     "You raided <target> — X★"        (subtle toast)
+    clash.war.declared    "War declared against you!"       (toast + sustain)
+    clash.war.active      "War is live — 24h window open"   (toast)
+    clash.war.refused     "Your war was refused"            (toast)
+    clash.war.cancelled   "War declaration failed"          (toast)
+    build.complete        "<thing> ready"                   (subtle toast)
+
+  Brand styling rides shared loadout-design.css tokens; layout-only
+  is in style.css.
+-->
+<link rel="stylesheet" href="../_shared/loadout-design.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="root" data-side="left">
+    <div id="track" aria-live="polite"></div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

@@ -111,6 +111,47 @@ export const BUILDINGS = {
     // Garrison cap bonus stacks with TH base cap.
     garrisonCapBonus: [null, 0, 4, 10, 20],
   },
+  // ── War Tent (Phase 3) ──────────────────────────────────────────
+  //
+  // Gates the "defending Champion" mechanic. When a town has a built
+  // War Tent AND the streamer has designated a community member's
+  // hero (and that user has accepted), that hero deploys as a
+  // defending Champion during raids — same model as the attacker's
+  // Champion, on the other side. Without a War Tent, the town
+  // defends with garrison only.
+  warTent: {
+    glyph: '⛺', name: 'War Tent',
+    cost: [null, { bolts: 0 }, { bolts: 4000, scrap: 200, cores: 1 }, { bolts: 12000, scrap: 600, cores: 3 }],
+    time: [null, 0, 6*3_600_000, 24*3_600_000],
+    hp:   [null, 500, 800, 1200],
+    // Champion HP multiplier — a higher-level tent makes the
+    // defending Champion sturdier (matches the upgrade investment).
+    championHpMult: [null, 1.0, 1.15, 1.3],
+    // How often a designated defender's opt-in expires — the streamer
+    // has to re-designate (or the same defender re-accepts) after
+    // this. Forces a refresh so a stale designation doesn't shield
+    // a town indefinitely with an inactive defender.
+    designationTtlMs: [null, 7*86_400_000, 14*86_400_000, 30*86_400_000],
+  },
+};
+
+// ── Hero-level gates on Town Hall tiers (Phase 3) ────────────────────
+//
+// A community needs to keep growing its dungeon heroes to keep
+// growing its town. Each TH level above 3 demands that at least one
+// community member has a hero at the listed level — forces the
+// community to engage with the dungeon side, which is the whole
+// point of Clash plugging into Loadout instead of being a parallel
+// universe.
+
+export const TH_HERO_GATE = {
+  4:  5,    // TH 4 needs at least one hero L5+
+  5:  8,
+  6:  12,
+  7:  18,
+  8:  24,
+  9:  30,
+  10: 40,
 };
 
 // ── Troops ───────────────────────────────────────────────────────────

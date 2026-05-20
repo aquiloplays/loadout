@@ -29,7 +29,7 @@ function rng(seed) {
 const MAX_TICKS = 240;        // ~4 in-game minutes at 1 tick/sec
 const TICK_MS_REAL = 50;      // sim wall-clock; not the in-fiction tick rate
 
-export function simulate(attacker, defenderSnapshot, raidId) {
+export function simulate(attacker, defenderSnapshot, raidId, opts = {}) {
   const r = rng(hashStr(raidId));
   const log = [];
   const t0 = Date.now();
@@ -53,6 +53,21 @@ export function simulate(attacker, defenderSnapshot, raidId) {
     speed: 3,
     range: classRange(attacker.hero.cls),
     voltaicMult: (attacker.hero.voltaicPieces || 0) >= 3 ? 1.20 : 1.0,
+    alive: true,
+  } : null;
+
+  // Defending Champion (Phase 3) — only present when the defender
+  // has a built War Tent AND a designated, opted-in defender hero.
+  // Same stat math as the attacker's Champion but tent level bumps
+  // its HP multiplier.
+  const defenderChampion = opts.defenderHero ? {
+    isHero: true,
+    isDefender: true,
+    name: 'Defender ' + (opts.defenderHero.cls || 'warrior'),
+    cls: opts.defenderHero.cls || 'warrior',
+    hp:  Math.round((120 + (opts.defenderHero.level || 1) * 12 + (opts.defenderHero.defBonus || 0) * 6) * (opts.tentHpMult || 1.0)),
+    atk: 18  + (opts.defenderHero.level || 1) * 3 + (opts.defenderHero.atkBonus || 0) * 4,
+    voltaicMult: (opts.defenderHero.voltaicPieces || 0) >= 3 ? 1.20 : 1.0,
     alive: true,
   } : null;
 
@@ -147,6 +162,35 @@ export function simulate(attacker, defenderSnapshot, raidId) {
       log.push({ t: tick, who: 'def:' + g.id, to: target.id, dmg });
       if (target.hp <= 0) target.alive = false;
     }
+
+    // 4. Defending Champion (Phase 3) — single high-impact defender
+    //    that prioritises the attacker's Champion if present, else
+    //    drops into the standard "pick whoever's alive" loop.
+    if (defenderChampion && defenderChampion.alive) {
+      const live = army.filter(u => u.alive);
+      if (live.length) {
+        const heroTarget = live.find(u => u.isHero) || live[Math.floor(r() * live.length)];
+        const dmg = Math.round(defenderChampion.atk * defenderChampion.voltaicMult * (0.92 + r() * 0.16));
+        heroTarget.hp -= dmg;
+        log.push({ t: tick, who: 'defChampion', to: heroTarget.id || 'hero', dmg });
+        if (heroTarget.hp <= 0) heroTarget.alive = false;
+      }
+      // Attackers also hit back at the defending Champion — count it
+      // among the attacker targets so a Sapper or Voltaic Mage can
+      // burst it down. Treated as a high-priority building-like
+      // target with no x/y coords.
+      const attackersStillAlive = army.filter(u => u.alive);
+      // Only one attacker per tick swings at the def Champion — picked
+      // probabilistically so the AI doesn't go "everyone ignore the
+      // hero." Higher chance when the Champion is hurt.
+      if (attackersStillAlive.length && r() < 0.35) {
+        const attacker = attackersStillAlive[Math.floor(r() * attackersStillAlive.length)];
+        const dmg = Math.round(attacker.atk * (attacker.voltaicMult || 1) * (0.9 + r() * 0.2));
+        defenderChampion.hp -= dmg;
+        log.push({ t: tick, who: attacker.id || 'unit', to: 'defChampion', dmg });
+        if (defenderChampion.hp <= 0) defenderChampion.alive = false;
+      }
+    }
   }
 
   // ── Score ──────────────────────────────────────────────────────────
@@ -172,6 +216,7 @@ export function simulate(attacker, defenderSnapshot, raidId) {
     buildingsDown,
     armyLost: army.filter(u => !u.alive && !u.isHero).length,
     heroSurvived: champion ? champion.alive : null,
+    defenderHeroSurvived: defenderChampion ? defenderChampion.alive : null,
   };
 }
 

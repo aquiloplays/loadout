@@ -33,6 +33,12 @@ import {
   sweepActiveWars,
   STATE as WAR_STATE,
 } from '../clash-war.js';
+import {
+  getActiveDefenderChampion, grantBattlePlan, spendBattlePlan, MAX_BATTLE_PLANS,
+  putTown,
+} from '../clash-state.js';
+import { appendClashEvent, handleClashLeaderboardHttp } from '../clash-http.js';
+import { TH_HERO_GATE } from '../clash-content.js';
 
 function makeKvShim() {
   const store = new Map();
@@ -326,6 +332,120 @@ w3.declarationEndsUtc = Date.now() - 1000;
 await env.LOADOUT_BOLTS.put('clash:war:' + dec3.war.warId, JSON.stringify(w3));
 const cancelled = await advanceWar(env, w3);
 ok('no votes by deadline -> CANCELLED', cancelled.state === WAR_STATE.CANCELLED);
+
+// ── Phase 3: War Tent + defender Champion + hero gates + Battle Plans ─
+console.log('--- phase 3: defender + gates + battle plans ---');
+
+const W_P3 = 'g_p3';
+await ensureTown(env, W_P3, 'streamerP3');
+
+// Battle Plan grant + cap. Awaiting the loop linearly so reads don't
+// race with the writes — an earlier IIFE-based version of this block
+// was non-deterministic.
+ok('grant a Battle Plan', (await grantBattlePlan(env, W_P3)).battlePlans === 1);
+for (let i = 0; i < 10; i++) await grantBattlePlan(env, W_P3);
+const townAfterGrants = await getTown(env, W_P3);
+ok('battlePlans cap holds at MAX_BATTLE_PLANS',
+   townAfterGrants.battlePlans === MAX_BATTLE_PLANS,
+   `bp=${townAfterGrants.battlePlans}`);
+await spendBattlePlan(env, W_P3);
+ok('spend decrements battlePlans',
+   (await getTown(env, W_P3)).battlePlans === MAX_BATTLE_PLANS - 1);
+
+// Active defender Champion requires (a) War Tent built (b) acceptedUtc
+// (c) not expired. Verify each gate.
+const townP3 = await getTown(env, W_P3);
+townP3.defenderChampion = { userId: 'u_def', acceptedUtc: Date.now(), expiresUtc: Date.now() + 86_400_000 };
+await putTown(env, W_P3, townP3);
+ok('without War Tent built, defender is inactive',
+   (await getActiveDefenderChampion(env, W_P3)) === null);
+
+// Add a War Tent
+const townP3b = await getTown(env, W_P3);
+townP3b.buildings.push({ id: 99, kind: 'warTent', level: 1, x: 9, y: 9, hp: 500, status: 'idle' });
+await putTown(env, W_P3, townP3b);
+const activeDef = await getActiveDefenderChampion(env, W_P3);
+ok('with War Tent + acceptedUtc + non-expired -> defender active',
+   activeDef && activeDef.userId === 'u_def');
+
+// Designation not yet accepted
+const townP3c = await getTown(env, W_P3);
+townP3c.defenderChampion.acceptedUtc = null;
+await putTown(env, W_P3, townP3c);
+ok('not-yet-accepted designation is inactive',
+   (await getActiveDefenderChampion(env, W_P3)) === null);
+
+// Expired designation
+const townP3d = await getTown(env, W_P3);
+townP3d.defenderChampion = { userId: 'u_def', acceptedUtc: Date.now() - 100, expiresUtc: Date.now() - 1 };
+await putTown(env, W_P3, townP3d);
+ok('expired designation is inactive',
+   (await getActiveDefenderChampion(env, W_P3)) === null);
+
+// Defender Champion in sim reduces attacker pct destroyed (everything
+// else held equal). Use deterministic seed.
+const npcForDef = generateNpcTown(42, 'bronze');
+const armyForDef = { scrapper: 4 };
+const heroAtk = { level: 5, cls: 'warrior', atkBonus: 2, defBonus: 2, voltaicPieces: 0 };
+const simNoDef = simulate({ army: armyForDef, hero: heroAtk }, npcForDef, 'rd_seed_z', {});
+const simWithDef = simulate({ army: armyForDef, hero: heroAtk }, npcForDef, 'rd_seed_z', {
+  defenderHero: { level: 6, cls: 'warrior', atkBonus: 3, defBonus: 3, voltaicPieces: 0 },
+  tentHpMult: 1.0,
+});
+ok('defender Champion lowers attacker pctDestroyed (or matches when both saturate)',
+   simWithDef.pctDestroyed <= simNoDef.pctDestroyed,
+   `no=${simNoDef.pctDestroyed.toFixed(2)} with=${simWithDef.pctDestroyed.toFixed(2)}`);
+ok('simulate now reports defenderHeroSurvived', typeof simWithDef.defenderHeroSurvived === 'boolean');
+
+// Hero level gates table is internally consistent
+ok('TH4 gate exists',                 TH_HERO_GATE[4] >= 1);
+ok('higher TH demands higher hero',   TH_HERO_GATE[10] > TH_HERO_GATE[4]);
+
+// ── Phase 4: events ring buffer + leaderboard endpoint ──────────────
+console.log('--- phase 4: events + leaderboard ---');
+
+const W_P4 = 'g_p4';
+await ensureTown(env, W_P4, 'streamerP4');
+await appendClashEvent(env, W_P4, 'raid.incoming', { attackerName: 'CloudKnight' });
+await appendClashEvent(env, W_P4, 'raid.sacked',   { attackerName: 'CloudKnight', stars: 2 });
+const buf = await env.LOADOUT_BOLTS.get('clash:events:' + W_P4, { type: 'json' });
+ok('appendClashEvent writes ring buffer', Array.isArray(buf) && buf.length === 2);
+ok('events carry kind + ts',              buf[0].kind === 'raid.incoming' && buf[0].ts > 0);
+
+// Cap at RING_CAP (32). Push 40 events and confirm only 32 remain.
+for (let i = 0; i < 40; i++) {
+  await appendClashEvent(env, W_P4, 'noise.fill', { i });
+}
+const buf2 = await env.LOADOUT_BOLTS.get('clash:events:' + W_P4, { type: 'json' });
+ok('ring buffer caps at 32 entries', buf2.length === 32);
+ok('newest event is at the tail', buf2[buf2.length - 1].payload.i === 39);
+
+// /clash-leaderboard endpoint shape (no auth needed)
+const lbResp = await handleClashLeaderboardHttp({}, env);
+ok('leaderboard returns 200', lbResp.status === 200);
+const lbBody = await lbResp.json();
+ok('leaderboard has raiders + towns arrays',
+   Array.isArray(lbBody.raiders) && Array.isArray(lbBody.towns));
+ok('leaderboard updatedAt present', typeof lbBody.updatedAt === 'number');
+
+// And confirms Clay-excluded accounts don't appear. Seed a trophy
+// record under W_P4 for a wallet linked to Clay's Twitch id and
+// confirm leaderboard's raider list doesn't include it.
+const CLAY_LIKE = 'u_clay_test';
+await env.LOADOUT_BOLTS.put(
+  `wallet:${W_P4}:${CLAY_LIKE}`,
+  JSON.stringify({ balance: 0, links: [{ platform: 'twitch', handle: '1497793223' }] }),
+);
+await env.LOADOUT_BOLTS.put(
+  `clash:trophies:${W_P4}:${CLAY_LIKE}`,
+  JSON.stringify({ trophies: 99999, tier: 'diamond', peak: 99999 }),
+);
+// Invalidate the previous cached response.
+await env.LOADOUT_BOLTS.delete('clash:leaderboard:global');
+const lbResp2 = await handleClashLeaderboardHttp({}, env);
+const lbBody2 = await lbResp2.json();
+const includesClay = lbBody2.raiders.some(r => r.userId === CLAY_LIKE);
+ok('leaderboard excludes Clay-linked Twitch identity', !includesClay);
 
 console.log('--- ' + passed + ' pass, ' + failed + ' fail ---');
 if (failed > 0) process.exit(1);

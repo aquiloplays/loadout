@@ -15,6 +15,47 @@
 
 const PUSH_URL_FALLBACK = 'https://aquilo.gg/api/push/external';
 
+// Map kind -> bit index in the clash:notify mask. Must match the
+// NOTIFY_KINDS array order in clash-state.js.
+const KIND_BIT = {
+  'clash.raid.incoming':  0,
+  'clash.raid.lost':      1,
+  'clash.raid.won':       2,
+  'clash.raid.result':    3,
+  'clash.build.complete': 4,
+  'clash.war.declared':   5,
+  'clash.war.ended':      6,
+  'clash.shield.expiring':7,
+};
+
+// Resolve the list of opted-in Discord userIds for a given (guildId,
+// kind). The default mask is "all bits on" (NOTIFY_DEFAULT_MASK in
+// clash-state.js), so any viewer who hasn't called /clash notify
+// counts as subscribed. The aquilo-site side doesn't filter by
+// userId yet — current `push:sub:*` records aren't linked to Discord
+// identities — but we send the list in the `audience.userIds` field
+// so the other session's plumbing change can adopt it immediately.
+async function resolveOptedInUserIds(env, guildId, kind) {
+  const bit = KIND_BIT[kind];
+  if (bit === undefined) return [];
+  const out = [];
+  let cursor;
+  for (let i = 0; i < 3; i++) {
+    const r = await env.LOADOUT_BOLTS.list({
+      prefix: `clash:notify:${guildId}:`, cursor, limit: 1000,
+    });
+    for (const k of r.keys) {
+      const userId = k.name.split(':')[3];
+      const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      const mask = rec?.mask ?? 0b11111111;
+      if ((mask >> bit) & 1) out.push(userId);
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  return out;
+}
+
 // HMAC-sign + POST. ts:body envelope matches the auth.js verifyHmac
 // pattern the wallet sync calls already use (worker.js:13).
 async function signedPost(secret, url, payloadObj) {
@@ -83,33 +124,33 @@ export async function firePush(env, event) {
 // title/body templates live in one file instead of scattered through
 // the raid resolver, the queue completer, etc.
 
-export const pushRaidIncoming = (env, { guildId, attackerName, townName }) =>
+export const pushRaidIncoming = async (env, { guildId, attackerName, townName }) =>
   firePush(env, {
     kind: 'clash.raid.incoming',
     title: `${townName || 'Your town'} is being raided`,
     body: `${attackerName || 'A raider'} just hit your town.`,
     url: `https://aquilo.gg/clash/town/${guildId}/`,
-    audience: { kind: 'town', guildId },
+    audience: { kind: 'town', guildId, userIds: await resolveOptedInUserIds(env, guildId, 'clash.raid.incoming') },
     guildId,
   });
 
-export const pushRaidDefended = (env, { guildId, attackerName, stars, townName }) =>
+export const pushRaidDefended = async (env, { guildId, attackerName, stars, townName }) =>
   firePush(env, {
-    kind: 'clash.raid.lost',     // "raid against you was lost (by attacker)" -> town defended
+    kind: 'clash.raid.lost',
     title: `${townName || 'Your town'} held the line`,
     body: `${attackerName || 'A raider'} only managed ${stars}★.`,
     url: `https://aquilo.gg/clash/town/${guildId}/`,
-    audience: { kind: 'town', guildId },
+    audience: { kind: 'town', guildId, userIds: await resolveOptedInUserIds(env, guildId, 'clash.raid.lost') },
     guildId,
   });
 
-export const pushRaidSacked = (env, { guildId, attackerName, stars, townName }) =>
+export const pushRaidSacked = async (env, { guildId, attackerName, stars, townName }) =>
   firePush(env, {
-    kind: 'clash.raid.won',      // "raid against you was won (by attacker)" -> town sacked
+    kind: 'clash.raid.won',
     title: `${townName || 'Your town'} was raided!`,
     body: `${attackerName || 'A raider'} hit you for ${stars}★. Loot was taken from the treasury.`,
     url: `https://aquilo.gg/clash/town/${guildId}/`,
-    audience: { kind: 'town', guildId },
+    audience: { kind: 'town', guildId, userIds: await resolveOptedInUserIds(env, guildId, 'clash.raid.won') },
     guildId,
   });
 

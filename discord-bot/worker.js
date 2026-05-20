@@ -209,6 +209,35 @@ export default {
     // Overlay relay queue — polled by Streamer.bot, RELAY_TOKEN-gated.
     if (path.startsWith('/relay/')) return handleRelay(req, env);
 
+    // ── Clash (Phase 4) ────────────────────────────────────────────
+    // Public global leaderboard (top raiders + top towns) — no auth,
+    // mirrors /leaderboard/<guildId>. Future aquilo.gg /clash page
+    // hits this for the ranked-ladder view.
+    if (method === 'GET' && path === '/clash-leaderboard') {
+      const { handleClashLeaderboardHttp } = await import('./clash-http.js');
+      return handleClashLeaderboardHttp(req, env);
+    }
+    // Public per-town read for the web base editor + Twitch panel —
+    // returns enough state to render the town view client-side.
+    if (method === 'GET' && path.startsWith('/clash/town/')) {
+      const { handleClashTownPublic } = await import('./clash-http.js');
+      return handleClashTownPublic(env, path);
+    }
+    // Recent-events ring buffer for the DLL to republish on the local
+    // Aquilo Bus (drives the OBS browser-source overlay). HMAC-gated.
+    if (method === 'GET' && path.startsWith('/sync/') && path.endsWith('/clash-events')) {
+      const { handleClashEventsPull } = await import('./clash-http.js');
+      return handleClashEventsPull(req, env, path);
+    }
+    // Signed sync — full town state. HMAC-gated; the future web
+    // editor calls this. Also POST endpoints for write-through
+    // building queue + garrison training so the editor doesn't have
+    // to round-trip through a Discord interaction.
+    if (path.startsWith('/sync/') && (path.endsWith('/clash') || path.includes('/clash/'))) {
+      const { handleClashSync } = await import('./clash-http.js');
+      return handleClashSync(req, env, path);
+    }
+
     return new Response('not found', { status: 404 });
   },
 

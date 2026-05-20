@@ -118,7 +118,14 @@ export async function getTown(env, guildId) {
 // existing town if one is already present.
 export async function ensureTown(env, guildId, ownerDiscordUserId) {
   const existing = await getTown(env, guildId);
-  if (existing) return existing;
+  if (existing) {
+    // Backfill new Phase 3 fields on legacy records.
+    let mutated = false;
+    if (!('defenderChampion' in existing)) { existing.defenderChampion = null; mutated = true; }
+    if (!('battlePlans' in existing))      { existing.battlePlans = 0;        mutated = true; }
+    if (mutated) await putTown(env, guildId, existing);
+    return existing;
+  }
   const now = Date.now();
   const town = {
     guildId,
@@ -139,6 +146,18 @@ export async function ensureTown(env, guildId, ownerDiscordUserId) {
     modUserIds: [],
     topContributors: [],
     customisation: { wallSkin: 'default', towerSkin: 'default', bannerEmoji: '⚡' },
+    // Phase 3: defending-Champion slot (set via /clash town tent
+    // designate, opt-in via /clash defender accept). null when no
+    // active defender; { userId, designatedByUserId, designatedUtc,
+    // acceptedUtc, expiresUtc } when active. Champion only deploys
+    // if the town has a built War Tent AND the defender accepted
+    // AND expiresUtc is in the future.
+    defenderChampion: null,
+    // Phase 3: dungeon-dropped consumable that instantly clears the
+    // oldest in-flight build cooldown in the town queue. Capped at 5
+    // so a community doesn't hoard infinity Battle Plans and skip
+    // the entire TH ladder.
+    battlePlans: 0,
     createdUtc: now,
     lastUpdatedUtc: now,
   };
@@ -146,6 +165,44 @@ export async function ensureTown(env, guildId, ownerDiscordUserId) {
   await putTreasury(env, guildId, { bolts: 0, scrap: 50, cores: 0, capacity: 2000 });
   await putPrestige(env, guildId, town.prestige);
   await rebucketTown(env, guildId, 0);
+  return town;
+}
+
+// ── Defender Champion (Phase 3) ──────────────────────────────────────
+//
+// Streamer/mod designates → user opts in. Designation auto-expires
+// based on the town's War Tent level (longer-lived tent = longer
+// designation TTL). Returning null in any of these helpers means the
+// town has no active defender at this moment — raid resolver should
+// fall back to garrison-only defense.
+
+export async function getActiveDefenderChampion(env, guildId) {
+  const town = await getTown(env, guildId);
+  if (!town) return null;
+  const d = town.defenderChampion;
+  if (!d || !d.userId) return null;
+  if (!d.acceptedUtc) return null;           // designated but not yet opted-in
+  if (d.expiresUtc && d.expiresUtc < Date.now()) return null;   // stale
+  // Must have a War Tent built (level >= 1).
+  const hasTent = (town.buildings || []).some(b => b.kind === 'warTent' && b.level >= 1 && b.status !== 'building');
+  if (!hasTent) return null;
+  return d;
+}
+
+export const MAX_BATTLE_PLANS = 5;
+export async function grantBattlePlan(env, guildId) {
+  const town = await getTown(env, guildId);
+  if (!town) return null;
+  if ((town.battlePlans || 0) >= MAX_BATTLE_PLANS) return town;
+  town.battlePlans = (town.battlePlans || 0) + 1;
+  await putTown(env, guildId, town);
+  return town;
+}
+export async function spendBattlePlan(env, guildId) {
+  const town = await getTown(env, guildId);
+  if (!town || (town.battlePlans || 0) <= 0) return null;
+  town.battlePlans -= 1;
+  await putTown(env, guildId, town);
   return town;
 }
 
