@@ -1,23 +1,27 @@
-// Bolts-denominated stock market.
+// Bolts-denominated stock market — real public stocks via Yahoo Finance.
 //
-// Tickers are tied to real upstream signals — Twitch game viewers,
-// Steam player counts, Spotify track popularity, Twitch streamer
-// viewers — so prices actually move on their own. Spot trading only,
-// integer shares, 1% fee on buys + sells (rounded up, min 1), no
-// leverage. The 30-day "history" is sampled hourly by the
-// `scheduled` cron in worker.js.
+// Single source: yahoo_stock. Cron hits Yahoo's public chart API once an
+// hour per ticker (well under any sane rate limit) and writes the latest
+// price + appends to history. Spot trading only, integer shares, 1% fee
+// on buys + sells (rounded up, min 1 bolt). No leverage, no trade limits.
+//
+// Pricing model:
+//   bolts price = max(1, floor(realPriceUSD * multiplier))
+// Multiplier is per-ticker so AAPL at $230 and GME at $20 can both land
+// in a comparable bolts-of-spending range. Calibrate at registration.
+//
+// Market hours: regular session is 09:30–16:00 ET on weekdays. Outside
+// that, Yahoo returns the last-close as `regularMarketPrice` — fine,
+// the bolts price holds steady until the market re-opens, history just
+// flatlines. Bots can still trade at last-close; feels like a real
+// after-hours market emulation.
 //
 // KV layout (all in LOADOUT_BOLTS):
 //   stocks:catalog:v1                          owner-curated catalog
 //   stock:price:<TICKER>                       latest { price, raw, asOf }
 //   stock:history:<TICKER>                     last 720 samples (~30 days hourly)
 //   stock:holdings:<guildId>:<userId>          { TICKER: shares }
-//
-// Per-ticker entry in the catalog:
-//   { ticker, name, source, sourceRef, coeff }
-//     source: 'twitch_game' | 'steam_game' | 'spotify_track' | 'twitch_streamer'
-//     sourceRef: game_id | appid | track_id | user_login (string)
-//     coeff: per-ticker divisor on the raw signal — price = max(1, floor(raw / coeff))
+//   stocks:ticker:guild:<guildId>              { channelId, messageId } — auto-update channel pin
 //
 // Slash command surface (registered in commands-spec.js, dispatched
 // from commands.js):
@@ -26,8 +30,9 @@
 //   /stocks sell <ticker> <shares>
 //   /stocks portfolio
 //   /stocks chart <ticker>
+//   /stocks ticker-setup   (admin) — bind the current channel as the auto-update ticker board
+//   /stocks ticker-clear   (admin) — release the binding
 
-import { getTwitchAppToken } from './ext-loadout.js';
 import { spend, earn, getWallet } from './wallet.js';
 
 const CATALOG_KEY = 'stocks:catalog:v1';
@@ -36,54 +41,89 @@ const HISTORY_CAP = 720; // ~30 days × 24 hourly samples
 
 const FLAG_EPHEMERAL = 1 << 6;
 const RESP_CHAT = 4;
+const PERMISSION_MANAGE_GUILD = 0x20;
 
-// Shipped if the KV catalog hasn't been authored yet. Spotify tracks +
-// the bonus twitch-streamer category start empty — Clay seeds his own
-// picks via the /admin editor. The Twitch-game IDs are public Helix
-// values; the Steam appids are public Steam values.
+// User-Agent is required for Yahoo — bare-bones clients get 403.
+const YAHOO_UA = 'Mozilla/5.0 (compatible; aquilo-stocks/1.0)';
+
+// Starter catalog — 20 real public stocks across tech / gaming /
+// entertainment. Multipliers target a 50–200 bolts range for typical
+// market levels; tune via /admin if needed. `source: 'yahoo_stock'` is
+// the only supported source — the multi-source experiment got scrapped
+// in favour of real-market emulation.
 export const DEFAULT_CATALOG = {
   tickers: [
-    // Twitch games — `coeff` divides aggregate viewer_count summed
-    // across the top 100 live streams of the game. Top games at peak
-    // sit around 10k–60k aggregate viewers in that slice, so coeffs
-    // 100–400 land prices in roughly the 50–600 range.
-    { ticker: 'LOL',   name: 'League of Legends',     source: 'twitch_game', sourceRef: '21779',  coeff: 200 },
-    { ticker: 'VAL',   name: 'VALORANT',              source: 'twitch_game', sourceRef: '516575', coeff: 200 },
-    { ticker: 'GTAV',  name: 'Grand Theft Auto V',    source: 'twitch_game', sourceRef: '32982',  coeff: 200 },
-    { ticker: 'MC',    name: 'Minecraft',             source: 'twitch_game', sourceRef: '27471',  coeff: 200 },
-    { ticker: 'FN',    name: 'Fortnite',              source: 'twitch_game', sourceRef: '33214',  coeff: 200 },
-    { ticker: 'JC',    name: 'Just Chatting',         source: 'twitch_game', sourceRef: '509658', coeff: 400 },
-    { ticker: 'TFT',   name: 'Teamfight Tactics',     source: 'twitch_game', sourceRef: '513143', coeff: 100 },
-    { ticker: 'WOW',   name: 'World of Warcraft',     source: 'twitch_game', sourceRef: '18122',  coeff: 100 },
-
-    // Steam games — coeff divides player_count. CS2 sits ~500k mid-day,
-    // so coeff 3000 → ~165 bolts/share. Smaller player bases get smaller
-    // coeffs so their prices stay readable.
-    { ticker: 'CS2',   name: 'Counter-Strike 2',      source: 'steam_game', sourceRef: '730',     coeff: 3000 },
-    { ticker: 'DOTA',  name: 'Dota 2',                source: 'steam_game', sourceRef: '570',     coeff: 1500 },
-    { ticker: 'APEX',  name: 'Apex Legends',          source: 'steam_game', sourceRef: '1172470', coeff: 500 },
-    { ticker: 'PUBG',  name: 'PUBG: BATTLEGROUNDS',   source: 'steam_game', sourceRef: '578080',  coeff: 500 },
-    { ticker: 'RDR2',  name: 'Red Dead Redemption 2', source: 'steam_game', sourceRef: '1174180', coeff: 50 },
-    { ticker: 'CYBER', name: 'Cyberpunk 2077',        source: 'steam_game', sourceRef: '1091500', coeff: 50 },
-
-    // Spotify tracks: empty at launch (no queryable Rotation playlist
-    // exists; Clay's taste is the right curator). Add via /admin with
-    // source='spotify_track', sourceRef=<spotify track id>, coeff ~0.5
-    // (popularity 0–100 → ~50–200 price).
-
-    // Twitch streamers (friends/allies — bonus category): empty at
-    // launch. Add via /admin with source='twitch_streamer',
-    // sourceRef=<lowercase login>, coeff tuned to the streamer's
-    // average concurrent viewer count.
+    // Big tech
+    { ticker: 'AAPL',  name: 'Apple',                   source: 'yahoo_stock', sourceRef: 'AAPL',  multiplier: 0.5 },
+    { ticker: 'MSFT',  name: 'Microsoft',               source: 'yahoo_stock', sourceRef: 'MSFT',  multiplier: 0.3 },
+    { ticker: 'GOOGL', name: 'Alphabet (Google)',       source: 'yahoo_stock', sourceRef: 'GOOGL', multiplier: 0.6 },
+    { ticker: 'META',  name: 'Meta',                    source: 'yahoo_stock', sourceRef: 'META',  multiplier: 0.2 },
+    { ticker: 'AMZN',  name: 'Amazon',                  source: 'yahoo_stock', sourceRef: 'AMZN',  multiplier: 0.5 },
+    // Hardware / GPUs
+    { ticker: 'NVDA',  name: 'NVIDIA',                  source: 'yahoo_stock', sourceRef: 'NVDA',  multiplier: 0.8 },
+    { ticker: 'AMD',   name: 'Advanced Micro Devices',  source: 'yahoo_stock', sourceRef: 'AMD',   multiplier: 0.8 },
+    { ticker: 'INTC',  name: 'Intel',                   source: 'yahoo_stock', sourceRef: 'INTC',  multiplier: 4 },
+    // Volatile / recognizable
+    { ticker: 'TSLA',  name: 'Tesla',                   source: 'yahoo_stock', sourceRef: 'TSLA',  multiplier: 0.5 },
+    { ticker: 'GME',   name: 'GameStop',                source: 'yahoo_stock', sourceRef: 'GME',   multiplier: 5 },
+    // Gaming publishers / platforms
+    { ticker: 'EA',    name: 'Electronic Arts',         source: 'yahoo_stock', sourceRef: 'EA',    multiplier: 0.7 },
+    { ticker: 'TTWO',  name: 'Take-Two Interactive',    source: 'yahoo_stock', sourceRef: 'TTWO',  multiplier: 0.6 },
+    { ticker: 'RBLX',  name: 'Roblox',                  source: 'yahoo_stock', sourceRef: 'RBLX',  multiplier: 2 },
+    { ticker: 'U',     name: 'Unity Software',          source: 'yahoo_stock', sourceRef: 'U',     multiplier: 5 },
+    // Entertainment / streaming
+    { ticker: 'NFLX',  name: 'Netflix',                 source: 'yahoo_stock', sourceRef: 'NFLX',  multiplier: 0.15 },
+    { ticker: 'DIS',   name: 'Disney',                  source: 'yahoo_stock', sourceRef: 'DIS',   multiplier: 1 },
+    { ticker: 'SPOT',  name: 'Spotify',                 source: 'yahoo_stock', sourceRef: 'SPOT',  multiplier: 0.25 },
+    { ticker: 'ROKU',  name: 'Roku',                    source: 'yahoo_stock', sourceRef: 'ROKU',  multiplier: 1.5 },
+    // Crypto-adjacent
+    { ticker: 'COIN',  name: 'Coinbase',                source: 'yahoo_stock', sourceRef: 'COIN',  multiplier: 0.5 },
+    { ticker: 'MSTR',  name: 'MicroStrategy',           source: 'yahoo_stock', sourceRef: 'MSTR',  multiplier: 0.4 },
   ],
 };
+
+// ---- Schema migration --------------------------------------------------
+//
+// The previous version of this module shipped a multi-source experiment
+// (twitch_game / steam_game / spotify_track). Schema v2 is the
+// Yahoo-only real-stock emulation. On first encounter, wipe the old
+// stock:price / stock:history / stock:holdings prefixes + the old
+// catalog record so leftover ticker keys don't shadow the new ones.
+// Idempotent — sentinel value is checked first.
+const SCHEMA_KEY = 'stocks:schema:v';
+const SCHEMA_VERSION = '2';
+
+async function migrateIfNeeded(env) {
+  try {
+    const v = await env.LOADOUT_BOLTS.get(SCHEMA_KEY);
+    if (v === SCHEMA_VERSION) return;
+    for (const prefix of ['stock:price:', 'stock:history:', 'stock:holdings:']) {
+      let cursor;
+      do {
+        const r = await env.LOADOUT_BOLTS.list({ prefix, cursor });
+        for (const k of r.keys) {
+          try { await env.LOADOUT_BOLTS.delete(k.name); } catch { /* idle */ }
+        }
+        cursor = r.list_complete ? null : r.cursor;
+      } while (cursor);
+    }
+    try { await env.LOADOUT_BOLTS.delete(CATALOG_KEY); } catch { /* idle */ }
+    await env.LOADOUT_BOLTS.put(SCHEMA_KEY, SCHEMA_VERSION);
+  } catch { /* idle — next invocation retries */ }
+}
 
 // ---- KV access ---------------------------------------------------------
 
 export async function getCatalog(env) {
+  await migrateIfNeeded(env);
   try {
     const c = await env.LOADOUT_BOLTS.get(CATALOG_KEY, { type: 'json' });
-    if (c && Array.isArray(c.tickers)) return c;
+    // Defensive migration: if the stored catalog is from the old multi-
+    // source experiment, ignore it and return the new default.
+    if (c && Array.isArray(c.tickers) && c.tickers.length > 0) {
+      const allYahoo = c.tickers.every((t) => t && t.source === 'yahoo_stock');
+      if (allYahoo) return c;
+    }
   } catch { /* fall through */ }
   return DEFAULT_CATALOG;
 }
@@ -128,107 +168,40 @@ async function putHoldings(env, guildId, userId, h) {
 
 // ---- Source fetchers ---------------------------------------------------
 
-// Sum of viewer_count across the top 100 live streams of a Twitch
-// game — a deterministic proxy for "total live viewers right now."
-// Helix `streams?game_id=` doesn't return per-game aggregates so this
-// is the standard workaround.
-async function fetchTwitchGameViewers(env, gameId) {
-  const token = await getTwitchAppToken(env);
-  if (!token || !env.TWITCH_CLIENT_ID) return null;
+// Yahoo Finance chart API. No auth — just needs a User-Agent. Smallest
+// useful payload: ?interval=1d&range=2d. We only read meta.regularMarketPrice
+// (Yahoo gives the last-close price outside regular trading hours, so
+// bots can still trade weekends + after-hours at the last close).
+async function fetchYahooStockPrice(symbol) {
   try {
     const res = await fetch(
-      'https://api.twitch.tv/helix/streams?first=100&game_id=' + encodeURIComponent(gameId),
-      { headers: { 'Client-Id': env.TWITCH_CLIENT_ID, Authorization: 'Bearer ' + token } },
+      'https://query1.finance.yahoo.com/v8/finance/chart/' +
+        encodeURIComponent(symbol) +
+        '?interval=1d&range=2d',
+      { headers: { 'User-Agent': YAHOO_UA } },
     );
     if (!res.ok) return null;
     const d = await res.json();
-    let total = 0;
-    for (const s of (d.data || [])) total += Number(s.viewer_count) || 0;
-    return total;
-  } catch { return null; }
-}
-
-// Current player_count for a Steam app. Public, no auth needed.
-async function fetchSteamPlayerCount(appId) {
-  try {
-    const res = await fetch(
-      'https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=' +
-        encodeURIComponent(appId),
-      { headers: { 'User-Agent': 'aquilo-stocks/1.0 (+https://aquilo.gg)' } },
-    );
-    if (!res.ok) return null;
-    const d = await res.json();
-    const r = d && d.response;
-    if (!r || r.result !== 1) return null;
-    return Number(r.player_count) || 0;
-  } catch { return null; }
-}
-
-// Spotify track popularity (0–100). Uses the same client-credentials
-// app token rotation.js caches under `spotify:apptoken`.
-async function fetchSpotifyTrackPopularity(env, trackId) {
-  if (!env.SPOTIFY_CLIENT_ID || !env.SPOTIFY_CLIENT_SECRET) return null;
-  let token = await env.LOADOUT_BOLTS.get('spotify:apptoken');
-  if (!token) {
-    try {
-      const basic = btoa(env.SPOTIFY_CLIENT_ID + ':' + env.SPOTIFY_CLIENT_SECRET);
-      const res = await fetch('https://accounts.spotify.com/api/token', {
-        method: 'POST',
-        headers: {
-          Authorization: 'Basic ' + basic,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: 'grant_type=client_credentials',
-      });
-      if (!res.ok) return null;
-      const d = await res.json();
-      if (!d || !d.access_token) return null;
-      token = d.access_token;
-      await env.LOADOUT_BOLTS.put('spotify:apptoken', token, { expirationTtl: 3000 });
-    } catch { return null; }
-  }
-  try {
-    const res = await fetch(
-      'https://api.spotify.com/v1/tracks/' + encodeURIComponent(trackId),
-      { headers: { Authorization: 'Bearer ' + token } },
-    );
-    if (!res.ok) return null;
-    const d = await res.json();
-    return Number(d && d.popularity) || 0;
-  } catch { return null; }
-}
-
-// viewer_count of a single Twitch streamer's current stream (0 if offline).
-async function fetchTwitchStreamerViewers(env, login) {
-  const token = await getTwitchAppToken(env);
-  if (!token || !env.TWITCH_CLIENT_ID) return null;
-  try {
-    const res = await fetch(
-      'https://api.twitch.tv/helix/streams?user_login=' + encodeURIComponent(login),
-      { headers: { 'Client-Id': env.TWITCH_CLIENT_ID, Authorization: 'Bearer ' + token } },
-    );
-    if (!res.ok) return null;
-    const d = await res.json();
-    const s = d.data && d.data[0];
-    return s ? (Number(s.viewer_count) || 0) : 0;
+    const r = d && d.chart && d.chart.result && d.chart.result[0];
+    if (!r) return null;
+    const price = r.meta && r.meta.regularMarketPrice;
+    if (typeof price !== 'number' || !isFinite(price)) return null;
+    return price;
   } catch { return null; }
 }
 
 async function fetchSourceValue(env, t) {
   switch (String(t.source)) {
-    case 'twitch_game':     return fetchTwitchGameViewers(env, t.sourceRef);
-    case 'steam_game':      return fetchSteamPlayerCount(t.sourceRef);
-    case 'spotify_track':   return fetchSpotifyTrackPopularity(env, t.sourceRef);
-    case 'twitch_streamer': return fetchTwitchStreamerViewers(env, t.sourceRef);
+    case 'yahoo_stock': return fetchYahooStockPrice(t.sourceRef);
     default: return null;
   }
 }
 
 function priceFromRaw(t, raw) {
   if (raw == null) return null;
-  const divisor = Number(t.coeff);
-  if (!isFinite(divisor) || divisor <= 0) return null;
-  return Math.max(1, Math.floor(raw / divisor));
+  const multiplier = Number(t.multiplier);
+  if (!isFinite(multiplier) || multiplier <= 0) return null;
+  return Math.max(1, Math.floor(raw * multiplier));
 }
 
 // ---- Cron tick ---------------------------------------------------------
@@ -237,6 +210,7 @@ function priceFromRaw(t, raw) {
 // the new latest + append to history. Per-ticker errors don't abort
 // the rest of the tick — the next cron will retry.
 export async function stocksCronTick(env) {
+  await migrateIfNeeded(env);
   const catalog = await getCatalog(env);
   const tickers = catalog.tickers || [];
   const asOf = new Date().toISOString();
@@ -253,22 +227,153 @@ export async function stocksCronTick(env) {
       updated++;
     } catch { /* skip — next tick will retry */ }
   }
+  // After prices are refreshed, push the auto-update channel board for
+  // every guild that has one bound. Errors here are isolated per guild.
+  try { await refreshAllTickerBoards(env); } catch { /* idle */ }
   return updated;
+}
+
+// ---- Auto-update channel ticker board ---------------------------------
+
+const TICKER_GUILD_PREFIX = 'stocks:ticker:guild:';
+
+async function setTickerBoard(env, guildId, channelId, messageId) {
+  await env.LOADOUT_BOLTS.put(
+    TICKER_GUILD_PREFIX + guildId,
+    JSON.stringify({ channelId, messageId, boundAt: Date.now() }),
+  );
+}
+
+async function clearTickerBoard(env, guildId) {
+  await env.LOADOUT_BOLTS.delete(TICKER_GUILD_PREFIX + guildId);
+}
+
+async function getTickerBoard(env, guildId) {
+  try {
+    return await env.LOADOUT_BOLTS.get(TICKER_GUILD_PREFIX + guildId, { type: 'json' });
+  } catch { return null; }
+}
+
+async function listTickerBoards(env) {
+  const out = [];
+  let cursor;
+  do {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: TICKER_GUILD_PREFIX, cursor });
+    for (const k of r.keys) {
+      const guildId = k.name.slice(TICKER_GUILD_PREFIX.length);
+      const v = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (v && v.channelId && v.messageId) out.push({ guildId, ...v });
+    }
+    cursor = r.list_complete ? null : r.cursor;
+  } while (cursor);
+  return out;
+}
+
+// Renders the embed payload for the ticker board. One embed with a
+// monospace table of every ticker's price + 24h change.
+async function buildTickerEmbed(env) {
+  const catalog = await getCatalog(env);
+  const tickers = catalog.tickers || [];
+  const rows = [];
+  for (const t of tickers) {
+    const rec = await getPrice(env, t.ticker);
+    const hist = await getHistory(env, t.ticker);
+    const price = rec ? rec.price : null;
+    const change = pctChange(hist);
+    const sign = change == null ? '' : (change >= 0 ? '+' : '');
+    const changeStr = change == null ? '—' : (sign + change.toFixed(1) + '%');
+    rows.push(
+      String(t.ticker).padEnd(6) +
+      (price == null ? '—'.padStart(7) : String(price).padStart(7)) + '  ' +
+      changeStr.padStart(7) + '   ' +
+      t.name,
+    );
+  }
+  const table = 'TICKER  PRICE   24H Δ    NAME\n' + rows.join('\n');
+  return {
+    title: '📈 Aquilo Stocks',
+    description: '```\n' + table + '\n```',
+    color: 0x3a86ff,
+    footer: { text: 'Bolts-denominated · updated hourly · use /stocks for details' },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// PATCH a channel message in place via the Discord REST API. Returns
+// true on success, false on any failure (404 = message deleted, etc.).
+async function discordPatchMessage(env, channelId, messageId, body) {
+  if (!env.DISCORD_BOT_TOKEN) return false;
+  try {
+    const res = await fetch(
+      'https://discord.com/api/v10/channels/' +
+        encodeURIComponent(channelId) +
+        '/messages/' +
+        encodeURIComponent(messageId),
+      {
+        method: 'PATCH',
+        headers: {
+          Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function discordPostMessage(env, channelId, body) {
+  if (!env.DISCORD_BOT_TOKEN) return null;
+  try {
+    const res = await fetch(
+      'https://discord.com/api/v10/channels/' + encodeURIComponent(channelId) + '/messages',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+async function refreshAllTickerBoards(env) {
+  const boards = await listTickerBoards(env);
+  if (boards.length === 0) return;
+  const embed = await buildTickerEmbed(env);
+  for (const b of boards) {
+    const ok = await discordPatchMessage(env, b.channelId, b.messageId, { embeds: [embed] });
+    if (!ok) {
+      // Message deleted or channel gone — release the binding so we
+      // don't keep retrying every hour.
+      await clearTickerBoard(env, b.guildId);
+    }
+  }
 }
 
 // ---- Slash command dispatcher ------------------------------------------
 
-export async function handleStocks(env, guildId, userId, userName, options) {
+export async function handleStocks(env, guildId, userId, userName, options, memberPermissions, channelId) {
   const sub = (options && options[0]) || {};
   const args = {};
   for (const o of (sub.options || [])) args[o.name] = o.value;
   switch (sub.name) {
-    case 'list':      return slashReply(await renderStocksList(env));
-    case 'buy':       return slashReply(await runBuy(env, guildId, userId, args));
-    case 'sell':      return slashReply(await runSell(env, guildId, userId, args));
-    case 'portfolio': return slashReply(await renderPortfolio(env, guildId, userId));
-    case 'chart':     return slashReply(await renderChart(env, args));
-    default:          return slashReply('Unknown subcommand.');
+    case 'list':          return slashReply(await renderStocksList(env));
+    case 'buy':           return slashReply(await runBuy(env, guildId, userId, args));
+    case 'sell':          return slashReply(await runSell(env, guildId, userId, args));
+    case 'portfolio':     return slashReply(await renderPortfolio(env, guildId, userId));
+    case 'chart':         return slashReply(await renderChart(env, args));
+    case 'ticker-setup':  return slashReply(await setupTickerBoard(env, guildId, channelId, memberPermissions));
+    case 'ticker-clear':  return slashReply(await clearTickerBoardCmd(env, guildId, memberPermissions));
+    default:              return slashReply('Unknown subcommand.');
   }
 }
 
@@ -277,6 +382,16 @@ function slashReply(content) {
     type: RESP_CHAT,
     data: { content, flags: FLAG_EPHEMERAL },
   };
+}
+
+function isAdmin(memberPermissions) {
+  if (!memberPermissions) return false;
+  try {
+    const p = typeof memberPermissions === 'bigint'
+      ? memberPermissions
+      : BigInt(String(memberPermissions));
+    return (p & BigInt(PERMISSION_MANAGE_GUILD)) !== 0n;
+  } catch { return false; }
 }
 
 function fmtNum(n) {
@@ -292,7 +407,7 @@ function calcFee(amount) {
 }
 
 // 24h % change. Hourly cron means the last 24 samples cover ~24 hours;
-// if we have fewer, use what's there. Null when there's no usable base.
+// fewer is fine, just a shorter window. Null when there's no usable base.
 function pctChange(history) {
   if (!Array.isArray(history) || history.length < 2) return null;
   const slice = history.slice(-24);
@@ -345,8 +460,6 @@ async function runBuy(env, guildId, userId, args) {
   if ((wallet.balance || 0) < bolts) {
     return 'You have ' + fmtNum(wallet.balance || 0) + ' bolts; need ' + fmtNum(bolts) + '.';
   }
-  // Buy as many whole shares as the (price + 1% fee) cost lets us
-  // fit under the requested bolts budget.
   const grossPerShare = price * (1 + FEE_PCT / 100);
   const shares = Math.floor(bolts / grossPerShare);
   if (shares <= 0) {
@@ -445,8 +558,6 @@ async function renderChart(env, args) {
   if (history.length < 2) {
     return 'Not enough history yet for `' + ticker + '` (need 2+ cron ticks).';
   }
-  // Downsample to 24 buckets — a compact sparkline that reads well in
-  // a Discord code block regardless of history depth.
   const N = Math.min(24, history.length);
   const step = history.length / N;
   const samples = [];
@@ -473,4 +584,30 @@ async function renderChart(env, args) {
     'Min ' + min + ' · Max ' + max + ' · Now ' + last + ' bolts · ' +
     sign + change.toFixed(1) + '% over the window.'
   );
+}
+
+async function setupTickerBoard(env, guildId, channelId, memberPermissions) {
+  if (!isAdmin(memberPermissions)) {
+    return 'Manage Server permission required for `/stocks ticker-setup`.';
+  }
+  if (!channelId) return "Couldn't read the current channel.";
+  // Post a fresh placeholder, store its id, then patch it with the
+  // real embed straight away so the channel sees prices immediately.
+  const embed = await buildTickerEmbed(env);
+  const posted = await discordPostMessage(env, channelId, { embeds: [embed] });
+  if (!posted || !posted.id) {
+    return "Couldn't post in this channel — make sure the bot can Send Messages and Embed Links here.";
+  }
+  await setTickerBoard(env, guildId, channelId, posted.id);
+  return '📌 This channel is now the auto-updating stocks ticker. The board refreshes every hour.';
+}
+
+async function clearTickerBoardCmd(env, guildId, memberPermissions) {
+  if (!isAdmin(memberPermissions)) {
+    return 'Manage Server permission required for `/stocks ticker-clear`.';
+  }
+  const cur = await getTickerBoard(env, guildId);
+  if (!cur) return 'No ticker board is bound for this server.';
+  await clearTickerBoard(env, guildId);
+  return '✅ Ticker board released. The previous message stays in the channel; the bot just stops updating it.';
 }
