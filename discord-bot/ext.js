@@ -95,6 +95,11 @@ export async function handleExt(req, env) {
       return await extLeaderboard(env, guildId, userId, url.searchParams.get('type'));
     }
     if (req.method === 'GET' && route === 'recap') return await extRecap(env, guildId, userId);
+    if (req.method === 'GET' && route === 'schedule') {
+      const { handleExtSchedule } = await import('./schedule.js');
+      const payload2 = await handleExtSchedule(env, guildId);
+      return json(payload2);
+    }
     if (route === 'vods' || route === 'goals' || route === 'patron-corner') {
       return await handleTier1(env, guildId, userId, route, req);
     }

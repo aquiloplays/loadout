@@ -191,6 +191,19 @@ export default {
       return publicSportsSnapshot(env);
     }
 
+    // Public read-only schedule snapshot for aquilo.gg + (later) the
+    // panel's Schedule tab. Composes schedule:v1 + games:v1 +
+    // channel:vote:guild and computes nextStream + voteActive. See
+    // SCHEDULE-SYSTEM-DESIGN.md Phase 2.
+    if (method === 'GET' && path === '/schedule/public') {
+      const { handlePublicScheduleHttp } = await import('./schedule.js');
+      return handlePublicScheduleHttp(env);
+    }
+    if (method === 'GET' && path === '/games/public') {
+      const { handlePublicGamesHttp } = await import('./schedule.js');
+      return handlePublicGamesHttp(env);
+    }
+
     if (path.startsWith('/ext/')) return handleExt(req, env);
 
     // Overlay relay queue — polled by Streamer.bot, RELAY_TOKEN-gated.

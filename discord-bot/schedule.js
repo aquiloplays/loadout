@@ -23,8 +23,9 @@ const SCHEDULE_KINDS = ['fixed', 'variety', 'community'];
 const POOL_KINDS = ['community', 'variety'];
 const HH_MM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-const SCHEDULE_KEY = (g) => `schedule:v1:${g}`;
-const GAMES_KEY    = (g) => `games:v1:${g}`;
+const SCHEDULE_KEY      = (g) => `schedule:v1:${g}`;
+const GAMES_KEY         = (g) => `games:v1:${g}`;
+const VOTE_CHANNEL_KEY  = (g) => `channel:vote:guild:${g}`;
 
 const DEFAULT_SCHEDULE = {
   version: 1,
@@ -104,6 +105,193 @@ async function writeGames(env, guildId, catalog) {
   catalog.updatedAt = Date.now();
   catalog.updatedBy = 'discord';
   await env.LOADOUT_BOLTS.put(GAMES_KEY(guildId), JSON.stringify(catalog));
+}
+
+// ── TZ math (kept in sync with aquilo-site's functions/_lib/schedule.js)
+//
+// Both the bot and the site compute nextStream + voteActive against the
+// SAME KV records using the SAME algorithm, so they can never disagree
+// about "when is the next stream" or "is the vote open right now".
+
+function zonedTimeToEpoch(y, mo, d, h, mi, tz) {
+  const naive = Date.UTC(y, mo - 1, d, h, mi);
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hourCycle: 'h23',
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: 'numeric', minute: 'numeric', second: 'numeric',
+  });
+  const parts = fmt.formatToParts(new Date(naive));
+  const o = {};
+  for (const p of parts) if (p.type !== 'literal') o[p.type] = parseInt(p.value, 10);
+  const wallClock = Date.UTC(o.year, o.month - 1, o.day, o.hour, o.minute, o.second);
+  return naive - (wallClock - naive);
+}
+
+function nowInZone(tz, now = Date.now()) {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz, hourCycle: 'h23',
+    weekday: 'short', year: 'numeric', month: 'numeric',
+    day: 'numeric', hour: 'numeric', minute: 'numeric',
+  });
+  const parts = fmt.formatToParts(new Date(now));
+  const o = {};
+  for (const p of parts) if (p.type !== 'literal') o[p.type] = p.value;
+  const DOW = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    y: parseInt(o.year, 10), m: parseInt(o.month, 10), d: parseInt(o.day, 10),
+    hour: parseInt(o.hour, 10), minute: parseInt(o.minute, 10),
+    dow: DOW[o.weekday] ?? 0,
+  };
+}
+
+function addDaysInZone(y, m, d, days) {
+  const utc = new Date(Date.UTC(y, m - 1, d, 12) + days * 86400000);
+  return { y: utc.getUTCFullYear(), m: utc.getUTCMonth() + 1, d: utc.getUTCDate() };
+}
+
+function startKeyOf(s) {
+  if (!s) return null;
+  const [h, mi] = s.split(':').map(Number);
+  return Number.isFinite(h) && Number.isFinite(mi) ? h * 100 + mi : null;
+}
+
+function dayEndEpoch(day, target, tz) {
+  if (!day.endLocal) return null;
+  const [h, mi] = day.endLocal.split(':').map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(mi)) return null;
+  const startKey = startKeyOf(day.startLocal);
+  const endKey = h * 100 + mi;
+  const date = (startKey != null && endKey < startKey)
+    ? addDaysInZone(target.y, target.m, target.d, 1)
+    : target;
+  return zonedTimeToEpoch(date.y, date.m, date.d, h, mi, tz);
+}
+
+function nextStreamFrom(schedule, now = Date.now()) {
+  if (!schedule || !Array.isArray(schedule.days)) return null;
+  const tz = schedule.tz || 'America/New_York';
+  const today = nowInZone(tz, now);
+  for (let offset = 0; offset <= 7; offset++) {
+    const dayIdx = (today.dow + offset) % 7;
+    const day = schedule.days.find((dd) => dd.dow === dayIdx);
+    if (!day || !day.startLocal) continue;
+    const [h, mi] = day.startLocal.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(mi)) continue;
+    const target = addDaysInZone(today.y, today.m, today.d, offset);
+    const startsAt = zonedTimeToEpoch(target.y, target.m, target.d, h, mi, tz);
+    if (startsAt > now) {
+      return {
+        startsAt,
+        endsAt: dayEndEpoch(day, target, tz),
+        label: day.label,
+        kind: day.kind,
+        dow: day.dow,
+      };
+    }
+  }
+  return null;
+}
+
+function voteActiveAt(schedule, now = Date.now()) {
+  if (!schedule || !Array.isArray(schedule.days)) return { active: false };
+  const tz = schedule.tz || 'America/New_York';
+  const t = nowInZone(tz, now);
+  const day = schedule.days.find((dd) => dd.dow === t.dow);
+  if (!day) return { active: false };
+  if (day.kind !== 'variety' && day.kind !== 'community') {
+    return { active: false, kind: day.kind, dow: day.dow };
+  }
+  const minutes = t.hour * 60 + t.minute;
+  const OPEN = 18 * 60;
+  const CLOSE = 21 * 60;
+  return {
+    active: minutes >= OPEN && minutes < CLOSE,
+    kind: day.kind,
+    dow: day.dow,
+    opensAt: zonedTimeToEpoch(t.y, t.m, t.d, 18, 0, tz),
+    closesAt: zonedTimeToEpoch(t.y, t.m, t.d, 21, 0, tz),
+  };
+}
+
+async function readVoteChannel(env, guildId) {
+  try {
+    const raw = await env.LOADOUT_BOLTS.get(VOTE_CHANNEL_KEY(guildId), { type: 'json' });
+    if (raw && typeof raw.channelId === 'string') return raw;
+  } catch { /* ignore */ }
+  return null;
+}
+
+// ── HTTP read routes (public + extension) ─────────────────────────────
+//
+// /schedule/public, /games/public — unauth, used by aquilo-site
+// /ext/schedule, /ext/games — wired separately in ext.js (JWT-gated)
+//
+// Identical payload between public + ext, minus any viewer-specific
+// data. Phase 3 will add the queue layers on top of this.
+
+const PUBLIC_CORS = {
+  'access-control-allow-origin': '*',
+  'access-control-allow-methods': 'GET',
+  'access-control-allow-headers': 'content-type',
+};
+
+function publicJson(body) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'public, max-age=0, s-maxage=15',
+      ...PUBLIC_CORS,
+    },
+  });
+}
+
+export async function handlePublicScheduleHttp(env) {
+  const guildId = env.AQUILO_VAULT_GUILD_ID;
+  if (!env.LOADOUT_BOLTS || !guildId) {
+    return publicJson({ error: 'not-configured' });
+  }
+  const [schedule, games, voteChannel] = await Promise.all([
+    readSchedule(env, guildId),
+    readGames(env, guildId),
+    readVoteChannel(env, guildId),
+  ]);
+  const now = Date.now();
+  return publicJson({
+    schedule,
+    games,
+    nextStream: nextStreamFrom(schedule, now),
+    vote: voteActiveAt(schedule, now),
+    voteChannel: voteChannel ? { channelId: voteChannel.channelId, guildId } : null,
+    now,
+  });
+}
+
+export async function handlePublicGamesHttp(env) {
+  const guildId = env.AQUILO_VAULT_GUILD_ID;
+  if (!env.LOADOUT_BOLTS || !guildId) return publicJson({ error: 'not-configured' });
+  const games = await readGames(env, guildId);
+  return publicJson({ games });
+}
+
+// Called from ext.js when the panel hits /ext/schedule (already
+// JWT-gated and channel-locked there — we just need the same payload).
+export async function handleExtSchedule(env, guildId) {
+  const [schedule, games, voteChannel] = await Promise.all([
+    readSchedule(env, guildId),
+    readGames(env, guildId),
+    readVoteChannel(env, guildId),
+  ]);
+  const now = Date.now();
+  return {
+    schedule,
+    games,
+    nextStream: nextStreamFrom(schedule, now),
+    vote: voteActiveAt(schedule, now),
+    voteChannel: voteChannel ? { channelId: voteChannel.channelId, guildId } : null,
+    now,
+  };
 }
 
 // ── /schedule ─────────────────────────────────────────────────────────
