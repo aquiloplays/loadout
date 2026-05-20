@@ -59,37 +59,65 @@ export async function dice(env, guildId, userId, bet, target) {
   return { won: false, roll, payout: -bet, explanation: '🎲 Rolled ' + roll + '. You needed ' + target + '. Better luck next time.' };
 }
 
-// /daily: 24h cooldown, streak multiplier (1d streak = 1x, 7d = 7x, capped at 10x).
+// /daily: one claim per America/New_York calendar day. Streak
+// multiplier (1d streak = 1x, capped at 10x).
+//
+// The reset clock used to tick over at midnight UTC, which meant an
+// Eastern-time viewer (basically the whole audience) had a hard
+// deadline at 8 PM their local time on day two of a streak or it
+// broke. Shifted to ET day boundaries 2026-05-20 so the reset is
+// "midnight, your local-ish time" for most viewers. Same rule on
+// Discord, the Twitch panel, and the website — single function,
+// single source of truth.
 const DAILY_BASE = 100;
 const DAILY_STREAK_CAP = 10;
-const DAILY_COOLDOWN_MS = 23 * 60 * 60 * 1000;   // 23h not 24, so claim time can drift
+const DAILY_TZ = 'America/New_York';
 
-export async function daily(env, guildId, userId) {
-  const { getWallet, putWallet } = await import('./wallet.js');
-  const w = await getWallet(env, guildId, userId);
-  const now = Date.now();
-  if (w.lastDailyUtc && (now - w.lastDailyUtc) < DAILY_COOLDOWN_MS) {
-    const wait = DAILY_COOLDOWN_MS - (now - w.lastDailyUtc);
-    return {
-      won: false, payout: 0,
-      explanation: 'Already claimed. Try again in ' + fmtDuration(wait) + '.'
-    };
+// "YYYY-MM-DD" in DAILY_TZ for the given epoch. en-CA's locale order
+// happens to be ISO-shaped (YYYY-MM-DD) so we can compare as strings.
+function etDateString(ms) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: DAILY_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(new Date(ms));
+}
+
+// "YYYY-MM-DD" - 1 day. Pure string math; works across month/year
+// boundaries without needing TZ-aware arithmetic. DST safe because
+// we're operating on calendar dates only, not wall-clock times.
+function prevEtDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  // Build a UTC date at noon (well clear of any DST edges) and step
+  // back exactly 24h — the resulting UTC date's Y/M/D is still the
+  // previous calendar day in ANY tz that doesn't move backwards
+  // by more than a day at a transition, which is every real TZ.
+  const ms = Date.UTC(y, m - 1, d, 12) - 86400_000;
+  const prev = new Date(ms);
+  const pad = (n) => String(n).padStart(2, '0');
+  return prev.getUTCFullYear() + '-' + pad(prev.getUTCMonth() + 1) + '-' + pad(prev.getUTCDate());
+}
+
+// Time until the next ET midnight from `now` (ms). Used to message
+// "try again in 4h 17m".
+function msUntilNextEtMidnight(now) {
+  const today = etDateString(now);
+  // Next midnight in ET = first epoch ms where etDateString(ms) > today.
+  // Binary search is overkill — step forward by hours. ET day is
+  // typically ~24h, never more than 25 (DST fall-back). 26 is safe.
+  for (let h = 1; h <= 26; h++) {
+    const probe = now + h * 3600_000;
+    if (etDateString(probe) !== today) {
+      // Narrow to the minute via linear scan of the last hour.
+      for (let m = 1; m <= 60; m++) {
+        const mProbe = now + (h - 1) * 3600_000 + m * 60_000;
+        if (etDateString(mProbe) !== today) {
+          return (h - 1) * 3600_000 + m * 60_000;
+        }
+      }
+      return h * 3600_000;
+    }
   }
-
-  // Streak: incremented if last claim was within 48h, otherwise reset to 1.
-  const within48h = w.lastDailyUtc && (now - w.lastDailyUtc) < (48 * 60 * 60 * 1000);
-  w.dailyStreak = within48h ? Math.min(DAILY_STREAK_CAP, (w.dailyStreak || 0) + 1) : 1;
-  const payout = DAILY_BASE * w.dailyStreak;
-  w.balance += payout;
-  w.lifetimeEarned += payout;
-  w.lastDailyUtc = now;
-  w.lastEarnReason = 'daily:streak:' + w.dailyStreak;
-  await putWallet(env, guildId, userId, w);
-  return {
-    won: true, payout,
-    streak: w.dailyStreak,
-    explanation: '🎁 +' + payout + ' bolts (day ' + w.dailyStreak + ' streak). Come back tomorrow.'
-  };
+  return 86400_000;
 }
 
 function fmtDuration(ms) {
@@ -98,4 +126,45 @@ function fmtDuration(ms) {
   const m = Math.floor((s % 3600) / 60);
   if (h > 0) return h + 'h ' + m + 'm';
   return m + 'm';
+}
+
+export async function daily(env, guildId, userId) {
+  const { getWallet, putWallet } = await import('./wallet.js');
+  const w = await getWallet(env, guildId, userId);
+  const now = Date.now();
+  const today = etDateString(now);
+
+  // Migrate: pre-2026-05 wallets only had lastDailyUtc (epoch ms of
+  // last claim). Convert to lastDailyEtDate on first read so the
+  // streak logic below has something to compare.
+  if (!w.lastDailyEtDate && w.lastDailyUtc) {
+    w.lastDailyEtDate = etDateString(w.lastDailyUtc);
+  }
+
+  if (w.lastDailyEtDate === today) {
+    const wait = msUntilNextEtMidnight(now);
+    return {
+      won: false, payout: 0,
+      explanation: 'Already claimed today. Next claim resets at midnight ET (' + fmtDuration(wait) + ').',
+    };
+  }
+
+  // Streak increments only if the prior claim was YESTERDAY in ET.
+  // Any longer gap (missed a day, brand-new claimer) resets to 1.
+  const yesterday = prevEtDate(today);
+  const continued = w.lastDailyEtDate === yesterday;
+  w.dailyStreak = continued ? Math.min(DAILY_STREAK_CAP, (w.dailyStreak || 0) + 1) : 1;
+
+  const payout = DAILY_BASE * w.dailyStreak;
+  w.balance += payout;
+  w.lifetimeEarned = (w.lifetimeEarned || 0) + payout;
+  w.lastDailyUtc = now;
+  w.lastDailyEtDate = today;
+  w.lastEarnReason = 'daily:streak:' + w.dailyStreak;
+  await putWallet(env, guildId, userId, w);
+  return {
+    won: true, payout,
+    streak: w.dailyStreak,
+    explanation: '🎁 +' + payout + ' bolts (day ' + w.dailyStreak + ' streak). Come back tomorrow (resets at midnight ET).',
+  };
 }

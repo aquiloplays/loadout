@@ -206,6 +206,14 @@ export default {
 
     if (path.startsWith('/ext/')) return handleExt(req, env);
 
+    // aquilo.gg website minigames -- HMAC from the site's Pages
+    // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +
+    // MINIGAMES-WEB-DESIGN.md.
+    if (path.startsWith('/web/')) {
+      const { handleWeb } = await import('./web.js');
+      return handleWeb(req, env);
+    }
+
     // Overlay relay queue — polled by Streamer.bot, RELAY_TOKEN-gated.
     if (path.startsWith('/relay/')) return handleRelay(req, env);
 
