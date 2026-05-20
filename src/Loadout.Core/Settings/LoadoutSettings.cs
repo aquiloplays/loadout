@@ -108,6 +108,12 @@ namespace Loadout.Settings
         // ten in five minutes. Mods + broadcaster bypass cooldown.
         public int DungeonCooldownSec { get; set; } = 600;   // 10 min default
 
+        // Phase BR — odds (per 100) that a non-wiped run ends on a
+        // branching scene the viewers vote on. 0 disables branching;
+        // 100 makes every run branch. Default keeps the feel of a
+        // rare "this run got interesting" moment.
+        public int BranchChancePct { get; set; } = 20;
+
         // Per-user cooldown on !duel so chatters can't pick fights
         // every 10 seconds. Cooldown sits on the challenger.
         public int DuelCooldownSec { get; set; } = 300;

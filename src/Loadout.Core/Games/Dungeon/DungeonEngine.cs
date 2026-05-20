@@ -79,6 +79,9 @@ namespace Loadout.Games.Dungeon
         public int    GoldGained { get; set; }   // bolts awarded
         public bool   SlewBoss   { get; set; }    // for the legendkiller achievement
         public List<InventoryItem> Loot { get; set; } = new List<InventoryItem>();
+        // Phase BR — captured pre-branch so a branch HpDelta can
+        // recompute survival without consulting the hero store.
+        public int    HpStart    { get; set; }
     }
 
     /// <summary>
@@ -98,6 +101,7 @@ namespace Loadout.Games.Dungeon
                                            int difficulty,
                                            int runDurationSec,
                                            int sceneCount,
+                                           int branchChancePct,
                                            Random r)
         {
             var dungeon = DungeonContent.PickDungeonType(r);
@@ -175,9 +179,13 @@ namespace Loadout.Games.Dungeon
             // effect to outcomes and publishing dungeon.completed. The
             // scene is positioned after the main scene tail and before
             // the loot-reveal beat below.
+            // Phase BR — branchChancePct controls the per-run odds; 0
+            // disables, 100 always branches. Clamp defensively.
+            var branchPct = Math.Max(0, Math.Min(100, branchChancePct));
             if (heroes.Any(h => h.HpRemaining > 0) &&
                 DungeonContent.BranchScenes.Length > 0 &&
-                r.Next(100) < 20)
+                branchPct > 0 &&
+                r.Next(100) < branchPct)
             {
                 var def = DungeonContent.PickBranchScene(r);
                 t += sceneSpacing;
@@ -220,7 +228,8 @@ namespace Loadout.Games.Dungeon
                     HpDelta    = rh.HpRemaining - rh.Hero.HpCurrent,
                     XpGained   = rh.XpGained,
                     GoldGained = rh.GoldGained,
-                    SlewBoss   = result.HadBoss && rh.HpRemaining > 0
+                    SlewBoss   = result.HadBoss && rh.HpRemaining > 0,
+                    HpStart    = rh.Hero.HpCurrent,
                 };
 
                 if (outcome.Survived)

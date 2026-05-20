@@ -259,6 +259,30 @@ namespace Loadout.Modules
                         _pending.Sort((a, b) => a.OffsetMs.CompareTo(b.OffsetMs));
                         ArmReplay();
                         break;
+
+                    case "dungeon.cooldown":
+                        // Phase BR polish — surface the channel-cooldown
+                        // window as its own state record so the panel can
+                        // render "Next dungeon in 4:32" even when no
+                        // dungeon is currently in play.
+                        Push("cooldown", new JObject
+                        {
+                            ["kind"]        = "dungeon",
+                            ["untilUtc"]    = data?["untilUtc"],
+                            ["durationSec"] = data?["durationSec"],
+                        });
+                        break;
+
+                    case "dungeon.vote":
+                        // Phase BR polish — running tally for live vote
+                        // badges. Decorates the current dungeon snapshot
+                        // so it rides on the next 2 s panel poll.
+                        if (_dungeon != null)
+                        {
+                            _dungeon["voteTally"] = data?["tally"];
+                            Push("dungeon", _dungeon);
+                        }
+                        break;
                 }
             }
         }
@@ -327,6 +351,18 @@ namespace Loadout.Modules
                     else if (p.Scene != null)
                     {
                         _dungeon["scene"] = p.Scene;
+                        // Phase BR polish — stamp openedAt + window
+                        // when a branching scene becomes current, so
+                        // the panel can render a real countdown
+                        // ("27s remaining") from these fields rather
+                        // than guessing.
+                        var opts = p.Scene["options"] as JArray;
+                        if (opts != null && opts.Count > 0)
+                        {
+                            p.Scene["openedAt"] =
+                                DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                            p.Scene["voteWindowMs"] = 30000;
+                        }
                     }
                 }
                 Push("dungeon", _dungeon);

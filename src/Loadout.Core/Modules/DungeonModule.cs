@@ -170,6 +170,16 @@ namespace Loadout.Modules
                 joinCommand = NormalizeCmd(cfg.JoinCommand, "!join"),
                 party       = SnapshotParty(recruit)
             });
+            // Phase BR polish — announce the cooldown window so the panel
+            // can render a "Next dungeon in 4:32" timer. Skips emit zero
+            // (instant) so a paid bypass clears any prior countdown UI.
+            var cooldownSec = Math.Max(0, cfg.DungeonCooldownSec);
+            Publish("dungeon.cooldown", new
+            {
+                untilUtc    = _lastDungeonStartUtc.AddSeconds(cooldownSec)
+                                                   .ToString("o", System.Globalization.CultureInfo.InvariantCulture),
+                durationSec = cooldownSec,
+            });
             Reply(ctx, "⚔ A dungeon opens! Type " + NormalizeCmd(cfg.JoinCommand, "!join") +
                        " to join the party (" + recruit.OpenSec + "s).");
 
@@ -294,7 +304,13 @@ namespace Loadout.Modules
                     return;
                 }
 
-                var result = DungeonEngine.Run(party, Math.Max(1, cfg.Difficulty), cfg.RunDurationSec, cfg.SceneCount, _rng);
+                var result = DungeonEngine.Run(
+                    party,
+                    Math.Max(1, cfg.Difficulty),
+                    cfg.RunDurationSec,
+                    cfg.SceneCount,
+                    cfg.BranchChancePct,
+                    _rng);
                 // Rename the result name to whatever the engine picked so
                 // the overlay's title bar matches.
                 Publish("dungeon.started", new { dungeonName = result.DungeonName, partySize = party.Count });
@@ -445,7 +461,27 @@ namespace Loadout.Modules
             {
                 hpTargets = outcomes;
             }
-            foreach (var o in hpTargets) o.HpDelta += effect.HpDelta;
+            foreach (var o in hpTargets)
+            {
+                var wasAlive = o.Survived;
+                o.HpDelta += effect.HpDelta;
+                // Phase BR — re-derive survival when a branch effect
+                // changes HP. A previously alive hero killed by the
+                // branch loses their loot drop, gets the half-XP
+                // consolation, and forfeits gold (mirrors the engine's
+                // post-run logic for fallen heroes). We don't re-roll
+                // loot for branch-heals — drops are computed pre-branch
+                // so a heal can't conjure gear that didn't already exist.
+                var newHpRemaining = o.HpStart + o.HpDelta;
+                if (wasAlive && newHpRemaining <= 0)
+                {
+                    o.Survived = false;
+                    if (o.Loot != null) o.Loot.Clear();
+                    o.GoldGained = 0;
+                    o.XpGained = o.XpGained / 2;
+                    o.SlewBoss = false;
+                }
+            }
             if (effect.GoldDelta != 0)
             {
                 foreach (var o in outcomes)
@@ -759,9 +795,13 @@ namespace Loadout.Modules
             return false;
         }
 
-        // Phase BR — record a viewer's branch vote. One vote per voter
-        // (subsequent votes overwrite — first-vote tiebreak still uses the
-        // viewer's INITIAL VoteSeq, so changing a vote can't game ties).
+        // Phase BR — record a viewer's branch vote.
+        //
+        // Second-vote semantics (intentional): a viewer can change their
+        // mind during the 30 s window. The Votes dict stores their latest
+        // choice; VoteSeq stamps only their INITIAL submission. The
+        // ResolveBranchAndComplete tiebreak uses those initial stamps, so
+        // changing a vote can't be used to game first-vote-wins on ties.
         private void CastBranchVote(EventContext ctx, string optionId)
         {
             DungeonRecruit recruit;
@@ -777,12 +817,24 @@ namespace Loadout.Modules
             }
             if (!ok) return;
             var voterKey = (ctx.Platform.ToShortName() + ":" + (ctx.User ?? "")).ToLowerInvariant();
+            Dictionary<string, int> tally;
             lock (recruit.Sync)
             {
                 recruit.Votes[voterKey] = optionId;
                 if (!recruit.VoteSeq.ContainsKey(voterKey))
                     recruit.VoteSeq[voterKey] = ++recruit.VoteCounter;
+                // Build a fresh tally for the live-update event below so
+                // the panel's vote-count badges tick up in real time
+                // without having to poll a separate endpoint.
+                tally = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                foreach (var v in recruit.Votes.Values)
+                {
+                    if (string.IsNullOrEmpty(v)) continue;
+                    tally.TryGetValue(v, out var c);
+                    tally[v] = c + 1;
+                }
             }
+            Publish("dungeon.vote", new { tally });
         }
 
         private static string NormalizeCmd(string cfg, string fallback)
