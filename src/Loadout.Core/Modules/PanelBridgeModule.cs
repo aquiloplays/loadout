@@ -61,6 +61,10 @@ namespace Loadout.Modules
         private Timer _replay;
         private Timer _poll;                            // downstream command poll
         private volatile bool _disposed;
+        // Phase D — duel snapshot. Simpler than dungeon since duel scenes
+        // already carry their own offsets and the run is short (3 strikes
+        // + completion); no replay buffering needed.
+        private JObject _duel;
 
         // A buffered step of the dungeon-run replay timeline.
         private sealed class PendingUpdate
@@ -148,6 +152,8 @@ namespace Loadout.Modules
             {
                 if (kind.StartsWith("dungeon.", StringComparison.Ordinal))
                     OnDungeonEvent(kind, data as JObject);
+                else if (kind.StartsWith("duel.", StringComparison.Ordinal))
+                    OnDuelEvent(kind, data as JObject);
                 else if (kind.StartsWith("bolts.minigame.", StringComparison.Ordinal))
                     OnMinigameEvent(kind, data as JObject);
             }
@@ -325,6 +331,63 @@ namespace Loadout.Modules
                 }
                 Push("dungeon", _dungeon);
                 ScheduleNext();
+            }
+        }
+
+        // ---- duels --------------------------------------------------------
+
+        // Duels are short (3 strike rounds + completion) so we don't need
+        // the dungeon's replay-on-a-timer dance — each event just updates
+        // the snapshot and pushes immediately. The Worker ages the record
+        // out after the usual TTL once the bus goes quiet.
+        private void OnDuelEvent(string kind, JObject data)
+        {
+            lock (_gate)
+            {
+                switch (kind)
+                {
+                    case "duel.recruiting":
+                        _duel = new JObject
+                        {
+                            ["phase"]      = "recruiting",
+                            ["challenger"] = data?["challenger"],
+                            ["target"]     = data?["target"],
+                            ["openSec"]    = data?["openSec"],
+                        };
+                        break;
+                    case "duel.started":
+                        if (_duel == null) _duel = new JObject();
+                        _duel["phase"]      = "running";
+                        _duel["challenger"] = data?["challenger"] ?? _duel["challenger"];
+                        _duel["defender"]   = data?["defender"];
+                        _duel["strikes"]    = new JArray();
+                        break;
+                    case "duel.scene":
+                        if (_duel == null) _duel = new JObject { ["phase"] = "running" };
+                        var strikes = _duel["strikes"] as JArray ?? new JArray();
+                        strikes.Add(new JObject
+                        {
+                            ["delayMs"]        = data?["delayMs"],
+                            ["kind"]           = data?["kind"],
+                            ["text"]           = data?["text"],
+                            ["glyph"]          = data?["glyph"],
+                            ["attackerHpAfter"]= data?["attackerHpAfter"],
+                            ["defenderHpAfter"]= data?["defenderHpAfter"],
+                        });
+                        _duel["strikes"] = strikes;
+                        break;
+                    case "duel.completed":
+                        if (_duel == null) _duel = new JObject();
+                        _duel["phase"]  = "complete";
+                        _duel["winner"] = data?["winner"];
+                        _duel["loser"]  = data?["loser"];
+                        _duel["reason"] = data?["reason"];
+                        _duel["xp"]     = data?["xp"];
+                        _duel["gold"]   = data?["gold"];
+                        break;
+                    default: return;
+                }
+                Push("duel", _duel);
             }
         }
 

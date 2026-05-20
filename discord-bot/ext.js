@@ -102,6 +102,7 @@ export async function handleExt(req, env) {
     }
     if (route === 'dungeon/state') return await panelBridgeState(env, 'dungeon');
     if (route === 'minigame/state') return await panelBridgeState(env, 'minigame');
+    if (route === 'duel/state') return await panelBridgeState(env, 'duel');
     if (req.method === 'GET' && route === 'lootbox/catalog') {
       return await readLootBoxCatalog(env);
     }

@@ -16,7 +16,11 @@ import { spend } from './wallet.js';
 // the panel hides promptly once the DLL stops pushing.
 const STATE_TTL_MS = 30 * 1000;
 
-const STATE_KEY = { dungeon: 'panelbridge:dungeon', minigame: 'panelbridge:minigame' };
+const STATE_KEY = {
+  dungeon: 'panelbridge:dungeon',
+  minigame: 'panelbridge:minigame',
+  duel: 'panelbridge:duel',
+};
 
 // POST /relay/dll-ingest — token-gated (X-Relay-Token), not JWT: the
 // caller is the local DLL module, not a Twitch viewer.
