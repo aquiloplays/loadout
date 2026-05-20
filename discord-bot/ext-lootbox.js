@@ -27,24 +27,29 @@ const PRODUCT_SKU = 'loot_box';
 // items (1 legendary, 2 epic, 3 rare, 6 common) by hand from
 // discord-bot/dungeon.js SHOP_POOL so the loot looks at home next to
 // what dungeons and the shop already drop.
+// Glyphs are intentionally empty -- new standing rule (2026-05) is
+// custom pixel-art sprites only, no emoji. The website + Twitch panel
+// pick a sprite by item.slot (and/or name) at render time. Leaving the
+// `glyph` field present-but-empty preserves the existing object shape
+// so any callers that destructure { glyph } don't crash.
 export const DEFAULT_CATALOG = {
   items: [
     // common
-    { slot: 'weapon',  rarity: 'common',    name: 'Wooden Sword',   glyph: '🗡', powerBonus: 1, defenseBonus: 0, ability: '',         goldValue: 40 },
-    { slot: 'head',    rarity: 'common',    name: 'Leather Cap',    glyph: '🧢', powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 45 },
-    { slot: 'chest',   rarity: 'common',    name: 'Hide Vest',      glyph: '🦬', powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
-    { slot: 'legs',    rarity: 'common',    name: 'Hempen Trousers', glyph: '👖', powerBonus: 0, defenseBonus: 1, ability: '',        goldValue: 40 },
-    { slot: 'boots',   rarity: 'common',    name: 'Worn Boots',     glyph: '🥾', powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
-    { slot: 'trinket', rarity: 'common',    name: 'Lucky Coin',     glyph: '🪙', powerBonus: 1, defenseBonus: 0, ability: 'lucky',    goldValue: 70 },
+    { slot: 'weapon',  rarity: 'common',    name: 'Wooden Sword',   glyph: '', powerBonus: 1, defenseBonus: 0, ability: '',         goldValue: 40 },
+    { slot: 'head',    rarity: 'common',    name: 'Leather Cap',    glyph: '', powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 45 },
+    { slot: 'chest',   rarity: 'common',    name: 'Hide Vest',      glyph: '', powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
+    { slot: 'legs',    rarity: 'common',    name: 'Hempen Trousers', glyph: '', powerBonus: 0, defenseBonus: 1, ability: '',       goldValue: 40 },
+    { slot: 'boots',   rarity: 'common',    name: 'Worn Boots',     glyph: '', powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
+    { slot: 'trinket', rarity: 'common',    name: 'Lucky Coin',     glyph: '', powerBonus: 1, defenseBonus: 0, ability: 'lucky',    goldValue: 70 },
     // rare
-    { slot: 'weapon',  rarity: 'rare',      name: 'Flamberge',      glyph: '⚔',  powerBonus: 5, defenseBonus: 0, ability: '',         goldValue: 540 },
-    { slot: 'chest',   rarity: 'rare',      name: 'Dragonscale Plate', glyph: '🐲', powerBonus: 2, defenseBonus: 4, ability: '',      goldValue: 650 },
-    { slot: 'trinket', rarity: 'rare',      name: 'Crystal Pendant', glyph: '💎', powerBonus: 2, defenseBonus: 2, ability: '',        goldValue: 500 },
+    { slot: 'weapon',  rarity: 'rare',      name: 'Flamberge',      glyph: '', powerBonus: 5, defenseBonus: 0, ability: '',         goldValue: 540 },
+    { slot: 'chest',   rarity: 'rare',      name: 'Dragonscale Plate', glyph: '', powerBonus: 2, defenseBonus: 4, ability: '',      goldValue: 650 },
+    { slot: 'trinket', rarity: 'rare',      name: 'Crystal Pendant', glyph: '', powerBonus: 2, defenseBonus: 2, ability: '',        goldValue: 500 },
     // epic
-    { slot: 'weapon',  rarity: 'epic',      name: 'Shadowfang',     glyph: '🗡', powerBonus: 7, defenseBonus: 1, ability: '',         goldValue: 1200 },
-    { slot: 'chest',   rarity: 'epic',      name: 'Mithril Plate',  glyph: '🛡', powerBonus: 2, defenseBonus: 7, ability: 'wardstone',goldValue: 1300 },
+    { slot: 'weapon',  rarity: 'epic',      name: 'Shadowfang',     glyph: '', powerBonus: 7, defenseBonus: 1, ability: '',         goldValue: 1200 },
+    { slot: 'chest',   rarity: 'epic',      name: 'Mithril Plate',  glyph: '', powerBonus: 2, defenseBonus: 7, ability: 'wardstone', goldValue: 1300 },
     // legendary
-    { slot: 'weapon',  rarity: 'legendary', name: 'Excalibur',      glyph: '⚔',  powerBonus: 10, defenseBonus: 2, ability: '',        goldValue: 3000 },
+    { slot: 'weapon',  rarity: 'legendary', name: 'Excalibur',      glyph: '', powerBonus: 10, defenseBonus: 2, ability: '',        goldValue: 3000 },
   ],
   // Per-rarity selection weights — drawing the rarity tier first, then a
   // uniform item within. Sums don't need to be 100; ratios are what
