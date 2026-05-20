@@ -91,7 +91,7 @@ body[data-layout="compact"] .counter { padding: 6px 10px; border-radius: 8px; }
 /* Bump animation on update */
 .counter.bump {
   transform: scale(1.08);
-  box-shadow: 0 0 0 2px rgba(58,134,255,.55), 0 8px 22px rgba(0,0,0,.55);
+  box-shadow: 0 0 0 2px rgba(124, 92, 255,.55), 0 8px 22px rgba(0,0,0,.55);
 }
 .counter.bump .value {
   color: var(--accent);

@@ -241,6 +241,151 @@ export const COMMANDS = [
     ],
   },
   {
+    // Clash — communal town & global raiders. See CLASH-FEATURE-DESIGN.md.
+    // Phase 1 surface — solo raids (NPC + goblin + global PvP), shared
+    // town that the streamer + mods build, viewers contribute Bolts.
+    // Town subgroup gates writes to streamer/mods; viewer-facing
+    // commands are open.
+    name: 'clash',
+    description: 'Communal town & global raiders — build, train, raid',
+    options: [
+      { type: TYPE_SUBCOMMAND, name: 'status', description: 'Your raider profile' },
+      { type: TYPE_SUBCOMMAND, name: 'army',   description: 'View your trained troops' },
+      {
+        type: TYPE_SUBCOMMAND, name: 'train',
+        description: 'Train personal troops (Bolts spent from your wallet)',
+        options: [
+          { type: TYPE_STRING, name: 'troop', description: 'Troop to train', required: true,
+            choices: [
+              { name: 'Scrapper (common)',     value: 'scrapper' },
+              { name: 'Archer (common)',       value: 'archerLite' },
+              { name: 'Bolt Knight (rare)',    value: 'boltKnight' },
+              { name: 'Sapper Rogue (rare)',   value: 'sapperRogue' },
+              { name: 'Healer Cleric (rare)',  value: 'healerCleric' },
+              { name: 'Voltaic Mage (epic)',   value: 'voltaicMage' },
+            ],
+          },
+          { type: TYPE_INTEGER, name: 'count', description: 'Number to train (1–50)', required: false, min_value: 1, max_value: 50 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'donate',
+        description: 'Donate Bolts to your home town treasury',
+        options: [
+          { type: TYPE_INTEGER, name: 'amount', description: 'How many Bolts to donate', required: true, min_value: 1 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'raid',
+        description: 'Fire a raid — goblin camp, NPC town, or a real player',
+        options: [
+          { type: TYPE_STRING, name: 'kind', description: 'What to raid', required: true,
+            choices: [
+              { name: 'Goblin camp (PvE, easy)',           value: 'goblin' },
+              { name: 'NPC town (PvE, harder)',            value: 'npc' },
+              { name: 'Player town (PvP, global match)',   value: 'player' },
+            ],
+          },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'log',         description: 'Your recent raids + your town\'s incoming raids' },
+      { type: TYPE_SUBCOMMAND, name: 'leaderboard', description: 'Top raiders + top towns (global)' },
+      {
+        type: TYPE_SUBCOMMAND, name: 'notify',
+        description: 'Toggle a Clash push-notification kind on/off',
+        options: [
+          { type: TYPE_STRING, name: 'kind', description: 'Which notification kind', required: true,
+            choices: [
+              { name: 'Incoming raid (town)',     value: 'clash.raid.incoming' },
+              { name: 'Town defended',            value: 'clash.raid.lost' },
+              { name: 'Town sacked',              value: 'clash.raid.won' },
+              { name: 'Your raid result',         value: 'clash.raid.result' },
+              { name: 'Build / training done',    value: 'clash.build.complete' },
+              { name: 'Shield expiring soon',     value: 'clash.shield.expiring' },
+            ],
+          },
+          { type: 5, name: 'on', description: 'On (default) or off', required: false }, // 5 = BOOLEAN
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND_GROUP, name: 'war',
+        description: 'Community-vs-community wars (Phase 2)',
+        options: [
+          {
+            type: TYPE_SUBCOMMAND, name: 'declare',
+            description: 'Open a declaration vote against another community\'s town',
+            options: [
+              { type: TYPE_STRING, name: 'target', description: 'Target guild id (find via /clash leaderboard)', required: true },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'view',    description: 'Show your community\'s current war + score' },
+          { type: TYPE_SUBCOMMAND, name: 'accept',  description: '(streamer/mods) accept a pending war without waiting for the vote' },
+          { type: TYPE_SUBCOMMAND, name: 'refuse',  description: '(streamer/mods) refuse a pending war without waiting for the vote' },
+          { type: TYPE_SUBCOMMAND, name: 'history', description: 'Last 5 wars your community has been in' },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND_GROUP, name: 'defender',
+        description: 'Accept or decline a designated defending-Champion role',
+        options: [
+          { type: TYPE_SUBCOMMAND, name: 'accept',  description: 'Accept the role — your hero will defend the town on every raid' },
+          { type: TYPE_SUBCOMMAND, name: 'decline', description: 'Decline the role — the streamer can pick someone else' },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND_GROUP, name: 'town',
+        description: 'Town management (streamer + mods)',
+        options: [
+          { type: TYPE_SUBCOMMAND, name: 'view', description: 'Show the current town state' },
+          {
+            type: TYPE_SUBCOMMAND, name: 'build',
+            description: 'Place or upgrade a town building (treasury cost)',
+            options: [
+              { type: TYPE_STRING, name: 'kind', description: 'Building kind', required: true,
+                choices: [
+                  { name: 'Town Hall',     value: 'townhall' },
+                  { name: 'Wall',          value: 'wall' },
+                  { name: 'Cannon',        value: 'cannon' },
+                  { name: 'Archer Tower',  value: 'archerTower' },
+                  { name: 'Trap',          value: 'trap' },
+                  { name: 'Storage',       value: 'storage' },
+                  { name: 'Barracks',      value: 'barracks' },
+                  { name: 'War Tent',      value: 'warTent' },
+                ],
+              },
+              { type: TYPE_INTEGER, name: 'building', description: 'Building id to upgrade (omit to place a new one)', required: false, min_value: 1 },
+            ],
+          },
+          {
+            type: TYPE_SUBCOMMAND, name: 'garrison',
+            description: 'Train town garrison troops (treasury cost)',
+            options: [
+              { type: TYPE_STRING, name: 'troop', description: 'Garrison troop', required: true,
+                choices: [
+                  { name: 'Scrapper',     value: 'scrapper' },
+                  { name: 'Archer',       value: 'archerLite' },
+                  { name: 'Bolt Knight',  value: 'boltKnight' },
+                  { name: 'Voltaic Mage', value: 'voltaicMage' },
+                ],
+              },
+              { type: TYPE_INTEGER, name: 'count', description: 'Number to train (1–20)', required: false, min_value: 1, max_value: 20 },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'pause', description: 'Toggle PvP matchmaking opt-out for this town' },
+          {
+            type: TYPE_SUBCOMMAND, name: 'designate-defender',
+            description: 'Designate a community member\'s hero as the town\'s defending Champion (needs a War Tent)',
+            options: [
+              { type: TYPE_USER, name: 'user', description: 'Community member whose hero defends the town', required: true },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'clear-defender', description: 'Clear the defending-Champion designation' },
+          { type: TYPE_SUBCOMMAND, name: 'skip',           description: 'Spend a Battle Plan to skip the oldest in-flight build cooldown' },
+        ],
+      },
+    ],
+  },
+  {
     // Community / Variety Night queue. Admin opens game queues, viewers
     // join (or leave) them. Both the website and the Twitch panel
     // surface live counts read-only with a "Join in Discord" deep-link

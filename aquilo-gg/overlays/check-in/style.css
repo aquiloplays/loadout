@@ -27,7 +27,7 @@
 html, body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Geist', 'Segoe UI', system-ui, -apple-system, sans-serif;
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -152,7 +152,7 @@ html, body {
   text-transform: uppercase;
 }
 .flair.sub-1   { background: rgba(145,71,255,.22); border-color: var(--tw); color: #d1bcff; }
-.flair.sub-2   { background: rgba(58,134,255,.22); border-color: var(--accent); color: #aac9ff; }
+.flair.sub-2   { background: rgba(124, 92, 255,.22); border-color: var(--accent); color: #aac9ff; }
 .flair.sub-3   { background: rgba(0,242,234,.18);  border-color: var(--tt); color: #b6fff8; }
 .flair.vip     { background: rgba(255,93,162,.20); border-color: var(--pink); color: #ffc0d8; }
 .flair.mod     { background: rgba(83,252,24,.18);  border-color: var(--kk); color: #cbf6a8; }
@@ -370,7 +370,7 @@ html, body {
 
 /* Theme: glow — soft accent halo on the card. */
 [data-theme="glow"] .card {
-  box-shadow: 0 0 28px rgba(58, 134, 255, .45), 0 18px 40px rgba(0, 0, 0, .55);
+  box-shadow: 0 0 28px rgba(124, 92, 255, .45), 0 18px 40px rgba(0, 0, 0, .55);
 }
 
 /* Theme: minimal — flat surface colour, accent text remains. */

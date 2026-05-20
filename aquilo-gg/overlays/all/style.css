@@ -11,7 +11,7 @@ html, body {
   padding: 0;
   background: transparent;
   overflow: hidden;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Geist', 'Segoe UI', system-ui, -apple-system, sans-serif;
   color: #EFEFF1;
 }
 .layer {

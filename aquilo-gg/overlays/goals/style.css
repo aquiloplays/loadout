@@ -66,7 +66,7 @@ body[data-pos="rc"] #root { top: 50%;  right: 0; transform: translateY(-50%); }
   transition: width .6s cubic-bezier(.2,.7,.2,1);
 }
 .bar .fill.bump {
-  box-shadow: 0 0 12px rgba(58,134,255,.7);
+  box-shadow: 0 0 12px rgba(124, 92, 255,.7);
 }
 
 .goal[data-kind="subs"] .fill { background: linear-gradient(90deg, #9147FF, var(--accent)); }

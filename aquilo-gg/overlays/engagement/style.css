@@ -5,7 +5,7 @@ body {
   height: 100%;
   background: transparent;
   overflow: hidden;
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: 'Geist', 'Segoe UI', system-ui, -apple-system, sans-serif;
 }
 #stage {
   position: fixed;

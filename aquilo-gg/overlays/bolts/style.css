@@ -121,7 +121,7 @@ html, body {
 .toast {
   pointer-events: none;
   background: var(--ld-glass-bg);
-  border: 1px solid rgba(58, 134, 255, 0.45);
+  border: 1px solid rgba(124, 92, 255, 0.45);
   border-radius: 999px;
   padding: 8px 14px;
   font-size: 13px;
@@ -131,7 +131,7 @@ html, body {
   gap: 8px;
   backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
   -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
-  box-shadow: var(--ld-shadow-soft), var(--ld-shadow-rim), 0 0 0 1px rgba(58, 134, 255, 0.08);
+  box-shadow: var(--ld-shadow-soft), var(--ld-shadow-rim), 0 0 0 1px rgba(124, 92, 255, 0.08);
   animation: slideInOut var(--toast-dur) var(--ld-ease-out) forwards;
 }
 .toast .who { color: var(--text); font-weight: 700; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -154,7 +154,7 @@ html, body {
 #welcomeTrack { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .welcome-toast {
   pointer-events: none;
-  background: linear-gradient(135deg, rgba(58,134,255,.95), rgba(0,242,234,.85));
+  background: linear-gradient(135deg, rgba(124, 92, 255,.95), rgba(0,242,234,.85));
   color: #0d1421;
   border-radius: 999px;
   padding: 8px 16px;
@@ -224,7 +224,7 @@ html, body {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(58,134,255,.15) 0%, transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(124, 92, 255,.15) 0%, transparent 70%);
   animation: flash 2s ease-out forwards;
 }
 @keyframes flash { 0%, 100% { opacity: 0; } 30% { opacity: 1; } }
@@ -234,7 +234,7 @@ html, body {
   font-size: 28px;
   pointer-events: none;
   animation: fall linear forwards;
-  text-shadow: 0 0 14px rgba(58,134,255,.7);
+  text-shadow: 0 0 14px rgba(124, 92, 255,.7);
   user-select: none;
 }
 @keyframes fall {
@@ -251,7 +251,7 @@ html, body {
   justify-content: center;
 }
 .gift-text {
-  background: linear-gradient(135deg, rgba(255,93,162,.95), rgba(58,134,255,.95));
+  background: linear-gradient(135deg, rgba(255,93,162,.95), rgba(124, 92, 255,.95));
   color: white;
   padding: 14px 24px;
   border-radius: 14px;
