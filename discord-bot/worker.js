@@ -151,7 +151,19 @@ export default {
     if (path.startsWith('/relay/')) return handleRelay(req, env);
 
     return new Response('not found', { status: 404 });
-  }
+  },
+
+  // Hourly stock-market price tick. Wired via [triggers] crons in
+  // wrangler.toml. Catches errors so a single bad source can't
+  // break subsequent ticks.
+  async scheduled(event, env, ctx) {
+    try {
+      const { stocksCronTick } = await import('./stocks.js');
+      ctx.waitUntil(stocksCronTick(env));
+    } catch (e) {
+      console.error('stocks cron failed:', e && e.message);
+    }
+  },
 };
 
 // ---- /leaderboard/:guildId (public, read-only) ---------------------------

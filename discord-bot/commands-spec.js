@@ -16,9 +16,10 @@
 // need to type structured arguments; the menu walks them through it.
 
 // https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-option-type
-const TYPE_USER    = 6;
-const TYPE_INTEGER = 4;
-const TYPE_STRING  = 3;
+const TYPE_USER       = 6;
+const TYPE_INTEGER    = 4;
+const TYPE_STRING     = 3;
+const TYPE_SUBCOMMAND = 1;
 
 export const COMMANDS = [
   {
@@ -31,5 +32,46 @@ export const COMMANDS = [
   {
     name: 'loadout',
     description: 'Open the Loadout menu — wallet, hero, bag, shop, daily, gift, profile, more'
+  },
+  {
+    // Bolts-denominated stock market. Prices driven by real upstream
+    // signals (Twitch viewer counts, Steam player counts, Spotify
+    // popularity) so they actually move. Spot only, integer shares,
+    // 1% fee, no leverage — see stocks.js.
+    name: 'stocks',
+    description: 'Buy and sell shares in real-world tickers, paid in bolts',
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'list',
+        description: 'Show all tickers and current prices',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'buy',
+        description: 'Buy shares with bolts at the current price',
+        options: [
+          { type: TYPE_STRING,  name: 'ticker', description: 'Ticker symbol (e.g. CS2)', required: true },
+          { type: TYPE_INTEGER, name: 'bolts',  description: 'Bolts you want to spend',  required: true, min_value: 1 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'sell',
+        description: 'Sell shares back to bolts at the current price',
+        options: [
+          { type: TYPE_STRING,  name: 'ticker', description: 'Ticker symbol', required: true },
+          { type: TYPE_INTEGER, name: 'shares', description: 'Shares to sell', required: true, min_value: 1 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'portfolio',
+        description: 'Show your holdings and their total value in bolts',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'chart',
+        description: 'Show a compact recent-price chart',
+        options: [
+          { type: TYPE_STRING, name: 'ticker', description: 'Ticker symbol', required: true },
+        ],
+      },
+    ],
   }
 ];

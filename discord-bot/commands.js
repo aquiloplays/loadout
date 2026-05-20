@@ -23,6 +23,7 @@
 //   9 MODAL                       — open a modal popup
 
 import { renderLoadoutCommand, handleComponent, handleModal } from './loadout-menu.js';
+import { handleStocks } from './stocks.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -69,6 +70,10 @@ export async function handleInteraction(req, env, body) {
       // 0 bolts rather than an error) and surfaces the link button if
       // they haven't connected a stream identity yet.
       return json(await renderLoadoutCommand(env, guild, userId, userName));
+
+    case 'stocks':
+      // Bolts-denominated stock market. Subcommands dispatched in stocks.js.
+      return json(await handleStocks(env, guild, userId, userName, data.data?.options || []));
 
     case 'loadout-claim':
       // /loadout-claim is handled inline in worker.js (separate path)
