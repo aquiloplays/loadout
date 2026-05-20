@@ -240,6 +240,18 @@ export default {
     // Overlay relay queue — polled by Streamer.bot, RELAY_TOKEN-gated.
     if (path.startsWith('/relay/')) return handleRelay(req, env);
 
+    // StreamFusion release-notes webhook (ported from the retired
+    // StreamFusion/bot-service /post-release Node service). Voice-
+    // channel detection — the only piece that needed a persistent
+    // Gateway connection — was scrapped per Clay, so this is the
+    // only SF-specific feature worth migrating into the Worker.
+    // X-SF-Release-Secret header carries the auth; matches
+    // SF_RELEASE_SECRET. See discord-bot/sf-release.js.
+    if (method === 'POST' && path === '/sf/post-release') {
+      const { handlePostRelease } = await import('./sf-release.js');
+      return handlePostRelease(req, env);
+    }
+
     // ── Clash (Phase 4) ────────────────────────────────────────────
     // Public global leaderboard (top raiders + top towns) — no auth,
     // mirrors /leaderboard/<guildId>. Future aquilo.gg /clash page
