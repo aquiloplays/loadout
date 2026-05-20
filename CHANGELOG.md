@@ -11,6 +11,28 @@ Versioning: [SemVer](https://semver.org/).
 
 ---
 
+## [1.9.0] - 2026-05-19
+
+BR-core polish — configurable branch chance, branch-kill loot re-roll, live vote/cooldown events.
+
+### Added
+
+- `DungeonConfig.BranchChancePct` (default 20) — branch frequency is now runtime-tunable; `DungeonEngine.Run` reads it instead of the prior hard-coded `r.Next(100) < 20`.
+- `DungeonOutcome.HpStart` captures pre-branch HP so the engine can re-derive survival when a branch effect lands.
+- New bus events `dungeon.cooldown {untilUtc, durationSec}` (published on `StartDungeon`) and `dungeon.vote {tally}` (published on every chat or panel vote). `PanelBridgeModule` observes both — cooldown goes to a long-TTL `panelbridge:cooldown:dungeon` KV record, vote tally rides on the next dungeon snapshot push.
+- Worker `GET /ext/dungeon/cooldown` returns `{ active, untilUtc, durationSec }` and is exempt from the 30 s staleness gate the other panel-bridge state routes enforce.
+
+### Changed
+
+- `ApplyBranchEffectToOutcomes` now re-derives survival after applying the HP delta. A previously alive hero killed by a branch loses their loot drop, has gold zeroed and XP halved, and loses the boss-slayer flag — matching the engine's regular handling of fallen heroes. Branch-heals don't conjure loot (drops are computed pre-branch).
+- `PanelBridgeModule.ReplayTick` stamps `openedAt` + `voteWindowMs` on the snapshot when a branching scene becomes current, so the panel can render a real countdown rather than guessing.
+
+### Docs
+
+- `CastBranchVote` inline-documents the second-vote-overwrites semantics — viewers can change their mind during the 30 s window, but the first-vote tiebreak still uses the viewer's INITIAL `VoteSeq` stamp.
+
+---
+
 ## [1.8.0] - 2026-05-19
 
 Phase D (duels in panel) + Phase C (content expansion).
