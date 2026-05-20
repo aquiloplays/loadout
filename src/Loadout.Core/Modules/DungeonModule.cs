@@ -68,6 +68,34 @@ namespace Loadout.Modules
             var dCmd = NormalizeCmd(cfg.DungeonCommand, "!dungeon");
             if (lower == dCmd || lower.StartsWith(dCmd + " ", StringComparison.Ordinal))
             {
+                // Phase BR — `!dungeon vote <id>` lets chat (and the panel,
+                // via PanelBridgeModule's synthesized chat events) tally a
+                // viewer choice on an active branching run. Open to anyone,
+                // not gated to mods — that's the whole point of the vote.
+                var rest = (raw.Length > dCmd.Length ? raw.Substring(dCmd.Length).Trim() : "");
+                if (rest.StartsWith("vote", StringComparison.OrdinalIgnoreCase))
+                {
+                    var optionId = rest.Length > 4 ? rest.Substring(4).Trim() : "";
+                    CastBranchVote(ctx, optionId);
+                    return;
+                }
+                // Phase BR — `!dungeon skip` clears the channel cooldown and
+                // launches a new run immediately. Only trusted when the
+                // event carries the panel-bridge skip flag (set by
+                // PanelBridgeModule after the Worker validates a Bits or
+                // bolts payment). Chat-typed `!dungeon skip` is treated as
+                // a normal `!dungeon` and runs into the cooldown gate.
+                if (rest.Equals("skip", StringComparison.OrdinalIgnoreCase)
+                    && ctx.Get<bool>("loadout.panel.skip", false))
+                {
+                    // Payment is the authorization — any paying viewer can
+                    // skip the cooldown. The Worker has already charged
+                    // them (Bits or 500 bolts) before stamping the trust
+                    // flag, so the mod gate doesn't apply here.
+                    lock (_gate) { _lastDungeonStartUtc = DateTime.MinValue; }
+                    StartDungeon(ctx, cfg);
+                    return;
+                }
                 if (!IsModOrBroadcaster(ctx) && !IsAllowedHost(cfg, ctx))
                 {
                     Reply(ctx, "Only mods can summon a dungeon. (" + dCmd + ")");
@@ -284,9 +312,153 @@ namespace Loadout.Modules
                         // so JSON property names match what panel.html reads.
                         partyHp    = (scene.PartyHp ?? new List<Loadout.Games.Dungeon.HpSnapshot>())
                                      .Select(h => new { name = h.Name, hp = h.Hp, hpMax = h.HpMax }),
+                        // Phase BR — branching options (empty for linear scenes).
+                        options    = (scene.Options ?? new List<SceneOption>())
+                                     .Select(o => new { id = o.Id, label = o.Label }),
                     });
                 }
 
+                // Phase BR — when the engine added a branch finale, hold off
+                // on outcomes + completion until the 30 s vote window has
+                // resolved. The vote-state lives on the recruit so chat
+                // votes (DungeonModule.OnEvent) and panel votes (the bridge
+                // synthesizes them as chat events) both feed the same map.
+                if (result.Branch != null && result.BranchEffects != null)
+                {
+                    lock (recruit.Sync)
+                    {
+                        recruit.Branch          = result.Branch;
+                        recruit.BranchEffects   = result.BranchEffects;
+                        recruit.BranchOpenedUtc = DateTime.UtcNow;
+                        recruit.Votes.Clear();
+                        recruit.VoteSeq.Clear();
+                        recruit.VoteCounter = 0;
+                    }
+                    // Resolution fires after the branch scene's overlay time
+                    // (DelayMs from start, already published above) + the
+                    // 30 s vote window + a small settle buffer.
+                    var waitMs = result.Branch.DelayMs + 30000 + 1500;
+                    Task.Delay(waitMs).ContinueWith(_ =>
+                        ResolveBranchAndComplete(recruit, result, cfg, party.Count));
+                    return;
+                }
+
+                ApplyAndCompleteRun(recruit, result, cfg, party.Count);
+            }
+            catch (Exception ex)
+            {
+                ErrorLog.Write("DungeonModule.Run", ex);
+                lock (_gate) { _activeDungeon = null; }
+            }
+        }
+
+        // Resolves the vote (plurality, first-vote tiebreak, no-vote default
+        // = first option), applies the winning BranchEffect to result.Outcomes,
+        // publishes dungeon.choice with the chosen option + resolve text, and
+        // then runs the normal outcome-apply + dungeon.completed path.
+        private void ResolveBranchAndComplete(DungeonRecruit recruit, DungeonRunResult result, DungeonConfig cfg, int partySize)
+        {
+            try
+            {
+                string winnerId; long winnerVotes; bool viaTimeout;
+                Dictionary<string, int> tally; Dictionary<string, string> snapshotVotes;
+                lock (recruit.Sync)
+                {
+                    tally = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var v in recruit.Votes.Values)
+                    {
+                        if (string.IsNullOrEmpty(v)) continue;
+                        tally.TryGetValue(v, out var c); tally[v] = c + 1;
+                    }
+                    snapshotVotes = new Dictionary<string, string>(recruit.Votes, StringComparer.OrdinalIgnoreCase);
+
+                    // First-vote tiebreak: pick the option with the highest
+                    // count, breaking ties by lowest VoteSeq stamp among
+                    // voters who picked that option.
+                    string best = null; int bestCount = -1; long bestFirstSeq = long.MaxValue;
+                    foreach (var kv in tally)
+                    {
+                        long firstSeq = long.MaxValue;
+                        foreach (var v in recruit.Votes)
+                            if (string.Equals(v.Value, kv.Key, StringComparison.OrdinalIgnoreCase)
+                                && recruit.VoteSeq.TryGetValue(v.Key, out var seq) && seq < firstSeq) firstSeq = seq;
+                        bool win = kv.Value > bestCount
+                                || (kv.Value == bestCount && firstSeq < bestFirstSeq);
+                        if (win) { best = kv.Key; bestCount = kv.Value; bestFirstSeq = firstSeq; }
+                    }
+                    if (best == null)
+                    {
+                        // No votes — default to the first option.
+                        best = (recruit.Branch?.Options != null && recruit.Branch.Options.Count > 0)
+                            ? recruit.Branch.Options[0].Id : null;
+                        viaTimeout = true;
+                    }
+                    else viaTimeout = false;
+                    winnerId    = best;
+                    winnerVotes = bestCount > 0 ? bestCount : 0;
+                }
+
+                BranchEffect effect = null;
+                if (winnerId != null && recruit.BranchEffects != null)
+                    recruit.BranchEffects.TryGetValue(winnerId, out effect);
+
+                if (effect != null)
+                    ApplyBranchEffectToOutcomes(result.Outcomes, effect);
+
+                Publish("dungeon.choice", new
+                {
+                    optionId    = winnerId,
+                    votes       = winnerVotes,
+                    tally       = tally,
+                    viaTimeout  = viaTimeout,
+                    resolveText = effect?.ResolveText ?? "",
+                    glyph       = effect?.Glyph ?? "",
+                });
+            }
+            catch (Exception ex)
+            {
+                ErrorLog.Write("DungeonModule.ResolveBranch", ex);
+            }
+
+            ApplyAndCompleteRun(recruit, result, cfg, partySize);
+        }
+
+        // Distributes a BranchEffect across the outcomes per the
+        // TargetUser policy ("" = everyone evenly, "host" = the recruit
+        // host, "lowest" = lowest-HP hero). Gold deltas apply per
+        // survivor; HP deltas apply per affected hero.
+        private static void ApplyBranchEffectToOutcomes(List<DungeonOutcome> outcomes, BranchEffect effect)
+        {
+            if (outcomes == null || outcomes.Count == 0 || effect == null) return;
+            var target = (effect.TargetUser ?? "").Trim().ToLowerInvariant();
+            List<DungeonOutcome> hpTargets;
+            if (target == "lowest")
+            {
+                var sorted = outcomes.OrderBy(o => o.HpDelta).ToList();
+                hpTargets = sorted.Count > 0 ? new List<DungeonOutcome> { sorted[0] } : outcomes;
+            }
+            else if (target == "host")
+            {
+                hpTargets = new List<DungeonOutcome> { outcomes[0] };
+            }
+            else
+            {
+                hpTargets = outcomes;
+            }
+            foreach (var o in hpTargets) o.HpDelta += effect.HpDelta;
+            if (effect.GoldDelta != 0)
+            {
+                foreach (var o in outcomes)
+                    if (o.Survived) o.GoldGained = Math.Max(0, o.GoldGained + (int)effect.GoldDelta);
+            }
+        }
+
+        // Original "apply outcomes + publish completed" path, factored out
+        // so both the linear and branching flows can call it.
+        private void ApplyAndCompleteRun(DungeonRecruit recruit, DungeonRunResult result, DungeonConfig cfg, int partySize)
+        {
+            try
+            {
                 // Apply outcomes: hero state, then award bolts so survivors
                 // see the +N bolts toast simultaneously with the loot reveal.
                 // Achievement unlocks bubble out of ApplyDungeonResult and
@@ -334,7 +506,7 @@ namespace Loadout.Modules
                     dungeonName = result.DungeonName,
                     biome       = result.Biome,
                     hadBoss     = result.HadBoss,
-                    partySize   = party.Count,
+                    partySize   = partySize,
                     outcomes    = result.Outcomes.Select(o =>
                     {
                         // Re-read the post-apply hero so the loot card has
@@ -587,6 +759,32 @@ namespace Loadout.Modules
             return false;
         }
 
+        // Phase BR — record a viewer's branch vote. One vote per voter
+        // (subsequent votes overwrite — first-vote tiebreak still uses the
+        // viewer's INITIAL VoteSeq, so changing a vote can't game ties).
+        private void CastBranchVote(EventContext ctx, string optionId)
+        {
+            DungeonRecruit recruit;
+            lock (_gate) { recruit = _activeDungeon; }
+            if (recruit == null || recruit.Branch == null) return;
+            optionId = (optionId ?? "").Trim().ToLowerInvariant();
+            if (optionId.Length == 0) return;
+            // Validate against the actual branch's options.
+            var ok = false;
+            foreach (var o in recruit.Branch.Options)
+            {
+                if (string.Equals(o.Id, optionId, StringComparison.OrdinalIgnoreCase)) { ok = true; break; }
+            }
+            if (!ok) return;
+            var voterKey = (ctx.Platform.ToShortName() + ":" + (ctx.User ?? "")).ToLowerInvariant();
+            lock (recruit.Sync)
+            {
+                recruit.Votes[voterKey] = optionId;
+                if (!recruit.VoteSeq.ContainsKey(voterKey))
+                    recruit.VoteSeq[voterKey] = ++recruit.VoteCounter;
+            }
+        }
+
         private static string NormalizeCmd(string cfg, string fallback)
         {
             var c = (cfg ?? "").Trim();
@@ -702,6 +900,19 @@ namespace Loadout.Modules
             public int OpenSec;
             public Dictionary<string, HeroState> Members = new Dictionary<string, HeroState>(StringComparer.OrdinalIgnoreCase);
             public int PartySize { get { lock (Sync) return Members.Count; } }
+            // Phase BR — branch-vote state, populated by DungeonModule
+            // while a branching run is mid-vote. Votes are stored as
+            // (voterKey -> optionId) so the same viewer voting twice
+            // doesn't multiply their weight; the first-wins tiebreak is
+            // enforced by stamping VoteSeq alongside.
+            public DungeonScene Branch;
+            public Dictionary<string, BranchEffect> BranchEffects;
+            public DateTime BranchOpenedUtc;
+            public readonly Dictionary<string, string> Votes =
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            public readonly Dictionary<string, long> VoteSeq =
+                new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+            public long VoteCounter;
         }
 
         private sealed class DuelRecruit

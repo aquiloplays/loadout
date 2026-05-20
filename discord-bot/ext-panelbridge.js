@@ -8,6 +8,8 @@
 
 import { json } from './ext-shared.js';
 import { resolveTwitchLoginById } from './ext-loadout.js';
+import { verifyBitsReceipt } from './auth.js';
+import { spend } from './wallet.js';
 
 // How long a pushed state stays "live". KV's own expirationTtl floors
 // at 60s; the tighter window is enforced here off the stored ts, so
@@ -66,11 +68,15 @@ export async function panelBridgeState(env, kind) {
 // chat commands).
 
 // Per-kind action allowlists — anything else is rejected at the edge so
-// the DLL only ever sees a known-good verb.
+// the DLL only ever sees a known-good verb. `skip` is never accepted
+// from /ext/dungeon/cmd (it's gated by payment); see skipCooldown below.
 const CMD_ACTIONS = {
-  dungeon: ['dungeon', 'join', 'duel'],
+  dungeon: ['dungeon', 'join', 'duel', 'vote'],
   minigame: ['coinflip', 'dice', 'slots', 'rps', 'roulette'],
 };
+
+const SKIP_BITS_SKU = 'dungeon_skip_cooldown';
+const SKIP_BOLTS_COST = 500;
 
 // Per-viewer-per-action debounce. KV's expirationTtl floors at 60 s, so
 // the entry lives at the cooldown record we actually want: a stored
@@ -144,6 +150,66 @@ export async function enqueuePanelCmd(env, kind, payload, req) {
     arg: cleanCmdArg(body && body.arg),
     user: {
       id: viewerId,
+      name: canonicalName || cleanCmdArg(body && body.name) || 'viewer',
+      role: String((payload && payload.role) || 'viewer').toLowerCase(),
+    },
+    ts: Date.now(),
+  };
+  const key =
+    'relay:dll-pending:' + record.ts + '-' + Math.random().toString(36).slice(2, 8);
+  await env.LOADOUT_BOLTS.put(key, JSON.stringify(record), { expirationTtl: 90 });
+  return json({ ok: true });
+}
+
+// POST /ext/dungeon/skip-cooldown — JWT-gated, panel-driven. Pays the
+// 10-min channel cooldown via either Bits (SKU dungeon_skip_cooldown,
+// 100 bits) OR a 500-bolts wallet debit. On success, enqueues a
+// dungeon "skip" command into the same dll-pending queue the DLL
+// already polls — PanelBridgeModule stamps the trusted skip flag so
+// DungeonModule.OnEvent bypasses its cooldown + mod gates exactly once.
+export async function skipCooldown(env, guildId, userId, payload, req) {
+  if (req.method !== 'POST') return json({ error: 'method' }, 405);
+  let body;
+  try { body = await req.json(); } catch { return json({ error: 'bad-json' }, 400); }
+
+  // Path 1: Bits receipt.
+  if (body && body.bits) {
+    const receipt = await verifyBitsReceipt(body.bits, env.TWITCH_EXT_SECRET);
+    const product = receipt && receipt.data && receipt.data.product;
+    if (
+      !receipt ||
+      receipt.topic !== 'bits_transaction_receipt' ||
+      !product ||
+      product.sku !== SKIP_BITS_SKU
+    ) {
+      return json({ error: 'bad-payment' }, 402);
+    }
+  // Path 2: bolts debit.
+  } else if (body && body.bolts === true) {
+    const r = await spend(env, guildId, userId, SKIP_BOLTS_COST, 'dungeon-skip-cooldown');
+    if (!r || !r.ok) {
+      return json({
+        error: 'insufficient-bolts',
+        balance: r ? r.balance : 0,
+        cost: SKIP_BOLTS_COST,
+      }, 402);
+    }
+  } else {
+    return json({ error: 'choose-payment' }, 400);
+  }
+
+  // Resolve the canonical name same as enqueuePanelCmd — opaque viewers
+  // keep their cosmetic body name, identity-shared viewers ride Helix.
+  let canonicalName = '';
+  if (payload && payload.user_id) {
+    canonicalName = (await resolveTwitchLoginById(env, payload.user_id)) || '';
+  }
+  const record = {
+    kind: 'dungeon',
+    action: 'skip',
+    arg: '',
+    user: {
+      id: String((payload && (payload.user_id || payload.opaque_user_id)) || ''),
       name: canonicalName || cleanCmdArg(body && body.name) || 'viewer',
       role: String((payload && payload.role) || 'viewer').toLowerCase(),
     },

@@ -16,12 +16,20 @@ namespace Loadout.Games.Dungeon
         public List<DungeonScene>     Scenes  { get; set; } = new List<DungeonScene>();
         public List<DungeonOutcome>   Outcomes { get; set; } = new List<DungeonOutcome>();
         public bool   HadBoss     { get; set; }
+
+        // Phase BR: optional branching finale. Null on the 80 % of runs
+        // that don't roll a branch. When present, DungeonModule schedules
+        // the dungeon.completed publish for branchScene.DelayMs + 30 s
+        // (vote window) + small buffer, applies the winning effect to
+        // Outcomes at that point, then publishes the final result.
+        public DungeonScene Branch     { get; set; }
+        public Dictionary<string, BranchEffect> BranchEffects { get; set; }
     }
 
     public sealed class DungeonScene
     {
         public int    DelayMs   { get; set; }   // ms after run start to fire on the bus
-        public string Kind      { get; set; }   // "encounter" | "trap" | "treasure" | "rest" | "story"
+        public string Kind      { get; set; }   // "encounter" | "trap" | "treasure" | "rest" | "story" | "branch"
         public string Text      { get; set; }   // the line to render in the adventure log
         public string TargetUser { get; set; }  // optional — which hero this happened to
         public string Glyph     { get; set; }   // optional — emoji for the scene tile
@@ -29,6 +37,29 @@ namespace Loadout.Games.Dungeon
         // resolution — lets the Twitch panel tick HP bars down live as the
         // scene replay plays out. Empty until the engine populates it.
         public List<HpSnapshot> PartyHp { get; set; } = new List<HpSnapshot>();
+        // Phase BR: viewer-choice options. Empty for normal narrative
+        // scenes; set on branching scenes so the panel can render vote
+        // buttons. Per-option mechanical effects live separately on
+        // DungeonRunResult.BranchEffects so the wire payload stays slim.
+        public List<SceneOption> Options { get; set; } = new List<SceneOption>();
+    }
+
+    public sealed class SceneOption
+    {
+        public string Id    { get; set; }   // stable, panel-friendly: "left", "right", "blade", ...
+        public string Label { get; set; }   // viewer-facing
+    }
+
+    // Server-side effect for one branch option. Applied to outcomes at
+    // dungeon completion (after the 30 s vote window resolves), so a tie
+    // or a no-vote run still produces a deterministic result.
+    public sealed class BranchEffect
+    {
+        public string ResolveText { get; set; }   // narrative line for after the vote ("The party descends...")
+        public int    HpDelta     { get; set; }   // < 0 = damage, > 0 = heal; applied to TargetUser, or split across the party when empty
+        public string TargetUser  { get; set; }   // "" = all party members evenly
+        public long   GoldDelta   { get; set; }   // bolts adjustment for each survivor
+        public string Glyph       { get; set; }
     }
 
     public sealed class HpSnapshot
@@ -136,6 +167,42 @@ namespace Loadout.Games.Dungeon
                 // scheduling more — the loot reveal will tell the chat
                 // who survived.
                 if (heroes.All(h => h.HpRemaining <= 0)) break;
+            }
+
+            // Phase BR — 20 % of dungeon runs end on a viewer-choice scene
+            // instead of going straight to outcomes. DungeonModule pauses
+            // there for the 30 s vote window before applying the winning
+            // effect to outcomes and publishing dungeon.completed. The
+            // scene is positioned after the main scene tail and before
+            // the loot-reveal beat below.
+            if (heroes.Any(h => h.HpRemaining > 0) &&
+                DungeonContent.BranchScenes.Length > 0 &&
+                r.Next(100) < 20)
+            {
+                var def = DungeonContent.PickBranchScene(r);
+                t += sceneSpacing;
+                var branch = new DungeonScene
+                {
+                    DelayMs = t,
+                    Kind    = "branch",
+                    Glyph   = def.Glyph,
+                    Text    = def.Text,
+                    PartyHp = SnapshotHp(heroes),
+                    Options = def.Options
+                                .Select(o => new SceneOption { Id = o.Id, Label = o.Label })
+                                .ToList(),
+                };
+                result.Branch = branch;
+                result.BranchEffects = def.Options
+                    .ToDictionary(o => o.Id, o => new BranchEffect
+                    {
+                        ResolveText = o.ResolveText,
+                        HpDelta     = o.HpDelta,
+                        TargetUser  = o.TargetUser,
+                        GoldDelta   = o.GoldDelta,
+                        Glyph       = o.Glyph,
+                    });
+                result.Scenes.Add(branch);
             }
 
             // Each survivor rolls a final loot drop based on difficulty.

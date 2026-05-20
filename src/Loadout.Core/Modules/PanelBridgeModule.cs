@@ -203,7 +203,9 @@ namespace Loadout.Modules
                         // mirrors the engine's `targetUser` so the panel can
                         // pulse the chip of whoever the scene happens to;
                         // `partyHp` ticks HP bars down live as the replay
-                        // plays each scene back in time.
+                        // plays each scene back in time. `options` is
+                        // present on branching scenes (Phase BR) and drives
+                        // the panel's vote buttons.
                         _pending.Add(new PendingUpdate
                         {
                             OffsetMs = data?["delayMs"]?.Value<long>() ?? 0,
@@ -214,8 +216,26 @@ namespace Loadout.Modules
                                 ["glyph"]   = data?["glyph"],
                                 ["target"]  = data?["targetUser"],
                                 ["partyHp"] = data?["partyHp"],
+                                ["options"] = data?["options"],
                             },
                         });
+                        break;
+
+                    case "dungeon.choice":
+                        // Phase BR — branch resolved. Park the resolve info
+                        // on the dungeon snapshot so the panel renders the
+                        // "{N} votes — {resolveText}" line in real time when
+                        // its 2 s poll catches up.
+                        if (_dungeon == null) _dungeon = new JObject();
+                        _dungeon["choice"] = new JObject
+                        {
+                            ["optionId"]    = data?["optionId"],
+                            ["votes"]       = data?["votes"],
+                            ["viaTimeout"]  = data?["viaTimeout"],
+                            ["resolveText"] = data?["resolveText"],
+                            ["glyph"]       = data?["glyph"],
+                        };
+                        Push("dungeon", _dungeon);
                         break;
 
                     case "dungeon.completed":
@@ -447,6 +467,15 @@ namespace Loadout.Modules
                 ["message"]     = message,
                 ["rawInput"]    = message,
             };
+            // Phase BR — stamp the panel-skip trust flag so DungeonModule
+            // can tell "the Worker validated a Bits/bolts payment" from
+            // "a chat viewer typed !dungeon skip". Worker only enqueues
+            // the skip action AFTER charging, so seeing it here means it's
+            // legitimate.
+            if (kind == "dungeon" && action == "skip")
+            {
+                args["loadout.panel.skip"] = true;
+            }
             SbEventDispatcher.Instance.DispatchEvent("chat", args);
         }
 
@@ -459,11 +488,21 @@ namespace Loadout.Modules
             if (kind == "dungeon")
             {
                 var dc = SettingsManager.Instance.Current?.Dungeon;
+                var dungeonWord = NormalizeCmd(dc?.DungeonCommand, "!dungeon");
                 switch (action)
                 {
-                    case "dungeon": word = NormalizeCmd(dc?.DungeonCommand, "!dungeon"); break;
-                    case "join":    word = NormalizeCmd(dc?.JoinCommand,    "!join");    break;
-                    case "duel":    word = NormalizeCmd(dc?.DuelCommand,    "!duel");    break;
+                    case "dungeon": word = dungeonWord; break;
+                    case "join":    word = NormalizeCmd(dc?.JoinCommand, "!join"); break;
+                    case "duel":    word = NormalizeCmd(dc?.DuelCommand, "!duel"); break;
+                    // Phase BR — vote on the current branching scene; arg is
+                    // the option id. Synthesizes "!dungeon vote <id>".
+                    case "vote":    word = dungeonWord + " vote"; break;
+                    // Phase BR — bypass the channel cooldown and start a
+                    // dungeon. DispatchPanelCommand stamps a trust flag in
+                    // the args so DungeonModule.OnEvent honours it (a chat
+                    // user typing the same line is still subject to the
+                    // cooldown).
+                    case "skip":    word = dungeonWord + " skip"; break;
                     default: return null;
                 }
             }

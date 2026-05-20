@@ -747,6 +747,99 @@ namespace Loadout.Games.Dungeon
             "Wind howls through unseen cracks."
         };
 
+        // ── Branching scenes (Phase BR) ────────────────────────────────
+        // 20 % of dungeon runs end on one of these — the panel renders
+        // each option as a vote button, a 30 s plurality vote decides
+        // (first vote breaks ties), and the engine applies the winning
+        // BranchOption's mechanical effect at dungeon completion. The
+        // narrative ResolveText is published in dungeon.choice alongside
+        // the winning option.
+        public sealed class BranchOption
+        {
+            public string Id;
+            public string Label;        // viewer-facing on the vote button
+            public string ResolveText;  // narrative for after the vote
+            public int    HpDelta;      // < 0 damage, > 0 heal; applied per TargetUser policy below
+            public string TargetUser;   // "" = everyone; "host" = recruit host; "lowest" = lowest HP hero
+            public long   GoldDelta;    // per-survivor bolts adjustment
+            public string Glyph;
+        }
+
+        public sealed class BranchSceneDef
+        {
+            public string Id;
+            public string Glyph;
+            public string Text;          // the prompt the chat reads
+            public BranchOption[] Options;
+        }
+
+        public static readonly BranchSceneDef[] BranchScenes = new[]
+        {
+            new BranchSceneDef
+            {
+                Id = "crossroads",
+                Glyph = "🚪",
+                Text = "A torchlit cavern splits in two. To the left, narrow stairs spiral down toward a faint metallic clang. To the right, mossy steps climb toward birdsong. The party calls for a vote.",
+                Options = new[]
+                {
+                    new BranchOption {
+                        Id = "left", Label = "Descend the stairs",
+                        ResolveText = "The party descends. The clang grows louder — a forge-ghost's hammer rings out. Bolts spill from the anvil as the party retreats.",
+                        HpDelta = -3, TargetUser = "", GoldDelta = 40, Glyph = "🔨",
+                    },
+                    new BranchOption {
+                        Id = "right", Label = "Climb to the canopy",
+                        ResolveText = "Sunlight breaks through the canopy. A dryad smiles, blesses the wounded, and waves the party on.",
+                        HpDelta = +6, TargetUser = "", GoldDelta = 0, Glyph = "🌿",
+                    },
+                },
+            },
+            new BranchSceneDef
+            {
+                Id = "forge-antechamber",
+                Glyph = "🔨",
+                Text = "A blacksmith's ghost hammers a glowing blade. He doesn't look up. \"Take this and serve, or take the gold and run.\"",
+                Options = new[]
+                {
+                    new BranchOption {
+                        Id = "blade", Label = "Take the blade",
+                        ResolveText = "The ghost grins — the blade bites the bearer's hand as it accepts them. Wounds for a weapon.",
+                        HpDelta = -6, TargetUser = "host", GoldDelta = 20, Glyph = "🗡",
+                    },
+                    new BranchOption {
+                        Id = "gold", Label = "Pocket the gold",
+                        ResolveText = "The party scoops the coin and slips away. The hammer never stops ringing.",
+                        HpDelta = 0, TargetUser = "", GoldDelta = 60, Glyph = "🪙",
+                    },
+                },
+            },
+            new BranchSceneDef
+            {
+                Id = "treetop-glade",
+                Glyph = "🌿",
+                Text = "A clearing bathed in green light. A dryad offers a deal: leave one party member's strength, gain a satchel of gold for the rest.",
+                Options = new[]
+                {
+                    new BranchOption {
+                        Id = "pay", Label = "Sacrifice the weakest",
+                        ResolveText = "The lowest-HP hero crumples and the rest are showered in coin. The dryad nods, unsmiling.",
+                        HpDelta = -12, TargetUser = "lowest", GoldDelta = 50, Glyph = "💀",
+                    },
+                    new BranchOption {
+                        Id = "walk", Label = "Walk away",
+                        ResolveText = "The dryad watches the party leave. The forest exhales.",
+                        HpDelta = 0, TargetUser = "", GoldDelta = 0, Glyph = "🍃",
+                    },
+                },
+            },
+        };
+
+        public static BranchSceneDef PickBranchScene(Random r)
+        {
+            if (BranchScenes.Length == 0) return null;
+            return BranchScenes[r.Next(BranchScenes.Length)];
+        }
+
         // ── NPC encounters (a wandering merchant / prisoner / hero) ────
         public sealed class NpcDef
         {

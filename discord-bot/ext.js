@@ -36,6 +36,7 @@ import {
   panelBridgeState,
   enqueuePanelCmd,
   drainDllCommands,
+  skipCooldown,
 } from './ext-panelbridge.js';
 import { rollLootBox, readLootBoxCatalog } from './ext-lootbox.js';
 import { startPanelPatreonLink } from './ext-patreon-link.js';
@@ -115,6 +116,9 @@ export async function handleExt(req, env) {
     }
     if (req.method === 'POST' && route === 'minigame/cmd') {
       return await enqueuePanelCmd(env, 'minigame', payload, req);
+    }
+    if (req.method === 'POST' && route === 'dungeon/skip-cooldown') {
+      return await skipCooldown(env, guildId, userId, payload, req);
     }
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
