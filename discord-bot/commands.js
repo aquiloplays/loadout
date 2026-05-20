@@ -24,13 +24,14 @@
 
 import { renderLoadoutCommand, handleComponent, handleModal } from './loadout-menu.js';
 import { handleStocks } from './stocks.js';
-import { handleBet } from './bet.js';
-import { renderHubCommand, handleHubComponent } from './hub-menu.js';
+import { handleBet, handleBetAutocomplete } from './bet.js';
+import { renderHubCommand, handleHubComponent, handleHubModal } from './hub-menu.js';
 import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
 const TYPE_MESSAGE_COMPONENT   = 3;
+const TYPE_AUTOCOMPLETE        = 4;
 const TYPE_MODAL_SUBMIT        = 5;
 
 const RESP_PONG                = 1;
@@ -63,7 +64,20 @@ export async function handleInteraction(req, env, body) {
     if (cid.startsWith('admin:')) return handleAdminComponent(data, env);
     return handleComponent(data, env);
   }
+  if (data.type === TYPE_AUTOCOMPLETE) {
+    // Autocomplete for /bet sports place's `game` option. Routed by
+    // command name; other commands fall through with empty choices.
+    const cmd = (data.data?.name || '').toLowerCase();
+    if (cmd === 'bet') {
+      return json(await handleBetAutocomplete(env, data.data?.options || []));
+    }
+    return json({ type: 8, data: { choices: [] } });
+  }
   if (data.type === TYPE_MODAL_SUBMIT) {
+    // Route hub-originated modals to their dedicated handler; everything
+    // else falls back to loadout-menu's handler.
+    const cid = data.data?.custom_id || '';
+    if (cid.startsWith('hub:modal:')) return handleHubModal(data, env);
     return handleModal(data, env);
   }
   if (data.type !== TYPE_APPLICATION_CMD) {

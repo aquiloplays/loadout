@@ -101,8 +101,15 @@ export const COMMANDS = [
             type: TYPE_SUBCOMMAND, name: 'place',
             description: 'Place a bet on a game',
             options: [
-              { type: TYPE_STRING,  name: 'game',  description: 'Game ID from /bet sports list', required: true },
-              { type: TYPE_STRING,  name: 'side',  description: 'home or away', required: true },
+              // autocomplete pulls from the cached scoreboard so viewers
+              // don't have to copy the gameId out of /bet sports list.
+              { type: TYPE_STRING,  name: 'game',  description: 'Pick an upcoming game', required: true, autocomplete: true },
+              { type: TYPE_STRING,  name: 'side',  description: 'home or away', required: true,
+                choices: [
+                  { name: 'home', value: 'home' },
+                  { name: 'away', value: 'away' },
+                ],
+              },
               { type: TYPE_INTEGER, name: 'bolts', description: 'Stake — capped at 10% of wallet', required: true, min_value: 1 },
             ],
           },
