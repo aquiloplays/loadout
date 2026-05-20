@@ -11,6 +11,18 @@ Versioning: [SemVer](https://semver.org/).
 
 ---
 
+## [1.8.0] - 2026-05-19
+
+Phase D (duels in panel) + Phase C (content expansion).
+
+### Added
+
+- `PanelBridgeModule` mirrors `duel.*` bus events to the Worker as a new `type: duel` state. Worker exposes JWT-gated `GET /ext/duel/state`. Twitch panel reads it and renders a duel banner on the Dungeon tab (challenger/defender, phase pill, recent strikes, winner + payout). The duel engine itself was already in `DungeonModule`; this just surfaces it.
+- 20 new dungeon-content beats across the existing pools — 5 monsters (Pixie Trickster, Cinder Grub, Bog Witch, Tax Collector, Pyrohound), 4 traps (Glue Trap, Cursed Mirror, Riddle Door, Echoing Bellow), 3 NPCs (Ghostly Librarian, Demon Lawyer, Stray Cat), 2 shrines (Sleeper, Joker), 6 flavour scenes.
+- 30 new loot items across rarities (7 common / 7 uncommon / 6 rare / 5 epic / 5 legendary), including flavour pieces (Embarrassing Note, Genuine Plot Device, Helm of the Final Boss). New carriers for existing abilities (phoenix, lifesteal, scholar, lucky, boss-slayer).
+
+---
+
 ## [1.7.0] - 2026-05-19
 
 Phase BR-core — branching dungeons (vote + cooldown skip).
