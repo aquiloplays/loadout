@@ -24,7 +24,7 @@
 //   /bet sports history
 
 import { spend, earn, getWallet } from './wallet.js';
-import { noteTeamsFromGames, findSubscribersForGame } from './hub-menu.js';
+import { noteTeamsFromGames, findSubscribersForGame, seedTeamRegistry } from './hub-menu.js';
 
 const FLAG_EPHEMERAL = 1 << 6;
 const RESP_CHAT = 4;
@@ -208,6 +208,9 @@ export async function betCronTick(env) {
   catch { games = await readGamesCache(env); }
 
   // Keep the team registry warm for /hub team-subscription search.
+  // seedTeamRegistry is idempotent + sentinel-guarded so it only hits
+  // ESPN's teams endpoint once per league per deploy.
+  try { await seedTeamRegistry(env); } catch { /* idle */ }
   try { await noteTeamsFromGames(env, games); } catch { /* idle */ }
 
   // Post newly-seen games to every guild's bound sports feed channel.
@@ -306,7 +309,7 @@ async function postGameAnnouncement(env, channelId, g) {
   const embed = {
     title: '🏈 ' + g.label + ': ' + (g.away.name || g.away.abbr) + ' @ ' + (g.home.name || g.home.abbr),
     description:
-      '**Tip-off:** ' + fmtTime(g.date) + oddsLine + '\n\n' +
+      '**Tip-off:** ' + fmtTimeDyn(g.date) + oddsLine + '\n\n' +
       'Tap a button below to bet · 10% wallet cap · 1.95× even-money payout.',
     color: 0xff6ab5,
   };
@@ -470,11 +473,26 @@ function fmtOdds(americanOdds) {
   return americanOdds > 0 ? '+' + americanOdds : String(americanOdds);
 }
 
+// Plain ISO-ish formatting for places Discord markdown won't render
+// (autocomplete choice labels, sport list code blocks).
 function fmtTime(iso) {
   if (!iso) return '';
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
   return d.toISOString().replace('T', ' ').slice(0, 16) + 'Z';
+}
+
+// Discord dynamic timestamp — auto-localizes to the viewer's locale +
+// time zone. `:F` = "Monday, May 19, 2026 7:00 PM"; `:R` = "in 3
+// hours". Use this anywhere the output renders inside an embed body
+// or a regular message (it doesn't render inside code blocks or
+// autocomplete labels).
+function fmtTimeDyn(iso) {
+  if (!iso) return '';
+  const ms = new Date(iso).getTime();
+  if (!isFinite(ms)) return '';
+  const u = Math.floor(ms / 1000);
+  return '<t:' + u + ':F> (<t:' + u + ':R>)';
 }
 
 export async function renderSportsList(env) {

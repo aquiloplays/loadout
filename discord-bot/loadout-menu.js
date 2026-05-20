@@ -251,7 +251,11 @@ async function mainView(env, guild, userId, userName) {
         button('❓ Help',           'lo:help',        BTN_SECONDARY)
       ),
       row(
-        button('❌ Close',          'lo:close',       BTN_DANGER)
+        button('❌ Close',          'lo:close',       BTN_DANGER),
+        // Routes via the prefix dispatcher in commands.js to the hub
+        // root — gives the user a one-click escape back to /hub when
+        // they entered this menu through the hub Loadout drilldown.
+        button('🌐 Hub',            'hub:home',       BTN_SECONDARY)
       )
     ]
   };

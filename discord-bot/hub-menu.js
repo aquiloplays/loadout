@@ -420,13 +420,16 @@ async function sportsView(env) {
   };
 }
 
+// Discord dynamic timestamp — auto-localizes per viewer. `:F` is the
+// full date-time, `:R` is the relative offset ("in 3 hours"). Combined
+// they read well inside an embed description. Avoid putting these
+// inside code blocks — they only render outside ```.
 function fmtTimeShort(iso) {
   if (!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  // "Mon May 19 7:00 PM UTC" — rough but human-readable. Channel
-  // localization is non-trivial in a Worker; UTC is the honest default.
-  return d.toUTCString().replace(/:\d{2} GMT$/, ' UTC').replace(/^\w+, /, '');
+  const ms = new Date(iso).getTime();
+  if (!isFinite(ms)) return '';
+  const u = Math.floor(ms / 1000);
+  return '<t:' + u + ':F> (<t:' + u + ':R>)';
 }
 
 async function sportsUpcomingPaged(env, page) {
@@ -618,6 +621,66 @@ export async function findSubscribersForGame(env, league, awayId, homeId) {
   const tH = await getIndex(env, TEAM_INDEX_KEY(league.toLowerCase(), homeId));
   tH.forEach((u) => set.add(u));
   return Array.from(set);
+}
+
+// One-shot warm-up: pulls every team in each of the four leagues
+// from ESPN's teams endpoint and populates the registry so the
+// subscription search modal works the moment the cron runs, instead
+// of waiting hours for games to surface teams. Idempotent + guarded
+// by a sentinel so we only hit ESPN's teams endpoint once per
+// league per deploy.
+const TEAM_SEED_KEY = 'sports:teams:seeded';
+
+export async function seedTeamRegistry(env) {
+  let seeded;
+  try { seeded = await env.LOADOUT_BOLTS.get(TEAM_SEED_KEY, { type: 'json' }); }
+  catch { seeded = null; }
+  if (!seeded || typeof seeded !== 'object') seeded = {};
+
+  const sources = [
+    { sport: 'football',   league: 'nfl' },
+    { sport: 'basketball', league: 'nba' },
+    { sport: 'baseball',   league: 'mlb' },
+    { sport: 'hockey',     league: 'nhl' },
+  ];
+
+  let reg;
+  try { reg = await env.LOADOUT_BOLTS.get(TEAM_REGISTRY_KEY, { type: 'json' }); }
+  catch { reg = null; }
+  if (!reg || typeof reg !== 'object') reg = {};
+
+  let changed = false;
+  for (const s of sources) {
+    if (seeded[s.league]) continue;
+    try {
+      const res = await fetch(
+        'https://site.api.espn.com/apis/site/v2/sports/' + s.sport + '/' + s.league + '/teams',
+        { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; aquilo-sports/1.0)' } },
+      );
+      if (!res.ok) continue;
+      const d = await res.json();
+      const teams = (d && d.sports && d.sports[0] && d.sports[0].leagues &&
+                     d.sports[0].leagues[0] && d.sports[0].leagues[0].teams) || [];
+      if (!Array.isArray(reg[s.league])) reg[s.league] = [];
+      for (const wrap of teams) {
+        const t = wrap && wrap.team;
+        if (!t || !t.id) continue;
+        const id = String(t.id);
+        if (reg[s.league].find((x) => x.id === id)) continue;
+        reg[s.league].push({
+          id,
+          abbr: t.abbreviation || '',
+          name: t.displayName || t.shortDisplayName || t.abbreviation || id,
+        });
+        changed = true;
+      }
+      seeded[s.league] = Date.now();
+    } catch { /* skip — next cron retries */ }
+  }
+  if (changed) {
+    await env.LOADOUT_BOLTS.put(TEAM_REGISTRY_KEY, JSON.stringify(reg));
+  }
+  await env.LOADOUT_BOLTS.put(TEAM_SEED_KEY, JSON.stringify(seeded));
 }
 
 // Cron-time helper: capture every team we see, so the team-search

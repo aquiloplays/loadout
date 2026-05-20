@@ -7,7 +7,29 @@ Versioning: [SemVer](https://semver.org/).
 
 ## [Unreleased]
 
-(Nothing queued.)
+Worker-only changes (no DLL release was cut for this stretch).
+
+### Added
+
+- **Bolts stock market** — Yahoo Finance real-stock emulation. 20 starter tickers (AAPL, MSFT, GOOGL, META, AMZN, NVDA, AMD, INTC, TSLA, GME, EA, TTWO, RBLX, U, NFLX, DIS, SPOT, ROKU, COIN, MSTR). Hourly cron at `:17` writes prices + appends to history. Spot trading only, integer shares, 1% trade fee. `/stocks list / buy / sell / portfolio / chart` slash subcommands.
+- **Auto-updating stocks ticker board** — `/stocks ticker-setup` binds the current channel; a single embed is PATCHed in place every cron tick. `/stocks ticker-clear` releases the binding.
+- **Sports betting** — ESPN-driven NFL/NBA/MLB/NHL. Hourly cron at `:23` refreshes a 48 h cache + settles every open bet whose game has finished. Stake capped at 10% of wallet, 1.95× even-money or American moneyline payout, ties refund. `/bet sports list / place / active / history` with `STRING_AUTOCOMPLETE` on the game picker.
+- **Sports feed channel** — `/admin → Bind sports feed here` posts newly-seen games to the bound channel with `<@user>` mentions for every league/team subscriber. Inline bet buttons + mute-league + open-hub buttons.
+- **League / team subscriptions** — `/hub → Sports → Subscriptions` toggles + a search modal that scans the team registry. One-shot ESPN teams-endpoint seed populates the registry on first cron so the search works immediately. Reverse indexes (`sports:subs:league:*`, `sports:subs:team:*`) give the cron O(1) subscriber lookup per game.
+- **`/hub` — viewer-facing entry hub.** All flows ephemeral and component-driven (buttons, select menus, modals). Drilldowns for Loadout / Stocks / Sports / Profile / Help. Modal-driven buy/sell/chart/bet placement. Pagination for the ticker list (10/page) and upcoming games (4/page with inline bet buttons). Bet-feed embeds use Discord dynamic timestamps (`<t:UNIX:F>` + `:R`) so kickoff times auto-localize per viewer.
+- **`/admin` — server-admin hub** (MANAGE_GUILD). Surfaces install bind + stocks ticker board explainer + sports feed bind/clear.
+
+### Changed
+
+- Loadout main menu (`/loadout` and the hub Loadout drilldown) now has a `🌐 Hub` button so users can hop back to `/hub` from anywhere in the loadout flow.
+- `/bet sports list` formatting — `padStart(4) + '@' + padEnd(4)` for team abbreviations so the `@` lines up regardless of abbr length.
+
+### Infrastructure
+
+- Worker crons grow to two entries (`17 * * * *` stocks, `23 * * * *` sports + feed). `worker.js#scheduled` dispatches by `event.cron`.
+- Component routing in `commands.js` dispatches by `custom_id` prefix — `hub:*` → hub-menu, `admin:*` → admin-menu, `lo:*` → loadout-menu. Same pattern for `MODAL_SUBMIT` (`hub:modal:*` → hub modals).
+
+(No DLL release tagged — all changes ship on the Worker + aquilo-site sides only.)
 
 ---
 
