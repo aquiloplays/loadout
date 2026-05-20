@@ -139,5 +139,105 @@ export const COMMANDS = [
     name: 'admin',
     description: '(server admins) Admin hub for Loadout install + tools',
     default_member_permissions: '32', // MANAGE_GUILD
+  },
+  {
+    // Weekly stream-schedule editor — writes the same `schedule:v1:<g>`
+    // KV record that aquilo.gg's /admin Schedule editor writes. Either
+    // surface stays usable if the other is inconvenient. MANAGE_GUILD.
+    // See aquilo-site/SCHEDULE-SYSTEM-DESIGN.md for the data model.
+    name: 'schedule',
+    description: '(admins) View or edit the weekly stream schedule',
+    default_member_permissions: '32', // MANAGE_GUILD
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'view',
+        description: 'Show the current weekly schedule',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'set',
+        description: 'Set one day of the schedule',
+        options: [
+          { type: TYPE_STRING, name: 'day', description: 'Day of week', required: true,
+            choices: [
+              { name: 'Sunday',    value: '0' },
+              { name: 'Monday',    value: '1' },
+              { name: 'Tuesday',   value: '2' },
+              { name: 'Wednesday', value: '3' },
+              { name: 'Thursday',  value: '4' },
+              { name: 'Friday',    value: '5' },
+              { name: 'Saturday',  value: '6' },
+            ],
+          },
+          { type: TYPE_STRING, name: 'label', description: 'Theme/game (e.g. Minecraft, Variety Night)', required: false },
+          { type: TYPE_STRING, name: 'start', description: 'Start time HH:MM in schedule TZ (blank = off day)', required: false },
+          { type: TYPE_STRING, name: 'end',   description: 'End time HH:MM (00:30 rolls to next day)',         required: false },
+          { type: TYPE_STRING, name: 'kind',  description: 'Day kind', required: false,
+            choices: [
+              { name: 'fixed',     value: 'fixed' },
+              { name: 'variety',   value: 'variety' },
+              { name: 'community', value: 'community' },
+            ],
+          },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'set-tz',
+        description: 'Change the schedule timezone (IANA name)',
+        options: [
+          { type: TYPE_STRING, name: 'tz', description: 'e.g. America/New_York', required: true },
+        ],
+      },
+    ],
+  },
+  {
+    // Game catalog editor — writes the same `games:v1:<g>` KV record
+    // that aquilo.gg's /admin Games editor writes. Steam art URLs are
+    // derived deterministically from the appId at write time.
+    // MANAGE_GUILD. See SCHEDULE-SYSTEM-DESIGN.md.
+    name: 'games',
+    description: '(admins) View or edit the community / variety game catalog',
+    default_member_permissions: '32', // MANAGE_GUILD
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'view',
+        description: 'List the current catalog',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'add',
+        description: 'Add a game from a Steam appid',
+        options: [
+          { type: TYPE_INTEGER, name: 'steam',   description: 'Steam appid', required: true, min_value: 1 },
+          { type: TYPE_STRING,  name: 'name',    description: 'Override the auto-detected name', required: false },
+          { type: TYPE_STRING,  name: 'pools',   description: 'Which night pool(s) this game belongs to', required: false,
+            choices: [
+              { name: 'community',          value: 'community' },
+              { name: 'variety',            value: 'variety' },
+              { name: 'community+variety',  value: 'both' },
+            ],
+          },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'remove',
+        description: 'Remove a game by id (the slug shown in /games view)',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'Game id (slug)', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'set-pools',
+        description: 'Change which night(s) a game shows up on',
+        options: [
+          { type: TYPE_STRING, name: 'id',    description: 'Game id (slug)', required: true },
+          { type: TYPE_STRING, name: 'pools', description: 'New pool assignment', required: true,
+            choices: [
+              { name: 'community',          value: 'community' },
+              { name: 'variety',            value: 'variety' },
+              { name: 'community+variety',  value: 'both' },
+            ],
+          },
+        ],
+      },
+    ],
   }
 ];

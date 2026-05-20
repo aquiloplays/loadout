@@ -27,6 +27,7 @@ import { handleStocks } from './stocks.js';
 import { handleBet, handleBetAutocomplete } from './bet.js';
 import { renderHubCommand, handleHubComponent, handleHubModal } from './hub-menu.js';
 import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
+import { handleSchedule, handleGames } from './schedule.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -113,6 +114,17 @@ export async function handleInteraction(req, env, body, ctx) {
       // check would only fire if Discord changed its enforcement
       // model, so we trust the platform here.
       return json(await renderAdminCommand());
+
+    case 'schedule':
+      // Stream-schedule editor — writes the same `schedule:v1:<g>` KV
+      // record that aquilo.gg/admin writes. MANAGE_GUILD enforced by
+      // Discord (default_member_permissions).
+      return json(await handleSchedule(env, guild, data.data?.options || []));
+
+    case 'games':
+      // Game-catalog editor — companion to /schedule. Writes
+      // `games:v1:<g>` shared with aquilo.gg/admin.
+      return json(await handleGames(env, guild, data.data?.options || []));
 
     case 'loadout-claim':
       // /loadout-claim is handled inline in worker.js (separate path)
