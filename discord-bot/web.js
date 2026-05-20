@@ -47,6 +47,17 @@ import {
   closeNight,
   notifyQueueOpened,
 } from './queue.js';
+import {
+  loadHero,
+  attackOf,
+  defenseOf,
+  doInventory,
+  doEquip,
+  doUnequip,
+  doSell,
+  getDailyShop,
+  doShopBuy,
+} from './dungeon.js';
 
 const ROUTES = new Set([
   'wallet',
@@ -62,6 +73,13 @@ const ROUTES = new Set([
   'queues/open',
   'queues/close',
   'queues/close-night',
+  'hero',
+  'equip',
+  'unequip',
+  'sell',
+  'shop',
+  'shop/buy',
+  'dungeon/skip-cooldown',
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -136,6 +154,13 @@ export async function handleWeb(req, env) {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routeQueuesCloseNight(env, guildId);
     }
+    if (route === 'hero')     return await routeHero(env, guildId, discordId);
+    if (route === 'equip')    return await routeEquip(env, guildId, discordId, body);
+    if (route === 'unequip')  return await routeUnequip(env, guildId, discordId, body);
+    if (route === 'sell')     return await routeSell(env, guildId, discordId, body);
+    if (route === 'shop')     return await routeShop(env, guildId, discordId);
+    if (route === 'shop/buy') return await routeShopBuy(env, guildId, discordId, body);
+    if (route === 'dungeon/skip-cooldown') return await routeDungeonSkip(env, guildId, discordId);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
   }
@@ -349,6 +374,153 @@ async function routeQueuesClose(env, guildId, body) {
 async function routeQueuesCloseNight(env, guildId) {
   const r = await closeNight(env, guildId);
   return json(r, r.ok ? 200 : 400);
+}
+
+// ── Hero / Inventory / Equip / Unequip / Sell (Phase 2) ───────────────
+
+async function routeHero(env, guildId, userId) {
+  const hero = await loadHero(env, guildId, userId);
+  const { bag, equipped } = await doInventory(env, guildId, userId);
+  return json({
+    ok: true,
+    hero: {
+      name: hero.name || '',
+      class: hero.class || 'rogue',
+      level: hero.level || 1,
+      hp: hero.hp || 0,
+      maxHp: hero.maxHp || 0,
+      attack: attackOf(hero),
+      defense: defenseOf(hero),
+      portrait: hero.portrait || null,
+    },
+    bag: Array.isArray(bag) ? bag : [],
+    equipped: equipped || {},
+  });
+}
+
+async function routeEquip(env, guildId, userId, body) {
+  const id = String(body && body.itemId || '').trim();
+  if (!id) return json({ ok: false, error: 'bad-args', message: 'Pick an item.' }, 400);
+  const r = await doEquip(env, guildId, userId, id);
+  if (!r.ok) {
+    const msg = r.reason === 'not-found'
+      ? `No item starting with \`${id}\` in your bag.`
+      : 'That item has no equip slot.';
+    return json({ ok: false, error: r.reason, message: msg }, 400);
+  }
+  return json({ ok: true, item: r.item, message: `Equipped ${r.item.name}.` });
+}
+
+async function routeUnequip(env, guildId, userId, body) {
+  const slot = String(body && body.slot || '').trim().toLowerCase();
+  if (!slot) return json({ ok: false, error: 'bad-args', message: 'Pick a slot.' }, 400);
+  const r = await doUnequip(env, guildId, userId, slot);
+  if (!r.ok) return json({ ok: false, error: r.reason, message: `Nothing equipped in ${slot}.` }, 400);
+  return json({ ok: true, slot, message: `Unequipped ${slot}.` });
+}
+
+async function routeSell(env, guildId, userId, body) {
+  const id = String(body && body.itemId || '').trim();
+  if (!id) return json({ ok: false, error: 'bad-args', message: 'Pick an item.' }, 400);
+  const r = await doSell(env, guildId, userId, id);
+  if (!r.ok) return json({ ok: false, error: r.reason, message: `No item starting with \`${id}\`.` }, 400);
+  return json({ ok: true, item: r.item, refund: r.refund, message: `Sold for ${r.refund} bolts.` });
+}
+
+// ── Shop (Phase 3) ────────────────────────────────────────────────────
+
+async function routeShop(env, guildId, userId) {
+  const stock = await getDailyShop(env, guildId);
+  // getDailyShop returns { date, items: [[slot, rarity, name, glyph, atk, def, price, setName, weaponType, preferredClass, ability], ...] }
+  // Reshape to JSON-friendly objects.
+  const items = (stock && stock.items ? stock.items : []).map((row) => ({
+    slot: row[0],
+    rarity: row[1],
+    name: row[2],
+    glyph: row[3],
+    powerBonus: row[4] || 0,
+    defenseBonus: row[5] || 0,
+    price: row[6] || 0,
+    setName: row[7] || '',
+    weaponType: row[8] || '',
+    preferredClass: row[9] || '',
+    ability: row[10] || '',
+  }));
+  const w = await getWallet(env, guildId, userId);
+  return json({
+    ok: true,
+    date: stock && stock.date,
+    items,
+    balance: w.balance || 0,
+  });
+}
+
+async function routeShopBuy(env, guildId, userId, body) {
+  const name = String(body && body.name || '').trim();
+  if (!name) return json({ ok: false, error: 'bad-args', message: 'Pick an item.' }, 400);
+  const r = await doShopBuy(env, guildId, userId, name);
+  if (!r.ok) {
+    const msg = r.reason === 'not-in-stock'
+      ? "That item isn't in today's shop stock."
+      : r.reason === 'insufficient'
+      ? `Need ${r.price} bolts; you have ${r.balance}.`
+      : 'Couldn\'t buy — try again.';
+    return json({ ok: false, error: r.reason, message: msg, ...r }, 400);
+  }
+  const w = await getWallet(env, guildId, userId);
+  return json({
+    ok: true,
+    item: r.item || null,
+    balance: w.balance || 0,
+    message: `Bought ${r.item ? r.item.name : 'item'}.`,
+  });
+}
+
+// ── Dungeon skip-cooldown (Phase 4 — patron-gated) ────────────────────
+//
+// Patron-only at the moment. Any active aq_link session is treated
+// as "patron" (the cookie's `o:1` is the only stored flag; a proper
+// tier lookup belongs in a separate effort). Once per 10-min stream
+// cooldown per viewer, enforced by a webskip:<userId> TTL key.
+//
+// On success we enqueue the same relay:dll-pending record the panel's
+// /ext/dungeon/skip-cooldown writes, so the DLL processes web-side
+// skips identically to Bits-paid panel skips.
+
+const WEB_SKIP_TTL_S = 10 * 60; // 10 minutes
+const WEB_SKIP_KEY = (uid) => `webskip:${uid}`;
+
+async function routeDungeonSkip(env, guildId, userId) {
+  // Allow-list check: prevent users without a Patreon tier from
+  // exhausting the cooldown skip every 10 minutes. Today we trust
+  // any linked Discord session (Clay's signed-off "Patron-gated"
+  // assumes the /link callback minted the cookie). TODO: tighten
+  // to active-tier check when Patreon tier lands in the session.
+  const recent = await env.LOADOUT_BOLTS.get(WEB_SKIP_KEY(userId));
+  if (recent) {
+    return json({
+      ok: false,
+      error: 'cooldown',
+      message: 'Already used your skip this cooldown.',
+    }, 429);
+  }
+  await env.LOADOUT_BOLTS.put(WEB_SKIP_KEY(userId), String(Date.now()), {
+    expirationTtl: WEB_SKIP_TTL_S,
+  });
+
+  // Enqueue the skip command for the DLL. Same shape ext-panelbridge
+  // uses; PanelBridgeModule stamps the trusted skip flag.
+  const record = {
+    kind: 'dungeon',
+    action: 'skip',
+    arg: '',
+    user: { id: String(userId), name: 'web-patron', role: 'viewer' },
+    ts: Date.now(),
+  };
+  const key = 'relay:dll-pending:' + record.ts + '-' + Math.random().toString(36).slice(2, 8);
+  await env.LOADOUT_BOLTS.put(key, JSON.stringify(record), { expirationTtl: 90 });
+
+  return json({ ok: true, message: 'Cooldown skip queued. Watch the stream.' });
 }
 
 async function routeDice(env, guildId, userId, body) {
