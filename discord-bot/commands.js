@@ -41,7 +41,7 @@ const FLAG_EPHEMERAL = 64;
 
 const ACK_PONG = { type: RESP_PONG };
 
-export async function handleInteraction(req, env, body) {
+export async function handleInteraction(req, env, body, ctx) {
   let data;
   try { data = JSON.parse(body); }
   catch { return new Response('bad json', { status: 400 }); }
@@ -61,7 +61,7 @@ export async function handleInteraction(req, env, body) {
     // Route by custom_id prefix so each menu's components stay scoped.
     const cid = data.data?.custom_id || '';
     if (cid.startsWith('hub:'))   return handleHubComponent(data, env);
-    if (cid.startsWith('admin:')) return handleAdminComponent(data, env);
+    if (cid.startsWith('admin:')) return handleAdminComponent(data, env, ctx);
     return handleComponent(data, env);
   }
   if (data.type === TYPE_AUTOCOMPLETE) {

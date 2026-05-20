@@ -173,7 +173,7 @@ async function putHoldings(env, guildId, userId, h) {
 // useful payload: ?interval=1d&range=2d. We only read meta.regularMarketPrice
 // (Yahoo gives the last-close price outside regular trading hours, so
 // bots can still trade weekends + after-hours at the last close).
-async function fetchYahooStockPrice(symbol) {
+export async function fetchYahooStockPrice(symbol) {
   try {
     const res = await fetch(
       'https://query1.finance.yahoo.com/v8/finance/chart/' +

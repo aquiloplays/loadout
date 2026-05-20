@@ -31,9 +31,15 @@ import {
   getTickerBoardForGuild,
   getCatalog,
   getPrice,
+  fetchYahooStockPrice,
 } from './stocks.js';
-import { readGamesCache } from './bet.js';
-import { bindBoltsFeed, getBoltsFeed, clearBoltsFeed } from './bolts-feed.js';
+import { readGamesCache, fetchLeague } from './bet.js';
+import {
+  bindBoltsFeed,
+  getBoltsFeed,
+  clearBoltsFeed,
+  buildDigestEmbed,
+} from './bolts-feed.js';
 
 const RESP_CHAT            = 4;
 const RESP_DEFER_UPDATE    = 6;
@@ -323,9 +329,201 @@ async function setupView(env, guildId) {
           { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🛑 Clear bolts',  custom_id: 'admin:setup:clr:bolts',  disabled: !bolts },
         ],
       },
-      backRow(),
+      // Pipe tests + back. The Discord 5-rows-per-message limit forced the
+      // back button to share its row with the pipe-test trigger; both
+      // navigate cleanly so the doubled row is fine here.
+      {
+        type: COMPONENT_ROW,
+        components: [
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back',           custom_id: 'admin:home' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '🧪 Run pipe tests', custom_id: 'admin:setup:pipetest' },
+        ],
+      },
     ],
   };
+}
+
+// ---- Pipe tests ------------------------------------------------------
+//
+// Owner-gated diagnostic. Each pipe is a real upstream/internal round-trip
+// so a stuck Yahoo or ESPN call surfaces immediately instead of going
+// unnoticed until viewers complain. Discord's 3s interaction window can't
+// hold these (~1-5s each), so the handler ACKs with DEFERRED_UPDATE_MESSAGE
+// and the work runs under ctx.waitUntil() before PATCHing the original
+// message via the interaction webhook.
+
+const PIPE_TIMEOUT_MS = 10_000;
+
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('timeout after ' + ms + 'ms (' + label + ')')), ms),
+    ),
+  ]);
+}
+
+async function pipeStocks(env) {
+  // Pull catalog so we test the same data path production uses.
+  // Falls back to AAPL if catalog is empty -- the pipe test still
+  // proves Yahoo is reachable.
+  const cat = await getCatalog(env);
+  const t = (cat && cat.tickers && cat.tickers[0]) || { ticker: 'AAPL', sourceRef: 'AAPL', name: 'Apple Inc.' };
+  const sym = t.sourceRef || t.ticker;
+  const price = await fetchYahooStockPrice(sym);
+  if (typeof price !== 'number') throw new Error('Yahoo returned no usable price for ' + sym);
+  return sym + ' = $' + price.toFixed(2);
+}
+
+async function pipeSports(env) {
+  // NFL scoreboard -- always returns something, even in off-season.
+  const events = await fetchLeague('football', 'nfl');
+  if (!Array.isArray(events)) throw new Error('ESPN response shape wrong');
+  return 'NFL scoreboard: ' + events.length + ' event(s)';
+}
+
+async function pipeBoltsCompute(env, guildId) {
+  // Compute the digest WITHOUT posting it. Proves KV reads + digest
+  // assembly work end-to-end without sending a test message anywhere.
+  const embed = await buildDigestEmbed(env, guildId);
+  if (!embed || !embed.description) throw new Error('digest embed missing description');
+  // Approximate work done: leaderboard fetch + totals scan. Surface the
+  // embed size as a one-glance "did we actually build something" signal.
+  return 'digest built (' + embed.description.length + ' chars)';
+}
+
+async function pipeChannelReach(env, guildId) {
+  // Verify each bound feed channel is still visible to the bot. Uses
+  // GET /channels/{id} -- 200 = bot can see it (VIEW_CHANNEL), 404 =
+  // channel was deleted, 403 = bot lost perms. Deliberately NO test
+  // message posted -- channel spam would be worse than the bug we're
+  // catching.
+  const sports = await getSportsChannel(env, guildId);
+  const stocks = await getTickerBoardForGuild(env, guildId);
+  const bolts  = await getBoltsFeed(env, guildId);
+  const bindings = [
+    { label: 'sports', channelId: sports && sports.channelId },
+    { label: 'stocks', channelId: stocks && stocks.channelId },
+    { label: 'bolts',  channelId: bolts  && bolts.channelId  },
+  ].filter((b) => b.channelId);
+  if (bindings.length === 0) return 'no bindings to check';
+  if (!env.DISCORD_BOT_TOKEN) throw new Error('DISCORD_BOT_TOKEN missing');
+  const results = [];
+  for (const b of bindings) {
+    const res = await fetch(
+      'https://discord.com/api/v10/channels/' + encodeURIComponent(b.channelId),
+      { headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } },
+    );
+    if (res.ok)        results.push(b.label + ':visible');
+    else if (res.status === 404) results.push(b.label + ':deleted');
+    else if (res.status === 403) results.push(b.label + ':no-view');
+    else               results.push(b.label + ':http' + res.status);
+  }
+  // Any non-"visible" result is a failure for the overall pipe.
+  const bad = results.filter((r) => !r.endsWith(':visible'));
+  if (bad.length) throw new Error(bad.join(', '));
+  return results.join(', ');
+}
+
+async function pipeKvRoundtrip(env) {
+  const key = 'pipetest:rt:' + Date.now() + ':' + Math.random().toString(36).slice(2, 8);
+  const payload = 'ok-' + Date.now();
+  await env.LOADOUT_BOLTS.put(key, payload, { expirationTtl: 60 });
+  const got = await env.LOADOUT_BOLTS.get(key);
+  await env.LOADOUT_BOLTS.delete(key);
+  if (got !== payload) throw new Error('KV read returned ' + JSON.stringify(got));
+  return 'KV write -> read -> delete OK';
+}
+
+async function runOnePipe(label, fn) {
+  const t0 = Date.now();
+  try {
+    const detail = await withTimeout(fn(), PIPE_TIMEOUT_MS, label);
+    return { ok: true, label, detail, ms: Date.now() - t0 };
+  } catch (e) {
+    return { ok: false, label, detail: (e && e.message) || 'error', ms: Date.now() - t0 };
+  }
+}
+
+async function runAllPipes(env, guildId) {
+  // Run in parallel so the slowest pipe sets the total elapsed, not the sum.
+  const t0 = Date.now();
+  const results = await Promise.all([
+    runOnePipe('1. Stocks (Yahoo)',           () => pipeStocks(env)),
+    runOnePipe('2. Sports (ESPN)',            () => pipeSports(env)),
+    runOnePipe('3. Bolts-feed digest',        () => pipeBoltsCompute(env, guildId)),
+    runOnePipe('4. Channel-binding reach',    () => pipeChannelReach(env, guildId)),
+    runOnePipe('5. KV round-trip',            () => pipeKvRoundtrip(env)),
+  ]);
+  return { results, totalMs: Date.now() - t0 };
+}
+
+function pipeResultsView(report) {
+  const { results, totalMs } = report;
+  const passed = results.filter((r) => r.ok).length;
+  const failed = results.length - passed;
+  const allOk = failed === 0;
+
+  const lines = results.map((r) => {
+    const icon = r.ok ? '✅' : '❌';
+    return icon + ' **' + r.label + '** — ' + r.ms + 'ms · ' + r.detail;
+  });
+
+  const color = allOk ? 0x46d160 : (passed >= 3 ? 0xf7b500 : 0xff5c5c);
+
+  return {
+    embeds: [{
+      title: '🧪 Pipe Test Results',
+      description: lines.join('\n'),
+      color,
+      footer: {
+        text: passed + '/' + results.length + ' passed · total ' + totalMs + 'ms',
+      },
+      timestamp: new Date().toISOString(),
+    }],
+    components: [{
+      type: COMPONENT_ROW,
+      components: [
+        { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back',    custom_id: 'admin:setup' },
+        { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '🔄 Re-run', custom_id: 'admin:setup:pipetest' },
+      ],
+    }],
+  };
+}
+
+// PATCH the original interaction message via the webhook URL. The token in
+// the URL is itself the auth -- no Bot header. 15-minute window from the
+// interaction's creation; we're well inside that.
+async function patchOriginalInteraction(env, interactionToken, body) {
+  const appId = env.DISCORD_APP_ID;
+  if (!appId) {
+    console.error('patchOriginalInteraction: DISCORD_APP_ID env var missing');
+    return;
+  }
+  try {
+    const res = await fetch(
+      'https://discord.com/api/v10/webhooks/' +
+        encodeURIComponent(appId) +
+        '/' + encodeURIComponent(interactionToken) +
+        '/messages/@original',
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      },
+    );
+    if (!res.ok) {
+      console.error('patchOriginalInteraction failed: HTTP', res.status, await res.text());
+    }
+  } catch (e) {
+    console.error('patchOriginalInteraction threw:', e && e.message);
+  }
+}
+
+async function runPipeTestsAndPatch(env, interactionToken, guildId) {
+  const report = await runAllPipes(env, guildId);
+  const view = pipeResultsView(report);
+  await patchOriginalInteraction(env, interactionToken, view);
 }
 
 // ---- slash command entrypoint ----------------------------------------
@@ -353,7 +551,7 @@ async function placeholderMain() {
 
 // ---- component dispatcher -------------------------------------------
 
-export async function handleAdminComponent(data, env) {
+export async function handleAdminComponent(data, env, ctx) {
   const guildId = data.guild_id;
   const channelId = data.channel_id || data.channel?.id;
   const customId = data.data?.custom_id || '';
@@ -374,6 +572,24 @@ export async function handleAdminComponent(data, env) {
   // ---- Setup & Status ----
   if (segs[0] === 'setup' && segs.length === 1) {
     return json({ type: RESP_UPDATE_MESSAGE, data: await setupView(env, guildId) });
+  }
+
+  // Pipe tests: ACK with DEFERRED_UPDATE_MESSAGE so the user sees the
+  // existing message stay (with a "thinking" indicator on the button),
+  // then run the tests under ctx.waitUntil and PATCH the original.
+  // Discord allows up to 15 minutes for the follow-up PATCH; with all
+  // pipes capped at 10s each running in parallel, total wall time is
+  // bounded at ~10s + Discord PATCH overhead.
+  if (segs[0] === 'setup' && segs[1] === 'pipetest') {
+    if (ctx && typeof ctx.waitUntil === 'function') {
+      ctx.waitUntil(runPipeTestsAndPatch(env, data.token, guildId));
+    } else {
+      // No ctx (shouldn't happen in production -- worker.js threads it
+      // through). Fall back to inline await; user sees a longer wait but
+      // gets a real result instead of a silent no-op.
+      await runPipeTestsAndPatch(env, data.token, guildId);
+    }
+    return json({ type: RESP_DEFER_UPDATE });
   }
 
   // Channel-select binds. data.values[0] is the chosen channelId.

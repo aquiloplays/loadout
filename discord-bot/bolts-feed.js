@@ -93,7 +93,7 @@ function fmtNum(n) {
   return String(n);
 }
 
-async function buildDigestEmbed(env, guildId) {
+export async function buildDigestEmbed(env, guildId) {
   const top = await leaderboard(env, guildId, 10);
   const totals = await computeServerTotals(env, guildId);
 

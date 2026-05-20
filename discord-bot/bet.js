@@ -49,7 +49,7 @@ const ESPN_UA = 'Mozilla/5.0 (compatible; aquilo-sports/1.0)';
 
 // ---- ESPN scoreboard ---------------------------------------------------
 
-async function fetchLeague(sport, league) {
+export async function fetchLeague(sport, league) {
   try {
     const res = await fetch(
       `https://site.api.espn.com/apis/site/v2/sports/${sport}/${league}/scoreboard`,

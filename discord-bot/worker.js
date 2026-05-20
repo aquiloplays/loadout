@@ -118,7 +118,7 @@ export default {
     }
 
     if (method === 'POST' && path === '/interactions') {
-      return handleDiscordInteractions(req, env);
+      return handleDiscordInteractions(req, env, ctx);
     }
 
     // Loadout-side endpoints
@@ -405,7 +405,7 @@ async function handleCountingAward(req, env) {
 
 // ---- /interactions ------------------------------------------------------
 
-async function handleDiscordInteractions(req, env) {
+async function handleDiscordInteractions(req, env, ctx) {
   // Single-tenant: one public key. Set it once via:
   //   wrangler kv:key put --binding=LOADOUT_BOLTS publickey <hex>
   const publicKey = await env.LOADOUT_BOLTS.get('publickey');
@@ -429,7 +429,7 @@ async function handleDiscordInteractions(req, env) {
     return json(resp);
   }
 
-  return handleInteraction(req, env, body);
+  return handleInteraction(req, env, body, ctx);
 }
 
 // ---- /claim (Loadout mints a code) --------------------------------------
