@@ -20,6 +20,7 @@ const STATE_KEY = {
   dungeon: 'panelbridge:dungeon',
   minigame: 'panelbridge:minigame',
   duel: 'panelbridge:duel',
+  cooldown: 'panelbridge:cooldown:dungeon',
 };
 
 // POST /relay/dll-ingest — token-gated (X-Relay-Token), not JWT: the
@@ -43,8 +44,40 @@ export async function ingestDllState(req, env) {
     state: body.state || null,
     ts: Date.now(),
   };
-  await env.LOADOUT_BOLTS.put(key, JSON.stringify(record), { expirationTtl: 60 });
+  // Cooldown records need to outlive the usual 60 s window — the
+  // panel reads them while no dungeon is active, until the cooldown
+  // itself expires. Derive TTL from the carried untilUtc + a buffer;
+  // everything else keeps the default short TTL so stale dungeon /
+  // minigame / duel state ages out cleanly.
+  let ttl = 60;
+  if (body.type === 'cooldown' && body.state && body.state.untilUtc) {
+    const remainMs = Date.parse(body.state.untilUtc) - Date.now();
+    if (remainMs > 0) ttl = Math.max(60, Math.ceil(remainMs / 1000) + 30);
+  }
+  await env.LOADOUT_BOLTS.put(key, JSON.stringify(record), { expirationTtl: ttl });
   return json({ ok: true });
+}
+
+// Read-side for cooldown is its own function — the dungeon-style
+// `panelBridgeState` enforces a 30-second staleness gate off `ts`,
+// which would expire a fresh cooldown record long before its actual
+// untilUtc. Here we trust the stored untilUtc directly.
+export async function dungeonCooldownState(env) {
+  const key = STATE_KEY.cooldown;
+  let rec = null;
+  try { rec = await env.LOADOUT_BOLTS.get(key, { type: 'json' }); } catch { /* idle */ }
+  if (!rec || !rec.state || !rec.state.untilUtc) {
+    return json({ active: false });
+  }
+  const untilMs = Date.parse(rec.state.untilUtc);
+  if (!isFinite(untilMs) || Date.now() >= untilMs) {
+    return json({ active: false });
+  }
+  return json({
+    active: true,
+    untilUtc: rec.state.untilUtc,
+    durationSec: rec.state.durationSec || 0,
+  });
 }
 
 // GET /ext/{dungeon,minigame}/state — JWT-gated panel reads. Returns

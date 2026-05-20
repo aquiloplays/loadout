@@ -37,6 +37,7 @@ import {
   enqueuePanelCmd,
   drainDllCommands,
   skipCooldown,
+  dungeonCooldownState,
 } from './ext-panelbridge.js';
 import { rollLootBox, readLootBoxCatalog } from './ext-lootbox.js';
 import { startPanelPatreonLink } from './ext-patreon-link.js';
@@ -103,6 +104,7 @@ export async function handleExt(req, env) {
     if (route === 'dungeon/state') return await panelBridgeState(env, 'dungeon');
     if (route === 'minigame/state') return await panelBridgeState(env, 'minigame');
     if (route === 'duel/state') return await panelBridgeState(env, 'duel');
+    if (route === 'dungeon/cooldown') return await dungeonCooldownState(env);
     if (req.method === 'GET' && route === 'lootbox/catalog') {
       return await readLootBoxCatalog(env);
     }
