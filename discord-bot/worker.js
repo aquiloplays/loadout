@@ -130,6 +130,13 @@ export default {
     // Aquilo's Vault integration: gated to the guild in env.AQUILO_VAULT_GUILD_ID
     if (method === 'POST' && path === '/credit-bolts')               return handleVaultCredit(req, env);
 
+    // Read-only balance lookup for cross-bot surfaces (FS Bot /wallet,
+    // future StreamFusion widget). HMAC-gated with the same
+    // X-Aquilo-Vault-Bolts-Secret as /credit-bolts so we don't expose
+    // arbitrary wallet shapes on the open web. Guild allow-list also
+    // applies — only AQUILO_VAULT_GUILD_ID can be queried.
+    if (method === 'GET' && path === '/wallet-balance')              return handleWalletBalanceRead(req, env);
+
     // aquilo-bot counting game integration. Awards/deducts bolts when a
     // viewer correctly counts (or breaks the chain) in the counting
     // channel. Auth: shared secret in X-Counting-Secret header
@@ -179,6 +186,11 @@ export default {
       } else if (event.cron === '23 * * * *') {
         const { betCronTick } = await import('./bet.js');
         ctx.waitUntil(betCronTick(env));
+        // Bolts-feed digest piggybacks on the :23 tick — no extra cron
+        // slot needed in wrangler.toml. Independent waitUntil so a
+        // failure in one doesn't cancel the other.
+        const { boltsFeedCronTick } = await import('./bolts-feed.js');
+        ctx.waitUntil(boltsFeedCronTick(env));
       }
     } catch (e) {
       console.error('scheduled cron failed:', e && e.message);
@@ -323,6 +335,41 @@ async function handleVaultCredit(req, env) {
 
   const { wallet, was_new } = await applyVaultDelta(env, guildId, userId, Math.trunc(amount), reason);
   return json({ ok: true, balance: wallet.balance, was_new });
+}
+
+// ---- /wallet-balance (read-only cross-bot lookup) -----------------------
+// Lets the Aquilo's Vault bot's /wallet command (and future surfaces)
+// show the SAME bolts number that /loadout shows in this server. No
+// mutation — pure read. Auth + allow-list mirror /credit-bolts.
+async function handleWalletBalanceRead(req, env) {
+  const expected = env.AQUILO_VAULT_BOLTS_SECRET;
+  if (!expected) return new Response('wallet endpoint not provisioned', { status: 503 });
+  const got = req.headers.get('x-aquilo-vault-bolts-secret');
+  if (got !== expected) return new Response('bad secret', { status: 401 });
+
+  const url = new URL(req.url);
+  const guildId = String(url.searchParams.get('guild_id') || '');
+  const userId  = String(url.searchParams.get('user_id')  || '');
+  if (!guildId || !userId) {
+    return new Response('guild_id, user_id query params required', { status: 400 });
+  }
+  const allowed = env.AQUILO_VAULT_GUILD_ID;
+  if (allowed && guildId !== String(allowed)) {
+    return new Response('guild not allowed', { status: 403 });
+  }
+
+  const { getWallet } = await import('./wallet.js');
+  const w = await getWallet(env, guildId, userId);
+  return json({
+    ok: true,
+    balance:        w.balance        || 0,
+    lifetimeEarned: w.lifetimeEarned || 0,
+    lifetimeSpent:  w.lifetimeSpent  || 0,
+    dailyStreak:    w.dailyStreak    || 0,
+    lastEarnUtc:    w.lastEarnUtc    || 0,
+    lastEarnReason: w.lastEarnReason || '',
+    linkedCount:   (w.links || []).length,
+  });
 }
 
 // ---- /counting/award-bolts (aquilo-bot → Loadout) ----------------------

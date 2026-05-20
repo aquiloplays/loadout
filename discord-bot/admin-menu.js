@@ -7,8 +7,13 @@
 //     callable; this surfaces them in the admin UI)
 //   - Sports feed channel (bind / clear) — used by bet.js's :23 cron
 //     to post newly-seen games with @mentions
+//   - Bolts feed channel (bind / clear) — hourly leaderboard + server
+//     totals digest, edited in place by bolts-feed.js's tick (same
+//     :23 cron as sports)
 //
 // Component routing prefix: "admin:".
+
+import { bindBoltsFeed, getBoltsFeed, clearBoltsFeed } from './bolts-feed.js';
 
 const RESP_CHAT            = 4;
 const RESP_DEFER_UPDATE    = 6;
@@ -51,14 +56,19 @@ async function clearSportsChannel(env, guildId) {
 
 async function mainView(env, guildId) {
   const sports = await getSportsChannel(env, guildId);
+  const bolts  = await getBoltsFeed(env, guildId);
   const sportsLine = sports
     ? 'Sports feed: 🟢 bound to <#' + sports.channelId + '>'
     : 'Sports feed: ⚫ not bound';
+  const boltsLine = bolts
+    ? 'Bolts feed:  🟢 bound to <#' + bolts.channelId + '>'
+    : 'Bolts feed:  ⚫ not bound';
   return {
     embeds: [{
       title: '🛠 Admin hub',
       description:
-        'Server-admin tools for Aquilo.\n\n' + sportsLine + '\n\n' +
+        'Server-admin tools for Aquilo.\n\n' +
+        sportsLine + '\n' + boltsLine + '\n\n' +
         'Stocks ticker board uses `/stocks ticker-setup` in the target channel.',
       color: 0x9a82ff,
     }],
@@ -75,6 +85,13 @@ async function mainView(env, guildId) {
         components: [
           { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: '🏈 Bind sports feed here', custom_id: 'admin:sports:bind' },
           { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🛑 Clear sports feed',    custom_id: 'admin:sports:clear', disabled: !sports },
+        ],
+      },
+      {
+        type: COMPONENT_ROW,
+        components: [
+          { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: '⚡ Bind bolts feed here',  custom_id: 'admin:bolts:bind' },
+          { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🛑 Clear bolts feed',     custom_id: 'admin:bolts:clear', disabled: !bolts },
           { type: COMPONENT_BUTTON, style: STYLE_LINK,      label: 'Web admin',                url: 'https://aquilo.gg/admin' },
         ],
       },
@@ -175,6 +192,20 @@ export async function handleAdminComponent(data, env) {
   }
   if (segs[0] === 'sports' && segs[1] === 'clear') {
     await clearSportsChannel(env, guildId);
+    return json({ type: RESP_UPDATE_MESSAGE, data: await mainView(env, guildId) });
+  }
+  if (segs[0] === 'bolts' && segs[1] === 'bind') {
+    if (!channelId) {
+      return json({ type: RESP_UPDATE_MESSAGE, data: errorView("Couldn't read the current channel.") });
+    }
+    const r = await bindBoltsFeed(env, guildId, channelId);
+    if (!r.ok) {
+      return json({ type: RESP_UPDATE_MESSAGE, data: errorView('Bind failed: ' + (r.reason || 'unknown error')) });
+    }
+    return json({ type: RESP_UPDATE_MESSAGE, data: await mainView(env, guildId) });
+  }
+  if (segs[0] === 'bolts' && segs[1] === 'clear') {
+    await clearBoltsFeed(env, guildId);
     return json({ type: RESP_UPDATE_MESSAGE, data: await mainView(env, guildId) });
   }
   return json({ type: RESP_DEFER_UPDATE });
