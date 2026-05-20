@@ -28,6 +28,7 @@ import { handleBet, handleBetAutocomplete } from './bet.js';
 import { renderHubCommand, handleHubComponent, handleHubModal } from './hub-menu.js';
 import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
 import { handleSchedule, handleGames } from './schedule.js';
+import { handleClashCommand } from './clash.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -125,6 +126,10 @@ export async function handleInteraction(req, env, body, ctx) {
       // Game-catalog editor — companion to /schedule. Writes
       // `games:v1:<g>` shared with aquilo.gg/admin.
       return json(await handleGames(env, guild, data.data?.options || []));
+
+    case 'clash':
+      // Town-and-raid feature. See CLASH-FEATURE-DESIGN.md.
+      return json(await handleClashCommand(env, data, userId, userName));
 
     case 'loadout-claim':
       // /loadout-claim is handled inline in worker.js (separate path)

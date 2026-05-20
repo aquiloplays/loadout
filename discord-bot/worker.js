@@ -230,6 +230,15 @@ export default {
         const { boltsFeedCronTick } = await import('./bolts-feed.js');
         ctx.waitUntil(boltsFeedCronTick(env));
       }
+      // Clash daily housekeeping — runs once a day at 09:13 UTC.
+      // Trophy/prestige decay for players camped above tier cap, and
+      // shield-expiring push notifications for streamers an hour out.
+      // Lightweight; safe to piggyback on the existing hourly trigger
+      // and gate by date so we only fire one decay pass per day.
+      if (event.cron === '13 9 * * *' || event.cron === '13 * * * *') {
+        const { clashDailyCronTick } = await import('./clash-cron.js');
+        ctx.waitUntil(clashDailyCronTick(env, event.cron));
+      }
     } catch (e) {
       console.error('scheduled cron failed:', e && e.message);
     }
