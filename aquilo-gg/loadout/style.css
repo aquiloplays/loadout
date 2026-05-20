@@ -1,22 +1,25 @@
 /*
- * Loadout landing page. On-brand with StreamFusion + Loadout DLL UI:
- * same palette, same Segoe UI, same 8 px radius. If brand colors change,
- * update them here AND in src/Loadout.Core/UI/Styles.xaml AND in StreamFusion.
+ * Loadout landing page (loadout.aquilo.gg). On-brand with the WPF
+ * Loadout DLL UI and the OBS overlays — same palette, same font
+ * stack, same 8 px radius. If brand colours change, update them here
+ * AND in src/Loadout.Core/UI/Styles.xaml AND in
+ * aquilo-gg/overlays/_shared/loadout-design.css so all three surfaces
+ * stay in sync.
  */
 :root {
-  --bg: #0E0E10;
-  --surface: #18181B;
-  --surface-2: #1F1F23;
-  --surface-3: #26262C;
-  --border: #2A2A30;
-  --text: #EFEFF1;
-  --muted: #ADADB8;
-  --accent: #3A86FF;
-  --accent-hi: #5A9CFF;
-  --tt: #00F2EA;
+  --bg: #0a0b12;
+  --surface: #11131c;
+  --surface-2: #161929;
+  --surface-3: #1f2233;
+  --border: #1f2233;
+  --text: #ffffff;
+  --muted: #94a3b8;
+  --accent: #7c5cff;
+  --accent-hi: #9a82ff;
+  --tt: #5bff95;
   --gold: #F0B429;
   --pink: #FF5DA2;
-  --grad: linear-gradient(135deg, #5A9CFF 0%, #00F2EA 100%);
+  --grad: linear-gradient(135deg, #9a82ff 0%, #5bff95 100%);
   --grad-warm: linear-gradient(135deg, #F55D44 0%, #FFCD3C 100%);
 }
 
@@ -25,7 +28,7 @@ html { scroll-behavior: smooth; }
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Geist', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-size: 16px;
   line-height: 1.55;
   min-height: 100vh;
@@ -54,8 +57,8 @@ code { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; backgrou
 .hero {
   padding: 64px 28px 80px;
   background:
-    radial-gradient(ellipse at 30% 20%, rgba(58,134,255,.18), transparent 50%),
-    radial-gradient(ellipse at 80% 60%, rgba(0,242,234,.12), transparent 55%);
+    radial-gradient(ellipse at 30% 20%, rgba(124, 92, 255,.18), transparent 50%),
+    radial-gradient(ellipse at 80% 60%, rgba(91, 255, 149,.10), transparent 55%);
 }
 .hero-inner {
   max-width: 1140px;
@@ -112,8 +115,8 @@ code { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; backgrou
 .hero-card .meta { color: var(--text); font-weight: 600; }
 .hero-card .dot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: #3FB950;
-  box-shadow: 0 0 10px #3FB950;
+  background: #5bff95;
+  box-shadow: 0 0 10px #5bff95;
   flex-shrink: 0;
   margin-top: 6px;
 }
@@ -158,9 +161,9 @@ section .sub { color: var(--muted); margin-bottom: 32px; }
   flex-direction: column;
 }
 .tier.featured {
-  background: linear-gradient(180deg, rgba(58,134,255,.10), var(--surface) 60%);
+  background: linear-gradient(180deg, rgba(124, 92, 255,.10), var(--surface) 60%);
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(58,134,255,.18), 0 12px 30px rgba(0,0,0,.5);
+  box-shadow: 0 0 0 2px rgba(124, 92, 255,.18), 0 12px 30px rgba(0,0,0,.5);
 }
 .tier.pro {
   background: linear-gradient(180deg, rgba(245,93,68,.10), var(--surface) 60%);

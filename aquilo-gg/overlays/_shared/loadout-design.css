@@ -1,10 +1,14 @@
 /*
- * Loadout — shared design tokens.
+ * Loadout — shared design tokens (aquilo.gg brand palette).
  *
  * Imported by every overlay so brand language stays consistent. Per-
  * overlay stylesheets compose on top of this; never duplicate a token
  * value in an overlay — extend or override here so a brand tweak only
  * has to land in one place.
+ *
+ * Brand colours match aquilo.gg + the Loadout settings window (see
+ * src/Loadout.Core/UI/Styles.xaml). Signature gesture is the violet ->
+ * green gradient lifted from the Loadout bolt logo: `--ld-grad-brand`.
  *
  * The system is "premium glass on dark" — layered translucent surfaces,
  * subtle inner highlights, and brand-accent rim lighting for state
@@ -13,45 +17,50 @@
  */
 :root {
   /* ── Surface / chrome ─────────────────────────────────────────── */
-  --ld-bg-1:        #14141a;
-  --ld-bg-2:        #0c0c12;
+  --ld-bg-1:        #11131c;
+  --ld-bg-2:        #0a0b12;
   --ld-bg-alpha:    0.92;
   --ld-glass-bg:    linear-gradient(135deg,
-                      rgba(28, 28, 36, var(--ld-bg-alpha)) 0%,
-                      rgba(12, 12, 18, var(--ld-bg-alpha)) 100%);
+                      rgba(22, 25, 41, var(--ld-bg-alpha)) 0%,
+                      rgba(10, 11, 18, var(--ld-bg-alpha)) 100%);
   --ld-glass-tint:  linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 35%);
   --ld-blur:        14px;
   --ld-saturate:    140%;
 
   /* ── Brand ────────────────────────────────────────────────────── */
-  --ld-accent:      #3A86FF;
-  --ld-accent-2:    #6BA9FF;
-  --ld-accent-3:    #2767D8;
-  --ld-accent-soft: rgba(58, 134, 255, 0.18);
-  --ld-accent-line: rgba(58, 134, 255, 0.45);
+  --ld-accent:      #7c5cff;
+  --ld-accent-2:    #9a82ff;
+  --ld-accent-3:    #6240e6;
+  --ld-accent-soft: rgba(124, 92, 255, 0.18);
+  --ld-accent-line: rgba(124, 92, 255, 0.45);
+  /* Signature brand gradient (violet -> green) — used for hero stripes,
+     wordmark fills, and the bolt-echo accents on cards. */
+  --ld-grad-brand:  linear-gradient(135deg, #9a82ff 0%, #6ee0c0 55%, #5bff95 100%);
 
   /* ── Outcome ──────────────────────────────────────────────────── */
-  --ld-win:         #3FB950;
-  --ld-win-2:       #6FF18B;
-  --ld-win-soft:    rgba(63, 185, 80, 0.18);
+  /* "Win" is the aquilo brand-green so winning visually pays off in
+     the same colour as the bolt's tail in the logo. */
+  --ld-win:         #5bff95;
+  --ld-win-2:       #7dffae;
+  --ld-win-soft:    rgba(91, 255, 149, 0.18);
   --ld-lose:        #F85149;
   --ld-lose-2:      #FF8B86;
   --ld-lose-soft:   rgba(248, 81, 73, 0.18);
   --ld-gold:        #F0B429;
   --ld-gold-2:      #FFE082;
   --ld-gold-deep:   #B7861E;
-  --ld-purple:      #B452FF;
+  --ld-purple:      #9a82ff;
   --ld-pink:        #FF5DAA;
-  --ld-cyan:        #00F2EA;
+  --ld-cyan:        #6ee0c0;
 
   /* ── Type ─────────────────────────────────────────────────────── */
-  --ld-text:        #F5F5F7;
-  --ld-text-soft:   rgba(245, 245, 247, 0.85);
-  --ld-muted:       #B8BCC6;
-  --ld-dim:         rgba(245, 245, 247, 0.55);
-  --ld-stack:       'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --ld-display:     'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --ld-mono:        'JetBrains Mono', 'Consolas', ui-monospace, monospace;
+  --ld-text:        #ffffff;
+  --ld-text-soft:   rgba(255, 255, 255, 0.85);
+  --ld-muted:       #cbd5e1;
+  --ld-dim:         rgba(255, 255, 255, 0.55);
+  --ld-stack:       'Geist', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --ld-display:     'Geist', 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --ld-mono:        'Geist Mono', 'JetBrains Mono', 'Consolas', ui-monospace, monospace;
 
   /* ── Border / radius ─────────────────────────────────────────── */
   --ld-border:        rgba(255, 255, 255, 0.08);
@@ -67,11 +76,11 @@
   --ld-shadow-deep: 0 16px 48px rgba(0, 0, 0, 0.65);
   --ld-shadow-rim:  inset 0 1px 0 rgba(255, 255, 255, 0.06),
                     inset 0 0 0 1px rgba(255, 255, 255, 0.02);
-  --ld-glow-accent: 0 0 28px rgba(58, 134, 255, 0.5);
-  --ld-glow-win:    0 0 32px rgba(63, 185, 80, 0.55);
+  --ld-glow-accent: 0 0 28px rgba(124, 92, 255, 0.5);
+  --ld-glow-win:    0 0 32px rgba(91, 255, 149, 0.55);
   --ld-glow-lose:   0 0 32px rgba(248, 81, 73, 0.45);
   --ld-glow-gold:   0 0 32px rgba(240, 180, 41, 0.55);
-  --ld-glow-purple: 0 0 32px rgba(180, 82, 255, 0.45);
+  --ld-glow-purple: 0 0 32px rgba(154, 130, 255, 0.45);
 
   /* ── Motion ─────────────────────────────────────────────────────
      Curated easing curves. Most overlay transitions use --ld-ease-out
@@ -134,7 +143,7 @@
   transition: background 320ms var(--ld-ease-out), opacity 320ms var(--ld-ease-out);
 }
 .ld-card--win {
-  border-color: rgba(63, 185, 80, 0.55);
+  border-color: rgba(91, 255, 149, 0.55);
   box-shadow: var(--ld-shadow-mid), var(--ld-glow-win), var(--ld-shadow-rim);
   --ld-card-stripe: linear-gradient(90deg, transparent 0%, var(--ld-win) 22%, var(--ld-win-2) 50%, var(--ld-win) 78%, transparent 100%);
 }

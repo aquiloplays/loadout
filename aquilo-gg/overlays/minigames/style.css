@@ -14,11 +14,11 @@
   --bg-1: #14141a;
   --bg-2: #0c0c12;
   --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(58, 134, 255, 0.45);
+  --border-strong: rgba(124, 92, 255, 0.45);
   /* Brand */
-  --accent: #3A86FF;
-  --accent-2: #6BA9FF;
-  --accent-soft: rgba(58, 134, 255, 0.18);
+  --accent: #7c5cff;
+  --accent-2: #9a82ff;
+  --accent-soft: rgba(124, 92, 255, 0.18);
   /* Outcome */
   --win: #3FB950;
   --win-soft: rgba(63, 185, 80, 0.18);
@@ -34,7 +34,7 @@
   /* Shadow + glow */
   --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.45);
   --shadow-deep: 0 16px 48px rgba(0, 0, 0, 0.65);
-  --glow-accent: 0 0 24px rgba(58, 134, 255, 0.45);
+  --glow-accent: 0 0 24px rgba(124, 92, 255, 0.45);
   --glow-win:    0 0 28px rgba(63, 185, 80, 0.55);
   --glow-lose:   0 0 28px rgba(248, 81, 73, 0.45);
   --glow-gold:   0 0 28px rgba(240, 180, 41, 0.55);
@@ -44,7 +44,7 @@ html, body {
   width: 100vw; height: 100vh;
   background: transparent;
   color: var(--text);
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Geist', 'Segoe UI', system-ui, -apple-system, sans-serif;
   overflow: hidden;
 }
 
@@ -442,7 +442,7 @@ body[data-pos="tr"] #card { top: 24px; right: 24px; }
   height: 64px;
   border-radius: 10px;
   background: linear-gradient(180deg, #2A2A30 0%, #18181B 100%);
-  border: 2px solid rgba(58, 134, 255, 0.4);
+  border: 2px solid rgba(124, 92, 255, 0.4);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 -3px 0 rgba(0, 0, 0, 0.3);
@@ -536,7 +536,7 @@ body[data-pos="tc"] #card.pulse { animation-name: pulseCenter; }
 .rps-vs {
   font-size: 18px; font-weight: 800;
   color: var(--accent);
-  text-shadow: 0 0 8px rgba(58,134,255,.5);
+  text-shadow: 0 0 8px rgba(124, 92, 255,.5);
 }
 
 /* ---- Roulette ---- */

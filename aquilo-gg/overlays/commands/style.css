@@ -7,7 +7,7 @@
   --muted: var(--ld-muted);
   --accent: var(--ld-accent);
   --cyan: var(--ld-cyan);
-  --azure: #3AC8FF;
+  --azure: #6ee0c0;
   --shadow: var(--ld-shadow-mid), var(--ld-shadow-rim);
 }
 
@@ -82,10 +82,10 @@ body[data-pos="tc"] #root { top: 0; left: 50%; transform: translateX(-50%); }
   background: linear-gradient(135deg, var(--accent) 0%, var(--azure) 55%, var(--cyan) 100%);
   text-shadow: 0 1px 0 rgba(0,0,0,0.25);
 }
-.badge[data-cat="info"]    { background: linear-gradient(135deg, #3A86FF, #3AC8FF); }
-.badge[data-cat="custom"]  { background: linear-gradient(135deg, #9147FF, #3AC8FF); }
+.badge[data-cat="info"]    { background: linear-gradient(135deg, #7c5cff, #6ee0c0); }
+.badge[data-cat="custom"]  { background: linear-gradient(135deg, #9147FF, #6ee0c0); }
 .badge[data-cat="counter"] { background: linear-gradient(135deg, #F0B429, #F0883E); }
-.badge[data-cat="bolts"]   { background: linear-gradient(135deg, #3A86FF, #00F2EA); }
+.badge[data-cat="bolts"]   { background: linear-gradient(135deg, #7c5cff, #00F2EA); }
 .badge[data-cat="clip"]    { background: linear-gradient(135deg, #F85149, #F0883E); }
 .badge[data-cat="checkin"] { background: linear-gradient(135deg, #3FB950, #00F2EA); }
 .badge[data-cat="mod"]     { background: linear-gradient(135deg, #53FC18, #3FB950); }
@@ -100,7 +100,7 @@ body[data-pos="tc"] #root { top: 0; left: 50%; transform: translateX(-50%); }
 }
 /* When the badge is rendering a single brand logo (Discord, etc.),
    slim the gradient padding so the SVG breathes a bit. */
-.badge.platforms { padding: 6px; background: rgba(58,134,255,.18); }
+.badge.platforms { padding: 6px; background: rgba(124, 92, 255,.18); }
 .badge.platforms .badge-img { object-fit: contain; }
 
 /* Multi-platform commands (!socials, !gamertags) render a 2x2 grid
@@ -108,7 +108,7 @@ body[data-pos="tc"] #root { top: 0; left: 50%; transform: translateX(-50%); }
    overflow chip ("+5") slots in if the streamer added more. */
 .badge.platforms-strip {
   padding: 4px;
-  background: rgba(58,134,255,.12);
+  background: rgba(124, 92, 255,.12);
   display: grid;
   align-items: center;
   justify-items: center;
@@ -180,9 +180,9 @@ body[data-pos="br"] .dot, body[data-pos="tr"] .dot { order: -1; }
 
 /* ------------ Theme variants ------------ */
 body[data-theme="neon"] .card {
-  border-color: rgba(58,134,255,.7);
-  box-shadow: 0 0 0 1px rgba(58,134,255,.4),
-              0 0 24px rgba(58,134,255,.45),
+  border-color: rgba(124, 92, 255,.7);
+  box-shadow: 0 0 0 1px rgba(124, 92, 255,.4),
+              0 0 24px rgba(124, 92, 255,.45),
               0 8px 22px rgba(0,0,0,.55);
 }
 body[data-theme="neon"] .name {
@@ -203,7 +203,7 @@ body[data-theme="minimal"] .name {
   color: var(--text);
 }
 body[data-theme="minimal"] .badge {
-  background: rgba(58,134,255,.15);
+  background: rgba(124, 92, 255,.15);
   color: var(--accent);
 }
 

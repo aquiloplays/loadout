@@ -10,13 +10,13 @@
         SnapsToDevicePixels="True"
         Loaded="Window_Loaded"
         Opacity="1"
-        FontFamily="Segoe UI"
+        FontFamily="Geist, Geist Sans, Segoe UI Variable Display, Segoe UI, system-ui, sans-serif"
         FontSize="13"
         Background="{DynamicResource Brush.Bg.Window}"
-        Foreground="#F5F5F7"
+        Foreground="#FFFFFF"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType"
-        TextElement.Foreground="#F5F5F7">
+        TextElement.Foreground="#FFFFFF">
     <Window.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

@@ -39,7 +39,7 @@ html, body {
   /* Premium glass surface — layered tint over a brand-tinted gradient,
      subtle inner highlight on the top edge, deeper shadow stack. */
   background:
-    radial-gradient(120% 80% at 0% 0%, rgba(58, 134, 255, 0.08) 0%, transparent 50%),
+    radial-gradient(120% 80% at 0% 0%, rgba(124, 92, 255, 0.08) 0%, transparent 50%),
     var(--ld-glass-tint),
     var(--ld-glass-bg);
   border: 1px solid var(--ld-border);
@@ -135,13 +135,13 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   width: 60px; height: 60px;
   padding: 0;
   border-radius: 14px;
-  background: rgba(58,134,255,.18);
+  background: rgba(124, 92, 255,.18);
   color: var(--accent);
   font-size: 28px;
   font-weight: 800;
   letter-spacing: 0.3px;
   overflow: hidden;
-  border: 1px solid rgba(58, 134, 255, 0.3);
+  border: 1px solid rgba(124, 92, 255, 0.3);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 4px 10px rgba(0, 0, 0, 0.35);
   transition: background 320ms var(--ld-ease-out), border-color 320ms var(--ld-ease-out), box-shadow 320ms var(--ld-ease-out);
   position: relative;
@@ -169,11 +169,11 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
    case shows a centered SVG with object-fit: contain so the logo
    isn't cropped. The multi-platform strip packs up to 3 logos in
    a horizontal row (badge is small here, so we cap at 3 not 4). */
-.badge.platforms { padding: 4px; background: rgba(58,134,255,.18); }
+.badge.platforms { padding: 4px; background: rgba(124, 92, 255,.18); }
 .badge.platforms .badge-img { object-fit: contain; }
 .badge.platforms-strip {
   padding: 2px;
-  background: rgba(58,134,255,.12);
+  background: rgba(124, 92, 255,.12);
 }
 .badge .icon-strip {
   display: flex;
@@ -231,8 +231,8 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
    colour changes — so the visual weight stays balanced regardless of
    which event landed. */
 #card.tone-bolts::before   { background: linear-gradient(90deg, transparent 0%, var(--accent)  22%, var(--accent2) 50%, var(--accent)  78%, transparent 100%); }
-#card.tone-bolts           { border-color: rgba(58,134,255,.45);  box-shadow: var(--ld-shadow-mid), 0 0 24px rgba(58,134,255,.32),  var(--ld-shadow-rim); }
-#card.tone-bolts   .badge  { background: rgba(58,134,255,.22); color: var(--accent); border-color: rgba(58,134,255,.4); }
+#card.tone-bolts           { border-color: rgba(124, 92, 255,.45);  box-shadow: var(--ld-shadow-mid), 0 0 24px rgba(124, 92, 255,.32),  var(--ld-shadow-rim); }
+#card.tone-bolts   .badge  { background: rgba(124, 92, 255,.22); color: var(--accent); border-color: rgba(124, 92, 255,.4); }
 
 #card.tone-welcome::before { background: linear-gradient(90deg, transparent 0%, var(--accent2) 22%, var(--cyan,#7BFFFA) 50%, var(--accent2) 78%, transparent 100%); }
 #card.tone-welcome         { border-color: rgba(0,242,234,.45);   box-shadow: var(--ld-shadow-mid), 0 0 24px rgba(0,242,234,.32),   var(--ld-shadow-rim); }
@@ -259,7 +259,7 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
 #card.tone-lose    .badge  { background: rgba(248,81,73,.22); color: var(--lose); border-color: rgba(248,81,73,.4); }
 
 #card.tone-info::before    { background: linear-gradient(90deg, transparent 0%, var(--accent)  22%, var(--accent2) 50%, var(--accent)  78%, transparent 100%); }
-#card.tone-info    .badge  { background: rgba(58,134,255,.18); color: var(--accent); }
+#card.tone-info    .badge  { background: rgba(124, 92, 255,.18); color: var(--accent); }
 
 /* ── Game layer: animated coin / die / slots in the badge slot ──────── */
 .game-visual {
@@ -488,7 +488,7 @@ body[data-pos="bc"] #card { bottom: 22px; left: 50%; transform: translateX(-50%)
   width: 22px; height: 56px;
   border-radius: 6px;
   background: linear-gradient(180deg, #2A2A30 0%, #18181B 100%);
-  border: 1px solid rgba(58, 134, 255, 0.4);
+  border: 1px solid rgba(124, 92, 255, 0.4);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), inset 0 -2px 0 rgba(0, 0, 0, 0.3);
@@ -845,7 +845,7 @@ body[data-vertical="1"] .hype-row          { font-size: 16px; }
   gap: 10px;
   align-items: center;
   font-size: 12px;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-family: 'Geist', 'Segoe UI', system-ui, -apple-system, sans-serif;
   color: var(--text);
   background: rgba(15, 15, 20, 0.92);
   border: 1px solid rgba(240, 180, 41, 0.4);

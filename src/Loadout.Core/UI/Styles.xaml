@@ -10,57 +10,55 @@
 
     <!--
         Loadout / aquilo.gg brand palette + premium WPF treatment.
-        Pulled from StreamFusion :root vars so Loadout reads as part of
-        the same product family. If you change a brand color here,
-        change it in StreamFusion too.
+        These tokens match the aquilo.gg brand palette used on the
+        Twitch panel + loadout.aquilo.gg landing page. Keep aligned with
+        aquilo-gg/overlays/_shared/loadout-design.css so the Settings
+        window and the OBS surfaces feel like one product.
 
-        v3 polish layer:
-          - Accent gradient brushes (azure -> cyan) for the wordmark + primary CTAs
-          - Sidebar nav tab template with left accent bar + icon slot
-          - Section labels for grouping the sidebar
-          - Status pills / chips for tier + saved indicators
-          - Refined focus ring (softer, thicker glow)
-          - Subtle vertical surface gradient on the chrome bars
-          - Toggle switch (true switch, not just a checkbox)
+        Brand: dark indigo surfaces, signature violet -> green gradient
+        (matching the lightning bolt in the logo). Avoid the old azure
+        blue — that was the StreamFusion era. "Brand.Gradient" walks
+        from violet (#9a82ff) through a teal midpoint to brand green
+        (#5bff95); use it on the wordmark, primary CTAs, and any place
+        the logo's bolt would visually echo (focus rings, etc.).
     -->
 
     <!-- ============== Surfaces ============================================ -->
-    <Color x:Key="Bg.Primary">#0E0E10</Color>
-    <Color x:Key="Bg.Surface">#15151A</Color>
-    <Color x:Key="Bg.Surface2">#1C1C22</Color>
-    <Color x:Key="Bg.Surface3">#23232A</Color>
-    <Color x:Key="Bg.Sidebar">#101014</Color>
-    <Color x:Key="Border.Default">#2A2A32</Color>
-    <Color x:Key="Border.Subtle">#1F1F25</Color>
-    <Color x:Key="Border.Strong">#3A3A44</Color>
+    <Color x:Key="Bg.Primary">#0a0b12</Color>
+    <Color x:Key="Bg.Surface">#11131c</Color>
+    <Color x:Key="Bg.Surface2">#161929</Color>
+    <Color x:Key="Bg.Surface3">#1f2233</Color>
+    <Color x:Key="Bg.Sidebar">#0d0f18</Color>
+    <Color x:Key="Border.Default">#1f2233</Color>
+    <Color x:Key="Border.Subtle">#181b2a</Color>
+    <Color x:Key="Border.Strong">#2a2f44</Color>
 
-    <!-- Foregrounds. ~14:1 contrast on the darkest surface (#0E0E10). -->
-    <Color x:Key="Fg.Primary">#F5F5F7</Color>
-    <Color x:Key="Fg.Muted">#B8BCC6</Color>
-    <Color x:Key="Fg.Faint">#7A7A85</Color>
-    <Color x:Key="Fg.Dim">#5A5A65</Color>
+    <!-- Foregrounds. ~16:1 contrast on the darkest surface (#0a0b12). -->
+    <Color x:Key="Fg.Primary">#ffffff</Color>
+    <Color x:Key="Fg.Muted">#cbd5e1</Color>
+    <Color x:Key="Fg.Faint">#94a3b8</Color>
+    <Color x:Key="Fg.Dim">#6b7280</Color>
 
-    <!-- Accent: SF blue at the head, cyan at the tail. -->
-    <Color x:Key="Accent.Primary">#3A86FF</Color>
-    <Color x:Key="Accent.Hover">#5A9CFF</Color>
-    <Color x:Key="Accent.Pressed">#2A6FE0</Color>
-    <Color x:Key="Accent.Faint">#3A86FF22</Color>
-    <Color x:Key="Accent.Glow">#3A86FF66</Color>
-    <Color x:Key="Accent.Cyan">#00F2EA</Color>
-    <Color x:Key="Accent.Mid">#3AC8FF</Color>
+    <!-- Accent: aquilo violet at the head, brand green at the tail.
+         Mid is the teal hand-off colour from the bolt gradient. -->
+    <Color x:Key="Accent.Primary">#7c5cff</Color>
+    <Color x:Key="Accent.Hover">#9a82ff</Color>
+    <Color x:Key="Accent.Pressed">#6240e6</Color>
+    <Color x:Key="Accent.Faint">#7c5cff22</Color>
+    <Color x:Key="Accent.Glow">#7c5cff66</Color>
+    <Color x:Key="Accent.Cyan">#5bff95</Color>
+    <Color x:Key="Accent.Mid">#6ee0c0</Color>
 
-    <!-- Platforms -->
+    <!-- Platforms (unchanged — these are brand colours owned by the
+         platforms themselves; recolouring them would break recognition). -->
     <Color x:Key="Platform.Twitch">#9147FF</Color>
     <Color x:Key="Platform.YouTube">#FF0000</Color>
     <Color x:Key="Platform.TikTok">#00F2EA</Color>
     <Color x:Key="Platform.Kick">#53FC18</Color>
 
-    <!-- Status. Success was a github-y green (#3FB950) which clashed with
-         the app's blue/teal palette in the status pills + module-enabled
-         dots. Switched to an Aquilo-flavoured cyan (matches Platform.TikTok
-         hue but slightly desaturated so it doesn't fight with TikTok pills)
-         so "good" indicators read as "themed ok" rather than "leaf green". -->
-    <Color x:Key="Status.Success">#22D3EE</Color>
+    <!-- Status. Success uses the aquilo brand-green so "good" indicators
+         echo the signature gradient's tail and the bolt's payoff colour. -->
+    <Color x:Key="Status.Success">#5bff95</Color>
     <Color x:Key="Status.Warn">#F0883E</Color>
     <Color x:Key="Status.Error">#F85149</Color>
     <Color x:Key="Status.Event">#F0B429</Color>
@@ -92,37 +90,38 @@
     <SolidColorBrush x:Key="Brush.Warn"         Color="{StaticResource Status.Warn}" />
     <SolidColorBrush x:Key="Brush.Error"        Color="{StaticResource Status.Error}" />
 
-    <!-- Brand gradient: blue -> cyan, used on the wordmark + primary CTA -->
+    <!-- Brand gradient: violet -> teal -> green, matches the bolt in the
+         Loadout logo. Used on the wordmark + primary CTA. -->
     <LinearGradientBrush x:Key="Brush.Brand.Gradient" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Offset="0"   Color="{StaticResource Accent.Primary}" />
+        <GradientStop Offset="0"   Color="{StaticResource Accent.Hover}" />
         <GradientStop Offset="0.55" Color="{StaticResource Accent.Mid}" />
         <GradientStop Offset="1"   Color="{StaticResource Accent.Cyan}" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="Brush.Brand.GradientHover" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Offset="0"   Color="{StaticResource Accent.Hover}" />
-        <GradientStop Offset="0.55" Color="#5AD2FF" />
-        <GradientStop Offset="1"   Color="#33FFF4" />
+        <GradientStop Offset="0"   Color="#b3a0ff" />
+        <GradientStop Offset="0.55" Color="#8ef0d4" />
+        <GradientStop Offset="1"   Color="#7dffae" />
     </LinearGradientBrush>
 
     <!-- Header chrome: subtle vertical fade so it lifts off the body -->
     <LinearGradientBrush x:Key="Brush.HeaderBackground" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Offset="0" Color="#1A1A20" />
-        <GradientStop Offset="1" Color="#13131A" />
+        <GradientStop Offset="0" Color="#15182a" />
+        <GradientStop Offset="1" Color="#0e1019" />
     </LinearGradientBrush>
     <LinearGradientBrush x:Key="Brush.SidebarBackground" StartPoint="0,0" EndPoint="0,1">
-        <GradientStop Offset="0" Color="#15151B" />
-        <GradientStop Offset="1" Color="#0E0E12" />
+        <GradientStop Offset="0" Color="#11131c" />
+        <GradientStop Offset="1" Color="#0a0b12" />
     </LinearGradientBrush>
 
-    <!-- Window body: brand-blue radial glow from the top-left corner,
-         fading to near-black bottom-right. Saturated enough to read as
-         intentionally gradient (not just a darker corner). Cards still
-         dominate visually because they have their own surface fill. -->
+    <!-- Window body: aquilo-violet radial glow from the top-left corner,
+         fading to near-black bottom-right. Echoes the violet glow on
+         the bolt logo. Cards still dominate visually because they have
+         their own surface fill. -->
     <RadialGradientBrush x:Key="Brush.Bg.Window" GradientOrigin="0.0,0.0" Center="0.0,0.0" RadiusX="1.7" RadiusY="1.5">
-        <GradientStop Offset="0"   Color="#1F2D5A" />
-        <GradientStop Offset="0.35" Color="#12141F" />
-        <GradientStop Offset="0.75" Color="#0A0A0E" />
-        <GradientStop Offset="1"   Color="#070709" />
+        <GradientStop Offset="0"   Color="#1d1a3a" />
+        <GradientStop Offset="0.35" Color="#11131c" />
+        <GradientStop Offset="0.75" Color="#0a0b12" />
+        <GradientStop Offset="1"   Color="#06070b" />
     </RadialGradientBrush>
 
     <!-- ============== Shadows ============================================= -->
@@ -131,13 +130,14 @@
     <DropShadowEffect x:Key="Shadow.Pill"   Color="Black" BlurRadius="6"  ShadowDepth="2" Opacity="0.30" Direction="270" />
 
     <!-- ============== Defaults ============================================
-         Font stack: Segoe UI Variable / Inter Display where available,
-         fall back to Segoe UI on every Win10+ install. The variable
-         font supports the same OpenType ss01 / cv11 features the
-         overlays use, so type renders consistently across the app
-         and the OBS surfaces. -->
-    <FontFamily x:Key="UiFont">Segoe UI Variable Display, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif</FontFamily>
-    <FontFamily x:Key="UiFontMono">Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
+         Font stack: Geist (aquilo.gg brand font) first, then Segoe UI
+         Variable on Win11, then Segoe UI on every Win10+ install. WPF
+         walks the comma-separated list, so Geist gets picked up only
+         on machines where the streamer has it installed and everyone
+         else lands on the system fallback that already renders all
+         OpenType features the overlays rely on. -->
+    <FontFamily x:Key="UiFont">Geist, Geist Sans, Segoe UI Variable Display, Segoe UI Variable Text, Segoe UI, system-ui, sans-serif</FontFamily>
+    <FontFamily x:Key="UiFontMono">Geist Mono, Cascadia Mono, Consolas, ui-monospace, monospace</FontFamily>
 
     <Style TargetType="Window">
         <Setter Property="Background" Value="{StaticResource Brush.Bg.Primary}" />
@@ -405,7 +405,7 @@
                             <Setter TargetName="bd" Property="BorderBrush" Value="{StaticResource Brush.Accent}" />
                             <Setter TargetName="bd" Property="Effect">
                                 <Setter.Value>
-                                    <DropShadowEffect Color="#3A86FF" BlurRadius="12" ShadowDepth="0" Opacity="0.45" />
+                                    <DropShadowEffect Color="#7c5cff" BlurRadius="12" ShadowDepth="0" Opacity="0.45" />
                                 </Setter.Value>
                             </Setter>
                         </Trigger>
@@ -716,7 +716,7 @@
     </Style>
 
     <Style x:Key="PillSuccess" TargetType="Border" BasedOn="{StaticResource Pill}">
-        <Setter Property="Background" Value="#1B2A33" />
+        <Setter Property="Background" Value="#15241d" />
         <Setter Property="BorderBrush" Value="{StaticResource Brush.Success}" />
     </Style>
 
@@ -948,7 +948,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border x:Name="thumb" Background="#3F3F45" CornerRadius="3" Margin="2" />
+                    <Border x:Name="thumb" Background="#2a2f44" CornerRadius="3" Margin="2" />
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="thumb" Property="Background" Value="{StaticResource Brush.Accent}" />
@@ -1019,7 +1019,7 @@
         <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource Brush.Border.Subtle}" />
         <Setter Property="HeadersVisibility" Value="Column" />
         <Setter Property="RowBackground" Value="Transparent" />
-        <Setter Property="AlternatingRowBackground" Value="#1B1B1F" />
+        <Setter Property="AlternatingRowBackground" Value="#13162a" />
         <Setter Property="RowHeight" Value="36" />
         <Setter Property="ColumnHeaderHeight" Value="36" />
         <Setter Property="FontSize" Value="13" />

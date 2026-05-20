@@ -10,7 +10,7 @@
 <meta property="og:image" content="https://aquilo.gg/loadout/og.png">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://aquilo.gg/loadout">
-<meta name="theme-color" content="#0E0E10">
+<meta name="theme-color" content="#0a0b12">
 <link rel="icon" href="/favicon.ico">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -18,15 +18,25 @@
 
 <header class="topbar">
   <a class="brand" href="https://aquilo.gg">
-    <svg viewBox="0 0 100 100" aria-hidden="true">
+    <!-- aquilo / Loadout brand mark — kept inline so the topbar
+         renders without an extra request. Source of truth lives at
+         /assets/Loadout.svg in the Loadout repo; keep this in sync. -->
+    <svg viewBox="0 0 1024 1024" aria-hidden="true">
       <defs>
-        <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0" stop-color="#5A9CFF"/>
-          <stop offset="1" stop-color="#00F2EA"/>
+        <linearGradient id="lbolt" x1="300" y1="150" x2="700" y2="880" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#a98fff"/>
+          <stop offset="0.42" stop-color="#7c5cff"/>
+          <stop offset="0.78" stop-color="#6ee0c0"/>
+          <stop offset="1" stop-color="#5bff95"/>
+        </linearGradient>
+        <linearGradient id="lring" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stop-color="#9a82ff"/>
+          <stop offset="1" stop-color="#5bff95"/>
         </linearGradient>
       </defs>
-      <circle cx="50" cy="50" r="46" fill="#0E0E10" stroke="url(#g)" stroke-width="3"/>
-      <path d="M35 25 L35 70 L65 70" fill="none" stroke="url(#g)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+      <rect x="6" y="6" width="1012" height="1012" rx="238" fill="#11131c"/>
+      <path d="M624 150 L360 562 L516 562 L404 876 L664 462 L508 462 Z" fill="url(#lbolt)"/>
+      <rect x="6" y="6" width="1012" height="1012" rx="238" fill="none" stroke="url(#lring)" stroke-width="10" opacity="0.55"/>
     </svg>
     <span>Loadout</span>
   </a>
