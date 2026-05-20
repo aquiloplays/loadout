@@ -137,7 +137,14 @@ namespace Loadout.Games.Dungeon
             new MonsterDef { Name = "Ancient Wyrm",    Glyph = "🐲", Power = 18, Hp = 90, GoldMin = 100, GoldMax = 180, XpMin = 70, XpMax = 110, DifficultyTier = 5, Biome = "dragon",   IsBoss = true },
             new MonsterDef { Name = "Voidlord",        Glyph = "🌑", Power = 19, Hp = 80, GoldMin = 110, GoldMax = 200, XpMin = 75, XpMax = 120, DifficultyTier = 5, Biome = "void",     IsBoss = true },
             new MonsterDef { Name = "Frostmother",     Glyph = "❄",  Power = 17, Hp = 80, GoldMin = 90,  GoldMax = 160, XpMin = 65, XpMax = 100, DifficultyTier = 5, Biome = "ice",      IsBoss = true },
-            new MonsterDef { Name = "Eldritch Horror", Glyph = "👁",  Power = 20, Hp = 100, GoldMin = 120, GoldMax = 220, XpMin = 80, XpMax = 130, DifficultyTier = 5, Biome = "void",    IsBoss = true }
+            new MonsterDef { Name = "Eldritch Horror", Glyph = "👁",  Power = 20, Hp = 100, GoldMin = 120, GoldMax = 220, XpMin = 80, XpMax = 130, DifficultyTier = 5, Biome = "void",    IsBoss = true },
+
+            // Phase C — v1.8.0 content expansion. Mix of tones across tiers.
+            new MonsterDef { Name = "Pixie Trickster", Glyph = "🧚", Power = 3,  Hp = 9,  GoldMin = 4,  GoldMax = 12, XpMin = 7,  XpMax = 12, DifficultyTier = 1, Biome = "sky" },
+            new MonsterDef { Name = "Cinder Grub",     Glyph = "🐛", Power = 4,  Hp = 11, GoldMin = 5,  GoldMax = 12, XpMin = 8,  XpMax = 13, DifficultyTier = 1, Biome = "fire" },
+            new MonsterDef { Name = "Bog Witch",       Glyph = "🧙", Power = 6,  Hp = 18, GoldMin = 11, GoldMax = 22, XpMin = 13, XpMax = 19, DifficultyTier = 2, Biome = "swamp" },
+            new MonsterDef { Name = "Tax Collector",   Glyph = "📜", Power = 7,  Hp = 20, GoldMin = 24, GoldMax = 42, XpMin = 14, XpMax = 22, DifficultyTier = 3, Biome = "any" },
+            new MonsterDef { Name = "Pyrohound",       Glyph = "🐕", Power = 9,  Hp = 24, GoldMin = 16, GoldMax = 30, XpMin = 18, XpMax = 26, DifficultyTier = 3, Biome = "fire" }
         };
 
         // ── Traps ────────────────────────────────────────────────────────
@@ -168,7 +175,13 @@ namespace Loadout.Games.Dungeon
             new TrapDef { Name = "Mage Sigil",     Glyph = "✨", DamageMin = 4, DamageMax = 9,  Verb = "a mage sigil ignites under",            Biome = "any" },
             new TrapDef { Name = "Whirlwind",      Glyph = "🌀", DamageMin = 5, DamageMax = 9,  Verb = "a sudden whirlwind buffets",            Biome = "sky" },
             new TrapDef { Name = "Thorn Vine",     Glyph = "🥀", DamageMin = 3, DamageMax = 8,  Verb = "thorned vines lash",                    Biome = "nature" },
-            new TrapDef { Name = "Void Tear",      Glyph = "🌑", DamageMin = 6, DamageMax = 12, Verb = "a tear in reality bites at",            Biome = "void" }
+            new TrapDef { Name = "Void Tear",      Glyph = "🌑", DamageMin = 6, DamageMax = 12, Verb = "a tear in reality bites at",            Biome = "void" },
+
+            // Phase C — v1.8.0 content expansion.
+            new TrapDef { Name = "Glue Trap",      Glyph = "🍯", DamageMin = 1, DamageMax = 4,  Verb = "a sticky floor clings to",              Biome = "any" },
+            new TrapDef { Name = "Cursed Mirror",  Glyph = "🪞", DamageMin = 5, DamageMax = 9,  Verb = "a cursed reflection lashes out at",     Biome = "undead" },
+            new TrapDef { Name = "Riddle Door",    Glyph = "❓", DamageMin = 2, DamageMax = 5,  Verb = "a riddle-door's wrong answer zaps",     Biome = "construct" },
+            new TrapDef { Name = "Echoing Bellow", Glyph = "📣", DamageMin = 4, DamageMax = 8,  Verb = "a chamber's echo concusses",            Biome = "earth" }
         };
 
         // ── Loot ────────────────────────────────────────────────────────
@@ -571,7 +584,52 @@ namespace Loadout.Games.Dungeon
             // Mythic apex — only a max-level hype train can drop these.
             new LootDef { Slot = "weapon",  Rarity = "mythic", Name = "The Last Carriage",    Glyph = "🚃", PowerBonus = 23, DefenseBonus = 4, GoldValue = 6000, WeaponType = "sword",  PreferredClass = "warrior", Ability = "lifesteal",   HypeTrainOnly = true },
             new LootDef { Slot = "trinket", Rarity = "mythic", Name = "Hypecore",             Glyph = "💟", PowerBonus = 13, DefenseBonus = 11, GoldValue = 6200, Ability = "phoenix",     HypeTrainOnly = true },
-            new LootDef { Slot = "head",    Rarity = "mythic", Name = "Crown of the Terminus", Glyph = "👑", PowerBonus = 11, DefenseBonus = 14, GoldValue = 6100, Ability = "boss-slayer", HypeTrainOnly = true }
+            new LootDef { Slot = "head",    Rarity = "mythic", Name = "Crown of the Terminus", Glyph = "👑", PowerBonus = 11, DefenseBonus = 14, GoldValue = 6100, Ability = "boss-slayer", HypeTrainOnly = true },
+
+            // ─────────────────────────── Phase C — v1.8.0 expansion ───────
+            // 30 new items across rarities. Mix of straight gear + a few
+            // flavour pieces ("Embarrassing Note", "Genuine Plot Device")
+            // to keep loot drops feeling more characterful.
+
+            // Common (7)
+            new LootDef { Slot = "weapon",  Rarity = "common", Name = "Tinkerer's Mallet",  Glyph = "🔨", PowerBonus = 1, DefenseBonus = 0, GoldValue = 5,  WeaponType = "hammer", PreferredClass = "warrior" },
+            new LootDef { Slot = "weapon",  Rarity = "common", Name = "Pocket Knife",       Glyph = "🔪", PowerBonus = 1, DefenseBonus = 0, GoldValue = 4,  WeaponType = "dagger", PreferredClass = "rogue" },
+            new LootDef { Slot = "weapon",  Rarity = "common", Name = "Carved Sling",       Glyph = "🪨", PowerBonus = 1, DefenseBonus = 0, GoldValue = 5,  WeaponType = "sling",  PreferredClass = "ranger" },
+            new LootDef { Slot = "weapon",  Rarity = "common", Name = "Reading Wand",       Glyph = "📖", PowerBonus = 1, DefenseBonus = 0, GoldValue = 5,  WeaponType = "wand",   PreferredClass = "mage" },
+            new LootDef { Slot = "head",    Rarity = "common", Name = "Patched Cap",        Glyph = "🎩", PowerBonus = 0, DefenseBonus = 1, GoldValue = 4 },
+            new LootDef { Slot = "chest",   Rarity = "common", Name = "Linen Robe",         Glyph = "🥼", PowerBonus = 0, DefenseBonus = 1, GoldValue = 4 },
+            new LootDef { Slot = "trinket", Rarity = "common", Name = "Embarrassing Note",  Glyph = "✉",  PowerBonus = 1, DefenseBonus = 0, GoldValue = 5 },
+
+            // Uncommon (7)
+            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Toothy Sword",      Glyph = "⚔",  PowerBonus = 2, DefenseBonus = 0, GoldValue = 15, WeaponType = "sword",    PreferredClass = "warrior" },
+            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Pyre Wand",         Glyph = "🔥", PowerBonus = 2, DefenseBonus = 0, GoldValue = 17, WeaponType = "wand",     PreferredClass = "mage" },
+            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Verdant Spear",     Glyph = "🌿", PowerBonus = 3, DefenseBonus = 1, GoldValue = 19, WeaponType = "polearm",  PreferredClass = "warrior" },
+            new LootDef { Slot = "weapon",  Rarity = "uncommon", Name = "Curved Dagger",     Glyph = "🗡", PowerBonus = 3, DefenseBonus = 0, GoldValue = 18, WeaponType = "dagger",   PreferredClass = "rogue" },
+            new LootDef { Slot = "head",    Rarity = "uncommon", Name = "Lantern Helm",      Glyph = "🪔", PowerBonus = 0, DefenseBonus = 2, GoldValue = 14 },
+            new LootDef { Slot = "chest",   Rarity = "uncommon", Name = "Studded Vest",      Glyph = "🦺", PowerBonus = 0, DefenseBonus = 2, GoldValue = 15 },
+            new LootDef { Slot = "trinket", Rarity = "uncommon", Name = "Cracked Locket",    Glyph = "🔓", PowerBonus = 1, DefenseBonus = 1, GoldValue = 16 },
+
+            // Rare (6)
+            new LootDef { Slot = "weapon",  Rarity = "rare", Name = "Glacier Maul",     Glyph = "🔨", PowerBonus = 4, DefenseBonus = 0, GoldValue = 50, WeaponType = "hammer",  PreferredClass = "warrior" },
+            new LootDef { Slot = "weapon",  Rarity = "rare", Name = "Sunward Bow",      Glyph = "🏹", PowerBonus = 5, DefenseBonus = 0, GoldValue = 55, WeaponType = "bow",     PreferredClass = "ranger" },
+            new LootDef { Slot = "weapon",  Rarity = "rare", Name = "Inkwell Tome",     Glyph = "📕", PowerBonus = 4, DefenseBonus = 1, GoldValue = 54, WeaponType = "tome",    PreferredClass = "mage" },
+            new LootDef { Slot = "chest",   Rarity = "rare", Name = "Spiderweave Robe", Glyph = "🕸", PowerBonus = 2, DefenseBonus = 2, GoldValue = 50, PreferredClass = "rogue", Ability = "nimble" },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Coin of Echoes",   Glyph = "🪙", PowerBonus = 2, DefenseBonus = 1, GoldValue = 60, Ability = "lucky" },
+            new LootDef { Slot = "trinket", Rarity = "rare", Name = "Phoenix Feather",  Glyph = "🪶", PowerBonus = 1, DefenseBonus = 2, GoldValue = 70, Ability = "phoenix" },
+
+            // Epic (5)
+            new LootDef { Slot = "weapon",  Rarity = "epic", Name = "Headsman's Cleaver", Glyph = "🪓", PowerBonus = 7, DefenseBonus = 1, GoldValue = 110, WeaponType = "axe",   PreferredClass = "warrior", Ability = "lifesteal" },
+            new LootDef { Slot = "weapon",  Rarity = "epic", Name = "Whispering Bow",     Glyph = "🏹", PowerBonus = 6, DefenseBonus = 1, GoldValue = 115, WeaponType = "bow",   PreferredClass = "ranger" },
+            new LootDef { Slot = "weapon",  Rarity = "epic", Name = "Heretic's Grimoire", Glyph = "📕", PowerBonus = 7, DefenseBonus = 1, GoldValue = 120, WeaponType = "tome",  PreferredClass = "mage",    Ability = "scholar" },
+            new LootDef { Slot = "chest",   Rarity = "epic", Name = "Lichplate Aegis",    Glyph = "🛡", PowerBonus = 2, DefenseBonus = 7, GoldValue = 130, SetName = "lichplate", PreferredClass = "warrior", Ability = "wardstone" },
+            new LootDef { Slot = "trinket", Rarity = "epic", Name = "Crown of Many Coins", Glyph = "👑", PowerBonus = 2, DefenseBonus = 2, GoldValue = 150, Ability = "lucky" },
+
+            // Legendary (5) — including a couple of silly flavour pieces.
+            new LootDef { Slot = "weapon",  Rarity = "legendary", Name = "Dragontongue Blade", Glyph = "🐲", PowerBonus = 10, DefenseBonus = 2, GoldValue = 300, WeaponType = "sword", PreferredClass = "warrior", Ability = "boss-slayer" },
+            new LootDef { Slot = "weapon",  Rarity = "legendary", Name = "Star-eater's Orb",   Glyph = "🌟", PowerBonus = 9,  DefenseBonus = 3, GoldValue = 320, WeaponType = "orb",   PreferredClass = "mage",    Ability = "scholar" },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "The Final Page",     Glyph = "📜", PowerBonus = 5,  DefenseBonus = 5, GoldValue = 400, Ability = "scholar" },
+            new LootDef { Slot = "trinket", Rarity = "legendary", Name = "Genuine Plot Device", Glyph = "🎬", PowerBonus = 5, DefenseBonus = 5, GoldValue = 500, Ability = "phoenix" },
+            new LootDef { Slot = "head",    Rarity = "legendary", Name = "Helm of the Final Boss", Glyph = "👹", PowerBonus = 4, DefenseBonus = 8, GoldValue = 380, Ability = "boss-slayer" }
         };
 
         /// <summary>Picks a rarity bucket given dungeon difficulty (1..5).
@@ -744,7 +802,15 @@ namespace Loadout.Games.Dungeon
             "Coins from a dead empire scatter underfoot.",
             "Carved warnings line the next chamber.",
             "Statues seem to watch the party pass.",
-            "Wind howls through unseen cracks."
+            "Wind howls through unseen cracks.",
+
+            // Phase C — v1.8.0 content expansion: extra flavour beats.
+            "A skeleton in a fancy hat reads a will aloud to no one.",
+            "A puddle of water hums an unsettling lullaby.",
+            "Spiderwebs spell out 'TURN BACK' — but the S is silent.",
+            "A discarded leaflet warns of upcoming taxes.",
+            "A corked bottle contains a tiny argument.",
+            "An empty suit of armour offers the party a thumbs-up."
         };
 
         // ── Branching scenes (Phase BR) ────────────────────────────────
@@ -859,7 +925,12 @@ namespace Loadout.Games.Dungeon
             new NpcDef { Name = "Lost Adventurer",    Glyph = "🗺", OfferKind = "warn",  FlavorText = "A wounded adventurer warns of dangers ahead and shares their map.",      GoldDelta = 5,  HpDelta = 0  },
             new NpcDef { Name = "Shrine Keeper",      Glyph = "⛩",  OfferKind = "buff",  FlavorText = "The shrine keeper blesses the party — wounds knit, spirits rise.",      GoldDelta = 0,  HpDelta = 12 },
             new NpcDef { Name = "Travelling Bard",    Glyph = "🎻", OfferKind = "buff",  FlavorText = "A travelling bard sings of heroes — the party feels emboldened.",       GoldDelta = 0,  HpDelta = 5  },
-            new NpcDef { Name = "Goblin Tinker",      Glyph = "🛠",  OfferKind = "trade", FlavorText = "A goblin tinker swaps trinkets — coin clinks into the party's purse.",  GoldDelta = 14, HpDelta = 0  }
+            new NpcDef { Name = "Goblin Tinker",      Glyph = "🛠",  OfferKind = "trade", FlavorText = "A goblin tinker swaps trinkets — coin clinks into the party's purse.",  GoldDelta = 14, HpDelta = 0  },
+
+            // Phase C — v1.8.0 expansion.
+            new NpcDef { Name = "Ghostly Librarian", Glyph = "📚", OfferKind = "buff",  FlavorText = "A ghostly librarian shares a passage of forgotten lore — the party feels sharper.", GoldDelta = 0, HpDelta = 4 },
+            new NpcDef { Name = "Demon Lawyer",      Glyph = "⚖", OfferKind = "trade", FlavorText = "A demon lawyer presents a contract; the party initials a clause and pockets the retainer.",  GoldDelta = 22, HpDelta = 0 },
+            new NpcDef { Name = "Stray Cat",         Glyph = "🐈", OfferKind = "warn",  FlavorText = "A stray cat winds around the party's legs, then bolts down a side passage — they note the route.", GoldDelta = 3, HpDelta = 0 }
         };
 
         public static NpcDef PickNpc(Random r) => Npcs[r.Next(Npcs.Length)];
@@ -879,7 +950,11 @@ namespace Loadout.Games.Dungeon
             new ShrineDef { Name = "Shrine of Mending",   Glyph = "⛩",  FlavorText = "A glowing shrine restores the party's vitality.", HpDelta = 8,  XpDelta = 0  },
             new ShrineDef { Name = "Shrine of Wisdom",    Glyph = "🔮", FlavorText = "Ancient knowledge fills the party — they grow more capable.", HpDelta = 0, XpDelta = 12 },
             new ShrineDef { Name = "Shrine of the Star",  Glyph = "⭐", FlavorText = "A starlit shrine strengthens body and mind.",      HpDelta = 5,  XpDelta = 8 },
-            new ShrineDef { Name = "Shrine of the Moon",  Glyph = "🌙", FlavorText = "Moonlight heals the party's deepest wounds.",     HpDelta = 12, XpDelta = 0 }
+            new ShrineDef { Name = "Shrine of the Moon",  Glyph = "🌙", FlavorText = "Moonlight heals the party's deepest wounds.",     HpDelta = 12, XpDelta = 0 },
+
+            // Phase C — v1.8.0 expansion.
+            new ShrineDef { Name = "Shrine of the Sleeper", Glyph = "💤", FlavorText = "A drowsing shrine breathes deep — the party rests in a single held moment.", HpDelta = 7, XpDelta = 3 },
+            new ShrineDef { Name = "Shrine of the Joker",   Glyph = "🎭", FlavorText = "A laughing shrine teases the party — they grin and feel oddly smarter.",     HpDelta = 0, XpDelta = 10 }
         };
 
         public static ShrineDef PickShrine(Random r) => Shrines[r.Next(Shrines.Length)];
