@@ -255,6 +255,33 @@ async function getTickerBoard(env, guildId) {
   } catch { return null; }
 }
 
+// Programmatic bind/unbind for the /admin Setup & Status dashboard.
+// Skips the memberPermissions check the slash-command path uses, because
+// /admin is itself gated to MANAGE_GUILD via default_member_permissions.
+// Returns { ok, channelId?, messageId?, reason? } so the caller can surface
+// channel-perm errors in the dashboard instead of silently swallowing them.
+export async function bindTickerBoard(env, guildId, channelId) {
+  if (!channelId) return { ok: false, reason: 'no channel id' };
+  if (!env.DISCORD_BOT_TOKEN) return { ok: false, reason: 'bot token missing' };
+  const embed = await buildTickerEmbed(env);
+  const posted = await discordPostMessage(env, channelId, { embeds: [embed] });
+  if (!posted || !posted.id) {
+    return { ok: false, reason: "can't post in that channel -- check Send Messages + Embed Links perms" };
+  }
+  await setTickerBoard(env, guildId, channelId, posted.id);
+  return { ok: true, channelId, messageId: posted.id };
+}
+
+export async function unbindTickerBoard(env, guildId) {
+  await clearTickerBoard(env, guildId);
+  return { ok: true };
+}
+
+// Read-only helper for the admin dashboard.
+export async function getTickerBoardForGuild(env, guildId) {
+  return getTickerBoard(env, guildId);
+}
+
 async function listTickerBoards(env) {
   const out = [];
   let cursor;
