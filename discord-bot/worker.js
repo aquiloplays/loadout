@@ -316,12 +316,13 @@ export default {
           })());
         }
       }
-      // Clash daily housekeeping — runs once a day at 09:13 UTC.
-      // Trophy/prestige decay for players camped above tier cap, and
-      // shield-expiring push notifications for streamers an hour out.
-      // Lightweight; safe to piggyback on the existing hourly trigger
-      // and gate by date so we only fire one decay pass per day.
-      if (event.cron === '13 9 * * *' || event.cron === '13 * * * *') {
+      // Clash housekeeping piggybacks on the :23 hourly tick — CF
+      // free plan caps a Worker at 5 cron triggers and we're using
+      // all five for stocks/sports/queue. Inside clash-cron.js the
+      // tick gates the once-per-day trophy decay via a
+      // `clash:cron:last-decay` KV marker so it only runs once per
+      // UTC day even though the cron fires hourly.
+      if (event.cron === '23 * * * *') {
         const { clashDailyCronTick } = await import('./clash-cron.js');
         ctx.waitUntil(clashDailyCronTick(env, event.cron));
       }

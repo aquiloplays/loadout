@@ -13,6 +13,22 @@
 // Phase 1 ships with the broader "all subscribers see Clash pushes"
 // behaviour, matching how stream.online notifications already work.
 
+// Contract aligned with aquilo-site's functions/api/push/external.js:
+//   secret env name:  AQUILO_SITE_WEB_SECRET   (same secret that gates
+//                     /api/push/queue-open and other site<->bot
+//                     callbacks — one secret to rotate, not one per
+//                     route)
+//   request headers:  x-aquilo-web-ts  (unix seconds)
+//                     x-aquilo-web-sig (hex sha256("${ts}\n${rawBody}"))
+//   skew window:      ±5 min
+//
+// `audience.userIds` (Discord user IDs) is honoured by aquilo-site:
+// the push fan-out filters to identity-linked subscriptions whose
+// stored Discord ID is in the list. Subscriptions without a linked
+// Discord ID are NEVER included in a filtered audience — that's the
+// correct privacy default. When `audience.userIds` is empty/absent
+// the fan-out goes to every subscriber, matching the stream.online
+// "live now" broadcast.
 const PUSH_URL_FALLBACK = 'https://aquilo.gg/api/push/external';
 
 // Map kind -> bit index in the clash:notify mask. Must match the
@@ -56,8 +72,8 @@ async function resolveOptedInUserIds(env, guildId, kind) {
   return out;
 }
 
-// HMAC-sign + POST. ts:body envelope matches the auth.js verifyHmac
-// pattern the wallet sync calls already use (worker.js:13).
+// HMAC-sign + POST. Header names match aquilo-site's
+// functions/api/push/external.js (x-aquilo-web-ts / x-aquilo-web-sig).
 async function signedPost(secret, url, payloadObj) {
   const body = JSON.stringify(payloadObj);
   const ts = String(Math.floor(Date.now() / 1000));
@@ -71,9 +87,9 @@ async function signedPost(secret, url, payloadObj) {
   return fetch(url, {
     method: 'POST',
     headers: {
-      'content-type': 'application/json',
-      'x-aquilo-ts':  ts,
-      'x-aquilo-sig': sigHex,
+      'content-type':    'application/json',
+      'x-aquilo-web-ts':  ts,
+      'x-aquilo-web-sig': sigHex,
     },
     body,
   });
@@ -86,7 +102,12 @@ async function signedPost(secret, url, payloadObj) {
 // Returns { ok, sent? } — failures are logged but never throw, because
 // a push outage shouldn't break a slash command response.
 export async function firePush(env, event) {
-  const secret = env.CLASH_PUSH_SECRET;
+  // The shared site<->bot HMAC secret. Same secret that gates the
+  // queue-open and other aquilo-site callbacks — one rotation point.
+  // CLASH_PUSH_SECRET is honoured as a fallback so we don't break
+  // deploys that set the earlier name; the value should match what
+  // aquilo-site has stored in AQUILO_SITE_WEB_SECRET.
+  const secret = env.AQUILO_SITE_WEB_SECRET || env.CLASH_PUSH_SECRET;
   if (!secret) {
     // Push not configured (likely a dev deploy). Skip silently.
     return { ok: false, reason: 'no-secret' };

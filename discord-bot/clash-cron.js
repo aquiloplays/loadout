@@ -21,13 +21,18 @@ import { sweepActiveWars } from './clash-war.js';
 const TIER_CAPS = { bronze: 200, silver: 600, gold: 1500, platinum: 3500, diamond: 8000 };
 const DECAY_RATE = 1;   // trophies / 100 above cap / day (rounded up)
 
+// CF Pages' free plan caps a Worker at 5 cron triggers; ours were
+// already at 4 (stocks/sports/queue×2) so Clash piggybacks on :23
+// hourly instead of taking its own slot. Daily-only work (trophy +
+// prestige decay) is gated through a KV marker so it runs once per
+// UTC day, while the shield-nudge + war-sweep run every hour.
+const DECAY_MARKER_KEY = 'clash:cron:last-decay';
 export async function clashDailyCronTick(env, cronExpr) {
-  // Only fire the heavy work once per day — the hourly trigger exists
-  // so the shield-expiring nudge can run every hour. Gate the decay
-  // pass by cron expression.
-  const isDaily = cronExpr === '13 9 * * *';
-  if (isDaily) {
+  const today = new Date().toISOString().slice(0, 10);    // YYYY-MM-DD UTC
+  const lastDecay = (await env.LOADOUT_BOLTS.get(DECAY_MARKER_KEY, { type: 'json' }))?.date;
+  if (lastDecay !== today) {
     await runTrophyDecay(env);
+    await env.LOADOUT_BOLTS.put(DECAY_MARKER_KEY, JSON.stringify({ date: today, ranAtUtc: Date.now() }));
   }
   await runShieldNudges(env);
   // Wars: sweep ACTIVE wars and resolve any whose 24h window has
