@@ -1,0 +1,270 @@
+// Pets — Patreon-gated cosmetic companions with a tamagotchi care
+// loop. Spec lives in CHARACTER-SYSTEM-DESIGN.md §12.
+//
+// Pets are PURELY COSMETIC. They render in-frame alongside the
+// viewer's character (paper-doll z=15, between cape and body) but
+// have no gameplay effect — no stats, no equipped-slot conflict,
+// no Champion bonus, no Bolts payout. The hook is the daily care
+// micro-loop + the visible mood overlay on the render.
+//
+// Storage:
+//   pet:<guildId>:<userId>   single record per viewer per channel
+//
+// Decay model: timestamp-only. Stats persist as
+// `{ value: 0..100, lastSetUtc: number }`. On every read we
+// compute `current = max(0, value - decayPerHour × hoursSince)`.
+// No background tick required — same pattern as the Clash cooldown
+// queue.
+
+import { getWallet, applyVaultDelta } from './wallet.js';
+
+// ── Catalogue (cosmetic-only) ────────────────────────────────────
+export const SPECIES = [
+  'cat', 'dog', 'owl', 'fox', 'slime', 'dragonling', 'frog', 'bunny',
+];
+
+// Colour palette per species. Patreon tier (1/2/3) gates the rarer
+// rows — the per-tier cutoffs live in PATREON_TIER_GATE below.
+export const SPECIES_COLOURS = {
+  cat:         ['black', 'tabby', 'ginger', 'calico'],
+  dog:         ['cream', 'spotted', 'amber', 'midnight'],
+  owl:         ['barn', 'snowy', 'sage', 'twilight'],
+  fox:         ['rust', 'arctic', 'plum', 'gold'],
+  slime:       ['mint', 'cobalt', 'rose', 'aurora'],
+  dragonling:  ['emerald', 'ember', 'storm', 'voltaic'],   // voltaic = brand
+  frog:        ['leaf', 'lily', 'inkblot', 'sunburst'],
+  bunny:       ['ash', 'cocoa', 'meadow', 'starlight'],
+};
+
+// Patreon-tier gate per colour. Index 0 = tier 1+ (any patron),
+// 1 = tier 2+, 2 = tier 3+, 3 = tier 3+ (rare). Lets the adoption
+// flow surface the right colour set per viewer without a separate
+// per-pet lookup table.
+const COLOUR_TIER = [1, 1, 2, 3];
+
+// ── Care decay rates (CHARACTER-SYSTEM-DESIGN.md §12) ────────────
+const DECAY = {
+  hunger:      2,   // /hour
+  happiness:   1,   // /hour
+  cleanliness: 0.5, // /hour (decays /2h in design doc)
+};
+
+const COOLDOWN_MS = 30 * 60 * 1000;       // 30 min per action
+const RELEASE_COOLDOWN_MS = 24 * 3_600_000; // 24 h before re-adopt after release
+
+const ACTION_COST = {
+  feed:  10,
+  play:  5,
+  clean: 5,
+};
+
+// ── KV helpers ──────────────────────────────────────────────────
+function petKey(guildId, userId) { return `pet:${guildId}:${userId}`; }
+function releaseKey(guildId, userId) { return `pet:released:${guildId}:${userId}`; }
+
+export async function getPet(env, guildId, userId) {
+  const raw = await env.LOADOUT_BOLTS.get(petKey(guildId, userId), { type: 'json' });
+  return raw || null;
+}
+
+async function putPet(env, guildId, userId, pet) {
+  pet.lastUpdatedUtc = Date.now();
+  await env.LOADOUT_BOLTS.put(petKey(guildId, userId), JSON.stringify(pet));
+}
+
+// ── Stat math ───────────────────────────────────────────────────
+//
+// Stats are stored as `{ value, lastSetUtc }` snapshots. The current
+// "what would the bar show right now" value is computed on every
+// read by decaying from the last set timestamp. We never mutate
+// stored stats on read — that would create write storms.
+function currentStat(stat, decayPerHour) {
+  if (!stat) return 0;
+  const hoursSince = (Date.now() - (stat.lastSetUtc || 0)) / 3_600_000;
+  const decayed = (stat.value || 0) - decayPerHour * hoursSince;
+  return Math.max(0, Math.min(100, decayed));
+}
+
+export function computeMood(pet) {
+  if (!pet) return null;
+  const hunger      = currentStat(pet.hunger,      DECAY.hunger);
+  const happiness   = currentStat(pet.happiness,   DECAY.happiness);
+  const cleanliness = currentStat(pet.cleanliness, DECAY.cleanliness);
+  const avg = (hunger + happiness + cleanliness) / 3;
+  let label = 'happy';
+  let hint = null;
+  if (avg < 20) {
+    label = 'sad';
+    const min = Math.min(hunger, happiness, cleanliness);
+    if (min === hunger)      hint = 'hungry';
+    else if (min === cleanliness) hint = 'dirty';
+    else                          hint = 'sad';
+  } else if (avg < 50) {
+    label = 'sad';
+    const min = Math.min(hunger, happiness, cleanliness);
+    if (min === hunger)      hint = 'hungry';
+    else if (min === cleanliness) hint = 'dirty';
+    else                          hint = 'sad';
+  } else if (avg < 80) {
+    label = 'content';
+  } else {
+    label = 'happy';
+  }
+  return {
+    label, hint, avg,
+    stats: { hunger, happiness, cleanliness },
+  };
+}
+
+// ── Patreon gate ─────────────────────────────────────────────────
+//
+// Per CHARACTER-SYSTEM-DESIGN.md §12, /pet adopt is open only to
+// wallet records with an active Patreon link. The gate consults
+// the existing wallet.links[] array — same model as every other
+// Patreon-touched feature.
+//
+// Tier is inferred from the link entry's `tier` field when present
+// (Patreon scope returns the entitled-amount cents, which we
+// bucket here). When the linker hasn't written tier metadata we
+// default to tier 1 — strictly worse-case for gating colours.
+function patreonTierFromWallet(wallet) {
+  const links = Array.isArray(wallet?.links) ? wallet.links : [];
+  const patreon = links.find(l => (l.platform || '').toLowerCase() === 'patreon');
+  if (!patreon) return 0;
+  const tier = parseInt(patreon.tier || patreon.tierLevel || '1', 10);
+  if (!Number.isFinite(tier) || tier < 1) return 1;
+  return Math.min(3, tier);
+}
+
+export function isColourUnlocked(species, colour, tier) {
+  const colours = SPECIES_COLOURS[species];
+  if (!colours) return false;
+  const idx = colours.indexOf(colour);
+  if (idx < 0) return false;
+  return tier >= COLOUR_TIER[idx];
+}
+
+export function unlockedColoursForTier(species, tier) {
+  const colours = SPECIES_COLOURS[species] || [];
+  return colours.filter((_, i) => tier >= COLOUR_TIER[i]);
+}
+
+// ── Care actions ────────────────────────────────────────────────
+async function checkCooldown(pet, action) {
+  const last = pet['last' + action + 'Utc'] || 0;
+  if (Date.now() - last < COOLDOWN_MS) {
+    const waitMin = Math.ceil((COOLDOWN_MS - (Date.now() - last)) / 60_000);
+    return { ok: false, waitMin };
+  }
+  return { ok: true };
+}
+
+async function chargeBolts(env, guildId, userId, amount, reason) {
+  const w = await getWallet(env, guildId, userId);
+  if ((w.balance || 0) < amount) {
+    return { ok: false, error: 'insufficient-bolts', need: amount, have: w.balance || 0 };
+  }
+  await applyVaultDelta(env, guildId, userId, -amount, reason);
+  return { ok: true };
+}
+
+export async function feedPet(env, guildId, userId) {
+  const pet = await getPet(env, guildId, userId);
+  if (!pet) return { ok: false, error: 'no-pet' };
+  const cd = await checkCooldown(pet, 'Fed');
+  if (!cd.ok) return { ok: false, error: 'cooldown', action: 'feed', waitMin: cd.waitMin };
+  const charge = await chargeBolts(env, guildId, userId, ACTION_COST.feed, 'pet:feed');
+  if (!charge.ok) return charge;
+  pet.hunger = { value: 100, lastSetUtc: Date.now() };
+  pet.lastFedUtc = Date.now();
+  await putPet(env, guildId, userId, pet);
+  return { ok: true, pet, mood: computeMood(pet), spent: ACTION_COST.feed };
+}
+
+export async function playWithPet(env, guildId, userId) {
+  const pet = await getPet(env, guildId, userId);
+  if (!pet) return { ok: false, error: 'no-pet' };
+  const cd = await checkCooldown(pet, 'Played');
+  if (!cd.ok) return { ok: false, error: 'cooldown', action: 'play', waitMin: cd.waitMin };
+  const charge = await chargeBolts(env, guildId, userId, ACTION_COST.play, 'pet:play');
+  if (!charge.ok) return charge;
+  pet.happiness = { value: 100, lastSetUtc: Date.now() };
+  pet.lastPlayedUtc = Date.now();
+  await putPet(env, guildId, userId, pet);
+  return { ok: true, pet, mood: computeMood(pet), spent: ACTION_COST.play };
+}
+
+export async function cleanPet(env, guildId, userId) {
+  const pet = await getPet(env, guildId, userId);
+  if (!pet) return { ok: false, error: 'no-pet' };
+  const cd = await checkCooldown(pet, 'Cleaned');
+  if (!cd.ok) return { ok: false, error: 'cooldown', action: 'clean', waitMin: cd.waitMin };
+  const charge = await chargeBolts(env, guildId, userId, ACTION_COST.clean, 'pet:clean');
+  if (!charge.ok) return charge;
+  pet.cleanliness = { value: 100, lastSetUtc: Date.now() };
+  pet.lastCleanedUtc = Date.now();
+  await putPet(env, guildId, userId, pet);
+  return { ok: true, pet, mood: computeMood(pet), spent: ACTION_COST.clean };
+}
+
+// ── Adoption / rename / release ──────────────────────────────────
+export async function adoptPet(env, guildId, userId, species, colour, name) {
+  // Refuse if a release-cooldown is still active.
+  const releasedRec = await env.LOADOUT_BOLTS.get(releaseKey(guildId, userId), { type: 'json' });
+  if (releasedRec?.until && releasedRec.until > Date.now()) {
+    const hours = Math.ceil((releasedRec.until - Date.now()) / 3_600_000);
+    return { ok: false, error: 'release-cooldown', hours };
+  }
+  // One pet per viewer per channel — re-adopting overwrites is NOT
+  // allowed by design; surface the existing pet so the viewer knows.
+  const existing = await getPet(env, guildId, userId);
+  if (existing) return { ok: false, error: 'already-have-pet', pet: existing };
+  // Patreon gate
+  const wallet = await getWallet(env, guildId, userId);
+  const tier = patreonTierFromWallet(wallet);
+  if (tier === 0) return { ok: false, error: 'not-a-patron' };
+  if (!SPECIES.includes(species)) return { ok: false, error: 'bad-species' };
+  if (!isColourUnlocked(species, colour, tier)) {
+    return { ok: false, error: 'colour-locked', tierNeeded: COLOUR_TIER[(SPECIES_COLOURS[species] || []).indexOf(colour)] };
+  }
+  const cleanName = String(name || '').trim().slice(0, 16) || species[0].toUpperCase() + species.slice(1);
+  const now = Date.now();
+  const pet = {
+    species, colour, name: cleanName,
+    adoptedUtc: now,
+    hunger:      { value: 100, lastSetUtc: now },
+    happiness:   { value: 100, lastSetUtc: now },
+    cleanliness: { value: 100, lastSetUtc: now },
+    lastFedUtc: 0, lastPlayedUtc: 0, lastCleanedUtc: 0,
+  };
+  await putPet(env, guildId, userId, pet);
+  return { ok: true, pet, mood: computeMood(pet) };
+}
+
+export async function renamePet(env, guildId, userId, newName) {
+  const pet = await getPet(env, guildId, userId);
+  if (!pet) return { ok: false, error: 'no-pet' };
+  const cleaned = String(newName || '').trim().slice(0, 16);
+  if (!cleaned) return { ok: false, error: 'bad-name' };
+  pet.name = cleaned;
+  await putPet(env, guildId, userId, pet);
+  return { ok: true, pet };
+}
+
+export async function releasePet(env, guildId, userId) {
+  const pet = await getPet(env, guildId, userId);
+  if (!pet) return { ok: false, error: 'no-pet' };
+  await env.LOADOUT_BOLTS.delete(petKey(guildId, userId));
+  await env.LOADOUT_BOLTS.put(releaseKey(guildId, userId), JSON.stringify({
+    species: pet.species,
+    releasedUtc: Date.now(),
+    until: Date.now() + RELEASE_COOLDOWN_MS,
+  }), { expirationTtl: Math.ceil(RELEASE_COOLDOWN_MS / 1000) + 60 });
+  return { ok: true, released: pet };
+}
+
+// Wallet-side patreon-tier helper, re-exported for the adoption UI.
+export async function patreonTierFor(env, guildId, userId) {
+  const w = await getWallet(env, guildId, userId);
+  return patreonTierFromWallet(w);
+}

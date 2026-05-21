@@ -33,6 +33,9 @@ import { handleQueueSlash } from './queue.js';
 // Aquilo-bot fold-in. Single dispatcher that owns the aquilo command
 // family — see discord-bot/aquilo/worker.js dispatchAquiloInteraction.
 import { dispatchAquiloInteraction } from './aquilo/worker.js';
+// Character + pet system — pixel-art identity + tamagotchi.
+import { handleCharacterCommand, handleCharacterComponent } from './character.js';
+import { handlePetCommand } from './pet-commands.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -75,9 +78,10 @@ export async function handleInteraction(req, env, body, ctx) {
   if (data.type === TYPE_MESSAGE_COMPONENT) {
     // Route by custom_id prefix so each menu's components stay scoped.
     const cid = data.data?.custom_id || '';
-    if (cid.startsWith('hub:'))   return handleHubComponent(data, env);
-    if (cid.startsWith('admin:')) return handleAdminComponent(data, env, ctx);
-    if (cid.startsWith('clash:')) return json(await handleClashComponent(env, data));
+    if (cid.startsWith('hub:'))       return handleHubComponent(data, env);
+    if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
+    if (cid.startsWith('clash:'))     return json(await handleClashComponent(env, data));
+    if (cid.startsWith('character:')) return json(await handleCharacterComponent(env, data));
     // Aquilo-bot fold-in: every aquilo component custom_id is
     // namespaced (vote:*, queue:*, aquilo:*, notify:*, tot:*, sug:*,
     // roles:*, setup:*, vh:*, passport:*, trivia:*, shop:*,
@@ -159,6 +163,15 @@ export async function handleInteraction(req, env, body, ctx) {
       // admin-gated by Discord (default_member_permissions on the
       // subcommands); join / leave are anyone.
       return json(await handleQueueSlash(env, guild, data));
+
+    case 'character':
+      // Pixel-art character editor. See CHARACTER-SYSTEM-DESIGN.md.
+      return json(await handleCharacterCommand(env, data));
+
+    case 'pet':
+      // Patreon-gated cosmetic pet + tamagotchi care loop. See
+      // CHARACTER-SYSTEM-DESIGN.md §12.
+      return json(await handlePetCommand(env, data));
 
     // ── Aquilo-bot fold-in: 13 command names dispatch to the shared
     //    aquilo interaction handler. Single delegation point keeps

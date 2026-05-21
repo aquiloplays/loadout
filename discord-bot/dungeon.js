@@ -376,12 +376,19 @@ export async function loadHero(env, guild, userId) {
     const ids = new Set((dllHero.bag || []).map(it => it.id));
     merged.bag = [...(dllHero.bag || []), ...((local.bag || []).filter(it => !ids.has(it.id)))];
     merged.equipped = Object.assign({}, local.equipped || {}, dllHero.equipped || {});
-    return merged;
+    // lookVersion: highest wins (last save wins from either side).
+    merged.lookVersion = Math.max(local.lookVersion || 0, dllHero.lookVersion || 0);
+    return applyLookBackfill(merged, userId);
   }
-  if (dllHero) return Object.assign(newHero(), dllHero);
-  if (local)   return Object.assign(newHero(), local);
-  return newHero();
+  if (dllHero) return applyLookBackfill(Object.assign(newHero(), dllHero), userId);
+  if (local)   return applyLookBackfill(Object.assign(newHero(), local), userId);
+  return applyLookBackfill(newHero(), userId);
 }
+
+// Updated merge return path: apply Phase 0 backfill on the merged
+// hero too, so callers always see complete look data regardless of
+// which branch produced the hero.
+function _backfillMerged(hero, userId) { return applyLookBackfill(hero, userId); }
 
 async function saveHero(env, guild, userId, hero) {
   hero.lastUpdatedUtc = new Date().toISOString();
@@ -392,12 +399,18 @@ function newHero() {
   return {
     avatar: '',         // viewer-supplied URL (Twitch profile pic, custom upload, etc.)
     className: '',      // one of: warrior / mage / rogue / ranger / healer
-    custom: {},         // free-form: skinTone, hairColor, hairStyle, eyeColor, primary, secondary, cape
+    custom: {},         // viewer's pixel-art "look" — see CHARACTER_LOOK_OPTIONS
+                        // below. Phase 0 deterministically backfills any
+                        // missing fields on first read so a fresh hero
+                        // never renders blank.
+    lookVersion: 0,     // bumped on every /character save; pinned in
+                        // render URLs so Discord re-fetches the cached
+                        // embed image after a customisation change.
     level: 1,
     xp: 0,
     hpMax: 25,
     hpCurrent: 25,
-    bag: [],            // [{id, slot, rarity, name, glyph, powerBonus, defenseBonus, goldValue, setName}]
+    bag: [],            // [{id, slot, rarity, name, glyph, powerBonus, defenseBonus, goldValue, setName, spriteId}]
     equipped: {},       // slot -> id
     duelsWon: 0,
     duelsLost: 0,
@@ -412,16 +425,76 @@ function newHero() {
   };
 }
 
-// Customization palettes mirrored from the overlay so /loadout
-// pickers can offer the same options. Keep in sync with main.js
-// SKIN_TONES / HAIR_COLORS / EYE_COLORS / CAPE_PRESETS.
-export const CUSTOM_OPTIONS = {
-  skinTone:  ['fair', 'tan', 'olive', 'deep', 'pale-blue', 'pale-green'],
-  hairColor: ['black', 'brown', 'blonde', 'red', 'white', 'pink', 'blue', 'green'],
-  hairStyle: ['short', 'long', 'spiky', 'mohawk', 'braids', 'bald'],
-  eyeColor:  ['brown', 'blue', 'green', 'amber', 'red'],
-  cape:      ['none', 'cloak', 'wing', 'scarf']
+// Pixel-art character "look" palette. Locked by CHARACTER-SYSTEM-DESIGN.md §2.
+// The procedural sprite generator (tools/build-sprites.ps1) outputs one
+// sprite per cell here, so this list is also the authoritative content
+// catalogue for the figure layers.
+//
+// Field-name compatibility: this lives on `hero.custom` (existing name)
+// rather than a new top-level `look` block, so the DLL sync merge in
+// loadHero() above keeps treating it as Discord-canonical. The
+// design-doc "look" name aliases to this in-code.
+export const CHARACTER_LOOK_OPTIONS = {
+  bodyType:  ['slim', 'stocky'],
+  skinTone:  ['fair', 'porcelain', 'rose', 'tan', 'olive', 'bronze', 'umber', 'ebony', 'pale_violet', 'ash'],
+  hairStyle: ['short-tousled', 'long-straight', 'bun', 'mohawk', 'braids', 'curly-afro', 'pixie', 'ponytail', 'bald', 'shaved-sides', 'mullet', 'wizard-long'],
+  hairColor: ['brown', 'black', 'blonde', 'red', 'grey', 'white', 'violet', 'teal', 'pink', 'mint', 'silver', 'copper', 'navy', 'forest'],
+  eyeColor:  ['brown', 'blue', 'green', 'hazel', 'amber', 'violet', 'silver', 'pink'],
+  accent:    ['none', 'freckles', 'eye-shadow', 'face-scar', 'beauty-mark', 'glasses-round'],
 };
+
+// Legacy alias — pre-character-system code (the old custom options
+// picker) imported CUSTOM_OPTIONS with a smaller list. We keep the
+// name pointing at the new fuller set so existing call sites get the
+// upgraded palette without code changes.
+export const CUSTOM_OPTIONS = CHARACTER_LOOK_OPTIONS;
+
+// Deterministic Phase 0 default. Given a userId, returns a stable
+// "look" object that's consistent across rehydrations — so a fresh
+// hero never renders blank, but the same user always sees their own
+// pre-customisation default. The hashing is intentionally trivial
+// (sum of charcodes mod table length); the goal is stability, not
+// cryptographic distribution.
+function pickByHash(userId, salt, list) {
+  let h = 0;
+  const s = String(userId) + ':' + salt;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return list[Math.abs(h) % list.length];
+}
+
+export function defaultLookForUser(userId) {
+  return {
+    bodyType:  pickByHash(userId, 'body',   CHARACTER_LOOK_OPTIONS.bodyType),
+    skinTone:  pickByHash(userId, 'skin',   CHARACTER_LOOK_OPTIONS.skinTone),
+    hairStyle: pickByHash(userId, 'hair',   CHARACTER_LOOK_OPTIONS.hairStyle),
+    hairColor: pickByHash(userId, 'haircol',CHARACTER_LOOK_OPTIONS.hairColor),
+    eyeColor:  pickByHash(userId, 'eye',    CHARACTER_LOOK_OPTIONS.eyeColor),
+    accent:    'none',
+  };
+}
+
+// Backfill missing look fields on a loaded hero. Used by loadHero so
+// every read of a customised-or-not hero hands the renderer a
+// complete look object — no per-field null checks downstream.
+//
+// Important: this MUTATES `hero.custom` in place. The hero is not
+// re-saved here (Phase 0 backfill is read-time only); the persistent
+// record stays empty until the viewer explicitly customises via
+// /character, at which point we save the full look. That keeps the
+// DLL sync merge clean — `custom` only contains fields the viewer
+// actively set.
+export function applyLookBackfill(hero, userId) {
+  if (!hero) return hero;
+  hero.custom = hero.custom || {};
+  const def = defaultLookForUser(userId);
+  for (const k of Object.keys(def)) {
+    if (hero.custom[k] == null || hero.custom[k] === '') {
+      hero.custom[k] = def[k];
+    }
+  }
+  if (typeof hero.lookVersion !== 'number') hero.lookVersion = 0;
+  return hero;
+}
 
 // Class table — mirrors DungeonContent.Classes on the DLL side. Used
 // for stat bonuses + tint colour + glyph rendering in /loadout. Keep
