@@ -576,4 +576,50 @@ export const COMMANDS = [
     description: '(admin) Add or update a shop item',
     default_member_permissions: '8192',     // MANAGE_MESSAGES
   },
+
+  // ── Character + pet system ───────────────────────────────────────
+  // Pixel-art identity editor + Patreon-gated cosmetic companion
+  // with a tamagotchi care loop. See CHARACTER-SYSTEM-DESIGN.md.
+  {
+    name: 'character',
+    description: 'Customise your pixel-art character — body, hair, eyes, accent',
+  },
+  {
+    name: 'pet',
+    description: 'Adopt + care for a cosmetic pet (Patreon perk)',
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'adopt',
+        description: 'Adopt a new pet (Patrons only)',
+        options: [
+          { type: TYPE_STRING, name: 'species', description: 'Pet species', required: true,
+            choices: [
+              { name: '🐱 Cat',         value: 'cat' },
+              { name: '🐶 Dog',         value: 'dog' },
+              { name: '🦉 Owl',         value: 'owl' },
+              { name: '🦊 Fox',         value: 'fox' },
+              { name: '🟢 Slime',       value: 'slime' },
+              { name: '🐲 Dragonling',  value: 'dragonling' },
+              { name: '🐸 Frog',        value: 'frog' },
+              { name: '🐰 Bunny',       value: 'bunny' },
+            ],
+          },
+          { type: TYPE_STRING, name: 'colour', description: 'Coat / scale colour', required: true, max_length: 20 },
+          { type: TYPE_STRING, name: 'name',   description: 'Name them (≤16 chars)', required: false, max_length: 16 },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'view',  description: 'Show your pet + stats' },
+      { type: TYPE_SUBCOMMAND, name: 'feed',  description: 'Feed your pet (10 Bolts, 30 min cooldown)' },
+      { type: TYPE_SUBCOMMAND, name: 'play',  description: 'Play with your pet (5 Bolts, 30 min cooldown)' },
+      { type: TYPE_SUBCOMMAND, name: 'clean', description: 'Clean your pet (5 Bolts, 30 min cooldown)' },
+      {
+        type: TYPE_SUBCOMMAND, name: 'rename',
+        description: 'Rename your pet',
+        options: [
+          { type: TYPE_STRING, name: 'name', description: 'New name (≤16 chars)', required: true, max_length: 16 },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'release', description: 'Release your pet (24h cooldown before re-adopting)' },
+    ],
+  },
 ];

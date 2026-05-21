@@ -260,6 +260,14 @@ export default {
       return handlePostRelease(req, env);
     }
 
+    // Character paper-doll render endpoint. Public read; ETag/
+    // cache-control tied to ?v=<lookVersion> so Discord embeds
+    // re-fetch after a customisation change. See character.js.
+    if (method === 'GET' && path.startsWith('/character/render/')) {
+      const { handleCharacterRender } = await import('./character.js');
+      return handleCharacterRender(req, env, path);
+    }
+
     // Aquilo-bot fold-in HTTP routes. Returns null when none of the
     // aquilo routes match so we fall through to the final 404.
     // Covers: /today-game, /overlay/ws, /counting/message,
