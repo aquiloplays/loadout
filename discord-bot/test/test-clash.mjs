@@ -37,8 +37,13 @@ import {
   getActiveDefenderChampion, grantBattlePlan, spendBattlePlan, MAX_BATTLE_PLANS,
   putTown,
 } from '../clash-state.js';
-import { appendClashEvent, handleClashLeaderboardHttp } from '../clash-http.js';
-import { TH_HERO_GATE } from '../clash-content.js';
+import { appendClashEvent, handleClashLeaderboardHttp, handleClashTownPublic } from '../clash-http.js';
+import {
+  TH_HERO_GATE,
+  spriteIdForBuilding, spriteIdForTroop,
+  withBuildingSprites, withGarrisonSprites,
+} from '../clash-content.js';
+import { handleWeb } from '../web.js';
 
 function makeKvShim() {
   const store = new Map();
@@ -446,6 +451,140 @@ const lbResp2 = await handleClashLeaderboardHttp({}, env);
 const lbBody2 = await lbResp2.json();
 const includesClay = lbBody2.raiders.some(r => r.userId === CLAY_LIKE);
 ok('leaderboard excludes Clay-linked Twitch identity', !includesClay);
+
+// ── Sprite IDs + /web/clash/* contract (2026-05-20) ───────────────
+console.log('--- sprite ids + /web/clash/* contract ---');
+
+ok('spriteIdForBuilding townhall L7',
+   spriteIdForBuilding('townhall', 7) === 'clash/buildings/townhall-L7.png');
+ok('spriteIdForBuilding clamps above max',
+   spriteIdForBuilding('townhall', 999) === 'clash/buildings/townhall-L10.png');
+ok('spriteIdForBuilding rejects unknown kind',
+   spriteIdForBuilding('atlantis', 1) === null);
+ok('spriteIdForTroop boltKnight',
+   spriteIdForTroop('boltKnight') === 'clash/troops/boltKnight.png');
+ok('spriteIdForTroop rejects unknown',
+   spriteIdForTroop('xyz') === null);
+
+const wbsOut = withBuildingSprites([{ kind: 'wall', level: 3 }, { kind: 'cannon', level: 5 }]);
+ok('withBuildingSprites preserves original fields',
+   wbsOut[0].kind === 'wall' && wbsOut[0].level === 3);
+ok('withBuildingSprites adds spriteId',
+   wbsOut[0].spriteId === 'clash/buildings/wall-L3.png' &&
+   wbsOut[1].spriteId === 'clash/buildings/cannon-L5.png');
+
+const wgs = withGarrisonSprites({ scrapper: 3, boltKnight: 1 });
+ok('withGarrisonSprites preserves counts',
+   wgs.counts.scrapper === 3 && wgs.counts.boltKnight === 1);
+ok('withGarrisonSprites adds sprites map',
+   wgs.sprites.scrapper === 'clash/troops/scrapper.png');
+
+// /clash/town public endpoint now returns buildings[] with spriteIds.
+// Use the GUILD town built earlier in this harness.
+const townResp = await handleClashTownPublic(env, '/clash/town/' + GUILD);
+ok('handleClashTownPublic returns 200', townResp.status === 200);
+const townBody = await townResp.json();
+ok('public town buildings have spriteId',
+   Array.isArray(townBody.buildings) &&
+   townBody.buildings.every(b => typeof b.spriteId === 'string' && b.spriteId.startsWith('clash/buildings/')));
+ok('public town payload includes garrisonSprites map',
+   townBody.garrisonSprites && typeof townBody.garrisonSprites === 'object');
+
+// /web/clash/* HMAC contract — needs numeric Discord IDs to clear
+// the bot-side id validator, so we provision a fresh test town with
+// snowflake-shaped ids rather than re-using the earlier 'u_streamer'.
+const NUM_GUILD    = '111111111111111111';
+const NUM_STREAMER = '222222222222222222';
+const NUM_VIEWER   = '333333333333333333';
+await ensureTown(env, NUM_GUILD, NUM_STREAMER);
+await addTreasury(env, NUM_GUILD, { bolts: 10000, scrap: 1000, cores: 50 });
+
+async function signWebReq(secret, body) {
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sigBytes = new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(ts + '\n' + body)));
+  let hex = '';
+  for (const b of sigBytes) hex += b.toString(16).padStart(2, '0');
+  return { ts, sig: hex };
+}
+
+const WEB_SECRET = 'test-web-secret-please-ignore';
+const webEnv = { ...env, AQUILO_SITE_WEB_SECRET: WEB_SECRET, AQUILO_VAULT_GUILD_ID: NUM_GUILD };
+
+// Helper: build a Request with valid HMAC
+async function webPost(path, body) {
+  const bodyStr = JSON.stringify(body);
+  const { ts, sig } = await signWebReq(WEB_SECRET, bodyStr);
+  return new Request('https://bot.example.com' + path, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-aquilo-web-ts': ts,
+      'x-aquilo-web-sig': sig,
+    },
+    body: bodyStr,
+  });
+}
+
+// Non-streamer → permission denied
+const denyReq = await webPost('/web/clash/build', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD, kind: 'wall',
+});
+const denyResp = await handleWeb(denyReq, webEnv);
+const denyBody = await denyResp.json();
+ok('/web/clash/build denies non-streamer', denyResp.status === 200 && denyBody.ok === false && denyBody.error === 'permission',
+   `status=${denyResp.status} body=${JSON.stringify(denyBody)}`);
+
+// Bad signature → 401
+const goodBody = JSON.stringify({ discordId: NUM_STREAMER, guildId: NUM_GUILD, kind: 'wall' });
+const badSigReq = new Request('https://bot.example.com/web/clash/build', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', 'x-aquilo-web-ts': '1', 'x-aquilo-web-sig': 'deadbeef' },
+  body: goodBody,
+});
+const badSigResp = await handleWeb(badSigReq, webEnv);
+ok('/web/clash/build rejects bad signature', badSigResp.status === 401);
+
+// Bad kind → badkind classification
+const badKindReq = await webPost('/web/clash/build', {
+  discordId: NUM_STREAMER, guildId: NUM_GUILD, kind: 'atlantis',
+});
+const badKindResp = await handleWeb(badKindReq, webEnv);
+const badKindBody = await badKindResp.json();
+ok('/web/clash/build rejects bad kind',
+   badKindResp.status === 200 && badKindBody.ok === false && badKindBody.error === 'badkind',
+   `body=${JSON.stringify(badKindBody)}`);
+
+// /web/clash/town as streamer → enriched payload
+const townWebReq = await webPost('/web/clash/town', {
+  discordId: NUM_STREAMER, guildId: NUM_GUILD,
+});
+const townWebResp = await handleWeb(townWebReq, webEnv);
+const townWebBody = await townWebResp.json();
+ok('/web/clash/town returns ok for streamer',
+   townWebResp.status === 200 && townWebBody.ok === true,
+   `body=${JSON.stringify(townWebBody).slice(0, 200)}`);
+ok('/web/clash/town buildings carry spriteId + nextCost',
+   Array.isArray(townWebBody.buildings) &&
+   townWebBody.buildings.every(b => b.spriteId && b.spriteId.startsWith('clash/buildings/')));
+ok('/web/clash/town has newBuildOptions',
+   Array.isArray(townWebBody.newBuildOptions) &&
+   townWebBody.newBuildOptions.length === Object.keys(BUILDINGS).length);
+ok('/web/clash/town has garrisonOptions',
+   Array.isArray(townWebBody.garrisonOptions) &&
+   townWebBody.garrisonOptions.every(g => g.spriteId.startsWith('clash/troops/')));
+
+// /web/clash/town as non-streamer → permission
+const denyTownReq = await webPost('/web/clash/town', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+});
+const denyTownResp = await handleWeb(denyTownReq, webEnv);
+const denyTownBody = await denyTownResp.json();
+ok('/web/clash/town denies non-streamer',
+   denyTownResp.status === 200 && denyTownBody.ok === false && denyTownBody.error === 'permission');
 
 console.log('--- ' + passed + ' pass, ' + failed + ' fail ---');
 if (failed > 0) process.exit(1);

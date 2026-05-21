@@ -58,7 +58,18 @@ import {
   getDailyShop,
   doShopBuy,
 } from './dungeon.js';
-import { executeRaid } from './clash.js';
+import {
+  executeRaid,
+  _editorTownBuild,
+  _editorTownGarrison,
+  canManageTown,
+} from './clash.js';
+import {
+  BUILDINGS, TROOPS_GARRISON,
+  withBuildingSprites, withGarrisonSprites,
+  townBuildCost, townGarrisonCost,
+} from './clash-content.js';
+import { getTown, getTreasury } from './clash-state.js';
 
 const ROUTES = new Set([
   'wallet',
@@ -82,6 +93,9 @@ const ROUTES = new Set([
   'shop/buy',
   'dungeon/skip-cooldown',
   'clash/raid',
+  'clash/build',
+  'clash/garrison',
+  'clash/town',
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -164,6 +178,9 @@ export async function handleWeb(req, env) {
     if (route === 'shop/buy') return await routeShopBuy(env, guildId, discordId, body);
     if (route === 'dungeon/skip-cooldown') return await routeDungeonSkip(env, guildId, discordId);
     if (route === 'clash/raid')            return await routeClashRaid(env, guildId, discordId, body);
+    if (route === 'clash/build')           return await routeClashBuild(env, guildId, discordId, body);
+    if (route === 'clash/garrison')        return await routeClashGarrison(env, guildId, discordId, body);
+    if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
   }
@@ -581,4 +598,159 @@ async function routeClashRaid(env, guildId, userId, body) {
   const userName = String((body && body.userName) || '').trim() || 'viewer';
   const r = await executeRaid(env, guildId, userId, userName, kind);
   return json({ ok: !!r.ok, ...r });
+}
+
+// ── /web/clash/build ─────────────────────────────────────────────
+//
+// Drop-in for the slash command `/clash town build kind:<...>
+// buildingId:<...?>` — same code path (clash.js handleTownBuild via
+// _editorTownBuild adapter) so all the validation, treasury maths,
+// hero-level gate, build-queue mutation, and cooldown plumbing
+// happen exactly once.
+//
+// Gated by canManageTown — only the streamer + designated mods can
+// queue town builds. The site verifies the Patreon session → Discord
+// link before signing this request, so the discordId we receive has
+// already been authenticated. We re-check ownership/mod status here
+// against the bot-side town record (defence-in-depth).
+//
+// Body fields:
+//   discordId   the acting user (mod or streamer, set by site session)
+//   guildId     the target town's guild
+//   kind        building kind — townhall|wall|cannon|archerTower|trap|
+//               storage|barracks|warTent
+//   buildingId  (optional) numeric id of an existing building. If
+//               present → upgrade that building one level. If absent
+//               → build a new one of `kind` at the next free tile.
+//
+// Response:
+//   { ok: true,  message: "🏗 Upgrading Wall #4 → L3. Ready in 30 min." }
+//   { ok: false, error: 'permission', message: "🔒 ..." }
+//   { ok: false, error: 'badkind'|'treasury'|'maxlevel'|'herogate'|'badbuilding',
+//     message: "❌ ..." }
+//
+// HTTP status is always 200 — the structured `ok` flag is the source
+// of truth; the message string is the Discord-formatted user copy
+// the UI can display verbatim. (Mirrors /web/clash/raid contract.)
+function classifyBuildMessage(msg) {
+  if (typeof msg !== 'string' || !msg) return { ok: false, error: 'unknown' };
+  if (msg.startsWith('🏗') || msg.startsWith('⛺')) return { ok: true };
+  if (msg.startsWith('🔒')) return { ok: false, error: 'permission' };
+  if (msg.includes('Treasury short'))     return { ok: false, error: 'treasury' };
+  if (msg.includes('maxed') || msg.includes('Max level')) return { ok: false, error: 'maxlevel' };
+  if (msg.includes('needs at least one community hero')) return { ok: false, error: 'herogate' };
+  if (msg.includes('Unknown building'))   return { ok: false, error: 'badkind' };
+  if (msg.includes('Unknown garrison'))   return { ok: false, error: 'badtroop' };
+  if (msg.includes('No building with id')) return { ok: false, error: 'badbuilding' };
+  return { ok: false, error: 'other' };
+}
+
+async function routeClashBuild(env, guildId, userId, body) {
+  const kind = String((body && body.kind) || '').trim();
+  const buildingId = body && body.buildingId != null ? String(body.buildingId).trim() : null;
+  if (!kind || !BUILDINGS[kind]) {
+    return json({ ok: false, error: 'badkind', message: '❌ Unknown building. Try: ' + Object.keys(BUILDINGS).join(', ') }, 200);
+  }
+  // Belt-and-braces — _editorTownBuild also checks but we want a
+  // distinct error code instead of leaning on the embedded copy.
+  if (!await canManageTown(env, guildId, userId)) {
+    return json({ ok: false, error: 'permission', message: '🔒 Only the streamer + designated mods can queue town builds.' }, 200);
+  }
+  const message = await _editorTownBuild(env, guildId, userId, kind, buildingId);
+  const cls = classifyBuildMessage(message);
+  return json({ ...cls, message });
+}
+
+// ── /web/clash/garrison ──────────────────────────────────────────
+//
+// Mirror of `/clash town garrison troop:<...> count:<n>`. Same gate,
+// same code path (handleTownGarrison via _editorTownGarrison).
+//
+// Body fields:
+//   discordId   the acting user
+//   guildId     the target town
+//   troopId     scrapper | boltKnight | voltaicMage | archerLite
+//   count       1..20 (clamped server-side)
+async function routeClashGarrison(env, guildId, userId, body) {
+  const troopId = String((body && body.troopId) || '').trim();
+  const count = Math.max(1, Math.min(20, Number((body && body.count) || 1) || 1));
+  if (!troopId || !TROOPS_GARRISON[troopId]) {
+    return json({ ok: false, error: 'badtroop', message: '❌ Unknown garrison troop. Try: ' + Object.keys(TROOPS_GARRISON).join(', ') }, 200);
+  }
+  if (!await canManageTown(env, guildId, userId)) {
+    return json({ ok: false, error: 'permission', message: '🔒 Only the streamer + designated mods can train town garrison.' }, 200);
+  }
+  const message = await _editorTownGarrison(env, guildId, userId, troopId, count);
+  const cls = classifyBuildMessage(message);
+  return json({ ...cls, message });
+}
+
+// ── /web/clash/town ──────────────────────────────────────────────
+//
+// Convenience read for the website's town-management UI — same
+// payload as the public GET /clash/town/<guildId> route but reached
+// through the /web/* HMAC channel (so the site can hide private
+// details from public callers later without breaking its own UI).
+// Buildings come pre-enriched with spriteId per entry; garrison
+// counts come with a parallel sprites map.
+async function routeClashTown(env, guildId, userId) {
+  const town = await getTown(env, guildId);
+  if (!town) return json({ ok: false, error: 'no-town', message: 'no town for this guild' }, 200);
+  if (!await canManageTown(env, guildId, userId)) {
+    return json({ ok: false, error: 'permission', message: '🔒 Only the streamer + designated mods can read the management view.' }, 200);
+  }
+  const treasury = await getTreasury(env, guildId);
+  // Pre-compute upgrade preview per building (cost + time for next
+  // level) so the UI can render "Upgrade →" buttons without a second
+  // round trip per building.
+  const buildings = (town.buildings || []).map(b => {
+    const def = BUILDINGS[b.kind] || {};
+    const maxLevel = (def.hp?.length || 2) - 1;
+    const nextLevel = (b.level || 1) + 1;
+    const nextCost = nextLevel <= maxLevel ? townBuildCost(b.kind, nextLevel) : null;
+    return {
+      ...b,
+      spriteId: `clash/buildings/${b.kind}-L${b.level || 1}.png`,
+      maxLevel,
+      nextLevel: nextLevel <= maxLevel ? nextLevel : null,
+      nextCost: nextCost ? { cost: nextCost.cost, timeMs: nextCost.timeMs } : null,
+    };
+  });
+  // Available "new build" kinds + their L1 costs.
+  const newBuildOptions = Object.keys(BUILDINGS).map(k => {
+    const c = townBuildCost(k, 1);
+    return {
+      kind: k,
+      name: BUILDINGS[k].name,
+      glyph: BUILDINGS[k].glyph,
+      spriteId: `clash/buildings/${k}-L1.png`,
+      cost: c ? c.cost : null,
+      timeMs: c ? c.timeMs : null,
+    };
+  });
+  const garrison = town.garrison || {};
+  const garrisonSprites = withGarrisonSprites(garrison).sprites;
+  const garrisonOptions = Object.keys(TROOPS_GARRISON).map(t => {
+    const c = townGarrisonCost(t, 1);
+    return {
+      troopId: t,
+      name: TROOPS_GARRISON[t].name,
+      glyph: TROOPS_GARRISON[t].glyph,
+      spriteId: `clash/troops/${t}.png`,
+      bolts: c ? c.bolts : null,
+      timeMs: c ? c.timeMs : null,
+    };
+  });
+  return json({
+    ok: true,
+    guildId,
+    thLevel: town.thLevel,
+    treasury,
+    buildings,
+    garrison,
+    garrisonSprites,
+    newBuildOptions,
+    garrisonOptions,
+    layoutVersion: town.layoutVersion,
+  });
 }

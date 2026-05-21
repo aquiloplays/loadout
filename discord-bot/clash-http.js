@@ -53,7 +53,10 @@ import {
   ensureTown,
 } from './clash-state.js';
 import { getActiveWarId, getWar, getWarBadge } from './clash-war.js';
-import { BUILDINGS, TROOPS_GARRISON } from './clash-content.js';
+import {
+  BUILDINGS, TROOPS_GARRISON,
+  withBuildingSprites, withGarrisonSprites,
+} from './clash-content.js';
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -150,8 +153,9 @@ export async function handleClashTownPublic(env, path) {
     guildId,
     thLevel: town.thLevel,
     prestige,
-    buildings: town.buildings,
+    buildings: withBuildingSprites(town.buildings),
     garrison: town.garrison,
+    garrisonSprites: withGarrisonSprites(town.garrison).sprites,
     treasury: tres,
     layoutVersion: town.layoutVersion,
     customisation: town.customisation || {},
@@ -226,9 +230,17 @@ export async function handleClashSync(req, env, path) {
     const shield = await getShield(env, guildId);
     const warId = await getActiveWarId(env, guildId);
     const war = warId ? await getWar(env, warId) : null;
+    // Enrich the editor payload with sprite paths so the drag-and-
+    // drop layout editor can render each building / garrison troop
+    // without having to derive the convention itself.
+    const townOut = town ? {
+      ...town,
+      buildings: withBuildingSprites(town.buildings),
+      garrisonSprites: withGarrisonSprites(town.garrison).sprites,
+    } : town;
     return json({
       updatedAt: Date.now(),
-      town, treasury: tres, prestige, queue, shield,
+      town: townOut, treasury: tres, prestige, queue, shield,
       war: war
         ? { warId: war.warId, state: war.state, scores: war.scores, activeEndsUtc: war.activeEndsUtc }
         : null,
