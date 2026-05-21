@@ -586,5 +586,111 @@ const denyTownBody = await denyTownResp.json();
 ok('/web/clash/town denies non-streamer',
    denyTownResp.status === 200 && denyTownBody.ok === false && denyTownBody.error === 'permission');
 
+// ── /web/character contract ─────────────────────────────────────
+// HMAC-gated read + save of the player's pixel-art look. Same
+// infra as /web/clash/* — reuses NUM_GUILD/NUM_VIEWER + webPost
+// signed under WEB_SECRET. Lives here rather than test-character-
+// pet.mjs (which is data-model-only) so the HMAC + KV shim don't
+// need duplicating.
+console.log('--- /web/character contract ---');
+
+// First read = Phase-0 backfill, no save yet.
+const getReq1 = await webPost('/web/character', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+});
+const getResp1 = await handleWeb(getReq1, webEnv);
+const getBody1 = await getResp1.json();
+ok('/web/character returns ok on fresh user',
+   getResp1.status === 200 && getBody1.ok === true,
+   `body=${JSON.stringify(getBody1).slice(0, 200)}`);
+ok('/web/character look has all 6 axes',
+   getBody1.look && getBody1.look.bodyType && getBody1.look.skinTone &&
+   getBody1.look.hairStyle && getBody1.look.hairColor && getBody1.look.eyeColor && getBody1.look.accent);
+ok('/web/character options arrays present + non-empty',
+   getBody1.options &&
+   Array.isArray(getBody1.options.bodyType) && getBody1.options.bodyType.length >= 2 &&
+   Array.isArray(getBody1.options.skinTone) && getBody1.options.skinTone.length >= 4 &&
+   Array.isArray(getBody1.options.hairStyle) && getBody1.options.hairStyle.length >= 4 &&
+   Array.isArray(getBody1.options.hairColor) && getBody1.options.hairColor.length >= 4 &&
+   Array.isArray(getBody1.options.eyeColor) && getBody1.options.eyeColor.length >= 4 &&
+   Array.isArray(getBody1.options.accent) && getBody1.options.accent.length >= 2);
+ok('/web/character hairSwatches map returns hex strings',
+   getBody1.hairSwatches &&
+   typeof getBody1.hairSwatches[getBody1.options.hairColor[0]] === 'string' &&
+   /^#[0-9a-f]{6}$/.test(getBody1.hairSwatches[getBody1.options.hairColor[0]]));
+ok('/web/character renderUrl pins ?v=<lookVersion>',
+   typeof getBody1.renderUrl === 'string' &&
+   getBody1.renderUrl.includes(`/character/render/${NUM_GUILD}/${NUM_VIEWER}.png?v=`) &&
+   getBody1.renderUrl.endsWith('v=' + getBody1.lookVersion));
+ok('/web/character fresh user lookVersion = 0', getBody1.lookVersion === 0);
+
+// Bad signature → 401
+const badCharSigReq = new Request('https://bot.example.com/web/character', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', 'x-aquilo-web-ts': '1', 'x-aquilo-web-sig': 'deadbeef' },
+  body: JSON.stringify({ discordId: NUM_VIEWER, guildId: NUM_GUILD }),
+});
+const badCharSigResp = await handleWeb(badCharSigReq, webEnv);
+ok('/web/character rejects bad signature', badCharSigResp.status === 401);
+
+// Save with a valid partial patch — bumps lookVersion + persists.
+const saveReq = await webPost('/web/character/save', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+  look: { bodyType: 'stocky', hairColor: 'violet' },
+});
+const saveResp = await handleWeb(saveReq, webEnv);
+const saveBody = await saveResp.json();
+ok('/web/character/save returns ok',
+   saveResp.status === 200 && saveBody.ok === true,
+   `body=${JSON.stringify(saveBody).slice(0, 200)}`);
+ok('/web/character/save applies bodyType', saveBody.look.bodyType === 'stocky');
+ok('/web/character/save applies hairColor', saveBody.look.hairColor === 'violet');
+ok('/web/character/save bumps lookVersion',
+   saveBody.lookVersion === getBody1.lookVersion + 1,
+   `v=${saveBody.lookVersion}`);
+ok('/web/character/save changed flag true',  saveBody.changed === true);
+
+// Save with the same look = no-op, no version bump.
+const noopReq = await webPost('/web/character/save', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+  look: { bodyType: 'stocky', hairColor: 'violet' },
+});
+const noopResp = await handleWeb(noopReq, webEnv);
+const noopBody = await noopResp.json();
+ok('/web/character/save no-op when unchanged',
+   noopBody.ok === true && noopBody.changed === false && noopBody.lookVersion === saveBody.lookVersion);
+
+// Bad value → rejected with field/value detail, no save.
+const badReq = await webPost('/web/character/save', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+  look: { skinTone: 'metallic-gold' },   // not in options
+});
+const badResp = await handleWeb(badReq, webEnv);
+const badBody = await badResp.json();
+ok('/web/character/save rejects bad value',
+   badResp.status === 400 && badBody.ok === false && badBody.error === 'bad-look' &&
+   badBody.field === 'skinTone' && badBody.value === 'metallic-gold',
+   `body=${JSON.stringify(badBody)}`);
+
+// Missing look field → bad-body.
+const noLookReq = await webPost('/web/character/save', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+});
+const noLookResp = await handleWeb(noLookReq, webEnv);
+const noLookBody = await noLookResp.json();
+ok('/web/character/save rejects missing look',
+   noLookResp.status === 400 && noLookBody.ok === false && noLookBody.error === 'bad-body');
+
+// Re-read after save — persisted look comes back, lookVersion advanced.
+const getReq2 = await webPost('/web/character', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+});
+const getResp2 = await handleWeb(getReq2, webEnv);
+const getBody2 = await getResp2.json();
+ok('/web/character re-read persists bodyType', getBody2.look.bodyType === 'stocky');
+ok('/web/character re-read persists hairColor', getBody2.look.hairColor === 'violet');
+ok('/web/character re-read lookVersion advanced',
+   getBody2.lookVersion === saveBody.lookVersion);
+
 console.log('--- ' + passed + ' pass, ' + failed + ' fail ---');
 if (failed > 0) process.exit(1);
