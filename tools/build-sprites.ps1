@@ -2100,6 +2100,159 @@ function Build-Chest   { param([string]$repoRoot) Write-Host '── Chest gear 
 function Build-Legs    { param([string]$repoRoot) Write-Host '── Legs gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'legs'    ${function:Draw-Legs} }
 function Build-Boots   { param([string]$repoRoot) Write-Host '── Boots gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'boots'   ${function:Draw-Boots} }
 
+# ══════════════════════════════════════════════════════════════════
+#                       GEAR — trinkets
+# ══════════════════════════════════════════════════════════════════
+#
+# Trinkets split into two render zones:
+#   • Back-cape  (z=10) — capes, cloaks, wings, mantles, drapes, veils
+#   • Front      (z=45) — amulets, charms, rings, sigils, brooches
+# Detection follows the same keyword rules as the existing compositor
+# (see character.js — back-cape regex).
+
+function Draw-Trinket {
+  param($bmp, [string]$name, [string]$rarity)
+  Rng-Init $name
+  $metal = Rarity-Metal $rarity
+  $accent = Rarity-Accent $rarity
+  $detail = Rarity-Detail $rarity
+  $lower = $name.ToLower()
+
+  # ── Back-cape family ──
+  if ($lower -match 'cape|cloak|mantle|drape|veil') {
+    $cloth = if ($lower -match 'silk|royal|aurora|spectral') { $MAT_CLOTH_LINEN } else { $MAT_CLOTH_WOOL }
+    # Cape colour shifts with rarity — accent-tinted on epic+
+    if ($detail -ge 3) {
+      $cloth = @{
+        deep   = With-Alpha $accent 0 | ForEach-Object { Mix-Color $cloth.deep $accent 0.4 }
+        shadow = Mix-Color $cloth.shadow $accent 0.5
+        base   = Mix-Color $cloth.base   $accent 0.55
+        high   = Mix-Color $cloth.high   $accent 0.6
+        top    = Mix-Color $cloth.top    $accent 0.5
+      }
+    }
+    # Drape hangs from collar (row 36) to feet (row 78)
+    $top = 36; $bot = 78
+    for ($y = $top; $y -le $bot; $y++) {
+      # Widens as it descends; gentle billowing curve
+      $w = 22 + [int]([Math]::Sin(($y - $top) / [double]($bot - $top) * [Math]::PI) * 6)
+      $rowX = 32 - [int]($w / 2)
+      Fill-Box $bmp $rowX $y $w 1 $cloth.base
+      Set-Pixel $bmp $rowX $y $cloth.shadow
+      Set-Pixel $bmp ($rowX + $w - 1) $y $cloth.deep
+      # Vertical fold lines (every 5 rows + shift by RNG)
+      if ((($y * 3) % 5) -eq 0) {
+        Set-Pixel $bmp ($rowX + 5) $y $cloth.shadow
+        Set-Pixel $bmp ($rowX + $w - 6) $y $cloth.high
+      }
+      if ((($y * 5) % 7) -eq 0) {
+        Set-Pixel $bmp ($rowX + [int]($w / 2) - 3) $y $cloth.shadow
+        Set-Pixel $bmp ($rowX + [int]($w / 2) + 3) $y $cloth.shadow
+      }
+    }
+    # Collar trim
+    Fill-Box $bmp 21 35 22 1 $cloth.deep
+    Fill-Box $bmp 21 34 22 1 $cloth.shadow
+    # Hem trim (rare+)
+    if ($detail -ge 2) {
+      Fill-Box $bmp 12 $bot 40 1 $accent
+      Fill-Box $bmp 12 ($bot - 1) 40 1 $cloth.high
+    }
+    # Clasp at neck
+    $gem = Gem-Palette $name
+    Draw-Gem $bmp 32 35 3 $gem
+    # Wing feather pattern overlay (uncommon+) on wing-named trinkets
+    if ($lower -match 'wing|feather' -and $detail -ge 1) {
+      foreach ($side in @(-1, 1)) {
+        for ($y = 0; $y -lt 12; $y++) {
+          $py = $top + 4 + $y * 3
+          $px = 32 + $side * (8 + [int]($y / 3))
+          Set-Pixel $bmp $px $py $cloth.high
+          Set-Pixel $bmp ($px - $side) $py $cloth.shadow
+        }
+      }
+    }
+    if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+    return
+  }
+
+  # ── Wings (winged trinket separately) ──
+  if ($lower -match 'wings?(\W|$)') {
+    $featherCol = if ($detail -ge 3) { $accent } else { (Color-FromHex '#cbd2e0') }
+    foreach ($side in @(-1, 1)) {
+      for ($y = 0; $y -lt 16; $y++) {
+        $featherW = 4 + [int]($y / 4)
+        $px = 32 + $side * 12
+        $py = 38 + $y
+        for ($i = 0; $i -lt $featherW; $i++) {
+          $col = if (($i % 2) -eq 0) { $featherCol } else { $MAT_CLOTH_WOOL.shadow }
+          Set-Pixel $bmp ($px + $side * $i) $py $col
+        }
+        Set-Pixel $bmp ($px + $side * $featherW) $py $MAT_CLOTH_WOOL.deep
+      }
+    }
+    if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+    return
+  }
+
+  # ── Ring (small, sits over chest) ──
+  if ($lower -match 'ring|band|signet') {
+    $cx = 32; $cy = 48
+    Stroke-Box $bmp ($cx - 2) ($cy - 2) 5 5 $metal.base
+    # Top arch highlight
+    Set-Pixel $bmp ($cx - 1) ($cy - 2) $metal.high
+    Set-Pixel $bmp $cx ($cy - 2) $metal.top
+    Set-Pixel $bmp ($cx + 1) ($cy - 2) $metal.high
+    # Gem set in the top
+    $gem = Gem-Palette $name
+    Draw-Gem $bmp $cx ($cy - 1) 3 $gem
+    # Halo (epic+)
+    if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+    return
+  }
+
+  # ── Amulet / pendant / charm / sigil — chain + central gem ──
+  if ($lower -match 'amulet|pendant|charm|sigil|brooch|talisman|locket|necklace|crystal|coin|claw|tooth|gem|orb|stone|sapphire|ruby|emerald|diamond|jewel|focus|relic|core|crest|medal|heart|tear|eye') {
+    $cx = 32
+    $cy = 49
+    # Chain — two diagonal segments going up to nape
+    for ($i = 0; $i -lt 8; $i++) {
+      Set-Pixel $bmp ($cx - 2 - $i) ($cy - 3 - $i) $metal.high
+      Set-Pixel $bmp ($cx - 3 - $i) ($cy - 3 - $i) $metal.shadow
+      Set-Pixel $bmp ($cx + 2 + $i) ($cy - 3 - $i) $metal.high
+      Set-Pixel $bmp ($cx + 3 + $i) ($cy - 3 - $i) $metal.shadow
+    }
+    # Bezel — metal frame around the gem
+    Shade-Box $bmp ($cx - 3) ($cy - 2) 7 6 $metal -RimLight
+    # Central gem
+    $gem = Gem-Palette $name
+    if ($lower -match 'orb|sphere|core|moon|sun|eye|heart') {
+      Draw-Gem $bmp $cx ($cy + 1) 5 $gem -Round
+    } else {
+      Draw-Gem $bmp $cx ($cy + 1) 5 $gem
+    }
+    # Decorative bezel prongs at corners
+    if ($detail -ge 1) {
+      Set-Pixel $bmp ($cx - 3) ($cy - 2) $metal.top
+      Set-Pixel $bmp ($cx + 3) ($cy - 2) $metal.top
+      Set-Pixel $bmp ($cx - 3) ($cy + 3) $metal.deep
+      Set-Pixel $bmp ($cx + 3) ($cy + 3) $metal.deep
+    }
+    # Halo
+    if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+    return
+  }
+
+  # ── Default — small bauble on the chest ──
+  $cx = 32; $cy = 49
+  $gem = Gem-Palette $name
+  Shade-Box $bmp ($cx - 3) ($cy - 2) 7 6 $metal -RimLight
+  Draw-Gem $bmp $cx ($cy + 1) 5 $gem
+  if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+}
+
+function Build-Trinket { param([string]$repoRoot) Write-Host '── Trinket gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'trinket' ${function:Draw-Trinket} }
+
 # ── Top-level driver (incremental — full pipeline added later) ─────
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
@@ -2112,6 +2265,7 @@ if (Want 'head')     { Build-Head   -repoRoot $repoRoot }
 if (Want 'chest')    { Build-Chest  -repoRoot $repoRoot }
 if (Want 'legs')     { Build-Legs   -repoRoot $repoRoot }
 if (Want 'boots')    { Build-Boots  -repoRoot $repoRoot }
+if (Want 'trinket')  { Build-Trinket -repoRoot $repoRoot }
 
 Write-Host ''
 Write-Host 'Pass complete.' -ForegroundColor Green
