@@ -27,7 +27,11 @@
 [CmdletBinding()]
 param(
   [string]$OutRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'aquilo-gg/sprites'),
-  [string]$Only    = ''     # comma list: champions,legendaries,rares,uncommons,commons,tokens
+  [string]$Only    = '',    # comma list: champions,legendaries,rares,uncommons,commons,tokens (legacy)
+  [string]$Manifest = '',   # path to tools/.card-manifest.json — defaults to alongside this script
+  [string]$IdsFile  = '',   # optional file with one card id per line; restricts the run
+  [int]$Skip = 0,           # skip first N cards (paging for resumable runs)
+  [int]$Take = 0            # render only N cards (paging); 0 = all
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib-pixel.ps1')
@@ -2836,18 +2840,705 @@ function Render-Card {
   Save-CanvasFx $bmp (Join-Path $cardDir ("{0}.png" -f $cardId))
 }
 
-# Build pass — render every registered card whose pass matches $Only.
-function Build-Cards {
-  $count = 0
-  foreach ($cardId in $CARD_META.Keys) {
-    $meta = $CARD_META[$cardId]
-    if (-not (Want $meta.pass)) { continue }
-    Render-Card $cardId
-    $count++
+# =====================================================================
+# ── 2026-05-21 EXPANSION — manifest-driven procedural rendering ─────
+# =====================================================================
+#
+# CARD-GAME-DESIGN.md §13 grows the catalogue from 82 to ~1,500 cards
+# via cards-catalog-gen.js. Hand-curated draw functions (above) handle
+# champions, the original legendaries, original rares — anything that
+# has a $CARD_DRAW entry. Everything else dispatches to a family
+# template based on its manifest entry (palette + skin + weapon
+# variant + rarity), so every card gets a unique-feeling sprite
+# without per-card authoring.
+#
+# Run order:
+#   node tools/dump-card-manifest.mjs        # 1. write tools/.card-manifest.json
+#   pwsh tools/build-card-sprites.ps1        # 2. render all cards in the manifest
+#   node tools/build-card-apng.mjs           # 3. stitch legendary APNGs
+
+# ── Manifest loader ──────────────────────────────────────────────────
+
+function Load-Manifest {
+  $path = $Manifest
+  if (-not $path) { $path = Join-Path $PSScriptRoot '.card-manifest.json' }
+  if (-not (Test-Path $path)) {
+    Write-Host ("  ! manifest not found at {0} - falling back to legacy CARD_META set ({1} cards)" -f $path, $CARD_META.Count) -ForegroundColor Yellow
+    return $null
   }
-  Write-Host ("  cards rendered: {0}" -f $count) -ForegroundColor Green
+  $raw = Get-Content -Raw -Path $path
+  return ConvertFrom-Json $raw
+}
+
+# ── Palette + skin lookup tables ─────────────────────────────────────
+
+$PALETTE_BY_KEY = @{
+  'leather'        = $MAT_LEATHER
+  'leather-black'  = $MAT_LEATHER_BLACK
+  'steel'          = $MAT_STEEL
+  'iron'           = $MAT_IRON
+  'bronze'         = $MAT_BRONZE
+  'gold'           = $MAT_GOLD
+  'silver'         = $MAT_SILVER
+  'arcane'         = $ARCANE
+  'fire'           = $FIRE
+  'frost'          = $GEM_DIAMOND       # cool palette, reuses gem ramp shape
+  'holy'           = $HOLY
+  'shadow'         = $SHADOW
+  'nature'         = $NATURE
+  'voltaic'        = @{
+    deep   = (Color-FromHex '#08086c');
+    shadow = (Color-FromHex '#2820c0');
+    base   = (Color-FromHex '#6452ff');
+    high   = (Color-FromHex '#a890ff');
+    top    = (Color-FromHex '#e8dcff');
+  }
+  'wood'           = $MAT_WOOD_DARK
+  'stone'          = $MAT_STONE
+  'cloth-linen'    = $MAT_CLOTH_LINEN
+}
+function Palette-Lookup { param([string]$k) if ($PALETTE_BY_KEY.ContainsKey($k)) { return $PALETTE_BY_KEY[$k] } else { return $MAT_IRON } }
+
+$SKIN_BY_KEY = @{
+  'fair'    = $SKIN_FAIR
+  'tan'     = $SKIN_TAN
+  'pale'    = $SKIN_PALE
+  'green'   = $SKIN_GREEN
+  'grey'    = $SKIN_GREY
+  'bone'    = $SKIN_BONE
+  'purple'  = $SKIN_PURPLE
+  # Synthetic skins for elementals / non-human family templates
+  'red'     = @{
+    deep   = (Color-FromHex '#3a0a08');
+    shadow = (Color-FromHex '#7a1a14');
+    base   = (Color-FromHex '#c8362a');
+    high   = (Color-FromHex '#e87055');
+    top    = (Color-FromHex '#f8b09a');
+  }
+  'fire'    = $FIRE
+  'ice'     = @{
+    deep   = (Color-FromHex '#0a3060');
+    shadow = (Color-FromHex '#2a70c0');
+    base   = (Color-FromHex '#6ab0ec');
+    high   = (Color-FromHex '#a8d8ff');
+    top    = (Color-FromHex '#e0f0ff');
+  }
+  'electric' = @{
+    deep   = (Color-FromHex '#5c4a10');
+    shadow = (Color-FromHex '#9a8830');
+    base   = (Color-FromHex '#f4e068');
+    high   = (Color-FromHex '#fff09a');
+    top    = (Color-FromHex '#fffbe0');
+  }
+  'stone'   = $MAT_STONE
+}
+function Skin-Lookup { param([string]$k) if ($SKIN_BY_KEY.ContainsKey($k)) { return $SKIN_BY_KEY[$k] } else { return $SKIN_FAIR } }
+
+# ── Weapon sprites — small composable bits ───────────────────────────
+#
+# Each takes ($bmp, $anchor) where $anchor is the hash from
+# Draw-Humanoid (handRx, handY, etc.) and paints a weapon in/over the
+# right hand.
+
+function Weapon-Sword { param($bmp, $a, $ramp) Draw-Blade $bmp ($a.handRx + 2) ($a.handY - 18) ($a.handY + 1) 3 $ramp -Fuller; Fill-Box $bmp ($a.handRx) ($a.handY) 7 2 $MAT_BRONZE.base }
+function Weapon-Dagger { param($bmp, $a, $ramp) Draw-Blade $bmp ($a.handRx + 2) ($a.handY - 6) ($a.handY + 1) 2 $ramp; Set-Pixel $bmp ($a.handRx + 2) ($a.handY - 6) $ramp.top }
+function Weapon-Axe { param($bmp, $a, $ramp)
+  Draw-Shaft $bmp ($a.handRx + 2) ($a.handY - 14) ($a.handY + 2) 2 $MAT_WOOD_DARK
+  # Axe head — triangle blob right of shaft
+  Fill-Box $bmp ($a.handRx + 3) ($a.handY - 14) 6 5 $ramp.shadow
+  Fill-Box $bmp ($a.handRx + 3) ($a.handY - 13) 6 3 $ramp.base
+  Set-Pixel $bmp ($a.handRx + 8) ($a.handY - 14) $ramp.top
+  Set-Pixel $bmp ($a.handRx + 8) ($a.handY - 12) $ramp.high
+}
+function Weapon-Hammer { param($bmp, $a, $ramp)
+  Draw-Shaft $bmp ($a.handRx + 2) ($a.handY - 14) ($a.handY + 2) 2 $MAT_WOOD_DARK
+  Fill-Box $bmp ($a.handRx) ($a.handY - 16) 6 5 $ramp.shadow
+  Fill-Box $bmp ($a.handRx) ($a.handY - 15) 6 3 $ramp.base
+  Set-Pixel $bmp ($a.handRx) ($a.handY - 16) $ramp.top
+  Set-Pixel $bmp ($a.handRx + 5) ($a.handY - 14) $ramp.shadow
+}
+function Weapon-Staff { param($bmp, $a, $ramp)
+  Draw-Shaft $bmp ($a.handRx + 2) ($a.headTop - 6) ($a.handY + 6) 2 $MAT_WOOD_DARK
+  Shade-Disc $bmp ($a.handRx + 2) ($a.headTop - 8) 3 $ramp -RimLight
+}
+function Weapon-Orb { param($bmp, $a, $ramp)
+  Shade-Disc $bmp ($a.handRx + 3) ($a.handY) 4 $ramp -RimLight
+}
+function Weapon-Bow { param($bmp, $a, $ramp)
+  # Vertical bow arc to the right of the figure
+  for ($y = -8; $y -le 8; $y++) {
+    $dx = [int]([Math]::Round(3 - [Math]::Abs($y) * 0.25))
+    Set-Pixel $bmp ($a.handRx + 4 + $dx) ($a.handY + $y) $ramp.base
+  }
+  # Bowstring
+  Line-Pixel $bmp ($a.handRx + 4) ($a.handY - 8) ($a.handRx + 4) ($a.handY + 8) $MAT_CLOTH_LINEN.high
+}
+function Weapon-Crossbow { param($bmp, $a, $ramp)
+  Fill-Box $bmp ($a.handRx) ($a.handY) 8 3 $MAT_WOOD_DARK.base
+  Fill-Box $bmp ($a.handRx + 2) ($a.handY - 2) 4 2 $ramp.shadow
+  Set-Pixel $bmp ($a.handRx + 7) ($a.handY + 1) $MAT_STEEL.high
+}
+function Weapon-Halberd { param($bmp, $a, $ramp)
+  Draw-Shaft $bmp ($a.handRx + 2) ($a.headTop - 8) ($a.handY + 8) 2 $MAT_WOOD_DARK
+  Draw-Blade $bmp ($a.handRx + 2) ($a.headTop - 10) ($a.headTop - 4) 2 $ramp
+  Fill-Box $bmp ($a.handRx + 3) ($a.headTop - 8) 4 3 $ramp.shadow
+  Set-Pixel $bmp ($a.handRx + 5) ($a.headTop - 8) $ramp.high
+}
+function Weapon-Mace { param($bmp, $a, $ramp)
+  Draw-Shaft $bmp ($a.handRx + 2) ($a.handY - 12) ($a.handY + 2) 2 $MAT_WOOD_DARK
+  Shade-Disc $bmp ($a.handRx + 2) ($a.handY - 13) 3 $ramp -RimLight
+  # Mace spikes
+  Set-Pixel $bmp ($a.handRx + 2) ($a.handY - 16) $ramp.top
+  Set-Pixel $bmp ($a.handRx - 1) ($a.handY - 13) $ramp.high
+  Set-Pixel $bmp ($a.handRx + 5) ($a.handY - 13) $ramp.high
+}
+function Weapon-Cutlass { param($bmp, $a, $ramp)
+  Draw-Blade $bmp ($a.handRx + 2) ($a.handY - 14) ($a.handY + 1) 3 $ramp -Fuller
+  Fill-Box $bmp ($a.handRx - 1) ($a.handY) 9 2 $MAT_BRONZE.base
+  # Curved guard
+  Set-Pixel $bmp ($a.handRx + 7) ($a.handY - 1) $MAT_BRONZE.high
+  Set-Pixel $bmp ($a.handRx + 8) ($a.handY) $MAT_BRONZE.shadow
+}
+function Weapon-Club { param($bmp, $a, $ramp)
+  Draw-Shaft $bmp ($a.handRx + 2) ($a.handY - 10) ($a.handY + 2) 3 $MAT_WOOD_DARK
+  Fill-Box $bmp ($a.handRx + 1) ($a.handY - 12) 5 3 $MAT_WOOD_DARK.deep
+}
+function Weapon-Lute { param($bmp, $a, $ramp)
+  Shade-Oval $bmp ($a.handRx + 3) ($a.handY) 4 5 $MAT_WOOD_LIGHT
+  Line-Pixel $bmp ($a.handRx + 3) ($a.handY - 4) ($a.handRx + 3) ($a.handY - 10) $MAT_WOOD_DARK.base
+  Set-Pixel $bmp ($a.handRx + 3) ($a.handY - 1) (Color-FromHex '#08080c')
+}
+
+function Place-Weapon {
+  param($bmp, $a, [string]$w, $rarityRamp = $null)
+  $ramp = if ($rarityRamp) { $rarityRamp } else { $MAT_STEEL }
+  switch ($w) {
+    'sword'    { Weapon-Sword    $bmp $a $ramp; break }
+    'dagger'   { Weapon-Dagger   $bmp $a $ramp; break }
+    'axe'      { Weapon-Axe      $bmp $a $ramp; break }
+    'hammer'   { Weapon-Hammer   $bmp $a $ramp; break }
+    'staff'    { Weapon-Staff    $bmp $a $ramp; break }
+    'orb'      { Weapon-Orb      $bmp $a $ramp; break }
+    'bow'      { Weapon-Bow      $bmp $a $MAT_WOOD_DARK; break }
+    'crossbow' { Weapon-Crossbow $bmp $a $ramp; break }
+    'halberd'  { Weapon-Halberd  $bmp $a $ramp; break }
+    'mace'     { Weapon-Mace     $bmp $a $ramp; break }
+    'cutlass'  { Weapon-Cutlass  $bmp $a $ramp; break }
+    'club'     { Weapon-Club     $bmp $a $ramp; break }
+    'lute'     { Weapon-Lute     $bmp $a $ramp; break }
+    default    { } # no weapon
+  }
+}
+
+# ── Rarity-scaled adornments ─────────────────────────────────────────
+#
+# CARD-GAME-DESIGN.md §15.2 — common = bare; uncommon = +sigil pip;
+# rare = +gem + emblem stripe + rim light; legendary = +halo + sigil
+# aura + double rim. Halo is applied centrally by Render-Card, so we
+# only paint the figure-level adornments here.
+
+function Adorn-ByRarity {
+  param($bmp, [string]$rarity, $palette, $skin, [int]$variantSeed)
+  if ($rarity -eq 'common') { return }
+  $accent = Rarity-Accent $rarity
+  if ($rarity -eq 'uncommon') {
+    # Single sigil pip in the lower-left corner
+    Set-Pixel $bmp 4 70 $accent
+    Set-Pixel $bmp 5 70 (With-Alpha $accent 180)
+    Set-Pixel $bmp 4 71 (With-Alpha $accent 180)
+  } elseif ($rarity -eq 'rare' -or $rarity -eq 'legendary') {
+    # Accent gem in lower-left; emblem stripe along bottom
+    $gem = Gem-Palette ($palette.base.ToString())
+    Draw-Gem $bmp 5 72 3 $gem
+    # Emblem stripe (rarity-tinted) along the very bottom
+    for ($x = 8; $x -lt 56; $x += 2) {
+      Set-Pixel $bmp $x 79 (With-Alpha $accent 150)
+    }
+    # Double-rim hint for legendaries (the halo pulse does the rest)
+    if ($rarity -eq 'legendary') {
+      for ($x = 0; $x -lt 64; $x += 4) {
+        Blend-Pixel $bmp $x 0 (With-Alpha $accent 90)
+        Blend-Pixel $bmp $x 79 (With-Alpha $accent 90)
+      }
+    }
+  }
+}
+
+# ── Family templates ────────────────────────────────────────────────
+#
+# Each takes ($bmp, $manifestEntry) and paints a 64×80 subject. They
+# rely entirely on existing lib-pixel primitives + the weapon helpers
+# above, so a single ~30-line function covers an entire family of
+# 30-50 cards.
+
+function Family-Humanoid { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 12
+  $skin = Skin-Lookup $m.skin
+  $pal  = Palette-Lookup $m.palette
+  $a = Draw-Humanoid $bmp $skin $pal -accent (Rarity-Accent $m.rarity)
+  if ($m.weapon) { Place-Weapon $bmp $a $m.weapon $pal }
+}
+
+function Family-HumanoidSmall { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 10
+  $skin = Skin-Lookup $m.skin
+  $pal  = Palette-Lookup $m.palette
+  # Shorter, stockier — head lower, smaller torso
+  $a = Draw-Humanoid $bmp $skin $pal -headY 28 -headR 6 -torsoW 16 -torsoH 18 -legH 12 -accent (Rarity-Accent $m.rarity)
+  if ($m.weapon) { Place-Weapon $bmp $a $m.weapon $pal }
+  # Tiny dot eyes — already drawn, but give one a glint for menace
+  Set-Pixel $bmp ($CARD_CX - 2) ($a.headY) (Color-FromHex '#f8514a')
+}
+
+function Family-HumanoidArmor { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 14
+  $skin = Skin-Lookup $m.skin
+  $pal  = Palette-Lookup $m.palette
+  $a = Draw-Humanoid $bmp $skin $pal -accent $MAT_GOLD.base
+  # Helm — full closed visor
+  Fill-Box $bmp ($CARD_CX - 7) ($a.headTop - 3) 14 5 $pal.shadow
+  for ($x = $CARD_CX - 7; $x -le $CARD_CX + 6; $x++) {
+    Set-Pixel $bmp $x ($a.headTop - 3) $pal.high
+  }
+  # Visor slit
+  Fill-Box $bmp ($CARD_CX - 4) ($a.headY - 1) 9 2 (Color-FromHex '#040408')
+  Set-Pixel $bmp ($CARD_CX - 2) ($a.headY) $MAT_GOLD.top
+  Set-Pixel $bmp ($CARD_CX + 2) ($a.headY) $MAT_GOLD.top
+  # Pauldrons (shoulder plates)
+  Shade-Disc $bmp ($CARD_CX - 9) ($a.torsoY + 1) 3 $pal -RimLight
+  Shade-Disc $bmp ($CARD_CX + 9) ($a.torsoY + 1) 3 $pal -RimLight
+  if ($m.weapon) { Place-Weapon $bmp $a $m.weapon $pal }
+}
+
+function Family-HumanoidRobed { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 12
+  $skin = Skin-Lookup $m.skin
+  $pal  = Palette-Lookup $m.palette
+  # Robe — larger torso, no legs visible (robe sweep)
+  $a = Draw-Humanoid $bmp $skin $pal -torsoH 28 -legH 4 -accent (Rarity-Accent $m.rarity)
+  # Hood — overhanging cowl
+  for ($i = 0; $i -lt 5; $i++) {
+    $w = 14 - $i
+    $x0 = $CARD_CX - [int]($w / 2)
+    Fill-Box $bmp $x0 ($a.headTop - 2 + $i) $w 1 $pal.deep
+    Set-Pixel $bmp $x0 ($a.headTop - 2 + $i) $pal.shadow
+    Set-Pixel $bmp ($x0 + $w - 1) ($a.headTop - 2 + $i) $pal.base
+  }
+  if ($m.weapon) { Place-Weapon $bmp $a $m.weapon $pal }
+}
+
+function Family-HumanoidSkeletal { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 10
+  $pal  = Palette-Lookup $m.palette
+  $a = Draw-Humanoid $bmp $SKIN_BONE $pal -accent (Rarity-Accent $m.rarity)
+  # Hollow eye sockets (overdraw the default eyes with deeper shadow)
+  Set-Pixel $bmp ($CARD_CX - 2) $a.headY $SKIN_BONE.deep
+  Set-Pixel $bmp ($CARD_CX + 2) $a.headY $SKIN_BONE.deep
+  Set-Pixel $bmp ($CARD_CX - 2) ($a.headY - 1) $SKIN_BONE.shadow
+  Set-Pixel $bmp ($CARD_CX + 2) ($a.headY - 1) $SKIN_BONE.shadow
+  # Rib lines on torso
+  for ($r = 0; $r -lt 3; $r++) {
+    Line-Pixel $bmp ($CARD_CX - 6) ($a.torsoY + 4 + $r * 3) ($CARD_CX + 6) ($a.torsoY + 4 + $r * 3) $SKIN_BONE.deep
+  }
+  if ($m.weapon) { Place-Weapon $bmp $a $m.weapon $pal }
+}
+
+function Family-Beast { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 16
+  $skin = Skin-Lookup $m.skin
+  # Quadruped silhouette — body ellipse + 4 legs + head
+  Shade-Oval $bmp $CARD_CX 50 16 8 $skin
+  # Head — left side
+  Shade-Disc $bmp 18 40 6 $skin -RimLight
+  Set-Pixel $bmp 15 40 (Color-FromHex '#040408')
+  Set-Pixel $bmp 16 39 (Color-FromHex '#f0c050')
+  # Ears
+  Fill-Box $bmp 14 34 3 3 $skin.shadow
+  Set-Pixel $bmp 15 34 $skin.high
+  Fill-Box $bmp 21 34 3 3 $skin.shadow
+  # Legs (4)
+  Fill-Box $bmp 24 56 3 8 $skin.shadow
+  Fill-Box $bmp 30 58 3 8 $skin.shadow
+  Fill-Box $bmp 40 56 3 8 $skin.shadow
+  Fill-Box $bmp 46 58 3 8 $skin.shadow
+  Set-Pixel $bmp 24 56 $skin.high
+  Set-Pixel $bmp 40 56 $skin.high
+  # Tail
+  Line-Pixel $bmp 48 48 56 38 $skin.base
+}
+
+function Family-BeastSmall { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 8
+  $skin = Skin-Lookup $m.skin
+  # Tiny vermin — squat body, small head, tail
+  Shade-Oval $bmp $CARD_CX 60 8 4 $skin
+  Shade-Disc $bmp ($CARD_CX - 6) 56 3 $skin -RimLight
+  # Red eye
+  Set-Pixel $bmp ($CARD_CX - 7) 56 (Color-FromHex '#f8514a')
+  # Tail
+  Line-Pixel $bmp ($CARD_CX + 6) 60 ($CARD_CX + 14) 50 $skin.shadow
+  # Tiny feet
+  Fill-Box $bmp ($CARD_CX - 4) 64 2 2 $skin.deep
+  Fill-Box $bmp ($CARD_CX) 64 2 2 $skin.deep
+  Fill-Box $bmp ($CARD_CX + 4) 64 2 2 $skin.deep
+}
+
+function Family-CreatureElemental { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 14
+  $pal = Palette-Lookup $m.palette
+  # Roiling body — concentric ovals
+  Shade-Oval $bmp $CARD_CX 48 16 18 $pal
+  Shade-Oval $bmp $CARD_CX 42 10 12 @{ deep = $pal.shadow; shadow = $pal.base; base = $pal.high; high = $pal.top; top = $pal.top }
+  # Two glowing eyes
+  Set-Pixel $bmp ($CARD_CX - 4) 42 $pal.top
+  Set-Pixel $bmp ($CARD_CX + 4) 42 $pal.top
+  Set-Pixel $bmp ($CARD_CX - 5) 42 (With-Alpha $pal.top 200)
+  Set-Pixel $bmp ($CARD_CX + 5) 42 (With-Alpha $pal.top 200)
+  # Wisps / extrusions
+  for ($i = 0; $i -lt 5; $i++) {
+    $x = $CARD_CX + (Rng-Pick 17) - 8
+    $y = 30 + (Rng-Pick 8)
+    Blend-Pixel $bmp $x $y (With-Alpha $pal.high 180)
+  }
+}
+
+function Family-CreatureTree { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 14
+  $pal = Palette-Lookup $m.palette
+  $foliage = $NATURE
+  # Trunk
+  Fill-Box $bmp ($CARD_CX - 6) 40 12 38 $pal.base
+  for ($y = 40; $y -lt 78; $y++) {
+    Set-Pixel $bmp ($CARD_CX - 6) $y $pal.high
+    Set-Pixel $bmp ($CARD_CX + 5) $y $pal.shadow
+  }
+  # Knothole eyes
+  Set-Pixel $bmp ($CARD_CX - 3) 55 (Color-FromHex '#fff0a0')
+  Set-Pixel $bmp ($CARD_CX + 3) 55 (Color-FromHex '#fff0a0')
+  # Foliage crown
+  Shade-Oval $bmp $CARD_CX 28 18 12 $foliage
+  Shade-Oval $bmp ($CARD_CX - 8) 32 8 8 $foliage
+  Shade-Oval $bmp ($CARD_CX + 8) 30 8 8 $foliage
+  # Branch arms
+  Line-Pixel $bmp ($CARD_CX - 6) 48 ($CARD_CX - 16) 42 $pal.shadow
+  Line-Pixel $bmp ($CARD_CX + 6) 48 ($CARD_CX + 16) 42 $pal.shadow
+}
+
+function Family-CreatureGolem { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 16
+  $pal = Palette-Lookup $m.palette
+  # Big blocky body
+  Shade-Box $bmp ($CARD_CX - 12) 36 24 30 $pal -RimLight
+  # Smaller head block
+  Shade-Box $bmp ($CARD_CX - 7) 22 14 14 $pal -RimLight
+  # Eye slits
+  Fill-Box $bmp ($CARD_CX - 5) 29 4 2 (Color-FromHex '#040408')
+  Fill-Box $bmp ($CARD_CX + 1) 29 4 2 (Color-FromHex '#040408')
+  Set-Pixel $bmp ($CARD_CX - 4) 30 (Color-FromHex '#6ec0ff')
+  Set-Pixel $bmp ($CARD_CX + 2) 30 (Color-FromHex '#6ec0ff')
+  # Rune cores on chest (rarity gem)
+  $gem = Gem-Palette 'voltaic'
+  Draw-Gem $bmp $CARD_CX 50 5 $gem
+  # Arm-blocks
+  Shade-Box $bmp ($CARD_CX - 18) 40 6 18 $pal
+  Shade-Box $bmp ($CARD_CX + 12) 40 6 18 $pal
+  # Leg-blocks
+  Shade-Box $bmp ($CARD_CX - 8) 66 6 12 $pal
+  Shade-Box $bmp ($CARD_CX + 2) 66 6 12 $pal
+}
+
+function Family-CreatureDragon { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 18
+  $pal = Palette-Lookup $m.palette
+  # Big body curve
+  Shade-Oval $bmp $CARD_CX 52 18 14 $pal
+  # Head — left side, long snout
+  Shade-Oval $bmp 18 36 8 5 $pal
+  Fill-Box $bmp 10 35 8 4 $pal.shadow
+  Set-Pixel $bmp 10 36 $pal.high
+  Set-Pixel $bmp 11 35 $pal.top
+  # Eye
+  Set-Pixel $bmp 16 36 (Color-FromHex '#fff0a0')
+  Set-Pixel $bmp 16 35 (Color-FromHex '#fff0a0')
+  # Wings (folded)
+  for ($i = 0; $i -lt 8; $i++) {
+    Line-Pixel $bmp ($CARD_CX + 4) (38 + $i) ($CARD_CX + 18 - $i) (44 + $i) (With-Alpha $pal.shadow 220)
+  }
+  # Horns
+  Line-Pixel $bmp 18 31 20 26 $pal.deep
+  Line-Pixel $bmp 21 31 23 26 $pal.deep
+  # Tail
+  Line-Pixel $bmp 50 56 60 44 $pal.shadow
+  # Legs
+  Fill-Box $bmp ($CARD_CX - 8) 64 4 12 $pal.shadow
+  Fill-Box $bmp ($CARD_CX + 4) 64 4 12 $pal.shadow
+}
+
+function Family-CreatureZombie { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 12
+  $skin = Skin-Lookup $m.skin
+  $pal = Palette-Lookup $m.palette
+  $a = Draw-Humanoid $bmp $skin $pal
+  # Slouched / asymmetric — repaint one arm dropped
+  Fill-Box $bmp ($a.handLx - 1) ($a.handY + 4) 3 6 $skin.shadow
+  # Hollow eye + drool
+  Set-Pixel $bmp ($CARD_CX - 2) $a.headY (Color-FromHex '#fff0a0')
+  Set-Pixel $bmp ($CARD_CX + 2) $a.headY $skin.deep
+  Set-Pixel $bmp ($CARD_CX) ($a.headY + 3) (Color-FromHex '#94c850')
+}
+
+function Family-CreatureWisp { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 10
+  $pal = Palette-Lookup $m.palette
+  # Central orb
+  Shade-Disc $bmp $CARD_CX 38 9 $pal -RimLight
+  # Trailing wisps below
+  for ($i = 0; $i -lt 8; $i++) {
+    $w = 6 - [int]($i * 0.7)
+    if ($w -lt 1) { $w = 1 }
+    $x0 = $CARD_CX - [int]($w / 2)
+    $y = 50 + $i * 2
+    for ($x = $x0; $x -lt $x0 + $w; $x++) {
+      Blend-Pixel $bmp $x $y (With-Alpha $pal.high (180 - $i * 18))
+    }
+  }
+  # Glowing eyes / heart-pixel
+  Set-Pixel $bmp ($CARD_CX - 2) 36 $pal.top
+  Set-Pixel $bmp ($CARD_CX + 2) 36 $pal.top
+}
+
+function Family-CreatureImp { param($bmp, $m)
+  Rng-Init $m.id
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 10
+  $skin = Skin-Lookup $m.skin
+  $pal  = Palette-Lookup $m.palette
+  # Stocky body
+  Shade-Oval $bmp $CARD_CX 52 10 9 $skin
+  # Head
+  Shade-Disc $bmp $CARD_CX 36 7 $skin -RimLight
+  # Horns
+  Line-Pixel $bmp ($CARD_CX - 4) 30 ($CARD_CX - 6) 25 $skin.deep
+  Line-Pixel $bmp ($CARD_CX + 4) 30 ($CARD_CX + 6) 25 $skin.deep
+  # Glowing eyes
+  Set-Pixel $bmp ($CARD_CX - 2) 36 (Color-FromHex '#fff0a0')
+  Set-Pixel $bmp ($CARD_CX + 2) 36 (Color-FromHex '#fff0a0')
+  # Mouth — fangs
+  Fill-Box $bmp ($CARD_CX - 2) 39 5 1 (Color-FromHex '#040408')
+  Set-Pixel $bmp ($CARD_CX - 1) 40 $MAT_BONE.high
+  Set-Pixel $bmp ($CARD_CX + 1) 40 $MAT_BONE.high
+  # Wings
+  for ($i = 0; $i -lt 5; $i++) {
+    Line-Pixel $bmp ($CARD_CX - 10 - $i) (45 + $i) ($CARD_CX - 6) (43 + $i) (With-Alpha $pal.shadow 200)
+    Line-Pixel $bmp ($CARD_CX + 10 + $i) (45 + $i) ($CARD_CX + 6) (43 + $i) (With-Alpha $pal.shadow 200)
+  }
+  # Tail
+  Line-Pixel $bmp ($CARD_CX) 62 ($CARD_CX + 8) 70 $skin.shadow
+  Set-Pixel $bmp ($CARD_CX + 9) 71 (Color-FromHex '#f8514a')
+}
+
+# Shim: $MAT_BONE is referenced by Family-CreatureImp; alias to the bone skin
+$MAT_BONE = $SKIN_BONE
+
+# ── Spell glyphs ────────────────────────────────────────────────────
+#
+# Spells don't draw a figure — they paint a school-specific glyph
+# centred on a magic circle.
+
+function Spell-Glyph { param($bmp, $m)
+  Rng-Init $m.id
+  $pal = Palette-Lookup $m.palette
+  $cx = $CARD_CX; $cy = 40
+  # Magic circle backdrop
+  Draw-MagicCircle $bmp $cx $cy 22 $pal.high 100 -Runes
+  switch ($m.glyph) {
+    'flame' {
+      Draw-Flame $bmp $cx ($cy + 14) 22 $pal
+    }
+    'crystal' {
+      $gem = Gem-Palette 'sapphire'
+      Draw-Gem $bmp $cx $cy 11 $gem
+      # Frost spikes
+      Line-Pixel $bmp $cx ($cy - 20) $cx ($cy + 18) (With-Alpha $pal.top 220)
+      Line-Pixel $bmp ($cx - 14) $cy ($cx + 14) $cy (With-Alpha $pal.top 220)
+    }
+    'cross' {
+      Draw-HealCross $bmp $cx $cy 16 $HOLY
+      # Glow
+      Shade-Disc $bmp $cx $cy 4 @{ deep=$HOLY.deep; shadow=$HOLY.shadow; base=$HOLY.high; high=$HOLY.top; top=$HOLY.top }
+    }
+    'skull' {
+      Shade-Disc $bmp $cx ($cy - 2) 9 $SKIN_BONE -RimLight
+      Fill-Box $bmp ($cx - 4) ($cy - 1) 3 3 (Color-FromHex '#08080c')
+      Fill-Box $bmp ($cx + 1) ($cy - 1) 3 3 (Color-FromHex '#08080c')
+      Fill-Box $bmp ($cx - 1) ($cy + 4) 3 2 (Color-FromHex '#08080c')
+      Set-Pixel $bmp ($cx - 3) $cy (Color-FromHex '#f8514a')
+      Set-Pixel $bmp ($cx + 2) $cy (Color-FromHex '#f8514a')
+    }
+    'leaf' {
+      # Stylised leaf — drawn as two arcs
+      Shade-Oval $bmp $cx $cy 10 16 $NATURE
+      Line-Pixel $bmp $cx ($cy - 16) $cx ($cy + 16) $NATURE.deep
+      for ($i = 0; $i -lt 6; $i++) {
+        Line-Pixel $bmp $cx ($cy - 12 + $i * 5) ($cx - 6 + $i) ($cy - 12 + $i * 5 + 3) $NATURE.shadow
+        Line-Pixel $bmp $cx ($cy - 12 + $i * 5) ($cx + 6 - $i) ($cy - 12 + $i * 5 + 3) $NATURE.shadow
+      }
+    }
+    'sigil' {
+      # Concentric circles + cardinal runes already drawn — add a bright
+      # core glyph
+      Draw-Gem $bmp $cx $cy 7 (Gem-Palette 'amethyst')
+      Set-Pixel $bmp $cx ($cy - 18) $pal.top
+      Set-Pixel $bmp $cx ($cy + 18) $pal.top
+      Set-Pixel $bmp ($cx - 18) $cy $pal.top
+      Set-Pixel $bmp ($cx + 18) $cy $pal.top
+    }
+    'bolt' {
+      # Big jagged lightning bolt — top to bottom
+      Draw-Bolt $bmp ($cx - 8) ($cy - 18) ($cx + 8) ($cy + 18) $pal.top $pal.high
+      Draw-Bolt $bmp ($cx + 6) ($cy - 12) ($cx - 4) ($cy + 12) $pal.high $pal.base
+    }
+    default {
+      Draw-Gem $bmp $cx $cy 7 (Gem-Palette 'voltaic')
+    }
+  }
+}
+
+# ── Family dispatcher ───────────────────────────────────────────────
+
+function Family-Dispatch {
+  param($bmp, $m)
+  $t = $m.template
+  if (-not $t -and $m.family -eq 'spell') { $t = 'spell' }
+  switch ($t) {
+    'humanoid'             { Family-Humanoid          $bmp $m; break }
+    'humanoid-small'       { Family-HumanoidSmall     $bmp $m; break }
+    'humanoid-armor'       { Family-HumanoidArmor     $bmp $m; break }
+    'humanoid-robed'       { Family-HumanoidRobed     $bmp $m; break }
+    'humanoid-skeletal'    { Family-HumanoidSkeletal  $bmp $m; break }
+    'beast'                { Family-Beast             $bmp $m; break }
+    'beast-small'          { Family-BeastSmall        $bmp $m; break }
+    'creature-elemental'   { Family-CreatureElemental $bmp $m; break }
+    'creature-tree'        { Family-CreatureTree      $bmp $m; break }
+    'creature-golem'       { Family-CreatureGolem     $bmp $m; break }
+    'creature-dragon'      { Family-CreatureDragon    $bmp $m; break }
+    'creature-zombie'      { Family-CreatureZombie    $bmp $m; break }
+    'creature-wisp'        { Family-CreatureWisp      $bmp $m; break }
+    'creature-imp'         { Family-CreatureImp       $bmp $m; break }
+    'spell'                { Spell-Glyph              $bmp $m; break }
+    default {
+      # Unknown template — fall back to a generic humanoid so the
+      # sprite at least exists. Logged so we can audit later.
+      Family-Humanoid $bmp $m
+    }
+  }
+  Adorn-ByRarity $bmp $m.rarity (Palette-Lookup $m.palette) (Skin-Lookup $m.skin) (NameSeed $m.id)
+}
+
+# ── Render-Card (manifest-aware) ────────────────────────────────────
+#
+# Replaces the legacy Render-Card. For each card:
+#   1. If a $CARD_DRAW entry exists (hand-curated), use that.
+#   2. Else dispatch to the family template.
+#   3. Apply rarity glow.
+#   4. For legendaries: emit 4 halo-pulse frames for the APNG stitch.
+
+function Render-CardX {
+  param($m)   # manifest entry
+  if ($m.token) { return }    # tokens already drawn by hand-curated set
+  $cardId = $m.id
+  $rarity = $m.rarity
+
+  $drawer = $null
+  if ($CARD_DRAW.ContainsKey($cardId)) { $drawer = $CARD_DRAW[$cardId] }
+
+  $renderFigure = {
+    param($bmp)
+    if ($drawer) {
+      & $drawer $bmp
+    } else {
+      Family-Dispatch $bmp $m
+    }
+  }
+
+  if ($rarity -eq 'legendary') {
+    for ($f = 0; $f -lt 4; $f++) {
+      $bmp = New-CanvasFx $CARD_W $CARD_H
+      & $renderFigure $bmp
+      $r = @(3, 4, 5, 4)[$f]
+      $a = @(120, 160, 200, 160)[$f]
+      Add-GlowHalo $bmp (Color-FromHex '#fff0a0') $r $a
+      Save-CanvasFx $bmp (Join-Path $framesDir ("{0}-fx-{1}.png" -f $cardId, $f))
+    }
+    $bmp = New-CanvasFx $CARD_W $CARD_H
+    & $renderFigure $bmp
+    Add-GlowHalo $bmp (Color-FromHex '#fff0a0') 4 160
+    Save-CanvasFx $bmp (Join-Path $cardDir ("{0}.png" -f $cardId))
+    return
+  }
+
+  $bmp = New-CanvasFx $CARD_W $CARD_H
+  & $renderFigure $bmp
+  Apply-Card-Glow $bmp $rarity
+  Save-CanvasFx $bmp (Join-Path $cardDir ("{0}.png" -f $cardId))
+}
+
+# ── Build pass (manifest-driven) ────────────────────────────────────
+
+function Build-CardsX {
+  $manifest = Load-Manifest
+  if (-not $manifest) {
+    # Legacy fallback — render the original 82 hand-curated cards.
+    $count = 0
+    foreach ($cardId in $CARD_META.Keys) {
+      $meta = $CARD_META[$cardId]
+      if (-not (Want $meta.pass)) { continue }
+      Render-Card $cardId
+      $count++
+    }
+    Write-Host ("  cards rendered (legacy): {0}" -f $count) -ForegroundColor Green
+    return
+  }
+  $entries = $manifest.cards
+  if ($IdsFile -and (Test-Path $IdsFile)) {
+    $wanted = @{}
+    Get-Content $IdsFile | ForEach-Object { $wanted[$_.Trim()] = $true }
+    $entries = $entries | Where-Object { $wanted.ContainsKey($_.id) }
+    Write-Host ("  filtered by IdsFile: {0} cards" -f $entries.Count) -ForegroundColor Yellow
+  }
+  if ($Skip -gt 0) { $entries = $entries | Select-Object -Skip $Skip }
+  if ($Take -gt 0) { $entries = $entries | Select-Object -First $Take }
+
+  $total = $entries.Count
+  Write-Host ("  rendering {0} cards from manifest…" -f $total) -ForegroundColor Cyan
+  $count = 0
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  foreach ($m in $entries) {
+    if ($m.token) { continue }   # tokens drawn by hand-curated set
+    Render-CardX $m
+    $count++
+    if (($count % 50) -eq 0) {
+      $pct = [int](($count / $total) * 100)
+      $eta = if ($count -gt 0) { [int](($sw.Elapsed.TotalSeconds / $count) * ($total - $count)) } else { 0 }
+      Write-Host ("    {0}/{1} ({2}%) eta {3}s" -f $count, $total, $pct, $eta) -ForegroundColor DarkGray
+    }
+  }
+  $sw.Stop()
+  Write-Host ("  cards rendered: {0} in {1:n1}s" -f $count, $sw.Elapsed.TotalSeconds) -ForegroundColor Green
 }
 
 Write-Host '── Boltbound card sprites ──' -ForegroundColor Cyan
-Build-Cards
+Build-CardsX
 Write-Host 'Done.' -ForegroundColor Green
