@@ -75,6 +75,7 @@ import {
   applyClassWeb,
 } from './character.js';
 import { handleAdminWeb } from './admin-web.js';
+import { routeBoltbound, isBoltboundRoute } from './cards-web.js';
 import {
   BUILDINGS, TROOPS_GARRISON,
   withBuildingSprites, withGarrisonSprites,
@@ -147,7 +148,7 @@ export async function handleWeb(req, env) {
 
   const url = new URL(req.url);
   const route = url.pathname.replace(/^\/web\//, '').replace(/\/+$/, '');
-  if (!ROUTES.has(route)) return json({ error: 'not-found' }, 404);
+  if (!ROUTES.has(route) && !isBoltboundRoute(route)) return json({ error: 'not-found' }, 404);
 
   // Read body once; verify HMAC against the raw bytes; only then parse.
   const bodyText = await req.text();
@@ -214,6 +215,7 @@ export async function handleWeb(req, env) {
     if (route === 'clash/setup')           return await routeClashSetup(env, guildId, discordId);
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
     if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
+    if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
   }

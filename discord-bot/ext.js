@@ -49,6 +49,7 @@ import {
 } from './ext-lootbox.js';
 import { startPanelPatreonLink } from './ext-patreon-link.js';
 import { handleExtMod } from './ext-mod.js';
+import { routeBoltbound, isBoltboundRoute } from './cards-web.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -166,6 +167,16 @@ export async function handleExt(req, env, ctx) {
     }
     if (route.indexOf('loadout/') === 0) {
       return await handleLoadout(env, guildId, userId, route.slice(8), req);
+    }
+    if (isBoltboundRoute(route)) {
+      // Twitch panel surface for Boltbound. Same backend as the website
+      // (cards-web.js routes); identity is tw:<twId> so panel viewers
+      // get their own collection / decks / matches.
+      let body = null;
+      if (req.method === 'POST') {
+        try { body = await req.json(); } catch { body = {}; }
+      }
+      return await routeBoltbound(env, guildId, userId, route, body, { cors: true });
     }
     return json({ error: 'not-found' }, 404);
   } catch (e) {
