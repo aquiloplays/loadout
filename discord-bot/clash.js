@@ -236,9 +236,9 @@ async function renderStatus(env, guildId, userId, userName) {
   const tokens = computeRaidTokens(army);
   return [
     `**${userName} — raider profile**`,
-    `🏆 Trophies: **${trophies.trophies}**  ·  Tier: ${trophies.tier}  ·  Peak: ${trophies.peak}`,
-    `⚡ Bolts: **${wallet.balance}**  ·  🧪 Scrap: ${army.scrap}  ·  ⚙ Cores: ${army.cores}`,
-    `🪖 Army: ${totalTroops} troops  ·  🎟 Raid tokens: ${tokens.available}/4 (next +1 in ${tokens.nextInMin}m)`,
+    `Trophies: **${trophies.trophies}**  ·  Tier: ${trophies.tier}  ·  Peak: ${trophies.peak}`,
+    `Bolts: **${wallet.balance}**  ·  Scrap: ${army.scrap}  ·  Cores: ${army.cores}`,
+    `Army: ${totalTroops} troops  ·  Raid tokens: ${tokens.available}/4 (next +1 in ${tokens.nextInMin}m)`,
     ``,
     `Home town: **${town?.guildId === guildId ? 'this channel' : 'unbound'}** · TH${town?.thLevel || 1} · Prestige ${town?.prestige?.score || 0}`,
     ``,
@@ -249,27 +249,27 @@ async function renderStatus(env, guildId, userId, userName) {
 async function renderArmy(env, guildId, userId) {
   const army = await getArmy(env, guildId, userId);
   if (!Object.keys(army.troops || {}).length) {
-    return '🪖 Your army is empty. Train some troops: `/clash train troop:scrapper count:5`';
+    return 'Your army is empty. Train some troops: `/clash train troop:scrapper count:5`';
   }
   const lines = ['**Your army:**'];
   for (const [id, n] of Object.entries(army.troops)) {
     const t = TROOPS_PERSONAL[id];
-    lines.push(`• ${t?.glyph || '·'} ${t?.name || id} ×${n}`);
+    lines.push(`• ${t?.name || id} ×${n}`);
   }
   return lines.join('\n');
 }
 
 async function handleTrain(env, guildId, userId, troopId, count) {
-  if (!troopId || !TROOPS_PERSONAL[troopId]) return '❌ Unknown troop. Try: scrapper, archerLite, boltKnight, sapperRogue, healerCleric, voltaicMage.';
+  if (!troopId || !TROOPS_PERSONAL[troopId]) return 'Unknown troop. Try: scrapper, archerLite, boltKnight, sapperRogue, healerCleric, voltaicMage.';
   const n = Math.max(1, Math.min(50, Number(count) || 1));
   const cost = personalTroopCost(troopId, n);
-  if (!cost) return '❌ Cost lookup failed.';
+  if (!cost) return 'Cost lookup failed.';
   // applyVaultDelta clamps to 0 silently on overdraft — pre-check balance
   // so an under-Bolts viewer gets an honest error instead of a fake
   // "training queued" plus a partial debit.
   const wallet = await getWallet(env, guildId, userId);
   if ((wallet.balance || 0) < cost.bolts) {
-    return `❌ Not enough Bolts. Need ${cost.bolts}, have ${wallet.balance || 0}.`;
+    return `Not enough Bolts. Need ${cost.bolts}, have ${wallet.balance || 0}.`;
   }
   await applyVaultDelta(env, guildId, userId, -cost.bolts, 'clash:train:' + troopId);
   // Wallet was debited. Enqueue the training.
@@ -281,15 +281,15 @@ async function handleTrain(env, guildId, userId, troopId, count) {
   };
   await enqueue(env, `clash:trainq:${guildId}:${userId}`, item);
   const minutes = Math.ceil(cost.timeMs / 60_000);
-  return `✅ Training ${n}× ${TROOPS_PERSONAL[troopId].name}. Ready in ${minutes} min. Cost: ${cost.bolts} bolts.`;
+  return `Training ${n}× ${TROOPS_PERSONAL[troopId].name}. Ready in ${minutes} min. Cost: ${cost.bolts} bolts.`;
 }
 
 async function handleDonate(env, guildId, userId, amount) {
   const n = Math.max(1, Math.floor(Number(amount) || 0));
-  if (!n) return '❌ Donate at least 1 Bolt.';
+  if (!n) return 'Donate at least 1 Bolt.';
   const wallet = await getWallet(env, guildId, userId);
   if ((wallet.balance || 0) < n) {
-    return `❌ Not enough Bolts. You have ${wallet.balance || 0}.`;
+    return `Not enough Bolts. You have ${wallet.balance || 0}.`;
   }
   // Treasury caps Bolts at its capacity. Donating into a full
   // treasury would silently drop the donation (`addTreasury` clamps
@@ -299,16 +299,16 @@ async function handleDonate(env, guildId, userId, amount) {
   const tres = await getTreasury(env, guildId);
   const headroom = Math.max(0, (tres.capacity || 0) - (tres.bolts || 0));
   if (headroom === 0) {
-    return `🏛 Treasury is full (${tres.bolts}/${tres.capacity}⚡). Streamer/mods can upgrade Storage to raise the cap.`;
+    return `Treasury is full (${tres.bolts}/${tres.capacity} bolts). Streamer/mods can upgrade Storage to raise the cap.`;
   }
   const accepted = Math.min(n, headroom);
   await applyVaultDelta(env, guildId, userId, -accepted, 'clash:donate');
   await addTreasury(env, guildId, { bolts: accepted });
   await recordContribution(env, guildId, userId, accepted);
   if (accepted < n) {
-    return `💰 Donated **${accepted}** Bolts (treasury cap hit). The other ${n - accepted} stayed in your wallet — Storage upgrade raises the cap.`;
+    return `Donated **${accepted}** Bolts (treasury cap hit). The other ${n - accepted} stayed in your wallet — Storage upgrade raises the cap.`;
   }
-  return `💰 Donated **${accepted}** Bolts to the town treasury. Thank you for your service.`;
+  return `Donated **${accepted}** Bolts to the town treasury. Thank you for your service.`;
 }
 
 // Discord wrapper — formats executeRaid's structured result as a chat
@@ -318,31 +318,31 @@ async function handleDonate(env, guildId, userId, amount) {
 async function handleRaid(env, guildId, userId, userName, kind) {
   const r = await executeRaid(env, guildId, userId, userName, kind);
   if (r.error === 'no-tokens') {
-    return `🎟 Out of raid tokens. Next in ${r.nextInMin} min.`;
+    return `Out of raid tokens. Next in ${r.nextInMin} min.`;
   }
   if (r.error === 'no-troops') {
-    return '🪖 No troops to send. Train some first: `/clash train troop:scrapper count:5`';
+    return 'No troops to send. Train some first: `/clash train troop:scrapper count:5`';
   }
   if (r.error === 'no-target') {
-    return '⚠️ No raid target available right now. Try again in a minute.';
+    return 'No raid target available right now. Try again in a minute.';
   }
   if (r.error) {
-    return '❌ Raid failed: ' + r.error;
+    return 'Raid failed: ' + r.error;
   }
   const starStr = '★'.repeat(r.stars) + '☆'.repeat(3 - r.stars);
   const trophyText = r.trophyDelta
-    ? `\n🏆 ${r.trophyDelta >= 0 ? '+' : ''}${r.trophyDelta} trophies${r.warAmplify ? ' (war ×1.5)' : ''}`
+    ? `\nTrophies: ${r.trophyDelta >= 0 ? '+' : ''}${r.trophyDelta}${r.warAmplify ? ' (war ×1.5)' : ''}`
     : '';
   const warEnded = r.warCompleted
-    ? `\n⚔ War ended — score ${r.warCompleted.scores.attacker}★ vs ${r.warCompleted.scores.defender}★, winner: ${r.warCompleted.winner}`
+    ? `\nWar ended — score ${r.warCompleted.scores.attacker}★ vs ${r.warCompleted.scores.defender}★, winner: ${r.warCompleted.winner}`
     : '';
   const packLine = r.boltboundPack
-    ? `\n🃏 **Boltbound ${r.boltboundPack === 'voltaic' ? 'Voltaic' : r.boltboundPack === 'bolt' ? 'Bolt' : 'Common'} Pack** dropped — open it with \`/boltbound packs\`.`
+    ? `\nBoltbound ${r.boltboundPack === 'voltaic' ? 'Voltaic' : r.boltboundPack === 'bolt' ? 'Bolt' : 'Common'} Pack dropped — open it with \`/boltbound packs\`.`
     : '';
   return [
     `**${userName}** raided ${r.targetName} — **${starStr}** (${Math.round(r.pctDestroyed * 100)}% destroyed${r.thDown ? ', TH down' : ''}).`,
     r.stars > 0
-      ? `Loot: ${r.lootBolts ? `${r.lootBolts}⚡  ` : ''}${r.lootScrap}🧪  ${r.lootCores}⚙${r.voltaic ? `  · 🌀 **Voltaic drop:** ${r.voltaic}` : ''}`
+      ? `Loot: ${r.lootBolts ? `${r.lootBolts} bolts  ·  ` : ''}${r.lootScrap} scrap  ·  ${r.lootCores} cores${r.voltaic ? `  ·  Voltaic drop: **${r.voltaic}**` : ''}`
       : `No loot.`,
     (trophyText + warEnded + packLine).trim(),
     `Raid id: \`${r.raidId}\``,
@@ -682,14 +682,14 @@ async function renderLog(env, guildId, userId) {
     if (!r) continue;
     const stars = '★'.repeat(r.stars) + '☆'.repeat(3 - r.stars);
     const where = r.targetKind === 'town' ? `town:${r.targetGuildId?.slice(-4)}` : r.targetKind;
-    lines.push(`• ${stars}  ${where}  ·  ${r.lootBolts}⚡  ${r.lootScrap}🧪${r.voltaic ? ` · 🌀 ${r.voltaic}` : ''}`);
+    lines.push(`• ${stars}  ${where}  ·  ${r.lootBolts} bolts  ·  ${r.lootScrap} scrap${r.voltaic ? `  ·  Voltaic: ${r.voltaic}` : ''}`);
   }
   lines.push('', '**Your town\'s last 5 incoming raids:**');
   for (const id of townIds.slice(0, 5)) {
     const r = await env.LOADOUT_BOLTS.get('clash:raid:' + id, { type: 'json' });
     if (!r) continue;
     const stars = '★'.repeat(r.stars) + '☆'.repeat(3 - r.stars);
-    lines.push(`• ${stars}  by <@${r.attackerUserId}>  ·  −${r.lootBolts}⚡`);
+    lines.push(`• ${stars}  by <@${r.attackerUserId}>  ·  −${r.lootBolts} bolts`);
   }
   if (myIds.length === 0 && townIds.length === 0) {
     return 'No raids yet. `/clash raid kind:goblin` to get started.';
@@ -705,7 +705,7 @@ async function handleNotify(env, guildId, userId, kind, on) {
   const mask = await getNotifyMask(env, guildId, userId);
   const next = on === false || on === 'false' ? (mask & ~(1 << idx)) : (mask | (1 << idx));
   await setNotifyMask(env, guildId, userId, next);
-  return `🔔 ${on === false ? 'Off' : 'On'}: ${kind}`;
+  return `Notify ${on === false ? 'off' : 'on'}: ${kind}`;
 }
 
 async function renderLeaderboard(env) {
@@ -713,10 +713,10 @@ async function renderLeaderboard(env) {
     topRaiders(env, 5),
     topTowns(env, 5),
   ]);
-  const lines = ['**🏆 Top raiders**'];
-  raiders.forEach((r, i) => lines.push(`${i + 1}. <@${r.userId}> — ${r.trophies}🏆 (${r.tier})`));
+  const lines = ['**Top raiders**'];
+  raiders.forEach((r, i) => lines.push(`${i + 1}. <@${r.userId}> — ${r.trophies} trophies (${r.tier})`));
   if (raiders.length === 0) lines.push('—');
-  lines.push('', '**🏛 Top towns**');
+  lines.push('', '**Top towns**');
   towns.forEach((t, i) => lines.push(`${i + 1}. \`${t.guildId.slice(-6)}\` — ${t.score} prestige (${t.tier})`));
   if (towns.length === 0) lines.push('—');
   return lines.join('\n');
@@ -729,41 +729,41 @@ async function renderTownView(env, guildId) {
   const tres = await getTreasury(env, guildId);
   const contribs = await topContributors(env, guildId, 5);
   const lines = [
-    `**🏛 Town — TH${town.thLevel}**  ·  Prestige ${town.prestige.score} (${town.prestige.tier})`,
-    `Treasury: ${tres.bolts}⚡  ${tres.scrap}🧪  ${tres.cores}⚙  (cap ${tres.capacity}⚡)`,
+    `**Town — TH${town.thLevel}**  ·  Prestige ${town.prestige.score} (${town.prestige.tier})`,
+    `Treasury: ${tres.bolts} bolts  ·  ${tres.scrap} scrap  ·  ${tres.cores} cores  (cap ${tres.capacity} bolts)`,
     '',
     '**Buildings:**',
-    ...town.buildings.map(b => `• ${BUILDINGS[b.kind]?.glyph || '·'} ${BUILDINGS[b.kind]?.name || b.kind} L${b.level}${b.status !== 'idle' ? ` (${b.status})` : ''}`),
+    ...town.buildings.map(b => `• ${BUILDINGS[b.kind]?.name || b.kind} L${b.level}${b.status !== 'idle' ? ` (${b.status})` : ''}`),
     '',
     '**Garrison:**',
-    ...Object.entries(town.garrison || {}).map(([id, n]) => `• ${TROOPS_GARRISON[id]?.glyph || '·'} ${TROOPS_GARRISON[id]?.name || id} ×${n}`),
+    ...Object.entries(town.garrison || {}).map(([id, n]) => `• ${TROOPS_GARRISON[id]?.name || id} ×${n}`),
     '',
   ];
   if (contribs.length) {
     lines.push('**Top contributors:**');
-    contribs.forEach((c, i) => lines.push(`${i + 1}. <@${c.userId}> — ${c.lifetimeBolts}⚡`));
+    contribs.forEach((c, i) => lines.push(`${i + 1}. <@${c.userId}> — ${c.lifetimeBolts} bolts`));
   }
   const shield = await getShield(env, guildId);
   if (shield) {
     const minLeft = Math.max(0, Math.round((shield.endsAt - Date.now()) / 60_000));
-    lines.push('', `🛡 Shielded — ${minLeft} min left (${shield.reason})`);
+    lines.push('', `Shielded — ${minLeft} min left (${shield.reason})`);
   }
   return lines.join('\n');
 }
 
 async function handleTownBuild(env, guildId, userId, kind, buildingId) {
   if (!await canManageTown(env, guildId, userId)) {
-    return '🔒 Only the streamer + mods can queue town builds. (Donate Bolts to support the build: `/clash donate amount:<n>`)';
+    return 'Only the streamer + mods can queue town builds. (Donate Bolts to support the build: `/clash donate amount:<n>`)';
   }
   if (!kind || !BUILDINGS[kind]) {
-    return '❌ Unknown building. Try: townhall, wall, cannon, archerTower, trap, storage, barracks.';
+    return 'Unknown building. Try: townhall, wall, cannon, archerTower, trap, storage, barracks.';
   }
   const town = await getTown(env, guildId);
   let targetBuilding = null;
   if (buildingId) {
     targetBuilding = town.buildings.find(b => String(b.id) === String(buildingId));
-    if (!targetBuilding) return `❌ No building with id ${buildingId}.`;
-    if (targetBuilding.kind !== kind) return `❌ Building #${buildingId} is a ${targetBuilding.kind}, not a ${kind}.`;
+    if (!targetBuilding) return `No building with id ${buildingId}.`;
+    if (targetBuilding.kind !== kind) return `Building #${buildingId} is a ${targetBuilding.kind}, not a ${kind}.`;
   }
   const tres = await getTreasury(env, guildId);
 
@@ -773,7 +773,7 @@ async function handleTownBuild(env, guildId, userId, kind, buildingId) {
   // and adding it to the buildings array).
   if (targetBuilding) {
     const nextLevel = (targetBuilding.level || 1) + 1;
-    if (kind === 'townhall' && nextLevel > 10) return '🏰 Town Hall is maxed.';
+    if (kind === 'townhall' && nextLevel > 10) return 'Town Hall is maxed.';
     // Hero-level gate on TH tiers (Phase 3) — the community needs at
     // least one hero meeting the threshold before upgrading. Forces
     // them to engage with dungeons for late-game town power.
@@ -781,13 +781,13 @@ async function handleTownBuild(env, guildId, userId, kind, buildingId) {
       const need = TH_HERO_GATE[nextLevel];
       const best = await highestHeroLevelInGuild(env, guildId);
       if (best < need) {
-        return `🔒 TH${nextLevel} needs at least one community hero at level ${need}. Highest right now: L${best}. Train more in the dungeon.`;
+        return `TH${nextLevel} needs at least one community hero at level ${need}. Highest right now: L${best}. Train more in the dungeon.`;
       }
     }
     const c = townBuildCost(kind, nextLevel);
-    if (!c) return '❌ Max level reached.';
+    if (!c) return 'Max level reached.';
     if ((tres.bolts || 0) < (c.cost.bolts || 0) || (tres.scrap || 0) < (c.cost.scrap || 0) || (tres.cores || 0) < (c.cost.cores || 0)) {
-      return `❌ Treasury short. Need ${c.cost.bolts}⚡ ${c.cost.scrap || 0}🧪 ${c.cost.cores || 0}⚙. Donations: \`/clash donate amount:<n>\``;
+      return `Treasury short. Need ${c.cost.bolts} bolts, ${c.cost.scrap || 0} scrap, ${c.cost.cores || 0} cores. Donations: \`/clash donate amount:<n>\``;
     }
     await addTreasury(env, guildId, { bolts: -(c.cost.bolts || 0), scrap: -(c.cost.scrap || 0), cores: -(c.cost.cores || 0) });
     targetBuilding.status = 'building';
@@ -799,15 +799,15 @@ async function handleTownBuild(env, guildId, userId, kind, buildingId) {
       endsAt: Date.now() + c.timeMs,
     });
     const minutes = Math.ceil(c.timeMs / 60_000);
-    return `🏗 Upgrading ${BUILDINGS[kind].name} #${targetBuilding.id} → L${nextLevel}. Ready in ${minutes} min.`;
+    return `Upgrading ${BUILDINGS[kind].name} #${targetBuilding.id} → L${nextLevel}. Ready in ${minutes} min.`;
   }
 
   // New building. v1: just place at first free tile. (Real drag-and-
   // drop layout editor is Phase 4 web.)
   const c = townBuildCost(kind, 1);
-  if (!c) return '❌ Cost lookup failed.';
+  if (!c) return 'Cost lookup failed.';
   if ((tres.bolts || 0) < (c.cost.bolts || 0) || (tres.scrap || 0) < (c.cost.scrap || 0)) {
-    return `❌ Treasury short. Need ${c.cost.bolts}⚡ ${c.cost.scrap || 0}🧪.`;
+    return `Treasury short. Need ${c.cost.bolts} bolts, ${c.cost.scrap || 0} scrap.`;
   }
   await addTreasury(env, guildId, { bolts: -(c.cost.bolts || 0), scrap: -(c.cost.scrap || 0) });
   await enqueue(env, 'clash:queue:' + guildId, {
@@ -816,21 +816,21 @@ async function handleTownBuild(env, guildId, userId, kind, buildingId) {
     target: { kind },
     endsAt: Date.now() + Math.max(60_000, c.timeMs),
   });
-  return `🏗 New ${BUILDINGS[kind].name} queued. Ready in ${Math.ceil(c.timeMs / 60_000)} min.`;
+  return `New ${BUILDINGS[kind].name} queued. Ready in ${Math.ceil(c.timeMs / 60_000)} min.`;
 }
 
 async function handleTownGarrison(env, guildId, userId, troopId, count) {
   if (!await canManageTown(env, guildId, userId)) {
-    return '🔒 Only the streamer + mods can train town garrison.';
+    return 'Only the streamer + mods can train town garrison.';
   }
   if (!troopId || !TROOPS_GARRISON[troopId]) {
-    return '❌ Unknown garrison troop. Try: scrapper, boltKnight, voltaicMage, archerLite.';
+    return 'Unknown garrison troop. Try: scrapper, boltKnight, voltaicMage, archerLite.';
   }
   const n = Math.max(1, Math.min(20, Number(count) || 1));
   const cost = townGarrisonCost(troopId, n);
   const tres = await getTreasury(env, guildId);
   if ((tres.bolts || 0) < cost.bolts) {
-    return `❌ Treasury short. Need ${cost.bolts}⚡.`;
+    return `Treasury short. Need ${cost.bolts} bolts.`;
   }
   await addTreasury(env, guildId, { bolts: -cost.bolts });
   await enqueue(env, 'clash:queue:' + guildId, {
@@ -839,19 +839,19 @@ async function handleTownGarrison(env, guildId, userId, troopId, count) {
     target: { troopId, count: n },
     endsAt: Date.now() + cost.timeMs,
   });
-  return `⛺ Training ${n}× ${TROOPS_GARRISON[troopId].name} for the garrison. Ready in ${Math.ceil(cost.timeMs / 60_000)} min.`;
+  return `Training ${n}× ${TROOPS_GARRISON[troopId].name} for the garrison. Ready in ${Math.ceil(cost.timeMs / 60_000)} min.`;
 }
 
 async function handleTownPause(env, guildId, userId) {
   if (!await canManageTown(env, guildId, userId)) {
-    return '🔒 Only the streamer + mods can pause matchmaking.';
+    return 'Only the streamer + mods can pause matchmaking.';
   }
   const town = await getTown(env, guildId);
   town.matchmakingPaused = !town.matchmakingPaused;
   await putTown(env, guildId, town);
   return town.matchmakingPaused
-    ? '⏸ Town is paused — no new PvP raids will be matched against it. In-flight raids still resolve.'
-    : '▶ Town is live for PvP matchmaking.';
+    ? 'Town is paused — no new PvP raids will be matched against it. In-flight raids still resolve.'
+    : 'Town is live for PvP matchmaking.';
 }
 
 export async function canManageTown(env, guildId, userId) {
@@ -896,20 +896,20 @@ const STYLE_DANGER         = 4;
 
 async function handleWarDeclare(env, guildId, userId, targetGuildId) {
   if (!await canManageTown(env, guildId, userId)) {
-    return ephemeral('🔒 Only the streamer + mods can declare wars.');
+    return ephemeral('Only the streamer + mods can declare wars.');
   }
   if (!targetGuildId || !/^\d{6,30}$/.test(String(targetGuildId).trim())) {
-    return ephemeral('❌ Target must be a guild id. Find one via `/clash leaderboard`.');
+    return ephemeral('Target must be a guild id. Find one via `/clash leaderboard`.');
   }
   const r = await declareWar(env, guildId, String(targetGuildId).trim(), userId);
-  if (r.error) return ephemeral('❌ ' + (r.message || r.error));
+  if (r.error) return ephemeral((r.message || r.error));
   const war = r.war;
   // Public post in the attacker's channel with vote buttons.
   return {
     type: 4,
     data: {
       content:
-        `⚔ **War declared** — vote to confirm.\n` +
+        `**War declared** — vote to confirm.\n` +
         `Target: \`${targetGuildId}\`.  Vote ends in 10 min.  Need at least ${3} voters with majority **Yes** to proceed.`,
       components: warVoteRow(war.warId, 'declare'),
     },
@@ -923,7 +923,7 @@ async function renderWarView(env, guildId) {
     const badge = await getWarBadge(env, guildId);
     const lines = ['No active war.'];
     if (cd) lines.push(`Cooldown ends in ${Math.ceil((cd.until - Date.now()) / 60_000)} min.`);
-    if (badge) lines.push(`🏅 **Victorious** banner active until <t:${Math.floor(badge.expiresUtc / 1000)}:R>.`);
+    if (badge) lines.push(`**Victorious** banner active until <t:${Math.floor(badge.expiresUtc / 1000)}:R>.`);
     return lines.join('\n');
   }
   let war = await getWar(env, warId);
@@ -934,13 +934,13 @@ async function renderWarView(env, guildId) {
   if (war.state === WAR_STATE.DECLARING) {
     const yes = war.declareVotes.yes.length;
     const no = war.declareVotes.no.length;
-    lines.push(`🗳 Declaration vote: ${yes} Yes / ${no} No  ·  ends <t:${Math.floor(war.declarationEndsUtc / 1000)}:R>`);
+    lines.push(`Declaration vote: ${yes} Yes / ${no} No  ·  ends <t:${Math.floor(war.declarationEndsUtc / 1000)}:R>`);
   } else if (war.state === WAR_STATE.PENDING_ACCEPT) {
     const a = war.acceptVotes.accept.length;
     const r = war.acceptVotes.refuse.length;
-    lines.push(`🗳 Accept/refuse vote: ${a} Accept / ${r} Refuse  ·  ends <t:${Math.floor(war.acceptEndsUtc / 1000)}:R>`);
+    lines.push(`Accept/refuse vote: ${a} Accept / ${r} Refuse  ·  ends <t:${Math.floor(war.acceptEndsUtc / 1000)}:R>`);
   } else if (war.state === WAR_STATE.ACTIVE) {
-    lines.push(`⚔ Live war  ·  ends <t:${Math.floor(war.activeEndsUtc / 1000)}:R>`);
+    lines.push(`Live war  ·  ends <t:${Math.floor(war.activeEndsUtc / 1000)}:R>`);
     lines.push(`Score: **${war.scores.attacker}★** (attacker) vs **${war.scores.defender}★** (defender)`);
     lines.push(`Raids landed: ${war.raids.length}`);
   } else {
@@ -958,7 +958,7 @@ async function renderWarView(env, guildId) {
 
 async function handleWarStaff(env, guildId, userId, action) {
   if (!await canManageTown(env, guildId, userId)) {
-    return '🔒 Only the streamer + mods can override the community vote.';
+    return 'Only the streamer + mods can override the community vote.';
   }
   const warId = await getActiveWarId(env, guildId);
   if (!warId) return 'No active war.';
@@ -976,11 +976,11 @@ async function handleWarStaff(env, guildId, userId, action) {
     war = r;
     if (war.state === WAR_STATE.ACTIVE) {
       await pushWarAccepted(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId, endsUtc: war.activeEndsUtc });
-      return `✅ War accepted. 24h window now open.`;
+      return `War accepted. 24h window now open.`;
     }
     if (war.state === WAR_STATE.REFUSED) {
       await pushWarRefused(env, { attackerGuildId: war.attackerGuildId, defenderGuildId: war.defenderGuildId });
-      return `❌ War refused.`;
+      return `War refused.`;
     }
   }
   return 'Nothing to do.';
@@ -1016,9 +1016,9 @@ function warVoteRow(warId, phase) {
     return [{
       type: COMPONENT_ACTION_ROW,
       components: [
-        { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: '✅ Yes — declare', custom_id: `clash:war:vote:${warId}:declare:yes` },
-        { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '❌ No', custom_id: `clash:war:vote:${warId}:declare:no` },
-        { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '👁 View war', custom_id: `clash:war:view:${warId}` },
+        { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: 'Yes — declare', custom_id: `clash:war:vote:${warId}:declare:yes` },
+        { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: 'No', custom_id: `clash:war:vote:${warId}:declare:no` },
+        { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'View war', custom_id: `clash:war:view:${warId}` },
       ],
     }];
   }
@@ -1026,9 +1026,9 @@ function warVoteRow(warId, phase) {
     return [{
       type: COMPONENT_ACTION_ROW,
       components: [
-        { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: '⚔ Accept war', custom_id: `clash:war:vote:${warId}:accept:accept` },
-        { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🛡 Refuse', custom_id: `clash:war:vote:${warId}:accept:refuse` },
-        { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '👁 View war', custom_id: `clash:war:view:${warId}` },
+        { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: 'Accept war', custom_id: `clash:war:vote:${warId}:accept:accept` },
+        { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: 'Refuse', custom_id: `clash:war:vote:${warId}:accept:refuse` },
+        { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'View war', custom_id: `clash:war:view:${warId}` },
       ],
     }];
   }
@@ -1058,7 +1058,7 @@ export async function handleClashComponent(env, data) {
     const choice = parts[5];      // yes | no | accept | refuse
     const before = await getWar(env, warId);
     const r = await castVote(env, warId, userId, guildId, choice);
-    if (r.error) return ephemeral('❌ ' + (r.message || r.error));
+    if (r.error) return ephemeral((r.message || r.error));
     const war = r.war;
     // Side-effects: if the vote tripped a state transition, fire the
     // matching push.
@@ -1104,22 +1104,22 @@ export async function handleClashComponent(env, data) {
 
 async function handleDefenderDesignate(env, guildId, userId, targetUserOpt) {
   if (!await canManageTown(env, guildId, userId)) {
-    return '🔒 Only the streamer + mods can designate a defender.';
+    return 'Only the streamer + mods can designate a defender.';
   }
   const targetUserId = String(targetUserOpt || '').trim();
   if (!/^\d{6,30}$/.test(targetUserId)) {
-    return '❌ Pass a Discord user mention (USER type option).';
+    return 'Pass a Discord user mention (USER type option).';
   }
   const town = await getTown(env, guildId);
   // Must have a War Tent built (level >= 1, not currently being built)
   const tent = (town.buildings || []).find(b => b.kind === 'warTent' && b.level >= 1 && b.status !== 'building');
   if (!tent) {
-    return '⛺ Build a War Tent first: `/clash town build kind:warTent`.';
+    return 'Build a War Tent first: `/clash town build kind:warTent`.';
   }
   // The target must have a dungeon hero on this channel.
   const hero = await env.LOADOUT_BOLTS.get(`d:hero:${guildId}:${targetUserId}`, { type: 'json' });
   if (!hero) {
-    return '❌ That user has no dungeon hero on this channel yet — they need to run `/loadout` first.';
+    return 'That user has no dungeon hero on this channel yet — they need to run `/loadout` first.';
   }
   const ttl = (BUILDINGS.warTent.designationTtlMs[tent.level] || 7 * 86_400_000);
   town.defenderChampion = {
@@ -1132,18 +1132,18 @@ async function handleDefenderDesignate(env, guildId, userId, targetUserOpt) {
   await putTown(env, guildId, town);
   await refreshDefenseSnapshot(env, guildId);
   const days = Math.round(ttl / 86_400_000);
-  return `⛺ Designated <@${targetUserId}> as the defending Champion. They need to run \`/clash defender accept\` within ${days} days for the role to go live.`;
+  return `Designated <@${targetUserId}> as the defending Champion. They need to run \`/clash defender accept\` within ${days} days for the role to go live.`;
 }
 
 async function handleDefenderClear(env, guildId, userId) {
   if (!await canManageTown(env, guildId, userId)) {
-    return '🔒 Only the streamer + mods can clear the defender.';
+    return 'Only the streamer + mods can clear the defender.';
   }
   const town = await getTown(env, guildId);
   town.defenderChampion = null;
   await putTown(env, guildId, town);
   await refreshDefenseSnapshot(env, guildId);
-  return '⛺ Defender slot cleared.';
+  return 'Defender slot cleared.';
 }
 
 async function handleDefenderAccept(env, guildId, userId) {
@@ -1159,7 +1159,7 @@ async function handleDefenderAccept(env, guildId, userId) {
   d.acceptedUtc = Date.now();
   await putTown(env, guildId, town);
   await refreshDefenseSnapshot(env, guildId);
-  return '🛡 You accepted the defending Champion role. Your dungeon hero now defends this town on every raid.';
+  return 'You accepted the defending Champion role. Your dungeon hero now defends this town on every raid.';
 }
 
 async function handleDefenderDecline(env, guildId, userId) {
@@ -1169,28 +1169,28 @@ async function handleDefenderDecline(env, guildId, userId) {
   town.defenderChampion = null;
   await putTown(env, guildId, town);
   await refreshDefenseSnapshot(env, guildId);
-  return '⛺ Declined. Streamer can designate someone else.';
+  return 'Declined. Streamer can designate someone else.';
 }
 
 async function handleSkipCooldown(env, guildId, userId) {
   if (!await canManageTown(env, guildId, userId)) {
-    return '🔒 Only the streamer + mods can spend Battle Plans.';
+    return 'Only the streamer + mods can spend Battle Plans.';
   }
   const town = await getTown(env, guildId);
   if ((town.battlePlans || 0) <= 0) {
-    return `📜 No Battle Plans on hand. Earn them from PvE raids + dungeon training (max ${MAX_BATTLE_PLANS} stored).`;
+    return `No Battle Plans on hand. Earn them from PvE raids + dungeon training (max ${MAX_BATTLE_PLANS} stored).`;
   }
   // Find the oldest in-flight queue item.
   const q = await getQueue(env, 'clash:queue:' + guildId);
   if (!q.items?.length) {
-    return '📜 No in-flight builds to skip. Queue one first.';
+    return 'No in-flight builds to skip. Queue one first.';
   }
   const oldest = q.items.slice().sort((a, b) => (a.endsAt || 0) - (b.endsAt || 0))[0];
   oldest.endsAt = Date.now();   // mark complete on next walk
   await env.LOADOUT_BOLTS.put('clash:queue:' + guildId, JSON.stringify(q));
   await spendBattlePlan(env, guildId);
   await syncCooldowns(env, guildId, userId);
-  return `📜 Battle Plan consumed — the oldest in-flight build just finished. ${(town.battlePlans || 0) - 1} left.`;
+  return `Battle Plan consumed — the oldest in-flight build just finished. ${(town.battlePlans || 0) - 1} left.`;
 }
 
 // Walk every hero on the guild, return the max level. Cheap because

@@ -193,19 +193,19 @@ async function renderStatus(env, guildId, userId, userName) {
   const frags = await getFragments(env, userId);
   const lines = [
     `**${userName} — Boltbound profile**`,
-    `🏆 Trophies: **${trophies.trophies}** · Tier: ${trophies.tier} · Peak: ${trophies.peak}`,
-    `🃏 Collection: **${cardCount}** cards · Decks: ${decks.length}/6 ${active ? `(active: ${active.name})` : '(none active)'}`,
-    `📦 Pending packs: **${packs.length}** ${packs.length ? `(\`/boltbound packs\` to view)` : ''}`,
-    `🎁 Daily Common Pack: ${dailyClaimed ? 'claimed' : '`/boltbound daily` to claim'}`,
-    `🧩 Fragments: **${frags}** _(recycle owned cards · craft packs)_`,
-    `⚡ Ladder Bolts today: ${cap.earnedToday}/${cap.cap}`,
+    `Trophies: **${trophies.trophies}** · Tier: ${trophies.tier} · Peak: ${trophies.peak}`,
+    `Collection: **${cardCount}** cards · Decks: ${decks.length}/6 ${active ? `(active: ${active.name})` : '(none active)'}`,
+    `Pending packs: **${packs.length}** ${packs.length ? `(\`/boltbound packs\` to view)` : ''}`,
+    `Daily Common Pack: ${dailyClaimed ? 'claimed' : '`/boltbound daily` to claim'}`,
+    `Fragments: **${frags}** _(recycle owned cards · craft packs)_`,
+    `Ladder Bolts today: ${cap.earnedToday}/${cap.cap}`,
   ];
   if (activeMatch && activeMatch.status === 'active') {
     lines.push(``);
-    lines.push(`▶ **Match in progress** — \`/boltbound match\` to view, \`/boltbound move\` to play.`);
+    lines.push(`**Match in progress** — \`/boltbound match\` to view, \`/boltbound move\` to play.`);
   } else if (activeMatch && activeMatch.status === 'mulligan') {
     lines.push(``);
-    lines.push(`▶ **Mulligan pending** — \`/boltbound mulligan keep:1,2,3\` to choose what to keep.`);
+    lines.push(`**Mulligan pending** — \`/boltbound mulligan keep:1,2,3\` to choose what to keep.`);
   } else {
     lines.push(``);
     lines.push(`Play: \`/boltbound play npc\` (instant) or \`/boltbound play queue\` (PvP wait queue).`);
@@ -218,14 +218,14 @@ async function renderPacks(env, guildId, userId) {
   if (!packs.length) {
     const dailyClaimed = await hasClaimedFreePackToday(env, guildId, userId);
     return [
-      '📭 No pending packs.',
+      'No pending packs.',
       '',
       dailyClaimed
         ? 'Buy a Bolt Pack with `/boltbound buy pack:bolt` (250 Bolts).'
         : 'Claim your daily Common Pack with `/boltbound daily`.',
     ].join('\n');
   }
-  const lines = ['**📦 Pending packs:**', ''];
+  const lines = ['**Pending packs:**', ''];
   for (const p of packs) {
     const def = PACKS[p.packType] || { name: p.packType };
     const age = ageStr(p.mintedUtc);
@@ -237,51 +237,51 @@ async function renderPacks(env, guildId, userId) {
 }
 
 async function openPackHandler(env, guildId, userId, idOrPrefix) {
-  if (!idOrPrefix) return '❌ Pack id required. Run `/boltbound packs` to list yours.';
+  if (!idOrPrefix) return 'Pack id required. Run `/boltbound packs` to list yours.';
   const packs = await listPendingPacks(env, guildId, userId, 50);
   const match = packs.find(p => p.id === idOrPrefix || p.id.startsWith(idOrPrefix));
-  if (!match) return `❌ No pending pack with id starting \`${idOrPrefix}\`. Try \`/boltbound packs\`.`;
+  if (!match) return `No pending pack with id starting \`${idOrPrefix}\`. Try \`/boltbound packs\`.`;
   return openPackById(env, guildId, userId, match.id);
 }
 
 async function openPackById(env, guildId, userId, packId) {
   const r = await openPack(env, guildId, userId, packId);
-  if (!r.ok) return `❌ Open failed: ${r.error}`;
+  if (!r.ok) return `Open failed: ${r.error}`;
   const def = PACKS[r.packType] || { name: r.packType };
   const lines = [`**${def.name} opened!**`, ''];
   for (const res of r.results) {
     const card = CARDS[res.cardId];
     if (res.credited) {
-      lines.push(`• ${rarityGlyph(card?.rarity)} **${card?.name || res.cardId}** _(${card?.rarity})_ — added (you now own ${res.count})`);
+      lines.push(`• ${rarityTag(card?.rarity)} **${card?.name || res.cardId}** _(${card?.rarity})_ — added (you now own ${res.count})`);
     } else {
-      lines.push(`• ${rarityGlyph(card?.rarity)} ${card?.name || res.cardId} _(${card?.rarity})_ — duplicate, **+${res.dupeBolts} Bolts**`);
+      lines.push(`• ${rarityTag(card?.rarity)} ${card?.name || res.cardId} _(${card?.rarity})_ — duplicate, **+${res.dupeBolts} Bolts**`);
     }
   }
   if (r.totalDupeBolts > 0) {
     lines.push('');
-    lines.push(`💰 Total dupe refund: **+${r.totalDupeBolts} Bolts**`);
+    lines.push(`Total dupe refund: **+${r.totalDupeBolts} Bolts**`);
   }
   return lines.join('\n');
 }
 
 async function buyPackHandler(env, guildId, userId, packId) {
-  if (!packId) return '❌ Which pack? Try `pack:bolt` (250 Bolts).';
+  if (!packId) return 'Which pack? Try `pack:bolt` (250 Bolts).';
   const r = await buyPack(env, guildId, userId, packId);
   if (!r.ok) {
-    if (r.error === 'insufficient-bolts') return `❌ Not enough Bolts. Need ${r.need}, have ${r.have}.`;
-    if (r.error === 'not-purchasable') return `❌ That pack isn't for sale — drop-only.`;
-    return `❌ ${r.error}`;
+    if (r.error === 'insufficient-bolts') return `Not enough Bolts. Need ${r.need}, have ${r.have}.`;
+    if (r.error === 'not-purchasable') return `That pack isn't for sale — drop-only.`;
+    return `${r.error}`;
   }
-  return `✅ Bought **${PACKS[r.pack.packType]?.name}**. Open it: \`/boltbound open id:${r.pack.id.slice(0, 8)}\``;
+  return `Bought **${PACKS[r.pack.packType]?.name}**. Open it: \`/boltbound open id:${r.pack.id.slice(0, 8)}\``;
 }
 
 async function dailyHandler(env, guildId, userId) {
   const r = await claimDailyFreePack(env, guildId, userId);
   if (!r.ok) {
-    if (r.error === 'already-claimed-today') return '⏰ You already claimed today\'s Common Pack. Comes back at 00:00 UTC.';
-    return `❌ ${r.error}`;
+    if (r.error === 'already-claimed-today') return 'You already claimed today\'s Common Pack. Comes back at 00:00 UTC.';
+    return `${r.error}`;
   }
-  return `🎁 **Daily Common Pack claimed.** Open it: \`/boltbound open id:${r.pack.id.slice(0, 8)}\``;
+  return `**Daily Common Pack claimed.** Open it: \`/boltbound open id:${r.pack.id.slice(0, 8)}\``;
 }
 
 async function renderCollection(env, guildId, userId, rarityFilter) {
@@ -297,9 +297,9 @@ async function renderCollection(env, guildId, userId, rarityFilter) {
       return (a.card.mana || 0) - (b.card.mana || 0);
     });
   if (!entries.length) {
-    return '📭 Your collection is empty. Try `/boltbound daily` or `/boltbound buy pack:bolt`.';
+    return 'Your collection is empty. Try `/boltbound daily` or `/boltbound buy pack:bolt`.';
   }
-  const lines = ['**🃏 Collection**' + (rarityFilter ? ` _(${rarityFilter})_` : ''), ''];
+  const lines = ['**Collection**' + (rarityFilter ? ` _(${rarityFilter})_` : ''), ''];
   let lastRarity = null;
   for (const { id, n, card } of entries) {
     if (card.rarity !== lastRarity) {
@@ -318,12 +318,12 @@ async function renderDeckList(env, guildId, userId) {
   const decks = await listDeckSummaries(env, guildId, userId);
   if (!decks.length) {
     return [
-      '📭 No saved decks. Run `/boltbound deck rebuild` to auto-build one from your collection.',
+      'No saved decks. Run `/boltbound deck rebuild` to auto-build one from your collection.',
     ].join('\n');
   }
-  const lines = ['**📚 Your decks:**', ''];
+  const lines = ['**Your decks:**', ''];
   for (const d of decks) {
-    const marker = d.active ? ' ✅' : '';
+    const marker = d.active ? ' (active)' : '';
     lines.push(`• \`${d.id}\` — **${d.name}**${marker}  _(${d.championClass}, ${d.cardsCount} cards)_`);
   }
   lines.push('');
@@ -332,26 +332,26 @@ async function renderDeckList(env, guildId, userId) {
 }
 
 async function activateDeckHandler(env, guildId, userId, deckId) {
-  if (!deckId) return '❌ Which deck? Run `/boltbound deck list` first.';
+  if (!deckId) return 'Which deck? Run `/boltbound deck list` first.';
   const r = await activateDeck(env, guildId, userId, deckId);
-  if (!r.ok) return `❌ ${r.error}`;
-  return `✅ Active deck: **${r.deck.name}**.`;
+  if (!r.ok) return `${r.error}`;
+  return `Active deck: **${r.deck.name}**.`;
 }
 
 async function rebuildStarterHandler(env, guildId, userId, championClass) {
   const col = await getCollection(env, guildId, userId);
   const deck = buildStarterDeck(col, championClass, { name: 'Starter' });
   const r = await saveDeck(env, guildId, userId, deck, championClass);
-  if (!r.ok) return `❌ ${r.error}`;
+  if (!r.ok) return `${r.error}`;
   await activateDeck(env, guildId, userId, r.deck.id);
-  return `✅ Built and activated **${r.deck.name}** _(${championClass})_.`;
+  return `Built and activated **${r.deck.name}** _(${championClass})_.`;
 }
 
 async function showDeckHandler(env, guildId, userId, deckId) {
   let deck;
   if (deckId) deck = await getDeck(env, guildId, userId, deckId);
   else deck = await getActiveDeck(env, guildId, userId);
-  if (!deck) return '❌ No deck. Run `/boltbound deck list`.';
+  if (!deck) return 'No deck. Run `/boltbound deck list`.';
   // Re-insert champion if not already present (we store decks champion-less).
   const champId = championForClass(deck.championClass || 'warrior');
   const cards = (deck.cards || []).slice();
@@ -373,7 +373,7 @@ async function showDeckHandler(env, guildId, userId, deckId) {
   for (const [id, n] of sorted) {
     const c = CARDS[id];
     if (!c) continue;
-    lines.push(`• ${rarityGlyph(c.rarity)} **${c.name}** (${c.mana} mana) ×${n}`);
+    lines.push(`• ${rarityTag(c.rarity)} **${c.name}** (${c.mana} mana) ×${n}`);
   }
   return lines.join('\n');
 }
@@ -383,12 +383,12 @@ async function showDeckHandler(env, guildId, userId, deckId) {
 async function startNpcMatchHandler(env, guildId, userId, archetype) {
   const r = await startNpcMatch(env, guildId, userId, archetype);
   if (!r.ok) {
-    if (r.error === 'already-in-match') return { privateMessage: `❌ You already have a match in progress. \`/boltbound match\` to view.` };
-    if (r.error === 'no-active-deck') return { privateMessage: '❌ No active deck. Run `/boltbound deck rebuild` first.' };
-    return { privateMessage: `❌ ${r.error}` };
+    if (r.error === 'already-in-match') return { privateMessage: `You already have a match in progress. \`/boltbound match\` to view.` };
+    if (r.error === 'no-active-deck') return { privateMessage: 'No active deck. Run `/boltbound deck rebuild` first.' };
+    return { privateMessage: `${r.error}` };
   }
   return { privateMessage: [
-    `🃏 **Boltbound — vs ${r.match.npc.archetype} bot.**`,
+    `**Boltbound — vs ${r.match.npc.archetype} bot.**`,
     `Mulligan: \`/boltbound mulligan keep:0,1,2,3\` (or just \`/boltbound mulligan\` to keep all).`,
   ].join('\n') };
 }
@@ -396,60 +396,60 @@ async function startNpcMatchHandler(env, guildId, userId, archetype) {
 async function queueMatchHandler(env, guildId, userId, userName) {
   const r = await queueOrMatchPvp(env, guildId, userId);
   if (!r.ok) {
-    if (r.error === 'already-in-match') return '❌ You already have a match in progress.';
-    if (r.error === 'no-active-deck') return '❌ No active deck. Run `/boltbound deck rebuild`.';
-    return `❌ ${r.error}`;
+    if (r.error === 'already-in-match') return 'You already have a match in progress.';
+    if (r.error === 'no-active-deck') return 'No active deck. Run `/boltbound deck rebuild`.';
+    return `${r.error}`;
   }
   if (r.queued) {
-    return '⏳ **Queued for PvP.** When another viewer queues you\'ll both be auto-matched. Run `/boltbound match` anytime to check.';
+    return '**Queued for PvP.** When another viewer queues you\'ll both be auto-matched. Run `/boltbound match` anytime to check.';
   }
   return [
-    `⚔ **Match found vs <@${r.match.players.B}>**`,
+    `**Match found vs <@${r.match.players.B}>**`,
     `Mulligan: \`/boltbound mulligan keep:...\` (or empty for none).`,
   ].join('\n');
 }
 
 async function challengeHandler(env, guildId, userId, target) {
-  if (!target) return '❌ Who? Try `/boltbound play challenge user:@friend`.';
+  if (!target) return 'Who? Try `/boltbound play challenge user:@friend`.';
   const r = await challengeUser(env, guildId, userId, target);
   if (!r.ok) {
-    if (r.error === 'no-active-deck') return '❌ No active deck. Run `/boltbound deck rebuild`.';
-    if (r.error === 'recipient-inbox-full') return '❌ That viewer\'s challenge inbox is full (3 outstanding max).';
-    if (r.error === 'cannot-challenge-self') return '❌ You can\'t challenge yourself.';
-    return `❌ ${r.error}`;
+    if (r.error === 'no-active-deck') return 'No active deck. Run `/boltbound deck rebuild`.';
+    if (r.error === 'recipient-inbox-full') return 'That viewer\'s challenge inbox is full (3 outstanding max).';
+    if (r.error === 'cannot-challenge-self') return 'You can\'t challenge yourself.';
+    return `${r.error}`;
   }
-  return `✅ Challenge sent to <@${target}>. They accept with \`/boltbound play accept user:<@you>\`.`;
+  return `Challenge sent to <@${target}>. They accept with \`/boltbound play accept user:<@you>\`.`;
 }
 
 async function acceptHandler(env, guildId, userId, senderId) {
-  if (!senderId) return { privateMessage: '❌ Who challenged you? Try `/boltbound challenges`.' };
+  if (!senderId) return { privateMessage: 'Who challenged you? Try `/boltbound challenges`.' };
   const r = await acceptChallenge(env, guildId, userId, senderId);
-  if (!r.ok) return { privateMessage: `❌ ${r.error}` };
+  if (!r.ok) return { privateMessage: `${r.error}` };
   return { publicMessage: [
-    `⚔ **Boltbound match starts!** <@${senderId}> vs <@${userId}>`,
+    `**Boltbound match starts!** <@${senderId}> vs <@${userId}>`,
     `Both players: \`/boltbound mulligan keep:...\` to set up.`,
   ].join('\n') };
 }
 
 async function renderChallenges(env, guildId, userId) {
   const inbox = await listChallenges(env, guildId, userId);
-  if (!inbox.length) return '📭 No pending challenges.';
-  const lines = ['**📜 Pending challenges to you:**', ''];
+  if (!inbox.length) return 'No pending challenges.';
+  const lines = ['**Pending challenges to you:**', ''];
   for (const c of inbox) lines.push(`• from <@${c.sender}> _(${ageStr(c.ts)} ago)_ — \`/boltbound play accept user:<@${c.sender}>\``);
   return lines.join('\n');
 }
 
 async function renderMatch(env, guildId, userId) {
   const match = await getActiveMatch(env, guildId, userId);
-  if (!match) return '📭 No active match. `/boltbound play npc` or `/boltbound play queue`.';
+  if (!match) return 'No active match. `/boltbound play npc` or `/boltbound play queue`.';
   const state = renderableState(match, userId);
-  if (!state) return '❌ Internal: you aren\'t a side of this match.';
+  if (!state) return 'Internal: you aren\'t a side of this match.';
 
   if (match.status === 'mulligan') {
     return [
       `**Mulligan — ${state.you.hand.length} cards**`,
       '',
-      ...state.you.hand.map((id, i) => `  \`${i}\` ${rarityGlyph(CARDS[id]?.rarity)} ${CARDS[id]?.name} (${CARDS[id]?.mana})`),
+      ...state.you.hand.map((id, i) => `  \`${i}\` [${(CARDS[id]?.rarity || 'common').toUpperCase()}] ${CARDS[id]?.name} (${CARDS[id]?.mana})`),
       '',
       'Run `/boltbound mulligan keep:0,1,2` to replace cards you DON\'T list (omit for keep all).',
     ].join('\n');
@@ -465,17 +465,17 @@ async function renderMatch(env, guildId, userId) {
   return [
     `**Boltbound — turn ${match.turn} (${state.yourTurn ? 'YOUR TURN' : 'opp turn'})**`,
     '',
-    `__You__   ❤️ ${state.you.hp}   ⚡ ${state.you.mana.cur}/${state.you.mana.max}   📥 hand ${state.you.handCount}   🃏 deck ${state.you.deckCount}`,
-    `__Opp__   ❤️ ${state.them.hp}   ⚡ ${state.them.mana.cur}/${state.them.mana.max}   📥 hand ${state.them.handCount}   🃏 deck ${state.them.deckCount}` + (state.them.npc ? ` _(NPC: ${state.them.npc.archetype})_` : ''),
+    `__You__   HP ${state.you.hp}   Mana ${state.you.mana.cur}/${state.you.mana.max}   Hand ${state.you.handCount}   Deck ${state.you.deckCount}`,
+    `__Opp__   HP ${state.them.hp}   Mana ${state.them.mana.cur}/${state.them.mana.max}   Hand ${state.them.handCount}   Deck ${state.them.deckCount}` + (state.them.npc ? ` _(NPC: ${state.them.npc.archetype})_` : ''),
     '',
     '**Your board:**',
-    state.you.board.length ? state.you.board.map(m => `  \`${m.uid}\` ${CARDS[m.cardId]?.name} ${m.atk}/${m.hp}${m.canAttack ? ' ⚔️' : ''}${(m.keywords || []).length ? ' [' + m.keywords.join(',') + ']' : ''}`).join('\n') : '  _(empty)_',
+    state.you.board.length ? state.you.board.map(m => `  \`${m.uid}\` ${CARDS[m.cardId]?.name} ${m.atk}/${m.hp}${m.canAttack ? ' [ready]' : ''}${(m.keywords || []).length ? ' [' + m.keywords.join(',') + ']' : ''}`).join('\n') : '  _(empty)_',
     '',
     '**Opp board:**',
     state.them.board.length ? state.them.board.map(m => `  \`${m.uid}\` ${CARDS[m.cardId]?.name} ${m.atk}/${m.hp}${(m.keywords || []).length ? ' [' + m.keywords.join(',') + ']' : ''}`).join('\n') : '  _(empty)_',
     '',
     '**Your hand:**',
-    state.you.hand.length ? state.you.hand.map((id, i) => `  \`${i}\` ${rarityGlyph(CARDS[id]?.rarity)} ${CARDS[id]?.name} (${CARDS[id]?.mana} mana) — ${CARDS[id]?.text || ''}`).join('\n') : '  _(empty)_',
+    state.you.hand.length ? state.you.hand.map((id, i) => `  \`${i}\` [${(CARDS[id]?.rarity || 'common').toUpperCase()}] ${CARDS[id]?.name} (${CARDS[id]?.mana} mana) — ${CARDS[id]?.text || ''}`).join('\n') : '  _(empty)_',
     '',
     state.yourTurn ? '`/boltbound move card:<idx> [target:<uid|oppHero|selfHero>]` · `/boltbound attack attacker:<uid> target:<uid|hero>` · `/boltbound end-turn`' : '_Waiting on opponent. Refresh with `/boltbound match`._',
   ].join('\n');
@@ -483,63 +483,63 @@ async function renderMatch(env, guildId, userId) {
 
 async function moveHandler(env, guildId, userId, cardIdx, target) {
   const match = await getActiveMatch(env, guildId, userId);
-  if (!match) return '❌ No active match.';
+  if (!match) return 'No active match.';
   const side = sideOf(match, userId);
-  if (!side) return '❌ Internal: not a side.';
-  if (match.status !== 'active') return '❌ Match isn\'t active.';
+  if (!side) return 'Internal: not a side.';
+  if (match.status !== 'active') return 'Match isn\'t active.';
   const idx = parseInt(cardIdx, 10);
-  if (!Number.isInteger(idx)) return '❌ card index required (a number, e.g. `card:0`).';
+  if (!Number.isInteger(idx)) return 'card index required (a number, e.g. `card:0`).';
   const action = { kind: 'playCard', side, handIdx: idx, targetUid: target || null };
   const legal = isLegalAction(match, action);
-  if (!legal.ok) return `❌ ${legal.reason}`;
+  if (!legal.ok) return `${legal.reason}`;
   const r = await takeAction(env, match, side, action);
-  if (!r.ok) return `❌ ${r.error}`;
+  if (!r.ok) return `${r.error}`;
   if (r.ended) return renderEndedShort(r.match, userId);
   return await renderMatch(env, guildId, userId);
 }
 
 async function attackHandler(env, guildId, userId, attacker, target) {
   const match = await getActiveMatch(env, guildId, userId);
-  if (!match) return '❌ No active match.';
+  if (!match) return 'No active match.';
   const side = sideOf(match, userId);
-  if (!side) return '❌ Internal: not a side.';
-  if (match.status !== 'active') return '❌ Match isn\'t active.';
-  if (!attacker || !target) return '❌ Need `attacker:<uid>` and `target:<uid|hero>`.';
+  if (!side) return 'Internal: not a side.';
+  if (match.status !== 'active') return 'Match isn\'t active.';
+  if (!attacker || !target) return 'Need `attacker:<uid>` and `target:<uid|hero>`.';
   const action = { kind: 'attack', side, attackerUid: attacker, defenderUid: target };
   const legal = isLegalAction(match, action);
-  if (!legal.ok) return `❌ ${legal.reason}`;
+  if (!legal.ok) return `${legal.reason}`;
   const r = await takeAction(env, match, side, action);
-  if (!r.ok) return `❌ ${r.error}`;
+  if (!r.ok) return `${r.error}`;
   if (r.ended) return renderEndedShort(r.match, userId);
   return await renderMatch(env, guildId, userId);
 }
 
 async function endTurnHandler(env, guildId, userId) {
   const match = await getActiveMatch(env, guildId, userId);
-  if (!match) return '❌ No active match.';
+  if (!match) return 'No active match.';
   const side = sideOf(match, userId);
-  if (!side) return '❌ Internal: not a side.';
+  if (!side) return 'Internal: not a side.';
   const r = await takeAction(env, match, side, { kind: 'endTurn' });
-  if (!r.ok) return `❌ ${r.error}`;
+  if (!r.ok) return `${r.error}`;
   if (r.ended) return renderEndedShort(r.match, userId);
   return await renderMatch(env, guildId, userId);
 }
 
 async function concedeHandler(env, guildId, userId) {
   const match = await getActiveMatch(env, guildId, userId);
-  if (!match) return '❌ No active match.';
+  if (!match) return 'No active match.';
   const side = sideOf(match, userId);
-  if (!side) return '❌ Internal: not a side.';
+  if (!side) return 'Internal: not a side.';
   const r = await takeAction(env, match, side, { kind: 'concede' });
   return renderEndedShort(r.match, userId);
 }
 
 async function mulliganHandler(env, guildId, userId, keepCsv) {
   const match = await getActiveMatch(env, guildId, userId);
-  if (!match) return '❌ No active match.';
+  if (!match) return 'No active match.';
   const side = sideOf(match, userId);
-  if (!side) return '❌ Internal: not a side.';
-  if (match.status !== 'mulligan') return '❌ Not in mulligan phase.';
+  if (!side) return 'Internal: not a side.';
+  if (match.status !== 'mulligan') return 'Not in mulligan phase.';
   // `keep` is a CSV of indices to KEEP. The engine takes the indices
   // to REPLACE — so we compute the complement.
   const keepIdxs = (keepCsv || '').split(',').map(s => s.trim()).filter(Boolean).map(n => parseInt(n, 10)).filter(Number.isInteger);
@@ -558,7 +558,7 @@ function renderEndedShort(match, userId) {
   const state = renderableState(match, userId);
   const won = (match.status === 'A-won' && state.me === 'A') || (match.status === 'B-won' && state.me === 'B');
   const draw = match.status === 'draw';
-  const tag = won ? '🏆 **WIN**' : draw ? '🤝 **DRAW**' : '💀 **LOSS**';
+  const tag = won ? '**WIN**' : draw ? '**DRAW**' : '**LOSS**';
   return [
     `${tag} — Turn ${match.turn}`,
     `You: ${state.you.hp} HP · Opp: ${state.them.hp} HP`,
@@ -569,8 +569,8 @@ function renderEndedShort(match, userId) {
 
 async function renderMatchLog(env, guildId, userId) {
   const log = await readLog(env, guildId, userId);
-  if (!log.length) return '📭 No recent matches.';
-  const lines = ['**📜 Last 10 matches:**', ''];
+  if (!log.length) return 'No recent matches.';
+  const lines = ['**Last 10 matches:**', ''];
   for (const r of log) {
     const result = r.status === 'A-won' ? (r.players?.A === userId ? 'W' : 'L')
                  : r.status === 'B-won' ? (r.players?.B === userId ? 'W' : 'L')
@@ -586,7 +586,7 @@ async function renderMatchLog(env, guildId, userId) {
 async function renderFragments(env, userId) {
   const frags = await getFragments(env, userId);
   return [
-    `🧩 **Fragments: ${frags}**`,
+    `**Fragments: ${frags}**`,
     '',
     '**Recycle yield (per card):**',
     `  • Common ${RECYCLE_YIELD.common} · Uncommon ${RECYCLE_YIELD.uncommon} · Rare ${RECYCLE_YIELD.rare} · Legendary ${RECYCLE_YIELD.legendary}`,
@@ -601,34 +601,34 @@ async function renderFragments(env, userId) {
 }
 
 async function recycleHandler(env, guildId, userId, cardId, count) {
-  if (!cardId) return '❌ Which card? Try `/boltbound collection` to see your owned cards.';
+  if (!cardId) return 'Which card? Try `/boltbound collection` to see your owned cards.';
   const n = Math.max(1, Number(count) || 1);
   const r = await recycleCard(env, guildId, userId, cardId, n);
   if (!r.ok) {
-    if (r.error === 'unknown-card') return '❌ Unknown card id.';
-    if (r.error === 'champions-not-recyclable') return '❌ Champions can\'t be recycled.';
-    if (r.error === 'tokens-not-recyclable') return '❌ Tokens can\'t be recycled.';
-    if (r.error === 'insufficient-copies') return `❌ You only own ${r.owned} copies.`;
-    if (r.error === 'deck-uses-this-card') return `❌ ${r.message}`;
-    return `❌ ${r.error}`;
+    if (r.error === 'unknown-card') return 'Unknown card id.';
+    if (r.error === 'champions-not-recyclable') return 'Champions can\'t be recycled.';
+    if (r.error === 'tokens-not-recyclable') return 'Tokens can\'t be recycled.';
+    if (r.error === 'insufficient-copies') return `You only own ${r.owned} copies.`;
+    if (r.error === 'deck-uses-this-card') return `${r.message}`;
+    return `${r.error}`;
   }
   return [
-    `🧩 Recycled **${r.recycled}× ${r.cardName}** (${r.rarity}) → **+${r.yield} fragments**`,
+    `Recycled **${r.recycled}× ${r.cardName}** (${r.rarity}) → **+${r.yield} fragments**`,
     `You now own ${r.ownedAfter}× this card · Balance: **${r.balanceAfter}** frags.`,
   ].join('\n');
 }
 
 async function craftHandler(env, guildId, userId, packType) {
-  if (!packType) return '❌ Which pack? Try `pack:bolt` (400 frags).';
+  if (!packType) return 'Which pack? Try `pack:bolt` (400 frags).';
   const r = await craftPack(env, guildId, userId, packType);
   if (!r.ok) {
-    if (r.error === 'insufficient-fragments') return `❌ Not enough fragments. Need ${r.need}, have ${r.have}.`;
-    if (r.error === 'unknown-pack-type') return '❌ Unknown pack type. Try `common`, `bolt`, or `voltaic`.';
-    return `❌ ${r.error}`;
+    if (r.error === 'insufficient-fragments') return `Not enough fragments. Need ${r.need}, have ${r.have}.`;
+    if (r.error === 'unknown-pack-type') return 'Unknown pack type. Try `common`, `bolt`, or `voltaic`.';
+    return `${r.error}`;
   }
   const packName = packType === 'voltaic' ? 'Voltaic Pack' : packType === 'bolt' ? 'Bolt Pack' : 'Common Pack';
   return [
-    `🛠 Crafted **Boltbound ${packName}** for ${r.cost} fragments.`,
+    `Crafted **Boltbound ${packName}** for ${r.cost} fragments.`,
     `Open it: \`/boltbound open id:${r.packId.slice(0, 8)}\``,
     `Fragments remaining: **${r.fragmentsAfter}**.`,
   ].join('\n');
@@ -651,8 +651,8 @@ async function renderLeaderboard(env, guildId) {
   }
   const resolved = (await Promise.all(out)).filter(x => x.v);
   resolved.sort((a, b) => (b.v.trophies || 0) - (a.v.trophies || 0));
-  if (!resolved.length) return '📭 No rankings yet.';
-  const lines = ['**🏆 Boltbound — Top Trophies**', ''];
+  if (!resolved.length) return 'No rankings yet.';
+  const lines = ['**Boltbound — Top Trophies**', ''];
   for (let i = 0; i < Math.min(10, resolved.length); i++) {
     const { userId, v } = resolved[i];
     lines.push(`${i + 1}. <@${userId}> — **${v.trophies}** trophies (${tierOf(v.trophies)})`);
@@ -662,11 +662,12 @@ async function renderLeaderboard(env, guildId) {
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-function rarityGlyph(rarity) {
-  // Note: design says no emoji in CARD records; these glyphs are
-  // INTERFACE markers in chat-only messages, not card art. The cards
-  // themselves render through aquilo-gg/sprites/cards/<id>.png.
-  return ({ champion: '◆', legendary: '🟧', rare: '🟪', uncommon: '🟦', common: '⬜', token: '·' })[rarity] || '·';
+// Tiny rarity tag used inline in chat-only messages (e.g. pack-open
+// receipts). Plain text — no emoji or coloured squares per the
+// "no emoji as visual assets" rule. The actual card art renders
+// through aquilo-gg/sprites/cards/<id>.png on visual surfaces.
+function rarityTag(rarity) {
+  return ({ champion: '[CHAMP]', legendary: '[LEG]', rare: '[RARE]', uncommon: '[UNC]', common: '[C]', token: '[TOK]' })[rarity] || '[·]';
 }
 
 function ageStr(ts) {

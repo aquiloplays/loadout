@@ -224,39 +224,39 @@ async function mainView(env, guild, userId, userName) {
   const linked = link ? `${link.platform}:${link.username}` : null;
 
   const lines = [
-    `**${userName}** · ⚡ **${w.balance ?? 0}** bolts` +
-    (w.dailyStreak ? ` · 🔥 ${w.dailyStreak}-day streak` : '') +
-    (linked ? ` · 🔗 ${linked}` : ''),
+    `**${userName}** · **${w.balance ?? 0}** bolts` +
+    (w.dailyStreak ? ` · ${w.dailyStreak}-day streak` : '') +
+    (linked ? ` · linked: ${linked}` : ''),
     '',
     '_Tap a button to do anything below — only you can see this menu._'
   ];
 
   return {
-    content: '⚔ **Loadout**\n' + lines.join('\n'),
+    content: '**Loadout**\n' + lines.join('\n'),
     components: [
       row(
-        button('💰 Wallet',         'lo:wallet',      BTN_SECONDARY),
-        button('🎁 Daily',          'lo:daily',       BTN_SUCCESS),
-        button('🤝 Gift',           'lo:gift',        BTN_SECONDARY),
-        button('📊 Leaderboard',    'lo:leaderboard', BTN_SECONDARY)
+        button('Wallet',         'lo:wallet',      BTN_SECONDARY),
+        button('Daily',          'lo:daily',       BTN_SUCCESS),
+        button('Gift',           'lo:gift',        BTN_SECONDARY),
+        button('Leaderboard',    'lo:leaderboard', BTN_SECONDARY)
       ),
       row(
-        button('🦸 Hero',           'lo:hero',        BTN_PRIMARY),
-        button('🎒 Bag',            'lo:bag',         BTN_PRIMARY),
-        button('🏪 Shop',           'lo:shop',        BTN_PRIMARY),
-        button('🥋 Train',          'lo:train',       BTN_PRIMARY)
+        button('Hero',           'lo:hero',        BTN_PRIMARY),
+        button('Bag',            'lo:bag',         BTN_PRIMARY),
+        button('Shop',           'lo:shop',        BTN_PRIMARY),
+        button('Train',          'lo:train',       BTN_PRIMARY)
       ),
       row(
-        button('🪪 Profile',        'lo:profile',     BTN_SECONDARY),
-        button('🎲 Quick games',    'lo:games',       BTN_SECONDARY),
-        button('❓ Help',           'lo:help',        BTN_SECONDARY)
+        button('Profile',        'lo:profile',     BTN_SECONDARY),
+        button('Quick games',    'lo:games',       BTN_SECONDARY),
+        button('Help',           'lo:help',        BTN_SECONDARY)
       ),
       row(
-        button('❌ Close',          'lo:close',       BTN_DANGER),
+        button('Close',          'lo:close',       BTN_DANGER),
         // Routes via the prefix dispatcher in commands.js to the hub
         // root — gives the user a one-click escape back to /hub when
         // they entered this menu through the hub Loadout drilldown.
-        button('🌐 Hub',            'hub:home',       BTN_SECONDARY)
+        button('Hub',            'hub:home',       BTN_SECONDARY)
       )
     ]
   };
@@ -269,9 +269,9 @@ async function walletView(env, guild, userId, userName) {
     embeds: [balanceEmbed({ userId, userName, wallet: w, links: w.links || [] })],
     components: [
       row(
-        button('🎁 Claim daily',   'lo:daily',       BTN_SUCCESS),
-        button('🤝 Gift bolts',    'lo:gift',        BTN_SECONDARY),
-        button('📊 Leaderboard',   'lo:leaderboard', BTN_SECONDARY),
+        button('Claim daily',   'lo:daily',       BTN_SUCCESS),
+        button('Gift bolts',    'lo:gift',        BTN_SECONDARY),
+        button('Leaderboard',   'lo:leaderboard', BTN_SECONDARY),
       ),
       backRow()
     ]
@@ -299,23 +299,23 @@ async function leaderboardView(env, guild) {
   const top = await leaderboard(env, guild, 10);
   if (top.length === 0) {
     return {
-      content: '📊 Nobody has any bolts here yet. Run **Claim daily** to start!',
+      content: 'Nobody has any bolts here yet. Run **Claim daily** to start!',
       components: [backRow()]
     };
   }
   const lines = top.map((row, i) => {
-    const medal = ['🥇', '🥈', '🥉'][i] || `   ${i + 1}.`;
-    return `${medal}  <@${row.userId}>  —  **${row.w.balance}** bolts`;
+    const rank = `${i + 1}.`.padEnd(4, ' ');
+    return `${rank}  <@${row.userId}>  —  **${row.w.balance}** bolts`;
   });
   return {
-    content: '📊 **Top 10 — this server**\n' + lines.join('\n'),
+    content: '**Top 10 — this server**\n' + lines.join('\n'),
     components: [backRow()]
   };
 }
 
 async function giftPickerView() {
   return {
-    content: '🤝 **Gift bolts**\nPick a viewer below, then enter the amount.',
+    content: '**Gift bolts**\nPick a viewer below, then enter the amount.',
     components: [
       {
         type: COMPONENT_ROW,
@@ -333,13 +333,13 @@ async function giftPickerView() {
 
 async function giftAction(env, guild, fromId, toId, amount) {
   if (!toId)                                  return { content: 'Couldn\'t resolve that user.', components: [backRow()] };
-  if (toId === fromId)                        return { content: '❌ You can\'t gift yourself.', components: [backRow()] };
-  if (!Number.isInteger(amount) || amount <= 0) return { content: '❌ Amount must be a positive integer.', components: [backRow()] };
+  if (toId === fromId)                        return { content: 'You can\'t gift yourself.', components: [backRow()] };
+  if (!Number.isInteger(amount) || amount <= 0) return { content: 'Amount must be a positive integer.', components: [backRow()] };
 
   const r = await transfer(env, guild, fromId, toId, amount);
-  if (!r.ok) return { content: '❌ ' + (r.reason || 'gift failed'), components: [backRow()] };
+  if (!r.ok) return { content: (r.reason || 'gift failed'), components: [backRow()] };
   return {
-    content: `🎁 You gifted **${amount}** bolts to <@${toId}>.\nTheir balance: ${r.recipient.balance} · yours: ${r.sender.balance}.`,
+    content: `You gifted **${amount}** bolts to <@${toId}>.\nTheir balance: ${r.recipient.balance} · yours: ${r.sender.balance}.`,
     components: [backRow('lo:wallet')]
   };
 }
@@ -353,10 +353,10 @@ async function heroView(env, guild, userId, userName, callerUser) {
     embeds: r.embeds,
     components: [
       row(
-        button('👤 Character', 'lo:character', BTN_SUCCESS),
-        button('🎒 Bag',      'lo:bag',       BTN_PRIMARY),
-        button('🥋 Train',    'lo:train',     BTN_PRIMARY),
-        button('🏪 Shop',     'lo:shop',      BTN_SECONDARY)
+        button('Character', 'lo:character', BTN_SUCCESS),
+        button('Bag',       'lo:bag',       BTN_PRIMARY),
+        button('Train',     'lo:train',     BTN_PRIMARY),
+        button('Shop',      'lo:shop',      BTN_SECONDARY)
       ),
       backRow()
     ]
@@ -375,13 +375,13 @@ async function characterView(env, guild, userId, userName, callerUser) {
   const heroEmbed = await cmdHero(env, guild, userId, null, userName, callerUser);
   const e = heroEmbed.embeds?.[0];
   return {
-    content: '👤 **Your character** — visible to chat in `!dungeon` runs and on the dungeon overlay.\n' +
+    content: '**Your character** — visible to chat in `!dungeon` runs and on the dungeon overlay.\n' +
              '_Your avatar comes from your Discord profile here, and from your Twitch / Kick / YouTube profile pic on the stream overlay — no URL setup required._',
     embeds: e ? [e] : undefined,
     components: [
       row(
-        button('🎭 Pick class',       'lo:character:class',     BTN_PRIMARY),
-        button('🎨 Customize look',  'lo:character:customize', BTN_SUCCESS)
+        button('Pick class',       'lo:character:class',     BTN_PRIMARY),
+        button('Customize look',   'lo:character:customize', BTN_SUCCESS)
       ),
       backRow('lo:hero')
     ]
@@ -407,7 +407,7 @@ async function customizeView(env, guild, userId, userName, callerUser) {
   const c = hero?.custom || {};
 
   const summary =
-    '🎨 **Customize your look** — picks render on the dungeon overlay.\n' +
+    '**Customize your look** — picks render on the dungeon overlay.\n' +
     '`Skin tone:` ' + (c.skinTone  || '_default_') + '\n' +
     '`Hair color:` ' + (c.hairColor || '_default_') + '\n' +
     '`Hair style:` ' + (c.hairStyle || '_default_') + '\n' +
@@ -419,11 +419,11 @@ async function customizeView(env, guild, userId, userName, callerUser) {
     embeds: heroEmbed ? [heroEmbed] : undefined,
     components: [
       row(
-        button('🧴 Skin tone',  'lo:character:customize:skinTone',  BTN_SECONDARY),
-        button('💇 Hair color', 'lo:character:customize:hairColor', BTN_SECONDARY),
-        button('✂ Hair style',  'lo:character:customize:hairStyle', BTN_SECONDARY),
-        button('👁 Eye color',  'lo:character:customize:eyeColor',  BTN_SECONDARY),
-        button('🦸 Cape',        'lo:character:customize:cape',     BTN_SECONDARY)
+        button('Skin tone',   'lo:character:customize:skinTone',  BTN_SECONDARY),
+        button('Hair color',  'lo:character:customize:hairColor', BTN_SECONDARY),
+        button('Hair style',  'lo:character:customize:hairStyle', BTN_SECONDARY),
+        button('Eye color',   'lo:character:customize:eyeColor',  BTN_SECONDARY),
+        button('Cape',        'lo:character:customize:cape',      BTN_SECONDARY)
       ),
       backRow('lo:character')
     ]
@@ -432,7 +432,7 @@ async function customizeView(env, guild, userId, userName, callerUser) {
 
 function customizeAttrPicker(attr) {
   const opts = CUSTOM_OPTIONS[attr];
-  if (!opts) return { content: '❌ Unknown customization attribute.', components: [backRow('lo:character:customize')] };
+  if (!opts) return { content: 'Unknown customization attribute.', components: [backRow('lo:character:customize')] };
   // Each select option's value becomes the customize:do:<attr> custom_id.
   const options = opts.map(o => ({
     label: o.charAt(0).toUpperCase() + o.slice(1),
@@ -442,7 +442,7 @@ function customizeAttrPicker(attr) {
   // the slot back to class default.
   options.push({ label: 'Default', value: 'none', description: 'Clear this slot back to class default' });
   return {
-    content: '🎨 **Pick a ' + attr + '** — overlay updates immediately.',
+    content: '**Pick a ' + attr + '** — overlay updates immediately.',
     components: [
       selectRow('lo:character:customize:do:' + attr, 'Pick a ' + attr, options),
       backRow('lo:character:customize')
@@ -465,14 +465,18 @@ function classPicker() {
   const order = ['warrior', 'mage', 'rogue', 'ranger', 'healer'];
   return {
     content:
-      '🎭 **Pick a class** — affects your avatar tint, dungeon-overlay glyph, and small stat bonuses.\n' +
-      '• **Warrior** ⚔ +2 ATK\n' +
-      '• **Mage** 🪄 +1 ATK · +1 DEF\n' +
-      '• **Rogue** 🗡 +2 ATK · −1 DEF\n' +
-      '• **Ranger** 🏹 +1 ATK\n' +
-      '• **Healer** ✨ +1 DEF · +5 HP',
+      '**Pick a class** — affects your avatar tint, dungeon-overlay glyph, and small stat bonuses.\n' +
+      '• **Warrior** +2 ATK\n' +
+      '• **Mage** +1 ATK · +1 DEF\n' +
+      '• **Rogue** +2 ATK · −1 DEF\n' +
+      '• **Ranger** +1 ATK\n' +
+      '• **Healer** +1 DEF · +5 HP',
     components: [
-      row(...order.map(k => button(CLASSES[k].glyph + ' ' + CLASSES[k].name,
+      // Button labels are now plain text — the CLASSES[k].glyph field
+      // is still populated for the dungeon overlay's class sprite path
+      // but we don't surface the emoji in Discord chat per the
+      // "no emoji decoration in Discord" rule.
+      row(...order.map(k => button(CLASSES[k].name,
                                    'lo:character:class:do:' + k,
                                    BTN_SECONDARY))),
       backRow('lo:character')
@@ -495,9 +499,9 @@ async function bagView(env, guild, userId) {
     content: r.content,
     components: [
       row(
-        button('🛡 Equip…',     'lo:equip',   BTN_SUCCESS),
-        button('🧤 Unequip…',   'lo:unequip', BTN_SECONDARY),
-        button('💰 Sell…',      'lo:sell',    BTN_DANGER)
+        button('Equip…',     'lo:equip',   BTN_SUCCESS),
+        button('Unequip…',   'lo:unequip', BTN_SECONDARY),
+        button('Sell…',      'lo:sell',    BTN_DANGER)
       ),
       backRow('lo:hero')
     ]
@@ -510,16 +514,20 @@ async function bagView(env, guild, userId) {
 
 async function equipPicker(env, guild, userId) {
   const hero = await loadHeroFor(env, guild, userId);
+  // Bag items used to render with `it.glyph` (emoji) prefixed; standing
+  // rule is no emoji in Discord chat, so we show just the item name.
+  // Real item art lives at /sprites/gear/<id>.png and renders on the
+  // dungeon overlay / web bag UI.
   const options = sortBag(hero.bag).slice(0, 25).map(it => ({
-    label: `${it.glyph} ${it.name}`.slice(0, 100),
+    label: `${it.name}`.slice(0, 100),
     description: `${it.rarity} · ${it.slot}${it.powerBonus ? ` · +${it.powerBonus} ATK` : ''}${it.defenseBonus ? ` · +${it.defenseBonus} DEF` : ''}${it.ability ? ` · ${it.ability}` : ''}`.slice(0, 100),
     value: `lo:equip:do:${it.id.slice(0, 16)}`
   }));
   if (options.length === 0) {
-    return { content: '🎒 Your bag is empty — nothing to equip.', components: [backRow('lo:bag')] };
+    return { content: 'Your bag is empty — nothing to equip.', components: [backRow('lo:bag')] };
   }
   return {
-    content: '🛡 **Equip an item** — pick from your bag:',
+    content: '**Equip an item** — pick from your bag:',
     components: [
       selectRow('lo:equip:do', 'Pick an item to equip', options),
       backRow('lo:bag')
@@ -539,7 +547,7 @@ async function unequipPicker(env, guild, userId) {
   const hero = await loadHeroFor(env, guild, userId);
   const slots = Object.keys(hero.equipped || {}).filter(k => hero.equipped[k]);
   if (slots.length === 0) {
-    return { content: '🧤 Nothing equipped right now.', components: [backRow('lo:bag')] };
+    return { content: 'Nothing equipped right now.', components: [backRow('lo:bag')] };
   }
   const options = slots.map(slot => {
     const it = (hero.bag || []).find(x => x.id === hero.equipped[slot]);
@@ -549,7 +557,7 @@ async function unequipPicker(env, guild, userId) {
     };
   });
   return {
-    content: '🧤 **Unequip a slot:**',
+    content: '**Unequip a slot:**',
     components: [
       selectRow('lo:unequip:do', 'Pick a slot to clear', options),
       backRow('lo:bag')
@@ -566,15 +574,15 @@ async function unequipDo(env, guild, userId, slotKey) {
 async function sellPicker(env, guild, userId) {
   const hero = await loadHeroFor(env, guild, userId);
   const options = sortBag(hero.bag).slice(0, 25).map(it => ({
-    label: `${it.glyph} ${it.name}`.slice(0, 100),
+    label: `${it.name}`.slice(0, 100),
     description: `Sells for ~${Math.max(1, Math.floor((it.goldValue || 1) / 2))} bolts (${it.rarity})`.slice(0, 100),
     value: `lo:sell:do:${it.id.slice(0, 16)}`
   }));
   if (options.length === 0) {
-    return { content: '🎒 Your bag is empty — nothing to sell.', components: [backRow('lo:bag')] };
+    return { content: 'Your bag is empty — nothing to sell.', components: [backRow('lo:bag')] };
   }
   return {
-    content: '💰 **Sell an item** (back to the shop for half value):',
+    content: '**Sell an item** (back to the shop for half value):',
     components: [
       selectRow('lo:sell:do', 'Pick an item to sell', options),
       backRow('lo:bag')
@@ -596,7 +604,7 @@ async function shopView(env, guild, userId) {
   return {
     content: r.content,
     components: [
-      row(button('🛒 Buy…', 'lo:buy', BTN_SUCCESS)),
+      row(button('Buy…', 'lo:buy', BTN_SUCCESS)),
       backRow('lo:hero')
     ]
   };
@@ -610,12 +618,13 @@ async function buyPicker(env, guild, userId) {
   // submission lands so a stale picker can't bypass the rotation.
   const stock = await getDailyShop(env, guild);
   const options = stock.items.slice(0, 23).map(row => {
-    const [slot, rarity, name, glyph, atk, def, gold] = row;
+    // glyph is intentionally unused — emoji-free Discord labels.
+    const [slot, rarity, name, _glyph, atk, def, gold] = row;
     const stats = [];
     if (atk) stats.push('+' + atk + ' ATK');
     if (def) stats.push('+' + def + ' DEF');
     return {
-      label: `${glyph} ${name}`.slice(0, 100),
+      label: `${name}`.slice(0, 100),
       description: `${gold} bolts · ${rarity} ${slot}${stats.length ? ' · ' + stats.join(' ') : ''}`.slice(0, 100),
       value: `lo:buy:do:${encodeURIComponent(name)}`
     };
@@ -623,18 +632,18 @@ async function buyPicker(env, guild, userId) {
   // Append the two always-available freezes after the rotation (25-cap
   // Select limit; we sliced rotation to 23 so both freezes fit).
   options.push({
-    label: '❄ Stream Streak Freeze',
+    label: 'Stream Streak Freeze',
     description: '250 bolts · auto-saves Twitch check-in streak',
     value: 'lo:buy:do:stream-streak-freeze',
   });
   options.push({
-    label: '❄ Discord Streak Freeze',
+    label: 'Discord Streak Freeze',
     description: '250 bolts · auto-saves Discord pic-post streak',
     value: 'lo:buy:do:discord-streak-freeze',
   });
   return {
-    content: '🛒 **Buy from today\'s rotation** — pick one. Stock changes at midnight UTC.\n' +
-             '_The two ❄ Streak Freezes at the bottom are always available._',
+    content: '**Buy from today\'s rotation** — pick one. Stock changes at midnight UTC.\n' +
+             '_The two Streak Freezes at the bottom are always available._',
     components: [
       selectRow('lo:buy:do', 'Pick an item to buy', options),
       backRow('lo:shop')
@@ -653,13 +662,13 @@ async function buyDo(env, guild, userId, encodedName) {
 async function trainPicker() {
   return {
     content:
-      '🥋 **Training** — spend bolts for a focused 5-round session (50 bolts).\n' +
+      '**Training** — spend bolts for a focused 5-round session (50 bolts).\n' +
       'Pick a focus — strength grants XP, endurance grants HP, reflexes grants XP and a full heal.',
     components: [
       row(
-        button('🥊 Strength',  'lo:train:do:attack', BTN_PRIMARY),
-        button('❤️ Endurance', 'lo:train:do:hp',     BTN_PRIMARY),
-        button('💨 Reflexes',  'lo:train:do:dodge',  BTN_PRIMARY)
+        button('Strength',  'lo:train:do:attack', BTN_PRIMARY),
+        button('Endurance', 'lo:train:do:hp',     BTN_PRIMARY),
+        button('Reflexes',  'lo:train:do:dodge',  BTN_PRIMARY)
       ),
       backRow('lo:hero')
     ]
@@ -676,12 +685,12 @@ async function trainDo(env, guild, userId, focus) {
 function gamesView() {
   return {
     content:
-      '🎲 **Quick games**\n' +
+      '**Quick games**\n' +
       'Use these to grind a few extra bolts between dungeons. House-edge favours the streamer (slightly).',
     components: [
       row(
-        button('🪙 Coinflip', 'lo:coinflip', BTN_PRIMARY),
-        button('🎲 Dice',     'lo:dice',     BTN_PRIMARY)
+        button('Coinflip', 'lo:coinflip', BTN_PRIMARY),
+        button('Dice',     'lo:dice',     BTN_PRIMARY)
       ),
       backRow()
     ]
@@ -689,11 +698,11 @@ function gamesView() {
 }
 
 async function cmdCoinflipInline(env, guild, userId, bet, userName) {
-  if (!Number.isInteger(bet) || bet <= 0) return { content: '❌ Wager must be a positive integer.' };
+  if (!Number.isInteger(bet) || bet <= 0) return { content: 'Wager must be a positive integer.' };
   const r = await coinflip(env, guild, userId, bet);
   // Failure paths (insufficient balance, etc.) return won=false with a
   // payout of 0; only render the embed when an actual flip happened.
-  if (r.payout === 0 && !r.won) return { content: r.explanation || '❌ ' + (r.reason || 'flip failed') };
+  if (r.payout === 0 && !r.won) return { content: r.explanation || (r.reason || 'flip failed') };
   // Parity with the Twitch panel + the website /play page: every
   // resolved flip bumps the recap stats so "your last session" stays
   // consistent across surfaces.
@@ -711,10 +720,10 @@ async function cmdCoinflipInline(env, guild, userId, bet, userName) {
 }
 
 async function cmdDiceInline(env, guild, userId, bet, target, userName) {
-  if (!Number.isInteger(bet) || bet <= 0)     return { content: '❌ Wager must be a positive integer.' };
-  if (!Number.isInteger(target) || target < 1 || target > 6) return { content: '❌ Target must be 1-6.' };
+  if (!Number.isInteger(bet) || bet <= 0)     return { content: 'Wager must be a positive integer.' };
+  if (!Number.isInteger(target) || target < 1 || target > 6) return { content: 'Target must be 1-6.' };
   const r = await dice(env, guild, userId, bet, target);
-  if (r.payout === 0 && !r.won && !r.roll) return { content: r.explanation || '❌ ' + (r.reason || 'roll failed') };
+  if (r.payout === 0 && !r.won && !r.roll) return { content: r.explanation || (r.reason || 'roll failed') };
   if (r.won) await recordStat(env, guild, userId, { games_won: 1, bolts_earned: r.payout });
   else await recordStat(env, guild, userId, { games_lost: 1, bolts_spent: -r.payout });
   return {
@@ -733,7 +742,7 @@ async function cmdDiceInline(env, guild, userId, bet, target, userName) {
 async function profileView(env, guild, userId, userName) {
   const p = await getProfile(env, guild, userId);
   const lines = [
-    `🪪 **Profile** — ${userName}`,
+    `**Profile** — ${userName}`,
     p?.bio       ? `> _${truncate(p.bio, 280)}_` : '_(no bio set)_',
     '',
     p?.pronouns  ? `**Pronouns:** ${p.pronouns}` : '',
@@ -761,18 +770,18 @@ async function profileView(env, guild, userId, userName) {
 
 async function profileFieldAction(env, guild, userId, field, fields) {
   switch (field) {
-    case 'bio':      await setField(env, guild, userId, 'bio',      (fields.bio || '').trim());       return { content: '🪪 Bio saved.' };
-    case 'pfp':      await setField(env, guild, userId, 'pfp',      (fields.url || '').trim());       return { content: '🪪 Pic URL saved.' };
-    case 'pronouns': await setField(env, guild, userId, 'pronouns', (fields.pronouns || '').trim()); return { content: '🪪 Pronouns saved.' };
-    case 'social':   await setSocial  (env, guild, userId, (fields.platform || '').trim().toLowerCase(), (fields.handle || '').trim()); return { content: '🪪 Social saved.' };
-    case 'gamertag': await setGamerTag(env, guild, userId, (fields.platform || '').trim().toLowerCase(), (fields.tag    || '').trim()); return { content: '🪪 Gamer tag saved.' };
+    case 'bio':      await setField(env, guild, userId, 'bio',      (fields.bio || '').trim());       return { content: 'Bio saved.' };
+    case 'pfp':      await setField(env, guild, userId, 'pfp',      (fields.url || '').trim());       return { content: 'Pic URL saved.' };
+    case 'pronouns': await setField(env, guild, userId, 'pronouns', (fields.pronouns || '').trim()); return { content: 'Pronouns saved.' };
+    case 'social':   await setSocial  (env, guild, userId, (fields.platform || '').trim().toLowerCase(), (fields.handle || '').trim()); return { content: 'Social saved.' };
+    case 'gamertag': await setGamerTag(env, guild, userId, (fields.platform || '').trim().toLowerCase(), (fields.tag    || '').trim()); return { content: 'Gamer tag saved.' };
     default:         return { content: 'Unknown field.' };
   }
 }
 
 async function profileClearAction(env, guild, userId) {
   await clearProfile(env, guild, userId);
-  return { content: '🪪 Profile wiped.', components: [backRow()] };
+  return { content: 'Profile wiped.', components: [backRow()] };
 }
 
 // ── Help ───────────────────────────────────────────────────────────
@@ -780,7 +789,7 @@ async function profileClearAction(env, guild, userId) {
 function helpView() {
   return {
     content:
-      '❓ **Loadout — what every button does**\n' +
+      '**Loadout — what every button does**\n' +
       '• **Wallet / Daily / Gift / Leaderboard** — your bolts (the cross-platform currency).\n' +
       '• **Hero** — your dungeon character (level, HP, attack, defense, equipped gear).\n' +
       '• **Bag** — items you found in `!dungeon` runs or bought from the shop. Equip / unequip / sell from here.\n' +
@@ -916,7 +925,7 @@ function selectRow(customId, placeholder, options) {
 function backRow(target = 'lo:home') {
   return { type: COMPONENT_ROW, components: [
     button('← Back to menu', target, BTN_SECONDARY),
-    button('❌ Close',        'lo:close', BTN_DANGER)
+    button('Close',          'lo:close', BTN_DANGER)
   ]};
 }
 
@@ -933,7 +942,7 @@ function deleteMessage() {
   // Discord doesn't have a native "delete the source message" response
   // type for ephemeral interactions, but UPDATE_MESSAGE with empty
   // content + components effectively dismisses it.
-  return json({ type: RESP_UPDATE_MESSAGE, data: { content: '👋 Closed.', embeds: [], components: [] } });
+  return json({ type: RESP_UPDATE_MESSAGE, data: { content: 'Closed.', embeds: [], components: [] } });
 }
 function json(obj) {
   return new Response(JSON.stringify(obj), { status: 200, headers: { 'content-type': 'application/json' } });
