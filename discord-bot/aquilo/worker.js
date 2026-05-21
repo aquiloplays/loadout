@@ -371,6 +371,20 @@ async function handleScheduled(event, env, ctx) {
   // Every cron tick — returning-member DM scan (cheap, bounded query).
   try { await runReturningCron(env); }
   catch (e) { console.error('[cron returning]', e?.message || e); }
+
+  // Twice-daily check-in at-risk DM sweep. Dispatched at 6 PM ET +
+  // 10 PM ET (the cron module's REMINDER_HOURS_ET list). Both hours
+  // land on the existing :23 hourly tick so no new wrangler.toml
+  // cron slot is needed -- we're at the CF free-plan 4-cron ceiling.
+  // The cron function self-gates on hour and is idempotent via a
+  // per-(date, hour) KV marker, so a retry inside the same window
+  // doesn't double-DM.
+  try {
+    const { runCheckinRemindersCron, REMINDER_HOURS_ET } = await import('./checkin.js');
+    if (REMINDER_HOURS_ET.includes(hour)) {
+      await runCheckinRemindersCron(env, { hour });
+    }
+  } catch (e) { console.error('[cron checkin-reminders]', e?.message || e); }
 }
 
 // ---- /announce + /broadcast + /fourthwall (HTTP webhooks) ---------------

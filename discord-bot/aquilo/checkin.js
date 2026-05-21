@@ -24,10 +24,18 @@
 // noticeable but not abusable — a daily picture post should feel
 // rewarded, not lucrative.
 //
-// Confirmation: ✅ reaction on the user's message. Mirrors counting.js
-// (no chat spam in a busy channel).
+// Confirmation: ✅ reaction on the user's message PLUS a reply embed
+// summarising the streak + shield count. The embed is the primary UX --
+// users see their day count, longest streak, and how many shields they
+// hold every time they check in. Reaction stays as a fast ACK that
+// works even if Discord nukes the embed for a slow region.
+//
+// At-risk reminders: a cron-driven sweep (runCheckinRemindersCron) DMs
+// users whose streak day is ending. Twice-daily by default (dispatched
+// at hours 18 and 22 ET from the shared aquilo cron tick). Reuses the
+// `dm_optout` KV set so a single mute hides queue *and* streak DMs.
 
-import { discordFetch } from './util.js';
+import { discordFetch, sendDm, sleep } from './util.js';
 import { ensureBootstrap } from './bootstrap.js';
 import { applyBolts } from './bolts.js';
 
@@ -41,7 +49,7 @@ const STREAK_MILESTONES = [
 
 function todayET(date = new Date()) {
   // Same shape as streak.js's todayET so the two daily-streak systems
-  // agree on day boundaries (America/New_York).
+  // agree on day boundaries (America/New_York). Intl handles DST.
   const fmt = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/New_York',
     year: 'numeric', month: '2-digit', day: '2-digit',
@@ -49,6 +57,14 @@ function todayET(date = new Date()) {
   const parts = fmt.formatToParts(date);
   const get = (t) => parts.find(p => p.type === t)?.value;
   return get('year') + '-' + get('month') + '-' + get('day');
+}
+
+function shiftDay(yyyymmdd, deltaDays) {
+  const [y, m, d] = yyyymmdd.split('-').map(Number);
+  const ms = Date.UTC(y, m - 1, d) + deltaDays * 86400000;
+  const dd = new Date(ms);
+  const pad = (n) => n < 10 ? '0' + n : '' + n;
+  return dd.getUTCFullYear() + '-' + pad(dd.getUTCMonth() + 1) + '-' + pad(dd.getUTCDate());
 }
 
 function daysBetween(a, b) {
@@ -280,42 +296,225 @@ export async function handleCheckinMessage(env, payload) {
   const reward = REWARD_BASE + bonus;
   await applyBolts(env, guildId, userId, reward, 'discord-checkin:streak-' + current);
 
-  // ✅ reaction.
+  // ✅ reaction. Fast ACK that works even if the embed reply fails.
   try { await reactToMessage(env, payload.channel_id, payload.message_id, '✅'); }
   catch (e) { console.warn('[checkin] react failed', e?.message || e); }
 
-  // Milestone DM-able callout. Reaction is the silent default; we only
-  // surface a chat message on milestone days or when a freeze just
-  // saved the streak (those are events the user should actually see).
-  if (bonus > 0 || freezeUsed) {
-    let msg;
-    if (freezeUsed) {
-      msg = '❄ <@' + userId + '> a **Streak Freeze** saved your **' + current + '-day** Discord check-in streak! ' +
-            '+' + reward + ' bolts.';
-    } else {
-      msg = '🎉 <@' + userId + '> hit **day ' + current + '** of your Discord check-in streak! ' +
-            '+' + reward + ' bolts (base ' + REWARD_BASE + ' + milestone ' + bonus + ').';
-    }
-    try {
-      await discordFetch(env, '/channels/' + encodeURIComponent(payload.channel_id) + '/messages', {
-        method: 'POST',
-        body: JSON.stringify({
-          content: msg,
-          // Avoid pinging the user every time -- the reaction is the
-          // canonical "you're seen" signal; this is just narration.
-          allowed_mentions: { parse: [] },
-        }),
-      });
-    } catch (e) { console.warn('[checkin] milestone post failed', e?.message || e); }
-  }
+  // Confirmation embed -- streak count + shield count + bolts payout,
+  // every check-in. Replaces the old milestone-only chat narration.
+  // Shields (a.k.a. "freezes" internally) are read from the wallet KV
+  // via the cross-Worker /streak-freeze/get endpoint.
+  let shieldCount = 0;
+  try {
+    const f = await readFreezeRemote(env, guildId, userId);
+    shieldCount = Number(f.discord || 0);
+  } catch { /* best-effort; embed still goes out without shield info */ }
+
+  try {
+    await discordFetch(env, '/channels/' + encodeURIComponent(payload.channel_id) + '/messages', {
+      method: 'POST',
+      body: JSON.stringify({
+        embeds: [buildCheckinEmbed({
+          streak: current,
+          longest,
+          shieldCount,
+          reward,
+          baseReward: REWARD_BASE,
+          bonus,
+          freezeUsed,
+        })],
+        message_reference: {
+          message_id: payload.message_id,
+          channel_id: payload.channel_id,
+          fail_if_not_exists: false,
+        },
+        // Reply linkage gives the visual connection to the user's post
+        // without pinging them again -- they're already in the channel.
+        allowed_mentions: { parse: [], replied_user: false },
+      }),
+    });
+  } catch (e) { console.warn('[checkin] embed post failed', e?.message || e); }
 
   return {
     ok: true,
     streak: current,
     longest,
     reward,
+    shield_count: shieldCount,
     freeze_used: freezeUsed,
   };
+}
+
+// ---- Confirmation embed ------------------------------------------------
+
+function buildCheckinEmbed({ streak, longest, shieldCount, reward, baseReward, bonus, freezeUsed }) {
+  const fields = [
+    {
+      name:  '🔥 Current streak',
+      value: streak + ' day' + (streak === 1 ? '' : 's'),
+      inline: true,
+    },
+    {
+      name:  '🏆 Best',
+      value: longest + ' day' + (longest === 1 ? '' : 's'),
+      inline: true,
+    },
+    {
+      name:  '🛡️ Streak shields',
+      value: shieldCount > 0
+        ? shieldCount + ' available'
+        : 'None — buy one in the shop to protect a missed day.',
+      inline: true,
+    },
+  ];
+
+  const descLines = ['**+' + reward + ' bolts**'];
+  if (bonus > 0) {
+    descLines.push('🎉 Milestone day! +' + bonus + ' on top of base ' + baseReward + '.');
+  }
+  if (freezeUsed) {
+    descLines.push('❄ A **Streak Shield** was consumed to save your streak.');
+  }
+
+  // Color: cyan = shield saved, gold = milestone, blurple = standard.
+  const color = freezeUsed ? 0x6FE0FF : (bonus > 0 ? 0xFFD86A : 0x3A86FF);
+
+  return {
+    title:       '✅ Day ' + streak + ' check-in logged',
+    description: descLines.join('\n'),
+    color,
+    fields,
+    footer: { text: 'Streak resets at midnight EST. Post once a day to keep it going.' },
+  };
+}
+
+// ---- At-risk reminder cron --------------------------------------------
+//
+// Twice-daily DM sweep for users whose streak day is ending. Dispatched
+// from the shared aquilo cron tick at hours 18 (6 PM ET) and 22 (10 PM
+// ET). The :23 cron schedule means the actual DM goes out at xx:23 each
+// of those hours, leaving ~5h45m and ~1h45m of grace before midnight.
+//
+// Folding into the existing tick was the right call -- the worker is
+// already at the Cloudflare free-plan 4-cron ceiling, so a new trigger
+// slot wasn't available. The aquilo tick fires hourly anyway; we just
+// guard inside the cron function with an explicit hour check.
+//
+// Idempotency: per-(date, hour) KV marker holds the user_id set already
+// DM'd in that window. A cron retry inside the same hour bucket no-ops
+// for users it already DM'd.
+
+const KV_REMINDER_SENT = (dateEt, hour) =>
+  'checkin:reminder_sent:' + dateEt + ':' + hour;
+
+// Hours (ET) when the reminder sweep fires. 6 PM = early warning,
+// 10 PM = last call (~2h before midnight). Both fall on the :23 hourly
+// cron tick so no new wrangler.toml slot needed.
+export const REMINDER_HOURS_ET = [18, 22];
+
+export async function runCheckinRemindersCron(env, etInfo) {
+  if (!etInfo || !REMINDER_HOURS_ET.includes(etInfo.hour)) {
+    return { skipped: 'wrong_hour' };
+  }
+  if (!env.DB) return { skipped: 'no_db' };
+  if (!env.STATE) return { skipped: 'no_state' };
+
+  await ensureTable(env);
+  let guildId;
+  try { guildId = await ensureBootstrap(env); }
+  catch (e) { return { skipped: 'bootstrap_failed', error: String(e?.message || e) }; }
+
+  const today = todayET();
+  const yesterday = shiftDay(today, -1);
+  const hour = etInfo.hour;
+
+  // At-risk = active streak (current_days > 0) AND last check-in was
+  // YESTERDAY (not today). Users with last_day_et < yesterday have
+  // already cosmetically lost their streak (it will reset to 1 on
+  // their next post unless they have shields); they aren't the target
+  // of a "before midnight" reminder.
+  const { results } = await env.DB.prepare(
+    'SELECT user_id, current_days FROM discord_checkins WHERE guild_id = ? AND current_days > 0 AND last_day_et = ?'
+  ).bind(guildId, yesterday).all();
+  const atRisk = results || [];
+  if (!atRisk.length) return { ok: true, dispatched: 0, total: 0 };
+
+  // Per-window dedupe so cron retries inside the same hour bucket
+  // don't double-DM. TTL 2 days -- plenty of time for the next window
+  // to run, then GC.
+  const key = KV_REMINDER_SENT(today, hour);
+  const sentRaw = await env.STATE.get(key);
+  let sent;
+  try { sent = new Set(sentRaw ? JSON.parse(sentRaw) : []); }
+  catch { sent = new Set(); }
+
+  // Shared opt-out -- one toggle for all bot DMs (queue + streak).
+  const optOutRaw = await env.STATE.get('dm_optout');
+  let optOut;
+  try { optOut = new Set(optOutRaw ? JSON.parse(optOutRaw) : []); }
+  catch { optOut = new Set(); }
+
+  // Deep-link button to the check-in channel so users can act in one
+  // tap. Falls back to text-only if no channel is bound (admin hasn't
+  // run setup yet).
+  const boundChannelId = await getBoundCheckinChannel(env, guildId);
+  const channelUrl = boundChannelId
+    ? 'https://discord.com/channels/' + guildId + '/' + boundChannelId
+    : null;
+
+  let dispatched = 0;
+  for (const row of atRisk) {
+    const uid = String(row.user_id || '');
+    if (!uid) continue;
+    if (sent.has(uid) || optOut.has(uid)) continue;
+
+    // Per-user shield read so the copy can be tuned ("you're protected
+    // anyway" vs "no safety net").
+    let shieldCount = 0;
+    try {
+      const f = await readFreezeRemote(env, guildId, uid);
+      shieldCount = Number(f.discord || 0);
+    } catch { /* idle */ }
+
+    const streak = Number(row.current_days || 0);
+    const isLastCall = (hour === REMINDER_HOURS_ET[REMINDER_HOURS_ET.length - 1]);
+    const header = isLastCall
+      ? '⏰ **Last call** — your **' + streak + '-day** check-in streak ends at midnight EST.'
+      : '⏰ Your **' + streak + '-day** check-in streak is at risk!';
+    const lines = [
+      header,
+      'Post an image in the check-in channel before **midnight EST** to keep it alive.',
+    ];
+    if (shieldCount > 0) {
+      lines.push('');
+      lines.push('🛡️ You have **' + shieldCount + '** Streak Shield' +
+                 (shieldCount === 1 ? '' : 's') +
+                 ' — your streak survives if you miss tonight, but a quick post is safer.');
+    }
+    const content = lines.join('\n');
+
+    const buttons = [];
+    if (channelUrl) {
+      buttons.push({ type: 2, style: 5, label: 'Open check-in channel', url: channelUrl, emoji: { name: '📸' } });
+    }
+    buttons.push({ type: 2, style: 2, label: 'Mute these DMs', custom_id: 'notify:optout', emoji: { name: '🔕' } });
+    const components = [{ type: 1, components: buttons }];
+
+    try {
+      await sendDm(env, uid, { content, components });
+      sent.add(uid);
+      dispatched++;
+    } catch (e) {
+      // 50007 = "Cannot send messages to this user" (DMs off / not in a
+      // mutual guild). Log + skip; the streak DM is best-effort.
+      console.warn('[checkin-reminder] DM ' + uid + ' failed: ' + (e?.message || e));
+    }
+    // Stay under Discord's per-bot DM rate. Matches notify.js pacing.
+    await sleep(250);
+  }
+
+  await env.STATE.put(key, JSON.stringify([...sent]), { expirationTtl: 86400 * 2 });
+  return { ok: true, dispatched, total: atRisk.length, hour, date: today };
 }
 
 // Test-mode harness — called by an admin-only Worker route so we can
