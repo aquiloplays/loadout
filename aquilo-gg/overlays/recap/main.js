@@ -50,7 +50,7 @@
       parts.push(`<span class="pair">top chatter <b>${escapeHtml(payload.topChatters[0])}</b></span>`);
     if (Array.isArray(payload.raidsReceived) && payload.raidsReceived.length > 0)
       parts.push(`<span class="pair">raids <b>${escapeHtml(String(payload.raidsReceived.length))}</b></span>`);
-    if (parts.length === 0) parts.push(`<span class="pair">thanks for hanging out 💜</span>`);
+    if (parts.length === 0) parts.push(`<span class="pair"><img class="ico" src="/sprites/ui/icons/heart.png" alt="">thanks for hanging out</span>`);
     meta.innerHTML = parts.join('');
 
     requestAnimationFrame(() => card.classList.add('show'));

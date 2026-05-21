@@ -111,20 +111,21 @@
   }
 
   // Streamer-supplied per-category icon overrides. Map values are
-  // either a short emoji/text or a data:image/* URL (uploaded photo).
-  // Empty / missing key falls back to the hardcoded default emoji.
+  // either a short text label or an image URL (uploaded photo,
+  // /sprites/* path, or http(s) URL).
+  // Empty / missing key falls back to the in-house pixel-art icon set.
   let iconOverrides = {};
   function defaultBadge(cat) {
     switch (cat) {
-      case 'custom':  return '💬';
-      case 'counter': return '🔢';
-      case 'bolts':   return '⚡';
-      case 'clip':    return '🎬';
-      case 'checkin': return '✅';
-      case 'mod':     return '🛡️';
+      case 'custom':  return '/sprites/ui/icons/chat.png';
+      case 'counter': return '/sprites/ui/icons/star.png';
+      case 'bolts':   return '/sprites/ui/icons/bolt.png';
+      case 'clip':    return '/sprites/ui/icons/camera.png';
+      case 'checkin': return '/sprites/ui/icons/check.png';
+      case 'mod':     return '/sprites/ui/icons/shield.png';
       case 'song':
-      case 'music':   return '🎵';
-      default:        return '💬';
+      case 'music':   return '/sprites/ui/icons/music.png';
+      default:        return '/sprites/ui/icons/chat.png';
     }
   }
   function badgeLabel(cat) {
@@ -134,7 +135,11 @@
   }
   function isImageUrl(s) {
     if (!s) return false;
-    return /^data:image\//i.test(s) || /^https?:\/\/.+\.(png|jpe?g|gif|webp|svg)/i.test(s);
+    if (/^data:image\//i.test(s)) return true;
+    if (/^https?:\/\/.+\.(png|jpe?g|gif|webp|svg)/i.test(s)) return true;
+    // In-house pixel-art icon set under /sprites/.
+    if (/^\/sprites\/.+\.(png|jpe?g|gif|webp|svg)/i.test(s)) return true;
+    return false;
   }
 
   // Render the badge slot for a command. Three modes:

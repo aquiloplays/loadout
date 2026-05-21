@@ -194,7 +194,7 @@
       handle: 'mocha', platform: 'twitch',
       bolts: 5430, streakDays: 7,
       pronouns: 'they/them',
-      bio: 'caffeine-powered VTuber, gremlin energy. ily all 💖',
+      bio: 'caffeine-powered VTuber, gremlin energy. ily all',
       pfp: 'https://i.pravatar.cc/150?img=12',
       socials:   { twitter: 'mocha', bluesky: 'mocha.bsky.social', tiktok: 'mocha' },
       gamerTags: { steam: 'mocha-irl', psn: 'MochaIRL' }

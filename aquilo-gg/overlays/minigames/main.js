@@ -233,15 +233,15 @@
 
     // Pre-shake glyph is always rock — the reveal happens after the
     // shake animation lands so the viewer "sees" the throw.
-    if (viewerEl) viewerEl.textContent = '✊';
-    if (botEl)    botEl.textContent    = '✊';
+    setRpsIcon(viewerEl, 'rock');
+    setRpsIcon(botEl,    'rock');
     sides.forEach(function (el) { el.classList.add('shaking'); });
     fillLines(user, wager, won, payout, 'rock... paper... scissors');
 
     setTimeout(function () {
       sides.forEach(function (el) { el.classList.remove('shaking'); });
-      if (viewerEl) viewerEl.textContent = rpsGlyph(viewer);
-      if (botEl)    botEl.textContent    = rpsGlyph(bot);
+      setRpsIcon(viewerEl, viewer);
+      setRpsIcon(botEl,    bot);
       if (outcome === 'win') {
         sides[0].classList.add('win');
         sides[2].classList.add('lose');
@@ -265,10 +265,20 @@
     if (hideTimer) clearTimeout(hideTimer);
     hideTimer = setTimeout(function () { card.classList.add('hidden'); }, 4500);
   }
-  function rpsGlyph(c) {
-    return c === 'rock'     ? '✊' :
-           c === 'paper'    ? '✋' :
-           c === 'scissors' ? '✌' : '?';
+  // Renders the RPS throw as a pixel-art icon. The choice maps to
+  // a sprite under /sprites/ui/icons/; unknown choice falls back to
+  // rock (treated as the default pre-shake throw).
+  function setRpsIcon(el, choice) {
+    if (!el) return;
+    var name = (choice === 'paper') ? 'paper'
+             : (choice === 'scissors') ? 'scissors'
+             : 'rock';
+    el.replaceChildren();
+    var img = document.createElement('img');
+    img.className = 'ico ico--xl';
+    img.src = '/sprites/ui/icons/' + name + '.png';
+    img.alt = '';
+    el.appendChild(img);
   }
 
   // Roulette: spin the wheel + counter-rotating ball for ~2.4s, then
@@ -315,7 +325,7 @@
   function setHeistMeter(totalPot, target) {
     var pct = target > 0 ? Math.max(0, Math.min(100, (totalPot / target) * 100)) : 0;
     if (heistFill) heistFill.style.width = pct.toFixed(1) + '%';
-    if (heistText) heistText.textContent = (totalPot || 0) + ' / ' + (target || 0) + ' ⚡';
+    if (heistText) heistText.textContent = (totalPot || 0) + ' / ' + (target || 0) + ' bolts';
     heistTarget = target;
   }
   function fmtHeistTime(ms) {
@@ -366,7 +376,7 @@
       setTimeout(function () { if (heistFill) heistFill.style.boxShadow = ''; }, 260);
     }
     fillLines(d.initiator || '', '', false, 0,
-      (d.user || 'someone') + ' joined +' + (d.stake || 0) + ' ⚡');
+      (d.user || 'someone') + ' joined +' + (d.stake || 0) + ' bolts');
     outcome.textContent = 'POT ' + (d.totalPot || 0) + ' / ' + (d.target || heistTarget);
   }
   function showHeistSuccess(d) {
@@ -375,12 +385,19 @@
     heist.classList.remove('spinning');
     heist.classList.add('success');
     if (heistTimer) { clearInterval(heistTimer); heistTimer = null; }
-    if (heistTime) heistTime.textContent = '✓';
+    if (heistTime) {
+      heistTime.replaceChildren();
+      var img = document.createElement('img');
+      img.className = 'ico ico--lg';
+      img.src = '/sprites/ui/icons/check.png';
+      img.alt = '';
+      heistTime.appendChild(img);
+    }
     setHeistMeter(d.totalPot || heistTarget, d.target || heistTarget);
     card.classList.remove('lose');
     card.classList.add('win');
     fillLines(d.initiator || '', '', true, d.payout,
-      'HEIST SUCCESS! crew of ' + (d.contributors || 0) + ' splits ' + (d.payout || 0) + ' ⚡');
+      'HEIST SUCCESS! crew of ' + (d.contributors || 0) + ' splits ' + (d.payout || 0) + ' bolts');
     if (pulseTimer) clearTimeout(pulseTimer);
     pulseTimer = setTimeout(function () {
       card.classList.remove('pulse');
@@ -396,7 +413,14 @@
     heist.classList.remove('spinning');
     heist.classList.add('failure');
     if (heistTimer) { clearInterval(heistTimer); heistTimer = null; }
-    if (heistTime) heistTime.textContent = '✗';
+    if (heistTime) {
+      heistTime.replaceChildren();
+      var img = document.createElement('img');
+      img.className = 'ico ico--lg';
+      img.src = '/sprites/ui/icons/alert.png';
+      img.alt = '';
+      heistTime.appendChild(img);
+    }
     setHeistMeter(d.totalPot || 0, d.target || heistTarget);
     card.classList.remove('win');
     card.classList.add('lose');
@@ -414,14 +438,14 @@
 
   function fillLines(user, wager, won, payout, mid) {
     userEl.textContent = (user || '?') + ' — ' + mid;
-    wagerEl.textContent = 'wagered ' + (wager || 0) + ' ⚡';
+    wagerEl.textContent = 'wagered ' + (wager || 0) + ' bolts';
     outcome.classList.remove('win', 'lose');
     if (won) {
-      outcome.textContent = '+' + (payout || 0) + ' ⚡  WON';
+      outcome.textContent = '+' + (payout || 0) + ' bolts  WON';
       outcome.classList.add('win');
       card.classList.add('win');
     } else {
-      outcome.textContent = '-' + (wager || 0) + ' ⚡  LOST';
+      outcome.textContent = '-' + (wager || 0) + ' bolts  LOST';
       outcome.classList.add('lose');
       card.classList.add('lose');
     }

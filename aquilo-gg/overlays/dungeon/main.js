@@ -18,6 +18,11 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const root = $('root');
+  // HTML escape helper for spots that splice user-supplied strings
+  // into innerHTML alongside an <img class="ico">.
+  const escapeHtml = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   // Recruit panel
   const recruitName = $('recruit-name');
@@ -749,7 +754,24 @@
 
     const glyph = document.createElement('div');
     glyph.className = 'lc-glyph';
-    glyph.textContent = o.survived ? (item ? item.glyph : '🪙') : '☠️';
+    // Pixel-art icon fallback when no item sprite shipped.
+    // Item path comes from the worker (gear catalog); when absent we
+    // show coin for survivors / skull for the fallen — no emoji.
+    const fallbackIcon = o.survived ? 'coin' : 'skull';
+    const itemHasSprite = item && (item.spriteId || (typeof item.glyph === 'string' && /^\//.test(item.glyph)));
+    if (itemHasSprite) {
+      const img = document.createElement('img');
+      img.className = 'ico ico--xl';
+      img.src = item.spriteId
+        ? ('/sprites/' + String(item.spriteId).replace(/^\//, ''))
+        : item.glyph;
+      glyph.appendChild(img);
+    } else {
+      const img = document.createElement('img');
+      img.className = 'ico ico--xl';
+      img.src = '/sprites/ui/icons/' + fallbackIcon + '.png';
+      glyph.appendChild(img);
+    }
 
     const itemName = document.createElement('div');
     itemName.className = 'lc-name';
@@ -803,8 +825,10 @@
     // Render the duelists' actual characters: avatar URL or class glyph,
     // with class tint on the ring. Same pattern as party tiles — keeps
     // the visual story consistent across the overlay.
-    paintDuelist($('duelist-l'), { avatar: p.challengerAvatar, className: p.challengerClass, custom: p.challengerCustom, equipped: p.challengerEquipped, glyph: p.challengerGlyph, tint: p.challengerTint, fallback: '⚔' });
-    paintDuelist($('duelist-r'), { avatar: p.defenderAvatar,   className: p.defenderClass,   custom: p.defenderCustom,   equipped: p.defenderEquipped,   glyph: p.defenderGlyph,   tint: p.defenderTint,   fallback: '🛡' });
+    // Fallback uses an icon-name (resolved to /sprites/ui/icons/X.png
+    // by paintDuelist) so we never render an emoji.
+    paintDuelist($('duelist-l'), { avatar: p.challengerAvatar, className: p.challengerClass, custom: p.challengerCustom, equipped: p.challengerEquipped, glyph: p.challengerGlyph, tint: p.challengerTint, fallback: 'sword' });
+    paintDuelist($('duelist-r'), { avatar: p.defenderAvatar,   className: p.defenderClass,   custom: p.defenderCustom,   equipped: p.defenderEquipped,   glyph: p.defenderGlyph,   tint: p.defenderTint,   fallback: 'shield' });
   }
   function paintDuelist(panelEl, src) {
     if (!panelEl) return;
@@ -821,20 +845,37 @@
       img.addEventListener('error', () => {
         img.remove();
         renderClassFallback(ring, src.className, src.glyph, '', src.custom, src.equipped);
-        if (!ring.classList.contains('has-sprite')) ring.textContent = src.glyph || src.fallback;
+        if (!ring.classList.contains('has-sprite')) renderIconFallback(ring, src.fallback);
       });
       ring.appendChild(img);
     } else {
       renderClassFallback(ring, src.className, src.glyph, '', src.custom, src.equipped);
-      if (!ring.classList.contains('has-sprite')) ring.textContent = src.glyph || src.fallback;
+      if (!ring.classList.contains('has-sprite')) renderIconFallback(ring, src.fallback);
     }
+  }
+  // src.fallback is an icon name (e.g. 'sword') resolved to a sprite.
+  function renderIconFallback(ring, name) {
+    const safe = /^[a-z0-9-]+$/i.test(name || '') ? name : 'sword';
+    ring.replaceChildren();
+    const img = document.createElement('img');
+    img.className = 'ico ico--xl d-avatar-img';
+    img.src = '/sprites/ui/icons/' + safe + '.png';
+    img.alt = '';
+    ring.appendChild(img);
   }
   function appendDuelScene(p) {
     const h = setTimeout(() => {
       while (duelLog.children.length >= 4) duelLog.removeChild(duelLog.firstChild);
       const line = document.createElement('div');
       line.className = 'scene-line ' + (p.kind || 'duel-strike');
-      const g = document.createElement('div'); g.className = 's-glyph'; g.textContent = p.glyph || '⚔';
+      const g = document.createElement('div'); g.className = 's-glyph';
+      // Scene glyph: if payload sends a sprite path use it, otherwise
+      // the in-house sword icon — no emoji default.
+      if (typeof p.glyph === 'string' && (/^\//.test(p.glyph) || /^https?:/i.test(p.glyph))) {
+        const gi = document.createElement('img'); gi.className = 'ico'; gi.src = p.glyph; gi.alt = ''; g.appendChild(gi);
+      } else {
+        const gi = document.createElement('img'); gi.className = 'ico'; gi.src = '/sprites/ui/icons/sword.png'; gi.alt = ''; g.appendChild(gi);
+      }
       const t = document.createElement('div'); t.className = 's-text';  t.textContent = p.text || '';
       line.append(g, t);
       duelLog.appendChild(line);
@@ -858,7 +899,12 @@
       setTimeout(() => { reset(); setState('idle'); }, 4000);
       return;
     }
-    duelResult.textContent = '🏆 ' + p.winner + ' wins! +' + (p.xp || 0) + ' XP, +' + (p.gold || 0) + ' bolts';
+    // Pixel-art trophy icon prepended via innerHTML (winner name + XP
+    // text remain literal). escapeHtml the user-supplied bits so a
+    // crafted winner string can't inject markup.
+    duelResult.innerHTML =
+      '<img class="ico" src="/sprites/ui/icons/trophy.png" alt="">' +
+      escapeHtml(p.winner) + ' wins! +' + (p.xp || 0) + ' XP, +' + (p.gold || 0) + ' bolts';
     setTimeout(() => { reset(); setState('idle'); }, 6000);
   }
 

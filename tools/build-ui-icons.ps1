@@ -702,6 +702,51 @@ function Draw-Dice {
 
 # ── Main ────────────────────────────────────────────────────────────
 
+# ── rock / paper / scissors (minigame RPS) ──────────────────────────
+function Draw-Rock {
+  $b = New-Icon
+  $g = $GREY
+  Shade-Disc $b 8 9 6 @{ deep=$g.deep; shadow=$g.deep; base=$g.base; high=$g.high; top=$g.high }
+  # Cracks / texture
+  Set-Pixel $b 5 7 $g.deep; Set-Pixel $b 6 8 $g.deep
+  Set-Pixel $b 10 10 $g.deep; Set-Pixel $b 11 11 $g.deep
+  Save-Icon $b 'rock'
+}
+function Draw-Paper {
+  $b = New-Icon
+  # Folded page
+  Fill-Box $b 3 3 10 11 $WHITE.base
+  for ($y = 3; $y -lt 14; $y++) { Set-Pixel $b 3 $y $WHITE.deep; Set-Pixel $b 12 $y $WHITE.deep }
+  for ($x = 3; $x -lt 13; $x++) { Set-Pixel $b $x 3 $WHITE.deep; Set-Pixel $b $x 13 $WHITE.deep }
+  # Lines (text)
+  Fill-Box $b 5 6 7 1 $GREY.deep
+  Fill-Box $b 5 9 7 1 $GREY.deep
+  Fill-Box $b 5 12 4 1 $GREY.deep
+  # Folded corner
+  Set-Pixel $b 11 3 $GREY.deep
+  Set-Pixel $b 12 4 $GREY.deep
+  Save-Icon $b 'paper'
+}
+function Draw-Scissors {
+  $b = New-Icon
+  # X-cross blades
+  $s = $GREY
+  Line-Pixel $b 3 3 12 12 $s.base
+  Line-Pixel $b 12 3 3 12 $s.base
+  Line-Pixel $b 4 3 13 12 $s.high
+  Line-Pixel $b 13 3 4 12 $s.high
+  # Finger loops
+  Shade-Disc $b 4 13 2 @{ deep=$BLUE.deep; shadow=$BLUE.deep; base=$BLUE.base; high=$BLUE.high; top=$BLUE.high }
+  Shade-Disc $b 12 13 2 @{ deep=$RED.deep; shadow=$RED.deep; base=$RED.base; high=$RED.high; top=$RED.high }
+  # Pivot pin
+  Set-Pixel $b 7 7 $YELLOW.high
+  Set-Pixel $b 8 8 $YELLOW.high
+  Save-Icon $b 'scissors'
+}
+
+Draw-Rock
+Draw-Paper
+Draw-Scissors
 Draw-Bolt
 Draw-Flame
 Draw-Trophy
