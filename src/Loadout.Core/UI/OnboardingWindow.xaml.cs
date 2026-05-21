@@ -15,6 +15,7 @@ namespace Loadout.UI
         public OnboardingWindow()
         {
             InitializeComponent();
+            LoadHeaderLogo();
             LoadFromSettings();
             UpdateView();
         }
@@ -29,6 +30,31 @@ namespace Loadout.UI
                 if (sb != null) sb.Begin(this);
             }
             catch { Opacity = 1; }
+        }
+
+        // Load the brand mark from the embedded "Loadout.assets.Loadout.png"
+        // manifest resource (same pattern as SettingsWindow.LoadHeaderLogo).
+        // Replaces the prior ⚡ TextBlock emoji per the "no emoji as visual
+        // assets" rule. Silent on failure — onboarding still functions
+        // without the brand glyph (just an empty Image slot).
+        private void LoadHeaderLogo()
+        {
+            try
+            {
+                var asm = System.Reflection.Assembly.GetExecutingAssembly();
+                using (var s = asm.GetManifestResourceStream("Loadout.assets.Loadout.png"))
+                {
+                    if (s == null) return;
+                    var bmp = new System.Windows.Media.Imaging.BitmapImage();
+                    bmp.BeginInit();
+                    bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bmp.StreamSource = s;
+                    bmp.EndInit();
+                    bmp.Freeze();
+                    HeaderLogo.Source = bmp;
+                }
+            }
+            catch (Exception ex) { Util.ErrorLog.Write("OnboardingWindow.LoadHeaderLogo", ex); }
         }
 
         private void LoadFromSettings()

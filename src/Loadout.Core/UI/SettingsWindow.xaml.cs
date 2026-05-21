@@ -1277,7 +1277,11 @@ namespace Loadout.UI
 
                 // Bolts
                 s.Bolts.DisplayName     = (TxtBoltsName.Text  ?? "Bolts").Trim();
-                s.Bolts.Emoji           = (TxtBoltsEmoji.Text ?? "⚡").Trim();
+                // Default to empty (no-emoji standing rule). Streamers can
+                // still type a custom glyph or short text into the box if they
+                // want — but the shipped default is plain "bolts" text in
+                // chat replies, not an emoji.
+                s.Bolts.Emoji           = (TxtBoltsEmoji.Text ?? "").Trim();
                 if (int.TryParse(TxtBoltsPerChat.Text,    out iv) && iv >= 0) s.Bolts.PerChatMessage     = iv;
                 if (int.TryParse(TxtBoltsPerSub.Text,     out iv) && iv >= 0) s.Bolts.PerSub             = iv;
                 if (int.TryParse(TxtBoltsPerGiftSub.Text, out iv) && iv >= 0) s.Bolts.PerGiftSub         = iv;
@@ -1680,7 +1684,7 @@ namespace Loadout.UI
                 "  • In SB → Servers/Clients → Streamer.bot, the TikFinity client\n" +
                 "    shows green/connected.\n\n" +
                 "Create the SB action\n" +
-                "  1. In Streamer.bot, click ➕ Add Action. Name it (e.g.\n" +
+                "  1. In Streamer.bot, click the + Add Action button. Name it (e.g.\n" +
                 "     \"Loadout TikTok Send\").\n" +
                 "  2. Inside that action, add a Core → Get Global Variable\n" +
                 "     sub-action:\n" +
@@ -3233,7 +3237,7 @@ namespace Loadout.UI
                             new { kind = "counter", label = "Deaths",  value = "12" }
                         };
                         if (isFirstTime)
-                            ciStats.Insert(0, new { kind = "first", label = "First time", value = "👋 welcome!" });
+                            ciStats.Insert(0, new { kind = "first", label = "First time", value = "welcome!" });
                         if (ciExtraStat != null)
                             ciStats.Insert(0, new { kind = "raid", label = "Raid", value = ciExtraStat });
 
@@ -3701,7 +3705,7 @@ namespace Loadout.UI
                         {
                             compactStep++;
                             if (compactStep == 1)
-                                AquiloBus.Instance.Publish("welcome.fired", new { user = sampleUser + "_friend", userType = "firstTime", platform = "twitch", rendered = "👋 Welcome " + sampleUser + "_friend, glad you found us!", source = "test", ts = DateTime.UtcNow });
+                                AquiloBus.Instance.Publish("welcome.fired", new { user = sampleUser + "_friend", userType = "firstTime", platform = "twitch", rendered = "Welcome " + sampleUser + "_friend, glad you found us!", source = "test", ts = DateTime.UtcNow });
                             else if (compactStep == 2)
                                 AquiloBus.Instance.Publish("counter.updated", new { name = "deaths", display = "Deaths", value = 12, ts = DateTime.UtcNow });
                             else if (compactStep == 3)

@@ -119,7 +119,11 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="160" />
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="🔍" FontSize="11"
+                            <!-- "Search:" prefix label (replaces the prior 🔍 emoji per
+                                 the "no emoji as visual assets" rule). Pixel/SVG search
+                                 icons can be wired here later via Resources/ if/when the
+                                 settings window grows a custom icon set. -->
+                            <TextBlock Grid.Column="0" Text="Search:" FontSize="11"
                                        Foreground="{StaticResource Brush.Fg.Muted}"
                                        VerticalAlignment="Center" Margin="0 0 6 0" />
                             <TextBox Grid.Column="1" x:Name="TxtTabSearch"
@@ -1319,17 +1323,19 @@
 
                                 <TextBlock Style="{StaticResource Muted}" FontWeight="SemiBold" Margin="0 4 0 4" Text="Manual reel pool (used when auto is off, or as fallback)" />
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
-                                    One symbol per line — either an image URL OR an emoji / short text.
-                                    The slot machine picks 3 at random per spin. Mix freely:
+                                    One symbol per line — image URL or in-house sprite path
+                                    (e.g. /sprites/ui/icons/coin.png). The slot machine picks
+                                    3 at random per spin:
                                 </TextBlock>
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8" FontFamily="Consolas, monospace" FontSize="11">
-                                    🍒
-                                    🔔
-                                    💎
+                                    /sprites/ui/icons/coin.png
+                                    /sprites/ui/icons/gem.png
+                                    /sprites/ui/icons/flame.png
                                     https://static-cdn.jtvnw.net/emoticons/v2/25/default/dark/2.0
                                 </TextBlock>
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
-                                    Leave blank for the built-in default pool (6 Twitch global emotes).
+                                    Leave blank for the built-in default pool (in-house pixel-art icons:
+                                    coin · gem · bolt · flame · star · heart).
                                 </TextBlock>
                                 <TextBox x:Name="TxtBoltsSlotsPool"
                                          AcceptsReturn="True"

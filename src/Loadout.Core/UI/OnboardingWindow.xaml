@@ -61,8 +61,15 @@
                  + reassurance that nothing's permanent. -->
             <StackPanel x:Name="Step1" Visibility="Visible">
                 <StackPanel Orientation="Horizontal" Margin="0 0 0 6">
-                    <TextBlock Text="⚡" FontSize="32" Margin="0 0 10 0" VerticalAlignment="Center"
-                               Foreground="{StaticResource Brush.Accent}" />
+                    <!-- Brand mark image. Source loaded in code-behind from
+                         the embedded "Loadout.assets.Loadout.png" manifest
+                         resource (see OnboardingWindow.OnLoaded). Mirrors
+                         the SettingsWindow.LoadHeaderLogo pattern — pack://
+                         URIs are fragile in plugin-loaded DLLs.
+                         Replaces the prior ⚡ emoji per the "no emoji as
+                         visual assets" rule. -->
+                    <Image x:Name="HeaderLogo"
+                           Width="32" Height="32" Margin="0 0 10 0" VerticalAlignment="Center" />
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="L O A D O U T" FontSize="22" FontWeight="Bold" />
                         <TextBlock Text="Your stream's command deck" Style="{StaticResource Muted}" Margin="0 -2 0 0" />
@@ -79,7 +86,6 @@
                 <Border Style="{StaticResource Card}" Margin="0 8 0 0">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0 0 0 4">
-                            <TextBlock Text="🧭" FontSize="14" Margin="0 0 8 0" />
                             <TextBlock Text="What we'll do" Style="{StaticResource H2}" Margin="0" />
                         </StackPanel>
                         <TextBlock Style="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0 0 0 8"
@@ -95,7 +101,6 @@
 
                 <Border Style="{StaticResource Card}" Margin="0 12 0 0">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="💡" FontSize="14" Margin="0 0 10 0" VerticalAlignment="Top" />
                         <StackPanel>
                             <TextBlock Text="Nothing's locked in" FontWeight="SemiBold" />
                             <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0 2 0 0"
@@ -186,7 +191,6 @@
 
                 <Border Style="{StaticResource Card}" Margin="0 14 0 0">
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="💡" FontSize="14" Margin="0 0 10 0" VerticalAlignment="Top" />
                         <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12"
                                    Text="Every module here is free for everyone — tick whatever you want. Patreon supporters just get brand-new features a little earlier." />
                     </StackPanel>
@@ -343,7 +347,7 @@
 
             <!-- Step 8: Done -->
             <StackPanel x:Name="Step8" Visibility="Collapsed">
-                <TextBlock Text="You're ready 🎉" Style="{StaticResource H1}" />
+                <TextBlock Text="You're ready" Style="{StaticResource H1}" />
                 <TextBlock TextWrapping="Wrap" Margin="0 8 0 16">
                     Loadout is configured. The tray icon (bottom-right of your screen) is your hub —
                     right-click any time for quick toggles or to open Settings.
