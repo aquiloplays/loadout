@@ -8,6 +8,11 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
+  // Small HTML escaper for spots where we splice user-supplied strings
+  // into innerHTML alongside an <img class="ico">.
+  const escapeHtml = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
   const busUrl   = params.get('bus')    || 'ws://127.0.0.1:7470/aquilo/bus/';
   const secret   = params.get('secret') || '';
@@ -102,8 +107,9 @@
         const item = queue.shift();
         const el = document.createElement('div');
         el.className = 'toast' + (item.amount >= 100 ? ' big' : '');
+        // Emoji-free: pixel-bolt icon next to the amount.
         el.innerHTML =
-          '<span class="who"></span><span class="amt">+' + item.amount + ' ⚡</span>';
+          '<span class="who"></span><span class="amt">+' + item.amount + ' <img class="ico" src="/sprites/ui/icons/bolt.png" alt=""></span>';
         el.querySelector('.who').textContent = item.user || '?';
         track.appendChild(el);
         active++;
@@ -144,11 +150,15 @@
         // Drop one bolt per recipient, capped at 80 so we don't melt the GPU.
         const particleCount = Math.min(80, Math.max(20, recipientCount * 2));
         for (let i = 0; i < particleCount; i++) {
-          const p = document.createElement('span');
-          p.className = 'bolt-particle';
-          p.textContent = '⚡';
+          // Pixel-bolt rain particles. Render the icon as <img>; size
+          // is set via inline width since the icon is 16×16 native.
+          const p = document.createElement('img');
+          p.className = 'bolt-particle ico';
+          p.src = '/sprites/ui/icons/bolt.png';
+          p.alt = '';
           p.style.left  = (Math.random() * 100) + 'vw';
-          p.style.fontSize = (18 + Math.random() * 28) + 'px';
+          p.style.width = (18 + Math.random() * 28) + 'px';
+          p.style.height = p.style.width;
           p.style.animationDuration = (1.5 + Math.random() * 2.0) + 's';
           p.style.animationDelay    = (Math.random() * 0.6) + 's';
           el.appendChild(p);
@@ -187,7 +197,11 @@
       onEvent: (msg) => {
         const d = msg.data || {};
         if (!d.amount || !d.from || !d.to) return;
-        text.textContent = '💝 ' + d.from + ' → ' + d.to + ' (' + d.amount + ' ⚡)';
+        // Pixel-gift icon + arrow. Use innerHTML since we're splicing an <img>.
+        text.innerHTML =
+          '<img class="ico" src="/sprites/ui/icons/gift.png" alt="">' +
+          escapeHtml(d.from) + ' → ' + escapeHtml(d.to) +
+          ' (' + d.amount + ' <img class="ico" src="/sprites/ui/icons/bolt.png" alt="">)';
         el.classList.remove('hidden');
         void el.offsetWidth;
         el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
@@ -310,8 +324,8 @@
     setTimeout(() => streak.onEvent({ kind: 'bolts.streak', data: { user: 'viewer_three', streakDays: 12 }}), 2400);
     setTimeout(() => rain.onEvent({   kind: 'bolts.rain',   data: { recipients: Array(30).fill('x') }}), 4000);
     setTimeout(() => giftburst.onEvent({ kind: 'bolts.gifted', data: { from: 'a', to: 'b', amount: 500 }}), 8000);
-    setTimeout(() => welcomes.onEvent({ kind: 'welcome.fired', data: { user: 'new_friend', userType: 'firstTime', rendered: '👋 Welcome new_friend, glad you found us!' }}), 1100);
-    setTimeout(() => welcomes.onEvent({ kind: 'welcome.fired', data: { user: 'sub_returner', userType: 'sub', rendered: '✨ sub_returner is back!' }}), 2200);
+    setTimeout(() => welcomes.onEvent({ kind: 'welcome.fired', data: { user: 'new_friend', userType: 'firstTime', rendered: 'Welcome new_friend, glad you found us!' }}), 1100);
+    setTimeout(() => welcomes.onEvent({ kind: 'welcome.fired', data: { user: 'sub_returner', userType: 'sub', rendered: 'sub_returner is back!' }}), 2200);
   }
   connect();
 })();

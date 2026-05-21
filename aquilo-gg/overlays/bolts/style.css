@@ -78,9 +78,10 @@ html, body {
   align-items: center;
   gap: 6px;
 }
-.lb-title::before {
-  content: "🏆";
-  font-size: 12px;
+/* Inline .ico in the HTML now carries the trophy/bolt icon — no
+   ::before pseudo-element needed. Keep a small drop-shadow on the
+   title row so the icon catches a glow against dark scenes. */
+.lb-title .ico {
   filter: drop-shadow(0 0 6px rgba(240, 180, 41, 0.5));
 }
 .lb-rows { list-style: none; counter-reset: lb; }

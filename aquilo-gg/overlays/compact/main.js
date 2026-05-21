@@ -243,19 +243,22 @@
   let idleTimer = null;
 
   // Streamer-supplied per-category icon overrides. Set on receipt of
-  // commands.icons; falls back to the hardcoded default emoji per cat.
+  // commands.icons; falls back to the in-house pixel-art icon set per
+  // category. Standing rule: NO emoji as visual assets — every badge
+  // is either a streamer-supplied image OR a path under
+  // /sprites/ui/icons/<name>.png.
   let iconOverrides = {};
   function defaultBadgeForCat(cat) {
     switch ((cat || 'info').toLowerCase()) {
-      case 'bolts':   return '⚡';
-      case 'clip':    return '🎬';
-      case 'checkin': return '✅';
-      case 'counter': return '🔢';
-      case 'mod':     return '🛡️';
-      case 'custom':  return '💬';
+      case 'bolts':   return '/sprites/ui/icons/bolt.png';
+      case 'clip':    return '/sprites/ui/icons/camera.png';
+      case 'checkin': return '/sprites/ui/icons/check.png';
+      case 'counter': return '/sprites/ui/icons/star.png';
+      case 'mod':     return '/sprites/ui/icons/shield.png';
+      case 'custom':  return '/sprites/ui/icons/chat.png';
       case 'song':
-      case 'music':   return '🎵';
-      default:        return '💬';
+      case 'music':   return '/sprites/ui/icons/music.png';
+      default:        return '/sprites/ui/icons/chat.png';
     }
   }
   function badgeForCat(cat) {
@@ -265,7 +268,11 @@
   }
   function isImageBadge(s) {
     if (!s) return false;
-    return /^data:image\//i.test(s) || /^https?:\/\/.+\.(png|jpe?g|gif|webp|svg)/i.test(s);
+    if (/^data:image\//i.test(s)) return true;
+    if (/^https?:\/\/.+\.(png|jpe?g|gif|webp|svg)/i.test(s)) return true;
+    // CR: in-house pixel-art icon set under /sprites/.
+    if (/^\/sprites\/.+\.(png|jpe?g|gif|webp|svg)/i.test(s)) return true;
+    return false;
   }
   function applyBadge(el, value) {
     if (isImageBadge(value)) {
@@ -440,12 +447,20 @@
       gLever.classList.add('pulling');
       setTimeout(function () { if (gLever) gLever.classList.remove('pulling'); }, 240);
     }
-    // Render symbols using the same isUrl heuristic the standalone
-    // slots overlay uses so emoji-pool entries render as text glyphs.
+    // Default slot reel pool is in-house pixel-art icons. Streamers
+    // can still supply their own d.pool / d.reels (any string array;
+    // entries that look like URLs render as <img>, the rest as text).
     const pool = (d.pool && d.pool.length ? d.pool : null) ||
                  (d.reels && d.reels.length ? d.reels : null) ||
-                 ['🍒', '🔔', '💎', '⭐', '🍇', '🍋'];
-    function isUrl(s) { return /^https?:\/\//i.test(s) || /^\/\//.test(s); }
+                 [
+                   '/sprites/ui/icons/coin.png',
+                   '/sprites/ui/icons/gem.png',
+                   '/sprites/ui/icons/bolt.png',
+                   '/sprites/ui/icons/flame.png',
+                   '/sprites/ui/icons/star.png',
+                   '/sprites/ui/icons/heart.png',
+                 ];
+    function isUrl(s) { return /^https?:\/\//i.test(s) || /^\/\//.test(s) || /^\/sprites\//i.test(s); }
     function setSym(reel, sym) {
       if (isUrl(sym)) {
         let img = reel.firstElementChild;
@@ -523,28 +538,28 @@
     switch (k) {
       case 'bolts.earned':
         if (!d.user || !d.amount) return;
-        evt = { tone: 'bolts',  badge: '⚡', title: d.user, sub: '+' + d.amount + ' bolts' };
+        evt = { tone: 'bolts',  badge: '/sprites/ui/icons/bolt.png', title: d.user, sub: '+' + d.amount + ' bolts' };
         break;
       case 'bolts.gifted':
         if (!d.from || !d.to) return;
-        evt = { tone: 'bolts',  badge: '🎁', title: d.from + ' → ' + d.to, sub: '+' + (d.amount || 0) + ' bolts gifted' };
+        evt = { tone: 'bolts',  badge: '/sprites/ui/icons/gift.png', title: d.from + ' → ' + d.to, sub: '+' + (d.amount || 0) + ' bolts gifted' };
         break;
       case 'bolts.streak':
         if (!d.user || (d.streakDays || 0) < 2) return;
-        evt = { tone: 'streak', badge: '🔥', title: d.user, sub: (d.streakDays || 0) + '-day streak' };
+        evt = { tone: 'streak', badge: '/sprites/ui/icons/flame.png', title: d.user, sub: (d.streakDays || 0) + '-day streak' };
         break;
       case 'bolts.rain':
-        evt = { tone: 'bolts',  badge: '💧', title: 'Bolt rain', sub: ((d.recipients && d.recipients.length) || '?') + ' viewers showered' };
+        evt = { tone: 'bolts',  badge: '/sprites/ui/icons/droplet.png', title: 'Bolt rain', sub: ((d.recipients && d.recipients.length) || '?') + ' viewers showered' };
         break;
       case 'bolts.leaderboard': {
         const top = (d.top || []);
         if (top.length === 0) return;
-        evt = { tone: 'bolts', badge: '🏆', title: 'Top: ' + (top[0].handle || '?'), sub: (top[0].balance || 0) + ' bolts' };
+        evt = { tone: 'bolts', badge: '/sprites/ui/icons/trophy.png', title: 'Top: ' + (top[0].handle || '?'), sub: (top[0].balance || 0) + ' bolts' };
         break;
       }
       case 'welcome.fired':
         if (!d.rendered && !d.user) return;
-        evt = { tone: 'welcome', badge: '👋', title: d.user || 'viewer', sub: d.rendered || 'welcome' };
+        evt = { tone: 'welcome', badge: '/sprites/ui/icons/wave.png', title: d.user || 'viewer', sub: d.rendered || 'welcome' };
         break;
       case 'counter.updated':
         if (!d.name) return;
@@ -558,40 +573,40 @@
         // text reveals. The pump path special-cases evt.game and
         // animates the badge slot for HOLD_MS milliseconds.
         evt = { tone: d.won ? 'win' : 'lose', game: 'coinflip',
-                title: d.user, sub: '!coinflip ' + Math.abs(d.payout || d.wager || 0) + ' ⚡',
+                title: d.user, sub: '!coinflip ' + Math.abs(d.payout || d.wager || 0) + ' bolts',
                 _data: d };
         break;
       case 'bolts.minigame.dice':
         if (!d.user) return;
         evt = { tone: d.won ? 'win' : 'lose', game: 'dice',
-                title: d.user, sub: '!dice ' + Math.abs(d.payout || d.wager || 0) + ' ⚡',
+                title: d.user, sub: '!dice ' + Math.abs(d.payout || d.wager || 0) + ' bolts',
                 _data: d };
         break;
       case 'bolts.minigame.slots':
         if (!d.user) return;
         evt = { tone: d.won ? 'win' : 'lose', game: 'slots',
-                title: d.user, sub: '!slots ' + Math.abs(d.payout || d.wager || 0) + ' ⚡',
+                title: d.user, sub: '!slots ' + Math.abs(d.payout || d.wager || 0) + ' bolts',
                 _data: d };
         break;
       case 'viewer.profile.shown':
         if (!d.user) return;
-        evt = { tone: 'info', badge: '🪪', title: d.user, sub: (d.bolts || 0) + ' bolts' + (d.streakDays ? ' · ' + d.streakDays + 'd streak' : '') };
+        evt = { tone: 'info', badge: '/sprites/ui/icons/id.png', title: d.user, sub: (d.bolts || 0) + ' bolts' + (d.streakDays ? ' · ' + d.streakDays + 'd streak' : '') };
         break;
       case 'rotation.song.playing':
         if (!d.title) return;
-        evt = { tone: 'welcome', badge: '🎵',
+        evt = { tone: 'welcome', badge: '/sprites/ui/icons/music.png',
                 title: d.title + (d.artist ? ' — ' + d.artist : ''),
                 sub: (d.source || 'Spotify') + (d.requestedBy ? '  · req by ' + d.requestedBy : '') };
         break;
       case 'rotation.song.queued':
         if (!d.title) return;
-        evt = { tone: 'info', badge: '➕',
+        evt = { tone: 'info', badge: '/sprites/ui/icons/plus.png',
                 title: 'Queued: ' + d.title + (d.artist ? ' — ' + d.artist : ''),
                 sub: (d.requestedBy ? 'by ' + d.requestedBy : 'priority request') };
         break;
       case 'tips.received':
         if (!(d.amount > 0)) return;
-        evt = { tone: 'streak', badge: '💖',
+        evt = { tone: 'streak', badge: '/sprites/ui/icons/heart.png',
                 title: (d.tipper || 'anonymous') + ' tipped ' + (d.currency || 'USD') + ' ' + (d.amount || 0).toFixed(2),
                 sub:   d.bolts > 0
                        ? '+' + d.bolts + ' bolts' + (d.message ? '  ·  "' + d.message + '"' : '')
@@ -599,19 +614,19 @@
         break;
       case 'bolts.heist.start':
         if (!d.initiator) return;
-        evt = { tone: 'counter', badge: '🦹',
+        evt = { tone: 'counter', badge: '/sprites/ui/icons/sword.png',
                 title: d.initiator + ' is pulling a heist',
-                sub: 'pot ' + (d.totalPot || d.stake || 0) + '/' + (d.target || 0) + ' ⚡  ·  !join to chip in' };
+                sub: 'pot ' + (d.totalPot || d.stake || 0) + '/' + (d.target || 0) + ' bolts  ·  !join to chip in' };
         break;
       case 'bolts.heist.success':
-        evt = { tone: 'win', badge: '💰',
+        evt = { tone: 'win', badge: '/sprites/ui/icons/coin.png',
                 title: 'HEIST SUCCESS',
-                sub: 'crew of ' + (d.contributors || 0) + ' splits ' + (d.payout || 0) + ' ⚡' };
+                sub: 'crew of ' + (d.contributors || 0) + ' splits ' + (d.payout || 0) + ' bolts' };
         break;
       case 'bolts.heist.failure':
-        evt = { tone: 'lose', badge: '🚨',
+        evt = { tone: 'lose', badge: '/sprites/ui/icons/alert.png',
                 title: 'HEIST FAILED',
-                sub: 'pot ' + (d.totalPot || 0) + '/' + (d.target || 0) + ' ⚡  ·  crew got nothing' };
+                sub: 'pot ' + (d.totalPot || 0) + '/' + (d.target || 0) + ' bolts  ·  crew got nothing' };
         break;
     }
     if (evt) enqueue(evt);
@@ -680,7 +695,7 @@
 
   if (debug) {
     setTimeout(() => onMsg({ kind: 'bolts.earned',   data: { user: 'aquilo_plays', amount: 50 }}), 1500);
-    setTimeout(() => onMsg({ kind: 'welcome.fired',  data: { user: 'new_friend', rendered: '👋 Welcome new_friend, glad you found us!' }}), 7000);
+    setTimeout(() => onMsg({ kind: 'welcome.fired',  data: { user: 'new_friend', rendered: 'Welcome new_friend, glad you found us!' }}), 7000);
     setTimeout(() => onMsg({ kind: 'counter.updated',data: { name: 'deaths', display: 'Deaths', value: 12 }}), 12500);
     setTimeout(() => onMsg({ kind: 'hypetrain.start',data: { level: 1, fuel: 60, threshold: 100, fromUser: 'kind_viewer' }}), 18000);
     setTimeout(() => onMsg({ kind: 'bolts.minigame.coinflip', data: { user: 'gambler', wager: 50, result: 'heads', won: true, payout: 50 }}), 23500);

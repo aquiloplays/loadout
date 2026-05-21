@@ -41,82 +41,85 @@
   // (kind family matches `clash.*`) and the demo toasts triggered by
   // ?debug=1. Each entry returns the toast variant + title + body.
 
+  // Each toast names a pixel-art icon sprite (relative paths under
+  // /sprites/ui/icons/). Renderer below maps `icon: 'sword'` to
+  // <img src="/sprites/ui/icons/sword.png">. No emoji.
   function classify(kind, data) {
     switch (kind) {
       case 'clash.raid.incoming':
       case 'raid.incoming':
         return {
-          variant: 'incoming', icon: '⚔', meta: 'INCOMING RAID',
+          variant: 'incoming', icon: 'sword', meta: 'INCOMING RAID',
           title: `${data.attackerName || 'A raider'} is hitting your town`,
           body: data.war ? 'Part of an active war — defend hard.' : '',
         };
       case 'clash.raid.sacked':
       case 'raid.sacked':
         return {
-          variant: 'sacked', icon: '💥', meta: 'TOWN SACKED',
+          variant: 'sacked', icon: 'bomb', meta: 'TOWN SACKED',
           title: `${data.attackerName || 'A raider'} sacked your town`,
           body: starLine(data.stars) + ' — loot taken from treasury.',
         };
       case 'clash.raid.defended':
       case 'raid.defended':
         return {
-          variant: 'defended', icon: '🛡', meta: 'TOWN HELD',
+          variant: 'defended', icon: 'shield', meta: 'TOWN HELD',
           title: `Held the line against ${data.attackerName || 'a raider'}`,
           body: starLine(data.stars) + ' — defenders pushed them back.',
         };
       case 'clash.raid.result':
       case 'raid.result':
         return {
-          variant: 'minor', icon: '⚡', meta: 'RAID',
+          variant: 'minor', icon: 'bolt', meta: 'RAID',
           title: `You raided ${data.targetName || 'a target'}`,
-          body: starLine(data.stars) + (data.voltaic ? `  · 🌀 Voltaic: ${data.voltaic}` : ''),
+          body: starLine(data.stars) + (data.voltaic ? `  · Voltaic: ${data.voltaic}` : ''),
         };
       case 'clash.war.declared':
       case 'war.declared':
         return {
-          variant: 'war', icon: '⚔', meta: 'WAR DECLARED',
+          variant: 'war', icon: 'sword', meta: 'WAR DECLARED',
           title: 'Your town has been challenged',
           body: 'Vote /clash war view to accept or refuse.',
         };
       case 'clash.war.active':
       case 'war.active':
         return {
-          variant: 'war', icon: '⚔', meta: 'WAR LIVE',
+          variant: 'war', icon: 'sword', meta: 'WAR LIVE',
           title: 'War window open — 24 hours',
           body: 'Raid the opposing community for amplified rewards.',
         };
       case 'clash.war.refused':
       case 'war.refused':
         return {
-          variant: 'minor', icon: '🛡', meta: 'WAR',
+          variant: 'minor', icon: 'shield', meta: 'WAR',
           title: 'Your war was refused',
           body: 'The target community voted to refuse.',
         };
       case 'clash.war.cancelled':
       case 'war.cancelled':
         return {
-          variant: 'minor', icon: '⛔', meta: 'WAR',
+          variant: 'minor', icon: 'alert', meta: 'WAR',
           title: 'War declaration failed',
           body: 'Not enough Yes votes from your community.',
         };
       case 'clash.war.ended':
       case 'war.ended':
         return {
-          variant: 'war', icon: '🏆', meta: 'WAR ENDED',
+          variant: 'war', icon: 'trophy', meta: 'WAR ENDED',
           title: `War ended — ${data.scores?.attacker || 0}★ vs ${data.scores?.defender || 0}★`,
           body: data.winner ? `Winner: ${data.winner}.` : '',
         };
       case 'clash.build.complete':
       case 'build.complete':
         return {
-          variant: 'minor', icon: '🏗', meta: 'BUILD',
+          variant: 'minor', icon: 'construction', meta: 'BUILD',
           title: `${data.name || 'A build'} finished`,
           body: '',
         };
       case 'clash.shield.expiring':
       case 'shield.expiring':
         return {
-          variant: 'minor', icon: '🛡', meta: 'SHIELD',
+          variant: 'minor', icon: 'shield', meta: 'SHIELD',
           title: `Shield expires in ${data.minutesLeft || '?'} min`,
           body: 'Prep your defenses.',
         };
@@ -135,8 +138,11 @@
   function renderToast(spec) {
     const el = document.createElement('div');
     el.className = 'toast toast--' + spec.variant;
+    // `spec.icon` is a sprite name (no extension, no path). Whitelist
+    // to alphanum+hyphen so a malicious bus payload can't path-traverse.
+    const safeIcon = /^[a-z0-9-]+$/i.test(spec.icon || '') ? spec.icon : 'bolt';
     el.innerHTML = `
-      <div class="icon">${escapeHtml(spec.icon || '⚡')}</div>
+      <div class="icon"><img class="ico ico--xl" src="/sprites/ui/icons/${safeIcon}.png" alt=""></div>
       <div class="head">
         <span class="title">${escapeHtml(spec.title || '')}</span>
         <span class="meta">${escapeHtml(spec.meta || '')}</span>

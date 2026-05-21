@@ -168,10 +168,10 @@
   function computeFlairs(ev) {
     const out = [];
     const showFlairs = ev.showFlairs || {};
-    if (ev.role === 'broadcaster') out.push({ cls: 'broadcaster', text: '⭐ Broadcaster' });
+    if (ev.role === 'broadcaster') out.push({ cls: 'broadcaster', text: 'Broadcaster' });
     else if (showFlairs.vipMod !== false) {
-      if (ev.role === 'mod') out.push({ cls: 'mod', text: '🛡 Mod' });
-      else if (ev.role === 'vip') out.push({ cls: 'vip', text: '💎 VIP' });
+      if (ev.role === 'mod') out.push({ cls: 'mod', text: 'Mod' });
+      else if (ev.role === 'vip') out.push({ cls: 'vip', text: 'VIP' });
     }
     if (showFlairs.sub !== false && (ev.role === 'sub' || ev.subTier)) {
       const tier = ({'1000':1,'2000':2,'3000':3})[ev.subTier] || 1;

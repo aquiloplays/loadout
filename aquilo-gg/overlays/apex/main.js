@@ -99,7 +99,10 @@
       const m = Math.floor((sec % 3600) / 60);
       const ss = sec % 60;
       const text = (h > 0 ? h + 'h ' : '') + (m > 0 || h > 0 ? m + 'm ' : '') + ss + 's';
-      $('reign').textContent = '👑 ' + text;
+      // The HTML carries a sibling crown <img class="ico"> already;
+      // here we just write the timer text so we don't double-render
+      // an icon (the emoji prefix is gone).
+      $('reign').textContent = text;
     };
     update();
     reignTimer = setInterval(update, 1000);
