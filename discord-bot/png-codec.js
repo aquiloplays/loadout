@@ -230,6 +230,92 @@ function buildChunk(type, data) {
   return out;
 }
 
+// ── APNG encoder ─────────────────────────────────────────────────
+//
+// Used for legendary gear glow animations. APNG is a superset of PNG
+// that adds three ancillary chunks: acTL (animation control), fcTL
+// (per-frame control), and fdAT (per-frame data). Browsers that
+// don't recognise the animation chunks just see the static IDAT
+// (first frame) — so APNG degrades gracefully everywhere.
+//
+// Spec: https://wiki.mozilla.org/APNG_Specification
+//
+// Input shape:
+//   { width, height, fps, frames: [pixels0, pixels1, ...] }
+// where each pixels entry is RGBA row-major (width × height × 4).
+//
+// Output: a single Uint8Array containing the full APNG. The first
+// frame's data is written as IDAT (so static viewers render it
+// correctly); subsequent frames are fdAT.
+export async function encodeApng(spec) {
+  const { width, height, frames } = spec;
+  const fps = spec.fps || 8;
+  if (!width || !height) throw new Error('apng: encode missing dims');
+  if (!frames || frames.length < 1) throw new Error('apng: needs at least one frame');
+
+  // Per-frame deflate
+  const bpp = 4;
+  const stride = width * bpp;
+  const compressedFrames = [];
+  for (const px of frames) {
+    if (px.length !== width * height * bpp) {
+      throw new Error('apng: frame size mismatch');
+    }
+    const raw = new Uint8Array(height * (stride + 1));
+    for (let y = 0; y < height; y++) {
+      raw[y * (stride + 1)] = 0;
+      raw.set(px.subarray(y * stride, (y + 1) * stride), y * (stride + 1) + 1);
+    }
+    compressedFrames.push(await deflate(raw));
+  }
+
+  // IHDR
+  const ihdr = new Uint8Array(13);
+  writeU32BE(ihdr, 0, width);
+  writeU32BE(ihdr, 4, height);
+  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+
+  // acTL — num_frames (4) + num_plays (4, 0=loop forever)
+  const actl = new Uint8Array(8);
+  writeU32BE(actl, 0, frames.length);
+  writeU32BE(actl, 4, 0);
+
+  // fcTL — per-frame control. delay is denom-fraction seconds.
+  function buildFcTL(seq, frameWidth, frameHeight) {
+    const data = new Uint8Array(26);
+    writeU32BE(data, 0, seq);
+    writeU32BE(data, 4, frameWidth);
+    writeU32BE(data, 8, frameHeight);
+    writeU32BE(data, 12, 0);             // x_offset
+    writeU32BE(data, 16, 0);             // y_offset
+    // delay_num / delay_den  (e.g. 1/8 → 125 ms = 8 fps)
+    data[20] = 1 >>> 8; data[21] = 1 & 0xff;
+    data[22] = fps >>> 8; data[23] = fps & 0xff;
+    data[24] = 0;                         // dispose_op (none)
+    data[25] = 0;                         // blend_op (source)
+    return data;
+  }
+
+  let seq = 0;
+  const parts = [PNG_SIG, buildChunk('IHDR', ihdr), buildChunk('acTL', actl)];
+
+  // Frame 0 — fcTL + IDAT (the static fallback)
+  parts.push(buildChunk('fcTL', buildFcTL(seq++, width, height)));
+  parts.push(buildChunk('IDAT', compressedFrames[0]));
+
+  // Frames 1..N — fcTL + fdAT (fdAT data is prefixed with sequence number)
+  for (let i = 1; i < frames.length; i++) {
+    parts.push(buildChunk('fcTL', buildFcTL(seq++, width, height)));
+    const fdat = new Uint8Array(4 + compressedFrames[i].length);
+    writeU32BE(fdat, 0, seq++);
+    fdat.set(compressedFrames[i], 4);
+    parts.push(buildChunk('fdAT', fdat));
+  }
+
+  parts.push(buildChunk('IEND', new Uint8Array(0)));
+  return concat(parts);
+}
+
 // ── Compositor ───────────────────────────────────────────────────
 //
 // Layers are an array of decoded images, drawn in order (back to

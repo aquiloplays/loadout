@@ -2294,6 +2294,85 @@ function Draw-Pet {
   }
 }
 
+# ── Legendary gear (the lone Excalibur for now) ───────────────────
+#
+# Catalogue items at rarity='legendary' don't live in dungeon.js
+# SHOP_POOL — they're lootbox-only (see ext-lootbox.js). We hardcode
+# the full legendary roster here so we can emit:
+#   - the base weapon sprite at the legendary rarity palette
+#     (drives the higher-detail metal ramp via Draw-Weapon)
+#   - 4 fx halo frames stitched downstream into an APNG halo by
+#     tools/build-apng.mjs (the PowerShell side can't emit APNG
+#     natively — GDI+ has no acTL/fdAT writer).
+#
+# Add a row to this list when a new legendary lands in the game.
+
+$LEGENDARIES = @(
+  @{ slot = 'weapon'; name = 'Excalibur'; weaponType = 'sword' }
+)
+
+function Draw-Legendary-FxHalo {
+  param($bmp, [string]$name, [int]$frameIndex)
+  # Halo: 4 phase-shifted shimmer rings around the weapon hilt.
+  # We pin to weapon-grip area (roughly x=18..22, y=24..28).
+  $rx = 20; $ry = 26
+  # Per-frame phase offset
+  $phase = $frameIndex
+  # Gold accent for legendary
+  $gold = $BRAND.Gold
+  $hi   = [System.Drawing.Color]::FromArgb(255, 0xff, 0xf0, 0xa0)
+  # Outer halo — 8 radial spokes at varying alpha across frames
+  $radius = 4 + ($phase % 2)
+  for ($a = 0; $a -lt 8; $a++) {
+    $ang = ($a * 45 + $phase * 20) * [Math]::PI / 180
+    $sx = $rx + [int]([Math]::Cos($ang) * $radius)
+    $sy = $ry + [int]([Math]::Sin($ang) * $radius)
+    Set-Px $bmp $sx $sy $gold
+  }
+  # Inner sparkle — single bright pixel cycling clockwise
+  $innerAng = ($phase * 90) * [Math]::PI / 180
+  $ix = $rx + [int]([Math]::Cos($innerAng) * 2)
+  $iy = $ry + [int]([Math]::Sin($innerAng) * 2)
+  Set-Px $bmp $ix $iy $hi
+  # Distant motes — drift up
+  $motes = @(
+    @{ x = $rx + 5; y = $ry - 3 - $phase },
+    @{ x = $rx - 5; y = $ry - 1 - $phase },
+    @{ x = $rx + 3; y = $ry - 5 - (($phase + 2) % 4) }
+  )
+  foreach ($m in $motes) { Set-Px $bmp $m.x $m.y $gold }
+}
+
+function Build-Legendary {
+  param([string]$repoRoot)
+  Write-Host '── Legendary gear ──' -ForegroundColor Cyan
+  $framesDir = Join-Path $OutRoot '_legendary-frames'
+  New-Item -ItemType Directory -Force -Path $framesDir | Out-Null
+  $count = 0
+  $frameCount = 0
+  foreach ($leg in $LEGENDARIES) {
+    $slug = Slugify $leg.name
+    # Base sprite — same path the compositor expects
+    $bmp = New-Canvas
+    if ($leg.slot -eq 'weapon') {
+      Draw-Weapon $bmp $leg.weaponType $leg.name 'legendary'
+    } else {
+      throw "TODO: legendary draw for slot $($leg.slot)"
+    }
+    Save-Canvas $bmp (Join-Path $gearDir ("{0}/{1}.png" -f $leg.slot, $slug))
+    $count++
+
+    # 4 fx halo frames
+    for ($f = 0; $f -lt 4; $f++) {
+      $fxBmp = New-Canvas
+      Draw-Legendary-FxHalo $fxBmp $leg.name $f
+      Save-Canvas $fxBmp (Join-Path $framesDir ("{0}-fx-{1}.png" -f $slug, $f))
+      $frameCount++
+    }
+  }
+  Write-Host ("  legendaries: {0}  ({1} fx frames)" -f $count, $frameCount) -ForegroundColor Green
+}
+
 function Build-Pets {
   Write-Host '── Pets ──' -ForegroundColor Cyan
   $count = 0
@@ -2400,6 +2479,7 @@ Build-Chest   -repoRoot $repoRoot
 Build-Legs    -repoRoot $repoRoot
 Build-Boots   -repoRoot $repoRoot
 Build-Trinket -repoRoot $repoRoot
+Build-Legendary -repoRoot $repoRoot
 Build-Pets
 Build-Moods
 
