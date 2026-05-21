@@ -284,8 +284,321 @@ function Build-Figure {
   Write-Host "  figure bodies: $count" -ForegroundColor Green
 }
 
+# ── Hair styles ────────────────────────────────────────────────────
+#
+# Authored at the reference "brown" palette
+#   shadow = #3b251a   base = #5a3a26   high = #7a5236
+# The Worker compositor (character.js) palette-swaps to the chosen
+# hairColor at render time, so we only emit one sprite per style.
+#
+# Each style is a self-contained procedural drawing that lands on the
+# same 40×56 canvas at the same head position (head is 10 px tall
+# starting at row 16, x-centred). Hair extends UPWARD into the
+# headroom (rows 0..15) where helmets / plumes also live.
+
+$HAIR_REF = @{ shadow = (Color-FromHex '#3b251a'); base = (Color-FromHex '#5a3a26'); high = (Color-FromHex '#7a5236') }
+
+function Hair-Common-Cap {
+  # Draws a small wedge of hair covering the top + back of the head,
+  # used as a base for short-tousled / pixie / shaved-sides etc.
+  param($bmp, [int]$x, [int]$y, [int]$w, [int]$h)
+  $b = $HAIR_REF.base; $s = $HAIR_REF.shadow; $hi = $HAIR_REF.high
+  Fill-Rect $bmp $x $y $w $h $b
+  # shadow row along the bottom edge
+  Fill-Rect $bmp $x ($y + $h - 1) $w 1 $s
+  # highlight pixels along the upper-left
+  for ($i = 0; $i -lt 3; $i++) {
+    Set-Px $bmp ($x + 1 + $i) ($y + 1) $hi
+  }
+}
+
+function Draw-Hair {
+  param($bmp, [string]$style)
+  $b = $HAIR_REF.base; $s = $HAIR_REF.shadow; $hi = $HAIR_REF.high
+  $ink = $BRAND.Ink
+  # Head footprint matches Draw-Body: 10-12px wide × 10px tall starting at row 16
+  # We use the AVERAGE width (11) so the hair fits both slim + stocky
+  $headX = 14   # 8 ox + 6 padding
+  $headY = 16
+  $headW = 12
+  $headH = 10
+
+  switch ($style) {
+    'bald' {
+      # No hair — just emit a fully-transparent PNG. The renderer
+      # special-cases hairStyle=='bald' and skips the layer, but we
+      # still emit a stub PNG so the URL is always 200.
+      return
+    }
+    'short-tousled' {
+      # Wraps the upper half of the head
+      Hair-Common-Cap $bmp ($headX - 1) ($headY - 1) ($headW + 2) 6
+      # A few stray tousled pixels poking up
+      Set-Px $bmp ($headX + 2) ($headY - 3) $b
+      Set-Px $bmp ($headX + 6) ($headY - 4) $b
+      Set-Px $bmp ($headX + 9) ($headY - 2) $b
+    }
+    'long-straight' {
+      # Cap + falls past shoulders along both sides
+      Hair-Common-Cap $bmp ($headX - 1) ($headY - 1) ($headW + 2) 5
+      # Drape both sides down to row 38 (mid-torso)
+      for ($y = $headY + 4; $y -le 38; $y++) {
+        Set-Px $bmp ($headX - 1) $y $b
+        Set-Px $bmp ($headX - 2) $y $s
+        Set-Px $bmp ($headX + $headW) $y $b
+        Set-Px $bmp ($headX + $headW + 1) $y $s
+      }
+    }
+    'bun' {
+      # Small cap + a 3×3 round bun on top
+      Hair-Common-Cap $bmp ($headX - 1) ($headY - 1) ($headW + 2) 5
+      $bx = $headX + 4; $by = $headY - 4
+      Fill-Rect $bmp $bx $by 4 4 $b
+      Set-Px $bmp $bx $by $s
+      Set-Px $bmp ($bx + 3) $by $s
+      Set-Px $bmp $bx ($by + 3) $s
+      Set-Px $bmp ($bx + 3) ($by + 3) $s
+      Set-Px $bmp ($bx + 1) ($by + 1) $hi
+    }
+    'mohawk' {
+      # Central stripe rising from the head, 3 px wide × 6 px tall
+      $mx = $headX + 4
+      for ($y = 0; $y -lt 6; $y++) {
+        Fill-Rect $bmp $mx ($headY - 6 + $y) 3 1 $b
+        # Shadow on the right pixel
+        Set-Px $bmp ($mx + 2) ($headY - 6 + $y) $s
+      }
+      # Cap at the very top (highlight)
+      Set-Px $bmp ($mx + 1) ($headY - 6) $hi
+      # Sides shaved — no other hair pixels
+    }
+    'braids' {
+      # Cap + two braid strands hanging beside the face
+      Hair-Common-Cap $bmp ($headX - 1) ($headY - 1) ($headW + 2) 5
+      # Left braid (3 segments alternating shadow/base)
+      $blx = $headX - 1
+      for ($i = 0; $i -lt 3; $i++) {
+        $by = $headY + 5 + $i * 3
+        Fill-Rect $bmp $blx $by 2 2 $b
+        Fill-Rect $bmp $blx ($by + 2) 2 1 $s
+      }
+      # Right braid
+      $brx = $headX + $headW - 1
+      for ($i = 0; $i -lt 3; $i++) {
+        $by = $headY + 5 + $i * 3
+        Fill-Rect $bmp $brx $by 2 2 $b
+        Fill-Rect $bmp $brx ($by + 2) 2 1 $s
+      }
+    }
+    'curly-afro' {
+      # Halo of pixels around the head, roughly circular
+      $cx = $headX + [int]($headW / 2)
+      $cy = $headY + 1
+      for ($y = -6; $y -le 4; $y++) {
+        for ($x = -7; $x -le 7; $x++) {
+          $d = [Math]::Sqrt($x * $x + $y * $y * 1.4)
+          if ($d -ge 5.5 -and $d -le 7.5) {
+            $col = if (($x + $y) % 2 -eq 0) { $b } else { $s }
+            Set-Px $bmp ($cx + $x) ($cy + $y) $col
+          }
+          elseif ($d -lt 5.5) {
+            Set-Px $bmp ($cx + $x) ($cy + $y) $b
+          }
+        }
+      }
+      # A few highlight specks
+      Set-Px $bmp ($cx - 3) ($cy - 3) $hi
+      Set-Px $bmp ($cx + 2) ($cy - 4) $hi
+    }
+    'pixie' {
+      # Tight crop, slightly punky — short uneven fringe
+      Hair-Common-Cap $bmp ($headX - 1) ($headY - 1) ($headW + 2) 4
+      # Uneven fringe across the forehead
+      Set-Px $bmp ($headX + 1) ($headY + 2) $b
+      Set-Px $bmp ($headX + 4) ($headY + 2) $b
+      Set-Px $bmp ($headX + 8) ($headY + 2) $b
+      # Punky uplift on one side
+      Set-Px $bmp ($headX - 1) ($headY - 2) $b
+      Set-Px $bmp ($headX - 1) ($headY - 3) $b
+    }
+    'ponytail' {
+      # Cap + gathered hair tied at the back, falling down the spine
+      Hair-Common-Cap $bmp ($headX - 1) ($headY - 1) ($headW + 2) 5
+      # Tie at the nape
+      $tx = $headX + 9; $ty = $headY + 4
+      Fill-Rect $bmp $tx $ty 2 2 $s
+      # Tail falling down the back (right of the figure)
+      for ($y = 0; $y -lt 12; $y++) {
+        Fill-Rect $bmp ($tx + 1) ($ty + 2 + $y) 2 1 $b
+        Set-Px $bmp ($tx + 2) ($ty + 2 + $y) $s
+      }
+      # Slight curl at the tip
+      Set-Px $bmp ($tx + 3) ($ty + 13) $b
+    }
+    'shaved-sides' {
+      # Flat top: cap only on the upper 3 rows of the head
+      Hair-Common-Cap $bmp ($headX) ($headY - 1) $headW 3
+      # Tiny stubble row above the temples
+      Set-Px $bmp ($headX - 1) ($headY + 1) $s
+      Set-Px $bmp ($headX + $headW) ($headY + 1) $s
+    }
+    'mullet' {
+      # Short on top + long in back
+      Hair-Common-Cap $bmp ($headX - 1) ($headY - 1) ($headW + 2) 4
+      # Tail falls behind the neck to mid-back
+      $mx = $headX + 3
+      for ($y = 0; $y -lt 9; $y++) {
+        $w = 6 - [int]($y / 3)
+        Fill-Rect $bmp $mx ($headY + 5 + $y) $w 1 $b
+        Set-Px $bmp ($mx + $w - 1) ($headY + 5 + $y) $s
+      }
+    }
+    'wizard-long' {
+      # Cap + drapes past the figure's feet (long beard wouldn't sit
+      # in the hair slot, so this is the head hair only)
+      Hair-Common-Cap $bmp ($headX - 1) ($headY - 1) ($headW + 2) 6
+      for ($y = $headY + 5; $y -le 50; $y++) {
+        Set-Px $bmp ($headX - 1) $y $b
+        Set-Px $bmp ($headX - 2) $y $s
+        Set-Px $bmp ($headX + $headW) $y $b
+        Set-Px $bmp ($headX + $headW + 1) $y $s
+      }
+      # Slight widening at the bottom
+      Set-Px $bmp ($headX - 3) 49 $b
+      Set-Px $bmp ($headX + $headW + 2) 49 $b
+    }
+    default {
+      Hair-Common-Cap $bmp ($headX - 1) ($headY - 1) ($headW + 2) 5
+    }
+  }
+}
+
+function Build-Hair {
+  Write-Host '── Building hair layers ──' -ForegroundColor Cyan
+  $count = 0
+  foreach ($style in @('short-tousled','long-straight','bun','mohawk','braids',
+                        'curly-afro','pixie','ponytail','bald','shaved-sides',
+                        'mullet','wizard-long')) {
+    $bmp = New-Canvas
+    Draw-Hair $bmp $style
+    Save-Canvas $bmp (Join-Path $figDir ("hair-{0}.png" -f $style))
+    $count++
+  }
+  Write-Host "  hair styles: $count" -ForegroundColor Green
+}
+
+# ── Eye overlays ───────────────────────────────────────────────────
+#
+# Tiny face-layer pixels. Drawn at z=65 over the body's face. Each
+# colour gets its own sprite because palette-swapping a 2-pixel
+# overlay is not worth the runtime cost.
+#
+# Eye position (matches Draw-Body's head geometry):
+#   head starts at row 16, height 10
+#   eyes sit at rows 20-21, columns 16-17 (left) + 22-23 (right)
+
+function Draw-Eyes {
+  param($bmp, $colour)
+  $ink = $BRAND.Ink
+  # Sclera dot (one pixel of skin-coloured highlight could go here
+  # but we want the eye colour to read — so just colour pixels).
+  $lex = 16; $rex = 22; $ey = 20
+  Fill-Rect $bmp $lex $ey 2 2 $colour
+  Fill-Rect $bmp $rex $ey 2 2 $colour
+  # Ink the upper row to suggest the eyelid line
+  Set-Px $bmp $lex $ey $ink
+  Set-Px $bmp ($lex + 1) $ey $ink
+  Set-Px $bmp $rex $ey $ink
+  Set-Px $bmp ($rex + 1) $ey $ink
+}
+
+function Build-Eyes {
+  Write-Host '── Building eye layers ──' -ForegroundColor Cyan
+  $count = 0
+  foreach ($name in $EYE_COLOURS.Keys) {
+    $bmp = New-Canvas
+    Draw-Eyes $bmp (Color-FromHex $EYE_COLOURS[$name])
+    Save-Canvas $bmp (Join-Path $figDir ("eyes-{0}.png" -f $name))
+    $count++
+  }
+  Write-Host "  eye colours: $count" -ForegroundColor Green
+}
+
+# ── Accent overlays ────────────────────────────────────────────────
+#
+# Small cosmetic flair at z=65 over the body's face. Six tiny
+# additions — freckles, eye-shadow, face-scar, beauty-mark,
+# glasses-round (sits above eyes/below hair fringe), none.
+
+function Draw-Accent-Freckles {
+  param($bmp)
+  $c = [System.Drawing.Color]::FromArgb(180, 120, 80, 50)
+  Set-Px $bmp 17 22 $c
+  Set-Px $bmp 19 22 $c
+  Set-Px $bmp 22 22 $c
+}
+function Draw-Accent-EyeShadow {
+  param($bmp)
+  $c = [System.Drawing.Color]::FromArgb(180, 0x7c, 0x5c, 0xff)
+  Fill-Rect $bmp 16 19 2 1 $c
+  Fill-Rect $bmp 22 19 2 1 $c
+}
+function Draw-Accent-FaceScar {
+  param($bmp)
+  $c = [System.Drawing.Color]::FromArgb(200, 200, 100, 100)
+  Set-Px $bmp 22 19 $c
+  Set-Px $bmp 22 20 $c
+  Set-Px $bmp 22 21 $c
+}
+function Draw-Accent-BeautyMark {
+  param($bmp)
+  Set-Px $bmp 18 23 $BRAND.Ink
+}
+function Draw-Accent-GlassesRound {
+  param($bmp)
+  # Two small circles + a bridge
+  $ink = $BRAND.Ink
+  # Left ring
+  Set-Px $bmp 15 19 $ink; Set-Px $bmp 18 19 $ink
+  Set-Px $bmp 15 22 $ink; Set-Px $bmp 18 22 $ink
+  Set-Px $bmp 15 20 $ink; Set-Px $bmp 15 21 $ink
+  Set-Px $bmp 18 20 $ink; Set-Px $bmp 18 21 $ink
+  # Right ring
+  Set-Px $bmp 21 19 $ink; Set-Px $bmp 24 19 $ink
+  Set-Px $bmp 21 22 $ink; Set-Px $bmp 24 22 $ink
+  Set-Px $bmp 21 20 $ink; Set-Px $bmp 21 21 $ink
+  Set-Px $bmp 24 20 $ink; Set-Px $bmp 24 21 $ink
+  # Bridge
+  Set-Px $bmp 19 20 $ink
+  Set-Px $bmp 20 20 $ink
+}
+
+function Build-Accents {
+  Write-Host '── Building accent layers ──' -ForegroundColor Cyan
+  $accents = @{
+    freckles      = (Get-Item function:Draw-Accent-Freckles);
+    'eye-shadow'  = (Get-Item function:Draw-Accent-EyeShadow);
+    'face-scar'   = (Get-Item function:Draw-Accent-FaceScar);
+    'beauty-mark' = (Get-Item function:Draw-Accent-BeautyMark);
+    'glasses-round' = (Get-Item function:Draw-Accent-GlassesRound);
+  }
+  $count = 0
+  foreach ($name in $accents.Keys) {
+    $bmp = New-Canvas
+    & $accents[$name].ScriptBlock $bmp
+    Save-Canvas $bmp (Join-Path $figDir ("accent-{0}.png" -f $name))
+    $count++
+  }
+  # 'none' = transparent canvas (no drawing). We don't emit a PNG for
+  # it; the renderer skips the layer when accent == 'none'.
+  Write-Host "  accent flair: $count (none = skipped, no PNG)" -ForegroundColor Green
+}
+
 # ── Top-level driver ───────────────────────────────────────────────
 Build-Figure
+Build-Hair
+Build-Eyes
+Build-Accents
 
 Write-Host ''
 Write-Host 'Done.' -ForegroundColor Green
