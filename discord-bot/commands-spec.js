@@ -748,6 +748,29 @@ export const COMMANDS = [
       { type: TYPE_SUBCOMMAND, name: 'log',       description: 'Show your last 10 matches' },
       { type: TYPE_SUBCOMMAND, name: 'leaderboard', description: 'Top trophies (global)' },
       { type: TYPE_SUBCOMMAND, name: 'challenges',  description: 'See pending direct challenges to you' },
+      // CR-1: recycle → fragments → craft
+      { type: TYPE_SUBCOMMAND, name: 'fragments',
+        description: 'Show your fragment balance + recycle/craft prices',
+      },
+      { type: TYPE_SUBCOMMAND, name: 'recycle',
+        description: 'Recycle owned cards into fragments',
+        options: [
+          { type: TYPE_STRING,  name: 'card',  description: 'Card id (from /boltbound collection)', required: true },
+          { type: TYPE_INTEGER, name: 'count', description: 'How many to recycle (default 1)', required: false, min_value: 1 },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'craft',
+        description: 'Craft a pack from fragments',
+        options: [
+          { type: TYPE_STRING, name: 'pack', description: 'Pack to craft', required: true,
+            choices: [
+              { name: 'Common Pack (100 frags)',  value: 'common' },
+              { name: 'Bolt Pack (400 frags)',    value: 'bolt' },
+              { name: 'Voltaic Pack (1500 frags)', value: 'voltaic' },
+            ],
+          },
+        ],
+      },
     ],
   },
 ];
