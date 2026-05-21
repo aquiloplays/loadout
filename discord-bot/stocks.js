@@ -167,6 +167,199 @@ async function putHoldings(env, guildId, userId, h) {
   await env.LOADOUT_BOLTS.put(`stock:holdings:${guildId}:${userId}`, JSON.stringify(h));
 }
 
+// ── Per-user transaction log ────────────────────────────────────────
+//
+// Every successful buy/sell appends an entry. Used by the web
+// portfolio view to compute:
+//
+//   * Average cost basis per ticker  (avg of (price + fee/share) over
+//                                     all buys minus any sold)
+//   * Realized P&L                   (sum of sell.proceeds - matching
+//                                     buy cost-basis)
+//   * Per-trade history list
+//   * Trading stats (best trade, biggest loss, total invested, etc.)
+//
+// We keep the last 200 entries — enough for any reasonable session
+// of trading, capped to keep the KV record bounded. Older entries
+// roll off the front; realised-PnL summaries should be persisted
+// separately if we ever need full history (not yet — 200 is plenty).
+//
+// Shape: [{ asOf, action: "buy"|"sell", ticker, shares, price,
+//          bolts, fee, balanceAfter }]
+const TXN_CAP = 200;
+
+export async function getStocksTransactions(env, guildId, userId) {
+  try {
+    const t = await env.LOADOUT_BOLTS.get(`stock:txns:${guildId}:${userId}`, { type: 'json' });
+    return Array.isArray(t) ? t : [];
+  } catch { return []; }
+}
+
+async function appendStocksTransaction(env, guildId, userId, txn) {
+  const list = await getStocksTransactions(env, guildId, userId);
+  list.push(txn);
+  const trimmed = list.length > TXN_CAP ? list.slice(-TXN_CAP) : list;
+  await env.LOADOUT_BOLTS.put(
+    `stock:txns:${guildId}:${userId}`,
+    JSON.stringify(trimmed),
+  );
+}
+
+// Compute per-ticker average cost basis from the transaction log.
+// FIFO would give different unrealized-PnL on partial sells; we use
+// AVERAGE-COST because the player doesn't pick lots — the UI shows
+// "your average cost was X, current price is Y" which is intuitive
+// and matches how real brokerages display unrealized gains on
+// taxable accounts (HIFO/FIFO is a tax-filing concept only).
+//
+// Returns { [ticker]: { qty, totalCost } } where totalCost includes
+// fees so the average reflects the all-in price the player paid.
+// On a sell we DON'T mutate totalCost proportionally — we instead
+// reduce qty by the sold amount and lower totalCost by the same
+// proportion, preserving the avg-cost per remaining share.
+// Build the full web-portfolio payload — every position the user
+// holds (or has previously closed) plus aggregate totals, recent
+// txns, and derived stats. The shape is consumed verbatim by the
+// site's /play/stocks page; keeping derivation here means Discord
+// + the panel can grow to use it too without re-implementing.
+export async function buildStocksPortfolio(env, guildId, userId) {
+  const [holdings, txns, catalog] = await Promise.all([
+    getHoldings(env, guildId, userId),
+    getStocksTransactions(env, guildId, userId),
+    getCatalog(env),
+  ]);
+  const { positions, realized } = computeCostBasis(txns);
+  // Resolve current price + history per ticker. Walk the union of
+  // tickers in holdings + cost-basis (closed positions show 0 qty
+  // but non-zero realized).
+  const tickers = new Set([
+    ...Object.keys(holdings || {}),
+    ...Object.keys(positions || {}),
+  ]);
+  const out = [];
+  for (const t of tickers) {
+    const def = (catalog?.tickers || []).find(
+      (x) => (x.ticker || '').toUpperCase() === t,
+    );
+    const rec = await getPrice(env, t);
+    const currentPrice = (rec && rec.price) || null;
+    const pos = positions[t] || { qty: 0, totalCost: 0 };
+    const qtyHeld = Number(holdings[t]) || 0;
+    // Holdings KV is authoritative for qty (cron-resilient); txn log
+    // is authoritative for cost-basis math. Mismatch should be 0 in
+    // practice but we surface whichever side knows it.
+    const qty = qtyHeld;
+    const avgCost = pos.qty > 0 ? pos.totalCost / pos.qty : 0;
+    const value = currentPrice != null ? qty * currentPrice : null;
+    const unrealizedPnl = value != null
+      ? value - (avgCost * qty)
+      : null;
+    const realizedPnl = Math.round(realized[t] || 0);
+    out.push({
+      ticker: t,
+      name: def?.name || t,
+      qty,
+      avgCost: Math.round(avgCost * 100) / 100,
+      currentPrice,
+      value: value != null ? Math.round(value) : null,
+      unrealizedPnl: unrealizedPnl != null ? Math.round(unrealizedPnl) : null,
+      realizedPnl,
+    });
+  }
+  // Sort by current value desc — biggest positions on top, closed
+  // positions with realized PnL at the bottom.
+  out.sort((a, b) => (b.value || 0) - (a.value || 0));
+
+  const totalValue = out.reduce((s, p) => s + (p.value || 0), 0);
+  const totalCost = out.reduce((s, p) => s + p.avgCost * p.qty, 0);
+  const totalUnrealized = out.reduce((s, p) => s + (p.unrealizedPnl || 0), 0);
+  const totalRealized = out.reduce((s, p) => s + (p.realizedPnl || 0), 0);
+
+  // Trading stats: best/worst realised trade by net P&L on the
+  // matching buy-side avg-cost. Walk txns and pair each sell with
+  // the running avg-cost at that moment. (computeCostBasis already
+  // did the heavy lift in pass; we re-walk just to capture per-trade
+  // P&L without changing its return shape.)
+  const trades = [];
+  const running = {};
+  for (const t of txns) {
+    if (!t || !t.ticker) continue;
+    const k = t.ticker;
+    if (!running[k]) running[k] = { qty: 0, totalCost: 0 };
+    const shares = Math.max(0, Number(t.shares) || 0);
+    if (t.action === 'buy') {
+      running[k].qty += shares;
+      running[k].totalCost += Math.max(0, Number(t.bolts) || 0);
+    } else if (t.action === 'sell') {
+      const avg = running[k].qty > 0 ? running[k].totalCost / running[k].qty : 0;
+      const basis = avg * shares;
+      const pnl = (Number(t.bolts) || 0) - basis;
+      trades.push({ asOf: t.asOf, ticker: k, shares, price: t.price, pnl: Math.round(pnl) });
+      running[k].qty = Math.max(0, running[k].qty - shares);
+      running[k].totalCost = Math.max(0, running[k].totalCost - basis);
+      if (running[k].qty === 0) running[k].totalCost = 0;
+    }
+  }
+  const bestTrade = trades.reduce(
+    (best, t) => (!best || t.pnl > best.pnl ? t : best),
+    null,
+  );
+  const worstTrade = trades.reduce(
+    (worst, t) => (!worst || t.pnl < worst.pnl ? t : worst),
+    null,
+  );
+
+  return {
+    ok: true,
+    positions: out,
+    totals: {
+      value: Math.round(totalValue),
+      cost: Math.round(totalCost),
+      unrealizedPnl: Math.round(totalUnrealized),
+      realizedPnl: Math.round(totalRealized),
+    },
+    transactions: txns.slice(-50).reverse(), // most recent first, last 50
+    stats: {
+      tradesCount: trades.length,
+      bestTrade,
+      worstTrade,
+      firstTradeAt: txns[0]?.asOf || null,
+    },
+  };
+}
+
+export function computeCostBasis(transactions) {
+  const positions = {};
+  // Realised P&L per ticker — running sum of (proceeds - basisRemoved)
+  // across all sells. proceeds is net (after fee); basisRemoved is
+  // qtyAvg * sharesSold so realized number reflects the actual gain
+  // a player would book on that sale.
+  const realized = {};
+  for (const t of transactions) {
+    if (!t || !t.ticker) continue;
+    const k = t.ticker;
+    if (!positions[k]) positions[k] = { qty: 0, totalCost: 0 };
+    if (!realized[k]) realized[k] = 0;
+    const shares = Math.max(0, Number(t.shares) || 0);
+    if (t.action === 'buy') {
+      const bolts = Math.max(0, Number(t.bolts) || 0);
+      positions[k].qty += shares;
+      positions[k].totalCost += bolts; // bolts = price*shares + fee
+    } else if (t.action === 'sell') {
+      const avg = positions[k].qty > 0
+        ? positions[k].totalCost / positions[k].qty
+        : 0;
+      const basisRemoved = avg * shares;
+      const net = Math.max(0, Number(t.bolts) || 0); // sell stores NET (gross - fee)
+      realized[k] += net - basisRemoved;
+      positions[k].qty = Math.max(0, positions[k].qty - shares);
+      positions[k].totalCost = Math.max(0, positions[k].totalCost - basisRemoved);
+      if (positions[k].qty === 0) positions[k].totalCost = 0;
+    }
+  }
+  return { positions, realized };
+}
+
 // ---- Source fetchers ---------------------------------------------------
 
 // Yahoo Finance chart API. No auth — just needs a User-Agent. Smallest
@@ -514,6 +707,22 @@ export async function runBuyJson(env, guildId, userId, args) {
   holdings[def.ticker] = (Number(holdings[def.ticker]) || 0) + shares;
   await putHoldings(env, guildId, userId, holdings);
   const balance = (r.wallet && r.wallet.balance) || 0;
+  // Append to the per-user transaction log. `bolts` here is the
+  // all-in cost (price*shares + fee) so cost-basis averaging stays
+  // accurate. Wrap in a swallow so a KV failure can't roll back the
+  // successful trade — worst case the txn doesn't appear in history.
+  try {
+    await appendStocksTransaction(env, guildId, userId, {
+      asOf: new Date().toISOString(),
+      action: 'buy',
+      ticker: def.ticker,
+      shares,
+      price,
+      bolts: total,
+      fee,
+      balanceAfter: balance,
+    });
+  } catch { /* non-fatal */ }
   return {
     ok: true,
     ticker: def.ticker,
@@ -560,6 +769,20 @@ export async function runSellJson(env, guildId, userId, args) {
   await putHoldings(env, guildId, userId, holdings);
   const credited = await earn(env, guildId, userId, net, 'stocks-sell:' + def.ticker);
   const balance = (credited && credited.balance) || 0;
+  // `bolts` for a sell is the NET proceeds credited to the wallet
+  // (gross - fee). computeCostBasis() interprets it that way.
+  try {
+    await appendStocksTransaction(env, guildId, userId, {
+      asOf: new Date().toISOString(),
+      action: 'sell',
+      ticker: def.ticker,
+      shares,
+      price,
+      bolts: net,
+      fee,
+      balanceAfter: balance,
+    });
+  } catch { /* non-fatal */ }
   return {
     ok: true,
     ticker: def.ticker,

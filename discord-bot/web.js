@@ -32,6 +32,7 @@ import {
   getHoldings,
   runBuyJson,
   runSellJson,
+  buildStocksPortfolio,
 } from './stocks.js';
 import {
   publicSportsSnapshot,
@@ -86,6 +87,7 @@ const ROUTES = new Set([
   'stocks/snapshot',
   'stocks/buy',
   'stocks/sell',
+  'stocks/portfolio',
   'bet/snapshot',
   'bet/place',
   'queues/snapshot',
@@ -171,6 +173,7 @@ export async function handleWeb(req, env) {
     if (route === 'stocks/snapshot') return await routeStocksSnapshot(env, guildId, discordId);
     if (route === 'stocks/buy')  return await routeStocksBuy(env, guildId, discordId, body);
     if (route === 'stocks/sell') return await routeStocksSell(env, guildId, discordId, body);
+    if (route === 'stocks/portfolio') return await routeStocksPortfolio(env, guildId, discordId);
     if (route === 'bet/snapshot') return await routeBetSnapshot(env, guildId, discordId);
     if (route === 'bet/place')    return await routeBetPlace(env, guildId, discordId, body);
     if (route === 'queues/snapshot') return await routeQueuesSnapshot(env, guildId, body);
@@ -308,6 +311,16 @@ async function routeStocksSnapshot(env, guildId, userId) {
     balance: wallet.balance || 0,
     feePct: 1,
   });
+}
+
+// Full per-user portfolio: positions with cost-basis + unrealized
+// gain, totals, recent transactions, and trading stats. Built on top
+// of getHoldings (qty source of truth) + the new transaction log
+// (cost-basis source of truth). Heavy enough to skip the snapshot
+// route on initial page load and only call here.
+async function routeStocksPortfolio(env, guildId, userId) {
+  const p = await buildStocksPortfolio(env, guildId, userId);
+  return json(p);
 }
 
 async function routeStocksBuy(env, guildId, userId, body) {
