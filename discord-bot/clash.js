@@ -837,7 +837,7 @@ async function handleTownPause(env, guildId, userId) {
     : '▶ Town is live for PvP matchmaking.';
 }
 
-async function canManageTown(env, guildId, userId) {
+export async function canManageTown(env, guildId, userId) {
   const owner = await env.LOADOUT_BOLTS.get('guildowner:' + guildId, { type: 'json' });
   if (owner?.discordUserId === userId) return true;
   const town = await getTown(env, guildId);

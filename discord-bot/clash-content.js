@@ -328,3 +328,60 @@ export function townGarrisonCost(troopId, count) {
   if (!t) return null;
   return { bolts: t.bolts * count, timeMs: t.time * count };
 }
+
+// ── Sprite IDs ───────────────────────────────────────────────────────
+//
+// In-house pixel-art sprites for buildings + troops live at
+// `aquilo-gg/sprites/clash/...` (served from widget.aquilo.gg/sprites/).
+// Both the public web renderer and the OBS overlay read these paths;
+// the bot just emits the canonical relative path so consumers don't
+// have to know the layout.
+//
+// Building sprites scale with level — every level renders distinctly
+// up to the max. Troop sprites are one-per-troopId (rarity drives
+// the in-sprite palette).
+//
+// Naming convention:
+//   clash/buildings/<kind>-L<level>.png   32×32 PNG, bottom-centre anchored
+//   clash/troops/<troopId>.png            24×24 PNG, bottom-centre anchored
+//
+// Web/OBS team can fetch them at:
+//   https://widget.aquilo.gg/sprites/clash/buildings/townhall-L7.png
+//   https://widget.aquilo.gg/sprites/clash/troops/voltaicMage.png
+
+export function spriteIdForBuilding(kind, level) {
+  const b = BUILDINGS[kind];
+  if (!b) return null;
+  const maxLevel = (b.hp?.length || 2) - 1;
+  const lv = Math.max(1, Math.min(maxLevel, Number(level) || 1));
+  return `clash/buildings/${kind}-L${lv}.png`;
+}
+
+export function spriteIdForTroop(troopId) {
+  if (!TROOPS_PERSONAL[troopId] && !TROOPS_GARRISON[troopId]) return null;
+  return `clash/troops/${troopId}.png`;
+}
+
+// Enrich a raw town `buildings[]` array with spriteId per entry —
+// used by the public /clash/town endpoint and the editor-side
+// /sync/:g/clash GET so consumers don't have to derive the path.
+export function withBuildingSprites(buildings) {
+  if (!Array.isArray(buildings)) return buildings;
+  return buildings.map(b => ({
+    ...b,
+    spriteId: spriteIdForBuilding(b.kind, b.level),
+  }));
+}
+
+// Enrich a raw garrison `{ troopId: count }` map with spriteIds —
+// returns `{ counts: { troopId: count }, sprites: { troopId: path } }`
+// so consumers can render either shape easily without bouncing back.
+export function withGarrisonSprites(garrison) {
+  if (!garrison || typeof garrison !== 'object') return { counts: {}, sprites: {} };
+  const sprites = {};
+  for (const k of Object.keys(garrison)) {
+    const sid = spriteIdForTroop(k);
+    if (sid) sprites[k] = sid;
+  }
+  return { counts: garrison, sprites };
+}
