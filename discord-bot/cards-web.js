@@ -124,14 +124,21 @@ async function routeState(env, guildId, userId) {
     },
     decks: deckSummaries,
     activeDeckId: activeDeckId || null,
+    // Pending packs are stored as { id, packType, source, mintedUtc,
+    // rolled } in KV (see cards-state.js mintPendingPack). The client
+    // contract uses `packId` for the key, so map id -> packId here.
     pendingPacks: pendingPacks.map(p => ({
-      packId: p.packId,
+      packId: p.id,
       packType: p.packType,
       source: p.source,
       opened: !!(p.rolled && p.rolled.length),
       mintedUtc: p.mintedUtc,
     })),
-    welcomePack: welcomePack ? { packId: welcomePack.packId, packType: welcomePack.packType } : null,
+    // creditPack() returns { ok, pack: rec }; pull packId + packType out
+    // of the inner record, not the outer wrapper.
+    welcomePack: welcomePack && welcomePack.pack
+      ? { packId: welcomePack.pack.id, packType: welcomePack.pack.packType }
+      : null,
     log: (log || []).slice(0, 10),
     trophies: trophies || { trophies: 0, peak: 0, season: 1 },
     wallet: { balance: wallet.balance || 0 },
