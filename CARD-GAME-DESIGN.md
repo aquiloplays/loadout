@@ -496,3 +496,384 @@ scope; tracked separately.
 
 None. Doc is LOCKED. If something needs to change post-lock, file
 it as a Phase 2 change request — don't edit this doc in place.
+
+---
+
+# Expansion (post-lock change request CR-1)
+
+> Status: **LOCKED — building.** Clay 2026-05-something:
+> *"Expand to 1,000+ cards for deep combat and deck-building. Add a
+> recycle → fragments → craft-pack loop so collecting is easier.
+> Make card art cooler."*
+>
+> The original 82-card roster ships unchanged. CR-1 ADDS new cards
+> with a new ID scheme (`<family>.<rarity-letter><nnn>`) so existing
+> collections continue to validate. The locked §2 battle format is
+> unchanged. New ability keys + keywords may be added; existing ones
+> are preserved.
+
+---
+
+## 13. Expansion roster — 1,000+ cards (LOCKED)
+
+### 13.1. Why a generator, not 1,000 hand-author lines
+
+Hand-authoring a thousand card records is achievable but expensive in
+maintenance: every balance pass touches a thousand rows. We
+generate the expansion catalogue from a small **family declaration**
+file: each family supplies its name list, palette tint, visual
+archetype hint, and an effect-weight table; the generator stamps out
+the matching minions and spells. The output is a JS object literal
+checked into git — generation happens at *authoring* time, not at
+runtime, so the deployed worker still reads a static catalogue and
+nothing about determinism, replays, or pack pulls changes.
+
+A balance edit (e.g. "Beast common minions cost 1 mana more for the
+same statline") changes one declaration row and re-runs the
+generator. The diff is one line.
+
+### 13.2. Families (15) and roster targets
+
+15 families, themed for both flavour and synergy. Synergy keywords
+(`tribe:beast`, `tribe:undead`, etc.) get stamped on each card and
+unlock the next phase's "tribe-payoff" rare/legendary cards — out of
+CR-1 scope mechanically, but the tag is reserved on every card so a
+future pass can light them up without re-IDing the roster.
+
+| Family | Tribe tag | Vibe | Stats lean |
+| --- | --- | --- | --- |
+| **beast**  | beast      | Forest predators, packs, wild | balanced |
+| **undead** | undead     | Skeletons, zombies, ghouls, lich-aligned | aggressive, deathrattle-heavy |
+| **fire**   | elemental  | Salamanders, flame imps, fire spells | spell-heavy, direct dmg |
+| **frost**  | elemental  | Ice golems, frost wisps, freeze | stall + control |
+| **storm**  | elemental  | Lightning, voltaic-aligned | burst dmg + AoE |
+| **shadow** | shadow     | Shades, assassins, hexes | stealth + poison |
+| **light**  | light      | Priests, paladins, holy | heal + buff |
+| **arcane** | arcane     | Mages, scribes, arcane | draw + utility |
+| **wild**   | beast      | Rangers, druids, nature (synergises beasts) | mid-curve, ramp |
+| **forge**  | construct  | Engineers, golems, mechs | buff + scaling |
+| **goblin** | goblin     | Goblin scrappers, sappers (extends warchief lineage) | swarm + cheap minions |
+| **dragon** | dragon     | Dragons, dragonkin | high-mana, big stats |
+| **demon**  | demon      | Demons, fiends, pacts | self-damage for value |
+| **fae**    | fae        | Sprites, fairies, charm | bounce + buff |
+| **vault**  | vault      | Treasure hunters, runesmiths | dig + draw |
+
+Per-family card counts:
+
+| Rarity | Per family | × 15 families | Total |
+| --- | --- | --- | --- |
+| Common | 36 | 540 | **540** |
+| Uncommon | 18 | 270 | **270** |
+| Rare | 8 | 120 | **120** |
+| Legendary | 2 | 30 | **30** |
+
+**Expansion total: 960 new cards.** Combined with the original 82
+(5 champs + 10 legends + 14 rares + 20 uncommons + 31 commons + 2
+tokens), the live roster is **1,042 cards**.
+
+### 13.3. Stat-cost formula (the dial)
+
+Vanilla baseline: `(atk + hp) ≈ 2 × mana + 1`. So a 3-mana vanilla
+common is a 3/4 or 4/3 or 2/5. Abilities cost stat points off the
+vanilla baseline:
+
+| Ability | Stat cost |
+| --- | --- |
+| `taunt` keyword | 0 (free defensive lockdown) |
+| `charge` keyword | -2 stats (offence — strong) |
+| `shield` keyword | -1 stats |
+| `stealth` keyword | -1 stats |
+| `lifesteal` keyword | -2 stats |
+| `poison` keyword | -2 stats |
+| `reach` keyword | -1 stats |
+| `onPlay: damage N (picked)` | -N stats |
+| `onPlay: damage N (allEnemy)` | -2N stats |
+| `onPlay: heal N` | -N/2 stats (rounded up) |
+| `onPlay: draw N` | -2N stats |
+| `onDeath: summon (1/1)` | -1 stats |
+| `onDeath: summon (3/3)` | -3 stats |
+| `endOfTurn: heal 2 (friend)` | -2 stats |
+| `spellDamageBonus +1` | -1 stats |
+
+Rarity inflates the stat budget on top of vanilla:
+
+| Rarity | Stat budget vs vanilla |
+| --- | --- |
+| common    | +0 |
+| uncommon  | +1 |
+| rare      | +2 |
+| legendary | +3 to +4 + unique mechanic |
+
+That gives commons honest "deck glue" feel, uncommons feel slightly
+more efficient, rares are the swing cards, legendaries are
+must-build-around.
+
+### 13.4. Mana curve (per family)
+
+Each family's commons distribute across the curve:
+
+| Mana | Commons / family |
+| --- | --- |
+| 1 | 4 |
+| 2 | 6 |
+| 3 | 6 |
+| 4 | 6 |
+| 5 | 5 |
+| 6 | 4 |
+| 7 | 3 |
+| 8 | 2 |
+
+Uncommons + rares lean mid-to-high (3-7). Legendaries are
+strictly 5-10.
+
+About 20% of each family's commons + uncommons are spells (mostly
+1-3 mana). Rares and legendaries are predominantly minions.
+
+### 13.5. New ability keys + keywords (extending §3)
+
+CR-1 adds these to the locked ability dictionary:
+
+**Effects (new):**
+- `freeze` — target minion has `frozen` status; can't attack for 1 turn.
+- `selfDamage` — value: N. Demon family — self-hero takes N to gain value elsewhere.
+- `peekDeck` — already in §3, formalised here. Show top N cards of own deck.
+- `boostCost` — value: N. Target card in hand gets +N mana cost next turn.
+- `discountCost` — value: N. Target card in hand gets -N mana cost (clamped at 0).
+- `transform` — replace target with `cardId` token.
+
+**Keywords (new):**
+- `frozen` (status, not on-card) — minion cannot attack this turn.
+- `rush` — can attack minions on play-turn but not hero (between charge and vanilla).
+- `divine-light` — first damage instance is halved (rounded up).
+- `regen` — heals 1 HP at end of each owner turn.
+- `wisp` — bounces back to hand on death instead of graveyard.
+
+Resolver work: 5 new effects + 5 new keywords. Out of doc scope —
+see `cards-battle.js` extension in cards-content-expansion.js.
+
+### 13.6. The new ID scheme
+
+Existing 82 cards keep their IDs (`c.gobrunt`, `u.scrapper`,
+`r.boltknight`, `leg.solara`, `champ.warrior`, `tok.boneknight`).
+
+New cards use **`<family>.<rarity-letter><nnn>`**:
+
+- `beast.c001` — first beast common
+- `beast.u004` — fourth beast uncommon
+- `beast.r002` — second beast rare
+- `beast.l001` — first beast legendary
+
+Why a new scheme: avoids collision with existing single-prefix IDs
+on every front (collection records, deck records, sprite paths,
+pack pulls). Lets the catalogue grow further (CR-2 etc.) without
+running out of namespace.
+
+---
+
+## 14. Recycle → Fragments → Craft (LOCKED)
+
+### 14.1. The collecting loop, expanded
+
+Pre-CR-1 loop: open packs → cards land in collection → past
+deck-cap dupes refund Bolts. The Bolts refund stays. CR-1 adds a
+**player-initiated** path:
+
+> **Recycle owned cards → Fragments → Craft packs.**
+
+Different from the dupe refund: dupes only fire on *new* pulls
+that exceed cap. Recycling consumes cards you ALREADY own and
+willingly destroy. The two paths coexist — they reward different
+behaviours.
+
+### 14.2. Recycle yields (LOCKED)
+
+| Rarity | Fragments per card recycled |
+| --- | --- |
+| common    | 5 |
+| uncommon  | 20 |
+| rare      | 100 |
+| legendary | 500 |
+| champion  | NOT recyclable |
+| token     | NOT in collection — not applicable |
+
+Symmetric with the dupe-Bolts refund table (also `5 / 20 / 100 /
+500`). One unit of fragment ≈ one Bolt in raw value; the craft
+prices below introduce the friction.
+
+### 14.3. Craft costs (LOCKED)
+
+| Pack | Bolts price | Fragment craft | Multiplier |
+| --- | --- | --- | --- |
+| **Common Pack**   | n/a (1/day free, lootbox, Clash 1★) | **100 frags** | — |
+| **Bolt Pack**     | 250 Bolts | **400 frags** | **1.60× the Bolts cost** |
+| **Voltaic Pack**  | drop-only | **1500 frags** | only craftable path |
+
+Crafting a Bolt Pack costs **60% more** raw value than buying one.
+Fragments are the SLOW path: pure Bolts is faster. Recycling is
+about "I have these I'll never play, give me a way to convert
+them into rolls" — not about beating the Bolts economy.
+
+Voltaic Packs were drop-only pre-CR-1. CR-1 adds a craft path so a
+diligent fragment grinder can earn them too — at the cost of 1500
+frags (≈ 300 common recycles, or 15 rares).
+
+### 14.4. Recycle gating
+
+- Cannot recycle a card if recycling it would leave you below the
+  count present in any of your saved decks. The recycle helper
+  returns a clear error pointing at the offending deck.
+- Cannot recycle the active deck's full count of a card — same
+  rule applied to the active deck specifically.
+- Cannot recycle a Champion (any `champ.*` card).
+- Hard floor at 1 per recycle action — no "recycle 0 to inspect" hack.
+
+### 14.5. KV layout
+
+New key family:
+- `cards:frags:<userId>` → integer balance. Per-user (not per-guild)
+  — same scope as trophies. TTL: none.
+
+(Per-guild scoping would force re-grinding when a viewer plays in a
+new channel; per-user matches the "your collection is yours
+forever" feel.)
+
+### 14.6. Module surface
+
+`cards-fragments.js` (new):
+- `getFragments(env, userId)` → integer
+- `addFragments(env, userId, delta, reason)` → integer
+- `recycleCard(env, guildId, userId, cardId, count)` → result
+- `craftPack(env, guildId, userId, packType)` → result
+
+Bolts purchase path stays in `cards-packs.js`. The craft path
+shares `creditPack` to mint the pending pack — same downstream
+flow as a Bolts buy or a Clash drop.
+
+### 14.7. Discord surface
+
+New slash subcommands on `/boltbound`:
+
+- `/boltbound recycle card:<id> count:<n>` — recycle owned cards
+- `/boltbound craft pack:<bolt|voltaic|common>` — craft from fragments
+- `/boltbound fragments` — show fragment balance + craft prices
+
+`/boltbound status` adds a fragment-balance line.
+
+### 14.8. Web / panel hook points (for the aquilo-site repo)
+
+Routes added to `cards-web.js`:
+- `POST boltbound/recycle` `{ cardId, count }` → `{ ok, fragmentsAfter, recycled }`
+- `POST boltbound/craft`   `{ packType }`     → `{ ok, fragmentsAfter, packId }`
+- `GET  boltbound/state` extended with `fragments: <number>`
+
+The web pack-opener page (Phase-2 aquilo-site work) gets a "Craft
+Pack" CTA next to "Buy Pack". The Twitch panel TCG view gets a
+read-only fragment-balance chip in the header.
+
+---
+
+## 15. Card art — extended pipeline (CR-1)
+
+Clay's directive: *"Cards should look cooler."*
+
+Current 82-sprite pipeline hand-authors each card. Extending the
+same pattern to 1,000 sprites doesn't scale, so we move to an
+**archetype-template** approach inside the same generator:
+
+### 15.1. Archetype templates
+
+Each card declares a `visualArchetype` (e.g. `humanoid-warrior`,
+`beast-quad`, `undead-skeleton`, `elemental-fire`, `dragon-flier`,
+`spell-bolt`, `spell-circle`). The generator maps archetype +
+family palette + accessory hints to a procedural sprite recipe.
+
+Initial 15 archetypes (Phase 5 sprite pass):
+
+| Archetype | Used by |
+| --- | --- |
+| humanoid-warrior  | wild, forge, light, vault knights |
+| humanoid-mage     | arcane, fire, frost, storm casters |
+| humanoid-rogue    | shadow, fae, goblin |
+| humanoid-priest   | light priests, healers |
+| beast-quad        | beast, wild quadrupeds |
+| beast-bird        | wild rangers' companions, fae |
+| undead-skeleton   | undead (skeletons, lich) |
+| undead-zombie     | undead (zombies, ghouls) |
+| elemental-fire    | fire family minions |
+| elemental-frost   | frost family minions |
+| elemental-storm   | storm family minions |
+| construct-golem   | forge family minions |
+| construct-mech    | forge family advanced |
+| dragon-flier      | dragon family |
+| demon-fiend       | demon family |
+| spell-bolt        | direct-damage spells |
+| spell-circle      | summon / utility spells |
+| spell-heal        | heal spells |
+| spell-buff        | buff spells |
+
+The card's **detail tier** scales with rarity:
+
+| Rarity | Detail tier |
+| --- | --- |
+| common    | 3-tone shade, simple silhouette |
+| uncommon  | + accent color, outline highlight |
+| rare      | + rim light, sub-detail (belts, runes), glow halo |
+| legendary | full detail + 4-frame APNG animation |
+
+### 15.2. Generation flow
+
+`tools/build-card-sprites.ps1` is extended with one new function per
+archetype: `Draw-Archetype-<Name>` that takes `(bmp, palette,
+accessory, detailTier)` and produces the sprite. The catalogue's
+`visualArchetype` field drives which function the generator calls
+for each card.
+
+Output paths stay the same:
+- `aquilo-gg/sprites/cards/<cardId>.png` for static
+- `aquilo-gg/sprites/_card-legendary-frames/<slug>-fx-<n>.png` →
+  stitched by `build-card-apng.mjs` into `cards/<cardId>.png` for
+  animated legendaries.
+
+The expansion sprite pass runs in chunks (one family at a time)
+because regenerating 1,000+ sprites in one shot is slow on a single
+machine. The PS1 script honours the existing `-Only` flag and gets
+a new `-Family` flag to scope generation.
+
+### 15.3. No emoji — confirmed
+
+Standing rule from §1 holds. No emoji glyphs in any card record.
+All card art is custom pixel art, served from
+`aquilo.gg/sprites/cards/<cardId>.png`.
+
+---
+
+## 16. Migration + compatibility
+
+- Existing 82 cards: untouched. Their IDs (`c.*`, `u.*`, `r.*`,
+  `leg.*`, `champ.*`, `tok.*`) stay valid. Their sprites stay valid.
+- Existing decks: still valid. Existing collections: still valid.
+- Existing pulled packs: still valid (rolls were frozen at open
+  time; the new catalogue's only effect is on FUTURE rolls).
+- NPC archetype decks: regenerated to use the expanded pool. Old
+  IDs may still appear — no break.
+- Pack pull rates: unchanged. The rarity weighting (60/30/9/1 in a
+  Bolt Pack etc.) stays — there are just more cards in each pool.
+- `RARITY_DECK_CAP`, `DUPE_BOLTS`, `STARTING_HP`, `DECK_SIZE`:
+  unchanged.
+
+Anything not explicitly changed in §13-15 is unchanged.
+
+---
+
+## 17. Roadmap after CR-1
+
+For context — not committed, just shape of next passes:
+
+- **CR-2: Tribal-payoff cards** — cards that read "+X for every
+  Beast you control" etc. Hooks already in place via the
+  `tribe:beast` tag stamped on each card.
+- **CR-3: Crafting-loop UX** — pity counters specific to fragment
+  craft, "next legendary in N crafts" surfacing.
+- **CR-4: Web pack-opener animations** — read pre-rolled pulls, do
+  the fancy reveal on aquilo-site.
+

@@ -30,6 +30,10 @@ import {
 import {
   saveDeck, dropDeck, activateDeck, listDeckSummaries, buildStarterDeck,
 } from './cards-decks.js';
+import {
+  getFragments, recycleCard, craftPack,
+  RECYCLE_YIELD, CRAFT_COST,
+} from './cards-fragments.js';
 import { loadHero } from './dungeon.js';
 
 const RESP_CHAT   = 4;
@@ -135,6 +139,9 @@ export async function handleBoltboundCommand(env, data, userId, userName) {
     case 'log':         return ephemeral(await renderMatchLog(env, guildId, userId));
     case 'leaderboard': return ephemeral(await renderLeaderboard(env, guildId));
     case 'challenges':  return ephemeral(await renderChallenges(env, guildId, userId));
+    case 'fragments':   return ephemeral(await renderFragments(env, userId));
+    case 'recycle':     return ephemeral(await recycleHandler(env, guildId, userId, getOpt('card'), getOpt('count')));
+    case 'craft':       return ephemeral(await craftHandler(env, guildId, userId, getOpt('pack')));
     case '':            return ephemeral(await renderStatus(env, guildId, userId, userName));
     default:            return ephemeral('Unknown /boltbound subcommand: ' + leaf);
   }
@@ -183,12 +190,14 @@ async function renderStatus(env, guildId, userId, userName) {
   const cardCount = Object.values(col.cards || {}).reduce((a, b) => a + b, 0);
   const dailyClaimed = await hasClaimedFreePackToday(env, guildId, userId);
   const activeMatch = await getActiveMatch(env, guildId, userId);
+  const frags = await getFragments(env, userId);
   const lines = [
     `**${userName} — Boltbound profile**`,
     `🏆 Trophies: **${trophies.trophies}** · Tier: ${trophies.tier} · Peak: ${trophies.peak}`,
     `🃏 Collection: **${cardCount}** cards · Decks: ${decks.length}/6 ${active ? `(active: ${active.name})` : '(none active)'}`,
     `📦 Pending packs: **${packs.length}** ${packs.length ? `(\`/boltbound packs\` to view)` : ''}`,
     `🎁 Daily Common Pack: ${dailyClaimed ? 'claimed' : '`/boltbound daily` to claim'}`,
+    `🧩 Fragments: **${frags}** _(recycle owned cards · craft packs)_`,
     `⚡ Ladder Bolts today: ${cap.earnedToday}/${cap.cap}`,
   ];
   if (activeMatch && activeMatch.status === 'active') {
@@ -570,6 +579,59 @@ async function renderMatchLog(env, guildId, userId) {
     lines.push(`• ${result} · turn ${r.turn} · ${vs}`);
   }
   return lines.join('\n');
+}
+
+// ── CR-1: fragments + recycle + craft ───────────────────────────────
+
+async function renderFragments(env, userId) {
+  const frags = await getFragments(env, userId);
+  return [
+    `🧩 **Fragments: ${frags}**`,
+    '',
+    '**Recycle yield (per card):**',
+    `  • Common ${RECYCLE_YIELD.common} · Uncommon ${RECYCLE_YIELD.uncommon} · Rare ${RECYCLE_YIELD.rare} · Legendary ${RECYCLE_YIELD.legendary}`,
+    '',
+    '**Craft costs (frags → pack):**',
+    `  • Common Pack: ${CRAFT_COST.common} frags`,
+    `  • Bolt Pack:   ${CRAFT_COST.bolt} frags  _(60% more than 250 Bolts — Bolts is the faster path)_`,
+    `  • Voltaic Pack:${CRAFT_COST.voltaic} frags  _(otherwise drop-only)_`,
+    '',
+    'Recycle: `/boltbound recycle card:<id> count:<n>` · Craft: `/boltbound craft pack:bolt`',
+  ].join('\n');
+}
+
+async function recycleHandler(env, guildId, userId, cardId, count) {
+  if (!cardId) return '❌ Which card? Try `/boltbound collection` to see your owned cards.';
+  const n = Math.max(1, Number(count) || 1);
+  const r = await recycleCard(env, guildId, userId, cardId, n);
+  if (!r.ok) {
+    if (r.error === 'unknown-card') return '❌ Unknown card id.';
+    if (r.error === 'champions-not-recyclable') return '❌ Champions can\'t be recycled.';
+    if (r.error === 'tokens-not-recyclable') return '❌ Tokens can\'t be recycled.';
+    if (r.error === 'insufficient-copies') return `❌ You only own ${r.owned} copies.`;
+    if (r.error === 'deck-uses-this-card') return `❌ ${r.message}`;
+    return `❌ ${r.error}`;
+  }
+  return [
+    `🧩 Recycled **${r.recycled}× ${r.cardName}** (${r.rarity}) → **+${r.yield} fragments**`,
+    `You now own ${r.ownedAfter}× this card · Balance: **${r.balanceAfter}** frags.`,
+  ].join('\n');
+}
+
+async function craftHandler(env, guildId, userId, packType) {
+  if (!packType) return '❌ Which pack? Try `pack:bolt` (400 frags).';
+  const r = await craftPack(env, guildId, userId, packType);
+  if (!r.ok) {
+    if (r.error === 'insufficient-fragments') return `❌ Not enough fragments. Need ${r.need}, have ${r.have}.`;
+    if (r.error === 'unknown-pack-type') return '❌ Unknown pack type. Try `common`, `bolt`, or `voltaic`.';
+    return `❌ ${r.error}`;
+  }
+  const packName = packType === 'voltaic' ? 'Voltaic Pack' : packType === 'bolt' ? 'Bolt Pack' : 'Common Pack';
+  return [
+    `🛠 Crafted **Boltbound ${packName}** for ${r.cost} fragments.`,
+    `Open it: \`/boltbound open id:${r.packId.slice(0, 8)}\``,
+    `Fragments remaining: **${r.fragmentsAfter}**.`,
+  ].join('\n');
 }
 
 async function renderLeaderboard(env, guildId) {

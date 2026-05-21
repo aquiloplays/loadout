@@ -25,6 +25,10 @@ import {
   buyPack, openPack, claimDailyFreePack, creditPack,
 } from './cards-packs.js';
 import {
+  getFragments, recycleCard, craftPack,
+  RECYCLE_YIELD, CRAFT_COST,
+} from './cards-fragments.js';
+import {
   startNpcMatch, queueOrMatchPvp, challengeUser, acceptChallenge,
   takeAction, takeMulligan, renderableState, sideOf,
 } from './cards-match.js';
@@ -50,6 +54,10 @@ const ROUTES = new Set([
   'boltbound/match/mulligan',
   'boltbound/match/concede',
   'boltbound/log',
+  // CR-1: recycle/craft surface
+  'boltbound/fragments',
+  'boltbound/recycle',
+  'boltbound/craft',
 ]);
 
 // Read-only sub-routes the proxy may skip rate-limit for.
@@ -58,6 +66,7 @@ const READ_ROUTES = new Set([
   'boltbound/catalogue',
   'boltbound/match/state',
   'boltbound/log',
+  'boltbound/fragments',
 ]);
 
 export function isBoltboundRoute(r) { return ROUTES.has(r); }
@@ -102,7 +111,7 @@ async function routeState(env, guildId, userId) {
     welcomePack = await creditPack(env, guildId, userId, 'common', 'welcome-web');
   }
 
-  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed] = await Promise.all([
+  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed, fragments] = await Promise.all([
     listDeckSummaries(env, guildId, userId),
     getActiveDeckId(env, guildId, userId),
     listPendingPacks(env, guildId, userId, 30),
@@ -110,6 +119,7 @@ async function routeState(env, guildId, userId) {
     getTrophies(env, userId),
     getWallet(env, guildId, userId),
     hasClaimedFreePackToday(env, guildId, userId),
+    getFragments(env, userId),
   ]);
 
   const activeMatch = await getActiveMatch(env, guildId, userId);
@@ -143,6 +153,13 @@ async function routeState(env, guildId, userId) {
     trophies: trophies || { trophies: 0, peak: 0, season: 1 },
     wallet: { balance: wallet.balance || 0 },
     freePackClaimedToday: !!freeClaimed,
+    // CR-1 — fragment balance + craft economy constants. Page can
+    // render the "Craft Pack" CTA + balance chip without follow-up.
+    fragments: {
+      balance: fragments || 0,
+      recycleYield: RECYCLE_YIELD,
+      craftCost: CRAFT_COST,
+    },
     match: matchView,
   });
 }
@@ -309,6 +326,37 @@ async function routeLog(env, guildId, userId) {
   return json({ ok: true, log: (log || []).slice(0, 25) });
 }
 
+// ── CR-1: recycle/craft routes ──────────────────────────────────────
+//
+// `boltbound/fragments` (read-only) → balance + economy constants.
+// `boltbound/recycle` (POST) → recycle owned cards into frags.
+// `boltbound/craft`   (POST) → spend frags to mint a pack.
+
+async function routeFragments(env, guildId, userId) {
+  const frags = await getFragments(env, userId);
+  return json({
+    ok: true,
+    fragments: frags,
+    recycleYield: RECYCLE_YIELD,
+    craftCost: CRAFT_COST,
+  });
+}
+
+async function routeRecycle(env, guildId, userId, body) {
+  const cardId = String((body && body.cardId) || '').trim();
+  const count = Math.max(1, parseInt(body?.count || '1', 10) || 1);
+  if (!cardId) return json({ ok: false, error: 'bad-cardId' }, 400);
+  const r = await recycleCard(env, guildId, userId, cardId, count);
+  return json(r);
+}
+
+async function routeCraft(env, guildId, userId, body) {
+  const packType = String((body && body.packType) || '').trim();
+  if (!packType) return json({ ok: false, error: 'bad-packType' }, 400);
+  const r = await craftPack(env, guildId, userId, packType);
+  return json(r);
+}
+
 // ── Public dispatch ────────────────────────────────────────────────
 
 export async function routeBoltbound(env, guildId, userId, route, body, opts) {
@@ -333,6 +381,9 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/match/mulligan')  return await routeMatchMulligan(env, guildId, userId, body);
     if (route === 'boltbound/match/concede')   return await routeMatchConcede(env, guildId, userId);
     if (route === 'boltbound/log')             return await routeLog(env, guildId, userId);
+    if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);
+    if (route === 'boltbound/recycle')         return await routeRecycle(env, guildId, userId, body);
+    if (route === 'boltbound/craft')           return await routeCraft(env, guildId, userId, body);
     return wrap({ error: 'not-found' }, 404);
   } catch (e) {
     return wrap({ error: 'server', message: String((e && e.message) || e) }, 500);
