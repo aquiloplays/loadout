@@ -60,6 +60,12 @@ export const DEFAULT_CATALOG = {
     { slot: 'chest',   rarity: 'epic',      name: 'Mithril Plate',  glyph: '', powerBonus: 2, defenseBonus: 7, ability: 'wardstone', goldValue: 1300 },
     // legendary
     { slot: 'weapon',  rarity: 'legendary', name: 'Excalibur',      glyph: '', powerBonus: 10, defenseBonus: 2, ability: '',        goldValue: 3000 },
+    // Boltbound packs — `slot: 'pack'` is intercepted by grantOneTo
+    // and credited via cards-packs.creditPack instead of dropped into
+    // the gear bag. See CARD-GAME-DESIGN.md §4.1.
+    { slot: 'pack',    rarity: 'common',    name: 'Boltbound Common Pack',  glyph: '', packType: 'common',  goldValue: 0 },
+    { slot: 'pack',    rarity: 'rare',      name: 'Boltbound Bolt Pack',    glyph: '', packType: 'bolt',    goldValue: 0 },
+    { slot: 'pack',    rarity: 'epic',      name: 'Boltbound Voltaic Pack', glyph: '', packType: 'voltaic', goldValue: 0 },
   ],
   // Per-rarity selection weights — drawing the rarity tier first, then a
   // uniform item within. Sums don't need to be 100; ratios are what
@@ -253,6 +259,38 @@ async function listCurrentViewers(env, guildId) {
 async function grantOneTo(env, guildId, recipientId, catalog, buyerId) {
   const pick = rollItem(catalog);
   if (!pick) return null;
+  // Boltbound pack drop — slot:'pack' entries don't land in the gear
+  // bag; they mint a pending Boltbound pack via cards-packs.creditPack.
+  // See CARD-GAME-DESIGN.md §4.1.
+  if (pick.slot === 'pack' && pick.packType) {
+    const { creditPack } = await import('./cards-packs.js');
+    const credited = await creditPack(env, guildId, recipientId, pick.packType, 'lootbox');
+    if (!credited.ok) return null;
+    const packItem = {
+      id: newItemId(),
+      slot: 'pack',
+      rarity: pick.rarity || 'common',
+      name: pick.name || 'Boltbound Pack',
+      packType: pick.packType,
+      packId: credited.pack.id,
+      foundIn: recipientId === buyerId ? 'Community Loot Box (yours)' : 'Community Loot Box',
+      foundUtc: new Date().toISOString(),
+    };
+    // Pack notification ride the same grant ring buffer so the panel
+    // can toast "you got a Boltbound Bolt Pack". The pack itself is
+    // already pending under cards:pending — open it via /boltbound.
+    if (recipientId !== buyerId) {
+      const gid = newItemId().slice(0, 12);
+      try {
+        await env.LOADOUT_BOLTS.put(
+          GRANT_KEY(guildId, recipientId, gid),
+          JSON.stringify({ item: packItem, fromUserId: buyerId, ts: Date.now() }),
+          { expirationTtl: GRANT_TTL },
+        );
+      } catch { /* idle */ }
+    }
+    return packItem;
+  }
   const item = buildRolledItem(pick);
   item.foundIn = recipientId === buyerId ? 'Community Loot Box (yours)' : 'Community Loot Box';
   await appendToBag(env, guildId, recipientId, item);
@@ -391,9 +429,27 @@ export async function rollLootBoxFree(env, guildId, userId, req) {
   const pick = rollItem(catalog);
   if (!pick) return json({ error: 'empty-catalog' }, 500);
 
-  const item = buildRolledItem(pick);
-  item.foundIn = 'Free Loot Box';
-  await appendToBag(env, guildId, userId, item);
+  // Boltbound pack — mint via cards-packs.creditPack instead of bag.
+  let item;
+  if (pick.slot === 'pack' && pick.packType) {
+    const { creditPack } = await import('./cards-packs.js');
+    const credited = await creditPack(env, guildId, userId, pick.packType, 'lootbox-free');
+    if (!credited.ok) return json({ error: 'pack-credit-failed' }, 500);
+    item = {
+      id: newItemId(),
+      slot: 'pack',
+      rarity: pick.rarity || 'common',
+      name: pick.name || 'Boltbound Pack',
+      packType: pick.packType,
+      packId: credited.pack.id,
+      foundIn: 'Free Loot Box',
+      foundUtc: new Date().toISOString(),
+    };
+  } else {
+    item = buildRolledItem(pick);
+    item.foundIn = 'Free Loot Box';
+    await appendToBag(env, guildId, userId, item);
+  }
 
   // Increment AFTER the roll so a roll failure (catalog empty, KV
   // write throwing) doesn't burn a free box. KV is eventually
