@@ -501,6 +501,12 @@ const TOKENS = [
 
 // Rarity is set explicitly on champions/legendaries/rares above;
 // uncommons/commons/tokens omit it for brevity and get it stamped here.
+//
+// CR-1 EXPANSION: cards-expansion.js generates ~1,170 additional cards
+// across 15 families under the `<family>.<rarity-letter>NNN` ID scheme.
+// Merged here at module load so battle/packs/decks see one catalogue.
+import { EXPANSION_CARDS } from './cards-expansion.js';
+
 const RAW_ROSTER = [
   ...Object.values(CHAMPIONS_RAW),
   ...LEGEND_HEROES,
@@ -509,6 +515,7 @@ const RAW_ROSTER = [
   ...UNCOMMONS.map(c => ({ ...c, rarity: 'uncommon' })),
   ...COMMONS.map(c => ({ ...c, rarity: 'common' })),
   ...TOKENS.map(c => ({ ...c, rarity: 'token' })),
+  ...EXPANSION_CARDS,
 ];
 
 export const CARDS = Object.fromEntries(
