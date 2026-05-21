@@ -336,12 +336,15 @@ async function handleRaid(env, guildId, userId, userName, kind) {
   const warEnded = r.warCompleted
     ? `\n⚔ War ended — score ${r.warCompleted.scores.attacker}★ vs ${r.warCompleted.scores.defender}★, winner: ${r.warCompleted.winner}`
     : '';
+  const packLine = r.boltboundPack
+    ? `\n🃏 **Boltbound ${r.boltboundPack === 'voltaic' ? 'Voltaic' : r.boltboundPack === 'bolt' ? 'Bolt' : 'Common'} Pack** dropped — open it with \`/boltbound packs\`.`
+    : '';
   return [
     `**${userName}** raided ${r.targetName} — **${starStr}** (${Math.round(r.pctDestroyed * 100)}% destroyed${r.thDown ? ', TH down' : ''}).`,
     r.stars > 0
       ? `Loot: ${r.lootBolts ? `${r.lootBolts}⚡  ` : ''}${r.lootScrap}🧪  ${r.lootCores}⚙${r.voltaic ? `  · 🌀 **Voltaic drop:** ${r.voltaic}` : ''}`
       : `No loot.`,
-    (trophyText + warEnded).trim(),
+    (trophyText + warEnded + packLine).trim(),
     `Raid id: \`${r.raidId}\``,
   ].filter(Boolean).join('\n');
 }
@@ -565,6 +568,19 @@ export async function executeRaid(env, guildId, userId, userName, kind) {
     await dropVoltaicToHero(env, guildId, userId, loot.voltaic);
   }
 
+  // Boltbound pack drop. Roll table seeded by raidId so the drop is
+  // part of the raid's replay determinism (same raid id always
+  // produces the same drop). See CARD-GAME-DESIGN.md §4.2.
+  let boltboundPack = null;
+  if (sim.stars > 0) {
+    const { rollClashPackDrop, creditPack } = await import('./cards-packs.js');
+    const packType = rollClashPackDrop(sim.stars, raidId);
+    if (packType) {
+      const credited = await creditPack(env, guildId, userId, packType, 'clash-raid');
+      if (credited.ok) boltboundPack = packType;
+    }
+  }
+
   // Tokens-remaining surface so the web UI can render a "next raid in
   // X min" countdown without a second round trip.
   const armyAfter = await getArmy(env, guildId, userId);
@@ -596,6 +612,7 @@ export async function executeRaid(env, guildId, userId, userName, kind) {
     warCompleted,
     tokensRemaining: tokensAfter.available,
     nextTokenInMin: tokensAfter.nextInMin,
+    boltboundPack,
   };
 }
 
