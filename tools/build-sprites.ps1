@@ -1527,6 +1527,579 @@ function Build-Weapons {
   Write-Host "  weapons: $count" -ForegroundColor Green
 }
 
+# ══════════════════════════════════════════════════════════════════
+#                       GEAR — head (helmets / hats / hoods)
+# ══════════════════════════════════════════════════════════════════
+#
+# Head gear sits over the figure head (rows 20..37 inclusive) and
+# can extend up into the headroom (rows 0..19) for plumes / crowns.
+# Helmets cover hair; soft caps leave hair visible at the back via
+# transparent fill.
+
+# Full plate helmet — dome + visor + cheek guards
+function Draw-Head-Helmet {
+  param($bmp, [string]$name, [string]$rarity)
+  Rng-Init $name
+  $metal = Rarity-Metal $rarity
+  $accent = Rarity-Accent $rarity
+  $detail = Rarity-Detail $rarity
+
+  $hx = 23; $hy = 17; $hw = 18; $hh = 21
+  $plume = Rng-Pick 5     # 0=none, 1=spike, 2=fin, 3=crown, 4=horns
+  $visor = Rng-Pick 3     # 0=full slit, 1=t-slit, 2=open-face
+
+  # Dome with rounded top — cut top-corner pixels for shape
+  Shade-Box $bmp $hx $hy $hw $hh $metal -RimLight
+  Set-Pixel $bmp $hx $hy ([System.Drawing.Color]::FromArgb(0,0,0,0))
+  Set-Pixel $bmp ($hx + $hw - 1) $hy ([System.Drawing.Color]::FromArgb(0,0,0,0))
+  Set-Pixel $bmp $hx ($hy + 1) $metal.shadow
+  Set-Pixel $bmp ($hx + $hw - 1) ($hy + 1) $metal.shadow
+  # Top crown highlight strip
+  for ($x = 0; $x -lt $hw - 4; $x++) {
+    Set-Pixel $bmp ($hx + 2 + $x) ($hy + 1) $metal.high
+  }
+  Set-Pixel $bmp ($hx + 3) ($hy + 1) $metal.top
+  # Visor band
+  $vy = $hy + 7
+  switch ($visor) {
+    0 {  # Full visor with slit
+      Fill-Box $bmp $hx $vy $hw 4 $metal.shadow
+      Fill-Box $bmp ($hx + 3) ($vy + 1) ($hw - 6) 1 $BRAND.Ink
+      Set-Pixel $bmp ($hx + 4) ($vy + 1) (Color-FromHex '#3a3f50')   # interior glow
+      Set-Pixel $bmp ($hx + $hw - 5) ($vy + 1) (Color-FromHex '#3a3f50')
+      # Breath slits
+      for ($x = 4; $x -lt ($hw - 4); $x += 2) {
+        Set-Pixel $bmp ($hx + $x) ($vy + 3) $metal.deep
+      }
+    }
+    1 {  # T-slit
+      Fill-Box $bmp $hx $vy $hw 4 $metal.shadow
+      Fill-Box $bmp ($hx + 8) $vy 2 4 $BRAND.Ink
+      Fill-Box $bmp ($hx + 3) ($vy + 1) ($hw - 6) 1 $BRAND.Ink
+    }
+    2 {  # Open face — eyes show through
+      Fill-Box $bmp ($hx + 2) $vy 5 3 $BRAND.Ink
+      Fill-Box $bmp ($hx + $hw - 7) $vy 5 3 $BRAND.Ink
+      # Brow ridge
+      Fill-Box $bmp $hx ($vy - 1) $hw 1 $metal.high
+    }
+  }
+  # Cheek guards extending down
+  Fill-Box $bmp $hx ($hy + $hh - 2) 2 3 $metal.shadow
+  Fill-Box $bmp ($hx + $hw - 2) ($hy + $hh - 2) 2 3 $metal.shadow
+  # Rivets at temples
+  if ($detail -ge 1) {
+    Draw-Rivet $bmp ($hx + 1) ($hy + 5) $metal
+    Draw-Rivet $bmp ($hx + $hw - 2) ($hy + 5) $metal
+  }
+  # Crest / plume on top
+  switch ($plume) {
+    1 {  # Spike
+      for ($y = 0; $y -lt 9; $y++) {
+        Set-Pixel $bmp (32) ($hy - 1 - $y) $metal.base
+      }
+      Set-Pixel $bmp 32 ($hy - 10) $metal.top
+      Set-Pixel $bmp 31 ($hy - 6) $metal.high
+    }
+    2 {  # Plume (swept back) — coloured by rarity accent
+      for ($y = 0; $y -lt 8; $y++) {
+        for ($x = 0; $x -lt 6; $x++) {
+          $px = 32 + $x
+          $py = $hy - 1 - $y + [int]($x / 2)
+          $col = if ((($x + $y) % 2) -eq 0) { $accent } else { With-Alpha $accent 200 }
+          Set-Pixel $bmp $px $py $col
+        }
+      }
+    }
+    3 {  # Crown — jagged merlons + gem
+      for ($x = 0; $x -lt $hw; $x += 3) {
+        Set-Pixel $bmp ($hx + $x) ($hy - 1) $metal.base
+        Set-Pixel $bmp ($hx + $x) ($hy - 2) $metal.high
+        Set-Pixel $bmp ($hx + $x + 1) ($hy - 1) $metal.shadow
+      }
+      $gem = Gem-Palette $name
+      Draw-Gem $bmp 32 ($hy - 2) 3 $gem
+    }
+    4 {  # Horns — curving back
+      foreach ($dir in @(-1, 1)) {
+        for ($i = 0; $i -lt 7; $i++) {
+          $x = 32 + $dir * (2 + $i)
+          $y = $hy - 1 - $i + [int]($i / 3)
+          Set-Pixel $bmp $x $y $metal.base
+          Set-Pixel $bmp ($x - $dir) $y $metal.shadow
+          Set-Pixel $bmp ($x + $dir) $y $metal.high
+        }
+      }
+    }
+  }
+  # Rune accent (rare+)
+  if ($detail -ge 2) {
+    Set-Pixel $bmp 32 ($hy + 4) $accent
+    Set-Pixel $bmp 31 ($hy + 5) $accent
+    Set-Pixel $bmp 33 ($hy + 5) $accent
+  }
+  if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+}
+
+# Soft fabric cap / hood / wide-brim hat / wizard hat / circlet
+function Draw-Head-Cap {
+  param($bmp, [string]$name, [string]$rarity)
+  Rng-Init $name
+  $detail = Rarity-Detail $rarity
+  $accent = Rarity-Accent $rarity
+  $lower = $name.ToLower()
+  $cx = 32
+
+  $shape = Rng-Pick 4
+  if ($lower -match 'hood|cowl') { $shape = 3 }
+  if ($lower -match 'wizard|pointy|pointed|peaked') { $shape = 2 }
+  if ($lower -match 'brim|stetson|tricorn|wayfarer') { $shape = 1 }
+  if ($lower -match 'circlet|tiara|crown|diadem|coronet') { $shape = 4 }
+
+  # Material ramp: cloth/linen for soft caps; metal for circlets
+  $mat = $MAT_CLOTH_WOOL
+  if ($shape -eq 4) { $mat = Rarity-Metal $rarity }
+  elseif ($lower -match 'leather') { $mat = $MAT_LEATHER }
+  elseif ($lower -match 'silk|robe|cloth') { $mat = $MAT_CLOTH_LINEN }
+  elseif ($detail -ge 3) { $mat = $MAT_CLOTH_LINEN }
+
+  switch ($shape) {
+    0 {  # Skullcap
+      Shade-Box $bmp ($cx - 8) 22 16 5 $mat -RimLight
+      # Rim band
+      Fill-Box $bmp ($cx - 8) 27 16 1 $mat.deep
+      if ($detail -ge 1) {
+        Fill-Box $bmp ($cx - 8) 26 16 1 $accent
+      }
+      # Top tuft
+      Set-Pixel $bmp $cx 21 $mat.high
+    }
+    1 {  # Wide-brim hat
+      # Wide horizontal brim
+      Fill-Box $bmp ($cx - 11) 27 22 2 $mat.base
+      Fill-Box $bmp ($cx - 11) 27 22 1 $mat.high
+      Fill-Box $bmp ($cx - 11) 28 22 1 $mat.shadow
+      # Crown
+      Shade-Box $bmp ($cx - 5) 19 10 8 $mat -RimLight
+      # Hat band
+      Fill-Box $bmp ($cx - 5) 24 10 1 $mat.shadow
+      if ($detail -ge 1) {
+        Fill-Box $bmp ($cx - 5) 25 10 1 $accent
+      }
+      # Decorative feather (epic+)
+      if ($detail -ge 3) {
+        for ($y = 0; $y -lt 6; $y++) {
+          Set-Pixel $bmp ($cx + 5 + [int]($y / 3)) (18 - $y) $accent
+          Set-Pixel $bmp ($cx + 4 + [int]($y / 3)) (18 - $y) $mat.deep
+        }
+      }
+    }
+    2 {  # Wizard cone hat
+      # Cone — taper down
+      for ($y = 0; $y -lt 14; $y++) {
+        $w = $y + 1
+        $x0 = $cx - [int]($w / 2)
+        Fill-Box $bmp $x0 (22 - $y + 7) $w 1 $mat.base
+        Set-Pixel $bmp $x0 (22 - $y + 7) $mat.shadow
+        Set-Pixel $bmp ($x0 + $w - 1) (22 - $y + 7) $mat.high
+      }
+      # Tip + curl
+      Set-Pixel $bmp $cx 9 $mat.top
+      Set-Pixel $bmp ($cx + 1) 10 $mat.base
+      Set-Pixel $bmp ($cx + 1) 11 $mat.shadow
+      # Brim
+      Fill-Box $bmp ($cx - 8) 26 16 1 $mat.shadow
+      Fill-Box $bmp ($cx - 8) 27 16 1 $mat.deep
+      # Stars on hat (epic+)
+      if ($detail -ge 3) {
+        Set-Pixel $bmp ($cx - 1) 18 $accent
+        Set-Pixel $bmp ($cx + 2) 20 $accent
+        Set-Pixel $bmp ($cx + 4) 24 $accent
+      }
+    }
+    3 {  # Hood — pointed cowl
+      # Outer hood drape
+      for ($y = 0; $y -lt 18; $y++) {
+        $w = 18 - [int]($y / 3)
+        if ($y -lt 3) { $w = 6 + $y * 4 }
+        $x0 = $cx - [int]($w / 2)
+        Fill-Box $bmp $x0 (15 + $y) $w 1 $mat.base
+        Set-Pixel $bmp $x0 (15 + $y) $mat.shadow
+        Set-Pixel $bmp ($x0 + $w - 1) (15 + $y) $mat.deep
+      }
+      # Face hole (transparent) — show face through opening
+      Fill-Box $bmp ($cx - 5) 24 10 8 ([System.Drawing.Color]::FromArgb(0,0,0,0))
+      # Hood inner shadow ring around face
+      for ($y = 0; $y -lt 8; $y++) {
+        Set-Pixel $bmp ($cx - 6) (24 + $y) $mat.deep
+        Set-Pixel $bmp ($cx + 5) (24 + $y) $mat.deep
+      }
+      Fill-Box $bmp ($cx - 6) 23 12 1 $mat.deep
+      # Trim
+      if ($detail -ge 2) {
+        Set-Pixel $bmp ($cx - 7) 24 $accent
+        Set-Pixel $bmp ($cx + 6) 24 $accent
+      }
+    }
+    4 {  # Circlet — thin metal band + central gem
+      Fill-Box $bmp ($cx - 8) 25 16 2 $mat.base
+      Fill-Box $bmp ($cx - 8) 25 16 1 $mat.high
+      Fill-Box $bmp ($cx - 8) 26 16 1 $mat.shadow
+      # Side spikes
+      Set-Pixel $bmp ($cx - 7) 24 $mat.base
+      Set-Pixel $bmp ($cx + 6) 24 $mat.base
+      Set-Pixel $bmp ($cx - 8) 24 $mat.high
+      Set-Pixel $bmp ($cx + 7) 24 $mat.high
+      # Central gem
+      $gem = Gem-Palette $name
+      Draw-Gem $bmp $cx 24 3 $gem
+      Set-Pixel $bmp $cx 22 $mat.high
+    }
+  }
+  if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+}
+
+# Dispatch on name keyword + hash
+function Draw-Head {
+  param($bmp, [string]$name, [string]$rarity)
+  Rng-Init $name
+  $lower = $name.ToLower()
+  if ($lower -match 'helm|coif|sallet|barbute|visor|drak|ironclad|warmask|maw|skull') {
+    Draw-Head-Helmet $bmp $name $rarity
+  } elseif ($lower -match 'cap|hat|hood|wayfarer|circlet|crown|tiara|diadem|coronet|cowl|wizard') {
+    Draw-Head-Cap $bmp $name $rarity
+  } else {
+    if ((Rng-Pick 2) -eq 0) { Draw-Head-Helmet $bmp $name $rarity }
+    else                    { Draw-Head-Cap    $bmp $name $rarity }
+  }
+}
+
+# ══════════════════════════════════════════════════════════════════
+#                       GEAR — chest (plate / robe / tunic / mail)
+# ══════════════════════════════════════════════════════════════════
+#
+# Chest covers rows 38..60 (torso). Width = 24 (stocky) or 20 (slim);
+# we paint at the wider 24 width and let compositor squash to slim.
+
+function Draw-Chest {
+  param($bmp, [string]$name, [string]$rarity)
+  Rng-Init $name
+  $metal = Rarity-Metal $rarity
+  $accent = Rarity-Accent $rarity
+  $detail = Rarity-Detail $rarity
+  $lower = $name.ToLower()
+
+  # Variant detection
+  $variant = Rng-Pick 4    # 0=plate, 1=robe, 2=tunic, 3=mail
+  if ($lower -match 'plate|cuirass|carapace|ironclad|hauberk') { $variant = 0 }
+  elseif ($lower -match 'robe|vestment|drape|cloak|cassock') { $variant = 1 }
+  elseif ($lower -match 'tunic|jerkin|gambeson|jacket') { $variant = 2 }
+  elseif ($lower -match 'mail|chainmail|chain') { $variant = 3 }
+
+  $cx = 32
+  $top = 38
+  $bot = 61
+  $w = 26   # slightly wider than torso to overlap shoulders cleanly
+  $hx = $cx - [int]($w / 2)
+  $h = $bot - $top
+
+  switch ($variant) {
+    0 {  # Plate
+      Shade-Box $bmp $hx $top $w $h $metal -RimLight
+      # Pectoral seam (down centre)
+      Fill-Box $bmp $cx $top 1 $h $metal.shadow
+      # Top neckline V-cut
+      Fill-Box $bmp ($cx - 2) $top 5 1 $metal.deep
+      # Shoulder pauldrons — bumps on the upper outer
+      foreach ($side in @(-1, 1)) {
+        $sx = $cx + $side * 11
+        Shade-Box $bmp ($sx - 1) ($top - 1) 4 5 $metal -RimLight
+        Draw-Rivet $bmp $sx ($top + 1) $metal
+      }
+      # Belt
+      Fill-Box $bmp $hx ($bot - 3) $w 2 $MAT_LEATHER.shadow
+      Fill-Box $bmp $hx ($bot - 3) $w 1 $MAT_LEATHER.base
+      Fill-Box $bmp $hx ($bot - 2) $w 1 $MAT_LEATHER.deep
+      # Belt buckle
+      Fill-Box $bmp ($cx - 1) ($bot - 3) 3 2 $metal.base
+      Set-Pixel $bmp $cx ($bot - 3) $metal.top
+      # Rivets along the breast plate
+      Draw-Rivet $bmp ($hx + 3) ($top + 4) $metal
+      Draw-Rivet $bmp ($hx + $w - 4) ($top + 4) $metal
+      Draw-Rivet $bmp ($hx + 3) ($top + 12) $metal
+      Draw-Rivet $bmp ($hx + $w - 4) ($top + 12) $metal
+      # Heraldic crest (rare+)
+      if ($detail -ge 2) {
+        $gem = Gem-Palette $name
+        Draw-Gem $bmp $cx ($top + 6) 3 $gem
+      }
+    }
+    1 {  # Robe
+      $cloth = if ($lower -match 'silk|royal|seasilk') { $MAT_CLOTH_LINEN } else { $MAT_CLOTH_WOOL }
+      # Slight flare toward bottom
+      for ($y = 0; $y -lt $h; $y++) {
+        $rowW = $w + [int]($y / 4)
+        $rowX = $cx - [int]($rowW / 2)
+        Fill-Box $bmp $rowX ($top + $y) $rowW 1 $cloth.base
+        Set-Pixel $bmp $rowX ($top + $y) $cloth.high
+        Set-Pixel $bmp ($rowX + $rowW - 1) ($top + $y) $cloth.shadow
+        # Vertical fold lines (every 4 rows)
+        if ((($top + $y) % 4) -eq 0) {
+          Set-Pixel $bmp ($rowX + 5)              ($top + $y) $cloth.shadow
+          Set-Pixel $bmp ($rowX + $rowW - 6)      ($top + $y) $cloth.high
+        }
+      }
+      # Sash across the torso (diagonal accent)
+      $sashCol = if ($detail -ge 2) { $accent } else { $cloth.deep }
+      for ($y = 0; $y -lt 4; $y++) {
+        Fill-Box $bmp ($hx - 1) ($top + 4 + $y) ($w + 1) 1 $sashCol
+      }
+      # Hem trim
+      if ($detail -ge 2) {
+        Fill-Box $bmp ($hx - 1) ($bot - 1) ($w + 2) 1 $accent
+      }
+      # Embroidered glyph (epic+)
+      if ($detail -ge 3) {
+        $gem = Gem-Palette $name
+        Draw-Gem $bmp $cx ($top + 14) 3 $gem
+      }
+    }
+    2 {  # Tunic / jerkin
+      $cloth = $MAT_LEATHER
+      Shade-Box $bmp $hx $top $w $h $cloth -RimLight
+      # Front lacing
+      for ($y = 1; $y -lt ($h - 3); $y += 2) {
+        Set-Pixel $bmp ($cx - 1) ($top + $y) $MAT_LEATHER.deep
+        Set-Pixel $bmp ($cx + 1) ($top + $y) $MAT_LEATHER.deep
+        Set-Pixel $bmp $cx ($top + $y) $cloth.high
+      }
+      # Collar
+      Fill-Box $bmp ($cx - 3) $top 7 1 $cloth.deep
+      Fill-Box $bmp ($cx - 3) ($top + 1) 7 1 $cloth.high
+      # Belt
+      Fill-Box $bmp $hx ($bot - 4) $w 2 $MAT_LEATHER.deep
+      Fill-Box $bmp $hx ($bot - 4) $w 1 $MAT_LEATHER.high
+      # Belt buckle
+      Fill-Box $bmp ($cx - 1) ($bot - 4) 3 2 $metal.base
+      Set-Pixel $bmp $cx ($bot - 4) $metal.top
+      # Stitch pattern along shoulders
+      if ($detail -ge 1) {
+        for ($x = 1; $x -lt 6; $x += 2) {
+          Set-Pixel $bmp ($hx + $x) ($top + 2) $cloth.high
+          Set-Pixel $bmp ($hx + $w - 1 - $x) ($top + 2) $cloth.high
+        }
+      }
+    }
+    3 {  # Mail / chain
+      # Background dark cloth gambeson
+      Fill-Box $bmp $hx $top $w $h $metal.deep
+      # Dotted ring pattern overlay
+      for ($y = 0; $y -lt $h; $y++) {
+        for ($x = 0; $x -lt $w; $x++) {
+          $cellX = $x; $cellY = $y
+          # Stagger every other row
+          $shift = if (($y % 2) -eq 0) { 0 } else { 1 }
+          if ((($x + $shift) % 2) -eq 0 -and ($y % 2) -eq 0) {
+            Set-Pixel $bmp ($hx + $x) ($top + $y) $metal.base
+            Set-Pixel $bmp ($hx + $x) ($top + $y - 1) $metal.high
+          }
+        }
+      }
+      # Pauldrons
+      foreach ($side in @(-1, 1)) {
+        $sx = $cx + $side * 11
+        Shade-Box $bmp ($sx - 1) ($top - 1) 4 5 $metal -RimLight
+      }
+      # Belt
+      Fill-Box $bmp $hx ($bot - 3) $w 2 $MAT_LEATHER.shadow
+      Fill-Box $bmp $hx ($bot - 3) $w 1 $MAT_LEATHER.high
+      # Buckle
+      Fill-Box $bmp ($cx - 1) ($bot - 3) 3 2 $metal.base
+      # Tabard hanging in front (rare+)
+      if ($detail -ge 2) {
+        Fill-Box $bmp ($cx - 3) ($top + 4) 7 14 $accent
+        Set-Pixel $bmp ($cx - 3) ($top + 4) $metal.deep
+        Set-Pixel $bmp ($cx + 3) ($top + 4) $metal.deep
+        # Crest on tabard
+        $gem = Gem-Palette $name
+        Draw-Gem $bmp $cx ($top + 10) 3 $gem
+      }
+    }
+  }
+  if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+}
+
+# ══════════════════════════════════════════════════════════════════
+#                       GEAR — legs (greaves / pants / skirt)
+# ══════════════════════════════════════════════════════════════════
+function Draw-Legs {
+  param($bmp, [string]$name, [string]$rarity)
+  Rng-Init $name
+  $metal = Rarity-Metal $rarity
+  $accent = Rarity-Accent $rarity
+  $detail = Rarity-Detail $rarity
+  $lower = $name.ToLower()
+
+  $cx = 32
+  $top = 61
+  $bot = 74
+  $h = $bot - $top
+
+  $variant = Rng-Pick 3
+  if ($lower -match 'greaves|plate|sabaton|legguard|cuisses') { $variant = 0 }
+  elseif ($lower -match 'skirt|dress|kilt|robe') { $variant = 2 }
+  elseif ($lower -match 'pants|trousers|breeches|leggings') { $variant = 1 }
+
+  switch ($variant) {
+    0 {  # Plate greaves
+      foreach ($side in @(($LEG_LX), ($LEG_RX))) {
+        Shade-Box $bmp $side $top $LEG_W $h $metal -RimLight
+        # Knee plate
+        Shade-Disc $bmp ($side + 2) ($top + 6) 2.5 $metal
+        # Rivets
+        Draw-Rivet $bmp ($side + 1) ($top + 1) $metal
+        Draw-Rivet $bmp ($side + $LEG_W - 2) ($top + 1) $metal
+        Draw-Rivet $bmp ($side + 1) ($top + $h - 2) $metal
+        Draw-Rivet $bmp ($side + $LEG_W - 2) ($top + $h - 2) $metal
+        # Etch line down centre
+        if ($detail -ge 2) {
+          Fill-Box $bmp ($side + [int]($LEG_W / 2)) $top 1 $h $metal.shadow
+          Set-Pixel $bmp ($side + [int]($LEG_W / 2)) ($top + 2) $accent
+        }
+      }
+    }
+    1 {  # Pants / breeches
+      $cloth = if ($lower -match 'leather') { $MAT_LEATHER } else { $MAT_CLOTH_WOOL }
+      foreach ($side in @(($LEG_LX), ($LEG_RX))) {
+        Shade-Box $bmp $side $top $LEG_W $h $cloth
+        # Stitch line
+        Set-Pixel $bmp ($side + [int]($LEG_W / 2)) $top $cloth.shadow
+        # Knee patch
+        Fill-Box $bmp $side ($top + 6) $LEG_W 1 $cloth.deep
+        if ($detail -ge 2) {
+          # Side stripe
+          Fill-Box $bmp ($side + $LEG_W - 1) $top 1 $h $accent
+        }
+      }
+    }
+    2 {  # Skirt / robe lower
+      $cloth = $MAT_CLOTH_LINEN
+      # Skirt fans out as it descends
+      for ($y = 0; $y -lt $h; $y++) {
+        $w = 16 + [int]($y / 2)
+        $x0 = $cx - [int]($w / 2)
+        Fill-Box $bmp $x0 ($top + $y) $w 1 $cloth.base
+        Set-Pixel $bmp $x0 ($top + $y) $cloth.high
+        Set-Pixel $bmp ($x0 + $w - 1) ($top + $y) $cloth.shadow
+        # Pleat lines
+        if ((($y * 7) % 3) -eq 0) {
+          Set-Pixel $bmp ($x0 + 4) ($top + $y) $cloth.shadow
+          Set-Pixel $bmp ($x0 + $w - 5) ($top + $y) $cloth.high
+        }
+      }
+      # Hem trim
+      if ($detail -ge 1) {
+        Fill-Box $bmp ($cx - 12) ($bot - 1) 24 1 $accent
+      }
+    }
+  }
+  if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+}
+
+# ══════════════════════════════════════════════════════════════════
+#                       GEAR — boots
+# ══════════════════════════════════════════════════════════════════
+function Draw-Boots {
+  param($bmp, [string]$name, [string]$rarity)
+  Rng-Init $name
+  $metal = Rarity-Metal $rarity
+  $accent = Rarity-Accent $rarity
+  $detail = Rarity-Detail $rarity
+  $lower = $name.ToLower()
+
+  $top = 72
+  $bot = 79
+
+  $variant = Rng-Pick 3
+  if ($lower -match 'plate|iron|sabaton|steel') { $variant = 0 }
+  elseif ($lower -match 'sandal|sole|slipper|foot') { $variant = 2 }
+  elseif ($lower -match 'boot|tread|stalker|tracker') { $variant = 1 }
+
+  foreach ($side in @(($LEG_LX), ($LEG_RX))) {
+    switch ($variant) {
+      0 {  # Sabatons
+        # Shaft (covering ankle)
+        Shade-Box $bmp $side $top ($LEG_W) 5 $metal -RimLight
+        # Toe extension (slightly forward)
+        Shade-Box $bmp $side ($top + 4) ($LEG_W + 1) 3 $metal
+        # Rivets at top
+        Draw-Rivet $bmp ($side + 1) ($top + 1) $metal
+        Draw-Rivet $bmp ($side + $LEG_W - 2) ($top + 1) $metal
+        # Knee/calf decoration band
+        Fill-Box $bmp $side ($top + 3) $LEG_W 1 $metal.deep
+        if ($detail -ge 1) {
+          Set-Pixel $bmp ($side + 1) ($top + 4) $accent
+        }
+        # Toe spike (rare+)
+        if ($detail -ge 2) {
+          Set-Pixel $bmp ($side + $LEG_W) ($bot - 1) $metal.top
+        }
+      }
+      1 {  # Soft leather boots
+        Shade-Box $bmp $side $top $LEG_W 7 $MAT_LEATHER -RimLight
+        # Cuff
+        Fill-Box $bmp ($side - 1) $top ($LEG_W + 2) 1 $MAT_LEATHER.high
+        Fill-Box $bmp ($side - 1) ($top + 1) ($LEG_W + 2) 1 $MAT_LEATHER.deep
+        # Laces
+        if ($detail -ge 1) {
+          for ($y = 0; $y -lt 4; $y++) {
+            Set-Pixel $bmp ($side + 1 + ($y % 2)) ($top + 3 + $y) $accent
+            Set-Pixel $bmp ($side + $LEG_W - 2 - ($y % 2)) ($top + 3 + $y) $accent
+          }
+          # Crossed lace pattern
+          Line-Pixel $bmp ($side + 1) ($top + 3) ($side + $LEG_W - 2) ($top + 5) $MAT_LEATHER.deep
+        }
+        # Sole shadow
+        Fill-Box $bmp $side ($bot - 1) $LEG_W 1 $MAT_LEATHER.deep
+      }
+      2 {  # Sandals
+        # Sole only
+        Fill-Box $bmp $side ($bot - 1) $LEG_W 1 $MAT_LEATHER.deep
+        Fill-Box $bmp $side ($bot - 2) $LEG_W 1 $MAT_LEATHER.shadow
+        # Strap weave
+        Line-Pixel $bmp $side ($top + 2) ($side + $LEG_W - 1) ($top + 4) $MAT_LEATHER.base
+        Line-Pixel $bmp ($side + $LEG_W - 1) ($top + 2) $side ($top + 4) $MAT_LEATHER.base
+        # Ankle strap
+        if ($detail -ge 1) {
+          Fill-Box $bmp $side $top $LEG_W 1 $MAT_LEATHER.base
+          Set-Pixel $bmp ($side + 1) $top $MAT_LEATHER.high
+        }
+      }
+    }
+  }
+  if ($detail -ge 3) { Apply-Rarity-Glow $bmp $rarity }
+}
+
+function Build-GearSlot {
+  param([string]$repoRoot, [string]$slot, $drawer)
+  $catalogue = Read-Catalogue -repoRoot $repoRoot
+  $pieces = $catalogue | Where-Object { $_.slot -eq $slot }
+  $count = 0
+  foreach ($p in $pieces) {
+    $bmp = New-CanvasFx $CanvasW $CanvasH
+    & $drawer $bmp $p.name $p.rarity
+    $slug = Slugify $p.name
+    Save-CanvasFx $bmp (Join-Path $gearDir ("{0}/{1}.png" -f $slot, $slug))
+    $count++
+  }
+  Write-Host ("  {0}: {1}" -f $slot, $count) -ForegroundColor Green
+}
+
+function Build-Head    { param([string]$repoRoot) Write-Host '── Head gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'head'    ${function:Draw-Head} }
+function Build-Chest   { param([string]$repoRoot) Write-Host '── Chest gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'chest'   ${function:Draw-Chest} }
+function Build-Legs    { param([string]$repoRoot) Write-Host '── Legs gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'legs'    ${function:Draw-Legs} }
+function Build-Boots   { param([string]$repoRoot) Write-Host '── Boots gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'boots'   ${function:Draw-Boots} }
+
 # ── Top-level driver (incremental — full pipeline added later) ─────
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
@@ -1535,6 +2108,10 @@ if (Want 'hair')     { Build-Hair }
 if (Want 'eyes')     { Build-Eyes }
 if (Want 'accent')   { Build-Accents }
 if (Want 'weapons')  { Build-Weapons -repoRoot $repoRoot }
+if (Want 'head')     { Build-Head   -repoRoot $repoRoot }
+if (Want 'chest')    { Build-Chest  -repoRoot $repoRoot }
+if (Want 'legs')     { Build-Legs   -repoRoot $repoRoot }
+if (Want 'boots')    { Build-Boots  -repoRoot $repoRoot }
 
 Write-Host ''
 Write-Host 'Pass complete.' -ForegroundColor Green
