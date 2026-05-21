@@ -23,6 +23,10 @@ import {
   creditPack, openPack, buyPack, claimDailyFreePack,
 } from './cards-packs.js';
 import {
+  getFragments, recycleCards, craftPackFromFragments,
+  previewAutoRecycle, RECYCLE_YIELD, CRAFT_COST_FRAG,
+} from './cards-fragments.js';
+import {
   startNpcMatch, queueOrMatchPvp, challengeUser, acceptChallenge,
   takeAction, takeMulligan,
   sideOf, renderableState, isLegalAction,
@@ -135,6 +139,9 @@ export async function handleBoltboundCommand(env, data, userId, userName) {
     case 'log':         return ephemeral(await renderMatchLog(env, guildId, userId));
     case 'leaderboard': return ephemeral(await renderLeaderboard(env, guildId));
     case 'challenges':  return ephemeral(await renderChallenges(env, guildId, userId));
+    case 'fragments':   return ephemeral(await renderFragments(env, guildId, userId));
+    case 'recycle':     return ephemeral(await recycleHandler(env, guildId, userId, getOpt('mode'), getOpt('card'), getOpt('count')));
+    case 'craft':       return ephemeral(await craftHandler(env, guildId, userId, getOpt('pack')));
     case '':            return ephemeral(await renderStatus(env, guildId, userId, userName));
     default:            return ephemeral('Unknown /boltbound subcommand: ' + leaf);
   }
@@ -183,11 +190,13 @@ async function renderStatus(env, guildId, userId, userName) {
   const cardCount = Object.values(col.cards || {}).reduce((a, b) => a + b, 0);
   const dailyClaimed = await hasClaimedFreePackToday(env, guildId, userId);
   const activeMatch = await getActiveMatch(env, guildId, userId);
+  const frag = await getFragments(env, userId);
   const lines = [
     `**${userName} — Boltbound profile**`,
     `🏆 Trophies: **${trophies.trophies}** · Tier: ${trophies.tier} · Peak: ${trophies.peak}`,
     `🃏 Collection: **${cardCount}** cards · Decks: ${decks.length}/6 ${active ? `(active: ${active.name})` : '(none active)'}`,
     `📦 Pending packs: **${packs.length}** ${packs.length ? `(\`/boltbound packs\` to view)` : ''}`,
+    `🧩 Pack Fragments: **${frag.frag}** _(\`/boltbound fragments\` · \`/boltbound craft pack:bolt\`)_`,
     `🎁 Daily Common Pack: ${dailyClaimed ? 'claimed' : '`/boltbound daily` to claim'}`,
     `⚡ Ladder Bolts today: ${cap.earnedToday}/${cap.cap}`,
   ];
@@ -596,6 +605,82 @@ async function renderLeaderboard(env, guildId) {
     lines.push(`${i + 1}. <@${userId}> — **${v.trophies}** trophies (${tierOf(v.trophies)})`);
   }
   return lines.join('\n');
+}
+
+// ── Recycle / Fragments / Craft ─────────────────────────────────────
+//
+// See CARD-GAME-DESIGN.md §14. Recycle past-cap duplicates for Pack
+// Fragments, then craft new packs from fragments. Bolts is still the
+// faster path — fragments are the slow grinder.
+
+async function renderFragments(env, guildId, userId) {
+  const frag = await getFragments(env, userId);
+  const col = await getCollection(env, guildId, userId);
+  const preview = previewAutoRecycle(col);
+  const lines = [
+    `**🧩 Pack Fragments**`,
+    '',
+    `Balance: **${frag.frag}** fragments`,
+    `Recycled lifetime: ${frag.recycled} cards · Crafted: ${frag.crafted} packs`,
+    '',
+    `__Recycle yield (per copy):__`,
+    `• common: ${RECYCLE_YIELD.common} · uncommon: ${RECYCLE_YIELD.uncommon} · rare: ${RECYCLE_YIELD.rare} · legendary: ${RECYCLE_YIELD.legendary}`,
+    '',
+    `__Craft prices:__`,
+    `• Common Pack: ${CRAFT_COST_FRAG.common} fragments`,
+    `• Bolt Pack: ${CRAFT_COST_FRAG.bolt} fragments _(buying for Bolts is cheaper — fragments are the grind path)_`,
+    `• Voltaic Pack: ${CRAFT_COST_FRAG.voltaic} fragments`,
+  ];
+  if (preview.items.length) {
+    lines.push('');
+    lines.push(`__Past-cap duplicates ready to recycle:__`);
+    lines.push(`Auto-recycle would yield **${preview.fragTotal} fragments** from ${preview.items.length} card type(s).`);
+    lines.push('Run `/boltbound recycle mode:past-cap` to commit.');
+  } else {
+    lines.push('');
+    lines.push('_(No past-cap duplicates to auto-recycle right now.)_');
+  }
+  return lines.join('\n');
+}
+
+async function recycleHandler(env, guildId, userId, mode, cardId, count) {
+  mode = mode || 'past-cap';
+  if (mode === 'past-cap') {
+    const col = await getCollection(env, guildId, userId);
+    const preview = previewAutoRecycle(col);
+    if (!preview.items.length) {
+      return '📭 No past-cap duplicates to recycle. Try `mode:specific card:<id>` to recycle something specific.';
+    }
+    const r = await recycleCards(env, guildId, userId, preview.items.map(p => ({ cardId: p.cardId, count: p.count })));
+    if (!r.ok) return `❌ ${r.error}`;
+    const lines = [`✅ Recycled **${r.removed.reduce((s, x) => s + x.count, 0)}** cards → **+${r.fragTotal} fragments** _(balance: ${r.balance})_.`];
+    lines.push('');
+    for (const x of r.removed) {
+      const c = CARDS[x.cardId];
+      lines.push(`• ${c?.name || x.cardId} ×${x.count} _(${x.rarity})_ → ${x.fragYield} frag`);
+    }
+    return lines.join('\n');
+  }
+  // specific mode — recycle N copies of one card id
+  if (!cardId) return '❌ `mode:specific` needs a `card:<id>` to recycle.';
+  const n = Math.max(1, parseInt(count || 1, 10));
+  const r = await recycleCards(env, guildId, userId, [{ cardId, count: n }]);
+  if (!r.ok) return `❌ ${r.error}`;
+  return `✅ Recycled **${n}× ${CARDS[cardId]?.name || cardId}** → **+${r.fragTotal} fragments** _(balance: ${r.balance})_.`;
+}
+
+async function craftHandler(env, guildId, userId, packType) {
+  if (!packType) return '❌ Which pack? Try `pack:bolt` (400 fragments).';
+  const r = await craftPackFromFragments(env, guildId, userId, packType);
+  if (!r.ok) {
+    if (r.error === 'insufficient-frag') return `❌ Not enough fragments. Need ${r.need}, have ${r.have}. Recycle more with \`/boltbound recycle\`.`;
+    if (r.error === 'cannot-craft-this-pack') return '❌ That pack is not craftable.';
+    return `❌ ${r.error}`;
+  }
+  return [
+    `✅ **Crafted a ${PACKS[r.pack.packType]?.name}** for ${r.cost} fragments _(balance: ${r.balance})_.`,
+    `Open it: \`/boltbound open id:${r.pack.id.slice(0, 8)}\``,
+  ].join('\n');
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────

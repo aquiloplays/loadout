@@ -745,6 +745,37 @@ export const COMMANDS = [
       { type: TYPE_SUBCOMMAND, name: 'log',       description: 'Show your last 10 matches' },
       { type: TYPE_SUBCOMMAND, name: 'leaderboard', description: 'Top trophies (global)' },
       { type: TYPE_SUBCOMMAND, name: 'challenges',  description: 'See pending direct challenges to you' },
+      // ── Recycle / Fragments / Craft ───────────────────────────────
+      // See CARD-GAME-DESIGN.md §14. Recycle past-cap duplicates for
+      // Pack Fragments, then craft new packs. Fragments are the slow
+      // path — bolts is faster.
+      { type: TYPE_SUBCOMMAND, name: 'fragments',
+        description: 'Your Pack Fragment balance + recycle yield preview' },
+      { type: TYPE_SUBCOMMAND, name: 'recycle',
+        description: 'Recycle cards for Pack Fragments',
+        options: [
+          { type: TYPE_STRING,  name: 'mode',   description: 'What to recycle', required: false,
+            choices: [
+              { name: 'past-cap (auto, safe — recycles only excess duplicates)', value: 'past-cap' },
+              { name: 'specific (use card + count)',                              value: 'specific' },
+            ],
+          },
+          { type: TYPE_STRING,  name: 'card',   description: 'Card id (for mode:specific)', required: false },
+          { type: TYPE_INTEGER, name: 'count',  description: 'How many copies (for mode:specific, default 1)', required: false, min_value: 1 },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'craft',
+        description: 'Craft a new pack from Pack Fragments',
+        options: [
+          { type: TYPE_STRING, name: 'pack', description: 'Pack to craft', required: true,
+            choices: [
+              { name: 'Common Pack (50 fragments)',  value: 'common' },
+              { name: 'Bolt Pack (400 fragments)',   value: 'bolt' },
+              { name: 'Voltaic Pack (1200 fragments)', value: 'voltaic' },
+            ],
+          },
+        ],
+      },
     ],
   },
 ];

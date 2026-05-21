@@ -25,6 +25,10 @@ import {
   buyPack, openPack, claimDailyFreePack, creditPack,
 } from './cards-packs.js';
 import {
+  getFragments, recycleCards, craftPackFromFragments,
+  previewAutoRecycle, RECYCLE_YIELD, CRAFT_COST_FRAG,
+} from './cards-fragments.js';
+import {
   startNpcMatch, queueOrMatchPvp, challengeUser, acceptChallenge,
   takeAction, takeMulligan, renderableState, sideOf,
 } from './cards-match.js';
@@ -50,6 +54,13 @@ const ROUTES = new Set([
   'boltbound/match/mulligan',
   'boltbound/match/concede',
   'boltbound/log',
+  // Fragments / recycle / craft — see CARD-GAME-DESIGN.md §14.
+  // The website's /boltbound/collection and /boltbound/craft pages hit
+  // these; the Twitch panel reads /boltbound/fragments for the small
+  // fragment-counter chip.
+  'boltbound/fragments',
+  'boltbound/recycle',
+  'boltbound/craft',
 ]);
 
 // Read-only sub-routes the proxy may skip rate-limit for.
@@ -58,6 +69,7 @@ const READ_ROUTES = new Set([
   'boltbound/catalogue',
   'boltbound/match/state',
   'boltbound/log',
+  'boltbound/fragments',
 ]);
 
 export function isBoltboundRoute(r) { return ROUTES.has(r); }
@@ -309,6 +321,51 @@ async function routeLog(env, guildId, userId) {
   return json({ ok: true, log: (log || []).slice(0, 25) });
 }
 
+// ── Fragments / Recycle / Craft ─────────────────────────────────────
+//
+// Same business logic as the Discord surface, exposed as JSON. Web
+// hits these from the /boltbound/collection and /boltbound/craft
+// pages; Twitch panel hits routeFragments() for the chip counter.
+
+async function routeFragments(env, guildId, userId) {
+  await ensureCollection(env, guildId, userId);
+  const [frag, col] = await Promise.all([
+    getFragments(env, userId),
+    getCollection(env, guildId, userId),
+  ]);
+  const preview = previewAutoRecycle(col);
+  return json({
+    ok: true,
+    frag: frag.frag || 0,
+    recycled: frag.recycled || 0,
+    crafted: frag.crafted || 0,
+    yieldPerRarity: RECYCLE_YIELD,
+    craftPrice: CRAFT_COST_FRAG,
+    autoRecyclePreview: preview,   // { items: [...], fragTotal }
+  });
+}
+
+async function routeRecycle(env, guildId, userId, body) {
+  // body: { items: [{ cardId, count }, ...] }
+  //   OR  { mode: 'past-cap' } → server expands to all past-cap dups.
+  let items = Array.isArray(body?.items) ? body.items : null;
+  if (!items && body?.mode === 'past-cap') {
+    const col = await getCollection(env, guildId, userId);
+    const preview = previewAutoRecycle(col);
+    items = preview.items.map(p => ({ cardId: p.cardId, count: p.count }));
+  }
+  if (!items || !items.length) return json({ ok: false, error: 'no-items' }, 400);
+  const r = await recycleCards(env, guildId, userId, items);
+  return json(r);
+}
+
+async function routeCraft(env, guildId, userId, body) {
+  const packType = String((body && body.packType) || '');
+  if (!packType) return json({ ok: false, error: 'bad-pack' }, 400);
+  const r = await craftPackFromFragments(env, guildId, userId, packType);
+  return json(r);
+}
+
 // ── Public dispatch ────────────────────────────────────────────────
 
 export async function routeBoltbound(env, guildId, userId, route, body, opts) {
@@ -333,6 +390,9 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/match/mulligan')  return await routeMatchMulligan(env, guildId, userId, body);
     if (route === 'boltbound/match/concede')   return await routeMatchConcede(env, guildId, userId);
     if (route === 'boltbound/log')             return await routeLog(env, guildId, userId);
+    if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);
+    if (route === 'boltbound/recycle')         return await routeRecycle(env, guildId, userId, body);
+    if (route === 'boltbound/craft')           return await routeCraft(env, guildId, userId, body);
     return wrap({ error: 'not-found' }, 404);
   } catch (e) {
     return wrap({ error: 'server', message: String((e && e.message) || e) }, 500);
