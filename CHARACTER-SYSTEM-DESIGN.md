@@ -745,3 +745,35 @@ flag for sign-off after first viewing:
    the OBS dungeon overlay during active scenes (recruit, loot,
    duel) or always-visible there too? Defaulting to always-visible
    on the dungeon overlay; raid views (Clash) keep pets hidden.
+
+---
+
+## 13. Build status (Phase 1 art complete)
+
+All passes the spec called out have landed on
+`claude/character-pet-build` (PR #7). State on disk:
+
+| Pass | Output | On disk |
+| --- | --- | --- |
+| 1 — plumbing | schema + slash commands + render endpoint + PNG codec | `dungeon.js`, `pet.js`, `character.js`, `commands{,-spec}.js`, `png-codec.js` |
+| 2 — figure layers | bodies × tones, hair × styles, eye colours, accents | 45 PNGs under `aquilo-gg/sprites/figure/` |
+| 3 — gear catalogue | every SHOP_POOL + Voltaic piece as a unique pixel sprite | 191 PNGs under `aquilo-gg/sprites/gear/{weapon,head,chest,legs,boots,trinket}/` |
+| 4 — pets | 8 species × 4 colours + 3 mood overlays | 35 PNGs under `aquilo-gg/sprites/pet/` |
+| 5 — legendary animation | Excalibur base sprite + 4-frame APNG halo | `gear/weapon/excalibur.png` + `gear/fx/excalibur.png` |
+
+**Sprite roster total: 273 PNGs** (45 figure + 191 gear + 35 pet + 1
+legendary base + 1 legendary APNG). Every file decodes through the
+runtime codec at 40×56 RGBA.
+
+**Tests:** 115 pass (13 png-codec + 25 character/pet + 77 clash) on
+the build branch. No regressions in pre-existing modules.
+
+**Build commands** (regenerate from scratch):
+```
+pwsh -ExecutionPolicy Bypass -File tools/build-sprites.ps1 -OutRoot aquilo-gg/sprites
+node tools/build-apng.mjs
+```
+
+**Deploy:** held per Clay's directive ("Deploy stays held until the
+whole thing — full catalogue + animations + pets — is done with
+final art"). Phase 1 art is done; deploy step is awaiting sign-off.
