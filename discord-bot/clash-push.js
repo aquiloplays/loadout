@@ -124,6 +124,11 @@ export async function firePush(env, event) {
     audience: event.audience || { kind: 'all' },
     guildId: event.guildId || null,
     raidId: event.raidId || null,
+    // Push-subscription tag, e.g. "clashRaids" (default at the
+    // receiver) or "stocksAlert" for the price-alert path. The site's
+    // /api/push/external endpoint reads body.tag and passes it to
+    // pushToAll, which drops subscriptions where tags[<tag>] === false.
+    tag: event.tag || null,
     ts: Date.now(),
   };
   try {

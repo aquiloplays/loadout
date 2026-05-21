@@ -35,6 +35,7 @@
 
 import { json } from './ext-shared.js';
 import { spend, earn, getWallet } from './wallet.js';
+import { firePush } from './clash-push.js';
 
 const CATALOG_KEY = 'stocks:catalog:v1';
 const FEE_PCT = 1;
@@ -217,6 +218,307 @@ async function appendStocksTransaction(env, guildId, userId, txn) {
 // On a sell we DON'T mutate totalCost proportionally — we instead
 // reduce qty by the sold amount and lower totalCost by the same
 // proportion, preserving the avg-cost per remaining share.
+// ── Price alerts ─────────────────────────────────────────────────────
+//
+// Per-user list of pending alerts. Each entry pins a target price +
+// direction; the cron-side scanStockAlerts() walks every user's list
+// after the price refresh, detects threshold crossings, fires a PWA
+// push via the existing /api/push/external pipeline (tag:
+// "stocksAlert"), and deletes the triggered entry.
+//
+// Storage: stock:alerts:<guildId>:<userId> → [{ id, ticker, target,
+//          direction, createdAt }]
+// Cap: 20 alerts per user — generous enough to set one per ticker
+// and a couple extra, capped so the KV record stays small.
+const ALERTS_CAP = 20;
+const ALERTS_KEY = (g, u) => `stock:alerts:${g}:${u}`;
+
+export async function getStockAlerts(env, guildId, userId) {
+  try {
+    const list = await env.LOADOUT_BOLTS.get(ALERTS_KEY(guildId, userId), { type: 'json' });
+    return Array.isArray(list) ? list : [];
+  } catch { return []; }
+}
+
+async function putStockAlerts(env, guildId, userId, list) {
+  await env.LOADOUT_BOLTS.put(
+    ALERTS_KEY(guildId, userId),
+    JSON.stringify(list),
+  );
+}
+
+// Create a new alert. Validates ticker + direction + target;
+// rejects if the user already has ALERTS_CAP active. Returns the
+// stored record so the UI can render it immediately without a
+// re-fetch.
+export async function createStockAlert(env, guildId, userId, args) {
+  const ticker = String(args.ticker || '').toUpperCase().trim();
+  const direction = String(args.direction || '').toLowerCase().trim();
+  const target = Number(args.target);
+  if (!ticker) return { ok: false, error: 'bad-ticker', message: 'Pick a ticker.' };
+  if (direction !== 'above' && direction !== 'below') {
+    return { ok: false, error: 'bad-direction', message: 'Direction must be "above" or "below".' };
+  }
+  if (!Number.isFinite(target) || target <= 0) {
+    return { ok: false, error: 'bad-target', message: 'Target price must be a positive number.' };
+  }
+  const catalog = await getCatalog(env);
+  const def = findTicker(catalog, ticker);
+  if (!def) return { ok: false, error: 'unknown-ticker', message: 'Unknown ticker.' };
+  const list = await getStockAlerts(env, guildId, userId);
+  if (list.length >= ALERTS_CAP) {
+    return { ok: false, error: 'cap', message: `You're at the ${ALERTS_CAP}-alert cap. Delete one first.` };
+  }
+  const alert = {
+    id: 'a_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36),
+    ticker: def.ticker,
+    target: Math.round(target * 100) / 100,
+    direction,
+    createdAt: new Date().toISOString(),
+  };
+  list.push(alert);
+  await putStockAlerts(env, guildId, userId, list);
+  return { ok: true, alert };
+}
+
+// Delete a single alert by id. Idempotent — deleting a non-existent
+// id is a no-op (success), so a double-tap from the UI doesn't error.
+export async function deleteStockAlert(env, guildId, userId, alertId) {
+  const list = await getStockAlerts(env, guildId, userId);
+  const next = list.filter((a) => a.id !== String(alertId || ''));
+  await putStockAlerts(env, guildId, userId, next);
+  return { ok: true, remaining: next.length };
+}
+
+// Scan all users' alerts after a price refresh. Walk stock:alerts:*
+// KV keys, check each pending alert against the freshly-written
+// current price + the previous tick's price (from history). An alert
+// fires when the price has CROSSED the target between ticks — not
+// when it's merely sitting on the wrong side at scan time, which
+// would re-fire every tick until manually deleted.
+//
+// On crossing: fire push via firePush (tag: "stocksAlert", audience
+// userIds: [userId]), then remove the alert from the user's list.
+async function scanStockAlerts(env) {
+  // Pre-fetch the current + previous price for every catalogue
+  // ticker — one pair of KV reads each, not N×M as we walk users.
+  const catalog = await getCatalog(env);
+  const priceNow = {};
+  const pricePrev = {};
+  for (const t of (catalog?.tickers || [])) {
+    const rec = await getPrice(env, t.ticker);
+    if (rec && Number.isFinite(rec.price)) priceNow[t.ticker] = rec.price;
+    const hist = await getHistory(env, t.ticker);
+    if (hist.length >= 2) {
+      pricePrev[t.ticker] = hist[hist.length - 2].price;
+    } else if (hist.length === 1) {
+      // Only one tick on record — treat prev = current so nothing
+      // crosses on the very first cron after a fresh deploy.
+      pricePrev[t.ticker] = hist[0].price;
+    }
+  }
+
+  let cursor;
+  let triggered = 0;
+  for (let pages = 0; pages < 50; pages++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'stock:alerts:', cursor });
+    for (const k of r.keys) {
+      const parts = k.name.split(':');
+      if (parts.length < 4) continue;
+      const guildId = parts[2];
+      const userId = parts[3];
+      let list;
+      try {
+        list = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      } catch { continue; }
+      if (!Array.isArray(list) || list.length === 0) continue;
+
+      const remaining = [];
+      for (const a of list) {
+        const cur = priceNow[a.ticker];
+        const prev = pricePrev[a.ticker];
+        if (cur == null || prev == null) {
+          remaining.push(a);
+          continue;
+        }
+        // "above" fires when price went from ≤ target → > target.
+        // "below" fires when price went from ≥ target → < target.
+        // Equality on the prev side is fine; we only want strict
+        // crossing on the current side.
+        const fires =
+          (a.direction === 'above' && prev <= a.target && cur > a.target) ||
+          (a.direction === 'below' && prev >= a.target && cur < a.target);
+        if (!fires) {
+          remaining.push(a);
+          continue;
+        }
+        // Fire push. firePush is best-effort; we delete the alert
+        // even if the push fails so it doesn't keep re-firing while
+        // the push outage continues.
+        try {
+          const arrow = a.direction === 'above' ? '↑' : '↓';
+          await firePush(env, {
+            kind: 'stocks.price-alert',
+            title: `${a.ticker} hit your target ${arrow} ${a.target}`,
+            body: `Now ${Math.round(cur)} bolts/share.`,
+            url: 'https://aquilo.gg/play/stocks/',
+            audience: { kind: 'user', userIds: [userId] },
+            tag: 'stocksAlert',
+            guildId,
+          });
+        } catch (e) {
+          console.warn('[stocks] alert push failed:', a.ticker, e && e.message);
+        }
+        triggered++;
+      }
+      try {
+        if (remaining.length !== list.length) {
+          if (remaining.length === 0) {
+            await env.LOADOUT_BOLTS.delete(k.name);
+          } else {
+            await env.LOADOUT_BOLTS.put(k.name, JSON.stringify(remaining));
+          }
+        }
+      } catch (e) {
+        console.warn('[stocks] alert write failed:', k.name, e && e.message);
+      }
+    }
+    if (r.list_complete || !r.cursor) break;
+    cursor = r.cursor;
+  }
+  return { ok: true, triggered };
+}
+
+// ── Portfolio-value time series ─────────────────────────────────────
+//
+// Daily snapshot of each player's total portfolio value, keyed by
+// guild+user. Lets the web stocks portfolio render a "value over time"
+// chart so players see whether they're up or down across days,
+// independent of the per-ticker 24h sparklines.
+//
+// Storage: stock:pv:<guildId>:<userId> → [{ date: "YYYY-MM-DD", value }]
+// Rolling window: PV_HISTORY_DAYS entries; old entries roll off the
+// front. 90 days × ~50 bytes per entry = ~4 KB per user — well under
+// the 25 MB KV value limit.
+//
+// Sentinel: stock:pv:lastsnap:<YYYY-MM-DD> set on the first cron tick
+// of each UTC day. Subsequent ticks the same day no-op. Folded into
+// stocksCronTick so we don't add a new wrangler cron trigger (Clay
+// flagged the 4-trigger budget is tight).
+const PV_HISTORY_DAYS = 90;
+const PV_PREFIX = 'stock:pv:';
+const PV_LASTSNAP_KEY = (d) => 'stock:pv:lastsnap:' + d;
+
+function todayUtcDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export async function getPortfolioValueHistory(env, guildId, userId) {
+  try {
+    const raw = await env.LOADOUT_BOLTS.get(
+      `${PV_PREFIX}${guildId}:${userId}`,
+      { type: 'json' },
+    );
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+async function putPortfolioValueHistory(env, guildId, userId, list) {
+  // Cap at PV_HISTORY_DAYS entries — older entries roll off so the
+  // KV value stays small.
+  const trimmed = list.length > PV_HISTORY_DAYS
+    ? list.slice(-PV_HISTORY_DAYS)
+    : list;
+  await env.LOADOUT_BOLTS.put(
+    `${PV_PREFIX}${guildId}:${userId}`,
+    JSON.stringify(trimmed),
+  );
+}
+
+// Walk every stock:holdings:<g>:<u> KV key, compute the current
+// total portfolio value (qty × current price), and append today's
+// data point to the user's PV history. Idempotent for the day —
+// already-snapshot users get their existing today-entry updated, not
+// duplicated, so a partial run that crashes mid-way can resume safely.
+export async function maybeSnapshotPortfolioValues(env) {
+  const today = todayUtcDate();
+  // Sentinel: if today's already been snapshotted, no-op.
+  try {
+    const flag = await env.LOADOUT_BOLTS.get(PV_LASTSNAP_KEY(today));
+    if (flag) return { ok: true, skipped: true, date: today };
+  } catch { /* proceed */ }
+
+  // Pre-fetch current prices for every catalog ticker into a small
+  // lookup so we don't issue N×M KV gets in the inner loop.
+  const catalog = await getCatalog(env);
+  const priceFor = {};
+  for (const t of (catalog?.tickers || [])) {
+    const rec = await getPrice(env, t.ticker);
+    if (rec && Number.isFinite(rec.price)) priceFor[t.ticker] = rec.price;
+  }
+
+  // Enumerate users with any holdings. KV .list() paginates; loop
+  // until list_complete. Limit cap of 1000 per page is the worker
+  // default — enough for our community size at any plausible growth.
+  let cursor;
+  let snapshotted = 0;
+  for (let pages = 0; pages < 50; pages++) {
+    const r = await env.LOADOUT_BOLTS.list({
+      prefix: 'stock:holdings:',
+      cursor,
+    });
+    for (const k of r.keys) {
+      // Key shape: stock:holdings:<guildId>:<userId>
+      const parts = k.name.split(':');
+      if (parts.length < 4) continue;
+      const guildId = parts[2];
+      const userId = parts[3];
+      try {
+        const holdings = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+        if (!holdings || typeof holdings !== 'object') continue;
+        let value = 0;
+        for (const ticker of Object.keys(holdings)) {
+          const qty = Number(holdings[ticker]) || 0;
+          if (qty <= 0) continue;
+          const price = priceFor[ticker];
+          if (price == null) continue;
+          value += qty * price;
+        }
+        // Even if value is 0 (e.g. holdings exists but all prices
+        // missed this cron), record it — the chart should show a flat
+        // line rather than a gap. Skipping would distort the slope.
+        const list = await getPortfolioValueHistory(env, guildId, userId);
+        const rounded = Math.round(value);
+        // Idempotent: if today's entry already exists, overwrite it.
+        const last = list[list.length - 1];
+        if (last && last.date === today) {
+          last.value = rounded;
+        } else {
+          list.push({ date: today, value: rounded });
+        }
+        await putPortfolioValueHistory(env, guildId, userId, list);
+        snapshotted++;
+      } catch (e) {
+        console.warn('[stocks] PV snapshot user failed:', k.name, e && e.message);
+      }
+    }
+    if (r.list_complete || !r.cursor) break;
+    cursor = r.cursor;
+  }
+
+  // Set the sentinel last so a mid-run crash leaves it unset and the
+  // next tick resumes cleanly. 36h TTL so it self-evicts (yesterday's
+  // sentinel won't pollute the namespace).
+  try {
+    await env.LOADOUT_BOLTS.put(PV_LASTSNAP_KEY(today), '1', {
+      expirationTtl: 36 * 3600,
+    });
+  } catch { /* idle */ }
+  return { ok: true, date: today, snapshotted };
+}
+
 // Build the full web-portfolio payload — every position the user
 // holds (or has previously closed) plus aggregate totals, recent
 // txns, and derived stats. The shape is consumed verbatim by the
@@ -309,6 +611,27 @@ export async function buildStocksPortfolio(env, guildId, userId) {
     null,
   );
 
+  // Pull the rolling PV history (up to 90 days) AND the active
+  // price-alerts list in parallel. Both are O(1) KV gets so this
+  // doesn't materially add latency.
+  const [pvHistory, alerts] = await Promise.all([
+    getPortfolioValueHistory(env, guildId, userId),
+    getStockAlerts(env, guildId, userId),
+  ]);
+  // Append today's running value if it isn't already snapshotted —
+  // gives the chart a live "right edge" that updates between daily
+  // snapshots rather than freezing at yesterday's close.
+  const today = todayUtcDate();
+  const pvOut = [...pvHistory];
+  if (pvOut.length === 0 || pvOut[pvOut.length - 1].date !== today) {
+    pvOut.push({ date: today, value: Math.round(totalValue), live: true });
+  } else {
+    // Same-day entry exists (snapshot ran already) — overlay current
+    // value on top so the chart reflects intraday movement.
+    const last = pvOut[pvOut.length - 1];
+    pvOut[pvOut.length - 1] = { ...last, value: Math.round(totalValue), live: true };
+  }
+
   return {
     ok: true,
     positions: out,
@@ -325,6 +648,8 @@ export async function buildStocksPortfolio(env, guildId, userId) {
       worstTrade,
       firstTradeAt: txns[0]?.asOf || null,
     },
+    pvHistory: pvOut,
+    alerts,
   };
 }
 
@@ -424,6 +749,14 @@ export async function stocksCronTick(env) {
   // After prices are refreshed, push the auto-update channel board for
   // every guild that has one bound. Errors here are isolated per guild.
   try { await refreshAllTickerBoards(env); } catch { /* idle */ }
+  // Price-alert scan — fires PWA pushes on threshold crossings using
+  // the freshly-written prices. Wrapped so a push outage can't block
+  // the rest of the cron.
+  try { await scanStockAlerts(env); } catch (e) { console.warn('[stocks] alerts scan failed:', e && e.message); }
+  // Daily portfolio-value snapshot — gated to once per UTC day via
+  // a sentinel KV key so it lands on the first stocks tick of the
+  // day no matter which cron trigger gets us here.
+  try { await maybeSnapshotPortfolioValues(env); } catch (e) { console.warn('[stocks] PV snapshot failed:', e && e.message); }
   return updated;
 }
 

@@ -33,6 +33,9 @@ import {
   runBuyJson,
   runSellJson,
   buildStocksPortfolio,
+  getStockAlerts,
+  createStockAlert,
+  deleteStockAlert,
 } from './stocks.js';
 import {
   publicSportsSnapshot,
@@ -88,6 +91,9 @@ const ROUTES = new Set([
   'stocks/buy',
   'stocks/sell',
   'stocks/portfolio',
+  'stocks/alerts/list',
+  'stocks/alerts/create',
+  'stocks/alerts/delete',
   'bet/snapshot',
   'bet/place',
   'queues/snapshot',
@@ -174,6 +180,9 @@ export async function handleWeb(req, env) {
     if (route === 'stocks/buy')  return await routeStocksBuy(env, guildId, discordId, body);
     if (route === 'stocks/sell') return await routeStocksSell(env, guildId, discordId, body);
     if (route === 'stocks/portfolio') return await routeStocksPortfolio(env, guildId, discordId);
+    if (route === 'stocks/alerts/list')   return await routeStocksAlertsList(env, guildId, discordId);
+    if (route === 'stocks/alerts/create') return await routeStocksAlertsCreate(env, guildId, discordId, body);
+    if (route === 'stocks/alerts/delete') return await routeStocksAlertsDelete(env, guildId, discordId, body);
     if (route === 'bet/snapshot') return await routeBetSnapshot(env, guildId, discordId);
     if (route === 'bet/place')    return await routeBetPlace(env, guildId, discordId, body);
     if (route === 'queues/snapshot') return await routeQueuesSnapshot(env, guildId, body);
@@ -321,6 +330,35 @@ async function routeStocksSnapshot(env, guildId, userId) {
 async function routeStocksPortfolio(env, guildId, userId) {
   const p = await buildStocksPortfolio(env, guildId, userId);
   return json(p);
+}
+
+// ── /web/stocks/alerts/* ─────────────────────────────────────────────
+//
+// Per-user price alerts. List is GET-style (cheap, read-only).
+// Create takes { ticker, target, direction:"above"|"below" }; the
+// worker validates the ticker against the catalogue and the user's
+// alert-count cap (20). Delete takes { id }; idempotent. All gated
+// by the standard HMAC session — discordId/guildId come from the
+// verified Patreon session, not the browser.
+async function routeStocksAlertsList(env, guildId, userId) {
+  const alerts = await getStockAlerts(env, guildId, userId);
+  return json({ ok: true, alerts });
+}
+
+async function routeStocksAlertsCreate(env, guildId, userId, body) {
+  const r = await createStockAlert(env, guildId, userId, {
+    ticker: body && body.ticker,
+    direction: body && body.direction,
+    target: body && body.target,
+  });
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeStocksAlertsDelete(env, guildId, userId, body) {
+  const id = body && body.id;
+  if (!id) return json({ ok: false, error: 'bad-id', message: 'id is required.' }, 400);
+  const r = await deleteStockAlert(env, guildId, userId, id);
+  return json(r);
 }
 
 async function routeStocksBuy(env, guildId, userId, body) {
