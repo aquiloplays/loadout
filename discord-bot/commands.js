@@ -211,7 +211,12 @@ export async function handleInteraction(req, env, body, ctx) {
     case 'profile-set-pronouns': case 'profile-set-social':
     case 'profile-set-gamertag': case 'profile-clear':
     case 'hero': case 'inventory': case 'equip': case 'unequip':
-    case 'sell': case 'shop': case 'shop-buy': case 'training':
+    // 'shop' deliberately omitted here: the aquilo fold-in claimed
+    // /shop as a community command above (case 'shop'), so duplicating
+    // it in this legacy-fallback block is both dead code and a
+    // duplicate-label parse error under modern esbuild. The legacy
+    // Loadout shop is reachable via /loadout anyway.
+    case 'sell': case 'shop-buy': case 'training':
       return reply('💡 We replaced the individual commands with a single menu — run **/loadout** instead.');
 
     default:
