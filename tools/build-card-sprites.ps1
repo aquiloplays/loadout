@@ -2882,7 +2882,13 @@ $PALETTE_BY_KEY = @{
   'silver'         = $MAT_SILVER
   'arcane'         = $ARCANE
   'fire'           = $FIRE
-  'frost'          = $GEM_DIAMOND       # cool palette, reuses gem ramp shape
+  'frost'          = @{
+    deep   = (Color-FromHex '#0a3060');
+    shadow = (Color-FromHex '#2a70c0');
+    base   = (Color-FromHex '#6ab0ec');
+    high   = (Color-FromHex '#a8d8ff');
+    top    = (Color-FromHex '#e0f0ff');
+  }
   'holy'           = $HOLY
   'shadow'         = $SHADOW
   'nature'         = $NATURE
