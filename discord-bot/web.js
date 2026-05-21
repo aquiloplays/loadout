@@ -64,7 +64,7 @@ import {
   _editorTownGarrison,
   canManageTown,
 } from './clash.js';
-import { ensureTown, getTown } from './clash-state.js';
+import { ensureTown } from './clash-state.js';
 import {
   getCharacterLookWeb,
   saveCharacterLookWeb,
