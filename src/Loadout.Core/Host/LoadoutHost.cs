@@ -108,6 +108,7 @@ namespace Loadout.Host
                     System.Diagnostics.Debug.WriteLine("[Loadout] UI thread did not signal ready in 5s.");
 
                 UpdateChecker.Instance.UpdateAvailable += OnUpdateAvailable;
+                UpdateChecker.Instance.UpdateDownloaded += OnUpdateDownloaded;
                 UpdateChecker.Instance.Start();
 
                 // Auto-sync the Bolts wallet with the Discord Worker every
@@ -161,6 +162,11 @@ namespace Loadout.Host
         {
             // Tray operations must run on the UI thread.
             _dispatcher?.BeginInvoke(new Action(() => _tray?.NotifyUpdateAvailable(e.Release)));
+        }
+
+        private static void OnUpdateDownloaded(object sender, UpdateAvailableEventArgs e)
+        {
+            _dispatcher?.BeginInvoke(new Action(() => _tray?.NotifyUpdateDownloaded(e.Release)));
         }
 
         public static void OpenSettings()

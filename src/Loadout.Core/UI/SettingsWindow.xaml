@@ -368,6 +368,8 @@
                                 </Grid>
                                 <CheckBox x:Name="ChkAutoCheckUpdates" Content="Check for updates on boot + every 6h"
                                           Style="{StaticResource ToggleSwitch}" />
+                                <CheckBox x:Name="ChkAutoDownloadUpdates" Content="Auto-download new versions in the background (restart Streamer.bot to apply)"
+                                          Style="{StaticResource ToggleSwitch}" />
                             </StackPanel>
                         </Border>
                     </StackPanel>

@@ -25,10 +25,25 @@ namespace Loadout.Updates
         public static UpdateChecker Instance => _instance ?? (_instance = new UpdateChecker());
 
         public event EventHandler<UpdateAvailableEventArgs> UpdateAvailable;
+        // Fires after a staged Loadout.dll.new lands on disk so the tray
+        // can flip its menu from "Downloading…" to "Restart Streamer.bot
+        // to apply vX.Y.Z" without the streamer having to click the
+        // "Apply update" item first.
+        public event EventHandler<UpdateAvailableEventArgs> UpdateDownloaded;
 
         private Timer _timer;
         private CancellationTokenSource _cts;
         private readonly HttpClient _http;
+
+        // Tracks the version of the most-recently-staged Loadout.dll.new.
+        // The 6h timer re-checks GitHub forever; without this guard we'd
+        // re-download the same .new file on every tick until the user
+        // restarts SB.
+        private string _stagedTag;
+        // Tracks the version we last fired UpdateAvailable for. Used so
+        // subsequent ticks for the same release don't re-balloon the tray
+        // notification every 6h.
+        private string _notifiedTag;
 
         private UpdateChecker()
         {
@@ -115,7 +130,34 @@ namespace Loadout.Updates
             var latest  = ParseVersion(candidate.TagName);
             if (current >= latest) return UpdateCheckResult.UpToDate;
 
-            UpdateAvailable?.Invoke(this, new UpdateAvailableEventArgs(candidate));
+            // Suppress duplicate UpdateAvailable balloons for a release
+            // we've already shown the streamer. The 6h re-check still runs
+            // (so we'd catch a new release replacing this one), but the
+            // tray won't keep popping for the same version on every tick.
+            var alreadyNotified = string.Equals(_notifiedTag, candidate.TagName, StringComparison.OrdinalIgnoreCase);
+            _notifiedTag = candidate.TagName;
+            if (!alreadyNotified)
+                UpdateAvailable?.Invoke(this, new UpdateAvailableEventArgs(candidate));
+
+            // Auto-download path — mirrors electron-updater's autoDownload.
+            // We only do the work once per release version per process; the
+            // 00-boot.cs swap on SB restart resets _stagedTag implicitly
+            // by virtue of the process going away.
+            if (settings.Updates.AutoDownload
+                && !string.IsNullOrEmpty(candidate.DllAssetUrl)
+                && !string.Equals(_stagedTag, candidate.TagName, StringComparison.OrdinalIgnoreCase))
+            {
+                _ = Task.Run(async () =>
+                {
+                    var ok = await DownloadUpdateAsync(candidate).ConfigureAwait(false);
+                    if (ok)
+                    {
+                        _stagedTag = candidate.TagName;
+                        UpdateDownloaded?.Invoke(this, new UpdateAvailableEventArgs(candidate));
+                    }
+                });
+            }
+
             return UpdateCheckResult.NewerAvailable;
         }
 

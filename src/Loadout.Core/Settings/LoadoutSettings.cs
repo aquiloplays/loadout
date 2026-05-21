@@ -752,6 +752,14 @@ namespace Loadout.Settings
         public int    CheckIntervalHr { get; set; } = 6;
         public string Channel         { get; set; } = "stable"; // stable | beta
         public string GitHubRepo      { get; set; } = "aquiloplays/loadout-downloads";
+        // When true (default), a newer release detected by AutoCheck is
+        // downloaded straight to <data>/Loadout.dll.new in the background,
+        // so all the user has to do is restart Streamer.bot — no extra
+        // "Apply update" tray click. Matches electron-updater's
+        // autoDownload behaviour on the StreamFusion side. Flip off if
+        // you want the streamer to explicitly opt in to each download
+        // (low-bandwidth setups, mid-stream caution, etc).
+        public bool   AutoDownload    { get; set; } = true;
 
         [JsonIgnore]
         public DateTime LastCheckedUtc { get; set; } = DateTime.MinValue;

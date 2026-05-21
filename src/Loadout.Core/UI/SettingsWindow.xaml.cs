@@ -907,6 +907,7 @@ namespace Loadout.UI
 
             CmbChannel.SelectedIndex = string.Equals(s.Updates.Channel, "beta", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
             ChkAutoCheckUpdates.IsChecked = s.Updates.AutoCheck;
+            ChkAutoDownloadUpdates.IsChecked = s.Updates.AutoDownload;
 
             // Modules
             ModInfo.IsChecked        = s.Modules.InfoCommands;
@@ -1166,8 +1167,9 @@ namespace Loadout.UI
                 s.Platforms.Kick    = ChkKick.IsChecked    == true;
                 s.Platforms.TikTokSendActionName = (TxtTikTokSendAction.Text ?? "").Trim();
 
-                s.Updates.Channel   = ((ComboBoxItem)CmbChannel.SelectedItem)?.Tag?.ToString() ?? "stable";
-                s.Updates.AutoCheck = ChkAutoCheckUpdates.IsChecked == true;
+                s.Updates.Channel      = ((ComboBoxItem)CmbChannel.SelectedItem)?.Tag?.ToString() ?? "stable";
+                s.Updates.AutoCheck    = ChkAutoCheckUpdates.IsChecked == true;
+                s.Updates.AutoDownload = ChkAutoDownloadUpdates.IsChecked == true;
 
                 // Modules
                 s.Modules.InfoCommands       = ModInfo.IsChecked == true;

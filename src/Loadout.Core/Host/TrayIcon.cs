@@ -19,6 +19,7 @@ namespace Loadout.Host
         private NotifyIcon _icon;
         private ContextMenuStrip _menu;
         private bool _hasUpdate;
+        private bool _updateStaged;   // true once Loadout.dll.new is on disk
         private ReleaseInfo _pendingRelease;
 
         public void Show()
@@ -59,16 +60,44 @@ namespace Loadout.Host
         public void NotifyUpdateAvailable(ReleaseInfo release)
         {
             _hasUpdate = true;
+            _updateStaged = false;
             _pendingRelease = release;
+            var autoDownload = SettingsManager.Instance.Current.Updates.AutoDownload;
             try
             {
                 _icon.ShowBalloonTip(
                     8000,
                     "Loadout update available",
-                    $"Version {release.TagName} is ready to install. Click the tray icon for details.",
+                    autoDownload
+                        ? $"Version {release.TagName} is downloading in the background — restart Streamer.bot when it's ready."
+                        : $"Version {release.TagName} is ready to install. Click the tray icon for details.",
                     ToolTipIcon.Info);
             }
             catch { /* balloon tips occasionally fail on some Windows builds; non-fatal */ }
+            RebuildMenu();
+        }
+
+        /// <summary>
+        /// Fired by <see cref="UpdateChecker"/> after AutoDownload has finished
+        /// staging Loadout.dll.new on disk. Flips the menu from
+        /// "Downloading…" to "Restart Streamer.bot to apply vX.Y.Z" so the
+        /// streamer's next action is just an SB restart — no extra
+        /// download-click step.
+        /// </summary>
+        public void NotifyUpdateDownloaded(ReleaseInfo release)
+        {
+            _hasUpdate = true;
+            _updateStaged = true;
+            _pendingRelease = release;
+            try
+            {
+                _icon.ShowBalloonTip(
+                    10000,
+                    "Loadout update downloaded",
+                    $"Restart Streamer.bot to apply {release.TagName}.",
+                    ToolTipIcon.Info);
+            }
+            catch { /* non-fatal */ }
             RebuildMenu();
         }
 
@@ -109,12 +138,33 @@ namespace Loadout.Host
 
             _menu.Items.Add(new ToolStripSeparator());
 
-            var update = new ToolStripMenuItem(_hasUpdate
-                ? "Apply update to " + (_pendingRelease?.TagName ?? "new version")
-                : "Check for updates");
+            // Three states for the update item:
+            //   - no update detected → "Check for updates" (clickable)
+            //   - update detected, staged file on disk → "Restart Streamer.bot
+            //     to apply vX.Y.Z" (informational; SB swaps the DLL itself on
+            //     next start via 00-boot.cs)
+            //   - update detected, no staged file yet → "Apply update to
+            //     vX.Y.Z" (clickable; downloads then flips to staged)
+            //
+            // When AutoDownload is on (default), the middle state is what
+            // every streamer hits — the background download is already done
+            // by the time they look at the tray. The third state only shows
+            // when AutoDownload was turned off OR the auto-download failed.
+            string updateLabel;
+            if (!_hasUpdate)                        updateLabel = "Check for updates";
+            else if (_updateStaged)                 updateLabel = "Restart Streamer.bot to apply " + (_pendingRelease?.TagName ?? "new version");
+            else                                    updateLabel = "Apply update to " + (_pendingRelease?.TagName ?? "new version");
+            var update = new ToolStripMenuItem(updateLabel);
             update.Click += async (_, __) =>
             {
-                if (_hasUpdate && _pendingRelease != null)
+                if (_hasUpdate && _updateStaged)
+                {
+                    // Nothing to do — SB restart is the only step left. Open
+                    // the release page so the streamer can read the notes
+                    // while they decide when to restart.
+                    try { System.Diagnostics.Process.Start(_pendingRelease?.HtmlUrl ?? "https://github.com/aquiloplays/loadout-downloads/releases"); } catch { }
+                }
+                else if (_hasUpdate && _pendingRelease != null)
                 {
                     update.Enabled = false;
                     update.Text = "Downloading...";
@@ -122,6 +172,7 @@ namespace Loadout.Host
                     update.Enabled = true;
                     if (ok)
                     {
+                        _updateStaged = true;
                         try
                         {
                             _icon.ShowBalloonTip(10000,
@@ -130,7 +181,7 @@ namespace Loadout.Host
                                 ToolTipIcon.Info);
                         }
                         catch { }
-                        update.Text = "Restart SB to apply " + _pendingRelease.TagName;
+                        update.Text = "Restart Streamer.bot to apply " + _pendingRelease.TagName;
                     }
                     else
                     {
