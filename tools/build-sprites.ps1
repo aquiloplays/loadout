@@ -2253,6 +2253,590 @@ function Draw-Trinket {
 
 function Build-Trinket { param([string]$repoRoot) Write-Host '── Trinket gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'trinket' ${function:Draw-Trinket} }
 
+# ══════════════════════════════════════════════════════════════════
+#                       PETS — companion animals
+# ══════════════════════════════════════════════════════════════════
+#
+# Pet sits in the bottom-right gutter of the canvas — to the right
+# of the figure, on the ground. Anchored bottom-aligned so pet
+# stands on the floor at y=79.
+#
+# Each species has 4 colour variants; same silhouette, only palette
+# changes. Mood overlays float above the pet head.
+
+$PET_OX = 46
+$PET_OY = 56
+$PET_W  = 18
+$PET_H  = 23
+
+# Species × colour palettes. Each is { deep; shadow; base; high; top; eye }.
+function PetRamp { param([hashtable]$h)
+  return @{
+    deep   = Color-FromHex $h.deep;
+    shadow = Color-FromHex $h.shadow;
+    base   = Color-FromHex $h.base;
+    high   = Color-FromHex $h.high;
+    top    = Color-FromHex $h.top;
+    eye    = Color-FromHex $h.eye;
+  }
+}
+
+$PET_PALETTES = @{
+  'cat-black'    = @{ deep='#000004'; shadow='#15151b'; base='#2a2a32'; high='#444452'; top='#5f6072'; eye='#5bff95' };
+  'cat-tabby'    = @{ deep='#2a1a08'; shadow='#5a4022'; base='#7e5a32'; high='#a07840'; top='#c89858'; eye='#46d160' };
+  'cat-ginger'   = @{ deep='#6a2a00'; shadow='#a4490c'; base='#d76d20'; high='#f5933e'; top='#ffb462'; eye='#5bff95' };
+  'cat-calico'   = @{ deep='#2a1408'; shadow='#5a3018'; base='#e8d4b0'; high='#fff5da'; top='#ffffff'; eye='#3a86ff' };
+  'dog-cream'    = @{ deep='#704818'; shadow='#a47840'; base='#e8c884'; high='#fff0b8'; top='#fff8d8'; eye='#3a2010' };
+  'dog-spotted'  = @{ deep='#0a0a14'; shadow='#202028'; base='#f8f8fa'; high='#ffffff'; top='#ffffff'; eye='#3a2010' };
+  'dog-amber'    = @{ deep='#3a2008'; shadow='#6a3a14'; base='#a86028'; high='#d4843c'; top='#f0a85a'; eye='#3a2010' };
+  'dog-midnight' = @{ deep='#00000a'; shadow='#0a0a14'; base='#1c1c28'; high='#34344a'; top='#5a5a78'; eye='#5bff95' };
+  'owl-barn'     = @{ deep='#5a3614'; shadow='#8a5a30'; base='#c08858'; high='#e8b888'; top='#ffd4a8'; eye='#0a0a12' };
+  'owl-snowy'    = @{ deep='#70708a'; shadow='#a0a0b0'; base='#e8e8f0'; high='#ffffff'; top='#ffffff'; eye='#0a0a12' };
+  'owl-sage'     = @{ deep='#2a4030'; shadow='#4a6a4a'; base='#7ca080'; high='#a8c8a8'; top='#c8e0c8'; eye='#0a0a12' };
+  'owl-twilight' = @{ deep='#1a0c2a'; shadow='#3a2858'; base='#6a4ca0'; high='#9a82ff'; top='#cdb8ff'; eye='#f0b429' };
+  'fox-rust'     = @{ deep='#6a1408'; shadow='#a02810'; base='#d86432'; high='#f59060'; top='#ffb088'; eye='#0a0a12' };
+  'fox-arctic'   = @{ deep='#787888'; shadow='#a8a8b8'; base='#e8e8f4'; high='#ffffff'; top='#ffffff'; eye='#3a86ff' };
+  'fox-plum'     = @{ deep='#280a30'; shadow='#4a2050'; base='#7c4a90'; high='#b078c8'; top='#d2a0e8'; eye='#f0b429' };
+  'fox-gold'     = @{ deep='#5a3508'; shadow='#8a5a18'; base='#d49a30'; high='#f4c860'; top='#ffe098'; eye='#1c2034' };
+  'slime-mint'   = @{ deep='#125030'; shadow='#2a8060'; base='#5be098'; high='#a0ffcc'; top='#d8fff0'; eye='#0a0a12' };
+  'slime-cobalt' = @{ deep='#0a1c48'; shadow='#163065'; base='#3a72d8'; high='#74a8ff'; top='#a8caff'; eye='#ffffff' };
+  'slime-rose'   = @{ deep='#5a1830'; shadow='#a02858'; base='#e87aa8'; high='#ffb0d0'; top='#ffd8e8'; eye='#0a0a12' };
+  'slime-aurora' = @{ deep='#28186a'; shadow='#4830a0'; base='#7c5cff'; high='#a890ff'; top='#d0c0ff'; eye='#5bff95' };
+  'dragonling-emerald' = @{ deep='#0a2810'; shadow='#1a5028'; base='#3a9050'; high='#5fc878'; top='#88e8a0'; eye='#f0b429' };
+  'dragonling-ember'   = @{ deep='#3a0808'; shadow='#6a1010'; base='#c43020'; high='#f06040'; top='#ff8868'; eye='#f0e028' };
+  'dragonling-storm'   = @{ deep='#1a2030'; shadow='#283848'; base='#506880'; high='#88a0b8'; top='#b8cce0'; eye='#5bff95' };
+  'dragonling-voltaic' = @{ deep='#1a0c40'; shadow='#3a1f7a'; base='#7c5cff'; high='#a890ff'; top='#d8c8ff'; eye='#5bff95' };
+  'frog-leaf'     = @{ deep='#102810'; shadow='#2a5028'; base='#4a8030'; high='#7cb850'; top='#a8e078'; eye='#f0b429' };
+  'frog-lily'     = @{ deep='#0a1c2a'; shadow='#1a4060'; base='#3878a0'; high='#70b0d4'; top='#a0d4ec'; eye='#f0b429' };
+  'frog-inkblot'  = @{ deep='#000006'; shadow='#0a0a14'; base='#252530'; high='#48485c'; top='#707088'; eye='#5bff95' };
+  'frog-sunburst' = @{ deep='#6a3a08'; shadow='#a06820'; base='#e8a838'; high='#ffd070'; top='#ffe8a0'; eye='#1c2034' };
+  'bunny-ash'        = @{ deep='#4a4e58'; shadow='#6a6e78'; base='#a0a4ac'; high='#d4d8e0'; top='#f0f2f8'; eye='#1c2034' };
+  'bunny-cocoa'      = @{ deep='#2a1808'; shadow='#4a2a18'; base='#7c4a2a'; high='#a87048'; top='#d09068'; eye='#1c2034' };
+  'bunny-meadow'     = @{ deep='#1a4020'; shadow='#2a6030'; base='#5fa848'; high='#90d870'; top='#b8e898'; eye='#1c2034' };
+  'bunny-starlight'  = @{ deep='#3a2858'; shadow='#5a4a78'; base='#a890ff'; high='#e0d0ff'; top='#ffffff'; eye='#5bff95' };
+}
+
+function Pet-Ramp { param([string]$key)
+  $pal = $PET_PALETTES[$key]
+  if (-not $pal) { throw "Unknown pet palette: $key" }
+  return PetRamp $pal
+}
+
+# Ground shadow under pet
+function Draw-PetGround {
+  param($bmp, [int]$cx)
+  $shadow = (Color-FromHex '#080810')
+  for ($dx = -7; $dx -le 7; $dx++) {
+    $a = 150 - [Math]::Abs($dx) * 16
+    if ($a -lt 30) { continue }
+    Blend-Pixel $bmp ($cx + $dx) 79 (With-Alpha $shadow $a)
+  }
+  for ($dx = -5; $dx -le 5; $dx++) {
+    Blend-Pixel $bmp ($cx + $dx) 78 (With-Alpha $shadow ([Math]::Max(20, 60 - [Math]::Abs($dx) * 8)))
+  }
+}
+
+# ── Cat ────────────────────────────────────────────────────────────
+function Draw-Pet-Cat {
+  param($bmp, $pal)
+  $ox = $PET_OX; $oy = $PET_OY
+  $cx = $ox + 9
+  Draw-PetGround $bmp $cx
+  # Body — sitting cat, hourglass shape
+  Shade-Oval $bmp $cx ($oy + 14) 5.5 5.5 $pal
+  # Lighter belly patch
+  Set-Pixel $bmp ($cx - 1) ($oy + 15) $pal.high
+  Set-Pixel $bmp $cx ($oy + 15) $pal.high
+  Set-Pixel $bmp ($cx - 1) ($oy + 16) $pal.top
+  # Head sitting on top
+  Shade-Oval $bmp $cx ($oy + 5) 4 4 $pal
+  # Ear tufts
+  Set-Pixel $bmp ($cx - 4) ($oy + 1) $pal.base
+  Set-Pixel $bmp ($cx - 3) ($oy)     $pal.base
+  Set-Pixel $bmp ($cx - 3) ($oy + 1) $pal.shadow
+  Set-Pixel $bmp ($cx + 3) ($oy + 1) $pal.base
+  Set-Pixel $bmp ($cx + 4) ($oy)     $pal.base
+  Set-Pixel $bmp ($cx + 4) ($oy + 1) $pal.shadow
+  # Inner ear
+  Set-Pixel $bmp ($cx - 3) ($oy + 2) (Color-FromHex '#ffb8c0')
+  Set-Pixel $bmp ($cx + 3) ($oy + 2) (Color-FromHex '#ffb8c0')
+  # Eyes
+  Set-Pixel $bmp ($cx - 2) ($oy + 5) $pal.eye
+  Set-Pixel $bmp ($cx + 2) ($oy + 5) $pal.eye
+  Set-Pixel $bmp ($cx - 2) ($oy + 4) (Color-FromHex '#ffffff')
+  Set-Pixel $bmp ($cx + 2) ($oy + 4) (Color-FromHex '#ffffff')
+  # Nose
+  Set-Pixel $bmp $cx ($oy + 6) (Color-FromHex '#e88ca8')
+  # Mouth
+  Set-Pixel $bmp ($cx - 1) ($oy + 7) $pal.shadow
+  Set-Pixel $bmp ($cx + 1) ($oy + 7) $pal.shadow
+  # Whiskers
+  Set-Pixel $bmp ($cx - 4) ($oy + 6) $pal.high
+  Set-Pixel $bmp ($cx + 4) ($oy + 6) $pal.high
+  # Curling tail up the right side
+  Line-Pixel $bmp ($cx + 5) ($oy + 17) ($cx + 7) ($oy + 13) $pal.base
+  Set-Pixel $bmp ($cx + 7) ($oy + 12) $pal.base
+  Set-Pixel $bmp ($cx + 7) ($oy + 11) $pal.high
+  Set-Pixel $bmp ($cx + 6) ($oy + 11) $pal.top
+  Set-Pixel $bmp ($cx + 8) ($oy + 12) $pal.shadow
+  # Front paws
+  Set-Pixel $bmp ($cx - 3) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx + 3) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx - 4) ($oy + 19) $pal.shadow
+  Set-Pixel $bmp ($cx + 4) ($oy + 19) $pal.shadow
+}
+
+# ── Dog ────────────────────────────────────────────────────────────
+function Draw-Pet-Dog {
+  param($bmp, $pal)
+  $ox = $PET_OX; $oy = $PET_OY
+  $cx = $ox + 9
+  Draw-PetGround $bmp $cx
+  # Body — chunkier, lower stance
+  Shade-Oval $bmp $cx ($oy + 14) 6.5 5 $pal
+  # Bottom shadow + paws
+  Set-Pixel $bmp ($cx - 4) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx - 3) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx + 3) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx + 4) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx - 4) ($oy + 18) $pal.shadow
+  Set-Pixel $bmp ($cx + 4) ($oy + 18) $pal.shadow
+  # Head — round
+  Shade-Oval $bmp $cx ($oy + 5) 4.5 4 $pal
+  # Snout
+  Fill-Box $bmp ($cx - 1) ($oy + 7) 3 2 $pal.base
+  Set-Pixel $bmp ($cx + 1) ($oy + 8) $pal.shadow
+  Set-Pixel $bmp $cx ($oy + 8) (Color-FromHex '#1a1018')   # nose tip
+  # Floppy ears
+  Fill-Box $bmp ($cx - 5) ($oy + 4) 1 5 $pal.shadow
+  Fill-Box $bmp ($cx - 4) ($oy + 5) 1 4 $pal.deep
+  Fill-Box $bmp ($cx + 4) ($oy + 4) 1 5 $pal.shadow
+  Fill-Box $bmp ($cx + 3) ($oy + 5) 1 4 $pal.deep
+  # Eyes
+  Set-Pixel $bmp ($cx - 2) ($oy + 5) $pal.eye
+  Set-Pixel $bmp ($cx + 2) ($oy + 5) $pal.eye
+  Set-Pixel $bmp ($cx - 2) ($oy + 4) (Color-FromHex '#ffffff')
+  Set-Pixel $bmp ($cx + 2) ($oy + 4) (Color-FromHex '#ffffff')
+  # Tail — stubby wag (up + right)
+  Set-Pixel $bmp ($cx + 7) ($oy + 11) $pal.base
+  Set-Pixel $bmp ($cx + 8) ($oy + 10) $pal.base
+  Set-Pixel $bmp ($cx + 8) ($oy + 9) $pal.high
+  Set-Pixel $bmp ($cx + 7) ($oy + 12) $pal.shadow
+}
+
+# ── Owl ────────────────────────────────────────────────────────────
+function Draw-Pet-Owl {
+  param($bmp, $pal)
+  $ox = $PET_OX; $oy = $PET_OY
+  $cx = $ox + 9
+  Draw-PetGround $bmp $cx
+  # Body — wide oval, sits low (head + body merged)
+  Shade-Oval $bmp $cx ($oy + 11) 5.5 8 $pal
+  # Chest stripe (lighter)
+  Fill-Box $bmp ($cx - 2) ($oy + 9) 5 7 $pal.high
+  Set-Pixel $bmp ($cx - 1) ($oy + 10) $pal.top
+  # Ear tufts
+  Set-Pixel $bmp ($cx - 4) ($oy + 2) $pal.base
+  Set-Pixel $bmp ($cx - 3) ($oy + 1) $pal.base
+  Set-Pixel $bmp ($cx + 3) ($oy + 2) $pal.base
+  Set-Pixel $bmp ($cx + 4) ($oy + 1) $pal.base
+  # Big circle eyes — disc + pupil + glint
+  Shade-Disc $bmp ($cx - 2) ($oy + 5) 2 (PetRamp @{deep='#aaa890'; shadow='#d4d2b8'; base='#fff8e0'; high='#ffffff'; top='#ffffff'; eye='#000000'})
+  Shade-Disc $bmp ($cx + 2) ($oy + 5) 2 (PetRamp @{deep='#aaa890'; shadow='#d4d2b8'; base='#fff8e0'; high='#ffffff'; top='#ffffff'; eye='#000000'})
+  Set-Pixel $bmp ($cx - 2) ($oy + 5) $pal.eye
+  Set-Pixel $bmp ($cx + 2) ($oy + 5) $pal.eye
+  Set-Pixel $bmp ($cx - 1) ($oy + 4) (Color-FromHex '#ffffff')
+  Set-Pixel $bmp ($cx + 3) ($oy + 4) (Color-FromHex '#ffffff')
+  # Beak
+  $beak = Color-FromHex '#f0b429'
+  Set-Pixel $bmp $cx ($oy + 6) $beak
+  Set-Pixel $bmp $cx ($oy + 7) (Color-FromHex '#a07020')
+  # Wing edge details (folded against body)
+  for ($y = 0; $y -lt 5; $y++) {
+    Set-Pixel $bmp ($cx - 5) ($oy + 9 + $y) $pal.deep
+    Set-Pixel $bmp ($cx + 5) ($oy + 9 + $y) $pal.deep
+  }
+  # Feet
+  Set-Pixel $bmp ($cx - 2) ($oy + 19) $beak
+  Set-Pixel $bmp ($cx - 1) ($oy + 19) $beak
+  Set-Pixel $bmp ($cx + 2) ($oy + 19) $beak
+  Set-Pixel $bmp ($cx + 1) ($oy + 19) $beak
+}
+
+# ── Fox ────────────────────────────────────────────────────────────
+function Draw-Pet-Fox {
+  param($bmp, $pal)
+  $ox = $PET_OX; $oy = $PET_OY
+  $cx = $ox + 9
+  Draw-PetGround $bmp $cx
+  # Body — sleek, slightly hunched
+  Shade-Oval $bmp $cx ($oy + 14) 5.5 5 $pal
+  # Lighter belly
+  Set-Pixel $bmp $cx ($oy + 15) $pal.high
+  Set-Pixel $bmp ($cx + 1) ($oy + 15) $pal.top
+  # Head — triangular with pointed snout
+  Shade-Oval $bmp $cx ($oy + 5) 4 4 $pal
+  Fill-Box $bmp ($cx - 1) ($oy + 7) 3 2 $pal.base
+  Set-Pixel $bmp $cx ($oy + 8) (Color-FromHex '#1a1018')
+  Set-Pixel $bmp ($cx - 1) ($oy + 8) $pal.shadow
+  Set-Pixel $bmp ($cx + 1) ($oy + 8) $pal.shadow
+  # Pointed ears
+  Set-Pixel $bmp ($cx - 4) ($oy)     $pal.base
+  Set-Pixel $bmp ($cx - 3) ($oy + 1) $pal.base
+  Set-Pixel $bmp ($cx - 3) ($oy)     $pal.high
+  Set-Pixel $bmp ($cx + 3) ($oy + 1) $pal.base
+  Set-Pixel $bmp ($cx + 4) ($oy)     $pal.base
+  Set-Pixel $bmp ($cx + 4) ($oy)     $pal.high
+  # Inner ear
+  Set-Pixel $bmp ($cx - 4) ($oy + 1) $pal.deep
+  Set-Pixel $bmp ($cx + 4) ($oy + 1) $pal.deep
+  # Eyes
+  Set-Pixel $bmp ($cx - 2) ($oy + 5) $pal.eye
+  Set-Pixel $bmp ($cx + 2) ($oy + 5) $pal.eye
+  # Paws
+  Set-Pixel $bmp ($cx - 4) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx + 4) ($oy + 19) $pal.deep
+  # Bushy tail — sweep up-back-right
+  $tx = $cx + 6
+  for ($i = 0; $i -lt 8; $i++) {
+    $px = $tx + [int]($i * 0.4)
+    $py = $oy + 14 - [int]($i * 1.0)
+    Set-Pixel $bmp $px $py $pal.base
+    Set-Pixel $bmp ($px - 1) $py $pal.shadow
+    Set-Pixel $bmp ($px + 1) $py $pal.high
+  }
+  # White tail tip
+  Set-Pixel $bmp ($tx + 3) ($oy + 7) $pal.top
+  Set-Pixel $bmp ($tx + 4) ($oy + 6) $pal.top
+  Set-Pixel $bmp ($tx + 4) ($oy + 7) $pal.high
+}
+
+# ── Slime ──────────────────────────────────────────────────────────
+function Draw-Pet-Slime {
+  param($bmp, $pal)
+  $ox = $PET_OX; $oy = $PET_OY
+  $cx = $ox + 9
+  Draw-PetGround $bmp $cx
+  # Translucent dome — wide base tapering up
+  for ($y = 0; $y -lt 14; $y++) {
+    $py = $oy + 6 + $y
+    $w = 4 + [int]($y * 0.6)
+    if ($y -gt 9) { $w = 12 - ($y - 9) }
+    $x0 = $cx - [int]($w / 2)
+    Fill-Box $bmp $x0 $py $w 1 $pal.base
+    Set-Pixel $bmp $x0 $py $pal.shadow
+    Set-Pixel $bmp ($x0 + $w - 1) $py $pal.deep
+  }
+  # Translucent shine — upper-left arc
+  for ($i = 0; $i -lt 3; $i++) {
+    Set-Pixel $bmp ($cx - 3 + $i) ($oy + 8) $pal.high
+  }
+  Set-Pixel $bmp ($cx - 2) ($oy + 7) $pal.top
+  # Inner glow speck
+  Set-Pixel $bmp ($cx - 1) ($oy + 10) $pal.top
+  Set-Pixel $bmp ($cx + 2) ($oy + 12) $pal.high
+  # Eyes (squinting smile)
+  Set-Pixel $bmp ($cx - 2) ($oy + 13) $pal.eye
+  Set-Pixel $bmp ($cx + 2) ($oy + 13) $pal.eye
+  Set-Pixel $bmp ($cx - 2) ($oy + 14) $pal.eye
+  Set-Pixel $bmp ($cx + 2) ($oy + 14) $pal.eye
+  # Smile
+  Set-Pixel $bmp $cx ($oy + 15) $pal.eye
+  Set-Pixel $bmp ($cx - 1) ($oy + 16) $pal.eye
+  Set-Pixel $bmp ($cx + 1) ($oy + 16) $pal.eye
+  # Droplet drips around the base
+  Set-Pixel $bmp ($cx + 7) ($oy + 18) $pal.shadow
+  Set-Pixel $bmp ($cx - 7) ($oy + 18) $pal.shadow
+}
+
+# ── Dragonling ─────────────────────────────────────────────────────
+function Draw-Pet-Dragonling {
+  param($bmp, $pal)
+  $ox = $PET_OX; $oy = $PET_OY
+  $cx = $ox + 9
+  Draw-PetGround $bmp $cx
+  # Body — sturdy, scaled
+  Shade-Oval $bmp $cx ($oy + 14) 5.5 5 $pal
+  # Belly plating — lighter horizontal stripes
+  Set-Pixel $bmp ($cx - 1) ($oy + 15) $pal.high
+  Set-Pixel $bmp $cx       ($oy + 15) $pal.top
+  Set-Pixel $bmp ($cx + 1) ($oy + 15) $pal.high
+  Set-Pixel $bmp $cx       ($oy + 17) $pal.high
+  # Head — boxy
+  Shade-Box $bmp ($cx - 3) ($oy + 3) 7 5 $pal -RimLight
+  # Snout extension
+  Fill-Box $bmp ($cx - 4) ($oy + 6) 2 2 $pal.base
+  Set-Pixel $bmp ($cx - 5) ($oy + 7) $pal.shadow
+  # Horns (curving back)
+  Set-Pixel $bmp ($cx - 3) ($oy + 1) $pal.high
+  Set-Pixel $bmp ($cx - 2) ($oy)     $pal.top
+  Set-Pixel $bmp ($cx + 3) ($oy + 1) $pal.high
+  Set-Pixel $bmp ($cx + 4) ($oy)     $pal.top
+  Set-Pixel $bmp ($cx + 5) ($oy - 1) $pal.high
+  # Glowing eyes
+  Set-Pixel $bmp ($cx - 2) ($oy + 5) $pal.eye
+  Set-Pixel $bmp ($cx + 2) ($oy + 5) $pal.eye
+  Set-Pixel $bmp ($cx - 2) ($oy + 6) $pal.eye
+  Set-Pixel $bmp ($cx + 2) ($oy + 6) $pal.eye
+  # Folded wings on back
+  for ($y = 0; $y -lt 6; $y++) {
+    Set-Pixel $bmp ($cx + 5) ($oy + 9 + $y) $pal.shadow
+    Set-Pixel $bmp ($cx + 6) ($oy + 9 + $y) $pal.deep
+    if ($y -lt 3) {
+      Set-Pixel $bmp ($cx + 6) ($oy + 9 + $y) $pal.shadow
+      Set-Pixel $bmp ($cx + 7) ($oy + 10 + $y) $pal.deep
+    }
+  }
+  # Spiky tail curling up
+  Line-Pixel $bmp ($cx + 5) ($oy + 17) ($cx + 8) ($oy + 12) $pal.base
+  Set-Pixel $bmp ($cx + 8) ($oy + 11) $pal.high
+  Set-Pixel $bmp ($cx + 9) ($oy + 11) $pal.top   # tail spike
+  Set-Pixel $bmp ($cx + 9) ($oy + 12) $pal.shadow
+  # Paws
+  Set-Pixel $bmp ($cx - 4) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx + 4) ($oy + 19) $pal.deep
+  # Dorsal spikes
+  Set-Pixel $bmp $cx ($oy + 11) $pal.high
+  Set-Pixel $bmp ($cx + 2) ($oy + 11) $pal.high
+}
+
+# ── Frog ───────────────────────────────────────────────────────────
+function Draw-Pet-Frog {
+  param($bmp, $pal)
+  $ox = $PET_OX; $oy = $PET_OY
+  $cx = $ox + 9
+  Draw-PetGround $bmp $cx
+  # Squat body
+  Shade-Oval $bmp $cx ($oy + 13) 6.5 5 $pal
+  # Lighter belly
+  Fill-Box $bmp ($cx - 3) ($oy + 14) 7 4 $pal.high
+  Set-Pixel $bmp $cx ($oy + 15) $pal.top
+  # Head (wide, lower-set)
+  Shade-Oval $bmp $cx ($oy + 7) 5 3 $pal
+  # Bulging dome eyes on top — pet-base coloured volumes
+  Shade-Disc $bmp ($cx - 3) ($oy + 4) 2 $pal
+  Shade-Disc $bmp ($cx + 3) ($oy + 4) 2 $pal
+  # Pupils
+  Set-Pixel $bmp ($cx - 3) ($oy + 4) $pal.eye
+  Set-Pixel $bmp ($cx + 3) ($oy + 4) $pal.eye
+  Set-Pixel $bmp ($cx - 4) ($oy + 3) (Color-FromHex '#ffffff')
+  Set-Pixel $bmp ($cx + 2) ($oy + 3) (Color-FromHex '#ffffff')
+  # Wide grin mouth
+  Fill-Box $bmp ($cx - 3) ($oy + 9) 7 1 $pal.deep
+  # Spots on back (decorative)
+  Set-Pixel $bmp ($cx - 2) ($oy + 12) $pal.deep
+  Set-Pixel $bmp ($cx + 2) ($oy + 12) $pal.deep
+  Set-Pixel $bmp $cx ($oy + 14) $pal.deep
+  # Front legs (squat)
+  Set-Pixel $bmp ($cx - 5) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx - 4) ($oy + 19) $pal.shadow
+  Set-Pixel $bmp ($cx + 4) ($oy + 19) $pal.shadow
+  Set-Pixel $bmp ($cx + 5) ($oy + 19) $pal.deep
+}
+
+# ── Bunny ──────────────────────────────────────────────────────────
+function Draw-Pet-Bunny {
+  param($bmp, $pal)
+  $ox = $PET_OX; $oy = $PET_OY
+  $cx = $ox + 9
+  Draw-PetGround $bmp $cx
+  # Body — egg-shape upright
+  Shade-Oval $bmp $cx ($oy + 14) 5 5 $pal
+  # Lighter belly
+  Fill-Box $bmp ($cx - 2) ($oy + 15) 4 3 $pal.high
+  # Head — small round
+  Shade-Oval $bmp $cx ($oy + 8) 3.5 3.5 $pal
+  # Long ears — tall vertical pair
+  for ($y = 0; $y -lt 7; $y++) {
+    Set-Pixel $bmp ($cx - 3) ($oy + $y) $pal.base
+    Set-Pixel $bmp ($cx - 3) ($oy + $y) $pal.high
+    Set-Pixel $bmp ($cx + 3) ($oy + $y) $pal.base
+  }
+  # Ear inner (pink)
+  for ($y = 1; $y -lt 5; $y++) {
+    Set-Pixel $bmp ($cx - 3) ($oy + $y) (Color-FromHex '#e8a8b0')
+    Set-Pixel $bmp ($cx + 3) ($oy + $y) (Color-FromHex '#e8a8b0')
+  }
+  # Ear outer outline
+  Set-Pixel $bmp ($cx - 4) ($oy + 2) $pal.shadow
+  Set-Pixel $bmp ($cx - 4) ($oy + 3) $pal.shadow
+  Set-Pixel $bmp ($cx - 4) ($oy + 4) $pal.shadow
+  Set-Pixel $bmp ($cx + 4) ($oy + 2) $pal.shadow
+  Set-Pixel $bmp ($cx + 4) ($oy + 3) $pal.shadow
+  Set-Pixel $bmp ($cx + 4) ($oy + 4) $pal.shadow
+  # Eyes
+  Set-Pixel $bmp ($cx - 1) ($oy + 9) $pal.eye
+  Set-Pixel $bmp ($cx + 1) ($oy + 9) $pal.eye
+  # Nose + mouth
+  Set-Pixel $bmp $cx ($oy + 10) (Color-FromHex '#e88ca8')
+  Set-Pixel $bmp $cx ($oy + 11) $pal.shadow
+  # Cotton tail
+  Shade-Disc $bmp ($cx + 6) ($oy + 13) 1.8 (PetRamp @{deep='#a8a8b0'; shadow='#c8c8d0'; base='#ecedef'; high='#ffffff'; top='#ffffff'; eye='#0a0a12'})
+  # Paws
+  Set-Pixel $bmp ($cx - 3) ($oy + 19) $pal.deep
+  Set-Pixel $bmp ($cx + 3) ($oy + 19) $pal.deep
+}
+
+function Draw-Pet {
+  param($bmp, [string]$species, [string]$colour)
+  $key = "$species-$colour"
+  $pal = Pet-Ramp $key
+  switch ($species) {
+    'cat'        { Draw-Pet-Cat        $bmp $pal }
+    'dog'        { Draw-Pet-Dog        $bmp $pal }
+    'owl'        { Draw-Pet-Owl        $bmp $pal }
+    'fox'        { Draw-Pet-Fox        $bmp $pal }
+    'slime'      { Draw-Pet-Slime      $bmp $pal }
+    'dragonling' { Draw-Pet-Dragonling $bmp $pal }
+    'frog'       { Draw-Pet-Frog       $bmp $pal }
+    'bunny'      { Draw-Pet-Bunny      $bmp $pal }
+    default      { throw "Unknown pet species: $species" }
+  }
+}
+
+function Build-Pets {
+  Write-Host '── Pets ──' -ForegroundColor Cyan
+  $count = 0
+  foreach ($key in $PET_PALETTES.Keys) {
+    $parts = $key -split '-', 2
+    $species = $parts[0]
+    $colour  = $parts[1]
+    $bmp = New-CanvasFx $CanvasW $CanvasH
+    Draw-Pet $bmp $species $colour
+    Save-CanvasFx $bmp (Join-Path $petDir ("{0}-{1}.png" -f $species, $colour))
+    $count++
+  }
+  Write-Host ("  variants: {0}" -f $count) -ForegroundColor Green
+}
+
+# ── Mood overlays ──────────────────────────────────────────────────
+$MOOD_OX = 56
+$MOOD_OY = 48
+
+function Draw-Mood-Hungry { param($bmp)
+  $bowl   = Color-FromHex '#a86028'
+  $bowlHi = Color-FromHex '#d4843c'
+  $crumb  = Color-FromHex '#f0b429'
+  # Bowl rim
+  Fill-Box $bmp $MOOD_OX ($MOOD_OY + 5) 7 1 $bowl
+  Fill-Box $bmp ($MOOD_OX + 1) ($MOOD_OY + 6) 5 2 $bowl
+  Set-Pixel $bmp ($MOOD_OX + 2) ($MOOD_OY + 6) $bowlHi
+  # Question mark + crumbs above
+  Set-Pixel $bmp ($MOOD_OX + 3) ($MOOD_OY + 1) $crumb
+  Set-Pixel $bmp ($MOOD_OX + 4) ($MOOD_OY + 2) $crumb
+  Set-Pixel $bmp ($MOOD_OX + 2) ($MOOD_OY + 3) $crumb
+  Set-Pixel $bmp ($MOOD_OX + 5) ($MOOD_OY + 3) $crumb
+}
+function Draw-Mood-Sad { param($bmp)
+  $drop   = Color-FromHex '#3a86ff'
+  $dropHi = Color-FromHex '#a0c4ff'
+  Set-Pixel $bmp ($MOOD_OX + 3) $MOOD_OY $drop
+  Fill-Box $bmp ($MOOD_OX + 2) ($MOOD_OY + 1) 3 1 $drop
+  Fill-Box $bmp ($MOOD_OX + 1) ($MOOD_OY + 2) 5 2 $drop
+  Set-Pixel $bmp ($MOOD_OX + 2) ($MOOD_OY + 2) $dropHi
+  Set-Pixel $bmp ($MOOD_OX + 3) ($MOOD_OY + 1) $dropHi
+  Fill-Box $bmp ($MOOD_OX + 2) ($MOOD_OY + 4) 3 1 $drop
+}
+function Draw-Mood-Dirty { param($bmp)
+  $fly  = Color-FromHex '#222228'
+  $wing = Color-FromHex '#9aa1b4'
+  # Fly body
+  Fill-Box $bmp ($MOOD_OX + 3) ($MOOD_OY + 3) 2 1 $fly
+  Set-Pixel $bmp ($MOOD_OX + 4) ($MOOD_OY + 3) $wing
+  # Wings (translucent)
+  Set-Pixel $bmp ($MOOD_OX + 2) ($MOOD_OY + 2) $wing
+  Set-Pixel $bmp ($MOOD_OX + 5) ($MOOD_OY + 2) $wing
+  # Motion trail squiggle
+  Line-Pixel $bmp $MOOD_OX ($MOOD_OY + 5) ($MOOD_OX + 6) ($MOOD_OY + 5) $fly
+  Set-Pixel $bmp ($MOOD_OX + 1) ($MOOD_OY + 6) $fly
+  Set-Pixel $bmp ($MOOD_OX + 3) ($MOOD_OY + 6) $fly
+  Set-Pixel $bmp ($MOOD_OX + 5) ($MOOD_OY + 6) $fly
+  # Stink particles
+  Set-Pixel $bmp ($MOOD_OX + 6) ($MOOD_OY) $fly
+  Set-Pixel $bmp $MOOD_OX ($MOOD_OY + 1) $fly
+}
+
+function Build-Moods {
+  Write-Host '── Mood overlays ──' -ForegroundColor Cyan
+  $count = 0
+  $moods = @(
+    @{ name = 'hungry'; drawer = ${function:Draw-Mood-Hungry} }
+    @{ name = 'sad';    drawer = ${function:Draw-Mood-Sad}    }
+    @{ name = 'dirty';  drawer = ${function:Draw-Mood-Dirty}  }
+  )
+  foreach ($m in $moods) {
+    $bmp = New-CanvasFx $CanvasW $CanvasH
+    & $m.drawer $bmp
+    Save-CanvasFx $bmp (Join-Path $petDir ("mood-{0}.png" -f $m.name))
+    $count++
+  }
+  Write-Host ("  moods: {0}" -f $count) -ForegroundColor Green
+}
+
+# ── Legendaries ────────────────────────────────────────────────────
+$LEGENDARIES = @(
+  @{ slot = 'weapon'; name = 'Excalibur'; weaponType = 'sword' }
+)
+
+# Per-frame halo for legendary gear — 4 frames stitched into APNG.
+function Draw-Legendary-FxHalo {
+  param($bmp, [string]$name, [int]$frameIndex)
+  $phase = $frameIndex
+  $gold = $BRAND.Gold
+  $hi   = $BRAND.GoldHi
+  # Place halo over the weapon grip area (around GRIP_X, ARM_Y)
+  $rx = $GRIP_X + 1; $ry = $GRIP_TOPY - 8
+  # Outer ring — 12 radial spokes
+  $radius = 6 + ($phase % 2)
+  for ($a = 0; $a -lt 12; $a++) {
+    $ang = ($a * 30 + $phase * 15) * [Math]::PI / 180
+    $sx = $rx + [int]([Math]::Cos($ang) * $radius)
+    $sy = $ry + [int]([Math]::Sin($ang) * $radius)
+    Blend-Pixel $bmp $sx $sy (With-Alpha $gold 200)
+  }
+  # Inner sparkle
+  $innerAng = ($phase * 90) * [Math]::PI / 180
+  $ix = $rx + [int]([Math]::Cos($innerAng) * 3)
+  $iy = $ry + [int]([Math]::Sin($innerAng) * 3)
+  Set-Pixel $bmp $ix $iy $hi
+  # Drifting motes
+  $motes = @(
+    @{ x = $rx + 7; y = $ry - 4 - $phase },
+    @{ x = $rx - 8; y = $ry - 2 - $phase },
+    @{ x = $rx + 4; y = $ry - 9 - (($phase + 2) % 4) }
+  )
+  foreach ($m in $motes) {
+    Blend-Pixel $bmp $m.x $m.y (With-Alpha $gold 180)
+  }
+}
+
+function Build-Legendary {
+  param([string]$repoRoot)
+  Write-Host '── Legendary gear ──' -ForegroundColor Cyan
+  $framesDir = Join-Path $OutRoot '_legendary-frames'
+  New-Item -ItemType Directory -Force -Path $framesDir | Out-Null
+  $count = 0
+  $frameCount = 0
+  foreach ($leg in $LEGENDARIES) {
+    $slug = Slugify $leg.name
+    $bmp = New-CanvasFx $CanvasW $CanvasH
+    if ($leg.slot -eq 'weapon') {
+      Draw-Weapon $bmp $leg.weaponType $leg.name 'legendary'
+    } else {
+      throw "TODO: legendary draw for slot $($leg.slot)"
+    }
+    Save-CanvasFx $bmp (Join-Path $gearDir ("{0}/{1}.png" -f $leg.slot, $slug))
+    $count++
+    for ($f = 0; $f -lt 4; $f++) {
+      $fxBmp = New-CanvasFx $CanvasW $CanvasH
+      Draw-Legendary-FxHalo $fxBmp $leg.name $f
+      Save-CanvasFx $fxBmp (Join-Path $framesDir ("{0}-fx-{1}.png" -f $slug, $f))
+      $frameCount++
+    }
+  }
+  Write-Host ("  legendaries: {0}  ({1} fx frames)" -f $count, $frameCount) -ForegroundColor Green
+}
+
 # ── Top-level driver (incremental — full pipeline added later) ─────
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
@@ -2266,6 +2850,9 @@ if (Want 'chest')    { Build-Chest  -repoRoot $repoRoot }
 if (Want 'legs')     { Build-Legs   -repoRoot $repoRoot }
 if (Want 'boots')    { Build-Boots  -repoRoot $repoRoot }
 if (Want 'trinket')  { Build-Trinket -repoRoot $repoRoot }
+if (Want 'pets')     { Build-Pets }
+if (Want 'moods')    { Build-Moods }
+if (Want 'legendary') { Build-Legendary -repoRoot $repoRoot }
 
 Write-Host ''
 Write-Host 'Pass complete.' -ForegroundColor Green
