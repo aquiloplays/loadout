@@ -111,6 +111,7 @@ const ROUTES = new Set([
   'admin/config',
   'admin/active-guild',
   'admin/clear-binding',
+  'admin/pipe-tests',
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open

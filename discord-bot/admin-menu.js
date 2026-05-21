@@ -528,7 +528,12 @@ async function runOnePipe(label, fn) {
   }
 }
 
-async function runAllPipes(env, guildId) {
+// Exported so the web admin (admin-web.js POST /web/admin/pipe-tests)
+// can run the same five checks the Discord /admin "Run pipe tests"
+// button does. Returns the same { results, totalMs } envelope the
+// Discord results view consumes, so any future check we add lands on
+// both surfaces at once.
+export async function runAllPipes(env, guildId) {
   // Run in parallel so the slowest pipe sets the total elapsed, not the sum.
   const t0 = Date.now();
   const results = await Promise.all([

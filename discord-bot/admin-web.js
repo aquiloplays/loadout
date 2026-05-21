@@ -30,6 +30,7 @@ import {
   setActiveGuildId,
   getActiveGuildId,
 } from './aquilo/config.js';
+import { runAllPipes } from './admin-menu.js';
 
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -291,6 +292,34 @@ async function routeAdminClearBinding(env, guildId, body) {
   return json({ ok: true, binding: key, cleared: true });
 }
 
+// Run the five integration-health pipe tests. Same checks the Discord
+// /admin "Run pipe tests" button does — Yahoo (stocks), ESPN (sports),
+// bolts-feed digest assembly, channel-reach via Discord API, and a KV
+// write→read→delete round-trip. Each check has its own 10s timeout;
+// all five run in parallel so total wall time is whichever is slowest.
+//
+// Response:
+//   { ok: true,
+//     totalMs: <int>,
+//     passed: <int>,
+//     failed: <int>,
+//     results: [{ ok, label, detail, ms }, ...] }
+//
+// `detail` carries either the success summary (e.g. "AAPL = $187.42")
+// or the error message verbatim, so the web UI can show it without
+// re-translating.
+async function routeAdminPipeTests(env, guildId) {
+  const report = await runAllPipes(env, guildId);
+  const passed = report.results.filter((r) => r.ok).length;
+  return json({
+    ok: true,
+    totalMs: report.totalMs,
+    passed,
+    failed: report.results.length - passed,
+    results: report.results,
+  });
+}
+
 // ── Dispatcher ──────────────────────────────────────────────────
 //
 // Called by web.js after the HMAC verification + _owner gate. We
@@ -305,6 +334,7 @@ export async function handleAdminWeb(env, route, guildId, body) {
     case 'admin/config':         return await routeAdminConfig(env, guildId, body);
     case 'admin/active-guild':   return await routeAdminActiveGuild(env, guildId, body);
     case 'admin/clear-binding':  return await routeAdminClearBinding(env, guildId, body);
+    case 'admin/pipe-tests':     return await routeAdminPipeTests(env, guildId);
     default:                     return json({ ok: false, error: 'not-found' }, 404);
   }
 }
