@@ -622,4 +622,129 @@ export const COMMANDS = [
       { type: TYPE_SUBCOMMAND, name: 'release', description: 'Release your pet (24h cooldown before re-adopting)' },
     ],
   },
+  {
+    // Boltbound — async card-battler. See CARD-GAME-DESIGN.md.
+    // Phase 1 surface is command-driven (one slash per turn) so the
+    // 24h-per-turn async pace works cleanly inside Discord's
+    // stateless interaction model. Web + Twitch surfaces (Phase 2)
+    // get the click-to-target UI on top of the same backend.
+    name: 'boltbound',
+    description: 'Boltbound — collect cards, build decks, battle other viewers',
+    options: [
+      { type: TYPE_SUBCOMMAND, name: 'status',      description: 'Your Boltbound profile + collection summary' },
+      { type: TYPE_SUBCOMMAND, name: 'packs',       description: 'List your pending packs' },
+      { type: TYPE_SUBCOMMAND, name: 'open',
+        description: 'Open a pending pack',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'Pack id (first 8 chars are enough)', required: true },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'buy',
+        description: 'Buy a pack with Bolts',
+        options: [
+          { type: TYPE_STRING, name: 'pack', description: 'Pack SKU', required: true,
+            choices: [{ name: 'Bolt Pack (250 Bolts)', value: 'bolt' }],
+          },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'daily',       description: 'Claim today\'s free Common Pack' },
+      { type: TYPE_SUBCOMMAND, name: 'collection',
+        description: 'Show your card collection',
+        options: [
+          { type: TYPE_STRING, name: 'rarity', description: 'Filter by rarity', required: false,
+            choices: [
+              { name: 'common',    value: 'common' },
+              { name: 'uncommon',  value: 'uncommon' },
+              { name: 'rare',      value: 'rare' },
+              { name: 'legendary', value: 'legendary' },
+            ],
+          },
+        ],
+      },
+      // ── Decks ─────────────────────────────────────────────────────
+      {
+        type: TYPE_SUBCOMMAND_GROUP, name: 'deck',
+        description: 'Manage your decks',
+        options: [
+          { type: TYPE_SUBCOMMAND, name: 'list', description: 'List your saved decks' },
+          { type: TYPE_SUBCOMMAND, name: 'show',
+            description: 'Show a deck\'s card list',
+            options: [
+              { type: TYPE_STRING, name: 'deck', description: 'Deck id (omit for active)', required: false },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'active',
+            description: 'Set your active deck',
+            options: [
+              { type: TYPE_STRING, name: 'deck', description: 'Deck id (from /boltbound deck list)', required: true },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'rebuild',
+            description: 'Auto-build a starter deck from your collection',
+          },
+        ],
+      },
+      // ── Play ──────────────────────────────────────────────────────
+      {
+        type: TYPE_SUBCOMMAND_GROUP, name: 'play',
+        description: 'Start a match',
+        options: [
+          { type: TYPE_SUBCOMMAND, name: 'npc',
+            description: 'Battle an NPC opponent',
+            options: [
+              { type: TYPE_STRING, name: 'archetype', description: 'Bot archetype (random if blank)', required: false,
+                choices: [
+                  { name: 'aggro',    value: 'aggro' },
+                  { name: 'control',  value: 'control' },
+                  { name: 'midrange', value: 'midrange' },
+                ],
+              },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'queue',
+            description: 'Drop into the PvP queue for this channel',
+          },
+          { type: TYPE_SUBCOMMAND, name: 'challenge',
+            description: 'Challenge another viewer directly',
+            options: [
+              { type: TYPE_USER, name: 'user', description: 'Who to challenge', required: true },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'accept',
+            description: 'Accept a pending challenge from someone',
+            options: [
+              { type: TYPE_USER, name: 'user', description: 'Who challenged you', required: true },
+            ],
+          },
+        ],
+      },
+      // ── Turn actions ──────────────────────────────────────────────
+      { type: TYPE_SUBCOMMAND, name: 'match', description: 'Show your current match state' },
+      { type: TYPE_SUBCOMMAND, name: 'mulligan',
+        description: 'Mulligan your starting hand',
+        options: [
+          { type: TYPE_STRING, name: 'keep', description: 'CSV of hand indices to KEEP (e.g. 0,2,3 — blank keeps none)', required: false },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'move',
+        description: 'Play a card from your hand',
+        options: [
+          { type: TYPE_INTEGER, name: 'card',   description: 'Hand index (see /boltbound match)', required: true, min_value: 0 },
+          { type: TYPE_STRING,  name: 'target', description: 'Target uid for cards that need one (e.g. m3, oppHero, selfHero)', required: false },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'attack',
+        description: 'Attack with one of your minions',
+        options: [
+          { type: TYPE_STRING, name: 'attacker', description: 'Your minion uid (e.g. m3)', required: true },
+          { type: TYPE_STRING, name: 'target',   description: 'Defender uid (e.g. m5) or "hero"', required: true },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'end-turn',  description: 'End your turn' },
+      { type: TYPE_SUBCOMMAND, name: 'concede',   description: 'Concede the current match' },
+      { type: TYPE_SUBCOMMAND, name: 'log',       description: 'Show your last 10 matches' },
+      { type: TYPE_SUBCOMMAND, name: 'leaderboard', description: 'Top trophies (global)' },
+      { type: TYPE_SUBCOMMAND, name: 'challenges',  description: 'See pending direct challenges to you' },
+    ],
+  },
 ];

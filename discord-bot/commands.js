@@ -36,6 +36,8 @@ import { dispatchAquiloInteraction } from './aquilo/worker.js';
 // Character + pet system — pixel-art identity + tamagotchi.
 import { handleCharacterCommand, handleCharacterComponent } from './character.js';
 import { handlePetCommand } from './pet-commands.js';
+// Boltbound — async card-battler. See CARD-GAME-DESIGN.md.
+import { handleBoltboundCommand, handleBoltboundComponent } from './cards.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -82,6 +84,7 @@ export async function handleInteraction(req, env, body, ctx) {
     if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
     if (cid.startsWith('clash:'))     return json(await handleClashComponent(env, data));
     if (cid.startsWith('character:')) return json(await handleCharacterComponent(env, data));
+    if (cid.startsWith('boltbound:')) return json(await handleBoltboundComponent(env, data));
     // Aquilo-bot fold-in: every aquilo component custom_id is
     // namespaced (vote:*, queue:*, aquilo:*, notify:*, tot:*, sug:*,
     // roles:*, setup:*, vh:*, passport:*, trivia:*, shop:*,
@@ -167,6 +170,10 @@ export async function handleInteraction(req, env, body, ctx) {
     case 'character':
       // Pixel-art character editor. See CHARACTER-SYSTEM-DESIGN.md.
       return json(await handleCharacterCommand(env, data));
+
+    case 'boltbound':
+      // Async card-battler. See CARD-GAME-DESIGN.md.
+      return json(await handleBoltboundCommand(env, data, userId, userName));
 
     case 'pet':
       // Patreon-gated cosmetic pet + tamagotchi care loop. See
