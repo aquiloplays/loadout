@@ -17,12 +17,17 @@ import { getPet, computeMood } from './pet.js';
 
 // ── Sprite source URL ────────────────────────────────────────────
 //
-// Sprites are committed at aquilo-gg/sprites/ and served from the
-// Cloudflare Pages mirror at widget.aquilo.gg/sprites/...
+// Sprites are committed at aquilo-gg/sprites/ and vendored into the
+// aquilo-site repo's public/sprites/ folder, served by Cloudflare
+// Pages at https://aquilo.gg/sprites/...
 //
-// Override via SPRITE_BASE_URL env var (used in local testing).
+// The widget.aquilo.gg mirror was the original plan but the Pages
+// project for that hostname never got created — until/unless it does,
+// the canonical source is aquilo.gg directly. Override via the
+// SPRITE_BASE_URL env var if you want to test against a different
+// origin (e.g. a Pages preview deploy).
 function spriteBase(env) {
-  return (env && env.SPRITE_BASE_URL) || 'https://widget.aquilo.gg/sprites';
+  return (env && env.SPRITE_BASE_URL) || 'https://aquilo.gg/sprites';
 }
 
 // In-memory cache. Decoded layers stay in this map until the Worker

@@ -332,7 +332,8 @@ export function townGarrisonCost(troopId, count) {
 // ── Sprite IDs ───────────────────────────────────────────────────────
 //
 // In-house pixel-art sprites for buildings + troops live at
-// `aquilo-gg/sprites/clash/...` (served from widget.aquilo.gg/sprites/).
+// `aquilo-gg/sprites/clash/...` and are vendored into aquilo-site's
+// public/sprites/ tree (served by Cloudflare Pages at aquilo.gg).
 // Both the public web renderer and the OBS overlay read these paths;
 // the bot just emits the canonical relative path so consumers don't
 // have to know the layout.
@@ -346,8 +347,8 @@ export function townGarrisonCost(troopId, count) {
 //   clash/troops/<troopId>.png            24×24 PNG, bottom-centre anchored
 //
 // Web/OBS team can fetch them at:
-//   https://widget.aquilo.gg/sprites/clash/buildings/townhall-L7.png
-//   https://widget.aquilo.gg/sprites/clash/troops/voltaicMage.png
+//   https://aquilo.gg/sprites/clash/buildings/townhall-L7.png
+//   https://aquilo.gg/sprites/clash/troops/voltaicMage.png
 
 export function spriteIdForBuilding(kind, level) {
   const b = BUILDINGS[kind];
