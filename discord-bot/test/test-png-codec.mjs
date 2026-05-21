@@ -17,16 +17,17 @@ console.log('--- png-codec ---');
 
 const buf = await readFile(new URL('../../aquilo-gg/sprites/figure/body-slim-tan.png', import.meta.url));
 const decoded = await decodePng(buf);
-ok('decode body-slim-tan dims',  decoded.width === 40 && decoded.height === 56, `${decoded.width}x${decoded.height}`);
-ok('decode produced RGBA pixels', decoded.pixels.length === 40 * 56 * 4);
+ok('decode body-slim-tan dims',  decoded.width === 64 && decoded.height === 80, `${decoded.width}x${decoded.height}`);
+ok('decode produced RGBA pixels', decoded.pixels.length === 64 * 80 * 4);
 
 // Spot-check transparency at corner (the canvas is mostly transparent
 // outside the figure footprint).
 const cornerAlpha = decoded.pixels[3];
 ok('top-left corner is transparent', cornerAlpha === 0);
 
-// Spot-check the head area should have non-zero alpha.
-const headIdx = (20 * 40 + 20) * 4;   // roughly mid-head
+// Spot-check the head area should have non-zero alpha. Head sits
+// around (32, 28) on the 64×80 HD canvas.
+const headIdx = (28 * 64 + 32) * 4;
 ok('head area has pixels', decoded.pixels[headIdx + 3] > 0);
 
 // Round trip: decode → encode → decode and compare pixels.
