@@ -39,7 +39,14 @@ import {
   skipCooldown,
   dungeonCooldownState,
 } from './ext-panelbridge.js';
-import { rollLootBox, readLootBoxCatalog, rollLootBoxFree, freeLootBoxState } from './ext-lootbox.js';
+import {
+  rollLootBox,
+  readLootBoxCatalog,
+  rollLootBoxFree,
+  freeLootBoxState,
+  drainLootBoxGrants,
+  stampPresence,
+} from './ext-lootbox.js';
 import { startPanelPatreonLink } from './ext-patreon-link.js';
 
 const CORS = {
@@ -60,7 +67,7 @@ function resolveLoadoutUserId(twId) {
   return 'tw:' + twId;
 }
 
-export async function handleExt(req, env) {
+export async function handleExt(req, env, ctx) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
 
   const url = new URL(req.url);
@@ -83,6 +90,13 @@ export async function handleExt(req, env) {
   const twId = String(payload.user_id || payload.opaque_user_id || '');
   if (!twId) return json({ error: 'no-identity' }, 400);
   const userId = resolveLoadoutUserId(twId);
+
+  // Stamp viewer presence so community loot-box grants know who's
+  // currently watching with the panel open. Fire-and-forget — every
+  // /ext/* request keeps the 5-min TTL alive, ageing out viewers
+  // who close the panel.
+  const presencePromise = stampPresence(env, guildId, userId);
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(presencePromise);
 
   try {
     if (req.method === 'GET' && route === 'hero') return await extHero(env, guildId, userId);
@@ -120,7 +134,10 @@ export async function handleExt(req, env) {
       return await readLootBoxCatalog(env);
     }
     if (req.method === 'POST' && route === 'lootbox/roll') {
-      return await rollLootBox(env, guildId, userId, req);
+      return await rollLootBox(env, guildId, userId, req, ctx);
+    }
+    if (req.method === 'GET' && route === 'lootbox/grants') {
+      return await drainLootBoxGrants(env, guildId, userId);
     }
     if (req.method === 'GET' && route === 'lootbox/free-state') {
       return await freeLootBoxState(env, guildId, userId, req);

@@ -235,7 +235,7 @@ export default {
       });
     }
 
-    if (path.startsWith('/ext/')) return handleExt(req, env);
+    if (path.startsWith('/ext/')) return handleExt(req, env, ctx);
 
     // aquilo.gg website minigames -- HMAC from the site's Pages
     // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +

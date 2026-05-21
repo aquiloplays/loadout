@@ -73,6 +73,7 @@ async function fetchSprite(env, relPath) {
 //   z=10 back-accessory  (trinket if back)
 //   z=15 pet             (cosmetic, in-frame)
 //   z=20 body            (figure base)
+//   z=25 default clothing (basic tunic + trousers, always rendered)
 //   z=30 legs
 //   z=35 boots
 //   z=40 chest
@@ -125,6 +126,15 @@ async function resolveLayers(env, hero, pet, opts) {
 
   // z=20 — body
   layers.push({ rel: `figure/body-${hero.custom.bodyType || 'slim'}-${hero.custom.skinTone || 'fair'}.png` });
+
+  // z=25 — default clothing (peasant tunic + trousers). Always
+  // rendered so a fresh character with nothing equipped reads as
+  // "dressed in basic clothes" instead of "in their underwear".
+  // Equipped chest gear (z=40) and legs gear (z=30) paint right
+  // over this layer in their own footprints, so the moment you put
+  // on a Hide Vest / Mithril Plate the default tunic disappears
+  // exactly where the new gear sits.
+  layers.push({ rel: 'figure/default-clothing.png' });
 
   // z=30 / 35 / 40 — legs, boots, chest gear
   for (const slot of ['legs', 'boots', 'chest']) {

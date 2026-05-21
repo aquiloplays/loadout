@@ -1,16 +1,26 @@
-// Tier 3 — Bits-fueled loot boxes.
+// Tier 3 — Bits-fueled community loot boxes.
 //
 // POST /ext/lootbox/roll  (JWT-gated, Bits-receipt-gated):
 //   body: { bits: <transactionReceipt JWT from Twitch.ext.bits.useBits> }
-// On valid receipt (topic=bits_transaction_receipt, sku=loot_box) it:
-//   - reads the curated catalog from KV (or the default below)
-//   - rolls one item weighted by rarity
-//   - appends it to the viewer's existing hero bag KV (same shape as
-//     dungeon drops + shop buys — so loot lands in the regular bag)
-//   - returns the rolled item
+// On valid receipt (topic=bits_transaction_receipt, sku=loot_box) the
+// purchase fans out to the whole audience — every viewer who currently
+// has the panel open (tracked by the presence key below) gets one box
+// rolled into their bag, including the buyer. One purchase, one box for
+// each watcher. (Clay 2026-05: this is now a community grant, not a
+// single-viewer purchase.)
+//
+// Purchases are extension-only — verified via verifyBitsReceipt against
+// TWITCH_EXT_SECRET. There is no other purchase path (no website
+// purchase, no admin grant, no slash-command buy). The website
+// /api/admin/lootbox/catalog endpoint only edits the catalog; it never
+// mints a box.
 //
 // GET  /ext/lootbox/catalog  (JWT-gated, read-only): returns the active
 // catalog so the panel can show what's in the pool.
+//
+// GET  /ext/lootbox/grants   (JWT-gated): drains the caller's pending
+// "you received a community loot box" notifications so the panel can
+// show a toast for boxes minted into the bag by someone else's purchase.
 //
 // The companion editor lives on aquilo-site Pages Functions at
 // /api/admin/lootbox/catalog (owner-cookie-gated). Both surfaces write
@@ -183,11 +193,90 @@ function newItemId() {
   return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+// ── Community fan-out ────────────────────────────────────────────────
+//
+// presence:<guild>:<userId>  — last-seen ms, 5-min TTL. Stamped from
+// handleExt on every /ext/* request, so viewers who close the panel
+// age out and the fan-out hits an accurate "who's watching with the
+// panel open right now" set.
+//
+// lbgrant:<guild>:<recipient>:<grantId> — pending "you got a community
+// loot box from <buyer>" notification, drained by GET /ext/lootbox/grants
+// when the panel comes back to the foreground. The item itself is
+// already in the recipient's bag; this record is purely so the panel
+// can show a toast.
+//
+// Fan-out is capped at MAX_GRANT_RECIPIENTS. KV list pagination and
+// the per-request Worker budget mean an uncapped fan-out to thousands
+// would risk hitting limits; in practice the panel-open count is much
+// smaller than that.
+
+const PRESENCE_KEY = (guild, userId) => `presence:${guild}:${userId}`;
+const PRESENCE_PREFIX = (guild) => `presence:${guild}:`;
+const PRESENCE_TTL = 5 * 60; // 5 minutes
+const GRANT_KEY = (guild, recipient, gid) =>
+  `lbgrant:${guild}:${recipient}:${gid}`;
+const GRANT_PREFIX = (guild, recipient) => `lbgrant:${guild}:${recipient}:`;
+const GRANT_TTL = 60 * 60; // 1h — panel has an hour to surface the toast
+const MAX_GRANT_RECIPIENTS = 500;
+
+export async function stampPresence(env, guildId, userId) {
+  try {
+    await env.LOADOUT_BOLTS.put(
+      PRESENCE_KEY(guildId, userId),
+      String(Date.now()),
+      { expirationTtl: PRESENCE_TTL },
+    );
+  } catch { /* presence is best-effort */ }
+}
+
+async function listCurrentViewers(env, guildId) {
+  const seen = new Set();
+  let cursor = undefined;
+  for (let i = 0; i < 4; i++) {
+    const page = await env.LOADOUT_BOLTS.list({
+      prefix: PRESENCE_PREFIX(guildId),
+      cursor,
+      limit: 1000,
+    });
+    for (const k of page.keys) {
+      const id = k.name.slice(PRESENCE_PREFIX(guildId).length);
+      if (id) seen.add(id);
+      if (seen.size >= MAX_GRANT_RECIPIENTS) return Array.from(seen);
+    }
+    if (page.list_complete || !page.cursor) break;
+    cursor = page.cursor;
+  }
+  return Array.from(seen);
+}
+
+async function grantOneTo(env, guildId, recipientId, catalog, buyerId) {
+  const pick = rollItem(catalog);
+  if (!pick) return null;
+  const item = buildRolledItem(pick);
+  item.foundIn = recipientId === buyerId ? 'Community Loot Box (yours)' : 'Community Loot Box';
+  await appendToBag(env, guildId, recipientId, item);
+  // Notification record so the recipient's panel can toast. Skip for
+  // the buyer — they get the box back in the response body directly.
+  if (recipientId !== buyerId) {
+    const gid = newItemId().slice(0, 12);
+    try {
+      await env.LOADOUT_BOLTS.put(
+        GRANT_KEY(guildId, recipientId, gid),
+        JSON.stringify({ item, fromUserId: buyerId, ts: Date.now() }),
+        { expirationTtl: GRANT_TTL },
+      );
+    } catch { /* toast is best-effort, the item is already in the bag */ }
+  }
+  return item;
+}
+
 // JWT-gated. handleExt has already verified the JWT + channel gate;
 // we just need to validate the Bits receipt the panel sends with the
-// roll and write the result into the same hero KV the rest of /ext
-// (and the dungeon engine) uses.
-export async function rollLootBox(env, guildId, userId, req) {
+// purchase, then fan out a roll to every currently-present viewer.
+// The buyer always gets a roll; everyone else who's watching with the
+// panel open gets one too. Counted by the presence KV.
+export async function rollLootBox(env, guildId, userId, req, ctx) {
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
 
   let body;
@@ -205,16 +294,54 @@ export async function rollLootBox(env, guildId, userId, req) {
   }
 
   const catalog = await loadCatalog(env);
-  const pick = rollItem(catalog);
-  if (!pick) return json({ error: 'empty-catalog' }, 500);
+  // Grant the buyer's own box up front so we can return it in the
+  // response — the buyer always gets at least one, even if presence
+  // listing somehow misses them (race with the TTL).
+  const buyerItem = await grantOneTo(env, guildId, userId, catalog, userId);
+  if (!buyerItem) return json({ error: 'empty-catalog' }, 500);
 
-  const item = buildRolledItem(pick);
-  // Append to the hero's bag. The dungeon engine + shop write to the
-  // same key with the same shape, so the new item shows up in the
-  // existing /ext/loadout/inventory render without any panel changes.
-  await appendToBag(env, guildId, userId, item);
+  const viewers = await listCurrentViewers(env, guildId);
+  // Strip the buyer from the fan-out — they already got their box.
+  const others = viewers.filter((id) => id !== userId);
 
-  return json({ ok: true, item: item });
+  // Async fan-out. The buyer's response returns immediately; the other
+  // recipients' boxes land within seconds. ctx.waitUntil keeps the
+  // worker invocation alive past the response so the puts complete.
+  const fanout = (async () => {
+    for (const recipient of others) {
+      try {
+        await grantOneTo(env, guildId, recipient, catalog, userId);
+      } catch { /* one bad recipient shouldn't break the rest */ }
+    }
+  })();
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(fanout);
+  } else {
+    await fanout;
+  }
+
+  return json({
+    ok: true,
+    item: buyerItem,
+    community: { recipients: others.length + 1 },
+  });
+}
+
+// JWT-gated. Pops every pending community-grant notification for the
+// caller. Each entry carries the rolled item + buyer id so the panel
+// can render "you received a <rarity> <name> from <viewer>".
+export async function drainLootBoxGrants(env, guildId, userId) {
+  const prefix = GRANT_PREFIX(guildId, userId);
+  const list = await env.LOADOUT_BOLTS.list({ prefix, limit: 50 });
+  const grants = [];
+  for (const k of list.keys) {
+    try {
+      const v = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (v) grants.push(v);
+    } catch { /* skip malformed */ }
+    try { await env.LOADOUT_BOLTS.delete(k.name); } catch { /* idle */ }
+  }
+  return json({ ok: true, grants });
 }
 
 // JWT-gated free-loot-box roll. Allowed when:

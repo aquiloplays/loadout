@@ -31,7 +31,7 @@ param(
   [int]$CanvasH   = 80,
   [int]$FigureW   = 36,
   [int]$FigureH   = 60,
-  [string]$Only   = ''     # comma list: figure,hair,eyes,accent,weapons,head,chest,legs,boots,trinket,pets,legendary,moods
+  [string]$Only   = ''     # comma list: figure,defaultclothing,hair,eyes,accent,weapons,head,chest,legs,boots,trinket,pets,legendary,moods
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'lib-pixel.ps1')
@@ -328,6 +328,102 @@ function Build-Figure {
     }
   }
   Write-Host "  figure bodies: $count" -ForegroundColor Green
+}
+
+# ── Default clothing ──────────────────────────────────────────────
+# A single fixed-look figure layer that renders between the body
+# (z=20) and any equipped chest/legs gear (z=30/40). Ensures a brand-
+# new character with nothing equipped looks dressed (linen tunic +
+# trousers) instead of standing in their underwear. Equipped chest
+# gear paints over the tunic at rows 38..60; equipped legs gear
+# paints over the trousers at rows 61..73 — so picking up a Hide Vest
+# / Mithril Plate replaces the default tunic exactly the way it
+# already replaces the bare-torso skin.
+function Draw-DefaultClothing {
+  param($bmp)
+  $shirt = $MAT_CLOTH_LINEN
+  $pants = @{
+    deep   = (Color-FromHex '#2a1a08');
+    shadow = (Color-FromHex '#4a3018');
+    base   = (Color-FromHex '#6e4a24');
+    high   = (Color-FromHex '#8e6238');
+    top    = (Color-FromHex '#aa7c4c');
+  }
+  $transparent = [System.Drawing.Color]::FromArgb(0,0,0,0)
+
+  # ── Tunic (rows 39..60, x = 20..43 — matches stocky torso) ──
+  $cx = 32
+  $top = 39
+  $bot = 60
+  $w = 24
+  $hx = $cx - [int]($w / 2)
+  $h = $bot - $top + 1
+  Shade-Box $bmp $hx $top $w $h $shirt
+
+  # Round the upper corners — softens the shirt into shoulders so
+  # it doesn't read as a flat-topped sandwich-board.
+  Set-Pixel $bmp $hx              $top $transparent
+  Set-Pixel $bmp ($hx + $w - 1)   $top $transparent
+
+  # V-neckline — 3-row triangular cut so the neck reads as "shirt
+  # with collar" rather than "shirt that swallows the head".
+  for ($i = 0; $i -lt 3; $i++) {
+    $cw = 3 - $i
+    if ($cw -le 0) { break }
+    $cleft = $cx - [int]($cw / 2)
+    for ($k = 0; $k -lt $cw; $k++) {
+      Set-Pixel $bmp ($cleft + $k) ($top + $i) $transparent
+    }
+  }
+  # Neckline trim — single shadow row around the V so the cut has
+  # a clean edge against the body skin behind it.
+  Set-Pixel $bmp ($cx - 2) $top       $shirt.deep
+  Set-Pixel $bmp ($cx + 2) $top       $shirt.deep
+  Set-Pixel $bmp ($cx - 2) ($top + 1) $shirt.shadow
+  Set-Pixel $bmp ($cx + 2) ($top + 1) $shirt.shadow
+  Set-Pixel $bmp ($cx - 1) ($top + 2) $shirt.shadow
+  Set-Pixel $bmp ($cx + 1) ($top + 2) $shirt.shadow
+
+  # Fold lines — subtle vertical drape suggestion every 4 rows.
+  for ($y = $top + 4; $y -lt $bot; $y += 4) {
+    Set-Pixel $bmp ($cx - 5) $y $shirt.shadow
+    Set-Pixel $bmp ($cx + 5) $y $shirt.high
+  }
+  # Lace tie down the centre — two paired stitch dots.
+  Set-Pixel $bmp ($cx - 1) ($top + 3) $shirt.deep
+  Set-Pixel $bmp ($cx + 1) ($top + 3) $shirt.deep
+  Set-Pixel $bmp ($cx - 1) ($top + 5) $shirt.deep
+  Set-Pixel $bmp ($cx + 1) ($top + 5) $shirt.deep
+
+  # Belt at the waist — one leather row + buckle.
+  Fill-Box $bmp $hx ($bot - 1) $w 1 $MAT_LEATHER.shadow
+  Fill-Box $bmp $hx $bot       $w 1 $MAT_LEATHER.deep
+  Fill-Box $bmp ($cx - 1) ($bot - 1) 3 2 $MAT_LEATHER.base
+  Set-Pixel $bmp $cx ($bot - 1) $MAT_LEATHER.high
+
+  # ── Trousers (rows 61..73, on each leg) ──────────────────────
+  $pTop = 61
+  $pBot = 73
+  $pH = $pBot - $pTop + 1
+  foreach ($side in @($LEG_LX, $LEG_RX)) {
+    Shade-Box $bmp $side $pTop $LEG_W $pH $pants
+    # Outer-leg seam — single shadow column down the side.
+    Set-Pixel $bmp ($side + $LEG_W - 1) ($pTop + 2) $pants.deep
+    Set-Pixel $bmp ($side + $LEG_W - 1) ($pTop + 6) $pants.deep
+    # Knee patch — single dim row to hint at fabric wear.
+    Fill-Box $bmp $side ($pTop + 6) $LEG_W 1 $pants.shadow
+    Set-Pixel $bmp ($side + 1) ($pTop + 6) $pants.deep
+    # Trouser hem — darker row at the cuff.
+    Fill-Box $bmp $side $pBot $LEG_W 1 $pants.deep
+  }
+}
+
+function Build-DefaultClothing {
+  Write-Host '── Default clothing ──' -ForegroundColor Cyan
+  $bmp = New-CanvasFx $CanvasW $CanvasH
+  Draw-DefaultClothing $bmp
+  Save-CanvasFx $bmp (Join-Path $figDir 'default-clothing.png')
+  Write-Host '  default-clothing: 1' -ForegroundColor Green
 }
 
 # ══════════════════════════════════════════════════════════════════
@@ -2841,6 +2937,7 @@ function Build-Legendary {
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 if (Want 'figure')   { Build-Figure }
+if (Want 'defaultclothing' -or (Want 'figure')) { Build-DefaultClothing }
 if (Want 'hair')     { Build-Hair }
 if (Want 'eyes')     { Build-Eyes }
 if (Want 'accent')   { Build-Accents }

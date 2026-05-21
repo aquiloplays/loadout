@@ -104,6 +104,9 @@ async function composeLook(look, outName) {
   // Body
   const body = await loadLayer(`figure/body-${look.body}-${look.skin}.png`);
   if (body) layers.push(body);
+  // Default clothing — always rendered; chest/legs gear paints over it.
+  const clothes = await loadLayer('figure/default-clothing.png');
+  if (clothes) layers.push(clothes);
   // Legs / boots / chest gear
   for (const slot of ['legs', 'boots', 'chest']) {
     if (look.gear[slot]) {
