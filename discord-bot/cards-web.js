@@ -244,19 +244,27 @@ async function routeMatchAction(env, guildId, userId, body) {
   if (!side) return json({ ok: false, error: 'not-in-match' });
 
   const kind = String((body && body.kind) || '');
+  // The web client speaks a simplified vocabulary; translate into the
+  // shape applyAction() expects in cards-battle.js.
+  //   play     -> playCard { handIdx, targetUid }
+  //   attack   -> attack   { attackerUid, defenderUid }
+  // Targets are uid strings (board minion uid) or the sentinels
+  // "hero" / "selfHero" (the resolver maps "hero" -> opp hero on a
+  // play-card targeting context, and "hero" -> opp hero on an attack;
+  // explicit "selfHero" is for self-target spells like Iron Skin).
   let action = null;
   if (kind === 'play') {
-    const handIndex = Number(body.handIndex);
-    const target = (body.target === null || body.target === undefined) ? null
-                 : (typeof body.target === 'number') ? body.target
-                 : Number(body.target);
-    if (!Number.isInteger(handIndex) || handIndex < 0) return json({ ok: false, error: 'bad-hand-index' });
-    action = { kind: 'play', handIndex, target: Number.isFinite(target) ? target : null };
+    const handIdx = Number(body && body.handIndex);
+    if (!Number.isInteger(handIdx) || handIdx < 0) return json({ ok: false, error: 'bad-hand-index' });
+    const t = body && body.target;
+    const targetUid = (t === null || t === undefined || t === '') ? null : String(t);
+    action = { kind: 'playCard', handIdx, targetUid };
   } else if (kind === 'attack') {
-    const attackerUid = String(body.attackerUid || '');
-    const target = (body.target === null || body.target === undefined) ? null : body.target;
+    const attackerUid = String((body && body.attackerUid) || '');
     if (!attackerUid) return json({ ok: false, error: 'bad-attacker' });
-    action = { kind: 'attack', attackerUid, target };
+    const t = body && body.target;
+    const defenderUid = (t === null || t === undefined || t === '') ? 'hero' : String(t);
+    action = { kind: 'attack', attackerUid, defenderUid };
   } else if (kind === 'endTurn') {
     action = { kind: 'endTurn' };
   } else if (kind === 'concede') {
