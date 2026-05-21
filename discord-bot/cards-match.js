@@ -49,7 +49,9 @@ export async function startNpcMatch(env, guildId, userId, archetypeHint) {
   const deck = await getActiveDeck(env, guildId, userId);
   if (!deck) return { ok: false, error: 'no-active-deck' };
 
-  const archs = ['aggro', 'control', 'midrange'];
+  // CR-1: 6 NPC archetypes (3 original + 3 expansion: tribal, burn, swarm).
+  // Random pick when no hint; archetype hint must be one of these.
+  const archs = Object.keys(NPC_DECKS);
   const archetype = archs.includes(archetypeHint) ? archetypeHint : archs[Math.floor(Math.random() * archs.length)];
   const npcDeck = NPC_DECKS[archetype];
 

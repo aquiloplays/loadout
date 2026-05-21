@@ -655,6 +655,55 @@ export const NPC_DECKS = {
       'leg.korrik',
     ],
   },
+  // CR-1 archetypes — pull from the expanded family pools.
+  // Tribal-beast: leans hard on the beast + wild families.
+  tribal: {
+    champion: 'ranger',
+    cards: [
+      'beast.c001', 'beast.c001', 'beast.c005', 'beast.c005',
+      'beast.c011', 'beast.c011', 'beast.c017',
+      'beast.u005', 'beast.u005',
+      'wild.c005', 'wild.c005', 'wild.c011',
+      'wild.u005', 'wild.u005',
+      'beast.r001',
+      'wild.r001',
+      'beast.l001',
+      'beast.cs01', 'beast.cs02',
+    ],
+  },
+  // Burn: fire + storm spells and aggressive minions.
+  burn: {
+    champion: 'mage',
+    cards: [
+      'fire.c001', 'fire.c001', 'fire.c005', 'fire.c005',
+      'fire.cs01', 'fire.cs02', 'fire.cs04',
+      'storm.c001', 'storm.c001',
+      'storm.cs01', 'storm.cs02',
+      'fire.u005', 'fire.u005',
+      'storm.u005',
+      'fire.r003',
+      'storm.r003',
+      'fire.us01',
+      'storm.us01',
+      'fire.l001',
+    ],
+  },
+  // Swarm: goblin + demon, lots of cheap minions and onPlay summons.
+  swarm: {
+    champion: 'rogue',
+    cards: [
+      'goblin.c001', 'goblin.c001', 'goblin.c005', 'goblin.c005',
+      'goblin.c011', 'goblin.c011', 'goblin.c017',
+      'demon.c001', 'demon.c001', 'demon.c005',
+      'goblin.u005', 'goblin.u005',
+      'demon.u005', 'demon.u005',
+      'goblin.r003',
+      'demon.r003',
+      'goblin.cs01',
+      'demon.cs01',
+      'goblin.l001',
+    ],
+  },
 };
 
 // Quick validity check at module load — NPC decks must reference
