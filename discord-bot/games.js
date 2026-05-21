@@ -6,6 +6,13 @@
 // House edge note: by default these are FAIR (payout matches odds). Bolts
 // are play money - we'd rather they feel generous than rake. A streamer
 // who wants a sink can configure via slash command flags later.
+//
+// 2026-05 — the cooldown helper lives in games-quick.js so the seven
+// new quick games share one anti-spam window with coinflip + dice.
+// Routes in web.js call cooldownCheck() BEFORE the spend(), and
+// cooldownTouch() AFTER. games.js itself stays cooldown-free so the
+// Discord slash + Twitch panel pathways keep their existing rate
+// limiters (which are different shapes than the per-play 2.5s).
 
 import { earn, spend } from './wallet.js';
 

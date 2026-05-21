@@ -22,6 +22,15 @@
 // panel's /ext/daily already use. No surface drift possible.
 
 import { coinflip, dice, daily } from './games.js';
+import {
+  cooldownCheck, cooldownTouch,
+  blackjackStart, blackjackHit, blackjackStand,
+  roulette, wheel,
+  hiloStart, hiloGuess, hiloCashout,
+  minesStart, minesReveal, minesCashout,
+  plinko, crash,
+  quickGamesSnapshot,
+} from './games-quick.js';
 import { getWallet } from './wallet.js';
 import { recordStat } from './recap.js';
 import { verifyHmac } from './auth.js';
@@ -88,6 +97,25 @@ const ROUTES = new Set([
   'daily',
   'coinflip',
   'dice',
+  // 2026-05 expansion — quick bolts games. Stateful games (blackjack,
+  // hilo, mines) split into start/play/cashout sub-routes so the bot
+  // can persist hand state across calls without re-deriving it from
+  // the client. quick/snapshot is the page-load read that surfaces
+  // any in-progress hand + the per-viewer cooldown window.
+  'quick/snapshot',
+  'blackjack/start',
+  'blackjack/hit',
+  'blackjack/stand',
+  'roulette',
+  'wheel',
+  'hilo/start',
+  'hilo/guess',
+  'hilo/cashout',
+  'mines/start',
+  'mines/reveal',
+  'mines/cashout',
+  'plinko',
+  'crash',
   'stocks/snapshot',
   'stocks/buy',
   'stocks/sell',
@@ -177,6 +205,20 @@ export async function handleWeb(req, env) {
     if (route === 'daily')  return await routeDaily(env, guildId, discordId);
     if (route === 'coinflip') return await routeCoinflip(env, guildId, discordId, body);
     if (route === 'dice')   return await routeDice(env, guildId, discordId, body);
+    if (route === 'quick/snapshot')     return await routeQuickSnapshot(env, guildId, discordId);
+    if (route === 'blackjack/start')    return await routeBlackjackStart(env, guildId, discordId, body);
+    if (route === 'blackjack/hit')      return await routeBlackjackHit(env, guildId, discordId);
+    if (route === 'blackjack/stand')    return await routeBlackjackStand(env, guildId, discordId);
+    if (route === 'roulette')           return await routeRoulette(env, guildId, discordId, body);
+    if (route === 'wheel')              return await routeWheel(env, guildId, discordId, body);
+    if (route === 'hilo/start')         return await routeHiloStart(env, guildId, discordId, body);
+    if (route === 'hilo/guess')         return await routeHiloGuess(env, guildId, discordId, body);
+    if (route === 'hilo/cashout')       return await routeHiloCashout(env, guildId, discordId);
+    if (route === 'mines/start')        return await routeMinesStart(env, guildId, discordId, body);
+    if (route === 'mines/reveal')       return await routeMinesReveal(env, guildId, discordId, body);
+    if (route === 'mines/cashout')      return await routeMinesCashout(env, guildId, discordId);
+    if (route === 'plinko')             return await routePlinko(env, guildId, discordId, body);
+    if (route === 'crash')              return await routeCrash(env, guildId, discordId, body);
     if (route === 'stocks/snapshot') return await routeStocksSnapshot(env, guildId, discordId);
     if (route === 'stocks/buy')  return await routeStocksBuy(env, guildId, discordId, body);
     if (route === 'stocks/sell') return await routeStocksSell(env, guildId, discordId, body);
@@ -266,6 +308,8 @@ async function routeCoinflip(env, guildId, userId, body) {
   if (!Number.isFinite(bet) || bet <= 0) {
     return json({ ok: false, error: 'bad-bet', explanation: 'Bet must be a positive number.' }, 400);
   }
+  const cd = await cooldownCheck(env, userId);
+  if (!cd.ok) return json({ ...cd, ok: false, explanation: cd.message }, 429);
   const r = await coinflip(env, guildId, userId, bet);
   if (typeof r.payout !== 'number') {
     return json({ ok: false, error: 'rejected', explanation: r.explanation || 'Couldn\'t place that bet.' }, 400);
@@ -273,12 +317,14 @@ async function routeCoinflip(env, guildId, userId, body) {
   if (r.won) await recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
   else await recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
   const w = await getWallet(env, guildId, userId);
+  const cooldownUntil = await cooldownTouch(env, userId);
   return json({
     ok: true,
     won: r.won,
     payout: r.payout,
     balance: w.balance || 0,
     explanation: r.explanation,
+    cooldownUntil,
   });
 }
 
@@ -626,6 +672,8 @@ async function routeDice(env, guildId, userId, body) {
   if (!Number.isInteger(target) || target < 1 || target > 6) {
     return json({ ok: false, error: 'bad-target', explanation: 'Target must be 1-6.' }, 400);
   }
+  const cd = await cooldownCheck(env, userId);
+  if (!cd.ok) return json({ ...cd, ok: false, explanation: cd.message }, 429);
   const r = await dice(env, guildId, userId, bet, target);
   if (typeof r.payout !== 'number') {
     return json({ ok: false, error: 'rejected', explanation: r.explanation || 'Couldn\'t place that bet.' }, 400);
@@ -633,6 +681,7 @@ async function routeDice(env, guildId, userId, body) {
   if (r.won) await recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
   else await recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
   const w = await getWallet(env, guildId, userId);
+  const cooldownUntil = await cooldownTouch(env, userId);
   return json({
     ok: true,
     won: r.won,
@@ -640,6 +689,7 @@ async function routeDice(env, guildId, userId, body) {
     payout: r.payout,
     balance: w.balance || 0,
     explanation: r.explanation,
+    cooldownUntil,
   });
 }
 
@@ -956,4 +1006,159 @@ async function routeCharacterClass(env, guildId, userId, body) {
   const className = body && body.className;
   const r = await applyClassWeb(env, guildId, userId, className);
   return json(r, r.ok ? 200 : 400);
+}
+
+// ── Quick bolts games (2026-05) ──────────────────────────────────────
+//
+// Shared protocol for blackjack/roulette/wheel/hilo/mines/plinko/crash:
+//   - Start actions touch the per-viewer cooldown (cooldownTouch())
+//     so the next quick-game play is gated.
+//   - Mid-hand actions (hit, reveal, guess) do NOT touch the cooldown
+//     — once you're in a hand the pace is yours.
+//   - All handlers attach `cooldownUntil` (ms-epoch, 0 = clear) on
+//     terminal responses so the UI can render an accurate countdown
+//     without an extra round-trip.
+//   - games_won/games_lost recap stats fire on terminal results so
+//     the panel's win-rate field aggregates the new games with
+//     coinflip + dice.
+
+function applyRecap(env, guildId, userId, r) {
+  if (typeof r.payout !== 'number') return;
+  if (r.payout > 0) recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
+  else if (r.payout < 0) recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
+}
+
+async function routeQuickSnapshot(env, guildId, userId) {
+  const r = await quickGamesSnapshot(env, guildId, userId);
+  return json(r);
+}
+
+async function routeBlackjackStart(env, guildId, userId, body) {
+  const bet = Number(body && body.bet);
+  const cd = await cooldownCheck(env, userId);
+  if (!cd.ok) return json({ ...cd, ok: false }, 429);
+  const r = await blackjackStart(env, guildId, userId, bet);
+  if (!r.ok) return json(r, 400);
+  if (r.phase === 'done') {
+    applyRecap(env, guildId, userId, r);
+    r.cooldownUntil = await cooldownTouch(env, userId);
+  } else {
+    // Cooldown still arms on hand-start so people can't spam-start &
+    // surrender to dodge the wait.
+    r.cooldownUntil = await cooldownTouch(env, userId);
+  }
+  return json(r);
+}
+
+async function routeBlackjackHit(env, guildId, userId) {
+  const r = await blackjackHit(env, guildId, userId);
+  if (!r.ok) return json(r, 400);
+  if (r.phase === 'done') applyRecap(env, guildId, userId, r);
+  return json(r);
+}
+
+async function routeBlackjackStand(env, guildId, userId) {
+  const r = await blackjackStand(env, guildId, userId);
+  if (!r.ok) return json(r, 400);
+  if (r.phase === 'done') applyRecap(env, guildId, userId, r);
+  return json(r);
+}
+
+async function routeRoulette(env, guildId, userId, body) {
+  const bet = Number(body && body.bet);
+  const pick = body && body.pick;
+  const cd = await cooldownCheck(env, userId);
+  if (!cd.ok) return json({ ...cd, ok: false }, 429);
+  const r = await roulette(env, guildId, userId, bet, pick);
+  if (!r.ok) return json(r, 400);
+  applyRecap(env, guildId, userId, r);
+  r.cooldownUntil = await cooldownTouch(env, userId);
+  return json(r);
+}
+
+async function routeWheel(env, guildId, userId, body) {
+  const bet = Number(body && body.bet);
+  const risk = body && body.risk;
+  const cd = await cooldownCheck(env, userId);
+  if (!cd.ok) return json({ ...cd, ok: false }, 429);
+  const r = await wheel(env, guildId, userId, bet, risk);
+  if (!r.ok) return json(r, 400);
+  applyRecap(env, guildId, userId, r);
+  r.cooldownUntil = await cooldownTouch(env, userId);
+  return json(r);
+}
+
+async function routeHiloStart(env, guildId, userId, body) {
+  const bet = Number(body && body.bet);
+  const cd = await cooldownCheck(env, userId);
+  if (!cd.ok) return json({ ...cd, ok: false }, 429);
+  const r = await hiloStart(env, guildId, userId, bet);
+  if (!r.ok) return json(r, 400);
+  r.cooldownUntil = await cooldownTouch(env, userId);
+  return json(r);
+}
+
+async function routeHiloGuess(env, guildId, userId, body) {
+  const guess = String((body && body.guess) || '').toLowerCase();
+  const r = await hiloGuess(env, guildId, userId, guess);
+  if (!r.ok) return json(r, 400);
+  if (r.phase === 'done') applyRecap(env, guildId, userId, r);
+  return json(r);
+}
+
+async function routeHiloCashout(env, guildId, userId) {
+  const r = await hiloCashout(env, guildId, userId);
+  if (!r.ok) return json(r, 400);
+  applyRecap(env, guildId, userId, r);
+  return json(r);
+}
+
+async function routeMinesStart(env, guildId, userId, body) {
+  const bet = Number(body && body.bet);
+  const bombs = Number(body && body.bombs);
+  const cd = await cooldownCheck(env, userId);
+  if (!cd.ok) return json({ ...cd, ok: false }, 429);
+  const r = await minesStart(env, guildId, userId, bet, bombs);
+  if (!r.ok) return json(r, 400);
+  r.cooldownUntil = await cooldownTouch(env, userId);
+  return json(r);
+}
+
+async function routeMinesReveal(env, guildId, userId, body) {
+  const tile = Number(body && body.tile);
+  const r = await minesReveal(env, guildId, userId, tile);
+  if (!r.ok) return json(r, 400);
+  if (r.phase === 'done') applyRecap(env, guildId, userId, r);
+  return json(r);
+}
+
+async function routeMinesCashout(env, guildId, userId) {
+  const r = await minesCashout(env, guildId, userId);
+  if (!r.ok) return json(r, 400);
+  applyRecap(env, guildId, userId, r);
+  return json(r);
+}
+
+async function routePlinko(env, guildId, userId, body) {
+  const bet = Number(body && body.bet);
+  const risk = body && body.risk;
+  const cd = await cooldownCheck(env, userId);
+  if (!cd.ok) return json({ ...cd, ok: false }, 429);
+  const r = await plinko(env, guildId, userId, bet, risk);
+  if (!r.ok) return json(r, 400);
+  applyRecap(env, guildId, userId, r);
+  r.cooldownUntil = await cooldownTouch(env, userId);
+  return json(r);
+}
+
+async function routeCrash(env, guildId, userId, body) {
+  const bet = Number(body && body.bet);
+  const cashout = Number(body && body.cashout);
+  const cd = await cooldownCheck(env, userId);
+  if (!cd.ok) return json({ ...cd, ok: false }, 429);
+  const r = await crash(env, guildId, userId, bet, cashout);
+  if (!r.ok) return json(r, 400);
+  applyRecap(env, guildId, userId, r);
+  r.cooldownUntil = await cooldownTouch(env, userId);
+  return json(r);
 }
