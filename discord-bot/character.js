@@ -211,6 +211,29 @@ export async function handleCharacterRender(req, env, path) {
   const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
   const pet = await getPet(env, guildId, userId);
 
+  // Query-string look override.
+  //
+  // Without this the preview can only show the LAST-SAVED look — the
+  // /play character editor would have to save after every pick to see
+  // a change. We let each axis be overridden via ?bodyType=, ?skinTone=,
+  // ... and apply them in-memory before resolveLayers. Each axis is
+  // validated against CHARACTER_LOOK_OPTIONS; unknown values are
+  // silently ignored so the URL is always renderable (returning a 4xx
+  // here would break the live preview's <img> in flight).
+  //
+  // Caller is responsible for cache-busting (?v= already changes when
+  // any axis flips — we don't enforce that, but the site pins it).
+  const lookKeys = ['bodyType', 'skinTone', 'hairStyle', 'hairColor', 'eyeColor', 'accent'];
+  let looksOverridden = false;
+  for (const k of lookKeys) {
+    const v = url.searchParams.get(k);
+    if (v != null && CHARACTER_LOOK_OPTIONS[k] && CHARACTER_LOOK_OPTIONS[k].includes(v)) {
+      hero.custom = hero.custom || {};
+      hero.custom[k] = v;
+      looksOverridden = true;
+    }
+  }
+
   const layerSpecs = await resolveLayers(env, hero, pet, opts);
   const layers = [];
   for (const spec of layerSpecs) {

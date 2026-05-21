@@ -64,6 +64,7 @@ import {
   _editorTownGarrison,
   canManageTown,
 } from './clash.js';
+import { ensureTown, getTown } from './clash-state.js';
 import {
   getCharacterLookWeb,
   saveCharacterLookWeb,
@@ -100,6 +101,7 @@ const ROUTES = new Set([
   'clash/build',
   'clash/garrison',
   'clash/town',
+  'clash/setup',
   'character',
   'character/save',
 ]);
@@ -187,6 +189,7 @@ export async function handleWeb(req, env) {
     if (route === 'clash/build')           return await routeClashBuild(env, guildId, discordId, body);
     if (route === 'clash/garrison')        return await routeClashGarrison(env, guildId, discordId, body);
     if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);
+    if (route === 'clash/setup')           return await routeClashSetup(env, guildId, discordId);
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
     if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
   } catch (e) {
@@ -796,6 +799,61 @@ async function routeClashTown(env, guildId, userId) {
 // First-time visitors get a deterministic Phase-0 backfill so the
 // GET always returns a complete look — no empty-state branch needed
 // on the UI side.
+
+// ── /web/clash/setup ─────────────────────────────────────────────
+//
+// First-time town creation from the website. Mirrors what the bot
+// does on the first /clash subcommand on a fresh guild — ensures a
+// town record with a sane default layout exists. Idempotent: a
+// repeat call against a guild that already has a town returns the
+// existing record without mutating it.
+//
+// Auth model:
+//   - The Patreon session is already linked → Discord ID,
+//     verified upstream (handleWeb).
+//   - The guild must already be claimed via /loadout-claim (the
+//     `guildowner:<guildId>` KV record). Town setup intentionally
+//     doesn't auto-pin a random user as town owner; the guild owner
+//     is the only valid creator.
+//   - The caller's Discord ID must match the guild owner's. Mods
+//     can't call setup (canManageTown only matters once a town
+//     exists; a mod predates the town here).
+//
+// Body fields:
+//   discordId   the acting user (set by site session)
+//   guildId     target guild
+//
+// Response:
+//   { ok: true,  alreadyExisted: <bool>, town: <fresh-or-existing> }
+//   { ok: false, error: 'not-claimed' | 'permission' }
+async function routeClashSetup(env, guildId, userId) {
+  const ownerRec = await env.LOADOUT_BOLTS.get('guildowner:' + guildId, { type: 'json' });
+  if (!ownerRec?.discordUserId) {
+    return json({
+      ok: false,
+      error: 'not-claimed',
+      message: 'guild not bound to Loadout — run /loadout-claim in Discord first',
+    }, 200);
+  }
+  if (ownerRec.discordUserId !== userId) {
+    return json({
+      ok: false,
+      error: 'permission',
+      message: 'only the guild owner can create the town',
+    }, 200);
+  }
+  const before = await getTown(env, guildId);
+  const town = await ensureTown(env, guildId, ownerRec.discordUserId);
+  return json({
+    ok: true,
+    alreadyExisted: !!before,
+    town: {
+      thLevel: town.thLevel,
+      ownerUserId: town.ownerUserId,
+      layoutVersion: town.layoutVersion,
+    },
+  });
+}
 
 async function routeCharacterGet(env, guildId, userId) {
   const r = await getCharacterLookWeb(env, guildId, userId);
