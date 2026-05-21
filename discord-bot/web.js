@@ -65,6 +65,10 @@ import {
   canManageTown,
 } from './clash.js';
 import {
+  getCharacterLookWeb,
+  saveCharacterLookWeb,
+} from './character.js';
+import {
   BUILDINGS, TROOPS_GARRISON,
   withBuildingSprites, withGarrisonSprites,
   townBuildCost, townGarrisonCost,
@@ -96,6 +100,8 @@ const ROUTES = new Set([
   'clash/build',
   'clash/garrison',
   'clash/town',
+  'character',
+  'character/save',
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -181,6 +187,8 @@ export async function handleWeb(req, env) {
     if (route === 'clash/build')           return await routeClashBuild(env, guildId, discordId, body);
     if (route === 'clash/garrison')        return await routeClashGarrison(env, guildId, discordId, body);
     if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);
+    if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
+    if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
   }
@@ -753,4 +761,52 @@ async function routeClashTown(env, guildId, userId) {
     garrisonOptions,
     layoutVersion: town.layoutVersion,
   });
+}
+
+// ── /web/character ──────────────────────────────────────────────
+//
+// Read + save the player's pixel-art character look from the
+// aquilo.gg /character page. Same hero record + lookVersion bump as
+// the Discord `/character` slash command — so a save here updates
+// every render URL pinned to ?v=<lookVersion> in Discord embeds,
+// Twitch panel, and the site preview.
+//
+// POST /web/character
+//   Body:  { discordId, guildId }
+//   Returns:
+//     { ok: true,
+//       look: { bodyType, skinTone, hairStyle, hairColor, eyeColor, accent },
+//       lookVersion: <int>,
+//       renderUrl: 'https://.../character/render/<guildId>/<userId>.png?v=<N>',
+//       options: { bodyType, skinTone, hairStyle, hairColor, eyeColor, accent },
+//                                                              // arrays of valid values
+//       hairSwatches: { brown: '#5a3a26', black: '#2a2a30', ... } }
+//                                                              // hex previews for the UI
+//
+// POST /web/character/save
+//   Body:  { discordId, guildId, look: { bodyType?, skinTone?, hairStyle?,
+//                                        hairColor?, eyeColor?, accent? } }
+//   Partial updates allowed — unspecified fields stay unchanged.
+//   Validates every submitted axis against the same option lists the
+//   GET returns. Bumps lookVersion and lastUpdatedUtc on change.
+//   Returns:
+//     { ok: true,  look, lookVersion, renderUrl, changed: <bool> }
+//     { ok: false, error: 'bad-look', field: '<axis>', value: '<bad>' }
+//
+// First-time visitors get a deterministic Phase-0 backfill so the
+// GET always returns a complete look — no empty-state branch needed
+// on the UI side.
+
+async function routeCharacterGet(env, guildId, userId) {
+  const r = await getCharacterLookWeb(env, guildId, userId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeCharacterSave(env, guildId, userId, body) {
+  const lookPatch = (body && typeof body.look === 'object' && body.look) ? body.look : null;
+  if (!lookPatch) {
+    return json({ ok: false, error: 'bad-body', message: 'look object required' }, 400);
+  }
+  const r = await saveCharacterLookWeb(env, guildId, userId, lookPatch);
+  return json(r, r.ok ? 200 : 400);
 }

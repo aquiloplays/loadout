@@ -440,3 +440,104 @@ async function randomiseLook(env, guildId, userId) {
   await env.LOADOUT_BOLTS.put(`d:hero:${guildId}:${userId}`, JSON.stringify(hero));
   return hero;
 }
+
+// ── Web RPC helpers ───────────────────────────────────────────────
+//
+// Read + save the look block for the aquilo.gg /character page. Same
+// hero record, same Phase-0 backfill, same lookVersion bump as the
+// Discord editor — so a save from the web bumps the cache-buster
+// pinned in render URLs everywhere (Discord embed, Twitch panel,
+// site preview) and the next embed re-fetches.
+
+const LOOK_AXES = ['bodyType', 'skinTone', 'hairStyle', 'hairColor', 'eyeColor', 'accent'];
+
+// Hair colour swatches for the web picker — hex strings derived from
+// the base (mid-tone) colour in HAIR_COLOURS_RGB above. Keeping the
+// derivation here so it stays in lockstep with the actual palette
+// swap the renderer uses.
+function rgbToHex([r, g, b]) {
+  const h = (n) => n.toString(16).padStart(2, '0');
+  return '#' + h(r) + h(g) + h(b);
+}
+function buildHairSwatches() {
+  const out = {};
+  for (const k of Object.keys(HAIR_COLOURS_RGB)) {
+    out[k] = rgbToHex(HAIR_COLOURS_RGB[k].base);
+  }
+  return out;
+}
+
+// Build the render URL the way the Discord editor does — pinned to
+// hero.lookVersion so the web UI's <img> tag swaps automatically on
+// save.
+function buildRenderUrl(env, guildId, userId, version) {
+  return renderPreviewUrl(env, guildId, userId, version);
+}
+
+// GET: returns the player's current look + the full option catalogue.
+// The site uses this on /character page load. Always succeeds — Phase
+// 0 backfill guarantees a complete look even for first-time visitors.
+export async function getCharacterLookWeb(env, guildId, userId) {
+  const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
+  const look = {};
+  for (const axis of LOOK_AXES) look[axis] = hero.custom[axis];
+  return {
+    ok: true,
+    look,
+    lookVersion: hero.lookVersion || 0,
+    renderUrl: buildRenderUrl(env, guildId, userId, hero.lookVersion || 0),
+    options: {
+      bodyType:  [...CHARACTER_LOOK_OPTIONS.bodyType],
+      skinTone:  [...CHARACTER_LOOK_OPTIONS.skinTone],
+      hairStyle: [...CHARACTER_LOOK_OPTIONS.hairStyle],
+      hairColor: [...CHARACTER_LOOK_OPTIONS.hairColor],
+      eyeColor:  [...CHARACTER_LOOK_OPTIONS.eyeColor],
+      accent:    [...CHARACTER_LOOK_OPTIONS.accent],
+    },
+    hairSwatches: buildHairSwatches(),
+  };
+}
+
+// SAVE: validates each axis against CHARACTER_LOOK_OPTIONS, then
+// writes through. Body shape: { look: { bodyType, skinTone, ... } }.
+// Partial updates are allowed — unspecified fields keep their current
+// value. Unknown fields are ignored; bad values reject the whole save
+// with `{ ok: false, error: 'bad-look', field, value }` so the UI
+// can highlight the offending picker.
+export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
+  if (!lookPatch || typeof lookPatch !== 'object') {
+    return { ok: false, error: 'bad-body', message: 'look object required' };
+  }
+  // Validate all submitted fields up front so we don't half-write a
+  // bad payload.
+  for (const axis of LOOK_AXES) {
+    if (lookPatch[axis] == null) continue;
+    const v = lookPatch[axis];
+    if (!CHARACTER_LOOK_OPTIONS[axis].includes(v)) {
+      return { ok: false, error: 'bad-look', field: axis, value: String(v).slice(0, 32) };
+    }
+  }
+  const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
+  hero.custom = hero.custom || {};
+  let changed = false;
+  for (const axis of LOOK_AXES) {
+    if (lookPatch[axis] != null && hero.custom[axis] !== lookPatch[axis]) {
+      hero.custom[axis] = lookPatch[axis];
+      changed = true;
+    }
+  }
+  if (changed) {
+    hero.lookVersion = (hero.lookVersion || 0) + 1;
+    hero.lastUpdatedUtc = new Date().toISOString();
+    await env.LOADOUT_BOLTS.put(`d:hero:${guildId}:${userId}`, JSON.stringify(hero));
+  }
+  const look = {};
+  for (const axis of LOOK_AXES) look[axis] = hero.custom[axis];
+  return {
+    ok: true,
+    look,
+    lookVersion: hero.lookVersion || 0,
+    renderUrl: buildRenderUrl(env, guildId, userId, hero.lookVersion || 0),
+    changed,
+  };
+}
