@@ -48,6 +48,7 @@ import {
   stampPresence,
 } from './ext-lootbox.js';
 import { startPanelPatreonLink } from './ext-patreon-link.js';
+import { handleExtMod } from './ext-mod.js';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -156,6 +157,9 @@ export async function handleExt(req, env, ctx) {
     }
     if (req.method === 'POST' && route === 'dungeon/skip-cooldown') {
       return await skipCooldown(env, guildId, userId, payload, req);
+    }
+    if (route.indexOf('mod/') === 0) {
+      return await handleExtMod(env, guildId, payload, req, ctx, route.slice(4));
     }
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
