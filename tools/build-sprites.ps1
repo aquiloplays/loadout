@@ -594,11 +594,1325 @@ function Build-Accents {
   Write-Host "  accent flair: $count (none = skipped, no PNG)" -ForegroundColor Green
 }
 
+# ══════════════════════════════════════════════════════════════════
+#                   GEAR — paper-doll layers
+# ══════════════════════════════════════════════════════════════════
+#
+# Per Clay's "every piece must be its OWN unique custom sprite — no
+# reused textures, each one new" directive, no two gear sprites
+# share the same pixels. We achieve uniqueness procedurally:
+#
+#   1. Each catalogue row supplies a stable recipe (slot, name,
+#      rarity, weaponType, setName, atk/def).
+#   2. A name-hashed RNG drives "knob" choices within the recipe —
+#      blade length, hilt curvature, gem position, accent stripe,
+#      etc. Same name always produces the same sprite (deterministic
+#      regeneration) but different names produce visually distinct
+#      results within a shared visual language.
+#   3. Rarity escalates detail tiers:
+#        common    — flat 2-shade silhouette, muted palette
+#        uncommon  — 3 shades + a saturated accent pixel
+#        rare      — 4 shades + coloured glint
+#        epic      — 5 shades + brand-accent halo
+#        legendary — 6+ shades + gem inset (animation comes in Pass 4)
+#
+# Canvas position is sprite-shape-decides per CHARACTER-SYSTEM-DESIGN
+# §4. The figure's right hand sits around (x=28, y=37), so weapons
+# anchor their grip there; heads sit over the head footprint (rows
+# 6-25); chest pieces cover rows 28-42; legs rows 42-50; boots rows
+# 49-55; trinkets either as back-cape (z=10) or front-ornament
+# (z=45). The figure-ghost layer is implicit in the procedural
+# code — no on-screen overlay is shown; we just know where the body
+# is and paint gear to fit.
+
+# ── Deterministic per-piece RNG ────────────────────────────────────
+function Get-NameSeed {
+  param([string]$name)
+  $h = 0
+  foreach ($c in $name.ToCharArray()) {
+    $h = (($h * 31) -bxor [int][char]$c) -band 0x7fffffff
+  }
+  return $h
+}
+function New-NameRng {
+  param([string]$name)
+  $state = Get-NameSeed $name
+  return {
+    param([int]$mod)
+    $script:_rng_state = ($script:_rng_state * 1103515245 + 12345) -band 0x7fffffff
+    if (-not $script:_rng_state) {
+      $script:_rng_state = (Get-NameSeed $name) -bor 1
+    }
+    return ($script:_rng_state % $mod)
+  }.GetNewClosure()
+}
+
+# Simpler — just keep a stateful counter per name and pull mod-ed
+# integers off it. Same idea, lighter syntax.
+$script:RNG_STATE = 1
+function RngInit { param([string]$name) $script:RNG_STATE = (Get-NameSeed $name) -bor 1 }
+function RngPick {
+  param([int]$mod)
+  $script:RNG_STATE = (($script:RNG_STATE * 1103515245) + 12345) -band 0x7fffffff
+  if ($mod -le 1) { return 0 }
+  return $script:RNG_STATE % $mod
+}
+function RngChoice {
+  param([array]$arr)
+  return $arr[(RngPick $arr.Count)]
+}
+
+# ── Rarity palettes ────────────────────────────────────────────────
+#
+# Each rarity has a "metal" palette (for the weapon's blade /
+# armour plate / etc.) and an accent colour that drives the gem,
+# glow halo, and outline pop. Pieces within the same rarity share
+# this palette but differ in shape/composition.
+
+$RARITY_METAL = @{
+  common    = @{ shadow = (Color-FromHex '#3a3f4d'); base = (Color-FromHex '#6a7184'); high = (Color-FromHex '#9aa1b4'); top  = (Color-FromHex '#c0c6d3') };
+  uncommon  = @{ shadow = (Color-FromHex '#2a4438'); base = (Color-FromHex '#4d8268'); high = (Color-FromHex '#7cbb9c'); top  = (Color-FromHex '#a8e0c4') };
+  rare      = @{ shadow = (Color-FromHex '#163065'); base = (Color-FromHex '#2e5ea8'); high = (Color-FromHex '#5a92e0'); top  = (Color-FromHex '#9bbef0') };
+  epic      = @{ shadow = (Color-FromHex '#3a1f7a'); base = (Color-FromHex '#6b3fcf'); high = (Color-FromHex '#9a82ff'); top  = (Color-FromHex '#cbb8ff') };
+  legendary = @{ shadow = (Color-FromHex '#7a4a10'); base = (Color-FromHex '#d68a1c'); high = (Color-FromHex '#f3c042'); top  = (Color-FromHex '#fff0a0') };
+}
+
+$RARITY_ACCENT = @{
+  common    = (Color-FromHex '#a8a8b0');
+  uncommon  = (Color-FromHex '#5be098');
+  rare      = (Color-FromHex '#6ec0ff');
+  epic      = (Color-FromHex '#ff9adb');
+  legendary = (Color-FromHex '#fff0a0');
+}
+
+# Wood palette for shafts, hilts, bow limbs. Stays consistent
+# regardless of rarity — the metal does the colour talking.
+$WOOD = @{ shadow = (Color-FromHex '#3d2614'); base = (Color-FromHex '#6b4a2b'); high = (Color-FromHex '#9b7547') }
+
+# Leather palette for grips, straps.
+$LEATHER = @{ shadow = (Color-FromHex '#3a2316'); base = (Color-FromHex '#5e3a22'); high = (Color-FromHex '#8a5a36') }
+
+# Rarity-tier "detail richness" — used to skip / include the
+# extra-detail pixel passes that distinguish epic/legendary from
+# common.
+function Detail-Level {
+  param([string]$rarity)
+  switch ($rarity) {
+    'common'    { return 0 }
+    'uncommon'  { return 1 }
+    'rare'      { return 2 }
+    'epic'      { return 3 }
+    'legendary' { return 4 }
+    default     { return 0 }
+  }
+}
+
+# ── Weapon archetypes ─────────────────────────────────────────────
+#
+# All weapons anchor their grip around (x=28..30, y=36..38). Blade /
+# bowhead / etc. extends UP from there. Pommel / butt extends DOWN.
+# Polearms and staves extend further up into the headroom.
+#
+# Each archetype function takes (bmp, name, rarity) and uses
+# RngInit/RngPick to derive its per-piece knob choices from the
+# name — so "Wooden Sword" and "Bronze Shortsword" produce two
+# different swords sharing the common-rarity palette + general
+# silhouette but no two pixels identical.
+
+function Draw-Weapon-Sword {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+  $ink = $BRAND.Ink
+
+  # Knobs
+  $bladeLen   = 14 + (RngPick 8)         # 14..21 px
+  $bladeWidth = 2 + (RngPick 2)          # 2 or 3 px
+  $crossguard = 4 + (RngPick 3)          # 4..6 px wide
+  $hiltLen    = 3 + (RngPick 2)          # 3..4 px grip
+  $pommel     = (RngPick 4)              # 0=ball, 1=wedge, 2=star, 3=disc
+
+  $gx = 29                                # grip centre column
+  $gripBottomY = 39 + (RngPick 2)        # 39..40 — slight variation
+  $cgY = $gripBottomY - $hiltLen          # crossguard sits above grip
+  $bladeBottom = $cgY - 1
+  $bladeTop    = $bladeBottom - $bladeLen
+
+  # Blade
+  $halfBW = [int]($bladeWidth / 2)
+  for ($y = $bladeTop; $y -le $bladeBottom; $y++) {
+    # Slight taper near the tip
+    $w = $bladeWidth - $(if (($y - $bladeTop) -lt 2) { 1 } else { 0 })
+    if ($w -lt 1) { $w = 1 }
+    $x0 = $gx - [int]($w / 2)
+    Fill-Rect $bmp $x0 $y $w 1 $metal.base
+    if ($w -ge 2) {
+      Set-Px $bmp $x0 $y $metal.shadow
+      Set-Px $bmp ($x0 + $w - 1) $y $metal.high
+    }
+  }
+  # Tip highlight
+  Set-Px $bmp $gx $bladeTop $metal.top
+
+  # Detail: blade etching/runes for rare+
+  if ($detail -ge 2 -and $bladeLen -ge 12) {
+    $accent = $RARITY_ACCENT[$rarity]
+    Set-Px $bmp $gx ($bladeTop + 4) $accent
+    Set-Px $bmp $gx ($bladeTop + 8) $accent
+  }
+  # Glow halo for epic/legendary
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(120, $RARITY_ACCENT[$rarity].R, $RARITY_ACCENT[$rarity].G, $RARITY_ACCENT[$rarity].B)
+    for ($y = $bladeTop; $y -le $bladeBottom; $y++) {
+      Set-Px $bmp ($gx - 2) $y $glow
+      Set-Px $bmp ($gx + 2) $y $glow
+    }
+  }
+
+  # Crossguard — horizontal bar
+  $cgX = $gx - [int]($crossguard / 2)
+  Fill-Rect $bmp $cgX $cgY $crossguard 1 $metal.base
+  Fill-Rect $bmp $cgX ($cgY + 1) $crossguard 1 $metal.shadow
+  # Decorative crossguard tips for rare+
+  if ($detail -ge 2) {
+    Set-Px $bmp $cgX $cgY $metal.top
+    Set-Px $bmp ($cgX + $crossguard - 1) $cgY $metal.top
+  }
+
+  # Grip — leather wrap
+  for ($y = ($cgY + 2); $y -le $gripBottomY; $y++) {
+    Set-Px $bmp ($gx - 1) $y $LEATHER.shadow
+    Set-Px $bmp $gx $y $LEATHER.base
+    Set-Px $bmp ($gx + 1) $y $LEATHER.high
+  }
+
+  # Pommel
+  $py = $gripBottomY + 1
+  switch ($pommel) {
+    0 {  # ball
+      Fill-Rect $bmp ($gx - 1) $py 3 2 $metal.base
+      Set-Px $bmp ($gx - 1) $py $metal.shadow
+      Set-Px $bmp ($gx + 1) ($py + 1) $metal.shadow
+      Set-Px $bmp $gx $py $metal.high
+    }
+    1 {  # wedge
+      Set-Px $bmp $gx $py $metal.base
+      Fill-Rect $bmp ($gx - 1) ($py + 1) 3 1 $metal.base
+      Set-Px $bmp ($gx - 1) ($py + 1) $metal.shadow
+      Set-Px $bmp ($gx + 1) ($py + 1) $metal.shadow
+    }
+    2 {  # star — rare+
+      if ($detail -ge 2) {
+        $accent = $RARITY_ACCENT[$rarity]
+        Fill-Rect $bmp ($gx - 1) $py 3 1 $metal.base
+        Set-Px $bmp $gx ($py + 1) $accent
+      } else {
+        Fill-Rect $bmp ($gx - 1) $py 3 1 $metal.base
+      }
+    }
+    3 {  # disc
+      Fill-Rect $bmp ($gx - 1) $py 3 1 $metal.base
+      Set-Px $bmp $gx $py $metal.high
+    }
+  }
+}
+
+function Draw-Weapon-Axe {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 29
+  $gripBottomY = 41
+  $shaftLen   = 18 + (RngPick 4)         # 18..21
+  $headSize   = 4 + (RngPick 2)          # 4..5
+  $headFlare  = (RngPick 2)              # 0=normal, 1=flared
+  $shaftTop   = $gripBottomY - $shaftLen
+
+  # Shaft — wooden, vertical
+  for ($y = $shaftTop; $y -le $gripBottomY; $y++) {
+    Set-Px $bmp ($gx - 1) $y $WOOD.shadow
+    Set-Px $bmp $gx       $y $WOOD.base
+    Set-Px $bmp ($gx + 1) $y $WOOD.high
+  }
+
+  # Axe head — sits at the top right of the shaft
+  $hx = $gx + 1
+  $hy = $shaftTop
+  Fill-Rect $bmp $hx $hy $headSize 4 $metal.base
+  Stroke-Rect $bmp $hx $hy $headSize 4 $metal.shadow
+  # Edge highlight on the cutting edge (right side)
+  for ($y = 0; $y -lt 4; $y++) {
+    Set-Px $bmp ($hx + $headSize - 1) ($hy + $y) $metal.top
+  }
+  # Flared blade extension
+  if ($headFlare -eq 1) {
+    Set-Px $bmp ($hx + $headSize) ($hy + 1) $metal.base
+    Set-Px $bmp ($hx + $headSize) ($hy + 2) $metal.base
+    Set-Px $bmp ($hx + $headSize) ($hy + 1) $metal.high
+  }
+  # Spike on top (uncommon+)
+  if ($detail -ge 1) {
+    Set-Px $bmp $hx ($hy - 1) $metal.base
+    Set-Px $bmp ($hx + 1) ($hy - 1) $metal.shadow
+  }
+  # Rune accent on the blade (rare+)
+  if ($detail -ge 2) {
+    Set-Px $bmp ($hx + 1) ($hy + 2) $RARITY_ACCENT[$rarity]
+  }
+  # Halo (epic+)
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(120, $RARITY_ACCENT[$rarity].R, $RARITY_ACCENT[$rarity].G, $RARITY_ACCENT[$rarity].B)
+    Set-Px $bmp ($hx - 1) $hy $glow
+    Set-Px $bmp ($hx + $headSize) ($hy + 4) $glow
+  }
+
+  # Pommel knob
+  Set-Px $bmp $gx ($gripBottomY + 1) $metal.base
+}
+
+function Draw-Weapon-Hammer {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 29
+  $gripBottomY = 41
+  $shaftLen   = 18 + (RngPick 3)
+  $headW      = 5 + (RngPick 2)          # 5..6
+  $headH      = 4 + (RngPick 1)
+  $shaftTop   = $gripBottomY - $shaftLen
+
+  # Shaft
+  for ($y = $shaftTop; $y -le $gripBottomY; $y++) {
+    Set-Px $bmp ($gx - 1) $y $WOOD.shadow
+    Set-Px $bmp $gx       $y $WOOD.base
+    Set-Px $bmp ($gx + 1) $y $WOOD.high
+  }
+
+  # Head — heavy block sitting on top of the shaft
+  $hx = $gx - [int]($headW / 2)
+  $hy = $shaftTop - $headH + 1
+  Fill-Rect $bmp $hx $hy $headW $headH $metal.base
+  Stroke-Rect $bmp $hx $hy $headW $headH $metal.shadow
+  # Highlight strip across the top
+  for ($x = 0; $x -lt $headW; $x++) {
+    Set-Px $bmp ($hx + $x) $hy $metal.high
+  }
+  # Studs on the head (uncommon+)
+  if ($detail -ge 1) {
+    Set-Px $bmp ($hx + 1) ($hy + 1) $metal.top
+    Set-Px $bmp ($hx + $headW - 2) ($hy + 1) $metal.top
+  }
+  # Rune accent on the side (rare+)
+  if ($detail -ge 2) {
+    Set-Px $bmp ($hx + [int]($headW / 2)) ($hy + [int]($headH / 2)) $RARITY_ACCENT[$rarity]
+  }
+  # Halo (epic+)
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(110, $RARITY_ACCENT[$rarity].R, $RARITY_ACCENT[$rarity].G, $RARITY_ACCENT[$rarity].B)
+    Fill-Rect $bmp ($hx - 1) ($hy + 1) 1 ($headH - 1) $glow
+    Fill-Rect $bmp ($hx + $headW) ($hy + 1) 1 ($headH - 1) $glow
+  }
+}
+
+function Draw-Weapon-Dagger {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 29
+  $gripBottomY = 40
+  $bladeLen = 7 + (RngPick 4)            # 7..10 (short)
+  $cgY = $gripBottomY - 3
+  $bladeBottom = $cgY - 1
+  $bladeTop    = $bladeBottom - $bladeLen
+
+  # Single-line blade with thin taper
+  for ($y = $bladeTop; $y -le $bladeBottom; $y++) {
+    $w = if ($y -le $bladeTop + 1) { 1 } else { 2 }
+    Fill-Rect $bmp ($gx - [int]($w / 2)) $y $w 1 $metal.base
+    if ($w -ge 2) {
+      Set-Px $bmp ($gx - 1) $y $metal.shadow
+      Set-Px $bmp $gx $y $metal.high
+    }
+  }
+  Set-Px $bmp $gx $bladeTop $metal.top
+
+  # Crossguard — small horizontal
+  Fill-Rect $bmp ($gx - 1) $cgY 3 1 $metal.base
+  Set-Px $bmp $gx $cgY $metal.high
+
+  # Grip
+  for ($y = ($cgY + 1); $y -le $gripBottomY; $y++) {
+    Set-Px $bmp ($gx - 1) $y $LEATHER.shadow
+    Set-Px $bmp $gx $y $LEATHER.base
+  }
+
+  # Pommel — gem-cap on rare+
+  if ($detail -ge 2) {
+    Set-Px $bmp $gx ($gripBottomY + 1) $RARITY_ACCENT[$rarity]
+  } else {
+    Set-Px $bmp $gx ($gripBottomY + 1) $metal.base
+  }
+  # Halo on epic+
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(110, $RARITY_ACCENT[$rarity].R, $RARITY_ACCENT[$rarity].G, $RARITY_ACCENT[$rarity].B)
+    Set-Px $bmp ($gx - 1) ($bladeTop + 2) $glow
+    Set-Px $bmp ($gx + 1) ($bladeTop + 2) $glow
+  }
+}
+
+function Draw-Weapon-Bow {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 29
+  $gripY = 38
+  $bowH = 18 + (RngPick 4)               # 18..21 — total bow height
+  $curve = 2 + (RngPick 2)               # how far the limbs curve out
+
+  $topY = $gripY - [int]($bowH / 2)
+  $botY = $gripY + [int]($bowH / 2)
+
+  # Upper limb — gentle outward curve
+  for ($i = 0; $i -lt [int]($bowH / 2); $i++) {
+    $y = $gripY - $i
+    $offset = if ($i -lt 2) { 0 } elseif ($i -lt 5) { 1 } elseif ($i -lt ([int]($bowH / 2) - 2)) { $curve } else { [int]($curve / 2) }
+    Set-Px $bmp ($gx - $offset) $y $WOOD.base
+    Set-Px $bmp ($gx - $offset - 1) $y $WOOD.shadow
+    Set-Px $bmp ($gx - $offset + 1) $y $WOOD.high
+  }
+  # Lower limb — mirrored
+  for ($i = 0; $i -lt [int]($bowH / 2); $i++) {
+    $y = $gripY + $i + 1
+    $offset = if ($i -lt 2) { 0 } elseif ($i -lt 5) { 1 } elseif ($i -lt ([int]($bowH / 2) - 2)) { $curve } else { [int]($curve / 2) }
+    Set-Px $bmp ($gx - $offset) $y $WOOD.base
+    Set-Px $bmp ($gx - $offset - 1) $y $WOOD.shadow
+    Set-Px $bmp ($gx - $offset + 1) $y $WOOD.high
+  }
+  # Bowstring — straight vertical line on the inside (right of the limbs)
+  $stringCol = if ($detail -ge 3) { $RARITY_ACCENT[$rarity] } else { $metal.high }
+  for ($y = $topY + 1; $y -le ($botY - 1); $y++) {
+    Set-Px $bmp ($gx + 1) $y $stringCol
+  }
+  # Tip caps for uncommon+
+  if ($detail -ge 1) {
+    Set-Px $bmp ($gx - [int]($curve / 2)) $topY $metal.base
+    Set-Px $bmp ($gx - [int]($curve / 2)) $botY $metal.base
+  }
+  # Grip wrap
+  Fill-Rect $bmp $gx ($gripY - 1) 1 3 $LEATHER.base
+}
+
+function Draw-Weapon-Crossbow {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 29
+  $gripY = 38
+
+  # Stock — vertical wooden block
+  Fill-Rect $bmp ($gx - 1) ($gripY - 2) 3 8 $WOOD.base
+  Stroke-Rect $bmp ($gx - 1) ($gripY - 2) 3 8 $WOOD.shadow
+  Set-Px $bmp $gx ($gripY - 1) $WOOD.high
+
+  # Limbs — horizontal arc at the top
+  $limbY = $gripY - 4
+  for ($x = -5; $x -le 5; $x++) {
+    $y = $limbY + [int](($x * $x) / 12)
+    Set-Px $bmp ($gx + $x) $y $WOOD.base
+    Set-Px $bmp ($gx + $x) ($y - 1) $WOOD.shadow
+  }
+  # String stretched across the limbs
+  $stringColCB = $(if ($detail -ge 3) { $RARITY_ACCENT[$rarity] } else { $metal.high })
+  for ($x = -5; $x -le 5; $x++) {
+    Set-Px $bmp ($gx + $x) ($limbY + 2) $stringColCB
+  }
+  # Bolt
+  for ($y = ($limbY - 1); $y -le ($gripY); $y++) {
+    Set-Px $bmp $gx $y $metal.base
+  }
+  Set-Px $bmp $gx ($limbY - 1) $metal.top
+  # Rune accent (rare+)
+  if ($detail -ge 2) {
+    Set-Px $bmp $gx ($gripY + 2) $RARITY_ACCENT[$rarity]
+  }
+}
+
+function Draw-Weapon-Wand {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 29
+  $gripBottomY = 40
+  $wandLen = 10 + (RngPick 4)            # short
+  $tipShape = (RngPick 3)                # 0=crystal, 1=ball, 2=star
+
+  $top = $gripBottomY - $wandLen
+
+  # Wand body — slim wooden rod
+  for ($y = ($top + 2); $y -le $gripBottomY; $y++) {
+    Set-Px $bmp $gx $y $WOOD.base
+    Set-Px $bmp ($gx - 1) $y $WOOD.shadow
+  }
+  # Tip
+  $accent = $RARITY_ACCENT[$rarity]
+  switch ($tipShape) {
+    0 {  # crystal — 4 pixels
+      Set-Px $bmp $gx $top $accent
+      Set-Px $bmp ($gx - 1) ($top + 1) $accent
+      Set-Px $bmp ($gx + 1) ($top + 1) $accent
+      Set-Px $bmp $gx ($top + 2) $accent
+    }
+    1 {  # ball
+      Fill-Rect $bmp ($gx - 1) $top 3 2 $accent
+      Set-Px $bmp $gx $top $RARITY_METAL[$rarity].top
+    }
+    2 {  # star
+      Set-Px $bmp $gx $top $accent
+      Set-Px $bmp ($gx - 1) ($top + 1) $accent
+      Set-Px $bmp ($gx + 1) ($top + 1) $accent
+      Set-Px $bmp $gx ($top + 2) $accent
+      Set-Px $bmp ($gx - 2) ($top + 1) $accent
+      Set-Px $bmp ($gx + 2) ($top + 1) $accent
+    }
+  }
+  # Halo (rare+)
+  if ($detail -ge 2) {
+    $glow = [System.Drawing.Color]::FromArgb(140, $accent.R, $accent.G, $accent.B)
+    Set-Px $bmp ($gx - 2) ($top + 2) $glow
+    Set-Px $bmp ($gx + 2) ($top + 2) $glow
+  }
+}
+
+function Draw-Weapon-Staff {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 29
+  $gripBottomY = 42
+  $staffLen = 24 + (RngPick 4)           # long — extends into headroom
+  $headShape = (RngPick 3)               # 0=orb, 1=ring, 2=horns
+  $top = $gripBottomY - $staffLen
+
+  # Shaft
+  for ($y = ($top + 3); $y -le $gripBottomY; $y++) {
+    Set-Px $bmp ($gx - 1) $y $WOOD.shadow
+    Set-Px $bmp $gx $y $WOOD.base
+    Set-Px $bmp ($gx + 1) $y $WOOD.high
+  }
+  $accent = $RARITY_ACCENT[$rarity]
+  switch ($headShape) {
+    0 {  # orb on top
+      Fill-Rect $bmp ($gx - 1) $top 3 3 $accent
+      Set-Px $bmp $gx $top $metal.top
+      Set-Px $bmp ($gx - 1) ($top + 2) $metal.shadow
+    }
+    1 {  # ring — empty center
+      Stroke-Rect $bmp ($gx - 1) $top 3 3 $accent
+      if ($detail -ge 2) {
+        Set-Px $bmp $gx ($top + 1) $metal.top
+      }
+    }
+    2 {  # horns
+      Set-Px $bmp ($gx - 1) $top $WOOD.base
+      Set-Px $bmp ($gx - 2) ($top + 1) $WOOD.base
+      Set-Px $bmp ($gx + 1) $top $WOOD.base
+      Set-Px $bmp ($gx + 2) ($top + 1) $WOOD.base
+      Set-Px $bmp $gx ($top + 2) $accent
+    }
+  }
+  # Glow (epic+)
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(120, $accent.R, $accent.G, $accent.B)
+    Set-Px $bmp ($gx - 2) ($top + 1) $glow
+    Set-Px $bmp ($gx + 2) ($top + 1) $glow
+  }
+  # Grip wrap
+  for ($y = 0; $y -lt 3; $y++) {
+    Set-Px $bmp $gx ($gripBottomY - 4 + $y) $LEATHER.base
+  }
+}
+
+function Draw-Weapon-Orb {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 30
+  $gy = 36
+  $r = 3 + (RngPick 2)                   # 3..4 radius
+  $accent = $RARITY_ACCENT[$rarity]
+
+  # Sphere — concentric rings
+  for ($dy = -$r; $dy -le $r; $dy++) {
+    for ($dx = -$r; $dx -le $r; $dx++) {
+      $d = [Math]::Sqrt($dx * $dx + $dy * $dy)
+      if ($d -gt $r + 0.3) { continue }
+      $col = $accent
+      if ($d -gt ($r - 0.7)) { $col = $metal.shadow }
+      elseif ($d -lt 0.7)    { $col = $metal.top }
+      elseif ($dx -lt 0 -and $dy -lt 0) { $col = $RARITY_METAL[$rarity].high }
+      Set-Px $bmp ($gx + $dx) ($gy + $dy) $col
+    }
+  }
+  # Glint
+  Set-Px $bmp ($gx - 1) ($gy - 1) $metal.top
+  # Aura (rare+)
+  if ($detail -ge 2) {
+    $glow = [System.Drawing.Color]::FromArgb(100, $accent.R, $accent.G, $accent.B)
+    Fill-Rect $bmp ($gx - $r - 1) ($gy - $r - 1) 1 (2 * $r + 3) $glow
+    Fill-Rect $bmp ($gx + $r + 1) ($gy - $r - 1) 1 (2 * $r + 3) $glow
+  }
+}
+
+function Draw-Weapon-Tome {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 28
+  $gy = 34
+  $w = 6 + (RngPick 2)
+  $h = 8 + (RngPick 2)
+  $accent = $RARITY_ACCENT[$rarity]
+
+  # Book body
+  Fill-Rect $bmp $gx $gy $w $h $metal.base
+  Stroke-Rect $bmp $gx $gy $w $h $metal.shadow
+  # Spine highlight on the left
+  for ($y = 0; $y -lt $h; $y++) {
+    Set-Px $bmp $gx ($gy + $y) $metal.high
+  }
+  # Pages — thin band on the right edge
+  for ($y = 1; $y -lt ($h - 1); $y++) {
+    Set-Px $bmp ($gx + $w - 1) ($gy + $y) (Color-FromHex '#f4e9d4')
+  }
+  # Cover ornament — single accent pixel cluster
+  $oy = $gy + [int]($h / 2) - 1
+  $ox = $gx + [int]($w / 2)
+  Set-Px $bmp $ox $oy $accent
+  if ($detail -ge 1) {
+    Set-Px $bmp ($ox - 1) $oy $metal.top
+    Set-Px $bmp ($ox + 1) $oy $metal.top
+  }
+  if ($detail -ge 2) {
+    Set-Px $bmp $ox ($oy - 1) $accent
+    Set-Px $bmp $ox ($oy + 1) $accent
+  }
+  # Glow (epic+)
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(110, $accent.R, $accent.G, $accent.B)
+    Set-Px $bmp ($gx - 1) ($gy + 2) $glow
+    Set-Px $bmp ($gx + $w) ($gy + 2) $glow
+  }
+}
+
+function Draw-Weapon-Holy {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 29
+  $gy = 34
+  $h = 8 + (RngPick 2)                   # cross height
+  $arm = 3 + (RngPick 2)                 # crossbar half-width
+  $accent = $RARITY_ACCENT[$rarity]
+
+  # Vertical bar
+  for ($y = 0; $y -lt $h; $y++) {
+    Set-Px $bmp ($gx - 1) ($gy + $y) $metal.shadow
+    Set-Px $bmp $gx ($gy + $y) $metal.base
+    Set-Px $bmp ($gx + 1) ($gy + $y) $metal.high
+  }
+  # Crossbar
+  $cy = $gy + 2
+  for ($x = -$arm; $x -le $arm; $x++) {
+    Set-Px $bmp ($gx + $x) $cy $metal.base
+    Set-Px $bmp ($gx + $x) ($cy + 1) $metal.shadow
+  }
+  Set-Px $bmp ($gx - $arm) $cy $metal.top
+  Set-Px $bmp ($gx + $arm) $cy $metal.top
+  # Centre gem (rare+)
+  if ($detail -ge 2) {
+    Set-Px $bmp $gx $cy $accent
+  }
+  # Halo (epic+)
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(120, $accent.R, $accent.G, $accent.B)
+    Set-Px $bmp ($gx - $arm - 1) $cy $glow
+    Set-Px $bmp ($gx + $arm + 1) $cy $glow
+    Set-Px $bmp $gx ($gy - 1) $glow
+  }
+}
+
+function Draw-Weapon-Sling {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  # Slings stay simple — common-only territory.
+  $gx = 29; $gy = 36
+  # Strap loop hanging
+  for ($y = $gy - 4; $y -le $gy + 6; $y++) {
+    Set-Px $bmp $gx $y $LEATHER.base
+    if ($y -le ($gy + 1)) { Set-Px $bmp ($gx - 1) $y $LEATHER.shadow }
+  }
+  # Stone pouch at the bottom
+  Fill-Rect $bmp ($gx - 1) ($gy + 6) 3 2 $LEATHER.shadow
+  Set-Px $bmp $gx ($gy + 6) $LEATHER.high
+  # Stone (uncommon+)
+  if ((Detail-Level $rarity) -ge 1) {
+    Set-Px $bmp $gx ($gy + 7) (Color-FromHex '#a8a8b0')
+  }
+}
+
+function Draw-Weapon-Polearm {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $gx = 29
+  $gripBottomY = 42
+  $shaftLen = 28 + (RngPick 3)           # very long
+  $headStyle = (RngPick 3)               # 0=halberd, 1=spear, 2=glaive
+  $top = $gripBottomY - $shaftLen
+
+  # Shaft
+  for ($y = ($top + 4); $y -le $gripBottomY; $y++) {
+    Set-Px $bmp ($gx - 1) $y $WOOD.shadow
+    Set-Px $bmp $gx $y $WOOD.base
+    Set-Px $bmp ($gx + 1) $y $WOOD.high
+  }
+  switch ($headStyle) {
+    0 {  # halberd — axe blade + spike
+      Fill-Rect $bmp ($gx + 1) $top 3 3 $metal.base
+      Set-Px $bmp ($gx + 3) ($top + 1) $metal.top
+      Stroke-Rect $bmp ($gx + 1) $top 3 3 $metal.shadow
+      Set-Px $bmp $gx ($top + 1) $metal.base
+      Set-Px $bmp $gx $top $metal.high
+    }
+    1 {  # spear — narrow point
+      Set-Px $bmp $gx $top $metal.top
+      Set-Px $bmp $gx ($top + 1) $metal.base
+      Set-Px $bmp $gx ($top + 2) $metal.base
+      Set-Px $bmp $gx ($top + 3) $metal.base
+      Set-Px $bmp ($gx - 1) ($top + 2) $metal.shadow
+      Set-Px $bmp ($gx + 1) ($top + 2) $metal.shadow
+    }
+    2 {  # glaive — curved blade
+      for ($y = 0; $y -lt 5; $y++) {
+        Set-Px $bmp ($gx + 1 + [int]($y / 2)) ($top + $y) $metal.base
+        Set-Px $bmp $gx ($top + $y) $metal.shadow
+      }
+      Set-Px $bmp ($gx + 2) ($top + 1) $metal.top
+    }
+  }
+  # Rune (rare+)
+  if ($detail -ge 2) {
+    Set-Px $bmp $gx ($top + 5) $RARITY_ACCENT[$rarity]
+  }
+}
+
+# ── Weapon dispatcher ─────────────────────────────────────────────
+function Draw-Weapon {
+  param($bmp, [string]$weaponType, [string]$name, [string]$rarity)
+  switch ($weaponType) {
+    'sword'    { Draw-Weapon-Sword    $bmp $name $rarity }
+    'axe'      { Draw-Weapon-Axe      $bmp $name $rarity }
+    'hammer'   { Draw-Weapon-Hammer   $bmp $name $rarity }
+    'dagger'   { Draw-Weapon-Dagger   $bmp $name $rarity }
+    'bow'      { Draw-Weapon-Bow      $bmp $name $rarity }
+    'crossbow' { Draw-Weapon-Crossbow $bmp $name $rarity }
+    'wand'     { Draw-Weapon-Wand     $bmp $name $rarity }
+    'staff'    { Draw-Weapon-Staff    $bmp $name $rarity }
+    'orb'      { Draw-Weapon-Orb      $bmp $name $rarity }
+    'tome'     { Draw-Weapon-Tome     $bmp $name $rarity }
+    'holy'     { Draw-Weapon-Holy     $bmp $name $rarity }
+    'sling'    { Draw-Weapon-Sling    $bmp $name $rarity }
+    'polearm'  { Draw-Weapon-Polearm  $bmp $name $rarity }
+    default    { Draw-Weapon-Sword    $bmp $name $rarity }
+  }
+}
+
+# Helper: derive a spriteId slug from a piece name.
+function Slugify {
+  param([string]$s)
+  return ($s.ToLower() -replace "['’]", '' -replace '[^a-z0-9]+', '-' -replace '^-|-$', '')
+}
+
+# ── Catalogue parser ─────────────────────────────────────────────
+#
+# We don't ship a Node↔Pwsh bridge — instead, the catalogue is
+# parsed directly from dungeon.js by grep-style regex over the
+# SHOP_POOL array literal. The array format is rigid (single-line
+# entries with consistent commas) so this works reliably.
+
+function Read-Catalogue {
+  param([string]$repoRoot)
+  $dungeonPath = Join-Path $repoRoot 'discord-bot/dungeon.js'
+  $clashPath   = Join-Path $repoRoot 'discord-bot/clash-content.js'
+  $catalogue = @()
+
+  # SHOP_POOL row shape:
+  #   ['slot', 'rarity', 'name', 'glyph', atk, def, gold, 'setName', 'weaponType', 'preferredClass', 'ability']
+  $rowRx = "^\s*\[\s*'(?<slot>[^']+)',\s*'(?<rarity>[^']+)',\s*'(?<name>(?:[^'\\]|\\.)+)',\s*'[^']*',\s*\d+,\s*\d+,\s*\d+,\s*'(?<setName>[^']*)',\s*'(?<weaponType>[^']*)',\s*'(?<preferredClass>[^']*)',\s*'(?<ability>[^']*)'\s*\]"
+  Get-Content $dungeonPath | ForEach-Object {
+    if ($_ -match $rowRx) {
+      $catalogue += [PSCustomObject]@{
+        slot           = $matches['slot']
+        rarity         = $matches['rarity']
+        name           = $matches['name'] -replace "\\'", "'"
+        setName        = $matches['setName']
+        weaponType     = $matches['weaponType']
+        preferredClass = $matches['preferredClass']
+        ability        = $matches['ability']
+      }
+    }
+  }
+  # Voltaic from clash-content.js — same row shape
+  if (Test-Path $clashPath) {
+    Get-Content $clashPath | ForEach-Object {
+      if ($_ -match $rowRx) {
+        $catalogue += [PSCustomObject]@{
+          slot           = $matches['slot']
+          rarity         = $matches['rarity']
+          name           = $matches['name'] -replace "\\'", "'"
+          setName        = $matches['setName']
+          weaponType     = $matches['weaponType']
+          preferredClass = $matches['preferredClass']
+          ability        = $matches['ability']
+        }
+      }
+    }
+  }
+  return $catalogue
+}
+
+function Build-Weapons {
+  param([string]$repoRoot)
+  Write-Host '── Building weapon gear sprites ──' -ForegroundColor Cyan
+  $catalogue = Read-Catalogue -repoRoot $repoRoot
+  $weapons = $catalogue | Where-Object { $_.slot -eq 'weapon' }
+  $count = 0
+  foreach ($p in $weapons) {
+    $bmp = New-Canvas
+    Draw-Weapon $bmp $p.weaponType $p.name $p.rarity
+    $slug = Slugify $p.name
+    Save-Canvas $bmp (Join-Path $gearDir ("weapon/{0}.png" -f $slug))
+    $count++
+  }
+  Write-Host "  weapons: $count" -ForegroundColor Green
+}
+
+# ── Head archetypes ──────────────────────────────────────────────
+# Head footprint: rows 16-25, x=14-25 (approx). Helmet/hat extends
+# UP into rows 0-15 for plumes and tall crowns. The hair sits at
+# z=60 and head at z=70, so the head sprite intentionally COVERS
+# the upper part of the head where it should obscure hair.
+
+function Draw-Head-Helmet {
+  # Full enclosed helmet: dome + visor + neck guard
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+
+  $hx = 14; $hy = 14; $hw = 12; $hh = 12
+  $plume = (RngPick 4)        # 0=none, 1=spike, 2=fin, 3=crown
+  $visor = (RngPick 3)        # 0=full, 1=t-slit, 2=open
+  # Dome
+  Fill-Rect $bmp $hx $hy $hw $hh $metal.base
+  Stroke-Rect $bmp $hx $hy $hw $hh $metal.shadow
+  # Highlights along the top-left
+  for ($x = 0; $x -lt 4; $x++) {
+    Set-Px $bmp ($hx + 1 + $x) ($hy + 1) $metal.high
+  }
+  Set-Px $bmp ($hx + 1) ($hy + 2) $metal.top
+  # Visor band
+  switch ($visor) {
+    0 {  # full visor — horizontal slit
+      Fill-Rect $bmp $hx ($hy + 5) $hw 2 $metal.shadow
+      Fill-Rect $bmp ($hx + 2) ($hy + 6) ($hw - 4) 1 $BRAND.Ink
+    }
+    1 {  # T-slit
+      Fill-Rect $bmp $hx ($hy + 5) $hw 2 $metal.shadow
+      Set-Px $bmp ($hx + 5) ($hy + 5) $BRAND.Ink
+      Set-Px $bmp ($hx + 6) ($hy + 5) $BRAND.Ink
+      Set-Px $bmp ($hx + 5) ($hy + 6) $BRAND.Ink
+      Set-Px $bmp ($hx + 6) ($hy + 6) $BRAND.Ink
+      Set-Px $bmp ($hx + 5) ($hy + 7) $BRAND.Ink
+      Set-Px $bmp ($hx + 6) ($hy + 7) $BRAND.Ink
+    }
+    2 {  # open-face — show eyes
+      Fill-Rect $bmp ($hx + 1) ($hy + 5) 4 2 $BRAND.Ink
+      Fill-Rect $bmp ($hx + 7) ($hy + 5) 4 2 $BRAND.Ink
+    }
+  }
+  # Cheek guards extending down
+  Fill-Rect $bmp $hx ($hy + $hh - 1) 1 2 $metal.shadow
+  Fill-Rect $bmp ($hx + $hw - 1) ($hy + $hh - 1) 1 2 $metal.shadow
+  # Plume / crown on top
+  $accent = $RARITY_ACCENT[$rarity]
+  switch ($plume) {
+    1 {  # spike
+      for ($y = 0; $y -lt 6; $y++) {
+        Set-Px $bmp ($hx + [int]($hw / 2)) ($hy - 1 - $y) $metal.base
+      }
+      Set-Px $bmp ($hx + [int]($hw / 2)) ($hy - 7) $metal.top
+    }
+    2 {  # fin (plume swept back)
+      for ($y = 0; $y -lt 5; $y++) {
+        Fill-Rect $bmp ($hx + [int]($hw / 2) + $y) ($hy - 4 - $y) 1 4 $accent
+      }
+    }
+    3 {  # crown — jagged top
+      for ($x = 0; $x -lt $hw; $x += 2) {
+        Set-Px $bmp ($hx + $x) ($hy - 1) $metal.high
+        Set-Px $bmp ($hx + $x) ($hy - 2) $metal.base
+      }
+    }
+    default { }
+  }
+  # Rune accent on the forehead (rare+)
+  if ($detail -ge 2) {
+    Set-Px $bmp ($hx + [int]($hw / 2)) ($hy + 3) $accent
+  }
+  # Halo (epic+)
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(120, $accent.R, $accent.G, $accent.B)
+    for ($x = -1; $x -le $hw; $x++) {
+      Set-Px $bmp ($hx + $x) ($hy - 1) $glow
+    }
+  }
+}
+
+function Draw-Head-Cap {
+  # Soft fabric cap or hat — rounded silhouette
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $detail = Detail-Level $rarity
+  $cx = 20; $cy = 14
+  $shape = (RngPick 3)             # 0=skullcap, 1=wide-brim, 2=pointy
+
+  $base = (Color-FromHex '#6b4a2b')
+  $shadow = (Color-FromHex '#3d2614')
+  $high = (Color-FromHex '#9b7547')
+  # Rarity recolour for higher tiers
+  if ($detail -ge 2) {
+    $base   = $RARITY_METAL[$rarity].base
+    $shadow = $RARITY_METAL[$rarity].shadow
+    $high   = $RARITY_METAL[$rarity].high
+  }
+  $accent = $RARITY_ACCENT[$rarity]
+
+  switch ($shape) {
+    0 {  # skullcap
+      Fill-Rect $bmp ($cx - 6) ($cy + 1) 12 3 $base
+      Stroke-Rect $bmp ($cx - 6) ($cy + 1) 12 3 $shadow
+      Fill-Rect $bmp ($cx - 4) ($cy - 1) 8 2 $base
+      Set-Px $bmp ($cx - 3) ($cy) $high
+      # Band (rare+)
+      if ($detail -ge 2) {
+        Fill-Rect $bmp ($cx - 6) ($cy + 4) 12 1 $accent
+      }
+    }
+    1 {  # wide-brim
+      # Wide brim
+      Fill-Rect $bmp ($cx - 7) ($cy + 4) 14 1 $shadow
+      Fill-Rect $bmp ($cx - 6) ($cy + 3) 12 1 $base
+      # Crown
+      Fill-Rect $bmp ($cx - 3) $cy 6 3 $base
+      Stroke-Rect $bmp ($cx - 3) $cy 6 3 $shadow
+      Set-Px $bmp ($cx - 2) ($cy + 1) $high
+      # Hat band
+      if ($detail -ge 1) {
+        Fill-Rect $bmp ($cx - 3) ($cy + 2) 6 1 $accent
+      }
+    }
+    2 {  # pointy (wizard hat / hood)
+      # Cone
+      for ($y = 0; $y -lt 8; $y++) {
+        $w = $y + 1
+        $x0 = $cx - [int]($w / 2)
+        Fill-Rect $bmp $x0 ($cy + 4 - $y) $w 1 $base
+        Set-Px $bmp $x0 ($cy + 4 - $y) $shadow
+      }
+      # Tip
+      Set-Px $bmp $cx ($cy - 4) $high
+      if ($detail -ge 2) {
+        Set-Px $bmp $cx ($cy - 4) $accent
+      }
+      # Brim
+      Fill-Rect $bmp ($cx - 4) ($cy + 5) 8 1 $shadow
+    }
+  }
+}
+
+function Draw-Head {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  # Choose archetype based on name keywords + name hash
+  $lower = $name.ToLower()
+  if ($lower -match 'helm|coif|sallet|barbute|visor|drak|ironclad') {
+    Draw-Head-Helmet $bmp $name $rarity
+  } elseif ($lower -match 'cap|hat|hood|wayfarer|circlet|crown|tiara') {
+    Draw-Head-Cap $bmp $name $rarity
+  } else {
+    # Default — pick by hash
+    if ((RngPick 2) -eq 0) { Draw-Head-Helmet $bmp $name $rarity }
+    else                   { Draw-Head-Cap    $bmp $name $rarity }
+  }
+}
+
+# ── Chest archetypes ─────────────────────────────────────────────
+# Chest covers the torso (rows ~28-42). Width covers both slim and
+# stocky body widths because we centre the chest sprite over the
+# average mid-point. character.js applies a 1-px squash on slim
+# bodies if needed; commits are pixel-exact for stocky.
+
+function Draw-Chest {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+  $accent = $RARITY_ACCENT[$rarity]
+
+  $cx = 20
+  $top = 28
+  $bot = 42
+  $w = 14
+  $variant = (RngPick 3)         # 0=plate, 1=robe, 2=tunic
+  $lower = $name.ToLower()
+  if ($lower -match 'plate|mail|chain|hauberk|ironclad|cuirass') { $variant = 0 }
+  elseif ($lower -match 'robe|vestment|drape|cloth') { $variant = 1 }
+
+  switch ($variant) {
+    0 {  # plate
+      $hx = $cx - [int]($w / 2)
+      Fill-Rect $bmp $hx $top $w ($bot - $top) $metal.base
+      Stroke-Rect $bmp $hx $top $w ($bot - $top) $metal.shadow
+      # Top highlight
+      for ($x = 0; $x -lt 6; $x++) {
+        Set-Px $bmp ($hx + 1 + $x) ($top + 1) $metal.high
+      }
+      # Pectoral seam
+      Fill-Rect $bmp ($hx + [int]($w / 2)) $top 1 ($bot - $top) $metal.shadow
+      # Rivets / studs
+      Set-Px $bmp ($hx + 2) ($top + 3) $metal.top
+      Set-Px $bmp ($hx + $w - 3) ($top + 3) $metal.top
+      Set-Px $bmp ($hx + 2) ($bot - 3) $metal.top
+      Set-Px $bmp ($hx + $w - 3) ($bot - 3) $metal.top
+      # Crest accent (rare+)
+      if ($detail -ge 2) {
+        Set-Px $bmp ($hx + [int]($w / 2)) ($top + 4) $accent
+        Set-Px $bmp ($hx + [int]($w / 2)) ($top + 5) $accent
+      }
+      # Halo (epic+)
+      if ($detail -ge 3) {
+        $glow = [System.Drawing.Color]::FromArgb(110, $accent.R, $accent.G, $accent.B)
+        Fill-Rect $bmp ($hx - 1) $top 1 ($bot - $top) $glow
+        Fill-Rect $bmp ($hx + $w) $top 1 ($bot - $top) $glow
+      }
+    }
+    1 {  # robe
+      # Flares slightly toward the bottom
+      for ($y = $top; $y -lt $bot; $y++) {
+        $rowW = $w + [int](($y - $top) / 5)
+        $rowX = $cx - [int]($rowW / 2)
+        Fill-Rect $bmp $rowX $y $rowW 1 $metal.base
+        Set-Px $bmp $rowX $y $metal.shadow
+        Set-Px $bmp ($rowX + $rowW - 1) $y $metal.shadow
+      }
+      # Sash
+      Fill-Rect $bmp ($cx - 6) ($top + 6) 12 1 $accent
+      # Trim (rare+)
+      if ($detail -ge 2) {
+        Fill-Rect $bmp ($cx - 7) ($bot - 1) 14 1 $metal.top
+      }
+      # Glow (epic+)
+      if ($detail -ge 3) {
+        $glow = [System.Drawing.Color]::FromArgb(100, $accent.R, $accent.G, $accent.B)
+        Set-Px $bmp ($cx - 7) ($top + 7) $glow
+        Set-Px $bmp ($cx + 7) ($top + 7) $glow
+      }
+    }
+    2 {  # tunic / vest
+      $hx = $cx - [int]($w / 2)
+      $h = $bot - $top
+      Fill-Rect $bmp $hx $top $w $h $metal.base
+      # Front opening
+      Fill-Rect $bmp ($cx) $top 1 $h $metal.shadow
+      # Sleeve seams
+      Set-Px $bmp ($hx) ($top + 1) $metal.shadow
+      Set-Px $bmp ($hx + $w - 1) ($top + 1) $metal.shadow
+      # Collar
+      Fill-Rect $bmp ($cx - 1) $top 3 1 $metal.shadow
+      # Belt
+      Fill-Rect $bmp $hx ($bot - 2) $w 1 $LEATHER.base
+      Set-Px $bmp ($cx) ($bot - 2) $accent
+    }
+  }
+}
+
+# ── Legs archetypes ──────────────────────────────────────────────
+# Legs cover the lower-torso to upper-thigh (rows 42-50).
+
+function Draw-Legs {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+  $accent = $RARITY_ACCENT[$rarity]
+
+  $cx = 20
+  $top = 42
+  $bot = 50
+  $w = 10
+  $variant = (RngPick 2)        # 0=greaves, 1=pants/cloth
+  $lower = $name.ToLower()
+  if ($lower -match 'greaves|plate|trousers') { $variant = 0 }
+  elseif ($lower -match 'skirt|robe|cloth') { $variant = 1 }
+
+  $hx = $cx - [int]($w / 2)
+  if ($variant -eq 0) {
+    Fill-Rect $bmp $hx $top $w ($bot - $top) $metal.base
+    Stroke-Rect $bmp $hx $top $w ($bot - $top) $metal.shadow
+    # Knee plates
+    Set-Px $bmp ($hx + 2) ($top + 4) $metal.top
+    Set-Px $bmp ($hx + $w - 3) ($top + 4) $metal.top
+    # Centre seam
+    Fill-Rect $bmp ($cx) $top 1 ($bot - $top) $metal.shadow
+    if ($detail -ge 2) {
+      Set-Px $bmp $cx ($top + 2) $accent
+    }
+  } else {
+    # Cloth/skirt — slightly flared
+    for ($y = $top; $y -lt $bot; $y++) {
+      $rowW = $w + [int](($y - $top) / 3)
+      $rowX = $cx - [int]($rowW / 2)
+      Fill-Rect $bmp $rowX $y $rowW 1 $metal.base
+      Set-Px $bmp $rowX $y $metal.shadow
+      Set-Px $bmp ($rowX + $rowW - 1) $y $metal.shadow
+    }
+    if ($detail -ge 1) {
+      Fill-Rect $bmp ($cx - 4) ($bot - 1) 8 1 $accent
+    }
+  }
+  # Halo (epic+)
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(100, $accent.R, $accent.G, $accent.B)
+    Set-Px $bmp ($hx - 1) ($top + 2) $glow
+    Set-Px $bmp ($hx + $w) ($top + 2) $glow
+  }
+}
+
+# ── Boots archetypes ─────────────────────────────────────────────
+# Boots cover rows 50-55 (figure foot area).
+
+function Draw-Boots {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+  $accent = $RARITY_ACCENT[$rarity]
+  $lower = $name.ToLower()
+
+  $cx = 20
+  $top = 49
+  $bot = 55
+
+  $variant = (RngPick 3)        # 0=sabatons, 1=soft boots, 2=sandals
+  if ($lower -match 'plate|iron|sabaton') { $variant = 0 }
+  elseif ($lower -match 'sandal|sole|slipper') { $variant = 2 }
+
+  # Two boots: left (x≈16-18) and right (x≈21-23)
+  $bootW = 3
+  $lbx = $cx - 4
+  $rbx = $cx + 1
+
+  switch ($variant) {
+    0 {  # sabatons — sharp armor
+      foreach ($bx in @($lbx, $rbx)) {
+        Fill-Rect $bmp $bx $top $bootW ($bot - $top) $metal.base
+        Stroke-Rect $bmp $bx $top $bootW ($bot - $top) $metal.shadow
+        # Toe spike
+        Set-Px $bmp ($bx + $bootW - 1) ($bot - 1) $metal.top
+        # Plate seams
+        Fill-Rect $bmp $bx ($top + 2) $bootW 1 $metal.shadow
+      }
+      if ($detail -ge 2) {
+        Set-Px $bmp ($lbx + 1) ($top + 1) $accent
+        Set-Px $bmp ($rbx + 1) ($top + 1) $accent
+      }
+    }
+    1 {  # soft leather boots
+      foreach ($bx in @($lbx, $rbx)) {
+        Fill-Rect $bmp $bx $top $bootW ($bot - $top) $LEATHER.base
+        Set-Px $bmp $bx $top $LEATHER.shadow
+        Set-Px $bmp ($bx + $bootW - 1) $top $LEATHER.shadow
+        # Cuff
+        Fill-Rect $bmp $bx $top $bootW 1 $LEATHER.high
+        # Toe
+        Fill-Rect $bmp $bx ($bot - 1) $bootW 1 $LEATHER.shadow
+      }
+      if ($detail -ge 1) {
+        Set-Px $bmp ($lbx + 1) ($top + 3) $accent
+        Set-Px $bmp ($rbx + 1) ($top + 3) $accent
+      }
+    }
+    2 {  # sandals — strappy
+      foreach ($bx in @($lbx, $rbx)) {
+        # Sole only
+        Fill-Rect $bmp $bx ($bot - 1) $bootW 1 $LEATHER.shadow
+        # Straps
+        Set-Px $bmp ($bx + 1) ($top + 1) $LEATHER.base
+        Set-Px $bmp ($bx + 1) ($top + 3) $LEATHER.base
+      }
+    }
+  }
+  # Halo (epic+)
+  if ($detail -ge 3) {
+    $glow = [System.Drawing.Color]::FromArgb(100, $accent.R, $accent.G, $accent.B)
+    Set-Px $bmp ($lbx - 1) ($bot - 1) $glow
+    Set-Px $bmp ($rbx + $bootW) ($bot - 1) $glow
+  }
+}
+
+# ── Trinket archetypes ───────────────────────────────────────────
+# Trinkets are split between back-cape items (z=10, render in canvas
+# gutter behind body) and front ornaments (z=45, sit on top of the
+# chest sprite). We detect the kind via name keywords.
+
+function Draw-Trinket {
+  param($bmp, [string]$name, [string]$rarity)
+  RngInit $name
+  $metal = $RARITY_METAL[$rarity]
+  $detail = Detail-Level $rarity
+  $accent = $RARITY_ACCENT[$rarity]
+  $lower = $name.ToLower()
+
+  # Cape / cloak / wing — drawn behind body, hanging from neck/back
+  if ($lower -match 'cape|cloak|wing|drape|mantle|veil') {
+    $cx = 20
+    $top = 26
+    $bot = 50
+    # Hang both sides — left and right of the body in the canvas gutter
+    for ($y = $top; $y -le $bot; $y++) {
+      $w = 16 + [int](($y - $top) / 4)
+      $rowX = $cx - [int]($w / 2)
+      Fill-Rect $bmp $rowX $y $w 1 $metal.base
+      Set-Px $bmp $rowX $y $metal.shadow
+      Set-Px $bmp ($rowX + $w - 1) $y $metal.shadow
+    }
+    # Collar at the top
+    Fill-Rect $bmp ($cx - 5) ($top - 1) 10 1 $metal.shadow
+    # Wing-style outline (uncommon+)
+    if ($detail -ge 1 -and $lower -match 'wing|feather') {
+      for ($y = $top; $y -le $bot; $y += 3) {
+        Set-Px $bmp ($cx - 9) $y $accent
+        Set-Px $bmp ($cx + 9) $y $accent
+      }
+    }
+    # Halo (epic+)
+    if ($detail -ge 3) {
+      $glow = [System.Drawing.Color]::FromArgb(100, $accent.R, $accent.G, $accent.B)
+      Set-Px $bmp ($cx - 10) ($top + 4) $glow
+      Set-Px $bmp ($cx + 10) ($top + 4) $glow
+    }
+    return
+  }
+
+  # Ring — small front ornament on the chest
+  if ($lower -match 'ring|band') {
+    $rx = 20; $ry = 32
+    Stroke-Rect $bmp ($rx - 1) ($ry - 1) 3 3 $metal.base
+    Set-Px $bmp $rx $ry $accent
+    return
+  }
+
+  # Charm / amulet / sigil / brooch — pendant on the chest
+  if ($lower -match 'amulet|charm|sigil|brooch|talisman|pendant|locket|crystal|coin|feather|claw|tooth|gem|orb|stone|sapphire|ruby|emerald|diamond|jewel|focus') {
+    $rx = 20; $ry = 33
+    Fill-Rect $bmp ($rx - 1) ($ry - 1) 3 3 $metal.base
+    Set-Px $bmp $rx $ry $accent
+    # Chain (uncommon+)
+    if ($detail -ge 1) {
+      Set-Px $bmp ($rx - 2) ($ry - 2) $metal.shadow
+      Set-Px $bmp ($rx + 2) ($ry - 2) $metal.shadow
+      Set-Px $bmp ($rx - 3) ($ry - 3) $metal.shadow
+      Set-Px $bmp ($rx + 3) ($ry - 3) $metal.shadow
+    }
+    # Inset gem (rare+)
+    if ($detail -ge 2) {
+      Set-Px $bmp ($rx - 1) ($ry - 1) $metal.top
+      Set-Px $bmp ($rx + 1) ($ry + 1) $metal.top
+    }
+    # Halo (epic+)
+    if ($detail -ge 3) {
+      $glow = [System.Drawing.Color]::FromArgb(120, $accent.R, $accent.G, $accent.B)
+      Set-Px $bmp ($rx - 2) $ry $glow
+      Set-Px $bmp ($rx + 2) $ry $glow
+    }
+    return
+  }
+
+  # Default — small generic ornament
+  $rx = 20; $ry = 33
+  Fill-Rect $bmp ($rx - 1) ($ry - 1) 3 3 $metal.base
+  Set-Px $bmp $rx $ry $accent
+}
+
+# ── Slot dispatcher + per-slot builders ──────────────────────────
+function Build-GearSlot {
+  param([string]$repoRoot, [string]$slot, $drawer)
+  $catalogue = Read-Catalogue -repoRoot $repoRoot
+  $pieces = $catalogue | Where-Object { $_.slot -eq $slot }
+  $count = 0
+  foreach ($p in $pieces) {
+    $bmp = New-Canvas
+    & $drawer $bmp $p.name $p.rarity
+    $slug = Slugify $p.name
+    Save-Canvas $bmp (Join-Path $gearDir ("{0}/{1}.png" -f $slot, $slug))
+    $count++
+  }
+  Write-Host ("  {0}: {1}" -f $slot, $count) -ForegroundColor Green
+}
+
+function Build-Head    { param([string]$repoRoot) Write-Host '── Head gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'head'    ${function:Draw-Head}    }
+function Build-Chest   { param([string]$repoRoot) Write-Host '── Chest gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'chest'   ${function:Draw-Chest}   }
+function Build-Legs    { param([string]$repoRoot) Write-Host '── Legs gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'legs'    ${function:Draw-Legs}    }
+function Build-Boots   { param([string]$repoRoot) Write-Host '── Boots gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'boots'   ${function:Draw-Boots}   }
+function Build-Trinket { param([string]$repoRoot) Write-Host '── Trinket gear ──' -ForegroundColor Cyan; Build-GearSlot $repoRoot 'trinket' ${function:Draw-Trinket} }
+
 # ── Top-level driver ───────────────────────────────────────────────
+$repoRoot = Split-Path -Parent $PSScriptRoot
+
 Build-Figure
 Build-Hair
 Build-Eyes
 Build-Accents
+Build-Weapons -repoRoot $repoRoot
+Build-Head    -repoRoot $repoRoot
+Build-Chest   -repoRoot $repoRoot
+Build-Legs    -repoRoot $repoRoot
+Build-Boots   -repoRoot $repoRoot
+Build-Trinket -repoRoot $repoRoot
 
 Write-Host ''
 Write-Host 'Done.' -ForegroundColor Green

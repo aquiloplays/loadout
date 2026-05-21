@@ -71,13 +71,29 @@ async function resolveLayers(env, hero, pet, opts) {
   const eq = hero.equipped || {};
   const inv = Object.fromEntries((hero.bag || []).map(it => [it.id, it]));
 
+  // Slug derived from the item name — mirror of Slugify in
+  // tools/build-sprites.ps1 so the runtime spriteId always matches
+  // the on-disk filename. We use this when a catalogue row hasn't
+  // been backfilled with an explicit spriteId field; for the Phase
+  // 3 art catalogue every piece's sprite is named after the slug,
+  // so item.name → slug → sprite path is the canonical route.
+  function nameSlug(s) {
+    return String(s || '').toLowerCase()
+      .replace(/['’]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  }
+  const itemSpriteId = (it) => (it && (it.spriteId || nameSlug(it.name))) || null;
+
   // Helpers
   const itemSlot = (slot) => inv[eq[slot]];
 
   // z=10 — back accessory (trinket flagged with back-cape semantics)
   const trinket = itemSlot('trinket');
-  if (trinket?.spriteId && /-cape$|-wing$|-cloak$/.test(trinket.spriteId)) {
-    layers.push({ rel: `gear/trinket/${trinket.spriteId}.png` });
+  const trinketSprite = itemSpriteId(trinket);
+  const isBackTrinket = trinketSprite && /(^|-)(cape|cloak|wings?|mantle|drape|veil|feather)(-|$)/.test(trinketSprite);
+  if (trinketSprite && isBackTrinket) {
+    layers.push({ rel: `gear/trinket/${trinketSprite}.png` });
   }
 
   // z=15 — pet (cosmetic, only if not suppressed by ?nopet=1)
@@ -93,12 +109,13 @@ async function resolveLayers(env, hero, pet, opts) {
   // z=30 / 35 / 40 — legs, boots, chest gear
   for (const slot of ['legs', 'boots', 'chest']) {
     const it = itemSlot(slot);
-    if (it?.spriteId) layers.push({ rel: `gear/${slot}/${it.spriteId}.png` });
+    const sid = itemSpriteId(it);
+    if (sid) layers.push({ rel: `gear/${slot}/${sid}.png` });
   }
 
   // z=45 — front trinket (non-back)
-  if (trinket?.spriteId && !/-cape$|-wing$|-cloak$/.test(trinket.spriteId)) {
-    layers.push({ rel: `gear/trinket/${trinket.spriteId}.png` });
+  if (trinketSprite && !isBackTrinket) {
+    layers.push({ rel: `gear/trinket/${trinketSprite}.png` });
   }
 
   // z=60 — hair (palette-swapped per hero hair colour)
@@ -119,17 +136,20 @@ async function resolveLayers(env, hero, pet, opts) {
 
   // z=70 — head gear (over hair)
   const head = itemSlot('head');
-  if (head?.spriteId) layers.push({ rel: `gear/head/${head.spriteId}.png` });
+  const headSprite = itemSpriteId(head);
+  if (headSprite) layers.push({ rel: `gear/head/${headSprite}.png` });
 
   // z=80 — weapon
   const weapon = itemSlot('weapon');
-  if (weapon?.spriteId) layers.push({ rel: `gear/weapon/${weapon.spriteId}.png` });
+  const weaponSprite = itemSpriteId(weapon);
+  if (weaponSprite) layers.push({ rel: `gear/weapon/${weaponSprite}.png` });
 
   // z=90 — fx (legendary glow). Authored as a per-piece halo overlay.
   for (const slot of ['weapon', 'chest', 'head', 'trinket']) {
     const it = itemSlot(slot);
-    if (it?.rarity === 'legendary' && it.spriteId) {
-      layers.push({ rel: `gear/fx/${it.spriteId}.png`, optional: true });
+    const sid = itemSpriteId(it);
+    if (it?.rarity === 'legendary' && sid) {
+      layers.push({ rel: `gear/fx/${sid}.png`, optional: true });
     }
   }
 
