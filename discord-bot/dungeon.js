@@ -507,6 +507,118 @@ export const CLASSES = {
   healer:  { name: 'Healer',  glyph: '✨', tint: 0x00F2EA, atk: 0, def: 1,  hp: 5 }
 };
 
+// Starter-gear loadout per class. Granted once, the first time a hero
+// picks a class (tracked via hero.starterGranted). Re-picking a class
+// later (Discord /loadout class … or the web class picker) only
+// re-recomputes HP — it never re-grants gear, so you can't farm
+// starter sets by churning the picker.
+//
+// The items are minted inline rather than pulled from DEFAULT_CATALOG
+// because the catalog only carries one common item per slot, and the
+// goal here is class flavour: each class gets a weapon + head + chest
+// that matches their archetype, plus a class-themed trinket. Slot
+// totals are identical across classes (5 items each) so power
+// progression stays in line.
+export const STARTER_GEAR = {
+  warrior: [
+    { slot: 'weapon',  rarity: 'common', name: 'Bronze Shortsword',  powerBonus: 2, defenseBonus: 0, ability: '',         goldValue: 50 },
+    { slot: 'head',    rarity: 'common', name: 'Iron Helm',          powerBonus: 0, defenseBonus: 2, ability: '',         goldValue: 50 },
+    { slot: 'chest',   rarity: 'common', name: 'Padded Bulwark',     powerBonus: 0, defenseBonus: 2, ability: '',         goldValue: 45 },
+    { slot: 'legs',    rarity: 'common', name: 'Iron Greaves',       powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
+    { slot: 'trinket', rarity: 'common', name: 'Iron Ward',          powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 60 },
+  ],
+  mage: [
+    { slot: 'weapon',  rarity: 'common', name: 'Apprentice Staff',   powerBonus: 2, defenseBonus: 0, ability: '',         goldValue: 50 },
+    { slot: 'head',    rarity: 'common', name: 'Cloth Hood',         powerBonus: 1, defenseBonus: 0, ability: '',         goldValue: 35 },
+    { slot: 'chest',   rarity: 'common', name: 'Arcane Robes',       powerBonus: 1, defenseBonus: 1, ability: '',         goldValue: 50 },
+    { slot: 'legs',    rarity: 'common', name: 'Druidic Pants',      powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
+    { slot: 'trinket', rarity: 'common', name: 'Crystal Orb',        powerBonus: 1, defenseBonus: 0, ability: '',         goldValue: 60 },
+  ],
+  rogue: [
+    { slot: 'weapon',  rarity: 'common', name: 'Rusty Dagger',       powerBonus: 2, defenseBonus: 0, ability: '',         goldValue: 35 },
+    { slot: 'head',    rarity: 'common', name: 'Highwayman Mask',    powerBonus: 1, defenseBonus: 0, ability: '',         goldValue: 45 },
+    { slot: 'chest',   rarity: 'common', name: 'Highwayman Coat',    powerBonus: 1, defenseBonus: 1, ability: '',         goldValue: 50 },
+    { slot: 'legs',    rarity: 'common', name: 'Highwayman Pants',   powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
+    { slot: 'trinket', rarity: 'common', name: 'Shadow Cloak Pin',   powerBonus: 1, defenseBonus: 0, ability: '',         goldValue: 60 },
+  ],
+  ranger: [
+    { slot: 'weapon',  rarity: 'common', name: 'Shortbow',           powerBonus: 2, defenseBonus: 0, ability: '',         goldValue: 50 },
+    { slot: 'head',    rarity: 'common', name: 'Foresters Cap',      powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
+    { slot: 'chest',   rarity: 'common', name: 'Hunters Garb',       powerBonus: 1, defenseBonus: 1, ability: '',         goldValue: 50 },
+    { slot: 'legs',    rarity: 'common', name: 'Forest Trousers',    powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
+    { slot: 'trinket', rarity: 'common', name: 'Hunters Token',      powerBonus: 1, defenseBonus: 0, ability: '',         goldValue: 60 },
+  ],
+  healer: [
+    { slot: 'weapon',  rarity: 'common', name: 'Healers Cane',       powerBonus: 1, defenseBonus: 0, ability: '',         goldValue: 50 },
+    { slot: 'head',    rarity: 'common', name: 'Holy Coif',          powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 45 },
+    { slot: 'chest',   rarity: 'common', name: 'Vestal Robes',       powerBonus: 0, defenseBonus: 2, ability: '',         goldValue: 50 },
+    { slot: 'legs',    rarity: 'common', name: 'Vestal Skirt',       powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
+    { slot: 'trinket', rarity: 'common', name: 'Healing Amulet',     powerBonus: 0, defenseBonus: 1, ability: 'heal',     goldValue: 70 },
+  ],
+};
+
+/**
+ * Apply a class selection to a hero, recomputing HP and (on first
+ * selection) granting the class's starter gear loadout.
+ *
+ * Idempotent on the starter-gear grant: the hero record carries a
+ * `starterGranted` boolean once gear has been minted. Subsequent
+ * class changes still flip className + HP but don't mint more gear.
+ *
+ * Both the Discord /loadout class slash command and the web character
+ * editor call this through their respective wrappers so the contract
+ * stays single-source.
+ */
+export async function applyClassSelection(env, guild, userId, key) {
+  const cls = CLASSES[key];
+  if (!cls) return { ok: false, error: 'bad-class' };
+
+  const hero = await loadHero(env, guild, userId);
+  const oldBonus = (CLASSES[hero.className]?.hp) || 0;
+  const newBonus = cls.hp || 0;
+  const delta = newBonus - oldBonus;
+  hero.hpMax = Math.max(1, hero.hpMax + delta);
+  hero.hpCurrent = Math.max(0, Math.min(hero.hpMax, hero.hpCurrent + delta));
+  hero.className = key;
+
+  // First-time grant: mint the class's starter loadout into the bag.
+  // We don't auto-equip — the hero arrives with the gear in their bag
+  // and chooses what to wear, same as any loot drop.
+  let granted = [];
+  if (!hero.starterGranted) {
+    if (!Array.isArray(hero.bag)) hero.bag = [];
+    const items = STARTER_GEAR[key] || [];
+    for (const it of items) {
+      const minted = {
+        id: 's_' + Math.random().toString(36).slice(2, 10) + '_' + Date.now().toString(36),
+        slot: it.slot,
+        rarity: it.rarity,
+        name: it.name,
+        glyph: '',
+        powerBonus: it.powerBonus || 0,
+        defenseBonus: it.defenseBonus || 0,
+        ability: it.ability || '',
+        goldValue: it.goldValue || 0,
+        foundIn: 'Starter gear',
+        foundUtc: new Date().toISOString(),
+      };
+      hero.bag.push(minted);
+      granted.push(minted);
+    }
+    hero.starterGranted = true;
+  }
+
+  await saveHero(env, guild, userId, hero);
+  return {
+    ok: true,
+    className: key,
+    classMeta: { name: cls.name, atk: cls.atk, def: cls.def, hp: cls.hp },
+    granted,
+    starterGranted: !!hero.starterGranted,
+    hpMax: hero.hpMax,
+  };
+}
+
 function bagIndex(hero) {
   const ix = {};
   for (const it of hero.bag || []) ix[it.id] = it;
@@ -656,18 +768,16 @@ export async function cmdSetAvatar(env, guild, userId, url) {
 export async function cmdSetClass(env, guild, userId, className) {
   const key = (className || '').toLowerCase().trim();
   if (!CLASSES[key]) return { content: '❌ Unknown class.', ephemeral: true };
-  const hero = await loadHero(env, guild, userId);
-  // Re-base HpMax so the class-specific HP bonus lands correctly when
-  // switching mid-progression. Old class bonus comes off first.
-  const oldBonus = (CLASSES[hero.className]?.hp) || 0;
-  const newBonus = CLASSES[key].hp;
-  const delta = newBonus - oldBonus;
-  hero.hpMax = Math.max(1, hero.hpMax + delta);
-  hero.hpCurrent = Math.max(0, Math.min(hero.hpMax, hero.hpCurrent + delta));
-  hero.className = key;
-  await saveHero(env, guild, userId, hero);
+  const r = await applyClassSelection(env, guild, userId, key);
+  if (!r.ok) return { content: '❌ Unknown class.', ephemeral: true };
   const cls = CLASSES[key];
-  return { content: '🎭 Class set to ' + cls.glyph + ' **' + cls.name + '** (+' + cls.atk + ' ATK · +' + cls.def + ' DEF · +' + cls.hp + ' HP).' };
+  let msg = '🎭 Class set to ' + cls.glyph + ' **' + cls.name +
+    '** (+' + cls.atk + ' ATK · +' + cls.def + ' DEF · +' + cls.hp + ' HP).';
+  if (r.granted && r.granted.length > 0) {
+    const names = r.granted.map(i => i.name).join(', ');
+    msg += '\nStarter gear added to bag: ' + names + '.';
+  }
+  return { content: msg };
 }
 
 /// Customization mutator — accepts any (key, value) pair where the

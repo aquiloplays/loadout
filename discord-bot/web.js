@@ -68,6 +68,7 @@ import { ensureTown } from './clash-state.js';
 import {
   getCharacterLookWeb,
   saveCharacterLookWeb,
+  applyClassWeb,
 } from './character.js';
 import {
   BUILDINGS, TROOPS_GARRISON,
@@ -104,6 +105,7 @@ const ROUTES = new Set([
   'clash/setup',
   'character',
   'character/save',
+  'character/class',
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -186,6 +188,7 @@ export async function handleWeb(req, env) {
     if (route === 'shop/buy') return await routeShopBuy(env, guildId, discordId, body);
     if (route === 'dungeon/skip-cooldown') return await routeDungeonSkip(env, guildId, discordId);
     if (route === 'clash/raid')            return await routeClashRaid(env, guildId, discordId, body);
+    if (route === 'character/class')       return await routeCharacterClass(env, guildId, discordId, body);
     if (route === 'clash/build')           return await routeClashBuild(env, guildId, discordId, body);
     if (route === 'clash/garrison')        return await routeClashGarrison(env, guildId, discordId, body);
     if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);
@@ -866,5 +869,31 @@ async function routeCharacterSave(env, guildId, userId, body) {
     return json({ ok: false, error: 'bad-body', message: 'look object required' }, 400);
   }
   const r = await saveCharacterLookWeb(env, guildId, userId, lookPatch);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// ── /web/character/class ─────────────────────────────────────────
+//
+// Set the hero's class. Mirrors the Discord /loadout class slash
+// command but returns a structured response the site can render.
+//
+// Body fields:
+//   discordId   acting user (set by site session)
+//   guildId     target guild (set by site session)
+//   className   one of: warrior | mage | rogue | ranger | healer
+//
+// First-time selection mints the class's starter-gear loadout into
+// the hero's bag (5 items, all common rarity, class-flavoured).
+// Subsequent class changes only flip className + HP — gear is never
+// re-granted (tracked via hero.starterGranted).
+//
+// Response:
+//   { ok: true, className, classMeta: {name, atk, def, hp},
+//     granted: [{slot, name, rarity, powerBonus, defenseBonus, ...}],
+//     starterGranted: <bool>, hpMax }
+//   { ok: false, error: 'bad-class', value: '<bad>' }
+async function routeCharacterClass(env, guildId, userId, body) {
+  const className = body && body.className;
+  const r = await applyClassWeb(env, guildId, userId, className);
   return json(r, r.ok ? 200 : 400);
 }

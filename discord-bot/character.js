@@ -12,7 +12,14 @@
 // isolate (a few minutes typically).
 
 import { decodePng, encodePng, compose, paletteSwap } from './png-codec.js';
-import { loadHero, CHARACTER_LOOK_OPTIONS, applyLookBackfill } from './dungeon.js';
+import {
+  loadHero,
+  CHARACTER_LOOK_OPTIONS,
+  applyLookBackfill,
+  CLASSES,
+  STARTER_GEAR,
+  applyClassSelection,
+} from './dungeon.js';
 import { getPet, computeMood } from './pet.js';
 
 // ── Sprite source URL ────────────────────────────────────────────
@@ -505,10 +512,36 @@ function buildRenderUrl(env, guildId, userId, version) {
 // GET: returns the player's current look + the full option catalogue.
 // The site uses this on /character page load. Always succeeds — Phase
 // 0 backfill guarantees a complete look even for first-time visitors.
+//
+// Also carries class state so the web editor can render the class
+// picker alongside the look pickers:
+//   - className          current selection (may be null if first-time)
+//   - classes            full class catalogue with stats + starter-gear
+//                        preview, so the picker can show "what you get"
+//                        before the user commits
+//   - starterGranted     whether starter gear has already been granted
+//                        (so the UI can decide whether to show the
+//                        first-time-grant hint)
 export async function getCharacterLookWeb(env, guildId, userId) {
   const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
   const look = {};
   for (const axis of LOOK_AXES) look[axis] = hero.custom[axis];
+  const classes = Object.keys(CLASSES).map((key) => {
+    const c = CLASSES[key];
+    return {
+      key,
+      name: c.name,
+      atk: c.atk,
+      def: c.def,
+      hp: c.hp,
+      starterGear: (STARTER_GEAR[key] || []).map((it) => ({
+        slot: it.slot,
+        name: it.name,
+        powerBonus: it.powerBonus,
+        defenseBonus: it.defenseBonus,
+      })),
+    };
+  });
   return {
     ok: true,
     look,
@@ -523,7 +556,26 @@ export async function getCharacterLookWeb(env, guildId, userId) {
       accent:    [...CHARACTER_LOOK_OPTIONS.accent],
     },
     hairSwatches: buildHairSwatches(),
+    className: hero.className || null,
+    starterGranted: !!hero.starterGranted,
+    classes,
   };
+}
+
+// SAVE CLASS: set the hero's class. On first-time selection (when
+// hero.starterGranted is still false) the class's starter-gear loadout
+// is minted into the hero's bag. Subsequent class changes only flip
+// className + HP — no re-granting.
+//
+// Returns:
+//   { ok: true, className, classMeta, granted: [items], starterGranted, hpMax }
+//   { ok: false, error: 'bad-class' }
+export async function applyClassWeb(env, guildId, userId, className) {
+  const key = String(className || '').toLowerCase().trim();
+  if (!CLASSES[key]) {
+    return { ok: false, error: 'bad-class', value: String(className || '').slice(0, 32) };
+  }
+  return await applyClassSelection(env, guildId, userId, key);
 }
 
 // SAVE: validates each axis against CHARACTER_LOOK_OPTIONS, then
