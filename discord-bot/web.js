@@ -70,6 +70,7 @@ import {
   saveCharacterLookWeb,
   applyClassWeb,
 } from './character.js';
+import { handleAdminWeb } from './admin-web.js';
 import {
   BUILDINGS, TROOPS_GARRISON,
   withBuildingSprites, withGarrisonSprites,
@@ -106,6 +107,10 @@ const ROUTES = new Set([
   'character',
   'character/save',
   'character/class',
+  'admin/snapshot',
+  'admin/config',
+  'admin/active-guild',
+  'admin/clear-binding',
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -189,6 +194,7 @@ export async function handleWeb(req, env) {
     if (route === 'dungeon/skip-cooldown') return await routeDungeonSkip(env, guildId, discordId);
     if (route === 'clash/raid')            return await routeClashRaid(env, guildId, discordId, body);
     if (route === 'character/class')       return await routeCharacterClass(env, guildId, discordId, body);
+    if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
     if (route === 'clash/build')           return await routeClashBuild(env, guildId, discordId, body);
     if (route === 'clash/garrison')        return await routeClashGarrison(env, guildId, discordId, body);
     if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);

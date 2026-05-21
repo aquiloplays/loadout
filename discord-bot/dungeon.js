@@ -581,12 +581,17 @@ export async function applyClassSelection(env, guild, userId, key) {
   hero.hpCurrent = Math.max(0, Math.min(hero.hpMax, hero.hpCurrent + delta));
   hero.className = key;
 
-  // First-time grant: mint the class's starter loadout into the bag.
-  // We don't auto-equip — the hero arrives with the gear in their bag
-  // and chooses what to wear, same as any loot drop.
+  // First-time grant: mint the class's starter loadout into the bag
+  // AND auto-equip each piece into its slot. Newly-minted gear with
+  // a class flavour is the player's intended baseline — making them
+  // open the equip menu to put it on would feel pointless. Existing
+  // equipped items (none, on first-pick) would be respected if the
+  // slot is already filled (defence in depth — shouldn't happen on a
+  // fresh hero, but cheap to check).
   let granted = [];
   if (!hero.starterGranted) {
     if (!Array.isArray(hero.bag)) hero.bag = [];
+    if (!hero.equipped || typeof hero.equipped !== 'object') hero.equipped = {};
     const items = STARTER_GEAR[key] || [];
     for (const it of items) {
       const minted = {
@@ -604,6 +609,13 @@ export async function applyClassSelection(env, guild, userId, key) {
       };
       hero.bag.push(minted);
       granted.push(minted);
+      // Auto-equip into the matching slot if it's empty. We don't
+      // overwrite an existing equip — a class switch that happens to
+      // re-grant gear (it can't today; starterGranted gates that) would
+      // leave the player's current loadout intact.
+      if (it.slot && !hero.equipped[it.slot]) {
+        hero.equipped[it.slot] = minted.id;
+      }
     }
     hero.starterGranted = true;
   }
