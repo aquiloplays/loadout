@@ -311,15 +311,65 @@ async function handleDonate(env, guildId, userId, amount) {
   return `💰 Donated **${accepted}** Bolts to the town treasury. Thank you for your service.`;
 }
 
+// Discord wrapper — formats executeRaid's structured result as a chat
+// string. The structured executeRaid below is also called directly by
+// the /web/clash/raid HTTP endpoint (web.js routeClashRaid), so the
+// raid logic exists in exactly one place.
 async function handleRaid(env, guildId, userId, userName, kind) {
+  const r = await executeRaid(env, guildId, userId, userName, kind);
+  if (r.error === 'no-tokens') {
+    return `🎟 Out of raid tokens. Next in ${r.nextInMin} min.`;
+  }
+  if (r.error === 'no-troops') {
+    return '🪖 No troops to send. Train some first: `/clash train troop:scrapper count:5`';
+  }
+  if (r.error === 'no-target') {
+    return '⚠️ No raid target available right now. Try again in a minute.';
+  }
+  if (r.error) {
+    return '❌ Raid failed: ' + r.error;
+  }
+  const starStr = '★'.repeat(r.stars) + '☆'.repeat(3 - r.stars);
+  const trophyText = r.trophyDelta
+    ? `\n🏆 ${r.trophyDelta >= 0 ? '+' : ''}${r.trophyDelta} trophies${r.warAmplify ? ' (war ×1.5)' : ''}`
+    : '';
+  const warEnded = r.warCompleted
+    ? `\n⚔ War ended — score ${r.warCompleted.scores.attacker}★ vs ${r.warCompleted.scores.defender}★, winner: ${r.warCompleted.winner}`
+    : '';
+  return [
+    `**${userName}** raided ${r.targetName} — **${starStr}** (${Math.round(r.pctDestroyed * 100)}% destroyed${r.thDown ? ', TH down' : ''}).`,
+    r.stars > 0
+      ? `Loot: ${r.lootBolts ? `${r.lootBolts}⚡  ` : ''}${r.lootScrap}🧪  ${r.lootCores}⚙${r.voltaic ? `  · 🌀 **Voltaic drop:** ${r.voltaic}` : ''}`
+      : `No loot.`,
+    (trophyText + warEnded).trim(),
+    `Raid id: \`${r.raidId}\``,
+  ].filter(Boolean).join('\n');
+}
+
+// Structured raid executor. Exported so the /web/clash/raid HTTP
+// endpoint (web.js routeClashRaid) can call the same code path the
+// /clash raid Discord command uses. Returns either:
+//   { error: 'no-tokens',  nextInMin }
+//   { error: 'no-troops' }
+//   { error: 'no-target'  }
+//   { ok: true, raidId, targetKind, targetName, targetGuildId?,
+//     targetSeed?, targetTier, stars, pctDestroyed, thDown,
+//     lootBolts, lootScrap, lootCores, voltaic,
+//     trophyDelta, prestigeDelta, warAmplify, warCompleted?,
+//     tokensRemaining, nextTokenInMin, log, armyLost }
+//
+// All side effects (token consume, treasury debit, wallet credit,
+// Voltaic drop into the dungeon bag, push fanout, ring-buffer events)
+// have already been applied by the time this returns.
+export async function executeRaid(env, guildId, userId, userName, kind) {
   const trophies = await getTrophies(env, guildId, userId);
   const army = await getArmy(env, guildId, userId);
   const tokens = computeRaidTokens(army);
   if (tokens.available < 1) {
-    return `🎟 Out of raid tokens. Next in ${tokens.nextInMin} min.`;
+    return { error: 'no-tokens', nextInMin: tokens.nextInMin };
   }
   if (Object.keys(army.troops || {}).length === 0) {
-    return '🪖 No troops to send. Train some first: `/clash train troop:scrapper count:5`';
+    return { error: 'no-troops' };
   }
 
   // Consume one token.
@@ -358,7 +408,7 @@ async function handleRaid(env, guildId, userId, userName, kind) {
     }
   }
   if (!targetSnapshot) {
-    return '⚠️ No raid target available right now. Try again in a minute.';
+    return { error: 'no-target' };
   }
 
   // Resolve a hero deploy from the existing dungeon HeroState.
@@ -427,13 +477,15 @@ async function handleRaid(env, guildId, userId, userName, kind) {
   }
 
   // Trophies (PvP only). War amplification scales the deltas 1.5x.
-  let trophyText = '';
+  let trophyDelta = 0;
+  let prestigeDelta = 0;
   if (target.kind === 'town') {
     const defTrophies = await getPrestige(env, target.guildId);
     const td = computeTrophyDelta(sim, trophies.tier, defTrophies.tier, { warAmplify });
+    trophyDelta = td.attacker;
+    prestigeDelta = td.defender;
     await adjustTrophies(env, guildId, userId, td.attacker);
     await adjustPrestige(env, target.guildId, td.defender);
-    trophyText = `\n🏆 ${td.attacker >= 0 ? '+' : ''}${td.attacker} trophies${warAmplify ? ' (war ×1.5)' : ''}`;
     // Shields on the loser — but NOT during an active war pairing,
     // otherwise a single sacking would end the war early.
     if (!warAmplify) {
@@ -444,10 +496,15 @@ async function handleRaid(env, guildId, userId, userName, kind) {
 
   // War scoring (if applicable). Banks stars into the war's running
   // total; may close the war if the active window has just expired.
+  let warCompleted = null;
   if (warAmplify && target.kind === 'town') {
     const ended = await recordWarRaidIfAny(env, guildId, target.guildId, raidId, sim.stars);
     if (ended?.state === WAR_STATE.COMPLETED) {
-      trophyText += `\n⚔ War ended — score ${ended.scores.attacker}★ vs ${ended.scores.defender}★, winner: ${ended.winner}`;
+      warCompleted = {
+        warId: ended.warId,
+        winner: ended.winner,
+        scores: ended.scores,
+      };
     }
   }
 
@@ -508,16 +565,38 @@ async function handleRaid(env, guildId, userId, userName, kind) {
     await dropVoltaicToHero(env, guildId, userId, loot.voltaic);
   }
 
-  // Reply.
-  const starStr = '★'.repeat(sim.stars) + '☆'.repeat(3 - sim.stars);
-  return [
-    `**${userName}** raided ${targetName} — **${starStr}** (${Math.round(sim.pctDestroyed * 100)}% destroyed${sim.thDown ? ', TH down' : ''}).`,
-    sim.stars > 0
-      ? `Loot: ${loot.bolts ? `${loot.bolts}⚡  ` : ''}${loot.scrap}🧪  ${loot.cores}⚙${loot.voltaic ? `  · 🌀 **Voltaic drop:** ${loot.voltaic[2]}` : ''}`
-      : `No loot.`,
-    trophyText.trim(),
-    `Raid id: \`${raidId}\``,
-  ].filter(Boolean).join('\n');
+  // Tokens-remaining surface so the web UI can render a "next raid in
+  // X min" countdown without a second round trip.
+  const armyAfter = await getArmy(env, guildId, userId);
+  const tokensAfter = computeRaidTokens(armyAfter);
+
+  return {
+    ok: true,
+    raidId,
+    targetKind: target.kind,
+    targetName,
+    targetGuildId: target.kind === 'town' ? target.guildId : null,
+    targetSeed: target.kind !== 'town' ? target.seed : null,
+    targetTier,
+    stars: sim.stars,
+    pctDestroyed: sim.pctDestroyed,
+    thDown: sim.thDown,
+    durationMs: sim.durationMs,
+    log: sim.log,
+    armyLost: sim.armyLost,
+    armyDeployed: deployedArmy,
+    lootBolts: loot.bolts,
+    lootScrap: loot.scrap,
+    lootCores: loot.cores,
+    voltaic: loot.voltaic ? loot.voltaic[2] : null,
+    voltaicSlot: loot.voltaic ? loot.voltaic[0] : null,
+    trophyDelta,
+    prestigeDelta,
+    warAmplify,
+    warCompleted,
+    tokensRemaining: tokensAfter.available,
+    nextTokenInMin: tokensAfter.nextInMin,
+  };
 }
 
 async function readHeroForRaid(env, guildId, userId) {

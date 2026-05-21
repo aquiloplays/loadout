@@ -58,6 +58,7 @@ import {
   getDailyShop,
   doShopBuy,
 } from './dungeon.js';
+import { executeRaid } from './clash.js';
 
 const ROUTES = new Set([
   'wallet',
@@ -80,6 +81,7 @@ const ROUTES = new Set([
   'shop',
   'shop/buy',
   'dungeon/skip-cooldown',
+  'clash/raid',
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -161,6 +163,7 @@ export async function handleWeb(req, env) {
     if (route === 'shop')     return await routeShop(env, guildId, discordId);
     if (route === 'shop/buy') return await routeShopBuy(env, guildId, discordId, body);
     if (route === 'dungeon/skip-cooldown') return await routeDungeonSkip(env, guildId, discordId);
+    if (route === 'clash/raid')            return await routeClashRaid(env, guildId, discordId, body);
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
   }
@@ -547,4 +550,35 @@ async function routeDice(env, guildId, userId, body) {
     balance: w.balance || 0,
     explanation: r.explanation,
   });
+}
+
+// POST /web/clash/raid
+//
+// Web mirror of the `/clash raid` Discord slash command. Same code
+// path (clash.js executeRaid) — same token-consume, same simulator,
+// same loot economy, same shields + war scoring + push notifications
+// and bus events. The only difference is the response shape:
+// structured JSON the web UI can render directly, no Discord-flavoured
+// formatting.
+//
+// Body fields:
+//   discordId   the attacker (set by the site session)
+//   guildId     the attacker's home channel (set by the site session,
+//               guild-allow-list checked above)
+//   kind        'goblin' | 'npc' | 'player'
+//   userName    optional display name; defaults to "viewer" if absent.
+//               Used in push titles + ring-buffer events so the OBS
+//               overlay shows the right person.
+//
+// Returns the executeRaid structured result verbatim (see clash.js).
+// HTTP status is always 200 — errors come back as `{ ok:false, error,
+// ... }` so the UI can render specific copy per case.
+async function routeClashRaid(env, guildId, userId, body) {
+  const kind = String((body && body.kind) || '').toLowerCase();
+  if (kind !== 'goblin' && kind !== 'npc' && kind !== 'player') {
+    return json({ ok: false, error: 'bad-kind', message: 'kind must be goblin, npc, or player' }, 400);
+  }
+  const userName = String((body && body.userName) || '').trim() || 'viewer';
+  const r = await executeRaid(env, guildId, userId, userName, kind);
+  return json({ ok: !!r.ok, ...r });
 }
