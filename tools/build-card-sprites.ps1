@@ -1017,6 +1017,416 @@ function Draw-Card-LegHollowKing {
   Set-Pixel $bmp ($a.handRx + 2) ($a.headTop - 8) $MAT_GOLD.top
 }
 
+# ── Rares — minions (7) ──────────────────────────────────────────
+
+function Draw-Card-VoltaicMage {
+  param($bmp)
+  Rng-Init 'r.voltaicmage'
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 12
+  $robe = @{
+    deep   = (Color-FromHex '#1a0c40');
+    shadow = (Color-FromHex '#3a1f7a');
+    base   = $BRAND.Violet;
+    high   = $BRAND.VioletHi;
+    top    = (Color-FromHex '#cab8ff');
+  }
+  $a = Draw-Humanoid $bmp $SKIN_PALE $robe -accent (Color-FromHex '#fff080')
+  # Pointed hat
+  for ($i = 0; $i -lt 10; $i++) {
+    $w = 10 - $i
+    $x0 = $CARD_CX - [int]($w / 2)
+    Fill-Box $bmp $x0 ($a.headTop - 2 - $i) $w 1 $robe.base
+    Set-Pixel $bmp $x0 ($a.headTop - 2 - $i) $robe.shadow
+    Set-Pixel $bmp ($x0 + $w - 1) ($a.headTop - 2 - $i) $robe.high
+  }
+  Set-Pixel $bmp $CARD_CX ($a.headTop - 11) (Color-FromHex '#fff080')
+  Fill-Box $bmp ($CARD_CX - 7) ($a.headTop - 2) 15 1 $robe.deep
+  # Glowing green eyes
+  Set-Pixel $bmp ($CARD_CX - 2) $a.headY (Color-FromHex '#5bff95')
+  Set-Pixel $bmp ($CARD_CX + 2) $a.headY (Color-FromHex '#5bff95')
+  # Staff with orb
+  Draw-Shaft $bmp ($a.handRx + 2) ($a.headTop - 6) ($a.handY + 6) 2 $MAT_WOOD_DARK
+  Shade-Disc $bmp ($a.handRx + 2) ($a.headTop - 8) 3 $ARCANE -RimLight
+  Set-Pixel $bmp ($a.handRx + 2) ($a.headTop - 10) (Color-FromHex '#5bff95')
+}
+
+function Draw-Card-Sapper {
+  param($bmp)
+  Rng-Init 'r.sapper'
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 12
+  $a = Draw-Humanoid $bmp $SKIN_TAN $MAT_LEATHER_BLACK -accent $BRAND.Crimson
+  # Hood
+  for ($i = 0; $i -lt 4; $i++) {
+    $w = 12 - $i
+    $x0 = $CARD_CX - [int]($w / 2)
+    Fill-Box $bmp $x0 ($a.headTop - 1 + $i) $w 1 $MAT_LEATHER_BLACK.deep
+  }
+  # Mask
+  Fill-Box $bmp ($CARD_CX - 5) ($a.headY) 11 3 (Color-FromHex '#08050c')
+  Set-Pixel $bmp ($CARD_CX - 2) $a.headY $BRAND.Crimson
+  Set-Pixel $bmp ($CARD_CX + 2) $a.headY $BRAND.Crimson
+  # Bomb in right hand
+  Shade-Disc $bmp ($a.handRx + 3) ($a.handY - 2) 4 $MAT_OBSIDIAN -RimLight
+  Set-Pixel $bmp ($a.handRx + 3) ($a.handY - 6) $MAT_WOOD_DARK.high
+  Set-Pixel $bmp ($a.handRx + 3) ($a.handY - 7) $MAT_WOOD_DARK.base
+  Set-Pixel $bmp ($a.handRx + 4) ($a.handY - 8) $BRAND.Crimson
+  Set-Pixel $bmp ($a.handRx + 4) ($a.handY - 9) (Color-FromHex '#fff0a0')
+  # Knife in left hand
+  Draw-Blade $bmp ($a.handLx - 1) ($a.handY - 2) ($a.handY + 8) 2 $MAT_STEEL
+  # Belt of charges
+  for ($i = 0; $i -lt 4; $i++) {
+    Set-Pixel $bmp ($CARD_CX - 6 + $i * 4) ($a.torsoY + 14) $BRAND.Crimson
+    Set-Pixel $bmp ($CARD_CX - 6 + $i * 4) ($a.torsoY + 15) $MAT_LEATHER.deep
+  }
+}
+
+function Draw-Card-BoltKnight {
+  param($bmp)
+  Rng-Init 'r.boltknight'
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 14
+  $a = Draw-Humanoid $bmp $SKIN_FAIR $MAT_STEEL -torsoW 22 -accent (Color-FromHex '#a8c8ff')
+  # Visored helm with crest
+  Fill-Box $bmp ($CARD_CX - 7) ($a.headY - 6) 14 8 $MAT_STEEL.shadow
+  for ($x = ($CARD_CX - 7); $x -le ($CARD_CX + 6); $x++) {
+    Set-Pixel $bmp $x ($a.headY - 6) $MAT_STEEL.high
+  }
+  # Crest
+  for ($i = 0; $i -lt 3; $i++) {
+    Set-Pixel $bmp $CARD_CX ($a.headY - 7 - $i) (Color-FromHex '#a8c8ff')
+  }
+  # Visor
+  Fill-Box $bmp ($CARD_CX - 5) ($a.headY) 11 2 (Color-FromHex '#08080c')
+  Set-Pixel $bmp ($CARD_CX - 2) $a.headY (Color-FromHex '#a8c8ff')
+  Set-Pixel $bmp ($CARD_CX + 2) $a.headY (Color-FromHex '#a8c8ff')
+  # Round shield with bolt emblem (taunt)
+  Shade-Disc $bmp ($a.handLx - 1) ($a.handY) 7 $MAT_STEEL -RimLight
+  Draw-Bolt $bmp ($a.handLx - 4) ($a.handY - 4) ($a.handLx + 2) ($a.handY + 4) (Color-FromHex '#fff0a0') (Color-FromHex '#a8c8ff')
+  # Long sword in right hand
+  Draw-Blade $bmp ($a.handRx + 2) ($a.handY - 14) ($a.handY + 2) 3 $MAT_STEEL -Fuller
+  Fill-Box $bmp ($a.handRx) ($a.handY + 2) 5 1 $MAT_GOLD.base
+}
+
+function Draw-Card-HealerCleric {
+  param($bmp)
+  Rng-Init 'r.healercleric'
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 12
+  $robe = $MAT_CLOTH_LINEN
+  $a = Draw-Humanoid $bmp $SKIN_PALE $robe -accent $MAT_GOLD.base
+  # Hood lowered
+  for ($i = 0; $i -lt 3; $i++) {
+    $w = 12 - $i
+    $x0 = $CARD_CX - [int]($w / 2)
+    Fill-Box $bmp $x0 ($a.headTop - 1 + $i) $w 1 $robe.shadow
+  }
+  # Halo
+  $halo = With-Alpha (Color-FromHex '#fff0a0') 200
+  for ($ang = 30; $ang -lt 330; $ang += 18) {
+    $rad = $ang * [Math]::PI / 180
+    $hx = $CARD_CX + [int]([Math]::Round([Math]::Cos($rad) * 8))
+    $hy = ($a.headTop - 3) - [int]([Math]::Round([Math]::Sin($rad) * 3))
+    Blend-Pixel $bmp $hx $hy $halo
+  }
+  # Holy cross on chest
+  Draw-HealCross $bmp $CARD_CX ($a.torsoY + 10) 6 $MAT_GOLD
+  # Staff with green orb
+  Draw-Shaft $bmp ($a.handRx + 2) ($a.headTop - 4) ($a.handY + 4) 2 $MAT_WOOD_LIGHT
+  Shade-Disc $bmp ($a.handRx + 2) ($a.headTop - 6) 3 $NATURE -RimLight
+}
+
+function Draw-Card-ArcherTwin {
+  param($bmp)
+  Rng-Init 'r.archertwin'
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 18
+  # Two smaller archer figures side by side
+  $green = @{
+    deep   = (Color-FromHex '#0c2a18');
+    shadow = (Color-FromHex '#1c4a28');
+    base   = (Color-FromHex '#347040');
+    high   = (Color-FromHex '#5e9460');
+    top    = (Color-FromHex '#9cc888');
+  }
+  # Left archer
+  $aL = Draw-Humanoid $bmp $SKIN_FAIR $green -cx ($CARD_CX - 10) -torsoW 12 -reach 16 -accent (Color-FromHex '#d8c878')
+  # Right archer
+  $aR = Draw-Humanoid $bmp $SKIN_FAIR $green -cx ($CARD_CX + 10) -torsoW 12 -reach 16 -accent (Color-FromHex '#d8c878')
+  # Twin bows — small short bows in inner hands
+  for ($y = ($aL.handY - 8); $y -le ($aL.handY + 4); $y++) {
+    Set-Pixel $bmp ($CARD_CX - 4) $y $MAT_WOOD_DARK.base
+    Set-Pixel $bmp ($CARD_CX + 4) $y $MAT_WOOD_DARK.base
+  }
+  Set-Pixel $bmp ($CARD_CX - 4) ($aL.handY - 8) $MAT_WOOD_DARK.high
+  Set-Pixel $bmp ($CARD_CX + 4) ($aR.handY - 8) $MAT_WOOD_DARK.high
+  # Arrows nocked outward
+  Set-Pixel $bmp ($CARD_CX - 5) ($aL.handY - 2) $MAT_WOOD_LIGHT.base
+  Set-Pixel $bmp ($CARD_CX - 6) ($aL.handY - 2) $MAT_STEEL.top
+  Set-Pixel $bmp ($CARD_CX + 5) ($aR.handY - 2) $MAT_WOOD_LIGHT.base
+  Set-Pixel $bmp ($CARD_CX + 6) ($aR.handY - 2) $MAT_STEEL.top
+}
+
+function Draw-Card-BoltEngineer {
+  param($bmp)
+  Rng-Init 'r.boltengineer'
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 12
+  $coat = @{
+    deep   = (Color-FromHex '#3a1e08');
+    shadow = (Color-FromHex '#6a3e1c');
+    base   = (Color-FromHex '#a06028');
+    high   = (Color-FromHex '#d8924c');
+    top    = (Color-FromHex '#f4c478');
+  }
+  $a = Draw-Humanoid $bmp $SKIN_TAN $coat -accent (Color-FromHex '#a8c8ff')
+  # Goggles on head
+  Fill-Box $bmp ($CARD_CX - 4) ($a.headY - 1) 9 3 $MAT_IRON.deep
+  Set-Pixel $bmp ($CARD_CX - 3) $a.headY (Color-FromHex '#a8c8ff')
+  Set-Pixel $bmp ($CARD_CX + 3) $a.headY (Color-FromHex '#a8c8ff')
+  Set-Pixel $bmp ($CARD_CX - 3) ($a.headY - 1) $MAT_IRON.high
+  Set-Pixel $bmp ($CARD_CX + 3) ($a.headY - 1) $MAT_IRON.high
+  Fill-Box $bmp ($CARD_CX - 1) $a.headY 3 1 $MAT_IRON.shadow
+  # Tinker cap
+  for ($x = ($CARD_CX - 6); $x -le ($CARD_CX + 5); $x++) {
+    Set-Pixel $bmp $x ($a.headTop - 1) $coat.deep
+  }
+  Fill-Box $bmp ($CARD_CX - 5) ($a.headTop - 3) 11 2 $coat.shadow
+  # Wrench in right hand
+  Draw-Shaft $bmp ($a.handRx + 2) ($a.handY - 8) ($a.handY + 4) 2 $MAT_IRON
+  Fill-Box $bmp ($a.handRx + 1) ($a.handY - 10) 5 3 $MAT_IRON.base
+  Set-Pixel $bmp ($a.handRx + 1) ($a.handY - 10) $MAT_IRON.high
+  Set-Pixel $bmp ($a.handRx + 5) ($a.handY - 9) $MAT_IRON.shadow
+  Set-Pixel $bmp ($a.handRx + 3) ($a.handY - 9) (Color-FromHex '#000000')
+  # Coil in left hand (mana battery)
+  Shade-Disc $bmp $a.handLx ($a.handY - 2) 3 $ARCANE
+  Set-Pixel $bmp $a.handLx ($a.handY - 4) (Color-FromHex '#fff0a0')
+}
+
+function Draw-Card-VaultSniffer {
+  # Small fox-like critter — body low to ground, glowing nose
+  param($bmp)
+  Rng-Init 'r.vaultsniffer'
+  Draw-GroundShadow-Card $bmp $CARD_CX ($GROUND_Y + 1) 14
+  $fur = @{
+    deep   = (Color-FromHex '#4a1a08');
+    shadow = (Color-FromHex '#7a3618');
+    base   = (Color-FromHex '#a8521c');
+    high   = (Color-FromHex '#d8843c');
+    top    = (Color-FromHex '#ffac68');
+  }
+  # Body — long oval lying horizontally
+  Shade-Oval $bmp $CARD_CX 60 18 8 $fur
+  # Head — at right side
+  Shade-Disc $bmp ($CARD_CX + 14) 54 6 $fur
+  # Snout
+  Fill-Box $bmp ($CARD_CX + 19) 56 4 2 $fur.shadow
+  Set-Pixel $bmp ($CARD_CX + 22) 56 $ARCANE.top    # glowing nose
+  Set-Pixel $bmp ($CARD_CX + 22) 55 $ARCANE.high
+  # Ears — pointed
+  Set-Pixel $bmp ($CARD_CX + 11) 49 $fur.high
+  Set-Pixel $bmp ($CARD_CX + 11) 48 $fur.base
+  Set-Pixel $bmp ($CARD_CX + 16) 48 $fur.high
+  Set-Pixel $bmp ($CARD_CX + 17) 47 $fur.base
+  # Eye
+  Set-Pixel $bmp ($CARD_CX + 14) 53 (Color-FromHex '#fff080')
+  # Legs — four short stubs
+  for ($i = 0; $i -lt 4; $i++) {
+    $lx = $CARD_CX - 13 + $i * 8
+    Fill-Box $bmp $lx 66 3 6 $fur.shadow
+    Set-Pixel $bmp $lx 66 $fur.high
+  }
+  # Bushy tail curling up
+  Shade-Oval $bmp ($CARD_CX - 16) 54 4 8 $fur
+  Set-Pixel $bmp ($CARD_CX - 16) 46 $fur.top
+}
+
+# ── Rares — spells (7) ───────────────────────────────────────────
+
+function Draw-Card-ForgeBrand {
+  # Anvil + hammer + glowing brand
+  param($bmp)
+  Rng-Init 'r.forgebrand'
+  Draw-MagicCircle $bmp $CARD_CX 40 24 (Color-FromHex '#ff8030') 80 -Runes
+  # Anvil — block shape
+  Stroke-Box $bmp ($CARD_CX - 14) 50 28 8 $MAT_IRON.deep $MAT_IRON.base
+  Fill-Box $bmp ($CARD_CX - 14) 50 28 1 $MAT_IRON.high
+  Fill-Box $bmp ($CARD_CX - 14) 57 28 1 $MAT_IRON.shadow
+  # Horn left
+  Fill-Box $bmp ($CARD_CX - 18) 51 4 3 $MAT_IRON.shadow
+  Set-Pixel $bmp ($CARD_CX - 18) 51 $MAT_IRON.high
+  # Pedestal
+  Fill-Box $bmp ($CARD_CX - 10) 58 20 10 $MAT_IRON.shadow
+  Fill-Box $bmp ($CARD_CX - 12) 68 24 4 $MAT_IRON.deep
+  # Glowing brand on anvil
+  Fill-Box $bmp ($CARD_CX - 6) 48 12 2 $FIRE.base
+  Fill-Box $bmp ($CARD_CX - 6) 49 12 1 $FIRE.high
+  Set-Pixel $bmp ($CARD_CX - 2) 48 $FIRE.top
+  Set-Pixel $bmp ($CARD_CX + 1) 48 $FIRE.top
+  # Sparks
+  foreach ($p in @(@(-8,42),@(2,38),@(8,44),@(-3,32))) {
+    Set-Pixel $bmp ($CARD_CX + $p[0]) $p[1] $FIRE.top
+  }
+  # Hammer hovering above
+  $hx = $CARD_CX + 8
+  Draw-Shaft $bmp $hx 18 38 2 $MAT_WOOD_DARK
+  Fill-Box $bmp ($hx - 4) 14 9 6 $MAT_IRON.base
+  Set-Pixel $bmp ($hx - 4) 14 $MAT_IRON.high
+  Set-Pixel $bmp ($hx + 4) 19 $MAT_IRON.shadow
+}
+
+function Draw-Card-GobPowder {
+  # Goblin Powder — wooden keg with crimson fuse
+  param($bmp)
+  Rng-Init 'r.gobpowder'
+  Draw-MagicCircle $bmp $CARD_CX 40 22 $BRAND.Crimson 80 -Runes
+  # Keg body — barrel shape (oval body + flat top/bottom)
+  Shade-Oval $bmp $CARD_CX 48 16 18 $MAT_WOOD_DARK
+  # Bands
+  foreach ($y in @(36, 42, 56, 62)) {
+    Fill-Box $bmp ($CARD_CX - 12) $y 24 2 $MAT_IRON.shadow
+    for ($x = ($CARD_CX - 11); $x -le ($CARD_CX + 11); $x++) {
+      Set-Pixel $bmp $x $y $MAT_IRON.high
+    }
+  }
+  # Skull mark on front
+  Shade-Disc $bmp $CARD_CX 50 4 $SKIN_BONE
+  Set-Pixel $bmp ($CARD_CX - 2) 49 (Color-FromHex '#080404')
+  Set-Pixel $bmp ($CARD_CX + 2) 49 (Color-FromHex '#080404')
+  Set-Pixel $bmp ($CARD_CX - 1) 52 (Color-FromHex '#080404')
+  Set-Pixel $bmp ($CARD_CX + 1) 52 (Color-FromHex '#080404')
+  # Fuse
+  Line-Pixel $bmp $CARD_CX 30 ($CARD_CX + 4) 18 $MAT_WOOD_LIGHT.shadow
+  Line-Pixel $bmp ($CARD_CX + 1) 30 ($CARD_CX + 5) 18 $MAT_WOOD_LIGHT.high
+  # Spark at fuse tip
+  Set-Pixel $bmp ($CARD_CX + 4) 17 $FIRE.top
+  Set-Pixel $bmp ($CARD_CX + 5) 16 $FIRE.high
+  Set-Pixel $bmp ($CARD_CX + 6) 15 $FIRE.base
+  Set-Pixel $bmp ($CARD_CX + 3) 16 (Color-FromHex '#fff0a0')
+}
+
+function Draw-Card-VoltaicSurge {
+  # Two parallel lightning bolts splitting the canvas
+  param($bmp)
+  Rng-Init 'r.voltaicsurge'
+  Draw-MagicCircle $bmp $CARD_CX 40 26 (Color-FromHex '#7c5cff') 90 -Runes
+  Draw-Bolt $bmp ($CARD_CX - 10) 12 ($CARD_CX - 6) 68 (Color-FromHex '#fff0a0') $ARCANE.top
+  Draw-Bolt $bmp ($CARD_CX + 6) 12 ($CARD_CX + 10) 68 (Color-FromHex '#fff0a0') $ARCANE.top
+  # Thicker centre highlight
+  for ($y = 14; $y -lt 66; $y += 4) {
+    Set-Pixel $bmp ($CARD_CX - 8) $y (Color-FromHex '#fff8d8')
+    Set-Pixel $bmp ($CARD_CX + 8) $y (Color-FromHex '#fff8d8')
+  }
+  # Centre sparkle
+  Shade-Disc $bmp $CARD_CX 40 4 $ARCANE -RimLight
+  Set-Pixel $bmp $CARD_CX 38 (Color-FromHex '#fff0a0')
+}
+
+function Draw-Card-VaultSeal {
+  # Magical sigil — runic seal with arcane lock
+  param($bmp)
+  Rng-Init 'r.vaultseal'
+  # Outer ring + inner ring
+  Draw-MagicCircle $bmp $CARD_CX 40 26 $ARCANE.base 120 -Runes
+  Draw-MagicCircle $bmp $CARD_CX 40 18 $ARCANE.high 140
+  # Central interlocking triangle/star (6-point)
+  $r = 14
+  for ($k = 0; $k -lt 6; $k++) {
+    $ang0 = $k * [Math]::PI / 3
+    $ang1 = (($k + 2) % 6) * [Math]::PI / 3
+    $x0 = $CARD_CX + [int]([Math]::Round([Math]::Cos($ang0) * $r))
+    $y0 = 40 + [int]([Math]::Round([Math]::Sin($ang0) * $r))
+    $x1 = $CARD_CX + [int]([Math]::Round([Math]::Cos($ang1) * $r))
+    $y1 = 40 + [int]([Math]::Round([Math]::Sin($ang1) * $r))
+    Line-Pixel $bmp $x0 $y0 $x1 $y1 $ARCANE.top
+  }
+  # Lock core — keyhole
+  Shade-Disc $bmp $CARD_CX 40 5 $MAT_GOLD -RimLight
+  Set-Pixel $bmp $CARD_CX 39 $ARCANE.deep
+  Set-Pixel $bmp $CARD_CX 40 $ARCANE.deep
+  Set-Pixel $bmp $CARD_CX 41 $ARCANE.deep
+  Set-Pixel $bmp ($CARD_CX - 1) 42 $ARCANE.deep
+  Set-Pixel $bmp ($CARD_CX + 1) 42 $ARCANE.deep
+}
+
+function Draw-Card-BoltStorm {
+  # Multiple bolts rain down across the canvas
+  param($bmp)
+  Rng-Init 'r.boltstorm'
+  # Storm cloud at top
+  $cloud = With-Alpha (Color-FromHex '#3a4258') 200
+  for ($x = 4; $x -lt 60; $x++) {
+    for ($y = 4; $y -lt 22; $y++) {
+      $dx = ($x - 32) / 24.0
+      $dy = ($y - 12) / 8.0
+      $d = $dx*$dx + $dy*$dy
+      if ($d -lt 1.0) {
+        Blend-Pixel $bmp $x $y $cloud
+        if ($d -lt 0.6) { Blend-Pixel $bmp $x $y (With-Alpha (Color-FromHex '#2a2f44') 150) }
+      }
+    }
+  }
+  # 5 bolts striking down from cloud at varied x positions
+  $xs = @(12, 22, 32, 44, 54)
+  foreach ($x in $xs) {
+    Draw-Bolt $bmp $x 18 ($x + (Rng-Range -3 3)) 72 (Color-FromHex '#fff0a0') $ARCANE.high
+    # Impact flash
+    Blend-Pixel $bmp $x 72 (With-Alpha (Color-FromHex '#fff0a0') 200)
+    Set-Pixel $bmp ($x - 1) 73 (With-Alpha (Color-FromHex '#fff0a0') 140)
+    Set-Pixel $bmp ($x + 1) 73 (With-Alpha (Color-FromHex '#fff0a0') 140)
+  }
+}
+
+function Draw-Card-Mend {
+  # Healing hands with cross light
+  param($bmp)
+  Rng-Init 'r.mend'
+  Draw-MagicCircle $bmp $CARD_CX 40 22 $HOLY.base 100 -Runes
+  # Two cupped hands at bottom
+  $skin = $SKIN_PALE
+  Fill-Box $bmp ($CARD_CX - 12) 52 9 8 $skin.base
+  Fill-Box $bmp ($CARD_CX + 3) 52 9 8 $skin.base
+  # Knuckles
+  for ($i = 0; $i -lt 3; $i++) {
+    Set-Pixel $bmp ($CARD_CX - 10 + $i * 3) 52 $skin.high
+    Set-Pixel $bmp ($CARD_CX + 5 + $i * 3) 52 $skin.high
+  }
+  Set-Pixel $bmp ($CARD_CX - 12) 60 $skin.shadow
+  Set-Pixel $bmp ($CARD_CX + 11) 60 $skin.shadow
+  # Light cross hovering between hands
+  Draw-HealCross $bmp $CARD_CX 36 10 $HOLY
+  # Sparkles
+  foreach ($p in @(@(-8,24),@(7,22),@(0,18),@(-3,52),@(4,50))) {
+    Set-Pixel $bmp ($CARD_CX + $p[0]) $p[1] $HOLY.top
+  }
+}
+
+function Draw-Card-Resurrect {
+  # Phoenix-style flame circle / ankh glow rising from ash
+  param($bmp)
+  Rng-Init 'r.resurrect'
+  Draw-MagicCircle $bmp $CARD_CX 42 26 $FIRE.high 120 -Runes
+  # Ash pile at bottom
+  for ($x = ($CARD_CX - 10); $x -le ($CARD_CX + 10); $x++) {
+    $y = 70 - [int]([Math]::Round([Math]::Sin(($x - $CARD_CX) * 0.4 + 2) * 2))
+    Set-Pixel $bmp $x $y (Color-FromHex '#3a3028')
+    Set-Pixel $bmp $x ($y + 1) (Color-FromHex '#2a2018')
+    Set-Pixel $bmp $x ($y + 2) (Color-FromHex '#1a1410')
+  }
+  # Rising phoenix silhouette — diamond shape with wings
+  # Body
+  Draw-Flame $bmp $CARD_CX 64 22 $FIRE
+  # Wings spread
+  for ($i = 0; $i -lt 12; $i++) {
+    $t = $i / 12.0
+    $wx = [int]([Math]::Round(12 * $t))
+    $wy = 50 - $i
+    $col = if ($t -lt 0.4) { $FIRE.top } elseif ($t -lt 0.7) { $FIRE.high } else { $FIRE.base }
+    Set-Pixel $bmp ($CARD_CX - $wx) $wy $col
+    Set-Pixel $bmp ($CARD_CX + $wx) $wy $col
+    Set-Pixel $bmp ($CARD_CX - $wx) ($wy + 1) $FIRE.shadow
+    Set-Pixel $bmp ($CARD_CX + $wx) ($wy + 1) $FIRE.shadow
+  }
+  # Glowing head
+  Shade-Disc $bmp $CARD_CX 30 4 (Build-Ramp '#fff0a0') -RimLight
+  Set-Pixel $bmp $CARD_CX 27 (Color-FromHex '#fff8d8')
+}
+
 # Pass dispatcher dict — { cardId -> Draw function name }
 $CARD_DRAW = @{
   'champ.warrior'    = 'Draw-Card-ChampWarrior'
@@ -1034,6 +1444,20 @@ $CARD_DRAW = @{
   'leg.vaultlich'    = 'Draw-Card-LegVaultLich'
   'leg.warchief'     = 'Draw-Card-LegWarchief'
   'leg.hollowking'   = 'Draw-Card-LegHollowKing'
+  'r.voltaicmage'    = 'Draw-Card-VoltaicMage'
+  'r.sapper'         = 'Draw-Card-Sapper'
+  'r.boltknight'     = 'Draw-Card-BoltKnight'
+  'r.healercleric'   = 'Draw-Card-HealerCleric'
+  'r.archertwin'     = 'Draw-Card-ArcherTwin'
+  'r.boltengineer'   = 'Draw-Card-BoltEngineer'
+  'r.vaultsniffer'   = 'Draw-Card-VaultSniffer'
+  'r.forgebrand'     = 'Draw-Card-ForgeBrand'
+  'r.gobpowder'      = 'Draw-Card-GobPowder'
+  'r.voltaicsurge'   = 'Draw-Card-VoltaicSurge'
+  'r.vaultseal'      = 'Draw-Card-VaultSeal'
+  'r.boltstorm'      = 'Draw-Card-BoltStorm'
+  'r.mend'           = 'Draw-Card-Mend'
+  'r.resurrect'      = 'Draw-Card-Resurrect'
 }
 
 # Card metadata — drives rarity glow + pass filtering. Mirrors
@@ -1055,6 +1479,20 @@ $CARD_META = @{
   'leg.vaultlich'   = @{ rarity = 'legendary'; pass = 'legendaries' }
   'leg.warchief'    = @{ rarity = 'legendary'; pass = 'legendaries' }
   'leg.hollowking'  = @{ rarity = 'legendary'; pass = 'legendaries' }
+  'r.voltaicmage'   = @{ rarity = 'rare';      pass = 'rares' }
+  'r.sapper'        = @{ rarity = 'rare';      pass = 'rares' }
+  'r.boltknight'    = @{ rarity = 'rare';      pass = 'rares' }
+  'r.healercleric'  = @{ rarity = 'rare';      pass = 'rares' }
+  'r.archertwin'    = @{ rarity = 'rare';      pass = 'rares' }
+  'r.boltengineer'  = @{ rarity = 'rare';      pass = 'rares' }
+  'r.vaultsniffer'  = @{ rarity = 'rare';      pass = 'rares' }
+  'r.forgebrand'    = @{ rarity = 'rare';      pass = 'rares' }
+  'r.gobpowder'     = @{ rarity = 'rare';      pass = 'rares' }
+  'r.voltaicsurge'  = @{ rarity = 'rare';      pass = 'rares' }
+  'r.vaultseal'     = @{ rarity = 'rare';      pass = 'rares' }
+  'r.boltstorm'     = @{ rarity = 'rare';      pass = 'rares' }
+  'r.mend'          = @{ rarity = 'rare';      pass = 'rares' }
+  'r.resurrect'     = @{ rarity = 'rare';      pass = 'rares' }
 }
 
 # Render one card -> aquilo-gg/sprites/cards/<id>.png. Legendary
