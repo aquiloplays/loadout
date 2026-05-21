@@ -18,6 +18,15 @@
 // LOCKED ABILITY KEYS — extending this set is the right place to grow
 // the design space; ad-hoc ability strings in card records are NOT
 // supported. The battle resolver only understands what's listed here.
+//
+// EXPANSION (2026-05-21) — the bulk of the catalogue now comes from
+// cards-catalog-gen.js (programmatic family × mana × rarity grid).
+// This file keeps the hand-curated CHAMPIONS, LEGENDARIES, signature
+// RARES, and TOKENS verbatim; the generator fills out commons /
+// uncommons / programmatic rares / spell schools. See
+// CARD-GAME-DESIGN.md §13.
+
+import { generateCatalogue } from './cards-catalog-gen.js';
 
 // ── Ability key dictionary ───────────────────────────────────────────
 //
@@ -274,6 +283,168 @@ const LEGEND_BOSSES = [
   },
 ];
 
+// ── Legendaries — family flagships (expansion) ────────────────────────
+//
+// One named flagship per major family — the legendary copy that
+// players hunt for when they're building around that family's
+// archetype. Each is mechanically distinct from the original five
+// dungeon bosses.
+
+const LEGEND_FLAGSHIPS = [
+  {
+    id: 'leg.gob.warbomber', name: 'Krell, Goblin Warbomber',
+    rarity: 'legendary', type: 'minion', mana: 4, atk: 4, hp: 3,
+    keywords: ['charge'],
+    abilities: [{ trigger: 'onPlay', effect: 'damage', target: 'oppHero', value: 2 }],
+    text: 'Charge. Battlecry: deal 2 damage to the enemy hero.',
+  },
+  {
+    id: 'leg.knt.lordbanner', name: 'Lord-Banner Aldric',
+    rarity: 'legendary', type: 'minion', mana: 7, atk: 5, hp: 8,
+    keywords: ['taunt'],
+    abilities: [{ trigger: 'onPlay', effect: 'buff', target: 'allFriendlyMinions', valueAtk: 1, valueHp: 1 }],
+    text: 'Taunt. Battlecry: give your other minions +1/+1.',
+  },
+  {
+    id: 'leg.pal.dawnbringer', name: 'Sigrid, the Dawnbringer',
+    rarity: 'legendary', type: 'minion', mana: 6, atk: 4, hp: 7,
+    keywords: ['shield', 'lifesteal'],
+    abilities: [{ trigger: 'onPlay', effect: 'heal', target: 'selfHero', value: 6 }],
+    text: 'Shield. Lifesteal. Battlecry: heal you 6.',
+  },
+  {
+    id: 'leg.mag.archvault', name: 'Archmagus Velric',
+    rarity: 'legendary', type: 'minion', mana: 8, atk: 4, hp: 6,
+    abilities: [
+      { trigger: 'onPlay', effect: 'damage', target: 'allEnemyMinions', value: 3 },
+      { trigger: 'onPlay', effect: 'draw',   target: 'self', value: 2 },
+    ],
+    text: 'Battlecry: deal 3 damage to all enemy minions, then draw 2 cards.',
+  },
+  {
+    id: 'leg.vmg.stormvault', name: 'Volkaer, the Storm Vault',
+    rarity: 'legendary', type: 'minion', mana: 7, atk: 5, hp: 6,
+    abilities: [{ trigger: 'onPlay', effect: 'damage', target: 'allEnemyMinions', value: 2 }],
+    text: 'Battlecry: deal 2 damage to all enemy minions. Your spells deal +1 damage.',
+  },
+  {
+    id: 'leg.rog.silentking', name: 'The Silent King',
+    rarity: 'legendary', type: 'minion', mana: 5, atk: 5, hp: 4,
+    keywords: ['stealth'],
+    abilities: [{ trigger: 'onAttack', effect: 'damage', target: 'oppHero', value: 1 }],
+    text: 'Stealth. After this attacks, deal 1 damage to the enemy hero.',
+  },
+  {
+    id: 'leg.bst.alphawolf', name: 'Alpha of the Pack',
+    rarity: 'legendary', type: 'minion', mana: 5, atk: 4, hp: 5,
+    keywords: ['charge'],
+    abilities: [
+      { trigger: 'onPlay', effect: 'summon', target: 'self', cardId: 'tok.wolfpup' },
+      { trigger: 'onPlay', effect: 'summon', target: 'self', cardId: 'tok.wolfpup' },
+    ],
+    text: 'Charge. Battlecry: summon two 1/1 Wolf Pups.',
+  },
+  {
+    id: 'leg.ske.deathlord', name: 'Mortis, Deathlord',
+    rarity: 'legendary', type: 'minion', mana: 7, atk: 6, hp: 7,
+    abilities: [{ trigger: 'onDeath', effect: 'summon', target: 'self', cardId: 'tok.skelelord' }],
+    text: 'Deathrattle: summon a 4/4 Skeletal Lord.',
+  },
+  {
+    id: 'leg.nec.shroudbinder', name: 'Yssen, Shroudbinder',
+    rarity: 'legendary', type: 'minion', mana: 6, atk: 4, hp: 5,
+    abilities: [{ trigger: 'onPlay', effect: 'returnToHand', target: 'lastDeadFriendly' }],
+    text: 'Battlecry: return the last friendly minion that died to your hand.',
+  },
+  {
+    id: 'leg.dem.maul', name: 'Maul, the Hungering',
+    rarity: 'legendary', type: 'minion', mana: 6, atk: 8, hp: 5,
+    keywords: ['lifesteal'],
+    text: 'Lifesteal. Has overstatted attack — keep him alive.',
+  },
+  {
+    id: 'leg.wlk.pactspeaker', name: 'Bael, Pact-Speaker',
+    rarity: 'legendary', type: 'minion', mana: 5, atk: 3, hp: 5,
+    abilities: [
+      { trigger: 'onPlay', effect: 'draw', target: 'self', value: 3 },
+      { trigger: 'onPlay', effect: 'damage', target: 'selfHero', value: 2 },
+    ],
+    text: 'Battlecry: draw 3 cards, then take 2 damage.',
+  },
+  {
+    id: 'leg.pri.highpontifex', name: 'High Pontifex Anya',
+    rarity: 'legendary', type: 'minion', mana: 6, atk: 3, hp: 6,
+    keywords: ['lifesteal'],
+    abilities: [{ trigger: 'endOfTurn', effect: 'heal', target: 'selfHero', value: 3 }],
+    text: 'Lifesteal. End of your turn: heal you 3.',
+  },
+  {
+    id: 'leg.dra.crimsonwyrm', name: 'Vakharos, Crimson Wyrm',
+    rarity: 'legendary', type: 'minion', mana: 9, atk: 8, hp: 8,
+    keywords: ['charge'],
+    abilities: [{ trigger: 'onPlay', effect: 'damage', target: 'allEnemyMinions', value: 4 }],
+    text: 'Charge. Battlecry: deal 4 damage to all enemy minions.',
+  },
+  {
+    id: 'leg.dra.frostwyrm', name: 'Skoldris, Frost Wyrm',
+    rarity: 'legendary', type: 'minion', mana: 8, atk: 6, hp: 9,
+    keywords: ['taunt'],
+    abilities: [{ trigger: 'onPlay', effect: 'damage', target: 'pickedTarget', value: 4 }],
+    text: 'Taunt. Battlecry: deal 4 damage to any target.',
+  },
+  {
+    id: 'leg.tre.eldermother', name: 'Caederos, Elder of the Grove',
+    rarity: 'legendary', type: 'minion', mana: 8, atk: 6, hp: 10,
+    keywords: ['taunt'],
+    abilities: [{ trigger: 'endOfTurn', effect: 'buff', target: 'self', valueAtk: 0, valueHp: 1 }],
+    text: 'Taunt. End of your turn: gain +1 HP.',
+  },
+  {
+    id: 'leg.con.juggernaut', name: 'The Juggernaut',
+    rarity: 'legendary', type: 'minion', mana: 9, atk: 8, hp: 9,
+    keywords: ['taunt', 'spell-immune'],
+    text: 'Taunt. Cannot be targeted by spells.',
+  },
+  {
+    id: 'leg.efr.cinderheart', name: 'Cinderheart, the Living Forge',
+    rarity: 'legendary', type: 'minion', mana: 7, atk: 6, hp: 6,
+    abilities: [{ trigger: 'onAttack', effect: 'damage', target: 'allOtherMinions', value: 1 }],
+    text: 'After this attacks, deal 1 damage to every other minion.',
+  },
+  {
+    id: 'leg.eer.stoneking', name: 'Boldarr, the Stone King',
+    rarity: 'legendary', type: 'minion', mana: 8, atk: 4, hp: 12,
+    keywords: ['taunt'],
+    text: 'Taunt. (Just a giant rock.)',
+  },
+  {
+    id: 'leg.spi.lanterneye', name: 'Aelys of Lantern-Eye',
+    rarity: 'legendary', type: 'minion', mana: 6, atk: 4, hp: 6,
+    keywords: ['spell-immune'],
+    abilities: [{ trigger: 'onPlay', effect: 'heal', target: 'allFriendlyMinions', value: 3 }],
+    text: 'Cannot be targeted by spells. Battlecry: heal all friendly minions for 3.',
+  },
+  {
+    id: 'leg.rng.shadowwarden', name: 'Ireth Shadow-Warden',
+    rarity: 'legendary', type: 'minion', mana: 6, atk: 5, hp: 5,
+    keywords: ['reach', 'stealth'],
+    text: 'Reach. Stealth.',
+  },
+  {
+    id: 'leg.wit.coven', name: 'Mother of the Coven',
+    rarity: 'legendary', type: 'minion', mana: 7, atk: 5, hp: 6,
+    abilities: [{ trigger: 'onPlay', effect: 'damage', target: 'allEnemyMinions', value: 1 }],
+    text: 'Battlecry: deal 1 damage to all enemy minions. Poison.',
+    keywords: ['poison'],
+  },
+  {
+    id: 'leg.ber.bonelord', name: 'Tyrr, Bonelord',
+    rarity: 'legendary', type: 'minion', mana: 7, atk: 7, hp: 5,
+    keywords: ['charge', 'lifesteal'],
+    text: 'Charge. Lifesteal.',
+  },
+];
+
 // ── Rares (14) ───────────────────────────────────────────────────────
 
 const RARES = [
@@ -371,6 +542,120 @@ const RARES = [
     rarity: 'rare', type: 'spell', mana: 4,
     abilities: [{ trigger: 'onCast', effect: 'returnToHand', target: 'lastDeadFriendly' }],
     text: 'Return the last friendly minion that died to your hand.',
+  },
+];
+
+// ── Signature rares — expansion (hand-curated, bespoke mechanics) ─────
+//
+// These are rares that earn the slot via a unique mechanic, not stat
+// inflation. The programmatic rares from cards-catalog-gen.js cover
+// the wide curve; these are the named hand-picks.
+
+const SIG_RARES = [
+  {
+    id: 'r.sig.battlestandard', name: 'Battle Standard',
+    rarity: 'rare', type: 'spell', mana: 3,
+    abilities: [{ trigger: 'onCast', effect: 'buff', target: 'allFriendlyMinions', valueAtk: 1, valueHp: 1 }],
+    text: 'Give all your minions +1/+1.',
+  },
+  {
+    id: 'r.sig.handofsteel', name: 'Hand of Steel',
+    rarity: 'rare', type: 'spell', mana: 2,
+    abilities: [{ trigger: 'onCast', effect: 'buff', target: 'pickedTarget', valueAtk: 0, valueHp: 4, filter: { type: 'friendly-minion' } }],
+    text: 'Give a friendly minion +4 HP.',
+  },
+  {
+    id: 'r.sig.shatteringbolt', name: 'Shattering Bolt',
+    rarity: 'rare', type: 'spell', mana: 5,
+    abilities: [{ trigger: 'onCast', effect: 'destroy', target: 'pickedTarget', filter: { type: 'minion' } }],
+    text: 'Destroy any minion.',
+  },
+  {
+    id: 'r.sig.voltaicchain', name: 'Voltaic Chain',
+    rarity: 'rare', type: 'spell', mana: 4,
+    abilities: [
+      { trigger: 'onCast', effect: 'damage', target: 'randomEnemyMinion', value: 1 },
+      { trigger: 'onCast', effect: 'damage', target: 'randomEnemyMinion', value: 1 },
+      { trigger: 'onCast', effect: 'damage', target: 'randomEnemyMinion', value: 1 },
+      { trigger: 'onCast', effect: 'damage', target: 'randomEnemyMinion', value: 1 },
+    ],
+    text: 'Deal 1 damage to 4 random enemy minions.',
+  },
+  {
+    id: 'r.sig.darkpact', name: 'Dark Pact',
+    rarity: 'rare', type: 'spell', mana: 1,
+    abilities: [
+      { trigger: 'onCast', effect: 'damage', target: 'selfHero', value: 2 },
+      { trigger: 'onCast', effect: 'draw',   target: 'self', value: 2 },
+    ],
+    text: 'Take 2 damage, draw 2 cards.',
+  },
+  {
+    id: 'r.sig.vaultprism', name: 'Vault Prism',
+    rarity: 'rare', type: 'spell', mana: 3,
+    abilities: [{ trigger: 'onCast', effect: 'damage', target: 'pickedTarget', value: 4 }],
+    text: 'Deal 4 damage to any target.',
+  },
+  {
+    id: 'r.sig.sanctuary', name: 'Sanctuary',
+    rarity: 'rare', type: 'spell', mana: 4,
+    abilities: [{ trigger: 'onCast', effect: 'heal', target: 'allFriendlyMinions', value: 4 }],
+    text: 'Heal all friendly minions for 4.',
+  },
+  {
+    id: 'r.sig.massdispel', name: 'Mass Dispel',
+    rarity: 'rare', type: 'spell', mana: 3,
+    abilities: [{ trigger: 'onCast', effect: 'silence', target: 'allEnemyMinions' }],
+    text: 'Silence all enemy minions.',
+  },
+  {
+    id: 'r.sig.holyforge', name: 'Holy Forge',
+    rarity: 'rare', type: 'minion', mana: 4, atk: 3, hp: 5,
+    keywords: ['shield', 'lifesteal'],
+    text: 'Shield. Lifesteal.',
+  },
+  {
+    id: 'r.sig.runebound', name: 'Runebound Champion',
+    rarity: 'rare', type: 'minion', mana: 5, atk: 4, hp: 5,
+    keywords: ['spell-immune'],
+    text: 'Cannot be targeted by spells.',
+  },
+  {
+    id: 'r.sig.cinderspine', name: 'Cinderspine Drake',
+    rarity: 'rare', type: 'minion', mana: 5, atk: 5, hp: 4,
+    keywords: ['charge'],
+    text: 'Charge.',
+  },
+  {
+    id: 'r.sig.runeblade', name: 'Runeblade Master',
+    rarity: 'rare', type: 'minion', mana: 4, atk: 4, hp: 4,
+    abilities: [{ trigger: 'onPlay', effect: 'damage', target: 'pickedTarget', value: 1 }],
+    text: 'Battlecry: deal 1 damage.',
+  },
+  {
+    id: 'r.sig.bonesinger', name: 'Bone Singer',
+    rarity: 'rare', type: 'minion', mana: 3, atk: 2, hp: 4,
+    abilities: [{ trigger: 'onDeath', effect: 'summon', target: 'self', cardId: 'tok.boneknight' }],
+    text: 'Deathrattle: summon a 3/3 Bone Knight.',
+  },
+  {
+    id: 'r.sig.stormbinder', name: 'Storm Binder',
+    rarity: 'rare', type: 'minion', mana: 6, atk: 4, hp: 6,
+    abilities: [{ trigger: 'onPlay', effect: 'summon', target: 'self', cardId: 'tok.lightling' }],
+    text: 'Battlecry: summon a 2/1 Lightling with Charge.',
+  },
+  {
+    id: 'r.sig.icewarden', name: 'Ice Warden',
+    rarity: 'rare', type: 'minion', mana: 5, atk: 3, hp: 7,
+    keywords: ['taunt'],
+    text: 'Taunt.',
+  },
+  {
+    id: 'r.sig.emberkin', name: 'Emberkin',
+    rarity: 'rare', type: 'minion', mana: 2, atk: 3, hp: 1,
+    keywords: ['charge'],
+    abilities: [{ trigger: 'onPlay', effect: 'damage', target: 'pickedTarget', value: 1 }],
+    text: 'Charge. Battlecry: deal 1 damage.',
   },
 ];
 
@@ -493,23 +778,42 @@ const COMMONS = [
 // by other cards' summon effects.
 
 const TOKENS = [
-  { id: 'tok.boneknight', name: 'Bone Knight',     mana: 0, atk: 3, hp: 3, type: 'minion', token: true },
-  { id: 'tok.gobscrap',   name: 'Goblin Scrapper', mana: 0, atk: 1, hp: 1, type: 'minion', token: true, keywords: ['charge'] },
+  { id: 'tok.boneknight', name: 'Bone Knight',      mana: 0, atk: 3, hp: 3, type: 'minion', token: true },
+  { id: 'tok.gobscrap',   name: 'Goblin Scrapper',  mana: 0, atk: 1, hp: 1, type: 'minion', token: true, keywords: ['charge'] },
+  // Tokens summoned by generated cards' deathrattles / battlecries.
+  { id: 'tok.spawnling',  name: 'Spawnling',        mana: 0, atk: 1, hp: 1, type: 'minion', token: true },
+  { id: 'tok.wolfpup',    name: 'Wolf Pup',         mana: 0, atk: 1, hp: 1, type: 'minion', token: true, keywords: ['charge'] },
+  { id: 'tok.skelelord',  name: 'Skeletal Lord',    mana: 0, atk: 4, hp: 4, type: 'minion', token: true },
+  { id: 'tok.ember',      name: 'Ember Spark',      mana: 0, atk: 2, hp: 1, type: 'minion', token: true },
+  { id: 'tok.icicle',     name: 'Icicle Shard',     mana: 0, atk: 1, hp: 2, type: 'minion', token: true },
+  { id: 'tok.lightling',  name: 'Lightling',        mana: 0, atk: 2, hp: 1, type: 'minion', token: true, keywords: ['charge'] },
 ];
 
 // ── Compose the catalogue ────────────────────────────────────────────
 
 // Rarity is set explicitly on champions/legendaries/rares above;
 // uncommons/commons/tokens omit it for brevity and get it stamped here.
-const RAW_ROSTER = [
+//
+// The generator catalogue from cards-catalog-gen.js is merged in here
+// AFTER the hand-curated set so an id collision (e.g. a hand-curated
+// rare that the generator also tries to emit) would crash the
+// dedupeCheck below — that's the design: hand-curated wins, generator
+// must avoid the hand-curated id space.
+const HAND_CURATED = [
   ...Object.values(CHAMPIONS_RAW),
   ...LEGEND_HEROES,
   ...LEGEND_BOSSES,
+  ...LEGEND_FLAGSHIPS,
   ...RARES,
+  ...SIG_RARES,
   ...UNCOMMONS.map(c => ({ ...c, rarity: 'uncommon' })),
   ...COMMONS.map(c => ({ ...c, rarity: 'common' })),
   ...TOKENS.map(c => ({ ...c, rarity: 'token' })),
 ];
+
+const GENERATED = generateCatalogue();
+
+const RAW_ROSTER = [...HAND_CURATED, ...GENERATED];
 
 export const CARDS = Object.fromEntries(
   RAW_ROSTER.map(c => [c.id, normaliseCard(c)])

@@ -6,6 +6,12 @@
 >
 > Author: Loadout team · Date: 2026-05-21 · Owner: Clay
 >
+> **2026-05-21 expansion** — roster goes from 82 cards to **1,000+**
+> via the family/archetype generator in §13, plus a card-recycling →
+> pack-fragments → craftable-pack loop in §14. Sprite generator
+> extended in §15 with rarity-scaled detail templates so every card
+> still gets unique pixel art (no emoji).
+>
 > Clay's locks (verbatim):
 > *"The name is BOLTBOUND. No streamer cards, no Spotlight tier —
 > rare slots are legendary heroes and dungeon bosses, in-world only."*
@@ -496,3 +502,370 @@ scope; tracked separately.
 
 None. Doc is LOCKED. If something needs to change post-lock, file
 it as a Phase 2 change request — don't edit this doc in place.
+
+---
+
+## 13. Roster expansion — 1,000+ cards via family generator
+
+This is the **2026-05-21 expansion** — the catalogue grows from 82 to
+~1,000+ cards. Hand-curating that many would balloon the file and
+introduce silent balance drift; instead `cards-content.js` keeps the
+hand-curated champions / legendaries / signature rares as-is and
+imports a *programmatic* block from `cards-catalog-gen.js`.
+
+### 13.1. Goal
+
+Clay wants **a ton of options**, kept balanced and not power-crept.
+That means:
+
+- Every card sits on a deterministic stat curve (see §13.4).
+- Variety comes from **archetype × family × keyword × ability**
+  combinations, not from stat inflation.
+- Rare ≠ "common +2/+2". Rares earn their slot via abilities, not raw
+  numbers. Legendaries earn theirs via unique mechanics.
+- One pack of any tier still drops a usable card — no commons are
+  vendor-trash filler.
+
+### 13.2. Catalogue composition (LOCKED)
+
+| Source | Count (target) | How it's authored |
+| --- | --- | --- |
+| Champions | 5 | Hand-curated in `cards-content.js` (unchanged). |
+| Legendary heroes | 12 | 5 originals + 7 new flagship heroes. Hand-curated. |
+| Legendary bosses | 18 | 5 originals + 13 new family flagships (one per major family). Hand-curated. |
+| Signature rares | 30 | 14 originals + 16 new hand-curated rares with bespoke mechanics. |
+| Programmatic rares | ~120 | Family × mana × variant grid, generated. |
+| Programmatic uncommons | ~270 | Family × mana × variant grid, generated. |
+| Programmatic commons | ~480 | Family × mana × variant grid, generated. |
+| Spell schools | ~70 | 7 schools × ~10 effects × mana, generated. |
+| Tokens | ~15 | Hand-curated (summoned by other cards). |
+| **Total** | **~1,020** | |
+
+The exact final count is what the generator emits at module load —
+the `npcDeckCheck` and `dedupeCheck` IIFEs that already guard the
+hand-curated set extend to the generated cards too, so a duplicate
+id or unknown reference crashes at deploy time.
+
+### 13.3. Families
+
+A family is a flavor + palette + signature-keyword bundle. Every
+programmatic card belongs to exactly one family. Sprites paint the
+family's character archetype (skin, gear, weapon class), so a
+viewer reading the board can tell at a glance that a Voltaic Adept,
+Voltaic Wyrm-Cub, and Voltaic Surge spell are all the same family.
+
+Families (~36) are defined in `cards-catalog-gen.js` and grouped here
+for documentation purposes:
+
+```
+Aggro / swarm:        goblin, vermin, scrapper, pirate, bandit
+Tank / taunt:         knight, vault-guard, paladin, treant, construct
+Caster:               mage, voltaic, sorcerer, oracle, mystic
+Stealth / utility:    rogue, ninja, bounty, phantom, shadow-blade
+Beast / wild:         beast, ranger, druid, wolf-pack, hunter
+Undead / death:       skeleton, necromancer, ghoul, lich-kin, wraith
+Demon / sacrifice:    demon, warlock, cultist, hellspawn
+Holy / heal:          priest, spirit, cleric, paladin*, oracle*
+Elemental:            elem-fire, elem-frost, elem-storm, elem-earth
+Misc flagships:       dragon, witch, berserker, shaman, bardic
+```
+
+`*` = family appears in multiple groups; archetype overlap is fine.
+
+Each family declares:
+
+```js
+{
+  key: 'goblin',                              // stable id prefix
+  archetype: 'aggro-swarm',                   // stat-curve template
+  flavor: { skin: 'green', body: 'leather' }, // sprite hints
+  palette: 'leather',                         // material ramp key
+  signatureKeyword: 'charge',                 // applied to roster
+  signatureEffect: null,                      // optional onPlay/etc.
+  manaCurve: [1, 1, 2, 2, 3, 4],              // distribution
+  legendaryName: 'Goblin Warchief',           // hand-curated flagship
+}
+```
+
+### 13.4. Stat curve (deterministic, no power creep)
+
+The generator's stat formula keeps the catalogue inside a tight band
+no matter how many cards we add. Per card:
+
+```
+baselineTotal = mana * 2 + 1           // 1m=3, 2m=5, 3m=7, …, 10m=21
+atk           = round(baselineTotal * archetype.atkBias)
+hp            = baselineTotal - atk
+```
+
+Per-rarity adjustment (the "stat tax" you pay for the keyword/effect
+slot — the design rule is **keywords cost stats, not the other way
+around**):
+
+```
+common:    stats *= 1.00   no keyword, no ability  (vanilla glue)
+uncommon:  stats *= 0.85   ONE keyword OR one tiny effect
+rare:      stats *= 0.80   one ability + scaling/condition
+legendary: stats *= 1.00   one unique mechanic
+```
+
+The archetype bias table (lives in `cards-catalog-gen.js`):
+
+| Archetype | atkBias | hpBias | Bias rationale |
+| --- | --- | --- | --- |
+| aggro-swarm | 0.60 | 0.40 | front-loaded ATK, small HP |
+| balanced | 0.50 | 0.50 | vanilla glue, no swing |
+| taunt-tank | 0.35 | 0.65 | mostly HP, low ATK |
+| caster | 0.55 | 0.45 | trades a hair of HP for ATK |
+| stealth-utility | 0.60 | 0.40 | hits-and-runs |
+| undead | 0.45 | 0.55 | sticky, dies twice |
+| holy | 0.40 | 0.60 | HP heavy, heal hero |
+| elemental | 0.50 | 0.50 | balanced with effect |
+| dragon | 0.55 | 0.55 | flat 10% above curve (flagship) |
+
+The curve enforces that a 4-mana rare can't be a 5/5 with a free
+keyword. The generator rounds atk/hp so the **sum** stays on the
+curve; either stat may end up at 0 (e.g. a 1-mana taunt-tank ends up
+1/2 not 0/3).
+
+### 13.5. Variant slots
+
+For each (family, mana, rarity) cell the generator emits **multiple
+variants** so the catalogue isn't just one common Goblin per mana.
+Variant differs by:
+
+- one-word name flavor ("Runt", "Brute", "Tracker", "Whelp", …)
+- minor stat shuffle inside the curve ATK/HP split (±1, sum-preserving)
+- secondary keyword for uncommons (one of the family's allowed list)
+- secondary effect for rares (one of the family's allowed effect set)
+
+The name pool + variant table lives in the generator. A family with
+6 manas × 3 rarities × 2 variants/cell = 36 cards; ~30 families ×
+~10 = ~300+ minion cards. Spell schools fill the rest.
+
+### 13.6. Spell schools
+
+Seven schools, each with ~10 effects across mana:
+
+| School | Theme | Sample effects |
+| --- | --- | --- |
+| fire | damage | bolt 1→6, AOE, burn-line |
+| frost | freeze + control | freeze, slow, dmg+freeze |
+| holy | heal + protect | heal, shield, bless |
+| shadow | drain + debuff | drain, weaken, discard |
+| nature | buff + summon | buff, summon, regrowth |
+| arcane | utility + counter | counter, draw, peek, shuffle |
+| storm | chain + burst | chain dmg, burst, surge |
+
+Each effect-mana combo emits one common, one uncommon, one rare
+variant — that's where the spell-card count comes from.
+
+### 13.7. Determinism + balance enforcement
+
+The generator is fully **deterministic** — same code in = same card
+ids and stats out. That means:
+
+- `cards-content.js` exports the same catalogue on every deploy
+- collections referencing card ids stay stable
+- a rebalance is a code edit + a new commit, with a clear diff
+
+A module-load-time IIFE re-runs the cap checks: per-rarity card
+counts in `RARITY_POOLS`, stat-curve compliance, unique ids, valid
+keyword references. Fails fast at deploy time, not at runtime.
+
+---
+
+## 14. Recycle → Fragments → Craft Pack
+
+The grind-it-out loop that complements the bolts-purchase loop.
+
+### 14.1. Rationale
+
+Some viewers will play hundreds of matches and end up sitting on
+piles of duplicate commons they can't use (deck cap is 4). Today
+those past-cap pulls already convert to bolts via `DUPE_BOLTS`. But
+that only catches *future* pulls — it doesn't help a viewer who
+already has 4 copies of a card they'll never play. Fragments fix
+that:
+
+- Recycling a card the viewer **owns** yields **Pack Fragments**
+  (a soft currency, scaled by rarity).
+- Fragments craft new packs. Fragment-to-pack rate is set **above**
+  the bolt-equivalent cost of the same pack — bolts are still the
+  faster path. Fragments are the slow grinder's safety net.
+
+### 14.2. Fragment yield (LOCKED)
+
+| Rarity | Fragments per card recycled |
+| --- | --- |
+| common | 1 |
+| uncommon | 4 |
+| rare | 20 |
+| legendary | 100 |
+
+Champions and tokens cannot be recycled (not in collection anyway).
+
+### 14.3. Craft prices (LOCKED — costs MORE than bolts)
+
+The Bolt Pack costs 250 bolts. Recycling enough commons to clear a
+deck cap from a viewer's pulls yields roughly 1 fragment per common
+opened. We set the fragment price *above* the bolt-equivalent:
+
+| Pack | Fragments cost | Bolts equivalent | Premium |
+| --- | --- | --- | --- |
+| Boltbound Common Pack | 50 | n/a (free daily) | — |
+| Boltbound Bolt Pack | 400 | 250 bolts (~ 250 frag if 1c=1f) | 60% premium |
+| Boltbound Voltaic Pack | 1200 | drop-only (no purchase) | — |
+
+The "premium" enforces Clay's rule: **fragments cost MORE than
+bolts**. A viewer is never better off recycling and crafting than
+just buying the pack directly. Crafting is the route for viewers
+who farm matches but have run out of useful cards to keep, or who
+want to convert a *specific* card they don't want into pack equity.
+
+### 14.4. KV schema (extends §6)
+
+| Key | Value | Notes |
+| --- | --- | --- |
+| `cards:frag:<userId>` | `{ frag, ts, recycled, crafted }` | Per-user fragment balance + stats. Per-user (not per-guild) — fragments travel across channels. |
+
+### 14.5. Public API (`cards-fragments.js`)
+
+```js
+export async function getFragments(env, userId)
+  // → { frag, recycled, crafted, ts }
+
+export async function recycleCards(env, guildId, userId, items)
+  // items: [{ cardId, count }]   // count clamped to owned past… wait, no
+  // — recycling can take cards you currently own. Each removed copy
+  // yields RECYCLE_YIELD[rarity] fragments. Cannot recycle champions
+  // or tokens. Active deck's cards CAN be recycled (the deck flagging
+  // its missing card on next /boltbound match is the punishment).
+  // → { ok, removed: [{cardId, count, fragYield}], fragTotal, balance }
+
+export async function craftPackFromFragments(env, guildId, userId, packType)
+  // Debits CRAFT_COST_FRAG[packType] from balance, then calls
+  // creditPack(... source:'crafted-frag'). Errors if balance < cost.
+  // → { ok, pack, balance } | { ok:false, error:'insufficient-frag', need, have }
+```
+
+The `source` enum already used by `creditPack` gets a new value:
+`'crafted-frag'`. Receipts in `/boltbound log` flag fragment-crafted
+packs distinctly so the grind feels rewarded.
+
+### 14.6. Surface hooks
+
+**Discord (cards.js)** — adds two subcommands:
+
+```
+/boltbound recycle             — paginated picker UI (select-menu) to
+                                  choose duplicates to recycle. Defaults
+                                  to "recycle everything past deck cap".
+/boltbound craft pack:<type>   — craft a pack from fragments.
+/boltbound status              — already exists; gains a "Fragments: N"
+                                  row above the pack list.
+```
+
+**Web (aquilo-site, later)** — adds:
+
+- `/boltbound/collection` shows a "Recycle" button per card with the
+  per-card fragment yield as the tooltip.
+- `/boltbound/craft` is a dedicated page with a fragment counter, a
+  pack-type picker, and a "craft" button.
+
+**Twitch panel** — a small fragment counter chip next to the bolt
+counter, read-only.
+
+The web + panel surfaces hit `cards-web.js`'s existing JSON endpoints
+(see §9). New endpoints documented in `cards-web.js`:
+- `GET  /api/boltbound/fragments` → balance
+- `POST /api/boltbound/recycle`  → recycle the listed cards
+- `POST /api/boltbound/craft`    → craft a pack
+
+All three go through the same `cards-fragments.js` module the Discord
+surface uses; no parallel server-side logic.
+
+---
+
+## 15. Sprite generator — 1,000+ unique pixel-art cards
+
+The current `tools/build-card-sprites.ps1` has a hand-written `Draw-Card-*`
+function for each of the 82 cards. That doesn't scale to 1,000+, and
+Clay wants the new bar to be **cooler and more detailed** than the
+existing set, not flatter.
+
+### 15.1. Strategy
+
+Two-tier render:
+
+1. **Hand-tuned draws** — champions (5), legendaries (~30), and
+   the signature rares (~30) keep their bespoke `Draw-Card-*`
+   functions. These are the cards a viewer sees often and recognises
+   by silhouette; they earn the bespoke treatment.
+2. **Template draws** — every programmatic card dispatches into a
+   **family template** (e.g. `Draw-Family-Goblin`) with per-card
+   parameters (size, pose variant, weapon variant, accent gem). The
+   template produces a unique-looking sprite from the same primitives
+   `lib-pixel.ps1` already exposes (Draw-Humanoid, Draw-Blade, Gem-Palette,
+   etc.) — no two cards share an identical pixel layout because the
+   variant params shift weapon/pose/accent slot.
+
+### 15.2. Rarity-scaled detail
+
+The `Rarity-Detail` ramp (already in `lib-pixel.ps1`) now drives
+extra adornments:
+
+| Rarity | Detail tier | Adornments added |
+| --- | --- | --- |
+| common | 0 | base figure + ground shadow only |
+| uncommon | 1 | + faction sigil pip + simple weapon trim |
+| rare | 2 | + accent gem + emblem stripe + rim light |
+| legendary | 4 | + APNG halo pulse + sigil aura + double rim |
+
+Legendaries remain **APNG-animated** (already in pipeline via
+`build-card-apng.mjs`). The halo radius/alpha pulse stays; the
+silhouette is more detailed than the current Phase-1 set thanks to
+extra accent slots (gem, sigil, plume).
+
+### 15.3. Family palette → material ramp
+
+Each family declares a palette key (e.g. `leather`, `steel`, `voltaic`).
+The sprite generator resolves it to a 5-tone material ramp from
+`lib-pixel.ps1` (MAT_STEEL, MAT_LEATHER_BLACK, …). Skin tones come
+from the family's `flavor.skin` field (green, bone, pale, etc.).
+This means a 200-card family generates 200 visually-coherent sprites
+without any per-card colour authoring.
+
+### 15.4. Deterministic variation
+
+The per-card RNG (Rng-Init, Rng-Pick) is seeded by the card id.
+That seed drives:
+
+- weapon variant pick (axe vs sword vs spear for warrior-flavor)
+- pose tilt (head left / right / forward)
+- accent gem slot fill (or skip)
+- background flourish (none / faint / strong)
+
+Same card id → same sprite, every time. Same machinery as the
+character + clash generators.
+
+### 15.5. Performance
+
+GDI+ `SetPixel` averages ~5K pixels per card on a 64×80 canvas with
+the current density. 1,000 cards × 5K = 5M pixels. Hand-timing the
+existing run is ~5 min for 82 → ~60 min for 1,020 cards. Acceptable
+for a once-per-deploy regen; the script writes incrementally so a
+restart resumes mid-set if needed.
+
+### 15.6. Outputs
+
+Same path convention as Phase 1:
+```
+aquilo-gg/sprites/cards/<cardId>.png             64×80 PNG (animated for legendary)
+aquilo-gg/sprites/_card-legendary-frames/...     per-frame frames for APNG stitch
+```
+
+No emoji glyphs anywhere — the existing rule (CARD-GAME-DESIGN.md §1)
+holds across the expansion.
+
+---
