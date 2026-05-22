@@ -177,6 +177,14 @@ export async function handleExt(req, env, ctx) {
         return await handleExtQuick(env, guildId, userId, req, route);
       }
     }
+    // Sports betting on the panel — moneyline/spread/total/parlay,
+    // same engine as the website + Discord. See ext-bets.js.
+    if (route.indexOf('bets/') === 0) {
+      const { isExtBetsRoute, handleExtBets } = await import('./ext-bets.js');
+      if (isExtBetsRoute(route)) {
+        return await handleExtBets(env, guildId, userId, req, route);
+      }
+    }
     if (isBoltboundRoute(route)) {
       // Twitch panel surface for Boltbound. Same backend as the website
       // (cards-web.js routes); identity is tw:<twId> so panel viewers
