@@ -193,7 +193,7 @@ const LEGEND_HEROES = [
   },
   {
     id: 'leg.mireth',
-    name: 'Mireth, Vault Whisperer',
+    name: 'Mireth, Relic Whisperer',
     rarity: 'legendary', type: 'minion',
     mana: 5, atk: 3, hp: 4,
     abilities: [{ trigger: 'onPlay', effect: 'copyOpponentCard', target: 'oppHand' }],
@@ -246,7 +246,7 @@ const LEGEND_BOSSES = [
   },
   {
     id: 'leg.vaultlich',
-    name: 'The Vault Lich',
+    name: 'The Relic Lich',
     rarity: 'legendary', type: 'minion',
     mana: 7, atk: 4, hp: 5,
     abilities: [{ trigger: 'onPlay', effect: 'draw', target: 'self', value: 3 }],
@@ -318,7 +318,7 @@ const RARES = [
     text: 'Battlecry: gain 1 mana this turn only.',
   },
   {
-    id: 'r.vaultsniffer', name: 'Vault Sniffer',
+    id: 'r.vaultsniffer', name: 'Relic Sniffer',
     rarity: 'rare', type: 'minion', mana: 1, atk: 1, hp: 2,
     abilities: [{ trigger: 'onPlay', effect: 'peekDeck', target: 'self', value: 1 }],
     text: 'Battlecry: look at the top card of your deck.',
@@ -346,7 +346,7 @@ const RARES = [
     text: 'Deal 4 damage split between any two targets.',
   },
   {
-    id: 'r.vaultseal', name: 'Vault Seal',
+    id: 'r.vaultseal', name: 'Relic Seal',
     rarity: 'rare', type: 'spell', mana: 3,
     abilities: [{ trigger: 'onCast', effect: 'counter', target: 'oppNextSpell' }],
     text: 'Counter the next spell your opponent plays.',

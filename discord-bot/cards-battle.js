@@ -87,7 +87,7 @@ export function createMatch(opts) {
     board:  { A: [], B: [] },
     graveyard: { A: [], B: [] },
     spellsCast: { A: 0, B: 0 },               // for The Hollow King's gate
-    counterNextSpell: { A: false, B: false }, // Vault Seal
+    counterNextSpell: { A: false, B: false }, // Relic Seal
     fatigueDmg: { A: 0, B: 0 },               // empty-deck draw escalation
     turn: 1,
     active: goingFirst,
@@ -218,7 +218,7 @@ function startTurn(match, side) {
   drawTurnStart(match, side);
   // Counter-next-spell flag is for the OPPONENT's next spell — reset
   // the *opposite* side's flag here (no — actually we set it when
-  // Vault Seal is cast; it'll be consumed by the opponent's next spell).
+  // Relic Seal is cast; it'll be consumed by the opponent's next spell).
   // Don't touch it here; that gets handled in cast resolution.
   push(match, { t: match.turn, kind: 'turn-start', side, mana: { ...match.mana[side] } });
 }
@@ -335,7 +335,7 @@ function playCardAction(match, action) {
 }
 
 function castSpell(match, side, card, action) {
-  // If the opponent has Vault Seal'd us, counter this spell.
+  // If the opponent has Relic Seal'd us, counter this spell.
   if (match.counterNextSpell[side]) {
     match.counterNextSpell[side] = false;
     match.graveyard[side].push(card.id);

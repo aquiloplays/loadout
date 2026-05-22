@@ -73,7 +73,7 @@ export function normaliseTreasury(t, townBuildings) {
 }
 
 // Compute per-resource capacity from the town's storages + collectors.
-// Each Storage / *Vault building contributes its capacityBonus; each
+// Each Storage / Reserve building contributes its capacityBonus; each
 // collector contributes its built-in buffer cap.
 export function capacityFromBuildings(buildings, legacyBoltsCap = 0) {
   const cap = { ...DEFAULT_CAP };
@@ -96,7 +96,7 @@ export function capacityFromBuildings(buildings, legacyBoltsCap = 0) {
       cap.wood  += bonus;
       cap.stone += Math.floor(bonus / 2);
     }
-    // New per-resource Vault buildings.
+    // New per-resource Reserve buildings (slug 'xVault' kept for KV back-compat).
     const vaultMap = {
       lumberVault: 'wood',
       stoneVault:  'stone',
@@ -212,7 +212,7 @@ export function syncCollectors(town, nowUtc = Date.now()) {
   return mutated;
 }
 
-// E2: storage leak walker — for every damaged/destroyed vault or
+// E2: storage leak walker — for every damaged/destroyed reserve or
 // storage, drain 2% of held resources per elapsed minute since the
 // last walk, capped at 30% per pass. Called from syncCooldowns just
 // like syncCollectors. Returns true if treasury changed (caller

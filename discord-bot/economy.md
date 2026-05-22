@@ -4,8 +4,8 @@ Bolts (⚡) are the unified currency across every Aquilo product:
 
 - the Loadout DLL (dungeons, mini-games, shop)
 - the Loadout Discord bot (`/loadout`, `/stocks`, `/bet`)
-- Aquilo's Vault Discord bot (Fallout-Shelter game; credits via signed
-  Worker delta)
+- Aquilo's Vault Discord bot (its own separate shelter-builder game in
+  its own repo; credits via signed Worker delta — see §HMAC routes)
 - the Twitch panel extension (read-only views + Bits-funded loot boxes)
 
 There is one wallet per (guild, user) pair, stored at

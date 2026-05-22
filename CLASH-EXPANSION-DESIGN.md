@@ -980,7 +980,7 @@ next starts.
 ### Phase E1 — Resource economy backbone (2 wks)
 - Treasury schema extension; backfill in `ensureTown`.
 - BUILDINGS catalog: add `footprint`, `produces`, `productionRate` fields. Recalibrate existing 8 buildings to mixed-resource costs.
-- New buildings: Sawmill, Quarry, Forge, Mint, Workshop, Builder's Hut, 4 Vaults. Catalog entries only — sprites are placeholders at v1 sizes.
+- New buildings: Sawmill, Quarry, Forge, Mint, Workshop, Builder's Hut, 4 Reserves (per-resource Lumber/Stone/Iron/Gold; KV slug `xVault` kept for back-compat). Catalog entries only — sprites are placeholders at v1 sizes.
 - `/clash gather <resource> <tier>` Discord command.
 - `syncCollectors` walker; `syncGatherTasks` walker.
 - New HTTP: `POST .../clash/gather`, `POST .../clash/tap`.

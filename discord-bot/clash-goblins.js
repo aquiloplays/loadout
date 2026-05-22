@@ -339,7 +339,7 @@ export function applyDamagedStorageLeak(town, nowUtc = Date.now()) {
   const lastLeak = town.lastStorageLeakUtc || nowUtc;
   const minutes = Math.floor((nowUtc - lastLeak) / 60_000);
   if (minutes <= 0) return false;
-  // Only storage/vault kinds count for leak. Look these up by their
+  // Only storage/reserve kinds count for leak. Look these up by their
   // collectorOf field OR by name pattern.
   const VAULT_KINDS = new Set([
     'storage', 'lumberVault', 'stoneVault', 'ironVault', 'goldVault',

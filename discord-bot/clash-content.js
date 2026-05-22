@@ -243,7 +243,7 @@ export const BUILDINGS = {
   },
 
   lumberVault: {
-    glyph: '🗄', name: 'Lumber Vault',
+    glyph: '🗄', name: 'Lumber Reserve',
     footprint: { w: 2, h: 2 },
     cost: [null, { bolts: 80, wood: 200 }, { bolts: 250, wood: 700, stone: 150 },
                  { bolts: 650, wood: 1700, stone: 500 },
@@ -253,7 +253,7 @@ export const BUILDINGS = {
     capacityBonus: [null, 1500, 4500, 10000, 22000],   // adds to wood cap
   },
   stoneVault: {
-    glyph: '🗄', name: 'Stone Vault',
+    glyph: '🗄', name: 'Stone Reserve',
     footprint: { w: 2, h: 2 },
     cost: [null, { bolts: 100, wood: 350, stone: 80 }, { bolts: 300, wood: 900, stone: 250 },
                  { bolts: 750, wood: 2100, stone: 700 },
@@ -263,7 +263,7 @@ export const BUILDINGS = {
     capacityBonus: [null, 800, 2400, 6000, 14000],
   },
   ironVault: {
-    glyph: '🗄', name: 'Iron Vault',
+    glyph: '🗄', name: 'Iron Reserve',
     footprint: { w: 2, h: 2 },
     cost: [null, { bolts: 200, wood: 600, stone: 200, iron: 40 }, { bolts: 500, wood: 1500, stone: 500, iron: 120 },
                  { bolts: 1200, wood: 3500, stone: 1200, iron: 320 },
@@ -273,7 +273,7 @@ export const BUILDINGS = {
     capacityBonus: [null, 250, 700, 1800, 4200],
   },
   goldVault: {
-    glyph: '🏛', name: 'Gold Vault',
+    glyph: '🏛', name: 'Gold Reserve',
     footprint: { w: 2, h: 2 },
     cost: [null, { bolts: 400, wood: 1200, stone: 400, iron: 100 }, { bolts: 900, wood: 2800, stone: 900, iron: 240 },
                  { bolts: 2000, wood: 6000, stone: 2200, iron: 600, cores: 1 },
