@@ -244,6 +244,13 @@ export default {
       const { handleProfilePage } = await import('./progression/http.js');
       return handleProfilePage(req, env, path);
     }
+    // P5 — account-link OAuth/OpenID flows. These live under
+    // /web/profile/link/ specifically so the more-generic profile
+    // dispatcher below doesn't intercept the redirect callbacks.
+    if (path.startsWith('/web/profile/link/')) {
+      const { handleWebProfileLink } = await import('./progression/http.js');
+      return handleWebProfileLink(req, env, path);
+    }
     if (path.startsWith('/web/profile/')) {
       const { handleWebProfile } = await import('./progression/http.js');
       return handleWebProfile(req, env, path);

@@ -211,6 +211,59 @@ export async function handleWebProfile(req, env, path) {
   return new Response('not found', { status: 404 });
 }
 
+// /web/profile/link/start?platform=...&userId=...&returnUrl=...
+// /web/profile/link/callback?platform=...&state=...&code=...
+// /web/profile/link/manual         POST { userId, platform, handle }
+// /web/profile/link/remove         POST { userId, platform }
+export async function handleWebProfileLink(req, env, path) {
+  const { startLinkFlow, completeLinkFlow, applyManualLink, removeLink, PLATFORMS } = await import('./linking.js');
+  const parts = path.split('/').filter(Boolean);   // ['web','profile','link', op, ...]
+  const op = parts[3];
+  const url = new URL(req.url);
+  const platform = url.searchParams.get('platform');
+
+  if (op === 'platforms') {
+    return json({ platforms: Object.keys(PLATFORMS).map(k => ({ id: k, ...PLATFORMS[k] })) });
+  }
+  if (op === 'start' && req.method === 'GET') {
+    if (!platform || !PLATFORMS[platform]) return json({ error: 'unknown-platform' }, 400);
+    const userId = url.searchParams.get('userId');
+    const returnUrl = url.searchParams.get('returnUrl');
+    if (!userId) return json({ error: 'userId required' }, 400);
+    const r = await startLinkFlow(env, platform, userId, returnUrl);
+    if (r.ok && r.redirect) return Response.redirect(r.redirect, 302);
+    return json(r, r.ok ? 200 : 400);
+  }
+  if (op === 'callback' && req.method === 'GET') {
+    if (!platform || !PLATFORMS[platform]) return json({ error: 'unknown-platform' }, 400);
+    const query = Object.fromEntries(url.searchParams);
+    const r = await completeLinkFlow(env, platform, query);
+    if (r.ok && r.returnUrl) return Response.redirect(`${r.returnUrl}?linked=${platform}`, 302);
+    if (r.ok) {
+      return html(`<!doctype html><body style="background:#0a0b12;color:#e8e8f0;font:14px/1.4 system-ui;padding:24px;">
+        <h1>Linked!</h1><p>Your ${escapeHtml(platform)} account is now linked.</p>
+        <p><a style="color:#7c5cff" href="javascript:window.close()">Close</a></p>
+      </body>`, 200);
+    }
+    return json(r, 400);
+  }
+  if (op === 'manual' && req.method === 'POST') {
+    let body = {};
+    try { body = await req.json(); } catch { return json({ error: 'bad-json' }, 400); }
+    if (!body.userId || !body.platform) return json({ error: 'userId+platform required' }, 400);
+    const r = await applyManualLink(env, body.userId, body.platform, body.handle);
+    return json(r, r.ok ? 200 : 400);
+  }
+  if (op === 'remove' && req.method === 'POST') {
+    let body = {};
+    try { body = await req.json(); } catch { return json({ error: 'bad-json' }, 400); }
+    if (!body.userId || !body.platform) return json({ error: 'userId+platform required' }, 400);
+    const r = await removeLink(env, body.userId, body.platform);
+    return json(r, r.ok ? 200 : 400);
+  }
+  return json({ error: 'unknown-op' }, 404);
+}
+
 // /web/badges/<userId>     per-user owned + showcase + locked
 // /web/badges/catalog      full catalogue
 // POST /web/badges/me/showcase  { showcase: [badgeId, badgeId, badgeId], userId }
