@@ -46,8 +46,10 @@ import {
   cancelGather, getGatherQueue, gatherProgressLines,
   GATHER_RESOURCES, GATHER_TIERS,
   normaliseTreasury, addResources, chargeResources,
+  applyStorageLeak,
   RES_NEW, RES_ALL,
 } from './clash-resources.js';
+import { computeRepair } from './clash-goblins.js';
 import { simulate, computeLoot, computeTrophyDelta } from './clash-raid.js';
 import {
   pushRaidIncoming, pushRaidDefended, pushRaidSacked, pushRaidResult,
@@ -107,6 +109,17 @@ async function syncCooldowns(env, guildId, userId) {
     const town = await getTown(env, guildId);
     if (town) {
       const collectorChanged = syncCollectors(town);
+      // E2: damaged-storage leak. Pull a treasury copy, apply leak,
+      // write it back if anything was lost. Cheap — runs once per
+      // /clash call against an in-memory map.
+      let leakChanged = false;
+      try {
+        const tres = await getTreasury(env, guildId);
+        if (applyStorageLeak(town, tres, Date.now())) {
+          await env.LOADOUT_BOLTS.put('clash:treasury:' + guildId, JSON.stringify(tres));
+          leakChanged = true;
+        }
+      } catch { /* leak failures shouldn't break /clash */ }
       if (townDone.length) {
       for (const item of townDone) {
         if (item.kind === 'build' && item.target?.buildingId) {
@@ -136,13 +149,25 @@ async function syncCooldowns(env, guildId, userId) {
           town.garrison = town.garrison || {};
           town.garrison[item.target.troopId] = (town.garrison[item.target.troopId] || 0) + item.target.count;
         }
+        // E2: repair completion. Restore the building to full HP and
+        // clear damaged/destroyed status.
+        if (item.kind === 'repair' && item.target?.buildingId) {
+          const b = town.buildings.find(x => x.id === item.target.buildingId);
+          if (b) {
+            const maxHp = BUILDINGS[b.kind]?.hp?.[b.level] || b.hp || 100;
+            b.hp = maxHp;
+            b.status = 'idle';
+            town.layoutVersion = (town.layoutVersion || 0) + 1;
+          }
+          await pushBuildComplete(env, { guildId, kind: 'town', name: `Repaired ${BUILDINGS[item.target.kind]?.name || item.target.kind}` });
+        }
       }
         await putTown(env, guildId, town);
         await refreshDefenseSnapshot(env, guildId);
-      } else if (collectorChanged) {
-        // No queue work landed, but collectors moved their numbers —
-        // persist the new storedYield buffers so a follow-up /tap
-        // picks them up.
+      } else if (collectorChanged || leakChanged) {
+        // No queue work landed, but collectors moved their numbers
+        // (or a damaged-storage leak ticked) — persist the town so
+        // /tap and /town view stay honest.
         await putTown(env, guildId, town);
       }
     }
@@ -261,6 +286,9 @@ export async function handleClashCommand(env, data, userId, userName) {
       case 'build':    return ephemeral(await handleTownBuild(env, guildId, userId, getOpt('kind'), getOpt('building')));
       case 'garrison': return ephemeral(await handleTownGarrison(env, guildId, userId, getOpt('troop'), getOpt('count')));
       case 'pause':    return ephemeral(await handleTownPause(env, guildId, userId));
+      case 'repair':   return ephemeral(await handleTownRepair(env, guildId, userId, getOpt('building')));
+      case 'demolish': return ephemeral(await handleTownDemolish(env, guildId, userId, getOpt('building')));
+      case 'damage':   return ephemeral(await renderDamageReport(env, guildId));
       case 'designate-defender':
                        return ephemeral(await handleDefenderDesignate(env, guildId, userId, getOpt('user')));
       case 'clear-defender':
@@ -1007,6 +1035,87 @@ async function handleTownPause(env, guildId, userId) {
   return town.matchmakingPaused
     ? '⏸ Town is paused — no new PvP raids will be matched against it. In-flight raids still resolve.'
     : '▶ Town is live for PvP matchmaking.';
+}
+
+// ── E2: repair + demolish (damaged/destroyed buildings) ──────────────
+
+async function handleTownRepair(env, guildId, userId, buildingIdRaw) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return '🔒 Only the streamer + mods can repair buildings.';
+  }
+  const buildingId = Number(buildingIdRaw);
+  if (!buildingId) return '❌ Pass the building id (see `/clash town damage`).';
+  const town = await getTown(env, guildId);
+  if (!town) return '❌ No town here.';
+  const b = town.buildings.find(x => x.id === buildingId);
+  if (!b) return `❌ No building with id ${buildingId}.`;
+  if (b.status !== 'damaged' && b.status !== 'destroyed') {
+    return `✅ ${BUILDINGS[b.kind]?.name || b.kind} #${b.id} isn't damaged.`;
+  }
+  if (b.status === 'building') return '🏗 That building is already being worked on.';
+  const repair = computeRepair(b);
+  if (!repair) return '❌ Repair cost lookup failed.';
+  const charge = await chargeResources(env, guildId, repair.cost);
+  if (!charge.ok) {
+    return `❌ Treasury short. Need ${formatResources(charge.missing)} more. ${treasuryHelpHint(repair.cost)}`;
+  }
+  b.status = 'building';
+  await putTown(env, guildId, town);
+  await enqueue(env, 'clash:queue:' + guildId, {
+    id: 'q_' + Date.now(),
+    kind: 'repair',
+    target: { buildingId: b.id, kind: b.kind },
+    endsAt: Date.now() + repair.timeMs,
+  });
+  const minutes = Math.max(1, Math.ceil(repair.timeMs / 60_000));
+  return `🔧 Repairing ${BUILDINGS[b.kind]?.name || b.kind} #${b.id}. Ready in ${minutes} min. Cost: ${formatResources(repair.cost)}.`;
+}
+
+async function handleTownDemolish(env, guildId, userId, buildingIdRaw) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return '🔒 Only the streamer + mods can demolish buildings.';
+  }
+  const buildingId = Number(buildingIdRaw);
+  if (!buildingId) return '❌ Pass the building id.';
+  const town = await getTown(env, guildId);
+  if (!town) return '❌ No town here.';
+  const b = town.buildings.find(x => x.id === buildingId);
+  if (!b) return `❌ No building with id ${buildingId}.`;
+  if (b.kind === 'townhall') return '❌ Cannot demolish the Town Hall.';
+  if (b.status !== 'destroyed' && b.status !== 'damaged') {
+    return '❌ Only damaged or destroyed buildings can be demolished. Use this to clear rubble or re-layout.';
+  }
+  // 25% resource refund per §4.7.
+  const { demolishRefund } = await import('./clash-content.js');
+  const refund = demolishRefund(b.kind, b.level || 1);
+  await addResources(env, guildId, refund);
+  // Remove the building.
+  town.buildings = town.buildings.filter(x => x.id !== buildingId);
+  town.layoutVersion = (town.layoutVersion || 0) + 1;
+  await putTown(env, guildId, town);
+  await refreshDefenseSnapshot(env, guildId);
+  const refundStr = Object.keys(refund).length ? ` Refunded ${formatResources(refund)}.` : '';
+  return `🪚 Demolished ${BUILDINGS[b.kind]?.name || b.kind} #${b.id}.${refundStr}`;
+}
+
+async function renderDamageReport(env, guildId) {
+  const town = await getTown(env, guildId);
+  if (!town) return '❌ No town here.';
+  const damaged = (town.buildings || []).filter(b => b.status === 'damaged' || b.status === 'destroyed');
+  if (!damaged.length) return '✅ No damaged buildings. Town is at full HP.';
+  const lines = ['**Damage report**'];
+  for (const b of damaged) {
+    const maxHp = BUILDINGS[b.kind]?.hp?.[b.level] || b.hp || 100;
+    const hp = Math.max(0, b.hp || 0);
+    const pct = Math.round(hp / maxHp * 100);
+    const status = b.status === 'destroyed' ? 'destroyed' : `${pct}%`;
+    const repair = computeRepair(b);
+    const costStr = repair ? formatResources(repair.cost) : '—';
+    lines.push(`• #${b.id} ${BUILDINGS[b.kind]?.name || b.kind} L${b.level} — ${status} · repair ${costStr}`);
+  }
+  lines.push('');
+  lines.push('Fix: `/clash town repair building:<id>`  ·  Clear: `/clash town demolish building:<id>`');
+  return lines.join('\n');
 }
 
 export async function canManageTown(env, guildId, userId) {

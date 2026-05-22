@@ -212,6 +212,53 @@ export function syncCollectors(town, nowUtc = Date.now()) {
   return mutated;
 }
 
+// E2: storage leak walker — for every damaged/destroyed vault or
+// storage, drain 2% of held resources per elapsed minute since the
+// last walk, capped at 30% per pass. Called from syncCooldowns just
+// like syncCollectors. Returns true if treasury changed (caller
+// should syncCollectors-style write).
+//
+// Treasury is mutated in place. The town carries
+// `lastStorageLeakUtc` so partial-minute walks aren't double-billed.
+const STORAGE_LEAK_VAULTS = new Set([
+  'storage', 'lumberVault', 'stoneVault', 'ironVault', 'goldVault',
+]);
+const STORAGE_LEAK_RATE_PER_MIN = 0.02;
+const STORAGE_LEAK_CAP = 0.30;
+
+export function applyStorageLeak(town, treasury, nowUtc = Date.now()) {
+  if (!town || !treasury) return false;
+  const damaged = (town.buildings || []).filter(b =>
+    STORAGE_LEAK_VAULTS.has(b.kind) && (b.status === 'damaged' || b.status === 'destroyed')
+  );
+  const last = town.lastStorageLeakUtc || nowUtc;
+  const minutes = Math.floor((nowUtc - last) / 60_000);
+  if (minutes <= 0) {
+    town.lastStorageLeakUtc = nowUtc;
+    return false;
+  }
+  if (!damaged.length) {
+    // Even with no damaged storage, advance the timestamp so a
+    // future bout of damage doesn't claim hours of "stored" minutes.
+    town.lastStorageLeakUtc = nowUtc;
+    return false;
+  }
+  const factor = Math.min(STORAGE_LEAK_CAP, STORAGE_LEAK_RATE_PER_MIN * minutes);
+  let changed = false;
+  for (const k of ['wood', 'stone', 'iron', 'gold', 'scrap']) {
+    const cur = treasury[k] || 0;
+    if (cur > 0) {
+      const lost = Math.floor(cur * factor);
+      if (lost > 0) {
+        treasury[k] = cur - lost;
+        changed = true;
+      }
+    }
+  }
+  town.lastStorageLeakUtc = nowUtc;
+  return changed;
+}
+
 // Tap one or all collectors into the treasury. Returns the per-resource
 // collected map so the caller can show a "you collected ..." message.
 export async function tapCollectors(env, guildId, buildingId = null) {

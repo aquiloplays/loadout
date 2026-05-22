@@ -422,6 +422,22 @@ export const COMMANDS = [
             ],
           },
           { type: TYPE_SUBCOMMAND, name: 'pause', description: 'Toggle PvP matchmaking opt-out for this town' },
+          // ── CLASH EXPANSION Phase E2 — repair / demolish / damage ────
+          {
+            type: TYPE_SUBCOMMAND, name: 'repair',
+            description: 'Repair a damaged or destroyed building (streamer/mods)',
+            options: [
+              { type: TYPE_INTEGER, name: 'building', description: 'Building id (see /clash town damage)', required: true, min_value: 1 },
+            ],
+          },
+          {
+            type: TYPE_SUBCOMMAND, name: 'demolish',
+            description: 'Demolish a destroyed building (25% resource refund, streamer/mods)',
+            options: [
+              { type: TYPE_INTEGER, name: 'building', description: 'Building id to demolish', required: true, min_value: 1 },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'damage', description: 'Show damaged/destroyed buildings + repair costs' },
           {
             type: TYPE_SUBCOMMAND, name: 'designate-defender',
             description: 'Designate a community member\'s hero as the town\'s defending Champion (needs a War Tent)',

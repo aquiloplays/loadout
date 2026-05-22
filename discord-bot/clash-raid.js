@@ -11,7 +11,7 @@
 // summary. Visual fidelity arrives with the web layout editor in
 // Phase 4.
 
-import { BUILDINGS, TROOPS_PERSONAL, TROOPS_GARRISON, rollVoltaicDrop } from './clash-content.js';
+import { BUILDINGS, TROOPS_PERSONAL, TROOPS_GARRISON, TROOPS_GOBLIN, rollVoltaicDrop } from './clash-content.js';
 
 // Seeded RNG so battles replay identically.
 function rng(seed) {
@@ -71,10 +71,12 @@ export function simulate(attacker, defenderSnapshot, raidId, opts = {}) {
     alive: true,
   } : null;
 
-  // Personal troops the attacker brought.
+  // Personal troops the attacker brought. Goblin raids reuse the same
+  // attacker slot — fall back to TROOPS_GOBLIN when a troopId isn't a
+  // player troop. This keeps simulate() agnostic to who's raiding.
   const army = [];
   for (const [troopId, count] of Object.entries(attacker.army || {})) {
-    const def = TROOPS_PERSONAL[troopId];
+    const def = TROOPS_PERSONAL[troopId] || TROOPS_GOBLIN[troopId];
     if (!def) continue;
     for (let i = 0; i < count; i++) {
       army.push({
@@ -217,6 +219,13 @@ export function simulate(attacker, defenderSnapshot, raidId, opts = {}) {
     armyLost: army.filter(u => !u.alive && !u.isHero).length,
     heroSurvived: champion ? champion.alive : null,
     defenderHeroSurvived: defenderChampion ? defenderChampion.alive : null,
+    // E2 damage persistence: slim per-building final state so
+    // applyDamageWriteback can sync live town HP without replaying
+    // the log. Each entry: {id, hp, maxHp, alive}.
+    finalBuildings: buildings.map(b => ({
+      id: b.id, hp: Math.max(0, Math.round(b.hp)),
+      maxHp: b.maxHp, alive: !!b.alive,
+    })),
   };
 }
 

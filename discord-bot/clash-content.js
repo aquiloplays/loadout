@@ -454,6 +454,81 @@ export function generateGoblinCamp(seed) {
   };
 }
 
+// ── Goblin troops (E2: NPC raiders ATTACKING the town) ───────────────
+//
+// These are the goblins that show up in scheduled raids. They're
+// modelled as personal-troop-style records so clash-raid.simulate()
+// can consume them as the attacker army without any code change.
+// Stats are intentionally lower per-unit than player troops at the
+// same name; the threat comes from quantity + Warband bosses.
+
+export const TROOPS_GOBLIN = {
+  goblinScrapper: { glyph: '🟢', name: 'Goblin Scrapper', rarity: 'common',
+                    hp: 35, atk: 6, speed: 4, target: 'closest' },
+  goblinArcher:   { glyph: '🟢', name: 'Goblin Archer',   rarity: 'common',
+                    hp: 22, atk: 8, speed: 3, target: 'closest', range: 4 },
+  goblinSapper:   { glyph: '💣', name: 'Goblin Sapper',   rarity: 'rare',
+                    hp: 55, atk: 70, speed: 4, target: 'walls' },
+  goblinChief:    { glyph: '👹', name: 'Goblin Chief',    rarity: 'rare',
+                    hp: 220, atk: 28, speed: 2, target: 'highValue' },
+  goblinMage:     { glyph: '🟣', name: 'Goblin Mage',     rarity: 'epic',
+                    hp: 90, atk: 36, speed: 2, target: 'highValue', range: 3, aoe: 1 },
+  goblinKing:     { glyph: '👑', name: 'Goblin King',     rarity: 'legendary',
+                    hp: 900, atk: 65, speed: 2, target: 'highValue' },
+  goblinSkyrider: { glyph: '🪁', name: 'Goblin Skyrider', rarity: 'rare',
+                    hp: 70, atk: 18, speed: 5, target: 'highValue', isAir: true },
+};
+
+// Goblin army per TH level, per CLASH-EXPANSION-DESIGN.md §4.2. Seeded
+// so a town's scheduled raids replay identically. `mode` = 'normal' |
+// 'warband' — warband swaps in the King composition (TH8+, once/day).
+//
+// Returns `{ troops: { troopId: count }, hasWarband: bool, label }`.
+
+export function generateGoblinArmy(thLevel, seed, { mode = 'normal' } = {}) {
+  const rng = rngFromSeed(seed);
+  const th = Math.max(1, Math.min(10, Number(thLevel) || 1));
+  if (th === 1) return { troops: {}, hasWarband: false, label: 'Goblin scout (grace period)' };
+  // Warband boss — only at TH ≥ 8 and only when called for explicitly.
+  if (mode === 'warband' && th >= 8) {
+    const troops = {
+      goblinKing: 1,
+      goblinChief: 2 + Math.floor(rng() * 2),
+      goblinMage: 2,
+      goblinSapper: 3 + Math.floor(rng() * 2),
+      goblinArcher: 8 + Math.floor(rng() * 4),
+      goblinScrapper: 18 + Math.floor(rng() * 6),
+    };
+    if (th >= 10) troops.goblinSkyrider = 3 + Math.floor(rng() * 2);
+    return { troops, hasWarband: true, label: 'Goblin Warband (boss raid)' };
+  }
+  // Normal raids — composition scales with TH.
+  const baseScrappers = Math.round(6 + (th - 2) * 6 + rng() * 4);
+  const troops = { goblinScrapper: Math.max(1, baseScrappers) };
+  if (th >= 3) troops.goblinArcher = Math.max(1, Math.round(1 + (th - 3) * 2 + rng() * 2));
+  if (th >= 4) troops.goblinSapper = Math.max(1, Math.round(1 + (th - 4) * 0.7 + rng() * 1.5));
+  if (th >= 5) troops.goblinChief = Math.max(0, Math.floor((th - 4) / 2 + rng()));
+  if (th >= 6) troops.goblinMage = Math.max(1, Math.round((th - 5) / 2 + rng() * 1.2));
+  if (th >= 10) troops.goblinSkyrider = 2 + Math.floor(rng() * 2);
+  return { troops, hasWarband: false, label: `Goblin raid (TH${th})` };
+}
+
+// 25% refund of the original build cost on demolish. Returns a
+// resource map shaped like a treasury delta (positive keys only).
+// Used by /clash demolish to compensate streamers for clearing
+// destroyed tiles instead of repairing.
+export function demolishRefund(kind, level) {
+  const b = BUILDINGS[kind];
+  if (!b) return {};
+  const base = b.cost?.[level] || b.cost?.[1] || {};
+  const refund = {};
+  for (const k of Object.keys(base)) {
+    const v = base[k];
+    if (Number.isFinite(v) && v > 0) refund[k] = Math.max(1, Math.floor(v * 0.25));
+  }
+  return refund;
+}
+
 // ── Default cost table for personal troop training (re-exported
 // without the wall-clock time so /clash train can show prices). ─────
 

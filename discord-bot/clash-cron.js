@@ -16,6 +16,7 @@
 import { tierForPrestige } from './clash-state.js';
 import { pushShieldExpiring, pushWarEnded } from './clash-push.js';
 import { sweepActiveWars } from './clash-war.js';
+import { scheduleGoblinRaids } from './clash-goblins.js';
 
 // Trophies above this floor (per tier) trigger a 1/day decay tick.
 const TIER_CAPS = { bronze: 200, silver: 600, gold: 1500, platinum: 3500, diamond: 8000 };
@@ -35,6 +36,16 @@ export async function clashDailyCronTick(env, cronExpr) {
     await env.LOADOUT_BOLTS.put(DECAY_MARKER_KEY, JSON.stringify({ date: today, ranAtUtc: Date.now() }));
   }
   await runShieldNudges(env);
+  // CLASH EXPANSION E2: walk every town and fire any goblin raids
+  // whose scheduled slot has come due. Bounded — caps at ~10k towns,
+  // single sim/town, runs inside the hourly 30s CPU budget.
+  try {
+    const summary = await scheduleGoblinRaids(env);
+    const fired = summary.filter(s => s.fired).length;
+    if (fired) console.log('[clash-cron] fired', fired, 'goblin raids');
+  } catch (e) {
+    console.warn('[clash-cron] goblin raid scheduler failed:', e && e.message);
+  }
   // Wars: sweep ACTIVE wars and resolve any whose 24h window has
   // expired. Cheap — only walks the small clash:waractive:* index.
   const endedWars = await sweepActiveWars(env);
