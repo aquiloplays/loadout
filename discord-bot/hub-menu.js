@@ -124,7 +124,7 @@ function fmtBolts(n) {
 function rootView() {
   return {
     embeds: [{
-      title: 'Aquilo Hub',
+      title: '🌐 Aquilo Hub',
       description:
         'Everything Aquilo, in one place. Pick a section — every flow is ephemeral so only you see it.',
       color: 0x3a86ff,
@@ -133,16 +133,16 @@ function rootView() {
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: 'Loadout', custom_id: 'hub:loadout' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: 'Stocks',  custom_id: 'hub:stocks'  },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: 'Sports',  custom_id: 'hub:sports'  },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: '💼 Loadout', custom_id: 'hub:loadout' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: '📈 Stocks',  custom_id: 'hub:stocks'  },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: '🏈 Sports',  custom_id: 'hub:sports'  },
         ],
       },
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Profile', custom_id: 'hub:profile' },
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Help',    custom_id: 'hub:help'    },
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '👤 Profile', custom_id: 'hub:profile' },
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '❓ Help',    custom_id: 'hub:help'    },
         ],
       },
     ],
@@ -161,7 +161,7 @@ async function loadoutView(env, guild, userId) {
   const w = await getWallet(env, guild, userId);
   return {
     embeds: [{
-      title: 'Loadout',
+      title: '💼 Loadout',
       description:
         '**Wallet:** ' + fmtBolts(w.balance || 0) + ' bolts\n' +
         '**Daily streak:** ' + (w.dailyStreak || 0) + ' day(s)\n' +
@@ -173,18 +173,18 @@ async function loadoutView(env, guild, userId) {
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Daily', custom_id: 'lo:daily' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Hero',  custom_id: 'lo:hero' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Bag',   custom_id: 'lo:inventory' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Shop',  custom_id: 'lo:shop' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '💰 Daily', custom_id: 'lo:daily' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '⚔ Hero',  custom_id: 'lo:hero' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '🎒 Bag',   custom_id: 'lo:inventory' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '🛒 Shop',  custom_id: 'lo:shop' },
         ],
       },
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Play',  custom_id: 'lo:play' },
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Gift',  custom_id: 'lo:gift' },
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Back',  custom_id: 'hub:home' },
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '🎲 Play',  custom_id: 'lo:play' },
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '✉ Gift',  custom_id: 'lo:gift' },
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back',  custom_id: 'hub:home' },
         ],
       },
     ],
@@ -218,22 +218,22 @@ async function stocksView(env, guild, userId) {
       : 'No holdings yet.\n\n') +
     '**Total portfolio:** ' + fmtBolts(total) + ' bolts';
   return {
-    embeds: [{ title: 'Stocks', description: desc, color: 0x3a86ff }],
+    embeds: [{ title: '📈 Stocks', description: desc, color: 0x3a86ff }],
     components: [
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'List all',  custom_id: 'hub:stocks:list:p:1' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Portfolio', custom_id: 'hub:stocks:portfolio' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Chart',     custom_id: 'hub:stocks:chartprompt' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '📋 List all',  custom_id: 'hub:stocks:list:p:1' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '📊 Portfolio', custom_id: 'hub:stocks:portfolio' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '📈 Chart',     custom_id: 'hub:stocks:chartprompt' },
         ],
       },
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: 'Buy',  custom_id: 'hub:stocks:buyprompt' },
-          { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: 'Sell', custom_id: 'hub:stocks:sellprompt' },
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Back', custom_id: 'hub:home' },
+          { type: COMPONENT_BUTTON, style: STYLE_SUCCESS,   label: '🛒 Buy',  custom_id: 'hub:stocks:buyprompt' },
+          { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '💸 Sell', custom_id: 'hub:stocks:sellprompt' },
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back', custom_id: 'hub:home' },
         ],
       },
     ],
@@ -262,7 +262,7 @@ async function stocksListPaged(env, page) {
   }
   return {
     embeds: [{
-      title: 'All tickers — page ' + p + '/' + totalPages,
+      title: '📋 All tickers — page ' + p + '/' + totalPages,
       description: '```\nTICKER PRICE   24H Δ    NAME\n' + (rows.length ? rows.join('\n') : '(no tickers)') + '\n```',
       color: 0x3a86ff,
     }],
@@ -279,9 +279,9 @@ function paginationRow(prefix, page, totalPages) {
   return {
     type: COMPONENT_ROW,
     components: [
-      { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Prev', custom_id: prefix + (page - 1), disabled: prevDisabled },
+      { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Prev', custom_id: prefix + (page - 1), disabled: prevDisabled },
       { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: page + ' / ' + totalPages, custom_id: prefix + 'noop', disabled: true },
-      { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Next', custom_id: prefix + (page + 1), disabled: nextDisabled },
+      { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Next ▶', custom_id: prefix + (page + 1), disabled: nextDisabled },
     ],
   };
 }
@@ -298,7 +298,7 @@ function pctChange(history) {
 async function stocksPortfolioView(env, guild, userId) {
   const content = await stocksRenderPortfolio(env, guild, userId);
   return {
-    embeds: [{ title: 'Portfolio', description: content, color: 0x3a86ff }],
+    embeds: [{ title: '📊 Portfolio', description: content, color: 0x3a86ff }],
     components: [backRow('hub:stocks')],
   };
 }
@@ -396,7 +396,7 @@ async function sportsView(env) {
     : 'No upcoming games in the cache yet.';
   return {
     embeds: [{
-      title: 'Sports',
+      title: '🏈 Sports',
       description: '**Soon**\n' + preview + '\n\nBet on NFL · NBA · MLB · NHL games.',
       color: 0xff6ab5,
     }],
@@ -404,16 +404,16 @@ async function sportsView(env) {
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Upcoming',     custom_id: 'hub:sports:upcoming:p:1' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Active bets',  custom_id: 'hub:sports:active' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'History',      custom_id: 'hub:sports:history' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '📅 Upcoming',     custom_id: 'hub:sports:upcoming:p:1' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '🎯 Active bets',  custom_id: 'hub:sports:active' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '📜 History',      custom_id: 'hub:sports:history' },
         ],
       },
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Subscriptions', custom_id: 'hub:sports:subs' },
-          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: 'Back',          custom_id: 'hub:home' },
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '🔔 Subscriptions', custom_id: 'hub:sports:subs' },
+          { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back',           custom_id: 'hub:home' },
         ],
       },
     ],
@@ -449,8 +449,8 @@ async function sportsUpcomingPaged(env, page) {
   const components = [];
   const rows = [];
   for (const g of slice) {
-    const awayLbl = 'Bet ' + (g.away.abbr || '?') + ' (away)';
-    const homeLbl = 'Bet ' + (g.home.abbr || '?') + ' (home)';
+    const awayLbl = '✈ Bet ' + (g.away.abbr || '?');
+    const homeLbl = '🏠 Bet ' + (g.home.abbr || '?');
     components.push({
       type: COMPONENT_ROW,
       components: [
@@ -470,7 +470,7 @@ async function sportsUpcomingPaged(env, page) {
   components.push(backRow('hub:sports'));
   return {
     embeds: [{
-      title: 'Upcoming — page ' + p + '/' + totalPages,
+      title: '📅 Upcoming — page ' + p + '/' + totalPages,
       description: rows.length ? rows.join('\n') : 'No upcoming games in the window.',
       color: 0xff6ab5,
     }],
@@ -500,7 +500,7 @@ function sportsBetModal(side, gameId) {
 async function sportsActiveView(env, guild, userId) {
   const content = await betRenderActive(env, guild, userId);
   return {
-    embeds: [{ title: 'Active bets', description: content, color: 0xff6ab5 }],
+    embeds: [{ title: '🎯 Active bets', description: content, color: 0xff6ab5 }],
     components: [backRow('hub:sports')],
   };
 }
@@ -508,7 +508,7 @@ async function sportsActiveView(env, guild, userId) {
 async function sportsHistoryView(env, guild, userId) {
   const content = await betRenderHistory(env, guild, userId);
   return {
-    embeds: [{ title: 'Bet history', description: content, color: 0xff6ab5 }],
+    embeds: [{ title: '📜 Bet history', description: content, color: 0xff6ab5 }],
     components: [backRow('hub:sports')],
   };
 }
@@ -733,7 +733,7 @@ async function subsView(env, userId) {
     ).join('\n') +
     '\n\n**Teams** (' + subbedTeams.length + ' subscribed)\n' + teamLines;
   return {
-    embeds: [{ title: 'Subscriptions', description: desc, color: 0xff6ab5 }],
+    embeds: [{ title: '🔔 Subscriptions', description: desc, color: 0xff6ab5 }],
     components: [
       {
         type: COMPONENT_ROW,
@@ -747,8 +747,8 @@ async function subsView(env, userId) {
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: 'Manage teams',  custom_id: 'hub:sports:subs:teamprompt' },
-          { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: 'Clear teams',  custom_id: 'hub:sports:subs:clearteams' },
+          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '🔎 Manage teams',  custom_id: 'hub:sports:subs:teamprompt' },
+          { type: COMPONENT_BUTTON, style: STYLE_DANGER,    label: '🗑 Clear teams',  custom_id: 'hub:sports:subs:clearteams' },
           { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back',           custom_id: 'hub:sports' },
         ],
       },
@@ -797,7 +797,7 @@ async function teamSearchResults(env, userId, q) {
   if (matches.length === 0) {
     return {
       embeds: [{
-        title: 'Team search',
+        title: '🔎 Team search',
         description: 'No teams found matching "' + q + '". The registry grows as games are seen by the cron — give it a few hours after a fresh deploy.',
         color: 0xff6ab5,
       }],
@@ -806,7 +806,7 @@ async function teamSearchResults(env, userId, q) {
   }
   return {
     embeds: [{
-      title: 'Team search — "' + q + '"',
+      title: '🔎 Team search — "' + q + '"',
       description: 'Pick a team to toggle its subscription.',
       color: 0xff6ab5,
     }],
@@ -854,9 +854,9 @@ async function profileView(env, guild, userId) {
     '**Stock tickers held:** ' + holdingCount + '\n' +
     '**Active bets:** ' + ((bets.active || []).length) + ' · settled: ' + ((bets.history || []).length) + '\n' +
     '**Subscriptions:** ' + subbedLeagues.length + ' league(s), ' + subbedTeams.length + ' team(s)\n' +
-    '**Streak Freezes:** stream ' + freezes.stream + ' · discord ' + freezes.discord;
+    '**❄ Streak Freezes:** stream ' + freezes.stream + ' · discord ' + freezes.discord;
   return {
-    embeds: [{ title: 'Profile', description: desc, color: 0x9a82ff }],
+    embeds: [{ title: '👤 Profile', description: desc, color: 0x9a82ff }],
     components: [backRow('hub:home')],
   };
 }
@@ -864,7 +864,7 @@ async function profileView(env, guild, userId) {
 function helpView() {
   return {
     embeds: [{
-      title: 'Help',
+      title: '❓ Help',
       description:
         '**Hub** — `/hub` opens this menu. Every flow is ephemeral.\n\n' +
         '**Loadout** — bolts wallet, hero, bag, shop, daily claim, gift, coin-flip / dice / training mini-games.\n\n' +
@@ -960,7 +960,7 @@ export async function handleHubComponent(data, env) {
       const before = await getUserLeagueSubs(env, userId);
       if (before.includes(league)) {
         await toggleLeagueSub(env, userId, league);
-        return chatReply('Muted **' + league.toUpperCase() + '** notifications.');
+        return chatReply('🔕 Muted **' + league.toUpperCase() + '** notifications.');
       }
       return chatReply('You weren\'t subscribed to **' + league.toUpperCase() + '** in the first place.');
     }
@@ -987,21 +987,21 @@ export async function handleHubModal(data, env) {
   if (customId === 'hub:modal:stocks-buy') {
     const result = await stocksRunBuy(env, guild, userId, { ticker: fields.ticker, bolts: parseInt(fields.bolts, 10) });
     return updateOrFollowup(sourceFlags, {
-      embeds: [{ title: 'Buy', description: result, color: 0x46d160 }],
+      embeds: [{ title: '🛒 Buy', description: result, color: 0x46d160 }],
       components: [backRow('hub:stocks')],
     });
   }
   if (customId === 'hub:modal:stocks-sell') {
     const result = await stocksRunSell(env, guild, userId, { ticker: fields.ticker, shares: parseInt(fields.shares, 10) });
     return updateOrFollowup(sourceFlags, {
-      embeds: [{ title: 'Sell', description: result, color: 0xff5c5c }],
+      embeds: [{ title: '💸 Sell', description: result, color: 0xff5c5c }],
       components: [backRow('hub:stocks')],
     });
   }
   if (customId === 'hub:modal:stocks-chart') {
     const result = await stocksRenderChart(env, { ticker: fields.ticker });
     return updateOrFollowup(sourceFlags, {
-      embeds: [{ title: 'Chart', description: result, color: 0x3a86ff }],
+      embeds: [{ title: '📈 Chart', description: result, color: 0x3a86ff }],
       components: [backRow('hub:stocks')],
     });
   }
@@ -1013,7 +1013,7 @@ export async function handleHubModal(data, env) {
     const bolts = parseInt(fields.bolts, 10) || 0;
     const result = await betRunPlace(env, guild, userId, { game: gameId, side, bolts });
     return updateOrFollowup(sourceFlags, {
-      embeds: [{ title: 'Bet', description: result, color: 0xff6ab5 }],
+      embeds: [{ title: '🎲 Bet', description: result, color: 0xff6ab5 }],
       components: [backRow('hub:sports')],
     });
   }

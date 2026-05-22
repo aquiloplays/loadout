@@ -67,22 +67,22 @@ export function balanceEmbed({ userId, userName, wallet, links }) {
     },
     fields: [
       {
-        name:   'Balance',
+        name:   '⚡ Balance',
         value:  `**${n(wallet?.balance || 0)}** bolts`,
         inline: true
       },
       {
-        name:   'Lifetime earned',
+        name:   '📈 Lifetime earned',
         value:  `${n(wallet?.lifetimeEarned || 0)} bolts`,
         inline: true
       },
       {
-        name:   'Daily streak',
+        name:   '🔥 Daily streak',
         value:  `${streakLabel(wallet?.dailyStreak || 0)}  ·  ${wallet?.dailyStreak || 0}-day`,
         inline: true
       },
       {
-        name:   'Linked accounts',
+        name:   '🔗 Linked accounts',
         value:  linkRows,
         inline: false
       }
@@ -99,7 +99,7 @@ export function dailyEmbed({ userName, payout, streak }) {
   return {
     color: cappedColor,
     author: { name: `${userName || 'Viewer'}'s daily` },
-    title: `+${n(payout)} bolts`,
+    title: `🎁 +${n(payout)} bolts`,
     description: `Day **${streak}** streak  ·  ${streakLabel(streak)} multiplier  ·  next claim in 23h`,
     fields: [
       {
@@ -120,22 +120,22 @@ export function gameEmbed({ kind, won, userName, wager, payout, result, target, 
   const color = won ? COLORS.win : COLORS.lose;
   const fields = [];
   if (kind === 'coinflip') {
-    fields.push({ name: 'Result', value: String(result || (won ? 'heads' : 'tails')), inline: true });
+    fields.push({ name: 'Result', value: `🪙 ${result || (won ? 'heads' : 'tails')}`, inline: true });
   } else if (kind === 'dice') {
-    fields.push({ name: 'Rolled', value: String(rolled || '?'), inline: true });
+    fields.push({ name: 'Rolled', value: `🎲 ${rolled || '?'}`, inline: true });
     if (target) fields.push({ name: 'Target', value: String(target), inline: true });
   }
-  fields.push({ name: 'Wager', value: `${n(wager)} bolts`, inline: true });
+  fields.push({ name: 'Wager', value: `${n(wager)} ⚡`, inline: true });
   fields.push({
-    name:   won ? 'Payout' : 'Loss',
-    value:  won ? `+${n(payout)} bolts` : `-${n(wager)} bolts`,
+    name:   won ? '✨ Payout' : '💸 Loss',
+    value:  won ? `+${n(payout)} ⚡` : `-${n(wager)} ⚡`,
     inline: true
   });
 
   return {
     color,
     author: { name: `${userName || 'Viewer'}'s ${kind}` },
-    title:  won ? 'WIN' : 'LOSS',
+    title:  won ? '🎉  WIN' : '😬  LOSS',
     fields,
     footer: { text: won ? 'Loadout · ride the streak' : 'Loadout · try again' },
     timestamp: new Date().toISOString()
@@ -153,30 +153,28 @@ export function heroEmbed({ userName, hero, equippedItems }) {
 
   const fields = [
     {
-      name:   'Class · Level',
+      name:   '🛡 Class · Level',
       value:  cls ? `**${cls}** · Lv ${lvl}` : `Lv ${lvl}`,
       inline: true
     },
     {
-      name:   'HP',
+      name:   '❤ HP',
       value:  `${hero?.hpCurrent || 0} / ${hero?.hpMax || 0}`,
       inline: true
     },
     {
-      name:   'XP',
+      name:   '✨ XP',
       value:  '`' + bar(xp, xpMax, 10) + '`  ' + xp + '/' + xpMax,
       inline: true
     }
   ];
 
   // Equipment summary — top 3 slots only so the embed stays scannable.
-  // Glyph dropped per the "no emoji in Discord chat" rule; the item
-  // sprite lives at /sprites/gear/<id>.png for the overlay + web.
   if (equippedItems && equippedItems.length > 0) {
     const lines = equippedItems.slice(0, 6).map(it =>
-      `**${it.name}**  _(${it.rarity || '?'} ${it.slot})_${it.ability ? '  · ' + it.ability : ''}`
+      `${it.glyph || '·'}  **${it.name}**  _(${it.rarity || '?'} ${it.slot})_${it.ability ? '  🔮 ' + it.ability : ''}`
     );
-    fields.push({ name: 'Equipped', value: lines.join('\n').slice(0, 1024), inline: false });
+    fields.push({ name: '⚔ Equipped', value: lines.join('\n').slice(0, 1024), inline: false });
   }
 
   return {
@@ -192,23 +190,20 @@ export function heroEmbed({ userName, hero, equippedItems }) {
 // alignment stays clean across mobile and desktop. Highlight items
 // matching the viewer's class with a sparkle.
 export function shopEmbed({ items, viewerClass, rotateInLabel }) {
-  // Item `glyph` field is intentionally unused — Discord embeds get
-  // plain-text rows per the "no emoji decoration" rule. A leading `*`
-  // marks items matching the viewer's class.
   const list = (items || []).map(row => {
-    const [slot, rarity, name, _glyph, atk, def, gold, setName, weaponType, preferredClass, ability] = row;
+    const [slot, rarity, name, glyph, atk, def, gold, setName, weaponType, preferredClass, ability] = row;
     const stats = [];
     if (atk) stats.push('+' + atk + 'A');
     if (def) stats.push('+' + def + 'D');
-    if (ability) stats.push('· ' + ability);
+    if (ability) stats.push('🔮 ' + ability);
     const matchedClass = viewerClass && preferredClass === viewerClass.toLowerCase();
-    const flair = matchedClass ? '*' : ' ';
-    return `${flair} \`${String(gold).padStart(4)}b\` **${name}** _${rarity}_  ${stats.join(' ')}`;
+    const flair = matchedClass ? '✨' : '  ';
+    return `${flair} \`${String(gold).padStart(4)}b\` ${glyph} **${name}** _${rarity}_  ${stats.join(' ')}`;
   }).join('\n').slice(0, 4000);
 
   return {
     color: COLORS.gold,
-    author: { name: 'Daily shop' },
+    author: { name: '🏪 Daily shop' },
     description: list || '_shop is empty today_',
     footer: { text: `Loadout · stock rotates in ${rotateInLabel || 'a few hours'}` },
     timestamp: new Date().toISOString()
@@ -218,14 +213,12 @@ export function shopEmbed({ items, viewerClass, rotateInLabel }) {
 // Achievement notification embed. Used when a viewer hits a milestone
 // (dungeon, bolts, hype train) — posts in the streamer's notification
 // channel so achievements feel earned rather than silent.
-// `glyph` field is accepted for backwards compatibility but unused;
-// achievement art ships through the overlay's pixel-art icon set.
-export function achievementEmbed({ userName, achievementName, description, glyph: _glyph, rewardBolts }) {
+export function achievementEmbed({ userName, achievementName, description, glyph, rewardBolts }) {
   return {
     color: COLORS.gold,
-    title: 'Achievement unlocked',
+    title: `${glyph || '🏆'}  Achievement unlocked`,
     description: `**${userName || 'Viewer'}** earned **${achievementName}**\n_${description || ''}_`,
-    fields: rewardBolts > 0 ? [{ name: 'Reward', value: `+${n(rewardBolts)} bolts`, inline: true }] : undefined,
+    fields: rewardBolts > 0 ? [{ name: 'Reward', value: `+${n(rewardBolts)} ⚡`, inline: true }] : undefined,
     footer: { text: 'Loadout' },
     timestamp: new Date().toISOString()
   };

@@ -19,7 +19,7 @@
 
 export const BUILDINGS = {
   townhall: {
-    glyph: '', name: 'Town Hall',
+    glyph: '🏰', name: 'Town Hall',
     cost: [null,
       { bolts: 0,      scrap: 0 },
       { bolts: 1200,   scrap: 60,    cores: 0 },
@@ -39,7 +39,7 @@ export const BUILDINGS = {
     grantsBarracksCap: [null, 6, 10, 16, 24, 36, 50, 70, 95, 130, 180],
   },
   wall: {
-    glyph: '', name: 'Wall',
+    glyph: '🧱', name: 'Wall',
     cost: [null,
       { bolts: 0 },
       { bolts: 200,   scrap: 20 },
@@ -55,7 +55,7 @@ export const BUILDINGS = {
     hp:   [null, 200, 320, 500, 760, 1100, 1500, 2000, 2700],
   },
   cannon: {
-    glyph: '', name: 'Cannon',
+    glyph: '💣', name: 'Cannon',
     cost: [null,
       { bolts: 0 },
       { bolts: 500,   scrap: 40 },
@@ -71,7 +71,7 @@ export const BUILDINGS = {
     dps:  [null,  8,   13,  20,   30,   45,   65,   90],
   },
   archerTower: {
-    glyph: '', name: 'Archer Tower',
+    glyph: '🏹', name: 'Archer Tower',
     cost: [null,
       { bolts: 0 },
       { bolts: 600,   scrap: 50 },
@@ -88,14 +88,14 @@ export const BUILDINGS = {
     range: 6,   // tiles; ranged units pick this off easier
   },
   trap: {
-    glyph: '', name: 'Trap',
+    glyph: '💢', name: 'Trap',
     cost: [null, { bolts: 0 }, { bolts: 400, scrap: 30 }, { bolts: 1100, scrap: 90 } ],
     time: [null, 0, 20*60_000, 90*60_000],
     hp:   [null, 1, 1, 1],   // traps detonate on first hit
     burst:[null, 120, 220, 380],   // burst damage on detonation
   },
   storage: {
-    glyph: '', name: 'Storage',
+    glyph: '🏛️', name: 'Storage',
     cost: [null, { bolts: 0 }, { bolts: 800, scrap: 60 }, { bolts: 2200, scrap: 180 },
                  { bolts: 5500, scrap: 450, cores: 1 }],
     time: [null, 0, 45*60_000, 3*3_600_000, 9*3_600_000],
@@ -103,7 +103,7 @@ export const BUILDINGS = {
     capacityBonus: [null, 2000, 5000, 12000, 28000],
   },
   barracks: {
-    glyph: '', name: 'Barracks',
+    glyph: '⛺', name: 'Barracks',
     cost: [null, { bolts: 0 }, { bolts: 1000, scrap: 80 }, { bolts: 2800, scrap: 220 },
                  { bolts: 6500, scrap: 550, cores: 1 }],
     time: [null, 0, 1*3_600_000, 4*3_600_000, 12*3_600_000],
@@ -120,7 +120,7 @@ export const BUILDINGS = {
   // Champion, on the other side. Without a War Tent, the town
   // defends with garrison only.
   warTent: {
-    glyph: '', name: 'War Tent',
+    glyph: '⛺', name: 'War Tent',
     cost: [null, { bolts: 0 }, { bolts: 4000, scrap: 200, cores: 1 }, { bolts: 12000, scrap: 600, cores: 3 }],
     time: [null, 0, 6*3_600_000, 24*3_600_000],
     hp:   [null, 500, 800, 1200],
@@ -162,32 +162,32 @@ export const TH_HERO_GATE = {
 
 export const TROOPS_PERSONAL = {
   scrapper: {
-    glyph: '', name: 'Scrapper', rarity: 'common',
+    glyph: '🤺', name: 'Scrapper', rarity: 'common',
     bolts: 8, time: 30_000,
     hp: 60, atk: 8, speed: 3, target: 'closest',
   },
   boltKnight: {
-    glyph: '', name: 'Bolt Knight', rarity: 'rare',
+    glyph: '⚔️', name: 'Bolt Knight', rarity: 'rare',
     bolts: 220, time: 12*60_000,
     hp: 180, atk: 22, speed: 2, target: 'closest',
   },
   archerLite: {
-    glyph: '', name: 'Archer', rarity: 'common',
+    glyph: '🏹', name: 'Archer', rarity: 'common',
     bolts: 14, time: 45_000,
     hp: 40, atk: 10, speed: 3, target: 'closest', range: 4,
   },
   voltaicMage: {
-    glyph: '', name: 'Voltaic Mage', rarity: 'epic',
+    glyph: '🪄', name: 'Voltaic Mage', rarity: 'epic',
     bolts: 950, time: 90*60_000,
     hp: 140, atk: 60, speed: 2, target: 'highValue', range: 3, aoe: 2,
   },
   sapperRogue: {
-    glyph: '', name: 'Sapper Rogue', rarity: 'rare',
+    glyph: '💥', name: 'Sapper Rogue', rarity: 'rare',
     bolts: 320, time: 25*60_000,
     hp: 80, atk: 90, speed: 4, target: 'walls',
   },
   healerCleric: {
-    glyph: '', name: 'Healer Cleric', rarity: 'rare',
+    glyph: '✨', name: 'Healer Cleric', rarity: 'rare',
     bolts: 380, time: 30*60_000,
     hp: 90, atk: 4, speed: 2, target: 'support', healPerTick: 12, range: 3,
   },
@@ -209,15 +209,12 @@ export const TROOPS_GARRISON = {
 
 export const VOLTAIC_LOOT = [
   // slot, rarity, name, glyph, atk, def, gold (price), setName, weaponType, preferredClass, ability
-  // Glyph is empty per the "no emoji as visual assets" rule — the
-  // real art lives at aquilo-gg/sprites/gear/<id>.png and renders
-  // via the dungeon overlay / web bag UI.
-  ['weapon',  'epic',    'Voltaic Bolt-Blade', '', 6, 0, 2400, 'voltaic', 'sword',  'warrior', 'voltaic'],
-  ['head',    'epic',    'Voltaic Crown',      '', 1, 4, 2000, 'voltaic', '',       '',        ''],
-  ['chest',   'epic',    'Voltaic Mantle',     '', 1, 5, 2200, 'voltaic', '',       '',        ''],
-  ['legs',    'rare',    'Voltaic Greaves',    '', 1, 3,  800, 'voltaic', '',       '',        ''],
-  ['boots',   'rare',    'Voltaic Striders',   '', 1, 3,  800, 'voltaic', '',       '',        ''],
-  ['trinket', 'epic',    'Voltaic Sigil',      '', 3, 1, 2000, 'voltaic', '',       '',        'voltaic'],
+  ['weapon',  'epic',    'Voltaic Bolt-Blade', '⚡', 6, 0, 2400, 'voltaic', 'sword',  'warrior', 'voltaic'],
+  ['head',    'epic',    'Voltaic Crown',      '👑', 1, 4, 2000, 'voltaic', '',       '',        ''],
+  ['chest',   'epic',    'Voltaic Mantle',     '🥋', 1, 5, 2200, 'voltaic', '',       '',        ''],
+  ['legs',    'rare',    'Voltaic Greaves',    '🦿', 1, 3,  800, 'voltaic', '',       '',        ''],
+  ['boots',   'rare',    'Voltaic Striders',   '👟', 1, 3,  800, 'voltaic', '',       '',        ''],
+  ['trinket', 'epic',    'Voltaic Sigil',      '🌀', 3, 1, 2000, 'voltaic', '',       '',        'voltaic'],
 ];
 
 // Roll a Voltaic drop. stars = raid star count (0..3), targetTier = the

@@ -350,20 +350,16 @@ namespace Loadout.Settings
 
     public class AlertsConfig
     {
-        // Default alert templates ship emoji-free per the "no emojis as
-        // visual assets" rule. Streamers can still type emoji into their
-        // own customised templates in Settings — but the shipped defaults
-        // are plain text so a fresh install never displays emoji.
-        public AlertTemplate Follow      { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} just followed! Welcome!" };
-        public AlertTemplate Sub         { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} subscribed at Tier {tier}!" };
-        public AlertTemplate Resub       { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} resubbed for {months} months!" };
-        public AlertTemplate GiftSub     { get; set; } = new AlertTemplate { Enabled = true,  Message = "{gifter} gifted {count} subs!" };
+        public AlertTemplate Follow      { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} just followed! Welcome 💜" };
+        public AlertTemplate Sub         { get; set; } = new AlertTemplate { Enabled = true,  Message = "🎉 {user} subscribed at Tier {tier}!" };
+        public AlertTemplate Resub       { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} resubbed for {months} months! 🎉" };
+        public AlertTemplate GiftSub     { get; set; } = new AlertTemplate { Enabled = true,  Message = "{gifter} gifted {count} subs! 🎁" };
         public AlertTemplate Cheer       { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} cheered {bits} bits!" };
-        public AlertTemplate Raid        { get; set; } = new AlertTemplate { Enabled = true,  Message = "RAID INCOMING from {user} with {viewers} viewers!" };
+        public AlertTemplate Raid        { get; set; } = new AlertTemplate { Enabled = true,  Message = "RAID INCOMING from {user} with {viewers} viewers! 🚀" };
         public AlertTemplate SuperChat   { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} sent a Super Chat: {amount}!" };
-        public AlertTemplate Membership  { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} just became a member!" };
-        public AlertTemplate KickSub     { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} subscribed on Kick!" };
-        public AlertTemplate KickGift    { get; set; } = new AlertTemplate { Enabled = true,  Message = "{gifter} gifted {count} subs on Kick!" };
+        public AlertTemplate Membership  { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} just became a member! 💚" };
+        public AlertTemplate KickSub     { get; set; } = new AlertTemplate { Enabled = true,  Message = "🦵 {user} subscribed on Kick!" };
+        public AlertTemplate KickGift    { get; set; } = new AlertTemplate { Enabled = true,  Message = "🎁 {gifter} gifted {count} subs on Kick!" };
         public AlertTemplate TikTokGift  { get; set; } = new AlertTemplate { Enabled = true,  Message = "{user} sent {gift} ({coins} coins)!" };
     }
 
@@ -391,7 +387,7 @@ namespace Loadout.Settings
             new TimedMessage
             {
                 Name = "Follow reminder",
-                Message = "Enjoying the stream? Drop a follow!",
+                Message = "Enjoying the stream? Drop a follow ❤️",
                 Platforms = new PlatformsConfig(),
                 Enabled = true
             }
@@ -417,8 +413,8 @@ namespace Loadout.Settings
         // with it (post a tweet, file an Airtable row, send themselves an
         // email, whatever).
         public string LiveWebhook       { get; set; } = "";
-        public string LiveTemplate      { get; set; } = "LIVE: {title}\nNow playing {game} → {url}\n#twitch";
-        public string OfflineTemplate   { get; set; } = "Stream's wrapped for the day. Thanks for hanging out!";
+        public string LiveTemplate      { get; set; } = "🔴 LIVE: {title}\nNow playing {game} → {url}\n#twitch";
+        public string OfflineTemplate   { get; set; } = "Stream's wrapped for the day. Thanks for hanging out 💜";
         public bool   PostOnUpdate      { get; set; } = false;     // most users don't want a tweet on every title change
     }
 
@@ -426,7 +422,7 @@ namespace Loadout.Settings
     {
         public string LiveStatusWebhook   { get; set; } = "";
         public string RecapWebhook        { get; set; } = "";
-        public string GoLiveTemplate      { get; set; } = "**{broadcaster}** is now live!\n**{title}** — *{game}*\n{url}";
+        public string GoLiveTemplate      { get; set; } = "🔴 **{broadcaster}** is now live!\n**{title}** — *{game}*\n{url}";
         public bool   AutoEditOnChange    { get; set; } = true;
         public bool   ArchiveOnOffline    { get; set; } = true;
         // Optional embed for the go-live post. When UseEmbed is true, the
@@ -440,7 +436,7 @@ namespace Loadout.Settings
         // Off by default - existing setups keep posting plain content. When
         // Use is true, the live-status post sends an embed instead.
         public bool   Use         { get; set; } = false;
-        public string Title       { get; set; } = "{broadcaster} is now live";
+        public string Title       { get; set; } = "🔴 {broadcaster} is now live";
         public string Description { get; set; } = "**{title}**\nNow playing *{game}*\n{url}";
         // Hex like "#3A86FF". Discord accepts decimal int too; we convert
         // when serializing so the user types the friendlier hex form.
@@ -465,7 +461,7 @@ namespace Loadout.Settings
         // Below this count, just use the regular per-event Follow alert.
         // Otherwise the batched summary fires.
         public int    MinToTrigger    { get; set; } = 4;
-        public string Template        { get; set; } = "Welcoming our {count} new followers: {users}!";
+        public string Template        { get; set; } = "👋 Welcoming our {count} new followers: {users}!";
         // Cap how many names land in the message - 50 names blow out chat.
         public int    MaxNamesShown   { get; set; } = 8;
     }
@@ -501,7 +497,7 @@ namespace Loadout.Settings
     /// and execute the configured action.
     ///
     /// Action format examples:
-    ///   chat:Hydrate time!
+    ///   chat:Hydrate time! 💧
     ///   bolts:+250                       (award the redeemer N bolts)
     ///   counter:deaths:+1
     ///   sb-action:&lt;guid&gt;          (run a Streamer.bot action by ID)
@@ -605,8 +601,8 @@ namespace Loadout.Settings
         public int    DecayPerMinute     { get; set; } = 10;      // fuel lost when idle
         public int    BoltsRewardBase    { get; set; } = 50;      // total = base * level
         public int    CooldownMinutes    { get; set; } = 15;      // dead-time after a train ends before another can start
-        public string LevelUpTemplate    { get; set; } = "Hype train hit level {level}! +{bolts} bolts to recent contributors.";
-        public string EndTemplate        { get; set; } = "Hype train ended at level {level}.";
+        public string LevelUpTemplate    { get; set; } = "🚂 Hype train hit level {level}! +{bolts} bolts to recent contributors.";
+        public string EndTemplate        { get; set; } = "🚂 Hype train ended at level {level}.";
         public bool   AnnounceLevelUps   { get; set; } = true;
         public bool   AnnounceEnd        { get; set; } = true;
         // When true, a SEPARATE Twitch-only hype train runs alongside
@@ -629,8 +625,8 @@ namespace Loadout.Settings
     public class AdBreakConfig
     {
         public int    PreWarnSeconds      { get; set; } = 30;
-        public string PreWarnTemplate     { get; set; } = "Ad break in {seconds}s - hang tight!";
-        public string PostTemplate        { get; set; } = "Welcome back! Ads pay the rent.";
+        public string PreWarnTemplate     { get; set; } = "📺 Ad break in {seconds}s - hang tight!";
+        public string PostTemplate        { get; set; } = "📺 Welcome back! Ads pay the rent 💜";
         public bool   PostBackThanks      { get; set; } = true;
         public bool   PauseTimedMessages  { get; set; } = true;   // mute timers for ~90s after an ad starts
     }
@@ -647,7 +643,7 @@ namespace Loadout.Settings
         public int    SuperHypeThreshold  { get; set; } = 60;
         public bool   AutoClipOnSuperHype { get; set; } = false;
         public bool   AnnounceHype        { get; set; } = false;
-        public string HypeTemplate        { get; set; } = "Chat is COOKING ({rate} msg/s)!";
+        public string HypeTemplate        { get; set; } = "🔥 Chat is COOKING ({rate} msg/s)!";
     }
 
     /// <summary>
@@ -676,7 +672,7 @@ namespace Loadout.Settings
     public class SubAnniversaryConfig
     {
         public List<int> Milestones        { get; set; } = new List<int> { 3, 6, 12, 24, 36, 48, 60 };
-        public string Template             { get; set; } = "{user} hit their {months}-month sub anniversary! +{bolts} bolts.";
+        public string Template             { get; set; } = "🎉 {user} hit their {months}-month sub anniversary! +{bolts} bolts.";
         public bool   AnnounceInChat       { get; set; } = true;
         public string DiscordWebhook       { get; set; } = "";
     }
@@ -689,7 +685,7 @@ namespace Loadout.Settings
         public int    WindowSeconds       { get; set; } = 120;     // sub burst window
         public int    MinSubsToTrigger    { get; set; } = 5;
         public List<int> AnnounceAt       { get; set; } = new List<int> { 5, 10, 25, 50, 100 };
-        public string Template            { get; set; } = "SUB RAID TRAIN! {count} subs in the last {window}s!";
+        public string Template            { get; set; } = "🚂 SUB RAID TRAIN! {count} subs in the last {window}s 🎉";
     }
 
     /// <summary>
@@ -699,7 +695,7 @@ namespace Loadout.Settings
     public class CcCoinConfig
     {
         public bool   AnnounceCoinEarn    { get; set; } = false;
-        public string EarnTemplate        { get; set; } = "{user} earned {coins} CC coins.";
+        public string EarnTemplate        { get; set; } = "🪙 {user} earned {coins} CC coins.";
         public bool   AwardBolts          { get; set; } = true;   // controlled by BoltsConfig.PerCcCoinDivisor
     }
 
@@ -711,7 +707,7 @@ namespace Loadout.Settings
     {
         public bool   ResetOnStreamOnline { get; set; } = true;
         public bool   AnnounceFirstChatter { get; set; } = true;
-        public string Template             { get; set; } = "First chatter of the stream: {user}!";
+        public string Template             { get; set; } = "🥇 First chatter of the stream: {user}!";
     }
 
     public class WebhookConfig
@@ -742,12 +738,12 @@ namespace Loadout.Settings
     public class WelcomesConfig
     {
         public bool Enabled { get; set; } = true;
-        public string FirstTime { get; set; } = "Welcome {user}! Glad you stopped by.";
-        public string Returning { get; set; } = "Welcome back {user}!";
-        public string Regular   { get; set; } = "{user} is in the building.";
-        public string Sub       { get; set; } = "Sub squad! Welcome {user}.";
-        public string Vip       { get; set; } = "Welcome the VIP {user}!";
-        public string Mod       { get; set; } = "{user} on the watch.";
+        public string FirstTime { get; set; } = "Welcome {user}! Glad you stopped by 👋";
+        public string Returning { get; set; } = "Welcome back {user}! 💜";
+        public string Regular   { get; set; } = "{user} is in the building 🔥";
+        public string Sub       { get; set; } = "Sub squad! Welcome {user} 💜";
+        public string Vip       { get; set; } = "👑 Welcome the VIP {user}!";
+        public string Mod       { get; set; } = "🛡️ {user} on the watch.";
     }
 
     public class UpdatesConfig
@@ -782,13 +778,10 @@ namespace Loadout.Settings
         // ShowOnTriggerOnly is on.
         public int  HideAfterSeconds { get; set; } = 6;
 
-        // Default counters ship with no emoji per the "no emoji as visual
-        // assets" rule. Streamers can still type emoji into custom counter
-        // Emoji fields in Settings — they just don't get one out of the box.
         public List<Counter> Counters { get; set; } = new List<Counter>
         {
-            new Counter { Name = "deaths", Display = "Deaths", Emoji = "", Value = 0 },
-            new Counter { Name = "wins",   Display = "Wins",   Emoji = "", Value = 0 }
+            new Counter { Name = "deaths", Display = "Deaths", Emoji = "💀", Value = 0 },
+            new Counter { Name = "wins",   Display = "Wins",   Emoji = "🏆", Value = 0 }
         };
     }
 
@@ -978,9 +971,7 @@ namespace Loadout.Settings
     public class BoltsConfig
     {
         public string DisplayName         { get; set; } = "Bolts";
-        // Default ships empty per the "no emoji as visual assets" rule.
-        // Streamers can add a glyph in Settings if they prefer one.
-        public string Emoji               { get; set; } = "";
+        public string Emoji               { get; set; } = "⚡";
 
         // Earn rates (raw, before multipliers). May 2026: cut to roughly
         // half the previous defaults so the economy is a meaningful grind
@@ -1026,7 +1017,7 @@ namespace Loadout.Settings
         public bool   TipsEnabled         { get; set; } = false;
         public int    TipBoltsPerDollar   { get; set; } = 100;     // 100 bolts per $1 tipped (counts as on-stream earn)
         public int    TipMinDollars       { get; set; } = 1;       // ignore tips below this floor
-        public string TipAlertTemplate    { get; set; } = "{tipper} tipped {amount} {currency} — +{bolts}{emoji}!";
+        public string TipAlertTemplate    { get; set; } = "💖 {tipper} tipped {amount} {currency} — +{bolts}{emoji}!";
 
         // Weekly digest — once a week the DLL POSTs a stats summary to
         // the Worker, which formats it as a Discord embed and posts to
@@ -1139,18 +1130,18 @@ namespace Loadout.Settings
         // back-to-back; long replies make it worse. Streamers who want
         // the balance / wager spelled out can re-add {balance} to the
         // template manually.
-        public string CoinflipWinTemplate  { get; set; } = "@{user} HEADS +{payout}{emoji}";
-        public string CoinflipLoseTemplate { get; set; } = "@{user} tails -{wager}{emoji}";
-        public string DiceWinTemplate      { get; set; } = "@{user} rolled {result} — JACKPOT +{payout}{emoji}";
-        public string DiceLoseTemplate     { get; set; } = "@{user} rolled {result}, missed {target} -{wager}{emoji}";
-        public string SlotsJackpotTemplate { get; set; } = "JACKPOT @{user} +{payout}{emoji}";
-        public string SlotsTwoTemplate     { get; set; } = "@{user} two-match +{payout}{emoji}";
-        public string SlotsNoneTemplate    { get; set; } = "@{user} -{wager}{emoji}";
-        public string RpsWinTemplate       { get; set; } = "@{user} {viewer}>{bot} +{payout}{emoji}";
-        public string RpsLoseTemplate      { get; set; } = "@{user} {viewer}<{bot} -{wager}{emoji}";
-        public string RpsTieTemplate       { get; set; } = "@{user} {viewer}={bot} tie";
-        public string RouletteWinTemplate  { get; set; } = "@{user} {pick} → {pocket}{colorGlyph} +{payout}{emoji}";
-        public string RouletteLoseTemplate { get; set; } = "@{user} {pick} → {pocket}{colorGlyph} -{wager}{emoji}";
+        public string CoinflipWinTemplate  { get; set; } = "🪙 @{user} HEADS +{payout}{emoji}";
+        public string CoinflipLoseTemplate { get; set; } = "🪙 @{user} tails -{wager}{emoji}";
+        public string DiceWinTemplate      { get; set; } = "🎲 @{user} rolled {result} — JACKPOT +{payout}{emoji}";
+        public string DiceLoseTemplate     { get; set; } = "🎲 @{user} rolled {result}, missed {target} -{wager}{emoji}";
+        public string SlotsJackpotTemplate { get; set; } = "🎰 JACKPOT @{user} +{payout}{emoji}";
+        public string SlotsTwoTemplate     { get; set; } = "🎰 @{user} two-match +{payout}{emoji}";
+        public string SlotsNoneTemplate    { get; set; } = "🎰 @{user} -{wager}{emoji}";
+        public string RpsWinTemplate       { get; set; } = "✊✋✌ @{user} {viewer}>{bot} +{payout}{emoji}";
+        public string RpsLoseTemplate      { get; set; } = "✊✋✌ @{user} {viewer}<{bot} -{wager}{emoji}";
+        public string RpsTieTemplate       { get; set; } = "✊✋✌ @{user} {viewer}={bot} tie";
+        public string RouletteWinTemplate  { get; set; } = "🎡 @{user} {pick} → {pocket}{colorGlyph} +{payout}{emoji}";
+        public string RouletteLoseTemplate { get; set; } = "🎡 @{user} {pick} → {pocket}{colorGlyph} -{wager}{emoji}";
 
         // Global throttle on minigame result chat replies — max 1
         // posted reply per N seconds across ALL games. Prevents a
@@ -1215,12 +1206,12 @@ namespace Loadout.Settings
         public bool   HasDelay             { get; set; } = false;
         // Acknowledgement before the URL resolves (~3-7s).
         public bool   AckInChat            { get; set; } = true;
-        public string AckTemplate          { get; set; } = "Clipping that for you, {user}...";
+        public string AckTemplate          { get; set; } = "📎 Clipping that for you, {user}...";
         // Template for the actual URL post. {user} {url} interpolated.
-        public string PostTemplate         { get; set; } = "Clip by {user}: {url}";
+        public string PostTemplate         { get; set; } = "🎬 Clip by {user}: {url}";
         // Optional Discord webhook to mirror clips to a #clips channel.
         public string DiscordWebhook       { get; set; } = "";
-        public string DiscordTemplate      { get; set; } = "New clip by **{user}**: {url}";
+        public string DiscordTemplate      { get; set; } = "🎬 New clip by **{user}**: {url}";
         // Bonus Bolts awarded to the clipper. 0 = off.
         public int    AwardBolts           { get; set; } = 25;
     }
