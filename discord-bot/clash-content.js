@@ -282,6 +282,227 @@ export const BUILDINGS = {
     hp:   [null, 480, 800, 1250, 1850],
     capacityBonus: [null, 100, 280, 700, 1700],
   },
+
+  // ── CLASH EXPANSION §5.2 — New defenses ──────────────────────────────
+  //
+  // All carry `targets: 'ground' | 'air' | 'both'`. The raid sim filters
+  // attackers by that field before choosing a target each tick. Minimum
+  // range (mortar blind spot), splash, AoE radius, and ramp behaviour
+  // are carried as optional fields and consulted only by their owning
+  // kinds — the sim defaults to single-target ground DPS otherwise.
+
+  mortar: {
+    glyph: '💣', name: 'Mortar',
+    footprint: { w: 2, h: 2 },
+    targets: 'ground',
+    cost: [null,
+      { bolts: 500, wood: 1500, stone: 700, iron: 100 },
+      { bolts: 1100, wood: 3000, stone: 1500, iron: 250 },
+      { bolts: 2400, wood: 6500, stone: 3200, iron: 600, cores: 1 },
+      { bolts: 5000, wood: 13000, stone: 6500, iron: 1500, cores: 3 },
+      { bolts: 10000, wood: 26000, stone: 13000, iron: 3200, cores: 6 },
+      { bolts: 20000, wood: 52000, stone: 26000, iron: 7000, cores: 12 },
+    ],
+    time: [null, 2*3_600_000, 6*3_600_000, 14*3_600_000, 28*3_600_000, 48*3_600_000, 72*3_600_000],
+    hp:   [null, 600, 900, 1400, 2000, 2800, 3800],
+    dps:  [null, 18, 30, 48, 70, 95, 125],
+    splash: true,
+    minRange: 4,
+    range: 12,
+  },
+  mageTower: {
+    glyph: '🔮', name: 'Mage Tower',
+    footprint: { w: 2, h: 2 },
+    targets: 'both',
+    ignoresWalls: true,    // magic damage hits troops regardless of cover
+    cost: [null,
+      { bolts: 800, wood: 1800, stone: 1000, iron: 300, cores: 1 },
+      { bolts: 1900, wood: 4200, stone: 2400, iron: 700, cores: 2 },
+      { bolts: 4000, wood: 9000, stone: 5200, iron: 1700, cores: 5 },
+      { bolts: 8500, wood: 19000, stone: 11000, iron: 4000, gold: 200, cores: 9 },
+      { bolts: 17000, wood: 38000, stone: 22000, iron: 9000, gold: 800, cores: 18 },
+    ],
+    time: [null, 4*3_600_000, 12*3_600_000, 28*3_600_000, 48*3_600_000, 72*3_600_000],
+    hp:   [null, 480, 720, 1100, 1600, 2300],
+    dps:  [null, 14, 24, 38, 56, 78],
+    range: 7,
+  },
+  skywardBow: {
+    glyph: '🏹', name: 'Skyward Bow',
+    footprint: { w: 2, h: 2 },
+    targets: 'air',
+    cost: [null,
+      { bolts: 350, wood: 1000, stone: 350, iron: 80 },
+      { bolts: 850, wood: 2200, stone: 850, iron: 200 },
+      { bolts: 1900, wood: 4800, stone: 2000, iron: 500, cores: 1 },
+      { bolts: 4200, wood: 10000, stone: 4500, iron: 1200, cores: 3 },
+      { bolts: 9000, wood: 21000, stone: 10000, iron: 2800, cores: 6 },
+    ],
+    time: [null, 90*60_000, 4*3_600_000, 12*3_600_000, 28*3_600_000, 48*3_600_000],
+    hp:   [null, 320, 500, 760, 1120, 1620],
+    dps:  [null, 22, 36, 56, 82, 115],
+    range: 8,
+  },
+  bombTower: {
+    glyph: '💥', name: 'Bomb Tower',
+    footprint: { w: 2, h: 2 },
+    targets: 'ground',
+    cost: [null,
+      { bolts: 400, wood: 1100, stone: 500, iron: 100 },
+      { bolts: 1000, wood: 2400, stone: 1100, iron: 280 },
+      { bolts: 2200, wood: 5400, stone: 2400, iron: 700, cores: 1 },
+      { bolts: 4800, wood: 11500, stone: 5200, iron: 1700, cores: 3 },
+    ],
+    time: [null, 2*3_600_000, 6*3_600_000, 14*3_600_000, 30*3_600_000],
+    hp:   [null, 360, 560, 850, 1250],
+    dps:  [null, 16, 26, 40, 60],
+    aoe: 1,
+    explodesOnDeath: [null, 180, 320, 480, 700],   // burst dmg on destruction
+    range: 3,
+  },
+  voltaicCoil: {
+    glyph: '⚡', name: 'Voltaic Coil',
+    footprint: { w: 1, h: 1 },
+    targets: 'both',
+    cloaked: true,   // hidden until first attacker enters range
+    cost: [null,
+      { bolts: 600, wood: 800, iron: 400, cores: 2 },
+      { bolts: 1500, wood: 1700, iron: 900, cores: 4 },
+      { bolts: 3200, wood: 3600, iron: 2000, cores: 7 },
+      { bolts: 6800, wood: 7500, iron: 4500, gold: 100, cores: 12 },
+      { bolts: 14000, wood: 15000, iron: 10000, gold: 400, cores: 22 },
+    ],
+    time: [null, 3*3_600_000, 8*3_600_000, 18*3_600_000, 36*3_600_000, 60*3_600_000],
+    hp:   [null, 220, 340, 510, 760, 1100],
+    dps:  [null, 40, 64, 95, 138, 195],
+    range: 5,
+  },
+  heavyCannon: {
+    glyph: '🔫', name: 'Heavy Cannon',
+    footprint: { w: 2, h: 2 },
+    targets: 'ground',
+    thGate: 8,
+    cost: [null, null, null, null, null,   // levels 1–4 unbuildable
+      { bolts: 6000, wood: 14000, stone: 7000, iron: 2000, cores: 4 },
+      { bolts: 12500, wood: 28000, stone: 14000, iron: 4500, cores: 8 },
+      { bolts: 25000, wood: 55000, stone: 28000, iron: 10000, gold: 400, cores: 16 },
+    ],
+    time: [null, 0, 0, 0, 0, 24*3_600_000, 48*3_600_000, 72*3_600_000],
+    hp:   [null, 0, 0, 0, 0, 2400, 3400, 4800],
+    dps:  [null, 0, 0, 0, 0, 140, 200, 280],
+    range: 10,
+  },
+  infernoTower: {
+    glyph: '🔥', name: 'Inferno Tower',
+    footprint: { w: 2, h: 2 },
+    targets: 'both',
+    thGate: 8,
+    rampDps: true,   // damage ramps the longer it stays on a target
+    cost: [null, null, null, null, null, null,
+      { bolts: 9000, wood: 22000, stone: 11000, iron: 3500, gold: 200, cores: 6 },
+      { bolts: 19000, wood: 45000, stone: 22000, iron: 8000, gold: 600, cores: 12 },
+      { bolts: 38000, wood: 90000, stone: 45000, iron: 18000, gold: 1800, cores: 24 },
+    ],
+    time: [null, 0, 0, 0, 0, 0, 36*3_600_000, 60*3_600_000, 96*3_600_000],
+    hp:   [null, 0, 0, 0, 0, 0, 1800, 2700, 3900],
+    dps:  [null, 0, 0, 0, 0, 0, 30, 48, 72],   // base; ramp multiplies up to 5x
+    rampMultMax: 5,
+    range: 6,
+  },
+  eagleEye: {
+    glyph: '🦅', name: 'Eagle Eye',
+    footprint: { w: 3, h: 3 },
+    targets: 'both',
+    thGate: 9,
+    cost: [null, null, null, null, null, null, null, null,
+      { bolts: 22000, wood: 60000, stone: 30000, iron: 12000, gold: 1500, cores: 18 },
+      { bolts: 45000, wood: 120000, stone: 60000, iron: 25000, gold: 5000, cores: 36 },
+      { bolts: 90000, wood: 240000, stone: 120000, iron: 55000, gold: 14000, cores: 72 },
+    ],
+    time: [null, 0, 0, 0, 0, 0, 0, 0, 72*3_600_000, 120*3_600_000, 168*3_600_000],
+    hp:   [null, 0, 0, 0, 0, 0, 0, 0, 3500, 5200, 7600],
+    dps:  [null, 0, 0, 0, 0, 0, 0, 0, 38, 58, 84],
+    range: 14,   // town-wide
+    reinforces: 3,   // calls 3 garrison archers/raid
+  },
+
+  // ── CLASH EXPANSION §5.3 — Additional trap kinds ─────────────────────
+  //
+  // Each shares the trap[1-1] footprint, isTrap flag, and 1 HP (detonate
+  // on first contact). Burst/effect differs per kind — the sim's trap
+  // branch dispatches on trapKind. Re-arm cost per kind tracks the
+  // recurring bolt-sink design §3.5 outlines.
+
+  springTrap: {
+    glyph: '🦘', name: 'Spring Trap',
+    footprint: { w: 1, h: 1 },
+    isTrap: true, trapKind: 'spring',
+    cost: [null, { bolts: 200, wood: 250, iron: 30 }, { bolts: 500, wood: 600, iron: 100 }, { bolts: 1100, wood: 1300, iron: 280 }],
+    time: [null, 30*60_000, 2*3_600_000, 5*3_600_000],
+    hp:   [null, 1, 1, 1],
+    burst: [null, 30, 60, 110],          // small damage; primary effect is pushback
+    pushbackTiles: [null, 4, 5, 6],
+    rearmCost: [null, { bolts: 120 }, { bolts: 180 }, { bolts: 260 }],
+  },
+  skyMine: {
+    glyph: '🪂', name: 'Sky Mine',
+    footprint: { w: 1, h: 1 },
+    isTrap: true, trapKind: 'skyMine',
+    targets: 'air',   // never triggers on ground troops
+    cost: [null, { bolts: 350, wood: 300, iron: 80 }, { bolts: 800, wood: 700, iron: 200 }, { bolts: 1800, wood: 1500, iron: 500 }],
+    time: [null, 45*60_000, 3*3_600_000, 8*3_600_000],
+    hp:   [null, 1, 1, 1],
+    burst: [null, 380, 600, 900],   // one-shots most flyers
+    rearmCost: [null, { bolts: 140 }, { bolts: 220 }, { bolts: 340 }],
+  },
+  staticTrap: {
+    glyph: '🌀', name: 'Static Trap',
+    footprint: { w: 1, h: 1 },
+    isTrap: true, trapKind: 'static',
+    cost: [null, { bolts: 250, wood: 220, iron: 40 }, { bolts: 600, wood: 550, iron: 120 }, { bolts: 1300, wood: 1200, iron: 320 }],
+    time: [null, 30*60_000, 2*3_600_000, 5*3_600_000],
+    hp:   [null, 1, 1, 1],
+    burst: [null, 20, 40, 70],
+    stunTicks: [null, 2, 3, 4],
+    stunTargets: [null, 3, 4, 5],
+    rearmCost: [null, { bolts: 100 }, { bolts: 160 }, { bolts: 240 }],
+  },
+  caltrops: {
+    glyph: '❄', name: 'Caltrops',
+    footprint: { w: 1, h: 1 },
+    isTrap: true, trapKind: 'caltrops',
+    cost: [null, { bolts: 150, wood: 180, iron: 20 }, { bolts: 380, wood: 450, iron: 80 }],
+    time: [null, 20*60_000, 90*60_000],
+    hp:   [null, 1, 1],
+    burst: [null, 10, 25],
+    slowFactor: [null, 0.5, 0.4],   // multiplicative on troop speed
+    slowTicks: [null, 5, 7],
+    slowRadius: [null, 3, 4],
+    rearmCost: [null, { bolts: 60 }, { bolts: 100 }],
+  },
+  infernoTrap: {
+    glyph: '🔥', name: 'Inferno Trap',
+    footprint: { w: 1, h: 1 },
+    isTrap: true, trapKind: 'inferno',
+    cost: [null, { bolts: 300, wood: 350, iron: 90 }, { bolts: 750, wood: 850, iron: 220 }, { bolts: 1700, wood: 1900, iron: 550, cores: 1 }],
+    time: [null, 40*60_000, 2.5*3_600_000, 6*3_600_000],
+    hp:   [null, 1, 1, 1],
+    burst: [null, 40, 80, 140],
+    dotPerTick: [null, 12, 22, 38],
+    dotTicks: [null, 8, 10, 12],
+    rearmCost: [null, { bolts: 150 }, { bolts: 230 }, { bolts: 340 }],
+  },
+  decoyBanner: {
+    glyph: '🚩', name: 'Decoy Banner',
+    footprint: { w: 1, h: 1 },
+    isTrap: true, trapKind: 'decoy',
+    cost: [null, { bolts: 180, wood: 240 }, { bolts: 450, wood: 600, iron: 60 }],
+    time: [null, 30*60_000, 90*60_000],
+    hp:   [null, 1, 1],
+    burst: [null, 0, 0],
+    decoyTicks: [null, 3, 5],   // pulls 'closest' aggro for N ticks
+    rearmCost: [null, { bolts: 90 }, { bolts: 140 }],
+  },
 };
 
 // ── Hero-level gates on Town Hall tiers (Phase 3) ────────────────────
@@ -339,6 +560,49 @@ export const TROOPS_PERSONAL = {
     glyph: '✨', name: 'Healer Cleric', rarity: 'rare',
     bolts: 380, time: 30*60_000,
     hp: 90, atk: 4, speed: 2, target: 'support', healPerTick: 12, range: 3,
+  },
+
+  // ── CLASH EXPANSION §5.4 — New player troops ─────────────────────────
+  //
+  // Air units carry `isAir: true` and are only targetable by defenses
+  // whose `targets` is 'air' or 'both'. Wall-ignoring units skip the
+  // wall layer entirely when choosing targets.
+
+  sneak: {
+    glyph: '🥷', name: 'Goblin Sneak', rarity: 'common',
+    bolts: 60, time: 4*60_000,
+    hp: 45, atk: 12, speed: 5, target: 'highValue',
+    ignoresWalls: true,
+  },
+  batteringRam: {
+    glyph: '🪨', name: 'Battering Ram', rarity: 'rare',
+    bolts: 480, time: 18*60_000,
+    hp: 520, atk: 110, speed: 1, target: 'walls',
+    bonusVsWalls: 2.5,
+  },
+  skyrider: {
+    glyph: '🪁', name: 'Skyrider', rarity: 'rare',
+    bolts: 420, time: 20*60_000,
+    hp: 100, atk: 22, speed: 5, target: 'highValue',
+    isAir: true,
+  },
+  plagueDoctor: {
+    glyph: '☠', name: 'Plague Doctor', rarity: 'rare',
+    bolts: 540, time: 35*60_000,
+    hp: 130, atk: 18, speed: 2, target: 'support',
+    debuffDpsMult: 0.75, debuffTicks: 8, range: 3,
+  },
+  lightningSapper: {
+    glyph: '⚡', name: 'Lightning Sapper', rarity: 'epic',
+    bolts: 880, time: 70*60_000,
+    hp: 160, atk: 120, speed: 3, target: 'walls',
+    chainShock: { jumps: 3, dmg: 40 },
+  },
+  stormCaller: {
+    glyph: '🌩', name: 'Storm Caller', rarity: 'epic',
+    bolts: 1100, time: 100*60_000,
+    hp: 170, atk: 48, speed: 3, target: 'highValue',
+    isAir: true, aoe: 2, range: 4,
   },
 };
 
@@ -477,6 +741,9 @@ export const TROOPS_GOBLIN = {
                     hp: 900, atk: 65, speed: 2, target: 'highValue' },
   goblinSkyrider: { glyph: '🪁', name: 'Goblin Skyrider', rarity: 'rare',
                     hp: 70, atk: 18, speed: 5, target: 'highValue', isAir: true },
+  // Wyrm — endgame air boss (Warband variant at TH 10).
+  wyrm:           { glyph: '🐉', name: 'Wyrm',            rarity: 'legendary',
+                    hp: 1400, atk: 90, speed: 3, target: 'highValue', isAir: true, aoe: 1 },
 };
 
 // Goblin army per TH level, per CLASH-EXPANSION-DESIGN.md §4.2. Seeded
@@ -499,7 +766,10 @@ export function generateGoblinArmy(thLevel, seed, { mode = 'normal' } = {}) {
       goblinArcher: 8 + Math.floor(rng() * 4),
       goblinScrapper: 18 + Math.floor(rng() * 6),
     };
-    if (th >= 10) troops.goblinSkyrider = 3 + Math.floor(rng() * 2);
+    if (th >= 10) {
+      troops.goblinSkyrider = 3 + Math.floor(rng() * 2);
+      troops.wyrm = 1;
+    }
     return { troops, hasWarband: true, label: 'Goblin Warband (boss raid)' };
   }
   // Normal raids — composition scales with TH.

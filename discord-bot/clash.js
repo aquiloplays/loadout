@@ -284,6 +284,7 @@ export async function handleClashCommand(env, data, userId, userName) {
     switch (leaf) {
       case 'view':     return publicReply(await renderTownView(env, guildId));
       case 'build':    return ephemeral(await handleTownBuild(env, guildId, userId, getOpt('kind'), getOpt('building')));
+      case 'defense':  return ephemeral(await handleTownBuild(env, guildId, userId, getOpt('kind'), getOpt('building')));
       case 'garrison': return ephemeral(await handleTownGarrison(env, guildId, userId, getOpt('troop'), getOpt('count')));
       case 'pause':    return ephemeral(await handleTownPause(env, guildId, userId));
       case 'repair':   return ephemeral(await handleTownRepair(env, guildId, userId, getOpt('building')));
@@ -938,6 +939,13 @@ async function handleTownBuild(env, guildId, userId, kind, buildingId) {
     return '❌ Unknown building. Try: townhall, wall, cannon, archerTower, trap, storage, barracks.';
   }
   const town = await getTown(env, guildId);
+  // E3: TH gate — heavyCannon (TH8+), infernoTower (TH8+), eagleEye
+  // (TH9+) refuse to build below the gate. Returns a useful error
+  // instead of "cost lookup failed".
+  const thGate = BUILDINGS[kind].thGate || 0;
+  if (thGate && (town.thLevel || 1) < thGate) {
+    return `🔒 ${BUILDINGS[kind].name} requires TH ${thGate}. Your town is TH ${town.thLevel || 1}.`;
+  }
   let targetBuilding = null;
   if (buildingId) {
     targetBuilding = town.buildings.find(b => String(b.id) === String(buildingId));

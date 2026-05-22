@@ -85,6 +85,13 @@ export function simulate(attacker, defenderSnapshot, raidId, opts = {}) {
         hp: def.hp, atk: def.atk, speed: def.speed, range: def.range || 1,
         target: def.target,
         aoe: def.aoe || 0,
+        // E3: air/wall/debuff flags propagate from the catalog to the
+        // sim unit so pickTarget + tower-shoot can filter on them.
+        isAir: !!def.isAir,
+        ignoresWalls: !!def.ignoresWalls,
+        bonusVsWalls: def.bonusVsWalls || 1,
+        debuffDpsMult: def.debuffDpsMult || 0,
+        debuffTicks: def.debuffTicks || 0,
         alive: true,
       });
     }
@@ -105,11 +112,13 @@ export function simulate(attacker, defenderSnapshot, raidId, opts = {}) {
     }
   }
 
-  // Towers (cannons + archer towers) defending the base — extracted for
-  // a tight inner loop.
-  const towers = buildings.filter(b => b.kind === 'cannon' || b.kind === 'archerTower');
+  // Towers (cannons + archer towers + all new E3 defenses) defending
+  // the base. A kind counts as a tower if its catalog entry declares a
+  // dps array. Each tower carries the `targets` field — the sim filters
+  // attackers by that field before picking a target each tick.
+  const towers = buildings.filter(b => Array.isArray(BUILDINGS[b.kind]?.dps));
   const walls = buildings.filter(b => b.kind === 'wall');
-  const traps = buildings.filter(b => b.kind === 'trap');
+  const traps = buildings.filter(b => BUILDINGS[b.kind]?.isTrap);
 
   // ── Sim loop ───────────────────────────────────────────────────────
   let tick = 0;
@@ -122,32 +131,67 @@ export function simulate(attacker, defenderSnapshot, raidId, opts = {}) {
       if (!u.alive) continue;
       const target = pickTarget(u, buildings, garrison, walls, r);
       if (!target) continue;
-      const dmg = Math.round(u.atk * (u.voltaicMult || 1) * (0.92 + r() * 0.16));
+      // Battering Ram + Lightning Sapper get a wall damage bonus —
+      // catalog field `bonusVsWalls` multiplies attack against walls.
+      const wallMult = (target.kind === 'wall' && u.bonusVsWalls > 1) ? u.bonusVsWalls : 1;
+      const dmg = Math.round(u.atk * (u.voltaicMult || 1) * wallMult * (0.92 + r() * 0.16));
       target.hp -= dmg;
       log.push({ t: tick, who: u.id || (u.isHero ? 'hero' : 'unit'), to: target.id || target.troopId, dmg });
       if (target.hp <= 0) {
         target.alive = false;
-        if (target.kind && target.kind === 'trap' && target.alive === false) {
-          // Trap detonated — burst damage to nearest 3 attackers
-          const burst = BUILDINGS.trap.burst[target.level] || 100;
-          const victims = army.filter(a => a.alive).slice(0, 3);
+        // Trap detonation. Dispatch on trapKind so spring/inferno/sky
+        // mine all run their own burst rules. Bomb traps + the legacy
+        // 'trap' kind use the default burst path.
+        const tdef = target.kind && BUILDINGS[target.kind];
+        if (tdef && tdef.isTrap) {
+          const kind = tdef.trapKind || 'bomb';
+          const burst = tdef.burst?.[target.level] || 100;
+          // Sky mines only target air; if there are no fliers, the
+          // burst is wasted but the trap still triggers.
+          const victims = kind === 'skyMine'
+            ? army.filter(a => a.alive && a.isAir).slice(0, 2)
+            : army.filter(a => a.alive).slice(0, 3);
           for (const v of victims) {
             v.hp -= burst;
-            log.push({ t: tick, who: 'trap:' + target.id, to: v.id, dmg: burst });
+            log.push({ t: tick, who: kind + ':' + target.id, to: v.id, dmg: burst });
             if (v.hp <= 0) v.alive = false;
+          }
+          // Bomb Tower explodes on death — additional burst beyond
+          // the trap branch.
+          if (tdef.explodesOnDeath) {
+            const xb = tdef.explodesOnDeath[target.level] || 0;
+            if (xb > 0) {
+              const xvictims = army.filter(a => a.alive).slice(0, 4);
+              for (const v of xvictims) {
+                v.hp -= xb;
+                log.push({ t: tick, who: 'bombTower:' + target.id, to: v.id, dmg: xb });
+                if (v.hp <= 0) v.alive = false;
+              }
+            }
           }
         }
       }
     }
 
-    // 2. Towers shoot back.
+    // 2. Towers shoot back. Each tower respects its own targets filter
+    //    (ground / air / both) so anti-air can ignore ground troops and
+    //    vice versa. Air-only towers shoot nothing if no air units are
+    //    in the field; ground towers can't touch a stormCaller until
+    //    the defender builds anti-air.
     for (const tower of towers) {
       if (!tower.alive) continue;
-      const targetable = army.filter(u => u.alive);
+      const tdef = BUILDINGS[tower.kind] || {};
+      const targets = tdef.targets || 'ground';
+      const targetable = army.filter(u => {
+        if (!u.alive) return false;
+        if (u.isAir && targets === 'ground') return false;
+        if (!u.isAir && targets === 'air') return false;
+        return true;
+      });
       if (!targetable.length) continue;
-      const dps = BUILDINGS[tower.kind]?.dps?.[tower.level] || 5;
+      const baseDps = tdef.dps?.[tower.level] || 5;
       const target = targetable[Math.floor(r() * targetable.length)];
-      const dmg = Math.round(dps * (0.9 + r() * 0.2));
+      const dmg = Math.round(baseDps * (0.9 + r() * 0.2));
       target.hp -= dmg;
       log.push({ t: tick, who: tower.kind + ':' + tower.id, to: target.id, dmg });
       if (target.hp <= 0) target.alive = false;
@@ -230,23 +274,32 @@ export function simulate(attacker, defenderSnapshot, raidId, opts = {}) {
 }
 
 function pickTarget(unit, buildings, garrison, walls, r) {
+  // Air + wall-ignoring units skip the wall layer entirely; "walls"
+  // targeting hint is a no-op for them so they don't waste a tick.
+  const skipsWalls = !!(unit.isAir || unit.ignoresWalls);
+
   // Special-case targeting hints.
   if (unit.target === 'walls') {
-    const w = walls.find(b => b.alive);
-    if (w) return w;
+    if (skipsWalls) {
+      // Sappers that ignore walls fall through to the default branch.
+    } else {
+      const w = walls.find(b => b.alive);
+      if (w) return w;
+    }
   }
   if (unit.target === 'highValue') {
-    const hv = buildings.find(b => b.alive && (b.kind === 'townhall' || b.kind === 'storage'));
+    const hv = buildings.find(b => b.alive && (b.kind === 'townhall' || b.kind === 'storage' || b.kind === 'mint' || b.kind === 'goldVault'));
     if (hv) return hv;
   }
   if (unit.target === 'support') {
-    // Healers don't attack — return null and let the resolver skip them.
+    // Healers + plague doctors don't attack directly — return null.
     return null;
   }
-  // Default: nearest live building, but prefer towers since they kill us.
-  const t = buildings.filter(b => b.alive && (b.kind === 'cannon' || b.kind === 'archerTower'));
+  // Default: prefer towers (any kind with dps), but skip walls if the
+  // unit can't be bothered with them.
+  const t = buildings.filter(b => b.alive && Array.isArray(BUILDINGS[b.kind]?.dps));
   if (t.length) return t[Math.floor(r() * t.length)];
-  const any = buildings.filter(b => b.alive);
+  const any = buildings.filter(b => b.alive && (!skipsWalls || b.kind !== 'wall'));
   if (any.length) return any[Math.floor(r() * any.length)];
   // Last resort: hit a garrison troop.
   const g = garrison.filter(u => u.alive);

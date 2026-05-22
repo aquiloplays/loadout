@@ -258,12 +258,18 @@ export const COMMANDS = [
         options: [
           { type: TYPE_STRING, name: 'troop', description: 'Troop to train', required: true,
             choices: [
-              { name: 'Scrapper (common)',     value: 'scrapper' },
-              { name: 'Archer (common)',       value: 'archerLite' },
-              { name: 'Bolt Knight (rare)',    value: 'boltKnight' },
-              { name: 'Sapper Rogue (rare)',   value: 'sapperRogue' },
-              { name: 'Healer Cleric (rare)',  value: 'healerCleric' },
-              { name: 'Voltaic Mage (epic)',   value: 'voltaicMage' },
+              { name: 'Scrapper (common)',         value: 'scrapper' },
+              { name: 'Archer (common)',           value: 'archerLite' },
+              { name: 'Goblin Sneak (common)',     value: 'sneak' },
+              { name: 'Bolt Knight (rare)',        value: 'boltKnight' },
+              { name: 'Sapper Rogue (rare)',       value: 'sapperRogue' },
+              { name: 'Healer Cleric (rare)',      value: 'healerCleric' },
+              { name: 'Battering Ram (rare)',      value: 'batteringRam' },
+              { name: 'Skyrider (rare, air)',      value: 'skyrider' },
+              { name: 'Plague Doctor (rare)',      value: 'plagueDoctor' },
+              { name: 'Voltaic Mage (epic)',       value: 'voltaicMage' },
+              { name: 'Lightning Sapper (epic)',   value: 'lightningSapper' },
+              { name: 'Storm Caller (epic, air)',  value: 'stormCaller' },
             ],
           },
           { type: TYPE_INTEGER, name: 'count', description: 'Number to train (1–50)', required: false, min_value: 1, max_value: 50 },
@@ -422,6 +428,33 @@ export const COMMANDS = [
             ],
           },
           { type: TYPE_SUBCOMMAND, name: 'pause', description: 'Toggle PvP matchmaking opt-out for this town' },
+          // ── CLASH EXPANSION Phase E3 — defenses + traps (extra cap) ──
+          {
+            type: TYPE_SUBCOMMAND, name: 'defense',
+            description: 'Build a defense or trap (streamer/mods)',
+            options: [
+              {
+                type: TYPE_STRING, name: 'kind', description: 'Which defense/trap to build', required: true,
+                choices: [
+                  { name: 'Mortar (splash, min-range)',          value: 'mortar' },
+                  { name: 'Mage Tower (ignores walls)',          value: 'mageTower' },
+                  { name: 'Skyward Bow (anti-air)',              value: 'skywardBow' },
+                  { name: 'Bomb Tower (AoE; explodes on death)', value: 'bombTower' },
+                  { name: 'Voltaic Coil (cloaked)',              value: 'voltaicCoil' },
+                  { name: 'Heavy Cannon (TH8+)',                 value: 'heavyCannon' },
+                  { name: 'Inferno Tower (TH8+, ramping)',       value: 'infernoTower' },
+                  { name: 'Eagle Eye (TH9+, town-wide)',         value: 'eagleEye' },
+                  { name: 'Spring Trap (pushback)',              value: 'springTrap' },
+                  { name: 'Sky Mine (anti-air, one-shot)',       value: 'skyMine' },
+                  { name: 'Static Trap (stun)',                  value: 'staticTrap' },
+                  { name: 'Caltrops (slow)',                     value: 'caltrops' },
+                  { name: 'Inferno Trap (DoT burn)',             value: 'infernoTrap' },
+                  { name: 'Decoy Banner (aggro pull)',           value: 'decoyBanner' },
+                ],
+              },
+              { type: TYPE_INTEGER, name: 'building', description: 'Existing building id (omit to place a new one)', required: false, min_value: 1 },
+            ],
+          },
           // ── CLASH EXPANSION Phase E2 — repair / demolish / damage ────
           {
             type: TYPE_SUBCOMMAND, name: 'repair',
