@@ -462,18 +462,43 @@ async function routeBetSnapshot(env, guildId, userId) {
 }
 
 async function routeBetPlace(env, guildId, userId, body) {
-  const gameId = String(body && body.gameId || '').trim();
-  const side = String(body && body.side || '').toLowerCase();
+  // Parlay payload: { kind:'parlay', bolts, legs:[{game, kind, side}] }.
+  // Solo payload: { gameId, kind?, side, bolts }.
+  const kind = String((body && body.kind) || 'moneyline').toLowerCase();
   const bolts = Number(body && body.bolts);
-  if (!gameId) return json({ ok: false, error: 'bad-game', message: 'Pick a game.' }, 400);
-  if (side !== 'home' && side !== 'away') {
-    return json({ ok: false, error: 'bad-side', message: 'Side must be home or away.' }, 400);
-  }
   if (!Number.isFinite(bolts) || bolts <= 0) {
     return json({ ok: false, error: 'bad-bolts', message: 'Bolts must be a positive number.' }, 400);
   }
+  if (kind === 'parlay') {
+    const legs = Array.isArray(body && body.legs) ? body.legs : [];
+    if (legs.length < 2) {
+      return json({ ok: false, error: 'too-few-legs', message: 'A parlay needs at least 2 legs.' }, 400);
+    }
+    const r = await runPlaceJson(env, guildId, userId, {
+      kind: 'parlay',
+      bolts: Math.floor(bolts),
+      legs,
+    });
+    return json(r, r.ok ? 200 : 400);
+  }
+  // Solo bet — same validation as before but kind-aware.
+  const gameId = String(body && body.gameId || '').trim();
+  const side = String(body && body.side || '').toLowerCase();
+  if (!gameId) return json({ ok: false, error: 'bad-game', message: 'Pick a game.' }, 400);
+  if (kind === 'moneyline' || kind === 'spread') {
+    if (side !== 'home' && side !== 'away') {
+      return json({ ok: false, error: 'bad-side', message: 'Side must be home or away.' }, 400);
+    }
+  } else if (kind === 'total') {
+    if (side !== 'over' && side !== 'under') {
+      return json({ ok: false, error: 'bad-side', message: 'Side must be over or under.' }, 400);
+    }
+  } else {
+    return json({ ok: false, error: 'bad-kind', message: 'kind must be moneyline, spread, total, or parlay.' }, 400);
+  }
   const r = await runPlaceJson(env, guildId, userId, {
     game: gameId,
+    kind,
     side,
     bolts: Math.floor(bolts),
   });
