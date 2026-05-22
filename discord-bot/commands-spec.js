@@ -871,4 +871,113 @@ export const COMMANDS = [
       },
     ],
   },
+  {
+    // Bolts-denominated quick games — the same 7 games the website
+    // exposes at /play (blackjack, roulette, wheel, hi-lo, mines,
+    // plinko, crash). One subcommand per game. Stateful games
+    // (blackjack, hi-lo, mines) attach action buttons to the response
+    // for continuation; single-shots resolve inline.
+    //
+    // NOTE: Loadout bot token is invalid at the time of writing so
+    // slash registration is blocked. This entry is ready to publish
+    // the moment the token is rotated.
+    name: 'play',
+    description: 'Play a quick-bolts game — blackjack, roulette, wheel, hi-lo, mines, plinko, crash',
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'blackjack',
+        description: 'Standard blackjack — natural pays 3:2, dealer stands on 17',
+        options: [
+          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'roulette',
+        description: 'Spin the wheel — pick a color, parity, range, or a specific number',
+        options: [
+          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
+          {
+            type: TYPE_STRING, name: 'pick', description: 'red, black, even, odd, low, high, or a number 0-36',
+            required: true,
+            choices: [
+              { name: 'red (2×)',    value: 'red' },
+              { name: 'black (2×)',  value: 'black' },
+              { name: 'even (2×)',   value: 'even' },
+              { name: 'odd (2×)',    value: 'odd' },
+              { name: 'low 1-18 (2×)',  value: 'low' },
+              { name: 'high 19-36 (2×)', value: 'high' },
+              // Bare-number bets accepted as a free-text fallback via
+              // /play roulette pick:17  — but Discord doesn't let us
+              // mix free-text with choices when choices is present.
+              // For number bets, use /play roulette-number instead
+              // (added below as a separate subcommand).
+            ],
+          },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'roulette-number',
+        description: 'Roulette — bet on a specific number 0-36 (pays 36×)',
+        options: [
+          { type: TYPE_INTEGER, name: 'bet',    description: 'Bolts to wager', required: true, min_value: 1 },
+          { type: TYPE_INTEGER, name: 'number', description: 'Number 0-36',   required: true, min_value: 0, max_value: 36 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'wheel',
+        description: 'Multiplier wheel — low risk = safer, high risk = jackpot',
+        options: [
+          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
+          {
+            type: TYPE_STRING, name: 'risk', description: 'Risk tier (default medium)', required: false,
+            choices: [
+              { name: 'low',    value: 'low' },
+              { name: 'medium', value: 'medium' },
+              { name: 'high',   value: 'high' },
+            ],
+          },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'hilo',
+        description: 'Higher-or-lower — keep guessing to grow the multiplier; cash out anytime',
+        options: [
+          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'mines',
+        description: 'Reveal tiles without hitting a bomb — cash out anytime',
+        options: [
+          { type: TYPE_INTEGER, name: 'bet',   description: 'Bolts to wager', required: true, min_value: 1 },
+          { type: TYPE_INTEGER, name: 'bombs', description: 'Bombs hidden in the 5×5 grid (1-24, default 3)',
+            required: false, min_value: 1, max_value: 24 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'plinko',
+        description: 'Drop a ball through pegs — bucket multiplier pays out',
+        options: [
+          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
+          {
+            type: TYPE_STRING, name: 'risk', description: 'Risk tier (default medium)', required: false,
+            choices: [
+              { name: 'low',    value: 'low' },
+              { name: 'medium', value: 'medium' },
+              { name: 'high',   value: 'high' },
+            ],
+          },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'crash',
+        description: 'Multiplier climbs from 1× — cash out before it busts',
+        options: [
+          { type: TYPE_INTEGER, name: 'bet',     description: 'Bolts to wager', required: true, min_value: 1 },
+          { type: TYPE_INTEGER, name: 'cashout', description: 'Auto-cashout at this multiplier × 100 (e.g. 200 = 2.00×)',
+            required: false, min_value: 100, max_value: 10000 },
+        ],
+      },
+    ],
+  },
 ];

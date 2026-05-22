@@ -168,6 +168,15 @@ export async function handleExt(req, env, ctx) {
     if (route.indexOf('loadout/') === 0) {
       return await handleLoadout(env, guildId, userId, route.slice(8), req);
     }
+    // Quick-bolts games on the panel (blackjack/roulette/wheel/hilo/mines/
+    // plinko/crash). Identity is tw:<twId>; same wallet + same engine as
+    // the website surface. See ext-quick.js.
+    if (route.indexOf('quick/') === 0) {
+      const { isExtQuickRoute, handleExtQuick } = await import('./ext-quick.js');
+      if (isExtQuickRoute(route)) {
+        return await handleExtQuick(env, guildId, userId, req, route);
+      }
+    }
     if (isBoltboundRoute(route)) {
       // Twitch panel surface for Boltbound. Same backend as the website
       // (cards-web.js routes); identity is tw:<twId> so panel viewers
