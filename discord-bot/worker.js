@@ -321,6 +321,16 @@ export default {
       const { handlePushDm } = await import('./push-dm.js');
       return handlePushDm(req, env);
     }
+    // F1 — Friends system (HMAC-gated writes, public GETs)
+    if (path.startsWith('/web/friends/') || path === '/web/friends') {
+      const { handleFriendsRoute } = await import('./friends.js');
+      return handleFriendsRoute(req, env, path);
+    }
+    // F3 — Community activity feed (public GET)
+    if (path === '/community/feed') {
+      const { handleCommunityFeedRoute } = await import('./activity-feed.js');
+      return handleCommunityFeedRoute(req, env);
+    }
 
     // aquilo.gg website minigames -- HMAC from the site's Pages
     // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +

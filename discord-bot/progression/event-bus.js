@@ -125,8 +125,16 @@ export async function emitProgressionEvent(env, event) {
       console.warn('[progression] season progress failed:', e && e.message);
     }
 
-    // ── Recent-activity ring buffer ──
+    // ── Recent-activity ring buffer (per-user) ──
     try { await pushEventToRing(env, event.userId, event); } catch { /* non-fatal */ }
+
+    // ── Consumer #4: Community activity feed (filtered ring) ──
+    // Only highlight-worthy kinds make it in — see activity-feed.js
+    // for the kind/condition filter.
+    try {
+      const { appendIfNoteworthy } = await import('../activity-feed.js');
+      await appendIfNoteworthy(env, event);
+    } catch { /* non-fatal */ }
 
     return {
       ok: true,

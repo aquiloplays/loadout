@@ -146,6 +146,15 @@ export async function createLfg(env, { userId, hostName, game, slots, guildId = 
   await env.LOADOUT_BOLTS.put(ACTIVE_KEY(lfg.id), JSON.stringify(lfg));
   idx.unshift({ lfgId: lfg.id, createdUtc: lfg.createdUtc });
   await putIndex(env, idx);
+  // F2 — Fan out to host's friends (Discord DM + web-push). Fire-and-
+  // forget; LFG state is already persisted so a fan-out failure
+  // doesn't break the host's creation flow.
+  try {
+    const { notifyFriendsOfLfg } = await import('./friends.js');
+    await notifyFriendsOfLfg(env, lfg);
+  } catch (e) {
+    console.warn('[lfg] friend fan-out failed:', e && e.message);
+  }
   return { ok: true, lfg };
 }
 
