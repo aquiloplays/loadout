@@ -77,7 +77,19 @@ export async function dice(env, guildId, userId, bet, target) {
 // Discord, the Twitch panel, and the website — single function,
 // single source of truth.
 const DAILY_BASE = 100;
-const DAILY_STREAK_CAP = 10;
+// Streak multiplier curve (2026-05 retune): grows gradually so day 1
+// is a small taste and longer streaks meaningfully matter.
+//   mult = 0.25 + 0.05 * (streak - 1)
+// Day  1: 0.25x   (25 bolts)
+// Day 10: 0.70x   (70 bolts)
+// Day 20: 1.20x  (120 bolts)
+// Day 50: 2.70x  (270 bolts)
+// Day 95: 4.95x  (495 bolts) — soft cap, see DAILY_STREAK_CAP.
+const DAILY_STREAK_CAP = 100;
+function dailyMultiplier(streak) {
+  const n = Math.max(1, Math.min(DAILY_STREAK_CAP, Math.floor(streak) || 1));
+  return 0.25 + 0.05 * (n - 1);
+}
 const DAILY_TZ = 'America/New_York';
 
 // "YYYY-MM-DD" in DAILY_TZ for the given epoch. en-CA's locale order
@@ -162,7 +174,8 @@ export async function daily(env, guildId, userId) {
   const continued = w.lastDailyEtDate === yesterday;
   w.dailyStreak = continued ? Math.min(DAILY_STREAK_CAP, (w.dailyStreak || 0) + 1) : 1;
 
-  const payout = DAILY_BASE * w.dailyStreak;
+  const mult = dailyMultiplier(w.dailyStreak);
+  const payout = Math.max(1, Math.floor(DAILY_BASE * mult));
   w.balance += payout;
   w.lifetimeEarned = (w.lifetimeEarned || 0) + payout;
   w.lastDailyUtc = now;
@@ -172,6 +185,7 @@ export async function daily(env, guildId, userId) {
   return {
     won: true, payout,
     streak: w.dailyStreak,
-    explanation: '🎁 +' + payout + ' bolts (day ' + w.dailyStreak + ' streak). Come back tomorrow (resets at midnight ET).',
+    multiplier: mult,
+    explanation: '🎁 +' + payout + ' bolts (day ' + w.dailyStreak + ' streak — ' + mult.toFixed(2) + 'x). Come back tomorrow (resets at midnight ET).',
   };
 }
