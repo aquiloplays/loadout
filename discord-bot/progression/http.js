@@ -19,6 +19,7 @@ import { readAchievementsDisplay } from './achievements.js';
 import { ACHIEVEMENTS_CATALOG } from './achievements-catalog.js';
 import { readBadgesDisplay, setShowcase as setBadgeShowcase } from './badges.js';
 import { BADGE_CATALOG } from './badges-catalog.js';
+import { readSeasonDisplay, claimTier, ensureCurrentSeason } from './season.js';
 
 function json(obj, status = 200, extra = {}) {
   return new Response(JSON.stringify(obj), {
@@ -82,6 +83,21 @@ function renderProfileHtml(full) {
   const achHeader = full.achievements
     ? `${full.achievements.earned} / ${full.achievements.total} unlocked`
     : '';
+  // Season pass strip — current tier / next tier / time-left.
+  const sActive = full.season?.active;
+  const sUser = full.season?.user;
+  const seasonSection = sActive ? (() => {
+    const tierPct = Math.round((sUser.tier / sActive.tierCount) * 100);
+    const daysLeft = Math.max(0, Math.ceil((sActive.endUtc - Date.now()) / 86400_000));
+    const premiumBlurb = sUser.premiumUnlocked
+      ? `<span class="ach r-epic">Premium ${sUser.premiumMult}×</span>`
+      : `<span class="muted">Premium track locked — link Patreon to unlock.</span>`;
+    return `<div class="seasonwrap">
+      <h3>Season: ${escapeHtml(sActive.theme)} <span class="muted">${daysLeft}d left</span></h3>
+      <div class="seasonbar"><div style="width:${tierPct}%"></div></div>
+      <div class="muted">Tier ${sUser.tier} / ${sActive.tierCount} · ${sUser.xp} season XP · ${sUser.xpToNext} to next · ${premiumBlurb}</div>
+    </div>`;
+  })() : '';
   const achSection = full.achievements ? `
     <div class="achwrap">
       <h3>Achievements <span class="muted">${achHeader}</span></h3>
@@ -136,6 +152,10 @@ function renderProfileHtml(full) {
   .trophyCabinet .grid { display:flex; flex-wrap:wrap; gap:8px; }
   .trophyCabinet .badge { width:48px; height:48px; }
   .trophyCabinet .badge.locked { opacity:0.18; filter: grayscale(1); }
+  .seasonwrap { background:#1c2034; border-radius:8px; padding:12px 14px; margin-top:12px; }
+  .seasonwrap h3 { margin:0 0 8px 0; font-size:14px; }
+  .seasonbar { height:10px; background:#0a0b12; border-radius:5px; overflow:hidden; margin:6px 0; }
+  .seasonbar > div { height:100%; background:linear-gradient(90deg, #f0c050, #f08850); }
 </style>
 </head><body>
   <h1>${escapeHtml(p.displayName)}</h1>
@@ -147,6 +167,7 @@ function renderProfileHtml(full) {
   </div>
   ${p.bio ? `<div class="bio">${escapeHtml(p.bio)}</div>` : ''}
   ${linked ? `<div class="links">Linked: ${linked}</div>` : ''}
+  ${seasonSection}
   ${full.gated ? `<div class="gated">This profile's stats are not public.</div>` : `<div class="grid">${cards}</div>`}
   ${achSection}
   ${full.badges && !full.gated ? `<div class="trophyCabinet">
@@ -209,6 +230,30 @@ export async function handleWebProfile(req, env, path) {
     return json({ ok: true, profile: { bio: p.bio, privacy: p.privacy, badgesShowcase: p.badgesShowcase } });
   }
   return new Response('not found', { status: 404 });
+}
+
+// /web/season/active                 → active season config + tier table
+// /web/season/<userId>                → user's tier + xp progress + claim state
+// POST /web/season/<userId>/claim     body { tier, track }
+export async function handleWebSeason(req, env, path) {
+  const parts = path.split('/').filter(Boolean);  // ['web','season',...]
+  if (parts[2] === 'active') {
+    const s = await ensureCurrentSeason(env);
+    return json({ active: s });
+  }
+  const userId = parts[2];
+  if (!userId) return json({ error: 'userId required' }, 400);
+  if (req.method === 'GET') {
+    const data = await readSeasonDisplay(env, userId);
+    return json({ userId, ...data });
+  }
+  if (req.method === 'POST' && parts[3] === 'claim') {
+    let body = {};
+    try { body = await req.json(); } catch { return json({ error: 'bad-json' }, 400); }
+    const r = await claimTier(env, userId, parseInt(body.tier, 10) || 0, body.track || 'free');
+    return json(r, r.ok ? 200 : 400);
+  }
+  return json({ error: 'unknown-op' }, 404);
 }
 
 // /web/profile/link/start?platform=...&userId=...&returnUrl=...

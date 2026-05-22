@@ -267,6 +267,10 @@ export default {
       const { handleWebBadges } = await import('./progression/http.js');
       return handleWebBadges(req, env, path);
     }
+    if (path.startsWith('/web/season/')) {
+      const { handleWebSeason } = await import('./progression/http.js');
+      return handleWebSeason(req, env, path);
+    }
 
     // aquilo.gg website minigames -- HMAC from the site's Pages
     // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +

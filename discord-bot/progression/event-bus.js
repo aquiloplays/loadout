@@ -117,12 +117,13 @@ export async function emitProgressionEvent(env, event) {
     } catch { /* module not present yet — that's fine, P3 wires it */ }
 
     // ── Consumer #3: Season-pass progress ──
-    // Same pattern — stub until P6.
     let seasonResult = null;
     try {
       const { recordSeasonProgress } = await import('./season.js');
       if (recordSeasonProgress) seasonResult = await recordSeasonProgress(env, event, xpResult);
-    } catch { /* P6 wires it */ }
+    } catch (e) {
+      console.warn('[progression] season progress failed:', e && e.message);
+    }
 
     // ── Recent-activity ring buffer ──
     try { await pushEventToRing(env, event.userId, event); } catch { /* non-fatal */ }

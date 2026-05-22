@@ -46,6 +46,17 @@ export async function clashDailyCronTick(env, cronExpr) {
   } catch (e) {
     console.warn('[clash-cron] goblin raid scheduler failed:', e && e.message);
   }
+  // PROGRESSION P6 — ensure the season-active record is current. If
+  // the previous season ended, ensureCurrentSeason archives it and
+  // mints the next one. Cheap — one KV read per tick when the season
+  // is still live.
+  try {
+    const { ensureCurrentSeason } = await import('./progression/season.js');
+    await ensureCurrentSeason(env);
+  } catch (e) {
+    console.warn('[clash-cron] season rollover failed:', e && e.message);
+  }
+
   // Wars: sweep ACTIVE wars and resolve any whose 24h window has
   // expired. Cheap — only walks the small clash:waractive:* index.
   const endedWars = await sweepActiveWars(env);
