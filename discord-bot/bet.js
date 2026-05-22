@@ -78,6 +78,13 @@ function normalizeEvent(label, ev) {
     if (typeof o.value === 'number') return o.value;
     return null;
   }
+  // Spread + total when ESPN publishes them (DraftKings / Caesars feed
+  // depending on sport / time). `spread` is the line FROM HOME'S POV
+  // — a negative number means home is favoured by that many. `overUnder`
+  // is the combined game total.
+  const spreadLine = (odds && typeof odds.spread === 'number') ? odds.spread : null;
+  const overUnder  = (odds && typeof odds.overUnder === 'number') ? odds.overUnder : null;
+  const oddsProvider = (odds && odds.provider && odds.provider.name) || null;
   return {
     id: String(ev.id),
     label,
@@ -86,6 +93,9 @@ function normalizeEvent(label, ev) {
     state: (status && status.state) || 'pre',     // pre | in | post
     completed: !!(status && status.completed),
     statusName: (status && status.name) || '',
+    spread: spreadLine,
+    overUnder,
+    oddsProvider,
     home: {
       id: String(home.id),
       abbr: home.team && (home.team.abbreviation || home.team.shortDisplayName || home.team.displayName),
@@ -237,23 +247,15 @@ export async function betCronTick(env) {
       await putOpenBets(env, gid, []);
       continue;
     }
-    // Determine winner: highest score wins, tie = refund.
-    const homeScore = g.home.score != null ? g.home.score : 0;
-    const awayScore = g.away.score != null ? g.away.score : 0;
-    let winnerSide = null; // 'home' | 'away' | null (tie/postponed)
-    if (homeScore > awayScore) winnerSide = 'home';
-    else if (awayScore > homeScore) winnerSide = 'away';
-
     for (const bet of bets) {
       try {
-        if (winnerSide === null) {
-          // Refund stake.
-          await earn(env, bet.guildId, bet.userId, bet.stake, 'bet-refund:' + gid);
-          await recordSettled(env, bet, 'refund', bet.stake);
-        } else if (bet.side === winnerSide) {
-          const payout = computeWinPayout(bet.stake, bet.lockedOdds);
-          await earn(env, bet.guildId, bet.userId, payout, 'bet-win:' + gid);
-          await recordSettled(env, bet, 'win', payout);
+        const result = settleSoloBet(bet, g);
+        if (result.outcome === 'refund' || result.outcome === 'push') {
+          await earn(env, bet.guildId, bet.userId, result.payout, 'bet-refund:' + gid);
+          await recordSettled(env, bet, result.outcome, result.payout);
+        } else if (result.outcome === 'win') {
+          await earn(env, bet.guildId, bet.userId, result.payout, 'bet-win:' + gid);
+          await recordSettled(env, bet, 'win', result.payout);
         } else {
           // Loss — stake already debited at place time.
           await recordSettled(env, bet, 'loss', 0);
@@ -263,7 +265,93 @@ export async function betCronTick(env) {
     }
     await putOpenBets(env, gid, []);
   }
-  return { games: games.length, settled };
+
+  // Parlays — sweep every open ticket; settle when every leg has a
+  // finished game in the cache. Each leg uses settleSoloBet against
+  // its locked line/odds.
+  const parlayIds = await listOpenParlayIds(env);
+  let parlaysSettled = 0;
+  for (const pid of parlayIds) {
+    try {
+      const raw = await env.LOADOUT_BOLTS.get(PARLAY_KEY(pid), { type: 'json' });
+      if (!raw) { await removeOpenParlayId(env, pid); continue; }
+      const parlay = raw;
+      if (parlay.status !== 'open') { await removeOpenParlayId(env, pid); continue; }
+
+      // Are all legs decided?
+      let allDecided = true;
+      for (const leg of parlay.legs) {
+        if (leg.outcome) continue;
+        const g = gamesById[leg.gameId];
+        if (!g || g.state !== 'post' || !g.completed) { allDecided = false; continue; }
+        // Borrow settleSoloBet by faking a bet shape.
+        const fake = { kind: leg.kind, side: leg.side, lockedOdds: leg.lockedOdds, lockedLine: leg.lockedLine, stake: parlay.stake };
+        const r2 = settleSoloBet(fake, g);
+        leg.outcome = r2.outcome;
+        leg.scoredAt = Date.now();
+      }
+      if (!allDecided) {
+        // Persist any in-progress leg results so a later tick doesn't
+        // re-do the work.
+        await env.LOADOUT_BOLTS.put(PARLAY_KEY(pid), JSON.stringify(parlay));
+        continue;
+      }
+
+      // Decide the ticket. Any 'loss' = the whole parlay loses.
+      // 'refund' / 'push' legs DROP from the parlay rather than fail
+      // it; the remaining legs' multiplier still has to clear.
+      let lost = false;
+      const remaining = [];
+      for (const leg of parlay.legs) {
+        if (leg.outcome === 'loss') { lost = true; break; }
+        if (leg.outcome === 'win') remaining.push(leg);
+        // refund / push → leg dropped
+      }
+      if (lost) {
+        parlay.status = 'lost';
+        parlay.settledAt = Date.now();
+        parlay.payout = 0;
+        await recordSettledParlay(env, parlay);
+      } else if (remaining.length === 0) {
+        // Every leg pushed / refunded → return stake.
+        await earn(env, parlay.guildId, parlay.userId, parlay.stake, 'parlay-refund:' + pid);
+        parlay.status = 'refund';
+        parlay.settledAt = Date.now();
+        parlay.payout = parlay.stake;
+        await recordSettledParlay(env, parlay);
+      } else {
+        // Win — recompute payout against the SURVIVING legs only (push
+        // legs don't pad the multiplier).
+        const payout = parlayPayout(parlay.stake, remaining);
+        await earn(env, parlay.guildId, parlay.userId, payout, 'parlay-win:' + pid);
+        parlay.status = 'won';
+        parlay.settledAt = Date.now();
+        parlay.payout = payout;
+        await recordSettledParlay(env, parlay);
+      }
+      await env.LOADOUT_BOLTS.put(PARLAY_KEY(pid), JSON.stringify(parlay));
+      await removeOpenParlayId(env, pid);
+      parlaysSettled++;
+    } catch { /* skip; next tick retries */ }
+  }
+
+  return { games: games.length, settled, parlaysSettled };
+}
+
+async function recordSettledParlay(env, parlay) {
+  const u = await getUserBets(env, parlay.guildId, parlay.userId);
+  u.active = (u.active || []).filter((b) => b.betId !== parlay.betId);
+  (u.history = u.history || []).push({
+    betId: parlay.betId,
+    kind: 'parlay',
+    stake: parlay.stake,
+    legs: parlay.legs.map(legSummary),
+    outcome: parlay.status === 'won' ? 'win'
+           : parlay.status === 'refund' ? 'refund' : 'loss',
+    payout: parlay.payout || 0,
+    settledAt: parlay.settledAt || Date.now(),
+  });
+  await putUserBets(env, parlay.guildId, parlay.userId, u);
 }
 
 // ---- Sports feed channel posting --------------------------------------
@@ -419,6 +507,9 @@ export async function publicSportsSnapshot(env) {
       label: g.label,
       date: g.date,
       state: g.state,
+      spread: typeof g.spread === 'number' ? g.spread : null,
+      overUnder: typeof g.overUnder === 'number' ? g.overUnder : null,
+      oddsProvider: g.oddsProvider || null,
       home: { abbr: g.home.abbr, name: g.home.name, odds: g.home.odds },
       away: { abbr: g.away.abbr, name: g.away.name, odds: g.away.odds },
     }));
@@ -577,17 +668,45 @@ export async function runPlace(env, guildId, userId, args) {
 }
 
 export async function runPlaceJson(env, guildId, userId, args) {
+  // Bet kind defaults to moneyline for back-compat. Spreads/totals add
+  // their own validation; parlays go through runPlaceParlayJson.
+  const kind = String(args.kind || 'moneyline').toLowerCase().trim();
+  if (kind === 'parlay') {
+    return await runPlaceParlayJson(env, guildId, userId, args);
+  }
+  if (kind !== 'moneyline' && kind !== 'spread' && kind !== 'total') {
+    return { ok: false, error: 'bad-kind', message: '`kind` must be moneyline, spread, total, or parlay.' };
+  }
+
   const gameIdInput = String(args.game || '').trim();
   const side = String(args.side || '').toLowerCase().trim();
   const stake = Math.max(1, Math.floor(Number(args.bolts) || 0));
-  if (side !== 'home' && side !== 'away') {
-    return { ok: false, error: 'bad-side', message: '`side` must be `home` or `away`.' };
+
+  // Per-kind side validation.
+  if (kind === 'moneyline' || kind === 'spread') {
+    if (side !== 'home' && side !== 'away') {
+      return { ok: false, error: 'bad-side', message: '`side` must be `home` or `away`.' };
+    }
+  } else if (kind === 'total') {
+    if (side !== 'over' && side !== 'under') {
+      return { ok: false, error: 'bad-side', message: '`side` must be `over` or `under`.' };
+    }
   }
+
   let games = await readGamesCache(env);
   if (games.length === 0) games = await refreshGamesCache(env);
   const g = findGame(games, gameIdInput);
   if (!g) return { ok: false, error: 'game-not-found', message: 'Game not found. Run `/bet sports list` to see the current IDs.' };
   if (g.state !== 'pre') return { ok: false, error: 'game-locked', message: 'That game is already in progress or finished.' };
+
+  // Spread/total need the line to exist at place time so we can lock it.
+  if (kind === 'spread' && typeof g.spread !== 'number') {
+    return { ok: false, error: 'no-line', message: 'No spread published for this game yet — try moneyline or wait for the line.' };
+  }
+  if (kind === 'total' && typeof g.overUnder !== 'number') {
+    return { ok: false, error: 'no-line', message: 'No game total published for this game yet — try moneyline or wait for the line.' };
+  }
+
   const wallet = await getWallet(env, guildId, userId);
   const balance = wallet.balance || 0;
   const cap = Math.floor((balance * MAX_STAKE_PCT) / 100);
@@ -598,17 +717,39 @@ export async function runPlaceJson(env, guildId, userId, args) {
   if (stake > balance) {
     return { ok: false, error: 'insufficient-bolts', balance, message: 'You only have ' + fmtBolts(balance) + ' bolts.' };
   }
+
   const r = await spend(env, guildId, userId, stake, 'bet-stake:' + g.id);
   if (!r || !r.ok) return { ok: false, error: 'wallet-error', message: "Couldn't debit stake: " + (r && r.reason || 'wallet error') + '.' };
-  const lockedOdds = side === 'home' ? g.home.odds : g.away.odds;
+
+  // Resolve locked odds + line. Moneyline locks the team's price.
+  // Spread / total are conventionally priced at -110 American (1.91×)
+  // when no per-side spreadOdds are published, which is what ESPN's
+  // free feed gives us.
+  let lockedOdds, lockedLine = null;
+  if (kind === 'moneyline') {
+    lockedOdds = side === 'home' ? g.home.odds : g.away.odds;
+  } else if (kind === 'spread') {
+    // Lock the line FROM THIS BETTOR'S POV — for the home side we lock
+    // g.spread; for the away side we flip the sign. That keeps the
+    // settlement math kind-agnostic (homeScore + bet.line vs awayScore
+    // → did our team cover?).
+    lockedLine = side === 'home' ? g.spread : -g.spread;
+    lockedOdds = -110;
+  } else { // total
+    lockedLine = g.overUnder;
+    lockedOdds = -110;
+  }
+
   const betId = g.id + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const bet = {
     betId,
     gameId: g.id,
     sport: g.label,
-    side,
+    kind,                                  // 'moneyline' | 'spread' | 'total'
+    side,                                  // home/away for ml+spread, over/under for total
     stake,
     lockedOdds: typeof lockedOdds === 'number' ? lockedOdds : null,
+    lockedLine,                            // null for moneyline
     placedAt: Date.now(),
     guildId,
     userId,
@@ -619,26 +760,321 @@ export async function runPlaceJson(env, guildId, userId, args) {
   const open = await getOpenBets(env, g.id);
   open.push(bet);
   await putOpenBets(env, g.id, open);
+
   const projected = computeWinPayout(stake, bet.lockedOdds);
-  const sideTeam = side === 'home' ? g.home : g.away;
   const newBalance = (r.wallet && r.wallet.balance) || (balance - stake);
+
+  const message = formatPlaceMessage(g, bet, projected);
+  const sideTeam = (kind === 'moneyline' || kind === 'spread')
+    ? (side === 'home' ? g.home : g.away) : null;
+
   return {
     ok: true,
     betId,
     gameId: g.id,
     sport: g.label,
+    kind,
     side,
-    sideAbbr: sideTeam.abbr || null,
+    sideAbbr: sideTeam ? (sideTeam.abbr || null) : null,
     stake,
     lockedOdds: bet.lockedOdds,
+    lockedLine,
+    projectedPayout: projected,
+    balance: newBalance,
+    message,
+  };
+}
+
+function formatPlaceMessage(g, bet, projected) {
+  const sideTeam = (bet.kind === 'moneyline' || bet.kind === 'spread')
+    ? (bet.side === 'home' ? g.home : g.away) : null;
+  if (bet.kind === 'moneyline') {
+    return (
+      '🎲 Bet **' + fmtBolts(bet.stake) + ' bolts** on `' + (sideTeam.abbr || '?') +
+      '` (' + bet.side + ') in ' + g.label + ' ' + g.name + '.\n' +
+      'If they win you take **' + fmtBolts(projected) + ' bolts** ' +
+      '(' + fmtOdds(bet.lockedOdds) + ' moneyline locked).'
+    );
+  }
+  if (bet.kind === 'spread') {
+    const line = bet.lockedLine;
+    const lineStr = (line > 0 ? '+' : '') + line;
+    return (
+      '🎲 Bet **' + fmtBolts(bet.stake) + ' bolts** on `' + (sideTeam.abbr || '?') +
+      '` ' + lineStr + ' in ' + g.label + ' ' + g.name + '.\n' +
+      'If they cover, you take **' + fmtBolts(projected) + ' bolts** (-110 price locked).'
+    );
+  }
+  if (bet.kind === 'total') {
+    return (
+      '🎲 Bet **' + fmtBolts(bet.stake) + ' bolts** on the **' + bet.side.toUpperCase() +
+      ' ' + bet.lockedLine + '** in ' + g.label + ' ' + g.name + '.\n' +
+      'If the total goes ' + bet.side + ' ' + bet.lockedLine + ', you take **' +
+      fmtBolts(projected) + ' bolts** (-110 price locked).'
+    );
+  }
+  return 'Bet placed.';
+}
+
+// ── Parlays ──────────────────────────────────────────────────────────
+//
+// Multi-leg ticket. All legs must hit (or push — push legs are dropped
+// from the parlay rather than refunded; remaining legs still must hit).
+// Combined payout is the product of each leg's decimal-odds multiplier
+// minus the house-edge cut, all applied to the stake.
+//
+// Storage layout:
+//   bets:parlay:<betId>  -> the parlay record
+//   bets:parlay:active   -> list of open parlay betIds (for the cron tick)
+//   bets:user:<g>:<u>    -> the user's active[] now includes parlay tickets
+//                            distinguished by kind:'parlay'
+//
+// Legs are validated against the games cache at place time; each leg
+// locks its own (odds, line) just like a solo bet would.
+
+const PARLAY_ACTIVE_KEY = 'bets:parlay:active';
+const PARLAY_MIN_LEGS = 2;
+const PARLAY_MAX_LEGS = 10;
+const PARLAY_KEY = (betId) => 'bets:parlay:' + betId;
+
+async function listOpenParlayIds(env) {
+  try {
+    const d = await env.LOADOUT_BOLTS.get(PARLAY_ACTIVE_KEY, { type: 'json' });
+    return Array.isArray(d) ? d : [];
+  } catch { return []; }
+}
+async function addOpenParlayId(env, betId) {
+  const cur = await listOpenParlayIds(env);
+  if (cur.includes(betId)) return;
+  cur.push(betId);
+  await env.LOADOUT_BOLTS.put(PARLAY_ACTIVE_KEY, JSON.stringify(cur));
+}
+async function removeOpenParlayId(env, betId) {
+  const cur = await listOpenParlayIds(env);
+  const next = cur.filter((id) => id !== betId);
+  if (next.length === cur.length) return;
+  await env.LOADOUT_BOLTS.put(PARLAY_ACTIVE_KEY, JSON.stringify(next));
+}
+
+export function decimalOdds(americanOdds) {
+  if (typeof americanOdds !== 'number' || !isFinite(americanOdds) || americanOdds === 0) {
+    return 2.0;
+  }
+  return americanOdds >= 100
+    ? 1 + americanOdds / 100
+    : 1 + 100 / Math.abs(americanOdds);
+}
+
+export function parlayMultiplier(legs) {
+  // Combined decimal odds = product of per-leg decimal odds.
+  let m = 1;
+  for (const leg of legs) m *= decimalOdds(leg.lockedOdds);
+  return m;
+}
+
+export function parlayPayout(stake, legs) {
+  const m = parlayMultiplier(legs);
+  return Math.max(1, Math.floor(stake * m * (1 - HOUSE_EDGE)));
+}
+
+export async function runPlaceParlayJson(env, guildId, userId, args) {
+  const stake = Math.max(1, Math.floor(Number(args.bolts) || 0));
+  const rawLegs = Array.isArray(args.legs) ? args.legs : [];
+  if (rawLegs.length < PARLAY_MIN_LEGS) {
+    return { ok: false, error: 'too-few-legs', message: 'A parlay needs at least ' + PARLAY_MIN_LEGS + ' legs.' };
+  }
+  if (rawLegs.length > PARLAY_MAX_LEGS) {
+    return { ok: false, error: 'too-many-legs', message: 'Max ' + PARLAY_MAX_LEGS + ' legs per parlay.' };
+  }
+
+  let games = await readGamesCache(env);
+  if (games.length === 0) games = await refreshGamesCache(env);
+
+  // Validate every leg + lock its line/odds. One failed leg rejects
+  // the whole ticket (no partial debit).
+  const legs = [];
+  const usedGameIds = new Set();
+  for (let i = 0; i < rawLegs.length; i++) {
+    const raw = rawLegs[i];
+    const kind = String(raw.kind || 'moneyline').toLowerCase();
+    const side = String(raw.side || '').toLowerCase();
+    const g = findGame(games, String(raw.game || '').trim());
+    if (!g) return { ok: false, error: 'leg-game-not-found', leg: i, message: 'Leg ' + (i + 1) + ': game not found.' };
+    if (g.state !== 'pre') return { ok: false, error: 'leg-game-locked', leg: i, message: 'Leg ' + (i + 1) + ': game already in progress / finished.' };
+    if (usedGameIds.has(g.id)) {
+      // Same game twice in one parlay = correlated legs, banned by every
+      // book and us too.
+      return { ok: false, error: 'duplicate-game', leg: i, message: 'Leg ' + (i + 1) + ': you already have another leg on this game.' };
+    }
+    usedGameIds.add(g.id);
+
+    let lockedOdds, lockedLine = null;
+    if (kind === 'moneyline') {
+      if (side !== 'home' && side !== 'away') {
+        return { ok: false, error: 'bad-side', leg: i, message: 'Leg ' + (i + 1) + ': side must be home/away.' };
+      }
+      lockedOdds = side === 'home' ? g.home.odds : g.away.odds;
+      if (typeof lockedOdds !== 'number') {
+        return { ok: false, error: 'no-moneyline', leg: i, message: 'Leg ' + (i + 1) + ': no moneyline published.' };
+      }
+    } else if (kind === 'spread') {
+      if (side !== 'home' && side !== 'away') {
+        return { ok: false, error: 'bad-side', leg: i, message: 'Leg ' + (i + 1) + ': side must be home/away.' };
+      }
+      if (typeof g.spread !== 'number') {
+        return { ok: false, error: 'no-line', leg: i, message: 'Leg ' + (i + 1) + ': no spread published.' };
+      }
+      lockedLine = side === 'home' ? g.spread : -g.spread;
+      lockedOdds = -110;
+    } else if (kind === 'total') {
+      if (side !== 'over' && side !== 'under') {
+        return { ok: false, error: 'bad-side', leg: i, message: 'Leg ' + (i + 1) + ': side must be over/under.' };
+      }
+      if (typeof g.overUnder !== 'number') {
+        return { ok: false, error: 'no-line', leg: i, message: 'Leg ' + (i + 1) + ': no game total published.' };
+      }
+      lockedLine = g.overUnder;
+      lockedOdds = -110;
+    } else {
+      return { ok: false, error: 'bad-kind', leg: i, message: 'Leg ' + (i + 1) + ': kind must be moneyline/spread/total.' };
+    }
+
+    legs.push({
+      gameId: g.id,
+      sport: g.label,
+      kind,
+      side,
+      lockedOdds,
+      lockedLine,
+      // Cosmetic snapshot — what the bettor saw at place time. Read-only
+      // for the renderer.
+      awayAbbr: g.away.abbr || null,
+      homeAbbr: g.home.abbr || null,
+      gameName: g.name || null,
+      gameDate: g.date || null,
+      // Resolved on settle: 'win' | 'loss' | 'push' | null.
+      outcome: null,
+      scoredAt: null,
+    });
+  }
+
+  // Wallet checks against the SAME caps as a solo bet — parlays should
+  // not give a way around them.
+  const wallet = await getWallet(env, guildId, userId);
+  const balance = wallet.balance || 0;
+  const cap = Math.floor((balance * MAX_STAKE_PCT) / 100);
+  if (cap < 1) return { ok: false, error: 'wallet-low', balance, cap, message: 'Your wallet is too low to bet.' };
+  if (stake > cap) return { ok: false, error: 'over-stake-cap', balance, cap, message: 'Max stake is ' + MAX_STAKE_PCT + '% of your wallet (' + fmtBolts(cap) + ' right now).' };
+  if (stake > balance) return { ok: false, error: 'insufficient-bolts', balance, message: 'You only have ' + fmtBolts(balance) + ' bolts.' };
+
+  const r = await spend(env, guildId, userId, stake, 'parlay-stake');
+  if (!r || !r.ok) return { ok: false, error: 'wallet-error', message: "Couldn't debit stake: " + (r && r.reason || 'wallet error') + '.' };
+
+  const projected = parlayPayout(stake, legs);
+  const betId = 'plr-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const parlay = {
+    betId,
+    kind: 'parlay',
+    stake,
+    legs,
+    projectedPayout: projected,
+    placedAt: Date.now(),
+    guildId,
+    userId,
+    status: 'open',         // 'open' | 'won' | 'lost' | 'refund'
+    settledAt: null,
+    payout: 0,
+  };
+
+  await env.LOADOUT_BOLTS.put(PARLAY_KEY(betId), JSON.stringify(parlay));
+  await addOpenParlayId(env, betId);
+
+  // Add to user's active[] with the same shape the renderer expects.
+  const u = await getUserBets(env, guildId, userId);
+  (u.active = u.active || []).push({
+    betId, kind: 'parlay',
+    stake, legs: legs.map(legSummary),
+    projectedPayout: projected,
+    placedAt: parlay.placedAt,
+    guildId, userId,
+  });
+  await putUserBets(env, guildId, userId, u);
+
+  const newBalance = (r.wallet && r.wallet.balance) || (balance - stake);
+  const mult = parlayMultiplier(legs);
+  return {
+    ok: true,
+    betId,
+    kind: 'parlay',
+    stake,
+    legs: parlay.legs,
+    combinedMultiplier: mult,
     projectedPayout: projected,
     balance: newBalance,
     message:
-      '🎲 Bet **' + fmtBolts(stake) + ' bolts** on `' + (sideTeam.abbr || '?') +
-      '` (' + side + ') in ' + g.label + ' ' + g.name + '.\n' +
-      'If they win you take **' + fmtBolts(projected) + ' bolts** ' +
-      '(' + fmtOdds(bet.lockedOdds) + ' moneyline locked).',
+      '🎟 **' + legs.length + '-leg parlay** for ' + fmtBolts(stake) + ' bolts — ' +
+      mult.toFixed(2) + '× combined. If all legs hit you take **' + fmtBolts(projected) + ' bolts**.',
   };
+}
+
+function legSummary(leg) {
+  return {
+    gameId: leg.gameId,
+    sport: leg.sport,
+    kind: leg.kind,
+    side: leg.side,
+    lockedOdds: leg.lockedOdds,
+    lockedLine: leg.lockedLine,
+    awayAbbr: leg.awayAbbr,
+    homeAbbr: leg.homeAbbr,
+    gameName: leg.gameName,
+    gameDate: leg.gameDate,
+    outcome: leg.outcome,
+  };
+}
+
+// Settle a single non-parlay bet against the finished game `g`.
+// Returns { outcome: 'win'|'loss'|'push'|'refund', payout }.
+export function settleSoloBet(bet, g) {
+  const homeScore = g.home.score != null ? Number(g.home.score) : 0;
+  const awayScore = g.away.score != null ? Number(g.away.score) : 0;
+
+  if (bet.kind === 'spread') {
+    // Apply the bet's locked line to ITS team's score. For home-side
+    // bettors the locked line is g.spread; for away-side it's -g.spread
+    // (set at place time). A bet "covers" if their adjusted score is
+    // strictly greater than the opponent's.
+    const myScore = bet.side === 'home' ? homeScore : awayScore;
+    const oppScore = bet.side === 'home' ? awayScore : homeScore;
+    const adjusted = myScore + (bet.lockedLine || 0);
+    if (adjusted > oppScore) return { outcome: 'win', payout: computeWinPayout(bet.stake, bet.lockedOdds) };
+    if (adjusted < oppScore) return { outcome: 'loss', payout: 0 };
+    return { outcome: 'push', payout: bet.stake };   // refund stake
+  }
+
+  if (bet.kind === 'total') {
+    const total = homeScore + awayScore;
+    if (typeof bet.lockedLine !== 'number') return { outcome: 'refund', payout: bet.stake };
+    if (total > bet.lockedLine) {
+      return bet.side === 'over'
+        ? { outcome: 'win', payout: computeWinPayout(bet.stake, bet.lockedOdds) }
+        : { outcome: 'loss', payout: 0 };
+    }
+    if (total < bet.lockedLine) {
+      return bet.side === 'under'
+        ? { outcome: 'win', payout: computeWinPayout(bet.stake, bet.lockedOdds) }
+        : { outcome: 'loss', payout: 0 };
+    }
+    return { outcome: 'push', payout: bet.stake };
+  }
+
+  // moneyline (default + legacy)
+  let winnerSide = null;
+  if (homeScore > awayScore) winnerSide = 'home';
+  else if (awayScore > homeScore) winnerSide = 'away';
+  if (winnerSide === null) return { outcome: 'refund', payout: bet.stake };
+  if (bet.side === winnerSide) return { outcome: 'win', payout: computeWinPayout(bet.stake, bet.lockedOdds) };
+  return { outcome: 'loss', payout: 0 };
 }
 
 export async function renderActive(env, guildId, userId) {
