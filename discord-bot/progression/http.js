@@ -20,6 +20,7 @@ import { ACHIEVEMENTS_CATALOG } from './achievements-catalog.js';
 import { readBadgesDisplay, setShowcase as setBadgeShowcase } from './badges.js';
 import { BADGE_CATALOG } from './badges-catalog.js';
 import { readSeasonDisplay, claimTier, ensureCurrentSeason } from './season.js';
+import { readActiveTournaments, readTournament, readUserTournament, signUp as signUpTournament } from './tournaments.js';
 
 function json(obj, status = 200, extra = {}) {
   return new Response(JSON.stringify(obj), {
@@ -230,6 +231,40 @@ export async function handleWebProfile(req, env, path) {
     return json({ ok: true, profile: { bio: p.bio, privacy: p.privacy, badgesShowcase: p.badgesShowcase } });
   }
   return new Response('not found', { status: 404 });
+}
+
+// /web/tournaments                   → list active tournaments
+// /web/tournaments/<tournId>         → full tournament state
+// /web/tournaments/<tournId>/me?userId=…   → user's sign-up + matches
+// POST /web/tournaments/<tournId>/signup   { userId, game, displayName }
+export async function handleWebTournaments(req, env, path) {
+  const parts = path.split('/').filter(Boolean);  // ['web','tournaments',...]
+  if (parts.length === 2 && req.method === 'GET') {
+    const active = await readActiveTournaments(env);
+    return json({ active });
+  }
+  const tournId = parts[2];
+  if (!tournId) return json({ error: 'tournId required' }, 400);
+  if (parts.length === 3 && req.method === 'GET') {
+    const t = await readTournament(env, tournId);
+    if (!t) return json({ error: 'not-found' }, 404);
+    return json({ tournament: t });
+  }
+  if (parts[3] === 'me' && req.method === 'GET') {
+    const url = new URL(req.url);
+    const userId = url.searchParams.get('userId');
+    if (!userId) return json({ error: 'userId required' }, 400);
+    const rec = await readUserTournament(env, userId, tournId);
+    return json({ userId, tournId, record: rec });
+  }
+  if (parts[3] === 'signup' && req.method === 'POST') {
+    let body = {};
+    try { body = await req.json(); } catch { return json({ error: 'bad-json' }, 400); }
+    if (!body.userId || !body.game) return json({ error: 'userId+game required' }, 400);
+    const r = await signUpTournament(env, body.userId, body.game, body.displayName);
+    return json(r, r.ok ? 200 : 400);
+  }
+  return json({ error: 'unknown-op' }, 404);
 }
 
 // /web/season/active                 → active season config + tier table

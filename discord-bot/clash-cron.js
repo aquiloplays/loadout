@@ -56,6 +56,15 @@ export async function clashDailyCronTick(env, cronExpr) {
   } catch (e) {
     console.warn('[clash-cron] season rollover failed:', e && e.message);
   }
+  // PROGRESSION P7 — tournament spawn-check (15% per day with a 14-
+  // day floor) + state advancement (sign-up→live, live→archive on end).
+  try {
+    const { tournamentSpawnTick, advanceTournaments } = await import('./progression/tournaments.js');
+    await tournamentSpawnTick(env);
+    await advanceTournaments(env);
+  } catch (e) {
+    console.warn('[clash-cron] tournament tick failed:', e && e.message);
+  }
 
   // Wars: sweep ACTIVE wars and resolve any whose 24h window has
   // expired. Cheap — only walks the small clash:waractive:* index.
