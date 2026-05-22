@@ -1,0 +1,425 @@
+[
+  {
+    "id": "verified-trio",
+    "name": "Verified Trio",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "sapphire",
+    "source": "id.verified-trio"
+  },
+  {
+    "id": "streak-7",
+    "name": "7-Day Streak",
+    "rarity": "common",
+    "category": "achievement",
+    "shape": "flame",
+    "accent": "gold",
+    "source": "id.streak-7"
+  },
+  {
+    "id": "streak-30",
+    "name": "30-Day Streak",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "flame",
+    "accent": "crimson",
+    "source": "id.streak-30"
+  },
+  {
+    "id": "streak-100",
+    "name": "100-Day Streak",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "flame",
+    "accent": "violet",
+    "source": "id.streak-100"
+  },
+  {
+    "id": "three-star-raider",
+    "name": "Three-Star Raider",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "star",
+    "accent": "gold",
+    "source": "clash.first-three-star"
+  },
+  {
+    "id": "hundred-raider",
+    "name": "Hundred Raider",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "shield",
+    "accent": "iron",
+    "source": "clash.raid-100"
+  },
+  {
+    "id": "thousand-raider",
+    "name": "Thousand Raider",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "shield",
+    "accent": "violet",
+    "source": "clash.raid-1000"
+  },
+  {
+    "id": "star-authority",
+    "name": "Star Authority",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "star",
+    "accent": "crimson",
+    "source": "clash.three-star-100"
+  },
+  {
+    "id": "goblin-bane",
+    "name": "Goblin Bane",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "fang",
+    "accent": "emerald",
+    "source": "clash.goblin-slayer-100"
+  },
+  {
+    "id": "king-slayer",
+    "name": "King Slayer",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "crown",
+    "accent": "gold",
+    "source": "clash.king-slayer"
+  },
+  {
+    "id": "wyrm-slayer",
+    "name": "Wyrm Slayer",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "wing",
+    "accent": "crimson",
+    "source": "clash.wyrm-slayer"
+  },
+  {
+    "id": "town-founder",
+    "name": "Town Founder",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "castle",
+    "accent": "gold",
+    "source": "clash.donate-500k"
+  },
+  {
+    "id": "master-architect",
+    "name": "Master Architect",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "castle",
+    "accent": "iron",
+    "source": "clash.master-architect"
+  },
+  {
+    "id": "high-architect",
+    "name": "High Architect",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "castle",
+    "accent": "violet",
+    "source": "clash.high-architect"
+  },
+  {
+    "id": "war-hero",
+    "name": "War Hero",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "crimson",
+    "source": "clash.war-hero"
+  },
+  {
+    "id": "full-set",
+    "name": "Set Completion",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "cards",
+    "accent": "violet",
+    "source": "cards.full-set"
+  },
+  {
+    "id": "legend-magnet",
+    "name": "Legend Magnet",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "star",
+    "accent": "violet",
+    "source": "cards.legendary-10"
+  },
+  {
+    "id": "master-crafter",
+    "name": "Master Crafter",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "orb",
+    "accent": "teal",
+    "source": "cards.craft-50"
+  },
+  {
+    "id": "pvp-champion",
+    "name": "PvP Champion",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "sword",
+    "accent": "sapphire",
+    "source": "cards.pvp-50"
+  },
+  {
+    "id": "pvp-master",
+    "name": "PvP Master",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "sword",
+    "accent": "crimson",
+    "source": "cards.pvp-250"
+  },
+  {
+    "id": "archetype-master",
+    "name": "Archetype Master",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "cards",
+    "accent": "gold",
+    "source": "cards.archetype-master"
+  },
+  {
+    "id": "chess-grandmaster",
+    "name": "Chess Grandmaster",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "crown",
+    "accent": "silver",
+    "source": "board.chess-100"
+  },
+  {
+    "id": "checkers-master",
+    "name": "Checkers Master",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "gold",
+    "source": "board.checkers-100"
+  },
+  {
+    "id": "connect-master",
+    "name": "Connect Master",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "crimson",
+    "source": "board.connect4-100"
+  },
+  {
+    "id": "triple-threat",
+    "name": "Triple Threat",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "sapphire",
+    "source": "board.triple-threat"
+  },
+  {
+    "id": "board-veteran",
+    "name": "Board Veteran",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "trophy",
+    "accent": "gold",
+    "source": "board.won-500"
+  },
+  {
+    "id": "quick-veteran",
+    "name": "Quick-game Veteran",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "teal",
+    "source": "quick.played-1000"
+  },
+  {
+    "id": "game-show-host",
+    "name": "Game-Show Host",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "violet",
+    "source": "quick.allgames"
+  },
+  {
+    "id": "day-trader",
+    "name": "Day Trader",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "lightning",
+    "accent": "teal",
+    "source": "stocks.trade-100"
+  },
+  {
+    "id": "parlay-champion",
+    "name": "Parlay Champion",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "trophy",
+    "accent": "gold",
+    "source": "bet.parlay-win"
+  },
+  {
+    "id": "hot-hand",
+    "name": "Hot Hand",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "flame",
+    "accent": "crimson",
+    "source": "bet.streak-5"
+  },
+  {
+    "id": "loyal-viewer",
+    "name": "Loyal Viewer",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "violet",
+    "source": "stream.checkin-50"
+  },
+  {
+    "id": "community-pillar",
+    "name": "Pillar of the Community",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "gold",
+    "source": "stream.checkin-200"
+  },
+  {
+    "id": "cheerleader",
+    "name": "Cheerleader",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "star",
+    "accent": "crimson",
+    "source": "stream.cheer-100"
+  },
+  {
+    "id": "conversationalist",
+    "name": "Conversationalist",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "medal",
+    "accent": "teal",
+    "source": "discord.chatty-10000"
+  },
+  {
+    "id": "subscriber",
+    "name": "Subscriber",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "star",
+    "accent": "violet",
+    "source": "stream.subscriber"
+  },
+  {
+    "id": "patron",
+    "name": "Patron",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "star",
+    "accent": "gold",
+    "source": "stream.patron"
+  },
+  {
+    "id": "menagerie",
+    "name": "Menagerie",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "paw",
+    "accent": "emerald",
+    "source": "pet.menagerie-8"
+  },
+  {
+    "id": "legendary-pet",
+    "name": "Legendary Pet",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "paw",
+    "accent": "gold",
+    "source": "pet.legendary"
+  },
+  {
+    "id": "lifelong-bond",
+    "name": "Lifelong Bond",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "paw",
+    "accent": "crimson",
+    "source": "pet.fed-365"
+  },
+  {
+    "id": "polyglot",
+    "name": "Polyglot",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "trophy",
+    "accent": "teal",
+    "source": "meta.polyglot"
+  },
+  {
+    "id": "renaissance",
+    "name": "Renaissance Player",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "trophy",
+    "accent": "violet",
+    "source": "meta.renaissance"
+  },
+  {
+    "id": "level-25",
+    "name": "Top of the Class",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "star",
+    "accent": "sapphire",
+    "source": "meta.level-25"
+  },
+  {
+    "id": "level-50",
+    "name": "Veteran",
+    "rarity": "epic",
+    "category": "achievement",
+    "shape": "star",
+    "accent": "violet",
+    "source": "meta.level-50"
+  },
+  {
+    "id": "level-100",
+    "name": "Living Legend",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "star",
+    "accent": "gold",
+    "source": "meta.level-100"
+  },
+  {
+    "id": "achievement-hunter",
+    "name": "Achievement Hunter",
+    "rarity": "rare",
+    "category": "achievement",
+    "shape": "trophy",
+    "accent": "bronze",
+    "source": "meta.hunter-50"
+  },
+  {
+    "id": "trophy-cabinet",
+    "name": "Trophy Cabinet",
+    "rarity": "legendary",
+    "category": "achievement",
+    "shape": "trophy",
+    "accent": "gold",
+    "source": "meta.hunter-100"
+  }
+]

@@ -17,6 +17,8 @@ import { readFullProfile, getProfile, setProfileBio, lookupByHandle } from './pr
 import { readXpDisplay, topXp } from './xp.js';
 import { readAchievementsDisplay } from './achievements.js';
 import { ACHIEVEMENTS_CATALOG } from './achievements-catalog.js';
+import { readBadgesDisplay, setShowcase as setBadgeShowcase } from './badges.js';
+import { BADGE_CATALOG } from './badges-catalog.js';
 
 function json(obj, status = 200, extra = {}) {
   return new Response(JSON.stringify(obj), {
@@ -46,10 +48,25 @@ function escapeHtml(s) {
   })[c]);
 }
 
+const SPRITE_BASE_URL = 'https://aquilo.gg/sprites';
+
 function renderProfileHtml(full) {
   const p = full.profile;
   const x = full.xp;
   const lvBar = Math.round((x.pct || 0) * 100);
+  // Badge ribbon — render the 3 showcase badges as 48×48 sprites at
+  // the top of the page. If the user has no showcase set, pull up to
+  // 3 most-recent earned badges.
+  const showcaseIds = (p.badgesShowcase && p.badgesShowcase.length)
+    ? p.badgesShowcase
+    : ((full.badges?.items || []).filter(b => b.owned).slice(0, 3).map(b => b.id));
+  const badgeRibbon = showcaseIds.length ? `<div class="badgeribbon">${
+    showcaseIds.map(id => {
+      const b = (full.badges?.items || []).find(x => x.id === id);
+      if (!b) return '';
+      return `<img class="badge r-${escapeHtml(b.rarity)}" src="${SPRITE_BASE_URL}/${escapeHtml(b.spritePath)}" alt="${escapeHtml(b.name)}" title="${escapeHtml(b.name)} — ${escapeHtml(b.description)}" />`;
+    }).join('')
+  }</div>` : '';
   const cards = (full.stats || []).filter(s => !s.error && s.primary).map(s => `
     <div class="card">
       <div class="card-feat">${escapeHtml(s.feature)}</div>
@@ -109,10 +126,21 @@ function renderProfileHtml(full) {
   .ach.r-rare { background:#1f3a5a; color:#9ac7ff; }
   .ach.r-epic { background:#3a1f5a; color:#c4a0ff; }
   .ach.r-legendary { background:#5a4a0a; color:#fff0a0; }
+  .badgeribbon { display:flex; gap:8px; margin:8px 0; }
+  .badge { width:48px; height:48px; image-rendering: pixelated; image-rendering: crisp-edges; border-radius:6px; }
+  .badge.r-rare { box-shadow: 0 0 8px #5a8af0; }
+  .badge.r-epic { box-shadow: 0 0 10px #a878f0; }
+  .badge.r-legendary { box-shadow: 0 0 14px #f0c050; }
+  .trophyCabinet { background:#1c2034; border-radius:8px; padding:12px 14px; margin-top:12px; }
+  .trophyCabinet h3 { margin:0 0 8px 0; font-size:14px; }
+  .trophyCabinet .grid { display:flex; flex-wrap:wrap; gap:8px; }
+  .trophyCabinet .badge { width:48px; height:48px; }
+  .trophyCabinet .badge.locked { opacity:0.18; filter: grayscale(1); }
 </style>
 </head><body>
   <h1>${escapeHtml(p.displayName)}</h1>
-  <div class="sub">Level <b>${x.level}</b> · ${x.xp} XP · joined ${new Date(p.createdUtc).toISOString().slice(0,10)} · ${p.friendCount} friend${p.friendCount === 1 ? '' : 's'}</div>
+  <div class="sub">Level <b>${x.level}</b> · ${x.xp} XP · joined ${new Date(p.createdUtc).toISOString().slice(0,10)} · ${p.friendCount} friend${p.friendCount === 1 ? '' : 's'} · ${full.badges?.earned || 0}/${full.badges?.total || 0} badges</div>
+  ${badgeRibbon}
   <div class="xp">
     <div>L${x.level} · ${x.xpIntoLevel}/${x.xpForLevel} XP to L${x.nextLevel}</div>
     <div class="xpbar"><div></div></div>
@@ -121,6 +149,10 @@ function renderProfileHtml(full) {
   ${linked ? `<div class="links">Linked: ${linked}</div>` : ''}
   ${full.gated ? `<div class="gated">This profile's stats are not public.</div>` : `<div class="grid">${cards}</div>`}
   ${achSection}
+  ${full.badges && !full.gated ? `<div class="trophyCabinet">
+    <h3>Trophy Cabinet <span class="muted">${full.badges.earned}/${full.badges.total}</span></h3>
+    <div class="grid">${full.badges.items.slice(0, 36).map(b => `<img class="badge r-${escapeHtml(b.rarity)} ${b.owned ? '' : 'locked'}" src="${SPRITE_BASE_URL}/${escapeHtml(b.spritePath)}" alt="${escapeHtml(b.name)}" title="${escapeHtml(b.name)} — ${escapeHtml(b.description)}" />`).join('')}</div>
+  </div>` : ''}
   ${recent && !full.gated ? `<div class="recent"><h3>Recent activity</h3><ul>${recent}</ul></div>` : ''}
 </body></html>`;
 }
@@ -177,6 +209,31 @@ export async function handleWebProfile(req, env, path) {
     return json({ ok: true, profile: { bio: p.bio, privacy: p.privacy, badgesShowcase: p.badgesShowcase } });
   }
   return new Response('not found', { status: 404 });
+}
+
+// /web/badges/<userId>     per-user owned + showcase + locked
+// /web/badges/catalog      full catalogue
+// POST /web/badges/me/showcase  { showcase: [badgeId, badgeId, badgeId], userId }
+export async function handleWebBadges(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['web','badges',...]
+  if (parts[2] === 'catalog') {
+    return json({ items: BADGE_CATALOG.map(b => ({
+      id: b.id, name: b.name, description: b.description, rarity: b.rarity,
+      category: b.category, spritePath: b.spritePath, shape: b.shape, accent: b.accent,
+    })), total: BADGE_CATALOG.length });
+  }
+  if (parts[2] === 'me' && parts[3] === 'showcase' && req.method === 'POST') {
+    let body = {};
+    try { body = await req.json(); } catch { return json({ error: 'bad-json' }, 400); }
+    const userId = String(body.userId || '');
+    if (!userId) return json({ error: 'userId required' }, 400);
+    const r = await setBadgeShowcase(env, userId, body.showcase || []);
+    return json(r);
+  }
+  const userId = parts[2];
+  if (!userId) return json({ error: 'userId required' }, 400);
+  const data = await readBadgesDisplay(env, userId);
+  return json({ userId, ...data });
 }
 
 // /web/achievements/<userId>        per-user display (progress + unlocks)
