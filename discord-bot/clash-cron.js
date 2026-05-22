@@ -65,6 +65,16 @@ export async function clashDailyCronTick(env, cronExpr) {
   } catch (e) {
     console.warn('[clash-cron] tournament tick failed:', e && e.message);
   }
+  // B7 — sweep empty temp voice channels (heuristic: > 4h old + > 30
+  // min idle; DLL voice-state forwarding stamps lastActivityUtc on
+  // active rooms so the sweep doesn't delete busy ones).
+  try {
+    const { sweepEmptyTempVcs } = await import('./voice-temp.js');
+    const r = await sweepEmptyTempVcs(env);
+    if (r.swept) console.log('[clash-cron] swept', r.swept, 'temp VCs');
+  } catch (e) {
+    console.warn('[clash-cron] temp-vc sweep failed:', e && e.message);
+  }
 
   // Wars: sweep ACTIVE wars and resolve any whose 24h window has
   // expired. Cheap — only walks the small clash:waractive:* index.

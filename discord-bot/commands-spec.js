@@ -35,6 +35,44 @@ export const COMMANDS = [
     name: 'loadout',
     description: 'Open the Loadout menu — wallet, hero, bag, shop, daily, gift, profile, more'
   },
+  // B7 — Temp voice channels
+  {
+    name: 'voice',
+    description: 'Create a personal voice channel; auto-deletes after a while when empty',
+  },
+  // B8 — LFG slash command (same backing state as /web/lfg/create)
+  {
+    name: 'lfg',
+    description: 'Looking for game — post an "open for playing" embed',
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'create',
+        description: 'Open an LFG entry for a game',
+        options: [
+          { type: TYPE_STRING,  name: 'game',  description: 'What you want to play (e.g. Among Us, Chess)', required: true },
+          { type: TYPE_INTEGER, name: 'slots', description: 'Total players including yourself (2-16)',     required: true, min_value: 2, max_value: 16 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'join',
+        description: 'Join an open LFG by id',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'LFG id from the embed footer', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'close',
+        description: 'Close your LFG (host only)',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'LFG id', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'list',
+        description: 'List active LFGs',
+      },
+    ],
+  },
   {
     // Bolts-denominated stock market. Prices driven by real upstream
     // signals (Twitch viewer counts, Steam player counts, Spotify

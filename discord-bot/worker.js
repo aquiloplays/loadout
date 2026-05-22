@@ -280,6 +280,48 @@ export default {
       return handleWebDashboard(req, env, path);
     }
 
+    // ── B-batch: community + LFG + DM fan-out + voice ───────────────
+    // All HMAC-gated against AQUILO_SITE_WEB_SECRET (the same secret
+    // the existing /web/* surface uses). Aquilo-site's Pages Functions
+    // bridge to these. Ordered BEFORE the generic /web/ dispatcher so
+    // public-GET endpoints don't get gated by web.js's method check.
+
+    // B1 — Username
+    if (path.startsWith('/web/community/username')) {
+      const { handleUsername } = await import('./community.js');
+      return handleUsername(req, env, path);
+    }
+    // B2 — Gamertags
+    if (path.startsWith('/web/gamertags/')) {
+      const { handleGamertags } = await import('./community.js');
+      return handleGamertags(req, env, path);
+    }
+    // B3 — Guild channels
+    if (path.startsWith('/web/guild/') && path.endsWith('/channels')) {
+      const { handleGuildChannels } = await import('./community.js');
+      return handleGuildChannels(req, env, path);
+    }
+    // B4 — Members list
+    if (path === '/web/community/members') {
+      const { handleMembers } = await import('./community.js');
+      return handleMembers(req, env, path);
+    }
+    // Public supporter wall (B1 integration — username field surfaces here)
+    if (path === '/community/supporters' && method === 'GET') {
+      const { handleSupporterWall } = await import('./community.js');
+      return handleSupporterWall(req, env, path);
+    }
+    // B5 — LFG
+    if (path.startsWith('/web/lfg')) {
+      const { handleLfgRoute } = await import('./lfg.js');
+      return handleLfgRoute(req, env, path);
+    }
+    // B6 — Discord-DM fan-out
+    if (path === '/push/dm') {
+      const { handlePushDm } = await import('./push-dm.js');
+      return handlePushDm(req, env);
+    }
+
     // aquilo.gg website minigames -- HMAC from the site's Pages
     // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +
     // MINIGAMES-WEB-DESIGN.md.
@@ -832,6 +874,21 @@ async function handleSync(req, env, path) {
 
   const ok = await verifyHmac(stored.secret, ts || '', body, sig || '');
   if (!ok) return new Response('bad signature', { status: 401 });
+
+  // B7 — /sync/:guildId/voice/joined — DLL forwards Discord voice-state
+  // events here so the worker can drive "join channel X → spawn a temp
+  // VC" without maintaining a Gateway connection. HMAC same as the
+  // other /sync/* routes. Body: { userId, displayName?, channelId|null }.
+  // channelId === TEMP_VC_JOIN_TO_CREATE_ID → spawn-then-move flow;
+  // channelId on a tracked temp VC → stamp lastActivityUtc so the
+  // cleanup heuristic doesn't delete a busy room.
+  if (sub === 'voice' && parts[3] === 'joined' && req.method === 'POST') {
+    let payload;
+    try { payload = JSON.parse(body); } catch { return new Response('bad-json', { status: 400 }); }
+    const { handleVoiceStateUpdate } = await import('./voice-temp.js');
+    const r = await handleVoiceStateUpdate(env, { ...payload, guildId });
+    return new Response(JSON.stringify(r), { status: r.ok ? 200 : 400, headers: { 'content-type': 'application/json' } });
+  }
 
   // /sync/:guildId/games?since=<ms> — DLL pulls recent minigame results so
   // they can be republished on the local Aquilo Bus. Same HMAC scheme as

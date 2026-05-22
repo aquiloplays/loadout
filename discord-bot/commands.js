@@ -191,6 +191,49 @@ export async function handleInteraction(req, env, body, ctx) {
       // continuation through button components routed by 'qg:' prefix.
       return handlePlayCommand(env, data, guild, userId, userName);
 
+    case 'voice': {
+      // B7 — temp voice channels. /voice creates a personal VC + moves
+      // the caller in. Auto-deletes on inactivity (cron sweep).
+      const { handleVoiceSlash } = await import('./voice-temp.js');
+      const text = await handleVoiceSlash(env, guild, userId, userName);
+      return json({ type: 4, data: { content: text, flags: 64 } });
+    }
+
+    case 'lfg': {
+      // B8 — LFG slash command. Shares state with POST /web/lfg/create
+      // so an LFG created via the website appears in /lfg list, and
+      // vice versa.
+      const sub = (data.data?.options || [])[0];
+      if (!sub) return json({ type: 4, data: { content: 'Pick a subcommand.', flags: 64 } });
+      const opts = sub.options || [];
+      const getOpt = (n) => opts.find(o => o.name === n)?.value;
+      const lfg = await import('./lfg.js');
+      let resp;
+      if (sub.name === 'create') {
+        const r = await lfg.createLfg(env, {
+          userId, hostName: userName, game: getOpt('game'), slots: getOpt('slots'), guildId: guild,
+        });
+        resp = r.ok
+          ? `🎮 Opened **${r.lfg.game}** — ${r.lfg.players.length}/${r.lfg.slots}. id \`${r.lfg.id}\`. See the embed in the LFG channel.`
+          : `❌ ${r.error}`;
+      } else if (sub.name === 'join') {
+        const r = await lfg.joinLfg(env, getOpt('id'), { userId, name: userName });
+        resp = r.ok
+          ? `✅ Joined **${r.lfg.game}** (${r.lfg.players.length}/${r.lfg.slots}).${r.autoClosed ? ' That was the last slot — it just closed.' : ''}`
+          : `❌ ${r.error}`;
+      } else if (sub.name === 'close') {
+        const r = await lfg.closeLfg(env, getOpt('id'), userId);
+        resp = r.ok ? `🔒 Closed.` : `❌ ${r.error}`;
+      } else if (sub.name === 'list') {
+        const list = await lfg.listActiveLfgs(env, { limit: 10 });
+        if (!list.length) resp = '_No active LFGs right now._';
+        else resp = list.map(l => `• \`${l.id}\` **${l.game}** ${l.players.length}/${l.slots} host <@${l.hostUserId}>`).join('\n');
+      } else {
+        resp = '❌ Unknown subcommand.';
+      }
+      return json({ type: 4, data: { content: resp, flags: 64 } });
+    }
+
     // ── Aquilo-bot fold-in: 13 command names dispatch to the shared
     //    aquilo interaction handler. Single delegation point keeps
     //    the routing flat here; the actual command bodies live in
