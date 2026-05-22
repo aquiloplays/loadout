@@ -277,6 +277,18 @@ export default {
       return handlePublicCommunityLive(req, env);
     }
 
+    // StreamFusion community-night queue manager — see sf-queue.js.
+    //   POST /sf/queue          full queue + per-joiner links for the panel
+    //   POST /sf/queue/remove   drop a joiner after the streamer marks done
+    if (method === 'POST' && path === '/sf/queue') {
+      const { handleSfQueueRead } = await import('./sf-queue.js');
+      return handleSfQueueRead(req, env);
+    }
+    if (method === 'POST' && path === '/sf/queue/remove') {
+      const { handleSfQueueRemove } = await import('./sf-queue.js');
+      return handleSfQueueRemove(req, env);
+    }
+
     // Character paper-doll render endpoint. Public read; ETag/
     // cache-control tied to ?v=<lookVersion> so Discord embeds
     // re-fetch after a customisation change. See character.js.
