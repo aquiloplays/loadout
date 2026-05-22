@@ -76,6 +76,20 @@ export async function clashDailyCronTick(env, cronExpr) {
     console.warn('[clash-cron] temp-vc sweep failed:', e && e.message);
   }
 
+  // G2 — Weekly community challenge rotation. Idempotent: an ISO-week
+  // KV marker (`challenge:rotation:lastIsoWeek`) gates rotation so we
+  // only mint a new challenge once per week even though this cron
+  // fires hourly. Also bootstraps the first challenge on cold start.
+  try {
+    const { rotateIfDue } = await import('./challenges.js');
+    const r = await rotateIfDue(env);
+    if (r?.action === 'rotated') {
+      console.log('[clash-cron] community challenge rotated:', r.from || '—', '→', r.to);
+    }
+  } catch (e) {
+    console.warn('[clash-cron] challenge rotation failed:', e && e.message);
+  }
+
   // Wars: sweep ACTIVE wars and resolve any whose 24h window has
   // expired. Cheap — only walks the small clash:waractive:* index.
   const endedWars = await sweepActiveWars(env);

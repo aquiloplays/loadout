@@ -331,6 +331,11 @@ export default {
       const { handleCommunityFeedRoute } = await import('./activity-feed.js');
       return handleCommunityFeedRoute(req, env);
     }
+    // G2 — Weekly community challenge (public GET)
+    if (path === '/community/challenge' || path === '/community/challenge/history') {
+      const { handleChallengeRoute } = await import('./challenges.js');
+      return handleChallengeRoute(req, env, path);
+    }
 
     // aquilo.gg website minigames -- HMAC from the site's Pages
     // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +

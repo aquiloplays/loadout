@@ -136,6 +136,14 @@ export async function emitProgressionEvent(env, event) {
       await appendIfNoteworthy(env, event);
     } catch { /* non-fatal */ }
 
+    // ── Consumer #5: Weekly community challenge progress ──
+    // Contributes to the currently-active challenge if the event kind
+    // matches the active template's kinds list. No-op otherwise.
+    try {
+      const { contributeToChallenge } = await import('../challenges.js');
+      await contributeToChallenge(env, event);
+    } catch { /* non-fatal */ }
+
     return {
       ok: true,
       identity,

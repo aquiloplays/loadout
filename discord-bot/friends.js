@@ -312,6 +312,74 @@ export async function notifyFriendsOfLfg(env, lfg) {
   return { sent, skipped, total: me.friends.length };
 }
 
+// ── Go-live fan-out helper (used by sf-community.js handleCommunityLive)
+//
+// Fired ONCE per new live-session for a streamer who is linked to an
+// aquilo account. The SF heartbeat payload doesn't always carry an
+// aquilo userId, so callers can pass either an aquilo userId or a
+// Twitch userId — we resolve via plink:twitch:<id> as a fallback.
+//
+// Per-friend Discord DM via sendDm AND web-push fan-out via the
+// /api/push/external relay. Respects pprofile.pushPrefs.discordDm +
+// pushPrefs.kinds['friend.live'].
+//
+// Session dedup marker (KV TTL 24h) prevents re-firing if the SF
+// heartbeat flaps offline→online inside a single stream session.
+
+export async function notifyFriendsOfGoLive(env, args = {}) {
+  const { aquiloUserId, twitchUserId, streamerName, platform, url, title, game } = args;
+  // Resolve to an aquilo userId.
+  let userId = aquiloUserId || null;
+  if (!userId && twitchUserId) {
+    try {
+      const linkedId = await env.LOADOUT_BOLTS.get(`plink:twitch:${twitchUserId}`, { type: 'text' });
+      if (linkedId) userId = linkedId;
+    } catch { /* fall through */ }
+  }
+  if (!userId) return { sent: 0, skipped: 0, reason: 'no-aquilo-link' };
+
+  // Session dedup — by stable session start (rounded to nearest hour
+  // so we don't double-fire on flapping heartbeats inside one stream).
+  const sessionKey = `friend.live:notified:${userId}:${Math.floor(Date.now() / 3_600_000)}`;
+  try {
+    const seen = await env.LOADOUT_BOLTS.get(sessionKey);
+    if (seen) return { sent: 0, skipped: 0, reason: 'already-notified' };
+    await env.LOADOUT_BOLTS.put(sessionKey, '1', { expirationTtl: 6 * 60 * 60 });
+  } catch { /* non-fatal */ }
+
+  const me = await getFriends(env, userId);
+  if (!me.friends.length) return { sent: 0, skipped: 0, total: 0 };
+  const { sendDm } = await import('./aquilo/util.js');
+  const platLabel = platform || 'Twitch';
+  const nm = streamerName || `Player ${userId.slice(-4)}`;
+  const titleLine = title ? `\n*${title}*` : '';
+  const gameLine = game ? `\n**Playing:** ${game}` : '';
+  const dmContent = [
+    `🔴 **${nm}** is live on ${platLabel}.`,
+    titleLine || gameLine ? (titleLine + gameLine).trim() : '',
+    url ? `Watch: ${url}` : 'aquilo.gg/community',
+  ].filter(Boolean).join('\n');
+
+  let sent = 0, skipped = 0;
+  for (const friendId of me.friends) {
+    const prefs = await readPushPrefs(env, friendId);
+    if (!prefs.discordDm) { skipped++; continue; }
+    if (prefs.kinds && prefs.kinds['friend.live'] === false) { skipped++; continue; }
+    try { await sendDm(env, friendId, { content: dmContent }); sent++; }
+    catch { /* DMs off / left guild */ }
+  }
+  try {
+    await firePushExternal(env, {
+      kind: 'friend.live',
+      title: `${nm} is live on ${platLabel}`,
+      body: title || game || 'Tap to watch.',
+      url: url || 'https://aquilo.gg/community',
+      audience: { kind: 'users', userIds: me.friends },
+    });
+  } catch { /* web-push receiver might be offline */ }
+  return { sent, skipped, total: me.friends.length };
+}
+
 async function readPushPrefs(env, userId) {
   try {
     const p = await env.LOADOUT_BOLTS.get(`pprofile:${userId}`, { type: 'json' });
