@@ -166,28 +166,19 @@ async function loadHandler(platform) {
 
 // ── Patreon presence check (single-tier, patron / non-patron) ───
 //
-// Clay corrected 2026-05-22 PM: there is only ONE Patreon tier in
-// the supported configuration, so premium is all-or-nothing. We
-// consult the existing patreon:tier:<userId> record (set by the
-// existing ext-patreon-link.js OAuth flow) as a presence check
-// only — the stored value doesn't matter, just whether the record
-// exists.
+// Clay confirmed: there is only ONE Patreon tier in the supported
+// configuration, so premium is all-or-nothing. We consult the
+// existing patreon:tier:<userId> record (set by ext-patreon-link.js
+// OAuth flow) as a presence check only — the stored value doesn't
+// matter, just whether the record exists.
+//
+// `isPatron` is the only Patreon-gate primitive. There is no
+// readPatreonTier or patreonRewardMultiplier — those were artefacts
+// of an earlier multi-tier sketch that's been dropped.
 
 export async function isPatron(env, userId) {
   try {
     const raw = await env.LOADOUT_BOLTS.get(`patreon:tier:${userId}`, { type: 'json' });
     return !!raw;
   } catch { return false; }
-}
-
-// Back-compat shims for callers that imported the old names. Both
-// collapse to the single boolean now — keeping the exports avoids
-// churning the season.js call sites while we transition.
-export async function readPatreonTier(env, userId) {
-  return (await isPatron(env, userId)) ? 'patron' : null;
-}
-export function patreonRewardMultiplier(tier) {
-  // Multipliers retired with Clay's correction. Patron = 1× (premium
-  // unlocked, rewards verbatim); non-patron = 0 (locked).
-  return tier ? 1.0 : 0;
 }

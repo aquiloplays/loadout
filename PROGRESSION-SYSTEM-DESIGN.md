@@ -1139,8 +1139,10 @@ profile, which is the moment Clay can announce the system on stream.
 ## 13. Resolved decisions (locked 2026-05-22)
 
 All 12 questions resolved. Most ran to recommended default; Q2 (Patreon
-premium) got a richer answer from Clay — tier-scaled bonus rewards on
-top of the unlock gate.
+premium) was clarified to a single-tier patron / non-patron gate (an
+earlier draft of this section sketched a multi-tier multiplier scheme;
+Clay confirmed there is only one Patreon tier in the supported
+configuration, so the premium track is flat all-or-nothing).
 
 1. **XP curve calibration** — locked to designed values (L10 month one,
    L50 in a year for daily players).
