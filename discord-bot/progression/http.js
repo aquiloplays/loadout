@@ -15,6 +15,8 @@
 
 import { readFullProfile, getProfile, setProfileBio, lookupByHandle } from './profile.js';
 import { readXpDisplay, topXp } from './xp.js';
+import { readAchievementsDisplay } from './achievements.js';
+import { ACHIEVEMENTS_CATALOG } from './achievements-catalog.js';
 
 function json(obj, status = 200, extra = {}) {
   return new Response(JSON.stringify(obj), {
@@ -54,6 +56,20 @@ function renderProfileHtml(full) {
       <div class="card-primary"><span class="lbl">${escapeHtml(s.primary.label)}</span> <span class="val">${escapeHtml(String(s.primary.value))}</span></div>
       ${s.secondary ? `<div class="card-sec">${s.secondary.map(r => `<span>${escapeHtml(r.label)}: <b>${escapeHtml(String(r.value))}</b></span>`).join(' · ')}</div>` : ''}
     </div>`).join('\n');
+  // Achievement strip — 12 most-recent unlocks + count summary.
+  const achStripItems = (full.achievements?.items || [])
+    .filter(a => a.unlocked)
+    .slice(0, 12)
+    .map(a => `<span class="ach r-${escapeHtml(a.rarity)}" title="${escapeHtml(a.description)}">${escapeHtml(a.title)}</span>`)
+    .join('');
+  const achHeader = full.achievements
+    ? `${full.achievements.earned} / ${full.achievements.total} unlocked`
+    : '';
+  const achSection = full.achievements ? `
+    <div class="achwrap">
+      <h3>Achievements <span class="muted">${achHeader}</span></h3>
+      ${achStripItems ? `<div class="achstrip">${achStripItems}</div>` : '<div class="muted">No unlocks yet — go play.</div>'}
+    </div>` : '';
   const linked = Object.entries(p.linkedAccounts || {}).map(([plat, acc]) => `
     <span class="link plat-${escapeHtml(plat)}">${escapeHtml(plat)}: ${escapeHtml(acc.handle || acc.id || '—')}</span>`).join(' ');
   const recent = (full.recentActivity || []).map(r =>
@@ -85,6 +101,14 @@ function renderProfileHtml(full) {
   .recent ul { padding-left:18px; }
   .recent .muted { color:#6a7088; }
   .gated { color:#aab1c0; font-style: italic; background:#1c2034; padding:12px 14px; border-radius:8px; }
+  .achwrap { margin-top:16px; background:#1c2034; border-radius:8px; padding:12px 14px; }
+  .achwrap h3 { margin:0 0 8px 0; font-size:14px; }
+  .achwrap .muted { color:#6a7088; font-weight:normal; }
+  .achstrip { display:flex; flex-wrap:wrap; gap:6px; }
+  .ach { padding:4px 10px; border-radius:12px; font-size:12px; background:#2a3050; color:#cbd2e0; }
+  .ach.r-rare { background:#1f3a5a; color:#9ac7ff; }
+  .ach.r-epic { background:#3a1f5a; color:#c4a0ff; }
+  .ach.r-legendary { background:#5a4a0a; color:#fff0a0; }
 </style>
 </head><body>
   <h1>${escapeHtml(p.displayName)}</h1>
@@ -96,6 +120,7 @@ function renderProfileHtml(full) {
   ${p.bio ? `<div class="bio">${escapeHtml(p.bio)}</div>` : ''}
   ${linked ? `<div class="links">Linked: ${linked}</div>` : ''}
   ${full.gated ? `<div class="gated">This profile's stats are not public.</div>` : `<div class="grid">${cards}</div>`}
+  ${achSection}
   ${recent && !full.gated ? `<div class="recent"><h3>Recent activity</h3><ul>${recent}</ul></div>` : ''}
 </body></html>`;
 }
@@ -152,6 +177,26 @@ export async function handleWebProfile(req, env, path) {
     return json({ ok: true, profile: { bio: p.bio, privacy: p.privacy, badgesShowcase: p.badgesShowcase } });
   }
   return new Response('not found', { status: 404 });
+}
+
+// /web/achievements/<userId>        per-user display (progress + unlocks)
+// /web/achievements/catalog          full catalogue (cached upstream)
+export async function handleWebAchievements(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['web','achievements',...]
+  if (parts[2] === 'catalog') {
+    // Public catalog — strip secret achievements (visible only when earned).
+    const out = ACHIEVEMENTS_CATALOG.map(a => ({
+      id: a.id, category: a.category, title: a.secret ? 'Hidden Achievement' : a.title,
+      description: a.secret ? 'Find me by playing.' : a.description,
+      iconKind: a.iconKind, rarity: a.rarity, xpReward: a.xpReward,
+      badgeId: a.badgeId || null, secret: !!a.secret,
+    }));
+    return json({ items: out, total: out.length });
+  }
+  const userId = parts[2];
+  if (!userId) return json({ error: 'userId required' }, 400);
+  const data = await readAchievementsDisplay(env, userId);
+  return json({ userId, ...data });
 }
 
 // /web/xp/<userId> + /web/xp/leaderboard

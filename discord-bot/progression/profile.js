@@ -9,6 +9,7 @@
 
 import { readXpDisplay } from './xp.js';
 import { getRecentEvents } from './event-bus.js';
+import { readAchievementsDisplay, achievementCountsFor } from './achievements.js';
 
 const PROFILE_KEY = (userId) => `pprofile:${userId}`;
 const HANDLE_INDEX_KEY = (safe) => `pprofile:handle:${safe}`;
@@ -128,11 +129,13 @@ export async function aggregateStats(env, userId, guildId = null) {
 // from a single fetch.
 
 export async function readFullProfile(env, userId, opts = {}) {
-  const [profile, xp, stats, recent] = await Promise.all([
+  const [profile, xp, stats, recent, achievements, achCounts] = await Promise.all([
     getProfile(env, userId),
     readXpDisplay(env, userId),
     aggregateStats(env, userId, opts.guildId || null),
     getRecentEvents(env, userId, 10),
+    readAchievementsDisplay(env, userId),
+    achievementCountsFor(env, userId),
   ]);
 
   // Privacy resolution. Friends-only and private gate the stats body
@@ -164,6 +167,8 @@ export async function readFullProfile(env, userId, opts = {}) {
     xp,
     stats: statsOut,
     recentActivity: recentOut,
+    achievements: gated ? null : achievements,
+    achievementCounts: achCounts,
     gated,
   };
 }

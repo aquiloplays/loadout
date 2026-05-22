@@ -86,6 +86,27 @@ export async function emitProgressionEvent(env, event) {
       console.warn('[progression] xp grant failed:', e && e.message);
     }
 
+    // Re-emit level.reached for every crossed level so the meta-level
+    // achievements (Top of the Class, Veteran, Living Legend) trigger.
+    // Skip if this event IS already a level.reached (no infinite loop).
+    if (xpResult?.levelsCrossed?.length && event.kind !== 'level.reached') {
+      for (const lv of xpResult.levelsCrossed) {
+        // Direct grant — bypass the bus so we don't re-trigger the
+        // XP consumer (level-reached doesn't grant XP itself).
+        try {
+          const { checkAchievements } = await import('./achievements.js');
+          if (checkAchievements) {
+            await checkAchievements(env, {
+              kind: 'level.reached',
+              userId: event.userId,
+              meta: { level: lv },
+              utc: event.utc,
+            });
+          }
+        } catch { /* non-fatal */ }
+      }
+    }
+
     // ── Consumer #2: Achievement check ──
     // Stub until P3. The function exists so the wiring is in place;
     // it does nothing until the achievement engine lands.
