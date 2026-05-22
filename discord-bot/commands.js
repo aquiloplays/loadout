@@ -38,6 +38,9 @@ import { handleCharacterCommand, handleCharacterComponent } from './character.js
 import { handlePetCommand } from './pet-commands.js';
 // Boltbound — async card-battler. See CARD-GAME-DESIGN.md.
 import { handleBoltboundCommand, handleBoltboundComponent } from './cards.js';
+// Bolts-denominated quick games (blackjack/roulette/wheel/hilo/mines/
+// plinko/crash) — shares games-quick.js with the website + Twitch panel.
+import { handlePlayCommand, handlePlayComponent } from './quickgames-command.js';
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -85,6 +88,7 @@ export async function handleInteraction(req, env, body, ctx) {
     if (cid.startsWith('clash:'))     return json(await handleClashComponent(env, data));
     if (cid.startsWith('character:')) return json(await handleCharacterComponent(env, data));
     if (cid.startsWith('boltbound:')) return json(await handleBoltboundComponent(env, data));
+    if (cid.startsWith('qg:'))        return handlePlayComponent(env, data);
     // Aquilo-bot fold-in: every aquilo component custom_id is
     // namespaced (vote:*, queue:*, aquilo:*, notify:*, tot:*, sug:*,
     // roles:*, setup:*, vh:*, passport:*, trivia:*, shop:*,
@@ -179,6 +183,13 @@ export async function handleInteraction(req, env, body, ctx) {
       // Patreon-gated cosmetic pet + tamagotchi care loop. See
       // CHARACTER-SYSTEM-DESIGN.md §12.
       return json(await handlePetCommand(env, data));
+
+    case 'play':
+      // Bolts quick games. Single source of truth for game logic is
+      // games-quick.js — the website + Twitch panel call the same
+      // exports. Stateful games (blackjack/hilo/mines) drive their
+      // continuation through button components routed by 'qg:' prefix.
+      return handlePlayCommand(env, data, guild, userId, userName);
 
     // ── Aquilo-bot fold-in: 13 command names dispatch to the shared
     //    aquilo interaction handler. Single delegation point keeps
