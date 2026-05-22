@@ -291,6 +291,44 @@ export const COMMANDS = [
       },
       { type: TYPE_SUBCOMMAND, name: 'log',         description: 'Your recent raids + your town\'s incoming raids' },
       { type: TYPE_SUBCOMMAND, name: 'leaderboard', description: 'Top raiders + top towns (global)' },
+      // ── CLASH EXPANSION Phase E1 — resource economy ────────────────
+      {
+        type: TYPE_SUBCOMMAND, name: 'gather',
+        description: 'Start a timed gather task (wood / stone / iron / gold)',
+        options: [
+          { type: TYPE_STRING, name: 'resource', description: 'Which resource to gather', required: true,
+            choices: [
+              { name: 'Wood (cheap, fast)',  value: 'wood' },
+              { name: 'Stone',               value: 'stone' },
+              { name: 'Iron',                value: 'iron' },
+              { name: 'Gold (rare, slow)',   value: 'gold' },
+            ],
+          },
+          { type: TYPE_STRING, name: 'tier', description: 'How long to gather for', required: true,
+            choices: [
+              { name: 'Short (5 min)',     value: 'short' },
+              { name: 'Medium (30 min)',   value: 'medium' },
+              { name: 'Long (2 h)',        value: 'long' },
+              { name: 'Overnight (8 h)',   value: 'overnight' },
+            ],
+          },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'gathers', description: 'Show your in-flight gather tasks (and complete any that finished)' },
+      {
+        type: TYPE_SUBCOMMAND, name: 'cancel-gather',
+        description: 'Cancel an in-flight gather task (no partial credit)',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'Task id from /clash gathers (first 12 chars work)', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'tap',
+        description: 'Tap collector buildings to flush their accumulated yield into the treasury',
+        options: [
+          { type: TYPE_INTEGER, name: 'building', description: 'Building id to tap (omit to tap every collector at once)', required: false, min_value: 1 },
+        ],
+      },
       {
         type: TYPE_SUBCOMMAND, name: 'notify',
         description: 'Toggle a Clash push-notification kind on/off',
@@ -344,14 +382,25 @@ export const COMMANDS = [
             options: [
               { type: TYPE_STRING, name: 'kind', description: 'Building kind', required: true,
                 choices: [
-                  { name: 'Town Hall',     value: 'townhall' },
-                  { name: 'Wall',          value: 'wall' },
-                  { name: 'Cannon',        value: 'cannon' },
-                  { name: 'Archer Tower',  value: 'archerTower' },
-                  { name: 'Trap',          value: 'trap' },
-                  { name: 'Storage',       value: 'storage' },
-                  { name: 'Barracks',      value: 'barracks' },
-                  { name: 'War Tent',      value: 'warTent' },
+                  { name: 'Town Hall',      value: 'townhall' },
+                  { name: 'Wall',           value: 'wall' },
+                  { name: 'Cannon',         value: 'cannon' },
+                  { name: 'Archer Tower',   value: 'archerTower' },
+                  { name: 'Trap',           value: 'trap' },
+                  { name: 'Storage',        value: 'storage' },
+                  { name: 'Barracks',       value: 'barracks' },
+                  { name: 'War Tent',       value: 'warTent' },
+                  // CLASH EXPANSION E1 — new production / utility / vault buildings
+                  { name: 'Sawmill (wood)',     value: 'sawmill' },
+                  { name: 'Quarry (stone)',     value: 'quarry' },
+                  { name: 'Forge (iron)',       value: 'forge' },
+                  { name: 'Mint (gold)',        value: 'mint' },
+                  { name: 'Workshop (gather slot)', value: 'workshop' },
+                  { name: "Builder's Hut (build slot)", value: 'buildersHut' },
+                  { name: 'Lumber Vault',       value: 'lumberVault' },
+                  { name: 'Stone Vault',        value: 'stoneVault' },
+                  { name: 'Iron Vault',         value: 'ironVault' },
+                  { name: 'Gold Vault',         value: 'goldVault' },
                 ],
               },
               { type: TYPE_INTEGER, name: 'building', description: 'Building id to upgrade (omit to place a new one)', required: false, min_value: 1 },

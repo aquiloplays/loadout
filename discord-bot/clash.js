@@ -39,6 +39,15 @@ import {
   personalTroopCost, townBuildCost, townGarrisonCost,
   TH_HERO_GATE,
 } from './clash-content.js';
+// CLASH EXPANSION (Phase E1) — resource economy + gather tasks + collectors.
+// All additive; the existing handlers don't depend on these.
+import {
+  startGather, syncGatherTasks, tapCollectors, syncCollectors,
+  cancelGather, getGatherQueue, gatherProgressLines,
+  GATHER_RESOURCES, GATHER_TIERS,
+  normaliseTreasury, addResources, chargeResources,
+  RES_NEW, RES_ALL,
+} from './clash-resources.js';
 import { simulate, computeLoot, computeTrophyDelta } from './clash-raid.js';
 import {
   pushRaidIncoming, pushRaidDefended, pushRaidSacked, pushRaidResult,
@@ -65,12 +74,40 @@ function publicReply(content) {
 // Walk both queues for this viewer + their home town, fire push for
 // anything that completed, apply the effects. Cheap; runs on every
 // /clash subcommand so cooldown UX is always honest without a cron.
+//
+// CLASH EXPANSION Phase E1: also walks the viewer's gather queue +
+// passive collectors. Both walks are read-time-only — no background
+// tick. syncGatherTasks deposits to treasury + grants trophies; the
+// collector pass refreshes per-building storedYield numbers (consumed
+// on demand by /clash tap). syncCollectors mutates the town object so
+// we putTown afterwards if anything changed.
 async function syncCooldowns(env, guildId, userId) {
-  // Town queue
+  // Gather tasks (per-viewer). Idempotent past completion.
+  try {
+    const completed = await syncGatherTasks(env, guildId, userId);
+    if (completed && completed.length) {
+      // Best-effort push per completion — the viewer's notify mask
+      // gates whether it actually fires.
+      for (const c of completed) {
+        try {
+          await pushBuildComplete(env, {
+            guildId, userId,
+            kind: 'personal',
+            name: `Gathered ${c.yield} ${c.resource} (${c.tier})`,
+          });
+        } catch { /* push failures shouldn't break the menu */ }
+      }
+    }
+  } catch (e) { /* defensive — never break /clash on gather sync */ }
+  // Town queue + collector pass. We always read the town once and let
+  // syncCollectors accrue per-building yields; if the queue had work,
+  // we also reconcile builds against it. Single write either way.
   const townDone = await walkQueueComplete(env, 'clash:queue:' + guildId);
-  if (townDone.length) {
+  {
     const town = await getTown(env, guildId);
     if (town) {
+      const collectorChanged = syncCollectors(town);
+      if (townDone.length) {
       for (const item of townDone) {
         if (item.kind === 'build' && item.target?.buildingId) {
           const b = town.buildings.find(x => x.id === item.target.buildingId);
@@ -100,8 +137,14 @@ async function syncCooldowns(env, guildId, userId) {
           town.garrison[item.target.troopId] = (town.garrison[item.target.troopId] || 0) + item.target.count;
         }
       }
-      await putTown(env, guildId, town);
-      await refreshDefenseSnapshot(env, guildId);
+        await putTown(env, guildId, town);
+        await refreshDefenseSnapshot(env, guildId);
+      } else if (collectorChanged) {
+        // No queue work landed, but collectors moved their numbers —
+        // persist the new storedYield buffers so a follow-up /tap
+        // picks them up.
+        await putTown(env, guildId, town);
+      }
     }
   }
   // Personal queue
@@ -128,6 +171,39 @@ function findFreeTile(buildings, x0, y0, x1, y1, hint) {
     }
   }
   return { x: 8, y: 8 };
+}
+
+// CLASH EXPANSION E1 — display helpers for resource-aware cost errors.
+// Discord is exempt from the no-emoji rule, so we keep the glyphs here.
+const RES_GLYPH = {
+  bolts: '⚡', scrap: '⚙️', cores: '🧬',
+  wood: '🪵', stone: '🪨', iron: '⛓', gold: '🪙',
+};
+const RES_LABEL = {
+  bolts: 'Bolts', scrap: 'Scrap', cores: 'Cores',
+  wood: 'Wood', stone: 'Stone', iron: 'Iron', gold: 'Gold',
+};
+function formatResources(map) {
+  if (!map) return '—';
+  const parts = [];
+  for (const k of ['bolts','scrap','cores','wood','stone','iron','gold']) {
+    const v = map[k];
+    if (v && v > 0) parts.push(`${v}${RES_GLYPH[k] || ''} ${RES_LABEL[k]}`);
+  }
+  return parts.length ? parts.join(', ') : '—';
+}
+// Suggest the cheapest way to top up whichever resource the cost
+// leans hardest on. Bolts/scrap/cores come from donations + raids;
+// wood/stone/iron/gold come from /clash gather and /clash tap.
+function treasuryHelpHint(cost) {
+  if (!cost) return '';
+  const gatherables = ['wood','stone','iron','gold'].filter(k => (cost[k] || 0) > 0);
+  if (gatherables.length) {
+    const top = gatherables.sort((a,b) => (cost[b]||0) - (cost[a]||0))[0];
+    return `Try \`/clash gather resource:${top}\` or \`/clash tap\` to drain collectors.`;
+  }
+  if ((cost.bolts || 0) > 0) return 'Try `/clash donate` or run a raid to top up Bolts.';
+  return '';
 }
 
 // Optimistic ack — Discord wants a response within 3s. The actual
@@ -220,9 +296,84 @@ export async function handleClashCommand(env, data, userId, userName) {
     case 'log':          return ephemeral(await renderLog(env, guildId, userId));
     case 'notify':       return ephemeral(await handleNotify(env, guildId, userId, getOpt('kind'), getOpt('on')));
     case 'leaderboard':  return ephemeral(await renderLeaderboard(env));
+    // ── CLASH EXPANSION Phase E1 — resource economy ────────────────
+    case 'gather':       return ephemeral(await handleGather(env, guildId, userId, getOpt('resource'), getOpt('tier')));
+    case 'gathers':      return ephemeral(await renderGathers(env, guildId, userId));
+    case 'cancel-gather':return ephemeral(await handleCancelGather(env, guildId, userId, getOpt('id')));
+    case 'tap':          return ephemeral(await handleTap(env, guildId, userId, getOpt('building')));
     case '':             return ephemeral(await renderStatus(env, guildId, userId, userName));
     default:             return ephemeral('Unknown /clash subcommand: ' + leaf);
   }
+}
+
+// ── CLASH EXPANSION Phase E1 — gather / tap handlers ─────────────────
+
+async function handleGather(env, guildId, userId, resource, tier) {
+  if (!resource || !GATHER_RESOURCES.includes(resource)) {
+    return '❌ Pick a resource: wood, stone, iron, or gold.';
+  }
+  if (!tier || !GATHER_TIERS[tier]) {
+    return '❌ Pick a tier: short (5min) / medium (30min) / long (2h) / overnight (8h).';
+  }
+  const r = await startGather(env, guildId, userId, resource, tier);
+  if (!r.ok) {
+    if (r.error === 'no-slots') {
+      return `🚧 You\'re at the gather-task limit (${r.slots}). Cancel an in-flight task with \`/clash cancel-gather id:<...>\` or wait, or build a Workshop for +1 slot.`;
+    }
+    if (r.error === 'daily-cap-hit') {
+      return `🚧 Daily ${r.resource} gather cap (${r.cap}) hit. Resets at 00:00 UTC.`;
+    }
+    if (r.error === 'no-town') {
+      return 'The streamer needs to run `/loadout-claim` first — Clash isn\'t open yet.';
+    }
+    return '❌ Gather failed: ' + r.error;
+  }
+  const minutes = Math.ceil((r.task.endsAt - Date.now()) / 60_000);
+  return [
+    `⛏ Gathering **${r.task.yield} ${resource}** (${tier}). Ready in ${minutes} min.`,
+    `Slots: ${r.used}/${r.slots}. Yield deposits to the town treasury on completion.`,
+  ].join('\n');
+}
+
+async function renderGathers(env, guildId, userId) {
+  const tasks = await syncGatherTasks(env, guildId, userId);
+  const q = await getGatherQueue(env, guildId, userId);
+  const lines = ['**Your gather tasks**'];
+  if (tasks.length) {
+    lines.push(`✅ Just completed: ${tasks.map(t => `+${t.yield} ${t.resource}`).join(', ')}`);
+  }
+  const progress = gatherProgressLines(q);
+  if (!progress.length) {
+    lines.push('_No gather tasks in flight. Start one with `/clash gather resource:wood tier:short`._');
+  } else {
+    for (const p of progress) {
+      lines.push(`• \`${p.id.slice(7, 19)}\` — ${p.tier} ${p.resource} (+${p.yield}) · ${p.done ? 'done — refresh' : p.minutesLeft + ' min left'}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+async function handleCancelGather(env, guildId, userId, taskIdPrefix) {
+  if (!taskIdPrefix) return '❌ Pass the id from `/clash gathers`.';
+  const q = await getGatherQueue(env, guildId, userId);
+  const match = (q.items || []).find(it => it.id === taskIdPrefix || it.id.includes(taskIdPrefix));
+  if (!match) return '❌ No matching gather task.';
+  await cancelGather(env, guildId, userId, match.id);
+  return `🛑 Cancelled \`${match.id.slice(7, 19)}\` — no partial credit awarded.`;
+}
+
+async function handleTap(env, guildId, userId, buildingIdRaw) {
+  // Anyone can tap; collectors are communal. Building ID is optional —
+  // omit to tap every collector at once.
+  const buildingId = buildingIdRaw ? Number(buildingIdRaw) : null;
+  const r = await tapCollectors(env, guildId, buildingId);
+  const lines = [];
+  let any = false;
+  for (const [k, v] of Object.entries(r.collected || {})) {
+    if (v > 0) { lines.push(`+${v} ${k}`); any = true; }
+  }
+  if (!any) return '🪙 Nothing to tap right now — collectors haven\'t built up any yield yet.';
+  return `🪵 Tapped: ${lines.join(', ')}. Now in treasury.`;
 }
 
 // ── Renderers ────────────────────────────────────────────────────────
@@ -786,10 +937,14 @@ async function handleTownBuild(env, guildId, userId, kind, buildingId) {
     }
     const c = townBuildCost(kind, nextLevel);
     if (!c) return '❌ Max level reached.';
-    if ((tres.bolts || 0) < (c.cost.bolts || 0) || (tres.scrap || 0) < (c.cost.scrap || 0) || (tres.cores || 0) < (c.cost.cores || 0)) {
-      return `❌ Treasury short. Need ${c.cost.bolts}⚡ ${c.cost.scrap || 0}🧪 ${c.cost.cores || 0}⚙. Donations: \`/clash donate amount:<n>\``;
+    // CLASH EXPANSION E1: charge against all 7 resources via the
+    // resource-aware helper. Costs that omit wood/stone/iron/gold are
+    // treated as 0 for those resources (backwards-compatible with the
+    // pre-expansion bolts/scrap/cores-only cost tables).
+    const charge = await chargeResources(env, guildId, c.cost);
+    if (!charge.ok) {
+      return `❌ Treasury short. Need ${formatResources(charge.missing)} more. ${treasuryHelpHint(c.cost)}`;
     }
-    await addTreasury(env, guildId, { bolts: -(c.cost.bolts || 0), scrap: -(c.cost.scrap || 0), cores: -(c.cost.cores || 0) });
     targetBuilding.status = 'building';
     await putTown(env, guildId, town);
     await enqueue(env, 'clash:queue:' + guildId, {
@@ -806,10 +961,10 @@ async function handleTownBuild(env, guildId, userId, kind, buildingId) {
   // drop layout editor is Phase 4 web.)
   const c = townBuildCost(kind, 1);
   if (!c) return '❌ Cost lookup failed.';
-  if ((tres.bolts || 0) < (c.cost.bolts || 0) || (tres.scrap || 0) < (c.cost.scrap || 0)) {
-    return `❌ Treasury short. Need ${c.cost.bolts}⚡ ${c.cost.scrap || 0}🧪.`;
+  const charge = await chargeResources(env, guildId, c.cost);
+  if (!charge.ok) {
+    return `❌ Treasury short. Need ${formatResources(charge.missing)} more. ${treasuryHelpHint(c.cost)}`;
   }
-  await addTreasury(env, guildId, { bolts: -(c.cost.bolts || 0), scrap: -(c.cost.scrap || 0) });
   await enqueue(env, 'clash:queue:' + guildId, {
     id: 'q_' + Date.now(),
     kind: 'newBuilding',
