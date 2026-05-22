@@ -237,6 +237,22 @@ export default {
 
     if (path.startsWith('/ext/')) return handleExt(req, env, ctx);
 
+    // Progression (P2) routes — public reads, claimed BEFORE the
+    // generic /web/* dispatcher below (which is HMAC-gated and would
+    // reject public reads).
+    if (method === 'GET' && path.startsWith('/p/')) {
+      const { handleProfilePage } = await import('./progression/http.js');
+      return handleProfilePage(req, env, path);
+    }
+    if (path.startsWith('/web/profile/')) {
+      const { handleWebProfile } = await import('./progression/http.js');
+      return handleWebProfile(req, env, path);
+    }
+    if (path.startsWith('/web/xp/')) {
+      const { handleWebXp } = await import('./progression/http.js');
+      return handleWebXp(req, env, path);
+    }
+
     // aquilo.gg website minigames -- HMAC from the site's Pages
     // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +
     // MINIGAMES-WEB-DESIGN.md.
@@ -325,22 +341,9 @@ export default {
       return handleClashSync(req, env, path);
     }
 
-    // ── Progression (P2) ───────────────────────────────────────────
-    // Public profile page (HTML, also returns JSON with ?format=json).
-    if (method === 'GET' && path.startsWith('/p/')) {
-      const { handleProfilePage } = await import('./progression/http.js');
-      return handleProfilePage(req, env, path);
-    }
-    // /web/profile/<userId>[/stats|/xp|/bio] — public reads + write
-    // endpoints (write currently public; P5 wires HMAC).
-    if (path.startsWith('/web/profile/')) {
-      const { handleWebProfile } = await import('./progression/http.js');
-      return handleWebProfile(req, env, path);
-    }
-    if (path.startsWith('/web/xp/')) {
-      const { handleWebXp } = await import('./progression/http.js');
-      return handleWebXp(req, env, path);
-    }
+    // /p/ profile page hoisted earlier in dispatch order doesn't fit
+    // here cleanly because /p/ doesn't collide with anything; placed
+    // earlier to be findable. (handled above the /web/ block.)
 
     return new Response('not found', { status: 404 });
   },
