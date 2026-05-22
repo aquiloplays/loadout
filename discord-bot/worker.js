@@ -325,6 +325,23 @@ export default {
       return handleClashSync(req, env, path);
     }
 
+    // ── Progression (P2) ───────────────────────────────────────────
+    // Public profile page (HTML, also returns JSON with ?format=json).
+    if (method === 'GET' && path.startsWith('/p/')) {
+      const { handleProfilePage } = await import('./progression/http.js');
+      return handleProfilePage(req, env, path);
+    }
+    // /web/profile/<userId>[/stats|/xp|/bio] — public reads + write
+    // endpoints (write currently public; P5 wires HMAC).
+    if (path.startsWith('/web/profile/')) {
+      const { handleWebProfile } = await import('./progression/http.js');
+      return handleWebProfile(req, env, path);
+    }
+    if (path.startsWith('/web/xp/')) {
+      const { handleWebXp } = await import('./progression/http.js');
+      return handleWebXp(req, env, path);
+    }
+
     return new Response('not found', { status: 404 });
   },
 

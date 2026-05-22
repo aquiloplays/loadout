@@ -885,3 +885,20 @@ function sanitizeHilo(s) {
 function sanitizeMines(s) {
   return { bet: s.bet, bombs: s.bombs, revealed: s.revealed, multiplier: s.multiplier };
 }
+
+// PROGRESSION (P2) — quick-games headline. Cooldown KV doesn't keep
+// long-term state; we approximate by counting session ids. The
+// achievement engine in P3 will track exact plays via the event log.
+export async function getStatsFor(env, userId, _guildId = null) {
+  // Quick-games are mostly stateless once a hand resolves — there's
+  // no persistent counter to read. Surface the cooldown state + a
+  // placeholder until P3 lands the event-driven counters.
+  const cd = await cooldownCheck(env, userId);
+  return {
+    primary: { label: 'Quick games', value: 'see ach.' },
+    secondary: [
+      { label: 'On cooldown', value: cd.ok ? 'no' : 'yes' },
+    ],
+    iconKind: 'quick-dice',
+  };
+}

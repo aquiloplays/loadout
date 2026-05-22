@@ -604,6 +604,46 @@ export async function emitBoardgameProgression(env, m) {
   } catch { /* non-fatal */ }
 }
 
+// PROGRESSION (P2) — board games headline stats. Walks bg:match:*
+// for matches this user appears in. Capped at 5 list pages so a
+// flooded match index can't OOM the profile page.
+export async function getStatsFor(env, userId, _guildId = null) {
+  let played = 0, wins = 0;
+  const byGame = {};
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'bg:match:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      const m = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!m || !Array.isArray(m.players)) continue;
+      const p1 = m.players[0]?.userId, p2 = m.players[1]?.userId;
+      const side = p1 === userId ? 'p1' : p2 === userId ? 'p2' : null;
+      if (!side) continue;
+      if (m.status !== 'finished' && m.status !== 'abandoned') continue;
+      played++;
+      byGame[m.game] = byGame[m.game] || { played: 0, won: 0 };
+      byGame[m.game].played++;
+      if (m.winner === side) {
+        wins++;
+        byGame[m.game].won++;
+      }
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  const winRate = played > 0 ? Math.round((wins / played) * 100) : 0;
+  return {
+    primary: { label: 'W/L', value: `${wins}-${played - wins}` },
+    secondary: [
+      { label: 'Win rate', value: winRate + '%' },
+      { label: 'Chess', value: `${byGame.chess?.won || 0}/${byGame.chess?.played || 0}` },
+      { label: 'Checkers', value: `${byGame.checkers?.won || 0}/${byGame.checkers?.played || 0}` },
+      { label: 'Connect 4', value: `${byGame.connect4?.won || 0}/${byGame.connect4?.played || 0}` },
+    ],
+    iconKind: 'board-pawn',
+  };
+}
+
 // Redact things the OTHER player shouldn't see. For perfect-information
 // games (chess/checkers/connect4) this is mostly identity — both sides
 // see the board. We still surface a `you` field so the client knows

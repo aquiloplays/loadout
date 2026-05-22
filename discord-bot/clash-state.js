@@ -546,6 +546,46 @@ export async function topTowns(env, limit = 10) {
   return out.slice(0, limit);
 }
 
+// PROGRESSION (P2) — feature stats contract. Returns the account-
+// wide Clash headline numbers. `guildId` filters to one town if set;
+// null aggregates across every guild this user appears in.
+export async function getStatsFor(env, userId, guildId = null) {
+  let trophies = 0, peakTrophies = 0, tier = 'bronze';
+  let raids = 0, wins = 0, defended = 0;
+  if (guildId) {
+    const t = await getTrophies(env, guildId, userId);
+    trophies = t.trophies || 0;
+    peakTrophies = t.peak || 0;
+    tier = t.tier || 'bronze';
+  } else {
+    // Walk every clash:trophies:* this user shows up under.
+    let cursor;
+    for (let i = 0; i < 5; i++) {
+      const r = await env.LOADOUT_BOLTS.list({ prefix: 'clash:trophies:', cursor, limit: 1000 });
+      for (const k of r.keys) {
+        if (!k.name.endsWith(':' + userId)) continue;
+        const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+        if (!rec) continue;
+        trophies += (rec.trophies || 0);
+        if ((rec.peak || 0) > peakTrophies) peakTrophies = rec.peak || 0;
+        if (rec.trophies > (rec.peak || 0) / 2) tier = rec.tier || tier;
+      }
+      if (r.list_complete) break;
+      cursor = r.cursor;
+    }
+  }
+  // Raid count is harder — we don't keep a denormalised counter; show
+  // peak as a proxy. The achievement engine will track exact counts.
+  return {
+    primary: { label: 'Trophies', value: trophies, tier },
+    secondary: [
+      { label: 'Peak', value: peakTrophies },
+      { label: 'Tier', value: tier },
+    ],
+    iconKind: 'clash-shield',
+  };
+}
+
 export async function topContributors(env, guildId, limit = 10) {
   const out = [];
   let cursor;

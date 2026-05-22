@@ -1262,3 +1262,47 @@ async function clearTickerBoardCmd(env, guildId, memberPermissions) {
   await clearTickerBoard(env, guildId);
   return '✅ Ticker board released. The previous message stays in the channel; the bot just stops updating it.';
 }
+
+// PROGRESSION (P2) — stocks portfolio headline. Account-wide.
+export async function getStatsFor(env, userId, _guildId = null) {
+  let positions = 0, distinctTickers = 0, trades = 0;
+  const seenTickers = new Set();
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'stock:holdings:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      if (!k.name.endsWith(':' + userId)) continue;
+      const h = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!h || !h.positions) continue;
+      for (const ticker of Object.keys(h.positions)) {
+        const pos = h.positions[ticker];
+        if (pos && pos.shares > 0) {
+          positions += pos.shares;
+          seenTickers.add(ticker);
+        }
+      }
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  distinctTickers = seenTickers.size;
+  cursor = undefined;
+  for (let i = 0; i < 2; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'stock:txns:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      if (!k.name.endsWith(':' + userId)) continue;
+      const t = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (Array.isArray(t)) trades += t.length;
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  return {
+    primary: { label: 'Shares', value: positions },
+    secondary: [
+      { label: 'Tickers', value: distinctTickers },
+      { label: 'Trades', value: trades },
+    ],
+    iconKind: 'stocks-chart',
+  };
+}

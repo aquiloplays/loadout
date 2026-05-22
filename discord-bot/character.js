@@ -653,3 +653,38 @@ export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
     changed,
   };
 }
+
+// PROGRESSION (P2) — hero stats card. Reads d:hero:<guildId>:<userId>
+// across every guild (account-wide hero view). Picks the highest-level
+// hero as the headline.
+export async function getStatsFor(env, userId, _guildId = null) {
+  let bestLevel = 0;
+  let bestClass = '';
+  let totalHeroes = 0;
+  let totalGold = 0;
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'd:hero:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      if (!k.name.endsWith(':' + userId)) continue;
+      const h = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!h) continue;
+      totalHeroes++;
+      if ((h.level || 0) > bestLevel) {
+        bestLevel = h.level || 0;
+        bestClass = h.class || '';
+      }
+      totalGold += h.gold || 0;
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  return {
+    primary: { label: 'Hero', value: bestLevel > 0 ? `L${bestLevel} ${bestClass}` : 'none' },
+    secondary: [
+      { label: 'Heroes', value: totalHeroes },
+      { label: 'Gold', value: totalGold },
+    ],
+    iconKind: 'hero-sword',
+  };
+}

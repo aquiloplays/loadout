@@ -1135,3 +1135,36 @@ export async function renderHistory(env, guildId, userId) {
   });
   return '**Last ' + hist.length + ' settled bets**\n```\n' + rows.join('\n') + '\n```';
 }
+
+// PROGRESSION (P2) — betting headline. Account-wide.
+export async function getStatsFor(env, userId, _guildId = null) {
+  let active = 0, settled = 0, wins = 0, losses = 0, totalStaked = 0, totalWon = 0;
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'bets:user:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      if (!k.name.endsWith(':' + userId)) continue;
+      const u = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!u) continue;
+      active += (u.active || []).length;
+      for (const h of (u.history || [])) {
+        settled++;
+        totalStaked += h.stake || 0;
+        if (h.outcome === 'win') { wins++; totalWon += h.payout || 0; }
+        else if (h.outcome === 'lose') losses++;
+      }
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  const winRate = settled > 0 ? Math.round((wins / settled) * 100) : 0;
+  return {
+    primary: { label: 'W/L', value: `${wins}-${losses}` },
+    secondary: [
+      { label: 'Active', value: active },
+      { label: 'Win rate', value: winRate + '%' },
+      { label: 'Net', value: totalWon - totalStaked },
+    ],
+    iconKind: 'bet-ticket',
+  };
+}

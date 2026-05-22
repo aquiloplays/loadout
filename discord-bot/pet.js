@@ -268,3 +268,33 @@ export async function patreonTierFor(env, guildId, userId) {
   const w = await getWallet(env, guildId, userId);
   return patreonTierFromWallet(w);
 }
+
+// PROGRESSION (P2) — pet collection headline.
+export async function getStatsFor(env, userId, _guildId = null) {
+  let tamed = 0;
+  const species = new Set();
+  let legendary = 0;
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'pet:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      if (k.name.startsWith('pet:released:')) continue;
+      if (!k.name.endsWith(':' + userId)) continue;
+      const p = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!p) continue;
+      tamed++;
+      if (p.species) species.add(p.species);
+      if (p.rarity === 'legendary') legendary++;
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  return {
+    primary: { label: 'Pets', value: tamed },
+    secondary: [
+      { label: 'Species', value: species.size },
+      { label: 'Legendary', value: legendary },
+    ],
+    iconKind: 'pet-paw',
+  };
+}
