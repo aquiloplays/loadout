@@ -152,7 +152,12 @@ export async function handleAquiloHttp(req, env, ctx, url) {
       const clip = await trackClipMessage(env, payload).catch(() => ({ tracked: false }));
       const { handleCheckinMessage } = await import('./checkin.js');
       const checkin = await handleCheckinMessage(env, payload).catch(e => ({ error: String(e?.message || e) }));
-      return json({ ok: true, counting, clip, checkin });
+      // Community-chat ringbuffer — drops the message into KV if the
+      // channel is in COMMUNITY_CHAT_CHANNELS_JSON. The /community/chat
+      // public-read endpoint serves this back to the website.
+      const { handleCommunityChatMessage } = await import('./community-chat.js');
+      const chat = await handleCommunityChatMessage(env, payload).catch(e => ({ stored: false, error: String(e?.message || e) }));
+      return json({ ok: true, counting, clip, checkin, chat });
     } catch (e) {
       return json({ error: String(e.message || e) }, 500);
     }
@@ -178,7 +183,50 @@ export async function handleAquiloHttp(req, env, ctx, url) {
         }
       }
     } catch { /* idle */ }
+    // Community-chat channels (Discord general + #in-game-chat for the
+    // DiscordSRV-bridged Minecraft feed). Parsed from JSON env var so
+    // Clay can change them via `wrangler secret put` without touching
+    // aquilo-presence on Railway.
+    try {
+      const { parseAllowedChannels } = await import('./community-chat.js');
+      for (const c of parseAllowedChannels(env)) channels.add(c);
+    } catch { /* idle */ }
     return json({ channels: Array.from(channels) });
+  }
+
+  // Public discovery of the community-chat channels currently enabled.
+  // Returns [{ id, label, kind }] so the website can render one chat
+  // panel per channel without needing the IDs baked in.
+  if (method === 'GET' && path === '/community/chat-channels') {
+    const { parseChannelConfigs } = await import('./community-chat.js');
+    return new Response(JSON.stringify({ ok: true, channels: parseChannelConfigs(env) }), {
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+        'cache-control': 'public, max-age=0, s-maxage=60',
+        'access-control-allow-origin': '*',
+      },
+    });
+  }
+
+  // Public read of the community-chat ringbuffer. The query string's
+  // ?channel=<id> must be in COMMUNITY_CHAT_CHANNELS_JSON; the website
+  // calls this through /api/community/chat with edge caching.
+  if (method === 'GET' && path === '/community/chat') {
+    const channelId = url.searchParams.get('channel') || '';
+    const limit = url.searchParams.get('limit') || '25';
+    const { readCommunityChat } = await import('./community-chat.js');
+    const r = await readCommunityChat(env, channelId, limit);
+    return new Response(JSON.stringify(r), {
+      status: r.ok ? 200 : 404,
+      headers: {
+        'content-type': 'application/json',
+        // 15s edge cache + stale-while-revalidate so a busy chat
+        // doesn't melt KV reads.
+        'cache-control': 'public, max-age=0, s-maxage=15',
+        'access-control-allow-origin': '*',
+      },
+    });
   }
 
   // Auth-gated announce paths. Fail-closed if AQUILO_BOT_SECRET unset.

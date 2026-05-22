@@ -398,6 +398,14 @@ export default {
         // per UTC day even though the cron runs hourly.
         const { dailyBonusCronTick } = await import('./daily-bonus-push.js');
         ctx.waitUntil(dailyBonusCronTick(env));
+        // Board-game async forfeit sweep — any correspondence match
+        // whose 24h per-move deadline elapsed gets resolved to the
+        // opponent (wager goes with the win). On-read paths in
+        // boardgames-engine.js also catch expired matches when a
+        // player actively loads them; this sweep is the safety net
+        // for games no one is watching.
+        const { cronSweepExpiredMatches } = await import('./boardgames-engine.js');
+        ctx.waitUntil(cronSweepExpiredMatches(env));
       }
     } catch (e) {
       console.error('scheduled cron failed:', e && e.message);
