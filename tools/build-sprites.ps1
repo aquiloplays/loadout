@@ -26,7 +26,7 @@
 
 [CmdletBinding()]
 param(
-  [string]$OutRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'aquilo-gg/sprites'),
+  [string]$OutRoot = '',
   [int]$CanvasW   = 64,
   [int]$CanvasH   = 80,
   [int]$FigureW   = 36,
@@ -34,7 +34,11 @@ param(
   [string]$Only   = ''     # comma list: figure,defaultclothing,hair,eyes,accent,weapons,head,chest,legs,boots,trinket,pets,legendary,moods
 )
 $ErrorActionPreference = 'Stop'
-. (Join-Path $PSScriptRoot 'lib-pixel.ps1')
+$scriptDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path -Parent $MyInvocation.MyCommand.Path }
+if (-not $OutRoot) {
+  $OutRoot = Join-Path (Split-Path -Parent $scriptDir) 'aquilo-gg/sprites'
+}
+. (Join-Path $scriptDir 'lib-pixel.ps1')
 
 # ── Paths ──────────────────────────────────────────────────────────
 $figDir  = Join-Path $OutRoot 'figure'
@@ -162,156 +166,241 @@ function Tone-FromHash {
 #                       FIGURE — body
 # ══════════════════════════════════════════════════════════════════
 
-# Draws the base humanoid silhouette. Body anatomy at HD fidelity:
-# rounded head (oval shade), tapered torso, articulated arms with
-# elbow + hand definition, defined legs with knee suggestion.
+# Polished retro-RPG sprite — Dragon Quest / Pokémon-trainer style.
+#
+# Rework (Clay 2026-05-22 PM): the previous Draw-Body used flat
+# rectangles for the torso / arms / legs, which read as chunky and
+# robotic — Clay's "less blocky" feedback. This version drives the
+# silhouette from a per-row profile function so the body has smooth
+# tapered shoulders → narrower waist → flared hips → tapered legs,
+# matching the soft proportional curves of retro JRPG sprites.
+# Inside the silhouette: 3-band shading (high / base / shadow) with
+# a soft "deep" pixel at every outermost row corner so edges read
+# as anti-aliased rather than razor-blocked. Same canvas + anchor
+# constants — gear sprites continue to align pixel-perfect.
+
 function Draw-Body {
   param($bmp, [string]$bodyType, $skinRamp)
-  $ink = $BRAND.Ink
   $slim = ($bodyType -eq 'slim')
 
-  $torsoX  = if ($slim) { $TORSO_X + 2 } else { $TORSO_X }
-  $torsoW  = if ($slim) { $TORSO_W - 4 } else { $TORSO_W }
-  # Arms hug the torso edge for both body types
-  $armLX   = if ($slim) { $ARM_LX + 2 } else { $ARM_LX }
-  $armRX   = if ($slim) { $ARM_RX - 2 } else { $ARM_RX }
-  $handLX  = if ($slim) { $HAND_LX + 2 } else { $HAND_LX }
-  $handRX  = if ($slim) { $HAND_RX - 2 } else { $HAND_RX }
-  $headW   = if ($slim) { 14 } else { 16 }
-  $headX   = [int](($CanvasW - $headW) / 2)
+  # Half-width profile constants — drive the smooth body curve. Slim
+  # variant is one pixel narrower per side at the chest + hips.
+  $shoulderHW = if ($slim) { 7 } else { 9 }
+  $chestHW    = if ($slim) { 6 } else { 8 }
+  $waistHW    = if ($slim) { 5 } else { 7 }
+  $hipHW      = if ($slim) { 6 } else { 8 }
+  $thighHW    = if ($slim) { 3 } else { 4 }
+  $calfHW     = 3
+  $ankleHW    = 2
 
-  # Head — oval volume with rim light
+  # Centre column
+  $cx = 32
+
+  # Smooth interpolated half-width at row y (cubic ease).
+  function ProfileHW {
+    param([int]$y, [int]$a, [int]$b, [int]$c, [int]$d)
+    # Three-segment piecewise interp between the four checkpoints:
+    #   y=0..7  : a→b   (shoulder→chest)
+    #   y=8..14 : b→c   (chest→waist)
+    #   y=15..22: c→d   (waist→hip)
+    if ($y -le 0) { return $a }
+    if ($y -le 7) {
+      $t = $y / 7.0
+      return [int]([Math]::Round($a + ($b - $a) * $t))
+    }
+    if ($y -le 14) {
+      $t = ($y - 7) / 7.0
+      return [int]([Math]::Round($b + ($c - $b) * $t))
+    }
+    if ($y -le 22) {
+      $t = ($y - 14) / 8.0
+      return [int]([Math]::Round($c + ($d - $c) * $t))
+    }
+    return $d
+  }
+
+  # ── Head — oval volume with subtle facial geometry ──────────────
+  $headW = if ($slim) { 12 } else { 13 }
+  $headX = [int](($CanvasW - $headW) / 2)
   $hCx = $headX + [int]($headW / 2)
   $hCy = $HEAD_Y + [int]($HEAD_H / 2)
-  Shade-Oval $bmp $hCx $hCy ($headW * 0.52) ($HEAD_H * 0.52) $skinRamp
-  # Cheek shadows — pull the face out of the round oval
-  Set-Pixel $bmp ($headX + 1)              ($HEAD_Y + 10) $skinRamp.shadow
-  Set-Pixel $bmp ($headX + $headW - 2)     ($HEAD_Y + 10) $skinRamp.shadow
-  Set-Pixel $bmp ($headX + 1)              ($HEAD_Y + 11) $skinRamp.deep
-  Set-Pixel $bmp ($headX + $headW - 2)     ($HEAD_Y + 11) $skinRamp.deep
-  # Ear suggestions — small shaded notches on either side
-  Set-Pixel $bmp $headX                    ($HEAD_Y + 9)  $skinRamp.shadow
-  Set-Pixel $bmp $headX                    ($HEAD_Y + 10) $skinRamp.deep
-  Set-Pixel $bmp ($headX + $headW - 1)     ($HEAD_Y + 9)  $skinRamp.shadow
-  Set-Pixel $bmp ($headX + $headW - 1)     ($HEAD_Y + 10) $skinRamp.deep
-  # Nose — single shadow pixel down centre below eye line
-  Set-Pixel $bmp $hCx                      ($HEAD_Y + 11) $skinRamp.shadow
-  Set-Pixel $bmp $hCx                      ($HEAD_Y + 12) $skinRamp.deep
-  Set-Pixel $bmp ($hCx - 1)                ($HEAD_Y + 12) $skinRamp.shadow
-  # Mouth — small lip line, slightly off-centre for character
-  Set-Pixel $bmp ($hCx - 1)                ($HEAD_Y + 14) $skinRamp.deep
-  Set-Pixel $bmp $hCx                      ($HEAD_Y + 14) $skinRamp.deep
-  Set-Pixel $bmp ($hCx - 1)                ($HEAD_Y + 15) $skinRamp.shadow
-  # Jaw shadow row to pull cheekbones forward
-  for ($i = 0; $i -lt $headW - 2; $i++) {
-    Set-Pixel $bmp ($headX + 1 + $i) ($HEAD_Y + $HEAD_H - 2) $skinRamp.shadow
-  }
-  # Slight chin highlight on left side
-  Set-Pixel $bmp ($headX + 2) ($HEAD_Y + $HEAD_H - 3) $skinRamp.high
+  Shade-Oval $bmp $hCx $hCy ($headW * 0.52) ($HEAD_H * 0.50) $skinRamp
+  # Soften top corners by trimming back to alpha for a rounded silhouette
+  $alpha0 = [System.Drawing.Color]::FromArgb(0,0,0,0)
+  Set-Pixel $bmp $headX                 ($HEAD_Y + 1) $alpha0
+  Set-Pixel $bmp ($headX + $headW - 1)  ($HEAD_Y + 1) $alpha0
+  # Cheekbones — high-tone wedges under the eye line
+  Set-Pixel $bmp ($headX + 1)            ($HEAD_Y + 9)  $skinRamp.high
+  Set-Pixel $bmp ($headX + $headW - 2)   ($HEAD_Y + 9)  $skinRamp.high
+  # Ear notches — single shadow pixel each side
+  Set-Pixel $bmp $headX                  ($HEAD_Y + 10) $skinRamp.shadow
+  Set-Pixel $bmp ($headX + $headW - 1)   ($HEAD_Y + 10) $skinRamp.shadow
+  # Nose — single shaded pixel below the eye line
+  Set-Pixel $bmp $hCx                    ($HEAD_Y + 12) $skinRamp.shadow
+  # Mouth — soft 2-pixel hint
+  Set-Pixel $bmp ($hCx - 1)              ($HEAD_Y + 14) $skinRamp.shadow
+  Set-Pixel $bmp $hCx                    ($HEAD_Y + 14) $skinRamp.shadow
+  # Chin — small highlight pixel for the rounded jaw
+  Set-Pixel $bmp $hCx                    ($HEAD_Y + $HEAD_H - 2) $skinRamp.high
 
-  # Neck — small tapered block, shadow-shifted (neck sits in head shadow)
-  Fill-Box $bmp $NECK_X $NECK_Y $NECK_W 3 $skinRamp.shadow
-  Set-Pixel $bmp $NECK_X $NECK_Y $skinRamp.base
-  Set-Pixel $bmp ($NECK_X + $NECK_W - 1) $NECK_Y $skinRamp.deep
+  # ── Neck — narrow tapered cylinder, sits in head shadow ─────────
+  $neckHW = 2
+  for ($y = 0; $y -lt 2; $y++) {
+    for ($dx = -$neckHW; $dx -le $neckHW - 1; $dx++) {
+      Set-Pixel $bmp ($cx + $dx) ($NECK_Y + $y) $skinRamp.shadow
+    }
+    Set-Pixel $bmp ($cx - 1)        ($NECK_Y + $y) $skinRamp.base
+  }
   # Collarbone hint
-  Set-Pixel $bmp ($NECK_X + 1) ($NECK_Y + 2) $skinRamp.high
+  Set-Pixel $bmp ($cx - 1) ($NECK_Y + 1) $skinRamp.high
+  Set-Pixel $bmp ($cx + 1) ($NECK_Y + 1) $skinRamp.shadow
 
-  # Torso — tapered slightly toward the waist
-  for ($y = 0; $y -lt $TORSO_H; $y++) {
-    $taper = [int]([Math]::Min(2, ($y / 8)))
-    $w = $torsoW - $taper * 2
-    $x = $torsoX + $taper
-    Fill-Box $bmp $x ($TORSO_Y + $y) $w 1 $skinRamp.base
-    # Edges
-    Set-Pixel $bmp $x ($TORSO_Y + $y) $skinRamp.high
-    Set-Pixel $bmp ($x + $w - 1) ($TORSO_Y + $y) $skinRamp.shadow
+  # ── Torso — profile-driven smooth curve (shoulder→chest→waist→hip)
+  # Anchored at the existing TORSO_Y row so gear chest pieces still
+  # align. Iterates row-by-row, calling ProfileHW to get the half-
+  # width, then fills with curve-aware shading.
+  for ($yr = 0; $yr -lt $TORSO_H; $yr++) {
+    $hw = ProfileHW $yr $shoulderHW $chestHW $waistHW $hipHW
+    $y  = $TORSO_Y + $yr
+    $x0 = $cx - $hw
+    $x1 = $cx + $hw - 1
+    # Inner fill — base tone
+    for ($x = $x0; $x -le $x1; $x++) {
+      Set-Pixel $bmp $x $y $skinRamp.base
+    }
+    # Left edge highlight (upper-left light)
+    Set-Pixel $bmp $x0 $y $skinRamp.high
+    # Right edge shadow
+    Set-Pixel $bmp $x1 $y $skinRamp.shadow
+    # Soft 1px outer "deep" wash where the silhouette stretches — anti-
+    # alias-style softening at the outermost rows.
+    if ($yr -eq 0 -or $yr -eq ($TORSO_H - 1)) {
+      Set-Pixel $bmp $x0 $y $skinRamp.shadow
+      Set-Pixel $bmp $x1 $y $skinRamp.deep
+    }
   }
-  # Subtle chest highlight on upper-left
-  for ($i = 0; $i -lt 4; $i++) {
-    Set-Pixel $bmp ($torsoX + 2 + $i) ($TORSO_Y + 2) $skinRamp.high
-  }
-  # Pectoral / sternum shadow
-  Set-Pixel $bmp ($torsoX + [int]($torsoW / 2)) ($TORSO_Y + 5) $skinRamp.shadow
-  # Belly shading
-  for ($i = 0; $i -lt 3; $i++) {
-    Set-Pixel $bmp ($torsoX + [int]($torsoW / 2)) ($TORSO_Y + 10 + $i) $skinRamp.shadow
-  }
-  # Lower torso shadow row
-  Fill-Box $bmp $torsoX ($TORSO_Y + $TORSO_H - 1) $torsoW 1 $skinRamp.shadow
+  # Vertical centre-line sternum shadow at chest level
+  Set-Pixel $bmp $cx ($TORSO_Y + 4) $skinRamp.shadow
+  Set-Pixel $bmp $cx ($TORSO_Y + 5) $skinRamp.shadow
+  Set-Pixel $bmp $cx ($TORSO_Y + 6) $skinRamp.shadow
+  # Belly shading (waist-level)
+  Set-Pixel $bmp $cx ($TORSO_Y + 12) $skinRamp.shadow
+  Set-Pixel $bmp $cx ($TORSO_Y + 13) $skinRamp.shadow
+  # Upper-left chest highlight (light source)
+  Set-Pixel $bmp ($cx - 3) ($TORSO_Y + 2) $skinRamp.top
+  Set-Pixel $bmp ($cx - 4) ($TORSO_Y + 3) $skinRamp.high
+  # Soften top-corner shoulder pixel for a rounded silhouette
+  Set-Pixel $bmp ($cx - $shoulderHW) ($TORSO_Y) $skinRamp.shadow
+  Set-Pixel $bmp ($cx + $shoulderHW - 1) ($TORSO_Y) $skinRamp.deep
 
-  # Arms — tapered cylinders
-  foreach ($side in @(@{x=$armLX; mirror=$false}, @{x=$armRX; mirror=$true})) {
-    $ax = $side.x
-    for ($y = 0; $y -lt $ARM_H; $y++) {
-      $w = 3
-      if ($y -ge 8) { $w = 2 }   # forearm thinner
-      $offset = 0
-      if ($y -ge 8 -and $side.mirror) { $offset = 1 }   # right forearm anchors right
-      Fill-Box $bmp ($ax + $offset) ($ARM_Y + $y) $w 1 $skinRamp.base
-      # Shading
-      if ($side.mirror) {
-        Set-Pixel $bmp ($ax + $offset) ($ARM_Y + $y) $skinRamp.high
-        Set-Pixel $bmp ($ax + $offset + $w - 1) ($ARM_Y + $y) $skinRamp.shadow
-      } else {
-        Set-Pixel $bmp ($ax + $offset) ($ARM_Y + $y) $skinRamp.high
-        Set-Pixel $bmp ($ax + $offset + $w - 1) ($ARM_Y + $y) $skinRamp.shadow
+  # ── Arms — smooth tapered curves hanging at the sides ────────────
+  # Slim widens at shoulder, tapers to forearm. Slight outward curve
+  # at the elbow row gives a more natural retro-RPG stance than a
+  # straight rectangle.
+  $armLenUpper = 8
+  $armLenLower = 9
+  foreach ($side in @(@{x = $cx - $shoulderHW - 1; mirror = $false},
+                      @{x = $cx + $shoulderHW;     mirror = $true})) {
+    $baseX = $side.x
+    for ($yi = 0; $yi -lt ($armLenUpper + $armLenLower); $yi++) {
+      $y = $ARM_Y + $yi
+      $w = if ($yi -lt $armLenUpper) { 3 } else { 2 }
+      # Slight elbow bow — outermost arm column shifts in/out 1px
+      $bow = 0
+      if ($yi -eq 7) { $bow = if ($side.mirror) { -1 } else { 1 } }
+      $ax = if ($side.mirror) { $baseX - $w + 1 + $bow } else { $baseX - $bow }
+      for ($x = $ax; $x -lt $ax + $w; $x++) {
+        Set-Pixel $bmp $x $y $skinRamp.base
+      }
+      # Highlight / shadow edges (upper-left light)
+      Set-Pixel $bmp $ax           $y $skinRamp.high
+      Set-Pixel $bmp ($ax + $w - 1) $y $skinRamp.shadow
+    }
+    # Shoulder cap — top-bright dot
+    $capX = if ($side.mirror) { $baseX } else { $baseX + 1 }
+    Set-Pixel $bmp $capX $ARM_Y $skinRamp.top
+    # Elbow shadow
+    Set-Pixel $bmp $capX ($ARM_Y + 7) $skinRamp.shadow
+  }
+
+  # ── Hands — small rounded discs (3×3 with single highlight) ─────
+  foreach ($side in @(@{x = $cx - $shoulderHW - 1; mirror = $false},
+                      @{x = $cx + $shoulderHW;     mirror = $true})) {
+    $hx = if ($side.mirror) { $side.x - 1 } else { $side.x }
+    for ($y = 0; $y -lt 4; $y++) {
+      for ($x = 0; $x -lt 3; $x++) {
+        Set-Pixel $bmp ($hx + $x) ($HAND_Y + $y) $skinRamp.base
       }
     }
-    # Shoulder cap — brighter pixel
-    Set-Pixel $bmp ($ax + 1) $ARM_Y $skinRamp.top
-    # Elbow shadow
-    Set-Pixel $bmp ($ax + 1) ($ARM_Y + 7) $skinRamp.shadow
-  }
-
-  # Hands — 4x4 with a subtle thumb hint
-  foreach ($side in @(@{x=$handLX; mirror=$false}, @{x=$handRX; mirror=$true})) {
-    $hx = $side.x
-    Fill-Box $bmp $hx $HAND_Y 3 4 $skinRamp.base
-    Set-Pixel $bmp $hx $HAND_Y $skinRamp.high
-    Set-Pixel $bmp ($hx + 2) ($HAND_Y + 3) $skinRamp.shadow
-    Set-Pixel $bmp $hx ($HAND_Y + 3) $skinRamp.shadow
-    # Thumb pixel
+    Set-Pixel $bmp $hx              $HAND_Y      $skinRamp.high
+    Set-Pixel $bmp ($hx + 2)        ($HAND_Y + 3) $skinRamp.shadow
+    # Soften outer corners with deep
+    Set-Pixel $bmp $hx              ($HAND_Y + 3) $skinRamp.deep
+    Set-Pixel $bmp ($hx + 2)        $HAND_Y      $skinRamp.shadow
+    # Thumb hint — single outward pixel
     if ($side.mirror) {
       Set-Pixel $bmp ($hx + 3) ($HAND_Y + 1) $skinRamp.base
-      Set-Pixel $bmp ($hx + 3) ($HAND_Y + 2) $skinRamp.shadow
     } else {
       Set-Pixel $bmp ($hx - 1) ($HAND_Y + 1) $skinRamp.base
-      Set-Pixel $bmp ($hx - 1) ($HAND_Y + 2) $skinRamp.shadow
     }
   }
 
-  # Legs — tapered with knee highlight
-  foreach ($side in @($LEG_LX, $LEG_RX)) {
-    for ($y = 0; $y -lt $LEG_H; $y++) {
-      $w = $LEG_W - [int]($y / 7)
-      if ($w -lt 4) { $w = 4 }
-      $x = $side + [int](($LEG_W - $w) / 2)
-      Fill-Box $bmp $x ($LEG_Y + $y) $w 1 $skinRamp.base
-      Set-Pixel $bmp $x ($LEG_Y + $y) $skinRamp.high
-      Set-Pixel $bmp ($x + $w - 1) ($LEG_Y + $y) $skinRamp.shadow
+  # ── Legs — smooth tapered thigh→calf→ankle ───────────────────────
+  # Legs profile: thigh-wide at top, narrows through knee, calf bulge
+  # at mid, ankle taper. Inner edges curve toward the centre slightly
+  # so the legs read as anchored to the hips not parallel pipes.
+  $legCenterL = $cx - 4
+  $legCenterR = $cx + 3
+  for ($yi = 0; $yi -lt $LEG_H; $yi++) {
+    $y = $LEG_Y + $yi
+    # Profile: thigh=3, calf=3, ankle=2 (tapered linearly with a small
+    # bulge at the calf row).
+    $hw = $thighHW
+    if ($yi -ge 4 -and $yi -le 7)  { $hw = $calfHW + 1 }   # calf bulge
+    elseif ($yi -ge 8 -and $yi -le 10) { $hw = $calfHW }
+    elseif ($yi -ge 11)            { $hw = $ankleHW }
+    foreach ($centre in @($legCenterL, $legCenterR)) {
+      $x0 = $centre - [int]($hw / 2)
+      for ($x = 0; $x -lt $hw; $x++) {
+        Set-Pixel $bmp ($x0 + $x) $y $skinRamp.base
+      }
+      Set-Pixel $bmp $x0             $y $skinRamp.high
+      Set-Pixel $bmp ($x0 + $hw - 1) $y $skinRamp.shadow
     }
-    # Knee highlight
-    Set-Pixel $bmp ($side + 1) ($LEG_Y + 6) $skinRamp.top
-    Set-Pixel $bmp ($side + 2) ($LEG_Y + 7) $skinRamp.shadow
+  }
+  # Knee highlight — bright pixel at the bend
+  Set-Pixel $bmp $legCenterL ($LEG_Y + 5) $skinRamp.top
+  Set-Pixel $bmp $legCenterR ($LEG_Y + 5) $skinRamp.top
+  # Inner-leg shadow column so the legs read as separate cylinders
+  for ($yi = 0; $yi -lt $LEG_H; $yi++) {
+    Set-Pixel $bmp ($cx - 1) ($LEG_Y + $yi) $skinRamp.shadow
+    Set-Pixel $bmp $cx       ($LEG_Y + $yi) $skinRamp.shadow
   }
 
-  # Feet — flesh-tone, will be covered by boots gear when equipped
-  foreach ($side in @($LEG_LX, $LEG_RX)) {
-    Fill-Box $bmp $side $FOOT_Y $LEG_W 4 $skinRamp.shadow
-    for ($i = 0; $i -lt $LEG_W; $i++) {
-      Set-Pixel $bmp ($side + $i) $FOOT_Y $skinRamp.base
+  # ── Feet — flatter shoes, will be covered by boots gear ─────────
+  foreach ($centre in @($legCenterL, $legCenterR)) {
+    $fx = $centre - 2
+    for ($y = 0; $y -lt 3; $y++) {
+      for ($x = 0; $x -lt 4; $x++) {
+        Set-Pixel $bmp ($fx + $x) ($FOOT_Y + $y) $skinRamp.shadow
+      }
+      Set-Pixel $bmp $fx             ($FOOT_Y + $y) $skinRamp.deep
+      Set-Pixel $bmp ($fx + 3)       ($FOOT_Y + $y) $skinRamp.deep
     }
-    Set-Pixel $bmp ($side + 1) $FOOT_Y $skinRamp.high
-    # Toe / shoe-line shadow
-    Fill-Box $bmp $side ($FOOT_Y + 3) $LEG_W 1 $skinRamp.deep
+    Set-Pixel $bmp ($fx + 1) $FOOT_Y $skinRamp.base
+    Set-Pixel $bmp ($fx + 2) $FOOT_Y $skinRamp.base
   }
 
-  # Ground shadow — soft alpha ellipse beneath feet
-  $shadow = With-Alpha (Color-FromHex '#080810') 150
-  for ($i = -8; $i -le 8; $i++) {
-    $a = 150 - [Math]::Abs($i) * 12
-    if ($a -lt 30) { continue }
-    Blend-Pixel $bmp (32 + $i) 79 (With-Alpha (Color-FromHex '#080810') $a)
+  # ── Ground shadow — soft alpha ellipse ──────────────────────────
+  for ($i = -7; $i -le 7; $i++) {
+    $a = 130 - [Math]::Abs($i) * 14
+    if ($a -lt 24) { continue }
+    Blend-Pixel $bmp ($cx + $i) 79 (With-Alpha (Color-FromHex '#080810') $a)
+  }
+  for ($i = -5; $i -le 5; $i++) {
+    $a = 70 - [Math]::Abs($i) * 12
+    if ($a -lt 16) { continue }
+    Blend-Pixel $bmp ($cx + $i) 78 (With-Alpha (Color-FromHex '#080810') $a)
   }
 }
 
