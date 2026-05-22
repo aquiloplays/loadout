@@ -1056,6 +1056,15 @@ export async function runBuyJson(env, guildId, userId, args) {
       balanceAfter: balance,
     });
   } catch { /* non-fatal */ }
+  // PROGRESSION (P1 trailing) — stocks trade XP.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    await emitProgressionEvent(env, {
+      kind: 'stocks.trade', userId, guildId,
+      meta: { ticker: def.ticker, side: 'buy', shares, total, tradeId: `${guildId}:${userId}:${Date.now()}` },
+      stableKeys: ['tradeId'],
+    });
+  } catch { /* non-fatal */ }
   return {
     ok: true,
     ticker: def.ticker,
@@ -1114,6 +1123,15 @@ export async function runSellJson(env, guildId, userId, args) {
       bolts: net,
       fee,
       balanceAfter: balance,
+    });
+  } catch { /* non-fatal */ }
+  // PROGRESSION (P1 trailing) — stocks trade XP.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    await emitProgressionEvent(env, {
+      kind: 'stocks.trade', userId, guildId,
+      meta: { ticker: def.ticker, side: 'sell', shares, net, tradeId: `${guildId}:${userId}:${Date.now()}` },
+      stableKeys: ['tradeId'],
     });
   } catch { /* non-fatal */ }
   return {

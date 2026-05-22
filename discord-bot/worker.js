@@ -275,6 +275,10 @@ export default {
       const { handleWebTournaments } = await import('./progression/http.js');
       return handleWebTournaments(req, env, path);
     }
+    if (path === '/web/progression/dashboard') {
+      const { handleWebDashboard } = await import('./progression/http.js');
+      return handleWebDashboard(req, env, path);
+    }
 
     // aquilo.gg website minigames -- HMAC from the site's Pages
     // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +

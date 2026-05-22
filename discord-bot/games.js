@@ -30,6 +30,19 @@ function rng(maxExclusive) {
   return v % maxExclusive;
 }
 
+// PROGRESSION (P1 trailing) — fire minigame.played for coinflip + dice
+// (capped at 6/day by the XP table). Wrapper used by both functions.
+async function _emitMinigame(env, userId, guildId, game) {
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    const playId = `${game}:${userId}:${Date.now()}:${Math.floor(Math.random() * 1e6)}`;
+    await emitProgressionEvent(env, {
+      kind: 'minigame.played', userId, guildId,
+      meta: { game, playId }, stableKeys: ['playId'],
+    });
+  } catch { /* non-fatal */ }
+}
+
 export async function coinflip(env, guildId, userId, bet) {
   if (!Number.isFinite(bet) || bet <= 0)
     return { won: false, payout: 0, explanation: 'bet must be a positive number' };
@@ -38,6 +51,7 @@ export async function coinflip(env, guildId, userId, bet) {
 
   // Fair 50/50. Heads = win 2x bet (wager already deducted, so net +bet).
   const heads = rng(2) === 0;
+  await _emitMinigame(env, userId, guildId, 'coinflip');
   if (heads) {
     await earn(env, guildId, userId, bet * 2, 'coinflip:win');
     return { won: true, payout: bet, explanation: '🪙 Heads! You won ' + bet + ' bolts.' };
@@ -59,6 +73,7 @@ export async function dice(env, guildId, userId, bet, target) {
   // bet already. If we credit 6*bet on win, net is +5bet. That matches
   // "5x payout" parlance and is house-fair for a 1/6 chance.
   const roll = rng(6) + 1;
+  await _emitMinigame(env, userId, guildId, 'dice');
   if (roll === target) {
     await earn(env, guildId, userId, bet * 6, 'dice:win:' + roll);
     return { won: true, roll, payout: bet * 5, explanation: '🎲 Rolled ' + roll + '! You won ' + (bet * 5) + ' bolts.' };

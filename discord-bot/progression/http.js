@@ -21,6 +21,7 @@ import { readBadgesDisplay, setShowcase as setBadgeShowcase } from './badges.js'
 import { BADGE_CATALOG } from './badges-catalog.js';
 import { readSeasonDisplay, claimTier, ensureCurrentSeason } from './season.js';
 import { readActiveTournaments, readTournament, readUserTournament, signUp as signUpTournament } from './tournaments.js';
+import { dashboardSummary } from './abuse.js';
 
 function json(obj, status = 200, extra = {}) {
   return new Response(JSON.stringify(obj), {
@@ -231,6 +232,14 @@ export async function handleWebProfile(req, env, path) {
     return json({ ok: true, profile: { bio: p.bio, privacy: p.privacy, badgesShowcase: p.badgesShowcase } });
   }
   return new Response('not found', { status: 404 });
+}
+
+// /web/progression/dashboard         → Clay-facing read-only summary
+// HMAC-gated upstream in worker.js so it doesn't leak rate/flag data
+// to public callers.
+export async function handleWebDashboard(req, env, _path) {
+  const data = await dashboardSummary(env);
+  return json(data);
 }
 
 // /web/tournaments                   → list active tournaments

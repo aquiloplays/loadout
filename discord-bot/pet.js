@@ -168,6 +168,20 @@ async function chargeBolts(env, guildId, userId, amount, reason) {
   return { ok: true };
 }
 
+// PROGRESSION (P1 trailing) — pet fed XP. Wraps the original
+// feed/play/clean entry points: dedup by the UTC date so 1 grant
+// per day per pet action.
+async function _emitPetCare(env, userId, guildId, kind, petId) {
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    const ymd = new Date().toISOString().slice(0, 10);
+    await emitProgressionEvent(env, {
+      kind, userId, guildId,
+      meta: { petId, ymd }, stableKeys: ['ymd', 'petId'],
+    });
+  } catch { /* non-fatal */ }
+}
+
 export async function feedPet(env, guildId, userId) {
   const pet = await getPet(env, guildId, userId);
   if (!pet) return { ok: false, error: 'no-pet' };
@@ -178,6 +192,7 @@ export async function feedPet(env, guildId, userId) {
   pet.hunger = { value: 100, lastSetUtc: Date.now() };
   pet.lastFedUtc = Date.now();
   await putPet(env, guildId, userId, pet);
+  await _emitPetCare(env, userId, guildId, 'pet.fed', pet.species);
   return { ok: true, pet, mood: computeMood(pet), spent: ACTION_COST.feed };
 }
 
@@ -238,6 +253,16 @@ export async function adoptPet(env, guildId, userId, species, colour, name) {
     lastFedUtc: 0, lastPlayedUtc: 0, lastCleanedUtc: 0,
   };
   await putPet(env, guildId, userId, pet);
+  // PROGRESSION (P1 trailing) — pet tame XP. Per-species dedup so
+  // re-adopting the same species after release grants once.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    await emitProgressionEvent(env, {
+      kind: 'pet.tamed', userId, guildId,
+      meta: { species, colour, rarity: tier === 3 ? 'legendary' : 'common' },
+      stableKeys: ['species'],
+    });
+  } catch { /* non-fatal */ }
   return { ok: true, pet, mood: computeMood(pet) };
 }
 
