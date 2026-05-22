@@ -75,9 +75,11 @@ import {
   executeRaid,
   _editorTownBuild,
   _editorTownGarrison,
+  _editorTownSell,
+  _editorTownLayout,
   canManageTown,
 } from './clash.js';
-import { ensureTown } from './clash-state.js';
+import { ensureTown, getQueue } from './clash-state.js';
 import {
   getCharacterLookWeb,
   saveCharacterLookWeb,
@@ -140,6 +142,8 @@ const ROUTES = new Set([
   'clash/raid',
   'clash/build',
   'clash/garrison',
+  'clash/sell',
+  'clash/layout',
   'clash/town',
   'clash/setup',
   'character',
@@ -254,6 +258,8 @@ export async function handleWeb(req, env) {
     if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
     if (route === 'clash/build')           return await routeClashBuild(env, guildId, discordId, body);
     if (route === 'clash/garrison')        return await routeClashGarrison(env, guildId, discordId, body);
+    if (route === 'clash/sell')            return await routeClashSell(env, guildId, discordId, body);
+    if (route === 'clash/layout')          return await routeClashLayout(env, guildId, discordId, body);
     if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);
     if (route === 'clash/setup')           return await routeClashSetup(env, guildId, discordId);
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
@@ -836,6 +842,49 @@ async function routeClashGarrison(env, guildId, userId, body) {
   return json({ ...cls, message });
 }
 
+// ── /web/clash/sell ──────────────────────────────────────────────
+//
+// H1 — Sell a building and refund 25 % of its build cost. CoC-style
+// partial refund. Same gate + side-effects as the in-game demolish,
+// but allowed on idle buildings (not just damaged/destroyed).
+//
+// Body fields:
+//   discordId   the acting user
+//   guildId     the target town
+//   buildingId  numeric id of the building to sell
+//
+// Returns: { ok, refund: { bolts?, scrap?, cores?, wood?, stone?,
+//                          iron?, gold? }, layoutVersion, message }
+async function routeClashSell(env, guildId, userId, body) {
+  const buildingId = body?.buildingId;
+  if (buildingId == null) {
+    return json({ ok: false, error: 'bad-id', message: '❌ Pass buildingId.' }, 200);
+  }
+  const r = await _editorTownSell(env, guildId, userId, buildingId);
+  return json(r, 200);
+}
+
+// ── /web/clash/layout ────────────────────────────────────────────
+//
+// H2 — In-app layout-save. Mirror of the secret-path
+// /sync/<guildId>/clash/layout (used by the ClashEditor SPA);
+// this is the path the in-app TownManager edit mode uses since it's
+// authed via the Patreon session, not the editor secret.
+//
+// Body fields:
+//   discordId   the acting user
+//   guildId     the target town
+//   layout      [{ id?, kind, x, y, level? }, ...]
+//                 existing buildings carry `id`; new placements omit it
+//
+// Returns: { ok, layoutVersion?, errors?: [...] }
+async function routeClashLayout(env, guildId, userId, body) {
+  const layout = Array.isArray(body?.layout) ? body.layout : null;
+  if (!layout) return json({ ok: false, errors: ['layout-array-required'] }, 200);
+  const r = await _editorTownLayout(env, guildId, userId, layout);
+  return json(r, 200);
+}
+
 // ── /web/clash/town ──────────────────────────────────────────────
 //
 // Convenience read for the website's town-management UI — same
@@ -859,12 +908,35 @@ async function routeClashTown(env, guildId, userId) {
     const maxLevel = (def.hp?.length || 2) - 1;
     const nextLevel = (b.level || 1) + 1;
     const nextCost = nextLevel <= maxLevel ? townBuildCost(b.kind, nextLevel) : null;
+    const lvl = b.level || 1;
+    // H3 — flatten per-level stats (damage/range/dps/hp/storage/
+    // capacity/burst/production) into one object the site's info-popup
+    // can iterate to render lines. Only present keys are included so
+    // the popup doesn't render "damage: —" for a Sawmill.
+    const stats = {};
+    if (def.hp?.[lvl] != null)               stats.hp = def.hp[lvl];
+    if (def.dps?.[lvl] != null)              stats.dps = def.dps[lvl];
+    if (def.dps?.[lvl] != null)              stats.damage = def.dps[lvl];
+    if (def.range != null)                   stats.range = def.range;
+    if (def.targets)                         stats.targets = def.targets;
+    if (def.burst?.[lvl] != null)            stats.burst = def.burst[lvl];
+    if (def.capacityBonus?.[lvl] != null)    stats.storage = def.capacityBonus[lvl];
+    if (def.garrisonCapBonus?.[lvl] != null) stats.capacity = def.garrisonCapBonus[lvl];
+    if (def.productionRate?.[lvl] != null)   stats.productionPerMin = def.productionRate[lvl];
+    if (def.collectorStorage?.[lvl] != null) stats.collectorStorage = def.collectorStorage[lvl];
+    if (def.grantsBuildSlots?.[lvl] != null) stats.buildSlots = def.grantsBuildSlots[lvl];
+    if (def.grantsBarracksCap?.[lvl] != null) stats.barracksCap = def.grantsBarracksCap[lvl];
+    if (def.grantsGatherSlots?.[lvl] != null) stats.gatherSlots = def.grantsGatherSlots[lvl];
+    if (def.championHpMult?.[lvl] != null)   stats.championHpMult = def.championHpMult[lvl];
+    if (def.collectorOf)                     stats.produces = def.collectorOf;
+    if (def.footprint)                       stats.footprint = def.footprint;
     return {
       ...b,
       spriteId: `clash/buildings/${b.kind}-L${b.level || 1}.png`,
       maxLevel,
       nextLevel: nextLevel <= maxLevel ? nextLevel : null,
       nextCost: nextCost ? { cost: nextCost.cost, timeMs: nextCost.timeMs } : null,
+      stats,
     };
   });
   // Available "new build" kinds + their L1 costs.
@@ -892,6 +964,25 @@ async function routeClashTown(env, guildId, userId) {
       timeMs: c ? c.timeMs : null,
     };
   });
+  // H4 — Total builder slots = TH grant for current level + 1 per
+  // built Builder's Hut. Mirrors the formula clash-layout.js +
+  // handleTownBuild use when capping the queue length.
+  const thBuilding = (town.buildings || []).find(b => b.kind === 'townhall');
+  const thBuildSlots = thBuilding ? (BUILDINGS.townhall?.grantsBuildSlots?.[thBuilding.level || 1] || 1) : 1;
+  const hutSlots = (town.buildings || []).filter(b => b.kind === 'buildersHut').length;
+  const builderSlots = Math.min(4, thBuildSlots + hutSlots);
+
+  // H5 — Mirror the build queue onto this payload so the in-app
+  // build-queue rail can render live timers. Same shape clash-http.js
+  // returns on the secret-path /sync read.
+  const q = await getQueue(env, `clash:queue:${guildId}`);
+  const queue = (q.items || []).map(item => ({
+    id: item.id,
+    kind: item.kind,
+    target: item.target || null,
+    endsAt: item.endsAt || 0,
+  }));
+
   return json({
     ok: true,
     guildId,
@@ -903,6 +994,8 @@ async function routeClashTown(env, guildId, userId) {
     newBuildOptions,
     garrisonOptions,
     layoutVersion: town.layoutVersion,
+    builderSlots,
+    queue,
   });
 }
 

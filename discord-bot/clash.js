@@ -1593,6 +1593,45 @@ export async function _editorDonate(env, guildId, userId, amount) {
   return handleDonate(env, guildId, userId, amount);
 }
 
+// H1: sell-building write path. Mirror of /clash town demolish, but
+// allowed on idle buildings too (CoC-style sell). Refund uses the
+// same 25% formula as demolish, so streamers don't lose more by
+// selling than by waiting for the building to break. Town Hall is
+// non-sellable.
+//
+// Returns { ok, refund, message } where refund is a positive-keyed
+// resource map (bolts/scrap/cores/wood/stone/iron/gold) the site
+// can render as "you got back N <resource>".
+export async function _editorTownSell(env, guildId, userId, buildingIdRaw) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return { ok: false, error: 'permission', message: '🔒 Only the streamer + mods can sell buildings.' };
+  }
+  const buildingId = Number(buildingIdRaw);
+  if (!buildingId) return { ok: false, error: 'bad-id', message: '❌ Pass the building id.' };
+  const town = await getTown(env, guildId);
+  if (!town) return { ok: false, error: 'no-town', message: '❌ No town here.' };
+  const b = (town.buildings || []).find(x => x.id === buildingId);
+  if (!b) return { ok: false, error: 'not-found', message: `❌ No building with id ${buildingId}.` };
+  if (b.kind === 'townhall') {
+    return { ok: false, error: 'townhall', message: '❌ The Town Hall cannot be sold.' };
+  }
+  // 25% refund (same formula demolish uses — keeps idle-sell from
+  // becoming a better deal than letting buildings break + demolish).
+  const { demolishRefund } = await import('./clash-content.js');
+  const refund = demolishRefund(b.kind, b.level || 1);
+  await addResources(env, guildId, refund);
+  town.buildings = town.buildings.filter(x => x.id !== buildingId);
+  town.layoutVersion = (town.layoutVersion || 0) + 1;
+  await putTown(env, guildId, town);
+  await refreshDefenseSnapshot(env, guildId);
+  return {
+    ok: true,
+    refund,
+    layoutVersion: town.layoutVersion,
+    message: `🪙 Sold ${BUILDINGS[b.kind]?.name || b.kind} #${b.id}.`,
+  };
+}
+
 // E5: layout-editor write path. The web editor POSTs the full proposed
 // layout (a list of {id, kind, x, y, level} for existing buildings +
 // {kind, x, y, level:1} for new placements). Same auth + mod-gate as
