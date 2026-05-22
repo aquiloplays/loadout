@@ -1,0 +1,421 @@
+// StreamFusion → aquilo.gg community sharing.
+//
+// Three endpoints power the community surface:
+//
+//   POST /sf/community-live    Heartbeat from a StreamFusion install whose
+//                              streamer has opted in to live-status sharing.
+//                              Upserts the streamer's entry in the live map
+//                              and (on the first heartbeat of a new live
+//                              session) posts a "X is live" embed to the
+//                              configured Discord channel.
+//
+//   POST /sf/community-event   Event relay for streamers who have *also*
+//                              opted in to community event sharing. Posts
+//                              a "X got a sub on twitch.tv/Y" style embed.
+//                              Embeds only, no @-pings.
+//
+//   GET  /community/live       Public list of currently-live community
+//                              members. Backs the aquilo.gg community
+//                              page. No auth. Stale entries pruned on read
+//                              (default 6 min — SF heartbeats every 90s,
+//                              giving us ~4 missed heartbeats of slack).
+//
+// Auth (POST endpoints):
+//   X-SF-Community-Key header == env.SF_COMMUNITY_KEY (wrangler secret).
+//   The key is embedded in the shipped StreamFusion build — same soft-spam
+//   model as the X-Live-Key the retired aquilo-live worker used. Not a
+//   real secret; just enough to keep casual abuse off the endpoint.
+//
+// Storage layout:
+//   sf:community:live:all      Single KV key holding a JSON map
+//                              userId → { name, platform, channel, url,
+//                              title, game, viewers, startedAt, lastSeen,
+//                              live }. Single-key model (matches the
+//                              retired aquilo-live worker) avoids KV
+//                              list() eventual-consistency lag — a
+//                              streamer who just went live shows up on
+//                              the public radar on the very next read.
+//   sf_community:channel:guild:<gid>
+//                              Channel binding written via /web/admin
+//                              (admin-web.js LOADOUT_BINDINGS).
+//
+// Discord posting:
+//   Uses env.DISCORD_BOT_TOKEN (same as sf-release.js — slash command
+//   registration is broken in this deploy but channel-message POSTs
+//   work fine).
+
+import { getActiveGuildId } from './aquilo/config.js';
+
+// ── Tuning constants ──────────────────────────────────────────────
+const STALE_MS         = 6 * 60 * 1000;  // 6 min — drop from /community/live if no heartbeat
+const KV_LIVE_KEY      = 'sf:community:live:all';
+const SF_COMMUNITY_BINDING_KEY = (gid) => 'sf_community:channel:guild:' + gid;
+// Discord channel-id sanity (shared with admin-web validation).
+const SNOWFLAKE_RE     = /^\d{15,25}$/;
+// Per-event-type embed colours. Picked from embeds.js COLORS so the
+// community channel reads like the rest of the bot's surface.
+const EMBED_COLORS = {
+  live:   0x7C5CFF, // aquilo violet — "now live" announcement
+  follow: 0x6BA9FF, // accent-2     — follows
+  sub:    0x3FB950, // win green    — subs / resubs
+  gift:   0xF0B429, // gold         — gift subs / bombs
+  cheer:  0xB452FF, // purple       — bits / cheers
+  raid:   0xFF5DAA, // pink         — raids
+  tip:    0x00F2EA, // cyan         — tips
+  default: 0x3A86FF,
+};
+// Platforms we render labels for. Map matches what SF sends.
+const PLATFORM_LABELS = {
+  tw: 'Twitch', twitch: 'Twitch',
+  yt: 'YouTube', youtube: 'YouTube',
+  tt: 'TikTok', tiktok: 'TikTok',
+  kk: 'Kick', kick: 'Kick',
+};
+
+function json(obj, status = 200, extraHeaders = {}) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: {
+      'content-type': 'application/json',
+      'cache-control': 'no-store',
+      ...extraHeaders,
+    },
+  });
+}
+
+// Sanitize one heartbeat / event payload field. Strings get trimmed +
+// length-capped; URLs are tightened to http(s) only.
+function s(v, max) {
+  if (v == null) return '';
+  const str = String(v).trim();
+  return str.length > max ? str.slice(0, max) : str;
+}
+function safeUrl(v) {
+  const str = s(v, 512);
+  if (!/^https?:\/\//i.test(str)) return '';
+  return str;
+}
+
+function authOk(req, env) {
+  const got = req.headers.get('x-sf-community-key') || '';
+  return !!env.SF_COMMUNITY_KEY && got === env.SF_COMMUNITY_KEY;
+}
+
+// ── Live-status KV: read, prune stale, write ───────────────────────
+async function readLiveMap(env) {
+  try {
+    const raw = await env.LOADOUT_BOLTS.get(KV_LIVE_KEY, { type: 'json' });
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+  } catch { /* fall through */ }
+  return {};
+}
+async function writeLiveMap(env, map) {
+  // No expirationTtl — entries are pruned by lastSeen on read. KV writes
+  // are eventually-consistent globally; that's fine here because we
+  // only ever read-modify-write from a single Worker isolate per
+  // request, and the public radar is allowed to be a few seconds behind.
+  await env.LOADOUT_BOLTS.put(KV_LIVE_KEY, JSON.stringify(map));
+}
+function pruneStale(map, now) {
+  let dirty = false;
+  for (const id of Object.keys(map)) {
+    const entry = map[id];
+    if (!entry || entry.lastSeen == null || (now - entry.lastSeen) > STALE_MS || entry.live === false) {
+      delete map[id];
+      dirty = true;
+    }
+  }
+  return dirty;
+}
+
+// ── Discord channel resolver ───────────────────────────────────────
+async function resolveCommunityChannel(env) {
+  const gid = await getActiveGuildId(env);
+  if (!gid) return null;
+  try {
+    const binding = await env.LOADOUT_BOLTS.get(SF_COMMUNITY_BINDING_KEY(gid), { type: 'json' });
+    if (binding && SNOWFLAKE_RE.test(String(binding.channelId || ''))) {
+      return { guildId: gid, channelId: String(binding.channelId) };
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
+async function postEmbed(env, channelId, embed) {
+  if (!env.DISCORD_BOT_TOKEN || !SNOWFLAKE_RE.test(channelId)) return { ok: false, error: 'no-token-or-channel' };
+  const payload = {
+    embeds: [embed],
+    // Belt-and-braces — server never wants pings from these embeds even
+    // if a malicious payload sneaked an @everyone token into the
+    // description string.
+    allowed_mentions: { parse: [] },
+  };
+  try {
+    const r = await fetch('https://discord.com/api/v10/channels/' + channelId + '/messages', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN,
+        'Content-Type':  'application/json',
+        'User-Agent':    'Loadout-Worker/1.0 (sf-community)',
+      },
+      body: JSON.stringify(payload),
+    });
+    if (!r.ok) {
+      const body = await r.text();
+      return { ok: false, error: 'discord_' + r.status, body: body.slice(0, 300) };
+    }
+    const msg = await r.json().catch(() => null);
+    return { ok: true, messageId: msg?.id || null };
+  } catch (e) {
+    return { ok: false, error: String(e?.message || e) };
+  }
+}
+
+// ── Embed builders ─────────────────────────────────────────────────
+function platformLabel(p) {
+  return PLATFORM_LABELS[String(p || '').toLowerCase()] || 'Stream';
+}
+
+function liveEmbed(entry) {
+  const platLabel = platformLabel(entry.platform);
+  const titlePart = entry.title ? `\n*${entry.title}*` : '';
+  const fields = [];
+  if (entry.game)    fields.push({ name: 'Playing', value: entry.game, inline: true });
+  if (entry.viewers != null) fields.push({ name: 'Viewers', value: String(entry.viewers), inline: true });
+  return {
+    color:       EMBED_COLORS.live,
+    title:       '🔴 ' + entry.name + ' is live on ' + platLabel,
+    url:         entry.url || undefined,
+    description: titlePart || undefined,
+    fields:      fields.length ? fields : undefined,
+    timestamp:   new Date().toISOString(),
+    footer:      { text: 'aquilo.gg community' },
+  };
+}
+
+function eventEmbed(ev) {
+  const platLabel = platformLabel(ev.platform);
+  const color = EMBED_COLORS[ev.eventType] || EMBED_COLORS.default;
+  const action = describeEvent(ev);
+  const channelLine = ev.url ? `[${ev.name}](${ev.url})` : ev.name;
+  // We always include the streamer name in the title so a member glancing
+  // at the channel can tell whose chat the event happened in without
+  // hovering for the URL preview.
+  return {
+    color,
+    author: { name: ev.name + ' · ' + platLabel },
+    title:  action.title,
+    description: action.description + '\n' + channelLine,
+    timestamp: new Date().toISOString(),
+    footer:    { text: 'aquilo.gg community' },
+  };
+}
+
+// Render an event into an embed title + description pair. Falls back to
+// a generic phrasing if the event-type is unknown (the worker is
+// permissive — SF is the source of truth for what counts as a
+// shareable event, the worker just renders).
+function describeEvent(ev) {
+  const user = ev.user || 'Someone';
+  const amount = (ev.amount != null && Number.isFinite(Number(ev.amount))) ? Number(ev.amount) : null;
+  switch (String(ev.eventType || '').toLowerCase()) {
+    case 'follow':
+      return { title: '+ Follow',
+               description: `**${user}** followed.` };
+    case 'sub':
+      return { title: 'New sub',
+               description: `**${user}** subscribed.` };
+    case 'resub':
+      return { title: 'Resub',
+               description: `**${user}** resubscribed.` };
+    case 'gift':
+      return { title: amount && amount > 1 ? 'Gift sub bomb' : 'Gift sub',
+               description: amount && amount > 1
+                 ? `**${user}** gifted **${amount}** subs.`
+                 : `**${user}** gifted a sub.` };
+    case 'cheer':
+      return { title: 'Cheer',
+               description: amount
+                 ? `**${user}** cheered **${amount}** bits.`
+                 : `**${user}** cheered.` };
+    case 'raid':
+      return { title: 'Raid',
+               description: amount
+                 ? `**${user}** raided with **${amount}** viewers.`
+                 : `**${user}** raided.` };
+    case 'tip':
+      return { title: 'Tip',
+               description: amount
+                 ? `**${user}** tipped **$${amount}**.`
+                 : `**${user}** tipped.` };
+    default:
+      return { title: 'Event',
+               description: `**${user}** — ${s(ev.eventType, 64)}` };
+  }
+}
+
+// ── Handlers ───────────────────────────────────────────────────────
+
+export async function handleCommunityLive(req, env) {
+  if (req.method !== 'POST') return json({ ok: false, error: 'method' }, 405);
+  if (!authOk(req, env))      return json({ ok: false, error: 'unauthorized' }, 401);
+
+  let body;
+  try { body = await req.json(); }
+  catch { return json({ ok: false, error: 'bad_json' }, 400); }
+
+  const userId = s(body.userId, 64);
+  if (!userId) return json({ ok: false, error: 'missing_userId' }, 400);
+
+  const live = !!body.live;
+  const now  = Date.now();
+
+  const map = await readLiveMap(env);
+  pruneStale(map, now);
+  const prev = map[userId];
+
+  if (!live) {
+    // Going-offline heartbeat — drop the entry. We don't post a Discord
+    // embed for going offline; the live announcement is one-shot per
+    // session, the radar just stops showing them.
+    if (prev) {
+      delete map[userId];
+      await writeLiveMap(env, map);
+    }
+    return json({ ok: true, action: 'offline' });
+  }
+
+  const entry = {
+    userId,
+    name:      s(body.name, 64) || 'streamer',
+    platform:  s(body.platform, 16).toLowerCase() || 'twitch',
+    channel:   s(body.channel, 64),
+    url:       safeUrl(body.url),
+    title:     s(body.title, 200),
+    game:      s(body.game, 120),
+    viewers:   (body.viewers != null && Number.isFinite(Number(body.viewers)))
+                 ? Math.max(0, Math.floor(Number(body.viewers)))
+                 : null,
+    startedAt: prev && prev.live ? (prev.startedAt || now) : now,
+    lastSeen:  now,
+    live:      true,
+  };
+  map[userId] = entry;
+  await writeLiveMap(env, map);
+
+  // Fire Discord embed only on the leading edge — first heartbeat of a
+  // new live session, or first heartbeat after a stale gap. Subsequent
+  // 90s heartbeats while live get NO embed.
+  const isNewSession = !prev || prev.live !== true;
+  let posted = null;
+  if (isNewSession) {
+    const channel = await resolveCommunityChannel(env);
+    if (channel) {
+      const r = await postEmbed(env, channel.channelId, liveEmbed(entry));
+      posted = r.ok ? { channelId: channel.channelId, messageId: r.messageId } : { error: r.error };
+    }
+  }
+  return json({ ok: true, action: 'live', newSession: isNewSession, posted });
+}
+
+export async function handleCommunityEvent(req, env) {
+  if (req.method !== 'POST') return json({ ok: false, error: 'method' }, 405);
+  if (!authOk(req, env))      return json({ ok: false, error: 'unauthorized' }, 401);
+
+  let body;
+  try { body = await req.json(); }
+  catch { return json({ ok: false, error: 'bad_json' }, 400); }
+
+  const ev = {
+    userId:    s(body.userId, 64),
+    name:      s(body.name, 64) || 'streamer',
+    platform:  s(body.platform, 16).toLowerCase(),
+    url:       safeUrl(body.url),
+    eventType: s(body.eventType, 32).toLowerCase(),
+    user:      s(body.user, 64),
+    amount:    body.amount,
+    tier:      s(body.tier, 16),
+    message:   s(body.message, 280),
+  };
+  if (!ev.eventType) return json({ ok: false, error: 'missing_eventType' }, 400);
+
+  const channel = await resolveCommunityChannel(env);
+  if (!channel) {
+    // No binding configured yet — ack so the client doesn't retry
+    // forever, but signal in the response that the embed was dropped.
+    return json({ ok: true, action: 'no-binding' });
+  }
+  const r = await postEmbed(env, channel.channelId, eventEmbed(ev));
+  if (!r.ok) return json({ ok: false, error: r.error }, 502);
+  return json({ ok: true, action: 'posted', messageId: r.messageId });
+}
+
+// ── Public listing ────────────────────────────────────────────────
+// GET /community/live  →  the aquilo.gg community page consumes this.
+//
+// Response contract (stable):
+//   {
+//     ok:        true,
+//     fetchedAt: <epoch ms>,
+//     count:     <int>,
+//     staleMs:   <int>          // staleness threshold the worker applies
+//     live: [
+//       {
+//         name:      "displayName",
+//         platform:  "twitch" | "youtube" | "kick" | "tiktok",
+//         channel:   "channel handle (lowercased)",
+//         url:       "https://twitch.tv/foo",
+//         title:     "stream title or ''",
+//         game:      "category or ''",
+//         viewers:   <int|null>,
+//         startedAt: <epoch ms>,
+//         lastSeen:  <epoch ms>
+//       },
+//       ...
+//     ]
+//   }
+//
+// Sort: viewers desc, with no-viewer entries last; tie-break by startedAt
+// asc (earlier-live first). The userId field is INTERNAL — never returned
+// on the public surface so an opted-in streamer can't be re-identified
+// across name changes.
+export async function handlePublicCommunityLive(req, env) {
+  const now = Date.now();
+  const map = await readLiveMap(env);
+  const dirty = pruneStale(map, now);
+  if (dirty) {
+    // Write back the pruned map so we don't redo this work on every
+    // hit. Don't block on it — the response is what matters.
+    await writeLiveMap(env, map).catch(() => {});
+  }
+  const list = Object.values(map).map((e) => ({
+    name:      e.name,
+    platform:  e.platform,
+    channel:   e.channel,
+    url:       e.url,
+    title:     e.title,
+    game:      e.game,
+    viewers:   e.viewers != null ? e.viewers : null,
+    startedAt: e.startedAt,
+    lastSeen:  e.lastSeen,
+  }));
+  list.sort((a, b) => {
+    const av = a.viewers == null ? -1 : a.viewers;
+    const bv = b.viewers == null ? -1 : b.viewers;
+    if (av !== bv) return bv - av;
+    return (a.startedAt || 0) - (b.startedAt || 0);
+  });
+  return json({
+    ok: true,
+    fetchedAt: now,
+    count: list.length,
+    staleMs: STALE_MS,
+    live: list,
+  }, 200, {
+    // Public consumers can cache lightly — aquilo.gg's community page
+    // is fine refreshing every 30s; we don't want every page load
+    // hitting KV.
+    'cache-control': 'public, max-age=0, s-maxage=20',
+    'access-control-allow-origin': '*',
+  });
+}

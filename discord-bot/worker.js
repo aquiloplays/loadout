@@ -260,6 +260,23 @@ export default {
       return handlePostRelease(req, env);
     }
 
+    // StreamFusion community-sharing surface — see sf-community.js.
+    //   POST /sf/community-live     opt-in live-status heartbeat
+    //   POST /sf/community-event    opt-in event relay (follows/subs/etc)
+    //   GET  /community/live        public radar consumed by aquilo.gg
+    if (method === 'POST' && path === '/sf/community-live') {
+      const { handleCommunityLive } = await import('./sf-community.js');
+      return handleCommunityLive(req, env);
+    }
+    if (method === 'POST' && path === '/sf/community-event') {
+      const { handleCommunityEvent } = await import('./sf-community.js');
+      return handleCommunityEvent(req, env);
+    }
+    if (method === 'GET' && path === '/community/live') {
+      const { handlePublicCommunityLive } = await import('./sf-community.js');
+      return handlePublicCommunityLive(req, env);
+    }
+
     // Character paper-doll render endpoint. Public read; ETag/
     // cache-control tied to ?v=<lookVersion> so Discord embeds
     // re-fetch after a customisation change. See character.js.
@@ -373,6 +390,14 @@ export default {
         // delay on a post-stream message cleanup — fine.
         const { aquiloScheduledTick } = await import('./aquilo/worker.js');
         ctx.waitUntil(aquiloScheduledTick(event, env, ctx));
+        // Consolidated daily-bonus push — first :23 tick at/after
+        // 13 UTC fires the once-per-day PWA notification to
+        // subscribers reminding them that boltbound free pack,
+        // loadout daily, check-in, and daily missions are all
+        // claimable again. KV-marker dedupe means only one fires
+        // per UTC day even though the cron runs hourly.
+        const { dailyBonusCronTick } = await import('./daily-bonus-push.js');
+        ctx.waitUntil(dailyBonusCronTick(env));
       }
     } catch (e) {
       console.error('scheduled cron failed:', e && e.message);

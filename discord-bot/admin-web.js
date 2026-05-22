@@ -50,10 +50,15 @@ function json(obj, status) {
 // re-binding from the web hits the same records the Discord /admin
 // menu wrote to. Same source of truth.
 const LOADOUT_BINDINGS = {
-  sports:  { key: (g) => 'sports:channel:guild:'  + g, preserveKnownGameIds: true,  hasMessageId: false },
-  stocks:  { key: (g) => 'stocks:ticker:guild:'   + g, preserveKnownGameIds: false, hasMessageId: true  },
-  bolts:   { key: (g) => 'bolts:feed:guild:'      + g, preserveKnownGameIds: false, hasMessageId: true  },
-  checkin: { key: (g) => 'checkin:channel:guild:' + g, preserveKnownGameIds: false, hasMessageId: false },
+  sports:        { key: (g) => 'sports:channel:guild:'       + g, preserveKnownGameIds: true,  hasMessageId: false },
+  stocks:        { key: (g) => 'stocks:ticker:guild:'        + g, preserveKnownGameIds: false, hasMessageId: true  },
+  bolts:         { key: (g) => 'bolts:feed:guild:'           + g, preserveKnownGameIds: false, hasMessageId: true  },
+  checkin:       { key: (g) => 'checkin:channel:guild:'      + g, preserveKnownGameIds: false, hasMessageId: false },
+  // StreamFusion community-share channel (see sf-community.js). New
+  // embeds posted per "now live" announcement + per relayed event, no
+  // in-place edits, so the binding is the lightest of the bunch —
+  // just { channelId, boundAt }.
+  sf_community:  { key: (g) => 'sf_community:channel:guild:' + g, preserveKnownGameIds: false, hasMessageId: false },
 };
 
 async function readLoadoutBinding(env, kind, guildId) {
@@ -191,13 +196,14 @@ function validateField(key, raw) {
 // once the streamer-claim flow has set it). For pre-claim use, we
 // also return the active-guild pointer so the UI can offer to flip it.
 async function routeAdminSnapshot(env, guildId) {
-  const [aquiloCfg, activeGuildId, sports, stocks, bolts, checkin] = await Promise.all([
+  const [aquiloCfg, activeGuildId, sports, stocks, bolts, checkin, sfCommunity] = await Promise.all([
     getGuildConfig(env, guildId),
     getActiveGuildId(env),
-    readLoadoutBinding(env, 'sports',  guildId),
-    readLoadoutBinding(env, 'stocks',  guildId),
-    readLoadoutBinding(env, 'bolts',   guildId),
-    readLoadoutBinding(env, 'checkin', guildId),
+    readLoadoutBinding(env, 'sports',       guildId),
+    readLoadoutBinding(env, 'stocks',       guildId),
+    readLoadoutBinding(env, 'bolts',        guildId),
+    readLoadoutBinding(env, 'checkin',      guildId),
+    readLoadoutBinding(env, 'sf_community', guildId),
   ]);
 
   // Envelope: for every SETUP_KEY, expose { key, meta, value, envDefault }.
@@ -217,10 +223,11 @@ async function routeAdminSnapshot(env, guildId) {
     activeGuildId: activeGuildId || null,
     aquilo: { fields },
     loadout: {
-      sports:  sports  || { channelId: null },
-      stocks:  stocks  || { channelId: null },
-      bolts:   bolts   || { channelId: null },
-      checkin: checkin || { channelId: null },
+      sports:       sports       || { channelId: null },
+      stocks:       stocks       || { channelId: null },
+      bolts:        bolts        || { channelId: null },
+      checkin:      checkin      || { channelId: null },
+      sf_community: sfCommunity  || { channelId: null },
     },
     // Diagnostic flags for the UI's "Setup & Status" card.
     flags: {
