@@ -1,8 +1,8 @@
 # Progression System — Profile, XP, Achievements, Badges, Seasons, Tournaments
 
-> Status: **design draft — awaiting Clay sign-off.** Multi-phase. Phases
-> are shipping units; do not start phase N+1 until N is in viewers'
-> hands.
+> Status: **LOCKED — Clay sign-off 2026-05-22.** Build phase by phase
+> per §12. Open questions resolved at §13 (all to recommended defaults
+> except Q2 — Patreon premium is **tier-scaled**, not flat).
 >
 > Author: Loadout team · Date: 2026-05-22 · Owner: Clay
 >
@@ -1134,70 +1134,77 @@ profile, which is the moment Clay can announce the system on stream.
 
 ---
 
-## 13. Open questions for Clay
+## 13. Resolved decisions (locked 2026-05-22)
 
-A handful of decisions need Clay's call before P1 starts. I've
-defaulted the design where I could; these are the ones that materially
-change the feel of the system.
+All 12 questions resolved. Most ran to recommended default; Q2 (Patreon
+premium) got a richer answer from Clay — tier-scaled bonus rewards on
+top of the unlock gate.
 
-1. **XP curve calibration target.** I designed for "an engaged daily
-   viewer hits L10 in month one, L50 in a year". Is that too fast?
-   Too slow? If it's too fast we triple the early-level XP cost;
-   if too slow we halve the late-game cost. Defaulting to the
-   middle calibration above.
+1. **XP curve calibration** — locked to designed values (L10 month one,
+   L50 in a year for daily players).
+2. **Premium battle pass via Patreon — TIER-SCALED.** Any active
+   Patreon supporter (any tier) unlocks the premium track. Higher tiers
+   get bonus multipliers on premium rewards:
+   - $1 tier (Spark): premium track unlocked, 1.0× rewards.
+   - $5 tier (Bolt): 1.25× bolts + fragments + lootbox rolls in premium-track tiers.
+   - $10 tier (Voltaic): 1.5× + an exclusive Patreon-only badge per season.
+   - $25 tier (Eagle): 2.0× + the exclusive badge + 1 free tournament-seed slot per season.
+   The multiplier applies only to numeric premium-track rewards (bolts,
+   fragments, lootbox rolls). Badges + titles + flair frames are flat
+   across tiers — the cosmetic-exclusive Patreon badge is the *only*
+   item tier-gated above $5. Tier read happens via the existing
+   `patreon:tier:<userId>` record set by the Patreon-link OAuth flow;
+   if absent, defaults to free. See §7.2 (revised) for the reward table.
+3. **Cross-game leaderboards** — fold into existing surfaces. No
+   dedicated `/leaderboards` page in v1. `/play` gets a "top XP" tab,
+   `/clash` keeps its top-raiders tab, season pass page shows top-tier
+   leaders. Add `/leaderboards` later if traffic earns it.
+4. **Profile scope** — account-wide only. No per-guild "career" tab.
+   Easy to add later via a `?guildId=` filter on the stats endpoint.
+5. **Achievement secrecy** — ~5% hidden (the legendary milestones +
+   a couple of fun-to-find ones).
+6. **Tournament prize ceiling** — 5,000 bolts top-of-bracket. Within
+   the existing economy bounds, doesn't destabilise.
+7. **Friend list visibility** — opt-in only. Default off; user can
+   flip "show my level-ups to my friends" in profile settings.
+8. **Account linking sequence** — Steam → Epic → Xbox → Battle.net
+   → YouTube → TikTok → PSN (manual). Steam first.
+9. **Season-end wipe** — badges + titles + flair frames are forever.
+   XP/tier progress + season-specific currency multipliers wipe.
+10. **Tournament eligibility** — open to everyone (no level gate).
+    Re-evaluate after season 1 if sockpuppet flood is real.
+11. **Profile bio** — 200 chars, unlimited edits, profanity-filtered.
+    Tighten cadence only if abuse rises.
+12. **Initial achievement catalog** — ship the full ~120 in P3.
 
-2. **Premium battle pass via Patreon — any tier, or tier-gated?** I
-   defaulted to "any active Patreon link unlocks premium" because that's
-   the existing free-lootbox gate. Clay may want premium gated to the
-   $5+ tier specifically. (No transaction surface either way — but a
-   tier check is one extra env var.)
+### Implementation note: Patreon tier multipliers
 
-3. **Cross-game leaderboard prominence.** Profile leaderboards (top
-   level / top season tier / top tournament wins) are easy to add
-   to the website. Worth a dedicated `/leaderboards` page or fold
-   into existing `/clash` and `/play` pages?
+The premium-track reward field in `season:active.rewardsTable` is
+expressed as a *base* number; the per-user grant multiplies by the
+viewer's Patreon tier multiplier at claim time. That keeps the season
+template tier-agnostic — the same template applies to all viewers,
+the runtime resolution looks up the user's current tier.
 
-4. **Server-scoped vs account-wide profile.** The design defaults
-   account-wide (one profile across every guild). But Clay runs
-   multiple servers — should there be a "this player on Clay's main
-   server" view that scopes stats to just one guild, like a "career
-   on this team" tab? Default: no, keep it simple. Easy to add later.
+```js
+// pseudocode for the claim path
+async function claimSeasonTier(env, userId, seasonId, tier, track) {
+  const reward = seasonActive.rewardsTable[tier][track];
+  const mult = track === 'premium' ? patreonRewardMultiplier(env, userId) : 1.0;
+  const bolts = Math.round((reward.bolts || 0) * mult);
+  const fragments = Math.round((reward.fragments || 0) * mult);
+  const lootboxes = Math.round((reward.lootboxes || 0) * mult);
+  // badges + titles + frames are flat
+  // ... grant + mark claimed
+}
 
-5. **Achievement secrecy.** Are secret achievements (hidden until
-   earned) fun or annoying? I included a few (~5%); could go to 0%
-   or to 20%. Defaulting to ~5%.
-
-6. **Tournament prize ceiling.** Top-of-bracket reward is 5,000
-   bolts. The Clash treasury caps + Boltbound pack costs are in
-   the same range, so 5,000 isn't trivial but also doesn't
-   destabilise the economy. Is that the right number, or do we
-   want bracket rewards to feel more like "winning is its own
-   reward, the bolts are token"? Default: 5,000.
-
-7. **Friend list visibility.** Currently friend list is private to
-   each user. Should viewers be able to see "your friend [X]
-   reached L25 today"? Default: opt-in (off by default).
-
-8. **Account linking — which platforms first?** I sequenced
-   Steam → Epic → Xbox → others. Steam is highest-impact for
-   "find this person to add as friend". Defaulting to Steam first;
-   Clay may want a different order if his community plays mostly
-   on a different platform.
-
-9. **Season-end "wipe" feel.** Pure-XP track (the 50-tier battle
-   pass) wipes every season — that's the point of a season. Should
-   *unlocked badges* from a season stay in the cabinet forever?
-   Default: yes — badges are forever, even if the season's
-   currencies/titles aren't.
-
-10. **Tournament eligibility — open to everyone or level-gated?**
-    Defaulted to open to everyone (no level gate). Could gate
-    bracket tournaments to L5+ to reduce sockpuppet flood. Default:
-    open.
-
-11. **Profile bio length and edit cadence.** Defaulted 200 chars
-    + unlimited edits + profanity-filtered. Could lock edit cadence
-    to once-per-day if abuse rises. Default: unrestricted.
-
-12. **Initial achievement catalog size.** I sketched ~120; could
-    go to ~80 for a leaner launch. Default: ship the full ~120 in P3.
+function patreonRewardMultiplier(env, userId) {
+  const tier = readPatreonTier(env, userId);
+  switch (tier) {
+    case 'eagle':   return 2.0;
+    case 'voltaic': return 1.5;
+    case 'bolt':    return 1.25;
+    case 'spark':   return 1.0;     // unlocks premium but no multiplier
+    default:        return 0;        // no patreon — premium track locked
+  }
+}
+```

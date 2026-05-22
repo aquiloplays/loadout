@@ -415,6 +415,23 @@ async function finaliseIfEnded(env, match) {
     receipt[`trophyDelta_${s}`] = trophyDelta;
     await appendLog(env, match.guildId, userId, receipt);
     await setActiveMatchId(env, match.guildId, userId, '');
+
+    // PROGRESSION (P1) — emit cards.match.played (floor) + cards.match.won.*
+    // on victory. Dedup by matchId so re-runs grant XP once.
+    try {
+      const { emitProgressionEvent } = await import('./progression/event-bus.js');
+      await emitProgressionEvent(env, {
+        kind: 'cards.match.played', userId, guildId: match.guildId,
+        meta: { matchId: match.matchId }, stableKeys: ['matchId'],
+      });
+      if (won) {
+        await emitProgressionEvent(env, {
+          kind: npc ? 'cards.match.won.npc' : 'cards.match.won.pvp',
+          userId, guildId: match.guildId,
+          meta: { matchId: match.matchId }, stableKeys: ['matchId'],
+        });
+      }
+    } catch { /* non-fatal */ }
   }
   match.settled = true;
 }

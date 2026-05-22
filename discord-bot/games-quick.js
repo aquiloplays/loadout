@@ -97,6 +97,27 @@ export async function cooldownTouch(env, userId, ms) {
   return until;
 }
 
+// PROGRESSION (P1) — every quick-game play emits a played event +
+// optionally a bigwin event if payout > 5× stake. Dedup keyed by a
+// per-play synthetic id so concurrent plays in the same minute each
+// count. Called from every game's payout path below.
+export async function emitQuickGame(env, userId, guildId, kind, bet, gross) {
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    const playId = `${kind}:${userId}:${Date.now()}:${Math.floor(Math.random() * 1e6)}`;
+    await emitProgressionEvent(env, {
+      kind: 'quick.game.played', userId, guildId,
+      meta: { game: kind, bet, gross, playId }, stableKeys: ['playId'],
+    });
+    if (bet > 0 && gross >= bet * 5) {
+      await emitProgressionEvent(env, {
+        kind: 'quick.game.bigwin', userId, guildId,
+        meta: { game: kind, bet, gross, playId }, stableKeys: ['playId'],
+      });
+    }
+  } catch { /* non-fatal */ }
+}
+
 // ── Stateful-game session helpers ────────────────────────────────────
 //
 // Blackjack / Hi-Lo / Mines all keep multi-step state in KV:
@@ -271,6 +292,7 @@ async function blackjackResolve(env, guildId, userId, state) {
   }
 
   if (gross > 0) await earn(env, guildId, userId, gross, 'blackjack:' + outcome);
+  await emitQuickGame(env, userId, guildId, 'blackjack', state.bet, gross);
   state.finished = true;
   state.outcome = outcome;
   state.payout = gross - state.bet;
@@ -362,6 +384,7 @@ export async function roulette(env, guildId, userId, bet, pick) {
 
   const gross = win ? bet * payoutMult : 0;
   if (gross > 0) await earn(env, guildId, userId, gross, 'roulette:' + kind);
+  await emitQuickGame(env, userId, guildId, 'roulette', bet, gross);
 
   return await withBalance(env, guildId, userId, {
     ok: true,
@@ -405,6 +428,7 @@ export async function wheel(env, guildId, userId, bet, risk) {
   const mult = table[idx];
   const gross = Math.floor(bet * mult);
   if (gross > 0) await earn(env, guildId, userId, gross, 'wheel:' + r);
+  await emitQuickGame(env, userId, guildId, 'wheel', bet, gross);
 
   return await withBalance(env, guildId, userId, {
     ok: true,
@@ -565,6 +589,7 @@ export async function hiloCashout(env, guildId, userId) {
   }
   const gross = Math.floor(state.bet * state.multiplier);
   await earn(env, guildId, userId, gross, 'hilo:cashout');
+  await emitQuickGame(env, userId, guildId, 'hilo', state.bet, gross);
   state.finished = true;
   state.outcome = 'cashout';
   state.payout = gross - state.bet;
@@ -696,6 +721,7 @@ export async function minesCashout(env, guildId, userId) {
   }
   const gross = Math.floor(state.bet * state.multiplier);
   await earn(env, guildId, userId, gross, 'mines:cashout');
+  await emitQuickGame(env, userId, guildId, 'mines', state.bet, gross);
   state.finished = true;
   state.outcome = 'cashout';
   state.payout = gross - state.bet;
@@ -748,6 +774,7 @@ export async function plinko(env, guildId, userId, bet, risk) {
   const mult = table[pos];
   const gross = Math.floor(bet * mult);
   if (gross > 0) await earn(env, guildId, userId, gross, 'plinko:' + r);
+  await emitQuickGame(env, userId, guildId, 'plinko', bet, gross);
 
   return await withBalance(env, guildId, userId, {
     ok: true,
@@ -802,6 +829,7 @@ export async function crash(env, guildId, userId, bet, cashout) {
   let gross = 0;
   if (won) gross = Math.floor(bet * cashout);
   if (gross > 0) await earn(env, guildId, userId, gross, 'crash:cashout');
+  await emitQuickGame(env, userId, guildId, 'crash', bet, gross);
 
   return await withBalance(env, guildId, userId, {
     ok: true,

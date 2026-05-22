@@ -328,6 +328,15 @@ export async function betCronTick(env) {
         parlay.settledAt = Date.now();
         parlay.payout = payout;
         await recordSettledParlay(env, parlay);
+        // PROGRESSION (P1) — parlay win XP.
+        try {
+          const { emitProgressionEvent } = await import('./progression/event-bus.js');
+          await emitProgressionEvent(env, {
+            kind: 'bet.won.parlay', userId: parlay.userId, guildId: parlay.guildId,
+            meta: { betId: parlay.betId, payout, legs: remaining.length },
+            stableKeys: ['betId'],
+          });
+        } catch { /* non-fatal */ }
       }
       await env.LOADOUT_BOLTS.put(PARLAY_KEY(pid), JSON.stringify(parlay));
       await removeOpenParlayId(env, pid);
@@ -481,6 +490,16 @@ async function recordSettled(env, bet, outcome, payout) {
     settledAt: Date.now(),
   });
   await putUserBets(env, bet.guildId, bet.userId, u);
+  // PROGRESSION (P1) — bet settlement XP (winning side only).
+  try {
+    if (outcome === 'win') {
+      const { emitProgressionEvent } = await import('./progression/event-bus.js');
+      await emitProgressionEvent(env, {
+        kind: 'bet.won', userId: bet.userId, guildId: bet.guildId,
+        meta: { betId: bet.betId, payout }, stableKeys: ['betId'],
+      });
+    }
+  } catch { /* non-fatal */ }
 }
 
 // ---- Slash command dispatcher ------------------------------------------
@@ -760,6 +779,15 @@ export async function runPlaceJson(env, guildId, userId, args) {
   const open = await getOpenBets(env, g.id);
   open.push(bet);
   await putOpenBets(env, g.id, open);
+
+  // PROGRESSION (P1) — bet placed.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    await emitProgressionEvent(env, {
+      kind: 'bet.placed', userId, guildId,
+      meta: { betId, stake }, stableKeys: ['betId'],
+    });
+  } catch { /* non-fatal */ }
 
   const projected = computeWinPayout(stake, bet.lockedOdds);
   const newBalance = (r.wallet && r.wallet.balance) || (balance - stake);

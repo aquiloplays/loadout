@@ -313,6 +313,7 @@ export async function applyMove(env, guildId, userId, matchId, move) {
     m.winReason = result.terminal.reason || null;
     m.turnDeadline = null;
     await settleEscrow(env, m);
+    await emitBoardgameProgression(env, m);
     await removeUserActive(env, guildId, m.players[0].userId, m.id);
     await removeUserActive(env, guildId, m.players[1].userId, m.id);
   } else {
@@ -353,6 +354,7 @@ export async function resign(env, guildId, userId, matchId) {
   m.winReason = 'resign';
   m.turnDeadline = null;
   await settleEscrow(env, m);
+  await emitBoardgameProgression(env, m);
   await removeUserActive(env, guildId, m.players[0].userId, m.id);
   await removeUserActive(env, guildId, m.players[1].userId, m.id);
   await saveMatch(env, m);
@@ -575,6 +577,33 @@ async function settleEscrow(env, m) {
   }
 }
 
+// PROGRESSION (P1) — fire match.played for both sides + match.won for
+// the winner. Called by the engine right after the match flips to
+// finished/abandoned. Dedup by matchId so re-running emits once.
+export async function emitBoardgameProgression(env, m) {
+  if (!m || m.status === 'active' || m.status === 'waiting') return;
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    const [p1, p2] = m.players;
+    for (const side of [p1, p2]) {
+      if (!side?.userId) continue;
+      await emitProgressionEvent(env, {
+        kind: 'board.match.played', userId: side.userId, guildId: m.guildId,
+        meta: { matchId: m.id, game: m.game }, stableKeys: ['matchId'],
+      });
+    }
+    if (m.winner === 'p1' || m.winner === 'p2') {
+      const w = m.winner === 'p1' ? p1 : p2;
+      if (w?.userId) {
+        await emitProgressionEvent(env, {
+          kind: 'board.match.won', userId: w.userId, guildId: m.guildId,
+          meta: { matchId: m.id, game: m.game }, stableKeys: ['matchId'],
+        });
+      }
+    }
+  } catch { /* non-fatal */ }
+}
+
 // Redact things the OTHER player shouldn't see. For perfect-information
 // games (chess/checkers/connect4) this is mostly identity — both sides
 // see the board. We still surface a `you` field so the client knows
@@ -655,6 +684,7 @@ export async function checkAndExpireMatch(env, m) {
   m.winReason = 'timeout';
   m.turnDeadline = null;
   await settleEscrow(env, m);
+  await emitBoardgameProgression(env, m);
   await removeUserActive(env, m.guildId, m.players[0].userId, m.id);
   await removeUserActive(env, m.guildId, m.players[1].userId, m.id);
   await saveMatch(env, m);

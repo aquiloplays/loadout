@@ -496,6 +496,17 @@ async function handleDonate(env, guildId, userId, amount) {
   await applyVaultDelta(env, guildId, userId, -accepted, 'clash:donate');
   await addTreasury(env, guildId, { bolts: accepted });
   await recordContribution(env, guildId, userId, accepted);
+  // PROGRESSION (P1) — 1 XP per 100 bolts donated, capped at 50/day by table.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    const xpUnits = Math.max(1, Math.floor(accepted / 100));
+    await emitProgressionEvent(env, {
+      kind: 'clash.donated', userId, guildId,
+      meta: { bolts: accepted, donateId: `${guildId}:${userId}:${Date.now()}` },
+      stableKeys: ['donateId'],
+      overrideXp: xpUnits,   // 1 XP × units (the table's xp is the per-unit rate)
+    });
+  } catch { /* non-fatal */ }
   if (accepted < n) {
     return `💰 Donated **${accepted}** Bolts (treasury cap hit). The other ${n - accepted} stayed in your wallet — Storage upgrade raises the cap.`;
   }
@@ -776,6 +787,37 @@ export async function executeRaid(env, guildId, userId, userName, kind) {
   // X min" countdown without a second round trip.
   const armyAfter = await getArmy(env, guildId, userId);
   const tokensAfter = computeRaidTokens(armyAfter);
+
+  // PROGRESSION (P1) — emit attacker XP. Always fires `clash.raid.played`
+  // (floor for participating); on a star result also fires the win kind.
+  // Defender-side XP for a successful defense is emitted from
+  // clash-goblins.js (goblin raids) + the PvP defended branch below.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    await emitProgressionEvent(env, {
+      kind: 'clash.raid.played', userId, guildId,
+      meta: { raidId, stars: sim.stars }, stableKeys: ['raidId'],
+    });
+    if (sim.stars > 0) {
+      await emitProgressionEvent(env, {
+        kind: `clash.raid.won.${sim.stars}`, userId, guildId,
+        meta: { raidId, stars: sim.stars }, stableKeys: ['raidId'],
+      });
+    }
+    if (target.kind === 'town' && sim.stars === 0) {
+      // Defender of a PvP raid that ended 0★ earns the PvP-defended XP.
+      // Town owner gets the credit (the streamer who built the
+      // defenses). Dedup keyed by raidId so replays grant once.
+      const targetTown = await getTown(env, target.guildId);
+      const defenderUserId = targetTown?.ownerUserId;
+      if (defenderUserId) {
+        await emitProgressionEvent(env, {
+          kind: 'clash.defended.pvp', userId: defenderUserId, guildId: target.guildId,
+          meta: { raidId, attackerUserId: userId }, stableKeys: ['raidId'],
+        });
+      }
+    }
+  } catch { /* progression must never block raid resolution */ }
 
   return {
     ok: true,

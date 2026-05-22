@@ -451,6 +451,17 @@ async function extCheckin(env, guildId, userId, req) {
   rec.name = name;
   await env.LOADOUT_BOLTS.put(key, JSON.stringify(rec));
 
+  // PROGRESSION (P1) — stream check-in XP. Dedup keyed by the UTC date
+  // so multiple check-ins in the same window grant once.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    const ymd = new Date(now).toISOString().slice(0, 10);
+    await emitProgressionEvent(env, {
+      kind: 'stream.checkin', userId, guildId,
+      meta: { ymd, streak: rec.streak }, stableKeys: ['ymd'],
+    });
+  } catch { /* non-fatal */ }
+
   // Read freeze counts (if we didn't already during a miss) so the
   // panel can show "Stream Freeze: 2" alongside the streak number.
   if (!wouldBreak) {

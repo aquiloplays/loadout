@@ -190,6 +190,18 @@ export async function openPack(env, guildId, userId, packId) {
   // the receipt the caller renders is from the in-memory `results`.
   await deletePendingPack(env, guildId, userId, packId);
 
+  // PROGRESSION (P1) — pack-open XP. Dedup keyed by packId so retries
+  // grant once. Legendary pulls fire a meta flag for the achievement
+  // engine to read in P3.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    const hadLegendary = rolled.some(id => CARDS[id]?.rarity === 'legendary');
+    await emitProgressionEvent(env, {
+      kind: 'cards.pack.opened', userId, guildId,
+      meta: { packId, packType: rec.packType, hadLegendary }, stableKeys: ['packId'],
+    });
+  } catch { /* non-fatal */ }
+
   return {
     ok: true,
     packType: rec.packType,

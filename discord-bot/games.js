@@ -169,6 +169,21 @@ export async function daily(env, guildId, userId) {
   w.lastDailyEtDate = today;
   w.lastEarnReason = 'daily:streak:' + w.dailyStreak;
   await putWallet(env, guildId, userId, w);
+  // PROGRESSION (P1) — daily claim XP + streak milestones. Dedup keyed
+  // by ET date so repeated calls in one day grant once.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    await emitProgressionEvent(env, {
+      kind: 'daily.claimed', userId, guildId,
+      meta: { ymd: today, streak: w.dailyStreak }, stableKeys: ['ymd'],
+    });
+    if (w.dailyStreak === 7 || w.dailyStreak === 30 || w.dailyStreak === 100) {
+      await emitProgressionEvent(env, {
+        kind: `daily.streak.${w.dailyStreak}`, userId, guildId,
+        meta: { ymd: today, streak: w.dailyStreak }, stableKeys: ['ymd'],
+      });
+    }
+  } catch { /* non-fatal */ }
   return {
     won: true, payout,
     streak: w.dailyStreak,

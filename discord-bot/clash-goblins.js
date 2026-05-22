@@ -253,6 +253,19 @@ export async function executeGoblinRaid(env, guildId, town, mode = 'normal', now
     }
   } catch (e) { console.warn('[clash-goblins] push failed:', e && e.message); }
 
+  // PROGRESSION (P1) — town owner gets defender XP on a 0★ goblin
+  // repel. We don't grant XP for losing (no XP from being raided).
+  try {
+    if (sim.stars === 0 && town?.ownerUserId) {
+      const { emitProgressionEvent } = await import('./progression/event-bus.js');
+      await emitProgressionEvent(env, {
+        kind: 'clash.defended.goblin',
+        userId: town.ownerUserId, guildId,
+        meta: { raidId, mode }, stableKeys: ['raidId'],
+      });
+    }
+  } catch { /* non-fatal */ }
+
   return { ok: true, raidId, stars: sim.stars, stolen };
 }
 
