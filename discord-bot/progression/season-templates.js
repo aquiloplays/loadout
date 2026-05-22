@@ -7,8 +7,10 @@
 // Reward calibration target:
 // - Free track: bolts-heavy with a fragment trickle. A daily player
 //   should reach tier ~25 in 90 days, ~30 if they push.
-// - Premium track: 2× bolts at the base 1.0× Patreon multiplier; bigger
-//   fragment + lootbox grants; exclusive badge at mid + max tier.
+// - Premium track (Patreon-gated, single-tier all-or-nothing —
+//   patron / non-patron, no multipliers): 2× the free bolts at each
+//   tier, bigger fragment + lootbox grants, plus the mid/max badges
+//   + flair frames + title that the free track doesn't get.
 
 export const SEASON_LENGTH_MS = 90 * 86400_000;
 export const TIER_XP_COST = 1000;
@@ -17,9 +19,9 @@ export const CATCH_UP_DAYS = 7;
 export const CATCH_UP_MULT = 1.5;
 
 // 50-tier reward table. Each entry: { free: {...}, premium: {...} }.
-// Numeric fields (bolts, fragments, lootboxes) scale per Patreon
-// multiplier at claim time on the premium track. Badges + titles +
-// flair frames are flat.
+// Rewards are granted verbatim on claim — no per-tier multipliers
+// (single-tier Patreon: patron unlocks the premium column wholesale,
+// non-patron gets the free column only).
 //
 // Notes on the milestone tiers:
 //   Tier 10 = mid badge + flair frame (premium)

@@ -1,8 +1,9 @@
 # Progression System — Profile, XP, Achievements, Badges, Seasons, Tournaments
 
-> Status: **LOCKED — Clay sign-off 2026-05-22.** Build phase by phase
-> per §12. Open questions resolved at §13 (all to recommended defaults
-> except Q2 — Patreon premium is **tier-scaled**, not flat).
+> Status: **LOCKED — Clay sign-off 2026-05-22 (Q2 corrected 2026-05-22 PM).**
+> Build phase by phase per §12. Open questions resolved at §13 (all to
+> recommended defaults; Q2 corrected to **patron / non-patron** — there
+> is only ONE Patreon tier in the supported configuration).
 >
 > Author: Loadout team · Date: 2026-05-22 · Owner: Clay
 >
@@ -728,8 +729,9 @@ Each season has:
   silhouette.
 - **50 tiers** of rewards.
 - A **free track** and a **premium track**. Premium is unlocked
-  for any active Patreon link (any tier — same gate as the existing
-  free-lootbox stipend).
+  for any active Patreon supporter (single-tier, all-or-nothing —
+  same gate as the existing free-lootbox stipend; no per-tier
+  multipliers or per-tier exclusives).
 - **One season-specific tournament series** (§9) culminating in the
   last week.
 - **2 unique badges** per season minimum (one mid-tier, one max-tier).
@@ -1142,19 +1144,17 @@ top of the unlock gate.
 
 1. **XP curve calibration** — locked to designed values (L10 month one,
    L50 in a year for daily players).
-2. **Premium battle pass via Patreon — TIER-SCALED.** Any active
-   Patreon supporter (any tier) unlocks the premium track. Higher tiers
-   get bonus multipliers on premium rewards:
-   - $1 tier (Spark): premium track unlocked, 1.0× rewards.
-   - $5 tier (Bolt): 1.25× bolts + fragments + lootbox rolls in premium-track tiers.
-   - $10 tier (Voltaic): 1.5× + an exclusive Patreon-only badge per season.
-   - $25 tier (Eagle): 2.0× + the exclusive badge + 1 free tournament-seed slot per season.
-   The multiplier applies only to numeric premium-track rewards (bolts,
-   fragments, lootbox rolls). Badges + titles + flair frames are flat
-   across tiers — the cosmetic-exclusive Patreon badge is the *only*
-   item tier-gated above $5. Tier read happens via the existing
-   `patreon:tier:<userId>` record set by the Patreon-link OAuth flow;
-   if absent, defaults to free. See §7.2 (revised) for the reward table.
+2. **Premium battle pass via Patreon — patron / non-patron, flat.**
+   The Patreon side has ONE tier in the supported configuration.
+   An active Patreon link unlocks the premium track; without a link
+   the premium track is locked. There is no per-tier multiplier, no
+   per-tier exclusive badge, no per-tier tournament-seed perk —
+   premium is all-or-nothing. The existing `patreon:tier:<userId>`
+   record (set by the existing Patreon-link OAuth flow) is consulted
+   only as a presence check: any non-null record counts as "patron",
+   no value matters. See §8 reward table — the `premium` column is
+   the patron reward, the `free` column is the non-patron reward,
+   nothing else multiplies.
 3. **Cross-game leaderboards** — fold into existing surfaces. No
    dedicated `/leaderboards` page in v1. `/play` gets a "top XP" tab,
    `/clash` keeps its top-raiders tab, season pass page shows top-tier
@@ -1177,34 +1177,32 @@ top of the unlock gate.
     Tighten cadence only if abuse rises.
 12. **Initial achievement catalog** — ship the full ~120 in P3.
 
-### Implementation note: Patreon tier multipliers
+### Implementation note: Patron gate (single-tier)
 
-The premium-track reward field in `season:active.rewardsTable` is
-expressed as a *base* number; the per-user grant multiplies by the
-viewer's Patreon tier multiplier at claim time. That keeps the season
-template tier-agnostic — the same template applies to all viewers,
-the runtime resolution looks up the user's current tier.
+Claim path consults a single boolean: is this user an active Patreon
+supporter? If yes, premium-track rewards apply verbatim; if no, the
+premium track is locked and the user falls back to the free track
+only. No tier multipliers, no per-tier exclusives.
 
 ```js
 // pseudocode for the claim path
 async function claimSeasonTier(env, userId, seasonId, tier, track) {
   const reward = seasonActive.rewardsTable[tier][track];
-  const mult = track === 'premium' ? patreonRewardMultiplier(env, userId) : 1.0;
-  const bolts = Math.round((reward.bolts || 0) * mult);
-  const fragments = Math.round((reward.fragments || 0) * mult);
-  const lootboxes = Math.round((reward.lootboxes || 0) * mult);
-  // badges + titles + frames are flat
-  // ... grant + mark claimed
+  if (track === 'premium' && !(await isPatron(env, userId))) {
+    return { ok: false, error: 'premium-locked' };
+  }
+  // Grant verbatim — no mult.
+  await grantBolts(env, userId, reward.bolts || 0);
+  await grantFragments(env, userId, reward.fragments || 0);
+  await grantLootboxes(env, userId, reward.lootboxes || 0);
+  // badges + titles + frames same — grant as defined.
+  // ... mark claimed
 }
 
-function patreonRewardMultiplier(env, userId) {
-  const tier = readPatreonTier(env, userId);
-  switch (tier) {
-    case 'eagle':   return 2.0;
-    case 'voltaic': return 1.5;
-    case 'bolt':    return 1.25;
-    case 'spark':   return 1.0;     // unlocks premium but no multiplier
-    default:        return 0;        // no patreon — premium track locked
-  }
+async function isPatron(env, userId) {
+  // Presence check against the existing patreon:tier:<userId> record.
+  // Set by the existing ext-patreon-link.js OAuth flow.
+  const raw = await env.LOADOUT_BOLTS.get(`patreon:tier:${userId}`, { type: 'json' });
+  return !!raw;
 }
 ```

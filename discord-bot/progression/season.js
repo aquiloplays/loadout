@@ -1,9 +1,10 @@
 // Progression — seasons + battle pass.
 //
 // PROGRESSION-SYSTEM-DESIGN.md §8. 90-day seasons, 50 tiers, free +
-// Patreon-tier-scaled premium tracks. Each tier costs 1,000 XP
-// linearly (XP feeds the pass automatically — the bus calls
-// recordSeasonProgress on every event, which is wired below).
+// Patreon-gated premium track (single tier, patron/non-patron — see
+// linking.isPatron). Each tier costs 1,000 XP linearly (XP feeds
+// the pass automatically — the bus calls recordSeasonProgress on
+// every event, which is wired below).
 //
 // Season templates live in season-templates.js — lock-in advance, hot-
 // swappable from the season:active KV singleton at rollover.
@@ -14,7 +15,7 @@
 //   pseason:<userId>              { seasonId, xp, tier, claimedFree[], claimedPrem[], premium }
 
 import { SEASON_TEMPLATES, REWARD_BASE_TABLE, SEASON_LENGTH_MS, TIER_XP_COST, TIER_COUNT, CATCH_UP_DAYS, CATCH_UP_MULT } from './season-templates.js';
-import { readPatreonTier, patreonRewardMultiplier } from './linking.js';
+import { isPatron } from './linking.js';
 
 const ACTIVE_KEY = 'season:active';
 const ARCHIVE_KEY = (id) => `season:archive:${id}`;
@@ -133,8 +134,8 @@ export async function recordSeasonProgress(env, event, xpResult) {
 // ── Claim ─────────────────────────────────────────────────────────
 //
 // Viewer hits a tier → claim reward. Free track is always claimable;
-// premium track is gated on the viewer's current Patreon tier (any
-// tier unlocks; higher tiers scale rewards via patreonRewardMultiplier).
+// premium track is gated on Patreon membership (patron / non-patron,
+// no tiers — see linking.isPatron).
 //
 // Idempotent — re-claim returns alreadyClaimed:true.
 
@@ -152,28 +153,23 @@ export async function claimTier(env, userId, tier, track) {
   const claimedList = track === 'free' ? rec.claimedFree : rec.claimedPrem;
   if (claimedList.includes(tier)) return { ok: false, error: 'already-claimed' };
 
-  // Premium gate.
-  let mult = 1.0;
+  // Premium gate — patron / non-patron, all-or-nothing.
   if (track === 'premium') {
-    const patTier = await readPatreonTier(env, userId);
-    mult = patreonRewardMultiplier(patTier);
-    if (mult === 0) return { ok: false, error: 'premium-locked' };
-    rec.premium = true;   // sticky — record that this user has redeemed any premium tier
+    if (!(await isPatron(env, userId))) return { ok: false, error: 'premium-locked' };
+    rec.premium = true;   // sticky — record that this user redeemed premium
   }
 
-  // Look up the base reward for this tier+track. Pad with empty if
+  // Look up the reward for this tier+track. Pad with empty if the
   // template doesn't define the tier exactly (treat as no reward).
+  // Rewards are granted verbatim — no per-tier multipliers anymore.
   const baseList = active.rewardsTable[tier - 1] || { free: {}, premium: {} };
   const base = baseList[track] || {};
-
-  // Compute the resolved reward — numeric fields scale by mult,
-  // badge/title/frame fields are flat.
   const reward = {
-    bolts: Math.round((base.bolts || 0) * mult),
-    fragments: Math.round((base.fragments || 0) * mult),
-    lootboxes: Math.round((base.lootboxes || 0) * mult),
-    badgeId: base.badgeId || null,
-    title: base.title || null,
+    bolts:     base.bolts     || 0,
+    fragments: base.fragments || 0,
+    lootboxes: base.lootboxes || 0,
+    badgeId:   base.badgeId   || null,
+    title:     base.title     || null,
     flairFrame: base.flairFrame || null,
   };
 
@@ -214,7 +210,7 @@ export async function claimTier(env, userId, tier, track) {
 
   claimedList.push(tier);
   await putUserSeason(env, userId, rec);
-  return { ok: true, tier, track, mult, reward, claimedFree: rec.claimedFree, claimedPrem: rec.claimedPrem };
+  return { ok: true, tier, track, reward, claimedFree: rec.claimedFree, claimedPrem: rec.claimedPrem };
 }
 
 // ── Display payload for the profile page + dedicated season page ─
@@ -226,9 +222,8 @@ export async function readSeasonDisplay(env, userId) {
   if (!rec || rec.seasonId !== active.seasonId) {
     rec = freshUser(active.seasonId);
   }
-  // Resolve the Patreon multiplier once for premium-track display.
-  const patTier = await readPatreonTier(env, userId);
-  const premiumMult = patreonRewardMultiplier(patTier);
+  // Patron presence check — single-tier, all-or-nothing.
+  const patron = await isPatron(env, userId);
   return {
     active: {
       seasonId: active.seasonId, theme: active.theme, accent: active.accent,
@@ -242,9 +237,8 @@ export async function readSeasonDisplay(env, userId) {
       xpToNext: (rec.tier < active.tierCount) ? Math.max(0, (rec.tier + 1) * active.tierXpCost - rec.xp) : 0,
       claimedFree: rec.claimedFree,
       claimedPrem: rec.claimedPrem,
-      premiumUnlocked: premiumMult > 0,
-      premiumMult,
-      patreonTier: patTier,
+      premiumUnlocked: patron,
+      isPatron: patron,
     },
     tiers: active.rewardsTable.map((row, i) => ({
       tier: i + 1,

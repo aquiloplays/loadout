@@ -164,25 +164,30 @@ async function loadHandler(platform) {
   }
 }
 
-// ── Patreon-tier read for §13 / §7 premium pass multiplier ──────
+// ── Patreon presence check (single-tier, patron / non-patron) ───
 //
-// Reads the existing patreon:tier:<userId> record (set by the
-// existing Patreon link flow in ext-patreon-link.js). Returns the
-// tier slug ('spark' | 'bolt' | 'voltaic' | 'eagle' | null).
+// Clay corrected 2026-05-22 PM: there is only ONE Patreon tier in
+// the supported configuration, so premium is all-or-nothing. We
+// consult the existing patreon:tier:<userId> record (set by the
+// existing ext-patreon-link.js OAuth flow) as a presence check
+// only — the stored value doesn't matter, just whether the record
+// exists.
 
-export async function readPatreonTier(env, userId) {
+export async function isPatron(env, userId) {
   try {
     const raw = await env.LOADOUT_BOLTS.get(`patreon:tier:${userId}`, { type: 'json' });
-    return raw?.tier || null;
-  } catch { return null; }
+    return !!raw;
+  } catch { return false; }
 }
 
+// Back-compat shims for callers that imported the old names. Both
+// collapse to the single boolean now — keeping the exports avoids
+// churning the season.js call sites while we transition.
+export async function readPatreonTier(env, userId) {
+  return (await isPatron(env, userId)) ? 'patron' : null;
+}
 export function patreonRewardMultiplier(tier) {
-  switch (tier) {
-    case 'eagle':   return 2.0;
-    case 'voltaic': return 1.5;
-    case 'bolt':    return 1.25;
-    case 'spark':   return 1.0;
-    default:        return 0;     // no patreon — premium track locked
-  }
+  // Multipliers retired with Clay's correction. Patron = 1× (premium
+  // unlocked, rewards verbatim); non-patron = 0 (locked).
+  return tier ? 1.0 : 0;
 }

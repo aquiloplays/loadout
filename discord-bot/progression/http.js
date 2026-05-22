@@ -92,7 +92,7 @@ function renderProfileHtml(full) {
     const tierPct = Math.round((sUser.tier / sActive.tierCount) * 100);
     const daysLeft = Math.max(0, Math.ceil((sActive.endUtc - Date.now()) / 86400_000));
     const premiumBlurb = sUser.premiumUnlocked
-      ? `<span class="ach r-epic">Premium ${sUser.premiumMult}×</span>`
+      ? `<span class="ach r-epic">Premium unlocked (Patreon)</span>`
       : `<span class="muted">Premium track locked — link Patreon to unlock.</span>`;
     return `<div class="seasonwrap">
       <h3>Season: ${escapeHtml(sActive.theme)} <span class="muted">${daysLeft}d left</span></h3>
