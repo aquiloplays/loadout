@@ -133,12 +133,23 @@ async function syncCooldowns(env, guildId, userId) {
         }
         if (item.kind === 'newBuilding' && item.target?.kind) {
           const newId = Math.max(...town.buildings.map(b => b.id)) + 1;
-          const place = item.target.kind === 'wall'
-            ? findFreeTile(town.buildings, 4, 4, 12, 12, 'wall')
-            : findFreeTile(town.buildings, 4, 4, 12, 12, 'tower');
+          // E5: if the layout editor pinned a position (target.x/y),
+          // use it; otherwise fall back to the legacy first-free-tile
+          // placement. Out-of-range hints get re-snapped to free tile.
+          let placeX, placeY;
+          if (Number.isInteger(item.target.x) && Number.isInteger(item.target.y) &&
+              item.target.x >= 0 && item.target.x < 24 && item.target.y >= 0 && item.target.y < 24) {
+            placeX = item.target.x;
+            placeY = item.target.y;
+          } else {
+            const fallback = item.target.kind === 'wall'
+              ? findFreeTile(town.buildings, 4, 4, 12, 12, 'wall')
+              : findFreeTile(town.buildings, 4, 4, 12, 12, 'tower');
+            placeX = fallback.x; placeY = fallback.y;
+          }
           town.buildings.push({
             id: newId, kind: item.target.kind, level: 1,
-            x: place.x, y: place.y,
+            x: placeX, y: placeY,
             hp: BUILDINGS[item.target.kind]?.hp?.[1] || 200,
             status: 'idle',
           });
@@ -1538,6 +1549,24 @@ export async function _editorTownGarrison(env, guildId, userId, troopId, count) 
 }
 export async function _editorDonate(env, guildId, userId, amount) {
   return handleDonate(env, guildId, userId, amount);
+}
+
+// E5: layout-editor write path. The web editor POSTs the full proposed
+// layout (a list of {id, kind, x, y, level} for existing buildings +
+// {kind, x, y, level:1} for new placements). Same auth + mod-gate as
+// /clash town build; validation lives in clash-layout.js so it can
+// run server-side without the slash interaction surface.
+export async function _editorTownLayout(env, guildId, userId, layout) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return { ok: false, errors: ['forbidden:not-mod-or-streamer'] };
+  }
+  await syncCooldowns(env, guildId, userId);
+  const town = await getTown(env, guildId);
+  if (!town) return { ok: false, errors: ['no-town'] };
+  const { validateLayoutUpdate, applyLayoutUpdate } = await import('./clash-layout.js');
+  const validated = validateLayoutUpdate(town, layout);
+  if (!validated.ok) return { ok: false, errors: validated.errors };
+  return applyLayoutUpdate(env, guildId, town, validated);
 }
 
 export async function recordWarRaidIfAny(env, attackerHomeGuildId, targetGuildId, raidId, stars) {
