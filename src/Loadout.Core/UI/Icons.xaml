@@ -18,6 +18,13 @@
         For a tab header that pairs an icon with text, see
         <SidebarTabIcon> in Styles.xaml — it composes both into a clean
         horizontal stack.
+
+        A8 (glossy campaign): an `IconGlossy` style + per-rarity
+        gradient brushes (Brush.Gloss.*) sit below for premium UI
+        callouts that want the App-Store / Clash-icon idiom —
+        sidebar header wordmark, celebration toasts, hero stats
+        panel headlines. Same path geometries; richer render. The
+        standard monoline Icon style still does 99% of the chrome.
     -->
 
     <!-- ============== Default icon style ==================================
@@ -55,6 +62,98 @@
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="UseLayoutRounding" Value="True" />
         <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- ============== Glossy filled icons (A8) ============================
+         Premium gradient-filled icon style for headline UI callouts: the
+         primary brand bolt on the sidebar header, a streak badge over a
+         user avatar, a "level up" celebration toast, etc.
+
+         The standard monoline `Icon` style still does 99% of the UI work
+         — these glossy variants exist purely for moments that want to
+         pay off visually. Same path geometries are reused; just a richer
+         render style.
+
+         Use:
+             <Path Style="{StaticResource IconGlossy}"
+                   Fill="{StaticResource Brush.Gloss.Bolt}"
+                   Data="{StaticResource IconGeo.Bolts}" />
+
+         For a quick-and-clean wrap that adds the drop-shadow:
+             <Path Style="{StaticResource IconGlossyDropShadow}"
+                   Fill="{StaticResource Brush.Gloss.Gold}"
+                   Data="{StaticResource IconGeo.Trophy}" />
+    -->
+
+    <!-- Gradient brushes — match the glossy art kit palette (see
+         tools/glossy-art-kit.mjs PALETTE) so DLL chrome reads in the
+         same colour family as the web/Discord assets. -->
+
+    <LinearGradientBrush x:Key="Brush.Gloss.Bolt" StartPoint="0.2,0.0" EndPoint="0.8,1.0">
+        <GradientStop Offset="0.0"  Color="#9A82FF"/>
+        <GradientStop Offset="0.55" Color="#7C5CFF"/>
+        <GradientStop Offset="1.0"  Color="#5BFF95"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.Gloss.Gold" StartPoint="0.2,0.0" EndPoint="0.8,1.0">
+        <GradientStop Offset="0.0"  Color="#FFD970"/>
+        <GradientStop Offset="0.55" Color="#E5AC1F"/>
+        <GradientStop Offset="1.0"  Color="#9F7505"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.Gloss.Ruby" StartPoint="0.2,0.0" EndPoint="0.8,1.0">
+        <GradientStop Offset="0.0"  Color="#FF7A8C"/>
+        <GradientStop Offset="0.55" Color="#D62E48"/>
+        <GradientStop Offset="1.0"  Color="#8C1428"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.Gloss.Emerald" StartPoint="0.2,0.0" EndPoint="0.8,1.0">
+        <GradientStop Offset="0.0"  Color="#5BDD96"/>
+        <GradientStop Offset="0.55" Color="#1FA561"/>
+        <GradientStop Offset="1.0"  Color="#0E6C3D"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.Gloss.Sapphire" StartPoint="0.2,0.0" EndPoint="0.8,1.0">
+        <GradientStop Offset="0.0"  Color="#5A9EF7"/>
+        <GradientStop Offset="0.55" Color="#235FCB"/>
+        <GradientStop Offset="1.0"  Color="#103480"/>
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Brush.Gloss.Amethyst" StartPoint="0.2,0.0" EndPoint="0.8,1.0">
+        <GradientStop Offset="0.0"  Color="#B581FF"/>
+        <GradientStop Offset="0.55" Color="#7E47D6"/>
+        <GradientStop Offset="1.0"  Color="#4C2289"/>
+    </LinearGradientBrush>
+
+    <!-- Glossy icon style. Filled (no stroke), gradient brush per
+         caller, larger default size (20 vs 16) because filled
+         shapes read smaller than monoline at the same pixel size.
+         The dark contour stroke gives the inked-game-icon look. -->
+    <Style x:Key="IconGlossy" TargetType="Path">
+        <Setter Property="Fill" Value="{StaticResource Brush.Gloss.Bolt}" />
+        <Setter Property="Stroke" Value="#0A0D14" />
+        <Setter Property="StrokeThickness" Value="1.2" />
+        <Setter Property="StrokeLineJoin" Value="Round" />
+        <Setter Property="Width"  Value="20" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="Stretch" Value="Uniform" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="UseLayoutRounding"  Value="True" />
+        <Setter Property="VerticalAlignment"   Value="Center" />
+    </Style>
+
+    <!-- IconGlossy + soft drop shadow. Use for a single hero
+         element per surface (the wordmark bolt, a celebration
+         pop). Don't apply to every icon — DropShadowEffect is
+         expensive and the screen reads cluttered if every glyph
+         has one. -->
+    <Style x:Key="IconGlossyDropShadow" TargetType="Path" BasedOn="{StaticResource IconGlossy}">
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="6" ShadowDepth="2" Direction="270"
+                                  Color="#000000" Opacity="0.55"/>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <!-- ============== Sidebar / tab icons ================================= -->
