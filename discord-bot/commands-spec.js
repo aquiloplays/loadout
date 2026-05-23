@@ -756,6 +756,7 @@ export const COMMANDS = [
         ],
       },
       { type: TYPE_SUBCOMMAND, name: 'release', description: 'Release your pet (24h cooldown before re-adopting)' },
+      { type: TYPE_SUBCOMMAND, name: 'collect', description: 'Collect rewards your pet has brought back (auto-accrues every 4-8h)' },
     ],
   },
   {

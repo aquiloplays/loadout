@@ -294,6 +294,177 @@ export async function patreonTierFor(env, guildId, userId) {
   return patreonTierFromWallet(w);
 }
 
+// ── I2: Pet deliveries (random rewards over time) ───────────────
+//
+// Pets passively earn "deliveries" — small surprise drops the player
+// collects. Cadence is mood-aware: a happy pet brings something
+// every 4 h, a sad pet only every 8 h. Up to PET_DELIVERY_CAP
+// deliveries can stack while the player is away (≈ 2 days at the
+// fast rate). One claim collects all pending and rolls a reward for
+// each.
+//
+// Drop table (per delivery, weighted):
+//   bolts-small      40%  20–50 bolts
+//   clash-material   20%  50–200 wood/stone/iron/scrap
+//   bolts-medium     12%  60–160 bolts
+//   fragments        10%  6–15 Boltbound fragments
+//   bolts-large       7%  180–400 bolts
+//   pack-common       5%  one common Boltbound pack
+//   cores             3%  1–3 Clash cores
+//   pack-rare         2%  one rare Boltbound pack
+//   gear-seed         1%  hero gear-rarity seed (logged for now)
+//
+// All rewards land in the same systems other features write to —
+// no new currencies, no separate inventory. The player just gets a
+// nice little pile of stuff when they /pet collect.
+
+const PET_DELIVERY_MS_HAPPY = 4 * 3_600_000;   // 4 h when mood ≥ content
+const PET_DELIVERY_MS_SAD   = 8 * 3_600_000;   // 8 h when sad
+const PET_DELIVERY_CAP      = 12;              // 48 h at fast rate
+
+export function pendingDeliveriesFor(pet, now = Date.now()) {
+  if (!pet) return { count: 0, nextInMs: null };
+  const mood = computeMood(pet);
+  const intervalMs = (mood?.avg || 0) >= 50 ? PET_DELIVERY_MS_HAPPY : PET_DELIVERY_MS_SAD;
+  const last = pet.lastDeliveryUtc || pet.adoptedUtc || now;
+  const elapsed = Math.max(0, now - last);
+  const count = Math.min(PET_DELIVERY_CAP, Math.floor(elapsed / intervalMs));
+  const consumed = count * intervalMs;
+  const nextInMs = count >= PET_DELIVERY_CAP ? 0 : (intervalMs - (elapsed - consumed));
+  return { count, nextInMs, intervalMs };
+}
+
+const DELIVERY_TABLE = [
+  { weight: 40, kind: 'bolts-small'    },
+  { weight: 20, kind: 'clash-material' },
+  { weight: 12, kind: 'bolts-medium'   },
+  { weight: 10, kind: 'fragments'      },
+  { weight:  7, kind: 'bolts-large'    },
+  { weight:  5, kind: 'pack-common'    },
+  { weight:  3, kind: 'cores'          },
+  { weight:  2, kind: 'pack-rare'      },
+  { weight:  1, kind: 'gear-seed'      },
+];
+
+function rollDeliveryKind(rand) {
+  const total = DELIVERY_TABLE.reduce((s, e) => s + e.weight, 0);
+  let r = rand() * total;
+  for (const entry of DELIVERY_TABLE) {
+    r -= entry.weight;
+    if (r <= 0) return entry.kind;
+  }
+  return DELIVERY_TABLE[0].kind;
+}
+
+function randInt(rand, lo, hi) { return lo + Math.floor(rand() * (hi - lo + 1)); }
+
+// Roll one delivery into a concrete reward shape. Pure — no KV writes.
+// The mutating side runs in claimPetDeliveries.
+function rollOneDelivery(rand) {
+  const kind = rollDeliveryKind(rand);
+  switch (kind) {
+    case 'bolts-small':  return { kind, bolts: randInt(rand, 20, 50) };
+    case 'bolts-medium': return { kind, bolts: randInt(rand, 60, 160) };
+    case 'bolts-large':  return { kind, bolts: randInt(rand, 180, 400) };
+    case 'clash-material': {
+      const mats = ['wood', 'stone', 'iron', 'scrap'];
+      const mat = mats[Math.floor(rand() * mats.length)];
+      return { kind, material: mat, amount: randInt(rand, 50, 200) };
+    }
+    case 'fragments': return { kind, fragments: randInt(rand, 6, 15) };
+    case 'pack-common': return { kind, packType: 'common' };
+    case 'pack-rare':   return { kind, packType: 'rare' };
+    case 'cores':       return { kind, cores: randInt(rand, 1, 3) };
+    case 'gear-seed':   return { kind, gearRarity: 'rare' };
+    default:            return { kind: 'bolts-small', bolts: 20 };
+  }
+}
+
+export async function claimPetDeliveries(env, guildId, userId) {
+  const pet = await getPet(env, guildId, userId);
+  if (!pet) return { ok: false, error: 'no-pet' };
+  const pending = pendingDeliveriesFor(pet);
+  if (pending.count <= 0) {
+    return {
+      ok: true,
+      claimed: 0,
+      rewards: [],
+      nextInMs: pending.nextInMs,
+      nextDeliveryUtc: Date.now() + (pending.nextInMs || 0),
+      petName: pet.name,
+    };
+  }
+  // Deterministic-ish PRNG seeded by pet + lastDeliveryUtc so a retry
+  // (e.g. KV write failure on a flaky network) doesn't double-issue
+  // a different set of rewards. Mulberry32-style scrambled seed.
+  let seed = ((pet.lastDeliveryUtc || pet.adoptedUtc || 1) ^ 0x9E3779B9) >>> 0;
+  const rand = () => {
+    seed = (seed + 0x6D2B79F5) >>> 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  const rewards = [];
+  for (let i = 0; i < pending.count; i++) rewards.push(rollOneDelivery(rand));
+
+  // Apply each reward through the canonical helper.
+  let totalBolts = 0;
+  const summary = { bolts: 0, materials: {}, fragments: 0, cores: 0, packs: [] };
+  for (const r of rewards) {
+    try {
+      if (r.bolts) {
+        totalBolts += r.bolts;
+        summary.bolts += r.bolts;
+      } else if (r.material) {
+        const { addResources } = await import('./clash-resources.js');
+        await addResources(env, guildId, { [r.material]: r.amount });
+        summary.materials[r.material] = (summary.materials[r.material] || 0) + r.amount;
+      } else if (r.cores) {
+        const { addResources } = await import('./clash-resources.js');
+        await addResources(env, guildId, { cores: r.cores });
+        summary.cores += r.cores;
+      } else if (r.fragments) {
+        const { addFragments } = await import('./cards-fragments.js');
+        await addFragments(env, userId, r.fragments, 'pet:delivery');
+        summary.fragments += r.fragments;
+      } else if (r.packType) {
+        const { creditPack } = await import('./cards-packs.js');
+        await creditPack(env, guildId, userId, r.packType, 'pet:delivery');
+        summary.packs.push(r.packType);
+      } else if (r.gearRarity) {
+        // Logged-only for now — gear seeding requires a hero context
+        // that the random-drop path doesn't have. Tracked as a future
+        // hook into dungeon.js shop rolls.
+        summary.gearSeed = r.gearRarity;
+      }
+    } catch (e) {
+      console.warn('[pet] delivery apply failed:', r.kind, e && e.message);
+    }
+  }
+  if (totalBolts > 0) {
+    await applyVaultDelta(env, guildId, userId, totalBolts, 'pet:delivery');
+  }
+
+  // Advance the lastDeliveryUtc by (count × interval) so leftover
+  // partial progress carries into the next cycle. Don't reset to
+  // Date.now() — that would silently discard up to 4 h of accrual on
+  // every claim.
+  pet.lastDeliveryUtc = (pet.lastDeliveryUtc || pet.adoptedUtc || Date.now())
+    + pending.count * pending.intervalMs;
+  await putPet(env, guildId, userId, pet);
+
+  return {
+    ok: true,
+    claimed: pending.count,
+    rewards,
+    summary,
+    nextInMs: pending.intervalMs,
+    nextDeliveryUtc: Date.now() + pending.intervalMs,
+    petName: pet.name,
+  };
+}
+
 // PROGRESSION (P2) — pet collection headline.
 export async function getStatsFor(env, userId, _guildId = null) {
   let tamed = 0;

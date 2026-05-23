@@ -43,6 +43,16 @@ function spriteBase(env) {
 // the full 500-sprite roster, well under the 128 MB isolate budget.
 const SPRITE_CACHE = new Map();
 
+// I1 (2026-05): asset version stamp. Appended as a query string to
+// every sprite fetch so we can bypass the Cloudflare Pages edge
+// cache when a new generator pass ships (the retro-RPG body sprite
+// rework in commit f0149af is the immediate trigger). Bump this
+// any time the build-sprites.ps1 output changes. The aquilo-site
+// repo still has to be manually re-vendored from aquilo-gg/sprites/
+// for the new files to exist at all on the Pages origin — this
+// version stamp only handles the CDN side once they're up.
+const SPRITE_ASSET_VERSION = 'v2-rpg';
+
 // Canvas size — pixel-perfect compose, all layers share these dims.
 // Phase-4 HD bar (64×80) replaces the original 40×56. character.js
 // only uses these for the blank-fallback dims; the actual sprite
@@ -52,9 +62,15 @@ const SPRITE_W = 64;
 const SPRITE_H = 80;
 
 async function fetchSprite(env, relPath) {
-  const url = spriteBase(env) + '/' + relPath.replace(/^\/+/, '');
+  const baseUrl = spriteBase(env) + '/' + relPath.replace(/^\/+/, '');
+  // Asset-version stamp busts Pages' edge cache when generator output
+  // changes. The Worker's in-memory cache key includes the version
+  // too so a deploy bumps the in-isolate decode cache automatically.
+  const url = baseUrl + '?av=' + encodeURIComponent(SPRITE_ASSET_VERSION);
   if (SPRITE_CACHE.has(url)) return SPRITE_CACHE.get(url);
-  const res = await fetch(url, { cf: { cacheTtl: 3600 } });
+  // 5-min CF cache (was 1h) — once the aquilo-site mirror updates,
+  // a stale layer cycles within minutes instead of an hour.
+  const res = await fetch(url, { cf: { cacheTtl: 300 } });
   if (!res.ok) return null;
   const buf = new Uint8Array(await res.arrayBuffer());
   let decoded;

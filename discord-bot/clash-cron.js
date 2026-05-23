@@ -90,6 +90,16 @@ export async function clashDailyCronTick(env, cronExpr) {
     console.warn('[clash-cron] challenge rotation failed:', e && e.message);
   }
 
+  // I4 — Expedition safety-net finalize. Players whose expedition
+  // window closed but didn't claim get their rewards landed at the
+  // next :23 tick. Cheap (only walks expedition:active:*).
+  try {
+    const { expeditionCronTick } = await import('./expedition.js');
+    await expeditionCronTick(env);
+  } catch (e) {
+    console.warn('[clash-cron] expedition tick failed:', e && e.message);
+  }
+
   // Wars: sweep ACTIVE wars and resolve any whose 24h window has
   // expired. Cheap — only walks the small clash:waractive:* index.
   const endedWars = await sweepActiveWars(env);

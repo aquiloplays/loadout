@@ -146,6 +146,15 @@ const ROUTES = new Set([
   'clash/layout',
   'clash/town',
   'clash/setup',
+  'pet/snapshot',
+  'pet/collect',
+  'expedition/status',
+  'expedition/start',
+  'expedition/claim',
+  'expedition/history',
+  'expedition/backpack/catalog',
+  'expedition/backpack/buy',
+  'expedition/backpack/supply',
   'character',
   'character/save',
   'character/class',
@@ -262,6 +271,13 @@ export async function handleWeb(req, env) {
     if (route === 'clash/layout')          return await routeClashLayout(env, guildId, discordId, body);
     if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);
     if (route === 'clash/setup')           return await routeClashSetup(env, guildId, discordId);
+    if (route === 'pet/snapshot')          return await routePetSnapshot(env, guildId, discordId);
+    if (route === 'pet/collect')           return await routePetCollect(env, guildId, discordId);
+    if (route.startsWith('expedition/')) {
+      const sub = route.slice('expedition/'.length);
+      const { handleExpeditionWeb } = await import('./expedition.js');
+      return await handleExpeditionWeb(env, guildId, discordId, body, sub);
+    }
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
     if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
     if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
@@ -649,40 +665,19 @@ async function routeShopBuy(env, guildId, userId, body) {
   });
 }
 
-// ── Dungeon skip-cooldown (Phase 4 — patron-gated) ────────────────────
+// ── Dungeon skip-cooldown ────────────────────────────────────────
 //
-// Patron-only at the moment. Any active aq_link session is treated
-// as "patron" (the cookie's `o:1` is the only stored flag; a proper
-// tier lookup belongs in a separate effort). Once per 10-min stream
-// cooldown per viewer, enforced by a webskip:<userId> TTL key.
+// I3 (2026-05): per-viewer cooldown removed. Dungeons only run while
+// Clay is live, so there's no rate-abuse vector — the 10-min
+// per-viewer lockout was friction without a purpose. The endpoint
+// now always queues a skip command for the DLL; PanelBridgeModule
+// stamps the trusted skip flag exactly as before.
 //
-// On success we enqueue the same relay:dll-pending record the panel's
-// /ext/dungeon/skip-cooldown writes, so the DLL processes web-side
-// skips identically to Bits-paid panel skips.
-
-const WEB_SKIP_TTL_S = 10 * 60; // 10 minutes
-const WEB_SKIP_KEY = (uid) => `webskip:${uid}`;
+// Bits + bolts payment paths (ext-panelbridge.js skipCooldown) are
+// unchanged — they're Twitch panel monetization SKUs, not part of
+// the website's web-skip flow.
 
 async function routeDungeonSkip(env, guildId, userId) {
-  // Allow-list check: prevent users without a Patreon tier from
-  // exhausting the cooldown skip every 10 minutes. Today we trust
-  // any linked Discord session (Clay's signed-off "Patron-gated"
-  // assumes the /link callback minted the cookie). TODO: tighten
-  // to active-tier check when Patreon tier lands in the session.
-  const recent = await env.LOADOUT_BOLTS.get(WEB_SKIP_KEY(userId));
-  if (recent) {
-    return json({
-      ok: false,
-      error: 'cooldown',
-      message: 'Already used your skip this cooldown.',
-    }, 429);
-  }
-  await env.LOADOUT_BOLTS.put(WEB_SKIP_KEY(userId), String(Date.now()), {
-    expirationTtl: WEB_SKIP_TTL_S,
-  });
-
-  // Enqueue the skip command for the DLL. Same shape ext-panelbridge
-  // uses; PanelBridgeModule stamps the trusted skip flag.
   const record = {
     kind: 'dungeon',
     action: 'skip',
@@ -692,7 +687,6 @@ async function routeDungeonSkip(env, guildId, userId) {
   };
   const key = 'relay:dll-pending:' + record.ts + '-' + Math.random().toString(36).slice(2, 8);
   await env.LOADOUT_BOLTS.put(key, JSON.stringify(record), { expirationTtl: 90 });
-
   return json({ ok: true, message: 'Cooldown skip queued. Watch the stream.' });
 }
 
@@ -1281,4 +1275,46 @@ async function routeCrash(env, guildId, userId, body) {
   applyRecap(env, guildId, userId, r);
   r.cooldownUntil = await cooldownTouch(env, userId);
   return json(r);
+}
+
+// ── /web/pet/snapshot ────────────────────────────────────────────
+//
+// Returns current pet state + pending-delivery preview. The website's
+// pet card uses this to show "deliveries waiting: N" and the
+// next-delivery countdown.
+async function routePetSnapshot(env, guildId, userId) {
+  const { getPet, computeMood, pendingDeliveriesFor } = await import('./pet.js');
+  const pet = await getPet(env, guildId, userId);
+  if (!pet) return json({ ok: true, pet: null });
+  const mood = computeMood(pet);
+  const pending = pendingDeliveriesFor(pet);
+  return json({
+    ok: true,
+    pet: {
+      species: pet.species,
+      colour: pet.colour,
+      name: pet.name,
+      adoptedUtc: pet.adoptedUtc,
+      mood,
+      lastDeliveryUtc: pet.lastDeliveryUtc || pet.adoptedUtc,
+    },
+    deliveries: {
+      pending: pending.count,
+      cap: 12,
+      intervalMs: pending.intervalMs,
+      nextInMs: pending.nextInMs,
+      nextDeliveryUtc: Date.now() + (pending.nextInMs || 0),
+    },
+  });
+}
+
+// ── /web/pet/collect ─────────────────────────────────────────────
+//
+// Claims all pending deliveries and returns the breakdown + the
+// fresh wallet snapshot. Empty result (claimed:0) is not an error —
+// the website can poll snapshot for the next-delivery timer.
+async function routePetCollect(env, guildId, userId) {
+  const { claimPetDeliveries } = await import('./pet.js');
+  const r = await claimPetDeliveries(env, guildId, userId);
+  return json(r, r.ok ? 200 : 400);
 }
