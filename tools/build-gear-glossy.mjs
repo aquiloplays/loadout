@@ -337,22 +337,42 @@ function shapeHelm(pal, accent) {
 }
 
 function shapeHood(pal, accent) {
+  // Hood draped AROUND the face — a horseshoe/U shape that opens at
+  // the front so the face stays visible. Width tighter than before
+  // (was a dome covering the entire head + ears + sides). The drape
+  // falls down behind the shoulders.
   return `
-<path d="M ${CX - 64} ${CY + 30}
-         Q ${CX - 70} ${CY - 20} ${CX - 30} ${CY - 60}
-         Q ${CX} ${CY - 72} ${CX + 30} ${CY - 60}
-         Q ${CX + 70} ${CY - 20} ${CX + 64} ${CY + 30}
-         L ${CX + 50} ${CY + 30}
-         Q ${CX} ${CY + 6} ${CX - 50} ${CY + 30} Z"
+<!-- back drape (behind head) -->
+<path d="M ${CX - 56} ${CY + 50}
+         Q ${CX - 62} ${CY + 10} ${CX - 56} ${CY - 30}
+         Q ${CX - 30} ${CY - 64} ${CX} ${CY - 66}
+         Q ${CX + 30} ${CY - 64} ${CX + 56} ${CY - 30}
+         Q ${CX + 62} ${CY + 10} ${CX + 56} ${CY + 50}
+         L ${CX + 40} ${CY + 50}
+         Q ${CX + 50} ${CY + 14} ${CX + 36} ${CY - 18}
+         Q ${CX + 12} ${CY - 36} ${CX} ${CY - 36}
+         Q ${CX - 12} ${CY - 36} ${CX - 36} ${CY - 18}
+         Q ${CX - 50} ${CY + 14} ${CX - 40} ${CY + 50} Z"
       fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
-<path d="M ${CX - 56} ${CY + 26} Q ${CX - 60} ${CY - 14} ${CX - 26} ${CY - 50} L ${CX - 14} ${CY - 46} Q ${CX - 38} ${CY - 8} ${CX - 32} ${CY + 26} Z"
-      fill="${PALETTE.white}" opacity="0.5"/>
-<!-- pointed tip -->
-<path d="M ${CX - 4} ${CY - 70} L ${CX + 14} ${CY - 86} L ${CX + 18} ${CY - 68} Z"
+<!-- hood lining (lighter, visible inside the face opening) -->
+<path d="M ${CX - 36} ${CY - 18}
+         Q ${CX} ${CY - 36} ${CX + 36} ${CY - 18}"
+      fill="none" stroke="${PALETTE[accent].hi}" stroke-width="3" opacity="0.85"/>
+<!-- shoulder cape — the drape falls to here -->
+<path d="M ${CX - 56} ${CY + 40} Q ${CX} ${CY + 56} ${CX + 56} ${CY + 40}"
+      fill="none" stroke="${PALETTE[pal].stroke}" stroke-width="2" opacity="0.6"/>
+<!-- gloss on left side of drape -->
+<path d="M ${CX - 52} ${CY + 40}
+         Q ${CX - 56} ${CY} ${CX - 46} ${CY - 30}
+         L ${CX - 38} ${CY - 26}
+         Q ${CX - 46} ${CY + 4} ${CX - 38} ${CY + 38} Z"
+      fill="${PALETTE.white}" opacity="0.35"/>
+<!-- pointed wizard tip (slightly back-leaning so it doesn't look like a snail's antenna) -->
+<path d="M ${CX - 6} ${CY - 60} Q ${CX + 8} ${CY - 84} ${CX + 18} ${CY - 70} L ${CX + 12} ${CY - 58} Z"
       fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
-<!-- accent trim -->
-<path d="M ${CX - 50} ${CY + 30} Q ${CX} ${CY + 6} ${CX + 50} ${CY + 30}"
-      fill="none" stroke="${PALETTE[accent].hi}" stroke-width="3"/>`;
+<!-- forehead trim -->
+<path d="M ${CX - 36} ${CY - 18} Q ${CX} ${CY - 28} ${CX + 36} ${CY - 18}"
+      fill="none" stroke="${PALETTE[accent].hi}" stroke-width="2" opacity="0.75"/>`;
 }
 
 function shapeCap(pal, accent) {
@@ -407,26 +427,70 @@ ${shapeTunic(pal, accent)}
 }
 
 function shapeRobe(pal, accent) {
+  // Proper wizard robe construction (not a cone):
+  //   • shoulder line + collar at top
+  //   • outer silhouette has SLEEVES that drop straight from the
+  //     shoulder, leaving the upper-arm visible OUTSIDE the robe
+  //   • cinched waist (sash, narrower than shoulders)
+  //   • A-line skirt flaring to the hem
+  //   • centre opening so the inner garment can show
   return `
-<path d="M ${CX - 70} ${CY + 76}
-         L ${CX - 50} ${CY - 30}
-         L ${CX - 30} ${CY - 60}
-         L ${CX + 30} ${CY - 60}
-         L ${CX + 50} ${CY - 30}
-         L ${CX + 70} ${CY + 76} Z"
-      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
-<!-- robe folds -->
-<g stroke="${PALETTE[pal].stroke}" stroke-width="2" opacity="0.6" fill="none">
-  <path d="M ${CX - 36} ${CY - 40} L ${CX - 28} ${CY + 70}"/>
-  <path d="M ${CX + 36} ${CY - 40} L ${CX + 28} ${CY + 70}"/>
-  <path d="M ${CX} ${CY - 50} L ${CX} ${CY + 74}"/>
+<!-- BACK / SKIRT — drapes down from shoulders, cinched at waist,
+     widens at hem. Not a single cone — built from shoulder yoke
+     down through narrow waist to flared skirt. -->
+<path d="M ${CX - 44} ${CY - 50}
+         Q ${CX - 50} ${CY - 30} ${CX - 38} ${CY - 14}
+         Q ${CX - 44} ${CY - 4} ${CX - 36} ${CY + 14}
+         Q ${CX - 56} ${CY + 50} ${CX - 60} ${CY + 76}
+         L ${CX + 60} ${CY + 76}
+         Q ${CX + 56} ${CY + 50} ${CX + 36} ${CY + 14}
+         Q ${CX + 44} ${CY - 4} ${CX + 38} ${CY - 14}
+         Q ${CX + 50} ${CY - 30} ${CX + 44} ${CY - 50}
+         Q ${CX + 26} ${CY - 56} ${CX} ${CY - 56}
+         Q ${CX - 26} ${CY - 56} ${CX - 44} ${CY - 50} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3.5" stroke-linejoin="round"/>
+
+<!-- SASH at the waist (cinches the robe in) -->
+<path d="M ${CX - 38} ${CY + 14}
+         Q ${CX} ${CY + 22} ${CX + 38} ${CY + 14}
+         L ${CX + 38} ${CY + 24}
+         Q ${CX} ${CY + 32} ${CX - 38} ${CY + 24} Z"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2.5" stroke-linejoin="round"/>
+<!-- sash highlight -->
+<path d="M ${CX - 38} ${CY + 16} Q ${CX} ${CY + 24} ${CX + 38} ${CY + 16}"
+      fill="none" stroke="${PALETTE[accent].hi}" stroke-width="1.2" opacity="0.85"/>
+
+<!-- CENTRE OPENING / front placket -->
+<path d="M ${CX} ${CY - 50} L ${CX} ${CY + 14}"
+      stroke="${PALETTE[pal].stroke}" stroke-width="1.5" opacity="0.7"/>
+<path d="M ${CX} ${CY + 32} L ${CX - 4} ${CY + 72} M ${CX} ${CY + 32} L ${CX + 4} ${CY + 72}"
+      stroke="${PALETTE[pal].stroke}" stroke-width="1.5" opacity="0.65"/>
+
+<!-- SKIRT FOLDS — radiating from waist to hem -->
+<g stroke="${PALETTE[pal].stroke}" stroke-width="1.4" opacity="0.55" fill="none">
+  <path d="M ${CX - 24} ${CY + 32} L ${CX - 36} ${CY + 72}"/>
+  <path d="M ${CX - 12} ${CY + 32} L ${CX - 20} ${CY + 72}"/>
+  <path d="M ${CX + 12} ${CY + 32} L ${CX + 20} ${CY + 72}"/>
+  <path d="M ${CX + 24} ${CY + 32} L ${CX + 36} ${CY + 72}"/>
 </g>
-<!-- collar trim -->
-<path d="M ${CX - 30} ${CY - 60} L ${CX} ${CY - 30} L ${CX + 30} ${CY - 60}"
-      fill="none" stroke="${PALETTE[accent].hi}" stroke-width="3"/>
-<!-- gloss -->
-<path d="M ${CX - 60} ${CY + 70} L ${CX - 44} ${CY - 26} L ${CX - 30} ${CY - 50} L ${CX - 20} ${CY - 30} L ${CX - 30} ${CY + 70} Z"
-      fill="${PALETTE.white}" opacity="0.4"/>`;
+
+<!-- HEM line at the bottom -->
+<path d="M ${CX - 58} ${CY + 74} Q ${CX} ${CY + 80} ${CX + 58} ${CY + 74}"
+      fill="none" stroke="${PALETTE[pal].stroke}" stroke-width="1.8" opacity="0.85"/>
+
+<!-- COLLAR — V-neckline with accent trim -->
+<path d="M ${CX - 26} ${CY - 54} L ${CX - 4} ${CY - 30}
+         L ${CX + 4} ${CY - 30} L ${CX + 26} ${CY - 54}"
+      fill="none" stroke="${PALETTE[accent].hi}" stroke-width="3" stroke-linejoin="round"/>
+<path d="M ${CX - 22} ${CY - 54} L ${CX} ${CY - 28} L ${CX + 22} ${CY - 54} Z"
+      fill="${PALETTE[pal].lo}" stroke="${PALETTE[pal].stroke}" stroke-width="1.5"/>
+
+<!-- GLOSS on the left side -->
+<path d="M ${CX - 38} ${CY - 14}
+         Q ${CX - 50} ${CY + 10} ${CX - 38} ${CY + 30}
+         L ${CX - 26} ${CY + 30}
+         Q ${CX - 38} ${CY + 8} ${CX - 26} ${CY - 18} Z"
+      fill="${PALETTE.white}" opacity="0.35"/>`;
 }
 
 function shapeTrousers(pal, accent) {

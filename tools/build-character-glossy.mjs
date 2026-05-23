@@ -66,11 +66,12 @@ const WAIST_Y    = 118;                               // hips/waist
 const KNEE_Y     = 138;
 const FOOT_Y     = 154;                               // soles touch here
 // Arms: hands sit clearly BELOW the waist tunic line, so they always
-// show on top of clothing/gear. ±30 from cx keeps them outside the
-// torso silhouette no matter the body type.
-const HAND_Y     = 128;
-const HAND_R     = 8;
-const HAND_OFFSET_X = 30;
+// show on top of clothing/gear. ±32 from cx keeps them outside the
+// torso silhouette no matter the body type. HAND_R bumped 8→10 so
+// the fist reads as a hand, not a bump on the wrist.
+const HAND_Y     = 130;
+const HAND_R     = 10;
+const HAND_OFFSET_X = 32;
 
 // ── Skin tone palette ───────────────────────────────────────────
 //
@@ -139,153 +140,220 @@ function skinDefs(skin) {
 
 // ── Body shape ──────────────────────────────────────────────────
 //
-// Premium game-icon hero. Big head, defined shoulders + waist,
-// visible hands at the sides, visible feet at the bottom. Slim
-// vs stocky changes the torso/hip width + slightly the shoulder
-// breadth; head proportions stay constant so the figure reads as
-// the same character regardless of body type.
+// Premium mobile-RPG hero. Built like a real figure, not segmented
+// pieces:
+//
+//   • One CONTINUOUS arm path per side — shoulder cap → upper-arm
+//     bulge → elbow taper → forearm → wrist → hand. No visible bolt
+//     joints (the prior pass had shoulder + elbow as separate
+//     circles which read as a wooden mannequin).
+//   • Torso with a real construction: trapezoid shoulder yoke,
+//     pectoral hint, narrow waist, slight hip flare.
+//   • Neck integrates head with torso via a wider base + trapezius
+//     shading on both sides, so the head doesn't look pasted on.
+//   • Legs: thigh → knee → calf → foot, with a stance gap.
+//   • Stocky = +30 % shoulder/torso/limb mass with same head + neck
+//     so both body types read as the same character.
 
 function bodyShape(type, skin) {
   const cx = 64;
-  // Shoulder line is wider than the waist — classic upper-body
-  // taper. Stocky pushes both wider.
-  const shoulderHalf = type === 'stocky' ? 25 : 21;
-  const waistHalf    = type === 'stocky' ? 21 : 17;
+  const stocky = type === 'stocky';
+  // Torso dimensions
+  const shoulderHalf = stocky ? 26 : 22;
+  const waistHalf    = stocky ? 19 : 16;
+  const hipHalf      = stocky ? 22 : 18;
   const leftShoulderX  = cx - shoulderHalf;
   const rightShoulderX = cx + shoulderHalf;
   const leftWaistX     = cx - waistHalf;
   const rightWaistX    = cx + waistHalf;
-  // Feet wedge — visible at the bottom even without boots so a
-  // bare hero doesn't look legless under the tunic.
-  const footW = type === 'stocky' ? 18 : 16;
-  // Arm geometry: shoulders, elbows, hands. Capsule shape with an
-  // explicit elbow + a big rounded hand circle. The hand circle sits
-  // *outside* every tunic/cloak silhouette so the figure always reads
-  // as having visible hands.
-  const armUpperW = type === 'stocky' ? 13 : 11;
-  const armForeW  = type === 'stocky' ? 11 : 9;
-  const shoulderJointR = type === 'stocky' ? 8 : 7;
-  // Hands hang well outside the torso. ±HAND_OFFSET_X from cx, well
-  // below the tunic-waist line so the tunic never covers them.
+  const leftHipX       = cx - hipHalf;
+  const rightHipX      = cx + hipHalf;
+  // Arms — continuous capsule with a bicep bulge mid-upper-arm and
+  // a forearm taper to the wrist. armOuterTop is where the shoulder
+  // cap apex sits; armElbowX is the outer bulge of the elbow joint.
+  const armOuterTop = stocky ? 6 : 5;       // shoulder cap reaches this far OUT past shoulderHalf
+  const armBicepW   = stocky ? 12 : 10;     // upper-arm thickness
+  const armForeW    = stocky ? 10 : 8;      // forearm thickness
+  const ELBOW_Y     = SHOULDER_Y + 26;
+  // Hands sit clearly outside any tunic line.
   const leftHandX  = cx - HAND_OFFSET_X;
   const rightHandX = cx + HAND_OFFSET_X;
-  // Upper-arm slopes from shoulder ball outward to elbow; forearm
-  // slopes back inward to the hand — gives the figure a relaxed pose
-  // rather than stick-straight arms.
-  const ELBOW_Y    = SHOULDER_Y + 24;
-  const leftElbowX  = leftShoulderX  - 6;
-  const rightElbowX = rightShoulderX + 6;
+  // Legs
+  const thighOuterX = stocky ? 11 : 9;       // half-width at thigh
+  const kneeOuterX  = stocky ? 8  : 7;
+  const ankleOuterX = stocky ? 6  : 5;
+  const footW = stocky ? 20 : 18;
+  // Neck
+  const neckHalfBase = stocky ? 11 : 10;     // wide at the trap line
+  const neckHalfTop  = stocky ? 8  : 7;      // narrower under the chin
+  const NECK_TOP_Y   = HEAD_CY + HEAD_R - 6;
+  const NECK_BASE_Y  = SHOULDER_Y - 1;
   return `
-${contactShadow({ cx: 64, cy: 158, rx: 38, ry: 6 })}
+${contactShadow({ cx: 64, cy: 158, rx: 40, ry: 6 })}
 
-<!-- ── ARMS ── shoulder ball → upper arm → elbow → forearm → hand
-     circle. Drawn BEFORE the torso so the torso paints over the
-     shoulder joint cleanly. Hands sit clear of any tunic line. -->
-<!-- left upper arm (shoulder → elbow) -->
-<path d="M ${leftShoulderX - armUpperW/2} ${SHOULDER_Y}
-         L ${leftShoulderX + armUpperW/2} ${SHOULDER_Y}
-         L ${leftElbowX + armForeW/2 + 1} ${ELBOW_Y}
-         L ${leftElbowX - armForeW/2 - 1} ${ELBOW_Y} Z"
+<!-- ── ARMS ── one continuous skin path per side. Shoulder cap →
+     bicep bulge → elbow taper → forearm → wrist → hand circle.
+     The path is drawn BEFORE the torso so the inner-shoulder seam
+     blends cleanly when the torso paints over it. -->
+
+<!-- LEFT arm — continuous outer + inner curve, hand merges at bottom -->
+<path d="M ${leftShoulderX + 2}                      ${SHOULDER_Y - 4}
+         Q ${leftShoulderX - armOuterTop - 1}        ${SHOULDER_Y - 1}
+           ${leftShoulderX - armOuterTop}            ${SHOULDER_Y + 6}
+         Q ${leftShoulderX - armOuterTop - 1}        ${SHOULDER_Y + armBicepW + 4}
+           ${leftShoulderX - armOuterTop + 1}        ${ELBOW_Y - 2}
+         Q ${leftShoulderX - armOuterTop + 2}        ${ELBOW_Y + 2}
+           ${leftHandX - armForeW/2 + 1}             ${HAND_Y - HAND_R - 2}
+         Q ${leftHandX - HAND_R}                     ${HAND_Y - HAND_R}
+           ${leftHandX - HAND_R - 1}                 ${HAND_Y}
+         Q ${leftHandX - HAND_R}                     ${HAND_Y + HAND_R}
+           ${leftHandX}                              ${HAND_Y + HAND_R + 1}
+         Q ${leftHandX + HAND_R}                     ${HAND_Y + HAND_R}
+           ${leftHandX + HAND_R + 1}                 ${HAND_Y}
+         Q ${leftHandX + HAND_R}                     ${HAND_Y - HAND_R}
+           ${leftHandX + armForeW/2 + 1}             ${HAND_Y - HAND_R - 2}
+         Q ${leftShoulderX - 1}                      ${ELBOW_Y - 4}
+           ${leftShoulderX + 4}                      ${SHOULDER_Y + 2} Z"
       fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
-<!-- left forearm (elbow → hand) -->
-<path d="M ${leftElbowX - armForeW/2 - 1} ${ELBOW_Y}
-         L ${leftElbowX + armForeW/2 + 1} ${ELBOW_Y}
-         L ${leftHandX + armForeW/2} ${HAND_Y - HAND_R + 2}
-         L ${leftHandX - armForeW/2} ${HAND_Y - HAND_R + 2} Z"
+<!-- left bicep highlight (subtle gloss on outer upper-arm) -->
+<path d="M ${leftShoulderX - armOuterTop + 1} ${SHOULDER_Y + 4}
+         Q ${leftShoulderX - armOuterTop - 1} ${SHOULDER_Y + 14}
+           ${leftShoulderX - armOuterTop + 1} ${ELBOW_Y - 6}"
+      fill="none" stroke="${skin.hi}" stroke-width="2" opacity="0.55" stroke-linecap="round"/>
+<!-- left knuckle hint -->
+<path d="M ${leftHandX - 4} ${HAND_Y + HAND_R - 1} Q ${leftHandX} ${HAND_Y + HAND_R + 1} ${leftHandX + 4} ${HAND_Y + HAND_R - 1}"
+      fill="none" stroke="${skin.stroke}" stroke-width="0.9" opacity="0.55"/>
+
+<!-- RIGHT arm — mirror of the left -->
+<path d="M ${rightShoulderX - 2}                      ${SHOULDER_Y - 4}
+         Q ${rightShoulderX + armOuterTop + 1}        ${SHOULDER_Y - 1}
+           ${rightShoulderX + armOuterTop}            ${SHOULDER_Y + 6}
+         Q ${rightShoulderX + armOuterTop + 1}        ${SHOULDER_Y + armBicepW + 4}
+           ${rightShoulderX + armOuterTop - 1}        ${ELBOW_Y - 2}
+         Q ${rightShoulderX + armOuterTop - 2}        ${ELBOW_Y + 2}
+           ${rightHandX + armForeW/2 - 1}             ${HAND_Y - HAND_R - 2}
+         Q ${rightHandX + HAND_R}                     ${HAND_Y - HAND_R}
+           ${rightHandX + HAND_R + 1}                 ${HAND_Y}
+         Q ${rightHandX + HAND_R}                     ${HAND_Y + HAND_R}
+           ${rightHandX}                              ${HAND_Y + HAND_R + 1}
+         Q ${rightHandX - HAND_R}                     ${HAND_Y + HAND_R}
+           ${rightHandX - HAND_R - 1}                 ${HAND_Y}
+         Q ${rightHandX - HAND_R}                     ${HAND_Y - HAND_R}
+           ${rightHandX - armForeW/2 - 1}             ${HAND_Y - HAND_R - 2}
+         Q ${rightShoulderX + 1}                      ${ELBOW_Y - 4}
+           ${rightShoulderX - 4}                      ${SHOULDER_Y + 2} Z"
       fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
-<!-- left shoulder ball + hand ball (drawn as explicit circles so
-     they always read at 128-px) -->
-<circle cx="${leftShoulderX}" cy="${SHOULDER_Y + 2}" r="${shoulderJointR}"
-        fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="2.5"/>
-<circle cx="${leftHandX}" cy="${HAND_Y}" r="${HAND_R}"
-        fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="2.5"/>
-<!-- knuckle hint on the hand -->
-<path d="M ${leftHandX - 4} ${HAND_Y + 3} Q ${leftHandX} ${HAND_Y + 5} ${leftHandX + 4} ${HAND_Y + 3}"
-      fill="none" stroke="${skin.stroke}" stroke-width="1" opacity="0.55"/>
+<path d="M ${rightShoulderX + armOuterTop - 1} ${SHOULDER_Y + 4}
+         Q ${rightShoulderX + armOuterTop + 1} ${SHOULDER_Y + 14}
+           ${rightShoulderX + armOuterTop - 1} ${ELBOW_Y - 6}"
+      fill="none" stroke="${skin.hi}" stroke-width="2" opacity="0.55" stroke-linecap="round"/>
+<path d="M ${rightHandX - 4} ${HAND_Y + HAND_R - 1} Q ${rightHandX} ${HAND_Y + HAND_R + 1} ${rightHandX + 4} ${HAND_Y + HAND_R - 1}"
+      fill="none" stroke="${skin.stroke}" stroke-width="0.9" opacity="0.55"/>
 
-<!-- right upper arm -->
-<path d="M ${rightShoulderX - armUpperW/2} ${SHOULDER_Y}
-         L ${rightShoulderX + armUpperW/2} ${SHOULDER_Y}
-         L ${rightElbowX + armForeW/2 + 1} ${ELBOW_Y}
-         L ${rightElbowX - armForeW/2 - 1} ${ELBOW_Y} Z"
+<!-- ── TORSO ── trapezoid shoulder yoke → narrow waist → slight hip
+     flare. Drawn AFTER arms so the inner shoulder edge paints
+     cleanly over the arm's inner curve. -->
+<path d="M ${leftShoulderX} ${SHOULDER_Y + 2}
+         Q ${leftShoulderX - 1} ${SHOULDER_Y - 6} ${leftShoulderX + 5} ${SHOULDER_Y - 7}
+         L ${rightShoulderX - 5} ${SHOULDER_Y - 7}
+         Q ${rightShoulderX + 1} ${SHOULDER_Y - 6} ${rightShoulderX} ${SHOULDER_Y + 2}
+         Q ${rightShoulderX - 4} ${SHOULDER_Y + 18} ${rightWaistX} ${WAIST_Y - 6}
+         Q ${rightWaistX + 1} ${WAIST_Y - 1} ${rightHipX} ${WAIST_Y + 6}
+         Q ${rightHipX - 4} ${WAIST_Y + 8} ${rightHipX - 5} ${WAIST_Y + 8}
+         L ${leftHipX + 5} ${WAIST_Y + 8}
+         Q ${leftHipX + 4} ${WAIST_Y + 8} ${leftHipX} ${WAIST_Y + 6}
+         Q ${leftWaistX - 1} ${WAIST_Y - 1} ${leftWaistX} ${WAIST_Y - 6}
+         Q ${leftShoulderX + 4} ${SHOULDER_Y + 18} ${leftShoulderX} ${SHOULDER_Y + 2} Z"
+      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2.8" stroke-linejoin="round"/>
+<!-- pectoral hint — soft V shadow over the upper torso -->
+<path d="M ${cx - 14} ${SHOULDER_Y + 2} Q ${cx} ${SHOULDER_Y + 10} ${cx + 14} ${SHOULDER_Y + 2}"
+      fill="none" stroke="${skin.lo}" stroke-width="1.4" opacity="0.45"/>
+<!-- centre sternum line -->
+<path d="M ${cx} ${SHOULDER_Y + 4} L ${cx} ${WAIST_Y - 4}"
+      fill="none" stroke="${skin.lo}" stroke-width="0.8" opacity="0.35"/>
+<!-- waist side shadow — adds taper depth -->
+<path d="M ${leftWaistX + 1} ${WAIST_Y - 4} Q ${leftWaistX - 1} ${WAIST_Y + 2} ${leftHipX + 2} ${WAIST_Y + 6}"
+      fill="none" stroke="${skin.lo}" stroke-width="1.5" opacity="0.45"/>
+<path d="M ${rightWaistX - 1} ${WAIST_Y - 4} Q ${rightWaistX + 1} ${WAIST_Y + 2} ${rightHipX - 2} ${WAIST_Y + 6}"
+      fill="none" stroke="${skin.lo}" stroke-width="1.5" opacity="0.45"/>
+
+<!-- ── LEGS ── thigh → knee → calf → foot, slight stance gap.
+     Each leg is a single curved path with knee + calf inflexion
+     so it reads as anatomy, not a rectangle. -->
+<!-- LEFT leg -->
+<path d="M ${cx - 2} ${WAIST_Y + 6}
+         L ${cx - thighOuterX} ${WAIST_Y + 8}
+         Q ${cx - thighOuterX - 1} ${KNEE_Y - 8} ${cx - kneeOuterX} ${KNEE_Y}
+         Q ${cx - kneeOuterX - 1} ${KNEE_Y + 6} ${cx - ankleOuterX} ${FOOT_Y - 6}
+         L ${cx - 2} ${FOOT_Y - 4}
+         L ${cx - 2} ${WAIST_Y + 6} Z"
       fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
-<!-- right forearm -->
-<path d="M ${rightElbowX - armForeW/2 - 1} ${ELBOW_Y}
-         L ${rightElbowX + armForeW/2 + 1} ${ELBOW_Y}
-         L ${rightHandX + armForeW/2} ${HAND_Y - HAND_R + 2}
-         L ${rightHandX - armForeW/2} ${HAND_Y - HAND_R + 2} Z"
+<!-- LEFT thigh highlight -->
+<path d="M ${cx - thighOuterX + 2} ${WAIST_Y + 14} Q ${cx - kneeOuterX} ${KNEE_Y - 6} ${cx - ankleOuterX + 1} ${FOOT_Y - 10}"
+      fill="none" stroke="${skin.hi}" stroke-width="1.6" opacity="0.4" stroke-linecap="round"/>
+
+<!-- RIGHT leg -->
+<path d="M ${cx + 2} ${WAIST_Y + 6}
+         L ${cx + thighOuterX} ${WAIST_Y + 8}
+         Q ${cx + thighOuterX + 1} ${KNEE_Y - 8} ${cx + kneeOuterX} ${KNEE_Y}
+         Q ${cx + kneeOuterX + 1} ${KNEE_Y + 6} ${cx + ankleOuterX} ${FOOT_Y - 6}
+         L ${cx + 2} ${FOOT_Y - 4}
+         L ${cx + 2} ${WAIST_Y + 6} Z"
       fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
-<circle cx="${rightShoulderX}" cy="${SHOULDER_Y + 2}" r="${shoulderJointR}"
-        fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="2.5"/>
-<circle cx="${rightHandX}" cy="${HAND_Y}" r="${HAND_R}"
-        fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="2.5"/>
-<path d="M ${rightHandX - 4} ${HAND_Y + 3} Q ${rightHandX} ${HAND_Y + 5} ${rightHandX + 4} ${HAND_Y + 3}"
-      fill="none" stroke="${skin.stroke}" stroke-width="1" opacity="0.55"/>
+<path d="M ${cx + thighOuterX - 2} ${WAIST_Y + 14} Q ${cx + kneeOuterX} ${KNEE_Y - 6} ${cx + ankleOuterX - 1} ${FOOT_Y - 10}"
+      fill="none" stroke="${skin.hi}" stroke-width="1.6" opacity="0.4" stroke-linecap="round"/>
 
-<!-- ── TORSO ── tapered: wider shoulders → narrower waist. Drawn
-     AFTER arms so the shoulder ball seam at the inner edge looks
-     clean. -->
-<path d="M ${leftShoulderX} ${SHOULDER_Y}
-         Q ${leftShoulderX + 2} ${SHOULDER_Y - 4} ${leftShoulderX + 6} ${SHOULDER_Y - 5}
-         L ${rightShoulderX - 6} ${SHOULDER_Y - 5}
-         Q ${rightShoulderX - 2} ${SHOULDER_Y - 4} ${rightShoulderX} ${SHOULDER_Y}
-         L ${rightWaistX} ${WAIST_Y}
-         Q ${rightWaistX - 2} ${WAIST_Y + 4} ${rightWaistX - 5} ${WAIST_Y + 4}
-         L ${leftWaistX + 5} ${WAIST_Y + 4}
-         Q ${leftWaistX + 2} ${WAIST_Y + 4} ${leftWaistX} ${WAIST_Y} Z"
-      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="3" stroke-linejoin="round"/>
+<!-- ── FEET ── visible wedges with arch shadow -->
+<path d="M ${cx - 12} ${FOOT_Y - 4}
+         Q ${cx - 16} ${FOOT_Y + 2} ${cx - 10} ${FOOT_Y + 3}
+         L ${cx - 4} ${FOOT_Y + 3}
+         L ${cx - 4} ${FOOT_Y - 4} Z"
+      fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M ${cx + 12} ${FOOT_Y - 4}
+         Q ${cx + 16} ${FOOT_Y + 2} ${cx + 10} ${FOOT_Y + 3}
+         L ${cx + 4} ${FOOT_Y + 3}
+         L ${cx + 4} ${FOOT_Y - 4} Z"
+      fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+<!-- arch shadows -->
+<path d="M ${cx - 10} ${FOOT_Y + 1} L ${cx - 4} ${FOOT_Y + 1}" stroke="${skin.lo}" stroke-width="0.8" opacity="0.55"/>
+<path d="M ${cx + 4} ${FOOT_Y + 1} L ${cx + 10} ${FOOT_Y + 1}" stroke="${skin.lo}" stroke-width="0.8" opacity="0.55"/>
 
-<!-- ── LEGS ── tapered from hip down to ankle, slight stance gap -->
-<!-- left leg -->
-<path d="M ${leftWaistX + 3} ${WAIST_Y + 2}
-         Q ${leftWaistX + 1} ${KNEE_Y} ${cx - 6} ${FOOT_Y - 2}
-         L ${cx - 1} ${FOOT_Y - 2}
-         L ${cx - 1} ${WAIST_Y + 2} Z"
-      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="3" stroke-linejoin="round"/>
-<!-- right leg -->
-<path d="M ${rightWaistX - 3} ${WAIST_Y + 2}
-         Q ${rightWaistX - 1} ${KNEE_Y} ${cx + 6} ${FOOT_Y - 2}
-         L ${cx + 1} ${FOOT_Y - 2}
-         L ${cx + 1} ${WAIST_Y + 2} Z"
-      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="3" stroke-linejoin="round"/>
+<!-- ── NECK ── trapezoid wider at the base (traps) narrowing under
+     the jaw, with shading on both sides so the head visibly sits
+     ON the shoulders rather than floating. Drawn AFTER torso so
+     the neck base sits on top of the trapezius line. -->
+<path d="M ${cx - neckHalfTop}  ${NECK_TOP_Y}
+         L ${cx - neckHalfBase} ${NECK_BASE_Y}
+         Q ${cx - neckHalfBase + 1} ${NECK_BASE_Y + 3} ${cx - neckHalfBase + 4} ${NECK_BASE_Y + 3}
+         L ${cx + neckHalfBase - 4} ${NECK_BASE_Y + 3}
+         Q ${cx + neckHalfBase - 1} ${NECK_BASE_Y + 3} ${cx + neckHalfBase} ${NECK_BASE_Y}
+         L ${cx + neckHalfTop}  ${NECK_TOP_Y} Z"
+      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+<!-- trapezius shadow either side of neck base -->
+<path d="M ${cx - neckHalfBase} ${NECK_BASE_Y + 2} Q ${cx - neckHalfBase - 4} ${NECK_BASE_Y + 5} ${leftShoulderX + 6} ${SHOULDER_Y - 2}"
+      fill="none" stroke="${skin.lo}" stroke-width="1.4" opacity="0.55"/>
+<path d="M ${cx + neckHalfBase} ${NECK_BASE_Y + 2} Q ${cx + neckHalfBase + 4} ${NECK_BASE_Y + 5} ${rightShoulderX - 6} ${SHOULDER_Y - 2}"
+      fill="none" stroke="${skin.lo}" stroke-width="1.4" opacity="0.55"/>
+<!-- collarbone -->
+<path d="M ${leftShoulderX + 5} ${SHOULDER_Y - 2} Q ${cx} ${SHOULDER_Y + 3} ${rightShoulderX - 5} ${SHOULDER_Y - 2}"
+      fill="none" stroke="${skin.lo}" stroke-width="1.1" opacity="0.5"/>
 
-<!-- ── FEET ── flat wedges so a bare/sandalled hero shows feet -->
-<ellipse cx="${cx - 8}" cy="${FOOT_Y}" rx="${footW/2}" ry="4"
-         fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="2.5"/>
-<ellipse cx="${cx + 8}" cy="${FOOT_Y}" rx="${footW/2}" ry="4"
-         fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="2.5"/>
-
-<!-- ── NECK ── short tapered transition under the head -->
-<path d="M ${cx - 9} ${HEAD_CY + HEAD_R - 4}
-         L ${cx - 11} ${SHOULDER_Y - 4}
-         L ${cx + 11} ${SHOULDER_Y - 4}
-         L ${cx + 9} ${HEAD_CY + HEAD_R - 4} Z"
-      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
-<!-- collarbone hint -->
-<path d="M ${leftShoulderX + 4} ${SHOULDER_Y - 1} Q ${cx} ${SHOULDER_Y + 3} ${rightShoulderX - 4} ${SHOULDER_Y - 1}"
-      fill="none" stroke="${skin.lo}" stroke-width="1.2" opacity="0.6"/>
-
-<!-- ── HEAD ── big expressive circle -->
+<!-- ── HEAD ── expressive sphere. Drawn AFTER neck so the chin
+     overlaps the neck base, giving the head clear depth ordering. -->
 <circle cx="${HEAD_CX}" cy="${HEAD_CY}" r="${HEAD_R}"
-        fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="3.5"/>
-<!-- jaw shadow under chin (gives the head dimensionality) -->
-<ellipse cx="${HEAD_CX}" cy="${HEAD_CY + HEAD_R - 3}" rx="18" ry="5" fill="${skin.lo}" opacity="0.55"/>
-<!-- cheek blush dots — friendly + characterful -->
-<ellipse cx="${HEAD_CX - 14}" cy="${HEAD_CY + 8}" rx="5" ry="3" fill="${skin.hi}" opacity="0.55"/>
-<ellipse cx="${HEAD_CX + 14}" cy="${HEAD_CY + 8}" rx="5" ry="3" fill="${skin.hi}" opacity="0.55"/>
-<!-- head gloss highlight (upper-left, glossy idiom) -->
-<ellipse cx="${HEAD_CX - 10}" cy="${HEAD_CY - 12}" rx="10" ry="6" fill="#FFFFFF" opacity="0.5"/>
+        fill="url(#skin-rgrad)" stroke="${skin.stroke}" stroke-width="3"/>
+<!-- jaw shadow -->
+<ellipse cx="${HEAD_CX}" cy="${HEAD_CY + HEAD_R - 4}" rx="18" ry="5" fill="${skin.lo}" opacity="0.55"/>
+<!-- cheek blush -->
+<ellipse cx="${HEAD_CX - 14}" cy="${HEAD_CY + 7}" rx="5" ry="3" fill="${skin.hi}" opacity="0.6"/>
+<ellipse cx="${HEAD_CX + 14}" cy="${HEAD_CY + 7}" rx="5" ry="3" fill="${skin.hi}" opacity="0.6"/>
+<!-- head gloss -->
+<ellipse cx="${HEAD_CX - 10}" cy="${HEAD_CY - 12}" rx="11" ry="6" fill="#FFFFFF" opacity="0.5"/>
 
-<!-- ── FACE ── readable at 128-px scale: nose tab + smile + brows.
-     Eyes are NOT drawn here; the eyes-<colour>.png layer paints
-     them so the colour customisation slot has clear ownership. -->
-<!-- small nose nub centred -->
-<ellipse cx="${HEAD_CX}" cy="${HEAD_CY + 4}" rx="2" ry="2.5" fill="${skin.lo}" opacity="0.6"/>
-<!-- mouth — gentle smile curve -->
-<path d="M ${HEAD_CX - 6} ${HEAD_CY + 12}
-         Q ${HEAD_CX} ${HEAD_CY + 16} ${HEAD_CX + 6} ${HEAD_CY + 12}"
+<!-- ── FACE ── nose, smile, brows. Eyes are in the eyes-* layer. -->
+<ellipse cx="${HEAD_CX}" cy="${HEAD_CY + 4}" rx="2" ry="2.6" fill="${skin.lo}" opacity="0.6"/>
+<path d="M ${HEAD_CX - 6} ${HEAD_CY + 12} Q ${HEAD_CX} ${HEAD_CY + 16} ${HEAD_CX + 6} ${HEAD_CY + 12}"
       fill="none" stroke="${PALETTE.ink}" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>
-<!-- brows (placed just above where eyes will land) -->
 <path d="M ${HEAD_CX - 14} ${HEAD_CY - 4} Q ${HEAD_CX - 9} ${HEAD_CY - 6} ${HEAD_CX - 4} ${HEAD_CY - 4}"
       fill="none" stroke="${PALETTE.ink}" stroke-width="1.5" stroke-linecap="round" opacity="0.75"/>
 <path d="M ${HEAD_CX + 14} ${HEAD_CY - 4} Q ${HEAD_CX + 9} ${HEAD_CY - 6} ${HEAD_CX + 4} ${HEAD_CY - 4}"
@@ -647,50 +715,136 @@ function accentSvg(name) {
 // character has clothes on. Always rendered before equipped gear.
 
 function defaultClothingSvg() {
-  // Tracks the new body anatomy: shoulders SHOULDER_Y, waist
-  // WAIST_Y, feet FOOT_Y. Tunic ends at the waist so default
-  // trousers show below; legs in trousers stop above the feet
-  // wedges so the bare feet still show.
+  // Neutral peasant tunic + trousers. Real garment construction —
+  // not a rectangle:
+  //   • Round neckline that visibly wraps around the neck
+  //   • Sleeve caps over the shoulder joints
+  //   • Cinched waist (narrower than shoulders + hips)
+  //   • A-line hem flaring slightly below the belt
+  //   • Side seam shadows + chest fold + skirt drape folds
+  //   • Belt wraps with shading that follows the waist curve
+  //   • Trousers with a centre seam + knee bend + cuff fold
+  //
+  // Anchored to the body anatomy constants (SHOULDER_Y / WAIST_Y /
+  // KNEE_Y / FOOT_Y) — these match build-character-glossy.mjs.
   const cx = 64;
-  const shoulderHalf = 22;     // tunic sits over both slim + stocky shoulders
-  const waistHalf    = 18;
+  const shoulderHalf = 24;   // sleeve cap reaches past the body's shoulder line
+  const waistHalf    = 17;   // tunic cinches IN at waist (narrower than shoulders)
+  const hemHalf      = 24;   // tunic flares back OUT at the hem (A-line)
+  const TUNIC_TOP_Y = SHOULDER_Y - 4;   // sleeve cap apex
+  const TUNIC_HEM_Y = WAIST_Y + 14;     // hem sits just below the belt line
+  const BELT_Y      = WAIST_Y - 1;
+  const trouserOuterX = 13;             // half-width at hip
+  const trouserKneeX  = 9;
+  const trouserAnkleX = 8;
+  const TROUSER_TOP_Y = TUNIC_HEM_Y - 1;
   return svgWrapper({
     width: W, height: H,
     title: 'default-clothing',
-    desc: 'Neutral peasant tunic + trousers baseline.',
+    desc: 'Neutral peasant tunic + trousers with proper garment construction.',
     body: `
-<!-- tunic — tapered from shoulders to waist, scoop neckline -->
-<path d="M ${cx - shoulderHalf} ${SHOULDER_Y - 1}
-         Q ${cx - 12} ${SHOULDER_Y + 6} ${cx - 6} ${SHOULDER_Y + 8}
-         Q ${cx} ${SHOULDER_Y + 10} ${cx + 6} ${SHOULDER_Y + 8}
-         Q ${cx + 12} ${SHOULDER_Y + 6} ${cx + shoulderHalf} ${SHOULDER_Y - 1}
-         L ${cx + waistHalf + 2} ${WAIST_Y + 4}
-         L ${cx - waistHalf - 2} ${WAIST_Y + 4} Z"
+<!-- ── TUNIC ── sleeve cap over each shoulder, round neckline,
+     cinched waist, A-line hem. Drawn as a single closed path so
+     the silhouette is one continuous garment. -->
+<path d="M ${cx - shoulderHalf + 2} ${TUNIC_TOP_Y + 2}
+         Q ${cx - shoulderHalf - 1} ${TUNIC_TOP_Y + 4} ${cx - shoulderHalf + 1} ${SHOULDER_Y + 10}
+         L ${cx - shoulderHalf + 5} ${SHOULDER_Y + 14}
+         Q ${cx - waistHalf - 1} ${WAIST_Y - 8} ${cx - waistHalf} ${WAIST_Y + 2}
+         Q ${cx - waistHalf - 1} ${WAIST_Y + 6} ${cx - hemHalf} ${TUNIC_HEM_Y}
+         Q ${cx - hemHalf + 2} ${TUNIC_HEM_Y + 3} ${cx - hemHalf + 6} ${TUNIC_HEM_Y + 2}
+         L ${cx + hemHalf - 6} ${TUNIC_HEM_Y + 2}
+         Q ${cx + hemHalf - 2} ${TUNIC_HEM_Y + 3} ${cx + hemHalf} ${TUNIC_HEM_Y}
+         Q ${cx + waistHalf + 1} ${WAIST_Y + 6} ${cx + waistHalf} ${WAIST_Y + 2}
+         Q ${cx + waistHalf + 1} ${WAIST_Y - 8} ${cx + shoulderHalf - 5} ${SHOULDER_Y + 14}
+         L ${cx + shoulderHalf - 1} ${SHOULDER_Y + 10}
+         Q ${cx + shoulderHalf + 1} ${TUNIC_TOP_Y + 4} ${cx + shoulderHalf - 2} ${TUNIC_TOP_Y + 2}
+         Q ${cx + 12} ${TUNIC_TOP_Y - 2} ${cx + 7} ${SHOULDER_Y + 4}
+         Q ${cx + 3} ${SHOULDER_Y + 10} ${cx} ${SHOULDER_Y + 10}
+         Q ${cx - 3} ${SHOULDER_Y + 10} ${cx - 7} ${SHOULDER_Y + 4}
+         Q ${cx - 12} ${TUNIC_TOP_Y - 2} ${cx - shoulderHalf + 2} ${TUNIC_TOP_Y + 2} Z"
       fill="url(#gk-grad-cream)" stroke="${PALETTE.cream.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
-<!-- tunic gloss highlight (upper-left) -->
-<path d="M ${cx - shoulderHalf + 2} ${SHOULDER_Y - 1}
-         L ${cx - waistHalf} ${WAIST_Y}
-         L ${cx - waistHalf + 8} ${WAIST_Y}
-         Q ${cx - 8} ${SHOULDER_Y + 8} ${cx - shoulderHalf + 10} ${SHOULDER_Y - 1} Z"
-      fill="#FFFFFF" opacity="0.4"/>
 
-<!-- belt — wood, gold buckle -->
-<rect x="${cx - waistHalf - 2}" y="${WAIST_Y - 2}" width="${(waistHalf + 2) * 2}" height="8" rx="2"
-      fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2"/>
-<rect x="${cx - 5}" y="${WAIST_Y - 1}" width="10" height="6" rx="1.5"
+<!-- neckline rim shadow — gives the collar visual depth -->
+<path d="M ${cx - 7} ${SHOULDER_Y + 4}
+         Q ${cx} ${SHOULDER_Y + 11} ${cx + 7} ${SHOULDER_Y + 4}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="1.5" opacity="0.65"/>
+<!-- sleeve seam (where sleeve cap meets bodice) -->
+<path d="M ${cx - shoulderHalf + 4} ${SHOULDER_Y + 10} Q ${cx - shoulderHalf + 8} ${SHOULDER_Y + 14} ${cx - waistHalf + 2} ${WAIST_Y - 10}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.9" opacity="0.55"/>
+<path d="M ${cx + shoulderHalf - 4} ${SHOULDER_Y + 10} Q ${cx + shoulderHalf - 8} ${SHOULDER_Y + 14} ${cx + waistHalf - 2} ${WAIST_Y - 10}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.9" opacity="0.55"/>
+
+<!-- chest fold (centre, vertical down to belt) -->
+<path d="M ${cx} ${SHOULDER_Y + 12} L ${cx} ${WAIST_Y - 4}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.8" opacity="0.5"/>
+<!-- side fold (left + right of chest) -->
+<path d="M ${cx - 10} ${SHOULDER_Y + 14} Q ${cx - 12} ${WAIST_Y - 6} ${cx - 8} ${WAIST_Y - 2}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.7" opacity="0.4"/>
+<path d="M ${cx + 10} ${SHOULDER_Y + 14} Q ${cx + 12} ${WAIST_Y - 6} ${cx + 8} ${WAIST_Y - 2}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.7" opacity="0.4"/>
+
+<!-- TUNIC GLOSS — upper-left highlight (consistent light direction) -->
+<path d="M ${cx - shoulderHalf + 4} ${TUNIC_TOP_Y + 4}
+         Q ${cx - shoulderHalf + 1} ${SHOULDER_Y + 12} ${cx - waistHalf + 3} ${WAIST_Y - 4}
+         L ${cx - waistHalf + 7} ${WAIST_Y - 4}
+         Q ${cx - 6} ${SHOULDER_Y + 14} ${cx - shoulderHalf + 10} ${TUNIC_TOP_Y + 4} Z"
+      fill="#FFFFFF" opacity="0.35"/>
+
+<!-- HEM — visible bottom edge of the tunic with shadow under -->
+<path d="M ${cx - hemHalf + 2} ${TUNIC_HEM_Y + 1}
+         Q ${cx} ${TUNIC_HEM_Y + 4} ${cx + hemHalf - 2} ${TUNIC_HEM_Y + 1}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="1.4" opacity="0.85"/>
+<!-- skirt drape folds (3 vertical lines, fanning out toward hem) -->
+<path d="M ${cx - 12} ${WAIST_Y + 8} L ${cx - 14} ${TUNIC_HEM_Y - 1}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.8" opacity="0.45"/>
+<path d="M ${cx} ${WAIST_Y + 8} L ${cx} ${TUNIC_HEM_Y - 1}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.8" opacity="0.45"/>
+<path d="M ${cx + 12} ${WAIST_Y + 8} L ${cx + 14} ${TUNIC_HEM_Y - 1}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.8" opacity="0.45"/>
+
+<!-- ── BELT ── wraps around the waist; slight downward arc so it
+     reads as cinched, not just pasted on. -->
+<path d="M ${cx - waistHalf - 1} ${BELT_Y}
+         Q ${cx} ${BELT_Y + 3} ${cx + waistHalf + 1} ${BELT_Y}
+         L ${cx + waistHalf + 1} ${BELT_Y + 6}
+         Q ${cx} ${BELT_Y + 9} ${cx - waistHalf - 1} ${BELT_Y + 6} Z"
+      fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2" stroke-linejoin="round"/>
+<!-- belt highlight strip -->
+<path d="M ${cx - waistHalf - 1} ${BELT_Y + 1} Q ${cx} ${BELT_Y + 4} ${cx + waistHalf + 1} ${BELT_Y + 1}"
+      fill="none" stroke="${PALETTE.wood.hi}" stroke-width="0.9" opacity="0.7"/>
+<!-- buckle -->
+<rect x="${cx - 5}" y="${BELT_Y + 1}" width="10" height="6" rx="1.5"
       fill="url(#gk-grad-gold)" stroke="${PALETTE.gold.stroke}" stroke-width="1.5"/>
+<rect x="${cx - 3}" y="${BELT_Y + 3}" width="6" height="2" fill="${PALETTE.gold.lo}" opacity="0.7"/>
 
-<!-- trousers — two legs with knee taper, ending above the feet -->
-<path d="M ${cx - waistHalf + 2} ${WAIST_Y + 6}
-         Q ${cx - waistHalf + 2} ${KNEE_Y - 2} ${cx - 8} ${FOOT_Y - 6}
-         L ${cx - 1} ${FOOT_Y - 6}
-         L ${cx - 1} ${WAIST_Y + 6} Z"
-      fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
-<path d="M ${cx + waistHalf - 2} ${WAIST_Y + 6}
-         Q ${cx + waistHalf - 2} ${KNEE_Y - 2} ${cx + 8} ${FOOT_Y - 6}
-         L ${cx + 1} ${FOOT_Y - 6}
-         L ${cx + 1} ${WAIST_Y + 6} Z"
-      fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.5" stroke-linejoin="round"/>`,
+<!-- ── TROUSERS ── proper legs with centre seam + cuff -->
+<!-- left trouser -->
+<path d="M ${cx - 1} ${TROUSER_TOP_Y}
+         L ${cx - trouserOuterX} ${TROUSER_TOP_Y}
+         Q ${cx - trouserOuterX - 1} ${KNEE_Y - 4} ${cx - trouserKneeX} ${KNEE_Y + 2}
+         Q ${cx - trouserKneeX - 1} ${KNEE_Y + 6} ${cx - trouserAnkleX} ${FOOT_Y - 4}
+         L ${cx - 1} ${FOOT_Y - 4} Z"
+      fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+<!-- right trouser -->
+<path d="M ${cx + 1} ${TROUSER_TOP_Y}
+         L ${cx + trouserOuterX} ${TROUSER_TOP_Y}
+         Q ${cx + trouserOuterX + 1} ${KNEE_Y - 4} ${cx + trouserKneeX} ${KNEE_Y + 2}
+         Q ${cx + trouserKneeX + 1} ${KNEE_Y + 6} ${cx + trouserAnkleX} ${FOOT_Y - 4}
+         L ${cx + 1} ${FOOT_Y - 4} Z"
+      fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+<!-- trouser centre seam (the gap line between the legs) -->
+<path d="M ${cx} ${TROUSER_TOP_Y + 1} L ${cx} ${FOOT_Y - 5}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="0.8" opacity="0.55"/>
+<!-- knee fold (per leg) -->
+<path d="M ${cx - trouserKneeX} ${KNEE_Y} L ${cx - 3} ${KNEE_Y + 1}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="0.7" opacity="0.5"/>
+<path d="M ${cx + trouserKneeX} ${KNEE_Y} L ${cx + 3} ${KNEE_Y + 1}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="0.7" opacity="0.5"/>
+<!-- cuff line (above the feet) -->
+<path d="M ${cx - trouserAnkleX} ${FOOT_Y - 5} L ${cx - 1} ${FOOT_Y - 5}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="1" opacity="0.7"/>
+<path d="M ${cx + 1} ${FOOT_Y - 5} L ${cx + trouserAnkleX} ${FOOT_Y - 5}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="1" opacity="0.7"/>`,
   });
 }
 

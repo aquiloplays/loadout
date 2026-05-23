@@ -58,7 +58,21 @@ const SPRITE_CACHE = new Map();
 //   v2-rpg      I1 (2026-05) — retro-RPG body sprite rework
 //   v3-figure   L1 (2026-05) — game-icon figure rework + characterful
 //                              pets + retuned gear paper-doll anchors
-const SPRITE_ASSET_VERSION = 'v3-figure';
+//   v4-figure   L2 (2026-05) — deep figure rework after Clay flagged
+//                              v3 as still janky: continuous-flow arms
+//                              with bicep bulge (no segmented joints),
+//                              wider neck with trapezius shading,
+//                              torso with pectoral/waist/hip
+//                              construction, legs with knee+calf flow,
+//                              bigger hand circles, peasant tunic with
+//                              full garment construction (collar,
+//                              sleeve caps, cinched waist, A-line hem,
+//                              fold lines), redesigned robe shape with
+//                              sleeve openings/sash/skirt-folds (no
+//                              longer a plain cone), redesigned hood
+//                              that drapes around the face instead of
+//                              sealing it shut.
+const SPRITE_ASSET_VERSION = 'v4-figure';
 
 // Canvas size — pixel-perfect compose, all layers share these dims.
 // Glossy bar (2026-05 art campaign, see tools/build-character-glossy.mjs
