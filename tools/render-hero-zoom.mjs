@@ -41,23 +41,37 @@ function composeHero(hero) {
     layers.push(pngLayer(join(PET_DIR, `${hero.pet.species}-${hero.pet.colour}.png`)));
     if (hero.pet.mood) layers.push(pngLayer(join(PET_DIR, `mood-${hero.pet.mood}.png`)));
   }
+  // z=20 body
   layers.push(pngLayer(join(FIG_DIR, `body-${hero.bodyType}-${hero.skinTone}.png`)));
-  layers.push(pngLayer(join(FIG_DIR, 'default-clothing.png')));
+  // z=22 default trousers
+  layers.push(pngLayer(join(FIG_DIR, 'default-trousers.png')));
+  // z=30 legs gear
   if (hero.legs)   layers.push(pngLayer(join(GEAR_DIR, 'legs',   `${hero.legs}.png`)));
+  // z=33 default tunic — covers leg gear TOP with the skirt
+  layers.push(pngLayer(join(FIG_DIR, 'default-tunic.png')));
+  // z=35 boots
   if (hero.boots)  layers.push(pngLayer(join(GEAR_DIR, 'boots',  `${hero.boots}.png`)));
+  // z=40 chest gear
   if (hero.chest)  layers.push(pngLayer(join(GEAR_DIR, 'chest',  `${hero.chest}.png`)));
+  // z=45 front trinket
   if (hero.trinket && !BACK_TRINKET_RE.test(hero.trinket)) {
     layers.push(pngLayer(join(GEAR_DIR, 'trinket', `${hero.trinket}.png`)));
   }
+  // z=60 hair
   if (hero.hairStyle && hero.hairStyle !== 'bald') {
     layers.push(pngLayer(join(FIG_DIR, `hair-${hero.hairStyle}-${hero.hairColor}.png`)));
   }
+  // z=65 face overlay (eyes + accent)
   if (hero.eyeColor) layers.push(pngLayer(join(FIG_DIR, `eyes-${hero.eyeColor}.png`)));
   if (hero.accent && hero.accent !== 'none') {
     layers.push(pngLayer(join(FIG_DIR, `accent-${hero.accent}.png`)));
   }
+  // z=70 head gear
   if (hero.head)   layers.push(pngLayer(join(GEAR_DIR, 'head', `${hero.head}.png`)));
+  // z=78 weapon
   if (hero.weapon) layers.push(pngLayer(join(GEAR_DIR, 'weapon', `${hero.weapon}.png`)));
+  // z=79 hand overlay — grips the weapon
+  if (hero.weapon) layers.push(pngLayer(join(FIG_DIR, `hand-overlay-${hero.skinTone}.png`)));
   if (hero.legendarySlots) {
     for (const slot of hero.legendarySlots) {
       layers.push(pngLayer(join(FX_DIR, `${slot}.png`)));

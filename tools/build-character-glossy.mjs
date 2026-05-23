@@ -935,6 +935,192 @@ function accentSvg(name) {
 // Peasant tunic + trousers in neutral wood/cream so a fresh
 // character has clothes on. Always rendered before equipped gear.
 
+// Shared anatomy for both tunic + trousers builders below.
+const _DC = {
+  cx: 64,
+  shoulderHalf: 20,
+  waistHalf: 14,
+  hemHalf: 20,
+  TUNIC_TOP_Y: SHOULDER_Y - 3,
+  TUNIC_HEM_Y: WAIST_Y + 14,
+  BELT_Y: WAIST_Y - 1,
+  trouserOuterX: 10,
+  trouserKneeX: 7,
+  trouserAnkleX: 6,
+  get TROUSER_TOP_Y() { return this.TUNIC_HEM_Y - 1; },
+};
+
+// Default TROUSERS only — drawn at z=22 so leg gear (z=30) cleanly
+// covers them when equipped. The tunic (z=33) is drawn AFTER leg
+// gear so its skirt covers the leg-gear top.
+function defaultTrousersSvg() {
+  const d = _DC;
+  return svgWrapper({
+    width: W, height: H,
+    title: 'default-trousers',
+    desc: 'Neutral peasant trousers — drawn before leg gear so leg gear hides them when equipped.',
+    body: `
+<!-- left trouser -->
+<path d="M ${d.cx - 1} ${d.TROUSER_TOP_Y}
+         L ${d.cx - d.trouserOuterX} ${d.TROUSER_TOP_Y}
+         Q ${d.cx - d.trouserOuterX - 1} ${KNEE_Y - 4} ${d.cx - d.trouserKneeX} ${KNEE_Y + 2}
+         Q ${d.cx - d.trouserKneeX - 1} ${KNEE_Y + 6} ${d.cx - d.trouserAnkleX} ${FOOT_Y - 4}
+         L ${d.cx - 1} ${FOOT_Y - 4} Z"
+      fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+<!-- right trouser -->
+<path d="M ${d.cx + 1} ${d.TROUSER_TOP_Y}
+         L ${d.cx + d.trouserOuterX} ${d.TROUSER_TOP_Y}
+         Q ${d.cx + d.trouserOuterX + 1} ${KNEE_Y - 4} ${d.cx + d.trouserKneeX} ${KNEE_Y + 2}
+         Q ${d.cx + d.trouserKneeX + 1} ${KNEE_Y + 6} ${d.cx + d.trouserAnkleX} ${FOOT_Y - 4}
+         L ${d.cx + 1} ${FOOT_Y - 4} Z"
+      fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+<!-- centre seam -->
+<path d="M ${d.cx} ${d.TROUSER_TOP_Y + 1} L ${d.cx} ${FOOT_Y - 5}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="0.8" opacity="0.55"/>
+<!-- knee folds + cuff -->
+<path d="M ${d.cx - d.trouserKneeX} ${KNEE_Y} L ${d.cx - 3} ${KNEE_Y + 1}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="0.7" opacity="0.5"/>
+<path d="M ${d.cx + d.trouserKneeX} ${KNEE_Y} L ${d.cx + 3} ${KNEE_Y + 1}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="0.7" opacity="0.5"/>
+<path d="M ${d.cx - d.trouserAnkleX} ${FOOT_Y - 5} L ${d.cx - 1} ${FOOT_Y - 5}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="1" opacity="0.7"/>
+<path d="M ${d.cx + 1} ${FOOT_Y - 5} L ${d.cx + d.trouserAnkleX} ${FOOT_Y - 5}"
+      fill="none" stroke="${PALETTE.wood.stroke}" stroke-width="1" opacity="0.7"/>`,
+  });
+}
+
+// Default TUNIC only (sleeves + bodice + belt + skirt). Drawn at
+// z=33 — AFTER leg gear — so the skirt hem cleanly covers the top
+// of any equipped leg gear. Chest gear (z=40) still covers the
+// bodice when equipped.
+function defaultTunicSvg() {
+  const d = _DC;
+  const { cx, shoulderHalf, waistHalf, hemHalf, TUNIC_TOP_Y, TUNIC_HEM_Y, BELT_Y } = d;
+  return svgWrapper({
+    width: W, height: H,
+    title: 'default-tunic',
+    desc: 'Neutral peasant tunic — drawn AFTER leg gear so the skirt covers leg-gear top.',
+    body: `
+<!-- ── SHORT SLEEVES ── -->
+<path d="M ${cx - shoulderHalf - 2} ${SHOULDER_Y - 2}
+         Q ${cx - shoulderHalf - 6} ${SHOULDER_Y + 2} ${cx - shoulderHalf - 5} ${SHOULDER_Y + 14}
+         L ${cx - shoulderHalf + 4} ${SHOULDER_Y + 16}
+         Q ${cx - shoulderHalf + 5} ${SHOULDER_Y + 4} ${cx - shoulderHalf + 6} ${SHOULDER_Y - 2} Z"
+      fill="url(#gk-grad-cream)" stroke="${PALETTE.cream.stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M ${cx + shoulderHalf + 2} ${SHOULDER_Y - 2}
+         Q ${cx + shoulderHalf + 6} ${SHOULDER_Y + 2} ${cx + shoulderHalf + 5} ${SHOULDER_Y + 14}
+         L ${cx + shoulderHalf - 4} ${SHOULDER_Y + 16}
+         Q ${cx + shoulderHalf - 5} ${SHOULDER_Y + 4} ${cx + shoulderHalf - 6} ${SHOULDER_Y - 2} Z"
+      fill="url(#gk-grad-cream)" stroke="${PALETTE.cream.stroke}" stroke-width="2.2" stroke-linejoin="round"/>
+<path d="M ${cx - shoulderHalf - 5} ${SHOULDER_Y + 13} L ${cx - shoulderHalf + 4} ${SHOULDER_Y + 15}"
+      stroke="${PALETTE.cream.stroke}" stroke-width="1" opacity="0.7"/>
+<path d="M ${cx + shoulderHalf + 5} ${SHOULDER_Y + 13} L ${cx + shoulderHalf - 4} ${SHOULDER_Y + 15}"
+      stroke="${PALETTE.cream.stroke}" stroke-width="1" opacity="0.7"/>
+<!-- ── TUNIC body ── -->
+<path d="M ${cx - shoulderHalf + 2} ${TUNIC_TOP_Y + 2}
+         Q ${cx - shoulderHalf - 1} ${TUNIC_TOP_Y + 4} ${cx - shoulderHalf + 1} ${SHOULDER_Y + 10}
+         L ${cx - shoulderHalf + 5} ${SHOULDER_Y + 14}
+         Q ${cx - waistHalf - 1} ${WAIST_Y - 8} ${cx - waistHalf} ${WAIST_Y + 2}
+         Q ${cx - waistHalf - 1} ${WAIST_Y + 6} ${cx - hemHalf} ${TUNIC_HEM_Y}
+         Q ${cx - hemHalf + 2} ${TUNIC_HEM_Y + 3} ${cx - hemHalf + 6} ${TUNIC_HEM_Y + 2}
+         L ${cx + hemHalf - 6} ${TUNIC_HEM_Y + 2}
+         Q ${cx + hemHalf - 2} ${TUNIC_HEM_Y + 3} ${cx + hemHalf} ${TUNIC_HEM_Y}
+         Q ${cx + waistHalf + 1} ${WAIST_Y + 6} ${cx + waistHalf} ${WAIST_Y + 2}
+         Q ${cx + waistHalf + 1} ${WAIST_Y - 8} ${cx + shoulderHalf - 5} ${SHOULDER_Y + 14}
+         L ${cx + shoulderHalf - 1} ${SHOULDER_Y + 10}
+         Q ${cx + shoulderHalf + 1} ${TUNIC_TOP_Y + 4} ${cx + shoulderHalf - 2} ${TUNIC_TOP_Y + 2}
+         Q ${cx + 10} ${TUNIC_TOP_Y - 2} ${cx + 5} ${SHOULDER_Y + 2}
+         Q ${cx + 2} ${SHOULDER_Y + 6} ${cx} ${SHOULDER_Y + 6}
+         Q ${cx - 2} ${SHOULDER_Y + 6} ${cx - 5} ${SHOULDER_Y + 2}
+         Q ${cx - 10} ${TUNIC_TOP_Y - 2} ${cx - shoulderHalf + 2} ${TUNIC_TOP_Y + 2} Z"
+      fill="url(#gk-grad-cream)" stroke="${PALETTE.cream.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
+<path d="M ${cx - 7} ${SHOULDER_Y + 4} Q ${cx} ${SHOULDER_Y + 11} ${cx + 7} ${SHOULDER_Y + 4}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="1.5" opacity="0.65"/>
+<path d="M ${cx - shoulderHalf + 4} ${SHOULDER_Y + 10} Q ${cx - shoulderHalf + 8} ${SHOULDER_Y + 14} ${cx - waistHalf + 2} ${WAIST_Y - 10}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.9" opacity="0.55"/>
+<path d="M ${cx + shoulderHalf - 4} ${SHOULDER_Y + 10} Q ${cx + shoulderHalf - 8} ${SHOULDER_Y + 14} ${cx + waistHalf - 2} ${WAIST_Y - 10}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.9" opacity="0.55"/>
+<path d="M ${cx} ${SHOULDER_Y + 12} L ${cx} ${WAIST_Y - 4}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.8" opacity="0.5"/>
+<path d="M ${cx - 10} ${SHOULDER_Y + 14} Q ${cx - 12} ${WAIST_Y - 6} ${cx - 8} ${WAIST_Y - 2}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.7" opacity="0.4"/>
+<path d="M ${cx + 10} ${SHOULDER_Y + 14} Q ${cx + 12} ${WAIST_Y - 6} ${cx + 8} ${WAIST_Y - 2}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.7" opacity="0.4"/>
+<path d="M ${cx - shoulderHalf + 4} ${TUNIC_TOP_Y + 4}
+         Q ${cx - shoulderHalf + 1} ${SHOULDER_Y + 12} ${cx - waistHalf + 3} ${WAIST_Y - 4}
+         L ${cx - waistHalf + 7} ${WAIST_Y - 4}
+         Q ${cx - 6} ${SHOULDER_Y + 14} ${cx - shoulderHalf + 10} ${TUNIC_TOP_Y + 4} Z"
+      fill="#FFFFFF" opacity="0.35"/>
+<!-- AMBIENT-OCCLUSION strip just inside the hem — sits the tunic
+     skirt ON the legs gear when it overlaps -->
+<path d="M ${cx - hemHalf + 2} ${TUNIC_HEM_Y + 1}
+         Q ${cx} ${TUNIC_HEM_Y + 4} ${cx + hemHalf - 2} ${TUNIC_HEM_Y + 1}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="1.4" opacity="0.85"/>
+<path d="M ${cx - 12} ${WAIST_Y + 8} L ${cx - 14} ${TUNIC_HEM_Y - 1}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.8" opacity="0.45"/>
+<path d="M ${cx} ${WAIST_Y + 8} L ${cx} ${TUNIC_HEM_Y - 1}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.8" opacity="0.45"/>
+<path d="M ${cx + 12} ${WAIST_Y + 8} L ${cx + 14} ${TUNIC_HEM_Y - 1}"
+      fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.8" opacity="0.45"/>
+<!-- ── BELT (drawn over tunic body) ── -->
+<path d="M ${cx - waistHalf - 1} ${BELT_Y}
+         Q ${cx} ${BELT_Y + 3} ${cx + waistHalf + 1} ${BELT_Y}
+         L ${cx + waistHalf + 1} ${BELT_Y + 6}
+         Q ${cx} ${BELT_Y + 9} ${cx - waistHalf - 1} ${BELT_Y + 6} Z"
+      fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2" stroke-linejoin="round"/>
+<path d="M ${cx - waistHalf - 1} ${BELT_Y + 1} Q ${cx} ${BELT_Y + 4} ${cx + waistHalf + 1} ${BELT_Y + 1}"
+      fill="none" stroke="${PALETTE.wood.hi}" stroke-width="0.9" opacity="0.7"/>
+<rect x="${cx - 5}" y="${BELT_Y + 1}" width="10" height="6" rx="1.5"
+      fill="url(#gk-grad-gold)" stroke="${PALETTE.gold.stroke}" stroke-width="1.5"/>
+<rect x="${cx - 3}" y="${BELT_Y + 3}" width="6" height="2" fill="${PALETTE.gold.lo}" opacity="0.7"/>`,
+  });
+}
+
+// ── Hand-overlay (one per skin tone) ────────────────────────────
+//
+// Just the RIGHT hand mitt, painted at the same anchor as the body's
+// hand. Drawn AFTER the weapon layer (z=79) so the figure visibly
+// grips the weapon at the hand position rather than the weapon
+// floating beside the hand.
+function handOverlaySvg(toneName) {
+  const skin = SKIN_TONES[toneName];
+  const cx = 64;
+  const rightHandX = cx + HAND_OFFSET_X;
+  return svgWrapper({
+    width: W, height: H,
+    title: `hand-overlay-${toneName}`,
+    desc: 'Right-hand mitt re-painted over the weapon grip.',
+    body: `<defs>${skinDefs(skin)}</defs>
+<!-- Same mitt shape as bodyShape's right hand. -->
+<path d="M ${rightHandX} ${HAND_Y - HAND_R - 0.5}
+         C ${rightHandX + HAND_R - 1} ${HAND_Y - HAND_R - 0.5},
+           ${rightHandX + HAND_R + 0.5} ${HAND_Y - HAND_R + 2},
+           ${rightHandX + HAND_R + 0.5} ${HAND_Y}
+         C ${rightHandX + HAND_R + 0.5} ${HAND_Y + HAND_R - 1},
+           ${rightHandX + HAND_R - 1} ${HAND_Y + HAND_R + 0.5},
+           ${rightHandX} ${HAND_Y + HAND_R + 0.5}
+         C ${rightHandX - HAND_R + 1} ${HAND_Y + HAND_R + 0.5},
+           ${rightHandX - HAND_R - 0.5} ${HAND_Y + HAND_R - 2},
+           ${rightHandX - HAND_R - 0.5} ${HAND_Y}
+         C ${rightHandX - HAND_R - 1.5} ${HAND_Y - 2},
+           ${rightHandX - HAND_R - 2} ${HAND_Y - HAND_R + 1},
+           ${rightHandX - HAND_R + 1} ${HAND_Y - HAND_R - 0.5}
+         L ${rightHandX} ${HAND_Y - HAND_R - 0.5} Z"
+      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="1.6" stroke-linejoin="round"/>
+<path d="M ${rightHandX} ${HAND_Y - HAND_R - 0.5}
+         C ${rightHandX + HAND_R - 1} ${HAND_Y - HAND_R - 0.5},
+           ${rightHandX + HAND_R + 0.5} ${HAND_Y - HAND_R + 2},
+           ${rightHandX + HAND_R + 0.5} ${HAND_Y}
+         C ${rightHandX + HAND_R + 0.5} ${HAND_Y + HAND_R - 1},
+           ${rightHandX + HAND_R - 1} ${HAND_Y + HAND_R + 0.5},
+           ${rightHandX} ${HAND_Y + HAND_R + 0.5} Z"
+      fill="${skin.lo}" opacity="0.4"/>
+<path d="M ${rightHandX - HAND_R + 1.5} ${HAND_Y + HAND_R - 2}
+         Q ${rightHandX} ${HAND_Y + HAND_R} ${rightHandX + HAND_R - 1.5} ${HAND_Y + HAND_R - 2}"
+      fill="none" stroke="${skin.stroke}" stroke-width="0.7" opacity="0.5"/>`,
+  });
+}
+
 function defaultClothingSvg() { return defaultClothingSvgL3(); }
 function defaultClothingSvgL3() {
   // Neutral peasant tunic + trousers. Real garment construction —
@@ -1127,9 +1313,23 @@ for (const name of Object.keys(ACCENTS)) {
 }
 console.log(`  accents: ${Object.keys(ACCENTS).length}`);
 
-// Default clothing — 1.
+// Default clothing — 3 layers: combined (legacy single PNG), tunic
+// (drawn AFTER leg gear so the skirt covers the leg-gear top), and
+// trousers (drawn BEFORE leg gear so leg gear covers them when worn).
 await bakeFile(defaultClothingSvg(), join(OUT, `default-clothing.png`), { width: W, height: H });
-count++;
-console.log(`  default clothing: 1`);
+await bakeFile(defaultTunicSvg(),    join(OUT, `default-tunic.png`),    { width: W, height: H });
+await bakeFile(defaultTrousersSvg(), join(OUT, `default-trousers.png`), { width: W, height: H });
+count += 3;
+console.log(`  default clothing: 3 (combined + tunic + trousers)`);
+
+// Hand overlays — one per skin tone (10). Painted at z=79, AFTER
+// the weapon, so the figure visibly grips the weapon.
+let handCount = 0;
+for (const tone of Object.keys(SKIN_TONES)) {
+  await bakeFile(handOverlaySvg(tone), join(OUT, `hand-overlay-${tone}.png`), { width: W, height: H });
+  handCount++;
+}
+count += handCount;
+console.log(`  hand overlays: ${handCount}`);
 
 console.log(`\n✓ baked ${count} character figure PNGs at ${W}×${H} → ${OUT}`);

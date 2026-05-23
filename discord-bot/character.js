@@ -116,7 +116,23 @@ const SPRITE_CACHE = new Map();
 //                              (light side / shadow side), tidier
 //                              curly-afro silhouette that sits on
 //                              the head rather than floating above.
-const SPRITE_ASSET_VERSION = 'v7-polish';
+//   v8-layers   L5 (2026-05) — layering framework fix after Clay
+//                              flagged the composite as "stacked
+//                              stickers" with legs in front of tunic
+//                              and weapons floating beside hands:
+//                              split default-clothing into separate
+//                              trousers (z=22, painted over by leg
+//                              gear) + tunic (z=33, skirt covers
+//                              the TOP of leg gear); weapon anchor
+//                              re-aligned to the right hand
+//                              (cx=86, cy=108) so the icon center
+//                              lands on the palm; new hand-overlay
+//                              layer at z=79 re-paints the hand on
+//                              top of the weapon so the figure
+//                              visibly grips it. Framework remains
+//                              fully generic — every gear item in
+//                              every slot composes on any body type.
+const SPRITE_ASSET_VERSION = 'v8-layers';
 
 // Canvas size — pixel-perfect compose, all layers share these dims.
 // Glossy bar (2026-05 art campaign, see tools/build-character-glossy.mjs
@@ -151,25 +167,35 @@ async function fetchSprite(env, relPath) {
 //
 // Walks the look + equipped slots and returns an ordered list of
 // `{ relPath, paletteMap? }` entries that the compositor fetches +
-// composes back-to-front. Per CHARACTER-SYSTEM-DESIGN.md §4 z-order:
+// composes back-to-front.
 //
-//   z=10 back-accessory  (trinket if back)
-//   z=15 pet             (cosmetic, in-frame)
-//   z=20 body            (figure base)
-//   z=25 default clothing (basic tunic + trousers, always rendered)
-//   z=30 legs
-//   z=35 boots
-//   z=40 chest
-//   z=45 front-trinket   (if non-back)
-//   z=60 hair
-//   z=65 face overlay    (eyes + accent)
-//   z=70 head            (helmets cover hair via z-order)
-//   z=80 weapon
-//   z=90 fx              (legendary glow particles)
+// Z-ORDER (L5 — fixed so the figure reads as ONE character, not
+// stacked stickers). Each slot describes WHY that index, not just
+// what:
 //
-// Slots without a sprite are simply skipped — no placeholder layer
-// rendered. The figure body always renders; everything else is
-// optional.
+//   z=10 back-trinket    cape/cloak/wings drape behind the body
+//   z=15 pet             companion lower-right, behind the body
+//   z=20 body            figure base (skin: torso + arms + legs)
+//   z=22 default-trousers   bare-legs cover; leg gear paints over
+//   z=30 legs gear       tassets / pants / greaves — covers trousers
+//   z=33 default-tunic   tunic skirt covers TOP of legs gear so the
+//                        skirt visibly drapes over the legs (FIX for
+//                        Clay's "legs render in front of tunic" bug);
+//                        chest gear later still covers the bodice
+//   z=35 boots           on top of trouser/leg-gear bottom
+//   z=40 chest           cuirass / robe / coat covers tunic bodice
+//   z=45 front-trinket   amulet / pendant over chest
+//   z=60 hair            on top of head
+//   z=65 face overlay    eyes + accent on the head
+//   z=70 head gear       helmet / hood — covers hair
+//   z=78 weapon          painted BEFORE the hand-overlay so the
+//                        hand visibly grips the weapon at z=79
+//   z=79 hand-overlay    re-paints the right hand on top of the
+//                        weapon grip — "held in hand", not "next to"
+//   z=90 fx              legendary glow particles on top
+//
+// Slots without a sprite are skipped — no placeholder. The body
+// always renders; everything else is optional.
 async function resolveLayers(env, hero, pet, opts) {
   const layers = [];
   const eq = hero.equipped || {};
@@ -219,20 +245,38 @@ async function resolveLayers(env, hero, pet, opts) {
   // z=20 — body (glossy 128×160)
   layers.push({ rel: `figure/glossy/body-${hero.custom.bodyType || 'slim'}-${hero.custom.skinTone || 'fair'}.png` });
 
-  // z=25 — default clothing (peasant tunic + trousers). Always
-  // rendered so a fresh character with nothing equipped reads as
-  // "dressed in basic clothes" instead of "in their underwear".
-  // Equipped chest gear (z=40) and legs gear (z=30) paint right
-  // over this layer in their own footprints, so the moment you put
-  // on a Hide Vest / Mithril Plate the default tunic disappears
-  // exactly where the new gear sits.
-  layers.push({ rel: 'figure/glossy/default-clothing.png' });
+  // z=22 — DEFAULT TROUSERS. Bare-legs cover; gets painted over by
+  // leg gear (z=30) when equipped. Optional so an older mirror that
+  // only has the legacy default-clothing.png still composes.
+  layers.push({ rel: 'figure/glossy/default-trousers.png', optional: true });
 
-  // z=30 / 35 / 40 — legs, boots, chest gear (glossy paper-doll PNGs).
-  for (const slot of ['legs', 'boots', 'chest']) {
-    const it = itemSlot(slot);
+  // z=30 — legs gear (paints over default trousers)
+  {
+    const it = itemSlot('legs');
     const sid = gearSafeId(it);
-    if (sid) layers.push({ rel: `gear/figure/${slot}/${sid}.png` });
+    if (sid) layers.push({ rel: `gear/figure/legs/${sid}.png` });
+  }
+
+  // z=33 — DEFAULT TUNIC (bodice + sleeves + belt + skirt). Drawn
+  // AFTER leg gear so the tunic SKIRT visibly covers the top of any
+  // equipped leg gear. Chest gear (z=40) still covers the bodice.
+  // Optional so a stale mirror falls through to the legacy single
+  // default-clothing.png at z=25.
+  layers.push({ rel: 'figure/glossy/default-tunic.png', optional: true });
+
+  // z=35 — boots
+  {
+    const it = itemSlot('boots');
+    const sid = gearSafeId(it);
+    if (sid) layers.push({ rel: `gear/figure/boots/${sid}.png` });
+  }
+
+  // z=40 — chest gear (cuirass / robe / coat). Painted over the
+  // tunic bodice; leaves the skirt at z=33 visible below.
+  {
+    const it = itemSlot('chest');
+    const sid = gearSafeId(it);
+    if (sid) layers.push({ rel: `gear/figure/chest/${sid}.png` });
   }
 
   // z=45 — front trinket (non-back)
@@ -262,10 +306,22 @@ async function resolveLayers(env, hero, pet, opts) {
   const headSafe = gearSafeId(head);
   if (headSafe) layers.push({ rel: `gear/figure/head/${headSafe}.png` });
 
-  // z=80 — weapon
+  // z=78 — weapon, painted BEFORE the hand-overlay so the hand
+  // appears to grip the weapon (not float beside it).
   const weapon = itemSlot('weapon');
   const weaponSafe = gearSafeId(weapon);
   if (weaponSafe) layers.push({ rel: `gear/figure/weapon/${weaponSafe}.png` });
+
+  // z=79 — HAND OVERLAY. Re-paints the right hand on top of the
+  // weapon so the figure visibly grips the weapon. Skin-tone matches
+  // the body. Optional — when the mirror is mid-vendor and the
+  // hand-overlay PNG doesn't exist yet, weapon still renders fine.
+  if (weaponSafe) {
+    layers.push({
+      rel: `figure/glossy/hand-overlay-${hero.custom.skinTone || 'fair'}.png`,
+      optional: true,
+    });
+  }
 
   // z=90 — fx (legendary halo overlays). One per-slot halo at
   // gear/figure/fx/<slot>.png, painted ABOVE the equipped gear so

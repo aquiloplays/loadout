@@ -92,10 +92,13 @@ function anchorFor(slot) {
       // cy=140 puts soles right at FOOT_Y=156.
       return { cx: 64, cy: 140, scale: 0.26, rotateDeg: 0 };
     case 'weapon':
-      // Held in the right hand zone (cx≈90, cy≈116). Leaning OUT
-      // so the weapon silhouette is clearly to the side. Scale
-      // 0.42 → 80 px reach above the shoulder + below the hip.
-      return { cx: 92, cy: 110, scale: 0.42, rotateDeg: 22 };
+      // GRIP-ALIGNED to the right hand (cx=86, cy=108 — body.js
+      // HAND_OFFSET_X=22, HAND_Y=108). Icon center lands ON the
+      // hand so the visible grip sits inside the palm; blade /
+      // staff body extends above. The hand-overlay layer (z=79)
+      // re-paints the right hand on top of the weapon at this
+      // anchor so the figure visibly grips it.
+      return { cx: 86, cy: 108, scale: 0.42, rotateDeg: 22 };
     case 'trinket':
       // Charm on a cord across the upper chest, just below the
       // neckline (neck base y=58, collarbone area y=64).
