@@ -1,0 +1,701 @@
+// Glossy gear catalogue — all 185 items from dungeon.js SHOP_POOL.
+//
+// Each gear icon is a 192×192 SVG composed from:
+//   • rarity glow backdrop (per-rarity radial behind item)
+//   • soft contact shadow
+//   • slot+subtype shape template (sword/bow/wand/helm/tunic/...)
+//   • palette family resolved from item name / setName
+//   • per-rarity accent ring + stroke weight
+//
+// Pure name→template heuristics for the subtype pick (looking for
+// keywords like "Bow", "Hood", "Plate", "Boots", etc). Falls back
+// to a default per-slot silhouette.
+//
+// Output: aquilo-gg/sprites/gear/glossy/<slot>/<safeId>.svg
+//
+// SafeId is `<slot>-<rarity>-<snake-name>` so the worker can
+// continue resolving via the existing gear.id field by hashing or
+// just by name. The catalogue index `_catalog.json` is written next
+// to the icons mapping id → svg filename for cross-referencing.
+//
+// Run:  node tools/build-gear-glossy.mjs
+
+import { writeFileSync, mkdirSync, readFileSync } from 'fs';
+import { dirname, join, resolve } from 'path';
+import { fileURLToPath } from 'url';
+import {
+  PALETTE,
+  RARITY,
+  contactShadow,
+  rarityGlow,
+  svgWrapper,
+} from './glossy-art-kit.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const ROOT = resolve(__dirname, '..');
+const OUT_BASE = join(ROOT, 'aquilo-gg/sprites/gear/glossy');
+for (const s of ['weapon', 'head', 'chest', 'legs', 'boots', 'trinket']) {
+  mkdirSync(join(OUT_BASE, s), { recursive: true });
+}
+
+// ── Parse SHOP_POOL from dungeon.js ─────────────────────────────
+const dungeonSrc = readFileSync(join(ROOT, 'discord-bot/dungeon.js'), 'utf8');
+// Match: ['slot', 'rarity', 'name', '...glyph', atk, def, gold, 'setName', 'weaponType', 'preferredClass', 'ability'],
+const reEntry = /\['(weapon|head|chest|legs|boots|trinket)',\s*'(\w+)',\s*'([^']+(?:\\'[^']*)*)',\s*'([^']*)',\s*(\d+),\s*(\d+),\s*(\d+),\s*'([^']*)',\s*'([^']*)',\s*'([^']*)',\s*'([^']*)'/g;
+const items = [];
+let m;
+while ((m = reEntry.exec(dungeonSrc)) !== null) {
+  items.push({
+    slot:           m[1],
+    rarity:         m[2],
+    name:           m[3].replace(/\\'/g, "'"),
+    glyph:          m[4],
+    atk:            +m[5],
+    def:            +m[6],
+    gold:           +m[7],
+    setName:        m[8],
+    weaponType:     m[9],
+    preferredClass: m[10],
+    ability:        m[11],
+  });
+}
+console.log(`parsed ${items.length} gear entries from SHOP_POOL`);
+if (items.length !== 185) {
+  console.warn(`expected 185, got ${items.length} — regex may be drifting`);
+}
+
+const W = 192, H = 192;
+const CX = W / 2, CY = H / 2;
+
+// ── Palette + rarity helpers ────────────────────────────────────
+//
+// Pick a palette family from the item name + setName. Falls back
+// per-slot. Cross-references against the kit's PALETTE keys.
+
+const NAME_PALETTE = [
+  // Materials in the name → palette
+  [/bronze|copper|wayfarer/i,   'copper'],
+  [/iron|steel|knight|warrior/i, 'steel'],
+  [/wood|hempen|leather|patch|hunter|sapper|trail/i, 'wood'],
+  [/cloth|cotton|robe|hood|sage|monk/i, 'cream'],
+  [/gold|royal|prince|king|queen|saint/i, 'gold'],
+  [/ruby|crimson|blood|fire|flame|inferno|ember/i, 'ruby'],
+  [/emerald|forest|leaf|nature|druid|moss/i, 'emerald'],
+  [/sapphire|ocean|frost|ice|storm|tide/i, 'sapphire'],
+  [/amethyst|arcane|mage|wizard|witch|warlock|sorcerer|astral|void/i, 'amethyst'],
+  [/silver|moon|mithril|elven/i, 'steel'],
+  [/dark|shadow|night|raven|grim|necro/i, 'dark'],
+  [/stone|granite|earth|stalker/i, 'stone'],
+  [/brick|terra|clay/i, 'brick'],
+];
+const SLOT_FALLBACK_PALETTE = {
+  weapon:  'steel',
+  head:    'wood',
+  chest:   'wood',
+  legs:    'wood',
+  boots:   'wood',
+  trinket: 'gold',
+};
+function pickPalette(item) {
+  const txt = `${item.name} ${item.setName}`;
+  for (const [re, fam] of NAME_PALETTE) if (re.test(txt)) return fam;
+  return SLOT_FALLBACK_PALETTE[item.slot] || 'steel';
+}
+
+// ── Weapon subtype shapes ───────────────────────────────────────
+//
+// All weapons centred at (CX, CY), height ~140, anchored so the
+// rarity glow sits behind nicely. weaponType comes from the SHOP_POOL
+// column. Falls back to sword.
+
+function shapeSword(pal, accent) {
+  return `
+<!-- blade -->
+<path d="M ${CX - 8} ${CY + 50}
+         L ${CX - 8} ${CY - 50}
+         L ${CX}     ${CY - 64}
+         L ${CX + 8} ${CY - 50}
+         L ${CX + 8} ${CY + 50} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3.5" stroke-linejoin="round"/>
+<!-- fuller -->
+<rect x="${CX - 2}" y="${CY - 48}" width="4" height="86" rx="1" fill="${PALETTE[pal].stroke}" opacity="0.45"/>
+<!-- blade gloss -->
+<path d="M ${CX - 5} ${CY + 48} L ${CX - 5} ${CY - 46} L ${CX - 2} ${CY - 52} L ${CX - 2} ${CY + 48} Z"
+      fill="${PALETTE.white}" opacity="0.5"/>
+<!-- crossguard -->
+<rect x="${CX - 28}" y="${CY + 50}" width="56" height="10" rx="3"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>
+<!-- grip -->
+<rect x="${CX - 6}" y="${CY + 60}" width="12" height="28" rx="3" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2"/>
+<!-- pommel -->
+<circle cx="${CX}" cy="${CY + 92}" r="9" fill="url(#gk-rgrad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>
+<circle cx="${CX - 3}" cy="${CY + 89}" r="3" fill="${PALETTE.white}" opacity="0.65"/>`;
+}
+
+function shapeDagger(pal, accent) {
+  return `
+<path d="M ${CX - 6} ${CY + 40}
+         L ${CX - 6} ${CY - 38}
+         L ${CX}     ${CY - 50}
+         L ${CX + 6} ${CY - 38}
+         L ${CX + 6} ${CY + 40} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3.5" stroke-linejoin="round"/>
+<rect x="${CX - 1.5}" y="${CY - 36}" width="3" height="74" rx="1" fill="${PALETTE[pal].stroke}" opacity="0.45"/>
+<path d="M ${CX - 4} ${CY + 38} L ${CX - 4} ${CY - 36} L ${CX - 1} ${CY - 42} L ${CX - 1} ${CY + 38} Z"
+      fill="${PALETTE.white}" opacity="0.5"/>
+<rect x="${CX - 18}" y="${CY + 40}" width="36" height="8" rx="2"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>
+<rect x="${CX - 4}" y="${CY + 48}" width="8" height="22" rx="2" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2"/>
+<circle cx="${CX}" cy="${CY + 74}" r="6" fill="url(#gk-rgrad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="1.5"/>`;
+}
+
+function shapeAxe(pal, accent) {
+  return `
+<!-- haft -->
+<rect x="${CX - 4}" y="${CY - 60}" width="8" height="148" rx="3" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.5"/>
+<!-- axe head -->
+<path d="M ${CX - 4} ${CY - 50}
+         L ${CX - 46} ${CY - 30}
+         L ${CX - 48} ${CY + 6}
+         L ${CX - 12} ${CY - 6}
+         L ${CX - 4} ${CY + 4} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
+<path d="M ${CX + 4} ${CY - 50}
+         L ${CX + 46} ${CY - 30}
+         L ${CX + 48} ${CY + 6}
+         L ${CX + 12} ${CY - 6}
+         L ${CX + 4} ${CY + 4} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
+<!-- gloss on edges -->
+<path d="M ${CX - 38} ${CY - 28} L ${CX - 14} ${CY - 8} L ${CX - 12} ${CY - 4} L ${CX - 42} ${CY - 16} Z"
+      fill="${PALETTE.white}" opacity="0.45"/>
+<!-- gold band on haft -->
+<rect x="${CX - 5}" y="${CY + 10}" width="10" height="6" rx="2" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="1.5"/>
+<rect x="${CX - 5}" y="${CY + 70}" width="10" height="6" rx="2" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="1.5"/>`;
+}
+
+function shapeHammer(pal, accent) {
+  return `
+<rect x="${CX - 4}" y="${CY - 32}" width="8" height="118" rx="3" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.5"/>
+<rect x="${CX - 36}" y="${CY - 44}" width="72" height="38" rx="6"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3.5"/>
+<rect x="${CX - 30}" y="${CY - 38}" width="60" height="6" rx="2" fill="${PALETTE.white}" opacity="0.55"/>
+<!-- gold rivets -->
+<circle cx="${CX - 26}" cy="${CY - 24}" r="3" fill="url(#gk-rgrad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="1"/>
+<circle cx="${CX + 26}" cy="${CY - 24}" r="3" fill="url(#gk-rgrad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="1"/>
+<!-- grip wrap -->
+<rect x="${CX - 5}" y="${CY + 60}" width="10" height="28" rx="3" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>`;
+}
+
+function shapeBow(pal, accent) {
+  return `
+<path d="M ${CX - 32} ${CY - 64}
+         Q ${CX - 78} ${CY} ${CX - 32} ${CY + 64}"
+      fill="none" stroke="url(#gk-grad-${pal})" stroke-width="12" stroke-linecap="round"/>
+<path d="M ${CX - 32} ${CY - 64}
+         Q ${CX - 78} ${CY} ${CX - 32} ${CY + 64}"
+      fill="none" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linecap="round"/>
+<!-- bowstring -->
+<line x1="${CX - 32}" y1="${CY - 64}" x2="${CX - 32}" y2="${CY + 64}" stroke="${PALETTE.ink}" stroke-width="2"/>
+<!-- grip wrap -->
+<rect x="${CX - 40}" y="${CY - 14}" width="14" height="28" rx="3" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>
+<!-- arrow nocked -->
+<rect x="${CX - 28}" y="${CY - 2}" width="76" height="4" rx="2" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="1.5"/>
+<path d="M ${CX + 50} ${CY} L ${CX + 64} ${CY - 8} L ${CX + 64} ${CY + 8} Z"
+      fill="url(#gk-grad-iron)" stroke="${PALETTE.iron.stroke}" stroke-width="2" stroke-linejoin="round"/>`;
+}
+
+function shapeCrossbow(pal, accent) {
+  return `
+<!-- stock -->
+<rect x="${CX - 16}" y="${CY - 14}" width="74" height="20" rx="4" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="3"/>
+<!-- bow -->
+<path d="M ${CX - 16} ${CY - 36}
+         Q ${CX - 32} ${CY - 4} ${CX - 16} ${CY + 24}"
+      fill="none" stroke="url(#gk-grad-${pal})" stroke-width="10" stroke-linecap="round"/>
+<path d="M ${CX - 16} ${CY - 36}
+         Q ${CX - 32} ${CY - 4} ${CX - 16} ${CY + 24}"
+      fill="none" stroke="${PALETTE[pal].stroke}" stroke-width="2.5"/>
+<!-- string -->
+<line x1="${CX - 16}" y1="${CY - 36}" x2="${CX - 16}" y2="${CY + 24}" stroke="${PALETTE.ink}" stroke-width="2"/>
+<!-- bolt -->
+<rect x="${CX - 4}" y="${CY - 4}" width="52" height="4" rx="2" fill="url(#gk-grad-iron)" stroke="${PALETTE.iron.stroke}" stroke-width="1.5"/>
+<!-- trigger guard -->
+<rect x="${CX + 18}" y="${CY + 6}" width="12" height="14" rx="2" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>`;
+}
+
+function shapeWand(pal, accent) {
+  return `
+<rect x="${CX - 4}" y="${CY - 40}" width="8" height="110" rx="3" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.5"/>
+<circle cx="${CX}" cy="${CY - 52}" r="18" fill="url(#gk-rgrad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3"/>
+<circle cx="${CX - 5}" cy="${CY - 58}" r="5" fill="${PALETTE.white}" opacity="0.7"/>
+<!-- holder claws around orb -->
+<g stroke="${PALETTE[accent].stroke}" stroke-width="2.5" fill="url(#gk-grad-${accent})">
+  <path d="M ${CX - 16} ${CY - 38} L ${CX - 22} ${CY - 32} L ${CX - 14} ${CY - 30} Z"/>
+  <path d="M ${CX + 16} ${CY - 38} L ${CX + 22} ${CY - 32} L ${CX + 14} ${CY - 30} Z"/>
+  <path d="M ${CX} ${CY - 70} L ${CX - 6} ${CY - 64} L ${CX + 6} ${CY - 64} Z"/>
+</g>
+<!-- grip wrap -->
+<rect x="${CX - 5}" y="${CY + 30}" width="10" height="20" rx="2" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>`;
+}
+
+function shapeStaff(pal, accent) {
+  return `
+<rect x="${CX - 4}" y="${CY - 70}" width="8" height="150" rx="3" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.5"/>
+<!-- topper crystal -->
+<path d="M ${CX - 14} ${CY - 60}
+         L ${CX} ${CY - 86}
+         L ${CX + 14} ${CY - 60}
+         L ${CX + 6} ${CY - 52}
+         L ${CX - 6} ${CY - 52} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
+<path d="M ${CX - 10} ${CY - 58} L ${CX} ${CY - 80} L ${CX - 2} ${CY - 56} Z"
+      fill="${PALETTE.white}" opacity="0.6"/>
+<!-- gold band -->
+<rect x="${CX - 8}" y="${CY - 54}" width="16" height="5" rx="2"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="1.5"/>
+<!-- grip wrap -->
+<rect x="${CX - 5}" y="${CY - 6}" width="10" height="24" rx="2" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>`;
+}
+
+function shapePolearm(pal, accent) {
+  // Spear / halberd
+  return `
+<rect x="${CX - 4}" y="${CY - 36}" width="8" height="130" rx="3" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.5"/>
+<!-- broad blade -->
+<path d="M ${CX - 6} ${CY - 30}
+         L ${CX - 16} ${CY - 60}
+         L ${CX} ${CY - 84}
+         L ${CX + 16} ${CY - 60}
+         L ${CX + 6} ${CY - 30} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
+<rect x="${CX - 1.5}" y="${CY - 78}" width="3" height="46" rx="1" fill="${PALETTE[pal].stroke}" opacity="0.45"/>
+<path d="M ${CX - 12} ${CY - 56} L ${CX - 2} ${CY - 78} L ${CX - 2} ${CY - 32} Z"
+      fill="${PALETTE.white}" opacity="0.45"/>
+<!-- side axe blade (halberd hint) -->
+<path d="M ${CX + 6} ${CY - 36} L ${CX + 26} ${CY - 50} L ${CX + 26} ${CY - 30} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="2.5" stroke-linejoin="round"/>
+<!-- gold band -->
+<rect x="${CX - 6}" y="${CY - 30}" width="12" height="6" rx="2" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="1.5"/>`;
+}
+
+function shapeSling(pal, accent) {
+  // Y-shaped slingshot
+  return `
+<rect x="${CX - 5}" y="${CY}" width="10" height="80" rx="3" fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="2.5"/>
+<path d="M ${CX} ${CY}
+         L ${CX - 40} ${CY - 50}
+         M ${CX} ${CY}
+         L ${CX + 40} ${CY - 50}"
+      stroke="url(#gk-grad-wood)" stroke-width="12" stroke-linecap="round"/>
+<path d="M ${CX} ${CY}
+         L ${CX - 40} ${CY - 50}
+         M ${CX} ${CY}
+         L ${CX + 40} ${CY - 50}"
+      stroke="${PALETTE.wood.stroke}" stroke-width="2" stroke-linecap="round"/>
+<!-- rubber band + stone -->
+<path d="M ${CX - 36} ${CY - 46} Q ${CX} ${CY - 22} ${CX + 36} ${CY - 46}"
+      fill="none" stroke="${PALETTE.dark.base}" stroke-width="2.5"/>
+<circle cx="${CX}" cy="${CY - 24}" r="9" fill="url(#gk-rgrad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="2"/>`;
+}
+
+const WEAPON_SHAPES = {
+  sword:    shapeSword,
+  dagger:   shapeDagger,
+  axe:      shapeAxe,
+  hammer:   shapeHammer,
+  bow:      shapeBow,
+  crossbow: shapeCrossbow,
+  wand:     shapeWand,
+  staff:    shapeStaff,
+  polearm:  shapePolearm,
+  sling:    shapeSling,
+};
+
+// ── Armour shapes ───────────────────────────────────────────────
+
+function shapeHelm(pal, accent) {
+  return `
+<!-- dome -->
+<path d="M ${CX - 60} ${CY + 10}
+         Q ${CX - 60} ${CY - 60} ${CX} ${CY - 60}
+         Q ${CX + 60} ${CY - 60} ${CX + 60} ${CY + 10}
+         L ${CX + 60} ${CY + 30}
+         L ${CX - 60} ${CY + 30} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
+<!-- gloss top-left -->
+<path d="M ${CX - 50} ${CY + 8} Q ${CX - 50} ${CY - 50} ${CX - 6} ${CY - 54} L ${CX - 6} ${CY - 30} Q ${CX - 32} ${CY - 16} ${CX - 30} ${CY + 8} Z"
+      fill="${PALETTE.white}" opacity="0.55"/>
+<!-- gold band -->
+<rect x="${CX - 64}" y="${CY + 16}" width="128" height="14" rx="3"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2.5"/>
+<!-- visor slit -->
+<rect x="${CX - 28}" y="${CY - 18}" width="56" height="8" rx="2" fill="${PALETTE.ink}" stroke="${PALETTE[pal].stroke}" stroke-width="1.5"/>
+<!-- rivets -->
+<circle cx="${CX - 48}" cy="${CY + 23}" r="3" fill="${PALETTE[accent].hi}" stroke="${PALETTE.ink}" stroke-width="1"/>
+<circle cx="${CX + 48}" cy="${CY + 23}" r="3" fill="${PALETTE[accent].hi}" stroke="${PALETTE.ink}" stroke-width="1"/>`;
+}
+
+function shapeHood(pal, accent) {
+  return `
+<path d="M ${CX - 64} ${CY + 30}
+         Q ${CX - 70} ${CY - 20} ${CX - 30} ${CY - 60}
+         Q ${CX} ${CY - 72} ${CX + 30} ${CY - 60}
+         Q ${CX + 70} ${CY - 20} ${CX + 64} ${CY + 30}
+         L ${CX + 50} ${CY + 30}
+         Q ${CX} ${CY + 6} ${CX - 50} ${CY + 30} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
+<path d="M ${CX - 56} ${CY + 26} Q ${CX - 60} ${CY - 14} ${CX - 26} ${CY - 50} L ${CX - 14} ${CY - 46} Q ${CX - 38} ${CY - 8} ${CX - 32} ${CY + 26} Z"
+      fill="${PALETTE.white}" opacity="0.5"/>
+<!-- pointed tip -->
+<path d="M ${CX - 4} ${CY - 70} L ${CX + 14} ${CY - 86} L ${CX + 18} ${CY - 68} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
+<!-- accent trim -->
+<path d="M ${CX - 50} ${CY + 30} Q ${CX} ${CY + 6} ${CX + 50} ${CY + 30}"
+      fill="none" stroke="${PALETTE[accent].hi}" stroke-width="3"/>`;
+}
+
+function shapeCap(pal, accent) {
+  return `
+<!-- crown -->
+<ellipse cx="${CX}" cy="${CY - 4}" rx="48" ry="34"
+         fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3.5"/>
+<!-- brim -->
+<ellipse cx="${CX}" cy="${CY + 22}" rx="68" ry="14"
+         fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3.5"/>
+<ellipse cx="${CX - 16}" cy="${CY - 20}" rx="18" ry="10" fill="${PALETTE.white}" opacity="0.5"/>
+<!-- accent band -->
+<rect x="${CX - 48}" y="${CY + 8}" width="96" height="10" rx="2"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>`;
+}
+
+function shapeTunic(pal, accent) {
+  return `
+<path d="M ${CX - 60} ${CY + 70}
+         L ${CX - 60} ${CY - 30}
+         L ${CX - 36} ${CY - 60}
+         L ${CX - 14} ${CY - 50}
+         L ${CX + 14} ${CY - 50}
+         L ${CX + 36} ${CY - 60}
+         L ${CX + 60} ${CY - 30}
+         L ${CX + 60} ${CY + 70} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
+<!-- gloss -->
+<path d="M ${CX - 52} ${CY + 64} L ${CX - 52} ${CY - 26} L ${CX - 30} ${CY - 52} L ${CX - 12} ${CY - 46} L ${CX - 16} ${CY - 26} Q ${CX - 32} ${CY - 14} ${CX - 30} ${CY + 64} Z"
+      fill="${PALETTE.white}" opacity="0.5"/>
+<!-- collar v -->
+<path d="M ${CX - 14} ${CY - 50} L ${CX} ${CY - 24} L ${CX + 14} ${CY - 50} Z"
+      fill="${PALETTE[pal].lo}" stroke="${PALETTE[pal].stroke}" stroke-width="2" stroke-linejoin="round"/>
+<!-- gold belt -->
+<rect x="${CX - 60}" y="${CY + 50}" width="120" height="10" rx="2"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>
+<circle cx="${CX}" cy="${CY + 55}" r="6" fill="url(#gk-rgrad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="1.5"/>`;
+}
+
+function shapePlate(pal, accent) {
+  return `
+${shapeTunic(pal, accent)}
+<!-- shoulder pauldrons -->
+<ellipse cx="${CX - 56}" cy="${CY - 36}" rx="16" ry="12"
+         fill="url(#gk-rgrad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3"/>
+<ellipse cx="${CX + 56}" cy="${CY - 36}" rx="16" ry="12"
+         fill="url(#gk-rgrad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3"/>
+<!-- chest emblem -->
+<circle cx="${CX}" cy="${CY + 8}" r="14" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2.5"/>
+<path d="M ${CX} ${CY - 4} L ${CX - 8} ${CY + 6} L ${CX} ${CY + 18} L ${CX + 8} ${CY + 6} Z"
+      fill="${PALETTE[pal].lo}" stroke="${PALETTE[pal].stroke}" stroke-width="1.5"/>`;
+}
+
+function shapeRobe(pal, accent) {
+  return `
+<path d="M ${CX - 70} ${CY + 76}
+         L ${CX - 50} ${CY - 30}
+         L ${CX - 30} ${CY - 60}
+         L ${CX + 30} ${CY - 60}
+         L ${CX + 50} ${CY - 30}
+         L ${CX + 70} ${CY + 76} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
+<!-- robe folds -->
+<g stroke="${PALETTE[pal].stroke}" stroke-width="2" opacity="0.6" fill="none">
+  <path d="M ${CX - 36} ${CY - 40} L ${CX - 28} ${CY + 70}"/>
+  <path d="M ${CX + 36} ${CY - 40} L ${CX + 28} ${CY + 70}"/>
+  <path d="M ${CX} ${CY - 50} L ${CX} ${CY + 74}"/>
+</g>
+<!-- collar trim -->
+<path d="M ${CX - 30} ${CY - 60} L ${CX} ${CY - 30} L ${CX + 30} ${CY - 60}"
+      fill="none" stroke="${PALETTE[accent].hi}" stroke-width="3"/>
+<!-- gloss -->
+<path d="M ${CX - 60} ${CY + 70} L ${CX - 44} ${CY - 26} L ${CX - 30} ${CY - 50} L ${CX - 20} ${CY - 30} L ${CX - 30} ${CY + 70} Z"
+      fill="${PALETTE.white}" opacity="0.4"/>`;
+}
+
+function shapeTrousers(pal, accent) {
+  return `
+<path d="M ${CX - 48} ${CY - 50}
+         L ${CX + 48} ${CY - 50}
+         L ${CX + 50} ${CY - 30}
+         L ${CX + 32} ${CY + 70}
+         L ${CX + 8} ${CY + 70}
+         L ${CX + 4} ${CY - 20}
+         L ${CX - 4} ${CY - 20}
+         L ${CX - 8} ${CY + 70}
+         L ${CX - 32} ${CY + 70}
+         L ${CX - 50} ${CY - 30} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
+<!-- belt -->
+<rect x="${CX - 50}" y="${CY - 50}" width="100" height="12" rx="3"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2.5"/>
+<!-- gloss left leg -->
+<path d="M ${CX - 40} ${CY - 26} L ${CX - 28} ${CY + 64} L ${CX - 18} ${CY + 64} L ${CX - 28} ${CY - 26} Z"
+      fill="${PALETTE.white}" opacity="0.4"/>`;
+}
+
+function shapeBoots(pal, accent) {
+  return `
+<!-- left boot -->
+<path d="M ${CX - 60} ${CY + 60}
+         L ${CX - 60} ${CY - 20}
+         L ${CX - 32} ${CY - 20}
+         L ${CX - 32} ${CY + 40}
+         L ${CX - 18} ${CY + 40}
+         L ${CX - 16} ${CY + 60} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
+<!-- right boot -->
+<path d="M ${CX + 60} ${CY + 60}
+         L ${CX + 60} ${CY - 20}
+         L ${CX + 32} ${CY - 20}
+         L ${CX + 32} ${CY + 40}
+         L ${CX + 18} ${CY + 40}
+         L ${CX + 16} ${CY + 60} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
+<!-- cuff trim -->
+<rect x="${CX - 64}" y="${CY - 24}" width="36" height="10" rx="2" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>
+<rect x="${CX + 28}" y="${CY - 24}" width="36" height="10" rx="2" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>
+<!-- sole -->
+<rect x="${CX - 62}" y="${CY + 58}" width="48" height="6" rx="2" fill="${PALETTE[pal].stroke}"/>
+<rect x="${CX + 14}" y="${CY + 58}" width="48" height="6" rx="2" fill="${PALETTE[pal].stroke}"/>
+<!-- gloss on shaft -->
+<path d="M ${CX - 54} ${CY + 54} L ${CX - 54} ${CY - 14} L ${CX - 46} ${CY - 14} L ${CX - 44} ${CY + 54} Z"
+      fill="${PALETTE.white}" opacity="0.45"/>`;
+}
+
+function shapeSandals(pal, accent) {
+  return `
+<!-- platform soles -->
+<rect x="${CX - 64}" y="${CY + 32}" width="46" height="14" rx="6" fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3"/>
+<rect x="${CX + 18}" y="${CY + 32}" width="46" height="14" rx="6" fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3"/>
+<!-- straps -->
+<g stroke="url(#gk-grad-${accent})" stroke-width="6" stroke-linecap="round" fill="none">
+  <path d="M ${CX - 56} ${CY + 30} L ${CX - 30} ${CY + 8}"/>
+  <path d="M ${CX - 48} ${CY + 30} L ${CX - 22} ${CY + 8}"/>
+  <path d="M ${CX + 30} ${CY + 8} L ${CX + 56} ${CY + 30}"/>
+  <path d="M ${CX + 22} ${CY + 8} L ${CX + 48} ${CY + 30}"/>
+</g>`;
+}
+
+const ARMOUR_SHAPES = {
+  head: {
+    cap: shapeCap, hat: shapeCap, crown: shapeCap, hood: shapeHood,
+    coif: shapeHelm, helm: shapeHelm, helmet: shapeHelm, mask: shapeCap,
+    default: shapeHelm,
+  },
+  chest: {
+    tunic: shapeTunic, vest: shapeTunic, doublet: shapeTunic, robe: shapeRobe,
+    robes: shapeRobe, gown: shapeRobe, plate: shapePlate, bulwark: shapePlate,
+    cuirass: shapePlate, coat: shapeRobe, cloak: shapeRobe, mail: shapePlate,
+    default: shapeTunic,
+  },
+  legs: {
+    trousers: shapeTrousers, pants: shapeTrousers, greaves: shapeTrousers,
+    leggings: shapeTrousers, default: shapeTrousers,
+  },
+  boots: {
+    boots: shapeBoots, sabatons: shapeBoots, shoes: shapeBoots,
+    sandals: shapeSandals, slippers: shapeSandals, default: shapeBoots,
+  },
+};
+
+function pickArmourShape(slot, item) {
+  const tbl = ARMOUR_SHAPES[slot] || {};
+  const lower = item.name.toLowerCase();
+  for (const key of Object.keys(tbl)) {
+    if (key === 'default') continue;
+    if (lower.includes(key)) return tbl[key];
+  }
+  return tbl.default;
+}
+
+// ── Trinket shapes ──────────────────────────────────────────────
+
+function shapeRing(pal, accent) {
+  return `
+<circle cx="${CX}" cy="${CY + 8}" r="48" fill="none" stroke="url(#gk-grad-${pal})" stroke-width="20"/>
+<circle cx="${CX}" cy="${CY + 8}" r="48" fill="none" stroke="${PALETTE[pal].stroke}" stroke-width="3"/>
+<circle cx="${CX - 14}" cy="${CY - 12}" r="6" fill="${PALETTE.white}" opacity="0.6"/>
+<!-- gem mount -->
+<path d="M ${CX - 22} ${CY - 38}
+         L ${CX} ${CY - 56}
+         L ${CX + 22} ${CY - 38}
+         L ${CX + 12} ${CY - 22}
+         L ${CX - 12} ${CY - 22} Z"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="3" stroke-linejoin="round"/>
+<path d="M ${CX - 14} ${CY - 36} L ${CX} ${CY - 50} L ${CX + 4} ${CY - 30} Z"
+      fill="${PALETTE.white}" opacity="0.6"/>`;
+}
+
+function shapeAmulet(pal, accent) {
+  return `
+<!-- chain -->
+<path d="M ${CX - 60} ${CY - 50} Q ${CX - 30} ${CY - 70} ${CX} ${CY - 60} Q ${CX + 30} ${CY - 70} ${CX + 60} ${CY - 50}"
+      fill="none" stroke="url(#gk-grad-${accent})" stroke-width="4"/>
+<!-- gem body -->
+<path d="M ${CX} ${CY + 60}
+         L ${CX - 36} ${CY + 18}
+         L ${CX - 30} ${CY - 30}
+         L ${CX} ${CY - 50}
+         L ${CX + 30} ${CY - 30}
+         L ${CX + 36} ${CY + 18} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4" stroke-linejoin="round"/>
+<path d="M ${CX - 28} ${CY + 16} L ${CX - 22} ${CY - 24} L ${CX - 4} ${CY - 40} L ${CX - 14} ${CY + 24} Z"
+      fill="${PALETTE.white}" opacity="0.5"/>
+<!-- accent frame -->
+<circle cx="${CX}" cy="${CY - 10}" r="14" fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2.5"/>
+<circle cx="${CX}" cy="${CY - 10}" r="8" fill="${PALETTE[pal].lo}"/>`;
+}
+
+function shapeOrb(pal, accent) {
+  return `
+<circle cx="${CX}" cy="${CY}" r="56" fill="url(#gk-rgrad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="4"/>
+<ellipse cx="${CX - 18}" cy="${CY - 22}" rx="18" ry="10" fill="${PALETTE.white}" opacity="0.7"/>
+<!-- gold stand -->
+<rect x="${CX - 40}" y="${CY + 56}" width="80" height="12" rx="3"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2.5"/>
+<rect x="${CX - 28}" y="${CY + 48}" width="56" height="10" rx="2"
+      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>`;
+}
+
+function shapeCharm(pal, accent) {
+  // Generic feather / fang / coin charm — a small motif hanging on a cord
+  return `
+<!-- cord -->
+<path d="M ${CX - 50} ${CY - 50} Q ${CX} ${CY - 70} ${CX + 50} ${CY - 50}"
+      fill="none" stroke="${PALETTE.dark.base}" stroke-width="3"/>
+<!-- feather -->
+<path d="M ${CX} ${CY + 60}
+         Q ${CX - 36} ${CY + 20} ${CX - 18} ${CY - 40}
+         Q ${CX} ${CY - 50} ${CX + 18} ${CY - 40}
+         Q ${CX + 36} ${CY + 20} ${CX} ${CY + 60} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
+<line x1="${CX}" y1="${CY + 60}" x2="${CX}" y2="${CY - 50}" stroke="${PALETTE[pal].stroke}" stroke-width="2" opacity="0.7"/>
+<g stroke="${PALETTE[pal].stroke}" stroke-width="1.5" opacity="0.5">
+  <path d="M ${CX} ${CY + 20} L ${CX - 18} ${CY + 4}"/>
+  <path d="M ${CX} ${CY + 20} L ${CX + 18} ${CY + 4}"/>
+  <path d="M ${CX} ${CY - 4} L ${CX - 16} ${CY - 16}"/>
+  <path d="M ${CX} ${CY - 4} L ${CX + 16} ${CY - 16}"/>
+  <path d="M ${CX} ${CY - 24} L ${CX - 12} ${CY - 32}"/>
+  <path d="M ${CX} ${CY - 24} L ${CX + 12} ${CY - 32}"/>
+</g>
+<!-- bead at top -->
+<circle cx="${CX}" cy="${CY - 56}" r="8" fill="url(#gk-rgrad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2"/>`;
+}
+
+const TRINKET_SHAPES = {
+  ring: shapeRing, band: shapeRing,
+  amulet: shapeAmulet, pendant: shapeAmulet, talisman: shapeAmulet,
+  orb: shapeOrb, sphere: shapeOrb, crystal: shapeOrb,
+  feather: shapeCharm, charm: shapeCharm, fang: shapeCharm, coin: shapeCharm,
+  default: shapeCharm,
+};
+
+function pickTrinketShape(item) {
+  const lower = item.name.toLowerCase();
+  for (const key of Object.keys(TRINKET_SHAPES)) {
+    if (key === 'default') continue;
+    if (lower.includes(key)) return TRINKET_SHAPES[key];
+  }
+  return TRINKET_SHAPES.default;
+}
+
+// ── Per-item render ─────────────────────────────────────────────
+
+function safeId(item) {
+  const slug = item.name.toLowerCase()
+    .replace(/['"]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${item.slot}-${item.rarity}-${slug}`;
+}
+
+function pickAccent(item, basePal) {
+  // Accent should contrast the body palette. Heuristics:
+  //   rare/epic/legendary/mythic → gold or rarity colour
+  //   common/uncommon → wood/cream for warmth
+  if (item.rarity === 'legendary' || item.rarity === 'mythic') return 'gold';
+  if (item.rarity === 'epic') return 'amethyst';
+  if (item.rarity === 'rare') return 'sapphire';
+  if (basePal === 'gold') return 'ruby';
+  if (basePal === 'wood') return 'gold';
+  return 'gold';
+}
+
+function renderItem(item) {
+  const pal = pickPalette(item);
+  const accent = pickAccent(item, pal);
+  let shape;
+  if (item.slot === 'weapon') {
+    const wt = (item.weaponType || '').toLowerCase();
+    shape = WEAPON_SHAPES[wt] || shapeSword;
+  } else if (item.slot === 'trinket') {
+    shape = pickTrinketShape(item);
+  } else {
+    shape = pickArmourShape(item.slot, item);
+  }
+  // Rarity glow + contact shadow.
+  const glow = rarityGlow({ rarity: item.rarity, cx: CX, cy: CY, rx: 72, ry: 72 });
+  const shadow = contactShadow({ cx: CX, cy: H - 16, rx: 60, ry: 9 });
+  // Inner rarity ring (subtle border for higher rarities).
+  const ring = (['rare', 'epic', 'legendary', 'mythic'].includes(item.rarity))
+    ? `<circle cx="${CX}" cy="${CY}" r="86" fill="none" stroke="${RARITY[item.rarity].ring}" stroke-width="2" opacity="0.55"/>`
+    : '';
+  return `
+${glow}
+${shadow}
+${ring}
+${shape(pal, accent)}
+`;
+}
+
+// ── Render all items ────────────────────────────────────────────
+
+const indexEntries = [];
+let written = 0;
+for (const item of items) {
+  const body = renderItem(item);
+  const svg = svgWrapper({
+    width: W, height: H,
+    body,
+    title: `${item.name} — ${item.rarity}`,
+    desc: `Loadout gear icon. slot=${item.slot} rarity=${item.rarity} weaponType=${item.weaponType}.`,
+  });
+  const id = safeId(item);
+  const out = join(OUT_BASE, item.slot, `${id}.svg`);
+  writeFileSync(out, svg);
+  indexEntries.push({
+    id, name: item.name, slot: item.slot, rarity: item.rarity,
+    setName: item.setName, weaponType: item.weaponType,
+    preferredClass: item.preferredClass, ability: item.ability,
+    file: `${item.slot}/${id}.svg`,
+  });
+  written++;
+}
+
+// Write catalogue index.
+writeFileSync(join(OUT_BASE, '_catalog.json'), JSON.stringify(indexEntries, null, 2));
+
+console.log(`\n✓ rendered ${written} gear icons + _catalog.json index`);
+console.log(`  weapons: ${indexEntries.filter(e => e.slot === 'weapon').length}`);
+console.log(`  head:    ${indexEntries.filter(e => e.slot === 'head').length}`);
+console.log(`  chest:   ${indexEntries.filter(e => e.slot === 'chest').length}`);
+console.log(`  legs:    ${indexEntries.filter(e => e.slot === 'legs').length}`);
+console.log(`  boots:   ${indexEntries.filter(e => e.slot === 'boots').length}`);
+console.log(`  trinket: ${indexEntries.filter(e => e.slot === 'trinket').length}`);

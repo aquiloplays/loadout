@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192"
+     shape-rendering="geometricPrecision">
+  <title>Vestal Robes — uncommon</title>
+  <desc>Loadout gear icon. slot=chest rarity=uncommon weaponType=.</desc>
+  <defs>
+    <!-- soft drop shadow -->
+    <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+      <feOffset dx="0" dy="3" result="b"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.55"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <!-- subtle bevel/emboss via specular lighting -->
+    <filter id="gk-bevel" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
+      <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.6"
+                          specularExponent="20" lighting-color="#ffffff" result="spec">
+        <feDistantLight azimuth="135" elevation="55"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="specMasked"/>
+      <feComposite in="SourceGraphic" in2="specMasked" operator="arithmetic"
+                   k1="0" k2="1" k3="1" k4="0"/>
+    </filter>
+    <!-- gloss highlight — white→transparent, upper-left -->
+    <linearGradient id="gk-gloss" x1="0" y1="0" x2="0.7" y2="0.9">
+      <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.85"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="1"    stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <!-- contact-shadow ellipse fill (dark→transparent radial) -->
+    <radialGradient id="gk-contact-shadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0"   stop-color="#000000" stop-opacity="0.55"/>
+      <stop offset="0.7" stop-color="#000000" stop-opacity="0.15"/>
+      <stop offset="1"   stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    
+    <linearGradient id="gk-grad-wood" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#C99560"/>
+      <stop offset="0.55" stop-color="#A06A36"/>
+      <stop offset="1"   stop-color="#6E4621"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-wood" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#C99560"/>
+      <stop offset="0.55" stop-color="#A06A36"/>
+      <stop offset="1"    stop-color="#6E4621"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-stone" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#C9CCD4"/>
+      <stop offset="0.55" stop-color="#9298A4"/>
+      <stop offset="1"   stop-color="#5E6471"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-stone" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#C9CCD4"/>
+      <stop offset="0.55" stop-color="#9298A4"/>
+      <stop offset="1"    stop-color="#5E6471"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-brick" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#CE684D"/>
+      <stop offset="0.55" stop-color="#9C4231"/>
+      <stop offset="1"   stop-color="#6A2618"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-brick" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#CE684D"/>
+      <stop offset="0.55" stop-color="#9C4231"/>
+      <stop offset="1"    stop-color="#6A2618"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-thatch" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#E3B563"/>
+      <stop offset="0.55" stop-color="#B0832F"/>
+      <stop offset="1"   stop-color="#79581B"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-thatch" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#E3B563"/>
+      <stop offset="0.55" stop-color="#B0832F"/>
+      <stop offset="1"    stop-color="#79581B"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-steel" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#A0B0BE"/>
+      <stop offset="0.55" stop-color="#6F8190"/>
+      <stop offset="1"   stop-color="#3F4D5A"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-steel" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#A0B0BE"/>
+      <stop offset="0.55" stop-color="#6F8190"/>
+      <stop offset="1"    stop-color="#3F4D5A"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-iron" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#6B7080"/>
+      <stop offset="0.55" stop-color="#43485A"/>
+      <stop offset="1"   stop-color="#21253A"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-iron" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#6B7080"/>
+      <stop offset="0.55" stop-color="#43485A"/>
+      <stop offset="1"    stop-color="#21253A"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-copper" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#E2A172"/>
+      <stop offset="0.55" stop-color="#B36839"/>
+      <stop offset="1"   stop-color="#7A3F1B"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-copper" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#E2A172"/>
+      <stop offset="0.55" stop-color="#B36839"/>
+      <stop offset="1"    stop-color="#7A3F1B"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-gold" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#FFD970"/>
+      <stop offset="0.55" stop-color="#E5AC1F"/>
+      <stop offset="1"   stop-color="#9F7505"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-gold" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#FFD970"/>
+      <stop offset="0.55" stop-color="#E5AC1F"/>
+      <stop offset="1"    stop-color="#9F7505"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-ruby" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#FF7A8C"/>
+      <stop offset="0.55" stop-color="#D62E48"/>
+      <stop offset="1"   stop-color="#8C1428"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-ruby" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#FF7A8C"/>
+      <stop offset="0.55" stop-color="#D62E48"/>
+      <stop offset="1"    stop-color="#8C1428"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-emerald" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#5BDD96"/>
+      <stop offset="0.55" stop-color="#1FA561"/>
+      <stop offset="1"   stop-color="#0E6C3D"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-emerald" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#5BDD96"/>
+      <stop offset="0.55" stop-color="#1FA561"/>
+      <stop offset="1"    stop-color="#0E6C3D"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-sapphire" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#5A9EF7"/>
+      <stop offset="0.55" stop-color="#235FCB"/>
+      <stop offset="1"   stop-color="#103480"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-sapphire" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#5A9EF7"/>
+      <stop offset="0.55" stop-color="#235FCB"/>
+      <stop offset="1"    stop-color="#103480"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-amethyst" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#B581FF"/>
+      <stop offset="0.55" stop-color="#7E47D6"/>
+      <stop offset="1"   stop-color="#4C2289"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-amethyst" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#B581FF"/>
+      <stop offset="0.55" stop-color="#7E47D6"/>
+      <stop offset="1"    stop-color="#4C2289"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-leaf" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#7BD15A"/>
+      <stop offset="0.55" stop-color="#3D9226"/>
+      <stop offset="1"   stop-color="#1F5712"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-leaf" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#7BD15A"/>
+      <stop offset="0.55" stop-color="#3D9226"/>
+      <stop offset="1"    stop-color="#1F5712"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-sky" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#A8D9FF"/>
+      <stop offset="0.55" stop-color="#5FA8E8"/>
+      <stop offset="1"   stop-color="#2C6BB0"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-sky" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#A8D9FF"/>
+      <stop offset="0.55" stop-color="#5FA8E8"/>
+      <stop offset="1"    stop-color="#2C6BB0"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-dark" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#3A4250"/>
+      <stop offset="0.55" stop-color="#222937"/>
+      <stop offset="1"   stop-color="#10141C"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-dark" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#3A4250"/>
+      <stop offset="0.55" stop-color="#222937"/>
+      <stop offset="1"    stop-color="#10141C"/>
+    </radialGradient>
+
+    <linearGradient id="gk-grad-cream" x1="0.2" y1="0.1" x2="0.85" y2="0.95">
+      <stop offset="0"   stop-color="#FFF6D8"/>
+      <stop offset="0.55" stop-color="#F1DDA4"/>
+      <stop offset="1"   stop-color="#B19D6E"/>
+    </linearGradient>
+    <radialGradient id="gk-rgrad-cream" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0"    stop-color="#FFF6D8"/>
+      <stop offset="0.55" stop-color="#F1DDA4"/>
+      <stop offset="1"    stop-color="#B19D6E"/>
+    </radialGradient>
+    
+    <radialGradient id="gk-rarity-common" cx="0.5" cy="0.55" r="0.55">
+      <stop offset="0"   stop-color="#9298A4" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#9298A4" stop-opacity="0.35"/>
+      <stop offset="1"   stop-color="#9298A4" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="gk-rarity-uncommon" cx="0.5" cy="0.55" r="0.55">
+      <stop offset="0"   stop-color="#3D9226" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#3D9226" stop-opacity="0.35"/>
+      <stop offset="1"   stop-color="#3D9226" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="gk-rarity-rare" cx="0.5" cy="0.55" r="0.55">
+      <stop offset="0"   stop-color="#235FCB" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#235FCB" stop-opacity="0.35"/>
+      <stop offset="1"   stop-color="#235FCB" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="gk-rarity-epic" cx="0.5" cy="0.55" r="0.55">
+      <stop offset="0"   stop-color="#7E47D6" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#7E47D6" stop-opacity="0.35"/>
+      <stop offset="1"   stop-color="#7E47D6" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="gk-rarity-legendary" cx="0.5" cy="0.55" r="0.55">
+      <stop offset="0"   stop-color="#E5AC1F" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#E5AC1F" stop-opacity="0.35"/>
+      <stop offset="1"   stop-color="#E5AC1F" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="gk-rarity-mythic" cx="0.5" cy="0.55" r="0.55">
+      <stop offset="0"   stop-color="#D62E48" stop-opacity="0.85"/>
+      <stop offset="0.6" stop-color="#D62E48" stop-opacity="0.35"/>
+      <stop offset="1"   stop-color="#D62E48" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  
+<ellipse cx="96" cy="96" rx="84.96" ry="84.96" fill="url(#gk-rarity-uncommon)"/>
+<ellipse cx="96" cy="176" rx="60" ry="9" fill="url(#gk-contact-shadow)"/>
+
+
+<path d="M 36 166
+         L 36 66
+         L 60 36
+         L 82 46
+         L 110 46
+         L 132 36
+         L 156 66
+         L 156 166 Z"
+      fill="url(#gk-grad-cream)" stroke="#5A4A20" stroke-width="4" stroke-linejoin="round"/>
+<!-- gloss -->
+<path d="M 44 160 L 44 70 L 66 44 L 84 50 L 80 70 Q 64 82 66 160 Z"
+      fill="#FFFFFF" opacity="0.5"/>
+<!-- collar v -->
+<path d="M 82 46 L 96 72 L 110 46 Z"
+      fill="#B19D6E" stroke="#5A4A20" stroke-width="2" stroke-linejoin="round"/>
+<!-- gold belt -->
+<rect x="36" y="146" width="120" height="10" rx="2"
+      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
+<circle cx="96" cy="151" r="6" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+
+</svg>
