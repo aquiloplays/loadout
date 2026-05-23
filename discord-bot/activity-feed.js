@@ -46,7 +46,13 @@ function passesNoteworthyFilter(event) {
     case 'achievement.unlocked':
       return RARE_RARITIES.has(String(m.rarity || '').toLowerCase());
     case 'cards.pack.opened':
-      return RARE_RARITIES.has(String(m.rarity || '').toLowerCase()) || m.legendary === true;
+      // The pack-open emitter (cards-packs.js) sets `m.hadLegendary`
+      // when the rolled pack contained a legendary pull — that's the
+      // canonical "noteworthy" signal. Earlier this filter checked
+      // `m.rarity` / `m.legendary`, neither of which the emitter
+      // populates, so legendary pulls never reached the feed.
+      return m.hadLegendary === true
+          || RARE_RARITIES.has(String(m.rarity || '').toLowerCase());
     case 'season.tier.reached':
       return [10, 25, 50, 75].includes(Number(m.tier));
     default:

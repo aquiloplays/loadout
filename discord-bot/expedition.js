@@ -367,6 +367,16 @@ export async function claimExpedition(env, guildId, userId) {
   const resolved = resolveExpedition(rec);
   if (!resolved.finished) return { ok: false, error: 'not-finished', resolved };
 
+  // Stamp claimedUtc + persist BEFORE applying rewards so a second
+  // concurrent claim (manual + cron racing inside the same minute)
+  // re-reads the active record, sees claimedUtc set, and bails out
+  // with `already-claimed` instead of double-issuing bolts/packs.
+  // KV is eventually consistent globally but the worker isolate
+  // sees its own writes immediately, which is the meaningful guard
+  // against the user-vs-cron race inside one worker.
+  rec.claimedUtc = Date.now();
+  await writeActive(env, guildId, userId, rec);
+
   // Apply rewards.
   if (resolved.rewards.bolts > 0) {
     try { await applyVaultDelta(env, guildId, userId, resolved.rewards.bolts, `expedition:${rec.id}`); }
@@ -408,8 +418,9 @@ export async function claimExpedition(env, guildId, userId) {
     );
   }
 
-  // Stamp + archive + clear active.
-  rec.claimedUtc = Date.now();
+  // Archive + clear active. claimedUtc was already stamped before
+  // applying rewards (see above) — preserved on rec so the archive
+  // copy carries the timestamp too.
   rec.resolved = resolved;
   await appendHist(env, guildId, userId, rec);
   await clearActive(env, guildId, userId);

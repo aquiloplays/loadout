@@ -494,7 +494,18 @@ async function handleDonate(env, guildId, userId, amount) {
   }
   const accepted = Math.min(n, headroom);
   await applyVaultDelta(env, guildId, userId, -accepted, 'clash:donate');
-  await addTreasury(env, guildId, { bolts: accepted });
+  // If the treasury credit fails after the wallet debit, the bolts
+  // would silently disappear (debited from viewer, never reached
+  // the town). Wrap + refund on failure so the player isn't
+  // out-of-pocket for a transient KV write error.
+  try {
+    await addTreasury(env, guildId, { bolts: accepted });
+  } catch (e) {
+    console.warn('[clash] donate: addTreasury failed, refunding wallet:', e && e.message);
+    try { await applyVaultDelta(env, guildId, userId, accepted, 'clash:donate-refund'); }
+    catch (e2) { console.error('[clash] donate REFUND FAILED — manual reconciliation needed:', guildId, userId, accepted, e2 && e2.message); }
+    return '❌ Couldn\'t reach the treasury. Your Bolts were refunded — try again.';
+  }
   await recordContribution(env, guildId, userId, accepted);
   // PROGRESSION (P1) — 1 XP per 100 bolts donated, capped at 50/day by table.
   try {
@@ -984,6 +995,25 @@ async function renderTownView(env, guildId) {
   return lines.join('\n');
 }
 
+// Compute the active town build-slot budget. TH grants a base slot count
+// per level; each built Builder's Hut grants +1. Capped at 4 (matches
+// the cap exposed in routeClashTown's builderSlots field). Items currently
+// in the build queue consume slots until they complete.
+async function townBuildSlotsAvailable(env, guildId, town) {
+  const thBuilding = (town.buildings || []).find(b => b.kind === 'townhall');
+  const thBuildSlots = thBuilding
+    ? (BUILDINGS.townhall?.grantsBuildSlots?.[thBuilding.level || 1] || 1)
+    : 1;
+  const hutSlots = (town.buildings || []).filter(b => b.kind === 'buildersHut').length;
+  const cap = Math.min(4, thBuildSlots + hutSlots);
+  const q = await getQueue(env, 'clash:queue:' + guildId);
+  // Only build-style items consume slots — garrison training is on a
+  // separate personal queue, repair completes instantly, etc.
+  const buildKinds = new Set(['build', 'newBuilding']);
+  const inFlight = (q.items || []).filter(it => buildKinds.has(it.kind)).length;
+  return { cap, inFlight, available: Math.max(0, cap - inFlight) };
+}
+
 async function handleTownBuild(env, guildId, userId, kind, buildingId) {
   if (!await canManageTown(env, guildId, userId)) {
     return '🔒 Only the streamer + mods can queue town builds. (Donate Bolts to support the build: `/clash donate amount:<n>`)';
@@ -992,6 +1022,15 @@ async function handleTownBuild(env, guildId, userId, kind, buildingId) {
     return '❌ Unknown building. Try: townhall, wall, cannon, archerTower, trap, storage, barracks.';
   }
   const town = await getTown(env, guildId);
+  // Bug-hunt fix (2026-05): the build queue had no server-side cap
+  // enforcement, so a client could spam /web/clash/build and queue
+  // unlimited concurrent builds (each charged correctly, but all
+  // completing at once). Cap is the standard CoC-style builders
+  // budget: TH grant + 1/builders-hut, max 4.
+  const slots = await townBuildSlotsAvailable(env, guildId, town);
+  if (slots.available <= 0) {
+    return `🔒 All ${slots.cap} builders are busy (${slots.inFlight} in flight). Wait for one to finish — or build a Builder's Hut for more.`;
+  }
   // E3: TH gate — heavyCannon (TH8+), infernoTower (TH8+), eagleEye
   // (TH9+) refuse to build below the gate. Returns a useful error
   // instead of "cost lookup failed".
