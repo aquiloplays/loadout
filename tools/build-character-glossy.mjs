@@ -66,15 +66,16 @@ const HIP_Y      = 110;
 const KNEE_Y     = 132;
 const ANKLE_Y    = 152;
 const FOOT_Y     = 156;
-// Arms — hand at (cx ± 26, 116). Hand is BELOW any tunic/armor hem
-// so it always reads. Arm tapers from shoulder to wrist; the hand is
-// a defined circle slightly wider than the wrist.
-const HAND_Y        = 116;
-const HAND_R        = 7;
-const HAND_OFFSET_X = 26;
-// Visible separation gap between arm and torso (px at waist level).
-// Crucial: without this the arm reads as a body bulge, not a limb.
-const ARM_GAP       = 3;
+// Arms — slim near-vertical limb. Hand sits roughly at hip level
+// (HIP_Y=110) so the arm length matches the torso. HAND_OFFSET_X is
+// tight against the body — only a small natural gap from the torso
+// silhouette. HAND_R sized in proportion to the wrist (~50 % wider).
+const HAND_Y        = 108;
+const HAND_R        = 5;
+const HAND_OFFSET_X = 22;
+// Tiny separation gap so the arm reads as a separate limb but isn't
+// "splayed out" away from the body.
+const ARM_GAP       = 1;
 
 // ── Skin tone palette ───────────────────────────────────────────
 //
@@ -194,11 +195,12 @@ function bodyShapeL3(type, skin) {
   // a clean circle slightly bigger than the wrist.
   //   armShoulderW : thickness at the shoulder (top of the arm)
   //   armWristW    : thickness at the wrist (narrower than shoulder)
-  // Aggressive shoulder-to-wrist taper so the arm reads as anatomy
-  // (not a tube). Shoulder ≈ 13/11 wide, wrist ≈ 5/4 — i.e. wrist is
-  // roughly 40 % the width of the shoulder.
-  const armShoulderW = stocky ? 13 : 11;
-  const armWristW    = stocky ? 5  : 4;
+  // Slim limb proportions. Subtle shoulder→wrist taper (wrist is
+  // ~75 % the width of the shoulder, not a dramatic carrot). Width
+  // small in absolute terms so the arm is a slender limb, not a
+  // flipper. Stocky body type bumps both ends slightly.
+  const armShoulderW = stocky ? 8 : 7;
+  const armWristW    = stocky ? 6 : 5;
   // The arm's INNER edge sits ARM_GAP outside the torso outer edge
   // — that gap is what makes the arm read as a separate limb rather
   // than a body bulge.
@@ -278,22 +280,16 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
      arm is a single tapered path; hand circle on top. Light side
      on the OUTER edge (away from torso), shadow on the inner. -->
 
-<!-- LEFT arm — subtle bicep + clean taper to wrist. Not exaggerated
-     Popeye — just enough bulge that the outer edge isn't a straight
-     line. Inner edge tapers steadily inward. -->
-<path d="M ${leftArmOuterTop + 2} ${SHOULDER_Y - 2}
-         C ${leftArmOuterTop - 1} ${SHOULDER_Y + 4},
-           ${leftArmOuterTop - 1.5} ${SHOULDER_Y + 14},
-           ${leftArmOuterTop} ${SHOULDER_Y + 20}
-         C ${leftArmOuterTop + 1} ${SHOULDER_Y + 30},
-           ${leftWristOuterX - 0.5} ${HAND_Y - HAND_R - 8},
-           ${leftWristOuterX} ${HAND_Y - HAND_R + 1}
-         L ${leftWristInnerX} ${HAND_Y - HAND_R + 1}
-         C ${leftWristInnerX} ${HAND_Y - HAND_R - 8},
-           ${leftArmInnerTop - 0.5} ${SHOULDER_Y + 22},
-           ${leftArmInnerTop} ${SHOULDER_Y + 4}
-         L ${leftArmInnerTop - 1} ${SHOULDER_Y + 1} Z"
-      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2" stroke-linejoin="round"/>
+<!-- LEFT arm — slim near-vertical limb. Outer edge has a very slight
+     bicep tick at the top, then runs nearly straight down. Inner
+     edge is essentially vertical. Subtle taper to a defined wrist. -->
+<path d="M ${leftArmOuterTop + 1} ${SHOULDER_Y - 1}
+         Q ${leftArmOuterTop - 1} ${SHOULDER_Y + 4} ${leftArmOuterTop} ${SHOULDER_Y + 10}
+         L ${leftWristOuterX} ${HAND_Y - HAND_R}
+         L ${leftWristInnerX} ${HAND_Y - HAND_R}
+         L ${leftArmInnerTop} ${SHOULDER_Y + 10}
+         Q ${leftArmInnerTop + 1} ${SHOULDER_Y + 4} ${leftArmInnerTop - 1} ${SHOULDER_Y - 1} Z"
+      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="1.8" stroke-linejoin="round"/>
 <!-- LEFT arm shadow (inner edge, facing torso) -->
 <path d="M ${leftArmInnerTop - 2} ${SHOULDER_Y + 2}
          C ${leftArmInnerTop} ${SHOULDER_Y + 10},
@@ -317,19 +313,13 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
       fill="none" stroke="${skin.stroke}" stroke-width="0.8" opacity="0.55"/>
 
 <!-- RIGHT arm (mirror) -->
-<path d="M ${rightArmOuterTop - 2} ${SHOULDER_Y - 2}
-         C ${rightArmOuterTop + 1} ${SHOULDER_Y + 4},
-           ${rightArmOuterTop + 1.5} ${SHOULDER_Y + 14},
-           ${rightArmOuterTop} ${SHOULDER_Y + 20}
-         C ${rightArmOuterTop - 1} ${SHOULDER_Y + 30},
-           ${rightWristOuterX + 0.5} ${HAND_Y - HAND_R - 8},
-           ${rightWristOuterX} ${HAND_Y - HAND_R + 1}
-         L ${rightWristInnerX} ${HAND_Y - HAND_R + 1}
-         C ${rightWristInnerX} ${HAND_Y - HAND_R - 8},
-           ${rightArmInnerTop + 0.5} ${SHOULDER_Y + 22},
-           ${rightArmInnerTop} ${SHOULDER_Y + 4}
-         L ${rightArmInnerTop + 1} ${SHOULDER_Y + 1} Z"
-      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2" stroke-linejoin="round"/>
+<path d="M ${rightArmOuterTop - 1} ${SHOULDER_Y - 1}
+         Q ${rightArmOuterTop + 1} ${SHOULDER_Y + 4} ${rightArmOuterTop} ${SHOULDER_Y + 10}
+         L ${rightWristOuterX} ${HAND_Y - HAND_R}
+         L ${rightWristInnerX} ${HAND_Y - HAND_R}
+         L ${rightArmInnerTop} ${SHOULDER_Y + 10}
+         Q ${rightArmInnerTop - 1} ${SHOULDER_Y + 4} ${rightArmInnerTop + 1} ${SHOULDER_Y - 1} Z"
+      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="1.8" stroke-linejoin="round"/>
 <!-- RIGHT arm shadow (inner edge AND outer edge for the away-side arm) -->
 <path d="M ${(rightArmInnerTop + rightArmOuterTop) / 2} ${SHOULDER_Y - 2}
          C ${(rightArmInnerTop + rightArmOuterTop) / 2 + 2} ${SHOULDER_Y + 6},

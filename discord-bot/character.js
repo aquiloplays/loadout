@@ -91,7 +91,21 @@ const SPRITE_CACHE = new Map();
 //                              to slim side strands, default tunic
 //                              with visible short sleeves so it reads
 //                              as a tunic not a tank top.
-const SPRITE_ASSET_VERSION = 'v5-figure';
+//   v6-arms     L3+ (2026-05) — targeted ARMS-only fix after Clay
+//                              flagged L3 arms as over-corrected:
+//                              too long (hanging to mid-thigh), too
+//                              bulky at shoulder, dramatic carrot
+//                              taper, splayed away from torso, tiny
+//                              ball hands. Now slim near-vertical
+//                              limbs: HAND_Y 116→108 (hip level),
+//                              HAND_OFFSET_X 26→22 (close to body),
+//                              ARM_GAP 3→1, armShoulderW 11→7,
+//                              armWristW 4→5 (gentler taper, ~75 %
+//                              not ~35 %), HAND_R 7→5 (proportional
+//                              to wrist, ~50 % wider). Removed the
+//                              bicep bulge Bezier — arms run nearly
+//                              straight with subtle taper.
+const SPRITE_ASSET_VERSION = 'v6-arms';
 
 // Canvas size — pixel-perfect compose, all layers share these dims.
 // Glossy bar (2026-05 art campaign, see tools/build-character-glossy.mjs
