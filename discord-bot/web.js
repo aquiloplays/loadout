@@ -156,6 +156,7 @@ const ROUTES = new Set([
   'expedition/backpack/catalog',
   'expedition/backpack/buy',
   'expedition/backpack/supply',
+  'season/claim',
   'character',
   'character/save',
   'character/class',
@@ -274,6 +275,7 @@ export async function handleWeb(req, env) {
     if (route === 'clash/setup')           return await routeClashSetup(env, guildId, discordId);
     if (route === 'pet/snapshot')          return await routePetSnapshot(env, guildId, discordId);
     if (route === 'pet/collect')           return await routePetCollect(env, guildId, discordId);
+    if (route === 'season/claim')          return await routeSeasonClaim(env, discordId, body);
     if (route.startsWith('expedition/')) {
       const sub = route.slice('expedition/'.length);
       const { handleExpeditionWeb } = await import('./expedition.js');
@@ -1320,5 +1322,29 @@ async function routePetSnapshot(env, guildId, userId) {
 async function routePetCollect(env, guildId, userId) {
   const { claimPetDeliveries } = await import('./pet.js');
   const r = await claimPetDeliveries(env, guildId, userId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// ── /web/season/claim ────────────────────────────────────────────
+//
+// HMAC-gated battle-pass claim. Auth-gap fix (2026-05): used to live
+// under /web/season/<userId>/claim which bypassed the HMAC dispatcher
+// because the /web/season/* prefix was claimed first by the public
+// read. Anyone who knew a userId could fire claims on someone else's
+// account. Public read is now at /p/season/<userId>; the claim moved
+// here so it gets the same HMAC gate every other /web/* write uses.
+//
+// Body fields (signed):
+//   discordId   acting user (the one whose tier gets claimed)
+//   tier        1..tierCount (battle pass tier number)
+//   track       'free' | 'premium'
+//
+// guildId is required by the outer dispatcher's auth but isn't read
+// by claimTier — season records are per-user, not per-guild.
+async function routeSeasonClaim(env, discordId, body) {
+  const tier = parseInt(body && body.tier, 10) || 0;
+  const track = (body && body.track) || 'free';
+  const { claimTier } = await import('./progression/season.js');
+  const r = await claimTier(env, discordId, tier, track);
   return json(r, r.ok ? 200 : 400);
 }

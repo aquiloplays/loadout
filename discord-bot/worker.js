@@ -267,9 +267,13 @@ export default {
       const { handleWebBadges } = await import('./progression/http.js');
       return handleWebBadges(req, env, path);
     }
-    if (path.startsWith('/web/season/')) {
-      const { handleWebSeason } = await import('./progression/http.js');
-      return handleWebSeason(req, env, path);
+    // Season public reads — claimed BEFORE the generic /web/* HMAC
+    // dispatcher (which would reject public reads). The CLAIM POST
+    // is intentionally NOT here — it's routed through the HMAC-gated
+    // /web/season/claim in web.js (auth-gap fix 2026-05).
+    if (method === 'GET' && path.startsWith('/p/season')) {
+      const { handlePublicSeason } = await import('./progression/http.js');
+      return handlePublicSeason(req, env, path);
     }
     if (path.startsWith('/web/tournaments')) {
       const { handleWebTournaments } = await import('./progression/http.js');

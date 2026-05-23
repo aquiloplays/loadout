@@ -276,28 +276,33 @@ export async function handleWebTournaments(req, env, path) {
   return json({ error: 'unknown-op' }, 404);
 }
 
-// /web/season/active                 → active season config + tier table
-// /web/season/<userId>                → user's tier + xp progress + claim state
-// POST /web/season/<userId>/claim     body { tier, track }
-export async function handleWebSeason(req, env, path) {
-  const parts = path.split('/').filter(Boolean);  // ['web','season',...]
+// PUBLIC season reads (no auth) — mirrors the /p/<userId> profile pattern.
+// Wired in worker.js under `/p/season/...`, claimed before the generic
+// /web/* HMAC dispatcher.
+//
+//   GET /p/season/active           → active season config + tier table
+//   GET /p/season/<userId>         → user's tier + xp + per-tier claim state
+//
+// The CLAIM POST (which mutates wallet/badge/fragment ledgers) used to
+// live alongside these reads at /web/season/<userId>/claim, but that
+// prefix was claimed before the generic HMAC dispatcher so the POST
+// was reachable WITHOUT a signature — anyone who knew a userId could
+// fire claims on someone else's account. Auth-gap fix (2026-05): the
+// public read moves here, the claim moves under the HMAC path
+// (routeSeasonClaim in web.js → /web/season/claim, body-bound discordId).
+export async function handlePublicSeason(req, env, path) {
+  if (req.method !== 'GET') {
+    return json({ error: 'method-not-allowed', hint: 'POST /web/season/claim with HMAC for writes' }, 405);
+  }
+  const parts = path.split('/').filter(Boolean);  // ['p','season', ...]
   if (parts[2] === 'active') {
     const s = await ensureCurrentSeason(env);
     return json({ active: s });
   }
   const userId = parts[2];
   if (!userId) return json({ error: 'userId required' }, 400);
-  if (req.method === 'GET') {
-    const data = await readSeasonDisplay(env, userId);
-    return json({ userId, ...data });
-  }
-  if (req.method === 'POST' && parts[3] === 'claim') {
-    let body = {};
-    try { body = await req.json(); } catch { return json({ error: 'bad-json' }, 400); }
-    const r = await claimTier(env, userId, parseInt(body.tier, 10) || 0, body.track || 'free');
-    return json(r, r.ok ? 200 : 400);
-  }
-  return json({ error: 'unknown-op' }, 404);
+  const data = await readSeasonDisplay(env, userId);
+  return json({ userId, ...data });
 }
 
 // /web/profile/link/start?platform=...&userId=...&returnUrl=...
