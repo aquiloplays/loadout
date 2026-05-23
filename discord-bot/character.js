@@ -140,13 +140,16 @@ async function resolveLayers(env, hero, pet, opts) {
     layers.push({ rel: `gear/figure/trinket/${trinketSafe}.png` });
   }
 
-  // z=15 — pet (cosmetic, only if not suppressed by ?nopet=1)
-  // HELD post-glossy-flip: existing pet sprites are 64×80 pixel art
-  // and would crash compose() (which throws on layer dim mismatch)
-  // against the 128×160 glossy figure canvas. Pet glossy is a
-  // follow-up wave. When it lands, restore this block to push the
-  // pet PNG (glossy, 128×160) — same compose chain otherwise.
-  void pet; void opts;
+  // z=15 — pet (cosmetic companion, lower-right of the figure
+  // canvas beside the hero). Glossy 128×160 PNGs at
+  // pet/glossy/<species>-<colour>.png; mood overlay at
+  // pet/glossy/mood-<hint>.png floats above the pet head.
+  // Marked optional so missing assets (mid-vendor) degrade.
+  if (pet && !opts.nopet) {
+    layers.push({ rel: `pet/glossy/${pet.species}-${pet.colour}.png`, optional: true });
+    const mood = computeMood(pet);
+    if (mood?.hint) layers.push({ rel: `pet/glossy/mood-${mood.hint}.png`, optional: true });
+  }
 
   // z=20 — body (glossy 128×160)
   layers.push({ rel: `figure/glossy/body-${hero.custom.bodyType || 'slim'}-${hero.custom.skinTone || 'fair'}.png` });
@@ -199,11 +202,20 @@ async function resolveLayers(env, hero, pet, opts) {
   const weaponSafe = gearSafeId(weapon);
   if (weaponSafe) layers.push({ rel: `gear/figure/weapon/${weaponSafe}.png` });
 
-  // z=90 — fx (legendary glow halos). HELD post-glossy-flip — the
-  // existing fx PNGs (e.g. gear/fx/excalibur.png) are 64×80 and
-  // would crash compose() against the 128×160 glossy canvas. When
-  // glossy halo overlays are authored, restore this block pointing
-  // at gear/figure/fx/<safeId>.png at 128×160.
+  // z=90 — fx (legendary halo overlays). One per-slot halo at
+  // gear/figure/fx/<slot>.png, painted ABOVE the equipped gear so
+  // the glow reads as overlay magic. Dedup'd by slot so a hero
+  // wearing two legendaries in the same slot (impossible) doesn't
+  // double-paint. Optional so the absence of a halo file silently
+  // skips instead of crashing.
+  const fxSlotsSeen = new Set();
+  for (const slot of ['weapon', 'chest', 'head', 'trinket', 'legs', 'boots']) {
+    const it = itemSlot(slot);
+    if (it?.rarity === 'legendary' && !fxSlotsSeen.has(slot)) {
+      fxSlotsSeen.add(slot);
+      layers.push({ rel: `gear/figure/fx/${slot}.png`, optional: true });
+    }
+  }
 
   return layers;
 }

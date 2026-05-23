@@ -31,6 +31,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 const FIG_DIR  = join(ROOT, 'aquilo-gg/sprites/figure/glossy');
 const GEAR_DIR = join(ROOT, 'aquilo-gg/sprites/gear/figure');
+const PET_DIR  = join(ROOT, 'aquilo-gg/sprites/pet/glossy');
+const FX_DIR   = join(ROOT, 'aquilo-gg/sprites/gear/figure/fx');
 const OUT_DIR  = join(ROOT, 'tools/_render-test-heroes');
 mkdirSync(OUT_DIR, { recursive: true });
 
@@ -55,6 +57,13 @@ function composeHero(hero) {
   // z=10 — back trinket (if any)
   if (hero.trinket && BACK_TRINKET_RE.test(hero.trinket)) {
     layers.push(pngLayer(join(GEAR_DIR, 'trinket', `${hero.trinket}.png`)));
+  }
+  // z=15 — pet
+  if (hero.pet) {
+    layers.push(pngLayer(join(PET_DIR, `${hero.pet.species}-${hero.pet.colour}.png`)));
+    if (hero.pet.mood) {
+      layers.push(pngLayer(join(PET_DIR, `mood-${hero.pet.mood}.png`)));
+    }
   }
   // z=20 — body
   layers.push(pngLayer(join(FIG_DIR, `body-${hero.bodyType}-${hero.skinTone}.png`)));
@@ -82,6 +91,12 @@ function composeHero(hero) {
   if (hero.head)   layers.push(pngLayer(join(GEAR_DIR, 'head', `${hero.head}.png`)));
   // z=80 — weapon
   if (hero.weapon) layers.push(pngLayer(join(GEAR_DIR, 'weapon', `${hero.weapon}.png`)));
+  // z=90 — legendary fx halos (per-slot)
+  if (hero.legendarySlots) {
+    for (const slot of hero.legendarySlots) {
+      layers.push(pngLayer(join(FX_DIR, `${slot}.png`)));
+    }
+  }
 
   // Pale background so we can see the silhouette + any
   // alpha-bleed.
@@ -160,6 +175,44 @@ const TEST_HEROES = [
     hairStyle: 'curly-afro', hairColor: 'black',
     eyeColor: 'hazel', accent: 'none',
     // no gear — confirms body + default-clothing render alone cleanly
+  },
+  {
+    name: 'G-warrior-with-pet-and-legendary',
+    bodyType: 'stocky', skinTone: 'tan',
+    hairStyle: 'short-tousled', hairColor: 'brown',
+    eyeColor: 'brown', accent: 'face-scar',
+    weapon: 'weapon-uncommon-knights-sword',
+    chest:  'chest-rare-knights-cuirass',
+    legs:   'legs-rare-knights-tassets',
+    boots:  'boots-rare-knights-sabatons',
+    head:   'head-rare-knights-helm',
+    pet:    { species: 'dog', colour: 'amber' },
+    legendarySlots: ['weapon', 'head'],
+  },
+  {
+    name: 'H-mage-with-cat-mood',
+    bodyType: 'slim', skinTone: 'porcelain',
+    hairStyle: 'wizard-long', hairColor: 'violet',
+    eyeColor: 'violet', accent: 'glasses-round',
+    weapon: 'weapon-epic-stormcaller-staff',
+    chest:  'chest-epic-voidweave-robe',
+    legs:   'legs-uncommon-arcane-skirt',
+    boots:  'boots-uncommon-arcane-slippers',
+    head:   'head-epic-voidweave-hood',
+    pet:    { species: 'cat', colour: 'black', mood: 'hungry' },
+    legendarySlots: ['chest'],
+  },
+  {
+    name: 'I-ranger-with-fox',
+    bodyType: 'slim', skinTone: 'olive',
+    hairStyle: 'ponytail', hairColor: 'forest',
+    eyeColor: 'green', accent: 'freckles',
+    weapon: 'weapon-uncommon-yew-longbow',
+    chest:  'chest-rare-druidic-robes',
+    legs:   'legs-rare-druidic-pants',
+    boots:  'boots-rare-mossfoot-boots',
+    head:   'head-rare-antlered-hood',
+    pet:    { species: 'fox', colour: 'rust' },
   },
 ];
 
