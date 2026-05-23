@@ -914,19 +914,23 @@ export function spriteIdForTroop(troopId) {
 // where bit0=N, bit1=E, bit2=S, bit3=W — see tools/build-wall-
 // variants-glossy.mjs.
 //
-// Per-level glossy art is deferred to a follow-up wave — every
-// non-wall kind reuses the L1 source for now. Walls also single-
-// level today; per-level wall variants would 16 × N more files.
+// Per-level building progression (K3 wave) is parametric — each
+// non-wall kind ships L1..L10, where L2+ adds cumulative overlay
+// decorations (pennants, gold trim, gem mounts, sparkle particles)
+// so a viewer can tell a building's level at a glance. Walls stay
+// single-level until per-bitmask per-level art lands (deferred —
+// would multiply by 16 again).
 
 export function spriteIdForBuildingV2(kind, level, bitmask4 = null) {
   const b = BUILDINGS[kind];
   if (!b) return null;
-  void level;
   if (kind === 'wall' && Number.isInteger(bitmask4)) {
     const mask = String(bitmask4 & 0b1111).padStart(2, '0');
     return `clash-v2/glossy/buildings/wall-L1-${mask}.svg`;
   }
-  return `clash-v2/glossy/buildings/${kind}-L1.svg`;
+  const maxLevel = (b.hp?.length || 2) - 1;
+  const lv = Math.max(1, Math.min(maxLevel, Math.min(10, Number(level) || 1)));
+  return `clash-v2/glossy/buildings/${kind}-L${lv}.svg`;
 }
 
 export function spriteIdForTroopV2(troopId) {
