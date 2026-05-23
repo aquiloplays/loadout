@@ -239,7 +239,13 @@ export default {
 
     // Progression (P2) routes — public reads, claimed BEFORE the
     // generic /web/* dispatcher below (which is HMAC-gated and would
-    // reject public reads).
+    // reject public reads). /p/season/* must be matched FIRST since
+    // it's a sub-path of /p/* and the userId-shaped path below would
+    // otherwise treat "season" as a userId.
+    if (method === 'GET' && path.startsWith('/p/season')) {
+      const { handlePublicSeason } = await import('./progression/http.js');
+      return handlePublicSeason(req, env, path);
+    }
     if (method === 'GET' && path.startsWith('/p/')) {
       const { handleProfilePage } = await import('./progression/http.js');
       return handleProfilePage(req, env, path);
@@ -267,14 +273,9 @@ export default {
       const { handleWebBadges } = await import('./progression/http.js');
       return handleWebBadges(req, env, path);
     }
-    // Season public reads — claimed BEFORE the generic /web/* HMAC
-    // dispatcher (which would reject public reads). The CLAIM POST
-    // is intentionally NOT here — it's routed through the HMAC-gated
-    // /web/season/claim in web.js (auth-gap fix 2026-05).
-    if (method === 'GET' && path.startsWith('/p/season')) {
-      const { handlePublicSeason } = await import('./progression/http.js');
-      return handlePublicSeason(req, env, path);
-    }
+    // (season public read is dispatched up top under /p/season — see
+    // line 245. Claim POST is routed via the HMAC-gated /web/* path
+    // → /web/season/claim in web.js.)
     if (path.startsWith('/web/tournaments')) {
       const { handleWebTournaments } = await import('./progression/http.js');
       return handleWebTournaments(req, env, path);
