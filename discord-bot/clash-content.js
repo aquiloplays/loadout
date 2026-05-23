@@ -906,27 +906,27 @@ export function spriteIdForTroop(troopId) {
   return `clash/troops/${troopId}.png`;
 }
 
-// CLASH EXPANSION E4 — HD sprite paths (96 × 96 base building, 64 × 64
-// base troop). aquilo-site renders the editor + Twitch panel from the
-// v2 tree; the legacy v1 paths stay live for the OBS overlay. Walls
-// add a per-bitmask suffix so the renderer can grab the exact corner/
-// junction variant for that segment.
+// CLASH EXPANSION E4 — HD sprite paths. Glossy art (2026-05 campaign,
+// see tools/glossy-art-kit.mjs) replaces the pixel pipeline. aquilo-
+// site renders the editor + Twitch panel from this tree.
+//
+// Per-level glossy art is deferred to a follow-up wave — every level
+// reuses the L1 source for now. The bitmask4 hint passed by the
+// editor for wall connectivity is preserved as an argument signature
+// but is currently a no-op (glossy walls ship a single tile;
+// the 16-variant connectivity set will land in a follow-up wave —
+// until then walls render as a single repeating block).
 
 export function spriteIdForBuildingV2(kind, level, bitmask4 = null) {
   const b = BUILDINGS[kind];
   if (!b) return null;
-  const maxLevel = (b.hp?.length || 2) - 1;
-  const lv = Math.max(1, Math.min(maxLevel, Number(level) || 1));
-  if (kind === 'wall' && Number.isInteger(bitmask4)) {
-    const mask = String(bitmask4 & 0b1111).padStart(2, '0');
-    return `clash-v2/buildings/wall-L${lv}-${mask}.png`;
-  }
-  return `clash-v2/buildings/${kind}-L${lv}.png`;
+  void level; void bitmask4;
+  return `clash-v2/glossy/buildings/${kind}-L1.svg`;
 }
 
 export function spriteIdForTroopV2(troopId) {
   if (!TROOPS_PERSONAL[troopId] && !TROOPS_GARRISON[troopId] && !TROOPS_GOBLIN?.[troopId]) return null;
-  return `clash-v2/troops/${troopId}.png`;
+  return `clash-v2/glossy/troops/${troopId}.svg`;
 }
 
 // Enrich a raw town `buildings[]` array with spriteId per entry —

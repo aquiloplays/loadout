@@ -54,12 +54,14 @@ const SPRITE_CACHE = new Map();
 const SPRITE_ASSET_VERSION = 'v2-rpg';
 
 // Canvas size — pixel-perfect compose, all layers share these dims.
-// Phase-4 HD bar (64×80) replaces the original 40×56. character.js
-// only uses these for the blank-fallback dims; the actual sprite
-// dimensions come from the decoded PNG. Keep in sync with the
-// generator's $CanvasW / $CanvasH in tools/build-sprites.ps1.
-const SPRITE_W = 64;
-const SPRITE_H = 80;
+// Glossy bar (2026-05 art campaign, see tools/build-character-glossy.mjs
+// + tools/glossy-art-kit.mjs) replaces the retired 64×80 pixel
+// pipeline with an HD 128×160 figure canvas. Every layer the
+// resolver returns is baked at this size (body, hair, eyes,
+// accent, default-clothing, gear figure-layers) so png-codec's
+// compose() can stack them without the dimension-mismatch throw.
+const SPRITE_W = 128;
+const SPRITE_H = 160;
 
 async function fetchSprite(env, relPath) {
   const baseUrl = spriteBase(env) + '/' + relPath.replace(/^\/+/, '');
@@ -108,40 +110,46 @@ async function resolveLayers(env, hero, pet, opts) {
   const eq = hero.equipped || {};
   const inv = Object.fromEntries((hero.bag || []).map(it => [it.id, it]));
 
-  // Slug derived from the item name — mirror of Slugify in
-  // tools/build-sprites.ps1 so the runtime spriteId always matches
-  // the on-disk filename. We use this when a catalogue row hasn't
-  // been backfilled with an explicit spriteId field; for the Phase
-  // 3 art catalogue every piece's sprite is named after the slug,
-  // so item.name → slug → sprite path is the canonical route.
+  // Slug derived from the item name (used inside the safeId
+  // builder). Mirrors the slugify in tools/build-gear-glossy.mjs so
+  // runtime path matches the on-disk filename.
   function nameSlug(s) {
     return String(s || '').toLowerCase()
       .replace(/['’]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
   }
-  const itemSpriteId = (it) => (it && (it.spriteId || nameSlug(it.name))) || null;
-
-  // Helpers
+  // Glossy gear filename pattern: <slot>-<rarity>-<snake-name>.
+  // Items in the bag carry slot + rarity + name already; if a
+  // catalogue row has an explicit spriteId we honour that (it
+  // overrides the pattern — used by tests + future curated drops).
+  function gearSafeId(it) {
+    if (!it) return null;
+    if (it.spriteId) return it.spriteId;
+    const slug = nameSlug(it.name);
+    if (!slug) return null;
+    return `${it.slot}-${it.rarity}-${slug}`;
+  }
   const itemSlot = (slot) => inv[eq[slot]];
 
   // z=10 — back accessory (trinket flagged with back-cape semantics)
   const trinket = itemSlot('trinket');
-  const trinketSprite = itemSpriteId(trinket);
-  const isBackTrinket = trinketSprite && /(^|-)(cape|cloak|wings?|mantle|drape|veil|feather)(-|$)/.test(trinketSprite);
-  if (trinketSprite && isBackTrinket) {
-    layers.push({ rel: `gear/trinket/${trinketSprite}.png` });
+  const trinketSafe = gearSafeId(trinket);
+  const isBackTrinket = trinketSafe && /(^|-)(cape|cloak|wings?|mantle|drape|veil|feather)(-|$)/.test(trinketSafe);
+  if (trinketSafe && isBackTrinket) {
+    layers.push({ rel: `gear/figure/trinket/${trinketSafe}.png` });
   }
 
   // z=15 — pet (cosmetic, only if not suppressed by ?nopet=1)
-  if (pet && !opts.nopet) {
-    layers.push({ rel: `pet/${pet.species}-${pet.colour}.png` });
-    const mood = computeMood(pet);
-    if (mood?.hint) layers.push({ rel: `pet/mood-${mood.hint}.png` });
-  }
+  // HELD post-glossy-flip: existing pet sprites are 64×80 pixel art
+  // and would crash compose() (which throws on layer dim mismatch)
+  // against the 128×160 glossy figure canvas. Pet glossy is a
+  // follow-up wave. When it lands, restore this block to push the
+  // pet PNG (glossy, 128×160) — same compose chain otherwise.
+  void pet; void opts;
 
-  // z=20 — body
-  layers.push({ rel: `figure/body-${hero.custom.bodyType || 'slim'}-${hero.custom.skinTone || 'fair'}.png` });
+  // z=20 — body (glossy 128×160)
+  layers.push({ rel: `figure/glossy/body-${hero.custom.bodyType || 'slim'}-${hero.custom.skinTone || 'fair'}.png` });
 
   // z=25 — default clothing (peasant tunic + trousers). Always
   // rendered so a fresh character with nothing equipped reads as
@@ -150,54 +158,52 @@ async function resolveLayers(env, hero, pet, opts) {
   // over this layer in their own footprints, so the moment you put
   // on a Hide Vest / Mithril Plate the default tunic disappears
   // exactly where the new gear sits.
-  layers.push({ rel: 'figure/default-clothing.png' });
+  layers.push({ rel: 'figure/glossy/default-clothing.png' });
 
-  // z=30 / 35 / 40 — legs, boots, chest gear
+  // z=30 / 35 / 40 — legs, boots, chest gear (glossy paper-doll PNGs).
   for (const slot of ['legs', 'boots', 'chest']) {
     const it = itemSlot(slot);
-    const sid = itemSpriteId(it);
-    if (sid) layers.push({ rel: `gear/${slot}/${sid}.png` });
+    const sid = gearSafeId(it);
+    if (sid) layers.push({ rel: `gear/figure/${slot}/${sid}.png` });
   }
 
   // z=45 — front trinket (non-back)
-  if (trinketSprite && !isBackTrinket) {
-    layers.push({ rel: `gear/trinket/${trinketSprite}.png` });
+  if (trinketSafe && !isBackTrinket) {
+    layers.push({ rel: `gear/figure/trinket/${trinketSafe}.png` });
   }
 
-  // z=60 — hair (palette-swapped per hero hair colour)
+  // z=60 — hair. Glossy ships per-(style,colour) variants —
+  // gradient fills don't survive paletteSwap cleanly, so we bake
+  // the colour into the file instead of swapping at render time.
   if (hero.custom.hairStyle && hero.custom.hairStyle !== 'bald') {
     layers.push({
-      rel: `figure/hair-${hero.custom.hairStyle}.png`,
-      paletteFor: 'hair', colourKey: hero.custom.hairColor || 'brown',
+      rel: `figure/glossy/hair-${hero.custom.hairStyle}-${hero.custom.hairColor || 'brown'}.png`,
     });
   }
 
   // z=65 — face overlay (eye colour + accent)
   if (hero.custom.eyeColor) {
-    layers.push({ rel: `figure/eyes-${hero.custom.eyeColor}.png` });
+    layers.push({ rel: `figure/glossy/eyes-${hero.custom.eyeColor}.png` });
   }
   if (hero.custom.accent && hero.custom.accent !== 'none') {
-    layers.push({ rel: `figure/accent-${hero.custom.accent}.png` });
+    layers.push({ rel: `figure/glossy/accent-${hero.custom.accent}.png` });
   }
 
   // z=70 — head gear (over hair)
   const head = itemSlot('head');
-  const headSprite = itemSpriteId(head);
-  if (headSprite) layers.push({ rel: `gear/head/${headSprite}.png` });
+  const headSafe = gearSafeId(head);
+  if (headSafe) layers.push({ rel: `gear/figure/head/${headSafe}.png` });
 
   // z=80 — weapon
   const weapon = itemSlot('weapon');
-  const weaponSprite = itemSpriteId(weapon);
-  if (weaponSprite) layers.push({ rel: `gear/weapon/${weaponSprite}.png` });
+  const weaponSafe = gearSafeId(weapon);
+  if (weaponSafe) layers.push({ rel: `gear/figure/weapon/${weaponSafe}.png` });
 
-  // z=90 — fx (legendary glow). Authored as a per-piece halo overlay.
-  for (const slot of ['weapon', 'chest', 'head', 'trinket']) {
-    const it = itemSlot(slot);
-    const sid = itemSpriteId(it);
-    if (it?.rarity === 'legendary' && sid) {
-      layers.push({ rel: `gear/fx/${sid}.png`, optional: true });
-    }
-  }
+  // z=90 — fx (legendary glow halos). HELD post-glossy-flip — the
+  // existing fx PNGs (e.g. gear/fx/excalibur.png) are 64×80 and
+  // would crash compose() against the 128×160 glossy canvas. When
+  // glossy halo overlays are authored, restore this block pointing
+  // at gear/figure/fx/<safeId>.png at 128×160.
 
   return layers;
 }
