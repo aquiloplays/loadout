@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>infernoTower (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>infernoTower (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -267,55 +267,38 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- column base flare -->
-
-    <ellipse cx="128" cy="216" rx="56" ry="14"
-             fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4"/>
-    <path d="M 80.4 214.6
-             A 47.6 9.799999999999999 0 0 1 164.4 206.2
-             A 39.199999999999996 5.6000000000000005 0 0 1 80.4 214.6 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- tower column -->
-
-    <rect x="88" y="96" width="80" height="120" rx="10" ry="10"
-          fill="url(#gk-grad-iron)"
-          stroke="#0B0E1C" stroke-width="4"/>
-    <path d="M 90 106
-             Q 90 98 98 98
-             L 158 98
-             Q 166 98 166 106
-             L 166 146.4
-             Q 128 162 90 146.4
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- accent band at top -->
-<rect x="82" y="92" width="92" height="12" rx="3"
-      fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="2.5"/>
-<!-- accent band at bottom -->
-<rect x="84" y="196" width="88" height="10" rx="2"
-      fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="2"/>
-
-<!-- brass crown -->
-<rect x="100" y="96" width="56" height="10" rx="3" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="3"/>
-<!-- flame chamber -->
-<path d="M 108 96
-         L 114 74
-         Q 122 58 128 54
-         Q 134 58 142 74
-         L 148 96 Z"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3" stroke-linejoin="round"/>
-<!-- flame -->
-<path d="M 128 38
-         Q 120 52 123 70
-         Q 127 60 128 50
-         Q 129 60 133 70
-         Q 136 52 128 38 Z"
-      fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="2" stroke-linejoin="round"/>
-<path d="M 128 46
-         Q 124 56 126 66
-         Q 128 60 130 66
-         Q 132 56 128 46 Z"
-      fill="url(#gk-grad-gold)" opacity="0.85"/>
+<!-- base -->
+<ellipse cx="128" cy="218" rx="52" ry="12" fill="url(#gk-grad-dark)" stroke="#04060A" stroke-width="4"/>
+<!-- obsidian column with jagged edges (zigzag silhouette) -->
+<path d="M 110 218
+         L 102 200 L 110 188 L 102 170 L 110 158 L 100 140 L 110 124 L 102 108
+         L 114 96 L 110 80 L 122 64 L 128 50
+         L 134 64 L 146 80 L 142 96 L 154 108
+         L 146 124 L 156 140 L 146 158 L 154 170 L 146 188 L 154 200 L 146 218 Z"
+      fill="url(#gk-rgrad-dark)" stroke="#04060A" stroke-width="4" stroke-linejoin="round"/>
+<!-- vertical highlight ridge -->
+<path d="M 116 60 L 110 100 L 116 140 L 110 180 L 116 218"
+      fill="none" stroke="#A0B0BE" stroke-width="2.5" opacity="0.55"/>
+<!-- flame vent slits down the column (glowing) -->
+<g fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="1.5">
+  <ellipse cx="128" cy="180" rx="6" ry="3"/>
+  <ellipse cx="128" cy="150" rx="6" ry="3"/>
+  <ellipse cx="128" cy="120" rx="6" ry="3"/>
+</g>
+<!-- side flame jets (left + right) -->
+<path d="M 96 168 Q 82 162 76 154 Q 80 158 90 160 Q 76 162 70 156"
+      fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="2.5" stroke-linejoin="round"/>
+<path d="M 160 168 Q 174 162 180 154 Q 176 158 166 160 Q 180 162 186 156"
+      fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="2.5" stroke-linejoin="round"/>
+<!-- top crown flame -->
+<path d="M 128 44
+         Q 116 30 122 12
+         Q 124 22 128 16
+         Q 132 22 134 12
+         Q 140 30 128 44 Z"
+      fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="2.5" stroke-linejoin="round"/>
+<path d="M 128 36 Q 122 26 126 16 Q 128 22 130 18 Q 134 26 128 36 Z"
+      fill="#FFD970" opacity="0.9"/>
 
 
 <!-- L_n front overlays -->

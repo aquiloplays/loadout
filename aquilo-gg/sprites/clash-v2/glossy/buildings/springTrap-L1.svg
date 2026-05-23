@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
-  <title>springTrap (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>springTrap (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -249,42 +249,36 @@
   </defs>
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- outer plate -->
-
-    <ellipse cx="128" cy="204" rx="92" ry="30"
-             fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="4"/>
-    <path d="M 49.8 201
-             A 78.2 21 0 0 1 187.8 183
-             A 64.39999999999999 12 0 0 1 49.8 201 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- inner ring -->
-<ellipse cx="128" cy="204" rx="68" ry="22"
-         fill="none" stroke="#3B240F" stroke-width="3" opacity="0.75"/>
-<!-- rivets -->
-<g fill="url(#gk-grad-gold)" stroke="#0A0D14" stroke-width="1">
-  <circle cx="50" cy="204" r="4"/>
-  <circle cx="206" cy="204" r="4"/>
-  <circle cx="90" cy="184" r="3"/>
-  <circle cx="166" cy="184" r="3"/>
-  <circle cx="90" cy="224" r="3"/>
-  <circle cx="166" cy="224" r="3"/>
+<!-- ground anchor -->
+<ellipse cx="128" cy="220" rx="60" ry="10" fill="#6E4621" opacity="0.85"/>
+<rect x="68" y="212" width="120" height="12" rx="3" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="3"/>
+<!-- big visible coiled spring -->
+<g fill="none" stroke="url(#gk-grad-iron)" stroke-width="14" stroke-linecap="round">
+  <path d="M 82 192
+           Q 82 178 174 178
+           Q 174 168 82 168
+           Q 82 158 174 158
+           Q 174 148 82 148
+           Q 82 138 174 138
+           Q 174 128 82 128"/>
 </g>
-
-<!-- coiled spring -->
-<g fill="none" stroke="url(#gk-grad-iron)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M 114 208
-           Q 114 202 142 202
-           Q 142 196 114 196
-           Q 114 190 142 190
-           Q 142 184 114 184"/>
+<g fill="none" stroke="#0B0E1C" stroke-width="3" stroke-linecap="round" opacity="0.7">
+  <path d="M 82 192
+           Q 82 178 174 178
+           Q 174 168 82 168
+           Q 82 158 174 158
+           Q 174 148 82 148
+           Q 82 138 174 138
+           Q 174 128 82 128"/>
 </g>
-<g fill="none" stroke="#0B0E1C" stroke-width="2" opacity="0.7">
-  <path d="M 114 208
-           Q 114 202 142 202
-           Q 142 196 114 196
-           Q 114 190 142 190
-           Q 142 184 114 184"/>
-</g>
-<rect x="108" y="176" width="40" height="8" rx="2" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
+<!-- top plate (hovering, ready to spring) -->
+<ellipse cx="128" cy="118" rx="76" ry="10" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3.5"/>
+<rect x="56" y="108" width="144" height="14" rx="3" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
+<path d="M 60 110 L 196 110 L 196 116 L 60 116 Z" fill="url(#gk-gloss)" opacity="0.5" pointer-events="none"/>
+<!-- gold trigger button on top -->
+<circle cx="128" cy="112" r="6" fill="url(#gk-rgrad-ruby)" stroke="#3B0510" stroke-width="2"/>
+<!-- spike tip in centre of plate (it's a spike trap with bounce) -->
+<path d="M 128 108 L 122 78 L 134 78 Z"
+      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
 
 </svg>

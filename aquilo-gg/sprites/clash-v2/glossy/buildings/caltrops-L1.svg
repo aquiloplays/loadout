@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
-  <title>caltrops (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>caltrops (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -249,41 +249,60 @@
   </defs>
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- outer plate -->
+<!-- grass tuft base -->
+<ellipse cx="128" cy="218" rx="92" ry="14" fill="url(#gk-grad-leaf)" opacity="0.7"/>
+<g stroke="#0A2A06" stroke-width="1.5" fill="none" opacity="0.75">
+  <path d="M 50 220 L 54 208 M 60 220 L 56 206"/>
+  <path d="M 180 220 L 184 208 M 196 220 L 192 206"/>
+  <path d="M 84 218 L 80 208"/>
+  <path d="M 220 218 L 216 208"/>
+</g>
+<!-- caltrops scattered (5 different positions/sizes/rotations) -->
 
-    <ellipse cx="128" cy="204" rx="92" ry="30"
-             fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="4"/>
-    <path d="M 49.8 201
-             A 78.2 21 0 0 1 187.8 183
-             A 64.39999999999999 12 0 0 1 49.8 201 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- inner ring -->
-<ellipse cx="128" cy="204" rx="68" ry="22"
-         fill="none" stroke="#262B36" stroke-width="3" opacity="0.75"/>
-<!-- rivets -->
-<g fill="url(#gk-grad-gold)" stroke="#0A0D14" stroke-width="1">
-  <circle cx="50" cy="204" r="4"/>
-  <circle cx="206" cy="204" r="4"/>
-  <circle cx="90" cy="184" r="3"/>
-  <circle cx="166" cy="184" r="3"/>
-  <circle cx="90" cy="224" r="3"/>
-  <circle cx="166" cy="224" r="3"/>
+<g transform="translate(80, 198) rotate(0) scale(1)">
+  <!-- triangle pile of 4 spikes -->
+  <path d="M 0 -14 L 5 8 L -5 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M -12 4 L 4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M 12 4 L -4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <!-- gold tip on the up-pointing spike -->
+  <circle cx="0" cy="-12" r="1.6" fill="#FFD970"/>
 </g>
 
-<g transform="translate(102, 196)">
-  <path d="M 0 -10 L 4 6 L -4 6 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M -8 4 L 2 -4 L 0 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M 8 4 L -2 -4 L 0 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5" stroke-linejoin="round"/>
+<g transform="translate(134, 188) rotate(18) scale(1.3)">
+  <!-- triangle pile of 4 spikes -->
+  <path d="M 0 -14 L 5 8 L -5 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M -12 4 L 4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M 12 4 L -4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <!-- gold tip on the up-pointing spike -->
+  <circle cx="0" cy="-12" r="1.6" fill="#FFD970"/>
 </g>
-<g transform="translate(128, 204)">
-  <path d="M 0 -10 L 4 6 L -4 6 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M -8 4 L 2 -4 L 0 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M 8 4 L -2 -4 L 0 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5" stroke-linejoin="round"/>
+
+<g transform="translate(188, 200) rotate(-25) scale(0.9)">
+  <!-- triangle pile of 4 spikes -->
+  <path d="M 0 -14 L 5 8 L -5 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M -12 4 L 4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M 12 4 L -4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <!-- gold tip on the up-pointing spike -->
+  <circle cx="0" cy="-12" r="1.6" fill="#FFD970"/>
 </g>
-<g transform="translate(154, 200)">
-  <path d="M 0 -10 L 4 6 L -4 6 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M -8 4 L 2 -4 L 0 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M 8 4 L -2 -4 L 0 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5" stroke-linejoin="round"/>
+
+<g transform="translate(104, 210) rotate(40) scale(0.85)">
+  <!-- triangle pile of 4 spikes -->
+  <path d="M 0 -14 L 5 8 L -5 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M -12 4 L 4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M 12 4 L -4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <!-- gold tip on the up-pointing spike -->
+  <circle cx="0" cy="-12" r="1.6" fill="#FFD970"/>
 </g>
+
+<g transform="translate(168, 214) rotate(-10) scale(1)">
+  <!-- triangle pile of 4 spikes -->
+  <path d="M 0 -14 L 5 8 L -5 8 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M -12 4 L 4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M 12 4 L -4 -4 L 0 12 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+  <!-- gold tip on the up-pointing spike -->
+  <circle cx="0" cy="-12" r="1.6" fill="#FFD970"/>
+</g>
+
 
 </svg>

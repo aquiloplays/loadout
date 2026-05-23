@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>goldVault (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>goldVault (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -267,45 +267,55 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-
-    <rect x="36" y="162" width="184" height="62" rx="12" ry="12"
-          fill="url(#gk-grad-wood)"
-          stroke="#3B240F" stroke-width="4"/>
-    <path d="M 38 174
-             Q 38 164 48 164
-             L 208 164
-             Q 218 164 218 174
-             L 218 188.04
-             Q 128 196.1 38 188.04
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- lid -->
-<path d="M 42 162
-         L 42 152
-         Q 42 104 76 104
-         L 180 104
-         Q 214 104 214 152
-         L 214 162 Z"
-      fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="4" stroke-linejoin="round"/>
-<path d="M 50 156
-         Q 50 110 76 110
-         L 126 110
-         Q 86 128 54 156 Z"
-      fill="url(#gk-gloss)" opacity="0.6"/>
-<!-- big steel bands -->
-<g fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3" stroke-linejoin="round">
-  <rect x="48" y="102" width="22" height="120" rx="2"/>
-  <rect x="186" y="102" width="22" height="120" rx="2"/>
+<!-- back wall (creamy stone) -->
+<rect x="44" y="96" width="168" height="124" rx="6" ry="6"
+    fill="url(#gk-grad-cream)" stroke="#5A4A20" stroke-width="4"/>
+<!-- side columns (gold) -->
+<g fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2.5">
+  <rect x="48" y="100" width="16" height="118" rx="2"/>
+  <rect x="192" y="100" width="16" height="118" rx="2"/>
 </g>
-<!-- horizontal seam -->
-<rect x="34" y="158" width="188" height="8" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
-<!-- lock plate with resource icon -->
-<rect x="98" y="144" width="60" height="50" rx="5"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="3"/>
-
-<circle cx="128" cy="170" r="14" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="2.5"/>
-<text x="128" y="175" font-size="14" font-family="serif" font-weight="bold"
-      fill="#3F2D01" text-anchor="middle">$</text>
+<!-- column caps -->
+<rect x="44" y="96" width="24" height="10" rx="2" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
+<rect x="188" y="96" width="24" height="10" rx="2" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
+<!-- ornate gold pediment at top -->
+<path d="M 44 96 L 128 70 L 212 96 Z"
+      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="3.5" stroke-linejoin="round"/>
+<path d="M 48 94 L 124 76 L 126 80 L 52 96 Z" fill="url(#gk-gloss)" opacity="0.5" pointer-events="none"/>
+<!-- vault door (gilded round arch) -->
+<path d="M 80 220 L 80 150 Q 80 120 128 120 Q 176 120 176 150 L 176 220 Z"
+      fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="4" stroke-linejoin="round"/>
+<!-- door star emblem (centre) -->
+<g transform="translate(128, 168)">
+  <path d="M 0 -20 L 6 -6 L 20 -3 L 9 6 L 12 20 L 0 12 L -12 20 L -9 6 L -20 -3 L -6 -6 Z"
+        fill="url(#gk-grad-cream)" stroke="#3F2D01" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="0" cy="0" r="5" fill="url(#gk-rgrad-ruby)" stroke="#3B0510" stroke-width="1.5"/>
+</g>
+<!-- gold coin piles in front -->
+<g transform="translate(60, 212)">
+  
+    <ellipse cx="0" cy="0" rx="10" ry="3" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  
+    <ellipse cx="0" cy="-3" rx="10" ry="3" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  
+    <ellipse cx="0" cy="-6" rx="10" ry="3" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  
+    <ellipse cx="0" cy="-9" rx="10" ry="3" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  
+    <ellipse cx="0" cy="-12" rx="10" ry="3" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  
+</g>
+<g transform="translate(196, 214)">
+  
+    <ellipse cx="0" cy="0" rx="9" ry="3" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  
+    <ellipse cx="0" cy="-3" rx="9" ry="3" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  
+    <ellipse cx="0" cy="-6" rx="9" ry="3" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  
+    <ellipse cx="0" cy="-9" rx="9" ry="3" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  
+</g>
 
 
 <!-- L_n front overlays -->

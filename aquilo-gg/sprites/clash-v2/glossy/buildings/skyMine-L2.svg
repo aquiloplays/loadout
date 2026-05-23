@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>skyMine (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>skyMine (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -254,47 +254,43 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- column base flare -->
-
-    <ellipse cx="128" cy="216" rx="56" ry="14"
-             fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="4"/>
-    <path d="M 80.4 214.6
-             A 47.6 9.799999999999999 0 0 1 164.4 206.2
-             A 39.199999999999996 5.6000000000000005 0 0 1 80.4 214.6 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- tower column -->
-
-    <rect x="88" y="96" width="80" height="120" rx="10" ry="10"
-          fill="url(#gk-grad-stone)"
-          stroke="#262B36" stroke-width="4"/>
-    <path d="M 90 106
-             Q 90 98 98 98
-             L 158 98
-             Q 166 98 166 106
-             L 166 146.4
-             Q 128 162 90 146.4
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- accent band at top -->
-<rect x="82" y="92" width="92" height="12" rx="3"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2.5"/>
-<!-- accent band at bottom -->
-<rect x="84" y="196" width="88" height="10" rx="2"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
-
-<!-- mooring rod -->
-<rect x="126" y="84" width="4" height="22" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5"/>
-<!-- spiked mine ball -->
-<circle cx="128" cy="72" r="18" fill="url(#gk-rgrad-dark)" stroke="#04060A" stroke-width="3"/>
-<g stroke="#0B0E1C" stroke-width="2" fill="url(#gk-grad-iron)">
-  <rect x="126" y="48" width="4" height="8"/>
-  <rect x="142" y="70" width="8" height="4"/>
-  <rect x="106" y="70" width="8" height="4"/>
-  <rect x="138" y="58" width="6" height="6" transform="rotate(45 141 61)"/>
-  <rect x="112" y="58" width="6" height="6" transform="rotate(-45 115 61)"/>
-  <rect x="126" y="86"  width="4" height="6"/>
+<!-- pylon base + body -->
+<rect x="56" y="208" width="36" height="16" rx="3" fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="3"/>
+<path d="M 60 208
+         L 62 96
+         L 86 96
+         L 88 208 Z"
+      fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="3.5" stroke-linejoin="round"/>
+<g stroke="#262B36" stroke-width="1.2" opacity="0.55">
+  <line x1="62" y1="140" x2="86" y2="140"/>
+  <line x1="62" y1="170" x2="86" y2="170"/>
 </g>
-<ellipse cx="122" cy="64" rx="5" ry="3" fill="#FFFFFF" opacity="0.55"/>
+<!-- horizontal boom extending right -->
+<rect x="74" y="92" width="120" height="10" rx="3" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
+<rect x="186" y="86" width="14" height="22" rx="2" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2.5"/>
+<!-- hanging chain -->
+<line x1="180" y1="102" x2="180" y2="138" stroke="#0A0D14" stroke-width="2"/>
+<g stroke="#0B0E1C" stroke-width="1.5" fill="#43485A">
+  <ellipse cx="180" cy="108" rx="2.5" ry="2"/>
+  <ellipse cx="180" cy="116" rx="2.5" ry="2"/>
+  <ellipse cx="180" cy="124" rx="2.5" ry="2"/>
+  <ellipse cx="180" cy="132" rx="2.5" ry="2"/>
+</g>
+<!-- spiked mine ball (BIG) -->
+<circle cx="180" cy="160" r="30" fill="url(#gk-rgrad-dark)" stroke="#04060A" stroke-width="4"/>
+<g stroke="#0B0E1C" stroke-width="2.5" fill="url(#gk-grad-iron)">
+  <rect x="178" y="124" width="4" height="14"/>
+  <rect x="178" y="182" width="4" height="14"/>
+  <rect x="146" y="158" width="14" height="4"/>
+  <rect x="200" y="158" width="14" height="4"/>
+  <rect x="156" y="140" width="6" height="14" transform="rotate(-45 159 147)"/>
+  <rect x="156" y="166" width="6" height="14" transform="rotate(45 159 173)"/>
+  <rect x="194" y="140" width="6" height="14" transform="rotate(45 197 147)"/>
+  <rect x="194" y="166" width="6" height="14" transform="rotate(-45 197 173)"/>
+</g>
+<ellipse cx="172" cy="148" rx="6" ry="3" fill="#FFFFFF" opacity="0.55"/>
+<!-- detonator light -->
+<circle cx="180" cy="160" r="4" fill="#FF7A8C"/>
 
 
 <!-- L_n front overlays -->

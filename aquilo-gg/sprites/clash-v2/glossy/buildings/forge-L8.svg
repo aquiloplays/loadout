@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>forge (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>forge (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -267,49 +267,42 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-
-    <rect x="40" y="144" width="176" height="80" rx="6" ry="6"
-          fill="url(#gk-grad-brick)"
-          stroke="#321009" stroke-width="4"/>
-    <path d="M 42 150
-             Q 42 146 46 146
-             L 210 146
-             Q 214 146 214 150
-             L 214 177.6
-             Q 128 188 42 177.6
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- roof -->
-<path d="M 28 150
-         L 128 80
-         L 228 150
-         L 216 158
-         L 40 158 Z"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4" stroke-linejoin="round"/>
-<!-- roof gloss -->
-<path d="M 34 148 L 122 84 L 126 156 L 44 156 Z"
-      fill="url(#gk-gloss)" opacity="0.5"/>
-<!-- chimney -->
-<rect x="166" y="108" width="22" height="40" rx="3"
-      fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="3"/>
-<!-- chimney puff -->
-<ellipse cx="177" cy="94" rx="16" ry="9" fill="#FF7A8C" opacity="0.85" stroke="#262B36" stroke-width="1.5"/>
-<ellipse cx="188" cy="80" rx="10" ry="6" fill="#FF7A8C" opacity="0.7"/>
-<!-- door -->
-
-    <path d="M 90 220
-             L 90 190
-             A 18 18 0 0 1 126 190
-             L 126 220 Z"
-          fill="url(#gk-grad-wood)" stroke="#0A0D14" stroke-width="3"/>
-    <circle cx="117" cy="203.2" r="2.5" fill="#FFD970" stroke="#0A0D14" stroke-width="1"/>
-<!-- accent icon plaque to right of door -->
-<rect x="140" y="180" width="48" height="48" rx="5"
-      fill="url(#gk-grad-cream)" stroke="#0A0D14" stroke-width="2.5"/>
-
-<rect x="150" y="196" width="28" height="16" rx="3"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
-<rect x="154" y="200" width="20" height="3" fill="#6B7080" opacity="0.7"/>
+<!-- back chimney/furnace stack -->
+<rect x="160" y="100" width="60" height="120" rx="6" ry="6"
+    fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="4"/>
+<rect x="158" y="92" width="64" height="14" rx="3" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
+<!-- furnace mouth glow -->
+<rect x="170" y="138" width="40" height="32" rx="3" fill="url(#gk-grad-ruby)" stroke="#0A0D14" stroke-width="2.5"/>
+<path d="M 190 168 Q 180 158 184 144 Q 190 156 196 148 Q 200 162 190 168 Z"
+      fill="#FFD970" opacity="0.95"/>
+<!-- smoke wisps from chimney -->
+<g fill="#FFF6D8" opacity="0.65">
+  <ellipse cx="195" cy="80" rx="14" ry="7"/>
+  <ellipse cx="205" cy="64" rx="10" ry="5"/>
+  <ellipse cx="190" cy="50" rx="8" ry="4"/>
+</g>
+<!-- big anvil (front-left) -->
+<g transform="translate(76, 188)">
+  <!-- wood block base -->
+  <rect x="-26" y="20" width="52" height="14" rx="3" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="3"/>
+  <!-- anvil top -->
+  <path d="M -30 0 L 30 0 L 28 8 L 22 8 L 22 16 L -22 16 L -22 8 L -28 8 Z"
+        fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3" stroke-linejoin="round"/>
+  <!-- pointed horn on the left -->
+  <path d="M -30 0 L -44 -4 L -30 4 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2.5" stroke-linejoin="round"/>
+  <!-- gloss highlight -->
+  <path d="M -26 -1 L 26 -1 L 24 4 L -22 4 Z" fill="url(#gk-gloss)" opacity="0.55" pointer-events="none"/>
+</g>
+<!-- hammer on the anvil -->
+<g transform="translate(60, 172) rotate(-15)">
+  <rect x="-2" y="0" width="4" height="20" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="1.5"/>
+  <rect x="-10" y="-8" width="20" height="10" rx="2" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
+</g>
+<!-- glowing red-hot sword being forged on the anvil -->
+<g transform="translate(98, 184)">
+  <path d="M 0 0 L 16 -2 L 18 0 L 16 2 L 0 4 Z" fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="1.5"/>
+  <rect x="-8" y="-1" width="10" height="6" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2"/>
+</g>
 
 
 <!-- L_n front overlays -->

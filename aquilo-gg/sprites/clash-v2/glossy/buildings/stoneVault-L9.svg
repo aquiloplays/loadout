@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>stoneVault (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>stoneVault (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -267,44 +267,48 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-
-    <rect x="36" y="162" width="184" height="62" rx="12" ry="12"
-          fill="url(#gk-grad-stone)"
-          stroke="#262B36" stroke-width="4"/>
-    <path d="M 38 174
-             Q 38 164 48 164
-             L 208 164
-             Q 218 164 218 174
-             L 218 188.04
-             Q 128 196.1 38 188.04
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- lid -->
-<path d="M 42 162
-         L 42 152
-         Q 42 104 76 104
-         L 180 104
-         Q 214 104 214 152
-         L 214 162 Z"
-      fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="4" stroke-linejoin="round"/>
-<path d="M 50 156
-         Q 50 110 76 110
-         L 126 110
-         Q 86 128 54 156 Z"
-      fill="url(#gk-gloss)" opacity="0.6"/>
-<!-- big steel bands -->
-<g fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3" stroke-linejoin="round">
-  <rect x="48" y="102" width="22" height="120" rx="2"/>
-  <rect x="186" y="102" width="22" height="120" rx="2"/>
+<!-- bunker body (very wide + low) -->
+<path d="M 32 220
+         L 32 120
+         Q 32 100 64 96
+         L 192 96
+         Q 224 100 224 120
+         L 224 220 Z"
+      fill="url(#gk-rgrad-stone)" stroke="#262B36" stroke-width="4" stroke-linejoin="round"/>
+<!-- stone block courses (visible mortar) -->
+<g stroke="#262B36" stroke-width="1.5" opacity="0.55">
+  <line x1="38" y1="140" x2="218" y2="140"/>
+  <line x1="38" y1="170" x2="218" y2="170"/>
+  <line x1="38" y1="200" x2="218" y2="200"/>
+  <line x1="84" y1="140" x2="84" y2="170"/>
+  <line x1="128" y1="140" x2="128" y2="170"/>
+  <line x1="172" y1="140" x2="172" y2="170"/>
+  <line x1="60" y1="170" x2="60" y2="200"/>
+  <line x1="104" y1="170" x2="104" y2="200"/>
+  <line x1="148" y1="170" x2="148" y2="200"/>
+  <line x1="192" y1="170" x2="192" y2="200"/>
 </g>
-<!-- horizontal seam -->
-<rect x="34" y="158" width="188" height="8" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
-<!-- lock plate with resource icon -->
-<rect x="98" y="144" width="60" height="50" rx="5"
-      fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="3"/>
-
-<path d="M 114 178 L 112 168 L 122 158 L 138 160 L 144 170 L 140 178 Z"
-      fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="2" stroke-linejoin="round"/>
+<!-- iron vault door (arched, centred) -->
+<path d="M 96 220 L 96 150 Q 96 124 128 124 Q 160 124 160 150 L 160 220 Z"
+      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4" stroke-linejoin="round"/>
+<!-- iron rivets around door -->
+<g fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5">
+  <circle cx="100" cy="160" r="3"/>
+  <circle cx="156" cy="160" r="3"/>
+  <circle cx="100" cy="190" r="3"/>
+  <circle cx="156" cy="190" r="3"/>
+  <circle cx="100" cy="216" r="3"/>
+  <circle cx="156" cy="216" r="3"/>
+</g>
+<!-- door wheel + handle -->
+<circle cx="128" cy="180" r="14" fill="url(#gk-rgrad-iron)" stroke="#0B0E1C" stroke-width="3"/>
+<g stroke="#0B0E1C" stroke-width="3">
+  <line x1="128" y1="166" x2="128" y2="194"/>
+  <line x1="114" y1="180" x2="142" y2="180"/>
+  <line x1="118" y1="170" x2="138" y2="190"/>
+  <line x1="118" y1="190" x2="138" y2="170"/>
+</g>
+<circle cx="128" cy="180" r="4" fill="#FFD970" stroke="#0A0D14" stroke-width="1.5"/>
 
 
 <!-- L_n front overlays -->

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
-  <title>bombTower (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>bombTower (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -249,43 +249,43 @@
   </defs>
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- column base flare -->
-
-    <ellipse cx="128" cy="216" rx="56" ry="14"
-             fill="url(#gk-grad-brick)" stroke="#321009" stroke-width="4"/>
-    <path d="M 80.4 214.6
-             A 47.6 9.799999999999999 0 0 1 164.4 206.2
-             A 39.199999999999996 5.6000000000000005 0 0 1 80.4 214.6 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- tower column -->
-
-    <rect x="88" y="96" width="80" height="120" rx="10" ry="10"
-          fill="url(#gk-grad-brick)"
-          stroke="#321009" stroke-width="4"/>
-    <path d="M 90 106
-             Q 90 98 98 98
-             L 158 98
-             Q 166 98 166 106
-             L 166 146.4
-             Q 128 162 90 146.4
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- accent band at top -->
-<rect x="82" y="92" width="92" height="12" rx="3"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2.5"/>
-<!-- accent band at bottom -->
-<rect x="84" y="196" width="88" height="10" rx="2"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
-
-<!-- saucer -->
-<ellipse cx="128" cy="96" rx="36" ry="10" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
-<!-- bomb -->
-<circle cx="128" cy="76" r="20" fill="url(#gk-rgrad-iron)" stroke="#0B0E1C" stroke-width="3.5"/>
-<rect x="124" y="50" width="8" height="8" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
+<!-- ground ring -->
+<ellipse cx="128" cy="218" rx="52" ry="12" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="4"/>
+<!-- main barrel body (huge cylinder) -->
+<path d="M 76 206
+         Q 72 130 76 80
+         Q 128 64 180 80
+         Q 184 130 180 206
+         Q 128 220 76 206 Z"
+      fill="url(#gk-grad-brick)" stroke="#321009" stroke-width="4" stroke-linejoin="round"/>
+<!-- top oval lip -->
+<ellipse cx="128" cy="80" rx="52" ry="14" fill="url(#gk-grad-brick)" stroke="#321009" stroke-width="3.5"/>
+<ellipse cx="128" cy="78" rx="40" ry="8" fill="#6A2618"/>
+<!-- thick iron bands -->
+<g fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2.5">
+  <rect x="74" y="104" width="108" height="8" rx="2"/>
+  <rect x="74" y="160" width="108" height="8" rx="2"/>
+  <rect x="74" y="194" width="108" height="8" rx="2"/>
+</g>
+<!-- gold rivets on bands -->
+<g fill="#FFD970" stroke="#0A0D14" stroke-width="1">
+  <circle cx="86" cy="108" r="2.5"/><circle cx="170" cy="108" r="2.5"/>
+  <circle cx="86" cy="164" r="2.5"/><circle cx="170" cy="164" r="2.5"/>
+</g>
+<!-- skull warning sigil -->
+<g transform="translate(128, 140)">
+  <circle cx="0" cy="0" r="12" fill="#FFF6D8" stroke="#0A0D14" stroke-width="2"/>
+  <circle cx="-3" cy="-2" r="2" fill="#0A0D14"/>
+  <circle cx="3" cy="-2" r="2" fill="#0A0D14"/>
+  <rect x="-4" y="4" width="2" height="4" fill="#0A0D14"/>
+  <rect x="-1" y="4" width="2" height="4" fill="#0A0D14"/>
+  <rect x="2" y="4" width="2" height="4" fill="#0A0D14"/>
+</g>
 <!-- fuse + spark -->
-<path d="M 132 52 Q 142 42 150 38"
-      fill="none" stroke="#6E4621" stroke-width="2.5" stroke-linecap="round"/>
-<circle cx="152" cy="36" r="4" fill="#FFD970"/>
-<circle cx="152" cy="36" r="2" fill="#FFFFFF"/>
+<rect x="124" y="60" width="8" height="12" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5"/>
+<path d="M 132 64 Q 148 50 158 36" fill="none" stroke="#6E4621" stroke-width="3" stroke-linecap="round"/>
+<circle cx="158" cy="36" r="5" fill="#FFD970"/>
+<circle cx="158" cy="36" r="2.5" fill="#FFFFFF"/>
+<path d="M 86 90 L 90 200 L 100 200 L 96 84 Z" fill="url(#gk-gloss)" opacity="0.45" pointer-events="none"/>
 
 </svg>

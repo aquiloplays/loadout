@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
-  <title>voltaicCoil (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>voltaicCoil (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -249,53 +249,38 @@
   </defs>
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- column base flare -->
-
-    <ellipse cx="128" cy="216" rx="56" ry="14"
-             fill="url(#gk-grad-copper)" stroke="#3A1A07" stroke-width="4"/>
-    <path d="M 80.4 214.6
-             A 47.6 9.799999999999999 0 0 1 164.4 206.2
-             A 39.199999999999996 5.6000000000000005 0 0 1 80.4 214.6 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- tower column -->
-
-    <rect x="88" y="96" width="80" height="120" rx="10" ry="10"
-          fill="url(#gk-grad-copper)"
-          stroke="#3A1A07" stroke-width="4"/>
-    <path d="M 90 106
-             Q 90 98 98 98
-             L 158 98
-             Q 166 98 166 106
-             L 166 146.4
-             Q 128 162 90 146.4
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- accent band at top -->
-<rect x="82" y="92" width="92" height="12" rx="3"
-      fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="2.5"/>
-<!-- accent band at bottom -->
-<rect x="84" y="196" width="88" height="10" rx="2"
-      fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="2"/>
-
-<!-- copper base -->
-<rect x="96" y="96" width="64" height="10" rx="3" fill="url(#gk-grad-copper)" stroke="#3A1A07" stroke-width="3"/>
-<!-- coil tower (banded cylinder) -->
-<g>
-  <rect x="110" y="60" width="36" height="36" rx="6"
-        fill="url(#gk-grad-copper)" stroke="#3A1A07" stroke-width="3"/>
-  <g stroke="#3A1A07" stroke-width="1.5" opacity="0.65" fill="none">
-    <line x1="114" y1="66" x2="142" y2="66"/>
-    <line x1="114" y1="72" x2="142" y2="72"/>
-    <line x1="114" y1="78" x2="142" y2="78"/>
-    <line x1="114" y1="84"  x2="142" y2="84"/>
-    <line x1="114" y1="90"  x2="142" y2="90"/>
-  </g>
+<!-- base footings -->
+<rect x="78" y="208" width="20" height="16" rx="3" fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="3"/>
+<rect x="158" y="208" width="20" height="16" rx="3" fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="3"/>
+<!-- 4 lattice beams (X shape) -->
+<g stroke="url(#gk-grad-copper)" stroke-width="9" stroke-linecap="round" fill="none">
+  <line x1="88"  y1="208" x2="120" y2="80"/>
+  <line x1="168" y1="208" x2="136" y2="80"/>
+  <line x1="100" y1="208" x2="156" y2="80"/>
+  <line x1="156" y1="208" x2="100" y2="80"/>
 </g>
-<!-- top dome (tesla ball) -->
-<circle cx="128" cy="52" r="14" fill="url(#gk-rgrad-sapphire)" stroke="#04143B" stroke-width="3"/>
-<ellipse cx="123" cy="46" rx="6" ry="3" fill="#FFFFFF" opacity="0.75"/>
-<!-- arc bolt -->
-<path d="M 114 52 L 124 58 L 120 62 L 132 70"
-      fill="none" stroke="#5A9EF7" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+<g stroke="#3A1A07" stroke-width="3" stroke-linecap="round" fill="none">
+  <line x1="88"  y1="208" x2="120" y2="80"/>
+  <line x1="168" y1="208" x2="136" y2="80"/>
+  <line x1="100" y1="208" x2="156" y2="80"/>
+  <line x1="156" y1="208" x2="100" y2="80"/>
+</g>
+<!-- horizontal cross-bracing -->
+<g stroke="url(#gk-grad-copper)" stroke-width="5" fill="none">
+  <line x1="98"  y1="180" x2="158" y2="180"/>
+  <line x1="108" y1="140" x2="148" y2="140"/>
+  <line x1="114" y1="108" x2="142" y2="108"/>
+</g>
+<!-- copper top platform -->
+<ellipse cx="128" cy="80" rx="32" ry="8" fill="url(#gk-grad-copper)" stroke="#3A1A07" stroke-width="3"/>
+<!-- Tesla ball -->
+<circle cx="128" cy="64" r="20" fill="url(#gk-rgrad-sapphire)" stroke="#04143B" stroke-width="4"/>
+<ellipse cx="120" cy="56" rx="6" ry="3" fill="#FFFFFF" opacity="0.85"/>
+<!-- electric arc bolts -->
+<g fill="none" stroke="#5A9EF7" stroke-width="3" stroke-linecap="round" opacity="0.95">
+  <path d="M 110 60 L 100 52 L 108 48 L 96 40"/>
+  <path d="M 146 60 L 156 52 L 148 48 L 160 40"/>
+  <path d="M 128 44 L 124 32 L 132 28 L 128 16"/>
+</g>
 
 </svg>

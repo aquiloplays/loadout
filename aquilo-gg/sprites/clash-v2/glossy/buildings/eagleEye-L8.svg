@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>eagleEye (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>eagleEye (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -267,45 +267,39 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- column base flare -->
-
-    <ellipse cx="128" cy="216" rx="56" ry="14"
-             fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="4"/>
-    <path d="M 80.4 214.6
-             A 47.6 9.799999999999999 0 0 1 164.4 206.2
-             A 39.199999999999996 5.6000000000000005 0 0 1 80.4 214.6 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- tower column -->
-
-    <rect x="88" y="96" width="80" height="120" rx="10" ry="10"
-          fill="url(#gk-grad-stone)"
-          stroke="#262B36" stroke-width="4"/>
-    <path d="M 90 106
-             Q 90 98 98 98
-             L 158 98
-             Q 166 98 166 106
-             L 166 146.4
-             Q 128 162 90 146.4
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- accent band at top -->
-<rect x="82" y="92" width="92" height="12" rx="3"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2.5"/>
-<!-- accent band at bottom -->
-<rect x="84" y="196" width="88" height="10" rx="2"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
-
-<!-- pivot mount -->
-<rect x="100" y="92" width="56" height="14" rx="3" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="3"/>
-<!-- spyglass body -->
-<g transform="rotate(-30 128 76)">
-  <rect x="124" y="44" width="8" height="40" rx="3"
-        fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
-  <ellipse cx="128" cy="44" rx="10" ry="4" fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="2"/>
+<!-- thin base -->
+<rect x="104" y="208" width="48" height="16" rx="3" fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="3"/>
+<!-- slender tapered tower -->
+<path d="M 110 208 L 116 88 L 140 88 L 146 208 Z"
+      fill="url(#gk-rgrad-stone)" stroke="#262B36" stroke-width="4" stroke-linejoin="round"/>
+<g stroke="#262B36" stroke-width="1.2" opacity="0.55">
+  <line x1="112" y1="140" x2="144" y2="140"/>
+  <line x1="113" y1="170" x2="143" y2="170"/>
 </g>
-<!-- eagle eye -->
-<circle cx="112" cy="62" r="6" fill="#FFD970" stroke="#0A0D14" stroke-width="1.5"/>
-<circle cx="112" cy="62" r="3" fill="#0A0D14"/>
+<!-- platform on top -->
+<rect x="98" y="80" width="60" height="12" rx="3" fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="3"/>
+<!-- merlons -->
+<g fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="2">
+  <rect x="96" y="68" width="12" height="14"/>
+  <rect x="118" y="68" width="12" height="14"/>
+  <rect x="140" y="68" width="12" height="14"/>
+</g>
+<!-- swivel mount -->
+<rect x="116" y="60" width="24" height="10" rx="2" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
+<!-- spyglass (big! brass, angled up to the right) -->
+<g transform="translate(128, 56) rotate(-30)">
+  <rect x="-6" y="-44" width="12" height="46" rx="3" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="3"/>
+  <rect x="-8" y="-50" width="16" height="10" rx="3" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2.5"/>
+  <ellipse cx="0" cy="-50" rx="10" ry="3" fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="2"/>
+  <rect x="-7" y="-32" width="14" height="4" fill="#3F2D01" opacity="0.55"/>
+  <rect x="-7" y="-18" width="14" height="4" fill="#3F2D01" opacity="0.55"/>
+</g>
+<!-- eagle eye motif on the front of the platform -->
+<g transform="translate(128, 100)">
+  <ellipse cx="0" cy="0" rx="10" ry="6" fill="#FFF6D8" stroke="#0A0D14" stroke-width="1.5"/>
+  <circle cx="0" cy="0" r="4" fill="#FFD970"/>
+  <circle cx="0" cy="0" r="2" fill="#0A0D14"/>
+</g>
 
 
 <!-- L_n front overlays -->

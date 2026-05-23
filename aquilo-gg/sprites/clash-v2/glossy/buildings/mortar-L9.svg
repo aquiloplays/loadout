@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>mortar (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>mortar (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -267,43 +267,29 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- column base flare -->
-
-    <ellipse cx="128" cy="216" rx="56" ry="14"
-             fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="4"/>
-    <path d="M 80.4 214.6
-             A 47.6 9.799999999999999 0 0 1 164.4 206.2
-             A 39.199999999999996 5.6000000000000005 0 0 1 80.4 214.6 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- tower column -->
-
-    <rect x="88" y="96" width="80" height="120" rx="10" ry="10"
-          fill="url(#gk-grad-stone)"
-          stroke="#262B36" stroke-width="4"/>
-    <path d="M 90 106
-             Q 90 98 98 98
-             L 158 98
-             Q 166 98 166 106
-             L 166 146.4
-             Q 128 162 90 146.4
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- accent band at top -->
-<rect x="82" y="92" width="92" height="12" rx="3"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2.5"/>
-<!-- accent band at bottom -->
-<rect x="84" y="196" width="88" height="10" rx="2"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
-
-<!-- bowl on stand -->
-<ellipse cx="128" cy="96" rx="38" ry="14" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4"/>
-<path d="M 94 94 L 106 64 L 150 64 L 162 94 Z"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4" stroke-linejoin="round"/>
+<!-- wide platform -->
+<rect x="36" y="168" width="184" height="56" rx="8" ry="8"
+    fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="4"/>
+<!-- iron bands around the platform -->
+<rect x="30" y="172" width="196" height="8" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2.5"/>
+<rect x="30" y="208" width="196" height="8" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2.5"/>
+<!-- ammo pile (shells, beside) -->
+<g fill="url(#gk-rgrad-iron)" stroke="#0B0E1C" stroke-width="2">
+  <circle cx="60" cy="200" r="9"/>
+  <circle cx="78" cy="200" r="9"/>
+  <circle cx="68" cy="184" r="9"/>
+</g>
+<!-- huge mortar bowl on top -->
+<ellipse cx="148" cy="160" rx="58" ry="20" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4"/>
+<path d="M 90 158 L 96 110 L 200 110 L 206 158 Z"
+      fill="url(#gk-rgrad-iron)" stroke="#0B0E1C" stroke-width="4" stroke-linejoin="round"/>
 <!-- gold rim -->
-<ellipse cx="128" cy="64" rx="22" ry="6" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
-<!-- shell ready -->
-<circle cx="128" cy="64" r="10" fill="url(#gk-rgrad-iron)" stroke="#0A0D14" stroke-width="2"/>
-<rect x="126" y="48" width="4" height="10" fill="#FFD970" stroke="#0A0D14" stroke-width="1"/>
+<ellipse cx="148" cy="110" rx="52" ry="8" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="3"/>
+<!-- shell loaded inside -->
+<circle cx="148" cy="106" r="16" fill="url(#gk-rgrad-iron)" stroke="#0A0D14" stroke-width="2.5"/>
+<rect x="144" y="76" width="8" height="14" fill="url(#gk-grad-gold)" stroke="#0A0D14" stroke-width="1.2"/>
+<path d="M 148 80 Q 154 70 160 64" fill="none" stroke="#FF7A8C" stroke-width="2" stroke-linecap="round"/>
+<circle cx="162" cy="62" r="3" fill="#FFD970"/>
 
 
 <!-- L_n front overlays -->

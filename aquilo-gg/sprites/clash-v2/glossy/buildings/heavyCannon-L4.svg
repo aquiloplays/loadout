@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>heavyCannon (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>heavyCannon (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -257,47 +257,35 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- column base flare -->
-
-    <ellipse cx="128" cy="216" rx="56" ry="14"
-             fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4"/>
-    <path d="M 80.4 214.6
-             A 47.6 9.799999999999999 0 0 1 164.4 206.2
-             A 39.199999999999996 5.6000000000000005 0 0 1 80.4 214.6 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- tower column -->
-
-    <rect x="88" y="96" width="80" height="120" rx="10" ry="10"
-          fill="url(#gk-grad-iron)"
-          stroke="#0B0E1C" stroke-width="4"/>
-    <path d="M 90 106
-             Q 90 98 98 98
-             L 158 98
-             Q 166 98 166 106
-             L 166 146.4
-             Q 128 162 90 146.4
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- accent band at top -->
-<rect x="82" y="92" width="92" height="12" rx="3"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2.5"/>
-<!-- accent band at bottom -->
-<rect x="84" y="196" width="88" height="10" rx="2"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
-
-<!-- thick steel saucer -->
-<ellipse cx="128" cy="96" rx="42" ry="14" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4"/>
-<!-- short heavy barrel -->
-<rect x="106" y="66" width="44" height="32" rx="6"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4"/>
-<!-- muzzle -->
-<rect x="148" y="64" width="10" height="36" rx="3"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
-<!-- gold bands -->
-<rect x="106" y="74" width="44" height="6" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
-<rect x="106" y="90"  width="44" height="6" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
-<!-- gloss -->
-<rect x="110" y="70" width="36" height="4" rx="2" fill="#FFFFFF" opacity="0.55"/>
+<!-- platform -->
+<rect x="36" y="188" width="184" height="32" rx="6" ry="6"
+    fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="4"/>
+<!-- gold trim band -->
+<rect x="32" y="184" width="192" height="6" rx="2" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
+<!-- big wheels (left + right) -->
+<circle cx="68" cy="208" r="20" fill="url(#gk-rgrad-wood)" stroke="#3B240F" stroke-width="3.5"/>
+<circle cx="68" cy="208" r="14" fill="none" stroke="#3B240F" stroke-width="2"/>
+<line x1="68" y1="208" x2="82.0" y2="208.0" stroke="#3B240F" stroke-width="2"/><line x1="68" y1="208" x2="75.0" y2="220.1" stroke="#3B240F" stroke-width="2"/><line x1="68" y1="208" x2="61.0" y2="220.1" stroke="#3B240F" stroke-width="2"/><line x1="68" y1="208" x2="54.0" y2="208.0" stroke="#3B240F" stroke-width="2"/><line x1="68" y1="208" x2="61.0" y2="195.9" stroke="#3B240F" stroke-width="2"/><line x1="68" y1="208" x2="75.0" y2="195.9" stroke="#3B240F" stroke-width="2"/>
+<circle cx="68" cy="208" r="4" fill="#43485A" stroke="#0A0D14" stroke-width="1.5"/>
+<circle cx="188" cy="208" r="20" fill="url(#gk-rgrad-wood)" stroke="#3B240F" stroke-width="3.5"/>
+<circle cx="188" cy="208" r="14" fill="none" stroke="#3B240F" stroke-width="2"/>
+<line x1="188" y1="208" x2="202.0" y2="208.0" stroke="#3B240F" stroke-width="2"/><line x1="188" y1="208" x2="195.0" y2="220.1" stroke="#3B240F" stroke-width="2"/><line x1="188" y1="208" x2="181.0" y2="220.1" stroke="#3B240F" stroke-width="2"/><line x1="188" y1="208" x2="174.0" y2="208.0" stroke="#3B240F" stroke-width="2"/><line x1="188" y1="208" x2="181.0" y2="195.9" stroke="#3B240F" stroke-width="2"/><line x1="188" y1="208" x2="195.0" y2="195.9" stroke="#3B240F" stroke-width="2"/>
+<circle cx="188" cy="208" r="4" fill="#43485A" stroke="#0A0D14" stroke-width="1.5"/>
+<!-- heavy cannon barrel (huge, horizontal, slightly tilted up) -->
+<g transform="translate(128, 160) rotate(-12 0 0)">
+  <rect x="-72" y="-22" width="144" height="44" rx="14" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4"/>
+  <!-- breech (back) -->
+  <rect x="-80" y="-26" width="16" height="52" rx="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
+  <!-- muzzle (front) -->
+  <rect x="68" y="-26" width="18" height="52" rx="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
+  <!-- gold bands -->
+  <rect x="-50" y="-22" width="6" height="44" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  <rect x="20" y="-22" width="6" height="44" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+  <!-- gloss highlight -->
+  <rect x="-66" y="-18" width="132" height="6" rx="3" fill="#FFFFFF" opacity="0.55"/>
+</g>
+<!-- pivot mount on the platform -->
+<rect x="120" y="178" width="16" height="14" rx="3" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2.5"/>
 
 
 <!-- L_n front overlays -->

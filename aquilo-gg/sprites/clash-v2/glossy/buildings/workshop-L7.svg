@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>workshop (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>workshop (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -267,49 +267,51 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-
-    <rect x="40" y="144" width="176" height="80" rx="6" ry="6"
-          fill="url(#gk-grad-wood)"
-          stroke="#3B240F" stroke-width="4"/>
-    <path d="M 42 150
-             Q 42 146 46 146
-             L 210 146
-             Q 214 146 214 150
-             L 214 177.6
-             Q 128 188 42 177.6
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- roof -->
-<path d="M 28 150
-         L 128 80
-         L 228 150
-         L 216 158
-         L 40 158 Z"
-      fill="url(#gk-grad-thatch)" stroke="#3C2A0A" stroke-width="4" stroke-linejoin="round"/>
-<!-- roof gloss -->
-<path d="M 34 148 L 122 84 L 126 156 L 44 156 Z"
-      fill="url(#gk-gloss)" opacity="0.5"/>
-<!-- chimney -->
-<rect x="166" y="108" width="22" height="40" rx="3"
-      fill="url(#gk-grad-stone)" stroke="#262B36" stroke-width="3"/>
-<!-- chimney puff -->
-<ellipse cx="177" cy="94" rx="16" ry="9" fill="#FFF6D8" opacity="0.85" stroke="#262B36" stroke-width="1.5"/>
-<ellipse cx="188" cy="80" rx="10" ry="6" fill="#FFF6D8" opacity="0.7"/>
-<!-- door -->
-
-    <path d="M 90 220
-             L 90 190
-             A 18 18 0 0 1 126 190
-             L 126 220 Z"
-          fill="url(#gk-grad-wood)" stroke="#0A0D14" stroke-width="3"/>
-    <circle cx="117" cy="203.2" r="2.5" fill="#FFD970" stroke="#0A0D14" stroke-width="1"/>
-<!-- accent icon plaque to right of door -->
-<rect x="140" y="180" width="48" height="48" rx="5"
-      fill="url(#gk-grad-cream)" stroke="#0A0D14" stroke-width="2.5"/>
-
-<rect x="175.5" y="201.5" width="5" height="5" rx="1" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1" transform="rotate(0 178 204)"/><rect x="171.39949493661166" y="211.39949493661166" width="5" height="5" rx="1" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1" transform="rotate(45 173.89949493661166 213.89949493661166)"/><rect x="161.5" y="215.5" width="5" height="5" rx="1" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1" transform="rotate(90 164 218)"/><rect x="151.60050506338834" y="211.39949493661166" width="5" height="5" rx="1" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1" transform="rotate(135 154.10050506338834 213.89949493661166)"/><rect x="147.5" y="201.5" width="5" height="5" rx="1" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1" transform="rotate(180 150 204)"/><rect x="151.60050506338834" y="191.60050506338834" width="5" height="5" rx="1" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1" transform="rotate(225 154.10050506338834 194.10050506338834)"/><rect x="161.5" y="187.5" width="5" height="5" rx="1" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1" transform="rotate(270 164 190)"/><rect x="171.39949493661166" y="191.60050506338834" width="5" height="5" rx="1" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1" transform="rotate(315 173.89949493661166 194.10050506338834)"/>
-<circle cx="164" cy="204" r="10" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
-<circle cx="164" cy="204" r="4" fill="#0A0D14"/>
+<!-- back wall (tool wall) -->
+<rect x="44" y="96" width="168" height="100" rx="6" ry="6"
+    fill="url(#gk-grad-thatch)" stroke="#3C2A0A" stroke-width="4"/>
+<!-- vertical wall planks -->
+<g stroke="#3C2A0A" stroke-width="1.5" opacity="0.6">
+  <line x1="74" y1="100" x2="74" y2="192"/>
+  <line x1="104" y1="100" x2="104" y2="192"/>
+  <line x1="134" y1="100" x2="134" y2="192"/>
+  <line x1="164" y1="100" x2="164" y2="192"/>
+  <line x1="184" y1="100" x2="184" y2="192"/>
+</g>
+<!-- tools hanging on wall: hammer, wrench, saw -->
+<g transform="translate(80, 130)">
+  <rect x="-2" y="0" width="4" height="36" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="1.2"/>
+  <rect x="-10" y="-8" width="20" height="10" rx="2" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
+</g>
+<g transform="translate(118, 132) rotate(8)">
+  <rect x="-3" y="-22" width="6" height="42" rx="2" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.8"/>
+  <path d="M -8 -22 L 8 -22 L 6 -28 L -6 -28 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
+  <path d="M -7 20 L 7 20 L 5 26 L -5 26 Z" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
+</g>
+<g transform="translate(160, 138)">
+  <rect x="-22" y="-3" width="44" height="6" fill="url(#gk-grad-steel)" stroke="#171E27" stroke-width="1.5"/>
+  <g stroke="#0A0D14" stroke-width="0.7">
+    <line x1="-20" y1="3" x2="-20" y2="6"/>
+    <line x1="-14" y1="3" x2="-14" y2="6"/>
+    <line x1="-8" y1="3" x2="-8" y2="6"/>
+    <line x1="-2" y1="3" x2="-2" y2="6"/>
+    <line x1="4" y1="3" x2="4" y2="6"/>
+    <line x1="10" y1="3" x2="10" y2="6"/>
+    <line x1="16" y1="3" x2="16" y2="6"/>
+  </g>
+  <rect x="-26" y="-1" width="6" height="6" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="1.2"/>
+</g>
+<!-- workbench (in front) -->
+<rect x="36" y="184" width="184" height="22" rx="3" ry="3"
+    fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="3.5"/>
+<rect x="44" y="206" width="6" height="16" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="2"/>
+<rect x="206" y="206" width="6" height="16" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="2"/>
+<!-- gear on bench -->
+<g transform="translate(108, 184)">
+  <circle cx="0" cy="0" r="11" fill="url(#gk-rgrad-iron)" stroke="#0B0E1C" stroke-width="2.5"/>
+  <rect x="11.0" y="-2.0" width="4" height="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2"/><rect x="7.2" y="7.2" width="4" height="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2"/><rect x="-2.0" y="11.0" width="4" height="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2"/><rect x="-11.2" y="7.2" width="4" height="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2"/><rect x="-15.0" y="-2.0" width="4" height="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2"/><rect x="-11.2" y="-11.2" width="4" height="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2"/><rect x="-2.0" y="-15.0" width="4" height="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2"/><rect x="7.2" y="-11.2" width="4" height="4" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2"/>
+  <circle cx="0" cy="0" r="3" fill="#0A0D14"/>
+</g>
 
 
 <!-- L_n front overlays -->

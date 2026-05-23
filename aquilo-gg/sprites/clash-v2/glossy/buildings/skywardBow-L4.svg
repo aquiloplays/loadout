@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>skywardBow (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>skywardBow (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -257,50 +257,36 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- column base flare -->
-
-    <ellipse cx="128" cy="216" rx="56" ry="14"
-             fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="4"/>
-    <path d="M 80.4 214.6
-             A 47.6 9.799999999999999 0 0 1 164.4 206.2
-             A 39.199999999999996 5.6000000000000005 0 0 1 80.4 214.6 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- tower column -->
-
-    <rect x="88" y="96" width="80" height="120" rx="10" ry="10"
-          fill="url(#gk-grad-wood)"
-          stroke="#3B240F" stroke-width="4"/>
-    <path d="M 90 106
-             Q 90 98 98 98
-             L 158 98
-             Q 166 98 166 106
-             L 166 146.4
-             Q 128 162 90 146.4
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- accent band at top -->
-<rect x="82" y="92" width="92" height="12" rx="3"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2.5"/>
-<!-- accent band at bottom -->
-<rect x="84" y="196" width="88" height="10" rx="2"
-      fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
-
 <!-- platform -->
-<rect x="98" y="96" width="60" height="10" rx="3" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="3"/>
-<!-- ballista arms -->
-<path d="M 92 72
-         Q 128 40 164 72"
-      fill="none" stroke="url(#gk-grad-wood)" stroke-width="8" stroke-linecap="round"/>
-<path d="M 92 72
-         Q 128 40 164 72"
-      fill="none" stroke="#3B240F" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
-<!-- bowstring -->
-<line x1="96" y1="70" x2="160" y2="70"
-      stroke="#0A0D14" stroke-width="1.5"/>
-<!-- arrow nocked -->
-<rect x="127" y="46" width="2.5" height="32" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="1"/>
-<path d="M 128 38 L 122 52 L 134 52 Z"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.5"/>
+<rect x="56" y="188" width="144" height="30" rx="5" ry="5"
+    fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="4"/>
+<!-- crossed support beams -->
+<g stroke="#3B240F" stroke-width="4" fill="none">
+  <line x1="76" y1="186" x2="128" y2="130"/>
+  <line x1="180" y1="186" x2="128" y2="130"/>
+</g>
+<line x1="76" y1="186" x2="128" y2="130" stroke="url(#gk-grad-wood)" stroke-width="10" stroke-linecap="round"/>
+<line x1="180" y1="186" x2="128" y2="130" stroke="url(#gk-grad-wood)" stroke-width="10" stroke-linecap="round"/>
+<line x1="76" y1="186" x2="128" y2="130" stroke="#3B240F" stroke-width="2"/>
+<line x1="180" y1="186" x2="128" y2="130" stroke="#3B240F" stroke-width="2"/>
+<!-- bow stock (horizontal beam at top) -->
+<rect x="56" y="124" width="144" height="12" rx="3" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="3"/>
+<!-- bow arms (curved) -->
+<path d="M 56 130 Q 32 90 56 60" fill="none" stroke="url(#gk-grad-wood)" stroke-width="12" stroke-linecap="round"/>
+<path d="M 56 130 Q 32 90 56 60" fill="none" stroke="#3B240F" stroke-width="3"/>
+<path d="M 200 130 Q 224 90 200 60" fill="none" stroke="url(#gk-grad-wood)" stroke-width="12" stroke-linecap="round"/>
+<path d="M 200 130 Q 224 90 200 60" fill="none" stroke="#3B240F" stroke-width="3"/>
+<!-- bowstring (drawn back) -->
+<path d="M 56 60 Q 128 100 200 60" fill="none" stroke="#0A0D14" stroke-width="2"/>
+<!-- massive arrow loaded down the stock -->
+<rect x="124" y="60" width="8" height="80" rx="2" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="2"/>
+<path d="M 128 28 L 116 60 L 140 60 Z"
+      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3" stroke-linejoin="round"/>
+<!-- fletching at back -->
+<path d="M 122 138 L 110 158 L 122 152 Z" fill="#D62E48" stroke="#3B0510" stroke-width="1.5"/>
+<path d="M 134 138 L 146 158 L 134 152 Z" fill="#D62E48" stroke="#3B0510" stroke-width="1.5"/>
+<!-- gold trim on tip -->
+<rect x="116" y="60" width="24" height="3" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="1"/>
 
 
 <!-- L_n front overlays -->

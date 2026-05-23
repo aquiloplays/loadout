@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>infernoTrap (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>infernoTrap (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -254,38 +254,38 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- outer plate -->
-
-    <ellipse cx="128" cy="204" rx="92" ry="30"
-             fill="url(#gk-grad-brick)" stroke="#321009" stroke-width="4"/>
-    <path d="M 49.8 201
-             A 78.2 21 0 0 1 187.8 183
-             A 64.39999999999999 12 0 0 1 49.8 201 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- inner ring -->
-<ellipse cx="128" cy="204" rx="68" ry="22"
-         fill="none" stroke="#321009" stroke-width="3" opacity="0.75"/>
-<!-- rivets -->
-<g fill="url(#gk-grad-gold)" stroke="#0A0D14" stroke-width="1">
-  <circle cx="50" cy="204" r="4"/>
-  <circle cx="206" cy="204" r="4"/>
-  <circle cx="90" cy="184" r="3"/>
-  <circle cx="166" cy="184" r="3"/>
-  <circle cx="90" cy="224" r="3"/>
-  <circle cx="166" cy="224" r="3"/>
+<!-- brass grate plate -->
+<ellipse cx="128" cy="200" rx="86" ry="20" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="4"/>
+<ellipse cx="128" cy="198" rx="72" ry="14" fill="#9C4231" opacity="0.5"/>
+<!-- slit vents -->
+<g fill="#0A0D14" stroke="#3F2D01" stroke-width="1.2">
+  <rect x="74" y="192" width="18" height="4" rx="1"/>
+  <rect x="98" y="190" width="20" height="4" rx="1"/>
+  <rect x="124" y="188" width="22" height="4" rx="1"/>
+  <rect x="152" y="190" width="20" height="4" rx="1"/>
+  <rect x="178" y="192" width="18" height="4" rx="1"/>
 </g>
-
-<path d="M 128 178
-         Q 116 192 120 208
-         Q 126 198 128 188
-         Q 130 198 136 208
-         Q 140 192 128 178 Z"
-      fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="2" stroke-linejoin="round"/>
-<path d="M 128 186
-         Q 124 196 126 206
-         Q 128 200 130 206
-         Q 132 196 128 186 Z"
-      fill="url(#gk-grad-gold)" opacity="0.9"/>
+<!-- corner brass studs -->
+<g fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5">
+  <circle cx="60" cy="200" r="4"/>
+  <circle cx="196" cy="200" r="4"/>
+  <circle cx="92" cy="184" r="3"/>
+  <circle cx="164" cy="184" r="3"/>
+</g>
+<!-- flame tongues bursting up from the slits -->
+<g stroke="#3B0510" stroke-width="2" stroke-linejoin="round">
+  <path d="M 84 192 Q 78 178 84 168 Q 86 174 84 188 Z" fill="url(#gk-grad-ruby)"/>
+  <path d="M 108 190 Q 100 168 110 150 Q 116 168 108 188 Z" fill="url(#gk-grad-ruby)"/>
+  <path d="M 134 188 Q 124 160 136 134 Q 144 160 134 184 Z" fill="url(#gk-grad-ruby)"/>
+  <path d="M 162 190 Q 158 168 168 150 Q 174 168 164 188 Z" fill="url(#gk-grad-ruby)"/>
+  <path d="M 188 192 Q 186 180 192 170 Q 196 180 192 190 Z" fill="url(#gk-grad-ruby)"/>
+</g>
+<!-- gold inner flame highlights -->
+<g fill="#FFD970" opacity="0.95">
+  <path d="M 134 180 Q 132 168 138 156 Q 142 168 138 180 Z"/>
+  <path d="M 110 184 Q 108 174 113 164 Q 117 174 113 184 Z"/>
+  <path d="M 162 184 Q 164 174 169 164 Q 173 174 169 184 Z"/>
+</g>
 
 
 <!-- L_n front overlays -->

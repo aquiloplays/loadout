@@ -2,8 +2,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
 
-  <title>trap (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>trap (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -257,31 +257,34 @@
 
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-<!-- outer plate -->
-
-    <ellipse cx="128" cy="204" rx="92" ry="30"
-             fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4"/>
-    <path d="M 49.8 201
-             A 78.2 21 0 0 1 187.8 183
-             A 64.39999999999999 12 0 0 1 49.8 201 Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- inner ring -->
-<ellipse cx="128" cy="204" rx="68" ry="22"
-         fill="none" stroke="#0B0E1C" stroke-width="3" opacity="0.75"/>
-<!-- rivets -->
-<g fill="url(#gk-grad-gold)" stroke="#0A0D14" stroke-width="1">
-  <circle cx="50" cy="204" r="4"/>
-  <circle cx="206" cy="204" r="4"/>
-  <circle cx="90" cy="184" r="3"/>
-  <circle cx="166" cy="184" r="3"/>
-  <circle cx="90" cy="224" r="3"/>
-  <circle cx="166" cy="224" r="3"/>
+<!-- ground hole -->
+<ellipse cx="128" cy="200" rx="84" ry="22" fill="#222937" opacity="0.85"/>
+<!-- plank lid (square, slightly tilted in perspective) -->
+<path d="M 56 184 L 200 184 L 220 220 L 36 220 Z"
+      fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="4" stroke-linejoin="round"/>
+<!-- wood planks (parallel lines) -->
+<g stroke="#3B240F" stroke-width="1.5" opacity="0.6">
+  <line x1="84"  y1="184" x2="76"  y2="220"/>
+  <line x1="112" y1="184" x2="108" y2="220"/>
+  <line x1="140" y1="184" x2="142" y2="220"/>
+  <line x1="168" y1="184" x2="180" y2="220"/>
 </g>
-
-<circle cx="128" cy="200" r="14" fill="url(#gk-rgrad-dark)" stroke="#04060A" stroke-width="3"/>
-<rect x="125" y="182" width="6" height="4" fill="#43485A" stroke="#0A0D14" stroke-width="1"/>
-<path d="M 128 186 Q 134 182 138 178"
-      fill="none" stroke="#6E4621" stroke-width="2"/>
+<!-- iron-banded frame -->
+<rect x="50" y="180" width="156" height="6" rx="2" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
+<!-- corner nails -->
+<g fill="#FFD970" stroke="#0A0D14" stroke-width="1">
+  <circle cx="60" cy="186" r="2.5"/>
+  <circle cx="196" cy="186" r="2.5"/>
+  <circle cx="48" cy="214" r="2.5"/>
+  <circle cx="208" cy="214" r="2.5"/>
+</g>
+<!-- warning sign nailed on -->
+<g transform="translate(128, 196)">
+  <path d="M 0 -12 L 14 14 L -14 14 Z"
+        fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2.5" stroke-linejoin="round"/>
+  <rect x="-1" y="-6" width="2" height="10" fill="#0A0D14"/>
+  <circle cx="0" cy="9" r="1.5" fill="#0A0D14"/>
+</g>
 
 
 <!-- L_n front overlays -->

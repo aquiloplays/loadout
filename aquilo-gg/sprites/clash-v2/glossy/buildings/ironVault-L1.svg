@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256"
      shape-rendering="geometricPrecision">
-  <title>ironVault (L1) — glossy</title>
-  <desc>Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.</desc>
+  <title>ironVault (L1, K4b redesign) — glossy</title>
+  <desc>Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.</desc>
   <defs>
     <!-- soft drop shadow -->
     <filter id="gk-shadow-soft" x="-30%" y="-30%" width="160%" height="160%">
@@ -249,44 +249,28 @@
   </defs>
   
 <ellipse cx="128" cy="232" rx="92" ry="14" fill="url(#gk-contact-shadow)"/>
-
-    <rect x="36" y="162" width="184" height="62" rx="12" ry="12"
-          fill="url(#gk-grad-iron)"
-          stroke="#0B0E1C" stroke-width="4"/>
-    <path d="M 38 174
-             Q 38 164 48 164
-             L 208 164
-             Q 218 164 218 174
-             L 218 188.04
-             Q 128 196.1 38 188.04
-             Z"
-          fill="url(#gk-gloss)" opacity="0.7" pointer-events="none"/>
-<!-- lid -->
-<path d="M 42 162
-         L 42 152
-         Q 42 104 76 104
-         L 180 104
-         Q 214 104 214 152
-         L 214 162 Z"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="4" stroke-linejoin="round"/>
-<path d="M 50 156
-         Q 50 110 76 110
-         L 126 110
-         Q 86 128 54 156 Z"
-      fill="url(#gk-gloss)" opacity="0.6"/>
-<!-- big steel bands -->
-<g fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3" stroke-linejoin="round">
-  <rect x="48" y="102" width="22" height="120" rx="2"/>
-  <rect x="186" y="102" width="22" height="120" rx="2"/>
+<!-- cube body -->
+<rect x="56" y="92" width="144" height="132" rx="8" ry="8"
+    fill="url(#gk-rgrad-iron)" stroke="#0B0E1C" stroke-width="5"/>
+<!-- corner rivet panel -->
+<g fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5">
+  <circle cx="68" cy="104" r="3"/><circle cx="188" cy="104" r="3"/><circle cx="68" cy="212" r="3"/><circle cx="188" cy="212" r="3"/><circle cx="86" cy="104" r="3"/><circle cx="170" cy="104" r="3"/><circle cx="86" cy="212" r="3"/><circle cx="170" cy="212" r="3"/><circle cx="104" cy="104" r="3"/><circle cx="152" cy="104" r="3"/><circle cx="104" cy="212" r="3"/><circle cx="152" cy="212" r="3"/><circle cx="68" cy="122" r="3"/><circle cx="188" cy="122" r="3"/><circle cx="68" cy="184" r="3"/><circle cx="188" cy="184" r="3"/><circle cx="68" cy="140" r="3"/><circle cx="188" cy="140" r="3"/><circle cx="68" cy="166" r="3"/><circle cx="188" cy="166" r="3"/>
 </g>
-<!-- horizontal seam -->
-<rect x="34" y="158" width="188" height="8" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
-<!-- lock plate with resource icon -->
-<rect x="98" y="144" width="60" height="50" rx="5"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
-
-<rect x="114" y="162" width="28" height="16" rx="3"
-      fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
-<rect x="118" y="166" width="20" height="3" fill="#6B7080" opacity="0.7"/>
+<!-- inner safe panel -->
+<rect x="86" y="116" width="84" height="92" rx="4" ry="4"
+    fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="3"/>
+<!-- big circular lock dial -->
+<circle cx="128" cy="162" r="32" fill="url(#gk-rgrad-iron)" stroke="#0B0E1C" stroke-width="4"/>
+<circle cx="128" cy="162" r="26" fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2"/>
+<!-- dial tick marks -->
+<g stroke="#FFD970" stroke-width="1.5">
+  <line x1="128.0" y1="140.0" x2="128.0" y2="136.0"/><line x1="139.0" y1="142.9" x2="141.0" y2="139.5"/><line x1="147.0" y1="151.0" x2="150.5" y2="149.0"/><line x1="150.0" y1="162.0" x2="154.0" y2="162.0"/><line x1="147.0" y1="173.0" x2="150.5" y2="175.0"/><line x1="139.0" y1="181.1" x2="141.0" y2="184.5"/><line x1="128.0" y1="184.0" x2="128.0" y2="188.0"/><line x1="117.0" y1="181.1" x2="115.0" y2="184.5"/><line x1="108.9" y1="173.0" x2="105.5" y2="175.0"/><line x1="106.0" y1="162.0" x2="102.0" y2="162.0"/><line x1="108.9" y1="151.0" x2="105.5" y2="149.0"/><line x1="117.0" y1="142.9" x2="115.0" y2="139.5"/>
+</g>
+<!-- dial pointer + central nub -->
+<rect x="126" y="138" width="4" height="22" rx="1" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="1.2"/>
+<circle cx="128" cy="162" r="6" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="2"/>
+<circle cx="128" cy="162" r="2" fill="#0A0D14"/>
+<!-- gloss on cube -->
+<path d="M 60 96 L 68 96 L 68 200 L 64 220 L 60 220 Z" fill="url(#gk-gloss)" opacity="0.4" pointer-events="none"/>
 
 </svg>
