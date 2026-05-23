@@ -43,15 +43,22 @@ function spriteBase(env) {
 // the full 500-sprite roster, well under the 128 MB isolate budget.
 const SPRITE_CACHE = new Map();
 
-// I1 (2026-05): asset version stamp. Appended as a query string to
-// every sprite fetch so we can bypass the Cloudflare Pages edge
-// cache when a new generator pass ships (the retro-RPG body sprite
-// rework in commit f0149af is the immediate trigger). Bump this
-// any time the build-sprites.ps1 output changes. The aquilo-site
-// repo still has to be manually re-vendored from aquilo-gg/sprites/
-// for the new files to exist at all on the Pages origin — this
-// version stamp only handles the CDN side once they're up.
-const SPRITE_ASSET_VERSION = 'v2-rpg';
+// Asset version stamp. Appended as a query string to every sprite
+// fetch so we can bypass the Cloudflare Pages edge cache (and the
+// Worker's in-memory SPRITE_CACHE, which keys on the full URL) when
+// a new generator pass ships. Also baked into renderPreviewUrl so
+// the *composed* /character/render URL changes too — that busts the
+// downstream layer (Discord embed URL cache, browser <img> cache,
+// any CDN that fronts the worker). The aquilo-site repo still has
+// to be manually re-vendored from aquilo-gg/sprites/ for the new
+// files to exist on the Pages origin — this version stamp only
+// handles caches once they're up.
+//
+// Bump history:
+//   v2-rpg      I1 (2026-05) — retro-RPG body sprite rework
+//   v3-figure   L1 (2026-05) — game-icon figure rework + characterful
+//                              pets + retuned gear paper-doll anchors
+const SPRITE_ASSET_VERSION = 'v3-figure';
 
 // Canvas size — pixel-perfect compose, all layers share these dims.
 // Glossy bar (2026-05 art campaign, see tools/build-character-glossy.mjs
@@ -376,7 +383,12 @@ function ephemeral(content, components = []) {
 
 function renderPreviewUrl(env, guildId, userId, version) {
   const base = (env && env.PUBLIC_WORKER_URL) || 'https://loadout-discord.aquiloplays.workers.dev';
-  return `${base}/character/render/${guildId}/${userId}.png?v=${version || 0}`;
+  // ?v=<lookVersion> bumps when the player edits their look; &av=
+  // <SPRITE_ASSET_VERSION> bumps when the art pipeline ships a new
+  // pass. Either changing forces every downstream cache (Discord
+  // embed, browser <img>, edge CDN) to see a new URL and refetch.
+  const av = encodeURIComponent(SPRITE_ASSET_VERSION);
+  return `${base}/character/render/${guildId}/${userId}.png?v=${version || 0}&av=${av}`;
 }
 
 // Build the editor message — selects + preview + buttons.

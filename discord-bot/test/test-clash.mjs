@@ -618,10 +618,11 @@ ok('/web/character hairSwatches map returns hex strings',
    getBody1.hairSwatches &&
    typeof getBody1.hairSwatches[getBody1.options.hairColor[0]] === 'string' &&
    /^#[0-9a-f]{6}$/.test(getBody1.hairSwatches[getBody1.options.hairColor[0]]));
-ok('/web/character renderUrl pins ?v=<lookVersion>',
+ok('/web/character renderUrl pins ?v=<lookVersion>&av=<assetVersion>',
    typeof getBody1.renderUrl === 'string' &&
    getBody1.renderUrl.includes(`/character/render/${NUM_GUILD}/${NUM_VIEWER}.png?v=`) &&
-   getBody1.renderUrl.endsWith('v=' + getBody1.lookVersion));
+   getBody1.renderUrl.includes('v=' + getBody1.lookVersion + '&av=') &&
+   /[?&]av=[\w-]+/.test(getBody1.renderUrl));
 ok('/web/character fresh user lookVersion = 0', getBody1.lookVersion === 0);
 
 // Bad signature → 401
