@@ -92,6 +92,7 @@ import {
   BUILDINGS, TROOPS_GARRISON,
   withBuildingSprites, withGarrisonSprites,
   townBuildCost, townGarrisonCost,
+  spriteIdForBuildingV2, spriteIdForTroopV2,
 } from './clash-content.js';
 import { getTown, getTreasury } from './clash-state.js';
 
@@ -926,7 +927,8 @@ async function routeClashTown(env, guildId, userId) {
     if (def.footprint)                       stats.footprint = def.footprint;
     return {
       ...b,
-      spriteId: `clash/buildings/${b.kind}-L${b.level || 1}.png`,
+      spriteId:   `clash/buildings/${b.kind}-L${b.level || 1}.png`,        // V1 legacy (OBS overlay)
+      spriteIdV2: spriteIdForBuildingV2(b.kind, b.level || 1),             // glossy SVG — in-app TownManager reads this
       maxLevel,
       nextLevel: nextLevel <= maxLevel ? nextLevel : null,
       nextCost: nextCost ? { cost: nextCost.cost, timeMs: nextCost.timeMs } : null,
@@ -940,7 +942,8 @@ async function routeClashTown(env, guildId, userId) {
       kind: k,
       name: BUILDINGS[k].name,
       glyph: BUILDINGS[k].glyph,
-      spriteId: `clash/buildings/${k}-L1.png`,
+      spriteId:   `clash/buildings/${k}-L1.png`,
+      spriteIdV2: spriteIdForBuildingV2(k, 1),
       cost: c ? c.cost : null,
       timeMs: c ? c.timeMs : null,
     };
@@ -953,7 +956,8 @@ async function routeClashTown(env, guildId, userId) {
       troopId: t,
       name: TROOPS_GARRISON[t].name,
       glyph: TROOPS_GARRISON[t].glyph,
-      spriteId: `clash/troops/${t}.png`,
+      spriteId:   `clash/troops/${t}.png`,
+      spriteIdV2: spriteIdForTroopV2(t),
       bolts: c ? c.bolts : null,
       timeMs: c ? c.timeMs : null,
     };

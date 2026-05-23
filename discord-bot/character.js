@@ -296,27 +296,33 @@ export async function handleCharacterRender(req, env, path) {
   }
 
   const layerSpecs = await resolveLayers(env, hero, pet, opts);
-  const layers = [];
+  // Seed a canvas-dim transparent layer FIRST so png-codec compose's
+  // "take dims from layers[0]" can't be hijacked by a rogue layer
+  // (e.g. a vendor-mid asset still at legacy 64×80) — the seed
+  // pins the output to SPRITE_W × SPRITE_H and the resilient
+  // compositor silently drops anything else that doesn't match.
+  const layers = [blank(SPRITE_W, SPRITE_H)];
   for (const spec of layerSpecs) {
     const img = await fetchSprite(env, spec.rel);
     if (!img) {
       if (spec.optional) continue;
-      // Missing required layer (e.g. figure body for an unknown
-      // skinTone). Don't crash the render — substitute a blank
-      // layer so the pipeline still emits a PNG. This should never
-      // happen post-Phase-2; if it does, the absence is visible
-      // and easy to spot.
+      // Missing required layer. Substitute a blank so the pipeline
+      // emits a PNG even mid-vendor. Should never happen post-flip;
+      // if it does, the absence is visible and easy to spot.
       layers.push(blank(SPRITE_W, SPRITE_H));
       continue;
     }
     if (spec.paletteFor === 'hair') {
-      layers.push(paletteSwap(img, hairPaletteMap(spec.colourKey)));
+      // Defensive — paletteSwap requires matching pixel layout; if
+      // the layer has unexpected dims (vendor accident) we let the
+      // compositor's resilience handle the skip.
+      try { layers.push(paletteSwap(img, hairPaletteMap(spec.colourKey))); }
+      catch (e) { console.warn('[character] paletteSwap failed:', e && e.message); layers.push(img); }
     } else {
       layers.push(img);
     }
   }
 
-  if (!layers.length) layers.push(blank(SPRITE_W, SPRITE_H));
   const composed = compose(layers);
   const png = await encodePng(composed);
 
