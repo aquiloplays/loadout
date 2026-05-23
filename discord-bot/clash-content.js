@@ -910,17 +910,22 @@ export function spriteIdForTroop(troopId) {
 // see tools/glossy-art-kit.mjs) replaces the pixel pipeline. aquilo-
 // site renders the editor + Twitch panel from this tree.
 //
-// Per-level glossy art is deferred to a follow-up wave — every level
-// reuses the L1 source for now. The bitmask4 hint passed by the
-// editor for wall connectivity is preserved as an argument signature
-// but is currently a no-op (glossy walls ship a single tile;
-// the 16-variant connectivity set will land in a follow-up wave —
-// until then walls render as a single repeating block).
+// Walls use 16 connectivity variants (K2 wave) keyed off bitmask4
+// where bit0=N, bit1=E, bit2=S, bit3=W — see tools/build-wall-
+// variants-glossy.mjs.
+//
+// Per-level glossy art is deferred to a follow-up wave — every
+// non-wall kind reuses the L1 source for now. Walls also single-
+// level today; per-level wall variants would 16 × N more files.
 
 export function spriteIdForBuildingV2(kind, level, bitmask4 = null) {
   const b = BUILDINGS[kind];
   if (!b) return null;
-  void level; void bitmask4;
+  void level;
+  if (kind === 'wall' && Number.isInteger(bitmask4)) {
+    const mask = String(bitmask4 & 0b1111).padStart(2, '0');
+    return `clash-v2/glossy/buildings/wall-L1-${mask}.svg`;
+  }
   return `clash-v2/glossy/buildings/${kind}-L1.svg`;
 }
 
