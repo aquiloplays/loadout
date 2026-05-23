@@ -105,7 +105,18 @@ const SPRITE_CACHE = new Map();
 //                              to wrist, ~50 % wider). Removed the
 //                              bicep bulge Bezier — arms run nearly
 //                              straight with subtle taper.
-const SPRITE_ASSET_VERSION = 'v6-arms';
+//   v7-polish   L4 (2026-05) — polish pass: more expressive eyes
+//                              (full iris + inner ring + double
+//                              gloss + lower lid line), friendly
+//                              mouth with corner upturns + lower-lip
+//                              hint, lighter+arched brows, mitt-shape
+//                              hands with thumb bump on the inner
+//                              side, smoothed arms (no shoulder Q
+//                              bow), armpit AO + arm form highlights
+//                              (light side / shadow side), tidier
+//                              curly-afro silhouette that sits on
+//                              the head rather than floating above.
+const SPRITE_ASSET_VERSION = 'v7-polish';
 
 // Canvas size — pixel-perfect compose, all layers share these dims.
 // Glossy bar (2026-05 art campaign, see tools/build-character-glossy.mjs

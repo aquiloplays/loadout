@@ -275,70 +275,113 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
          Q ${leftShoulderX + 1} ${ARMPIT_Y + 4} ${leftWaistX + 1} ${WAIST_Y - 6}"
       fill="none" stroke="${skin.hi}" stroke-width="1.4" opacity="0.55" stroke-linecap="round"/>
 
-<!-- ── ARMS ── TAPERING limb shapes with visible gap from torso.
-     Drawn AFTER torso so the outer arm silhouette is crisp. Each
-     arm is a single tapered path; hand circle on top. Light side
+<!-- ── ARMS ── slim clean-taper limbs with mitt-shape hands. Each
+     arm path is two straight tapers (outer + inner edge) with no
+     elbow bow. Hand is a palm + thumb combined path. Light side
      on the OUTER edge (away from torso), shadow on the inner. -->
 
-<!-- LEFT arm — slim near-vertical limb. Outer edge has a very slight
-     bicep tick at the top, then runs nearly straight down. Inner
-     edge is essentially vertical. Subtle taper to a defined wrist. -->
-<path d="M ${leftArmOuterTop + 1} ${SHOULDER_Y - 1}
-         Q ${leftArmOuterTop - 1} ${SHOULDER_Y + 4} ${leftArmOuterTop} ${SHOULDER_Y + 10}
+<!-- LEFT arm — clean straight taper, shoulder to wrist -->
+<path d="M ${leftArmOuterTop} ${SHOULDER_Y - 1}
          L ${leftWristOuterX} ${HAND_Y - HAND_R}
          L ${leftWristInnerX} ${HAND_Y - HAND_R}
-         L ${leftArmInnerTop} ${SHOULDER_Y + 10}
-         Q ${leftArmInnerTop + 1} ${SHOULDER_Y + 4} ${leftArmInnerTop - 1} ${SHOULDER_Y - 1} Z"
+         L ${leftArmInnerTop} ${SHOULDER_Y - 1} Z"
       fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="1.8" stroke-linejoin="round"/>
-<!-- LEFT arm shadow (inner edge, facing torso) -->
-<path d="M ${leftArmInnerTop - 2} ${SHOULDER_Y + 2}
-         C ${leftArmInnerTop} ${SHOULDER_Y + 10},
-           ${leftWristInnerX} ${HAND_Y - HAND_R - 4},
-           ${leftWristInnerX} ${HAND_Y - HAND_R + 1}
-         L ${(leftWristInnerX + leftWristOuterX) / 2} ${HAND_Y - HAND_R + 1}
-         C ${(leftWristInnerX + leftWristOuterX) / 2} ${HAND_Y - HAND_R - 6},
-           ${leftArmInnerTop - 3} ${ARMPIT_Y + 6},
-           ${leftArmInnerTop - 4} ${SHOULDER_Y + 2} Z"
-      fill="${skin.lo}" opacity="0.18"/>
-<!-- LEFT hand — defined circle wider than wrist, with a darker
-     shadow side and a small knuckle line -->
-<circle cx="${leftHandX}" cy="${HAND_Y}" r="${HAND_R}"
-        fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2"/>
-<path d="M ${leftHandX} ${HAND_Y - HAND_R}
-         A ${HAND_R} ${HAND_R} 0 0 1 ${leftHandX} ${HAND_Y + HAND_R}
-         A ${HAND_R - 2} ${HAND_R - 2} 0 0 0 ${leftHandX} ${HAND_Y - HAND_R} Z"
-      fill="${skin.lo}" opacity="0.35"/>
-<path d="M ${leftHandX - HAND_R + 2} ${HAND_Y + HAND_R - 2}
-         Q ${leftHandX} ${HAND_Y + HAND_R + 1} ${leftHandX + HAND_R - 2} ${HAND_Y + HAND_R - 2}"
-      fill="none" stroke="${skin.stroke}" stroke-width="0.8" opacity="0.55"/>
+<!-- LEFT arm INNER-edge shadow strip (cel-shaded form) -->
+<path d="M ${leftArmInnerTop - 1} ${SHOULDER_Y}
+         L ${leftWristInnerX - 1} ${HAND_Y - HAND_R}
+         L ${(leftWristInnerX + leftWristOuterX) / 2} ${HAND_Y - HAND_R}
+         L ${leftArmInnerTop - 2} ${SHOULDER_Y + 2} Z"
+      fill="${skin.lo}" opacity="0.22"/>
+<!-- LEFT armpit AO (small dark crescent where arm meets torso) -->
+<path d="M ${leftShoulderX - 2} ${SHOULDER_Y + 2}
+         Q ${leftShoulderX} ${ARMPIT_Y - 2} ${leftShoulderX + 3} ${ARMPIT_Y}"
+      fill="none" stroke="${skin.stroke}" stroke-width="1.6" opacity="0.5" stroke-linecap="round"/>
+<!-- LEFT arm OUTER highlight — soft stroke down the light side -->
+<path d="M ${leftArmOuterTop + 1} ${SHOULDER_Y + 2}
+         L ${leftWristOuterX + 1} ${HAND_Y - HAND_R - 1}"
+      fill="none" stroke="${skin.hi}" stroke-width="1" opacity="0.55" stroke-linecap="round"/>
+<!-- LEFT hand — mitt: palm ellipse + thumb bump on the INNER (right)
+     side. Single closed path so the outline is continuous. -->
+<path d="M ${leftHandX} ${HAND_Y - HAND_R - 0.5}
+         C ${leftHandX - HAND_R + 1} ${HAND_Y - HAND_R - 0.5},
+           ${leftHandX - HAND_R - 0.5} ${HAND_Y - HAND_R + 2},
+           ${leftHandX - HAND_R - 0.5} ${HAND_Y}
+         C ${leftHandX - HAND_R - 0.5} ${HAND_Y + HAND_R - 1},
+           ${leftHandX - HAND_R + 1} ${HAND_Y + HAND_R + 0.5},
+           ${leftHandX} ${HAND_Y + HAND_R + 0.5}
+         C ${leftHandX + HAND_R - 1} ${HAND_Y + HAND_R + 0.5},
+           ${leftHandX + HAND_R + 0.5} ${HAND_Y + HAND_R - 2},
+           ${leftHandX + HAND_R + 0.5} ${HAND_Y}
+         C ${leftHandX + HAND_R + 1.5} ${HAND_Y - 2},
+           ${leftHandX + HAND_R + 2} ${HAND_Y - HAND_R + 1},
+           ${leftHandX + HAND_R - 1} ${HAND_Y - HAND_R - 0.5}
+         L ${leftHandX} ${HAND_Y - HAND_R - 0.5} Z"
+      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="1.6" stroke-linejoin="round"/>
+<!-- LEFT hand SHADOW (palm shadow on the lower-right side, cel-shaded) -->
+<path d="M ${leftHandX} ${HAND_Y - 1}
+         C ${leftHandX + HAND_R/2} ${HAND_Y - 1},
+           ${leftHandX + HAND_R + 0.5} ${HAND_Y + 1},
+           ${leftHandX + HAND_R + 0.5} ${HAND_Y}
+         C ${leftHandX + HAND_R + 0.5} ${HAND_Y + HAND_R - 1},
+           ${leftHandX + HAND_R - 1} ${HAND_Y + HAND_R + 0.5},
+           ${leftHandX} ${HAND_Y + HAND_R + 0.5} Z"
+      fill="${skin.lo}" opacity="0.3"/>
+<!-- LEFT hand knuckle line -->
+<path d="M ${leftHandX - HAND_R + 1.5} ${HAND_Y + HAND_R - 2}
+         Q ${leftHandX} ${HAND_Y + HAND_R} ${leftHandX + HAND_R - 1.5} ${HAND_Y + HAND_R - 2}"
+      fill="none" stroke="${skin.stroke}" stroke-width="0.7" opacity="0.5"/>
 
-<!-- RIGHT arm (mirror) -->
-<path d="M ${rightArmOuterTop - 1} ${SHOULDER_Y - 1}
-         Q ${rightArmOuterTop + 1} ${SHOULDER_Y + 4} ${rightArmOuterTop} ${SHOULDER_Y + 10}
+<!-- RIGHT arm — clean straight taper (mirror of left) -->
+<path d="M ${rightArmOuterTop} ${SHOULDER_Y - 1}
          L ${rightWristOuterX} ${HAND_Y - HAND_R}
          L ${rightWristInnerX} ${HAND_Y - HAND_R}
-         L ${rightArmInnerTop} ${SHOULDER_Y + 10}
-         Q ${rightArmInnerTop - 1} ${SHOULDER_Y + 4} ${rightArmInnerTop + 1} ${SHOULDER_Y - 1} Z"
+         L ${rightArmInnerTop} ${SHOULDER_Y - 1} Z"
       fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="1.8" stroke-linejoin="round"/>
-<!-- RIGHT arm shadow (inner edge AND outer edge for the away-side arm) -->
-<path d="M ${(rightArmInnerTop + rightArmOuterTop) / 2} ${SHOULDER_Y - 2}
-         C ${(rightArmInnerTop + rightArmOuterTop) / 2 + 2} ${SHOULDER_Y + 6},
-           ${(rightWristInnerX + rightWristOuterX) / 2 + 1} ${HAND_Y - HAND_R - 4},
-           ${rightWristOuterX} ${HAND_Y - HAND_R + 1}
-         L ${(rightWristInnerX + rightWristOuterX) / 2} ${HAND_Y - HAND_R + 1}
-         C ${(rightWristInnerX + rightWristOuterX) / 2} ${HAND_Y - HAND_R - 4},
-           ${(rightArmInnerTop + rightArmOuterTop) / 2 - 1} ${ARMPIT_Y + 6},
-           ${(rightArmInnerTop + rightArmOuterTop) / 2 - 1} ${SHOULDER_Y + 2} Z"
-      fill="${skin.lo}" opacity="0.18"/>
-<circle cx="${rightHandX}" cy="${HAND_Y}" r="${HAND_R}"
-        fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2"/>
-<path d="M ${rightHandX} ${HAND_Y - HAND_R}
-         A ${HAND_R} ${HAND_R} 0 0 1 ${rightHandX} ${HAND_Y + HAND_R}
-         A ${HAND_R - 2} ${HAND_R - 2} 0 0 0 ${rightHandX} ${HAND_Y - HAND_R} Z"
+<!-- RIGHT arm SHADOW — outer edge AND inner (this is the away-side
+     limb relative to the upper-left light source) -->
+<path d="M ${(rightArmInnerTop + rightArmOuterTop) / 2 + 1} ${SHOULDER_Y - 1}
+         L ${(rightWristInnerX + rightWristOuterX) / 2 + 1} ${HAND_Y - HAND_R}
+         L ${rightWristOuterX} ${HAND_Y - HAND_R}
+         L ${rightArmOuterTop - 1} ${SHOULDER_Y} Z"
+      fill="${skin.lo}" opacity="0.28"/>
+<!-- RIGHT armpit AO -->
+<path d="M ${rightShoulderX + 2} ${SHOULDER_Y + 2}
+         Q ${rightShoulderX} ${ARMPIT_Y - 2} ${rightShoulderX - 3} ${ARMPIT_Y}"
+      fill="none" stroke="${skin.stroke}" stroke-width="1.6" opacity="0.5" stroke-linecap="round"/>
+<!-- RIGHT arm OUTER edge — this side is the SHADOW side (light from
+     upper-left), so paint a soft form shadow instead of a highlight -->
+<path d="M ${rightArmOuterTop - 1} ${SHOULDER_Y + 2}
+         L ${rightWristOuterX - 1} ${HAND_Y - HAND_R - 1}"
+      fill="none" stroke="${skin.lo}" stroke-width="1" opacity="0.45" stroke-linecap="round"/>
+<!-- RIGHT hand — mitt with thumb on the INNER (left) side -->
+<path d="M ${rightHandX} ${HAND_Y - HAND_R - 0.5}
+         C ${rightHandX + HAND_R - 1} ${HAND_Y - HAND_R - 0.5},
+           ${rightHandX + HAND_R + 0.5} ${HAND_Y - HAND_R + 2},
+           ${rightHandX + HAND_R + 0.5} ${HAND_Y}
+         C ${rightHandX + HAND_R + 0.5} ${HAND_Y + HAND_R - 1},
+           ${rightHandX + HAND_R - 1} ${HAND_Y + HAND_R + 0.5},
+           ${rightHandX} ${HAND_Y + HAND_R + 0.5}
+         C ${rightHandX - HAND_R + 1} ${HAND_Y + HAND_R + 0.5},
+           ${rightHandX - HAND_R - 0.5} ${HAND_Y + HAND_R - 2},
+           ${rightHandX - HAND_R - 0.5} ${HAND_Y}
+         C ${rightHandX - HAND_R - 1.5} ${HAND_Y - 2},
+           ${rightHandX - HAND_R - 2} ${HAND_Y - HAND_R + 1},
+           ${rightHandX - HAND_R + 1} ${HAND_Y - HAND_R - 0.5}
+         L ${rightHandX} ${HAND_Y - HAND_R - 0.5} Z"
+      fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="1.6" stroke-linejoin="round"/>
+<!-- RIGHT hand SHADOW (palm shadow on the right side — away from light) -->
+<path d="M ${rightHandX} ${HAND_Y - HAND_R - 0.5}
+         C ${rightHandX + HAND_R - 1} ${HAND_Y - HAND_R - 0.5},
+           ${rightHandX + HAND_R + 0.5} ${HAND_Y - HAND_R + 2},
+           ${rightHandX + HAND_R + 0.5} ${HAND_Y}
+         C ${rightHandX + HAND_R + 0.5} ${HAND_Y + HAND_R - 1},
+           ${rightHandX + HAND_R - 1} ${HAND_Y + HAND_R + 0.5},
+           ${rightHandX} ${HAND_Y + HAND_R + 0.5} Z"
       fill="${skin.lo}" opacity="0.4"/>
-<path d="M ${rightHandX - HAND_R + 2} ${HAND_Y + HAND_R - 2}
-         Q ${rightHandX} ${HAND_Y + HAND_R + 1} ${rightHandX + HAND_R - 2} ${HAND_Y + HAND_R - 2}"
-      fill="none" stroke="${skin.stroke}" stroke-width="0.8" opacity="0.55"/>
+<!-- RIGHT hand knuckle line -->
+<path d="M ${rightHandX - HAND_R + 1.5} ${HAND_Y + HAND_R - 2}
+         Q ${rightHandX} ${HAND_Y + HAND_R} ${rightHandX + HAND_R - 1.5} ${HAND_Y + HAND_R - 2}"
+      fill="none" stroke="${skin.stroke}" stroke-width="0.7" opacity="0.5"/>
 
 <!-- ── LEGS ── longer than L2 (50-px) with thigh → knee → calf
      taper. Inner edges nearly touch at the centre (small stance
@@ -444,13 +487,31 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
 
 <!-- ── FACE ── nose, mouth, brows (eyes are owned by the eyes-* layer).
      All offsets are scaled to the new HEAD_R=18 head. -->
-<ellipse cx="${HEAD_CX}" cy="${HEAD_CY + 3}" rx="1.3" ry="1.6" fill="${skin.lo}" opacity="0.6"/>
-<path d="M ${HEAD_CX - 4} ${HEAD_CY + 8} Q ${HEAD_CX} ${HEAD_CY + 10} ${HEAD_CX + 4} ${HEAD_CY + 8}"
-      fill="none" stroke="${PALETTE.ink}" stroke-width="1.2" stroke-linecap="round" opacity="0.85"/>
-<path d="M ${HEAD_CX - 9} ${HEAD_CY - 3} Q ${HEAD_CX - 6} ${HEAD_CY - 4} ${HEAD_CX - 3} ${HEAD_CY - 3}"
-      fill="none" stroke="${PALETTE.ink}" stroke-width="1" stroke-linecap="round" opacity="0.75"/>
-<path d="M ${HEAD_CX + 9} ${HEAD_CY - 3} Q ${HEAD_CX + 6} ${HEAD_CY - 4} ${HEAD_CX + 3} ${HEAD_CY - 3}"
-      fill="none" stroke="${PALETTE.ink}" stroke-width="1" stroke-linecap="round" opacity="0.75"/>
+<!-- NOSE — small triangle nub (more visible than a dot) -->
+<path d="M ${HEAD_CX - 1.5} ${HEAD_CY + 4}
+         Q ${HEAD_CX} ${HEAD_CY + 6} ${HEAD_CX + 1.5} ${HEAD_CY + 4}"
+      fill="${skin.lo}" stroke="${skin.lo}" stroke-width="0.5" opacity="0.7"/>
+<!-- MOUTH — friendly smile with corner upturns + subtle lower-lip
+     hint. Reads as intentional friendliness, not a default dot. -->
+<path d="M ${HEAD_CX - 5} ${HEAD_CY + 8.5}
+         Q ${HEAD_CX} ${HEAD_CY + 11} ${HEAD_CX + 5} ${HEAD_CY + 8.5}"
+      fill="none" stroke="${PALETTE.ink}" stroke-width="1.3" stroke-linecap="round"/>
+<!-- mouth corner upturns (tiny ticks for a smile) -->
+<path d="M ${HEAD_CX - 5} ${HEAD_CY + 8.5} L ${HEAD_CX - 5.5} ${HEAD_CY + 7.5}"
+      stroke="${PALETTE.ink}" stroke-width="1.1" stroke-linecap="round"/>
+<path d="M ${HEAD_CX + 5} ${HEAD_CY + 8.5} L ${HEAD_CX + 5.5} ${HEAD_CY + 7.5}"
+      stroke="${PALETTE.ink}" stroke-width="1.1" stroke-linecap="round"/>
+<!-- subtle lower-lip line -->
+<path d="M ${HEAD_CX - 3} ${HEAD_CY + 11.5} Q ${HEAD_CX} ${HEAD_CY + 12.5} ${HEAD_CX + 3} ${HEAD_CY + 11.5}"
+      fill="none" stroke="${skin.lo}" stroke-width="0.7" opacity="0.5"/>
+<!-- BROWS — light arched, intentional + friendly. Lower opacity +
+     thinner stroke so they read as brows, not slashes. -->
+<path d="M ${HEAD_CX - 9.5} ${HEAD_CY - 4}
+         Q ${HEAD_CX - 7} ${HEAD_CY - 5.2} ${HEAD_CX - 3.5} ${HEAD_CY - 3.6}"
+      fill="none" stroke="${PALETTE.ink}" stroke-width="1" stroke-linecap="round" opacity="0.65"/>
+<path d="M ${HEAD_CX + 9.5} ${HEAD_CY - 4}
+         Q ${HEAD_CX + 7} ${HEAD_CY - 5.2} ${HEAD_CX + 3.5} ${HEAD_CY - 3.6}"
+      fill="none" stroke="${PALETTE.ink}" stroke-width="1" stroke-linecap="round" opacity="0.65"/>
 `;
 }
 
@@ -590,19 +651,26 @@ function hairBraids(c) {
 }
 
 function hairCurlyAfro(c) {
+  // Tidier afro — base silhouette + intentionally placed curl bumps
+  // (not random-feeling stack), all sitting cleanly around the head.
   return `
-<!-- big rounded silhouette -->
-<circle cx="${HEAD_CX}" cy="${HEAD_CY - 10}" r="28"
-        fill="url(#hair-grad)" stroke="${c.deep}" stroke-width="2.5"/>
-<!-- curl bumps -->
+<!-- base silhouette — a tighter dome so the afro sits ON the head
+     instead of floating high above it -->
+<path d="M ${HEAD_CX - 26} ${HEAD_CY - 4}
+         Q ${HEAD_CX - 30} ${HEAD_CY - 28} ${HEAD_CX} ${HEAD_CY - 36}
+         Q ${HEAD_CX + 30} ${HEAD_CY - 28} ${HEAD_CX + 26} ${HEAD_CY - 4}
+         Q ${HEAD_CX + 22} ${HEAD_CY - 6} ${HEAD_CX} ${HEAD_CY - 8}
+         Q ${HEAD_CX - 22} ${HEAD_CY - 6} ${HEAD_CX - 26} ${HEAD_CY - 4} Z"
+      fill="url(#hair-grad)" stroke="${c.deep}" stroke-width="2.5" stroke-linejoin="round"/>
+<!-- intentional curl bumps along the silhouette -->
 <g fill="url(#hair-grad)" stroke="${c.deep}" stroke-width="1.5">
-  <circle cx="${HEAD_CX - 22}" cy="${HEAD_CY - 12}" r="8"/>
-  <circle cx="${HEAD_CX + 22}" cy="${HEAD_CY - 12}" r="8"/>
-  <circle cx="${HEAD_CX - 14}" cy="${HEAD_CY - 30}" r="9"/>
-  <circle cx="${HEAD_CX + 14}" cy="${HEAD_CY - 30}" r="9"/>
-  <circle cx="${HEAD_CX}" cy="${HEAD_CY - 36}" r="10"/>
-  <circle cx="${HEAD_CX - 22}" cy="${HEAD_CY + 2}" r="6"/>
-  <circle cx="${HEAD_CX + 22}" cy="${HEAD_CY + 2}" r="6"/>
+  <circle cx="${HEAD_CX - 20}" cy="${HEAD_CY - 10}" r="7"/>
+  <circle cx="${HEAD_CX + 20}" cy="${HEAD_CY - 10}" r="7"/>
+  <circle cx="${HEAD_CX - 12}" cy="${HEAD_CY - 28}" r="8"/>
+  <circle cx="${HEAD_CX + 12}" cy="${HEAD_CY - 28}" r="8"/>
+  <circle cx="${HEAD_CX}" cy="${HEAD_CY - 34}" r="9"/>
+  <circle cx="${HEAD_CX - 22}" cy="${HEAD_CY - 2}" r="5"/>
+  <circle cx="${HEAD_CX + 22}" cy="${HEAD_CY - 2}" r="5"/>
 </g>
 <!-- gloss highlights on curls -->
 <g fill="${c.top}" opacity="0.5">
@@ -777,16 +845,35 @@ function eyesSvg(colourName) {
     title: `eyes-${colourName}`,
     desc: 'Glossy eye layer — larger pupils + iris highlight so the face reads at 128-px.',
     body: `
-<!-- left eye (scaled to HEAD_R=18) -->
-<ellipse cx="${HEAD_CX - 6}" cy="${HEAD_CY}" rx="2.8" ry="3.6" fill="${PALETTE.white}" stroke="${PALETTE.ink}" stroke-width="1.2"/>
-<ellipse cx="${HEAD_CX - 6}" cy="${HEAD_CY + 0.5}" rx="2" ry="2.8" fill="${c}"/>
-<circle  cx="${HEAD_CX - 6.5}" cy="${HEAD_CY - 0.5}" r="1.1" fill="${PALETTE.ink}"/>
-<circle  cx="${HEAD_CX - 6}" cy="${HEAD_CY - 1.2}" r="0.5" fill="${PALETTE.white}"/>
-<!-- right eye -->
-<ellipse cx="${HEAD_CX + 6}" cy="${HEAD_CY}" rx="2.8" ry="3.6" fill="${PALETTE.white}" stroke="${PALETTE.ink}" stroke-width="1.2"/>
-<ellipse cx="${HEAD_CX + 6}" cy="${HEAD_CY + 0.5}" rx="2" ry="2.8" fill="${c}"/>
-<circle  cx="${HEAD_CX + 5.5}"  cy="${HEAD_CY - 0.5}" r="1.1" fill="${PALETTE.ink}"/>
-<circle  cx="${HEAD_CX + 6}" cy="${HEAD_CY - 1.2}" r="0.5" fill="${PALETTE.white}"/>`,
+<!-- Layered eyes — sclera (white) with a hairline ink outline, full
+     iris in the colour, dark pupil, and a small upper-left gloss
+     catch. Sized for the HEAD_R=18 head. Reads as defined +
+     expressive without being cartoon-creepy. -->
+<!-- LEFT EYE -->
+<ellipse cx="${HEAD_CX - 6}" cy="${HEAD_CY}" rx="3.2" ry="3.8" fill="${PALETTE.white}" stroke="${PALETTE.ink}" stroke-width="1.1"/>
+<!-- iris (full color circle, not a thin sliver) -->
+<circle  cx="${HEAD_CX - 6}" cy="${HEAD_CY + 0.3}" r="2.4" fill="${c}"/>
+<!-- iris inner ring (slightly darker for depth) -->
+<circle  cx="${HEAD_CX - 6}" cy="${HEAD_CY + 0.3}" r="2.4" fill="none" stroke="${PALETTE.ink}" stroke-width="0.5" opacity="0.4"/>
+<!-- pupil (well-defined dark dot) -->
+<circle  cx="${HEAD_CX - 6}" cy="${HEAD_CY + 0.3}" r="1.4" fill="${PALETTE.ink}"/>
+<!-- gloss catchlight (upper-left, light direction) -->
+<circle  cx="${HEAD_CX - 6.8}" cy="${HEAD_CY - 0.8}" r="0.8" fill="${PALETTE.white}"/>
+<!-- tiny secondary gloss for sparkle -->
+<circle  cx="${HEAD_CX - 5}" cy="${HEAD_CY + 1.2}" r="0.4" fill="${PALETTE.white}" opacity="0.7"/>
+<!-- lower lid line (gives eye a defined bottom rim) -->
+<path d="M ${HEAD_CX - 9} ${HEAD_CY + 2.5} Q ${HEAD_CX - 6} ${HEAD_CY + 3.4} ${HEAD_CX - 3} ${HEAD_CY + 2.5}"
+      fill="none" stroke="${PALETTE.ink}" stroke-width="0.8" opacity="0.6" stroke-linecap="round"/>
+
+<!-- RIGHT EYE (mirror) -->
+<ellipse cx="${HEAD_CX + 6}" cy="${HEAD_CY}" rx="3.2" ry="3.8" fill="${PALETTE.white}" stroke="${PALETTE.ink}" stroke-width="1.1"/>
+<circle  cx="${HEAD_CX + 6}" cy="${HEAD_CY + 0.3}" r="2.4" fill="${c}"/>
+<circle  cx="${HEAD_CX + 6}" cy="${HEAD_CY + 0.3}" r="2.4" fill="none" stroke="${PALETTE.ink}" stroke-width="0.5" opacity="0.4"/>
+<circle  cx="${HEAD_CX + 6}" cy="${HEAD_CY + 0.3}" r="1.4" fill="${PALETTE.ink}"/>
+<circle  cx="${HEAD_CX + 5.2}" cy="${HEAD_CY - 0.8}" r="0.8" fill="${PALETTE.white}"/>
+<circle  cx="${HEAD_CX + 7}" cy="${HEAD_CY + 1.2}" r="0.4" fill="${PALETTE.white}" opacity="0.7"/>
+<path d="M ${HEAD_CX + 3} ${HEAD_CY + 2.5} Q ${HEAD_CX + 6} ${HEAD_CY + 3.4} ${HEAD_CX + 9} ${HEAD_CY + 2.5}"
+      fill="none" stroke="${PALETTE.ink}" stroke-width="0.8" opacity="0.6" stroke-linecap="round"/>`,
   });
 }
 
