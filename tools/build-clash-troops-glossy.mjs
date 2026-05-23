@@ -113,15 +113,35 @@ function sword({ x, yBase, length = 60, lean = -20, bladeColor = 'steel', hiltCo
 </g>`;
 }
 
-// Bow. Held vertically by the figure.
+// Bow. Held vertically by the figure. K5: dark outline + visible
+// drawn arrow so the bow reads at troop scale and doesn't blend
+// into a same-coloured body (the original wood-on-wood goblin
+// archer was the worst offender).
 function bow({ cx, yBase, height = 70, color = 'wood' }) {
+  const top = yBase - height + 12;
+  const bot = yBase - 12;
   return `
 <g>
-  <path d="M ${cx - 14} ${yBase - height + 12}
-           Q ${cx - 30} ${yBase - height/2} ${cx - 14} ${yBase - 12}"
-        fill="none" stroke="url(#gk-grad-${color})" stroke-width="6" stroke-linecap="round"/>
-  <line x1="${cx - 16}" y1="${yBase - height + 16}" x2="${cx - 16}" y2="${yBase - 16}"
-        stroke="${PALETTE.ink}" stroke-width="1.5"/>
+  <!-- bow body (thick, with dark outline contour) -->
+  <path d="M ${cx - 14} ${top}
+           Q ${cx - 30} ${yBase - height/2} ${cx - 14} ${bot}"
+        fill="none" stroke="url(#gk-grad-${color})" stroke-width="7" stroke-linecap="round"/>
+  <path d="M ${cx - 14} ${top}
+           Q ${cx - 30} ${yBase - height/2} ${cx - 14} ${bot}"
+        fill="none" stroke="${PALETTE[color].stroke}" stroke-width="2" stroke-linecap="round"/>
+  <!-- bowstring (drawn back to a point) -->
+  <path d="M ${cx - 14} ${top}
+           Q ${cx - 4} ${yBase - height/2} ${cx - 14} ${bot}"
+        fill="none" stroke="${PALETTE.ink}" stroke-width="1.5"/>
+  <!-- nocked arrow extending forward (right side of figure) -->
+  <rect x="${cx - 6}" y="${yBase - height/2 - 1.5}" width="${22}" height="3"
+        fill="url(#gk-grad-wood)" stroke="${PALETTE.wood.stroke}" stroke-width="1"/>
+  <path d="M ${cx + 16} ${yBase - height/2 - 4} L ${cx + 24} ${yBase - height/2}
+           L ${cx + 16} ${yBase - height/2 + 4} Z"
+        fill="url(#gk-grad-iron)" stroke="${PALETTE.iron.stroke}" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- fletching at the back of the arrow -->
+  <path d="M ${cx - 6} ${yBase - height/2 - 3} L ${cx - 12} ${yBase - height/2 - 6} L ${cx - 6} ${yBase - height/2}"
+        fill="${PALETTE.ruby.base}" stroke="${PALETTE.ruby.stroke}" stroke-width="1"/>
 </g>`;
 }
 
@@ -382,7 +402,12 @@ function goblinScrapper() {
 }
 
 function goblinArcher() {
-  return goblinBase({ color: 'wood', weapon: bow({ cx: W/2 + 24, yBase: 158, height: 60 }) });
+  // Steel bow over wood-coloured body — original wood-on-wood
+  // blended so the bow was invisible at troop scale.
+  return goblinBase({
+    color: 'wood',
+    weapon: bow({ cx: W/2 + 22, yBase: 158, height: 64, color: 'steel' }),
+  });
 }
 
 function goblinMage() {

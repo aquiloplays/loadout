@@ -272,11 +272,26 @@
       fill="url(#gk-grad-leaf)" stroke="#0A2A06" stroke-width="2.5" stroke-linejoin="round"/>
 
 <g>
+  <!-- bow body (thick, with dark outline contour) -->
   <path d="M 108 102
            Q 92 125 108 148"
-        fill="none" stroke="url(#gk-grad-wood)" stroke-width="6" stroke-linecap="round"/>
-  <line x1="106" y1="106" x2="106" y2="144"
-        stroke="#0A0D14" stroke-width="1.5"/>
+        fill="none" stroke="url(#gk-grad-wood)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 108 102
+           Q 92 125 108 148"
+        fill="none" stroke="#3B240F" stroke-width="2" stroke-linecap="round"/>
+  <!-- bowstring (drawn back to a point) -->
+  <path d="M 108 102
+           Q 118 125 108 148"
+        fill="none" stroke="#0A0D14" stroke-width="1.5"/>
+  <!-- nocked arrow extending forward (right side of figure) -->
+  <rect x="116" y="123.5" width="22" height="3"
+        fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="1"/>
+  <path d="M 138 121 L 146 125
+           L 138 129 Z"
+        fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- fletching at the back of the arrow -->
+  <path d="M 116 122 L 110 119 L 116 125"
+        fill="#D62E48" stroke="#3B0510" stroke-width="1"/>
 </g>
 <!-- quiver -->
 <rect x="58" y="108" width="12" height="36" rx="3"

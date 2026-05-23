@@ -279,10 +279,25 @@
                     fill="#FFF6D8" stroke="#0A0D14" stroke-width="1"/>
 
 <g>
-  <path d="M 106 110
-           Q 90 128 106 146"
-        fill="none" stroke="url(#gk-grad-wood)" stroke-width="6" stroke-linecap="round"/>
-  <line x1="104" y1="114" x2="104" y2="142"
-        stroke="#0A0D14" stroke-width="1.5"/>
+  <!-- bow body (thick, with dark outline contour) -->
+  <path d="M 104 106
+           Q 88 126 104 146"
+        fill="none" stroke="url(#gk-grad-steel)" stroke-width="7" stroke-linecap="round"/>
+  <path d="M 104 106
+           Q 88 126 104 146"
+        fill="none" stroke="#171E27" stroke-width="2" stroke-linecap="round"/>
+  <!-- bowstring (drawn back to a point) -->
+  <path d="M 104 106
+           Q 114 126 104 146"
+        fill="none" stroke="#0A0D14" stroke-width="1.5"/>
+  <!-- nocked arrow extending forward (right side of figure) -->
+  <rect x="112" y="124.5" width="22" height="3"
+        fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="1"/>
+  <path d="M 134 122 L 142 126
+           L 134 130 Z"
+        fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- fletching at the back of the arrow -->
+  <path d="M 112 123 L 106 120 L 112 126"
+        fill="#D62E48" stroke="#3B0510" stroke-width="1"/>
 </g>
 </svg>
