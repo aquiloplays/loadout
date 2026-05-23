@@ -56,53 +56,55 @@ const FIGURE_W = 128, FIGURE_H = 160;
 function anchorFor(slot) {
   // Each entry: { cx, cy, scale, rotateDeg? }
   //
-  // Anchors retuned 2026-05 after visual review — earlier scales
-  // were too aggressive (chest+legs covered body entirely; weapon
-  // crossed through legs). Goal: gear is *clothing on* the hero,
-  // not a body-shaped paint-over. Arms, shoulders, hands, feet
-  // remain visible to either side.
+  // Anchors retuned 2026-05 (L1 quality pass) to the new game-icon
+  // anatomy: bigger head, shoulders dropped to y=80, hands sit at
+  // (cx±30, y=128). Earlier table targeted the smaller pre-rework
+  // body and left gear floating off-anchor.
   //
   // Body anatomy reference (matches build-character-glossy.mjs):
-  //   head circle:   cx=64 cy=36 r=22         (top of head y=14, chin y=58)
-  //   shoulders:     y=56                     (arms attach here)
-  //   torso bounds:  x=32..96  y=56..110      (≈ 64 wide × 54 tall)
-  //   legs zone:     x=42..86  y=110..152
-  //   feet baseline: y=152
+  //   head circle:   cx=64 cy=44 r=28          (top y=16, chin y=72)
+  //   shoulders:     y=80                      (arms attach here)
+  //   torso bounds:  ~x=39..89 y=80..118       (≈ 50 wide × 38 tall)
+  //   waist:         y=118
+  //   legs zone:     x=42..86 y=118..154
+  //   feet baseline: y=154
+  //   right hand:    (94, 128)                 (HAND_OFFSET_X=30, HAND_R=8)
   switch (slot) {
     case 'head':
-      // Anchored on the head circle. Scale 0.36 → 192*0.36 ≈ 69 px
-      // bounding box, with the actual helmet/hood silhouette
-      // inside narrower than that. Centred on the head.
-      return { cx: 64, cy: 36, scale: 0.36, rotateDeg: 0 };
+      // Anchored on the bigger head circle. Scale 0.42 → 192*0.42 ≈
+      // 81 px bounding box (HEAD_R=28 → 56-wide head + room for
+      // hood drape / antler / horns at the silhouette edges).
+      return { cx: 64, cy: 44, scale: 0.42, rotateDeg: 0 };
     case 'chest':
-      // Sits over the torso. cy=84 (mid-torso). Scale 0.34 →
-      // ~65 px bounding box at most. Keeps shoulders + arm
-      // outlines visible to either side of the chest piece.
-      return { cx: 64, cy: 84, scale: 0.34, rotateDeg: 0 };
+      // Sits over the torso, centred between shoulder y=80 and
+      // waist y=118 (mid at 99). Scale 0.36 → ~69 px box covers
+      // the 50-wide torso with a slight overhang for shoulder pads.
+      return { cx: 64, cy: 99, scale: 0.36, rotateDeg: 0 };
     case 'legs':
-      // Over the legs zone. Scale 0.32 → 61 px. Keeps the
-      // belt-line clean against chest and feet visible below.
-      return { cx: 64, cy: 130, scale: 0.32, rotateDeg: 0 };
+      // Over the legs zone — centred at mid-leg (waist 118 → foot
+      // 154 → mid 136). Scale 0.32 → 61 px keeps the belt-line
+      // clean against chest and feet visible below.
+      return { cx: 64, cy: 136, scale: 0.32, rotateDeg: 0 };
     case 'boots':
       // Footwear sits at the feet baseline. Boots icon template
-      // already has soles near y≈156 inside its own canvas; at
-      // scale 0.30 the soles land below cy by 0.30 × (156-96) =
-      // 18 px, so cy=138 puts soles at the FOOT_Y=152 mark.
-      return { cx: 64, cy: 138, scale: 0.30, rotateDeg: 0 };
+      // has soles near y≈156 inside its own canvas; at scale 0.30
+      // the soles land below cy by 0.30 × (156-96) = 18 px, so
+      // cy=148 puts soles right at FOOT_Y=154.
+      return { cx: 64, cy: 148, scale: 0.30, rotateDeg: 0 };
     case 'weapon':
-      // Held in the right hand, leaning OUT and back so it's
-      // clearly to the side of the hero (not crossing the body).
-      // Anchor at the right hand zone (~x=102, y=88). The icon
-      // template extends well above + below its centre (sword
-      // tips, staff orbs, bow ends), so the visible weapon
-      // arcs above the shoulder + below the hip cleanly.
-      return { cx: 102, cy: 90, scale: 0.46, rotateDeg: 22 };
+      // Held in the right hand (cx=94, cy=128). Leaning OUT and
+      // back so the weapon's silhouette is clearly to the side of
+      // the hero rather than crossing the body. Scale 0.48 → 92 px
+      // box gives generous reach above the shoulder + below the
+      // hip for sword tips, staff orbs, bow ends.
+      return { cx: 96, cy: 116, scale: 0.48, rotateDeg: 22 };
     case 'trinket':
-      // Small chest accessory / charm on a cord. Centre at
-      // upper torso just below the neck.
-      return { cx: 64, cy: 80, scale: 0.22, rotateDeg: 0 };
+      // Small chest accessory / charm on a cord. Centre at upper
+      // torso just below the neck (shoulders y=80, neck base y=76,
+      // a hair below that).
+      return { cx: 64, cy: 92, scale: 0.24, rotateDeg: 0 };
     default:
-      return { cx: 64, cy: 80, scale: 0.4, rotateDeg: 0 };
+      return { cx: 64, cy: 96, scale: 0.4, rotateDeg: 0 };
   }
 }
 
