@@ -272,5 +272,13 @@
 <!-- pommel -->
 <circle cx="96" cy="188" r="9" fill="url(#gk-rgrad-sapphire)" stroke="#04143B" stroke-width="2"/>
 <circle cx="93" cy="185" r="3" fill="#FFFFFF" opacity="0.65"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#5A9EF7" stroke-width="1.3" opacity="0.95"/>
+
+<g fill="#FFF6D8" stroke="#0A0D14" stroke-width="0.7">
+  <rect x="145" y="32" width="14" height="8" rx="1.5"/>
+  <line x1="148" y1="35" x2="156" y2="35" stroke="#5A9EF7" stroke-width="1"/>
+  <line x1="148" y1="38" x2="156" y2="38" stroke="#5A9EF7" stroke-width="1"/>
+</g>
 
 </svg>

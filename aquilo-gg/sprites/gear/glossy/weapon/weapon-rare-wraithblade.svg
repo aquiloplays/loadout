@@ -265,5 +265,15 @@
       fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="2"/>
 <rect x="92" y="144" width="8" height="22" rx="2" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="2"/>
 <circle cx="96" cy="170" r="6" fill="url(#gk-rgrad-sapphire)" stroke="#04143B" stroke-width="1.5"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#5A9EF7" stroke-width="1.3" opacity="0.95"/>
+
+<g fill="#5A9EF7" stroke="#0A0D14" stroke-width="0.6">
+  <rect x="147" y="32" width="10" height="9" rx="2"/>
+  <rect x="148" y="27" width="2" height="5" rx="0.5"/>
+  <rect x="150.5" y="26" width="2" height="6" rx="0.5"/>
+  <rect x="153" y="27" width="2" height="5" rx="0.5"/>
+  <rect x="155.5" y="28" width="2" height="4" rx="0.5"/>
+</g>
 
 </svg>

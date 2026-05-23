@@ -268,5 +268,19 @@
       fill="url(#gk-grad-steel)" stroke="#171E27" stroke-width="2.5" stroke-linejoin="round"/>
 <!-- gold band -->
 <rect x="90" y="66" width="12" height="6" rx="2" fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="1.5"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#5A9EF7" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 152 28
+         L 154.5 34
+         L 160 35
+         L 155.5 39
+         L 157 44
+         L 152 41
+         L 147 44
+         L 148.5 39
+         L 144 35
+         L 149.5 34 Z"
+      fill="#5A9EF7" stroke="#0A0D14" stroke-width="0.8" stroke-linejoin="round"/>
 
 </svg>

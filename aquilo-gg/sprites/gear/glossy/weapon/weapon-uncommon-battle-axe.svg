@@ -273,5 +273,14 @@
 <!-- gold band on haft -->
 <rect x="91" y="106" width="10" height="6" rx="2" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
 <rect x="91" y="166" width="10" height="6" rx="2" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#5BDD96" stroke-width="1.3" opacity="0.95"/>
+
+<g fill="none" stroke="#5BDD96" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <line x1="152" y1="29" x2="152" y2="43"/>
+  <line x1="149" y1="31" x2="155" y2="31"/>
+  <path d="M 146 39 Q 146 43 152 43 Q 158 43 158 39"/>
+</g>
+<circle cx="152" cy="29" r="1.4" fill="#5BDD96"/>
 
 </svg>

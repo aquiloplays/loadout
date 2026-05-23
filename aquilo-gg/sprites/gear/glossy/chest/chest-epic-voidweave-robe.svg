@@ -271,5 +271,12 @@
 <!-- gloss -->
 <path d="M 36 166 L 52 70 L 66 46 L 76 66 L 66 166 Z"
       fill="#FFFFFF" opacity="0.4"/>
+<circle cx="96" cy="126" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="126" r="12" fill="none" stroke="#A8D9FF" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 88 126 Q 96 120 104 126 Q 96 132 88 126 Z"
+      fill="#FFF6D8" stroke="#0A0D14" stroke-width="0.9"/>
+<circle cx="96" cy="126" r="3" fill="#A8D9FF"/>
+<circle cx="96" cy="126" r="1.2" fill="#0A0D14"/>
 
 </svg>

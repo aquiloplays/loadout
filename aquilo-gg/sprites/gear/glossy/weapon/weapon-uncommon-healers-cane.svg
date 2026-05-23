@@ -267,5 +267,13 @@
       fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
 <!-- grip wrap -->
 <rect x="91" y="90" width="10" height="24" rx="2" fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#5BDD96" stroke-width="1.3" opacity="0.95"/>
+
+<g fill="none" stroke="#5BDD96" stroke-width="1.7" stroke-linecap="round">
+  <circle cx="152" cy="32" r="3.5"/>
+  <line x1="152" y1="36" x2="152" y2="44"/>
+  <line x1="147" y1="38" x2="157" y2="38"/>
+</g>
 
 </svg>

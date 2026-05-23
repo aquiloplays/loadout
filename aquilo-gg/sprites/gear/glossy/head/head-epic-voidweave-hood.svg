@@ -267,5 +267,12 @@
 <!-- accent trim -->
 <path d="M 46 126 Q 96 102 146 126"
       fill="none" stroke="#B581FF" stroke-width="3"/>
+<circle cx="96" cy="102" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="102" r="12" fill="none" stroke="#A8D9FF" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 88 102 Q 96 96 104 102 Q 96 108 88 102 Z"
+      fill="#FFF6D8" stroke="#0A0D14" stroke-width="0.9"/>
+<circle cx="96" cy="102" r="3" fill="#A8D9FF"/>
+<circle cx="96" cy="102" r="1.2" fill="#0A0D14"/>
 
 </svg>

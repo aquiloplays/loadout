@@ -263,5 +263,12 @@
 </g>
 <!-- grip wrap -->
 <rect x="91" y="126" width="10" height="20" rx="2" fill="url(#gk-grad-amethyst)" stroke="#1A0840" stroke-width="2"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#B581FF" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 144 36 Q 152 30 160 36 Q 152 42 144 36 Z"
+      fill="#FFF6D8" stroke="#0A0D14" stroke-width="0.9"/>
+<circle cx="152" cy="36" r="3" fill="#B581FF"/>
+<circle cx="152" cy="36" r="1.2" fill="#0A0D14"/>
 
 </svg>

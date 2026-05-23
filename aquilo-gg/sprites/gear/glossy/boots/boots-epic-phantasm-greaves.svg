@@ -277,5 +277,13 @@
 <!-- gloss on shaft -->
 <path d="M 42 150 L 42 82 L 50 82 L 52 150 Z"
       fill="#FFFFFF" opacity="0.45"/>
+<circle cx="96" cy="68" r="11" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="68" r="11" fill="none" stroke="#B581FF" stroke-width="1.3" opacity="0.95"/>
+
+<g fill="none" stroke="#B581FF" stroke-width="1.7" stroke-linecap="round">
+  <line x1="96" y1="61" x2="96" y2="75"/>
+  <line x1="91" y1="61" x2="101" y2="65"/>
+  <line x1="91" y1="71" x2="101" y2="75"/>
+</g>
 
 </svg>

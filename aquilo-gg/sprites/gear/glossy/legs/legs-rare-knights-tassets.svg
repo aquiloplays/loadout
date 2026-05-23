@@ -269,5 +269,12 @@
 <!-- gloss left leg -->
 <path d="M 56 70 L 68 160 L 78 160 L 68 70 Z"
       fill="#FFFFFF" opacity="0.4"/>
+<circle cx="96" cy="46" r="11" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="46" r="11" fill="none" stroke="#7BD15A" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 88 46 Q 96 40 104 46 Q 96 52 88 46 Z"
+      fill="#FFF6D8" stroke="#0A0D14" stroke-width="0.9"/>
+<circle cx="96" cy="46" r="3" fill="#7BD15A"/>
+<circle cx="96" cy="46" r="1.2" fill="#0A0D14"/>
 
 </svg>

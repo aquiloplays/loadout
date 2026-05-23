@@ -267,5 +267,11 @@
       fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="1.5"/>
 <!-- grip wrap -->
 <rect x="91" y="90" width="10" height="24" rx="2" fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="2"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#5A9EF7" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 144 42 Q 148 28 160 28 Q 156 42 144 42 Z"
+      fill="#5A9EF7" stroke="#0A0D14" stroke-width="0.8" stroke-linejoin="round"/>
+<path d="M 146 40 Q 152 34 158 30" fill="none" stroke="#0A0D14" stroke-width="0.6" opacity="0.7"/>
 
 </svg>

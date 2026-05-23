@@ -266,5 +266,10 @@
 <rect x="68" y="94" width="76" height="4" rx="2" fill="url(#gk-grad-wood)" stroke="#3B240F" stroke-width="1.5"/>
 <path d="M 146 96 L 160 88 L 160 104 Z"
       fill="url(#gk-grad-iron)" stroke="#0B0E1C" stroke-width="2" stroke-linejoin="round"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#5BDD96" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 152 28 Q 146 34 146 38 Q 146 43 152 43 Q 158 43 158 38 Q 158 34 152 28 Z"
+      fill="#5BDD96" stroke="#0A0D14" stroke-width="0.8" stroke-linejoin="round"/>
 
 </svg>

@@ -271,5 +271,15 @@
 <rect x="36" y="146" width="120" height="10" rx="2"
       fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="2"/>
 <circle cx="96" cy="151" r="6" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="1.5"/>
+<circle cx="96" cy="126" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="126" r="12" fill="none" stroke="#C9CCD4" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 98 118
+         L 92 127
+         L 95 127
+         L 94 134
+         L 100 125
+         L 97 125 Z"
+      fill="#C9CCD4" stroke="#0A0D14" stroke-width="0.8" stroke-linejoin="round"/>
 
 </svg>

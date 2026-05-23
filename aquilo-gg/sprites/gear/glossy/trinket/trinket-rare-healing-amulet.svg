@@ -268,5 +268,12 @@
 <!-- accent frame -->
 <circle cx="96" cy="86" r="14" fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="2.5"/>
 <circle cx="96" cy="86" r="8" fill="#9F7505"/>
+<circle cx="96" cy="156" r="11" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="156" r="11" fill="none" stroke="#5A9EF7" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 96 148 L 102 156 L 96 164 L 90 156 Z"
+      fill="#5A9EF7" stroke="#0A0D14" stroke-width="0.8" stroke-linejoin="round"/>
+<path d="M 93 156 L 96 151 L 99 156 L 96 161 Z"
+      fill="#FFFFFF" opacity="0.45"/>
 
 </svg>

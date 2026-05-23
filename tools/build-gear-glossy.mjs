@@ -638,6 +638,295 @@ function pickAccent(item, basePal) {
   return 'gold';
 }
 
+// ── Per-item motif (K4 uniqueness pass) ─────────────────────────
+//
+// Templates above give one shape per (slot, weaponType, subtype).
+// Without further differentiation, "Knight's Sword" + "Bronze
+// Shortsword" + "Steel Longsword" read as recolours of the same
+// silhouette. Each item now also gets a unique inscribed motif —
+// a small badge / emblem / gem clipped onto a slot-specific
+// anchor — so the eye picks up "this is a DIFFERENT item" even
+// across siblings.
+//
+// Motif kind selection:
+//   1. Keyword match against item.name + item.setName (fire→flame,
+//      frost→snowflake, shadow→eye, etc.) — most semantic.
+//   2. Deterministic hash fallback so unmatched items pick a
+//      consistent motif from the library.
+//
+// Per-slot anchor (where the motif sits on the icon's template):
+//   weapon  — pommel (just below the grip)
+//   head    — forehead (center-front of helmet)
+//   chest   — chest-medallion (center of torso)
+//   legs    — belt-buckle (top-center of trousers)
+//   boots   — ankle clasp (top-center between boot cuffs)
+//   trinket — gem center (overlay on existing gem)
+//
+// Motif colour resolved from item.setName / item.rarity / item.
+// preferredClass so set-pieces share an emblem hue.
+
+const MOTIF_LIB = {
+  flame: (cx, cy, c) => `
+<path d="M ${cx} ${cy - 8}
+         Q ${cx - 5} ${cy - 2} ${cx - 3} ${cy + 4}
+         Q ${cx - 1} ${cy + 1} ${cx} ${cy - 2}
+         Q ${cx + 1} ${cy + 1} ${cx + 3} ${cy + 4}
+         Q ${cx + 5} ${cy - 2} ${cx} ${cy - 8} Z"
+      fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.8" stroke-linejoin="round"/>`,
+  snowflake: (cx, cy, c) => `
+<g stroke="${c}" stroke-width="1.6" stroke-linecap="round" fill="none">
+  <line x1="${cx}"    y1="${cy - 8}" x2="${cx}"    y2="${cy + 8}"/>
+  <line x1="${cx - 7}" y1="${cy - 4}" x2="${cx + 7}" y2="${cy + 4}"/>
+  <line x1="${cx - 7}" y1="${cy + 4}" x2="${cx + 7}" y2="${cy - 4}"/>
+  <line x1="${cx - 2}" y1="${cy - 6}" x2="${cx + 2}" y2="${cy - 6}"/>
+  <line x1="${cx - 2}" y1="${cy + 6}" x2="${cx + 2}" y2="${cy + 6}"/>
+</g>`,
+  star: (cx, cy, c) => `
+<path d="M ${cx} ${cy - 8}
+         L ${cx + 2.5} ${cy - 2}
+         L ${cx + 8} ${cy - 1}
+         L ${cx + 3.5} ${cy + 3}
+         L ${cx + 5} ${cy + 8}
+         L ${cx} ${cy + 5}
+         L ${cx - 5} ${cy + 8}
+         L ${cx - 3.5} ${cy + 3}
+         L ${cx - 8} ${cy - 1}
+         L ${cx - 2.5} ${cy - 2} Z"
+      fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.8" stroke-linejoin="round"/>`,
+  skull: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.8" stroke-linejoin="round">
+  <path d="M ${cx} ${cy - 8} Q ${cx - 7} ${cy - 7} ${cx - 7} ${cy - 1} L ${cx - 7} ${cy + 3} L ${cx - 4} ${cy + 6} L ${cx + 4} ${cy + 6} L ${cx + 7} ${cy + 3} L ${cx + 7} ${cy - 1} Q ${cx + 7} ${cy - 7} ${cx} ${cy - 8} Z"/>
+</g>
+<circle cx="${cx - 3}" cy="${cy - 1}" r="1.4" fill="${PALETTE.ink}"/>
+<circle cx="${cx + 3}" cy="${cy - 1}" r="1.4" fill="${PALETTE.ink}"/>`,
+  eye: (cx, cy, c) => `
+<path d="M ${cx - 8} ${cy} Q ${cx} ${cy - 6} ${cx + 8} ${cy} Q ${cx} ${cy + 6} ${cx - 8} ${cy} Z"
+      fill="${PALETTE.cream.hi}" stroke="${PALETTE.ink}" stroke-width="0.9"/>
+<circle cx="${cx}" cy="${cy}" r="3" fill="${c}"/>
+<circle cx="${cx}" cy="${cy}" r="1.2" fill="${PALETTE.ink}"/>`,
+  leaf: (cx, cy, c) => `
+<path d="M ${cx - 8} ${cy + 6} Q ${cx - 4} ${cy - 8} ${cx + 8} ${cy - 8} Q ${cx + 4} ${cy + 6} ${cx - 8} ${cy + 6} Z"
+      fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.8" stroke-linejoin="round"/>
+<path d="M ${cx - 6} ${cy + 4} Q ${cx} ${cy - 2} ${cx + 6} ${cy - 6}" fill="none" stroke="${PALETTE.ink}" stroke-width="0.6" opacity="0.7"/>`,
+  rose: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.6">
+  <circle cx="${cx}" cy="${cy}" r="6"/>
+  <circle cx="${cx - 3}" cy="${cy - 2}" r="3" opacity="0.85"/>
+  <circle cx="${cx + 3}" cy="${cy + 1}" r="2.5" opacity="0.85"/>
+  <circle cx="${cx}" cy="${cy + 2}" r="1.5" fill="${PALETTE.ink}"/>
+</g>`,
+  bolt: (cx, cy, c) => `
+<path d="M ${cx + 2} ${cy - 8}
+         L ${cx - 4} ${cy + 1}
+         L ${cx - 1} ${cy + 1}
+         L ${cx - 2} ${cy + 8}
+         L ${cx + 4} ${cy - 1}
+         L ${cx + 1} ${cy - 1} Z"
+      fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.8" stroke-linejoin="round"/>`,
+  crescent: (cx, cy, c) => `
+<path d="M ${cx + 5} ${cy - 8}
+         A 8 8 0 1 0 ${cx + 5} ${cy + 8}
+         A 6 6 0 1 1 ${cx + 5} ${cy - 8} Z"
+      fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.8" stroke-linejoin="round"/>`,
+  sun: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.6">
+  <circle cx="${cx}" cy="${cy}" r="4"/>
+  ${[0,1,2,3,4,5,6,7].map(i => {
+    const a = i * Math.PI / 4;
+    const x1 = cx + Math.cos(a) * 6, y1 = cy + Math.sin(a) * 6;
+    const x2 = cx + Math.cos(a) * 9, y2 = cy + Math.sin(a) * 9;
+    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${c}" stroke-width="1.6"/>`;
+  }).join('')}
+</g>`,
+  drop: (cx, cy, c) => `
+<path d="M ${cx} ${cy - 8} Q ${cx - 6} ${cy - 2} ${cx - 6} ${cy + 2} Q ${cx - 6} ${cy + 7} ${cx} ${cy + 7} Q ${cx + 6} ${cy + 7} ${cx + 6} ${cy + 2} Q ${cx + 6} ${cy - 2} ${cx} ${cy - 8} Z"
+      fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.8" stroke-linejoin="round"/>`,
+  fang: (cx, cy, c) => `
+<path d="M ${cx} ${cy + 8} L ${cx - 4} ${cy - 6} L ${cx} ${cy - 8} L ${cx + 4} ${cy - 6} Z"
+      fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.8" stroke-linejoin="round"/>`,
+  hand: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.6">
+  <rect x="${cx - 5}" y="${cy - 4}" width="10" height="9" rx="2"/>
+  <rect x="${cx - 4}" y="${cy - 9}" width="2" height="5" rx="0.5"/>
+  <rect x="${cx - 1.5}" y="${cy - 10}" width="2" height="6" rx="0.5"/>
+  <rect x="${cx + 1}" y="${cy - 9}" width="2" height="5" rx="0.5"/>
+  <rect x="${cx + 3.5}" y="${cy - 8}" width="2" height="4" rx="0.5"/>
+</g>`,
+  anchor: (cx, cy, c) => `
+<g fill="none" stroke="${c}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <line x1="${cx}" y1="${cy - 7}" x2="${cx}" y2="${cy + 7}"/>
+  <line x1="${cx - 3}" y1="${cy - 5}" x2="${cx + 3}" y2="${cy - 5}"/>
+  <path d="M ${cx - 6} ${cy + 3} Q ${cx - 6} ${cy + 7} ${cx} ${cy + 7} Q ${cx + 6} ${cy + 7} ${cx + 6} ${cy + 3}"/>
+</g>
+<circle cx="${cx}" cy="${cy - 7}" r="1.4" fill="${c}"/>`,
+  key: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.7">
+  <circle cx="${cx - 4}" cy="${cy}" r="4"/>
+  <circle cx="${cx - 4}" cy="${cy}" r="1.5" fill="${PALETTE.ink}"/>
+  <rect x="${cx - 1}" y="${cy - 1}" width="9" height="2.5" rx="0.5"/>
+  <rect x="${cx + 5}" y="${cy + 1.5}" width="2" height="2.5"/>
+  <rect x="${cx + 2}" y="${cy + 1.5}" width="2" height="2.5"/>
+</g>`,
+  crown: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.7" stroke-linejoin="round">
+  <path d="M ${cx - 7} ${cy + 5} L ${cx - 7} ${cy - 1} L ${cx - 4} ${cy + 1} L ${cx - 2} ${cy - 4} L ${cx} ${cy + 1} L ${cx + 2} ${cy - 4} L ${cx + 4} ${cy + 1} L ${cx + 7} ${cy - 1} L ${cx + 7} ${cy + 5} Z"/>
+  <circle cx="${cx}" cy="${cy - 2}" r="1.2" fill="${PALETTE.ruby.hi}"/>
+</g>`,
+  hammer: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.7" stroke-linejoin="round">
+  <rect x="${cx - 6}" y="${cy - 5}" width="12" height="5" rx="1"/>
+  <rect x="${cx - 1}" y="${cy}" width="2" height="8" rx="0.5" fill="url(#gk-grad-wood)"/>
+</g>`,
+  gear: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.6">
+  ${[0,1,2,3,4,5].map(i => {
+    const a = i * Math.PI / 3;
+    const x = cx + Math.cos(a) * 6.5;
+    const y = cy + Math.sin(a) * 6.5;
+    return `<rect x="${(x - 1.5).toFixed(1)}" y="${(y - 1.5).toFixed(1)}" width="3" height="3" transform="rotate(${(i * 60).toFixed(0)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`;
+  }).join('')}
+  <circle cx="${cx}" cy="${cy}" r="4"/>
+  <circle cx="${cx}" cy="${cy}" r="1.5" fill="${PALETTE.ink}"/>
+</g>`,
+  scroll: (cx, cy, c) => `
+<g fill="${PALETTE.cream.hi}" stroke="${PALETTE.ink}" stroke-width="0.7">
+  <rect x="${cx - 7}" y="${cy - 4}" width="14" height="8" rx="1.5"/>
+  <line x1="${cx - 4}" y1="${cy - 1}" x2="${cx + 4}" y2="${cy - 1}" stroke="${c}" stroke-width="1"/>
+  <line x1="${cx - 4}" y1="${cy + 2}" x2="${cx + 4}" y2="${cy + 2}" stroke="${c}" stroke-width="1"/>
+</g>`,
+  feather: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.7" stroke-linejoin="round">
+  <path d="M ${cx + 6} ${cy - 7} Q ${cx - 4} ${cy - 4} ${cx - 6} ${cy + 7} Q ${cx} ${cy + 5} ${cx + 6} ${cy - 7} Z"/>
+  <line x1="${cx + 6}" y1="${cy - 7}" x2="${cx - 6}" y2="${cy + 7}" stroke="${PALETTE.ink}" stroke-width="0.6" opacity="0.5"/>
+</g>`,
+  cross: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.7">
+  <rect x="${cx - 1.5}" y="${cy - 8}" width="3" height="16" rx="0.5"/>
+  <rect x="${cx - 7}" y="${cy - 1.5}" width="14" height="3" rx="0.5"/>
+</g>`,
+  ankh: (cx, cy, c) => `
+<g fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round">
+  <circle cx="${cx}" cy="${cy - 4}" r="3.5"/>
+  <line x1="${cx}" y1="${cy}" x2="${cx}" y2="${cy + 8}"/>
+  <line x1="${cx - 5}" y1="${cy + 2}" x2="${cx + 5}" y2="${cy + 2}"/>
+</g>`,
+  rune: (cx, cy, c) => `
+<g fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round">
+  <line x1="${cx}" y1="${cy - 7}" x2="${cx}" y2="${cy + 7}"/>
+  <line x1="${cx - 5}" y1="${cy - 7}" x2="${cx + 5}" y2="${cy - 3}"/>
+  <line x1="${cx - 5}" y1="${cy + 3}" x2="${cx + 5}" y2="${cy + 7}"/>
+</g>`,
+  diamond: (cx, cy, c) => `
+<path d="M ${cx} ${cy - 8} L ${cx + 6} ${cy} L ${cx} ${cy + 8} L ${cx - 6} ${cy} Z"
+      fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.8" stroke-linejoin="round"/>
+<path d="M ${cx - 3} ${cy} L ${cx} ${cy - 5} L ${cx + 3} ${cy} L ${cx} ${cy + 5} Z"
+      fill="${PALETTE.white}" opacity="0.45"/>`,
+  bone: (cx, cy, c) => `
+<g fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.6">
+  <ellipse cx="${cx - 5}" cy="${cy - 5}" rx="2.5" ry="2"/>
+  <ellipse cx="${cx + 5}" cy="${cy - 5}" rx="2.5" ry="2"/>
+  <ellipse cx="${cx - 5}" cy="${cy + 5}" rx="2.5" ry="2"/>
+  <ellipse cx="${cx + 5}" cy="${cy + 5}" rx="2.5" ry="2"/>
+  <rect x="${cx - 4}" y="${cy - 6}" width="8" height="12" rx="1.5"/>
+</g>`,
+  shield: (cx, cy, c) => `
+<path d="M ${cx} ${cy - 8} L ${cx - 6} ${cy - 5} L ${cx - 6} ${cy + 2} Q ${cx - 6} ${cy + 7} ${cx} ${cy + 8} Q ${cx + 6} ${cy + 7} ${cx + 6} ${cy + 2} L ${cx + 6} ${cy - 5} Z"
+      fill="${c}" stroke="${PALETTE.ink}" stroke-width="0.7" stroke-linejoin="round"/>
+<line x1="${cx}" y1="${cy - 5}" x2="${cx}" y2="${cy + 6}" stroke="${PALETTE.ink}" stroke-width="0.6" opacity="0.5"/>`,
+};
+
+// Name/setName keyword → motif library key.
+const MOTIF_KEYWORDS = [
+  [/fire|flame|ember|inferno|burn|phoenix|drake|dragon/i, 'flame'],
+  [/frost|ice|snow|frozen|winter|tundra|chill/i,         'snowflake'],
+  [/shadow|dark|void|night|umbra/i,                       'eye'],
+  [/leaf|forest|nature|druid|wild|verdant|grove/i,        'leaf'],
+  [/sun|solar|radiant|golden|saint|holy|divine/i,         'sun'],
+  [/moon|lunar|night/i,                                    'crescent'],
+  [/star|astral|stellar|cosmic/i,                          'star'],
+  [/storm|thunder|lightning|voltaic|bolt|tempest|stormcaller/i, 'bolt'],
+  [/rose|bloom|petal|garden/i,                             'rose'],
+  [/water|tide|ocean|sea|wave|coral|reef|drop|aqua/i,      'drop'],
+  [/fang|tooth|wolf|beast|claw|tusk/i,                     'fang'],
+  [/grip|hand|gauntlet|finger/i,                           'hand'],
+  [/anchor|sailor|sea|harbour/i,                           'anchor'],
+  [/key|lock|warden|guard|jailer/i,                        'key'],
+  [/king|queen|royal|crown|highborn|noble|monarch|prince|princess/i, 'crown'],
+  [/forge|hammer|smith|anvil|sapper/i,                     'hammer'],
+  [/gear|cog|mech|clockwork|engineer/i,                    'gear'],
+  [/scroll|arcane|spell|tome|grimoire|witch|wizard|mage/i, 'scroll'],
+  [/feather|crow|raven|wing|bird|hunter|ranger|sky/i,      'feather'],
+  [/cross|paladin|crusader/i,                              'cross'],
+  [/ankh|life|vitality|vestal|healer/i,                    'ankh'],
+  [/rune|elder|ancient|seer/i,                             'rune'],
+  [/gem|crystal|diamond|ruby|sapphire|emerald|amethyst/i,  'diamond'],
+  [/bone|skull|necro|undead|reaper/i,                      'bone'],
+  [/ward|shield|aegis|bulwark|defender/i,                  'shield'],
+  [/skull|death|reaper|grim/i,                             'skull'],
+];
+
+const MOTIF_KEYS = Object.keys(MOTIF_LIB);
+
+function djb2(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+
+function pickMotifKey(item) {
+  const txt = `${item.name} ${item.setName}`;
+  for (const [re, key] of MOTIF_KEYWORDS) if (re.test(txt)) return key;
+  return MOTIF_KEYS[djb2(item.name) % MOTIF_KEYS.length];
+}
+
+function pickMotifColor(item, basePal) {
+  // Set-piece items share a hue (setName-hashed); otherwise rarity-tinted.
+  if (item.setName) {
+    const setHues = ['#FFD970', '#FF7A8C', '#5BDD96', '#5A9EF7', '#B581FF', '#7BD15A', '#FFE082', '#A8D9FF'];
+    return setHues[djb2(item.setName) % setHues.length];
+  }
+  // Default = rarity ring colour for crisp tint
+  if (RARITY[item.rarity]) return RARITY[item.rarity].ring;
+  // Final fallback — gold against most palettes
+  void basePal;
+  return PALETTE.gold.hi;
+}
+
+// Anchor for the motif on the icon canvas, per slot. Positions
+// picked to land on visible empty space outside the dominant
+// template silhouette (not behind/under the existing shape).
+function motifAnchor(slot) {
+  switch (slot) {
+    // weapon: upper-right of canvas, off to the side of the blade,
+    // so swords/axes/staffs all get a clear inscribed crest area.
+    case 'weapon':  return { cx: CX + 56, cy: CY - 60, r: 12 };
+    // head: forehead/visor band — sits on most helm/hood/cap templates
+    case 'head':    return { cx: CX,      cy: CY + 6,  r: 12 };
+    // chest: middle of torso — most templates leave a clear centre
+    case 'chest':   return { cx: CX,      cy: CY + 30, r: 12 };
+    // legs: belt buckle position
+    case 'legs':    return { cx: CX,      cy: CY - 50, r: 11 };
+    // boots: between the two boots at the cuff line
+    case 'boots':   return { cx: CX,      cy: CY - 28, r: 11 };
+    // trinket: gem centre — sits on top of the existing gem mount
+    case 'trinket': return { cx: CX,      cy: CY + 60, r: 11 };
+    default:        return { cx: CX,      cy: CY,      r: 11 };
+  }
+}
+
+function renderMotif(item) {
+  const key = pickMotifKey(item);
+  const color = pickMotifColor(item, null);
+  const anchor = motifAnchor(item.slot);
+  const fn = MOTIF_LIB[key];
+  if (!fn) return '';
+  // Small inscribed coin behind the motif so it reads against
+  // any underlying gradient. Inked outline + rarity-tint ring.
+  const coinBg = `<circle cx="${anchor.cx}" cy="${anchor.cy}" r="${anchor.r}" fill="${PALETTE.ink}" opacity="0.62"/>
+                  <circle cx="${anchor.cx}" cy="${anchor.cy}" r="${anchor.r}" fill="none" stroke="${color}" stroke-width="1.3" opacity="0.95"/>`;
+  return coinBg + '\n' + fn(anchor.cx, anchor.cy, color);
+}
+
 function renderItem(item) {
   const pal = pickPalette(item);
   const accent = pickAccent(item, pal);
@@ -657,11 +946,13 @@ function renderItem(item) {
   const ring = (['rare', 'epic', 'legendary', 'mythic'].includes(item.rarity))
     ? `<circle cx="${CX}" cy="${CY}" r="86" fill="none" stroke="${RARITY[item.rarity].ring}" stroke-width="2" opacity="0.55"/>`
     : '';
+  const motif = renderMotif(item);
   return `
 ${glow}
 ${shadow}
 ${ring}
 ${shape(pal, accent)}
+${motif}
 `;
 }
 

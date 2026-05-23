@@ -272,5 +272,13 @@
 </g>
 <!-- bead at top -->
 <circle cx="96" cy="40" r="8" fill="url(#gk-rgrad-ruby)" stroke="#3B0510" stroke-width="2"/>
+<circle cx="96" cy="156" r="11" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="156" r="11" fill="none" stroke="#5BDD96" stroke-width="1.3" opacity="0.95"/>
+
+<g fill="#5BDD96" stroke="#0A0D14" stroke-width="0.6">
+  <rect x="101.0" y="154.5" width="3" height="3" transform="rotate(0 102.5 156.0)"/><rect x="97.8" y="160.1" width="3" height="3" transform="rotate(60 99.3 161.6)"/><rect x="91.3" y="160.1" width="3" height="3" transform="rotate(120 92.8 161.6)"/><rect x="88.0" y="154.5" width="3" height="3" transform="rotate(180 89.5 156.0)"/><rect x="91.3" y="148.9" width="3" height="3" transform="rotate(240 92.8 150.4)"/><rect x="97.8" y="148.9" width="3" height="3" transform="rotate(300 99.3 150.4)"/>
+  <circle cx="96" cy="156" r="4"/>
+  <circle cx="96" cy="156" r="1.5" fill="#0A0D14"/>
+</g>
 
 </svg>

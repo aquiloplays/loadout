@@ -262,5 +262,12 @@
 <!-- accent band -->
 <rect x="48" y="104" width="96" height="10" rx="2"
       fill="url(#gk-grad-sapphire)" stroke="#04143B" stroke-width="2"/>
+<circle cx="96" cy="102" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="102" r="12" fill="none" stroke="#5A9EF7" stroke-width="1.3" opacity="0.95"/>
+
+<g fill="#5A9EF7" stroke="#0A0D14" stroke-width="0.7" stroke-linejoin="round">
+  <rect x="90" y="97" width="12" height="5" rx="1"/>
+  <rect x="95" y="102" width="2" height="8" rx="0.5" fill="url(#gk-grad-wood)"/>
+</g>
 
 </svg>

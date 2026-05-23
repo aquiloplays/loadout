@@ -272,5 +272,14 @@
 <!-- pommel -->
 <circle cx="96" cy="188" r="9" fill="url(#gk-rgrad-amethyst)" stroke="#1A0840" stroke-width="2"/>
 <circle cx="93" cy="185" r="3" fill="#FFFFFF" opacity="0.65"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#B581FF" stroke-width="1.3" opacity="0.95"/>
+
+<g fill="none" stroke="#B581FF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+  <line x1="152" y1="29" x2="152" y2="43"/>
+  <line x1="149" y1="31" x2="155" y2="31"/>
+  <path d="M 146 39 Q 146 43 152 43 Q 158 43 158 39"/>
+</g>
+<circle cx="152" cy="29" r="1.4" fill="#B581FF"/>
 
 </svg>

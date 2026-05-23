@@ -264,5 +264,12 @@
       fill="url(#gk-grad-gold)" stroke="#3F2D01" stroke-width="3" stroke-linejoin="round"/>
 <path d="M 82 60 L 96 46 L 100 66 Z"
       fill="#FFFFFF" opacity="0.6"/>
+<circle cx="96" cy="156" r="11" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="156" r="11" fill="none" stroke="#FF7A8C" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 96 148 L 102 156 L 96 164 L 90 156 Z"
+      fill="#FF7A8C" stroke="#0A0D14" stroke-width="0.8" stroke-linejoin="round"/>
+<path d="M 93 156 L 96 151 L 99 156 L 96 161 Z"
+      fill="#FFFFFF" opacity="0.45"/>
 
 </svg>

@@ -272,5 +272,12 @@
 <!-- pommel -->
 <circle cx="96" cy="188" r="9" fill="url(#gk-rgrad-gold)" stroke="#3F2D01" stroke-width="2"/>
 <circle cx="93" cy="185" r="3" fill="#FFFFFF" opacity="0.65"/>
+<circle cx="152" cy="36" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="152" cy="36" r="12" fill="none" stroke="#5BDD96" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 144 36 Q 152 30 160 36 Q 152 42 144 36 Z"
+      fill="#FFF6D8" stroke="#0A0D14" stroke-width="0.9"/>
+<circle cx="152" cy="36" r="3" fill="#5BDD96"/>
+<circle cx="152" cy="36" r="1.2" fill="#0A0D14"/>
 
 </svg>

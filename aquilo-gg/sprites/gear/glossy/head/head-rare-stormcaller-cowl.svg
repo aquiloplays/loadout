@@ -270,5 +270,15 @@
 <!-- rivets -->
 <circle cx="48" cy="119" r="3" fill="#5A9EF7" stroke="#0A0D14" stroke-width="1"/>
 <circle cx="144" cy="119" r="3" fill="#5A9EF7" stroke="#0A0D14" stroke-width="1"/>
+<circle cx="96" cy="102" r="12" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="102" r="12" fill="none" stroke="#7BD15A" stroke-width="1.3" opacity="0.95"/>
+
+<path d="M 98 94
+         L 92 103
+         L 95 103
+         L 94 110
+         L 100 101
+         L 97 101 Z"
+      fill="#7BD15A" stroke="#0A0D14" stroke-width="0.8" stroke-linejoin="round"/>
 
 </svg>

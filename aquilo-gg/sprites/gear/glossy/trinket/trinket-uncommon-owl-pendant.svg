@@ -268,5 +268,13 @@
 <!-- accent frame -->
 <circle cx="96" cy="86" r="14" fill="url(#gk-grad-ruby)" stroke="#3B0510" stroke-width="2.5"/>
 <circle cx="96" cy="86" r="8" fill="#9F7505"/>
+<circle cx="96" cy="156" r="11" fill="#0A0D14" opacity="0.62"/>
+                  <circle cx="96" cy="156" r="11" fill="none" stroke="#5BDD96" stroke-width="1.3" opacity="0.95"/>
+
+<g fill="#5BDD96" stroke="#0A0D14" stroke-width="0.8" stroke-linejoin="round">
+  <path d="M 96 148 Q 89 149 89 155 L 89 159 L 92 162 L 100 162 L 103 159 L 103 155 Q 103 149 96 148 Z"/>
+</g>
+<circle cx="93" cy="155" r="1.4" fill="#0A0D14"/>
+<circle cx="99" cy="155" r="1.4" fill="#0A0D14"/>
 
 </svg>
