@@ -252,62 +252,74 @@
 <ellipse cx="96" cy="176" rx="60" ry="9" fill="url(#gk-contact-shadow)"/>
 <circle cx="96" cy="96" r="86" fill="none" stroke="#B581FF" stroke-width="2" opacity="0.55"/>
 
-<!-- BACK / SKIRT — drapes down from shoulders, cinched at waist,
-     widens at hem. Not a single cone — built from shoulder yoke
-     down through narrow waist to flared skirt. -->
-<path d="M 52 46
-         Q 46 66 58 82
-         Q 52 92 60 110
-         Q 40 146 36 172
-         L 156 172
-         Q 152 146 132 110
-         Q 140 92 134 82
-         Q 146 66 140 46
-         Q 122 40 96 40
-         Q 70 40 52 46 Z"
+<!-- SLEEVE DRAPES — hanging from the shoulders, BEHIND the body.
+     These give the robe visible sleeve mass on each side. -->
+<path d="M 70 54
+         L 52 60
+         L 56 132
+         Q 60 138 72 130
+         L 76 58 Z"
+      fill="url(#gk-grad-cream)" stroke="#5A4A20" stroke-width="3" stroke-linejoin="round"/>
+<path d="M 122 54
+         L 140 60
+         L 136 132
+         Q 132 138 120 130
+         L 116 58 Z"
+      fill="url(#gk-grad-cream)" stroke="#5A4A20" stroke-width="3" stroke-linejoin="round"/>
+
+<!-- MAIN ROBE — clean A-line. Straight slope from shoulder line
+     down to wide hem. No mid-bulge. -->
+<path d="M 68 50
+         L 26 174
+         Q 30 178 34 177
+         L 158 177
+         Q 162 178 166 174
+         L 124 50
+         Q 106 44 96 44
+         Q 86 44 68 50 Z"
       fill="url(#gk-grad-cream)" stroke="#5A4A20" stroke-width="3.5" stroke-linejoin="round"/>
 
-<!-- SASH at the waist (cinches the robe in) -->
-<path d="M 58 110
-         Q 96 118 134 110
-         L 134 120
-         Q 96 128 58 120 Z"
-      fill="url(#gk-grad-amethyst)" stroke="#1A0840" stroke-width="2.5" stroke-linejoin="round"/>
-<!-- sash highlight -->
-<path d="M 58 112 Q 96 120 134 112"
-      fill="none" stroke="#B581FF" stroke-width="1.2" opacity="0.85"/>
+<!-- LIGHT-SIDE FORM HIGHLIGHT — a single vertical band on the left
+     side of the robe. Crisp, not a radial blob. -->
+<path d="M 72 54
+         L 36 170
+         L 44 170
+         L 80 54 Z"
+      fill="#FFFFFF" opacity="0.32"/>
 
-<!-- CENTRE OPENING / front placket -->
-<path d="M 96 46 L 96 110"
-      stroke="#5A4A20" stroke-width="1.5" opacity="0.7"/>
-<path d="M 96 128 L 92 168 M 96 128 L 100 168"
-      stroke="#5A4A20" stroke-width="1.5" opacity="0.65"/>
+<!-- SHADOW-SIDE FORM SHADOW — single right-side overlay -->
+<path d="M 98 49
+         L 100 170
+         L 162 170
+         L 122 50 Z"
+      fill="#B19D6E" opacity="0.4"/>
 
-<!-- SKIRT FOLDS — radiating from waist to hem -->
-<g stroke="#5A4A20" stroke-width="1.4" opacity="0.55" fill="none">
-  <path d="M 72 128 L 60 168"/>
-  <path d="M 84 128 L 76 168"/>
-  <path d="M 108 128 L 116 168"/>
-  <path d="M 120 128 L 132 168"/>
+<!-- SKIRT FOLDS — 4 vertical drape lines radiating to the hem -->
+<g stroke="#5A4A20" stroke-width="1.2" opacity="0.5" fill="none">
+  <path d="M 82 86 L 58 168"/>
+  <path d="M 92  84 L 84 168"/>
+  <path d="M 100  84 L 108 168"/>
+  <path d="M 110 86 L 134 168"/>
 </g>
 
-<!-- HEM line at the bottom -->
-<path d="M 38 170 Q 96 176 154 170"
-      fill="none" stroke="#5A4A20" stroke-width="1.8" opacity="0.85"/>
+<!-- HEM TRIM — visible band at the bottom -->
+<path d="M 28 172
+         L 164 172"
+      stroke="#B581FF" stroke-width="3" opacity="0.85"/>
+<path d="M 28 176
+         L 164 176"
+      stroke="#5A4A20" stroke-width="1.5" opacity="0.8"/>
 
-<!-- COLLAR — V-neckline with accent trim -->
-<path d="M 70 42 L 92 66
-         L 100 66 L 122 42"
+<!-- COLLAR — V-neckline at the top -->
+<path d="M 74 46
+         L 92 66
+         L 100 66
+         L 118 46"
       fill="none" stroke="#B581FF" stroke-width="3" stroke-linejoin="round"/>
-<path d="M 74 42 L 96 68 L 118 42 Z"
+<path d="M 78 46
+         L 96 64
+         L 114 46 Z"
       fill="#B19D6E" stroke="#5A4A20" stroke-width="1.5"/>
-
-<!-- GLOSS on the left side -->
-<path d="M 58 82
-         Q 46 106 58 126
-         L 70 126
-         Q 58 104 70 78 Z"
-      fill="#FFFFFF" opacity="0.35"/>
 <circle cx="96" cy="126" r="12" fill="#0A0D14" opacity="0.62"/>
                   <circle cx="96" cy="126" r="12" fill="none" stroke="#A8D9FF" stroke-width="1.3" opacity="0.95"/>
 

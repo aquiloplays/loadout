@@ -427,70 +427,94 @@ ${shapeTunic(pal, accent)}
 }
 
 function shapeRobe(pal, accent) {
-  // Proper wizard robe construction (not a cone):
-  //   • shoulder line + collar at top
-  //   • outer silhouette has SLEEVES that drop straight from the
-  //     shoulder, leaving the upper-arm visible OUTSIDE the robe
-  //   • cinched waist (sash, narrower than shoulders)
-  //   • A-line skirt flaring to the hem
-  //   • centre opening so the inner garment can show
+  // CLEAN A-LINE wizard robe:
+  //   • Narrow at the shoulder line (top)
+  //   • Widens STEADILY to a wide hem at the bottom
+  //   • NO mid-bulge (was the "violet pill" Clay rejected)
+  //   • Visible SLEEVE MASSES hanging from the shoulders, drawn
+  //     as separate vertical drape shapes outside the main robe
+  //     silhouette so the arms read as anatomy under the robe
+  //   • Optional accent trim at the hem + centre placket
+  //
+  // Geometry: shoulder line at CY-46 spans ±28; hem at CY+78
+  // spans ±70. The slope is a STRAIGHT LINE (with a tiny ease
+  // at top/bottom) — that's what makes it an A-line not an egg.
+  const SHOULDER_W = 28;
+  const HEM_W      = 70;
+  const SHOULDER_Y = -46;
+  const HEM_Y      = 78;
+  const SLEEVE_W   = 16;      // width of each sleeve drape
+  const SLEEVE_TOP = -42;
+  const SLEEVE_END = 36;      // sleeve hem at ~3/4 down the robe
   return `
-<!-- BACK / SKIRT — drapes down from shoulders, cinched at waist,
-     widens at hem. Not a single cone — built from shoulder yoke
-     down through narrow waist to flared skirt. -->
-<path d="M ${CX - 44} ${CY - 50}
-         Q ${CX - 50} ${CY - 30} ${CX - 38} ${CY - 14}
-         Q ${CX - 44} ${CY - 4} ${CX - 36} ${CY + 14}
-         Q ${CX - 56} ${CY + 50} ${CX - 60} ${CY + 76}
-         L ${CX + 60} ${CY + 76}
-         Q ${CX + 56} ${CY + 50} ${CX + 36} ${CY + 14}
-         Q ${CX + 44} ${CY - 4} ${CX + 38} ${CY - 14}
-         Q ${CX + 50} ${CY - 30} ${CX + 44} ${CY - 50}
-         Q ${CX + 26} ${CY - 56} ${CX} ${CY - 56}
-         Q ${CX - 26} ${CY - 56} ${CX - 44} ${CY - 50} Z"
+<!-- SLEEVE DRAPES — hanging from the shoulders, BEHIND the body.
+     These give the robe visible sleeve mass on each side. -->
+<path d="M ${CX - SHOULDER_W + 2} ${CY + SLEEVE_TOP}
+         L ${CX - SHOULDER_W - SLEEVE_W} ${CY + SLEEVE_TOP + 6}
+         L ${CX - SHOULDER_W - SLEEVE_W + 4} ${CY + SLEEVE_END}
+         Q ${CX - SHOULDER_W - SLEEVE_W/2} ${CY + SLEEVE_END + 6} ${CX - SHOULDER_W + 4} ${CY + SLEEVE_END - 2}
+         L ${CX - SHOULDER_W + 8} ${CY + SLEEVE_TOP + 4} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
+<path d="M ${CX + SHOULDER_W - 2} ${CY + SLEEVE_TOP}
+         L ${CX + SHOULDER_W + SLEEVE_W} ${CY + SLEEVE_TOP + 6}
+         L ${CX + SHOULDER_W + SLEEVE_W - 4} ${CY + SLEEVE_END}
+         Q ${CX + SHOULDER_W + SLEEVE_W/2} ${CY + SLEEVE_END + 6} ${CX + SHOULDER_W - 4} ${CY + SLEEVE_END - 2}
+         L ${CX + SHOULDER_W - 8} ${CY + SLEEVE_TOP + 4} Z"
+      fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
+
+<!-- MAIN ROBE — clean A-line. Straight slope from shoulder line
+     down to wide hem. No mid-bulge. -->
+<path d="M ${CX - SHOULDER_W} ${CY + SHOULDER_Y}
+         L ${CX - HEM_W} ${CY + HEM_Y}
+         Q ${CX - HEM_W + 4} ${CY + HEM_Y + 4} ${CX - HEM_W + 8} ${CY + HEM_Y + 3}
+         L ${CX + HEM_W - 8} ${CY + HEM_Y + 3}
+         Q ${CX + HEM_W - 4} ${CY + HEM_Y + 4} ${CX + HEM_W} ${CY + HEM_Y}
+         L ${CX + SHOULDER_W} ${CY + SHOULDER_Y}
+         Q ${CX + 10} ${CY + SHOULDER_Y - 6} ${CX} ${CY + SHOULDER_Y - 6}
+         Q ${CX - 10} ${CY + SHOULDER_Y - 6} ${CX - SHOULDER_W} ${CY + SHOULDER_Y} Z"
       fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3.5" stroke-linejoin="round"/>
 
-<!-- SASH at the waist (cinches the robe in) -->
-<path d="M ${CX - 38} ${CY + 14}
-         Q ${CX} ${CY + 22} ${CX + 38} ${CY + 14}
-         L ${CX + 38} ${CY + 24}
-         Q ${CX} ${CY + 32} ${CX - 38} ${CY + 24} Z"
-      fill="url(#gk-grad-${accent})" stroke="${PALETTE[accent].stroke}" stroke-width="2.5" stroke-linejoin="round"/>
-<!-- sash highlight -->
-<path d="M ${CX - 38} ${CY + 16} Q ${CX} ${CY + 24} ${CX + 38} ${CY + 16}"
-      fill="none" stroke="${PALETTE[accent].hi}" stroke-width="1.2" opacity="0.85"/>
+<!-- LIGHT-SIDE FORM HIGHLIGHT — a single vertical band on the left
+     side of the robe. Crisp, not a radial blob. -->
+<path d="M ${CX - SHOULDER_W + 4} ${CY + SHOULDER_Y + 4}
+         L ${CX - HEM_W + 10} ${CY + HEM_Y - 4}
+         L ${CX - HEM_W + 18} ${CY + HEM_Y - 4}
+         L ${CX - SHOULDER_W + 12} ${CY + SHOULDER_Y + 4} Z"
+      fill="${PALETTE.white}" opacity="0.32"/>
 
-<!-- CENTRE OPENING / front placket -->
-<path d="M ${CX} ${CY - 50} L ${CX} ${CY + 14}"
-      stroke="${PALETTE[pal].stroke}" stroke-width="1.5" opacity="0.7"/>
-<path d="M ${CX} ${CY + 32} L ${CX - 4} ${CY + 72} M ${CX} ${CY + 32} L ${CX + 4} ${CY + 72}"
-      stroke="${PALETTE[pal].stroke}" stroke-width="1.5" opacity="0.65"/>
+<!-- SHADOW-SIDE FORM SHADOW — single right-side overlay -->
+<path d="M ${CX + 2} ${CY + SHOULDER_Y - 1}
+         L ${CX + 4} ${CY + HEM_Y - 4}
+         L ${CX + HEM_W - 4} ${CY + HEM_Y - 4}
+         L ${CX + SHOULDER_W - 2} ${CY + SHOULDER_Y} Z"
+      fill="${PALETTE[pal].lo}" opacity="0.4"/>
 
-<!-- SKIRT FOLDS — radiating from waist to hem -->
-<g stroke="${PALETTE[pal].stroke}" stroke-width="1.4" opacity="0.55" fill="none">
-  <path d="M ${CX - 24} ${CY + 32} L ${CX - 36} ${CY + 72}"/>
-  <path d="M ${CX - 12} ${CY + 32} L ${CX - 20} ${CY + 72}"/>
-  <path d="M ${CX + 12} ${CY + 32} L ${CX + 20} ${CY + 72}"/>
-  <path d="M ${CX + 24} ${CY + 32} L ${CX + 36} ${CY + 72}"/>
+<!-- SKIRT FOLDS — 4 vertical drape lines radiating to the hem -->
+<g stroke="${PALETTE[pal].stroke}" stroke-width="1.2" opacity="0.5" fill="none">
+  <path d="M ${CX - 14} ${CY - 10} L ${CX - 38} ${CY + HEM_Y - 6}"/>
+  <path d="M ${CX - 4}  ${CY - 12} L ${CX - 12} ${CY + HEM_Y - 6}"/>
+  <path d="M ${CX + 4}  ${CY - 12} L ${CX + 12} ${CY + HEM_Y - 6}"/>
+  <path d="M ${CX + 14} ${CY - 10} L ${CX + 38} ${CY + HEM_Y - 6}"/>
 </g>
 
-<!-- HEM line at the bottom -->
-<path d="M ${CX - 58} ${CY + 74} Q ${CX} ${CY + 80} ${CX + 58} ${CY + 74}"
-      fill="none" stroke="${PALETTE[pal].stroke}" stroke-width="1.8" opacity="0.85"/>
+<!-- HEM TRIM — visible band at the bottom -->
+<path d="M ${CX - HEM_W + 2} ${CY + HEM_Y - 2}
+         L ${CX + HEM_W - 2} ${CY + HEM_Y - 2}"
+      stroke="${PALETTE[accent].hi}" stroke-width="3" opacity="0.85"/>
+<path d="M ${CX - HEM_W + 2} ${CY + HEM_Y + 2}
+         L ${CX + HEM_W - 2} ${CY + HEM_Y + 2}"
+      stroke="${PALETTE[pal].stroke}" stroke-width="1.5" opacity="0.8"/>
 
-<!-- COLLAR — V-neckline with accent trim -->
-<path d="M ${CX - 26} ${CY - 54} L ${CX - 4} ${CY - 30}
-         L ${CX + 4} ${CY - 30} L ${CX + 26} ${CY - 54}"
+<!-- COLLAR — V-neckline at the top -->
+<path d="M ${CX - 22} ${CY + SHOULDER_Y - 4}
+         L ${CX - 4} ${CY + SHOULDER_Y + 16}
+         L ${CX + 4} ${CY + SHOULDER_Y + 16}
+         L ${CX + 22} ${CY + SHOULDER_Y - 4}"
       fill="none" stroke="${PALETTE[accent].hi}" stroke-width="3" stroke-linejoin="round"/>
-<path d="M ${CX - 22} ${CY - 54} L ${CX} ${CY - 28} L ${CX + 22} ${CY - 54} Z"
-      fill="${PALETTE[pal].lo}" stroke="${PALETTE[pal].stroke}" stroke-width="1.5"/>
-
-<!-- GLOSS on the left side -->
-<path d="M ${CX - 38} ${CY - 14}
-         Q ${CX - 50} ${CY + 10} ${CX - 38} ${CY + 30}
-         L ${CX - 26} ${CY + 30}
-         Q ${CX - 38} ${CY + 8} ${CX - 26} ${CY - 18} Z"
-      fill="${PALETTE.white}" opacity="0.35"/>`;
+<path d="M ${CX - 18} ${CY + SHOULDER_Y - 4}
+         L ${CX} ${CY + SHOULDER_Y + 14}
+         L ${CX + 18} ${CY + SHOULDER_Y - 4} Z"
+      fill="${PALETTE[pal].lo}" stroke="${PALETTE[pal].stroke}" stroke-width="1.5"/>`;
 }
 
 function shapeTrousers(pal, accent) {

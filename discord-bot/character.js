@@ -72,7 +72,26 @@ const SPRITE_CACHE = new Map();
 //                              longer a plain cone), redesigned hood
 //                              that drapes around the face instead of
 //                              sealing it shut.
-const SPRITE_ASSET_VERSION = 'v4-figure';
+//   v5-figure   L3 (2026-05) — full proportion + form rebuild after
+//                              Clay flagged L2 as still bottom-heavy
+//                              with a head pasted on. New deliberate
+//                              4-heads-tall ratio (HEAD_R 28→18,
+//                              SHOULDER_Y 80→58, longer torso + legs),
+//                              tapering arms with bicep bulge held
+//                              away from torso with a visible gap
+//                              (no more body bulges, no more
+//                              segmented joints), cel-shaded flat
+//                              fills replacing balloon radial
+//                              gradients (defined light-side /
+//                              shadow-side / form lines), robe rebuilt
+//                              as a clean A-line (narrow shoulders →
+//                              wide hem, no mid-bulge) with separate
+//                              sleeve drape masses, wizard-long hair
+//                              cut down from a chest-covering curtain
+//                              to slim side strands, default tunic
+//                              with visible short sleeves so it reads
+//                              as a tunic not a tank top.
+const SPRITE_ASSET_VERSION = 'v5-figure';
 
 // Canvas size — pixel-perfect compose, all layers share these dims.
 // Glossy bar (2026-05 art campaign, see tools/build-character-glossy.mjs
