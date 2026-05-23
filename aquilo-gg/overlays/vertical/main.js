@@ -92,7 +92,7 @@
   function applyBadge(el, value) {
     if (!el) return;
     el.replaceChildren();
-    const v = value || '/sprites/ui/icons/bolt.png';
+    const v = value || '/sprites/ui/icons/glossy/bolt.png';
     if (isImageBadge(v)) {
       const img = document.createElement('img');
       img.className = 'ico ico--lg';
@@ -194,66 +194,66 @@
     switch (msg.kind) {
       case 'bolts.earned':
         if (!d.user || !d.amount) return null;
-        return { kind: 'bolts.earned',  tone: 'bolts',  badge: '/sprites/ui/icons/bolt.png', title: d.user, sub: '+' + d.amount + ' bolts' };
+        return { kind: 'bolts.earned',  tone: 'bolts',  badge: '/sprites/ui/icons/glossy/bolt.png', title: d.user, sub: '+' + d.amount + ' bolts' };
       case 'bolts.gifted':
         if (!d.from || !d.to) return null;
-        return { kind: 'bolts.gifted',  tone: 'bolts',  badge: '/sprites/ui/icons/gift.png', title: d.from + '→' + d.to, sub: '+' + (d.amount || 0) + ' bolts' };
+        return { kind: 'bolts.gifted',  tone: 'bolts',  badge: '/sprites/ui/icons/glossy/gift.png', title: d.from + '→' + d.to, sub: '+' + (d.amount || 0) + ' bolts' };
       case 'bolts.streak':
         if (!d.user || (d.streakDays || 0) < 2) return null;
-        return { kind: 'bolts.streak',  tone: 'streak', badge: '/sprites/ui/icons/flame.png', title: d.user, sub: (d.streakDays || 0) + '-day streak' };
+        return { kind: 'bolts.streak',  tone: 'streak', badge: '/sprites/ui/icons/glossy/flame.png', title: d.user, sub: (d.streakDays || 0) + '-day streak' };
       case 'bolts.rain':
-        return { kind: 'bolts.rain',    tone: 'bolts',  badge: '/sprites/ui/icons/droplet.png', title: 'Bolt rain', sub: ((d.recipients && d.recipients.length) || '?') + ' showered' };
+        return { kind: 'bolts.rain',    tone: 'bolts',  badge: '/sprites/ui/icons/glossy/droplet.png', title: 'Bolt rain', sub: ((d.recipients && d.recipients.length) || '?') + ' showered' };
       case 'bolts.leaderboard': {
         const top = (d.top || []);
         if (top.length === 0) return null;
-        return { kind: 'bolts.leaderboard', tone: 'bolts', badge: '/sprites/ui/icons/trophy.png', title: 'Top: ' + (top[0].handle || '?'), sub: (top[0].balance || 0) + ' bolts' };
+        return { kind: 'bolts.leaderboard', tone: 'bolts', badge: '/sprites/ui/icons/glossy/trophy.png', title: 'Top: ' + (top[0].handle || '?'), sub: (top[0].balance || 0) + ' bolts' };
       }
       case 'welcome.fired':
         if (!d.user) return null;
-        return { kind: 'welcome.fired', tone: 'welcome', badge: '/sprites/ui/icons/wave.png', title: d.user, sub: d.rendered || 'welcome' };
+        return { kind: 'welcome.fired', tone: 'welcome', badge: '/sprites/ui/icons/glossy/wave.png', title: d.user, sub: d.rendered || 'welcome' };
       case 'counter.updated':
         if (!d.name) return null;
         return { kind: 'counter.updated', tone: 'counter', badge: '#', title: (d.display || d.name), sub: (d.value != null ? String(d.value) : '?') };
       case 'hypetrain.start':
-        return { kind: 'hypetrain.start', tone: 'hype', badge: '/sprites/ui/icons/train.png', title: 'Hype train!', sub: 'level ' + (d.level || 1) };
+        return { kind: 'hypetrain.start', tone: 'hype', badge: '/sprites/ui/icons/glossy/train.png', title: 'Hype train!', sub: 'level ' + (d.level || 1) };
       case 'hypetrain.contribute':
         if (!d.user) return null;
-        return { kind: 'hypetrain.contribute', tone: 'hype', badge: '/sprites/ui/icons/train.png', title: d.user, sub: '+' + (d.fuel || 0) + ' fuel' };
+        return { kind: 'hypetrain.contribute', tone: 'hype', badge: '/sprites/ui/icons/glossy/train.png', title: d.user, sub: '+' + (d.fuel || 0) + ' fuel' };
       case 'hypetrain.level':
-        return { kind: 'hypetrain.level', tone: 'hype', badge: '/sprites/ui/icons/star.png', title: 'Level ' + (d.level || 0) + '!', sub: 'hype train' };
+        return { kind: 'hypetrain.level', tone: 'hype', badge: '/sprites/ui/icons/glossy/star.png', title: 'Level ' + (d.level || 0) + '!', sub: 'hype train' };
       case 'hypetrain.end':
-        return { kind: 'hypetrain.end', tone: 'hype', badge: '/sprites/ui/icons/alert.png', title: 'Train ended', sub: 'final lv ' + (d.finalLevel || 0) };
+        return { kind: 'hypetrain.end', tone: 'hype', badge: '/sprites/ui/icons/glossy/alert.png', title: 'Train ended', sub: 'final lv ' + (d.finalLevel || 0) };
       case 'bolts.minigame.coinflip':
         if (!d.user) return null;
-        return { kind: 'bolts.minigame.coinflip', tone: d.won ? 'win' : 'lose', badge: '/sprites/ui/icons/coin.png', title: d.user, sub: '!coinflip ' + Math.abs(d.payout || d.wager || 0) + ' bolts' };
+        return { kind: 'bolts.minigame.coinflip', tone: d.won ? 'win' : 'lose', badge: '/sprites/ui/icons/glossy/coin.png', title: d.user, sub: '!coinflip ' + Math.abs(d.payout || d.wager || 0) + ' bolts' };
       case 'bolts.minigame.dice':
         if (!d.user) return null;
-        return { kind: 'bolts.minigame.dice', tone: d.won ? 'win' : 'lose', badge: '/sprites/ui/icons/dice.png', title: d.user, sub: '!dice ' + Math.abs(d.payout || d.wager || 0) + ' bolts' };
+        return { kind: 'bolts.minigame.dice', tone: d.won ? 'win' : 'lose', badge: '/sprites/ui/icons/glossy/dice.png', title: d.user, sub: '!dice ' + Math.abs(d.payout || d.wager || 0) + ' bolts' };
       case 'bolts.minigame.slots':
         if (!d.user) return null;
-        return { kind: 'bolts.minigame.slots', tone: d.won ? 'win' : 'lose', badge: '/sprites/ui/icons/gem.png', title: d.user, sub: '!slots ' + Math.abs(d.payout || d.wager || 0) + ' bolts' };
+        return { kind: 'bolts.minigame.slots', tone: d.won ? 'win' : 'lose', badge: '/sprites/ui/icons/glossy/gem.png', title: d.user, sub: '!slots ' + Math.abs(d.payout || d.wager || 0) + ' bolts' };
       case 'bolts.minigame.rps':
         if (!d.user) return null;
-        return { kind: 'bolts.minigame.rps', tone: d.outcome === 'win' ? 'win' : (d.outcome === 'loss' ? 'lose' : 'bolts'), badge: '/sprites/ui/icons/star.png', title: d.user, sub: '!rps ' + (d.outcome || '-') };
+        return { kind: 'bolts.minigame.rps', tone: d.outcome === 'win' ? 'win' : (d.outcome === 'loss' ? 'lose' : 'bolts'), badge: '/sprites/ui/icons/glossy/star.png', title: d.user, sub: '!rps ' + (d.outcome || '-') };
       case 'bolts.minigame.roulette':
         if (!d.user) return null;
-        return { kind: 'bolts.minigame.roulette', tone: d.won ? 'win' : 'lose', badge: '/sprites/ui/icons/target.png', title: d.user, sub: '!roulette ' + (d.resultColor || '-') };
+        return { kind: 'bolts.minigame.roulette', tone: d.won ? 'win' : 'lose', badge: '/sprites/ui/icons/glossy/target.png', title: d.user, sub: '!roulette ' + (d.resultColor || '-') };
       case 'bolts.heist.start':
-        return { kind: 'bolts.heist.start', tone: 'counter', badge: '/sprites/ui/icons/sword.png', title: (d.initiator || 'someone') + ' heist', sub: 'pot ' + (d.totalPot || 0) + '/' + (d.target || 0) };
+        return { kind: 'bolts.heist.start', tone: 'counter', badge: '/sprites/ui/icons/glossy/sword.png', title: (d.initiator || 'someone') + ' heist', sub: 'pot ' + (d.totalPot || 0) + '/' + (d.target || 0) };
       case 'bolts.heist.success':
-        return { kind: 'bolts.heist.success', tone: 'win', badge: '/sprites/ui/icons/coin.png', title: 'HEIST WON', sub: '+' + (d.payout || 0) + ' bolts split' };
+        return { kind: 'bolts.heist.success', tone: 'win', badge: '/sprites/ui/icons/glossy/coin.png', title: 'HEIST WON', sub: '+' + (d.payout || 0) + ' bolts split' };
       case 'bolts.heist.failure':
-        return { kind: 'bolts.heist.failure', tone: 'lose', badge: '/sprites/ui/icons/alert.png', title: 'HEIST FAILED', sub: 'pot ' + (d.totalPot || 0) };
+        return { kind: 'bolts.heist.failure', tone: 'lose', badge: '/sprites/ui/icons/glossy/alert.png', title: 'HEIST FAILED', sub: 'pot ' + (d.totalPot || 0) };
       case 'tips.received':
         if (!(d.amount > 0)) return null;
-        return { kind: 'tips.received', tone: 'streak', badge: '/sprites/ui/icons/heart.png', title: d.tipper || 'anonymous', sub: '$' + (d.amount || 0).toFixed(2) + (d.bolts ? '  +' + d.bolts + ' bolts' : '') };
+        return { kind: 'tips.received', tone: 'streak', badge: '/sprites/ui/icons/glossy/heart.png', title: d.tipper || 'anonymous', sub: '$' + (d.amount || 0).toFixed(2) + (d.bolts ? '  +' + d.bolts + ' bolts' : '') };
       case 'achievement.unlocked':
-        return { kind: 'achievement.unlocked', tone: 'counter', badge: '/sprites/ui/icons/trophy.png', title: d.user || 'viewer', sub: (d.name || 'achievement') };
+        return { kind: 'achievement.unlocked', tone: 'counter', badge: '/sprites/ui/icons/glossy/trophy.png', title: d.user || 'viewer', sub: (d.name || 'achievement') };
       case 'quest.completed':
-        return { kind: 'quest.completed', tone: 'counter', badge: '/sprites/ui/icons/target.png', title: d.user || 'viewer', sub: 'quest ' + (d.questName || 'done') };
+        return { kind: 'quest.completed', tone: 'counter', badge: '/sprites/ui/icons/glossy/target.png', title: d.user || 'viewer', sub: 'quest ' + (d.questName || 'done') };
       case 'viewer.profile.shown':
         if (!d.user) return null;
-        return { kind: 'viewer.profile.shown', tone: 'bolts', badge: '/sprites/ui/icons/id.png', title: d.user, sub: (d.bolts || 0) + ' bolts' + (d.streakDays ? '  ·  ' + d.streakDays + 'd' : '') };
+        return { kind: 'viewer.profile.shown', tone: 'bolts', badge: '/sprites/ui/icons/glossy/id.png', title: d.user, sub: (d.bolts || 0) + ' bolts' + (d.streakDays ? '  ·  ' + d.streakDays + 'd' : '') };
     }
     return null;
   }

@@ -60,7 +60,7 @@
     em.className = "cheer-emote";
     // Streamer can supply d.emote as a URL (Twitch emote etc.); fall
     // back to the in-house pixel flame when no emote is provided.
-    var src = (d && d.emote && /^(https?:)?\/\//i.test(d.emote)) ? d.emote : "/sprites/ui/icons/flame.png";
+    var src = (d && d.emote && /^(https?:)?\/\//i.test(d.emote)) ? d.emote : "/sprites/ui/icons/glossy/flame.png";
     var img = document.createElement("img");
     img.src = src;
     img.alt = "";

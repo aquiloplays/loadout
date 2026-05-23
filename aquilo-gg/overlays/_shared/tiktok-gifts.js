@@ -8,14 +8,14 @@
  *
  * No emoji — pixel-art only. We don't ship a per-gift sprite roster
  * (TikTok's gift catalogue is too big to maintain in-repo), so every
- * gift currently renders with the shared /sprites/ui/icons/gift.png
+ * gift currently renders with the shared /sprites/ui/icons/glossy/gift.png
  * icon. If a streamer wants per-gift artwork, override the icon
  * lookup at render time (or extend this map with sprite paths once
  * the per-gift sprites land).
  *
  * Usage:
  *   const { icon, label } = TikTokGifts.render({ giftName: 'Rose', coins: 1 });
- *   //   icon  = '/sprites/ui/icons/gift.png'
+ *   //   icon  = '/sprites/ui/icons/glossy/gift.png'
  *   //   label = 'Rose ×1'
  *
  * Streamer override (future):
@@ -37,7 +37,7 @@
   function icon(giftName) {
     const k = normalize(giftName);
     if (customIcons[k]) return customIcons[k];
-    return '/sprites/ui/icons/gift.png';
+    return '/sprites/ui/icons/glossy/gift.png';
   }
 
   function setIconFor(giftName, spritePath) {

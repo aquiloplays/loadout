@@ -109,7 +109,7 @@
         el.className = 'toast' + (item.amount >= 100 ? ' big' : '');
         // Emoji-free: pixel-bolt icon next to the amount.
         el.innerHTML =
-          '<span class="who"></span><span class="amt">+' + item.amount + ' <img class="ico" src="/sprites/ui/icons/bolt.png" alt=""></span>';
+          '<span class="who"></span><span class="amt">+' + item.amount + ' <img class="ico" src="/sprites/ui/icons/glossy/bolt.png" alt=""></span>';
         el.querySelector('.who').textContent = item.user || '?';
         track.appendChild(el);
         active++;
@@ -154,7 +154,7 @@
           // is set via inline width since the icon is 16×16 native.
           const p = document.createElement('img');
           p.className = 'bolt-particle ico';
-          p.src = '/sprites/ui/icons/bolt.png';
+          p.src = '/sprites/ui/icons/glossy/bolt.png';
           p.alt = '';
           p.style.left  = (Math.random() * 100) + 'vw';
           p.style.width = (18 + Math.random() * 28) + 'px';
@@ -199,9 +199,9 @@
         if (!d.amount || !d.from || !d.to) return;
         // Pixel-gift icon + arrow. Use innerHTML since we're splicing an <img>.
         text.innerHTML =
-          '<img class="ico" src="/sprites/ui/icons/gift.png" alt="">' +
+          '<img class="ico" src="/sprites/ui/icons/glossy/gift.png" alt="">' +
           escapeHtml(d.from) + ' → ' + escapeHtml(d.to) +
-          ' (' + d.amount + ' <img class="ico" src="/sprites/ui/icons/bolt.png" alt="">)';
+          ' (' + d.amount + ' <img class="ico" src="/sprites/ui/icons/glossy/bolt.png" alt="">)';
         el.classList.remove('hidden');
         void el.offsetWidth;
         el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
