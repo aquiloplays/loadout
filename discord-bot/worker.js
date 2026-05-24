@@ -186,6 +186,12 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
+    if (method === 'POST' && path.startsWith('/admin/guild-inventory/')) {
+      return handleGuildInventory(req, env, path);
+    }
+    if (method === 'POST' && path.startsWith('/admin/guild-build/')) {
+      return handleGuildBuild(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -1164,6 +1170,117 @@ async function handleListCommands(req, env, path) {
     count: summary.length,
     commands: summary,
   }), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// ---- /admin/guild-inventory/:guildId ------------------------------------
+//
+// Read-only dump of every category, channel, role, and AutoMod rule in
+// the target guild — same admin-auth as the register/list endpoints
+// (per-guild HMAC OR AQUILO_SITE_WEB_SECRET fallback). Used to recon
+// existing server state before applying a guild-build.
+async function handleGuildInventory(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin', 'guild-inventory', ':guildId']
+  const guildId = parts[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return new Response('bad signature or guild not registered', { status: 401 });
+
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!token) return new Response('DISCORD_BOT_TOKEN missing', { status: 503 });
+
+  const H = { Authorization: 'Bot ' + token };
+  async function gj(p) {
+    const r = await fetch(`https://discord.com/api/v10${p}`, { headers: H });
+    if (!r.ok) return { _error: `${r.status} ${(await r.text()).slice(0, 200)}` };
+    return r.json();
+  }
+  const [guild, channels, roles, automod] = await Promise.all([
+    gj(`/guilds/${guildId}?with_counts=true`),
+    gj(`/guilds/${guildId}/channels`),
+    gj(`/guilds/${guildId}/roles`),
+    gj(`/guilds/${guildId}/auto-moderation/rules`),
+  ]);
+
+  // Channel TYPES per Discord docs:
+  //   0=GUILD_TEXT, 2=GUILD_VOICE, 4=GUILD_CATEGORY, 5=GUILD_ANNOUNCEMENT,
+  //   13=GUILD_STAGE_VOICE, 15=GUILD_FORUM, 16=GUILD_MEDIA
+  const TYPE_NAME = {
+    0: 'text', 2: 'voice', 4: 'category', 5: 'announcement',
+    13: 'stage', 15: 'forum', 16: 'media',
+  };
+  const slim = Array.isArray(channels) ? channels.map(c => ({
+    id: c.id, name: c.name, type: c.type, type_name: TYPE_NAME[c.type] || `unknown_${c.type}`,
+    parent_id: c.parent_id || null, position: c.position,
+  })) : [];
+  slim.sort((a, b) => {
+    // Group by parent: categories first (parent_id===null), then children grouped under parent.
+    const ap = a.parent_id || '';
+    const bp = b.parent_id || '';
+    if (ap !== bp) return ap.localeCompare(bp);
+    return a.position - b.position;
+  });
+  const rolesSlim = Array.isArray(roles) ? roles.map(r => ({
+    id: r.id, name: r.name, position: r.position, color: r.color,
+    hoist: r.hoist, mentionable: r.mentionable, managed: r.managed,
+    permissions: r.permissions,
+  })).sort((a, b) => b.position - a.position) : [];
+
+  return new Response(JSON.stringify({
+    ok: true,
+    guild: guild && !guild._error ? {
+      id: guild.id, name: guild.name,
+      member_count: guild.approximate_member_count,
+      premium_tier: guild.premium_tier, features: guild.features,
+    } : { error: guild?._error },
+    channels: slim,
+    roles:    rolesSlim,
+    automod:  Array.isArray(automod) ? automod : (automod?._error ? [{ _error: automod._error }] : []),
+  }, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// ---- /admin/guild-build/:guildId  --------------------------------------
+//
+// Idempotent reconciler — applies the baked SERVER_SPEC against the
+// guild's current state. Default mode is DRY-RUN; pass ?apply=1 to
+// execute. Same admin auth as guild-inventory.
+//
+// Reconciliation strategy:
+//   • Categories matched by name (after normalisation). Missing →
+//     created. Existing → kept (no destructive delete).
+//   • Channels matched by name. Missing → created in correct
+//     category. Existing → re-parented to the spec category +
+//     ensured to be the right TYPE if a type mismatch is recoverable
+//     (we never delete to fix a type mismatch — we leave it + log).
+//   • Roles matched by name. Missing → created with color/hoist;
+//     existing → kept.
+//   • Nothing is deleted. The endpoint returns a `noted_extras`
+//     list of channels/roles that exist in the guild but aren't in
+//     the spec, so the caller can decide whether to remove them
+//     manually.
+
+async function handleGuildBuild(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin', 'guild-build', ':guildId']
+  const guildId = parts[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+  const url0 = new URL(req.url);
+  const apply = url0.searchParams.get('apply') === '1';
+
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return new Response('bad signature or guild not registered', { status: 401 });
+
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!token) return new Response('DISCORD_BOT_TOKEN missing', { status: 503 });
+
+  const { SERVER_SPEC } = await import('./server-spec.js');
+  const { applyServerSpec } = await import('./guild-builder.js');
+  const result = await applyServerSpec(token, guildId, SERVER_SPEC, { apply });
+  return new Response(JSON.stringify(result, null, 2), {
+    status: result.ok ? 200 : 207,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 // ---- helpers ------------------------------------------------------------
