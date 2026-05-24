@@ -63,6 +63,56 @@ export const COMMANDS = [
     name: 'quest',
     description: 'Your onboarding quest — checklist + reward status',
   },
+  // Productization — self-serve setup wizard for new tenants.
+  // MANAGE_GUILD gated. Subcommands: (none) = open wizard; channel =
+  // bind one channel; feature = toggle one feature; status = snapshot.
+  {
+    name: 'loadout-setup',
+    description: 'Set up Loadout for this server (channels, features, tenant registration)',
+    default_member_permissions: '32', // MANAGE_GUILD
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'channel',
+        description: 'Bind one Loadout channel slot',
+        options: [
+          { type: TYPE_STRING, name: 'slot', description: 'Slot id (e.g. ch_counting, ch_welcome, ch_support)', required: true,
+            choices: [
+              { name: 'Welcome',             value: 'ch_welcome' },
+              { name: 'Counting',            value: 'ch_counting' },
+              { name: 'Daily check-in',      value: 'ch_checkin' },
+              { name: 'Support / tickets',   value: 'ch_support' },
+              { name: 'Voice category',      value: 'cat_voice' },
+              { name: 'Join-to-create VC',   value: 'vc_join_to_create' },
+            ] },
+          { type: 7, name: 'channel', description: 'The channel to bind', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'feature',
+        description: 'Toggle one Loadout feature on/off',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'Feature id', required: true,
+            choices: [
+              { name: 'Counting game',         value: 'counting' },
+              { name: 'Daily check-in',        value: 'checkin' },
+              { name: 'Support tickets',       value: 'tickets' },
+              { name: 'Join-to-create voice',  value: 'temp-vc' },
+              { name: 'Welcome embed',         value: 'welcome' },
+              { name: 'Booster perks',         value: 'booster' },
+              { name: 'Boltbound card game',   value: 'boltbound' },
+              { name: 'Clash town builder',    value: 'clash' },
+              { name: 'Referrals + onboarding',value: 'referrals' },
+            ] },
+          { type: TYPE_STRING, name: 'state', description: 'on or off', required: true,
+            choices: [{ name: 'on', value: 'on' }, { name: 'off', value: 'off' }] },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'status',
+        description: 'Current Loadout setup state for this server',
+      },
+    ],
+  },
   // B8 — LFG slash command (same backing state as /web/lfg/create)
   {
     name: 'lfg',

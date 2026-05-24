@@ -95,6 +95,11 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleTempVcComponent } = await import('./temp-vc.js');
       return json(await handleTempVcComponent(env, data));
     }
+    if (cid.startsWith('setup:'))     {
+      // /loadout-setup wizard step buttons.
+      const { handleSetupComponent } = await import('./setup-wizard.js');
+      return json(await handleSetupComponent(env, data));
+    }
     if (cid.startsWith('hub:'))       return handleHubComponent(data, env);
     if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
     if (cid.startsWith('clash:'))     return json(await handleClashComponent(env, data));
@@ -239,6 +244,15 @@ export async function handleInteraction(req, env, body, ctx) {
       // Onboarding quest checklist + claim status (mirrors aquilo.gg/quest).
       const { handleQuestCommand } = await import('./quests.js');
       return json(await handleQuestCommand(env, data));
+    }
+
+    case 'loadout-setup': {
+      // Productization: self-serve setup wizard. MANAGE_GUILD gated
+      // (enforced by Discord via default_member_permissions on the
+      // command). Opens the wizard at step 1, or handles channel /
+      // feature / status subcommands.
+      const { handleSetupCommand } = await import('./setup-wizard.js');
+      return json(await handleSetupCommand(env, data));
     }
 
     case 'lfg': {

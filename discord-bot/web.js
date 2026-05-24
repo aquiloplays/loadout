@@ -176,6 +176,12 @@ const ROUTES = new Set([
   'quest/snapshot',          // POST — checklist with claim state
   'quest/claim',             // POST — claim one step (or 'all')
   'quest/mark-patreon-linked', // POST — flip the patreon-linked completion flag (called by site after OAuth)
+  // Productization — self-serve setup wizard (web parity with /loadout-setup).
+  'setup/snapshot',          // POST — full tenant + channel + feature state
+  'setup/init',              // POST — register the tenant (idempotent)
+  'setup/channel',           // POST — bind one channel slot
+  'setup/feature',           // POST — toggle one feature on/off
+  'setup/finish',            // POST — mark setup as complete
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -224,9 +230,15 @@ export async function handleWeb(req, env) {
   // (created via /setup) to use any /web/* route. Aquilo is grandfathered
   // in via env.AQUILO_VAULT_GUILD_ID. A forged session for a guild that
   // never ran /setup still 403s here.
-  const { isRegisteredTenant } = await import('./tenants.js');
-  if (!(await isRegisteredTenant(env, guildId))) {
-    return json({ error: 'guild-not-registered', message: 'This server has not completed /setup yet.' }, 403);
+  //
+  // Exception: setup/* routes bypass the gate because /setup is HOW a
+  // guild becomes a tenant. They're still HMAC-gated and discordId-
+  // bound, so only a logged-in user with site auth can hit them.
+  if (!route.startsWith('setup/')) {
+    const { isRegisteredTenant } = await import('./tenants.js');
+    if (!(await isRegisteredTenant(env, guildId))) {
+      return json({ error: 'guild-not-registered', message: 'This server has not completed /setup yet.' }, 403);
+    }
   }
 
   try {
@@ -297,6 +309,11 @@ export async function handleWeb(req, env) {
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
     if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
     if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
+    if (route === 'setup/snapshot')   return await routeSetupSnapshot(env, guildId, discordId);
+    if (route === 'setup/init')       return await routeSetupInit(env, guildId, discordId);
+    if (route === 'setup/channel')    return await routeSetupChannel(env, guildId, body);
+    if (route === 'setup/feature')    return await routeSetupFeature(env, guildId, body);
+    if (route === 'setup/finish')     return await routeSetupFinish(env, guildId, discordId);
     if (route === 'season/claim')          return await routeSeasonClaim(env, discordId, body);
     if (route.startsWith('expedition/')) {
       const sub = route.slice('expedition/'.length);
@@ -1460,6 +1477,33 @@ async function routeQuestClaim(env, guildId, discordId, body) {
   const { claimStep } = await import('./quests.js');
   const r = await claimStep(env, guildId, discordId, stepId);
   return json(r, r.ok ? 200 : 400);
+}
+
+// ── Self-serve setup wizard (web parity with /loadout-setup) ──────────
+
+async function routeSetupSnapshot(env, guildId, discordId) {
+  const { webSnapshot } = await import('./setup-wizard.js');
+  return json(await webSnapshot(env, guildId, discordId));
+}
+async function routeSetupInit(env, guildId, discordId) {
+  const { webInit } = await import('./setup-wizard.js');
+  return json(await webInit(env, guildId, discordId));
+}
+async function routeSetupChannel(env, guildId, body) {
+  // body: { discordId, guildId, slot, channelId }
+  const { webBindChannel } = await import('./setup-wizard.js');
+  const r = await webBindChannel(env, guildId, body);
+  return json(r, r.ok ? 200 : 400);
+}
+async function routeSetupFeature(env, guildId, body) {
+  // body: { discordId, guildId, id, enabled }
+  const { webToggleFeature } = await import('./setup-wizard.js');
+  const r = await webToggleFeature(env, guildId, body);
+  return json(r, r.ok ? 200 : 400);
+}
+async function routeSetupFinish(env, guildId, discordId) {
+  const { webFinish } = await import('./setup-wizard.js');
+  return json(await webFinish(env, guildId, discordId));
 }
 
 async function routeQuestMarkPatreonLinked(env, guildId, discordId) {
