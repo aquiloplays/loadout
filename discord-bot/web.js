@@ -220,11 +220,13 @@ export async function handleWeb(req, env) {
   if (!/^\d{5,25}$/.test(discordId)) return json({ error: 'bad-discord-id' }, 400);
   if (!/^\d{5,25}$/.test(guildId))   return json({ error: 'bad-guild-id' }, 400);
 
-  // Bot-side allow-list: only the Aquilo guild for now (matches /ext/*
-  // and the Patreon-link flow on the site). Other guilds calling here
-  // would imply someone forged a session, but we double-belt anyway.
-  if (env.AQUILO_VAULT_GUILD_ID && guildId !== String(env.AQUILO_VAULT_GUILD_ID)) {
-    return json({ error: 'forbidden-guild' }, 403);
+  // Bot-side multi-tenant gate. A guild must be a registered tenant
+  // (created via /setup) to use any /web/* route. Aquilo is grandfathered
+  // in via env.AQUILO_VAULT_GUILD_ID. A forged session for a guild that
+  // never ran /setup still 403s here.
+  const { isRegisteredTenant } = await import('./tenants.js');
+  if (!(await isRegisteredTenant(env, guildId))) {
+    return json({ error: 'guild-not-registered', message: 'This server has not completed /setup yet.' }, 403);
   }
 
   try {

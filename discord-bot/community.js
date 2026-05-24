@@ -249,42 +249,53 @@ export async function handleMembers(req, env, path) {
   const search = (url.searchParams.get('search') || '').toLowerCase().trim();
   const since = parseInt(url.searchParams.get('since') || '0', 10) || 0;
   const limit = Math.min(200, parseInt(url.searchParams.get('limit') || '100', 10) || 100);
+  const guildId = String(url.searchParams.get('guildId') || url.searchParams.get('guild_id') || '');
+  if (!/^\d{5,25}$/.test(guildId)) {
+    return json({ error: 'guildId required', message: 'pass ?guildId=<id> to scope members to a guild' }, 400);
+  }
+
+  // Multi-tenancy: only enumerate users who have a wallet in THIS
+  // guild. `pprofile:*` is account-wide (Patreon is a cross-guild
+  // user property), so without this filter a streamer-A admin would
+  // see every linked user in any other guild served by the same
+  // worker. Walk wallet:<guildId>:* first to derive the membership
+  // set, then resolve each to a pprofile.
+  const walletPrefix = `wallet:${guildId}:`;
+  const guildUserIds = new Set();
+  let wcursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: walletPrefix, cursor: wcursor, limit: 1000 });
+    for (const k of r.keys) guildUserIds.add(k.name.slice(walletPrefix.length));
+    if (r.list_complete || !r.cursor) break;
+    wcursor = r.cursor;
+  }
 
   const out = [];
-  let cursor;
   let scanned = 0;
-  for (let i = 0; i < 5; i++) {
-    const r = await env.LOADOUT_BOLTS.list({ prefix: 'pprofile:', cursor, limit: 1000 });
-    for (const k of r.keys) {
-      // Skip handle-index keys.
-      if (k.name.startsWith('pprofile:handle:')) continue;
-      scanned++;
-      const userId = k.name.slice('pprofile:'.length);
-      const p = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
-      if (!p) continue;
-      if (since && (p.lastSeenUtc || 0) < since) continue;
-      const display = p.displayName || `Player ${userId.slice(-4)}`;
-      const username = p.username || null;
-      if (search) {
-        const hay = (display + ' ' + (username || '')).toLowerCase();
-        if (!hay.includes(search)) continue;
-      }
-      const linkedCount = Object.keys(p.linkedAccounts || {})
-        .filter(plat => p.linkedAccounts[plat]?.id).length;
-      out.push({
-        userId,
-        displayName: display,
-        username,
-        linkedCount,
-        lastSeenUtc: p.lastSeenUtc || 0,
-      });
-      if (out.length >= limit) break;
+  for (const userId of guildUserIds) {
+    scanned++;
+    const p = await env.LOADOUT_BOLTS.get(`pprofile:${userId}`, { type: 'json' });
+    if (!p) continue;
+    if (since && (p.lastSeenUtc || 0) < since) continue;
+    const display = p.displayName || `Player ${userId.slice(-4)}`;
+    const username = p.username || null;
+    if (search) {
+      const hay = (display + ' ' + (username || '')).toLowerCase();
+      if (!hay.includes(search)) continue;
     }
-    if (out.length >= limit || r.list_complete) break;
-    cursor = r.cursor;
+    const linkedCount = Object.keys(p.linkedAccounts || {})
+      .filter(plat => p.linkedAccounts[plat]?.id).length;
+    out.push({
+      userId,
+      displayName: display,
+      username,
+      linkedCount,
+      lastSeenUtc: p.lastSeenUtc || 0,
+    });
+    if (out.length >= limit) break;
   }
   out.sort((a, b) => (b.lastSeenUtc || 0) - (a.lastSeenUtc || 0));
-  return json({ members: out, scanned, returned: out.length });
+  return json({ guildId, members: out, scanned, returned: out.length });
 }
 
 // ── Supporter-wall feeder (B1 integration) ─────────────────────────

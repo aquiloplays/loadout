@@ -70,36 +70,53 @@ function isKindEnabled(prefs, kind) {
 }
 
 // Resolve `audience` → concrete userId list. 'user' uses the supplied
-// userIds; 'all-patrons' walks patreon:tier:*; 'opted-in' walks
-// pprofile:* and pulls anyone with pushPrefs.discordDm true.
+// userIds; 'all-patrons' is the set of patrons WITH a wallet in this
+// guild; 'opted-in' is users with a wallet in this guild who haven't
+// opted DMs off. For multi-tenancy, both bulk audiences are
+// intersected with the calling guild's wallet:<guildId>:* membership
+// so streamer-A can't DM streamer-B's audience even with a shared
+// site-admin secret.
+async function listGuildWalletUsers(env, guildId) {
+  const prefix = `wallet:${guildId}:`;
+  const users = new Set();
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: 1000 });
+    for (const k of r.keys) users.add(k.name.slice(prefix.length));
+    if (r.list_complete || !r.cursor) break;
+    cursor = r.cursor;
+  }
+  return users;
+}
+
 async function resolveAudience(env, payload) {
   if (payload.audience === 'user') {
     return Array.isArray(payload.userIds) ? payload.userIds.filter(Boolean).map(String) : [];
   }
+
+  const guildId = String(payload.guildId || payload.guild_id || '');
+  if (!guildId || !/^\d{5,25}$/.test(guildId)) {
+    // Bulk audiences require a guild scope; refuse rather than fanning
+    // out globally across tenants.
+    return [];
+  }
+  const guildUsers = await listGuildWalletUsers(env, guildId);
+
   if (payload.audience === 'all-patrons') {
     const out = [];
-    let cursor;
-    for (let i = 0; i < 5; i++) {
-      const r = await env.LOADOUT_BOLTS.list({ prefix: 'patreon:tier:', cursor, limit: 1000 });
-      for (const k of r.keys) out.push(k.name.slice('patreon:tier:'.length));
-      if (r.list_complete) break;
-      cursor = r.cursor;
+    for (const userId of guildUsers) {
+      const tier = await env.LOADOUT_BOLTS.get(`patreon:tier:${userId}`, { type: 'json' });
+      if (tier) out.push(userId);
     }
     return out;
   }
   if (payload.audience === 'opted-in') {
     const out = [];
-    let cursor;
-    for (let i = 0; i < 5; i++) {
-      const r = await env.LOADOUT_BOLTS.list({ prefix: 'pprofile:', cursor, limit: 1000 });
-      for (const k of r.keys) {
-        if (k.name.startsWith('pprofile:handle:')) continue;
-        const p = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
-        if (p?.pushPrefs?.discordDm === false) continue;
-        out.push(k.name.slice('pprofile:'.length));
-      }
-      if (r.list_complete) break;
-      cursor = r.cursor;
+    for (const userId of guildUsers) {
+      const p = await env.LOADOUT_BOLTS.get(`pprofile:${userId}`, { type: 'json' });
+      if (!p) continue;
+      if (p?.pushPrefs?.discordDm === false) continue;
+      out.push(userId);
     }
     return out;
   }
