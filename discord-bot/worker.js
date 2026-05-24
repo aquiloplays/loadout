@@ -1377,22 +1377,39 @@ async function handleGuildAutomod(req, env, path) {
   // matches one we're about to create (so a re-run produces the same
   // end-state instead of "max rules exceeded"). Also clean up the
   // legacy "Slurs (Discord preset)" name that the first build created.
+  //
+  // PLUS: trigger types 4 (KEYWORD_PRESET) and 5 (MENTION_SPAM) are
+  // capped at 1 rule per type per guild. Whatever existing rule
+  // occupies those slots gets removed too — our managed rule has to
+  // be the single occupant for the create to succeed. (Name-match
+  // alone misses these when Discord normalises the stored name
+  // slightly differently than what we POSTed.)
   const existingRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/auto-moderation/rules`, {
     headers: { Authorization: 'Bot ' + token },
   });
   const existing = existingRes.ok ? await existingRes.json() : [];
   const targetNames = new Set([...rules.map(r => r.name), 'Slurs (Discord preset)', 'Sexual content (Discord preset)']);
+  const cappedTypes = new Set(rules.map(r => r.trigger_type).filter(t => t === 4 || t === 5));
   const deleted = [];
+  const deleteFailures = [];
   for (const r of existing) {
-    if (!targetNames.has(r.name)) continue;
+    const byName = targetNames.has(r.name);
+    const byCapType = cappedTypes.has(r.trigger_type);
+    if (!byName && !byCapType) continue;
     const d = await fetch(`https://discord.com/api/v10/guilds/${guildId}/auto-moderation/rules/${r.id}`, {
       method: 'DELETE', headers: { Authorization: 'Bot ' + token },
     });
-    if (d.ok) deleted.push({ name: r.name, id: r.id });
+    if (d.ok) {
+      deleted.push({ name: r.name, id: r.id, reason: byName ? 'name-match' : 'capped-type-slot' });
+    } else {
+      const t = await d.text();
+      deleteFailures.push({ name: r.name, id: r.id, status: d.status, body: t.slice(0, 200) });
+    }
     await new Promise(rr => setTimeout(rr, 250));
   }
 
   const created = [];
+  const patched = [];
   const errors = [];
   for (const rule of rules) {
     const r = await fetch(`https://discord.com/api/v10/guilds/${guildId}/auto-moderation/rules`, {
@@ -1401,15 +1418,51 @@ async function handleGuildAutomod(req, env, path) {
       body: JSON.stringify(rule),
     });
     const text = await r.text();
-    if (!r.ok) {
-      errors.push({ rule: rule.name, status: r.status, body: text.slice(0, 300) });
+    if (r.ok) {
+      try { created.push({ rule: rule.name, id: JSON.parse(text).id }); } catch { created.push({ rule: rule.name }); }
+      await new Promise(rr => setTimeout(rr, 250));
       continue;
     }
-    try { created.push({ rule: rule.name, id: JSON.parse(text).id }); } catch { created.push({ rule: rule.name }); }
+    // Fallback: if the create failed because the per-type cap is full
+    // (e.g. Discord pre-installs an undeletable Mention Spam rule on
+    // Community servers), find the existing rule of that trigger_type
+    // and PATCH it to our desired settings instead.
+    let isCapHit = false;
+    try {
+      const errBody = JSON.parse(text);
+      if (errBody?.errors?._errors?.some(e => e.code === 'AUTO_MODERATION_MAX_RULES_OF_TYPE_EXCEEDED')) {
+        isCapHit = true;
+      }
+    } catch { /* fall through */ }
+    if (isCapHit) {
+      const occupant = existing.find(e => e.trigger_type === rule.trigger_type);
+      if (occupant) {
+        const p = await fetch(`https://discord.com/api/v10/guilds/${guildId}/auto-moderation/rules/${occupant.id}`, {
+          method: 'PATCH',
+          headers: { Authorization: 'Bot ' + token, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: rule.name,
+            event_type: rule.event_type,
+            trigger_metadata: rule.trigger_metadata,
+            actions: rule.actions,
+            enabled: rule.enabled,
+          }),
+        });
+        if (p.ok) {
+          patched.push({ rule: rule.name, id: occupant.id, reason: 'cap-hit-patched-existing' });
+        } else {
+          const pt = await p.text();
+          errors.push({ rule: rule.name, status: p.status, body: pt.slice(0, 300) });
+        }
+        await new Promise(rr => setTimeout(rr, 250));
+        continue;
+      }
+    }
+    errors.push({ rule: rule.name, status: r.status, body: text.slice(0, 300) });
     await new Promise(rr => setTimeout(rr, 250));
   }
 
-  return new Response(JSON.stringify({ ok: errors.length === 0, deleted, created, errors }, null, 2), {
+  return new Response(JSON.stringify({ ok: errors.length === 0, deleted, deleteFailures, created, patched, errors }, null, 2), {
     status: errors.length === 0 ? 200 : 207,
     headers: { 'content-type': 'application/json' },
   });
