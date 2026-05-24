@@ -201,6 +201,17 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/ticket-panel/')) {
       return handleTicketPanelPost(req, env, path);
     }
+    // One-shot L8 deploy bootstrap. Token-gated via a KV-stored secret
+    // (`bootstrap-l8-token`) written by the operator immediately before
+    // calling this endpoint. The KV entry self-destructs on first
+    // successful use, so the endpoint is harmless without it. Does:
+    //   1. PUT slash commands (global + per-guild)
+    //   2. Post the ticket panel into 🛠️│support (looked up by name)
+    //   3. Backfill guild:cfg.ids with ch_introductions (looked up
+    //      by name) — vc_join_to_create + cat_voice already present.
+    if (method === 'POST' && path.startsWith('/admin/_bootstrap-l8/')) {
+      return handleBootstrapL8(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -1179,6 +1190,137 @@ async function handleListCommands(req, env, path) {
     count: summary.length,
     commands: summary,
   }), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// ---- /admin/_bootstrap-l8/:guildId  (one-shot KV token) -----------------
+//
+// Self-contained deploy step for the L8 feature batch. Token-gated via
+// `bootstrap-l8-token` in KV (written by the operator immediately
+// before calling). On first match, the KV entry is deleted so the
+// endpoint is single-use — leaving the route in place is harmless.
+//
+// Actions, in order:
+//   1. Re-register slash commands GLOBALLY (idempotent — picks up
+//      /ticket and any other newly-added entries in commands-spec.js).
+//   2. Look up the live channel list for :guildId, find:
+//        • 🛠️│support  (or any channel name containing "support")
+//        • 👋│introductions (welcome target)
+//   3. Post the ticket panel to the support channel.
+//   4. Backfill guild:cfg.ids with ch_introductions so the welcome
+//      handler resolves the channel without needing welcome-cfg.
+//
+// Returns a JSON summary of what was done + any non-fatal warnings.
+async function handleBootstrapL8(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_bootstrap-l8',':guildId']
+  const guildId = parts[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+
+  const u = new URL(req.url);
+  const got = u.searchParams.get('token') || '';
+  const expected = await env.LOADOUT_BOLTS.get('bootstrap-l8-token');
+  if (!expected) return new Response('bootstrap already consumed or never armed', { status: 410 });
+  if (!got || got !== expected) return new Response('bad token', { status: 401 });
+
+  // Single-use — burn the token before doing any side-effects so a
+  // partial failure can't be retried with the same token.
+  await env.LOADOUT_BOLTS.delete('bootstrap-l8-token');
+
+  const appId = env.DISCORD_APP_ID;
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!appId || !token) {
+    return new Response('worker not provisioned (DISCORD_APP_ID + DISCORD_BOT_TOKEN required)', { status: 503 });
+  }
+  const H = { Authorization: 'Bot ' + token };
+  const report = { guildId, steps: {} };
+
+  // 1) Re-register slash commands GLOBALLY (so /ticket lands in every
+  // guild the bot is in). Per-guild also pushed so it's instantly
+  // visible in :guildId (global propagation is ~1h).
+  for (const scope of ['global', 'guild']) {
+    const url = scope === 'guild'
+      ? `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`
+      : `https://discord.com/api/v10/applications/${appId}/commands`;
+    const r = await fetch(url, {
+      method: 'PUT',
+      headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify(COMMANDS),
+    });
+    const text = await r.text();
+    let parsed = null; try { parsed = JSON.parse(text); } catch {}
+    report.steps['register_' + scope] = {
+      ok: r.ok, status: r.status,
+      count: Array.isArray(parsed) ? parsed.length : null,
+      names: Array.isArray(parsed) ? parsed.map(c => c.name) : null,
+      error: r.ok ? null : text.slice(0, 200),
+    };
+  }
+
+  // 2) Channel lookup by name (case-insensitive, emoji-tolerant).
+  const chRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers: H });
+  if (!chRes.ok) {
+    report.steps.channels = { ok: false, status: chRes.status, error: (await chRes.text()).slice(0, 200) };
+    return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  const channels = await chRes.json();
+  function findChannelByContains(needle) {
+    const n = needle.toLowerCase();
+    return channels.find(c => (c.name || '').toLowerCase().includes(n));
+  }
+  const supportCh = findChannelByContains('support');
+  const introsCh  = findChannelByContains('introductions') || findChannelByContains('welcome');
+  report.steps.channels = {
+    support:        supportCh ? { id: supportCh.id, name: supportCh.name, type: supportCh.type } : null,
+    introductions:  introsCh  ? { id: introsCh.id,  name: introsCh.name,  type: introsCh.type  } : null,
+  };
+
+  // 3) Post ticket panel into support channel — only if it's a TEXT
+  // channel (type 0). The current 🛠️│support is a FORUM (type 15)
+  // from the original guild build; per Clay's spec it's being
+  // repurposed as the ticket-panel channel, so we POST regardless
+  // and let Discord reject if it's a forum.
+  if (supportCh) {
+    try {
+      const { postTicketPanel } = await import('./tickets.js');
+      const r = await postTicketPanel(env, guildId, supportCh.id);
+      report.steps.ticket_panel = { ok: !!r?.ok, result: r };
+    } catch (e) {
+      report.steps.ticket_panel = { ok: false, error: String(e?.message || e) };
+    }
+  } else {
+    report.steps.ticket_panel = { ok: false, error: 'no-support-channel-found' };
+  }
+
+  // 4) Backfill guild:cfg.ids.ch_introductions so the welcome handler
+  // resolves a channel without needing a separate welcome-cfg record.
+  // vc_join_to_create + cat_voice already exist in cfg.ids — confirm
+  // they're present and surface a warning if not.
+  const cfgKey = `guild:cfg:${guildId}`;
+  const cfg = (await env.LOADOUT_BOLTS.get(cfgKey, { type: 'json' })) || { ids: {} };
+  cfg.ids = cfg.ids || {};
+  const before = {
+    ch_introductions:   cfg.ids.ch_introductions || null,
+    vc_join_to_create:  cfg.ids.vc_join_to_create || null,
+    cat_voice:          cfg.ids.cat_voice || null,
+  };
+  if (introsCh && !cfg.ids.ch_introductions) {
+    cfg.ids.ch_introductions = introsCh.id;
+  }
+  await env.LOADOUT_BOLTS.put(cfgKey, JSON.stringify(cfg));
+  report.steps.guild_cfg = {
+    ok: true,
+    before, after: {
+      ch_introductions:   cfg.ids.ch_introductions || null,
+      vc_join_to_create:  cfg.ids.vc_join_to_create || null,
+      cat_voice:          cfg.ids.cat_voice || null,
+    },
+    warnings: [
+      !cfg.ids.vc_join_to_create ? 'vc_join_to_create missing — temp VCs will skip' : null,
+      !cfg.ids.cat_voice         ? 'cat_voice missing — new temp VCs will land at root'  : null,
+      !cfg.ids.ch_introductions  ? 'ch_introductions missing — welcome embed has no target' : null,
+    ].filter(Boolean),
+  };
+
+  return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
 // ---- /admin/guild-inventory/:guildId ------------------------------------
