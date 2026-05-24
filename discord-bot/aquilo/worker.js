@@ -163,6 +163,59 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     }
   }
 
+  // Gateway-forwarded GUILD_MEMBER_ADD — drives the welcome embed.
+  // Same shared-secret auth as /counting/message.
+  // Payload (Discord GUILD_MEMBER_ADD slim subset):
+  //   { guild_id, user: { id, username, global_name, avatar, bot } }
+  if (method === 'POST' && path === '/member/joined') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleMemberJoined } = await import('../welcome.js');
+      const result = await handleMemberJoined(env, payload);
+      return json({ ok: true, welcome: result });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
+  // Gateway-forwarded GUILD_MEMBER_UPDATE — drives booster perks.
+  // Payload (slim): { guild_id, user, premium_since, roles }
+  if (method === 'POST' && path === '/member/updated') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleMemberUpdated } = await import('../boosters.js');
+      const result = await handleMemberUpdated(env, payload);
+      return json({ ok: true, booster: result });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
+  // Gateway-forwarded VOICE_STATE_UPDATE — drives temp-VC create/cleanup.
+  // Payload (slim): { guild_id, channel_id, user_id, session_id }
+  if (method === 'POST' && path === '/voice/state') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleVoiceStateUpdate } = await import('../temp-vc.js');
+      const result = await handleVoiceStateUpdate(env, payload);
+      return json({ ok: true, voice: result });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
   // Gateway-forwarded MESSAGE_REACTION_ADD — drives the ⭐ starboard.
   // Same shared-secret auth as /counting/message (aquilo-presence
   // sends both with the same COUNTING_WEBHOOK_SECRET header).
