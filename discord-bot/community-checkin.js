@@ -3,9 +3,9 @@
 // This is check-in #1, the "community daily check-in." It is DISTINCT
 // from the Twitch-extension stream check-in in ext.js (which lives on
 // `checkin:<g>:<u>` with `tw:<twitchId>` userIds and protects with the
-// 'stream'-type freeze) and from the Discord pic-attachment check-in
-// in aquilo-bot/checkin.js (which is being superseded; see notes
-// below).
+// 'stream'-type freeze). The earlier Discord pic-attachment check-in
+// in aquilo-bot/checkin.js was retired 2026-05 — this module is the
+// single Discord-side community check-in going forward.
 //
 // User-facing contract (per Clay):
 //   • A viewer can check in from aquilo.gg OR from Discord — the two

@@ -139,8 +139,11 @@ export async function handleAquiloHttp(req, env, ctx, url) {
 
   // Counting game webhook from aquilo-presence. Fail-closed if the
   // shared COUNTING_WEBHOOK_SECRET isn't configured. Fans out to clip
-  // tracker + check-in handler (each no-ops when its channel doesn't
-  // match).
+  // tracker + community-chat ringbuffer (each no-ops when its channel
+  // doesn't match). The legacy Discord pic-attachment check-in
+  // previously fanned out from here as well — retired 2026-05 in
+  // favour of the unified daily check-in (community-checkin.js on
+  // loadout-discord, surfaced as both /checkin and POST /web/checkin).
   if (method === 'POST' && path === '/counting/message') {
     if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
     const got = req.headers.get('x-counting-secret') || '';
@@ -150,14 +153,12 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     try {
       const counting = await handleCountingMessage(env, payload);
       const clip = await trackClipMessage(env, payload).catch(() => ({ tracked: false }));
-      const { handleCheckinMessage } = await import('./checkin.js');
-      const checkin = await handleCheckinMessage(env, payload).catch(e => ({ error: String(e?.message || e) }));
       // Community-chat ringbuffer — drops the message into KV if the
       // channel is in COMMUNITY_CHAT_CHANNELS_JSON. The /community/chat
       // public-read endpoint serves this back to the website.
       const { handleCommunityChatMessage } = await import('./community-chat.js');
       const chat = await handleCommunityChatMessage(env, payload).catch(e => ({ stored: false, error: String(e?.message || e) }));
-      return json({ ok: true, counting, clip, checkin, chat });
+      return json({ ok: true, counting, clip, chat });
     } catch (e) {
       return json({ error: String(e.message || e) }, 500);
     }
