@@ -182,6 +182,7 @@ const ROUTES = new Set([
   'setup/channel',           // POST — bind one channel slot
   'setup/feature',           // POST — toggle one feature on/off
   'setup/finish',            // POST — mark setup as complete
+  'setup/branding',          // POST — { op: 'get' | undefined, brand: {...} }
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -314,6 +315,7 @@ export async function handleWeb(req, env) {
     if (route === 'setup/channel')    return await routeSetupChannel(env, guildId, body);
     if (route === 'setup/feature')    return await routeSetupFeature(env, guildId, body);
     if (route === 'setup/finish')     return await routeSetupFinish(env, guildId, discordId);
+    if (route === 'setup/branding')   return await routeSetupBranding(env, guildId, body);
     if (route === 'season/claim')          return await routeSeasonClaim(env, discordId, body);
     if (route.startsWith('expedition/')) {
       const sub = route.slice('expedition/'.length);
@@ -1504,6 +1506,16 @@ async function routeSetupFeature(env, guildId, body) {
 async function routeSetupFinish(env, guildId, discordId) {
   const { webFinish } = await import('./setup-wizard.js');
   return json(await webFinish(env, guildId, discordId));
+}
+async function routeSetupBranding(env, guildId, body) {
+  // POST { discordId, guildId, op: 'get' }  →  read merged branding
+  // POST { discordId, guildId, brand: { siteUrl?, accentColor?, ... } } → upsert
+  const { getBranding, putBranding } = await import('./branding.js');
+  if (body && body.op === 'get') {
+    return json({ ok: true, branding: await getBranding(env, guildId) });
+  }
+  const r = await putBranding(env, guildId, body?.brand || {});
+  return json(r, r.ok ? 200 : 400);
 }
 
 async function routeQuestMarkPatreonLinked(env, guildId, discordId) {

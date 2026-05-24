@@ -51,13 +51,15 @@ export const STREAK_MILESTONES = [
   { day: 100, amount: 50, label: '100-day streak!' },
 ];
 
-// Brand default. Site can override per-user via the saved card.
+// Brand defaults. Per-guild overrides via branding.js (getBranding);
+// per-user overrides via the saved checkin-card record (highest
+// precedence). Kept here as the final fallback.
 const DEFAULT_ACCENT = 0xF47FFF;
 const DEFAULT_IMAGE_URL =
   'https://aquilo.gg/sprites/checkin/default-card.png';
-// Where the website hosts the "customise your card" page. Surfaced in
-// the embed only when the user has no card config yet.
-const CUSTOMISE_URL = 'https://aquilo.gg/checkin';
+// Where the website hosts the "customise your card" page — derived
+// per-guild from branding.siteUrl at call time.
+const CUSTOMISE_PATH = '/checkin';
 
 // ── ET-day plumbing ────────────────────────────────────────────────────
 // Streak boundary is midnight US-Eastern, per Clay. Intl.DateTimeFormat
@@ -163,8 +165,13 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   const channel = await getCheckinChannel(env, guildId);
   if (!channel?.channelId) return { posted: false, reason: 'channel-unbound' };
 
-  const accent  = (card?.accentColor != null ? card.accentColor : DEFAULT_ACCENT);
-  const image   = card?.imageUrl || DEFAULT_IMAGE_URL;
+  // Per-guild branding (siteUrl, accent, defaultImage). Card-level
+  // override (if the user customised) wins over branding which wins
+  // over the global defaults at the top of this file.
+  const { getBranding } = await import('./branding.js');
+  const brand   = await getBranding(env, guildId);
+  const accent  = (card?.accentColor != null ? card.accentColor : (brand.accentColor || DEFAULT_ACCENT));
+  const image   = card?.imageUrl || brand.checkinDefaultImageUrl || DEFAULT_IMAGE_URL;
   const display = member?.displayName || 'friend';
   const avatar  = member?.avatar      || avatarUrl(userId, null);
 
@@ -179,7 +186,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   if (card?.subtitle) lines.push(card.subtitle);
   if (isFirstTimeNoCard) {
     lines.push('');
-    lines.push(`✨ _Customise your check-in card at_ ${CUSTOMISE_URL}`);
+    lines.push(`✨ _Customise your check-in card at_ ${brand.siteUrl}${CUSTOMISE_PATH}`);
   }
 
   const embed = {

@@ -85,20 +85,26 @@ export async function handleMemberJoined(env, payload) {
 
   const displayName = payload.user.global_name || payload.user.username || 'friend';
   const avatar = avatarUrl(userId, payload.user.avatar);
-  const accent = cfg?.accentColor || BRAND_ACCENT_COLOR;
-  const backdrop = cfg?.backdropUrl || DEFAULT_BACKDROP_URL;
+  // Per-guild branding overrides — falls back to Aquilo defaults if
+  // the tenant hasn't customised any of these.
+  const { getBranding } = await import('./branding.js');
+  const brand = await getBranding(env, guildId);
+  // Per-guild welcome-cfg can still override branding (cfg wins),
+  // matching the existing precedence: cfg overrides > brand > defaults.
+  const accent   = cfg?.accentColor || brand.accentColor;
+  const backdrop = cfg?.backdropUrl || brand.welcomeBackdropUrl;
 
   const embed = {
-    title: `✨ Welcome to aquilo.gg, ${displayName}!`,
+    title: `✨ Welcome to ${brand.brandName}, ${displayName}!`,
     description:
       `You're our **${ordinal(seq)} member** to join. 🎉\n\n` +
       `Read the rules in <#${guildCfg?.ids?.ch_rules || ''}>, pick up roles in ` +
       `<#${guildCfg?.ids?.ch_roles || ''}>, and say hi in this channel!\n\n` +
-      `🎯 **Start your onboarding quest** at https://aquilo.gg/quest — four quick steps with a bolts reward at each.`,
+      `🎯 **Start your onboarding quest** at ${brand.siteUrl}/quest — four quick steps with a bolts reward at each.`,
     color: accent,
     thumbnail: { url: avatar },
     image: { url: backdrop },
-    footer: { text: `Member #${seq} · aquilo.gg` },
+    footer: { text: `Member #${seq} · ${brand.brandName}` },
     timestamp: new Date().toISOString(),
   };
 
