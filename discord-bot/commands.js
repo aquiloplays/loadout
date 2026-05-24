@@ -126,6 +126,10 @@ export async function handleInteraction(req, env, body, ctx) {
     const cid = data.data?.custom_id || '';
     if (cid.startsWith('hub:modal:')) return handleHubModal(data, env);
     if (cid.startsWith('modal:'))     return dispatchAquiloInteraction(data, env, ctx);
+    if (cid.startsWith('tempvc:')) {
+      const { handleTempVcModal } = await import('./temp-vc.js');
+      return json(await handleTempVcModal(env, data));
+    }
     return handleModal(data, env);
   }
   if (data.type !== TYPE_APPLICATION_CMD) {

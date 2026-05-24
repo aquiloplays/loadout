@@ -216,6 +216,24 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     }
   }
 
+  // Gateway-shim signal: a tracked temp VC's occupancy dropped to zero.
+  // Payload: { guild_id, channel_id }. aquilo-presence tracks per-channel
+  // member counts and POSTs here when a temp-vc room empties.
+  if (method === 'POST' && path === '/voice/empty') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleTempVcEmpty } = await import('../temp-vc.js');
+      const result = await handleTempVcEmpty(env, payload);
+      return json({ ok: true, voice: result });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
   // Gateway-forwarded MESSAGE_REACTION_ADD — drives the ⭐ starboard.
   // Same shared-secret auth as /counting/message (aquilo-presence
   // sends both with the same COUNTING_WEBHOOK_SECRET header).
