@@ -171,7 +171,10 @@ export async function handleQuestCommand(env, data) {
     return { type: 4, data: { content: 'Run this in a server.', flags: 64 } };
   }
   const snap = await getSnapshot(env, guildId, userId);
-  const lines = ['🎯  **Onboarding quest**', ''];
+  // User-facing copy says "Welcome Checklist" (matches the website
+  // rename); the slash command name, KV namespace, and step ids
+  // still say "quest" for stability.
+  const lines = ['🎯  **Welcome Checklist**', ''];
   for (const s of snap.steps) {
     const tick =
       s.claimed   ? '✅'
@@ -181,14 +184,14 @@ export async function handleQuestCommand(env, data) {
     const reward = s.reward.pack
       ? `${s.reward.bolts} bolts + ${s.reward.pack} pack`
       : `${s.reward.bolts} bolts`;
-    lines.push(`${tick}  ${s.label}  · _${reward}_${s.claimable ? '  **← claim on aquilo.gg/quest**' : ''}`);
+    lines.push(`${tick}  ${s.label}  · _${reward}_${s.claimable ? '  **← claim on aquilo.gg/welcome**' : ''}`);
   }
   if (snap.summary.pendingClaims) {
     lines.push('');
-    lines.push(`🎁  **${snap.summary.pendingClaims}** reward${snap.summary.pendingClaims === 1 ? '' : 's'} ready (${snap.summary.totalAvailableBolts} bolts) — collect on https://aquilo.gg/quest`);
+    lines.push(`🎁  **${snap.summary.pendingClaims}** reward${snap.summary.pendingClaims === 1 ? '' : 's'} ready (${snap.summary.totalAvailableBolts} bolts) — collect on https://aquilo.gg/welcome`);
   } else if (snap.summary.claimed === snap.summary.total) {
     lines.push('');
-    lines.push('🏁  All quest steps complete — welcome to the community!');
+    lines.push('🏁  Welcome Checklist complete — welcome to the community!');
   }
   return { type: 4, data: { content: lines.join('\n'), flags: 64 } };
 }

@@ -183,6 +183,9 @@ const ROUTES = new Set([
   'setup/feature',           // POST — toggle one feature on/off
   'setup/finish',            // POST — mark setup as complete
   'setup/branding',          // POST — { op: 'get' | undefined, brand: {...} }
+  // Two-way Discord ↔ PWA chat relay (write side).
+  'chat/send',               // POST — { channelId, content } → webhook post styled as caller
+  'chat/recent',             // POST — { channelId, limit? } → ringbuffer + per-msg sentViaPwa decoration
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -316,6 +319,8 @@ export async function handleWeb(req, env) {
     if (route === 'setup/feature')    return await routeSetupFeature(env, guildId, body);
     if (route === 'setup/finish')     return await routeSetupFinish(env, guildId, discordId);
     if (route === 'setup/branding')   return await routeSetupBranding(env, guildId, body);
+    if (route === 'chat/send')        return await routeChatSend(env, guildId, discordId, body);
+    if (route === 'chat/recent')      return await routeChatRecent(env, guildId, discordId, body);
     if (route === 'season/claim')          return await routeSeasonClaim(env, discordId, body);
     if (route.startsWith('expedition/')) {
       const sub = route.slice('expedition/'.length);
@@ -1507,6 +1512,27 @@ async function routeSetupFinish(env, guildId, discordId) {
   const { webFinish } = await import('./setup-wizard.js');
   return json(await webFinish(env, guildId, discordId));
 }
+// ── Discord ↔ PWA chat relay ─────────────────────────────────────────
+
+async function routeChatSend(env, guildId, discordId, body) {
+  // POST { discordId, guildId, channelId, content }
+  const channelId = String((body && body.channelId) || '');
+  const content   = String((body && body.content) || '');
+  if (!channelId || !content) return json({ ok: false, error: 'channelId+content required' }, 400);
+  const { sendFromPwa } = await import('./chat-relay.js');
+  const r = await sendFromPwa(env, { discordId, guildId, channelId, content });
+  return json(r, r.ok ? 200 : (r.error === 'rate-limited' ? 429 : 400));
+}
+
+async function routeChatRecent(env, guildId, discordId, body) {
+  // POST { discordId, guildId, channelId, limit? }
+  const channelId = String((body && body.channelId) || '');
+  if (!channelId) return json({ ok: false, error: 'channelId required' }, 400);
+  const limit = body && Number(body.limit) || 25;
+  const { recentForPwa } = await import('./chat-relay.js');
+  return json(await recentForPwa(env, { channelId, limit, discordId }));
+}
+
 async function routeSetupBranding(env, guildId, body) {
   // POST { discordId, guildId, op: 'get' }  →  read merged branding
   // POST { discordId, guildId, brand: { siteUrl?, accentColor?, ... } } → upsert

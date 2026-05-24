@@ -61,7 +61,7 @@ export const COMMANDS = [
   },
   {
     name: 'quest',
-    description: 'Your onboarding quest — checklist + reward status',
+    description: 'Your Welcome Checklist — steps + reward status',
   },
   // Productization — self-serve setup wizard for new tenants.
   // MANAGE_GUILD gated. Subcommands: (none) = open wizard; channel =
