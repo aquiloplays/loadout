@@ -183,6 +183,9 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/register-commands/')) {
       return handleRegisterCommands(req, env, path);
     }
+    if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
+      return handleListCommands(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -1051,30 +1054,53 @@ async function handleSyncInit(req, env, guildId) {
 // into the deployed Worker. Returns Discord's response so the caller can
 // confirm the new command count.
 
+// Verify the request via either the per-guild HMAC secret (DLL install
+// path, header `x-loadout-{ts,sig}`) OR the shared site-admin
+// HMAC secret (`x-aquilo-web-{ts,sig}`, AQUILO_SITE_WEB_SECRET). The
+// guildId in the URL determines which per-guild secret to try; if
+// that guild isn't registered, the site-admin secret is the fallback.
+async function verifyAdminAuth(req, env, guildId, body) {
+  // Try per-guild first (DLL-installed bots).
+  const lts = req.headers.get('x-loadout-ts');
+  const lsig = req.headers.get('x-loadout-sig');
+  if (lts && lsig) {
+    const stored = await getSecret(env, guildId);
+    if (stored?.secret) {
+      const ok = await verifyHmac(stored.secret, lts, body, lsig);
+      if (ok) return { ok: true, via: 'guild' };
+    }
+  }
+  // Fall back to the site-admin HMAC (the same secret /web/* uses).
+  const wts = req.headers.get('x-aquilo-web-ts');
+  const wsig = req.headers.get('x-aquilo-web-sig');
+  if (wts && wsig && env.AQUILO_SITE_WEB_SECRET) {
+    const ok = await verifyHmac(env.AQUILO_SITE_WEB_SECRET, wts, body, wsig);
+    if (ok) return { ok: true, via: 'site' };
+  }
+  return { ok: false };
+}
+
 async function handleRegisterCommands(req, env, path) {
-  // Parse guildId out of /admin/register-commands/:guildId so we can
-  // verify the HMAC against THAT guild's secret.
   const parts = path.split('/').filter(Boolean);   // ['admin', 'register-commands', ':guildId']
   const guildId = parts[2];
   if (!guildId) return new Response('guildId required', { status: 400 });
+  const url0 = new URL(req.url);
+  const scope = (url0.searchParams.get('scope') || 'global').toLowerCase(); // 'global' | 'guild'
 
-  const ts  = req.headers.get('x-loadout-ts');
-  const sig = req.headers.get('x-loadout-sig');
   const body = await req.text();
-  const stored = await getSecret(env, guildId);
-  if (!stored?.secret) return new Response('guild not registered', { status: 404 });
-  const ok = await verifyHmac(stored.secret, ts || '', body, sig || '');
-  if (!ok) return new Response('bad signature', { status: 401 });
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return new Response('bad signature or guild not registered', { status: 401 });
 
   const appId = env.DISCORD_APP_ID;
   const token = env.DISCORD_BOT_TOKEN;
   if (!appId || !token)
     return new Response('worker not provisioned (DISCORD_APP_ID + DISCORD_BOT_TOKEN required)', { status: 503 });
 
-  // Discord's PUT /applications/:id/commands replaces the entire global
-  // command set with the body, which is exactly what we want — push
-  // commands-spec.js as the canonical list.
-  const url = `https://discord.com/api/v10/applications/${appId}/commands`;
+  // PUT replaces the entire command set with the body. For scope=guild
+  // the registration is instant; global propagates over ~1 hour.
+  const url = scope === 'guild'
+    ? `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`
+    : `https://discord.com/api/v10/applications/${appId}/commands`;
   const r = await fetch(url, {
     method: 'PUT',
     headers: { 'Authorization': 'Bot ' + token, 'Content-Type': 'application/json' },
@@ -1082,11 +1108,62 @@ async function handleRegisterCommands(req, env, path) {
   });
   const text = await r.text();
   if (!r.ok)
-    return new Response(JSON.stringify({ ok: false, status: r.status, body: text.slice(0, 800) }),
+    return new Response(JSON.stringify({ ok: false, scope, status: r.status, body: text.slice(0, 800) }),
                         { status: 502, headers: { 'content-type': 'application/json' } });
 
-  return new Response(JSON.stringify({ ok: true, registered: COMMANDS.length, status: r.status }),
-                      { status: 200, headers: { 'content-type': 'application/json' } });
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { parsed = null; }
+  const names = Array.isArray(parsed) ? parsed.map(c => c.name) : null;
+  return new Response(JSON.stringify({
+    ok: true,
+    scope,
+    guildId: scope === 'guild' ? guildId : null,
+    registered: Array.isArray(parsed) ? parsed.length : COMMANDS.length,
+    via: auth.via,
+    commands: names,
+    status: r.status,
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// GET the currently-registered commands (global by default,
+// ?scope=guild for the per-guild set). Same auth as register.
+async function handleListCommands(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin', 'list-commands', ':guildId']
+  const guildId = parts[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+  const url0 = new URL(req.url);
+  const scope = (url0.searchParams.get('scope') || 'global').toLowerCase();
+
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return new Response('bad signature or guild not registered', { status: 401 });
+
+  const appId = env.DISCORD_APP_ID;
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!appId || !token)
+    return new Response('worker not provisioned (DISCORD_APP_ID + DISCORD_BOT_TOKEN required)', { status: 503 });
+
+  const url = scope === 'guild'
+    ? `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`
+    : `https://discord.com/api/v10/applications/${appId}/commands`;
+  const r = await fetch(url, { headers: { 'Authorization': 'Bot ' + token } });
+  const text = await r.text();
+  if (!r.ok)
+    return new Response(JSON.stringify({ ok: false, scope, status: r.status, body: text.slice(0, 800) }),
+                        { status: 502, headers: { 'content-type': 'application/json' } });
+
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { parsed = null; }
+  const summary = Array.isArray(parsed)
+    ? parsed.map(c => ({ id: c.id, name: c.name, description: c.description, type: c.type, options: (c.options || []).map(o => o.name) }))
+    : [];
+  return new Response(JSON.stringify({
+    ok: true,
+    scope,
+    guildId: scope === 'guild' ? guildId : null,
+    count: summary.length,
+    commands: summary,
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
 // ---- helpers ------------------------------------------------------------
