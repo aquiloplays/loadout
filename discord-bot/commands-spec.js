@@ -40,6 +40,14 @@ export const COMMANDS = [
     name: 'voice',
     description: 'Create a personal voice channel; auto-deletes after a while when empty',
   },
+  // L8 — Ticketing
+  {
+    name: 'ticket',
+    description: 'Open a private support ticket',
+    options: [
+      { type: TYPE_STRING, name: 'topic', description: 'What\'s the ticket about? (optional)', required: false },
+    ],
+  },
   // B8 — LFG slash command (same backing state as /web/lfg/create)
   {
     name: 'lfg',

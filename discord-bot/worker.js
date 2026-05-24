@@ -198,6 +198,9 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/guild-automod/')) {
       return handleGuildAutomod(req, env, path);
     }
+    if (method === 'POST' && path.startsWith('/admin/ticket-panel/')) {
+      return handleTicketPanelPost(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -1464,6 +1467,29 @@ async function handleGuildAutomod(req, env, path) {
 
   return new Response(JSON.stringify({ ok: errors.length === 0, deleted, deleteFailures, created, patched, errors }, null, 2), {
     status: errors.length === 0 ? 200 : 207,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+// ---- /admin/ticket-panel/:guildId  (HMAC) --------------------------------
+// Body: { channelId: "<id>" } — posts the ticket-panel button in that
+// channel and remembers it as the panel target for future reposts /
+// stale-message replacement.
+async function handleTicketPanelPost(req, env, path) {
+  const guildId = path.split('/').filter(Boolean)[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+  const bodyText = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, bodyText);
+  if (!auth.ok) return new Response('bad signature', { status: 401 });
+  if (!env.DISCORD_BOT_TOKEN) return new Response('DISCORD_BOT_TOKEN missing', { status: 503 });
+  let body;
+  try { body = JSON.parse(bodyText || '{}'); } catch { body = {}; }
+  const channelId = String(body.channelId || '').trim();
+  if (!/^\d{5,25}$/.test(channelId)) return new Response('bad channelId', { status: 400 });
+  const { postTicketPanel } = await import('./tickets.js');
+  const result = await postTicketPanel(env, guildId, channelId);
+  return new Response(JSON.stringify(result, null, 2), {
+    status: result.ok ? 200 : 502,
     headers: { 'content-type': 'application/json' },
   });
 }

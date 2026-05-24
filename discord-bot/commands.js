@@ -87,6 +87,14 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleGuildComponent } = await import('./guild-features.js');
       return json(await handleGuildComponent(env, data));
     }
+    if (cid.startsWith('ticket:'))    {
+      const { handleTicketComponent } = await import('./tickets.js');
+      return json(await handleTicketComponent(env, data));
+    }
+    if (cid.startsWith('tempvc:'))    {
+      const { handleTempVcComponent } = await import('./temp-vc.js');
+      return json(await handleTempVcComponent(env, data));
+    }
     if (cid.startsWith('hub:'))       return handleHubComponent(data, env);
     if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
     if (cid.startsWith('clash:'))     return json(await handleClashComponent(env, data));
@@ -201,6 +209,13 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleVoiceSlash } = await import('./voice-temp.js');
       const text = await handleVoiceSlash(env, guild, userId, userName);
       return json({ type: 4, data: { content: text, flags: 64 } });
+    }
+
+    case 'ticket': {
+      // L8 — Support ticketing. Opens a private channel visible only
+      // to the opener + 🛡️ Moderator.
+      const { handleTicketCommand } = await import('./tickets.js');
+      return json(await handleTicketCommand(env, data));
     }
 
     case 'lfg': {
