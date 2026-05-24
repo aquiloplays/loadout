@@ -162,12 +162,18 @@ async function saveQueue(env, game, guildId, list) {
 
 import { adapter as connect4 } from './boardgames-connect4.js';
 import { adapter as checkers } from './boardgames-checkers.js';
-import { adapter as chess } from './boardgames-chess.js';
+import { adapter as chess }    from './boardgames-chess.js';
+import { adapter as tanks }    from './boardgames-tanks.js';
 
 const ADAPTERS = {
   connect4,
   checkers,
   chess,
+  // Turn-based artillery PvP (Pocket Tanks-style). Uses the same
+  // applyMove/redactMatch lifecycle; per-shot rich data lives on
+  // state.lastShot so the PWA can replay the trajectory + crater +
+  // damages from the redacted match snapshot alone.
+  tanks,
 };
 
 export function getAdapter(game) {
@@ -636,9 +642,10 @@ export async function getStatsFor(env, userId, _guildId = null) {
     primary: { label: 'W/L', value: `${wins}-${played - wins}` },
     secondary: [
       { label: 'Win rate', value: winRate + '%' },
-      { label: 'Chess', value: `${byGame.chess?.won || 0}/${byGame.chess?.played || 0}` },
+      { label: 'Chess',    value: `${byGame.chess?.won    || 0}/${byGame.chess?.played    || 0}` },
       { label: 'Checkers', value: `${byGame.checkers?.won || 0}/${byGame.checkers?.played || 0}` },
-      { label: 'Connect 4', value: `${byGame.connect4?.won || 0}/${byGame.connect4?.played || 0}` },
+      { label: 'Connect 4',value: `${byGame.connect4?.won || 0}/${byGame.connect4?.played || 0}` },
+      { label: 'Tanks',    value: `${byGame.tanks?.won    || 0}/${byGame.tanks?.played    || 0}` },
     ],
     iconKind: 'board-pawn',
   };
