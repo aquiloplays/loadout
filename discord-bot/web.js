@@ -170,6 +170,12 @@ const ROUTES = new Set([
   'checkin/status',          // POST — read streak + card + pending bonuses
   'checkin/card',            // POST — upsert the user's embed card config
   'checkin/bonus/collect',   // POST — claim one bonus (or 'all')
+  // New-viewer funnel — referrals + onboarding quest.
+  'referral/me',             // POST — my code + stats
+  'referral/attribute',      // POST — record that this user was referred by CODE
+  'quest/snapshot',          // POST — checklist with claim state
+  'quest/claim',             // POST — claim one step (or 'all')
+  'quest/mark-patreon-linked', // POST — flip the patreon-linked completion flag (called by site after OAuth)
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -284,6 +290,11 @@ export async function handleWeb(req, env) {
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
     if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
     if (route === 'checkin/bonus/collect') return await routeCommunityCheckinBonusCollect(env, guildId, discordId, body);
+    if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
+    if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
+    if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
+    if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
+    if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
     if (route === 'season/claim')          return await routeSeasonClaim(env, discordId, body);
     if (route.startsWith('expedition/')) {
       const sub = route.slice('expedition/'.length);
@@ -315,7 +326,19 @@ async function routeWallet(env, guildId, userId) {
   });
 }
 
+// Fire-and-forget "you've played a game" hook for the onboarding
+// quest. Called from every game-play route; idempotent (markGamePlayed
+// is just a KV put). Wrapped in a catch so a quest-module failure
+// can't break the actual game route.
+async function noteGamePlayed(env, guildId, userId) {
+  try {
+    const { markGamePlayed } = await import('./quests.js');
+    await markGamePlayed(env, guildId, userId);
+  } catch { /* idle */ }
+}
+
 async function routeDaily(env, guildId, userId) {
+  await noteGamePlayed(env, guildId, userId);
   const r = await daily(env, guildId, userId);
   if (r.won) {
     // games_won bumps on a successful daily so the recap card's
@@ -340,6 +363,7 @@ async function routeDaily(env, guildId, userId) {
 }
 
 async function routeCoinflip(env, guildId, userId, body) {
+  await noteGamePlayed(env, guildId, userId);
   const bet = Number(body && body.bet);
   if (!Number.isFinite(bet) || bet <= 0) {
     return json({ ok: false, error: 'bad-bet', explanation: 'Bet must be a positive number.' }, 400);
@@ -703,6 +727,7 @@ async function routeDungeonSkip(env, guildId, userId) {
 }
 
 async function routeDice(env, guildId, userId, body) {
+  await noteGamePlayed(env, guildId, userId);
   const bet = Number(body && body.bet);
   const target = Number(body && body.target);
   if (!Number.isFinite(bet) || bet <= 0) {
@@ -1394,4 +1419,58 @@ async function routeCommunityCheckinBonusCollect(env, guildId, discordId, body) 
   const { collectBonus } = await import('./community-checkin.js');
   const r = await collectBonus(env, guildId, discordId, id);
   return json(r, r.ok ? 200 : 400);
+}
+
+// ── Referrals + onboarding quest (new-viewer funnel) ──────────────────
+
+async function routeReferralMe(env, guildId, discordId) {
+  const { getOrMintCode, getReferrerStats } = await import('./referrals.js');
+  const code  = await getOrMintCode(env, guildId, discordId);
+  const stats = await getReferrerStats(env, guildId, discordId);
+  return json({
+    ok:        true,
+    code,
+    link:      `https://aquilo.gg/?ref=${code}`,
+    stats,     // { count, paid, lastUtc, history: [...] }
+  });
+}
+
+async function routeReferralAttribute(env, guildId, discordId, body) {
+  // POST { discordId, guildId, refCode }
+  // Site calls this when the user lands via /?ref=CODE and then
+  // completes Patreon-link (i.e. the worker has a stable discordId).
+  // First-attribution-wins; self-referral refused.
+  const refCode = String((body && body.refCode) || '').toUpperCase().trim();
+  if (!refCode) return json({ ok: false, error: 'refCode-required' }, 400);
+  const { recordAttribution } = await import('./referrals.js');
+  const r = await recordAttribution(env, guildId, discordId, refCode);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeQuestSnapshot(env, guildId, discordId) {
+  const { getSnapshot } = await import('./quests.js');
+  return json(await getSnapshot(env, guildId, discordId));
+}
+
+async function routeQuestClaim(env, guildId, discordId, body) {
+  // POST { discordId, guildId, stepId: '<id>' | 'all' }
+  const stepId = String((body && body.stepId) || 'all');
+  const { claimStep } = await import('./quests.js');
+  const r = await claimStep(env, guildId, discordId, stepId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeQuestMarkPatreonLinked(env, guildId, discordId) {
+  // Site calls this AFTER a successful Patreon OAuth link. Flips the
+  // quest-completion flag AND fires the referral milestone (no-op if
+  // the user isn't attributed or already-paid).
+  const { markPatreonLinked } = await import('./quests.js');
+  await markPatreonLinked(env, guildId, discordId);
+  try {
+    const { recordMilestone } = await import('./referrals.js');
+    const m = await recordMilestone(env, guildId, discordId, 'patreon-link');
+    return json({ ok: true, milestone: m });
+  } catch (e) {
+    return json({ ok: true, milestone: { paid: false, reason: 'throw:' + (e?.message || e) } });
+  }
 }

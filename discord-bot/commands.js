@@ -229,6 +229,18 @@ export async function handleInteraction(req, env, body, ctx) {
       return json(await handleCheckinCommand(env, data));
     }
 
+    case 'referral': {
+      // Show this viewer's referral code + their bring-in stats.
+      const { handleReferralCommand } = await import('./referrals.js');
+      return json(await handleReferralCommand(env, data));
+    }
+
+    case 'quest': {
+      // Onboarding quest checklist + claim status (mirrors aquilo.gg/quest).
+      const { handleQuestCommand } = await import('./quests.js');
+      return json(await handleQuestCommand(env, data));
+    }
+
     case 'lfg': {
       // B8 — LFG slash command. Shares state with POST /web/lfg/create
       // so an LFG created via the website appears in /lfg list, and

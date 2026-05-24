@@ -93,7 +93,8 @@ export async function handleMemberJoined(env, payload) {
     description:
       `You're our **${ordinal(seq)} member** to join. 🎉\n\n` +
       `Read the rules in <#${guildCfg?.ids?.ch_rules || ''}>, pick up roles in ` +
-      `<#${guildCfg?.ids?.ch_roles || ''}>, and say hi in this channel!`,
+      `<#${guildCfg?.ids?.ch_roles || ''}>, and say hi in this channel!\n\n` +
+      `🎯 **Start your onboarding quest** at https://aquilo.gg/quest — four quick steps with a bolts reward at each.`,
     color: accent,
     thumbnail: { url: avatar },
     image: { url: backdrop },

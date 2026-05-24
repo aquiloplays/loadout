@@ -54,6 +54,15 @@ export const COMMANDS = [
     name: 'checkin',
     description: 'Daily community check-in (also available on aquilo.gg)',
   },
+  // New-viewer funnel
+  {
+    name: 'referral',
+    description: 'Your referral code + how many members you\'ve brought in',
+  },
+  {
+    name: 'quest',
+    description: 'Your onboarding quest — checklist + reward status',
+  },
   // B8 — LFG slash command (same backing state as /web/lfg/create)
   {
     name: 'lfg',

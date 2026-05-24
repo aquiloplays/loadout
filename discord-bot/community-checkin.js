@@ -303,6 +303,18 @@ export async function recordCheckin(env, guildId, userId, source = 'web') {
   const member = await fetchMemberInfo(env, guildId, userId);
   const embed  = await postCheckinEmbed(env, guildId, userId, state, card, member, firstTimeNoCard);
 
+  // Referral milestone: if this user was attributed to a referrer and
+  // this is their FIRST ever community check-in (state.total === 1
+  // after the increment above), fire the milestone. recordMilestone is
+  // a no-op for un-attributed users and for already-paid referees, so
+  // this is safe to call unconditionally on every first check-in.
+  if (state.total === 1) {
+    try {
+      const { recordMilestone } = await import('./referrals.js');
+      await recordMilestone(env, guildId, userId, 'first-checkin');
+    } catch { /* non-fatal */ }
+  }
+
   const q = await loadQueue(env, guildId, userId);
   return {
     ok: true,
