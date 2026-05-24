@@ -165,6 +165,11 @@ const ROUTES = new Set([
   'admin/active-guild',
   'admin/clear-binding',
   'admin/pipe-tests',
+  // Daily community check-in (unified with /checkin slash command).
+  'checkin',                 // POST — record today's check-in
+  'checkin/status',          // POST — read streak + card + pending bonuses
+  'checkin/card',            // POST — upsert the user's embed card config
+  'checkin/bonus/collect',   // POST — claim one bonus (or 'all')
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -275,6 +280,10 @@ export async function handleWeb(req, env) {
     if (route === 'clash/setup')           return await routeClashSetup(env, guildId, discordId);
     if (route === 'pet/snapshot')          return await routePetSnapshot(env, guildId, discordId);
     if (route === 'pet/collect')           return await routePetCollect(env, guildId, discordId);
+    if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId);
+    if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
+    if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
+    if (route === 'checkin/bonus/collect') return await routeCommunityCheckinBonusCollect(env, guildId, discordId, body);
     if (route === 'season/claim')          return await routeSeasonClaim(env, discordId, body);
     if (route.startsWith('expedition/')) {
       const sub = route.slice('expedition/'.length);
@@ -1346,5 +1355,43 @@ async function routeSeasonClaim(env, discordId, body) {
   const track = (body && body.track) || 'free';
   const { claimTier } = await import('./progression/season.js');
   const r = await claimTier(env, discordId, tier, track);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// ── Daily community check-in (unified with /checkin slash command) ────
+//
+// All four routes share the same backing state in community-checkin.js;
+// the website and Discord interaction end up at recordCheckin() either
+// way, and the per-ET-day idempotency keeps the two surfaces in sync.
+
+async function routeCommunityCheckin(env, guildId, discordId) {
+  const { recordCheckin } = await import('./community-checkin.js');
+  const r = await recordCheckin(env, guildId, discordId, 'web');
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeCommunityCheckinStatus(env, guildId, discordId) {
+  const { getStatus } = await import('./community-checkin.js');
+  const r = await getStatus(env, guildId, discordId);
+  return json(r);
+}
+
+async function routeCommunityCheckinCard(env, guildId, discordId, body) {
+  // POST { discordId, guildId, card: { imageUrl, accentColor?, headline?, subtitle? } }
+  // OR  POST { discordId, guildId, op: 'get' } to read.
+  const { getCard, putCard } = await import('./community-checkin.js');
+  if (body && body.op === 'get') {
+    const card = await getCard(env, guildId, discordId);
+    return json({ ok: true, card: card || null });
+  }
+  const r = await putCard(env, guildId, discordId, body?.card || {});
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeCommunityCheckinBonusCollect(env, guildId, discordId, body) {
+  // POST { discordId, guildId, bonusId: '<id>' | 'all' }
+  const id = String((body && body.bonusId) || 'all');
+  const { collectBonus } = await import('./community-checkin.js');
+  const r = await collectBonus(env, guildId, discordId, id);
   return json(r, r.ok ? 200 : 400);
 }

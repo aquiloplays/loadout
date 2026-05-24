@@ -48,6 +48,12 @@ export const COMMANDS = [
       { type: TYPE_STRING, name: 'topic', description: 'What\'s the ticket about? (optional)', required: false },
     ],
   },
+  // Community daily check-in — unified with aquilo.gg/checkin (one
+  // check-in per ET day per user regardless of surface).
+  {
+    name: 'checkin',
+    description: 'Daily community check-in (also available on aquilo.gg)',
+  },
   // B8 — LFG slash command (same backing state as /web/lfg/create)
   {
     name: 'lfg',

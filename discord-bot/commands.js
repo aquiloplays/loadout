@@ -222,6 +222,13 @@ export async function handleInteraction(req, env, body, ctx) {
       return json(await handleTicketCommand(env, data));
     }
 
+    case 'checkin': {
+      // Daily community check-in. Same core as POST /web/checkin —
+      // one check-in per ET day per user, regardless of surface.
+      const { handleCheckinCommand } = await import('./community-checkin.js');
+      return json(await handleCheckinCommand(env, data));
+    }
+
     case 'lfg': {
       // B8 — LFG slash command. Shares state with POST /web/lfg/create
       // so an LFG created via the website appears in /lfg list, and
