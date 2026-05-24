@@ -192,6 +192,12 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/guild-build/')) {
       return handleGuildBuild(req, env, path);
     }
+    if (method === 'POST' && path.startsWith('/admin/guild-finalize/')) {
+      return handleGuildFinalize(req, env, path);
+    }
+    if (method === 'POST' && path.startsWith('/admin/guild-automod/')) {
+      return handleGuildAutomod(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -1279,6 +1285,118 @@ async function handleGuildBuild(req, env, path) {
   const result = await applyServerSpec(token, guildId, SERVER_SPEC, { apply });
   return new Response(JSON.stringify(result, null, 2), {
     status: result.ok ? 200 : 207,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+async function handleGuildFinalize(req, env, path) {
+  const guildId = path.split('/').filter(Boolean)[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return new Response('bad signature', { status: 401 });
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!token) return new Response('DISCORD_BOT_TOKEN missing', { status: 503 });
+  const { applyPhase2 } = await import('./guild-builder.js');
+  const result = await applyPhase2(token, guildId, env.LOADOUT_BOLTS);
+  return new Response(JSON.stringify(result, null, 2), {
+    status: result.ok ? 200 : 207,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+async function handleGuildAutomod(req, env, path) {
+  const guildId = path.split('/').filter(Boolean)[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return new Response('bad signature', { status: 401 });
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!token) return new Response('DISCORD_BOT_TOKEN missing', { status: 503 });
+
+  // Discord AutoMod TRIGGER TYPES:
+  //   1=KEYWORD, 3=SPAM, 4=KEYWORD_PRESET, 5=MENTION_SPAM, 6=MEMBER_PROFILE
+  // ACTION TYPES: 1=BLOCK_MESSAGE, 2=SEND_ALERT_MESSAGE, 3=TIMEOUT
+  //
+  // Three baseline rules. KEYWORD_PRESET 1=PROFANITY 2=SEXUAL_CONTENT 3=SLURS.
+  const cfg = await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' });
+  const modLogId = cfg?.ids?.ch_mod_log;
+  const baseAction = modLogId
+    ? [{ type: 1 }, { type: 2, metadata: { channel_id: modLogId } }]
+    : [{ type: 1 }];
+
+  const rules = [
+    {
+      name: 'Slurs (Discord preset)',
+      event_type: 1, // MESSAGE_SEND
+      trigger_type: 4,
+      trigger_metadata: { presets: [3] }, // SLURS
+      actions: baseAction,
+      enabled: true,
+    },
+    {
+      name: 'Sexual content (Discord preset)',
+      event_type: 1,
+      trigger_type: 4,
+      trigger_metadata: { presets: [2] },
+      actions: baseAction,
+      enabled: true,
+    },
+    {
+      name: 'Spam keywords (custom)',
+      event_type: 1,
+      trigger_type: 1,
+      trigger_metadata: {
+        keyword_filter: [
+          'discord-nitro', 'free-nitro', 'free nitro', 'steam-gift-card',
+          '@everyone @here', '*free* *nitro*',
+        ],
+      },
+      actions: baseAction,
+      enabled: true,
+    },
+    {
+      name: 'Mention spam (>5 unique pings)',
+      event_type: 1,
+      trigger_type: 5,
+      trigger_metadata: { mention_total_limit: 5 },
+      actions: baseAction,
+      enabled: true,
+    },
+    {
+      name: 'Suspicious links',
+      event_type: 1,
+      trigger_type: 1,
+      trigger_metadata: {
+        keyword_filter: [
+          'https://discord-nitro*', 'https://discord-gift*', 'https://steamcommunity*free*',
+          'https://*.zip/*', 'https://*.ru/*free*',
+        ],
+      },
+      actions: baseAction,
+      enabled: true,
+    },
+  ];
+
+  const created = [];
+  const errors = [];
+  for (const rule of rules) {
+    const r = await fetch(`https://discord.com/api/v10/guilds/${guildId}/auto-moderation/rules`, {
+      method: 'POST',
+      headers: { Authorization: 'Bot ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify(rule),
+    });
+    const text = await r.text();
+    if (!r.ok) {
+      errors.push({ rule: rule.name, status: r.status, body: text.slice(0, 300) });
+      continue;
+    }
+    try { created.push({ rule: rule.name, id: JSON.parse(text).id }); } catch { created.push({ rule: rule.name }); }
+    await new Promise(rr => setTimeout(rr, 250));
+  }
+
+  return new Response(JSON.stringify({ ok: errors.length === 0, created, errors }, null, 2), {
+    status: errors.length === 0 ? 200 : 207,
     headers: { 'content-type': 'application/json' },
   });
 }

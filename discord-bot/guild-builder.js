@@ -252,3 +252,192 @@ export async function applyServerSpec(token, guildId, spec, { apply = false } = 
   report.category_ids = categoryIdByName;
   return report;
 }
+
+// ── PHASE 2 — finalize the built guild ─────────────────────────────────
+//
+// Run AFTER applyServerSpec. Looks up every channel + role by name,
+// applies category-level permission overwrites (visibility gating),
+// posts the verification button in #rules + the role-self-assign
+// buttons in #roles, and persists the channel-id map into KV so
+// other modules (counting game, starboard, etc.) can resolve IDs at
+// runtime without hardcoded env vars.
+
+const PERM_VIEW_CHANNEL    = 0x400n;     // 1 << 10
+const PERM_SEND_MESSAGES   = 0x800n;     // 1 << 11
+const PERM_ADD_REACTIONS   = 0x40n;      // 1 << 6
+const PERM_READ_MSG_HIST   = 0x10000n;   // 1 << 16
+
+export async function applyPhase2(token, guildId, kv) {
+  const report = { ok: true, guildId, permissions: [], messages: [], kv: [], errors: [] };
+
+  // Re-read inventory so we have fresh ids + the latest channel list.
+  const inv = await dapi(token, 'GET', `/guilds/${guildId}/channels`);
+  const roles = await dapi(token, 'GET', `/guilds/${guildId}/roles`);
+  if (!inv.ok || !roles.ok) {
+    return { ...report, ok: false, error: 'fetch-inventory-failed' };
+  }
+  const chByName = new Map(inv.body.map(c => [normName(c.name), c]));
+  const rlByName = new Map(roles.body.map(r => [normName(r.name), r]));
+  const channelId = (name) => chByName.get(normName(name))?.id || null;
+  const roleId    = (name) => rlByName.get(normName(name))?.id || null;
+
+  const ids = {
+    everyone:        roles.body.find(r => r.name === '@everyone')?.id,
+    role_owner:      roleId('👑 Owner'),
+    role_mod:        roleId('🛡️ Moderator'),
+    role_bots:       roleId('🤖 Bots'),
+    role_patron:     roleId('💎 Patron'),
+    role_member:     roleId('⭐ Member'),
+    role_stream:     roleId('Stream Pings'),
+    role_youtube:    roleId('YouTube Pings'),
+    role_event:      roleId('Event Pings'),
+    role_gamenight:  roleId('Game Night'),
+    cat_start:       channelId('╭— ‼️ start here —'),
+    cat_community:   channelId('╭— 💬 community —'),
+    cat_streams:     channelId('╭— 🔴 streams & content —'),
+    cat_products:    channelId('╭— 🛠️ products —'),
+    cat_games:       channelId('╭— 🎮 games & play —'),
+    cat_minecraft:   channelId('╭— ⛏️ minecraft —'),
+    cat_patrons:     channelId('╭— 💎 patrons —'),
+    cat_voice:       channelId('╭— 🔊 voice —'),
+    cat_staff:       channelId('╭— 🛡️ staff —'),
+    ch_rules:        channelId('🫡│rules'),
+    ch_announcements:channelId('📣│announcements'),
+    ch_roles:        channelId('🎭│roles'),
+    ch_highlights:   channelId('⭐│highlights'),
+    ch_counting:     channelId('🔢│counting'),
+    ch_schedule:     channelId('📅│schedule'),
+    ch_live_now:     channelId('🔴│live-now'),
+    ch_lfg:          channelId('🧩│looking-for-game'),
+    ch_bot_commands: channelId('🤖│bot-commands'),
+    ch_bot_admin:    channelId('⚙️│bot-admin'),
+    ch_general:      channelId('💬│general'),
+    ch_smp_chat:     channelId('💬│smp-chat'),
+    ch_staff_chat:   channelId('🧑‍✈️│staff-chat'),
+    ch_mod_log:      channelId('📋│mod-log'),
+    vc_join_to_create: channelId('➕│join to create'),
+    vc_afk:          channelId('😴│afk'),
+  };
+
+  // ── Permission overwrites — one PATCH per category ─────────────────
+  //
+  // The semantic is: gate VIEW per category. Channels inside inherit.
+  // `everyone` deny + `member` allow on the public categories means
+  // unverified people can't see anything except start-here (which
+  // stays @everyone-allow).
+  //
+  // shape: PATCH /channels/{catId}  body: { permission_overwrites: [...] }
+  async function setPerms(label, catId, overwrites) {
+    if (!catId) { report.errors.push({ what: label, error: 'category-missing' }); return; }
+    const r = await dapi(token, 'PATCH', `/channels/${catId}`, { permission_overwrites: overwrites });
+    if (!r.ok) {
+      report.errors.push({ what: 'perm-' + label, status: r.status, body: r.raw.slice(0, 200) });
+    } else {
+      report.permissions.push(label);
+    }
+    await sleep(250);
+  }
+
+  const allowView = String(PERM_VIEW_CHANNEL | PERM_SEND_MESSAGES | PERM_ADD_REACTIONS | PERM_READ_MSG_HIST);
+  const allowViewReadOnly = String(PERM_VIEW_CHANNEL | PERM_READ_MSG_HIST);
+  const denyView = String(PERM_VIEW_CHANNEL);
+  const denySend = String(PERM_SEND_MESSAGES);
+  const role = (id) => ({ id, type: 0 }); // type 0 = role
+
+  // start-here: visible to everyone (unverified included)
+  await setPerms('start-here', ids.cat_start, [
+    { ...role(ids.everyone), allow: allowView, deny: '0' },
+  ]);
+
+  // Public categories: hidden until Member
+  for (const [label, cid] of [
+    ['community', ids.cat_community],
+    ['streams',   ids.cat_streams],
+    ['products',  ids.cat_products],
+    ['games',     ids.cat_games],
+    ['minecraft', ids.cat_minecraft],
+    ['voice',     ids.cat_voice],
+  ]) {
+    await setPerms(label, cid, [
+      { ...role(ids.everyone),    allow: '0', deny: denyView },
+      { ...role(ids.role_member), allow: allowView, deny: '0' },
+      { ...role(ids.role_mod),    allow: allowView, deny: '0' },
+      { ...role(ids.role_owner),  allow: allowView, deny: '0' },
+    ]);
+  }
+
+  // Patrons: Patron + staff only
+  await setPerms('patrons', ids.cat_patrons, [
+    { ...role(ids.everyone),    allow: '0', deny: denyView },
+    { ...role(ids.role_patron), allow: allowView, deny: '0' },
+    { ...role(ids.role_mod),    allow: allowView, deny: '0' },
+    { ...role(ids.role_owner),  allow: allowView, deny: '0' },
+  ]);
+
+  // Staff: staff only
+  await setPerms('staff', ids.cat_staff, [
+    { ...role(ids.everyone),   allow: '0', deny: denyView },
+    { ...role(ids.role_mod),   allow: allowView, deny: '0' },
+    { ...role(ids.role_owner), allow: allowView, deny: '0' },
+  ]);
+
+  // Rules channel: read-only for everyone (so the verify button shows)
+  if (ids.ch_rules) {
+    const r = await dapi(token, 'PATCH', `/channels/${ids.ch_rules}`, {
+      permission_overwrites: [
+        { ...role(ids.everyone), allow: allowViewReadOnly, deny: denySend },
+      ],
+    });
+    if (!r.ok) report.errors.push({ what: 'rules-readonly', status: r.status, body: r.raw.slice(0, 200) });
+    else report.permissions.push('rules-readonly');
+    await sleep(250);
+  }
+
+  // ── Post the verify button in #rules ───────────────────────────────
+  if (ids.ch_rules) {
+    const r = await dapi(token, 'POST', `/channels/${ids.ch_rules}/messages`, {
+      content: '**Welcome to aquilo.gg!**\nRead the rules above, then click **Verify** to unlock the rest of the server.',
+      components: [{
+        type: 1,
+        components: [{ type: 2, style: 3, label: '✅ Verify', custom_id: 'guild:verify' }],
+      }],
+    });
+    if (!r.ok) report.errors.push({ what: 'verify-message', status: r.status, body: r.raw.slice(0, 200) });
+    else { report.messages.push({ ch: 'rules', id: r.body.id }); }
+  }
+
+  // ── Post self-assign role buttons in #roles ─────────────────────────
+  if (ids.ch_roles) {
+    const r = await dapi(token, 'POST', `/channels/${ids.ch_roles}/messages`, {
+      content: '**Pick your pings.** Toggle a button to add/remove the role.',
+      components: [{
+        type: 1,
+        components: [
+          { type: 2, style: 1, label: '📺 Stream',  custom_id: 'guild:role:stream' },
+          { type: 2, style: 1, label: '🎬 YouTube', custom_id: 'guild:role:youtube' },
+          { type: 2, style: 1, label: '📅 Events',  custom_id: 'guild:role:event' },
+          { type: 2, style: 1, label: '🎮 Game Night', custom_id: 'guild:role:gamenight' },
+        ],
+      }],
+    });
+    if (!r.ok) report.errors.push({ what: 'roles-message', status: r.status, body: r.raw.slice(0, 200) });
+    else { report.messages.push({ ch: 'roles', id: r.body.id }); }
+  }
+
+  // ── Persist IDs to KV so worker modules can resolve at runtime ──────
+  if (kv) {
+    try {
+      await kv.put(`guild:cfg:${guildId}`, JSON.stringify({
+        ids,
+        builtUtc: Date.now(),
+      }));
+      report.kv.push('guild:cfg:' + guildId);
+    } catch (e) {
+      report.errors.push({ what: 'kv-write', message: String(e.message || e) });
+    }
+  }
+
+  report.ids = ids;
+  if (report.errors.length) report.ok = false;
+  return report;
+}

@@ -83,6 +83,10 @@ export async function handleInteraction(req, env, body, ctx) {
   if (data.type === TYPE_MESSAGE_COMPONENT) {
     // Route by custom_id prefix so each menu's components stay scoped.
     const cid = data.data?.custom_id || '';
+    if (cid.startsWith('guild:'))     {
+      const { handleGuildComponent } = await import('./guild-features.js');
+      return json(await handleGuildComponent(env, data));
+    }
     if (cid.startsWith('hub:'))       return handleHubComponent(data, env);
     if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
     if (cid.startsWith('clash:'))     return json(await handleClashComponent(env, data));
