@@ -29,8 +29,17 @@ export async function putWallet(env, guildId, userId, w) {
 export async function earn(env, guildId, userId, amount, reason) {
   if (!amount || amount <= 0) return null;
   const w = await getWallet(env, guildId, userId);
-  w.balance += amount;
-  w.lifetimeEarned += amount;
+  // L8 — server-booster multiplier. Set by boosters.js on boost-start,
+  // cleared on boost-end. `boosterMultiplier` is the factor (typically
+  // 2); `boosterMultiplierUntil` is a safety expiry so a dropped
+  // boost-end event eventually clears itself instead of paying out
+  // forever.
+  let credited = amount;
+  if (w.boosterMultiplier > 1 && (w.boosterMultiplierUntil || 0) > Date.now()) {
+    credited = amount * w.boosterMultiplier;
+  }
+  w.balance += credited;
+  w.lifetimeEarned += credited;
   w.lastEarnUtc = Date.now();
   w.lastEarnReason = reason || '';
   await putWallet(env, guildId, userId, w);
