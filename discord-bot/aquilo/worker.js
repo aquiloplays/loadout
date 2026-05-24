@@ -55,7 +55,7 @@ import {
   handleSelfRoleAddSubmit, handleSelfRoleRemoveSubmit, handleRoleToggle
 } from './self-roles.js';
 import { OverlayBroadcaster } from './overlay-do.js';
-import { handleCountingMessage, sweepFailRoles } from './counting.js';
+import { handleCountingMessage, sweepFailRoles, sweepCountingChannelTimeouts } from './counting.js';
 import {
   handleSetupCommand, handleSetupButton,
   handleSetupChannelsASubmit, handleSetupChannelsBSubmit,
@@ -400,6 +400,8 @@ async function handleScheduled(event, env, ctx) {
   // role can persist up to ~30 min past its configured expiry. Fine.
   try { await sweepFailRoles(env); }
   catch (e) { console.error('[cron counting-sweep]', e?.message || e); }
+  try { await sweepCountingChannelTimeouts(env); }
+  catch (e) { console.error('[cron counting-channel-timeouts]', e?.message || e); }
 
   // Refresh the Rotation pre-stream poll's live tallies. Reads each
   // option's reaction count from Discord and PATCHes the embed if any

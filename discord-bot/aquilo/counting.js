@@ -15,8 +15,13 @@ import { discordFetch } from './util.js';
 import { ensureBootstrap } from './bootstrap.js';
 import { applyBolts } from './bolts.js';
 
-const KV_STATE         = (gid) => 'counting:' + gid;
-const KV_FAIL_EXPIRY   = 'counting:fail_expiry';
+const KV_STATE          = (gid) => 'counting:' + gid;
+const KV_FAIL_EXPIRY    = 'counting:fail_expiry';
+// L8 — not-a-number 2-strikes + 1h channel timeout.
+const KV_NAN_STRIKES    = (gid, uid) => 'counting:nan_strikes:' + gid + ':' + uid;
+const KV_CHAN_TIMEOUT   = 'counting:channel_timeouts';   // [{ guild_id, channel_id, user_id, expires_at_ms }]
+const NAN_STRIKES_TTL_S = 24 * 60 * 60;   // strikes decay after 24h of no offences
+const CHAN_TIMEOUT_MIN  = 60;
 
 const DEFAULT_BASE_REWARD     = 1;
 const DEFAULT_FAIL_PENALTY    = 10;
@@ -129,6 +134,103 @@ export async function sweepFailRoles(env) {
   return { swept };
 }
 
+// ---- L8: not-a-number — 1st warn, 2nd → 1h channel SEND-deny -----------
+
+async function loadChannelTimeouts(env) {
+  const raw = await env.STATE.get(KV_CHAN_TIMEOUT);
+  if (!raw) return [];
+  try { return JSON.parse(raw); } catch { return []; }
+}
+async function saveChannelTimeouts(env, list) {
+  await env.STATE.put(KV_CHAN_TIMEOUT, JSON.stringify(list));
+}
+
+// Apply a per-user channel-level SEND_MESSAGES deny on the counting
+// channel. Discord member-channel overwrites work the same as role
+// overwrites — pass type=1 for member. The lift happens via
+// sweepCountingChannelTimeouts on the existing 1-minute cron.
+async function applyChannelTimeout(env, guildId, channelId, userId, durationMin) {
+  const VIEW = 0x400, SEND = 0x800, HISTORY = 0x10000;
+  const allow = String(VIEW | HISTORY);   // can still READ the channel
+  const deny  = String(SEND);
+  try {
+    await discordFetch(env,
+      '/channels/' + encodeURIComponent(channelId) +
+      '/permissions/' + encodeURIComponent(userId),
+      { method: 'PUT', body: JSON.stringify({ type: 1, allow, deny }) });
+  } catch (e) { console.warn('[counting] timeout-apply failed', e?.message || e); }
+  const list = await loadChannelTimeouts(env);
+  const expiresAtMs = Date.now() + durationMin * 60 * 1000;
+  const i = list.findIndex(x => x.user_id === userId && x.channel_id === channelId);
+  if (i >= 0) list[i].expires_at_ms = expiresAtMs;
+  else list.push({ guild_id: guildId, channel_id: channelId, user_id: userId, expires_at_ms: expiresAtMs });
+  await saveChannelTimeouts(env, list);
+}
+
+// Cron entry: sweeps expired channel-timeout overwrites.
+export async function sweepCountingChannelTimeouts(env) {
+  const list = await loadChannelTimeouts(env);
+  if (!list.length) return { swept: 0 };
+  const now = Date.now();
+  const keep = [];
+  let swept = 0;
+  for (const t of list) {
+    if (t.expires_at_ms > now) { keep.push(t); continue; }
+    try {
+      await discordFetch(env,
+        '/channels/' + encodeURIComponent(t.channel_id) +
+        '/permissions/' + encodeURIComponent(t.user_id),
+        { method: 'DELETE' });
+    } catch (e) { console.warn('[counting] timeout-lift failed', e?.message || e); }
+    swept++;
+  }
+  if (swept > 0) await saveChannelTimeouts(env, keep);
+  return { swept };
+}
+
+async function handleNotANumberOffense(env, guildId, payload, userId, content) {
+  // React ⚠️ on the offending message (and delete it after a moment so
+  // it doesn't pollute the counting flow).
+  try { await reactToMessage(env, payload.channel_id, payload.message_id, '⚠️'); }
+  catch (e) { console.warn('[counting] react warn failed', e?.message || e); }
+  try {
+    await discordFetch(env,
+      '/channels/' + encodeURIComponent(payload.channel_id) +
+      '/messages/' + encodeURIComponent(payload.message_id),
+      { method: 'DELETE' });
+  } catch { /* not authorized to delete the message — leave it */ }
+
+  // Increment per-user strike count with a 24h TTL refresh so a single
+  // accidental typo months apart doesn't escalate.
+  const key = KV_NAN_STRIKES(guildId, userId);
+  const prevRaw = await env.STATE.get(key);
+  const prev = parseInt(prevRaw || '0', 10) || 0;
+  const strikes = prev + 1;
+  await env.STATE.put(key, String(strikes), { expirationTtl: NAN_STRIKES_TTL_S });
+
+  if (strikes === 1) {
+    // First offense: warn + bail.
+    try {
+      await postChat(env, payload.channel_id, {
+        content: '⚠️ <@' + userId + '> — counting channel is **whole numbers only**. ' +
+                 'No decimals, no text, no symbols. Next non-number gets you a 1-hour timeout.'
+      });
+    } catch {}
+    return { offense: 'not-a-number', strikes, action: 'warned', content };
+  }
+
+  // 2nd+ offense: apply channel timeout, post a louder callout, reset strikes.
+  await applyChannelTimeout(env, guildId, payload.channel_id, userId, CHAN_TIMEOUT_MIN);
+  await env.STATE.delete(key);
+  try {
+    await postChat(env, payload.channel_id, {
+      content: '🔇 <@' + userId + '> — second non-number offence. **Timed out from this channel for ' +
+               CHAN_TIMEOUT_MIN + ' minutes.** Read-only until then.'
+    });
+  } catch {}
+  return { offense: 'not-a-number', strikes, action: 'channel-timeout', timeoutMin: CHAN_TIMEOUT_MIN, content };
+}
+
 // ---- Message handler (called from POST /counting/message) --------------
 
 // Forwarded payload shape: { guild_id, channel_id, message_id, user_id, username, content, bot }
@@ -143,15 +245,21 @@ export async function handleCountingMessage(env, payload) {
   const userId = payload.user_id;
   const content = (payload.content || '').trim();
 
-  // Validation: content must be ONLY digits (no leading zeros except for
-  // "0" itself, no commas, no whitespace, no words). Then must match the
-  // expected next number. And the same user can't count twice in a row.
-  const isPureDigits = /^[1-9][0-9]*$/.test(content);
-  const num = isPureDigits ? parseInt(content, 10) : NaN;
+  // ── L8 split: distinguish "not a whole number" (warn/timeout, no
+  //   chain break) from "wrong whole number" (chain break + penalty).
+  //   • !isWholeNumber → just-not-a-number; warn 1st, timeout 2nd
+  //   • isWholeNumber + (wrong value || same user) → real chain break
+  const isWholeNumber = /^[0-9]+$/.test(content) && !/^0[0-9]+/.test(content);
+  const num = isWholeNumber ? parseInt(content, 10) : NaN;
   const expected = state.current + 1;
   const sameUser = state.last_user_id && state.last_user_id === userId;
 
-  const ok = isPureDigits && num === expected && !sameUser;
+  // ── Not-a-number branch ──────────────────────────────────────────
+  if (!isWholeNumber) {
+    return handleNotANumberOffense(env, guildId, payload, userId, content);
+  }
+
+  const ok = num === expected && !sameUser;
 
   if (ok) {
     // SUCCESS: react, reward, update state.
@@ -202,10 +310,10 @@ export async function handleCountingMessage(env, payload) {
     await scheduleFailRoleRemoval(env, guildId, userId, env.COUNTING_FAIL_ROLE_ID, failDuration);
   }
 
-  // Reason for the public callout:
+  // Reason for the public callout (chain-break only — not-a-number
+  // cases are handled separately above and don't break the chain).
   let reasonText;
   if (sameUser) reasonText = "you can't count two in a row";
-  else if (!isPureDigits) reasonText = 'that wasn\'t a number';
   else if (num !== expected) reasonText = 'expected **' + expected + '**';
   else reasonText = 'something went wrong';
 
