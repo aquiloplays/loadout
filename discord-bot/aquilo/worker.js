@@ -163,6 +163,27 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     }
   }
 
+  // Gateway-forwarded MESSAGE_REACTION_ADD — drives the ⭐ starboard.
+  // Same shared-secret auth as /counting/message (aquilo-presence
+  // sends both with the same COUNTING_WEBHOOK_SECRET header).
+  //
+  // Payload (minimal Discord MESSAGE_REACTION_ADD subset):
+  //   { guild_id, channel_id, message_id, user_id, emoji: { name } }
+  if (method === 'POST' && path === '/reaction/event') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleStarboardReaction } = await import('../guild-features.js');
+      const result = await handleStarboardReaction(env, payload);
+      return json({ ok: true, starboard: result });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
   // Public read of channels aquilo-presence should forward
   // MESSAGE_CREATE for. Post-fold the LOADOUT_BOLT_API base happens to
   // point right back at this same Worker (`/checkin-channel/<guild>`

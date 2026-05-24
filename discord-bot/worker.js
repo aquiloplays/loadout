@@ -1327,18 +1327,13 @@ async function handleGuildAutomod(req, env, path) {
 
   const rules = [
     {
-      name: 'Slurs (Discord preset)',
+      // Discord caps KEYWORD_PRESET rules at ONE per guild — so all
+      // three baked-in word lists go into the single rule.
+      // PRESET ids: 1=PROFANITY, 2=SEXUAL_CONTENT, 3=SLURS.
+      name: 'Profanity + sexual + slurs (Discord presets)',
       event_type: 1, // MESSAGE_SEND
       trigger_type: 4,
-      trigger_metadata: { presets: [3] }, // SLURS
-      actions: baseAction,
-      enabled: true,
-    },
-    {
-      name: 'Sexual content (Discord preset)',
-      event_type: 1,
-      trigger_type: 4,
-      trigger_metadata: { presets: [2] },
+      trigger_metadata: { presets: [1, 2, 3] },
       actions: baseAction,
       enabled: true,
     },
@@ -1378,6 +1373,25 @@ async function handleGuildAutomod(req, env, path) {
     },
   ];
 
+  // Idempotent upsert: fetch existing rules, delete any whose name
+  // matches one we're about to create (so a re-run produces the same
+  // end-state instead of "max rules exceeded"). Also clean up the
+  // legacy "Slurs (Discord preset)" name that the first build created.
+  const existingRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/auto-moderation/rules`, {
+    headers: { Authorization: 'Bot ' + token },
+  });
+  const existing = existingRes.ok ? await existingRes.json() : [];
+  const targetNames = new Set([...rules.map(r => r.name), 'Slurs (Discord preset)', 'Sexual content (Discord preset)']);
+  const deleted = [];
+  for (const r of existing) {
+    if (!targetNames.has(r.name)) continue;
+    const d = await fetch(`https://discord.com/api/v10/guilds/${guildId}/auto-moderation/rules/${r.id}`, {
+      method: 'DELETE', headers: { Authorization: 'Bot ' + token },
+    });
+    if (d.ok) deleted.push({ name: r.name, id: r.id });
+    await new Promise(rr => setTimeout(rr, 250));
+  }
+
   const created = [];
   const errors = [];
   for (const rule of rules) {
@@ -1395,7 +1409,7 @@ async function handleGuildAutomod(req, env, path) {
     await new Promise(rr => setTimeout(rr, 250));
   }
 
-  return new Response(JSON.stringify({ ok: errors.length === 0, created, errors }, null, 2), {
+  return new Response(JSON.stringify({ ok: errors.length === 0, deleted, created, errors }, null, 2), {
     status: errors.length === 0 ? 200 : 207,
     headers: { 'content-type': 'application/json' },
   });
