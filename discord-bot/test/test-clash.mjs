@@ -1028,5 +1028,120 @@ const v2SaveBody = await (await handleWeb(v2SaveReq, webEnv)).json();
 ok('look save after class pick locks',
    v2SaveBody.ok === true && v2SaveBody.locked === true);
 
+// ── /web/referral contract ──────────────────────────────────────────
+//
+// /me mints a stable 8-char code idempotently + reports referrer
+// stats. /attribute pairs (refereeId, refCode) — first-attribution-
+// wins, self-referral refused, unknown code rejected.
+console.log('--- /web/referral contract ---');
+
+const REF_A = '666666666666666666';
+const REF_B = '777777777777777777';
+const REF_C = '888888888888888888';
+
+const meReq1  = await webPost('/web/referral/me', { discordId: REF_A, guildId: NUM_GUILD });
+const meBody1 = await (await handleWeb(meReq1, webEnv)).json();
+ok('/web/referral/me ok on fresh user',
+   meBody1.ok === true && typeof meBody1.code === 'string' && meBody1.code.length === 8,
+   `body=${JSON.stringify(meBody1).slice(0, 200)}`);
+ok('/web/referral/me code is Crockford-base32 (no I L O U, no 0 1)',
+   /^[2-9A-HJ-NP-TV-Z]{8}$/.test(meBody1.code),
+   `code=${meBody1.code}`);
+ok('/web/referral/me link points at aquilo.gg/?ref=<code>',
+   meBody1.link === `https://aquilo.gg/?ref=${meBody1.code}`);
+ok('/web/referral/me fresh stats are zeroed',
+   meBody1.stats && meBody1.stats.count === 0 && meBody1.stats.paid === 0 &&
+   Array.isArray(meBody1.stats.history) && meBody1.stats.history.length === 0,
+   `stats=${JSON.stringify(meBody1.stats)}`);
+
+// Idempotent — same caller gets the same code back.
+const meReq2  = await webPost('/web/referral/me', { discordId: REF_A, guildId: NUM_GUILD });
+const meBody2 = await (await handleWeb(meReq2, webEnv)).json();
+ok('/web/referral/me idempotent (code stable across calls)',
+   meBody2.code === meBody1.code);
+
+// Bad signature → 401 (same as every other /web/* route).
+const badRefSigReq = new Request('https://bot.example.com/web/referral/me', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', 'x-aquilo-web-ts': '1', 'x-aquilo-web-sig': 'deadbeef' },
+  body: JSON.stringify({ discordId: REF_A, guildId: NUM_GUILD }),
+});
+ok('/web/referral/me rejects bad signature',
+   (await handleWeb(badRefSigReq, webEnv)).status === 401);
+
+// Missing refCode → typed error.
+const attrEmptyReq  = await webPost('/web/referral/attribute', { discordId: REF_B, guildId: NUM_GUILD });
+const attrEmptyResp = await handleWeb(attrEmptyReq, webEnv);
+const attrEmptyBody = await attrEmptyResp.json();
+ok('/web/referral/attribute rejects missing refCode',
+   attrEmptyResp.status === 400 && attrEmptyBody.ok === false &&
+   attrEmptyBody.error === 'refCode-required',
+   `body=${JSON.stringify(attrEmptyBody)}`);
+
+// Unknown code → unknown-code.
+const attrBadReq  = await webPost('/web/referral/attribute', {
+  discordId: REF_B, guildId: NUM_GUILD, refCode: 'ZZZZZZZZ',
+});
+const attrBadResp = await handleWeb(attrBadReq, webEnv);
+const attrBadBody = await attrBadResp.json();
+ok('/web/referral/attribute rejects unknown code',
+   attrBadResp.status === 400 && attrBadBody.ok === false && attrBadBody.error === 'unknown-code',
+   `body=${JSON.stringify(attrBadBody)}`);
+
+// Self-referral refused (REF_A attributing themselves with their own code).
+const attrSelfReq  = await webPost('/web/referral/attribute', {
+  discordId: REF_A, guildId: NUM_GUILD, refCode: meBody1.code,
+});
+const attrSelfBody = await (await handleWeb(attrSelfReq, webEnv)).json();
+ok('/web/referral/attribute refuses self-referral',
+   attrSelfBody.ok === false && attrSelfBody.error === 'self-referral',
+   `body=${JSON.stringify(attrSelfBody)}`);
+
+// Happy path — REF_B is attributed under REF_A's code.
+const attrOkReq  = await webPost('/web/referral/attribute', {
+  discordId: REF_B, guildId: NUM_GUILD, refCode: meBody1.code,
+});
+const attrOkResp = await handleWeb(attrOkReq, webEnv);
+const attrOkBody = await attrOkResp.json();
+ok('/web/referral/attribute happy path returns ok',
+   attrOkResp.status === 200 && attrOkBody.ok === true &&
+   attrOkBody.referrerId === REF_A && attrOkBody.refCode === meBody1.code,
+   `body=${JSON.stringify(attrOkBody)}`);
+
+// Stats reflect the new attribution on REF_A's /me.
+const meAfter = await (await handleWeb(
+  await webPost('/web/referral/me', { discordId: REF_A, guildId: NUM_GUILD }),
+  webEnv,
+)).json();
+ok('/web/referral/me stats.count bumps after attribution',
+   meAfter.stats.count === 1 && meAfter.stats.paid === 0 && meAfter.stats.lastUtc > 0,
+   `stats=${JSON.stringify(meAfter.stats)}`);
+
+// Double-attribution: REF_B trying again → already-attributed.
+const attrAgainReq  = await webPost('/web/referral/attribute', {
+  discordId: REF_B, guildId: NUM_GUILD, refCode: meBody1.code,
+});
+const attrAgainBody = await (await handleWeb(attrAgainReq, webEnv)).json();
+ok('/web/referral/attribute first-attribution-wins',
+   attrAgainBody.ok === false && attrAgainBody.error === 'already-attributed' &&
+   attrAgainBody.referrerId === REF_A,
+   `body=${JSON.stringify(attrAgainBody)}`);
+
+// Lowercase + whitespace input still resolves (server upper-cases + trims).
+{
+  const meC = await (await handleWeb(
+    await webPost('/web/referral/me', { discordId: REF_C, guildId: NUM_GUILD }),
+    webEnv,
+  )).json();
+  // REF_C will use REF_A's code, lowercased + padded — should normalise.
+  const noisyReq  = await webPost('/web/referral/attribute', {
+    discordId: REF_C, guildId: NUM_GUILD, refCode: '  ' + meBody1.code.toLowerCase() + '  ',
+  });
+  const noisyBody = await (await handleWeb(noisyReq, webEnv)).json();
+  ok('/web/referral/attribute normalises whitespace + case',
+     noisyBody.ok === true && noisyBody.referrerId === REF_A,
+     `code=${meC.code} body=${JSON.stringify(noisyBody)}`);
+}
+
 console.log('--- ' + passed + ' pass, ' + failed + ' fail ---');
 if (failed > 0) process.exit(1);

@@ -163,6 +163,13 @@ const ROUTES = new Set([
   'character/save',
   'character/class',
   'character/reset',
+  // New-viewer funnel — referral attribution. /me returns the
+  // caller's stable referral code + bring-in stats; /attribute is
+  // what the site POSTs after Patreon-link to record (refereeId,
+  // refCode). Milestone payouts are a future hook — the data model
+  // is ready but no call site fires recordMilestone() yet on main.
+  'referral/me',
+  'referral/attribute',
   'admin/snapshot',
   'admin/config',
   'admin/active-guild',
@@ -282,6 +289,8 @@ export async function handleWeb(req, env) {
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
     if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
     if (route === 'character/reset')       return await routeCharacterReset(env, guildId, discordId);
+    if (route === 'referral/me')           return await routeReferralMe(env, guildId, discordId);
+    if (route === 'referral/attribute')    return await routeReferralAttribute(env, guildId, discordId, body);
     if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
     if (isBoardRoute(route))               return await routeBoard(env, route, guildId, discordId, body);
   } catch (e) {
@@ -1215,6 +1224,48 @@ async function routeCharacterClass(env, guildId, userId, body) {
   const className = body && body.className;
   const r = await applyClassWeb(env, guildId, userId, className);
   return json(r, statusFor(r));
+}
+
+// ── /web/referral/* — new-viewer funnel ─────────────────────────────
+//
+// POST /web/referral/me
+//   Body:  { discordId, guildId }
+//   Returns:
+//     { ok: true,
+//       code:  'ABC23456',                       // stable 8-char Crockford
+//       link:  'https://aquilo.gg/?ref=ABC23456',
+//       stats: { count, paid, lastUtc, history } }
+//
+// POST /web/referral/attribute
+//   Body:  { discordId, guildId, refCode }
+//   First-attribution-wins. Refuses self-referral and unknown codes.
+//   Returns:
+//     { ok: true,  referrerId, refCode }
+//     { ok: false, error: 'refCode-required'  }   // HTTP 400
+//     { ok: false, error: 'unknown-code'      }   // HTTP 400
+//     { ok: false, error: 'self-referral'     }   // HTTP 400
+//     { ok: false, error: 'already-attributed', referrerId }   // HTTP 400
+//
+// Module is dynamically imported so the cards-packs dependency only
+// loads when referral KV is touched (keeps cold-start trim).
+async function routeReferralMe(env, guildId, discordId) {
+  const { getOrMintCode, getReferrerStats } = await import('./referrals.js');
+  const code  = await getOrMintCode(env, guildId, discordId);
+  const stats = await getReferrerStats(env, guildId, discordId);
+  return json({
+    ok: true,
+    code,
+    link: `https://aquilo.gg/?ref=${code}`,
+    stats,
+  });
+}
+
+async function routeReferralAttribute(env, guildId, discordId, body) {
+  const refCode = String((body && body.refCode) || '').toUpperCase().trim();
+  if (!refCode) return json({ ok: false, error: 'refCode-required' }, 400);
+  const { recordAttribution } = await import('./referrals.js');
+  const r = await recordAttribution(env, guildId, discordId, refCode);
+  return json(r, r.ok ? 200 : 400);
 }
 
 // ── Quick bolts games (2026-05) ──────────────────────────────────────
