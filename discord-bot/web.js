@@ -1545,16 +1545,25 @@ async function routeSetupBranding(env, guildId, body) {
 }
 
 async function routeQuestMarkPatreonLinked(env, guildId, discordId) {
-  // Site calls this AFTER a successful Patreon OAuth link. Flips the
-  // quest-completion flag AND fires the referral milestone (no-op if
-  // the user isn't attributed or already-paid).
+  // Site calls this whenever it has a verified Patreon-linked session
+  // (regardless of how many other social platforms are linked). Flips
+  // the quest-completion flag AND fires the referral milestone (no-op
+  // if the user isn't attributed or already-paid).
+  //
+  // The flag-set is unconditional + idempotent — repeat calls just
+  // re-stamp + return the same `verified` snapshot. The site is the
+  // source of truth on "is this session Patreon-verified"; the worker
+  // additionally confirms via patreon:tier:<userId> when present so
+  // an "optimistic UI, worker can't see the link" mismatch surfaces
+  // in the response payload.
   const { markPatreonLinked } = await import('./quests.js');
-  await markPatreonLinked(env, guildId, discordId);
+  const mark = await markPatreonLinked(env, guildId, discordId);
+  let milestone = { paid: false, reason: 'unknown' };
   try {
     const { recordMilestone } = await import('./referrals.js');
-    const m = await recordMilestone(env, guildId, discordId, 'patreon-link');
-    return json({ ok: true, milestone: m });
+    milestone = await recordMilestone(env, guildId, discordId, 'patreon-link');
   } catch (e) {
-    return json({ ok: true, milestone: { paid: false, reason: 'throw:' + (e?.message || e) } });
+    milestone = { paid: false, reason: 'throw:' + (e?.message || e) };
   }
+  return json({ ok: true, marked: true, verified: mark.verified, milestone });
 }

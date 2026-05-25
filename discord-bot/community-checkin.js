@@ -93,21 +93,62 @@ async function saveState(env, guildId, userId, state) {
 export async function getCard(env, guildId, userId) {
   return env.LOADOUT_BOLTS.get(CARD_KEY(guildId, userId), { type: 'json' });
 }
+const AVATAR_SOURCES = new Set(['discord', 'patreon', 'custom']);
+
+// Merge-style upsert. The site sends partial card patches (e.g. the
+// avatar-source picker sends ONLY { imageUrl: "", avatarSource } so
+// flipping the avatar shouldn't wipe the saved image/headline/etc).
+// Each field is updated only when the caller explicitly provides a
+// value for it; anything left undefined keeps the existing value.
+//   - imageUrl: empty string is treated as "no change" (the picker
+//     uses `""` as a no-op sentinel), since clearing the image to
+//     fall back to the default is rare and can be done by setting
+//     the value to null explicitly.
+//   - accentColor: null → reset to default; integer → set; undefined → keep.
+//   - avatarSource: one of 'discord' | 'patreon' | 'custom'.
+//   - customAvatarUrl: required (and https) when avatarSource === 'custom'.
 export async function putCard(env, guildId, userId, card) {
-  // Sanitise — the site sends this but we hard-cap so a hostile or
-  // mistyped value can't post a 4000-char description into Discord.
-  const clean = {
-    imageUrl:    String(card?.imageUrl || '').trim().slice(0, 500),
-    accentColor: Number.isInteger(card?.accentColor) ? (card.accentColor & 0xFFFFFF) : null,
-    headline:    String(card?.headline || '').trim().slice(0, 100),
-    subtitle:    String(card?.subtitle || '').trim().slice(0, 240),
-    updatedUtc:  Date.now(),
-  };
-  if (clean.imageUrl && !/^https:\/\//i.test(clean.imageUrl)) {
-    return { ok: false, error: 'image-url-must-be-https' };
+  const prev = (await env.LOADOUT_BOLTS.get(CARD_KEY(guildId, userId), { type: 'json' })) || {};
+  const next = { ...prev };
+  const inUrl = (card?.imageUrl !== undefined) ? String(card.imageUrl).trim() : undefined;
+  if (inUrl !== undefined && inUrl !== '') {
+    if (!/^https:\/\//i.test(inUrl)) return { ok: false, error: 'image-url-must-be-https' };
+    next.imageUrl = inUrl.slice(0, 500);
+  } else if (inUrl === null) {
+    next.imageUrl = null;
   }
-  await env.LOADOUT_BOLTS.put(CARD_KEY(guildId, userId), JSON.stringify(clean));
-  return { ok: true, card: clean };
+  if (card?.accentColor === null) {
+    next.accentColor = null;
+  } else if (Number.isInteger(card?.accentColor)) {
+    next.accentColor = card.accentColor & 0xFFFFFF;
+  }
+  if (card?.headline !== undefined) {
+    next.headline = String(card.headline || '').trim().slice(0, 100);
+  }
+  if (card?.subtitle !== undefined) {
+    next.subtitle = String(card.subtitle || '').trim().slice(0, 240);
+  }
+  if (card?.avatarSource !== undefined) {
+    const src = String(card.avatarSource || '').toLowerCase();
+    if (!AVATAR_SOURCES.has(src)) return { ok: false, error: 'bad-avatar-source',
+      message: `avatarSource must be one of: ${[...AVATAR_SOURCES].join(', ')}` };
+    next.avatarSource = src;
+  }
+  if (card?.customAvatarUrl !== undefined) {
+    const v = String(card.customAvatarUrl || '').trim();
+    if (v && !/^https:\/\//i.test(v)) return { ok: false, error: 'custom-avatar-url-must-be-https' };
+    next.customAvatarUrl = v.slice(0, 500) || null;
+  }
+  // Final guard: if the user picked 'custom' but no URL is on file
+  // (neither this patch nor a prior save), refuse the upsert rather
+  // than silently falling back to Discord at embed time.
+  if (next.avatarSource === 'custom' && !next.customAvatarUrl) {
+    return { ok: false, error: 'custom-avatar-url-required',
+             message: "avatarSource:'custom' needs customAvatarUrl set." };
+  }
+  next.updatedUtc = Date.now();
+  await env.LOADOUT_BOLTS.put(CARD_KEY(guildId, userId), JSON.stringify(next));
+  return { ok: true, card: next };
 }
 
 async function loadQueue(env, guildId, userId) {
@@ -161,6 +202,38 @@ async function fetchMemberInfo(env, guildId, userId) {
   } catch { return null; }
 }
 
+// Resolve the author avatar based on the user's saved card preference.
+// Falls back to Discord on any miss so the check-in still posts:
+//   discord (default) → fetched Discord member avatar (already on `member`)
+//   patreon           → patreon:tier:<userId>.imageUrl (site populates
+//                        this on OAuth link); fallback to Discord if
+//                        missing.
+//   custom            → card.customAvatarUrl (already validated as https
+//                        in putCard); fallback to Discord if it's been
+//                        cleared since save.
+async function resolveAvatar(env, userId, card, member) {
+  const fallback = member?.avatar || avatarUrl(userId, null);
+  const source = card?.avatarSource || 'discord';
+  if (source === 'discord') return { url: fallback, source };
+  if (source === 'custom') {
+    return { url: card?.customAvatarUrl || fallback,
+             source: card?.customAvatarUrl ? 'custom' : 'discord-fallback' };
+  }
+  if (source === 'patreon') {
+    // The site is expected to write the Patreon imageUrl into
+    // patreon:tier:<userId> when the OAuth link completes. Until that
+    // field is populated, we fall back to Discord so the embed isn't
+    // blank.
+    try {
+      const tier = await env.LOADOUT_BOLTS.get(`patreon:tier:${userId}`, { type: 'json' });
+      const url = tier?.imageUrl || tier?.image_url || tier?.avatar || null;
+      if (url) return { url, source: 'patreon' };
+    } catch { /* idle */ }
+    return { url: fallback, source: 'discord-fallback' };
+  }
+  return { url: fallback, source: 'discord' };
+}
+
 async function postCheckinEmbed(env, guildId, userId, state, card, member, isFirstTimeNoCard) {
   const channel = await getCheckinChannel(env, guildId);
   if (!channel?.channelId) return { posted: false, reason: 'channel-unbound' };
@@ -173,7 +246,8 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   const accent  = (card?.accentColor != null ? card.accentColor : (brand.accentColor || DEFAULT_ACCENT));
   const image   = card?.imageUrl || brand.checkinDefaultImageUrl || DEFAULT_IMAGE_URL;
   const display = member?.displayName || 'friend';
-  const avatar  = member?.avatar      || avatarUrl(userId, null);
+  const avatarPick = await resolveAvatar(env, userId, card, member);
+  const avatar     = avatarPick.url;
 
   // Description rules:
   //   • Streak line is always present.
@@ -210,7 +284,8 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
     return { posted: false, reason: 'discord-' + r.status, body: txt.slice(0, 200) };
   }
   const m = await r.json();
-  return { posted: true, channelId: channel.channelId, messageId: m?.id || null };
+  return { posted: true, channelId: channel.channelId, messageId: m?.id || null,
+           avatarSource: avatarPick.source };
 }
 
 // ── Core unified check-in ──────────────────────────────────────────────

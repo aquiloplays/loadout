@@ -43,7 +43,23 @@ export const STEPS = [
     id:     'linked-patreon',
     label:  'Link your Patreon account',
     reward: { bolts: 25, pack: 'bolt' },
-    completion: async (env, g, u) => !!(await env.LOADOUT_BOLTS.get(PATREON_FLAG_KEY(g, u))),
+    // Completes when EITHER of:
+    //   (a) /web/quest/mark-patreon-linked has been called for this
+    //       (guild, user), OR
+    //   (b) the user has a verified Patreon link on file
+    //       (patreon:tier:<userId>, the same record isPatron() consults).
+    // (b) means a user who linked their Patreon before this checklist
+    // existed — or who hasn't linked their other social platforms yet
+    // — still passes the step. The website ticks the box optimistically
+    // when its session shows a verified Patreon link; the worker
+    // confirms here so /web/quest/claim actually grants the bolts.
+    completion: async (env, g, u) => {
+      if (await env.LOADOUT_BOLTS.get(PATREON_FLAG_KEY(g, u))) return true;
+      try {
+        const { isPatron } = await import('./progression/linking.js');
+        return await isPatron(env, u);
+      } catch { return false; }
+    },
   },
   {
     id:     'first-checkin',
@@ -77,10 +93,23 @@ async function saveState(env, guildId, userId, state) {
 }
 
 // ── External-mutator helpers ───────────────────────────────────────────
-// Called by the corresponding milestone-firing call site. Idempotent
-// — re-setting a flag is harmless.
+// Called by the corresponding milestone-firing call site. Idempotent —
+// re-setting a flag is harmless. Returns a structured result so the
+// /web/quest/mark-patreon-linked route can surface whether the
+// patreon:tier link was independently verified (useful debugging for
+// the site).
 export async function markPatreonLinked(env, guildId, userId) {
   await env.LOADOUT_BOLTS.put(PATREON_FLAG_KEY(guildId, userId), '1');
+  // Best-effort patreon:tier verification — the actual link record is
+  // written by aquilo-site's Patreon-OAuth handler; we just confirm
+  // it's there so the site can flag a "site says linked but worker
+  // can't see it" mismatch in the response.
+  let verified = false;
+  try {
+    const { isPatron } = await import('./progression/linking.js');
+    verified = await isPatron(env, userId);
+  } catch { /* idle */ }
+  return { ok: true, verified };
 }
 export async function markGamePlayed(env, guildId, userId) {
   await env.LOADOUT_BOLTS.put(GAME_FLAG_KEY(guildId, userId), '1');
