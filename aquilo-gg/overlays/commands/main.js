@@ -117,15 +117,15 @@
   let iconOverrides = {};
   function defaultBadge(cat) {
     switch (cat) {
-      case 'custom':  return '/sprites/ui/icons/chat.png';
-      case 'counter': return '/sprites/ui/icons/star.png';
-      case 'bolts':   return '/sprites/ui/icons/bolt.png';
-      case 'clip':    return '/sprites/ui/icons/camera.png';
-      case 'checkin': return '/sprites/ui/icons/check.png';
-      case 'mod':     return '/sprites/ui/icons/shield.png';
+      case 'custom':  return '/sprites/ui/icons/glossy/chat.png';
+      case 'counter': return '/sprites/ui/icons/glossy/star.png';
+      case 'bolts':   return '/sprites/ui/icons/glossy/bolt.png';
+      case 'clip':    return '/sprites/ui/icons/glossy/camera.png';
+      case 'checkin': return '/sprites/ui/icons/glossy/check.png';
+      case 'mod':     return '/sprites/ui/icons/glossy/shield.png';
       case 'song':
-      case 'music':   return '/sprites/ui/icons/music.png';
-      default:        return '/sprites/ui/icons/chat.png';
+      case 'music':   return '/sprites/ui/icons/glossy/music.png';
+      default:        return '/sprites/ui/icons/glossy/chat.png';
     }
   }
   function badgeLabel(cat) {

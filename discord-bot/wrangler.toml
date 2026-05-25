@@ -34,43 +34,49 @@ AQUILO_VAULT_GUILD_ID = "1504103035951906883"
 # channel gate for /ext/* routes.
 CLAY_TWITCH_CHANNEL_ID = "1497793223"
 
-# ── aquilo-bot fold-in vars ─────────────────────────────────────────
-# Channels for the schedule/poll/queue cron features. Read at runtime;
-# the half-hourly cron resolves guild_id from one of them and caches.
-# (Original lived in aquilo-bot/worker/wrangler.toml.)
-SCHEDULE_CHANNEL_ID = "1501998830244200568"
-POLL_CHANNEL_ID     = "1501999398866125021"
-QUEUE_CHANNEL_ID    = "1502002899058688301"
+# ── Aquilo-server channel + role wiring ────────────────────────────────
+# Rewritten 2026-05 to point at the channels created by the L6 guild
+# build. Source of truth at runtime is KV `guild:cfg:<guildId>`; these
+# vars are the fallback / human-readable index. Updating either:
+#   1. wrangler.toml + redeploy, OR
+#   2. POST /admin/guild-finalize/<g> (rewrites KV from current names)
+SCHEDULE_CHANNEL_ID = "1507973920282640485"   # 📅│schedule
+POLL_CHANNEL_ID     = "1507973910107389952"   # 🗳️│suggestions (poll target)
+QUEUE_CHANNEL_ID    = "1507973931372646490"   # 🧩│looking-for-game
 # Eligible roles for the community-night queue, top-priority first.
-# Members whose roles intersect can join; the highest-listed role wins.
-QUEUE_ELIGIBLE_ROLES_JSON = "[\"1342497898553802752\",\"1382096075913166878\",\"1482088968072990810\",\"1482092449609420982\",\"1483242263961407670\"]"
+# Patron is highest priority, then Member.
+QUEUE_ELIGIBLE_ROLES_JSON = "[\"1507973875659706529\",\"1507973873965076490\"]"
 PATREON_URL = "https://www.patreon.com/cw/aquilo"
 # Rotation widget integrations (song-prequeue role caps).
 SR_ROLE_LIMITS_JSON = "[]"
 # Default stream time in ET (HH:MM) for countdown + schedule defaults.
 STREAM_TIME_ET = "22:30"
-# Aquilo-bot optional channels (left blank = feature disabled).
-STAFF_ROLE_ID = ""
+STAFF_ROLE_ID = "1507973879442964660"          # 🛡️ Moderator
 PRODUCTS = ""
-FOURTHWALL_SALES_CHANNEL = ""
+FOURTHWALL_SALES_CHANNEL = "1507973923957112973"  # 📢│updates (product announcements)
 ROTATION_POLL_CHANNEL_ID = ""
-ENGAGEMENT_CHANNEL_ID = ""
-COUNTDOWN_CHANNEL_ID = ""
-COUNTDOWN_VC_ID = "1502376108878856282"
-ROLES_CHANNEL_ID = ""
-COUNTING_CHANNEL_ID = ""
-COUNTING_FAIL_ROLE_ID = ""
+ENGAGEMENT_CHANNEL_ID = "1507973904164061194"  # 💬│general (engagement nudges)
+COUNTDOWN_CHANNEL_ID = "1507973917350957067"   # 🔴│live-now
+COUNTDOWN_VC_ID = ""                           # no dedicated countdown VC yet — Clay can create later
+ROLES_CHANNEL_ID = "1507973902146732222"       # 🎭│roles (self-assign panel)
+COUNTING_CHANNEL_ID = "1507973915270582333"    # 🔢│counting
+COUNTING_FAIL_ROLE_ID = ""                     # no penalty role configured
 COUNTING_BASE_REWARD = "1"
 COUNTING_FAIL_PENALTY = "10"
 COUNTING_FAIL_DURATION_MIN = "60"
-# Pre-fold-in this Worker was the *target* of /counting/award-bolts;
-# post-fold it's the same Worker so the URL points back at itself.
+# Self-target: this Worker IS the bolts API host post-fold-in.
 LOADOUT_BOLT_API = "https://loadout-discord.aquiloplays.workers.dev/counting/award-bolts"
-CLIPS_CHANNEL_ID = ""
-CHECKIN_CHANNEL_ID = ""
-LEADERBOARD_CHANNEL_ID = ""
-AQUILO_ADMIN_HUB_CHANNEL_ID = ""
-ACHIEVEMENT_ROLES_JSON = "{}"
+CLIPS_CHANNEL_ID = "1507973908089802945"       # 📸│media-and-clips
+CHECKIN_CHANNEL_ID = "1507973904164061194"     # 💬│general (daily check-in lives here)
+LEADERBOARD_CHANNEL_ID = "1507973904164061194" # 💬│general
+AQUILO_ADMIN_HUB_CHANNEL_ID = "1507973969683415120"  # ⚙️│bot-admin
+ACHIEVEMENT_ROLES_JSON = "{\"5\":\"1507973863940816937\",\"10\":\"1507973861894000690\",\"25\":\"1507973859863695523\",\"50\":\"1507973858064465970\"}"
+# Multi-channel community-chat (for daily activity tracking, etc.).
+COMMUNITY_CHAT_CHANNELS_JSON = "[\"1507973904164061194\",\"1507973939937280131\"]"  # general, smp-chat
+# LFG slash command target channel.
+LFG_CHANNEL_ID = "1507973931372646490"         # 🧩│looking-for-game
+# Temporary-VC: clicking this voice channel spins up a fresh ephemeral VC.
+TEMP_VC_PARENT_ID = "1507973944026595388"      # ➕│join to create
 
 [[kv_namespaces]]
 binding = "LOADOUT_BOLTS"

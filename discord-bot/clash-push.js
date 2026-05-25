@@ -209,6 +209,33 @@ export const pushShieldExpiring = (env, { guildId, townName, minutesLeft }) =>
     guildId,
   });
 
+// ── Goblin raid pushes (E2) ──────────────────────────────────────────
+//
+// Goblin raids land asynchronously throughout the day; the push is
+// the viewer's signal that something happened. Routes through the
+// existing clash.raid.lost / clash.raid.won notify kinds — re-using
+// the bitmask keeps notify config simple. Warband raids escalate to
+// a stronger title so streamers know to log in.
+
+export const pushGoblinRaidResult = async (env, { guildId, stars, label, isWarband, stolen }) => {
+  const stolenText = stolen && Object.keys(stolen).length
+    ? Object.entries(stolen).map(([k, v]) => `${v} ${k}`).join(', ')
+    : null;
+  const lost = stars > 0;
+  return firePush(env, {
+    kind: lost ? 'clash.raid.won' : 'clash.raid.lost',
+    title: lost
+      ? `${isWarband ? '👑 Warband' : 'Goblins'} sacked your town — ${stars}★`
+      : `${isWarband ? '👑 Warband repelled' : 'Goblin raid repelled'}`,
+    body: lost
+      ? (stolenText ? `Stolen: ${stolenText}. Repair damage with /clash repair.` : 'Repair damage with /clash repair.')
+      : 'Your defenses held. No loot lost.',
+    url: `https://aquilo.gg/clash/town/${guildId}/`,
+    audience: { kind: 'town', guildId, userIds: await resolveOptedInUserIds(env, guildId, lost ? 'clash.raid.won' : 'clash.raid.lost') },
+    guildId,
+  });
+};
+
 // ── War push helpers (Phase 2) ───────────────────────────────────────
 //
 // All war pushes route through the existing clash.war.declared /

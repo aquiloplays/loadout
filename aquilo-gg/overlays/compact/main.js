@@ -250,15 +250,15 @@
   let iconOverrides = {};
   function defaultBadgeForCat(cat) {
     switch ((cat || 'info').toLowerCase()) {
-      case 'bolts':   return '/sprites/ui/icons/bolt.png';
-      case 'clip':    return '/sprites/ui/icons/camera.png';
-      case 'checkin': return '/sprites/ui/icons/check.png';
-      case 'counter': return '/sprites/ui/icons/star.png';
-      case 'mod':     return '/sprites/ui/icons/shield.png';
-      case 'custom':  return '/sprites/ui/icons/chat.png';
+      case 'bolts':   return '/sprites/ui/icons/glossy/bolt.png';
+      case 'clip':    return '/sprites/ui/icons/glossy/camera.png';
+      case 'checkin': return '/sprites/ui/icons/glossy/check.png';
+      case 'counter': return '/sprites/ui/icons/glossy/star.png';
+      case 'mod':     return '/sprites/ui/icons/glossy/shield.png';
+      case 'custom':  return '/sprites/ui/icons/glossy/chat.png';
       case 'song':
-      case 'music':   return '/sprites/ui/icons/music.png';
-      default:        return '/sprites/ui/icons/chat.png';
+      case 'music':   return '/sprites/ui/icons/glossy/music.png';
+      default:        return '/sprites/ui/icons/glossy/chat.png';
     }
   }
   function badgeForCat(cat) {
@@ -453,12 +453,12 @@
     const pool = (d.pool && d.pool.length ? d.pool : null) ||
                  (d.reels && d.reels.length ? d.reels : null) ||
                  [
-                   '/sprites/ui/icons/coin.png',
-                   '/sprites/ui/icons/gem.png',
-                   '/sprites/ui/icons/bolt.png',
-                   '/sprites/ui/icons/flame.png',
-                   '/sprites/ui/icons/star.png',
-                   '/sprites/ui/icons/heart.png',
+                   '/sprites/ui/icons/glossy/coin.png',
+                   '/sprites/ui/icons/glossy/gem.png',
+                   '/sprites/ui/icons/glossy/bolt.png',
+                   '/sprites/ui/icons/glossy/flame.png',
+                   '/sprites/ui/icons/glossy/star.png',
+                   '/sprites/ui/icons/glossy/heart.png',
                  ];
     function isUrl(s) { return /^https?:\/\//i.test(s) || /^\/\//.test(s) || /^\/sprites\//i.test(s); }
     function setSym(reel, sym) {
@@ -538,28 +538,28 @@
     switch (k) {
       case 'bolts.earned':
         if (!d.user || !d.amount) return;
-        evt = { tone: 'bolts',  badge: '/sprites/ui/icons/bolt.png', title: d.user, sub: '+' + d.amount + ' bolts' };
+        evt = { tone: 'bolts',  badge: '/sprites/ui/icons/glossy/bolt.png', title: d.user, sub: '+' + d.amount + ' bolts' };
         break;
       case 'bolts.gifted':
         if (!d.from || !d.to) return;
-        evt = { tone: 'bolts',  badge: '/sprites/ui/icons/gift.png', title: d.from + ' → ' + d.to, sub: '+' + (d.amount || 0) + ' bolts gifted' };
+        evt = { tone: 'bolts',  badge: '/sprites/ui/icons/glossy/gift.png', title: d.from + ' → ' + d.to, sub: '+' + (d.amount || 0) + ' bolts gifted' };
         break;
       case 'bolts.streak':
         if (!d.user || (d.streakDays || 0) < 2) return;
-        evt = { tone: 'streak', badge: '/sprites/ui/icons/flame.png', title: d.user, sub: (d.streakDays || 0) + '-day streak' };
+        evt = { tone: 'streak', badge: '/sprites/ui/icons/glossy/flame.png', title: d.user, sub: (d.streakDays || 0) + '-day streak' };
         break;
       case 'bolts.rain':
-        evt = { tone: 'bolts',  badge: '/sprites/ui/icons/droplet.png', title: 'Bolt rain', sub: ((d.recipients && d.recipients.length) || '?') + ' viewers showered' };
+        evt = { tone: 'bolts',  badge: '/sprites/ui/icons/glossy/droplet.png', title: 'Bolt rain', sub: ((d.recipients && d.recipients.length) || '?') + ' viewers showered' };
         break;
       case 'bolts.leaderboard': {
         const top = (d.top || []);
         if (top.length === 0) return;
-        evt = { tone: 'bolts', badge: '/sprites/ui/icons/trophy.png', title: 'Top: ' + (top[0].handle || '?'), sub: (top[0].balance || 0) + ' bolts' };
+        evt = { tone: 'bolts', badge: '/sprites/ui/icons/glossy/trophy.png', title: 'Top: ' + (top[0].handle || '?'), sub: (top[0].balance || 0) + ' bolts' };
         break;
       }
       case 'welcome.fired':
         if (!d.rendered && !d.user) return;
-        evt = { tone: 'welcome', badge: '/sprites/ui/icons/wave.png', title: d.user || 'viewer', sub: d.rendered || 'welcome' };
+        evt = { tone: 'welcome', badge: '/sprites/ui/icons/glossy/wave.png', title: d.user || 'viewer', sub: d.rendered || 'welcome' };
         break;
       case 'counter.updated':
         if (!d.name) return;
@@ -590,23 +590,23 @@
         break;
       case 'viewer.profile.shown':
         if (!d.user) return;
-        evt = { tone: 'info', badge: '/sprites/ui/icons/id.png', title: d.user, sub: (d.bolts || 0) + ' bolts' + (d.streakDays ? ' · ' + d.streakDays + 'd streak' : '') };
+        evt = { tone: 'info', badge: '/sprites/ui/icons/glossy/id.png', title: d.user, sub: (d.bolts || 0) + ' bolts' + (d.streakDays ? ' · ' + d.streakDays + 'd streak' : '') };
         break;
       case 'rotation.song.playing':
         if (!d.title) return;
-        evt = { tone: 'welcome', badge: '/sprites/ui/icons/music.png',
+        evt = { tone: 'welcome', badge: '/sprites/ui/icons/glossy/music.png',
                 title: d.title + (d.artist ? ' — ' + d.artist : ''),
                 sub: (d.source || 'Spotify') + (d.requestedBy ? '  · req by ' + d.requestedBy : '') };
         break;
       case 'rotation.song.queued':
         if (!d.title) return;
-        evt = { tone: 'info', badge: '/sprites/ui/icons/plus.png',
+        evt = { tone: 'info', badge: '/sprites/ui/icons/glossy/plus.png',
                 title: 'Queued: ' + d.title + (d.artist ? ' — ' + d.artist : ''),
                 sub: (d.requestedBy ? 'by ' + d.requestedBy : 'priority request') };
         break;
       case 'tips.received':
         if (!(d.amount > 0)) return;
-        evt = { tone: 'streak', badge: '/sprites/ui/icons/heart.png',
+        evt = { tone: 'streak', badge: '/sprites/ui/icons/glossy/heart.png',
                 title: (d.tipper || 'anonymous') + ' tipped ' + (d.currency || 'USD') + ' ' + (d.amount || 0).toFixed(2),
                 sub:   d.bolts > 0
                        ? '+' + d.bolts + ' bolts' + (d.message ? '  ·  "' + d.message + '"' : '')
@@ -614,17 +614,17 @@
         break;
       case 'bolts.heist.start':
         if (!d.initiator) return;
-        evt = { tone: 'counter', badge: '/sprites/ui/icons/sword.png',
+        evt = { tone: 'counter', badge: '/sprites/ui/icons/glossy/sword.png',
                 title: d.initiator + ' is pulling a heist',
                 sub: 'pot ' + (d.totalPot || d.stake || 0) + '/' + (d.target || 0) + ' bolts  ·  !join to chip in' };
         break;
       case 'bolts.heist.success':
-        evt = { tone: 'win', badge: '/sprites/ui/icons/coin.png',
+        evt = { tone: 'win', badge: '/sprites/ui/icons/glossy/coin.png',
                 title: 'HEIST SUCCESS',
                 sub: 'crew of ' + (d.contributors || 0) + ' splits ' + (d.payout || 0) + ' bolts' };
         break;
       case 'bolts.heist.failure':
-        evt = { tone: 'lose', badge: '/sprites/ui/icons/alert.png',
+        evt = { tone: 'lose', badge: '/sprites/ui/icons/glossy/alert.png',
                 title: 'HEIST FAILED',
                 sub: 'pot ' + (d.totalPot || 0) + '/' + (d.target || 0) + ' bolts  ·  crew got nothing' };
         break;

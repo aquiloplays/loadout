@@ -255,8 +255,8 @@ async function runHealthChecks(env, guildId) {
     return 'configured';
   });
 
-  await tryCheck('Vault bolts secret', async () => {
-    if (!env.AQUILO_VAULT_BOLTS_SECRET) throw new Error('not set (FS Bot /wallet will be dormant)');
+  await tryCheck('Aquilo\'s Vault bolts secret', async () => {
+    if (!env.AQUILO_VAULT_BOLTS_SECRET) throw new Error('not set (Aquilo\'s Vault bot /wallet will be dormant)');
     return 'configured';
   });
 

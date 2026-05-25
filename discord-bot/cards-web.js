@@ -25,6 +25,11 @@ import {
   buyPack, openPack, claimDailyFreePack, creditPack,
 } from './cards-packs.js';
 import {
+  proposeTrade, acceptTrade, declineTrade, cancelTrade,
+  getTrade, listTrades, tradeableCollection,
+} from './cards-trade.js';
+import { sendDm } from './aquilo/util.js';
+import {
   getFragments, recycleCard, craftPack,
   RECYCLE_YIELD, CRAFT_COST,
 } from './cards-fragments.js';
@@ -58,6 +63,14 @@ const ROUTES = new Set([
   'boltbound/fragments',
   'boltbound/recycle',
   'boltbound/craft',
+  // T-1: player-to-player card trading
+  'boltbound/trade/propose',
+  'boltbound/trade/list',
+  'boltbound/trade/get',
+  'boltbound/trade/accept',
+  'boltbound/trade/decline',
+  'boltbound/trade/cancel',
+  'boltbound/trade/collection',
 ]);
 
 // Read-only sub-routes the proxy may skip rate-limit for.
@@ -67,6 +80,9 @@ const READ_ROUTES = new Set([
   'boltbound/match/state',
   'boltbound/log',
   'boltbound/fragments',
+  'boltbound/trade/list',
+  'boltbound/trade/get',
+  'boltbound/trade/collection',
 ]);
 
 export function isBoltboundRoute(r) { return ROUTES.has(r); }
@@ -357,6 +373,137 @@ async function routeCraft(env, guildId, userId, body) {
   return json(r);
 }
 
+// ── Trade routes ───────────────────────────────────────────────────
+//
+// Auth is already enforced upstream by web.js (HMAC) — `userId` here
+// is the signed-in viewer, used as the actor for every trade action.
+// The HTTP-level `discordId` becomes the proposer (propose), the
+// acceptor/decliner (accept/decline), or the canceller (cancel).
+
+async function routeTradePropose(env, guildId, userId, body) {
+  const toUserId = String((body && body.toUserId) || '').trim();
+  const result = await proposeTrade(env, {
+    guildId,
+    fromUserId: userId,
+    toUserId,
+    fromCards: body?.fromCards || [],
+    toCards:   body?.toCards   || [],
+    fromBolts: body?.fromBolts || 0,
+    toBolts:   body?.toBolts   || 0,
+    note:      body?.note || '',
+  });
+  if (!result.ok) return json(result, 400);
+
+  // Fire-and-forget DM to the recipient. Respects per-user push prefs
+  // via the same path /push/dm uses (pprofile.pushPrefs.discordDm +
+  // pprofile.pushPrefs.kinds['boltbound-trade-offer']).
+  notifyRecipient(env, result.trade).catch((e) =>
+    console.warn('[trade] notify failed', e && e.message)
+  );
+
+  return json({ ok: true, trade: result.trade });
+}
+
+async function routeTradeList(env, guildId, userId, body) {
+  const direction = (body && body.direction) || 'both';
+  if (!['incoming', 'outgoing', 'both'].includes(direction)) {
+    return json({ ok: false, error: 'bad-direction' }, 400);
+  }
+  const trades = await listTrades(env, guildId, userId, direction);
+  return json({ ok: true, trades });
+}
+
+async function routeTradeGet(env, guildId, userId, body) {
+  const tradeId = String((body && body.tradeId) || '').trim();
+  if (!tradeId) return json({ ok: false, error: 'bad-trade-id' }, 400);
+  const trade = await getTrade(env, guildId, tradeId);
+  if (!trade) return json({ ok: false, error: 'not-found' }, 404);
+  // Only allow the proposer or the recipient to view the trade. This
+  // hides offer contents from third parties.
+  if (String(trade.fromUserId) !== String(userId) &&
+      String(trade.toUserId)   !== String(userId)) {
+    return json({ ok: false, error: 'forbidden' }, 403);
+  }
+  return json({ ok: true, trade });
+}
+
+async function routeTradeAccept(env, guildId, userId, body) {
+  const tradeId = String((body && body.tradeId) || '').trim();
+  if (!tradeId) return json({ ok: false, error: 'bad-trade-id' }, 400);
+  const result = await acceptTrade(env, guildId, tradeId, userId);
+  if (!result.ok) return json(result, 400);
+  return json(result);
+}
+
+async function routeTradeDecline(env, guildId, userId, body) {
+  const tradeId = String((body && body.tradeId) || '').trim();
+  if (!tradeId) return json({ ok: false, error: 'bad-trade-id' }, 400);
+  const result = await declineTrade(env, guildId, tradeId, userId);
+  if (!result.ok) return json(result, 400);
+  return json(result);
+}
+
+async function routeTradeCancel(env, guildId, userId, body) {
+  const tradeId = String((body && body.tradeId) || '').trim();
+  if (!tradeId) return json({ ok: false, error: 'bad-trade-id' }, 400);
+  const result = await cancelTrade(env, guildId, tradeId, userId);
+  if (!result.ok) return json(result, 400);
+  return json(result);
+}
+
+async function routeTradeCollection(env, guildId, userId, body) {
+  const ownerId = String((body && body.ownerId) || '').trim();
+  if (!/^\d{5,25}$/.test(ownerId)) return json({ ok: false, error: 'bad-owner-id' }, 400);
+  const view = await tradeableCollection(env, guildId, ownerId);
+  return json({ ok: true, viewerId: userId, ...view });
+}
+
+// Send a Discord DM to the trade recipient. Mirrors the format used
+// elsewhere (LFG / friend requests). Respects per-user push prefs
+// the same way /push/dm does — if the recipient opted out of DMs
+// or specifically opted out of kind='boltbound-trade-offer', the
+// notification is silently skipped.
+async function notifyRecipient(env, trade) {
+  if (!env.DISCORD_BOT_TOKEN) return;
+  // Re-check prefs inline (no helper export exists; same shape as push-dm.js).
+  let prefs = { discordDm: true, web: true, kinds: {} };
+  try {
+    const p = await env.LOADOUT_BOLTS.get(`pprofile:${trade.toUserId}`, { type: 'json' });
+    if (p?.pushPrefs) prefs = { ...prefs, ...p.pushPrefs };
+  } catch { /* fall through to defaults */ }
+  if (prefs.discordDm === false) return;
+  if (prefs.kinds && prefs.kinds['boltbound-trade-offer'] === false) return;
+
+  const fromName = `<@${trade.fromUserId}>`;
+  const summary = describeTradeOffer(trade);
+  const url = `https://aquilo.gg/play/boltbound/trade/${encodeURIComponent(trade.tradeId)}`;
+  const content = `**${fromName} sent you a Boltbound trade offer**\n${summary}\n${url}`;
+  await sendDm(env, trade.toUserId, { content: content.slice(0, 1900) });
+}
+
+function describeTradeOffer(trade) {
+  const offer = describeSide(trade.fromCards, trade.fromBolts);
+  const want  = describeSide(trade.toCards,   trade.toBolts);
+  let s = `Offers: ${offer}\nWants: ${want}`;
+  if (trade.note) s += `\nNote: ${trade.note}`;
+  return s;
+}
+function describeSide(cardIds, bolts) {
+  const parts = [];
+  if (cardIds && cardIds.length) {
+    const tally = {};
+    for (const cid of cardIds) tally[cid] = (tally[cid] || 0) + 1;
+    for (const [cid, n] of Object.entries(tally)) {
+      const card = CARDS[cid];
+      const name = card?.name || cid;
+      parts.push(n > 1 ? `${n}× ${name}` : name);
+    }
+  }
+  if (bolts > 0) parts.push(`${bolts} bolts`);
+  if (parts.length === 0) parts.push('nothing');
+  return parts.join(', ');
+}
+
 // ── Public dispatch ────────────────────────────────────────────────
 
 export async function routeBoltbound(env, guildId, userId, route, body, opts) {
@@ -384,6 +531,13 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);
     if (route === 'boltbound/recycle')         return await routeRecycle(env, guildId, userId, body);
     if (route === 'boltbound/craft')           return await routeCraft(env, guildId, userId, body);
+    if (route === 'boltbound/trade/propose')    return await routeTradePropose(env, guildId, userId, body);
+    if (route === 'boltbound/trade/list')       return await routeTradeList(env, guildId, userId, body);
+    if (route === 'boltbound/trade/get')        return await routeTradeGet(env, guildId, userId, body);
+    if (route === 'boltbound/trade/accept')     return await routeTradeAccept(env, guildId, userId, body);
+    if (route === 'boltbound/trade/decline')    return await routeTradeDecline(env, guildId, userId, body);
+    if (route === 'boltbound/trade/cancel')     return await routeTradeCancel(env, guildId, userId, body);
+    if (route === 'boltbound/trade/collection') return await routeTradeCollection(env, guildId, userId, body);
     return wrap({ error: 'not-found' }, 404);
   } catch (e) {
     return wrap({ error: 'server', message: String((e && e.message) || e) }, 500);

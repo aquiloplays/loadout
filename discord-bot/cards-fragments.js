@@ -151,6 +151,15 @@ export async function craftPack(env, guildId, userId, packType) {
     await addFragments(env, userId, cost, 'craft:refund:' + credited.error);
     return { ok: false, error: credited.error };
   }
+  // PROGRESSION (P1) — craft XP.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    await emitProgressionEvent(env, {
+      kind: 'cards.crafted', userId, guildId,
+      meta: { packId: credited.pack.id, packType, cost },
+      stableKeys: ['packId'],
+    });
+  } catch { /* non-fatal */ }
   return {
     ok: true,
     packId: credited.pack.id,

@@ -1,0 +1,14 @@
+{
+  "name": "loadout-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Build-side asset generation for the Loadout repo. Standalone — not deployed; only used by the local sprite + bake pipeline.",
+  "scripts": {
+    "bake:character": "node build-character-glossy.mjs",
+    "bake:gear-figure": "node build-gear-figure-glossy.mjs"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  }
+}

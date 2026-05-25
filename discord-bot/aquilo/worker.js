@@ -55,7 +55,7 @@ import {
   handleSelfRoleAddSubmit, handleSelfRoleRemoveSubmit, handleRoleToggle
 } from './self-roles.js';
 import { OverlayBroadcaster } from './overlay-do.js';
-import { handleCountingMessage, sweepFailRoles } from './counting.js';
+import { handleCountingMessage, sweepFailRoles, sweepCountingChannelTimeouts } from './counting.js';
 import {
   handleSetupCommand, handleSetupButton,
   handleSetupChannelsASubmit, handleSetupChannelsBSubmit,
@@ -144,8 +144,11 @@ export async function handleAquiloHttp(req, env, ctx, url) {
 
   // Counting game webhook from aquilo-presence. Fail-closed if the
   // shared COUNTING_WEBHOOK_SECRET isn't configured. Fans out to clip
-  // tracker + check-in handler (each no-ops when its channel doesn't
-  // match).
+  // tracker + community-chat ringbuffer (each no-ops when its channel
+  // doesn't match). The legacy Discord pic-attachment check-in
+  // previously fanned out from here as well — retired 2026-05 in
+  // favour of the unified daily check-in (community-checkin.js on
+  // loadout-discord, surfaced as both /checkin and POST /web/checkin).
   if (method === 'POST' && path === '/counting/message') {
     if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
     const got = req.headers.get('x-counting-secret') || '';
@@ -163,6 +166,98 @@ export async function handleAquiloHttp(req, env, ctx, url) {
       const { handleCommunityChatMessage } = await import('./community-chat.js');
       const chat = await handleCommunityChatMessage(env, payload).catch(e => ({ stored: false, error: String(e?.message || e) }));
       return json({ ok: true, counting, clip, checkin, chat });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
+  // Gateway-forwarded GUILD_MEMBER_ADD — drives the welcome embed.
+  // Same shared-secret auth as /counting/message.
+  // Payload (Discord GUILD_MEMBER_ADD slim subset):
+  //   { guild_id, user: { id, username, global_name, avatar, bot } }
+  if (method === 'POST' && path === '/member/joined') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleMemberJoined } = await import('../welcome.js');
+      const result = await handleMemberJoined(env, payload);
+      return json({ ok: true, welcome: result });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
+  // Gateway-forwarded GUILD_MEMBER_UPDATE — drives booster perks.
+  // Payload (slim): { guild_id, user, premium_since, roles }
+  if (method === 'POST' && path === '/member/updated') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleMemberUpdated } = await import('../boosters.js');
+      const result = await handleMemberUpdated(env, payload);
+      return json({ ok: true, booster: result });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
+  // Gateway-forwarded VOICE_STATE_UPDATE — drives temp-VC create/cleanup.
+  // Payload (slim): { guild_id, channel_id, user_id, session_id }
+  if (method === 'POST' && path === '/voice/state') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleVoiceStateUpdate } = await import('../temp-vc.js');
+      const result = await handleVoiceStateUpdate(env, payload);
+      return json({ ok: true, voice: result });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
+  // Gateway-shim signal: a tracked temp VC's occupancy dropped to zero.
+  // Payload: { guild_id, channel_id }. aquilo-presence tracks per-channel
+  // member counts and POSTs here when a temp-vc room empties.
+  if (method === 'POST' && path === '/voice/empty') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleTempVcEmpty } = await import('../temp-vc.js');
+      const result = await handleTempVcEmpty(env, payload);
+      return json({ ok: true, voice: result });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
+  // Gateway-forwarded MESSAGE_REACTION_ADD — drives the ⭐ starboard.
+  // Same shared-secret auth as /counting/message (aquilo-presence
+  // sends both with the same COUNTING_WEBHOOK_SECRET header).
+  //
+  // Payload (minimal Discord MESSAGE_REACTION_ADD subset):
+  //   { guild_id, channel_id, message_id, user_id, emoji: { name } }
+  if (method === 'POST' && path === '/reaction/event') {
+    if (!env.COUNTING_WEBHOOK_SECRET) return json({ error: 'COUNTING_WEBHOOK_SECRET unset' }, 503);
+    const got = req.headers.get('x-counting-secret') || '';
+    if (got !== env.COUNTING_WEBHOOK_SECRET) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = await req.json(); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { handleStarboardReaction } = await import('../guild-features.js');
+      const result = await handleStarboardReaction(env, payload);
+      return json({ ok: true, starboard: result });
     } catch (e) {
       return json({ error: String(e.message || e) }, 500);
     }
@@ -384,6 +479,8 @@ async function handleScheduled(event, env, ctx) {
   // role can persist up to ~30 min past its configured expiry. Fine.
   try { await sweepFailRoles(env); }
   catch (e) { console.error('[cron counting-sweep]', e?.message || e); }
+  try { await sweepCountingChannelTimeouts(env); }
+  catch (e) { console.error('[cron counting-channel-timeouts]', e?.message || e); }
 
   // Refresh the Rotation pre-stream poll's live tallies. Reads each
   // option's reaction count from Discord and PATCHes the embed if any

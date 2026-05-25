@@ -77,9 +77,11 @@ import {
   _editorTownGarrison,
   _editorDonate,
   _editorClearObstacle,
+  _editorTownSell,
+  _editorTownLayout,
   canManageTown,
 } from './clash.js';
-import { ensureTown } from './clash-state.js';
+import { ensureTown, getQueue } from './clash-state.js';
 import {
   getCharacterLookWeb,
   saveCharacterLookWeb,
@@ -93,6 +95,7 @@ import {
   BUILDINGS, TROOPS_GARRISON, OBSTACLES,
   withBuildingSprites, withGarrisonSprites, withObstacleSprites,
   townBuildCost, townGarrisonCost,
+  spriteIdForBuildingV2, spriteIdForTroopV2,
 } from './clash-content.js';
 import { getTown, getTreasury } from './clash-state.js';
 
@@ -151,6 +154,8 @@ const ROUTES = new Set([
   'clash/raid',
   'clash/build',
   'clash/garrison',
+  'clash/sell',
+  'clash/layout',
   'clash/town',
   'clash/setup',
   // 2026-05 Phase 5 — wallet → treasury donation on the play surface
@@ -159,6 +164,16 @@ const ROUTES = new Set([
   'clash/donate',
   // 2026-05 Phase 5 — obstacle clear (Engineer dispatch). Mod-gated.
   'clash/clear-obstacle',
+  'pet/snapshot',
+  'pet/collect',
+  'expedition/status',
+  'expedition/start',
+  'expedition/claim',
+  'expedition/history',
+  'expedition/backpack/catalog',
+  'expedition/backpack/buy',
+  'expedition/backpack/supply',
+  'season/claim',
   'character',
   'character/save',
   'character/class',
@@ -182,6 +197,31 @@ const ROUTES = new Set([
   'admin/active-guild',
   'admin/clear-binding',
   'admin/pipe-tests',
+  // Daily community check-in (unified with /checkin slash command).
+  'checkin',                 // POST — record today's check-in
+  'checkin/status',          // POST — read streak + card + pending bonuses
+  'checkin/card',            // POST — upsert the user's embed card config
+  'checkin/bonus/collect',   // POST — claim one bonus (or 'all')
+  // New-viewer funnel — referrals + onboarding quest.
+  'referral/me',             // POST — my code + stats
+  'referral/attribute',      // POST — record that this user was referred by CODE
+  'quest/snapshot',          // POST — checklist with claim state
+  'quest/claim',             // POST — claim one step (or 'all')
+  'quest/mark-patreon-linked', // POST — flip the patreon-linked completion flag (called by site after OAuth)
+  // Productization — self-serve setup wizard (web parity with /loadout-setup).
+  'setup/snapshot',          // POST — full tenant + channel + feature state
+  'setup/init',              // POST — register the tenant (idempotent)
+  'setup/channel',           // POST — bind one channel slot
+  'setup/feature',           // POST — toggle one feature on/off
+  'setup/finish',            // POST — mark setup as complete
+  'setup/branding',          // POST — { op: 'get' | undefined, brand: {...} }
+  // Two-way Discord ↔ PWA chat relay. NOTE: the read path is namespaced
+  // as `chat/relay/recent` to avoid colliding with main's existing
+  // `chat/recent` (community-chat reactions reader, see L112). The
+  // parallel aquilo-site session needs to call `/web/chat/relay/recent`
+  // for the relay read; the reactions path stays at `/web/chat/recent`.
+  'chat/send',               // POST — { channelId, content } → webhook post styled as caller
+  'chat/relay/recent',       // POST — { channelId, limit? } → relay ringbuffer + per-msg sentViaPwa decoration
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -226,11 +266,19 @@ export async function handleWeb(req, env) {
   if (!/^\d{5,25}$/.test(discordId)) return json({ error: 'bad-discord-id' }, 400);
   if (!/^\d{5,25}$/.test(guildId))   return json({ error: 'bad-guild-id' }, 400);
 
-  // Bot-side allow-list: only the Aquilo guild for now (matches /ext/*
-  // and the Patreon-link flow on the site). Other guilds calling here
-  // would imply someone forged a session, but we double-belt anyway.
-  if (env.AQUILO_VAULT_GUILD_ID && guildId !== String(env.AQUILO_VAULT_GUILD_ID)) {
-    return json({ error: 'forbidden-guild' }, 403);
+  // Bot-side multi-tenant gate. A guild must be a registered tenant
+  // (created via /setup) to use any /web/* route. Aquilo is grandfathered
+  // in via env.AQUILO_VAULT_GUILD_ID. A forged session for a guild that
+  // never ran /setup still 403s here.
+  //
+  // Exception: setup/* routes bypass the gate because /setup is HOW a
+  // guild becomes a tenant. They're still HMAC-gated and discordId-
+  // bound, so only a logged-in user with site auth can hit them.
+  if (!route.startsWith('setup/')) {
+    const { isRegisteredTenant } = await import('./tenants.js');
+    if (!(await isRegisteredTenant(env, guildId))) {
+      return json({ error: 'guild-not-registered', message: 'This server has not completed /setup yet.' }, 403);
+    }
   }
 
   try {
@@ -289,15 +337,40 @@ export async function handleWeb(req, env) {
     if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
     if (route === 'clash/build')           return await routeClashBuild(env, guildId, discordId, body);
     if (route === 'clash/garrison')        return await routeClashGarrison(env, guildId, discordId, body);
+    if (route === 'clash/sell')            return await routeClashSell(env, guildId, discordId, body);
+    if (route === 'clash/layout')          return await routeClashLayout(env, guildId, discordId, body);
     if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);
     if (route === 'clash/setup')           return await routeClashSetup(env, guildId, discordId);
     if (route === 'clash/donate')          return await routeClashDonate(env, guildId, discordId, body);
     if (route === 'clash/clear-obstacle')  return await routeClashClearObstacle(env, guildId, discordId, body);
+    if (route === 'pet/snapshot')          return await routePetSnapshot(env, guildId, discordId);
+    if (route === 'pet/collect')           return await routePetCollect(env, guildId, discordId);
+    if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId);
+    if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
+    if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
+    if (route === 'checkin/bonus/collect') return await routeCommunityCheckinBonusCollect(env, guildId, discordId, body);
+    if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
+    if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
+    if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
+    if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
+    if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
+    if (route === 'setup/snapshot')   return await routeSetupSnapshot(env, guildId, discordId);
+    if (route === 'setup/init')       return await routeSetupInit(env, guildId, discordId);
+    if (route === 'setup/channel')    return await routeSetupChannel(env, guildId, body);
+    if (route === 'setup/feature')    return await routeSetupFeature(env, guildId, body);
+    if (route === 'setup/finish')     return await routeSetupFinish(env, guildId, discordId);
+    if (route === 'setup/branding')   return await routeSetupBranding(env, guildId, body);
+    if (route === 'chat/send')        return await routeChatSend(env, guildId, discordId, body);
+    if (route === 'chat/relay/recent') return await routeChatRelayRecent(env, guildId, discordId, body);
+    if (route === 'season/claim')          return await routeSeasonClaim(env, discordId, body);
+    if (route.startsWith('expedition/')) {
+      const sub = route.slice('expedition/'.length);
+      const { handleExpeditionWeb } = await import('./expedition.js');
+      return await handleExpeditionWeb(env, guildId, discordId, body, sub);
+    }
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
     if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
     if (route === 'character/reset')       return await routeCharacterReset(env, guildId, discordId);
-    if (route === 'referral/me')           return await routeReferralMe(env, guildId, discordId);
-    if (route === 'referral/attribute')    return await routeReferralAttribute(env, guildId, discordId, body);
     if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
     if (isBoardRoute(route))               return await routeBoard(env, route, guildId, discordId, body);
   } catch (e) {
@@ -321,23 +394,24 @@ async function routeWallet(env, guildId, userId) {
   });
 }
 
-// Fire the referral funnel's first-activity milestone. This is the
-// piece that was missing on main when only the /web/referral/* routes
-// were cherry-picked from the reconcile branch — attributions were
-// being recorded but no caller ever fired recordMilestone() to pay
-// the referrer's 50 Bolts + 1 'bolt' pack. Hooked into every game
-// route below so any of daily/coinflip/dice qualifies as "first
-// activity". recordMilestone is idempotent (the stamped
-// milestoneFiredUtc on the referee record prevents double-pay), so
-// calling on every play is safe — only the first one for an
-// attributed user actually pays anything out.
-//
-// Dynamic import + best-effort try/catch so a referrals-side hiccup
-// can't break the game route. Forward-compatible with a future
-// quests.js port — quests.js can fire its own milestone kinds
-// (first-checkin, patreon-link, ...) without re-firing this one
-// (recordMilestone is gated on `rec.milestoneFiredUtc`, not on the
-// kind).
+// Fire-and-forget "you've played a game" hook for the onboarding
+// quest. Called from every game-play route; idempotent (markGamePlayed
+// is just a KV put). Wrapped in a catch so a quest-module failure
+// can't break the actual game route.
+async function noteGamePlayed(env, guildId, userId) {
+  try {
+    const { markGamePlayed } = await import('./quests.js');
+    await markGamePlayed(env, guildId, userId);
+  } catch { /* idle */ }
+}
+
+// Sibling to noteGamePlayed: fire the referral-funnel milestone for
+// the user's first wallet-touching activity. recordMilestone is
+// idempotent on the referee's milestoneFiredUtc stamp, so calling
+// on every play is safe — only the first one for an attributed
+// user actually pays anything out (50 Bolts + 1 'bolt' pack to the
+// referrer). Forward-compatible with quests.js firing additional
+// milestone kinds; they're gated on the same stamp, not on the kind.
 async function noteFirstGame(env, guildId, userId) {
   try {
     const { recordMilestone } = await import('./referrals.js');
@@ -348,6 +422,7 @@ async function noteFirstGame(env, guildId, userId) {
 }
 
 async function routeDaily(env, guildId, userId) {
+  await noteGamePlayed(env, guildId, userId);
   const r = await daily(env, guildId, userId);
   if (r.won) {
     // games_won bumps on a successful daily so the recap card's
@@ -373,6 +448,7 @@ async function routeDaily(env, guildId, userId) {
 }
 
 async function routeCoinflip(env, guildId, userId, body) {
+  await noteGamePlayed(env, guildId, userId);
   const bet = Number(body && body.bet);
   if (!Number.isFinite(bet) || bet <= 0) {
     return json({ ok: false, error: 'bad-bet', explanation: 'Bet must be a positive number.' }, 400);
@@ -711,40 +787,19 @@ async function routeShopBuy(env, guildId, userId, body) {
   });
 }
 
-// ── Dungeon skip-cooldown (Phase 4 — patron-gated) ────────────────────
+// ── Dungeon skip-cooldown ────────────────────────────────────────
 //
-// Patron-only at the moment. Any active aq_link session is treated
-// as "patron" (the cookie's `o:1` is the only stored flag; a proper
-// tier lookup belongs in a separate effort). Once per 10-min stream
-// cooldown per viewer, enforced by a webskip:<userId> TTL key.
+// I3 (2026-05): per-viewer cooldown removed. Dungeons only run while
+// Clay is live, so there's no rate-abuse vector — the 10-min
+// per-viewer lockout was friction without a purpose. The endpoint
+// now always queues a skip command for the DLL; PanelBridgeModule
+// stamps the trusted skip flag exactly as before.
 //
-// On success we enqueue the same relay:dll-pending record the panel's
-// /ext/dungeon/skip-cooldown writes, so the DLL processes web-side
-// skips identically to Bits-paid panel skips.
-
-const WEB_SKIP_TTL_S = 10 * 60; // 10 minutes
-const WEB_SKIP_KEY = (uid) => `webskip:${uid}`;
+// Bits + bolts payment paths (ext-panelbridge.js skipCooldown) are
+// unchanged — they're Twitch panel monetization SKUs, not part of
+// the website's web-skip flow.
 
 async function routeDungeonSkip(env, guildId, userId) {
-  // Allow-list check: prevent users without a Patreon tier from
-  // exhausting the cooldown skip every 10 minutes. Today we trust
-  // any linked Discord session (Clay's signed-off "Patron-gated"
-  // assumes the /link callback minted the cookie). TODO: tighten
-  // to active-tier check when Patreon tier lands in the session.
-  const recent = await env.LOADOUT_BOLTS.get(WEB_SKIP_KEY(userId));
-  if (recent) {
-    return json({
-      ok: false,
-      error: 'cooldown',
-      message: 'Already used your skip this cooldown.',
-    }, 429);
-  }
-  await env.LOADOUT_BOLTS.put(WEB_SKIP_KEY(userId), String(Date.now()), {
-    expirationTtl: WEB_SKIP_TTL_S,
-  });
-
-  // Enqueue the skip command for the DLL. Same shape ext-panelbridge
-  // uses; PanelBridgeModule stamps the trusted skip flag.
   const record = {
     kind: 'dungeon',
     action: 'skip',
@@ -754,11 +809,11 @@ async function routeDungeonSkip(env, guildId, userId) {
   };
   const key = 'relay:dll-pending:' + record.ts + '-' + Math.random().toString(36).slice(2, 8);
   await env.LOADOUT_BOLTS.put(key, JSON.stringify(record), { expirationTtl: 90 });
-
   return json({ ok: true, message: 'Cooldown skip queued. Watch the stream.' });
 }
 
 async function routeDice(env, guildId, userId, body) {
+  await noteGamePlayed(env, guildId, userId);
   const bet = Number(body && body.bet);
   const target = Number(body && body.target);
   if (!Number.isFinite(bet) || bet <= 0) {
@@ -905,6 +960,49 @@ async function routeClashGarrison(env, guildId, userId, body) {
   return json({ ...cls, message });
 }
 
+// ── /web/clash/sell ──────────────────────────────────────────────
+//
+// H1 — Sell a building and refund 25 % of its build cost. CoC-style
+// partial refund. Same gate + side-effects as the in-game demolish,
+// but allowed on idle buildings (not just damaged/destroyed).
+//
+// Body fields:
+//   discordId   the acting user
+//   guildId     the target town
+//   buildingId  numeric id of the building to sell
+//
+// Returns: { ok, refund: { bolts?, scrap?, cores?, wood?, stone?,
+//                          iron?, gold? }, layoutVersion, message }
+async function routeClashSell(env, guildId, userId, body) {
+  const buildingId = body?.buildingId;
+  if (buildingId == null) {
+    return json({ ok: false, error: 'bad-id', message: '❌ Pass buildingId.' }, 200);
+  }
+  const r = await _editorTownSell(env, guildId, userId, buildingId);
+  return json(r, 200);
+}
+
+// ── /web/clash/layout ────────────────────────────────────────────
+//
+// H2 — In-app layout-save. Mirror of the secret-path
+// /sync/<guildId>/clash/layout (used by the ClashEditor SPA);
+// this is the path the in-app TownManager edit mode uses since it's
+// authed via the Patreon session, not the editor secret.
+//
+// Body fields:
+//   discordId   the acting user
+//   guildId     the target town
+//   layout      [{ id?, kind, x, y, level? }, ...]
+//                 existing buildings carry `id`; new placements omit it
+//
+// Returns: { ok, layoutVersion?, errors?: [...] }
+async function routeClashLayout(env, guildId, userId, body) {
+  const layout = Array.isArray(body?.layout) ? body.layout : null;
+  if (!layout) return json({ ok: false, errors: ['layout-array-required'] }, 200);
+  const r = await _editorTownLayout(env, guildId, userId, layout);
+  return json(r, 200);
+}
+
 // ── /web/clash/town ──────────────────────────────────────────────
 //
 // Convenience read for the website's town-management UI — same
@@ -933,12 +1031,36 @@ async function routeClashTown(env, guildId, userId) {
     const maxLevel = (def.hp?.length || 2) - 1;
     const nextLevel = (b.level || 1) + 1;
     const nextCost = nextLevel <= maxLevel ? townBuildCost(b.kind, nextLevel) : null;
+    const lvl = b.level || 1;
+    // H3 — flatten per-level stats (damage/range/dps/hp/storage/
+    // capacity/burst/production) into one object the site's info-popup
+    // can iterate to render lines. Only present keys are included so
+    // the popup doesn't render "damage: —" for a Sawmill.
+    const stats = {};
+    if (def.hp?.[lvl] != null)               stats.hp = def.hp[lvl];
+    if (def.dps?.[lvl] != null)              stats.dps = def.dps[lvl];
+    if (def.dps?.[lvl] != null)              stats.damage = def.dps[lvl];
+    if (def.range != null)                   stats.range = def.range;
+    if (def.targets)                         stats.targets = def.targets;
+    if (def.burst?.[lvl] != null)            stats.burst = def.burst[lvl];
+    if (def.capacityBonus?.[lvl] != null)    stats.storage = def.capacityBonus[lvl];
+    if (def.garrisonCapBonus?.[lvl] != null) stats.capacity = def.garrisonCapBonus[lvl];
+    if (def.productionRate?.[lvl] != null)   stats.productionPerMin = def.productionRate[lvl];
+    if (def.collectorStorage?.[lvl] != null) stats.collectorStorage = def.collectorStorage[lvl];
+    if (def.grantsBuildSlots?.[lvl] != null) stats.buildSlots = def.grantsBuildSlots[lvl];
+    if (def.grantsBarracksCap?.[lvl] != null) stats.barracksCap = def.grantsBarracksCap[lvl];
+    if (def.grantsGatherSlots?.[lvl] != null) stats.gatherSlots = def.grantsGatherSlots[lvl];
+    if (def.championHpMult?.[lvl] != null)   stats.championHpMult = def.championHpMult[lvl];
+    if (def.collectorOf)                     stats.produces = def.collectorOf;
+    if (def.footprint)                       stats.footprint = def.footprint;
     return {
       ...b,
-      spriteId: `clash/buildings/${b.kind}-L${b.level || 1}.png`,
+      spriteId:   `clash/buildings/${b.kind}-L${b.level || 1}.png`,        // V1 legacy (OBS overlay)
+      spriteIdV2: spriteIdForBuildingV2(b.kind, b.level || 1),             // glossy SVG — in-app TownManager reads this
       maxLevel,
       nextLevel: nextLevel <= maxLevel ? nextLevel : null,
       nextCost: nextCost ? { cost: nextCost.cost, timeMs: nextCost.timeMs } : null,
+      stats,
     };
   });
   // Available "new build" kinds + their L1 costs.
@@ -948,7 +1070,8 @@ async function routeClashTown(env, guildId, userId) {
       kind: k,
       name: BUILDINGS[k].name,
       glyph: BUILDINGS[k].glyph,
-      spriteId: `clash/buildings/${k}-L1.png`,
+      spriteId:   `clash/buildings/${k}-L1.png`,
+      spriteIdV2: spriteIdForBuildingV2(k, 1),
       cost: c ? c.cost : null,
       timeMs: c ? c.timeMs : null,
     };
@@ -961,11 +1084,31 @@ async function routeClashTown(env, guildId, userId) {
       troopId: t,
       name: TROOPS_GARRISON[t].name,
       glyph: TROOPS_GARRISON[t].glyph,
-      spriteId: `clash/troops/${t}.png`,
+      spriteId:   `clash/troops/${t}.png`,
+      spriteIdV2: spriteIdForTroopV2(t),
       bolts: c ? c.bolts : null,
       timeMs: c ? c.timeMs : null,
     };
   });
+  // H4 — Total builder slots = TH grant for current level + 1 per
+  // built Builder's Hut. Mirrors the formula clash-layout.js +
+  // handleTownBuild use when capping the queue length.
+  const thBuilding = (town.buildings || []).find(b => b.kind === 'townhall');
+  const thBuildSlots = thBuilding ? (BUILDINGS.townhall?.grantsBuildSlots?.[thBuilding.level || 1] || 1) : 1;
+  const hutSlots = (town.buildings || []).filter(b => b.kind === 'buildersHut').length;
+  const builderSlots = Math.min(4, thBuildSlots + hutSlots);
+
+  // H5 — Mirror the build queue onto this payload so the in-app
+  // build-queue rail can render live timers. Same shape clash-http.js
+  // returns on the secret-path /sync read.
+  const q = await getQueue(env, `clash:queue:${guildId}`);
+  const queue = (q.items || []).map(item => ({
+    id: item.id,
+    kind: item.kind,
+    target: item.target || null,
+    endsAt: item.endsAt || 0,
+  }));
+
   return json({
     ok: true,
     guildId,
@@ -994,6 +1137,8 @@ async function routeClashTown(env, guildId, userId) {
     obstacleCatalogue: OBSTACLES,
     engineers: { total: engineersTotal, busy: engineersBusy },
     layoutVersion: town.layoutVersion,
+    builderSlots,
+    queue,
   });
 }
 
@@ -1547,4 +1692,254 @@ async function routeChatUnreact(env, discordId, body) {
   } catch (e) {
     return json({ ok: false, error: 'discord-unreact-failed', message: String(e?.message || e) }, 502);
   }
+}
+
+// ── /web/pet/snapshot ────────────────────────────────────────────
+//
+// Returns current pet state + pending-delivery preview. The website's
+// pet card uses this to show "deliveries waiting: N" and the
+// next-delivery countdown.
+async function routePetSnapshot(env, guildId, userId) {
+  const { getPet, computeMood, pendingDeliveriesFor } = await import('./pet.js');
+  const pet = await getPet(env, guildId, userId);
+  if (!pet) return json({ ok: true, pet: null });
+  const mood = computeMood(pet);
+  const pending = pendingDeliveriesFor(pet);
+  return json({
+    ok: true,
+    pet: {
+      species: pet.species,
+      colour: pet.colour,
+      name: pet.name,
+      adoptedUtc: pet.adoptedUtc,
+      mood,
+      lastDeliveryUtc: pet.lastDeliveryUtc || pet.adoptedUtc,
+    },
+    deliveries: {
+      pending: pending.count,
+      cap: 12,
+      intervalMs: pending.intervalMs,
+      nextInMs: pending.nextInMs,
+      nextDeliveryUtc: Date.now() + (pending.nextInMs || 0),
+    },
+  });
+}
+
+// ── /web/pet/collect ─────────────────────────────────────────────
+//
+// Claims all pending deliveries and returns the breakdown + the
+// fresh wallet snapshot. Empty result (claimed:0) is not an error —
+// the website can poll snapshot for the next-delivery timer.
+async function routePetCollect(env, guildId, userId) {
+  const { claimPetDeliveries } = await import('./pet.js');
+  const r = await claimPetDeliveries(env, guildId, userId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// ── /web/season/claim ────────────────────────────────────────────
+//
+// HMAC-gated battle-pass claim. Auth-gap fix (2026-05): used to live
+// under /web/season/<userId>/claim which bypassed the HMAC dispatcher
+// because the /web/season/* prefix was claimed first by the public
+// read. Anyone who knew a userId could fire claims on someone else's
+// account. Public read is now at /p/season/<userId>; the claim moved
+// here so it gets the same HMAC gate every other /web/* write uses.
+//
+// Body fields (signed):
+//   discordId   acting user (the one whose tier gets claimed)
+//   tier        1..tierCount (battle pass tier number)
+//   track       'free' | 'premium'
+//
+// guildId is required by the outer dispatcher's auth but isn't read
+// by claimTier — season records are per-user, not per-guild.
+async function routeSeasonClaim(env, discordId, body) {
+  const tier = parseInt(body && body.tier, 10) || 0;
+  const track = (body && body.track) || 'free';
+  const { claimTier } = await import('./progression/season.js');
+  const r = await claimTier(env, discordId, tier, track);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// ── Daily community check-in (unified with /checkin slash command) ────
+//
+// All four routes share the same backing state in community-checkin.js;
+// the website and Discord interaction end up at recordCheckin() either
+// way, and the per-ET-day idempotency keeps the two surfaces in sync.
+
+async function routeCommunityCheckin(env, guildId, discordId) {
+  const { recordCheckin } = await import('./community-checkin.js');
+  const r = await recordCheckin(env, guildId, discordId, 'web');
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeCommunityCheckinStatus(env, guildId, discordId) {
+  const { getStatus } = await import('./community-checkin.js');
+  const r = await getStatus(env, guildId, discordId);
+  return json(r);
+}
+
+async function routeCommunityCheckinCard(env, guildId, discordId, body) {
+  // POST { discordId, guildId, card: { imageUrl, accentColor?, headline?, subtitle? } }
+  // OR  POST { discordId, guildId, op: 'get' } to read.
+  const { getCard, putCard } = await import('./community-checkin.js');
+  if (body && body.op === 'get') {
+    const card = await getCard(env, guildId, discordId);
+    return json({ ok: true, card: card || null });
+  }
+  const r = await putCard(env, guildId, discordId, body?.card || {});
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeCommunityCheckinBonusCollect(env, guildId, discordId, body) {
+  // POST { discordId, guildId, bonusId: '<id>' | 'all' }
+  const id = String((body && body.bonusId) || 'all');
+  const { collectBonus } = await import('./community-checkin.js');
+  const r = await collectBonus(env, guildId, discordId, id);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// Web-bridge implicit Patreon-link signal.
+//
+// Reaching any /web/quest/* route IS proof the caller has a verified
+// Patreon session — aquilo-site's bridge ([[route]].js → postToBot)
+// requires a valid aq_link cookie, which is issued ONLY by the
+// Patreon OAuth callback. So if the bot receives the request with
+// a valid HMAC + a real discordId, that user has linked Patreon
+// (regardless of whether their Patreon profile had an avatar, or
+// whether any of the older worker-side signals — `patreon:tier:<u>`
+// presence, `wallet.links` patreon entry — were ever written).
+//
+// We therefore mark the explicit `quest:patreon-linked:<g>:<u>` flag
+// at the top of every web-quest route so the step's completion check
+// agrees with itself across snapshot / claim / mark calls. This was
+// the root cause of the "snapshot says claimable but claim rejects"
+// bug Clay hit three times in a row:
+//   • snapshot returned `completed: true` only because the SITE
+//     optimistically overrode it (OnboardingQuest.tsx line 138-147);
+//     the worker actually returned `completed: false` because none of
+//     the prior 3 signals matched for a Patreon-only user.
+//   • claim re-ran the SAME completion check (it shares getSnapshot)
+//     but the optimistic override doesn't apply to claim, so claim
+//     rejected with `error: 'not-completed'`.
+// Auto-marking on every web touch makes the signal durable + cheap
+// (KV put is sub-millisecond, idempotent).
+//
+// Note: the /quest slash command DOES NOT auto-mark. It runs through
+// handleQuestCommand → getSnapshot directly; a slash command caller
+// hasn't proven a Patreon link.
+async function autoMarkWebPatreonLink(env, guildId, discordId) {
+  try {
+    const { markPatreonLinked } = await import('./quests.js');
+    await markPatreonLinked(env, guildId, discordId);
+  } catch { /* idle */ }
+}
+
+async function routeQuestSnapshot(env, guildId, discordId) {
+  await autoMarkWebPatreonLink(env, guildId, discordId);
+  const { getSnapshot } = await import('./quests.js');
+  return json(await getSnapshot(env, guildId, discordId));
+}
+
+async function routeQuestClaim(env, guildId, discordId, body) {
+  // POST { discordId, guildId, stepId: '<id>' | 'all' }
+  // Auto-mark the patreon-linked flag FIRST so the snapshot the
+  // claimStep computes internally sees completed:true for the
+  // linked-patreon step. Without this, the claim rejects with
+  // `not-completed` even though the snapshot route showed claimable
+  // (the site's OnboardingQuest.tsx optimistically flips the UI; the
+  // worker side needs to actually agree).
+  await autoMarkWebPatreonLink(env, guildId, discordId);
+  const stepId = String((body && body.stepId) || 'all');
+  const { claimStep } = await import('./quests.js');
+  const r = await claimStep(env, guildId, discordId, stepId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// ── Self-serve setup wizard (web parity with /loadout-setup) ──────────
+
+async function routeSetupSnapshot(env, guildId, discordId) {
+  const { webSnapshot } = await import('./setup-wizard.js');
+  return json(await webSnapshot(env, guildId, discordId));
+}
+async function routeSetupInit(env, guildId, discordId) {
+  const { webInit } = await import('./setup-wizard.js');
+  return json(await webInit(env, guildId, discordId));
+}
+async function routeSetupChannel(env, guildId, body) {
+  // body: { discordId, guildId, slot, channelId }
+  const { webBindChannel } = await import('./setup-wizard.js');
+  const r = await webBindChannel(env, guildId, body);
+  return json(r, r.ok ? 200 : 400);
+}
+async function routeSetupFeature(env, guildId, body) {
+  // body: { discordId, guildId, id, enabled }
+  const { webToggleFeature } = await import('./setup-wizard.js');
+  const r = await webToggleFeature(env, guildId, body);
+  return json(r, r.ok ? 200 : 400);
+}
+async function routeSetupFinish(env, guildId, discordId) {
+  const { webFinish } = await import('./setup-wizard.js');
+  return json(await webFinish(env, guildId, discordId));
+}
+// ── Discord ↔ PWA chat relay ─────────────────────────────────────────
+
+async function routeChatSend(env, guildId, discordId, body) {
+  // POST { discordId, guildId, channelId, content }
+  const channelId = String((body && body.channelId) || '');
+  const content   = String((body && body.content) || '');
+  if (!channelId || !content) return json({ ok: false, error: 'channelId+content required' }, 400);
+  const { sendFromPwa } = await import('./chat-relay.js');
+  const r = await sendFromPwa(env, { discordId, guildId, channelId, content });
+  return json(r, r.ok ? 200 : (r.error === 'rate-limited' ? 429 : 400));
+}
+
+// Renamed during the reconcile/main-superset merge to avoid colliding
+// with the community-chat reactions reader (`routeChatRecent` above,
+// 3-arg). Both have the same route name `chat/recent` on their
+// respective branches; main's reactions handler keeps the original
+// path. This PWA chat-relay reader is dispatched under
+// `chat/relay/recent` instead — the parallel aquilo-site session will
+// have to swap to that path when it wires the chat-relay UI.
+async function routeChatRelayRecent(env, guildId, discordId, body) {
+  // POST { discordId, guildId, channelId, limit? }
+  const channelId = String((body && body.channelId) || '');
+  if (!channelId) return json({ ok: false, error: 'channelId required' }, 400);
+  const limit = body && Number(body.limit) || 25;
+  const { recentForPwa } = await import('./chat-relay.js');
+  return json(await recentForPwa(env, { channelId, limit, discordId }));
+}
+
+async function routeSetupBranding(env, guildId, body) {
+  // POST { discordId, guildId, op: 'get' }  →  read merged branding
+  // POST { discordId, guildId, brand: { siteUrl?, accentColor?, ... } } → upsert
+  const { getBranding, putBranding } = await import('./branding.js');
+  if (body && body.op === 'get') {
+    return json({ ok: true, branding: await getBranding(env, guildId) });
+  }
+  const r = await putBranding(env, guildId, body?.brand || {});
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeQuestMarkPatreonLinked(env, guildId, discordId) {
+  // Site calls this whenever it has a verified Patreon-linked session
+  // (regardless of how many other social platforms are linked). Flips
+  // the quest-completion flag AND fires the referral milestone (no-op
+  // if the user isn't attributed or already-paid).
+  //
+  // The flag-set is unconditional + idempotent — repeat calls just
+  // re-stamp + return the same `verified` snapshot. The site is the
+  // source of truth on "is this session Patreon-verified"; the worker
+  // additionally confirms via patreon:tier:<userId> when present so
+  // an "optimistic UI, worker can't see the link" mismatch surfaces
+  // in the response payload.
+  const { markPatreonLinked } = await import('./quests.js');
+  const mark = await markPatreonLinked(env, guildId, discordId);
+  let milestone = { paid: false, reason: 'unknown' };
+  try {
+    const { recordMilestone } = await import('./referrals.js');
+    milestone = await recordMilestone(env, guildId, discordId, 'patreon-link');
+  } catch (e) {
+    milestone = { paid: false, reason: 'throw:' + (e?.message || e) };
+  }
+  return json({ ok: true, marked: true, verified: mark.verified, milestone });
 }

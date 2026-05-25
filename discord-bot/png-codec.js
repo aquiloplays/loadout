@@ -323,14 +323,21 @@ export async function encodeApng(spec) {
 // alpha blend per pixel.
 export function compose(layers) {
   if (!layers.length) throw new Error('compose: no layers');
+  // Resilient mode (2026-05): we used to throw on layer dim
+  // mismatch, which meant any single rogue PNG (mid-vendor, wrong
+  // size, a 64×80 legacy asset slipping past the new 128×160
+  // pipeline) would crash the whole hero render. Now we skip
+  // mismatched layers with a warn — output stays at the first
+  // layer's dims, missing layer just doesn't paint. Lets a
+  // not-yet-vendored or oversize asset degrade instead of break.
   const { width, height } = layers[0];
-  for (const l of layers) {
-    if (l.width !== width || l.height !== height) {
-      throw new Error('compose: layer dims mismatch');
-    }
-  }
   const out = new Uint8Array(width * height * 4);
+  let skipped = 0;
   for (const layer of layers) {
+    if (layer.width !== width || layer.height !== height) {
+      skipped++;
+      continue;
+    }
     const src = layer.pixels;
     for (let i = 0; i < out.length; i += 4) {
       const sa = src[i + 3];
@@ -354,6 +361,7 @@ export function compose(layers) {
       }
     }
   }
+  if (skipped) console.warn(`[compose] skipped ${skipped} layer(s) for dim mismatch (canvas ${width}×${height})`);
   return { width, height, pixels: out };
 }
 

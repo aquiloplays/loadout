@@ -443,6 +443,44 @@ export async function adjustTrophies(env, userId, delta) {
   return { ...t, tier: tierOf(t.trophies) };
 }
 
+// PROGRESSION (P2) — Boltbound headline stats for the unified profile.
+// Trophies are account-wide (cards:trophies is global, not per-guild).
+// Collection count walks cards:col:*:<userId> for the user's collection
+// across every guild.
+export async function getStatsFor(env, userId, _guildId = null) {
+  const t = await getTrophies(env, userId);
+  // Aggregate collection across guilds.
+  let total = 0, legendary = 0, distinct = 0;
+  try {
+    const { CARDS } = await import('./cards-content.js');
+    let cursor;
+    for (let i = 0; i < 5; i++) {
+      const r = await env.LOADOUT_BOLTS.list({ prefix: 'cards:col:', cursor, limit: 1000 });
+      for (const k of r.keys) {
+        if (!k.name.endsWith(':' + userId)) continue;
+        const col = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+        if (!col?.cards) continue;
+        for (const cardId of Object.keys(col.cards)) {
+          const n = col.cards[cardId] || 0;
+          if (n > 0) { total += n; distinct++; }
+          if (n > 0 && CARDS[cardId]?.rarity === 'legendary') legendary += n;
+        }
+      }
+      if (r.list_complete) break;
+      cursor = r.cursor;
+    }
+  } catch { /* ignore */ }
+  return {
+    primary: { label: 'Ladder', value: t.trophies, tier: t.tier },
+    secondary: [
+      { label: 'Cards', value: total },
+      { label: 'Distinct', value: distinct },
+      { label: 'Legendary', value: legendary },
+    ],
+    iconKind: 'boltbound-card',
+  };
+}
+
 // ── Ladder bolts cap ─────────────────────────────────────────────────
 //
 // Per-user (not per-guild) daily Bolts earnings counter. Tracked with

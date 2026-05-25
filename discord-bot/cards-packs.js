@@ -133,7 +133,63 @@ export async function creditPack(env, guildId, userId, packType, source) {
   // when the row already exists.
   await ensureCollection(env, guildId, userId);
   const rec = await mintPendingPack(env, guildId, userId, packType, source);
-  return { ok: true, pack: rec };
+
+  // ✨ Lucky-drop hook (rolls only on FREE creditPack calls — i.e.
+  // every pack source EXCEPT the explicit 'purchase:bolt' / 'purchase:voltaic'
+  // paths). A very-rare bonus Voltaic pack drops alongside the
+  // requested pack. Reroll-resistant: we use the freshly-minted
+  // pack id as the seed source so a streamer can't farm by repeatedly
+  // calling creditPack with the same args.
+  //
+  // Probability target: feels "lottery rare" — a daily check-in user
+  // should hit roughly one drop every several months on average. A
+  // viewer with multiple daily touchpoints (check-in + a daily +
+  // booster claim) sees about one per quarter.
+  const bonus = await maybeRollVoltaicLuckyDrop(env, guildId, userId, packType, source, rec);
+  return { ok: true, pack: rec, bonusPack: bonus };
+}
+
+// Free-drop chance per eligible creditPack call. 1/600 ≈ 0.167%.
+// Tuned to "very rare but real" — a player with three daily-grant
+// touchpoints averages one drop per ~6.5 months. Tweakable here in
+// isolation if it feels off after live play.
+const LUCKY_VOLTAIC_DENOMINATOR = 600;
+
+// Sources that DO NOT eligible for the free drop. Paid pack purchases
+// already pay the user their voltaic + the lottery would be double-dipping.
+// Direct 'admin' / 'starter' grants also skip — those are intentional
+// hand-outs that shouldn't carry a hidden lottery payout.
+const LUCKY_VOLTAIC_INELIGIBLE_SOURCES = new Set([
+  'admin', 'starter',
+  'purchase:bolt', 'purchase:voltaic', 'purchase:common',
+]);
+
+async function maybeRollVoltaicLuckyDrop(env, guildId, userId, packType, source, mintedRec) {
+  // Never compound: if we just credited a voltaic, don't roll another.
+  if (packType === 'voltaic') return null;
+  if (LUCKY_VOLTAIC_INELIGIBLE_SOURCES.has(String(source))) return null;
+  // The new pack's id is fresh and unguessable — seed the roll with it
+  // so the chance is bound to THIS specific credit event (not the
+  // user's identity, which would let them re-roll by retrying).
+  const seedSalt = `pack:${packType}:${mintedRec?.id || crypto.randomUUID()}`;
+  return rollVoltaicLuckyDrop(env, guildId, userId, source, seedSalt);
+}
+
+// PUBLIC lucky-drop helper for non-pack-credit call sites (check-in,
+// /play game routes, etc.). Roll once per event; on a win, mint a
+// pending Voltaic pack and return it. Returns null on miss.
+//
+// `seedSalt` MUST be unique per eligible event (e.g. the ET-day
+// string for daily check-ins, or the pack id for pack opens) so the
+// roll can't be repeated by retrying.
+export async function rollVoltaicLuckyDrop(env, guildId, userId, source, seedSalt) {
+  const seed = `lucky:${guildId}:${userId}:${seedSalt}`;
+  const r = rng(hashStr(seed));
+  const win = Math.floor(r() * LUCKY_VOLTAIC_DENOMINATOR) === 0;
+  if (!win) return null;
+  await ensureCollection(env, guildId, userId);
+  return mintPendingPack(env, guildId, userId, 'voltaic',
+                         'lucky-drop:' + String(source || 'unknown'));
 }
 
 // ── Public: openPack ─────────────────────────────────────────────────
@@ -189,6 +245,18 @@ export async function openPack(env, guildId, userId, packId) {
   // Remove the pending-pack record. The collection now has the cards;
   // the receipt the caller renders is from the in-memory `results`.
   await deletePendingPack(env, guildId, userId, packId);
+
+  // PROGRESSION (P1) — pack-open XP. Dedup keyed by packId so retries
+  // grant once. Legendary pulls fire a meta flag for the achievement
+  // engine to read in P3.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    const hadLegendary = rolled.some(id => CARDS[id]?.rarity === 'legendary');
+    await emitProgressionEvent(env, {
+      kind: 'cards.pack.opened', userId, guildId,
+      meta: { packId, packType: rec.packType, hadLegendary }, stableKeys: ['packId'],
+    });
+  } catch { /* non-fatal */ }
 
   return {
     ok: true,

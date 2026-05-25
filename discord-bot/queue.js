@@ -249,6 +249,12 @@ export async function joinQueue(env, guildId, gameId, discordUser) {
     joinedAt: Date.now(),
   });
   await writeQueue(env, guildId, date, record);
+  // B9 — community night auto-DM. Fire a "you're up next" DM to anyone
+  // in the top 3 positions whose status hasn't been notified yet.
+  // (Best-effort, swallowed on error.)
+  try {
+    await notifyUpNext(env, guildId, gameId, slot, record);
+  } catch { /* never block the join */ }
   return {
     ok: true,
     gameId,
@@ -256,6 +262,42 @@ export async function joinQueue(env, guildId, gameId, discordUser) {
     position: slot.joiners.length,
     message: `✅ Joined \`${gameId}\` (position ${slot.joiners.length}).`,
   };
+}
+
+// B9 — DM the top 3 players for a queue the first time they reach
+// up-next status. Persistent across calls via slot.upNextNotified[].
+async function notifyUpNext(env, guildId, gameId, slot, record) {
+  const TOP_N = 3;
+  const upNext = slot.joiners.slice(0, TOP_N);
+  slot.upNextNotified = slot.upNextNotified || [];
+  const sendDm = (await import('./aquilo/util.js')).sendDm;
+  const fired = [];
+  for (let i = 0; i < upNext.length; i++) {
+    const j = upNext[i];
+    if (!j.discordUserId) continue;
+    if (slot.upNextNotified.includes(j.discordUserId)) continue;
+    // Build the DM. Emoji OK in Discord per Clay's batch.
+    const tag = i === 0 ? '🎮 You\'re up' : i === 1 ? '⏳ You\'re next' : '👀 You\'re close';
+    const lines = [
+      `${tag} for **${gameId}** on tonight's community night.`,
+      `Position: ${i + 1}/${slot.joiners.length}.`,
+      `Open Discord; the bot can pull you into a voice channel when the match starts.`,
+    ];
+    try {
+      await sendDm(env, j.discordUserId, { content: lines.join('\n') });
+      fired.push(j.discordUserId);
+    } catch { /* user has DMs off or left the guild — skip */ }
+  }
+  if (fired.length) {
+    slot.upNextNotified.push(...fired);
+    // No separate write — caller already persisted slot via writeQueue.
+    // But we mutated slot.upNextNotified after that write; re-write
+    // the queue record so the marker is durable.
+    const date = await todayStreamDate(env, guildId);
+    record.queues[gameId] = slot;
+    await writeQueue(env, guildId, date, record);
+  }
+  return fired;
 }
 
 export async function leaveQueue(env, guildId, gameId, discordUserId) {

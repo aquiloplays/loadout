@@ -43,7 +43,7 @@
 
   // Each toast names a pixel-art icon sprite (relative paths under
   // /sprites/ui/icons/). Renderer below maps `icon: 'sword'` to
-  // <img src="/sprites/ui/icons/sword.png">. No emoji.
+  // <img src="/sprites/ui/icons/glossy/sword.png">. No emoji.
   function classify(kind, data) {
     switch (kind) {
       case 'clash.raid.incoming':

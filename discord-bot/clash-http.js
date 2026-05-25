@@ -151,6 +151,15 @@ export async function handleClashTownPublic(env, path) {
   const obstacles = withObstacleSprites(town.obstacles || []);
   const engineersTotal = Math.max(1, town.engineers?.total || 1);
   const engineersBusy = obstacles.filter(o => o.status === 'clearing').length;
+  // E6/E7: damage summary + last-goblin-raid timestamp for the
+  // animated panel + a counter of in-flight builds. Cheap — derived
+  // from the already-loaded town.
+  const buildings = town.buildings || [];
+  const damageSummary = {
+    damaged: buildings.filter(b => b.status === 'damaged').length,
+    destroyed: buildings.filter(b => b.status === 'destroyed').length,
+    building: buildings.filter(b => b.status === 'building').length,
+  };
   return json({
     updatedAt: Date.now(),
     guildId,
@@ -174,6 +183,11 @@ export async function handleClashTownPublic(env, path) {
       ? { userId: town.defenderChampion.userId, acceptedUtc: town.defenderChampion.acceptedUtc, expiresUtc: town.defenderChampion.expiresUtc }
       : null,
     battlePlans: town.battlePlans || 0,
+    // CLASH EXPANSION E2/E5/E6/E7 surface fields ─────────────────────
+    grid: { w: 24, h: 24 },                              // E5 layout-editor bounds
+    damageSummary,                                       // E6 animation hint
+    lastGoblinRaidUtc: town.lastGoblinRaidUtc || null,   // E2/E6 raid hint
+    lastStorageLeakUtc: town.lastStorageLeakUtc || null, // E2 leak ticker
   }, 200, CORS);
 }
 
@@ -258,6 +272,8 @@ export async function handleClashSync(req, env, path) {
       war: war
         ? { warId: war.warId, state: war.state, scores: war.scores, activeEndsUtc: war.activeEndsUtc }
         : null,
+      // E5: editor needs to know the grid bounds + footprints.
+      grid: { w: 24, h: 24 },
     });
   }
   if (req.method === 'POST' && sub === 'build') {
@@ -271,6 +287,9 @@ export async function handleClashSync(req, env, path) {
   }
   if (req.method === 'POST' && sub === 'clear-obstacle') {
     return forwardToSlashHandler(env, guildId, gate.body, 'clear-obstacle');
+  }
+  if (req.method === 'POST' && sub === 'layout') {
+    return forwardToSlashHandler(env, guildId, gate.body, 'layout');
   }
   return new Response('not found', { status: 404 });
 }
@@ -310,6 +329,16 @@ async function forwardToSlashHandler(env, guildId, rawBody, action) {
     const txt = await clash._editorClearObstacle?.(env, guildId, userId, body.obstacleId)
       ?? '❌ editor adapter not wired';
     return json({ result: txt });
+  }
+  if (action === 'layout') {
+    // body.layout: [{ id?, kind, x, y, level? }, ...]
+    if (!Array.isArray(body.layout)) {
+      return json({ error: 'layout array required' }, 400);
+    }
+    const out = await clash._editorTownLayout?.(env, guildId, userId, body.layout)
+      ?? { ok: false, errors: ['editor adapter not wired'] };
+    if (!out.ok) return json({ ok: false, errors: out.errors, missing: out.missing }, 400);
+    return json({ ok: true, layoutVersion: out.layoutVersion });
   }
   return json({ error: 'no-op' }, 400);
 }

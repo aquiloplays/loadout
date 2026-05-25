@@ -85,6 +85,23 @@ export async function handleInteraction(req, env, body, ctx) {
   if (data.type === TYPE_MESSAGE_COMPONENT) {
     // Route by custom_id prefix so each menu's components stay scoped.
     const cid = data.data?.custom_id || '';
+    if (cid.startsWith('guild:'))     {
+      const { handleGuildComponent } = await import('./guild-features.js');
+      return json(await handleGuildComponent(env, data));
+    }
+    if (cid.startsWith('ticket:'))    {
+      const { handleTicketComponent } = await import('./tickets.js');
+      return json(await handleTicketComponent(env, data));
+    }
+    if (cid.startsWith('tempvc:'))    {
+      const { handleTempVcComponent } = await import('./temp-vc.js');
+      return json(await handleTempVcComponent(env, data));
+    }
+    if (cid.startsWith('setup:'))     {
+      // /loadout-setup wizard step buttons.
+      const { handleSetupComponent } = await import('./setup-wizard.js');
+      return json(await handleSetupComponent(env, data));
+    }
     if (cid.startsWith('hub:'))       return handleHubComponent(data, env);
     if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
     if (cid.startsWith('clash:'))     return json(await handleClashComponent(env, data));
@@ -116,6 +133,10 @@ export async function handleInteraction(req, env, body, ctx) {
     const cid = data.data?.custom_id || '';
     if (cid.startsWith('hub:modal:')) return handleHubModal(data, env);
     if (cid.startsWith('modal:'))     return dispatchAquiloInteraction(data, env, ctx);
+    if (cid.startsWith('tempvc:')) {
+      const { handleTempVcModal } = await import('./temp-vc.js');
+      return json(await handleTempVcModal(env, data));
+    }
     return handleModal(data, env);
   }
   if (data.type !== TYPE_APPLICATION_CMD) {
@@ -123,6 +144,25 @@ export async function handleInteraction(req, env, body, ctx) {
   }
 
   const cmd = (data.data?.name || '').toLowerCase();
+
+  // Per-guild command-channel binding gate. If the server admin has
+  // restricted this command via /loadout-setup bind, refuse here
+  // before any handler-specific logic. Buttons/select-menus/modals
+  // bypass this gate (they're contextual to where their parent
+  // interaction was opened). /loadout-setup itself + the legacy
+  // /loadout-claim are always allowed so admins can't lock
+  // themselves out.
+  if (data.guild_id && !['loadout-setup', 'loadout-claim'].includes(cmd)) {
+    try {
+      const { isCommandAllowedHere, wrongChannelReply } = await import('./command-bindings.js');
+      const channelId = data.channel_id || data.channel?.id;
+      const gate = await isCommandAllowedHere(env, data.guild_id, cmd, channelId);
+      if (!gate.ok && gate.allowed.length) {
+        return json(wrongChannelReply(cmd, gate.allowed));
+      }
+    } catch { /* fall through — bindings are best-effort */ }
+  }
+
   switch (cmd) {
     case 'loadout':
       // Main menu — auto-creates the wallet (so first-time users see
@@ -192,6 +232,84 @@ export async function handleInteraction(req, env, body, ctx) {
       // exports. Stateful games (blackjack/hilo/mines) drive their
       // continuation through button components routed by 'qg:' prefix.
       return handlePlayCommand(env, data, guild, userId, userName);
+
+    case 'voice': {
+      // B7 — temp voice channels. /voice creates a personal VC + moves
+      // the caller in. Auto-deletes on inactivity (cron sweep).
+      const { handleVoiceSlash } = await import('./voice-temp.js');
+      const text = await handleVoiceSlash(env, guild, userId, userName);
+      return json({ type: 4, data: { content: text, flags: 64 } });
+    }
+
+    case 'ticket': {
+      // L8 — Support ticketing. Opens a private channel visible only
+      // to the opener + 🛡️ Moderator.
+      const { handleTicketCommand } = await import('./tickets.js');
+      return json(await handleTicketCommand(env, data));
+    }
+
+    case 'checkin': {
+      // Daily community check-in. Same core as POST /web/checkin —
+      // one check-in per ET day per user, regardless of surface.
+      const { handleCheckinCommand } = await import('./community-checkin.js');
+      return json(await handleCheckinCommand(env, data));
+    }
+
+    case 'referral': {
+      // Show this viewer's referral code + their bring-in stats.
+      const { handleReferralCommand } = await import('./referrals.js');
+      return json(await handleReferralCommand(env, data));
+    }
+
+    case 'quest': {
+      // Onboarding quest checklist + claim status (mirrors aquilo.gg/quest).
+      const { handleQuestCommand } = await import('./quests.js');
+      return json(await handleQuestCommand(env, data));
+    }
+
+    case 'loadout-setup': {
+      // Productization: self-serve setup wizard. MANAGE_GUILD gated
+      // (enforced by Discord via default_member_permissions on the
+      // command). Opens the wizard at step 1, or handles channel /
+      // feature / status subcommands.
+      const { handleSetupCommand } = await import('./setup-wizard.js');
+      return json(await handleSetupCommand(env, data));
+    }
+
+    case 'lfg': {
+      // B8 — LFG slash command. Shares state with POST /web/lfg/create
+      // so an LFG created via the website appears in /lfg list, and
+      // vice versa.
+      const sub = (data.data?.options || [])[0];
+      if (!sub) return json({ type: 4, data: { content: 'Pick a subcommand.', flags: 64 } });
+      const opts = sub.options || [];
+      const getOpt = (n) => opts.find(o => o.name === n)?.value;
+      const lfg = await import('./lfg.js');
+      let resp;
+      if (sub.name === 'create') {
+        const r = await lfg.createLfg(env, {
+          userId, hostName: userName, game: getOpt('game'), slots: getOpt('slots'), guildId: guild,
+        });
+        resp = r.ok
+          ? `🎮 Opened **${r.lfg.game}** — ${r.lfg.players.length}/${r.lfg.slots}. id \`${r.lfg.id}\`. See the embed in the LFG channel.`
+          : `❌ ${r.error}`;
+      } else if (sub.name === 'join') {
+        const r = await lfg.joinLfg(env, getOpt('id'), { userId, name: userName });
+        resp = r.ok
+          ? `✅ Joined **${r.lfg.game}** (${r.lfg.players.length}/${r.lfg.slots}).${r.autoClosed ? ' That was the last slot — it just closed.' : ''}`
+          : `❌ ${r.error}`;
+      } else if (sub.name === 'close') {
+        const r = await lfg.closeLfg(env, getOpt('id'), userId);
+        resp = r.ok ? `🔒 Closed.` : `❌ ${r.error}`;
+      } else if (sub.name === 'list') {
+        const list = await lfg.listActiveLfgs(env, { limit: 10 });
+        if (!list.length) resp = '_No active LFGs right now._';
+        else resp = list.map(l => `• \`${l.id}\` **${l.game}** ${l.players.length}/${l.slots} host <@${l.hostUserId}>`).join('\n');
+      } else {
+        resp = '❌ Unknown subcommand.';
+      }
+      return json({ type: 4, data: { content: resp, flags: 64 } });
+    }
 
     // ── Aquilo-bot fold-in: 13 command names dispatch to the shared
     //    aquilo interaction handler. Single delegation point keeps

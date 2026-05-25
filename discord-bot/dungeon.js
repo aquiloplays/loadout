@@ -1128,11 +1128,26 @@ export async function doTrain(env, guild, userId, focus, rounds) {
   } else if (focus === 'attack') {
     const xp = r * 6;                  // bonus XP for the strength grind
     hero.xp += xp;
+    let levelsCrossed = 0;
     while (hero.xp >= xpForLevel(hero.level)) {
       hero.xp -= xpForLevel(hero.level);
       hero.level++;
       hero.hpMax += 5;
       hero.hpCurrent = hero.hpMax;
+      levelsCrossed++;
+    }
+    // PROGRESSION (P1 trailing) — hero level-up XP.
+    if (levelsCrossed > 0) {
+      try {
+        const { emitProgressionEvent } = await import('./progression/event-bus.js');
+        for (let lv = 0; lv < levelsCrossed; lv++) {
+          await emitProgressionEvent(env, {
+            kind: 'hero.levelup', userId, guildId: guild,
+            meta: { newLevel: hero.level - lv, trainingId: `${guild}:${userId}:${Date.now()}:${lv}` },
+            stableKeys: ['trainingId'],
+          });
+        }
+      } catch { /* non-fatal */ }
     }
     summary = '+' + xp + ' XP (now Lv ' + hero.level + ')';
   } else {

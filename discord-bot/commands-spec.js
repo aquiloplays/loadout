@@ -35,6 +35,138 @@ export const COMMANDS = [
     name: 'loadout',
     description: 'Open the Loadout menu — wallet, hero, bag, shop, daily, gift, profile, more'
   },
+  // B7 — Temp voice channels
+  {
+    name: 'voice',
+    description: 'Create a personal voice channel; auto-deletes after a while when empty',
+  },
+  // L8 — Ticketing
+  {
+    name: 'ticket',
+    description: 'Open a private support ticket',
+    options: [
+      { type: TYPE_STRING, name: 'topic', description: 'What\'s the ticket about? (optional)', required: false },
+    ],
+  },
+  // Community daily check-in — unified with aquilo.gg/checkin (one
+  // check-in per ET day per user regardless of surface).
+  {
+    name: 'checkin',
+    description: 'Daily community check-in (also available on aquilo.gg)',
+  },
+  // New-viewer funnel
+  {
+    name: 'referral',
+    description: 'Your referral code + how many members you\'ve brought in',
+  },
+  {
+    name: 'quest',
+    description: 'Your Welcome Checklist — steps + reward status',
+  },
+  // Productization — self-serve setup wizard for new tenants.
+  // MANAGE_GUILD gated. Subcommands: (none) = open wizard; channel =
+  // bind one channel; feature = toggle one feature; status = snapshot.
+  {
+    name: 'loadout-setup',
+    description: 'Set up Loadout for this server (channels, features, tenant registration)',
+    default_member_permissions: '32', // MANAGE_GUILD
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'channel',
+        description: 'Bind one Loadout channel slot',
+        options: [
+          { type: TYPE_STRING, name: 'slot', description: 'Slot id (e.g. ch_counting, ch_welcome, ch_support)', required: true,
+            choices: [
+              { name: 'Welcome',             value: 'ch_welcome' },
+              { name: 'Counting',            value: 'ch_counting' },
+              { name: 'Daily check-in',      value: 'ch_checkin' },
+              { name: 'Support / tickets',   value: 'ch_support' },
+              { name: 'Voice category',      value: 'cat_voice' },
+              { name: 'Join-to-create VC',   value: 'vc_join_to_create' },
+              { name: 'Activity feed',       value: 'ch_activity_feed' },
+              { name: 'Games hub',           value: 'ch_games' },
+            ] },
+          { type: 7, name: 'channel', description: 'The channel to bind', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'feature',
+        description: 'Toggle one Loadout feature on/off',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'Feature id', required: true,
+            choices: [
+              { name: 'Counting game',         value: 'counting' },
+              { name: 'Daily check-in',        value: 'checkin' },
+              { name: 'Support tickets',       value: 'tickets' },
+              { name: 'Join-to-create voice',  value: 'temp-vc' },
+              { name: 'Welcome embed',         value: 'welcome' },
+              { name: 'Booster perks',         value: 'booster' },
+              { name: 'Boltbound card game',   value: 'boltbound' },
+              { name: 'Clash town builder',    value: 'clash' },
+              { name: 'Referrals + onboarding',value: 'referrals' },
+            ] },
+          { type: TYPE_STRING, name: 'state', description: 'on or off', required: true,
+            choices: [{ name: 'on', value: 'on' }, { name: 'off', value: 'off' }] },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'status',
+        description: 'Current Loadout setup state for this server',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'bind',
+        description: 'Restrict a slash command to a single channel (add channel to its allow-list)',
+        options: [
+          { type: TYPE_STRING,  name: 'command', description: 'Command name (e.g. checkin, play, boltbound)', required: true },
+          { type: 7,            name: 'channel', description: 'Channel where this command is allowed', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'unbind',
+        description: 'Remove all channel restrictions for a slash command (allow it anywhere)',
+        options: [
+          { type: TYPE_STRING, name: 'command', description: 'Command name', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'bindings',
+        description: 'List current command→channel restrictions for this server',
+      },
+    ],
+  },
+  // B8 — LFG slash command (same backing state as /web/lfg/create)
+  {
+    name: 'lfg',
+    description: 'Looking for game — post an "open for playing" embed',
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'create',
+        description: 'Open an LFG entry for a game',
+        options: [
+          { type: TYPE_STRING,  name: 'game',  description: 'What you want to play (e.g. Among Us, Chess)', required: true },
+          { type: TYPE_INTEGER, name: 'slots', description: 'Total players including yourself (2-16)',     required: true, min_value: 2, max_value: 16 },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'join',
+        description: 'Join an open LFG by id',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'LFG id from the embed footer', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'close',
+        description: 'Close your LFG (host only)',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'LFG id', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'list',
+        description: 'List active LFGs',
+      },
+    ],
+  },
   {
     // Bolts-denominated stock market. Prices driven by real upstream
     // signals (Twitch viewer counts, Steam player counts, Spotify
@@ -258,12 +390,18 @@ export const COMMANDS = [
         options: [
           { type: TYPE_STRING, name: 'troop', description: 'Troop to train', required: true,
             choices: [
-              { name: 'Scrapper (common)',     value: 'scrapper' },
-              { name: 'Archer (common)',       value: 'archerLite' },
-              { name: 'Bolt Knight (rare)',    value: 'boltKnight' },
-              { name: 'Sapper Rogue (rare)',   value: 'sapperRogue' },
-              { name: 'Healer Cleric (rare)',  value: 'healerCleric' },
-              { name: 'Voltaic Mage (epic)',   value: 'voltaicMage' },
+              { name: 'Scrapper (common)',         value: 'scrapper' },
+              { name: 'Archer (common)',           value: 'archerLite' },
+              { name: 'Goblin Sneak (common)',     value: 'sneak' },
+              { name: 'Bolt Knight (rare)',        value: 'boltKnight' },
+              { name: 'Sapper Rogue (rare)',       value: 'sapperRogue' },
+              { name: 'Healer Cleric (rare)',      value: 'healerCleric' },
+              { name: 'Battering Ram (rare)',      value: 'batteringRam' },
+              { name: 'Skyrider (rare, air)',      value: 'skyrider' },
+              { name: 'Plague Doctor (rare)',      value: 'plagueDoctor' },
+              { name: 'Voltaic Mage (epic)',       value: 'voltaicMage' },
+              { name: 'Lightning Sapper (epic)',   value: 'lightningSapper' },
+              { name: 'Storm Caller (epic, air)',  value: 'stormCaller' },
             ],
           },
           { type: TYPE_INTEGER, name: 'count', description: 'Number to train (1–50)', required: false, min_value: 1, max_value: 50 },
@@ -291,6 +429,44 @@ export const COMMANDS = [
       },
       { type: TYPE_SUBCOMMAND, name: 'log',         description: 'Your recent raids + your town\'s incoming raids' },
       { type: TYPE_SUBCOMMAND, name: 'leaderboard', description: 'Top raiders + top towns (global)' },
+      // ── CLASH EXPANSION Phase E1 — resource economy ────────────────
+      {
+        type: TYPE_SUBCOMMAND, name: 'gather',
+        description: 'Start a timed gather task (wood / stone / iron / gold)',
+        options: [
+          { type: TYPE_STRING, name: 'resource', description: 'Which resource to gather', required: true,
+            choices: [
+              { name: 'Wood (cheap, fast)',  value: 'wood' },
+              { name: 'Stone',               value: 'stone' },
+              { name: 'Iron',                value: 'iron' },
+              { name: 'Gold (rare, slow)',   value: 'gold' },
+            ],
+          },
+          { type: TYPE_STRING, name: 'tier', description: 'How long to gather for', required: true,
+            choices: [
+              { name: 'Short (5 min)',     value: 'short' },
+              { name: 'Medium (30 min)',   value: 'medium' },
+              { name: 'Long (2 h)',        value: 'long' },
+              { name: 'Overnight (8 h)',   value: 'overnight' },
+            ],
+          },
+        ],
+      },
+      { type: TYPE_SUBCOMMAND, name: 'gathers', description: 'Show your in-flight gather tasks (and complete any that finished)' },
+      {
+        type: TYPE_SUBCOMMAND, name: 'cancel-gather',
+        description: 'Cancel an in-flight gather task (no partial credit)',
+        options: [
+          { type: TYPE_STRING, name: 'id', description: 'Task id from /clash gathers (first 12 chars work)', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'tap',
+        description: 'Tap collector buildings to flush their accumulated yield into the treasury',
+        options: [
+          { type: TYPE_INTEGER, name: 'building', description: 'Building id to tap (omit to tap every collector at once)', required: false, min_value: 1 },
+        ],
+      },
       {
         type: TYPE_SUBCOMMAND, name: 'notify',
         description: 'Toggle a Clash push-notification kind on/off',
@@ -344,14 +520,25 @@ export const COMMANDS = [
             options: [
               { type: TYPE_STRING, name: 'kind', description: 'Building kind', required: true,
                 choices: [
-                  { name: 'Town Hall',     value: 'townhall' },
-                  { name: 'Wall',          value: 'wall' },
-                  { name: 'Cannon',        value: 'cannon' },
-                  { name: 'Archer Tower',  value: 'archerTower' },
-                  { name: 'Trap',          value: 'trap' },
-                  { name: 'Storage',       value: 'storage' },
-                  { name: 'Barracks',      value: 'barracks' },
-                  { name: 'War Tent',      value: 'warTent' },
+                  { name: 'Town Hall',      value: 'townhall' },
+                  { name: 'Wall',           value: 'wall' },
+                  { name: 'Cannon',         value: 'cannon' },
+                  { name: 'Archer Tower',   value: 'archerTower' },
+                  { name: 'Trap',           value: 'trap' },
+                  { name: 'Storage',        value: 'storage' },
+                  { name: 'Barracks',       value: 'barracks' },
+                  { name: 'War Tent',       value: 'warTent' },
+                  // CLASH EXPANSION E1 — new production / utility / vault buildings
+                  { name: 'Sawmill (wood)',     value: 'sawmill' },
+                  { name: 'Quarry (stone)',     value: 'quarry' },
+                  { name: 'Forge (iron)',       value: 'forge' },
+                  { name: 'Mint (gold)',        value: 'mint' },
+                  { name: 'Workshop (gather slot)', value: 'workshop' },
+                  { name: "Builder's Hut (build slot)", value: 'buildersHut' },
+                  { name: 'Lumber Reserve',     value: 'lumberVault' },
+                  { name: 'Stone Reserve',      value: 'stoneVault' },
+                  { name: 'Iron Reserve',       value: 'ironVault' },
+                  { name: 'Gold Reserve',       value: 'goldVault' },
                 ],
               },
               { type: TYPE_INTEGER, name: 'building', description: 'Building id to upgrade (omit to place a new one)', required: false, min_value: 1 },
@@ -373,6 +560,49 @@ export const COMMANDS = [
             ],
           },
           { type: TYPE_SUBCOMMAND, name: 'pause', description: 'Toggle PvP matchmaking opt-out for this town' },
+          // ── CLASH EXPANSION Phase E3 — defenses + traps (extra cap) ──
+          {
+            type: TYPE_SUBCOMMAND, name: 'defense',
+            description: 'Build a defense or trap (streamer/mods)',
+            options: [
+              {
+                type: TYPE_STRING, name: 'kind', description: 'Which defense/trap to build', required: true,
+                choices: [
+                  { name: 'Mortar (splash, min-range)',          value: 'mortar' },
+                  { name: 'Mage Tower (ignores walls)',          value: 'mageTower' },
+                  { name: 'Skyward Bow (anti-air)',              value: 'skywardBow' },
+                  { name: 'Bomb Tower (AoE; explodes on death)', value: 'bombTower' },
+                  { name: 'Voltaic Coil (cloaked)',              value: 'voltaicCoil' },
+                  { name: 'Heavy Cannon (TH8+)',                 value: 'heavyCannon' },
+                  { name: 'Inferno Tower (TH8+, ramping)',       value: 'infernoTower' },
+                  { name: 'Eagle Eye (TH9+, town-wide)',         value: 'eagleEye' },
+                  { name: 'Spring Trap (pushback)',              value: 'springTrap' },
+                  { name: 'Sky Mine (anti-air, one-shot)',       value: 'skyMine' },
+                  { name: 'Static Trap (stun)',                  value: 'staticTrap' },
+                  { name: 'Caltrops (slow)',                     value: 'caltrops' },
+                  { name: 'Inferno Trap (DoT burn)',             value: 'infernoTrap' },
+                  { name: 'Decoy Banner (aggro pull)',           value: 'decoyBanner' },
+                ],
+              },
+              { type: TYPE_INTEGER, name: 'building', description: 'Existing building id (omit to place a new one)', required: false, min_value: 1 },
+            ],
+          },
+          // ── CLASH EXPANSION Phase E2 — repair / demolish / damage ────
+          {
+            type: TYPE_SUBCOMMAND, name: 'repair',
+            description: 'Repair a damaged or destroyed building (streamer/mods)',
+            options: [
+              { type: TYPE_INTEGER, name: 'building', description: 'Building id (see /clash town damage)', required: true, min_value: 1 },
+            ],
+          },
+          {
+            type: TYPE_SUBCOMMAND, name: 'demolish',
+            description: 'Demolish a destroyed building (25% resource refund, streamer/mods)',
+            options: [
+              { type: TYPE_INTEGER, name: 'building', description: 'Building id to demolish', required: true, min_value: 1 },
+            ],
+          },
+          { type: TYPE_SUBCOMMAND, name: 'damage', description: 'Show damaged/destroyed buildings + repair costs' },
           {
             type: TYPE_SUBCOMMAND, name: 'designate-defender',
             description: 'Designate a community member\'s hero as the town\'s defending Champion (needs a War Tent)',
@@ -635,6 +865,7 @@ export const COMMANDS = [
         ],
       },
       { type: TYPE_SUBCOMMAND, name: 'release', description: 'Release your pet (24h cooldown before re-adopting)' },
+      { type: TYPE_SUBCOMMAND, name: 'collect', description: 'Collect rewards your pet has brought back (auto-accrues every 4-8h)' },
     ],
   },
   {

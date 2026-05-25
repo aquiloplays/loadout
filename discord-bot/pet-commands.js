@@ -10,6 +10,7 @@ import {
   adoptPet, getPet, computeMood,
   feedPet, playWithPet, cleanPet,
   renamePet, releasePet,
+  claimPetDeliveries, pendingDeliveriesFor,
   patreonTierFor, unlockedColoursForTier,
   SPECIES, SPECIES_COLOURS,
 } from './pet.js';
@@ -76,6 +77,7 @@ export async function handlePetCommand(env, data) {
     case 'clean':   return doCare(env, guildId, userId, 'clean');
     case 'rename':  return doRename(env, guildId, userId, getOpt('name'));
     case 'release': return doRelease(env, guildId, userId);
+    case 'collect': return doCollect(env, guildId, userId);
     default:        return ephemeral('Unknown /pet subcommand.');
   }
 }
@@ -168,4 +170,24 @@ async function doRelease(env, guildId, userId) {
   const r = await releasePet(env, guildId, userId);
   if (!r.ok) return ephemeral('🐾 No pet to release.');
   return ephemeral(`👋 Released **${r.released.name}** the ${r.released.species}. 24h cooldown before adopting again.`);
+}
+
+async function doCollect(env, guildId, userId) {
+  const r = await claimPetDeliveries(env, guildId, userId);
+  if (!r.ok) {
+    if (r.error === 'no-pet') return ephemeral('🐾 No pet yet. Patrons can `/pet adopt`.');
+    return ephemeral('❌ Collection failed: ' + r.error);
+  }
+  if (r.claimed === 0) {
+    const minutes = Math.max(1, Math.round((r.nextInMs || 0) / 60_000));
+    return ephemeral(`🐾 **${r.petName}** hasn't brought anything back yet. Next delivery in ~${minutes} min.`);
+  }
+  const lines = [`🎁 **${r.petName}** brought back ${r.claimed} ${r.claimed === 1 ? 'delivery' : 'deliveries'}:`];
+  if (r.summary.bolts > 0)     lines.push(`• 🪙 ${r.summary.bolts} Bolts`);
+  for (const [mat, amt] of Object.entries(r.summary.materials)) lines.push(`• 🪵 ${amt} ${mat}`);
+  if (r.summary.cores > 0)     lines.push(`• 💎 ${r.summary.cores} Cores`);
+  if (r.summary.fragments > 0) lines.push(`• 🔹 ${r.summary.fragments} Fragments`);
+  if (r.summary.packs?.length) lines.push(`• 📦 Boltbound pack: ${r.summary.packs.join(', ')}`);
+  if (r.summary.gearSeed)      lines.push(`• ⚙️ Found a ${r.summary.gearSeed} gear seed (claimable from the shop)`);
+  return publicReply(lines.join('\n'));
 }

@@ -48,18 +48,117 @@ function spriteBase(env) {
 // the full 500-sprite roster, well under the 128 MB isolate budget.
 const SPRITE_CACHE = new Map();
 
+// Asset version stamp. Appended as a query string to every sprite
+// fetch so we can bypass the Cloudflare Pages edge cache (and the
+// Worker's in-memory SPRITE_CACHE, which keys on the full URL) when
+// a new generator pass ships. Also baked into renderPreviewUrl so
+// the *composed* /character/render URL changes too — that busts the
+// downstream layer (Discord embed URL cache, browser <img> cache,
+// any CDN that fronts the worker). The aquilo-site repo still has
+// to be manually re-vendored from aquilo-gg/sprites/ for the new
+// files to exist on the Pages origin — this version stamp only
+// handles caches once they're up.
+//
+// Bump history:
+//   v2-rpg      I1 (2026-05) — retro-RPG body sprite rework
+//   v3-figure   L1 (2026-05) — game-icon figure rework + characterful
+//                              pets + retuned gear paper-doll anchors
+//   v4-figure   L2 (2026-05) — deep figure rework after Clay flagged
+//                              v3 as still janky: continuous-flow arms
+//                              with bicep bulge (no segmented joints),
+//                              wider neck with trapezius shading,
+//                              torso with pectoral/waist/hip
+//                              construction, legs with knee+calf flow,
+//                              bigger hand circles, peasant tunic with
+//                              full garment construction (collar,
+//                              sleeve caps, cinched waist, A-line hem,
+//                              fold lines), redesigned robe shape with
+//                              sleeve openings/sash/skirt-folds (no
+//                              longer a plain cone), redesigned hood
+//                              that drapes around the face instead of
+//                              sealing it shut.
+//   v5-figure   L3 (2026-05) — full proportion + form rebuild after
+//                              Clay flagged L2 as still bottom-heavy
+//                              with a head pasted on. New deliberate
+//                              4-heads-tall ratio (HEAD_R 28→18,
+//                              SHOULDER_Y 80→58, longer torso + legs),
+//                              tapering arms with bicep bulge held
+//                              away from torso with a visible gap
+//                              (no more body bulges, no more
+//                              segmented joints), cel-shaded flat
+//                              fills replacing balloon radial
+//                              gradients (defined light-side /
+//                              shadow-side / form lines), robe rebuilt
+//                              as a clean A-line (narrow shoulders →
+//                              wide hem, no mid-bulge) with separate
+//                              sleeve drape masses, wizard-long hair
+//                              cut down from a chest-covering curtain
+//                              to slim side strands, default tunic
+//                              with visible short sleeves so it reads
+//                              as a tunic not a tank top.
+//   v6-arms     L3+ (2026-05) — targeted ARMS-only fix after Clay
+//                              flagged L3 arms as over-corrected:
+//                              too long (hanging to mid-thigh), too
+//                              bulky at shoulder, dramatic carrot
+//                              taper, splayed away from torso, tiny
+//                              ball hands. Now slim near-vertical
+//                              limbs: HAND_Y 116→108 (hip level),
+//                              HAND_OFFSET_X 26→22 (close to body),
+//                              ARM_GAP 3→1, armShoulderW 11→7,
+//                              armWristW 4→5 (gentler taper, ~75 %
+//                              not ~35 %), HAND_R 7→5 (proportional
+//                              to wrist, ~50 % wider). Removed the
+//                              bicep bulge Bezier — arms run nearly
+//                              straight with subtle taper.
+//   v7-polish   L4 (2026-05) — polish pass: more expressive eyes
+//                              (full iris + inner ring + double
+//                              gloss + lower lid line), friendly
+//                              mouth with corner upturns + lower-lip
+//                              hint, lighter+arched brows, mitt-shape
+//                              hands with thumb bump on the inner
+//                              side, smoothed arms (no shoulder Q
+//                              bow), armpit AO + arm form highlights
+//                              (light side / shadow side), tidier
+//                              curly-afro silhouette that sits on
+//                              the head rather than floating above.
+//   v8-layers   L5 (2026-05) — layering framework fix after Clay
+//                              flagged the composite as "stacked
+//                              stickers" with legs in front of tunic
+//                              and weapons floating beside hands:
+//                              split default-clothing into separate
+//                              trousers (z=22, painted over by leg
+//                              gear) + tunic (z=33, skirt covers
+//                              the TOP of leg gear); weapon anchor
+//                              re-aligned to the right hand
+//                              (cx=86, cy=108) so the icon center
+//                              lands on the palm; new hand-overlay
+//                              layer at z=79 re-paints the hand on
+//                              top of the weapon so the figure
+//                              visibly grips it. Framework remains
+//                              fully generic — every gear item in
+//                              every slot composes on any body type.
+const SPRITE_ASSET_VERSION = 'v8-layers';
+
 // Canvas size — pixel-perfect compose, all layers share these dims.
-// Phase-4 HD bar (64×80) replaces the original 40×56. character.js
-// only uses these for the blank-fallback dims; the actual sprite
-// dimensions come from the decoded PNG. Keep in sync with the
-// generator's $CanvasW / $CanvasH in tools/build-sprites.ps1.
-const SPRITE_W = 64;
-const SPRITE_H = 80;
+// Glossy bar (2026-05 art campaign, see tools/build-character-glossy.mjs
+// + tools/glossy-art-kit.mjs) replaces the retired 64×80 pixel
+// pipeline with an HD 128×160 figure canvas. Every layer the
+// resolver returns is baked at this size (body, hair, eyes,
+// accent, default-clothing, gear figure-layers) so png-codec's
+// compose() can stack them without the dimension-mismatch throw.
+const SPRITE_W = 128;
+const SPRITE_H = 160;
 
 async function fetchSprite(env, relPath) {
-  const url = spriteBase(env) + '/' + relPath.replace(/^\/+/, '');
+  const baseUrl = spriteBase(env) + '/' + relPath.replace(/^\/+/, '');
+  // Asset-version stamp busts Pages' edge cache when generator output
+  // changes. The Worker's in-memory cache key includes the version
+  // too so a deploy bumps the in-isolate decode cache automatically.
+  const url = baseUrl + '?av=' + encodeURIComponent(SPRITE_ASSET_VERSION);
   if (SPRITE_CACHE.has(url)) return SPRITE_CACHE.get(url);
-  const res = await fetch(url, { cf: { cacheTtl: 3600 } });
+  // 5-min CF cache (was 1h) — once the aquilo-site mirror updates,
+  // a stale layer cycles within minutes instead of an hour.
+  const res = await fetch(url, { cf: { cacheTtl: 300 } });
   if (!res.ok) return null;
   const buf = new Uint8Array(await res.arrayBuffer());
   let decoded;
@@ -73,118 +172,174 @@ async function fetchSprite(env, relPath) {
 //
 // Walks the look + equipped slots and returns an ordered list of
 // `{ relPath, paletteMap? }` entries that the compositor fetches +
-// composes back-to-front. Per CHARACTER-SYSTEM-DESIGN.md §4 z-order:
+// composes back-to-front.
 //
-//   z=10 back-accessory  (trinket if back)
-//   z=15 pet             (cosmetic, in-frame)
-//   z=20 body            (figure base)
-//   z=25 default clothing (basic tunic + trousers, always rendered)
-//   z=30 legs
-//   z=35 boots
-//   z=40 chest
-//   z=45 front-trinket   (if non-back)
-//   z=60 hair
-//   z=65 face overlay    (eyes + accent)
-//   z=70 head            (helmets cover hair via z-order)
-//   z=80 weapon
-//   z=90 fx              (legendary glow particles)
+// Z-ORDER (L5 — fixed so the figure reads as ONE character, not
+// stacked stickers). Each slot describes WHY that index, not just
+// what:
 //
-// Slots without a sprite are simply skipped — no placeholder layer
-// rendered. The figure body always renders; everything else is
-// optional.
+//   z=10 back-trinket    cape/cloak/wings drape behind the body
+//   z=15 pet             companion lower-right, behind the body
+//   z=20 body            figure base (skin: torso + arms + legs)
+//   z=22 default-trousers   bare-legs cover; leg gear paints over
+//   z=30 legs gear       tassets / pants / greaves — covers trousers
+//   z=33 default-tunic   tunic skirt covers TOP of legs gear so the
+//                        skirt visibly drapes over the legs (FIX for
+//                        Clay's "legs render in front of tunic" bug);
+//                        chest gear later still covers the bodice
+//   z=35 boots           on top of trouser/leg-gear bottom
+//   z=40 chest           cuirass / robe / coat covers tunic bodice
+//   z=45 front-trinket   amulet / pendant over chest
+//   z=60 hair            on top of head
+//   z=65 face overlay    eyes + accent on the head
+//   z=70 head gear       helmet / hood — covers hair
+//   z=78 weapon          painted BEFORE the hand-overlay so the
+//                        hand visibly grips the weapon at z=79
+//   z=79 hand-overlay    re-paints the right hand on top of the
+//                        weapon grip — "held in hand", not "next to"
+//   z=90 fx              legendary glow particles on top
+//
+// Slots without a sprite are skipped — no placeholder. The body
+// always renders; everything else is optional.
 async function resolveLayers(env, hero, pet, opts) {
   const layers = [];
   const eq = hero.equipped || {};
   const inv = Object.fromEntries((hero.bag || []).map(it => [it.id, it]));
 
-  // Slug derived from the item name — mirror of Slugify in
-  // tools/build-sprites.ps1 so the runtime spriteId always matches
-  // the on-disk filename. We use this when a catalogue row hasn't
-  // been backfilled with an explicit spriteId field; for the Phase
-  // 3 art catalogue every piece's sprite is named after the slug,
-  // so item.name → slug → sprite path is the canonical route.
+  // Slug derived from the item name (used inside the safeId
+  // builder). Mirrors the slugify in tools/build-gear-glossy.mjs so
+  // runtime path matches the on-disk filename.
   function nameSlug(s) {
     return String(s || '').toLowerCase()
       .replace(/['’]/g, '')
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
   }
-  const itemSpriteId = (it) => (it && (it.spriteId || nameSlug(it.name))) || null;
-
-  // Helpers
+  // Glossy gear filename pattern: <slot>-<rarity>-<snake-name>.
+  // Items in the bag carry slot + rarity + name already; if a
+  // catalogue row has an explicit spriteId we honour that (it
+  // overrides the pattern — used by tests + future curated drops).
+  function gearSafeId(it) {
+    if (!it) return null;
+    if (it.spriteId) return it.spriteId;
+    const slug = nameSlug(it.name);
+    if (!slug) return null;
+    return `${it.slot}-${it.rarity}-${slug}`;
+  }
   const itemSlot = (slot) => inv[eq[slot]];
 
   // z=10 — back accessory (trinket flagged with back-cape semantics)
   const trinket = itemSlot('trinket');
-  const trinketSprite = itemSpriteId(trinket);
-  const isBackTrinket = trinketSprite && /(^|-)(cape|cloak|wings?|mantle|drape|veil|feather)(-|$)/.test(trinketSprite);
-  if (trinketSprite && isBackTrinket) {
-    layers.push({ rel: `gear/trinket/${trinketSprite}.png` });
+  const trinketSafe = gearSafeId(trinket);
+  const isBackTrinket = trinketSafe && /(^|-)(cape|cloak|wings?|mantle|drape|veil|feather)(-|$)/.test(trinketSafe);
+  if (trinketSafe && isBackTrinket) {
+    layers.push({ rel: `gear/figure/trinket/${trinketSafe}.png` });
   }
 
-  // z=15 — pet (cosmetic, only if not suppressed by ?nopet=1)
+  // z=15 — pet (cosmetic companion, lower-right of the figure
+  // canvas beside the hero). Glossy 128×160 PNGs at
+  // pet/glossy/<species>-<colour>.png; mood overlay at
+  // pet/glossy/mood-<hint>.png floats above the pet head.
+  // Marked optional so missing assets (mid-vendor) degrade.
   if (pet && !opts.nopet) {
-    layers.push({ rel: `pet/${pet.species}-${pet.colour}.png` });
+    layers.push({ rel: `pet/glossy/${pet.species}-${pet.colour}.png`, optional: true });
     const mood = computeMood(pet);
-    if (mood?.hint) layers.push({ rel: `pet/mood-${mood.hint}.png` });
+    if (mood?.hint) layers.push({ rel: `pet/glossy/mood-${mood.hint}.png`, optional: true });
   }
 
-  // z=20 — body
-  layers.push({ rel: `figure/body-${hero.custom.bodyType || 'slim'}-${hero.custom.skinTone || 'fair'}.png` });
+  // z=20 — body (glossy 128×160)
+  layers.push({ rel: `figure/glossy/body-${hero.custom.bodyType || 'slim'}-${hero.custom.skinTone || 'fair'}.png` });
 
-  // z=25 — default clothing (peasant tunic + trousers). Always
-  // rendered so a fresh character with nothing equipped reads as
-  // "dressed in basic clothes" instead of "in their underwear".
-  // Equipped chest gear (z=40) and legs gear (z=30) paint right
-  // over this layer in their own footprints, so the moment you put
-  // on a Hide Vest / Mithril Plate the default tunic disappears
-  // exactly where the new gear sits.
-  layers.push({ rel: 'figure/default-clothing.png' });
+  // z=22 — DEFAULT TROUSERS. Bare-legs cover; gets painted over by
+  // leg gear (z=30) when equipped. Optional so an older mirror that
+  // only has the legacy default-clothing.png still composes.
+  layers.push({ rel: 'figure/glossy/default-trousers.png', optional: true });
 
-  // z=30 / 35 / 40 — legs, boots, chest gear
-  for (const slot of ['legs', 'boots', 'chest']) {
-    const it = itemSlot(slot);
-    const sid = itemSpriteId(it);
-    if (sid) layers.push({ rel: `gear/${slot}/${sid}.png` });
+  // z=30 — legs gear (paints over default trousers)
+  {
+    const it = itemSlot('legs');
+    const sid = gearSafeId(it);
+    if (sid) layers.push({ rel: `gear/figure/legs/${sid}.png` });
+  }
+
+  // z=33 — DEFAULT TUNIC (bodice + sleeves + belt + skirt). Drawn
+  // AFTER leg gear so the tunic SKIRT visibly covers the top of any
+  // equipped leg gear. Chest gear (z=40) still covers the bodice.
+  // Optional so a stale mirror falls through to the legacy single
+  // default-clothing.png at z=25.
+  layers.push({ rel: 'figure/glossy/default-tunic.png', optional: true });
+
+  // z=35 — boots
+  {
+    const it = itemSlot('boots');
+    const sid = gearSafeId(it);
+    if (sid) layers.push({ rel: `gear/figure/boots/${sid}.png` });
+  }
+
+  // z=40 — chest gear (cuirass / robe / coat). Painted over the
+  // tunic bodice; leaves the skirt at z=33 visible below.
+  {
+    const it = itemSlot('chest');
+    const sid = gearSafeId(it);
+    if (sid) layers.push({ rel: `gear/figure/chest/${sid}.png` });
   }
 
   // z=45 — front trinket (non-back)
-  if (trinketSprite && !isBackTrinket) {
-    layers.push({ rel: `gear/trinket/${trinketSprite}.png` });
+  if (trinketSafe && !isBackTrinket) {
+    layers.push({ rel: `gear/figure/trinket/${trinketSafe}.png` });
   }
 
-  // z=60 — hair (palette-swapped per hero hair colour)
+  // z=60 — hair. Glossy ships per-(style,colour) variants —
+  // gradient fills don't survive paletteSwap cleanly, so we bake
+  // the colour into the file instead of swapping at render time.
   if (hero.custom.hairStyle && hero.custom.hairStyle !== 'bald') {
     layers.push({
-      rel: `figure/hair-${hero.custom.hairStyle}.png`,
-      paletteFor: 'hair', colourKey: hero.custom.hairColor || 'brown',
+      rel: `figure/glossy/hair-${hero.custom.hairStyle}-${hero.custom.hairColor || 'brown'}.png`,
     });
   }
 
   // z=65 — face overlay (eye colour + accent)
   if (hero.custom.eyeColor) {
-    layers.push({ rel: `figure/eyes-${hero.custom.eyeColor}.png` });
+    layers.push({ rel: `figure/glossy/eyes-${hero.custom.eyeColor}.png` });
   }
   if (hero.custom.accent && hero.custom.accent !== 'none') {
-    layers.push({ rel: `figure/accent-${hero.custom.accent}.png` });
+    layers.push({ rel: `figure/glossy/accent-${hero.custom.accent}.png` });
   }
 
   // z=70 — head gear (over hair)
   const head = itemSlot('head');
-  const headSprite = itemSpriteId(head);
-  if (headSprite) layers.push({ rel: `gear/head/${headSprite}.png` });
+  const headSafe = gearSafeId(head);
+  if (headSafe) layers.push({ rel: `gear/figure/head/${headSafe}.png` });
 
-  // z=80 — weapon
+  // z=78 — weapon, painted BEFORE the hand-overlay so the hand
+  // appears to grip the weapon (not float beside it).
   const weapon = itemSlot('weapon');
-  const weaponSprite = itemSpriteId(weapon);
-  if (weaponSprite) layers.push({ rel: `gear/weapon/${weaponSprite}.png` });
+  const weaponSafe = gearSafeId(weapon);
+  if (weaponSafe) layers.push({ rel: `gear/figure/weapon/${weaponSafe}.png` });
 
-  // z=90 — fx (legendary glow). Authored as a per-piece halo overlay.
-  for (const slot of ['weapon', 'chest', 'head', 'trinket']) {
+  // z=79 — HAND OVERLAY. Re-paints the right hand on top of the
+  // weapon so the figure visibly grips the weapon. Skin-tone matches
+  // the body. Optional — when the mirror is mid-vendor and the
+  // hand-overlay PNG doesn't exist yet, weapon still renders fine.
+  if (weaponSafe) {
+    layers.push({
+      rel: `figure/glossy/hand-overlay-${hero.custom.skinTone || 'fair'}.png`,
+      optional: true,
+    });
+  }
+
+  // z=90 — fx (legendary halo overlays). One per-slot halo at
+  // gear/figure/fx/<slot>.png, painted ABOVE the equipped gear so
+  // the glow reads as overlay magic. Dedup'd by slot so a hero
+  // wearing two legendaries in the same slot (impossible) doesn't
+  // double-paint. Optional so the absence of a halo file silently
+  // skips instead of crashing.
+  const fxSlotsSeen = new Set();
+  for (const slot of ['weapon', 'chest', 'head', 'trinket', 'legs', 'boots']) {
     const it = itemSlot(slot);
-    const sid = itemSpriteId(it);
-    if (it?.rarity === 'legendary' && sid) {
-      layers.push({ rel: `gear/fx/${sid}.png`, optional: true });
+    if (it?.rarity === 'legendary' && !fxSlotsSeen.has(slot)) {
+      fxSlotsSeen.add(slot);
+      layers.push({ rel: `gear/figure/fx/${slot}.png`, optional: true });
     }
   }
 
@@ -279,27 +434,33 @@ export async function handleCharacterRender(req, env, path) {
   }
 
   const layerSpecs = await resolveLayers(env, hero, pet, opts);
-  const layers = [];
+  // Seed a canvas-dim transparent layer FIRST so png-codec compose's
+  // "take dims from layers[0]" can't be hijacked by a rogue layer
+  // (e.g. a vendor-mid asset still at legacy 64×80) — the seed
+  // pins the output to SPRITE_W × SPRITE_H and the resilient
+  // compositor silently drops anything else that doesn't match.
+  const layers = [blank(SPRITE_W, SPRITE_H)];
   for (const spec of layerSpecs) {
     const img = await fetchSprite(env, spec.rel);
     if (!img) {
       if (spec.optional) continue;
-      // Missing required layer (e.g. figure body for an unknown
-      // skinTone). Don't crash the render — substitute a blank
-      // layer so the pipeline still emits a PNG. This should never
-      // happen post-Phase-2; if it does, the absence is visible
-      // and easy to spot.
+      // Missing required layer. Substitute a blank so the pipeline
+      // emits a PNG even mid-vendor. Should never happen post-flip;
+      // if it does, the absence is visible and easy to spot.
       layers.push(blank(SPRITE_W, SPRITE_H));
       continue;
     }
     if (spec.paletteFor === 'hair') {
-      layers.push(paletteSwap(img, hairPaletteMap(spec.colourKey)));
+      // Defensive — paletteSwap requires matching pixel layout; if
+      // the layer has unexpected dims (vendor accident) we let the
+      // compositor's resilience handle the skip.
+      try { layers.push(paletteSwap(img, hairPaletteMap(spec.colourKey))); }
+      catch (e) { console.warn('[character] paletteSwap failed:', e && e.message); layers.push(img); }
     } else {
       layers.push(img);
     }
   }
 
-  if (!layers.length) layers.push(blank(SPRITE_W, SPRITE_H));
   const composed = compose(layers);
   const png = await encodePng(composed);
 
@@ -341,7 +502,12 @@ function ephemeral(content, components = []) {
 
 function renderPreviewUrl(env, guildId, userId, version) {
   const base = (env && env.PUBLIC_WORKER_URL) || 'https://loadout-discord.aquiloplays.workers.dev';
-  return `${base}/character/render/${guildId}/${userId}.png?v=${version || 0}`;
+  // ?v=<lookVersion> bumps when the player edits their look; &av=
+  // <SPRITE_ASSET_VERSION> bumps when the art pipeline ships a new
+  // pass. Either changing forces every downstream cache (Discord
+  // embed, browser <img>, edge CDN) to see a new URL and refetch.
+  const av = encodeURIComponent(SPRITE_ASSET_VERSION);
+  return `${base}/character/render/${guildId}/${userId}.png?v=${version || 0}&av=${av}`;
 }
 
 // Build the editor message — selects + preview + buttons.
@@ -795,5 +961,40 @@ function walletSnap(w) {
     balance: w?.balance || 0,
     lifetimeEarned: w?.lifetimeEarned || 0,
     lifetimeSpent: w?.lifetimeSpent || 0,
+  };
+}
+
+// PROGRESSION (P2) — hero stats card. Reads d:hero:<guildId>:<userId>
+// across every guild (account-wide hero view). Picks the highest-level
+// hero as the headline.
+export async function getStatsFor(env, userId, _guildId = null) {
+  let bestLevel = 0;
+  let bestClass = '';
+  let totalHeroes = 0;
+  let totalGold = 0;
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'd:hero:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      if (!k.name.endsWith(':' + userId)) continue;
+      const h = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!h) continue;
+      totalHeroes++;
+      if ((h.level || 0) > bestLevel) {
+        bestLevel = h.level || 0;
+        bestClass = h.class || '';
+      }
+      totalGold += h.gold || 0;
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  return {
+    primary: { label: 'Hero', value: bestLevel > 0 ? `L${bestLevel} ${bestClass}` : 'none' },
+    secondary: [
+      { label: 'Heroes', value: totalHeroes },
+      { label: 'Gold', value: totalGold },
+    ],
+    iconKind: 'hero-sword',
   };
 }

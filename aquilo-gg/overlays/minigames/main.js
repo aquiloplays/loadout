@@ -389,7 +389,7 @@
       heistTime.replaceChildren();
       var img = document.createElement('img');
       img.className = 'ico ico--lg';
-      img.src = '/sprites/ui/icons/check.png';
+      img.src = '/sprites/ui/icons/glossy/check.png';
       img.alt = '';
       heistTime.appendChild(img);
     }
@@ -417,7 +417,7 @@
       heistTime.replaceChildren();
       var img = document.createElement('img');
       img.className = 'ico ico--lg';
-      img.src = '/sprites/ui/icons/alert.png';
+      img.src = '/sprites/ui/icons/glossy/alert.png';
       img.alt = '';
       heistTime.appendChild(img);
     }

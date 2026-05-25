@@ -319,15 +319,14 @@ export async function betCronTick(env) {
         // refund / push → leg dropped
       }
 
-      // Idempotency: compute the final status + payout, write the
-      // parlay to KV (status: 'won'|'refund'|'lost') BEFORE calling
-      // earn(). If anything below the status write throws, the L279
-      // guard at the top of this loop sees status !== 'open' on the
-      // next cron tick and skips — no double-credit. The earn() and
-      // history write below are the side-effect tail; on a thrown
-      // earn the player is shortchanged (operator-recoverable),
-      // which is strictly better than the old order's silent
-      // double-payout on retry.
+      // Idempotency (audit fix): compute the final status + payout
+      // and persist parlay.status to KV BEFORE calling earn(). The
+      // L293 guard above sees status !== 'open' on the next cron
+      // tick and skips — no double-credit. Trade-off: a thrown
+      // earn shortchanges the player (operator-recoverable) rather
+      // than the old order's silent double-payout on retry. Layered
+      // on top: reconcile's P1 progression event still fires on
+      // parlay wins, after the payout has landed.
       let payout = 0;
       let nextStatus;
       let earnReason;
@@ -353,6 +352,19 @@ export async function betCronTick(env) {
       }
       await recordSettledParlay(env, parlay);
       await removeOpenParlayId(env, pid);
+
+      // PROGRESSION (P1) — parlay win XP. Non-fatal: a
+      // progression-bus hiccup can't undo the parlay settlement.
+      if (nextStatus === 'won') {
+        try {
+          const { emitProgressionEvent } = await import('./progression/event-bus.js');
+          await emitProgressionEvent(env, {
+            kind: 'bet.won.parlay', userId: parlay.userId, guildId: parlay.guildId,
+            meta: { betId: parlay.betId, payout, legs: remaining.length },
+            stableKeys: ['betId'],
+          });
+        } catch { /* non-fatal */ }
+      }
       parlaysSettled++;
     } catch (e) {
       console.warn('[bet] parlay settle failed for', pid, '—', (e && e.message) || e);
@@ -505,6 +517,16 @@ async function recordSettled(env, bet, outcome, payout) {
     settledAt: Date.now(),
   });
   await putUserBets(env, bet.guildId, bet.userId, u);
+  // PROGRESSION (P1) — bet settlement XP (winning side only).
+  try {
+    if (outcome === 'win') {
+      const { emitProgressionEvent } = await import('./progression/event-bus.js');
+      await emitProgressionEvent(env, {
+        kind: 'bet.won', userId: bet.userId, guildId: bet.guildId,
+        meta: { betId: bet.betId, payout }, stableKeys: ['betId'],
+      });
+    }
+  } catch { /* non-fatal */ }
 }
 
 // ---- Slash command dispatcher ------------------------------------------
@@ -784,6 +806,15 @@ export async function runPlaceJson(env, guildId, userId, args) {
   const open = await getOpenBets(env, g.id);
   open.push(bet);
   await putOpenBets(env, g.id, open);
+
+  // PROGRESSION (P1) — bet placed.
+  try {
+    const { emitProgressionEvent } = await import('./progression/event-bus.js');
+    await emitProgressionEvent(env, {
+      kind: 'bet.placed', userId, guildId,
+      meta: { betId, stake }, stableKeys: ['betId'],
+    });
+  } catch { /* non-fatal */ }
 
   const projected = computeWinPayout(stake, bet.lockedOdds);
   const newBalance = (r.wallet && r.wallet.balance) || (balance - stake);
@@ -1130,4 +1161,37 @@ export async function renderHistory(env, guildId, userId) {
     );
   });
   return '**Last ' + hist.length + ' settled bets**\n```\n' + rows.join('\n') + '\n```';
+}
+
+// PROGRESSION (P2) — betting headline. Account-wide.
+export async function getStatsFor(env, userId, _guildId = null) {
+  let active = 0, settled = 0, wins = 0, losses = 0, totalStaked = 0, totalWon = 0;
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'bets:user:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      if (!k.name.endsWith(':' + userId)) continue;
+      const u = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!u) continue;
+      active += (u.active || []).length;
+      for (const h of (u.history || [])) {
+        settled++;
+        totalStaked += h.stake || 0;
+        if (h.outcome === 'win') { wins++; totalWon += h.payout || 0; }
+        else if (h.outcome === 'lose') losses++;
+      }
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  const winRate = settled > 0 ? Math.round((wins / settled) * 100) : 0;
+  return {
+    primary: { label: 'W/L', value: `${wins}-${losses}` },
+    secondary: [
+      { label: 'Active', value: active },
+      { label: 'Win rate', value: winRate + '%' },
+      { label: 'Net', value: totalWon - totalStaked },
+    ],
+    iconKind: 'bet-ticket',
+  };
 }

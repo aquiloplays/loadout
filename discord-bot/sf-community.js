@@ -308,14 +308,34 @@ export async function handleCommunityLive(req, env) {
   // 90s heartbeats while live get NO embed.
   const isNewSession = !prev || prev.live !== true;
   let posted = null;
+  let fanout = null;
   if (isNewSession) {
     const channel = await resolveCommunityChannel(env);
     if (channel) {
       const r = await postEmbed(env, channel.channelId, liveEmbed(entry));
       posted = r.ok ? { channelId: channel.channelId, messageId: r.messageId } : { error: r.error };
     }
+    // G1 — fan out 'friend.live' to the streamer's aquilo friends. The
+    // SF userId is whatever StreamFusion sends (typically a Twitch
+    // numeric id for tw streamers). notifyFriendsOfGoLive resolves
+    // via plink:twitch:<id> → aquilo userId. No-op if the streamer
+    // hasn't linked an aquilo account.
+    try {
+      const { notifyFriendsOfGoLive } = await import('./friends.js');
+      fanout = await notifyFriendsOfGoLive(env, {
+        aquiloUserId: null,
+        twitchUserId: userId,
+        streamerName: entry.name,
+        platform:     PLATFORM_LABELS[entry.platform] || 'Twitch',
+        url:          entry.url,
+        title:        entry.title,
+        game:         entry.game,
+      });
+    } catch (e) {
+      console.warn('[sf-community] friend.live fan-out failed:', e && e.message);
+    }
   }
-  return json({ ok: true, action: 'live', newSession: isNewSession, posted });
+  return json({ ok: true, action: 'live', newSession: isNewSession, posted, fanout });
 }
 
 export async function handleCommunityEvent(req, env) {

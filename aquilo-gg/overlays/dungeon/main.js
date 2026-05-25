@@ -874,7 +874,7 @@
       if (typeof p.glyph === 'string' && (/^\//.test(p.glyph) || /^https?:/i.test(p.glyph))) {
         const gi = document.createElement('img'); gi.className = 'ico'; gi.src = p.glyph; gi.alt = ''; g.appendChild(gi);
       } else {
-        const gi = document.createElement('img'); gi.className = 'ico'; gi.src = '/sprites/ui/icons/sword.png'; gi.alt = ''; g.appendChild(gi);
+        const gi = document.createElement('img'); gi.className = 'ico'; gi.src = '/sprites/ui/icons/glossy/sword.png'; gi.alt = ''; g.appendChild(gi);
       }
       const t = document.createElement('div'); t.className = 's-text';  t.textContent = p.text || '';
       line.append(g, t);
@@ -903,7 +903,7 @@
     // text remain literal). escapeHtml the user-supplied bits so a
     // crafted winner string can't inject markup.
     duelResult.innerHTML =
-      '<img class="ico" src="/sprites/ui/icons/trophy.png" alt="">' +
+      '<img class="ico" src="/sprites/ui/icons/glossy/trophy.png" alt="">' +
       escapeHtml(p.winner) + ' wins! +' + (p.xp || 0) + ' XP, +' + (p.gold || 0) + ' bolts';
     setTimeout(() => { reset(); setState('idle'); }, 6000);
   }

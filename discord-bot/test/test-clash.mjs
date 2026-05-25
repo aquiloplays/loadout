@@ -637,8 +637,11 @@ ok('public town payload includes engineers',
    p5PublicBody.engineers && p5PublicBody.engineers.total === 1 && p5PublicBody.engineers.busy === 0);
 ok('public town payload includes obstacleCatalogue',
    p5PublicBody.obstacleCatalogue && typeof p5PublicBody.obstacleCatalogue.rock === 'object');
+// Grid bumped to 24x24 by the Clash-expansion E5 (layout editor).
+// Was 16x16 in the original Phase-5 contract; updated post-merge.
 ok('public town payload includes grid',
-   p5PublicBody.grid && p5PublicBody.grid.w === 16);
+   p5PublicBody.grid && p5PublicBody.grid.w === 24,
+   `grid=${JSON.stringify(p5PublicBody.grid)}`);
 
 // /web/clash/town now ships wallet + obstacles + engineers for the
 // play surface.
@@ -817,10 +820,11 @@ ok('/web/character hairSwatches map returns hex strings',
    getBody1.hairSwatches &&
    typeof getBody1.hairSwatches[getBody1.options.hairColor[0]] === 'string' &&
    /^#[0-9a-f]{6}$/.test(getBody1.hairSwatches[getBody1.options.hairColor[0]]));
-ok('/web/character renderUrl pins ?v=<lookVersion>',
+ok('/web/character renderUrl pins ?v=<lookVersion>&av=<assetVersion>',
    typeof getBody1.renderUrl === 'string' &&
    getBody1.renderUrl.includes(`/character/render/${NUM_GUILD}/${NUM_VIEWER}.png?v=`) &&
-   getBody1.renderUrl.endsWith('v=' + getBody1.lookVersion));
+   getBody1.renderUrl.includes('v=' + getBody1.lookVersion + '&av=') &&
+   /[?&]av=[\w-]+/.test(getBody1.renderUrl));
 ok('/web/character fresh user lookVersion = 0', getBody1.lookVersion === 0);
 ok('/web/character fresh user is unlocked',
    getBody1.locked === false,

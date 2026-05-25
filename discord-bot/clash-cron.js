@@ -20,6 +20,7 @@
 import { tierForPrestige } from './clash-state.js';
 import { pushShieldExpiring, pushWarEnded } from './clash-push.js';
 import { sweepActiveWars } from './clash-war.js';
+import { scheduleGoblinRaids } from './clash-goblins.js';
 
 // Trophies above this floor (per tier) trigger a 1/day decay tick.
 const TIER_CAPS = { bronze: 200, silver: 600, gold: 1500, platinum: 3500, diamond: 8000 };
@@ -39,6 +40,70 @@ export async function clashDailyCronTick(env, cronExpr) {
     await env.LOADOUT_BOLTS.put(DECAY_MARKER_KEY, JSON.stringify({ date: today, ranAtUtc: Date.now() }));
   }
   await runShieldNudges(env);
+  // CLASH EXPANSION E2: walk every town and fire any goblin raids
+  // whose scheduled slot has come due. Bounded — caps at ~10k towns,
+  // single sim/town, runs inside the hourly 30s CPU budget.
+  try {
+    const summary = await scheduleGoblinRaids(env);
+    const fired = summary.filter(s => s.fired).length;
+    if (fired) console.log('[clash-cron] fired', fired, 'goblin raids');
+  } catch (e) {
+    console.warn('[clash-cron] goblin raid scheduler failed:', e && e.message);
+  }
+  // PROGRESSION P6 — ensure the season-active record is current. If
+  // the previous season ended, ensureCurrentSeason archives it and
+  // mints the next one. Cheap — one KV read per tick when the season
+  // is still live.
+  try {
+    const { ensureCurrentSeason } = await import('./progression/season.js');
+    await ensureCurrentSeason(env);
+  } catch (e) {
+    console.warn('[clash-cron] season rollover failed:', e && e.message);
+  }
+  // PROGRESSION P7 — tournament spawn-check (15% per day with a 14-
+  // day floor) + state advancement (sign-up→live, live→archive on end).
+  try {
+    const { tournamentSpawnTick, advanceTournaments } = await import('./progression/tournaments.js');
+    await tournamentSpawnTick(env);
+    await advanceTournaments(env);
+  } catch (e) {
+    console.warn('[clash-cron] tournament tick failed:', e && e.message);
+  }
+  // B7 — sweep empty temp voice channels (heuristic: > 4h old + > 30
+  // min idle; DLL voice-state forwarding stamps lastActivityUtc on
+  // active rooms so the sweep doesn't delete busy ones).
+  try {
+    const { sweepEmptyTempVcs } = await import('./voice-temp.js');
+    const r = await sweepEmptyTempVcs(env);
+    if (r.swept) console.log('[clash-cron] swept', r.swept, 'temp VCs');
+  } catch (e) {
+    console.warn('[clash-cron] temp-vc sweep failed:', e && e.message);
+  }
+
+  // G2 — Weekly community challenge rotation. Idempotent: an ISO-week
+  // KV marker (`challenge:rotation:lastIsoWeek`) gates rotation so we
+  // only mint a new challenge once per week even though this cron
+  // fires hourly. Also bootstraps the first challenge on cold start.
+  try {
+    const { rotateIfDue } = await import('./challenges.js');
+    const r = await rotateIfDue(env);
+    if (r?.action === 'rotated') {
+      console.log('[clash-cron] community challenge rotated:', r.from || '—', '→', r.to);
+    }
+  } catch (e) {
+    console.warn('[clash-cron] challenge rotation failed:', e && e.message);
+  }
+
+  // I4 — Expedition safety-net finalize. Players whose expedition
+  // window closed but didn't claim get their rewards landed at the
+  // next :23 tick. Cheap (only walks expedition:active:*).
+  try {
+    const { expeditionCronTick } = await import('./expedition.js');
+    await expeditionCronTick(env);
+  } catch (e) {
+    console.warn('[clash-cron] expedition tick failed:', e && e.message);
+  }
+
   // Wars: sweep ACTIVE wars and resolve any whose 24h window has
   // expired. Cheap — only walks the small clash:waractive:* index.
   const endedWars = await sweepActiveWars(env);

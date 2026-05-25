@@ -145,7 +145,7 @@ tier (same treatment as Excalibur in the dungeon catalogue).
 | --- | --- | --- | --- | --- |
 | **Solara, the Sunblade** | 7 | 7 | 5 | *On play: deal 3 damage to all enemy minions.* |
 | **Korrik the Bonecrusher** | 6 | 8 | 6 | *Taunt. Cannot be targeted by spells.* |
-| **Mireth, Vault Whisperer** | 5 | 4 | 3 | *On play: copy a random card in your opponent's hand into your hand.* |
+| **Mireth, Relic Whisperer** | 5 | 4 | 3 | *On play: copy a random card in your opponent's hand into your hand.* |
 | **Thalor, the Stormwarden** | 8 | 6 | 6 | *On play: deal 2 damage to every enemy minion AND the enemy hero.* |
 | **Nyx, Pact-Bound** | 5 | 5 | 4 | *On death: return to your hand with +1/+1.* |
 
@@ -158,7 +158,7 @@ flavor-tied to the dungeon side. Animated APNG.
 | --- | --- | --- | --- | --- |
 | **The Bone Tyrant** | 9 | 10 | 8 | *Taunt. On death: summon two 3/3 Bone Knights.* |
 | **Voltaic Wyrm** | 8 | 7 | 7 | *Charge. On attack: deal 1 damage to all other minions.* |
-| **The Vault Lich** | 7 | 5 | 4 | *On play: draw 3 cards.* |
+| **The Relic Lich** | 7 | 5 | 4 | *On play: draw 3 cards.* |
 | **Goblin Warchief** | 6 | 6 | 5 | *On play: summon three 1/1 Goblin Scrappers with Charge.* |
 | **The Hollow King** | 10 | 12 | 10 | *Cannot attack unless you played at least 3 spells this match.* |
 
@@ -177,11 +177,11 @@ intent, not the implementation source.)
 - **Healer Cleric** (2 mana, 1/3, *End of turn: heal a friendly minion for 2*)
 - **Archer Twin** (3 mana, 2/3, *On play: deal 1 damage twice (any target)*)
 - **Bolt Engineer** (2 mana, 2/2, *On play: gain +1 mana this turn*)
-- **Vault Sniffer** (1 mana, 1/2, *On play: look at the top card of your deck*)
+- **Relic Sniffer** (1 mana, 1/2, *On play: look at the top card of your deck*)
 - **Forge Brand (spell)** (2 mana, *Give a friendly minion +2/+2 this turn*)
 - **Goblin Powder (spell)** (1 mana, *Deal 2 damage to any minion*)
 - **Voltaic Surge (spell)** (4 mana, *Deal 4 damage split between any two targets*)
-- **Vault Seal (spell)** (3 mana, *Counter the next spell your opponent plays*)
+- **Relic Seal (spell)** (3 mana, *Counter the next spell your opponent plays*)
 - **Bolt Storm (spell)** (5 mana, *Deal 1 damage to all enemy minions twice*)
 - **Mend (spell)** (1 mana, *Heal a hero for 4*)
 - **Resurrect (spell)** (4 mana, *Return the last friendly minion that died to your hand*)
@@ -456,7 +456,7 @@ For context — not committed scope, just the next-pass shape:
   dungeon kills feed Boltbound XP. Voltaic-tier card art reflects
   the dungeon's Voltaic set.
 - **Phase 4: events + tournaments** — seasonal ladders, streamer-
-  hosted brackets ("Vault Open"), event-only card backs.
+  hosted brackets ("Relic Open"), event-only card backs.
 - **Phase 5: trading / gifting** — opt-in pack-gifting and card
   trading between linked viewers. Tightly bolted to the Patreon
   link for fraud control.
@@ -556,7 +556,7 @@ future pass can light them up without re-IDing the roster.
 | **dragon** | dragon     | Dragons, dragonkin | high-mana, big stats |
 | **demon**  | demon      | Demons, fiends, pacts | self-damage for value |
 | **fae**    | fae        | Sprites, fairies, charm | bounce + buff |
-| **vault**  | vault      | Treasure hunters, runesmiths | dig + draw |
+| **relic**  | vault      | Treasure hunters, runesmiths | dig + draw |   <!-- internal slug 'vault' kept for back-compat with previously-issued card IDs -->
 
 Per-family card counts:
 
@@ -791,7 +791,7 @@ Initial 15 archetypes (Phase 5 sprite pass):
 
 | Archetype | Used by |
 | --- | --- |
-| humanoid-warrior  | wild, forge, light, vault knights |
+| humanoid-warrior  | wild, forge, light, relic knights |
 | humanoid-mage     | arcane, fire, frost, storm casters |
 | humanoid-rogue    | shadow, fae, goblin |
 | humanoid-priest   | light priests, healers |

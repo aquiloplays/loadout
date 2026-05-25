@@ -1,11 +1,16 @@
 // Streak Freeze items — Duolingo-style streak protection.
 //
 // Two types, deliberately separate because the two streaks are independent:
-//   - "stream"  protects the Twitch check-in streak in checkin:<guild>:<userId>
-//                where userId is `tw:<twitchId>` for panel viewers (see ext.js
-//                resolveLoadoutUserId).
-//   - "discord" protects the Discord pic/gif check-in streak in the aquilo-bot
-//                Worker's D1 `discord_checkins` table, keyed by Discord user id.
+//   - "stream"  protects the Twitch stream check-in streak in
+//                checkin:<guild>:<userId> where userId is `tw:<twitchId>`
+//                for panel viewers (see ext.js resolveLoadoutUserId).
+//   - "discord" protects the unified daily community check-in streak in
+//                community-checkin:<g>:<u>, keyed by Discord user id.
+//                Consumed by community-checkin.js's recordCheckin() when
+//                delta > 1 ET-day. (Previously protected the retired
+//                aquilo-bot pic/gif check-in's D1 table — the freeze
+//                stockpile carries over since the KV identity is the same
+//                bare Discord user id.)
 //
 // Storage: ONE KV entry per identity holds both counts.
 //   freeze:<guildId>:<userId>  ->  { stream: N, discord: M, lastBoughtUtc: T }
@@ -20,9 +25,9 @@
 //   - Stream streak: at next Twitch check-in attempt, if since >= 48h AND
 //     the user holds >= 1 stream freeze, we consume one and preserve the
 //     existing streak instead of resetting to 1.
-//   - Discord streak: at next image post, if delta-days > 1 AND the user
-//     holds >= 1 discord freeze, the aquilo-bot Worker calls our
-//     /streak-freeze/check-consume endpoint to consume.
+//   - Discord streak: at next /checkin (slash command) or POST /web/checkin,
+//     if delta-days > 1 AND the user holds >= 1 discord freeze,
+//     community-checkin.js consumes one in-process and preserves the streak.
 //
 // Stockpile cap: 3 per type. Once at cap, buying another fails with a
 // clear message. Prevents one big buy from making streaks meaningless.

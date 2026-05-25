@@ -29,8 +29,17 @@ export async function putWallet(env, guildId, userId, w) {
 export async function earn(env, guildId, userId, amount, reason) {
   if (!amount || amount <= 0) return null;
   const w = await getWallet(env, guildId, userId);
-  w.balance += amount;
-  w.lifetimeEarned += amount;
+  // L8 — server-booster multiplier. Set by boosters.js on boost-start,
+  // cleared on boost-end. `boosterMultiplier` is the factor (typically
+  // 2); `boosterMultiplierUntil` is a safety expiry so a dropped
+  // boost-end event eventually clears itself instead of paying out
+  // forever.
+  let credited = amount;
+  if (w.boosterMultiplier > 1 && (w.boosterMultiplierUntil || 0) > Date.now()) {
+    credited = amount * w.boosterMultiplier;
+  }
+  w.balance += credited;
+  w.lifetimeEarned += credited;
   w.lastEarnUtc = Date.now();
   w.lastEarnReason = reason || '';
   await putWallet(env, guildId, userId, w);
@@ -299,4 +308,37 @@ export async function readSnapshot(env, guildId) {
     cursor = r.cursor;
   }
   return { wallets, ts: Date.now() };
+}
+
+// PROGRESSION (P2) — wallet headline. Sums account-wide balance +
+// lifetime-earned across every guild this user appears in.
+export async function getStatsFor(env, userId, _guildId = null) {
+  let total = 0;
+  let lifetime = 0;
+  let streak = 0;
+  let guilds = 0;
+  let cursor;
+  for (let i = 0; i < 5; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'wallet:', cursor, limit: 1000 });
+    for (const k of r.keys) {
+      if (!k.name.endsWith(':' + userId)) continue;
+      const w = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (!w) continue;
+      guilds++;
+      total += w.balance || 0;
+      lifetime += w.lifetimeEarned || 0;
+      if ((w.dailyStreak || 0) > streak) streak = w.dailyStreak || 0;
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  return {
+    primary: { label: 'Bolts', value: total },
+    secondary: [
+      { label: 'Lifetime', value: lifetime },
+      { label: 'Streak', value: streak + 'd' },
+      { label: 'Servers', value: guilds },
+    ],
+    iconKind: 'bolt',
+  };
 }
