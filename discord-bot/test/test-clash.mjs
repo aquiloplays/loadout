@@ -956,5 +956,77 @@ ok('/web/character/save after reset succeeds',
    reSaveResp.status === 200 && reSaveBody.ok === true && reSaveBody.locked === true,
    `body=${JSON.stringify(reSaveBody).slice(0, 200)}`);
 
+// /web/character/class is also gated by the lock: NUM_VIEWER is now
+// locked again from the reSave, so picking a class returns the same
+// typed error the save path uses.
+const classLockedReq = await webPost('/web/character/class', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD, className: 'warrior',
+});
+const classLockedResp = await handleWeb(classLockedReq, webEnv);
+const classLockedBody = await classLockedResp.json();
+ok('/web/character/class rejects when locked',
+   classLockedResp.status === 409 &&
+   classLockedBody.ok === false &&
+   classLockedBody.error === 'character-locked' &&
+   classLockedBody.resetCost === 5000,
+   `status=${classLockedResp.status} body=${JSON.stringify(classLockedBody)}`);
+
+// Reset path again, then immediately call reset again on the now-
+// unlocked character → typed `not-locked` error, no charge.
+{
+  const { earn } = await import('../wallet.js');
+  await earn(webEnv, NUM_GUILD, NUM_VIEWER, 5000, 'test-seed-2');
+}
+const reset2Req = await webPost('/web/character/reset', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+});
+await handleWeb(reset2Req, webEnv);
+const reset3Req = await webPost('/web/character/reset', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+});
+const reset3Resp = await handleWeb(reset3Req, webEnv);
+const reset3Body = await reset3Resp.json();
+ok('/web/character/reset on unlocked → not-locked, no charge',
+   reset3Resp.status === 400 &&
+   reset3Body.ok === false &&
+   reset3Body.error === 'not-locked' &&
+   reset3Body.wallet.balance === 2500,  // 7500 seeded → 2 resets at 5000 → 2500
+   `status=${reset3Resp.status} body=${JSON.stringify(reset3Body)}`);
+
+// Class-pick-does-NOT-lock contract: a fresh user picks class first,
+// stays unlocked so they can still customise their look. The save
+// step is the one that flips the lock.
+const NUM_VIEWER_2 = '555555555555555555';
+const freshGetReq = await webPost('/web/character', {
+  discordId: NUM_VIEWER_2, guildId: NUM_GUILD,
+});
+const freshGetBody = await (await handleWeb(freshGetReq, webEnv)).json();
+ok('fresh user starts unlocked',
+   freshGetBody.ok === true && freshGetBody.locked === false && freshGetBody.className === null,
+   `body=${JSON.stringify(freshGetBody).slice(0, 200)}`);
+
+const classPickReq = await webPost('/web/character/class', {
+  discordId: NUM_VIEWER_2, guildId: NUM_GUILD, className: 'mage',
+});
+const classPickBody = await (await handleWeb(classPickReq, webEnv)).json();
+ok('class pick on fresh user succeeds without locking',
+   classPickBody.ok === true && classPickBody.className === 'mage' && classPickBody.locked === false,
+   `body=${JSON.stringify(classPickBody).slice(0, 200)}`);
+
+const afterPickReq = await webPost('/web/character', {
+  discordId: NUM_VIEWER_2, guildId: NUM_GUILD,
+});
+const afterPickBody = await (await handleWeb(afterPickReq, webEnv)).json();
+ok('post-class re-read still unlocked + class set',
+   afterPickBody.locked === false && afterPickBody.className === 'mage');
+
+const v2SaveReq = await webPost('/web/character/save', {
+  discordId: NUM_VIEWER_2, guildId: NUM_GUILD,
+  look: { bodyType: 'slim' },
+});
+const v2SaveBody = await (await handleWeb(v2SaveReq, webEnv)).json();
+ok('look save after class pick locks',
+   v2SaveBody.ok === true && v2SaveBody.locked === true);
+
 console.log('--- ' + passed + ' pass, ' + failed + ' fail ---');
 if (failed > 0) process.exit(1);
