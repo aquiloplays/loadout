@@ -1143,5 +1143,80 @@ ok('/web/referral/attribute first-attribution-wins',
      `code=${meC.code} body=${JSON.stringify(noisyBody)}`);
 }
 
+// ── Referral funnel payout — milestone fires on first /web/daily ────
+//
+// REF_B was attributed under REF_A above. Wallet pre-state: REF_A has
+// zero bolts and zero packs; REF_B is fresh. Hitting /web/daily on
+// REF_B should fire recordMilestone('first-game') via the new
+// noteFirstGame hook in routeDaily, which credits REF_A with the
+// REFERRAL_REWARD_BOLTS (50) + a 'bolt' pack.
+console.log('--- referral milestone payout ---');
+
+// Snapshot REF_A's wallet + referrer-stats BEFORE the milestone fires.
+{
+  const { getWallet } = await import('../wallet.js');
+  const before = await getWallet(webEnv, NUM_GUILD, REF_A);
+  ok('REF_A starts with zero bolts (clean payout baseline)',
+     (before.balance || 0) === 0, `bal=${before.balance}`);
+}
+
+// REF_B hits /web/daily (first-ever activity). Daily() pays the
+// player; routeDaily fires noteFirstGame → recordMilestone.
+const dailyReq  = await webPost('/web/daily', { discordId: REF_B, guildId: NUM_GUILD });
+const dailyResp = await handleWeb(dailyReq, webEnv);
+const dailyBody = await dailyResp.json();
+ok('/web/daily for REF_B returns ok (claim landed)',
+   dailyResp.status === 200 && dailyBody.ok === true,
+   `body=${JSON.stringify(dailyBody).slice(0, 200)}`);
+
+// REF_A now has the REFERRAL_REWARD_BOLTS (50) credited by the
+// milestone hook.
+{
+  const { getWallet } = await import('../wallet.js');
+  const { REFERRAL_REWARD_BOLTS, REFERRAL_REWARD_PACK, getReferrerStats } = await import('../referrals.js');
+  const after = await getWallet(webEnv, NUM_GUILD, REF_A);
+  ok('REF_A wallet credited 50 Bolts by milestone hook',
+     after.balance === REFERRAL_REWARD_BOLTS,
+     `bal=${after.balance} (expected ${REFERRAL_REWARD_BOLTS})`);
+
+  const stats = await getReferrerStats(webEnv, NUM_GUILD, REF_A);
+  ok('REF_A referrer stats.paid bumps to 1',
+     stats.paid === 1, `stats=${JSON.stringify(stats)}`);
+  ok('REF_A history records the milestone',
+     Array.isArray(stats.history) && stats.history.length === 1 &&
+     stats.history[0].refereeId === REF_B &&
+     stats.history[0].kind === 'first-game' &&
+     stats.history[0].reward?.bolts === REFERRAL_REWARD_BOLTS &&
+     stats.history[0].reward?.pack === REFERRAL_REWARD_PACK,
+     `history=${JSON.stringify(stats.history)}`);
+}
+
+// Idempotency: REF_B plays /web/coinflip → no second payout.
+const coinReq  = await webPost('/web/coinflip', {
+  discordId: REF_B, guildId: NUM_GUILD, bet: 10,
+});
+await handleWeb(coinReq, webEnv);
+
+{
+  const { getWallet } = await import('../wallet.js');
+  const { getReferrerStats } = await import('../referrals.js');
+  const after = await getWallet(webEnv, NUM_GUILD, REF_A);
+  ok('REF_A wallet UNCHANGED on REF_B second activity (milestone idempotent)',
+     after.balance === 50, `bal=${after.balance}`);
+  const stats = await getReferrerStats(webEnv, NUM_GUILD, REF_A);
+  ok('REF_A referrer stats.paid stays at 1', stats.paid === 1);
+}
+
+// Non-referred user doesn't pay anyone. Pick a fresh ID, hit /web/daily,
+// confirm no referrer is credited (none to credit) and route still
+// returns ok.
+const SOLO = '999999999999999999';
+const soloReq  = await webPost('/web/daily', { discordId: SOLO, guildId: NUM_GUILD });
+const soloResp = await handleWeb(soloReq, webEnv);
+const soloBody = await soloResp.json();
+ok('/web/daily for non-referred user still returns ok (no-op milestone)',
+   soloResp.status === 200 && soloBody.ok === true,
+   `body=${JSON.stringify(soloBody).slice(0, 200)}`);
+
 console.log('--- ' + passed + ' pass, ' + failed + ' fail ---');
 if (failed > 0) process.exit(1);

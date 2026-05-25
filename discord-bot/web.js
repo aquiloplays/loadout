@@ -166,8 +166,15 @@ const ROUTES = new Set([
   // New-viewer funnel — referral attribution. /me returns the
   // caller's stable referral code + bring-in stats; /attribute is
   // what the site POSTs after Patreon-link to record (refereeId,
-  // refCode). Milestone payouts are a future hook — the data model
-  // is ready but no call site fires recordMilestone() yet on main.
+  // refCode). Reward payout (50 Bolts + 1 'bolt' pack to the
+  // referrer) fires via recordMilestone('first-game') from the
+  // noteFirstGame helper, hooked into routeDaily / routeCoinflip /
+  // routeDice below — first daily/coinflip/dice on an attributed
+  // user pays out, then stamps the referee record so subsequent
+  // plays are no-ops. A future quests.js port can fire additional
+  // milestone kinds (first-checkin, patreon-link, …) without
+  // colliding — recordMilestone is gated on milestoneFiredUtc, not
+  // on the kind.
   'referral/me',
   'referral/attribute',
   'admin/snapshot',
@@ -314,6 +321,32 @@ async function routeWallet(env, guildId, userId) {
   });
 }
 
+// Fire the referral funnel's first-activity milestone. This is the
+// piece that was missing on main when only the /web/referral/* routes
+// were cherry-picked from the reconcile branch — attributions were
+// being recorded but no caller ever fired recordMilestone() to pay
+// the referrer's 50 Bolts + 1 'bolt' pack. Hooked into every game
+// route below so any of daily/coinflip/dice qualifies as "first
+// activity". recordMilestone is idempotent (the stamped
+// milestoneFiredUtc on the referee record prevents double-pay), so
+// calling on every play is safe — only the first one for an
+// attributed user actually pays anything out.
+//
+// Dynamic import + best-effort try/catch so a referrals-side hiccup
+// can't break the game route. Forward-compatible with a future
+// quests.js port — quests.js can fire its own milestone kinds
+// (first-checkin, patreon-link, ...) without re-firing this one
+// (recordMilestone is gated on `rec.milestoneFiredUtc`, not on the
+// kind).
+async function noteFirstGame(env, guildId, userId) {
+  try {
+    const { recordMilestone } = await import('./referrals.js');
+    await recordMilestone(env, guildId, userId, 'first-game');
+  } catch (e) {
+    console.warn('[referrals] first-game milestone fire failed:', (e && e.message) || e);
+  }
+}
+
 async function routeDaily(env, guildId, userId) {
   const r = await daily(env, guildId, userId);
   if (r.won) {
@@ -324,6 +357,7 @@ async function routeDaily(env, guildId, userId) {
       bolts_earned: r.payout || 0,
       games_won: 1,
     });
+    await noteFirstGame(env, guildId, userId);
   }
   // Surface the post-claim wallet so the UI doesn't need a follow-up
   // round trip.
@@ -351,6 +385,7 @@ async function routeCoinflip(env, guildId, userId, body) {
   }
   if (r.won) await recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
   else await recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
+  await noteFirstGame(env, guildId, userId);
   const w = await getWallet(env, guildId, userId);
   const cooldownUntil = await cooldownTouch(env, userId);
   return json({
@@ -740,6 +775,7 @@ async function routeDice(env, guildId, userId, body) {
   }
   if (r.won) await recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
   else await recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
+  await noteFirstGame(env, guildId, userId);
   const w = await getWallet(env, guildId, userId);
   const cooldownUntil = await cooldownTouch(env, userId);
   return json({
