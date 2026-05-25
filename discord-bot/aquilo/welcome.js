@@ -41,6 +41,11 @@ export async function maybeWelcome(env, guildId, userId, member = null) {
   catch (e) { console.error('[welcome] achievement bump failed', e?.message || e); }
 
   // 2) Credit 100 starter Bolts via Loadout's cross-bot endpoint.
+  // /counting/award-bolts is the receiver — it requires the
+  // x-counting-secret header and a guild_id in the body. The header
+  // name + missing guild_id were a long-standing silent fail
+  // (boltsCredited stayed false; the welcome card downgraded to the
+  // no-bolts copy without surfacing the failure to the user).
   let boltsCredited = false;
   if (env.LOADOUT_BOLT_API && env.LOADOUT_BOLT_API_SECRET) {
     try {
@@ -48,9 +53,10 @@ export async function maybeWelcome(env, guildId, userId, member = null) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-loadout-bolt-secret': env.LOADOUT_BOLT_API_SECRET,
+          'x-counting-secret': env.LOADOUT_BOLT_API_SECRET,
         },
         body: JSON.stringify({
+          guild_id: guildId,
           user_id: userId,
           amount: STARTER_BOLTS,
           reason: 'welcome',

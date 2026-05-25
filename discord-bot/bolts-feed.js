@@ -132,8 +132,14 @@ export async function buildDigestEmbed(env, guildId) {
 
 // Discord REST helpers — duplicated from stocks.js intentionally so this
 // module has no inbound dep on stocks.js. Keep both copies thin.
+//
+// Returns the HTTP status (0 on network failure) instead of just a
+// boolean so the caller can distinguish "message gone" (404) from
+// "Discord blip" (5xx). The latter should NOT unbind the feed —
+// otherwise one transient Discord outage permanently silences every
+// guild's hourly digest until a streamer re-binds.
 async function discordPatchMessage(env, channelId, messageId, body) {
-  if (!env.DISCORD_BOT_TOKEN) return false;
+  if (!env.DISCORD_BOT_TOKEN) return 0;
   try {
     const res = await fetch(
       'https://discord.com/api/v10/channels/' +
@@ -149,9 +155,9 @@ async function discordPatchMessage(env, channelId, messageId, body) {
         body: JSON.stringify(body),
       },
     );
-    return res.ok;
+    return res.status;
   } catch {
-    return false;
+    return 0;
   }
 }
 
@@ -189,12 +195,17 @@ export async function bindBoltsFeed(env, guildId, channelId) {
 
 // Edit every bound digest message in place. Releases the binding for
 // any message that's gone (PATCH 404), so we don't keep retrying.
+// Transient Discord 5xx / network failures leave the binding alone so
+// one outage doesn't silently mass-unbind every guild's hourly digest.
 export async function boltsFeedCronTick(env) {
   const feeds = await listBoltsFeeds(env);
   if (feeds.length === 0) return;
   for (const f of feeds) {
     const embed = await buildDigestEmbed(env, f.guildId);
-    const ok = await discordPatchMessage(env, f.channelId, f.messageId, { embeds: [embed] });
-    if (!ok) await clearBoltsFeed(env, f.guildId);
+    const status = await discordPatchMessage(env, f.channelId, f.messageId, { embeds: [embed] });
+    // 404 = message deleted, 403 = lost channel perms — both worth
+    // releasing the binding for. Anything else (5xx, network blip, 0)
+    // is transient — keep the binding and retry next hour.
+    if (status === 404 || status === 403) await clearBoltsFeed(env, f.guildId);
   }
 }

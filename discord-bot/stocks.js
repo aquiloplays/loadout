@@ -854,9 +854,11 @@ async function buildTickerEmbed(env) {
 }
 
 // PATCH a channel message in place via the Discord REST API. Returns
-// true on success, false on any failure (404 = message deleted, etc.).
+// the HTTP status (0 on network failure) so the caller can release the
+// binding only on permanent failures (404 = message deleted, 403 = bot
+// lost perms) while preserving it across transient 5xx blips.
 async function discordPatchMessage(env, channelId, messageId, body) {
-  if (!env.DISCORD_BOT_TOKEN) return false;
+  if (!env.DISCORD_BOT_TOKEN) return 0;
   try {
     const res = await fetch(
       'https://discord.com/api/v10/channels/' +
@@ -872,9 +874,9 @@ async function discordPatchMessage(env, channelId, messageId, body) {
         body: JSON.stringify(body),
       },
     );
-    return res.ok;
+    return res.status;
   } catch {
-    return false;
+    return 0;
   }
 }
 
@@ -904,10 +906,10 @@ async function refreshAllTickerBoards(env) {
   if (boards.length === 0) return;
   const embed = await buildTickerEmbed(env);
   for (const b of boards) {
-    const ok = await discordPatchMessage(env, b.channelId, b.messageId, { embeds: [embed] });
-    if (!ok) {
-      // Message deleted or channel gone — release the binding so we
-      // don't keep retrying every hour.
+    const status = await discordPatchMessage(env, b.channelId, b.messageId, { embeds: [embed] });
+    // Only release the binding on permanent failures. A transient 5xx
+    // / network blip used to silently unbind the board on every guild.
+    if (status === 404 || status === 403) {
       await clearTickerBoard(env, b.guildId);
     }
   }

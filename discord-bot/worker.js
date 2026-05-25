@@ -132,6 +132,19 @@ export default {
     // Loadout-side endpoints
     if (method === 'POST' && path === '/claim')                      return mintClaim(req, env);
     if (method === 'GET'  && path.startsWith('/claim/') && path.endsWith('/status')) return claimStatus(req, env, path);
+    // Clash sync routes MUST come before the generic /sync/ catch-all
+    // below — otherwise handleSync swallows /sync/<g>/clash-events,
+    // /sync/<g>/clash, /sync/<g>/clash/build, etc. and serves them as
+    // wallet snapshots, silently dropping the DLL's clash-events
+    // ring-buffer poll and the web editor's town write-throughs.
+    if (method === 'GET' && path.startsWith('/sync/') && path.endsWith('/clash-events')) {
+      const { handleClashEventsPull } = await import('./clash-http.js');
+      return handleClashEventsPull(req, env, path);
+    }
+    if (path.startsWith('/sync/') && (path.endsWith('/clash') || path.includes('/clash/'))) {
+      const { handleClashSync } = await import('./clash-http.js');
+      return handleClashSync(req, env, path);
+    }
     if (path.startsWith('/sync/'))                                   return handleSync(req, env, path);
     if (path.startsWith('/tips/'))                                   return handleTip(req, env, path);
 
@@ -322,20 +335,8 @@ export default {
       const { handleClashTownPublic } = await import('./clash-http.js');
       return handleClashTownPublic(env, path);
     }
-    // Recent-events ring buffer for the DLL to republish on the local
-    // Aquilo Bus (drives the OBS browser-source overlay). HMAC-gated.
-    if (method === 'GET' && path.startsWith('/sync/') && path.endsWith('/clash-events')) {
-      const { handleClashEventsPull } = await import('./clash-http.js');
-      return handleClashEventsPull(req, env, path);
-    }
-    // Signed sync — full town state. HMAC-gated; the future web
-    // editor calls this. Also POST endpoints for write-through
-    // building queue + garrison training so the editor doesn't have
-    // to round-trip through a Discord interaction.
-    if (path.startsWith('/sync/') && (path.endsWith('/clash') || path.includes('/clash/'))) {
-      const { handleClashSync } = await import('./clash-http.js');
-      return handleClashSync(req, env, path);
-    }
+    // /sync/<g>/clash[-events] are dispatched earlier (before the
+    // generic /sync/ catch-all). See the block near /claim.
 
     return new Response('not found', { status: 404 });
   },
