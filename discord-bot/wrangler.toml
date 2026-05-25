@@ -6,6 +6,23 @@ compatibility_date = "2025-09-01"
 # for typical channels. Slash commands are sub-1ms each (KV reads + RNG);
 # the only "slow" path is Ed25519 verification (~5ms in WebCrypto).
 
+# Worker secrets (set via `wrangler secret put <NAME>`; values never
+# committed):
+#   DISCORD_BOT_TOKEN          bot token used by the slash-command +
+#                              chat-reactions Discord REST calls
+#   DISCORD_PUBLIC_KEY         ed25519 verifier for /interactions
+#   AQUILO_VAULT_BOLTS_SECRET  vault → bolts credit channel
+#   AQUILO_SITE_WEB_SECRET     site → bot HMAC for /web/* (incl. the
+#                              new /web/chat/recent + react routes)
+#   AQUILO_BOT_SECRET          ops → bot for /announce + /broadcast
+#   LOADOUT_BOLT_API_SECRET    aquilo ↔ loadout fold cross-call
+#   COUNTING_WEBHOOK_SECRET    aquilo-presence → /counting/message
+#   GIPHY_API_KEY              REQUIRED for /checkin GIF picker. Get
+#                              a server key at https://developers.giphy.com/
+#                              and set with `wrangler secret put GIPHY_API_KEY`.
+#                              Without it /checkin posts the card but
+#                              the GIF picker returns an error.
+
 [vars]
 # Public env. Per-guild secrets are stored in KV, not here.
 ALLOW_ANY_GUILD = "true"   # set to "false" to lock down to specific guild IDs

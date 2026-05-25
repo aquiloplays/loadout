@@ -73,6 +73,11 @@ import {
   handleTicketComponent,
   handleTicketConfigSubmit, handleTicketTypeAddSubmit, handleTicketTypeRemoveSubmit
 } from './tickets.js';
+import {
+  handleCheckinSlashCommand,
+  handleCheckinSearchButton, handleCheckinPickButton,
+  handleCheckinSearchSubmit,
+} from './checkin-slash.js';
 
 // Re-export the Durable Object class so wrangler can wire it to the
 // OVERLAY_DO binding. Required at the entrypoint script.
@@ -522,6 +527,9 @@ async function handleAppCommand(data, env, ctx) {
     case 'sr-clear':       return handleSrClear(env, data);
     // Rotation pre-stream poll with cron-refreshed live tallies.
     case 'rotation-poll':  return handleRotationPoll(env, data);
+    // Slash counterpart to the implicit image-post check-in flow,
+    // with a follow-up GIPHY picker that fills the public card.
+    case 'checkin':        return handleCheckinSlashCommand(env, data);
     default:               return ephemeral('Unknown command.');
   }
 }
@@ -560,6 +568,8 @@ async function handleComponent(data, env, ctx) {
   if (id.startsWith('trivia:'))   return handleTriviaClick(env, data);
   if (id.startsWith('shop:'))     return handleShopBuyClick(env, data);
   if (id.startsWith('ticket:'))   return handleTicketComponent(env, data);
+  if (id === 'aqci:search')          return handleCheckinSearchButton();
+  if (id.startsWith('aqci:pick:'))   return handleCheckinPickButton(env, data);
   return ephemeral('Unknown button.');
 }
 
@@ -587,6 +597,7 @@ async function handleModalSubmit(data, env, ctx) {
   if (id === 'modal:ticket_config')      return handleTicketConfigSubmit(env, data);
   if (id === 'modal:ticket_type_add')    return handleTicketTypeAddSubmit(env, data);
   if (id === 'modal:ticket_type_remove') return handleTicketTypeRemoveSubmit(env, data);
+  if (id === 'modal:aqci_search')        return handleCheckinSearchSubmit(env, data);
   return ephemeral('Unknown modal: ' + id);
 }
 

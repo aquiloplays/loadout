@@ -62,6 +62,8 @@ const ACK_PONG = { type: RESP_PONG };
 const AQUILO_COMPONENT_PREFIXES = [
   'vote:', 'queue:', 'aquilo:', 'notify:', 'tot:', 'sug:', 'roles:',
   'setup:', 'vh:', 'passport:', 'trivia:', 'shop:', 'ticket:',
+  // /checkin gif picker — see aquilo/checkin-slash.js
+  'aqci:',
 ];
 
 export async function handleInteraction(req, env, body, ctx) {
@@ -211,6 +213,7 @@ export async function handleInteraction(req, env, body, ctx) {
     case 'sr-remove':
     case 'sr-clear':
     case 'rotation-poll':
+    case 'checkin':
       return dispatchAquiloInteraction(data, env, ctx);
 
     case 'loadout-claim':
