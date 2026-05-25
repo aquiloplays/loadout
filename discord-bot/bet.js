@@ -247,6 +247,16 @@ export async function betCronTick(env) {
       await putOpenBets(env, gid, []);
       continue;
     }
+    // Clear-then-settle: empty the open list FIRST so a cron retry
+    // (worker crash mid-loop, or post-settle putOpenBets throwing in
+    // the old order) can't re-fire the earn()s. The catch-and-skip
+    // inside the loop means a per-bet failure shortchanges that one
+    // bet rather than re-paying every other bet on the next tick —
+    // the only way the old order failed was when a successful earn
+    // was followed by a putOpenBets throw, which the cron then
+    // replayed wholesale. Shortchange is operator-recoverable;
+    // double-credit silently inflates the economy.
+    await putOpenBets(env, gid, []);
     for (const bet of bets) {
       try {
         const result = settleSoloBet(bet, g);
@@ -261,9 +271,10 @@ export async function betCronTick(env) {
           await recordSettled(env, bet, 'loss', 0);
         }
         settled++;
-      } catch { /* skip; next tick retries */ }
+      } catch (e) {
+        console.warn('[bet] settle failed for bet', bet.betId, 'on game', gid, '—', (e && e.message) || e);
+      }
     }
-    await putOpenBets(env, gid, []);
   }
 
   // Parlays — sweep every open ticket; settle when every leg has a
@@ -307,32 +318,45 @@ export async function betCronTick(env) {
         if (leg.outcome === 'win') remaining.push(leg);
         // refund / push → leg dropped
       }
+
+      // Idempotency: compute the final status + payout, write the
+      // parlay to KV (status: 'won'|'refund'|'lost') BEFORE calling
+      // earn(). If anything below the status write throws, the L279
+      // guard at the top of this loop sees status !== 'open' on the
+      // next cron tick and skips — no double-credit. The earn() and
+      // history write below are the side-effect tail; on a thrown
+      // earn the player is shortchanged (operator-recoverable),
+      // which is strictly better than the old order's silent
+      // double-payout on retry.
+      let payout = 0;
+      let nextStatus;
+      let earnReason;
       if (lost) {
-        parlay.status = 'lost';
-        parlay.settledAt = Date.now();
-        parlay.payout = 0;
-        await recordSettledParlay(env, parlay);
+        nextStatus = 'lost';
+        payout = 0;
       } else if (remaining.length === 0) {
-        // Every leg pushed / refunded → return stake.
-        await earn(env, parlay.guildId, parlay.userId, parlay.stake, 'parlay-refund:' + pid);
-        parlay.status = 'refund';
-        parlay.settledAt = Date.now();
-        parlay.payout = parlay.stake;
-        await recordSettledParlay(env, parlay);
+        nextStatus = 'refund';
+        payout = parlay.stake;
+        earnReason = 'parlay-refund:' + pid;
       } else {
-        // Win — recompute payout against the SURVIVING legs only (push
-        // legs don't pad the multiplier).
-        const payout = parlayPayout(parlay.stake, remaining);
-        await earn(env, parlay.guildId, parlay.userId, payout, 'parlay-win:' + pid);
-        parlay.status = 'won';
-        parlay.settledAt = Date.now();
-        parlay.payout = payout;
-        await recordSettledParlay(env, parlay);
+        nextStatus = 'won';
+        payout = parlayPayout(parlay.stake, remaining);
+        earnReason = 'parlay-win:' + pid;
       }
+      parlay.status = nextStatus;
+      parlay.payout = payout;
+      parlay.settledAt = Date.now();
       await env.LOADOUT_BOLTS.put(PARLAY_KEY(pid), JSON.stringify(parlay));
+
+      if (payout > 0) {
+        await earn(env, parlay.guildId, parlay.userId, payout, earnReason);
+      }
+      await recordSettledParlay(env, parlay);
       await removeOpenParlayId(env, pid);
       parlaysSettled++;
-    } catch { /* skip; next tick retries */ }
+    } catch (e) {
+      console.warn('[bet] parlay settle failed for', pid, '—', (e && e.message) || e);
+    }
   }
 
   return { games: games.length, settled, parlaysSettled };
