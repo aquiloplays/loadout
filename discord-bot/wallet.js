@@ -86,8 +86,19 @@ export async function transfer(env, guildId, fromId, toId, amount) {
   if (!amount || amount <= 0) return { ok: false, reason: 'amount must be positive' };
   const r = await spend(env, guildId, fromId, amount, 'gift:' + toId);
   if (!r.ok) return r;
-  const credited = await earn(env, guildId, toId, amount, 'gift:from:' + fromId);
-  return { ok: true, sender: r.wallet, recipient: credited };
+  // earn() is the second leg of the (non-atomic) transfer. If it
+  // throws — KV write failure, recipient key corruption, anything —
+  // the sender's already-debited Bolts would be lost forever. Catch
+  // and refund the sender so the worst case is a no-op gift rather
+  // than a bolt-burn. Same compensator pattern as
+  // /web/character/reset's spend-then-write hero path.
+  try {
+    const credited = await earn(env, guildId, toId, amount, 'gift:from:' + fromId);
+    return { ok: true, sender: r.wallet, recipient: credited };
+  } catch (err) {
+    await earn(env, guildId, fromId, amount, 'gift:refund-recipient-write-failed');
+    return { ok: false, reason: 'recipient-write-failed', message: String(err?.message || err) };
+  }
 }
 
 export async function leaderboard(env, guildId, limit = 10) {

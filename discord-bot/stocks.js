@@ -748,7 +748,7 @@ export async function stocksCronTick(env) {
   }
   // After prices are refreshed, push the auto-update channel board for
   // every guild that has one bound. Errors here are isolated per guild.
-  try { await refreshAllTickerBoards(env); } catch { /* idle */ }
+  try { await refreshAllTickerBoards(env); } catch (e) { console.warn('[stocks] ticker board refresh failed:', e && e.message); }
   // Price-alert scan — fires PWA pushes on threshold crossings using
   // the freshly-written prices. Wrapped so a push outage can't block
   // the rest of the cron.

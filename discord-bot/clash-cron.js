@@ -1,6 +1,10 @@
 // Clash — daily cron tasks.
 //
-// Wired into worker.js scheduled() under the "13 9 * * *" trigger.
+// Piggybacks on the "23 * * * *" hourly trigger (worker.js scheduled()
+// dispatch — see wrangler.toml for the full cron table). CF caps this
+// account at 4 crons, so Clash shares the :23 tick with sports/bets
+// and aquilo-bot hourly tasks; the once-per-day trophy decay is gated
+// by the clash:cron:last-decay KV marker below.
 // Two responsibilities:
 //   1. Trophy + prestige decay for anyone camped above their tier cap.
 //      Keeps the top of the ladder honest — a player who quits doesn't
