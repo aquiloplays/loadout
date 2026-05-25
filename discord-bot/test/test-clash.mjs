@@ -822,6 +822,12 @@ ok('/web/character renderUrl pins ?v=<lookVersion>',
    getBody1.renderUrl.includes(`/character/render/${NUM_GUILD}/${NUM_VIEWER}.png?v=`) &&
    getBody1.renderUrl.endsWith('v=' + getBody1.lookVersion));
 ok('/web/character fresh user lookVersion = 0', getBody1.lookVersion === 0);
+ok('/web/character fresh user is unlocked',
+   getBody1.locked === false,
+   'locked=' + getBody1.locked);
+ok('/web/character exposes resetCost = 5000',
+   getBody1.resetCost === 5000,
+   'resetCost=' + getBody1.resetCost);
 
 // Bad signature → 401
 const badCharSigReq = new Request('https://bot.example.com/web/character', {
@@ -848,16 +854,22 @@ ok('/web/character/save bumps lookVersion',
    saveBody.lookVersion === getBody1.lookVersion + 1,
    `v=${saveBody.lookVersion}`);
 ok('/web/character/save changed flag true',  saveBody.changed === true);
+ok('/web/character/save sets locked=true', saveBody.locked === true);
 
-// Save with the same look = no-op, no version bump.
-const noopReq = await webPost('/web/character/save', {
+// Second save after locking → rejected with character-locked. Look
+// stays at the first-save value; no version bump.
+const lockedReq = await webPost('/web/character/save', {
   discordId: NUM_VIEWER, guildId: NUM_GUILD,
-  look: { bodyType: 'stocky', hairColor: 'violet' },
+  look: { bodyType: 'slim' },
 });
-const noopResp = await handleWeb(noopReq, webEnv);
-const noopBody = await noopResp.json();
-ok('/web/character/save no-op when unchanged',
-   noopBody.ok === true && noopBody.changed === false && noopBody.lookVersion === saveBody.lookVersion);
+const lockedResp = await handleWeb(lockedReq, webEnv);
+const lockedBody = await lockedResp.json();
+ok('/web/character/save rejects when locked',
+   lockedResp.status === 409 && lockedBody.ok === false && lockedBody.error === 'character-locked',
+   `status=${lockedResp.status} body=${JSON.stringify(lockedBody)}`);
+ok('/web/character/save locked carries resetCost',
+   lockedBody.resetCost === 5000,
+   'resetCost=' + lockedBody.resetCost);
 
 // Bad value → rejected with field/value detail, no save.
 const badReq = await webPost('/web/character/save', {
@@ -890,6 +902,59 @@ ok('/web/character re-read persists bodyType', getBody2.look.bodyType === 'stock
 ok('/web/character re-read persists hairColor', getBody2.look.hairColor === 'violet');
 ok('/web/character re-read lookVersion advanced',
    getBody2.lookVersion === saveBody.lookVersion);
+ok('/web/character re-read shows locked=true', getBody2.locked === true);
+
+// ── /web/character/reset ────────────────────────────────────────────
+//
+// Without enough Bolts: typed insufficient-bolts error, no state
+// change. With enough Bolts: charges 5,000 atomically + flips locked
+// back to false, look preserved.
+const resetPoorReq = await webPost('/web/character/reset', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+});
+const resetPoorResp = await handleWeb(resetPoorReq, webEnv);
+const resetPoorBody = await resetPoorResp.json();
+ok('/web/character/reset insufficient-bolts when wallet < 5000',
+   resetPoorResp.status === 402 &&
+   resetPoorBody.ok === false &&
+   resetPoorBody.error === 'insufficient-bolts' &&
+   resetPoorBody.required === 5000,
+   `status=${resetPoorResp.status} body=${JSON.stringify(resetPoorBody)}`);
+
+// Top up via the test's earn helper if available; else write directly
+// to the KV-backed wallet store. We use the wallet module directly
+// since it's already a dependency of the worker code.
+{
+  const { earn } = await import('../wallet.js');
+  await earn(webEnv, NUM_GUILD, NUM_VIEWER, 7500, 'test-seed');
+}
+
+const resetReq = await webPost('/web/character/reset', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+});
+const resetResp = await handleWeb(resetReq, webEnv);
+const resetBody = await resetResp.json();
+ok('/web/character/reset returns ok',
+   resetResp.status === 200 && resetBody.ok === true,
+   `status=${resetResp.status} body=${JSON.stringify(resetBody).slice(0, 200)}`);
+ok('/web/character/reset charged 5000', resetBody.charged === 5000);
+ok('/web/character/reset locked=false', resetBody.locked === false);
+ok('/web/character/reset balance debited',
+   resetBody.wallet.balance === 2500,
+   'balance=' + resetBody.wallet.balance);
+ok('/web/character/reset preserves look',
+   resetBody.look.bodyType === 'stocky' && resetBody.look.hairColor === 'violet');
+
+// Re-saving after reset → locks again.
+const reSaveReq = await webPost('/web/character/save', {
+  discordId: NUM_VIEWER, guildId: NUM_GUILD,
+  look: { hairColor: 'blonde' },
+});
+const reSaveResp = await handleWeb(reSaveReq, webEnv);
+const reSaveBody = await reSaveResp.json();
+ok('/web/character/save after reset succeeds',
+   reSaveResp.status === 200 && reSaveBody.ok === true && reSaveBody.locked === true,
+   `body=${JSON.stringify(reSaveBody).slice(0, 200)}`);
 
 console.log('--- ' + passed + ' pass, ' + failed + ' fail ---');
 if (failed > 0) process.exit(1);

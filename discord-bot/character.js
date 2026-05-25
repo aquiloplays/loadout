@@ -21,6 +21,11 @@ import {
   applyClassSelection,
 } from './dungeon.js';
 import { getPet, computeMood } from './pet.js';
+import { getWallet, spend, earn } from './wallet.js';
+
+// Reset price — pay this many Bolts to unlock a locked character so
+// the player can re-pick class + customisation.
+export const CHARACTER_RESET_COST = 5000;
 
 // ── Sprite source URL ────────────────────────────────────────────
 //
@@ -591,6 +596,13 @@ export async function getCharacterLookWeb(env, guildId, userId) {
     className: hero.className || null,
     starterGranted: !!hero.starterGranted,
     classes,
+    // Lock state — true once the player has committed via
+    // saveCharacterLookWeb. While locked, /web/character/save and
+    // /web/character/class both reject with `error: 'character-locked'`;
+    // the only path back to an editable character is paying
+    // CHARACTER_RESET_COST via /web/character/reset.
+    locked: !!hero.locked,
+    resetCost: CHARACTER_RESET_COST,
   };
 }
 
@@ -599,13 +611,28 @@ export async function getCharacterLookWeb(env, guildId, userId) {
 // is minted into the hero's bag. Subsequent class changes only flip
 // className + HP — no re-granting.
 //
+// Lock semantics: once hero.locked is true (set by the first
+// saveCharacterLookWeb), this route rejects with `character-locked`.
+// The player must pay CHARACTER_RESET_COST via /web/character/reset to
+// unlock, then they can re-pick their class.
+//
 // Returns:
 //   { ok: true, className, classMeta, granted: [items], starterGranted, hpMax }
 //   { ok: false, error: 'bad-class' }
+//   { ok: false, error: 'character-locked', resetCost }
 export async function applyClassWeb(env, guildId, userId, className) {
   const key = String(className || '').toLowerCase().trim();
   if (!CLASSES[key]) {
     return { ok: false, error: 'bad-class', value: String(className || '').slice(0, 32) };
+  }
+  const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
+  if (hero.locked) {
+    return {
+      ok: false,
+      error: 'character-locked',
+      resetCost: CHARACTER_RESET_COST,
+      message: `Character is locked. Reset for ${CHARACTER_RESET_COST} Bolts to re-pick.`,
+    };
   }
   return await applyClassSelection(env, guildId, userId, key);
 }
@@ -616,6 +643,14 @@ export async function applyClassWeb(env, guildId, userId, className) {
 // value. Unknown fields are ignored; bad values reject the whole save
 // with `{ ok: false, error: 'bad-look', field, value }` so the UI
 // can highlight the offending picker.
+//
+// Lock semantics: the first successful save (or any save against an
+// unlocked hero) sets hero.locked = true. From that point on every
+// /web/character/save returns `error: 'character-locked'` until the
+// player pays CHARACTER_RESET_COST via /web/character/reset. The
+// per-axis Phase-0 backfill is unaffected — fresh visitors get a
+// deterministic default look on GET, and the first save commits it
+// (locking) regardless of whether they actually changed anything.
 export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
   if (!lookPatch || typeof lookPatch !== 'object') {
     return { ok: false, error: 'bad-body', message: 'look object required' };
@@ -630,6 +665,14 @@ export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
     }
   }
   const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
+  if (hero.locked) {
+    return {
+      ok: false,
+      error: 'character-locked',
+      resetCost: CHARACTER_RESET_COST,
+      message: `Character is locked. Reset for ${CHARACTER_RESET_COST} Bolts to make changes.`,
+    };
+  }
   hero.custom = hero.custom || {};
   let changed = false;
   for (const axis of LOOK_AXES) {
@@ -638,11 +681,10 @@ export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
       changed = true;
     }
   }
-  if (changed) {
-    hero.lookVersion = (hero.lookVersion || 0) + 1;
-    hero.lastUpdatedUtc = new Date().toISOString();
-    await env.LOADOUT_BOLTS.put(`d:hero:${guildId}:${userId}`, JSON.stringify(hero));
-  }
+  if (changed) hero.lookVersion = (hero.lookVersion || 0) + 1;
+  hero.locked = true;
+  hero.lastUpdatedUtc = new Date().toISOString();
+  await env.LOADOUT_BOLTS.put(`d:hero:${guildId}:${userId}`, JSON.stringify(hero));
   const look = {};
   for (const axis of LOOK_AXES) look[axis] = hero.custom[axis];
   return {
@@ -651,5 +693,107 @@ export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
     lookVersion: hero.lookVersion || 0,
     renderUrl: buildRenderUrl(env, guildId, userId, hero.lookVersion || 0),
     changed,
+    locked: true,
+  };
+}
+
+// RESET: spend CHARACTER_RESET_COST Bolts to unlock a locked
+// character so the player can re-pick class + customisation.
+//
+// Atomicity model — KV is eventually-consistent so we sequence
+// carefully and compensate on failure:
+//   1. Pre-check: load hero. If not locked → return `not-locked` (no
+//      charge). If wallet < cost → return `insufficient-bolts` (no
+//      charge, no state change).
+//   2. Charge via wallet.spend (single-key transaction).
+//   3. Set hero.locked = false and write.
+//   4. If step 3 throws, refund via earn() so the player isn't left
+//      with a charged wallet AND a still-locked character.
+//
+// Look + class are preserved across reset — the player keeps their
+// existing picks, but can now change them. Re-picking + saving will
+// re-lock.
+//
+// Returns:
+//   { ok: true, charged, wallet:{balance,lifetimeEarned,lifetimeSpent},
+//     locked: false, look, lookVersion, renderUrl }
+//   { ok: false, error: 'not-locked', message }
+//   { ok: false, error: 'insufficient-bolts', required, balance }
+//   { ok: false, error: 'reset-failed', message }   // refund applied
+export async function resetCharacterWeb(env, guildId, userId) {
+  const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
+  if (!hero.locked) {
+    const wallet = await getWallet(env, guildId, userId);
+    return {
+      ok: false,
+      error: 'not-locked',
+      message: 'Character is not locked. Nothing to reset.',
+      wallet: walletSnap(wallet),
+    };
+  }
+  const wallet = await getWallet(env, guildId, userId);
+  if ((wallet.balance || 0) < CHARACTER_RESET_COST) {
+    return {
+      ok: false,
+      error: 'insufficient-bolts',
+      required: CHARACTER_RESET_COST,
+      balance: wallet.balance || 0,
+      message: `Need ${CHARACTER_RESET_COST} Bolts; you have ${wallet.balance || 0}.`,
+      wallet: walletSnap(wallet),
+    };
+  }
+
+  const spendRes = await spend(env, guildId, userId, CHARACTER_RESET_COST, 'character-reset');
+  if (!spendRes.ok) {
+    // Lost a race to another debit between the pre-check and the
+    // spend. Surface the same typed error so the UI handles it
+    // uniformly.
+    const after = await getWallet(env, guildId, userId);
+    return {
+      ok: false,
+      error: 'insufficient-bolts',
+      required: CHARACTER_RESET_COST,
+      balance: after.balance || 0,
+      message: `Need ${CHARACTER_RESET_COST} Bolts; you have ${after.balance || 0}.`,
+      wallet: walletSnap(after),
+    };
+  }
+
+  try {
+    hero.locked = false;
+    hero.lastUpdatedUtc = new Date().toISOString();
+    await env.LOADOUT_BOLTS.put(`d:hero:${guildId}:${userId}`, JSON.stringify(hero));
+  } catch (err) {
+    // Compensate — refund the spend so the player isn't charged for a
+    // reset that didn't land.
+    await earn(env, guildId, userId, CHARACTER_RESET_COST, 'character-reset-refund');
+    const after = await getWallet(env, guildId, userId);
+    return {
+      ok: false,
+      error: 'reset-failed',
+      message: 'Reset failed; Bolts refunded. Try again.',
+      wallet: walletSnap(after),
+    };
+  }
+
+  const after = await getWallet(env, guildId, userId);
+  const look = {};
+  for (const axis of LOOK_AXES) look[axis] = hero.custom[axis];
+  return {
+    ok: true,
+    charged: CHARACTER_RESET_COST,
+    locked: false,
+    wallet: walletSnap(after),
+    look,
+    lookVersion: hero.lookVersion || 0,
+    renderUrl: buildRenderUrl(env, guildId, userId, hero.lookVersion || 0),
+  };
+}
+
+function walletSnap(w) {
+  return {
+    balance: w?.balance || 0,
+    lifetimeEarned: w?.lifetimeEarned || 0,
+    lifetimeSpent: w?.lifetimeSpent || 0,
   };
 }

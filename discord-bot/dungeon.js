@@ -373,6 +373,9 @@ export async function loadHero(env, guild, userId) {
     if (local.custom && Object.keys(local.custom).length > 0) {
       merged.custom = Object.assign({}, dllHero.custom || {}, local.custom);
     }
+    // `locked` is worker-canonical (DLL has no notion of the
+    // character-lock state). Always honour the local value.
+    if (typeof local.locked === 'boolean') merged.locked = local.locked;
     const ids = new Set((dllHero.bag || []).map(it => it.id));
     merged.bag = [...(dllHero.bag || []), ...((local.bag || []).filter(it => !ids.has(it.id)))];
     merged.equipped = Object.assign({}, local.equipped || {}, dllHero.equipped || {});
@@ -406,6 +409,10 @@ function newHero() {
     lookVersion: 0,     // bumped on every /character save; pinned in
                         // render URLs so Discord re-fetches the cached
                         // embed image after a customisation change.
+    locked: false,      // true once the character has been "created" via
+                        // the first class pick. Subsequent look/class
+                        // edits reject with character-locked until a
+                        // 5,000-Bolt /web/character/reset clears it.
     level: 1,
     xp: 0,
     hpMax: 25,
@@ -493,6 +500,11 @@ export function applyLookBackfill(hero, userId) {
     }
   }
   if (typeof hero.lookVersion !== 'number') hero.lookVersion = 0;
+  // Legacy records pre-date the character-lock feature. A hero that has
+  // already had their class picked (starterGranted=true) has "created"
+  // their character, so they start locked on the first read after this
+  // ships — matching the new contract without a one-off migration.
+  if (typeof hero.locked !== 'boolean') hero.locked = !!hero.starterGranted;
   return hero;
 }
 
@@ -574,6 +586,13 @@ export async function applyClassSelection(env, guild, userId, key) {
   if (!cls) return { ok: false, error: 'bad-class' };
 
   const hero = await loadHero(env, guild, userId);
+  // Character-lock gate: once the player has "created" their character
+  // (first class pick → starter gear granted → locked=true), class
+  // changes are frozen until they pay 5,000 Bolts via
+  // /web/character/reset. Defence in depth — the web routes also
+  // check this, but applying it here means the Discord /loadout
+  // class command honours the same rule.
+  if (hero.locked) return { ok: false, error: 'character-locked' };
   const oldBonus = (CLASSES[hero.className]?.hp) || 0;
   const newBonus = cls.hp || 0;
   const delta = newBonus - oldBonus;
@@ -620,6 +639,12 @@ export async function applyClassSelection(env, guild, userId, key) {
     hero.starterGranted = true;
   }
 
+  // Note: we deliberately do NOT set hero.locked=true here. The lock
+  // is committed by the look save (saveCharacterLookWeb) — that's the
+  // single "I'm done picking" act on the web editor. Class pick is a
+  // preliminary step the player can do first; locking it here would
+  // freeze the look picker before the player even opened it.
+
   await saveHero(env, guild, userId, hero);
   return {
     ok: true,
@@ -628,6 +653,7 @@ export async function applyClassSelection(env, guild, userId, key) {
     granted,
     starterGranted: !!hero.starterGranted,
     hpMax: hero.hpMax,
+    locked: !!hero.locked,
   };
 }
 
@@ -781,7 +807,12 @@ export async function cmdSetClass(env, guild, userId, className) {
   const key = (className || '').toLowerCase().trim();
   if (!CLASSES[key]) return { content: '❌ Unknown class.', ephemeral: true };
   const r = await applyClassSelection(env, guild, userId, key);
-  if (!r.ok) return { content: '❌ Unknown class.', ephemeral: true };
+  if (!r.ok) {
+    if (r.error === 'character-locked') {
+      return { content: '🔒 Your character is locked. Reset on aquilo.gg (5,000 Bolts) to re-pick your class.', ephemeral: true };
+    }
+    return { content: '❌ Unknown class.', ephemeral: true };
+  }
   const cls = CLASSES[key];
   let msg = '🎭 Class set to ' + cls.glyph + ' **' + cls.name +
     '** (+' + cls.atk + ' ATK · +' + cls.def + ' DEF · +' + cls.hp + ' HP).';

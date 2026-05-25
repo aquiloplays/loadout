@@ -84,6 +84,7 @@ import {
   getCharacterLookWeb,
   saveCharacterLookWeb,
   applyClassWeb,
+  resetCharacterWeb,
 } from './character.js';
 import { handleAdminWeb } from './admin-web.js';
 import { routeBoltbound, isBoltboundRoute } from './cards-web.js';
@@ -161,6 +162,7 @@ const ROUTES = new Set([
   'character',
   'character/save',
   'character/class',
+  'character/reset',
   'admin/snapshot',
   'admin/config',
   'admin/active-guild',
@@ -279,6 +281,7 @@ export async function handleWeb(req, env) {
     if (route === 'clash/clear-obstacle')  return await routeClashClearObstacle(env, guildId, discordId, body);
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
     if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
+    if (route === 'character/reset')       return await routeCharacterReset(env, guildId, discordId);
     if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
     if (isBoardRoute(route))               return await routeBoard(env, route, guildId, discordId, body);
   } catch (e) {
@@ -1144,7 +1147,48 @@ async function routeCharacterSave(env, guildId, userId, body) {
     return json({ ok: false, error: 'bad-body', message: 'look object required' }, 400);
   }
   const r = await saveCharacterLookWeb(env, guildId, userId, lookPatch);
-  return json(r, r.ok ? 200 : 400);
+  return json(r, statusFor(r));
+}
+
+// POST /web/character/reset
+//
+// Charges CHARACTER_RESET_COST Bolts (5,000) from the caller's wallet
+// and flips hero.locked back to false so the player can re-pick their
+// class + customisation. The look + class stay intact on reset; only
+// the lock flag clears. Re-saving will re-lock.
+//
+// Body fields:
+//   discordId   the acting user (set by site session)
+//   guildId     the player's home guild (set by site session)
+//   (no other fields — the cost is server-fixed, no client input)
+//
+// Response (HTTP status mirrors the error class — 200 ok, 409 locked,
+// 400 not-locked, 402 insufficient-bolts, 500 reset-failed):
+//   { ok: true, charged: 5000,
+//     wallet: { balance, lifetimeEarned, lifetimeSpent },
+//     locked: false, look, lookVersion, renderUrl }
+//   { ok: false, error: 'not-locked',         message, wallet }
+//   { ok: false, error: 'insufficient-bolts', required: 5000, balance, message, wallet }
+//   { ok: false, error: 'reset-failed',       message, wallet }
+async function routeCharacterReset(env, guildId, userId) {
+  const r = await resetCharacterWeb(env, guildId, userId);
+  return json(r, statusFor(r));
+}
+
+// Map the structured `error` discriminator → HTTP status. 200 for
+// success, 409 for state-conflict ('character-locked'), 402 for
+// insufficient-bolts, 500 for reset-failed, 400 for everything else
+// (validation + not-locked). The UI keys off the `error` string, so
+// the status is informational — but it lets cURL + browser devtools
+// glance at the right colour code at a glance.
+function statusFor(r) {
+  if (r && r.ok) return 200;
+  switch (r && r.error) {
+    case 'character-locked':   return 409;
+    case 'insufficient-bolts': return 402;
+    case 'reset-failed':       return 500;
+    default:                   return 400;
+  }
 }
 
 // ── /web/character/class ─────────────────────────────────────────
@@ -1170,7 +1214,7 @@ async function routeCharacterSave(env, guildId, userId, body) {
 async function routeCharacterClass(env, guildId, userId, body) {
   const className = body && body.className;
   const r = await applyClassWeb(env, guildId, userId, className);
-  return json(r, r.ok ? 200 : 400);
+  return json(r, statusFor(r));
 }
 
 // ── Quick bolts games (2026-05) ──────────────────────────────────────
