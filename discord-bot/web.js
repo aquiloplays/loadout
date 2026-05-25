@@ -75,6 +75,7 @@ import {
   executeRaid,
   _editorTownBuild,
   _editorTownGarrison,
+  _editorDonate,
   _editorClearObstacle,
   canManageTown,
 } from './clash.js';
@@ -151,6 +152,10 @@ const ROUTES = new Set([
   'clash/garrison',
   'clash/town',
   'clash/setup',
+  // 2026-05 Phase 5 — wallet → treasury donation on the play surface
+  // (closes the "bolts don't sync over to Clash" gap; the editor
+  // already had a donate route but required pasting a Discord ID).
+  'clash/donate',
   // 2026-05 Phase 5 — obstacle clear (Engineer dispatch). Mod-gated.
   'clash/clear-obstacle',
   'character',
@@ -270,6 +275,7 @@ export async function handleWeb(req, env) {
     if (route === 'clash/garrison')        return await routeClashGarrison(env, guildId, discordId, body);
     if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);
     if (route === 'clash/setup')           return await routeClashSetup(env, guildId, discordId);
+    if (route === 'clash/donate')          return await routeClashDonate(env, guildId, discordId, body);
     if (route === 'clash/clear-obstacle')  return await routeClashClearObstacle(env, guildId, discordId, body);
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
     if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
@@ -866,6 +872,8 @@ async function routeClashTown(env, guildId, userId) {
     return json({ ok: false, error: 'permission', message: '🔒 Only the streamer + designated mods can read the management view.' }, 200);
   }
   const treasury = await getTreasury(env, guildId);
+  const wallet = await getWallet(env, guildId, userId);
+  const myContribRaw = await env.LOADOUT_BOLTS.get(`clash:contributions:${guildId}:${userId}`, { type: 'json' });
   const obstacles = withObstacleSprites(town.obstacles || []);
   const engineersTotal = Math.max(1, town.engineers?.total || 1);
   const engineersBusy = obstacles.filter(o => o.status === 'clearing').length;
@@ -915,6 +923,16 @@ async function routeClashTown(env, guildId, userId) {
     guildId,
     thLevel: town.thLevel,
     treasury,
+    // Phase 5 — the calling user's wallet ships with the read so the
+    // play UI can render "you have N Bolts to donate" without a
+    // second round trip. Closes the long-standing gap where Clash
+    // costs were visible but the wallet wasn't.
+    wallet: {
+      balance: wallet.balance || 0,
+      lifetimeEarned: wallet.lifetimeEarned || 0,
+      lifetimeSpent: wallet.lifetimeSpent || 0,
+    },
+    myContributions: myContribRaw?.lifetimeBolts || 0,
     buildings,
     garrison,
     garrisonSprites,
@@ -928,6 +946,48 @@ async function routeClashTown(env, guildId, userId) {
     obstacleCatalogue: OBSTACLES,
     engineers: { total: engineersTotal, busy: engineersBusy },
     layoutVersion: town.layoutVersion,
+  });
+}
+
+// ── /web/clash/donate ───────────────────────────────────────────────
+//
+// Moves Bolts from the caller's wallet into the town treasury. Body:
+//   { discordId, guildId, amount }              // amount in Bolts (int>=1)
+// Response:
+//   { ok: true,  message, accepted, treasury, wallet }
+//   { ok: false, error: 'bad-amount'|'wallet-empty'|'treasury-full'|'other',
+//                message, treasury, wallet }
+// No mod gate — any wallet-holder can donate. Treasury caps at the
+// Storage-bonus capacity; over-cap donations clamp + report
+// 'treasury-full' so the UI can prompt for a Storage upgrade.
+async function routeClashDonate(env, guildId, userId, body) {
+  const raw = Number((body && body.amount) || 0);
+  const amount = Math.floor(raw);
+  if (!Number.isFinite(raw) || amount < 1) {
+    return json({
+      ok: false, error: 'bad-amount',
+      message: '❌ Donate at least 1 Bolt — pass { amount: <int> }.',
+    });
+  }
+  const message = await _editorDonate(env, guildId, userId, amount);
+  const treasury = await getTreasury(env, guildId);
+  const wallet = await getWallet(env, guildId, userId);
+  // handleDonate's reply strings: 💰 success, 🏛 treasury full, ❌ failure
+  let ok = false, error;
+  if (typeof message === 'string') {
+    if (message.startsWith('💰'))      ok = true;
+    else if (message.startsWith('🏛')) { ok = false; error = 'treasury-full'; }
+    else if (message.includes('Not enough Bolts')) { ok = false; error = 'wallet-empty'; }
+    else                               { ok = false; error = 'other'; }
+  }
+  return json({
+    ok, error, message,
+    treasury,
+    wallet: {
+      balance: wallet.balance || 0,
+      lifetimeEarned: wallet.lifetimeEarned || 0,
+      lifetimeSpent: wallet.lifetimeSpent || 0,
+    },
   });
 }
 

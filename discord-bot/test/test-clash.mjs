@@ -659,6 +659,9 @@ const p5WebEnv = { ...env, AQUILO_SITE_WEB_SECRET: WEB_SECRET, AQUILO_VAULT_GUIL
 const p5TownReq = await webPost('/web/clash/town', { discordId: P5_NUM_STREAMER, guildId: P5_NUM_GUILD });
 const p5TownResp = await handleWeb(p5TownReq, p5WebEnv);
 const p5TownBody = await p5TownResp.json();
+ok('/web/clash/town returns wallet for caller',
+   p5TownBody.wallet && p5TownBody.wallet.balance === 2500,
+   `wallet=${JSON.stringify(p5TownBody.wallet)}`);
 ok('/web/clash/town returns obstacles[]',
    Array.isArray(p5TownBody.obstacles) && p5TownBody.obstacles.length >= 4);
 ok('/web/clash/town obstacles carry spriteId',
@@ -669,6 +672,37 @@ ok('/web/clash/town returns obstacleCatalogue',
    p5TownBody.obstacleCatalogue && p5TownBody.obstacleCatalogue.rock.clearScrap === 200);
 ok('/web/clash/town returns grid',
    p5TownBody.grid && p5TownBody.grid.w === 16);
+
+// /web/clash/donate — happy path, partial-cap, empty wallet, bad amount.
+const donateReq = await webPost('/web/clash/donate', {
+  discordId: P5_NUM_STREAMER, guildId: P5_NUM_GUILD, amount: 500,
+});
+const donateResp = await handleWeb(donateReq, p5WebEnv);
+const donateBody = await donateResp.json();
+ok('/web/clash/donate happy path returns ok',
+   donateResp.status === 200 && donateBody.ok === true && donateBody.wallet.balance === 2000,
+   `body=${JSON.stringify(donateBody).slice(0, 250)}`);
+ok('/web/clash/donate credits treasury',
+   donateBody.treasury.bolts === 600);
+
+// Empty wallet — try to donate more than balance.
+const overReq = await webPost('/web/clash/donate', {
+  discordId: P5_NUM_STREAMER, guildId: P5_NUM_GUILD, amount: 99_999_999,
+});
+const overResp = await handleWeb(overReq, p5WebEnv);
+const overBody = await overResp.json();
+ok('/web/clash/donate rejects over-wallet',
+   overBody.ok === false && overBody.error === 'wallet-empty',
+   `body=${JSON.stringify(overBody)}`);
+
+// Bad amount.
+const badAmtReq = await webPost('/web/clash/donate', {
+  discordId: P5_NUM_STREAMER, guildId: P5_NUM_GUILD, amount: 0,
+});
+const badAmtResp = await handleWeb(badAmtReq, p5WebEnv);
+const badAmtBody = await badAmtResp.json();
+ok('/web/clash/donate rejects bad amount',
+   badAmtBody.ok === false && badAmtBody.error === 'bad-amount');
 
 // /web/clash/clear-obstacle — happy path drains scrap, marks obstacle
 // 'clearing', enqueues. Then walkQueueComplete with a poked endsAt
