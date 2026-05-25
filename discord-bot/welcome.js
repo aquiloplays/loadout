@@ -100,7 +100,7 @@ export async function handleMemberJoined(env, payload) {
       `You're our **${ordinal(seq)} member** to join. 🎉\n\n` +
       `Read the rules in <#${guildCfg?.ids?.ch_rules || ''}>, pick up roles in ` +
       `<#${guildCfg?.ids?.ch_roles || ''}>, and say hi in this channel!\n\n` +
-      `🎯 **Open your Welcome Checklist** at ${brand.siteUrl}/welcome — four quick steps with a bolts reward at each.`,
+      `🎯 **Open your Welcome Checklist** at ${brand.siteUrl}/quest — four quick steps with a bolts reward at each.`,
     color: accent,
     thumbnail: { url: avatar },
     image: { url: backdrop },

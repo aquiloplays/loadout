@@ -17,7 +17,7 @@
 //   • The GIF/image and embed styling are configured on aquilo.gg and
 //     stored here (KV `checkin-card:<g>:<u>`). First-time Discord
 //     check-in with no card saved → default embed + a "go customize
-//     your card at aquilo.gg/checkin" line.
+//     your card at aquilo.gg/profile" line.
 //   • Streak continues only if they check in before the midnight EST
 //     cutoff. Miss → 0, unless they hold a streak shield (a
 //     'discord'-type entry in streak-freeze.js), in which case the
@@ -58,8 +58,10 @@ const DEFAULT_ACCENT = 0xF47FFF;
 const DEFAULT_IMAGE_URL =
   'https://aquilo.gg/sprites/checkin/default-card.png';
 // Where the website hosts the "customise your card" page — derived
-// per-guild from branding.siteUrl at call time.
-const CUSTOMISE_PATH = '/checkin';
+// per-guild from branding.siteUrl at call time. The customizer is
+// mounted under /profile (ProfileHub → CheckinCardCustomizer); the
+// older /checkin path was a 404.
+const CUSTOMISE_PATH = '/profile';
 
 // ── ET-day plumbing ────────────────────────────────────────────────────
 // Streak boundary is midnight US-Eastern, per Clay. Intl.DateTimeFormat
@@ -397,6 +399,19 @@ export async function recordCheckin(env, guildId, userId, source = 'web') {
     } catch { /* non-fatal */ }
   }
 
+  // ✨ Very-rare Voltaic lucky-drop on each successful daily check-in
+  // (seeded on the ET-day so a user can't re-roll within the same
+  // day). When it hits, the pack lands in their pending-packs queue
+  // — opened the next time they play Boltbound. Non-fatal: any
+  // failure here doesn't roll back the check-in itself.
+  let luckyVoltaic = null;
+  try {
+    const { rollVoltaicLuckyDrop } = await import('./cards-packs.js');
+    luckyVoltaic = await rollVoltaicLuckyDrop(
+      env, guildId, userId, 'checkin', `checkin:${today}`
+    );
+  } catch { /* non-fatal */ }
+
   const q = await loadQueue(env, guildId, userId);
   return {
     ok: true,
@@ -407,6 +422,11 @@ export async function recordCheckin(env, guildId, userId, source = 'web') {
     pendingBonusCount: q.pending.length,
     embed,
     firstTimeNoCard,
+    // Present only on the rare lottery win. Site/Discord reply can
+    // surface a "you got a Voltaic pack!" celebration — the pack is
+    // already in their pending queue and opens via the existing
+    // Boltbound pack-open flow.
+    luckyVoltaic: luckyVoltaic ? { id: luckyVoltaic.id, packType: 'voltaic' } : null,
   };
 }
 
@@ -482,7 +502,7 @@ export async function handleCheckinCommand(env, data) {
       type: 4,
       data: {
         content: `✅ You've already checked in today. **${r.streak}-day** streak going strong.`
-          + (r.pendingBonusCount ? `\n🎁 You have **${r.pendingBonusCount}** unclaimed bonus${r.pendingBonusCount > 1 ? 'es' : ''} — collect on aquilo.gg/checkin.` : ''),
+          + (r.pendingBonusCount ? `\n🎁 You have **${r.pendingBonusCount}** unclaimed bonus${r.pendingBonusCount > 1 ? 'es' : ''} — collect on aquilo.gg/profile.` : ''),
         flags: 64,
       },
     };
@@ -490,11 +510,12 @@ export async function handleCheckinCommand(env, data) {
 
   const lines = [`✅ Checked in! **${r.streak}-day** streak.`];
   if (r.freezeUsed) lines.push('❄ A **Streak Shield** saved your streak — one shield consumed.');
+  if (r.luckyVoltaic) lines.push('⚡ **JACKPOT** — a **Voltaic pack** dropped! Open it via `/boltbound`.');
   if (r.pendingBonusCount) {
-    lines.push(`🎁 **${r.pendingBonusCount}** bonus${r.pendingBonusCount > 1 ? 'es' : ''} ready to collect on aquilo.gg/checkin.`);
+    lines.push(`🎁 **${r.pendingBonusCount}** bonus${r.pendingBonusCount > 1 ? 'es' : ''} ready to collect on aquilo.gg/profile.`);
   }
   if (r.firstTimeNoCard) {
-    lines.push(`✨ First time? Customise your check-in card at ${CUSTOMISE_URL}.`);
+    lines.push(`✨ First time? Customise your check-in card at aquilo.gg${CUSTOMISE_PATH}.`);
   }
   if (!r.embed.posted && r.embed.reason !== 'already-today') {
     lines.push(`_(couldn't post the embed: ${r.embed.reason} — your check-in still counted.)_`);

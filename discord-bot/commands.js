@@ -142,6 +142,25 @@ export async function handleInteraction(req, env, body, ctx) {
   }
 
   const cmd = (data.data?.name || '').toLowerCase();
+
+  // Per-guild command-channel binding gate. If the server admin has
+  // restricted this command via /loadout-setup bind, refuse here
+  // before any handler-specific logic. Buttons/select-menus/modals
+  // bypass this gate (they're contextual to where their parent
+  // interaction was opened). /loadout-setup itself + the legacy
+  // /loadout-claim are always allowed so admins can't lock
+  // themselves out.
+  if (data.guild_id && !['loadout-setup', 'loadout-claim'].includes(cmd)) {
+    try {
+      const { isCommandAllowedHere, wrongChannelReply } = await import('./command-bindings.js');
+      const channelId = data.channel_id || data.channel?.id;
+      const gate = await isCommandAllowedHere(env, data.guild_id, cmd, channelId);
+      if (!gate.ok && gate.allowed.length) {
+        return json(wrongChannelReply(cmd, gate.allowed));
+      }
+    } catch { /* fall through — bindings are best-effort */ }
+  }
+
   switch (cmd) {
     case 'loadout':
       // Main menu — auto-creates the wallet (so first-time users see

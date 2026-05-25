@@ -83,6 +83,8 @@ export const COMMANDS = [
               { name: 'Support / tickets',   value: 'ch_support' },
               { name: 'Voice category',      value: 'cat_voice' },
               { name: 'Join-to-create VC',   value: 'vc_join_to_create' },
+              { name: 'Activity feed',       value: 'ch_activity_feed' },
+              { name: 'Games hub',           value: 'ch_games' },
             ] },
           { type: 7, name: 'channel', description: 'The channel to bind', required: true },
         ],
@@ -110,6 +112,25 @@ export const COMMANDS = [
       {
         type: TYPE_SUBCOMMAND, name: 'status',
         description: 'Current Loadout setup state for this server',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'bind',
+        description: 'Restrict a slash command to a single channel (add channel to its allow-list)',
+        options: [
+          { type: TYPE_STRING,  name: 'command', description: 'Command name (e.g. checkin, play, boltbound)', required: true },
+          { type: 7,            name: 'channel', description: 'Channel where this command is allowed', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'unbind',
+        description: 'Remove all channel restrictions for a slash command (allow it anywhere)',
+        options: [
+          { type: TYPE_STRING, name: 'command', description: 'Command name', required: true },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'bindings',
+        description: 'List current command→channel restrictions for this server',
       },
     ],
   },

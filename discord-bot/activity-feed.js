@@ -92,11 +92,71 @@ export async function appendIfNoteworthy(env, event) {
     arr.unshift(entry);
     if (arr.length > FEED_CAP) arr.length = FEED_CAP;
     await env.LOADOUT_BOLTS.put(FEED_KEY, JSON.stringify(arr));
+    // Fire-and-forget Discord post into the guild's bound activity-
+    // feed channel (if configured). Failure must not roll back the
+    // KV write — the website feed is the authoritative surface; the
+    // Discord post is a nice-to-have nudge for in-server visibility.
+    if (event.guildId) {
+      postActivityToDiscord(env, event.guildId, entry).catch(() => {});
+    }
     return { ok: true, entry };
   } catch (e) {
     console.warn('[activity-feed] append failed:', e && e.message);
     return { ok: false, error: String(e && e.message) };
   }
+}
+
+// ── Discord-side push ─────────────────────────────────────────────
+// Resolves the bound channel from guild:cfg:<g>.ids.ch_activity_feed
+// (set by the new /loadout-setup channel slot — slot id 'ch_activity_feed').
+// One-line content post (no embed) so the channel reads like a feed:
+//
+//   ⭐  **Alice** unlocked a legendary achievement!
+//
+// We keep the per-kind format table small + opinionated. Unknown
+// kinds fall back to a generic line — better one ugly line than a
+// silently-dropped event.
+
+const KIND_FORMAT = {
+  'streak.milestone':     (u, m) => `🔥  **${u}** hit a **${m.days || '?'}-day** check-in streak!`,
+  'tourn.victory':        (u, m) => `🏆  **${u}** won the tournament: *${m.name || 'a tournament'}*`,
+  'tourn.runnerup':       (u, m) => `🥈  **${u}** placed 2nd in *${m.name || 'a tournament'}*`,
+  'level.reached':        (u, m) => `📈  **${u}** reached **level ${m.level}**!`,
+  'achievement.unlocked': (u, m) => `🏅  **${u}** unlocked a **${m.rarity || 'rare'}** achievement: *${m.name || m.id || 'mystery'}*`,
+  'cards.pack.opened':    (u, m) => m.hadLegendary
+                                    ? `⚡  **${u}** pulled a **LEGENDARY** Boltbound card!`
+                                    : `🎴  **${u}** opened a **${m.rarity || 'rare'}** pull!`,
+  'clash.raid.won.3':     (u, m) => `⚔️  **${u}** smashed a **3-star** raid victory!`,
+  'badge.earned':         (u, m) => `🎖️  **${u}** earned the **${m.name || m.id || 'mystery'}** badge!`,
+  'clash.war.won':        (u, m) => `🛡️  **${u}**'s guild won a Clash war!`,
+  'season.tier.reached':  (u, m) => `🎖️  **${u}** climbed to **Season tier ${m.tier}**!`,
+};
+
+async function postActivityToDiscord(env, guildId, entry) {
+  if (!env.DISCORD_BOT_TOKEN) return;
+  let cfg = null;
+  try {
+    cfg = await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' });
+  } catch { /* idle */ }
+  const channelId = cfg?.ids?.ch_activity_feed;
+  if (!channelId) return;  // no bound feed channel — silent skip
+  const fmt = KIND_FORMAT[entry.kind];
+  const content = fmt
+    ? fmt(entry.username, entry.meta || {})
+    : `📰  **${entry.username}** · _${entry.kind}_`;
+  try {
+    await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content,
+        allowed_mentions: { parse: [] },
+      }),
+    });
+  } catch { /* idle */ }
 }
 
 export async function readCommunityFeed(env, { limit = 50, sinceUtc = null } = {}) {

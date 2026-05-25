@@ -213,11 +213,11 @@ export async function handleQuestCommand(env, data) {
     const reward = s.reward.pack
       ? `${s.reward.bolts} bolts + ${s.reward.pack} pack`
       : `${s.reward.bolts} bolts`;
-    lines.push(`${tick}  ${s.label}  · _${reward}_${s.claimable ? '  **← claim on aquilo.gg/welcome**' : ''}`);
+    lines.push(`${tick}  ${s.label}  · _${reward}_${s.claimable ? '  **← claim on aquilo.gg/quest**' : ''}`);
   }
   if (snap.summary.pendingClaims) {
     lines.push('');
-    lines.push(`🎁  **${snap.summary.pendingClaims}** reward${snap.summary.pendingClaims === 1 ? '' : 's'} ready (${snap.summary.totalAvailableBolts} bolts) — collect on https://aquilo.gg/welcome`);
+    lines.push(`🎁  **${snap.summary.pendingClaims}** reward${snap.summary.pendingClaims === 1 ? '' : 's'} ready (${snap.summary.totalAvailableBolts} bolts) — collect on https://aquilo.gg/quest`);
   } else if (snap.summary.claimed === snap.summary.total) {
     lines.push('');
     lines.push('🏁  Welcome Checklist complete — welcome to the community!');

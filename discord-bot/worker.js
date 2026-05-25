@@ -212,6 +212,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_bootstrap-l8/')) {
       return handleBootstrapL8(req, env, path);
     }
+    // L9 phase-2: create missing channels, bind feature slots,
+    // bind commands → channels, post the current schedule. Same
+    // one-shot KV-token gate as the L8 bootstrap. See handler for
+    // full action list.
+    if (method === 'POST' && path.startsWith('/admin/_phase2/')) {
+      return handlePhase2(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -1233,21 +1240,39 @@ async function handleBootstrapL8(req, env, path) {
   const H = { Authorization: 'Bot ' + token };
   const report = { guildId, steps: {} };
 
-  // 1) Re-register slash commands GLOBALLY (so /ticket lands in every
-  // guild the bot is in). Per-guild also pushed so it's instantly
-  // visible in :guildId (global propagation is ~1h).
-  for (const scope of ['global', 'guild']) {
-    const url = scope === 'guild'
-      ? `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`
-      : `https://discord.com/api/v10/applications/${appId}/commands`;
-    const r = await fetch(url, {
-      method: 'PUT',
-      headers: { ...H, 'Content-Type': 'application/json' },
+  // 1) Re-register slash commands ON THE GUILD ONLY. We used to push
+  // them both globally + per-guild, which made every command appear
+  // TWICE in the Discord picker (one copy per scope). Guild-only
+  // registration is instant + clean; once the bot is shipped to
+  // additional guilds we'll fan-out per-guild from a known list
+  // (cheap — 31 commands, one PUT each, ~200ms total).
+  //
+  // ALSO: PUT [] globally to clear any previously-registered global
+  // copies left behind by the old dual-registration path. Idempotent
+  // — re-running this is fine.
+  {
+    const globalUrl = `https://discord.com/api/v10/applications/${appId}/commands`;
+    const clearGlobal = await fetch(globalUrl, {
+      method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify([]),
+    });
+    const ctext = await clearGlobal.text();
+    let cparsed = null; try { cparsed = JSON.parse(ctext); } catch {}
+    report.steps.register_global_cleared = {
+      ok: clearGlobal.ok, status: clearGlobal.status,
+      cleared_count_now: Array.isArray(cparsed) ? cparsed.length : null,
+      error: clearGlobal.ok ? null : ctext.slice(0, 200),
+    };
+  }
+  {
+    const guildUrl = `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`;
+    const r = await fetch(guildUrl, {
+      method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
       body: JSON.stringify(COMMANDS),
     });
     const text = await r.text();
     let parsed = null; try { parsed = JSON.parse(text); } catch {}
-    report.steps['register_' + scope] = {
+    report.steps.register_guild = {
       ok: r.ok, status: r.status,
       count: Array.isArray(parsed) ? parsed.length : null,
       names: Array.isArray(parsed) ? parsed.map(c => c.name) : null,
@@ -1319,6 +1344,178 @@ async function handleBootstrapL8(req, env, path) {
       !cfg.ids.ch_introductions  ? 'ch_introductions missing — welcome embed has no target' : null,
     ].filter(Boolean),
   };
+
+  return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// ---- /admin/_phase2/:guildId  (one-shot KV token) ───────────────────────
+//
+// Second-pass setup. Same token-gating as the L8 bootstrap (writes
+// `bootstrap-l8-token` to KV, calls endpoint, KV entry self-destructs
+// on first valid call). Idempotent operations:
+//
+//   1. Re-register slash commands (guild-only + clear global) — re-uses
+//      the same path L8 fixed for the duplicate-command issue.
+//   2. Create channels that don't exist yet:
+//        • 📰│activity-feed            (text — community events)
+//        • 🃏│games                     (text — game commands hub)
+//        • 🗳️│voting                    (text — community-night polls)
+//        • 🧩│community-night-queue     (text — queue sign-ups)
+//      Each create is idempotent: GET /guilds/{g}/channels first;
+//      if a name match exists, adopt it.
+//   3. Write the IDs into guild:cfg:<g>.ids:
+//        ch_activity_feed, ch_games, ch_voting, ch_cn_queue,
+//        ch_schedule (auto-discovered from 📅│schedule), ch_support
+//   4. Command bindings → channels:
+//        /play, /boltbound, /character, /pet, /clash      → ch_games
+//        /checkin                                          → ch_checkin
+//        /lfg                                              → ch_games
+//        /trivia-add, /rotation-poll                       → ch_voting
+//        /queue                                            → ch_cn_queue
+//   5. Set the SCHEDULE_CHANNEL_ID / POLL_CHANNEL_ID / QUEUE_CHANNEL_ID
+//      env values via guild:env:<g> KV overlay (so the schedule
+//      module reads the new bindings without a wrangler redeploy).
+//   6. Call postOrRefreshSchedule() to put the embed in #schedule.
+//
+// Returns a JSON report of everything that did/didn't happen.
+async function handlePhase2(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_phase2',':guildId']
+  const guildId = parts[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+
+  const u = new URL(req.url);
+  const got = u.searchParams.get('token') || '';
+  const expected = await env.LOADOUT_BOLTS.get('bootstrap-l8-token');
+  if (!expected) return new Response('phase2 already consumed or never armed', { status: 410 });
+  if (!got || got !== expected) return new Response('bad token', { status: 401 });
+  await env.LOADOUT_BOLTS.delete('bootstrap-l8-token');
+
+  const appId = env.DISCORD_APP_ID;
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!appId || !token) return new Response('worker not provisioned', { status: 503 });
+  const H = { Authorization: 'Bot ' + token };
+  const report = { guildId, steps: {} };
+
+  // 1) Re-register commands guild-only + clear globals.
+  {
+    const globalUrl = `https://discord.com/api/v10/applications/${appId}/commands`;
+    const clear = await fetch(globalUrl, {
+      method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify([]),
+    });
+    report.steps.register_global_cleared = { ok: clear.ok, status: clear.status };
+    const guildUrl = `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`;
+    const r = await fetch(guildUrl, {
+      method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify(COMMANDS),
+    });
+    const text = await r.text();
+    let parsed = null; try { parsed = JSON.parse(text); } catch {}
+    report.steps.register_guild = {
+      ok: r.ok, status: r.status,
+      count: Array.isArray(parsed) ? parsed.length : null,
+    };
+  }
+
+  // 2) Channel lookup + idempotent create.
+  const chRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers: H });
+  if (!chRes.ok) {
+    report.steps.channels = { ok: false, status: chRes.status, error: (await chRes.text()).slice(0, 200) };
+    return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  const channels = await chRes.json();
+  function findByContains(needle) {
+    const n = needle.toLowerCase();
+    return channels.find(c => (c.name || '').toLowerCase().includes(n));
+  }
+  // Reusable parent for new community-style text channels — the
+  // "community" category from the existing server build, fetched
+  // by name. If absent, channels land at root (still works, just
+  // ungrouped). For the queue channel we prefer the games category
+  // if it exists.
+  const catCommunity = channels.find(c => c.type === 4 && /community/i.test(c.name || ''));
+  const catGames     = channels.find(c => c.type === 4 && /games|play/i.test(c.name || ''));
+
+  async function ensureTextChannel(name, parentId) {
+    const existing = findByContains(name.replace(/[│|·\s]/g, '').toLowerCase());
+    if (existing && existing.type === 0) return { id: existing.id, name: existing.name, adopted: true };
+    // Try the exact name match first as a stricter signal.
+    const exact = channels.find(c => c.type === 0 && c.name === name);
+    if (exact) return { id: exact.id, name: exact.name, adopted: true };
+    const create = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+      method: 'POST', headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, type: 0, parent_id: parentId || undefined }),
+    });
+    if (!create.ok) {
+      const txt = (await create.text()).slice(0, 200);
+      return { error: 'create-failed', status: create.status, body: txt };
+    }
+    const c = await create.json();
+    channels.push(c);
+    return { id: c.id, name: c.name, created: true };
+  }
+
+  const want = [
+    { slot: 'ch_activity_feed', name: '📰│activity-feed',         parent: catCommunity?.id },
+    { slot: 'ch_games',         name: '🃏│games',                  parent: catGames?.id || catCommunity?.id },
+    { slot: 'ch_voting',        name: '🗳️│voting',                 parent: catCommunity?.id },
+    { slot: 'ch_cn_queue',      name: '🧩│community-night-queue',  parent: catGames?.id || catCommunity?.id },
+  ];
+  report.steps.channels = {};
+  for (const w of want) {
+    report.steps.channels[w.slot] = await ensureTextChannel(w.name, w.parent);
+  }
+  // Auto-discover the existing schedule channel + support channel for
+  // completeness (these were created in the original guild build).
+  const schedCh = findByContains('schedule');
+  const supportCh = findByContains('support');
+  if (schedCh) report.steps.channels.ch_schedule = { id: schedCh.id, name: schedCh.name, adopted: true };
+  if (supportCh) report.steps.channels.ch_support = { id: supportCh.id, name: supportCh.name, adopted: true };
+
+  // 3) Write IDs into guild:cfg.
+  const cfgKey = `guild:cfg:${guildId}`;
+  const cfg = (await env.LOADOUT_BOLTS.get(cfgKey, { type: 'json' })) || { ids: {} };
+  cfg.ids = cfg.ids || {};
+  for (const [slot, info] of Object.entries(report.steps.channels)) {
+    if (info?.id && !cfg.ids[slot]) cfg.ids[slot] = info.id;
+  }
+  await env.LOADOUT_BOLTS.put(cfgKey, JSON.stringify(cfg));
+  report.steps.cfg_written = { ids: cfg.ids };
+
+  // 4) Command → channel bindings.
+  const { saveBindings } = await import('./command-bindings.js');
+  const games = cfg.ids.ch_games;
+  const checkin = cfg.ids.ch_checkin;
+  const voting = cfg.ids.ch_voting;
+  const queue  = cfg.ids.ch_cn_queue;
+  const bindings = {};
+  if (games)   { bindings.play = [games]; bindings.boltbound = [games]; bindings.character = [games]; bindings.pet = [games]; bindings.clash = [games]; bindings.lfg = [games]; }
+  if (checkin) { bindings.checkin = [checkin]; }
+  if (voting)  { bindings['rotation-poll'] = [voting]; bindings['trivia-add'] = [voting]; }
+  if (queue)   { bindings.queue = [queue]; bindings.schedule = [voting || games].filter(Boolean); }
+  await saveBindings(env, guildId, bindings);
+  report.steps.command_bindings = bindings;
+
+  // 5) Per-guild env-overlay for SCHEDULE / POLL / QUEUE channel ids
+  // (aq-schedule.js reads from env, with KV `schedule:<g>.channel_id`
+  // taking precedence — we set it directly).
+  if (cfg.ids.ch_schedule) {
+    const schedKey = `schedule:${guildId}`;
+    const sched = (await env.STATE?.get?.(schedKey).then(v => v && JSON.parse(v)).catch(() => null)) || {};
+    sched.channel_id = cfg.ids.ch_schedule;
+    sched.poll_channel_id = cfg.ids.ch_voting || sched.poll_channel_id;
+    try { await env.STATE.put(schedKey, JSON.stringify(sched)); } catch { /* idle */ }
+    report.steps.schedule_bound = { channel_id: sched.channel_id, poll_channel_id: sched.poll_channel_id };
+  }
+
+  // 6) Post / refresh the schedule embed.
+  try {
+    const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
+    const messageId = await postOrRefreshSchedule(env, guildId);
+    report.steps.schedule_posted = { ok: true, messageId };
+  } catch (e) {
+    report.steps.schedule_posted = { ok: false, error: String(e?.message || e) };
+  }
 
   return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
 }

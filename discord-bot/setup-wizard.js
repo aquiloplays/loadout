@@ -67,6 +67,10 @@ export const CHANNEL_SLOTS = [
     note: 'Temp VCs are minted under this category.' },
   { id: 'vc_join_to_create',    label: 'Join-to-create voice',       type: 'voice',
     note: 'Members joining this VC get a fresh room.' },
+  { id: 'ch_activity_feed',     label: 'Activity feed',              type: 'text',
+    note: 'Achievement / win / streak / pack-pull events post here.' },
+  { id: 'ch_games',             label: 'Games hub',                  type: 'text',
+    note: 'Where /play, /boltbound, board-game commands belong.' },
 ];
 
 // ── Step persistence ───────────────────────────────────────────────────
@@ -257,8 +261,55 @@ export async function handleSetupCommand(env, data) {
   if (subName === 'status') {
     return slashStatus(env, guildId);
   }
+  if (subName === 'bind') {
+    return slashBind(env, guildId, sub.options || []);
+  }
+  if (subName === 'unbind') {
+    return slashUnbind(env, guildId, sub.options || []);
+  }
+  if (subName === 'bindings') {
+    return slashBindings(env, guildId);
+  }
   // Default: open wizard at step 1.
   return renderStepInit(env, guildId, userId);
+}
+
+async function slashBind(env, guildId, options) {
+  const cmd = String(options.find(o => o.name === 'command')?.value || '').toLowerCase().trim();
+  const channelId = String(options.find(o => o.name === 'channel')?.value || '');
+  if (!cmd) return { type: RESP_CHAT, data: { content: 'Command name required.', flags: FLAG_EPHEMERAL } };
+  if (!/^\d{17,21}$/.test(channelId)) return { type: RESP_CHAT, data: { content: 'Bad channel id.', flags: FLAG_EPHEMERAL } };
+  const { addCommandChannel } = await import('./command-bindings.js');
+  const r = await addCommandChannel(env, guildId, cmd, channelId);
+  return { type: RESP_CHAT, data: {
+    content: `✅ \`/${cmd}\` is now allowed in: ${r.channels.map(c => `<#${c}>`).join(', ')}`,
+    flags: FLAG_EPHEMERAL,
+  } };
+}
+
+async function slashUnbind(env, guildId, options) {
+  const cmd = String(options.find(o => o.name === 'command')?.value || '').toLowerCase().trim();
+  if (!cmd) return { type: RESP_CHAT, data: { content: 'Command name required.', flags: FLAG_EPHEMERAL } };
+  const { unbindCommand } = await import('./command-bindings.js');
+  await unbindCommand(env, guildId, cmd);
+  return { type: RESP_CHAT, data: {
+    content: `🔓 \`/${cmd}\` is now allowed in any channel.`,
+    flags: FLAG_EPHEMERAL,
+  } };
+}
+
+async function slashBindings(env, guildId) {
+  const { loadBindings } = await import('./command-bindings.js');
+  const b = await loadBindings(env, guildId);
+  const entries = Object.entries(b).filter(([_, v]) => Array.isArray(v) && v.length);
+  if (entries.length === 0) {
+    return { type: RESP_CHAT, data: { content: '_No command bindings set — every command works in every channel._', flags: FLAG_EPHEMERAL } };
+  }
+  const lines = ['🔗  **Command bindings**', ''];
+  for (const [cmd, channels] of entries.sort()) {
+    lines.push(`• \`/${cmd}\` → ${channels.map(c => `<#${c}>`).join(', ')}`);
+  }
+  return { type: RESP_CHAT, data: { content: lines.join('\n'), flags: FLAG_EPHEMERAL } };
 }
 
 async function slashChannel(env, guildId, options) {
