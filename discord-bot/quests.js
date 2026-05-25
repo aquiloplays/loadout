@@ -43,22 +43,37 @@ export const STEPS = [
     id:     'linked-patreon',
     label:  'Link your Patreon account',
     reward: { bolts: 25, pack: 'bolt' },
-    // Completes when EITHER of:
+    // Completes when ANY of these signals are present:
     //   (a) /web/quest/mark-patreon-linked has been called for this
-    //       (guild, user), OR
-    //   (b) the user has a verified Patreon link on file
-    //       (patreon:tier:<userId>, the same record isPatron() consults).
-    // (b) means a user who linked their Patreon before this checklist
-    // existed — or who hasn't linked their other social platforms yet
-    // — still passes the step. The website ticks the box optimistically
-    // when its session shows a verified Patreon link; the worker
-    // confirms here so /web/quest/claim actually grants the bolts.
+    //       (guild, user) → explicit `quest:patreon-linked:<g>:<u>` flag.
+    //   (b) patreon:tier:<userId> exists in KV (aquilo-site's OAuth
+    //       callback writes it, BUT only if the Patreon profile has
+    //       a non-empty image_url — see functions/api/link/[[route]].js
+    //       around line 312, the write is gated on patreonImageUrl).
+    //       Many real users (especially Patreon-only freebies) don't
+    //       carry an avatar, so this signal is unreliable.
+    //   (c) wallet:<g>:<u>.links contains a `patreon` entry. THIS is
+    //       the bulletproof signal — the link handler unconditionally
+    //       merges every linked platform into `w.links` at the same
+    //       site code path. If you've successfully completed Patreon
+    //       OAuth, this entry exists.
+    // Without (c), users without a Patreon avatar were stuck unable
+    // to claim the step even though they'd genuinely linked. The
+    // three-way check is the fix.
     completion: async (env, g, u) => {
       if (await env.LOADOUT_BOLTS.get(PATREON_FLAG_KEY(g, u))) return true;
       try {
         const { isPatron } = await import('./progression/linking.js');
-        return await isPatron(env, u);
-      } catch { return false; }
+        if (await isPatron(env, u)) return true;
+      } catch { /* fall through to wallet-links check */ }
+      try {
+        const w = await getWallet(env, g, u);
+        const links = Array.isArray(w?.links) ? w.links : [];
+        if (links.some(l => l && String(l.platform || '').toLowerCase() === 'patreon')) {
+          return true;
+        }
+      } catch { /* idle */ }
+      return false;
     },
   },
   {

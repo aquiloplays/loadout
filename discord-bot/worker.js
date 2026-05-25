@@ -219,6 +219,18 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_phase2/')) {
       return handlePhase2(req, env, path);
     }
+    // L10 phase-3: create the self-promo channel if missing + post the
+    // stylized rules embed above the existing verify button in
+    // 🫡│rules. Same one-shot KV-token gate.
+    if (method === 'POST' && path.startsWith('/admin/_phase3-rules/')) {
+      return handlePhase3Rules(req, env, path);
+    }
+    // L10 chat-test: drive sendFromPwa with explicit args + return
+    // the diagnostic so we can verify the end-to-end webhook flow
+    // without needing a real PWA caller. Same token-gate.
+    if (method === 'POST' && path.startsWith('/admin/_chat-test/')) {
+      return handleChatTest(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -1517,6 +1529,222 @@ async function handlePhase2(req, env, path) {
     report.steps.schedule_posted = { ok: false, error: String(e?.message || e) };
   }
 
+  return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// ---- /admin/_phase3-rules/:guildId ----------------------------------
+//
+// 1. Create 📣│self-promo under the existing community category if
+//    no `*self-promo*` text channel already exists.
+// 2. Find the existing verify-button message in 🫡│rules (looking for
+//    the bot's own message with a button) and DELETE it — so the
+//    new rules embed lands ABOVE it after a re-post.
+// 3. POST the stylized rules embed (banner image + 10-rule body) to
+//    🫡│rules.
+// 4. RE-POST the verify button so it appears below the rules embed.
+// 5. Persist self-promo + rules-message ids in guild:cfg.ids.
+async function handlePhase3Rules(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+  const u = new URL(req.url);
+  const got = u.searchParams.get('token') || '';
+  const expected = await env.LOADOUT_BOLTS.get('bootstrap-l8-token');
+  if (!expected) return new Response('phase3-rules already consumed or never armed', { status: 410 });
+  if (!got || got !== expected) return new Response('bad token', { status: 401 });
+  await env.LOADOUT_BOLTS.delete('bootstrap-l8-token');
+
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!token) return new Response('worker not provisioned', { status: 503 });
+  const H = { Authorization: 'Bot ' + token };
+  const report = { guildId, steps: {} };
+
+  // 1) Channel list + find rules / category.
+  const chRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers: H });
+  if (!chRes.ok) {
+    return new Response(JSON.stringify({ error: 'channel-list-failed', status: chRes.status }), { status: 500 });
+  }
+  const channels = await chRes.json();
+  const rulesCh    = channels.find(c => c.type === 0 && /rules/i.test(c.name || ''));
+  const catCommunity = channels.find(c => c.type === 4 && /community/i.test(c.name || ''));
+  let selfPromoCh = channels.find(c => c.type === 0 && /self.?promo/i.test(c.name || ''));
+
+  if (!selfPromoCh) {
+    const create = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+      method: 'POST', headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: '📣│self-promo',
+        type: 0,
+        parent_id: catCommunity?.id,
+        topic: 'Share your streams, videos, projects — your own content only. No bare invite links or ads.',
+      }),
+    });
+    if (!create.ok) {
+      report.steps.self_promo = { ok: false, status: create.status, error: (await create.text()).slice(0, 200) };
+      return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    selfPromoCh = await create.json();
+    report.steps.self_promo = { id: selfPromoCh.id, name: selfPromoCh.name, created: true };
+  } else {
+    report.steps.self_promo = { id: selfPromoCh.id, name: selfPromoCh.name, adopted: true };
+  }
+
+  if (!rulesCh) {
+    report.steps.rules = { ok: false, error: 'no-rules-channel' };
+    return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+
+  // 2) Find + delete the existing verify-button message (bot-authored
+  //    message with a component button — newest 50 messages should
+  //    cover this comfortably).
+  const appId = env.DISCORD_APP_ID;
+  const msgsRes = await fetch(`https://discord.com/api/v10/channels/${rulesCh.id}/messages?limit=50`, { headers: H });
+  let oldVerify = null;
+  if (msgsRes.ok) {
+    const msgs = await msgsRes.json();
+    oldVerify = msgs.find(m =>
+      m.author?.id === appId &&
+      Array.isArray(m.components) && m.components.length > 0
+    );
+  }
+  if (oldVerify) {
+    const del = await fetch(`https://discord.com/api/v10/channels/${rulesCh.id}/messages/${oldVerify.id}`, {
+      method: 'DELETE', headers: H,
+    });
+    report.steps.deleted_old_verify = { id: oldVerify.id, ok: del.ok, status: del.status };
+  } else {
+    report.steps.deleted_old_verify = { skipped: 'no-existing-verify-button' };
+  }
+
+  // 3) Post the rules embed.
+  const BRAND_ACCENT = 0xF47FFF;
+  const RULES_HEADER_URL = 'https://aquilo.gg/sprites/welcome/aquilo-rules-header.png';
+  const rulesEmbed = {
+    title: 'Aquilo Community Rules',
+    description: [
+      `**1 — Be respectful.** Treat everyone with kindness. No harassment, hate speech, slurs, discrimination, or personal attacks. Disagree without being hostile.`,
+      `**2 — Keep it appropriate.** No NSFW, gory, or shocking content anywhere. Keep language and content friendly for a mixed-age community.`,
+      `**3 — No spam.** Don't flood channels, spam emojis or mentions, mass-ping, or post the same thing repeatedly.`,
+      `**4 — Use the right channels.** Keep conversations on-topic. Support questions go through the ticket system.`,
+      `**5 — No unsolicited self-promo or advertising.** Don't post invite links or ads, and don't DM members ads. Share your own content in <#${selfPromoCh.id}> where it belongs.`,
+      `**6 — Respect privacy.** No sharing anyone's personal information, no posting private messages or screenshots without consent.`,
+      `**7 — Settle conflicts properly.** No drama, call-outs, or witch-hunts in public. Open a ticket instead.`,
+      `**8 — Play fair.** Don't cheat, exploit, or abuse bugs in the games or the bolts economy. Report bugs — don't farm them.`,
+      `**9 — Follow Discord's rules.** Everyone must follow Discord's Terms of Service and Community Guidelines.`,
+      `**10 — Staff have the final say.** Listen to the moderators. Rules can be updated, and staff may act on anything that harms the community.`,
+      ``,
+      `_Welcome to Aquilo — have fun and look out for each other._`,
+    ].join('\n\n'),
+    color: BRAND_ACCENT,
+    image: { url: RULES_HEADER_URL },
+    footer: { text: 'aquilo.gg · community rules' },
+  };
+  const rulesPost = await fetch(`https://discord.com/api/v10/channels/${rulesCh.id}/messages`, {
+    method: 'POST', headers: { ...H, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ embeds: [rulesEmbed], allowed_mentions: { parse: [] } }),
+  });
+  if (!rulesPost.ok) {
+    report.steps.rules_posted = { ok: false, status: rulesPost.status, error: (await rulesPost.text()).slice(0, 200) };
+    return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+  const rulesMsg = await rulesPost.json();
+  report.steps.rules_posted = { id: rulesMsg.id, channelId: rulesCh.id, ok: true };
+
+  // 4) Re-post the verify button below the rules embed (if we just
+  //    deleted one). Reuses the same custom_id the original button
+  //    used so existing onClick handling continues to work.
+  if (oldVerify) {
+    // Use the original button's custom_id + label if present so we don't
+    // accidentally rename / re-key it.
+    const orig = oldVerify.components?.[0]?.components?.[0] || {};
+    const customId = orig.custom_id || 'verify:start';
+    const label    = orig.label     || '✅ Verify';
+    const verifyContent = oldVerify.content && oldVerify.content.length
+      ? oldVerify.content
+      : 'Tap **Verify** to gain access to the rest of the server.';
+    const repost = await fetch(`https://discord.com/api/v10/channels/${rulesCh.id}/messages`, {
+      method: 'POST', headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        content: verifyContent,
+        components: [{
+          type: 1, components: [{
+            type: 2, style: 3, label, custom_id: customId,
+          }],
+        }],
+        allowed_mentions: { parse: [] },
+      }),
+    });
+    if (repost.ok) {
+      const m = await repost.json();
+      report.steps.verify_reposted = { id: m.id, ok: true, custom_id: customId };
+    } else {
+      report.steps.verify_reposted = { ok: false, status: repost.status, error: (await repost.text()).slice(0, 200) };
+    }
+  }
+
+  // 5) Persist channel + message ids.
+  const cfgKey = `guild:cfg:${guildId}`;
+  const cfg = (await env.LOADOUT_BOLTS.get(cfgKey, { type: 'json' })) || { ids: {} };
+  cfg.ids = cfg.ids || {};
+  cfg.ids.ch_self_promo = selfPromoCh.id;
+  cfg.ids.msg_rules     = rulesMsg.id;
+  await env.LOADOUT_BOLTS.put(cfgKey, JSON.stringify(cfg));
+  report.steps.cfg_written = { ch_self_promo: cfg.ids.ch_self_promo, msg_rules: cfg.ids.msg_rules };
+
+  return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// ---- /admin/_chat-test/:guildId ----------------------------------------
+// One-shot diagnostic for /web/chat/send. Reads ?channelId= (or
+// defaults to the first COMMUNITY_CHAT_CHANNELS_JSON entry) +
+// ?discordId= (the user the worker pretends to be) + ?content= and
+// runs sendFromPwa() in-process. Returns the FULL diagnostic so any
+// failure shows the actual webhook-list / webhook-create / webhook-
+// post response detail.
+async function handleChatTest(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+  const u = new URL(req.url);
+  const got = u.searchParams.get('token') || '';
+  const expected = await env.LOADOUT_BOLTS.get('bootstrap-l8-token');
+  if (!expected) return new Response('chat-test already consumed or never armed', { status: 410 });
+  if (!got || got !== expected) return new Response('bad token', { status: 401 });
+  await env.LOADOUT_BOLTS.delete('bootstrap-l8-token');
+
+  let channelId = u.searchParams.get('channelId') || '';
+  if (!channelId) {
+    // Default to the first channel in the COMMUNITY_CHAT_CHANNELS_JSON
+    // allow-list — that's the canonical relay-eligible channel.
+    try {
+      const arr = JSON.parse(env.COMMUNITY_CHAT_CHANNELS_JSON || '[]');
+      const first = arr[0];
+      channelId = typeof first === 'string' ? first : (first?.id || '');
+    } catch { /* idle */ }
+  }
+  const discordId = u.searchParams.get('discordId') || env.AQUILO_VAULT_GUILD_ID || '';
+  const content   = u.searchParams.get('content')   || 'chat-relay diagnostic — please ignore';
+
+  const report = {
+    inputs: { guildId, channelId, discordId, content },
+    allowlist: [],
+  };
+  try {
+    report.allowlist = JSON.parse(env.COMMUNITY_CHAT_CHANNELS_JSON || '[]');
+  } catch { /* idle */ }
+
+  if (!channelId) {
+    report.error = 'no-channelId-and-no-allowlist-default';
+    return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+  }
+
+  try {
+    const { sendFromPwa } = await import('./chat-relay.js');
+    const r = await sendFromPwa(env, { discordId, guildId, channelId, content });
+    report.result = r;
+  } catch (e) {
+    report.threw = String(e?.message || e);
+  }
   return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
