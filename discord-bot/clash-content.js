@@ -135,6 +135,82 @@ export const BUILDINGS = {
   },
 };
 
+// ── Obstacles (Phase 5 — May 2026) ───────────────────────────────────
+//
+// Newly-generated towns seed with 4–6 obstacles scattered around the
+// outer ring (not on the central TH/wall ring). Tiles holding an
+// uncleared obstacle are NOT buildable — `findFreeTile` and the
+// site-side build-cell highlighter both filter them out.
+//
+// Each town has a single Engineer (special unit) who can be directed
+// to clear an obstacle. Clearing costs Scrap from the treasury + wall
+// clock time; when complete the obstacle is removed and a small
+// reward lands back in the treasury (you scavenged useful material).
+//
+// One Engineer per town — only one in-flight clear at a time. Future
+// upgrade hook: town.engineers.total can rise via a Workshop
+// building; the check in handleClearObstacle already counts in-flight
+// clears against engineers.total.
+export const OBSTACLES = {
+  rock: {
+    glyph: '🪨', name: 'Boulder',
+    clearScrap: 200, clearTimeMs: 30 * 60_000,
+    rewardScrap: 60, rewardBolts: 0,
+  },
+  tree: {
+    glyph: '🌲', name: 'Pine',
+    clearScrap: 80, clearTimeMs: 10 * 60_000,
+    rewardScrap: 30, rewardBolts: 0,
+  },
+  debris: {
+    glyph: '🧱', name: 'Rubble',
+    clearScrap: 50, clearTimeMs: 5 * 60_000,
+    rewardScrap: 10, rewardBolts: 20,
+  },
+};
+
+// Seed an initial obstacle set on town creation. `rngFn` is optional
+// (defaults to Math.random) so callers can pass a deterministic
+// generator (the test harness does). Avoids the seven central tiles
+// claimed by the bootstrap TH/walls/cannon.
+export function generateInitialObstacles(rngFn) {
+  const rng = typeof rngFn === 'function' ? rngFn : Math.random;
+  const count = 4 + Math.floor(rng() * 3);   // 4..6
+  const occupied = new Set([
+    '8,8',          // townhall
+    '5,5', '11,5', '5,11', '11,11',   // bootstrap walls
+    '4,8',          // bootstrap cannon
+  ]);
+  const out = [];
+  const kinds = Object.keys(OBSTACLES);
+  let id = 1;
+  let attempts = 0;
+  while (out.length < count && attempts < 80) {
+    attempts++;
+    const x = 3 + Math.floor(rng() * 12);    // 3..14
+    const y = 3 + Math.floor(rng() * 12);
+    const tile = x + ',' + y;
+    if (occupied.has(tile)) continue;
+    occupied.add(tile);
+    const kind = kinds[Math.floor(rng() * kinds.length)];
+    out.push({ id: id++, kind, x, y, status: 'idle' });
+  }
+  return out;
+}
+
+export function spriteIdForObstacle(kind) {
+  if (!OBSTACLES[kind]) return null;
+  return `clash/obstacles/${kind}.png`;
+}
+
+export function withObstacleSprites(obstacles) {
+  if (!Array.isArray(obstacles)) return [];
+  return obstacles.map(o => ({
+    ...o,
+    spriteId: spriteIdForObstacle(o.kind),
+  }));
+}
+
 // ── Hero-level gates on Town Hall tiers (Phase 3) ────────────────────
 //
 // A community needs to keep growing its dungeon heroes to keep

@@ -54,8 +54,8 @@ import {
 } from './clash-state.js';
 import { getActiveWarId, getWar, getWarBadge } from './clash-war.js';
 import {
-  BUILDINGS, TROOPS_GARRISON,
-  withBuildingSprites, withGarrisonSprites,
+  BUILDINGS, TROOPS_GARRISON, OBSTACLES,
+  withBuildingSprites, withGarrisonSprites, withObstacleSprites,
 } from './clash-content.js';
 
 const CORS = {
@@ -148,14 +148,21 @@ export async function handleClashTownPublic(env, path) {
       };
     }
   }
+  const obstacles = withObstacleSprites(town.obstacles || []);
+  const engineersTotal = Math.max(1, town.engineers?.total || 1);
+  const engineersBusy = obstacles.filter(o => o.status === 'clearing').length;
   return json({
     updatedAt: Date.now(),
     guildId,
     thLevel: town.thLevel,
     prestige,
+    grid: town.grid || { w: 16, h: 16 },
     buildings: withBuildingSprites(town.buildings),
     garrison: town.garrison,
     garrisonSprites: withGarrisonSprites(town.garrison).sprites,
+    obstacles,
+    obstacleCatalogue: OBSTACLES,
+    engineers: { total: engineersTotal, busy: engineersBusy },
     treasury: tres,
     layoutVersion: town.layoutVersion,
     customisation: town.customisation || {},
@@ -233,14 +240,21 @@ export async function handleClashSync(req, env, path) {
     // Enrich the editor payload with sprite paths so the drag-and-
     // drop layout editor can render each building / garrison troop
     // without having to derive the convention itself.
+    const obstacles = town ? withObstacleSprites(town.obstacles || []) : [];
+    const engineersTotal = Math.max(1, town?.engineers?.total || 1);
+    const engineersBusy = obstacles.filter(o => o.status === 'clearing').length;
     const townOut = town ? {
       ...town,
       buildings: withBuildingSprites(town.buildings),
       garrisonSprites: withGarrisonSprites(town.garrison).sprites,
+      obstacles,
+      engineers: { total: engineersTotal, busy: engineersBusy },
+      grid: town.grid || { w: 16, h: 16 },
     } : town;
     return json({
       updatedAt: Date.now(),
       town: townOut, treasury: tres, prestige, queue, shield,
+      obstacleCatalogue: OBSTACLES,
       war: war
         ? { warId: war.warId, state: war.state, scores: war.scores, activeEndsUtc: war.activeEndsUtc }
         : null,
@@ -254,6 +268,9 @@ export async function handleClashSync(req, env, path) {
   }
   if (req.method === 'POST' && sub === 'donate') {
     return forwardToSlashHandler(env, guildId, gate.body, 'donate');
+  }
+  if (req.method === 'POST' && sub === 'clear-obstacle') {
+    return forwardToSlashHandler(env, guildId, gate.body, 'clear-obstacle');
   }
   return new Response('not found', { status: 404 });
 }
@@ -286,6 +303,11 @@ async function forwardToSlashHandler(env, guildId, rawBody, action) {
   }
   if (action === 'donate') {
     const txt = await clash._editorDonate?.(env, guildId, userId, body.bolts)
+      ?? '❌ editor adapter not wired';
+    return json({ result: txt });
+  }
+  if (action === 'clear-obstacle') {
+    const txt = await clash._editorClearObstacle?.(env, guildId, userId, body.obstacleId)
       ?? '❌ editor adapter not wired';
     return json({ result: txt });
   }

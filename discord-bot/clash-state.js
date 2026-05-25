@@ -13,6 +13,7 @@
 // (e.g. "your build is done" push notification) without a second read.
 
 import { getWallet } from './wallet.js';
+import { generateInitialObstacles } from './clash-content.js';
 
 // ── Excluded accounts (leaderboard-only filter) ──────────────────────
 //
@@ -123,6 +124,13 @@ export async function ensureTown(env, guildId, ownerDiscordUserId) {
     let mutated = false;
     if (!('defenderChampion' in existing)) { existing.defenderChampion = null; mutated = true; }
     if (!('battlePlans' in existing))      { existing.battlePlans = 0;        mutated = true; }
+    // Phase 5 backfill: obstacles + engineer slot. Existing towns
+    // generated before May 2026 won't have either field; we seed
+    // them once so the buildable-cell highlighter and the clear
+    // action have something to work with.
+    if (!Array.isArray(existing.obstacles)) { existing.obstacles = generateInitialObstacles(); mutated = true; }
+    if (!existing.engineers || typeof existing.engineers !== 'object') { existing.engineers = { total: 1 }; mutated = true; }
+    if (!existing.grid) { existing.grid = { w: 16, h: 16 }; mutated = true; }
     if (mutated) await putTown(env, guildId, existing);
     return existing;
   }
@@ -158,6 +166,12 @@ export async function ensureTown(env, guildId, ownerDiscordUserId) {
     // so a community doesn't hoard infinity Battle Plans and skip
     // the entire TH ladder.
     battlePlans: 0,
+    // Phase 5: 16×16 grid + scattered obstacles + the town Engineer.
+    // The Engineer is the special unit that clears obstacles; we
+    // start with one slot — future Workshop upgrade can grow it.
+    grid: { w: 16, h: 16 },
+    obstacles: generateInitialObstacles(),
+    engineers: { total: 1 },
     createdUtc: now,
     lastUpdatedUtc: now,
   };

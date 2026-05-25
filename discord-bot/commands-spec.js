@@ -381,6 +381,13 @@ export const COMMANDS = [
             ],
           },
           { type: TYPE_SUBCOMMAND, name: 'clear-defender', description: 'Clear the defending-Champion designation' },
+          {
+            type: TYPE_SUBCOMMAND, name: 'clear-obstacle',
+            description: 'Dispatch the Engineer to clear an obstacle blocking a tile (costs Scrap + time)',
+            options: [
+              { type: TYPE_INTEGER, name: 'obstacle', description: 'Obstacle id (from /clash town view)', required: true, min_value: 1 },
+            ],
+          },
           { type: TYPE_SUBCOMMAND, name: 'skip',           description: 'Spend a Battle Plan to skip the oldest in-flight build cooldown' },
         ],
       },

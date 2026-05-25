@@ -75,6 +75,7 @@ import {
   executeRaid,
   _editorTownBuild,
   _editorTownGarrison,
+  _editorClearObstacle,
   canManageTown,
 } from './clash.js';
 import { ensureTown } from './clash-state.js';
@@ -87,8 +88,8 @@ import { handleAdminWeb } from './admin-web.js';
 import { routeBoltbound, isBoltboundRoute } from './cards-web.js';
 import { routeBoard, isBoardRoute } from './boardgames-web.js';
 import {
-  BUILDINGS, TROOPS_GARRISON,
-  withBuildingSprites, withGarrisonSprites,
+  BUILDINGS, TROOPS_GARRISON, OBSTACLES,
+  withBuildingSprites, withGarrisonSprites, withObstacleSprites,
   townBuildCost, townGarrisonCost,
 } from './clash-content.js';
 import { getTown, getTreasury } from './clash-state.js';
@@ -150,6 +151,8 @@ const ROUTES = new Set([
   'clash/garrison',
   'clash/town',
   'clash/setup',
+  // 2026-05 Phase 5 — obstacle clear (Engineer dispatch). Mod-gated.
+  'clash/clear-obstacle',
   'character',
   'character/save',
   'character/class',
@@ -267,6 +270,7 @@ export async function handleWeb(req, env) {
     if (route === 'clash/garrison')        return await routeClashGarrison(env, guildId, discordId, body);
     if (route === 'clash/town')            return await routeClashTown(env, guildId, discordId);
     if (route === 'clash/setup')           return await routeClashSetup(env, guildId, discordId);
+    if (route === 'clash/clear-obstacle')  return await routeClashClearObstacle(env, guildId, discordId, body);
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
     if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
     if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
@@ -862,6 +866,9 @@ async function routeClashTown(env, guildId, userId) {
     return json({ ok: false, error: 'permission', message: '🔒 Only the streamer + designated mods can read the management view.' }, 200);
   }
   const treasury = await getTreasury(env, guildId);
+  const obstacles = withObstacleSprites(town.obstacles || []);
+  const engineersTotal = Math.max(1, town.engineers?.total || 1);
+  const engineersBusy = obstacles.filter(o => o.status === 'clearing').length;
   // Pre-compute upgrade preview per building (cost + time for next
   // level) so the UI can render "Upgrade →" buttons without a second
   // round trip per building.
@@ -913,7 +920,67 @@ async function routeClashTown(env, guildId, userId) {
     garrisonSprites,
     newBuildOptions,
     garrisonOptions,
+    // Phase 5 — obstacles + the Engineer slot. The site Clash UI uses
+    // these to highlight buildable cells (in-grid, no building, no
+    // uncleared obstacle) and to render the clear-obstacle CTA.
+    grid: town.grid || { w: 16, h: 16 },
+    obstacles,
+    obstacleCatalogue: OBSTACLES,
+    engineers: { total: engineersTotal, busy: engineersBusy },
     layoutVersion: town.layoutVersion,
+  });
+}
+
+// ── /web/clash/clear-obstacle ───────────────────────────────────────
+//
+// Streamer/mod dispatches the town Engineer to clear one obstacle.
+// Body:
+//   { discordId, guildId, obstacleId }          // obstacleId: number
+// Response:
+//   { ok: true,  message, obstacleId, endsAt, treasury, engineers,
+//     obstacles }
+//   { ok: false, error: 'permission'|'no-obstacle'|'busy'|'no-engineer'
+//                       |'treasury'|'badkind'|'other',
+//                message, treasury, engineers, obstacles }
+// All errors mirror the slash command's user-facing string so the UI
+// can either render `message` verbatim or branch on `error`.
+async function routeClashClearObstacle(env, guildId, userId, body) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return json({
+      ok: false, error: 'permission',
+      message: '🔒 Only the streamer + designated mods can direct the Engineer.',
+    });
+  }
+  const obstacleId = body && body.obstacleId;
+  const message = await _editorClearObstacle(env, guildId, userId, obstacleId);
+  const town = await getTown(env, guildId);
+  const treasury = await getTreasury(env, guildId);
+  const obstacles = withObstacleSprites(town?.obstacles || []);
+  const engineersTotal = Math.max(1, town?.engineers?.total || 1);
+  const engineersBusy = obstacles.filter(o => o.status === 'clearing').length;
+  // Classify message → { ok, error }.
+  let ok = false, error, endsAt = null;
+  if (typeof message === 'string') {
+    if (message.startsWith('⛏ Engineer dispatched')) {
+      ok = true;
+      const o = obstacles.find(x => String(x.id) === String(obstacleId));
+      endsAt = o?.clearEndsAt || null;
+    } else if (message.startsWith('🔒'))                    error = 'permission';
+    else if (message.includes('No obstacle'))               error = 'no-obstacle';
+    else if (message.includes('already being cleared'))     error = 'busy';
+    else if (message.includes('Engineer is busy'))          error = 'no-engineer';
+    else if (message.includes('Treasury short'))            error = 'treasury';
+    else if (message.includes('Unknown obstacle'))          error = 'badkind';
+    else if (message.includes('Pass an obstacle'))          error = 'bad-id';
+    else                                                    error = 'other';
+  }
+  return json({
+    ok, error, message,
+    obstacleId: obstacleId != null ? Number(obstacleId) : null,
+    endsAt,
+    treasury,
+    engineers: { total: engineersTotal, busy: engineersBusy },
+    obstacles,
   });
 }
 

@@ -586,6 +586,171 @@ const denyTownBody = await denyTownResp.json();
 ok('/web/clash/town denies non-streamer',
    denyTownResp.status === 200 && denyTownBody.ok === false && denyTownBody.error === 'permission');
 
+// ── Phase 5: obstacles + Engineer clear + wallet → treasury bridge ─
+//
+// Town autocreation seeds 4–6 obstacles in the outer ring; the
+// payloads (sync, public, and /web/clash/town) all surface them;
+// findFreeTile skips them; the clear-obstacle action queues, debits
+// scrap, and on queue-walk removes the obstacle + drops the reward.
+// The Patreon-session play surface gets /web/clash/donate (wallet →
+// treasury) which closes the long-standing "bolts don't sync to
+// Clash" gap. Tests below exercise the contract end-to-end.
+console.log('--- phase 5: obstacles + clear-obstacle + donate ---');
+
+const P5_GUILD = 'g_p5';
+const P5_STREAMER = 'u_p5_streamer';
+const t5 = await ensureTown(env, P5_GUILD, P5_STREAMER);
+ok('ensureTown seeds obstacles array', Array.isArray(t5.obstacles) && t5.obstacles.length >= 4 && t5.obstacles.length <= 6);
+ok('ensureTown seeds engineers slot',  t5.engineers && t5.engineers.total === 1);
+ok('ensureTown seeds grid bounds',     t5.grid && t5.grid.w === 16 && t5.grid.h === 16);
+ok('obstacles carry id/kind/x/y/status',
+   t5.obstacles.every(o => typeof o.id === 'number' && typeof o.kind === 'string' &&
+                            typeof o.x === 'number' && typeof o.y === 'number' &&
+                            o.status === 'idle'));
+ok('seeded obstacle kinds are all known',
+   t5.obstacles.every(o => ['rock', 'tree', 'debris'].includes(o.kind)));
+
+// Backfill on a legacy town that was stored before Phase 5 — drop
+// the obstacles + engineers fields, then ensureTown again and confirm
+// they reappear. Mirrors what'll happen to every town in the wild on
+// the first /clash after deploy.
+const LEGACY = 'g_legacy_p5';
+await env.LOADOUT_BOLTS.put('clash:town:' + LEGACY, JSON.stringify({
+  guildId: LEGACY, thLevel: 1, prestige: { score: 0, tier: 'bronze', peak: 0 },
+  buildings: [{ id: 1, kind: 'townhall', level: 1, x: 8, y: 8, hp: 800, status: 'idle' }],
+  garrison: {}, layoutVersion: 1, ownerUserId: 'u_legacy', modUserIds: [],
+  customisation: {}, createdUtc: 1, lastUpdatedUtc: 1,
+}));
+const backfilled = await ensureTown(env, LEGACY, 'u_legacy');
+ok('legacy backfill adds obstacles', Array.isArray(backfilled.obstacles) && backfilled.obstacles.length >= 4);
+ok('legacy backfill adds engineers', backfilled.engineers && backfilled.engineers.total === 1);
+ok('legacy backfill adds grid',      backfilled.grid && backfilled.grid.w === 16);
+
+// Public /clash/town/<g> surfaces the new shape.
+const p5PublicResp = await handleClashTownPublic(env, '/clash/town/' + P5_GUILD);
+const p5PublicBody = await p5PublicResp.json();
+ok('public town payload includes obstacles',
+   Array.isArray(p5PublicBody.obstacles) && p5PublicBody.obstacles.length >= 4);
+ok('public obstacles carry spriteId',
+   p5PublicBody.obstacles.every(o => typeof o.spriteId === 'string' && o.spriteId.startsWith('clash/obstacles/')));
+ok('public town payload includes engineers',
+   p5PublicBody.engineers && p5PublicBody.engineers.total === 1 && p5PublicBody.engineers.busy === 0);
+ok('public town payload includes obstacleCatalogue',
+   p5PublicBody.obstacleCatalogue && typeof p5PublicBody.obstacleCatalogue.rock === 'object');
+ok('public town payload includes grid',
+   p5PublicBody.grid && p5PublicBody.grid.w === 16);
+
+// /web/clash/town now ships wallet + obstacles + engineers for the
+// play surface.
+const P5_NUM_GUILD = '444444444444444444';
+const P5_NUM_STREAMER = '555555555555555555';
+await ensureTown(env, P5_NUM_GUILD, P5_NUM_STREAMER);
+// Keep bolts well under capacity so donate-happy-path has headroom +
+// the clear-obstacle reward test can land a bolts credit without the
+// cap kicking in.
+await addTreasury(env, P5_NUM_GUILD, { bolts: 100, scrap: 1000, cores: 10 });
+// Seed the streamer's wallet so the donate test has Bolts to spend.
+await env.LOADOUT_BOLTS.put(`wallet:${P5_NUM_GUILD}:${P5_NUM_STREAMER}`, JSON.stringify({
+  balance: 2500, lifetimeEarned: 2500, lifetimeSpent: 0,
+  lastEarnUtc: Date.now(), dailyStreak: 0, lastDailyUtc: 0, links: [],
+}));
+const p5WebEnv = { ...env, AQUILO_SITE_WEB_SECRET: WEB_SECRET, AQUILO_VAULT_GUILD_ID: P5_NUM_GUILD };
+
+const p5TownReq = await webPost('/web/clash/town', { discordId: P5_NUM_STREAMER, guildId: P5_NUM_GUILD });
+const p5TownResp = await handleWeb(p5TownReq, p5WebEnv);
+const p5TownBody = await p5TownResp.json();
+ok('/web/clash/town returns obstacles[]',
+   Array.isArray(p5TownBody.obstacles) && p5TownBody.obstacles.length >= 4);
+ok('/web/clash/town obstacles carry spriteId',
+   p5TownBody.obstacles.every(o => o.spriteId && o.spriteId.startsWith('clash/obstacles/')));
+ok('/web/clash/town returns engineers',
+   p5TownBody.engineers && p5TownBody.engineers.total === 1);
+ok('/web/clash/town returns obstacleCatalogue',
+   p5TownBody.obstacleCatalogue && p5TownBody.obstacleCatalogue.rock.clearScrap === 200);
+ok('/web/clash/town returns grid',
+   p5TownBody.grid && p5TownBody.grid.w === 16);
+
+// /web/clash/clear-obstacle — happy path drains scrap, marks obstacle
+// 'clearing', enqueues. Then walkQueueComplete with a poked endsAt
+// removes the obstacle + drops the reward.
+const targetObs = p5TownBody.obstacles.find(o => o.kind === 'debris') ||
+                  p5TownBody.obstacles.find(o => o.kind === 'tree') ||
+                  p5TownBody.obstacles[0];
+const tresBefore = await getTreasury(env, P5_NUM_GUILD);
+const clearReq = await webPost('/web/clash/clear-obstacle', {
+  discordId: P5_NUM_STREAMER, guildId: P5_NUM_GUILD, obstacleId: targetObs.id,
+});
+const clearResp = await handleWeb(clearReq, p5WebEnv);
+const clearBody = await clearResp.json();
+ok('/web/clash/clear-obstacle returns ok',
+   clearBody.ok === true && typeof clearBody.endsAt === 'number',
+   `body=${JSON.stringify(clearBody).slice(0, 250)}`);
+ok('/web/clash/clear-obstacle debits scrap from treasury',
+   clearBody.treasury.scrap === tresBefore.scrap - ({ rock: 200, tree: 80, debris: 50 }[targetObs.kind]));
+ok('/web/clash/clear-obstacle marks obstacle as clearing',
+   clearBody.obstacles.find(o => o.id === targetObs.id)?.status === 'clearing');
+ok('/web/clash/clear-obstacle reports busy engineer',
+   clearBody.engineers.busy === 1);
+
+// Second clear while engineer is busy → no-engineer error.
+const second = p5TownBody.obstacles.find(o => o.id !== targetObs.id);
+const busyReq = await webPost('/web/clash/clear-obstacle', {
+  discordId: P5_NUM_STREAMER, guildId: P5_NUM_GUILD, obstacleId: second.id,
+});
+const busyResp = await handleWeb(busyReq, p5WebEnv);
+const busyBody = await busyResp.json();
+ok('/web/clash/clear-obstacle rejects when engineer is busy',
+   busyBody.ok === false && busyBody.error === 'no-engineer',
+   `body=${JSON.stringify(busyBody)}`);
+
+// Non-mod → permission.
+const noModId = '666666666666666666';
+const noModReq = await webPost('/web/clash/clear-obstacle', {
+  discordId: noModId, guildId: P5_NUM_GUILD, obstacleId: targetObs.id,
+});
+const noModResp = await handleWeb(noModReq, p5WebEnv);
+const noModBody = await noModResp.json();
+ok('/web/clash/clear-obstacle denies non-mod',
+   noModBody.ok === false && noModBody.error === 'permission');
+
+// Bad id → no-obstacle.
+const badIdReq = await webPost('/web/clash/clear-obstacle', {
+  discordId: P5_NUM_STREAMER, guildId: P5_NUM_GUILD, obstacleId: 99999,
+});
+const badIdResp = await handleWeb(badIdReq, p5WebEnv);
+const badIdBody = await badIdResp.json();
+ok('/web/clash/clear-obstacle rejects unknown obstacle id',
+   badIdBody.ok === false && badIdBody.error === 'no-obstacle');
+
+// Fast-forward the queued clear and walk it — obstacle should vanish
+// and the reward should land in the treasury.
+const tresMidClear = await getTreasury(env, P5_NUM_GUILD);
+const qKey = 'clash:queue:' + P5_NUM_GUILD;
+const qBefore = await env.LOADOUT_BOLTS.get(qKey, { type: 'json' });
+qBefore.items[0].endsAt = Date.now() - 1;
+await env.LOADOUT_BOLTS.put(qKey, JSON.stringify(qBefore));
+const clearCompleted = await walkQueueComplete(env, qKey);
+ok('walkQueueComplete returns the matured clear item',
+   clearCompleted.length === 1 && clearCompleted[0].kind === 'clearObstacle');
+
+// Apply the side effects exactly like syncCooldowns does (the test
+// harness doesn't import that helper directly; mimic its branch).
+const townMid = await getTown(env, P5_NUM_GUILD);
+townMid.obstacles = (townMid.obstacles || []).filter(o => o.id !== clearCompleted[0].target.obstacleId);
+townMid.layoutVersion = (townMid.layoutVersion || 0) + 1;
+await env.LOADOUT_BOLTS.put('clash:town:' + P5_NUM_GUILD, JSON.stringify(townMid));
+const rewardScrap = { rock: 60, tree: 30, debris: 10 }[targetObs.kind];
+const rewardBolts = { rock: 0,  tree: 0,  debris: 20 }[targetObs.kind];
+await addTreasury(env, P5_NUM_GUILD, { scrap: rewardScrap, bolts: rewardBolts });
+
+const townAfterClear = await getTown(env, P5_NUM_GUILD);
+ok('cleared obstacle is gone from town.obstacles',
+   !townAfterClear.obstacles.some(o => o.id === targetObs.id));
+const tresAfterClear = await getTreasury(env, P5_NUM_GUILD);
+ok('clearing drops reward into treasury',
+   tresAfterClear.scrap === tresMidClear.scrap + rewardScrap &&
+   tresAfterClear.bolts === tresMidClear.bolts + rewardBolts);
+
 // ── /web/character contract ─────────────────────────────────────
 // HMAC-gated read + save of the player's pixel-art look. Same
 // infra as /web/clash/* — reuses NUM_GUILD/NUM_VIEWER + webPost

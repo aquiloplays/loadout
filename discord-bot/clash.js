@@ -38,6 +38,7 @@ import {
   generateNpcTown, generateGoblinCamp,
   personalTroopCost, townBuildCost, townGarrisonCost,
   TH_HERO_GATE,
+  OBSTACLES,
 } from './clash-content.js';
 import { simulate, computeLoot, computeTrophyDelta } from './clash-raid.js';
 import {
@@ -84,8 +85,8 @@ async function syncCooldowns(env, guildId, userId) {
         if (item.kind === 'newBuilding' && item.target?.kind) {
           const newId = Math.max(...town.buildings.map(b => b.id)) + 1;
           const place = item.target.kind === 'wall'
-            ? findFreeTile(town.buildings, 4, 4, 12, 12, 'wall')
-            : findFreeTile(town.buildings, 4, 4, 12, 12, 'tower');
+            ? findFreeTile(town, 4, 4, 12, 12, 'wall')
+            : findFreeTile(town, 4, 4, 12, 12, 'tower');
           town.buildings.push({
             id: newId, kind: item.target.kind, level: 1,
             x: place.x, y: place.y,
@@ -98,6 +99,21 @@ async function syncCooldowns(env, guildId, userId) {
         if (item.kind === 'garrison' && item.target?.troopId) {
           town.garrison = town.garrison || {};
           town.garrison[item.target.troopId] = (town.garrison[item.target.troopId] || 0) + item.target.count;
+        }
+        if (item.kind === 'clearObstacle' && item.target?.obstacleId != null) {
+          // Drop the obstacle off the grid. Reward goes back to the
+          // treasury (small scrap/bolts find — covers some of the
+          // clearing cost so an obstacle isn't a pure tax).
+          town.obstacles = (town.obstacles || []).filter(o => o.id !== item.target.obstacleId);
+          town.layoutVersion = (town.layoutVersion || 0) + 1;
+          const def = OBSTACLES[item.target.kind];
+          if (def) {
+            const delta = {};
+            if (def.rewardScrap) delta.scrap = def.rewardScrap;
+            if (def.rewardBolts) delta.bolts = def.rewardBolts;
+            if (Object.keys(delta).length) await addTreasury(env, guildId, delta);
+            await pushBuildComplete(env, { guildId, kind: 'town', name: `Cleared: ${def.name}` });
+          }
         }
       }
       await putTown(env, guildId, town);
@@ -120,8 +136,16 @@ async function syncCooldowns(env, guildId, userId) {
   }
 }
 
-function findFreeTile(buildings, x0, y0, x1, y1, hint) {
-  const occupied = new Set(buildings.map(b => `${b.x},${b.y}`));
+function findFreeTile(town, x0, y0, x1, y1, hint) {
+  // Buildings AND uncleared obstacles both block placement. The
+  // `cleared` status is a transient marker (set by the clear queue
+  // walker just before removal) — treat it as already gone.
+  const buildings = Array.isArray(town?.buildings) ? town.buildings : [];
+  const obstacles = Array.isArray(town?.obstacles) ? town.obstacles : [];
+  const occupied = new Set([
+    ...buildings.map(b => `${b.x},${b.y}`),
+    ...obstacles.filter(o => o.status !== 'cleared').map(o => `${o.x},${o.y}`),
+  ]);
   for (let y = y0; y <= y1; y++) {
     for (let x = x0; x <= x1; x++) {
       if (!occupied.has(`${x},${y}`)) return { x, y };
@@ -189,6 +213,8 @@ export async function handleClashCommand(env, data, userId, userName) {
                        return ephemeral(await handleDefenderDesignate(env, guildId, userId, getOpt('user')));
       case 'clear-defender':
                        return ephemeral(await handleDefenderClear(env, guildId, userId));
+      case 'clear-obstacle':
+                       return ephemeral(await handleClearObstacle(env, guildId, userId, getOpt('obstacle')));
       case 'skip':     return ephemeral(await handleSkipCooldown(env, guildId, userId));
       default:         return ephemeral('Unknown /clash town subcommand.');
     }
@@ -739,6 +765,20 @@ async function renderTownView(env, guildId) {
     ...Object.entries(town.garrison || {}).map(([id, n]) => `• ${TROOPS_GARRISON[id]?.glyph || '·'} ${TROOPS_GARRISON[id]?.name || id} ×${n}`),
     '',
   ];
+  const obstacles = town.obstacles || [];
+  if (obstacles.length) {
+    const engTotal = town.engineers?.total || 1;
+    const busy = obstacles.filter(o => o.status === 'clearing').length;
+    lines.push(`**Obstacles** — ${obstacles.length} blocking tiles · Engineers ${busy}/${engTotal} busy`);
+    for (const o of obstacles) {
+      const def = OBSTACLES[o.kind] || { glyph: '·', name: o.kind };
+      const stat = o.status === 'clearing'
+        ? ` (clearing — done <t:${Math.floor((o.clearEndsAt || 0) / 1000)}:R>)`
+        : '';
+      lines.push(`• #${o.id} ${def.glyph} ${def.name} @ (${o.x},${o.y})${stat}`);
+    }
+    lines.push('');
+  }
   if (contribs.length) {
     lines.push('**Top contributors:**');
     contribs.forEach((c, i) => lines.push(`${i + 1}. <@${c.userId}> — ${c.lifetimeBolts}⚡`));
@@ -840,6 +880,53 @@ async function handleTownGarrison(env, guildId, userId, troopId, count) {
     endsAt: Date.now() + cost.timeMs,
   });
   return `⛺ Training ${n}× ${TROOPS_GARRISON[troopId].name} for the garrison. Ready in ${Math.ceil(cost.timeMs / 60_000)} min.`;
+}
+
+// ── Obstacle clearing (Phase 5) ─────────────────────────────────────
+//
+// Streamer/mod tells the town's Engineer to clear an obstacle. The
+// scrap cost is deducted up-front; the Engineer is "busy" until the
+// queued item finishes (no second clear can start until then). When
+// the queue walker fires, the obstacle is removed and a small
+// scavenging reward lands back in the treasury.
+async function handleClearObstacle(env, guildId, userId, obstacleId) {
+  if (!await canManageTown(env, guildId, userId)) {
+    return '🔒 Only the streamer + mods can direct the Engineer.';
+  }
+  if (obstacleId == null || obstacleId === '') {
+    return '❌ Pass an obstacle id (see `obstacles[]` in the town payload).';
+  }
+  const town = await getTown(env, guildId);
+  const obs = (town.obstacles || []).find(o => String(o.id) === String(obstacleId));
+  if (!obs) return `❌ No obstacle with id ${obstacleId}.`;
+  if (obs.status === 'clearing') return '⛏ That obstacle is already being cleared.';
+  const def = OBSTACLES[obs.kind];
+  if (!def) return `❌ Unknown obstacle type "${obs.kind}".`;
+
+  // One Engineer per town today — only one in-flight clear at a time.
+  // The total/busy split is forward-compat for a future Workshop
+  // upgrade that grows engineers.total.
+  const engineersTotal = Math.max(1, town.engineers?.total || 1);
+  const busy = (town.obstacles || []).filter(o => o.status === 'clearing').length;
+  if (busy >= engineersTotal) {
+    return `⛏ Every Engineer is busy (${busy}/${engineersTotal} clearing). Wait for one to finish.`;
+  }
+
+  const tres = await getTreasury(env, guildId);
+  if ((tres.scrap || 0) < def.clearScrap) {
+    return `❌ Treasury short. Need ${def.clearScrap}🧪 to clear the ${def.name}.`;
+  }
+  await addTreasury(env, guildId, { scrap: -def.clearScrap });
+  obs.status = 'clearing';
+  obs.clearEndsAt = Date.now() + def.clearTimeMs;
+  await putTown(env, guildId, town);
+  await enqueue(env, 'clash:queue:' + guildId, {
+    id: 'q_' + Date.now(),
+    kind: 'clearObstacle',
+    target: { obstacleId: obs.id, kind: obs.kind },
+    endsAt: Date.now() + def.clearTimeMs,
+  });
+  return `⛏ Engineer dispatched to clear the ${def.name} at (${obs.x},${obs.y}). Done in ${Math.ceil(def.clearTimeMs / 60_000)} min.`;
 }
 
 async function handleTownPause(env, guildId, userId) {
@@ -1266,6 +1353,10 @@ export async function _editorTownGarrison(env, guildId, userId, troopId, count) 
 }
 export async function _editorDonate(env, guildId, userId, amount) {
   return handleDonate(env, guildId, userId, amount);
+}
+export async function _editorClearObstacle(env, guildId, userId, obstacleId) {
+  await syncCooldowns(env, guildId, userId);
+  return handleClearObstacle(env, guildId, userId, obstacleId);
 }
 
 export async function recordWarRaidIfAny(env, attackerHomeGuildId, targetGuildId, raidId, stars) {
