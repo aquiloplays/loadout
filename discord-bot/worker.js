@@ -239,6 +239,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_phase4-perms/')) {
       return handlePhase4Perms(req, env, path);
     }
+    // Trace the linked-patreon completion check for a specific user:
+    // dumps every signal the worker considers + the snapshot result +
+    // the claim outcome. Token-gated, single-use. Lets us prove
+    // end-to-end that Clay's user can both see the step as claimable
+    // AND successfully claim.
+    if (method === 'POST' && path.startsWith('/admin/_quest-trace/')) {
+      return handleQuestTrace(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -2016,6 +2024,64 @@ async function handlePhase4Perms(req, env, path) {
     categories: tally(report.categories),
     channels:   tally(report.channels),
   };
+  return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// ---- /admin/_quest-trace/:guildId/:userId  (one-shot KV token) -------
+//
+// Diagnostic for the linked-patreon Welcome-Checklist step. Reports
+// every signal the worker reads + the snapshot result + an optional
+// dry-claim outcome (?claim=1 actually runs claimStep). Used to verify
+// the auto-mark-on-web fix before/after the user actually hits the
+// site.
+async function handleQuestTrace(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[2];
+  const userId  = parts[3];
+  if (!guildId || !userId) return new Response('guildId + userId required', { status: 400 });
+  const u = new URL(req.url);
+  const got = u.searchParams.get('token') || '';
+  const expected = await env.LOADOUT_BOLTS.get('bootstrap-l8-token');
+  if (!expected) return new Response('quest-trace already consumed or never armed', { status: 410 });
+  if (!got || got !== expected) return new Response('bad token', { status: 401 });
+  await env.LOADOUT_BOLTS.delete('bootstrap-l8-token');
+
+  const claim = u.searchParams.get('claim') === '1';
+  const markFlag = u.searchParams.get('mark') === '1';
+  const report = { guildId, userId, signals: {}, snapshot: null, claim: null };
+
+  // Read each signal individually.
+  report.signals.explicit_flag = !!(await env.LOADOUT_BOLTS.get(`quest:patreon-linked:${guildId}:${userId}`));
+  const tier = await env.LOADOUT_BOLTS.get(`patreon:tier:${userId}`, { type: 'json' });
+  report.signals.patreon_tier  = tier ? { present: true, hasImageUrl: !!(tier.imageUrl || tier.image_url || tier.avatar) } : { present: false };
+  const wallet = await env.LOADOUT_BOLTS.get(`wallet:${guildId}:${userId}`, { type: 'json' });
+  const links = Array.isArray(wallet?.links) ? wallet.links : [];
+  report.signals.wallet_links = {
+    present: !!wallet,
+    platforms: links.map(l => l?.platform).filter(Boolean),
+    hasPatreon: links.some(l => String(l?.platform || '').toLowerCase() === 'patreon'),
+  };
+
+  // Optional: pretend we hit the web bridge by marking the flag first.
+  if (markFlag) {
+    const { markPatreonLinked } = await import('./quests.js');
+    const mark = await markPatreonLinked(env, guildId, userId);
+    report.mark_applied = mark;
+  }
+
+  // Snapshot the checklist.
+  const { getSnapshot, claimStep } = await import('./quests.js');
+  const snap = await getSnapshot(env, guildId, userId);
+  const stepRow = (snap.steps || []).find(s => s.id === 'linked-patreon');
+  report.snapshot = {
+    summary: snap.summary,
+    linked_patreon: stepRow || null,
+  };
+
+  // Optional: actually run the claim.
+  if (claim) {
+    report.claim = await claimStep(env, guildId, userId, 'linked-patreon');
+  }
   return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 

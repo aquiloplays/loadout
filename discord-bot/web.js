@@ -1473,13 +1473,57 @@ async function routeReferralAttribute(env, guildId, discordId, body) {
   return json(r, r.ok ? 200 : 400);
 }
 
+// Web-bridge implicit Patreon-link signal.
+//
+// Reaching any /web/quest/* route IS proof the caller has a verified
+// Patreon session — aquilo-site's bridge ([[route]].js → postToBot)
+// requires a valid aq_link cookie, which is issued ONLY by the
+// Patreon OAuth callback. So if the bot receives the request with
+// a valid HMAC + a real discordId, that user has linked Patreon
+// (regardless of whether their Patreon profile had an avatar, or
+// whether any of the older worker-side signals — `patreon:tier:<u>`
+// presence, `wallet.links` patreon entry — were ever written).
+//
+// We therefore mark the explicit `quest:patreon-linked:<g>:<u>` flag
+// at the top of every web-quest route so the step's completion check
+// agrees with itself across snapshot / claim / mark calls. This was
+// the root cause of the "snapshot says claimable but claim rejects"
+// bug Clay hit three times in a row:
+//   • snapshot returned `completed: true` only because the SITE
+//     optimistically overrode it (OnboardingQuest.tsx line 138-147);
+//     the worker actually returned `completed: false` because none of
+//     the prior 3 signals matched for a Patreon-only user.
+//   • claim re-ran the SAME completion check (it shares getSnapshot)
+//     but the optimistic override doesn't apply to claim, so claim
+//     rejected with `error: 'not-completed'`.
+// Auto-marking on every web touch makes the signal durable + cheap
+// (KV put is sub-millisecond, idempotent).
+//
+// Note: the /quest slash command DOES NOT auto-mark. It runs through
+// handleQuestCommand → getSnapshot directly; a slash command caller
+// hasn't proven a Patreon link.
+async function autoMarkWebPatreonLink(env, guildId, discordId) {
+  try {
+    const { markPatreonLinked } = await import('./quests.js');
+    await markPatreonLinked(env, guildId, discordId);
+  } catch { /* idle */ }
+}
+
 async function routeQuestSnapshot(env, guildId, discordId) {
+  await autoMarkWebPatreonLink(env, guildId, discordId);
   const { getSnapshot } = await import('./quests.js');
   return json(await getSnapshot(env, guildId, discordId));
 }
 
 async function routeQuestClaim(env, guildId, discordId, body) {
   // POST { discordId, guildId, stepId: '<id>' | 'all' }
+  // Auto-mark the patreon-linked flag FIRST so the snapshot the
+  // claimStep computes internally sees completed:true for the
+  // linked-patreon step. Without this, the claim rejects with
+  // `not-completed` even though the snapshot route showed claimable
+  // (the site's OnboardingQuest.tsx optimistically flips the UI; the
+  // worker side needs to actually agree).
+  await autoMarkWebPatreonLink(env, guildId, discordId);
   const stepId = String((body && body.stepId) || 'all');
   const { claimStep } = await import('./quests.js');
   const r = await claimStep(env, guildId, discordId, stepId);
