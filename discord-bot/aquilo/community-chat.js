@@ -27,6 +27,55 @@ const MAX_MESSAGES_PER_CHANNEL = 50;
 // re-written constantly so the TTL keeps refreshing.
 const TTL_S = 24 * 60 * 60;
 
+// Per-message web-reaction state (aquilo PWA users who toggled an emoji
+// on a Discord chat message). Keyed by channel + message; value is
+// { [emojiKey]: [aquiloDiscordId, ...] }. emojiKey is either a unicode
+// glyph (e.g. "🔥") or "name:id" for a custom emoji. TTL trails the
+// message ringbuffer with a small cushion.
+const REACT_PREFIX = 'community-chat-react:';
+const REACT_TTL_S = 7 * 24 * 60 * 60;
+
+export function reactKey(channelId, messageId) {
+  return REACT_PREFIX + String(channelId) + ':' + String(messageId);
+}
+
+// Map a client-supplied emoji string to a stable storage key and the
+// Discord REST path component. Returns null for anything malformed.
+//
+// Unicode glyphs pass through as-is; custom emoji must be "name:id".
+// Discord's REST path uses the same "name:id" form for customs; we
+// URL-encode unicode glyphs.
+export function parseEmoji(raw) {
+  const s = String(raw || '').trim();
+  if (!s || s.length > 100) return null;
+  // Custom emoji: name:id (name is alnum+_-, id is snowflake digits)
+  const cm = s.match(/^([A-Za-z0-9_-]{1,32}):(\d{5,25})$/);
+  if (cm) {
+    return {
+      kind: 'custom',
+      key: s,
+      restPath: encodeURIComponent(cm[1] + ':' + cm[2]),
+      name: cm[1],
+      id: cm[2],
+      animated: false,
+    };
+  }
+  // Unicode glyph — reject if it contains characters that look like
+  // injection (colons / digits-only / whitespace-only). Keep it
+  // permissive otherwise: Discord accepts a wide range of glyphs.
+  if (/[:<>@/\\]/.test(s)) return null;
+  if (/^\s*$/.test(s)) return null;
+  if (/^\d+$/.test(s)) return null;
+  return {
+    kind: 'unicode',
+    key: s,
+    restPath: encodeURIComponent(s),
+    name: s,
+    id: null,
+    animated: false,
+  };
+}
+
 // Channel-allow-list shape. Accepts EITHER:
 //   ["1234...", "5678..."]                                    (back-compat)
 //   [{ "id": "1234...", "label": "Discord general", "kind": "discord" }, ...]
@@ -134,6 +183,221 @@ export async function readCommunityChat(env, channelId, limit) {
   return { ok: true, messages: list.slice(-n) };
 }
 
+// ---- Reactions -----------------------------------------------------------
+//
+// Web users (aquilo.gg PWA / desktop) don't have a Discord identity of
+// their own. When a web user reacts, the BOT adds the reaction to the
+// Discord message on their behalf — so a reaction visible in Discord
+// is the bot's reaction, regardless of how many web users actually
+// reacted. To make per-user reaction state meaningful on the web side
+// we mirror it in KV:
+//
+//   community-chat-react:<channelId>:<messageId>  -> { [emojiKey]: [aquiloDiscordId, ...] }
+//
+// On read we merge that with the native Discord reactions on the
+// message:
+//
+//   count = nativeCount + max(0, webUsers.length - 1)
+//                          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+//                          the bot's single reaction already counts
+//                          once in nativeCount; each additional web
+//                          user contributes another +1 on the website
+//   me    = webUsers includes requestingUserId
+//
+// `me` is never derivable from Discord-native reactions alone (we'd
+// have no way to attribute them per-aquilo-user), so KV is the only
+// source of truth for that flag.
+
+// Fetch the current Discord message via REST so we can read its
+// reactions[] field. Returns the raw Discord message object or null.
+// The caller is responsible for falling back to a no-reactions render
+// when this returns null (e.g. on 404 — message deleted).
+async function fetchDiscordMessage(env, channelId, messageId) {
+  if (!env.DISCORD_BOT_TOKEN) return null;
+  try {
+    const resp = await fetch(
+      'https://discord.com/api/v10/channels/' + encodeURIComponent(channelId) +
+      '/messages/' + encodeURIComponent(messageId),
+      {
+        headers: {
+          'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN,
+          'User-Agent':    'aquilo-bot-worker (1.0)',
+        },
+      },
+    );
+    if (!resp.ok) return null;
+    return await resp.json();
+  } catch { return null; }
+}
+
+// Add or remove the bot's reaction. Discord's URL grammar wants the
+// emoji as either the URL-encoded unicode glyph (e.g. "%F0%9F%94%A5"
+// for 🔥) or "name:id" for a custom emoji. parseEmoji() already gave
+// us the right restPath.
+export async function botPutReaction(env, channelId, messageId, emoji) {
+  if (!env.DISCORD_BOT_TOKEN) throw new Error('DISCORD_BOT_TOKEN not configured');
+  const resp = await fetch(
+    'https://discord.com/api/v10/channels/' + encodeURIComponent(channelId) +
+    '/messages/' + encodeURIComponent(messageId) +
+    '/reactions/' + emoji.restPath + '/@me',
+    {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN,
+        'User-Agent':    'aquilo-bot-worker (1.0)',
+      },
+    },
+  );
+  if (!resp.ok && resp.status !== 204) {
+    const t = await resp.text();
+    throw new Error('Discord ' + resp.status + ' react: ' + t.slice(0, 200));
+  }
+}
+
+export async function botDeleteReaction(env, channelId, messageId, emoji) {
+  if (!env.DISCORD_BOT_TOKEN) throw new Error('DISCORD_BOT_TOKEN not configured');
+  const resp = await fetch(
+    'https://discord.com/api/v10/channels/' + encodeURIComponent(channelId) +
+    '/messages/' + encodeURIComponent(messageId) +
+    '/reactions/' + emoji.restPath + '/@me',
+    {
+      method: 'DELETE',
+      headers: {
+        'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN,
+        'User-Agent':    'aquilo-bot-worker (1.0)',
+      },
+    },
+  );
+  if (!resp.ok && resp.status !== 204 && resp.status !== 404) {
+    const t = await resp.text();
+    throw new Error('Discord ' + resp.status + ' unreact: ' + t.slice(0, 200));
+  }
+}
+
+// Merge a Discord-native reactions array (from a fetched message) with
+// the web-user KV map for that message, and stamp `me` per the
+// requesting aquilo user. Returns the array shape the website renders.
+function mergeReactions(discordReactions, webMap, asUserId) {
+  const out = [];
+  const seen = new Set();
+  const arr = Array.isArray(discordReactions) ? discordReactions : [];
+  for (const r of arr) {
+    const e = r && r.emoji;
+    if (!e) continue;
+    const key = e.id ? (e.name + ':' + e.id) : e.name;
+    seen.add(key);
+    const webUsers = Array.isArray(webMap[key]) ? webMap[key] : [];
+    out.push({
+      emoji: {
+        name: e.name || '',
+        id: e.id || null,
+        animated: !!e.animated,
+      },
+      count: (Number(r.count) || 0) + Math.max(0, webUsers.length - 1),
+      me: !!(asUserId && webUsers.includes(asUserId)),
+    });
+  }
+  // Web-only reactions: the bot tried to react but Discord doesn't
+  // know about it (e.g. message deleted, custom emoji unavailable),
+  // OR the per-message GET races behind a fresh add. Surface them so
+  // the UI stays consistent — count starts at the web user list size.
+  for (const [key, webUsers] of Object.entries(webMap)) {
+    if (seen.has(key)) continue;
+    if (!Array.isArray(webUsers) || webUsers.length === 0) continue;
+    const m = String(key).match(/^([^:]+):(\d{5,25})$/);
+    out.push({
+      emoji: {
+        name: m ? m[1] : key,
+        id: m ? m[2] : null,
+        animated: false,
+      },
+      count: webUsers.length,
+      me: !!(asUserId && webUsers.includes(asUserId)),
+    });
+  }
+  return out;
+}
+
+// Read the ringbuffer AND enrich each message with its current
+// Discord-native reactions + web-side KV state. The `asUserId` is the
+// aquilo Discord ID of the requesting PWA user (used to stamp `me` on
+// each reaction). Fans out one Discord REST GET per message in
+// parallel — at ringbuffer cap (50) that's 50 concurrent requests
+// inside a single Worker invocation, well below CF/Discord rate
+// thresholds.
+export async function readCommunityChatWithReactions(env, channelId, limit, asUserId) {
+  const base = await readCommunityChat(env, channelId, limit);
+  if (!base.ok || base.messages.length === 0) return base;
+
+  const enriched = await Promise.all(base.messages.map(async (msg) => {
+    const [discordMsg, webMap] = await Promise.all([
+      fetchDiscordMessage(env, channelId, msg.id),
+      env.LOADOUT_BOLTS
+        ? env.LOADOUT_BOLTS.get(reactKey(channelId, msg.id), { type: 'json' }).catch(() => null)
+        : null,
+    ]);
+    const reactions = mergeReactions(
+      discordMsg && discordMsg.reactions,
+      webMap || {},
+      asUserId,
+    );
+    return { ...msg, reactions };
+  }));
+
+  return { ...base, messages: enriched };
+}
+
+// Toggle helpers used by the /web/chat/react + /web/chat/unreact
+// routes. Returns { added|removed, botActed, webUsers } so the route
+// can report a structured response without re-fetching.
+
+export async function addWebReaction(env, channelId, messageId, emoji, asUserId) {
+  const key = reactKey(channelId, messageId);
+  const existing = (await env.LOADOUT_BOLTS.get(key, { type: 'json' })) || {};
+  const list = Array.isArray(existing[emoji.key]) ? existing[emoji.key].slice() : [];
+  const already = list.includes(asUserId);
+  if (!already) list.push(asUserId);
+  existing[emoji.key] = list;
+  await env.LOADOUT_BOLTS.put(key, JSON.stringify(existing), { expirationTtl: REACT_TTL_S });
+
+  // First web reactor for this emoji ⇒ the bot needs to actually add
+  // its reaction on Discord so the chat thread shows the pill. Repeat
+  // adds are no-ops on Discord (already reacted).
+  let botActed = false;
+  if (list.length === 1 && !already) {
+    await botPutReaction(env, channelId, messageId, emoji);
+    botActed = true;
+  }
+  return { added: !already, botActed, webUsers: list };
+}
+
+export async function removeWebReaction(env, channelId, messageId, emoji, asUserId) {
+  const key = reactKey(channelId, messageId);
+  const existing = (await env.LOADOUT_BOLTS.get(key, { type: 'json' })) || {};
+  const list = Array.isArray(existing[emoji.key]) ? existing[emoji.key].slice() : [];
+  const idx = list.indexOf(asUserId);
+  const removed = idx >= 0;
+  if (removed) list.splice(idx, 1);
+  if (list.length > 0) {
+    existing[emoji.key] = list;
+  } else {
+    delete existing[emoji.key];
+  }
+  await env.LOADOUT_BOLTS.put(key, JSON.stringify(existing), { expirationTtl: REACT_TTL_S });
+
+  // Last web reactor leaving ⇒ pull the bot's reaction off Discord so
+  // the pill disappears for everyone in the channel.
+  let botActed = false;
+  if (removed && list.length === 0) {
+    try { await botDeleteReaction(env, channelId, messageId, emoji); botActed = true; }
+    catch (e) {
+      // 404s are fine (message gone); surface other failures.
+      console.warn('[chat-react] delete failed', e?.message || e);
+    }
+  }
+  return { removed, botActed, webUsers: list };
+}
+
 // ---- Normaliser ----------------------------------------------------------
 
 // Reduce a Discord MESSAGE_CREATE payload (already partially trimmed by
@@ -170,6 +434,10 @@ function normalise(p) {
     attachments,
     bot: !!p.bot,
     bridge,
+    // Reactions are populated incrementally by the bot — see
+    // readCommunityChatWithReactions() below. New messages have no
+    // reactions yet, so the field starts empty.
+    reactions: [],
   };
 }
 

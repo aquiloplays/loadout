@@ -98,6 +98,14 @@ const ROUTES = new Set([
   'daily',
   'coinflip',
   'dice',
+  // Community-chat reactions surface — see aquilo/community-chat.js
+  // for the storage + Discord REST wiring. /web/chat/recent returns
+  // the ringbuffer enriched with per-message reactions (native
+  // Discord + web-side KV merged). /web/chat/react + /web/chat/unreact
+  // toggle on behalf of the requesting aquilo user.
+  'chat/recent',
+  'chat/react',
+  'chat/unreact',
   // 2026-05 expansion — quick bolts games. Stateful games (blackjack,
   // hilo, mines) split into start/play/cashout sub-routes so the bot
   // can persist hand state across calls without re-deriving it from
@@ -204,6 +212,9 @@ export async function handleWeb(req, env) {
   try {
     if (route === 'wallet') return await routeWallet(env, guildId, discordId);
     if (route === 'daily')  return await routeDaily(env, guildId, discordId);
+    if (route === 'chat/recent')  return await routeChatRecent(env, discordId, body);
+    if (route === 'chat/react')   return await routeChatReact(env, discordId, body);
+    if (route === 'chat/unreact') return await routeChatUnreact(env, discordId, body);
     if (route === 'coinflip') return await routeCoinflip(env, guildId, discordId, body);
     if (route === 'dice')   return await routeDice(env, guildId, discordId, body);
     if (route === 'quick/snapshot')     return await routeQuickSnapshot(env, guildId, discordId);
@@ -1188,4 +1199,94 @@ async function routeCrash(env, guildId, userId, body) {
   applyRecap(env, guildId, userId, r);
   r.cooldownUntil = await cooldownTouch(env, userId);
   return json(r);
+}
+
+// ── Community-chat reactions ─────────────────────────────────────────
+//
+// Web users (aquilo.gg PWA / desktop) react to bridged Discord chat
+// messages via these three routes. The bot is the only Discord-side
+// reactor — see aquilo/community-chat.js for the per-user state
+// model and the merge that produces the `me` flag.
+//
+// All three routes carry the standard discordId/guildId pair plus a
+// channelId/messageId/emoji triple. channelId must be on the
+// community-chat allow-list (parseAllowedChannels) so the surface
+// can't be used to react in arbitrary channels.
+//
+// Exact reaction contract surfaced to the website (parallel
+// aquilo-site session: build the UI against this shape):
+//
+//   {
+//     emoji: { name: string, id: string|null, animated: boolean },
+//     count: number,   // discord-native + web users beyond the first
+//     me:    boolean   // requesting aquilo user is in the web set
+//   }
+//
+// On /chat/recent each message gets `reactions: [...above...]`. On
+// react/unreact the response returns the freshly-recomputed reactions
+// array for the message so the UI can update without a refetch.
+
+async function chatChannelCheck(env, channelId) {
+  const { parseAllowedChannels } = await import('./aquilo/community-chat.js');
+  const allowed = parseAllowedChannels(env);
+  if (!allowed.includes(String(channelId))) {
+    return { ok: false, error: 'channel-not-allowed', message: 'That channel is not on the community-chat allow-list.' };
+  }
+  return { ok: true };
+}
+
+async function routeChatRecent(env, discordId, body) {
+  const channelId = String((body && body.channelId) || '').trim();
+  const limit = Number((body && body.limit) || 25);
+  if (!/^\d{5,25}$/.test(channelId)) return json({ ok: false, error: 'bad-channel-id' }, 400);
+  const gate = await chatChannelCheck(env, channelId);
+  if (!gate.ok) return json(gate, 403);
+  const { readCommunityChatWithReactions } = await import('./aquilo/community-chat.js');
+  const r = await readCommunityChatWithReactions(env, channelId, limit, discordId);
+  return json(r);
+}
+
+async function routeChatReact(env, discordId, body) {
+  const channelId = String((body && body.channelId) || '').trim();
+  const messageId = String((body && body.messageId) || '').trim();
+  if (!/^\d{5,25}$/.test(channelId)) return json({ ok: false, error: 'bad-channel-id' }, 400);
+  if (!/^\d{5,25}$/.test(messageId)) return json({ ok: false, error: 'bad-message-id' }, 400);
+  const gate = await chatChannelCheck(env, channelId);
+  if (!gate.ok) return json(gate, 403);
+  const { parseEmoji, addWebReaction, readCommunityChatWithReactions } =
+    await import('./aquilo/community-chat.js');
+  const emoji = parseEmoji(body && body.emoji);
+  if (!emoji) return json({ ok: false, error: 'bad-emoji' }, 400);
+  try {
+    const r = await addWebReaction(env, channelId, messageId, emoji, discordId);
+    // Return the freshly-merged reactions array for the single
+    // message so the UI can swap state in-place. Re-uses the same
+    // enrichment path /chat/recent uses to guarantee shape parity.
+    const after = await readCommunityChatWithReactions(env, channelId, 50, discordId);
+    const msg = after.ok && after.messages.find(m => m.id === messageId);
+    return json({ ok: true, ...r, reactions: msg ? msg.reactions : [] });
+  } catch (e) {
+    return json({ ok: false, error: 'discord-react-failed', message: String(e?.message || e) }, 502);
+  }
+}
+
+async function routeChatUnreact(env, discordId, body) {
+  const channelId = String((body && body.channelId) || '').trim();
+  const messageId = String((body && body.messageId) || '').trim();
+  if (!/^\d{5,25}$/.test(channelId)) return json({ ok: false, error: 'bad-channel-id' }, 400);
+  if (!/^\d{5,25}$/.test(messageId)) return json({ ok: false, error: 'bad-message-id' }, 400);
+  const gate = await chatChannelCheck(env, channelId);
+  if (!gate.ok) return json(gate, 403);
+  const { parseEmoji, removeWebReaction, readCommunityChatWithReactions } =
+    await import('./aquilo/community-chat.js');
+  const emoji = parseEmoji(body && body.emoji);
+  if (!emoji) return json({ ok: false, error: 'bad-emoji' }, 400);
+  try {
+    const r = await removeWebReaction(env, channelId, messageId, emoji, discordId);
+    const after = await readCommunityChatWithReactions(env, channelId, 50, discordId);
+    const msg = after.ok && after.messages.find(m => m.id === messageId);
+    return json({ ok: true, ...r, reactions: msg ? msg.reactions : [] });
+  } catch (e) {
+    return json({ ok: false, error: 'discord-unreact-failed', message: String(e?.message || e) }, 502);
+  }
 }
