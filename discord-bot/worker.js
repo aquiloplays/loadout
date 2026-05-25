@@ -231,6 +231,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_chat-test/')) {
       return handleChatTest(req, env, path);
     }
+    // L10 phase-4: audit + repair category/channel permissions. Each
+    // category gets the intended overwrite profile (open / member /
+    // patron / staff); every child channel is then synced to its
+    // category (overwrites match parent), with extra read-only on
+    // announce/rules/feed-style channels. Same one-shot KV-token gate.
+    if (method === 'POST' && path.startsWith('/admin/_phase4-perms/')) {
+      return handlePhase4Perms(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -1745,6 +1753,269 @@ async function handleChatTest(req, env, path) {
   } catch (e) {
     report.threw = String(e?.message || e);
   }
+  return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// ---- /admin/_phase4-perms/:guildId ----------------------------------
+//
+// Audit + repair the guild's channel permission tree. For each
+// category we know about, set the intended overwrite profile; then
+// for each channel under that category, sync its overwrites to the
+// category's (Discord client "Sync Now" equivalent) and layer in any
+// channel-specific extras (announce/rules/feed channels get a
+// read-only @everyone overwrite on top).
+//
+// Profiles:
+//   "open"     — no role-based view restriction (default for
+//                start-here so the verification gate works).
+//   "member"   — deny @everyone VIEW; allow `role_member` VIEW.
+//   "patron"   — deny @everyone VIEW; allow `role_patron` VIEW.
+//   "staff"    — deny @everyone VIEW; allow `role_owner` + `role_mod`.
+//   "voice-member" — like "member" but also CONNECT + SPEAK.
+//
+// Read-only flag (channel-level extra): @everyone gets an explicit
+//   deny on SEND_MESSAGES + CREATE_PUBLIC_THREADS + SEND_MESSAGES_IN_THREADS.
+//   Bots / moderators bypass via their admin permission.
+//
+// Returns a per-channel diff: what the overwrites WERE vs what we
+// wrote. Channels whose overwrites already matched the target shape
+// are skipped (no API call), so re-running the endpoint is cheap.
+async function handlePhase4Perms(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[2];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+
+  const u = new URL(req.url);
+  const got = u.searchParams.get('token') || '';
+  const expected = await env.LOADOUT_BOLTS.get('bootstrap-l8-token');
+  if (!expected) return new Response('phase4-perms already consumed or never armed', { status: 410 });
+  if (!got || got !== expected) return new Response('bad token', { status: 401 });
+  await env.LOADOUT_BOLTS.delete('bootstrap-l8-token');
+  const dryRun = u.searchParams.get('dryRun') === '1';
+
+  const token = env.DISCORD_BOT_TOKEN;
+  if (!token) return new Response('worker not provisioned', { status: 503 });
+  const H = { Authorization: 'Bot ' + token };
+
+  // ── 1. Pull live state ─────────────────────────────────────────────
+  const chRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers: H });
+  if (!chRes.ok) return new Response('channel-list-failed', { status: 502 });
+  const channels = await chRes.json();
+  const cfg = (await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' })) || { ids: {} };
+  const ids = cfg.ids || {};
+
+  // Required role ids — bail loudly if any are missing rather than
+  // writing partial overwrites.
+  const everyoneId = guildId;                  // @everyone role id == guild id
+  const memberId   = ids.role_member;
+  const patronId   = ids.role_patron;
+  const modId      = ids.role_mod;
+  const ownerId    = ids.role_owner;
+  if (!memberId || !patronId || !modId || !ownerId) {
+    return new Response(JSON.stringify({
+      error: 'missing-role-ids',
+      need: ['role_member','role_patron','role_mod','role_owner'],
+      have: { memberId, patronId, modId, ownerId },
+    }, null, 2), { status: 500, headers: { 'content-type': 'application/json' } });
+  }
+
+  // ── 2. Permission bits (Discord docs) ──────────────────────────────
+  const VIEW          = 0x400n;          // VIEW_CHANNEL
+  const SEND          = 0x800n;          // SEND_MESSAGES
+  const HISTORY       = 0x10000n;        // READ_MESSAGE_HISTORY
+  const CONNECT       = 0x100000n;       // CONNECT
+  const SPEAK         = 0x200000n;       // SPEAK
+  const SEND_THREAD   = 0x4000000000n;   // SEND_MESSAGES_IN_THREADS
+  const CREATE_THREAD = 0x800000000n;    // CREATE_PUBLIC_THREADS
+
+  // ── 3. Category-name → profile catalogue ───────────────────────────
+  // Matched by substring (case-insensitive) on the category name. The
+  // names came out of the original server build (server-spec.js); if
+  // anyone renames a category in Discord, this match still works as
+  // long as the keyword stays.
+  // ORDER MATTERS: first match wins. Staff/admin/mod patterns are
+  // listed FIRST so a hypothetical "mod hangout" in the staff
+  // category can't fall through to one of the more permissive
+  // member-tier profiles.
+  const CAT_PROFILES = [
+    { match: /staff|admin|moderator|mod[\s-]?only/i, profile: 'staff' },
+    { match: /patron/i,        profile: 'patron'      },
+    { match: /start/i,         profile: 'open'         },
+    { match: /voice/i,         profile: 'voice-member' },
+    { match: /community/i,     profile: 'member'       },
+    { match: /streams|content/i, profile: 'member'     },
+    { match: /products/i,      profile: 'member'       },
+    { match: /games|play/i,    profile: 'member'       },
+    { match: /minecraft/i,     profile: 'member'       },
+  ];
+
+  // Channel-name → extra-flag catalogue. These layer ON TOP of the
+  // category profile after the sync.
+  const READ_ONLY_PATTERNS = [
+    /rules/i, /announcement/i, /announce/i,
+    /activity.?feed/i, /live.?now/i, /highlights/i, /mod.?log/i,
+  ];
+
+  function categoryProfile(catName) {
+    for (const p of CAT_PROFILES) if (p.match.test(catName || '')) return p.profile;
+    return 'member';   // safe default
+  }
+  function isReadOnly(chName) {
+    return READ_ONLY_PATTERNS.some(rx => rx.test(chName || ''));
+  }
+
+  // ── 4. Build the intended overwrite array per profile ──────────────
+  function buildOverwrites(profile) {
+    const out = [];
+    switch (profile) {
+      case 'open':
+        // No overwrites — channels default to "anyone with role can see".
+        // Pre-verification members hit @everyone permissions only,
+        // which include VIEW_CHANNEL by default.
+        break;
+      case 'member':
+        out.push({ id: everyoneId, type: 0, allow: '0', deny:  String(VIEW) });
+        out.push({ id: memberId,   type: 0, allow: String(VIEW | HISTORY), deny: '0' });
+        out.push({ id: modId,      type: 0, allow: String(VIEW | HISTORY), deny: '0' });
+        out.push({ id: ownerId,    type: 0, allow: String(VIEW | HISTORY), deny: '0' });
+        break;
+      case 'voice-member':
+        out.push({ id: everyoneId, type: 0, allow: '0', deny: String(VIEW | CONNECT) });
+        out.push({ id: memberId,   type: 0, allow: String(VIEW | CONNECT | SPEAK), deny: '0' });
+        out.push({ id: modId,      type: 0, allow: String(VIEW | CONNECT | SPEAK), deny: '0' });
+        out.push({ id: ownerId,    type: 0, allow: String(VIEW | CONNECT | SPEAK), deny: '0' });
+        break;
+      case 'patron':
+        out.push({ id: everyoneId, type: 0, allow: '0', deny: String(VIEW) });
+        out.push({ id: patronId,   type: 0, allow: String(VIEW | HISTORY), deny: '0' });
+        out.push({ id: modId,      type: 0, allow: String(VIEW | HISTORY), deny: '0' });
+        out.push({ id: ownerId,    type: 0, allow: String(VIEW | HISTORY), deny: '0' });
+        break;
+      case 'staff':
+        out.push({ id: everyoneId, type: 0, allow: '0', deny: String(VIEW) });
+        out.push({ id: modId,      type: 0, allow: String(VIEW | HISTORY | SEND), deny: '0' });
+        out.push({ id: ownerId,    type: 0, allow: String(VIEW | HISTORY | SEND), deny: '0' });
+        break;
+    }
+    return out;
+  }
+
+  function withReadOnlyExtra(base) {
+    // Merge a SEND-deny onto the @everyone row (creating one if the
+    // profile didn't have it). Preserves the existing VIEW state.
+    const out = base.map(o => ({ ...o }));
+    let row = out.find(o => o.id === everyoneId && o.type === 0);
+    const denyMask = SEND | SEND_THREAD | CREATE_THREAD;
+    if (!row) {
+      row = { id: everyoneId, type: 0, allow: '0', deny: String(denyMask) };
+      out.unshift(row);
+    } else {
+      const cur = BigInt(row.deny || '0');
+      row.deny = String(cur | denyMask);
+    }
+    return out;
+  }
+
+  // ── 5. Apply ──────────────────────────────────────────────────────
+  const report = { guildId, dryRun, categories: [], channels: [] };
+
+  // Normalise existing overwrites for diff comparison (sorted by id,
+  // bigint-equality on allow/deny so a "0x400" vs "1024" string diff
+  // doesn't count as a change).
+  function normaliseOverwrites(arr) {
+    return (Array.isArray(arr) ? arr : [])
+      .map(o => ({ id: String(o.id), type: Number(o.type),
+                   allow: String(BigInt(o.allow || '0')),
+                   deny:  String(BigInt(o.deny  || '0')) }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }
+  function overwritesEqual(a, b) {
+    const na = normaliseOverwrites(a);
+    const nb = normaliseOverwrites(b);
+    if (na.length !== nb.length) return false;
+    for (let i = 0; i < na.length; i++) {
+      if (na[i].id !== nb[i].id) return false;
+      if (na[i].type !== nb[i].type) return false;
+      if (na[i].allow !== nb[i].allow) return false;
+      if (na[i].deny  !== nb[i].deny)  return false;
+    }
+    return true;
+  }
+
+  async function patchOverwrites(channelId, overwrites) {
+    if (dryRun) return { ok: true, dryRun: true };
+    const r = await fetch(`https://discord.com/api/v10/channels/${channelId}`, {
+      method: 'PATCH',
+      headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ permission_overwrites: overwrites }),
+    });
+    if (!r.ok) return { ok: false, status: r.status, body: (await r.text()).slice(0, 200) };
+    return { ok: true };
+  }
+
+  // First pass: categories.
+  const catById = new Map();
+  for (const c of channels) {
+    if (c.type !== 4) continue;
+    const profile = categoryProfile(c.name);
+    const desired = buildOverwrites(profile);
+    catById.set(c.id, { profile, desired });
+    const before = normaliseOverwrites(c.permission_overwrites);
+    const after  = normaliseOverwrites(desired);
+    if (overwritesEqual(c.permission_overwrites, desired)) {
+      report.categories.push({ id: c.id, name: c.name, profile, action: 'no-change' });
+      continue;
+    }
+    const r = await patchOverwrites(c.id, desired);
+    report.categories.push({
+      id: c.id, name: c.name, profile,
+      action: r.ok ? 'patched' : 'failed',
+      detail: r.ok ? undefined : r,
+      before, after,
+    });
+  }
+
+  // Second pass: every non-category, non-thread child channel.
+  for (const c of channels) {
+    if (c.type === 4) continue;                  // skip categories
+    if (c.type === 11 || c.type === 12) continue; // skip threads
+    const parent = c.parent_id ? catById.get(c.parent_id) : null;
+    let desired;
+    let basis;
+    if (parent) {
+      desired = parent.desired.map(o => ({ ...o }));
+      basis   = 'category:' + parent.profile;
+    } else {
+      // No parent — use the open profile so we don't accidentally
+      // hide things at the root level.
+      desired = buildOverwrites('open');
+      basis   = 'orphan:open';
+    }
+    if (isReadOnly(c.name)) {
+      desired = withReadOnlyExtra(desired);
+      basis += '+readOnly';
+    }
+    if (overwritesEqual(c.permission_overwrites, desired)) {
+      report.channels.push({ id: c.id, name: c.name, parent_id: c.parent_id || null, basis, action: 'no-change' });
+      continue;
+    }
+    const before = normaliseOverwrites(c.permission_overwrites);
+    const after  = normaliseOverwrites(desired);
+    const r = await patchOverwrites(c.id, desired);
+    report.channels.push({
+      id: c.id, name: c.name, parent_id: c.parent_id || null, basis,
+      action: r.ok ? 'patched' : 'failed',
+      detail: r.ok ? undefined : r,
+      before, after,
+    });
+  }
+
+  // Summary counters.
+  const tally = (arr) => arr.reduce((m, e) => { m[e.action] = (m[e.action] || 0) + 1; return m; }, {});
+  report.summary = {
+    categories: tally(report.categories),
+    channels:   tally(report.channels),
+  };
   return new Response(JSON.stringify(report, null, 2), { status: 200, headers: { 'content-type': 'application/json' } });
 }
 
