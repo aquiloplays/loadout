@@ -32,6 +32,23 @@ import { sendDm } from './aquilo/util.js';
 export const STARBOARD_THRESHOLD = 5;
 export const STARBOARD_EMOJI     = '⭐';
 
+// Public-read starboard ringbuffer — fed by handleStarboardReaction
+// once a message crosses STARBOARD_THRESHOLD, consumed by the public
+// GET /web/starboard/recent route the aquilo.gg starboard wall calls.
+// Keyed per guild so multi-guild deployments don't cross-pollinate.
+//
+//   guild:starboard:recent:<guildId>  -> JSON array of items, capped
+//                                        at 50, sorted oldest→newest.
+//
+// 30-day TTL on the ringbuffer matches the dedup-stamp TTL — a
+// quiet guild grooms itself; an active one keeps refreshing.
+const STARBOARD_RECENT_PREFIX = 'guild:starboard:recent:';
+const STARBOARD_RECENT_CAP    = 50;
+const STARBOARD_RECENT_TTL_S  = 30 * 24 * 60 * 60;
+// Public payload `content` cap — keeps Discord's 2000-char messages
+// from blowing up the JSON the wall serializes for every viewer.
+const STARBOARD_CONTENT_CAP   = 500;
+
 const ROLE_BUTTON_MAP = {
   'guild:role:stream':    { idKey: 'role_stream',    label: 'Stream Pings'  },
   'guild:role:youtube':   { idKey: 'role_youtube',   label: 'YouTube Pings' },
@@ -169,7 +186,83 @@ export async function handleStarboardReaction(env, payload) {
 
   // Stamp dedup (30-day TTL)
   await env.LOADOUT_BOLTS.put(stampKey, '1', { expirationTtl: 30 * 24 * 60 * 60 });
+
+  // Persist for the public wall (best-effort — a KV write fail here
+  // shouldn't undo the Discord post that already landed).
+  try {
+    await appendStarboardRecent(env, guildId, {
+      messageId: String(messageId),
+      authorName: author.global_name || author.username || 'unknown',
+      authorAvatarUrl: author.avatar
+        ? `https://cdn.discordapp.com/avatars/${author.id}/${author.avatar}.png`
+        : null,
+      content: clipContent(msg.content || ''),
+      attachments: (msg.attachments || [])
+        .map(a => a && a.url)
+        .filter(Boolean)
+        .slice(0, 4),
+      starCount: count,
+      originalUrl: link,
+      // Prefer the Discord message timestamp so the wall sorts by
+      // when the original was sent, not when the threshold tripped.
+      ts: msg.timestamp ? Date.parse(msg.timestamp) || Date.now() : Date.now(),
+    });
+  } catch (e) {
+    console.warn('[starboard] persist failed', e?.message || e);
+  }
+
   return { posted: true, count };
+}
+
+function clipContent(s) {
+  const str = String(s || '');
+  if (str.length <= STARBOARD_CONTENT_CAP) return str;
+  return str.slice(0, STARBOARD_CONTENT_CAP - 1) + '…';
+}
+
+// ── Starboard public-read persistence ──────────────────────────────────
+//
+// Append one item to the guild's ringbuffer, dedup-by-messageId so a
+// repeat call (e.g. a manual /admin/guild-test-starboard with the same
+// message) overwrites in place. Caps at STARBOARD_RECENT_CAP, oldest
+// trimmed.
+export async function appendStarboardRecent(env, guildId, item) {
+  if (!env.LOADOUT_BOLTS || !guildId || !item || !item.messageId) {
+    return { stored: false };
+  }
+  const key = STARBOARD_RECENT_PREFIX + String(guildId);
+  let list = [];
+  try {
+    const existing = await env.LOADOUT_BOLTS.get(key, { type: 'json' });
+    if (Array.isArray(existing)) list = existing;
+  } catch { /* fall through to empty */ }
+  // Dedup: replace any existing entry with the same messageId so we
+  // can re-fire (e.g. star count grew, retry path) without doubling
+  // up the wall.
+  list = list.filter(e => e && e.messageId !== item.messageId);
+  list.push(item);
+  if (list.length > STARBOARD_RECENT_CAP) {
+    list = list.slice(-STARBOARD_RECENT_CAP);
+  }
+  await env.LOADOUT_BOLTS.put(key, JSON.stringify(list), {
+    expirationTtl: STARBOARD_RECENT_TTL_S,
+  });
+  return { stored: true, count: list.length };
+}
+
+// Read the newest-first slice for the public wall route. Clamps
+// limit to [1, STARBOARD_RECENT_CAP].
+export async function readStarboardRecent(env, guildId, limit) {
+  if (!env.LOADOUT_BOLTS || !guildId) return { ok: false, items: [] };
+  const key = STARBOARD_RECENT_PREFIX + String(guildId);
+  let list = [];
+  try {
+    const raw = await env.LOADOUT_BOLTS.get(key, { type: 'json' });
+    if (Array.isArray(raw)) list = raw;
+  } catch { /* keep empty */ }
+  const n = Math.max(1, Math.min(STARBOARD_RECENT_CAP, Number(limit) || 25));
+  // Stored oldest→newest; serve newest-first.
+  return { ok: true, items: list.slice(-n).reverse() };
 }
 
 // ── Counting game (gateway-forwarded MESSAGE_CREATE in counting ch) ─────

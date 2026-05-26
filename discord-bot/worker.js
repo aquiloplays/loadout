@@ -314,6 +314,51 @@ export default {
 
     if (path.startsWith('/ext/')) return handleExt(req, env, ctx);
 
+    // Public read-only starboard wall for aquilo.gg /community/. Same
+    // public-read shape as /stocks/public + /queues/public — no
+    // auth, edge-cacheable. Path sits under /web/ for parity with the
+    // site's other /api/* proxy paths, but is claimed BEFORE the
+    // /web/* HMAC dispatcher below since it's a public read.
+    //
+    // Response shape (matches the aquilo-site wall consumer):
+    //   {
+    //     ok: true,
+    //     items: [{
+    //       messageId, authorName, authorAvatarUrl?, content,
+    //       attachments?, starCount, originalUrl?, ts
+    //     }, ...]
+    //   }
+    //
+    // Source: KV ringbuffer fed by handleStarboardReaction once a
+    // message crosses STARBOARD_THRESHOLD. See guild-features.js.
+    // Guild defaults to AQUILO_VAULT_GUILD_ID; ?guildId=<id> overrides.
+    if (method === 'GET' && path === '/web/starboard/recent') {
+      const { readStarboardRecent } = await import('./guild-features.js');
+      const url2 = new URL(req.url);
+      const guildId = url2.searchParams.get('guildId') || env.AQUILO_VAULT_GUILD_ID;
+      const limit = url2.searchParams.get('limit') || '25';
+      if (!env.LOADOUT_BOLTS || !guildId) {
+        return new Response(JSON.stringify({ ok: false, error: 'not-configured', items: [] }), {
+          status: 503,
+          headers: {
+            'content-type': 'application/json',
+            'access-control-allow-origin': '*',
+          },
+        });
+      }
+      const r = await readStarboardRecent(env, guildId, limit);
+      return new Response(JSON.stringify(r), {
+        status: r.ok ? 200 : 404,
+        headers: {
+          'content-type': 'application/json',
+          // 30s edge cache + a fresh wall feels live without
+          // hammering KV on every viewer pageload.
+          'cache-control': 'public, max-age=0, s-maxage=30',
+          'access-control-allow-origin': '*',
+        },
+      });
+    }
+
     // Progression (P2) routes — public reads, claimed BEFORE the
     // generic /web/* dispatcher below (which is HMAC-gated and would
     // reject public reads). /p/season/* must be matched FIRST since
@@ -976,7 +1021,7 @@ async function handleSync(req, env, path) {
   // events here so the worker can drive "join channel X → spawn a temp
   // VC" without maintaining a Gateway connection. HMAC same as the
   // other /sync/* routes. Body: { userId, displayName?, channelId|null }.
-  // channelId === TEMP_VC_JOIN_TO_CREATE_ID → spawn-then-move flow;
+  // channelId === TEMP_VC_PARENT_ID → spawn-then-move flow;
   // channelId on a tracked temp VC → stamp lastActivityUtc so the
   // cleanup heuristic doesn't delete a busy room.
   if (sub === 'voice' && parts[3] === 'joined' && req.method === 'POST') {
