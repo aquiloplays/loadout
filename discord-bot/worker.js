@@ -275,6 +275,22 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/aquilo/refresh-schedule/')) {
       return handleAquiloRefreshSchedule(req, env, path);
     }
+    // CN vote-menu hub — persistent embed in the poll-bound channel
+    // with vote / standings / queue-join / status buttons. Defers to
+    // postCnVoteHubForGuild in cn-vote-hub.js.
+    if (method === 'POST' && path.startsWith('/admin/cn-vote/post-hub/')) {
+      return handleCnVotePostHub(req, env, path);
+    }
+    // CN games-list catalogue. Multi-embed listing of every active
+    // CN game with art + Steam links. See cn-games-list-hub.js.
+    if (method === 'POST' && path.startsWith('/admin/cn-games-list/post-hub/')) {
+      return handleCnGamesListPostHub(req, env, path);
+    }
+    // Phase-1 channel hubs — one route, key in the path. See
+    // channel-hubs.js for the catalogue + HUB_KEYS.
+    if (method === 'POST' && path.startsWith('/admin/hubs/post/')) {
+      return handleChannelHubPost(req, env, path);
+    }
     // Twitch EventSub webhook. Signature is verified inside the
     // handler against env.TWITCH_EVENTSUB_SECRET. Three message
     // types: webhook_callback_verification (challenge handshake),
@@ -1691,6 +1707,93 @@ async function handleScheduleMsg(req, env, path, method) {
     return jsonResp({ ...r, via: auth.via }, status);
   }
   return jsonResp({ ok: false, error: 'method-or-path-not-supported', method, path }, 405);
+}
+
+// ── /admin/hubs/post/:guildId/:key (HMAC) ────────────────────────
+//
+// Unified post-hub endpoint for the phase-1 channel hubs. Key must
+// be one of channel-hubs.HUB_KEYS (checkin / character / bolts /
+// play / achievements). Body: { channelId?, channelName? } — same
+// channel-discovery contract as the other post-hub routes.
+async function handleChannelHubPost(req, env, path) {
+  const parts = path.split('/').filter(Boolean);  // ['admin','hubs','post',':g',':key']
+  const guildId = parts[3];
+  const key     = parts[4];
+  if (!guildId || !key) return jsonResp({ ok: false, error: 'guildId and hub key required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { postHubForGuild, HUB_KEYS } = await import('./channel-hubs.js');
+  if (!HUB_KEYS.includes(key)) {
+    return jsonResp({ ok: false, error: 'unknown-hub-key', allowed: HUB_KEYS }, 400);
+  }
+  const r = await postHubForGuild(env, guildId, key, {
+    channelId:   typeof opts.channelId   === 'string' ? opts.channelId.trim()   : undefined,
+    channelName: typeof opts.channelName === 'string' ? opts.channelName.trim() : undefined,
+  });
+  if (!r.ok) {
+    const status = r.error === 'no-channel-match' ? 404
+      : r.error === 'channels-fetch-failed' || r.error === 'post-failed' ? 502
+      : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/cn-games-list/post-hub/:guildId (HMAC) ───────────────
+async function handleCnGamesListPostHub(req, env, path) {
+  const parts = path.split('/').filter(Boolean);  // ['admin','cn-games-list','post-hub',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { postGamesListHubForGuild } = await import('./cn-games-list-hub.js');
+  const r = await postGamesListHubForGuild(env, guildId, {
+    channelId:   typeof opts.channelId   === 'string' ? opts.channelId.trim()   : undefined,
+    channelName: typeof opts.channelName === 'string' ? opts.channelName.trim() : undefined,
+  });
+  if (!r.ok) {
+    const status = r.error === 'no-channel-match' ? 404
+      : r.error === 'channels-fetch-failed' || r.error === 'post-failed' ? 502
+      : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/cn-vote/post-hub/:guildId (HMAC) ─────────────────────
+async function handleCnVotePostHub(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','cn-vote','post-hub',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { postCnVoteHubForGuild } = await import('./cn-vote-hub.js');
+  const r = await postCnVoteHubForGuild(env, guildId, {
+    channelId: typeof opts.channelId === 'string' ? opts.channelId.trim() : undefined,
+  });
+  if (!r.ok) {
+    const status = r.error === 'no-channel-match' ? 404 : r.error === 'post-failed' ? 502 : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
 }
 
 // ── /admin/aquilo/refresh-schedule/:guildId (HMAC) ──────────────

@@ -102,6 +102,38 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleLfgHubComponent } = await import('./lfg-hub.js');
       return json(await handleLfgHubComponent(env, data));
     }
+    if (cid.startsWith('cnv:'))       {
+      // CN vote menu hub — see cn-vote-hub.js. Per-game vote
+      // buttons re-emit `vote:<pollId>:<gameId>` which the aquilo
+      // poll handler catches via the `vote:` prefix below.
+      const { handleCnVoteComponent } = await import('./cn-vote-hub.js');
+      return json(await handleCnVoteComponent(env, data));
+    }
+    // Phase-1 channel hubs (check-in / character / bolts / play /
+    // achievements). Each prefix routes to its own handler in
+    // channel-hubs.js.
+    if (cid.startsWith('checkin:'))   {
+      const { handleCheckinHubComponent } = await import('./channel-hubs.js');
+      return json(await handleCheckinHubComponent(env, data));
+    }
+    if (cid.startsWith('chub:'))      {
+      // Character HUB (distinct from the procedural editor's
+      // `character:` prefix which is dispatched below).
+      const { handleCharacterHubComponent } = await import('./channel-hubs.js');
+      return json(await handleCharacterHubComponent(env, data));
+    }
+    if (cid.startsWith('bolts:'))     {
+      const { handleBoltsHubComponent } = await import('./channel-hubs.js');
+      return json(await handleBoltsHubComponent(env, data));
+    }
+    if (cid.startsWith('play:'))      {
+      const { handlePlayHubComponent } = await import('./channel-hubs.js');
+      return json(await handlePlayHubComponent(env, data));
+    }
+    if (cid.startsWith('ach:'))       {
+      const { handleAchievementsHubComponent } = await import('./channel-hubs.js');
+      return json(await handleAchievementsHubComponent(env, data));
+    }
     if (cid.startsWith('ticket:'))    {
       const { handleTicketComponent } = await import('./tickets.js');
       return json(await handleTicketComponent(env, data));
@@ -150,6 +182,16 @@ export async function handleInteraction(req, env, body, ctx) {
     if (cid.startsWith('modal:lfg-')) {
       const { handleLfgModalSubmit } = await import('./lfg-hub.js');
       return json(await handleLfgModalSubmit(env, data));
+    }
+    // Phase-1 channel-hub modal submits — claimed before the
+    // generic modal:* aquilo route, same as the LFG modal.
+    if (cid === 'modal:chub-class') {
+      const { handleCharacterClassModal } = await import('./channel-hubs.js');
+      return json(await handleCharacterClassModal(env, data));
+    }
+    if (cid === 'modal:bolts-transfer') {
+      const { handleBoltsTransferModal } = await import('./channel-hubs.js');
+      return json(await handleBoltsTransferModal(env, data));
     }
     if (cid.startsWith('modal:'))     return dispatchAquiloInteraction(data, env, ctx);
     if (cid.startsWith('tempvc:')) {

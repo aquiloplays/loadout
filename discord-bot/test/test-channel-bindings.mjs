@@ -65,11 +65,25 @@ const GUILD = '1504103035951906883';
 console.log('— catalog sanity');
 {
   eq(_BINDING_KEYS_FOR_TEST,
-    ['queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll'],
-    'binding keys (includes schedule + poll)');
-  // Every binding has an env fallback declared.
+    ['queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll',
+     'games-list', 'checkin', 'character', 'bolts', 'play', 'achievements'],
+    'binding keys (now includes games-list + phase-1 hub channels)');
+  // Every binding has an env-fallback ENTRY in the table (value
+  // may be null for hub-channel bindings that are KV-only).
   for (const k of _BINDING_KEYS_FOR_TEST) {
-    assert(_BINDING_ENV_FALLBACK_FOR_TEST[k], `env fallback for ${k}: ${_BINDING_ENV_FALLBACK_FOR_TEST[k]}`);
+    assert(
+      Object.prototype.hasOwnProperty.call(_BINDING_ENV_FALLBACK_FOR_TEST, k),
+      `env-fallback entry exists for ${k}`,
+    );
+  }
+  // The original 7 still carry env-var names.
+  for (const k of ['queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll']) {
+    assert(_BINDING_ENV_FALLBACK_FOR_TEST[k], `${k} has env var: ${_BINDING_ENV_FALLBACK_FOR_TEST[k]}`);
+  }
+  // checkin has CHECKIN_CHANNEL_ID env fallback; the rest are KV-only.
+  eq(_BINDING_ENV_FALLBACK_FOR_TEST.checkin, 'CHECKIN_CHANNEL_ID', 'checkin → CHECKIN_CHANNEL_ID');
+  for (const k of ['games-list', 'character', 'bolts', 'play', 'achievements']) {
+    eq(_BINDING_ENV_FALLBACK_FOR_TEST[k], null, `${k} env fallback is null (KV-only)`);
   }
   // Pin the env-var names so a rename doesn't silently break the
   // legacy wrangler.toml fallback path.
@@ -140,7 +154,7 @@ console.log('— setChannelBinding');
   const r3 = await setChannelBinding(env, GUILD, 'garbage', '1500000000000000222');
   eq(r3.ok, false, 'unknown binding refused');
   eq(r3.error, 'unknown-binding', 'error code');
-  assert(Array.isArray(r3.allowed) && r3.allowed.length === 7, 'lists allowed (7 keys)');
+  assert(Array.isArray(r3.allowed) && r3.allowed.length === 13, 'lists allowed (13 keys)');
   // No guild.
   const r4 = await setChannelBinding(env, '', 'queue', '1500000000000000222');
   eq(r4.error, 'no-guild-id', 'no-guild-id');
@@ -162,8 +176,9 @@ console.log('— listChannelBindings');
   await env.LOADOUT_BOLTS.put(`channel-binding:${GUILD}:queue`, '1500000000000000222');
   const list = await listChannelBindings(env, GUILD);
   eq(Object.keys(list).sort(),
-    ['clips', 'lfg', 'live', 'poll', 'queue', 'recap', 'schedule'].sort(),
-    '7 keys (incl. schedule + poll)');
+    ['achievements', 'bolts', 'character', 'checkin', 'clips', 'games-list',
+     'lfg', 'live', 'play', 'poll', 'queue', 'recap', 'schedule'].sort(),
+    '13 keys (incl. hub bindings)');
   // queue: KV override; resolved = KV.
   eq(list.queue.kv, '1500000000000000222', 'queue kv');
   eq(list.queue.env, '1500000000000000111', 'queue env');
