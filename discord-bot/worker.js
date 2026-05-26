@@ -231,6 +231,19 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/level-tier-roles/backfill/')) {
       return handleLevelTierRolesBackfill(req, env, path);
     }
+    // Streamer.bot webhook for gifter/cheer/tip events. HMAC scheme
+    // is verified inside the handler against STREAMERBOT_WEBHOOK_SECRET.
+    // See gifter-roles.js for the body schema.
+    if (method === 'POST' && path === '/streamerbot/event') {
+      const { handleStreamerbotEvent } = await import('./gifter-roles.js');
+      return handleStreamerbotEvent(req, env);
+    }
+    // Create the three gifter roles + persist {key: roleId} at
+    // gifter-roles:<g>. Idempotent. See gifter-roles.js
+    // ensureGifterRoles.
+    if (method === 'POST' && path.startsWith('/admin/gifter-roles/ensure/')) {
+      return handleGifterRolesEnsure(req, env, path);
+    }
     // Twitch EventSub webhook. Signature is verified inside the
     // handler against env.TWITCH_EVENTSUB_SECRET. Three message
     // types: webhook_callback_verification (challenge handshake),
@@ -743,6 +756,14 @@ export default {
         // for games no one is watching.
         const { cronSweepExpiredMatches } = await import('./boardgames-engine.js');
         ctx.waitUntil(cronSweepExpiredMatches(env));
+        // Gifter roles — rebuilds top-3 membership per category from
+        // the rolling 30d buckets + trims old buckets. KV-marker
+        // gated to once per UTC day so the hourly :23 firing doesn't
+        // thrash Discord role REST 24× a day.
+        const { gifterRolesDailyTick } = await import('./gifter-roles.js');
+        ctx.waitUntil(gifterRolesDailyTick(env).then(r =>
+          console.log('[cron] gifter-roles daily', JSON.stringify(r))).catch(e =>
+          console.warn('[cron] gifter-roles', e?.message || e)));
       }
     } catch (e) {
       console.error('scheduled cron failed:', e && e.message);
@@ -1555,6 +1576,24 @@ async function handleLevelTierRolesBackfill(req, env, path) {
   const { backfillLevelTierRoles } = await import('./level-tier-roles.js');
   const r = await backfillLevelTierRoles(env, guildId, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/gifter-roles/ensure/:guildId (HMAC) ────────────────────
+async function handleGifterRolesEnsure(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','gifter-roles','ensure',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  const { ensureGifterRoles } = await import('./gifter-roles.js');
+  const r = await ensureGifterRoles(env, guildId);
+  if (!r.ok) {
+    const status = r.error === 'roles-fetch-failed' ? 502 : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
   return jsonResp({ ...r, via: auth.via }, 200);
 }
 

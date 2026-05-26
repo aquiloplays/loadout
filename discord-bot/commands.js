@@ -283,6 +283,12 @@ export async function handleInteraction(req, env, body, ctx) {
       return json(await handleOnboardCommand(env, data));
     }
 
+    case 'topgifters': {
+      // Top 5 per category (rolling 30d). See gifter-roles.js.
+      const { handleTopGiftersCommand } = await import('./gifter-roles.js');
+      return json(await handleTopGiftersCommand(env, data));
+    }
+
     case 'loadout-setup': {
       // Productization: self-serve setup wizard. MANAGE_GUILD gated
       // (enforced by Discord via default_member_permissions on the

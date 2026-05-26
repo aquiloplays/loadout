@@ -31,6 +31,13 @@ compatibility_date = "2025-09-01"
 #                              `node -e "console.log(crypto.randomBytes(32).toString('hex'))"`
 #                              Without all three Twitch secrets the
 #                              live-announce + clip features no-op.
+#   STREAMERBOT_WEBHOOK_SECRET REQUIRED for /streamerbot/event — Clay
+#                              configures the same hex string in
+#                              Streamer.bot's HTTP-action signing
+#                              (x-aquilo-sb-ts + x-aquilo-sb-sig
+#                              headers, SHA-256 over ts+"\n"+body).
+#                              Without it the gifter-roles webhook
+#                              returns 503.
 
 [vars]
 # Public env. Per-guild secrets are stored in KV, not here.

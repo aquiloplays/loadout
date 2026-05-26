@@ -71,6 +71,14 @@ export const COMMANDS = [
   //   /onboard status        (admin) funnel stats — started, completed,
   //                            per-step counts
   {
+    // Top 5 contributors per category (sub gifters, TikTok gifters,
+    // cheerers) over a rolling 30-day window. The top 3 in each
+    // category also hold the matching Discord role — see
+    // gifter-roles.js.
+    name: 'topgifters',
+    description: 'Top contributors (sub gifts / TikTok tips / cheers) over the last 30 days',
+  },
+  {
     name: 'onboard',
     description: 'Quick onboarding flow — interests, links, character, tour',
     options: [
