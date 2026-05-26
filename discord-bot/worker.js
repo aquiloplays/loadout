@@ -224,6 +224,17 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/level-tier-roles/ensure/')) {
       return handleLevelTierRolesEnsure(req, env, path);
     }
+    // Diagnostic-only — disambiguates "site/worker secret mismatch"
+    // vs "signing-string format divergence" without rotating the
+    // production secret. Per-guild HMAC-gated so only Clay's tooling
+    // can call it. Returns the worker secret's length + first-2 +
+    // last-2 chars (not the value) plus a verify-result for an
+    // optional { ts, body, sig } triple supplied in the body. Once
+    // the mismatch is resolved this route can be removed in a
+    // follow-up commit.
+    if (method === 'POST' && path.startsWith('/admin/_hmac-probe/')) {
+      return handleHmacProbe(req, env, path);
+    }
     // One-time-per-guild backfill: walk every pxp:* record and
     // grant tier roles to anyone who has already crossed the
     // threshold. Idempotent via a KV marker; pass `{ force: true }`
@@ -1771,6 +1782,57 @@ async function handleChannelHubPost(req, env, path) {
     return jsonResp({ ...r, via: auth.via }, status);
   }
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/_hmac-probe/:guildId (HMAC, diagnostic-only) ─────────
+//
+// Returns evidence about the worker's AQUILO_SITE_WEB_SECRET
+// WITHOUT exposing its value. Optional body { ts, body, sig }
+// lets a caller submit the exact triple they're signing with and
+// see whether verifyHmac accepts it server-side. Length + 2-char
+// prefix + 2-char suffix is enough to confirm match/mismatch
+// without leaking the secret (a 32-char hex secret retains ~28
+// hex chars of unknown entropy after these hints).
+async function handleHmacProbe(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_hmac-probe',':g']
+  const guildId = parts[2];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  const secret = env.AQUILO_SITE_WEB_SECRET;
+  const secretInfo = secret ? {
+    set: true,
+    length: secret.length,
+    firstTwo: secret.slice(0, 2),
+    lastTwo:  secret.slice(-2),
+  } : { set: false };
+
+  // Optional: verify a caller-supplied triple. Lets the site session
+  // submit the exact ts/body/sig their last probe used and see if
+  // the worker accepts it. If `verifyResult.ok` is true, the secret
+  // is fine — the issue is elsewhere. If false but `secretInfo`
+  // matches what the site has, the signing string format diverged.
+  let verifyResult = null;
+  if (body) {
+    let opts = {};
+    try { opts = JSON.parse(body) || {}; } catch { /* idle */ }
+    if (opts && opts.ts && opts.sig != null) {
+      const probeBody = typeof opts.body === 'string' ? opts.body : '';
+      const ok = await verifyHmac(secret || '', String(opts.ts), probeBody, String(opts.sig));
+      verifyResult = {
+        ok,
+        suppliedTs: String(opts.ts),
+        suppliedBodyLen: probeBody.length,
+        suppliedSigLen: String(opts.sig).length,
+        signedStringFormat: 'ts + "\\n" + body  (verifyHmac in auth.js)',
+        skewLimitSec: 300,
+      };
+    }
+  }
+
+  return jsonResp({ ok: true, secret: secretInfo, verifyResult, via: auth.via }, 200);
 }
 
 // ── /admin/cn-games-list/post-hub/:guildId (HMAC) ───────────────
