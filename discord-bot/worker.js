@@ -281,6 +281,16 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/cn-vote/post-hub/')) {
       return handleCnVotePostHub(req, env, path);
     }
+    // Unified vote hub (variety + CN, one channel). See vote-hub.js.
+    if (method === 'POST' && path.startsWith('/admin/vote-hub/post-hub/')) {
+      return handleVoteHubPostHub(req, env, path);
+    }
+    if (method === 'POST' && path.startsWith('/admin/vote-hub/config/')) {
+      return handleVoteHubConfig(req, env, path);
+    }
+    if (method === 'POST' && path.startsWith('/admin/vote-hub/retire-legacy/')) {
+      return handleVoteHubRetireLegacy(req, env, path);
+    }
     // CN games-list catalogue. Multi-embed listing of every active
     // CN game with art + Steam links. See cn-games-list-hub.js.
     if (method === 'POST' && path.startsWith('/admin/cn-games-list/post-hub/')) {
@@ -829,6 +839,15 @@ export default {
         ctx.waitUntil(gifterRolesDailyTick(env).then(r =>
           console.log('[cron] gifter-roles daily', JSON.stringify(r))).catch(e =>
           console.warn('[cron] gifter-roles', e?.message || e)));
+        // Unified vote-hub phase transitions — runs hourly, re-renders
+        // the hub embed on phase change. See vote-hub.js.
+        const guildIdForVoteHub = env.AQUILO_VAULT_GUILD_ID;
+        if (guildIdForVoteHub) {
+          const { tickPhaseTransition } = await import('./vote-hub.js');
+          ctx.waitUntil(tickPhaseTransition(env, guildIdForVoteHub).then(r =>
+            console.log('[cron] vote-hub', JSON.stringify(r))).catch(e =>
+            console.warn('[cron] vote-hub', e?.message || e)));
+        }
         // Scheduled messages — scan due records + send. Cron fires
         // hourly so the worst-case delivery latency is ~1h; the
         // record's status flips to 'sent' on success, 'failed' on
@@ -1769,6 +1788,65 @@ async function handleCnGamesListPostHub(req, env, path) {
       : 400;
     return jsonResp({ ...r, via: auth.via }, status);
   }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── Vote-hub admin routes ────────────────────────────────────────
+
+async function handleVoteHubPostHub(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','vote-hub','post-hub',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { postVoteHubForGuild } = await import('./vote-hub.js');
+  const r = await postVoteHubForGuild(env, guildId, {
+    channelId: typeof opts.channelId === 'string' ? opts.channelId.trim() : undefined,
+  });
+  if (!r.ok) {
+    const status = r.error === 'no-vote-channel' ? 404 : r.error === 'post-failed' ? 502 : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+async function handleVoteHubConfig(req, env, path) {
+  const parts = path.split('/').filter(Boolean);  // ['admin','vote-hub','config',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { setConfig, getConfig } = await import('./vote-hub.js');
+  // GET-style read when no opts passed.
+  if (!opts || Object.keys(opts).length === 0) {
+    return jsonResp({ ok: true, config: await getConfig(env, guildId), via: auth.via }, 200);
+  }
+  const r = await setConfig(env, guildId, opts);
+  if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+async function handleVoteHubRetireLegacy(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  const { retireOldCnVoteHub } = await import('./vote-hub.js');
+  const r = await retireOldCnVoteHub(env, guildId);
   return jsonResp({ ...r, via: auth.via }, 200);
 }
 

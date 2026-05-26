@@ -66,8 +66,8 @@ console.log('— catalog sanity');
 {
   eq(_BINDING_KEYS_FOR_TEST,
     ['queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll',
-     'games-list', 'checkin', 'character', 'bolts', 'play', 'achievements'],
-    'binding keys (now includes games-list + phase-1 hub channels)');
+     'games-list', 'checkin', 'character', 'bolts', 'play', 'achievements', 'vote'],
+    'binding keys (now includes games-list, phase-1 hubs, and vote)');
   // Every binding has an env-fallback ENTRY in the table (value
   // may be null for hub-channel bindings that are KV-only).
   for (const k of _BINDING_KEYS_FOR_TEST) {
@@ -82,7 +82,7 @@ console.log('— catalog sanity');
   }
   // checkin has CHECKIN_CHANNEL_ID env fallback; the rest are KV-only.
   eq(_BINDING_ENV_FALLBACK_FOR_TEST.checkin, 'CHECKIN_CHANNEL_ID', 'checkin → CHECKIN_CHANNEL_ID');
-  for (const k of ['games-list', 'character', 'bolts', 'play', 'achievements']) {
+  for (const k of ['games-list', 'character', 'bolts', 'play', 'achievements', 'vote']) {
     eq(_BINDING_ENV_FALLBACK_FOR_TEST[k], null, `${k} env fallback is null (KV-only)`);
   }
   // Pin the env-var names so a rename doesn't silently break the
@@ -154,7 +154,7 @@ console.log('— setChannelBinding');
   const r3 = await setChannelBinding(env, GUILD, 'garbage', '1500000000000000222');
   eq(r3.ok, false, 'unknown binding refused');
   eq(r3.error, 'unknown-binding', 'error code');
-  assert(Array.isArray(r3.allowed) && r3.allowed.length === 13, 'lists allowed (13 keys)');
+  assert(Array.isArray(r3.allowed) && r3.allowed.length === 14, 'lists allowed (14 keys)');
   // No guild.
   const r4 = await setChannelBinding(env, '', 'queue', '1500000000000000222');
   eq(r4.error, 'no-guild-id', 'no-guild-id');
@@ -177,8 +177,8 @@ console.log('— listChannelBindings');
   const list = await listChannelBindings(env, GUILD);
   eq(Object.keys(list).sort(),
     ['achievements', 'bolts', 'character', 'checkin', 'clips', 'games-list',
-     'lfg', 'live', 'play', 'poll', 'queue', 'recap', 'schedule'].sort(),
-    '13 keys (incl. hub bindings)');
+     'lfg', 'live', 'play', 'poll', 'queue', 'recap', 'schedule', 'vote'].sort(),
+    '14 keys (incl. vote)');
   // queue: KV override; resolved = KV.
   eq(list.queue.kv, '1500000000000000222', 'queue kv');
   eq(list.queue.env, '1500000000000000111', 'queue env');

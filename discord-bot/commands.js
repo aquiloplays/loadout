@@ -103,11 +103,17 @@ export async function handleInteraction(req, env, body, ctx) {
       return json(await handleLfgHubComponent(env, data));
     }
     if (cid.startsWith('cnv:'))       {
-      // CN vote menu hub — see cn-vote-hub.js. Per-game vote
-      // buttons re-emit `vote:<pollId>:<gameId>` which the aquilo
-      // poll handler catches via the `vote:` prefix below.
+      // Legacy CN vote menu — retired in favour of `vh:` below, but
+      // kept dispatching so stale-button clicks on un-swept old
+      // messages route somewhere sensible.
       const { handleCnVoteComponent } = await import('./cn-vote-hub.js');
       return json(await handleCnVoteComponent(env, data));
+    }
+    if (cid.startsWith('vh:'))        {
+      // Unified vote hub — variety + community night, state-machine
+      // driven. See vote-hub.js.
+      const { handleVoteHubComponent } = await import('./vote-hub.js');
+      return json(await handleVoteHubComponent(env, data));
     }
     // Phase-1 channel hubs (check-in / character / bolts / play /
     // achievements). Each prefix routes to its own handler in

@@ -21,6 +21,10 @@ const BINDING_KEYS = Object.freeze([
   // Phase 1 channel hubs (check-in / character / bolts / play /
   // achievements) — see <key>-hub.js for each.
   'checkin', 'character', 'bolts', 'play', 'achievements',
+  // Unified voting hub — variety + community night, separate events
+  // sharing one channel. See vote-hub.js. KV-only (admins bind via
+  // /admin/channels/bind/<g>).
+  'vote',
 ]);
 
 // Source-of-truth mapping from binding key → fallback env var name.
@@ -41,6 +45,7 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   bolts:        null,
   play:         null,
   achievements: null,
+  vote:         null,
 });
 
 const BINDING_KEY = (g, k) => `channel-binding:${g}:${k}`;
