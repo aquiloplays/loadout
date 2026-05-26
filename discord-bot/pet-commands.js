@@ -28,12 +28,15 @@ function publicReply(content, embeds, components) {
   return { type: RESP_CHAT, data };
 }
 
-function petPreviewUrl(env, guildId, userId, opts) {
-  const base = (env && env.PUBLIC_WORKER_URL) || 'https://loadout-discord.aquiloplays.workers.dev';
-  // Reuse the character render — pet renders in-frame at z=15. ?v=
-  // bumps from pet care to bust Discord's embed cache.
+async function petPreviewUrl(env, guildId, userId, opts) {
+  // May 2026: prefer the user's uploaded hero avatar if any. The pet
+  // is no longer composited *onto* the upload — the upload IS the
+  // hero image now; pet state still lives in pet.js + the stats line.
+  // Falls back to the procedural compositor (which DOES render
+  // pet in-frame at z=15) when no avatar is set.
+  const { preferredHeroImageUrl } = await import('./character.js');
   const v = opts?.v ?? Date.now();
-  return `${base}/character/render/${guildId}/${userId}.png?v=${v}`;
+  return preferredHeroImageUrl(env, guildId, userId, v);
 }
 
 function moodEmoji(mood) {
@@ -115,7 +118,7 @@ async function doAdopt(env, guildId, userId, species, colour, name) {
   return publicReply(
     `🎉 Adopted **${r.pet.name}** the ${r.pet.colour} ${r.pet.species} ${moodEmoji(m)}!`,
     [{
-      image: { url: petPreviewUrl(env, guildId, userId, { v: Date.now() }) },
+      image: { url: await petPreviewUrl(env, guildId, userId, { v: Date.now() }) },
       color: 0x7c5cff,
       description: statsLine(m),
     }],
@@ -129,7 +132,7 @@ async function doView(env, guildId, userId) {
   return publicReply(
     `**${pet.name}** — ${pet.colour} ${pet.species} ${moodEmoji(m)}`,
     [{
-      image: { url: petPreviewUrl(env, guildId, userId, { v: Date.now() }) },
+      image: { url: await petPreviewUrl(env, guildId, userId, { v: Date.now() }) },
       color: 0x7c5cff,
       description: statsLine(m),
     }],
@@ -150,7 +153,7 @@ async function doCare(env, guildId, userId, action) {
   return publicReply(
     `${verb} **${r.pet.name}** ${moodEmoji(m)} (spent ${r.spent} Bolts)`,
     [{
-      image: { url: petPreviewUrl(env, guildId, userId, { v: Date.now() }) },
+      image: { url: await petPreviewUrl(env, guildId, userId, { v: Date.now() }) },
       color: 0x7c5cff,
       description: statsLine(m),
     }],

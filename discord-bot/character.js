@@ -27,6 +27,195 @@ import { getWallet, spend, earn } from './wallet.js';
 // the player can re-pick class + customisation.
 export const CHARACTER_RESET_COST = 5000;
 
+// ── User-uploaded hero avatar ────────────────────────────────────
+//
+// May 2026 product call: we scrapped the procedurally-rendered visible
+// character. Players still HAVE a character (class, stats, lock, etc.)
+// but the *picture* is now whatever they upload — a screenshot, a
+// drawing, a gif of their hero, whatever. The pixel-art compositor
+// stays alive as the fallback render so back-compat surfaces (Discord
+// embed, Twitch panel, dungeon overlay) keep working when no avatar
+// is set.
+//
+// Storage: KV value = raw bytes, metadata = { contentType, size,
+// uploadedAt, guildId }. No R2 binding in wrangler.toml — KV handles
+// 25MB values fine and we cap at 4MB anyway.
+//
+// Key shape — keyed by Discord userId (NOT guild-scoped) so the
+// avatar follows the user across guilds. A single account = a single
+// uploaded picture. Cross-guild reuse mirrors how Discord itself
+// scopes avatars.
+const AVATAR_KEY_PREFIX = 'character:avatar:';
+const AVATAR_MAX_BYTES  = 4 * 1024 * 1024;
+const AVATAR_ALLOWED_CONTENT_TYPES = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+]);
+
+export {
+  AVATAR_MAX_BYTES,
+  AVATAR_ALLOWED_CONTENT_TYPES,
+};
+
+function avatarKey(userId) {
+  return AVATAR_KEY_PREFIX + String(userId);
+}
+
+// Decode a base64 string into a Uint8Array. Strip optional
+// data: URI prefix because some browser pickers stamp it on.
+function decodeBase64(s) {
+  let raw = String(s || '').trim();
+  if (!raw) return null;
+  const m = raw.match(/^data:[^;]+;base64,(.*)$/);
+  if (m) raw = m[1];
+  // Defensive — atob will throw on non-base64 input.
+  try {
+    const bin = atob(raw);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes;
+  } catch { return null; }
+}
+
+// Public URL for the uploaded avatar. Pinned to ?v=<uploadedAt> so
+// the Discord CDN / browser caches refetch after a swap. Returns
+// null when no avatar is stored.
+function avatarUrl(env, userId, uploadedAt) {
+  const base = (env && env.PUBLIC_WORKER_URL) || 'https://loadout-discord.aquiloplays.workers.dev';
+  return `${base}/character/avatar/${userId}.bin?v=${uploadedAt || 0}`;
+}
+
+// One-shot metadata lookup so getCharacterLookWeb can stamp
+// avatarUrl without pulling the bytes. `.list({ prefix })` would be
+// wasteful for a single key — getWithMetadata is the right primitive,
+// just discard the value here.
+async function getAvatarMeta(env, userId) {
+  if (!env || !env.LOADOUT_BOLTS || !userId) return null;
+  try {
+    const r = await env.LOADOUT_BOLTS.getWithMetadata(avatarKey(userId), { type: 'arrayBuffer' });
+    if (!r || !r.value) return null;
+    return r.metadata || {};
+  } catch { return null; }
+}
+
+// Resolve the public URL string for a user's avatar (or null when
+// none stored). Exported so saveCharacterLookWeb / applyClassWeb /
+// resetCharacterWeb can stamp it in their responses too.
+export async function getAvatarUrl(env, userId) {
+  const meta = await getAvatarMeta(env, userId);
+  if (!meta) return null;
+  return avatarUrl(env, userId, meta.uploadedAt);
+}
+
+// PUT /web/character/avatar handler core. Validates contentType +
+// decoded byte length, writes value + metadata, returns the public
+// URL. Intentionally NOT subject to hero.locked — see the comment on
+// `clearAvatarWeb` for the rationale.
+//
+// Returns:
+//   { ok: true,  avatarUrl, contentType, size }
+//   { ok: false, error: 'bad-content-type' | 'too-large' | 'bad-data' | 'no-kv', ... }
+export async function putAvatarWeb(env, userId, contentType, dataBase64, guildId) {
+  if (!env || !env.LOADOUT_BOLTS) {
+    return { ok: false, error: 'no-kv', message: 'avatar storage unavailable' };
+  }
+  const ct = String(contentType || '').toLowerCase().trim();
+  if (!AVATAR_ALLOWED_CONTENT_TYPES.has(ct)) {
+    return {
+      ok: false,
+      error: 'bad-content-type',
+      message: 'Avatar must be PNG, JPEG, GIF, or WEBP.',
+      allowed: [...AVATAR_ALLOWED_CONTENT_TYPES],
+    };
+  }
+  const bytes = decodeBase64(dataBase64);
+  if (!bytes || bytes.length === 0) {
+    return { ok: false, error: 'bad-data', message: 'dataBase64 missing or unreadable' };
+  }
+  if (bytes.length > AVATAR_MAX_BYTES) {
+    return {
+      ok: false,
+      error: 'too-large',
+      max: AVATAR_MAX_BYTES,
+      size: bytes.length,
+      message: `Avatar is ${bytes.length} bytes; max is ${AVATAR_MAX_BYTES}.`,
+    };
+  }
+  const uploadedAt = Date.now();
+  await env.LOADOUT_BOLTS.put(avatarKey(userId), bytes, {
+    metadata: {
+      contentType: ct,
+      size: bytes.length,
+      uploadedAt,
+      guildId: guildId ? String(guildId) : null,
+    },
+  });
+  return {
+    ok: true,
+    avatarUrl: avatarUrl(env, userId, uploadedAt),
+    contentType: ct,
+    size: bytes.length,
+    uploadedAt,
+  };
+}
+
+// CLEAR — delete the user's avatar. Like putAvatarWeb, NOT gated on
+// hero.locked. The lock is a customization-of-the-procedural-figure
+// guard; the upload is an unrelated cosmetic slot the player owns
+// outright. A locked player can still swap or remove their picture.
+//
+// Idempotent — clearing a missing avatar still returns ok:true with
+// avatarUrl:null so the UI's "Remove" button works the same either way.
+export async function clearAvatarWeb(env, userId) {
+  if (!env || !env.LOADOUT_BOLTS) {
+    return { ok: false, error: 'no-kv', message: 'avatar storage unavailable' };
+  }
+  try { await env.LOADOUT_BOLTS.delete(avatarKey(userId)); }
+  catch (e) {
+    return { ok: false, error: 'delete-failed', message: String(e?.message || e) };
+  }
+  return { ok: true, avatarUrl: null };
+}
+
+// Public read — GET /character/avatar/<userId>(.bin)
+// Streams the stored bytes back with the right Content-Type pulled
+// from KV metadata. Returns 404 if no avatar is stored. Cache pinned
+// to ?v=<uploadedAt> so the URL changes on every swap.
+export async function handleCharacterAvatar(req, env, path) {
+  // Path shape: /character/avatar/<userId> with optional .bin /.png/etc
+  // tail (we ignore the extension — Content-Type comes from metadata).
+  const m = path.match(/^\/character\/avatar\/(\d{5,25})(?:\.[A-Za-z0-9]+)?$/);
+  if (!m) return new Response('not-found', { status: 404 });
+  const userId = m[1];
+  if (!env || !env.LOADOUT_BOLTS) {
+    return new Response('storage-unavailable', { status: 503 });
+  }
+  let r;
+  try {
+    r = await env.LOADOUT_BOLTS.getWithMetadata(avatarKey(userId), { type: 'arrayBuffer' });
+  } catch {
+    return new Response('not-found', { status: 404 });
+  }
+  if (!r || !r.value) return new Response('not-found', { status: 404 });
+  const meta = r.metadata || {};
+  const contentType = AVATAR_ALLOWED_CONTENT_TYPES.has(meta.contentType)
+    ? meta.contentType
+    : 'application/octet-stream';
+  return new Response(r.value, {
+    status: 200,
+    headers: {
+      'content-type': contentType,
+      // ?v=<uploadedAt> changes on every swap, so a 7-day immutable
+      // cache is safe — old URLs naturally expire when the player
+      // uploads a fresh image.
+      'cache-control': 'public, max-age=604800, immutable',
+      'access-control-allow-origin': '*',
+    },
+  });
+}
+
 // ── Sprite source URL ────────────────────────────────────────────
 //
 // Sprites are committed at aquilo-gg/sprites/ and vendored into the
@@ -510,11 +699,27 @@ function renderPreviewUrl(env, guildId, userId, version) {
   return `${base}/character/render/${guildId}/${userId}.png?v=${version || 0}&av=${av}`;
 }
 
+// Resolve the URL every Discord embed should set as its hero image:
+// the user-uploaded avatar if any, else the procedural render.
+// Discord caches by URL so we still pin the procedural ?v=lookVersion
+// and the avatar ?v=uploadedAt cache-busters.
+export async function preferredHeroImageUrl(env, guildId, userId, version) {
+  const up = await getAvatarUrl(env, userId);
+  if (up) return up;
+  return renderPreviewUrl(env, guildId, userId, version);
+}
+
 // Build the editor message — selects + preview + buttons.
 async function buildEditor(env, guildId, userId) {
   const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
   const look = hero.custom;
-  const preview = renderPreviewUrl(env, guildId, userId, hero.lookVersion || 0);
+  // Prefer the user-uploaded avatar if set; the procedural render
+  // stays around as a fallback (and as what the per-axis selects
+  // below actually edit). May 2026: Clay scrapped the visible-
+  // character UI on the site — the editor still works for users who
+  // haven't uploaded an avatar yet, and the selects continue to drive
+  // the procedural render at /character/render/<g>/<u>.png.
+  const preview = await preferredHeroImageUrl(env, guildId, userId, hero.lookVersion || 0);
   const selectRow = (id, placeholder, options, selectedValue) => ({
     type: COMPONENT_ACTION_ROW,
     components: [{
@@ -610,7 +815,7 @@ export async function handleCharacterComponent(env, data) {
 async function buildEyesEditor(env, guildId, userId) {
   const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
   const look = hero.custom;
-  const preview = renderPreviewUrl(env, guildId, userId, hero.lookVersion || 0);
+  const preview = await preferredHeroImageUrl(env, guildId, userId, hero.lookVersion || 0);
   return {
     embeds: [{
       title: '👁 Eyes + accent',
@@ -745,8 +950,14 @@ export async function getCharacterLookWeb(env, guildId, userId) {
       })),
     };
   });
+  // May 2026: avatarUrl is the new canonical hero picture (user-
+  // uploaded). `look` + `renderUrl` stay in the payload for back-
+  // compat — the site is dropping the visible-character UI but the
+  // procedural render remains as a fallback for Discord embeds.
+  const upUrl = await getAvatarUrl(env, userId);
   return {
     ok: true,
+    avatarUrl: upUrl,
     look,
     lookVersion: hero.lookVersion || 0,
     renderUrl: buildRenderUrl(env, guildId, userId, hero.lookVersion || 0),
@@ -767,6 +978,9 @@ export async function getCharacterLookWeb(env, guildId, userId) {
     // /web/character/class both reject with `error: 'character-locked'`;
     // the only path back to an editable character is paying
     // CHARACTER_RESET_COST via /web/character/reset.
+    //
+    // NOTE: the lock does NOT cover the uploaded avatar — a locked
+    // hero can still PUT /web/character/avatar to swap the picture.
     locked: !!hero.locked,
     resetCost: CHARACTER_RESET_COST,
   };

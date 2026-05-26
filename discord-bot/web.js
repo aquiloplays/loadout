@@ -87,6 +87,8 @@ import {
   saveCharacterLookWeb,
   applyClassWeb,
   resetCharacterWeb,
+  putAvatarWeb,
+  clearAvatarWeb,
 } from './character.js';
 import { handleAdminWeb } from './admin-web.js';
 import { routeBoltbound, isBoltboundRoute } from './cards-web.js';
@@ -178,6 +180,12 @@ const ROUTES = new Set([
   'character/save',
   'character/class',
   'character/reset',
+  // May 2026: user-uploaded hero avatar — supersedes the visible
+  // procedural character on the site. NOT subject to character-locked
+  // (see putAvatarWeb / clearAvatarWeb in character.js). Same path
+  // services upload + clear; clear is triggered by `clear: true` flag
+  // or by submitting an empty dataBase64.
+  'character/avatar',
   // New-viewer funnel — referral attribution. /me returns the
   // caller's stable referral code + bring-in stats; /attribute is
   // what the site POSTs after Patreon-link to record (refereeId,
@@ -371,6 +379,7 @@ export async function handleWeb(req, env) {
     if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
     if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
     if (route === 'character/reset')       return await routeCharacterReset(env, guildId, discordId);
+    if (route === 'character/avatar')      return await routeCharacterAvatar(env, guildId, discordId, body);
     if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
     if (isBoardRoute(route))               return await routeBoard(env, route, guildId, discordId, body);
   } catch (e) {
@@ -1363,6 +1372,47 @@ async function routeCharacterSave(env, guildId, userId, body) {
 async function routeCharacterReset(env, guildId, userId) {
   const r = await resetCharacterWeb(env, guildId, userId);
   return json(r, statusFor(r));
+}
+
+// POST /web/character/avatar — upload or clear a user-uploaded hero
+// picture. Replaces the procedural visible-character UX on the site.
+//
+// Body shape (JSON, HMAC-signed like every /web/* route):
+//   {
+//     discordId, guildId,
+//     contentType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
+//     dataBase64:  '<base64-encoded image bytes>',
+//     clear?: boolean
+//   }
+//
+// Semantics:
+//   - `clear: true` OR an empty `dataBase64` → delete the avatar
+//     (idempotent; returns avatarUrl: null either way).
+//   - Otherwise validate contentType + decoded size (≤ 4 MB),
+//     persist into KV with metadata, return the public avatar URL.
+//
+// NOT subject to character-locked — uploads are an independent
+// cosmetic slot the player owns regardless of class-lock state. See
+// putAvatarWeb in character.js for rationale.
+//
+// Status codes:
+//   200 — { ok: true, avatarUrl: <string|null>, contentType?, size? }
+//   400 — { ok: false, error: 'bad-content-type' | 'bad-data' }
+//   413 — { ok: false, error: 'too-large', max, size }
+//   503 — { ok: false, error: 'no-kv' | 'delete-failed' }
+async function routeCharacterAvatar(env, guildId, userId, body) {
+  const clear = !!(body && body.clear);
+  const dataBase64 = body && body.dataBase64;
+  if (clear || !dataBase64) {
+    const r = await clearAvatarWeb(env, userId);
+    return json(r, r.ok ? 200 : 503);
+  }
+  const contentType = body && body.contentType;
+  const r = await putAvatarWeb(env, userId, contentType, dataBase64, guildId);
+  if (r.ok) return json(r, 200);
+  if (r.error === 'too-large') return json(r, 413);
+  if (r.error === 'no-kv')     return json(r, 503);
+  return json(r, 400);
 }
 
 // Map the structured `error` discriminator → HTTP status. 200 for

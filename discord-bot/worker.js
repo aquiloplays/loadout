@@ -524,6 +524,15 @@ export default {
       return handleCharacterRender(req, env, path);
     }
 
+    // User-uploaded hero avatar — public read. Stored in KV with
+    // contentType metadata; route streams the bytes back. Cache pinned
+    // to ?v=<uploadedAt>. See character.js handleCharacterAvatar.
+    // Path shape: /character/avatar/<userId>(.bin|.png|.jpg|...)
+    if (method === 'GET' && path.startsWith('/character/avatar/')) {
+      const { handleCharacterAvatar } = await import('./character.js');
+      return handleCharacterAvatar(req, env, path);
+    }
+
     // Aquilo-bot fold-in HTTP routes. Returns null when none of the
     // aquilo routes match so we fall through to the final 404.
     // Covers: /today-game, /overlay/ws, /counting/message,
