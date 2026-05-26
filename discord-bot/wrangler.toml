@@ -22,6 +22,15 @@ compatibility_date = "2025-09-01"
 #                              and set with `wrangler secret put GIPHY_API_KEY`.
 #                              Without it /checkin posts the card but
 #                              the GIF picker returns an error.
+#   TWITCH_CLIENT_ID           REQUIRED for live-announce + clip cross-post.
+#                              Twitch app at dev.twitch.tv/console/apps.
+#   TWITCH_CLIENT_SECRET       paired with TWITCH_CLIENT_ID — used to mint
+#                              the Helix App Access Token (cached in KV).
+#   TWITCH_EVENTSUB_SECRET     long random hex used as the EventSub
+#                              webhook HMAC secret. Generate fresh:
+#                              `node -e "console.log(crypto.randomBytes(32).toString('hex'))"`
+#                              Without all three Twitch secrets the
+#                              live-announce + clip features no-op.
 
 [vars]
 # Public env. Per-guild secrets are stored in KV, not here.
@@ -67,6 +76,14 @@ COUNTING_FAIL_DURATION_MIN = "60"
 # Self-target: this Worker IS the bolts API host post-fold-in.
 LOADOUT_BOLT_API = "https://loadout-discord.aquiloplays.workers.dev/counting/award-bolts"
 CLIPS_CHANNEL_ID = "1507973908089802945"       # 📸│media-and-clips
+# Twitch live-announce target — set to a "🔴│live" channel id, leave
+# empty to disable. When set + Twitch secrets configured, stream.online
+# EventSub posts an embed here that's refreshed on each :17 cron tick
+# (and switched to "stream ended" copy on stream.offline).
+LIVE_CHANNEL_ID = ""
+# Weekly recap target — Sunday 8pm ET cron posts a single styled
+# embed here summarising the past 7 days. Empty = no-op.
+RECAP_CHANNEL_ID = ""
 CHECKIN_CHANNEL_ID = "1507973904164061194"     # 💬│general (daily check-in lives here)
 LEADERBOARD_CHANNEL_ID = "1507973904164061194" # 💬│general
 AQUILO_ADMIN_HUB_CHANNEL_ID = "1507973969683415120"  # ⚙️│bot-admin

@@ -218,6 +218,22 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/onboarding/ensure-roles/')) {
       return handleOnboardingEnsureRoles(req, env, path);
     }
+    // Twitch EventSub webhook. Signature is verified inside the
+    // handler against env.TWITCH_EVENTSUB_SECRET. Three message
+    // types: webhook_callback_verification (challenge handshake),
+    // notification (real event — dispatch to twitch-live.js),
+    // revocation (log + ack). See twitch-eventsub.js.
+    if (method === 'POST' && path === '/twitch/eventsub') {
+      const { handleEventSubWebhook } = await import('./twitch-eventsub.js');
+      return handleEventSubWebhook(req, env, ctx);
+    }
+    // Admin-side EventSub subscription manager. HMAC-gated. Creates
+    // stream.online + stream.offline subs for Clay's broadcaster id
+    // pointing at THIS worker's /twitch/eventsub URL. Idempotent —
+    // skips subs that already exist.
+    if (method === 'POST' && path.startsWith('/admin/twitch-setup/')) {
+      return handleTwitchSetup(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -603,6 +619,52 @@ export default {
       if (event.cron === '17 * * * *') {
         const { stocksCronTick } = await import('./stocks.js');
         ctx.waitUntil(stocksCronTick(env));
+        // Twitch hourly bundle — live-embed refresh + clip poll +
+        // Sunday-22-ET clip-of-the-week + Sunday-20-ET weekly recap.
+        // Each task is independently best-effort + no-ops cleanly
+        // when the relevant secrets/env aren't set.
+        ctx.waitUntil((async () => {
+          try {
+            const { isTwitchConfigured } = await import('./twitch-helix.js');
+            if (isTwitchConfigured(env) && env.CLAY_TWITCH_CHANNEL_ID) {
+              // Mid-stream refresh: hourly cadence (the cron tier
+              // we're on caps at 4 triggers, all used elsewhere).
+              // EventSub gives us instant on/off; the hourly tick
+              // just keeps viewer-count + game name from going
+              // stale during long sessions.
+              const { refreshLiveEmbed } = await import('./twitch-live.js');
+              await refreshLiveEmbed(env, env.CLAY_TWITCH_CHANNEL_ID).catch(e =>
+                console.warn('[cron] refreshLiveEmbed', e?.message || e));
+              const { pollNewClipsCron } = await import('./twitch-clips.js');
+              await pollNewClipsCron(env).catch(e =>
+                console.warn('[cron] pollNewClipsCron', e?.message || e));
+            }
+          } catch (e) {
+            console.warn('[cron] twitch hourly bundle', e?.message || e);
+          }
+        })());
+        // Sunday 8pm ET → weekly recap. Sunday 10pm ET → clip of
+        // the week. ET-gated via getETInfo so DST is handled
+        // automatically; both functions are KV-marker idempotent
+        // so the at-least-once cron semantics don't double-fire.
+        ctx.waitUntil((async () => {
+          try {
+            const { getETInfo } = await import('./aquilo/util.js');
+            const { weekday, hour } = getETInfo(new Date(event.scheduledTime || Date.now()));
+            if (weekday === 'sunday' && hour === 20) {
+              const { postWeeklyRecap } = await import('./weekly-recap.js');
+              const r = await postWeeklyRecap(env);
+              console.log('[cron] weekly-recap', JSON.stringify(r));
+            }
+            if (weekday === 'sunday' && hour === 22) {
+              const { postClipOfTheWeekCron } = await import('./twitch-clips.js');
+              const r = await postClipOfTheWeekCron(env);
+              console.log('[cron] clip-of-the-week', JSON.stringify(r));
+            }
+          } catch (e) {
+            console.warn('[cron] sunday gates', e?.message || e);
+          }
+        })());
       } else if (event.cron === '23 * * * *') {
         const { betCronTick } = await import('./bet.js');
         ctx.waitUntil(betCronTick(env));
@@ -1378,6 +1440,43 @@ async function handleOnboardingSetupRoles(req, env, path) {
 // Returns:
 //   { ok: true, created: [{ key, id, name, color }],
 //     skipped: [{ key, reason, existing?, status? }], roleCount }
+// ── /admin/twitch-setup/:guildId (HMAC) ─────────────────────────
+//
+// Create (or refresh) the Twitch EventSub subscriptions for Clay's
+// broadcaster id, pointing at this worker's /twitch/eventsub URL.
+// Idempotent — re-running on an already-configured guild returns
+// the existing subs in the `existing` array.
+//
+// Body (JSON, optional):
+//   { broadcasterId?, callbackUrl? }
+// Both default sensibly: broadcasterId defaults to env.CLAY_TWITCH_CHANNEL_ID,
+// callbackUrl defaults to env.PUBLIC_WORKER_URL + '/twitch/eventsub'
+// (with the workers.dev URL as the ultimate fallback).
+//
+// Returns:
+//   { ok: true, broadcasterId, callbackUrl,
+//     created: [{ type, id, status }],
+//     existing: [{ type, id, status }],
+//     failed: [{ type, reason }] }
+async function handleTwitchSetup(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin', 'twitch-setup', ':guildId']
+  const guildId = parts[2];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { setupTwitchSubscriptions } = await import('./twitch-eventsub.js');
+  const r = await setupTwitchSubscriptions(env, opts);
+  if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
 async function handleOnboardingEnsureRoles(req, env, path) {
   const parts = path.split('/').filter(Boolean);    // ['admin', 'onboarding', 'ensure-roles', ':guildId']
   const guildId = parts[3];
