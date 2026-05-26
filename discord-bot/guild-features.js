@@ -138,6 +138,12 @@ export async function handleGuildComponent(env, data) {
 // STARBOARD_THRESHOLD, posts a summary in ⭐│highlights. A KV stamp
 // at `guild:star:<msgId>` prevents double-posts.
 export async function handleStarboardReaction(env, payload) {
+  // Gateway-shim sends MESSAGE_REACTION_ADD AND MESSAGE_REACTION_REMOVE
+  // through the same /reaction/event route, distinguished by `action`.
+  // Only "add" should drive the starboard pin path — un-starring shouldn't
+  // re-fire the dedup-stamped post. `action: undefined` falls through for
+  // back-compat with any forwarder that doesn't send the field yet.
+  if (payload && payload.action === 'remove') return { skipped: 'remove-action' };
   if (!payload || payload?.emoji?.name !== STARBOARD_EMOJI) return { skipped: 'wrong-emoji' };
   const guildId = payload.guild_id;
   const cfg = await loadGuildCfg(env, guildId);

@@ -238,6 +238,25 @@ export default {
       const { handleStreamerbotEvent } = await import('./gifter-roles.js');
       return handleStreamerbotEvent(req, env);
     }
+    // TikFinity webhook (TikTok-Live gift events). Bearer-style
+    // shared secret in X-TikFinity-Secret because TikFinity can
+    // attach custom headers but can't sign HMAC. Routes through the
+    // same gifter aggregator as the Streamer.bot path. See
+    // tikfinity.js for the body schema.
+    if (method === 'POST' && path === '/tikfinity/event') {
+      const { handleTikFinityEvent } = await import('./tikfinity.js');
+      return handleTikFinityEvent(req, env);
+    }
+    // PrinterBot Discord webhook — Clay's receipt-style image
+    // generator posts directly into a dedicated channel. We create
+    // a channel-scoped Discord webhook once + persist the URL at
+    // printerbot:webhook-url:<g>. See printerbot.js.
+    if (method === 'POST' && path.startsWith('/admin/printerbot/setup/')) {
+      return handlePrinterBotSetup(req, env, path);
+    }
+    if (method === 'GET' && path.startsWith('/admin/printerbot/webhook-url/')) {
+      return handlePrinterBotWebhookUrl(req, env, path);
+    }
     // Create the three gifter roles + persist {key: roleId} at
     // gifter-roles:<g>. Idempotent. See gifter-roles.js
     // ensureGifterRoles.
@@ -2000,6 +2019,56 @@ async function handleLfgPostHub(req, env, path) {
     return jsonResp({ ...r, via: auth.via }, status);
   }
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/printerbot/setup/:guildId (HMAC) ───────────────────────
+// Body (JSON): { channelId: '<snowflake>', name?: 'PrinterBot' }
+// Creates or reuses a channel-scoped Discord webhook + persists the
+// URL at printerbot:webhook-url:<g>. Returns the full webhook URL so
+// the operator can paste it into Streamer.bot once.
+async function handlePrinterBotSetup(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','printerbot','setup',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const channelId = typeof opts.channelId === 'string' ? opts.channelId.trim() : '';
+  const name = typeof opts.name === 'string' && opts.name.trim() ? opts.name.trim() : 'PrinterBot';
+  if (!channelId) return jsonResp({ ok: false, error: 'channelId required' }, 400);
+
+  const { ensurePrinterBotWebhook } = await import('./printerbot.js');
+  const r = await ensurePrinterBotWebhook(env, guildId, channelId, name);
+  if (!r.ok) {
+    const status =
+      r.error === 'webhooks-list-failed' || r.error === 'create-failed'
+        ? (Number(r.status) || 502)
+        : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/printerbot/webhook-url/:guildId (HMAC, read) ───────────
+// Returns the stored URL + metadata. HMAC-gated because the token in
+// the URL grants posting rights to the channel.
+async function handlePrinterBotWebhookUrl(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','printerbot','webhook-url',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const auth = await verifyAdminAuth(req, env, guildId, '');
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  const { readPrinterBotWebhook } = await import('./printerbot.js');
+  const rec = await readPrinterBotWebhook(env, guildId);
+  if (!rec) return jsonResp({ ok: false, error: 'not-set', via: auth.via }, 404);
+  return jsonResp({ ok: true, ...rec, via: auth.via }, 200);
 }
 
 // ── /admin/gifter-roles/ensure/:guildId (HMAC) ────────────────────

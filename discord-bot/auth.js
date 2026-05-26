@@ -25,6 +25,31 @@ export async function verifyDiscordSignature(req, publicKeyHex) {
   }
 }
 
+// Gateway-shim auth (aquilo-presence → worker). Accepts either the
+// legacy shared-secret header (`x-counting-secret`) OR a fresh HMAC
+// (`x-aquilo-gw-{ts,sig}`) signed with AQUILO_GATEWAY_SECRET. The
+// shim sends both during rollout; once everything's converted we can
+// retire the shared-secret path. Returns `{ ok, via }` matching the
+// verifyAdminAuth shape — callers can log `via` for observability.
+//
+// The shared-secret path accepts BOTH AQUILO_GATEWAY_SECRET and the
+// older COUNTING_WEBHOOK_SECRET — Clay can rotate from one to the
+// other without dropping forwarded events mid-flight.
+export async function verifyGatewaySig(req, env, body) {
+  const legacy = req.headers.get('x-counting-secret') || '';
+  if (legacy) {
+    if (env.AQUILO_GATEWAY_SECRET   && legacy === env.AQUILO_GATEWAY_SECRET)   return { ok: true, via: 'shared-gateway' };
+    if (env.COUNTING_WEBHOOK_SECRET && legacy === env.COUNTING_WEBHOOK_SECRET) return { ok: true, via: 'shared-counting' };
+  }
+  const ts  = req.headers.get('x-aquilo-gw-ts');
+  const sig = req.headers.get('x-aquilo-gw-sig');
+  if (ts && sig && env.AQUILO_GATEWAY_SECRET) {
+    const ok = await verifyHmac(env.AQUILO_GATEWAY_SECRET, ts, body, sig);
+    if (ok) return { ok: true, via: 'gw-hmac' };
+  }
+  return { ok: false };
+}
+
 // HMAC-SHA-256 verification for /sync/:guildId calls. Loadout-side, not
 // Discord, so we keep using WebCrypto directly here.
 export async function verifyHmac(secret, ts, body, hexSig) {

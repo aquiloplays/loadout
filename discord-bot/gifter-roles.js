@@ -167,40 +167,51 @@ export async function handleStreamerbotEvent(req, env) {
   if (!event || typeof event !== 'object') {
     return jsonResp({ ok: false, error: 'bad-event' }, 400);
   }
-  const amount = Number(event.amount);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return jsonResp({ ok: false, error: 'bad-amount' }, 400);
-  }
-  const category = categoryFor(event.type, event.platform);
-  if (!category) return jsonResp({ ok: false, error: 'unhandled-event-type', type: event.type, platform: event.platform }, 400);
   const guildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
   if (!guildId) return jsonResp({ ok: false, error: 'no-guild-id' }, 503);
-
   const login = event.platform === 'twitch' ? event.twitchLogin : event.tiktokUsername;
-  const identityKey = identityKeyOf(event.platform, login);
-  if (!identityKey) return jsonResp({ ok: false, error: 'no-contributor-login' }, 400);
-  const day = utcDay(new Date(Number(event.ts) || Date.now()));
 
-  // Always record by identity key — even if no Discord link, the
-  // /topgifters slash should still show them.
+  const r = await recordGifterEvent(env, guildId, event.type, event.platform, login, event.amount, event.ts);
+  if (!r.ok) {
+    return jsonResp(r, r.error === 'no-guild-id' ? 503 : 400);
+  }
+  return jsonResp(r, 200);
+}
+
+// Aggregator-side helper, callable from any HTTP handler that has
+// already authenticated its caller (Streamer.bot webhook, TikFinity
+// webhook, etc). Validates the event shape + bumps the per-day
+// bucket + persists the identity record. Returns the same shape
+// the webhook used to return so both endpoints look identical to
+// the leaderboard reader.
+export async function recordGifterEvent(env, guildId, eventType, platform, login, amount, tsMs) {
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt <= 0) {
+    return { ok: false, error: 'bad-amount' };
+  }
+  const category = categoryFor(eventType, platform);
+  if (!category) return { ok: false, error: 'unhandled-event-type', type: eventType, platform };
+  if (!guildId) return { ok: false, error: 'no-guild-id' };
+  const identityKey = identityKeyOf(platform, login);
+  if (!identityKey) return { ok: false, error: 'no-contributor-login' };
+  const day = utcDay(new Date(Number(tsMs) || Date.now()));
+
   const bucketKeyByLogin = BUCKET_KEY(category, guildId, identityKey, day);
   const prior = parseInt((await env.LOADOUT_BOLTS.get(bucketKeyByLogin)) || '0', 10) || 0;
-  const total = prior + amount;
+  const total = prior + amt;
   await env.LOADOUT_BOLTS.put(bucketKeyByLogin, String(total));
-  // Identity record (lets the slash command resolve back to platform+login).
   await env.LOADOUT_BOLTS.put(
     IDENTITY_KEY(category, guildId, identityKey),
-    JSON.stringify({ platform: event.platform, login, lastSeenUtc: Date.now() }),
-    { expirationTtl: (TRIM_OLDER_THAN_DAYS + 7) * 86400 },   // outlive the bucket trim cushion
+    JSON.stringify({ platform, login, lastSeenUtc: Date.now() }),
+    { expirationTtl: (TRIM_OLDER_THAN_DAYS + 7) * 86400 },
   );
-
-  return jsonResp({
+  return {
     ok: true,
     category,
     contributorKey: identityKey,
     day,
     totalToday: total,
-  }, 200);
+  };
 }
 
 // ── Read-side: rolling-window leaderboard ────────────────────────

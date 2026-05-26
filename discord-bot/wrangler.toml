@@ -52,6 +52,19 @@ compatibility_date = "2025-09-01"
 #                              instead of forwarding.
 #   VAULT_INGEST_SECRET        HMAC secret used to sign the forward
 #                              request. Set alongside VAULT_INGEST_URL.
+#   TIKFINITY_WEBHOOK_SECRET   REQUIRED for /tikfinity/event — Clay
+#                              pastes the same hex into TikFinity's
+#                              "Trigger WebHook" custom header config
+#                              (X-TikFinity-Secret). Routes gift
+#                              events into the same recordGifterEvent
+#                              pipeline as /streamerbot/event. Without
+#                              it the bridge returns 503.
+#   AQUILO_GATEWAY_SECRET      HMAC secret for the gateway shim's
+#                              future signed routes (x-aquilo-gw-ts +
+#                              x-aquilo-gw-sig). Same hex on the
+#                              shim and the worker. The legacy
+#                              x-counting-secret header is still
+#                              accepted alongside this for back-compat.
 
 [vars]
 # Public env. Per-guild secrets are stored in KV, not here.
