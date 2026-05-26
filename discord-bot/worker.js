@@ -251,6 +251,16 @@ export default {
     if (path.startsWith('/admin/schedule-msg/')) {
       return handleScheduleMsg(req, env, path, method);
     }
+    // Per-guild channel-binding management. Lets Clay rebind the
+    // queue / live / recap / clips / lfg channels without
+    // redeploying. See channel-bindings.js for the binding keys +
+    // env-var fallbacks.
+    if (method === 'POST' && path.startsWith('/admin/channels/bind/')) {
+      return handleChannelsBind(req, env, path);
+    }
+    if (method === 'GET' && path.startsWith('/admin/channels/list/')) {
+      return handleChannelsList(req, env, path);
+    }
     // Twitch EventSub webhook. Signature is verified inside the
     // handler against env.TWITCH_EVENTSUB_SECRET. Three message
     // types: webhook_callback_verification (challenge handshake),
@@ -1649,6 +1659,46 @@ async function handleScheduleMsg(req, env, path, method) {
     return jsonResp({ ...r, via: auth.via }, status);
   }
   return jsonResp({ ok: false, error: 'method-or-path-not-supported', method, path }, 405);
+}
+
+// ── /admin/channels/bind/:guildId (HMAC) ─────────────────────────
+//
+// Body { binding, channelId } — binding ∈ {queue, live, recap, clips, lfg}.
+// channelId="" clears the binding so the env fallback re-engages.
+// Returns the resolved value after the write.
+async function handleChannelsBind(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','channels','bind',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { setChannelBinding, getChannelBinding } = await import('./channel-bindings.js');
+  const r = await setChannelBinding(env, guildId, opts.binding, opts.channelId);
+  if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
+  const resolved = await getChannelBinding(env, guildId, opts.binding);
+  return jsonResp({ ...r, resolved, via: auth.via }, 200);
+}
+
+// ── /admin/channels/list/:guildId (HMAC) ─────────────────────────
+//
+// Status view for the admin UI: for every binding key, the KV
+// override, env fallback, and effective resolved value.
+async function handleChannelsList(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','channels','list',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const auth = await verifyAdminAuth(req, env, guildId, '');
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  const { listChannelBindings } = await import('./channel-bindings.js');
+  const bindings = await listChannelBindings(env, guildId);
+  return jsonResp({ ok: true, bindings, via: auth.via }, 200);
 }
 
 // ── /admin/gifter-roles/ensure/:guildId (HMAC) ────────────────────

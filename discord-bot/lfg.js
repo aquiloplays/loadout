@@ -36,19 +36,22 @@ async function putIndex(env, idx) {
   await env.LOADOUT_BOLTS.put(INDEX_KEY, JSON.stringify(idx));
 }
 
-// Designated LFG channel — first lookup checks per-guild config
-// (lfg:channel:<guildId>) so admins can rebind via the dropdown.
+// Designated LFG channel — KV-backed binding via channel-bindings.js
+// (`channel-binding:<g>:lfg`), wrangler.toml LFG_CHANNEL_ID env-var
+// fallback, then ENGAGEMENT_CHANNEL_ID as a last-resort fallback.
+// Legacy `lfg:channel:<g>` KV key is still consulted for back-compat
+// with any pre-binding setups; admin tooling writes the new key.
 async function resolveLfgChannel(env, guildId) {
   if (guildId) {
     try {
-      const v = await env.LOADOUT_BOLTS.get(`lfg:channel:${guildId}`, { type: 'text' });
-      if (v) return v;
+      const legacy = await env.LOADOUT_BOLTS.get(`lfg:channel:${guildId}`);
+      if (legacy && /^\d{5,25}$/.test(legacy)) return legacy;
     } catch { /* fall through */ }
   }
-  // env.LFG_CHANNEL_ID is set by wrangler.toml's L9-build channel map
-  // (1507973931372646490 → 🧩│looking-for-game). Falls back to the
-  // engagement channel only if no LFG binding exists at all.
-  return env.LFG_CHANNEL_ID || env.ENGAGEMENT_CHANNEL_ID || null;
+  const { getChannelBinding } = await import('./channel-bindings.js');
+  const bound = await getChannelBinding(env, guildId, 'lfg');
+  if (bound) return bound;
+  return env.ENGAGEMENT_CHANNEL_ID || null;
 }
 
 // Build a Discord embed payload for an LFG entry. Used by both the

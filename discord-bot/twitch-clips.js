@@ -23,6 +23,7 @@
 
 import { getRecentClips, isTwitchConfigured } from './twitch-helix.js';
 import { earn } from './wallet.js';
+import { getChannelBinding } from './channel-bindings.js';
 
 const POSTED_KEY  = (b) => `clips:posted:${b}`;
 const POSTED_CAP  = 500;
@@ -96,7 +97,8 @@ export async function pollNewClipsCron(env) {
     console.warn('[twitch-clips] twitch not configured — skip');
     return { skipped: 'twitch-not-configured' };
   }
-  if (!env.CLIPS_CHANNEL_ID) return { skipped: 'no-clips-channel' };
+  const clipsChannelId = await getChannelBinding(env, env.AQUILO_VAULT_GUILD_ID, 'clips');
+  if (!clipsChannelId) return { skipped: 'no-clips-channel' };
   const broadcasterId = env.CLAY_TWITCH_CHANNEL_ID;
   if (!broadcasterId) return { skipped: 'no-broadcaster-id' };
 
@@ -121,7 +123,7 @@ export async function pollNewClipsCron(env) {
   let postedCount = 0;
   for (const clip of fresh) {
     const post = await discordRest(env, 'POST',
-      `/channels/${env.CLIPS_CHANNEL_ID}/messages`,
+      `/channels/${clipsChannelId}/messages`,
       { embeds: [clipEmbed(clip)], allowed_mentions: { parse: [] } });
     if (!post.ok) {
       console.warn('[twitch-clips] post failed', post.status, clip.id);
@@ -132,7 +134,7 @@ export async function pollNewClipsCron(env) {
     await env.LOADOUT_BOLTS.put(
       `clips:posted-meta:${broadcasterId}:${clip.id}`,
       JSON.stringify({
-        channelId:   env.CLIPS_CHANNEL_ID,
+        channelId:   clipsChannelId,
         messageId:   post.body.id,
         postedAt:    Date.now(),
         creatorName: clip.creator_name || null,
@@ -143,8 +145,8 @@ export async function pollNewClipsCron(env) {
       { expirationTtl: 30 * 24 * 60 * 60 },   // 30-day TTL — covers the 7-day window with cushion
     );
     // Prefill 👍 / 👎 so viewers see them and can one-tap react.
-    await reactTo(env, env.CLIPS_CHANNEL_ID, post.body.id, '👍');
-    await reactTo(env, env.CLIPS_CHANNEL_ID, post.body.id, '👎');
+    await reactTo(env, clipsChannelId, post.body.id, '👍');
+    await reactTo(env, clipsChannelId, post.body.id, '👎');
   }
   await savePostedSet(env, broadcasterId, posted);
   return { ok: true, polled: clips.length, posted: postedCount };
@@ -178,7 +180,8 @@ function isoWeek(date = new Date()) {
 
 export async function postClipOfTheWeekCron(env) {
   if (!isTwitchConfigured(env)) return { skipped: 'twitch-not-configured' };
-  if (!env.CLIPS_CHANNEL_ID)    return { skipped: 'no-clips-channel' };
+  const clipsChannelId = await getChannelBinding(env, env.AQUILO_VAULT_GUILD_ID, 'clips');
+  if (!clipsChannelId)    return { skipped: 'no-clips-channel' };
   const broadcasterId = env.CLAY_TWITCH_CHANNEL_ID;
   if (!broadcasterId) return { skipped: 'no-broadcaster-id' };
 
@@ -255,7 +258,7 @@ export async function postClipOfTheWeekCron(env) {
       ? `🎁 <@${rewardedDiscordId}> earned **${rewardedBolts}** bolts for this clip!`
       : `(Link your Twitch account on aquilo.gg to claim future Clip-of-the-Week rewards.)`,
   ];
-  await discordRest(env, 'POST', `/channels/${env.CLIPS_CHANNEL_ID}/messages`, {
+  await discordRest(env, 'POST', `/channels/${clipsChannelId}/messages`, {
     content: lines.join('\n'),
     allowed_mentions: rewardedDiscordId ? { users: [rewardedDiscordId] } : { parse: [] },
   });

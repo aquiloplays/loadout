@@ -15,15 +15,24 @@ import {
 } from './util.js';
 import { getEligibleRoles, ensureBootstrap } from './bootstrap.js';
 import { deleteQueueIdle, refreshQueueIdle } from './idle-msgs.js';
+import { getChannelBinding } from '../channel-bindings.js';
 
 const KEY = (gid) => 'queue:' + gid;
 const DEFAULT_CAP = 100;
 
+// Resolves the queue channel via the per-guild binding (KV) with
+// QUEUE_CHANNEL_ID env fallback. See channel-bindings.js.
+async function resolveQueueChannel(env, guildId) {
+  return getChannelBinding(env, guildId, 'queue');
+}
+
 async function loadQueue(env, guildId) {
+  const queueChannel = await resolveQueueChannel(env, guildId);
+  const empty = () => ({ entries: [], cap: DEFAULT_CAP, message_id: null, channel_id: queueChannel, day_of_week: null, game: null, art_url: null });
   const raw = await env.STATE.get(KEY(guildId));
-  if (!raw) return { entries: [], cap: DEFAULT_CAP, message_id: null, channel_id: env.QUEUE_CHANNEL_ID, day_of_week: null, game: null, art_url: null };
+  if (!raw) return empty();
   try { return JSON.parse(raw); }
-  catch { return { entries: [], cap: DEFAULT_CAP, message_id: null, channel_id: env.QUEUE_CHANNEL_ID, day_of_week: null, game: null, art_url: null }; }
+  catch { return empty(); }
 }
 
 async function saveQueue(env, guildId, q) {
@@ -114,28 +123,33 @@ export async function postQueueMessage(env, guildId, dayOfWeek, gameName, artUrl
   try { await deleteQueueIdle(env); }
   catch (e) { console.warn('[queue] idle delete', e?.message || e); }
 
+  const channelId = await resolveQueueChannel(env, guildId);
+  if (!channelId) {
+    console.warn('[queue] postQueueMessage: no queue channel bound');
+    return { error: 'no-queue-channel' };
+  }
   const q = {
     entries: [],
     cap: DEFAULT_CAP,
     message_id: null,
-    channel_id: env.QUEUE_CHANNEL_ID,
+    channel_id: channelId,
     day_of_week: dayOfWeek,
     game: gameName,
     art_url: artUrl
   };
   const payload = buildQueueMessage(q, eligibleRoles.length);
-  const msg = await postChannelMessage(env, env.QUEUE_CHANNEL_ID, payload);
+  const msg = await postChannelMessage(env, channelId, payload);
   q.message_id = msg.id;
   await saveQueue(env, guildId, q);
 
   // Best-effort: create a discussion thread on the queue post. If the
   // bot lacks Create Public Threads perm, this fails silently.
   try {
-    await openThread(env, env.QUEUE_CHANNEL_ID, msg.id,
+    await openThread(env, channelId, msg.id,
       cap(dayOfWeek) + ' · ' + gameName + ' Discussion');
   } catch (e) { console.warn('[queue] thread create:', e?.message || e); }
 
-  return { messageId: msg.id };
+  return { messageId: msg.id, channelId };
 }
 
 // Called from cron at 12:30 AM ET. After community-night stream ends

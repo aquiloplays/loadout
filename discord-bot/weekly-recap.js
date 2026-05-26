@@ -14,6 +14,7 @@
 
 import { topXp } from './progression/xp.js';
 import { getBranding } from './branding.js';
+import { getChannelBinding } from './channel-bindings.js';
 
 const LAST_WEEK_KEY = (g) => `recap:weekly:last-week:${g}`;
 
@@ -142,12 +143,11 @@ async function sectionTopReactions(env, guildId) {
 // ── Public entry ──────────────────────────────────────────────────
 
 export async function postWeeklyRecap(env) {
-  if (!env.RECAP_CHANNEL_ID) {
-    return { skipped: 'no-recap-channel' };
-  }
   if (!env.DISCORD_BOT_TOKEN) return { skipped: 'no-bot-token' };
   const guildId = env.AQUILO_VAULT_GUILD_ID;
   if (!guildId) return { skipped: 'no-guild-id' };
+  const recapChannelId = await getChannelBinding(env, guildId, 'recap');
+  if (!recapChannelId) return { skipped: 'no-recap-channel' };
 
   const week = isoWeek(new Date());
   const last = await env.LOADOUT_BOLTS.get(LAST_WEEK_KEY(guildId));
@@ -181,7 +181,7 @@ export async function postWeeklyRecap(env) {
     timestamp: new Date().toISOString(),
   };
 
-  const r = await fetch(`https://discord.com/api/v10/channels/${env.RECAP_CHANNEL_ID}/messages`, {
+  const r = await fetch(`https://discord.com/api/v10/channels/${recapChannelId}/messages`, {
     method: 'POST',
     headers: {
       Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,

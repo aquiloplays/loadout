@@ -25,6 +25,7 @@
 //   broadcasterDisplayName, profileImageUrl, login }
 
 import { getStreamInfo, getUserById, isTwitchConfigured } from './twitch-helix.js';
+import { getChannelBinding } from './channel-bindings.js';
 
 const STATE_KEY = (b) => `twitch:live:state:${b}`;
 const TWITCH_PURPLE = 0x9146FF;
@@ -102,7 +103,8 @@ async function clearState(env, broadcasterId) {
 
 export async function postLiveEmbed(env, broadcasterId) {
   if (!isTwitchConfigured(env)) return { skipped: 'twitch-not-configured' };
-  if (!env.LIVE_CHANNEL_ID)     return { skipped: 'no-live-channel' };
+  const liveChannelId = await getChannelBinding(env, env.AQUILO_VAULT_GUILD_ID, 'live');
+  if (!liveChannelId)     return { skipped: 'no-live-channel' };
   // Belt-and-braces: if the EventSub fired but Helix isn't showing
   // the stream yet (rare race), bail rather than posting an empty
   // embed. The next :17 cron tick will catch it if the stream is
@@ -132,7 +134,7 @@ export async function postLiveEmbed(env, broadcasterId) {
   }
 
   const post = await discordRest(env, 'POST',
-    `/channels/${env.LIVE_CHANNEL_ID}/messages`,
+    `/channels/${liveChannelId}/messages`,
     {
       content: '🔴 Live now: https://twitch.tv/' + (login || 'aquilogg'),
       embeds: [liveEmbed({ stream, user, login })],
@@ -140,7 +142,7 @@ export async function postLiveEmbed(env, broadcasterId) {
     });
   if (!post.ok) return { error: 'post-failed', status: post.status, body: post.body };
   await saveState(env, broadcasterId, {
-    channelId: env.LIVE_CHANNEL_ID,
+    channelId: liveChannelId,
     messageId: post.body.id,
     streamId:  stream.id,
     startedAt: stream.started_at,
@@ -152,7 +154,7 @@ export async function postLiveEmbed(env, broadcasterId) {
     lastGame: stream.game_name,
     lastPeakViewers: Number(stream.viewer_count || 0),
   });
-  return { ok: true, action: 'posted-new', messageId: post.body.id, channelId: env.LIVE_CHANNEL_ID };
+  return { ok: true, action: 'posted-new', messageId: post.body.id, channelId: liveChannelId };
 }
 
 export async function refreshLiveEmbed(env, broadcasterId) {

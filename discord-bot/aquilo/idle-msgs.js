@@ -18,6 +18,14 @@ import {
   postChannelMessage, discordFetch, weekStartET,
   COLOR_QUEUE, COLOR_POLL, cap, steamStoreUrl
 } from './util.js';
+import { getChannelBinding } from '../channel-bindings.js';
+
+// Resolve the queue channel via the per-guild binding (KV) with
+// QUEUE_CHANNEL_ID env fallback. aquilo is single-tenant via
+// AQUILO_VAULT_GUILD_ID, so we read the binding for that guild.
+async function resolveQueueChannel(env) {
+  return getChannelBinding(env, env.AQUILO_VAULT_GUILD_ID, 'queue');
+}
 import { ensureBootstrap } from './bootstrap.js';
 
 // `idle:voting` (legacy): single message id from the v1 layout. We still
@@ -169,19 +177,21 @@ function buildQueueIdlePayload(env) {
 }
 
 export async function refreshQueueIdle(env) {
-  if (!env.QUEUE_CHANNEL_ID) return { skipped: 'no_channel' };
+  const channelId = await resolveQueueChannel(env);
+  if (!channelId) return { skipped: 'no_channel' };
   const oldId = await env.STATE.get(KV_QUEUE_IDLE);
-  if (oldId) await deleteMessageSafely(env, env.QUEUE_CHANNEL_ID, oldId);
+  if (oldId) await deleteMessageSafely(env, channelId, oldId);
   const payload = buildQueueIdlePayload(env);
-  const msg = await postChannelMessage(env, env.QUEUE_CHANNEL_ID, payload);
+  const msg = await postChannelMessage(env, channelId, payload);
   await env.STATE.put(KV_QUEUE_IDLE, msg.id);
-  return { messageId: msg.id };
+  return { messageId: msg.id, channelId };
 }
 
 export async function deleteQueueIdle(env) {
-  if (!env.QUEUE_CHANNEL_ID) return;
+  const channelId = await resolveQueueChannel(env);
+  if (!channelId) return;
   const oldId = await env.STATE.get(KV_QUEUE_IDLE);
   if (!oldId) return;
-  await deleteMessageSafely(env, env.QUEUE_CHANNEL_ID, oldId);
+  await deleteMessageSafely(env, channelId, oldId);
   await env.STATE.delete(KV_QUEUE_IDLE);
 }

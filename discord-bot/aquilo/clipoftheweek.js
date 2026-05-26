@@ -16,14 +16,23 @@ import {
   COLOR_SCHEDULE, weekStartET
 } from './util.js';
 import { bump } from './achievements.js';
+import { getChannelBinding } from '../channel-bindings.js';
+
+// Resolve the clips channel via the per-guild binding (KV) with
+// CLIPS_CHANNEL_ID env fallback. See channel-bindings.js.
+async function resolveClipsChannel(env) {
+  return getChannelBinding(env, env.AQUILO_VAULT_GUILD_ID, 'clips');
+}
 
 const CLIP_URL_RE = /\b(?:https?:\/\/)?(?:clips\.twitch\.tv\/|www\.twitch\.tv\/[^/\s]+\/clip\/|kick\.com\/[^/\s]+\/clips?\/)[A-Za-z0-9_-]+/i;
 const CLAP_EMOJI = '👏';
 
 /** Called from the aquilo-presence MESSAGE_CREATE webhook (same plumbing as counting). */
 export async function trackClipMessage(env, payload) {
-  if (!env?.DB || !env.CLIPS_CHANNEL_ID) return { tracked: false };
-  if (payload.channel_id !== env.CLIPS_CHANNEL_ID) return { tracked: false };
+  if (!env?.DB) return { tracked: false };
+  const clipsChannelId = await resolveClipsChannel(env);
+  if (!clipsChannelId) return { tracked: false };
+  if (payload.channel_id !== clipsChannelId) return { tracked: false };
   const content = String(payload.content || '');
   const m = content.match(CLIP_URL_RE);
   if (!m) return { tracked: false };
@@ -80,7 +89,9 @@ export async function refreshClipReactions(env) {
 
 /** Cron: Sunday 10 AM ET → post top-3 of the past week. */
 export async function postClipOfTheWeek(env) {
-  if (!env?.DB || !env.CLIPS_CHANNEL_ID) return;
+  if (!env?.DB) return;
+  const clipsChannelId = await resolveClipsChannel(env);
+  if (!clipsChannelId) return;
   const since = weekStartET();
   const { results } = await env.DB.prepare(
     `SELECT message_id, author_id, url, clap_count
@@ -95,7 +106,7 @@ export async function postClipOfTheWeek(env) {
   const lines = results.map((c, i) =>
     `${medals[i]} <@${c.author_id}> · 👏 **${c.clap_count}**\n${c.url}`
   );
-  await postChannelMessage(env, env.CLIPS_CHANNEL_ID, {
+  await postChannelMessage(env, clipsChannelId, {
     embeds: [{
       color: COLOR_SCHEDULE,
       title: '🎬 Clip of the Week',

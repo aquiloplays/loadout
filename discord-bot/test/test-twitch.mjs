@@ -267,9 +267,18 @@ console.log('— weekly-recap: ISO-week idempotency');
 
 console.log('— weekly-recap: skips cleanly when no channel');
 {
-  const env = { LOADOUT_BOLTS: makeKv() };
-  const r = await postWeeklyRecap(env);
-  eq(r.skipped, 'no-recap-channel', 'no channel → skipped');
+  // With the channel-binding refactor the recap now needs (bot token,
+  // guild id, recap channel) — any missing → skip with the matching
+  // reason code. Test all three skip paths.
+  eq((await postWeeklyRecap({ LOADOUT_BOLTS: makeKv() })).skipped,
+    'no-bot-token', 'no token → no-bot-token');
+  eq((await postWeeklyRecap({ LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'x' })).skipped,
+    'no-guild-id', 'no guild → no-guild-id');
+  eq((await postWeeklyRecap({
+    LOADOUT_BOLTS: makeKv(),
+    DISCORD_BOT_TOKEN: 'x',
+    AQUILO_VAULT_GUILD_ID: '1504103035951906883',
+  })).skipped, 'no-recap-channel', 'no channel binding → no-recap-channel');
 }
 
 console.log('');
