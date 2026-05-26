@@ -29,6 +29,9 @@ import {
   matchAndSetupGuildRoles,
   loadRoleMap,
   DEFAULT_WELCOME_CHANNEL_HINTS,
+  ensureBaselineRoles,
+  normaliseRoleSpecs,
+  BASELINE_ROLE_SPECS,
 } from '../onboarding.js';
 
 let failures = 0;
@@ -329,6 +332,207 @@ console.log('— postWelcomeEmbedForGuild: no channel candidate → 404-style er
   eq(r.ok, false, 'ok:false');
   eq(r.error, 'no-channel-match', 'error code');
   assert(Array.isArray(r.tried), 'returns tried list');
+}
+
+console.log('— BASELINE_ROLE_SPECS sanity');
+{
+  eq(BASELINE_ROLE_SPECS.map(s => s.key),
+     ['clash', 'boltbound', 'boardgames', 'watching', 'art'],
+     'baseline keys in spec order');
+  // Each one matches its own heuristic — important, otherwise a freshly
+  // created role wouldn't get re-picked up by matchAndSetupGuildRoles.
+  for (const s of BASELINE_ROLE_SPECS) {
+    assert(matchesInterest(s.key, s.name), `${s.key}: name "${s.name}" matches its own heuristic`);
+  }
+}
+
+console.log('— normaliseRoleSpecs');
+{
+  const cleaned = normaliseRoleSpecs([
+    { key: 'clash', name: '  Clash  ', color: 0x123456 },
+    { key: 'NOT_A_KEY', name: 'whatever' },                  // dropped
+    { key: 'art', name: '' },                                // dropped — empty name
+    { key: 'art', name: 'Artists', color: 'bad', hoist: true },
+    { key: 'watching', name: 'Just Watching' },              // no color → 0
+  ]);
+  eq(cleaned.length, 3, '3 valid out of 5 input');
+  eq(cleaned[0].name, 'Clash', 'name trimmed');
+  eq(cleaned[0].color, 0x123456, 'color preserved');
+  eq(cleaned[0].mentionable, true, 'mentionable default true');
+  eq(cleaned[0].hoist, false, 'hoist default false');
+  eq(cleaned[0].permissions, '0', 'permissions default "0"');
+  eq(cleaned[1].color, 0, 'non-integer color → 0');
+  eq(cleaned[1].hoist, true, 'hoist:true honored when explicit');
+  // Defaults applied when missing.
+  eq(cleaned[2].color, 0, 'missing color → 0');
+}
+
+console.log('— ensureBaselineRoles: defaults + creates missing');
+{
+  const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
+  const created = [];
+  fetchHandler = async (url, init) => {
+    if (init.method === 'GET' || !init.method) {
+      // /guilds/{g}/roles list — pretend only "Game Night" exists.
+      if (url.endsWith(`/guilds/${GUILD}/roles`)) {
+        return new Response(JSON.stringify([
+          { id: GUILD,                name: '@everyone' },
+          { id: '900000000000000001', name: 'Game Night' },
+        ]), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+    }
+    if (init.method === 'POST' && url.endsWith(`/guilds/${GUILD}/roles`)) {
+      const body = JSON.parse(init.body);
+      const id = '950000000000000' + (100 + created.length);
+      created.push({ id, body, auditReason: init.headers['X-Audit-Log-Reason'] });
+      return new Response(JSON.stringify({ id, name: body.name, color: body.color }),
+        { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response('?', { status: 500 });
+  };
+  const r = await ensureBaselineRoles(env, GUILD);   // default specs
+  fetchHandler = null;
+
+  assert(r.ok, 'ok:true');
+  // 5 baseline keys minus already-present 0 = 5 creates (Game Night
+  // covers gamenight which ISN\'T in BASELINE_ROLE_SPECS, so no overlap).
+  eq(r.created.length, 5, 'created 5 roles');
+  eq(r.created.map(c => c.key).sort(), ['art', 'boardgames', 'boltbound', 'clash', 'watching'].sort(),
+     'all 5 baseline keys created');
+  // Each create POST'd with permissions:"0", mentionable:true, hoist:false.
+  for (const c of created) {
+    eq(c.body.permissions, '0',   `${c.body.name}: permissions "0"`);
+    eq(c.body.mentionable, true,  `${c.body.name}: mentionable true`);
+    eq(c.body.hoist,       false, `${c.body.name}: hoist false`);
+  }
+  // Audit-log reason set per create (handy for guild owners scanning audit log).
+  assert(created.every(c => /aquilo onboarding/.test(c.auditReason || '')),
+         'X-Audit-Log-Reason set on every create');
+  eq(r.skipped, [], 'no skips');
+}
+
+console.log('— ensureBaselineRoles: skips already-existing matches (no dupes)');
+{
+  const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
+  let createCount = 0;
+  fetchHandler = async (url, init) => {
+    if (!init.method || init.method === 'GET') {
+      if (url.endsWith(`/guilds/${GUILD}/roles`)) {
+        // Pre-existing: Clash + Just Watching already manually made.
+        return new Response(JSON.stringify([
+          { id: GUILD,                name: '@everyone' },
+          { id: '900000000000000010', name: 'Clash' },
+          { id: '900000000000000011', name: 'Just Watching' },
+        ]), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+    }
+    if (init.method === 'POST' && url.endsWith(`/guilds/${GUILD}/roles`)) {
+      createCount++;
+      const body = JSON.parse(init.body);
+      return new Response(JSON.stringify({ id: '950000999999999' + createCount, name: body.name }),
+        { status: 200 });
+    }
+    return new Response('?', { status: 500 });
+  };
+  const r = await ensureBaselineRoles(env, GUILD);
+  fetchHandler = null;
+  assert(r.ok, 'ok:true');
+  // 3 created (boltbound, boardgames, art), 2 skipped (clash, watching).
+  eq(createCount, 3, 'only 3 POSTs made');
+  eq(r.created.map(c => c.key).sort(), ['art', 'boardgames', 'boltbound'].sort(), 'created keys');
+  eq(r.skipped.length, 2, 'two skipped');
+  const skipMap = Object.fromEntries(r.skipped.map(s => [s.key, s]));
+  eq(skipMap.clash.reason, 'already-exists', 'clash skip reason');
+  eq(skipMap.clash.existing.id, '900000000000000010', 'clash existing id');
+  eq(skipMap.watching.reason, 'already-exists', 'watching skip reason');
+}
+
+console.log('— ensureBaselineRoles: skips managed + @everyone correctly');
+{
+  const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
+  fetchHandler = async (url, init) => {
+    if (!init.method || init.method === 'GET') {
+      if (url.endsWith(`/guilds/${GUILD}/roles`)) {
+        return new Response(JSON.stringify([
+          { id: GUILD,                name: '@everyone' },
+          // A managed role NAMED "Clash" (e.g. some bot's integration role).
+          // matchesInterest would normally hit this, but we want to skip
+          // it because users can't be assigned managed roles.
+          { id: '900000000000000020', name: 'Clash', managed: true },
+        ]), { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+    }
+    if (init.method === 'POST' && url.endsWith(`/guilds/${GUILD}/roles`)) {
+      const body = JSON.parse(init.body);
+      return new Response(JSON.stringify({ id: '950100000000000001', name: body.name }), { status: 200 });
+    }
+    return new Response('?', { status: 500 });
+  };
+  const r = await ensureBaselineRoles(env, GUILD, [{ key: 'clash', name: 'Clash', color: 0x2f8f55 }]);
+  fetchHandler = null;
+  assert(r.ok, 'ok:true');
+  // The managed role doesn\'t count as a pre-existing match, so we
+  // proceed to create our own opt-in version.
+  eq(r.created.length, 1, 'created 1 (managed role ignored)');
+  eq(r.created[0].key, 'clash', 'clash created');
+}
+
+console.log('— ensureBaselineRoles: surfaces Discord create failures per-key');
+{
+  const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
+  fetchHandler = async (url, init) => {
+    if (!init.method || init.method === 'GET') {
+      if (url.endsWith(`/guilds/${GUILD}/roles`)) {
+        return new Response(JSON.stringify([{ id: GUILD, name: '@everyone' }]),
+          { status: 200, headers: { 'content-type': 'application/json' } });
+      }
+    }
+    if (init.method === 'POST' && url.endsWith(`/guilds/${GUILD}/roles`)) {
+      const body = JSON.parse(init.body);
+      // Fail the "Art" create with 403 (e.g. role-count limit hit);
+      // succeed the others. Flow continues per-key.
+      if (body.name === 'Art') return new Response('forbidden', { status: 403 });
+      return new Response(JSON.stringify({ id: '95010000000000' + body.name.length, name: body.name }),
+        { status: 200 });
+    }
+    return new Response('?', { status: 500 });
+  };
+  const r = await ensureBaselineRoles(env, GUILD);
+  fetchHandler = null;
+  assert(r.ok, 'overall ok:true even with per-key failure');
+  eq(r.created.length, 4, '4 successes');
+  eq(r.skipped.length, 1, '1 failure surfaced as skip');
+  eq(r.skipped[0].key, 'art', 'art is the failure');
+  eq(r.skipped[0].reason, 'create-failed', 'reason create-failed');
+  eq(r.skipped[0].status, 403, 'status echoed');
+}
+
+console.log('— ensureBaselineRoles: full idempotent re-run is all-skips');
+{
+  // First pass creates everything; second pass against the same
+  // (now-populated) guild should be all-skip with reason
+  // already-exists for every baseline key.
+  const guildRoles = [{ id: GUILD, name: '@everyone' }];
+  const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
+  fetchHandler = async (url, init) => {
+    if ((!init.method || init.method === 'GET') && url.endsWith(`/guilds/${GUILD}/roles`)) {
+      return new Response(JSON.stringify(guildRoles), { status: 200 });
+    }
+    if (init.method === 'POST' && url.endsWith(`/guilds/${GUILD}/roles`)) {
+      const body = JSON.parse(init.body);
+      const id = '950110' + (guildRoles.length).toString().padStart(13, '0');
+      guildRoles.push({ id, name: body.name });
+      return new Response(JSON.stringify({ id, name: body.name }), { status: 200 });
+    }
+    return new Response('?', { status: 500 });
+  };
+  const r1 = await ensureBaselineRoles(env, GUILD);
+  eq(r1.created.length, 5, 'first pass creates 5');
+  const r2 = await ensureBaselineRoles(env, GUILD);
+  fetchHandler = null;
+  eq(r2.created.length, 0, 'second pass creates 0');
+  eq(r2.skipped.length, 5, 'second pass skips 5');
+  assert(r2.skipped.every(s => s.reason === 'already-exists'), 'all skips are already-exists');
 }
 
 console.log('');

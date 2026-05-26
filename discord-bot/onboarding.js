@@ -927,6 +927,136 @@ export async function postWelcomeEmbedForGuild(env, guildId, opts = {}) {
   };
 }
 
+// ── Admin: ensure baseline interest roles exist ────────────────────
+//
+// Companion to matchAndSetupGuildRoles. The setup-roles flow can
+// only map roles that ALREADY exist in the guild — if a tenant
+// doesn't have, say, a "Clash" role for opt-in pings, the
+// `clash` interest stays unmapped and users picking it just get a
+// `no-mapping` skip.
+//
+// This helper fills that gap: for each provided spec, check if any
+// existing role already matches the heuristic for that interest
+// key (via matchesInterest). If a hit, skip — DON\'T create a
+// duplicate (the user may have already hand-rolled the role).
+// Otherwise POST a fresh opt-in ping role with the supplied
+// name/colour and `permissions: "0"` (no perms by default).
+//
+// Default spec set is BASELINE_ROLE_SPECS below — covers the five
+// interest keys Aquilo's onboarding ships with. Body { roles: [...] }
+// overrides if a different tenant wants a different palette / names.
+//
+// Idempotent — re-running on a guild that already has matching
+// roles is a no-op (every key in `skipped`).
+
+export const BASELINE_ROLE_SPECS = Object.freeze([
+  { key: 'clash',      name: 'Clash',         color: 0x2f8f55 },  // green
+  { key: 'boltbound',  name: 'Boltbound',     color: 0x3a82ff },  // primary blue
+  { key: 'boardgames', name: 'Board Games',   color: 0xe6c474 },  // amber
+  { key: 'watching',   name: 'Just Watching', color: 0x6a7488 },  // soft slate
+  { key: 'art',        name: 'Art',           color: 0x9b6cff },  // violet
+]);
+
+// Validate + normalise a caller-supplied spec list. Drops anything
+// without a valid interest key or a non-empty name. Defaults
+// mentionable:true, hoist:false, permissions:"0" so plain opt-in
+// pings are the zero-config path. Returns the cleaned list.
+export function normaliseRoleSpecs(specs) {
+  const valid = new Set(INTERESTS.map(i => i.key));
+  const out = [];
+  for (const s of (Array.isArray(specs) ? specs : [])) {
+    if (!s || !valid.has(s.key)) continue;
+    const name = String(s.name || '').trim().slice(0, 100);
+    if (!name) continue;
+    out.push({
+      key: s.key,
+      name,
+      color: Number.isInteger(s.color) ? (s.color & 0xFFFFFF) : 0,
+      mentionable: s.mentionable === false ? false : true,
+      hoist:       s.hoist === true,
+      permissions: typeof s.permissions === 'string' ? s.permissions : '0',
+    });
+  }
+  return out;
+}
+
+// Create the missing opt-in roles. Returns
+// { ok, created: [{ key, id, name, color }],
+//   skipped: [{ key, reason, existing?: { id, name } }],
+//   roleCount }.
+//
+// `skipped.reason` is one of:
+//   - 'already-exists' — a role already satisfies the heuristic
+//   - 'create-failed'  — Discord 4xx/5xx; status echoed
+export async function ensureBaselineRoles(env, guildId, specsArg) {
+  if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
+  const specs = normaliseRoleSpecs(
+    Array.isArray(specsArg) && specsArg.length ? specsArg : BASELINE_ROLE_SPECS,
+  );
+  if (specs.length === 0) return { ok: true, created: [], skipped: [], roleCount: 0 };
+
+  // Snapshot the guild's existing roles ONCE up front so we can
+  // resolve every spec against the same view (no race between specs).
+  const listRes = await fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/roles`, {
+    headers: {
+      Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+      'User-Agent': 'loadout-discord onboarding',
+    },
+  });
+  if (!listRes.ok) {
+    const t = await listRes.text();
+    return { ok: false, error: 'roles-fetch-failed', status: listRes.status, body: t.slice(0, 200) };
+  }
+  const existing = await listRes.json();
+
+  const created = [];
+  const skipped = [];
+  for (const spec of specs) {
+    // Skip if any current role (other than @everyone or a managed
+    // role) already satisfies the heuristic for this key — we DON\'T
+    // want to dupe a role someone made manually with a slightly
+    // different name.
+    const hit = (existing || []).find(role =>
+      role && role.id && role.name
+      && String(role.id) !== String(guildId)
+      && !role.managed
+      && matchesInterest(spec.key, role.name),
+    );
+    if (hit) {
+      skipped.push({ key: spec.key, reason: 'already-exists',
+        existing: { id: String(hit.id), name: String(hit.name) } });
+      continue;
+    }
+    // Create. Discord requires the `reason` audit-log field on the
+    // X-Audit-Log-Reason header (≤512 chars).
+    const createRes = await fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/roles`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+        'Content-Type': 'application/json',
+        'User-Agent':   'loadout-discord onboarding',
+        'X-Audit-Log-Reason': `aquilo onboarding: ensure opt-in role for "${spec.key}"`,
+      },
+      body: JSON.stringify({
+        name:        spec.name,
+        permissions: spec.permissions,
+        color:       spec.color,
+        hoist:       spec.hoist,
+        mentionable: spec.mentionable,
+      }),
+    });
+    if (!createRes.ok) {
+      const t = await createRes.text();
+      skipped.push({ key: spec.key, reason: 'create-failed',
+        status: createRes.status, body: t.slice(0, 200) });
+      continue;
+    }
+    const j = await createRes.json();
+    created.push({ key: spec.key, id: String(j.id), name: spec.name, color: spec.color });
+  }
+  return { ok: true, created, skipped, roleCount: (existing || []).length };
+}
+
 // ── Admin HTTP route: setup-roles ──────────────────────────────────
 //
 // Fetch guild roles, match each interest key, write the resulting

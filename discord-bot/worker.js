@@ -210,6 +210,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/onboarding/setup-roles/')) {
       return handleOnboardingSetupRoles(req, env, path);
     }
+    // Create the baseline opt-in interest roles if a guild doesn't
+    // already have a role matching each interest's heuristic. Body
+    // { roles?: [{ key, name, color?, mentionable?, hoist?,
+    //   permissions? }] } — omit `roles` to use BASELINE_ROLE_SPECS.
+    // Idempotent — existing matching roles are skipped, not duped.
+    if (method === 'POST' && path.startsWith('/admin/onboarding/ensure-roles/')) {
+      return handleOnboardingEnsureRoles(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -1342,6 +1350,49 @@ async function handleOnboardingSetupRoles(req, env, path) {
 
   const { matchAndSetupGuildRoles } = await import('./onboarding.js');
   const r = await matchAndSetupGuildRoles(env, guildId);
+  if (!r.ok) {
+    const status = r.error === 'roles-fetch-failed' ? 502 : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/onboarding/ensure-roles/:guildId (HMAC) ────────────────
+//
+// Create the baseline opt-in interest roles if (and only if) the
+// guild doesn't already have a role satisfying the same heuristic
+// for each interest key. Idempotent — re-running on a guild that
+// already has matching roles returns every key under `skipped`
+// with reason `already-exists`. See onboarding.js
+// ensureBaselineRoles for the per-key shape.
+//
+// Body (JSON, optional):
+//   { roles?: [{ key, name, color?, mentionable?, hoist?,
+//                permissions? }] }
+// Omit `roles` to use BASELINE_ROLE_SPECS (the five standard
+// opt-in pings: clash, boltbound, boardgames, watching, art).
+//
+// Caller typically chains this with /admin/onboarding/setup-roles
+// to refresh the KV mapping after creates.
+//
+// Returns:
+//   { ok: true, created: [{ key, id, name, color }],
+//     skipped: [{ key, reason, existing?, status? }], roleCount }
+async function handleOnboardingEnsureRoles(req, env, path) {
+  const parts = path.split('/').filter(Boolean);    // ['admin', 'onboarding', 'ensure-roles', ':guildId']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { ensureBaselineRoles } = await import('./onboarding.js');
+  const r = await ensureBaselineRoles(env, guildId, opts.roles);
   if (!r.ok) {
     const status = r.error === 'roles-fetch-failed' ? 502 : 400;
     return jsonResp({ ...r, via: auth.via }, status);
