@@ -73,10 +73,15 @@ export async function handleVoiceStateUpdate(env, payload) {
   const userId = String(payload.user_id || '');
   const newChannelId = payload.channel_id ? String(payload.channel_id) : null;
 
+  // Resolution order: guild:cfg KV first (set by /admin/guild-finalize or
+  // the setup wizard), env-var fallback second (TEMP_VC_PARENT_ID +
+  // TEMP_VC_CATEGORY_ID, declared in wrangler.toml). Falling back to
+  // env means rebinding a guild's join-to-create VC only requires a
+  // wrangler redeploy if the cfg KV hasn't been populated yet.
   const cfg = await loadGuildCfg(env, guildId);
-  const parentVcId = cfg?.ids?.vc_join_to_create;
+  const parentVcId     = cfg?.ids?.vc_join_to_create || env.TEMP_VC_PARENT_ID   || null;
+  const parentCategory = cfg?.ids?.cat_voice         || env.TEMP_VC_CATEGORY_ID || null;
   if (!parentVcId) return { skipped: 'no-parent-vc' };
-  const parentCategory = cfg?.ids?.cat_voice;
 
   const results = {};
 
