@@ -105,6 +105,17 @@ export async function emitProgressionEvent(env, event) {
           }
         } catch { /* non-fatal */ }
       }
+      // Level-tier roles — grant Discord roles for every L5/L25/L50/L100
+      // crossed in this event. Stacks (higher tier doesn't remove
+      // lower) — see level-tier-roles.js. No-op if the guild hasn't
+      // run /admin/level-tier-roles/ensure yet.
+      try {
+        const { grantTierRolesForCrossedLevels } = await import('../level-tier-roles.js');
+        await grantTierRolesForCrossedLevels(env, event.userId,
+          xpResult.levelsCrossed, event.guildId);
+      } catch (e) {
+        console.warn('[progression] tier-role grant failed:', e?.message || e);
+      }
     }
 
     // ── Consumer #2: Achievement check ──

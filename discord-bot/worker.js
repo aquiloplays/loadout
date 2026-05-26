@@ -218,6 +218,19 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/onboarding/ensure-roles/')) {
       return handleOnboardingEnsureRoles(req, env, path);
     }
+    // Level-tier roles (Apprentice/Veteran/Elite/Mythic) — create
+    // the four roles + map them in KV. Idempotent. See
+    // level-tier-roles.js for the threshold spec.
+    if (method === 'POST' && path.startsWith('/admin/level-tier-roles/ensure/')) {
+      return handleLevelTierRolesEnsure(req, env, path);
+    }
+    // One-time-per-guild backfill: walk every pxp:* record and
+    // grant tier roles to anyone who has already crossed the
+    // threshold. Idempotent via a KV marker; pass `{ force: true }`
+    // to re-scan.
+    if (method === 'POST' && path.startsWith('/admin/level-tier-roles/backfill/')) {
+      return handleLevelTierRolesBackfill(req, env, path);
+    }
     // Twitch EventSub webhook. Signature is verified inside the
     // handler against env.TWITCH_EVENTSUB_SECRET. Three message
     // types: webhook_callback_verification (challenge handshake),
@@ -1496,6 +1509,52 @@ async function handleOnboardingEnsureRoles(req, env, path) {
     const status = r.error === 'roles-fetch-failed' ? 502 : 400;
     return jsonResp({ ...r, via: auth.via }, status);
   }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/level-tier-roles/ensure/:guildId (HMAC) ────────────────
+//
+// Create the four level-tier roles (Apprentice/Veteran/Elite/Mythic)
+// + persist the {key:roleId} map at `level-tier-roles:<g>`.
+// Idempotent — reuses existing roles when name OR mapped-id matches.
+async function handleLevelTierRolesEnsure(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','level-tier-roles','ensure',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  const { ensureLevelTierRoles } = await import('./level-tier-roles.js');
+  const r = await ensureLevelTierRoles(env, guildId);
+  if (!r.ok) {
+    const status = r.error === 'roles-fetch-failed' ? 502 : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/level-tier-roles/backfill/:guildId (HMAC) ──────────────
+//
+// One-time-per-guild grant pass: for every pxp:<userId> record,
+// grant the tier roles the user has already earned. Idempotent
+// (KV marker — pass `{ force: true }` body to re-scan).
+async function handleLevelTierRolesBackfill(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','level-tier-roles','backfill',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { backfillLevelTierRoles } = await import('./level-tier-roles.js');
+  const r = await backfillLevelTierRoles(env, guildId, opts);
+  if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
 }
 
