@@ -267,6 +267,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/lfg/post-hub/')) {
       return handleLfgPostHub(req, env, path);
     }
+    // Force a fresh schedule embed post / refresh. With the schedule
+    // channel binding now KV-driven, this is the simplest way to
+    // immediately relocate the embed after a rebind — calls
+    // aquilo/aq-schedule.postOrRefreshSchedule which detects the
+    // channel-mismatch + handles the delete-old + post-new dance.
+    if (method === 'POST' && path.startsWith('/admin/aquilo/refresh-schedule/')) {
+      return handleAquiloRefreshSchedule(req, env, path);
+    }
     // Twitch EventSub webhook. Signature is verified inside the
     // handler against env.TWITCH_EVENTSUB_SECRET. Three message
     // types: webhook_callback_verification (challenge handshake),
@@ -1665,6 +1673,29 @@ async function handleScheduleMsg(req, env, path, method) {
     return jsonResp({ ...r, via: auth.via }, status);
   }
   return jsonResp({ ok: false, error: 'method-or-path-not-supported', method, path }, 405);
+}
+
+// ── /admin/aquilo/refresh-schedule/:guildId (HMAC) ──────────────
+//
+// Trigger postOrRefreshSchedule. When the schedule channel binding
+// has just flipped, the function detects the channel-mismatch on
+// the stored sched.channel_id, deletes the prior message in the
+// OLD channel, and posts fresh in the NEW channel. Returns the
+// new message id.
+async function handleAquiloRefreshSchedule(req, env, path) {
+  const parts = path.split('/').filter(Boolean);  // ['admin','aquilo','refresh-schedule',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  try {
+    const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
+    const messageId = await postOrRefreshSchedule(env, guildId);
+    return jsonResp({ ok: true, messageId, via: auth.via }, 200);
+  } catch (e) {
+    return jsonResp({ ok: false, error: String(e?.message || e), via: auth.via }, 502);
+  }
 }
 
 // ── /admin/channels/bind/:guildId (HMAC) ─────────────────────────
