@@ -96,6 +96,12 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleOnboardComponent } = await import('./onboarding.js');
       return json(await handleOnboardComponent(env, data));
     }
+    if (cid.startsWith('lfg:'))       {
+      // LFG hub buttons + Join buttons on enriched pings.
+      // See lfg-hub.js for the component catalogue.
+      const { handleLfgHubComponent } = await import('./lfg-hub.js');
+      return json(await handleLfgHubComponent(env, data));
+    }
     if (cid.startsWith('ticket:'))    {
       const { handleTicketComponent } = await import('./tickets.js');
       return json(await handleTicketComponent(env, data));
@@ -139,6 +145,12 @@ export async function handleInteraction(req, env, body, ctx) {
     // viewer hub modals use `hub:modal:*` — the two don't collide.
     const cid = data.data?.custom_id || '';
     if (cid.startsWith('hub:modal:')) return handleHubModal(data, env);
+    // LFG hub create modal — bare modal:lfg-* prefix, claimed here
+    // before the generic modal:* aquilo route.
+    if (cid.startsWith('modal:lfg-')) {
+      const { handleLfgModalSubmit } = await import('./lfg-hub.js');
+      return json(await handleLfgModalSubmit(env, data));
+    }
     if (cid.startsWith('modal:'))     return dispatchAquiloInteraction(data, env, ctx);
     if (cid.startsWith('tempvc:')) {
       const { handleTempVcModal } = await import('./temp-vc.js');

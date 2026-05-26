@@ -261,6 +261,12 @@ export default {
     if (method === 'GET' && path.startsWith('/admin/channels/list/')) {
       return handleChannelsList(req, env, path);
     }
+    // Persistent LFG hub embed — admin posts it once into the LFG
+    // channel; users click buttons instead of typing /lfg. See
+    // lfg-hub.js. Mirrors /admin/onboarding/post-embed.
+    if (method === 'POST' && path.startsWith('/admin/lfg/post-hub/')) {
+      return handleLfgPostHub(req, env, path);
+    }
     // Twitch EventSub webhook. Signature is verified inside the
     // handler against env.TWITCH_EVENTSUB_SECRET. Three message
     // types: webhook_callback_verification (challenge handshake),
@@ -1689,7 +1695,8 @@ async function handleChannelsBind(req, env, path) {
 // ── /admin/channels/list/:guildId (HMAC) ─────────────────────────
 //
 // Status view for the admin UI: for every binding key, the KV
-// override, env fallback, and effective resolved value.
+// override, env fallback, and effective resolved value. Surfaces
+// "is this rebound or still on env" at a glance.
 async function handleChannelsList(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','channels','list',':g']
   const guildId = parts[3];
@@ -1699,6 +1706,38 @@ async function handleChannelsList(req, env, path) {
   const { listChannelBindings } = await import('./channel-bindings.js');
   const bindings = await listChannelBindings(env, guildId);
   return jsonResp({ ok: true, bindings, via: auth.via }, 200);
+}
+
+// ── /admin/lfg/post-hub/:guildId (HMAC) ──────────────────────────
+//
+// Drop the persistent LFG hub embed into a channel. Resolution
+// matches /admin/onboarding/post-embed: explicit channelId →
+// explicit channelName → channel-binding(lfg) → name-hint match.
+async function handleLfgPostHub(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','lfg','post-hub',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { postLfgHubForGuild } = await import('./lfg-hub.js');
+  const r = await postLfgHubForGuild(env, guildId, {
+    channelId:   typeof opts.channelId   === 'string' ? opts.channelId.trim()   : undefined,
+    channelName: typeof opts.channelName === 'string' ? opts.channelName.trim() : undefined,
+  });
+  if (!r.ok) {
+    const status = r.error === 'no-channel-match' ? 404
+      : r.error === 'channels-fetch-failed' || r.error === 'post-failed' ? 502
+      : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
 }
 
 // ── /admin/gifter-roles/ensure/:guildId (HMAC) ────────────────────
