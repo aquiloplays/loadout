@@ -105,20 +105,17 @@ const HUBS = Object.freeze({
       '• **Boltbound** — async card battler\n' +
       '• **Clash** — town builder + raids\n' +
       '• **Quick games** — coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash\n' +
-      '• **Aquilo\'s Vault** — community shared bolts treasury\n' +
       '• **Character** — open the upload-based hero editor\n' +
-      '• **RPG (Loadout)** — wallet, inventory, kit, daily',
-    // 6 buttons across two rows (5+1) so we stay within Discord's
-    // 5-per-row component cap.
+      '• **RPG (Loadout)** — wallet, inventory, kit, daily\n\n' +
+      '_Aquilo\'s Vault lives in its own pair of channels now — see #vault-actions for player actions, #vault-events for the game feed._',
+    // 5 buttons in one row (Vault was removed per Clay — moved to
+    // dedicated vault-actions + vault-events channels).
     rows: () => [
       [
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Boltbound',     custom_id: 'play:boltbound' },
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Clash',         custom_id: 'play:clash' },
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Quick games',   custom_id: 'play:quick' },
-        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Aquilo\'s Vault', custom_id: 'play:vault' },
         { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Character',     custom_id: 'play:character' },
-      ],
-      [
         { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'RPG (Loadout)', custom_id: 'play:rpg' },
       ],
     ],
@@ -301,10 +298,15 @@ export async function handleCheckinHubComponent(env, data) {
   if (!userId || !guildId) return eph('Run this in a server.');
 
   if (action === 'run') {
-    // Re-emit through the existing /checkin slash command — same
-    // entry point the slash command uses, identical flow.
-    const { handleCheckinSlashCommand } = await import('./aquilo/checkin-slash.js');
-    return handleCheckinSlashCommand(env, { ...data, data: { name: 'checkin' } });
+    // Re-emit through the canonical /checkin slash handler. The
+    // older alias `handleCheckinSlashCommand` in aquilo/checkin-slash.js
+    // was retired during the May 2026 consolidation — calling it
+    // crashed with "interaction failed" because the import resolved
+    // to undefined. handleCheckinCommand in community-checkin.js
+    // reads only data.guild_id + data.member.user.id so it's
+    // happy with a button-interaction shape (no .options needed).
+    const { handleCheckinCommand } = await import('./community-checkin.js');
+    return handleCheckinCommand(env, data);
   }
   if (action === 'streak') {
     try {
@@ -633,36 +635,88 @@ export async function handlePlayHubComponent(env, data) {
   }
 
   if (action === 'quick') {
-    // Quick-games panel lives on the Twitch extension + aquilo.gg
-    // /play surface. Surface direct links to each game type so users
-    // can one-tap-launch.
+    // Stateless quick games (coinflip / dice / roulette / wheel /
+    // plinko / crash) run INLINE — tap the button, the worker
+    // resolves the round using the existing games / games-quick
+    // helpers, and replies ephemeral. Stateful games (blackjack /
+    // hilo / mines) need turn-by-turn UI; for now they keep the
+    // single "Play on aquilo.gg" fallback link until the full
+    // multi-step Discord flow lands in phase 2.
+    const { getWallet } = await import('./wallet.js');
+    const w = await getWallet(env, guildId, userId).catch(() => ({ balance: 0 }));
     return {
       type: RESP_CHAT,
       data: {
         embeds: [{
           title: '🎰 Quick games',
-          description: '9 games sharing one bolts ledger. Tap any to launch on aquilo.gg.',
+          description:
+            `Wallet: **${(w.balance || 0).toLocaleString()}** bolts.\n` +
+            `Each round costs **10** bolts (phase-1 fixed stake). ` +
+            `Tap a game to play inline; result lands in this ephemeral.`,
           color: 0x3a82ff,
         }],
         components: [
           { type: COMPONENT_ROW, components: [
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Coinflip',  url: `${site}/play/coinflip/`  },
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Dice',      url: `${site}/play/dice/`      },
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Blackjack', url: `${site}/play/blackjack/` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Roulette',  url: `${site}/play/roulette/`  },
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Wheel',     url: `${site}/play/wheel/`     },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🪙 Coinflip',  custom_id: 'play:quick-game:coinflip' },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🎲 Dice',      custom_id: 'play:quick-game:dice' },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🟢 Roulette',  custom_id: 'play:quick-game:roulette' },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🎡 Wheel',     custom_id: 'play:quick-game:wheel' },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '⚡ Crash',     custom_id: 'play:quick-game:crash' },
           ]},
           { type: COMPONENT_ROW, components: [
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Hilo',      url: `${site}/play/hilo/`      },
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Mines',     url: `${site}/play/mines/`     },
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Plinko',    url: `${site}/play/plinko/`    },
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Crash',     url: `${site}/play/crash/`     },
-            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'All quick games', url: `${site}/play/`     },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🟡 Plinko',    custom_id: 'play:quick-game:plinko' },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Stateful games on aquilo.gg', url: `${site}/play/` },
           ]},
         ],
         flags: FLAG_EPHEMERAL,
       },
     };
+  }
+  // Stateless quick-game player: vault-style fixed-stake one-shot.
+  if (action === 'quick-game') {
+    const game = parts[2];
+    const STAKE = 10;
+    try {
+      const { coinflip, dice } = await import('./games.js');
+      const { roulette, wheel, plinko, crash } = await import('./games-quick.js');
+      const { getWallet } = await import('./wallet.js');
+      const w = await getWallet(env, guildId, userId);
+      if ((w.balance || 0) < STAKE) {
+        return eph(`❌ Need **${STAKE}** bolts to play. You have ${(w.balance || 0).toLocaleString()}.`);
+      }
+      let r;
+      if (game === 'coinflip') r = await coinflip(env, guildId, userId, STAKE);
+      else if (game === 'dice')      r = await dice(env, guildId, userId, STAKE, 1);                       // bet on 1
+      else if (game === 'roulette')  r = await roulette(env, guildId, userId, STAKE, { kind: 'red' });    // red bet
+      else if (game === 'wheel')     r = await wheel(env, guildId, userId, STAKE, 'low');
+      else if (game === 'plinko')    r = await plinko(env, guildId, userId, STAKE, 'low');
+      else if (game === 'crash')     r = await crash(env, guildId, userId, STAKE, 1.5);                    // 1.5× auto-cashout
+      else return eph('Unknown quick game: ' + game);
+
+      if (!r || (r.ok === false)) {
+        return eph('❌ ' + (r?.error || r?.explanation || 'round-failed'));
+      }
+      const w2 = await getWallet(env, guildId, userId);
+      const won = (r.won === true) || (typeof r.payout === 'number' && r.payout > 0);
+      const verdict = won ? `🎉 **Won +${r.payout || 0} bolts**` : `💸 **Lost ${STAKE} bolts**`;
+      const detail = r.explanation || r.message || '';
+      return ephEmbed({
+        title: `🎰 ${game.charAt(0).toUpperCase() + game.slice(1)}`,
+        description: `${verdict}\n${detail ? `_${detail}_\n` : ''}Balance: **${(w2.balance || 0).toLocaleString()}** bolts.`,
+        color: won ? 0x42c97a : 0x6a7488,
+      }, {
+        // Quick-replay button — same stake, same game.
+        components: [{
+          type: COMPONENT_ROW,
+          components: [
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Play again', custom_id: `play:quick-game:${game}` },
+            { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: '← Back to games', custom_id: 'play:quick' },
+          ],
+        }],
+      });
+    } catch (e) {
+      return eph('❌ ' + (e?.message || e));
+    }
   }
 
   if (action === 'vault') {

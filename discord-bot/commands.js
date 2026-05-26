@@ -115,6 +115,12 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleVoteHubComponent } = await import('./vote-hub.js');
       return json(await handleVoteHubComponent(env, data));
     }
+    if (cid.startsWith('vault:'))     {
+      // Aquilo's Vault — actions hub + event-feed button clicks.
+      // See vault-hub.js.
+      const { handleVaultComponent } = await import('./vault-hub.js');
+      return json(await handleVaultComponent(env, data));
+    }
     // Phase-1 channel hubs (check-in / character / bolts / play /
     // achievements). Each prefix routes to its own handler in
     // channel-hubs.js.

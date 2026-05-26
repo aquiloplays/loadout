@@ -237,8 +237,21 @@ async function resolveAvatar(env, userId, card, member) {
 }
 
 async function postCheckinEmbed(env, guildId, userId, state, card, member, isFirstTimeNoCard) {
-  const channel = await getCheckinChannel(env, guildId);
-  if (!channel?.channelId) return { posted: false, reason: 'channel-unbound' };
+  // Resolution order:
+  //   1. channel-binding(checkin-results) — KV-only, set by Clay
+  //      to route result embeds away from the hub channel
+  //   2. legacy admin-menu getCheckinChannel (KV `checkin:channel:guild:<g>`)
+  //   3. null → no-op skip with reason
+  let channelId = null;
+  try {
+    const { getChannelBinding } = await import('./channel-bindings.js');
+    channelId = await getChannelBinding(env, guildId, 'checkin-results');
+  } catch { /* fall through to legacy */ }
+  if (!channelId) {
+    const channel = await getCheckinChannel(env, guildId);
+    channelId = channel?.channelId || null;
+  }
+  if (!channelId) return { posted: false, reason: 'channel-unbound' };
 
   // Per-guild branding (siteUrl, accent, defaultImage). Card-level
   // override (if the user customised) wins over branding which wins
@@ -273,7 +286,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
     timestamp: new Date().toISOString(),
   };
 
-  const r = await fetch(`https://discord.com/api/v10/channels/${channel.channelId}/messages`, {
+  const r = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
     method: 'POST',
     headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -286,7 +299,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
     return { posted: false, reason: 'discord-' + r.status, body: txt.slice(0, 200) };
   }
   const m = await r.json();
-  return { posted: true, channelId: channel.channelId, messageId: m?.id || null,
+  return { posted: true, channelId, messageId: m?.id || null,
            avatarSource: avatarPick.source };
 }
 

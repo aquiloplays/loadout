@@ -66,8 +66,10 @@ console.log('— catalog sanity');
 {
   eq(_BINDING_KEYS_FOR_TEST,
     ['queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll',
-     'games-list', 'checkin', 'character', 'bolts', 'play', 'achievements', 'vote'],
-    'binding keys (now includes games-list, phase-1 hubs, and vote)');
+     'games-list', 'checkin', 'checkin-results',
+     'character', 'bolts', 'play', 'achievements', 'vote',
+     'vault-events', 'vault-actions'],
+    'binding keys (now includes checkin-results + vault-events/actions)');
   // Every binding has an env-fallback ENTRY in the table (value
   // may be null for hub-channel bindings that are KV-only).
   for (const k of _BINDING_KEYS_FOR_TEST) {
@@ -82,7 +84,8 @@ console.log('— catalog sanity');
   }
   // checkin has CHECKIN_CHANNEL_ID env fallback; the rest are KV-only.
   eq(_BINDING_ENV_FALLBACK_FOR_TEST.checkin, 'CHECKIN_CHANNEL_ID', 'checkin → CHECKIN_CHANNEL_ID');
-  for (const k of ['games-list', 'character', 'bolts', 'play', 'achievements', 'vote']) {
+  for (const k of ['games-list', 'character', 'bolts', 'play', 'achievements', 'vote',
+                   'checkin-results', 'vault-events', 'vault-actions']) {
     eq(_BINDING_ENV_FALLBACK_FOR_TEST[k], null, `${k} env fallback is null (KV-only)`);
   }
   // Pin the env-var names so a rename doesn't silently break the
@@ -154,7 +157,7 @@ console.log('— setChannelBinding');
   const r3 = await setChannelBinding(env, GUILD, 'garbage', '1500000000000000222');
   eq(r3.ok, false, 'unknown binding refused');
   eq(r3.error, 'unknown-binding', 'error code');
-  assert(Array.isArray(r3.allowed) && r3.allowed.length === 14, 'lists allowed (14 keys)');
+  assert(Array.isArray(r3.allowed) && r3.allowed.length === 17, 'lists allowed (17 keys)');
   // No guild.
   const r4 = await setChannelBinding(env, '', 'queue', '1500000000000000222');
   eq(r4.error, 'no-guild-id', 'no-guild-id');
@@ -176,9 +179,10 @@ console.log('— listChannelBindings');
   await env.LOADOUT_BOLTS.put(`channel-binding:${GUILD}:queue`, '1500000000000000222');
   const list = await listChannelBindings(env, GUILD);
   eq(Object.keys(list).sort(),
-    ['achievements', 'bolts', 'character', 'checkin', 'clips', 'games-list',
-     'lfg', 'live', 'play', 'poll', 'queue', 'recap', 'schedule', 'vote'].sort(),
-    '14 keys (incl. vote)');
+    ['achievements', 'bolts', 'character', 'checkin', 'checkin-results',
+     'clips', 'games-list', 'lfg', 'live', 'play', 'poll', 'queue', 'recap',
+     'schedule', 'vault-actions', 'vault-events', 'vote'].sort(),
+    '17 keys');
   // queue: KV override; resolved = KV.
   eq(list.queue.kv, '1500000000000000222', 'queue kv');
   eq(list.queue.env, '1500000000000000111', 'queue env');

@@ -38,6 +38,20 @@ compatibility_date = "2025-09-01"
 #                              headers, SHA-256 over ts+"\n"+body).
 #                              Without it the gifter-roles webhook
 #                              returns 503.
+#   VAULT_WEBHOOK_SECRET       REQUIRED for /vault/event — FS-Bot
+#                              (Railway) signs each game-event POST
+#                              with the same hex. Headers
+#                              x-aquilo-vault-ts + x-aquilo-vault-sig.
+#                              Without it the Vault events feed
+#                              returns 503.
+#   VAULT_INGEST_URL           Optional. URL on the Railway side that
+#                              accepts button-click forwards from the
+#                              Vault events channel (vault:evt:<id>:
+#                              <action> custom_ids). Unset = clicks
+#                              ephemerally ack with "Vault not wired"
+#                              instead of forwarding.
+#   VAULT_INGEST_SECRET        HMAC secret used to sign the forward
+#                              request. Set alongside VAULT_INGEST_URL.
 
 [vars]
 # Public env. Per-guild secrets are stored in KV, not here.

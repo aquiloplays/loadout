@@ -291,6 +291,15 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/vote-hub/retire-legacy/')) {
       return handleVoteHubRetireLegacy(req, env, path);
     }
+    // Aquilo's Vault — webhook for game events from FS-Bot (Railway)
+    // + admin endpoint to (re)post the actions hub.
+    if (method === 'POST' && path === '/vault/event') {
+      const { handleVaultEventWebhook } = await import('./vault-hub.js');
+      return handleVaultEventWebhook(req, env);
+    }
+    if (method === 'POST' && path.startsWith('/admin/vault/post-actions/')) {
+      return handleVaultPostActions(req, env, path);
+    }
     // CN games-list catalogue. Multi-embed listing of every active
     // CN game with art + Steam links. See cn-games-list-hub.js.
     if (method === 'POST' && path.startsWith('/admin/cn-games-list/post-hub/')) {
@@ -1835,6 +1844,29 @@ async function handleVoteHubConfig(req, env, path) {
   }
   const r = await setConfig(env, guildId, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+async function handleVaultPostActions(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','vault','post-actions',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { postActionsHubForGuild } = await import('./vault-hub.js');
+  const r = await postActionsHubForGuild(env, guildId, {
+    channelId: typeof opts.channelId === 'string' ? opts.channelId.trim() : undefined,
+  });
+  if (!r.ok) {
+    const status = r.error === 'no-vault-actions-channel' ? 404 : r.error === 'post-failed' ? 502 : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
   return jsonResp({ ...r, via: auth.via }, 200);
 }
 

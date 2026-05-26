@@ -20,11 +20,20 @@ const BINDING_KEYS = Object.freeze([
   'games-list',
   // Phase 1 channel hubs (check-in / character / bolts / play /
   // achievements) — see <key>-hub.js for each.
-  'checkin', 'character', 'bolts', 'play', 'achievements',
+  // NOTE: `checkin` is the HUB channel (interactive surface);
+  // `checkin-results` is where the "X checked in! +N bolts" embed
+  // lands. Separating them lets the hub live in a low-noise
+  // interactive room while completion posts go to general/feed.
+  'checkin', 'checkin-results',
+  'character', 'bolts', 'play', 'achievements',
   // Unified voting hub — variety + community night, separate events
   // sharing one channel. See vote-hub.js. KV-only (admins bind via
   // /admin/channels/bind/<g>).
   'vote',
+  // Aquilo's Vault — split across two channels per Clay's request.
+  // vault-events: outbound game events from Railway with action
+  // buttons. vault-actions: persistent player-action menu.
+  'vault-events', 'vault-actions',
 ]);
 
 // Source-of-truth mapping from binding key → fallback env var name.
@@ -39,13 +48,16 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   lfg:          'LFG_CHANNEL_ID',
   schedule:     'SCHEDULE_CHANNEL_ID',
   poll:         'POLL_CHANNEL_ID',
-  'games-list': null,
-  checkin:      'CHECKIN_CHANNEL_ID',
-  character:    null,
-  bolts:        null,
-  play:         null,
-  achievements: null,
-  vote:         null,
+  'games-list':      null,
+  checkin:           'CHECKIN_CHANNEL_ID',
+  'checkin-results': null,
+  character:         null,
+  bolts:             null,
+  play:              null,
+  achievements:      null,
+  vote:              null,
+  'vault-events':    null,
+  'vault-actions':   null,
 });
 
 const BINDING_KEY = (g, k) => `channel-binding:${g}:${k}`;
