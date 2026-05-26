@@ -14,17 +14,19 @@
 // and writes the KV entry. channelId="" clears the binding so the
 // fallback re-engages. binding must be one of BINDING_KEYS.
 
-const BINDING_KEYS = Object.freeze(['queue', 'live', 'recap', 'clips', 'lfg']);
+const BINDING_KEYS = Object.freeze(['queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll']);
 
 // Source-of-truth mapping from binding key → fallback env var name.
 // Adding a new binding key is two edits: append to BINDING_KEYS +
 // add the env var here.
 const BINDING_ENV_FALLBACK = Object.freeze({
-  queue: 'QUEUE_CHANNEL_ID',
-  live:  'LIVE_CHANNEL_ID',
-  recap: 'RECAP_CHANNEL_ID',
-  clips: 'CLIPS_CHANNEL_ID',
-  lfg:   'LFG_CHANNEL_ID',
+  queue:    'QUEUE_CHANNEL_ID',
+  live:     'LIVE_CHANNEL_ID',
+  recap:    'RECAP_CHANNEL_ID',
+  clips:    'CLIPS_CHANNEL_ID',
+  lfg:      'LFG_CHANNEL_ID',
+  schedule: 'SCHEDULE_CHANNEL_ID',
+  poll:     'POLL_CHANNEL_ID',
 });
 
 const BINDING_KEY = (g, k) => `channel-binding:${g}:${k}`;

@@ -135,6 +135,15 @@ async function refreshPollMessage(env, pollId) {
 export async function postCnPoll(env, dayOfWeek) {
   const guildId = await ensureBootstrap(env);
 
+  // Per-guild KV binding (with POLL_CHANNEL_ID env fallback). See
+  // channel-bindings.js. Lock in the resolved channel for THIS
+  // poll's lifecycle by storing it on the DB row — closeCnPoll +
+  // refreshPollMessage read from the row, so a mid-cycle rebind
+  // won't strand an open poll.
+  const { getChannelBinding } = await import('../channel-bindings.js');
+  const pollChannelId = await getChannelBinding(env, guildId, 'poll');
+  if (!pollChannelId) return { skipped: 'no_poll_channel' };
+
   const open = await getOpenPoll(env, guildId);
   if (open) return { skipped: 'open_poll_exists', pollId: open.id };
 
@@ -174,7 +183,7 @@ export async function postCnPoll(env, dayOfWeek) {
 
   const insRow = await env.DB.prepare(
     'INSERT INTO polls (guild_id, channel_id, day_of_week) VALUES (?, ?, ?) RETURNING id'
-  ).bind(guildId, env.POLL_CHANNEL_ID, dayOfWeek).first();
+  ).bind(guildId, pollChannelId, dayOfWeek).first();
   const pollId = insRow.id;
 
   for (let i = 0; i < candidates.length; i++) {
@@ -194,7 +203,7 @@ export async function postCnPoll(env, dayOfWeek) {
 
   let msg;
   try {
-    msg = await postChannelMessage(env, env.POLL_CHANNEL_ID, payload);
+    msg = await postChannelMessage(env, pollChannelId, payload);
   } catch (e) {
     // The Discord post failed but we already INSERTed the poll row. If
     // we leave it in place, future postCnPoll calls (cron or manual) see

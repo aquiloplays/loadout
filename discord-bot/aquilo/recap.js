@@ -5,6 +5,7 @@
 
 import { postChannelMessage, COLOR_SCHEDULE, cap } from './util.js';
 import { ensureBootstrap } from './bootstrap.js';
+import { getChannelBinding } from '../channel-bindings.js';
 
 export async function postWeeklyRecap(env) {
   const guildId = await ensureBootstrap(env);
@@ -60,6 +61,8 @@ export async function postWeeklyRecap(env) {
     footer: { text: 'New week starts Wednesday — vote at 6 PM ET' }
   };
 
-  await postChannelMessage(env, env.SCHEDULE_CHANNEL_ID, { embeds: [embed] });
-  return { polls: polls.length, totalVotes, topVoterId: topRow?.user_id || null };
+  const scheduleChannelId = await getChannelBinding(env, guildId, 'schedule');
+  if (!scheduleChannelId) return { skipped: 'no_schedule_channel' };
+  await postChannelMessage(env, scheduleChannelId, { embeds: [embed] });
+  return { polls: polls.length, totalVotes, topVoterId: topRow?.user_id || null, channelId: scheduleChannelId };
 }

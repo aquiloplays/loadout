@@ -64,13 +64,41 @@ const GUILD = '1504103035951906883';
 
 console.log('— catalog sanity');
 {
-  eq(_BINDING_KEYS_FOR_TEST, ['queue', 'live', 'recap', 'clips', 'lfg'], 'binding keys');
+  eq(_BINDING_KEYS_FOR_TEST,
+    ['queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll'],
+    'binding keys (includes schedule + poll)');
   // Every binding has an env fallback declared.
   for (const k of _BINDING_KEYS_FOR_TEST) {
     assert(_BINDING_ENV_FALLBACK_FOR_TEST[k], `env fallback for ${k}: ${_BINDING_ENV_FALLBACK_FOR_TEST[k]}`);
   }
+  // Pin the env-var names so a rename doesn't silently break the
+  // legacy wrangler.toml fallback path.
+  eq(_BINDING_ENV_FALLBACK_FOR_TEST.schedule, 'SCHEDULE_CHANNEL_ID', 'schedule → SCHEDULE_CHANNEL_ID');
+  eq(_BINDING_ENV_FALLBACK_FOR_TEST.poll,     'POLL_CHANNEL_ID',     'poll → POLL_CHANNEL_ID');
   assert(isValidBinding('queue'),    'isValidBinding(queue)');
+  assert(isValidBinding('schedule'), 'isValidBinding(schedule)');
+  assert(isValidBinding('poll'),     'isValidBinding(poll)');
   assert(!isValidBinding('garbage'), '!isValidBinding(garbage)');
+}
+
+console.log('— schedule + poll: KV wins, env falls back');
+{
+  const env = {
+    LOADOUT_BOLTS: makeKv(),
+    SCHEDULE_CHANNEL_ID: '1500000000000000777',
+    POLL_CHANNEL_ID:     '1500000000000000888',
+  };
+  // env-only.
+  eq(await getChannelBinding(env, GUILD, 'schedule'), '1500000000000000777', 'schedule env');
+  eq(await getChannelBinding(env, GUILD, 'poll'),     '1500000000000000888', 'poll env');
+  // Set KV override → wins.
+  await setChannelBinding(env, GUILD, 'schedule', '1500000000000000999');
+  await setChannelBinding(env, GUILD, 'poll',     '1500000000000000888');
+  eq(await getChannelBinding(env, GUILD, 'schedule'), '1500000000000000999', 'schedule KV override');
+  eq(await getChannelBinding(env, GUILD, 'poll'),     '1500000000000000888', 'poll KV override');
+  // Clear both — env back in play.
+  await setChannelBinding(env, GUILD, 'schedule', '');
+  eq(await getChannelBinding(env, GUILD, 'schedule'), '1500000000000000777', 'schedule env after clear');
 }
 
 console.log('— getChannelBinding precedence');
@@ -112,7 +140,7 @@ console.log('— setChannelBinding');
   const r3 = await setChannelBinding(env, GUILD, 'garbage', '1500000000000000222');
   eq(r3.ok, false, 'unknown binding refused');
   eq(r3.error, 'unknown-binding', 'error code');
-  assert(Array.isArray(r3.allowed) && r3.allowed.length === 5, 'lists allowed');
+  assert(Array.isArray(r3.allowed) && r3.allowed.length === 7, 'lists allowed (7 keys)');
   // No guild.
   const r4 = await setChannelBinding(env, '', 'queue', '1500000000000000222');
   eq(r4.error, 'no-guild-id', 'no-guild-id');
@@ -133,7 +161,9 @@ console.log('— listChannelBindings');
   };
   await env.LOADOUT_BOLTS.put(`channel-binding:${GUILD}:queue`, '1500000000000000222');
   const list = await listChannelBindings(env, GUILD);
-  eq(Object.keys(list).sort(), ['clips', 'lfg', 'live', 'queue', 'recap'].sort(), '5 keys');
+  eq(Object.keys(list).sort(),
+    ['clips', 'lfg', 'live', 'poll', 'queue', 'recap', 'schedule'].sort(),
+    '7 keys (incl. schedule + poll)');
   // queue: KV override; resolved = KV.
   eq(list.queue.kv, '1500000000000000222', 'queue kv');
   eq(list.queue.env, '1500000000000000111', 'queue env');

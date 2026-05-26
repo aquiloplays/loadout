@@ -20,11 +20,15 @@ import {
 } from './util.js';
 import { getChannelBinding } from '../channel-bindings.js';
 
-// Resolve the queue channel via the per-guild binding (KV) with
-// QUEUE_CHANNEL_ID env fallback. aquilo is single-tenant via
-// AQUILO_VAULT_GUILD_ID, so we read the binding for that guild.
+// Resolve the queue / poll channels via the per-guild binding (KV)
+// with QUEUE_CHANNEL_ID / POLL_CHANNEL_ID env fallback. aquilo is
+// single-tenant via AQUILO_VAULT_GUILD_ID, so we read the binding
+// for that guild.
 async function resolveQueueChannel(env) {
   return getChannelBinding(env, env.AQUILO_VAULT_GUILD_ID, 'queue');
+}
+async function resolvePollChannel(env) {
+  return getChannelBinding(env, env.AQUILO_VAULT_GUILD_ID, 'poll');
 }
 import { ensureBootstrap } from './bootstrap.js';
 
@@ -113,11 +117,12 @@ async function buildVotingIdlePayloads(env, guildId) {
 // Wipe whatever the bot last posted as the voting idle: legacy single-id
 // (pre-multi-msg layout) AND the new multi-id list. Safe to call any time.
 async function deleteAllVotingIdleMsgs(env) {
-  if (!env.POLL_CHANNEL_ID) return;
+  const pollChannelId = await resolvePollChannel(env);
+  if (!pollChannelId) return;
   // Legacy single-id from the v1 layout. Delete + drop the key.
   const legacyId = await env.STATE.get(KV_VOTING_IDLE_LEGACY);
   if (legacyId) {
-    await deleteMessageSafely(env, env.POLL_CHANNEL_ID, legacyId);
+    await deleteMessageSafely(env, pollChannelId, legacyId);
     await env.STATE.delete(KV_VOTING_IDLE_LEGACY);
   }
   // Current multi-message list.
@@ -126,27 +131,28 @@ async function deleteAllVotingIdleMsgs(env) {
     let ids = [];
     try { ids = JSON.parse(raw); } catch {}
     for (const id of ids) {
-      await deleteMessageSafely(env, env.POLL_CHANNEL_ID, id);
+      await deleteMessageSafely(env, pollChannelId, id);
     }
     await env.STATE.delete(KV_VOTING_IDLE_MSGS);
   }
 }
 
 export async function refreshVotingIdle(env) {
-  if (!env.POLL_CHANNEL_ID) return { skipped: 'no_channel' };
+  const pollChannelId = await resolvePollChannel(env);
+  if (!pollChannelId) return { skipped: 'no_channel' };
   const guildId = await ensureBootstrap(env);
   await deleteAllVotingIdleMsgs(env);
 
   const { header, cardMessages } = await buildVotingIdlePayloads(env, guildId);
   const ids = [];
-  const headerMsg = await postChannelMessage(env, env.POLL_CHANNEL_ID, header);
+  const headerMsg = await postChannelMessage(env, pollChannelId, header);
   ids.push(headerMsg.id);
   for (const chunk of cardMessages) {
-    const msg = await postChannelMessage(env, env.POLL_CHANNEL_ID, chunk);
+    const msg = await postChannelMessage(env, pollChannelId, chunk);
     ids.push(msg.id);
   }
   await env.STATE.put(KV_VOTING_IDLE_MSGS, JSON.stringify(ids));
-  return { messageIds: ids };
+  return { messageIds: ids, channelId: pollChannelId };
 }
 
 export async function deleteVotingIdle(env) {

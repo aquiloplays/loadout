@@ -8,7 +8,7 @@
 // in place to the winning game + cover art.
 
 import {
-  postChannelMessage, editChannelMessage, COLOR_SCHEDULE, cap, getETInfo
+  postChannelMessage, editChannelMessage, discordFetch, COLOR_SCHEDULE, cap, getETInfo
 } from './util.js';
 import { MINECRAFT_ART } from './bootstrap.js';
 import { broadcastOverlayUpdate } from './overlay-do.js';
@@ -28,11 +28,24 @@ const WEEKLY = [
 
 const KEY = (gid) => 'schedule:' + gid;
 
+// Schedule + poll channels both go through channel-bindings.js now —
+// KV per-guild override with the wrangler.toml [vars] entry as
+// fallback. Imported async per-call so the module load stays cheap.
+async function bindings(env, guildId) {
+  const { getChannelBinding } = await import('../channel-bindings.js');
+  return {
+    schedule: await getChannelBinding(env, guildId, 'schedule'),
+    poll:     await getChannelBinding(env, guildId, 'poll'),
+  };
+}
+
 async function loadSchedule(env, guildId) {
+  const b = await bindings(env, guildId);
+  const empty = () => ({ channel_id: b.schedule || null, message_id: null, cn_winners: {} });
   const raw = await env.STATE.get(KEY(guildId));
-  if (!raw) return { channel_id: env.SCHEDULE_CHANNEL_ID || null, message_id: null, cn_winners: {} };
+  if (!raw) return empty();
   try { return JSON.parse(raw); }
-  catch { return { channel_id: env.SCHEDULE_CHANNEL_ID || null, message_id: null, cn_winners: {} }; }
+  catch { return empty(); }
 }
 
 async function saveSchedule(env, guildId, sched) {
@@ -77,10 +90,37 @@ function buildSchedulePayload(sched) {
 
 // Post a fresh schedule embed (or edit the existing one in place). Stores
 // the message_id so future updates edit instead of spamming new embeds.
+//
+// Channel-binding migration: if the resolved schedule channel
+// changed since the last save (admin set a new binding), delete the
+// prior embed in the OLD channel and post fresh in the new one.
+// Best-effort delete — if the old message is gone or the bot can't
+// see the old channel, we just leave the orphan and proceed.
 export async function postOrRefreshSchedule(env, guildId) {
   const sched = await loadSchedule(env, guildId);
-  if (!sched.channel_id) sched.channel_id = env.SCHEDULE_CHANNEL_ID;
-  sched.poll_channel_id = env.POLL_CHANNEL_ID || sched.poll_channel_id;
+  const b = await bindings(env, guildId);
+  const resolvedChannel = b.schedule;
+  if (!resolvedChannel) {
+    // Nothing bound + no env fallback — no-op rather than crash.
+    console.warn('[aq-schedule] no schedule channel bound, skipping post');
+    return null;
+  }
+  // Detect channel migration. The stored `sched.channel_id` is where
+  // the LAST post lives; if the binding has flipped, sweep the old
+  // message and post fresh in the new channel.
+  if (sched.channel_id && sched.channel_id !== resolvedChannel && sched.message_id) {
+    try {
+      await discordFetch(env,
+        '/channels/' + encodeURIComponent(sched.channel_id) +
+        '/messages/' + encodeURIComponent(sched.message_id),
+        { method: 'DELETE' });
+    } catch (e) {
+      console.warn('[aq-schedule] migration delete failed', e?.message || e);
+    }
+    sched.message_id = null;
+  }
+  sched.channel_id = resolvedChannel;
+  sched.poll_channel_id = b.poll || sched.poll_channel_id;
   const payload = buildSchedulePayload(sched);
 
   if (sched.message_id) {
