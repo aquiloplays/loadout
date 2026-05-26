@@ -24,7 +24,15 @@ const DEFAULT_GAMES = [
   { name: 'The Headliners',           art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3059070/62f137f87bbbe03ff34fe64f79aec4059532e849/header.jpg' },
   { name: 'Gamble With Your Friends', art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3892270/395e6d7972474333a698b26f8aa5597bf38109a1/header.jpg' },
   { name: 'LOCKDOWN Protocol',        art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/2780980/header.jpg' },
-  { name: 'Slay the Spire 2',         art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2868840/b0958d387dc366211e0f353443710cfcf9fdb020/header.jpg' }
+  { name: 'Slay the Spire 2',         art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2868840/b0958d387dc366211e0f353443710cfcf9fdb020/header.jpg' },
+  // Added in v4 of the bootstrap seed — Clay's expanded community-night
+  // rotation. MIMESIS was already in v1 so not duplicated here.
+  // Fortnite is Epic-exclusive, no Steam header — art_url left null
+  // (downstream renderers handle null cover gracefully).
+  { name: 'Dead by Daylight',         art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/381210/header.jpg' },
+  { name: 'Fortnite',                 art_url: null },
+  { name: 'Among Us',                 art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/945360/header.jpg' },
+  { name: 'Phasmophobia',             art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/739630/header.jpg' }
 ];
 
 // PNG render of the official Minecraft cube logo (Wikimedia Commons,
@@ -58,7 +66,7 @@ export async function getGuildId(env) {
 //
 // Bump this key whenever DEFAULT_GAMES grows so the new entries get
 // inserted on next interaction (existing rows ON CONFLICT no-op).
-const KV_BOOTSTRAPPED = 'bootstrapped:v3';
+const KV_BOOTSTRAPPED = 'bootstrapped:v4';
 
 export async function ensureBootstrap(env) {
   const guildId = await getGuildId(env);
