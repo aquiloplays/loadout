@@ -89,6 +89,13 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleGuildComponent } = await import('./guild-features.js');
       return json(await handleGuildComponent(env, data));
     }
+    if (cid.startsWith('onb:'))       {
+      // Bot-driven onboarding flow — see onboarding.js. Buttons +
+      // selects all start with `onb:` (begin, restart, step:<id>,
+      // advance:<id>, pick:<id>).
+      const { handleOnboardComponent } = await import('./onboarding.js');
+      return json(await handleOnboardComponent(env, data));
+    }
     if (cid.startsWith('ticket:'))    {
       const { handleTicketComponent } = await import('./tickets.js');
       return json(await handleTicketComponent(env, data));
@@ -265,6 +272,15 @@ export async function handleInteraction(req, env, body, ctx) {
       // Onboarding quest checklist + claim status (mirrors aquilo.gg/quest).
       const { handleQuestCommand } = await import('./quests.js');
       return json(await handleQuestCommand(env, data));
+    }
+
+    case 'onboard': {
+      // Bot-driven onboarding flow — independent of Discord's built-in
+      // Server Settings → Onboarding feature. /onboard runs the
+      // interactive walkthrough; /onboard post-embed + /onboard status
+      // are admin subcommands. See onboarding.js.
+      const { handleOnboardCommand } = await import('./onboarding.js');
+      return json(await handleOnboardCommand(env, data));
     }
 
     case 'loadout-setup': {

@@ -63,6 +63,27 @@ export const COMMANDS = [
     name: 'quest',
     description: 'Your Welcome Checklist — steps + reward status',
   },
+  // Bot-driven onboarding flow — runs without Discord's built-in
+  // Server Settings → Onboarding feature. See onboarding.js.
+  //   /onboard               start (or resume) the interactive flow
+  //   /onboard post-embed    (admin) post the persistent welcome embed
+  //                            with the "Begin onboarding" button
+  //   /onboard status        (admin) funnel stats — started, completed,
+  //                            per-step counts
+  {
+    name: 'onboard',
+    description: 'Quick onboarding flow — interests, links, character, tour',
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'post-embed',
+        description: '(admin) Post the persistent welcome embed in this channel',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'status',
+        description: '(admin) Onboarding funnel snapshot',
+      },
+    ],
+  },
   // Productization — self-serve setup wizard for new tenants.
   // MANAGE_GUILD gated. Subcommands: (none) = open wizard; channel =
   // bind one channel; feature = toggle one feature; status = snapshot.

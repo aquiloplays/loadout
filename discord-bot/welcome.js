@@ -128,5 +128,20 @@ export async function handleMemberJoined(env, payload) {
   // Mark dedup AFTER successful post — if the post fails (channel
   // gone, perms revoked) a retry can still try.
   await env.LOADOUT_BOLTS.put(dedupKey, '1', { expirationTtl: 30 * 24 * 60 * 60 });
-  return { ok: true, memberNumber: seq, channelId };
+
+  // Auto-DM the new joiner with the onboarding flow. Best-effort —
+  // a DM 403 (user has DMs closed) is logged + ignored so the
+  // welcome embed above still stands. Dormant in practice until the
+  // gateway shim starts forwarding GUILD_MEMBER_ADD, since this
+  // function is what the shim calls.
+  let dm = null;
+  try {
+    const { maybeSendOnboardingDm } = await import('./onboarding.js');
+    dm = await maybeSendOnboardingDm(env, guildId, userId);
+  } catch (e) {
+    console.warn('[welcome] onboarding DM threw', e?.message || e);
+    dm = { skipped: 'threw', error: String(e?.message || e) };
+  }
+
+  return { ok: true, memberNumber: seq, channelId, onboardingDm: dm };
 }
