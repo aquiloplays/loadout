@@ -56,7 +56,7 @@ async function saveSchedule(env, guildId, sched) {
 function buildSchedulePayload(sched) {
   const headerEmbed = {
     title: '📅 Aquilo · Weekly Stream Schedule',
-    description: 'Hop in any night. **Community Night** games are decided by the poll posted at 6 PM ET that day — vote in <#' + (sched.poll_channel_id || '') + '>.',
+    description: 'Hop in any night. **Community Night** games are decided by the poll — tap **Vote for this week** in <#' + (sched.poll_channel_id || '') + '>.',
     color: COLOR_SCHEDULE
   };
 
@@ -71,7 +71,7 @@ function buildSchedulePayload(sched) {
       if (winner) { game = winner.name; art = winner.art_url; }
       desc = game
         ? '🎲 **Community Night** · 10:30 PM-12:30 AM ET\n**' + game + '**'
-        : '🎲 **Community Night** · 10:30 PM-12:30 AM ET\n_Vote at 6 PM ET Saturday_';
+        : '🎲 **Community Night · vote in progress** · 10:30 PM-12:30 AM ET\n_Polls open at 6 PM ET Saturday — tap **Vote for this week** in <#' + (sched.poll_channel_id || '') + '>_';
     } else {
       art  = MINECRAFT_ART;
       desc = '⛏️ **' + game + '** · 10:30 PM-12:30 AM ET';
@@ -81,11 +81,83 @@ function buildSchedulePayload(sched) {
       description: desc,
       color: COLOR_SCHEDULE
     };
-    if (art) embed.thumbnail = { url: art };
+    // Use `image` (large) for CN winner art so the schedule looks
+    // rich once a vote closes; non-CN days keep the smaller
+    // `thumbnail` so Minecraft's logo doesn't dominate every row.
+    if (art) {
+      if (slot.is_cn && sched.cn_winners?.[slot.day]) embed.image = { url: art };
+      else embed.thumbnail = { url: art };
+    }
     return embed;
   });
 
   return { embeds: [headerEmbed, ...dayEmbeds] };
+}
+
+// ── Public read — canonical schedule JSON for aquilo.gg ──────────
+//
+// Stable shape (aquilo-site parallel session is building the public
+// /schedule page against this):
+//   {
+//     ok: true,
+//     guildId,
+//     nowUtc,
+//     poll_channel_id, schedule_channel_id,
+//     days: [
+//       { weekday, slot: "stream"|"cn"|"off",
+//         game: { name, artUrl, store }?,
+//         status: "scheduled"|"vote-open"|"vote-completed"|"off",
+//         times: { startEt, endEt } }
+//     ]
+//   }
+//
+// CN slot semantics:
+//   • status = "vote-completed" when sched.cn_winners[day] is set
+//   • status = "vote-open" otherwise (placeholder render on the site)
+// Non-CN slots are always "scheduled".
+
+export async function getPublicSchedule(env, guildId) {
+  const sched = await loadSchedule(env, guildId);
+  const days = WEEKLY.map(slot => {
+    let game = null;
+    let status = slot.is_off ? 'off' : 'scheduled';
+    if (slot.is_cn) {
+      const winner = sched.cn_winners?.[slot.day];
+      if (winner && winner.name) {
+        game = { name: winner.name, artUrl: winner.art_url || null, store: storeFromArtUrl(winner.art_url) };
+        status = 'vote-completed';
+      } else {
+        status = 'vote-open';
+      }
+    } else if (!slot.is_off) {
+      game = { name: slot.game, artUrl: slot.game === 'Minecraft' ? MINECRAFT_ART : null, store: 'mojang' };
+    }
+    return {
+      weekday: slot.day,
+      slot:    slot.is_off ? 'off' : (slot.is_cn ? 'cn' : 'stream'),
+      game,
+      status,
+      times:   slot.is_off ? null : { startEt: '22:30', endEt: '00:30' },
+    };
+  });
+  return {
+    ok: true,
+    guildId,
+    nowUtc: Date.now(),
+    poll_channel_id: sched.poll_channel_id || null,
+    schedule_channel_id: sched.channel_id || null,
+    days,
+  };
+}
+
+// Extract the store identifier from an art_url. Steam header URLs
+// follow `…/steam/apps/<appid>/…` so we can fingerprint deterministically.
+function storeFromArtUrl(artUrl) {
+  if (!artUrl) return null;
+  const s = String(artUrl);
+  if (/\/steam\/apps\/\d+\//.test(s)) return 'steam';
+  if (/upload\.wikimedia\.org/.test(s)) return 'mojang';     // Minecraft fallback
+  return null;
 }
 
 // Post a fresh schedule embed (or edit the existing one in place). Stores

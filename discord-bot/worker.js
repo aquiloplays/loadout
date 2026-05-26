@@ -383,6 +383,24 @@ export default {
       const { handlePublicGamesHttp } = await import('./schedule.js');
       return handlePublicGamesHttp(env);
     }
+    // Public canonical aquilo schedule — same data the Discord
+    // schedule embed renders from, served as JSON for the
+    // aquilo.gg /schedule page. Edge-cached 30s. See
+    // aquilo/aq-schedule.js getPublicSchedule for the response
+    // shape contract.
+    if (method === 'GET' && path.startsWith('/aquilo/schedule/public/')) {
+      const guildId = path.slice('/aquilo/schedule/public/'.length).replace(/\/+$/, '');
+      const { getPublicSchedule } = await import('./aquilo/aq-schedule.js');
+      const data = await getPublicSchedule(env, guildId);
+      return new Response(JSON.stringify(data), {
+        status: 200,
+        headers: {
+          'content-type': 'application/json',
+          'cache-control': 'public, max-age=0, s-maxage=30',
+          'access-control-allow-origin': '*',
+        },
+      });
+    }
     // Public read-only queue snapshot for aquilo.gg /community page +
     // the panel's Schedule tab. No auth -- counts only, no joiner
     // names. See queue.js + SCHEDULE-SYSTEM-DESIGN.md Phase 3.
