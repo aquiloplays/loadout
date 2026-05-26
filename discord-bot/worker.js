@@ -244,6 +244,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/gifter-roles/ensure/')) {
       return handleGifterRolesEnsure(req, env, path);
     }
+    // Scheduled-messages CRUD — admin-authored, fires from the :23
+    // hourly cron. Four routes share the same HMAC scheme as the
+    // other /admin/* endpoints. See scheduled-messages.js for the
+    // record schema + index layout.
+    if (path.startsWith('/admin/schedule-msg/')) {
+      return handleScheduleMsg(req, env, path, method);
+    }
     // Twitch EventSub webhook. Signature is verified inside the
     // handler against env.TWITCH_EVENTSUB_SECRET. Three message
     // types: webhook_callback_verification (challenge handshake),
@@ -764,6 +771,17 @@ export default {
         ctx.waitUntil(gifterRolesDailyTick(env).then(r =>
           console.log('[cron] gifter-roles daily', JSON.stringify(r))).catch(e =>
           console.warn('[cron] gifter-roles', e?.message || e)));
+        // Scheduled messages — scan due records + send. Cron fires
+        // hourly so the worst-case delivery latency is ~1h; the
+        // record's status flips to 'sent' on success, 'failed' on
+        // the second consecutive failure. See scheduled-messages.js.
+        const guildId = env.AQUILO_VAULT_GUILD_ID;
+        if (guildId) {
+          const { processDueMessages } = await import('./scheduled-messages.js');
+          ctx.waitUntil(processDueMessages(env, guildId).then(r =>
+            console.log('[cron] schedule-msg', JSON.stringify(r))).catch(e =>
+            console.warn('[cron] schedule-msg', e?.message || e)));
+        }
       }
     } catch (e) {
       console.error('scheduled cron failed:', e && e.message);
@@ -1577,6 +1595,60 @@ async function handleLevelTierRolesBackfill(req, env, path) {
   const r = await backfillLevelTierRoles(env, guildId, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/schedule-msg/:guildId/[:id] (HMAC) ─────────────────────
+//
+// Four CRUD endpoints unified under one path prefix so they share
+// the auth flow + JSON-body handling. Route by (method, has-id):
+//   POST   /admin/schedule-msg/:g          create
+//   GET    /admin/schedule-msg/:g          list (upcoming + recent)
+//   POST   /admin/schedule-msg/:g/:id      edit (pending only)
+//   DELETE /admin/schedule-msg/:g/:id      cancel (pending only)
+//
+// Body for POST/PATCH-style routes is required + must parse as
+// JSON. GET has no body but still HMAC-verified against empty string
+// (matches the existing verifyAdminAuth convention).
+async function handleScheduleMsg(req, env, path, method) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','schedule-msg',':g',':id'?]
+  const guildId = parts[2];
+  const id      = parts[3] || null;
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const mod = await import('./scheduled-messages.js');
+
+  if (method === 'POST' && !id) {
+    const r = await mod.createScheduled(env, guildId, opts, opts.createdBy || auth.via);
+    return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+  }
+  if (method === 'GET' && !id) {
+    const r = await mod.listScheduled(env, guildId, opts.limit);
+    return jsonResp({ ...r, via: auth.via }, 200);
+  }
+  if (method === 'POST' && id) {
+    const r = await mod.editScheduled(env, guildId, id, opts);
+    const status = !r.ok && r.error === 'not-found' ? 404
+      : !r.ok && r.error === 'not-pending' ? 409
+      : r.ok ? 200 : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  if (method === 'DELETE' && id) {
+    const r = await mod.cancelScheduled(env, guildId, id);
+    const status = !r.ok && r.error === 'not-found' ? 404
+      : !r.ok && r.error === 'already-sent' ? 409
+      : r.ok ? 200 : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ok: false, error: 'method-or-path-not-supported', method, path }, 405);
 }
 
 // ── /admin/gifter-roles/ensure/:guildId (HMAC) ────────────────────
