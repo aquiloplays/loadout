@@ -196,6 +196,20 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/register-commands/')) {
       return handleRegisterCommands(req, env, path);
     }
+    // Drop the onboarding welcome embed into a guild text channel
+    // from the admin tooling — same HMAC scheme as register-commands,
+    // body { channelId?, channelName? }. See onboarding.js for the
+    // channel-pick heuristic and the shared poster.
+    if (method === 'POST' && path.startsWith('/admin/onboarding/post-embed/')) {
+      return handleOnboardingPostEmbed(req, env, path);
+    }
+    // Heuristically match the guild's existing roles to the six
+    // onboarding interest keys and persist the mapping at
+    // onboard:role-map:<g>. Body {}. See onboarding.js
+    // matchInterestRoles.
+    if (method === 'POST' && path.startsWith('/admin/onboarding/setup-roles/')) {
+      return handleOnboardingSetupRoles(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -1251,6 +1265,95 @@ async function handleRegisterCommands(req, env, path) {
     commands: names,
     status: r.status,
   }), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+// ── /admin/onboarding/post-embed/:guildId (HMAC) ─────────────────────
+//
+// Posts the persistent welcome embed into a guild text channel from
+// the admin tooling — useful when Clay isn't running the
+// /onboard post-embed slash in-server.
+//
+// Body (JSON, optional fields):
+//   { channelId?: '<snowflake>', channelName?: 'string' }
+//
+// Resolution order:
+//   1. channelId — used verbatim, no REST lookup
+//   2. channelName — first GUILD_TEXT channel whose name contains
+//                     the lowercased search string (substring match)
+//   3. neither    — first GUILD_TEXT channel matching any of
+//                     'start-here', 'welcome', 'introductions', '👋',
+//                     tried in that order
+//
+// Idempotent — any prior welcome message tracked at
+// `onboard:welcome-msg:<g>` is deleted before posting. Re-running
+// just relocates the embed.
+//
+// Returns:
+//   { ok: true, channelId, channelName, messageId, deletedPrior }
+//   { ok: false, error: '<reason>', ... }
+async function handleOnboardingPostEmbed(req, env, path) {
+  const parts = path.split('/').filter(Boolean);    // ['admin', 'onboarding', 'post-embed', ':guildId']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { postWelcomeEmbedForGuild } = await import('./onboarding.js');
+  const r = await postWelcomeEmbedForGuild(env, guildId, {
+    channelId:   typeof opts.channelId   === 'string' ? opts.channelId.trim()   : undefined,
+    channelName: typeof opts.channelName === 'string' ? opts.channelName.trim() : undefined,
+  });
+  if (!r.ok) {
+    const status = r.error === 'no-channel-match' ? 404
+      : r.error === 'channels-fetch-failed' || r.error === 'post-failed' ? 502
+      : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/onboarding/setup-roles/:guildId (HMAC) ─────────────────
+//
+// Heuristically match the guild's existing roles to the six
+// onboarding interest keys (see INTERESTS in onboarding.js) and
+// persist the mapping at `onboard:role-map:<g>`.
+//
+// Body: {} (no inputs — the heuristic is fixed in code so re-running
+// against the same guild always produces the same mapping for the
+// same role names).
+//
+// Returns:
+//   { ok: true, mapped: { key: { id, name } }, unmapped: [...keys],
+//     roleCount }
+//   { ok: false, error: '<reason>', ... }
+async function handleOnboardingSetupRoles(req, env, path) {
+  const parts = path.split('/').filter(Boolean);    // ['admin', 'onboarding', 'setup-roles', ':guildId']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+
+  const { matchAndSetupGuildRoles } = await import('./onboarding.js');
+  const r = await matchAndSetupGuildRoles(env, guildId);
+  if (!r.ok) {
+    const status = r.error === 'roles-fetch-failed' ? 502 : 400;
+    return jsonResp({ ...r, via: auth.via }, status);
+  }
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+function jsonResp(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
 }
 
 // GET the currently-registered commands (global by default,

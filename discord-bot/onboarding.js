@@ -652,32 +652,37 @@ export async function handleOnboardComponent(env, data) {
   return { type: RESP_CHAT, data: { content: 'Unknown onboarding action: ' + cid, flags: FLAG_EPHEMERAL } };
 }
 
-// ── /onboard post-embed (admin) ────────────────────────────────────
+// ── Shared poster ──────────────────────────────────────────────────
 //
-// Drops the persistent welcome embed into the channel the command is
-// run in. Records the message id at `onboard:welcome-msg:<g>` so a
-// future re-post can delete the previous one (avoiding stale stacks
-// in the welcome channel).
-async function handlePostEmbedSubcommand(env, data) {
-  if (!isAdmin(data)) {
-    return { type: RESP_CHAT, data: { content: '🔒 Admins only.', flags: FLAG_EPHEMERAL } };
-  }
-  const guildId  = data.guild_id;
-  const channelId = data.channel_id || data.channel?.id;
-  if (!channelId) {
-    return { type: RESP_CHAT, data: { content: 'Couldn\'t resolve the channel.', flags: FLAG_EPHEMERAL } };
-  }
-  // Delete the prior welcome embed if any, best-effort.
+// Core "drop the welcome embed in this channel" routine — used by
+// both the /onboard post-embed slash handler AND the admin HTTP
+// route in worker.js (POST /admin/onboarding/post-embed/<g>).
+//
+// Idempotency model: any prior welcome message tracked at
+// `onboard:welcome-msg:<g>` is deleted first (best-effort, since
+// it may already be gone — channel deleted, message swept). The
+// new message id is then recorded over the top. Re-running just
+// relocates the embed cleanly.
+//
+// Returns { ok: true, channelId, messageId, deletedPrior } on
+// success; { ok: false, error: 'post-failed', status, body } on a
+// Discord REST failure (caller decides whether to surface).
+export async function postOnboardingEmbed(env, guildId, channelId) {
+  if (!channelId) return { ok: false, error: 'no-channel-id' };
+  if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
+
+  let deletedPrior = false;
   try {
     const priorRaw = await env.LOADOUT_BOLTS.get(WELCOME_MSG_KEY(guildId), { type: 'json' });
     if (priorRaw?.channelId && priorRaw?.messageId) {
-      await fetch(
+      const delRes = await fetch(
         `https://discord.com/api/v10/channels/${priorRaw.channelId}/messages/${priorRaw.messageId}`,
         {
           method: 'DELETE',
           headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'User-Agent': 'loadout-discord onboarding' },
         },
       );
+      if (delRes.ok || delRes.status === 204 || delRes.status === 404) deletedPrior = true;
     }
   } catch { /* ignore — old message may already be gone */ }
 
@@ -693,15 +698,33 @@ async function handlePostEmbedSubcommand(env, data) {
   });
   if (!r.ok) {
     const t = await r.text();
-    return { type: RESP_CHAT, data: {
-      content: `❌ Post failed (${r.status}): \`${t.slice(0, 120)}\``, flags: FLAG_EPHEMERAL,
-    } };
+    return { ok: false, error: 'post-failed', status: r.status, body: t.slice(0, 200) };
   }
   const j = await r.json();
   await env.LOADOUT_BOLTS.put(WELCOME_MSG_KEY(guildId),
     JSON.stringify({ channelId, messageId: j.id, postedAt: Date.now() }));
+  return { ok: true, channelId, messageId: j.id, deletedPrior };
+}
+
+// ── /onboard post-embed (admin slash) ──────────────────────────────
+async function handlePostEmbedSubcommand(env, data) {
+  if (!isAdmin(data)) {
+    return { type: RESP_CHAT, data: { content: '🔒 Admins only.', flags: FLAG_EPHEMERAL } };
+  }
+  const guildId  = data.guild_id;
+  const channelId = data.channel_id || data.channel?.id;
+  if (!channelId) {
+    return { type: RESP_CHAT, data: { content: 'Couldn\'t resolve the channel.', flags: FLAG_EPHEMERAL } };
+  }
+  const r = await postOnboardingEmbed(env, guildId, channelId);
+  if (!r.ok) {
+    return { type: RESP_CHAT, data: {
+      content: `❌ Post failed (${r.status || ''}): \`${(r.body || r.error || '').slice(0, 120)}\``,
+      flags: FLAG_EPHEMERAL,
+    } };
+  }
   return { type: RESP_CHAT, data: {
-    content: `✅ Welcome embed posted in <#${channelId}> — message id \`${j.id}\`.`,
+    content: `✅ Welcome embed posted in <#${r.channelId}> — message id \`${r.messageId}\`.`,
     flags: FLAG_EPHEMERAL,
   } };
 }
@@ -745,6 +768,197 @@ function isAdmin(data) {
   const ADMIN = 1n << 3n;       // 0x8
   const MANAGE_GUILD = 1n << 5n; // 0x20
   return (perms & ADMIN) !== 0n || (perms & MANAGE_GUILD) !== 0n;
+}
+
+// ── Admin: pick a welcome channel ──────────────────────────────────
+//
+// Pure-function channel-name match used by the admin route + tests.
+// `opts` is `{ channelId?, channelName? }` from the request body:
+//
+//   - channelId  → if present, return it verbatim (no lookup needed)
+//   - channelName → first text channel whose lowercased name
+//                    *contains* the lowercased search string
+//   - neither    → first text channel whose name contains any of
+//                    DEFAULT_WELCOME_CHANNEL_HINTS, tried in order
+//
+// `channels` is the raw `GET /guilds/{g}/channels` response array.
+// Only `type === 0` (GUILD_TEXT) channels are considered.
+//
+// Returns { id, name } on a match, null on no match.
+
+export const DEFAULT_WELCOME_CHANNEL_HINTS = [
+  'start-here', 'welcome', 'introductions', '👋',
+];
+
+export function pickWelcomeChannel(channels, opts = {}) {
+  const list = (Array.isArray(channels) ? channels : []).filter(c => c && c.type === 0);
+  if (opts.channelId) {
+    const explicit = list.find(c => String(c.id) === String(opts.channelId));
+    return explicit ? { id: explicit.id, name: explicit.name || '' } : null;
+  }
+  if (opts.channelName) {
+    const needle = String(opts.channelName).toLowerCase();
+    const hit = list.find(c => String(c.name || '').toLowerCase().includes(needle));
+    return hit ? { id: hit.id, name: hit.name || '' } : null;
+  }
+  for (const hint of DEFAULT_WELCOME_CHANNEL_HINTS) {
+    const needle = hint.toLowerCase();
+    const hit = list.find(c => String(c.name || '').toLowerCase().includes(needle));
+    if (hit) return { id: hit.id, name: hit.name || '' };
+  }
+  return null;
+}
+
+// ── Admin: match interest roles ────────────────────────────────────
+//
+// Heuristic name-matching of an interest key against the guild's
+// role list. Tokenized on non-letter chars (so "🎮 Game Night"
+// becomes ["game", "night"]) — that gives us word-boundary
+// semantics for free and avoids the "art" trap (token "party"
+// won't match the predicate `tokens.includes('art')`).
+//
+// First role in Discord's `GET /guilds/{g}/roles` response order
+// that matches a key wins; subsequent matches for the same key are
+// ignored. @everyone (role id == guildId) and managed roles
+// (`managed: true`, integration / bot roles) are skipped.
+//
+// `interestKey` MUST be one of INTERESTS[].key — unknown keys
+// return false. Exported for the test harness.
+export function matchesInterest(key, roleName) {
+  const tokens = tokenize(roleName);
+  if (tokens.length === 0) return false;
+  switch (key) {
+    case 'gamenight':
+      return tokens.includes('gamenight')
+          || (tokens.includes('game') && tokens.includes('night'));
+    case 'clash':
+      return tokens.includes('clash');
+    case 'boltbound':
+      return tokens.includes('boltbound')
+          || (tokens.includes('bolt') && tokens.includes('bound'));
+    case 'boardgames':
+      return tokens.includes('boardgames')
+          || (tokens.includes('board') && (tokens.includes('game') || tokens.includes('games')));
+    case 'watching':
+      return ['watching', 'watcher', 'watchers',
+              'lurker', 'lurkers',
+              'viewer', 'viewers'].some(w => tokens.includes(w));
+    case 'art':
+      // Token-level membership — "art", "arts", "artist", "artists".
+      // Won't match "party" / "smart" / "depart" because tokenize()
+      // splits on non-letters, so "art" is its own token only when
+      // surrounded by non-letters (or at start/end).
+      return ['art', 'arts', 'artist', 'artists'].some(w => tokens.includes(w));
+    default:
+      return false;
+  }
+}
+
+function tokenize(s) {
+  return String(s || '').toLowerCase().split(/[^a-z]+/).filter(Boolean);
+}
+
+// Walk every (interestKey × role) pair, return the first match per
+// key. Output shape mirrors the admin route's `mapped` field.
+// `guildId` is needed to skip @everyone (whose id equals the guild
+// id by Discord convention).
+export function matchInterestRoles(roles, guildId) {
+  const mapped = {};
+  const list = Array.isArray(roles) ? roles : [];
+  for (const role of list) {
+    if (!role || !role.id || !role.name) continue;
+    if (String(role.id) === String(guildId)) continue;   // @everyone
+    if (role.managed) continue;                          // bot / integration role
+    for (const interest of INTERESTS) {
+      if (mapped[interest.key]) continue;                // first match wins
+      if (matchesInterest(interest.key, role.name)) {
+        mapped[interest.key] = { id: String(role.id), name: String(role.name) };
+      }
+    }
+  }
+  const unmapped = INTERESTS.map(i => i.key).filter(k => !mapped[k]);
+  return { mapped, unmapped };
+}
+
+// ── Admin HTTP route: post-embed (channel resolution) ──────────────
+//
+// Resolve a channel id from { channelId?, channelName? } and post
+// the welcome embed there via the shared postOnboardingEmbed().
+// Designed for the worker.js admin route — pure resolution +
+// existing poster, no Discord-interaction shape baked in.
+//
+// Returns:
+//   { ok: true, channelId, channelName, messageId, deletedPrior }
+//   { ok: false, error: 'no-bot-token' | 'channels-fetch-failed'
+//                       | 'no-channel-match' | 'post-failed', ... }
+export async function postWelcomeEmbedForGuild(env, guildId, opts = {}) {
+  if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
+  let pick;
+  if (opts.channelId && !opts.channelName) {
+    // Caller supplied an explicit id — no REST round-trip needed,
+    // but we still record the (potentially unknown) name for the
+    // report. Discord will reject the post itself if the id is bogus.
+    pick = { id: String(opts.channelId), name: '' };
+  } else {
+    // Need the channel list either way (name match or default-hint).
+    const chRes = await fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`, {
+      headers: {
+        Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+        'User-Agent': 'loadout-discord onboarding',
+      },
+    });
+    if (!chRes.ok) {
+      const t = await chRes.text();
+      return { ok: false, error: 'channels-fetch-failed', status: chRes.status, body: t.slice(0, 200) };
+    }
+    const channels = await chRes.json();
+    pick = pickWelcomeChannel(channels, opts);
+    if (!pick) return { ok: false, error: 'no-channel-match', tried: opts.channelName || DEFAULT_WELCOME_CHANNEL_HINTS };
+  }
+
+  const post = await postOnboardingEmbed(env, guildId, pick.id);
+  if (!post.ok) return { ok: false, error: post.error, status: post.status, body: post.body, channelId: pick.id, channelName: pick.name };
+  return {
+    ok: true,
+    channelId: pick.id,
+    channelName: pick.name,
+    messageId: post.messageId,
+    deletedPrior: !!post.deletedPrior,
+  };
+}
+
+// ── Admin HTTP route: setup-roles ──────────────────────────────────
+//
+// Fetch guild roles, match each interest key, write the resulting
+// map to `onboard:role-map:<g>`, return the structured result so
+// Clay can see what landed.
+//
+// Re-running overwrites the map — safe because matchInterestRoles
+// is deterministic over the (current) role list. If the guild's
+// role names change, the next run reflects that. Existing
+// onboarding state records aren't affected; only the mapping
+// loadRoleMap() reads from changes.
+export async function matchAndSetupGuildRoles(env, guildId) {
+  if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
+  const r = await fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/roles`, {
+    headers: {
+      Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+      'User-Agent': 'loadout-discord onboarding',
+    },
+  });
+  if (!r.ok) {
+    const t = await r.text();
+    return { ok: false, error: 'roles-fetch-failed', status: r.status, body: t.slice(0, 200) };
+  }
+  const roles = await r.json();
+  const result = matchInterestRoles(roles, guildId);
+  // Persist ONLY the snowflake-id form loadRoleMap reads back; the
+  // names live in the response for the report but aren't needed at
+  // runtime.
+  const flat = {};
+  for (const [k, v] of Object.entries(result.mapped)) flat[k] = v.id;
+  await env.LOADOUT_BOLTS.put(ROLE_MAP_KEY(guildId), JSON.stringify(flat));
+  return { ok: true, mapped: result.mapped, unmapped: result.unmapped, roleCount: roles.length };
 }
 
 // ── Future-gated auto-DM hook ──────────────────────────────────────
