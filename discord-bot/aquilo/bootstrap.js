@@ -32,7 +32,18 @@ const DEFAULT_GAMES = [
   { name: 'Dead by Daylight',         art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/381210/header.jpg' },
   { name: 'Fortnite',                 art_url: null },
   { name: 'Among Us',                 art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/945360/header.jpg' },
-  { name: 'Phasmophobia',             art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/739630/header.jpg' }
+  { name: 'Phasmophobia',             art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/739630/header.jpg' },
+  // Added in v5 — Clay's three variety-night picks. The games table
+  // doesn't carry a per-row category (variety vs community is a
+  // schedule-slot property, not a game property — Saturday is the
+  // variety/CN day in aq-schedule.js), so these land in the same
+  // single rotation pool as the others. Vampire Crawlers + Baby Steps
+  // Steam IDs weren't confidently looked up; art_url left null per
+  // the Fortnite convention, can be backfilled via `/games add` or
+  // a direct D1 UPDATE once Clay confirms the IDs.
+  { name: 'Cult of the Lamb',         art_url: 'https://cdn.akamai.steamstatic.com/steam/apps/1313140/header.jpg' },
+  { name: 'Vampire Crawlers',         art_url: null },
+  { name: 'Baby Steps',               art_url: null }
 ];
 
 // PNG render of the official Minecraft cube logo (Wikimedia Commons,
@@ -66,7 +77,7 @@ export async function getGuildId(env) {
 //
 // Bump this key whenever DEFAULT_GAMES grows so the new entries get
 // inserted on next interaction (existing rows ON CONFLICT no-op).
-const KV_BOOTSTRAPPED = 'bootstrapped:v4';
+const KV_BOOTSTRAPPED = 'bootstrapped:v5';
 
 export async function ensureBootstrap(env) {
   const guildId = await getGuildId(env);
