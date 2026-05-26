@@ -14,7 +14,12 @@
 // return rather than throwing. Cron tasks check isTwitchConfigured()
 // up front and warn-+-skip cleanly.
 
-const TOKEN_KEY = 'twitch:apptoken';
+// Distinct from ext-loadout.js's `twitch:apptoken` (which stores
+// the raw token string only — no JSON wrapper, no expiry tracked
+// on our side). Using a separate key prevents
+// `KV.get(.., type:'json')` from blowing up on the legacy string
+// shape and keeps each module's cache lifecycle independent.
+const TOKEN_KEY = 'twitch:apptoken-helix';
 
 export function isTwitchConfigured(env) {
   return !!(env && env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET);
