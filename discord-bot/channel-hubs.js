@@ -101,15 +101,26 @@ const HUBS = Object.freeze({
     color: 0x3a82ff,
     channelHints: ['play', 'games'],
     description:
-      'Three game surfaces share one wallet — pick what you want to do.\n\n' +
+      'Every gameplay surface — one hub. Tap any tile to open it.\n\n' +
       '• **Boltbound** — async card battler\n' +
       '• **Clash** — town builder + raids\n' +
-      '• **Quick games** — coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash',
-    footer: '/boltbound, /clash, /play all still work directly.',
-    buttons: () => [
-      { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Boltbound',   custom_id: 'play:boltbound' },
-      { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Clash',       custom_id: 'play:clash' },
-      { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Quick games', custom_id: 'play:quick' },
+      '• **Quick games** — coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash\n' +
+      '• **Aquilo\'s Vault** — community shared bolts treasury\n' +
+      '• **Character** — open the upload-based hero editor\n' +
+      '• **RPG (Loadout)** — wallet, inventory, kit, daily',
+    // 6 buttons across two rows (5+1) so we stay within Discord's
+    // 5-per-row component cap.
+    rows: () => [
+      [
+        { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Boltbound',     custom_id: 'play:boltbound' },
+        { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Clash',         custom_id: 'play:clash' },
+        { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Quick games',   custom_id: 'play:quick' },
+        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Aquilo\'s Vault', custom_id: 'play:vault' },
+        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Character',     custom_id: 'play:character' },
+      ],
+      [
+        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'RPG (Loadout)', custom_id: 'play:rpg' },
+      ],
     ],
   },
   achievements: {
@@ -162,7 +173,18 @@ export async function buildHubEmbed(env, guildId, key) {
   const hub = HUBS[key];
   if (!hub) return null;
   const brand = await getBranding(env, guildId);
-  const buttons = await (typeof hub.buttons === 'function' ? hub.buttons(env, guildId) : hub.buttons);
+  // Hubs may declare either `.buttons` (single row, ≤5 components)
+  // OR `.rows` (multi-row, each row ≤5 components). The play hub
+  // uses rows because it now carries 6 surfaces.
+  let rows;
+  if (typeof hub.rows === 'function') {
+    rows = await hub.rows(env, guildId);
+  } else if (Array.isArray(hub.rows)) {
+    rows = hub.rows;
+  } else {
+    const buttons = await (typeof hub.buttons === 'function' ? hub.buttons(env, guildId) : hub.buttons);
+    rows = [buttons];
+  }
   return {
     embed: {
       title: hub.title,
@@ -170,8 +192,7 @@ export async function buildHubEmbed(env, guildId, key) {
       color: hub.color || brand.accentColor || 0x9147ff,
       footer: hub.footer ? { text: hub.footer } : undefined,
     },
-    // 5-buttons-per-row cap; phase-1 hubs are all ≤4 buttons.
-    components: [{ type: COMPONENT_ROW, components: buttons }],
+    components: rows.map(r => ({ type: COMPONENT_ROW, components: r })),
   };
 }
 
@@ -446,7 +467,35 @@ export async function handleBoltsHubComponent(env, data) {
     });
   }
   if (action === 'donate') {
-    return eph('Donate via `/clash treasury donate amount:<N>` (or run `/clash` to open the town menu).');
+    // Quick donate flow — same pattern as play:vault-donate, but
+    // surfaced from the bolts hub for users who landed here first.
+    let treasuryLine = '';
+    try {
+      const { getTreasury } = await import('./clash-state.js');
+      const t = await getTreasury(env, guildId).catch(() => 0);
+      treasuryLine = `\n🏰 Current town treasury: **${(t || 0).toLocaleString()}** bolts`;
+    } catch { /* idle */ }
+    const brand = await getBranding(env, guildId);
+    return {
+      type: RESP_CHAT,
+      data: {
+        embeds: [{
+          title: '🏛️ Donate to Clash treasury',
+          description: 'Bolts donated fund the community town\'s upgrades + garrison.' + treasuryLine,
+          color: 0xe6c474,
+        }],
+        components: [{
+          type: COMPONENT_ROW,
+          components: [
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 100',  custom_id: 'play:vault-donate:100' },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 500',  custom_id: 'play:vault-donate:500' },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 1000', custom_id: 'play:vault-donate:1000' },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Custom amount on aquilo.gg', url: `${brand.siteUrl || 'https://aquilo.gg'}/clash/town/${guildId}/` },
+          ],
+        }],
+        flags: FLAG_EPHEMERAL,
+      },
+    };
   }
   return eph('Unknown bolts action: ' + cid);
 }
@@ -480,31 +529,261 @@ export async function handleBoltsTransferModal(env, data) {
   }
 }
 
-// play:* — three buttons that point at the existing slash surfaces.
+// play:* — six surfaces, each opens a real ephemeral submenu
+// (deep web links + in-Discord actions where they make sense).
+// No "use /<command>" punts.
 export async function handlePlayHubComponent(env, data) {
   const cid = data.data?.custom_id || '';
   const action = cid.split(':')[1];
+  const userId = data.member?.user?.id || data.user?.id;
+  const guildId = data.guild_id;
+  const brand = await getBranding(env, guildId);
+  const site = brand.siteUrl || 'https://aquilo.gg';
+
   if (action === 'boltbound') {
-    return ephEmbed({
-      title: '🃏 Boltbound',
-      description: 'Use `/boltbound` to open the menu — collect cards, build decks, battle viewers.',
-      color: 0x3a82ff,
-    });
+    // Pull a tiny inline read so the menu shows real per-user state.
+    let collectionLine = '';
+    let activeLine = '';
+    try {
+      const { getCollection } = await import('./cards-state.js');
+      const col = await getCollection(env, guildId, userId).catch(() => null);
+      if (col && Array.isArray(col.cards)) {
+        collectionLine = `\n📚 Collection: **${col.cards.length}** card${col.cards.length === 1 ? '' : 's'}`;
+      }
+    } catch { /* idle */ }
+    try {
+      const { getActiveMatch } = await import('./cards-state.js');
+      const m = await getActiveMatch(env, guildId, userId).catch(() => null);
+      if (m?.matchId || m?.id) {
+        const matchId = String(m.matchId || m.id);
+        activeLine = `\n⚔ Active match: \`${matchId.slice(0, 8)}\``;
+      }
+    } catch { /* idle */ }
+    return {
+      type: RESP_CHAT,
+      data: {
+        embeds: [{
+          title: '🃏 Boltbound',
+          description:
+            'Async card battler — collect cards, build decks, battle other viewers.' +
+            collectionLine + activeLine,
+          color: 0x3a82ff,
+        }],
+        components: [{
+          type: COMPONENT_ROW,
+          components: [
+            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Play on aquilo.gg', url: `${site}/play/boltbound/` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'My collection',     url: `${site}/play/boltbound/collection/` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Daily challenge',   url: `${site}/play/boltbound/daily/` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Leaderboard',       url: `${site}/play/boltbound/leaderboard/` },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Claim daily pack',  custom_id: 'play:boltbound-daily' },
+          ],
+        }],
+        flags: FLAG_EPHEMERAL,
+      },
+    };
   }
+  if (action === 'boltbound-daily') {
+    // Wire straight into the existing daily-pack flow (slash command
+    // /boltbound daily). No slash round-trip — call the underlying
+    // function directly.
+    try {
+      const { claimDailyFreePack } = await import('./cards-packs.js');
+      const r = await claimDailyFreePack(env, guildId, userId);
+      if (!r || !r.ok) {
+        return eph(`❌ ${r?.error === 'already-claimed' ? 'Already claimed today — come back tomorrow.' : (r?.error || 'daily-claim-failed')}`);
+      }
+      return eph(`🎁 Claimed today's free **Common Pack**. Open via aquilo.gg/play/boltbound/.`);
+    } catch (e) {
+      return eph('❌ ' + (e?.message || e));
+    }
+  }
+
   if (action === 'clash') {
-    return ephEmbed({
-      title: '⚔️ Clash',
-      description: 'Use `/clash` for town + raids — or open the panel on the website.',
-      color: 0x3a82ff,
-    });
+    // Quick town snapshot if available.
+    let townLine = '';
+    try {
+      const { getTown, getTreasury } = await import('./clash-state.js');
+      const town = await getTown(env, guildId).catch(() => null);
+      if (town) {
+        const treasury = await getTreasury(env, guildId).catch(() => 0);
+        townLine = `\n🏰 Town hall L${town.thLevel || 1} · treasury **${(treasury || 0).toLocaleString()}** bolts`;
+      }
+    } catch { /* idle */ }
+    return {
+      type: RESP_CHAT,
+      data: {
+        embeds: [{
+          title: '⚔️ Clash',
+          description: 'Build the community town. Raid for loot. Defend against attackers.' + townLine,
+          color: 0x3a82ff,
+        }],
+        components: [{
+          type: COMPONENT_ROW,
+          components: [
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Town manager',      url: `${site}/clash/town/${guildId}/` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Raid (goblins)',    url: `${site}/clash/?action=raid&kind=goblin` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Raid (player)',     url: `${site}/clash/?action=raid&kind=player` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Global leaderboard', url: `${site}/clash/leaderboard/` },
+          ],
+        }],
+        flags: FLAG_EPHEMERAL,
+      },
+    };
   }
+
   if (action === 'quick') {
-    return ephEmbed({
-      title: '🎰 Quick games',
-      description: 'Use `/play` to open the quick-games menu: coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash.',
-      color: 0x3a82ff,
-    });
+    // Quick-games panel lives on the Twitch extension + aquilo.gg
+    // /play surface. Surface direct links to each game type so users
+    // can one-tap-launch.
+    return {
+      type: RESP_CHAT,
+      data: {
+        embeds: [{
+          title: '🎰 Quick games',
+          description: '9 games sharing one bolts ledger. Tap any to launch on aquilo.gg.',
+          color: 0x3a82ff,
+        }],
+        components: [
+          { type: COMPONENT_ROW, components: [
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Coinflip',  url: `${site}/play/coinflip/`  },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Dice',      url: `${site}/play/dice/`      },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Blackjack', url: `${site}/play/blackjack/` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Roulette',  url: `${site}/play/roulette/`  },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Wheel',     url: `${site}/play/wheel/`     },
+          ]},
+          { type: COMPONENT_ROW, components: [
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Hilo',      url: `${site}/play/hilo/`      },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Mines',     url: `${site}/play/mines/`     },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Plinko',    url: `${site}/play/plinko/`    },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Crash',     url: `${site}/play/crash/`     },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'All quick games', url: `${site}/play/`     },
+          ]},
+        ],
+        flags: FLAG_EPHEMERAL,
+      },
+    };
   }
+
+  if (action === 'vault') {
+    // Aquilo's Vault — community shared treasury. The actual
+    // page may not exist yet on the site; pointing at the
+    // clash treasury manager which is the closest extant surface.
+    return {
+      type: RESP_CHAT,
+      data: {
+        embeds: [{
+          title: '🏛️ Aquilo\'s Vault',
+          description:
+            'The community treasury. Bolts deposited fund the Clash town + community events.\n\n' +
+            'Manage on aquilo.gg or use the buttons below.',
+          color: 0xe6c474,
+        }],
+        components: [{
+          type: COMPONENT_ROW,
+          components: [
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Open Vault',     url: `${site}/vault/` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Town treasury',  url: `${site}/clash/town/${guildId}/` },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 100',     custom_id: 'play:vault-donate:100' },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 500',     custom_id: 'play:vault-donate:500' },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 1000',    custom_id: 'play:vault-donate:1000' },
+          ],
+        }],
+        flags: FLAG_EPHEMERAL,
+      },
+    };
+  }
+  if (action === 'vault-donate') {
+    const amount = parseInt((cid.split(':')[2] || ''), 10);
+    if (!Number.isFinite(amount) || amount <= 0) return eph('❌ Bad donate amount.');
+    try {
+      const { addTreasury } = await import('./clash-state.js');
+      const { spend, getWallet } = await import('./wallet.js');
+      const w = await getWallet(env, guildId, userId);
+      if ((w.balance || 0) < amount) {
+        return eph(`❌ You only have ${(w.balance || 0).toLocaleString()} bolts.`);
+      }
+      const r = await spend(env, guildId, userId, amount, 'vault-donate');
+      if (!r || r.balance < 0) return eph('❌ Could not deduct bolts.');
+      await addTreasury(env, guildId, amount);
+      return eph(`🏛️ Donated **${amount}** bolts to the town treasury. New balance: **${r.balance.toLocaleString()}**.`);
+    } catch (e) {
+      return eph('❌ ' + (e?.message || e));
+    }
+  }
+
+  if (action === 'character') {
+    // Same as the standalone character-hub: open the upload-based
+    // editor on the site + inline stats button.
+    return {
+      type: RESP_CHAT,
+      data: {
+        embeds: [{
+          title: '🧑 Character',
+          description: 'Upload a hero pic or GIF on the editor. Or pick a class inline.',
+          color: 0x9b6cff,
+        }],
+        components: [{
+          type: COMPONENT_ROW,
+          components: [
+            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Open editor',    url: `${site}/play/character/` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Upload hero pic', url: `${site}/play/character/#avatar` },
+            { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My stats',       custom_id: 'chub:stats' },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Pick class',     custom_id: 'chub:class' },
+          ],
+        }],
+        flags: FLAG_EPHEMERAL,
+      },
+    };
+  }
+
+  if (action === 'rpg') {
+    // The Loadout RPG surface — wallet / inventory / kit / daily.
+    // These all live in the existing /loadout slash command's
+    // menu. Surface their web equivalents directly + inline
+    // wallet snapshot.
+    let walletLine = '';
+    try {
+      const { getWallet } = await import('./wallet.js');
+      const w = await getWallet(env, guildId, userId);
+      walletLine = `\n💰 **${(w.balance || 0).toLocaleString()}** bolts · daily streak **${w.dailyStreak || 0}**`;
+    } catch { /* idle */ }
+    return {
+      type: RESP_CHAT,
+      data: {
+        embeds: [{
+          title: '🎲 RPG · Loadout',
+          description: 'Wallet · inventory · kit · daily.' + walletLine,
+          color: 0xe6c474,
+        }],
+        components: [{
+          type: COMPONENT_ROW,
+          components: [
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Open Loadout',  url: `${site}/play/` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Inventory',     url: `${site}/play/inventory/` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Shop',          url: `${site}/play/shop/` },
+            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Claim daily',   custom_id: 'play:rpg-daily' },
+          ],
+        }],
+        flags: FLAG_EPHEMERAL,
+      },
+    };
+  }
+  if (action === 'rpg-daily') {
+    try {
+      const { daily } = await import('./games.js');
+      const r = await daily(env, guildId, userId);
+      if (!r.won) {
+        return eph(`❌ ${r.explanation || 'Already claimed today.'}`);
+      }
+      const { getWallet } = await import('./wallet.js');
+      const w = await getWallet(env, guildId, userId);
+      return eph(`💰 Daily claimed — **+${r.payout}** bolts (streak ${r.streak}). Balance: **${(w.balance || 0).toLocaleString()}**.`);
+    } catch (e) {
+      return eph('❌ ' + (e?.message || e));
+    }
+  }
+
   return eph('Unknown play action: ' + cid);
 }
 
@@ -516,18 +795,78 @@ export async function handleAchievementsHubComponent(env, data) {
   if (!userId) return eph('Run this in a server.');
 
   if (action === 'mine') {
-    return ephEmbed({
-      title: '🏆 Your achievements',
-      description: 'Run `/passport` to see your full profile + achievements list.',
-      color: 0xff9d6c,
-    });
+    // Pull live data inline instead of punting to /passport.
+    let xpLine = '_no XP yet_';
+    let tierLine = '';
+    let achLine = '';
+    try {
+      const { readXpDisplay } = await import('./progression/xp.js');
+      const x = await readXpDisplay(env, userId);
+      xpLine = `**L${x.level}** · ${x.xp.toLocaleString()} XP · ${x.pct}% to L${x.nextLevel}`;
+    } catch { /* idle */ }
+    try {
+      const { tiersForLevel } = await import('./level-tier-roles.js');
+      const { readXpDisplay } = await import('./progression/xp.js');
+      const x = await readXpDisplay(env, userId).catch(() => null);
+      const tiers = x ? tiersForLevel(x.level) : [];
+      tierLine = tiers.length ? `\n🏅 Tiers: ${tiers.join(' · ')}` : '\n🏅 Tiers: _none yet (L5 unlocks Apprentice)_';
+    } catch { /* idle */ }
+    try {
+      const { readAchievementsDisplay } = await import('./progression/achievements.js');
+      const ach = await readAchievementsDisplay(env, userId).catch(() => null);
+      const unlocked = ach && (ach.unlocked || ach.completed || []);
+      if (Array.isArray(unlocked) && unlocked.length > 0) {
+        const recent = unlocked.slice(-5).reverse();
+        achLine = '\n\n**Recent unlocks**\n' + recent.map(a => `• ${a.id || a.key || a.name || a}`).join('\n');
+      }
+    } catch { /* idle */ }
+    const brand = await getBranding(env, guildId);
+    return {
+      type: RESP_CHAT,
+      data: {
+        embeds: [{
+          title: '🏆 Your achievements',
+          description: xpLine + tierLine + achLine,
+          color: 0xff9d6c,
+        }],
+        components: [{
+          type: COMPONENT_ROW,
+          components: [
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Full passport',  url: `${brand.siteUrl || 'https://aquilo.gg'}/passport` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Quest checklist', url: `${brand.siteUrl || 'https://aquilo.gg'}/quest` },
+          ],
+        }],
+        flags: FLAG_EPHEMERAL,
+      },
+    };
   }
   if (action === 'catalog') {
-    return ephEmbed({
-      title: '📚 Achievement catalogue',
-      description: 'The full catalogue lives at aquilo.gg/quest and aquilo.gg/passport — pop over to browse what you can chase.',
-      color: 0xff9d6c,
-    });
+    const brand = await getBranding(env, guildId);
+    return {
+      type: RESP_CHAT,
+      data: {
+        embeds: [{
+          title: '📚 Achievement catalogue',
+          description:
+            'Categories:\n' +
+            '• 🔢 Counting — streaks + perfect runs in #counting\n' +
+            '• ✅ Check-in — daily / milestone\n' +
+            '• 🃏 Boltbound — collection / battle / win streak\n' +
+            '• ⚔️ Clash — raid wins / town upgrades\n' +
+            '• 🎮 Quick games — variety + win streaks\n' +
+            '• 🏆 Tier — level milestones (5/25/50/100)',
+          color: 0xff9d6c,
+        }],
+        components: [{
+          type: COMPONENT_ROW,
+          components: [
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Browse on aquilo.gg', url: `${brand.siteUrl || 'https://aquilo.gg'}/achievements` },
+            { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Quest checklist',     url: `${brand.siteUrl || 'https://aquilo.gg'}/quest` },
+          ],
+        }],
+        flags: FLAG_EPHEMERAL,
+      },
+    };
   }
   if (action === 'topxp') {
     try {
