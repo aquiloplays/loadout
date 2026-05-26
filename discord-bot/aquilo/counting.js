@@ -233,16 +233,28 @@ async function handleNotANumberOffense(env, guildId, payload, userId, content) {
 
 // ---- Message handler (called from POST /counting/message) --------------
 
-// Forwarded payload shape: { guild_id, channel_id, message_id, user_id, username, content, bot }
+// Forwarded payload shape (from aquilo-gateway shim, see
+// aquilo-gateway/aquilo_gateway.py on_message). Bot-author flag lives
+// at payload.author.bot (Discord-slim) AND payload.isBot (camelCase
+// mirror); user id lives at payload.author.id (Discord-slim) AND
+// payload.userId (camelCase mirror). The legacy `payload.bot` /
+// `payload.user_id` top-level fields are NOT in the forwarded shape
+// — checking those silently let bot messages through and the bot's
+// own ✓/❌ replies looped the handler back into itself. Check every
+// known field name we might receive so the guard is robust to shim
+// payload shape drift.
 export async function handleCountingMessage(env, payload) {
-  if (!payload || payload.bot) return { skipped: 'bot_message' };
+  if (!payload) return { skipped: 'bot_message' };
+  if (payload.bot === true || payload.isBot === true || payload.author?.bot === true) {
+    return { skipped: 'bot_message' };
+  }
   if (!env.COUNTING_CHANNEL_ID) return { skipped: 'channel_unconfigured' };
   if (payload.channel_id !== env.COUNTING_CHANNEL_ID) return { skipped: 'wrong_channel' };
 
   const guildId = await ensureBootstrap(env);
   const state = await loadState(env, guildId);
 
-  const userId = payload.user_id;
+  const userId = payload.user_id || payload.userId || payload.author?.id;
   const content = (payload.content || '').trim();
 
   // ── L8 split: distinguish "not a whole number" (warn/timeout, no

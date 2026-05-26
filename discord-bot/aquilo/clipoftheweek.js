@@ -30,6 +30,14 @@ const CLAP_EMOJI = '👏';
 /** Called from the aquilo-presence MESSAGE_CREATE webhook (same plumbing as counting). */
 export async function trackClipMessage(env, payload) {
   if (!env?.DB) return { tracked: false };
+  // Drop bot-authored messages. The gateway shim forwards every
+  // MESSAGE_CREATE including our own bot's outgoing relays — without
+  // this guard we'd seed a 👏 reaction on the bot's own posts AND
+  // bump clip_curator achievements against undefined author ids.
+  // Bot flag is at payload.author.bot / payload.isBot (shim shape).
+  if (payload?.bot === true || payload?.isBot === true || payload?.author?.bot === true) {
+    return { tracked: false, skipped: 'bot' };
+  }
   const clipsChannelId = await resolveClipsChannel(env);
   if (!clipsChannelId) return { tracked: false };
   if (payload.channel_id !== clipsChannelId) return { tracked: false };
@@ -38,12 +46,16 @@ export async function trackClipMessage(env, payload) {
   if (!m) return { tracked: false };
 
   const url = m[0].startsWith('http') ? m[0] : 'https://' + m[0];
+  // Shim sends author id at payload.author.id (Discord-slim) AND
+  // payload.userId (camelCase mirror). The legacy payload.author_id
+  // doesn't exist in the forwarded shape.
+  const authorId = payload.author_id || payload.userId || payload.author?.id || null;
 
   try {
     await env.DB.prepare(
       `INSERT OR IGNORE INTO clips (message_id, guild_id, channel_id, author_id, url)
          VALUES (?, ?, ?, ?, ?)`
-    ).bind(payload.id, payload.guild_id, payload.channel_id, payload.author_id, url).run();
+    ).bind(payload.id, payload.guild_id, payload.channel_id, authorId, url).run();
 
     // Seed a clap reaction so viewers know what to react with.
     try {
@@ -53,7 +65,9 @@ export async function trackClipMessage(env, payload) {
     } catch { /* non-critical */ }
 
     // Achievement: clip_curator
-    try { await bump(env, payload.guild_id, payload.author_id, 'clip_curator'); } catch {}
+    if (authorId) {
+      try { await bump(env, payload.guild_id, authorId, 'clip_curator'); } catch {}
+    }
 
     return { tracked: true };
   } catch (e) {
