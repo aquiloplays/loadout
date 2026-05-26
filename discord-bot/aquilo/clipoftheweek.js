@@ -34,10 +34,8 @@ export async function trackClipMessage(env, payload) {
   // MESSAGE_CREATE including our own bot's outgoing relays — without
   // this guard we'd seed a 👏 reaction on the bot's own posts AND
   // bump clip_curator achievements against undefined author ids.
-  // Bot flag is at payload.author.bot / payload.isBot (shim shape).
-  if (payload?.bot === true || payload?.isBot === true || payload?.author?.bot === true) {
-    return { tracked: false, skipped: 'bot' };
-  }
+  const { isBotPayload } = await import('../bot-guard.js');
+  if (isBotPayload(payload)) return { tracked: false, skipped: 'bot' };
   const clipsChannelId = await resolveClipsChannel(env);
   if (!clipsChannelId) return { tracked: false };
   if (payload.channel_id !== clipsChannelId) return { tracked: false };

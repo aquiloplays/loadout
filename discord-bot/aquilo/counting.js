@@ -245,9 +245,8 @@ async function handleNotANumberOffense(env, guildId, payload, userId, content) {
 // payload shape drift.
 export async function handleCountingMessage(env, payload) {
   if (!payload) return { skipped: 'bot_message' };
-  if (payload.bot === true || payload.isBot === true || payload.author?.bot === true) {
-    return { skipped: 'bot_message' };
-  }
+  const { isBotPayload } = await import('../bot-guard.js');
+  if (isBotPayload(payload)) return { skipped: 'bot_message' };
   if (!env.COUNTING_CHANNEL_ID) return { skipped: 'channel_unconfigured' };
   if (payload.channel_id !== env.COUNTING_CHANNEL_ID) return { skipped: 'wrong_channel' };
 

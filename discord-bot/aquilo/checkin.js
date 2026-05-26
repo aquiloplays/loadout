@@ -216,9 +216,8 @@ function milestoneBonus(streak) {
 //     userId, guildId, channelId, messageId, isBot, ts }
 export async function handleCheckinMessage(env, payload) {
   if (!payload) return { skipped: 'bot_message' };
-  if (payload.bot === true || payload.isBot === true || payload.author?.bot === true) {
-    return { skipped: 'bot_message' };
-  }
+  const { isBotPayload } = await import('../bot-guard.js');
+  if (isBotPayload(payload)) return { skipped: 'bot_message' };
 
   // Resolve the bound channel first (KV via loadout-discord poll;
   // CHECKIN_CHANNEL_ID env var is the fallback). Skip cleanly if

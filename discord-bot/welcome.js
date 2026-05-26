@@ -39,6 +39,41 @@ function ordinal(n) {
   return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 
+// One-shot admin helper: seed guild:join-counter:<g> from Discord's
+// approximate_member_count so the FIRST observed new member doesn't
+// appear as "1st member" in a guild with hundreds of pre-existing
+// joiners. Idempotent — only seeds when the counter is unset, never
+// overwrites an already-running tally unless `force` is true.
+//
+// Discord's GET /guilds/<g>/preview requires the bot to be a member
+// of the guild (which we are, post-claim). It returns
+// approximate_member_count which drifts under bans/leaves but is
+// the closest thing to "historical member count" we can cheaply
+// fetch.
+export async function backfillJoinCounter(env, guildId, opts = {}) {
+  if (!env?.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
+  if (!guildId) return { ok: false, error: 'no-guild-id' };
+  const key = `guild:join-counter:${guildId}`;
+  const existing = await env.LOADOUT_BOLTS.get(key);
+  if (existing && !opts.force) {
+    return { ok: true, skipped: 'already-set', value: parseInt(existing, 10) || 0 };
+  }
+  const r = await fetch(
+    `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/preview`,
+    { headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } },
+  );
+  if (!r.ok) {
+    return { ok: false, error: 'preview-failed', status: r.status, body: (await r.text()).slice(0, 200) };
+  }
+  const j = await r.json();
+  const seed = Number(j?.approximate_member_count) || Number(opts.seedIfPreviewMissing) || 0;
+  if (!seed) {
+    return { ok: false, error: 'no-member-count', preview: j };
+  }
+  await env.LOADOUT_BOLTS.put(key, String(seed));
+  return { ok: true, seeded: seed, source: 'preview.approximate_member_count', previous: existing || null };
+}
+
 function avatarUrl(userId, avatarHash) {
   // animated avatars carry an "a_" prefix on the hash; serve as .gif
   // when present, else .png. Size 256 is enough for the embed thumbnail.

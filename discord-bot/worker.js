@@ -257,6 +257,27 @@ export default {
     if (method === 'GET' && path.startsWith('/admin/printerbot/webhook-url/')) {
       return handlePrinterBotWebhookUrl(req, env, path);
     }
+    // DESTRUCTIVE — wipes user-facing economy + progression for a guild.
+    // Requires body { confirm: "yes-i-mean-it" } so a misfire can't
+    // nuke the data. See reset-user-data.js for the wiped/preserved
+    // prefix list.
+    if (method === 'POST' && path.startsWith('/admin/reset-user-data/')) {
+      return handleResetUserData(req, env, path);
+    }
+    // Counting-channel cleanup. Bulk-deletes bot-authored messages
+    // within the optional `?since=<unix>` window (default: no lower
+    // bound — capped by Discord's 14-day bulk-delete limit). See
+    // counting-purge.js.
+    if (method === 'POST' && path.startsWith('/admin/counting/purge-bot-messages/')) {
+      return handleCountingPurgeBotMessages(req, env, path);
+    }
+    // Seed guild:join-counter:<g> from Discord's
+    // approximate_member_count so the first observed new member
+    // doesn't display "1st member" in a pre-existing guild. See
+    // welcome.js backfillJoinCounter.
+    if (method === 'POST' && path.startsWith('/admin/welcome/backfill-counter/')) {
+      return handleWelcomeBackfillCounter(req, env, path);
+    }
     // Create the three gifter roles + persist {key: roleId} at
     // gifter-roles:<g>. Idempotent. See gifter-roles.js
     // ensureGifterRoles.
@@ -2069,6 +2090,81 @@ async function handlePrinterBotWebhookUrl(req, env, path) {
   const rec = await readPrinterBotWebhook(env, guildId);
   if (!rec) return jsonResp({ ok: false, error: 'not-set', via: auth.via }, 404);
   return jsonResp({ ok: true, ...rec, via: auth.via }, 200);
+}
+
+// ── /admin/reset-user-data/:guildId (HMAC, DESTRUCTIVE) ───────────
+// Body (JSON): { confirm: "yes-i-mean-it" }
+// Wipes wallet:<g>:*, community-checkin:<g>:*, community-checkin-bonus:<g>:*,
+// freeze:<g>:*, and (global) pxp:*. Preserves character/referral/admin
+// config — see reset-user-data.js for the full preserve list.
+async function handleResetUserData(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','reset-user-data',':g']
+  const guildId = parts[2];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  if (opts.confirm !== 'yes-i-mean-it') {
+    return jsonResp({
+      ok: false, error: 'confirm-required',
+      hint: 'POST { "confirm": "yes-i-mean-it" } — this destroys economy + progression state.',
+    }, 400);
+  }
+  const { resetUserData } = await import('./reset-user-data.js');
+  const r = await resetUserData(env, guildId, opts);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+}
+
+// ── /admin/counting/purge-bot-messages/:guildId (HMAC) ────────────
+// Query: ?since=<unix-seconds>  (optional lower bound; omit = scan
+// the whole 14-day window Discord bulk-delete allows).
+async function handleCountingPurgeBotMessages(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','counting','purge-bot-messages',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  // Resolve the counting channel: env COUNTING_CHANNEL_ID first
+  // (single source of truth for this guild today). Body can override
+  // with { channelId: '...' } for guilds where Clay binds it elsewhere.
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const channelId = String(opts.channelId || env.COUNTING_CHANNEL_ID || '').trim();
+  if (!channelId) return jsonResp({ ok: false, error: 'no-counting-channel' }, 400);
+  const url0 = new URL(req.url);
+  const sinceSec = parseInt(url0.searchParams.get('since') || '0', 10) || 0;
+  const sinceMs = sinceSec ? sinceSec * 1000 : 0;
+  const { purgeBotMessages } = await import('./counting-purge.js');
+  const r = await purgeBotMessages(env, channelId, { sinceMs });
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+}
+
+// ── /admin/welcome/backfill-counter/:guildId (HMAC) ────────────────
+// Body (JSON, optional): { force?: bool, seedIfPreviewMissing?: number }
+async function handleWelcomeBackfillCounter(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','welcome','backfill-counter',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { backfillJoinCounter } = await import('./welcome.js');
+  const r = await backfillJoinCounter(env, guildId, opts);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
 }
 
 // ── /admin/gifter-roles/ensure/:guildId (HMAC) ────────────────────
