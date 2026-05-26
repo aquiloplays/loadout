@@ -74,7 +74,6 @@ import {
   handleTicketConfigSubmit, handleTicketTypeAddSubmit, handleTicketTypeRemoveSubmit
 } from './tickets.js';
 import {
-  handleCheckinSlashCommand,
   handleCheckinSearchButton, handleCheckinPickButton,
   handleCheckinSearchSubmit,
 } from './checkin-slash.js';
@@ -624,9 +623,11 @@ async function handleAppCommand(data, env, ctx) {
     case 'sr-clear':       return handleSrClear(env, data);
     // Rotation pre-stream poll with cron-refreshed live tallies.
     case 'rotation-poll':  return handleRotationPoll(env, data);
-    // Slash counterpart to the implicit image-post check-in flow,
-    // with a follow-up GIPHY picker that fills the public card.
-    case 'checkin':        return handleCheckinSlashCommand(env, data);
+    // NB: /checkin USED to dispatch here to checkin-slash.js's
+    // standalone handler. Consolidated 2026-05 into
+    // community-checkin.js (with the GIPHY gif picker rolled in);
+    // commands.js now routes /checkin directly there, and this
+    // case never fires for the slash command.
     default:               return ephemeral('Unknown command.');
   }
 }

@@ -331,7 +331,9 @@ export async function handleInteraction(req, env, body, ctx) {
     case 'sr-remove':
     case 'sr-clear':
     case 'rotation-poll':
-    case 'checkin':
+      // /checkin used to fall through here to aquilo's GIPHY slash
+      // handler — now consolidated into community-checkin.js (the
+      // first 'case checkin' above) with the gif picker rolled in.
       return dispatchAquiloInteraction(data, env, ctx);
 
     case 'loadout-claim':

@@ -489,6 +489,52 @@ export async function collectBonus(env, guildId, userId, claimId) {
 
 // ── Discord /checkin slash command ─────────────────────────────────────
 // Interaction-based, so it works without the gateway shim.
+//
+// Consolidated 2026-05 to roll in the GIPHY gif-picker UX that used to
+// live in aquilo/checkin-slash.js (the duplicate /checkin entry).
+// Flow:
+//   1. /checkin → runs the unified recordCheckin (streak / freeze /
+//      bonus queue / posted embed / referral milestone / Voltaic roll).
+//   2. If the embed posted to the bound channel, stash the
+//      {channelId, messageId} under `aqci:card:<g>:<u>:<dateET>` so
+//      the existing aqci:pick handler in aquilo/checkin-slash.js can
+//      patch it.
+//   3. Reply ephemeral with the streak summary AND a "🎬 Search a
+//      GIF" button — same custom_id (aqci:search) the picker already
+//      dispatches off, so no new component handlers needed.
+//   4. The picker chain (aqci:search → modal:aqci_search →
+//      aqci:pick:<tok>:<i>) runs as before; the pick handler now
+//      fetches the live embed + sets `image: { url }` instead of
+//      rebuilding from scratch, so it works regardless of which
+//      embed shape posted the card.
+const AQCI_CARD_PREFIX = 'aqci:card:';
+const AQCI_CARD_TTL_S  = 48 * 60 * 60;
+const GIF_PICKER_ROW = {
+  type: 1, // ACTION_ROW
+  components: [{
+    type: 2,                  // BUTTON
+    style: 1,                 // PRIMARY
+    label: '🎬 Search a GIF',
+    custom_id: 'aqci:search', // dispatched in aquilo/worker.js → handleCheckinSearchButton
+  }],
+};
+
+async function stashCardPointer(env, guildId, userId, today, channelId, messageId) {
+  if (!channelId || !messageId) return;
+  await env.LOADOUT_BOLTS.put(
+    AQCI_CARD_PREFIX + guildId + ':' + userId + ':' + today,
+    JSON.stringify({ channelId, messageId }),
+    { expirationTtl: AQCI_CARD_TTL_S },
+  );
+}
+
+async function loadCardPointer(env, guildId, userId, today) {
+  return env.LOADOUT_BOLTS.get(
+    AQCI_CARD_PREFIX + guildId + ':' + userId + ':' + today,
+    { type: 'json' },
+  );
+}
+
 export async function handleCheckinCommand(env, data) {
   const guildId = data.guild_id;
   const userId  = data.member?.user?.id || data.user?.id;
@@ -496,16 +542,29 @@ export async function handleCheckinCommand(env, data) {
     return { type: 4, data: { content: 'Run this in a server.', flags: 64 } };
   }
   const r = await recordCheckin(env, guildId, userId, 'discord');
+  const today = todayET();
 
   if (r.alreadyToday) {
-    return {
-      type: 4,
-      data: {
-        content: `✅ You've already checked in today. **${r.streak}-day** streak going strong.`
-          + (r.pendingBonusCount ? `\n🎁 You have **${r.pendingBonusCount}** unclaimed bonus${r.pendingBonusCount > 1 ? 'es' : ''} — collect on aquilo.gg/profile.` : ''),
-        flags: 64,
-      },
-    };
+    // Repeat /checkin on the same day — no streak/bonus work happens,
+    // but if there's a stashed card we still offer the picker so the
+    // user can swap their gif.
+    const existing = await loadCardPointer(env, guildId, userId, today);
+    const lines = [
+      `✅ You've already checked in today. **${r.streak}-day** streak going strong.`,
+    ];
+    if (r.pendingBonusCount) {
+      lines.push(`🎁 You have **${r.pendingBonusCount}** unclaimed bonus${r.pendingBonusCount > 1 ? 'es' : ''} — collect on aquilo.gg/profile.`);
+    }
+    const components = existing ? [GIF_PICKER_ROW] : [];
+    if (existing) lines.push('Pick a different GIF for your card:');
+    return { type: 4, data: { content: lines.join('\n'), flags: 64, components } };
+  }
+
+  // Stash the pointer for the picker BEFORE we render the reply, so
+  // the picker can find the card the instant the user taps the button.
+  if (r.embed?.posted) {
+    await stashCardPointer(env, guildId, userId, today,
+      r.embed.channelId, r.embed.messageId);
   }
 
   const lines = [`✅ Checked in! **${r.streak}-day** streak.`];
@@ -520,5 +579,8 @@ export async function handleCheckinCommand(env, data) {
   if (!r.embed.posted && r.embed.reason !== 'already-today') {
     lines.push(`_(couldn't post the embed: ${r.embed.reason} — your check-in still counted.)_`);
   }
-  return { type: 4, data: { content: lines.join('\n'), flags: 64 } };
+  // Only offer the picker when there's actually a card to patch.
+  const components = r.embed?.posted ? [GIF_PICKER_ROW] : [];
+  if (r.embed?.posted) lines.push('Pick a GIF to add to your card:');
+  return { type: 4, data: { content: lines.join('\n'), flags: 64, components } };
 }

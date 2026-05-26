@@ -18,13 +18,14 @@
 // been empty > 60s (keeps short bathroom breaks from triggering a
 // delete). Deletion uses the bot's MANAGE_CHANNELS perm.
 //
-// Config (env vars):
+// Config (env vars — both set in wrangler.toml):
 //   DISCORD_BOT_TOKEN              — bot REST auth
-//   TEMP_VC_CATEGORY_ID            — parent category for new temp VCs
-//   TEMP_VC_JOIN_TO_CREATE_ID      — (optional) source channel id the
-//                                    DLL forwards voice-state events
-//                                    for; new temp VCs spawn when a
-//                                    user joins this channel
+//   TEMP_VC_PARENT_ID              — the "➕│join to create" voice
+//                                    channel; joining it triggers
+//                                    a new temp-VC spawn for that user
+//   TEMP_VC_CATEGORY_ID            — (optional) Discord category id
+//                                    new temp VCs nest under. Leave
+//                                    unset to spawn at guild root.
 
 const TEMPVC_KEY = (chId) => `tempvc:${chId}`;
 const INDEX_KEY = 'tempvc:index';
@@ -157,22 +158,26 @@ export async function sweepEmptyTempVcs(env, nowUtc = Date.now()) {
 // HMAC-gated endpoint the DLL calls on every voice-state update so we
 // can:
 //   (a) drive the "join-to-create" flow — when a user joins the
-//       configured TEMP_VC_JOIN_TO_CREATE_ID channel, spawn a temp VC
-//       for them.
+//       configured TEMP_VC_PARENT_ID channel, spawn a temp VC for them.
 //   (b) stamp lastActivityUtc on tracked temp VCs so the sweep doesn't
 //       delete a busy room.
 //
 // Body: { guildId, userId, displayName?, channelId | null }
 //   channelId == null  → user left voice
-//   channelId == TEMP_VC_JOIN_TO_CREATE_ID → spawn-then-move
-
+//   channelId == TEMP_VC_PARENT_ID → spawn-then-move
+//
+// Env-var naming: aligned with wrangler.toml (TEMP_VC_PARENT_ID is the
+// "➕│join to create" voice channel id). The optional TEMP_VC_CATEGORY_ID
+// (above, in createTempVcForUser) is a SEPARATE category id under
+// which newly-spawned temp VCs are nested — leave unset to spawn them
+// at the guild root.
 export async function handleVoiceStateUpdate(env, payload) {
   const { guildId, userId, displayName, channelId } = payload || {};
   if (!guildId || !userId) return { ok: false, error: 'guildId+userId required' };
 
   // Spawn-on-join-source-channel
-  if (channelId && env.TEMP_VC_JOIN_TO_CREATE_ID
-      && String(channelId) === String(env.TEMP_VC_JOIN_TO_CREATE_ID)) {
+  if (channelId && env.TEMP_VC_PARENT_ID
+      && String(channelId) === String(env.TEMP_VC_PARENT_ID)) {
     const r = await createTempVcForUser(env, { guildId, userId, displayName });
     return { ok: true, spawned: r };
   }

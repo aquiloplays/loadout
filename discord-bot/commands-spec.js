@@ -803,14 +803,10 @@ export const COMMANDS = [
     name: 'shop',
     description: 'Browse the Aquilo Bolts shop and spend Bolts',
   },
-  {
-    // Slash counterpart to the implicit "post an image in the check-in
-    // channel" flow in aquilo/checkin.js — runs the same streak +
-    // bolts logic, then prompts for a GIPHY GIF to add to the
-    // public check-in card embed. See aquilo/checkin-slash.js.
-    name: 'checkin',
-    description: 'Check in for today and pick a GIF for your card',
-  },
+  // /checkin moved to the canonical entry near the top of this file
+  // (community-checkin.js handler, with the GIPHY gif-picker rolled
+  // in). Duplicate fold-in entry deleted 2026-05 — Discord rejects
+  // two slash commands with the same name on the same guild.
   {
     name: 'trivia-add',
     description: '(admin) Add a trivia question to the daily rotation',

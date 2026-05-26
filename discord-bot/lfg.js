@@ -14,9 +14,9 @@
 //   3. closeLfg() (host or auto on full) edits the embed to "closed"
 //      and moves the entry from active to archive.
 //
-// One config: AQUILO_LFG_CHANNEL_ID (per-guild via the future bindings
-// dropdown) — falls back to the existing ENGAGEMENT_CHANNEL_ID when
-// unset so we don't break Day 1.
+// One config: LFG_CHANNEL_ID (set in wrangler.toml; per-guild via the
+// future bindings dropdown) — falls back to ENGAGEMENT_CHANNEL_ID
+// when unset so we don't break Day 1.
 
 const ACTIVE_KEY = (id) => `lfg:active:${id}`;
 const INDEX_KEY  = 'lfg:index';
@@ -45,7 +45,10 @@ async function resolveLfgChannel(env, guildId) {
       if (v) return v;
     } catch { /* fall through */ }
   }
-  return env.AQUILO_LFG_CHANNEL_ID || env.ENGAGEMENT_CHANNEL_ID || null;
+  // env.LFG_CHANNEL_ID is set by wrangler.toml's L9-build channel map
+  // (1507973931372646490 → 🧩│looking-for-game). Falls back to the
+  // engagement channel only if no LFG binding exists at all.
+  return env.LFG_CHANNEL_ID || env.ENGAGEMENT_CHANNEL_ID || null;
 }
 
 // Build a Discord embed payload for an LFG entry. Used by both the
