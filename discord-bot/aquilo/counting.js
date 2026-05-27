@@ -25,7 +25,30 @@ const CHAN_TIMEOUT_MIN  = 60;
 
 const DEFAULT_BASE_REWARD     = 1;
 const DEFAULT_FAIL_PENALTY    = 10;
-const DEFAULT_FAIL_DURATION   = 60;  // minutes
+// 24 h default per Clay 2026-05-27 — the embarrassment IS the
+// punishment; long enough that the shame role visibly persists on
+// their profile even if they don't visit Discord that day, short
+// enough not to feel permanent.
+const DEFAULT_FAIL_DURATION   = 24 * 60;  // 1440 minutes / 24 h
+
+// Per-guild config overrides. KV-backed so admin can rotate
+// without redeploying wrangler.toml. Env var stays as a
+// deploy-time fallback, the constants above as the final default.
+const KV_GUILD_FAIL_ROLE_ID    = (g) => `counting:fail_role_id:${g}`;
+const KV_GUILD_FAIL_DURATION   = (g) => `counting:fail_duration_min:${g}`;
+
+async function getFailRoleId(env, guildId) {
+  const kv = await env.STATE.get(KV_GUILD_FAIL_ROLE_ID(guildId));
+  if (kv) return kv;
+  return env.COUNTING_FAIL_ROLE_ID || '';
+}
+
+async function getFailDurationMin(env, guildId) {
+  const kv = await env.STATE.get(KV_GUILD_FAIL_DURATION(guildId));
+  if (kv && Number.isFinite(parseInt(kv, 10))) return parseInt(kv, 10);
+  return parseInt(env.COUNTING_FAIL_DURATION_MIN || String(DEFAULT_FAIL_DURATION), 10)
+         || DEFAULT_FAIL_DURATION;
+}
 
 // ---- KV state ----------------------------------------------------------
 
@@ -231,6 +254,90 @@ async function handleNotANumberOffense(env, guildId, payload, userId, content) {
   return { offense: 'not-a-number', strikes, action: 'channel-timeout', timeoutMin: CHAN_TIMEOUT_MIN, content };
 }
 
+// ---- Shame-role provisioning (admin) -----------------------------------
+//
+// Creates (or reuses) the "I CAN'T COUNT" role, optionally applies a
+// SEND_MESSAGES deny on the counting channel for that role, and
+// stamps the role ID into KV so the fail-handler grabs it. Idempotent
+// — re-running matches by exact role name and reuses the existing ID.
+
+export async function provisionShameRole(env, guildId, opts = {}) {
+  if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
+  const name             = String(opts.name || "I CAN'T COUNT");
+  const color            = Number.isFinite(opts.color) ? opts.color : 0xff6ab5;   // aurora pink
+  const applyChannelDeny = opts.applyChannelDeny !== false;   // default ON
+
+  // Reuse-or-create.
+  let roleId = null;
+  try {
+    const list = await discordFetch(env,
+      `/guilds/${encodeURIComponent(guildId)}/roles`);
+    if (Array.isArray(list)) {
+      const found = list.find(r => String(r?.name || '').toLowerCase() === name.toLowerCase());
+      if (found?.id) roleId = String(found.id);
+    }
+  } catch (e) { console.warn('[counting] role list failed', e?.message || e); }
+
+  let created = false;
+  if (!roleId) {
+    try {
+      const r = await discordFetch(env,
+        `/guilds/${encodeURIComponent(guildId)}/roles`,
+        { method: 'POST',
+          body: JSON.stringify({
+            name,
+            color,
+            hoist: true,            // shows in own group → visibly shamed
+            mentionable: false,
+            permissions: '0',       // no extra perms — cosmetic only
+          }) });
+      if (r?.id) {
+        roleId = String(r.id);
+        created = true;
+      }
+    } catch (e) {
+      return { ok: false, error: 'role-create-failed', detail: e?.message || String(e) };
+    }
+  }
+  if (!roleId) return { ok: false, error: 'role-id-unresolved' };
+
+  // Optional: deny SEND_MESSAGES on the counting channel for this
+  // role. Embarrassment + a soft channel mute pair well; ADD_REACTIONS
+  // stays allowed so the offender can still react with 🤡 etc.
+  const countingChannelId = env.COUNTING_CHANNEL_ID;
+  let channelDenyApplied = false;
+  if (applyChannelDeny && countingChannelId) {
+    const VIEW = 0x400, SEND = 0x800, HISTORY = 0x10000, ADD_REACT = 0x40;
+    try {
+      await discordFetch(env,
+        `/channels/${encodeURIComponent(countingChannelId)}/permissions/${encodeURIComponent(roleId)}`,
+        { method: 'PUT',
+          body: JSON.stringify({
+            type: 0,                                     // role overwrite
+            allow: String(VIEW | HISTORY | ADD_REACT),   // can read + react
+            deny:  String(SEND),                         // cannot send messages
+          }) });
+      channelDenyApplied = true;
+    } catch (e) {
+      console.warn('[counting] channel deny failed', e?.message || e);
+    }
+  }
+
+  await env.STATE.put(KV_GUILD_FAIL_ROLE_ID(guildId), roleId);
+
+  return {
+    ok: true,
+    roleId,
+    name,
+    color,
+    created,
+    reused: !created,
+    channelDenyApplied,
+    countingChannelId: countingChannelId || null,
+    note: 'Role created at bottom of hierarchy by default. Bot role must sit ABOVE this role for grant/revoke to work — drag in Server Settings → Roles if needed.',
+  };
+}
+
 // ---- Message handler (called from POST /counting/message) --------------
 
 // Forwarded payload shape (from aquilo-gateway shim, see
@@ -322,16 +429,20 @@ export async function handleCountingMessage(env, payload) {
   catch (e) { console.warn('[counting] react fail failed', e?.message || e); }
 
   const failPenalty = parseInt(env.COUNTING_FAIL_PENALTY || String(DEFAULT_FAIL_PENALTY), 10) || DEFAULT_FAIL_PENALTY;
-  const failDuration = parseInt(env.COUNTING_FAIL_DURATION_MIN || String(DEFAULT_FAIL_DURATION), 10) || DEFAULT_FAIL_DURATION;
+  const failDuration = await getFailDurationMin(env, guildId);
+  const failRoleId   = await getFailRoleId(env, guildId);
 
   // Negative amount → applyVaultDelta clamps balance at 0, so this is safe.
   await applyBolts(env, guildId, userId, -failPenalty, 'counting:fail_at:' + state.current);
 
-  // Assign the fail role for `failDuration` minutes (if configured).
-  if (env.COUNTING_FAIL_ROLE_ID) {
-    try { await addMemberRole(env, guildId, userId, env.COUNTING_FAIL_ROLE_ID); }
+  // Assign the fail role (e.g. "I CAN'T COUNT") for failDuration
+  // minutes. addMemberRole is idempotent (Discord PUT) and
+  // scheduleFailRoleRemoval refreshes the expiry on repeat fails
+  // rather than double-stamping.
+  if (failRoleId) {
+    try { await addMemberRole(env, guildId, userId, failRoleId); }
     catch (e) { console.warn('[counting] fail role add', e?.message || e); }
-    await scheduleFailRoleRemoval(env, guildId, userId, env.COUNTING_FAIL_ROLE_ID, failDuration);
+    await scheduleFailRoleRemoval(env, guildId, userId, failRoleId, failDuration);
   }
 
   // Reason for the public callout (chain-break only — not-a-number
@@ -341,10 +452,17 @@ export async function handleCountingMessage(env, payload) {
   else if (num !== expected) reasonText = 'expected **' + expected + '**';
   else reasonText = 'something went wrong';
 
+  // Format duration as h/min for the public callout so a 24h default
+  // doesn't read as "1440 min".
+  const durationLabel = failDuration >= 60
+    ? `${Math.round(failDuration / 60)}h`
+    : `${failDuration} min`;
   try {
     await postChat(env, payload.channel_id, {
       content: '💥 <@' + userId + '> broke the chain at **' + state.current + '** — ' + reasonText + '.\n' +
-               '🪙 −' + failPenalty + ' bolts · ⏳ fail role for ' + failDuration + ' min · count resets to **1**.'
+               '🪙 −' + failPenalty + ' bolts · ⏳ ' +
+               (failRoleId ? `**I CAN'T COUNT** role for ${durationLabel}` : `fail cooldown ${durationLabel}`) +
+               ' · count resets to **1**.'
     });
   } catch {}
 

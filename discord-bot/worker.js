@@ -340,6 +340,15 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/post-embed/')) {
       return handlePostEmbed(req, env, path);
     }
+    // Provision the counting-game "I CAN'T COUNT" shame role +
+    // (optionally) apply a SEND_MESSAGES channel deny on the
+    // counting channel for that role. Idempotent — reuses any
+    // existing role with the same name. Stamps the resolved
+    // role ID at KV `counting:fail_role_id:<g>` so the counting
+    // fail-handler picks it up without a worker redeploy.
+    if (method === 'POST' && path.startsWith('/admin/counting/provision-shame-role/')) {
+      return handleCountingProvisionShameRole(req, env, path);
+    }
     // One-shot test post for the check-in v2 composite renderer
     // (variant C — bg + gif composite). Posts a sample embed to a
     // DM (recipientUserId) or a channel (channelId fallback). Used
@@ -2494,6 +2503,28 @@ async function handleReleaseNotesPost(req, env, path) {
   }));
   return jsonResp({ ok: true, product, version, channelId,
     priorDeletedId, newMessageId: newMsg.id, kvKey, via: auth.via }, 200);
+}
+
+// ── /admin/counting/provision-shame-role/:guildId (HMAC) ─────────
+// Body (JSON, all optional):
+//   { name?: "I CAN'T COUNT", color?: 0xff6ab5,
+//     applyChannelDeny?: true }
+// Defaults match Clay's 2026-05 spec — aurora pink, hoisted,
+// channel-deny on the configured counting channel ON by default.
+async function handleCountingProvisionShameRole(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const { provisionShameRole } = await import('./aquilo/counting.js');
+  const r = await provisionShameRole(env, guildId, opts);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 502);
 }
 
 // ── /admin/post-embed/:guildId (HMAC) ─────────────────────────────
