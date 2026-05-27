@@ -38,10 +38,10 @@ const DEFAULT_GAMES = [
   // a per-row category (variety vs community is a schedule-slot
   // property, not a game property — Saturday is the variety/CN day in
   // aq-schedule.js), so these land in the same single rotation pool
-  // as the others. Vampire Crawlers + Baby Steps Steam IDs weren't
-  // confidently looked up; art_url left null per the prior convention.
-  { name: 'Vampire Crawlers',         art_url: null },
-  { name: 'Baby Steps',               art_url: null },
+  // as the others. Steam IDs confirmed in v6: Vampire Crawlers
+  // (3265700) and Baby Steps (1281040) — Steam header art populated.
+  { name: 'Vampire Crawlers',         art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3265700/5590e42cab09dacabee973dd2c3e27ef12ed4950/header.jpg' },
+  { name: 'Baby Steps',               art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1281040/8d57ee5f68ecf97305c2f7847b25f1fbe1c680c2/header.jpg' },
   // Added in v6 — Clay's roster sweep (2026-05). Removed Slay the
   // Spire 2 / Cult of the Lamb / Roadside Research; added these
   // five. All Steam-resolvable so they also appear in the

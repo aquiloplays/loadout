@@ -71,7 +71,7 @@ function buildSchedulePayload(sched) {
       if (winner) { game = winner.name; art = winner.art_url; }
       desc = game
         ? '🎲 **Community Night** · 10:30 PM-12:30 AM ET\n**' + game + '**'
-        : '🎲 **Community Night · vote in progress** · 10:30 PM-12:30 AM ET\n_Polls open at 6 PM ET Saturday — tap **Vote for this week** in <#' + (sched.poll_channel_id || '') + '>_';
+        : '🎲 **Community Night · vote in progress** · 10:30 PM-12:30 AM ET\n_Tap **Vote for this week** in <#' + (sched.poll_channel_id || '') + '> — timing is shown in the voting embed._';
     } else {
       art  = MINECRAFT_ART;
       desc = '⛏️ **' + game + '** · 10:30 PM-12:30 AM ET';

@@ -38,7 +38,7 @@ export async function buildHubEmbed(env, guildId) {
       title: '🎲 Community Night',
       description:
         `Saturday is **Community Night** — the community picks the game.\n\n` +
-        `• **Vote for this week** opens the current poll (Sat 6 PM ET)\n` +
+        `• **Vote for this week** opens the current poll\n` +
         `• **View standings** shows live counts\n` +
         `• **Join CN queue** locks your slot for tonight's stream\n` +
         `• **My status** — your vote + queue position`,

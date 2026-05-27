@@ -195,7 +195,7 @@ function daysUntilWeekday(currentWeekday, targetWeekday) {
 // Build a "next event Date" Date object (UTC) for the given target
 // weekday + ET hour, anchored to `nowMs`. Useful for the embed's
 // "Voting opens <relative timestamp>" copy.
-function nextEventTimestamp(nowMs, targetWeekday, hourEt) {
+export function nextEventTimestamp(nowMs, targetWeekday, hourEt) {
   if (!targetWeekday) return null;
   const nowEt = getETInfo(new Date(nowMs));
   let days = daysUntilWeekday(nowEt.weekday, targetWeekday);
@@ -230,17 +230,19 @@ async function buildPhaseEmbed(env, guildId, state, config) {
   const brand = await getBranding(env, guildId);
   const accent = brand.accentColor || 0x9147ff;
 
+  // Schedule v2: variety is STATIC (Wed + Fri), no vote. CN is the
+  // only voted event, with its own multi-day window.
+  const nowMs = Date.now();
+  const tsCnOpen  = nextEventTimestamp(nowMs, config.cnVoteOpenWeekday,  config.cnVoteOpenHourEt);
+  const tsCnClose = nextEventTimestamp(nowMs, config.cnVoteCloseWeekday, config.cnVoteCloseHourEt);
+  const tsCnQueue = nextEventTimestamp(nowMs, config.cnQueueOpenWeekday, config.cnQueueOpenHourEt);
+  const tFmt = (ms, fmt) => ms ? `<t:${Math.floor(ms / 1000)}:${fmt}>` : null;
+
   if (state.phase === PHASE.CLOSED) {
-    // Show whichever event is next. If neither configured, show a
-    // generic "no events scheduled" footer.
-    const nowMs = Date.now();
-    const variety = config.varietyWeekday
-      ? nextEventTimestamp(nowMs, config.varietyWeekday, config.openHourEt) : null;
-    const cn = config.cnWeekday
-      ? nextEventTimestamp(nowMs, config.cnWeekday, config.openHourEt) : null;
     const lines = [];
-    if (variety) lines.push(`🎲 **Variety night** opens <t:${Math.floor(variety / 1000)}:R>`);
-    if (cn)      lines.push(`🏆 **Community night** opens <t:${Math.floor(cn / 1000)}:R>`);
+    if (tsCnOpen)  lines.push(`🗳️ Voting opens ${tFmt(tsCnOpen, 'F')} (${tFmt(tsCnOpen, 'R')})`);
+    if (tsCnClose) lines.push(`🏁 Voting closes ${tFmt(tsCnClose, 'F')} (${tFmt(tsCnClose, 'R')})`);
+    if (tsCnQueue) lines.push(`🎮 Saturday Community Night queue opens ${tFmt(tsCnQueue, 'F')}`);
     if (lines.length === 0) lines.push('_No events scheduled. Ask a mod to set the weekdays via /admin/vote-hub/config._');
     return {
       embed: {
@@ -267,12 +269,13 @@ async function buildPhaseEmbed(env, guildId, state, config) {
   if (state.phase === PHASE.VARIETY_OPEN || state.phase === PHASE.CN_OPEN) {
     const kind = state.phase === PHASE.VARIETY_OPEN ? 'variety' : 'cn';
     const label = kind === 'variety' ? '🎲 Variety night' : '🏆 Community night';
+    const lines = [`Tap **Vote** to pick this week's game. You can change your vote until polls close.`];
+    if (tsCnClose) lines.push('', `🏁 Voting closes ${tFmt(tsCnClose, 'F')} (${tFmt(tsCnClose, 'R')})`);
+    if (tsCnQueue) lines.push(`🎮 Saturday queue opens ${tFmt(tsCnQueue, 'F')}`);
     return {
       embed: {
         title: `🗳️ ${label} · voting open`,
-        description:
-          `Tap **Vote** to pick this week's game. You can change your vote until polls close.\n\n` +
-          `Closes at ${config.closeHourEt}:00 ET today.`,
+        description: lines.join('\n'),
         color: accent,
       },
       components: [{
@@ -290,12 +293,15 @@ async function buildPhaseEmbed(env, guildId, state, config) {
     const kind = state.phase === PHASE.VARIETY_CLOSED ? 'variety' : 'cn';
     const label = kind === 'variety' ? '🎲 Variety night' : '🏆 Community night';
     const winner = await getStoredWinner(env, guildId, kind);
-    const desc = winner
-      ? `**Winner:** ${winner.name}${winner.votes ? ` (${winner.votes} vote${winner.votes === 1 ? '' : 's'})` : ''}`
-      : '_Votes are in — winner being tallied._';
+    const lines = [
+      winner
+        ? `**Winner:** ${winner.name}${winner.votes ? ` (${winner.votes} vote${winner.votes === 1 ? '' : 's'})` : ''}`
+        : '_Votes are in — winner being tallied._',
+    ];
+    if (tsCnQueue) lines.push('', `🎮 Saturday queue opens ${tFmt(tsCnQueue, 'F')} (${tFmt(tsCnQueue, 'R')})`);
     const embed = {
       title: `🗳️ ${label} · voting closed`,
-      description: desc,
+      description: lines.join('\n'),
       color: accent,
     };
     if (winner?.art_url) embed.image = { url: winner.art_url };

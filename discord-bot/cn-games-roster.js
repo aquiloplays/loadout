@@ -1,130 +1,110 @@
-// Steam-backed community-night roster.
+// Community-night games roster — ONE message in #community-night-games:
+//   embed (composite art + <t:> timestamps + brand color)
+// + up to 5 rows of link buttons (Game Name • $price; 🔥 prefix on sale).
 //
-// Fetches live Steam appdetails for a list of game appIds, posts one
-// embed per game in the community-night-games channel, and re-edits
-// those embeds every 6 hours from the cron tick so sale prices stay
-// current. KV-tracked at cn-roster:<g> so a re-run / refresh edits in
-// place rather than reposting.
+// Two flows:
+//   postRoster(env, guildId, channelId, imageBase64, opts)
+//     Fresh post. Uploads the composite as a Discord attachment.
+//     Optional opts.purgeFirst deletes the prior message (and any
+//     orphan multi-embed layout from the previous design).
+//   refreshRosterIfDue(env, guildId, {force})
+//     Cron-driven. PATCHes the existing message with refreshed
+//     prices in the button labels. Does NOT touch the attachment
+//     (Discord preserves it on edit when `attachments` is omitted).
+//     Gated by a 6h KV marker.
 //
 // KV layout:
 //   cn-roster:<g> = {
-//     channelId, headerMessageId,
-//     games: [{ appId, messageId, lastDiscount, lastFinal, lastFetchUtc }, ...]
+//     channelId, messageId, postedAt,
+//     prices: { [appId|'epic:Name']: { final, discount, finalPretty, free } }
 //   }
 //   cn-roster:last-refresh:<g> = unix-seconds (cron gate)
 
-const STEAM_APPDETAILS = (appId) =>
-  `https://store.steampowered.com/api/appdetails?appids=${appId}&cc=us&filters=basic,price_overview`;
+import { nextEventTimestamp, getConfig as getVoteConfig } from './vote-hub.js';
+
+const ROSTER_KEY         = (g) => `cn-roster:${g}`;
+const REFRESH_MARKER_KEY = (g) => `cn-roster:last-refresh:${g}`;
+const REFRESH_INTERVAL_S = 6 * 3600;
+const COMPOSITE_FILENAME = 'cn-roster.png';
 
 const BRAND_VIOLET = 0x7c5cff;
-const BRAND_PINK   = 0xff6ab5;
-const ROSTER_KEY = (g) => `cn-roster:${g}`;
-const REFRESH_MARKER_KEY = (g) => `cn-roster:last-refresh:${g}`;
-const REFRESH_INTERVAL_S = 6 * 60 * 60;   // 6 hours
 
-// Canonical roster — sourced from aquilo/bootstrap.js DEFAULT_GAMES
-// (the single source of truth Clay curates via the /games slash +
-// the D1 games table seed). Order preserves Clay's seed order.
-// Games with no confirmed Steam appId (Fortnite, Vampire Crawlers,
-// Baby Steps) are intentionally NOT in this roster — they can be
-// backfilled when an appId is confirmed.
-export const DEFAULT_APPIDS = [
-  2827200,   // MIMESIS
-  3949040,   // RV There Yet?
-  1966720,   // Lethal Company
-  3241660,   // R.E.P.O.
-  4244510,   // Pratfall
-  3527290,   // PEAK
-  4069520,   // Super Battle Golf
-  2881650,   // Content Warning
-  3059070,   // The Headliners
-  3892270,   // Gamble With Your Friends
-  2780980,   // LOCKDOWN Protocol
-  381210,    // Dead by Daylight
-  945360,    // Among Us
-  739630,    // Phasmophobia
-  // v6 additions — Clay's 2026-05 roster sweep.
-  1170970,   // Marbles on Stream
-  880940,    // Pummel Party
-  578080,    // PUBG: BATTLEGROUNDS
-  1304930,   // The Outlast Trials
-  2747330,   // Species: Unknown
+const STEAM_APPDETAILS = (id) =>
+  `https://store.steampowered.com/api/appdetails?appids=${id}&cc=us&filters=basic`;
+
+// Canonical 22-game roster. Order = button order. Mirrors
+// aquilo/bootstrap.js DEFAULT_GAMES (with appIds resolved for the
+// three formerly-null entries: Vampire Crawlers, Baby Steps;
+// Fortnite stays Epic-only).
+export const ROSTER = [
+  { name: 'MIMESIS',                  appId: 2827200 },
+  { name: 'RV There Yet?',            appId: 3949040 },
+  { name: 'Lethal Company',           appId: 1966720 },
+  { name: 'R.E.P.O.',                 appId: 3241660 },
+  { name: 'Pratfall',                 appId: 4244510 },
+  { name: 'PEAK',                     appId: 3527290 },
+  { name: 'Super Battle Golf',        appId: 4069520 },
+  { name: 'Content Warning',          appId: 2881650 },
+  { name: 'The Headliners',           appId: 3059070 },
+  { name: 'Gamble With Your Friends', appId: 3892270 },
+  { name: 'LOCKDOWN Protocol',        appId: 2780980 },
+  { name: 'Dead by Daylight',         appId: 381210 },
+  { name: 'Fortnite',                 appId: null,
+    storeUrl: 'https://store.epicgames.com/en-US/p/fortnite', free: true },
+  { name: 'Among Us',                 appId: 945360 },
+  { name: 'Phasmophobia',             appId: 739630 },
+  { name: 'Vampire Crawlers',         appId: 3265700 },
+  { name: 'Baby Steps',               appId: 1281040 },
+  { name: 'Marbles on Stream',        appId: 1170970 },
+  { name: 'Pummel Party',             appId: 880940 },
+  { name: 'PUBG: BATTLEGROUNDS',      appId: 578080 },
+  { name: 'The Outlast Trials',       appId: 1304930 },
+  { name: 'Species: Unknown',         appId: 2747330 },
 ];
 
+// Legacy export — preserved for any external caller. Now derived
+// from ROSTER (Steam-backed entries only).
+export const DEFAULT_APPIDS = ROSTER.filter(g => g.appId).map(g => g.appId);
+
 // ── Steam fetch ─────────────────────────────────────────────────────
-async function fetchSteamMeta(appId) {
+
+async function fetchSteamPrice(appId) {
   try {
     const r = await fetch(STEAM_APPDETAILS(appId), {
       headers: { 'User-Agent': 'aquilo-cn-games (loadout-discord)' },
     });
-    if (!r.ok) return { appId, ok: false, error: 'http-' + r.status };
+    if (!r.ok) return null;
     const j = await r.json();
     const entry = j[String(appId)];
-    if (!entry?.success || !entry.data) {
-      return { appId, ok: false, error: 'steam-success-false' };
-    }
+    if (!entry?.success || !entry.data) return null;
     const d = entry.data;
+    if (d.is_free) return { free: true };
+    const p = d.price_overview;
+    if (!p) return null;
     return {
-      appId,
-      ok: true,
-      name:         d.name || '(unknown)',
-      header:       d.header_image || null,
-      // capsule_image is the smaller (~231×87) wide capsule; renders
-      // tighter than header_image when used as an embed thumbnail.
-      // Falls back to header_image when Steam omits it.
-      capsule:      d.capsule_image || d.capsule_imagev5 || d.header_image || null,
-      shortDesc:    String(d.short_description || '').slice(0, 240),
-      isFree:       !!d.is_free,
-      _raw: undefined,
-      price: d.price_overview ? {
-        initial:        d.price_overview.initial,            // cents
-        final:          d.price_overview.final,
-        discount:       d.price_overview.discount_percent,
-        initialPretty:  d.price_overview.initial_formatted,  // "$19.99"
-        finalPretty:    d.price_overview.final_formatted,
-      } : null,
+      final:         p.final,
+      finalPretty:   p.final_formatted || ('$' + (p.final / 100).toFixed(2)),
+      initialPretty: p.initial_formatted || null,
+      discount:      p.discount_percent || 0,
     };
-  } catch (e) {
-    return { appId, ok: false, error: String(e?.message || e) };
+  } catch {
+    return null;
   }
 }
 
-// ── Embed building ──────────────────────────────────────────────────
-function priceLine(meta) {
-  if (meta.isFree && !meta.price) return '💰 **Free to Play**';
-  if (!meta.price) return '_(price unavailable)_';
-  const p = meta.price;
-  if (p.discount && p.discount > 0) {
-    const initial = p.initialPretty || ('$' + (p.initial / 100).toFixed(2));
-    const final   = p.finalPretty   || ('$' + (p.final   / 100).toFixed(2));
-    return `🔥 ~~${initial}~~ **${final}**  *(-${p.discount}%)*`;
-  }
-  return `💰 **${p.finalPretty || ('$' + (p.final / 100).toFixed(2))}**`;
-}
-
-// Compact embed: title (linked) + 1-line price as description +
-// small capsule as thumbnail. Renders at ~1/3 the height of the
-// banner-style embed it replaced. Sale games take the pink accent
-// so they still pop in a long list.
-function buildGameEmbed(meta) {
-  const onSale = !!(meta.price && meta.price.discount > 0);
-  return {
-    title: meta.name,
-    url:   `https://store.steampowered.com/app/${meta.appId}/`,
-    description: priceLine(meta),
-    color: onSale ? BRAND_PINK : BRAND_VIOLET,
-    thumbnail: meta.capsule ? { url: meta.capsule } : undefined,
-  };
+async function fetchAllPrices() {
+  // 21 Steam fetches in parallel. Fortnite skipped (no Steam page).
+  return Promise.all(ROSTER.map(g =>
+    g.appId ? fetchSteamPrice(g.appId) : Promise.resolve(g.free ? { free: true } : null),
+  ));
 }
 
 // ── Discord helpers ─────────────────────────────────────────────────
+
 async function dapi(env, method, path, body) {
   const init = {
     method,
-    headers: {
-      Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
-      'User-Agent':  'aquilo-cn-roster (1.0)',
-    },
+    headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN },
   };
   if (body !== undefined) {
     init.headers['Content-Type'] = 'application/json';
@@ -135,153 +115,147 @@ async function dapi(env, method, path, body) {
            body: await r.text().catch(() => '') };
 }
 
-// ── Post / refresh ──────────────────────────────────────────────────
+// ── Embed + components ──────────────────────────────────────────────
 
-/**
- * Initial post: header + one embed per game. Pins the header.
- * Edits in place if cn-roster:<g> already has records (and the
- * channel is the same).
- */
-export async function postRoster(env, guildId, channelId, appIds, opts = {}) {
-  if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
-  const ids = (Array.isArray(appIds) && appIds.length > 0 ? appIds : DEFAULT_APPIDS)
-                .map(Number).filter(Number.isFinite);
-  const metas = await Promise.all(ids.map(fetchSteamMeta));
+function priceFragment(meta) {
+  if (!meta) return null;
+  if (meta.free) return 'Free';
+  if (meta.discount > 0) return `${meta.finalPretty} (-${meta.discount}%)`;
+  return meta.finalPretty || null;
+}
 
-  // Existing roster — if same channel, EDIT each tracked embed; else
-  // wipe + re-post. `purgeFirst:true` forces a clean repost in the
-  // same channel (deletes the header + every tracked game embed
-  // before posting). Used when the roster shape changes (different
-  // appIds / Clay's editorial sweep) to avoid orphan messages.
-  let stored = await env.LOADOUT_BOLTS.get(ROSTER_KEY(guildId), { type: 'json' });
-  let sameChannel = stored && stored.channelId === channelId;
-
-  if (opts.purgeFirst && stored) {
-    // Best-effort delete prior tracked posts. 404s are fine (already
-    // gone). Header first, then every game record. Then forget the
-    // record so the "edit existing" path below treats this as a
-    // fresh post.
-    if (stored.headerMessageId && stored.channelId) {
-      await dapi(env, 'DELETE',
-        `/channels/${stored.channelId}/messages/${stored.headerMessageId}`)
-        .catch(() => {});
-    }
-    for (const g of (stored.games || [])) {
-      await dapi(env, 'DELETE',
-        `/channels/${stored.channelId}/messages/${g.messageId}`)
-        .catch(() => {});
-    }
-    stored = null;
-    sameChannel = false;
-  }
-
-  const newRecord = { channelId, headerMessageId: null, games: [] };
-  const headerContent =
-    `🎮  **Community Night — Game Roster**\n` +
-    `Vote for these in this channel **Wednesday at 12:00 PM EST** — winner streams **Saturday night**.\n` +
-    `Queue opens here Saturday at noon EST.\n\n` +
-    `_Prices auto-refresh every 6 hours from Steam._`;
-
-  // Header — edit if we have one in this channel, else post + pin.
-  if (sameChannel && stored.headerMessageId) {
-    await dapi(env, 'PATCH',
-      `/channels/${channelId}/messages/${stored.headerMessageId}`,
-      { content: headerContent, allowed_mentions: { parse: [] } });
-    newRecord.headerMessageId = stored.headerMessageId;
-  } else {
-    const hp = await dapi(env, 'POST', `/channels/${channelId}/messages`,
-      { content: headerContent, allowed_mentions: { parse: [] } });
-    if (!hp.ok) return { ok: false, error: 'header-post-failed',
-      status: hp.status, body: hp.body.slice(0, 200) };
-    const headerMsg = JSON.parse(hp.body);
-    newRecord.headerMessageId = headerMsg.id;
-    // Pin (best-effort)
-    const pin = await dapi(env, 'PUT', `/channels/${channelId}/pins/${headerMsg.id}`);
-    newRecord.headerPinned = pin.ok;
-  }
-
-  // Game embeds — edit existing if found, else post new.
-  const existingByApp = new Map(
-    sameChannel ? (stored.games || []).map(g => [g.appId, g]) : []);
-  const errors = [];
-  for (const meta of metas) {
-    if (!meta.ok) {
-      errors.push({ appId: meta.appId, error: meta.error });
-      continue;
-    }
-    const embed = buildGameEmbed(meta);
-    const prior = existingByApp.get(meta.appId);
-    let msgId = null;
-    if (prior?.messageId) {
-      const ed = await dapi(env, 'PATCH',
-        `/channels/${channelId}/messages/${prior.messageId}`,
-        { embeds: [embed] });
-      if (ed.ok) msgId = prior.messageId;
-      else errors.push({ appId: meta.appId, phase: 'edit', status: ed.status });
-    }
-    if (!msgId) {
-      const po = await dapi(env, 'POST', `/channels/${channelId}/messages`,
-        { embeds: [embed], allowed_mentions: { parse: [] } });
-      if (po.ok) {
-        const m = JSON.parse(po.body);
-        msgId = m.id;
-      } else {
-        errors.push({ appId: meta.appId, phase: 'post', status: po.status,
-                      body: po.body.slice(0, 150) });
-        // Both edit AND post failed this pass (almost always a
-        // transient 429 on a re-run). DON'T drop the prior tracked
-        // record — the embed still exists in Discord; just carry the
-        // previous bookkeeping forward so the next refresh tries
-        // again. Without this, two-failed-passes silently orphaned
-        // the embed from KV.
-        if (prior?.messageId) {
-          newRecord.games.push({
-            ...prior,
-            lastFetchUtc: prior.lastFetchUtc || 0,   // preserve prior
-          });
-        }
-        continue;
-      }
-    }
-    newRecord.games.push({
-      appId:        meta.appId,
-      messageId:    msgId,
-      lastDiscount: meta.price?.discount || 0,
-      lastFinal:    meta.price?.final || (meta.isFree ? 0 : null),
-      lastFetchUtc: Date.now(),
-    });
-  }
-
-  // If we re-posted (i.e. swapped channels), best-effort delete any
-  // stale embeds from the prior channel — but only if we had records.
-  if (!sameChannel && stored?.channelId && Array.isArray(stored.games)) {
-    for (const g of stored.games) {
-      await dapi(env, 'DELETE',
-        `/channels/${stored.channelId}/messages/${g.messageId}`).catch(() => {});
-    }
-    if (stored.headerMessageId) {
-      await dapi(env, 'DELETE',
-        `/channels/${stored.channelId}/messages/${stored.headerMessageId}`)
-        .catch(() => {});
-    }
-  }
-
-  await env.LOADOUT_BOLTS.put(ROSTER_KEY(guildId), JSON.stringify(newRecord));
+function buildButton(game, meta) {
+  const onSale = !!(meta && !meta.free && meta.discount > 0);
+  const price  = priceFragment(meta);
+  const prefix = onSale ? '🔥 ' : '';
+  const label  = price
+    ? `${prefix}${game.name} • ${price}`
+    : `${prefix}${game.name}`;
   return {
-    ok: true,
-    channelId,
-    headerMessageId: newRecord.headerMessageId,
-    headerPinned: newRecord.headerPinned ?? (sameChannel ? 'kept' : false),
-    games: newRecord.games.length,
-    errors,
+    type: 2, // BUTTON
+    style: 5, // LINK
+    label: label.slice(0, 80),
+    url: game.storeUrl || `https://store.steampowered.com/app/${game.appId}/`,
   };
 }
 
-/**
- * Cron-driven refresh — re-fetch Steam, edit each tracked embed.
- * Gated by the 6-hour KV marker so the hourly tick can call this
- * unconditionally without thrashing Steam.
- */
+function buildComponents(metas) {
+  const rows = [];
+  for (let i = 0; i < ROSTER.length; i += 5) {
+    rows.push({
+      type: 1, // ACTION_ROW
+      components: ROSTER.slice(i, i + 5).map((g, j) => buildButton(g, metas[i + j])),
+    });
+    if (rows.length >= 5) break;
+  }
+  return rows;
+}
+
+async function buildEmbed(env, guildId) {
+  let cfg;
+  try { cfg = await getVoteConfig(env, guildId); }
+  catch { cfg = null; }
+
+  const lines = ['Tap a game to open its store page.'];
+  if (cfg) {
+    const now = Date.now();
+    const tsOpen  = nextEventTimestamp(now, cfg.cnVoteOpenWeekday,  cfg.cnVoteOpenHourEt);
+    const tsClose = nextEventTimestamp(now, cfg.cnVoteCloseWeekday, cfg.cnVoteCloseHourEt);
+    const tsQueue = nextEventTimestamp(now, cfg.cnQueueOpenWeekday, cfg.cnQueueOpenHourEt);
+    lines.push('');
+    if (tsOpen)  lines.push(`Voting opens <t:${Math.floor(tsOpen  / 1000)}:F> (<t:${Math.floor(tsOpen  / 1000)}:R>)`);
+    if (tsClose) lines.push(`Voting closes <t:${Math.floor(tsClose / 1000)}:F> (<t:${Math.floor(tsClose / 1000)}:R>)`);
+    if (tsQueue) lines.push(`Saturday Community Night queue opens <t:${Math.floor(tsQueue / 1000)}:F>`);
+  }
+
+  return {
+    title: '🎮 Community Night Games',
+    description: lines.join('\n'),
+    color: BRAND_VIOLET,
+    image: { url: `attachment://${COMPOSITE_FILENAME}` },
+    footer: { text: 'Prices auto-refresh every 6 hours from Steam.' },
+  };
+}
+
+// ── Cleanup of prior layouts ────────────────────────────────────────
+
+async function purgePrior(env, stored) {
+  if (!stored) return;
+  // New shape: single message
+  if (stored.messageId && stored.channelId) {
+    await dapi(env, 'DELETE',
+      `/channels/${stored.channelId}/messages/${stored.messageId}`).catch(() => {});
+  }
+  // Old shape (per-game embeds + header): delete each
+  if (stored.headerMessageId && stored.channelId) {
+    await dapi(env, 'DELETE',
+      `/channels/${stored.channelId}/messages/${stored.headerMessageId}`).catch(() => {});
+  }
+  for (const g of (stored.games || [])) {
+    if (g.messageId) {
+      await dapi(env, 'DELETE',
+        `/channels/${stored.channelId}/messages/${g.messageId}`).catch(() => {});
+    }
+  }
+}
+
+// ── Public: full post ───────────────────────────────────────────────
+
+export async function postRoster(env, guildId, channelId, imageBase64, opts = {}) {
+  if (!env.DISCORD_BOT_TOKEN)   return { ok: false, error: 'no-bot-token' };
+  if (!channelId)               return { ok: false, error: 'no-channel' };
+  if (!imageBase64)             return { ok: false, error: 'image-required' };
+
+  let bytes;
+  try {
+    const bin = atob(imageBase64);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } catch {
+    return { ok: false, error: 'bad-base64' };
+  }
+
+  const stored = await env.LOADOUT_BOLTS.get(ROSTER_KEY(guildId), { type: 'json' });
+  if (opts.purgeFirst) await purgePrior(env, stored);
+
+  const metas      = await fetchAllPrices();
+  const embed      = await buildEmbed(env, guildId);
+  const components = buildComponents(metas);
+
+  const form = new FormData();
+  form.append('files[0]', new Blob([bytes], { type: 'image/png' }), COMPOSITE_FILENAME);
+  form.append('payload_json', JSON.stringify({
+    embeds: [embed],
+    components,
+    allowed_mentions: { parse: [] },
+  }));
+
+  const res = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
+    { method: 'POST',
+      headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN },
+      body: form },
+  );
+  if (!res.ok) {
+    return { ok: false, error: 'post-failed', status: res.status,
+             body: (await res.text()).slice(0, 300) };
+  }
+  const msg = await res.json();
+  const messageId = String(msg.id);
+
+  const priceMap = Object.fromEntries(ROSTER.map((g, i) =>
+    [g.appId ? String(g.appId) : `epic:${g.name}`, metas[i]]));
+  await env.LOADOUT_BOLTS.put(ROSTER_KEY(guildId), JSON.stringify({
+    channelId, messageId, postedAt: Date.now(), prices: priceMap,
+  }));
+  await env.LOADOUT_BOLTS.put(REFRESH_MARKER_KEY(guildId),
+    String(Math.floor(Date.now() / 1000)));
+
+  return { ok: true, channelId, messageId, games: ROSTER.length };
+}
+
+// ── Public: cron refresh (edit components only) ─────────────────────
+
 export async function refreshRosterIfDue(env, guildId, { force = false } = {}) {
   if (!env.DISCORD_BOT_TOKEN) return { skipped: 'no-bot-token' };
   if (!force) {
@@ -291,39 +265,29 @@ export async function refreshRosterIfDue(env, guildId, { force = false } = {}) {
     }
   }
   const stored = await env.LOADOUT_BOLTS.get(ROSTER_KEY(guildId), { type: 'json' });
-  if (!stored || !stored.channelId || !Array.isArray(stored.games) || stored.games.length === 0) {
-    return { skipped: 'no-roster' };
+  if (!stored?.messageId || !stored?.channelId) return { skipped: 'no-roster' };
+
+  const metas      = await fetchAllPrices();
+  const embed      = await buildEmbed(env, guildId);
+  const components = buildComponents(metas);
+
+  // PATCH without an `attachments` field preserves the existing
+  // attachment that the original POST uploaded.
+  const r = await dapi(env, 'PATCH',
+    `/channels/${stored.channelId}/messages/${stored.messageId}`,
+    { embeds: [embed], components });
+  if (!r.ok) {
+    return { ok: false, error: 'patch-failed', status: r.status,
+             body: r.body.slice(0, 200) };
   }
-  const appIds = stored.games.map(g => g.appId);
-  const metas = await Promise.all(appIds.map(fetchSteamMeta));
-  const newGames = [];
-  const changes = [];
-  for (let i = 0; i < stored.games.length; i++) {
-    const tracked = stored.games[i];
-    const meta    = metas[i];
-    if (!meta?.ok) { newGames.push(tracked); continue; }
-    const embed = buildGameEmbed(meta);
-    const ed = await dapi(env, 'PATCH',
-      `/channels/${stored.channelId}/messages/${tracked.messageId}`,
-      { embeds: [embed] });
-    if (!ed.ok) { newGames.push(tracked); continue; }
-    const newDiscount = meta.price?.discount || 0;
-    const newFinal    = meta.price?.final || (meta.isFree ? 0 : null);
-    if (newDiscount !== tracked.lastDiscount || newFinal !== tracked.lastFinal) {
-      changes.push({ appId: meta.appId, was: tracked.lastDiscount, now: newDiscount });
-    }
-    newGames.push({
-      appId: meta.appId,
-      messageId: tracked.messageId,
-      lastDiscount: newDiscount,
-      lastFinal:    newFinal,
-      lastFetchUtc: Date.now(),
-    });
-  }
+
+  const priceMap = Object.fromEntries(ROSTER.map((g, i) =>
+    [g.appId ? String(g.appId) : `epic:${g.name}`, metas[i]]));
   await env.LOADOUT_BOLTS.put(ROSTER_KEY(guildId), JSON.stringify({
-    ...stored, games: newGames,
+    ...stored, prices: priceMap,
   }));
   await env.LOADOUT_BOLTS.put(REFRESH_MARKER_KEY(guildId),
     String(Math.floor(Date.now() / 1000)));
-  return { ok: true, edited: newGames.length, changes };
+
+  return { ok: true, edited: true, games: ROSTER.length };
 }
