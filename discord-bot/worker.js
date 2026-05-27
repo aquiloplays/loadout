@@ -332,6 +332,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/self-roles-hub/post/')) {
       return handleSelfRolesHubPost(req, env, path);
     }
+    // Generic one-shot embed poster. Useful for ad-hoc admin posts
+    // (channel explainer embeds, announcements that don't fit a
+    // dedicated endpoint, etc.) without hand-rolling a new route
+    // per use case. Body { channelId, embeds: [...], components?,
+    // content? } — POST verbatim to the channel as the bot.
+    if (method === 'POST' && path.startsWith('/admin/post-embed/')) {
+      return handlePostEmbed(req, env, path);
+    }
     // One-shot test post for the check-in v2 composite renderer
     // (variant C — bg + gif composite). Posts a sample embed to a
     // DM (recipientUserId) or a channel (channelId fallback). Used
@@ -2486,6 +2494,54 @@ async function handleReleaseNotesPost(req, env, path) {
   }));
   return jsonResp({ ok: true, product, version, channelId,
     priorDeletedId, newMessageId: newMsg.id, kvKey, via: auth.via }, 200);
+}
+
+// ── /admin/post-embed/:guildId (HMAC) ─────────────────────────────
+// Generic admin embed-post helper. Body:
+//   { channelId, embeds: [...], components?: [...], content? }
+// Posts verbatim to channelId as the bot. Useful for one-shot
+// admin posts (explainer embeds, announcements, etc.) without
+// adding a dedicated endpoint per use case. allowed_mentions
+// is locked to `{parse: []}` so the post can't accidentally
+// ping @everyone / a role.
+async function handlePostEmbed(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[2];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const channelId = String(opts.channelId || '').trim();
+  if (!/^\d{15,25}$/.test(channelId)) {
+    return jsonResp({ ok: false, error: 'bad-channelId' }, 400);
+  }
+  const payload = {
+    allowed_mentions: { parse: [] },
+  };
+  if (typeof opts.content === 'string') payload.content = opts.content;
+  if (Array.isArray(opts.embeds))       payload.embeds = opts.embeds;
+  if (Array.isArray(opts.components))   payload.components = opts.components;
+  if (!payload.content && !payload.embeds && !payload.components) {
+    return jsonResp({ ok: false, error: 'empty-payload' }, 400);
+  }
+  const r = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
+    { method: 'POST',
+      headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+                 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload) },
+  );
+  if (!r.ok) {
+    return jsonResp({ ok: false, error: 'post-failed', status: r.status,
+                     body: (await r.text()).slice(0, 300) }, 502);
+  }
+  const m = await r.json();
+  return jsonResp({ ok: true, channelId, messageId: String(m?.id || ''),
+                    via: auth.via }, 200);
 }
 
 // ── /admin/checkin-v2/test-post/:guildId (HMAC) ───────────────────

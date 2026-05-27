@@ -391,24 +391,33 @@ async function viewLinks(env, guildId) {
       title: '🔗 Link your accounts',
       description:
         `Optional, but recommended:\n\n` +
-        `• **Twitch** — counts your stream presence toward streak rewards\n` +
-        `• **Patreon** — unlocks pets, cosmetics, and a referral-payout slot\n\n` +
-        `These open on ${brand.siteUrl}. Pop back here when you\'re done.`,
+        `• **Twitch** — counts your stream presence toward streak rewards. ` +
+        `Tap the button for a short video walking through the link flow.\n\n` +
+        `• **Patreon** — connecting Patreon **links all your accounts together** ` +
+        `(Twitch, Discord, and your Aquilo profile become one identity). ` +
+        `You **do not need a paid membership** — free Patreon works perfectly. ` +
+        `Paid supporters are immensely appreciated and unlock pets, cosmetics, ` +
+        `priority CN queue slots, and a referral-payout slot.\n\n` +
+        `_Twitch tutorial opens in YouTube; Patreon opens on ${brand.siteUrl}._`,
       color: brand.accentColor,
     }],
     components: [
       {
         type: COMPONENT_ROW,
         components: [
-          // Both buttons land on /profile/. The site's only OAuth
-          // entry is Patreon (auth.aquilo.gg → Patreon → site reads
-          // social_connections for Twitch/YouTube/TikTok), so there's
-          // no separate /link/twitch route — older urls 404'd.
-          // `?link=<provider>` is a hint a future Profile-page update
-          // can use to pre-scroll/pre-open the matching linker tab;
-          // ignored today, harmless.
-          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Link Twitch',   url: `${brand.siteUrl}/profile/?link=twitch` },
-          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Link Patreon',  url: `${brand.siteUrl}/profile/?link=patreon` },
+          // Twitch button — points at the in-house tutorial video
+          // (https://youtu.be/o10HaIc1P3Q) per Clay 2026-05-27 so
+          // first-time users see the linking flow walked through
+          // before they try it themselves. The actual link step
+          // still happens on /profile.
+          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'How to link Twitch',
+            url: 'https://www.youtube.com/watch?v=o10HaIc1P3Q' },
+          // Patreon button — site's only OAuth entry is Patreon
+          // (auth.aquilo.gg → Patreon → site reads social_connections
+          // for Twitch/YouTube/TikTok). `?link=patreon` is a hint a
+          // Profile-page update can use to pre-open the linker tab.
+          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Link Patreon',
+            url: `${brand.siteUrl}/profile/?link=patreon` },
         ],
       },
       {
