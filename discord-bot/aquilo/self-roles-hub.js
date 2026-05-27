@@ -142,6 +142,56 @@ export const AGE18_CATEGORY = {
   blurb: 'Opt in to the adult-conversation chat. Click to read the warning and confirm.',
 };
 
+// Interests — opt-in pings for activity sub-communities. Mirrors the
+// 6-entry INTERESTS catalogue from onboarding.js. Role IDs are NOT
+// stored under self-roles-hub:roles:<g>.interests — instead, they're
+// resolved at render-time from the onboarding role-map at KV
+// `onboard:role-map:<g>` (with env.ONBOARD_ROLE_MAP fallback) via
+// onboarding.js's loadRoleMap helper, so this surface stays in sync
+// with whatever the admin configured for the onboarding picker.
+// Lives in its own sub-ephemeral so it doesn't steal a row from the
+// main 5-row picker.
+export const INTERESTS_CATEGORY = {
+  key: 'interests',
+  title: '⭐ Interests',
+  blurb: 'Opt into pings for the activities you care about. These mirror your onboarding picks — toggle any time.',
+  multi: true,
+  options: [
+    { value: 'gamenight',  label: 'Game Night',     emoji: { name: '🎮' } },
+    { value: 'clash',      label: 'Clash',          emoji: { name: '⚔️' } },
+    { value: 'boltbound',  label: 'Boltbound',      emoji: { name: '🃏' } },
+    { value: 'boardgames', label: 'Board games',    emoji: { name: '♟️' } },
+    { value: 'watching',   label: 'Just watching',  emoji: { name: '👀' } },
+    { value: 'art',        label: 'Art-only',       emoji: { name: '🎨' } },
+  ],
+};
+
+// Map a category key → { optionValue: discordRoleId }. Most categories
+// resolve from the hub's own role map (provisioned via
+// /admin/self-roles-hub/provision); 'interests' is special and reads
+// from the onboarding role-map so admins manage interest mappings in
+// one place. Returns {} when nothing's configured.
+async function resolveCategoryRoleMap(env, guildId, categoryKey, hubRoleIds) {
+  if (categoryKey === 'interests') {
+    try {
+      const { loadRoleMap } = await import('../onboarding.js');
+      const m = await loadRoleMap(env, guildId);
+      return (m && typeof m === 'object') ? m : {};
+    } catch {
+      return {};
+    }
+  }
+  return hubRoleIds?.[categoryKey] || {};
+}
+
+// Lookup that includes both CATEGORIES and the side categories
+// (INTERESTS_CATEGORY, AGE18_CATEGORY) so handleHubSelect can resolve
+// any incoming custom_id.
+function findCategory(key) {
+  if (key === INTERESTS_CATEGORY.key) return INTERESTS_CATEGORY;
+  return CATEGORIES.find(c => c.key === key) || null;
+}
+
 // ── Discord helpers (raw fetch — keep cross-module coupling thin) ────
 
 async function dapi(env, method, path, body) {
@@ -259,8 +309,9 @@ export async function provisionHubRoles(env, guildId) {
 // carrying an intro embed + one button "🪪 Open Role Picker". The
 // picker itself is an ephemeral with the actual selects.
 
-const HUB_BTN_OPEN  = 'roles:open-picker';
-const HUB_BTN_COLOR = 'roles:open-colors';
+const HUB_BTN_OPEN      = 'roles:open-picker';
+const HUB_BTN_COLOR     = 'roles:open-colors';
+const HUB_BTN_INTERESTS = 'roles:open-interests';
 
 function buildHubMessage(brandAccent = 0x7c5cff) {
   return {
@@ -336,6 +387,8 @@ function buildPickerEphemeral(roleIds, memberRoleIds, banner = null) {
     type: COMPONENT_ROW,
     components: [
       { type: COMPONENT_BUTTON, style: BTN_SECONDARY,
+        label: 'More Roles', emoji: { name: '📂' }, custom_id: HUB_BTN_INTERESTS },
+      { type: COMPONENT_BUTTON, style: BTN_SECONDARY,
         label: 'Name Color', emoji: { name: '🎨' }, custom_id: HUB_BTN_COLOR },
       { type: COMPONENT_BUTTON, style: BTN_SECONDARY,
         label: '18+ access', emoji: { name: '🔞' }, custom_id: 'roles:age18:start' },
@@ -363,6 +416,52 @@ function buildColorPickerEphemeral(roleIds, memberRoleIds, banner = null) {
     components: [{
       type: COMPONENT_ROW,
       components: [buildCategorySelect(cat, roleIds.colors || {}, memberRoleIds)],
+    }],
+    allowed_mentions: { parse: [] },
+  };
+}
+
+// Build the More Roles sub-picker — currently just the Interests
+// select. Lives in its own ephemeral spawned from the [📂 More Roles]
+// button so it doesn't steal a row from the main picker. `roleMap`
+// is the resolved interest-key → discordRoleId map (loaded via
+// resolveCategoryRoleMap → onboarding's loadRoleMap helper).
+function buildInterestsPickerEphemeral(roleMap, memberRoleIds, banner = null) {
+  const lines = ['**' + INTERESTS_CATEGORY.title + '** — ' + INTERESTS_CATEGORY.blurb];
+  if (banner) lines.push('', banner);
+  // Empty mapping = admin hasn't configured the onboarding role-map
+  // yet. Render a hint instead of a broken (un-grantable) select.
+  if (!roleMap || Object.keys(roleMap).length === 0) {
+    lines.push('', '_⚠ No interest roles configured yet — admin needs to run `/onboard role-map` (or set the `ONBOARD_ROLE_MAP` env var) before this section works._');
+    return {
+      content: lines.join('\n'),
+      flags: FLAG_EPHEMERAL,
+      allowed_mentions: { parse: [] },
+    };
+  }
+  // Drop options whose role isn't mapped so users don't see un-grantable
+  // entries. Mark currently-held mapped roles as default:true.
+  const opts = INTERESTS_CATEGORY.options
+    .filter(o => roleMap[o.value])
+    .map(o => ({
+      label: o.label,
+      value: o.value,
+      emoji: o.emoji,
+      default: memberRoleIds.has(roleMap[o.value]),
+    }));
+  return {
+    content: lines.join('\n'),
+    flags: FLAG_EPHEMERAL,
+    components: [{
+      type: COMPONENT_ROW,
+      components: [{
+        type: COMPONENT_STRING_SELECT,
+        custom_id: `roles:sel:${INTERESTS_CATEGORY.key}`,
+        placeholder: 'Pick any (multi-select)',
+        min_values: 0,
+        max_values: opts.length,
+        options: opts,
+      }],
     }],
     allowed_mentions: { parse: [] },
   };
@@ -500,6 +599,18 @@ export async function handleOpenColorPicker(env, data) {
   };
 }
 
+export async function handleOpenInterestsPicker(env, data) {
+  const userId  = data.member?.user?.id || data.user?.id;
+  const guildId = data.guild_id;
+  if (!userId || !guildId) return ephemeral('Run this in a server.');
+  const interestRoleMap = await resolveCategoryRoleMap(env, guildId, 'interests', null);
+  const memberRoleIds = new Set(data.member?.roles || []);
+  return {
+    type: RESP_CHAT,
+    data: buildInterestsPickerEphemeral(interestRoleMap, memberRoleIds),
+  };
+}
+
 // ── Select-menu submit handler ───────────────────────────────────────
 //
 // Multi-select diff:
@@ -519,15 +630,19 @@ export async function handleHubSelect(env, data) {
   const m = cid.match(/^roles:sel:([a-z0-9_]+)$/);
   if (!m) return ephemeral('Bad selector ID.');
   const categoryKey = m[1];
-  const category = CATEGORIES.find(c => c.key === categoryKey);
+  const category = findCategory(categoryKey);
   if (!category) return ephemeral('Unknown category: ' + categoryKey);
 
   const userId  = data.member?.user?.id || data.user?.id;
   const guildId = data.guild_id;
   if (!userId || !guildId) return ephemeral('Couldn\'t identify you.');
 
-  const roleIds = await env.LOADOUT_BOLTS.get(ROLES_KV_KEY(guildId), { type: 'json' });
-  const catRoleMap = roleIds?.[categoryKey] || {};
+  // hubRoleIds is the self-roles-hub:roles:<g> map (provisioned via
+  // the admin endpoint). Used as-is for pings/colors/regions/etc.;
+  // 'interests' dispatches through resolveCategoryRoleMap to read
+  // the onboarding role-map instead.
+  const hubRoleIds = await env.LOADOUT_BOLTS.get(ROLES_KV_KEY(guildId), { type: 'json' });
+  const catRoleMap = await resolveCategoryRoleMap(env, guildId, categoryKey, hubRoleIds);
   const validOptionValues = new Set(category.options.map(o => o.value));
 
   const selectedValues = (data.data?.values || [])
@@ -590,12 +705,16 @@ export async function handleHubSelect(env, data) {
   }
   const banner = bannerParts.length ? '✅ ' + bannerParts.join(' · ') : null;
 
-  // Colors lives in the sub-ephemeral; everything else lives in the
-  // main picker ephemeral. Re-render the matching one.
-  const isColors = categoryKey === 'colors';
-  const newData = isColors
-    ? buildColorPickerEphemeral(roleIds, memberRoles, banner)
-    : buildPickerEphemeral(roleIds, memberRoles, banner);
-
+  // Colors + Interests each live in their own sub-ephemeral spawned
+  // from a button on the main picker. Re-render whichever one the
+  // user is currently in so they keep adjusting without re-opening.
+  let newData;
+  if (categoryKey === 'colors') {
+    newData = buildColorPickerEphemeral(hubRoleIds, memberRoles, banner);
+  } else if (categoryKey === 'interests') {
+    newData = buildInterestsPickerEphemeral(catRoleMap, memberRoles, banner);
+  } else {
+    newData = buildPickerEphemeral(hubRoleIds, memberRoles, banner);
+  }
   return { type: RESP_UPDATE_MSG, data: newData };
 }
