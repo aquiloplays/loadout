@@ -10,6 +10,7 @@ import {
 } from './util.js';
 import { topStreaks } from './streak.js';
 import { topEarners } from './achievements.js';
+import { nextEventTimestamp } from '../vote-hub.js';
 
 const KV_LB_MSG = 'leaderboard:msg';   // { channel_id, message_id }
 
@@ -23,10 +24,15 @@ export async function refreshLeaderboardChannel(env) {
   const earners = await topEarners(env, guildId, 10);
   const topClips = await fetchTopClipAuthors(env, guildId);
 
+  const nextRefreshTs = nextEventTimestamp(Date.now(), 'monday', 10);
+  const nextRefreshTag = nextRefreshTs
+    ? `<t:${Math.floor(nextRefreshTs / 1000)}:R>`
+    : 'next Monday';
+
   const embed = {
     color: COLOR_SCHEDULE,
     title: '⚡ Aquilo Leaderboards',
-    description: 'Updated weekly — Mondays at 10 AM ET.',
+    description: `Updated weekly — next refresh ${nextRefreshTag}.`,
     fields: [
       {
         name: '⚡ Top streaks',

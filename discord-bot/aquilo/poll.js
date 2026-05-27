@@ -79,11 +79,17 @@ async function buildPollPayload(env, poll, options) {
     }
   }
 
+  const { nextEventTimestamp } = await import('../vote-hub.js');
+  const closeTs = nextEventTimestamp(Date.now(), poll.day_of_week, 21);
+  const closeTag = closeTs
+    ? `<t:${Math.floor(closeTs / 1000)}:F> (<t:${Math.floor(closeTs / 1000)}:R>)`
+    : '**tonight at 9 PM ET**';
+
   const headerEmbed = {
     title: '🎮 ' + cap(poll.day_of_week) + ' Community Night · What are we playing?',
     description: closed
       ? '🔒 Voting closed. **' + totalVotes + '** vote' + (totalVotes === 1 ? '' : 's') + ' · winner highlighted below.'
-      : 'Vote by **9 PM ET** tonight. Tap a button to vote — you can change your vote until the poll closes.\n\n_' + totalVotes + ' vote' + (totalVotes === 1 ? '' : 's') + ' so far._',
+      : `Voting closes ${closeTag}. Tap a button to vote — you can change your vote until the poll closes.\n\n_` + totalVotes + ' vote' + (totalVotes === 1 ? '' : 's') + ' so far._',
     color: COLOR_POLL
   };
 
@@ -308,7 +314,12 @@ export async function handleVoteClick(env, data) {
   catch (e) { console.error('[vote] refresh', e?.message || e); }
 
   const game = await env.DB.prepare('SELECT name FROM games WHERE id = ?').bind(gameId).first();
-  return ephemeral('🗳️ Voted for **' + (game?.name || 'that game') + '**. You can change your vote until 9 PM ET.');
+  const { nextEventTimestamp } = await import('../vote-hub.js');
+  const closeTs = nextEventTimestamp(Date.now(), poll.day_of_week, 21);
+  const closeTag = closeTs
+    ? `<t:${Math.floor(closeTs / 1000)}:R>`
+    : 'tonight';
+  return ephemeral('🗳️ Voted for **' + (game?.name || 'that game') + `**. You can change your vote until the poll closes ${closeTag}.`);
 }
 
 // ---- Cron entry --------------------------------------------------------

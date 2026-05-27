@@ -12,6 +12,7 @@ import {
   postChannelMessage, editChannelMessage, discordFetch, ephemeral,
   COLOR_SCHEDULE, getETInfo, cap
 } from './util.js';
+import { nextEventTimestamp } from '../vote-hub.js';
 
 const KV_MSG = 'countdown:msgid';
 const DEFAULT_STREAM_TIME = '22:30';
@@ -91,9 +92,15 @@ function buildCountdownPayload(env) {
   const { hour: streamH, minute: streamM } = parseStreamTime(env);
   const startStr = String(streamH).padStart(2, '0') + ':' + String(streamM).padStart(2, '0');
   const isCn = CN_DAYS.has(next.weekday);
-  const flavor = isCn
-    ? '🎲 Community Night — game decided by 6 PM ET poll'
-    : '⛏️ Minecraft Night (10:30 PM-12:30 AM ET)';
+  let flavor;
+  if (isCn) {
+    const pollTs = nextEventTimestamp(Date.now(), next.weekday, 18);
+    flavor = pollTs
+      ? `🎲 Community Night — game decided by the poll at <t:${Math.floor(pollTs / 1000)}:t>`
+      : '🎲 Community Night — game decided by the 6 PM ET poll';
+  } else {
+    flavor = '⛏️ Minecraft Night (10:30 PM-12:30 AM ET)';   // recurring time range
+  }
 
   let body;
   if (next.isLive) {

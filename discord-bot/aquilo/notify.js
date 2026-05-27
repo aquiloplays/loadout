@@ -138,7 +138,12 @@ export async function notifyUnvotedEligibles(env, guildId) {
 
   const dayLabel = open.day_of_week.charAt(0).toUpperCase() + open.day_of_week.slice(1);
   const jumpUrl = 'https://discord.com/channels/' + guildId + '/' + open.channel_id + '/' + open.message_id;
-  const content = '⏰ **' + dayLabel + ' Community Night poll closes in 1 hour** (9 PM ET).\n\n' +
+  const { nextEventTimestamp } = await import('../vote-hub.js');
+  const closeTs = nextEventTimestamp(Date.now(), open.day_of_week, 21);
+  const closeTag = closeTs
+    ? `(closes <t:${Math.floor(closeTs / 1000)}:R>)`
+    : '(closes in ~1 hour)';
+  const content = `⏰ **${dayLabel} Community Night poll closes soon** ${closeTag}.\n\n` +
                   'You haven\'t voted yet — your pick decides what we play tonight!';
   const components = [{
     type: 1,

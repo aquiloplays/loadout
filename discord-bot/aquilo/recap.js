@@ -58,7 +58,12 @@ export async function postWeeklyRecap(env) {
     color: COLOR_SCHEDULE,
     fields,
     timestamp: new Date().toISOString(),
-    footer: { text: 'New week starts Wednesday — vote at 6 PM ET' }
+    // Footer points users at the live voting embed instead of
+    // hardcoding the v1 "6 PM ET on stream day" cadence (schedule v2
+    // uses Wed-noon → Fri 23:59 multi-day windows). Exact timestamps
+    // are rendered by vote-hub.js's buildPhaseEmbed in viewers' local
+    // timezones, so the footer just nudges users to that channel.
+    footer: { text: 'Vote in the community-night voting channel — timestamps render in your local timezone.' }
   };
 
   const scheduleChannelId = await getChannelBinding(env, guildId, 'schedule');
