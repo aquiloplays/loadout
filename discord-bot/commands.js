@@ -159,6 +159,12 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleSetupComponent } = await import('./setup-wizard.js');
       return json(await handleSetupComponent(env, data));
     }
+    if (cid.startsWith('campaign:'))  {
+      // AI-DM'd one-shot campaign invites (accept/decline buttons).
+      // See campaigns/campaigns.js.
+      const { handleCampaignComponent } = await import('./campaigns/campaigns.js');
+      return json(await handleCampaignComponent(env, data));
+    }
     if (cid.startsWith('hub:'))       return handleHubComponent(data, env);
     if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
     if (cid.startsWith('clash:'))     return json(await handleClashComponent(env, data));
@@ -326,6 +332,19 @@ export async function handleInteraction(req, env, body, ctx) {
       // one check-in per ET day per user, regardless of surface.
       const { handleCheckinCommand } = await import('./community-checkin.js');
       return json(await handleCheckinCommand(env, data));
+    }
+
+    case 'campaign': {
+      // AI-DM'd D&D one-shot. Subcommands dispatched by the first
+      // option's name. See campaigns/campaigns.js for the state
+      // machine + Anthropic API integration.
+      const sub = data.data?.options?.[0]?.name || '';
+      const m = await import('./campaigns/campaigns.js');
+      if (sub === 'start')  return json(await m.handleCampaignStart(env, data));
+      if (sub === 'action') return json(await m.handleCampaignAction(env, data));
+      if (sub === 'status') return json(await m.handleCampaignStatus(env, data));
+      if (sub === 'end')    return json(await m.handleCampaignEnd(env, data));
+      return json({ type: 4, data: { content: 'Unknown campaign subcommand.', flags: 64 } });
     }
 
     case 'referral': {

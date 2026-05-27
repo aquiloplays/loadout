@@ -69,10 +69,15 @@ export const CATEGORIES = [
     placeholder: '🔔 Choose which pings you want',
     multi: true,
     options: [
-      { value: 'stream',    label: 'Stream Pings',  emoji: { name: '📺' }, color: 0xEB459E, existingIdKey: 'role_stream'    },
-      { value: 'youtube',   label: 'YouTube Pings', emoji: { name: '🎬' }, color: 0xED4245, existingIdKey: 'role_youtube'   },
-      { value: 'event',     label: 'Event Pings',   emoji: { name: '📅' }, color: 0xFEE75C, existingIdKey: 'role_event'     },
-      { value: 'gamenight', label: 'Game Night',    emoji: { name: '🎮' }, color: 0x9147ff, existingIdKey: 'role_gamenight' },
+      { value: 'stream',         label: 'Stream Pings',   emoji: { name: '📺' }, color: 0xEB459E, existingIdKey: 'role_stream'    },
+      { value: 'youtube',        label: 'YouTube Pings',  emoji: { name: '🎬' }, color: 0xED4245, existingIdKey: 'role_youtube'   },
+      { value: 'event',          label: 'Event Pings',    emoji: { name: '📅' }, color: 0xFEE75C, existingIdKey: 'role_event'     },
+      { value: 'gamenight',      label: 'Game Night',     emoji: { name: '🎮' }, color: 0x9147ff, existingIdKey: 'role_gamenight' },
+      // Server-meta announcements (new channels, role system updates,
+      // server-wide announcements) — distinct from stream/CN pings so
+      // people who want feature updates can subscribe without
+      // signing up for every live alert.
+      { value: 'server_updates', label: 'Server Updates', emoji: { name: '📢' }, color: 0x7c5cff },
     ],
   },
   {

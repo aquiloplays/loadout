@@ -214,6 +214,7 @@ const ROUTES = new Set([
   // Pre-rendering rollout — schema + API + editor land first; the
   // card-display switch happens in a follow-up.
   'cards/art-override',      // POST — { op: 'get'|'set'|'clear'|'list', cardId, url? }
+  'cards/suggest-art-terms', // POST — { cardId } → { searchTerms, description }
   // New-viewer funnel — referrals + onboarding quest.
   'referral/me',             // POST — my code + stats
   'referral/attribute',      // POST — record that this user was referred by CODE
@@ -362,6 +363,7 @@ export async function handleWeb(req, env) {
     if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
     if (route === 'checkin/bonus/collect') return await routeCommunityCheckinBonusCollect(env, guildId, discordId, body);
     if (route === 'cards/art-override')    return await routeCardsArtOverride(env, guildId, discordId, body);
+    if (route === 'cards/suggest-art-terms') return await routeCardsSuggestArtTerms(env, body);
     if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
@@ -1891,6 +1893,20 @@ async function routeCardsArtOverride(env, guildId, discordId, body) {
     return json(r);
   }
   return json({ ok: false, error: 'bad-op', allowed: ['get', 'set', 'clear', 'list'] }, 400);
+}
+
+// /web/cards/suggest-art-terms — given a cardId, return suggested
+// Giphy/Tenor search terms + a 1-line description. The site's
+// editor calls this when the player opens "Use a meme GIF" so the
+// initial 6-8 suggestion picks come from the worker (canonical
+// card catalogue) instead of the site duplicating the lookup.
+// Body: { cardId }. Read-only — no auth-bound user state to mutate.
+async function routeCardsSuggestArtTerms(env, body) {
+  const cardId = String((body && body.cardId) || '').trim();
+  if (!cardId) return json({ ok: false, error: 'cardId-required' }, 400);
+  const { suggestArtTerms } = await import('./cards-art-suggest.js');
+  const r = suggestArtTerms(cardId);
+  return json(r, r.ok ? 200 : 400);
 }
 
 async function routeCommunityCheckinBonusCollect(env, guildId, discordId, body) {
