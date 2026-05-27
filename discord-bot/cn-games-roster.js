@@ -37,15 +37,18 @@ export const DEFAULT_APPIDS = [
   3527290,   // PEAK
   4069520,   // Super Battle Golf
   2881650,   // Content Warning
-  3643170,   // Roadside Research
   3059070,   // The Headliners
   3892270,   // Gamble With Your Friends
   2780980,   // LOCKDOWN Protocol
-  2868840,   // Slay the Spire 2
   381210,    // Dead by Daylight
   945360,    // Among Us
   739630,    // Phasmophobia
-  1313140,   // Cult of the Lamb
+  // v6 additions — Clay's 2026-05 roster sweep.
+  1170970,   // Marbles on Stream
+  880940,    // Pummel Party
+  578080,    // PUBG: BATTLEGROUNDS
+  1304930,   // The Outlast Trials
+  2747330,   // Species: Unknown
 ];
 
 // ── Steam fetch ─────────────────────────────────────────────────────

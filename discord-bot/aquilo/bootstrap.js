@@ -20,30 +20,37 @@ const DEFAULT_GAMES = [
   { name: 'Super Battle Golf',        art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/4069520/2d9b9b6bc0ac18c6eb76f5e38b649425d9202759/header_alt_assets_0.jpg' },
   { name: 'Content Warning',          art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/2881650/header.jpg' },
   // Added in v3 of the bootstrap seed.
-  { name: 'Roadside Research',        art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3643170/e8707becb09bab0865bb3441968ee41694e9b83e/header_alt_assets_0.jpg' },
   { name: 'The Headliners',           art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3059070/62f137f87bbbe03ff34fe64f79aec4059532e849/header.jpg' },
   { name: 'Gamble With Your Friends', art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3892270/395e6d7972474333a698b26f8aa5597bf38109a1/header.jpg' },
   { name: 'LOCKDOWN Protocol',        art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/2780980/header.jpg' },
-  { name: 'Slay the Spire 2',         art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/2868840/b0958d387dc366211e0f353443710cfcf9fdb020/header.jpg' },
   // Added in v4 of the bootstrap seed — Clay's expanded community-night
   // rotation. MIMESIS was already in v1 so not duplicated here.
-  // Fortnite is Epic-exclusive, no Steam header — art_url left null
-  // (downstream renderers handle null cover gracefully).
   { name: 'Dead by Daylight',         art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/381210/header.jpg' },
-  { name: 'Fortnite',                 art_url: null },
+  // Fortnite is Epic-exclusive — no Steam header. The art_url below is
+  // the current Epic Games Store og:image (key art for the active
+  // season). Epic rotates this file each season, so when it 404s the
+  // bot still renders cleanly (null/404 cover handled gracefully) and
+  // Clay can refresh it from store.epicgames.com/p/fortnite.
+  { name: 'Fortnite',                 art_url: 'https://cdn1.epicgames.com/offer/fn/FNBR_40-40_C7S2_Venison_EGS_Launcher_Blade_2560x1440_2560x1440-3afd36811467479f909b5b753522e63d' },
   { name: 'Among Us',                 art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/945360/header.jpg' },
   { name: 'Phasmophobia',             art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/739630/header.jpg' },
-  // Added in v5 — Clay's three variety-night picks. The games table
-  // doesn't carry a per-row category (variety vs community is a
-  // schedule-slot property, not a game property — Saturday is the
-  // variety/CN day in aq-schedule.js), so these land in the same
-  // single rotation pool as the others. Vampire Crawlers + Baby Steps
-  // Steam IDs weren't confidently looked up; art_url left null per
-  // the Fortnite convention, can be backfilled via `/games add` or
-  // a direct D1 UPDATE once Clay confirms the IDs.
-  { name: 'Cult of the Lamb',         art_url: 'https://cdn.akamai.steamstatic.com/steam/apps/1313140/header.jpg' },
+  // Added in v5 — variety-night picks. The games table doesn't carry
+  // a per-row category (variety vs community is a schedule-slot
+  // property, not a game property — Saturday is the variety/CN day in
+  // aq-schedule.js), so these land in the same single rotation pool
+  // as the others. Vampire Crawlers + Baby Steps Steam IDs weren't
+  // confidently looked up; art_url left null per the prior convention.
   { name: 'Vampire Crawlers',         art_url: null },
-  { name: 'Baby Steps',               art_url: null }
+  { name: 'Baby Steps',               art_url: null },
+  // Added in v6 — Clay's roster sweep (2026-05). Removed Slay the
+  // Spire 2 / Cult of the Lamb / Roadside Research; added these
+  // five. All Steam-resolvable so they also appear in the
+  // cn-games-roster.js Steam-backed mirror.
+  { name: 'Marbles on Stream',        art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/1170970/header.jpg' },
+  { name: 'Pummel Party',             art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/880940/header.jpg' },
+  { name: 'PUBG: BATTLEGROUNDS',      art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/578080/header.jpg' },
+  { name: 'The Outlast Trials',       art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/1304930/header.jpg' },
+  { name: 'Species: Unknown',         art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/2747330/header.jpg' },
 ];
 
 // PNG render of the official Minecraft cube logo (Wikimedia Commons,
@@ -77,7 +84,7 @@ export async function getGuildId(env) {
 //
 // Bump this key whenever DEFAULT_GAMES grows so the new entries get
 // inserted on next interaction (existing rows ON CONFLICT no-op).
-const KV_BOOTSTRAPPED = 'bootstrapped:v5';
+const KV_BOOTSTRAPPED = 'bootstrapped:v6';
 
 export async function ensureBootstrap(env) {
   const guildId = await getGuildId(env);
