@@ -55,7 +55,7 @@ import { cleanupOldPollMessages } from './cleanup.js';
 import {
   handleSelfRoleAddSubmit, handleSelfRoleRemoveSubmit, handleRoleToggle
 } from './self-roles.js';
-import { handleHubSelect } from './self-roles-hub.js';
+import { handleHubSelect, handleOpenPicker, handleOpenColorPicker } from './self-roles-hub.js';
 import { OverlayBroadcaster } from './overlay-do.js';
 import { handleCountingMessage, sweepFailRoles, sweepCountingChannelTimeouts } from './counting.js';
 import {
@@ -676,9 +676,14 @@ async function handleComponent(data, env, ctx) {
   if (id.startsWith('notify:'))   return handleNotifyButton(env, data);
   if (id.startsWith('tot:'))      return handleDailyPollVote(env, data);
   if (id.startsWith('sug:'))      return handleSuggestionAction(env, data);
-  // Sectioned hub's string-select submits (one per category — pings,
-  // colors, regions, platforms, pronouns). Buttons (roles:age18:*
-  // and the legacy roles:toggle:*) fall through to handleRoleToggle.
+  // Sectioned hub:
+  //   roles:open-picker  → main picker ephemeral (4 selects + 2 buttons)
+  //   roles:open-colors  → colour sub-picker ephemeral
+  //   roles:sel:<cat>    → select submit → re-render picker
+  //   roles:age18:*      → existing 18+ warning flow
+  //   roles:toggle:*     → legacy D1-driven toggle (deprecated path)
+  if (id === 'roles:open-picker')  return handleOpenPicker(env, data);
+  if (id === 'roles:open-colors')  return handleOpenColorPicker(env, data);
   if (id.startsWith('roles:sel:')) return handleHubSelect(env, data);
   if (id.startsWith('roles:'))     return handleRoleToggle(env, data);
   if (id.startsWith('setup:'))    return handleSetupButton(env, data);

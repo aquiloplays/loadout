@@ -49,13 +49,16 @@ const HUBS = Object.freeze({
     description:
       'Check in once a day for **bolts** + a streak.\n\n' +
       '• Tap **Check in now** to log today and pick a GIF for your card\n' +
-      '• **My streak** shows your current run\n' +
-      '• **Daily bonus** claims your bolts for the day',
+      '• **My streak** shows your current run',
     footer: '/checkin still works if you prefer typing.',
+    // Daily-bonus button removed 2026-05-27 per Clay — bolts are
+    // already covered by `Check in now`, so the dedicated button
+    // was redundant. The checkin:daily action handler stays in
+    // handleCheckinHubComponent for backward compat with any cached
+    // button on stale messages — it now just hints at the merged UX.
     buttons: () => [
       { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Check in now',  custom_id: 'checkin:run'    },
       { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My streak',     custom_id: 'checkin:streak' },
-      { type: COMPONENT_BUTTON, style: BTN_SUCCESS,   label: 'Daily bonus',   custom_id: 'checkin:daily'  },
     ],
   },
   character: {

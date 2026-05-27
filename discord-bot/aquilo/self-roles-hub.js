@@ -254,56 +254,115 @@ export async function provisionHubRoles(env, guildId) {
 
 // ── Message rendering ────────────────────────────────────────────────
 //
-// One Discord message per category. Each carries an embed (title +
-// blurb) and either a string-select menu (for the role-toggle
-// categories) or a button (for 18+).
+// 2026-05-27 redesign per Clay: replaced the multi-message layout
+// (one embed per category) with a SINGLE channel-side message
+// carrying an intro embed + one button "🪪 Open Role Picker". The
+// picker itself is an ephemeral with the actual selects.
 
-function buildCategoryMessage(category, roleIds, brandAccent = 0x7c5cff) {
-  const opts = category.options.map(o => ({
-    label: o.label,
-    value: o.value,
-    description: o.color ? '#' + o.color.toString(16).padStart(6, '0') : undefined,
-    emoji: o.emoji,
-  }));
+const HUB_BTN_OPEN  = 'roles:open-picker';
+const HUB_BTN_COLOR = 'roles:open-colors';
+
+function buildHubMessage(brandAccent = 0x7c5cff) {
   return {
     embeds: [{
-      title: category.title,
-      description: category.blurb,
-      color: brandAccent,
-    }],
-    components: [{
-      type: COMPONENT_ROW,
-      components: [{
-        type: COMPONENT_STRING_SELECT,
-        custom_id: `roles:sel:${category.key}`,
-        placeholder: category.multi
-          ? 'Pick any (multi-select)'
-          : 'Pick one',
-        min_values: 0,
-        max_values: category.multi ? opts.length : 1,
-        options: opts,
-      }],
-    }],
-    allowed_mentions: { parse: [] },
-  };
-}
-
-function buildAge18Message(brandAccent = 0xff6ab5) {
-  return {
-    embeds: [{
-      title: AGE18_CATEGORY.title,
-      description: AGE18_CATEGORY.blurb,
+      title: '🪪 Pick your roles',
+      description:
+        'Tap **Open Role Picker** to set your pings, region, platform, pronouns, name colour, and adult-content opt-in.\n\n' +
+        'Your selections are **only visible to you** — the picker pops up as an ephemeral so the channel stays clean.',
       color: brandAccent,
     }],
     components: [{
       type: COMPONENT_ROW,
       components: [{
         type: COMPONENT_BUTTON,
-        style: BTN_SECONDARY,
-        label: '18+ access',
-        emoji: { name: '🔞' },
-        custom_id: 'roles:age18:start',   // handled by self-roles.js handle18PlusClick
+        style: 1, // PRIMARY
+        label: 'Open Role Picker',
+        emoji: { name: '🪪' },
+        custom_id: HUB_BTN_OPEN,
       }],
+    }],
+    allowed_mentions: { parse: [] },
+  };
+}
+
+// Build a single category's select-menu component. `memberRoleIds`
+// is the set of role IDs the user currently has — used to mark
+// matching options as `default: true` so the picker renders with the
+// current selections pre-filled.
+function buildCategorySelect(category, catRoleMap, memberRoleIds) {
+  const opts = category.options.map(o => {
+    const rid = catRoleMap[o.value];
+    return {
+      label: o.label,
+      value: o.value,
+      description: o.color ? '#' + o.color.toString(16).padStart(6, '0') : undefined,
+      emoji: o.emoji,
+      default: !!(rid && memberRoleIds.has(rid)),
+    };
+  });
+  return {
+    type: COMPONENT_STRING_SELECT,
+    custom_id: `roles:sel:${category.key}`,
+    placeholder: category.multi ? 'Pick any (multi-select)' : 'Pick one',
+    min_values: 0,
+    max_values: category.multi ? opts.length : 1,
+    options: opts,
+  };
+}
+
+// Build the main picker ephemeral payload. Layout (5 action rows
+// max — Discord cap):
+//   Row 1: 🔔 Pings select       (multi)
+//   Row 2: 🌎 Region select      (multi)
+//   Row 3: 🎮 Platform select    (multi)
+//   Row 4: 🪪 Pronouns select    (multi)
+//   Row 5: [🎨 Name Color] [🔞 18+ Access]
+// Name Color and 18+ open their own sub-ephemerals because they need
+// special UX (mutex + warning flow respectively) that doesn't share
+// a single select cleanly with the other 4.
+function buildPickerEphemeral(roleIds, memberRoleIds, banner = null) {
+  const lines = ['**Set your roles below.** Changes apply immediately — your channel stays clean.'];
+  if (banner) lines.push('', banner);
+  const components = [];
+  for (const key of ['pings', 'regions', 'platforms', 'pronouns']) {
+    const cat = CATEGORIES.find(c => c.key === key);
+    if (!cat) continue;
+    components.push({
+      type: COMPONENT_ROW,
+      components: [buildCategorySelect(cat, roleIds[cat.key] || {}, memberRoleIds)],
+    });
+  }
+  components.push({
+    type: COMPONENT_ROW,
+    components: [
+      { type: COMPONENT_BUTTON, style: BTN_SECONDARY,
+        label: 'Name Color', emoji: { name: '🎨' }, custom_id: HUB_BTN_COLOR },
+      { type: COMPONENT_BUTTON, style: BTN_SECONDARY,
+        label: '18+ access', emoji: { name: '🔞' }, custom_id: 'roles:age18:start' },
+    ],
+  });
+  return {
+    content: lines.join('\n'),
+    flags: FLAG_EPHEMERAL,
+    components,
+    allowed_mentions: { parse: [] },
+  };
+}
+
+// Build the colour sub-picker (single-select / mutex). Lives in its
+// own ephemeral spawned from the [🎨 Name Color] button so it doesn't
+// eat one of the main picker's 5 rows.
+function buildColorPickerEphemeral(roleIds, memberRoleIds, banner = null) {
+  const cat = CATEGORIES.find(c => c.key === 'colors');
+  const lines = ['**Pick your name colour.** Mutex — one colour at a time.'];
+  if (banner) lines.push('', banner);
+  lines.push('', '_Mod note: colour roles must sit ABOVE other coloured roles in the hierarchy for Discord to render the colour on your name._');
+  return {
+    content: lines.join('\n'),
+    flags: FLAG_EPHEMERAL,
+    components: [{
+      type: COMPONENT_ROW,
+      components: [buildCategorySelect(cat, roleIds.colors || {}, memberRoleIds)],
     }],
     allowed_mentions: { parse: [] },
   };
@@ -311,20 +370,27 @@ function buildAge18Message(brandAccent = 0xff6ab5) {
 
 // ── Public post / refresh ────────────────────────────────────────────
 
+const HUB_MSG_KV_KEY = (g) => `self-roles-hub:hub-msg:${g}`;
+
 export async function postOrRefreshHub(env, guildId, channelId) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
   if (!channelId)              return { ok: false, error: 'no-channel' };
 
-  // Load (or seed) the roles map. Provision MUST run first.
+  // Provision MUST have run first so the role IDs are stashed.
   const roleIds = await env.LOADOUT_BOLTS.get(ROLES_KV_KEY(guildId), { type: 'json' });
   if (!roleIds) {
     return { ok: false, error: 'roles-not-provisioned',
              message: 'Run POST /admin/self-roles-hub/provision/:guildId first.' };
   }
 
-  // Sweep the legacy single-message self-roles post (KV key
-  // self_roles:msg under STATE namespace, written by self-roles.js).
-  // Best-effort delete; ignore failures.
+  // Sweep legacy artefacts so the channel only carries the new
+  // single-message hub:
+  //   • The very-old single-message self-roles post from self-roles.js
+  //     (KV `self_roles:msg` under env.STATE).
+  //   • Last turn's 6-message-per-category layout (KV
+  //     `self-roles-hub:msgs:<g>` under env.LOADOUT_BOLTS).
+  //   • The legacy guild-builder "Pick your pings" message if its
+  //     id was previously stashed.
   try {
     const legacyMsgId = await env.STATE.get('self_roles:msg');
     if (legacyMsgId) {
@@ -335,10 +401,16 @@ export async function postOrRefreshHub(env, guildId, channelId) {
     }
   } catch { /* non-fatal */ }
 
-  // Sweep the legacy guild-builder pings message (cfg.ids tracks it
-  // only via the message report, not a stored ID — we can't auto-
-  // delete it without a scan, so leave a one-time notice for Clay
-  // in the report).
+  const oldCategoryMsgs = (await env.LOADOUT_BOLTS.get(MSGS_KV_KEY(guildId), { type: 'json' })) || [];
+  for (const m of oldCategoryMsgs) {
+    if (m?.channelId && m?.messageId) {
+      await dapi(env, 'DELETE',
+        `/channels/${encodeURIComponent(m.channelId)}/messages/${encodeURIComponent(m.messageId)}`)
+        .catch(() => {});
+    }
+  }
+  if (oldCategoryMsgs.length) await env.LOADOUT_BOLTS.delete(MSGS_KV_KEY(guildId));
+
   const legacyPingsMsgId = await env.LOADOUT_BOLTS.get(LEGACY_PINGS_MSG_KV_KEY(guildId));
   if (legacyPingsMsgId) {
     await dapi(env, 'DELETE',
@@ -347,85 +419,84 @@ export async function postOrRefreshHub(env, guildId, channelId) {
     await env.LOADOUT_BOLTS.delete(LEGACY_PINGS_MSG_KV_KEY(guildId));
   }
 
-  // Read prior hub messages to edit-in-place when possible. If the
-  // channel changed (or the prior msg is gone), POST a fresh one.
-  const priorMsgs = (await env.LOADOUT_BOLTS.get(MSGS_KV_KEY(guildId), { type: 'json' })) || [];
-  const priorByCategory = new Map();
-  for (const m of priorMsgs) priorByCategory.set(m.category, m);
+  // Post (or edit-in-place) the single hub message.
+  const payload = buildHubMessage();
+  const prior = await env.LOADOUT_BOLTS.get(HUB_MSG_KV_KEY(guildId), { type: 'json' });
+  let messageId = null;
 
-  const newMsgs = [];
-  const errors = [];
+  if (prior?.channelId === channelId && prior?.messageId) {
+    const r = await dapi(env, 'PATCH',
+      `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(prior.messageId)}`,
+      payload);
+    if (r.ok) messageId = prior.messageId;
+  } else if (prior?.channelId && prior?.messageId) {
+    // Channel changed — best-effort delete the old message before re-posting.
+    await dapi(env, 'DELETE',
+      `/channels/${encodeURIComponent(prior.channelId)}/messages/${encodeURIComponent(prior.messageId)}`)
+      .catch(() => {});
+  }
 
-  // Order: pings → colors → regions → platforms → pronouns → 18+.
-  for (const cat of CATEGORIES) {
-    const payload = buildCategoryMessage(cat, roleIds);
-    const prior = priorByCategory.get(cat.key);
-    const sameChannel = prior?.channelId === channelId;
-
-    if (prior && sameChannel) {
-      const r = await dapi(env, 'PATCH',
-        `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(prior.messageId)}`,
-        payload);
-      if (r.ok) {
-        newMsgs.push({ category: cat.key, channelId, messageId: prior.messageId });
-        continue;
-      }
-      // PATCH failed — fall through to POST a fresh one.
-    } else if (prior?.channelId && prior?.messageId) {
-      // Channel changed — best-effort delete the old message.
-      await dapi(env, 'DELETE',
-        `/channels/${encodeURIComponent(prior.channelId)}/messages/${encodeURIComponent(prior.messageId)}`)
-        .catch(() => {});
-    }
-
+  if (!messageId) {
     const post = await dapi(env, 'POST',
       `/channels/${encodeURIComponent(channelId)}/messages`, payload);
-    if (post.ok) {
-      let parsed = null;
-      try { parsed = JSON.parse(post.body); } catch {}
-      if (parsed?.id) newMsgs.push({ category: cat.key, channelId, messageId: parsed.id });
-    } else {
-      errors.push({ category: cat.key, phase: 'post', status: post.status,
-                    body: post.body.slice(0, 200) });
+    if (!post.ok) {
+      return { ok: false, error: 'post-failed', status: post.status,
+               body: post.body.slice(0, 200) };
     }
+    let parsed = null;
+    try { parsed = JSON.parse(post.body); } catch {}
+    messageId = parsed?.id || null;
   }
 
-  // 18+ section.
-  {
-    const payload = buildAge18Message();
-    const prior = priorByCategory.get(AGE18_CATEGORY.key);
-    const sameChannel = prior?.channelId === channelId;
-
-    if (prior && sameChannel) {
-      const r = await dapi(env, 'PATCH',
-        `/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(prior.messageId)}`,
-        payload);
-      if (r.ok) {
-        newMsgs.push({ category: AGE18_CATEGORY.key, channelId, messageId: prior.messageId });
-      }
-    }
-    if (!newMsgs.some(m => m.category === AGE18_CATEGORY.key)) {
-      const post = await dapi(env, 'POST',
-        `/channels/${encodeURIComponent(channelId)}/messages`, payload);
-      if (post.ok) {
-        let parsed = null;
-        try { parsed = JSON.parse(post.body); } catch {}
-        if (parsed?.id) newMsgs.push({ category: AGE18_CATEGORY.key, channelId, messageId: parsed.id });
-      } else {
-        errors.push({ category: AGE18_CATEGORY.key, phase: 'post', status: post.status,
-                      body: post.body.slice(0, 200) });
-      }
-    }
+  if (messageId) {
+    await env.LOADOUT_BOLTS.put(HUB_MSG_KV_KEY(guildId),
+      JSON.stringify({ channelId, messageId, postedAt: Date.now() }));
   }
-
-  await env.LOADOUT_BOLTS.put(MSGS_KV_KEY(guildId), JSON.stringify(newMsgs));
 
   return {
-    ok: errors.length === 0,
+    ok: true,
     channelId,
-    posted: newMsgs.length,
-    messages: newMsgs,
-    errors,
+    messageId,
+    swept: {
+      legacyCategoryMsgs: oldCategoryMsgs.length,
+      legacySelfRolesMsg: true,
+    },
+  };
+}
+
+// ── Picker openers ───────────────────────────────────────────────────
+//
+// Channel-side button → ephemeral picker. Reads the user's current
+// member.roles so the selects render with current selections marked
+// `default: true`.
+
+export async function handleOpenPicker(env, data) {
+  const userId  = data.member?.user?.id || data.user?.id;
+  const guildId = data.guild_id;
+  if (!userId || !guildId) return ephemeral('Run this in a server.');
+
+  const roleIds = await env.LOADOUT_BOLTS.get(ROLES_KV_KEY(guildId), { type: 'json' });
+  if (!roleIds) {
+    return ephemeral('Role picker not configured yet — ask a mod to run `/admin/self-roles-hub/provision`.');
+  }
+  const memberRoleIds = new Set(data.member?.roles || []);
+  return {
+    type: RESP_CHAT,
+    data: buildPickerEphemeral(roleIds, memberRoleIds),
+  };
+}
+
+export async function handleOpenColorPicker(env, data) {
+  const userId  = data.member?.user?.id || data.user?.id;
+  const guildId = data.guild_id;
+  if (!userId || !guildId) return ephemeral('Run this in a server.');
+
+  const roleIds = await env.LOADOUT_BOLTS.get(ROLES_KV_KEY(guildId), { type: 'json' });
+  if (!roleIds) return ephemeral('Role picker not configured yet — ask a mod to run provision.');
+  const memberRoleIds = new Set(data.member?.roles || []);
+  return {
+    type: RESP_CHAT,
+    data: buildColorPickerEphemeral(roleIds, memberRoleIds),
   };
 }
 
@@ -436,6 +507,12 @@ export async function postOrRefreshHub(env, guildId, channelId) {
 //   removes = (current ∩ category_roles) − selected
 //
 // Mutex (color category): same diff but selected has at most 1 entry.
+//
+// Response: RESP_UPDATE_MSG (type 7) so the picker ephemeral
+// re-renders with the new defaults reflecting the just-applied
+// change. The user can keep adjusting other categories without
+// re-opening the picker. The colours sub-ephemeral re-renders its
+// own dedicated single-select.
 
 export async function handleHubSelect(env, data) {
   const cid = data?.data?.custom_id || '';
@@ -453,22 +530,15 @@ export async function handleHubSelect(env, data) {
   const catRoleMap = roleIds?.[categoryKey] || {};
   const validOptionValues = new Set(category.options.map(o => o.value));
 
-  // Selected option values from the interaction.
   const selectedValues = (data.data?.values || [])
     .filter(v => validOptionValues.has(v));
-
-  // Mutex: cap at 1 (Discord enforces this via max_values:1 anyway).
   if (!category.multi && selectedValues.length > 1) {
     selectedValues.splice(1);
   }
 
-  // Map values → Discord role IDs.
   const desiredRoleIds = new Set(
     selectedValues.map(v => catRoleMap[v]).filter(Boolean));
-
-  // Category role-id universe (so we don't touch unrelated roles).
   const categoryRoleIds = new Set(Object.values(catRoleMap));
-
   const memberRoles = new Set(data.member?.roles || []);
   const memberCategoryRoles = new Set(
     [...memberRoles].filter(id => categoryRoleIds.has(id)));
@@ -479,7 +549,6 @@ export async function handleHubSelect(env, data) {
   const addedLabels = [];
   const removedLabels = [];
   const failures = [];
-
   const labelForRoleId = (rid) => {
     for (const [val, id] of Object.entries(catRoleMap)) {
       if (id === rid) {
@@ -493,26 +562,40 @@ export async function handleHubSelect(env, data) {
   for (const rid of toRemove) {
     const r = await dapi(env, 'DELETE',
       `/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(rid)}`);
-    if (r.ok || r.status === 204) removedLabels.push(labelForRoleId(rid));
-    else failures.push({ op: 'remove', roleId: rid, status: r.status });
+    if (r.ok || r.status === 204) {
+      removedLabels.push(labelForRoleId(rid));
+      memberRoles.delete(rid);   // keep our in-memory snapshot honest for the re-render
+    } else {
+      failures.push({ op: 'remove', roleId: rid, status: r.status });
+    }
   }
   for (const rid of toAdd) {
     const r = await dapi(env, 'PUT',
       `/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(rid)}`);
-    if (r.ok || r.status === 204) addedLabels.push(labelForRoleId(rid));
-    else failures.push({ op: 'add', roleId: rid, status: r.status });
+    if (r.ok || r.status === 204) {
+      addedLabels.push(labelForRoleId(rid));
+      memberRoles.add(rid);
+    } else {
+      failures.push({ op: 'add', roleId: rid, status: r.status });
+    }
   }
 
-  // Build the ephemeral confirmation. If nothing changed, say so.
-  const lines = [];
-  if (addedLabels.length)   lines.push('➕ Added: ' + addedLabels.join(', '));
-  if (removedLabels.length) lines.push('➖ Removed: ' + removedLabels.join(', '));
-  if (!lines.length) lines.push('_No changes._');
+  // Build a one-line banner summarising what changed, prepended to
+  // the re-rendered picker.
+  const bannerParts = [];
+  if (addedLabels.length)   bannerParts.push('➕ Added: ' + addedLabels.join(', '));
+  if (removedLabels.length) bannerParts.push('➖ Removed: ' + removedLabels.join(', '));
   if (failures.length) {
-    lines.push(`\n⚠ ${failures.length} role op(s) failed — bot may need to be moved ABOVE these roles in Server Settings → Roles.`);
+    bannerParts.push(`⚠ ${failures.length} op(s) failed — bot role may sit BELOW these roles in the hierarchy.`);
   }
-  return {
-    type: RESP_CHAT,
-    data: { content: lines.join('\n'), flags: FLAG_EPHEMERAL },
-  };
+  const banner = bannerParts.length ? '✅ ' + bannerParts.join(' · ') : null;
+
+  // Colors lives in the sub-ephemeral; everything else lives in the
+  // main picker ephemeral. Re-render the matching one.
+  const isColors = categoryKey === 'colors';
+  const newData = isColors
+    ? buildColorPickerEphemeral(roleIds, memberRoles, banner)
+    : buildPickerEphemeral(roleIds, memberRoles, banner);
+
+  return { type: RESP_UPDATE_MSG, data: newData };
 }

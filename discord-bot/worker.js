@@ -332,6 +332,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/self-roles-hub/post/')) {
       return handleSelfRolesHubPost(req, env, path);
     }
+    // One-shot test post for the check-in v2 composite renderer
+    // (variant C — bg + gif composite). Posts a sample embed to a
+    // DM (recipientUserId) or a channel (channelId fallback). Used
+    // while CHECKIN_EMBED_V2 is still gated off so Clay can preview
+    // the design without enabling it for all users.
+    if (method === 'POST' && path.startsWith('/admin/checkin-v2/test-post/')) {
+      return handleCheckinV2TestPost(req, env, path);
+    }
     // Seed guild:join-counter:<g> from Discord's
     // approximate_member_count so the first observed new member
     // doesn't display "1st member" in a pre-existing guild. See
@@ -2478,6 +2486,113 @@ async function handleReleaseNotesPost(req, env, path) {
   }));
   return jsonResp({ ok: true, product, version, channelId,
     priorDeletedId, newMessageId: newMsg.id, kvKey, via: auth.via }, 200);
+}
+
+// ── /admin/checkin-v2/test-post/:guildId (HMAC) ───────────────────
+// Body (JSON):
+//   { recipientUserId?, channelId?, imageBase64, message?, gifUrl?,
+//     displayName?, avatarUrl?, streak?, xp?, bolts?, accentColor? }
+// At least one of recipientUserId / channelId required. If
+// recipientUserId is set, the bot opens a DM channel and posts
+// there; otherwise it posts to channelId. The embed shape matches
+// the variant C spec — composite image fills the embed, gif also
+// renders as thumbnail (Discord renders animated GIF thumbnails),
+// author header with displayName + avatar, description carries the
+// streak/XP/bolts pills + optional message.
+async function handleCheckinV2TestPost(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+
+  if (!opts.imageBase64) {
+    return jsonResp({ ok: false, error: 'image-required',
+      message: 'POST body needs imageBase64 — the composite GIF bytes. Generate with build-checkin-v2-test.py.' }, 400);
+  }
+
+  // Decode the composite.
+  let bytes;
+  try {
+    const bin = atob(opts.imageBase64);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } catch { return jsonResp({ ok: false, error: 'bad-base64' }, 400); }
+
+  // Resolve destination — prefer DM if recipientUserId set.
+  let channelId = String(opts.channelId || '').trim();
+  let destLabel = channelId ? 'channel:' + channelId : null;
+  if (opts.recipientUserId) {
+    const recipientUserId = String(opts.recipientUserId).trim();
+    const dm = await fetch('https://discord.com/api/v10/users/@me/channels', {
+      method: 'POST',
+      headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+                 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recipient_id: recipientUserId }),
+    });
+    if (dm.ok) {
+      const m = await dm.json();
+      if (m?.id) {
+        channelId = String(m.id);
+        destLabel = 'dm:' + recipientUserId + ' (channel ' + channelId + ')';
+      }
+    } else if (!channelId) {
+      const dmBody = await dm.text();
+      return jsonResp({ ok: false, error: 'dm-open-failed',
+        status: dm.status, body: dmBody.slice(0, 200) }, 502);
+    }
+    // If DM open fails AND we have a fallback channelId, silently
+    // fall through to channel posting.
+  }
+  if (!channelId) return jsonResp({ ok: false, error: 'no-destination',
+    message: 'Provide recipientUserId or channelId.' }, 400);
+
+  // Build the variant C embed shape.
+  const lines = [];
+  if (opts.message) lines.push(`💬 _${String(opts.message).slice(0, 300)}_`);
+  const pills = [];
+  if (Number.isFinite(opts.streak)) pills.push(`🔥 **${opts.streak}-day streak**`);
+  if (Number.isFinite(opts.xp))     pills.push(`⚡ **${opts.xp}** XP`);
+  if (Number.isFinite(opts.bolts))  pills.push(`💰 **${opts.bolts}** bolts`);
+  if (pills.length) lines.push(pills.join('  ·  '));
+  const display = opts.displayName || 'aquilo tester';
+  const embed = {
+    author: { name: `${display} checked in`,
+              icon_url: opts.avatarUrl || undefined },
+    description: lines.join('\n') || '_Test check-in — preview the new embed._',
+    color: Number.isFinite(opts.accentColor) ? opts.accentColor : 0x7c5cff,
+    image: { url: 'attachment://checkin-v2-test.gif' },
+    timestamp: new Date().toISOString(),
+    footer: { text: 'CHECKIN_EMBED_V2 preview · variant C · gif over background composite' },
+  };
+  if (opts.gifUrl) embed.thumbnail = { url: opts.gifUrl };
+
+  // Multipart upload — same pattern as the cn-roster composite post.
+  const form = new FormData();
+  form.append('files[0]', new Blob([bytes], { type: 'image/gif' }), 'checkin-v2-test.gif');
+  form.append('payload_json', JSON.stringify({
+    embeds: [embed],
+    allowed_mentions: { parse: [] },
+  }));
+  const post = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
+    { method: 'POST',
+      headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN },
+      body: form },
+  );
+  if (!post.ok) {
+    return jsonResp({ ok: false, error: 'post-failed', status: post.status,
+                     body: (await post.text()).slice(0, 300),
+                     destination: destLabel }, 502);
+  }
+  const m = await post.json();
+  return jsonResp({ ok: true, channelId, messageId: String(m?.id || ''),
+                    destination: destLabel, via: auth.via }, 200);
 }
 
 // ── /admin/self-roles-hub/provision/:guildId (HMAC) ───────────────
