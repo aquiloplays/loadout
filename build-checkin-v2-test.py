@@ -56,6 +56,21 @@ FIREFLY_PLACEHOLDER_FRAME_MS = 80
 
 FIREFLY_PLACEHOLDER = "__firefly_placeholder__"
 UA = "Mozilla/5.0 (loadout-checkin-v2-test) curl/8"
+# Site-side check-in background API (live as of 2026-05-28 — site
+# session shipped 8 presets + a per-user picker, all backgrounds are
+# static PNGs at 1200×675).
+SITE_USER_BG_URL = "https://aquilo.gg/api/web/checkin/user-background?userId={uid}"
+SITE_BG_LIST_URL = "https://aquilo.gg/api/web/checkin/backgrounds"
+
+# Default discord ID to look up if arg1 is "__user__" without a value.
+# Clay's ID — bg preview defaults to whatever HE'S picked on the site.
+DEFAULT_LOOKUP_USER = "1107161695262085210"
+
+# Holds the accent / theme metadata when we resolved the bg via the
+# site API. Surfaced in main() so the test-post endpoint can pass
+# the accent through as the embed color (matches what the user sees
+# on the home Daily Check-in card).
+RESOLVED_BG_META = {}
 
 
 # ── Fetching ─────────────────────────────────────────────────────────
@@ -87,14 +102,52 @@ def cover_fit(img, w, h):
 # of the same length. Single-frame backgrounds return lists of length 1.
 
 def load_background():
-    """CLI arg 1 = bg URL or sentinel. Defaults to firefly placeholder
-    so test runs don't depend on the site session being up."""
-    bg_url = sys.argv[1] if len(sys.argv) > 1 else FIREFLY_PLACEHOLDER
-    if bg_url == FIREFLY_PLACEHOLDER:
+    """CLI arg 1:
+      - omitted → look up DEFAULT_LOOKUP_USER's pick on the site API
+      - bare Discord ID (digits-only)  → look up THAT user's pick
+      - "__firefly_placeholder__"      → local generated stand-in
+      - anything else (URL/path)       → fetched directly
+    Falls back to the firefly placeholder on any fetch error so a
+    network blip doesn't abort the test pipeline.
+    """
+    arg1 = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_LOOKUP_USER
+
+    bg_url = None
+    if arg1 == FIREFLY_PLACEHOLDER:
         print("BG: generating violet+fireflies placeholder "
-              f"({FIREFLY_PLACEHOLDER_FRAMES} frames, "
-              "aquilo-site session restoring real picker)")
+              f"({FIREFLY_PLACEHOLDER_FRAMES} frames)")
         return build_firefly_placeholder()
+    if arg1.isdigit():
+        # Site API lookup. Returns {ok, userId, backgroundId, background:
+        # { id, name, theme, effect, gradient, accent, url }}.
+        lookup_url = SITE_USER_BG_URL.format(uid=arg1)
+        try:
+            print(f"BG: looking up site pick for user {arg1}")
+            import json as _json
+            raw = fetch_bytes(lookup_url)
+            data = _json.loads(raw.decode("utf-8"))
+            bg = data.get("background") or {}
+            bg_url = bg.get("url")
+            RESOLVED_BG_META.update({
+                "backgroundId": data.get("backgroundId"),
+                "name":         bg.get("name"),
+                "theme":        bg.get("theme"),
+                "effect":       bg.get("effect"),
+                "accent":       bg.get("accent"),
+            })
+            print(f"BG: site says user picked '{data.get('backgroundId')}' "
+                  f"→ {bg_url}  (effect={bg.get('effect')}, accent={bg.get('accent')})")
+        except Exception as e:
+            print(f"BG: API lookup failed ({e!s}) — falling back to placeholder.",
+                  file=sys.stderr)
+            return build_firefly_placeholder()
+    else:
+        bg_url = arg1
+
+    if not bg_url:
+        print("BG: no URL resolved — falling back to placeholder.", file=sys.stderr)
+        return build_firefly_placeholder()
+
     try:
         print(f"BG: fetching {bg_url}")
         raw = fetch_bytes(bg_url)
@@ -325,6 +378,19 @@ def main():
     with open(out_b64, "w") as f:
         f.write(b64)
     print(f"Wrote {out_b64} ({len(b64)} chars)")
+
+    # Surface the resolved bg metadata so the caller (or whoever's
+    # tailing the test runner) can paste it into the worker admin
+    # /admin/checkin-v2/test-post body for `accentColor`.
+    if RESOLVED_BG_META:
+        out_meta = os.path.join(out_dir, "checkin-v2-test.meta.json")
+        import json as _json
+        with open(out_meta, "w") as f:
+            _json.dump(RESOLVED_BG_META, f, indent=2)
+        print(f"Wrote {out_meta}")
+        if RESOLVED_BG_META.get("accent"):
+            print("  site accent: " + str(RESOLVED_BG_META['accent']) +
+                  " (pass this as accentColor in the test-post body)")
 
 
 if __name__ == "__main__":

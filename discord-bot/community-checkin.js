@@ -145,6 +145,34 @@ export async function putCard(env, guildId, userId, card) {
     if (v && !/^https:\/\//i.test(v)) return { ok: false, error: 'custom-avatar-url-must-be-https' };
     next.customAvatarUrl = v.slice(0, 500) || null;
   }
+  // backgroundId — the picker on aquilo.gg writes a slug ("fireflies-
+  // violet", "aurora", etc.) here. The site owns the slug → CDN URL
+  // mapping (GET /api/web/checkin/backgrounds returns the catalog);
+  // the worker just stores the slug so the embed renderer can ask
+  // the site to resolve it. Back-compat: theme/effect string fields
+  // from the v1 picker stay on the card untouched. Format: lowercase
+  // a-z0-9_- only, ≤60 chars.
+  if (card?.backgroundId !== undefined) {
+    if (card.backgroundId === null || card.backgroundId === '') {
+      next.backgroundId = null;
+    } else {
+      const v = String(card.backgroundId).trim().toLowerCase();
+      if (!/^[a-z0-9_-]{1,60}$/.test(v)) {
+        return { ok: false, error: 'bad-background-id',
+          message: 'backgroundId must match /^[a-z0-9_-]{1,60}$/' };
+      }
+      next.backgroundId = v;
+    }
+  }
+  // Pass-through for the legacy theme/effect strings the v1 picker
+  // wrote. Don't validate — they're already in the wild on saved
+  // records and the site is the source of truth for shape.
+  if (card?.theme !== undefined) {
+    next.theme = card.theme == null ? null : String(card.theme).slice(0, 60);
+  }
+  if (card?.effect !== undefined) {
+    next.effect = card.effect == null ? null : String(card.effect).slice(0, 60);
+  }
   // Final guard: if the user picked 'custom' but no URL is on file
   // (neither this patch nor a prior save), refuse the upsert rather
   // than silently falling back to Discord at embed time.

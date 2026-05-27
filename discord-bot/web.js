@@ -1829,12 +1829,27 @@ async function routeCommunityCheckinStatus(env, guildId, discordId) {
 }
 
 async function routeCommunityCheckinCard(env, guildId, discordId, body) {
-  // POST { discordId, guildId, card: { imageUrl, accentColor?, headline?, subtitle? } }
-  // OR  POST { discordId, guildId, op: 'get' } to read.
+  // POST { discordId, guildId, card: { imageUrl, accentColor?, headline?,
+  //          subtitle?, backgroundId? } }
+  // OR  POST { discordId, guildId, op: 'get', lookupUserId? }
+  //   — lookupUserId lets the site's /api/web/checkin/user-background
+  //     endpoint resolve another user's saved card (just the bg
+  //     picker — the card fields are non-sensitive: image URL,
+  //     accent colour, headline, subtitle, backgroundId slug).
+  //     Falls back to the authenticated user's own card when
+  //     lookupUserId is unset, missing, or fails the digits-only
+  //     format check.
   const { getCard, putCard } = await import('./community-checkin.js');
   if (body && body.op === 'get') {
-    const card = await getCard(env, guildId, discordId);
-    return json({ ok: true, card: card || null });
+    let targetId = discordId;
+    const lookupRaw = body.lookupUserId;
+    if (lookupRaw != null) {
+      const lookup = String(lookupRaw).trim();
+      if (/^\d{5,25}$/.test(lookup)) targetId = lookup;
+    }
+    const card = await getCard(env, guildId, targetId);
+    return json({ ok: true, card: card || null, userId: targetId,
+                  lookedUp: targetId !== discordId });
   }
   const r = await putCard(env, guildId, discordId, body?.card || {});
   return json(r, r.ok ? 200 : 400);
