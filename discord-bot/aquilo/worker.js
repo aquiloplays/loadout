@@ -55,6 +55,7 @@ import { cleanupOldPollMessages } from './cleanup.js';
 import {
   handleSelfRoleAddSubmit, handleSelfRoleRemoveSubmit, handleRoleToggle
 } from './self-roles.js';
+import { handleHubSelect } from './self-roles-hub.js';
 import { OverlayBroadcaster } from './overlay-do.js';
 import { handleCountingMessage, sweepFailRoles, sweepCountingChannelTimeouts } from './counting.js';
 import {
@@ -675,7 +676,11 @@ async function handleComponent(data, env, ctx) {
   if (id.startsWith('notify:'))   return handleNotifyButton(env, data);
   if (id.startsWith('tot:'))      return handleDailyPollVote(env, data);
   if (id.startsWith('sug:'))      return handleSuggestionAction(env, data);
-  if (id.startsWith('roles:'))    return handleRoleToggle(env, data);
+  // Sectioned hub's string-select submits (one per category — pings,
+  // colors, regions, platforms, pronouns). Buttons (roles:age18:*
+  // and the legacy roles:toggle:*) fall through to handleRoleToggle.
+  if (id.startsWith('roles:sel:')) return handleHubSelect(env, data);
+  if (id.startsWith('roles:'))     return handleRoleToggle(env, data);
   if (id.startsWith('setup:'))    return handleSetupButton(env, data);
   if (id.startsWith('vh:')) {
     // First viewer-hub click is the natural welcome-ritual trigger for

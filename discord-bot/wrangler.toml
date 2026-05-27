@@ -119,6 +119,12 @@ LIVE_CHANNEL_ID = ""
 # embed here summarising the past 7 days. Empty = no-op.
 RECAP_CHANNEL_ID = ""
 CHECKIN_CHANNEL_ID = "1507973904164061194"     # 💬│general (daily check-in lives here)
+# Feature flag for the check-in embed v2 redesign (variant C —
+# server-side composite of user-selected background + chosen GIF).
+# Stays "false" until Clay green-lights the mockup. When "true", the
+# postCheckinEmbed path delegates to the composite renderer; current
+# rendering (gif as image OR card bg as image) is the fallback.
+CHECKIN_EMBED_V2 = "false"
 LEADERBOARD_CHANNEL_ID = "1507973904164061194" # 💬│general
 AQUILO_ADMIN_HUB_CHANNEL_ID = "1507973969683415120"  # ⚙️│bot-admin
 ACHIEVEMENT_ROLES_JSON = "{\"5\":\"1507973863940816937\",\"10\":\"1507973861894000690\",\"25\":\"1507973859863695523\",\"50\":\"1507973858064465970\"}"

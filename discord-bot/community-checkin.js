@@ -240,6 +240,59 @@ async function resolveAvatar(env, userId, card, member) {
   return { url: fallback, source: 'discord' };
 }
 
+// ── Check-in embed v2 — composite renderer stub ──────────────────────
+//
+// Variant C spec (2026-05-27, awaiting Clay's final pick):
+//   * Background dimensions: 1200×675 (user-selected card image,
+//     stored under the user's card record).
+//   * Foreground: chosen GIF resized to ~35% canvas width, centered
+//     over the background. Soft radial vignette behind for legibility.
+//   * Per-frame composite — for each frame of the source GIF, paste
+//     the resized frame over the bg with the vignette. Re-export as
+//     a single animated GIF.
+//   * Cache by sha256(bgId + '|' + gifUrl) → composite URL. KV key
+//     ci-composite:<hash>. TTL ~30d.
+//
+// Cloudflare Workers can't run Pillow/PIL natively, so the real
+// renderer lives behind one of:
+//   (a) a sidecar Python service on the aquilo-gateway shim
+//       (POST /image/compose-checkin → returns bytes), OR
+//   (b) Cloudflare Images "drawings" overlay rules (faster but
+//       per-frame compositing of animated GIFs isn't supported by
+//       the public Images API today), OR
+//   (c) a Worker calling Pyodide-WASM Pillow (very slow).
+//
+// (a) is the planned path. This function is the stub: it never
+// returns a URL today (flag is gated to "false" anyway). When the
+// renderer ships, the cache lookup + sidecar fetch goes here.
+const CI_COMPOSITE_KV_PREFIX = 'ci-composite:';
+const CI_COMPOSITE_TTL_S     = 30 * 86400;
+
+async function composeCheckinCard(env, { bgUrl, gifUrl, bgId }) {
+  if (!bgUrl || !gifUrl) return null;
+  // Hash (bg, gif) for cache lookup. bgId is preferred when available
+  // since card backgrounds get re-uploaded with new URLs but stable
+  // IDs; falls back to the URL itself.
+  const cacheKeyInput = (bgId || bgUrl) + '|' + gifUrl;
+  const hashBytes = await crypto.subtle.digest(
+    'SHA-256', new TextEncoder().encode(cacheKeyInput));
+  const hash = Array.from(new Uint8Array(hashBytes))
+    .map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
+  const cacheKey = CI_COMPOSITE_KV_PREFIX + hash;
+
+  // Cache hit?
+  const cached = await env.LOADOUT_BOLTS.get(cacheKey, { type: 'json' });
+  if (cached?.url) return cached;
+
+  // STUB — actual composite pipeline lives in the sidecar service.
+  // Until that's wired, return null so postCheckinEmbed falls through
+  // to the v1 image stack. Logging the intent so it's grep-able in
+  // production when Clay starts testing the flag.
+  console.log('[checkin-v2] composite TODO — would render bg=' +
+              (bgId || bgUrl) + ' + gif=' + gifUrl + ' as cache key ' + hash);
+  return null;
+}
+
 async function postCheckinEmbed(env, guildId, userId, state, card, member, isFirstTimeNoCard, opts = {}) {
   // Resolution order:
   //   1. channel-binding(checkin-results) — KV-only, set by Clay
@@ -263,11 +316,41 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   const { getBranding } = await import('./branding.js');
   const brand   = await getBranding(env, guildId);
   const accent  = (card?.accentColor != null ? card.accentColor : (brand.accentColor || DEFAULT_ACCENT));
-  // opts.gifUrl (from the /checkin compose flow) wins over the user's
-  // saved card image — the GIF picked at compose-time is the visual
-  // anchor for THIS check-in. Falls back to the saved card image then
-  // the brand default.
-  const image   = opts.gifUrl || card?.imageUrl || brand.checkinDefaultImageUrl || DEFAULT_IMAGE_URL;
+
+  // CHECKIN_EMBED_V2 (variant C) — server-side composite of the
+  // user-selected card background with the chosen GIF centered over
+  // it (~35% width, soft radial vignette behind for legibility),
+  // exported as a fresh animated GIF and cached by
+  // (background_id, gif_url) hash. The flag stays "false" until
+  // Clay green-lights the mockup; until then we fall through to the
+  // current rendering (gif > card > brand default). When the flag
+  // flips on AND composeCheckinCard returns a URL, that URL becomes
+  // embed.image and the raw gif moves to embed.thumbnail so both
+  // surfaces stay visible.
+  let imageOverride    = null;
+  let thumbnailOverride = null;
+  if (env.CHECKIN_EMBED_V2 === 'true' && opts.gifUrl) {
+    try {
+      const composed = await composeCheckinCard(env, {
+        bgUrl: card?.imageUrl || brand.checkinDefaultImageUrl || DEFAULT_IMAGE_URL,
+        gifUrl: opts.gifUrl,
+        bgId: card?.imageId || null,
+      });
+      if (composed?.url) {
+        imageOverride     = composed.url;
+        thumbnailOverride = opts.gifUrl;
+      }
+    } catch (e) {
+      // Composite failed — log and fall through to v1 image stack so
+      // the check-in still posts cleanly.
+      console.warn('[checkin-v2] compose failed:', e?.message || e);
+    }
+  }
+  const image = imageOverride
+    || opts.gifUrl
+    || card?.imageUrl
+    || brand.checkinDefaultImageUrl
+    || DEFAULT_IMAGE_URL;
   const display = member?.displayName || 'friend';
   const avatarPick = await resolveAvatar(env, userId, card, member);
   const avatar     = avatarPick.url;
@@ -297,6 +380,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
     image: { url: image },
     timestamp: new Date().toISOString(),
   };
+  if (thumbnailOverride) embed.thumbnail = { url: thumbnailOverride };
 
   const r = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
     method: 'POST',

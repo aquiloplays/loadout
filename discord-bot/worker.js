@@ -321,6 +321,17 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/self-roles/post/')) {
       return handleSelfRolesPost(req, env, path);
     }
+    // Sectioned self-roles hub — provision + post. Provision creates
+    // the Discord roles for each category (Pings / Name Color /
+    // Region / Platform / Pronouns) and stores their IDs in
+    // self-roles-hub:roles:<g>. Post lays out one message per
+    // category in #roles. See aquilo/self-roles-hub.js.
+    if (method === 'POST' && path.startsWith('/admin/self-roles-hub/provision/')) {
+      return handleSelfRolesHubProvision(req, env, path);
+    }
+    if (method === 'POST' && path.startsWith('/admin/self-roles-hub/post/')) {
+      return handleSelfRolesHubPost(req, env, path);
+    }
     // Seed guild:join-counter:<g> from Discord's
     // approximate_member_count so the first observed new member
     // doesn't display "1st member" in a pre-existing guild. See
@@ -2467,6 +2478,56 @@ async function handleReleaseNotesPost(req, env, path) {
   }));
   return jsonResp({ ok: true, product, version, channelId,
     priorDeletedId, newMessageId: newMsg.id, kvKey, via: auth.via }, 200);
+}
+
+// ── /admin/self-roles-hub/provision/:guildId (HMAC) ───────────────
+// Creates (or reuses) the Discord roles for each hub category:
+//   • Pings (4): Stream / YouTube / Events / Game Night — migrates
+//     IDs from guild-builder's cfg.ids when present.
+//   • Name Color (11): Aquilo Violet, Aurora Pink, Aurora Green,
+//     Red, Orange, Yellow, Blue, Cyan, White, Purple, Black-ish.
+//   • Region (5): NA East / NA West / EU / Asia / Oceania.
+//   • Platform (4): PC / Xbox / PlayStation / Switch.
+//   • Pronouns (4): He/Him / She/Her / They/Them / Other-Ask-Me.
+// Idempotent — reuses any role with a matching name. Stores the
+// resulting {category: {value: roleId}} map at
+// self-roles-hub:roles:<g>. NOTE: name-color roles are created at
+// the bottom of the hierarchy; admin must reorder them above
+// other coloured roles for the colour to render on names.
+async function handleSelfRolesHubProvision(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  const { provisionHubRoles } = await import('./aquilo/self-roles-hub.js');
+  const r = await provisionHubRoles(env, guildId);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 502);
+}
+
+// ── /admin/self-roles-hub/post/:guildId (HMAC) ────────────────────
+// Posts (or edits-in-place) one message per category into the roles
+// channel. Body { channelId } — defaults to env.ROLES_CHANNEL_ID
+// which is the canonical #roles channel for Aquilo.
+async function handleSelfRolesHubPost(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const channelId = String(opts.channelId || env.ROLES_CHANNEL_ID || '').trim();
+  if (!channelId) return jsonResp({ ok: false, error: 'no-channel',
+    message: 'POST body needs { channelId } or set env.ROLES_CHANNEL_ID.' }, 400);
+  const { postOrRefreshHub } = await import('./aquilo/self-roles-hub.js');
+  const r = await postOrRefreshHub(env, guildId, channelId);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 502);
 }
 
 // ── /admin/self-roles/post/:guildId (HMAC) ────────────────────────
