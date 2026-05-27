@@ -278,6 +278,24 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/counting/reset/')) {
       return handleCountingReset(req, env, path);
     }
+    // Rebuild a channel's rules-list message. Scans recent bot/text
+    // messages, deletes the first non-image one (the old rules), and
+    // posts the new body. Image-only banner messages stay in place.
+    if (method === 'POST' && path.startsWith('/admin/rules/rebuild/')) {
+      return handleRulesRebuild(req, env, path);
+    }
+    // Apply send-message lockdown to a category + child channels +
+    // any extra channel ids. Allows the configured roles to post;
+    // denies @everyone.
+    if (method === 'POST' && path.startsWith('/admin/perms/lockdown/')) {
+      return handlePermsLockdown(req, env, path);
+    }
+    // Post (or replace) a product release-notes embed in a target
+    // channel. Tracks the message id at release-notes:<g>:<product>
+    // so re-running deletes the prior post first.
+    if (method === 'POST' && path.startsWith('/admin/release-notes/post/')) {
+      return handleReleaseNotesPost(req, env, path);
+    }
     // Seed guild:join-counter:<g> from Discord's
     // approximate_member_count so the first observed new member
     // doesn't display "1st member" in a pre-existing guild. See
@@ -2162,6 +2180,220 @@ async function handleCountingPurgeBotMessages(req, env, path) {
   const { purgeBotMessages } = await import('./counting-purge.js');
   const r = await purgeBotMessages(env, channelId, { sinceMs });
   return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+}
+
+// ── /admin/rules/rebuild/:guildId (HMAC) ──────────────────────────
+// Body: { channelId, body, deletePriorBotText: true }
+// Scans the channel; first bot/webhook message that has NO image
+// attachment gets deleted (assumed = old rules text). Posts the
+// new body. Stamps id at rules:msg:<g>.
+async function handleRulesRebuild(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const channelId = String(opts.channelId || '').trim();
+  const newBody = String(opts.body || '').trim();
+  if (!channelId || !newBody) {
+    return jsonResp({ ok: false, error: 'channelId + body required' }, 400);
+  }
+  // List recent messages
+  const listRes = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages?limit=50`,
+    { headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } });
+  if (!listRes.ok) {
+    return jsonResp({ ok: false, error: 'list-failed', status: listRes.status,
+      body: (await listRes.text()).slice(0, 200) }, 502);
+  }
+  const messages = await listRes.json();
+  // Find the prior bot/webhook TEXT message — has content, NO image attachments
+  let prior = null;
+  for (const m of messages) {
+    const isBot = m.author?.bot === true || !!m.webhook_id;
+    if (!isBot) continue;
+    const hasImage = (m.attachments || []).some(a =>
+      /\.(png|jpe?g|gif|webp)$/i.test(String(a.filename || '')));
+    if (hasImage) continue;
+    if (!m.content || m.content.length < 20) continue;
+    prior = m; break;
+  }
+  let deletedId = null;
+  if (prior) {
+    const del = await fetch(
+      `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages/${prior.id}`,
+      { method: 'DELETE', headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } });
+    if (del.ok || del.status === 204) deletedId = prior.id;
+  }
+  // Post the new body
+  const postRes = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
+    { method: 'POST',
+      headers: { 'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN,
+                 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: newBody, allowed_mentions: { parse: [] } }) });
+  if (!postRes.ok) {
+    return jsonResp({ ok: false, error: 'post-failed', status: postRes.status,
+      body: (await postRes.text()).slice(0, 200), deletedId }, 502);
+  }
+  const newMsg = await postRes.json();
+  await env.LOADOUT_BOLTS.put(`rules:msg:${guildId}`, JSON.stringify({
+    messageId: newMsg.id, channelId, postedAt: Date.now(),
+  }));
+  return jsonResp({ ok: true, channelId, deletedId,
+    newMessageId: newMsg.id, via: auth.via }, 200);
+}
+
+// ── /admin/perms/lockdown/:guildId (HMAC) ─────────────────────────
+// Body: { categoryId, extraChannelIds: [], allowSendRoles: [] }
+// For every channel under the category PLUS any extras:
+//   * Set @everyone overwrite to deny SEND_MESSAGES (0x800)
+//   * Set each allowSendRoles overwrite to allow SEND_MESSAGES
+// Uses PUT /channels/:id/permissions/:roleId (upsert).
+async function handlePermsLockdown(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const categoryId = String(opts.categoryId || '').trim();
+  const extras = Array.isArray(opts.extraChannelIds) ? opts.extraChannelIds.map(String) : [];
+  const allowRoles = (Array.isArray(opts.allowSendRoles) ? opts.allowSendRoles : []).map(String);
+  if (!categoryId && extras.length === 0) {
+    return jsonResp({ ok: false, error: 'categoryId or extraChannelIds required' }, 400);
+  }
+  if (allowRoles.length === 0) {
+    return jsonResp({ ok: false, error: 'allowSendRoles required (else no one can speak)' }, 400);
+  }
+
+  // Fetch all guild channels, filter to category children + extras
+  const chRes = await fetch(
+    `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`,
+    { headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } });
+  if (!chRes.ok) {
+    return jsonResp({ ok: false, error: 'guild-channels-failed', status: chRes.status,
+      body: (await chRes.text()).slice(0, 200) }, 502);
+  }
+  const allChannels = await chRes.json();
+  const targets = [];
+  // The category itself first (so newly-created children inherit)
+  const cat = allChannels.find(c => c.id === categoryId);
+  if (cat) targets.push({ id: cat.id, name: cat.name, kind: 'category' });
+  for (const c of allChannels) {
+    if (c.parent_id === categoryId) targets.push({ id: c.id, name: c.name, kind: 'child' });
+  }
+  for (const x of extras) {
+    if (!targets.some(t => t.id === x)) {
+      const c = allChannels.find(z => z.id === x);
+      targets.push({ id: x, name: c?.name || '(unknown)', kind: 'extra' });
+    }
+  }
+
+  const SEND_BIT = '2048';   // 0x800 = SEND_MESSAGES
+  const results = [];
+  for (const t of targets) {
+    const detail = { id: t.id, name: t.name, kind: t.kind, applied: [], errors: [] };
+    // @everyone deny
+    const evRes = await fetch(
+      `https://discord.com/api/v10/channels/${encodeURIComponent(t.id)}/permissions/${encodeURIComponent(guildId)}`,
+      { method: 'PUT',
+        headers: { 'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 0, allow: '0', deny: SEND_BIT }) });
+    if (evRes.ok || evRes.status === 204) detail.applied.push('@everyone:deny-send');
+    else detail.errors.push({ target: '@everyone', status: evRes.status,
+      body: (await evRes.text()).slice(0, 150) });
+    // Role allows
+    for (const roleId of allowRoles) {
+      const rRes = await fetch(
+        `https://discord.com/api/v10/channels/${encodeURIComponent(t.id)}/permissions/${encodeURIComponent(roleId)}`,
+        { method: 'PUT',
+          headers: { 'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: 0, allow: SEND_BIT, deny: '0' }) });
+      if (rRes.ok || rRes.status === 204) detail.applied.push(`role:${roleId}:allow-send`);
+      else detail.errors.push({ target: roleId, status: rRes.status,
+        body: (await rRes.text()).slice(0, 150) });
+    }
+    results.push(detail);
+  }
+  return jsonResp({ ok: true, guildId, categoryId, extras, allowRoles,
+    channels: results, via: auth.via }, 200);
+}
+
+// ── /admin/release-notes/post/:guildId (HMAC) ─────────────────────
+// Body: { channelId, product, version, dateIso, title?, color?,
+//         bullets: [strings], imageUrl? }
+// Dedupes against release-notes:<g>:<product> — deletes the prior
+// post if present, then posts a new embed and stamps the id.
+async function handleReleaseNotesPost(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const channelId = String(opts.channelId || '').trim();
+  const product = String(opts.product || '').trim().toLowerCase();
+  const version = String(opts.version || '').trim();
+  const dateIso = String(opts.dateIso || new Date().toISOString().slice(0, 10));
+  const bullets = Array.isArray(opts.bullets) ? opts.bullets.filter(Boolean).map(String) : [];
+  if (!channelId || !product || !version || bullets.length === 0) {
+    return jsonResp({ ok: false, error: 'channelId+product+version+bullets required' }, 400);
+  }
+  const color = Number.isInteger(opts.color) ? opts.color : 0x7c5cff;   // new brand violet
+  const productLabel = product.charAt(0).toUpperCase() + product.slice(1);
+  const title = String(opts.title || `${productLabel} ${version}`);
+  const desc = bullets.map(b => `• ${b}`).join('\n').slice(0, 4000);
+  const embed = {
+    title,
+    description: desc,
+    color,
+    footer: { text: `Released ${dateIso}` },
+    timestamp: new Date().toISOString(),
+  };
+  if (opts.imageUrl && typeof opts.imageUrl === 'string') {
+    embed.thumbnail = { url: opts.imageUrl };
+  }
+
+  // Delete prior if any
+  const kvKey = `release-notes:${guildId}:${product}`;
+  let priorDeletedId = null;
+  const prior = await env.LOADOUT_BOLTS.get(kvKey, { type: 'json' });
+  if (prior && prior.messageId && prior.channelId) {
+    const del = await fetch(
+      `https://discord.com/api/v10/channels/${encodeURIComponent(prior.channelId)}/messages/${prior.messageId}`,
+      { method: 'DELETE', headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } });
+    if (del.ok || del.status === 204) priorDeletedId = prior.messageId;
+  }
+  // Post new
+  const postRes = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
+    { method: 'POST',
+      headers: { 'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] } }) });
+  if (!postRes.ok) {
+    return jsonResp({ ok: false, error: 'post-failed', status: postRes.status,
+      body: (await postRes.text()).slice(0, 200), priorDeletedId }, 502);
+  }
+  const newMsg = await postRes.json();
+  await env.LOADOUT_BOLTS.put(kvKey, JSON.stringify({
+    messageId: newMsg.id, channelId, product, version, postedAt: Date.now(),
+  }));
+  return jsonResp({ ok: true, product, version, channelId,
+    priorDeletedId, newMessageId: newMsg.id, kvKey, via: auth.via }, 200);
 }
 
 // ── /admin/counting/reset/:guildId (HMAC) ─────────────────────────

@@ -404,9 +404,21 @@ export async function removeWebReaction(env, channelId, messageId, emoji, asUser
 // aquilo-presence — content, attachments, author basics) to the shape
 // the website renders.
 function normalise(p) {
-  if (!p.message_id && !p.id) return null;
-  const id = String(p.message_id || p.id);
-  const username = (p.username || 'someone').slice(0, 32);
+  if (!p.message_id && !p.id && !p.messageId) return null;
+  const id = String(p.message_id || p.id || p.messageId);
+  // Shim sends author as a nested object (Discord-slim subset):
+  //   p.author.{id, username, global_name, bot}
+  // Fall through to the flat fields older payloads may carry — the
+  // PWA was rendering "someone" for every chat message because we
+  // were only reading the flat fields, which the shim doesn't emit.
+  const authorObj = p.author && typeof p.author === 'object' ? p.author : null;
+  const username = (
+    (authorObj && (authorObj.global_name || authorObj.username)) ||
+    p.username ||
+    'someone'
+  ).toString().slice(0, 32);
+  const userId = String((authorObj && authorObj.id) || p.user_id || p.userId || '') || null;
+  const isBot  = !!((authorObj && authorObj.bot) || p.bot || p.isBot);
   const content = clip(String(p.content || ''), 600);
 
   // DiscordSRV bridges Minecraft chat as webhook posts where the
@@ -415,7 +427,7 @@ function normalise(p) {
   // `bridge: "mc"` to render with a Minecraft block-style nameplate
   // instead of a default avatar.
   let bridge = null;
-  if (p.bot && username && !looksLikeOwnBot(username)) bridge = 'mc';
+  if (isBot && username && !looksLikeOwnBot(username)) bridge = 'mc';
 
   const attachments = Array.isArray(p.attachments)
     ? p.attachments.slice(0, 4).map(a => ({
@@ -428,11 +440,11 @@ function normalise(p) {
   return {
     id,
     ts: Date.now(),
-    userId: p.user_id || null,
+    userId,
     username,
     content,
     attachments,
-    bot: !!p.bot,
+    bot: isBot,
     bridge,
     // Reactions are populated incrementally by the bot — see
     // readCommunityChatWithReactions() below. New messages have no
