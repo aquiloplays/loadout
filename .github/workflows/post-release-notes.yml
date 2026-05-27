@@ -20,6 +20,10 @@ name: Post release notes to Discord
 #                             Default: 0x3A86FF (Loadout blue).
 #   SF_BOT_SERVICE_URL        (optional) Override for the bot host.
 #   SF_RELEASE_CHANNEL_ID     (optional) Override target channel.
+#                             Defaults to 1504877541985357864 — the
+#                             dedicated StreamFusion releases channel
+#                             (rotated from 1494765819891159202 in
+#                             2026-05 per Clay).
 
 on:
   release:
@@ -99,7 +103,7 @@ jobs:
               url:     'https://github.com/' + process.env.REPO + '/releases/tag/' + process.env.TAG,
               notes:   require('fs').readFileSync(process.env.BODY_FILE, 'utf8'),
               ping_role_id: process.env.SF_RELEASE_PING_ROLE_ID || null,
-              channel_id:   process.env.SF_RELEASE_CHANNEL_ID   || null,
+              channel_id:   process.env.SF_RELEASE_CHANNEL_ID   || '1504877541985357864',
               color:        process.env.COLOR
             }));
           " PRODUCT="$PRODUCT" REPO="$REPO" TAG="$TAG" BODY_FILE="$BODY_FILE" \
