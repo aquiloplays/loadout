@@ -66,11 +66,12 @@ async function fetchSteamMeta(appId) {
       ok: true,
       name:         d.name || '(unknown)',
       header:       d.header_image || null,
+      // capsule_image is the smaller (~231×87) wide capsule; renders
+      // tighter than header_image when used as an embed thumbnail.
+      // Falls back to header_image when Steam omits it.
+      capsule:      d.capsule_image || d.capsule_imagev5 || d.header_image || null,
       shortDesc:    String(d.short_description || '').slice(0, 240),
       isFree:       !!d.is_free,
-      // Strip Steam's [b]/[i] markup from short_description for cleaner
-      // Discord rendering. Most appdetails responses don't carry it
-      // but a handful do.
       _raw: undefined,
       price: d.price_overview ? {
         initial:        d.price_overview.initial,            // cents
@@ -98,17 +99,18 @@ function priceLine(meta) {
   return `💰 **${p.finalPretty || ('$' + (p.final / 100).toFixed(2))}**`;
 }
 
+// Compact embed: title (linked) + 1-line price as description +
+// small capsule as thumbnail. Renders at ~1/3 the height of the
+// banner-style embed it replaced. Sale games take the pink accent
+// so they still pop in a long list.
 function buildGameEmbed(meta) {
   const onSale = !!(meta.price && meta.price.discount > 0);
   return {
     title: meta.name,
     url:   `https://store.steampowered.com/app/${meta.appId}/`,
+    description: priceLine(meta),
     color: onSale ? BRAND_PINK : BRAND_VIOLET,
-    image: meta.header ? { url: meta.header } : undefined,
-    fields: [
-      { name: 'Price', value: priceLine(meta), inline: false },
-    ],
-    footer: { text: `Steam · App ${meta.appId}` },
+    thumbnail: meta.capsule ? { url: meta.capsule } : undefined,
   };
 }
 
