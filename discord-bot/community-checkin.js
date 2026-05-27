@@ -392,7 +392,12 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   //   • First-time-with-no-card adds the "customise your card" hint.
   const lines = [];
   const composedMessage = String(opts.message || '').trim();
-  if (composedMessage) lines.push(`💬 _${composedMessage.slice(0, 300)}_`);
+  // Discord renders `> text` as a blockquote with a coloured left
+  // rail — visually quotes the user's typed message and lifts it
+  // above the streak/XP/bolts pills. Sits at the top of the
+  // description (right under the author header). Per Clay's spec
+  // (quote-style + italicized + near author).
+  if (composedMessage) lines.push(`> _${composedMessage.slice(0, 300)}_`);
   if (card?.headline) lines.push(`_${card.headline}_`);
   lines.push(`🔥 **${state.streak}-day streak**` + (state.longest > state.streak ? `  · best ${state.longest}` : ''));
   if (card?.subtitle) lines.push(card.subtitle);
@@ -924,10 +929,15 @@ export async function handleCheckinPickSubmit(env, data) {
               const lines = desc.split('\n');
               // First italic line was the prior message — replace it.
               // Otherwise prepend a fresh one.
-              if (lines[0] && /^💬 _.+_$/.test(lines[0])) {
-                lines[0] = `💬 _${message.slice(0, 300)}_`;
+              // Blockquote-style replacement (matches the post-time
+              // format above). Detects either the legacy `💬 _msg_`
+              // prefix OR the new `> _msg_` prefix so re-saves on
+              // a pre-existing same-day card don't double-line.
+              const blockquoteLike = (s) => /^> _.+_$/.test(s) || /^💬 _.+_$/.test(s);
+              if (lines[0] && blockquoteLike(lines[0])) {
+                lines[0] = `> _${message.slice(0, 300)}_`;
               } else {
-                lines.unshift(`💬 _${message.slice(0, 300)}_`);
+                lines.unshift(`> _${message.slice(0, 300)}_`);
               }
               head.description = lines.join('\n');
             }

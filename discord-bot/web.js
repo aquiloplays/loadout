@@ -210,6 +210,10 @@ const ROUTES = new Set([
   'checkin/status',          // POST — read streak + card + pending bonuses
   'checkin/card',            // POST — upsert the user's embed card config
   'checkin/bonus/collect',   // POST — claim one bonus (or 'all')
+  // Boltbound per-user card art override (meme-GIF skin layer).
+  // Pre-rendering rollout — schema + API + editor land first; the
+  // card-display switch happens in a follow-up.
+  'cards/art-override',      // POST — { op: 'get'|'set'|'clear'|'list', cardId, url? }
   // New-viewer funnel — referrals + onboarding quest.
   'referral/me',             // POST — my code + stats
   'referral/attribute',      // POST — record that this user was referred by CODE
@@ -357,6 +361,7 @@ export async function handleWeb(req, env) {
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
     if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
     if (route === 'checkin/bonus/collect') return await routeCommunityCheckinBonusCollect(env, guildId, discordId, body);
+    if (route === 'cards/art-override')    return await routeCardsArtOverride(env, guildId, discordId, body);
     if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
@@ -1853,6 +1858,39 @@ async function routeCommunityCheckinCard(env, guildId, discordId, body) {
   }
   const r = await putCard(env, guildId, discordId, body?.card || {});
   return json(r, r.ok ? 200 : 400);
+}
+
+// Boltbound per-user card art override. POST shape:
+//   { op: 'get',   cardId }              → return current override (or null)
+//   { op: 'set',   cardId, url }         → validate + save
+//   { op: 'clear', cardId }              → drop the override
+//   { op: 'list' }                       → list every override for this user
+// Validation in cards-art-override.js — HTTPS only, host-allow-listed,
+// HEAD-checked Content-Type=image/gif, size ≤ 5 MB. Rendering switch
+// to the override lands in a follow-up (per Clay 2026-05).
+async function routeCardsArtOverride(env, guildId, discordId, body) {
+  const op = String((body && body.op) || 'get').toLowerCase();
+  const m = await import('./cards-art-override.js');
+  if (op === 'list') {
+    const items = await m.listOverridesForUser(env, guildId, discordId);
+    return json({ ok: true, overrides: items });
+  }
+  const cardId = String((body && body.cardId) || '').trim();
+  if (!cardId) return json({ ok: false, error: 'cardId-required' }, 400);
+  if (op === 'get') {
+    const rec = await m.getOverride(env, guildId, discordId, cardId);
+    return json({ ok: true, override: rec || null });
+  }
+  if (op === 'set') {
+    const url = String((body && body.url) || '').trim();
+    const r = await m.setOverride(env, guildId, discordId, cardId, url);
+    return json(r, r.ok ? 200 : 400);
+  }
+  if (op === 'clear') {
+    const r = await m.clearOverride(env, guildId, discordId, cardId);
+    return json(r);
+  }
+  return json({ ok: false, error: 'bad-op', allowed: ['get', 'set', 'clear', 'list'] }, 400);
 }
 
 async function routeCommunityCheckinBonusCollect(env, guildId, discordId, body) {
