@@ -2183,10 +2183,19 @@ async function handleCountingPurgeBotMessages(req, env, path) {
 }
 
 // ── /admin/rules/rebuild/:guildId (HMAC) ──────────────────────────
-// Body: { channelId, body, deletePriorBotText: true }
-// Scans the channel; first bot/webhook message that has NO image
-// attachment gets deleted (assumed = old rules text). Posts the
-// new body. Stamps id at rules:msg:<g>.
+// Body: { channelId,
+//         body?        — plain-text rules (used when embed is omitted),
+//         embed?       — Discord embed object (title, description, color, ...),
+//         withVerify?: true — append a ✅ Verify button row (custom_id: guild:verify)
+//       }
+//
+// Resolution:
+//   1. Delete the prior rules post tracked at rules:msg:<g>
+//      (preferred — that's our own stamp, no scan needed)
+//   2. ELSE scan recent messages and delete the first bot/webhook
+//      TEXT message (no image attachment, content > 20 chars)
+//   3. Post the new body or embed (+ optional Verify button)
+//   4. Stamp the new id at rules:msg:<g>
 async function handleRulesRebuild(req, env, path) {
   const parts = path.split('/').filter(Boolean);
   const guildId = parts[3];
@@ -2199,54 +2208,77 @@ async function handleRulesRebuild(req, env, path) {
   try { opts = body ? JSON.parse(body) : {}; }
   catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
   const channelId = String(opts.channelId || '').trim();
-  const newBody = String(opts.body || '').trim();
-  if (!channelId || !newBody) {
-    return jsonResp({ ok: false, error: 'channelId + body required' }, 400);
+  if (!channelId) return jsonResp({ ok: false, error: 'channelId required' }, 400);
+  if (!opts.body && !opts.embed) {
+    return jsonResp({ ok: false, error: 'body or embed required' }, 400);
   }
-  // List recent messages
-  const listRes = await fetch(
-    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages?limit=50`,
-    { headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } });
-  if (!listRes.ok) {
-    return jsonResp({ ok: false, error: 'list-failed', status: listRes.status,
-      body: (await listRes.text()).slice(0, 200) }, 502);
-  }
-  const messages = await listRes.json();
-  // Find the prior bot/webhook TEXT message — has content, NO image attachments
-  let prior = null;
-  for (const m of messages) {
-    const isBot = m.author?.bot === true || !!m.webhook_id;
-    if (!isBot) continue;
-    const hasImage = (m.attachments || []).some(a =>
-      /\.(png|jpe?g|gif|webp)$/i.test(String(a.filename || '')));
-    if (hasImage) continue;
-    if (!m.content || m.content.length < 20) continue;
-    prior = m; break;
-  }
+
+  const H = { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN };
+
+  // 1) Delete the prior tracked post if we have its id stamped
   let deletedId = null;
-  if (prior) {
+  const stampKey = `rules:msg:${guildId}`;
+  const stamp = await env.LOADOUT_BOLTS.get(stampKey, { type: 'json' });
+  if (stamp && stamp.messageId && stamp.channelId === channelId) {
     const del = await fetch(
-      `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages/${prior.id}`,
-      { method: 'DELETE', headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } });
-    if (del.ok || del.status === 204) deletedId = prior.id;
+      `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages/${stamp.messageId}`,
+      { method: 'DELETE', headers: H });
+    if (del.ok || del.status === 204 || del.status === 404) deletedId = stamp.messageId;
+  } else {
+    // 2) No stamp — scan + delete first bot text message (no image)
+    const listRes = await fetch(
+      `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages?limit=50`,
+      { headers: H });
+    if (listRes.ok) {
+      const messages = await listRes.json();
+      const prior = messages.find(m => {
+        const isBot = m.author?.bot === true || !!m.webhook_id;
+        if (!isBot) return false;
+        const hasImage = (m.attachments || []).some(a =>
+          /\.(png|jpe?g|gif|webp)$/i.test(String(a.filename || '')));
+        if (hasImage) return false;
+        return m.content && m.content.length >= 20;
+      });
+      if (prior) {
+        const del = await fetch(
+          `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages/${prior.id}`,
+          { method: 'DELETE', headers: H });
+        if (del.ok || del.status === 204) deletedId = prior.id;
+      }
+    }
   }
-  // Post the new body
+
+  // 3) Build + post the new message
+  const payload = { allowed_mentions: { parse: [] } };
+  if (opts.embed) payload.embeds = [opts.embed];
+  if (opts.body)  payload.content = String(opts.body);
+  if (opts.withVerify) {
+    payload.components = [{
+      type: 1,
+      components: [{
+        type: 2, style: 3,        // GREEN button
+        label: '✅ Verify',
+        custom_id: 'guild:verify',
+      }],
+    }];
+  }
   const postRes = await fetch(
     `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
     { method: 'POST',
-      headers: { 'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN,
-                 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: newBody, allowed_mentions: { parse: [] } }) });
+      headers: { ...H, 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload) });
   if (!postRes.ok) {
     return jsonResp({ ok: false, error: 'post-failed', status: postRes.status,
       body: (await postRes.text()).slice(0, 200), deletedId }, 502);
   }
   const newMsg = await postRes.json();
-  await env.LOADOUT_BOLTS.put(`rules:msg:${guildId}`, JSON.stringify({
+  await env.LOADOUT_BOLTS.put(stampKey, JSON.stringify({
     messageId: newMsg.id, channelId, postedAt: Date.now(),
+    shape: opts.embed ? 'embed' : 'text',
+    withVerify: !!opts.withVerify,
   }));
   return jsonResp({ ok: true, channelId, deletedId,
-    newMessageId: newMsg.id, via: auth.via }, 200);
+    newMessageId: newMsg.id, withVerify: !!opts.withVerify, via: auth.via }, 200);
 }
 
 // ── /admin/perms/lockdown/:guildId (HMAC) ─────────────────────────
