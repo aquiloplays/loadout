@@ -70,14 +70,54 @@ export const PHASE = Object.freeze({
 
 export async function getConfig(env, guildId) {
   const raw = await env.LOADOUT_BOLTS.get(HUB_CONFIG_KEY(guildId), { type: 'json' });
+  // v2 schedule (May 2026): Variety is STATIC (no vote — Wed + Fri
+  // are streamer's pick), CN is the only voted event. The CN vote
+  // window now spans multiple days, so the open/close points are
+  // each their own weekday+hour. Queue opens on its own
+  // weekday+hour after the vote closes.
   return {
-    varietyWeekday: raw?.varietyWeekday || null,   // null = no variety scheduled
-    cnWeekday:      raw?.cnWeekday      || 'saturday',
-    // ET hours when a vote opens / closes. Exposed so admins can
-    // tweak via /admin/vote-hub/config without code changes.
-    openHourEt:     Number.isInteger(raw?.openHourEt)  ? raw.openHourEt  : 18,
-    closeHourEt:    Number.isInteger(raw?.closeHourEt) ? raw.closeHourEt : 21,
+    // Legacy field — kept on the record but no longer drives any
+    // transition (variety is static now). Setting it back to a
+    // weekday is a no-op until tickPhaseTransition's variety branch
+    // is reinstated.
+    varietyWeekday: raw?.varietyWeekday || null,
+
+    // CN voting window — multi-day allowed.
+    cnVoteOpenWeekday:   raw?.cnVoteOpenWeekday   || 'wednesday',
+    cnVoteOpenHourEt:    Number.isInteger(raw?.cnVoteOpenHourEt)
+                            ? raw.cnVoteOpenHourEt : 12,
+    cnVoteCloseWeekday:  raw?.cnVoteCloseWeekday  || 'friday',
+    cnVoteCloseHourEt:   Number.isInteger(raw?.cnVoteCloseHourEt)
+                            ? raw.cnVoteCloseHourEt : 23,
+    // CN queue opens its own day/hour, separate from the vote close.
+    cnQueueOpenWeekday:  raw?.cnQueueOpenWeekday  || 'saturday',
+    cnQueueOpenHourEt:   Number.isInteger(raw?.cnQueueOpenHourEt)
+                            ? raw.cnQueueOpenHourEt : 12,
+
+    // Legacy single-window fields — preserved for back-compat with
+    // any caller that still reads them. Default-aligned to the new
+    // CN values but tickPhaseTransition no longer uses them.
+    cnWeekday:      raw?.cnWeekday      || raw?.cnVoteOpenWeekday || 'wednesday',
+    openHourEt:     Number.isInteger(raw?.openHourEt)  ? raw.openHourEt  : 12,
+    closeHourEt:    Number.isInteger(raw?.closeHourEt) ? raw.closeHourEt : 23,
   };
+}
+
+// "Minute of week" — 0 at Sunday 00:00 ET, max 10079 at Sat 23:59 ET.
+// Used by the multi-day window check below.
+function minuteOfWeek(weekday, hourEt) {
+  return DAY_NAMES.indexOf(String(weekday).toLowerCase()) * 1440 + hourEt * 60;
+}
+// Is the current ET clock within [openWd openHr, closeWd closeHr)?
+// Wraps around the week boundary if needed.
+function isInWindow(et, openWd, openHr, closeWd, closeHr) {
+  const now   = minuteOfWeek(et.weekday, et.hour);
+  const open  = minuteOfWeek(openWd, openHr);
+  const close = minuteOfWeek(closeWd, closeHr);
+  if (open === close) return false;
+  if (open < close)  return now >= open && now < close;
+  // Wrap: e.g. Sat-noon open → Tue-noon close
+  return now >= open || now < close;
 }
 
 export async function setConfig(env, guildId, patch) {
@@ -96,6 +136,23 @@ export async function setConfig(env, guildId, patch) {
   }
   if (patch.openHourEt  !== undefined) next.openHourEt  = Math.max(0, Math.min(23, Number(patch.openHourEt) || 18));
   if (patch.closeHourEt !== undefined) next.closeHourEt = Math.max(0, Math.min(23, Number(patch.closeHourEt) || 21));
+  // v2 CN window fields — multi-day voting + separate queue open.
+  for (const [src, dst] of [
+    ['cnVoteOpenWeekday',  'cnVoteOpenWeekday'],
+    ['cnVoteCloseWeekday', 'cnVoteCloseWeekday'],
+    ['cnQueueOpenWeekday', 'cnQueueOpenWeekday'],
+  ]) {
+    if (patch[src] !== undefined) {
+      const v = String(patch[src]).toLowerCase();
+      if (!DAY_NAMES.includes(v)) return { ok: false, error: 'bad-' + src };
+      next[dst] = v;
+    }
+  }
+  for (const k of ['cnVoteOpenHourEt', 'cnVoteCloseHourEt', 'cnQueueOpenHourEt']) {
+    if (patch[k] !== undefined) {
+      next[k] = Math.max(0, Math.min(23, Number(patch[k]) || 12));
+    }
+  }
   await env.LOADOUT_BOLTS.put(HUB_CONFIG_KEY(guildId), JSON.stringify(next));
   return { ok: true, config: next };
 }
@@ -414,38 +471,34 @@ export async function tickPhaseTransition(env, guildId) {
   const state  = await getState(env, guildId);
   const et = getETInfo(new Date());
 
-  let desired = state.phase;
-  // Variety transitions.
-  if (config.varietyWeekday && et.weekday === config.varietyWeekday) {
-    if (et.hour >= config.openHourEt && et.hour < config.closeHourEt) {
-      desired = PHASE.VARIETY_OPEN;
-    } else if (et.hour >= config.closeHourEt && et.hour < config.closeHourEt + 3) {
-      desired = PHASE.VARIETY_CLOSED;
-    }
-  }
-  // CN transitions take precedence on the CN weekday — if CN and
-  // variety land on the same day (unusual but allowed), CN wins.
-  if (et.weekday === config.cnWeekday) {
-    if (et.hour >= config.openHourEt && et.hour < config.closeHourEt) {
-      desired = PHASE.CN_OPEN;
-    } else if (et.hour >= config.closeHourEt && et.hour < config.closeHourEt + 1) {
-      // 1-hour window right at close: announce winner, then move
-      // straight to queue on the next tick.
-      desired = PHASE.CN_CLOSED;
-    } else if (et.hour >= config.closeHourEt + 1 && et.hour < 24) {
-      desired = PHASE.CN_QUEUE;
-    }
-  }
-  // Fall-through default: closed.
+  // v2 schedule (May 2026):
+  //   • Variety Night = static (Wed + Fri) — no vote, no phase
+  //   • CN voting window = cnVoteOpen → cnVoteClose (Wed noon ET
+  //     → Fri 23:00 ET in current config)
+  //   • CN_CLOSED = 1-hour announce window right at vote close
+  //   • CN_QUEUE  = from cnQueueOpen onwards (Sat noon ET) until
+  //     the next CN vote-open boundary wraps around
+  let desired = PHASE.CLOSED;
+  const inVote = isInWindow(et,
+    config.cnVoteOpenWeekday,  config.cnVoteOpenHourEt,
+    config.cnVoteCloseWeekday, config.cnVoteCloseHourEt);
+  // 1-hour close window right after the vote closes.
+  const inClose = isInWindow(et,
+    config.cnVoteCloseWeekday, config.cnVoteCloseHourEt,
+    config.cnVoteCloseWeekday, (config.cnVoteCloseHourEt + 1) % 24);
+  // Queue window: from queue-open until the next vote-open wraps.
+  const inQueue = isInWindow(et,
+    config.cnQueueOpenWeekday, config.cnQueueOpenHourEt,
+    config.cnVoteOpenWeekday,  config.cnVoteOpenHourEt);
+
+  if (inVote)        desired = PHASE.CN_OPEN;
+  else if (inClose)  desired = PHASE.CN_CLOSED;
+  else if (inQueue)  desired = PHASE.CN_QUEUE;
   if (desired === state.phase) {
     // Same phase — no-op (saves a Discord edit).
     return { phase: state.phase, transitioned: false };
   }
   // Phase changing — tally winner on close transitions.
-  if (desired === PHASE.VARIETY_CLOSED && state.phase === PHASE.VARIETY_OPEN) {
-    const winner = await tallyAndStoreWinner(env, guildId, 'variety');
-    state.varietyPollId = winner?.gameId || null;
-  }
   if (desired === PHASE.CN_CLOSED && state.phase === PHASE.CN_OPEN) {
     const winner = await tallyAndStoreWinner(env, guildId, 'cn');
     state.cnPollId = winner?.gameId || null;

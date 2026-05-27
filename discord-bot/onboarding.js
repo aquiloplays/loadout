@@ -71,7 +71,7 @@ export const INTERESTS = Object.freeze([
 // Ordered step machine — drives next/back navigation + the funnel
 // counter buckets. Each id is also the `step` value persisted in
 // `onboard:state:<g>:<u>`.
-export const STEP_ORDER = ['welcome', 'interests', 'links', 'character', 'tour', 'complete'];
+export const STEP_ORDER = ['welcome', 'interests', 'links', 'character', 'age18', 'tour', 'complete'];
 
 // Discord component constants — mirrored from util.js / character.js
 // for callsite isolation.
@@ -445,8 +445,45 @@ async function viewCharacter(env, guildId) {
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Skip', custom_id: 'onb:step:tour' },
+          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Skip', custom_id: 'onb:step:age18' },
           { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Next ▶︎', custom_id: 'onb:advance:character' },
+        ],
+      },
+    ],
+  };
+}
+
+// ── 18+ age-gate step ───────────────────────────────────────────────
+//
+// Strict warning copy — Discord ToS requires age verification for
+// access to age-restricted content (we honour it via channel `nsfw:
+// true` + role gate). The "Yes, I'm 18+" button grants the role
+// stored at guild:cfg.ids.role_age18 (provisioned by
+// /admin/discord/setup-18plus). Every grant gets logged to
+// guild:cfg.ids.ch_mod_log with a per-user audit trail.
+async function viewAge18(env, guildId) {
+  const brand = await getBranding(env, guildId);
+  return {
+    flags: FLAG_EPHEMERAL,
+    embeds: [{
+      title: '🔞 Are you 18 or older?',
+      description:
+        `Aquilo has a small **18+** chat area for adult conversations.\n` +
+        `It's tucked away in its own category — you won't see it unless ` +
+        `you opt in here.\n\n` +
+        `**⚠ Critical:** By claiming the 18+ role while under 18, you will be ` +
+        `**permanently banned** from the server. This is non-negotiable — ` +
+        `Discord's Terms of Service require us to enforce it.\n\n` +
+        `Totally fine to skip this step if you'd rather not engage with ` +
+        `the 18+ side. Nothing else in onboarding depends on it.`,
+      color: 0xff6ab5,   // brand pink — matches the role color
+    }],
+    components: [
+      {
+        type: COMPONENT_ROW,
+        components: [
+          { type: COMPONENT_BUTTON, style: BTN_SUCCESS, label: "Yes, I'm 18+", custom_id: 'onb:age18:yes' },
+          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'No / Skip',  custom_id: 'onb:age18:no'  },
         ],
       },
     ],
@@ -564,6 +601,7 @@ async function viewForStep(env, guildId, userId, state) {
     case 'interests': return viewInterests(env, guildId, state);
     case 'links':     return viewLinks(env, guildId);
     case 'character': return viewCharacter(env, guildId);
+    case 'age18':     return viewAge18(env, guildId);
     case 'tour':      return viewTour(env, guildId);
     case 'complete':  return viewAlreadyOnboarded(env, guildId, userId, state);
     case 'welcome':
@@ -618,6 +656,51 @@ export async function handleOnboardComponent(env, data) {
       await putState(env, guildId, userId, state);
       return { type: RESP_UPDATE_MSG, data: await viewForStep(env, guildId, userId, state) };
     }
+  }
+
+  // 18+ age-gate click handlers. Yes → grant role + log to mod-log;
+  // No → skip cleanly. Both advance state to the next step (tour).
+  if (action === 'age18') {
+    const choice = segs[2];
+    const cfg = await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' });
+    const roleId  = cfg?.ids?.role_age18;
+    const modLog  = cfg?.ids?.ch_mod_log;
+    if (choice === 'yes') {
+      if (!roleId) {
+        return { type: RESP_CHAT, data: { content: '18+ role not configured yet — ping a mod.', flags: FLAG_EPHEMERAL } };
+      }
+      // PUT is idempotent — re-clicking just re-grants the same role.
+      const r = await fetch(
+        `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
+        { method: 'PUT',
+          headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+                     'X-Audit-Log-Reason': 'Aquilo 18+ self-grant via onboarding' } });
+      if (!r.ok && r.status !== 204) {
+        return { type: RESP_CHAT, data: { content: `Couldn't grant the role (${r.status}). Ping a mod.`, flags: FLAG_EPHEMERAL } };
+      }
+      // Audit log — fire-and-forget; the user's flow keeps moving
+      // even if mod-log isn't configured.
+      if (modLog) {
+        const username = data?.member?.user?.username || data?.user?.username || 'unknown';
+        const ts = Math.floor(Date.now() / 1000);
+        fetch(
+          `https://discord.com/api/v10/channels/${encodeURIComponent(modLog)}/messages`,
+          { method: 'POST',
+            headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+                       'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: `🔞 **18+ self-grant** — <@${userId}> (${username}, id \`${userId}\`) claimed the 18+ role at <t:${ts}:F>.\n` +
+                       `If their account looks under 18, ban per the onboarding warning copy.`,
+              allowed_mentions: { parse: [] },
+            }),
+          }).catch(() => {});
+      }
+    }
+    // Either choice advances past age18.
+    await markStepDone(env, guildId, userId, state, 'age18');
+    state.step = 'tour';
+    await putState(env, guildId, userId, state);
+    return { type: RESP_UPDATE_MSG, data: await viewTour(env, guildId) };
   }
 
   // Interest multi-select submit. Updates `choices.interests` +

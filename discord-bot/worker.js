@@ -296,6 +296,17 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/release-notes/post/')) {
       return handleReleaseNotesPost(req, env, path);
     }
+    // Provision the 18+ role + category + age-restricted channel
+    // (idempotent — reuses any matching role/channel found by name).
+    if (method === 'POST' && path.startsWith('/admin/discord/setup-18plus/')) {
+      return handleSetup18Plus(req, env, path);
+    }
+    // Create a locked text channel (post-only by configured roles)
+    // under a given category. Used for #community-night-games and
+    // similar staff-broadcast channels.
+    if (method === 'POST' && path.startsWith('/admin/discord/create-locked-channel/')) {
+      return handleCreateLockedChannel(req, env, path);
+    }
     // Seed guild:join-counter:<g> from Discord's
     // approximate_member_count so the first observed new member
     // doesn't display "1st member" in a pre-existing guild. See
@@ -2426,6 +2437,207 @@ async function handleReleaseNotesPost(req, env, path) {
   }));
   return jsonResp({ ok: true, product, version, channelId,
     priorDeletedId, newMessageId: newMsg.id, kvKey, via: auth.via }, 200);
+}
+
+// ── /admin/discord/setup-18plus/:guildId (HMAC) ───────────────────
+// Creates (or reuses) a 18+ role, a 18+ category, and an
+// age-restricted text channel inside it. @everyone is denied
+// VIEW_CHANNEL on the category; the 18+ role + all modAllowRoles
+// can view. The channel inherits.
+//
+// Body: { roleName?: "18+", categoryName?: "18+", channelName?: "18-plus-chat",
+//         modAllowRoleIds?: ["...","..."] }
+async function handleSetup18Plus(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const roleName     = String(opts.roleName     || '18+').slice(0, 64);
+  const categoryName = String(opts.categoryName || '18+').slice(0, 64);
+  const channelName  = String(opts.channelName  || '18-plus-chat').slice(0, 64);
+  const modAllow     = Array.isArray(opts.modAllowRoleIds) ? opts.modAllowRoleIds.map(String) : [];
+
+  const H = { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN };
+  const report = { steps: {} };
+
+  // 1) Role — find by name or create. No extra permissions (the role
+  // itself is purely a visibility gate; we apply view perms on the
+  // channel).
+  const rolesRes = await fetch(
+    `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/roles`,
+    { headers: H });
+  if (!rolesRes.ok) return jsonResp({ ok: false, error: 'roles-fetch-failed', status: rolesRes.status }, 502);
+  const existingRoles = await rolesRes.json();
+  let role = existingRoles.find(r => r.name?.toLowerCase() === roleName.toLowerCase() && !r.managed && String(r.id) !== String(guildId));
+  if (!role) {
+    const createR = await fetch(
+      `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/roles`,
+      { method: 'POST',
+        headers: { ...H, 'Content-Type': 'application/json',
+                   'X-Audit-Log-Reason': 'Aquilo 18+ provisioning' },
+        body: JSON.stringify({
+          name: roleName, permissions: '0',
+          color: 0xff6ab5, hoist: false, mentionable: false,
+        }) });
+    if (!createR.ok) return jsonResp({ ok: false, error: 'role-create-failed',
+      status: createR.status, body: (await createR.text()).slice(0, 200) }, 502);
+    role = await createR.json();
+    report.steps.role = { created: true, id: role.id, name: role.name };
+  } else {
+    report.steps.role = { reused: true, id: role.id, name: role.name };
+  }
+
+  // 2) Category — find by name or create with view-deny @everyone + view-allow role
+  const channelsRes = await fetch(
+    `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`,
+    { headers: H });
+  if (!channelsRes.ok) return jsonResp({ ok: false, error: 'channels-fetch-failed' }, 502);
+  const allCh = await channelsRes.json();
+  const VIEW_BIT = '1024';   // VIEW_CHANNEL = 0x400
+  let category = allCh.find(c => c.type === 4 && c.name?.toLowerCase() === categoryName.toLowerCase());
+  const baseOverwrites = [
+    { id: guildId,   type: 0, allow: '0', deny: VIEW_BIT },                // @everyone deny view
+    { id: role.id,   type: 0, allow: VIEW_BIT, deny: '0' },                // 18+ role view
+    ...modAllow.map(rid => ({ id: rid, type: 0, allow: VIEW_BIT, deny: '0' })),
+  ];
+  if (!category) {
+    const createC = await fetch(
+      `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`,
+      { method: 'POST',
+        headers: { ...H, 'Content-Type': 'application/json',
+                   'X-Audit-Log-Reason': 'Aquilo 18+ provisioning' },
+        body: JSON.stringify({
+          name: categoryName, type: 4,
+          permission_overwrites: baseOverwrites,
+        }) });
+    if (!createC.ok) return jsonResp({ ok: false, error: 'category-create-failed',
+      status: createC.status, body: (await createC.text()).slice(0, 200), report }, 502);
+    category = await createC.json();
+    report.steps.category = { created: true, id: category.id, name: category.name };
+  } else {
+    // Re-apply overwrites in case the existing category is misconfigured
+    for (const ov of baseOverwrites) {
+      await fetch(
+        `https://discord.com/api/v10/channels/${encodeURIComponent(category.id)}/permissions/${encodeURIComponent(ov.id)}`,
+        { method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type: ov.type, allow: ov.allow, deny: ov.deny }) });
+    }
+    report.steps.category = { reused: true, id: category.id, name: category.name };
+  }
+
+  // 3) Age-restricted text channel inside the category
+  let channel = allCh.find(c => c.type === 0 && c.parent_id === category.id &&
+                                c.name?.toLowerCase().includes(channelName.toLowerCase().slice(0, 12)));
+  if (!channel) {
+    const createT = await fetch(
+      `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`,
+      { method: 'POST',
+        headers: { ...H, 'Content-Type': 'application/json',
+                   'X-Audit-Log-Reason': 'Aquilo 18+ provisioning' },
+        body: JSON.stringify({
+          name: channelName, type: 0, parent_id: category.id,
+          nsfw: true,
+          topic: 'Age-restricted chat. By being here you confirm you are 18+.',
+        }) });
+    if (!createT.ok) return jsonResp({ ok: false, error: 'channel-create-failed',
+      status: createT.status, body: (await createT.text()).slice(0, 200), report }, 502);
+    channel = await createT.json();
+    report.steps.channel = { created: true, id: channel.id, name: channel.name, nsfw: true };
+  } else {
+    // Ensure nsfw: true
+    if (!channel.nsfw) {
+      await fetch(
+        `https://discord.com/api/v10/channels/${encodeURIComponent(channel.id)}`,
+        { method: 'PATCH', headers: { ...H, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nsfw: true }) });
+    }
+    report.steps.channel = { reused: true, id: channel.id, name: channel.name };
+  }
+
+  // 4) Stamp ids in guild:cfg.ids so onboarding step + mod log path
+  //    can resolve them later.
+  const cfgKey = `guild:cfg:${guildId}`;
+  const cfg = (await env.LOADOUT_BOLTS.get(cfgKey, { type: 'json' })) || { ids: {} };
+  cfg.ids = cfg.ids || {};
+  cfg.ids.role_age18      = role.id;
+  cfg.ids.cat_age18       = category.id;
+  cfg.ids.ch_age18        = channel.id;
+  await env.LOADOUT_BOLTS.put(cfgKey, JSON.stringify(cfg));
+  report.steps.guild_cfg_stamped = {
+    role_age18: role.id, cat_age18: category.id, ch_age18: channel.id,
+  };
+
+  return jsonResp({ ok: true, ...report, via: auth.via }, 200);
+}
+
+// ── /admin/discord/create-locked-channel/:guildId (HMAC) ──────────
+// Body: { categoryId, channelName, topic?, allowSendRoleIds: [] }
+// Creates a text channel; @everyone keeps VIEW + read but loses
+// SEND_MESSAGES; the listed roles get SEND_MESSAGES allow.
+async function handleCreateLockedChannel(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const categoryId  = String(opts.categoryId || '').trim();
+  const channelName = String(opts.channelName || '').trim().slice(0, 64);
+  const topic       = String(opts.topic || '').slice(0, 1024);
+  const allowSend   = Array.isArray(opts.allowSendRoleIds) ? opts.allowSendRoleIds.map(String) : [];
+  if (!categoryId || !channelName || allowSend.length === 0) {
+    return jsonResp({ ok: false, error: 'categoryId + channelName + allowSendRoleIds required' }, 400);
+  }
+
+  const H = { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN };
+  // Find existing or create
+  const chRes = await fetch(
+    `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`,
+    { headers: H });
+  if (!chRes.ok) return jsonResp({ ok: false, error: 'channels-fetch-failed' }, 502);
+  const allCh = await chRes.json();
+  let channel = allCh.find(c => c.type === 0 && c.parent_id === categoryId &&
+                                c.name?.toLowerCase() === channelName.toLowerCase());
+  const SEND_BIT = '2048';   // 0x800 SEND_MESSAGES
+  const overwrites = [
+    { id: guildId, type: 0, allow: '0', deny: SEND_BIT },                  // @everyone deny send
+    ...allowSend.map(rid => ({ id: rid, type: 0, allow: SEND_BIT, deny: '0' })),
+  ];
+  if (!channel) {
+    const create = await fetch(
+      `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`,
+      { method: 'POST',
+        headers: { ...H, 'Content-Type': 'application/json',
+                   'X-Audit-Log-Reason': 'Aquilo locked-channel provisioning' },
+        body: JSON.stringify({
+          name: channelName, type: 0, parent_id: categoryId,
+          topic, permission_overwrites: overwrites,
+        }) });
+    if (!create.ok) return jsonResp({ ok: false, error: 'channel-create-failed',
+      status: create.status, body: (await create.text()).slice(0, 200) }, 502);
+    channel = await create.json();
+    return jsonResp({ ok: true, created: true, id: channel.id, name: channel.name,
+      via: auth.via }, 200);
+  }
+  // Re-apply overwrites
+  for (const ov of overwrites) {
+    await fetch(
+      `https://discord.com/api/v10/channels/${encodeURIComponent(channel.id)}/permissions/${encodeURIComponent(ov.id)}`,
+      { method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: ov.type, allow: ov.allow, deny: ov.deny }) });
+  }
+  return jsonResp({ ok: true, reused: true, id: channel.id, name: channel.name,
+    via: auth.via }, 200);
 }
 
 // ── /admin/counting/reset/:guildId (HMAC) ─────────────────────────
