@@ -1,119 +1,69 @@
 """
 One-shot test composite for the check-in v2 embed (variant C).
 
-Fetches a background and a sample GIF, composites the GIF centered
-over the background at ~35% canvas width with a soft radial vignette
-behind it for legibility, per-frame, and re-exports as an animated
-GIF. Saves to discord-bot/assets/ + base64 for upload to the worker's
-/admin/checkin-v2/test-post endpoint.
+Composite pipeline:
+  1. Load the background — either:
+       (a) fetched animated GIF (the aquilo-site session is
+           pre-rendering the firefly-effect bg as a 1200×675 looping
+           GIF; URL passes in as CLI arg or via the bg list endpoint
+           once that lands), OR
+       (b) the local violet+fireflies PLACEHOLDER (single-frame for
+           backwards compat; multi-frame if FIREFLY_PLACEHOLDER_FRAMES
+           > 1 so the placeholder also animates).
+  2. Load the user's chosen GIF.
+  3. Composite frame-by-frame: each output frame pairs the next bg
+     frame (looped to match) with the next user-gif frame (also
+     looped), centered with a soft radial vignette behind the user's
+     gif for legibility. Output frame count = MAX_FRAMES, output
+     duration = LCM-ish of source loops, capped at MAX_DURATION_MS.
 
-Defaults are tuned for the variant C mockup spec (1200×675 bg,
-~35% gif width, soft vignette). Override via CLI args:
-  python build-checkin-v2-test.py [bg_url] [gif_url]
+Save targets:
+  discord-bot/assets/checkin-v2-test.gif      (the composite)
+  discord-bot/assets/checkin-v2-test.b64.txt  (base64 for upload)
+
+CLI:
+  python build-checkin-v2-test.py [bg_url_or_path] [gif_url]
+  Sentinels for bg_url:
+    __firefly_placeholder__   → generated violet+fireflies stand-in
 """
 
 import base64
 import io
+import math
 import os
+import random
 import sys
 import urllib.request
 from PIL import Image, ImageDraw, ImageFilter, ImageSequence
 
-DEFAULT_BG_URL  = "https://aquilo.gg/sprites/checkin/default-card.png"
-DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8gqVrxZTAqI/giphy.gif"  # generic "yes!" celebration
+DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8gqVrxZTAqI/giphy.gif"
 
 # Variant C target: 1200×675. Discord caps bot file uploads at 10 MB
-# (server-boost tiers raise to 25/50, but the loadout-discord bot
-# doesn't benefit from those). Composite at half-res (600×337) for
-# the test send so the file fits — final production rendering can run
-# at full res via the sidecar service since that path uploads bytes
-# to a CDN, not Discord's attachment limit.
+# for non-boosted servers; composite at half-res for the test send.
+# The production sidecar renderer will run at full 1200×675 because
+# its output uploads to a CDN, not Discord's attachment limit.
 CANVAS_W = 600
 CANVAS_H = 337
-# Bumped 0.35 → 0.55 on Clay's iteration — make the GIF more
-# prominent. Still centered, still has a vignette behind it.
+# Bumped 0.35 → 0.55 on Clay's iteration — make the GIF the focal
+# point. Still centered, still has a vignette behind it.
 GIF_WIDTH_RATIO = 0.55
-# Cap frames to keep file under Discord's 10 MB limit.
+# Discord's 10 MB cap forces a tight frame budget.
 MAX_FRAMES = 40
-# Sentinel URL — when passed, generate a firefly placeholder bg
-# locally instead of fetching. Used while the aquilo-site session
-# restores the real firefly-effect background picker.
+# Multi-frame firefly placeholder so even without the real asset
+# the composite shows motion. 12 frames × ~80ms ≈ 1s loop.
+FIREFLY_PLACEHOLDER_FRAMES = 12
+FIREFLY_PLACEHOLDER_FRAME_MS = 80
+
 FIREFLY_PLACEHOLDER = "__firefly_placeholder__"
 UA = "Mozilla/5.0 (loadout-checkin-v2-test) curl/8"
 
+
+# ── Fetching ─────────────────────────────────────────────────────────
 
 def fetch_bytes(url):
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.read()
-
-
-def load_background():
-    """Single-frame background composited under the GIF.
-
-    CLI: `python build-checkin-v2-test.py [bg_url] [gif_url]`.
-    Pass FIREFLY_PLACEHOLDER as bg_url to generate a local stand-in
-    while aquilo-site restores the real firefly-effect picker.
-    Defaults to the firefly placeholder so test runs work without
-    coordinating with the site session.
-    """
-    bg_url = sys.argv[1] if len(sys.argv) > 1 else FIREFLY_PLACEHOLDER
-    if bg_url == FIREFLY_PLACEHOLDER:
-        print("BG: generating firefly placeholder (aquilo-site session restoring real picker)")
-        return build_firefly_placeholder()
-    try:
-        print(f"BG: fetching {bg_url}")
-        raw = fetch_bytes(bg_url)
-        img = Image.open(io.BytesIO(raw)).convert("RGB")
-        print(f"BG: loaded {img.size}")
-        return cover_fit(img, CANVAS_W, CANVAS_H)
-    except Exception as e:
-        print(f"BG: fetch failed ({e!s}) — falling back to firefly placeholder.", file=sys.stderr)
-        return build_firefly_placeholder()
-
-
-def build_firefly_placeholder():
-    """Dark navy gradient + scattered bright dots + a handful of
-    larger glowing 'fireflies' with soft halos. Single frame —
-    when the real animated bg lands the site session will hand
-    over a pre-rendered 1200×675 looping GIF that replaces this.
-    """
-    import random
-    rng = random.Random(7)   # fixed seed so reruns are deterministic
-    img = Image.new("RGB", (CANVAS_W, CANVAS_H), (8, 8, 14))
-    # Subtle radial vignette toward navy so the dots pop.
-    d = ImageDraw.Draw(img)
-    cx, cy = CANVAS_W // 2, CANVAS_H // 2
-    for y in range(CANVAS_H):
-        t = y / CANVAS_H
-        # near-black at top, slight aurora navy at bottom
-        r = int(8  * (1 - t) + 14 * t)
-        g = int(8  * (1 - t) + 18 * t)
-        b = int(14 * (1 - t) + 36 * t)
-        d.line([(0, y), (CANVAS_W, y)], fill=(r, g, b))
-    # Small distant dots — many, dim, white-yellow.
-    for _ in range(90):
-        x = rng.randint(0, CANVAS_W - 1)
-        y = rng.randint(0, CANVAS_H - 1)
-        radius = rng.randint(0, 1)
-        brightness = rng.randint(80, 160)
-        d.ellipse([(x - radius, y - radius), (x + radius, y + radius)],
-                  fill=(brightness, brightness, max(60, brightness - 40)))
-    # Bigger glowing fireflies — fewer, brighter, with a soft halo
-    # painted on a separate RGBA layer + GaussianBlur'd into the bg.
-    halo_layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
-    hd = ImageDraw.Draw(halo_layer)
-    for _ in range(14):
-        x = rng.randint(40, CANVAS_W - 40)
-        y = rng.randint(40, CANVAS_H - 40)
-        # Warm yellow-green firefly glow.
-        glow_color = (255, 240, 140, 110)
-        core_color = (255, 250, 180, 255)
-        hd.ellipse([(x - 14, y - 14), (x + 14, y + 14)], fill=glow_color)
-        hd.ellipse([(x - 2,  y - 2),  (x + 2,  y + 2)],  fill=core_color)
-    halo_layer = halo_layer.filter(ImageFilter.GaussianBlur(radius=4))
-    img = Image.alpha_composite(img.convert("RGBA"), halo_layer).convert("RGB")
-    return img
 
 
 def cover_fit(img, w, h):
@@ -131,18 +81,133 @@ def cover_fit(img, w, h):
     return img.resize((w, h), Image.LANCZOS)
 
 
-def build_radial_vignette(canvas_size, gif_size, strength=140):
-    """Return an RGBA image the size of the canvas with a soft darkened
-    radial vignette centered behind the gif. The vignette is a black
-    fill with an alpha mask that's strongest at the gif center and
-    fades to fully transparent ~1.4× the gif diagonal away.
+# ── Background loaders ───────────────────────────────────────────────
+#
+# Both paths return (frames: list[RGB Image], durations_ms: list[int])
+# of the same length. Single-frame backgrounds return lists of length 1.
+
+def load_background():
+    """CLI arg 1 = bg URL or sentinel. Defaults to firefly placeholder
+    so test runs don't depend on the site session being up."""
+    bg_url = sys.argv[1] if len(sys.argv) > 1 else FIREFLY_PLACEHOLDER
+    if bg_url == FIREFLY_PLACEHOLDER:
+        print("BG: generating violet+fireflies placeholder "
+              f"({FIREFLY_PLACEHOLDER_FRAMES} frames, "
+              "aquilo-site session restoring real picker)")
+        return build_firefly_placeholder()
+    try:
+        print(f"BG: fetching {bg_url}")
+        raw = fetch_bytes(bg_url)
+        img = Image.open(io.BytesIO(raw))
+        frames = []
+        durations = []
+        for frame in ImageSequence.Iterator(img):
+            frames.append(cover_fit(frame.convert("RGB"), CANVAS_W, CANVAS_H))
+            durations.append(frame.info.get("duration", 100))
+        print(f"BG: loaded {len(frames)} frame(s), size={img.size}")
+        return frames, durations
+    except Exception as e:
+        print(f"BG: fetch failed ({e!s}) — falling back to placeholder.",
+              file=sys.stderr)
+        return build_firefly_placeholder()
+
+
+def build_firefly_placeholder():
+    """Violet/purple gradient matching the home Daily Check-in card
+    + warm golden firefly dots. Animated: each firefly's brightness
+    pulses + position drifts slightly across FIREFLY_PLACEHOLDER_FRAMES.
+    Stand-in until the aquilo-site session pushes the real
+    pre-rendered firefly-effect bg gif.
     """
+    rng = random.Random(7)   # fixed seed → reruns are deterministic
+
+    # Pre-roll firefly positions + per-firefly phase offset so each
+    # blinks on its own cycle.
+    n_small  = 90
+    n_glowy  = 16
+    small_dots = [
+        (rng.randint(0, CANVAS_W - 1),
+         rng.randint(0, CANVAS_H - 1),
+         rng.randint(0, 1),
+         rng.randint(80, 160),
+         rng.random())            # phase offset 0..1
+        for _ in range(n_small)
+    ]
+    glowy = [
+        (rng.randint(40, CANVAS_W - 40),
+         rng.randint(40, CANVAS_H - 40),
+         rng.random(),             # phase offset
+         rng.uniform(0.7, 1.3))    # per-firefly brightness scale
+        for _ in range(n_glowy)
+    ]
+
+    # Pre-render the gradient once (it's the same every frame).
+    base = Image.new("RGB", (CANVAS_W, CANVAS_H), 0)
+    d_base = ImageDraw.Draw(base)
+    # Reference screenshot palette:
+    #   top:    deep dark violet  ~#2a1845
+    #   middle: violet            ~#553388
+    #   bottom: blue-purple       ~#3a2a6a
+    for y in range(CANVAS_H):
+        t = y / CANVAS_H
+        # Two-stop gradient: top→middle→bottom
+        if t < 0.5:
+            u = t / 0.5
+            r = int(0x2a * (1 - u) + 0x55 * u)
+            g = int(0x18 * (1 - u) + 0x33 * u)
+            b = int(0x45 * (1 - u) + 0x88 * u)
+        else:
+            u = (t - 0.5) / 0.5
+            r = int(0x55 * (1 - u) + 0x3a * u)
+            g = int(0x33 * (1 - u) + 0x2a * u)
+            b = int(0x88 * (1 - u) + 0x6a * u)
+        d_base.line([(0, y), (CANVAS_W, y)], fill=(r, g, b))
+
+    frames = []
+    durations = []
+    for fi in range(FIREFLY_PLACEHOLDER_FRAMES):
+        t = fi / FIREFLY_PLACEHOLDER_FRAMES   # 0..1 around the loop
+        img = base.copy()
+        d = ImageDraw.Draw(img)
+        # Distant small dots — sinusoidal twinkle.
+        for (x, y, radius, base_b, phase) in small_dots:
+            cycle = (t + phase) % 1.0
+            # 0.5..1.0 brightness envelope
+            mult = 0.6 + 0.4 * (0.5 + 0.5 * math.sin(2 * math.pi * cycle))
+            br = max(20, min(255, int(base_b * mult)))
+            d.ellipse([(x - radius, y - radius), (x + radius, y + radius)],
+                      fill=(br, br, max(40, br - 50)))
+        # Bigger glowy fireflies on an RGBA layer with halo + drift.
+        halo_layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+        hd = ImageDraw.Draw(halo_layer)
+        for (x0, y0, phase, scale) in glowy:
+            cycle = (t + phase) % 1.0
+            # Subtle drift: small lissajous loop ±10px.
+            dx = int(10 * math.sin(2 * math.pi * cycle))
+            dy = int(6  * math.cos(2 * math.pi * cycle * 1.3))
+            x, y = x0 + dx, y0 + dy
+            # Brightness envelope: 0.55..1.0 of the per-firefly scale
+            mult = (0.55 + 0.45 * (0.5 + 0.5 * math.sin(2 * math.pi * cycle))) * scale
+            mult = min(1.4, mult)
+            glow_alpha = int(110 * mult)
+            core_alpha = int(255 * min(1.0, mult))
+            glow_color = (255, 230, 130, glow_alpha)
+            core_color = (255, 250, 200, core_alpha)
+            hd.ellipse([(x - 16, y - 16), (x + 16, y + 16)], fill=glow_color)
+            hd.ellipse([(x - 2,  y - 2),  (x + 2,  y + 2)],  fill=core_color)
+        halo_layer = halo_layer.filter(ImageFilter.GaussianBlur(radius=5))
+        img = Image.alpha_composite(img.convert("RGBA"), halo_layer).convert("RGB")
+        frames.append(img)
+        durations.append(FIREFLY_PLACEHOLDER_FRAME_MS)
+    return frames, durations
+
+
+# ── Vignette + compositing ───────────────────────────────────────────
+
+def build_radial_vignette(canvas_size, gif_size, strength=130):
     cw, ch = canvas_size
     gw, gh = gif_size
     cx, cy = cw // 2, ch // 2
-    # Build a tiny alpha mask centered on (cx, cy), scaled by a
-    # gaussian-blurred white ellipse — fast + soft. Final mask is
-    # multiplied by strength to clamp peak darkness.
     mask = Image.new("L", canvas_size, 0)
     d = ImageDraw.Draw(mask)
     rx = int(gw * 0.85)
@@ -151,53 +216,79 @@ def build_radial_vignette(canvas_size, gif_size, strength=140):
     mask = mask.filter(ImageFilter.GaussianBlur(radius=int(min(gw, gh) * 0.45)))
     overlay = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
     overlay.putalpha(mask)
-    # The above replaces overlay alpha but keeps RGB at (0,0,0) — i.e.
-    # solid black painted with soft alpha. Exactly the vignette we want.
     return overlay
 
 
-def composite_frames(bg, gif):
-    """Composite each frame of `gif` over `bg` per variant C, return
-    a list of RGB frames + a list of per-frame durations in ms."""
+def composite_frames(bg_frames, bg_durations, gif):
+    """Frame-iterate both sources, looping the shorter to match.
+    Output runs MAX_FRAMES frames, durations averaged from the user
+    gif's source timing so motion playback feels right."""
     target_gif_w = int(CANVAS_W * GIF_WIDTH_RATIO)
-    # First frame: figure out gif aspect for height calc.
     first = gif.copy().convert("RGBA")
     fw, fh = first.size
     aspect = fh / fw
     target_gif_h = int(target_gif_w * aspect)
 
-    vignette = build_radial_vignette((CANVAS_W, CANVAS_H), (target_gif_w, target_gif_h))
+    vignette = build_radial_vignette((CANVAS_W, CANVAS_H),
+                                     (target_gif_w, target_gif_h))
     paste_x = (CANVAS_W - target_gif_w) // 2
     paste_y = (CANVAS_H - target_gif_h) // 2
 
+    gif_frames = list(ImageSequence.Iterator(gif))
+    # Subsample the user gif if over MAX_FRAMES so we stay under file
+    # cap; bg gets looped, so its frame count doesn't blow file size.
+    if len(gif_frames) > MAX_FRAMES:
+        step = len(gif_frames) / MAX_FRAMES
+        keep = set(int(i * step) for i in range(MAX_FRAMES))
+        gif_frames = [f for i, f in enumerate(gif_frames) if i in keep]
+    # Each output frame keeps the user gif's pace; the bg cycles
+    # at its own clock derived from bg_durations so the firefly
+    # motion looks natural even when output frame count != bg count.
+    bg_cumulative = []
+    total_bg_ms = 0
+    for d_ms in bg_durations:
+        bg_cumulative.append(total_bg_ms)
+        total_bg_ms += max(1, d_ms)
+    if total_bg_ms == 0:
+        total_bg_ms = max(1, len(bg_frames) * 100)
+
     out_frames = []
-    durations = []
-    all_frames = list(ImageSequence.Iterator(gif))
-    # Subsample frames if over MAX_FRAMES — keeps file size bounded
-    # while preserving motion characteristics.
-    if len(all_frames) > MAX_FRAMES:
-        step = len(all_frames) / MAX_FRAMES
-        keep_indices = set(int(i * step) for i in range(MAX_FRAMES))
-        all_frames = [f for i, f in enumerate(all_frames) if i in keep_indices]
-    for frame in all_frames:
-        rgba = frame.convert("RGBA").resize((target_gif_w, target_gif_h), Image.LANCZOS)
-        canvas = bg.copy().convert("RGBA")
+    out_durations = []
+    cursor_ms = 0
+    for gi, gif_frame in enumerate(gif_frames):
+        # Snap the bg cursor — pick the bg frame whose start-time is
+        # nearest cursor_ms modulo the bg loop length.
+        snap = cursor_ms % total_bg_ms
+        bg_idx = 0
+        for i, start in enumerate(bg_cumulative):
+            if start <= snap:
+                bg_idx = i
+            else:
+                break
+        bg_frame = bg_frames[bg_idx % len(bg_frames)]
+
+        user_rgba = gif_frame.convert("RGBA").resize(
+            (target_gif_w, target_gif_h), Image.LANCZOS)
+        canvas = bg_frame.copy().convert("RGBA")
         canvas.alpha_composite(vignette)
-        canvas.alpha_composite(rgba, dest=(paste_x, paste_y))
+        canvas.alpha_composite(user_rgba, dest=(paste_x, paste_y))
         out_frames.append(canvas.convert("RGB"))
-        # Lengthen durations slightly when we drop frames so playback
-        # speed stays roughly the same.
-        durations.append(int(frame.info.get("duration", 100) * 1.5))
-    return out_frames, durations
+
+        # Speed up the user gif's per-frame duration a bit so the
+        # composite stays inside MAX_DURATION_MS and the bg has room
+        # to cycle visibly.
+        per_frame_ms = int(gif_frame.info.get("duration", 100) * 1.5)
+        out_durations.append(per_frame_ms)
+        cursor_ms += per_frame_ms
+
+    return out_frames, out_durations
 
 
 def save_animated_gif(frames, durations, out_path):
     if not frames:
         raise RuntimeError("no frames composited")
-    # Quantize each frame to a 128-color palette to shrink the file.
-    # Pillow's MEDIANCUT palette gives the best perceptual quality for
-    # photographic content; ADAPTIVE works better for our bg+gif mix.
-    paletted = [f.convert("P", palette=Image.ADAPTIVE, colors=128) for f in frames]
+    paletted = [f.convert("P", palette=Image.ADAPTIVE, colors=128)
+                for f in frames]
     paletted[0].save(
         out_path,
         save_all=True,
@@ -211,13 +302,14 @@ def save_animated_gif(frames, durations, out_path):
 
 def main():
     gif_url = sys.argv[2] if len(sys.argv) > 2 else DEFAULT_GIF_URL
-    bg  = load_background()
+    bg_frames, bg_durations = load_background()
     print(f"GIF: fetching {gif_url}")
     gif_raw = fetch_bytes(gif_url)
     gif = Image.open(io.BytesIO(gif_raw))
     print(f"GIF: loaded, frames={getattr(gif, 'n_frames', 1)}, size={gif.size}")
-    frames, durations = composite_frames(bg, gif)
-    print(f"composited {len(frames)} frames, durations sum={sum(durations)}ms")
+
+    frames, durations = composite_frames(bg_frames, bg_durations, gif)
+    print(f"composited {len(frames)} frames, total ~{sum(durations)}ms")
 
     out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                            "discord-bot", "assets")
