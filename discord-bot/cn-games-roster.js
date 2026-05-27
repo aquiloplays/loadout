@@ -22,23 +22,30 @@ const ROSTER_KEY = (g) => `cn-roster:${g}`;
 const REFRESH_MARKER_KEY = (g) => `cn-roster:last-refresh:${g}`;
 const REFRESH_INTERVAL_S = 6 * 60 * 60;   // 6 hours
 
-// Default roster — Clay can swap by passing an explicit appIds in
-// the admin post call. Curated for "viewer-play, social, party-ish"
-// community nights.
+// Canonical roster — sourced from aquilo/bootstrap.js DEFAULT_GAMES
+// (the single source of truth Clay curates via the /games slash +
+// the D1 games table seed). Order preserves Clay's seed order.
+// Games with no confirmed Steam appId (Fortnite, Vampire Crawlers,
+// Baby Steps) are intentionally NOT in this roster — they can be
+// backfilled when an appId is confirmed.
 export const DEFAULT_APPIDS = [
+  2827200,   // MIMESIS
+  3949040,   // RV There Yet?
   1966720,   // Lethal Company
-  739630,    // Phasmophobia
-  2881650,   // Content Warning
   3241660,   // R.E.P.O.
+  4244510,   // Pratfall
+  3527290,   // PEAK
+  4069520,   // Super Battle Golf
+  2881650,   // Content Warning
+  3643170,   // Roadside Research
+  3059070,   // The Headliners
+  3892270,   // Gamble With Your Friends
+  2780980,   // LOCKDOWN Protocol
+  2868840,   // Slay the Spire 2
+  381210,    // Dead by Daylight
   945360,    // Among Us
-  1677740,   // Stumble Guys
-  880940,    // Pummel Party
-  1097150,   // Fall Guys (free)
-  1568590,   // Goose Goose Duck (free)
-  1509960,   // Pico Park
-  386940,    // Ultimate Chicken Horse
-  674940,    // Stick Fight: The Game
-  431240,    // Golf With Your Friends
+  739630,    // Phasmophobia
+  1313140,   // Cult of the Lamb
 ];
 
 // ── Steam fetch ─────────────────────────────────────────────────────
@@ -96,7 +103,6 @@ function buildGameEmbed(meta) {
   return {
     title: meta.name,
     url:   `https://store.steampowered.com/app/${meta.appId}/`,
-    description: meta.shortDesc || '_(no description)_',
     color: onSale ? BRAND_PINK : BRAND_VIOLET,
     image: meta.header ? { url: meta.header } : undefined,
     fields: [
@@ -131,16 +137,38 @@ async function dapi(env, method, path, body) {
  * Edits in place if cn-roster:<g> already has records (and the
  * channel is the same).
  */
-export async function postRoster(env, guildId, channelId, appIds) {
+export async function postRoster(env, guildId, channelId, appIds, opts = {}) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
   const ids = (Array.isArray(appIds) && appIds.length > 0 ? appIds : DEFAULT_APPIDS)
                 .map(Number).filter(Number.isFinite);
   const metas = await Promise.all(ids.map(fetchSteamMeta));
 
   // Existing roster — if same channel, EDIT each tracked embed; else
-  // wipe + re-post.
-  const stored = await env.LOADOUT_BOLTS.get(ROSTER_KEY(guildId), { type: 'json' });
-  const sameChannel = stored && stored.channelId === channelId;
+  // wipe + re-post. `purgeFirst:true` forces a clean repost in the
+  // same channel (deletes the header + every tracked game embed
+  // before posting). Used when the roster shape changes (different
+  // appIds / Clay's editorial sweep) to avoid orphan messages.
+  let stored = await env.LOADOUT_BOLTS.get(ROSTER_KEY(guildId), { type: 'json' });
+  let sameChannel = stored && stored.channelId === channelId;
+
+  if (opts.purgeFirst && stored) {
+    // Best-effort delete prior tracked posts. 404s are fine (already
+    // gone). Header first, then every game record. Then forget the
+    // record so the "edit existing" path below treats this as a
+    // fresh post.
+    if (stored.headerMessageId && stored.channelId) {
+      await dapi(env, 'DELETE',
+        `/channels/${stored.channelId}/messages/${stored.headerMessageId}`)
+        .catch(() => {});
+    }
+    for (const g of (stored.games || [])) {
+      await dapi(env, 'DELETE',
+        `/channels/${stored.channelId}/messages/${g.messageId}`)
+        .catch(() => {});
+    }
+    stored = null;
+    sameChannel = false;
+  }
 
   const newRecord = { channelId, headerMessageId: null, games: [] };
   const headerContent =
@@ -189,13 +217,26 @@ export async function postRoster(env, guildId, channelId, appIds) {
     if (!msgId) {
       const po = await dapi(env, 'POST', `/channels/${channelId}/messages`,
         { embeds: [embed], allowed_mentions: { parse: [] } });
-      if (!po.ok) {
+      if (po.ok) {
+        const m = JSON.parse(po.body);
+        msgId = m.id;
+      } else {
         errors.push({ appId: meta.appId, phase: 'post', status: po.status,
                       body: po.body.slice(0, 150) });
+        // Both edit AND post failed this pass (almost always a
+        // transient 429 on a re-run). DON'T drop the prior tracked
+        // record — the embed still exists in Discord; just carry the
+        // previous bookkeeping forward so the next refresh tries
+        // again. Without this, two-failed-passes silently orphaned
+        // the embed from KV.
+        if (prior?.messageId) {
+          newRecord.games.push({
+            ...prior,
+            lastFetchUtc: prior.lastFetchUtc || 0,   // preserve prior
+          });
+        }
         continue;
       }
-      const m = JSON.parse(po.body);
-      msgId = m.id;
     }
     newRecord.games.push({
       appId:        meta.appId,

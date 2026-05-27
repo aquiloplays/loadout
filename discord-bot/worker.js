@@ -2486,7 +2486,9 @@ async function handleCnRosterPost(req, env, path) {
   }
   if (!channelId) return jsonResp({ ok: false, error: 'no-channel' }, 400);
   const { postRoster } = await import('./cn-games-roster.js');
-  const r = await postRoster(env, guildId, channelId, opts.appIds);
+  const r = await postRoster(env, guildId, channelId, opts.appIds, {
+    purgeFirst: !!opts.purgeFirst,
+  });
   return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 502);
 }
 
