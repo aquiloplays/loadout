@@ -271,6 +271,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/counting/purge-bot-messages/')) {
       return handleCountingPurgeBotMessages(req, env, path);
     }
+    // Wipe counting state for a guild back to fresh (current=0,
+    // lastUserId=null). Used after the May 2026 bot-loop incident
+    // and any other time the chain needs to start over without
+    // touching wallets. HMAC-gated like the other counting admins.
+    if (method === 'POST' && path.startsWith('/admin/counting/reset/')) {
+      return handleCountingReset(req, env, path);
+    }
     // Seed guild:join-counter:<g> from Discord's
     // approximate_member_count so the first observed new member
     // doesn't display "1st member" in a pre-existing guild. See
@@ -2155,6 +2162,34 @@ async function handleCountingPurgeBotMessages(req, env, path) {
   const { purgeBotMessages } = await import('./counting-purge.js');
   const r = await purgeBotMessages(env, channelId, { sinceMs });
   return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+}
+
+// ── /admin/counting/reset/:guildId (HMAC) ─────────────────────────
+// Body (JSON, optional): { confirm: "yes-i-mean-it" }
+// Wipes counting:<guildId> in STATE back to fresh (current=0,
+// last_user_id=null). Does NOT touch wallets or bot-message history.
+async function handleCountingReset(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','counting','reset',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) { try { opts = JSON.parse(body) || {}; }
+              catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); } }
+  if (opts.confirm !== 'yes-i-mean-it') {
+    return jsonResp({ ok: false, error: 'confirm-required',
+      hint: 'POST { "confirm": "yes-i-mean-it" }' }, 400);
+  }
+  if (!env.STATE) return jsonResp({ ok: false, error: 'no-state-binding' }, 503);
+  const fresh = {
+    current: 0, last_user_id: null, high_score: 0, high_score_user_id: null,
+    successes: 0, fails: 0, started_at: null,
+    updated_at: new Date().toISOString(),
+  };
+  await env.STATE.put('counting:' + guildId, JSON.stringify(fresh));
+  return jsonResp({ ok: true, guildId, state: fresh, via: auth.via }, 200);
 }
 
 // ── /admin/welcome/backfill-counter/:guildId (HMAC) ────────────────
