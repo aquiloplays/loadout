@@ -400,8 +400,15 @@ async function viewLinks(env, guildId) {
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Link Twitch',   url: `${brand.siteUrl}/link/twitch` },
-          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Link Patreon',  url: `${brand.siteUrl}/link/patreon` },
+          // Both buttons land on /profile/. The site's only OAuth
+          // entry is Patreon (auth.aquilo.gg → Patreon → site reads
+          // social_connections for Twitch/YouTube/TikTok), so there's
+          // no separate /link/twitch route — older urls 404'd.
+          // `?link=<provider>` is a hint a future Profile-page update
+          // can use to pre-scroll/pre-open the matching linker tab;
+          // ignored today, harmless.
+          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Link Twitch',   url: `${brand.siteUrl}/profile/?link=twitch` },
+          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Link Patreon',  url: `${brand.siteUrl}/profile/?link=patreon` },
         ],
       },
       {
