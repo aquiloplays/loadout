@@ -191,12 +191,12 @@ export async function sweepCountingChannelTimeouts(env) {
 async function handleNotANumberOffense(env, guildId, payload, userId, content) {
   // React ⚠️ on the offending message (and delete it after a moment so
   // it doesn't pollute the counting flow).
-  try { await reactToMessage(env, payload.channel_id, payload.message_id, '⚠️'); }
+  try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '⚠️'); }
   catch (e) { console.warn('[counting] react warn failed', e?.message || e); }
   try {
     await discordFetch(env,
       '/channels/' + encodeURIComponent(payload.channel_id) +
-      '/messages/' + encodeURIComponent(payload.message_id),
+      '/messages/' + encodeURIComponent(_msgIdOf(payload)),
       { method: 'DELETE' });
   } catch { /* not authorized to delete the message — leave it */ }
 
@@ -245,8 +245,12 @@ async function handleNotANumberOffense(env, guildId, payload, userId, content) {
 // payload shape drift.
 export async function handleCountingMessage(env, payload) {
   if (!payload) return { skipped: 'bot_message' };
-  const { isBotPayload } = await import('../bot-guard.js');
+  const { isBotPayload, messageIdOf: _msgIdOf } = await import('../bot-guard.js');
   if (isBotPayload(payload)) return { skipped: 'bot_message' };
+  // Shim's MESSAGE_CREATE uses payload.id / payload.messageId; alias
+  // _msgIdOf locally so the replace-all rewrite below stays a single
+  // identifier without exploding the diff.
+  void _msgIdOf;
   if (!env.COUNTING_CHANNEL_ID) return { skipped: 'channel_unconfigured' };
   if (payload.channel_id !== env.COUNTING_CHANNEL_ID) return { skipped: 'wrong_channel' };
 
@@ -274,7 +278,7 @@ export async function handleCountingMessage(env, payload) {
 
   if (ok) {
     // SUCCESS: react, reward, update state.
-    try { await reactToMessage(env, payload.channel_id, payload.message_id, '✅'); }
+    try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '✅'); }
     catch (e) { console.warn('[counting] react ok failed', e?.message || e); }
 
     // v2 economy rebalance (2026-05): drip semantic instead of
@@ -314,7 +318,7 @@ export async function handleCountingMessage(env, payload) {
   }
 
   // FAIL: react, penalize, assign fail role, reset.
-  try { await reactToMessage(env, payload.channel_id, payload.message_id, '❌'); }
+  try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '❌'); }
   catch (e) { console.warn('[counting] react fail failed', e?.message || e); }
 
   const failPenalty = parseInt(env.COUNTING_FAIL_PENALTY || String(DEFAULT_FAIL_PENALTY), 10) || DEFAULT_FAIL_PENALTY;

@@ -216,8 +216,9 @@ function milestoneBonus(streak) {
 //     userId, guildId, channelId, messageId, isBot, ts }
 export async function handleCheckinMessage(env, payload) {
   if (!payload) return { skipped: 'bot_message' };
-  const { isBotPayload } = await import('../bot-guard.js');
+  const { isBotPayload, messageIdOf: _msgIdOf } = await import('../bot-guard.js');
   if (isBotPayload(payload)) return { skipped: 'bot_message' };
+  void _msgIdOf;
 
   // Resolve the bound channel first (KV via loadout-discord poll;
   // CHECKIN_CHANNEL_ID env var is the fallback). Skip cleanly if
@@ -243,7 +244,7 @@ export async function handleCheckinMessage(env, payload) {
   // they know the post was acknowledged (counting also reacts on each
   // valid count -- consistent UX).
   if (row && row.last_day_et === today) {
-    try { await reactToMessage(env, payload.channel_id, payload.message_id, '✅'); }
+    try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '✅'); }
     catch { /* idle */ }
     return { ok: true, already: true, streak: row.current_days };
   }
@@ -292,7 +293,7 @@ export async function handleCheckinMessage(env, payload) {
   await applyBolts(env, guildId, userId, reward, 'discord-checkin:streak-' + current);
 
   // ✅ reaction.
-  try { await reactToMessage(env, payload.channel_id, payload.message_id, '✅'); }
+  try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '✅'); }
   catch (e) { console.warn('[checkin] react failed', e?.message || e); }
 
   // Milestone DM-able callout. Reaction is the silent default; we only

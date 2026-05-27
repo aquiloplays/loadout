@@ -20,6 +20,17 @@
 // Checking only one of these is what produced the May 2026 counting
 // loop. Always use this helper.
 
+// Shim's MESSAGE_CREATE payload uses `id` (Discord-slim) and
+// `messageId` (camelCase mirror), NOT `message_id`. Handlers that
+// read `payload.message_id` get undefined and end up POSTing to
+// /messages/undefined/* — which Discord 404s silently inside the
+// try/catch wrapper. This was the May 2026 "bot isn't reacting"
+// incident's root cause for counting + checkin.
+export function messageIdOf(payload) {
+  if (!payload) return null;
+  return payload.id || payload.messageId || payload.message_id || null;
+}
+
 export function isBotPayload(payload) {
   if (!payload || typeof payload !== 'object') return false;
   if (payload.bot === true) return true;
