@@ -66,6 +66,7 @@ export const CATEGORIES = [
     key: 'pings',
     title: '🔔 Notification Pings',
     blurb: 'Toggle the pings you want — multi-select.',
+    placeholder: '🔔 Choose which pings you want',
     multi: true,
     options: [
       { value: 'stream',    label: 'Stream Pings',  emoji: { name: '📺' }, color: 0xEB459E, existingIdKey: 'role_stream'    },
@@ -78,6 +79,7 @@ export const CATEGORIES = [
     key: 'colors',
     title: '🎨 Name Color',
     blurb: 'Pick one. Choosing a new colour replaces your previous pick.',
+    placeholder: '🎨 Pick your display color',
     multi: false,
     options: [
       { value: 'aquilo_violet', label: 'Aquilo Violet', color: 0x7c5cff },
@@ -97,6 +99,7 @@ export const CATEGORIES = [
     key: 'regions',
     title: '🌎 Region',
     blurb: 'Where do you mostly play from? Multi-select OK if you bounce around.',
+    placeholder: '🌎 Set your region',
     multi: true,
     options: [
       { value: 'na_east',  label: 'NA East',  emoji: { name: '🌅' } },
@@ -110,6 +113,7 @@ export const CATEGORIES = [
     key: 'platforms',
     title: '🎮 Platform',
     blurb: 'What you play on. Multi-select if you cross-play.',
+    placeholder: '🎮 Set your platforms',
     multi: true,
     options: [
       { value: 'pc',         label: 'PC',          emoji: { name: '🖥️' } },
@@ -122,6 +126,7 @@ export const CATEGORIES = [
     key: 'pronouns',
     title: '🪪 Pronouns',
     blurb: 'Pick what you go by. Visible in your profile to anyone who hovers your name.',
+    placeholder: '🪪 Set your pronouns',
     multi: true,
     options: [
       { value: 'he_him',     label: 'He/Him' },
@@ -155,6 +160,7 @@ export const INTERESTS_CATEGORY = {
   key: 'interests',
   title: '⭐ Interests',
   blurb: 'Opt into pings for the activities you care about. These mirror your onboarding picks — toggle any time.',
+  placeholder: '⭐ Pick your interest pings',
   multi: true,
   options: [
     { value: 'gamenight',  label: 'Game Night',     emoji: { name: '🎮' } },
@@ -319,7 +325,7 @@ function buildHubMessage(brandAccent = 0x7c5cff) {
       title: '🪪 Pick your roles',
       description:
         'Tap **Open Role Picker** to set your pings, region, platform, pronouns, name colour, and adult-content opt-in.\n\n' +
-        'Your selections are **only visible to you** — the picker pops up as an ephemeral so the channel stays clean.',
+        'Your selections are **only visible to you** — the picker pops up as an ephemeral.',
       color: brandAccent,
     }],
     components: [{
@@ -351,10 +357,18 @@ function buildCategorySelect(category, catRoleMap, memberRoleIds) {
       default: !!(rid && memberRoleIds.has(rid)),
     };
   });
+  // Category-specific placeholder makes each select self-labeling
+  // — important because Discord renders the message content body
+  // FIRST and all action rows beneath it, so without per-select
+  // labels users see a stack of selects under the last header in
+  // the body. Falls back to a generic prompt if the category
+  // catalogue forgot to set one (none in core today; defensive).
+  const placeholder = category.placeholder
+    || (category.multi ? 'Pick any (multi-select)' : 'Pick one');
   return {
     type: COMPONENT_STRING_SELECT,
     custom_id: `roles:sel:${category.key}`,
-    placeholder: category.multi ? 'Pick any (multi-select)' : 'Pick one',
+    placeholder,
     min_values: 0,
     max_values: category.multi ? opts.length : 1,
     options: opts,
@@ -372,24 +386,22 @@ function buildCategorySelect(category, catRoleMap, memberRoleIds) {
 // special UX (mutex + warning flow respectively) that doesn't share
 // a single select cleanly with the other 4.
 function buildPickerEphemeral(roleIds, memberRoleIds, banner = null) {
-  // Discord ephemerals carry exactly ONE content body, so the
-  // per-category headers go inline above the action rows. Order in
-  // the lines below MUST match the order of the action rows pushed
-  // into `components` so users see the right label above each select.
-  const lines = ['**Set your roles below.** Changes apply immediately — your channel stays clean.'];
+  // Discord ephemerals carry exactly ONE content body, so per-
+  // category headers go in the body (in component order) AND each
+  // select-menu's `placeholder` carries its category name inline.
+  // Users see the body once at the top + the placeholder on every
+  // closed select, so the categorisation reads clearly even though
+  // Discord won't let us interleave text with action rows in a
+  // single message.
+  const lines = ['**Set your roles below.**'];
   if (banner) lines.push('', banner);
   lines.push(
     '',
-    '## 🔔 Pings',         '_What you want to be pinged for._',
-    '',
-    '## 🌎 Region',        '_Roughly where you play from._',
-    '',
-    '## 🎮 Platform',      '_What you play on._',
-    '',
-    '',
-    '## 🪪 Pronouns',      '_Pick what you go by._',
-    '',
-    '## 📂 More & specials', '_Interests / name colour / 18+ — open the buttons below._',
+    '🔔 **Pings** — what you want to be pinged for',
+    '🌎 **Region** — roughly where you play from',
+    '🎮 **Platform** — what you play on',
+    '🪪 **Pronouns** — pick what you go by',
+    '📂 **More & specials** — interests, name colour, 18+ via the buttons below',
   );
 
   const components = [];
