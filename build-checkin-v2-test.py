@@ -30,9 +30,15 @@ DEFAULT_GIF_URL = "https://media.giphy.com/media/3o7TKsQ8gqVrxZTAqI/giphy.gif"  
 # to a CDN, not Discord's attachment limit.
 CANVAS_W = 600
 CANVAS_H = 337
-GIF_WIDTH_RATIO = 0.35   # variant C spec
+# Bumped 0.35 → 0.55 on Clay's iteration — make the GIF more
+# prominent. Still centered, still has a vignette behind it.
+GIF_WIDTH_RATIO = 0.55
 # Cap frames to keep file under Discord's 10 MB limit.
 MAX_FRAMES = 40
+# Sentinel URL — when passed, generate a firefly placeholder bg
+# locally instead of fetching. Used while the aquilo-site session
+# restores the real firefly-effect background picker.
+FIREFLY_PLACEHOLDER = "__firefly_placeholder__"
 UA = "Mozilla/5.0 (loadout-checkin-v2-test) curl/8"
 
 
@@ -43,25 +49,70 @@ def fetch_bytes(url):
 
 
 def load_background():
-    bg_url = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_BG_URL
+    """Single-frame background composited under the GIF.
+
+    CLI: `python build-checkin-v2-test.py [bg_url] [gif_url]`.
+    Pass FIREFLY_PLACEHOLDER as bg_url to generate a local stand-in
+    while aquilo-site restores the real firefly-effect picker.
+    Defaults to the firefly placeholder so test runs work without
+    coordinating with the site session.
+    """
+    bg_url = sys.argv[1] if len(sys.argv) > 1 else FIREFLY_PLACEHOLDER
+    if bg_url == FIREFLY_PLACEHOLDER:
+        print("BG: generating firefly placeholder (aquilo-site session restoring real picker)")
+        return build_firefly_placeholder()
     try:
         print(f"BG: fetching {bg_url}")
         raw = fetch_bytes(bg_url)
         img = Image.open(io.BytesIO(raw)).convert("RGB")
         print(f"BG: loaded {img.size}")
+        return cover_fit(img, CANVAS_W, CANVAS_H)
     except Exception as e:
-        print(f"BG: fetch failed ({e!s}) — falling back to a generated Aurora gradient.", file=sys.stderr)
-        img = Image.new("RGB", (CANVAS_W, CANVAS_H), (12, 12, 18))
-        d = ImageDraw.Draw(img)
-        # Vertical Aurora gradient: violet → pink
-        for y in range(CANVAS_H):
-            t = y / CANVAS_H
-            r = int(0x7c * (1 - t) + 0xff * t)
-            g = int(0x5c * (1 - t) + 0x6a * t)
-            b = int(0xff * (1 - t) + 0xb5 * t)
-            d.line([(0, y), (CANVAS_W, y)], fill=(r, g, b))
-    # Cover-fit to canvas size.
-    img = cover_fit(img, CANVAS_W, CANVAS_H)
+        print(f"BG: fetch failed ({e!s}) — falling back to firefly placeholder.", file=sys.stderr)
+        return build_firefly_placeholder()
+
+
+def build_firefly_placeholder():
+    """Dark navy gradient + scattered bright dots + a handful of
+    larger glowing 'fireflies' with soft halos. Single frame —
+    when the real animated bg lands the site session will hand
+    over a pre-rendered 1200×675 looping GIF that replaces this.
+    """
+    import random
+    rng = random.Random(7)   # fixed seed so reruns are deterministic
+    img = Image.new("RGB", (CANVAS_W, CANVAS_H), (8, 8, 14))
+    # Subtle radial vignette toward navy so the dots pop.
+    d = ImageDraw.Draw(img)
+    cx, cy = CANVAS_W // 2, CANVAS_H // 2
+    for y in range(CANVAS_H):
+        t = y / CANVAS_H
+        # near-black at top, slight aurora navy at bottom
+        r = int(8  * (1 - t) + 14 * t)
+        g = int(8  * (1 - t) + 18 * t)
+        b = int(14 * (1 - t) + 36 * t)
+        d.line([(0, y), (CANVAS_W, y)], fill=(r, g, b))
+    # Small distant dots — many, dim, white-yellow.
+    for _ in range(90):
+        x = rng.randint(0, CANVAS_W - 1)
+        y = rng.randint(0, CANVAS_H - 1)
+        radius = rng.randint(0, 1)
+        brightness = rng.randint(80, 160)
+        d.ellipse([(x - radius, y - radius), (x + radius, y + radius)],
+                  fill=(brightness, brightness, max(60, brightness - 40)))
+    # Bigger glowing fireflies — fewer, brighter, with a soft halo
+    # painted on a separate RGBA layer + GaussianBlur'd into the bg.
+    halo_layer = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
+    hd = ImageDraw.Draw(halo_layer)
+    for _ in range(14):
+        x = rng.randint(40, CANVAS_W - 40)
+        y = rng.randint(40, CANVAS_H - 40)
+        # Warm yellow-green firefly glow.
+        glow_color = (255, 240, 140, 110)
+        core_color = (255, 250, 180, 255)
+        hd.ellipse([(x - 14, y - 14), (x + 14, y + 14)], fill=glow_color)
+        hd.ellipse([(x - 2,  y - 2),  (x + 2,  y + 2)],  fill=core_color)
+    halo_layer = halo_layer.filter(ImageFilter.GaussianBlur(radius=4))
+    img = Image.alpha_composite(img.convert("RGBA"), halo_layer).convert("RGB")
     return img
 
 

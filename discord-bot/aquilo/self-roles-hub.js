@@ -372,8 +372,26 @@ function buildCategorySelect(category, catRoleMap, memberRoleIds) {
 // special UX (mutex + warning flow respectively) that doesn't share
 // a single select cleanly with the other 4.
 function buildPickerEphemeral(roleIds, memberRoleIds, banner = null) {
+  // Discord ephemerals carry exactly ONE content body, so the
+  // per-category headers go inline above the action rows. Order in
+  // the lines below MUST match the order of the action rows pushed
+  // into `components` so users see the right label above each select.
   const lines = ['**Set your roles below.** Changes apply immediately — your channel stays clean.'];
   if (banner) lines.push('', banner);
+  lines.push(
+    '',
+    '## 🔔 Pings',         '_What you want to be pinged for._',
+    '',
+    '## 🌎 Region',        '_Roughly where you play from._',
+    '',
+    '## 🎮 Platform',      '_What you play on._',
+    '',
+    '',
+    '## 🪪 Pronouns',      '_Pick what you go by._',
+    '',
+    '## 📂 More & specials', '_Interests / name colour / 18+ — open the buttons below._',
+  );
+
   const components = [];
   for (const key of ['pings', 'regions', 'platforms', 'pronouns']) {
     const cat = CATEGORIES.find(c => c.key === key);
@@ -407,7 +425,10 @@ function buildPickerEphemeral(roleIds, memberRoleIds, banner = null) {
 // eat one of the main picker's 5 rows.
 function buildColorPickerEphemeral(roleIds, memberRoleIds, banner = null) {
   const cat = CATEGORIES.find(c => c.key === 'colors');
-  const lines = ['**Pick your name colour.** Mutex — one colour at a time.'];
+  const lines = [
+    '## 🎨 Name Colour',
+    '_Pick one — mutex. Choosing a new colour replaces your previous pick._',
+  ];
   if (banner) lines.push('', banner);
   lines.push('', '_Mod note: colour roles must sit ABOVE other coloured roles in the hierarchy for Discord to render the colour on your name._');
   return {
@@ -427,7 +448,10 @@ function buildColorPickerEphemeral(roleIds, memberRoleIds, banner = null) {
 // is the resolved interest-key → discordRoleId map (loaded via
 // resolveCategoryRoleMap → onboarding's loadRoleMap helper).
 function buildInterestsPickerEphemeral(roleMap, memberRoleIds, banner = null) {
-  const lines = ['**' + INTERESTS_CATEGORY.title + '** — ' + INTERESTS_CATEGORY.blurb];
+  const lines = [
+    '## ' + INTERESTS_CATEGORY.title,
+    '_' + INTERESTS_CATEGORY.blurb + '_',
+  ];
   if (banner) lines.push('', banner);
   // Empty mapping = admin hasn't configured the onboarding role-map
   // yet. Render a hint instead of a broken (un-grantable) select.
