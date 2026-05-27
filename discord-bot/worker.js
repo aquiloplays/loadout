@@ -307,6 +307,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/discord/create-locked-channel/')) {
       return handleCreateLockedChannel(req, env, path);
     }
+    // Post (or edit-in-place) the Steam-backed community-night
+    // game roster. Optional body { channelId, appIds: [...] };
+    // defaults to channel-binding(vote) + cn-games-roster.js
+    // DEFAULT_APPIDS.
+    if (method === 'POST' && path.startsWith('/admin/cn-roster/post/')) {
+      return handleCnRosterPost(req, env, path);
+    }
     // Seed guild:join-counter:<g> from Discord's
     // approximate_member_count so the first observed new member
     // doesn't display "1st member" in a pre-existing guild. See
@@ -814,6 +821,22 @@ export default {
       if (event.cron === '17 * * * *') {
         const { stocksCronTick } = await import('./stocks.js');
         ctx.waitUntil(stocksCronTick(env));
+        // CN-games roster Steam-price refresh. Fires every :17 but the
+        // refreshRosterIfDue() helper short-circuits on a 6-hour KV
+        // marker so it only actually re-fetches Steam ~4 times/day.
+        // No-op when cn-roster:<g> isn't populated (i.e. no admin has
+        // run /admin/cn-roster/post for the active guild).
+        ctx.waitUntil((async () => {
+          try {
+            const activeGuild = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+            if (!activeGuild) return;
+            const { refreshRosterIfDue } = await import('./cn-games-roster.js');
+            const r = await refreshRosterIfDue(env, activeGuild);
+            if (r.ok) console.log('[cron] cn-roster refresh:', JSON.stringify(r));
+          } catch (e) {
+            console.warn('[cron] cn-roster refresh', e?.message || e);
+          }
+        })());
         // Twitch hourly bundle — live-embed refresh + clip poll +
         // Sunday-22-ET clip-of-the-week + Sunday-20-ET weekly recap.
         // Each task is independently best-effort + no-ops cleanly
@@ -2437,6 +2460,34 @@ async function handleReleaseNotesPost(req, env, path) {
   }));
   return jsonResp({ ok: true, product, version, channelId,
     priorDeletedId, newMessageId: newMsg.id, kvKey, via: auth.via }, 200);
+}
+
+// ── /admin/cn-roster/post/:guildId (HMAC) ─────────────────────────
+// Body (JSON, optional): { channelId, appIds: [numbers] }
+// channelId defaults to channel-binding(vote). appIds defaults to
+// DEFAULT_APPIDS in cn-games-roster.js. Re-runnable — when
+// channelId matches the stored roster the embeds get edited in
+// place instead of reposted.
+async function handleCnRosterPost(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  // Resolve channel: explicit > vote-binding
+  let channelId = String(opts.channelId || '').trim();
+  if (!channelId) {
+    const { getChannelBinding } = await import('./channel-bindings.js');
+    channelId = await getChannelBinding(env, guildId, 'vote');
+  }
+  if (!channelId) return jsonResp({ ok: false, error: 'no-channel' }, 400);
+  const { postRoster } = await import('./cn-games-roster.js');
+  const r = await postRoster(env, guildId, channelId, opts.appIds);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 502);
 }
 
 // ── /admin/discord/setup-18plus/:guildId (HMAC) ───────────────────
