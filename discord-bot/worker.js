@@ -278,6 +278,15 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/welcome/backfill-counter/')) {
       return handleWelcomeBackfillCounter(req, env, path);
     }
+    // Swap a section-divider banner in a Discord channel. Designed
+    // for the rules / welcome / moderation / invite headers under
+    // the v2 brand-refresh. Scans for the most-recent bot/webhook
+    // message with an image attachment, deletes it, posts the new
+    // image, and stamps the new message id at
+    // branding:section-banner:<g>:<key>.
+    if (method === 'POST' && path.startsWith('/admin/banner/replace-section/')) {
+      return handleBannerReplaceSection(req, env, path);
+    }
     // Create the three gifter roles + persist {key: roleId} at
     // gifter-roles:<g>. Idempotent. See gifter-roles.js
     // ensureGifterRoles.
@@ -2165,6 +2174,149 @@ async function handleWelcomeBackfillCounter(req, env, path) {
   const { backfillJoinCounter } = await import('./welcome.js');
   const r = await backfillJoinCounter(env, guildId, opts);
   return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+}
+
+// ── /admin/banner/replace-section/:guildId (HMAC) ─────────────────
+//
+// Body (JSON):
+//   {
+//     "key":            "rules" | "welcome" | "moderation" | "invite",
+//     "imageBase64":    "<base64 PNG>",
+//     "imageFilename":  "discord-section-rules.png",
+//     "channelId":      "<snowflake>"        // optional override
+//     "channelKind":    "ch_rules"           // optional guild:cfg.ids key override
+//     "scanLimit":      30                   // optional, default 30
+//   }
+//
+// Resolution order for the target channel:
+//   1. opts.channelId        — explicit override
+//   2. guild:cfg.ids.<channelKind> (defaults to "ch_<key>")
+//   3. fail with `no-channel`
+//
+// Discord REST returns messages newest-first, so messages[0] is the
+// bottom of the channel UI. We scan that order and delete the first
+// bot/webhook message carrying an image attachment.
+async function handleBannerReplaceSection(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','banner','replace-section',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+
+  const key = String(opts.key || '').trim();
+  if (!/^[a-z][a-z0-9-]{1,32}$/.test(key)) {
+    return jsonResp({ ok: false, error: 'bad-key', hint: 'lowercase letters/digits/dashes' }, 400);
+  }
+  const imageBase64 = String(opts.imageBase64 || '');
+  if (!imageBase64) return jsonResp({ ok: false, error: 'imageBase64 required' }, 400);
+  const filename = String(opts.imageFilename || ('discord-section-' + key + '.png')).slice(0, 80);
+
+  // Resolve channel
+  let channelId = String(opts.channelId || '').trim();
+  let channelSource = 'override';
+  if (!channelId) {
+    const cfg = await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' });
+    const cfgKey = String(opts.channelKind || ('ch_' + key)).trim();
+    channelId = cfg?.ids?.[cfgKey] || '';
+    channelSource = 'guild:cfg.ids.' + cfgKey;
+  }
+  if (!channelId) return jsonResp({ ok: false, error: 'no-channel', hint: 'pass channelId or set guild:cfg.ids.ch_' + key }, 400);
+
+  // List recent messages (newest-first)
+  const scanLimit = Math.min(100, Math.max(1, Number(opts.scanLimit) || 30));
+  const listRes = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages?limit=${scanLimit}`,
+    { headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } },
+  );
+  if (!listRes.ok) {
+    return jsonResp({ ok: false, error: 'list-failed', status: listRes.status,
+      body: (await listRes.text()).slice(0, 200) }, 502);
+  }
+  const messages = await listRes.json();
+
+  // Bottom-most bot/webhook image message = first scan match (messages[0])
+  let oldBanner = null;
+  for (const m of messages) {
+    const isBot = m.author?.bot === true || !!m.webhook_id;
+    if (!isBot) continue;
+    const hasImage = (m.attachments || []).some(a => {
+      const n = String(a.filename || '').toLowerCase();
+      return /\.(png|jpe?g|gif|webp)$/.test(n);
+    });
+    if (hasImage) { oldBanner = m; break; }
+  }
+
+  let deletedId = null;
+  let deleteError = null;
+  if (oldBanner) {
+    const delRes = await fetch(
+      `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages/${oldBanner.id}`,
+      { method: 'DELETE', headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } },
+    );
+    if (delRes.ok || delRes.status === 204) {
+      deletedId = oldBanner.id;
+    } else {
+      deleteError = { status: delRes.status, body: (await delRes.text()).slice(0, 160) };
+    }
+  }
+
+  // Decode + post the new banner via multipart/form-data
+  let bytes;
+  try {
+    const bin = atob(imageBase64);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } catch {
+    return jsonResp({ ok: false, error: 'bad-base64' }, 400);
+  }
+
+  const form = new FormData();
+  form.append('files[0]', new Blob([bytes], { type: 'image/png' }), filename);
+
+  const postRes = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
+    { method: 'POST',
+      headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN },
+      body: form },
+  );
+  if (!postRes.ok) {
+    return jsonResp({ ok: false, error: 'post-failed', status: postRes.status,
+      body: (await postRes.text()).slice(0, 200), deletedId, channelId }, 502);
+  }
+  const newMsg = await postRes.json();
+  const newMessageId = String(newMsg?.id || '');
+
+  // Stamp the new id
+  const kvKey = `branding:section-banner:${guildId}:${key}`;
+  await env.LOADOUT_BOLTS.put(kvKey, JSON.stringify({
+    messageId: newMessageId,
+    channelId,
+    filename,
+    sizeBytes: bytes.length,
+    postedAt: Date.now(),
+  }));
+
+  return jsonResp({
+    ok: true,
+    key,
+    channelId,
+    channelSource,
+    scanned: messages.length,
+    oldMessageId: deletedId,
+    oldAuthorId: oldBanner?.author?.id || null,
+    oldFilename: oldBanner?.attachments?.[0]?.filename || null,
+    deleteError,
+    newMessageId,
+    newSizeBytes: bytes.length,
+    kvKey,
+    via: auth.via,
+  }, 200);
 }
 
 // ── /admin/gifter-roles/ensure/:guildId (HMAC) ────────────────────
