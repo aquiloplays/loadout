@@ -240,7 +240,7 @@ async function resolveAvatar(env, userId, card, member) {
   return { url: fallback, source: 'discord' };
 }
 
-async function postCheckinEmbed(env, guildId, userId, state, card, member, isFirstTimeNoCard) {
+async function postCheckinEmbed(env, guildId, userId, state, card, member, isFirstTimeNoCard, opts = {}) {
   // Resolution order:
   //   1. channel-binding(checkin-results) — KV-only, set by Clay
   //      to route result embeds away from the hub channel
@@ -263,17 +263,25 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   const { getBranding } = await import('./branding.js');
   const brand   = await getBranding(env, guildId);
   const accent  = (card?.accentColor != null ? card.accentColor : (brand.accentColor || DEFAULT_ACCENT));
-  const image   = card?.imageUrl || brand.checkinDefaultImageUrl || DEFAULT_IMAGE_URL;
+  // opts.gifUrl (from the /checkin compose flow) wins over the user's
+  // saved card image — the GIF picked at compose-time is the visual
+  // anchor for THIS check-in. Falls back to the saved card image then
+  // the brand default.
+  const image   = opts.gifUrl || card?.imageUrl || brand.checkinDefaultImageUrl || DEFAULT_IMAGE_URL;
   const display = member?.displayName || 'friend';
   const avatarPick = await resolveAvatar(env, userId, card, member);
   const avatar     = avatarPick.url;
 
   // Description rules:
+  //   • opts.message (user-typed message from the compose modal) wins
+  //     the top slot if present.
   //   • Streak line is always present.
   //   • Headline (if set) renders above the streak in italics.
   //   • Subtitle (if set) renders below.
   //   • First-time-with-no-card adds the "customise your card" hint.
   const lines = [];
+  const composedMessage = String(opts.message || '').trim();
+  if (composedMessage) lines.push(`💬 _${composedMessage.slice(0, 300)}_`);
   if (card?.headline) lines.push(`_${card.headline}_`);
   lines.push(`🔥 **${state.streak}-day streak**` + (state.longest > state.streak ? `  · best ${state.longest}` : ''));
   if (card?.subtitle) lines.push(card.subtitle);
@@ -318,7 +326,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
 // `source` is informational only ('web' | 'discord' | 'system') and
 // recorded into the state record so we can see which surface fired
 // each user's last check-in.
-export async function recordCheckin(env, guildId, userId, source = 'web') {
+export async function recordCheckin(env, guildId, userId, source = 'web', opts = {}) {
   if (!guildId || !userId) return { ok: false, error: 'bad-args' };
 
   const now    = Date.now();
@@ -426,8 +434,10 @@ export async function recordCheckin(env, guildId, userId, source = 'web') {
 
   // Post the embed (best-effort — a failure here doesn't roll back
   // the check-in itself; the user still got their streak + bonuses).
+  // opts { message, gifUrl } come from the /checkin compose flow
+  // and bake the user's message + chosen GIF directly into the card.
   const member = await fetchMemberInfo(env, guildId, userId);
-  const embed  = await postCheckinEmbed(env, guildId, userId, state, card, member, firstTimeNoCard);
+  const embed  = await postCheckinEmbed(env, guildId, userId, state, card, member, firstTimeNoCard, opts);
 
   // Referral milestone: if this user was attributed to a referrer and
   // this is their FIRST ever community check-in (state.total === 1
@@ -577,52 +587,275 @@ async function loadCardPointer(env, guildId, userId, today) {
   );
 }
 
-export async function handleCheckinCommand(env, data) {
+// ── /checkin compose flow (gif + message before posting) ───────────────
+//
+// New 2026-05 flow per Clay: /checkin no longer posts the card on the
+// first click. Instead it opens a modal that asks for BOTH a GIF
+// search query (required) and a short message (optional). On modal
+// submit, Giphy returns 5 candidates; the user picks one and THAT
+// click is what actually fires recordCheckin + posts the card with
+// the GIF + message baked in.
+//
+// Component chain — dispatched in aquilo/worker.js:
+//   1. /checkin                          → opens modal:ci2_compose
+//   2. modal:ci2_compose                 → handleCheckinComposeSubmit
+//                                          → Giphy /v1/gifs/search,
+//                                            stash {picks, message}
+//                                            in KV under a token,
+//                                            render ephemeral picker
+//   3. ci2:pick:<token>:<i>              → handleCheckinPickSubmit
+//                                          → recordCheckin with the
+//                                            chosen gif + message in
+//                                            opts; (or PATCH the
+//                                            existing card if user
+//                                            already checked in today)
+//
+// Backward compatibility: the OLD aqci:search → aqci:pick chain in
+// aquilo/checkin-slash.js stays wired for any ephemerals already in
+// chat that still carry those custom_ids; the modal-first flow is
+// the new default for the slash + hub button.
+const MODAL_COMPOSE_ID  = 'modal:ci2_compose';
+const CI2_TOKEN_PREFIX  = 'ci2:token:';
+const CI2_PICK_PREFIX   = 'ci2:pick:';
+const CI2_TOKEN_TTL_S   = 10 * 60;
+
+function getModalFieldValue(data, customId) {
+  const rows = data?.data?.components || [];
+  for (const r of rows) {
+    for (const c of (r.components || [])) {
+      if (c?.custom_id === customId) return c.value;
+    }
+  }
+  return null;
+}
+
+export function handleCheckinCommand(env, data) {
   const guildId = data.guild_id;
   const userId  = data.member?.user?.id || data.user?.id;
   if (!guildId || !userId) {
     return { type: 4, data: { content: 'Run this in a server.', flags: 64 } };
   }
-  const r = await recordCheckin(env, guildId, userId, 'discord');
-  const today = todayET();
+  // Open the compose modal. recordCheckin doesn't fire until the
+  // user picks a GIF (handleCheckinPickSubmit) so the streak / bolts
+  // / XP only credit ONCE the full compose flow completes.
+  return {
+    type: 9, // APPLICATION_MODAL
+    data: {
+      custom_id: MODAL_COMPOSE_ID,
+      title: 'Daily check-in',
+      components: [
+        { type: 1, components: [{
+            type: 4, custom_id: 'q',
+            label: '🎬 Search for a GIF',
+            style: 1, required: true,
+            min_length: 1, max_length: 80,
+            placeholder: 'e.g. coffee, monday, victory dance',
+          }] },
+        { type: 1, components: [{
+            type: 4, custom_id: 'message',
+            label: "💬 Today's message (optional)",
+            style: 2, required: false, max_length: 300,
+            placeholder: "How's today going? Share a thought or vibe.",
+          }] },
+      ],
+    },
+  };
+}
 
-  if (r.alreadyToday) {
-    // Repeat /checkin on the same day — no streak/bonus work happens,
-    // but if there's a stashed card we still offer the picker so the
-    // user can swap their gif.
-    const existing = await loadCardPointer(env, guildId, userId, today);
-    const lines = [
-      `✅ You've already checked in today. **${r.streak}-day** streak going strong.`,
-    ];
-    if (r.pendingBonusCount) {
-      lines.push(`🎁 You have **${r.pendingBonusCount}** unclaimed bonus${r.pendingBonusCount > 1 ? 'es' : ''} — collect on aquilo.gg/profile.`);
+export async function handleCheckinComposeSubmit(env, data) {
+  const userId  = data?.member?.user?.id || data?.user?.id;
+  const guildId = data?.guild_id;
+  if (!userId || !guildId) {
+    return { type: 4, data: { content: 'Run this in a server.', flags: 64 } };
+  }
+  if (!env.GIPHY_API_KEY) {
+    return { type: 4, data: {
+      content: '⚠️ GIF search isn\'t available — `GIPHY_API_KEY` is not set on the worker.',
+      flags: 64,
+    } };
+  }
+  const q       = (getModalFieldValue(data, 'q') || '').trim();
+  const message = (getModalFieldValue(data, 'message') || '').trim();
+  if (!q) return { type: 4, data: { content: 'Empty GIF search.', flags: 64 } };
+
+  // Giphy search — same shape as aquilo/checkin-slash.js, kept local
+  // here to avoid cross-module coupling.
+  let results;
+  try {
+    const url = new URL('https://api.giphy.com/v1/gifs/search');
+    url.searchParams.set('api_key', env.GIPHY_API_KEY);
+    url.searchParams.set('q', q);
+    url.searchParams.set('limit', '5');
+    url.searchParams.set('rating', 'pg');
+    const r = await fetch(url.toString());
+    if (!r.ok) {
+      return { type: 4, data: {
+        content: 'GIPHY search failed (' + r.status + '). Try again.', flags: 64,
+      } };
     }
-    const components = existing ? [GIF_PICKER_ROW] : [];
-    if (existing) lines.push('Pick a different GIF for your card:');
-    return { type: 4, data: { content: lines.join('\n'), flags: 64, components } };
+    const j = await r.json();
+    results = Array.isArray(j?.data) ? j.data : [];
+  } catch (e) {
+    return { type: 4, data: {
+      content: 'GIPHY search threw: ' + String(e?.message || e), flags: 64,
+    } };
+  }
+  if (!results.length) {
+    return { type: 4, data: {
+      content: 'No GIFs found for `' + q.slice(0, 40) + '`. Try a different search.',
+      flags: 64,
+    } };
   }
 
-  // Stash the pointer for the picker BEFORE we render the reply, so
-  // the picker can find the card the instant the user taps the button.
+  const picks = results.slice(0, 5).map((g, i) => ({
+    i,
+    title: String(g.title || '').slice(0, 80) || 'GIF #' + (i + 1),
+    url:   String(g.images?.original?.url
+                 || g.images?.fixed_height?.url
+                 || g.url || ''),
+  })).filter(p => p.url);
+  if (picks.length === 0) {
+    return { type: 4, data: {
+      content: 'GIPHY returned no usable GIFs. Try a different search.',
+      flags: 64,
+    } };
+  }
+
+  const token = (crypto.randomUUID && crypto.randomUUID())
+                || Math.random().toString(36).slice(2);
+  await env.LOADOUT_BOLTS.put(
+    CI2_TOKEN_PREFIX + token,
+    JSON.stringify({ picks, message }),
+    { expirationTtl: CI2_TOKEN_TTL_S },
+  );
+
+  // One embed per GIF + a row of Pick buttons.
+  const embeds = picks.map((p, i) => ({
+    title: '#' + (i + 1) + ' · ' + p.title,
+    image: { url: p.url },
+    color: 0x9147ff,
+  }));
+  const buttons = picks.map((p, i) => ({
+    type: 2, style: 2, label: '#' + (i + 1),
+    custom_id: CI2_PICK_PREFIX + token + ':' + i,
+  }));
+
+  const lines = ['Tap one to post your check-in:'];
+  if (message) lines.push(`Your message: _${message.slice(0, 300)}_`);
+
+  return {
+    type: 4,
+    data: {
+      content: lines.join('\n'),
+      flags: 64,
+      embeds,
+      components: [{ type: 1, components: buttons }],
+    },
+  };
+}
+
+export async function handleCheckinPickSubmit(env, data) {
+  const userId  = data?.member?.user?.id || data?.user?.id;
+  const guildId = data?.guild_id;
+  if (!userId || !guildId) {
+    return { type: 4, data: { content: 'Run this in a server.', flags: 64 } };
+  }
+  const cid = data?.data?.custom_id || '';
+  const m = cid.match(/^ci2:pick:([A-Za-z0-9-]+):(\d+)$/);
+  if (!m) return { type: 4, data: { content: 'Bad pick ID.', flags: 64 } };
+  const token = m[1];
+  const idx   = parseInt(m[2], 10);
+
+  const stashed = await env.LOADOUT_BOLTS.get(CI2_TOKEN_PREFIX + token, { type: 'json' });
+  if (!stashed?.picks?.[idx]) {
+    return { type: 4, data: {
+      content: 'That picker expired. Run /checkin again.', flags: 64,
+    } };
+  }
+  const pick    = stashed.picks[idx];
+  const message = stashed.message || '';
+  const today   = todayET();
+
+  // recordCheckin runs the unified flow: streak / freeze / bolts queue
+  // / XP grants / referral milestone / Voltaic roll / embed post.
+  // opts { message, gifUrl } get baked into the embed by
+  // postCheckinEmbed (image + first description line).
+  const r = await recordCheckin(env, guildId, userId, 'discord', {
+    message, gifUrl: pick.url,
+  });
+
   if (r.embed?.posted) {
+    // Stash for the OLD aqci:pick PATCH path too, so any stale
+    // ephemerals in chat keep working.
     await stashCardPointer(env, guildId, userId, today,
       r.embed.channelId, r.embed.messageId);
+  } else if (r.alreadyToday) {
+    // Same-day re-pick: PATCH the existing card with the new GIF +
+    // (replace) the message line. No streak/bolt double-credit
+    // because recordCheckin's alreadyToday branch already returned
+    // without re-running the rewards path.
+    const existing = await loadCardPointer(env, guildId, userId, today);
+    if (existing?.channelId && existing?.messageId) {
+      try {
+        const liveRes = await fetch(
+          `https://discord.com/api/v10/channels/${existing.channelId}/messages/${existing.messageId}`,
+          { headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } },
+        );
+        if (liveRes.ok) {
+          const live = await liveRes.json();
+          const liveEmbeds = Array.isArray(live?.embeds) ? live.embeds : [];
+          if (liveEmbeds[0]) {
+            const head = { ...liveEmbeds[0] };
+            head.image = { url: pick.url };
+            if (message) {
+              const desc = String(head.description || '');
+              const lines = desc.split('\n');
+              // First italic line was the prior message — replace it.
+              // Otherwise prepend a fresh one.
+              if (lines[0] && /^💬 _.+_$/.test(lines[0])) {
+                lines[0] = `💬 _${message.slice(0, 300)}_`;
+              } else {
+                lines.unshift(`💬 _${message.slice(0, 300)}_`);
+              }
+              head.description = lines.join('\n');
+            }
+            await fetch(
+              `https://discord.com/api/v10/channels/${existing.channelId}/messages/${existing.messageId}`,
+              { method: 'PATCH',
+                headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+                           'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  embeds: [head, ...liveEmbeds.slice(1)],
+                  allowed_mentions: { parse: [] },
+                }) },
+            );
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
   }
 
-  const lines = [`✅ Checked in! **${r.streak}-day** streak.`];
-  if (r.freezeUsed) lines.push('❄ A **Streak Shield** saved your streak — one shield consumed.');
-  if (r.luckyVoltaic) lines.push('⚡ **JACKPOT** — a **Voltaic pack** dropped! Open it via `/boltbound`.');
-  if (r.pendingBonusCount) {
-    lines.push(`🎁 **${r.pendingBonusCount}** bonus${r.pendingBonusCount > 1 ? 'es' : ''} ready to collect on aquilo.gg/profile.`);
+  const lines = [];
+  if (r.alreadyToday) {
+    lines.push(`✅ Already checked in today. Card updated with the new GIF${message ? ' + message' : ''}. **${r.streak}-day** streak going strong.`);
+    if (r.pendingBonusCount) {
+      lines.push(`🎁 **${r.pendingBonusCount}** unclaimed bonus${r.pendingBonusCount > 1 ? 'es' : ''} — collect on aquilo.gg/profile.`);
+    }
+  } else {
+    lines.push(`✅ Checked in! **${r.streak}-day** streak.`);
+    if (r.freezeUsed)    lines.push('❄ A **Streak Shield** saved your streak — one shield consumed.');
+    if (r.luckyVoltaic)  lines.push('⚡ **JACKPOT** — a **Voltaic pack** dropped! Open it via `/boltbound`.');
+    if (r.pendingBonusCount) {
+      lines.push(`🎁 **${r.pendingBonusCount}** bonus${r.pendingBonusCount > 1 ? 'es' : ''} ready to collect on aquilo.gg/profile.`);
+    }
+    if (r.firstTimeNoCard) {
+      lines.push(`✨ First time? Customise your check-in card at aquilo.gg${CUSTOMISE_PATH}.`);
+    }
+    if (!r.embed?.posted && r.embed?.reason !== 'already-today') {
+      lines.push(`_(couldn't post the embed: ${r.embed?.reason || 'unknown'} — your check-in still counted.)_`);
+    }
   }
-  if (r.firstTimeNoCard) {
-    lines.push(`✨ First time? Customise your check-in card at aquilo.gg${CUSTOMISE_PATH}.`);
-  }
-  if (!r.embed.posted && r.embed.reason !== 'already-today') {
-    lines.push(`_(couldn't post the embed: ${r.embed.reason} — your check-in still counted.)_`);
-  }
-  // Only offer the picker when there's actually a card to patch.
-  const components = r.embed?.posted ? [GIF_PICKER_ROW] : [];
-  if (r.embed?.posted) lines.push('Pick a GIF to add to your card:');
-  return { type: 4, data: { content: lines.join('\n'), flags: 64, components } };
+
+  return { type: 7, data: { content: lines.join('\n'), flags: 64,
+                            embeds: [], components: [] } };
 }

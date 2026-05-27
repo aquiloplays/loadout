@@ -78,6 +78,11 @@ import {
   handleCheckinSearchButton, handleCheckinPickButton,
   handleCheckinSearchSubmit,
 } from './checkin-slash.js';
+// /checkin v2 — modal-first compose flow (gif + message before posting).
+// Old aqci:* chain above stays wired for backward compat.
+import {
+  handleCheckinComposeSubmit, handleCheckinPickSubmit,
+} from '../community-checkin.js';
 
 // Re-export the Durable Object class so wrangler can wire it to the
 // OVERLAY_DO binding. Required at the entrypoint script.
@@ -687,6 +692,7 @@ async function handleComponent(data, env, ctx) {
   if (id.startsWith('ticket:'))   return handleTicketComponent(env, data);
   if (id === 'aqci:search')          return handleCheckinSearchButton();
   if (id.startsWith('aqci:pick:'))   return handleCheckinPickButton(env, data);
+  if (id.startsWith('ci2:pick:'))    return handleCheckinPickSubmit(env, data);
   return ephemeral('Unknown button.');
 }
 
@@ -715,6 +721,7 @@ async function handleModalSubmit(data, env, ctx) {
   if (id === 'modal:ticket_type_add')    return handleTicketTypeAddSubmit(env, data);
   if (id === 'modal:ticket_type_remove') return handleTicketTypeRemoveSubmit(env, data);
   if (id === 'modal:aqci_search')        return handleCheckinSearchSubmit(env, data);
+  if (id === 'modal:ci2_compose')        return handleCheckinComposeSubmit(env, data);
   return ephemeral('Unknown modal: ' + id);
 }
 
