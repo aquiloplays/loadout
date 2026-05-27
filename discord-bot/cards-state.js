@@ -489,7 +489,9 @@ export async function getStatsFor(env, userId, _guildId = null) {
 //
 // Returns { earnedToday, remaining } where remaining clamps at 0.
 
-const LADDER_CAP_PER_DAY = 500;
+// v2 rebalance: scaled through economy-pace.js. v1=500/day; v2=200.
+import { paceBolts as _paceBolts } from './economy-pace.js';
+const LADDER_CAP_PER_DAY = _paceBolts(500);
 
 export async function getLadderEarned(env, userId) {
   const v = await env.LOADOUT_BOLTS.get(LADDER_KEY(userId, todayYmd()));

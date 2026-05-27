@@ -66,8 +66,24 @@ function cardRank(c) {
 function cardLabel(c) { return cardRank(c) + cardSuit(c); }
 
 // ── Cooldown ─────────────────────────────────────────────────────────
+//
+// v2 rebalance (2026-05): cooldown extended via economy-pace.js so the
+// natural rate of grinding shrinks alongside the new payout floor.
+// v1 was 2.5s; v2 is 5s.
+import { QUICK_GAME_COOLDOWN_MS, QUICK_GAME_NET_WIN_CAP } from './economy-pace.js';
 
-const COOLDOWN_MS = 2500;          // 2.5s between quick plays
+const COOLDOWN_MS = QUICK_GAME_COOLDOWN_MS;
+
+// v2 rebalance: cap absolute net win per quick-game at the bet plus
+// QUICK_GAME_NET_WIN_CAP. Wagers still play at real odds (so the 36×
+// roulette number bet is still a real lottery) — the cap stops a
+// lucky streak of high-stake wins from minting tens of thousands of
+// bolts in an evening. If gross <= bet (a loss or push) the cap is a
+// no-op. Used everywhere a `gross` value lands in the wallet.
+function capWin(bet, gross) {
+  if (!Number.isFinite(gross) || gross <= bet) return gross;
+  return Math.min(gross, bet + QUICK_GAME_NET_WIN_CAP);
+}
 const COOLDOWN_KEY = (uid) => `gamecd:${uid}`;
 
 // Returns { ok: true } if the cooldown is clear, or
@@ -291,7 +307,7 @@ async function blackjackResolve(env, guildId, userId, state) {
     explanation = 'Dealer ' + dTotal + ' vs you ' + pTotal + '. Lost ' + state.bet + ' bolts.';
   }
 
-  if (gross > 0) await earn(env, guildId, userId, gross, 'blackjack:' + outcome);
+  if (gross > 0) await earn(env, guildId, userId, capWin(state.bet, gross), 'blackjack:' + outcome);
   await emitQuickGame(env, userId, guildId, 'blackjack', state.bet, gross);
   state.finished = true;
   state.outcome = outcome;
@@ -383,7 +399,7 @@ export async function roulette(env, guildId, userId, bet, pick) {
   else if (kind === 'dozen') win = Number(pick.dozen) === dozen;
 
   const gross = win ? bet * payoutMult : 0;
-  if (gross > 0) await earn(env, guildId, userId, gross, 'roulette:' + kind);
+  if (gross > 0) await earn(env, guildId, userId, capWin(bet, gross), 'roulette:' + kind);
   await emitQuickGame(env, userId, guildId, 'roulette', bet, gross);
 
   return await withBalance(env, guildId, userId, {
@@ -427,7 +443,7 @@ export async function wheel(env, guildId, userId, bet, risk) {
   const idx = rng(table.length);
   const mult = table[idx];
   const gross = Math.floor(bet * mult);
-  if (gross > 0) await earn(env, guildId, userId, gross, 'wheel:' + r);
+  if (gross > 0) await earn(env, guildId, userId, capWin(bet, gross), 'wheel:' + r);
   await emitQuickGame(env, userId, guildId, 'wheel', bet, gross);
 
   return await withBalance(env, guildId, userId, {
@@ -588,7 +604,7 @@ export async function hiloCashout(env, guildId, userId) {
     return { ok: false, error: 'too-early', message: 'Make at least one correct guess first.' };
   }
   const gross = Math.floor(state.bet * state.multiplier);
-  await earn(env, guildId, userId, gross, 'hilo:cashout');
+  await earn(env, guildId, userId, capWin(state.bet, gross), 'hilo:cashout');
   await emitQuickGame(env, userId, guildId, 'hilo', state.bet, gross);
   state.finished = true;
   state.outcome = 'cashout';
@@ -720,7 +736,7 @@ export async function minesCashout(env, guildId, userId) {
     return { ok: false, error: 'too-early', message: 'Reveal at least one safe tile first.' };
   }
   const gross = Math.floor(state.bet * state.multiplier);
-  await earn(env, guildId, userId, gross, 'mines:cashout');
+  await earn(env, guildId, userId, capWin(state.bet, gross), 'mines:cashout');
   await emitQuickGame(env, userId, guildId, 'mines', state.bet, gross);
   state.finished = true;
   state.outcome = 'cashout';
@@ -773,7 +789,7 @@ export async function plinko(env, guildId, userId, bet, risk) {
   }
   const mult = table[pos];
   const gross = Math.floor(bet * mult);
-  if (gross > 0) await earn(env, guildId, userId, gross, 'plinko:' + r);
+  if (gross > 0) await earn(env, guildId, userId, capWin(bet, gross), 'plinko:' + r);
   await emitQuickGame(env, userId, guildId, 'plinko', bet, gross);
 
   return await withBalance(env, guildId, userId, {
@@ -828,7 +844,7 @@ export async function crash(env, guildId, userId, bet, cashout) {
   const won = bust >= cashout;
   let gross = 0;
   if (won) gross = Math.floor(bet * cashout);
-  if (gross > 0) await earn(env, guildId, userId, gross, 'crash:cashout');
+  if (gross > 0) await earn(env, guildId, userId, capWin(bet, gross), 'crash:cashout');
   await emitQuickGame(env, userId, guildId, 'crash', bet, gross);
 
   return await withBalance(env, guildId, userId, {

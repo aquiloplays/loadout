@@ -42,13 +42,16 @@ const CARD_KEY  = (g, u) => `checkin-card:${g}:${u}`;
 const QUEUE_KEY = (g, u) => `community-checkin-bonus:${g}:${u}`;
 
 // Daily payout — base bolts the user can claim once per day after
-// checking in. Mirrors the Discord pic-checkin reward so retiring that
-// surface in favour of this one doesn't change the economy.
-export const DAILY_BASE_BOLTS = 5;
+// checking in. v2 rebalance (2026-05): paced through economy-pace.js
+// so retunes are a single edit. v1 was 5 base / 5-15-50 streak;
+// v2 is 2 base / 3-8-25 streak (slower wallet growth, milestone
+// moments still feel ceremonial). See docs/ECONOMY_PACE.md.
+import { paceBolts as _paceBolts, paceMilestone as _paceMilestone } from './economy-pace.js';
+export const DAILY_BASE_BOLTS = _paceBolts(5);   // → 2
 export const STREAK_MILESTONES = [
-  { day: 7,   amount: 5,  label: '7-day streak!'   },
-  { day: 30,  amount: 15, label: '30-day streak!'  },
-  { day: 100, amount: 50, label: '100-day streak!' },
+  { day: 7,   amount: _paceMilestone(5),  label: '7-day streak!'   },   // → 3
+  { day: 30,  amount: _paceMilestone(15), label: '30-day streak!'  },   // → 8
+  { day: 100, amount: _paceMilestone(50), label: '100-day streak!' },   // → 25
 ];
 
 // Brand defaults. Per-guild overrides via branding.js (getBranding);

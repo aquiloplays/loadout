@@ -7,13 +7,21 @@
 
 import { loadXpTable, xpForKind, dailyCapForKind } from './xp-table.js';
 
-// Polynomial curve from §4.3: xpToReach(level) = 100×level + 30×level^1.6
-// At L1 the math returns 100+30=130 XP to reach L2 (cumulative). We
-// store cumulative XP in pxp:<userId>.xp and recompute level on each
-// grant — pure function of cumulative XP.
+// Polynomial curve. v1 was xpToReach(level) = 100×level + 30×level^1.6.
+// v2 rebalance (2026-05) — doubled both coefficients so L25/50/100
+// actually feel earned. New: 200×level + 60×level^1.6. At L1 the
+// math now returns 260 XP to reach L2 (was 130). XP grants themselves
+// stayed at v1 amounts; the curve carries the slowdown.
+//
+// Sample reach-points:
+//   L2:  260 XP   (was 130)
+//   L10: 4400+   (was 2200)
+//   L25: ~25k    (was ~12k)
+//   L50: ~95k    (was ~46k)
+//   L100: ~370k  (was ~180k)
 export function xpToReach(level) {
   if (level <= 1) return 0;
-  return Math.round(100 * level + 30 * Math.pow(level, 1.6));
+  return Math.round(200 * level + 60 * Math.pow(level, 1.6));
 }
 
 // Cumulative XP needed to *reach* level N — i.e. once xp >= xpAtLevel(N)

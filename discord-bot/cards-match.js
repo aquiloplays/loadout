@@ -401,9 +401,15 @@ async function finaliseIfEnded(env, match) {
     }
     await adjustTrophies(env, userId, trophyDelta);
 
-    // Bolts payout (capped at LADDER_CAP_PER_DAY).
+    // Bolts payout (capped at LADDER_CAP_PER_DAY). v2 rebalance paces
+    // the per-win amount through economy-pace.js. v1: 10 NPC / 50 PvP;
+    // v2: 4 NPC / 20 PvP. Pack drops + trophy progression are
+    // unchanged so the "I won" feel still matters.
     let want = 0;
-    if (won) want = npc ? 10 : 50;
+    if (won) {
+      const { paceBolts } = await import('./economy-pace.js');
+      want = paceBolts(npc ? 10 : 50);
+    }
     if (want > 0) {
       const r = await commitLadderCredit(env, userId, want);
       if (r.credit > 0) {

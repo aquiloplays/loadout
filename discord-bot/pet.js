@@ -49,8 +49,12 @@ const DECAY = {
   cleanliness: 0.5, // /hour (decays /2h in design doc)
 };
 
-const COOLDOWN_MS = 30 * 60 * 1000;       // 30 min per action
-const RELEASE_COOLDOWN_MS = 24 * 3_600_000; // 24 h before re-adopt after release
+// v2 rebalance: paced via economy-pace.js. v1 = 30 min per action;
+// v2 = 75 min. Re-adopt cooldown left at 24h (release punishment,
+// not a grind knob).
+import { PET_CARE_COOLDOWN_MS } from './economy-pace.js';
+const COOLDOWN_MS = PET_CARE_COOLDOWN_MS;
+const RELEASE_COOLDOWN_MS = 24 * 3_600_000;
 
 const ACTION_COST = {
   feed:  10,

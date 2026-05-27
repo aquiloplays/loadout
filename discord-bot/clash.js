@@ -535,10 +535,14 @@ async function handleDonate(env, guildId, userId, amount) {
     return '❌ Couldn\'t reach the treasury. Your Bolts were refunded — try again.';
   }
   await recordContribution(env, guildId, userId, accepted);
-  // PROGRESSION (P1) — 1 XP per 100 bolts donated, capped at 50/day by table.
+  // PROGRESSION (P1) — XP per donated bolts, paced via economy-pace.js.
+  // v1 was 1 XP per 100 bolts; v2 is 1 XP per 250 bolts (still capped
+  // 50/day by the table). Slower passive XP from money-spending so the
+  // level curve has to be earned through real play.
   try {
     const { emitProgressionEvent } = await import('./progression/event-bus.js');
-    const xpUnits = Math.max(1, Math.floor(accepted / 100));
+    const { CLASH_DONATE_BOLTS_PER_XP } = await import('./economy-pace.js');
+    const xpUnits = Math.max(1, Math.floor(accepted / CLASH_DONATE_BOLTS_PER_XP));
     await emitProgressionEvent(env, {
       kind: 'clash.donated', userId, guildId,
       meta: { bolts: accepted, donateId: `${guildId}:${userId}:${Date.now()}` },

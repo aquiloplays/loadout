@@ -277,10 +277,19 @@ export async function handleCountingMessage(env, payload) {
     try { await reactToMessage(env, payload.channel_id, payload.message_id, '✅'); }
     catch (e) { console.warn('[counting] react ok failed', e?.message || e); }
 
-    const baseReward = parseInt(env.COUNTING_BASE_REWARD || String(DEFAULT_BASE_REWARD), 10) || DEFAULT_BASE_REWARD;
-    const multiplier = 1 + Math.floor(num / 100);
-    const reward = baseReward * multiplier;
-    await applyBolts(env, guildId, userId, reward, 'counting:' + num);
+    // v2 economy rebalance (2026-05): drip semantic instead of
+    // per-count. Old: 1 bolt per count × floor(num/100)+1 multiplier
+    // — so 100 counts could mint 100+ bolts. New: 1 bolt at every
+    // multiple of 5, +1 extra at multiples of 25, +5 extra at
+    // multiples of 100 (the 100-celebrate milestone). A 100-count
+    // run now mints ~30 bolts instead of ~150. The reward variable
+    // is reported in the response, so 0 is a valid "right number,
+    // no drip" outcome the UI still shows.
+    let reward = 0;
+    if (num % 5 === 0)   reward += 1;
+    if (num % 25 === 0)  reward += 1;
+    if (num % 100 === 0) reward += 5;
+    if (reward > 0) await applyBolts(env, guildId, userId, reward, 'counting:' + num);
 
     state.current = num;
     state.last_user_id = userId;
@@ -295,7 +304,7 @@ export async function handleCountingMessage(env, payload) {
     if (num % 100 === 0) {
       try {
         await postChat(env, payload.channel_id, {
-          content: '🎉 **' + num + '!** Bolt reward is now ×' + (multiplier + (num % 100 === 0 ? 1 : 0)) + ' for the next stretch — keep it going.'
+          content: '🎉 **' + num + '!** +' + reward + ' bolts — keep the chain going.'
         });
       } catch {}
     }
