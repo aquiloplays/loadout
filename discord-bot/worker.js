@@ -314,6 +314,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/cn-roster/post/')) {
       return handleCnRosterPost(req, env, path);
     }
+    // Repost (or edit-in-place) the self-roles channel message —
+    // picks up D1 self_roles changes AND injects the standalone
+    // 18+ self-claim button. Same path the hub button takes, just
+    // HMAC-authed so it can be triggered programmatically.
+    if (method === 'POST' && path.startsWith('/admin/self-roles/post/')) {
+      return handleSelfRolesPost(req, env, path);
+    }
     // Seed guild:join-counter:<g> from Discord's
     // approximate_member_count so the first observed new member
     // doesn't display "1st member" in a pre-existing guild. See
@@ -2460,6 +2467,23 @@ async function handleReleaseNotesPost(req, env, path) {
   }));
   return jsonResp({ ok: true, product, version, channelId,
     priorDeletedId, newMessageId: newMsg.id, kvKey, via: auth.via }, 200);
+}
+
+// ── /admin/self-roles/post/:guildId (HMAC) ────────────────────────
+// Reposts (or edits in place) the public self-roles message in
+// ROLES_CHANNEL_ID. Picks up D1 self_roles edits AND re-injects the
+// standalone 18+ self-claim button.
+async function handleSelfRolesPost(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  const { postSelfRolesAdmin } = await import('./aquilo/self-roles.js');
+  const r = await postSelfRolesAdmin(env, guildId);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 502);
 }
 
 // ── /admin/cn-roster/post/:guildId (HMAC) ─────────────────────────

@@ -80,21 +80,38 @@ export async function handleSelfRoleRemoveSubmit(env, data) {
 
 // ---- Public roles message ---------------------------------------------
 
+// Reserve the bottom row for the 18+ self-claim button. Lives outside
+// the D1 self_roles table on purpose — it carries a warning + audit
+// flow the other toggles don't need.
+const AGE18_BUTTON = {
+  custom_id: 'roles:age18:start',
+  label: '18+ access',
+  emoji: { name: '🔞' },
+  style: 2, // BTN_SECONDARY — matches the other toggle buttons visually
+  type: 2,  // COMPONENT_BUTTON
+};
+
 function buildSelfRolesPayload(roles) {
   const embed = {
     title: '🪪 Self-Assign Roles',
-    description: roles.length
-      ? 'Click a button to give yourself that role. Click again to remove it.'
-      : '_No self-assign roles configured yet — admin: use the hub to add some._',
+    description:
+      (roles.length
+        ? 'Click a button to give yourself that role. Click again to remove it.'
+        : '_No self-assign roles configured yet — admin: use the hub to add some._') +
+      '\n\n**🔞 18+ access** opts you into the adult-conversation chat area. ' +
+      'Tap below to read the warning and confirm.',
     color: COLOR_SCHEDULE
   };
 
-  // Up to 25 buttons (5 rows × 5 each). Beyond that, additional roles
-  // are silently dropped from the public message but still in DB.
+  // Up to 24 D1 buttons (5 rows × 5, minus 1 slot kept for the 18+
+  // button on its own row). Beyond that, extra roles are silently
+  // dropped from the public message but still in DB.
   const components = [];
   let curRow = [];
-  for (let i = 0; i < Math.min(roles.length, 25); i++) {
+  const cap = 24;
+  for (let i = 0; i < Math.min(roles.length, cap); i++) {
     if (curRow.length === 5) { components.push(row(...curRow)); curRow = []; }
+    if (components.length >= 4) break; // leave the last row free for 18+
     const r = roles[i];
     curRow.push(btn('roles:toggle:' + r.role_id, r.label, {
       style: BTN_SECONDARY,
@@ -103,32 +120,50 @@ function buildSelfRolesPayload(roles) {
   }
   if (curRow.length) components.push(row(...curRow));
 
+  // 18+ button on its own row at the bottom.
+  components.push({ type: 1, components: [AGE18_BUTTON] });
+
   return { embeds: [embed], components };
 }
 
-// Hub button: post (or edit-in-place) the public roles message.
-export async function postOrRefreshSelfRolesMessage(env, data) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
-  if (!env.ROLES_CHANNEL_ID) return ephemeral('Set ROLES_CHANNEL_ID in wrangler.toml first.');
-
-  const guildId = await ensureBootstrap(env);
+// Internal — used by both the hub button (admin click) and the HMAC
+// admin endpoint. No auth check inside; callers gate.
+async function _postOrRefreshInternal(env, guildId) {
+  if (!env.ROLES_CHANNEL_ID) return { ok: false, error: 'roles-channel-not-set' };
   const roles = await listSelfRoles(env, guildId);
   const payload = buildSelfRolesPayload(roles);
-
   const oldId = await env.STATE.get(KV_MSG_ID);
   if (oldId) {
     try {
       await editChannelMessage(env, env.ROLES_CHANNEL_ID, oldId, payload);
-      return ephemeral('🪪 Refreshed self-roles message in <#' + env.ROLES_CHANNEL_ID + '> (' + roles.length + ' role' + (roles.length === 1 ? '' : 's') + ').');
+      return { ok: true, messageId: oldId, action: 'edited', rolesCount: roles.length };
     } catch { /* fall through to repost */ }
   }
   try {
     const msg = await postChannelMessage(env, env.ROLES_CHANNEL_ID, payload);
     await env.STATE.put(KV_MSG_ID, msg.id);
-    return ephemeral('🪪 Posted self-roles message in <#' + env.ROLES_CHANNEL_ID + '> (' + roles.length + ' role' + (roles.length === 1 ? '' : 's') + '). Message id: ' + msg.id);
+    return { ok: true, messageId: msg.id, action: 'posted', rolesCount: roles.length };
   } catch (e) {
-    return ephemeral('Failed: ' + (e?.message || e));
+    return { ok: false, error: e?.message || String(e) };
   }
+}
+
+// Hub button: post (or edit-in-place) the public roles message.
+export async function postOrRefreshSelfRolesMessage(env, data) {
+  if (!isAdmin(data)) return ephemeral('Admin only.');
+  const guildId = await ensureBootstrap(env);
+  const r = await _postOrRefreshInternal(env, guildId);
+  if (!r.ok) {
+    if (r.error === 'roles-channel-not-set') return ephemeral('Set ROLES_CHANNEL_ID in wrangler.toml first.');
+    return ephemeral('Failed: ' + r.error);
+  }
+  const verb = r.action === 'edited' ? 'Refreshed' : 'Posted';
+  return ephemeral(`🪪 ${verb} self-roles message in <#${env.ROLES_CHANNEL_ID}> (${r.rolesCount} role${r.rolesCount === 1 ? '' : 's'})${r.action === 'posted' ? '. Message id: ' + r.messageId : ''}.`);
+}
+
+// HMAC-admin entry — called from worker.js handleSelfRolesPost.
+export async function postSelfRolesAdmin(env, guildId) {
+  return _postOrRefreshInternal(env, guildId);
 }
 
 // Hub button: ephemeral list of currently-configured self-roles.
@@ -143,10 +178,16 @@ export async function listSelfRolesEphemeral(env, data) {
 
 // ---- Component handler: toggle a role ---------------------------------
 
-// custom_id format: roles:toggle:<roleId>
+// custom_id formats:
+//   roles:toggle:<roleId>         → existing self-role toggle (D1-backed)
+//   roles:age18:start             → open the age-gate warning/remove view
+//   roles:age18:confirm           → grant the 18+ role (with mod-log)
+//   roles:age18:remove            → revoke the 18+ role
+//   roles:age18:cancel            → dismiss the ephemeral view
 export async function handleRoleToggle(env, data) {
   const parts = (data.data?.custom_id || '').split(':');
-  if (parts.length !== 3) return ephemeral('Bad button.');
+  if (parts[1] === 'age18') return handle18PlusClick(env, data, parts[2] || '');
+  if (parts.length !== 3 || parts[1] !== 'toggle') return ephemeral('Bad button.');
   const roleId = parts[2];
   const userId = data.member?.user?.id || data.user?.id;
   const guildId = data.guild_id;
@@ -182,4 +223,134 @@ export async function handleRoleToggle(env, data) {
     // 403 typically = bot role lower than target role in hierarchy
     return ephemeral('Failed: ' + (e?.message || e) + '\n\n_(Bot role needs **Manage Roles** AND must be above this role in Server Settings → Roles.)_');
   }
+}
+
+// ---- 18+ self-claim flow ----------------------------------------------
+//
+// Mirrors discord-bot/onboarding.js viewAge18 + age18 handlers. Two-tap
+// flow: the public button opens an ephemeral confirm (warning copy for
+// grant, plain confirm for remove). The Yes button does the actual role
+// PUT/DELETE + mod-log entry. Cancel just edits the ephemeral to a
+// neutral "no changes made" notice.
+
+const RESP_CHAT_NEW   = 4; // CHANNEL_MESSAGE_WITH_SOURCE
+const RESP_UPDATE_MSG = 7; // UPDATE_MESSAGE
+const FLAG_EPHEMERAL  = 64;
+
+async function handle18PlusClick(env, data, action) {
+  const userId  = data.member?.user?.id || data.user?.id;
+  const guildId = data.guild_id;
+  if (!userId || !guildId) return ephemeral('Couldn\'t identify you.');
+
+  const cfg    = await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' });
+  const roleId = cfg?.ids?.role_age18;
+  const modLog = cfg?.ids?.ch_mod_log;
+  if (!roleId) return ephemeral('18+ role not configured yet — ask a mod to run `/admin/discord/setup-18plus`.');
+
+  const has = (data.member?.roles || []).includes(roleId);
+
+  if (action === 'start') {
+    if (has) {
+      return {
+        type: RESP_CHAT_NEW,
+        data: {
+          flags: FLAG_EPHEMERAL,
+          embeds: [{
+            title: '🔞 Remove 18+ access?',
+            description: 'You\'ll lose visibility into the 18+ chat area. You can re-claim any time from this channel.',
+            color: 0xff6ab5,
+          }],
+          components: [{
+            type: 1,
+            components: [
+              { type: 2, style: 4, label: 'Remove access', custom_id: 'roles:age18:remove' },
+              { type: 2, style: 2, label: 'Cancel',        custom_id: 'roles:age18:cancel' },
+            ],
+          }],
+        },
+      };
+    }
+    return {
+      type: RESP_CHAT_NEW,
+      data: {
+        flags: FLAG_EPHEMERAL,
+        embeds: [{
+          title: '🔞 Are you 18 or older?',
+          description:
+            `Aquilo has a small **18+** chat area for adult conversations.\n` +
+            `It's tucked away in its own category — you won't see it unless ` +
+            `you opt in here.\n\n` +
+            `**⚠ Critical:** By claiming the 18+ role while under 18, you will be ` +
+            `**permanently banned** from the server. This is non-negotiable — ` +
+            `Discord's Terms of Service require us to enforce it.\n\n` +
+            `Cancel if you'd rather not opt in.`,
+          color: 0xff6ab5,
+        }],
+        components: [{
+          type: 1,
+          components: [
+            { type: 2, style: 3, label: "Yes, I'm 18+", custom_id: 'roles:age18:confirm' },
+            { type: 2, style: 2, label: 'Cancel',       custom_id: 'roles:age18:cancel' },
+          ],
+        }],
+      },
+    };
+  }
+
+  if (action === 'cancel') {
+    return {
+      type: RESP_UPDATE_MSG,
+      data: {
+        embeds: [{ title: '↩️ Cancelled', description: 'No changes made.', color: 0x808080 }],
+        components: [],
+      },
+    };
+  }
+
+  if (action === 'confirm' || action === 'remove') {
+    const method = action === 'confirm' ? 'PUT' : 'DELETE';
+    const reason = action === 'confirm'
+      ? 'Aquilo 18+ self-grant via roles channel'
+      : 'Aquilo 18+ self-remove via roles channel';
+    const r = await fetch(
+      `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
+      { method,
+        headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+                   'X-Audit-Log-Reason': reason } });
+    if (!r.ok && r.status !== 204) {
+      return ephemeral(`Couldn't ${action === 'confirm' ? 'grant' : 'remove'} the 18+ role (${r.status}). Ping a mod.`);
+    }
+    // Audit log — only on grant (matches the onboarding pattern;
+    // removal is captured natively by Discord's audit log).
+    if (action === 'confirm' && modLog) {
+      const username = data?.member?.user?.username || data?.user?.username || 'unknown';
+      const ts = Math.floor(Date.now() / 1000);
+      fetch(
+        `https://discord.com/api/v10/channels/${encodeURIComponent(modLog)}/messages`,
+        { method: 'POST',
+          headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+                     'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            content: `🔞 **18+ self-grant via roles channel** — <@${userId}> (${username}, id \`${userId}\`) claimed the 18+ role at <t:${ts}:F>.\n` +
+                     `If their account looks under 18, ban per the onboarding warning copy.`,
+            allowed_mentions: { parse: [] },
+          }),
+        }).catch(() => {});
+    }
+    return {
+      type: RESP_UPDATE_MSG,
+      data: {
+        embeds: [{
+          title: action === 'confirm' ? '✅ 18+ access granted' : '🗑️ 18+ access removed',
+          description: action === 'confirm'
+            ? 'You can now see the 18+ chat area. Welcome.'
+            : 'You no longer have access to the 18+ chat area. You can re-claim any time from this channel.',
+          color: action === 'confirm' ? 0x5bff95 : 0x808080,
+        }],
+        components: [],
+      },
+    };
+  }
+
+  return ephemeral('Unknown 18+ action.');
 }
