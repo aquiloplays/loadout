@@ -16,6 +16,11 @@
 
 const BINDING_KEYS = Object.freeze([
   'queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll',
+  // Front-door welcome embed (welcome.js handleMemberJoined). KV-only.
+  // Takes precedence over the legacy guild:welcome-cfg.channelId and
+  // guild:cfg.ids.ch_introductions so future rebinds land without a
+  // redeploy.
+  'welcome',
   // Phase: CN games-list catalogue channel (cn-games-list-hub.js)
   'games-list',
   // Phase 1 channel hubs (check-in / character / bolts / play /
@@ -48,6 +53,7 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   lfg:          'LFG_CHANNEL_ID',
   schedule:     'SCHEDULE_CHANNEL_ID',
   poll:         'POLL_CHANNEL_ID',
+  welcome:           null,
   'games-list':      null,
   checkin:           'CHECKIN_CHANNEL_ID',
   'checkin-results': null,

@@ -100,13 +100,24 @@ export async function handleMemberJoined(env, payload) {
   const already = await env.LOADOUT_BOLTS.get(dedupKey);
   if (already) return { skipped: 'already-welcomed' };
 
-  // Resolve the target channel. Prefer per-guild welcome-cfg.channelId,
-  // else fall back to guild-build's #👋│introductions, else nothing.
+  // Resolution order:
+  //   1. channel-binding(welcome) — KV-only, set by Clay via
+  //      /admin/channels/bind so rebinds take effect without
+  //      a redeploy
+  //   2. guild:welcome-cfg.channelId — legacy per-guild override
+  //   3. guild:cfg.ids.ch_introductions — guild-build default
+  let channelId = null;
+  try {
+    const { getChannelBinding } = await import('./channel-bindings.js');
+    channelId = await getChannelBinding(env, guildId, 'welcome');
+  } catch { /* fall through */ }
   const cfg = await loadCfg(env, guildId);
   const guildCfg = await loadGuildBuildCfg(env, guildId);
-  const channelId = cfg?.channelId
-    || guildCfg?.ids?.ch_introductions
-    || null;
+  if (!channelId) {
+    channelId = cfg?.channelId
+      || guildCfg?.ids?.ch_introductions
+      || null;
+  }
   if (!channelId) return { skipped: 'no-welcome-channel' };
 
   // Bump the monotonic join counter — the "Nth member" we display.
