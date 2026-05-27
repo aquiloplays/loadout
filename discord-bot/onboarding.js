@@ -71,7 +71,7 @@ export const INTERESTS = Object.freeze([
 // Ordered step machine — drives next/back navigation + the funnel
 // counter buckets. Each id is also the `step` value persisted in
 // `onboard:state:<g>:<u>`.
-export const STEP_ORDER = ['welcome', 'interests', 'links', 'character', 'age18', 'tour', 'complete'];
+export const STEP_ORDER = ['welcome', 'interests', 'links', 'character', 'pwa', 'age18', 'tour', 'complete'];
 
 // Discord component constants — mirrored from util.js / character.js
 // for callsite isolation.
@@ -311,7 +311,7 @@ export async function buildWelcomeEmbed(env, guildId) {
     components: [{
       type: COMPONENT_ROW,
       components: [
-        { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Begin onboarding', custom_id: 'onb:begin' },
+        { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Begin Welcome Checklist', custom_id: 'onb:begin' },
       ],
     }],
   };
@@ -445,8 +445,53 @@ async function viewCharacter(env, guildId) {
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Skip', custom_id: 'onb:step:age18' },
+          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Skip', custom_id: 'onb:step:pwa' },
           { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Next ▶︎', custom_id: 'onb:advance:character' },
+        ],
+      },
+    ],
+  };
+}
+
+// ── PWA install step ────────────────────────────────────────────────
+//
+// Aquilo runs as a Progressive Web App — installing it gets push
+// notifications (stream live, CN vote opening, queue position),
+// full-screen launch, and noticeably faster loads than the browser
+// tab. Pure how-to embed; no role / KV state to mutate. Skip and
+// Next both just advance.
+async function viewPwa(env, guildId) {
+  const brand = await getBranding(env, guildId);
+  return {
+    flags: FLAG_EPHEMERAL,
+    embeds: [{
+      title: '📱 Install Aquilo on your phone',
+      description:
+        `Why install? Push notifications when streams go live, full-screen launch, ` +
+        `and ~3× faster loads vs. a browser tab.\n\n` +
+        `**iPhone / iPad** — Safari only (Chrome on iOS can't install PWAs)\n` +
+        `1. Open ${brand.siteUrl} in **Safari**\n` +
+        `2. Tap the **Share** button (square with arrow up)\n` +
+        `3. Scroll down → **Add to Home Screen** → **Add**\n\n` +
+        `**Android** — Chrome\n` +
+        `1. Open ${brand.siteUrl} in **Chrome**\n` +
+        `2. Tap the **⋮ three-dot menu** (top right)\n` +
+        `3. Tap **Install app** (or **Add to Home Screen**)\n\n` +
+        `Already installed? Skip past this step.`,
+      color: brand.accentColor,
+    }],
+    components: [
+      {
+        type: COMPONENT_ROW,
+        components: [
+          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Open Aquilo', url: `${brand.siteUrl}/` },
+        ],
+      },
+      {
+        type: COMPONENT_ROW,
+        components: [
+          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Skip', custom_id: 'onb:step:age18' },
+          { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Next ▶︎', custom_id: 'onb:advance:pwa' },
         ],
       },
     ],
@@ -601,6 +646,7 @@ async function viewForStep(env, guildId, userId, state) {
     case 'interests': return viewInterests(env, guildId, state);
     case 'links':     return viewLinks(env, guildId);
     case 'character': return viewCharacter(env, guildId);
+    case 'pwa':       return viewPwa(env, guildId);
     case 'age18':     return viewAge18(env, guildId);
     case 'tour':      return viewTour(env, guildId);
     case 'complete':  return viewAlreadyOnboarded(env, guildId, userId, state);

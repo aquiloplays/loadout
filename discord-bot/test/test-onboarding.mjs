@@ -129,7 +129,7 @@ function componentData(customId, values) {
 
 console.log('— catalog stability');
 {
-  eq(STEP_ORDER, ['welcome', 'interests', 'links', 'character', 'tour', 'complete'], 'STEP_ORDER');
+  eq(STEP_ORDER, ['welcome', 'interests', 'links', 'character', 'pwa', 'age18', 'tour', 'complete'], 'STEP_ORDER');
   const keys = INTERESTS.map(i => i.key);
   eq(keys, ['gamenight', 'clash', 'boltbound', 'boardgames', 'watching', 'art'], 'INTERESTS keys');
   eq(ONBOARD_BONUS_BOLTS, 100, 'bonus bolts');
@@ -286,13 +286,18 @@ console.log('— full flow walkthrough (advance buttons)');
   const sAfterPick = await getState(env, GUILD, USER);
   eq(sAfterPick.choices.interests, ['clash', 'boltbound'], 'choices persisted');
 
-  // Advance: interests → links → character → tour → complete.
+  // Advance: interests → links → character → pwa → age18 → tour → complete.
   r = await handleOnboardComponent(env, componentData('onb:advance:interests'));
   assert(r.data.embeds[0].title.includes('Link your accounts'), 'interests → links');
   r = await handleOnboardComponent(env, componentData('onb:advance:links'));
   assert(r.data.embeds[0].title.includes('Your character'), 'links → character');
   r = await handleOnboardComponent(env, componentData('onb:advance:character'));
-  assert(r.data.embeds[0].title.includes('quick tour'), 'character → tour');
+  assert(r.data.embeds[0].title.includes('Install Aquilo'), 'character → pwa');
+  r = await handleOnboardComponent(env, componentData('onb:advance:pwa'));
+  assert(r.data.embeds[0].title.includes('18'), 'pwa → age18');
+  // age18 has its own yes/no handler — emulate the "no" path to advance to tour.
+  r = await handleOnboardComponent(env, componentData('onb:age18:no'));
+  assert(r.data.embeds[0].title.includes('quick tour'), 'age18:no → tour');
   r = await handleOnboardComponent(env, componentData('onb:advance:tour'));
   assert(r.data.embeds[0].title.includes("You're onboarded"), 'tour → complete');
 
@@ -304,7 +309,7 @@ console.log('— full flow walkthrough (advance buttons)');
   const f = await getFunnel(env, GUILD);
   eq(f.started, 1, 'funnel started = 1');
   eq(f.completed, 1, 'funnel completed = 1');
-  for (const step of ['welcome', 'interests', 'links', 'character', 'tour', 'complete']) {
+  for (const step of ['welcome', 'interests', 'links', 'character', 'pwa', 'age18', 'tour', 'complete']) {
     eq(f.perStep[step], 1, `funnel.perStep[${step}] = 1`);
   }
 
@@ -365,7 +370,7 @@ console.log('— buildWelcomeEmbed exposes the begin button id');
   assert(/Welcome/.test(embed.title), 'welcome title');
   const btn = components[0].components[0];
   eq(btn.custom_id, 'onb:begin', 'button id is onb:begin');
-  eq(btn.label, 'Begin onboarding', 'button label');
+  eq(btn.label, 'Begin Welcome Checklist', 'button label');
 }
 
 console.log('');

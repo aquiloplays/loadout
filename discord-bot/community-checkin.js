@@ -36,6 +36,7 @@
 import { earn, getWallet } from './wallet.js';
 import { consumeFreeze, getFreezes } from './streak-freeze.js';
 import { getCheckinChannel } from './admin-menu.js';
+import { emitProgressionEvent } from './progression/event-bus.js';
 
 const STATE_KEY = (g, u) => `community-checkin:${g}:${u}`;
 const CARD_KEY  = (g, u) => `checkin-card:${g}:${u}`;
@@ -397,6 +398,31 @@ export async function recordCheckin(env, guildId, userId, source = 'web') {
       });
     }
   }
+
+  // XP grant — fire through the progression event bus so the daily
+  // check-in XP (table key 'daily.claimed' = 20 XP, daily cap 20) +
+  // any streak-milestone XP land on the user's XP record. Event-bus
+  // dedup is keyed on meta.id so a same-day re-call doesn't double-
+  // grant. Fire-and-forget; a failed grant must never roll back the
+  // check-in. Streak XP is intentionally separate from the bolt
+  // milestones — the XP table has 'daily.streak.{7,30,100}' tuned by
+  // PROGRESSION-SYSTEM-DESIGN.md §4.2.
+  try {
+    await emitProgressionEvent(env, {
+      kind: 'daily.claimed',
+      userId,
+      guildId,
+      meta: { id: 'community-checkin:daily:' + today },
+    });
+    if (nextStreak === 7 || nextStreak === 30 || nextStreak === 100) {
+      await emitProgressionEvent(env, {
+        kind: 'daily.streak.' + nextStreak,
+        userId,
+        guildId,
+        meta: { id: 'community-checkin:streak-' + nextStreak + ':' + today },
+      });
+    }
+  } catch { /* non-fatal — check-in already persisted */ }
 
   // Post the embed (best-effort — a failure here doesn't roll back
   // the check-in itself; the user still got their streak + bonuses).
