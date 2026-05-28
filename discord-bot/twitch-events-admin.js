@@ -22,7 +22,6 @@ const PRETTY_LABEL = {
   resub:             'Resub (with message)',
   cheer:             'Cheer / bits',
   raid:              'Raid (incoming)',
-  live:              'Stream live (announce)',
   ended:             'Stream ended (summary)',
   redemption:        'Channel-point redemption',
   hypeTrainBegin:    'Hype train — begin',

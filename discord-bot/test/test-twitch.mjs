@@ -183,14 +183,14 @@ console.log('— EventSub webhook: notification + replay swallow');
   });
   const r1 = await handleEventSubWebhook(make(), env, ctx);
   eq(r1.status, 204, 'first delivery → 204');
-  // stream.online schedules TWO work units: twitch-live.js's edit-in-place
-  // lifecycle card AND twitch-events.js's bigger announce embed. Both
-  // are intentional; replay protection still ensures we don't double up.
-  eq(calls.length, 2, 'two waitUntil queued (lifecycle + announce)');
+  // stream.online schedules a SINGLE work unit: twitch-live.js's
+  // edit-in-place lifecycle card. The bigger announce embed was
+  // removed — Clay's existing lifecycle card IS the going-live notif.
+  eq(calls.length, 1, 'one waitUntil queued (lifecycle only)');
   // Replay — same message-id. Should be swallowed without scheduling.
   const r2 = await handleEventSubWebhook(make(), env, ctx);
   eq(r2.status, 200, 'replay → 200');
-  eq(calls.length, 2, 'no extra waitUntil on replay');
+  eq(calls.length, 1, 'no extra waitUntil on replay');
 }
 
 console.log('— EventSub webhook: revocation acks 200');
@@ -308,12 +308,11 @@ console.log('— twitch-events: brand palette + event catalogue');
   eq(EVENT_COLORS.gift,             GREEN,  'gift green');
   eq(EVENT_COLORS.cheer,            PINK,   'cheer now pink (not gold)');
   eq(EVENT_COLORS.raid,             PINK,   'raid now pink (not orange)');
-  eq(EVENT_COLORS.live,             VIOLET, 'stream live now violet (red dot in title only)');
   eq(EVENT_COLORS.ended,            GREY,   'stream end subdued grey');
   eq(EVENT_COLORS.ban,              GREY,   'ban subdued grey');
   eq(EVENT_COLORS.unban,            GREEN,  'unban green');
   // Catalogue contains the documented event types.
-  for (const t of ['follow','sub','gift','resub','cheer','raid','live','ended',
+  for (const t of ['follow','sub','gift','resub','cheer','raid','ended',
                    'redemption','hypeTrainBegin','hypeTrainProgress','hypeTrainEnd',
                    'pollBegin','pollEnd','predictionBegin','predictionEnd','ban','unban']) {
     assert(EVENT_TYPES.includes(t),       `EVENT_TYPES contains ${t}`);
@@ -426,12 +425,12 @@ console.log('— twitch-events: routing precedence + toggle');
   await kv.put('twitch-event-channel:follow', '222222222222222222');
   eq(await resolveEventChannel(env, 'gid-1', 'follow'),  '222222222222222222', 'override beats default');
   eq(await resolveEventChannel(env, 'gid-1', 'cheer'),   '111111111111111111', 'override is per-type');
-  // Live falls back to live-now THEN live THEN default.
+  // Ended (stream-wrap) falls back to live-now THEN live THEN default.
   await kv.put('channel-binding:gid-1:live-now', '333333333333333333');
-  eq(await resolveEventChannel(env, 'gid-1', 'live'),    '333333333333333333', 'live → live-now binding');
+  eq(await resolveEventChannel(env, 'gid-1', 'ended'),   '333333333333333333', 'ended → live-now binding');
   await kv.delete('channel-binding:gid-1:live-now');
   await kv.put('channel-binding:gid-1:live',     '444444444444444444');
-  eq(await resolveEventChannel(env, 'gid-1', 'live'),    '444444444444444444', 'live falls back to live binding');
+  eq(await resolveEventChannel(env, 'gid-1', 'ended'),   '444444444444444444', 'ended falls back to live binding');
   // Redemption falls back to redemptions-feed.
   await kv.put('channel-binding:gid-1:redemptions-feed', '555555555555555555');
   eq(await resolveEventChannel(env, 'gid-1', 'redemption'), '555555555555555555', 'redemption → redemptions-feed');

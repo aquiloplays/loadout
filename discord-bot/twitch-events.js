@@ -18,10 +18,10 @@
 //      target, checks the toggle, then posts the embed.
 //
 // twitch-live.js handles the special-case STREAM.ONLINE / .OFFLINE
-// LIFECYCLE EMBED (the edit-in-place "🔴 Streaming" card). This
-// module's `handleStreamLiveAnnounce()` posts a SEPARATE, larger
-// "going live" announcement to the configured live-now channel,
-// with @-mention of the Stream Pings role if configured.
+// LIFECYCLE EMBED (the edit-in-place "🔴 Streaming" card) — that
+// embed IS the going-live notification. This module owns the
+// stream.offline wrap embed (`handleStreamEndedSummary`) which posts
+// a separate summary once the stream ends.
 //
 // KV keys this module reads/writes:
 //   twitch-event-channel:<eventType>      → channel snowflake override.
@@ -56,7 +56,6 @@ export const EVENT_COLORS = Object.freeze({
   gift:             GREEN,
   cheer:            PINK,
   raid:             PINK,
-  live:             VIOLET,    // small bright-red dot stays inline in title text per spec
   ended:            GREY_SOFT,
   redemption:       VIOLET,
   hypeTrain:        PINK,      // rainbow lives on the banner image
@@ -101,7 +100,7 @@ function subBannerKey(tier) {
 // first.
 export const EVENT_TYPES = Object.freeze([
   'follow', 'sub', 'gift', 'resub', 'cheer', 'raid',
-  'live', 'ended', 'redemption',
+  'ended', 'redemption',
   'hypeTrainBegin', 'hypeTrainProgress', 'hypeTrainEnd',
   'pollBegin', 'pollEnd',
   'predictionBegin', 'predictionEnd',
@@ -121,8 +120,8 @@ const COUNTER_KEY          = (kind, gid) => `twitch-event:cumulative:${kind}:${g
 // Resolve where this event type's embed should land. Order:
 //   1. Per-event override KV `twitch-event-channel:<eventType>`
 //   2. Default 'stream-notifications' channel binding
-//   3. (special-case for live) fall back to existing 'live' binding
-//      so existing single-channel setups keep working
+//   3. (special-case for ended) fall back through 'live-now' then
+//      'live' bindings so existing single-channel setups keep working
 // Returns the resolved channel snowflake or null.
 export async function resolveEventChannel(env, guildId, eventType) {
   // 1. Per-event override.
@@ -132,8 +131,8 @@ export async function resolveEventChannel(env, guildId, eventType) {
   } catch { /* fall through */ }
   // 2. Default — special routing for a few event types where Clay
   // has explicit channel keys.
-  if (eventType === 'live' || eventType === 'ended') {
-    // Going-live announcement; honor live-now first, then live, then default.
+  if (eventType === 'ended') {
+    // Stream-wrap summary; honor live-now first, then live, then default.
     const liveNow = await getChannelBinding(env, guildId, 'live-now');
     if (liveNow) return liveNow;
     const live = await getChannelBinding(env, guildId, 'live');
@@ -372,31 +371,6 @@ export function raidEmbed({ fromBroadcasterName, fromBroadcasterLogin, viewers }
     image: { url: bannerUrl('raid') },
     timestamp: new Date().toISOString(),
     footer: { text: 'Welcome raiders' },
-  };
-}
-
-// Big "going live" announcement embed. Distinct from twitch-live.js's
-// `liveEmbed` which is the rolling status card. This is the
-// fanfare-y announce-once embed; the rolling card pipeline is
-// untouched. The 🔴 dot in the title is the only bright-red colour
-// we keep per Clay's spec (it's a Twitch convention).
-export function streamLiveAnnounceEmbed({ user, login, title, gameName, startedAt }) {
-  const t = asUnix(startedAt);
-  const lines = [];
-  if (title) lines.push(`**${String(title).slice(0, 200)}**`);
-  if (gameName) lines.push(`🎮 _${gameName}_`);
-  lines.push('', `Started <t:${t}:R> — watch → https://twitch.tv/${login || 'aquilogg'}`);
-  return {
-    color: EVENT_COLORS.live,
-    author: user?.display_name || login
-      ? { name: (user?.display_name || login) + ' is LIVE 🔴',
-          icon_url: user?.profile_image_url || undefined }
-      : undefined,
-    description: lines.join('\n'),
-    url: login ? `https://twitch.tv/${login}` : undefined,
-    thumbnail: user?.profile_image_url ? { url: user.profile_image_url } : undefined,
-    image: { url: bannerUrl('live') },
-    timestamp: new Date((startedAt && Date.parse(startedAt)) || Date.now()).toISOString(),
   };
 }
 
@@ -708,37 +682,6 @@ export async function handleRaid(env, payload) {
   } catch { /* ignore */ }
   return await dispatchEmbed(env, gid, 'raid', embed, {
     content: mentionRoleId ? `<@&${mentionRoleId}> raid incoming!` : undefined,
-    mentionRoleId,
-  });
-}
-
-// Posts the BIG going-live announcement to the live-now channel.
-// Called from twitch-eventsub.js stream.online dispatch ALONGSIDE
-// twitch-live.js's postLiveEmbed (which still owns the edit-in-place
-// status card on the existing `live` binding).
-export async function handleStreamLiveAnnounce(env, payload, helixFns) {
-  const ev = payload?.event || {};
-  const gid = defaultGuildId(env);
-  if (!gid) return { skipped: 'no-guild' };
-  const broadcasterId = ev.broadcaster_user_id;
-  if (!broadcasterId) return { skipped: 'no-broadcaster-id' };
-  // helixFns supplied by caller so this module stays test-friendly.
-  const stream = await helixFns.getStreamInfo(env, broadcasterId).catch(() => null);
-  const user   = await helixFns.getUserById(env, broadcasterId).catch(() => null);
-  const login  = user?.login || stream?.user_login || ev.broadcaster_user_login || null;
-  const embed = streamLiveAnnounceEmbed({
-    user,
-    login,
-    title:     stream?.title || ev.title,
-    gameName:  stream?.game_name || ev.category_name,
-    startedAt: stream?.started_at || ev.started_at,
-  });
-  let mentionRoleId = null;
-  try {
-    mentionRoleId = await env.LOADOUT_BOLTS.get('twitch-event:ping-role') || null;
-  } catch { /* ignore */ }
-  return await dispatchEmbed(env, gid, 'live', embed, {
-    content: mentionRoleId ? `<@&${mentionRoleId}> LIVE NOW!` : undefined,
     mentionRoleId,
   });
 }

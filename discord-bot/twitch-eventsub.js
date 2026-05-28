@@ -42,7 +42,6 @@ import {
 } from './twitch-helix.js';
 import {
   EVENT_TYPE_HANDLERS,
-  handleStreamLiveAnnounce,
   handleStreamEndedSummary,
 } from './twitch-events.js';
 
@@ -133,16 +132,12 @@ export async function handleEventSubWebhook(req, env, ctx) {
     // ACK fast — handlers run via waitUntil so slow Discord posts
     // can't push us past Twitch's 10-sec timeout.
     if (subType === 'stream.online' && broadcasterId) {
-      // Two work units in parallel:
-      //   • postLiveEmbed — twitch-live.js's edit-in-place lifecycle
-      //     card on the existing `live` binding.
-      //   • handleStreamLiveAnnounce — twitch-events.js's bigger
-      //     "going live" announce embed on the new `live-now`
-      //     binding (falls back to `live` if unbound).
+      // Single work unit: postLiveEmbed — twitch-live.js's edit-in-place
+      // lifecycle card on the existing `live` binding. Clay handles the
+      // "going live" announce via this same lifecycle card; the bigger
+      // separate announce embed was removed to avoid double-firing.
       ctx.waitUntil(postLiveEmbed(env, broadcasterId).catch(e =>
         console.warn('[twitch-eventsub] postLiveEmbed', e?.message || e)));
-      ctx.waitUntil(handleStreamLiveAnnounce(env, payload, { getStreamInfo, getUserById })
-        .catch(e => console.warn('[twitch-eventsub] handleStreamLiveAnnounce', e?.message || e)));
     } else if (subType === 'stream.offline' && broadcasterId) {
       // markStreamOffline edits the lifecycle card AND clears state;
       // we capture the state BEFORE that so the summary embed can

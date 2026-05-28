@@ -49,7 +49,6 @@ BANNERS = [
     ('cheer',             'CHEER',                     [VIOLET, PINK],                          False),
     # — High-impact (120h, 3+ stops)
     ('raid',              'INCOMING RAID',             [PINK,   VIOLET, GREEN],                 True),
-    ('live',              'AQUILO IS LIVE',            [VIOLET, PINK,   VIOLET],                True),
     ('ended',             'STREAM WRAP',               [GREY_S, VIOLET],                        False),
     ('hype',              'HYPE TRAIN',                [VIOLET, PINK,   GREEN, PINK, VIOLET],   True),
     # — Lower-noise events
