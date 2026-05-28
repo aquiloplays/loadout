@@ -114,6 +114,16 @@ const ROUTES = new Set([
   'chat/recent',
   'chat/react',
   'chat/unreact',
+  // Live-poll admin surface — PWA admin UI consumes these. Owner-
+  // gated via the existing _owner flag pattern. See custom-polls.js
+  // adminListPolls / adminPollDetail / adminLockPoll / adminExtendPoll
+  // / adminCancelPoll. Each accepts a body { pollId, ... } except
+  // `list` which is parameterless.
+  'admin/polls/list',
+  'admin/polls/detail',
+  'admin/polls/lock',
+  'admin/polls/extend',
+  'admin/polls/cancel',
   // L9 — PWA chat (Clay 2026-05-28): expose every guild text channel
   // the requesting Discord user has VIEW_CHANNEL permission on, so
   // the PWA can switch between channels instead of being capped at
@@ -306,6 +316,26 @@ export async function handleWeb(req, env) {
     if (route === 'chat/react')   return await routeChatReact(env, discordId, body);
     if (route === 'chat/unreact') return await routeChatUnreact(env, discordId, body);
     if (route === 'chat/channels') return await routeChatChannels(env, guildId, discordId);
+    if (route === 'admin/polls/list') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routePollsList(env);
+    }
+    if (route === 'admin/polls/detail') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routePollsDetail(env, body);
+    }
+    if (route === 'admin/polls/lock') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routePollsLock(env, body);
+    }
+    if (route === 'admin/polls/extend') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routePollsExtend(env, body);
+    }
+    if (route === 'admin/polls/cancel') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routePollsCancel(env, body);
+    }
     if (route === 'coinflip') return await routeCoinflip(env, guildId, discordId, body);
     if (route === 'dice')   return await routeDice(env, guildId, discordId, body);
     if (route === 'quick/snapshot')     return await routeQuickSnapshot(env, guildId, discordId);
@@ -1857,6 +1887,47 @@ async function routeChatReact(env, discordId, body) {
   } catch (e) {
     return json({ ok: false, error: 'discord-react-failed', message: String(e?.message || e) }, 502);
   }
+}
+
+// ── Polls admin (owner-gated, see ownerCheck) ───────────────────
+async function routePollsList(env) {
+  const { adminListPolls } = await import('./custom-polls.js');
+  const r = await adminListPolls(env);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routePollsDetail(env, body) {
+  const pollId = String((body && body.pollId) || '').trim();
+  if (!pollId) return json({ ok: false, error: 'pollId required' }, 400);
+  const { adminPollDetail } = await import('./custom-polls.js');
+  const r = await adminPollDetail(env, pollId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routePollsLock(env, body) {
+  const pollId = String((body && body.pollId) || '').trim();
+  if (!pollId) return json({ ok: false, error: 'pollId required' }, 400);
+  const { adminLockPoll } = await import('./custom-polls.js');
+  const r = await adminLockPoll(env, pollId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routePollsExtend(env, body) {
+  const pollId = String((body && body.pollId) || '').trim();
+  const hours  = Number((body && body.hours) || 0);
+  if (!pollId) return json({ ok: false, error: 'pollId required' }, 400);
+  const { adminExtendPoll } = await import('./custom-polls.js');
+  const r = await adminExtendPoll(env, pollId, hours);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routePollsCancel(env, body) {
+  const pollId = String((body && body.pollId) || '').trim();
+  const reason = String((body && body.reason) || '');
+  if (!pollId) return json({ ok: false, error: 'pollId required' }, 400);
+  const { adminCancelPoll } = await import('./custom-polls.js');
+  const r = await adminCancelPoll(env, pollId, reason);
+  return json(r, r.ok ? 200 : 400);
 }
 
 async function routeChatUnreact(env, discordId, body) {

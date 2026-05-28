@@ -505,6 +505,11 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/mc-whitelist/daily-sweep/')) {
       return handleMcWhitelistDailySweep(req, env, path);
     }
+    // Twitch reward roles — provision Twitch Sub / T2 / T3 roles +
+    // store ids at twitch-rewards:role:<gid>:<tier>. Idempotent.
+    if (method === 'POST' && path.startsWith('/admin/twitch-rewards/ensure-roles/')) {
+      return handleTwitchRewardsEnsureRoles(req, env, path);
+    }
     // Diagnostic — dumps the current Twitch-side EventSub
     // subscriptions for the configured app token. HMAC-gated like
     // /admin/twitch-setup so Clay can call from the site admin or
@@ -1097,6 +1102,20 @@ export default {
             if (r.closed > 0) console.log('[cron] custom-polls', JSON.stringify(r));
           } catch (e) {
             console.warn('[cron] custom-polls sweep', e?.message || e);
+          }
+        })());
+        // Twitch reward-role expiry sweep — hourly, idempotent. Iterates
+        // the twitch-rewards:expiry list + removes expired sub-tier
+        // roles. Same retry-on-failure shape as the counting sweep.
+        ctx.waitUntil((async () => {
+          try {
+            const { sweepExpiredRewardRoles } = await import('./twitch-rewards.js');
+            const r = await sweepExpiredRewardRoles(env);
+            if (r.swept > 0 || r.abandoned > 0) {
+              console.log('[cron] twitch-rewards expiry', JSON.stringify(r));
+            }
+          } catch (e) {
+            console.warn('[cron] twitch-rewards expiry', e?.message || e);
           }
         })());
         // Unified vote-hub phase transitions — runs hourly, re-renders
@@ -2012,6 +2031,19 @@ async function handleGamesMenuPost(req, env, path) {
   const r = await postOrRefreshGamesMenu(env, guildId, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── Twitch reward roles admin ────────────────────────────────────
+async function handleTwitchRewardsEnsureRoles(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','twitch-rewards','ensure-roles',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  const { ensureRewardRoles } = await import('./twitch-rewards.js');
+  const r = await ensureRewardRoles(env, guildId);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
 }
 
 // ── MC whitelist admin endpoints ─────────────────────────────────

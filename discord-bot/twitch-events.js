@@ -591,7 +591,14 @@ export async function handleFollow(env, payload) {
     userLogin: ev.user_login,
     followedAt: ev.followed_at,
   }, total);
-  return await dispatchEmbed(env, gid, 'follow', embed);
+  const post = await dispatchEmbed(env, gid, 'follow', embed);
+  // Cross-credit any aquilo-linked viewer for following on Twitch.
+  // Lifetime per-tid flag — no refollow exploit.
+  try {
+    const { grantTwitchEventReward } = await import('./twitch-rewards.js');
+    await grantTwitchEventReward(env, ev.user_id, 'follow', { userName: ev.user_name });
+  } catch (e) { console.warn('[twitch-rewards] follow', e?.message || e); }
+  return post;
 }
 
 export async function handleSubscribe(env, payload) {
@@ -608,7 +615,14 @@ export async function handleSubscribe(env, payload) {
     tier:      ev.tier,
     isGift:    !!ev.is_gift,
   }, total);
-  return await dispatchEmbed(env, gid, 'sub', embed);
+  const post = await dispatchEmbed(env, gid, 'sub', embed);
+  try {
+    const { grantTwitchEventReward } = await import('./twitch-rewards.js');
+    await grantTwitchEventReward(env, ev.user_id, 'sub', {
+      userName: ev.user_name, tier: ev.tier,
+    });
+  } catch (e) { console.warn('[twitch-rewards] sub', e?.message || e); }
+  return post;
 }
 
 export async function handleSubscriptionMessage(env, payload) {
@@ -627,7 +641,17 @@ export async function handleSubscriptionMessage(env, payload) {
     durationMonths:   ev.duration_months,
     message:          ev.message?.text,
   }, total);
-  return await dispatchEmbed(env, gid, 'resub', embed);
+  const post = await dispatchEmbed(env, gid, 'resub', embed);
+  try {
+    const { grantTwitchEventReward } = await import('./twitch-rewards.js');
+    await grantTwitchEventReward(env, ev.user_id, 'resub', {
+      userName:         ev.user_name,
+      tier:             ev.tier,
+      cumulativeMonths: ev.cumulative_months,
+      streakMonths:     ev.streak_months,
+    });
+  } catch (e) { console.warn('[twitch-rewards] resub', e?.message || e); }
+  return post;
 }
 
 export async function handleSubscriptionGift(env, payload) {
@@ -649,7 +673,20 @@ export async function handleSubscriptionGift(env, payload) {
     cumulativeTotal:  ev.cumulative_total,
     isAnon:           !!ev.is_anonymous,
   });
-  return await dispatchEmbed(env, gid, 'gift', embed);
+  const post = await dispatchEmbed(env, gid, 'gift', embed);
+  // Gifter bonus — 20% of recipient bolt reward per gift, scaled by total.
+  // Anonymous gifters have no resolvable Twitch user id → skip.
+  if (!ev.is_anonymous && ev.user_id) {
+    try {
+      const { grantTwitchEventReward } = await import('./twitch-rewards.js');
+      await grantTwitchEventReward(env, ev.user_id, 'gift-given', {
+        userName: ev.user_name,
+        tier:     ev.tier,
+        total:    Number(ev.total) || 1,
+      });
+    } catch (e) { console.warn('[twitch-rewards] gift-given', e?.message || e); }
+  }
+  return post;
 }
 
 export async function handleCheer(env, payload) {
@@ -663,7 +700,17 @@ export async function handleCheer(env, payload) {
     message:   ev.message,
     isAnon:    !!ev.is_anonymous,
   });
-  return await dispatchEmbed(env, gid, 'cheer', embed);
+  const post = await dispatchEmbed(env, gid, 'cheer', embed);
+  // Cheer bolt reward — skip for anonymous (no resolvable Twitch id).
+  if (!ev.is_anonymous && ev.user_id) {
+    try {
+      const { grantTwitchEventReward } = await import('./twitch-rewards.js');
+      await grantTwitchEventReward(env, ev.user_id, 'cheer', {
+        userName: ev.user_name, bits: ev.bits,
+      });
+    } catch (e) { console.warn('[twitch-rewards] cheer', e?.message || e); }
+  }
+  return post;
 }
 
 export async function handleRaid(env, payload) {
@@ -680,10 +727,20 @@ export async function handleRaid(env, payload) {
   try {
     mentionRoleId = await env.LOADOUT_BOLTS.get('twitch-event:ping-role') || null;
   } catch { /* ignore */ }
-  return await dispatchEmbed(env, gid, 'raid', embed, {
+  const post = await dispatchEmbed(env, gid, 'raid', embed, {
     content: mentionRoleId ? `<@&${mentionRoleId}> raid incoming!` : undefined,
     mentionRoleId,
   });
+  // Raid-leader bonus (per-raider rewards skipped — channel.raid
+  // doesn't carry individual raider Twitch ids).
+  try {
+    const { grantTwitchEventReward } = await import('./twitch-rewards.js');
+    await grantTwitchEventReward(env, ev.from_broadcaster_user_id, 'raid', {
+      fromBroadcasterName: ev.from_broadcaster_user_name,
+      viewers:             ev.viewers,
+    });
+  } catch (e) { console.warn('[twitch-rewards] raid', e?.message || e); }
+  return post;
 }
 
 // End-of-stream summary embed. Reads cumulative counters for the

@@ -52,6 +52,11 @@ const BINDING_KEYS = Object.freeze([
   //     for active streams — Clay can route it to a low-noise
   //     "feed" channel).
   'stream-notifications', 'live-now', 'redemptions-feed',
+  // Twitch rewards feed (see twitch-rewards.js). Bolt + role grants
+  // for Twitch events fire a short embed here so the community sees
+  // who earned what. Distinct from `stream-notifications` (the
+  // event embed itself) — these are the *reward* posts.
+  'twitch-rewards-feed',
 ]);
 
 // Source-of-truth mapping from binding key → fallback env var name.
@@ -81,6 +86,7 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   'stream-notifications': null,
   'live-now':             null,
   'redemptions-feed':     null,
+  'twitch-rewards-feed':  null,
 });
 
 const BINDING_KEY = (g, k) => `channel-binding:${g}:${k}`;

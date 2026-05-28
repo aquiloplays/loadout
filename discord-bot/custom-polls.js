@@ -371,6 +371,133 @@ export async function closePollNow(env, pollId) {
   return { ok: true, action: 'closed', pollId, winner };
 }
 
+// ── Admin: list / detail / mutate ───────────────────────────────
+//
+// Used by the PWA admin UI via /web/admin/polls* routes. Read-only
+// helpers are cheap; mutators (lock/extend/cancel) carry the same
+// auth as the original create.
+
+// List every active + closed poll. Returns a summary array sorted by
+// closeAt desc (newest first), capped at 50 — the catalogue is small.
+export async function adminListPolls(env) {
+  const out = [];
+  let cursor = undefined;
+  for (let page = 0; page < 5; page++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: 'poll:', cursor, limit: 200 });
+    for (const k of r.keys) {
+      // Only top-level `poll:<id>` JSON docs; skip vote/tally sub-keys.
+      if (k.name.split(':').length !== 2) continue;
+      const id = k.name.slice('poll:'.length);
+      const state = await readState(env, id);
+      if (!state) continue;
+      const tally = await computeTally(env, id);
+      const totalVotes = Object.values(tally).reduce((a, b) => a + Number(b || 0), 0);
+      out.push({
+        id,
+        title:        state.title,
+        subtitle:     state.subtitle,
+        status:       state.status,
+        channelId:    state.channelId,
+        messageId:    state.messageId,
+        closeAt:      state.closeAt,
+        optionCount:  Array.isArray(state.options) ? state.options.length : 0,
+        totalVotes,
+      });
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  out.sort((a, b) => (b.closeAt || 0) - (a.closeAt || 0));
+  return { ok: true, polls: out.slice(0, 50) };
+}
+
+// Detail — full state + per-option tally + voter list. Voter list is
+// the canonical `{userId, choice, ts}` shape; ordering is KV-list
+// insertion order (effectively most-recent-first by KV traversal).
+// Cap voter list at 5000 — enough for any single-poll audit.
+export async function adminPollDetail(env, pollId) {
+  const state = await readState(env, pollId);
+  if (!state) return { ok: false, error: 'no-such-poll', pollId };
+  const tally = await computeTally(env, pollId);
+  const voters = [];
+  let cursor = undefined;
+  for (let page = 0; page < 6; page++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: `poll:${pollId}:vote:`, cursor, limit: 1000 });
+    for (const k of r.keys) {
+      const userId = k.name.slice(`poll:${pollId}:vote:`.length);
+      const choice = await env.LOADOUT_BOLTS.get(k.name);
+      if (choice) voters.push({ userId, choice });
+      if (voters.length >= 5000) break;
+    }
+    if (r.list_complete || voters.length >= 5000) break;
+    cursor = r.cursor;
+  }
+  return { ok: true, poll: state, tally, voters };
+}
+
+// Lock — closes voting immediately. Reuses closePollNow (which
+// handles the embed PATCH + winner-announce follow-up).
+export async function adminLockPoll(env, pollId) {
+  const state = await readState(env, pollId);
+  if (!state) return { ok: false, error: 'no-such-poll', pollId };
+  if (state.status === 'closed' || state.status === 'cancelled') {
+    return { ok: true, action: 'already-' + state.status, pollId };
+  }
+  return await closePollNow(env, pollId);
+}
+
+// Extend — push closeAt by `hours` (positive). PATCHes the public
+// embed so the new close time appears immediately.
+export async function adminExtendPoll(env, pollId, hours) {
+  const h = Number(hours);
+  if (!Number.isFinite(h) || h <= 0 || h > 24 * 30) {
+    return { ok: false, error: 'bad-hours', hours };
+  }
+  const state = await readState(env, pollId);
+  if (!state) return { ok: false, error: 'no-such-poll', pollId };
+  if (state.status !== 'open') {
+    return { ok: false, error: 'not-open', status: state.status };
+  }
+  state.closeAt = (state.closeAt || Math.floor(Date.now() / 1000)) + Math.floor(h * 3600);
+  await writeState(env, pollId, state);
+  // Refresh the embed so the new close timestamp shows.
+  await dapi(env, 'PATCH',
+    `/channels/${state.channelId}/messages/${state.messageId}`, {
+      embeds:     [buildOpenEmbed(state)],
+      components: buildOptionRows(state, false),
+      allowed_mentions: { parse: [] },
+    }).catch(() => { /* tolerate edit failure */ });
+  return { ok: true, action: 'extended', pollId, newCloseAt: state.closeAt };
+}
+
+// Cancel — mark as cancelled (NOT closed; no winner declared), lock
+// the menu, replace the embed body with a "cancelled" message.
+export async function adminCancelPoll(env, pollId, reason) {
+  const state = await readState(env, pollId);
+  if (!state) return { ok: false, error: 'no-such-poll', pollId };
+  if (state.status === 'cancelled') return { ok: true, action: 'already-cancelled', pollId };
+  state.status = 'cancelled';
+  const cancelEmbed = {
+    title: state.title + ' — cancelled',
+    description: [
+      state.subtitle,
+      '',
+      '_This poll was cancelled — no winner declared._',
+      reason ? `\nReason: ${String(reason).slice(0, 300)}` : '',
+    ].join('\n'),
+    image: { url: `${ASSET_BASE}/${state.compositeKey}.png?v=${state.version || 1}` },
+    color: COLOR_CLOSED,
+  };
+  await dapi(env, 'PATCH',
+    `/channels/${state.channelId}/messages/${state.messageId}`, {
+      embeds:     [cancelEmbed],
+      components: buildOptionRows(state, true),
+      allowed_mentions: { parse: [] },
+    }).catch(() => { /* ignore */ });
+  await writeState(env, pollId, state);
+  return { ok: true, action: 'cancelled', pollId };
+}
+
 // ── Cron: sweep all open polls and close any past close time ───
 //
 // Lists every `poll:*` JSON key (cheap — small N), reads its status,
