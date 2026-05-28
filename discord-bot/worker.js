@@ -518,6 +518,17 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_rewards-bootstrap/')) {
       return handleRewardsBootstrap(req, env, path);
     }
+    // Support tickets — post or refresh the persistent embed in
+    // the configured #support channel. Idempotent: PATCHes via the
+    // support-tickets:panel:<gid> KV pointer, falls back to a
+    // fresh post + pin if the prior message was deleted.
+    if (method === 'POST' && path.startsWith('/admin/support-tickets/post-panel/')) {
+      return handleSupportTicketsPostPanel(req, env, path);
+    }
+    // KV-token operator helper for posting the panel without HMAC.
+    if (method === 'POST' && path.startsWith('/admin/_support-panel-post/')) {
+      return handleSupportPanelBootstrap(req, env, path);
+    }
     // Diagnostic — dumps the current Twitch-side EventSub
     // subscriptions for the configured app token. HMAC-gated like
     // /admin/twitch-setup so Clay can call from the site admin or
@@ -2039,6 +2050,45 @@ async function handleGamesMenuPost(req, env, path) {
   const r = await postOrRefreshGamesMenu(env, guildId, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/_support-panel-post/:token (KV-token, self-destructing) ──
+async function handleSupportPanelBootstrap(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_support-panel-post',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-support-panel-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  await env.LOADOUT_BOLTS.delete('bootstrap-support-panel-token').catch(() => {});
+  let opts = {};
+  const body = await req.text();
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const guildId = String(opts.guildId || env.AQUILO_VAULT_GUILD_ID || '').trim();
+  if (!guildId) return jsonResp({ ok: false, error: 'no-guild-id' }, 400);
+  const { postOrRefreshSupportPanel } = await import('./support-tickets.js');
+  const r = await postOrRefreshSupportPanel(env, guildId, opts);
+  return jsonResp({ ...r }, r.ok ? 200 : 400);
+}
+
+// ── /admin/support-tickets/post-panel/:guildId (HMAC) ──────────
+async function handleSupportTicketsPostPanel(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','support-tickets','post-panel',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { postOrRefreshSupportPanel } = await import('./support-tickets.js');
+  const r = await postOrRefreshSupportPanel(env, guildId, opts);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
 }
 
 // ── /admin/_rewards-bootstrap/:token (KV-token, self-destructing) ──

@@ -188,6 +188,13 @@ export async function handleInteraction(req, env, body, ctx) {
         return json(await handlePollStandings(data, env));
       }
     }
+    if (cid.startsWith('st:')) {
+      // Support tickets — string-select / button dispatch. See
+      // support-tickets.js. Modal submission is routed in the
+      // modal-submit branch below (Discord interaction-type 5).
+      const { handleSupportTicketComponent } = await import('./support-tickets.js');
+      return json(await handleSupportTicketComponent(data, env));
+    }
     // Aquilo-bot fold-in: every aquilo component custom_id is
     // namespaced (vote:*, queue:*, aquilo:*, notify:*, tot:*, sug:*,
     // roles:*, setup:*, vh:*, passport:*, trivia:*, shop:*,
@@ -217,6 +224,11 @@ export async function handleInteraction(req, env, body, ctx) {
     if (cid.startsWith('modal:lfg-')) {
       const { handleLfgModalSubmit } = await import('./lfg-hub.js');
       return json(await handleLfgModalSubmit(env, data));
+    }
+    // Support tickets — modal submit (subject + description).
+    if (cid.startsWith('st:submit:')) {
+      const { handleSupportTicketModal } = await import('./support-tickets.js');
+      return json(await handleSupportTicketModal(data, env));
     }
     // Phase-1 channel-hub modal submits — claimed before the
     // generic modal:* aquilo route, same as the LFG modal.
