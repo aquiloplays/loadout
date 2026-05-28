@@ -175,6 +175,19 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleGamesMenuComponent } = await import('./games-menu.js');
       return json(await handleGamesMenuComponent(data, env, ctx));
     }
+    if (cid.startsWith('poll:')) {
+      // Custom-poll dispatch: poll:vote:<id> (select submit) and
+      // poll:standings:<id> (button). See custom-polls.js.
+      const seg = cid.split(':')[1];
+      if (seg === 'vote') {
+        const { handlePollVote } = await import('./custom-polls.js');
+        return json(await handlePollVote(data, env));
+      }
+      if (seg === 'standings') {
+        const { handlePollStandings } = await import('./custom-polls.js');
+        return json(await handlePollStandings(data, env));
+      }
+    }
     // Aquilo-bot fold-in: every aquilo component custom_id is
     // namespaced (vote:*, queue:*, aquilo:*, notify:*, tot:*, sug:*,
     // roles:*, setup:*, vh:*, passport:*, trivia:*, shop:*,
