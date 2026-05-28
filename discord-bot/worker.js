@@ -481,6 +481,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_card-art-bulk-set/')) {
       return handleCardArtBulkSetBootstrap(req, env, path);
     }
+    // Iterating slice of the Giphy backfill — operator calls this in
+    // a curl loop with ?offset=N&limit=K. KV-token NOT consumed per
+    // call (so the loop can drive many requests); the operator
+    // deletes the token after they're done. The token-vs-empty check
+    // is the only gate on this endpoint.
+    if (method === 'POST' && path.startsWith('/admin/_card-art-backfill/')) {
+      return handleCardArtBackfillSlice(req, env, path);
+    }
     // List every global card-art default — used by the run-summary
     // step + Clay's spot-check. HMAC-gated.
     if (method === 'GET' && path === '/admin/card-art/list') {
@@ -2556,6 +2564,35 @@ async function handleCardArtBulkSetBootstrap(req, env, path) {
   if (!items.length) return jsonResp({ ok: false, error: 'items-required' }, 400);
   const { bulkSetGlobalArt } = await import('./cards-global-art.js');
   const r = await bulkSetGlobalArt(env, items, { force: !!opts.force });
+  return jsonResp(r, r.ok ? 200 : 400);
+}
+
+// ── /admin/_card-art-backfill/:token (KV-token, repeatable) ────
+//
+// Slice processor. Body (optional JSON):
+//   { offset?: number, limit?: number, force?: boolean }
+// Default limit is 25 (card-art-backfill.js DEFAULT_LIMIT). The
+// token gate compares against KV `bootstrap-card-art-backfill-token`
+// but does NOT consume it on success — operator runs many slices in
+// a loop, then deletes the token themselves once `done: true`.
+async function handleCardArtBackfillSlice(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-backfill',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-backfill-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  let opts = {};
+  const body = await req.text();
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const url = new URL(req.url);
+  if (url.searchParams.has('offset')) opts.offset = parseInt(url.searchParams.get('offset'), 10);
+  if (url.searchParams.has('limit'))  opts.limit  = parseInt(url.searchParams.get('limit'),  10);
+  if (url.searchParams.has('force'))  opts.force  = url.searchParams.get('force') === '1';
+  const { runCardArtBackfillSlice } = await import('./card-art-backfill.js');
+  const r = await runCardArtBackfillSlice(env, opts);
   return jsonResp(r, r.ok ? 200 : 400);
 }
 
