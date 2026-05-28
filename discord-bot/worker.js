@@ -461,6 +461,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/twitch-setup/')) {
       return handleTwitchSetup(req, env, path);
     }
+    // One-shot — scan the guild for members currently holding the
+    // I CAN'T COUNT shame role + remove. Used to clean up users whose
+    // expiry KV entry was lost to the pre-2026-05-28 silent-drop
+    // sweep bug. Idempotent: re-running on a clean guild scans +
+    // removes nothing.
+    if (method === 'POST' && path.startsWith('/admin/counting/clear-shame-role/')) {
+      return handleCountingClearShameRole(req, env, path);
+    }
     // Diagnostic — dumps the current Twitch-side EventSub
     // subscriptions for the configured app token. HMAC-gated like
     // /admin/twitch-setup so Clay can call from the site admin or
@@ -1813,6 +1821,26 @@ async function handleTwitchBannerAsset(req, env, path) {
   // pulling the body and we don't want a 404 there to poison their cache.
   if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
   return new Response(buf, { status: 200, headers });
+}
+
+// ── /admin/counting/clear-shame-role/:guildId (HMAC) ─────────────
+//
+// Scans the guild's member list, finds anyone with the shame role
+// id stored at `counting:fail_role_id:<g>`, removes the role.
+// Idempotent on a clean guild. Returns `{ ok, roleId, scanned,
+// removed, failed: [...] }`. If a removal fails for a specific
+// user the response still 200s; the operator inspects `failed[]`.
+async function handleCountingClearShameRole(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','counting','clear-shame-role',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  const { clearStuckShameRoles } = await import('./aquilo/counting.js');
+  const r = await clearStuckShameRoles(env, guildId);
+  if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
+  return jsonResp({ ...r, via: auth.via }, 200);
 }
 
 // ── /admin/twitch-eventsub/list/:guildId (HMAC) ─────────────────

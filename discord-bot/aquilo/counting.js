@@ -37,6 +37,15 @@ const DEFAULT_FAIL_DURATION   = 24 * 60;  // 1440 minutes / 24 h
 const KV_GUILD_FAIL_ROLE_ID    = (g) => `counting:fail_role_id:${g}`;
 const KV_GUILD_FAIL_DURATION   = (g) => `counting:fail_duration_min:${g}`;
 
+// L9 — wrong-number per-user warning (Clay 2026-05-28).
+// First wrong WHOLE number from a user in a 24h window → soft
+// public callout + warning counter; chain stays intact, other users
+// keep counting. Second wrong within the window → full fail (shame
+// role + chain reset). A successful count from the warned user
+// clears the strike.
+const KV_WARNING_KEY    = (g, u) => `counting-warning:${g}:${u}`;
+const WARNING_TTL_S     = 24 * 60 * 60;   // 24h sliding window
+
 async function getFailRoleId(env, guildId) {
   const kv = await env.STATE.get(KV_GUILD_FAIL_ROLE_ID(guildId));
   if (kv) return kv;
@@ -136,25 +145,115 @@ async function scheduleFailRoleRemoval(env, guildId, userId, roleId, durationMin
   await saveFailExpiry(env, list);
 }
 
-// Cron entry: every minute. Removes the fail role from users whose
+// Cron entry: every hour. Removes the fail role from users whose
 // duration has elapsed.
+//
+// Failure handling (Clay 2026-05-28 fix): the prior loop blindly
+// dropped entries on ANY removeMemberRole error — so a single
+// transient blip (403 perms while the bot hierarchy was wrong, or a
+// rate-limit) silently amnesiac'd the expiry and the role stuck
+// forever. Now we distinguish:
+//   • 404 (user/role/guild gone)        → drop, nothing to retry
+//   • removeMemberRole returns success → drop, role removed cleanly
+//   • Anything else (403, 429, 5xx)    → KEEP entry, retry next sweep
+// Each entry gains a `retries` counter so we don't loop forever on a
+// permanent permission misconfig; after 24 retries (~1 day at the
+// hourly cadence) we give up + log, so the KV doesn't grow unbounded.
+const MAX_SWEEP_RETRIES = 24;
+
+function isDiscord404(err) {
+  return String(err?.message || '').includes('Discord 404');
+}
+
 export async function sweepFailRoles(env) {
   const list = await loadFailExpiry(env);
-  if (!list.length) return { swept: 0 };
+  if (!list.length) return { swept: 0, retried: 0, abandoned: 0 };
   const now = Date.now();
   const keep = [];
-  let swept = 0;
+  let swept = 0, retried = 0, abandoned = 0;
   for (const e of list) {
     if (e.expires_at_ms > now) {
       keep.push(e);
       continue;
     }
-    try { await removeMemberRole(env, e.guild_id, e.user_id, e.role_id); }
-    catch (err) { /* role already removed or perms changed — ignore */ }
-    swept++;
+    let success = false;
+    let err = null;
+    try { await removeMemberRole(env, e.guild_id, e.user_id, e.role_id); success = true; }
+    catch (caught) { err = caught; }
+    if (success || isDiscord404(err)) {
+      swept++;
+      continue;   // drop from keep — role removed or already gone
+    }
+    // Retryable failure (403/429/5xx/network). Keep with a retry
+    // counter so we don't lose track.
+    const tries = (e.retries || 0) + 1;
+    if (tries >= MAX_SWEEP_RETRIES) {
+      console.warn('[counting] sweep abandoning entry after',
+        tries, 'retries:', e.user_id, '@', e.guild_id,
+        'last-err:', err?.message || err);
+      abandoned++;
+      continue;   // drop from keep — permanent failure, no infinite loop
+    }
+    console.warn('[counting] sweep retrying entry:',
+      e.user_id, '@', e.guild_id, 'try', tries, '/', MAX_SWEEP_RETRIES,
+      'err:', err?.message || err);
+    keep.push({ ...e, retries: tries });
+    retried++;
   }
-  if (swept > 0) await saveFailExpiry(env, keep);
-  return { swept };
+  if (swept > 0 || retried > 0 || abandoned > 0) {
+    await saveFailExpiry(env, keep);
+  }
+  return { swept, retried, abandoned };
+}
+
+// Admin-side: scan the guild for members currently holding the
+// shame role + remove it. One-shot cleanup for users whose expiry
+// was lost by the prior silent-drop sweep bug. Honors the bot's
+// existing role hierarchy — if the bot can't remove the role, the
+// failure is surfaced in the response so the operator knows the
+// hierarchy needs fixing first.
+//
+// Returns: { ok, roleId, scanned, removed, failed: [{ userId, error }] }
+export async function clearStuckShameRoles(env, guildId) {
+  if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
+  if (!guildId) return { ok: false, error: 'no-guild-id' };
+  const roleId = await getFailRoleId(env, guildId);
+  if (!roleId) return { ok: false, error: 'no-role-configured' };
+
+  let scanned = 0;
+  let removed = 0;
+  const failed = [];
+  let after = '0';
+  // Paginate /guilds/:g/members?limit=1000&after=:lastId. Discord
+  // returns up to 1000 per page; we cap the total scan at 50k so
+  // a misconfigured loop can't spin forever.
+  for (let page = 0; page < 50; page++) {
+    let batch;
+    try {
+      batch = await discordFetch(env,
+        `/guilds/${encodeURIComponent(guildId)}/members?limit=1000&after=${encodeURIComponent(after)}`);
+    } catch (e) {
+      return { ok: false, error: 'fetch-members-failed', detail: e?.message || String(e), scanned, removed, failed };
+    }
+    if (!Array.isArray(batch) || batch.length === 0) break;
+    scanned += batch.length;
+    for (const m of batch) {
+      if (!Array.isArray(m.roles) || !m.roles.includes(roleId)) continue;
+      const uid = m.user?.id;
+      if (!uid) continue;
+      try {
+        await removeMemberRole(env, guildId, uid, roleId);
+        removed++;
+      } catch (e) {
+        // Don't abort on per-user failure — surface in `failed` so
+        // the operator can spot a hierarchy or rate-limit issue.
+        failed.push({ userId: uid, error: e?.message || String(e) });
+      }
+    }
+    after = batch[batch.length - 1].user?.id || after;
+    if (batch.length < 1000) break;
+  }
+  return { ok: true, roleId, scanned, removed, failed };
 }
 
 // ---- L8: not-a-number — 1st warn, 2nd → 1h channel SEND-deny -----------
@@ -411,6 +510,11 @@ export async function handleCountingMessage(env, payload) {
       state.high_score_user_id = userId;
     }
 
+    // Clear any pending warning strike for this user — getting back
+    // on track means they don't carry yesterday's "one strike" into
+    // tomorrow's miscount.
+    try { await env.STATE.delete(KV_WARNING_KEY(guildId, userId)); } catch { /* ignore */ }
+
     // Celebrate every 100. Don't repeat at the same milestone.
     if (num % 100 === 0) {
       try {
@@ -423,6 +527,40 @@ export async function handleCountingMessage(env, payload) {
     await saveState(env, guildId, state);
     return { ok: true, count: num, reward };
   }
+
+  // ── Per-user warning gate (Clay 2026-05-28) ──────────────────────
+  // First wrong WHOLE number in a 24h window → soft callout, chain
+  // stays at state.current, NO role + NO bolt penalty. Other users
+  // can keep counting from where it was. The warned user's strike
+  // is tracked in KV with a 24h TTL; second wrong within the window
+  // falls through to the full fail flow below.
+  const warnKey = KV_WARNING_KEY(guildId, userId);
+  let prevWarn = 0;
+  try { prevWarn = parseInt((await env.STATE.get(warnKey)) || '0', 10) || 0; }
+  catch { /* tolerate KV read failure — fall through to full fail */ }
+  if (prevWarn === 0) {
+    // ⚠️ react on the offending message + a single short channel
+    // callout. We do NOT delete the message — leaving it in chat
+    // makes it obvious what was wrong so the next correct counter
+    // can see the intended target. Reset to 24h sliding window.
+    try { await env.STATE.put(warnKey, '1', { expirationTtl: WARNING_TTL_S }); }
+    catch (e) { console.warn('[counting] warn KV put', e?.message || e); }
+    try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '⚠️'); }
+    catch (e) { console.warn('[counting] react warn', e?.message || e); }
+    const warnReason = sameUser
+      ? "two in a row from you — let someone else take the next one"
+      : `that's not the next number (expected **${expected}**) — one more strike in 24h and the count resets`;
+    try {
+      await postChat(env, payload.channel_id, {
+        content: `⚠ <@${userId}>, ${warnReason}.`,
+      });
+    } catch { /* ignore — channel locked? */ }
+    return { ok: false, warned: true, expected, actual: num, reason: 'first-strike' };
+  }
+  // 2nd strike within the window → clear counter (they're about to
+  // be punished by the full flow; restart fresh after) and fall
+  // through to the existing chain-break path.
+  try { await env.STATE.delete(warnKey); } catch { /* ignore */ }
 
   // FAIL: react, penalize, assign fail role, reset.
   try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '❌'); }
