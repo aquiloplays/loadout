@@ -39,22 +39,27 @@ async function nextIndex(env, mod) {
   return cur % mod;
 }
 
-// Cron entry: noon ET daily. Picks the next prompt, posts to engagement channel.
+// Cron entry: noon ET daily. Picks the next prompt, posts to the
+// QotD channel. Resolution order:
+//   1. env.QOTD_CHANNEL_ID  (the dedicated QotD channel, when set)
+//   2. env.ENGAGEMENT_CHANNEL_ID (legacy fallback — pre-2026-05-28
+//      QotD landed in #engagement alongside polls/birthdays/goals)
 export async function postDailyPrompt(env) {
-  if (!env.ENGAGEMENT_CHANNEL_ID) return { skipped: 'no_channel' };
+  const target = env.QOTD_CHANNEL_ID || env.ENGAGEMENT_CHANNEL_ID;
+  if (!target) return { skipped: 'no_channel' };
   const list = await getPrompts(env);
   if (!list.length) return { skipped: 'no_prompts' };
   const idx = await nextIndex(env, list.length);
   const prompt = list[idx];
 
   const embed = {
-    title: '💬 Prompt of the Day',
+    title: '💬 Question of the Day',
     description: prompt,
     color: COLOR_SCHEDULE,
     footer: { text: 'Reply in thread or this channel — no wrong answers' }
   };
-  await postChannelMessage(env, env.ENGAGEMENT_CHANNEL_ID, { embeds: [embed] });
-  return { posted: true, prompt };
+  await postChannelMessage(env, target, { embeds: [embed] });
+  return { posted: true, prompt, channel: target };
 }
 
 // Hub button → modal with up to 5 prompts to edit/append. Existing

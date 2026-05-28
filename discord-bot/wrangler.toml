@@ -99,6 +99,11 @@ PRODUCTS = ""
 FOURTHWALL_SALES_CHANNEL = "1507973923957112973"  # 📢│updates (product announcements)
 ROTATION_POLL_CHANNEL_ID = ""
 ENGAGEMENT_CHANNEL_ID = "1507973904164061194"  # 💬│general (engagement nudges)
+# Per-feature overrides for ENGAGEMENT_CHANNEL_ID. Set to split daily
+# polls + QotD off into their own channels (Clay 2026-05-28). Unset =
+# falls back to ENGAGEMENT_CHANNEL_ID above.
+DAILY_POLL_CHANNEL_ID = "1509565584092692512"
+QOTD_CHANNEL_ID       = "1509570450148036649"
 COUNTDOWN_CHANNEL_ID = "1507973917350957067"   # 🔴│live-now
 COUNTDOWN_VC_ID = ""                           # no dedicated countdown VC yet — Clay can create later
 ROLES_CHANNEL_ID = "1507973902146732222"       # 🎭│roles (self-assign panel)

@@ -98,8 +98,14 @@ async function refreshDailyPollMessage(env, pollId) {
 }
 
 // Cron entry: 10 AM ET daily. Closes any open poll, posts a fresh one.
+//
+// Channel resolution: DAILY_POLL_CHANNEL_ID (dedicated channel) →
+// ENGAGEMENT_CHANNEL_ID (legacy). Pre-2026-05-28 the polls landed
+// in #engagement; they now live in their own channel so the
+// engagement feed isn't a wall of polls.
 export async function runDailyPoll(env) {
-  if (!env.ENGAGEMENT_CHANNEL_ID) return { skipped: 'no_channel' };
+  const target = env.DAILY_POLL_CHANNEL_ID || env.ENGAGEMENT_CHANNEL_ID;
+  if (!target) return { skipped: 'no_channel' };
   const guildId = await ensureBootstrap(env);
 
   // Close any open poll
@@ -118,16 +124,16 @@ export async function runDailyPoll(env) {
 
   const ins = await env.DB.prepare(
     'INSERT INTO daily_polls (guild_id, channel_id, opt_a, opt_b) VALUES (?, ?, ?, ?) RETURNING id'
-  ).bind(guildId, env.ENGAGEMENT_CHANNEL_ID, pair.a, pair.b).first();
+  ).bind(guildId, target, pair.a, pair.b).first();
   const pollId = ins.id;
 
   const poll = await env.DB.prepare('SELECT * FROM daily_polls WHERE id = ?').bind(pollId).first();
   const payload = buildPollPayload(poll, { a: 0, b: 0 }, false);
-  const msg = await postChannelMessage(env, env.ENGAGEMENT_CHANNEL_ID, payload);
+  const msg = await postChannelMessage(env, target, payload);
   await env.DB.prepare('UPDATE daily_polls SET message_id = ? WHERE id = ?')
     .bind(msg.id, pollId).run();
 
-  return { posted: true, pollId, pair };
+  return { posted: true, pollId, pair, channel: target };
 }
 
 // Vote button click. custom_id format: tot:vote:<pollId>:<a|b>
