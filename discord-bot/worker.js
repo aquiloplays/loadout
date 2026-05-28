@@ -535,6 +535,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_gift-embed-post/')) {
       return handleGiftEmbedPost(req, env, path);
     }
+    // One-shot KV-token-gated batch — runs the four "Clay would
+    // otherwise have to fire by hand" admin actions in sequence:
+    // self-roles-hub provision, games-menu post, mc-whitelist
+    // ensure-role, slash-command re-register. Self-destructs.
+    if (method === 'POST' && path.startsWith('/admin/_clay-batch/')) {
+      return handleClayBatch(req, env, path);
+    }
     // Diagnostic — dumps the current Twitch-side EventSub
     // subscriptions for the configured app token. HMAC-gated like
     // /admin/twitch-setup so Clay can call from the site admin or
@@ -2072,6 +2079,89 @@ async function handleGamesMenuPost(req, env, path) {
   const r = await postOrRefreshGamesMenu(env, guildId, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/_clay-batch/:token (KV-token, self-destructing) ──────
+//
+// One-shot batch — runs four admin actions in sequence that Clay
+// would otherwise need to HMAC-sign by hand:
+//   1. self-roles-hub provision  (mints SF/Loadout/Rotation Updates roles)
+//   2. games-menu post           (pinned menu in #games)
+//   3. mc-whitelist ensure-role  (Minecraft Whitelist role)
+//   4. register-commands         (PUT slash commands at guild scope)
+// Returns a single response with all four results. Self-destructs.
+async function handleClayBatch(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_clay-batch',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-clay-batch-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  await env.LOADOUT_BOLTS.delete('bootstrap-clay-batch-token').catch(() => {});
+
+  let opts = {};
+  const body = await req.text();
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const guildId = String(opts.guildId || env.AQUILO_VAULT_GUILD_ID || '').trim();
+  if (!guildId) return jsonResp({ ok: false, error: 'no-guild-id' }, 400);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+
+  const results = {};
+
+  // 1. self-roles-hub provision.
+  try {
+    const { provisionHubRoles } = await import('./aquilo/self-roles-hub.js');
+    results.selfRolesHubProvision = await provisionHubRoles(env, guildId);
+  } catch (e) {
+    results.selfRolesHubProvision = { ok: false, error: e?.message || String(e) };
+  }
+
+  // 2. games-menu post.
+  try {
+    const { postOrRefreshGamesMenu } = await import('./games-menu.js');
+    results.gamesMenuPost = await postOrRefreshGamesMenu(env, guildId, {});
+  } catch (e) {
+    results.gamesMenuPost = { ok: false, error: e?.message || String(e) };
+  }
+
+  // 3. mc-whitelist ensure-role.
+  try {
+    const { ensureWhitelistRole } = await import('./mc-whitelist.js');
+    results.mcWhitelistEnsureRole = await ensureWhitelistRole(env, guildId);
+  } catch (e) {
+    results.mcWhitelistEnsureRole = { ok: false, error: e?.message || String(e) };
+  }
+
+  // 4. Register slash commands at guild scope.
+  try {
+    const appId = env.DISCORD_APP_ID;
+    if (!appId) {
+      results.registerCommands = { ok: false, error: 'no-app-id' };
+    } else {
+      const r = await fetch(
+        `https://discord.com/api/v10/applications/${appId}/guilds/${guildId}/commands`,
+        {
+          method: 'PUT',
+          headers: { 'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN, 'Content-Type': 'application/json' },
+          body: JSON.stringify(COMMANDS),
+        });
+      const text = await r.text();
+      let parsed = null;
+      try { parsed = JSON.parse(text); } catch { /* ignore */ }
+      if (r.ok) {
+        const names = Array.isArray(parsed) ? parsed.map(c => c.name) : null;
+        results.registerCommands = { ok: true, scope: 'guild', registered: names?.length || 0, names };
+      } else {
+        results.registerCommands = { ok: false, error: 'discord-' + r.status, body: text.slice(0, 400) };
+      }
+    }
+  } catch (e) {
+    results.registerCommands = { ok: false, error: e?.message || String(e) };
+  }
+
+  return jsonResp({ ok: true, guildId, results }, 200);
 }
 
 // ── /admin/_gift-embed-post/:token (KV-token, self-destructing) ─
