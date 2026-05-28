@@ -290,11 +290,14 @@ async function resolveAvatar(env, userId, card, member) {
 //       the public Images API today), OR
 //   (c) a Worker calling Pyodide-WASM Pillow (very slow).
 //
-// (a) is the planned path. This function is the stub: it never
-// returns a URL today (flag is gated to "false" anyway). When the
-// renderer ships, the cache lookup + sidecar fetch goes here.
+// (a) is the planned path. This function calls the site composite
+// endpoint when AQUILO_SITE_WEB_SECRET is configured AND the endpoint
+// is reachable. Cache lookup happens worker-side (KV), so a repeat
+// (bg, gif) pair after the first render returns the cached URL with
+// no site round-trip.
 const CI_COMPOSITE_KV_PREFIX = 'ci-composite:';
 const CI_COMPOSITE_TTL_S     = 30 * 86400;
+const CI_COMPOSITE_SITE_PATH = '/api/web/checkin/compose';
 
 async function composeCheckinCard(env, { bgUrl, gifUrl, bgId }) {
   if (!bgUrl || !gifUrl) return null;
@@ -308,17 +311,69 @@ async function composeCheckinCard(env, { bgUrl, gifUrl, bgId }) {
     .map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 24);
   const cacheKey = CI_COMPOSITE_KV_PREFIX + hash;
 
-  // Cache hit?
+  // Cache hit short-circuit.
   const cached = await env.LOADOUT_BOLTS.get(cacheKey, { type: 'json' });
   if (cached?.url) return cached;
 
-  // STUB — actual composite pipeline lives in the sidecar service.
-  // Until that's wired, return null so postCheckinEmbed falls through
-  // to the v1 image stack. Logging the intent so it's grep-able in
-  // production when Clay starts testing the flag.
-  console.log('[checkin-v2] composite TODO — would render bg=' +
-              (bgId || bgUrl) + ' + gif=' + gifUrl + ' as cache key ' + hash);
-  return null;
+  // Need a shared secret + a site origin to call the composite
+  // endpoint. Without either, fall through to the v1 image stack.
+  const secret = env.AQUILO_SITE_WEB_SECRET;
+  if (!secret) return null;
+  const origin = (env.AQUILO_SITE_ORIGIN || 'https://aquilo.gg').replace(/\/$/, '');
+
+  let resp;
+  try {
+    resp = await siteSignedPost(secret, origin + CI_COMPOSITE_SITE_PATH,
+      { bgUrl, gifUrl, bgId: bgId || null, hash });
+  } catch (e) {
+    console.warn('[checkin-v2] compose POST failed:', e?.message || e);
+    return null;
+  }
+  if (!resp.ok) {
+    // 404 = endpoint not deployed yet (parallel site session lands
+    // it). Anything else = log + skip; either way, fall through.
+    if (resp.status !== 404) {
+      console.warn('[checkin-v2] compose responded',
+        resp.status, (await resp.text().catch(() => '')).slice(0, 200));
+    }
+    return null;
+  }
+  let data;
+  try { data = await resp.json(); }
+  catch { return null; }
+  if (!data?.ok || !data?.url) return null;
+
+  const record = {
+    url:           String(data.url),
+    contentLength: data.contentLength || null,
+    composedAt:    Date.now(),
+  };
+  await env.LOADOUT_BOLTS.put(cacheKey, JSON.stringify(record),
+    { expirationTtl: CI_COMPOSITE_TTL_S });
+  return record;
+}
+
+// HMAC-signed POST helper for the site composite endpoint. Mirrors
+// daily-bonus-push.js signedPost — same x-aquilo-web-ts/sig contract,
+// inlined to keep this module's import surface narrow.
+async function siteSignedPost(secret, url, payloadObj) {
+  const body = JSON.stringify(payloadObj);
+  const ts = String(Math.floor(Date.now() / 1000));
+  const message = ts + '\n' + body;
+  const key = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
+  const sigHex = [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('');
+  return fetch(url, {
+    method:  'POST',
+    headers: {
+      'content-type':    'application/json',
+      'x-aquilo-web-ts':  ts,
+      'x-aquilo-web-sig': sigHex,
+    },
+    body,
+  });
 }
 
 async function postCheckinEmbed(env, guildId, userId, state, card, member, isFirstTimeNoCard, opts = {}) {

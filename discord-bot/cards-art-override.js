@@ -10,10 +10,12 @@
 //   KV `cards:art-override:<g>:<u>:<cardId>` →
 //     { memeGifUrl, contentLength, validatedAt, updatedAt }
 //
-// Rendering integration is INTENTIONALLY not wired here — per Clay's
-// spec (2026-05), the schema + API ship first; card-display
-// rendering switches to the override URL in a follow-up once the
-// editor UI + storage paths are confirmed end-to-end.
+// Rendering integration (2026-05-28): the per-user `artOverrides`
+// map is attached to the cards-web bootstrap response (routeState in
+// cards-web.js). The site renderer prefers artOverrides[cardId] over
+// the static spriteId in every card-display surface (collection,
+// deck builder, pack reveals, match boards). Editor write paths still
+// go through /web/cards/art-override (op:set/clear).
 //
 // Validation:
 //   • URL must be https://

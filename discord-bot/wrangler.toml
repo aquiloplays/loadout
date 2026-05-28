@@ -126,9 +126,14 @@ RECAP_CHANNEL_ID = ""
 CHECKIN_CHANNEL_ID = "1507973904164061194"     # 💬│general (daily check-in lives here)
 # Feature flag for the check-in embed v2 redesign (variant C —
 # server-side composite of user-selected background + chosen GIF).
-# Stays "false" until Clay green-lights the mockup. When "true", the
-# postCheckinEmbed path delegates to the composite renderer; current
-# rendering (gif as image OR card bg as image) is the fallback.
+# Stays "false" until aquilo-site ships POST /api/web/checkin/compose.
+# When "true", composeCheckinCard() in community-checkin.js POSTs
+# { bgUrl, gifUrl, bgId, hash } to that site endpoint (HMAC-signed
+# with AQUILO_SITE_WEB_SECRET), caches the returned `url` in KV under
+# `ci-composite:<hash>` for 30 days, and uses it as the embed image.
+# A 404 from the site endpoint silently falls through to the v1 image
+# stack — safe to flip the flag once the site session deploys the
+# endpoint and verifies it returns a composite URL.
 CHECKIN_EMBED_V2 = "false"
 LEADERBOARD_CHANNEL_ID = "1507973904164061194" # 💬│general
 AQUILO_ADMIN_HUB_CHANNEL_ID = "1507973969683415120"  # ⚙️│bot-admin

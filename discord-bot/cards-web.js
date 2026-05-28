@@ -127,7 +127,9 @@ async function routeState(env, guildId, userId) {
     welcomePack = await creditPack(env, guildId, userId, 'common', 'welcome-web');
   }
 
-  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed, fragments] = await Promise.all([
+  const { listOverridesForUser } = await import('./cards-art-override.js');
+
+  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed, fragments, artOverrides] = await Promise.all([
     listDeckSummaries(env, guildId, userId),
     getActiveDeckId(env, guildId, userId),
     listPendingPacks(env, guildId, userId, 30),
@@ -136,7 +138,16 @@ async function routeState(env, guildId, userId) {
     getWallet(env, guildId, userId),
     hasClaimedFreePackToday(env, guildId, userId),
     getFragments(env, userId),
+    listOverridesForUser(env, guildId, userId),
   ]);
+
+  // Compact { cardId: memeGifUrl } map — the renderer just looks up
+  // by cardId. The full record (contentLength, validatedAt, etc.) is
+  // available via /web/cards/art-override op:list for the editor UI.
+  const artOverridesMap = {};
+  for (const o of (artOverrides || [])) {
+    if (o.cardId && o.memeGifUrl) artOverridesMap[o.cardId] = o.memeGifUrl;
+  }
 
   const activeMatch = await getActiveMatch(env, guildId, userId);
   const matchView = activeMatch ? renderableState(activeMatch, userId) : null;
@@ -176,6 +187,10 @@ async function routeState(env, guildId, userId) {
       recycleYield: RECYCLE_YIELD,
       craftCost: CRAFT_COST,
     },
+    // Per-user card-art overrides. Site renderer should prefer
+    // artOverrides[cardId] over the static spriteId for any card the
+    // viewer owns. Empty when the user hasn't customised anything.
+    artOverrides: artOverridesMap,
     match: matchView,
   });
 }
