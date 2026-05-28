@@ -91,12 +91,32 @@ async function giphySearch(apiKey, term) {
   return { ok: true, json };
 }
 
+// suggestArtTerms ranks SHORTEST FIRST (broader search) which is the
+// right default for a user-facing picker — the user sees 6 suggestions
+// and picks. For the backfill we want the OPPOSITE: longest first, so
+// specific terms like "champion steel" beat the generic type fallback
+// "hero" (otherwise every Champion-type card picks the same GIF off
+// the top "hero" search result). Single-token name words beat
+// type fallbacks for the same reason.
+function rerankForBackfill(suggestion) {
+  const terms = Array.isArray(suggestion?.searchTerms) ? [...suggestion.searchTerms] : [];
+  // Multi-word phrases get the strongest preference (most specific).
+  // Beyond that: longer = more specific. Stable sort.
+  return terms.sort((a, b) => {
+    const aWords = a.split(/\s+/).length;
+    const bWords = b.split(/\s+/).length;
+    if (aWords !== bWords) return bWords - aWords;
+    return b.length - a.length;
+  });
+}
+
 async function pickArtForCard(apiKey, cardId) {
   const suggestion = suggestArtTerms(cardId);
   if (!suggestion.ok || !suggestion.searchTerms?.length) {
     return { ok: false, reason: 'no-search-terms' };
   }
-  for (const term of suggestion.searchTerms) {
+  const ranked = rerankForBackfill(suggestion);
+  for (const term of ranked) {
     let resp;
     try { resp = await giphySearch(apiKey, term); }
     catch (e) { resp = { ok: false, error: String(e?.message || e) }; }
