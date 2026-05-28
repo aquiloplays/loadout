@@ -473,7 +473,11 @@ function normalise(p) {
     ts: Date.now(),
     userId,
     username,
+    // Emit BOTH camelCase keys for backward compat — older PWA
+    // builds may read `avatar`; the canonical key is `avatarUrl`
+    // (matches the chat.ts ChatMessage type).
     avatar,
+    avatarUrl: avatar,
     content,
     attachments,
     embeds,
