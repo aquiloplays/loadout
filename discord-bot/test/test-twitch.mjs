@@ -21,8 +21,18 @@
 import {
   verifyEventSubSignature,
   handleEventSubWebhook,
+  setupTwitchSubscriptions,
+  listTwitchSubscriptions,
 } from '../twitch-eventsub.js';
-import { isTwitchConfigured } from '../twitch-helix.js';
+import { isTwitchConfigured, hasTwitchUserAuth } from '../twitch-helix.js';
+import {
+  EVENT_COLORS, EVENT_TYPES, isValidEventType,
+  followEmbed, subEmbed, resubEmbed, giftSubEmbed, cheerEmbed,
+  raidEmbed, redemptionEmbed, hypeTrainBeginEmbed, pollEndEmbed,
+  predictionEndEmbed, banEmbed, unbanEmbed,
+  resolveEventChannel, eventTypeEnabled,
+  setEventChannel, setEventToggle, listEventRoutes,
+} from '../twitch-events.js';
 import { _isoWeekForTest as clipIsoWeek } from '../twitch-clips.js';
 import { _isoWeekForTest as recapIsoWeek, postWeeklyRecap } from '../weekly-recap.js';
 
@@ -173,11 +183,14 @@ console.log('— EventSub webhook: notification + replay swallow');
   });
   const r1 = await handleEventSubWebhook(make(), env, ctx);
   eq(r1.status, 204, 'first delivery → 204');
-  eq(calls.length, 1, 'one waitUntil queued');
+  // stream.online schedules TWO work units: twitch-live.js's edit-in-place
+  // lifecycle card AND twitch-events.js's bigger announce embed. Both
+  // are intentional; replay protection still ensures we don't double up.
+  eq(calls.length, 2, 'two waitUntil queued (lifecycle + announce)');
   // Replay — same message-id. Should be swallowed without scheduling.
   const r2 = await handleEventSubWebhook(make(), env, ctx);
   eq(r2.status, 200, 'replay → 200');
-  eq(calls.length, 1, 'no extra waitUntil on replay');
+  eq(calls.length, 2, 'no extra waitUntil on replay');
 }
 
 console.log('— EventSub webhook: revocation acks 200');
@@ -279,6 +292,262 @@ console.log('— weekly-recap: skips cleanly when no channel');
     DISCORD_BOT_TOKEN: 'x',
     AQUILO_VAULT_GUILD_ID: '1504103035951906883',
   })).skipped, 'no-recap-channel', 'no channel binding → no-recap-channel');
+}
+
+// ─────────────────────────────────────────────────────────────────
+// twitch-events.js — embed builders + routing
+// ─────────────────────────────────────────────────────────────────
+
+console.log('— twitch-events: brand palette + event catalogue');
+{
+  // Per Clay's spec — these specific hex values must hold.
+  eq(EVENT_COLORS.follow,    0x7c5cff, 'follow violet');
+  eq(EVENT_COLORS.sub,       0xff6ab5, 'sub aurora pink');
+  eq(EVENT_COLORS.gift,      0x5bff95, 'gift aurora green');
+  eq(EVENT_COLORS.cheer,     0xffd166, 'cheer gold');
+  eq(EVENT_COLORS.raid,      0xff8c42, 'raid bright orange');
+  eq(EVENT_COLORS.live,      0xff4757, 'stream live bright red');
+  // Catalogue contains the documented event types.
+  for (const t of ['follow','sub','gift','resub','cheer','raid','live','ended',
+                   'redemption','hypeTrainBegin','hypeTrainProgress','hypeTrainEnd',
+                   'pollBegin','pollEnd','predictionBegin','predictionEnd','ban','unban']) {
+    assert(EVENT_TYPES.includes(t),       `EVENT_TYPES contains ${t}`);
+    assert(isValidEventType(t),           `${t} validates`);
+  }
+  assert(!isValidEventType('garbage-event'), 'unknown event-type rejected');
+}
+
+console.log('— embed builders: smoke-test each renders something sensible');
+{
+  const fe = followEmbed({ userName: 'Alice', followedAt: '2026-05-27T10:00:00Z' }, 42);
+  eq(fe.color, EVENT_COLORS.follow,  'follow embed colour');
+  assert(/Alice/.test(JSON.stringify(fe)), 'follow embed names user');
+  assert(/42/.test(fe.footer?.text || ''), 'follow embed footer shows counter');
+
+  const se = subEmbed({ userName: 'Bob', tier: '2000' }, 7);
+  assert(/Tier 2/.test(JSON.stringify(se)), 'sub embed shows tier label');
+  assert(/Bob/.test(JSON.stringify(se)),    'sub embed names user');
+
+  const re = resubEmbed({ userName: 'Cara', tier: '1000', cumulativeMonths: 12, streakMonths: 6, message: 'love the show' }, 99);
+  assert(/Cara/.test(JSON.stringify(re)),   'resub embed names user');
+  assert(/12.*months/i.test(JSON.stringify(re)),  'resub embed surfaces cumulative months');
+  assert(/streak/i.test(JSON.stringify(re)), 'resub embed mentions streak');
+  assert(/love the show/.test(JSON.stringify(re)), 'resub embed includes message');
+
+  const ge = giftSubEmbed({ gifterName: 'Dan', tier: '1000', total: 5, cumulativeTotal: 20, isAnon: false });
+  assert(/Dan/.test(JSON.stringify(ge)),    'gift embed names gifter');
+  assert(/GIFT BOMB/i.test(ge.title),       'community gift uses BOMB title');
+  assert(/5/.test(ge.description),          'community gift surfaces count');
+
+  const gA = giftSubEmbed({ tier: '1000', total: 1, isAnon: true });
+  assert(/anonymous/i.test(JSON.stringify(gA)), 'anon gifter rendered as anonymous');
+
+  const ch = cheerEmbed({ userName: 'Eve', bits: 5000, message: 'hyped' });
+  assert(/HUGE CHEER/i.test(ch.title),      '5k bits → HUGE CHEER tier');
+  assert(/hyped/.test(JSON.stringify(ch)),  'cheer message included');
+
+  const chSmall = cheerEmbed({ userName: 'Felix', bits: 50 });
+  assert(/Cheer/.test(chSmall.title),       '50 bits → small Cheer tier');
+
+  const ra = raidEmbed({ fromBroadcasterName: 'Greta', fromBroadcasterLogin: 'greta', viewers: 432 });
+  assert(/WELCOME RAIDERS/i.test(ra.title), 'raid embed says WELCOME RAIDERS');
+  assert(/432/.test(JSON.stringify(ra)),    'raid embed surfaces viewer count');
+
+  const rd = redemptionEmbed({ userName: 'Hank', rewardTitle: 'Hydrate Reminder', rewardCost: 500 });
+  assert(/Hydrate Reminder/.test(JSON.stringify(rd)), 'redemption embed shows reward title');
+  assert(/500/.test(JSON.stringify(rd)),    'redemption embed shows cost');
+
+  const ht = hypeTrainBeginEmbed({ level: 2, total: 1200, goal: 2000, expiresAt: '2026-05-27T11:00:00Z' });
+  assert(/HYPE TRAIN STARTING/i.test(ht.title), 'hype train begin title');
+  assert(/Level.*2/.test(ht.description),       'hype train shows level');
+
+  const pe = pollEndEmbed({ title: 'Choose game', choices: [
+    { id: '1', title: 'A', votes: 10 },
+    { id: '2', title: 'B', votes: 25 },
+  ]});
+  assert(/Choose game/.test(pe.title),      'poll-end title from event title');
+  // The higher-vote option should be tagged with the trophy emoji.
+  assert(/🏆 B/.test(pe.description),       'poll-end marks winning choice');
+
+  const pre = predictionEndEmbed({ title: 'Will we win?', outcomes: [
+    { id: 'a', title: 'Yes', channel_points: 1000, users: 12 },
+    { id: 'b', title: 'No',  channel_points: 500,  users: 4 },
+  ], winningOutcomeId: 'a' });
+  assert(/🏆.*Yes/.test(pre.description),   'prediction-end marks winning outcome');
+
+  const ban = banEmbed({ userName: 'Trolly', modName: 'Mod1', reason: 'spam', isPermanent: true });
+  assert(/banned/i.test(ban.title),         'ban embed title says banned');
+  assert(/spam/.test(JSON.stringify(ban)),  'ban embed surfaces reason');
+
+  const to = banEmbed({ userName: 'NoisyOne', modName: 'Mod1', isPermanent: false, endsAt: '2026-05-27T12:00:00Z' });
+  assert(/timed out/i.test(to.title),       'timeout embed title says timed out');
+
+  const ub = unbanEmbed({ userName: 'Trolly', modName: 'Mod1' });
+  assert(/unbanned/i.test(ub.title),        'unban embed title says unbanned');
+}
+
+console.log('— twitch-events: routing precedence + toggle');
+{
+  const kv = makeKv();
+  const env = { LOADOUT_BOLTS: kv };
+  // No bindings yet — resolveEventChannel returns null.
+  eq(await resolveEventChannel(env, 'gid-1', 'follow'), null, 'unbound → null');
+  // Set the default 'stream-notifications' binding.
+  await kv.put('channel-binding:gid-1:stream-notifications', '111111111111111111');
+  eq(await resolveEventChannel(env, 'gid-1', 'follow'),  '111111111111111111', 'default catches all');
+  eq(await resolveEventChannel(env, 'gid-1', 'cheer'),   '111111111111111111', 'default catches cheer');
+  // Per-event override beats the default.
+  await kv.put('twitch-event-channel:follow', '222222222222222222');
+  eq(await resolveEventChannel(env, 'gid-1', 'follow'),  '222222222222222222', 'override beats default');
+  eq(await resolveEventChannel(env, 'gid-1', 'cheer'),   '111111111111111111', 'override is per-type');
+  // Live falls back to live-now THEN live THEN default.
+  await kv.put('channel-binding:gid-1:live-now', '333333333333333333');
+  eq(await resolveEventChannel(env, 'gid-1', 'live'),    '333333333333333333', 'live → live-now binding');
+  await kv.delete('channel-binding:gid-1:live-now');
+  await kv.put('channel-binding:gid-1:live',     '444444444444444444');
+  eq(await resolveEventChannel(env, 'gid-1', 'live'),    '444444444444444444', 'live falls back to live binding');
+  // Redemption falls back to redemptions-feed.
+  await kv.put('channel-binding:gid-1:redemptions-feed', '555555555555555555');
+  eq(await resolveEventChannel(env, 'gid-1', 'redemption'), '555555555555555555', 'redemption → redemptions-feed');
+
+  // Toggle defaults to on.
+  eq(await eventTypeEnabled(env, 'follow'), true, 'enabled when no toggle KV');
+  await setEventToggle(env, 'follow', false);
+  eq(await eventTypeEnabled(env, 'follow'), false, 'enabled false after toggle off');
+  await setEventToggle(env, 'follow', true);
+  eq(await eventTypeEnabled(env, 'follow'), true,  'enabled true after toggle on (KV cleared)');
+
+  // setEventChannel validation.
+  eq((await setEventChannel(env, 'bogus-type', '12345')).error, 'unknown-event-type', 'invalid type rejected');
+  eq((await setEventChannel(env, 'follow', 'not-a-snowflake')).error, 'bad-channel-id', 'bad snowflake rejected');
+  const setOk = await setEventChannel(env, 'sub', '666666666666666666');
+  eq(setOk.override, '666666666666666666', 'set returns override');
+  const setClr = await setEventChannel(env, 'sub', '');
+  eq(setClr.cleared, true, 'empty channel clears override');
+
+  // listEventRoutes returns one row per catalogue event.
+  const routes = await listEventRoutes(env, 'gid-1');
+  eq(routes.length, EVENT_TYPES.length, 'listEventRoutes returns one per type');
+  const followRow = routes.find(r => r.eventType === 'follow');
+  eq(followRow.override, '222222222222222222', 'follow override surfaces in list');
+}
+
+console.log('— hasTwitchUserAuth guard');
+{
+  assert(!hasTwitchUserAuth(null),                                                 'null env → false');
+  assert(!hasTwitchUserAuth({ TWITCH_CLIENT_ID: 'a', TWITCH_CLIENT_SECRET: 'b' }), 'no refresh token → false');
+  assert(hasTwitchUserAuth({
+    TWITCH_CLIENT_ID: 'a', TWITCH_CLIENT_SECRET: 'b',
+    TWITCH_USER_REFRESH_TOKEN: 'rt-xyz',
+  }), 'with refresh token → true');
+}
+
+console.log('— setupTwitchSubscriptions: misconfig + user-auth skipping');
+{
+  // Missing twitch config returns guard.
+  const r1 = await setupTwitchSubscriptions({ LOADOUT_BOLTS: makeKv() });
+  eq(r1.ok, false, 'no twitch config → not ok');
+  // App-only setup: missing user token → skips user-token-required subs.
+  const env = {
+    LOADOUT_BOLTS: makeKv(),
+    TWITCH_CLIENT_ID: 'cid', TWITCH_CLIENT_SECRET: 'sec',
+    TWITCH_EVENTSUB_SECRET: 'es-sec',
+    CLAY_TWITCH_CHANNEL_ID: '1497793223',
+  };
+  // Stub fetch so listSubscriptions returns [] and createSubscription
+  // 'creates' deterministic ids without going to twitch.
+  const realFetch = globalThis.fetch;
+  const created = [];
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    if (u.startsWith('https://id.twitch.tv/oauth2/token')) {
+      // Return a fake app access token, expires in 1h.
+      return new Response(JSON.stringify({ access_token: 'fake', expires_in: 3600 }),
+        { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (u.startsWith('https://api.twitch.tv/helix/eventsub/subscriptions') && (!init || init.method === 'GET')) {
+      return new Response(JSON.stringify({ data: [], pagination: {} }),
+        { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (u.startsWith('https://api.twitch.tv/helix/eventsub/subscriptions') && init?.method === 'POST') {
+      const body = JSON.parse(init.body);
+      created.push(body.type);
+      return new Response(JSON.stringify({
+        data: [{ id: 'sub-' + created.length, status: 'webhook_callback_verification_pending' }],
+      }), { status: 202, headers: { 'content-type': 'application/json' } });
+    }
+    return new Response('?', { status: 500 });
+  };
+  const r2 = await setupTwitchSubscriptions(env);
+  globalThis.fetch = realFetch;
+  assert(r2.ok, 'setup ok with app-only auth');
+  // App-token-creatable types: stream.online, stream.offline, channel.raid.
+  const createdSet = new Set(r2.created.map(c => c.type));
+  assert(createdSet.has('stream.online'),  'creates stream.online (app token)');
+  assert(createdSet.has('stream.offline'), 'creates stream.offline (app token)');
+  assert(createdSet.has('channel.raid'),   'creates channel.raid (app token)');
+  // User-token types must be skipped.
+  const skippedTypes = new Set(r2.skipped.map(s => s.type));
+  for (const t of ['channel.follow','channel.subscribe','channel.cheer',
+                   'channel.hype_train.begin','channel.poll.begin','channel.ban']) {
+    assert(skippedTypes.has(t), `skips ${t} without user auth`);
+  }
+  for (const s of r2.skipped) {
+    eq(s.reason, 'no-user-auth', `${s.type} skip reason`);
+  }
+  eq(r2.hasUserAuth, false, 'hasUserAuth flag echoed in response');
+}
+
+console.log('— EventSub webhook: dispatch routes to twitch-events handlers');
+{
+  const env = {
+    LOADOUT_BOLTS: makeKv(),
+    TWITCH_EVENTSUB_SECRET: SECRET,
+    DISCORD_BOT_TOKEN: 'fake',
+    AQUILO_VAULT_GUILD_ID: 'g1',
+  };
+  // Bind a default channel so handlers don't skip with no-channel.
+  await env.LOADOUT_BOLTS.put('channel-binding:g1:stream-notifications', '888888888888888888');
+  const calls = [];
+  const ctx = { waitUntil: (p) => calls.push(p) };
+  // Stub Discord POST so the embed post returns ok.
+  const realFetch = globalThis.fetch;
+  let postedEmbeds = [];
+  globalThis.fetch = async (url, init) => {
+    if (init?.method === 'POST' && /\/channels\/.+\/messages$/.test(String(url))) {
+      const body = JSON.parse(init.body);
+      postedEmbeds.push(body);
+      return new Response(JSON.stringify({ id: 'm1' }), { status: 200 });
+    }
+    return new Response('?', { status: 500 });
+  };
+  const id = 'follow-msg-1';
+  const ts = '2026-05-27T00:00:00Z';
+  const body = JSON.stringify({
+    subscription: { type: 'channel.follow', version: '2' },
+    event: { user_name: 'TestUser', user_login: 'testuser', followed_at: '2026-05-27T00:00:00Z' },
+  });
+  const sig = await sign(SECRET, id, ts, body);
+  const req = new Request('https://w/twitch/eventsub', {
+    method: 'POST',
+    headers: {
+      'twitch-eventsub-message-id': id,
+      'twitch-eventsub-message-type': 'notification',
+      'twitch-eventsub-message-timestamp': ts,
+      'twitch-eventsub-message-signature': sig,
+      'content-type': 'application/json',
+    },
+    body,
+  });
+  const resp = await handleEventSubWebhook(req, env, ctx);
+  eq(resp.status, 204, 'channel.follow → 204');
+  // The dispatch schedules work via ctx.waitUntil; await all queued.
+  await Promise.all(calls);
+  globalThis.fetch = realFetch;
+  eq(postedEmbeds.length, 1, 'one follow embed posted');
+  const embed = postedEmbeds[0].embeds[0];
+  eq(embed.color, EVENT_COLORS.follow, 'posted embed is the follow embed');
+  assert(/TestUser/.test(JSON.stringify(embed)), 'embed includes the follower name');
 }
 
 console.log('');

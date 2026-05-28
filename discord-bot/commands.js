@@ -271,6 +271,14 @@ export async function handleInteraction(req, env, body, ctx) {
       // model, so we trust the platform here.
       return json(await renderAdminCommand());
 
+    case 'twitch-event': {
+      // Per-event-type routing + on/off toggle. See twitch-events.js
+      // for the routing model. MANAGE_GUILD enforced by Discord
+      // (default_member_permissions on the command).
+      const { handleTwitchEventSlash } = await import('./twitch-events-admin.js');
+      return json(await handleTwitchEventSlash(env, guild, data.data?.options || []));
+    }
+
     case 'schedule':
       // Stream-schedule editor — writes the same `schedule:v1:<g>` KV
       // record that aquilo.gg/admin writes. MANAGE_GUILD enforced by

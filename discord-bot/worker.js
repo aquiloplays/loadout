@@ -461,6 +461,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/twitch-setup/')) {
       return handleTwitchSetup(req, env, path);
     }
+    // Diagnostic — dumps the current Twitch-side EventSub
+    // subscriptions for the configured app token. HMAC-gated like
+    // /admin/twitch-setup so Clay can call from the site admin or
+    // a wrangler-secret-aware operator script.
+    if (method === 'POST' && path.startsWith('/admin/twitch-eventsub/list/')) {
+      return handleTwitchEventsubList(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -1762,6 +1769,20 @@ async function handleTwitchSetup(req, env, path) {
   }
   const { setupTwitchSubscriptions } = await import('./twitch-eventsub.js');
   const r = await setupTwitchSubscriptions(env, opts);
+  if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
+  return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/twitch-eventsub/list/:guildId (HMAC) ─────────────────
+async function handleTwitchEventsubList(req, env, path) {
+  const parts = path.split('/').filter(Boolean);     // ['admin','twitch-eventsub','list',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  const { listTwitchSubscriptions } = await import('./twitch-eventsub.js');
+  const r = await listTwitchSubscriptions(env);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
 }

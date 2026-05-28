@@ -39,6 +39,19 @@ const BINDING_KEYS = Object.freeze([
   // vault-events: outbound game events from Railway with action
   // buttons. vault-actions: persistent player-action menu.
   'vault-events', 'vault-actions',
+  // Twitch event embed routing (see twitch-events.js).
+  //   stream-notifications: catch-all default for follows / subs /
+  //     gifts / cheers / raids / redemptions etc. when no per-event
+  //     override is set (see twitch-event-channel:<eventType> KV).
+  //   live-now: bigger "going live" announcement embed channel —
+  //     separate from the existing `live` binding which is the
+  //     edit-in-place lifecycle (postLiveEmbed → markStreamOffline).
+  //     If unbound, falls through to the `live` binding so the
+  //     existing single-channel setup keeps working.
+  //   redemptions-feed: channel-point redemption embeds (high-volume
+  //     for active streams — Clay can route it to a low-noise
+  //     "feed" channel).
+  'stream-notifications', 'live-now', 'redemptions-feed',
 ]);
 
 // Source-of-truth mapping from binding key → fallback env var name.
@@ -64,6 +77,10 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   vote:              null,
   'vault-events':    null,
   'vault-actions':   null,
+  // Twitch event channels — KV-only, set via /twitch-event set.
+  'stream-notifications': null,
+  'live-now':             null,
+  'redemptions-feed':     null,
 });
 
 const BINDING_KEY = (g, k) => `channel-binding:${g}:${k}`;

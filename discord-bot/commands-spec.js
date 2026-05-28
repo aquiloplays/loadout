@@ -343,6 +343,82 @@ export const COMMANDS = [
     default_member_permissions: '32', // MANAGE_GUILD
   },
   {
+    // Twitch event embed routing. Per-event-type channel overrides
+    // + on/off toggles. /twitch-event list shows the current routing
+    // table; set + toggle mutate KV (twitch-event-channel:<type>,
+    // twitch-event-toggle:<type>). See twitch-events.js for the
+    // catalogue + handlers. MANAGE_GUILD.
+    name: 'twitch-event',
+    description: '(admins) Route Twitch event embeds (follows, subs, raids…) to channels',
+    default_member_permissions: '32', // MANAGE_GUILD
+    options: [
+      {
+        type: TYPE_SUBCOMMAND, name: 'list',
+        description: 'Show the current channel + toggle table for every event type',
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'set',
+        description: 'Route an event type to a channel (omit channel to clear)',
+        options: [
+          { type: TYPE_STRING, name: 'type', description: 'Event type', required: true,
+            choices: [
+              { name: 'Follow',                       value: 'follow' },
+              { name: 'Subscription (new)',           value: 'sub' },
+              { name: 'Gift sub',                     value: 'gift' },
+              { name: 'Resub (with message)',         value: 'resub' },
+              { name: 'Cheer / bits',                 value: 'cheer' },
+              { name: 'Raid (incoming)',              value: 'raid' },
+              { name: 'Stream live (announce)',       value: 'live' },
+              { name: 'Stream ended (summary)',       value: 'ended' },
+              { name: 'Channel-point redemption',     value: 'redemption' },
+              { name: 'Hype train — begin',           value: 'hypeTrainBegin' },
+              { name: 'Hype train — progress',        value: 'hypeTrainProgress' },
+              { name: 'Hype train — end',             value: 'hypeTrainEnd' },
+              { name: 'Poll — begin',                 value: 'pollBegin' },
+              { name: 'Poll — end',                   value: 'pollEnd' },
+              { name: 'Prediction — begin',           value: 'predictionBegin' },
+              { name: 'Prediction — end',             value: 'predictionEnd' },
+              { name: 'Mod: ban / timeout',           value: 'ban' },
+              { name: 'Mod: unban',                   value: 'unban' },
+            ],
+          },
+          // channel option uses TYPE 7 = CHANNEL — Discord returns
+          // the channel id directly so we don't need to parse mentions.
+          { type: 7, name: 'channel', description: 'Target channel (omit to clear the override)', required: false },
+        ],
+      },
+      {
+        type: TYPE_SUBCOMMAND, name: 'toggle',
+        description: 'Enable or disable embeds for one event type (subscription stays registered)',
+        options: [
+          { type: TYPE_STRING, name: 'type', description: 'Event type', required: true,
+            choices: [
+              { name: 'Follow',                       value: 'follow' },
+              { name: 'Subscription (new)',           value: 'sub' },
+              { name: 'Gift sub',                     value: 'gift' },
+              { name: 'Resub (with message)',         value: 'resub' },
+              { name: 'Cheer / bits',                 value: 'cheer' },
+              { name: 'Raid (incoming)',              value: 'raid' },
+              { name: 'Stream live (announce)',       value: 'live' },
+              { name: 'Stream ended (summary)',       value: 'ended' },
+              { name: 'Channel-point redemption',     value: 'redemption' },
+              { name: 'Hype train — begin',           value: 'hypeTrainBegin' },
+              { name: 'Hype train — progress',        value: 'hypeTrainProgress' },
+              { name: 'Hype train — end',             value: 'hypeTrainEnd' },
+              { name: 'Poll — begin',                 value: 'pollBegin' },
+              { name: 'Poll — end',                   value: 'pollEnd' },
+              { name: 'Prediction — begin',           value: 'predictionBegin' },
+              { name: 'Prediction — end',             value: 'predictionEnd' },
+              { name: 'Mod: ban / timeout',           value: 'ban' },
+              { name: 'Mod: unban',                   value: 'unban' },
+            ],
+          },
+          { type: TYPE_BOOLEAN, name: 'enabled', description: 'On (default) or off', required: true },
+        ],
+      },
+    ],
+  },
+  {
     // Weekly stream-schedule editor — writes the same `schedule:v1:<g>`
     // KV record that aquilo.gg's /admin Schedule editor writes. Either
     // surface stays usable if the other is inconvenient. MANAGE_GUILD.

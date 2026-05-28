@@ -21,8 +21,30 @@
 // shape and keeps each module's cache lifecycle independent.
 const TOKEN_KEY = 'twitch:apptoken-helix';
 
+// User-token cache key (separate from the app-token cache because the
+// auth shape + lifetime differ — user tokens are minted by refresh
+// against env.TWITCH_USER_REFRESH_TOKEN and rotate every ~4h).
+const USER_TOKEN_KEY = 'twitch:user-token-helix';
+// User-token refresh rotation: Twitch returns a NEW refresh_token
+// every time we exchange the old one. Stored back at this KV key so
+// the next refresh has the freshest. Falls back to env.TWITCH_USER_REFRESH_TOKEN
+// when KV is empty.
+const USER_REFRESH_KEY = 'twitch:user-refresh-helix';
+
 export function isTwitchConfigured(env) {
   return !!(env && env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET);
+}
+
+// True iff we have everything required to mint a USER access token —
+// app-token isConfigured() returns true alone doesn't imply user-token
+// subs can be created. Used by setupTwitchSubscriptions to skip
+// user-token-requiring subs cleanly when only the app token is set.
+export function hasTwitchUserAuth(env) {
+  if (!isTwitchConfigured(env)) return false;
+  // Either a refresh token in env OR something written to KV (set by
+  // a prior successful refresh) is enough; helix layer reads KV first
+  // anyway.
+  return !!env.TWITCH_USER_REFRESH_TOKEN;
 }
 
 // ── App Access Token ──────────────────────────────────────────────
@@ -61,13 +83,82 @@ export async function getAppAccessToken(env) {
   return j.access_token;
 }
 
+// ── User Access Token ─────────────────────────────────────────────
+//
+// Some EventSub topics (channel.follow v2, channel.subscribe,
+// channel.cheer, channel.poll.*, channel.prediction.*,
+// channel.hype_train.*, channel.channel_points_custom_reward_redemption.add,
+// channel.ban/unban) REQUIRE a user access token from the broadcaster
+// — app token won't authorize the subscription.
+//
+// We bootstrap with env.TWITCH_USER_REFRESH_TOKEN (set once via
+// `wrangler secret put`); each subsequent refresh rotates the
+// refresh_token, and we persist the new one to KV. The KV value
+// takes precedence over env on read.
+//
+// Returns null when:
+//   - twitch isn't configured (CLIENT_ID/SECRET missing), OR
+//   - no refresh token has ever been provided, OR
+//   - refresh exchange failed (e.g. refresh token revoked)
+// Callers MUST handle null without throwing.
+export async function getUserAccessToken(env) {
+  if (!isTwitchConfigured(env)) return null;
+  // Warm cache first.
+  const cached = await env.LOADOUT_BOLTS.get(USER_TOKEN_KEY, { type: 'json' });
+  if (cached && cached.token && cached.expiresAt > Date.now() + 60_000) {
+    return cached.token;
+  }
+  // Refresh — prefer the KV-rotated refresh token, fall back to env.
+  let refresh = null;
+  try {
+    refresh = await env.LOADOUT_BOLTS.get(USER_REFRESH_KEY);
+  } catch { /* ignore */ }
+  if (!refresh) refresh = env.TWITCH_USER_REFRESH_TOKEN || null;
+  if (!refresh) return null;
+  const params = new URLSearchParams({
+    client_id:     env.TWITCH_CLIENT_ID,
+    client_secret: env.TWITCH_CLIENT_SECRET,
+    grant_type:    'refresh_token',
+    refresh_token: refresh,
+  });
+  const resp = await fetch('https://id.twitch.tv/oauth2/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  });
+  if (!resp.ok) {
+    console.warn('[twitch-helix] user token refresh failed', resp.status,
+      (await resp.text()).slice(0, 300));
+    return null;
+  }
+  const j = await resp.json();
+  if (!j.access_token) return null;
+  const ttlS = Math.max(60, Number(j.expires_in || 0) - 300);
+  await env.LOADOUT_BOLTS.put(USER_TOKEN_KEY, JSON.stringify({
+    token: j.access_token,
+    expiresAt: Date.now() + ttlS * 1000,
+  }), { expirationTtl: ttlS });
+  if (j.refresh_token && j.refresh_token !== refresh) {
+    // Persist the rotated refresh token so the next exchange uses
+    // the freshest one. (Twitch rotates per-exchange.)
+    await env.LOADOUT_BOLTS.put(USER_REFRESH_KEY, j.refresh_token);
+  }
+  return j.access_token;
+}
+
 // Generic Helix fetch — handles the Bearer + Client-Id headers, one
 // retry on 401 (token rotated under us). Returns the parsed JSON
 // body or null on failure. Caller decides whether null is an error
 // or a no-op.
+//
+// `opts.userToken: true` swaps in the user access token (for endpoints
+// that require user-context auth — currently only used by EventSub
+// subscription creation for the user-token-only topics).
 export async function helixFetch(env, path, params, opts = {}) {
   if (!isTwitchConfigured(env)) return null;
-  const token = await getAppAccessToken(env);
+  const token = opts.userToken
+    ? await getUserAccessToken(env)
+    : await getAppAccessToken(env);
   if (!token) return null;
   const u = new URL('https://api.twitch.tv/helix' + path);
   if (params && typeof params === 'object') {
@@ -89,8 +180,11 @@ export async function helixFetch(env, path, params, opts = {}) {
   let resp = await fetch(u.toString(), init);
   if (resp.status === 401) {
     // Token died under us — wipe + try once more with a fresh one.
-    await env.LOADOUT_BOLTS.delete(TOKEN_KEY).catch(() => {});
-    const fresh = await getAppAccessToken(env);
+    const cacheKey = opts.userToken ? USER_TOKEN_KEY : TOKEN_KEY;
+    await env.LOADOUT_BOLTS.delete(cacheKey).catch(() => {});
+    const fresh = opts.userToken
+      ? await getUserAccessToken(env)
+      : await getAppAccessToken(env);
     if (!fresh) return null;
     init.headers['Authorization'] = 'Bearer ' + fresh;
     resp = await fetch(u.toString(), init);
@@ -148,12 +242,20 @@ export async function getRecentClips(env, broadcasterId, startedAtIso) {
 // route. `secret` is the HMAC secret Twitch will use to sign every
 // notification — must match env.TWITCH_EVENTSUB_SECRET on the
 // worker side or signature verification will fail.
-export async function createSubscription(env, type, condition, callbackUrl, secret) {
+//
+// `opts.userToken: true` mints the subscription under the broadcaster
+// user OAuth token (required for channel.follow v2 / channel.subscribe
+// / channel.cheer / channel.hype_train.* / channel.poll.* /
+// channel.prediction.* / channel.channel_points_custom_reward_redemption.add
+// / channel.ban/unban). `opts.version` overrides the default '1'
+// (channel.follow now requires '2').
+export async function createSubscription(env, type, condition, callbackUrl, secret, opts = {}) {
   const j = await helixFetch(env, '/eventsub/subscriptions', null, {
     method: 'POST',
+    userToken: !!opts.userToken,
     body: {
       type,
-      version: '1',
+      version: String(opts.version || '1'),
       condition,
       transport: {
         method:   'webhook',
