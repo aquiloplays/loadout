@@ -78,6 +78,13 @@ export const CATEGORIES = [
       // people who want feature updates can subscribe without
       // signing up for every live alert.
       { value: 'server_updates', label: 'Server Updates', emoji: { name: '📢' }, color: 0x7c5cff },
+      // Per-product release pings. Each ties to the GitHub Actions
+      // release workflow in its repo — the workflow @-mentions the
+      // matching role when a new build ships. Aquilo violet across
+      // all three so they read as a coherent "Updates" group.
+      { value: 'sf_updates',       label: 'StreamFusion Updates', emoji: { name: '📡' }, color: 0x7c5cff },
+      { value: 'loadout_updates',  label: 'Loadout Updates',      emoji: { name: '🧩' }, color: 0x7c5cff },
+      { value: 'rotation_updates', label: 'Rotation Updates',     emoji: { name: '🔁' }, color: 0x7c5cff },
     ],
   },
   {

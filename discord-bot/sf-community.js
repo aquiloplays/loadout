@@ -50,6 +50,13 @@ import { getActiveGuildId } from './aquilo/config.js';
 const STALE_MS         = 6 * 60 * 1000;  // 6 min — drop from /community/live if no heartbeat
 const KV_LIVE_KEY      = 'sf:community:live:all';
 const SF_COMMUNITY_BINDING_KEY = (gid) => 'sf_community:channel:guild:' + gid;
+// Optional separate route for SF "going live" embeds. When bound,
+// the leading-edge live embed posts here instead of the community
+// channel. Falls back to sf_community when unset, so existing
+// single-channel setups keep working. Set via:
+//   wrangler kv key put --binding=LOADOUT_BOLTS --remote \
+//     'sf_golive:channel:guild:<gid>' '{"channelId":"…"}'
+const SF_GOLIVE_BINDING_KEY    = (gid) => 'sf_golive:channel:guild:' + gid;
 // Discord channel-id sanity (shared with admin-web validation).
 const SNOWFLAKE_RE     = /^\d{15,25}$/;
 // Per-event-type embed colours. Picked from embeds.js COLORS so the
@@ -139,6 +146,21 @@ async function resolveCommunityChannel(env) {
     }
   } catch { /* fall through */ }
   return null;
+}
+
+// Resolve the channel for the SF "going live" embed. Prefers
+// sf_golive:channel:guild:<gid> when bound; falls back to
+// sf_community so single-channel installs keep working unchanged.
+async function resolveGoLiveChannel(env) {
+  const gid = await getActiveGuildId(env);
+  if (!gid) return null;
+  try {
+    const b = await env.LOADOUT_BOLTS.get(SF_GOLIVE_BINDING_KEY(gid), { type: 'json' });
+    if (b && SNOWFLAKE_RE.test(String(b.channelId || ''))) {
+      return { guildId: gid, channelId: String(b.channelId) };
+    }
+  } catch { /* fall through */ }
+  return resolveCommunityChannel(env);
 }
 
 async function postEmbed(env, channelId, embed) {
@@ -310,7 +332,10 @@ export async function handleCommunityLive(req, env) {
   let posted = null;
   let fanout = null;
   if (isNewSession) {
-    const channel = await resolveCommunityChannel(env);
+    // Live-announce uses the SF go-live binding when set, else the
+    // community binding. Lets Clay separate "X went live" from the
+    // sub/cheer/raid event stream when both channels are wanted.
+    const channel = await resolveGoLiveChannel(env);
     if (channel) {
       const r = await postEmbed(env, channel.channelId, liveEmbed(entry));
       posted = r.ok ? { channelId: channel.channelId, messageId: r.messageId } : { error: r.error };
