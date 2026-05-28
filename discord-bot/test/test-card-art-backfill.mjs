@@ -100,6 +100,29 @@ console.log('— skipped: already-set cards don\'t re-hit Giphy');
   } finally { globalThis.fetch = realFetch; }
 }
 
+console.log('— rate-limit rewinds nextOffset (no card-skip burn)');
+{
+  // Stub: first card returns 429, no other Giphy calls succeed.
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.startsWith('https://api.giphy.com/v1/gifs/search')) {
+      return new Response('rate limited', { status: 429 });
+    }
+    return realFetch(url);
+  };
+  try {
+    const env = { LOADOUT_BOLTS: makeKv(), GIPHY_API_KEY: 'gk-fake' };
+    const r = await runCardArtBackfillSlice(env, { offset: 100, limit: 10, pacingMs: 0 });
+    eq(r.ok, true,         'slice still returns ok=true');
+    eq(r.rateLimited, true, 'rateLimited flag set');
+    eq(r.nextOffset, 100,   'nextOffset rewound to the rate-limited card');
+    eq(r.hits, 0,           'no hits');
+    eq(r.misses, 0,         'rate-limited card NOT counted as miss');
+    eq(r.processed, 0,      'processed reset to attempted count (0)');
+  } finally { globalThis.fetch = realFetch; }
+}
+
 console.log('— force=true overwrites');
 {
   const restore = stubGiphyOk('https://media.giphy.com/forced.gif');

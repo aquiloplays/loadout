@@ -86,8 +86,13 @@ while (true) {
   }
 
   if (r.rateLimited) {
-    console.warn('  worker reported rate-limit; sleeping 60s');
-    await new Promise(r => setTimeout(r, 60_000));
+    // Worker now rewinds nextOffset to the rate-limited card so the
+    // next request retries it. Sleep long enough for Giphy's hourly
+    // window to substantially recover — 60s wasn't enough on prior
+    // runs. 10 minutes between retries keeps us under any plausible
+    // per-key budget.
+    console.warn('  worker reported rate-limit; sleeping 10 min');
+    await new Promise(r => setTimeout(r, 600_000));
   }
 
   if (r.done) break;

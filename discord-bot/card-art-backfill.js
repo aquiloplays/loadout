@@ -207,14 +207,20 @@ export async function runCardArtBackfillSlice(env, opts = {}) {
         out.misses++;
         out.failed.push({ cardId, error: setResult.error });
       }
+    } else if (pick.reason === 'rate-limit') {
+      // Stop this slice early. Rewind nextOffset to the rate-limited
+      // card so the next slice retries it; don't count it as a miss
+      // since we never actually attempted it (Giphy bounced). Without
+      // this rewind, the driver burns through the catalogue without
+      // doing work — the bug that lost 700+ cards on the first resume
+      // run (driver thought 1155/1252, actual KV was 413).
+      out.processed = i;
+      out.nextOffset = offset + i;
+      out.rateLimited = true;
+      break;
     } else {
       out.misses++;
       out.failed.push({ cardId, error: pick.reason });
-      // Rate-limit: stop this slice early; operator should pause + retry.
-      if (pick.reason === 'rate-limit') {
-        out.rateLimited = true;
-        break;
-      }
     }
   }
 
