@@ -103,6 +103,13 @@ export const COMMANDS = [
     name: 'referral',
     description: 'Your referral code + how many members you\'ve brought in',
   },
+  // Patreon fan-to-fan gift CTA. Replies with an ephemeral violet
+  // embed + a LINK button to patreon.com/aquilo/gift. Patreon hosts
+  // the actual checkout flow.
+  {
+    name: 'gift',
+    description: 'Gift Aquilo Supporter access to a friend (Patreon fan-to-fan gifting)',
+  },
   {
     name: 'quest',
     description: 'Your Welcome Checklist — steps + reward status',

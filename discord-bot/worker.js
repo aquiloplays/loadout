@@ -510,6 +510,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/twitch-rewards/ensure-roles/')) {
       return handleTwitchRewardsEnsureRoles(req, env, path);
     }
+    // One-shot KV-token-gated bootstrap — creates the #rewards
+    // channel, binds twitch-rewards-feed to it, AND provisions the
+    // three sub-tier roles in a single shot. Used to fire the
+    // rewards feature live without needing HMAC signing in the
+    // operator shell. Self-destructs on success.
+    if (method === 'POST' && path.startsWith('/admin/_rewards-bootstrap/')) {
+      return handleRewardsBootstrap(req, env, path);
+    }
     // Diagnostic — dumps the current Twitch-side EventSub
     // subscriptions for the configured app token. HMAC-gated like
     // /admin/twitch-setup so Clay can call from the site admin or
@@ -2031,6 +2039,116 @@ async function handleGamesMenuPost(req, env, path) {
   const r = await postOrRefreshGamesMenu(env, guildId, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/_rewards-bootstrap/:token (KV-token, self-destructing) ──
+//
+// One-shot helper that fires three things in sequence so Clay's
+// operator can launch the Twitch-rewards feature from a single
+// token-gated call:
+//   1. Resolve the `live` channel binding to learn its Discord
+//      parent_id; create a fresh #rewards text channel under that
+//      same category, with @everyone read+history-allow + send-deny
+//      and the spec'd topic copy.
+//   2. setChannelBinding(twitch-rewards-feed) to the new channel.
+//   3. ensureRewardRoles to provision the three "Twitch Sub" /
+//      "Twitch Sub T2" / "Twitch Sub T3" Discord roles.
+// Returns { channelId, parentId, roleIds:{1000, 2000, 3000}, bindings,
+// roleProvisioning }.
+//
+// Body (optional JSON):
+//   { guildId? — defaults to env.AQUILO_VAULT_GUILD_ID,
+//     channelName? — defaults to '🎁│rewards' }
+async function handleRewardsBootstrap(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_rewards-bootstrap',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-rewards-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  await env.LOADOUT_BOLTS.delete('bootstrap-rewards-token').catch(() => {});
+
+  let opts = {};
+  const body = await req.text();
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const guildId = String(opts.guildId || env.AQUILO_VAULT_GUILD_ID || '').trim();
+  if (!guildId) return jsonResp({ ok: false, error: 'no-guild-id' }, 400);
+  const channelName = String(opts.channelName || '🎁│rewards').slice(0, 100);
+
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+
+  // Step 1 — learn the parent_id of the live-now channel so the new
+  // channel sits in the same notifications-style category. Falls back
+  // to no parent if anything goes sideways.
+  let parentId = null;
+  try {
+    const { getChannelBinding } = await import('./channel-bindings.js');
+    const liveChannelId = await getChannelBinding(env, guildId, 'live');
+    if (liveChannelId) {
+      const lr = await fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(liveChannelId)}`, {
+        headers: { 'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN, 'User-Agent': 'loadout-discord rewards-bootstrap' },
+      });
+      if (lr.ok) {
+        const lj = await lr.json();
+        if (lj?.parent_id) parentId = String(lj.parent_id);
+      }
+    }
+  } catch (e) {
+    console.warn('[rewards-bootstrap] parent lookup', e?.message || e);
+  }
+
+  // Step 2 — create the channel. Permission overwrites:
+  //   @everyone   allow: VIEW_CHANNEL (0x400) | READ_MESSAGE_HISTORY (0x10000) | ADD_REACTIONS (0x40)
+  //               deny:  SEND_MESSAGES (0x800)
+  // Bot's app role bypasses send-deny via Manage Channels grant.
+  const VIEW = 0x400, SEND = 0x800, HISTORY = 0x10000, ADD_REACT = 0x40;
+  const everyoneOverwrite = {
+    id:    guildId,
+    type:  0,                  // role
+    allow: String(VIEW | HISTORY | ADD_REACT),
+    deny:  String(SEND),
+  };
+  const createBody = {
+    name:                 channelName,
+    type:                 0,    // GUILD_TEXT
+    topic:                'Bolts + perks earned by Patreon-linked viewers via Twitch follows, subs, cheers, and raids. Link your accounts on aquilo.gg to unlock these.',
+    parent_id:            parentId,
+    permission_overwrites: [everyoneOverwrite],
+  };
+  const cr = await fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`, {
+    method:  'POST',
+    headers: {
+      'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN,
+      'Content-Type':  'application/json',
+      'User-Agent':    'loadout-discord rewards-bootstrap',
+    },
+    body: JSON.stringify(createBody),
+  });
+  if (!cr.ok) {
+    const t = await cr.text();
+    return jsonResp({ ok: false, error: 'channel-create-failed', status: cr.status, body: t.slice(0, 400) }, 502);
+  }
+  const channel = await cr.json();
+  const channelId = String(channel.id);
+
+  // Step 3 — bind.
+  const { setChannelBinding } = await import('./channel-bindings.js');
+  const bindResult = await setChannelBinding(env, guildId, 'twitch-rewards-feed', channelId);
+
+  // Step 4 — provision the three Twitch Sub roles.
+  const { ensureRewardRoles } = await import('./twitch-rewards.js');
+  const roleResult = await ensureRewardRoles(env, guildId);
+
+  return jsonResp({
+    ok:           true,
+    channelId,
+    parentId,
+    channelName:  channel.name,
+    bindings:     bindResult,
+    roleProvisioning: roleResult,
+  }, 200);
 }
 
 // ── Twitch reward roles admin ────────────────────────────────────

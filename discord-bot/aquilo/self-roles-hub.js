@@ -339,16 +339,34 @@ function buildHubMessage(brandAccent = 0x7c5cff) {
         'Tap **Open Role Picker** to set your pings, region, platform, pronouns, name colour, and adult-content opt-in.\n\n' +
         'Your selections are **only visible to you** — the picker pops up as an ephemeral.',
       color: brandAccent,
+      footer: {
+        // Patreon gift-link CTA. Patreon hosts the gift flow (fan-to-
+        // fan gifting is enabled on Clay's page); we just surface the
+        // link here so viewers see it alongside the ping-role picker.
+        text: '💝 Gift Aquilo Supporter access — patreon.com/aquilo/gift',
+      },
     }],
     components: [{
       type: COMPONENT_ROW,
-      components: [{
-        type: COMPONENT_BUTTON,
-        style: 1, // PRIMARY
-        label: 'Open Role Picker',
-        emoji: { name: '🪪' },
-        custom_id: HUB_BTN_OPEN,
-      }],
+      components: [
+        {
+          type: COMPONENT_BUTTON,
+          style: 1, // PRIMARY
+          label: 'Open Role Picker',
+          emoji: { name: '🪪' },
+          custom_id: HUB_BTN_OPEN,
+        },
+        {
+          // LINK button — opens the Patreon gift flow in a new tab.
+          // Discord renders link buttons inline with no callback, so
+          // this never round-trips through the worker.
+          type: COMPONENT_BUTTON,
+          style: 5, // LINK
+          label: 'Gift Supporter Access',
+          emoji: { name: '💝' },
+          url: 'https://www.patreon.com/aquilo/gift',
+        },
+      ],
     }],
     allowed_mentions: { parse: [] },
   };

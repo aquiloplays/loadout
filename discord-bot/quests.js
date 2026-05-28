@@ -97,6 +97,22 @@ export const STEPS = [
       return (w.lifetimeEarned || 0) > 0 || (w.lifetimeSpent || 0) > 0;
     },
   },
+  // Gift CTA — informational, low-pressure entry at the END of the
+  // checklist. Patreon fan-to-fan gifting goes through Clay's page;
+  // we surface the link here so newly-joined viewers see they can
+  // gift Supporter access to a friend without feeling nudged.
+  // reward.bolts:0 + cta:{...} marks this as a "click to act" entry
+  // rather than a quest the user can complete with an in-bot flow.
+  // completion stays false forever — the gift link is the action.
+  {
+    id:     'gift-supporter',
+    label:  'Gift Aquilo Supporter access to a friend',
+    reward: { bolts: 0 },
+    cta:    { label: 'Open Patreon gift link',
+              url:   'https://www.patreon.com/aquilo/gift' },
+    informational: true,
+    completion: async () => false,
+  },
 ];
 
 async function loadState(env, guildId, userId) {

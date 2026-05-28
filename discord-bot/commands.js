@@ -296,6 +296,39 @@ export async function handleInteraction(req, env, body, ctx) {
       return json(await handleTwitchEventSlash(env, guild, data.data?.options || []));
     }
 
+    case 'gift':
+      // Patreon fan-to-fan gifting CTA. Returns a single ephemeral
+      // violet embed + a LINK button to patreon.com/aquilo/gift. No
+      // round-trips through the worker after the ack.
+      return json({
+        type: 4,   // CHANNEL_MESSAGE_WITH_SOURCE
+        data: {
+          flags: 64,   // EPHEMERAL
+          embeds: [{
+            title: '💝 Gift Aquilo Supporter access',
+            description: [
+              "Gift Aquilo Supporter access to a friend — every paid gift gets them all the Patreon perks in the Aquilo ecosystem.",
+              "",
+              "Patreon hosts the checkout flow. Pick 1–12 months, any tier — they get the gift link via email + redeem on patreon.com.",
+              "",
+              "**[Open Patreon gift link below ↓](https://www.patreon.com/aquilo/gift)**",
+            ].join('\n'),
+            color: 0x7c5cff,
+            footer: { text: 'fan-to-fan gifting · powered by Patreon' },
+          }],
+          components: [{
+            type: 1,
+            components: [{
+              type:  2,
+              style: 5,   // LINK
+              label: 'Open gift flow on Patreon',
+              emoji: { name: '💝' },
+              url:   'https://www.patreon.com/aquilo/gift',
+            }],
+          }],
+        },
+      });
+
     case 'schedule':
       // Stream-schedule editor — writes the same `schedule:v1:<g>` KV
       // record that aquilo.gg/admin writes. MANAGE_GUILD enforced by
