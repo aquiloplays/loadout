@@ -80,6 +80,41 @@ export async function userHasPatreon(env, guildId, userId) {
   return false;
 }
 
+// Public: does this user have a PAID Patreon tier? Used by features
+// that gate on real money support — currently the Minecraft SMP
+// whitelist (mc-whitelist.js). Returns boolean; never throws.
+//
+// "Paid" is derived from the `patreon:tier:<userId>` record:
+//   tier present + NOT 'free' (case-insensitive) + paid:true OR
+//   tier present + NOT 'free' (legacy records without paid flag) OR
+//   pledge amount > 0 (amount_cents / amount fields).
+// Falls back to false when only the link-existence signals fire
+// (signals 1 + 3 from userHasPatreon) — a linked-but-free Patreon
+// account doesn't qualify for paid perks.
+//
+// IMPORTANT: this is intentionally STRICTER than userHasPatreon.
+// Patrons who linked but downgraded to free MUST flip to false here
+// even if their wallet.links still carries a `patreon` entry.
+export async function userHasPaidPatreon(env, userId) {
+  if (!env?.LOADOUT_BOLTS || !userId) return false;
+  try {
+    const rec = await env.LOADOUT_BOLTS.get(`patreon:tier:${userId}`, { type: 'json' });
+    if (!rec) return false;
+    const tier = String(rec.tier || rec.tierName || '').trim().toLowerCase();
+    if (!tier || tier === 'free') return false;
+    // Explicit paid flag wins.
+    if (rec.paid === true)  return true;
+    if (rec.paid === false) return false;
+    // Pledge amount > 0 (cents or dollars).
+    const amount = Number(rec.amount_cents || rec.amount || rec.pledge_cents || rec.pledge || 0);
+    if (Number.isFinite(amount) && amount > 0) return true;
+    // Legacy: any non-'free' tier counts as paid.
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Public: structured tier detail. Returns
 //   { linked: bool, tier?: string, paid?: bool, source?: string }
 // `tier` is the raw Patreon tier name when known (e.g. "Tier 3

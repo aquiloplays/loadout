@@ -476,6 +476,17 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/counting/clear-shame-role/')) {
       return handleCountingClearShameRole(req, env, path);
     }
+    // MC paid-Patreon-only whitelist — three admin endpoints. See
+    // mc-whitelist.js for the policy + DSrv-role-membership model.
+    if (method === 'POST' && path.startsWith('/admin/mc-whitelist/ensure-role/')) {
+      return handleMcWhitelistEnsureRole(req, env, path);
+    }
+    if (method === 'POST' && path.startsWith('/admin/mc-whitelist/sync-user/')) {
+      return handleMcWhitelistSyncUser(req, env, path);
+    }
+    if (method === 'POST' && path.startsWith('/admin/mc-whitelist/daily-sweep/')) {
+      return handleMcWhitelistDailySweep(req, env, path);
+    }
     // Diagnostic — dumps the current Twitch-side EventSub
     // subscriptions for the configured app token. HMAC-gated like
     // /admin/twitch-setup so Clay can call from the site admin or
@@ -1030,6 +1041,26 @@ export default {
         ctx.waitUntil(gifterRolesDailyTick(env).then(r =>
           console.log('[cron] gifter-roles daily', JSON.stringify(r))).catch(e =>
           console.warn('[cron] gifter-roles', e?.message || e)));
+        // MC paid-Patreon whitelist sweep — KV-marker gated to once
+        // per UTC day. Iterates everyone currently in the "Minecraft
+        // Whitelist" role + revokes anyone who lapsed to non-paid.
+        // No-op when env.AQUILO_VAULT_GUILD_ID is unset or the role
+        // hasn't been provisioned via /admin/mc-whitelist/ensure-role.
+        ctx.waitUntil((async () => {
+          const gid = env.AQUILO_VAULT_GUILD_ID;
+          if (!gid) return;
+          const today = new Date().toISOString().slice(0, 10);
+          const marker = await env.LOADOUT_BOLTS.get('mc-whitelist:cron:last-sweep').catch(() => null);
+          if (marker === today) return;
+          try {
+            const { mcWhitelistDailySweep } = await import('./mc-whitelist.js');
+            const r = await mcWhitelistDailySweep(env, gid);
+            console.log('[cron] mc-whitelist sweep', JSON.stringify(r));
+            await env.LOADOUT_BOLTS.put('mc-whitelist:cron:last-sweep', today);
+          } catch (e) {
+            console.warn('[cron] mc-whitelist sweep', e?.message || e);
+          }
+        })());
         // Unified vote-hub phase transitions — runs hourly, re-renders
         // the hub embed on phase change. See vote-hub.js.
         const guildIdForVoteHub = env.AQUILO_VAULT_GUILD_ID;
@@ -1852,6 +1883,48 @@ async function handleGamesMenuPost(req, env, path) {
   const r = await postOrRefreshGamesMenu(env, guildId, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── MC whitelist admin endpoints ─────────────────────────────────
+async function handleMcWhitelistEnsureRole(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','mc-whitelist','ensure-role',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  const { ensureWhitelistRole } = await import('./mc-whitelist.js');
+  const r = await ensureWhitelistRole(env, guildId);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+}
+
+// POST /admin/mc-whitelist/sync-user/:guildId/:userId  (HMAC)
+// Called by the site's Patreon OAuth callback when patreon:tier
+// flips so paid → free revokes access immediately (not just on the
+// daily cron). Body unused.
+async function handleMcWhitelistSyncUser(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','mc-whitelist','sync-user',':g',':u']
+  const guildId = parts[3];
+  const userId  = parts[4];
+  if (!guildId || !userId) return jsonResp({ ok: false, error: 'guildId + userId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  const { syncMcAccess } = await import('./mc-whitelist.js');
+  const r = await syncMcAccess(env, guildId, userId);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+}
+
+async function handleMcWhitelistDailySweep(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','mc-whitelist','daily-sweep',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  const { mcWhitelistDailySweep } = await import('./mc-whitelist.js');
+  const r = await mcWhitelistDailySweep(env, guildId);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
 }
 
 // ── /admin/counting/clear-shame-role/:guildId (HMAC) ─────────────
