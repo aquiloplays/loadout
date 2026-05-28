@@ -300,13 +300,18 @@ console.log('— weekly-recap: skips cleanly when no channel');
 
 console.log('— twitch-events: brand palette + event catalogue');
 {
-  // Per Clay's spec — these specific hex values must hold.
-  eq(EVENT_COLORS.follow,    0x7c5cff, 'follow violet');
-  eq(EVENT_COLORS.sub,       0xff6ab5, 'sub aurora pink');
-  eq(EVENT_COLORS.gift,      0x5bff95, 'gift aurora green');
-  eq(EVENT_COLORS.cheer,     0xffd166, 'cheer gold');
-  eq(EVENT_COLORS.raid,      0xff8c42, 'raid bright orange');
-  eq(EVENT_COLORS.live,      0xff4757, 'stream live bright red');
+  // Per Clay's 2026-05 spec — aquilo trio only (violet/pink/green/grey),
+  // no more gold/orange/bright-red. Gradients live on the banner image.
+  const VIOLET = 0x7c5cff, PINK = 0xff6ab5, GREEN = 0x5bff95, GREY = 0x6e7588;
+  eq(EVENT_COLORS.follow,           VIOLET, 'follow violet');
+  eq(EVENT_COLORS.sub,              PINK,   'sub pink');
+  eq(EVENT_COLORS.gift,             GREEN,  'gift green');
+  eq(EVENT_COLORS.cheer,            PINK,   'cheer now pink (not gold)');
+  eq(EVENT_COLORS.raid,             PINK,   'raid now pink (not orange)');
+  eq(EVENT_COLORS.live,             VIOLET, 'stream live now violet (red dot in title only)');
+  eq(EVENT_COLORS.ended,            GREY,   'stream end subdued grey');
+  eq(EVENT_COLORS.ban,              GREY,   'ban subdued grey');
+  eq(EVENT_COLORS.unban,            GREEN,  'unban green');
   // Catalogue contains the documented event types.
   for (const t of ['follow','sub','gift','resub','cheer','raid','live','ended',
                    'redemption','hypeTrainBegin','hypeTrainProgress','hypeTrainEnd',
@@ -323,6 +328,19 @@ console.log('— embed builders: smoke-test each renders something sensible');
   eq(fe.color, EVENT_COLORS.follow,  'follow embed colour');
   assert(/Alice/.test(JSON.stringify(fe)), 'follow embed names user');
   assert(/42/.test(fe.footer?.text || ''), 'follow embed footer shows counter');
+  // New: every embed carries a gradient banner via image.url.
+  assert(/twitch-banner\/follow/.test(fe.image?.url || ''), 'follow embed has follow banner');
+
+  // Tier-specific sub banner: t1, t2, t3.
+  const sT1 = subEmbed({ userName: 'X', tier: '1000' }, 1);
+  const sT2 = subEmbed({ userName: 'X', tier: '2000' }, 1);
+  const sT3 = subEmbed({ userName: 'X', tier: '3000' }, 1);
+  assert(/sub-t1/.test(sT1.image?.url || ''), 'sub T1 → sub-t1 banner');
+  assert(/sub-t2/.test(sT2.image?.url || ''), 'sub T2 → sub-t2 banner');
+  assert(/sub-t3/.test(sT3.image?.url || ''), 'sub T3 → sub-t3 banner');
+  // Prime falls back to T1 banner.
+  const sPrime = subEmbed({ userName: 'X', tier: 'Prime' }, 1);
+  assert(/sub-t1/.test(sPrime.image?.url || ''), 'Prime sub → sub-t1 banner');
 
   const se = subEmbed({ userName: 'Bob', tier: '2000' }, 7);
   assert(/Tier 2/.test(JSON.stringify(se)), 'sub embed shows tier label');
@@ -334,56 +352,64 @@ console.log('— embed builders: smoke-test each renders something sensible');
   assert(/streak/i.test(JSON.stringify(re)), 'resub embed mentions streak');
   assert(/love the show/.test(JSON.stringify(re)), 'resub embed includes message');
 
+  // Event-type label now lives on the banner image, NOT in embed.title.
+  // Builder assertions check the description copy + banner URL instead.
   const ge = giftSubEmbed({ gifterName: 'Dan', tier: '1000', total: 5, cumulativeTotal: 20, isAnon: false });
-  assert(/Dan/.test(JSON.stringify(ge)),    'gift embed names gifter');
-  assert(/GIFT BOMB/i.test(ge.title),       'community gift uses BOMB title');
-  assert(/5/.test(ge.description),          'community gift surfaces count');
+  assert(/Dan/.test(JSON.stringify(ge)),         'gift embed names gifter');
+  assert(/5/.test(ge.description),               'community gift surfaces count in description');
+  assert(/twitch-banner\/gift/.test(ge.image?.url || ''), 'gift embed has gift banner');
 
   const gA = giftSubEmbed({ tier: '1000', total: 1, isAnon: true });
-  assert(/anonymous/i.test(JSON.stringify(gA)), 'anon gifter rendered as anonymous');
+  assert(/anonymous/i.test(JSON.stringify(gA)),  'anon gifter rendered as anonymous');
 
   const ch = cheerEmbed({ userName: 'Eve', bits: 5000, message: 'hyped' });
-  assert(/HUGE CHEER/i.test(ch.title),      '5k bits → HUGE CHEER tier');
-  assert(/hyped/.test(JSON.stringify(ch)),  'cheer message included');
+  assert(/HUGE CHEER/i.test(ch.description),     '5k bits → HUGE CHEER label in description');
+  assert(/hyped/.test(JSON.stringify(ch)),       'cheer message included');
+  assert(/twitch-banner\/cheer/.test(ch.image?.url || ''), 'cheer embed has cheer banner');
 
   const chSmall = cheerEmbed({ userName: 'Felix', bits: 50 });
-  assert(/Cheer/.test(chSmall.title),       '50 bits → small Cheer tier');
+  assert(/Cheer/.test(chSmall.description),      '50 bits → small Cheer label in description');
 
   const ra = raidEmbed({ fromBroadcasterName: 'Greta', fromBroadcasterLogin: 'greta', viewers: 432 });
-  assert(/WELCOME RAIDERS/i.test(ra.title), 'raid embed says WELCOME RAIDERS');
-  assert(/432/.test(JSON.stringify(ra)),    'raid embed surfaces viewer count');
+  assert(/432/.test(JSON.stringify(ra)),         'raid embed surfaces viewer count');
+  assert(/twitch-banner\/raid/.test(ra.image?.url || ''), 'raid embed has raid banner');
 
   const rd = redemptionEmbed({ userName: 'Hank', rewardTitle: 'Hydrate Reminder', rewardCost: 500 });
   assert(/Hydrate Reminder/.test(JSON.stringify(rd)), 'redemption embed shows reward title');
-  assert(/500/.test(JSON.stringify(rd)),    'redemption embed shows cost');
+  assert(/500/.test(JSON.stringify(rd)),         'redemption embed shows cost');
+  assert(/twitch-banner\/redemption/.test(rd.image?.url || ''), 'redemption embed has redemption banner');
 
   const ht = hypeTrainBeginEmbed({ level: 2, total: 1200, goal: 2000, expiresAt: '2026-05-27T11:00:00Z' });
-  assert(/HYPE TRAIN STARTING/i.test(ht.title), 'hype train begin title');
-  assert(/Level.*2/.test(ht.description),       'hype train shows level');
+  assert(/Level\s*2/.test(ht.description),       'hype train shows level');
+  assert(/twitch-banner\/hype/.test(ht.image?.url || ''), 'hype train uses hype banner');
 
   const pe = pollEndEmbed({ title: 'Choose game', choices: [
     { id: '1', title: 'A', votes: 10 },
     { id: '2', title: 'B', votes: 25 },
   ]});
-  assert(/Choose game/.test(pe.title),      'poll-end title from event title');
+  assert(/Choose game/.test(pe.description),     'poll-end embeds title in description');
   // The higher-vote option should be tagged with the trophy emoji.
-  assert(/🏆 B/.test(pe.description),       'poll-end marks winning choice');
+  assert(/🏆 B/.test(pe.description),            'poll-end marks winning choice');
+  assert(/twitch-banner\/poll/.test(pe.image?.url || ''), 'poll embed has poll banner');
 
   const pre = predictionEndEmbed({ title: 'Will we win?', outcomes: [
     { id: 'a', title: 'Yes', channel_points: 1000, users: 12 },
     { id: 'b', title: 'No',  channel_points: 500,  users: 4 },
   ], winningOutcomeId: 'a' });
-  assert(/🏆.*Yes/.test(pre.description),   'prediction-end marks winning outcome');
+  assert(/🏆.*Yes/.test(pre.description),        'prediction-end marks winning outcome');
+  assert(/twitch-banner\/prediction/.test(pre.image?.url || ''), 'prediction embed has prediction banner');
 
   const ban = banEmbed({ userName: 'Trolly', modName: 'Mod1', reason: 'spam', isPermanent: true });
-  assert(/banned/i.test(ban.title),         'ban embed title says banned');
-  assert(/spam/.test(JSON.stringify(ban)),  'ban embed surfaces reason');
+  assert(/banned/i.test(ban.description),        'ban embed describes ban');
+  assert(/spam/.test(JSON.stringify(ban)),       'ban embed surfaces reason');
+  assert(/twitch-banner\/ban/.test(ban.image?.url || ''), 'ban embed has ban banner');
 
   const to = banEmbed({ userName: 'NoisyOne', modName: 'Mod1', isPermanent: false, endsAt: '2026-05-27T12:00:00Z' });
-  assert(/timed out/i.test(to.title),       'timeout embed title says timed out');
+  assert(/timed out/i.test(to.description),      'timeout embed describes timeout');
 
   const ub = unbanEmbed({ userName: 'Trolly', modName: 'Mod1' });
-  assert(/unbanned/i.test(ub.title),        'unban embed title says unbanned');
+  assert(/unbanned/i.test(ub.description),       'unban embed describes unban');
+  assert(/twitch-banner\/unban/.test(ub.image?.url || ''), 'unban embed has unban banner');
 }
 
 console.log('— twitch-events: routing precedence + toggle');

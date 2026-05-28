@@ -468,6 +468,15 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/twitch-eventsub/list/')) {
       return handleTwitchEventsubList(req, env, path);
     }
+    // Public asset route — Twitch event embed gradient banners. PNGs
+    // live in LOADOUT_BOLTS under keys `twitch-banner:<type>`,
+    // uploaded once via `wrangler kv key put --path`. Served with a
+    // year-long immutable cache so Discord's CDN warms once and
+    // never refetches. HEAD supported (some crawlers/HEAD-probe
+    // their cache before the embed-preview GET).
+    if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/twitch-banner/')) {
+      return handleTwitchBannerAsset(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -1771,6 +1780,39 @@ async function handleTwitchSetup(req, env, path) {
   const r = await setupTwitchSubscriptions(env, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── GET /asset/twitch-banner/:type[.png] ─────────────────────────
+//
+// Public — no auth. Type is one of the keys produced by
+// build-twitch-banners.py (follow, sub-t1/2/3, gift, resub, cheer,
+// raid, live, ended, hype, redemption, poll, prediction, ban,
+// unban). Strips an optional `.png` suffix so the URL can be either
+// /asset/twitch-banner/follow or /asset/twitch-banner/follow.png —
+// the .png variant is what we put in embed image URLs because some
+// CDNs sniff extension over content-type.
+const TWITCH_BANNER_RE = /^\/asset\/twitch-banner\/([a-z0-9-]+?)(?:\.png)?$/;
+
+async function handleTwitchBannerAsset(req, env, path) {
+  const m = path.match(TWITCH_BANNER_RE);
+  if (!m) return new Response('not-found', { status: 404 });
+  const type = m[1];
+  const buf = await env.LOADOUT_BOLTS.get(`twitch-banner:${type}`, { type: 'arrayBuffer' });
+  if (!buf) return new Response('banner-not-uploaded', { status: 404 });
+  const headers = {
+    'content-type':   'image/png',
+    // Immutable + 1 year — banners are content-addressed by their
+    // event-type key. To update an existing type, re-upload with
+    // the same key; Discord won't fetch again until the cache
+    // expires at its edge (or a fresh embed forces a re-fetch).
+    'cache-control':  'public, max-age=31536000, immutable',
+    'access-control-allow-origin': '*',
+    'content-length': String(buf.byteLength),
+  };
+  // HEAD: same headers, no body. Some crawlers HEAD-probe before
+  // pulling the body and we don't want a 404 there to poison their cache.
+  if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return new Response(buf, { status: 200, headers });
 }
 
 // ── /admin/twitch-eventsub/list/:guildId (HMAC) ─────────────────

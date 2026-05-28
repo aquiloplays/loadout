@@ -39,29 +39,60 @@
 
 import { getChannelBinding } from './channel-bindings.js';
 
-// ── Brand palette per Clay's spec ─────────────────────────────────
-// Hex literals match what was sent: follow violet, sub aurora pink,
-// gift sub aurora green, cheer gold, raid bright orange, stream live
-// red. Hype train gets a single rainbow-suggestive colour (no native
-// embed gradient — we fake with stripe label).
+// ── Brand palette (aquilo v2 — violet / pink / green only) ────────
+// Clay 2026-05 redesign — strip gold / orange / bright red. The
+// gradient banner image on each embed carries the visual interest;
+// the Discord embed `color` left-stripe stays in the brand trio.
+// Subdued moments (stream wrap, ban) use neutral greys.
+const VIOLET     = 0x7c5cff;
+const PINK       = 0xff6ab5;
+const GREEN      = 0x5bff95;
+const GREY_SOFT  = 0x6e7588;
+
 export const EVENT_COLORS = Object.freeze({
-  follow:       0x7c5cff,  // violet
-  sub:          0xff6ab5,  // aurora pink
-  resub:        0xff6ab5,  // same family as sub
-  gift:         0x5bff95,  // aurora green
-  cheer:        0xffd166,  // gold
-  raid:         0xff8c42,  // bright orange
-  live:         0xff4757,  // bright red
-  ended:        0x444444,  // gray (matches twitch-live.js endedEmbed)
-  redemption:   0xb892ff,  // soft purple — gentler since these are high-volume
-  hypeTrain:    0xff7a59,  // hype orange (fakes the rainbow with a peach-orange)
-  pollOpen:     0x6BA9FF,  // azure
-  pollResult:   0x6BA9FF,
-  predictionOpen:   0xa78bfa,  // amethyst
-  predictionResult: 0xa78bfa,
-  ban:          0x9a2222,  // dark red — ban is a moderation-action stripe
-  unban:        0x4caf50,  // green — restore
+  follow:           VIOLET,
+  sub:              PINK,
+  resub:            PINK,
+  gift:             GREEN,
+  cheer:            PINK,
+  raid:             PINK,
+  live:             VIOLET,    // small bright-red dot stays inline in title text per spec
+  ended:            GREY_SOFT,
+  redemption:       VIOLET,
+  hypeTrain:        PINK,      // rainbow lives on the banner image
+  pollOpen:         VIOLET,
+  pollResult:       VIOLET,
+  predictionOpen:   PINK,
+  predictionResult: PINK,
+  ban:              GREY_SOFT,
+  unban:            GREEN,
 });
+
+// ── Banner URLs ───────────────────────────────────────────────────
+// The PNGs are uploaded once to LOADOUT_BOLTS via
+// `wrangler kv key put --binding=LOADOUT_BOLTS twitch-banner:<key> --path …`
+// and served by worker.js's GET /asset/twitch-banner/:type route.
+// Stable URL (immutable + 1-yr cache headers) makes Discord's CDN
+// warm once and never refetch.
+export const BANNER_BASE_URL = 'https://loadout-discord.aquiloplays.workers.dev/asset/twitch-banner';
+
+function bannerUrl(key) {
+  // The `.png` suffix is for CDNs that extension-sniff; the route
+  // accepts both with and without.
+  return `${BANNER_BASE_URL}/${key}.png`;
+}
+
+// Resolve sub-tier from Twitch tier string. Drives which sub banner
+// gets surfaced — tier-1/2/3 each have distinct gradient pairings.
+function subBannerKey(tier) {
+  switch (String(tier || '1000')) {
+    case '2000': return 'sub-t2';
+    case '3000': return 'sub-t3';
+    case '1000':
+    case 'Prime':
+    default:     return 'sub-t1';
+  }
+}
 
 // ── Event-type catalogue ──────────────────────────────────────────
 // Source of truth for which event types this module knows. The slash
@@ -231,8 +262,8 @@ export function followEmbed({ userName, userLogin, followedAt }, totalFollows) {
   return {
     color: EVENT_COLORS.follow,
     author: { name: userName || userLogin || 'New follower' },
-    title:  '+ New follower',
     description: `**${userName || userLogin || 'A new follower'}** followed <t:${t}:R>`,
+    image: { url: bannerUrl('follow') },
     timestamp: new Date((followedAt && Date.parse(followedAt)) || Date.now()).toISOString(),
     footer: totalFollows ? { text: `Total follows: ${totalFollows.toLocaleString()}` } : undefined,
   };
@@ -243,14 +274,13 @@ export function subEmbed({ userName, userLogin, tier, isGift }, totalSubs) {
   // resubEmbed; the gift-recipient path is `gift` (gifter is the
   // headline name) and we don't double-post the recipient as a fresh sub.
   const t = tierLabel(tier);
-  const head = `🌟 New ${t} subscription`;
   return {
     color: EVENT_COLORS.sub,
     author: { name: userName || userLogin || 'New subscriber' },
-    title: head,
     description: isGift
       ? `**${userName || userLogin}** is a new ${t} sub (gifted) 🎁`
       : `**${userName || userLogin}** just subscribed at **${t}**!`,
+    image: { url: bannerUrl(subBannerKey(tier)) },
     timestamp: new Date().toISOString(),
     footer: totalSubs ? { text: `Total subs: ${totalSubs.toLocaleString()}` } : undefined,
   };
@@ -276,8 +306,8 @@ export function resubEmbed({ userName, userLogin, tier, cumulativeMonths, streak
   return {
     color: EVENT_COLORS.resub,
     author: { name: userName || userLogin || 'Resub' },
-    title: '💜 Resubscribed',
     description: lines.join('\n'),
+    image: { url: bannerUrl('resub') },
     timestamp: new Date().toISOString(),
     footer: footerParts.length ? { text: footerParts.join(' • ') } : undefined,
   };
@@ -289,9 +319,6 @@ export function giftSubEmbed({ gifterName, gifterLogin, tier, total, cumulativeT
   // count if Twitch surfaced it.
   const t = tierLabel(tier);
   const who = isAnon ? 'An anonymous gifter' : (`**${gifterName || gifterLogin || 'A gifter'}**`);
-  const head = total > 1
-    ? `🎁 ${total}× ${t} GIFT BOMB!`
-    : `🎁 ${t} GIFT SUB!`;
   const desc = total > 1
     ? `${who} just dropped **${total}** ${t} subs on the community! 🎉`
     : `${who} just gifted a ${t} sub!`;
@@ -302,8 +329,8 @@ export function giftSubEmbed({ gifterName, gifterLogin, tier, total, cumulativeT
   return {
     color: EVENT_COLORS.gift,
     author: { name: isAnon ? 'Anonymous gifter' : (gifterName || gifterLogin || 'Gifter') },
-    title: head,
     description: desc,
+    image: { url: bannerUrl('gift') },
     timestamp: new Date().toISOString(),
     footer: footerParts.length ? { text: footerParts.join(' • ') } : undefined,
   };
@@ -328,8 +355,8 @@ export function cheerEmbed({ userName, userLogin, bits, message, isAnon }) {
   return {
     color: EVENT_COLORS.cheer,
     author: { name: isAnon ? 'Anonymous' : (userName || userLogin || 'Cheerer') },
-    title: `${size.emoji} ${size.tag} — ${Number(bits).toLocaleString()} bits`,
-    description: lines.join('\n'),
+    description: lines.join('\n') + `\n\n_${size.tag}_`,
+    image: { url: bannerUrl('cheer') },
     timestamp: new Date().toISOString(),
   };
 }
@@ -339,38 +366,36 @@ export function raidEmbed({ fromBroadcasterName, fromBroadcasterLogin, viewers }
   return {
     color: EVENT_COLORS.raid,
     author: { name: fromBroadcasterName || fromBroadcasterLogin || 'Raider' },
-    title:  '⚔️ WELCOME RAIDERS!',
     description:
-      `**${fromBroadcasterName || fromBroadcasterLogin}** just raided with **${v.toLocaleString()}** viewer${v === 1 ? '' : 's'}!`
-      + (fromBroadcasterLogin ? `\n\nThank them at https://twitch.tv/${fromBroadcasterLogin}` : ''),
-    thumbnail: fromBroadcasterLogin
-      ? { url: `https://static-cdn.jtvnw.net/previews-ttv/live_user_${fromBroadcasterLogin}-440x248.jpg?cb=${Date.now()}` }
-      : undefined,
+      `**${fromBroadcasterName || fromBroadcasterLogin}** raided with **${v.toLocaleString()}** viewer${v === 1 ? '' : 's'}!`
+      + (fromBroadcasterLogin ? `\n\nThank them → https://twitch.tv/${fromBroadcasterLogin}` : ''),
+    image: { url: bannerUrl('raid') },
     timestamp: new Date().toISOString(),
-    footer: { text: '⚡ Raid incoming' },
+    footer: { text: 'Welcome raiders' },
   };
 }
 
 // Big "going live" announcement embed. Distinct from twitch-live.js's
 // `liveEmbed` which is the rolling status card. This is the
 // fanfare-y announce-once embed; the rolling card pipeline is
-// untouched.
+// untouched. The 🔴 dot in the title is the only bright-red colour
+// we keep per Clay's spec (it's a Twitch convention).
 export function streamLiveAnnounceEmbed({ user, login, title, gameName, startedAt }) {
   const t = asUnix(startedAt);
   const lines = [];
   if (title) lines.push(`**${String(title).slice(0, 200)}**`);
   if (gameName) lines.push(`🎮 _${gameName}_`);
-  lines.push('', `Started <t:${t}:R> — join now at https://twitch.tv/${login || 'aquilogg'}`);
+  lines.push('', `Started <t:${t}:R> — watch → https://twitch.tv/${login || 'aquilogg'}`);
   return {
     color: EVENT_COLORS.live,
     author: user?.display_name || login
-      ? { name: (user?.display_name || login) + ' is LIVE',
+      ? { name: (user?.display_name || login) + ' is LIVE 🔴',
           icon_url: user?.profile_image_url || undefined }
       : undefined,
-    title: '🔴 LIVE NOW',
     description: lines.join('\n'),
     url: login ? `https://twitch.tv/${login}` : undefined,
     thumbnail: user?.profile_image_url ? { url: user.profile_image_url } : undefined,
+    image: { url: bannerUrl('live') },
     timestamp: new Date((startedAt && Date.parse(startedAt)) || Date.now()).toISOString(),
   };
 }
@@ -397,9 +422,11 @@ export function streamEndedSummaryEmbed({ user, login, startedAt, lastTitle, las
   lines.push(`See you next stream at https://twitch.tv/${login || 'aquilogg'}`);
   return {
     color: EVENT_COLORS.ended,
-    title: '⚫ ' + (user?.display_name || login || 'Streamer') + ' is offline',
+    author: { name: (user?.display_name || login || 'Streamer') + ' — stream wrap',
+              icon_url: user?.profile_image_url || undefined },
     description: lines.join('\n'),
     thumbnail: user?.profile_image_url ? { url: user.profile_image_url } : undefined,
+    image: { url: bannerUrl('ended') },
     timestamp: new Date().toISOString(),
     footer: { text: 'See you next stream' },
   };
@@ -407,15 +434,15 @@ export function streamEndedSummaryEmbed({ user, login, startedAt, lastTitle, las
 
 export function redemptionEmbed({ userName, userLogin, rewardTitle, rewardCost, userInput }) {
   const cost = Number(rewardCost) || 0;
-  const lines = [`**${userName || userLogin || 'Someone'}** redeemed **${rewardTitle || '?'}** (${cost.toLocaleString()} points)`];
+  const lines = [`**${userName || userLogin || 'Someone'}** redeemed **${rewardTitle || '?'}** (${cost.toLocaleString()} pts)`];
   if (userInput && String(userInput).trim()) {
     lines.push('', `> ${String(userInput).trim().slice(0, 400).replace(/\n/g, '\n> ')}`);
   }
   return {
     color: EVENT_COLORS.redemption,
     author: { name: userName || userLogin || 'Redemption' },
-    title: '🎟️ Channel Point Redemption',
     description: lines.join('\n'),
+    image: { url: bannerUrl('redemption') },
     timestamp: new Date().toISOString(),
   };
 }
@@ -426,21 +453,21 @@ export function hypeTrainBeginEmbed({ goal, total, level, expiresAt }) {
   const t = expiresAt ? asUnix(expiresAt) : null;
   return {
     color: EVENT_COLORS.hypeTrain,
-    title: '🚂🌈 HYPE TRAIN STARTING',
     description: [
-      `Level **${level || 1}** • Goal: **${Number(goal || 0).toLocaleString()}**`,
+      `**Level ${level || 1}** • Goal: **${Number(goal || 0).toLocaleString()}**`,
       `Current: **${Number(total || 0).toLocaleString()}**`,
       t ? `Ends <t:${t}:R>` : null,
     ].filter(Boolean).join('\n'),
+    image: { url: bannerUrl('hype') },
     timestamp: new Date().toISOString(),
-    footer: { text: 'All aboard! Subs / bits / gifts power the train' },
+    footer: { text: 'All aboard — subs / bits / gifts power the train' },
   };
 }
 
 export function hypeTrainProgressEmbed({ level, total, goal, lastContribUser, lastContribType, lastContribTotal, expiresAt }) {
   const t = expiresAt ? asUnix(expiresAt) : null;
   const lines = [
-    `Level **${level || 1}** • **${Number(total || 0).toLocaleString()} / ${Number(goal || 0).toLocaleString()}**`,
+    `**Level ${level || 1}** • **${Number(total || 0).toLocaleString()} / ${Number(goal || 0).toLocaleString()}**`,
   ];
   if (lastContribUser) {
     lines.push(`Latest boost: **${lastContribUser}** (${lastContribType || 'bits'}, +${Number(lastContribTotal || 0).toLocaleString()})`);
@@ -448,8 +475,8 @@ export function hypeTrainProgressEmbed({ level, total, goal, lastContribUser, la
   if (t) lines.push(`Ends <t:${t}:R>`);
   return {
     color: EVENT_COLORS.hypeTrain,
-    title: '🚂🌈 HYPE TRAIN — Level Up!',
     description: lines.join('\n'),
+    image: { url: bannerUrl('hype') },
     timestamp: new Date().toISOString(),
     footer: { text: 'Keep going!' },
   };
@@ -457,7 +484,7 @@ export function hypeTrainProgressEmbed({ level, total, goal, lastContribUser, la
 
 export function hypeTrainEndEmbed({ level, total, topContributions }) {
   const lines = [
-    `Reached **Level ${level || 1}**! Total: **${Number(total || 0).toLocaleString()}**`,
+    `Reached **Level ${level || 1}** — total **${Number(total || 0).toLocaleString()}**`,
   ];
   if (Array.isArray(topContributions) && topContributions.length) {
     lines.push('');
@@ -468,15 +495,15 @@ export function hypeTrainEndEmbed({ level, total, topContributions }) {
   }
   return {
     color: EVENT_COLORS.hypeTrain,
-    title: '🚂🎉 HYPE TRAIN COMPLETE',
     description: lines.join('\n'),
+    image: { url: bannerUrl('hype') },
     timestamp: new Date().toISOString(),
     footer: { text: 'Thank you all!' },
   };
 }
 
 export function pollBeginEmbed({ title, choices, endsAt }) {
-  const lines = [];
+  const lines = [`**${title || 'untitled poll'}**`, ''];
   if (Array.isArray(choices)) {
     for (const c of choices) lines.push(`• ${c.title || c.id || '?'}`);
   }
@@ -484,8 +511,8 @@ export function pollBeginEmbed({ title, choices, endsAt }) {
   if (t) lines.push('', `Ends <t:${t}:R>`);
   return {
     color: EVENT_COLORS.pollOpen,
-    title: '🗳️ Poll started — ' + (title || 'untitled'),
     description: lines.join('\n'),
+    image: { url: bannerUrl('poll') },
     timestamp: new Date().toISOString(),
   };
 }
@@ -493,7 +520,7 @@ export function pollBeginEmbed({ title, choices, endsAt }) {
 export function pollEndEmbed({ title, status, choices }) {
   const winning = (Array.isArray(choices) ? [...choices] : [])
     .sort((a, b) => (Number(b.votes || 0) - Number(a.votes || 0)))[0] || null;
-  const lines = [];
+  const lines = [`**${title || 'untitled poll'}** — closed`, ''];
   if (Array.isArray(choices)) {
     for (const c of choices) {
       const votes = Number(c.votes || 0);
@@ -503,8 +530,8 @@ export function pollEndEmbed({ title, status, choices }) {
   }
   return {
     color: EVENT_COLORS.pollResult,
-    title: '🗳️ Poll ended — ' + (title || 'untitled'),
     description: lines.join('\n') || '(no choices?)',
+    image: { url: bannerUrl('poll') },
     timestamp: new Date().toISOString(),
     footer: status && status !== 'completed'
       ? { text: 'Status: ' + status }
@@ -513,7 +540,7 @@ export function pollEndEmbed({ title, status, choices }) {
 }
 
 export function predictionBeginEmbed({ title, outcomes, endsAt }) {
-  const lines = [];
+  const lines = [`**${title || 'untitled prediction'}**`, ''];
   if (Array.isArray(outcomes)) {
     for (const o of outcomes) lines.push(`• ${o.title || o.id || '?'}`);
   }
@@ -521,15 +548,15 @@ export function predictionBeginEmbed({ title, outcomes, endsAt }) {
   if (t) lines.push('', `Locks <t:${t}:R>`);
   return {
     color: EVENT_COLORS.predictionOpen,
-    title: '🔮 Prediction — ' + (title || 'untitled'),
     description: lines.join('\n'),
+    image: { url: bannerUrl('prediction') },
     timestamp: new Date().toISOString(),
     footer: { text: 'Place your channel-point bets!' },
   };
 }
 
 export function predictionEndEmbed({ title, status, outcomes, winningOutcomeId }) {
-  const lines = [];
+  const lines = [`**${title || 'untitled prediction'}** — locked`, ''];
   if (Array.isArray(outcomes)) {
     for (const o of outcomes) {
       const points = Number(o.channel_points || 0);
@@ -540,8 +567,8 @@ export function predictionEndEmbed({ title, status, outcomes, winningOutcomeId }
   }
   return {
     color: EVENT_COLORS.predictionResult,
-    title: '🔮 Prediction ended — ' + (title || 'untitled'),
     description: lines.join('\n') || '(no outcomes?)',
+    image: { url: bannerUrl('prediction') },
     timestamp: new Date().toISOString(),
     footer: status ? { text: 'Status: ' + status } : undefined,
   };
@@ -553,8 +580,8 @@ export function banEmbed({ userName, userLogin, modName, reason, isPermanent, en
   if (!isPermanent && endsAt) lines.push(`Ends <t:${asUnix(endsAt)}:R>`);
   return {
     color: EVENT_COLORS.ban,
-    title: isPermanent ? '🔨 User banned' : '⏱️ User timed out',
     description: lines.join('\n'),
+    image: { url: bannerUrl('ban') },
     timestamp: new Date().toISOString(),
   };
 }
@@ -562,8 +589,8 @@ export function banEmbed({ userName, userLogin, modName, reason, isPermanent, en
 export function unbanEmbed({ userName, userLogin, modName }) {
   return {
     color: EVENT_COLORS.unban,
-    title: '✅ User unbanned',
     description: `**${userName || userLogin || '?'}** unbanned by **${modName || 'moderator'}**`,
+    image: { url: bannerUrl('unban') },
     timestamp: new Date().toISOString(),
   };
 }
