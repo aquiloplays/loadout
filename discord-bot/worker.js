@@ -461,6 +461,19 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/twitch-setup/')) {
       return handleTwitchSetup(req, env, path);
     }
+    // Self-serve Twitch OAuth — bootstrap-token-gated start URL Clay
+    // clicks once, Twitch redirects back to /admin/twitch-oauth/callback,
+    // refresh token lands in KV, EventSub subs auto-provision. The
+    // start URL is mintable via `wrangler kv key put bootstrap-twitch-oauth-token <value>`.
+    if (method === 'GET' && path.startsWith('/admin/_twitch-oauth-start/')) {
+      const token = path.split('/').filter(Boolean)[2];
+      const { handleTwitchOauthStart } = await import('./twitch-oauth.js');
+      return handleTwitchOauthStart(req, env, token);
+    }
+    if (method === 'GET' && path === '/admin/twitch-oauth/callback') {
+      const { handleTwitchOauthCallback } = await import('./twitch-oauth.js');
+      return handleTwitchOauthCallback(req, env);
+    }
     // Post or refresh the pinned Games-Menu message in #games
     // (channel defaults to 1507973935973531808 for the Aquilo guild,
     // can be overridden via body {channelId}). Idempotent — uses

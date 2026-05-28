@@ -39,12 +39,17 @@ export function isTwitchConfigured(env) {
 // app-token isConfigured() returns true alone doesn't imply user-token
 // subs can be created. Used by setupTwitchSubscriptions to skip
 // user-token-requiring subs cleanly when only the app token is set.
-export function hasTwitchUserAuth(env) {
+// Async because KV reads are async — the OAuth self-serve flow stores
+// the refresh token in KV (not as a worker secret), so a sync env-only
+// check would miss it and incorrectly skip every user-token sub right
+// after the operator finished OAuth.
+export async function hasTwitchUserAuth(env) {
   if (!isTwitchConfigured(env)) return false;
-  // Either a refresh token in env OR something written to KV (set by
-  // a prior successful refresh) is enough; helix layer reads KV first
-  // anyway.
-  return !!env.TWITCH_USER_REFRESH_TOKEN;
+  if (env.TWITCH_USER_REFRESH_TOKEN) return true;
+  try {
+    const kv = await env.LOADOUT_BOLTS.get(USER_REFRESH_KEY);
+    return !!kv;
+  } catch { return false; }
 }
 
 // ── App Access Token ──────────────────────────────────────────────

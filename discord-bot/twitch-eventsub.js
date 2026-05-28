@@ -284,7 +284,7 @@ export async function setupTwitchSubscriptions(env, opts = {}) {
     return { ok: false, error: 'bad-callback-url', callbackUrl };
   }
 
-  const hasUserAuth = hasTwitchUserAuth(env);
+  const hasUserAuth = await hasTwitchUserAuth(env);
   const existing = await listSubscriptions(env);
   let wantTypes = buildWantTypes(broadcasterId);
   if (Array.isArray(opts.only) && opts.only.length) {

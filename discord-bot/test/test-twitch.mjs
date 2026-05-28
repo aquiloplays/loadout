@@ -459,12 +459,22 @@ console.log('— twitch-events: routing precedence + toggle');
 
 console.log('— hasTwitchUserAuth guard');
 {
-  assert(!hasTwitchUserAuth(null),                                                 'null env → false');
-  assert(!hasTwitchUserAuth({ TWITCH_CLIENT_ID: 'a', TWITCH_CLIENT_SECRET: 'b' }), 'no refresh token → false');
-  assert(hasTwitchUserAuth({
+  assert(!(await hasTwitchUserAuth(null)),                                                 'null env → false');
+  assert(!(await hasTwitchUserAuth({ TWITCH_CLIENT_ID: 'a', TWITCH_CLIENT_SECRET: 'b', LOADOUT_BOLTS: makeKv() })), 'no refresh token → false');
+  assert(await hasTwitchUserAuth({
     TWITCH_CLIENT_ID: 'a', TWITCH_CLIENT_SECRET: 'b',
     TWITCH_USER_REFRESH_TOKEN: 'rt-xyz',
-  }), 'with refresh token → true');
+    LOADOUT_BOLTS: makeKv(),
+  }), 'env refresh token → true');
+  // KV-only refresh (OAuth self-serve path) also counts.
+  {
+    const kv = makeKv();
+    await kv.put('twitch:user-refresh-helix', 'rt-from-kv');
+    assert(await hasTwitchUserAuth({
+      TWITCH_CLIENT_ID: 'a', TWITCH_CLIENT_SECRET: 'b',
+      LOADOUT_BOLTS: kv,
+    }), 'KV-only refresh token → true');
+  }
 }
 
 console.log('— setupTwitchSubscriptions: misconfig + user-auth skipping');
