@@ -32,6 +32,12 @@ const MIN_ASPECT    = 0.4;
 const MAX_ASPECT    = 2.5;
 const GIPHY_LIMIT   = 10;
 const GIPHY_RATING  = 'pg';
+// Default in-slice pacing — sleep between cards. Giphy's free public
+// tier rate-limits at ~100 searches/hour per key; at avg 3 terms per
+// card the safe budget is ~33 cards/hour = ~108 seconds per card.
+// We cap default delay lower than that and let the driver compensate
+// with longer between-slice sleeps; ?pacingMs= overrides per-call.
+const DEFAULT_PACING_MS = 3500;
 
 const ALLOWED_HOSTS = new Set([
   'media.giphy.com',
@@ -144,6 +150,7 @@ export async function runCardArtBackfillSlice(env, opts = {}) {
   const offset = Math.max(0, parseInt(opts.offset || 0, 10) || 0);
   const limit  = Math.max(1, Math.min(100, parseInt(opts.limit || DEFAULT_LIMIT, 10) || DEFAULT_LIMIT));
   const force  = !!opts.force;
+  const pacingMs = Math.max(0, parseInt(opts.pacingMs || DEFAULT_PACING_MS, 10) || DEFAULT_PACING_MS);
 
   const allIds = Object.keys(CARDS);
   const total  = allIds.length;
@@ -158,7 +165,8 @@ export async function runCardArtBackfillSlice(env, opts = {}) {
     done: false,
   };
 
-  for (const cardId of slice) {
+  for (let i = 0; i < slice.length; i++) {
+    const cardId = slice[i];
     out.processed++;
 
     // Skip if already set (unless force).
@@ -168,6 +176,12 @@ export async function runCardArtBackfillSlice(env, opts = {}) {
         out.skipped++;
         continue;
       }
+    }
+
+    // Per-card pacing (skip the wait before the first card and after
+    // a skip-existing, both of which made no Giphy call).
+    if (i > 0 && pacingMs > 0) {
+      await new Promise(r => setTimeout(r, pacingMs));
     }
 
     let pick;

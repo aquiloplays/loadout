@@ -489,6 +489,12 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_card-art-backfill/')) {
       return handleCardArtBackfillSlice(req, env, path);
     }
+    // Post the backfill summary embed to the admin hub channel.
+    // KV-token gated, self-destructing — Clay re-mints when he wants
+    // a fresh snapshot.
+    if (method === 'POST' && path.startsWith('/admin/_card-art-summary/')) {
+      return handleCardArtSummaryBootstrap(req, env, path);
+    }
     // List every global card-art default — used by the run-summary
     // step + Clay's spot-check. HMAC-gated.
     if (method === 'GET' && path === '/admin/card-art/list') {
@@ -2594,6 +2600,123 @@ async function handleCardArtBackfillSlice(req, env, path) {
   const { runCardArtBackfillSlice } = await import('./card-art-backfill.js');
   const r = await runCardArtBackfillSlice(env, opts);
   return jsonResp(r, r.ok ? 200 : 400);
+}
+
+// ── /admin/_card-art-summary/:token (KV-token, one-shot) ─────────
+//
+// Posts a Boltbound card-art backfill summary embed to the admin
+// hub channel (defaults to env.AQUILO_ADMIN_HUB_CHANNEL_ID, can be
+// overridden via body {channelId}). Self-destructing token.
+//
+// Embed shape:
+//   • Totals — backfilled / catalogue / coverage %
+//   • Source breakdown — giphy / manual-remix / other
+//   • Top-N (default 20) sample rows: cardName → preview thumb url
+//
+// Body (optional JSON): { channelId?, sampleSize? }
+async function handleCardArtSummaryBootstrap(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-summary',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-summary-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  await env.LOADOUT_BOLTS.delete('bootstrap-card-art-summary-token').catch(() => {});
+
+  let opts = {};
+  const body = await req.text();
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const channelId = String(opts.channelId || env.AQUILO_ADMIN_HUB_CHANNEL_ID || '').trim();
+  if (!channelId) return jsonResp({ ok: false, error: 'no-channel-id' }, 400);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+  const sampleSize = Math.max(1, Math.min(20, parseInt(opts.sampleSize || 20, 10) || 20));
+
+  const { CARDS } = await import('./cards-content.js');
+  const totalCatalogue = Object.keys(CARDS).length;
+
+  // Walk the full global-card-art KV prefix to collect records (not
+  // just URLs — we want source + searchTerm + cardName).
+  const records = [];
+  let cursor;
+  for (let i = 0; i < 12; i++) {
+    const page = await env.LOADOUT_BOLTS.list({ prefix: 'global-card-art:', cursor });
+    for (const k of (page.keys || [])) {
+      const cardId = String(k.name || '').slice('global-card-art:'.length);
+      const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
+      if (rec?.memeGifUrl) {
+        records.push({
+          cardId,
+          cardName: CARDS[cardId]?.name || cardId,
+          url:        rec.memeGifUrl,
+          searchTerm: rec.searchTerm || null,
+          source:     rec.source     || null,
+          updatedAt:  rec.updatedAt  || null,
+        });
+      }
+    }
+    if (page.list_complete || !page.cursor) break;
+    cursor = page.cursor;
+  }
+
+  const totalBackfilled = records.length;
+  const missingCount    = Math.max(0, totalCatalogue - totalBackfilled);
+  const coveragePct     = totalCatalogue
+    ? (totalBackfilled / totalCatalogue * 100).toFixed(1)
+    : '0.0';
+
+  const sources = {};
+  for (const r of records) {
+    const s = r.source || 'unknown';
+    sources[s] = (sources[s] || 0) + 1;
+  }
+  const sourceLines = Object.entries(sources)
+    .sort((a, b) => b[1] - a[1])
+    .map(([s, n]) => `\`${s}\`: ${n}`)
+    .join(' · ') || 'none';
+
+  // Sample — pick the most recent N (rough proxy for "freshest" choices).
+  const sample = [...records]
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+    .slice(0, sampleSize);
+  const sampleLines = sample.map((r, i) =>
+    `${i + 1}. **${r.cardName}** \`${r.cardId}\`\n   ↳ term: \`${r.searchTerm || '?'}\` · [preview](${r.url})`
+  ).join('\n');
+
+  const embed = {
+    title: '🎴 Boltbound card-art backfill — summary',
+    color: 0x9b6cff,
+    description:
+      `**${totalBackfilled} / ${totalCatalogue}** cards have global default art.  ` +
+      `Coverage: **${coveragePct}%** · Missing: **${missingCount}**`,
+    fields: [
+      { name: 'By source',       value: sourceLines, inline: false },
+      { name: `Sample (latest ${sample.length})`, value: sampleLines.slice(0, 1024) || '—', inline: false },
+    ],
+    footer: { text: 'Mismatches? /admin card-art remix card-id:<id> shows 5 fresh candidates.' },
+    timestamp: new Date().toISOString(),
+  };
+
+  // Post to the configured channel via bot REST.
+  const postUrl = `https://discord.com/api/v10/channels/${channelId}/messages`;
+  const r = await fetch(postUrl, {
+    method:  'POST',
+    headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'content-type': 'application/json' },
+    body:    JSON.stringify({ embeds: [embed] }),
+  });
+  if (!r.ok) {
+    const text = await r.text();
+    return jsonResp({ ok: false, error: 'discord-' + r.status, body: text.slice(0, 400) }, 502);
+  }
+  const msg = await r.json();
+  return jsonResp({
+    ok: true,
+    channelId,
+    messageId: msg?.id || null,
+    totalBackfilled, totalCatalogue, missingCount, coveragePct,
+    sources,
+  });
 }
 
 // ── /admin/card-art/list (HMAC, read) ────────────────────────────
