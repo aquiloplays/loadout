@@ -124,6 +124,16 @@ const ROUTES = new Set([
   'admin/polls/lock',
   'admin/polls/extend',
   'admin/polls/cancel',
+  // Support tickets — PWA admin compartment (Clay 2026-05-28).
+  // Owner-gated via the same _owner flag pattern. See
+  // support-tickets.js. Read + mutate the ticket queue.
+  'admin/tickets/list',
+  'admin/tickets/detail',
+  'admin/tickets/respond',
+  'admin/tickets/close',
+  'admin/tickets/assign',
+  'admin/tickets/priority',
+  'admin/tickets/category',
   // L9 — PWA chat (Clay 2026-05-28): expose every guild text channel
   // the requesting Discord user has VIEW_CHANNEL permission on, so
   // the PWA can switch between channels instead of being capped at
@@ -335,6 +345,34 @@ export async function handleWeb(req, env) {
     if (route === 'admin/polls/cancel') {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routePollsCancel(env, body);
+    }
+    if (route === 'admin/tickets/list') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeTicketsList(env, guildId, body);
+    }
+    if (route === 'admin/tickets/detail') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeTicketsDetail(env, body);
+    }
+    if (route === 'admin/tickets/respond') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeTicketsRespond(env, discordId, body);
+    }
+    if (route === 'admin/tickets/close') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeTicketsClose(env, discordId, body);
+    }
+    if (route === 'admin/tickets/assign') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeTicketsAssign(env, discordId, body);
+    }
+    if (route === 'admin/tickets/priority') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeTicketsPriority(env, discordId, body);
+    }
+    if (route === 'admin/tickets/category') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeTicketsCategory(env, discordId, body);
     }
     if (route === 'coinflip') return await routeCoinflip(env, guildId, discordId, body);
     if (route === 'dice')   return await routeDice(env, guildId, discordId, body);
@@ -1927,6 +1965,82 @@ async function routePollsCancel(env, body) {
   if (!pollId) return json({ ok: false, error: 'pollId required' }, 400);
   const { adminCancelPoll } = await import('./custom-polls.js');
   const r = await adminCancelPoll(env, pollId, reason);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// ── Support tickets admin (owner-gated) ─────────────────────────
+//
+// All endpoints expect a verified site session — the worker reads
+// discordId from the bridge for attribution on respond/close/assign.
+//
+// Filters on list: status, category, priority, assignee, requester.
+
+async function routeTicketsList(env, guildId, body) {
+  const filters = {
+    status:    body?.status,
+    category:  body?.category,
+    priority:  body?.priority,
+    assignee:  body?.assignee,
+    requester: body?.requester,
+  };
+  const { listTickets } = await import('./support-tickets.js');
+  const r = await listTickets(env, guildId, filters);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeTicketsDetail(env, body) {
+  const ticketId = parseInt(body?.ticketId, 10);
+  if (!ticketId) return json({ ok: false, error: 'ticketId required' }, 400);
+  const { ticketDetail } = await import('./support-tickets.js');
+  const r = await ticketDetail(env, ticketId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeTicketsRespond(env, discordId, body) {
+  const ticketId = parseInt(body?.ticketId, 10);
+  const message  = String(body?.message || '').trim();
+  if (!ticketId)  return json({ ok: false, error: 'ticketId required' }, 400);
+  if (!message)   return json({ ok: false, error: 'message required' }, 400);
+  if (message.length > 1800) return json({ ok: false, error: 'message too long' }, 400);
+  const { respondAsStaff } = await import('./support-tickets.js');
+  const r = await respondAsStaff(env, ticketId, { actorId: discordId, message });
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeTicketsClose(env, discordId, body) {
+  const ticketId = parseInt(body?.ticketId, 10);
+  const reason   = body?.reason ? String(body.reason).slice(0, 300) : null;
+  if (!ticketId) return json({ ok: false, error: 'ticketId required' }, 400);
+  const { closeTicket } = await import('./support-tickets.js');
+  const r = await closeTicket(env, ticketId, { actorId: discordId, actorName: body?.actorName || 'staff', reason });
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeTicketsAssign(env, discordId, body) {
+  const ticketId = parseInt(body?.ticketId, 10);
+  const userId   = String(body?.userId || '').trim();
+  if (!ticketId)               return json({ ok: false, error: 'ticketId required' }, 400);
+  if (!/^\d{15,25}$/.test(userId)) return json({ ok: false, error: 'bad userId' }, 400);
+  const { setAssignee } = await import('./support-tickets.js');
+  const r = await setAssignee(env, ticketId, userId, { actorId: discordId, actorName: body?.actorName || 'staff' });
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeTicketsPriority(env, discordId, body) {
+  const ticketId = parseInt(body?.ticketId, 10);
+  const priority = String(body?.priority || '');
+  if (!ticketId) return json({ ok: false, error: 'ticketId required' }, 400);
+  const { setPriority } = await import('./support-tickets.js');
+  const r = await setPriority(env, ticketId, priority, { actorId: discordId, actorName: body?.actorName || 'staff' });
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeTicketsCategory(env, discordId, body) {
+  const ticketId = parseInt(body?.ticketId, 10);
+  const category = String(body?.category || '');
+  if (!ticketId) return json({ ok: false, error: 'ticketId required' }, 400);
+  const { setCategory } = await import('./support-tickets.js');
+  const r = await setCategory(env, ticketId, category, { actorId: discordId, actorName: body?.actorName || 'staff' });
   return json(r, r.ok ? 200 : 400);
 }
 

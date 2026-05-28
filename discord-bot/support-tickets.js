@@ -1037,6 +1037,82 @@ export async function ticketDetail(env, ticketId) {
 
 function safeJson(s) { try { return JSON.parse(s); } catch { return null; } }
 
+// ── PWA staff response ────────────────────────────────────────
+//
+// Posts a message into the Discord thread, attributed to the staff
+// member's Discord user via a webhook impersonation (so the avatar +
+// username show as them, not the bot). Falls back to a plain bot
+// message when the channel doesn't have a webhook (or creating one
+// fails — Discord caps webhooks at 15 per channel).
+//
+// Also mirrors to ticket_messages so the timeline shows the reply.
+export async function respondAsStaff(env, ticketId, opts) {
+  const t = await loadTicket(env, ticketId);
+  if (!t) return { ok: false, error: 'not-found' };
+  if (!t.thread_id) return { ok: false, error: 'no-thread' };
+  // Resolve actor's display name for the webhook impersonation.
+  let actorName = 'staff', actorAvatar = null;
+  if (opts.actorId) {
+    const u = await dapi(env, 'GET', `/users/${encodeURIComponent(opts.actorId)}`);
+    if (u.ok && u.body) {
+      actorName = u.body.global_name || u.body.username || 'staff';
+      if (u.body.avatar) {
+        actorAvatar = `https://cdn.discordapp.com/avatars/${u.body.id}/${u.body.avatar}.png`;
+      }
+    }
+  }
+  // Threads inherit the parent channel's webhooks. Get-or-create a
+  // bot-owned webhook on the parent.
+  let webhookUrl = null;
+  try {
+    const list = await dapi(env, 'GET', `/channels/${t.channel_id}/webhooks`);
+    if (list.ok && Array.isArray(list.body)) {
+      const mine = list.body.find((w) => w.user?.bot && w.name === 'Aquilo Tickets');
+      if (mine?.token) webhookUrl = `https://discord.com/api/v10/webhooks/${mine.id}/${mine.token}`;
+    }
+    if (!webhookUrl) {
+      const create = await dapi(env, 'POST', `/channels/${t.channel_id}/webhooks`, { name: 'Aquilo Tickets' });
+      if (create.ok && create.body?.token) {
+        webhookUrl = `https://discord.com/api/v10/webhooks/${create.body.id}/${create.body.token}`;
+      }
+    }
+  } catch { /* fall through to bot-message */ }
+
+  let messageId = null;
+  if (webhookUrl) {
+    // ?thread_id= routes the webhook post into the specific thread
+    // under the channel; ?wait=true returns the message id.
+    const r = await fetch(`${webhookUrl}?thread_id=${encodeURIComponent(t.thread_id)}&wait=true`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'loadout-discord support-tickets' },
+      body: JSON.stringify({
+        content:     opts.message,
+        username:    actorName,
+        avatar_url:  actorAvatar || undefined,
+        allowed_mentions: { parse: [] },
+      }),
+    });
+    if (r.ok) {
+      const j = await r.json().catch(() => null);
+      messageId = j?.id || null;
+    }
+  }
+  if (!messageId) {
+    // Webhook path failed; post as the bot with an attribution header.
+    const r = await dapi(env, 'POST', `/channels/${t.thread_id}/messages`, {
+      content: `**${actorName}** (PWA): ${opts.message}`,
+      allowed_mentions: { parse: [] },
+    });
+    if (!r.ok) return { ok: false, error: 'post-failed', status: r.status };
+    messageId = r.body?.id || null;
+  }
+  await appendMessage(env, ticketId, {
+    guildId: t.guild_id, kind: 'message', userId: opts.actorId || null, username: actorName,
+    content: opts.message, discordMessageId: messageId,
+  });
+  return { ok: true, messageId };
+}
+
 // ── Daily auto-close sweep ────────────────────────────────────
 //
 // Cron entry (called from worker.js :23 hourly tick, gated to once
