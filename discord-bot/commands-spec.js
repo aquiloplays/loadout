@@ -33,7 +33,10 @@ export const COMMANDS = [
   },
   {
     name: 'loadout',
-    description: 'Open the Loadout menu — wallet, hero, bag, shop, daily, gift, profile, more'
+    description: 'Open the Loadout menu — wallet, hero, bag, shop, daily, gift, profile, more',
+    // Hidden from viewer autocomplete (Clay 2026-05-28) — viewers
+    // reach the Loadout main menu via the pinned games menu in #games.
+    default_member_permissions: '0',
   },
   // B7 — Temp voice channels
   {
@@ -62,6 +65,7 @@ export const COMMANDS = [
   {
     name: 'campaign',
     description: 'AI-DM\'d D&D-style one-shot — party up via DMs, ~3-5h, resumable',
+    default_member_permissions: '0',
     options: [
       {
         type: 1, // SUB_COMMAND
@@ -207,6 +211,7 @@ export const COMMANDS = [
   {
     name: 'lfg',
     description: 'Looking for game — post an "open for playing" embed',
+    default_member_permissions: '0',
     options: [
       {
         type: TYPE_SUBCOMMAND, name: 'create',
@@ -243,6 +248,10 @@ export const COMMANDS = [
     // 1% fee, no leverage — see stocks.js.
     name: 'stocks',
     description: 'Buy and sell shares in real-world tickers, paid in bolts',
+    // Clay 2026-05-28: viewer-facing game slashes are admin-only —
+    // viewers reach the games via the pinned menu in #games. Admins
+    // can still run them directly (with MANAGE_GUILD) for testing.
+    default_member_permissions: '0',
     options: [
       {
         type: TYPE_SUBCOMMAND, name: 'list',
@@ -290,6 +299,8 @@ export const COMMANDS = [
     // prop bets) slots in cleanly under /bet <group> <subcommand>.
     name: 'bet',
     description: 'Bolts-denominated sports betting',
+    // Admin-only — viewers reach betting via /hub on the menu.
+    default_member_permissions: '0',
     options: [
       {
         type: TYPE_SUBCOMMAND_GROUP, name: 'sports',
@@ -333,6 +344,7 @@ export const COMMANDS = [
     // this is the broader "everything Aquilo" surface.
     name: 'hub',
     description: 'Open the Aquilo hub — Loadout, Stocks, Sports, Profile',
+    default_member_permissions: '0',
   },
   {
     // Admin-side hub. MANAGE_GUILD only via Discord's
@@ -524,6 +536,8 @@ export const COMMANDS = [
     // commands are open.
     name: 'clash',
     description: 'Communal town & global raiders — build, train, raid',
+    // Admin-only — viewers reach Clash via the pinned menu in #games.
+    default_member_permissions: '0',
     options: [
       { type: TYPE_SUBCOMMAND, name: 'status', description: 'Your raider profile' },
       { type: TYPE_SUBCOMMAND, name: 'army',   description: 'View your trained troops' },
@@ -774,6 +788,9 @@ export const COMMANDS = [
     // aquilo-site/SCHEDULE-SYSTEM-DESIGN.md Phase 3.
     name: 'queue',
     description: 'Community / Variety Night queue — open, join, leave, view',
+    // Admin-only at the top level; viewers reach queue via vote-hub
+    // buttons in the dedicated queue channel.
+    default_member_permissions: '0',
     options: [
       {
         type: TYPE_SUBCOMMAND, name: 'view',
@@ -917,6 +934,7 @@ export const COMMANDS = [
   {
     name: 'passport',
     description: 'View your Aquilo profile — streak, achievements, stats',
+    default_member_permissions: '0',
     options: [
       { type: TYPE_USER, name: 'user', description: 'View someone else\'s passport', required: false },
     ],
@@ -945,6 +963,7 @@ export const COMMANDS = [
   {
     name: 'shop',
     description: 'Browse the Aquilo Bolts shop and spend Bolts',
+    default_member_permissions: '0',
   },
   // /checkin moved to the canonical entry near the top of this file
   // (community-checkin.js handler, with the GIPHY gif-picker rolled
@@ -967,10 +986,12 @@ export const COMMANDS = [
   {
     name: 'character',
     description: 'Customise your pixel-art character — body, hair, eyes, accent',
+    default_member_permissions: '0',
   },
   {
     name: 'pet',
     description: 'Adopt + care for a cosmetic pet (Patreon perk)',
+    default_member_permissions: '0',
     options: [
       {
         type: TYPE_SUBCOMMAND, name: 'adopt',
@@ -1014,6 +1035,7 @@ export const COMMANDS = [
     // stateless interaction model. Web + Twitch surfaces (Phase 2)
     // get the click-to-target UI on top of the same backend.
     name: 'boltbound',
+    default_member_permissions: '0',
     description: 'Boltbound — collect cards, build decks, battle other viewers',
     options: [
       { type: TYPE_SUBCOMMAND, name: 'status',      description: 'Your Boltbound profile + collection summary' },
@@ -1170,6 +1192,7 @@ export const COMMANDS = [
     // the moment the token is rotated.
     name: 'play',
     description: 'Play a quick-bolts game — blackjack, roulette, wheel, hi-lo, mines, plinko, crash',
+    default_member_permissions: '0',
     options: [
       {
         type: TYPE_SUBCOMMAND, name: 'blackjack',

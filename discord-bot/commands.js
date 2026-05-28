@@ -171,6 +171,10 @@ export async function handleInteraction(req, env, body, ctx) {
     if (cid.startsWith('character:')) return json(await handleCharacterComponent(env, data));
     if (cid.startsWith('boltbound:')) return json(await handleBoltboundComponent(env, data));
     if (cid.startsWith('qg:'))        return handlePlayComponent(env, data);
+    if (cid.startsWith('gm:')) {
+      const { handleGamesMenuComponent } = await import('./games-menu.js');
+      return json(await handleGamesMenuComponent(data, env, ctx));
+    }
     // Aquilo-bot fold-in: every aquilo component custom_id is
     // namespaced (vote:*, queue:*, aquilo:*, notify:*, tot:*, sug:*,
     // roles:*, setup:*, vh:*, passport:*, trivia:*, shop:*,

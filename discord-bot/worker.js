@@ -461,6 +461,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/twitch-setup/')) {
       return handleTwitchSetup(req, env, path);
     }
+    // Post or refresh the pinned Games-Menu message in #games
+    // (channel defaults to 1507973935973531808 for the Aquilo guild,
+    // can be overridden via body {channelId}). Idempotent — uses
+    // games-menu:msg:<gid> KV to PATCH the existing pin.
+    if (method === 'POST' && path.startsWith('/admin/games-menu/post/')) {
+      return handleGamesMenuPost(req, env, path);
+    }
     // One-shot — scan the guild for members currently holding the
     // I CAN'T COUNT shame role + remove. Used to clean up users whose
     // expiry KV entry was lost to the pre-2026-05-28 silent-drop
@@ -1821,6 +1828,30 @@ async function handleTwitchBannerAsset(req, env, path) {
   // pulling the body and we don't want a 404 there to poison their cache.
   if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
   return new Response(buf, { status: 200, headers });
+}
+
+// ── /admin/games-menu/post/:guildId (HMAC) ───────────────────────
+//
+// Post or PATCH the pinned games-menu message in #games. Body
+// (optional JSON):  { channelId?: '<override>' }. Returns the
+// channel/message ids + whether a fresh post or in-place patch was
+// done.
+async function handleGamesMenuPost(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','games-menu','post',':g']
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const { postOrRefreshGamesMenu } = await import('./games-menu.js');
+  const r = await postOrRefreshGamesMenu(env, guildId, opts);
+  if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
+  return jsonResp({ ...r, via: auth.via }, 200);
 }
 
 // ── /admin/counting/clear-shame-role/:guildId (HMAC) ─────────────
