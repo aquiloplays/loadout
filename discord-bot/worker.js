@@ -529,6 +529,12 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_support-panel-post/')) {
       return handleSupportPanelBootstrap(req, env, path);
     }
+    // One-shot KV-token-gated post: Patreon gift embed + link button
+    // in a target channel. Idempotent — KV pointer + title-match
+    // fallback. Self-destructs on success.
+    if (method === 'POST' && path.startsWith('/admin/_gift-embed-post/')) {
+      return handleGiftEmbedPost(req, env, path);
+    }
     // Diagnostic — dumps the current Twitch-side EventSub
     // subscriptions for the configured app token. HMAC-gated like
     // /admin/twitch-setup so Clay can call from the site admin or
@@ -2066,6 +2072,130 @@ async function handleGamesMenuPost(req, env, path) {
   const r = await postOrRefreshGamesMenu(env, guildId, opts);
   if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
+}
+
+// ── /admin/_gift-embed-post/:token (KV-token, self-destructing) ─
+//
+// Posts (or PATCHes) the Patreon gift embed + link button in a
+// target channel. Two-tier idempotency:
+//   1. KV `gift-embed:msg:<channelId>` → { messageId } — if present,
+//      PATCH the message in place.
+//   2. Fallback: list the last 50 channel messages, look for one
+//      authored by this bot whose first embed title starts with
+//      '🎁 Gift Aquilo Supporter Access'. If found, adopt it (PATCH
+//      + record KV pointer).
+//   3. Otherwise: POST fresh + pin + record KV pointer.
+async function handleGiftEmbedPost(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_gift-embed-post',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-gift-embed-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  await env.LOADOUT_BOLTS.delete('bootstrap-gift-embed-token').catch(() => {});
+
+  let opts = {};
+  const body = await req.text();
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const channelId = String(opts.channelId || '').trim();
+  if (!/^\d{15,25}$/.test(channelId)) return jsonResp({ ok: false, error: 'bad-channel-id' }, 400);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+
+  const payload = {
+    embeds: [{
+      title: '🎁 Gift Aquilo Supporter Access',
+      description: [
+        'Give a friend a paid Patreon membership and they unlock every Patreon perk across the Aquilo ecosystem — exclusive cosmetics, priority queue access, hero campaign slots, early access to new tools, and more.',
+        '',
+        'Free Patreon memberships work too, but paid gifts unlock everything immediately.',
+      ].join('\n'),
+      color: 0x7c5cff,
+    }],
+    components: [{
+      type: 1,
+      components: [{
+        type:  2,
+        style: 5,                 // LINK
+        label: 'Gift a Membership',
+        emoji: { name: '🎁' },
+        url:   'https://www.patreon.com/aquilo/gift',
+      }],
+    }],
+    allowed_mentions: { parse: [] },
+  };
+
+  const headers = {
+    'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN,
+    'Content-Type':  'application/json',
+    'User-Agent':    'loadout-discord gift-embed-post',
+  };
+
+  // Step 1 — KV pointer.
+  let priorMessageId = null;
+  try {
+    const ptr = await env.LOADOUT_BOLTS.get(`gift-embed:msg:${channelId}`, { type: 'json' });
+    if (ptr?.messageId) priorMessageId = String(ptr.messageId);
+  } catch { /* ignore */ }
+
+  // Step 2 — title-match fallback (scan the last 50 messages).
+  if (!priorMessageId) {
+    try {
+      const list = await fetch(
+        `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages?limit=50`,
+        { headers },
+      );
+      if (list.ok) {
+        const arr = await list.json();
+        if (Array.isArray(arr)) {
+          const match = arr.find((m) =>
+            m?.author?.bot &&
+            Array.isArray(m.embeds) &&
+            m.embeds.some((e) => String(e?.title || '').startsWith('🎁 Gift Aquilo Supporter Access')),
+          );
+          if (match?.id) priorMessageId = String(match.id);
+        }
+      }
+    } catch { /* ignore */ }
+  }
+
+  // PATCH path.
+  if (priorMessageId) {
+    const patch = await fetch(
+      `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages/${encodeURIComponent(priorMessageId)}`,
+      { method: 'PATCH', headers, body: JSON.stringify(payload) },
+    );
+    if (patch.ok) {
+      await env.LOADOUT_BOLTS.put(`gift-embed:msg:${channelId}`,
+        JSON.stringify({ messageId: priorMessageId, channelId }));
+      return jsonResp({ ok: true, action: 'patched', channelId, messageId: priorMessageId }, 200);
+    }
+    // 404 → message deleted, fall through to fresh post.
+    if (patch.status !== 404) {
+      const t = await patch.text();
+      return jsonResp({ ok: false, error: 'patch-failed', status: patch.status, body: t.slice(0, 300) }, 502);
+    }
+  }
+
+  // POST fresh.
+  const post = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`,
+    { method: 'POST', headers, body: JSON.stringify(payload) },
+  );
+  if (!post.ok) {
+    const t = await post.text();
+    return jsonResp({ ok: false, error: 'post-failed', status: post.status, body: t.slice(0, 300) }, 502);
+  }
+  const msg = await post.json();
+  const messageId = String(msg.id);
+  await env.LOADOUT_BOLTS.put(`gift-embed:msg:${channelId}`, JSON.stringify({ messageId, channelId }));
+  // Pin best-effort.
+  const pin = await fetch(
+    `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/pins/${encodeURIComponent(messageId)}`,
+    { method: 'PUT', headers },
+  );
+  return jsonResp({ ok: true, action: 'posted-new', channelId, messageId, pinned: pin.ok, pinStatus: pin.status }, 200);
 }
 
 // ── /admin/_support-panel-post/:token (KV-token, self-destructing) ──
