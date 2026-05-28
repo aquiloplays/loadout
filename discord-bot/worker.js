@@ -1137,6 +1137,22 @@ export default {
             console.warn('[cron] twitch-rewards expiry', e?.message || e);
           }
         })());
+        // Support-ticket stale sweep — once-per-UTC-day via marker.
+        // Closes tickets with no activity for 30 days; archives the
+        // thread + DMs the requester. Cheap when no candidates.
+        ctx.waitUntil((async () => {
+          const today = new Date().toISOString().slice(0, 10);
+          const marker = await env.LOADOUT_BOLTS.get('support-tickets:cron:last-sweep').catch(() => null);
+          if (marker === today) return;
+          try {
+            const { autoCloseStaleTickets } = await import('./support-tickets.js');
+            const r = await autoCloseStaleTickets(env);
+            if (r.closed > 0) console.log('[cron] support-tickets auto-close', JSON.stringify(r));
+            await env.LOADOUT_BOLTS.put('support-tickets:cron:last-sweep', today);
+          } catch (e) {
+            console.warn('[cron] support-tickets auto-close', e?.message || e);
+          }
+        })());
         // Unified vote-hub phase transitions — runs hourly, re-renders
         // the hub embed on phase change. See vote-hub.js.
         const guildIdForVoteHub = env.AQUILO_VAULT_GUILD_ID;

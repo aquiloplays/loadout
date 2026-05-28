@@ -373,15 +373,331 @@ export async function handleSupportTicketComponent(data, env) {
     return ephemeral('Pick a category from the select menu first 👆 — then the **Open Ticket** modal will appear.');
   }
 
-  // In-thread admin component buttons (close, assign, priority, recat).
+  // In-thread admin component buttons (close, resolve, priority,
+  // assign, category). Staff-only — checked inline via the cached
+  // Staff role id.
+  const isStaffCheck = async () => {
+    const staffId = await staffRoleId(env, guildId);
+    if (!staffId) return true;  // no staff role configured — fail open
+    const roles = data.member?.roles || [];
+    return Array.isArray(roles) && roles.includes(staffId);
+  };
   if (customId.startsWith('st:close:')) {
     return await handleCloseComponent(data, env, customId);
+  }
+  if (customId.startsWith('st:resolve:')) {
+    if (!(await isStaffCheck())) return ephemeral('Staff only.');
+    const ticketId = parseInt(customId.slice('st:resolve:'.length), 10);
+    const actorId = data.member?.user?.id || data.user?.id;
+    const actorName = data.member?.user?.global_name || data.member?.user?.username || 'staff';
+    const r = await resolveTicket(env, ticketId, { actorId, actorName });
+    if (!r.ok) return ephemeral(`Couldn\'t resolve — ${r.error}`);
+    return ephemeral(`✅ Ticket #${ticketId} marked resolved.`);
   }
   if (customId.startsWith('st:reopen:')) {
     return await handleReopenComponent(data, env, customId);
   }
+  if (customId.startsWith('st:pri-open:')) {
+    if (!(await isStaffCheck())) return ephemeral('Staff only.');
+    const ticketId = parseInt(customId.slice('st:pri-open:'.length), 10);
+    return prioritySelectMenu(ticketId);
+  }
+  if (customId.startsWith('st:pri-set:')) {
+    if (!(await isStaffCheck())) return ephemeral('Staff only.');
+    const ticketId = parseInt(customId.slice('st:pri-set:'.length), 10);
+    const choice = String(data.data?.values?.[0] || '');
+    if (!PRIORITIES.includes(choice)) return ephemeral('Bad priority.');
+    const actorId = data.member?.user?.id || data.user?.id;
+    const actorName = data.member?.user?.global_name || data.member?.user?.username || 'staff';
+    const r = await setPriority(env, ticketId, choice, { actorId, actorName });
+    if (!r.ok) return ephemeral(`Couldn\'t set — ${r.error}`);
+    await notifyThreadPriorityChange(env, ticketId, choice, actorId);
+    return ephemeral(`🚦 Ticket #${ticketId} priority set to **${choice}**.`);
+  }
+  if (customId.startsWith('st:cat-open:')) {
+    if (!(await isStaffCheck())) return ephemeral('Staff only.');
+    const ticketId = parseInt(customId.slice('st:cat-open:'.length), 10);
+    return categorySelectMenu(ticketId);
+  }
+  if (customId.startsWith('st:cat-set:')) {
+    if (!(await isStaffCheck())) return ephemeral('Staff only.');
+    const ticketId = parseInt(customId.slice('st:cat-set:'.length), 10);
+    const choice = String(data.data?.values?.[0] || '');
+    if (!isValidCategory(choice)) return ephemeral('Bad category.');
+    const actorId = data.member?.user?.id || data.user?.id;
+    const actorName = data.member?.user?.global_name || data.member?.user?.username || 'staff';
+    const r = await setCategory(env, ticketId, choice, { actorId, actorName });
+    if (!r.ok) return ephemeral(`Couldn\'t recategorize — ${r.error}`);
+    await notifyThreadCategoryChange(env, ticketId, choice, actorId);
+    return ephemeral(`🏷 Ticket #${ticketId} recategorized to **${categoryLabel(choice)}**.`);
+  }
+  if (customId.startsWith('st:asg-open:')) {
+    if (!(await isStaffCheck())) return ephemeral('Staff only.');
+    const ticketId = parseInt(customId.slice('st:asg-open:'.length), 10);
+    return assignSelectMenu(ticketId);
+  }
+  if (customId.startsWith('st:asg-set:')) {
+    if (!(await isStaffCheck())) return ephemeral('Staff only.');
+    const ticketId = parseInt(customId.slice('st:asg-set:'.length), 10);
+    const assignee = String(data.data?.values?.[0] || '');
+    if (!/^\d{15,25}$/.test(assignee)) return ephemeral('Bad assignee.');
+    const actorId = data.member?.user?.id || data.user?.id;
+    const actorName = data.member?.user?.global_name || data.member?.user?.username || 'staff';
+    const r = await setAssignee(env, ticketId, assignee, { actorId, actorName });
+    if (!r.ok) return ephemeral(`Couldn\'t assign — ${r.error}`);
+    await sendAssigneeDM(env, ticketId, assignee, actorName);
+    await notifyThreadAssignmentChange(env, ticketId, assignee, actorId);
+    return ephemeral(`👤 Ticket #${ticketId} assigned to <@${assignee}>.`);
+  }
 
   return ephemeral(`Unknown ticket action: \`${customId}\``);
+}
+
+// ── Ephemeral select menus for the in-thread admin controls ───
+
+function prioritySelectMenu(ticketId) {
+  return {
+    type: RESP_CHAT,
+    data: {
+      flags: FLAG_EPHEMERAL,
+      content: 'Pick the new priority:',
+      components: [{
+        type: COMP_ROW,
+        components: [{
+          type:        COMP_STRING_SELECT,
+          custom_id:   `st:pri-set:${ticketId}`,
+          placeholder: 'Choose priority…',
+          min_values:  1,
+          max_values:  1,
+          options: [
+            { label: '⬇️ Low',      value: 'low' },
+            { label: 'Normal',       value: 'normal' },
+            { label: '⬆️ High',     value: 'high' },
+            { label: '🚨 Urgent',   value: 'urgent' },
+          ],
+        }],
+      }],
+    },
+  };
+}
+
+function categorySelectMenu(ticketId) {
+  return {
+    type: RESP_CHAT,
+    data: {
+      flags: FLAG_EPHEMERAL,
+      content: 'Pick the new category:',
+      components: [{
+        type: COMP_ROW,
+        components: [{
+          type:        COMP_STRING_SELECT,
+          custom_id:   `st:cat-set:${ticketId}`,
+          placeholder: 'Choose category…',
+          min_values:  1,
+          max_values:  1,
+          options: CATEGORIES.map((c) => ({
+            label: c.label.length > 100 ? c.label.slice(0, 97) + '…' : c.label,
+            value: c.value,
+            emoji: c.emoji,
+          })),
+        }],
+      }],
+    },
+  };
+}
+
+// User-select (component type 5) — Discord renders an in-line user
+// picker the staff can search. Snowflakes come back in data.values.
+function assignSelectMenu(ticketId) {
+  return {
+    type: RESP_CHAT,
+    data: {
+      flags: FLAG_EPHEMERAL,
+      content: 'Pick the staff member to assign:',
+      components: [{
+        type: COMP_ROW,
+        components: [{
+          type:        5,   // USER_SELECT
+          custom_id:   `st:asg-set:${ticketId}`,
+          placeholder: 'Choose assignee…',
+          min_values:  1,
+          max_values:  1,
+        }],
+      }],
+    },
+  };
+}
+
+// ── DM helpers ────────────────────────────────────────────────
+
+async function shouldDM(env, userId) {
+  try {
+    const optOut = await env.LOADOUT_BOLTS.get(`ticket-notify-opt-out:${userId}`);
+    return !optOut;
+  } catch { return true; }
+}
+
+async function openDMChannel(env, userId) {
+  const r = await dapi(env, 'POST', '/users/@me/channels', { recipient_id: userId });
+  if (!r.ok || !r.body?.id) return null;
+  return String(r.body.id);
+}
+
+async function sendDM(env, userId, payload) {
+  if (!(await shouldDM(env, userId))) return { skipped: 'opt-out' };
+  const ch = await openDMChannel(env, userId);
+  if (!ch) return { skipped: 'dm-channel-failed' };
+  const r = await dapi(env, 'POST', `/channels/${ch}/messages`, payload);
+  return { ok: r.ok, messageId: r.body?.id };
+}
+
+async function sendAssigneeDM(env, ticketId, assigneeId, byName) {
+  const t = await loadTicket(env, ticketId);
+  if (!t) return;
+  await sendDM(env, assigneeId, {
+    embeds: [{
+      title: `👤 You\'ve been assigned ticket #${ticketId}`,
+      description: [
+        `**${t.subject || '(no subject)'}**`,
+        '',
+        `Category: ${categoryLabel(t.category)}`,
+        `Assigned by: ${byName || 'staff'}`,
+        '',
+        `Thread: https://discord.com/channels/${t.guild_id}/${t.thread_id}`,
+      ].join('\n'),
+      color: 0x7c5cff,
+      footer: { text: 'Reply in the thread when you can take it.' },
+    }],
+  });
+}
+
+async function sendNewTicketStaffFanout(env, ticketId) {
+  const t = await loadTicket(env, ticketId);
+  if (!t) return { sent: 0 };
+  const staffId = await staffRoleId(env, t.guild_id);
+  if (!staffId) return { sent: 0, reason: 'no-staff-role' };
+  // Walk the guild's full member list paginated; cap fan-out at 40
+  // to keep the burst rate-limit-friendly.
+  let sent = 0;
+  let after = '0';
+  for (let page = 0; page < 50 && sent < 40; page++) {
+    const r = await dapi(env, 'GET',
+      `/guilds/${encodeURIComponent(t.guild_id)}/members?limit=1000&after=${encodeURIComponent(after)}`);
+    if (!r.ok || !Array.isArray(r.body) || r.body.length === 0) break;
+    for (const m of r.body) {
+      if (sent >= 40) break;
+      if (Array.isArray(m.roles) && m.roles.includes(staffId) && m.user?.id) {
+        const dm = await sendDM(env, m.user.id, {
+          embeds: [{
+            title: `🎟 New ${categoryLabel(t.category)} ticket — #${ticketId}`,
+            description: [
+              `**${t.subject}**`,
+              '',
+              `From: <@${t.requester_user_id || t.opener_user_id}>`,
+              '',
+              `Thread: https://discord.com/channels/${t.guild_id}/${t.thread_id}`,
+            ].join('\n'),
+            color: 0x7c5cff,
+            footer: { text: 'Mute these via /ticket notify off in the support thread.' },
+          }],
+        });
+        if (dm.ok) sent++;
+      }
+    }
+    after = r.body[r.body.length - 1].user?.id || after;
+    if (r.body.length < 1000) break;
+  }
+  return { sent };
+}
+
+async function sendCloseDM(env, ticketId, closerName) {
+  const t = await loadTicket(env, ticketId);
+  if (!t) return;
+  const requesterId = t.requester_user_id || t.opener_user_id;
+  if (!requesterId) return;
+  await sendDM(env, requesterId, {
+    embeds: [{
+      title: `✅ Your ticket #${ticketId} was closed`,
+      description: [
+        `**${t.subject || '(no subject)'}**`,
+        '',
+        `Closed by: ${closerName || 'staff'}`,
+        t.close_reason ? `Reason: ${String(t.close_reason).slice(0, 300)}` : '',
+        '',
+        'Thanks for reaching out! If anything else comes up, open a new ticket in #support — staff are happy to help.',
+      ].filter(Boolean).join('\n'),
+      color: 0x6e7588,
+    }],
+  });
+}
+
+// ── Mod-log + thread-side activity notifications ──────────────
+
+export async function postNewTicketModLog(env, ticketId) {
+  const t = await loadTicket(env, ticketId);
+  if (!t) return { skipped: 'no-such-ticket' };
+  const ch = await modLogChannelId(env, t.guild_id);
+  if (!ch) return { skipped: 'no-mod-log' };
+  await dapi(env, 'POST', `/channels/${ch}/messages`, {
+    embeds: [{
+      title: `🎟 New ticket — #${ticketId} ${categoryEmoji(t.category)} ${categoryLabel(t.category)}`,
+      description: [
+        `**${t.subject}**`,
+        '',
+        `Requester: <@${t.requester_user_id || t.opener_user_id}>`,
+        `Thread: <#${t.thread_id}>`,
+      ].join('\n'),
+      color: 0x7c5cff,
+      footer: { text: `Priority: normal · Status: open` },
+      timestamp: new Date().toISOString(),
+    }],
+    allowed_mentions: { parse: [] },
+  }).catch(() => {});
+  return { ok: true };
+}
+
+async function notifyThreadPriorityChange(env, ticketId, priority, actorId) {
+  const t = await loadTicket(env, ticketId);
+  if (!t?.thread_id) return;
+  const icon = priority === 'urgent' ? '🚨' : priority === 'high' ? '⬆️' : priority === 'low' ? '⬇️' : '🚦';
+  await dapi(env, 'POST', `/channels/${t.thread_id}/messages`, {
+    content: `${icon} Priority set to **${priority}** by <@${actorId}>.`,
+    allowed_mentions: { parse: [] },
+  }).catch(() => {});
+}
+
+async function notifyThreadCategoryChange(env, ticketId, category, actorId) {
+  const t = await loadTicket(env, ticketId);
+  if (!t?.thread_id) return;
+  await dapi(env, 'POST', `/channels/${t.thread_id}/messages`, {
+    content: `🏷 Category changed to **${categoryLabel(category)}** by <@${actorId}>.`,
+    allowed_mentions: { parse: [] },
+  }).catch(() => {});
+}
+
+async function notifyThreadAssignmentChange(env, ticketId, assigneeId, actorId) {
+  const t = await loadTicket(env, ticketId);
+  if (!t?.thread_id) return;
+  await dapi(env, 'POST', `/channels/${t.thread_id}/messages`, {
+    content: `👤 Assigned to <@${assigneeId}> by <@${actorId}>.`,
+    allowed_mentions: { users: [String(assigneeId)] },
+  }).catch(() => {});
+}
+
+// Resolve = mark as resolved (close-flavoured, but distinguishable
+// from `closed`). DMs the requester + archives the thread.
+export async function resolveTicket(env, ticketId, opts = {}) {
+  const t = await loadTicket(env, ticketId);
+  if (!t) return { ok: false, error: 'not-found' };
+  if (['resolved', 'closed', 'auto_closed'].includes(t.status)) return { ok: true, alreadyResolved: true };
+  await updateStatus(env, ticketId, 'resolved', null);
+  await appendMessage(env, ticketId, {
+    guildId: t.guild_id, kind: 'status', userId: opts.actorId || null, username: opts.actorName || null,
+    content: 'resolved', meta: { from: t.status, to: 'resolved' },
+  });
+  await dapi(env, 'PATCH', `/channels/${t.thread_id}`, { archived: true, locked: true }).catch(() => {});
+  await sendCloseDM(env, ticketId, opts.actorName || 'staff');
+  return { ok: true };
 }
 
 // Modal submit dispatcher.
@@ -523,6 +839,12 @@ export async function openTicket(env, opts) {
     content: 'open', meta: { from: null, to: 'open' },
   });
 
+  // Best-effort notifications fan-out. Doesn't block the success
+  // response — the requester's "ticket opened" ack lands instantly
+  // and these run in the background.
+  postNewTicketModLog(env, ticketId).catch(() => {});
+  sendNewTicketStaffFanout(env, ticketId).catch(() => {});
+
   return { ok: true, ticketId, threadId, channelId: supportChId };
 }
 
@@ -543,15 +865,7 @@ async function postFirstThreadMessage(env, { ticketId, threadId, requesterUserId
       ],
       footer: { text: `Ticket #${ticketId}` },
     }],
-    components: [{
-      type: COMP_ROW,
-      components: [{
-        type:  COMP_BUTTON,
-        style: STYLE_DANGER,
-        label: '🔒 Close ticket',
-        custom_id: `st:close:${ticketId}`,
-      }],
-    }],
+    components: adminControlRows(ticketId),
     allowed_mentions: {
       // Ping the requester + the staff role only — never @everyone.
       users: [String(requesterUserId)],
@@ -560,6 +874,22 @@ async function postFirstThreadMessage(env, { ticketId, threadId, requesterUserId
   };
   const r = await dapi(env, 'POST', `/channels/${threadId}/messages`, payload);
   return { ok: r.ok, messageId: r.body?.id || null, status: r.status };
+}
+
+// In-thread staff control rows. Buttons trigger ephemeral selects.
+function adminControlRows(ticketId) {
+  return [
+    {
+      type: COMP_ROW,
+      components: [
+        { type: COMP_BUTTON, style: STYLE_DANGER,    label: '🔒 Close',    custom_id: `st:close:${ticketId}` },
+        { type: COMP_BUTTON, style: STYLE_SUCCESS,   label: '✅ Resolve',  custom_id: `st:resolve:${ticketId}` },
+        { type: COMP_BUTTON, style: STYLE_SECONDARY, label: '🚦 Priority', custom_id: `st:pri-open:${ticketId}` },
+        { type: COMP_BUTTON, style: STYLE_SECONDARY, label: '👤 Assign',   custom_id: `st:asg-open:${ticketId}` },
+        { type: COMP_BUTTON, style: STYLE_SECONDARY, label: '🏷 Category', custom_id: `st:cat-open:${ticketId}` },
+      ],
+    },
+  ];
 }
 
 // ── Close handler (component button + admin call) ─────────────
@@ -603,6 +933,8 @@ export async function closeTicket(env, ticketId, opts = {}) {
     content: `🔒 Ticket closed by <@${opts.actorId || 'system'}>` + (opts.reason ? ` — _${opts.reason.slice(0, 200)}_` : '.'),
     allowed_mentions: { parse: [] },
   }).catch(() => {});
+  // DM the requester with the thanks copy.
+  sendCloseDM(env, ticketId, opts.actorName || 'staff').catch(() => {});
   return { ok: true };
 }
 
@@ -704,6 +1036,68 @@ export async function ticketDetail(env, ticketId) {
 }
 
 function safeJson(s) { try { return JSON.parse(s); } catch { return null; } }
+
+// ── Daily auto-close sweep ────────────────────────────────────
+//
+// Cron entry (called from worker.js :23 hourly tick, gated to once
+// per UTC day). Finds tickets whose latest `ticket_messages` entry
+// is older than STALE_THRESHOLD_DAYS, flips them to `auto_closed`,
+// archives the thread, DMs the requester.
+const STALE_THRESHOLD_DAYS = 30;
+
+export async function autoCloseStaleTickets(env) {
+  if (!env.DB) return { ok: false, reason: 'no-d1' };
+  const cutoffSql = `datetime('now', '-${STALE_THRESHOLD_DAYS} days')`;
+  // Pick the latest activity per open ticket; flag those whose last
+  // activity is older than the cutoff.
+  const r = await env.DB.prepare(`
+    SELECT t.id, t.guild_id, t.thread_id, t.subject, t.requester_user_id,
+           t.opener_user_id, t.category,
+           coalesce((SELECT MAX(datetime(created_at))
+                       FROM ticket_messages WHERE ticket_id = t.id),
+                    t.created_at) AS last_activity
+      FROM tickets t
+     WHERE t.status IN ('open', 'in_progress')
+     ORDER BY last_activity ASC
+     LIMIT 200
+  `).all();
+  const candidates = (r.results || []).filter((row) => {
+    return row.last_activity && row.last_activity < new Date(Date.now() - STALE_THRESHOLD_DAYS * 86400 * 1000).toISOString().replace('T', ' ').slice(0, 19);
+  });
+  let closed = 0;
+  for (const t of candidates) {
+    await updateStatus(env, t.id, 'auto_closed', 'no activity for ' + STALE_THRESHOLD_DAYS + ' days');
+    await appendMessage(env, t.id, {
+      guildId: t.guild_id, kind: 'close', userId: null, username: 'cron',
+      content: 'auto-closed', meta: { reason: 'stale-' + STALE_THRESHOLD_DAYS + 'd' },
+    });
+    if (t.thread_id) {
+      await dapi(env, 'PATCH', `/channels/${t.thread_id}`, { archived: true, locked: true }).catch(() => {});
+      await dapi(env, 'POST', `/channels/${t.thread_id}/messages`, {
+        content: `🕒 This ticket was auto-closed after **${STALE_THRESHOLD_DAYS} days of no activity**. Open a new ticket in #support if you still need help.`,
+        allowed_mentions: { parse: [] },
+      }).catch(() => {});
+    }
+    const requesterId = t.requester_user_id || t.opener_user_id;
+    if (requesterId) {
+      await sendDM(env, requesterId, {
+        embeds: [{
+          title: `🕒 Your ticket #${t.id} was auto-closed`,
+          description: [
+            `**${t.subject || '(no subject)'}**`,
+            '',
+            `It had no activity for ${STALE_THRESHOLD_DAYS} days, so it was auto-closed to keep the queue tidy.`,
+            '',
+            'If you still need help, open a fresh ticket in #support — staff will be happy to pick it back up.',
+          ].join('\n'),
+          color: 0x6e7588,
+        }],
+      }).catch(() => {});
+    }
+    closed++;
+  }
+  return { ok: true, candidates: candidates.length, closed };
+}
 
 // Convenience export so worker.js's component dispatcher can route.
 export const SUPPORT_COMPONENT_PREFIX = 'st:';
