@@ -236,10 +236,17 @@ const ROUTES = new Set([
   'checkin/card',            // POST — upsert the user's embed card config
   'checkin/bonus/collect',   // POST — claim one bonus (or 'all')
   // Boltbound per-user card art override (meme-GIF skin layer).
-  // Pre-rendering rollout — schema + API + editor land first; the
-  // card-display switch happens in a follow-up.
+  // Rendering integrated 2026-05-28: cards-web routeState ships the
+  // user's overrides + the global defaults in the bootstrap payload.
   'cards/art-override',      // POST — { op: 'get'|'set'|'clear'|'list', cardId, url? }
   'cards/suggest-art-terms', // POST — { cardId } → { searchTerms, description }
+  // Skin endpoints — thin REST-shaped wrappers on cards-art-override
+  // for the site to call directly instead of building op:set/etc
+  // payloads. /web is POST-only so the spec's DELETE + GET get
+  // mapped to POST /cards/skin/clear + POST /cards/skins.
+  'cards/skin',              // POST — { cardId, gifUrl } → set the user's skin
+  'cards/skin/clear',        // POST — { cardId }         → clear it
+  'cards/skins',             // POST — {}                 → { skins: { cardId: url } }
   // New-viewer funnel — referrals + onboarding quest.
   'referral/me',             // POST — my code + stats
   'referral/attribute',      // POST — record that this user was referred by CODE
@@ -438,6 +445,9 @@ export async function handleWeb(req, env) {
     if (route === 'checkin/bonus/collect') return await routeCommunityCheckinBonusCollect(env, guildId, discordId, body);
     if (route === 'cards/art-override')    return await routeCardsArtOverride(env, guildId, discordId, body);
     if (route === 'cards/suggest-art-terms') return await routeCardsSuggestArtTerms(env, body);
+    if (route === 'cards/skin')            return await routeCardsSkinSet(env, guildId, discordId, body);
+    if (route === 'cards/skin/clear')      return await routeCardsSkinClear(env, guildId, discordId, body);
+    if (route === 'cards/skins')           return await routeCardsSkinList(env, guildId, discordId);
     if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
@@ -2207,6 +2217,44 @@ async function routeCardsArtOverride(env, guildId, discordId, body) {
     return json(r);
   }
   return json({ ok: false, error: 'bad-op', allowed: ['get', 'set', 'clear', 'list'] }, 400);
+}
+
+// /web/cards/skin — REST-shaped set. Body: { cardId, gifUrl }.
+// Thin wrapper around cards-art-override.setOverride so the site
+// can call POST /web/cards/skin instead of building an op:set
+// envelope. Returns the same shape setOverride returns.
+async function routeCardsSkinSet(env, guildId, discordId, body) {
+  const cardId = String((body && body.cardId) || '').trim();
+  if (!cardId) return json({ ok: false, error: 'cardId-required' }, 400);
+  const url = String((body && body.gifUrl) || '').trim();
+  if (!url) return json({ ok: false, error: 'gifUrl-required' }, 400);
+  const { setOverride } = await import('./cards-art-override.js');
+  const r = await setOverride(env, guildId, discordId, cardId, url);
+  return json(r, r.ok ? 200 : 400);
+}
+
+// /web/cards/skin/clear — REST-shaped delete. Body: { cardId }.
+async function routeCardsSkinClear(env, guildId, discordId, body) {
+  const cardId = String((body && body.cardId) || '').trim();
+  if (!cardId) return json({ ok: false, error: 'cardId-required' }, 400);
+  const { clearOverride } = await import('./cards-art-override.js');
+  const r = await clearOverride(env, guildId, discordId, cardId);
+  return json(r);
+}
+
+// /web/cards/skins — REST-shaped list. Returns the user's full
+// override map as { cardId: gifUrl } (compact shape for the renderer).
+// The richer per-card record (contentLength, validatedAt) is still
+// available via /web/cards/art-override op:list when the editor UI
+// needs it.
+async function routeCardsSkinList(env, guildId, discordId) {
+  const { listOverridesForUser } = await import('./cards-art-override.js');
+  const items = await listOverridesForUser(env, guildId, discordId);
+  const skins = {};
+  for (const o of (items || [])) {
+    if (o.cardId && o.memeGifUrl) skins[o.cardId] = o.memeGifUrl;
+  }
+  return json({ ok: true, skins });
 }
 
 // /web/cards/suggest-art-terms — given a cardId, return suggested
