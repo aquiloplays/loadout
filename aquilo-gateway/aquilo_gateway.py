@@ -280,6 +280,34 @@ async def on_message(message: discord.Message):
     if str(message.channel.id) not in S.forward_channels:
         return
 
+    # L9 — PWA chat (Clay 2026-05-28): also forward the avatar URL +
+    # embeds + sticker subset so the worker's community-chat normaliser
+    # can persist them. The PWA needs avatar circles, embed cards, and
+    # image previews to render Discord chat faithfully.
+    try:
+        avatar_url = str(message.author.display_avatar.url) if message.author.display_avatar else None
+    except Exception:
+        avatar_url = None
+
+    embeds_payload = []
+    for e in (message.embeds or [])[:4]:
+        try:
+            ed = {
+                "title":       e.title or None,
+                "description": e.description or None,
+                "url":         e.url or None,
+                "color":       e.color.value if e.color is not None else None,
+                "image":       {"url": e.image.url} if (e.image and e.image.url) else None,
+                "thumbnail":   {"url": e.thumbnail.url} if (e.thumbnail and e.thumbnail.url) else None,
+                "footer":      {"text": e.footer.text} if (e.footer and e.footer.text) else None,
+                "author":      {"name": e.author.name} if (e.author and e.author.name) else None,
+            }
+            embeds_payload.append(ed)
+        except Exception:
+            # Best-effort — skip a malformed embed rather than dropping
+            # the whole message.
+            pass
+
     payload = {
         # Snake_case Discord-slim subset that the worker's downstream
         # handlers (counting, clip, checkin, community-chat) all read.
@@ -291,6 +319,7 @@ async def on_message(message: discord.Message):
             "username":    message.author.name,
             "global_name": getattr(message.author, "global_name", None),
             "bot":         message.author.bot,
+            "avatar_url":  avatar_url,
         },
         "content":     message.content or "",
         "attachments": [
@@ -304,6 +333,7 @@ async def on_message(message: discord.Message):
             }
             for a in (message.attachments or [])
         ],
+        "embeds":    embeds_payload,
         "mentions":  [str(m.id) for m in (message.mentions or [])],
         "timestamp": message.created_at.isoformat() if message.created_at else None,
         # camelCase spec mirrors:

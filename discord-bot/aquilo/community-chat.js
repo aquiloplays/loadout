@@ -437,13 +437,46 @@ function normalise(p) {
       })).filter(a => a.url)
     : [];
 
+  // L9 — PWA chat improvements (Clay 2026-05-28):
+  // (a) Avatar URL. The gateway shim now sends `author.avatar_url`
+  //     as a full CDN URL; fall back to deriving from author.avatar
+  //     (hash) when only the hash arrived from an older shim build.
+  let avatar = null;
+  if (authorObj?.avatar_url && /^https?:\/\//.test(authorObj.avatar_url)) {
+    avatar = String(authorObj.avatar_url).slice(0, 256);
+  } else if (authorObj?.avatar && userId) {
+    const hash = String(authorObj.avatar);
+    const ext = hash.startsWith('a_') ? 'gif' : 'png';
+    avatar = `https://cdn.discordapp.com/avatars/${userId}/${hash}.${ext}?size=64`;
+  } else if (userId) {
+    // Default avatar — Discord rotates 6 default colors keyed off userId.
+    const idx = Number(BigInt(userId) % 6n);
+    avatar = `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
+  }
+  // (b) Embeds — keep a slim subset the PWA cares about so KV writes
+  //     don't bloat. Per-embed cap: 4 (Discord lets up to 10).
+  const embeds = Array.isArray(p.embeds)
+    ? p.embeds.slice(0, 4).map(e => ({
+        title:       e?.title       ? String(e.title).slice(0, 200) : null,
+        description: e?.description ? String(e.description).slice(0, 600) : null,
+        url:         e?.url         ? String(e.url).slice(0, 512) : null,
+        color:       Number.isFinite(e?.color) ? Number(e.color) : null,
+        image:       e?.image?.url       ? { url: String(e.image.url).slice(0, 512) } : null,
+        thumbnail:   e?.thumbnail?.url   ? { url: String(e.thumbnail.url).slice(0, 512) } : null,
+        footer:      e?.footer?.text     ? { text: String(e.footer.text).slice(0, 200) } : null,
+        author:      e?.author?.name     ? { name: String(e.author.name).slice(0, 80) } : null,
+      }))
+    : [];
+
   return {
     id,
     ts: Date.now(),
     userId,
     username,
+    avatar,
     content,
     attachments,
+    embeds,
     bot: isBot,
     bridge,
     // Reactions are populated incrementally by the bot — see

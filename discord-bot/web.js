@@ -114,6 +114,11 @@ const ROUTES = new Set([
   'chat/recent',
   'chat/react',
   'chat/unreact',
+  // L9 — PWA chat (Clay 2026-05-28): expose every guild text channel
+  // the requesting Discord user has VIEW_CHANNEL permission on, so
+  // the PWA can switch between channels instead of being capped at
+  // the COMMUNITY_CHAT_CHANNELS_JSON allow-list.
+  'chat/channels',
   // 2026-05 expansion — quick bolts games. Stateful games (blackjack,
   // hilo, mines) split into start/play/cashout sub-routes so the bot
   // can persist hand state across calls without re-deriving it from
@@ -300,6 +305,7 @@ export async function handleWeb(req, env) {
     if (route === 'chat/recent')  return await routeChatRecent(env, discordId, body);
     if (route === 'chat/react')   return await routeChatReact(env, discordId, body);
     if (route === 'chat/unreact') return await routeChatUnreact(env, discordId, body);
+    if (route === 'chat/channels') return await routeChatChannels(env, guildId, discordId);
     if (route === 'coinflip') return await routeCoinflip(env, guildId, discordId, body);
     if (route === 'dice')   return await routeDice(env, guildId, discordId, body);
     if (route === 'quick/snapshot')     return await routeQuickSnapshot(env, guildId, discordId);
@@ -1704,6 +1710,129 @@ async function routeChatRecent(env, discordId, body) {
   const { readCommunityChatWithReactions } = await import('./aquilo/community-chat.js');
   const r = await readCommunityChatWithReactions(env, channelId, limit, discordId);
   return json(r);
+}
+
+// ── /web/chat/channels (HMAC) ────────────────────────────────────
+//
+// Returns every guild text channel the requesting Discord user can
+// VIEW. Lets the PWA switch between channels instead of being capped
+// to the COMMUNITY_CHAT_CHANNELS_JSON allow-list.
+//
+// Discord permission computation (per Discord API docs §6):
+//   1. Start with the @everyone role's base permissions.
+//   2. OR in the permissions of every role the user has.
+//   3. If ADMINISTRATOR bit is set, user can see everything — skip
+//      overwrites.
+//   4. Apply channel overwrites in order:
+//      a. @everyone overwrite (deny then allow)
+//      b. Aggregate per-role overwrites for the user's roles
+//         (combined deny then combined allow)
+//      c. Per-user overwrite for this specific user (deny then allow)
+//   5. VIEW_CHANNEL bit (0x400) set → user can see it.
+//
+// We rate-limit ourselves to ONE guild-channels fetch + one
+// guild-member fetch per call; both are cached by Discord's CDN
+// edge for ~few seconds, fine for a per-page-load read.
+async function routeChatChannels(env, guildId, discordId) {
+  if (!env.DISCORD_BOT_TOKEN) return json({ ok: false, error: 'no-bot-token' }, 503);
+  if (!guildId) return json({ ok: false, error: 'no-guild-id' }, 400);
+  if (!/^\d{5,25}$/.test(discordId)) return json({ ok: false, error: 'bad-user' }, 400);
+
+  // 1. Fetch guild member (for roles[]) + guild roles (for permissions).
+  let member, allRoles, channels;
+  try {
+    const headers = {
+      'Authorization': 'Bot ' + env.DISCORD_BOT_TOKEN,
+      'User-Agent':    'aquilo-bot-worker chat-channels',
+    };
+    const [mResp, rResp, cResp] = await Promise.all([
+      fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(discordId)}`, { headers }),
+      fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/roles`,    { headers }),
+      fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`, { headers }),
+    ]);
+    if (mResp.status === 404) {
+      // User isn't in the guild — return an empty list (rather than 403)
+      // so the PWA can render a friendly "join the server" prompt.
+      return json({ ok: true, channels: [], reason: 'not-in-guild' });
+    }
+    if (!mResp.ok || !rResp.ok || !cResp.ok) {
+      return json({ ok: false, error: 'discord-fetch-failed',
+                    statuses: { member: mResp.status, roles: rResp.status, channels: cResp.status } }, 502);
+    }
+    member   = await mResp.json();
+    allRoles = await rResp.json();
+    channels = await cResp.json();
+  } catch (e) {
+    return json({ ok: false, error: 'fetch-error', detail: String(e?.message || e) }, 502);
+  }
+  if (!Array.isArray(member?.roles) || !Array.isArray(allRoles) || !Array.isArray(channels)) {
+    return json({ ok: false, error: 'unexpected-shape' }, 502);
+  }
+  const userRoleIds = new Set([guildId, ...member.roles.map(String)]);   // @everyone is always included
+  const rolesById = new Map();
+  for (const r of allRoles) if (r?.id) rolesById.set(String(r.id), r);
+
+  // 2-3. Base permissions across roles.
+  let basePerms = 0n;
+  for (const rid of userRoleIds) {
+    const r = rolesById.get(rid);
+    if (r?.permissions != null) basePerms |= BigInt(r.permissions);
+  }
+  const ADMIN_BIT = 0x8n;
+  const VIEW_BIT  = 0x400n;
+  const isAdmin = (basePerms & ADMIN_BIT) === ADMIN_BIT;
+
+  // 4. Per-channel overwrite layer + filter.
+  const visible = [];
+  for (const ch of channels) {
+    // Only text-flavoured channels — type 0 (GUILD_TEXT) and 5 (GUILD_ANNOUNCEMENT)
+    // qualify. Voice / forum / category etc. skipped.
+    if (ch?.type !== 0 && ch?.type !== 5) continue;
+
+    let perms = basePerms;
+    if (!isAdmin) {
+      const ows = Array.isArray(ch.permission_overwrites) ? ch.permission_overwrites : [];
+      // 4a. @everyone overwrite
+      const everyone = ows.find(o => String(o.id) === guildId);
+      if (everyone) {
+        perms &= ~BigInt(everyone.deny  || '0');
+        perms |=  BigInt(everyone.allow || '0');
+      }
+      // 4b. Per-role overwrites aggregated for THIS user's roles
+      let roleDeny  = 0n;
+      let roleAllow = 0n;
+      for (const o of ows) {
+        if (o.type !== 0) continue;            // 0 = role overwrite
+        if (String(o.id) === guildId) continue;
+        if (!userRoleIds.has(String(o.id))) continue;
+        roleDeny  |= BigInt(o.deny  || '0');
+        roleAllow |= BigInt(o.allow || '0');
+      }
+      perms &= ~roleDeny;
+      perms |= roleAllow;
+      // 4c. Per-user overwrite for THIS user
+      const userOw = ows.find(o => o.type === 1 && String(o.id) === discordId);
+      if (userOw) {
+        perms &= ~BigInt(userOw.deny  || '0');
+        perms |=  BigInt(userOw.allow || '0');
+      }
+    }
+    if ((perms & VIEW_BIT) !== VIEW_BIT && !isAdmin) continue;
+
+    visible.push({
+      id:       String(ch.id),
+      name:     String(ch.name || '').slice(0, 100),
+      type:     ch.type,
+      position: Number(ch.position || 0),
+      parentId: ch.parent_id ? String(ch.parent_id) : null,
+      // `kind` matches the COMMUNITY_CHAT_CHANNELS_JSON shape so the
+      // PWA can render with the same nameplate styling.
+      kind:     'discord',
+    });
+  }
+  // Position-sort matches Discord's sidebar.
+  visible.sort((a, b) => a.position - b.position);
+  return json({ ok: true, count: visible.length, channels: visible });
 }
 
 async function routeChatReact(env, discordId, body) {
