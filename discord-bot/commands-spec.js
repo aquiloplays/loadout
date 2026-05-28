@@ -360,6 +360,26 @@ export const COMMANDS = [
     name: 'admin',
     description: '(server admins) Admin hub for Loadout install + tools',
     default_member_permissions: '32', // MANAGE_GUILD
+    options: [
+      {
+        // Boltbound card-art tools. The auto-backfill assigns a default
+        // meme GIF to every card based on suggestArtTerms output; this
+        // remix subcommand lets Clay fix any mismatch he spots.
+        type: TYPE_SUBCOMMAND_GROUP, name: 'card-art',
+        description: 'Boltbound card-art admin (global default GIFs)',
+        options: [
+          {
+            type: TYPE_SUBCOMMAND, name: 'remix',
+            description: 'Re-search Giphy for a card; pick from 5 candidates',
+            options: [
+              { type: TYPE_STRING, name: 'card-id',
+                description: 'Card id (e.g. champ.warrior, leg.solara)',
+                required: true },
+            ],
+          },
+        ],
+      },
+    ],
   },
   {
     // Twitch event embed routing. Per-event-type channel overrides

@@ -195,6 +195,12 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleSupportTicketComponent } = await import('./support-tickets.js');
       return json(await handleSupportTicketComponent(data, env));
     }
+    if (cid.startsWith('ca:rmx:pick:')) {
+      // /admin card-art remix — candidate-picker select. See
+      // card-art-remix.js. The select value is the candidate index.
+      const { handleCardArtRemixSelect } = await import('./card-art-remix.js');
+      return json(await handleCardArtRemixSelect(env, data));
+    }
     // Aquilo-bot fold-in: every aquilo component custom_id is
     // namespaced (vote:*, queue:*, aquilo:*, notify:*, tot:*, sug:*,
     // roles:*, setup:*, vh:*, passport:*, trivia:*, shop:*,
@@ -293,12 +299,26 @@ export async function handleInteraction(req, env, body, ctx) {
       // Viewer-facing hub entry point.
       return json(await renderHubCommand(env, guild, userId));
 
-    case 'admin':
+    case 'admin': {
       // Admin-side hub. MANAGE_GUILD enforced by Discord via the
       // command's default_member_permissions; an extra in-handler
       // check would only fire if Discord changed its enforcement
       // model, so we trust the platform here.
+      //
+      // Subcommand-group dispatch — only `card-art remix` lives
+      // here today. Bare /admin (no subcommand) falls through to
+      // the legacy hub renderer.
+      const opts = data.data?.options || [];
+      const grp  = opts.find(o => o.type === 2);
+      if (grp?.name === 'card-art') {
+        const sub = (grp.options || []).find(o => o.type === 1);
+        if (sub?.name === 'remix') {
+          const { handleCardArtRemixCommand } = await import('./card-art-remix.js');
+          return json(await handleCardArtRemixCommand(env, data));
+        }
+      }
       return json(await renderAdminCommand());
+    }
 
     case 'twitch-event': {
       // Per-event-type routing + on/off toggle. See twitch-events.js
