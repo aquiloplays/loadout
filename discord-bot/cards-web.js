@@ -128,8 +128,9 @@ async function routeState(env, guildId, userId) {
   }
 
   const { listOverridesForUser } = await import('./cards-art-override.js');
+  const { listAllGlobalArt }     = await import('./cards-global-art.js');
 
-  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed, fragments, artOverrides] = await Promise.all([
+  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed, fragments, artOverrides, globalArt] = await Promise.all([
     listDeckSummaries(env, guildId, userId),
     getActiveDeckId(env, guildId, userId),
     listPendingPacks(env, guildId, userId, 30),
@@ -139,6 +140,7 @@ async function routeState(env, guildId, userId) {
     hasClaimedFreePackToday(env, guildId, userId),
     getFragments(env, userId),
     listOverridesForUser(env, guildId, userId),
+    listAllGlobalArt(env),
   ]);
 
   // Compact { cardId: memeGifUrl } map — the renderer just looks up
@@ -191,6 +193,11 @@ async function routeState(env, guildId, userId) {
     // artOverrides[cardId] over the static spriteId for any card the
     // viewer owns. Empty when the user hasn't customised anything.
     artOverrides: artOverridesMap,
+    // Global card-art defaults — every viewer sees these unless they
+    // have a personal override for the same card. Backfilled via the
+    // Giphy auto-match. Precedence (renderer):
+    //   gifUrl = artOverrides[cardId] || globalArt[cardId] || baked
+    globalArt,
     match: matchView,
   });
 }

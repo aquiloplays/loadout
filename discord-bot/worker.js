@@ -474,6 +474,25 @@ export default {
       const { handleTwitchOauthCallback } = await import('./twitch-oauth.js');
       return handleTwitchOauthCallback(req, env);
     }
+    // Global Boltbound card-art defaults — bulk-set used by the
+    // backfill script. KV-token-gated so the local script can call
+    // without HMAC signing. Same one-shot consumption pattern as
+    // _clay-batch / _rewards-bootstrap. Self-destructs on first hit.
+    if (method === 'POST' && path.startsWith('/admin/_card-art-bulk-set/')) {
+      return handleCardArtBulkSetBootstrap(req, env, path);
+    }
+    // List every global card-art default — used by the run-summary
+    // step + Clay's spot-check. HMAC-gated.
+    if (method === 'GET' && path === '/admin/card-art/list') {
+      return handleCardArtList(req, env);
+    }
+    // Single-card global set/clear — used by /admin card-art remix.
+    if (method === 'POST' && path === '/admin/card-art/set') {
+      return handleCardArtSet(req, env);
+    }
+    if (method === 'POST' && path === '/admin/card-art/clear') {
+      return handleCardArtClear(req, env);
+    }
     // Post or refresh the pinned Games-Menu message in #games
     // (channel defaults to 1507973935973531808 for the Aquilo guild,
     // can be overridden via body {channelId}). Idempotent — uses
@@ -2502,6 +2521,77 @@ async function handleMcWhitelistDailySweep(req, env, path) {
   if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
   const { mcWhitelistDailySweep } = await import('./mc-whitelist.js');
   const r = await mcWhitelistDailySweep(env, guildId);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+}
+
+// ── /admin/_card-art-bulk-set/:token (KV-token, self-destructing) ─
+//
+// Used by tools/backfill-card-art.mjs to write the global-art map for
+// all cards in a single trip. Auth = one-shot KV bootstrap token
+// (`bootstrap-card-art-token`). Self-destructs on first hit; if the
+// run partially fails the operator regenerates a fresh token + retries
+// only the unset cards (default behaviour is skip-already-set unless
+// body opts.force=true).
+//
+// Body (JSON):
+//   { items: [{ cardId, url, searchTerm?, contentLength?, source? }, ...],
+//     force?: boolean }
+//
+// Returns { ok, set, skipped, failed: [...] }.
+async function handleCardArtBulkSetBootstrap(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-bulk-set',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  await env.LOADOUT_BOLTS.delete('bootstrap-card-art-token').catch(() => {});
+
+  let opts = {};
+  const body = await req.text();
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const items = Array.isArray(opts.items) ? opts.items : [];
+  if (!items.length) return jsonResp({ ok: false, error: 'items-required' }, 400);
+  const { bulkSetGlobalArt } = await import('./cards-global-art.js');
+  const r = await bulkSetGlobalArt(env, items, { force: !!opts.force });
+  return jsonResp(r, r.ok ? 200 : 400);
+}
+
+// ── /admin/card-art/list (HMAC, read) ────────────────────────────
+async function handleCardArtList(req, env) {
+  const body = '';
+  const auth = await verifyAdminAuth(req, env, '', body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  const { listAllGlobalArt } = await import('./cards-global-art.js');
+  const map = await listAllGlobalArt(env);
+  return jsonResp({ ok: true, count: Object.keys(map).length, globalArt: map, via: auth.via });
+}
+
+// ── /admin/card-art/set (HMAC) ───────────────────────────────────
+async function handleCardArtSet(req, env) {
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, '', body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const { setGlobalArt } = await import('./cards-global-art.js');
+  const r = await setGlobalArt(env, opts.cardId, opts);
+  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+}
+
+// ── /admin/card-art/clear (HMAC) ─────────────────────────────────
+async function handleCardArtClear(req, env) {
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, '', body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  let opts = {};
+  try { opts = body ? JSON.parse(body) : {}; }
+  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  const { clearGlobalArt } = await import('./cards-global-art.js');
+  const r = await clearGlobalArt(env, opts.cardId);
   return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
 }
 
