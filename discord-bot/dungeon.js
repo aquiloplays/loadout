@@ -30,7 +30,7 @@ import {
 // 700/day. Buying an epic still takes 3-4 peak-streak days; rares
 // arrive within 1 streak day. Pairs with the training cost hike below
 // (10 → 30 bolts/round) so power-grinders can't sidestep the gear loop.
-const SHOP_POOL = [
+export const SHOP_POOL = [
   // slot, rarity, name, glyph, atk, def, gold (price), setName, weaponType, preferredClass, ability
   // ── Common ──
   ['weapon',  'common', 'Wooden Sword',      '🗡',  1, 0,  40, '',         'sword',   'warrior', ''],

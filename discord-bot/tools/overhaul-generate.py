@@ -82,16 +82,26 @@ def load_heroes() -> list[dict]:
 
 
 def load_gear() -> list[dict]:
-    """Load every SHOP_POOL row. Each row becomes one generation."""
+    """Load every SHOP_POOL row. Each row becomes one generation.
+
+    Drops the `glyph` column on the node side — it's emoji and would
+    blow up Python's default cp1252 stdout decoding on Windows. We
+    don't use glyphs in the prompts anyway."""
     here = Path(__file__).resolve().parent.parent
     script = """
       import { SHOP_POOL } from './dungeon.js';
       const SLOTS = ['slot','rarity','name','glyph','atk','def','gold','setName','weaponType','preferredClass','ability'];
-      const out = SHOP_POOL.map(row => Object.fromEntries(SLOTS.map((k, i) => [k, row[i]])));
+      const SKIP = new Set(['glyph']);
+      const out = SHOP_POOL.map(row => {
+        const o = {};
+        SLOTS.forEach((k, i) => { if (!SKIP.has(k)) o[k] = row[i]; });
+        return o;
+      });
       console.log(JSON.stringify(out));
     """
     r = subprocess.run(['node', '--input-type=module', '-e', script],
-                       cwd=here, capture_output=True, text=True, check=True)
+                       cwd=here, capture_output=True, text=True,
+                       encoding='utf-8', errors='replace', check=True)
     return json.loads(r.stdout.strip())
 
 
