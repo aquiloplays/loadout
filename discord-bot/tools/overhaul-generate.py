@@ -331,7 +331,30 @@ def main(argv):
             pred = poll(create_prediction(item['prompt'], item['seed']))
             url = pred['output'][0] if isinstance(pred['output'], list) else pred['output']
             blob = requests.get(url, timeout=60).content
-            out_path.write_bytes(blob)
+            # 2026-05-29 P0 fix — color-key the magenta backdrop to
+            # transparent before saving. Flux Schnell doesn't emit
+            # true alpha even when prompted "transparent background";
+            # the prompts use a magenta backdrop and this step turns
+            # it into the alpha channel. Without it every output has
+            # a baked-in pink background.
+            import io
+            try:
+                from PIL import Image
+                import numpy as np
+                img = Image.open(io.BytesIO(blob)).convert('RGBA')
+                arr = np.array(img)
+                R = arr[..., 0].astype(np.int16)
+                G = arr[..., 1].astype(np.int16)
+                B = arr[..., 2].astype(np.int16)
+                is_bg = (R > 200) & (G < 110) & ((R - G) > 110) & (B > 80)
+                arr[..., 3] = np.where(is_bg, 0, 255).astype(np.uint8)
+                Image.fromarray(arr, 'RGBA').save(out_path, 'PNG', optimize=True)
+            except Exception as e:
+                # If PIL/numpy aren't available, fall back to raw bytes
+                # — better to ship the asset and require manual color-
+                # keying than to fail the whole run.
+                print(f'    color-key skipped ({e}); writing raw bytes')
+                out_path.write_bytes(blob)
             ok += 1
         except Exception as e:
             failed += 1
