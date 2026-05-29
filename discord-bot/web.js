@@ -31,7 +31,7 @@ import {
   plinko, crash,
   quickGamesSnapshot,
 } from './games-quick.js';
-import { getWallet } from './wallet.js';
+import { getWallet, applyVaultDelta } from './wallet.js';
 import { recordStat } from './recap.js';
 import { verifyHmac } from './auth.js';
 import {
@@ -178,6 +178,12 @@ const ROUTES = new Set([
   'shop',
   'shop/buy',
   'dungeon/skip-cooldown',
+  // Hero soft-death revive (2026-05-29). buy-revive purchases a
+  // Revive Elixir into the player's bag for the level-scaled bolts
+  // cost; use-revive consumes one elixir + flips the hero back to
+  // alive at full HP. Lost gear stays lost — see hero-death.js.
+  'dungeon/buy-revive',
+  'dungeon/use-revive',
   'clash/raid',
   'clash/build',
   'clash/garrison',
@@ -434,6 +440,8 @@ export async function handleWeb(req, env) {
     if (route === 'shop')     return await routeShop(env, guildId, discordId);
     if (route === 'shop/buy') return await routeShopBuy(env, guildId, discordId, body);
     if (route === 'dungeon/skip-cooldown') return await routeDungeonSkip(env, guildId, discordId);
+    if (route === 'dungeon/buy-revive')    return await routeDungeonBuyRevive(env, guildId, discordId);
+    if (route === 'dungeon/use-revive')    return await routeDungeonUseRevive(env, guildId, discordId);
     if (route === 'clash/raid')            return await routeClashRaid(env, guildId, discordId, body);
     if (route === 'character/class')       return await routeCharacterClass(env, guildId, discordId, body);
     if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
@@ -899,6 +907,72 @@ async function routeShopBuy(env, guildId, userId, body) {
     item: r.item || null,
     balance: w.balance || 0,
     message: `Bought ${r.item ? r.item.name : 'item'}.`,
+  });
+}
+
+// ── Revive elixir ────────────────────────────────────────────────
+// Buy: charges level-scaled bolts and adds a Revive Elixir to bag.
+// Use: consumes one elixir + flips the hero from dead → alive @ full HP.
+// Two-step (buy then use) is intentional so a player who already owns
+// an elixir can revive without an extra purchase, and so the bag-state
+// matches Clay's spec ("an item the player owns").
+
+async function routeDungeonBuyRevive(env, guildId, userId) {
+  const { loadHero, saveHero, SHOP_ESSENTIALS } = await import('./dungeon.js');
+  const { reviveCost, REVIVE_ITEM_ID } = await import('./hero-death.js');
+  const hero = await loadHero(env, guildId, userId);
+  if (!hero) return json({ ok: false, error: 'no-hero' }, 400);
+  const cost = reviveCost(hero);
+  const wallet = await getWallet(env, guildId, userId);
+  if ((wallet.balance || 0) < cost) {
+    return json({
+      ok: false, error: 'insufficient-bolts',
+      message: `Need ${cost} bolts; you have ${wallet.balance || 0}.`,
+      need: cost, have: wallet.balance || 0,
+    }, 400);
+  }
+  try {
+    await applyVaultDelta(env, guildId, userId, -cost, 'dungeon:buy-revive');
+  } catch (e) {
+    return json({ ok: false, error: 'bolts-debit-failed', detail: String(e?.message || e) }, 500);
+  }
+  // Push a fresh elixir into the bag — the catalogue entry minus the
+  // gameplay-irrelevant description field, matching how other bag items
+  // are stored (see dungeon.js doShopBuy).
+  const tpl = (SHOP_ESSENTIALS || []).find(e => e.id === REVIVE_ITEM_ID);
+  const item = tpl ? {
+    id: tpl.id, slot: tpl.slot, rarity: tpl.rarity, name: tpl.name,
+    glyph: tpl.glyph, goldValue: cost, consumable: true,
+    spriteId: tpl.spriteId,
+  } : { id: REVIVE_ITEM_ID, slot: 'consumable', rarity: 'rare', name: 'Revive Elixir', glyph: '✨', goldValue: cost, consumable: true };
+  hero.bag = Array.isArray(hero.bag) ? hero.bag : [];
+  hero.bag.push(item);
+  await saveHero(env, guildId, userId, hero);
+  const fresh = await getWallet(env, guildId, userId);
+  return json({
+    ok: true,
+    item,
+    balance: fresh.balance || 0,
+    spent: cost,
+    message: `Bought Revive Elixir for ${cost} bolts.`,
+  });
+}
+
+async function routeDungeonUseRevive(env, guildId, userId) {
+  const { useReviveElixir, reviveCost } = await import('./hero-death.js');
+  const r = await useReviveElixir(env, guildId, userId);
+  if (!r.ok) {
+    const message =
+      r.error === 'no-hero'   ? "No hero on record."
+    : r.error === 'not-dead'  ? "Your hero is already alive."
+    : r.error === 'no-elixir' ? `No Revive Elixir in your bag. Buy one for ${r.reviveCost} bolts.`
+    : "Couldn't revive — try again.";
+    return json({ ok: false, error: r.error, message, reviveCost: r.reviveCost }, 400);
+  }
+  return json({
+    ok: true,
+    hero: r.hero,
+    message: 'Hero revived to full HP. Lost gear stays lost.',
   });
 }
 

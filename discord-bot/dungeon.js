@@ -232,6 +232,27 @@ const SHOP_POOL = [
   ['trinket', 'epic', 'Reaver\'s Heart',     '❤',  5, 2, 2460, 'reaver',      '', 'warrior', 'lifesteal']
 ];
 
+// ── Always-available essentials ─────────────────────────────────────
+// These items are NOT part of the daily rotation — they're always
+// available alongside the 12-item rotation so a dead hero can always
+// buy a Revive Elixir regardless of which random gear stock rolled
+// for the day. Surfaced separately by the shop UI ("Essentials"
+// section). Keep this list small; it's for build-blocking consumables
+// only, not gear.
+export const SHOP_ESSENTIALS = [
+  {
+    id: 'consumable.revive-elixir',
+    slot: 'consumable',
+    rarity: 'rare',
+    name: 'Revive Elixir',
+    glyph: '✨',
+    goldValue: 500,          // base cost; level scaling applied at point-of-sale
+    consumable: true,
+    spriteId: 'items/revive-elixir.png',
+    description: 'Restore a fallen hero to full HP. Lost gear stays lost.',
+  },
+];
+
 // ── Daily shop rotation ─────────────────────────────────────────────
 // The Worker picks a deterministic 12-item subset from SHOP_POOL each
 // UTC day and caches it in KV so repeat /loadout shop opens within
@@ -298,7 +319,12 @@ export async function getDailyShop(env, guildId) {
 
   const stock = {
     day: today,
-    items: picks
+    items: picks,
+    // Always-available essentials (revive elixir, etc.) — additive on
+    // top of the daily rotation. Consumers that don't know about this
+    // field will ignore it; new shop UIs render it as a permanent
+    // section. See SHOP_ESSENTIALS comment above for scope.
+    essentials: SHOP_ESSENTIALS,
   };
   // Cache for ~26 hours (slack past midnight) so a request right at
   // the rollover doesn't double-fetch. KV TTL is at-least-once;
@@ -393,7 +419,7 @@ export async function loadHero(env, guild, userId) {
 // which branch produced the hero.
 function _backfillMerged(hero, userId) { return applyLookBackfill(hero, userId); }
 
-async function saveHero(env, guild, userId, hero) {
+export async function saveHero(env, guild, userId, hero) {
   hero.lastUpdatedUtc = new Date().toISOString();
   await env.LOADOUT_BOLTS.put(HERO_KEY(guild, userId), JSON.stringify(hero));
 }
@@ -417,6 +443,13 @@ function newHero() {
     xp: 0,
     hpMax: 25,
     hpCurrent: 25,
+    // Soft-death state (2026-05-29). 'alive' is the default; 'dead' is
+    // set by hero-death.killHero when an expedition kills the hero.
+    // A dead hero blocks new expedition starts and can only be revived
+    // by consuming a Revive Elixir from the shop. See hero-death.js.
+    status: 'alive',
+    diedAt: null,       // ISO timestamp of last death, null when alive
+    deathReason: null,  // e.g. 'expedition', cleared on revive
     bag: [],            // [{id, slot, rarity, name, glyph, powerBonus, defenseBonus, goldValue, setName, spriteId}]
     equipped: {},       // slot -> id
     duelsWon: 0,

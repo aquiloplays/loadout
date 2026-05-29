@@ -38,6 +38,7 @@
 
 import { loadHero, attackOf, defenseOf } from './dungeon.js';
 import { applyVaultDelta, getWallet } from './wallet.js';
+import { killHero, notifyDeathDM, isDead, reviveCost } from './hero-death.js';
 
 // ── Tuning ──────────────────────────────────────────────────────
 
@@ -293,7 +294,10 @@ export async function startExpedition(env, guildId, userId, { hours, backpack = 
     }
   }
 
-  // Infirmary cooldown? Block re-embark for 6h after a death.
+  // Legacy infirmary cooldown — pre-dated the soft-death system.
+  // Still honored so in-flight cooldowns set before the migration
+  // don't surprise the player, but new deaths land in hero.status
+  // instead (see killHero call in claimExpedition).
   const lastDeath = await env.LOADOUT_BOLTS.get(`expedition:infirmary:${guildId}:${userId}`, { type: 'json' });
   if (lastDeath?.until && lastDeath.until > Date.now()) {
     return { ok: false, error: 'infirmary', until: lastDeath.until };
@@ -301,6 +305,14 @@ export async function startExpedition(env, guildId, userId, { hours, backpack = 
 
   const hero = await loadHero(env, guildId, userId);
   if (!hero) return { ok: false, error: 'no-hero' };
+  // Dead hero — block re-embark until revived.
+  if (isDead(hero)) {
+    return {
+      ok: false, error: 'hero-dead',
+      message: 'Your hero is dead. Revive with a Revive Elixir from the shop.',
+      reviveCost: reviveCost(hero),
+    };
+  }
   if ((hero.hpCurrent || 0) < (hero.hpMax || 25) * 0.5) {
     return { ok: false, error: 'hero-too-wounded', message: 'Heal up before embarking — hero is below 50% HP.' };
   }
@@ -401,9 +413,12 @@ export async function claimExpedition(env, guildId, userId) {
     } catch (e) { console.warn('[expedition] pack failed:', e && e.message); }
   }
 
-  // Death consequences. Halve the bolts that landed and stamp the
-  // infirmary cooldown. Equipped gear is untouched — losing kit
-  // would be the rage-inducing version.
+  // Death consequences (2026-05-29 hardened model):
+  //  • Halve the bolts that landed (existing penalty)
+  //  • Flip hero.status to 'dead' + destroy equipped gear (killHero)
+  //  • DM the player with the revive cost
+  // The legacy 6h infirmary cooldown is no longer set — the dead
+  // status is the gate now, and revives are item-based not timer-based.
   if (resolved.died && resolved.rewards.bolts > 0) {
     const lost = Math.floor(resolved.rewards.bolts / 2);
     try { await applyVaultDelta(env, guildId, userId, -lost, `expedition:death:${rec.id}`); }
@@ -411,11 +426,20 @@ export async function claimExpedition(env, guildId, userId) {
     resolved.deathPenaltyBolts = lost;
   }
   if (resolved.died) {
-    await env.LOADOUT_BOLTS.put(
-      `expedition:infirmary:${guildId}:${userId}`,
-      JSON.stringify({ until: Date.now() + INFIRMARY_COOLDOWN_MS, fromExpeditionId: rec.id }),
-      { expirationTtl: Math.ceil(INFIRMARY_COOLDOWN_MS / 1000) + 60 },
-    );
+    try {
+      const killRes = await killHero(env, guildId, userId, { reason: 'expedition' });
+      resolved.killHero = killRes;
+      if (killRes.ok && !killRes.alreadyDead) {
+        // Best-effort DM — failing to notify is not fatal to the claim.
+        const freshHero = await loadHero(env, guildId, userId);
+        if (freshHero) {
+          notifyDeathDM(env, userId, freshHero, killRes.lostEquipped || {})
+            .catch(() => { /* swallow — caller already has the death surfaced in the claim response */ });
+        }
+      }
+    } catch (e) {
+      console.warn('[expedition] killHero failed:', e && e.message);
+    }
   }
 
   // Archive + clear active. claimedUtc was already stamped before
@@ -437,18 +461,22 @@ export async function claimExpedition(env, guildId, userId) {
 
   // Patch the hero's hpCurrent so the in-game stat reflects the
   // beating. Persist via the local hero record only — DLL sync
-  // doesn't track expeditions yet.
-  try {
-    const wallet = await getWallet(env, guildId, userId);
-    const HERO_KEY = `d:hero:${guildId}:${userId}`;
-    const raw = await env.LOADOUT_BOLTS.get(HERO_KEY);
-    if (raw) {
-      const hero = JSON.parse(raw);
-      hero.hpCurrent = Math.max(1, resolved.died ? 1 : resolved.hero.hpCurrent);
-      await env.LOADOUT_BOLTS.put(HERO_KEY, JSON.stringify(hero));
-    }
-    void wallet;
-  } catch { /* non-fatal */ }
+  // doesn't track expeditions yet. On death, killHero (above) has
+  // already set hpCurrent=0 and status='dead'; survivor heroes get
+  // their resolved HP written here.
+  if (!resolved.died) {
+    try {
+      const wallet = await getWallet(env, guildId, userId);
+      const HERO_KEY = `d:hero:${guildId}:${userId}`;
+      const raw = await env.LOADOUT_BOLTS.get(HERO_KEY);
+      if (raw) {
+        const hero = JSON.parse(raw);
+        hero.hpCurrent = Math.max(1, resolved.hero.hpCurrent);
+        await env.LOADOUT_BOLTS.put(HERO_KEY, JSON.stringify(hero));
+      }
+      void wallet;
+    } catch { /* non-fatal */ }
+  }
 
   return { ok: true, expedition: rec, resolved };
 }
