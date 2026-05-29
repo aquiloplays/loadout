@@ -506,6 +506,7 @@ const TOKENS = [
 // across 15 families under the `<family>.<rarity-letter>NNN` ID scheme.
 // Merged here at module load so battle/packs/decks see one catalogue.
 import { EXPANSION_CARDS } from './cards-expansion.js';
+import { SPIRE_LEGENDARIES, SPIRE_TOKENS } from './spire-cards.js';
 
 const RAW_ROSTER = [
   ...Object.values(CHAMPIONS_RAW),
@@ -516,6 +517,9 @@ const RAW_ROSTER = [
   ...COMMONS.map(c => ({ ...c, rarity: 'common' })),
   ...TOKENS.map(c => ({ ...c, rarity: 'token' })),
   ...EXPANSION_CARDS,
+  // Spire seasonal exclusives — legendary minions granted via boss-clear.
+  ...SPIRE_LEGENDARIES.map(c => ({ ...c, rarity: 'legendary' })),
+  ...SPIRE_TOKENS.map(c => ({ ...c, rarity: 'token' })),
 ];
 
 export const CARDS = Object.fromEntries(
