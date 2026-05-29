@@ -49,7 +49,7 @@ PREFIX_TO_CATEGORY = {
     'pet':   'pet',
 }
 
-FNAME_RE = re.compile(r'^([a-z]+(?:__[a-z0-9.\-]+)+)\.png$')
+FNAME_RE = re.compile(r'^([a-z]+(?:__[A-Za-z0-9.\-]+)+)\.png$')
 
 
 def filename_to_kv_path(fname: str) -> tuple[str, list[str]] | None:
@@ -76,10 +76,16 @@ def asset_url(category: str, segments: list[str]) -> str:
 def wrangler_bulk_put(json_path: Path) -> None:
     cmd = (f'npx wrangler kv bulk put "{json_path}" '
            f'--binding {KV_NS_BIND} --remote')
-    res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    # encoding/errors are required on Windows — wrangler's stdout
+    # carries occasional non-cp1252 bytes (progress glyphs) and the
+    # subprocess reader thread crashes mid-upload otherwise. This is
+    # the same bug that bit the v9 + Phase 3 path; pinning UTF-8 +
+    # replace fixes both directions.
+    res = subprocess.run(cmd, shell=True, capture_output=True, text=True,
+                         encoding='utf-8', errors='replace')
     if res.returncode != 0:
-        print('STDOUT:', res.stdout[-500:])
-        print('STDERR:', res.stderr[-500:])
+        print('STDOUT:', (res.stdout or '')[-500:])
+        print('STDERR:', (res.stderr or '')[-500:])
         raise RuntimeError(f'wrangler bulk put failed: {res.returncode}')
     tail = (res.stdout or res.stderr).strip().splitlines()[-2:]
     for line in tail:

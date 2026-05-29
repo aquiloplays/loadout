@@ -2113,8 +2113,8 @@ async function handleCardArtAsset(req, env, path) {
 // shell injection / wide-open lookups. We allow lowercase alpha-
 // numeric + period + hyphen — enough for `champ.warrior`, `level-3`,
 // etc., but no slashes/dots/dot-dot.
-const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art)\/([a-z0-9][a-z0-9.\-\/]*?)(?:\.png)?$/;
-const PIXEL_ART_SEG_RE   = /^[a-z0-9][a-z0-9.\-]*$/;
+const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
+const PIXEL_ART_SEG_RE   = /^[A-Za-z0-9][A-Za-z0-9.\-]*$/;
 const PIXEL_ART_CATEGORY = {
   'hero-art':  'hero',
   'gear-art':  'gear',
