@@ -39,6 +39,10 @@ const ALLOWED_HOSTS = new Set([
   'media.discordapp.net',
   'cdn.discordapp.com',
   'aquilo.gg',
+  // 2026-05-29: worker self-hosts pixel-art card assets at
+  // /asset/card-art/<cardId>.png (KV-backed). global-card-art records
+  // for the v9 pixel-art rollout point at this origin.
+  'loadout-discord.aquiloplays.workers.dev',
 ]);
 
 export function isHostAllowed(urlStr) {
