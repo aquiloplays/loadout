@@ -2601,7 +2601,11 @@ async function handleMcHowtoBootstrap(req, env, path) {
 function buildMcHowtoMessage(opts = {}) {
   const PATREON_URL  = 'https://www.patreon.com/cw/aquilo/membership';
   const BEDROCK_URL  = 'https://www.youtube.com/watch?v=xHLHKuM1lRo';
-  const BOT_DM_URL   = 'https://discord.com/channels/@me/1503469848225775686';
+  // /channels/@me/<botId> only resolves if a DM channel already exists
+  // — first-time users get a 404 or blank screen. /users/<botId> opens
+  // the bot's profile (works on desktop + mobile) which has a
+  // Send Message button that mints the DM channel on click.
+  const BOT_DM_URL   = 'https://discord.com/users/1503469848225775686';
   const PATREON_ROLE = '1507973875659706529';
   const MC_BOT_USER  = '1503469848225775686';
   const AURORA_GREEN = 0x5BFF95;
