@@ -198,16 +198,21 @@ async function applyUnlockSideEffects(env, userId, ach) {
     });
   } catch { /* non-fatal */ }
 
-  // Push notification — reuse the Clash push gateway. The Clash push
-  // notify mask doesn't include an achievement bit yet (we add one in
-  // a follow-up), so for now route to a generic-notification channel.
+  // Push notification — uses the dedicated pushAchievementUnlocked
+  // helper so the PWA sees kind='achievement.unlocked' with the right
+  // title + body. Previously this called pushBuildComplete (a hack
+  // when the achievement push helper didn't exist yet), which sent
+  // kind='clash.build.complete' and a hardcoded body "Your troop
+  // training finished." — that body string is exactly what Clay saw
+  // under the wrong header on 2026-05-29. Both symptoms gone now.
   try {
-    const { pushBuildComplete } = await import('../clash-push.js');
-    if (pushBuildComplete) {
-      await pushBuildComplete(env, {
+    const { pushAchievementUnlocked } = await import('../clash-push.js');
+    if (pushAchievementUnlocked) {
+      await pushAchievementUnlocked(env, {
         userId,
-        kind: 'achievement',
-        name: `Achievement: ${ach.title}`,
+        achTitle: ach.title,
+        achDescription: ach.description,
+        rarity: ach.rarity,
       });
     }
   } catch { /* non-fatal */ }

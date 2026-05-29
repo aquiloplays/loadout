@@ -55,6 +55,8 @@ import { simulate, computeLoot, computeTrophyDelta } from './clash-raid.js';
 import {
   pushRaidIncoming, pushRaidDefended, pushRaidSacked, pushRaidResult,
   pushBuildComplete,
+  pushTroopTrained,
+  pushGatherComplete,
   pushWarDeclared, pushWarAccepted, pushWarRefused, pushWarCancelled, pushWarEnded,
 } from './clash-push.js';
 import {
@@ -93,10 +95,11 @@ async function syncCooldowns(env, guildId, userId) {
       // gates whether it actually fires.
       for (const c of completed) {
         try {
-          await pushBuildComplete(env, {
+          await pushGatherComplete(env, {
             guildId, userId,
-            kind: 'personal',
-            name: `Gathered ${c.yield} ${c.resource} (${c.tier})`,
+            resource: c.resource,
+            yield: c.yield,
+            tier: c.tier,
           });
         } catch { /* push failures shouldn't break the menu */ }
       }
@@ -207,10 +210,10 @@ async function syncCooldowns(env, guildId, userId) {
     for (const item of personalDone) {
       if (item.kind === 'trainPersonal' && item.target?.troopId) {
         await addTroops(env, guildId, userId, item.target.troopId, item.target.count);
-        await pushBuildComplete(env, {
+        await pushTroopTrained(env, {
           guildId, userId,
-          kind: 'personal',
-          name: `${item.target.count}× ${TROOPS_PERSONAL[item.target.troopId]?.name || item.target.troopId}`,
+          count: item.target.count,
+          troopName: TROOPS_PERSONAL[item.target.troopId]?.name || item.target.troopId,
         });
       }
     }

@@ -199,6 +199,58 @@ export const pushBuildComplete = (env, { guildId, userId, kind, name }) =>
     guildId,
   });
 
+// Personal troop training finished — distinct from a town build so the
+// PWA can route to the right surface and render the right title/body.
+// 2026-05-29 fix: previously this routed through pushBuildComplete,
+// which sends kind='clash.build.complete' and a generic body. The site
+// couldn't discriminate, so its title classifier was falling back to
+// the wrong header.
+export const pushTroopTrained = (env, { guildId, userId, count, troopName }) =>
+  firePush(env, {
+    kind: 'clash.troops-trained',
+    title: 'Training complete',
+    body: count && troopName
+      ? `Your ${count}× ${troopName} finished training.`
+      : 'Your troops finished training.',
+    url: 'https://aquilo.gg/clash/town/' + (guildId || '') + '/',
+    audience: userId ? { kind: 'user', userId } : { kind: 'town', guildId },
+    guildId,
+  });
+
+// Gather task finished — also distinct so the PWA can show a resource
+// icon instead of a building icon. Previously also misrouted through
+// pushBuildComplete with kind='personal'.
+export const pushGatherComplete = (env, { guildId, userId, resource, yield: amount, tier }) =>
+  firePush(env, {
+    kind: 'clash.gather.complete',
+    title: 'Gather complete',
+    body: resource && amount
+      ? `Gathered ${amount} ${resource}${tier ? ` (${tier})` : ''}.`
+      : 'A gather task finished.',
+    url: 'https://aquilo.gg/clash/town/' + (guildId || '') + '/',
+    audience: userId ? { kind: 'user', userId } : { kind: 'town', guildId },
+    guildId,
+  });
+
+// Achievement unlocked — distinct kind so the site renders its own
+// "Achievement unlocked" header + trophy icon instead of falling
+// through whatever generic notification template it lands on.
+// 2026-05-29 fix: previously this routed through pushBuildComplete,
+// which (a) sent the wrong kind and (b) the body landed on the
+// non-town else branch — "Your troop training finished." — when an
+// achievement unlocked. Both symptoms in Clay's bug report.
+export const pushAchievementUnlocked = (env, { userId, achTitle, achDescription, rarity }) =>
+  firePush(env, {
+    kind: 'achievement.unlocked',
+    title: 'Achievement unlocked',
+    body: achDescription
+      ? `${achTitle} — ${achDescription}`
+      : (achTitle || 'You earned a new achievement.'),
+    url: 'https://aquilo.gg/profile/',
+    audience: { kind: 'user', userId },
+    rarity: rarity || null,
+  });
+
 export const pushShieldExpiring = (env, { guildId, townName, minutesLeft }) =>
   firePush(env, {
     kind: 'clash.shield.expiring',
