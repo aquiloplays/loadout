@@ -184,6 +184,19 @@ const ROUTES = new Set([
   // alive at full HP. Lost gear stays lost — see hero-death.js.
   'dungeon/buy-revive',
   'dungeon/use-revive',
+  // Banners + Banner Wars (2026-05-29). 5-25 player alliances + weekly
+  // bracketed war state. Site UI was scaffolded with greyed-out
+  // buttons; these endpoints light up the flow. See banners.js +
+  // banner-wars.js.
+  'play/banner/me',
+  'play/banner/browse',
+  'play/banner/create',
+  'play/banner/join',
+  'play/banner/leave',
+  'play/banner/kick',
+  'play/war/active',
+  'play/war/declare',
+  'play/war/raid',
   'clash/raid',
   'clash/build',
   'clash/garrison',
@@ -471,6 +484,15 @@ export async function handleWeb(req, env) {
     if (route === 'play/spire/run/abandon') return await routeSpireRunAbandon(env, guildId, discordId);
     if (route === 'play/spire/run/floor')   return await routeSpireRunFloor(env, discordId, body);
     if (route === 'play/spire/leaderboard') return await routeSpireLeaderboard(env, body);
+    if (route === 'play/banner/me')        return await routeBannerMe(env, guildId, discordId);
+    if (route === 'play/banner/browse')    return await routeBannerBrowse(env, guildId, body);
+    if (route === 'play/banner/create')    return await routeBannerCreate(env, guildId, discordId, body);
+    if (route === 'play/banner/join')      return await routeBannerJoin(env, guildId, discordId, body);
+    if (route === 'play/banner/leave')     return await routeBannerLeave(env, guildId, discordId);
+    if (route === 'play/banner/kick')      return await routeBannerKick(env, guildId, discordId, body);
+    if (route === 'play/war/active')       return await routeWarActive(env, guildId, discordId);
+    if (route === 'play/war/declare')      return await routeWarDeclare(env, guildId, discordId, body);
+    if (route === 'play/war/raid')         return await routeWarRaid(env, guildId, discordId, body);
     if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
@@ -2404,6 +2426,63 @@ async function routeSpireLeaderboard(env, body) {
   const { getLeaderboard } = await import('./spire.js');
   const r = await getLeaderboard(env, { limit: body?.limit });
   return json({ ok: true, leaderboard: r });
+}
+
+// ── Banners + Banner Wars (2026-05-29) ────────────────────────────
+//
+// MVP backend behind the site-side scaffolded UI. Thin web wrappers
+// over banners.js + banner-wars.js — the heavy logic stays in the
+// modules so a future Discord-slash front-end can reuse it.
+
+async function routeBannerMe(env, guildId, userId) {
+  const { getMyBanner } = await import('./banners.js');
+  return json(await getMyBanner(env, guildId, userId));
+}
+
+async function routeBannerBrowse(env, guildId, body) {
+  const { browseBanners } = await import('./banners.js');
+  return json(await browseBanners(env, guildId, { limit: body?.limit }));
+}
+
+async function routeBannerCreate(env, guildId, userId, body) {
+  const { createBanner } = await import('./banners.js');
+  const r = await createBanner(env, guildId, userId, body || {});
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeBannerJoin(env, guildId, userId, body) {
+  const { joinBanner } = await import('./banners.js');
+  const r = await joinBanner(env, guildId, userId, body || {});
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeBannerLeave(env, guildId, userId) {
+  const { leaveBanner } = await import('./banners.js');
+  const r = await leaveBanner(env, guildId, userId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeBannerKick(env, guildId, userId, body) {
+  const { kickFromBanner } = await import('./banners.js');
+  const r = await kickFromBanner(env, guildId, userId, body || {});
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeWarActive(env, guildId, userId) {
+  const { getActiveWar } = await import('./banner-wars.js');
+  return json(await getActiveWar(env, guildId, userId));
+}
+
+async function routeWarDeclare(env, guildId, userId, body) {
+  const { declareWar } = await import('./banner-wars.js');
+  const r = await declareWar(env, guildId, userId, body || {});
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeWarRaid(env, guildId, userId, body) {
+  const { recordRaid } = await import('./banner-wars.js');
+  const r = await recordRaid(env, guildId, userId, body || {});
+  return json(r, r.ok ? 200 : 400);
 }
 
 // /web/cards/suggest-art-terms — given a cardId, return suggested
