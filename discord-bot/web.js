@@ -247,6 +247,14 @@ const ROUTES = new Set([
   'cards/skin',              // POST — { cardId, gifUrl } → set the user's skin
   'cards/skin/clear',        // POST — { cardId }         → clear it
   'cards/skins',             // POST — {}                 → { skins: { cardId: url } }
+  // Seasonal Spire (Boltbound solo roguelike). Spec: discord-bot/spire.js.
+  'play/spire/season',       // POST — current month's theme + reward preview + countdown
+  'play/spire/run/me',       // POST — active run state (or { active: null })
+  'play/spire/run/start',    // POST — start a new run (snapshots active deck)
+  'play/spire/run/result',   // POST — { floor, won } record floor outcome
+  'play/spire/run/abandon',  // POST — abandon active run
+  'play/spire/run/floor',    // POST — { floor } returns the NPC + decks for that floor's match
+  'play/spire/leaderboard',  // POST — { limit? } monthly clears + total clear count
   // New-viewer funnel — referrals + onboarding quest.
   'referral/me',             // POST — my code + stats
   'referral/attribute',      // POST — record that this user was referred by CODE
@@ -448,6 +456,13 @@ export async function handleWeb(req, env) {
     if (route === 'cards/skin')            return await routeCardsSkinSet(env, guildId, discordId, body);
     if (route === 'cards/skin/clear')      return await routeCardsSkinClear(env, guildId, discordId, body);
     if (route === 'cards/skins')           return await routeCardsSkinList(env, guildId, discordId);
+    if (route === 'play/spire/season')      return await routeSpireSeason(env);
+    if (route === 'play/spire/run/me')      return await routeSpireRunMe(env, discordId);
+    if (route === 'play/spire/run/start')   return await routeSpireRunStart(env, guildId, discordId);
+    if (route === 'play/spire/run/result')  return await routeSpireRunResult(env, guildId, discordId, body);
+    if (route === 'play/spire/run/abandon') return await routeSpireRunAbandon(env, guildId, discordId);
+    if (route === 'play/spire/run/floor')   return await routeSpireRunFloor(env, discordId, body);
+    if (route === 'play/spire/leaderboard') return await routeSpireLeaderboard(env, body);
     if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
@@ -2255,6 +2270,66 @@ async function routeCardsSkinList(env, guildId, discordId) {
     if (o.cardId && o.memeGifUrl) skins[o.cardId] = o.memeGifUrl;
   }
   return json({ ok: true, skins });
+}
+
+// ── Seasonal Spire — thin wrappers over spire.js helpers ──────────
+
+async function routeSpireSeason(env) {
+  const { getSeasonView } = await import('./spire.js');
+  const view = await getSeasonView(env);
+  return json({ ok: true, season: view });
+}
+
+async function routeSpireRunMe(env, discordId) {
+  const { getRunView } = await import('./spire.js');
+  const view = await getRunView(env, discordId);
+  return json({ ok: true, run: view });
+}
+
+async function routeSpireRunStart(env, guildId, discordId) {
+  const { startRun } = await import('./spire.js');
+  const r = await startRun(env, guildId, discordId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeSpireRunResult(env, guildId, discordId, body) {
+  const floor = parseInt(body?.floor, 10);
+  if (!Number.isFinite(floor) || floor < 1 || floor > 10) {
+    return json({ ok: false, error: 'bad-floor' }, 400);
+  }
+  const { recordResult } = await import('./spire.js');
+  const r = await recordResult(env, guildId, discordId, {
+    floor,
+    won:           !!body?.won,
+    finalSnapshot: body?.finalSnapshot || null,
+  });
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeSpireRunAbandon(env, guildId, discordId) {
+  const { abandonRun } = await import('./spire.js');
+  const r = await abandonRun(env, guildId, discordId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeSpireRunFloor(env, discordId, body) {
+  const floor = parseInt(body?.floor, 10);
+  if (!Number.isFinite(floor)) return json({ ok: false, error: 'bad-floor' }, 400);
+  const { getActiveRun, currentSeason, buildSpireFloorMatch } = await import('./spire.js');
+  const season = await currentSeason(env);
+  const run    = await getActiveRun(env, discordId, season.id);
+  if (!run) return json({ ok: false, error: 'no-active-run' }, 400);
+  if (floor !== run.current_floor) {
+    return json({ ok: false, error: 'floor-mismatch', expected: run.current_floor }, 400);
+  }
+  const view = await buildSpireFloorMatch(env, discordId, run);
+  return json({ ok: true, floorMatch: view });
+}
+
+async function routeSpireLeaderboard(env, body) {
+  const { getLeaderboard } = await import('./spire.js');
+  const r = await getLeaderboard(env, { limit: body?.limit });
+  return json({ ok: true, leaderboard: r });
 }
 
 // /web/cards/suggest-art-terms — given a cardId, return suggested

@@ -57,6 +57,10 @@ const BINDING_KEYS = Object.freeze([
   // who earned what. Distinct from `stream-notifications` (the
   // event embed itself) — these are the *reward* posts.
   'twitch-rewards-feed',
+  // Seasonal Spire clear feed — milestone floor 5/9/boss embeds posted
+  // here when a player clears. Falls back to twitch-rewards-feed
+  // (the #rewards channel) if unbound, which is the natural overflow.
+  'spire-clears',
 ]);
 
 // Source-of-truth mapping from binding key → fallback env var name.
@@ -87,6 +91,7 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   'live-now':             null,
   'redemptions-feed':     null,
   'twitch-rewards-feed':  null,
+  'spire-clears':         null,
 });
 
 const BINDING_KEY = (g, k) => `channel-binding:${g}:${k}`;

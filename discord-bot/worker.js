@@ -1212,6 +1212,18 @@ export default {
             console.warn('[cron] support-tickets auto-close', e?.message || e);
           }
         })());
+        // Seasonal Spire monthly rotation. Piggybacked on :23; the
+        // helper is gated by a `spire:rotate:last-month` KV marker so
+        // re-running mid-month is a no-op. Logs the rotation outcome.
+        ctx.waitUntil((async () => {
+          try {
+            const { rotateSeasonIfNeeded } = await import('./spire.js');
+            const r = await rotateSeasonIfNeeded(env);
+            if (r?.rotated) console.log('[cron] spire rotate', JSON.stringify(r));
+          } catch (e) {
+            console.warn('[cron] spire rotate', e?.message || e);
+          }
+        })());
         // Unified vote-hub phase transitions — runs hourly, re-renders
         // the hub embed on phase change. See vote-hub.js.
         const guildIdForVoteHub = env.AQUILO_VAULT_GUILD_ID;
