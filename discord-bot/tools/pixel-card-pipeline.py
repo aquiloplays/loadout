@@ -33,11 +33,12 @@ from PIL import Image, ImageDraw, ImageFont
 # Config
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parent.parent
-OUT  = Path('/tmp/boltbound-pixel-cards')
+OUT  = Path('/tmp/boltbound-pixel-cards-v2')
 OUT.mkdir(exist_ok=True, parents=True)
 (OUT / '_art').mkdir(exist_ok=True)
 STATE_PATH = OUT / '_state.json'
-FRAMES_DIR = Path('/tmp/boltbound-pixel-frames')   # output of pixel-frame-generator.py
+FRAMES_DIR = Path('/tmp/boltbound-pixel-frames-v2')
+FONTS_DIR  = Path(__file__).resolve().parent / 'fonts'
 
 # Map every rarity in the catalogue to one of the 5 frames we generated.
 # champion + token use the legendary frame (visually distinctive). epic
@@ -55,9 +56,11 @@ RARITY_TO_FRAME = {
 REPLICATE_TOKEN = os.environ.get('REPLICATE_API_TOKEN')
 MODEL_URL = 'https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions'
 
-CARD_PX = 768                # final composite size (square)
-ART_PX  = 1024               # AI art generation size
+CARD_W  = 720                # final card width (5:7 TCG ratio)
+CARD_H  = 1008               # final card height
+ART_PX  = 1024               # AI art generation size (we'll crop)
 PACING_S = 14                # between Replicate calls — within rate limit
+CARD_PX = CARD_W             # kept for any legacy reference (square assumption)
 
 # Aurora palette.
 COLOR_FRAME_OUTER  = (155, 108, 255, 255)   # violet
@@ -107,35 +110,75 @@ def short_effect(card: dict[str, Any]) -> str:
         return f'a {kws} minion'
     return f'a {card.get("type") or "card"}'
 
+def thematic_background(card: dict[str, Any]) -> str:
+    """Pick a contextual background from card.id family + name keywords.
+    Boltbound has rough thematic families embedded in the id prefix
+    (fire.*, storm.*, undead.*, frost.*, etc) plus seasonal Spire cards
+    (spire.s01-s12). Falls back to a generic dark gradient when nothing
+    matches, so EVERY card gets SOME background."""
+    cid  = (card.get('id')   or '').lower()
+    name = (card.get('name') or '').lower()
+    text = (card.get('text') or '').lower()
+    hay  = cid + ' ' + name + ' ' + text
+
+    if any(w in hay for w in ('fire', 'ember', 'flame', 'pyre', 'cinder', 'lava', 'magma', 'volcanic')):
+        return 'pixel-art volcanic cavern with glowing lava streams and ember particles'
+    if any(w in hay for w in ('frost', 'ice', 'glacier', 'snow', 'rime', 'permafrost', 'winter', 'sleet')):
+        return 'pixel-art frozen glacier cave with hanging icicles and snow drifts'
+    if any(w in hay for w in ('storm', 'lightning', 'thunder', 'bolt', 'tempest', 'volt')):
+        return 'pixel-art stormy mountain peak at night with crackling lightning'
+    if any(w in hay for w in ('undead', 'bone', 'crypt', 'tomb', 'reaper', 'lich', 'skull', 'reliquary')):
+        return 'pixel-art shadowy crypt with cracked tombstones and faint green torchlight'
+    if any(w in hay for w in ('verdant', 'root', 'grove', 'briar', 'thorn', 'forest', 'leaf')):
+        return 'pixel-art mossy forest grove with rays of light through canopy'
+    if any(w in hay for w in ('sand', 'dune', 'desert', 'bazaar', 'sphinx', 'oasis')):
+        return 'pixel-art desert dune sunset with sandstone ruins silhouette'
+    if any(w in hay for w in ('star', 'cosmos', 'astral', 'nebula', 'celestial', 'aurora')):
+        return 'pixel-art cosmic starfield with violet and aurora-pink nebula swirls'
+    if any(w in hay for w in ('mirror', 'echo', 'twin', 'shimmer', 'glass')):
+        return 'pixel-art hall of mirrors with crystalline reflections'
+    if any(w in hay for w in ('vampire', 'crimson', 'velvet', 'blood', 'fang', 'catacomb')):
+        return 'pixel-art gothic catacomb with crimson banners and candle light'
+    if any(w in hay for w in ('gear', 'cog', 'forge', 'automaton', 'piston', 'clockwork', 'mech')):
+        return 'pixel-art clockwork foundry interior with gears and steam'
+    if any(w in hay for w in ('dragon', 'wyrm', 'drake')):
+        return 'pixel-art dragon lair cavern with treasure piles and dim torch glow'
+    if any(w in hay for w in ('tide', 'depth', 'kraken', 'coral', 'siren', 'drown', 'ocean')):
+        return 'pixel-art sunken underwater temple with bioluminescent algae'
+    # Default — moody arena suitable for any minion/champion.
+    return 'pixel-art dark arena floor with subtle violet glow and aurora particle dust'
+
 def art_prompt(card: dict[str, Any]) -> str:
     name = card['name']
     eff  = short_effect(card)
     t    = card.get('type') or 'minion'
+    bg   = thematic_background(card)
     if t == 'spell':
         return (
-            f"16-bit retro pixel art magical effect representing {name}, "
-            f"a spell that {eff}. Classic SNES JRPG spell-effect style. "
-            "Vibrant 16-color palette with violet and aurora-pink. Glowing "
-            "particles, runic shapes, energy bolts as appropriate. Crisp "
-            "pixel edges. Solid black background. No characters, just the "
-            "effect visualization. No text in image, no UI elements."
+            f"16-bit retro pixel art magical spell effect representing {name}, "
+            f"a spell that {eff}. The effect is centered against a {bg} background. "
+            "Classic SNES JRPG spell-effect style. Vibrant 16-color palette with "
+            "violet and aurora-pink. Glowing particles, runic shapes, energy bolts "
+            "as appropriate. Crisp pixel edges. No characters, just the effect over "
+            "the background. No text in image, no UI elements, no card frame, fill "
+            "the whole canvas."
         )
     if t == 'champion':
         return (
             f"16-bit retro pixel art ornate character sprite of {name}, a "
-            f"legendary champion who {eff}. Classic SNES Final Fantasy VI "
-            "hero-sprite style. Vibrant 16-color palette with violet, "
-            "aurora-pink, and gold trim. Crisp pixel edges, dynamic action "
-            "pose, glowing accent details. Solid black background. Isolated "
-            "subject, centered. No text in image, no UI elements."
+            f"legendary champion who {eff}, standing in front of a {bg} background. "
+            "Classic SNES Final Fantasy VI hero-sprite style. Vibrant 16-color "
+            "palette with violet, aurora-pink, and gold trim on the character. "
+            "Crisp pixel edges, dynamic action pose, glowing accent details. "
+            "Centered character, no card frame, no text, fill the whole canvas."
         )
     return (
-        f"16-bit retro pixel art character sprite of {name}, a {eff} minion. "
-        "Classic SNES Final Fantasy VI / Chrono Trigger battle-sprite style. "
-        "Vibrant 16-color palette with violet and aurora-pink accents. Crisp "
-        "pixel edges, dithering shadows, idle action stance. Solid black "
-        "background. Isolated subject, centered. No text in image, no UI "
-        "elements."
+        f"16-bit retro pixel art character sprite of {name}, a {eff} minion, "
+        f"standing in front of a {bg} background. Classic SNES Final Fantasy VI "
+        "/ Chrono Trigger battle-sprite style. Vibrant 16-color palette with "
+        "violet and aurora-pink accents on the character. Crisp pixel edges, "
+        "dithering shadows, idle action stance. Centered character, no card "
+        "frame, no text, fill the whole canvas."
     )
 
 # ---------------------------------------------------------------------------
@@ -185,17 +228,31 @@ def generate_art(card: dict[str, Any]) -> bytes:
 # ---------------------------------------------------------------------------
 # Frame + text overlay
 # ---------------------------------------------------------------------------
-def _font(size: int, bold: bool = True) -> ImageFont.ImageFont:
-    candidates = []
-    if sys.platform == 'win32':
-        candidates += [
-            'C:/Windows/Fonts/arialbd.ttf' if bold else 'C:/Windows/Fonts/arial.ttf',
-            'C:/Windows/Fonts/segoeuib.ttf' if bold else 'C:/Windows/Fonts/segoeui.ttf',
-        ]
-    for c in candidates:
-        try: return ImageFont.truetype(c, size)
+def _font(size: int, style: str = 'header') -> ImageFont.ImageFont:
+    """style='header' → Press Start 2P (chunky pixel headlines).
+       style='body'   → VT323 (slim pixel body text)."""
+    name = 'PressStart2P-Regular.ttf' if style == 'header' else 'VT323-Regular.ttf'
+    path = FONTS_DIR / name
+    if path.exists():
+        try: return ImageFont.truetype(str(path), size)
         except OSError: pass
+    # Fallback to system fonts only if the bundled pixel fonts are missing.
     return ImageFont.load_default()
+
+def _wrap_text(draw: ImageDraw.ImageDraw, text: str, font, max_w: int) -> list[str]:
+    """Greedy word-wrap for pixel-art lore boxes."""
+    if not text: return []
+    words = text.split()
+    lines, cur = [], ''
+    for w in words:
+        trial = (cur + ' ' + w).strip()
+        if draw.textlength(trial, font=font) <= max_w:
+            cur = trial
+        else:
+            if cur: lines.append(cur)
+            cur = w
+    if cur: lines.append(cur)
+    return lines
 
 def _pixel_border(im: Image.Image, draw: ImageDraw.ImageDraw, w: int):
     """Chunky pixel border, 4 layers — outer violet → pink → dark → pink."""
@@ -212,91 +269,126 @@ def _pixel_border(im: Image.Image, draw: ImageDraw.ImageDraw, w: int):
         )
 
 def _load_frame(rarity: str) -> Image.Image:
-    """Load the AI-generated pixel frame for the matching rarity."""
+    """Load the AI-generated pixel frame for the matching rarity, resized
+    to CARD_W x CARD_H (portrait)."""
     name = RARITY_TO_FRAME.get(rarity, 'common')
     path = FRAMES_DIR / f'frame-{name}-clean.png'
     if not path.exists():
-        # First run before frames exist — fall through to a magenta tinted
-        # transparent overlay so the composite still produces something.
-        f = Image.new('RGBA', (CARD_PX, CARD_PX), (0, 0, 0, 0))
-        return f
-    return Image.open(path).convert('RGBA').resize((CARD_PX, CARD_PX), Image.NEAREST)
+        return Image.new('RGBA', (CARD_W, CARD_H), (0, 0, 0, 0))
+    return Image.open(path).convert('RGBA').resize((CARD_W, CARD_H), Image.NEAREST)
 
 def _build_card_frame(art_img: Image.Image, card: dict[str, Any]) -> Image.Image:
-    """Build a single static finished card with AI frame + character art + text."""
-    canvas = Image.new('RGBA', (CARD_PX, CARD_PX), COLOR_FRAME_DARK)
-    # Inner art slot — match the frame's central transparent area
-    # (pixel-frame-generator.py keys out the center 70%, so inset 15% here).
-    inset = int(CARD_PX * 0.15)
-    inner = CARD_PX - 2 * inset
-    art = art_img.resize((inner, inner), Image.NEAREST)
-    canvas.paste(art, (inset, inset), art)
+    """Build a single finished card for the portrait (5:7) frame v2.
+    Layout slots match pixel-frame-generator-v2.py's baked positions:
+      - mana gem socket: top-left circle (text inside)
+      - type slot: top-right small banner
+      - character art: center cutout
+      - name banner: lower-middle pixel ribbon
+      - lore panel: bottom 1/5
+    """
+    canvas = Image.new('RGBA', (CARD_W, CARD_H), COLOR_FRAME_DARK)
 
-    # Paste the AI-generated frame on top — its transparent center reveals
-    # the art we just placed.
+    # Center cutout matches the v2 frame generator's hard cut:
+    #   horizontal: 62% width centered → margin (1-0.62)/2 = 19%
+    #   vertical:   42% height starting at y = 15%
+    art_w = int(CARD_W * 0.62)
+    art_h = int(CARD_H * 0.42)
+    art_x = (CARD_W - art_w) // 2
+    art_y = int(CARD_H * 0.15)
+
+    # Crop+resize the AI art to fill the slot. Schnell renders at 1:1 or
+    # 2:3; either way center-crop to the slot's aspect, then NEAREST-
+    # resize to preserve the pixel feel.
+    src = art_img.convert('RGBA')
+    sw, sh = src.size
+    target_ratio = art_w / art_h
+    src_ratio    = sw / sh
+    if src_ratio > target_ratio:
+        # source is wider — crop sides
+        new_w = int(sh * target_ratio)
+        x0 = (sw - new_w) // 2
+        src = src.crop((x0, 0, x0 + new_w, sh))
+    else:
+        new_h = int(sw / target_ratio)
+        y0 = (sh - new_h) // 2
+        src = src.crop((0, y0, sw, y0 + new_h))
+    art = src.resize((art_w, art_h), Image.NEAREST)
+    canvas.paste(art, (art_x, art_y), art)
+
+    # AI frame on top — its baked-in transparent center reveals the art.
     frame = _load_frame(card.get('rarity') or 'common')
     canvas.paste(frame, (0, 0), frame)
 
     draw = ImageDraw.Draw(canvas)
 
-    # Mana gem — top-left.
-    gx, gy, gr = 60, 60, 36
-    draw.ellipse([gx - gr, gy - gr, gx + gr, gy + gr],
-                 fill=COLOR_GEM_VIOLET, outline=COLOR_GEM_GOLD, width=3)
-    mana_font = _font(40)
+    # Mana cost — written inside the baked gem socket (top-left corner).
+    # The AI frame puts an empty circular socket there; we just stamp text.
     mana = str(card.get('mana') or '0')
-    bbox = draw.textbbox((0, 0), mana, font=mana_font)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    draw.text((gx - tw / 2, gy - th / 2 - 4), mana,
-              font=mana_font, fill=COLOR_TEXT_LIGHT)
+    mana_font = _font(28, 'header')
+    mx, my = int(CARD_W * 0.10), int(CARD_H * 0.067)
+    tw, th = draw.textbbox((0, 0), mana, font=mana_font)[2:]
+    draw.text((mx - tw / 2, my - th / 2),
+              mana, font=mana_font, fill=COLOR_TEXT_LIGHT,
+              stroke_width=2, stroke_fill=(0, 0, 0, 255))
 
-    # Name banner — full-width strip near top under the gem.
-    banner_y = CARD_PX - 180
-    draw.rectangle([24, banner_y, CARD_PX - 24, banner_y + 60],
-                   fill=(24, 16, 48, 230), outline=COLOR_FRAME_INNER, width=3)
-    name_font = _font(28)
+    # Type label — written inside the baked banner slot (top-right).
+    tlabel = (card.get('type') or '').upper()[:4]   # short: CHAMP / MIN / SPELL → SPEL
+    tlabel = {'CHAM': 'CHMP', 'MINI': 'MIN', 'SPEL': 'SPL'}.get(tlabel, tlabel)
+    tf = _font(13, 'header')
+    tw2, th2 = draw.textbbox((0, 0), tlabel, font=tf)[2:]
+    txr, tyr = int(CARD_W * 0.84), int(CARD_H * 0.07)
+    draw.text((txr - tw2 / 2, tyr - th2 / 2),
+              tlabel, font=tf, fill=COLOR_TEXT_LIGHT,
+              stroke_width=2, stroke_fill=(0, 0, 0, 255))
+
+    # Name — written DIRECTLY on the baked name banner ribbon (no backplate).
+    # Banner sits around 62% down the card.
     name = card.get('name') or card['id']
-    nw, nh = draw.textbbox((0, 0), name, font=name_font)[2:]
-    draw.text((CARD_PX / 2 - nw / 2, banner_y + 30 - nh / 2),
-              name, font=name_font, fill=COLOR_TEXT_LIGHT)
+    # Try multiple sizes to fit the name into the banner width.
+    banner_w_max = int(CARD_W * 0.74)
+    for size in (22, 19, 16, 14, 12):
+        nf = _font(size, 'header')
+        nw = draw.textlength(name, font=nf)
+        if nw <= banner_w_max:
+            break
+    nh = draw.textbbox((0, 0), name, font=nf)[3]
+    ny = int(CARD_H * 0.62)
+    draw.text((CARD_W / 2 - nw / 2, ny - nh / 2),
+              name, font=nf, fill=COLOR_TEXT_LIGHT,
+              stroke_width=2, stroke_fill=(0, 0, 0, 255))
 
-    # Stats — atk/hp circles at bottom corners (minions/champions only).
-    if (card.get('type') in ('minion', 'champion')
-            and (card.get('atk') or 0) > 0):
+    # Stats — small atk/hp pixel digits in bottom corners.
+    if (card.get('type') in ('minion', 'champion') and (card.get('atk') or 0) > 0):
+        sf = _font(20, 'header')
         atk = str(card.get('atk') or 0)
         hp  = str(card.get('hp')  or 0)
-        sf = _font(34)
-        for x, val, color in (
-            (60, atk, (220, 38, 38, 255)),
-            (CARD_PX - 60, hp, (34, 197, 94, 255)),
-        ):
-            y = CARD_PX - 60
-            draw.ellipse([x - 32, y - 32, x + 32, y + 32],
-                         fill=color, outline=COLOR_TEXT_LIGHT, width=3)
-            vw, vh = draw.textbbox((0, 0), val, font=sf)[2:]
-            draw.text((x - vw / 2, y - vh / 2 - 2), val,
-                      font=sf, fill=COLOR_TEXT_LIGHT)
+        sy  = int(CARD_H * 0.84)
+        # ATK left, red-tinted.
+        aw = draw.textbbox((0, 0), atk, font=sf)[2]
+        draw.text((int(CARD_W * 0.08) - aw / 2, sy), atk,
+                  font=sf, fill=(255, 200, 200, 255),
+                  stroke_width=2, stroke_fill=(120, 20, 20, 255))
+        # HP right, green-tinted.
+        hw = draw.textbbox((0, 0), hp, font=sf)[2]
+        draw.text((int(CARD_W * 0.92) - hw / 2, sy), hp,
+                  font=sf, fill=(200, 255, 200, 255),
+                  stroke_width=2, stroke_fill=(20, 100, 30, 255))
 
-    # Keyword pill — only if the card has any keywords.
-    kws = card.get('keywords') or []
-    if kws:
-        kw = (kws[0] or '').upper()
-        kf = _font(20)
-        kw_w = draw.textbbox((0, 0), kw, font=kf)[2] + 32
-        pill_y = CARD_PX - 110
-        draw.rectangle([CARD_PX / 2 - kw_w / 2, pill_y,
-                        CARD_PX / 2 + kw_w / 2, pill_y + 30],
-                       fill=COLOR_KEYWORD_BG, outline=COLOR_TEXT_LIGHT, width=2)
-        ww, wh = draw.textbbox((0, 0), kw, font=kf)[2:]
-        draw.text((CARD_PX / 2 - ww / 2, pill_y + 15 - wh / 2),
-                  kw, font=kf, fill=COLOR_TEXT_DARK)
-
-    # Type label — top-right.
-    tf = _font(18)
-    tlabel = (card.get('type') or '').upper()
-    tw2, th2 = draw.textbbox((0, 0), tlabel, font=tf)[2:]
-    draw.text((CARD_PX - 30 - tw2, 50), tlabel,
-              font=tf, fill=COLOR_FRAME_INNER)
+    # Lore / effect text — pixel body font inside the bottom lore panel.
+    lore = (card.get('text') or '').strip()
+    if not lore:
+        # Pad with a generic lore line for stat-only minions.
+        lore = card.get('keywords') and (', '.join(k.upper() for k in card['keywords'])) or ''
+    if lore:
+        lf = _font(22, 'body')
+        lore_w = int(CARD_W * 0.78)
+        lines = _wrap_text(draw, lore, lf, lore_w)[:3]   # max 3 lines fits
+        line_h = draw.textbbox((0, 0), 'Mg', font=lf)[3] + 2
+        ly = int(CARD_H * 0.83)
+        for i, ln in enumerate(lines):
+            lw = draw.textlength(ln, font=lf)
+            draw.text((CARD_W / 2 - lw / 2, ly + i * line_h),
+                      ln, font=lf, fill=(40, 24, 16, 255))
 
     return canvas
 
@@ -308,11 +400,9 @@ def composite_animated(art_bytes: bytes, card: dict[str, Any]) -> list[Image.Ima
     loop at ~6fps (160ms per frame in the saved WebP).
     """
     raw = Image.open(__import__('io').BytesIO(art_bytes)).convert('RGBA')
-    # Bob offsets — small, pixel-accurate (NEAREST scaling preserves edges).
-    BOB = [0, -1, -2, -1]
+    BOB = [0, -2, -4, -2]   # bigger range for portrait — more visible
     frames = []
     for bob_y in BOB:
-        # Slide the art up by bob_y while keeping the same canvas size.
         shifted = Image.new('RGBA', raw.size, (0, 0, 0, 0))
         shifted.paste(raw, (0, bob_y))
         frames.append(_build_card_frame(shifted, card))
