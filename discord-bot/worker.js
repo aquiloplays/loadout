@@ -489,6 +489,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_card-art-backfill/')) {
       return handleCardArtBackfillSlice(req, env, path);
     }
+    // Backup every global-card-art:* entry to
+    // global-card-art-backup-gifs-<date>:* before the pixel-art
+    // overhaul overwrites them. KV-token NOT consumed (re-runnable
+    // if interrupted). Skip-if-backup-already-exists keeps it
+    // idempotent. Returns { copied, skipped, total }.
+    if (method === 'POST' && path.startsWith('/admin/_card-art-backup/')) {
+      return handleCardArtBackup(req, env, path);
+    }
     // Post the backfill summary embed to the admin hub channel.
     // KV-token gated, self-destructing — Clay re-mints when he wants
     // a fresh snapshot.
@@ -2612,6 +2620,54 @@ async function handleCardArtBackfillSlice(req, env, path) {
   const { runCardArtBackfillSlice } = await import('./card-art-backfill.js');
   const r = await runCardArtBackfillSlice(env, opts);
   return jsonResp(r, r.ok ? 200 : 400);
+}
+
+// ── /admin/_card-art-backup/:token (KV-token, repeatable) ────────
+//
+// Snapshots every global-card-art:* entry to
+// global-card-art-backup-gifs-<date>:* so the pixel-art overhaul
+// can overwrite the live map without losing the Giphy GIF assignments.
+// Idempotent — skips entries that already have a backup record.
+async function handleCardArtBackup(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-backup',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-backup-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+
+  let opts = {};
+  const body = await req.text();
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const dateTag = String(opts.dateTag || new Date().toISOString().slice(0, 10));   // YYYY-MM-DD
+  const backupPrefix = `global-card-art-backup-gifs-${dateTag}:`;
+  const sourcePrefix = 'global-card-art:';
+
+  let cursor;
+  let copied = 0, skipped = 0, scanned = 0, failed = 0;
+  for (let i = 0; i < 12; i++) {
+    const page = await env.LOADOUT_BOLTS.list({ prefix: sourcePrefix, cursor });
+    for (const k of (page.keys || [])) {
+      scanned++;
+      const cardId = String(k.name || '').slice(sourcePrefix.length);
+      const backupKey = backupPrefix + cardId;
+      // Skip if already backed up under this dateTag.
+      const existing = await env.LOADOUT_BOLTS.get(backupKey);
+      if (existing) { skipped++; continue; }
+      const src = await env.LOADOUT_BOLTS.get(k.name);
+      if (!src) { failed++; continue; }
+      try {
+        await env.LOADOUT_BOLTS.put(backupKey, src);
+        copied++;
+      } catch (e) { failed++; }
+    }
+    if (page.list_complete || !page.cursor) break;
+    cursor = page.cursor;
+  }
+  return jsonResp({ ok: true, dateTag, scanned, copied, skipped, failed,
+                    sourcePrefix, backupPrefix });
 }
 
 // ── /admin/_card-art-summary/:token (KV-token, one-shot) ─────────
