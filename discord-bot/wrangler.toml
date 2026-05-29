@@ -89,7 +89,7 @@ QUEUE_CHANNEL_ID    = "1507973931372646490"   # 🧩│looking-for-game
 # Eligible roles for the community-night queue, top-priority first.
 # Patron is highest priority, then Member.
 QUEUE_ELIGIBLE_ROLES_JSON = "[\"1507973875659706529\",\"1507973873965076490\"]"
-PATREON_URL = "https://www.patreon.com/cw/aquilo"
+PATREON_URL = "https://www.patreon.com/cw/aquilo/membership"
 # Rotation widget integrations (song-prequeue role caps).
 SR_ROLE_LIMITS_JSON = "[]"
 # Default stream time in ET (HH:MM) for countdown + schedule defaults.

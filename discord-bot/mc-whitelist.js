@@ -105,7 +105,7 @@ async function getRoleId(env, guildId) {
 // accordingly. DM on revoke (throttled to once per 7d to avoid
 // spamming a user who repeatedly toggles).
 
-const PATREON_URL_DEFAULT = 'https://www.patreon.com/cw/aquilo';
+const PATREON_URL_DEFAULT = 'https://www.patreon.com/cw/aquilo/membership';
 
 async function sendRevokeDM(env, userId, patreonUrl) {
   if (!env.DISCORD_BOT_TOKEN) return { sent: false, reason: 'no-bot-token' };

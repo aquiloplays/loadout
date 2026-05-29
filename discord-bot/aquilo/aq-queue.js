@@ -206,7 +206,9 @@ export async function handleQueueButton(env, data, guildId) {
     const memberRoles = data.member?.roles || [];
     const priority = priorityFor(memberRoles, eligibleRoles);
     if (priority === 0) {
-      const url = env.PATREON_URL || 'https://www.patreon.com/cw/aquilo';
+      // Direct-to-signup URL. The base /cw/aquilo lands on the tier
+      // browser; /membership goes straight to the join flow.
+      const url = env.PATREON_URL || 'https://www.patreon.com/cw/aquilo/membership';
       return ephemeral(
         '🔒 The community-night queue is for **patrons** and **server boosters**.\n\n' +
         '• Become a patron: ' + url + '\n' +

@@ -162,7 +162,7 @@ export async function deleteVotingIdle(env) {
 // ---- Queue idle --------------------------------------------------------
 
 function buildQueueIdlePayload(env) {
-  const url = env.PATREON_URL || 'https://www.patreon.com/cw/aquilo';
+  const url = env.PATREON_URL || 'https://www.patreon.com/cw/aquilo/membership';
   const embed = {
     title: '🎮 Community Night Queue',
     description:

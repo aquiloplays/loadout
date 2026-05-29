@@ -257,7 +257,7 @@ async function buildPhaseEmbed(env, guildId, state, config) {
         type: COMPONENT_ROW,
         components: [
           { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Become a Patron',
-            url: brand.siteUrl ? `${brand.siteUrl}/patreon` : 'https://www.patreon.com/cw/aquilo' },
+            url: brand.siteUrl ? `${brand.siteUrl}/patreon` : 'https://www.patreon.com/cw/aquilo/membership' },
           { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'How to boost the server',
             url: 'https://support.discord.com/hc/en-us/articles/360028038352' },
           { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My status', custom_id: 'vh:status' },
@@ -588,7 +588,7 @@ export async function handleVoteHubComponent(env, data) {
           type: COMPONENT_ROW,
           components: [
             { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Become a Patron',
-              url: env.PATREON_URL || (brand.siteUrl ? `${brand.siteUrl}/patreon` : 'https://www.patreon.com/cw/aquilo') },
+              url: env.PATREON_URL || (brand.siteUrl ? `${brand.siteUrl}/patreon` : 'https://www.patreon.com/cw/aquilo/membership') },
             { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'How to boost the server',
               url: 'https://support.discord.com/hc/en-us/articles/360028038352' },
           ],
