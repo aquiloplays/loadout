@@ -22,7 +22,8 @@
 const WORKER_HOST = 'loadout-discord.aquiloplays.workers.dev';
 
 const PHASE_A_LIVE   = 'A';
-const PHASE_B_CHIP   = 'B';
+const PHASE_B_LIVE   = 'B';   // 2026-05-29 hair/eyes/facial sprites live
+const PHASE_B_CHIP   = 'B';   // legacy alias; kept for any remaining stub paths
 const PHASE_C_CHIP   = 'C';
 
 function slugify(s) {
@@ -56,36 +57,39 @@ export function buildCompositeManifest(hero) {
     meta:    { className, sex, skinTone },
   });
 
-  // 2. Hair sprite. Phase B URL pattern — the asset isn't generated
-  // yet so the renderer will 404 until the chip lands. Color is
-  // applied via CSS filter on the site side (no per-color sprite).
+  // 2. Hair sprite (Phase B — LIVE 2026-05-29). KV key shape is
+  // pixel-art-hero-hair:<sex>-<style>; site renders the alpha sprite
+  // and tints via CSS filter using `tintHex` (no per-color sprite).
   layers.push({
     kind:    'hair',
-    url:     `https://${WORKER_HOST}/asset/hero-art/hair/${hairStyle}-${sex}.png`,
+    url:     `https://${WORKER_HOST}/asset/hero-hair/${sex}-${hairStyle}.png`,
     z:       30,
-    phase:   PHASE_B_CHIP,
+    phase:   PHASE_B_LIVE,
     meta:    { hairStyle, hairColor, sex },
     tintHex: hexForHairColor(hairColor),
   });
 
   // 3. Eyes — alpha-only sprite, color applied programmatically.
+  // eyeStyle isn't on the data model (only eyeColor is); default to
+  // `round` for everyone. Future iteration may add eyeStyle to the
+  // customize UI.
   layers.push({
     kind:    'eyes',
-    url:     `https://${WORKER_HOST}/asset/hero-art/eyes/round.png`,
+    url:     `https://${WORKER_HOST}/asset/hero-eyes/round.png`,
     z:       20,
-    phase:   PHASE_B_CHIP,
+    phase:   PHASE_B_LIVE,
     meta:    { eyeColor },
     tintHex: hexForEyeColor(eyeColor),
   });
 
-  // 4. Facial hair — male only. Skip for female; female char's facial
-  // value is a no-op render-side.
+  // 4. Facial hair — male only. Skip for female; the facial value
+  // is a no-op render-side for female characters.
   if (sex === 'male' && facial !== 'clean') {
     layers.push({
       kind:  'facial',
-      url:   `https://${WORKER_HOST}/asset/hero-art/facial/${facial}.png`,
+      url:   `https://${WORKER_HOST}/asset/hero-facial/${facial}.png`,
       z:     22,
-      phase: PHASE_B_CHIP,
+      phase: PHASE_B_LIVE,
       meta:  { facial },
     });
   }

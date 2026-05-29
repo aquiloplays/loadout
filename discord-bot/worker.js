@@ -604,6 +604,16 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/hero-bg/')) {
       return handleHeroBgAsset(req, env, path);
     }
+    // Phase B character customization layers — hair (sex+style),
+    // eyes (style only), facial (style only). KV-backed, year-long
+    // cache. Composite manifest points renderers at these.
+    if ((method === 'GET' || method === 'HEAD') && (
+      path.startsWith('/asset/hero-hair/') ||
+      path.startsWith('/asset/hero-eyes/') ||
+      path.startsWith('/asset/hero-facial/')
+    )) {
+      return handleHeroCustomLayerAsset(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/_support-panel-post/')) {
       return handleSupportPanelBootstrap(req, env, path);
     }
@@ -2495,6 +2505,38 @@ async function handleMcHowtoAsset(req, env, path) {
   if (!m) return new Response('not-found', { status: 404 });
   const slug = m[1];
   const buf = await env.LOADOUT_BOLTS.get(`mc-howto-asset:${slug}`, { type: 'arrayBuffer' });
+  if (!buf) return new Response('not-uploaded', { status: 404 });
+  const headers = {
+    'content-type':   'image/png',
+    'cache-control':  'public, max-age=31536000, immutable',
+    'access-control-allow-origin': '*',
+    'content-length': String(buf.byteLength),
+  };
+  if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return new Response(buf, { status: 200, headers });
+}
+
+// ── GET /asset/hero-{hair,eyes,facial}/:slug[.png] ───────────────
+//
+// Phase B character customization sprite layers. URL slug maps
+// directly to the KV key segment:
+//
+//   /asset/hero-hair/male-short-tousled.png
+//     → KV pixel-art-hero-hair:male-short-tousled
+//   /asset/hero-eyes/round.png
+//     → KV pixel-art-hero-eyes:round
+//   /asset/hero-facial/beard.png
+//     → KV pixel-art-hero-facial:beard
+//
+// Same year-long immutable cache as the other asset routes.
+const HERO_LAYER_RE = /^\/asset\/hero-(hair|eyes|facial)\/([a-z0-9-]+?)(?:\.png)?$/;
+async function handleHeroCustomLayerAsset(req, env, path) {
+  const m = path.match(HERO_LAYER_RE);
+  if (!m) return new Response('not-found', { status: 404 });
+  const kind = m[1];
+  const slug = m[2];
+  const kvKey = `pixel-art-hero-${kind}:${slug}`;
+  const buf = await env.LOADOUT_BOLTS.get(kvKey, { type: 'arrayBuffer' });
   if (!buf) return new Response('not-uploaded', { status: 404 });
   const headers = {
     'content-type':   'image/png',
