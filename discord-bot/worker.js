@@ -592,6 +592,12 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_mc-howto-post/')) {
       return handleMcHowtoBootstrap(req, env, path);
     }
+    // Public read for mc-howto images backing the join-the-MC-server
+    // embed. KV-backed, year-long cache, mirrors the twitch-banner
+    // asset pattern. Slugs are: server-logo, verify-msg, dm-screenshot.
+    if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/mc-howto/')) {
+      return handleMcHowtoAsset(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/_support-panel-post/')) {
       return handleSupportPanelBootstrap(req, env, path);
     }
@@ -2471,6 +2477,29 @@ async function handleGiftEmbedPost(req, env, path) {
   return jsonResp({ ok: true, action: 'posted-new', channelId, messageId, pinned: pin.ok, pinStatus: pin.status }, 200);
 }
 
+// ── GET /asset/mc-howto/:slug[.png] ──────────────────────────────
+//
+// Same shape as the twitch-banner asset route — KV-backed PNG with
+// a year-long immutable cache. Used by the mc-howto embed to host
+// the server-logo + 2 screenshots without paying multipart-PATCH
+// gymnastics on the Discord side.
+const MC_HOWTO_RE = /^\/asset\/mc-howto\/([a-z0-9-]+?)(?:\.png)?$/;
+async function handleMcHowtoAsset(req, env, path) {
+  const m = path.match(MC_HOWTO_RE);
+  if (!m) return new Response('not-found', { status: 404 });
+  const slug = m[1];
+  const buf = await env.LOADOUT_BOLTS.get(`mc-howto-asset:${slug}`, { type: 'arrayBuffer' });
+  if (!buf) return new Response('not-uploaded', { status: 404 });
+  const headers = {
+    'content-type':   'image/png',
+    'cache-control':  'public, max-age=31536000, immutable',
+    'access-control-allow-origin': '*',
+    'content-length': String(buf.byteLength),
+  };
+  if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return new Response(buf, { status: 200, headers });
+}
+
 // ── /admin/_mc-howto-post/:token (KV-token, idempotent) ─────────────
 //
 // Posts the "How to Join the Aquilo Minecraft Server" embed in a
@@ -2588,7 +2617,7 @@ function buildMcHowtoMessage(opts = {}) {
     description: [
       '**Step 1 — Become a paid Patreon supporter**',
       '',
-      `Join Clay's Patreon as a paid member at:`,
+      `Join Aquilo's Patreon as a paid member at:`,
       PATREON_URL,
       '',
       'The Aquilo Minecraft Server is permanently supporter-only. ' +
