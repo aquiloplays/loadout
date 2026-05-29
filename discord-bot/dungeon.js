@@ -481,6 +481,12 @@ export const CHARACTER_LOOK_OPTIONS = {
   hairColor: ['brown', 'black', 'blonde', 'red', 'grey', 'white', 'violet', 'teal', 'pink', 'mint', 'silver', 'copper', 'navy', 'forest'],
   eyeColor:  ['brown', 'blue', 'green', 'hazel', 'amber', 'violet', 'silver', 'pink'],
   accent:    ['none', 'freckles', 'eye-shadow', 'face-scar', 'beauty-mark', 'glasses-round'],
+  // 2026-05-29 — Phase A of the hero customization expansion. Sex
+  // toggles male/female base sprite (asset overhaul has both at
+  // /asset/hero-art/<class>(-female)?.png). Facial is male-only —
+  // setting it on a female character is a no-op in the renderer.
+  sex:       ['male', 'female'],
+  facial:    ['clean', 'mustache', 'goatee', 'beard'],
 };
 
 // Legacy alias — pre-character-system code (the old custom options
@@ -510,6 +516,11 @@ export function defaultLookForUser(userId) {
     hairColor: pickByHash(userId, 'haircol',CHARACTER_LOOK_OPTIONS.hairColor),
     eyeColor:  pickByHash(userId, 'eye',    CHARACTER_LOOK_OPTIONS.eyeColor),
     accent:    'none',
+    // Phase A defaults. Existing characters get male+clean via the
+    // backfill on first read — Phase B adds a "did you mean female?"
+    // hint on the customize page so legacy heroes can opt in.
+    sex:       'male',
+    facial:    'clean',
   };
 }
 

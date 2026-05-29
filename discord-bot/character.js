@@ -892,7 +892,7 @@ async function randomiseLook(env, guildId, userId) {
 // pinned in render URLs everywhere (Discord embed, Twitch panel,
 // site preview) and the next embed re-fetches.
 
-const LOOK_AXES = ['bodyType', 'skinTone', 'hairStyle', 'hairColor', 'eyeColor', 'accent'];
+const LOOK_AXES = ['bodyType', 'skinTone', 'hairStyle', 'hairColor', 'eyeColor', 'accent', 'sex', 'facial'];
 
 // Hair colour swatches for the web picker — hex strings derived from
 // the base (mid-tone) colour in HAIR_COLOURS_RGB above. Keeping the

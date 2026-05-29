@@ -188,6 +188,21 @@ const ROUTES = new Set([
   // bracketed war state. Site UI was scaffolded with greyed-out
   // buttons; these endpoints light up the flow. See banners.js +
   // banner-wars.js.
+  // 2026-05-29 — UI-live unblockers. MVPs land worker endpoints for
+  // four features whose site UI shipped against stubs.
+  'play/supporters/hall',
+  'play/supporters/opt-out',
+  'play/patron-of-month/current',
+  'play/patron-of-month/history',
+  'play/patron-of-month/opt-out',
+  'play/dust/snapshot',
+  'play/dust/disenchant',
+  'play/dust/craft',
+  'play/drops/active',
+  'play/drops/upcoming',
+  // 2026-05-29 Phase A hero customization — composite manifest the
+  // site renderer consumes to stack PNG layers.
+  'character/composite',
   'play/banner/me',
   'play/banner/browse',
   'play/banner/create',
@@ -484,6 +499,17 @@ export async function handleWeb(req, env) {
     if (route === 'play/spire/run/abandon') return await routeSpireRunAbandon(env, guildId, discordId);
     if (route === 'play/spire/run/floor')   return await routeSpireRunFloor(env, discordId, body);
     if (route === 'play/spire/leaderboard') return await routeSpireLeaderboard(env, body);
+    if (route === 'play/supporters/hall')         return await routeSupportersHall(env);
+    if (route === 'play/supporters/opt-out')      return await routeSupportersOptOut(env, discordId, body);
+    if (route === 'play/patron-of-month/current') return await routePatronCurrent(env);
+    if (route === 'play/patron-of-month/history') return await routePatronHistory(env, body);
+    if (route === 'play/patron-of-month/opt-out') return await routePatronOptOut(env, discordId, body);
+    if (route === 'play/dust/snapshot')           return await routeDustSnapshot(env, guildId, discordId);
+    if (route === 'play/dust/disenchant')         return await routeDustDisenchant(env, guildId, discordId, body);
+    if (route === 'play/dust/craft')              return await routeDustCraft(env, guildId, discordId, body);
+    if (route === 'play/drops/active')            return await routeDropsActive(env);
+    if (route === 'play/drops/upcoming')          return await routeDropsUpcoming(env, body);
+    if (route === 'character/composite')          return await routeCharacterComposite(env, guildId, discordId);
     if (route === 'play/banner/me')        return await routeBannerMe(env, guildId, discordId);
     if (route === 'play/banner/browse')    return await routeBannerBrowse(env, guildId, body);
     if (route === 'play/banner/create')    return await routeBannerCreate(env, guildId, discordId, body);
@@ -2483,6 +2509,65 @@ async function routeWarRaid(env, guildId, userId, body) {
   const { recordRaid } = await import('./banner-wars.js');
   const r = await recordRaid(env, guildId, userId, body || {});
   return json(r, r.ok ? 200 : 400);
+}
+
+// ── UI-live unblockers (2026-05-29) ──────────────────────────────
+// MVP web wrappers for features whose site UI shipped against stubs.
+
+async function routeSupportersHall(env) {
+  const { getSupportersHall } = await import('./supporters-hall.js');
+  return json(await getSupportersHall(env));
+}
+async function routeSupportersOptOut(env, userId, body) {
+  const { setSupportersHallOptOut } = await import('./supporters-hall.js');
+  return json(await setSupportersHallOptOut(env, userId, !!body?.optOut));
+}
+async function routePatronCurrent(env) {
+  const { getCurrentPatron } = await import('./patron-of-month.js');
+  return json(await getCurrentPatron(env));
+}
+async function routePatronHistory(env, body) {
+  const { getPatronHistory } = await import('./patron-of-month.js');
+  return json(await getPatronHistory(env, { limit: body?.limit }));
+}
+async function routePatronOptOut(env, userId, body) {
+  const { setPatronOptOut } = await import('./patron-of-month.js');
+  return json(await setPatronOptOut(env, userId, !!body?.optOut));
+}
+async function routeDustSnapshot(env, guildId, userId) {
+  const { getDust, DUST_DISENCHANT_BY_RARITY, DUST_CRAFT_BY_RARITY } = await import('./cards-dust.js');
+  const d = await getDust(env, guildId, userId);
+  return json({ ok: true, ...d,
+                disenchantTable: DUST_DISENCHANT_BY_RARITY,
+                craftTable:      DUST_CRAFT_BY_RARITY });
+}
+async function routeDustDisenchant(env, guildId, userId, body) {
+  const { disenchant } = await import('./cards-dust.js');
+  const r = await disenchant(env, guildId, userId,
+    String(body?.cardId || ''), { force: !!body?.force });
+  return json(r, r.ok ? 200 : 400);
+}
+async function routeDustCraft(env, guildId, userId, body) {
+  const { craft } = await import('./cards-dust.js');
+  const r = await craft(env, guildId, userId, String(body?.cardId || ''));
+  return json(r, r.ok ? 200 : 400);
+}
+async function routeDropsActive(env) {
+  const { getActiveDrop } = await import('./cards-drops.js');
+  return json(await getActiveDrop(env));
+}
+async function routeDropsUpcoming(env, body) {
+  const { getUpcomingDrops } = await import('./cards-drops.js');
+  return json(await getUpcomingDrops(env, { limit: body?.limit }));
+}
+
+async function routeCharacterComposite(env, guildId, userId) {
+  const { loadHero, applyLookBackfill } = await import('./dungeon.js');
+  const { buildCompositeManifest }       = await import('./character-composite.js');
+  const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
+  return json({ ok: true, manifest: buildCompositeManifest(hero),
+                hero: { className: hero.className, custom: hero.custom,
+                        equipped: hero.equipped, lookVersion: hero.lookVersion || 0 } });
 }
 
 // /web/cards/suggest-art-terms — given a cardId, return suggested
