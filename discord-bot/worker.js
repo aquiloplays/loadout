@@ -598,6 +598,12 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/mc-howto/')) {
       return handleMcHowtoAsset(req, env, path);
     }
+    // Hero background pixel-art scenes (Phase A.5). KV-backed,
+    // year-long cache. URLs at /asset/hero-bg/<id>.png from
+    // pixel-art-hero-bg:<id>.
+    if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/hero-bg/')) {
+      return handleHeroBgAsset(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/_support-panel-post/')) {
       return handleSupportPanelBootstrap(req, env, path);
     }
@@ -2489,6 +2495,24 @@ async function handleMcHowtoAsset(req, env, path) {
   if (!m) return new Response('not-found', { status: 404 });
   const slug = m[1];
   const buf = await env.LOADOUT_BOLTS.get(`mc-howto-asset:${slug}`, { type: 'arrayBuffer' });
+  if (!buf) return new Response('not-uploaded', { status: 404 });
+  const headers = {
+    'content-type':   'image/png',
+    'cache-control':  'public, max-age=31536000, immutable',
+    'access-control-allow-origin': '*',
+    'content-length': String(buf.byteLength),
+  };
+  if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return new Response(buf, { status: 200, headers });
+}
+
+// ── GET /asset/hero-bg/:id[.png] ─────────────────────────────────
+const HERO_BG_RE = /^\/asset\/hero-bg\/([a-z0-9-]+?)(?:\.png)?$/;
+async function handleHeroBgAsset(req, env, path) {
+  const m = path.match(HERO_BG_RE);
+  if (!m) return new Response('not-found', { status: 404 });
+  const id  = m[1];
+  const buf = await env.LOADOUT_BOLTS.get(`pixel-art-hero-bg:${id}`, { type: 'arrayBuffer' });
   if (!buf) return new Response('not-uploaded', { status: 404 });
   const headers = {
     'content-type':   'image/png',

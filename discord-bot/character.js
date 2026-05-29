@@ -1044,6 +1044,15 @@ export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
       return { ok: false, error: 'bad-look', field: axis, value: String(v).slice(0, 32) };
     }
   }
+  // Phase A.5 — background lives outside CHARACTER_LOOK_OPTIONS
+  // because the catalogue is mutable and Patreon-gated; validate via
+  // the gating function. Server-side gate; the client can't bypass
+  // it by spoofing the patreon_only flag.
+  if (lookPatch.background != null) {
+    const { validateBackgroundForUser } = await import('./character-backgrounds.js');
+    const r = await validateBackgroundForUser(env, userId, String(lookPatch.background));
+    if (!r.ok) return r;
+  }
   const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
   if (hero.locked) {
     return {
@@ -1060,6 +1069,10 @@ export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
       hero.custom[axis] = lookPatch[axis];
       changed = true;
     }
+  }
+  if (lookPatch.background != null && hero.custom.background !== lookPatch.background) {
+    hero.custom.background = lookPatch.background;
+    changed = true;
   }
   if (changed) hero.lookVersion = (hero.lookVersion || 0) + 1;
   hero.locked = true;

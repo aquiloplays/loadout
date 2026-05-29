@@ -203,6 +203,7 @@ const ROUTES = new Set([
   // 2026-05-29 Phase A hero customization — composite manifest the
   // site renderer consumes to stack PNG layers.
   'character/composite',
+  'character/backgrounds',
   'play/banner/me',
   'play/banner/browse',
   'play/banner/create',
@@ -510,6 +511,7 @@ export async function handleWeb(req, env) {
     if (route === 'play/drops/active')            return await routeDropsActive(env);
     if (route === 'play/drops/upcoming')          return await routeDropsUpcoming(env, body);
     if (route === 'character/composite')          return await routeCharacterComposite(env, guildId, discordId);
+    if (route === 'character/backgrounds')        return await routeCharacterBackgrounds(env, discordId);
     if (route === 'play/banner/me')        return await routeBannerMe(env, guildId, discordId);
     if (route === 'play/banner/browse')    return await routeBannerBrowse(env, guildId, body);
     if (route === 'play/banner/create')    return await routeBannerCreate(env, guildId, discordId, body);
@@ -2564,10 +2566,18 @@ async function routeDropsUpcoming(env, body) {
 async function routeCharacterComposite(env, guildId, userId) {
   const { loadHero, applyLookBackfill } = await import('./dungeon.js');
   const { buildCompositeManifest }       = await import('./character-composite.js');
+  const { resolveHeroBackground }        = await import('./character-backgrounds.js');
   const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
+  const background = await resolveHeroBackground(env, userId, hero);
   return json({ ok: true, manifest: buildCompositeManifest(hero),
+                background,
                 hero: { className: hero.className, custom: hero.custom,
                         equipped: hero.equipped, lookVersion: hero.lookVersion || 0 } });
+}
+
+async function routeCharacterBackgrounds(env, userId) {
+  const { listBackgroundsForUser } = await import('./character-backgrounds.js');
+  return json(await listBackgroundsForUser(env, userId));
 }
 
 // /web/cards/suggest-art-terms — given a cardId, return suggested
