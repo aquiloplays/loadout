@@ -2609,8 +2609,13 @@ function buildMcHowtoMessage(opts = {}) {
   const PATREON_ROLE = '1507973875659706529';
   const MC_BOT_USER  = '1503469848225775686';
   const AURORA_GREEN = 0x5BFF95;
+  const VIOLET       = 0x7C5CFF;
+  const AURORA_PINK  = 0xFF6AB5;
 
-  // Main embed — author, description, server logo, footer.
+  // Embed 1 — header + Steps 1-3. The server logo image anchors the
+  // top of the message; Steps 1-3 walk through join + role-link +
+  // connect. Step 4 (verify) lives in its own embeds below so the
+  // screenshot sits next to its instructions.
   const mainEmbed = {
     color: AURORA_GREEN,
     title: '🟩 How to Join the Aquilo Minecraft Server',
@@ -2647,34 +2652,34 @@ function buildMcHowtoMessage(opts = {}) {
       '**Bedrock Edition** (Xbox / PlayStation / Switch / Mobile / Windows 10): ' +
       'Watch this video for the connection walkthrough:',
       BEDROCK_URL,
-      '',
-      '**Step 4 — Verify your account in-game**',
-      '',
-      `When you first connect, the server will give you a ` +
-      `**four-digit verification code**.`,
-      '',
-      `Take that code to the aquilo.gg Discord server and DM it to ` +
-      `**aquilo.mc.gg Bot** (<@${MC_BOT_USER}>). ` +
-      `Once verified, you'll have full access to the Aquilo SMP.`,
     ].join('\n'),
     footer: { text: 'Questions? Open a ticket in #support' },
     ...(opts.serverLogoUrl ? { image: { url: opts.serverLogoUrl } } : {}),
   };
 
-  // Optional screenshot embeds — only render if the URLs are present.
-  // Discord allows up to 10 embeds per message; we use at most 3.
+  // Embed 2 — Step 4 part 1: the in-game verification message screenshot
+  // with copy explaining what the player will see when they connect.
+  // Violet color marks the visual break from Steps 1-3.
+  // Embed 3 — Step 4 part 2: the Discord DM walkthrough, aurora pink.
+  // Discord allows up to 10 embeds per message — we use 3.
   const embeds = [mainEmbed];
   if (opts.verifyScreenshotUrl) {
     embeds.push({
-      color: AURORA_GREEN,
-      title: 'Verification message you\'ll see',
+      color: VIOLET,
+      title: '🎮 Step 4 — Verify your account',
+      description: 'When you first connect, you\'ll see this ' +
+        'verification message in-game. The four-digit code shown is ' +
+        'what you\'ll DM to the bot in the next step.',
       image: { url: opts.verifyScreenshotUrl },
     });
   }
   if (opts.dmScreenshotUrl) {
     embeds.push({
-      color: AURORA_GREEN,
-      title: 'How to DM the verification bot',
+      color: AURORA_PINK,
+      title: '🤖 Find aquilo.mc.gg Bot and DM the code',
+      description: `Find the **aquilo.mc.gg bot** (<@${MC_BOT_USER}>) ` +
+        'in the member list and DM it the four-digit code you got ' +
+        'in-game. Once it confirms, you\'ll have full Minecraft access.',
       image: { url: opts.dmScreenshotUrl },
     });
   }
@@ -2686,7 +2691,7 @@ function buildMcHowtoMessage(opts = {}) {
     components: [
       { type: 2, style: 5, label: 'Join Patreon',        emoji: { name: '🟣' }, url: PATREON_URL },
       { type: 2, style: 5, label: 'Bedrock setup video', emoji: { name: '📺' }, url: BEDROCK_URL },
-      { type: 2, style: 5, label: 'Open Bot DMs',        emoji: { name: '🤖' }, url: BOT_DM_URL  },
+      { type: 2, style: 5, label: 'Open Bot Profile',    emoji: { name: '🤖' }, url: BOT_DM_URL  },
     ],
   }];
 
