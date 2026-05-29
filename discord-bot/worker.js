@@ -589,6 +589,9 @@ export default {
       return handleSupportTicketsPostPanel(req, env, path);
     }
     // KV-token operator helper for posting the panel without HMAC.
+    if (method === 'POST' && path.startsWith('/admin/_mc-howto-post/')) {
+      return handleMcHowtoBootstrap(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/_support-panel-post/')) {
       return handleSupportPanelBootstrap(req, env, path);
     }
@@ -2466,6 +2469,195 @@ async function handleGiftEmbedPost(req, env, path) {
     { method: 'PUT', headers },
   );
   return jsonResp({ ok: true, action: 'posted-new', channelId, messageId, pinned: pin.ok, pinStatus: pin.status }, 200);
+}
+
+// ── /admin/_mc-howto-post/:token (KV-token, idempotent) ─────────────
+//
+// Posts the "How to Join the Aquilo Minecraft Server" embed in a
+// specified channel. KV pointer `mc-howto:msg:<channelId>` makes this
+// idempotent — a second call PATCHes the existing message instead of
+// posting a duplicate. Pins on first post. The token is NOT
+// self-destructed so Clay can re-fire it when the missing screenshot
+// attachments arrive (the second fire will PATCH with the images
+// embedded).
+//
+// Body (optional JSON):
+//   { channelId? — defaults to 1505948104208420924,
+//     serverLogoUrl?,         // first attachment from Clay (server logo)
+//     verifyScreenshotUrl?,   // second attachment (verification code msg)
+//     dmScreenshotUrl?,       // third attachment (DM walkthrough)
+//     guildId? — for pin perm; defaults to env.AQUILO_VAULT_GUILD_ID }
+//
+// Returns { ok, action: 'created'|'updated', channelId, messageId,
+//           pinned, embeds: N }
+async function handleMcHowtoBootstrap(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-mc-howto-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+
+  let opts = {};
+  const body = await req.text();
+  if (body) {
+    try { opts = JSON.parse(body) || {}; }
+    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
+  }
+  const channelId = String(opts.channelId || '1505948104208420924');
+  const payload = buildMcHowtoMessage(opts);
+
+  const pointerKey = `mc-howto:msg:${channelId}`;
+  const existing = await env.LOADOUT_BOLTS.get(pointerKey);
+
+  if (existing) {
+    // Try PATCH first. If 404 (the message was deleted), fall through
+    // to a fresh POST so the operator never lands on a dead pointer.
+    const r = await fetch(
+      `https://discord.com/api/v10/channels/${channelId}/messages/${existing}`,
+      { method: 'PATCH',
+        headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'content-type': 'application/json' },
+        body: JSON.stringify(payload) },
+    );
+    if (r.ok) {
+      const j = await r.json();
+      return jsonResp({ ok: true, action: 'updated', channelId,
+                        messageId: j.id, embeds: payload.embeds.length });
+    }
+    if (r.status !== 404) {
+      const txt = await r.text().catch(() => '');
+      return jsonResp({ ok: false, error: 'patch-failed', status: r.status,
+                        detail: txt.slice(0, 300) }, 502);
+    }
+    await env.LOADOUT_BOLTS.delete(pointerKey).catch(() => {});
+  }
+
+  // Fresh POST.
+  const r = await fetch(
+    `https://discord.com/api/v10/channels/${channelId}/messages`,
+    { method: 'POST',
+      headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'content-type': 'application/json' },
+      body: JSON.stringify(payload) },
+  );
+  if (!r.ok) {
+    const txt = await r.text().catch(() => '');
+    return jsonResp({ ok: false, error: 'post-failed', status: r.status,
+                      detail: txt.slice(0, 300) }, 502);
+  }
+  const j = await r.json();
+  await env.LOADOUT_BOLTS.put(pointerKey, j.id);
+
+  // Pin — best-effort. If the bot lacks Manage Messages in the channel
+  // we surface the failure but still return ok:true on the post itself
+  // so the operator knows the embed is up.
+  let pinned = false;
+  let pinError = null;
+  try {
+    const pr = await fetch(
+      `https://discord.com/api/v10/channels/${channelId}/pins/${j.id}`,
+      { method: 'PUT', headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } },
+    );
+    pinned = pr.ok;
+    if (!pr.ok) pinError = `pin ${pr.status}`;
+  } catch (e) { pinError = String(e?.message || e); }
+
+  return jsonResp({ ok: true, action: 'created', channelId,
+                    messageId: j.id, embeds: payload.embeds.length,
+                    pinned, pinError });
+}
+
+// Build the message payload — embeds + link-button row. Pulled out so
+// both POST + PATCH share the same shape and a second fire (after
+// Clay drops the screenshots) re-renders with the images attached.
+function buildMcHowtoMessage(opts = {}) {
+  const PATREON_URL  = 'https://www.patreon.com/cw/aquilo/membership';
+  const BEDROCK_URL  = 'https://www.youtube.com/watch?v=xHLHKuM1lRo';
+  const BOT_DM_URL   = 'https://discord.com/channels/@me/1503469848225775686';
+  const PATREON_ROLE = '1507973875659706529';
+  const MC_BOT_USER  = '1503469848225775686';
+  const AURORA_GREEN = 0x5BFF95;
+
+  // Main embed — author, description, server logo, footer.
+  const mainEmbed = {
+    color: AURORA_GREEN,
+    title: '🟩 How to Join the Aquilo Minecraft Server',
+    author: {
+      name: 'Aquilo SMP',
+      ...(opts.serverLogoUrl ? { icon_url: opts.serverLogoUrl } : {}),
+    },
+    description: [
+      '**Step 1 — Become a paid Patreon supporter**',
+      '',
+      `Join Clay's Patreon as a paid member at:`,
+      PATREON_URL,
+      '',
+      'The Aquilo Minecraft Server is permanently supporter-only. ' +
+      'Any paid tier unlocks access.',
+      '',
+      '**Step 2 — Link your Discord to Patreon**',
+      '',
+      `After joining Patreon, link your Discord account to your Patreon ` +
+      `to receive the **Patreon Supporter** role (<@&${PATREON_ROLE}>) ` +
+      `on the aquilo.gg Discord server.`,
+      '',
+      '*As a member, to claim your role:*',
+      '1. Log in to your Patreon account',
+      '2. Go to Settings',
+      '3. Click "More" (mobile) and select Connected Apps',
+      '4. Find Discord and click Connect → Authorize',
+      '5. Click "Join Server"',
+      '',
+      '**Step 3 — Connect to the server**',
+      '',
+      '**Java Edition:** Add `aquilo.mc.gg` to your server list and connect.',
+      '',
+      '**Bedrock Edition** (Xbox / PlayStation / Switch / Mobile / Windows 10): ' +
+      'Watch this video for the connection walkthrough:',
+      BEDROCK_URL,
+      '',
+      '**Step 4 — Verify your account in-game**',
+      '',
+      `When you first connect, the server will give you a ` +
+      `**four-digit verification code**.`,
+      '',
+      `Take that code to the aquilo.gg Discord server and DM it to ` +
+      `**aquilo.mc.gg Bot** (<@${MC_BOT_USER}>). ` +
+      `Once verified, you'll have full access to the Aquilo SMP.`,
+    ].join('\n'),
+    footer: { text: 'Questions? Open a ticket in #support' },
+    ...(opts.serverLogoUrl ? { image: { url: opts.serverLogoUrl } } : {}),
+  };
+
+  // Optional screenshot embeds — only render if the URLs are present.
+  // Discord allows up to 10 embeds per message; we use at most 3.
+  const embeds = [mainEmbed];
+  if (opts.verifyScreenshotUrl) {
+    embeds.push({
+      color: AURORA_GREEN,
+      title: 'Verification message you\'ll see',
+      image: { url: opts.verifyScreenshotUrl },
+    });
+  }
+  if (opts.dmScreenshotUrl) {
+    embeds.push({
+      color: AURORA_GREEN,
+      title: 'How to DM the verification bot',
+      image: { url: opts.dmScreenshotUrl },
+    });
+  }
+
+  // Three link buttons in a single action row. Discord component
+  // type 2 = button, style 5 = link.
+  const components = [{
+    type: 1,
+    components: [
+      { type: 2, style: 5, label: 'Join Patreon',        emoji: { name: '🟣' }, url: PATREON_URL },
+      { type: 2, style: 5, label: 'Bedrock setup video', emoji: { name: '📺' }, url: BEDROCK_URL },
+      { type: 2, style: 5, label: 'Open Bot DMs',        emoji: { name: '🤖' }, url: BOT_DM_URL  },
+    ],
+  }];
+
+  return { embeds, components };
 }
 
 // ── /admin/_support-panel-post/:token (KV-token, self-destructing) ──
