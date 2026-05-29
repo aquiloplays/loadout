@@ -129,8 +129,9 @@ async function routeState(env, guildId, userId) {
 
   const { listOverridesForUser } = await import('./cards-art-override.js');
   const { listAllGlobalArt }     = await import('./cards-global-art.js');
+  const { listAllPixelArtMaps }  = await import('./pixel-art-maps.js');
 
-  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed, fragments, artOverrides, globalArt] = await Promise.all([
+  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed, fragments, artOverrides, globalArt, pixelArtMaps] = await Promise.all([
     listDeckSummaries(env, guildId, userId),
     getActiveDeckId(env, guildId, userId),
     listPendingPacks(env, guildId, userId, 30),
@@ -141,6 +142,10 @@ async function routeState(env, guildId, userId) {
     getFragments(env, userId),
     listOverridesForUser(env, guildId, userId),
     listAllGlobalArt(env),
+    // 2026-05-29 asset overhaul P3-P6 — four new globalArt sibling
+    // maps (hero / gear / clash / pet). Cheap: 4 parallel KV list
+    // calls, no per-key GETs (URLs are deterministic from key names).
+    listAllPixelArtMaps(env),
   ]);
 
   // Compact { cardId: memeGifUrl } map — the renderer just looks up
@@ -198,6 +203,11 @@ async function routeState(env, guildId, userId) {
     // Giphy auto-match. Precedence (renderer):
     //   gifUrl = artOverrides[cardId] || globalArt[cardId] || baked
     globalArt,
+    // 2026-05-29 asset overhaul P3-P6 — pixel-art maps for hero,
+    // gear, clash, and pet renderers. Same precedence pattern as
+    // globalArt: site renderer checks the map first, falls back to
+    // baked sprite on a miss. See pixel-art-maps.js for shape.
+    ...pixelArtMaps,
     match: matchView,
   });
 }
