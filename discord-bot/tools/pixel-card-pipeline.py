@@ -37,6 +37,20 @@ OUT  = Path('/tmp/boltbound-pixel-cards')
 OUT.mkdir(exist_ok=True, parents=True)
 (OUT / '_art').mkdir(exist_ok=True)
 STATE_PATH = OUT / '_state.json'
+FRAMES_DIR = Path('/tmp/boltbound-pixel-frames')   # output of pixel-frame-generator.py
+
+# Map every rarity in the catalogue to one of the 5 frames we generated.
+# champion + token use the legendary frame (visually distinctive). epic
+# isn't in the catalogue today but the slot exists for future cards.
+RARITY_TO_FRAME = {
+    'common':    'common',
+    'uncommon':  'uncommon',
+    'rare':      'rare',
+    'epic':      'epic',
+    'legendary': 'legendary',
+    'champion':  'legendary',
+    'token':     'common',
+}
 
 REPLICATE_TOKEN = os.environ.get('REPLICATE_API_TOKEN')
 MODEL_URL = 'https://api.replicate.com/v1/models/black-forest-labs/flux-schnell/predictions'
@@ -197,19 +211,33 @@ def _pixel_border(im: Image.Image, draw: ImageDraw.ImageDraw, w: int):
             outline=color, width=4,
         )
 
-def composite(art_bytes: bytes, card: dict[str, Any]) -> Image.Image:
-    """Combine raw AI art + frame + text into the finished card."""
-    canvas = Image.new('RGBA', (CARD_PX, CARD_PX), COLOR_FRAME_DARK)
-    art = Image.open(__import__('io').BytesIO(art_bytes)).convert('RGBA')
+def _load_frame(rarity: str) -> Image.Image:
+    """Load the AI-generated pixel frame for the matching rarity."""
+    name = RARITY_TO_FRAME.get(rarity, 'common')
+    path = FRAMES_DIR / f'frame-{name}-clean.png'
+    if not path.exists():
+        # First run before frames exist — fall through to a magenta tinted
+        # transparent overlay so the composite still produces something.
+        f = Image.new('RGBA', (CARD_PX, CARD_PX), (0, 0, 0, 0))
+        return f
+    return Image.open(path).convert('RGBA').resize((CARD_PX, CARD_PX), Image.NEAREST)
 
-    # Resize art to fill the inner frame area (CARD_PX - 2*48 = 672 → 656).
-    inset = 48
+def _build_card_frame(art_img: Image.Image, card: dict[str, Any]) -> Image.Image:
+    """Build a single static finished card with AI frame + character art + text."""
+    canvas = Image.new('RGBA', (CARD_PX, CARD_PX), COLOR_FRAME_DARK)
+    # Inner art slot — match the frame's central transparent area
+    # (pixel-frame-generator.py keys out the center 70%, so inset 15% here).
+    inset = int(CARD_PX * 0.15)
     inner = CARD_PX - 2 * inset
-    art = art.resize((inner, inner), Image.NEAREST)   # NEAREST preserves pixel feel
+    art = art_img.resize((inner, inner), Image.NEAREST)
     canvas.paste(art, (inset, inset), art)
 
+    # Paste the AI-generated frame on top — its transparent center reveals
+    # the art we just placed.
+    frame = _load_frame(card.get('rarity') or 'common')
+    canvas.paste(frame, (0, 0), frame)
+
     draw = ImageDraw.Draw(canvas)
-    _pixel_border(canvas, draw, CARD_PX)
 
     # Mana gem — top-left.
     gx, gy, gr = 60, 60, 36
@@ -272,6 +300,30 @@ def composite(art_bytes: bytes, card: dict[str, Any]) -> Image.Image:
 
     return canvas
 
+def composite_animated(art_bytes: bytes, card: dict[str, Any]) -> list[Image.Image]:
+    """Produce a 4-frame idle animation (Pillow only — no extra API cost).
+
+    Animation: gentle 1-2px vertical bob simulating breathing, plus a
+    subtle brightness pulse on the mana gem and stat circles. Frames
+    loop at ~6fps (160ms per frame in the saved WebP).
+    """
+    raw = Image.open(__import__('io').BytesIO(art_bytes)).convert('RGBA')
+    # Bob offsets — small, pixel-accurate (NEAREST scaling preserves edges).
+    BOB = [0, -1, -2, -1]
+    frames = []
+    for bob_y in BOB:
+        # Slide the art up by bob_y while keeping the same canvas size.
+        shifted = Image.new('RGBA', raw.size, (0, 0, 0, 0))
+        shifted.paste(raw, (0, bob_y))
+        frames.append(_build_card_frame(shifted, card))
+    return frames
+
+def composite(art_bytes: bytes, card: dict[str, Any]) -> Image.Image:
+    """Backwards-compat single-frame composite (still used by --validate
+    callers expecting a single image)."""
+    raw = Image.open(__import__('io').BytesIO(art_bytes)).convert('RGBA')
+    return _build_card_frame(raw, card)
+
 # ---------------------------------------------------------------------------
 # Driver
 # ---------------------------------------------------------------------------
@@ -283,9 +335,10 @@ def load_state() -> dict:
 def save_state(s: dict): STATE_PATH.write_text(json.dumps(s, indent=2))
 
 def process_card(card: dict[str, Any], force: bool = False) -> bool:
-    out_png = OUT / f'{card["id"]}.png'
+    out_png  = OUT / f'{card["id"]}.png'
+    out_webp = OUT / f'{card["id"]}.webp'
     art_path = OUT / '_art' / f'{card["id"]}.webp'
-    if out_png.exists() and not force:
+    if out_webp.exists() and not force:
         return True
     print(f'  [{card["id"]}] {card["name"]} ({card.get("type")})')
 
@@ -299,9 +352,21 @@ def process_card(card: dict[str, Any], force: bool = False) -> bool:
         print(f'    art generated ({len(art_bytes)//1024} KB)')
         time.sleep(PACING_S)   # rate-limit pacing
 
-    canvas = composite(art_bytes, card)
-    canvas.save(out_png, optimize=True)
-    print(f'    composited -> {out_png}')
+    # Static first frame as PNG for any consumer that wants stills.
+    frames = composite_animated(art_bytes, card)
+    frames[0].save(out_png, optimize=True)
+    # Animated WebP — loop forever, 160ms per frame (~6fps idle).
+    frames[0].save(
+        out_webp,
+        save_all=True,
+        append_images=frames[1:],
+        duration=160,
+        loop=0,
+        format='WEBP',
+        quality=85,
+        method=6,
+    )
+    print(f'    composited -> {out_webp} (4 frames animated) + {out_png}')
     return True
 
 VALIDATION_SAMPLE = [
@@ -312,9 +377,23 @@ VALIDATION_SAMPLE = [
     'spire.s01.embercrown',  # Seasonal exclusive
 ]
 
+VALIDATION_SAMPLE_PLUS = [
+    'tok.boneknight',        # Token (no stats? has 3/3)
+    'leg.korrik',             # Legendary tanky w/ taunt + spell-immune
+    'c.bolt1',                # Lowest-cost common spell
+    'champ.healer',           # Healer-class champion
+    'fire.c001',              # Fire family small minion
+    'storm.c020',             # Storm family — Tempest Hound
+    'u.shieldguard',          # Uncommon defender
+    'r.boltstorm',            # Rare AoE spell
+    'spire.s06.permafrost',   # Frost-themed Spire seasonal
+    'u.daggerthief',          # Rogue-themed uncommon
+]
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--validate', action='store_true')
+    ap.add_argument('--validate-plus', action='store_true')
     ap.add_argument('--full', action='store_true')
     ap.add_argument('--resume', action='store_true')
     ap.add_argument('--limit', type=int, default=None)
@@ -328,6 +407,8 @@ def main():
 
     if args.validate:
         ids = VALIDATION_SAMPLE
+    elif getattr(args, 'validate_plus', False):
+        ids = VALIDATION_SAMPLE_PLUS
     else:
         ids = list(cards.keys())
         if args.limit: ids = ids[:args.limit]
