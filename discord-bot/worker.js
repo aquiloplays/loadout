@@ -497,6 +497,15 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_card-art-backup/')) {
       return handleCardArtBackup(req, env, path);
     }
+    // 2026-05-29: Clay went all-in on pixel art, axing the Giphy
+    // backfill as the default render layer. This endpoint wipes the
+    // entire global-card-art:* prefix in one call. The dated backup
+    // (global-card-art-backup-gifs-2026-05-29:*) is left intact so
+    // the audit trail survives. Token NOT self-destructed — repeats
+    // are idempotent (a second run hits an empty prefix and reports 0).
+    if (method === 'POST' && path.startsWith('/admin/_card-art-wipe/')) {
+      return handleCardArtWipe(req, env, path);
+    }
     // Post the backfill summary embed to the admin hub channel.
     // KV-token gated, self-destructing — Clay re-mints when he wants
     // a fresh snapshot.
@@ -2668,6 +2677,35 @@ async function handleCardArtBackup(req, env, path) {
   }
   return jsonResp({ ok: true, dateTag, scanned, copied, skipped, failed,
                     sourcePrefix, backupPrefix });
+}
+
+// ── /admin/_card-art-wipe/:token (KV-token, idempotent) ──────────
+//
+// Wipes every global-card-art:* entry. Clay's directive (2026-05-29)
+// after going all-in on pixel art — the Giphy backfill is no longer
+// the render default. Keeps the dated backup under
+// global-card-art-backup-gifs-<date>:* (different prefix) untouched
+// for the audit trail.
+//
+// IMPORTANT: also fixed a latent bug — the earlier `listAllGlobalArt`
+// in cards-global-art.js did 515 sequential KV reads on every
+// /web/boltbound/state call, which is what was breaking the live
+// Boltbound bootstrap once the Giphy backfill loaded the prefix.
+// The fn is now parallelised at 20-concurrency; this wipe + parallel
+// listing together restore the bootstrap. Token NOT self-destructed
+// — a second call is a no-op.
+async function handleCardArtWipe(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-wipe',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-wipe-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+
+  const { bulkDeleteAllGlobalArt } = await import('./cards-global-art.js');
+  const r = await bulkDeleteAllGlobalArt(env);
+  return jsonResp({ ok: true, deleted: r.deleted, pages: r.pages,
+                    sourcePrefix: 'global-card-art:',
+                    note: 'backup at global-card-art-backup-gifs-* prefix is untouched' });
 }
 
 // ── /admin/_card-art-summary/:token (KV-token, one-shot) ─────────

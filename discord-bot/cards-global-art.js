@@ -111,21 +111,72 @@ export async function bulkSetGlobalArt(env, items, opts = {}) {
 // card record (searchTerm, source, validatedAt) is available via
 // getGlobalArt(cardId) for the admin UI.
 //
-// KV list pages at 1000 keys; 1252 cards fits in two pages. The 8-page
-// safety cap is the same as listOverridesForUser — a runaway-list
-// guard, not a real expected number.
+// Performance note (2026-05-29): the earlier version of this fn did
+// the per-key `get` sequentially inside the page loop. Each KV read
+// is a ~10-50ms subrequest, so 500+ entries blew past the bootstrap
+// budget and broke /web/boltbound/state on the live Boltbound page. Now
+// each page's `get`s run in parallel — wall-clock is one round-trip
+// per page instead of N. The 8-page cap (1000 keys/page) covers up
+// to 8000 entries; the catalogue is 1252 so two pages suffice.
+//
+// Cloudflare allows up to 50 simultaneous outbound subrequests per
+// worker request and KV reads count as subrequests — but lazy-getting
+// in 1000-key chunks would exceed that. So we chunk each page into
+// concurrency-limited batches.
+const LIST_GET_CONCURRENCY = 20;
 export async function listAllGlobalArt(env) {
   const out = {};
   let cursor = undefined;
   for (let i = 0; i < 8; i++) {
     const page = await env.LOADOUT_BOLTS.list({ prefix: KEY_PREFIX, cursor });
-    for (const k of (page.keys || [])) {
-      const cardId = String(k.name || '').slice(KEY_PREFIX.length);
-      const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
-      if (rec?.memeGifUrl) out[cardId] = rec.memeGifUrl;
+    const keys = page.keys || [];
+    for (let j = 0; j < keys.length; j += LIST_GET_CONCURRENCY) {
+      const chunk = keys.slice(j, j + LIST_GET_CONCURRENCY);
+      const recs = await Promise.all(chunk.map(k =>
+        env.LOADOUT_BOLTS.get(k.name, { type: 'json' }).catch(() => null)
+      ));
+      for (let m = 0; m < chunk.length; m++) {
+        const k = chunk[m];
+        const rec = recs[m];
+        const cardId = String(k.name || '').slice(KEY_PREFIX.length);
+        if (rec?.memeGifUrl) out[cardId] = rec.memeGifUrl;
+      }
     }
     if (page.list_complete || !page.cursor) break;
     cursor = page.cursor;
   }
   return out;
+}
+
+// Bulk-delete every global-card-art entry. Returns { deleted, pages }
+// so the caller can surface the count. Used by the 2026-05-29 "axe
+// Giphy" admin endpoint — Clay went all-in on pixel art and wants the
+// stale Giphy backfill off the precedence chain entirely. The
+// pre-existing backup at global-card-art-backup-gifs-2026-05-29:* is
+// untouched (different prefix) so the audit trail survives.
+//
+// Deletes are issued in parallel batches (same concurrency cap as
+// reads above) and the function pages through the entire prefix until
+// list_complete, so it's safe to call against a fresh state where
+// some pixel-art entries have already started landing — only the
+// global-card-art:* prefix is touched; the backup prefix is not.
+export async function bulkDeleteAllGlobalArt(env) {
+  let deleted = 0;
+  let pages = 0;
+  let cursor = undefined;
+  for (let i = 0; i < 8; i++) {
+    const page = await env.LOADOUT_BOLTS.list({ prefix: KEY_PREFIX, cursor });
+    pages++;
+    const keys = page.keys || [];
+    for (let j = 0; j < keys.length; j += LIST_GET_CONCURRENCY) {
+      const chunk = keys.slice(j, j + LIST_GET_CONCURRENCY);
+      await Promise.all(chunk.map(k =>
+        env.LOADOUT_BOLTS.delete(k.name).catch(() => null)
+      ));
+      deleted += chunk.length;
+    }
+    if (page.list_complete || !page.cursor) break;
+    cursor = page.cursor;
+  }
+  return { ok: true, deleted, pages };
 }
