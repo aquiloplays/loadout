@@ -2378,42 +2378,34 @@ async function routeCardsArtOverride(env, guildId, discordId, body) {
   return json({ ok: false, error: 'bad-op', allowed: ['get', 'set', 'clear', 'list'] }, 400);
 }
 
-// /web/cards/skin — REST-shaped set. Body: { cardId, gifUrl }.
-// Thin wrapper around cards-art-override.setOverride so the site
-// can call POST /web/cards/skin instead of building an op:set
-// envelope. Returns the same shape setOverride returns.
-async function routeCardsSkinSet(env, guildId, discordId, body) {
-  const cardId = String((body && body.cardId) || '').trim();
-  if (!cardId) return json({ ok: false, error: 'cardId-required' }, 400);
-  const url = String((body && body.gifUrl) || '').trim();
-  if (!url) return json({ ok: false, error: 'gifUrl-required' }, 400);
-  const { setOverride } = await import('./cards-art-override.js');
-  const r = await setOverride(env, guildId, discordId, cardId, url);
-  return json(r, r.ok ? 200 : 400);
+// 2026-05-30 — meme-skin card-art override feature REMOVED.
+// All three skin endpoints (set / clear / list) return 410 Gone.
+// The underlying cards-art-override.js module stays on disk for
+// historical reference + in case Clay decides to revert, but no
+// user-facing path reaches it. The bootstrap response (cards-web.js)
+// no longer includes the per-user artOverrides map either.
+async function routeCardsSkinSet() {
+  return json({
+    ok: false,
+    error: 'gone',
+    message: 'Card skin feature has been removed.',
+  }, 410);
 }
 
-// /web/cards/skin/clear — REST-shaped delete. Body: { cardId }.
-async function routeCardsSkinClear(env, guildId, discordId, body) {
-  const cardId = String((body && body.cardId) || '').trim();
-  if (!cardId) return json({ ok: false, error: 'cardId-required' }, 400);
-  const { clearOverride } = await import('./cards-art-override.js');
-  const r = await clearOverride(env, guildId, discordId, cardId);
-  return json(r);
+async function routeCardsSkinClear() {
+  return json({
+    ok: false,
+    error: 'gone',
+    message: 'Card skin feature has been removed.',
+  }, 410);
 }
 
-// /web/cards/skins — REST-shaped list. Returns the user's full
-// override map as { cardId: gifUrl } (compact shape for the renderer).
-// The richer per-card record (contentLength, validatedAt) is still
-// available via /web/cards/art-override op:list when the editor UI
-// needs it.
-async function routeCardsSkinList(env, guildId, discordId) {
-  const { listOverridesForUser } = await import('./cards-art-override.js');
-  const items = await listOverridesForUser(env, guildId, discordId);
-  const skins = {};
-  for (const o of (items || [])) {
-    if (o.cardId && o.memeGifUrl) skins[o.cardId] = o.memeGifUrl;
-  }
-  return json({ ok: true, skins });
+async function routeCardsSkinList() {
+  return json({
+    ok: false,
+    error: 'gone',
+    message: 'Card skin feature has been removed.',
+  }, 410);
 }
 
 // ── Seasonal Spire — thin wrappers over spire.js helpers ──────────
@@ -2643,18 +2635,18 @@ async function routeCardBackSet(env, userId, body) {
   return json(r, r.ok ? 200 : 400);
 }
 
-// /web/cards/suggest-art-terms — given a cardId, return suggested
-// Giphy/Tenor search terms + a 1-line description. The site's
-// editor calls this when the player opens "Use a meme GIF" so the
-// initial 6-8 suggestion picks come from the worker (canonical
-// card catalogue) instead of the site duplicating the lookup.
-// Body: { cardId }. Read-only — no auth-bound user state to mutate.
+// /web/cards/suggest-art-terms — DEPRECATED 2026-05-30 alongside the
+// meme-skin removal. The endpoint still returns search terms +
+// description so site code that uses the description text in other
+// surfaces (deck-builder card tooltips, etc.) keeps working, but it
+// is NO LONGER the source for a user-facing GIF picker. Site should
+// stop calling this once the meme-GIF editor UI is removed.
 async function routeCardsSuggestArtTerms(env, body) {
   const cardId = String((body && body.cardId) || '').trim();
   if (!cardId) return json({ ok: false, error: 'cardId-required' }, 400);
   const { suggestArtTerms } = await import('./cards-art-suggest.js');
   const r = suggestArtTerms(cardId);
-  return json(r, r.ok ? 200 : 400);
+  return json({ ...r, deprecated: true }, r.ok ? 200 : 400);
 }
 
 async function routeCommunityCheckinBonusCollect(env, guildId, discordId, body) {

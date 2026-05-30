@@ -1,6 +1,10 @@
-// Smoke test for /web/cards/skin endpoints in web.js.
-// Verifies the three REST-shaped routes write/read via the same
-// cards-art-override KV path the editor uses.
+// Smoke test for the cards-art-override module (kept on disk after the
+// 2026-05-30 meme-skin feature removal). The HTTP wrappers in web.js
+// (/web/cards/skin, /skin/clear, /skins) now return 410 Gone and no
+// longer call into this module from a user-facing flow. These tests
+// verify the underlying override storage layer still behaves
+// correctly so a future revert is a one-Edit unwiring at the HTTP
+// layer rather than a rewrite.
 
 import { setOverride, getOverride } from '../cards-art-override.js';
 

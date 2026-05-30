@@ -127,11 +127,15 @@ async function routeState(env, guildId, userId) {
     welcomePack = await creditPack(env, guildId, userId, 'common', 'welcome-web');
   }
 
-  const { listOverridesForUser } = await import('./cards-art-override.js');
   const { listAllGlobalArt }     = await import('./cards-global-art.js');
   const { listAllPixelArtMaps }  = await import('./pixel-art-maps.js');
 
-  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed, fragments, artOverrides, globalArt, pixelArtMaps] = await Promise.all([
+  // 2026-05-30 — per-user meme-skin override feature removed. The
+  // bootstrap no longer reads cards-art-override or includes an
+  // `artOverrides` map. globalArt + pixelArtMaps remain as the only
+  // art-override layers. The cards-art-override.js module stays on
+  // disk for historical reference; its read paths are dead code.
+  const [deckSummaries, activeDeckId, pendingPacks, log, trophies, wallet, freeClaimed, fragments, globalArt, pixelArtMaps] = await Promise.all([
     listDeckSummaries(env, guildId, userId),
     getActiveDeckId(env, guildId, userId),
     listPendingPacks(env, guildId, userId, 30),
@@ -140,21 +144,12 @@ async function routeState(env, guildId, userId) {
     getWallet(env, guildId, userId),
     hasClaimedFreePackToday(env, guildId, userId),
     getFragments(env, userId),
-    listOverridesForUser(env, guildId, userId),
     listAllGlobalArt(env),
     // 2026-05-29 asset overhaul P3-P6 — four new globalArt sibling
     // maps (hero / gear / clash / pet). Cheap: 4 parallel KV list
     // calls, no per-key GETs (URLs are deterministic from key names).
     listAllPixelArtMaps(env),
   ]);
-
-  // Compact { cardId: memeGifUrl } map — the renderer just looks up
-  // by cardId. The full record (contentLength, validatedAt, etc.) is
-  // available via /web/cards/art-override op:list for the editor UI.
-  const artOverridesMap = {};
-  for (const o of (artOverrides || [])) {
-    if (o.cardId && o.memeGifUrl) artOverridesMap[o.cardId] = o.memeGifUrl;
-  }
 
   const activeMatch = await getActiveMatch(env, guildId, userId);
   const matchView = activeMatch ? renderableState(activeMatch, userId) : null;
@@ -194,14 +189,10 @@ async function routeState(env, guildId, userId) {
       recycleYield: RECYCLE_YIELD,
       craftCost: CRAFT_COST,
     },
-    // Per-user card-art overrides. Site renderer should prefer
-    // artOverrides[cardId] over the static spriteId for any card the
-    // viewer owns. Empty when the user hasn't customised anything.
-    artOverrides: artOverridesMap,
-    // Global card-art defaults — every viewer sees these unless they
-    // have a personal override for the same card. Backfilled via the
-    // Giphy auto-match. Precedence (renderer):
-    //   gifUrl = artOverrides[cardId] || globalArt[cardId] || baked
+    // 2026-05-30 — `artOverrides` removed alongside the meme-skin
+    // feature pull. Site renderer precedence is now just:
+    //   gifUrl = globalArt[cardId] || baked
+    // Global card-art defaults — backfilled via the Giphy auto-match.
     globalArt,
     // 2026-05-29 asset overhaul P3-P6 — pixel-art maps for hero,
     // gear, clash, and pet renderers. Same precedence pattern as
