@@ -686,7 +686,10 @@ export default {
       path.startsWith('/asset/hero-art/') ||
       path.startsWith('/asset/gear-art/') ||
       path.startsWith('/asset/clash-art/') ||
-      path.startsWith('/asset/pet-art/')
+      path.startsWith('/asset/pet-art/') ||
+      path.startsWith('/asset/boltbound-ui/') ||
+      path.startsWith('/asset/cardback/') ||
+      path.startsWith('/asset/pack/')
     )) {
       return handlePixelArtAsset(req, env, path);
     }
@@ -973,6 +976,12 @@ export default {
       const { handleFriendsRoute } = await import('./friends.js');
       return handleFriendsRoute(req, env, path);
     }
+    // Daily Quests — cross-game rotating quest set (HMAC-gated writes,
+    // public GET for today's rotation). See daily-quests.js.
+    if (path.startsWith('/web/quests/')) {
+      const { handleQuestsRoute } = await import('./daily-quests.js');
+      return handleQuestsRoute(req, env, path);
+    }
     // F3 — Community activity feed (public GET)
     if (path === '/community/feed') {
       const { handleCommunityFeedRoute } = await import('./activity-feed.js');
@@ -1250,6 +1259,19 @@ export default {
             }
           })());
         }
+        // Daily-quests rotation pre-warm. Piggybacks on this :01 UTC
+        // cron because CF caps the worker at 4 cron triggers. The 1h
+        // delay vs intended 00:00 UTC reset is cosmetic — getRotation
+        // is lazy + idempotent so the first request after midnight
+        // computes the new day's set if the cron hasn't yet.
+        ctx.waitUntil((async () => {
+          try {
+            const { dailyResetCron } = await import('./daily-quests.js');
+            const r = await dailyResetCron(env);
+            if (r?.ok) console.log('[cron] daily-quests:', r.dayKey, 'warmed', r.warmed, 'ids');
+            else console.warn('[cron] daily-quests:', r?.error);
+          } catch (e) { console.warn('[cron] daily-quests', e?.message || e); }
+        })());
       }
       // Clash housekeeping piggybacks on the :23 hourly tick — CF
       // free plan caps a Worker at 5 cron triggers and we're using
@@ -2213,13 +2235,20 @@ async function handleCardArtAsset(req, env, path) {
 // shell injection / wide-open lookups. We allow lowercase alpha-
 // numeric + period + hyphen — enough for `champ.warrior`, `level-3`,
 // etc., but no slashes/dots/dot-dot.
-const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
+const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
 const PIXEL_ART_SEG_RE   = /^[A-Za-z0-9][A-Za-z0-9.\-]*$/;
 const PIXEL_ART_CATEGORY = {
-  'hero-art':  'hero',
-  'gear-art':  'gear',
-  'clash-art': 'clash',
-  'pet-art':   'pet',
+  'hero-art':     'hero',
+  'gear-art':     'gear',
+  'clash-art':    'clash',
+  'pet-art':      'pet',
+  // 2026-05-30 — sprite-redesign batch namespaces. Boltbound UI
+  // assets (hero frames, crystals, buttons, dropzones, bgs, chest)
+  // upload to pixel-art-boltbound-ui:<head>:<rest>. Cardbacks +
+  // packs are flat — pixel-art-cardback:<id> and pixel-art-pack:<id>.
+  'boltbound-ui': 'boltbound-ui',
+  'cardback':     'cardback',
+  'pack':         'pack',
 };
 
 async function handlePixelArtAsset(req, env, path) {
