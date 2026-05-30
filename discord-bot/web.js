@@ -204,6 +204,10 @@ const ROUTES = new Set([
   // site renderer consumes to stack PNG layers.
   'character/composite',
   'character/backgrounds',
+  // 2026-05-29 sprint — Aquilo Pass + stream-bonus probe.
+  'pass/state',
+  'pass/claim-tier',
+  'stream/bonus-state',
   'play/banner/me',
   'play/banner/browse',
   'play/banner/create',
@@ -512,6 +516,9 @@ export async function handleWeb(req, env) {
     if (route === 'play/drops/upcoming')          return await routeDropsUpcoming(env, body);
     if (route === 'character/composite')          return await routeCharacterComposite(env, guildId, discordId);
     if (route === 'character/backgrounds')        return await routeCharacterBackgrounds(env, discordId);
+    if (route === 'pass/state')                   return await routePassState(env, discordId);
+    if (route === 'pass/claim-tier')              return await routePassClaim(env, guildId, discordId, body);
+    if (route === 'stream/bonus-state')           return await routeStreamBonusState(env);
     if (route === 'play/banner/me')        return await routeBannerMe(env, guildId, discordId);
     if (route === 'play/banner/browse')    return await routeBannerBrowse(env, guildId, body);
     if (route === 'play/banner/create')    return await routeBannerCreate(env, guildId, discordId, body);
@@ -2578,6 +2585,21 @@ async function routeCharacterComposite(env, guildId, userId) {
 async function routeCharacterBackgrounds(env, userId) {
   const { listBackgroundsForUser } = await import('./character-backgrounds.js');
   return json(await listBackgroundsForUser(env, userId));
+}
+
+async function routePassState(env, userId) {
+  const { getPassState } = await import('./aquilo-pass.js');
+  return json(await getPassState(env, userId));
+}
+async function routePassClaim(env, guildId, userId, body) {
+  const { claimPassTier } = await import('./aquilo-pass.js');
+  const r = await claimPassTier(env, guildId, userId, body || {});
+  return json(r, r.ok ? 200 : 400);
+}
+async function routeStreamBonusState(env) {
+  const { isStreamLive, _consts } = await import('./stream-bonus.js');
+  const live = await isStreamLive(env);
+  return json({ ok: true, live, multipliers: _consts });
 }
 
 // /web/cards/suggest-art-terms — given a cardId, return suggested
