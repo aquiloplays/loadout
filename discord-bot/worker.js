@@ -1114,6 +1114,40 @@ export default {
             await refreshLiveStatusEmbed(env);
           } catch (e) { console.warn('[cron] live-status refresh', e?.message || e); }
         })());
+        // Stream-bonus accrual — Aether + Watchtower per-minute ticks.
+        // Both no-op when Clay isn't live (isStreamLive read inside).
+        // Independent waitUntil per call so a slow KV list on one
+        // doesn't block the other.
+        const activeGuildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+        if (activeGuildId) {
+          ctx.waitUntil((async () => {
+            try {
+              const { liveAccrueAetherTick } = await import('./stream-bonus.js');
+              await liveAccrueAetherTick(env, activeGuildId);
+            } catch (e) { console.warn('[cron] aether tick', e?.message || e); }
+          })());
+          ctx.waitUntil((async () => {
+            try {
+              const { liveAccrueWatchtowerBoltsTick } = await import('./stream-bonus.js');
+              await liveAccrueWatchtowerBoltsTick(env, activeGuildId);
+            } catch (e) { console.warn('[cron] watchtower tick', e?.message || e); }
+          })());
+          // Bolt rain — fires every 5 minutes (mm % 5 === 0). Random
+          // drops to ~5 viewers chosen from the wallet prefix.
+          // Lighter cadence so it stays a "treat" not a firehose.
+          if (mm % 5 === 0) {
+            ctx.waitUntil((async () => {
+              try {
+                const { boltRainTick } = await import('./stream-bonus.js');
+                const r = await boltRainTick(env, activeGuildId, { count: 5 });
+                if (r?.ok && r.drops?.length) {
+                  console.log('[cron] bolt-rain:', r.drops.length, 'drops,',
+                              r.total, 'total bolts');
+                }
+              } catch (e) { console.warn('[cron] bolt-rain', e?.message || e); }
+            })());
+          }
+        }
         // Hourly work below is the OLD :17 schedule — only runs when
         // the current minute is 17 to preserve the original cadence.
         if (mm !== 17) {
