@@ -1098,7 +1098,30 @@ export default {
   // Errors caught per job so a single bad source can't break the rest.
   async scheduled(event, env, ctx) {
     try {
-      if (event.cron === '17 * * * *') {
+      // 2026-05-29 sprint — what was the `:17` hourly cron is now the
+      // every-minute trigger so the live-status-embed dashboard can
+      // refresh per minute. The original hourly work is gated by
+      // `mm === 17` below so its cadence is preserved. The other 59
+      // ticks per hour run ONLY the live-status refresh (cheap: one
+      // KV read + a noop unless an embed is tracked).
+      if (event.cron === '* * * * *') {
+        const mm = new Date(event.scheduledTime || Date.now()).getUTCMinutes();
+        // Every-minute dashboard refresh. KV-gated — no-ops cleanly
+        // when no stream is being tracked.
+        ctx.waitUntil((async () => {
+          try {
+            const { refreshLiveStatusEmbed } = await import('./live-status-embed.js');
+            await refreshLiveStatusEmbed(env);
+          } catch (e) { console.warn('[cron] live-status refresh', e?.message || e); }
+        })());
+        // Hourly work below is the OLD :17 schedule — only runs when
+        // the current minute is 17 to preserve the original cadence.
+        if (mm !== 17) {
+          return;
+        }
+      }
+      if (event.cron === '17 * * * *' || (event.cron === '* * * * *' &&
+          new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 17)) {
         const { stocksCronTick } = await import('./stocks.js');
         ctx.waitUntil(stocksCronTick(env));
         // CN-games roster Steam-price refresh. Fires every :17 but the

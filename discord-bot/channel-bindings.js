@@ -61,6 +61,11 @@ const BINDING_KEYS = Object.freeze([
   // here when a player clears. Falls back to twitch-rewards-feed
   // (the #rewards channel) if unbound, which is the natural overflow.
   'spire-clears',
+  // Dynamic live-status dashboard embed (live-status-embed.js).
+  // Distinct from `live` / `live-now`: this is the per-minute refreshing
+  // dashboard with viewer count + hype-train state. Falls back to the
+  // hardcoded channel ID in live-status-embed.js if unbound.
+  'live-status-embed',
 ]);
 
 // Source-of-truth mapping from binding key → fallback env var name.
@@ -92,6 +97,10 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   'redemptions-feed':     null,
   'twitch-rewards-feed':  null,
   'spire-clears':         null,
+  // Live-status dashboard: KV-only. Fallback to hardcoded channel ID
+  // happens inside live-status-embed.js, not via env-var, so this
+  // stays null (the keyed-but-empty entry satisfies the catalog test).
+  'live-status-embed':    null,
 });
 
 const BINDING_KEY = (g, k) => `channel-binding:${g}:${k}`;

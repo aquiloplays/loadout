@@ -208,7 +208,7 @@ new_sqlite_classes = ["OverlayBroadcaster"]
 # hour) and shifts the 12:30 AM ET queue cleanup to 1:23 AM ET — a
 # cosmetic 30-min lag on a post-stream message cleanup.
 [triggers]
-crons = ["17 * * * *", "23 * * * *", "0 1 * * *", "0 2 * * *"]
+crons = ["* * * * *", "23 * * * *", "0 1 * * *", "0 2 * * *"]
 
 # Public route: hosted by aquilo.gg. Self-hosters can either set their own
 # route here or leave the default *.workers.dev URL after `wrangler deploy`.

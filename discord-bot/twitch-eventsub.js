@@ -138,6 +138,14 @@ export async function handleEventSubWebhook(req, env, ctx) {
       // separate announce embed was removed to avoid double-firing.
       ctx.waitUntil(postLiveEmbed(env, broadcasterId).catch(e =>
         console.warn('[twitch-eventsub] postLiveEmbed', e?.message || e)));
+      // 2026-05-29 sprint — dynamic dashboard embed in the
+      // live-status-embed binding (defaults to 1507973917350957067).
+      ctx.waitUntil((async () => {
+        try {
+          const { handleStreamOnline } = await import('./live-status-embed.js');
+          await handleStreamOnline(env, broadcasterId);
+        } catch (e) { console.warn('[twitch-eventsub] live-status online', e?.message || e); }
+      })());
     } else if (subType === 'stream.offline' && broadcasterId) {
       // markStreamOffline edits the lifecycle card AND clears state;
       // we capture the state BEFORE that so the summary embed can
@@ -151,6 +159,11 @@ export async function handleEventSubWebhook(req, env, ctx) {
           console.warn('[twitch-eventsub] markStreamOffline', e?.message || e));
         await handleStreamEndedSummary(env, payload, { getStreamInfo, getUserById }, lifecycleState)
           .catch(e => console.warn('[twitch-eventsub] handleStreamEndedSummary', e?.message || e));
+        // 2026-05-29 sprint — also tear down the dashboard embed.
+        try {
+          const { handleStreamOffline } = await import('./live-status-embed.js');
+          await handleStreamOffline(env, broadcasterId);
+        } catch (e) { console.warn('[twitch-eventsub] live-status offline', e?.message || e); }
       })());
     } else if (subType && EVENT_TYPE_HANDLERS[subType]) {
       // All other typed events route through the twitch-events.js
@@ -169,6 +182,23 @@ export async function handleEventSubWebhook(req, env, ctx) {
           console.warn('[twitch-eventsub]', subType, 'handler threw:', e?.message || e);
         }
       })());
+      // 2026-05-29 sprint — side-effect for the dashboard embed.
+      // Hype-train events flow into the live-status-embed's hype-train
+      // field. Independent waitUntil so a failure here doesn't break
+      // the primary handler above.
+      if (subType === 'channel.hype_train.begin'
+          || subType === 'channel.hype_train.progress'
+          || subType === 'channel.hype_train.end') {
+        ctx.waitUntil((async () => {
+          try {
+            const ls = await import('./live-status-embed.js');
+            const fn = subType === 'channel.hype_train.begin'    ? ls.handleHypeTrainBegin
+                    : subType === 'channel.hype_train.progress' ? ls.handleHypeTrainProgress
+                    :                                              ls.handleHypeTrainEnd;
+            await fn(env, payload);
+          } catch (e) { console.warn('[twitch-eventsub] live-status hype', e?.message || e); }
+        })());
+      }
     } else if (subType) {
       // Unknown sub type — still ack so Twitch doesn't retry forever.
       console.log('[twitch-eventsub] unhandled subType:', subType);

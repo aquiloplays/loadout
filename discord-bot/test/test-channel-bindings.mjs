@@ -71,8 +71,8 @@ console.log('— catalog sanity');
      'character', 'bolts', 'play', 'achievements', 'vote',
      'vault-events', 'vault-actions',
      'stream-notifications', 'live-now', 'redemptions-feed',
-     'twitch-rewards-feed', 'spire-clears'],
-    'binding keys (now includes spire-clears + welcome + twitch-event routing keys)');
+     'twitch-rewards-feed', 'spire-clears', 'live-status-embed'],
+    'binding keys (now includes spire-clears + welcome + twitch-event routing keys + live-status-embed)');
   // Every binding has an env-fallback ENTRY in the table (value
   // may be null for hub-channel bindings that are KV-only).
   for (const k of _BINDING_KEYS_FOR_TEST) {
@@ -160,7 +160,7 @@ console.log('— setChannelBinding');
   const r3 = await setChannelBinding(env, GUILD, 'garbage', '1500000000000000222');
   eq(r3.ok, false, 'unknown binding refused');
   eq(r3.error, 'unknown-binding', 'error code');
-  assert(Array.isArray(r3.allowed) && r3.allowed.length === 23, 'lists allowed (23 keys)');
+  assert(Array.isArray(r3.allowed) && r3.allowed.length === 24, 'lists allowed (24 keys)');
   // No guild.
   const r4 = await setChannelBinding(env, '', 'queue', '1500000000000000222');
   eq(r4.error, 'no-guild-id', 'no-guild-id');
@@ -183,11 +183,11 @@ console.log('— listChannelBindings');
   const list = await listChannelBindings(env, GUILD);
   eq(Object.keys(list).sort(),
     ['achievements', 'bolts', 'character', 'checkin', 'checkin-results',
-     'clips', 'games-list', 'lfg', 'live', 'live-now', 'play', 'poll',
-     'queue', 'recap', 'redemptions-feed', 'schedule', 'spire-clears',
-     'stream-notifications', 'twitch-rewards-feed',
+     'clips', 'games-list', 'lfg', 'live', 'live-now', 'live-status-embed',
+     'play', 'poll', 'queue', 'recap', 'redemptions-feed', 'schedule',
+     'spire-clears', 'stream-notifications', 'twitch-rewards-feed',
      'vault-actions', 'vault-events', 'vote', 'welcome'].sort(),
-    '23 keys');
+    '24 keys');
   // queue: KV override; resolved = KV.
   eq(list.queue.kv, '1500000000000000222', 'queue kv');
   eq(list.queue.env, '1500000000000000111', 'queue env');
