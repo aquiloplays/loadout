@@ -982,6 +982,27 @@ export default {
       const { handleQuestsRoute } = await import('./daily-quests.js');
       return handleQuestsRoute(req, env, path);
     }
+    // Trash-talk emotes — per-match emote ring buffer + rate limit.
+    // POST is HMAC-gated; GET feed is public. See boltbound-emotes.js.
+    if (path === '/web/boltbound/emote' || path.startsWith('/web/boltbound/emote/feed/')) {
+      const { handleEmoteRoute } = await import('./boltbound-emotes.js');
+      return handleEmoteRoute(req, env, path);
+    }
+    // Replay reactions + comments — extends the existing Boltbound
+    // replays surface with a social layer. See boltbound-replays-rx.js.
+    if (path.startsWith('/web/boltbound/replays/') && (
+        path.endsWith('/react') || path.endsWith('/comment') ||
+        path.endsWith('/reactions') || path.endsWith('/comments'))) {
+      const { handleReplayRxRoute } = await import('./boltbound-replays-rx.js');
+      return handleReplayRxRoute(req, env, path);
+    }
+    // Twitch Drops — per-viewer cumulative watch-time + milestone
+    // claims. handleDropsRoute dispatches both GET /me and POST /claim
+    // by method+path. See twitch-drops.js.
+    if (path === '/web/twitch-drops/me' || path === '/web/twitch-drops/claim') {
+      const { handleDropsRoute } = await import('./twitch-drops.js');
+      return handleDropsRoute(req, env, path);
+    }
     // F3 — Community activity feed (public GET)
     if (path === '/community/feed') {
       const { handleCommunityFeedRoute } = await import('./activity-feed.js');
@@ -1154,6 +1175,19 @@ export default {
                               r.total, 'total bolts');
                 }
               } catch (e) { console.warn('[cron] bolt-rain', e?.message || e); }
+            })());
+            // Twitch Drops watch-time tick (shares the 5-min cadence).
+            // Walks linked viewers, +5 min to each while live, checks
+            // milestone crossings. No-op when stream is offline.
+            ctx.waitUntil((async () => {
+              try {
+                const { watchTimeTickCron } = await import('./twitch-drops.js');
+                const r = await watchTimeTickCron(env);
+                if (r?.ok && (r.credited || r.crossings)) {
+                  console.log('[cron] twitch-drops:', r.walkedUsers, 'viewers,',
+                              r.credited, 'min credited,', r.crossings, 'crossings');
+                }
+              } catch (e) { console.warn('[cron] twitch-drops', e?.message || e); }
             })());
           }
         }
