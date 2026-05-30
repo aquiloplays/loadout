@@ -689,7 +689,9 @@ export default {
       path.startsWith('/asset/pet-art/') ||
       path.startsWith('/asset/boltbound-ui/') ||
       path.startsWith('/asset/cardback/') ||
-      path.startsWith('/asset/pack/')
+      path.startsWith('/asset/pack/') ||
+      path.startsWith('/asset/hero-body/') ||
+      path.startsWith('/asset/spire-boss/')
     )) {
       return handlePixelArtAsset(req, env, path);
     }
@@ -1003,6 +1005,16 @@ export default {
       const { handleDropsRoute } = await import('./twitch-drops.js');
       return handleDropsRoute(req, env, path);
     }
+    // Pet leveling / abilities / evolutions — extends the existing
+    // pet schema with level/xp/abilities. 4 endpoints dispatched by
+    // handlePetLevelingRoute: GET /level/:petId, GET /abilities/:petId,
+    // POST /evolve, POST /xp. See pet-leveling.js.
+    if (path.startsWith('/web/pet/level/') ||
+        path.startsWith('/web/pet/abilities/') ||
+        path === '/web/pet/evolve' || path === '/web/pet/xp') {
+      const { handlePetLevelingRoute } = await import('./pet-leveling.js');
+      return handlePetLevelingRoute(req, env, path);
+    }
     // F3 — Community activity feed (public GET)
     if (path === '/community/feed') {
       const { handleCommunityFeedRoute } = await import('./activity-feed.js');
@@ -1305,6 +1317,17 @@ export default {
             if (r?.ok) console.log('[cron] daily-quests:', r.dayKey, 'warmed', r.warmed, 'ids');
             else console.warn('[cron] daily-quests:', r?.error);
           } catch (e) { console.warn('[cron] daily-quests', e?.message || e); }
+        })());
+        // Pet evolutions sweep — bounded to 5k pets per call. Any pet
+        // that crossed its evolution-level threshold yesterday gets
+        // its species mutated. Per-pet errors are collected into the
+        // return value rather than crashing the cron.
+        ctx.waitUntil((async () => {
+          try {
+            const { autoEvolveCron } = await import('./pet-leveling.js');
+            const r = await autoEvolveCron(env);
+            if (r?.scanned) console.log('[cron] pet-evolve:', r.scanned, 'scanned,', r.evolved, 'evolved');
+          } catch (e) { console.warn('[cron] pet-evolve', e?.message || e); }
         })());
       }
       // Clash housekeeping piggybacks on the :23 hourly tick — CF
@@ -2269,7 +2292,7 @@ async function handleCardArtAsset(req, env, path) {
 // shell injection / wide-open lookups. We allow lowercase alpha-
 // numeric + period + hyphen — enough for `champ.warrior`, `level-3`,
 // etc., but no slashes/dots/dot-dot.
-const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
+const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
 const PIXEL_ART_SEG_RE   = /^[A-Za-z0-9][A-Za-z0-9.\-]*$/;
 const PIXEL_ART_CATEGORY = {
   'hero-art':     'hero',
@@ -2283,6 +2306,10 @@ const PIXEL_ART_CATEGORY = {
   'boltbound-ui': 'boltbound-ui',
   'cardback':     'cardback',
   'pack':         'pack',
+  // 2026-05-30 — paper-doll base bodies (P-A.2 cascade) +
+  // Pro-Ultra-generated monthly Spire boss portraits.
+  'hero-body':    'hero-body',
+  'spire-boss':   'spire-boss',
 };
 
 async function handlePixelArtAsset(req, env, path) {
