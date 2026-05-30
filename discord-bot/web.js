@@ -208,6 +208,13 @@ const ROUTES = new Set([
   'pass/state',
   'pass/claim-tier',
   'stream/bonus-state',
+  // 2026-05-29 sprint — 3 outstanding chips: skills, cosmetics, card backs.
+  'play/skills/snapshot',
+  'play/skills/allocate',
+  'play/skills/respec',
+  'play/cosmetics/me',
+  'play/cards/back/list',
+  'play/cards/back/set',
   'play/banner/me',
   'play/banner/browse',
   'play/banner/create',
@@ -519,6 +526,12 @@ export async function handleWeb(req, env) {
     if (route === 'pass/state')                   return await routePassState(env, discordId);
     if (route === 'pass/claim-tier')              return await routePassClaim(env, guildId, discordId, body);
     if (route === 'stream/bonus-state')           return await routeStreamBonusState(env);
+    if (route === 'play/skills/snapshot')         return await routeSkillsSnapshot(env, guildId, discordId);
+    if (route === 'play/skills/allocate')         return await routeSkillsAllocate(env, guildId, discordId, body);
+    if (route === 'play/skills/respec')           return await routeSkillsRespec(env, guildId, discordId);
+    if (route === 'play/cosmetics/me')            return await routeCosmeticsMe(env, discordId);
+    if (route === 'play/cards/back/list')         return await routeCardBackList(env, discordId);
+    if (route === 'play/cards/back/set')          return await routeCardBackSet(env, discordId, body);
     if (route === 'play/banner/me')        return await routeBannerMe(env, guildId, discordId);
     if (route === 'play/banner/browse')    return await routeBannerBrowse(env, guildId, body);
     if (route === 'play/banner/create')    return await routeBannerCreate(env, guildId, discordId, body);
@@ -2600,6 +2613,34 @@ async function routeStreamBonusState(env) {
   const { isStreamLive, _consts } = await import('./stream-bonus.js');
   const live = await isStreamLive(env);
   return json({ ok: true, live, multipliers: _consts });
+}
+
+async function routeSkillsSnapshot(env, guildId, userId) {
+  const { getSkillsSnapshot } = await import('./hero-skills.js');
+  return json(await getSkillsSnapshot(env, guildId, userId));
+}
+async function routeSkillsAllocate(env, guildId, userId, body) {
+  const { allocateSkillPoint } = await import('./hero-skills.js');
+  const r = await allocateSkillPoint(env, guildId, userId, body || {});
+  return json(r, r.ok ? 200 : 400);
+}
+async function routeSkillsRespec(env, guildId, userId) {
+  const { respecSkillTree } = await import('./hero-skills.js');
+  const r = await respecSkillTree(env, guildId, userId);
+  return json(r, r.ok ? 200 : 400);
+}
+async function routeCosmeticsMe(env, userId) {
+  const { getCosmeticsForUser } = await import('./monthly-cosmetic-grant.js');
+  return json(await getCosmeticsForUser(env, userId));
+}
+async function routeCardBackList(env, userId) {
+  const { listCardBacksForUser } = await import('./card-backs-animated.js');
+  return json(await listCardBacksForUser(env, userId));
+}
+async function routeCardBackSet(env, userId, body) {
+  const { setCardBackForUser } = await import('./card-backs-animated.js');
+  const r = await setCardBackForUser(env, userId, body || {});
+  return json(r, r.ok ? 200 : 400);
 }
 
 // /web/cards/suggest-art-terms — given a cardId, return suggested
