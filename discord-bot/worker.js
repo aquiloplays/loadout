@@ -604,6 +604,11 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/hero-bg/')) {
       return handleHeroBgAsset(req, env, path);
     }
+    // Spire art (2026-05-29 sprint) — 12 themes × (boss + backdrop + 9 NPCs).
+    // KV keys: pixel-art-spire-{boss,backdrop,npc}:<theme>[:<role>]
+    if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/spire-art/')) {
+      return handleSpireAsset(req, env, path);
+    }
     // Phase B character customization layers — hair (sex+style),
     // eyes (style only), facial (style only). KV-backed, year-long
     // cache. Composite manifest points renderers at these.
@@ -2536,6 +2541,36 @@ async function handleHeroCustomLayerAsset(req, env, path) {
   const kind = m[1];
   const slug = m[2];
   const kvKey = `pixel-art-hero-${kind}:${slug}`;
+  const buf = await env.LOADOUT_BOLTS.get(kvKey, { type: 'arrayBuffer' });
+  if (!buf) return new Response('not-uploaded', { status: 404 });
+  const headers = {
+    'content-type':   'image/png',
+    'cache-control':  'public, max-age=31536000, immutable',
+    'access-control-allow-origin': '*',
+    'content-length': String(buf.byteLength),
+  };
+  if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return new Response(buf, { status: 200, headers });
+}
+
+// ── GET /asset/spire-art/{boss,backdrop,npc}/<theme>[/<role>][.png]
+//
+// Three slugs:
+//   /asset/spire-art/boss/<theme>.png        -> pixel-art-spire-boss:<theme>
+//   /asset/spire-art/backdrop/<theme>.png    -> pixel-art-spire-backdrop:<theme>
+//   /asset/spire-art/npc/<theme>/<role>.png  -> pixel-art-spire-npc:<theme>:<role>
+const SPIRE_RE = /^\/asset\/spire-art\/(boss|backdrop|npc)\/([a-z0-9-]+)(?:\/([a-z0-9-]+))?(?:\.png)?$/;
+async function handleSpireAsset(req, env, path) {
+  const m = path.match(SPIRE_RE);
+  if (!m) return new Response('not-found', { status: 404 });
+  const kind = m[1], theme = m[2], role = m[3];
+  let kvKey;
+  if (kind === 'npc') {
+    if (!role) return new Response('npc-needs-role', { status: 400 });
+    kvKey = `pixel-art-spire-npc:${theme}:${role}`;
+  } else {
+    kvKey = `pixel-art-spire-${kind}:${theme}`;
+  }
   const buf = await env.LOADOUT_BOLTS.get(kvKey, { type: 'arrayBuffer' });
   if (!buf) return new Response('not-uploaded', { status: 404 });
   const headers = {
