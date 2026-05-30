@@ -691,7 +691,8 @@ export default {
       path.startsWith('/asset/cardback/') ||
       path.startsWith('/asset/pack/') ||
       path.startsWith('/asset/hero-body/') ||
-      path.startsWith('/asset/spire-boss/')
+      path.startsWith('/asset/spire-boss/') ||
+      path.startsWith('/asset/spire-map/')
     )) {
       return handlePixelArtAsset(req, env, path);
     }
@@ -1014,6 +1015,13 @@ export default {
         path === '/web/pet/evolve' || path === '/web/pet/xp') {
       const { handlePetLevelingRoute } = await import('./pet-leveling.js');
       return handlePetLevelingRoute(req, env, path);
+    }
+    // Spire Maps — Slay-the-Spire branching path layer per run.
+    // 4 endpoints dispatched by handleSpireMapRoute: POST /generate,
+    // GET /me/:runId, POST /advance, POST /resolve. See spire-map.js.
+    if (path.startsWith('/web/spire-map/')) {
+      const { handleSpireMapRoute } = await import('./spire-map.js');
+      return handleSpireMapRoute(req, env, path);
     }
     // F3 — Community activity feed (public GET)
     if (path === '/community/feed') {
@@ -2292,7 +2300,7 @@ async function handleCardArtAsset(req, env, path) {
 // shell injection / wide-open lookups. We allow lowercase alpha-
 // numeric + period + hyphen — enough for `champ.warrior`, `level-3`,
 // etc., but no slashes/dots/dot-dot.
-const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
+const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
 const PIXEL_ART_SEG_RE   = /^[A-Za-z0-9][A-Za-z0-9.\-]*$/;
 const PIXEL_ART_CATEGORY = {
   'hero-art':     'hero',
@@ -2310,6 +2318,9 @@ const PIXEL_ART_CATEGORY = {
   // Pro-Ultra-generated monthly Spire boss portraits.
   'hero-body':    'hero-body',
   'spire-boss':   'spire-boss',
+  // 2026-05-30 — Spire Maps (Slay-the-Spire branching paths).
+  // Keys: pixel-art-spire-map:bg:<theme>, :node:<type>, :path:<id>.
+  'spire-map':    'spire-map',
 };
 
 async function handlePixelArtAsset(req, env, path) {
