@@ -506,6 +506,19 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_card-art-wipe/')) {
       return handleCardArtWipe(req, env, path);
     }
+    // Diagnostic: validate the stored Twitch user token. Returns the
+    // login + user_id + actual granted scopes. Use when EventSub
+    // create fails with `twitch-error 401` to confirm scope coverage.
+    if ((method === 'POST' || method === 'GET') &&
+        path.startsWith('/admin/_twitch-token-validate/')) {
+      return handleTwitchTokenValidate(req, env, path);
+    }
+    // Diagnostic: run setupTwitchSubscriptions with debug error
+    // surfacing. Same as twitch-setup but token-gated so I can fire
+    // it without HMAC during diagnosis.
+    if (method === 'POST' && path.startsWith('/admin/_twitch-setup-debug/')) {
+      return handleTwitchSetupDebug(req, env, path);
+    }
     // Post the backfill summary embed to the admin hub channel.
     // KV-token gated, self-destructing — Clay re-mints when he wants
     // a fresh snapshot.
@@ -3113,6 +3126,45 @@ async function handleCardArtBackup(req, env, path) {
   }
   return jsonResp({ ok: true, dateTag, scanned, copied, skipped, failed,
                     sourcePrefix, backupPrefix });
+}
+
+// ── /admin/_twitch-token-validate/:token + /admin/_twitch-setup-debug/:token
+//
+// Diagnostics for the 2026-05-29 EventSub fail-everything case.
+// Token-gated (matches `bootstrap-twitch-diag-token` in KV).
+async function handleTwitchTokenValidate(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-twitch-diag-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  const { validateUserToken } = await import('./twitch-helix.js');
+  const v = await validateUserToken(env);
+  const REQUIRED = [
+    'moderator:read:followers', 'channel:read:subscriptions', 'bits:read',
+    'channel:read:redemptions', 'channel:read:hype_train', 'channel:read:polls',
+    'channel:read:predictions', 'channel:moderate',
+  ];
+  const granted = new Set(Array.isArray(v.scopes) ? v.scopes : []);
+  const missing = REQUIRED.filter(s => !granted.has(s));
+  return jsonResp({ ok: v.ok, validate: v, requiredScopes: REQUIRED,
+                    grantedScopes: [...granted], missingScopes: missing });
+}
+
+async function handleTwitchSetupDebug(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-twitch-diag-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  let opts = {};
+  try {
+    const body = await req.text();
+    if (body) opts = JSON.parse(body) || {};
+  } catch { /* swallow */ }
+  const { setupTwitchSubscriptions } = await import('./twitch-eventsub.js');
+  const r = await setupTwitchSubscriptions(env, opts);
+  return jsonResp(r);
 }
 
 // ── /admin/_card-art-wipe/:token (KV-token, idempotent) ──────────

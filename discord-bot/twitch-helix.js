@@ -199,6 +199,13 @@ export async function helixFetch(env, path, params, opts = {}) {
   try { body = await resp.json(); } catch { /* not JSON */ }
   if (!resp.ok) {
     console.warn('[twitch-helix]', resp.status, path, body ? JSON.stringify(body).slice(0, 200) : '');
+    // 2026-05-29 — callers that need the actual Twitch error body to
+    // diagnose can pass returnErrors:true. Default behavior (null on
+    // error) preserved for everything else.
+    if (opts.returnErrors) {
+      return { _error: true, status: resp.status,
+               body, message: body?.message || body?.error || resp.statusText };
+    }
     return null;
   }
   return body;
@@ -255,9 +262,18 @@ export async function getRecentClips(env, broadcasterId, startedAtIso) {
 // / channel.ban/unban). `opts.version` overrides the default '1'
 // (channel.follow now requires '2').
 export async function createSubscription(env, type, condition, callbackUrl, secret, opts = {}) {
+  // 2026-05-29 fix — webhook-transport EventSub ALWAYS uses the app
+  // access token, regardless of which scopes the subscription type
+  // needs. The user OAuth flow is still required (so Clay grants the
+  // scopes against our client_id and Twitch remembers them for the
+  // (client_id, broadcaster) pair), but the create call itself is
+  // app-token. User-token is for WebSocket transport, not webhook.
+  // opts.userToken is preserved as a no-op for callers + as docs for
+  // which subs need a prior user-grant.
   const j = await helixFetch(env, '/eventsub/subscriptions', null, {
     method: 'POST',
-    userToken: !!opts.userToken,
+    userToken: false,
+    returnErrors: true,
     body: {
       type,
       version: String(opts.version || '1'),
@@ -270,6 +286,22 @@ export async function createSubscription(env, type, condition, callbackUrl, secr
     },
   });
   return j;
+}
+
+// Validate the currently-stored user access token against Twitch's
+// validate endpoint. Returns { ok, login, user_id, scopes:[...],
+// expires_in } or { ok:false, error, ... }. Useful for diagnosing
+// scope-mismatch failures on EventSub create.
+export async function validateUserToken(env) {
+  const token = await getUserAccessToken(env);
+  if (!token) return { ok: false, error: 'no-user-token' };
+  const resp = await fetch('https://id.twitch.tv/oauth2/validate', {
+    headers: { 'Authorization': 'OAuth ' + token },
+  });
+  let body = null;
+  try { body = await resp.json(); } catch { /* not JSON */ }
+  if (!resp.ok) return { ok: false, status: resp.status, body };
+  return { ok: true, ...body };
 }
 
 export async function listSubscriptions(env) {

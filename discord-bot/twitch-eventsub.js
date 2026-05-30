@@ -223,10 +223,12 @@ function buildWantTypes(broadcasterId) {
     // — Channel-point redemptions (USER token, channel:read:redemptions).
     { type: 'channel.channel_points_custom_reward_redemption.add', version: '1',
       condition: { broadcaster_user_id: broadcasterId }, userToken: true },
-    // — Hype train (USER token, channel:read:hype_train).
-    { type: 'channel.hype_train.begin',    version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
-    { type: 'channel.hype_train.progress', version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
-    { type: 'channel.hype_train.end',      version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
+    // — Hype train (channel:read:hype_train). v1 was retired late 2025;
+    //   v2 is the current shape. Twitch returns "invalid subscription
+    //   type and version" if v1 is requested today.
+    { type: 'channel.hype_train.begin',    version: '2', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
+    { type: 'channel.hype_train.progress', version: '2', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
+    { type: 'channel.hype_train.end',      version: '2', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
     // — Polls (USER token, channel:read:polls).
     { type: 'channel.poll.begin', version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
     { type: 'channel.poll.end',   version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
@@ -313,6 +315,16 @@ export async function setupTwitchSubscriptions(env, opts = {}) {
         env.TWITCH_EVENTSUB_SECRET, { userToken: spec.userToken, version: spec.version });
       if (created && Array.isArray(created.data) && created.data[0]) {
         out.created.push({ type: spec.type, id: created.data[0].id, status: created.data[0].status });
+      } else if (created && created._error) {
+        // 2026-05-29 — surface the actual Twitch error so scope/version/
+        // condition mismatches can be diagnosed without a wrangler tail.
+        out.failed.push({
+          type: spec.type,
+          reason: 'twitch-error',
+          status: created.status,
+          message: created.message,
+          twitchBody: created.body,
+        });
       } else {
         out.failed.push({ type: spec.type, reason: 'create-returned-null' });
       }
