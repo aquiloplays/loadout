@@ -182,9 +182,11 @@ for slug, color in [
 # ── Replicate plumbing ─────────────────────────────────────────────
 def create(s):
     if s['model'] == 'ultra':
+        # Pro Ultra only supports jpg/png output (no webp). Use png so
+        # transparency-isolated frames survive the round-trip.
         body = {'input': {
             'prompt': s['prompt'], 'aspect_ratio': s['aspect'],
-            'output_format': 'webp', 'safety_tolerance': 2, 'raw': False,
+            'output_format': 'png', 'safety_tolerance': 2, 'raw': False,
         }}
         url = ULTRA_URL
     else:

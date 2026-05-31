@@ -32,11 +32,13 @@ def wrangler_bulk_put(json_path: Path) -> None:
     cmd = f'npx wrangler kv bulk put "{json_path}" --binding {KV_NS} --remote'
     res = subprocess.run(cmd, shell=True, capture_output=True, text=True,
                          encoding='utf-8', errors='replace')
+    def safe(s):
+        return (s or '').encode('ascii', 'replace').decode('ascii')
     if res.returncode != 0:
-        print('STDOUT:', (res.stdout or '')[-800:])
-        print('STDERR:', (res.stderr or '')[-800:])
+        print('STDOUT:', safe(res.stdout)[-1200:])
+        print('STDERR:', safe(res.stderr)[-1200:])
         raise RuntimeError(f'wrangler bulk put failed: {res.returncode}')
-    for line in ((res.stdout or res.stderr) or '').strip().splitlines()[-2:]:
+    for line in safe((res.stdout or res.stderr)).strip().splitlines()[-2:]:
         print('   ', line)
 
 
