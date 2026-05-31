@@ -704,6 +704,15 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/poll-composite/')) {
       return handlePollCompositeAsset(req, env, path);
     }
+    // Boltbound match FX (damage numbers, beams, particles). Served
+    // straight off pixel-art-boltbound:fx:<name> — the .png suffix is
+    // kept in the key (unlike the stripping pixel-art route) so it
+    // matches the upload convention. e.g.
+    //   /asset/boltbound-fx/damage-numbers-sheet.png
+    //     -> pixel-art-boltbound:fx:damage-numbers-sheet.png
+    if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/boltbound-fx/')) {
+      return handleBoltboundFxAsset(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -2353,6 +2362,32 @@ async function handlePixelArtAsset(req, env, path) {
   if (!buf) return new Response('art-not-uploaded', { status: 404 });
   const headers = {
     'content-type':   'image/png',
+    'cache-control':  'public, max-age=31536000, immutable',
+    'access-control-allow-origin': '*',
+    'content-length': String(buf.byteLength),
+  };
+  if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return new Response(buf, { status: 200, headers });
+}
+
+// ── Boltbound FX asset route ────────────────────────────────────
+// Match-polish FX live under pixel-art-boltbound:fx:<name>. The name
+// segment keeps its extension (.png) — these are sprite sheets the
+// match renderer slices, not the suffix-stripped per-card art.
+const BOLTBOUND_FX_RE = /^\/asset\/boltbound-fx\/([A-Za-z0-9][A-Za-z0-9.\-]*)$/;
+
+async function handleBoltboundFxAsset(req, env, path) {
+  const m = path.match(BOLTBOUND_FX_RE);
+  if (!m) return new Response('not-found', { status: 404 });
+  const name = m[1];
+  const buf = await env.LOADOUT_BOLTS.get(`pixel-art-boltbound:fx:${name}`, { type: 'arrayBuffer' });
+  if (!buf) return new Response('fx-not-uploaded', { status: 404 });
+  const ext = name.toLowerCase();
+  const contentType = ext.endsWith('.json') ? 'application/json'
+                    : ext.endsWith('.webp') ? 'image/webp'
+                    : 'image/png';
+  const headers = {
+    'content-type':   contentType,
     'cache-control':  'public, max-age=31536000, immutable',
     'access-control-allow-origin': '*',
     'content-length': String(buf.byteLength),
