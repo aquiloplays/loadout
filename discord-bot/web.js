@@ -312,6 +312,15 @@ const ROUTES = new Set([
   // the acting user is body.discordId, no :userId path param.
   'anniversary/check',       // POST — { discordId, guildId } → anniversary state (or null)
   'anniversary/celebrate',   // POST — claim this year's reward (idempotent)
+  // Stream Squad (stream-squad.js) — co-watch sessions + shared feed.
+  'squad/create',            // POST — { twitchChannel } → new squad (owner auto-joins)
+  'squad/active',            // POST — { twitchChannel? } → active sessions
+  'squad/get',               // POST — { squadId } → session + roster
+  'squad/join',              // POST — { squadId }
+  'squad/leave',             // POST — { squadId }
+  'squad/end',               // POST — { squadId } (owner-only)
+  'squad/event',             // POST — { squadId, kind, payload } → append to feed
+  'squad/feed',              // POST — { squadId, limit?, before? } → newest-first feed
   'quest/snapshot',          // POST — checklist with claim state
   'quest/claim',             // POST — claim one step (or 'all')
   'quest/mark-patreon-linked', // POST — flip the patreon-linked completion flag (called by site after OAuth)
@@ -553,6 +562,14 @@ export async function handleWeb(req, env) {
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
     if (route === 'anniversary/check')        return await routeAnniversaryCheck(env, guildId, discordId);
     if (route === 'anniversary/celebrate')    return await routeAnniversaryCelebrate(env, guildId, discordId);
+    if (route === 'squad/create')             return await routeSquadCreate(env, discordId, body);
+    if (route === 'squad/active')             return await routeSquadActive(env, body);
+    if (route === 'squad/get')                return await routeSquadGet(env, body);
+    if (route === 'squad/join')               return await routeSquadJoin(env, discordId, body);
+    if (route === 'squad/leave')              return await routeSquadLeave(env, discordId, body);
+    if (route === 'squad/end')                return await routeSquadEnd(env, discordId, body);
+    if (route === 'squad/event')              return await routeSquadEvent(env, discordId, body);
+    if (route === 'squad/feed')               return await routeSquadFeed(env, body);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
     if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
     if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
@@ -1797,6 +1814,77 @@ async function routeAnniversaryCelebrate(env, guildId, discordId) {
   const { celebrateAnniversary } = await import('./anniversary.js');
   const r = await celebrateAnniversary(env, guildId, discordId);
   return json(r, statusFor(r));
+}
+
+// ── /web/squad/* — Stream Squad co-watch ─────────────────────────────
+//
+// All bound to body.discordId (the acting user). twitchChannel /
+// squadId / kind / payload come off the body. Module dynamically
+// imported so the D1 dependency only loads when a squad route is hit.
+async function routeSquadCreate(env, discordId, body) {
+  const twitchChannel = String((body && body.twitchChannel) || '').trim().toLowerCase();
+  if (!twitchChannel) return json({ ok: false, error: 'twitchChannel-required' }, 400);
+  const { createSquad } = await import('./stream-squad.js');
+  const r = await createSquad(env, { ownerUserId: discordId, twitchChannel });
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeSquadActive(env, body) {
+  const twitchChannel = body && body.twitchChannel
+    ? String(body.twitchChannel).trim().toLowerCase() : undefined;
+  const { listActiveSquads } = await import('./stream-squad.js');
+  const r = await listActiveSquads(env, { twitchChannel, limit: body && body.limit });
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeSquadGet(env, body) {
+  const squadId = String((body && body.squadId) || '').trim();
+  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
+  const { getSquad } = await import('./stream-squad.js');
+  const r = await getSquad(env, squadId);
+  return json(r, r.ok ? 200 : 404);
+}
+
+async function routeSquadJoin(env, discordId, body) {
+  const squadId = String((body && body.squadId) || '').trim();
+  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
+  const { joinSquad } = await import('./stream-squad.js');
+  const r = await joinSquad(env, squadId, discordId);
+  return json(r, r.ok ? 200 : (r.error === 'not-found' ? 404 : 400));
+}
+
+async function routeSquadLeave(env, discordId, body) {
+  const squadId = String((body && body.squadId) || '').trim();
+  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
+  const { leaveSquad } = await import('./stream-squad.js');
+  const r = await leaveSquad(env, squadId, discordId);
+  return json(r, r.ok ? 200 : (r.error === 'not-found' ? 404 : 400));
+}
+
+async function routeSquadEnd(env, discordId, body) {
+  const squadId = String((body && body.squadId) || '').trim();
+  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
+  const { endSquad } = await import('./stream-squad.js');
+  const r = await endSquad(env, squadId, discordId);
+  return json(r, r.ok ? 200 : (r.error === 'not-found' ? 404 : (r.error === 'not-owner' ? 403 : 400)));
+}
+
+async function routeSquadEvent(env, discordId, body) {
+  const squadId = String((body && body.squadId) || '').trim();
+  const kind = String((body && body.kind) || '').trim();
+  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
+  if (!kind)    return json({ ok: false, error: 'kind-required' }, 400);
+  const { postSquadEvent } = await import('./stream-squad.js');
+  const r = await postSquadEvent(env, squadId, discordId, kind, body && body.payload);
+  return json(r, r.ok ? 200 : (r.error === 'not-found' ? 404 : (r.error === 'not-a-member' ? 403 : 400)));
+}
+
+async function routeSquadFeed(env, body) {
+  const squadId = String((body && body.squadId) || '').trim();
+  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
+  const { getSquadFeed } = await import('./stream-squad.js');
+  const r = await getSquadFeed(env, squadId, { limit: body && body.limit, before: body && body.before });
+  return json(r, r.ok ? 200 : 400);
 }
 
 // ── Quick bolts games (2026-05) ──────────────────────────────────────

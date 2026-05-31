@@ -154,6 +154,12 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleTempVcComponent } = await import('./temp-vc.js');
       return json(await handleTempVcComponent(env, data));
     }
+    if (cid.startsWith('squad:'))     {
+      // Stream Squad "Join" button on the live-status embed. See
+      // stream-squad.js (custom_id squad:join:<squadId>).
+      const { handleSquadComponent } = await import('./stream-squad.js');
+      return json(await handleSquadComponent(env, data));
+    }
     if (cid.startsWith('setup:'))     {
       // /loadout-setup wizard step buttons.
       const { handleSetupComponent } = await import('./setup-wizard.js');
