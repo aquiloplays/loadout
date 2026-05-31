@@ -1048,6 +1048,14 @@ export default {
       const { handleSpireMapRoute } = await import('./spire-map.js');
       return handleSpireMapRoute(req, env, path);
     }
+    // Anniversary celebrations — public GET /me/<g>/<u> for the
+    // firstSeen + anniversary-today view; POST /celebrate HMAC-gated
+    // to claim the per-year reward (cron handles the announcement
+    // post automatically). See anniversary.js.
+    if (path.startsWith('/web/anniversary/')) {
+      const { handleAnniversaryRoute } = await import('./anniversary.js');
+      return handleAnniversaryRoute(req, env, path);
+    }
     // F3 — Community activity feed (public GET)
     if (path === '/community/feed') {
       const { handleCommunityFeedRoute } = await import('./activity-feed.js');
@@ -1235,6 +1243,22 @@ export default {
               } catch (e) { console.warn('[cron] twitch-drops', e?.message || e); }
             })());
           }
+        }
+        // Random Drops — rarity-weighted community chest spawn every 2
+        // hours. randomDropCron self-gates to even-hour:00 via a KV
+        // 2h-bucket marker (the account is at the 4-cron ceiling, so
+        // this rides the every-minute trigger instead of its own
+        // `0 */2 * * *` cron). No-op off-cadence / already-spawned.
+        if (activeGuildId) {
+          ctx.waitUntil((async () => {
+            try {
+              const { randomDropCron } = await import('./random-drops.js');
+              const r = await randomDropCron(env);
+              if (r?.spawned?.ok && !r.spawned.alreadyActive) {
+                console.log('[cron] random-drop spawned', r.spawned.rarity, 'bucket', r.bucket);
+              }
+            } catch (e) { console.warn('[cron] random-drop', e?.message || e); }
+          })());
         }
         // Hourly work below is the OLD :17 schedule — only runs when
         // the current minute is 17 to preserve the original cadence.

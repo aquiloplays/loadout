@@ -407,3 +407,65 @@ export async function anniversaryDailyCron(env, opts = {}) {
   }
   return { ok: true, today, walked, announced, more: !!cursor, celebrants };
 }
+
+
+// ── HTTP route handler ────────────────────────────────────────────
+// 2026-05-31 — exposes celebrateAnniversary + getFirstSeen via HMAC
+// HTTP for the site to call. Pattern matches daily-quests/twitch-drops/
+// pet-leveling: GET is public for the read path, POST is HMAC-gated.
+
+function _ajson(obj, status = 200) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: {
+      'content-type': 'application/json',
+      'access-control-allow-origin': '*',
+      'cache-control': 'no-store',
+    },
+  });
+}
+
+async function _agateHmac(req, env) {
+  const { verifyHmac } = await import('./auth.js');
+  if (!env.AQUILO_SITE_WEB_SECRET) {
+    return { ok: false, status: 503, error: 'AQUILO_SITE_WEB_SECRET missing' };
+  }
+  const bodyText = req.method === 'POST' ? await req.text() : '';
+  const ts  = req.headers.get('x-aquilo-web-ts');
+  const sig = req.headers.get('x-aquilo-web-sig');
+  const ok  = await verifyHmac(env.AQUILO_SITE_WEB_SECRET, ts || '', bodyText, sig || '');
+  if (!ok) return { ok: false, status: 401, error: 'unauthorized' };
+  let body = {};
+  if (bodyText) {
+    try { body = JSON.parse(bodyText); } catch { return { ok: false, status: 400, error: 'bad-json' }; }
+  }
+  return { ok: true, body };
+}
+
+export async function handleAnniversaryRoute(req, env, path) {
+  // GET /web/anniversary/me/<guildId>/<userId> — public, returns the
+  // current firstSeen + computed anniversary state.
+  if (req.method === 'GET' && path.startsWith('/web/anniversary/me/')) {
+    const parts = path.slice('/web/anniversary/me/'.length).split('/');
+    const guildId = parts[0];
+    const userId  = parts[1];
+    if (!guildId || !userId) return _ajson({ error: 'guildId+userId required' }, 400);
+    const firstSeenUtc = await getFirstSeen(env, guildId, userId);
+    if (firstSeenUtc == null) return _ajson({ ok: true, firstSeenUtc: null, anniversary: null });
+    const a = computeAnniversary(firstSeenUtc, Date.now());
+    return _ajson({ ok: true, firstSeenUtc, anniversary: a });
+  }
+  // POST /web/anniversary/celebrate — HMAC-gated. Body: { guildId, userId }.
+  const gate = await _agateHmac(req, env);
+  if (!gate.ok) return _ajson({ error: gate.error }, gate.status);
+  const b = gate.body || {};
+  const guildId = String(b.guildId || '').trim();
+  const userId  = String(b.userId || '').trim();
+  if (!guildId || !userId) return _ajson({ error: 'guildId+userId required' }, 400);
+
+  if (req.method === 'POST' && path === '/web/anniversary/celebrate') {
+    const r = await celebrateAnniversary(env, guildId, userId);
+    return _ajson(r, r.ok ? 200 : 400);
+  }
+  return _ajson({ error: 'unknown-op' }, 404);
+}
