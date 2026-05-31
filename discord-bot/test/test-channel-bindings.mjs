@@ -71,8 +71,9 @@ console.log('— catalog sanity');
      'character', 'bolts', 'play', 'achievements', 'vote',
      'vault-events', 'vault-actions',
      'stream-notifications', 'live-now', 'redemptions-feed',
-     'twitch-rewards-feed', 'spire-clears', 'live-status-embed'],
-    'binding keys (now includes spire-clears + welcome + twitch-event routing keys + live-status-embed)');
+     'twitch-rewards-feed', 'spire-clears', 'live-status-embed',
+     'anniversary', 'stream-squad'],
+    'binding keys (now includes spire-clears + welcome + twitch-event routing keys + live-status-embed + anniversary + stream-squad)');
   // Every binding has an env-fallback ENTRY in the table (value
   // may be null for hub-channel bindings that are KV-only).
   for (const k of _BINDING_KEYS_FOR_TEST) {
@@ -160,7 +161,7 @@ console.log('— setChannelBinding');
   const r3 = await setChannelBinding(env, GUILD, 'garbage', '1500000000000000222');
   eq(r3.ok, false, 'unknown binding refused');
   eq(r3.error, 'unknown-binding', 'error code');
-  assert(Array.isArray(r3.allowed) && r3.allowed.length === 24, 'lists allowed (24 keys)');
+  assert(Array.isArray(r3.allowed) && r3.allowed.length === 26, 'lists allowed (26 keys)');
   // No guild.
   const r4 = await setChannelBinding(env, '', 'queue', '1500000000000000222');
   eq(r4.error, 'no-guild-id', 'no-guild-id');
@@ -182,12 +183,12 @@ console.log('— listChannelBindings');
   await env.LOADOUT_BOLTS.put(`channel-binding:${GUILD}:queue`, '1500000000000000222');
   const list = await listChannelBindings(env, GUILD);
   eq(Object.keys(list).sort(),
-    ['achievements', 'bolts', 'character', 'checkin', 'checkin-results',
+    ['achievements', 'anniversary', 'bolts', 'character', 'checkin', 'checkin-results',
      'clips', 'games-list', 'lfg', 'live', 'live-now', 'live-status-embed',
      'play', 'poll', 'queue', 'recap', 'redemptions-feed', 'schedule',
-     'spire-clears', 'stream-notifications', 'twitch-rewards-feed',
+     'spire-clears', 'stream-notifications', 'stream-squad', 'twitch-rewards-feed',
      'vault-actions', 'vault-events', 'vote', 'welcome'].sort(),
-    '24 keys');
+    '26 keys');
   // queue: KV override; resolved = KV.
   eq(list.queue.kv, '1500000000000000222', 'queue kv');
   eq(list.queue.env, '1500000000000000111', 'queue env');

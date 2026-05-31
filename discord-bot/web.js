@@ -276,6 +276,7 @@ const ROUTES = new Set([
   'admin/active-guild',
   'admin/clear-binding',
   'admin/pipe-tests',
+  'admin/anniversary-backfill',  // POST {_owner, maxPages?, cursor?} — stamp legacy anniv:seen
   // Daily community check-in (unified with /checkin slash command).
   'checkin',                 // POST — record today's check-in
   'checkin/status',          // POST — read streak + card + pending bonuses
@@ -304,6 +305,13 @@ const ROUTES = new Set([
   // New-viewer funnel — referrals + onboarding quest.
   'referral/me',             // POST — my code + stats
   'referral/attribute',      // POST — record that this user was referred by CODE
+  // Anniversary celebrations (anniversary.js). The premium-feature
+  // spec wrote these as GET/POST /web/anniversary/{check,celebrate}/:userId,
+  // but every /web/* route here is POST + HMAC + body-bound discordId
+  // (you can only act as yourself), so these follow that convention:
+  // the acting user is body.discordId, no :userId path param.
+  'anniversary/check',       // POST — { discordId, guildId } → anniversary state (or null)
+  'anniversary/celebrate',   // POST — claim this year's reward (idempotent)
   'quest/snapshot',          // POST — checklist with claim state
   'quest/claim',             // POST — claim one step (or 'all')
   'quest/mark-patreon-linked', // POST — flip the patreon-linked completion flag (called by site after OAuth)
@@ -543,6 +551,8 @@ export async function handleWeb(req, env) {
     if (route === 'play/war/raid')         return await routeWarRaid(env, guildId, discordId, body);
     if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
+    if (route === 'anniversary/check')        return await routeAnniversaryCheck(env, guildId, discordId);
+    if (route === 'anniversary/celebrate')    return await routeAnniversaryCelebrate(env, guildId, discordId);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
     if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
     if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
@@ -616,6 +626,14 @@ async function noteFirstGame(env, guildId, userId) {
 
 async function routeDaily(env, guildId, userId) {
   await noteGamePlayed(env, guildId, userId);
+  // Anniversary firstSeen heartbeat — daily claim is the cheapest
+  // once-per-day-per-user activity signal. Min-wins, so it never
+  // overrides an earlier stamp; for users created after the last
+  // backfill this captures their join date going forward.
+  try {
+    const { recordFirstSeen } = await import('./anniversary.js');
+    await recordFirstSeen(env, guildId, userId);
+  } catch { /* non-fatal */ }
   const r = await daily(env, guildId, userId);
   if (r.won) {
     // games_won bumps on a successful daily so the recap card's
@@ -1747,6 +1765,38 @@ async function routeReferralAttribute(env, guildId, discordId, body) {
   const { recordAttribution } = await import('./referrals.js');
   const r = await recordAttribution(env, guildId, discordId, refCode);
   return json(r, r.ok ? 200 : 400);
+}
+
+// ── /web/anniversary/* — celebrations ────────────────────────────────
+//
+// POST /web/anniversary/check
+//   Body: { discordId, guildId }
+//   Returns: { ok: true, firstSeenUtc, anniversary: { years, daysUntil,
+//              milestone, anniversaryToday, claimed, reward } | null }
+//   `anniversary` is null when the user has no firstSeen record yet.
+//
+// POST /web/anniversary/celebrate
+//   Body: { discordId, guildId }
+//   Idempotent per (user, year). Grants scaling bolts + a cosmetic
+//   anniversary badge only when today actually is the user's
+//   anniversary AND that year hasn't been claimed.
+//   Returns: { ok, granted, years?, reward?, reason? }
+//
+// Touches firstSeen as a side effect — visiting the dashboard counts
+// as activity, so an unseen user gets stamped on first check (their
+// anniversary clock starts now). Existing users keep their earlier
+// stamp (recordFirstSeen is min-wins).
+async function routeAnniversaryCheck(env, guildId, discordId) {
+  const { recordFirstSeen, checkAnniversary } = await import('./anniversary.js');
+  await recordFirstSeen(env, guildId, discordId);
+  const r = await checkAnniversary(env, guildId, discordId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeAnniversaryCelebrate(env, guildId, discordId) {
+  const { celebrateAnniversary } = await import('./anniversary.js');
+  const r = await celebrateAnniversary(env, guildId, discordId);
+  return json(r, statusFor(r));
 }
 
 // ── Quick bolts games (2026-05) ──────────────────────────────────────

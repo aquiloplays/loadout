@@ -332,6 +332,18 @@ async function routeAdminPipeTests(env, guildId) {
 // Called by web.js after the HMAC verification + _owner gate. We
 // re-check _owner here too as defence in depth in case the caller
 // forgot.
+// Owner-only: backfill anniv:seen records for legacy wallet holders.
+// Cursor-paginated — pass back the returned `cursor` to continue a
+// large guild across calls. Idempotent (already-stamped users skip).
+async function routeAnniversaryBackfill(env, guildId, body) {
+  const { backfillFirstSeen } = await import('./anniversary.js');
+  const r = await backfillFirstSeen(env, guildId, {
+    maxPages: Number(body?.maxPages) || 6,
+    cursor: body?.cursor || undefined,
+  });
+  return json(r, r.ok ? 200 : 400);
+}
+
 export async function handleAdminWeb(env, route, guildId, body) {
   if (!body || body._owner !== true) {
     return json({ ok: false, error: 'forbidden', message: 'owner-only.' }, 403);
@@ -342,6 +354,7 @@ export async function handleAdminWeb(env, route, guildId, body) {
     case 'admin/active-guild':   return await routeAdminActiveGuild(env, guildId, body);
     case 'admin/clear-binding':  return await routeAdminClearBinding(env, guildId, body);
     case 'admin/pipe-tests':     return await routeAdminPipeTests(env, guildId);
+    case 'admin/anniversary-backfill': return await routeAnniversaryBackfill(env, guildId, body);
     default:                     return json({ ok: false, error: 'not-found' }, 404);
   }
 }

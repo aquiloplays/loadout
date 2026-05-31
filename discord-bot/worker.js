@@ -1442,6 +1442,20 @@ export default {
             console.warn('[cron] support-tickets auto-close', e?.message || e);
           }
         })());
+        // Anniversary celebrations — once-per-UTC-day sweep (gated by
+        // an anniv:cron:last-sweep KV marker inside the helper). Walks
+        // the anniv:seen keyspace + posts a celebratory embed in the
+        // games-hub channel for anyone whose join-anniversary is today.
+        // Reward claim itself is pull-based via /web/anniversary/celebrate.
+        ctx.waitUntil((async () => {
+          try {
+            const { anniversaryDailyCron } = await import('./anniversary.js');
+            const r = await anniversaryDailyCron(env);
+            if (r?.announced) console.log('[cron] anniversary', JSON.stringify(r));
+          } catch (e) {
+            console.warn('[cron] anniversary', e?.message || e);
+          }
+        })());
         // Seasonal Spire monthly rotation. Piggybacked on :23; the
         // helper is gated by a `spire:rotate:last-month` KV marker so
         // re-running mid-month is a no-op. Logs the rotation outcome.
