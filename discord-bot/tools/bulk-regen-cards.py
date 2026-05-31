@@ -132,6 +132,20 @@ def regen_one(card):
         time.sleep(4 + attempt * 4)
     return False, (not art_cached), last or 'failed'
 
+def git_commit_push(done_count):
+    """Commit + push the progress state so a detached run survives a
+    context blowout / job death (resume reads the state). Best-effort."""
+    try:
+        subprocess.run(['git', '-C', str(ROOT.parent), 'add', 'discord-bot/bulk-regen-state.json'],
+                       capture_output=True, text=True)
+        c = subprocess.run(['git', '-C', str(ROOT.parent), 'commit', '-m',
+                            f'card overhaul: bulk regen progress {done_count}/1267'],
+                           capture_output=True, text=True)
+        if c.returncode == 0:
+            subprocess.run(['git', '-C', str(ROOT.parent), 'push'], capture_output=True, text=True)
+    except Exception as e:
+        print('  (git commit/push skipped:', str(e)[:80], ')')
+
 def main(argv):
     if not ppipe.TOKEN:
         print('REPLICATE_API_TOKEN not set', file=sys.stderr); return 2
@@ -139,6 +153,7 @@ def main(argv):
     chunk = int(argv[argv.index('--chunk') + 1]) if '--chunk' in argv else 50
     only = argv[argv.index('--only') + 1].split(',') if '--only' in argv else None
     pace = float(argv[argv.index('--pace') + 1]) if '--pace' in argv else 2.0
+    do_commit = '--commit' in argv
 
     cards = ppipe.load_cards()
     st = load_state()
@@ -176,6 +191,7 @@ def main(argv):
             st['uploaded'] += pending_upload
             done.update(pending_upload)
             save_state(st)
+            if do_commit: git_commit_push(len(st['done']))
             print(f'  uploaded: uploaded chunk of {len(pending_upload)} | sample {sample} 200={okv} | total done {len(st["done"])}')
             pending_upload = []
 
@@ -184,6 +200,7 @@ def main(argv):
         okv = verify(pending_upload[0])
         st['done'] += pending_upload; st['uploaded'] += pending_upload
         save_state(st)
+        if do_commit: git_commit_push(len(st['done']))
         print(f'  uploaded: final chunk of {len(pending_upload)} | sample 200={okv} | total done {len(st["done"])}')
 
     print(f'\nProcessed {processed} this run. Done {len(st["done"])}/{len(cards)}. '
