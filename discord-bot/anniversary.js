@@ -389,6 +389,11 @@ export async function anniversaryDailyCron(env, opts = {}) {
         await env.LOADOUT_BOLTS.put(announceKey, today, { expirationTtl: 60 * 60 * 24 * 7 });
         announced++;
         celebrants.push({ userId, years: a.years, milestone: a.milestone });
+        // Fan out to the community-activity SSE feed (best-effort).
+        try {
+          const { publishActivity } = await import('./activity-do.js');
+          await publishActivity(env, { kind: 'anniversary', userId, years: a.years, milestone: a.milestone });
+        } catch { /* sse optional */ }
       }
     }
     if (page.list_complete || !page.cursor) { cursor = null; break; }

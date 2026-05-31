@@ -277,5 +277,11 @@ export async function claimTier(env, guildId, userId, tier, track) {
   ).bind(serializeClaimed(claimed), Date.now(), season.id, String(userId)).run();
 
   const granted = await grantReward(env, guildId, userId, rewardRow.kind, payload);
+  // Fan out tier-unlock to the community-activity SSE feed (best-effort).
+  try {
+    const { publishActivity } = await import('./activity-do.js');
+    await publishActivity(env, { kind: 'pass-tier', userId, tier: t, track,
+      reward: { kind: rewardRow.kind } });
+  } catch { /* sse optional */ }
   return { ok: true, tier: t, track, reward: granted };
 }

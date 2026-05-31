@@ -211,6 +211,12 @@ export async function joinSquad(env, squadId, userId) {
   const memberCount = await recomputeMemberCount(D, squadId);
   if (!alreadyIn) {
     await insertEvent(D, squadId, String(userId), 'join', null, now);
+    // Fan out to the community-activity SSE feed (best-effort).
+    try {
+      const { publishActivity } = await import('./activity-do.js');
+      await publishActivity(env, { kind: 'squad-join', squadId, userId, memberCount,
+        twitchChannel: session.twitch_channel });
+    } catch { /* sse optional */ }
   }
   const after = await fetchSession(D, squadId);
   return { ok: true, squad: shapeSession(after), memberCount, alreadyIn };

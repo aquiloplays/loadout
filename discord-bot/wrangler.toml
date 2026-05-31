@@ -180,9 +180,21 @@ database_id = "292de930-cfb3-49dd-aa65-e1d1d67ad3e4"
 name = "OVERLAY_DO"
 class_name = "OverlayBroadcaster"
 
+# Community-activity SSE fan-out (activity-do.js). Plain in-memory DO —
+# holds connected EventSource clients + broadcasts bolt drops,
+# anniversaries, squad joins, drop claims, pass-tier unlocks. No SQLite
+# storage, so the migration uses new_classes (not new_sqlite_classes).
+[[durable_objects.bindings]]
+name = "ACTIVITY_DO"
+class_name = "ActivityBroadcaster"
+
 [[migrations]]
 tag = "v1-aquilo-overlay-do"
 new_sqlite_classes = ["OverlayBroadcaster"]
+
+[[migrations]]
+tag = "v2-activity-do"
+new_classes = ["ActivityBroadcaster"]
 
 # Worker crons. worker.js's `scheduled` handler dispatches by
 # event.cron so each cron can drive a different job.

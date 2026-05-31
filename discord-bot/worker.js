@@ -47,6 +47,9 @@ import { handleExt, handleRelay } from './ext.js';
 // implementation file is under aquilo/, the class needs to surface
 // from the top-level Worker entrypoint module.
 export { OverlayBroadcaster } from './aquilo/worker.js';
+// Community-activity SSE fan-out DO (activity-do.js). Bound as
+// ACTIVITY_DO; see wrangler.toml [[migrations]] v2-activity-do.
+export { ActivityBroadcaster } from './activity-do.js';
 
 // Discord interaction "claim" command custom handler — defined here rather
 // than commands.js because it touches the claim KV and cross-cuts the
@@ -718,6 +721,13 @@ export default {
     // (channel = login | numeric id | 'me' for Clay's channel).
     if (path.startsWith('/watchtower/stream/')) {
       return handleWatchtower(req, env, path);
+    }
+    // Community-activity SSE feed (activity-do.js). GET /activity/sse is
+    // the public EventSource stream; POST /activity/publish is the
+    // internal HMAC-gated producer endpoint (also reachable in-process
+    // via publishActivity()).
+    if (path === '/activity/sse' || path === '/activity/publish') {
+      return handleActivityStream(req, env, path);
     }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
@@ -2434,6 +2444,53 @@ async function handleWatchtower(req, env, path) {
   };
   if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
   return new Response(JSON.stringify(data), { status: data.ok ? 200 : 502, headers });
+}
+
+// ── Community-activity SSE feed ─────────────────────────────────
+async function handleActivityStream(req, env, path) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  if (!env.ACTIVITY_DO) {
+    return new Response(JSON.stringify({ ok: false, error: 'activity-do-unbound' }),
+      { status: 503, headers: { 'content-type': 'application/json', ...cors } });
+  }
+  const id = env.ACTIVITY_DO.idFromName('global');
+  const stub = env.ACTIVITY_DO.get(id);
+
+  if (path === '/activity/sse') {
+    if (req.method !== 'GET') return new Response('method', { status: 405, headers: cors });
+    // Forward to the DO, preserving the abort signal so the DO can prune
+    // the client when the browser disconnects.
+    return stub.fetch('https://do/sse', { signal: req.signal });
+  }
+
+  // POST /activity/publish — internal producer endpoint. Gated by a
+  // shared key so only the site/ops can push (in-process producers use
+  // publishActivity() directly + don't hit this path).
+  if (path === '/activity/publish') {
+    if (req.method !== 'POST') return new Response('method', { status: 405, headers: cors });
+    const key = req.headers.get('x-aquilo-activity-key') || '';
+    if (!env.AQUILO_BOT_SECRET || key !== env.AQUILO_BOT_SECRET) {
+      return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }),
+        { status: 401, headers: { 'content-type': 'application/json', ...cors } });
+    }
+    const body = await req.text();
+    let evt;
+    try { evt = JSON.parse(body); } catch { evt = null; }
+    if (!evt || !evt.kind) {
+      return new Response(JSON.stringify({ ok: false, error: 'kind-required' }),
+        { status: 400, headers: { 'content-type': 'application/json', ...cors } });
+    }
+    const { publishActivity } = await import('./activity-do.js');
+    const r = await publishActivity(env, evt);
+    return new Response(JSON.stringify(r),
+      { status: r.ok ? 200 : 502, headers: { 'content-type': 'application/json', ...cors } });
+  }
+  return new Response('not-found', { status: 404, headers: cors });
 }
 
 // ── Poll composite asset route ─────────────────────────────────
