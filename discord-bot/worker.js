@@ -713,6 +713,12 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/boltbound-fx/')) {
       return handleBoltboundFxAsset(req, env, path);
     }
+    // Streamer Watchtower — public live-stats JSON for an OBS Browser
+    // Source. CORS-open, 5s-cached. GET /watchtower/stream/:channel
+    // (channel = login | numeric id | 'me' for Clay's channel).
+    if (path.startsWith('/watchtower/stream/')) {
+      return handleWatchtower(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -2394,6 +2400,40 @@ async function handleBoltboundFxAsset(req, env, path) {
   };
   if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
   return new Response(buf, { status: 200, headers });
+}
+
+// ── Streamer Watchtower OBS panel ───────────────────────────────
+const WATCHTOWER_RE = /^\/watchtower\/stream\/([A-Za-z0-9_]{1,40}|me)$/;
+
+async function handleWatchtower(req, env, path) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    return new Response('method', { status: 405, headers: cors });
+  }
+  const m = path.match(WATCHTOWER_RE);
+  if (!m) return new Response(JSON.stringify({ ok: false, error: 'bad-channel' }),
+    { status: 400, headers: { 'content-type': 'application/json', ...cors } });
+
+  let data;
+  try {
+    const { getWatchtowerStats } = await import('./watchtower.js');
+    data = await getWatchtowerStats(env, m[1]);
+  } catch (e) {
+    data = { ok: false, error: 'watchtower-failed', detail: String(e?.message || e).slice(0, 120) };
+  }
+  const headers = {
+    'content-type': 'application/json',
+    // Short edge cache matches the 5s upstream cache; OBS polls freely.
+    'cache-control': 'public, max-age=5',
+    ...cors,
+  };
+  if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return new Response(JSON.stringify(data), { status: data.ok ? 200 : 502, headers });
 }
 
 // ── Poll composite asset route ─────────────────────────────────
