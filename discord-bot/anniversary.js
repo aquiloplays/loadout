@@ -274,11 +274,21 @@ export async function celebrateAnniversary(env, guildId, userId, opts = {}) {
   await earn(env, guildId, userId, reward.bolts, `anniversary:y${a.years}`);
   const badge = await grantAnniversaryBadge(env, userId, reward.badgeId);
 
+  // Aether economy grant — scales with the anniversary year. Best-effort
+  // (no D1 binding in some test envs); never blocks the bolt+badge grant.
+  let aether = 0;
+  try {
+    const { grantAetherForMilestone } = await import('./aether.js');
+    const r = await grantAetherForMilestone(env, guildId, userId, 'anniversary',
+      { multiplier: a.years });
+    if (r.ok) aether = r.balance;
+  } catch { /* aether ledger optional */ }
+
   return {
     ok: true,
     granted: true,
     years: a.years,
-    reward: { ...reward, badgeGranted: !!badge.granted },
+    reward: { ...reward, badgeGranted: !!badge.granted, aetherBalance: aether },
   };
 }
 

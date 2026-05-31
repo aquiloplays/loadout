@@ -321,6 +321,10 @@ const ROUTES = new Set([
   'squad/end',               // POST — { squadId } (owner-only)
   'squad/event',             // POST — { squadId, kind, payload } → append to feed
   'squad/feed',              // POST — { squadId, limit?, before? } → newest-first feed
+  // Aether economy (aether.js) — D1 ledger, spendable premium currency.
+  'aether/balance',          // POST — { discordId, guildId } → balance + lifetime totals
+  'aether/spend',            // POST — { amount, reason? } → debit (insufficient-aether on overdraw)
+  'aether/history',          // POST — { limit? } → newest-first transaction ledger
   'quest/snapshot',          // POST — checklist with claim state
   'quest/claim',             // POST — claim one step (or 'all')
   'quest/mark-patreon-linked', // POST — flip the patreon-linked completion flag (called by site after OAuth)
@@ -570,6 +574,9 @@ export async function handleWeb(req, env) {
     if (route === 'squad/end')                return await routeSquadEnd(env, discordId, body);
     if (route === 'squad/event')              return await routeSquadEvent(env, discordId, body);
     if (route === 'squad/feed')               return await routeSquadFeed(env, body);
+    if (route === 'aether/balance')           return await routeAetherBalance(env, guildId, discordId);
+    if (route === 'aether/spend')             return await routeAetherSpend(env, guildId, discordId, body);
+    if (route === 'aether/history')           return await routeAetherHistory(env, guildId, discordId, body);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
     if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
     if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
@@ -1884,6 +1891,28 @@ async function routeSquadFeed(env, body) {
   if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
   const { getSquadFeed } = await import('./stream-squad.js');
   const r = await getSquadFeed(env, squadId, { limit: body && body.limit, before: body && body.before });
+  return json(r, r.ok ? 200 : 400);
+}
+
+// ── /web/aether/* — Aether economy ledger ────────────────────────────
+async function routeAetherBalance(env, guildId, discordId) {
+  const { getAetherBalance } = await import('./aether.js');
+  const r = await getAetherBalance(env, guildId, discordId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeAetherSpend(env, guildId, discordId, body) {
+  const amount = Math.floor(Number(body && body.amount) || 0);
+  if (amount <= 0) return json({ ok: false, error: 'bad-amount' }, 400);
+  const { spendAether } = await import('./aether.js');
+  const r = await spendAether(env, guildId, discordId, amount,
+    String((body && body.reason) || 'spend'));
+  return json(r, r.ok ? 200 : (r.error === 'insufficient-aether' ? 402 : 400));
+}
+
+async function routeAetherHistory(env, guildId, discordId, body) {
+  const { getAetherHistory } = await import('./aether.js');
+  const r = await getAetherHistory(env, guildId, discordId, body && body.limit);
   return json(r, r.ok ? 200 : 400);
 }
 
