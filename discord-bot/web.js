@@ -325,6 +325,12 @@ const ROUTES = new Set([
   'aether/balance',          // POST — { discordId, guildId } → balance + lifetime totals
   'aether/spend',            // POST — { amount, reason? } → debit (insufficient-aether on overdraw)
   'aether/history',          // POST — { limit? } → newest-first transaction ledger
+  // Aquilo Pass v2 (aquilo-pass-d1.js) — D1 battle pass, 30 tiers,
+  // free+premium. Namespaced pass2/* so it coexists with the legacy
+  // KV pass at pass/state + pass/claim-tier.
+  'pass2/state',             // POST — full season + progress + per-tier reward state
+  'pass2/claim',             // POST — { tier, track } → claim one reward (idempotent)
+  'pass2/buy-premium',       // POST — own the premium track (gated on paid Patreon)
   'quest/snapshot',          // POST — checklist with claim state
   'quest/claim',             // POST — claim one step (or 'all')
   'quest/mark-patreon-linked', // POST — flip the patreon-linked completion flag (called by site after OAuth)
@@ -577,6 +583,9 @@ export async function handleWeb(req, env) {
     if (route === 'aether/balance')           return await routeAetherBalance(env, guildId, discordId);
     if (route === 'aether/spend')             return await routeAetherSpend(env, guildId, discordId, body);
     if (route === 'aether/history')           return await routeAetherHistory(env, guildId, discordId, body);
+    if (route === 'pass2/state')              return await routePass2State(env, discordId);
+    if (route === 'pass2/claim')              return await routePass2Claim(env, guildId, discordId, body);
+    if (route === 'pass2/buy-premium')        return await routePass2BuyPremium(env, guildId, discordId);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
     if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
     if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
@@ -668,6 +677,13 @@ async function routeDaily(env, guildId, userId) {
       games_won: 1,
     });
     await noteFirstGame(env, guildId, userId);
+    // Aquilo Pass v2 XP — daily claim feeds battle-pass progression.
+    // Best-effort (no D1 binding in some envs); never blocks the claim.
+    try {
+      const { seedSeasonOne, grantPassXp } = await import('./aquilo-pass-d1.js');
+      await seedSeasonOne(env);
+      await grantPassXp(env, userId, 50, 'daily-claim');
+    } catch { /* pass optional */ }
   }
   // Surface the post-claim wallet so the UI doesn't need a follow-up
   // round trip.
@@ -1914,6 +1930,62 @@ async function routeAetherHistory(env, guildId, discordId, body) {
   const { getAetherHistory } = await import('./aether.js');
   const r = await getAetherHistory(env, guildId, discordId, body && body.limit);
   return json(r, r.ok ? 200 : 400);
+}
+
+// ── /web/pass2/* — Aquilo Pass v2 (D1) ───────────────────────────────
+const PASS2_PREMIUM_AETHER_COST = 500;
+
+async function routePass2State(env, discordId) {
+  const { seedSeasonOne, getPassState } = await import('./aquilo-pass-d1.js');
+  // Lazy-seed Season 1 on first read so the pass is always populated.
+  await seedSeasonOne(env).catch(() => {});
+  const r = await getPassState(env, discordId);
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routePass2Claim(env, guildId, discordId, body) {
+  const tier = Math.floor(Number(body && body.tier) || 0);
+  const track = (body && body.track) === 'premium' ? 'premium' : 'free';
+  if (tier < 1) return json({ ok: false, error: 'tier-required' }, 400);
+  const { claimTier } = await import('./aquilo-pass-d1.js');
+  const r = await claimTier(env, guildId, discordId, tier, track);
+  const code = r.ok ? 200
+    : r.error === 'tier-not-reached' ? 409
+    : r.error === 'premium-locked' ? 403
+    : 400;
+  return json(r, code);
+}
+
+// Own the premium track: free for paid Patreon supporters, otherwise
+// purchasable for PASS2_PREMIUM_AETHER_COST aether.
+async function routePass2BuyPremium(env, guildId, discordId) {
+  const { setPremium, getPassState } = await import('./aquilo-pass-d1.js');
+  const state = await getPassState(env, discordId);
+  if (!state.ok) return json(state, 400);
+  if (state.progress.premium) return json({ ok: true, premium: true, alreadyOwned: true });
+
+  // Paid Patreon → free unlock.
+  let paid = false;
+  try {
+    const rec = await env.LOADOUT_BOLTS.get(`patreon:tier:${discordId}`, { type: 'json' });
+    const tier = String(rec?.tier || rec?.tierName || '').trim().toLowerCase();
+    paid = !!tier && tier !== 'free';
+  } catch { /* no patreon record */ }
+
+  if (paid) {
+    await setPremium(env, discordId, true);
+    return json({ ok: true, premium: true, via: 'patreon' });
+  }
+  // Otherwise buy with aether.
+  const { spendAether } = await import('./aether.js');
+  const spent = await spendAether(env, guildId, discordId, PASS2_PREMIUM_AETHER_COST, 'pass2:premium-unlock');
+  if (!spent.ok) {
+    return json({ ok: false, error: 'insufficient-aether', costAether: PASS2_PREMIUM_AETHER_COST,
+                  balance: spent.balance ?? 0 }, 402);
+  }
+  await setPremium(env, discordId, true);
+  return json({ ok: true, premium: true, via: 'aether', spentAether: PASS2_PREMIUM_AETHER_COST,
+                aetherBalance: spent.balance });
 }
 
 // ── Quick bolts games (2026-05) ──────────────────────────────────────
