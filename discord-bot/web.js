@@ -331,6 +331,10 @@ const ROUTES = new Set([
   'pass2/state',             // POST — full season + progress + per-tier reward state
   'pass2/claim',             // POST — { tier, track } → claim one reward (idempotent)
   'pass2/buy-premium',       // POST — own the premium track (gated on paid Patreon)
+  // Bolt Rain (bolt-rain.js) — Patreon-T2+-triggered 60s claim window.
+  'boltrain/trigger',        // POST — open a rain (T2+ only)
+  'boltrain/claim',          // POST — first-click claim
+  'boltrain/state',          // POST — current event state (+ youClaimed)
   'quest/snapshot',          // POST — checklist with claim state
   'quest/claim',             // POST — claim one step (or 'all')
   'quest/mark-patreon-linked', // POST — flip the patreon-linked completion flag (called by site after OAuth)
@@ -586,6 +590,9 @@ export async function handleWeb(req, env) {
     if (route === 'pass2/state')              return await routePass2State(env, discordId);
     if (route === 'pass2/claim')              return await routePass2Claim(env, guildId, discordId, body);
     if (route === 'pass2/buy-premium')        return await routePass2BuyPremium(env, guildId, discordId);
+    if (route === 'boltrain/trigger')         return await routeBoltRainTrigger(env, guildId, discordId);
+    if (route === 'boltrain/claim')           return await routeBoltRainClaim(env, guildId, discordId);
+    if (route === 'boltrain/state')           return await routeBoltRainState(env, guildId, discordId);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
     if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
     if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
@@ -1986,6 +1993,34 @@ async function routePass2BuyPremium(env, guildId, discordId) {
   await setPremium(env, discordId, true);
   return json({ ok: true, premium: true, via: 'aether', spentAether: PASS2_PREMIUM_AETHER_COST,
                 aetherBalance: spent.balance });
+}
+
+// ── /web/boltrain/* — interactive bolt rain ─────────────────────────
+async function routeBoltRainTrigger(env, guildId, discordId) {
+  const { triggerBoltRain } = await import('./bolt-rain.js');
+  const r = await triggerBoltRain(env, guildId, discordId);
+  const code = r.ok ? 200
+    : r.error === 'not-tier-2' ? 403
+    : r.error === 'already-active' ? 409
+    : 400;
+  return json(r, code);
+}
+
+async function routeBoltRainClaim(env, guildId, discordId) {
+  const { claimBoltRain } = await import('./bolt-rain.js');
+  const r = await claimBoltRain(env, guildId, discordId);
+  const code = r.ok ? 200
+    : r.error === 'not-active' ? 410
+    : r.error === 'already-claimed' ? 409
+    : r.error === 'depleted' ? 409
+    : 400;
+  return json(r, code);
+}
+
+async function routeBoltRainState(env, guildId, discordId) {
+  const { getBoltRainState } = await import('./bolt-rain.js');
+  const r = await getBoltRainState(env, guildId, discordId);
+  return json(r, r.ok ? 200 : 400);
 }
 
 // ── Quick bolts games (2026-05) ──────────────────────────────────────
