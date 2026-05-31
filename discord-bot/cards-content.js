@@ -28,6 +28,13 @@
 // RNG ('randomEnemyMinion'). Spell cards have abilities under the
 // implicit 'onCast' trigger.
 
+// Effect backfill for the 174 vanilla filler cards (see
+// tools/gen-card-effects.mjs). Merged onto the matching cards in the
+// CARDS assembly below so the effects persist for the engine, the site,
+// and card-art regens alike. Each entry is a single engine-supported
+// keyword (power-budgeted) + matching text.
+import { GENERATED_EFFECTS } from './card-effects-backfill.js';
+
 export const TRIGGERS = [
   'onPlay',         // minion summoned from hand, OR spell cast
   'onCast',         // alias for onPlay used by spell cards
@@ -523,7 +530,7 @@ const RAW_ROSTER = [
 ];
 
 export const CARDS = Object.fromEntries(
-  RAW_ROSTER.map(c => [c.id, normaliseCard(c)])
+  RAW_ROSTER.map(c => [c.id, normaliseCard({ ...c, ...(GENERATED_EFFECTS[c.id] || {}) })])
 );
 
 // Sanity check at module load — duplicate IDs would silently overwrite,
