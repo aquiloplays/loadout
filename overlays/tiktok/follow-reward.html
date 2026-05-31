@@ -220,16 +220,17 @@
     margin-bottom: 8px;
   }
   .hero .title {
-    font-size: 50px;
-    line-height: 0.98;
+    font-size: 38px;
+    line-height: 1.08;
     font-weight: 900;
-    letter-spacing: -0.01em;
+    letter-spacing: 0.01em;
     margin: 0;
     color: var(--ink);
     text-shadow: 0 2px 18px rgba(0,0,0,0.5);
   }
   .hero .title .reward {
-    display: inline-block;
+    display: block;
+    margin-top: 4px;
     background: linear-gradient(100deg, var(--accent-b) 0%, var(--accent-a) 45%, var(--accent-c) 100%);
     background-size: 220% 100%;
     -webkit-background-clip: text;
@@ -243,37 +244,6 @@
     0%,100% { filter: drop-shadow(0 0 12px rgba(124,92,255,0.45)); }
     50%     { filter: drop-shadow(0 0 22px rgba(255,106,181,0.65)); }
   }
-  .hero .sub {
-    margin-top: 12px;
-    font-size: 17px;
-    font-weight: 600;
-    color: var(--ink-soft);
-  }
-  .hero .sub .pop { color: var(--ink); font-weight: 800; }
-
-  /* Action chips under the sub line */
-  .actions {
-    display: flex;
-    gap: 10px;
-    justify-content: center;
-    margin-top: 14px;
-  }
-  .chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 8px 14px;
-    border-radius: 999px;
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--ink);
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 6px 16px rgba(0,0,0,0.35);
-    backdrop-filter: blur(4px);
-  }
-  .chip svg { width: 16px; height: 16px; }
-
   /* ---- Bottom: rotating product callout ----------------------- */
   .promo {
     width: 100%;
@@ -386,24 +356,7 @@
       <!-- Hero -->
       <div class="hero">
         <div class="eyebrow">New here? Tap follow</div>
-        <h1 class="title">FOLLOW = <span class="reward">REWARD</span></h1>
-        <p class="sub">Draw a card. <span class="pop">Spin</span> for a random game effect.</p>
-        <div class="actions">
-          <span class="chip">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="4" y="3" width="14" height="18" rx="2.5" fill="#ff6ab5" opacity="0.25" stroke="#ff6ab5" stroke-width="1.6"/>
-              <rect x="7" y="6" width="10" height="14" rx="1.6" fill="none" stroke="#ff6ab5" stroke-width="1.4"/>
-            </svg>
-            Draw a card
-          </span>
-          <span class="chip">
-            <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="12" r="8.5" stroke="#5bff95" stroke-width="1.6"/>
-              <path d="M12 5 L12 12 L17 14" stroke="#5bff95" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-            Spin an effect
-          </span>
-        </div>
+        <h1 class="title">FOLLOW =<br><span class="reward">RANDOM GAME EFFECT</span></h1>
       </div>
 
       <!-- Rotating product callout -->
