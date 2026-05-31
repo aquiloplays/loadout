@@ -32,9 +32,11 @@ export const BUILDINGS = {
     glyph: '🏰', name: 'Town Hall',
     footprint: { w: 3, h: 3 },
     cost: [null,
-      { bolts: 0,      scrap: 0 },
-      { bolts: 1000,   scrap: 60,    cores: 0,  wood: 400 },
-      { bolts: 2500,   scrap: 200,   cores: 0,  wood: 1200, stone: 600 },
+      // L1 charter fee — per Clay's "nothing is free" directive. Townhall
+      // is the majestic founder building: small stone+gold+wood+bolts ante.
+      { bolts: 100,    wood: 100,    stone: 100, gold: 100 },
+      { bolts: 1000,   scrap: 60,    wood: 400 },
+      { bolts: 2500,   scrap: 200,   wood: 1200, stone: 600 },
       { bolts: 800,    scrap: 450,   cores: 1,  wood: 3000, stone: 1800, iron: 200 },
       { bolts: 1400,   scrap: 900,   cores: 2,  wood: 7000, stone: 4200, iron: 600 },
       { bolts: 2800,   scrap: 1800,  cores: 4,  wood: 14000, stone: 9000, iron: 1600, gold: 200 },
@@ -53,7 +55,8 @@ export const BUILDINGS = {
     glyph: '🧱', name: 'Wall',
     footprint: { w: 1, h: 1 },
     cost: [null,
-      { bolts: 0 },
+      // L1 charter fee — walls cost stone + wood scaffolding even at base.
+      { stone: 100, wood: 100 },
       { bolts: 60,    wood: 100 },
       { bolts: 150,   wood: 280, stone: 80 },
       { bolts: 300,   wood: 600, stone: 240 },
@@ -71,7 +74,8 @@ export const BUILDINGS = {
     footprint: { w: 2, h: 2 },
     targets: 'ground',
     cost: [null,
-      { bolts: 0 },
+      // L1 charter fee — defensive tower: stone fortification + bolt ammo.
+      { stone: 100, bolts: 100 },
       { bolts: 150,   wood: 350,  stone: 80 },
       { bolts: 400,   wood: 900,  stone: 280 },
       { bolts: 900,   wood: 1800, stone: 700, iron: 60, cores: 1 },
@@ -89,7 +93,8 @@ export const BUILDINGS = {
     footprint: { w: 2, h: 2 },
     targets: 'both',
     cost: [null,
-      { bolts: 0 },
+      // L1 charter fee — defensive tower: stone fortification + bolt ammo.
+      { stone: 100, bolts: 100 },
       { bolts: 180,   wood: 450,  stone: 100 },
       { bolts: 500,   wood: 1100, stone: 350 },
       { bolts: 1100,  wood: 2200, stone: 800, iron: 80, cores: 1 },
@@ -107,7 +112,8 @@ export const BUILDINGS = {
     glyph: '💢', name: 'Trap',
     footprint: { w: 1, h: 1 },
     isTrap: true, trapKind: 'bomb',
-    cost: [null, { bolts: 0 }, { bolts: 150, wood: 200, iron: 20 }, { bolts: 400, wood: 500, iron: 80 }],
+    // L1 charter fee — trap: bolts + iron triggering hardware.
+    cost: [null, { bolts: 100, iron: 100 }, { bolts: 150, wood: 200, iron: 20 }, { bolts: 400, wood: 500, iron: 80 }],
     time: [null, 0, 20*60_000, 90*60_000],
     hp:   [null, 1, 1, 1],   // traps detonate on first hit
     burst:[null, 120, 220, 380],   // burst damage on detonation
@@ -116,7 +122,8 @@ export const BUILDINGS = {
   storage: {
     glyph: '🏛️', name: 'Storage',
     footprint: { w: 2, h: 2 },
-    cost: [null, { bolts: 0 }, { bolts: 250, wood: 600, stone: 120 }, { bolts: 700, wood: 1700, stone: 450 },
+    // L1 charter fee — storage vault: stone walls + gold lock theme.
+    cost: [null, { stone: 100, gold: 100 }, { bolts: 250, wood: 600, stone: 120 }, { bolts: 700, wood: 1700, stone: 450 },
                  { bolts: 1700, wood: 3800, stone: 1200, iron: 120, cores: 1 }],
     time: [null, 0, 45*60_000, 3*3_600_000, 9*3_600_000],
     hp:   [null, 400, 600, 900, 1300],
@@ -125,7 +132,8 @@ export const BUILDINGS = {
   barracks: {
     glyph: '⛺', name: 'Barracks',
     footprint: { w: 2, h: 2 },
-    cost: [null, { bolts: 0 }, { bolts: 300, wood: 700, stone: 180 }, { bolts: 900, wood: 2000, stone: 550 },
+    // L1 charter fee — barracks: wood frame + stone foundation.
+    cost: [null, { wood: 100, stone: 100 }, { bolts: 300, wood: 700, stone: 180 }, { bolts: 900, wood: 2000, stone: 550 },
                  { bolts: 2000, wood: 4500, stone: 1300, iron: 180, cores: 1 }],
     time: [null, 0, 1*3_600_000, 4*3_600_000, 12*3_600_000],
     hp:   [null, 360, 540, 820, 1200],
@@ -143,7 +151,8 @@ export const BUILDINGS = {
   warTent: {
     glyph: '⛺', name: 'War Tent',
     footprint: { w: 2, h: 2 },
-    cost: [null, { bolts: 0 }, { bolts: 1200, wood: 2800, stone: 800, iron: 200, cores: 1 }, { bolts: 3500, wood: 6500, stone: 2200, iron: 700, cores: 3 }],
+    // L1 charter fee — war tent: majestic military structure (stone + gold).
+    cost: [null, { stone: 100, gold: 100 }, { bolts: 1200, wood: 2800, stone: 800, iron: 200, cores: 1 }, { bolts: 3500, wood: 6500, stone: 2200, iron: 700, cores: 3 }],
     time: [null, 0, 6*3_600_000, 24*3_600_000],
     hp:   [null, 500, 800, 1200],
     // Champion HP multiplier — a higher-level tent makes the
