@@ -573,16 +573,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/counting/clear-shame-role/')) {
       return handleCountingClearShameRole(req, env, path);
     }
-    // MC paid-Patreon-only whitelist — three admin endpoints. See
-    // mc-whitelist.js for the policy + DSrv-role-membership model.
-    if (method === 'POST' && path.startsWith('/admin/mc-whitelist/ensure-role/')) {
-      return handleMcWhitelistEnsureRole(req, env, path);
-    }
-    if (method === 'POST' && path.startsWith('/admin/mc-whitelist/sync-user/')) {
-      return handleMcWhitelistSyncUser(req, env, path);
-    }
-    if (method === 'POST' && path.startsWith('/admin/mc-whitelist/daily-sweep/')) {
-      return handleMcWhitelistDailySweep(req, env, path);
+    // MC whitelist gating removed 2026-05-31 (Clay dropped Minecraft as
+    // a featured offering). One remaining one-shot, KV-token-gated
+    // endpoint deletes the "Minecraft Whitelist" Discord role + clears
+    // its KV id. Token written via `wrangler kv key put
+    // bootstrap-mc-role-delete-token <value>`; self-destructs on use.
+    if (method === 'POST' && path.startsWith('/admin/_mc-role-delete/')) {
+      return handleMcRoleDelete(req, env, path);
     }
     // Twitch reward roles — provision Twitch Sub / T2 / T3 roles +
     // store ids at twitch-rewards:role:<gid>:<tier>. Idempotent.
@@ -1429,26 +1426,10 @@ export default {
         ctx.waitUntil(gifterRolesDailyTick(env).then(r =>
           console.log('[cron] gifter-roles daily', JSON.stringify(r))).catch(e =>
           console.warn('[cron] gifter-roles', e?.message || e)));
-        // MC paid-Patreon whitelist sweep — KV-marker gated to once
-        // per UTC day. Iterates everyone currently in the "Minecraft
-        // Whitelist" role + revokes anyone who lapsed to non-paid.
-        // No-op when env.AQUILO_VAULT_GUILD_ID is unset or the role
-        // hasn't been provisioned via /admin/mc-whitelist/ensure-role.
-        ctx.waitUntil((async () => {
-          const gid = env.AQUILO_VAULT_GUILD_ID;
-          if (!gid) return;
-          const today = new Date().toISOString().slice(0, 10);
-          const marker = await env.LOADOUT_BOLTS.get('mc-whitelist:cron:last-sweep').catch(() => null);
-          if (marker === today) return;
-          try {
-            const { mcWhitelistDailySweep } = await import('./mc-whitelist.js');
-            const r = await mcWhitelistDailySweep(env, gid);
-            console.log('[cron] mc-whitelist sweep', JSON.stringify(r));
-            await env.LOADOUT_BOLTS.put('mc-whitelist:cron:last-sweep', today);
-          } catch (e) {
-            console.warn('[cron] mc-whitelist sweep', e?.message || e);
-          }
-        })());
+        // (Removed 2026-05-31: the MC paid-Patreon whitelist daily sweep.
+        // Clay dropped Minecraft as a featured offering — no more role
+        // gating. The #smp-chat channel + DiscordSRV bridge stay; only
+        // the "Minecraft Whitelist" role + its gating were removed.)
         // Custom-poll close sweep — runs every :23 (hourly), no marker
         // needed since pollsCronSweep is itself a per-poll closeAt
         // gate. Cost is one KV-list of ~5 keys; cheap.
@@ -2677,13 +2658,8 @@ async function handleClayBatch(req, env, path) {
     results.gamesMenuPost = { ok: false, error: e?.message || String(e) };
   }
 
-  // 3. mc-whitelist ensure-role.
-  try {
-    const { ensureWhitelistRole } = await import('./mc-whitelist.js');
-    results.mcWhitelistEnsureRole = await ensureWhitelistRole(env, guildId);
-  } catch (e) {
-    results.mcWhitelistEnsureRole = { ok: false, error: e?.message || String(e) };
-  }
+  // 3. (Removed 2026-05-31) mc-whitelist ensure-role — Minecraft dropped
+  //    as a featured offering; no whitelist role is provisioned anymore.
 
   // 4. Register slash commands at guild scope.
   try {
@@ -3302,46 +3278,29 @@ async function handleTwitchRewardsEnsureRoles(req, env, path) {
   return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
 }
 
-// ── MC whitelist admin endpoints ─────────────────────────────────
-async function handleMcWhitelistEnsureRole(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','mc-whitelist','ensure-role',':g']
-  const guildId = parts[3];
-  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+// ── /admin/_mc-role-delete/:token (KV-token, self-destructing) ────
+// One-shot removal of the "Minecraft Whitelist" role (Clay dropped
+// Minecraft as a featured offering, 2026-05-31). Token written via
+// `wrangler kv key put bootstrap-mc-role-delete-token <value>`;
+// self-destructs on first use. Deletes the role by its KV-stored id +
+// any role matching the canonical name, and clears the KV id key.
+// Optional body { roleId } forces deletion of a specific snowflake.
+async function handleMcRoleDelete(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_mc-role-delete',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-mc-role-delete-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  // Self-destruct first so a replay can't re-run it.
+  await env.LOADOUT_BOLTS.delete('bootstrap-mc-role-delete-token').catch(() => {});
+  let opts = {};
   const body = await req.text();
-  const auth = await verifyAdminAuth(req, env, guildId, body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
-  const { ensureWhitelistRole } = await import('./mc-whitelist.js');
-  const r = await ensureWhitelistRole(env, guildId);
-  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
-}
-
-// POST /admin/mc-whitelist/sync-user/:guildId/:userId  (HMAC)
-// Called by the site's Patreon OAuth callback when patreon:tier
-// flips so paid → free revokes access immediately (not just on the
-// daily cron). Body unused.
-async function handleMcWhitelistSyncUser(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','mc-whitelist','sync-user',':g',':u']
-  const guildId = parts[3];
-  const userId  = parts[4];
-  if (!guildId || !userId) return jsonResp({ ok: false, error: 'guildId + userId required' }, 400);
-  const body = await req.text();
-  const auth = await verifyAdminAuth(req, env, guildId, body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
-  const { syncMcAccess } = await import('./mc-whitelist.js');
-  const r = await syncMcAccess(env, guildId, userId);
-  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
-}
-
-async function handleMcWhitelistDailySweep(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','mc-whitelist','daily-sweep',':g']
-  const guildId = parts[3];
-  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
-  const body = await req.text();
-  const auth = await verifyAdminAuth(req, env, guildId, body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
-  const { mcWhitelistDailySweep } = await import('./mc-whitelist.js');
-  const r = await mcWhitelistDailySweep(env, guildId);
-  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
+  if (body) { try { opts = JSON.parse(body) || {}; } catch { /* ignore */ } }
+  const guildId = String(opts.guildId || env.AQUILO_VAULT_GUILD_ID || '');
+  if (!guildId) return jsonResp({ ok: false, error: 'no-guild' }, 400);
+  const { deleteWhitelistRole } = await import('./mc-whitelist.js');
+  const r = await deleteWhitelistRole(env, guildId, { roleId: opts.roleId });
+  return jsonResp(r, r.ok ? 200 : 400);
 }
 
 // ── /admin/_card-art-bulk-set/:token (KV-token, self-destructing) ─
