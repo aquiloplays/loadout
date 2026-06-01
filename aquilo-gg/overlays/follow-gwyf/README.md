@@ -13,8 +13,13 @@ name and profile picture.
 ## Quick start (OBS)
 
 1. **Sources → +  → Browser**.
-2. **URL**: `https://widget.aquilo.gg/overlays/follow-gwyf/`
-   (or a `file:///…/aquilo-gg/overlays/follow-gwyf/index.html` local path).
+2. **URL**: `https://aquilo.gg/personal-overlays/follow-gwyf/`
+   (or a `file:///…/aquilo-gg/overlays/follow-gwyf/index.html` local path as a backup).
+
+   > Hosting note: this overlay lives on `aquilo.gg` (Clay's personal overlays),
+   > served from the `aquilo-site` repo at `public/personal-overlays/follow-gwyf/`.
+   > It is **not** on the shared `widget.aquilo.gg` overlay site. Source of truth
+   > stays here in the Loadout repo; copy changes into `aquilo-site` to redeploy.
 3. **Width `1080`, Height `360`.**
 4. Tick **Shutdown source when not visible** and **Refresh browser when scene
    becomes active** (so a fresh follow stream connects each session).
