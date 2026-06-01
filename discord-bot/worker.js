@@ -713,6 +713,13 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/boltbound-fx/')) {
       return handleBoltboundFxAsset(req, env, path);
     }
+    // Boltbound arena environment assets (stone-arena bg, medallion
+    // frames, lane-slot, critters, fog/ember overlays). Served off
+    // pixel-art-overlays:boltbound-arena:<name>. Short cache (active
+    // aesthetic build, re-arted in place).
+    if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/boltbound-arena/')) {
+      return handleBoltboundArenaAsset(req, env, path);
+    }
     // Streamer Watchtower — public live-stats JSON for an OBS Browser
     // Source. CORS-open, 5s-cached. GET /watchtower/stream/:channel
     // (channel = login | numeric id | 'me' for Clay's channel).
@@ -2419,6 +2426,32 @@ async function handleBoltboundFxAsset(req, env, path) {
   const headers = {
     'content-type':   contentType,
     'cache-control':  'public, max-age=31536000, immutable',
+    'access-control-allow-origin': '*',
+    'content-length': String(buf.byteLength),
+  };
+  if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return new Response(buf, { status: 200, headers });
+}
+
+// ── Boltbound arena environment route ───────────────────────────
+// Backdrop + frames + critters + overlays under
+// pixel-art-overlays:boltbound-arena:<name>. Short cache during the
+// active aesthetic build (re-arted in place); .json manifests allowed.
+const BOLTBOUND_ARENA_RE = /^\/asset\/boltbound-arena\/([A-Za-z0-9][A-Za-z0-9.\-]*)$/;
+
+async function handleBoltboundArenaAsset(req, env, path) {
+  const m = path.match(BOLTBOUND_ARENA_RE);
+  if (!m) return new Response('not-found', { status: 404 });
+  const name = m[1];
+  const buf = await env.LOADOUT_BOLTS.get(`pixel-art-overlays:boltbound-arena:${name}`, { type: 'arrayBuffer' });
+  if (!buf) return new Response('arena-asset-not-uploaded', { status: 404 });
+  const ext = name.toLowerCase();
+  const contentType = ext.endsWith('.json') ? 'application/json'
+                    : ext.endsWith('.webp') ? 'image/webp'
+                    : 'image/png';
+  const headers = {
+    'content-type':   contentType,
+    'cache-control':  'public, max-age=3600',
     'access-control-allow-origin': '*',
     'content-length': String(buf.byteLength),
   };

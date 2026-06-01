@@ -322,6 +322,109 @@ def jobs_D():
 
 BATCHES = {'B': jobs_B, 'D': jobs_D}
 
+# ── Batch E: Boltbound arena environment (E-I) ─────────────────────
+# Distinct aesthetic from Clash — carved-stone battle arena, dim blue +
+# amber dramatic light, glowing runes. KV: pixel-art-overlays:
+# boltbound-arena:<id>.png ; served at /asset/boltbound-arena/<id>.png.
+ARENA = ("Boltbound stone-arena aesthetic: weathered carved stone and pillars, "
+         "glowing arcane runes, dramatic dim blue and warm amber rim light, "
+         "drifting dust motes, painterly high-detail fantasy game art, MTG-Arena "
+         "mood, NOT cartoon, NOT pixel art")
+ARENA_KV  = lambda name: f'pixel-art-overlays:boltbound-arena:{name}'
+ARENA_URL = lambda name: f'https://{WORKER}/asset/boltbound-arena/{name}'
+
+def run_E(pace, do_commit):
+    st = load_state(); done = set(st['done'])
+    # Single-image assets: (id, prompt, aspect, isolate, seed_center).
+    singles = [
+        ('stone-arena-bg.png',
+         f"{ARENA}. A wide battlefield backdrop: a grand carved stone archway flanked "
+         f"by weathered pillars etched with glowing runes, dim blue + amber light, dust "
+         f"motes drifting, atmospheric depth. Opaque full-bleed background. No text, no characters.",
+         '16:9', False, False),
+        ('medallion-frame-left.png',
+         f"{ARENA}. An ornate carved wood-and-stone hero MEDALLION frame: a round empty "
+         f"portrait slot at top + a smaller empty numeral slot below for a life total, "
+         f"classic MTG-Arena player-medallion style, the slots are hollow empty holes. {ON_MAGENTA} "
+         f"including inside the hollow slots. No text, no numerals, no portrait.",
+         '3:4', True, True),
+        ('medallion-frame-right.png',
+         f"{ARENA}. A mirror-image ornate carved wood-and-stone hero MEDALLION frame (mirrored "
+         f"to the right), round empty portrait slot + empty life-total numeral slot, hollow "
+         f"slots. {ON_MAGENTA} including inside the hollow slots. No text, no numerals.",
+         '3:4', True, True),
+        ('lane-slot-frame.png',
+         f"{ARENA}. A small square rune-etched stone tile that a card sits in on the board, "
+         f"a subtle glowing rune border, empty hollow center. {ON_MAGENTA} including the hollow "
+         f"center. No text.",
+         '1:1', True, True),
+        ('fog-overlay.png',
+         f"{ARENA}. Soft wispy translucent fog/mist tendrils drifting across the frame, pale "
+         f"blue-grey, for an atmospheric depth overlay. {ON_MAGENTA}. No text.",
+         '16:9', True, False),
+        ('ember-overlay.png',
+         f"{ARENA}. Scattered drifting warm amber embers + glowing dust particles rising, for "
+         f"an atmospheric overlay. {ON_MAGENTA}. No text.",
+         '16:9', True, False),
+    ]
+    for aid, prompt, aspect, isolate, seed_center in singles:
+        if f'arena:{aid}' in done and not FORCE: continue
+        out = ART / f'arena_{aid}'
+        try:
+            _, billed = gen(prompt, aspect, out)
+            if billed: st['spend'] = round(st['spend'] + COST, 4)
+            img = Image.open(out)
+            if isolate: img = flood_key(img, 60, seed_center); img.save(out, optimize=True)
+            kv_bulk_put([{'key': ARENA_KV(aid),
+                          'value': base64.b64encode(out.read_bytes()).decode('ascii'), 'base64': True}])
+            okv = verify(ARENA_URL(aid))
+            st['done'].append(f'arena:{aid}'); done.add(f'arena:{aid}'); save_state(st)
+            if do_commit: git_push(len(st['done']), 'E')
+            print(f'  ok   arena:{aid}  200={okv}  (${st["spend"]:.2f})')
+        except Exception as e:
+            print(f'  SKIP arena:{aid}: {str(e)[:100]}', file=sys.stderr)
+        if pace: time.sleep(pace)
+
+    # Critters — 6 idle familiars, each a 4-frame strip -> 4-col sheet.
+    critters = [
+        ('crit-dragoncat', 'a cute small orange dragon-cat familiar'),
+        ('crit-bluepup',   'a cute round blue slime-pup familiar'),
+        ('crit-mothling',  'a glowing amber moth familiar'),
+        ('crit-runefox',   'a small fox familiar with glowing rune markings'),
+        ('crit-stonegrub', 'a tiny armored stone-grub familiar'),
+        ('crit-wispbird',  'a small ghostly wisp-bird familiar'),
+    ]
+    for cid, desc in critters:
+        if f'arena:{cid}' in done and not FORCE: continue
+        out = ART / f'arena_{cid}_strip.png'
+        try:
+            prompt = (f"{ARENA}. A horizontal sprite-sheet strip of exactly 4 evenly-spaced frames, "
+                      f"left to right, of {desc} doing a gentle idle bob loop, the same creature in "
+                      f"every frame, small cute decorative familiar. {ON_MAGENTA}. No text, no grid lines.")
+            _, billed = gen(prompt, '21:9', out)
+            if billed: st['spend'] = round(st['spend'] + COST, 4)
+            img = flood_key(Image.open(out), 60); img.save(out, optimize=True)
+            cells = slice_strip(out, 4)
+            sheet = Image.new('RGBA', (4 * CELL, CELL), (0, 0, 0, 0))
+            for i, c in enumerate(cells): sheet.paste(c, (i * CELL, 0), c)
+            spath = ART / f'arena_{cid}_sheet.png'; sheet.save(spath, optimize=True)
+            kv_bulk_put([
+                {'key': ARENA_KV(f'{cid}-sheet.png'),
+                 'value': base64.b64encode(spath.read_bytes()).decode('ascii'), 'base64': True},
+                {'key': ARENA_KV(f'{cid}-manifest.json'),
+                 'value': json.dumps({'frameW': CELL, 'frameH': CELL, 'cols': 4, 'frames': 4}, separators=(',', ':'))},
+            ])
+            okv = verify(ARENA_URL(f'{cid}-sheet.png'))
+            st['done'].append(f'arena:{cid}'); done.add(f'arena:{cid}'); save_state(st)
+            if do_commit: git_push(len(st['done']), 'E')
+            print(f'  ok   arena:{cid} (4f sheet) 200={okv}  (${st["spend"]:.2f})')
+        except Exception as e:
+            print(f'  SKIP arena:{cid}: {str(e)[:100]}', file=sys.stderr)
+        if pace: time.sleep(pace)
+
+    print(f'\nbatch E run end. spend ${st["spend"]:.2f}')
+    return 0
+
 # ── Batch C: construction overlay (one sheet) + field manifest ─────
 def run_C(pace, do_commit):
     st = load_state(); done = set(st['done'])
@@ -508,6 +611,8 @@ def main(argv):
         return run_A(pace, do_commit, max_jobs)
     if batch == 'C':
         return run_C(pace, do_commit)
+    if batch == 'E':
+        return run_E(pace, do_commit)
     if batch not in BATCHES:
         print('unknown batch (have: B,A,D,C)', file=sys.stderr); return 2
 
