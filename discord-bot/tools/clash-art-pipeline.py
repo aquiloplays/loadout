@@ -205,7 +205,9 @@ def strip_jobs_A():
     for t in troops:
         theme = TROOP_THEME.get(t['id'], f"a fantasy unit ({t['name']})")
         for anim, frames in ANIMS:
-            prompt = (f"{PIXEL}. A horizontal sprite-sheet strip of exactly {frames} evenly-spaced "
+            prompt = (f"{PIXEL}. Vibrant Clash-of-Clans cartoon style, warm friendly daylight, "
+                      f"saturated warm color, NO cosmic-dark tones. A horizontal sprite-sheet strip "
+                      f"of exactly {frames} evenly-spaced "
                       f"animation frames, left to right, of {theme} ({t['name']}). The same character "
                       f"in every frame, {ANIM_DESC[anim]}. Full-body game unit sprite, consistent scale "
                       f"and pose progression across the {frames} frames. {ON_MAGENTA}. No text, no grid lines.")
@@ -324,10 +326,10 @@ BATCHES = {'B': jobs_B, 'D': jobs_D}
 def run_C(pace, do_commit):
     st = load_state(); done = set(st['done'])
     # Construction overlay — one wide 8-frame scaffolding/dust/workers strip.
-    if 'fx:construction-overlay' not in done:
+    if FORCE or 'fx:construction-overlay' not in done:
         out = ART / 'construction_overlay.png'
-        prompt = (f"{PIXEL}. A horizontal sprite-sheet strip of exactly 8 evenly-spaced frames, left to right, "
-                  f"of a building-under-construction overlay: wooden scaffolding, swirling dust clouds, and "
+        prompt = (f"{PIXEL}. {WARM}. A horizontal sprite-sheet strip of exactly 8 evenly-spaced frames, left to right, "
+                  f"of a building-under-construction overlay: warm wooden scaffolding, swirling dust clouds, and "
                   f"tiny workers, progressing from bare scaffolding to nearly-complete across the 8 frames. "
                   f"Designed to overlay on top of any building at partial opacity. {ON_MAGENTA}. No text, no grid lines.")
         for attempt in range(3):
@@ -430,7 +432,7 @@ def run_A(pace, do_commit, max_jobs):
     each unit's 8-col master sheet + manifest and upload both."""
     strips, units = strip_jobs_A()
     st = load_state(); done = set(st['done'])
-    todo = [s for s in strips if s['key'] not in done][:max_jobs]
+    todo = (strips if FORCE else [s for s in strips if s['key'] not in done])[:max_jobs]
     print(f'batch A: {len(strips)} strips | {len(strips)-len([s for s in strips if s["key"] not in done])} done | {len(todo)} remaining | spend ${st["spend"]:.2f}')
 
     # 1. Generate strips.
@@ -466,7 +468,7 @@ def run_A(pace, do_commit, max_jobs):
     # 2. Compose + upload per-unit sheets whose strips are all present.
     for unit in units:
         sheet_key = f'sheet:{unit}'
-        if sheet_key in done: continue
+        if sheet_key in done and not FORCE: continue
         if not all(f'unit:{unit}:{a}' in done for a, _ in ANIMS):
             print(f'  (skip compose {unit}: strips incomplete)'); continue
         try:
