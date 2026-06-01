@@ -245,7 +245,103 @@ def compose_unit_sheet(unit):
                 'rows': rows, 'total': len(all_cells), 'animations': manifest_anims}
     return out, manifest
 
-BATCHES = {'B': jobs_B}
+# ── Batch D: field tiles + props + wildlife ────────────────────────
+def jobs_D():
+    jobs = []
+    def add(aid, prompt, aspect='1:1', isolate=True):
+        jobs.append({'key': f'field:{aid}', 'kvKey': f'pixel-art-clash:field:{aid}',
+                     'assetUrl': f'https://{WORKER}/asset/clash-art/field/{aid}.png',
+                     'prompt': prompt, 'aspect': aspect, 'isolate': isolate, 'seed_center': False})
+    base = f"{PIXEL}. Three-quarter top-down isometric game-board"
+    # Ground tiles — opaque seamless squares.
+    for aid, desc in [('grass-1', 'lush green grass'), ('grass-2', 'darker patchy grass'),
+                      ('dirt', 'packed brown dirt'), ('sand', 'pale desert sand')]:
+        add(aid, f"{base} ground tile of {desc}, seamless tileable texture, flat square top-down tile. No text.",
+            isolate=False)
+    # Edge / path tiles — opaque squares.
+    for aid, desc in [('edge-grass-water', 'grass meeting a water shoreline'),
+                      ('edge-grass-dirt', 'grass meeting a dirt patch'),
+                      ('edge-grass-sand', 'grass meeting sand'),
+                      ('water-1', 'clear blue water'),
+                      ('path-straight', 'a stone path running straight'),
+                      ('path-corner', 'a stone path bending at a corner'),
+                      ('path-cross', 'a stone path crossroads'),
+                      ('path-t', 'a stone path T-junction'),
+                      ('shore-corner', 'a curved grass-to-water shore corner'),
+                      ('rocks-ground', 'rocky pebbled ground')]:
+        add(aid, f"{base} terrain tile: {desc}, seamless edges, flat square top-down tile. No text.",
+            isolate=False)
+    # Decorative props — transparent.
+    props = [('tree-1', 'a round broadleaf tree'), ('tree-2', 'a tall pine tree'),
+             ('tree-3', 'a gnarled old oak tree'), ('rock-1', 'a mossy boulder'),
+             ('rock-2', 'a cluster of small rocks'), ('rock-3', 'a tall standing stone'),
+             ('bush-1', 'a leafy green bush'), ('bush-2', 'a flowering bush'),
+             ('bush-3', 'a berry shrub'), ('flower-1', 'a patch of red flowers'),
+             ('flower-2', 'a patch of yellow flowers'), ('flower-3', 'a patch of blue flowers'),
+             ('npc-tent', 'a colorful merchant tent'), ('well', 'a stone wishing well'),
+             ('signpost', 'a wooden signpost'), ('hay-bale', 'a round hay bale'),
+             ('watchtower', 'a small wooden watchtower'), ('barrel', 'a wooden barrel'),
+             ('crate', 'a wooden supply crate'), ('lamppost', 'an ornate iron lamppost'),
+             ('fence', 'a short wooden fence segment'), ('statue', 'a heroic stone statue')]
+    for aid, desc in props:
+        add(aid, f"{PIXEL}. {desc}, a single decorative game-board prop, three-quarter isometric view. {ON_MAGENTA}. No text.")
+    # Animated wildlife — wide 4-frame strips (sliced by the site via the field manifest).
+    for aid, desc in [('deer-idle', 'a deer standing idle, subtle breathing'),
+                      ('deer-walk', 'a deer walking, a 4-step walk cycle'),
+                      ('bird-flock', 'a small flock of birds flying, a wing-flap loop')]:
+        add(aid, f"{PIXEL}. A horizontal sprite-sheet strip of exactly 4 evenly-spaced frames, left to right, "
+                 f"of {desc}, the same subject in every frame. {ON_MAGENTA}. No text, no grid lines.",
+            aspect='21:9')
+    return jobs
+
+BATCHES = {'B': jobs_B, 'D': jobs_D}
+
+# ── Batch C: construction overlay (one sheet) + field manifest ─────
+def run_C(pace, do_commit):
+    st = load_state(); done = set(st['done'])
+    # Construction overlay — one wide 8-frame scaffolding/dust/workers strip.
+    if 'fx:construction-overlay' not in done:
+        out = ART / 'construction_overlay.png'
+        prompt = (f"{PIXEL}. A horizontal sprite-sheet strip of exactly 8 evenly-spaced frames, left to right, "
+                  f"of a building-under-construction overlay: wooden scaffolding, swirling dust clouds, and "
+                  f"tiny workers, progressing from bare scaffolding to nearly-complete across the 8 frames. "
+                  f"Designed to overlay on top of any building at partial opacity. {ON_MAGENTA}. No text, no grid lines.")
+        for attempt in range(3):
+            try:
+                _, billed = gen(prompt, '21:9', out)
+                img = flood_key(Image.open(out), 60); img.save(out, optimize=True)
+                if billed: st['spend'] = round(st['spend'] + COST, 4)
+                # slice into 8 frames + repack to an 8-col sheet (1 row) at CELL.
+                cells = slice_strip(out, 8)
+                sheet = Image.new('RGBA', (8 * CELL, CELL), (0, 0, 0, 0))
+                for i, c in enumerate(cells): sheet.paste(c, (i * CELL, 0), c)
+                sheet_path = ART / 'construction_overlay_sheet.png'; sheet.save(sheet_path, optimize=True)
+                manifest = {'frameW': CELL, 'frameH': CELL, 'cols': 8, 'frames': 8,
+                            'usage': 'overlay on building sprite at partial opacity during build/upgrade'}
+                kv_bulk_put([
+                    {'key': 'pixel-art-clash:fx:construction-overlay',
+                     'value': base64.b64encode(sheet_path.read_bytes()).decode('ascii'), 'base64': True},
+                    {'key': 'pixel-art-clash:fx:construction-overlay-manifest.json',
+                     'value': json.dumps(manifest, separators=(',', ':'))},
+                ])
+                okv = verify(f'https://{WORKER}/asset/clash-art/fx/construction-overlay.png')
+                st['done'].append('fx:construction-overlay'); done.add('fx:construction-overlay')
+                save_state(st);  git_push(len(st['done']), 'C') if do_commit else None
+                print(f'  uploaded: construction-overlay (8 frames) 200={okv}')
+                break
+            except Exception as e:
+                print('  construction retry:', str(e)[:100]); time.sleep(6)
+    # Field wildlife manifest (frame counts for the D strips).
+    if 'fx:field-manifest' not in done:
+        fm = {'frames': 4, 'animated': ['deer-idle', 'deer-walk', 'bird-flock'],
+              'note': 'each animated field asset is a horizontal 4-frame strip; slice into 4 equal columns'}
+        kv_bulk_put([{'key': 'pixel-art-clash:field:_manifest.json',
+                      'value': json.dumps(fm, separators=(',', ':'))}])
+        st['done'].append('fx:field-manifest'); save_state(st)
+        if do_commit: git_push(len(st['done']), 'C')
+        print('  uploaded: field _manifest.json')
+    print(f'\nbatch C run end. done {len(st["done"])} | spend ${st["spend"]:.2f}')
+    return 0
 
 # ── State + git ────────────────────────────────────────────────────
 def load_state():
@@ -382,8 +478,10 @@ def main(argv):
     max_jobs = int(argv[argv.index('--max') + 1]) if '--max' in argv else 10**9
     if batch == 'A':
         return run_A(pace, do_commit, max_jobs)
+    if batch == 'C':
+        return run_C(pace, do_commit)
     if batch not in BATCHES:
-        print('unknown batch (have: B,A + D,C todo)', file=sys.stderr); return 2
+        print('unknown batch (have: B,A,D,C)', file=sys.stderr); return 2
 
     jobs = BATCHES[batch]()
     st = load_state(); done = set(st['done'])
