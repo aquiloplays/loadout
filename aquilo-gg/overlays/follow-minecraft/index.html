@@ -538,7 +538,29 @@ const MOB3D = {
   axolotl: { base:["#f0a8c8","#e89cbe","#f6b2d0","#e494ba"], light:["#ffc8e0","#ffd2e8","#ffceE4","#ffc2dc"], dark:["#c87aa0","#bc7096","#d082a8","#b46a90"], outline:"#8a4a6a", hole:"#c24a7a",
     face:["X......X",".X....X.","..X..X..","........","........","...XX...","........","........"] },
 };
-const headImages = {};   // procedural only — kept so the renderer branch matches the template
+// Real Minecraft mob textures (front-face PNGs) loaded at runtime when present.
+// When a texture loads, the cube renderer uses it for the front face and falls
+// back to procedural pixel-art otherwise — so the overlay never breaks if a file
+// is missing. Default base ./textures/ ; override with ?textures=<url> ; disable
+// with ?textures=off. Files are named per mob, e.g. textures/creeper.png.
+const headImages = {};
+const TEXTURES_OFF = params.get("textures") === "off";
+const TEXTURE_BASE = ((params.get("textures") && !TEXTURES_OFF) ? params.get("textures") : "./textures/").replace(/\/?$/, "/");
+function loadMobTextures() {
+  if (TEXTURES_OFF) return;
+  Object.keys(MOB3D).forEach((name) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      if ((img.naturalWidth || 0) > 0) {
+        headImages[name] = img;
+        for (const k of [...cubeCache.keys()]) if (k.startsWith(name + "_")) cubeCache.delete(k);
+      }
+    };
+    img.onerror = () => {};   // silent — procedural fallback stays in place
+    img.src = TEXTURE_BASE + name + ".png";
+  });
+}
 
 const cubeCache = new Map();
 function getMobCube(mobName, size) {
@@ -693,14 +715,26 @@ function startMining() {
 // ============================================================
 // IDLE RENDER LOOP
 // ============================================================
+// Hovering server invite — two lines, bobbing together above the bar.
 function drawPromoText(now) {
-  const W = $aboveFX.width, H = $aboveFX.height, text = "Join My Patreon to Join the Server!";
-  const ty = H - 60, bob = Math.sin(now * 0.002) * 1.5;
+  const W = $aboveFX.width, H = $aboveFX.height, cx = W/2;
+  const bob = Math.sin(now * 0.002) * 1.5;
   aboveCtx.save();
-  aboveCtx.font = 'bold 13px "Courier New", monospace'; aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
-  aboveCtx.fillStyle = "#000"; aboveCtx.fillText(text, W/2+1, ty+bob+1); aboveCtx.fillText(text, W/2+2, ty+bob+2);
+  aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
+  // Line 1 — invite
+  const l1 = "Join Our Java/Bedrock Server!", y1 = H - 70 + bob;
+  aboveCtx.font = 'bold 14px "Courier New", monospace';
+  aboveCtx.fillStyle = "#000"; aboveCtx.fillText(l1, cx+1, y1+1); aboveCtx.fillText(l1, cx+2, y1+2);
   aboveCtx.shadowColor = "rgba(95,207,79,0.6)"; aboveCtx.shadowBlur = 6;
-  aboveCtx.fillStyle = "#e8ffd0"; aboveCtx.fillText(text, W/2, ty+bob); aboveCtx.restore();
+  aboveCtx.fillStyle = "#e8ffd0"; aboveCtx.fillText(l1, cx, y1);
+  aboveCtx.shadowBlur = 0;
+  // Line 2 — address (gold, larger, eye-catching)
+  const l2 = "aquilo.mc.gg", y2 = H - 50 + bob;
+  aboveCtx.font = 'bold 19px "Courier New", monospace';
+  aboveCtx.fillStyle = "#1a1206"; aboveCtx.fillText(l2, cx+1, y2+1); aboveCtx.fillText(l2, cx+2, y2+2);
+  aboveCtx.shadowColor = "rgba(245,210,80,0.75)"; aboveCtx.shadowBlur = 9;
+  aboveCtx.fillStyle = "#ffd84a"; aboveCtx.fillText(l2, cx, y2);
+  aboveCtx.restore();
 }
 function startIdleLoop() {
   if (state.totalFollowers > 0) state.signShowTime = performance.now();
@@ -1172,6 +1206,7 @@ connectTikfinity();
 // INIT
 // ============================================================
 resizeBg();
+loadMobTextures();          // use real Minecraft textures when present (procedural fallback)
 renderCTA();
 startIdleLoop();
 requestAnimationFrame(bgLoop);

@@ -54,6 +54,7 @@ milestone tracking.
 | `tikfinity`  | `ws://host:port/`                        | TikFinity WebSocket URL (default `ws://localhost:21213/`) |
 | `particles`  | `souls` `snow` `leaves` `sparks` `none`  | ambient particle type (default: auto-rotates every 5 min) |
 | `cycle`      | `off` `dawn` `noon` `dusk` `midnight`    | force a day-night phase (`off` = static noon; default: 20-min cycle) |
+| `textures`   | `<url>` `off`                            | base URL for real mob textures (default `./textures/`; `off` = procedural only) |
 | `shot`       | `idle` `mining` `<scene>` `advancement` `counter` `dusk` | freeze a state for screenshots |
 
 `<scene>` = `creeper` `tnt` `lightning` `dragon` `beacon` `enderpearl` `wither`.
@@ -84,6 +85,29 @@ milestone tracking.
 - **Ambient**: drifting particles (souls/snow/leaves/sparks) + a 20-minute
   **day-night cycle** that tints the bar glow dawn→noon→dusk→midnight and fades
   in stars at night.
+- **Server invite**: a hovering *"Join Our Java/Bedrock Server!"* line with
+  **aquilo.mc.gg** beneath it bobs above the bar during idle.
+
+---
+
+## Real Minecraft textures
+
+The 3D mob cubes use a **real texture for the front face when one is present**,
+falling back to the built-in procedural pixel-art so nothing breaks if a file is
+missing. To use actual Minecraft textures:
+
+1. Create a `textures/` folder next to `index.html` (or host it anywhere and pass
+   `?textures=https://your-host/path/`).
+2. Drop in a front-face PNG per mob, named exactly:
+   `creeper.png`, `zombie.png`, `skeleton.png`, `enderman.png`, `witch.png`,
+   `blaze.png`, `slime.png`, `wither_skeleton.png`, `allay.png`, `axolotl.png`
+   (8×8 or 16×16 — it's scaled to the cube's front face).
+3. Reload — present files are used automatically; missing ones stay procedural.
+   `?textures=off` forces procedural.
+
+> These texture files are **not bundled** — supply your own (e.g. extracted from
+> your game install or a resource pack you have the rights to). Mojang's textures
+> are not redistributed in this repo.
 
 ---
 
