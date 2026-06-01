@@ -54,7 +54,7 @@ export const SPIRE_LEGENDARIES = [
     name: 'Duneturban Sphinx',
     type: 'minion',
     mana: 6, atk: 5, hp: 5,
-    abilities: [{ trigger: 'endOfTurn', effect: 'damage', target: 'oppMinion', value: 1 }],
+    abilities: [{ trigger: 'endOfTurn', effect: 'damage', target: 'randomEnemyMinion', value: 1 }],
     text: 'At end of your turn, deal 1 damage to a random enemy minion.',
   },
   {

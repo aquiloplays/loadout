@@ -60,6 +60,11 @@ export const EFFECTS = [
   'counter',        // mark next opponent spell as countered
   'manaThisTurn',   // value: N. Adds temporary mana to self this turn only.
   'fatigue',        // value: N. Self-damage per turn for stall games.
+  'freeze',         // target: see TARGETS. Frozen minions skip their next turn.
+  'cloneSelf',      // summon a fresh copy of the source minion (self side).
+  'reSummon',       // onDeath: resurrect the dying minion once (no loop).
+  'revealAndDraw',  // value: N. Reveal the top N of deck and draw them.
+  'doubleBattlecry',// re-fire the most recent other friendly minion's onPlay.
 ];
 
 export const TARGETS = [

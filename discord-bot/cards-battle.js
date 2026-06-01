@@ -198,10 +198,24 @@ function startTurn(match, side) {
   if (match.mana[side].max < 10) match.mana[side].max += 1;
   match.mana[side].cur = match.mana[side].max + (match.bonusMana[side] || 0);
   match.bonusMana[side] = 0;
-  // Untap minions (charge handles the play-turn case).
-  for (const m of match.board[side]) m.canAttack = !m.exhausted;
-  // Untap exhausted minions — they untap at start of OWNER's next turn.
-  for (const m of match.board[side]) { m.exhausted = false; m.canAttack = true; }
+  // Untap at the start of the OWNER's turn (charge/rush handle the
+  // play-turn case). Frozen minions thaw instead of untapping — they miss
+  // exactly this one turn, then act normally next turn.
+  for (const m of match.board[side]) {
+    m.exhausted = false;
+    if ((m.status || []).includes('frozen')) {
+      m.status = m.status.filter(s => s !== 'frozen');
+      m.canAttack = false;
+      push(match, { t: match.turn, kind: 'thaw', side, uid: m.uid });
+    } else {
+      m.canAttack = true;
+    }
+    // Rush's no-hero restriction only applies the turn it was played;
+    // by the owner's next turn it attacks freely.
+    if ((m.status || []).includes('rush-fresh')) {
+      m.status = m.status.filter(s => s !== 'rush-fresh');
+    }
+  }
   // Stealth wears off at start of the owner's turn AFTER they were played
   // (so stealth applies for the opponent's one turn, then drops).
   for (const m of match.board[side]) {
@@ -361,6 +375,8 @@ function attackAction(match, action) {
   const attacker = findMinion(match, side, action.attackerUid);
   if (!attacker || attacker.hp <= 0) return { match, error: 'no-attacker' };
   if (!attacker.canAttack) return { match, error: 'attacker-exhausted' };
+  if ((attacker.status || []).includes('frozen')) return { match, error: 'frozen' };
+  if (attacker.hollowKing && (match.spellsCast[side] || 0) < 3) return { match, error: 'hollow-king-gated' };
   const opp = side === 'A' ? 'B' : 'A';
   let target = null;
   const targetUid = action.defenderUid;
@@ -369,6 +385,10 @@ function attackAction(match, action) {
   if (targetUid === 'hero') {
     // Reach bypasses taunts.
     const hasReach = (attacker.keywords || []).includes('reach');
+    // Rush can't go face the turn it lands.
+    if ((attacker.status || []).includes('rush-fresh')) {
+      return { match, error: 'rush-no-hero' };
+    }
     if (!hasReach && hasTaunt(match, opp)) {
       return { match, error: 'taunt-blocks' };
     }
@@ -477,6 +497,8 @@ function fireAbilities(match, minion, side, trigger, ctx = {}) {
   if ((minion.status || []).includes('silenced')) return;
   for (const ab of card.abilities || []) {
     if (ab.trigger !== trigger) continue;
+    // A re-summoned copy does not re-trigger its own reSummon (no loop).
+    if (ab.effect === 'reSummon' && minion.noReSummon) continue;
     runEffect(match, side, ab, { ...ctx, source: { kind: 'minion', uid: minion.uid, cardId: minion.cardId } });
   }
 }
@@ -641,6 +663,63 @@ function runEffect(match, side, ab, ctx) {
       push(match, { t: match.turn, kind: 'peek', side, value: ab.value || 1 });
       return;
     }
+    case 'freeze': {
+      // Frozen minions skip their next turn (see startTurn thaw).
+      for (const t of resolveTargets(match, side, ab, ctx)) {
+        if (t.kind === 'minion') {
+          if (!(t.minion.status || []).includes('frozen')) t.minion.status.push('frozen');
+          push(match, { t: match.turn, kind: 'freeze', uid: t.minion.uid });
+        }
+      }
+      return;
+    }
+    case 'cloneSelf': {
+      // Summon a fresh copy of the source minion on the caster's side.
+      if (ctx.source?.kind === 'minion') {
+        const c = CARDS[ctx.source.cardId];
+        if (c) {
+          const nm = makeBoardMinion(match, c, side);
+          match.board[side].push(nm);
+          push(match, { t: match.turn, kind: 'summon', side, cardId: c.id, uid: nm.uid, clone: true });
+        }
+      }
+      return;
+    }
+    case 'reSummon': {
+      // Resurrect the dying minion once. The copy is flagged so its own
+      // onDeath reSummon does not fire (no infinite loop).
+      if (ctx.source?.kind === 'minion') {
+        const c = CARDS[ctx.source.cardId];
+        if (c) {
+          const nm = makeBoardMinion(match, c, side);
+          nm.noReSummon = true;
+          match.board[side].push(nm);
+          push(match, { t: match.turn, kind: 'resummon', side, cardId: c.id, uid: nm.uid });
+        }
+      }
+      return;
+    }
+    case 'revealAndDraw': {
+      const n = ab.value || 1;
+      push(match, { t: match.turn, kind: 'reveal', side, value: n });
+      for (let i = 0; i < n; i++) drawTurnStart(match, side);
+      return;
+    }
+    case 'doubleBattlecry': {
+      // Re-fire the onPlay (battlecry) of the most recent OTHER friendly
+      // minion still on the board.
+      const board = match.board[side];
+      const srcUid = ctx.source?.uid;
+      let prev = null;
+      for (let i = board.length - 1; i >= 0; i--) {
+        if (board[i].uid !== srcUid && board[i].hp > 0) { prev = board[i]; break; }
+      }
+      if (prev) {
+        push(match, { t: match.turn, kind: 'double-battlecry', side, uid: prev.uid });
+        fireAbilities(match, prev, side, 'onPlay', {});
+      }
+      return;
+    }
     default:
       // Unknown effect — log and continue. Don't crash the resolver on
       // a new ability key being added without a handler.
@@ -657,6 +736,10 @@ function resolveTargets(match, side, ab, ctx) {
     case 'oppHero':              out.push({ kind: 'hero', side: opp }); break;
     case 'selfHero':             out.push({ kind: 'hero', side });      break;
     case 'allEnemyMinions':      for (const m of match.board[opp]) if (m.hp > 0) out.push({ kind: 'minion', minion: m, side: opp }); break;
+    case 'allEnemy': case 'allEnemies': // all enemy minions PLUS the enemy hero.
+                                 for (const m of match.board[opp]) if (m.hp > 0) out.push({ kind: 'minion', minion: m, side: opp });
+                                 out.push({ kind: 'hero', side: opp });
+                                 break;
     case 'allFriendlyMinions':   for (const m of match.board[side]) if (m.hp > 0) out.push({ kind: 'minion', minion: m, side });    break;
     case 'allMinions':           for (const m of match.board.A) if (m.hp > 0) out.push({ kind: 'minion', minion: m, side: 'A' });
                                  for (const m of match.board.B) if (m.hp > 0) out.push({ kind: 'minion', minion: m, side: 'B' });
@@ -702,7 +785,11 @@ function resolveTargets(match, side, ab, ctx) {
     case 'selfHand':             out.push({ kind: 'selfHand', side });     break;
     default: /* no target */ break;
   }
-  return out;
+  // Spell-Immune: a minion with this keyword cannot be targeted by an
+  // effect cast by its OPPONENT (enemy spells/abilities). Friendly buffs
+  // still land, and combat is unaffected (combat does not route here).
+  return out.filter(t => !(t.kind === 'minion' && t.side !== side
+                           && (t.minion.keywords || []).includes('spell-immune')));
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -721,6 +808,10 @@ function makeBoardMinion(match, card, side) {
     exhausted: !((card.keywords || []).includes('charge')),
   };
   if ((card.keywords || []).includes('charge')) m.canAttack = true;
+  // Rush: can attack the turn it's played, but minions only — not the
+  // enemy hero. The 'rush-fresh' status enforces the no-hero window and
+  // is cleared at the owner's next start-of-turn.
+  if ((card.keywords || []).includes('rush')) { m.canAttack = true; m.exhausted = false; m.status.push('rush-fresh'); }
   if ((card.keywords || []).includes('shield')) m.status.push('shield');
   if ((card.keywords || []).includes('stealth')) m.status.push('stealth-fresh');
   // Voltaic Mage 'spellDamageBonus' is keyed off ability with effect:'buff' trigger:'spellDamageBonus'
@@ -769,12 +860,14 @@ export function isLegalAction(match, action) {
     const attacker = findMinion(match, action.side, action.attackerUid);
     if (!attacker || attacker.hp <= 0) return { ok: false, reason: 'no-attacker' };
     if (!attacker.canAttack) return { ok: false, reason: 'attacker-exhausted' };
+    if ((attacker.status || []).includes('frozen')) return { ok: false, reason: 'frozen' };
     // Hollow King: spells-cast >= 3 required.
     if (attacker.hollowKing && (match.spellsCast[action.side] || 0) < 3) {
       return { ok: false, reason: 'hollow-king-gated' };
     }
     const opp = action.side === 'A' ? 'B' : 'A';
     if (action.defenderUid === 'hero') {
+      if ((attacker.status || []).includes('rush-fresh')) return { ok: false, reason: 'rush-no-hero' };
       if (!(attacker.keywords || []).includes('reach') && hasTaunt(match, opp)) {
         return { ok: false, reason: 'taunt-blocks' };
       }
