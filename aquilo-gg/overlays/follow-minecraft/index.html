@@ -576,11 +576,17 @@ function getMobCube(mobName, size) {
     for (let xx = lX; xx < rX; xx++) { ctx.fillStyle = pickGreen(m.light, Math.floor((xx-lX)/pxPer), Math.floor((depth-dy-1)/pxPer), 11); ctx.fillRect(xx, yy, 1, 1); } }
   for (let dx = 0; dx < depth; dx++) { const xx = fx+actualSize+dx, tY = fy-(dx+1), bY = fy+actualSize-(dx+1);
     for (let yy = tY; yy < bY; yy++) { ctx.fillStyle = pickGreen(m.dark, Math.floor(dx/pxPer), Math.floor((yy-tY)/pxPer), 22); ctx.fillRect(xx, yy, 1, 1); } }
-  for (let ly = 0; ly < 8; ly++) for (let lx = 0; lx < 8; lx++) {
-    let col;
-    if (m.face[ly][lx] === "X") col = m.hole;
-    else { col = pickGreen(m.base, lx, ly, 7); if (hashAt(lx,ly,13) < 0.2) col = pickGreen(m.light,lx,ly,13); else if (hashAt(lx,ly,19) < 0.25) col = pickGreen(m.dark,lx,ly,19); }
-    ctx.fillStyle = col; ctx.fillRect(fx+lx*pxPer, fy+ly*pxPer, pxPer, pxPer);
+  // FRONT face — real Minecraft texture if loaded, else procedural pixel-art
+  const fimg = headImages[mobName];
+  if (fimg && ((fimg.naturalWidth || fimg.width) > 0)) {
+    ctx.drawImage(fimg, fx, fy, actualSize, actualSize);
+  } else {
+    for (let ly = 0; ly < 8; ly++) for (let lx = 0; lx < 8; lx++) {
+      let col;
+      if (m.face[ly][lx] === "X") col = m.hole;
+      else { col = pickGreen(m.base, lx, ly, 7); if (hashAt(lx,ly,13) < 0.2) col = pickGreen(m.light,lx,ly,13); else if (hashAt(lx,ly,19) < 0.25) col = pickGreen(m.dark,lx,ly,19); }
+      ctx.fillStyle = col; ctx.fillRect(fx+lx*pxPer, fy+ly*pxPer, pxPer, pxPer);
+    }
   }
   ctx.strokeStyle = m.outline; ctx.lineWidth = 1; ctx.strokeRect(fx+0.5, fy+0.5, actualSize-1, actualSize-1);
   const entry = { canvas: c, depth, actualSize }; cubeCache.set(key, entry); return entry;
@@ -594,11 +600,18 @@ function drawMobHead3D(ctx, mobName, cx, cy, size, flashMix) {
     for (let xx = lX; xx < rX; xx++) { let col = pickGreen(m.light, Math.floor((xx-lX)/pxPer), Math.floor((depth-dy-1)/pxPer), 11); if (flashMix>0) col = blendHex(col,"#ffffff",flashMix); ctx.fillStyle = col; ctx.fillRect(xx, yy, 1, 1); } }
   for (let dx = 0; dx < depth; dx++) { const xx = fx+actualSize+dx, tY = fy-(dx+1), bY = fy+actualSize-(dx+1);
     for (let yy = tY; yy < bY; yy++) { let col = pickGreen(m.dark, Math.floor(dx/pxPer), Math.floor((yy-tY)/pxPer), 22); if (flashMix>0) col = blendHex(col,"#ffffff",flashMix); ctx.fillStyle = col; ctx.fillRect(xx, yy, 1, 1); } }
-  for (let ly = 0; ly < 8; ly++) for (let lx = 0; lx < 8; lx++) {
-    let col;
-    if (m.face[ly][lx] === "X") col = flashMix>0 ? blendHex(m.hole,"#ffffff",flashMix*0.6) : m.hole;
-    else { col = pickGreen(m.base,lx,ly,7); if (hashAt(lx,ly,13)<0.2) col = pickGreen(m.light,lx,ly,13); else if (hashAt(lx,ly,19)<0.25) col = pickGreen(m.dark,lx,ly,19); if (flashMix>0) col = blendHex(col,"#ffffff",flashMix); }
-    ctx.fillStyle = col; ctx.fillRect(fx+lx*pxPer, fy+ly*pxPer, pxPer, pxPer);
+  const fimg = headImages[mobName];
+  if (fimg && ((fimg.naturalWidth || fimg.width) > 0)) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(fimg, fx, fy, actualSize, actualSize);
+    if (flashMix > 0) { ctx.fillStyle = `rgba(255,255,255,${flashMix})`; ctx.fillRect(fx, fy, actualSize, actualSize); }
+  } else {
+    for (let ly = 0; ly < 8; ly++) for (let lx = 0; lx < 8; lx++) {
+      let col;
+      if (m.face[ly][lx] === "X") col = flashMix>0 ? blendHex(m.hole,"#ffffff",flashMix*0.6) : m.hole;
+      else { col = pickGreen(m.base,lx,ly,7); if (hashAt(lx,ly,13)<0.2) col = pickGreen(m.light,lx,ly,13); else if (hashAt(lx,ly,19)<0.25) col = pickGreen(m.dark,lx,ly,19); if (flashMix>0) col = blendHex(col,"#ffffff",flashMix); }
+      ctx.fillStyle = col; ctx.fillRect(fx+lx*pxPer, fy+ly*pxPer, pxPer, pxPer);
+    }
   }
   ctx.strokeStyle = flashMix>0 ? blendHex(m.outline,"#ffffff",flashMix) : m.outline; ctx.lineWidth = 1;
   ctx.strokeRect(fx+0.5, fy+0.5, actualSize-1, actualSize-1);
