@@ -1,99 +1,1409 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Loadout — GWYF Follow Overlay</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<!--
-  Gamble With Your Friends (GWYF) follow overlay for TikTok LIVE.
+<meta charset="UTF-8">
+<title>TikTok Follow Overlay — Gamble With Your Friends</title>
+<style>
+  /* ============================================================
+     GWYF follow overlay. Same architecture as the Minecraft
+     template (440x260 stage, pulsing bar, above-bar FX canvas,
+     3D pixel-cube peek-ups, 6-phase celebration, felt counter)
+     — only the theme tokens are swapped to a casino look.
+     ============================================================ */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: sans-serif;
+    -webkit-font-smoothing: none;
+    image-rendering: pixelated;
+  }
 
-  A thin glossy casino bar ("FOLLOW = RANDOM GAME EFFECT") that lives in the
-  middle of Clay's vertical canvas. Idle game-themed sprites pop UP above the
-  bar every 8-12s; a TikFinity follow event triggers a bigger celebration
-  with the follower's name + profile pic, then returns to the idle hero CTA.
+  #stage {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translate3d(-50%, 0, 0);
+    width: 440px;
+    height: 260px;
+    pointer-events: none;
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
 
-  Canvas: 1080 x 360 transparent. The bar occupies the bottom ~130px; the
-  space above is the pop-up stage (transparent until a sprite plays). Position
-  the source so the BAR lands in your safe zone — the headroom above it sits
-  over your gameplay and is clear except during a pop-up.
+  #bar {
+    position: absolute;
+    left: 0; bottom: 0;
+    width: 440px;
+    height: 36px;
+    border-radius: 0;
+    overflow: hidden;
+    pointer-events: auto;
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.7),
+      0 0 0 3px #f5c542,
+      0 0 18px rgba(245,197,66,0.5);
+    isolation: isolate;
+    animation: barPulse 2.4s ease-in-out infinite;
+  }
+  /* Gold core glow that swells toward a warm casino-red bloom at the peak */
+  @keyframes barPulse {
+    0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.7), 0 0 0 3px #f5c542, 0 0 18px rgba(245,197,66,0.45); }
+    50%      { box-shadow: 0 4px 14px rgba(0,0,0,0.7), 0 0 0 3px #ffe07a, 0 0 30px rgba(245,197,66,0.85), 0 0 40px rgba(201,48,48,0.35); }
+  }
 
-  Drop into OBS (Browser Source, 1080 x 360, transparent):
-    https://widget.aquilo.gg/overlays/follow-gwyf/
+  /* Clean dark background — designed for high readability */
+  .bg {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, #1a1226 0%, #0a0712 100%);
+    z-index: 1;
+  }
 
-  Optional URL params:
-    tikfinity  - TikFinity WebSocket URL (default ws://localhost:21213/)
-    assets     - sprite base URL (default ./assets/ ; e.g. a worker /asset/ prefix)
-    demo       - "1" auto-fires a sample follow every ~10s (for testing/preview)
-    debug      - "1" shows a connection-status chip + a "simulate follow" button
--->
-<link rel="stylesheet" href="style.css">
+  /* CTA / thank-you text layer */
+  #textLayer {
+    position: absolute; inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    z-index: 5;
+    color: #fff;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-shadow:
+      2px 2px 0 #000,
+      -1px -1px 0 #000,
+      0 0 8px rgba(245,197,66,0.9);
+    transition: padding 0.2s ease;
+  }
+  #bar.with-pic #textLayer {
+    padding: 0 10px 0 40px;
+  }
+  #textInner {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: font-size 0.15s ease;
+  }
+
+  /* Left slot for profile pic (hidden during CTA) */
+  #leftSlot {
+    position: absolute;
+    left: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    overflow: hidden;
+    z-index: 6;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 0 2px #0a0712, 0 0 0 3px #f5c542;
+  }
+  #leftSlot img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+
+  /* Bar in-bar FX canvas */
+  #barFX {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    z-index: 4;
+    image-rendering: pixelated;
+    pointer-events: none;
+  }
+  /* Above-bar FX canvas for peek-ups + celebration */
+  #aboveFX {
+    position: absolute;
+    left: 0;
+    bottom: 36px;
+    width: 440px;
+    height: 224px;
+    z-index: 3;
+    image-rendering: pixelated;
+    pointer-events: none;
+  }
+
+  /* Username reveal animation */
+  .name-reveal {
+    display: inline-block;
+    animation: nameIn 0.4s ease-out both;
+  }
+  @keyframes nameIn {
+    0%   { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Screen-shake wrapper */
+  #stage.shake { animation: shake 0.4s linear; }
+  @keyframes shake {
+    0%   { transform: translateX(-50%) translate(0,0); }
+    10%  { transform: translateX(-50%) translate(-4px, 2px); }
+    20%  { transform: translateX(-50%) translate(4px, -2px); }
+    30%  { transform: translateX(-50%) translate(-3px, 1px); }
+    40%  { transform: translateX(-50%) translate(3px, -1px); }
+    50%  { transform: translateX(-50%) translate(-2px, 2px); }
+    60%  { transform: translateX(-50%) translate(2px, -1px); }
+    70%  { transform: translateX(-50%) translate(-1px, 1px); }
+    80%  { transform: translateX(-50%) translate(1px, 0); }
+    100% { transform: translateX(-50%) translate(0, 0); }
+  }
+
+  /* Demo controls */
+  #demoPanel {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: rgba(10,10,15,0.85);
+    color: #fff;
+    font-family: system-ui, sans-serif;
+    font-size: 12px;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.2);
+    z-index: 9999;
+    min-width: 180px;
+  }
+  #demoPanel h4 { font-size: 12px; margin-bottom: 6px; letter-spacing: 1px; color: #ffe07a; }
+  #demoPanel button {
+    display: block;
+    width: 100%;
+    margin-top: 4px;
+    padding: 5px 8px;
+    background: #222;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  #demoPanel button:hover { background: #333; }
+  #demoPanel input[type="text"],
+  #demoPanel input[type="number"] {
+    width: 100%;
+    padding: 4px;
+    background: #111;
+    color: #fff;
+    border: 1px solid #444;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-top: 4px;
+  }
+  #demoPanel.hidden { display: none; }
+  #wsStatus {
+    font-size: 10px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-top: 6px;
+  }
+  #wsStatus.on  { background: #1a5a1a; color: #8fff8f; }
+  #wsStatus.off { background: #5a1a1a; color: #ff8f8f; }
+  #wsStatus.try { background: #5a4a1a; color: #ffd98f; }
+</style>
 </head>
 <body>
-  <div class="stage" id="stage">
 
-    <!-- Pop-up stage: idle sprites + follow celebration render here, above the bar -->
-    <div class="popzone" id="popzone">
-      <!-- Idle sprite pop-up -->
-      <div class="popup" id="popup">
-        <img class="popup-img" id="popupImg" alt="">
-      </div>
-
-      <!-- Follow celebration -->
-      <div class="celebrate" id="celebrate">
-        <div class="coinrain" id="coinrain"></div>
-        <div class="celebrate-tile" id="celebrateFx">
-          <img class="celebrate-img" id="celebrateImg" alt="">
-        </div>
-        <div class="thanks" id="thanks">
-          <div class="thanks-avatar" id="thanksAvatar"><span id="thanksInitial"></span></div>
-          <div class="thanks-text">
-            <div class="thanks-line">THANKS FOR FOLLOWING</div>
-            <div class="thanks-user" id="thanksUser">@username</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- The hero bar -->
-    <div class="bar" id="bar">
-      <!-- LEFT: brand emblem + suit pips -->
-      <div class="bar-left">
-        <svg class="emblem" viewBox="0 0 32 32" aria-hidden="true">
-          <defs>
-            <linearGradient id="emb" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#f5c542"/>
-              <stop offset="0.55" stop-color="#ff6ab5"/>
-              <stop offset="1" stop-color="#7c5cff"/>
-            </linearGradient>
-          </defs>
-          <path d="M16 3 L28 27 L21.5 27 L16 14.5 L10.5 27 L4 27 Z" fill="url(#emb)"/>
-          <path d="M16 16.5 L19 23 L13 23 Z" fill="#0c0a1c"/>
-        </svg>
-        <div class="suits" aria-hidden="true">
-          <span class="suit red">&#9829;</span><span class="suit">&#9824;</span>
-          <span class="suit red">&#9830;</span><span class="suit">&#9827;</span>
-        </div>
-      </div>
-
-      <!-- CENTER: the persistent hero CTA -->
-      <div class="hero">
-        <span class="hero-follow">FOLLOW</span>
-        <span class="hero-eq">=</span>
-        <span class="hero-reward">RANDOM GAME EFFECT</span>
-      </div>
-
-      <!-- RIGHT: spinning chip accent -->
-      <div class="bar-right">
-        <div class="chip" aria-hidden="true">
-          <div class="chip-face">$</div>
-        </div>
-      </div>
-
-      <!-- thin gold marquee lights along the top edge -->
-      <div class="marquee" aria-hidden="true"></div>
-    </div>
-
+<div id="stage">
+  <canvas id="aboveFX" width="440" height="224"></canvas>
+  <div id="bar">
+    <div class="bg"></div>
+    <canvas id="barFX" width="440" height="36"></canvas>
+    <div id="leftSlot"></div>
+    <div id="textLayer"><span id="textInner">Follow = Random Game Effect</span></div>
   </div>
-  <script src="main.js"></script>
+</div>
+
+<div id="demoPanel">
+  <h4>GAMBLE WITH YOUR FRIENDS</h4>
+  <button id="btnFollow">Trigger 1 Follow</button>
+  <input type="text" id="demoUser" placeholder="username" value="LuckyLucy">
+  <input type="number" id="demoBatch" placeholder="batch size" value="1" min="1" max="20">
+  <button id="btnBatch">Trigger Batch</button>
+  <button id="btnLoop">Auto-Loop: OFF</button>
+  <button id="btnHide">Hide Panel (H)</button>
+  <div id="wsStatus" class="off">WS: disconnected</div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const CTA_TEXT = "Follow = Random Game Effect";
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  animating: false,
+  followQueue: [],
+  thankActive: false,
+  // Counter
+  totalFollowers: 0,
+  lastFollower: "",
+  recentFollowers: [],   // {user, pic} batch for current sign display
+  signShowTime: 0,       // timestamp when sign was last triggered
+  signDuration: 5000,    // visible for 5 seconds then fades
+  signImgCache: {},      // url -> HTMLImageElement
+  // Idle sprites
+  idleMobs: [],
+  idleMobTimer: null,
+  idleMobAnimFrame: null,
+  // Demo
+  autoLoop: false,
+  autoLoopTimer: null,
+};
+
+// ============================================================
+// DOM refs
+// ============================================================
+const $stage     = document.getElementById("stage");
+const $bar       = document.getElementById("bar");
+const $textInner = document.getElementById("textInner");
+const $textLayer = document.getElementById("textLayer");
+const $leftSlot  = document.getElementById("leftSlot");
+const $barFX     = document.getElementById("barFX");
+const $aboveFX   = document.getElementById("aboveFX");
+const barCtx     = $barFX.getContext("2d");
+const aboveCtx   = $aboveFX.getContext("2d");
+barCtx.imageSmoothingEnabled = false;
+aboveCtx.imageSmoothingEnabled = false;
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function clearBarFX()   { barCtx.clearRect(0, 0, $barFX.width, $barFX.height); }
+function clearAboveFX() { aboveCtx.clearRect(0, 0, $aboveFX.width, $aboveFX.height); }
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+
+function renderCTA() {
+  resetTextSize();
+  $textInner.textContent = CTA_TEXT;
+  $textLayer.style.visibility = "visible";
+  $bar.classList.remove("with-pic");
+  $leftSlot.innerHTML = "";
+  $leftSlot.style.display = "none";
+}
+
+function setLeftSlotToProfile(picUrl) {
+  $leftSlot.innerHTML = "";
+  $leftSlot.style.display = "flex";
+  $bar.classList.add("with-pic");
+  if (picUrl) {
+    const img = document.createElement("img");
+    img.src = picUrl;
+    img.onerror = () => { $leftSlot.innerHTML = ""; };
+    $leftSlot.appendChild(img);
+  }
+}
+
+// Auto-fit text size: shrinks font until text fits the bar, restores on CTA
+const BASE_FONT_SIZE = 24;       // matches CSS
+const MIN_FONT_SIZE  = 12;
+
+function autoFitText() {
+  const style = getComputedStyle($textLayer);
+  const padL  = parseFloat(style.paddingLeft)  || 0;
+  const padR  = parseFloat(style.paddingRight) || 0;
+  const maxW  = $textLayer.offsetWidth - padL - padR;
+
+  let lo = MIN_FONT_SIZE, hi = BASE_FONT_SIZE, best = lo;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    $textInner.style.fontSize = mid + "px";
+    if ($textInner.scrollWidth <= maxW) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  $textInner.style.fontSize = best + "px";
+}
+
+function resetTextSize() {
+  $textInner.style.fontSize = "";  // revert to CSS default (22px)
+}
+
+// ============================================================
+// FOLLOW PIPELINE
+// ============================================================
+function handleFollow(user, pic) {
+  const entry = { user: user || "friend", pic: pic || "" };
+  state.followQueue.push(entry);
+  if (!state.animating && !state.thankActive) {
+    processQueue();
+  }
+}
+
+function processQueue() {
+  if (state.followQueue.length === 0) return;
+  stopIdleLoop();
+  const batch = state.followQueue.splice(0, state.followQueue.length);
+  state.animating = true;
+  playJackpotAnim(() => {
+    state.animating = false;
+    showThankYou(batch);
+  });
+}
+
+function showThankYou(list) {
+  state.thankActive = true;
+  state.totalFollowers += list.length;
+  state.lastFollower = list[list.length - 1].user;
+  state.recentFollowers = list.slice();
+  for (const f of list) {
+    if (f.pic && !state.signImgCache[f.pic]) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = f.pic;
+      state.signImgCache[f.pic] = img;
+    }
+  }
+  state.signShowTime = 0;
+  playThankYouCanvas(list, () => {
+    endThankYou();
+  });
+}
+
+function endThankYou() {
+  state.thankActive = false;
+  clearBarFX();
+  clearAboveFX();
+  startIdleLoop();
+  if (state.followQueue.length > 0) {
+    processQueue();
+  }
+}
+
+// ============================================================
+// CANVAS THANK-YOU RENDERER (above bar)
+// ============================================================
+function fitTextSize(ctx, text, maxFontSize, minFontSize, maxW, fontFamily) {
+  let lo = minFontSize, hi = maxFontSize, best = lo;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    ctx.font = `bold ${mid}px ${fontFamily}`;
+    const w = ctx.measureText(text).width;
+    if (w <= maxW) { best = mid; lo = mid + 1; }
+    else { hi = mid - 1; }
+  }
+  return best;
+}
+
+function playThankYouCanvas(list, onComplete) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const t0 = performance.now();
+  const FADE_IN = 400, HOLD_END = 3500, FADE_OUT_END = 4200;
+  const total = list.length;
+  let cycleIdx = 0;
+  const cycleMs = total > 1 ? Math.max(600, Math.floor(3100 / total)) : 0;
+
+  const BAR_W = 440;
+  const TEXT_PAD = 24;
+  const MAX_TEXT_W = BAR_W - TEXT_PAD;
+  const FONT_FAMILY = '"Courier New", monospace';
+  const MAX_FONT = 22, MIN_FONT = 11;
+
+  function getText() {
+    if (total === 1) return "Thanks for the follow, " + list[0].user + "!";
+    return total + " new followers!";
+  }
+  let text = getText();
+  let fontSize = fitTextSize(aboveCtx, text, MAX_FONT, MIN_FONT, MAX_TEXT_W, FONT_FAMILY);
+
+  function frame(now) {
+    const t = now - t0;
+    let alpha;
+    if (t < FADE_IN) {
+      const p = t / FADE_IN;
+      alpha = 1 - Math.pow(1 - p, 2);
+    } else if (t < HOLD_END) {
+      alpha = 1;
+      if (total > 1 && cycleMs > 0) {
+        const holdT = t - FADE_IN;
+        const newIdx = Math.floor(holdT / cycleMs) % total;
+        if (newIdx !== cycleIdx) {
+          cycleIdx = newIdx;
+          text = "Thanks, " + list[cycleIdx].user + "!";
+          fontSize = fitTextSize(aboveCtx, text, MAX_FONT, MIN_FONT, MAX_TEXT_W, FONT_FAMILY);
+        }
+      }
+    } else if (t < FADE_OUT_END) {
+      const p = (t - HOLD_END) / (FADE_OUT_END - HOLD_END);
+      alpha = (1 - p) * (1 - p);
+    } else {
+      clearAboveFX();
+      onComplete();
+      return;
+    }
+
+    clearAboveFX();
+    aboveCtx.save();
+    aboveCtx.globalAlpha = alpha;
+    aboveCtx.font = `bold ${fontSize}px ${FONT_FAMILY}`;
+    aboveCtx.textAlign = "center";
+    aboveCtx.textBaseline = "middle";
+    const ty = H - 30;
+    aboveCtx.beginPath();
+    aboveCtx.rect((W - BAR_W) / 2, 0, BAR_W, H);
+    aboveCtx.clip();
+    // Shadow
+    aboveCtx.fillStyle = "#1a0e04";
+    aboveCtx.fillText(text, W/2 + 2, ty + 2);
+    // Gold glow
+    aboveCtx.shadowColor = "rgba(245,197,66,0.6)";
+    aboveCtx.shadowBlur = 10;
+    aboveCtx.fillStyle = "#fff3d0";
+    aboveCtx.fillText(text, W/2, ty);
+    aboveCtx.restore();
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ============================================================
+// FELT POKER-TABLE FOLLOWER COUNTER
+// ============================================================
+function drawFollowerCounter(alpha, now) {
+  if (state.totalFollowers === 0 || alpha <= 0) return;
+  aboveCtx.globalAlpha = alpha;
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const signW = 240, signH = 46;
+  const sx = (W - signW) / 2;
+  const sy = H - signH - 18;
+
+  // Which follower to show (cycle through batch every ~900ms)
+  const batch = state.recentFollowers.length > 0 ? state.recentFollowers : [{user: state.lastFollower, pic: ""}];
+  const elapsed = now - state.signShowTime;
+  const idx = Math.floor(elapsed / 900) % batch.length;
+  const cur = batch[idx];
+
+  // Felt poker-table background
+  aboveCtx.fillStyle = "#0a4a26";
+  aboveCtx.fillRect(sx, sy, signW, signH);
+  aboveCtx.fillStyle = "#0e6e37";
+  aboveCtx.fillRect(sx + 3, sy + 3, signW - 6, signH - 6);
+  // Felt divider line
+  aboveCtx.strokeStyle = "#0a3a1e";
+  aboveCtx.lineWidth = 1;
+  aboveCtx.beginPath();
+  aboveCtx.moveTo(sx + 6, sy + Math.floor(signH / 2));
+  aboveCtx.lineTo(sx + signW - 6, sy + Math.floor(signH / 2));
+  aboveCtx.stroke();
+  // Gold trim frame
+  aboveCtx.strokeStyle = "#f5c542";
+  aboveCtx.lineWidth = 2;
+  aboveCtx.strokeRect(sx + 1, sy + 1, signW - 2, signH - 2);
+  aboveCtx.strokeStyle = "#8a6a14";
+  aboveCtx.lineWidth = 1;
+  aboveCtx.strokeRect(sx, sy, signW, signH);
+  // Gold post legs
+  aboveCtx.fillStyle = "#caa636";
+  aboveCtx.fillRect(sx + 14, sy + signH, 4, 16);
+  aboveCtx.fillRect(sx + signW - 18, sy + signH, 4, 16);
+  aboveCtx.strokeStyle = "#6a4e0a";
+  aboveCtx.lineWidth = 1;
+  aboveCtx.strokeRect(sx + 14, sy + signH, 4, 16);
+  aboveCtx.strokeRect(sx + signW - 18, sy + signH, 4, 16);
+
+  // Profile pic (circular, left side of sign)
+  const picSz = 30;
+  const picX = sx + 8;
+  const picY = sy + (signH - picSz) / 2;
+  const img = cur.pic ? state.signImgCache[cur.pic] : null;
+  const hasPic = img && img.complete && img.naturalWidth > 0;
+  if (hasPic) {
+    aboveCtx.save();
+    aboveCtx.beginPath();
+    aboveCtx.arc(picX + picSz/2, picY + picSz/2, picSz/2, 0, Math.PI*2);
+    aboveCtx.clip();
+    aboveCtx.drawImage(img, picX, picY, picSz, picSz);
+    aboveCtx.restore();
+    aboveCtx.globalAlpha = alpha;
+  } else {
+    // Placeholder: dark felt circle
+    aboveCtx.fillStyle = "#073a1d";
+    aboveCtx.beginPath();
+    aboveCtx.arc(picX + picSz/2, picY + picSz/2, picSz/2, 0, Math.PI*2);
+    aboveCtx.fill();
+  }
+  // Gold ring around pic
+  aboveCtx.strokeStyle = "#f5c542";
+  aboveCtx.lineWidth = 2;
+  aboveCtx.beginPath();
+  aboveCtx.arc(picX + picSz/2, picY + picSz/2, picSz/2 + 1, 0, Math.PI*2);
+  aboveCtx.stroke();
+
+  // Text (right of pic)
+  const textX = sx + 8 + picSz + 8;
+  const textRightEdge = sx + signW - 6;
+  const textCx = (textX + textRightEdge) / 2;
+
+  aboveCtx.font = 'bold 13px "Courier New", monospace';
+  aboveCtx.textAlign = "center";
+  aboveCtx.textBaseline = "middle";
+  // Line 1: count
+  aboveCtx.fillStyle = "#04240f";
+  aboveCtx.fillText("New Followers: " + state.totalFollowers, textCx + 1, sy + 14 + 1);
+  aboveCtx.fillStyle = "#ffe9a3";
+  aboveCtx.fillText("New Followers: " + state.totalFollowers, textCx, sy + 14);
+  // Line 2: current follower name
+  const rawName = cur.user || "";
+  const nameText = rawName.length > 16 ? rawName.slice(0, 14) + ".." : rawName;
+  aboveCtx.fillStyle = "#04240f";
+  aboveCtx.fillText(nameText, textCx + 1, sy + 32 + 1);
+  aboveCtx.fillStyle = "#f0e8d0";
+  aboveCtx.fillText(nameText, textCx, sy + 32);
+  aboveCtx.globalAlpha = 1;
+}
+
+// ============================================================
+// IDLE ANIMATIONS — 3D casino cube peek-ups
+// ============================================================
+
+// Deterministic pseudo-random per coordinate so texture is stable
+function hashAt(x, y, seed) {
+  let h = (x * 374761393 + y * 668265263 + seed * 2246822519) | 0;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  h = (h ^ (h >>> 16));
+  return (h >>> 0) / 4294967296;
+}
+// Pick a shade from a palette list based on noise (used for cube mottle)
+function pickGreen(palette, x, y, seed) {
+  const n = hashAt(x, y, seed);
+  return palette[Math.floor(n * palette.length)];
+}
+function blendHex(a, b, t) {
+  const ar = parseInt(a.slice(1,3),16), ag = parseInt(a.slice(3,5),16), ab = parseInt(a.slice(5,7),16);
+  const br = parseInt(b.slice(1,3),16), bg = parseInt(b.slice(3,5),16), bb = parseInt(b.slice(5,7),16);
+  const r = Math.round(ar + (br-ar)*t);
+  const g = Math.round(ag + (bg-ag)*t);
+  const bl = Math.round(ab + (bb-ab)*t);
+  return `rgb(${r},${g},${bl})`;
+}
+
+// ============================================================
+// 3D CASINO CUBES — chip / die / coin / ace / seven
+// ============================================================
+// Pseudo-isometric cube: front face (8x8 icon), lighter top, darker right.
+// `face` uses "X" = hole color (the icon), "." = mottled base. Each cube
+// carries its own base/light/dark/outline/hole palette so a single renderer
+// draws every casino symbol — no external images needed.
+const MOB3D = {
+  // Red poker chip with cream edge dashes + open center
+  chip: {
+    base:   ["#c93030","#bb2a2a","#d63a3a","#b82626"],
+    light:  ["#e85050","#dd4444","#ef5a5a","#d84040"],
+    dark:   ["#8a1a1a","#7a1616","#9a2020","#741414"],
+    outline: "#4a0a0a", hole: "#f5f0e0",
+    face: [
+      "...XX...",
+      ".X.XX.X.",
+      "..X..X..",
+      "X......X",
+      "X......X",
+      "..X..X..",
+      ".X.XX.X.",
+      "...XX...",
+    ],
+  },
+  // White die showing the five face
+  die: {
+    base:   ["#f0f0f0","#e8e8e8","#f6f6f6","#e2e2e2"],
+    light:  ["#ffffff","#fafafa","#ffffff","#f4f4f4"],
+    dark:   ["#c0c0c0","#b6b6b6","#c8c8c8","#bcbcbc"],
+    outline: "#7a7a7a", hole: "#1a1a1a",
+    face: [
+      "........",
+      ".XX..XX.",
+      ".XX..XX.",
+      "...XX...",
+      "...XX...",
+      ".XX..XX.",
+      ".XX..XX.",
+      "........",
+    ],
+  },
+  // Gold coin with an engraved dollar mark
+  coin: {
+    base:   ["#f5c542","#eebb34","#f8cf55","#e9b62e"],
+    light:  ["#ffe9a3","#ffe089","#ffefb5","#ffdd80"],
+    dark:   ["#b8860b","#a8790a","#c4900f","#9c7008"],
+    outline: "#5a3d00", hole: "#6a4a08",
+    face: [
+      "...XX...",
+      "..XXXX..",
+      ".XX..X..",
+      "..XXX...",
+      "...XXX..",
+      "..X..XX.",
+      "..XXXX..",
+      "...XX...",
+    ],
+  },
+  // Ace card with a black spade
+  ace: {
+    base:   ["#f4f0e6","#ece8de","#f8f4ea","#e6e2d8"],
+    light:  ["#ffffff","#fbf8f0","#ffffff","#f4f0e8"],
+    dark:   ["#c8c2b0","#bcb6a4","#d0cab8","#c0baa8"],
+    outline: "#9a9684", hole: "#16161a",
+    face: [
+      "...XX...",
+      "..XXXX..",
+      ".XXXXXX.",
+      "XXXXXXXX",
+      "XXXXXXXX",
+      "...XX...",
+      "..XXXX..",
+      "........",
+    ],
+  },
+  // Lucky seven (slot-reel symbol) — red 7 on a cream reel
+  seven: {
+    base:   ["#f6efd8","#efe6cc","#faf3de","#ebe2c6"],
+    light:  ["#fffaf0","#fff5e6","#fffbf2","#fdf3df"],
+    dark:   ["#cfc4a4","#c4b998","#d6cbac","#c8bd9e"],
+    outline: "#8a7a50", hole: "#c93030",
+    face: [
+      ".XXXXXX.",
+      ".XXXXXX.",
+      "....XX..",
+      "...XX...",
+      "..XX....",
+      "..XX....",
+      "..XX....",
+      "........",
+    ],
+  },
+};
+
+// Front-face image overrides (unused — all cubes are procedural). Kept so the
+// renderer's image-vs-fallback branch stays identical to the template.
+const headImages = {};
+
+// Pre-render each (cube, size) to an offscreen canvas. Drawing the cached
+// canvas at fractional dest coords gives sub-pixel-smooth motion while
+// keeping interior pixels crisp (nearest-neighbor scaling).
+const cubeCache = new Map();
+function getMobCube(mobName, size) {
+  const key = mobName + "_" + size;
+  const cached = cubeCache.get(key);
+  if (cached) return cached;
+
+  const m = MOB3D[mobName];
+  if (!m) return null;
+
+  const pxPer = Math.max(1, Math.floor(size / 8));
+  const actualSize = pxPer * 8;
+  const depth = Math.floor(pxPer * 2);
+  const cubeW = actualSize + depth + 2;
+  const cubeH = actualSize + depth + 2;
+  const c = document.createElement("canvas");
+  c.width = cubeW;
+  c.height = cubeH;
+  const ctx = c.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+
+  const fx = 0;
+  const fy = depth;
+
+  // TOP face (lighter shade)
+  for (let dy = 0; dy < depth; dy++) {
+    const yy = fy - dy;
+    const leftX = fx + (dy + 1);
+    const rightX = fx + actualSize + (dy + 1);
+    for (let xx = leftX; xx < rightX; xx++) {
+      const u = Math.floor((xx - leftX) / pxPer);
+      const v = Math.floor((depth - dy - 1) / pxPer);
+      ctx.fillStyle = pickGreen(m.light, u, v, 11);
+      ctx.fillRect(xx, yy, 1, 1);
+    }
+  }
+
+  // RIGHT face (darker shade)
+  for (let dx = 0; dx < depth; dx++) {
+    const xx = fx + actualSize + dx;
+    const topY = fy - (dx + 1);
+    const botY = fy + actualSize - (dx + 1);
+    for (let yy = topY; yy < botY; yy++) {
+      const u = Math.floor(dx / pxPer);
+      const v = Math.floor((yy - topY) / pxPer);
+      ctx.fillStyle = pickGreen(m.dark, u, v, 22);
+      ctx.fillRect(xx, yy, 1, 1);
+    }
+  }
+
+  // FRONT face — image if available, else procedural icon
+  const img = headImages[mobName];
+  const hasImg = img && ((img.naturalWidth || img.width) > 0);
+  if (hasImg) {
+    ctx.drawImage(img, fx, fy, actualSize, actualSize);
+  } else {
+    for (let ly = 0; ly < 8; ly++) {
+      for (let lx = 0; lx < 8; lx++) {
+        const isHole = m.face[ly][lx] === "X";
+        let col;
+        if (isHole) {
+          col = m.hole;
+        } else {
+          col = pickGreen(m.base, lx, ly, 7);
+          if (hashAt(lx, ly, 13) < 0.2) col = pickGreen(m.light, lx, ly, 13);
+          else if (hashAt(lx, ly, 19) < 0.25) col = pickGreen(m.dark, lx, ly, 19);
+        }
+        ctx.fillStyle = col;
+        ctx.fillRect(fx + lx*pxPer, fy + ly*pxPer, pxPer, pxPer);
+      }
+    }
+  }
+
+  // Outline
+  ctx.strokeStyle = m.outline;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(fx + 0.5, fy + 0.5, actualSize - 1, actualSize - 1);
+
+  const entry = { canvas: c, depth, actualSize };
+  cubeCache.set(key, entry);
+  return entry;
+}
+
+function drawMobHead3D(ctx, mobName, cx, cy, size, flashMix) {
+  const m = MOB3D[mobName];
+  if (!m) return;
+  flashMix = flashMix || 0;
+
+  // Fast smooth path: pre-rendered cube at fractional dest coords.
+  if (flashMix === 0) {
+    const cube = getMobCube(mobName, size);
+    if (cube) {
+      const dx = cx - cube.actualSize / 2;
+      const dy = cy - cube.actualSize / 2 - cube.depth;
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(cube.canvas, dx, dy);
+      return;
+    }
+  }
+
+  // Slow path: per-pixel rendering (used when flashMix > 0 for the white flash).
+  const pxPer = Math.max(1, Math.floor(size / 8));
+  const actualSize = pxPer * 8;
+  const depth = Math.floor(pxPer * 2);
+  const fx = Math.floor(cx - actualSize/2);
+  const fy = Math.floor(cy - actualSize/2);
+
+  const img = headImages[mobName];
+  const useImg = img && ((img.naturalWidth || img.width) > 0);
+
+  // TOP face
+  for (let dy = 0; dy < depth; dy++) {
+    const yy = fy - dy;
+    const leftX = fx + (dy + 1);
+    const rightX = fx + actualSize + (dy + 1);
+    for (let xx = leftX; xx < rightX; xx++) {
+      const u = Math.floor((xx - leftX) / pxPer);
+      const v = Math.floor((depth - dy - 1) / pxPer);
+      let col = pickGreen(m.light, u, v, 11);
+      if (flashMix > 0) col = blendHex(col, "#ffffff", flashMix);
+      ctx.fillStyle = col;
+      ctx.fillRect(xx, yy, 1, 1);
+    }
+  }
+
+  // RIGHT face
+  for (let dx = 0; dx < depth; dx++) {
+    const xx = fx + actualSize + dx;
+    const topY = fy - (dx + 1);
+    const botY = fy + actualSize - (dx + 1);
+    for (let yy = topY; yy < botY; yy++) {
+      const u = Math.floor(dx / pxPer);
+      const v = Math.floor((yy - topY) / pxPer);
+      let col = pickGreen(m.dark, u, v, 22);
+      if (flashMix > 0) col = blendHex(col, "#ffffff", flashMix);
+      ctx.fillStyle = col;
+      ctx.fillRect(xx, yy, 1, 1);
+    }
+  }
+
+  // FRONT face
+  if (useImg) {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, fx, fy, actualSize, actualSize);
+    if (flashMix > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${flashMix})`;
+      ctx.fillRect(fx, fy, actualSize, actualSize);
+    }
+  } else {
+    for (let ly = 0; ly < 8; ly++) {
+      for (let lx = 0; lx < 8; lx++) {
+        const isHole = m.face[ly][lx] === "X";
+        if (isHole) {
+          const col = flashMix > 0 ? blendHex(m.hole, "#ffffff", flashMix*0.6) : m.hole;
+          ctx.fillStyle = col;
+          ctx.fillRect(fx + lx*pxPer, fy + ly*pxPer, pxPer, pxPer);
+        } else {
+          let col = pickGreen(m.base, lx, ly, 7);
+          if (hashAt(lx, ly, 13) < 0.2) col = pickGreen(m.light, lx, ly, 13);
+          else if (hashAt(lx, ly, 19) < 0.25) col = pickGreen(m.dark, lx, ly, 19);
+          if (flashMix > 0) col = blendHex(col, "#ffffff", flashMix);
+          ctx.fillStyle = col;
+          ctx.fillRect(fx + lx*pxPer, fy + ly*pxPer, pxPer, pxPer);
+        }
+      }
+    }
+  }
+
+  // Outline
+  ctx.strokeStyle = flashMix > 0 ? blendHex(m.outline, "#ffffff", flashMix) : m.outline;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(fx + 0.5, fy + 0.5, actualSize - 1, actualSize - 1);
+}
+
+// ---- Idle peek — casino cubes pop up above the bar, round-robin ----
+const PEEK_MOBS = ["coin", "die", "chip", "ace", "seven"];
+let peekMobIndex = 0;
+function scheduleIdleEvent() {
+  state.idleMobTimer = setTimeout(() => {
+    if (state.animating || state.thankActive) return;
+    startMobPeek();
+    scheduleIdleEvent();
+  }, rand(4000, 8000));
+}
+
+function startMobPeek(forceX) {
+  const mob = PEEK_MOBS[peekMobIndex];
+  peekMobIndex = (peekMobIndex + 1) % PEEK_MOBS.length;
+  const headSz = 32; // multiple of 8 → 4px per icon pixel
+  const x = (forceX != null) ? forceX : randInt(20, $aboveFX.width - 20 - headSz);
+  const H = $aboveFX.height;
+  const GAP = 6;
+  const hiddenY = H + 10;              // off-screen below
+  const peekY   = H - headSz - GAP;    // fully visible above bar top line
+  const t0 = performance.now();
+  const RISE = 400, HOLD = 1600, LOWER = 2000;
+
+  state.idleMobs.push({
+    draw(now) {
+      const t = now - t0;
+      if (t > LOWER) return false;
+      let y;
+      if (t < RISE) {
+        const p = t / RISE;
+        y = hiddenY + (peekY - hiddenY) * (1 - Math.pow(1 - p, 5));
+      } else if (t < HOLD) {
+        const bp = (t - RISE) / (HOLD - RISE);
+        y = peekY + Math.sin(bp * Math.PI * 4) * 2.5;
+      } else {
+        const p = (t - HOLD) / (LOWER - HOLD);
+        y = peekY + (hiddenY - peekY) * (p * p * p);
+      }
+      drawMobHead3D(aboveCtx, mob, x + headSz/2, y + headSz/2, headSz, 0);
+      return true;
+    }
+  });
+}
+
+// ============================================================
+// IDLE RENDER LOOP
+// ============================================================
+function drawPromoText(now) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const text = "aquilo.gg • Follow for Random Game Effects";
+  const ty = H - 60;
+  const bob = Math.sin(now * 0.002) * 1.5;
+  aboveCtx.save();
+  aboveCtx.font = 'bold 13px "Courier New", monospace';
+  aboveCtx.textAlign = "center";
+  aboveCtx.textBaseline = "middle";
+  // Shadow
+  aboveCtx.fillStyle = "#000";
+  aboveCtx.fillText(text, W/2 + 1, ty + bob + 1);
+  aboveCtx.fillText(text, W/2 + 2, ty + bob + 2);
+  // Soft gold glow
+  aboveCtx.shadowColor = "rgba(245,197,66,0.6)";
+  aboveCtx.shadowBlur = 6;
+  aboveCtx.fillStyle = "#fff3d0";
+  aboveCtx.fillText(text, W/2, ty + bob);
+  aboveCtx.restore();
+}
+
+function startIdleLoop() {
+  if (state.totalFollowers > 0) {
+    state.signShowTime = performance.now();
+  }
+  scheduleIdleEvent();
+  function idleFrame(now) {
+    if (state.animating || state.thankActive) return;
+    clearAboveFX();
+    let signVisible = false;
+    let signAlpha = 0;
+    if (state.signShowTime > 0) {
+      const elapsed = now - state.signShowTime;
+      const fadeStart = state.signDuration;
+      const fadeEnd = fadeStart + 800;
+      if (elapsed < fadeEnd) {
+        signVisible = true;
+        signAlpha = elapsed > fadeStart ? 1 - (elapsed - fadeStart) / 800 : 1;
+      }
+    }
+    // 1) Promo text only when sign is NOT visible
+    if (!signVisible) drawPromoText(now);
+    // 2) Follower counter sign
+    if (signVisible) drawFollowerCounter(signAlpha, now);
+    // 3) Cube peek-ups last — drawn in front
+    for (let i = state.idleMobs.length - 1; i >= 0; i--) {
+      const alive = state.idleMobs[i].draw(now);
+      if (!alive) state.idleMobs.splice(i, 1);
+    }
+    state.idleMobAnimFrame = requestAnimationFrame(idleFrame);
+  }
+  state.idleMobAnimFrame = requestAnimationFrame(idleFrame);
+}
+
+function stopIdleLoop() {
+  cancelAnimationFrame(state.idleMobAnimFrame);
+  clearTimeout(state.idleMobTimer);
+  state.idleMobTimer = null;
+  state.idleMobAnimFrame = null;
+  state.idleMobs = [];
+}
+
+// ============================================================
+// JACKPOT CELEBRATION
+// ============================================================
+// Same 6-phase timeline as the Minecraft creeper: a lucky-seven slot symbol
+// pops up, bobs, "spins" (charge: pulsing flash + swell + shake), then BOOM —
+// a JACKPOT! flash with a coin/chip explosion (gold + silver debris, dollar
+// sparks, smoke puffs) + screen shake, settling back into the idle loop.
+function playJackpotAnim(done) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const barW = $barFX.width, barH = $barFX.height;
+
+  const headSize = 56;                      // 7 pixels per icon pixel
+  const headCX   = W/2;
+  const restCY   = H - 46;                  // rest position (just above bar)
+  const spawnCY  = H + headSize;            // start hidden below
+
+  const t0 = performance.now();
+  const PH = {
+    popIn:   [0,    500],
+    idle:    [500,  900],
+    charge:  [900,  1650],   // slot "spin" build-up (was hiss)
+    boom:    [1650, 1850],
+    smoke:   [1850, 2700],
+    fadeEnd: [2700, 3000],
+  };
+  function pt(t, [a,b]) { return Math.max(0, Math.min(1, (t-a)/(b-a))); }
+  function easeOutBounce(p) {
+    const n1 = 7.5625, d1 = 2.75;
+    if (p < 1/d1) return n1*p*p;
+    else if (p < 2/d1) { p -= 1.5/d1; return n1*p*p + 0.75; }
+    else if (p < 2.5/d1) { p -= 2.25/d1; return n1*p*p + 0.9375; }
+    else { p -= 2.625/d1; return n1*p*p + 0.984375; }
+  }
+
+  // Explosion particles / debris / smoke — seeded at boom
+  const debris = [];
+  const sparks = [];
+  const smokePuffs = [];
+  let boomFired = false;
+  let shookScreen = false;
+
+  function seedExplosion() {
+    const cx = headCX, cy = restCY;
+    // Coin + chip debris: gold, silver, casino-red chunks
+    const colors = [
+      "#f5c542","#ffe9a3","#b8860b","#c0c0c0",
+      "#e8e8e8","#c93030","#f0f0f0",
+    ];
+    for (let i = 0; i < 42; i++) {
+      const ang = rand(0, Math.PI * 2);
+      const spd = rand(2.5, 7);
+      debris.push({
+        x: cx + rand(-4, 4),
+        y: cy + rand(-4, 4),
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - rand(1, 3),
+        size: randInt(3, 6),
+        col: colors[randInt(0, colors.length-1)],
+        life: 0,
+        maxLife: rand(900, 1600),
+        rotSpd: rand(-0.1, 0.1),
+        rot: 0,
+      });
+    }
+    // Sparks — gold glints, with a third rendered as floating "$" dollar marks
+    for (let i = 0; i < 26; i++) {
+      const ang = rand(0, Math.PI * 2);
+      const spd = rand(3, 8);
+      const isDollar = Math.random() < 0.35;
+      sparks.push({
+        x: cx, y: cy,
+        vx: Math.cos(ang) * spd,
+        vy: Math.sin(ang) * spd - rand(1, 2),
+        size: 2,
+        glyph: isDollar ? "$" : null,
+        col: isDollar ? "#ffe9a3" : (Math.random() < 0.5 ? "#ffe060" : "#ffd040"),
+        life: 0,
+        maxLife: rand(400, 800),
+      });
+    }
+    // Smoke puffs — smaller, tighter cloud
+    for (let i = 0; i < 14; i++) {
+      const ang = rand(0, Math.PI * 2);
+      const dist = rand(0, 8);
+      smokePuffs.push({
+        x: cx + Math.cos(ang) * dist,
+        y: cy + Math.sin(ang) * dist,
+        vx: Math.cos(ang) * rand(0.2, 0.8),
+        vy: Math.sin(ang) * rand(0.2, 0.6) - rand(0.1, 0.4),
+        r: rand(2, 4),
+        maxR: rand(6, 10),
+        delay: randInt(0, 120),
+        life: 0,
+        maxLife: rand(700, 1100),
+        shade: randInt(0, 4),
+      });
+    }
+  }
+
+  function drawSmokePuff(ctx, x, y, r, alpha, shade) {
+    if (r < 1 || alpha < 0.01) return;
+    const innerCols = ["#8a8a8a","#928a7e","#88889a","#807a78","#8a8682"];
+    const outerCols = ["#2a2a2a","#221e16","#1e1e28","#1a1816","#1c1a1a"];
+    const ic = innerCols[shade % innerCols.length];
+    const oc = outerCols[shade % outerCols.length];
+    ctx.globalAlpha = alpha;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, ic);
+    g.addColorStop(0.5, ic);
+    g.addColorStop(1, oc);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // JACKPOT! word that bursts in at boom and rides the smoke before fading.
+  function drawJackpotText(t) {
+    const start = PH.boom[0];
+    const tt = t - start;
+    if (tt < 0) return;
+    const span = PH.fadeEnd[1] - start;            // total visible window
+    const inP = Math.min(1, tt / 240);
+    const scale = 0.4 + easeOutBounce(inP) * 0.85;  // 0.4 → ~1.25
+    const fadeStart = PH.smoke[1] - start;          // begin fade as smoke ends
+    let alpha = 1;
+    if (tt > fadeStart) alpha = Math.max(0, 1 - (tt - fadeStart) / (span - fadeStart));
+    aboveCtx.save();
+    aboveCtx.globalAlpha = alpha;
+    aboveCtx.translate(W/2, H/2 - 8);
+    aboveCtx.scale(scale, scale);
+    aboveCtx.font = 'bold 34px "Courier New", monospace';
+    aboveCtx.textAlign = "center";
+    aboveCtx.textBaseline = "middle";
+    aboveCtx.lineJoin = "round";
+    aboveCtx.lineWidth = 6;
+    aboveCtx.strokeStyle = "#7a1010";               // casino-red outline
+    aboveCtx.strokeText("JACKPOT!", 0, 0);
+    aboveCtx.shadowColor = "rgba(245,197,66,0.9)";
+    aboveCtx.shadowBlur = 16;
+    aboveCtx.fillStyle = "#ffe9a3";                 // gold fill
+    aboveCtx.fillText("JACKPOT!", 0, 0);
+    aboveCtx.restore();
+  }
+
+  let lastFrameTime = t0;
+
+  function frame(now) {
+    const t = now - t0;
+    const dt = Math.min(32, now - lastFrameTime);
+    lastFrameTime = now;
+    const dtF = dt / 16.667;
+
+    clearAboveFX();
+    clearBarFX();
+
+    // === POP IN (smooth bounce up) ===
+    if (t < PH.popIn[1]) {
+      const p = pt(t, PH.popIn);
+      const bounced = easeOutBounce(p);
+      const cy = spawnCY + (restCY - spawnCY) * bounced;
+      drawMobHead3D(aboveCtx, "seven", headCX, cy, headSize, 0);
+    }
+    // === IDLE (gentle hover bob) ===
+    else if (t < PH.idle[1]) {
+      const p = pt(t, PH.idle);
+      const cy = restCY + Math.sin(p * Math.PI * 2) * 2;
+      drawMobHead3D(aboveCtx, "seven", headCX, cy, headSize, 0);
+    }
+    // === CHARGE (slot spin: pulsing flash + swell + shake) ===
+    else if (t < PH.charge[1]) {
+      const p = pt(t, PH.charge);
+      const pulse = (Math.sin(p * Math.PI * 6 - Math.PI/2) + 1) / 2;
+      const flashMix = pulse * (0.15 + p * 0.65);
+      const swell = 1 + p * 0.3;
+      const size = Math.floor(headSize * swell / 8) * 8;
+      const shakeX = Math.sin(t * 0.03) * p * 2;
+      const shakeY = Math.cos(t * 0.04) * p * 1.5;
+      drawMobHead3D(aboveCtx, "seven", headCX + shakeX, restCY + shakeY, size, flashMix);
+    }
+    // === BOOM (flash) ===
+    else if (t < PH.boom[1]) {
+      const p = pt(t, PH.boom);
+      if (!boomFired) { seedExplosion(); boomFired = true; }
+      if (!shookScreen) {
+        $stage.classList.remove("shake");
+        void $stage.offsetWidth;
+        $stage.classList.add("shake");
+        shookScreen = true;
+      }
+      const a = (1 - p) * (1 - p);
+      aboveCtx.fillStyle = `rgba(255,250,230,${a})`;
+      aboveCtx.fillRect(0, 0, W, H);
+      barCtx.fillStyle = `rgba(255,250,230,${a * 0.85})`;
+      barCtx.fillRect(0, 0, barW, barH);
+      updateAndDrawExplosion(dtF, 1);
+      drawJackpotText(t);
+    }
+    // === SMOKE ===
+    else if (t < PH.smoke[1]) {
+      updateAndDrawExplosion(dtF, 1);
+      drawJackpotText(t);
+    }
+    // === FADE END ===
+    else if (t < PH.fadeEnd[1]) {
+      const p = pt(t, PH.fadeEnd);
+      const fade = (1 - p) * (1 - p);
+      updateAndDrawExplosion(dtF, fade);
+      drawJackpotText(t);
+    }
+    else {
+      clearAboveFX(); clearBarFX();
+      $stage.classList.remove("shake");
+      done();
+      return;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  // --- Explosion renderer with delta-time ---
+  function updateAndDrawExplosion(dtF, alphaMul) {
+    // Debris
+    for (let i = debris.length - 1; i >= 0; i--) {
+      const d = debris[i];
+      d.life += 16 * dtF;
+      d.x += d.vx * dtF;
+      d.y += d.vy * dtF;
+      d.vy += 0.18 * dtF;
+      d.vx *= Math.pow(0.995, dtF);
+      d.rot += d.rotSpd * dtF;
+      if (d.life >= d.maxLife || d.y > H + 20) { debris.splice(i, 1); continue; }
+      const a = Math.max(0, (1 - d.life/d.maxLife)) * alphaMul;
+      const jitter = Math.sin(d.rot * 6) > 0 ? 1 : 0;
+      aboveCtx.globalAlpha = a;
+      aboveCtx.fillStyle = d.col;
+      aboveCtx.fillRect(Math.floor(d.x), Math.floor(d.y), d.size + jitter, d.size);
+    }
+    aboveCtx.globalAlpha = 1;
+
+    // Sparks (squares + floating "$" marks)
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.life += 16 * dtF;
+      s.x += s.vx * dtF;
+      s.y += s.vy * dtF;
+      s.vy += 0.1 * dtF;
+      s.vx *= Math.pow(0.98, dtF);
+      if (s.life >= s.maxLife) { sparks.splice(i, 1); continue; }
+      const a = (1 - s.life/s.maxLife) * alphaMul;
+      aboveCtx.globalAlpha = a;
+      aboveCtx.fillStyle = s.col;
+      if (s.glyph) {
+        aboveCtx.font = 'bold 12px "Courier New", monospace';
+        aboveCtx.textAlign = "center";
+        aboveCtx.textBaseline = "middle";
+        aboveCtx.fillText(s.glyph, s.x, s.y);
+      } else {
+        aboveCtx.fillRect(Math.floor(s.x), Math.floor(s.y), s.size, s.size);
+      }
+    }
+    aboveCtx.globalAlpha = 1;
+
+    // Smoke puffs
+    for (const sp of smokePuffs) {
+      if (sp.life >= sp.maxLife) continue;
+      if (sp.delay > 0) { sp.delay -= 16 * dtF; continue; }
+      sp.life += 16 * dtF;
+      sp.x += sp.vx * dtF;
+      sp.y += sp.vy * dtF;
+      sp.vy += -0.01 * dtF;
+      sp.vx *= Math.pow(0.99, dtF);
+      sp.r = Math.min(sp.maxR, sp.r + 0.35 * dtF);
+      const lp = sp.life / sp.maxLife;
+      let a = 1;
+      if (lp < 0.15) a = lp / 0.15;
+      else if (lp > 0.65) a = (1 - lp) / 0.35;
+      a *= alphaMul;
+      drawSmokePuff(aboveCtx, sp.x, sp.y, sp.r, a, sp.shade);
+    }
+
+    // Smoke drifting into bar area
+    for (const sp of smokePuffs) {
+      if (sp.y > H - 20 && sp.life < sp.maxLife) {
+        const localY = sp.y - H + barH / 2;
+        const lp = sp.life / sp.maxLife;
+        let a = 0.5;
+        if (lp < 0.15) a = (lp / 0.15) * 0.5;
+        else if (lp > 0.65) a = ((1 - lp) / 0.35) * 0.5;
+        a *= alphaMul;
+        drawSmokePuff(barCtx, sp.x, localY, sp.r * 0.6, a, sp.shade);
+      }
+    }
+  }
+
+  requestAnimationFrame(frame);
+}
+
+// ============================================================
+// DEMO CONTROLS
+// ============================================================
+const DEMO_NAMES = ["AceHigh","LuckyLucy","HighRoller","AllIn","Blackjack","SnakeEyes","Jackpot","DoubleDown","RiverRat","ChipLeader"];
+document.getElementById("btnFollow").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const user = document.getElementById("demoUser").value || "LuckyLucy";
+  handleFollow(user, "");
+});
+document.getElementById("btnBatch").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const n = parseInt(document.getElementById("demoBatch").value, 10) || 1;
+  for (let i = 0; i < n; i++) {
+    handleFollow(DEMO_NAMES[i % DEMO_NAMES.length] + (i >= DEMO_NAMES.length ? i : ""), "");
+  }
+});
+const $btnLoop = document.getElementById("btnLoop");
+$btnLoop.addEventListener("click", (e) => {
+  e.stopPropagation();
+  state.autoLoop = !state.autoLoop;
+  $btnLoop.textContent = "Auto-Loop: " + (state.autoLoop ? "ON" : "OFF");
+  if (state.autoLoop) runAutoLoop();
+  else clearTimeout(state.autoLoopTimer);
+});
+function runAutoLoop() {
+  if (!state.autoLoop) return;
+  const batchSize = Math.random() < 0.6 ? 1 : randInt(2, 5);
+  for (let i = 0; i < batchSize; i++) {
+    handleFollow(DEMO_NAMES[randInt(0, DEMO_NAMES.length-1)] + randInt(1,999), "");
+  }
+  state.autoLoopTimer = setTimeout(runAutoLoop, randInt(5000, 9000));
+}
+document.getElementById("btnHide").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("demoPanel").classList.add("hidden");
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "h" || e.key === "H") {
+    document.getElementById("demoPanel").classList.toggle("hidden");
+  }
+});
+
+// ============================================================
+// TIKFINITY WEBSOCKET
+// ============================================================
+const $wsStatus = document.getElementById("wsStatus");
+function setWsStatus(cls, text) {
+  $wsStatus.className = cls;
+  $wsStatus.textContent = "WS: " + text;
+}
+// Allow ?tikfinity=ws://host:port/ to override the default local endpoint.
+const TIKFINITY_URL = new URLSearchParams(location.search).get("tikfinity") || "ws://localhost:21213/";
+function connectTikfinity() {
+  setWsStatus("try", "connecting...");
+  let ws;
+  try { ws = new WebSocket(TIKFINITY_URL); }
+  catch (err) {
+    setWsStatus("off", "failed");
+    setTimeout(connectTikfinity, 5000);
+    return;
+  }
+  ws.onopen  = () => setWsStatus("on", "connected");
+  ws.onclose = () => { setWsStatus("off", "disconnected"); setTimeout(connectTikfinity, 5000); };
+  ws.onerror = () => setWsStatus("off", "error");
+  ws.onmessage = (msg) => {
+    try {
+      const data = JSON.parse(msg.data);
+      if (data && (data.event === "follow" || data.type === "follow")) {
+        const d = data.data || data;
+        const name = d.nickname || d.uniqueId || d.userId || "friend";
+        const pic  = d.profilePictureUrl || d.profilePicture || "";
+        handleFollow(name, pic);
+      }
+    } catch (err) { /* ignore */ }
+  };
+}
+connectTikfinity();
+
+// ============================================================
+// INIT
+// ============================================================
+renderCTA();
+startIdleLoop();
+window.triggerFollow = handleFollow;
+
+// ---- Screenshot / QA staging (?shot=idle|follow) ----
+// Drops a gameplay-like backdrop behind the transparent overlay, hides the
+// demo panel, then DETERMINISTICALLY pumps the rAF-driven canvas to a chosen
+// point in the timeline and freezes it — so a plain headless capture always
+// lands on a complete frame (independent of rAF scheduling / tab visibility).
+(() => {
+  const SHOT = new URLSearchParams(location.search).get("shot");
+  if (!SHOT) return;
+  document.body.style.background =
+    "linear-gradient(150deg,#2e7d54 0%,#1f6f8b 38%,#6b4ea8 72%,#a8466e 100%)";
+  document.getElementById("demoPanel").classList.add("hidden");
+
+  // Capture rAF callbacks and run them against a synthetic clock.
+  const realNow = performance.now.bind(performance);
+  let q = [];
+  window.requestAnimationFrame = (fn) => { q.push(fn); return 1; };
+  let clock = realNow();
+  const start = clock;
+  performance.now = () => clock;
+
+  if (SHOT === "idle") {
+    // Re-schedule the idle loop under the patched rAF, then peek a centred cube.
+    stopIdleLoop();
+    startIdleLoop();
+    startMobPeek(204);                       // centred (440-32)/2
+  } else if (SHOT === "follow") {
+    handleFollow("LuckyLucy", "");           // runs the jackpot celebration
+  }
+
+  const TARGET = SHOT === "follow" ? 1950 : 650;   // smoke phase / peek hold
+  let guard = 0;
+  while (clock - start < TARGET && q.length && guard++ < 4000) {
+    clock += 16;
+    const due = q; q = [];
+    due.forEach((fn) => { try { fn(clock); } catch (e) {} });
+  }
+  // Hold the last painted frame: restore the clock, swallow further frames.
+  performance.now = realNow;
+  window.requestAnimationFrame = () => 1;
+})();
+</script>
 </body>
 </html>

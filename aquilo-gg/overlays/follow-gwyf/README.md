@@ -1,12 +1,18 @@
 # GWYF Follow Overlay
 
-A premium **Gamble With Your Friends** follow overlay for TikTok LIVE. A thin
-glossy casino bar — **FOLLOW = RANDOM GAME EFFECT** — sits in the middle of the
-vertical canvas. Game-themed sprites pop up above the bar on idle, and a
-TikFinity **follow** event triggers a bigger celebration with the follower's
-name and profile picture.
+A **Gamble With Your Friends** TikTok follow overlay. A thin gold-framed casino
+bar — **Follow = Random Game Effect** — sits at the bottom-centre of the canvas.
+Casino cubes peek up above it on idle, and a TikFinity **follow** triggers a
+slot-machine JACKPOT celebration with a coin explosion + a thank-you card.
 
-![idle + follow celebration](preview.png)
+![idle + jackpot celebration](preview.png)
+
+Built on the canonical Minecraft follow-overlay template — the architecture is
+preserved 1:1 (440×260 stage, pulsing bar, above-bar FX canvas, 3D pixel-cube
+peek-ups, the 6-phase celebration timeline, screen shake, follower counter,
+demo panel, TikFinity WebSocket). Only the **theme tokens** are swapped to a
+casino look. The same structure is the foundation for future per-game variants
+(Among Us, Lethal Company, Phasmophobia, …).
 
 ---
 
@@ -14,101 +20,72 @@ name and profile picture.
 
 1. **Sources → +  → Browser**.
 2. **URL**: `https://aquilo.gg/personal-overlays/follow-gwyf/`
-   (or a `file:///…/aquilo-gg/overlays/follow-gwyf/index.html` local path as a backup).
-
-   > Hosting note: this overlay lives on `aquilo.gg` (Clay's personal overlays),
-   > served from the `aquilo-site` repo at `public/personal-overlays/follow-gwyf/`.
-   > It is **not** on the shared `widget.aquilo.gg` overlay site. Source of truth
-   > stays here in the Loadout repo; copy changes into `aquilo-site` to redeploy.
-3. **Width `1080`, Height `360`.**
+   (backup: a local `file:///…/aquilo-gg/overlays/follow-gwyf/index.html` path).
+3. **Width `440`, Height `300`** (the stage is 440×260, pinned 20px off the
+   bottom — 300px tall gives the pop-ups headroom; larger is fine, it's centred).
 4. Tick **Shutdown source when not visible** and **Refresh browser when scene
-   becomes active** (so a fresh follow stream connects each session).
-5. Position it so the **bar lands in your safe zone** — the bottom ~130px is
-   the bar; the transparent space above is where pop-ups rise (it sits over
-   your gameplay and is clear except during a pop-up).
+   becomes active**.
+5. Press **H** to hide the demo panel before going live (it's top-right).
 
-The canvas is transparent, so it composites straight over your cam + gameplay.
+Single self-contained `index.html` — CSS + JS + procedurally-drawn sprites are
+all inline. No external image files, no folder of resources, works offline.
 
 ---
 
 ## TikFinity connection
 
-The overlay listens to TikFinity's **local WebSocket** for TikTok LIVE events.
+Listens to TikFinity's local WebSocket for TikTok LIVE follow events.
 
-1. Install and run **[TikFinity Desktop](https://tikfinity.zerody.one/)** and
-   connect it to your TikTok LIVE.
-2. TikFinity exposes a local WebSocket at **`ws://localhost:21213/`** — the
-   overlay connects there by **default**, no config needed.
-3. If your TikFinity uses a different port/path, pass it on the URL:
-   `…/follow-gwyf/?tikfinity=ws://localhost:21213/`
-4. The overlay auto-reconnects with exponential backoff if TikFinity restarts.
+1. Run **[TikFinity Desktop](https://tikfinity.zerody.one/)** connected to your
+   TikTok LIVE.
+2. It exposes `ws://localhost:21213/` — the overlay connects there by default
+   (the demo panel's **WS** chip shows the connection state).
+3. Different port? Append `?tikfinity=ws://localhost:PORT/` to the URL.
+4. Auto-reconnects every 5s if TikFinity restarts.
 
-A real **follow** event arrives as JSON like:
-
-```json
-{ "event": "follow",
-  "data": { "uniqueId": "user123", "nickname": "Display Name",
-            "profilePictureUrl": "https://p16-sign…/avatar.jpeg" } }
-```
-
-The overlay reads `uniqueId` (→ `@handle`), `nickname` (→ avatar fallback
-initial), and `profilePictureUrl` (→ avatar). Field-name variants across
-TikFinity versions are handled defensively.
+A follow arrives as `{ "event":"follow", "data":{ "nickname":…, "uniqueId":…,
+"profilePictureUrl":… } }`. The follower's name drives the thank-you card and
+the felt poker-table counter; the profile pic shows in the counter + bar slot.
 
 ---
 
-## URL parameters
+## Demo panel (top-right)
 
-| param       | default                  | what it does                                              |
-|-------------|--------------------------|-----------------------------------------------------------|
-| `tikfinity` | `ws://localhost:21213/`  | TikFinity WebSocket URL                                   |
-| `assets`    | `./assets/`              | sprite base URL (e.g. a worker `/asset/…` prefix)         |
-| `demo`      | `0`                      | `1` → auto-fire a sample follow every ~10s (testing)      |
-| `debug`     | `0`                      | `1` → connection-status chip + a **simulate follow** button |
+| control            | what it does                                        |
+|--------------------|-----------------------------------------------------|
+| **Trigger 1 Follow** | fire a single follow with the username field       |
+| username / batch   | name + batch size for the buttons                   |
+| **Trigger Batch**  | fire N follows at once (cycles demo names)           |
+| **Auto-Loop**      | auto-fire random follows every 5–9s                  |
+| **Hide Panel (H)** | hide the panel (toggle with the **H** key)           |
+| **WS** chip        | TikFinity connection status                           |
 
-**Test it without going live:** open
-`…/follow-gwyf/?demo=1` in a browser — you'll see idle pop-ups plus a looping
-follow celebration. `?debug=1` adds a button to fire one on demand.
+`?shot=idle` / `?shot=follow` freeze-frame a state for screenshots.
 
 ---
 
 ## What plays
 
-- **Idle** (every 8–12s): a random sprite — slot machine, chip stack, dice,
-  card fan, gold coin, JACKPOT text, royal flush, a die landing on 6, a VIP
-  crown chip — rises above the bar, holds ~2s, fades.
-- **Follow**: a larger celebration, rotating between **slot machine**, **royal
-  flush**, and **coin rain**, with a *"Thanks for following @user"* card +
-  avatar. Plays ~4.6s, then returns to the idle hero CTA.
-- `prefers-reduced-motion`: idle pop-ups are skipped and the celebration is a
-  simple fade — the static hero bar always remains.
+- **Idle** (every 4–8s): a 3D casino cube — gold **coin**, white **die**, red
+  **chip**, **ace** of spades, lucky **seven** — peeks up above the bar (round
+  robin), bobs, and lowers back down. A floating *"aquilo.gg • Follow for Random
+  Game Effects"* promo rides above the bar.
+- **Follow**: a lucky-seven slot symbol pops up → "spins" (charge: flash + swell
+  + shake) → **BOOM** — a `JACKPOT!` burst with a coin/chip explosion (gold +
+  silver debris, floating **$** sparks, smoke puffs) + screen shake → a
+  *"Thanks for the follow, @user!"* card → a felt poker-table counter showing
+  total followers + the follower's name & pic. Batches cycle names on the card.
 
----
-
-## Assets
-
-Premium sprites are pre-rendered (Replicate `flux-1.1-pro-ultra`, "Glossy Game
-Premium" house style) and bundled in `assets/`. To regenerate:
-
-```bash
-# 1. render on a magenta chroma background  (needs REPLICATE_API_TOKEN)
-cd discord-bot && node tools/replicate-gwyf-overlay-assets.mjs
-# 2. key out the background → transparent finals in assets/
-cd ../aquilo-gg/overlays/follow-gwyf && python keyout.py
-```
-
-`assets/_raw/` holds the keyed source renders and is not needed at runtime.
-To serve the sprites from KV/worker instead of the bundled folder, upload them
-and point the overlay at the prefix with `?assets=https://…/asset/follow-gwyf/`.
+The 6-phase celebration timeline is unchanged from the template: popIn 500 / idle
+400 / charge 750 / boom 200 / smoke 850 / fade 300 ms.
 
 ---
 
 ## Files
 
-| file            | purpose                                            |
-|-----------------|----------------------------------------------------|
-| `index.html`    | bar + pop-up stage markup                          |
-| `style.css`     | glossy casino bar, pop-up & celebration animations |
-| `main.js`       | TikFinity WS client, idle loop, follow celebration |
-| `keyout.py`     | chroma-key the raw renders to transparent PNGs      |
-| `assets/`       | premium sprites (bundled)                           |
+Single file — `index.html`. (`preview.png` is just the README image.)
+
+To re-theme for another game, copy this file and swap: `CTA_TEXT`, the bar glow
+colours (CSS `#bar` + `barPulse`), the `MOB3D` cube set + `PEEK_MOBS`, the
+celebration palette/text in `playJackpotAnim`, the felt counter colours in
+`drawFollowerCounter`, and the promo string in `drawPromoText`.
