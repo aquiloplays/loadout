@@ -263,14 +263,20 @@ def jobs_D():
         jobs.append({'key': f'field:{aid}', 'kvKey': f'pixel-art-clash:field:{aid}',
                      'assetUrl': f'https://{WORKER}/asset/clash-art/field/{aid}.png',
                      'prompt': prompt, 'aspect': aspect, 'isolate': isolate, 'seed_center': False})
-    base = f"{PIXEL}. {WARM}. Three-quarter top-down isometric game-board"
+    # Ground/edge tiles must TILE — force a flat top-down texture that
+    # fills the whole square, with no scene framing (Pro Ultra otherwise
+    # composes a vignette clearing ringed by trees, which won't repeat).
+    flat = (f"{PIXEL}. {WARM}. A perfectly flat straight-overhead top-down ground "
+            f"texture filling the ENTIRE square edge to edge, uniform + seamless "
+            f"tileable, NO trees, NO bushes, NO props, NO border, NO vignette, NO "
+            f"shadows from objects — just the bare ground surface")
     # Ground tiles — opaque seamless squares.
     for aid, desc in [('grass-1', 'vibrant sunlit cartoon grass, lush #6cc24a green'),
                       ('grass-2', 'vibrant cartoon grass with slightly darker tufts, #6cc24a anchor'),
                       ('dirt', 'warm packed earthy-brown dirt'),
                       ('sand', 'warm pale golden sand')]:
-        add(aid, f"{base} ground tile of {desc}, seamless tileable texture, flat square top-down tile. No text.",
-            isolate=False)
+        add(aid, f"{flat} of {desc}. No text.", isolate=False)
+    base = flat
     # Edge / path tiles — opaque squares.
     for aid, desc in [('edge-grass-water', 'grass meeting a water shoreline'),
                       ('edge-grass-dirt', 'grass meeting a dirt patch'),
