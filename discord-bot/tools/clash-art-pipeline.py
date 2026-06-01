@@ -160,6 +160,91 @@ def jobs_B():
             })
     return jobs
 
+# ── Batch A: unit animation sprite sheets ──────────────────────────
+# Flux can't make temporally-coherent frames across separate calls, but
+# WITHIN one image it keeps a character consistent. So we generate one
+# wide multi-frame STRIP per (unit, animation), slice it into equal
+# frames, normalize each into a square cell, and pack all frames into a
+# per-unit 8-column master sheet + a JSON frame manifest.
+TROOP_THEME = {
+    'scrapper': 'a scrappy junk-armored brawler with a wrench',
+    'boltKnight': 'a heavy armored knight crackling with electricity',
+    'archerLite': 'a nimble archer with a longbow',
+    'voltaicMage': 'a robed mage wreathed in voltaic lightning',
+    'sapperRogue': 'a hooded rogue carrying demolition charges',
+    'healerCleric': 'a radiant healer cleric with a glowing staff',
+    'sneak': 'a sneaky green goblin with a dagger',
+    'batteringRam': 'a massive wheeled battering ram crew',
+    'skyrider': 'a winged rider mounted on a flying beast',
+    'plagueDoctor': 'a sinister plague doctor in a beaked mask',
+    'lightningSapper': 'a charged saboteur trailing electric arcs',
+    'stormCaller': 'a storm shaman channeling thunderclouds',
+}
+ANIMS = [('idle', 4), ('walk-n', 4), ('walk-e', 4), ('walk-s', 4),
+         ('walk-w', 4), ('attack', 5), ('death', 5)]
+ANIM_DESC = {
+    'idle': 'standing idle breathing loop, facing the viewer',
+    'walk-n': 'walking away (back view), north-facing walk cycle',
+    'walk-e': 'walking to the right, east-facing walk cycle',
+    'walk-s': 'walking toward the viewer, south-facing walk cycle',
+    'walk-w': 'walking to the left, west-facing walk cycle',
+    'attack': 'attacking, a wind-up-to-strike action sequence',
+    'death': 'being defeated, a collapse-and-fade death sequence',
+}
+CELL = 128
+
+def strip_jobs_A():
+    troops = json.loads(Path('C:/tmp/clash-troops.json').read_text(encoding='utf-8'))
+    jobs = []
+    for t in troops:
+        theme = TROOP_THEME.get(t['id'], f"a fantasy unit ({t['name']})")
+        for anim, frames in ANIMS:
+            prompt = (f"{PIXEL}. A horizontal sprite-sheet strip of exactly {frames} evenly-spaced "
+                      f"animation frames, left to right, of {theme} ({t['name']}). The same character "
+                      f"in every frame, {ANIM_DESC[anim]}. Full-body game unit sprite, consistent scale "
+                      f"and pose progression across the {frames} frames. {ON_MAGENTA}. No text, no grid lines.")
+            jobs.append({'unit': t['id'], 'anim': anim, 'frames': frames,
+                         'key': f'unit:{t["id"]}:{anim}', 'prompt': prompt, 'aspect': '21:9'})
+    return jobs, [t['id'] for t in troops]
+
+def slice_strip(path, frames):
+    """Slice a wide strip into `frames` equal columns; fit each into a
+    CELLxCELL transparent square (preserve aspect, centered)."""
+    img = Image.open(path).convert('RGBA')
+    w, h = img.size
+    fw = w // frames
+    cells = []
+    for i in range(frames):
+        crop = img.crop((i * fw, 0, (i + 1) * fw, h))
+        cw, ch = crop.size
+        scale = min(CELL / cw, CELL / ch)
+        nw, nh = max(1, int(cw * scale)), max(1, int(ch * scale))
+        crop = crop.resize((nw, nh), Image.LANCZOS)
+        cell = Image.new('RGBA', (CELL, CELL), (0, 0, 0, 0))
+        cell.paste(crop, ((CELL - nw) // 2, (CELL - nh) // 2), crop)
+        cells.append(cell)
+    return cells
+
+def compose_unit_sheet(unit):
+    """Build the 8-col master sheet + manifest from this unit's strips."""
+    all_cells, manifest_anims, idx = [], {}, 0
+    for anim, frames in ANIMS:
+        strip = ART / f'unit_{unit}_{anim}.png'
+        cells = slice_strip(strip, frames)
+        manifest_anims[anim] = {'start': idx, 'count': frames}
+        all_cells.extend(cells); idx += frames
+    cols = 8
+    rows = (len(all_cells) + cols - 1) // cols
+    sheet = Image.new('RGBA', (cols * CELL, rows * CELL), (0, 0, 0, 0))
+    for i, cell in enumerate(all_cells):
+        r, c = divmod(i, cols)
+        sheet.paste(cell, (c * CELL, r * CELL), cell)
+    out = ART / f'sheet_{unit}.png'
+    sheet.save(out, optimize=True)
+    manifest = {'unit': unit, 'frameW': CELL, 'frameH': CELL, 'cols': cols,
+                'rows': rows, 'total': len(all_cells), 'animations': manifest_anims}
+    return out, manifest
+
 BATCHES = {'B': jobs_B}
 
 # ── State + git ────────────────────────────────────────────────────
@@ -220,6 +305,74 @@ def process_one(job):
         time.sleep(4 + attempt * 4)
     return False, False, last
 
+def run_A(pace, do_commit, max_jobs):
+    """Batch A: gen per-(unit,animation) strips (resumable), then compose
+    each unit's 8-col master sheet + manifest and upload both."""
+    strips, units = strip_jobs_A()
+    st = load_state(); done = set(st['done'])
+    todo = [s for s in strips if s['key'] not in done][:max_jobs]
+    print(f'batch A: {len(strips)} strips | {len(strips)-len([s for s in strips if s["key"] not in done])} done | {len(todo)} remaining | spend ${st["spend"]:.2f}')
+
+    # 1. Generate strips.
+    n_since = 0
+    for s in todo:
+        if st['spend'] + COST > SPEND_GATE:
+            print(f'\n*** BUDGET GATE at ${st["spend"]:.2f}. Pausing. ***'); break
+        out = ART / (s['key'].replace(':', '_') + '.png')
+        last = None
+        for attempt in range(3):
+            try:
+                _, billed = gen(s['prompt'], s['aspect'], out)
+                img = flood_key(Image.open(out), 60); img.save(out, optimize=True)
+                if out.stat().st_size >= MIN_PNG:
+                    if billed: st['spend'] = round(st['spend'] + COST, 4)
+                    st['done'].append(s['key']); done.add(s['key']); last = None; break
+                last = f'small {out.stat().st_size}B'
+            except Exception as e:
+                last = str(e)[:120]
+            time.sleep(4 + attempt * 4)
+        if last:
+            st['failed'] = [f for f in st['failed'] if f != s['key']] + [s['key']]
+            print(f'  SKIP {s["key"]}: {last}', file=sys.stderr)
+        else:
+            print(f'  ok   {s["key"]}  (${st["spend"]:.2f})')
+        n_since += 1
+        if n_since >= 25:
+            save_state(st);  git_push(len(st['done']), 'A') if do_commit else None; n_since = 0
+        if pace: time.sleep(pace)
+    save_state(st)
+    if do_commit: git_push(len(st['done']), 'A')
+
+    # 2. Compose + upload per-unit sheets whose strips are all present.
+    for unit in units:
+        sheet_key = f'sheet:{unit}'
+        if sheet_key in done: continue
+        if not all(f'unit:{unit}:{a}' in done for a, _ in ANIMS):
+            print(f'  (skip compose {unit}: strips incomplete)'); continue
+        try:
+            sheet_path, manifest = compose_unit_sheet(unit)
+            # Sheet key has NO .png — the pixel-art route strips .png from
+            # the URL, so /asset/clash-art/units/<unit>/sheet.png resolves
+            # to key pixel-art-clash:units:<unit>:sheet (same convention B
+            # used + verified). Manifest is read from KV directly by the
+            # site render layer.
+            entries = [
+                {'key': f'pixel-art-clash:units:{unit}:sheet',
+                 'value': base64.b64encode(sheet_path.read_bytes()).decode('ascii'), 'base64': True},
+                {'key': f'pixel-art-clash:units:{unit}:manifest.json',
+                 'value': json.dumps(manifest, separators=(',', ':'))},
+            ]
+            kv_bulk_put(entries)
+            url = f'https://{WORKER}/asset/clash-art/units/{unit}/sheet.png'
+            okv = verify(url)
+            st['done'].append(sheet_key); done.add(sheet_key); save_state(st)
+            if do_commit: git_push(len(st['done']), 'A')
+            print(f'  uploaded: sheet {unit} ({manifest["total"]} frames) 200={okv}')
+        except Exception as e:
+            print(f'  SHEET FAIL {unit}: {str(e)[:120]}', file=sys.stderr)
+    print(f'\nbatch A run end. done {len(st["done"])} | failed {len(st["failed"])} | spend ${st["spend"]:.2f}')
+    return 0
+
 def main(argv):
     if not TOKEN: print('REPLICATE_API_TOKEN not set', file=sys.stderr); return 2
     batch = argv[argv.index('--batch') + 1] if '--batch' in argv else 'B'
@@ -227,8 +380,10 @@ def main(argv):
     pace = float(argv[argv.index('--pace') + 1]) if '--pace' in argv else 1.0
     do_commit = '--commit' in argv
     max_jobs = int(argv[argv.index('--max') + 1]) if '--max' in argv else 10**9
+    if batch == 'A':
+        return run_A(pace, do_commit, max_jobs)
     if batch not in BATCHES:
-        print('unknown batch (have:', ','.join(BATCHES) + ')', file=sys.stderr); return 2
+        print('unknown batch (have: B,A + D,C todo)', file=sys.stderr); return 2
 
     jobs = BATCHES[batch]()
     st = load_state(); done = set(st['done'])
