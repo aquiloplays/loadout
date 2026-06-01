@@ -2396,10 +2396,14 @@ async function handlePixelArtAsset(req, env, path) {
   // site-constructed URL; everything else stays immutable (content-
   // addressed, never re-arted in place). Restore immutable for clash
   // once the overhaul lands + URLs are versioned.
-  const isClash = category === 'clash';
+  // Short cache during active aesthetic work for categories re-arted in
+  // place under the same URL (clash overhaul; pack/cardback brand-fix) —
+  // otherwise the year-long immutable cache pins stale bytes (the
+  // card-art cache trap). Restore immutable once each stabilizes.
+  const isShortCache = ['clash', 'pack', 'cardback'].includes(category);
   const headers = {
     'content-type':   'image/png',
-    'cache-control':  isClash ? 'public, max-age=3600' : 'public, max-age=31536000, immutable',
+    'cache-control':  isShortCache ? 'public, max-age=3600' : 'public, max-age=31536000, immutable',
     'access-control-allow-origin': '*',
     'content-length': String(buf.byteLength),
   };
