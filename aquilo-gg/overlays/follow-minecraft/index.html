@@ -1,0 +1,1215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TikTok Follow Overlay — Minecraft (Premium)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: sans-serif;
+    -webkit-font-smoothing: none;
+    image-rendering: pixelated;
+  }
+
+  /* Full-viewport ambient layer: drifting particles + night stars (behind everything) */
+  #bgFX {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    image-rendering: pixelated;
+  }
+
+  #stage {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translate3d(-50%, 0, 0);
+    width: 440px;
+    height: 260px;
+    pointer-events: none;
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    z-index: 2;
+  }
+  /* Sound-free impact: a quick scale-punch the eye reads as a hit */
+  #stage.punch { animation: stagePunch 0.22s ease-out; }
+  @keyframes stagePunch {
+    0%   { transform: translateX(-50%) scale(1); }
+    35%  { transform: translateX(-50%) scale(1.06); }
+    100% { transform: translateX(-50%) scale(1); }
+  }
+
+  #bar {
+    position: absolute;
+    left: 0; bottom: 0;
+    width: 440px;
+    height: 36px;
+    overflow: hidden;
+    pointer-events: auto;
+    --glow: #5fcf4f;
+    --glow-bright: #7aef65;
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.7),
+      0 0 0 3px var(--glow),
+      0 0 18px rgba(95,207,79,0.5);
+    isolation: isolate;
+    animation: barPulse 2.4s ease-in-out infinite;
+  }
+  @keyframes barPulse {
+    0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.7), 0 0 0 3px var(--glow),        0 0 18px var(--glow-soft, rgba(95,207,79,0.45)); }
+    50%      { box-shadow: 0 4px 14px rgba(0,0,0,0.7), 0 0 0 3px var(--glow-bright), 0 0 32px var(--glow-soft, rgba(95,207,79,0.85)); }
+  }
+  /* Enchantment table shimmer — overrides glow purple for ~3s */
+  #bar.enchanted { --glow: #b265ff; --glow-bright: #d9a3ff; --glow-soft: rgba(178,101,255,0.8); }
+
+  .bg {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, #151a15 0%, #0a0d0a 100%);
+    z-index: 1;
+  }
+
+  #textLayer {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    padding: 0 12px;
+    z-index: 5;
+    color: #fff;
+    font-family: "Courier New", Courier, monospace;
+    font-size: 22px; font-weight: 900; letter-spacing: 0.5px;
+    text-align: center; white-space: nowrap; overflow: hidden;
+    text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 0 0 8px rgba(95,207,79,0.9);
+    transition: padding 0.2s ease;
+  }
+  #bar.with-pic #textLayer { padding: 0 10px 0 40px; }
+  #textInner { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; transition: font-size 0.15s ease; }
+
+  #leftSlot {
+    position: absolute; left: 6px; top: 50%; transform: translateY(-50%);
+    width: 26px; height: 26px; border-radius: 50%; overflow: hidden;
+    z-index: 6; display: none; align-items: center; justify-content: center;
+    box-shadow: 0 0 0 2px #0a0d0a, 0 0 0 3px var(--glow);
+  }
+  #leftSlot img { width: 100%; height: 100%; object-fit: cover; }
+
+  #barFX   { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 4; image-rendering: pixelated; pointer-events: none; }
+  #aboveFX { position: absolute; left: 0; bottom: 36px; width: 440px; height: 224px; z-index: 3; image-rendering: pixelated; pointer-events: none; }
+
+  /* Full-stage white flash for boom/lightning/wither hits */
+  #flash {
+    position: absolute; inset: 0; z-index: 7;
+    background: #ffffff; opacity: 0; pointer-events: none;
+  }
+  #flash.hit { animation: flashHit 0.18s ease-out; }
+  @keyframes flashHit { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+
+  #stage.shake { animation: shake 0.4s linear; }
+  @keyframes shake {
+    0%{transform:translateX(-50%) translate(0,0);} 10%{transform:translateX(-50%) translate(-4px,2px);}
+    20%{transform:translateX(-50%) translate(4px,-2px);} 30%{transform:translateX(-50%) translate(-3px,1px);}
+    40%{transform:translateX(-50%) translate(3px,-1px);} 50%{transform:translateX(-50%) translate(-2px,2px);}
+    60%{transform:translateX(-50%) translate(2px,-1px);} 70%{transform:translateX(-50%) translate(-1px,1px);}
+    80%{transform:translateX(-50%) translate(1px,0);} 100%{transform:translateX(-50%) translate(0,0);}
+  }
+
+  /* Minecraft advancement toast (top-right) */
+  #advancement {
+    position: fixed; top: 10px; right: 12px; z-index: 50;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 16px 10px 10px;
+    min-width: 240px;
+    font-family: "Courier New", monospace;
+    color: #fff;
+    background: linear-gradient(180deg, #6a4a24 0%, #4a3216 100%);
+    border: 3px solid #2a1c0c;
+    box-shadow: inset 0 0 0 2px #8a6436, inset 0 0 14px rgba(0,0,0,0.5), 0 6px 18px rgba(0,0,0,0.6);
+    border-radius: 2px;
+    transform: translateX(130%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  #advancement.show { animation: advIn 3.6s cubic-bezier(.2,.9,.25,1) forwards; }
+  @keyframes advIn {
+    0%   { transform: translateX(130%); opacity: 0; }
+    10%  { transform: translateX(0);    opacity: 1; }
+    88%  { transform: translateX(0);    opacity: 1; }
+    100% { transform: translateX(130%); opacity: 0; }
+  }
+  #advancement canvas { width: 34px; height: 34px; image-rendering: pixelated; flex: 0 0 auto; }
+  #advText { line-height: 1.25; }
+  #advHeader { font-size: 11px; font-weight: 700; color: #ffd84a; text-shadow: 1px 1px 0 #000; letter-spacing: .5px; }
+  #advName   { font-size: 14px; font-weight: 900; color: #f6f0e2; text-shadow: 1px 1px 0 #000; }
+
+  #demoPanel {
+    position: fixed; top: 10px; left: 10px;
+    background: rgba(10,10,15,0.85); color: #fff;
+    font-family: system-ui, sans-serif; font-size: 12px;
+    padding: 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
+    z-index: 9999; min-width: 188px;
+  }
+  #demoPanel h4 { font-size: 12px; margin-bottom: 6px; letter-spacing: 1px; color: #7aef65; }
+  #demoPanel button {
+    display: block; width: 100%; margin-top: 4px; padding: 5px 8px;
+    background: #222; color: #fff; border: 1px solid #444; border-radius: 4px; cursor: pointer; font-size: 11px;
+  }
+  #demoPanel button:hover { background: #333; }
+  #demoPanel select, #demoPanel input[type="text"], #demoPanel input[type="number"] {
+    width: 100%; padding: 4px; background: #111; color: #fff; border: 1px solid #444; border-radius: 3px; font-size: 11px; margin-top: 4px;
+  }
+  #demoPanel.hidden { display: none; }
+  #wsStatus { font-size: 10px; padding: 3px 6px; border-radius: 3px; display: inline-block; margin-top: 6px; }
+  #wsStatus.on  { background: #1a5a1a; color: #8fff8f; }
+  #wsStatus.off { background: #5a1a1a; color: #ff8f8f; }
+  #wsStatus.try { background: #5a4a1a; color: #ffd98f; }
+  .row { display: flex; gap: 4px; }
+  .row > * { flex: 1; }
+</style>
+</head>
+<body>
+
+<canvas id="bgFX"></canvas>
+
+<div id="stage">
+  <canvas id="aboveFX" width="440" height="224"></canvas>
+  <div id="bar">
+    <div class="bg"></div>
+    <canvas id="barFX" width="440" height="36"></canvas>
+    <div id="leftSlot"></div>
+    <div id="textLayer"><span id="textInner">Follow Spawns a Random Enemy</span></div>
+  </div>
+  <div id="flash"></div>
+</div>
+
+<div id="advancement">
+  <canvas id="advIcon" width="34" height="34"></canvas>
+  <div id="advText"><div id="advHeader">Advancement Made!</div><div id="advName">Loyal Friend</div></div>
+</div>
+
+<div id="demoPanel">
+  <h4>MINECRAFT OVERLAY</h4>
+  <button id="btnFollow">Trigger 1 Follow</button>
+  <input type="text" id="demoUser" placeholder="username" value="Steve">
+  <div class="row">
+    <input type="number" id="demoBatch" placeholder="batch" value="1" min="1" max="50">
+    <button id="btnBatch">Batch</button>
+  </div>
+  <select id="sceneSel" title="force celebration scene">
+    <option value="">Scene: random</option>
+  </select>
+  <button id="btnScene">Trigger Scene</button>
+  <button id="btnMine">Trigger Mining</button>
+  <button id="btnLoop">Auto-Loop: OFF</button>
+  <button id="btnHide">Hide Panel (H)</button>
+  <div id="wsStatus" class="off">WS: disconnected</div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const CTA_TEXT = "Follow Spawns a Random Enemy";
+const params = new URLSearchParams(location.search);
+const MILESTONES = [10, 25, 50, 100, 250, 500, 1000];
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  animating: false,
+  followQueue: [],
+  thankActive: false,
+  totalFollowers: 0,
+  lastFollower: "",
+  recentFollowers: [],
+  signShowTime: 0,
+  signDuration: 5000,
+  signImgCache: {},
+  idleMobs: [],
+  idleMobTimer: null,
+  idleMobAnimFrame: null,
+  enchantUntil: 0,
+  forcedScene: null,
+  autoLoop: false,
+  autoLoopTimer: null,
+};
+
+// ============================================================
+// DOM refs
+// ============================================================
+const $stage     = document.getElementById("stage");
+const $bar       = document.getElementById("bar");
+const $textInner = document.getElementById("textInner");
+const $textLayer = document.getElementById("textLayer");
+const $leftSlot  = document.getElementById("leftSlot");
+const $barFX     = document.getElementById("barFX");
+const $aboveFX   = document.getElementById("aboveFX");
+const $flash     = document.getElementById("flash");
+const barCtx     = $barFX.getContext("2d");
+const aboveCtx   = $aboveFX.getContext("2d");
+barCtx.imageSmoothingEnabled = false;
+aboveCtx.imageSmoothingEnabled = false;
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function clearBarFX()   { barCtx.clearRect(0, 0, $barFX.width, $barFX.height); }
+function clearAboveFX() { aboveCtx.clearRect(0, 0, $aboveFX.width, $aboveFX.height); }
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+function pick(arr) { return arr[randInt(0, arr.length - 1)]; }
+
+function hashAt(x, y, seed) {
+  let h = (x * 374761393 + y * 668265263 + seed * 2246822519) | 0;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  h = (h ^ (h >>> 16));
+  return (h >>> 0) / 4294967296;
+}
+function pickGreen(palette, x, y, seed) { return palette[Math.floor(hashAt(x, y, seed) * palette.length)]; }
+function blendHex(a, b, t) {
+  const ar = parseInt(a.slice(1,3),16), ag = parseInt(a.slice(3,5),16), ab = parseInt(a.slice(5,7),16);
+  const br = parseInt(b.slice(1,3),16), bg = parseInt(b.slice(3,5),16), bb = parseInt(b.slice(5,7),16);
+  return `rgb(${Math.round(ar+(br-ar)*t)},${Math.round(ag+(bg-ag)*t)},${Math.round(ab+(bb-ab)*t)})`;
+}
+
+function renderCTA() {
+  resetTextSize();
+  $textInner.textContent = CTA_TEXT;
+  $textLayer.style.visibility = "visible";
+  $bar.classList.remove("with-pic");
+  $leftSlot.innerHTML = "";
+  $leftSlot.style.display = "none";
+}
+function setLeftSlotToProfile(picUrl) {
+  $leftSlot.innerHTML = "";
+  $leftSlot.style.display = "flex";
+  $bar.classList.add("with-pic");
+  if (picUrl) {
+    const img = document.createElement("img");
+    img.src = picUrl; img.onerror = () => { $leftSlot.innerHTML = ""; };
+    $leftSlot.appendChild(img);
+  }
+}
+function resetTextSize() { $textInner.style.fontSize = ""; }
+function fitTextSize(ctx, text, maxFontSize, minFontSize, maxW, fontFamily) {
+  let lo = minFontSize, hi = maxFontSize, best = lo;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    ctx.font = `bold ${mid}px ${fontFamily}`;
+    if (ctx.measureText(text).width <= maxW) { best = mid; lo = mid + 1; } else { hi = mid - 1; }
+  }
+  return best;
+}
+
+// Sound-free impact framing (#10): white flash + scale-punch.
+function impactFlash() {
+  $flash.classList.remove("hit"); void $flash.offsetWidth; $flash.classList.add("hit");
+  $stage.classList.remove("punch"); void $stage.offsetWidth; $stage.classList.add("punch");
+}
+
+// ============================================================
+// FOLLOW PIPELINE
+// ============================================================
+function handleFollow(user, pic) {
+  state.followQueue.push({ user: user || "friend", pic: pic || "" });
+  if (!state.animating && !state.thankActive) processQueue();
+}
+function processQueue() {
+  if (state.followQueue.length === 0) return;
+  stopIdleLoop();
+  const batch = state.followQueue.splice(0, state.followQueue.length);
+  state.animating = true;
+  playCelebration(() => {
+    state.animating = false;
+    showThankYou(batch);
+  });
+}
+function showThankYou(list) {
+  state.thankActive = true;
+  const before = state.totalFollowers;
+  state.totalFollowers += list.length;
+  state.lastFollower = list[list.length - 1].user;
+  state.recentFollowers = list.slice();
+  for (const f of list) {
+    if (f.pic && !state.signImgCache[f.pic]) {
+      const img = new Image(); img.crossOrigin = "anonymous"; img.src = f.pic;
+      state.signImgCache[f.pic] = img;
+    }
+  }
+  state.signShowTime = 0;
+  // Sub-milestone enchantment shimmer every 10 (#8)
+  if (Math.floor(state.totalFollowers / 10) > Math.floor(before / 10)) triggerEnchant();
+  // Milestone advancement (#3)
+  const crossed = MILESTONES.filter(m => before < m && state.totalFollowers >= m);
+  if (crossed.length) queueAdvancement(crossed[crossed.length - 1]);
+  playThankYouCanvas(list, () => endThankYou());
+}
+function endThankYou() {
+  state.thankActive = false;
+  clearBarFX(); clearAboveFX();
+  startIdleLoop();
+  if (state.followQueue.length > 0) processQueue();
+}
+
+// ============================================================
+// THANK-YOU RENDERER (emerald sparkle + XP orbs + rainbow name) (#9)
+// ============================================================
+function playThankYouCanvas(list, onComplete) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const t0 = performance.now();
+  const FADE_IN = 400, HOLD_END = 3500, FADE_OUT_END = 4200;
+  const total = list.length;
+  let cycleIdx = 0;
+  const cycleMs = total > 1 ? Math.max(600, Math.floor(3100 / total)) : 0;
+  const BAR_W = 440, MAX_TEXT_W = BAR_W - 24;
+  const FF = '"Courier New", monospace';
+  const rainbow = state.totalFollowers >= 100;   // chat-color name at high tiers
+
+  // XP orb / emerald burst around the centre
+  const orbs = [];
+  for (let i = 0; i < 16; i++) {
+    const ang = rand(0, Math.PI * 2), spd = rand(0.6, 2.2);
+    orbs.push({ x: W/2, y: H - 60, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - rand(0.4,1.2),
+      r: rand(2,4), col: Math.random() < 0.4 ? "#2ecc71" : "#9bff5a", life: 0, maxLife: rand(800,1500), delay: randInt(0,400) });
+  }
+
+  function curName() { return total > 1 ? list[cycleIdx].user : list[0].user; }
+  function getText() { return total === 1 ? "Thanks for the follow, " : "Thanks, "; }
+
+  function drawName(cx, cy, name, fontSize, alpha) {
+    aboveCtx.font = `bold ${fontSize}px ${FF}`;
+    aboveCtx.textAlign = "left"; aboveCtx.textBaseline = "middle";
+    const prefix = getText();
+    const full = prefix + name + "!";
+    const totalW = aboveCtx.measureText(full).width;
+    let x = cx - totalW / 2;
+    aboveCtx.globalAlpha = alpha;
+    // prefix (white)
+    aboveCtx.fillStyle = "#1a2a0e"; aboveCtx.fillText(prefix, x + 2, cy + 2);
+    aboveCtx.shadowColor = "rgba(95,207,79,0.6)"; aboveCtx.shadowBlur = 8;
+    aboveCtx.fillStyle = "#e0ffd0"; aboveCtx.fillText(prefix, x, cy);
+    aboveCtx.shadowBlur = 0;
+    x += aboveCtx.measureText(prefix).width;
+    // name (rainbow at high tiers, else gold)
+    const RB = ["#ff5555","#ffaa00","#ffff55","#55ff55","#55ffff","#5599ff","#ff66ff"];
+    for (let i = 0; i < name.length; i++) {
+      const ch = name[i];
+      aboveCtx.fillStyle = "#1a1206"; aboveCtx.fillText(ch, x + 2, cy + 2);
+      aboveCtx.fillStyle = rainbow ? RB[i % RB.length] : "#ffd84a";
+      aboveCtx.fillText(ch, x, cy);
+      x += aboveCtx.measureText(ch).width;
+    }
+    aboveCtx.fillStyle = "#1a1206"; aboveCtx.fillText("!", x + 2, cy + 2);
+    aboveCtx.fillStyle = "#e0ffd0"; aboveCtx.fillText("!", x, cy);
+    aboveCtx.globalAlpha = 1;
+  }
+
+  function frame(now) {
+    const t = now - t0;
+    let alpha;
+    if (t < FADE_IN) alpha = 1 - Math.pow(1 - t/FADE_IN, 2);
+    else if (t < HOLD_END) {
+      alpha = 1;
+      if (total > 1 && cycleMs > 0) { const ni = Math.floor((t-FADE_IN)/cycleMs) % total; if (ni !== cycleIdx) cycleIdx = ni; }
+    } else if (t < FADE_OUT_END) { const p = (t-HOLD_END)/(FADE_OUT_END-HOLD_END); alpha = (1-p)*(1-p); }
+    else { clearAboveFX(); onComplete(); return; }
+
+    clearAboveFX();
+    // XP orbs
+    for (const o of orbs) {
+      if (o.delay > 0) { o.delay -= 16; continue; }
+      o.life += 16; if (o.life >= o.maxLife) continue;
+      o.x += o.vx; o.y += o.vy; o.vy += 0.02;
+      const la = (1 - o.life/o.maxLife) * alpha;
+      aboveCtx.globalAlpha = la;
+      aboveCtx.fillStyle = o.col;
+      aboveCtx.beginPath(); aboveCtx.arc(o.x, o.y, o.r, 0, Math.PI*2); aboveCtx.fill();
+      aboveCtx.globalAlpha = la * 0.5; aboveCtx.fillStyle = "#ffffff";
+      aboveCtx.fillRect(o.x - 1, o.y - 1, 1, 1);
+    }
+    aboveCtx.globalAlpha = 1;
+    const name = curName();
+    const fs = fitTextSize(aboveCtx, getText() + name + "!", 22, 11, MAX_TEXT_W, FF);
+    drawName(W/2, H - 30, name, fs, alpha);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ============================================================
+// TIERED FOLLOWER COUNTER (#7)
+// ============================================================
+const COUNTER_TIERS = [
+  { max: 10,   name: "oak",       plank: "#9C7A22", edge: "#8B6914", div: "#6B4E12", border: "#3B2506", post: "#5C3D0E", t1: "#f0e8d0", t2: "#c0f0a0" },
+  { max: 25,   name: "spruce",    plank: "#5b4327", edge: "#46341e", div: "#33261544", border: "#241a0e", post: "#33261b", t1: "#e8dcc4", t2: "#bfae8e" },
+  { max: 50,   name: "birch",     plank: "#d7cBa4", edge: "#c2b389", div: "#a99a6e", border: "#8a7c54", post: "#b3a47a", t1: "#3a3220", t2: "#5a4a28" },
+  { max: 100,  name: "iron",      plank: "#c9c9cf", edge: "#a9a9b2", div: "#8a8a92", border: "#6f6f78", post: "#9a9aa2", t1: "#2a2a32", t2: "#3a3a44" },
+  { max: 250,  name: "gold",      plank: "#f4d752", edge: "#d8b832", div: "#b89720", border: "#8a6e14", post: "#caa636", t1: "#3a2a06", t2: "#6a5210" },
+  { max: 500,  name: "diamond",   plank: "#5fe6df", edge: "#41c8c2", div: "#2fa7a2", border: "#1a7a76", post: "#46c8c2", t1: "#063a38", t2: "#0a6a66" },
+  { max: 1e9,  name: "netherite", plank: "#48444c", edge: "#36323a", div: "#2a262e", border: "#15121a", post: "#2e2a32", t1: "#d8c8e0", t2: "#a890b8" },
+];
+function counterTier(total) { for (const t of COUNTER_TIERS) if (total <= t.max) return t; return COUNTER_TIERS[COUNTER_TIERS.length-1]; }
+
+function drawFollowerCounter(alpha, now) {
+  if (state.totalFollowers === 0 || alpha <= 0) return;
+  const M = counterTier(state.totalFollowers);
+  aboveCtx.globalAlpha = alpha;
+  const W = $aboveFX.width, signW = 240, signH = 46;
+  const sx = (W - signW) / 2, sy = $aboveFX.height - signH - 18;
+
+  const batch = state.recentFollowers.length > 0 ? state.recentFollowers : [{user: state.lastFollower, pic: ""}];
+  const idx = Math.floor((now - state.signShowTime) / 900) % batch.length;
+  const cur = batch[idx];
+
+  // Plank body
+  aboveCtx.fillStyle = M.edge;  aboveCtx.fillRect(sx, sy, signW, signH);
+  aboveCtx.fillStyle = M.plank; aboveCtx.fillRect(sx + 2, sy + 2, signW - 4, signH - 4);
+  // Subtle plank/metal mottle
+  for (let i = 0; i < 26; i++) {
+    const rx = sx + 3 + Math.floor(hashAt(i, 1, 5) * (signW - 6));
+    const ry = sy + 3 + Math.floor(hashAt(i, 2, 9) * (signH - 6));
+    aboveCtx.fillStyle = hashAt(i,3,3) < 0.5 ? M.edge : M.plank;
+    aboveCtx.fillRect(rx, ry, 2, 2);
+  }
+  aboveCtx.strokeStyle = M.div; aboveCtx.lineWidth = 1;
+  aboveCtx.beginPath(); aboveCtx.moveTo(sx+4, sy+(signH>>1)); aboveCtx.lineTo(sx+signW-4, sy+(signH>>1)); aboveCtx.stroke();
+  aboveCtx.strokeStyle = M.border; aboveCtx.lineWidth = 2; aboveCtx.strokeRect(sx, sy, signW, signH);
+  // Posts
+  aboveCtx.fillStyle = M.post;
+  aboveCtx.fillRect(sx+14, sy+signH, 4, 16); aboveCtx.fillRect(sx+signW-18, sy+signH, 4, 16);
+  aboveCtx.strokeStyle = M.border; aboveCtx.lineWidth = 1;
+  aboveCtx.strokeRect(sx+14, sy+signH, 4, 16); aboveCtx.strokeRect(sx+signW-18, sy+signH, 4, 16);
+
+  // Profile pic
+  const picSz = 30, picX = sx + 8, picY = sy + (signH - picSz)/2;
+  const img = cur.pic ? state.signImgCache[cur.pic] : null;
+  const hasPic = img && img.complete && img.naturalWidth > 0;
+  if (hasPic) {
+    aboveCtx.save(); aboveCtx.beginPath();
+    aboveCtx.arc(picX+picSz/2, picY+picSz/2, picSz/2, 0, Math.PI*2); aboveCtx.clip();
+    aboveCtx.drawImage(img, picX, picY, picSz, picSz); aboveCtx.restore();
+    aboveCtx.globalAlpha = alpha;
+  } else {
+    aboveCtx.fillStyle = M.border;
+    aboveCtx.beginPath(); aboveCtx.arc(picX+picSz/2, picY+picSz/2, picSz/2, 0, Math.PI*2); aboveCtx.fill();
+  }
+  aboveCtx.strokeStyle = M.border; aboveCtx.lineWidth = 2;
+  aboveCtx.beginPath(); aboveCtx.arc(picX+picSz/2, picY+picSz/2, picSz/2+1, 0, Math.PI*2); aboveCtx.stroke();
+
+  const textCx = (sx + 8 + picSz + 8 + sx + signW - 6) / 2;
+  aboveCtx.font = 'bold 13px "Courier New", monospace';
+  aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
+  aboveCtx.fillStyle = "#000a"; aboveCtx.fillText("Followers: " + state.totalFollowers, textCx+1, sy+14+1);
+  aboveCtx.fillStyle = M.t1;    aboveCtx.fillText("Followers: " + state.totalFollowers, textCx, sy+14);
+  const rawName = cur.user || "", nameText = rawName.length > 16 ? rawName.slice(0,14)+".." : rawName;
+  aboveCtx.fillStyle = "#000a"; aboveCtx.fillText(nameText, textCx+1, sy+32+1);
+  aboveCtx.fillStyle = M.t2;    aboveCtx.fillText(nameText, textCx, sy+32);
+  aboveCtx.globalAlpha = 1;
+}
+
+// ============================================================
+// 3D MOB CUBES (#1 — 10 procedural mobs)
+// ============================================================
+const MOB3D = {
+  creeper: { base:["#5fcf4f","#57c247","#67d657","#4fbc3f"], light:["#7ae35e","#6fd454","#82eb65","#6bcf50"], dark:["#3b9230","#327f28","#459f38","#2f7a25"], outline:"#1a3a0a", hole:"#0a0a0a",
+    face:["........","........",".XX..XX.",".XX..XX.","...XX...","..XXXX..",".XX..XX.",".XX..XX."] },
+  zombie: { base:["#588a3e","#4f7d36","#608e44","#527a35"], light:["#6a9a52","#5e8e44","#6f9d56","#5e8e44"], dark:["#3a5a28","#324e22","#3e6028","#345220"], outline:"#1a2a0a", hole:"#0a0e08",
+    face:["........","........",".XX..XX.",".XX..XX.","........","..XXXX..","..XXXX..","........"] },
+  skeleton: { base:["#c6c6c6","#bababa","#cccccc","#bdbdbd"], light:["#dadada","#d2d2d2","#dddddd","#d4d4d4"], dark:["#9a9a9a","#8e8e8e","#a0a0a0","#929292"], outline:"#3a3a3a", hole:"#1a1a1a",
+    face:["........","........",".XX..XX.",".XX..XX.","........","........",".XXXXXX.","........"] },
+  enderman: { base:["#0e0e14","#0b0b11","#101017","#09090d"], light:["#1c1c26","#181820","#20202a","#161620"], dark:["#050508","#040406","#070709","#030305"], outline:"#000000", hole:"#c75bff",
+    face:["........","........",".XX..XX.",".XX..XX.","........","........","........","........"] },
+  witch: { base:["#6d8a4e","#627d44","#74905a","#5c7640"], light:["#80a060","#769858","#86a566","#6f8e50"], dark:["#4a5e34","#42542c","#50663a","#3e5028"], outline:"#26331a", hole:"#1a140e",
+    face:["...XX...","..XXXX..",".XX..XX.","........","..X..X..","...XX...","...XX...","........"] },
+  blaze: { base:["#f4a420","#e89818","#ffb22c","#e28e14"], light:["#ffd25a","#ffe27a","#ffdc66","#ffce4e"], dark:["#b86c00","#a85e00","#c47600","#9c5600"], outline:"#6e3a00", hole:"#3a2600",
+    face:["X.X..X.X","........",".XX..XX.",".XX..XX.","........","..XXXX..","........","X.X..X.X"] },
+  slime: { base:["#5ac24a","#52b842","#62cc52","#4eb43e"], light:["#7ce05e","#74d856","#86eb66","#70d250"], dark:["#3a8a2e","#327f28","#409630","#2e7a25"], outline:"#266a1a", hole:"#2e7a25",
+    face:["........","........","..X..X..","..X..X..","........","...XX...","........","........"] },
+  wither_skeleton: { base:["#2b2b2b","#262626","#303030","#222222"], light:["#3e3e3e","#383838","#444444","#343434"], dark:["#161616","#121212","#1a1a1a","#0e0e0e"], outline:"#000000", hole:"#0a0a0a",
+    face:["........",".XX..XX.",".XX..XX.","........","..XXXX..",".XX..XX.","..XXXX..","........"] },
+  allay: { base:["#3a7adf","#3470d4","#4280e8","#2f68c8"], light:["#6aa0ff","#5e96f5","#76aaff","#5890ee"], dark:["#264f9c","#214793","#2b58a8","#1d4286"], outline:"#16306a", hole:"#0a1730",
+    face:["........",".XX..XX.",".XX..XX.",".XX..XX.","........","........","........","........"] },
+  axolotl: { base:["#f0a8c8","#e89cbe","#f6b2d0","#e494ba"], light:["#ffc8e0","#ffd2e8","#ffceE4","#ffc2dc"], dark:["#c87aa0","#bc7096","#d082a8","#b46a90"], outline:"#8a4a6a", hole:"#c24a7a",
+    face:["X......X",".X....X.","..X..X..","........","........","...XX...","........","........"] },
+};
+const headImages = {};   // procedural only — kept so the renderer branch matches the template
+
+const cubeCache = new Map();
+function getMobCube(mobName, size) {
+  const key = mobName + "_" + size;
+  if (cubeCache.has(key)) return cubeCache.get(key);
+  const m = MOB3D[mobName]; if (!m) return null;
+  const pxPer = Math.max(1, Math.floor(size / 8)), actualSize = pxPer * 8, depth = Math.floor(pxPer * 2);
+  const c = document.createElement("canvas");
+  c.width = actualSize + depth + 2; c.height = actualSize + depth + 2;
+  const ctx = c.getContext("2d"); ctx.imageSmoothingEnabled = false;
+  const fx = 0, fy = depth;
+  for (let dy = 0; dy < depth; dy++) { const yy = fy-dy, lX = fx+(dy+1), rX = fx+actualSize+(dy+1);
+    for (let xx = lX; xx < rX; xx++) { ctx.fillStyle = pickGreen(m.light, Math.floor((xx-lX)/pxPer), Math.floor((depth-dy-1)/pxPer), 11); ctx.fillRect(xx, yy, 1, 1); } }
+  for (let dx = 0; dx < depth; dx++) { const xx = fx+actualSize+dx, tY = fy-(dx+1), bY = fy+actualSize-(dx+1);
+    for (let yy = tY; yy < bY; yy++) { ctx.fillStyle = pickGreen(m.dark, Math.floor(dx/pxPer), Math.floor((yy-tY)/pxPer), 22); ctx.fillRect(xx, yy, 1, 1); } }
+  for (let ly = 0; ly < 8; ly++) for (let lx = 0; lx < 8; lx++) {
+    let col;
+    if (m.face[ly][lx] === "X") col = m.hole;
+    else { col = pickGreen(m.base, lx, ly, 7); if (hashAt(lx,ly,13) < 0.2) col = pickGreen(m.light,lx,ly,13); else if (hashAt(lx,ly,19) < 0.25) col = pickGreen(m.dark,lx,ly,19); }
+    ctx.fillStyle = col; ctx.fillRect(fx+lx*pxPer, fy+ly*pxPer, pxPer, pxPer);
+  }
+  ctx.strokeStyle = m.outline; ctx.lineWidth = 1; ctx.strokeRect(fx+0.5, fy+0.5, actualSize-1, actualSize-1);
+  const entry = { canvas: c, depth, actualSize }; cubeCache.set(key, entry); return entry;
+}
+function drawMobHead3D(ctx, mobName, cx, cy, size, flashMix) {
+  const m = MOB3D[mobName]; if (!m) return; flashMix = flashMix || 0;
+  if (flashMix === 0) { const cube = getMobCube(mobName, size); if (cube) { ctx.imageSmoothingEnabled = false; ctx.drawImage(cube.canvas, cx-cube.actualSize/2, cy-cube.actualSize/2-cube.depth); return; } }
+  const pxPer = Math.max(1, Math.floor(size/8)), actualSize = pxPer*8, depth = Math.floor(pxPer*2);
+  const fx = Math.floor(cx-actualSize/2), fy = Math.floor(cy-actualSize/2);
+  for (let dy = 0; dy < depth; dy++) { const yy = fy-dy, lX = fx+(dy+1), rX = fx+actualSize+(dy+1);
+    for (let xx = lX; xx < rX; xx++) { let col = pickGreen(m.light, Math.floor((xx-lX)/pxPer), Math.floor((depth-dy-1)/pxPer), 11); if (flashMix>0) col = blendHex(col,"#ffffff",flashMix); ctx.fillStyle = col; ctx.fillRect(xx, yy, 1, 1); } }
+  for (let dx = 0; dx < depth; dx++) { const xx = fx+actualSize+dx, tY = fy-(dx+1), bY = fy+actualSize-(dx+1);
+    for (let yy = tY; yy < bY; yy++) { let col = pickGreen(m.dark, Math.floor(dx/pxPer), Math.floor((yy-tY)/pxPer), 22); if (flashMix>0) col = blendHex(col,"#ffffff",flashMix); ctx.fillStyle = col; ctx.fillRect(xx, yy, 1, 1); } }
+  for (let ly = 0; ly < 8; ly++) for (let lx = 0; lx < 8; lx++) {
+    let col;
+    if (m.face[ly][lx] === "X") col = flashMix>0 ? blendHex(m.hole,"#ffffff",flashMix*0.6) : m.hole;
+    else { col = pickGreen(m.base,lx,ly,7); if (hashAt(lx,ly,13)<0.2) col = pickGreen(m.light,lx,ly,13); else if (hashAt(lx,ly,19)<0.25) col = pickGreen(m.dark,lx,ly,19); if (flashMix>0) col = blendHex(col,"#ffffff",flashMix); }
+    ctx.fillStyle = col; ctx.fillRect(fx+lx*pxPer, fy+ly*pxPer, pxPer, pxPer);
+  }
+  ctx.strokeStyle = flashMix>0 ? blendHex(m.outline,"#ffffff",flashMix) : m.outline; ctx.lineWidth = 1;
+  ctx.strokeRect(fx+0.5, fy+0.5, actualSize-1, actualSize-1);
+}
+
+// ============================================================
+// IDLE EVENTS — peek (70%) + mining (30%)  (#4)
+// ============================================================
+const PEEK_MOBS = ["creeper","zombie","skeleton","enderman","witch","blaze","slime","wither_skeleton","allay","axolotl"];
+let peekMobIndex = 0;
+function scheduleIdleEvent() {
+  state.idleMobTimer = setTimeout(() => {
+    if (state.animating || state.thankActive) return;
+    if (Math.random() < 0.3) startMining(); else startMobPeek();
+    scheduleIdleEvent();
+  }, rand(4000, 8000));
+}
+function startMobPeek(forceX, forceMob) {
+  const mob = forceMob || PEEK_MOBS[peekMobIndex];
+  if (!forceMob) peekMobIndex = (peekMobIndex + 1) % PEEK_MOBS.length;
+  const headSz = 32, x = (forceX != null) ? forceX : randInt(20, $aboveFX.width - 20 - headSz);
+  const H = $aboveFX.height, GAP = 6, hiddenY = H + 10, peekY = H - headSz - GAP;
+  const t0 = performance.now(), RISE = 400, HOLD = 1600, LOWER = 2000;
+  state.idleMobs.push({ draw(now) {
+    const t = now - t0; if (t > LOWER) return false;
+    let y;
+    if (t < RISE) { const p = t/RISE; y = hiddenY + (peekY-hiddenY)*(1-Math.pow(1-p,5)); }
+    else if (t < HOLD) { const bp = (t-RISE)/(HOLD-RISE); y = peekY + Math.sin(bp*Math.PI*4)*2.5; }
+    else { const p = (t-HOLD)/(LOWER-HOLD); y = peekY + (hiddenY-peekY)*(p*p*p); }
+    drawMobHead3D(aboveCtx, mob, x + headSz/2, y + headSz/2, headSz, 0);
+    return true;
+  }});
+}
+
+// ---- Mining: pickaxe swings, dirt cracks 0->9, breaks -> item floats up ----
+const MINE_ITEMS = {
+  diamond:       { c:"#5fe6df", l:"#9af6f0", d:"#2fa7a2" },
+  emerald:       { c:"#33d177", l:"#7af0aa", d:"#1f8a4c" },
+  iron:          { c:"#d8d8d8", l:"#f2f2f2", d:"#9a9a9a" },
+  gold:          { c:"#f4d752", l:"#fff0a0", d:"#c2a022" },
+  ancient_debris:{ c:"#7a5a4a", l:"#9c7a66", d:"#4a3226" },
+  heart_of_sea:  { c:"#7fd6c8", l:"#bfeee6", d:"#4a9a8e" },
+  nether_star:   { c:"#f4f4f4", l:"#ffffff", d:"#c0c0c0" },
+};
+const MINE_ITEM_ART = [
+  "...XX...","..XXXX..",".XXXXXX.","XXXXXXXX","XXXXXXXX",".XXXXXX.","..XXXX..","...XX...",
+];
+function drawDirtBlock(ctx, bx, by, sz, crack) {
+  const pal = ["#7a5a36","#6a4e2e","#8a6a3e","#5e4424"];
+  const u = sz / 8;
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+    ctx.fillStyle = (y === 0 || (y === 1 && hashAt(x,0,2) < 0.5)) ? (hashAt(x,1,4)<0.5?"#6abf3a":"#4a9228") : pal[Math.floor(hashAt(x,y,7)*pal.length)];
+    ctx.fillRect(bx+x*u, by+y*u, u, u);
+  }
+  // crack overlay (0..1)
+  if (crack > 0) {
+    ctx.strokeStyle = "#000"; ctx.lineWidth = 1.4; ctx.globalAlpha = 0.25 + crack*0.55;
+    ctx.beginPath(); ctx.moveTo(bx+sz*0.15,by+sz*0.1); ctx.lineTo(bx+sz*0.5,by+sz*0.55); ctx.lineTo(bx+sz*0.85,by+sz*0.2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(bx+sz*0.5,by+sz*0.55); ctx.lineTo(bx+sz*0.35,by+sz*0.9); ctx.stroke();
+    if (crack > 0.4) { ctx.beginPath(); ctx.moveTo(bx+sz*0.5,by+sz*0.55); ctx.lineTo(bx+sz*0.78,by+sz*0.86); ctx.stroke(); }
+    if (crack > 0.7) { ctx.beginPath(); ctx.moveTo(bx+sz*0.2,by+sz*0.5); ctx.lineTo(bx+sz*0.4,by+sz*0.3); ctx.stroke();
+                       ctx.beginPath(); ctx.moveTo(bx+sz*0.7,by+sz*0.5); ctx.lineTo(bx+sz*0.9,by+sz*0.7); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+}
+function drawPickaxe(ctx, pivotX, pivotY, angle, sc) {
+  ctx.save(); ctx.translate(pivotX, pivotY); ctx.rotate(angle);
+  const hLen = 22*sc, hW = 2*sc;
+  ctx.fillStyle = "#8a6a30"; ctx.fillRect(-hW/2, -hLen, hW, hLen);
+  ctx.fillStyle = "#5aaad0"; const headW = 11*sc, headH = 3*sc; ctx.fillRect(-headW/2, -hLen-headH/2, headW, headH);
+  ctx.fillStyle = "#4a90b0";
+  ctx.beginPath(); ctx.moveTo(-headW/2,-hLen); ctx.lineTo(-headW/2-3*sc,-hLen-1*sc); ctx.lineTo(-headW/2,-hLen+headH); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(headW/2,-hLen); ctx.lineTo(headW/2+3*sc,-hLen-1*sc); ctx.lineTo(headW/2,-hLen+headH); ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+function startMining() {
+  const H = $aboveFX.height, sz = 36, bx = randInt(40, $aboveFX.width - 40 - sz), by = H - sz - 8;
+  const item = pick(Object.keys(MINE_ITEMS));
+  const t0 = performance.now(), MINE = 3000, REVEAL = 3000;
+  state.idleMobs.push({ draw(now) {
+    const t = now - t0; if (t > MINE + REVEAL) return false;
+    if (t < MINE) {
+      const crack = t / MINE;
+      drawDirtBlock(aboveCtx, bx, by, sz, crack);
+      // swinging pickaxe (sine), strikes on the down-beat
+      const swing = Math.sin(t * 0.018);
+      drawPickaxe(aboveCtx, bx + sz + 6, by + 4, -0.5 + swing * 0.7, 1.4);
+      // chip particles on strikes
+      if (swing > 0.92) { aboveCtx.fillStyle = "#8a6a3a"; for (let i=0;i<3;i++) aboveCtx.fillRect(bx+rand(4,sz-4), by+rand(2,10), 2, 2); }
+    } else {
+      // break flash once + item floats up with sparkle
+      const rt = t - MINE, p = rt / REVEAL;
+      const it = MINE_ITEMS[item], u = sz/8;
+      const iy = by - p * 40, scale = 0.6 + Math.min(1, rt/300) * 0.4;
+      const isz = sz * 0.7 * scale, ix = bx + sz/2 - isz/2;
+      const a = p > 0.7 ? (1 - (p-0.7)/0.3) : 1;
+      aboveCtx.globalAlpha = a;
+      // item pixel icon
+      const iu = isz/8;
+      for (let y=0;y<8;y++) for (let x=0;x<8;x++) if (MINE_ITEM_ART[y][x]==="X") {
+        let col = it.c; if (hashAt(x,y,3)<0.3) col = it.l; else if (hashAt(x,y,5)<0.3) col = it.d;
+        aboveCtx.fillStyle = col; aboveCtx.fillRect(ix+x*iu, iy+y*iu, Math.ceil(iu), Math.ceil(iu));
+      }
+      // sparkles
+      aboveCtx.fillStyle = "#ffffff";
+      for (let i=0;i<4;i++){ const sa = (now*0.01+i)*1.7; aboveCtx.globalAlpha = a*(0.4+0.6*Math.abs(Math.sin(sa)));
+        aboveCtx.fillRect(ix+isz/2+Math.cos(sa)*isz*0.7, iy+isz/2+Math.sin(sa)*isz*0.7, 2, 2); }
+      aboveCtx.globalAlpha = 1;
+    }
+    return true;
+  }});
+}
+
+// ============================================================
+// IDLE RENDER LOOP
+// ============================================================
+function drawPromoText(now) {
+  const W = $aboveFX.width, H = $aboveFX.height, text = "Join My Patreon to Join the Server!";
+  const ty = H - 60, bob = Math.sin(now * 0.002) * 1.5;
+  aboveCtx.save();
+  aboveCtx.font = 'bold 13px "Courier New", monospace'; aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
+  aboveCtx.fillStyle = "#000"; aboveCtx.fillText(text, W/2+1, ty+bob+1); aboveCtx.fillText(text, W/2+2, ty+bob+2);
+  aboveCtx.shadowColor = "rgba(95,207,79,0.6)"; aboveCtx.shadowBlur = 6;
+  aboveCtx.fillStyle = "#e8ffd0"; aboveCtx.fillText(text, W/2, ty+bob); aboveCtx.restore();
+}
+function startIdleLoop() {
+  if (state.totalFollowers > 0) state.signShowTime = performance.now();
+  scheduleIdleEvent();
+  function idleFrame(now) {
+    if (state.animating || state.thankActive) return;
+    clearAboveFX();
+    let signVisible = false, signAlpha = 0;
+    if (state.signShowTime > 0) {
+      const el = now - state.signShowTime, fEnd = state.signDuration + 800;
+      if (el < fEnd) { signVisible = true; signAlpha = el > state.signDuration ? 1 - (el-state.signDuration)/800 : 1; }
+    }
+    if (!signVisible) drawPromoText(now);
+    if (signVisible) drawFollowerCounter(signAlpha, now);
+    for (let i = state.idleMobs.length - 1; i >= 0; i--) if (!state.idleMobs[i].draw(now)) state.idleMobs.splice(i, 1);
+    drawEnchantRunes(now);
+    state.idleMobAnimFrame = requestAnimationFrame(idleFrame);
+  }
+  state.idleMobAnimFrame = requestAnimationFrame(idleFrame);
+}
+function stopIdleLoop() {
+  cancelAnimationFrame(state.idleMobAnimFrame); clearTimeout(state.idleMobTimer);
+  state.idleMobTimer = null; state.idleMobAnimFrame = null; state.idleMobs = [];
+}
+
+// ============================================================
+// ENCHANTMENT SHIMMER (#8) — purple glow + SGA runes on the bar
+// ============================================================
+const SGA = "ᔑʖᓵ↸ᒷ⎓⊣⍑╎⋮ꖌꖎᒲリ𝙹!¡ᑑ∷ᓭℸ⚍⍊∴/||⨅";
+function triggerEnchant() {
+  state.enchantUntil = performance.now() + 3000;
+  $bar.classList.add("enchanted");
+  setTimeout(() => { if (performance.now() >= state.enchantUntil) $bar.classList.remove("enchanted"); }, 3050);
+}
+function drawEnchantRunes(now) {
+  if (now >= state.enchantUntil) return;
+  const W = $barFX.width, H = $barFX.height;
+  clearBarFX();
+  barCtx.font = 'bold 16px "Courier New", monospace'; barCtx.textBaseline = "middle";
+  const scroll = (now * 0.06) % 24;
+  for (let i = -1; i < W/24 + 1; i++) {
+    const x = i*24 + scroll, ch = SGA[Math.floor(hashAt(i, 0, 31) * SGA.length)];
+    const a = 0.25 + 0.25 * Math.sin(now*0.008 + i);
+    barCtx.fillStyle = `rgba(216,170,255,${a})`;
+    barCtx.fillText(ch, x, H/2 + Math.sin(now*0.01 + i)*2);
+  }
+}
+
+// ============================================================
+// ADVANCEMENT TOAST (#3)
+// ============================================================
+const ADV_DEF = {
+  10:   { name: "Loyal Friend",  icon: "emerald"   },
+  25:   { name: "Crowd Pleaser", icon: "emerald"   },
+  50:   { name: "Stream Hero",   icon: "diamond"   },
+  100:  { name: "Centurion",     icon: "diamond"   },
+  250:  { name: "Legendary",     icon: "netherite" },
+  500:  { name: "Mythic",        icon: "netherite" },
+  1000: { name: "Immortal",      icon: "nether_star" },
+};
+const ADV_ICON_PAL = {
+  emerald:    { c:"#33d177", l:"#7af0aa", d:"#1f8a4c" },
+  diamond:    { c:"#5fe6df", l:"#9af6f0", d:"#2fa7a2" },
+  netherite:  { c:"#6a5f54", l:"#8a7d6e", d:"#3a322a" },
+  nether_star:{ c:"#f4f4f4", l:"#ffffff", d:"#bcbcbc" },
+};
+const $adv = document.getElementById("advancement");
+const $advIcon = document.getElementById("advIcon");
+const advCtx = $advIcon.getContext("2d"); advCtx.imageSmoothingEnabled = false;
+function drawAdvIcon(kind) {
+  advCtx.clearRect(0,0,34,34);
+  const pal = ADV_ICON_PAL[kind] || ADV_ICON_PAL.emerald, u = 34/8;
+  const art = kind === "nether_star"
+    ? ["...XX...","...XX...",".XXXXXX.","XXXXXXXX",".XXXXXX.","..X..X..",".X....X.","........"]
+    : MINE_ITEM_ART;
+  for (let y=0;y<8;y++) for (let x=0;x<8;x++) if (art[y][x]==="X") {
+    let col = pal.c; if (hashAt(x,y,3)<0.3) col = pal.l; else if (hashAt(x,y,6)<0.3) col = pal.d;
+    advCtx.fillStyle = col; advCtx.fillRect(x*u, y*u, Math.ceil(u), Math.ceil(u));
+  }
+}
+function queueAdvancement(milestone) {
+  const def = ADV_DEF[milestone]; if (!def) return;
+  document.getElementById("advName").textContent = def.name;
+  drawAdvIcon(def.icon);
+  $adv.classList.remove("show"); void $adv.offsetWidth; $adv.classList.add("show");
+}
+
+// ============================================================
+// PERSISTENT PARTICLE + DAY-NIGHT LAYER (#5, #6)
+// ============================================================
+const $bgFX = document.getElementById("bgFX");
+const bgCtx = $bgFX.getContext("2d"); bgCtx.imageSmoothingEnabled = false;
+let bgW = 0, bgH = 0;
+function resizeBg() { bgW = $bgFX.width = window.innerWidth; bgH = $bgFX.height = window.innerHeight; seedStars(); }
+window.addEventListener("resize", resizeBg);
+
+const PARTICLE_TYPES = ["souls","snow","leaves","sparks","none"];
+let particleType = params.get("particles") || null;       // null = auto-rotate
+const particleAutoStart = performance.now();
+function activeParticleType(now) {
+  if (particleType) return particleType;
+  // auto-rotate every 5 min through the 4 visible types
+  const visible = ["souls","snow","leaves","sparks"];
+  return visible[Math.floor((now - particleAutoStart) / 300000) % visible.length];
+}
+let particles = [];
+function spawnParticle(type) {
+  const base = { x: rand(0, bgW), y: rand(0, bgH), life: 0, maxLife: rand(6000, 14000) };
+  if (type === "souls")  return { ...base, vx: rand(-0.1,0.1), vy: rand(-0.35,-0.12), r: rand(1.5,3), col: "#5ad0ff", sway: rand(0,6.28) };
+  if (type === "snow")   return { ...base, vx: rand(-0.12,0.12), vy: rand(0.18,0.5), r: rand(1,2.6), col: "#ffffff", sway: rand(0,6.28) };
+  if (type === "leaves") return { ...base, vx: rand(-0.25,0.25), vy: rand(0.22,0.55), r: rand(2,3.5), col: pick(["#d8843a","#b9622a","#6a9a3a","#caa23a"]), sway: rand(0,6.28), rot: rand(0,6.28), rotSpd: rand(-0.05,0.05) };
+  return { ...base, vx: rand(-0.15,0.15), vy: rand(-0.5,-0.2), r: rand(1,2.2), col: pick(["#ff9020","#ffd060","#ff6020"]), sway: rand(0,6.28) }; // sparks
+}
+
+// Day-night (#6) — 20-min cycle. Returns interpolated look.
+const CYCLE_MS = 1200000;
+const cycleStart = performance.now();
+const DN = [
+  { name:"dawn",     glow:"#ff9d4a", soft:"rgba(255,157,74,0.6)",  bright:"#ffc27a", star:0.0, tint:"#3a2a1a" },
+  { name:"noon",     glow:"#5fcf4f", soft:"rgba(95,207,79,0.6)",   bright:"#7aef65", star:0.0, tint:"#10210f" },
+  { name:"dusk",     glow:"#b265ff", soft:"rgba(178,101,255,0.6)", bright:"#d9a3ff", star:0.15,tint:"#241636" },
+  { name:"midnight", glow:"#3a6cff", soft:"rgba(58,108,255,0.55)", bright:"#6a96ff", star:0.7, tint:"#0a1030" },
+];
+const cycleOverride = params.get("cycle");   // off | dawn | noon | dusk | midnight
+function lerpHex(a,b,t){ return blendHex(a,b,t).replace("rgb","rgba").replace(")",",1)"); }
+function dayNight(now) {
+  if (cycleOverride === "off") return DN[1];
+  const named = DN.find(d => d.name === cycleOverride);
+  if (named) return named;
+  const p = ((now - cycleStart) % CYCLE_MS) / CYCLE_MS;       // 0..1
+  const fi = p * DN.length, i = Math.floor(fi), f = fi - i;
+  const a = DN[i % DN.length], b = DN[(i+1) % DN.length];
+  return {
+    name: a.name,
+    glow: blendHex(a.glow, b.glow, f).replace("rgb(","#__"),  // placeholder, set via rgb below
+    glowRGB: blendHex(a.glow, b.glow, f),
+    brightRGB: blendHex(a.bright, b.bright, f),
+    soft: a.soft, star: a.star + (b.star - a.star) * f,
+  };
+}
+let stars = [];
+function seedStars() { stars = []; for (let i = 0; i < 90; i++) stars.push({ x: rand(0,bgW), y: rand(0, bgH*0.55), r: rand(0.5,1.6), tw: rand(0,6.28) }); }
+
+let lastGlowName = "";
+function updateBarGlow(dn) {
+  if ($bar.classList.contains("enchanted")) return;        // enchant overrides
+  const glow = dn.glowRGB || dn.glow, bright = dn.brightRGB || dn.bright;
+  $bar.style.setProperty("--glow", glow);
+  $bar.style.setProperty("--glow-bright", bright);
+  $bar.style.setProperty("--glow-soft", dn.soft);
+}
+
+function bgLoop(now) {
+  const dn = dayNight(now);
+  updateBarGlow(dn);
+  bgCtx.clearRect(0, 0, bgW, bgH);
+  // stars (night)
+  if (dn.star > 0.02) {
+    for (const s of stars) {
+      const a = dn.star * (0.4 + 0.6 * Math.abs(Math.sin(now*0.001 + s.tw)));
+      bgCtx.globalAlpha = a; bgCtx.fillStyle = "#ffffff";
+      bgCtx.fillRect(s.x, s.y, s.r*2, s.r*2);
+    }
+    bgCtx.globalAlpha = 1;
+  }
+  // particles
+  const type = activeParticleType(now);
+  if (type !== "none") {
+    const target = 70;
+    while (particles.length < target) particles.push(spawnParticle(type));
+    if (particles.length && particles[0]._t !== type) particles = particles.map(() => spawnParticle(type)).map(p=>(p._t=type,p));
+    bgCtx.globalAlpha = 1;
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i]; p._t = type; p.life += 16;
+      p.sway += 0.02; p.x += p.vx + Math.sin(p.sway) * 0.3; p.y += p.vy;
+      if (p.rot != null) p.rot += p.rotSpd;
+      if (p.y < -10 || p.y > bgH + 10 || p.x < -10 || p.x > bgW + 10 || p.life > p.maxLife) { particles[i] = spawnParticle(type); particles[i]._t = type; continue; }
+      const lp = p.life / p.maxLife; const a = (lp < 0.1 ? lp/0.1 : lp > 0.85 ? (1-lp)/0.15 : 1) * 0.5;
+      bgCtx.globalAlpha = a; bgCtx.fillStyle = p.col;
+      if (type === "leaves") { bgCtx.save(); bgCtx.translate(p.x,p.y); bgCtx.rotate(p.rot||0); bgCtx.fillRect(-p.r, -p.r*0.6, p.r*2, p.r*1.2); bgCtx.restore(); }
+      else { bgCtx.beginPath(); bgCtx.arc(p.x, p.y, p.r, 0, Math.PI*2); bgCtx.fill(); }
+    }
+    bgCtx.globalAlpha = 1;
+  } else if (particles.length) particles = [];
+  requestAnimationFrame(bgLoop);
+}
+
+// ============================================================
+// CELEBRATION SCENES (#2) — weighted dispatcher
+// ============================================================
+const SCENES = [
+  { id:"creeper",   fn: playCreeperBoom,  weight: 3 },
+  { id:"tnt",       fn: playTntChain,     weight: 2 },
+  { id:"lightning", fn: playLightning,    weight: 2 },
+  { id:"dragon",    fn: playDragon,       weight: 1 },
+  { id:"beacon",    fn: playBeacon,       weight: 1 },
+  { id:"enderpearl",fn: playEnderPearl,   weight: 1 },
+  { id:"wither",    fn: playWither,       weight: 1 },
+];
+function playCelebration(done) {
+  let scene;
+  if (state.forcedScene) { scene = SCENES.find(s => s.id === state.forcedScene) || SCENES[0]; state.forcedScene = null; }
+  else {
+    const total = SCENES.reduce((a,s)=>a+s.weight,0); let r = Math.random()*total;
+    scene = SCENES.find(s => (r -= s.weight) < 0) || SCENES[0];
+  }
+  scene.fn(done);
+}
+
+// Shared particle helpers for scenes
+function makeDebris(cx, cy, n, colors, opt={}) {
+  const arr = [];
+  for (let i = 0; i < n; i++) { const ang = rand(0,Math.PI*2), spd = rand(opt.spdMin||2.5, opt.spdMax||7);
+    arr.push({ x: cx+rand(-4,4), y: cy+rand(-4,4), vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - rand(1,3),
+      size: randInt(opt.sizeMin||3, opt.sizeMax||6), col: pick(colors), life: 0, maxLife: rand(900,1600) }); }
+  return arr;
+}
+function stepDebris(arr, dtF, alphaMul, gravity=0.18) {
+  for (let i = arr.length-1; i>=0; i--) { const d = arr[i]; d.life += 16*dtF; d.x += d.vx*dtF; d.y += d.vy*dtF; d.vy += gravity*dtF; d.vx *= Math.pow(0.995,dtF);
+    if (d.life >= d.maxLife || d.y > $aboveFX.height + 24) { arr.splice(i,1); continue; }
+    aboveCtx.globalAlpha = Math.max(0,(1-d.life/d.maxLife))*alphaMul; aboveCtx.fillStyle = d.col;
+    aboveCtx.fillRect(Math.floor(d.x), Math.floor(d.y), d.size, d.size); }
+  aboveCtx.globalAlpha = 1;
+}
+function drawSmokePuff(ctx, x, y, r, alpha, shade) {
+  if (r < 1 || alpha < 0.01) return;
+  const ic = ["#8a8a8a","#928a7e","#88889a","#807a78","#8a8682"][shade%5], oc = ["#2a2a2a","#221e16","#1e1e28","#1a1816","#1c1a1a"][shade%5];
+  ctx.globalAlpha = alpha; const g = ctx.createRadialGradient(x,y,0,x,y,r); g.addColorStop(0,ic); g.addColorStop(0.5,ic); g.addColorStop(1,oc);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.globalAlpha = 1;
+}
+function easeOutBounce(p){ const n1=7.5625,d1=2.75; if(p<1/d1)return n1*p*p; if(p<2/d1){p-=1.5/d1;return n1*p*p+0.75;} if(p<2.5/d1){p-=2.25/d1;return n1*p*p+0.9375;} p-=2.625/d1; return n1*p*p+0.984375; }
+function runFrames(stepFn, doneFn) {
+  const t0 = performance.now(); let last = t0;
+  function frame(now) { const t = now-t0; const dtF = Math.min(32, now-last)/16.667; last = now;
+    if (stepFn(t, dtF) === false) { doneFn(); return; } requestAnimationFrame(frame); }
+  requestAnimationFrame(frame);
+}
+
+// ---- Scene 1: Creeper boom (template) ----
+function playCreeperBoom(done) {
+  const W=$aboveFX.width, H=$aboveFX.height, barW=$barFX.width, barH=$barFX.height;
+  const headSize=56, headCX=W/2, restCY=H-46, spawnCY=H+headSize;
+  const PH={popIn:[0,500],idle:[500,900],hiss:[900,1650],boom:[1650,1850],smoke:[1850,2700],fadeEnd:[2700,3000]};
+  const pt=(t,[a,b])=>Math.max(0,Math.min(1,(t-a)/(b-a)));
+  let debris=[], sparks=[], smoke=[], boomFired=false, shook=false;
+  function seed(){ debris=makeDebris(headCX,restCY,40,["#5fcf4f","#3b9230","#245f1a","#7ae35e","#1a3a0a","#0a0a0a","#57c247"]);
+    for(let i=0;i<24;i++){const ang=rand(0,6.28),spd=rand(3,8); sparks.push({x:headCX,y:restCY,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd-rand(1,2),col:Math.random()<0.5?"#ffe060":"#ff9020",life:0,maxLife:rand(400,800)});}
+    for(let i=0;i<14;i++){const ang=rand(0,6.28),dist=rand(0,8); smoke.push({x:headCX+Math.cos(ang)*dist,y:restCY+Math.sin(ang)*dist,vx:Math.cos(ang)*rand(0.2,0.8),vy:Math.sin(ang)*rand(0.2,0.6)-rand(0.1,0.4),r:rand(2,4),maxR:rand(6,10),delay:randInt(0,120),life:0,maxLife:rand(700,1100),shade:randInt(0,4)});}
+  }
+  function explode(dtF, aMul){
+    stepDebris(debris, dtF, aMul);
+    for(let i=sparks.length-1;i>=0;i--){const s=sparks[i];s.life+=16*dtF;s.x+=s.vx*dtF;s.y+=s.vy*dtF;s.vy+=0.1*dtF;s.vx*=Math.pow(0.98,dtF);if(s.life>=s.maxLife){sparks.splice(i,1);continue;}aboveCtx.globalAlpha=(1-s.life/s.maxLife)*aMul;aboveCtx.fillStyle=s.col;aboveCtx.fillRect(Math.floor(s.x),Math.floor(s.y),2,2);}aboveCtx.globalAlpha=1;
+    for(const sp of smoke){if(sp.life>=sp.maxLife)continue;if(sp.delay>0){sp.delay-=16*dtF;continue;}sp.life+=16*dtF;sp.x+=sp.vx*dtF;sp.y+=sp.vy*dtF;sp.vy-=0.01*dtF;sp.r=Math.min(sp.maxR,sp.r+0.35*dtF);const lp=sp.life/sp.maxLife;let a=lp<0.15?lp/0.15:lp>0.65?(1-lp)/0.35:1;drawSmokePuff(aboveCtx,sp.x,sp.y,sp.r,a*aMul,sp.shade);}
+  }
+  runFrames((t,dtF)=>{
+    clearAboveFX(); clearBarFX();
+    if (t<PH.popIn[1]) { const cy=spawnCY+(restCY-spawnCY)*easeOutBounce(pt(t,PH.popIn)); drawMobHead3D(aboveCtx,"creeper",headCX,cy,headSize,0); }
+    else if (t<PH.idle[1]) { drawMobHead3D(aboveCtx,"creeper",headCX,restCY+Math.sin(pt(t,PH.idle)*6.28)*2,headSize,0); }
+    else if (t<PH.hiss[1]) { const p=pt(t,PH.hiss),pulse=(Math.sin(p*Math.PI*6-Math.PI/2)+1)/2,fm=pulse*(0.15+p*0.65),size=Math.floor(headSize*(1+p*0.3)/8)*8; drawMobHead3D(aboveCtx,"creeper",headCX+Math.sin(t*0.03)*p*2,restCY+Math.cos(t*0.04)*p*1.5,size,fm); }
+    else if (t<PH.boom[1]) { const p=pt(t,PH.boom); if(!boomFired){seed();boomFired=true;} if(!shook){$stage.classList.remove("shake");void $stage.offsetWidth;$stage.classList.add("shake");impactFlash();shook=true;} const a=(1-p)*(1-p); aboveCtx.fillStyle=`rgba(255,250,230,${a})`;aboveCtx.fillRect(0,0,W,H); barCtx.fillStyle=`rgba(255,250,230,${a*0.85})`;barCtx.fillRect(0,0,barW,barH); explode(dtF,1); }
+    else if (t<PH.smoke[1]) { explode(dtF,1); }
+    else if (t<PH.fadeEnd[1]) { const f=(1-pt(t,PH.fadeEnd)); explode(dtF,f*f); }
+    else { clearAboveFX();clearBarFX();$stage.classList.remove("shake"); return false; }
+  }, done);
+}
+
+// ---- Scene 2: TNT chain ----
+function playTntChain(done) {
+  const W=$aboveFX.width, H=$aboveFX.height, barW=$barFX.width, barH=$barFX.height;
+  const blocks=[{x:W/2-46,fuse:0},{x:W/2,fuse:0},{x:W/2+46,fuse:0}];
+  const groundY=H-30; let debris=[], smoke=[], boomed=false, shook=false;
+  function drawTnt(bx, by, sz, flash){ const u=sz/8;
+    for(let y=0;y<8;y++)for(let x=0;x<8;x++){ let col = (y>=3&&y<=4)?"#e8e8e8":"#c0341f"; if((y>=3&&y<=4)) col=(x%2?"#d8d8d8":"#ffffff"); else { col = hashAt(x,y,2)<0.3?"#d8402a":"#a8281a"; } if(flash>0)col=blendHex(col,"#ffffff",flash); aboveCtx.fillStyle=col; aboveCtx.fillRect(bx+x*u,by+y*u,Math.ceil(u),Math.ceil(u)); }
+    aboveCtx.fillStyle="#222"; aboveCtx.fillRect(bx+sz*0.45,by-4,2,5);   // fuse stub
+  }
+  const PH={drop:[0,600],fuse:[600,1500],boom:[1500,1750],smoke:[1750,2700],fade:[2700,3000]};
+  const pt=(t,[a,b])=>Math.max(0,Math.min(1,(t-a)/(b-a)));
+  function seed(){ for(const b of blocks){ debris=debris.concat(makeDebris(b.x+18,groundY+18,18,["#c0341f","#a8281a","#7a1a10","#ffffff","#3a3a3a","#ff9020"],{spdMax:9,sizeMax:7})); }
+    for(let i=0;i<22;i++){const ang=rand(0,6.28),dist=rand(0,12); smoke.push({x:W/2+Math.cos(ang)*dist,y:groundY,vx:Math.cos(ang)*rand(0.3,1),vy:-rand(0.3,0.9),r:rand(3,5),maxR:rand(9,16),delay:randInt(0,160),life:0,maxLife:rand(800,1300),shade:randInt(0,4)});}
+  }
+  runFrames((t,dtF)=>{
+    clearAboveFX(); clearBarFX();
+    if (t<PH.drop[1]) { const p=pt(t,PH.drop); blocks.forEach((b,i)=>{ const dy=easeOutBounce(Math.max(0,(p-i*0.12)/(1-i*0.12)||0)); drawTnt(b.x, -40+(groundY-(-40))*dy, 36, 0); }); }
+    else if (t<PH.fuse[1]) { const p=pt(t,PH.fuse); const blink=(Math.sin(t*0.04)+1)/2; blocks.forEach(b=>drawTnt(b.x, groundY, 36, blink*0.5*p)); // fuse sparks
+        aboveCtx.fillStyle="#ffd060"; blocks.forEach(b=>{ for(let i=0;i<2;i++) aboveCtx.fillRect(b.x+16+rand(-3,3), groundY-4+rand(-3,1),2,2); }); }
+    else if (t<PH.boom[1]) { const p=pt(t,PH.boom); if(!boomed){seed();boomed=true;} if(!shook){$stage.classList.remove("shake");void $stage.offsetWidth;$stage.classList.add("shake");impactFlash();shook=true;} const a=(1-p)*(1-p); aboveCtx.fillStyle=`rgba(255,210,170,${a})`;aboveCtx.fillRect(0,0,W,H); barCtx.fillStyle=`rgba(255,200,150,${a*0.9})`;barCtx.fillRect(0,0,barW,barH); stepDebris(debris,dtF,1,0.22); }
+    else if (t<PH.smoke[1]) { stepDebris(debris,dtF,1,0.22); for(const sp of smoke){if(sp.life>=sp.maxLife)continue;if(sp.delay>0){sp.delay-=16*dtF;continue;}sp.life+=16*dtF;sp.x+=sp.vx*dtF;sp.y+=sp.vy*dtF;sp.r=Math.min(sp.maxR,sp.r+0.4*dtF);const lp=sp.life/sp.maxLife;let a=lp<0.15?lp/0.15:lp>0.65?(1-lp)/0.35:1;drawSmokePuff(aboveCtx,sp.x,sp.y,sp.r,a,sp.shade);} }
+    else if (t<PH.fade[1]) { const f=1-pt(t,PH.fade); stepDebris(debris,dtF,f*f,0.22); for(const sp of smoke){if(sp.life>=sp.maxLife)continue;sp.life+=16*dtF;sp.x+=sp.vx*dtF;sp.y+=sp.vy*dtF;sp.r=Math.min(sp.maxR,sp.r+0.4*dtF);drawSmokePuff(aboveCtx,sp.x,sp.y,sp.r,0.5*f*f,sp.shade);} }
+    else { $stage.classList.remove("shake"); return false; }
+  }, done);
+}
+
+// ---- Scene 3: Lightning strike ----
+function playLightning(done) {
+  const W=$aboveFX.width, H=$aboveFX.height, barW=$barFX.width, barH=$barFX.height;
+  const strikeX = W/2 + rand(-40,40), groundY = H-16;
+  let bolt=[], scorch=[], struck=false, shook=false;
+  const PH={charge:[0,700],strike:[700,950],after:[950,1900],fade:[1900,2300]};
+  const pt=(t,[a,b])=>Math.max(0,Math.min(1,(t-a)/(b-a)));
+  function makeBolt(){ bolt=[]; let x=strikeX, y=0; while(y<groundY){ const nx=x+rand(-14,14), ny=y+rand(14,26); bolt.push([x,y,nx,Math.min(groundY,ny)]); x=nx; y=ny; if(Math.random()<0.3){ let bx=x,by=y; for(let k=0;k<3&&by<groundY;k++){const ex=bx+rand(-18,4),ey=by+rand(10,20);bolt.push([bx,by,ex,ey,true]);bx=ex;by=ey;} } }
+    for(let i=0;i<20;i++){const ang=rand(-Math.PI,0); scorch.push({x:strikeX,y:groundY,vx:Math.cos(ang)*rand(1,4),vy:Math.sin(ang)*rand(1,4),life:0,maxLife:rand(500,900),col:pick(["#2a2a2a","#555","#1a1a1a"])});}
+  }
+  function drawBolt(alpha,wide){ aboveCtx.globalAlpha=alpha; aboveCtx.strokeStyle="#ffffff"; aboveCtx.lineWidth=wide; aboveCtx.shadowColor="#a0c8ff"; aboveCtx.shadowBlur=12;
+    aboveCtx.beginPath(); for(const seg of bolt){ aboveCtx.moveTo(seg[0],seg[1]); aboveCtx.lineTo(seg[2],seg[3]); } aboveCtx.stroke(); aboveCtx.shadowBlur=0; aboveCtx.globalAlpha=1; }
+  runFrames((t,dtF)=>{
+    clearAboveFX(); clearBarFX();
+    if (t<PH.charge[1]) { const p=pt(t,PH.charge); // gathering glow at top
+      aboveCtx.globalAlpha=0.2+0.5*p*((Math.sin(t*0.03)+1)/2); aboveCtx.fillStyle="#9ab8ff"; aboveCtx.beginPath(); aboveCtx.arc(strikeX,8,6+p*8,0,6.28); aboveCtx.fill(); aboveCtx.globalAlpha=1; }
+    else if (t<PH.strike[1]) { const p=pt(t,PH.strike); if(!struck){makeBolt();struck=true;} if(!shook){$stage.classList.remove("shake");void $stage.offsetWidth;$stage.classList.add("shake");impactFlash();shook=true;} const a=(1-p); aboveCtx.fillStyle=`rgba(245,248,255,${a})`;aboveCtx.fillRect(0,0,W,H); barCtx.fillStyle=`rgba(230,240,255,${a})`;barCtx.fillRect(0,0,barW,barH); drawBolt(1, 3); }
+    else if (t<PH.after[1]) { const p=pt(t,PH.after); if(p<0.25) drawBolt(1-p*4, 2);
+      for(let i=scorch.length-1;i>=0;i--){const s=scorch[i];s.life+=16*dtF;s.x+=s.vx*dtF;s.y+=s.vy*dtF;s.vy+=0.16*dtF;if(s.life>=s.maxLife||s.y>groundY+10){scorch.splice(i,1);continue;}aboveCtx.globalAlpha=1-s.life/s.maxLife;aboveCtx.fillStyle=s.col;aboveCtx.fillRect(Math.floor(s.x),Math.floor(s.y),3,3);} aboveCtx.globalAlpha=1;
+      // scorched mark on the ground
+      aboveCtx.globalAlpha=(1-p)*0.7; aboveCtx.fillStyle="#1a1a1a"; aboveCtx.fillRect(strikeX-16, groundY+4, 32, 4); aboveCtx.globalAlpha=1; }
+    else if (t<PH.fade[1]) { const f=1-pt(t,PH.fade); aboveCtx.globalAlpha=f*0.6; aboveCtx.fillStyle="#1a1a1a"; aboveCtx.fillRect(strikeX-16, groundY+4, 32, 4); aboveCtx.globalAlpha=1; }
+    else return false;
+  }, done);
+}
+
+// ---- Scene 4: Ender dragon flyby ----
+function playDragon(done) {
+  const W=$aboveFX.width, H=$aboveFX.height;
+  const flyY = H*0.4; let breath=[];
+  const DUR = 2800;
+  // simple dragon silhouette (wings + body), drawn around (cx,cy) facing right
+  function drawDragon(cx, cy, flap){
+    aboveCtx.fillStyle="#1a1024"; aboveCtx.strokeStyle="#3a2050"; aboveCtx.lineWidth=2;
+    // body
+    aboveCtx.beginPath(); aboveCtx.ellipse(cx, cy, 26, 9, 0, 0, 6.28); aboveCtx.fill();
+    // head + snout
+    aboveCtx.fillRect(cx+18, cy-7, 16, 10);
+    aboveCtx.fillRect(cx+30, cy-3, 8, 5);
+    // eye
+    aboveCtx.fillStyle="#c75bff"; aboveCtx.fillRect(cx+24, cy-4, 3, 3); aboveCtx.fillStyle="#1a1024";
+    // tail
+    aboveCtx.beginPath(); aboveCtx.moveTo(cx-22,cy); aboveCtx.lineTo(cx-46,cy-3+flap*2); aboveCtx.lineTo(cx-46,cy+3+flap*2); aboveCtx.closePath(); aboveCtx.fill();
+    // wings (flap)
+    const wy = flap*14;
+    aboveCtx.beginPath(); aboveCtx.moveTo(cx-4,cy-4); aboveCtx.lineTo(cx-18,cy-28-wy); aboveCtx.lineTo(cx+14,cy-22-wy); aboveCtx.lineTo(cx+6,cy-4); aboveCtx.closePath(); aboveCtx.fill();
+    aboveCtx.beginPath(); aboveCtx.moveTo(cx-4,cy+3); aboveCtx.lineTo(cx-18,cy+24+wy); aboveCtx.lineTo(cx+14,cy+18+wy); aboveCtx.lineTo(cx+6,cy+3); aboveCtx.closePath(); aboveCtx.fill();
+  }
+  runFrames((t)=>{
+    clearAboveFX();
+    if (t > DUR) return false;
+    const p = t / DUR;
+    const cx = -60 + p * (W + 120), cy = flyY + Math.sin(p*Math.PI*2)*18;
+    const flap = (Math.sin(t*0.012)+1)/2;
+    // purple breath particles trailing
+    if (Math.random()<0.7) breath.push({x:cx-26,y:cy+rand(-4,4),vx:rand(-1.2,-0.4),vy:rand(-0.3,0.3),r:rand(2,5),life:0,maxLife:rand(500,900)});
+    for(let i=breath.length-1;i>=0;i--){const b=breath[i];b.life+=16;b.x+=b.vx;b.y+=b.vy;if(b.life>=b.maxLife){breath.splice(i,1);continue;}const a=1-b.life/b.maxLife;aboveCtx.globalAlpha=a*0.6;aboveCtx.fillStyle=pick(["#a64dff","#c75bff","#7a2fcf"]);aboveCtx.beginPath();aboveCtx.arc(b.x,b.y,b.r,0,6.28);aboveCtx.fill();}
+    aboveCtx.globalAlpha=1;
+    drawDragon(cx, cy, flap);
+    if (p>0.46 && p<0.54) impactOnce(); // mid-pass whoosh
+  }, done);
+}
+let _impactDone=false; function impactOnce(){ if(_impactDone)return; _impactDone=true; impactFlash(); setTimeout(()=>_impactDone=false, 600); }
+
+// ---- Scene 5: Beacon activation ----
+function playBeacon(done) {
+  const W=$aboveFX.width, H=$aboveFX.height; const bx=W/2, groundY=H-30; let lit=false;
+  const PH={rise:[0,500],beam:[500,2400],fade:[2400,2800]};
+  const pt=(t,[a,b])=>Math.max(0,Math.min(1,(t-a)/(b-a)));
+  function drawBeaconBlock(y){ const sz=30,u=sz/8;
+    for(let yy=0;yy<8;yy++)for(let xx=0;xx<8;xx++){ const edge=(xx===0||yy===0||xx===7||yy===7); const inner=(xx>=2&&xx<=5&&yy>=2&&yy<=5); aboveCtx.fillStyle= inner?"#bfffff0":(edge?"#2a3a40":"#3a5560"); aboveCtx.fillRect(bx-sz/2+xx*u,y+yy*u,Math.ceil(u),Math.ceil(u)); }
+  }
+  runFrames((t)=>{
+    clearAboveFX();
+    if (t<PH.rise[1]) { const p=pt(t,PH.rise); drawBeaconBlock(groundY + (1-easeOutBounce(p))*30); }
+    else if (t<PH.beam[1]) { const p=pt(t,PH.beam); if(!lit){impactFlash();lit=true;}
+      drawBeaconBlock(groundY);
+      // rainbow beam shooting up, color cycles
+      const hue = (t*0.12)%360; const beamW = 14 + Math.sin(t*0.01)*3;
+      const grad = aboveCtx.createLinearGradient(0, groundY, 0, 0);
+      grad.addColorStop(0, `hsla(${hue},100%,70%,0.85)`); grad.addColorStop(1, `hsla(${hue},100%,70%,0.05)`);
+      aboveCtx.fillStyle = grad; aboveCtx.fillRect(bx-beamW/2, 0, beamW, groundY);
+      aboveCtx.globalAlpha=0.5; aboveCtx.fillStyle=`hsl(${hue},100%,80%)`; aboveCtx.fillRect(bx-beamW/2-2,0,beamW+4,groundY); aboveCtx.globalAlpha=1;
+      // motes rising
+      aboveCtx.fillStyle=`hsl(${(hue+40)%360},100%,75%)`;
+      for(let i=0;i<6;i++){ const yy=(groundY - ((t*0.15+i*40)%groundY)); aboveCtx.globalAlpha=0.6; aboveCtx.fillRect(bx-6+rand(-4,4), yy, 2,2);} aboveCtx.globalAlpha=1;
+    }
+    else if (t<PH.fade[1]) { const f=1-pt(t,PH.fade); drawBeaconBlock(groundY); const hue=(t*0.12)%360; aboveCtx.globalAlpha=f; const grad=aboveCtx.createLinearGradient(0,groundY,0,0); grad.addColorStop(0,`hsla(${hue},100%,70%,0.8)`); grad.addColorStop(1,`hsla(${hue},100%,70%,0)`); aboveCtx.fillStyle=grad; aboveCtx.fillRect(bx-7,0,14,groundY); aboveCtx.globalAlpha=1; }
+    else return false;
+  }, done);
+}
+
+// ---- Scene 6: Ender pearl teleport ----
+function playEnderPearl(done) {
+  const W=$aboveFX.width, H=$aboveFX.height; const cx=W/2, cy=H-60; let swirl=[];
+  const DUR=2200;
+  for(let i=0;i<40;i++) swirl.push({ang:rand(0,6.28), rad:rand(8,60), spd:rand(0.04,0.1), r:rand(1.5,3.5), col:pick(["#a64dff","#c75bff","#7a2fcf","#2ed0c0"]) });
+  runFrames((t)=>{
+    clearAboveFX();
+    if (t>DUR) return false;
+    const p=t/DUR;
+    // converge then burst
+    const conv = p<0.6 ? 1 - p/0.6 : (p-0.6)/0.4*1.6;
+    if (Math.abs(p-0.6)<0.04) impactOnce();
+    // brief screen distort: scale-jitter via stage punch around teleport
+    aboveCtx.globalAlpha = p<0.6 ? 0.9 : Math.max(0,1-(p-0.6)/0.4);
+    for(const s of swirl){ s.ang += s.spd; const rad = s.rad * conv; const x=cx+Math.cos(s.ang)*rad, y=cy+Math.sin(s.ang)*rad*0.6; aboveCtx.fillStyle=s.col; aboveCtx.beginPath(); aboveCtx.arc(x,y,s.r,0,6.28); aboveCtx.fill(); }
+    // core
+    aboveCtx.globalAlpha = p<0.6 ? (0.4+0.6*(1-conv)) : Math.max(0,1-(p-0.6)/0.3);
+    aboveCtx.fillStyle="#e0b3ff"; aboveCtx.beginPath(); aboveCtx.arc(cx,cy,4+ (p<0.6?(1-conv)*8:0),0,6.28); aboveCtx.fill();
+    aboveCtx.globalAlpha=1;
+  }, done);
+}
+
+// ---- Scene 7: Wither boss reveal ----
+function playWither(done) {
+  const W=$aboveFX.width, H=$aboveFX.height, barW=$barFX.width, barH=$barFX.height;
+  const cx=W/2, baseY=H-20; let charged=false, skulls=[];
+  const PH={rise:[0,700],glow:[700,1500],charge:[1500,1750],after:[1750,2600],fade:[2600,2900]};
+  const pt=(t,[a,b])=>Math.max(0,Math.min(1,(t-a)/(b-a)));
+  function drawWither(cy, glowMix){
+    // body column
+    aboveCtx.fillStyle = blendHex("#2a2a2a","#3a6cff", glowMix*0.5);
+    aboveCtx.fillRect(cx-4, cy, 8, 40);
+    // three heads
+    const hx=[cx-22, cx, cx+22];
+    for (let i=0;i<3;i++){ const hy = cy - (i===1?14:6); drawMobHead3D(aboveCtx,"wither_skeleton",hx[i],hy,i===1?30:24, glowMix); }
+    // glowing eyes overlay when charged
+    if (glowMix>0.1){ aboveCtx.fillStyle=`rgba(90,140,255,${glowMix})`; for(let i=0;i<3;i++){ const hy=cy-(i===1?14:6); aboveCtx.fillRect(hx[i]-6,hy-2,4,3); aboveCtx.fillRect(hx[i]+2,hy-2,4,3);} }
+  }
+  runFrames((t,dtF)=>{
+    clearAboveFX(); clearBarFX();
+    if (t<PH.rise[1]) { const p=easeOutBounce(pt(t,PH.rise)); drawWither(baseY - p*44, 0); }
+    else if (t<PH.glow[1]) { const p=pt(t,PH.glow); drawWither(baseY-44, p*0.6*((Math.sin(t*0.02)+1)/2)+0.1); }
+    else if (t<PH.charge[1]) { const p=pt(t,PH.charge); if(!charged){ for(let i=0;i<3;i++){const a=rand(0,6.28);skulls.push({x:cx,y:baseY-30,vx:Math.cos(a)*rand(3,6),vy:Math.sin(a)*rand(2,4)-2,life:0,maxLife:900});} if(!skulls._s){$stage.classList.remove("shake");void $stage.offsetWidth;$stage.classList.add("shake");impactFlash();skulls._s=true;} charged=true; }
+      drawWither(baseY-44, 0.9); const a=(1-p); aboveCtx.fillStyle=`rgba(180,200,255,${a})`;aboveCtx.fillRect(0,0,W,H); barCtx.fillStyle=`rgba(150,180,255,${a})`;barCtx.fillRect(0,0,barW,barH); }
+    else if (t<PH.after[1]) { const p=pt(t,PH.after); drawWither(baseY-44, 0.6*(1-p)+0.1);
+      for(let i=skulls.length-1;i>=0;i--){const s=skulls[i];s.life+=16*dtF;s.x+=s.vx*dtF;s.y+=s.vy*dtF;s.vy+=0.12*dtF;if(s.life>=s.maxLife){skulls.splice(i,1);continue;}aboveCtx.globalAlpha=1-s.life/s.maxLife;drawMobHead3D(aboveCtx,"wither_skeleton",s.x,s.y,16,0);} aboveCtx.globalAlpha=1; }
+    else if (t<PH.fade[1]) { const f=1-pt(t,PH.fade); aboveCtx.globalAlpha=f; drawWither(baseY-44, 0.1*f); aboveCtx.globalAlpha=1; }
+    else { $stage.classList.remove("shake"); return false; }
+  }, done);
+}
+
+// ============================================================
+// DEMO CONTROLS
+// ============================================================
+const DEMO_NAMES = ["Steve","Alex","Herobrine","Enderman","Pigman","Notch","Jeb","Dinnerbone","Creeperino","BlockHead"];
+const sceneSel = document.getElementById("sceneSel");
+SCENES.forEach(s => { const o = document.createElement("option"); o.value = s.id; o.textContent = "Scene: " + s.id; sceneSel.appendChild(o); });
+document.getElementById("btnFollow").addEventListener("click", e => { e.stopPropagation(); handleFollow(document.getElementById("demoUser").value || "Steve", ""); });
+document.getElementById("btnBatch").addEventListener("click", e => { e.stopPropagation(); const n=parseInt(document.getElementById("demoBatch").value,10)||1; for(let i=0;i<n;i++) handleFollow(DEMO_NAMES[i%DEMO_NAMES.length]+(i>=DEMO_NAMES.length?i:""),""); });
+document.getElementById("btnScene").addEventListener("click", e => { e.stopPropagation(); if(sceneSel.value) state.forcedScene = sceneSel.value; handleFollow(document.getElementById("demoUser").value || "Steve",""); });
+document.getElementById("btnMine").addEventListener("click", e => { e.stopPropagation(); if(!state.animating&&!state.thankActive) startMining(); });
+const $btnLoop = document.getElementById("btnLoop");
+$btnLoop.addEventListener("click", e => { e.stopPropagation(); state.autoLoop=!state.autoLoop; $btnLoop.textContent="Auto-Loop: "+(state.autoLoop?"ON":"OFF"); if(state.autoLoop)runAutoLoop(); else clearTimeout(state.autoLoopTimer); });
+function runAutoLoop(){ if(!state.autoLoop)return; const n=Math.random()<0.6?1:randInt(2,5); for(let i=0;i<n;i++) handleFollow(DEMO_NAMES[randInt(0,DEMO_NAMES.length-1)]+randInt(1,999),""); state.autoLoopTimer=setTimeout(runAutoLoop, randInt(5000,9000)); }
+document.getElementById("btnHide").addEventListener("click", e => { e.stopPropagation(); document.getElementById("demoPanel").classList.add("hidden"); });
+window.addEventListener("keydown", e => { if(e.key==="h"||e.key==="H") document.getElementById("demoPanel").classList.toggle("hidden"); });
+
+// ============================================================
+// TIKFINITY WEBSOCKET
+// ============================================================
+const $wsStatus = document.getElementById("wsStatus");
+function setWsStatus(cls, text){ $wsStatus.className=cls; $wsStatus.textContent="WS: "+text; }
+const TIKFINITY_URL = params.get("tikfinity") || "ws://localhost:21213/";
+function connectTikfinity(){
+  setWsStatus("try","connecting...");
+  let ws; try { ws = new WebSocket(TIKFINITY_URL); } catch(e){ setWsStatus("off","failed"); setTimeout(connectTikfinity,5000); return; }
+  ws.onopen = () => setWsStatus("on","connected");
+  ws.onclose = () => { setWsStatus("off","disconnected"); setTimeout(connectTikfinity,5000); };
+  ws.onerror = () => setWsStatus("off","error");
+  ws.onmessage = (msg) => { try { const data=JSON.parse(msg.data); if(data&&(data.event==="follow"||data.type==="follow")){ const d=data.data||data; handleFollow(d.nickname||d.uniqueId||d.userId||"friend", d.profilePictureUrl||d.profilePicture||""); } } catch(e){} };
+}
+connectTikfinity();
+
+// ============================================================
+// INIT
+// ============================================================
+resizeBg();
+renderCTA();
+startIdleLoop();
+requestAnimationFrame(bgLoop);
+window.triggerFollow = handleFollow;
+
+// ---- Screenshot / QA staging (?shot=...) ----
+(() => {
+  const SHOT = params.get("shot");
+  if (!SHOT) return;
+  document.body.style.background = "linear-gradient(150deg,#27613f 0%,#1f6f8b 38%,#3a3060 72%,#52364a 100%)";
+  document.getElementById("demoPanel").classList.add("hidden");
+
+  const realNow = performance.now.bind(performance);
+  let q = [];
+  window.requestAnimationFrame = (fn) => { q.push(fn); return 1; };
+  let clock = realNow(); const start = clock;
+  performance.now = () => clock;
+  requestAnimationFrame(bgLoop);              // re-kick ambient layer under patched rAF
+
+  let TARGET = 650;
+  if (SHOT === "idle")        { stopIdleLoop(); startIdleLoop(); startMobPeek(204, "creeper"); TARGET = 650; }
+  else if (SHOT === "mining") { stopIdleLoop(); startIdleLoop(); startMining(); TARGET = 3300; }
+  else if (SHOT === "advancement") { state.totalFollowers = 50; state.recentFollowers=[{user:"DiamondFan",pic:""}]; state.signShowTime = clock; stopIdleLoop(); startIdleLoop(); queueAdvancement(50);
+    $adv.style.animation = "none"; $adv.style.transform = "translateX(0)"; $adv.style.opacity = "1"; TARGET = 400; }
+  else if (SHOT === "counter") { state.totalFollowers = 300; state.recentFollowers=[{user:"NetheriteKing",pic:""}]; state.signShowTime = clock; stopIdleLoop(); startIdleLoop(); TARGET = 400; }
+  else if (SHOT === "dusk")   { stopIdleLoop(); startIdleLoop(); startMobPeek(204,"enderman"); TARGET = 650; }
+  else if (SCENES.find(s=>s.id===SHOT)) { state.forcedScene = SHOT; handleFollow("LuckyMiner","");
+    TARGET = SHOT==="lightning" ? 880 : (SHOT==="enderpearl" ? 1360 : (SHOT==="dragon"||SHOT==="beacon") ? 1500 : 1780); }
+  else if (SHOT === "follow") { handleFollow("LuckyMiner",""); TARGET = 1780; }
+
+  let guard = 0;
+  while (clock - start < TARGET && q.length && guard++ < 6000) {
+    clock += 16; const due = q; q = [];
+    due.forEach(fn => { try { fn(clock); } catch(e){} });
+  }
+  performance.now = realNow;
+  window.requestAnimationFrame = () => 1;
+})();
+</script>
+</body>
+</html>
