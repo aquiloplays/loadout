@@ -20,8 +20,11 @@ import {
 } from './clash-state.js';
 import { chargeResources } from './clash-resources.js';
 
-export const GRID_W = 24;
-export const GRID_H = 24;
+// Legacy fallback grid dims, used only when a town record has no
+// `grid` field. Bumped 24 -> 48 (2026-06 grid expansion) to match the
+// authoritative TOWN_GRID; real towns carry town.grid and override this.
+export const GRID_W = 48;
+export const GRID_H = 48;
 
 // ── Footprint occupancy ──────────────────────────────────────────────
 //
@@ -50,11 +53,11 @@ export function occupancyMap(buildings, excludeId = null) {
 // any of the already-occupied tiles in `occ`. Walls + traps may sit
 // adjacent to a building edge — those are 1×1 themselves so the
 // collision check is identical.
-export function placementFits(kind, x, y, occ) {
+export function placementFits(kind, x, y, occ, gridW = GRID_W, gridH = GRID_H) {
   const fp = footprintFor(kind);
   if (x < 0 || y < 0) return false;
-  if (x + fp.w > GRID_W) return false;
-  if (y + fp.h > GRID_H) return false;
+  if (x + fp.w > gridW) return false;
+  if (y + fp.h > gridH) return false;
   for (let dy = 0; dy < fp.h; dy++) {
     for (let dx = 0; dx < fp.w; dx++) {
       if (occ.has(`${x + dx},${y + dy}`)) return false;
@@ -82,6 +85,10 @@ export function validateLayoutUpdate(town, layout) {
   if (!Array.isArray(layout)) {
     return { ok: false, errors: ['layout-not-array'] };
   }
+  // Bounds come from the town's authoritative grid (now 48×48), falling
+  // back to the legacy editor constants for grid-less towns.
+  const gridW = town.grid?.w || GRID_W;
+  const gridH = town.grid?.h || GRID_H;
   const live = new Map(town.buildings.map(b => [b.id, b]));
   const seen = new Set();
   const errors = [];
@@ -150,13 +157,13 @@ export function validateLayoutUpdate(town, layout) {
   // Grid bounds for moved buildings.
   for (const b of proposed) {
     const fp = footprintFor(b.kind);
-    if ((b.x | 0) < 0 || (b.y | 0) < 0 || (b.x | 0) + fp.w > GRID_W || (b.y | 0) + fp.h > GRID_H) {
+    if ((b.x | 0) < 0 || (b.y | 0) < 0 || (b.x | 0) + fp.w > gridW || (b.y | 0) + fp.h > gridH) {
       errors.push(`out-of-bounds:${b.id || '?'}@${b.x},${b.y}`);
     }
   }
   // New placements: fit against the proposed-buildings occupancy.
   for (const np of newPlacements) {
-    if (!placementFits(np.kind, np.x, np.y, occ)) {
+    if (!placementFits(np.kind, np.x, np.y, occ, gridW, gridH)) {
       errors.push(`new-collision:${np.kind}@${np.x},${np.y}`);
       continue;
     }

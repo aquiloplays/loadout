@@ -15,6 +15,12 @@
 import { getWallet } from './wallet.js';
 import { generateInitialObstacles } from './clash-content.js';
 
+// Authoritative buildable town-grid size (square). Bumped 16 -> 48
+// (2026-06) to match the client default; ensureTown lazily upgrades
+// existing towns to this on next load. Exported so placement
+// validation (clash-layout.js) + the HTTP payloads stay in sync.
+export const TOWN_GRID = 48;
+
 // ── Excluded accounts (leaderboard-only filter) ──────────────────────
 //
 // Identifiers Clay's testing account flows under. Stored in KV at
@@ -130,7 +136,13 @@ export async function ensureTown(env, guildId, ownerDiscordUserId) {
     // action have something to work with.
     if (!Array.isArray(existing.obstacles)) { existing.obstacles = generateInitialObstacles(); mutated = true; }
     if (!existing.engineers || typeof existing.engineers !== 'object') { existing.engineers = { total: 1 }; mutated = true; }
-    if (!existing.grid) { existing.grid = { w: 16, h: 16 }; mutated = true; }
+    // Grid expansion (2026-06): bump the authoritative buildable grid
+    // to 48×48 (~12× the old 16×16 area) to match the client default.
+    // Lazy-upgrade any town whose grid is missing or smaller than 48 on
+    // next load — this is the migration for Clay's existing town.
+    if (!existing.grid || (existing.grid.w || 0) < TOWN_GRID || (existing.grid.h || 0) < TOWN_GRID) {
+      existing.grid = { w: TOWN_GRID, h: TOWN_GRID }; mutated = true;
+    }
     if (mutated) await putTown(env, guildId, existing);
     return existing;
   }
@@ -166,10 +178,10 @@ export async function ensureTown(env, guildId, ownerDiscordUserId) {
     // so a community doesn't hoard infinity Battle Plans and skip
     // the entire TH ladder.
     battlePlans: 0,
-    // Phase 5: 16×16 grid + scattered obstacles + the town Engineer.
+    // 48×48 buildable grid + scattered obstacles + the town Engineer.
     // The Engineer is the special unit that clears obstacles; we
     // start with one slot — future Workshop upgrade can grow it.
-    grid: { w: 16, h: 16 },
+    grid: { w: TOWN_GRID, h: TOWN_GRID },
     obstacles: generateInitialObstacles(),
     engineers: { total: 1 },
     createdUtc: now,

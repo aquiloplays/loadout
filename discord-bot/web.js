@@ -1466,7 +1466,7 @@ async function routeClashTown(env, guildId, userId) {
     // Phase 5 — obstacles + the Engineer slot. The site Clash UI uses
     // these to highlight buildable cells (in-grid, no building, no
     // uncleared obstacle) and to render the clear-obstacle CTA.
-    grid: town.grid || { w: 16, h: 16 },
+    grid: town.grid || { w: 48, h: 48 },
     obstacles,
     obstacleCatalogue: OBSTACLES,
     engineers: { total: engineersTotal, busy: engineersBusy },

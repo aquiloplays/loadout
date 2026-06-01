@@ -165,7 +165,7 @@ export async function handleClashTownPublic(env, path) {
     guildId,
     thLevel: town.thLevel,
     prestige,
-    grid: town.grid || { w: 16, h: 16 },
+    grid: town.grid || { w: 48, h: 48 },
     buildings: withBuildingSprites(town.buildings),
     garrison: town.garrison,
     garrisonSprites: withGarrisonSprites(town.garrison).sprites,
@@ -184,7 +184,11 @@ export async function handleClashTownPublic(env, path) {
       : null,
     battlePlans: town.battlePlans || 0,
     // CLASH EXPANSION E2/E5/E6/E7 surface fields ─────────────────────
-    grid: { w: 24, h: 24 },                              // E5 layout-editor bounds
+    // NOTE: `grid` is surfaced ONCE above (= town.grid, now 48×48). The
+    // old hardcoded `grid: {w:24,h:24}` here was a duplicate key that
+    // silently clobbered town.grid (last key wins), capping every client
+    // at 24×24 regardless of the authoritative town grid — removed so
+    // the layout editor + town view both honor the real 48×48 grid.
     damageSummary,                                       // E6 animation hint
     lastGoblinRaidUtc: town.lastGoblinRaidUtc || null,   // E2/E6 raid hint
     lastStorageLeakUtc: town.lastStorageLeakUtc || null, // E2 leak ticker
@@ -263,7 +267,7 @@ export async function handleClashSync(req, env, path) {
       garrisonSprites: withGarrisonSprites(town.garrison).sprites,
       obstacles,
       engineers: { total: engineersTotal, busy: engineersBusy },
-      grid: town.grid || { w: 16, h: 16 },
+      grid: town.grid || { w: 48, h: 48 },
     } : town;
     return json({
       updatedAt: Date.now(),
@@ -272,8 +276,10 @@ export async function handleClashSync(req, env, path) {
       war: war
         ? { warId: war.warId, state: war.state, scores: war.scores, activeEndsUtc: war.activeEndsUtc }
         : null,
-      // E5: editor needs to know the grid bounds + footprints.
-      grid: { w: 24, h: 24 },
+      // E5: editor needs the grid bounds — use the authoritative town
+      // grid (now 48×48) so the editor lets users place across the full
+      // expanded area, not the old hardcoded 24×24.
+      grid: town?.grid || { w: 48, h: 48 },
     });
   }
   if (req.method === 'POST' && sub === 'build') {

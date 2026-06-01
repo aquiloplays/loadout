@@ -142,15 +142,19 @@ async function syncCooldowns(env, guildId, userId) {
           // placement. findFreeTile takes the whole town (so it can
           // exclude obstacle squares), per the function's signature
           // below.
+          // Bound editor-pinned coords + the auto-place search against
+          // the town's authoritative grid (now 48×48), not a hardcoded
+          // 24, so placements can use the full expanded board.
+          const gw = town.grid?.w || 16, gh = town.grid?.h || 16;
           let placeX, placeY;
           if (Number.isInteger(item.target.x) && Number.isInteger(item.target.y) &&
-              item.target.x >= 0 && item.target.x < 24 && item.target.y >= 0 && item.target.y < 24) {
+              item.target.x >= 0 && item.target.x < gw && item.target.y >= 0 && item.target.y < gh) {
             placeX = item.target.x;
             placeY = item.target.y;
           } else {
             const fallback = item.target.kind === 'wall'
-              ? findFreeTile(town, 4, 4, 12, 12, 'wall')
-              : findFreeTile(town, 4, 4, 12, 12, 'tower');
+              ? findFreeTile(town, 2, 2, gw - 3, gh - 3, 'wall')
+              : findFreeTile(town, 2, 2, gw - 3, gh - 3, 'tower');
             placeX = fallback.x; placeY = fallback.y;
           }
           town.buildings.push({
