@@ -89,10 +89,17 @@ def load_cards():
         "atk:c.atk,hp:c.hp,keywords:c.keywords||[],text:c.text||''};}"
         "process.stdout.write(JSON.stringify(o));});"
     )
-    r = subprocess.run(['node', '-e', node], cwd=str(ROOT), capture_output=True, text=True, timeout=60)
+    # Decode node's stdout as UTF-8 explicitly. Do NOT pass text=True: on
+    # Windows that decodes via the locale codepage (cp1252), which mangles
+    # every non-ASCII glyph node emits — e.g. the U+00B7 middot '·' in
+    # "Charge · Lifesteal" becomes the mojibake "Charge Â· Lifesteal"
+    # (0xC2 0xB7 read as Latin-1). The card data is clean UTF-8; the
+    # corruption was purely at this subprocess boundary, and it got baked
+    # into every rendered card face with a non-ASCII effect/name.
+    r = subprocess.run(['node', '-e', node], cwd=str(ROOT), capture_output=True, timeout=60)
     if r.returncode != 0:
-        raise RuntimeError('load_cards failed: ' + r.stderr[:300])
-    return json.loads(r.stdout)
+        raise RuntimeError('load_cards failed: ' + r.stderr.decode('utf-8', 'replace')[:300])
+    return json.loads(r.stdout.decode('utf-8'))
 
 # ── Premium art prompt ─────────────────────────────────────────────
 def build_prompt(card):
