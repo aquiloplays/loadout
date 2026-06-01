@@ -1219,6 +1219,19 @@ window.triggerFollow = handleFollow;
   document.body.style.background = "linear-gradient(150deg,#27613f 0%,#1f6f8b 38%,#3a3060 72%,#52364a 100%)";
   document.getElementById("demoPanel").classList.add("hidden");
 
+  // Mob-roster grid — draws all 10 cubes continuously under REAL rAF so async
+  // textures finish loading before a capture (the freeze-pump can't await them).
+  if (SHOT === "mobs") {
+    stopIdleLoop();
+    const mobs = Object.keys(MOB3D);
+    (function grid() {
+      clearAboveFX();
+      mobs.forEach((m, i) => drawMobHead3D(aboveCtx, m, 44 + (i % 5) * 88, 56 + Math.floor(i / 5) * 96, 44, 0));
+      requestAnimationFrame(grid);
+    })();
+    return;
+  }
+
   const realNow = performance.now.bind(performance);
   let q = [];
   window.requestAnimationFrame = (fn) => { q.push(fn); return 1; };

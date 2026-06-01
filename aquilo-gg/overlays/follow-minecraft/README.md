@@ -90,24 +90,24 @@ milestone tracking.
 
 ---
 
-## Real Minecraft textures
+## Minecraft textures
 
-The 3D mob cubes use a **real texture for the front face when one is present**,
-falling back to the built-in procedural pixel-art so nothing breaks if a file is
-missing. To use actual Minecraft textures:
+The 3D mob cubes use **real Minecraft mob-face textures** for the front face,
+with the cube's top/side faces procedurally shaded to match. The ten vanilla
+faces are bundled in `textures/` (head front-face crops from the default
+resource pack — `creeper.png`, `zombie.png`, `skeleton.png`, `enderman.png`,
+`witch.png`, `blaze.png`, `slime.png`, `wither_skeleton.png`, `allay.png`,
+`axolotl.png`). Enderman gets its glowing-eye overlay; slime its inner-core
+eyes composited in.
 
-1. Create a `textures/` folder next to `index.html` (or host it anywhere and pass
-   `?textures=https://your-host/path/`).
-2. Drop in a front-face PNG per mob, named exactly:
-   `creeper.png`, `zombie.png`, `skeleton.png`, `enderman.png`, `witch.png`,
-   `blaze.png`, `slime.png`, `wither_skeleton.png`, `allay.png`, `axolotl.png`
-   (8×8 or 16×16 — it's scaled to the cube's front face).
-3. Reload — present files are used automatically; missing ones stay procedural.
-   `?textures=off` forces procedural.
+To swap them (e.g. a custom resource pack), either replace the PNGs in
+`textures/` or host your own folder and pass `?textures=https://your-host/path/`.
+Each file is an 8×8 (or 16×16) front-face crop, scaled to the cube face. Any
+missing file falls back to the built-in procedural pixel-art; `?textures=off`
+forces procedural.
 
-> These texture files are **not bundled** — supply your own (e.g. extracted from
-> your game install or a resource pack you have the rights to). Mojang's textures
-> are not redistributed in this repo.
+> Face crops are derived from the vanilla Minecraft resource pack for use in
+> Aquilo's own stream overlay (Minecraft assets © Mojang/Microsoft).
 
 ---
 
