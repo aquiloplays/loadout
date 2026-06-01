@@ -153,9 +153,11 @@ def jobs_B():
             tier = ('a basic early-level' if ratio <= 0.34 else
                     'a reinforced mid-level' if ratio <= 0.67 else
                     'a fully-upgraded ornate high-level')
-            prompt = (f"{PIXEL}. {theme}, {tier} version (upgrade level {L} of {maxL} — "
-                      f"higher levels are larger, more fortified, with gold trim and glowing "
-                      f"accents). Three-quarter top-down isometric game-board view. {ON_MAGENTA}. No text.")
+            prompt = (f"{PIXEL}. {WARM}. {theme}, {tier} version (upgrade level {L} of {maxL} — "
+                      f"higher levels are larger + more fortified). Built from warm timber, "
+                      f"stone, and golden roof tiles like a Clash of Clans base building — "
+                      f"chunky, cartoon, vibrant, friendly daylight. Three-quarter top-down "
+                      f"isometric game-board view. {ON_MAGENTA}. No text.")
             jobs.append({
                 'key': f'buildings:{slug}:{L}',
                 'kvKey': f'pixel-art-clash:buildings:{slug}:{L}',
