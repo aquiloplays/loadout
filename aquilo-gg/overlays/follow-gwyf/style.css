@@ -1,0 +1,399 @@
+/* =====================================================================
+   GWYF Follow Overlay — Gamble With Your Friends
+   Canvas: 1080 x 360 transparent. Bar pinned to the bottom; the area
+   above it is the pop-up / celebration stage.
+   House style: Glossy Game Premium (aurora base + casino gold/red/felt).
+   ===================================================================== */
+
+:root {
+  /* Aurora base */
+  --violet: #7c5cff;
+  --pink:   #ff6ab5;
+  --green:  #5bff95;
+  --teal:   #22d3ee;
+  /* GWYF casino accents */
+  --gold:   #f5c542;
+  --gold-hi:#ffe9a3;
+  --red:    #c93030;
+  --felt:   #1a3a6e;
+
+  --ink:       #ffffff;
+  --ink-soft:  rgba(255,255,255,.78);
+
+  --bar-h: 130px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  width: 1080px;
+  height: 360px;
+  overflow: hidden;
+  font-family: "Segoe UI", "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.stage {
+  position: relative;
+  width: 1080px;
+  height: 360px;
+}
+
+/* ---- Pop-up / celebration stage (above the bar) -------------------- */
+.popzone {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: var(--bar-h);
+  height: calc(360px - var(--bar-h));
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* =====================================================================
+   THE BAR
+   ===================================================================== */
+.bar {
+  position: absolute;
+  left: 12px; right: 12px; bottom: 10px;
+  height: calc(var(--bar-h) - 20px);
+  border-radius: 22px;
+  padding: 0 26px;
+  display: grid;
+  grid-template-columns: 150px 1fr 150px;
+  align-items: center;
+
+  /* Deep casino-felt + cosmic gradient, lit gold from the ends */
+  background:
+    radial-gradient(85% 200% at 0% 50%, rgba(245,197,66,.30) 0%, rgba(245,197,66,0) 52%),
+    radial-gradient(85% 200% at 100% 50%, rgba(124,92,255,.40) 0%, rgba(124,92,255,0) 55%),
+    radial-gradient(60% 160% at 50% 130%, rgba(201,48,48,.26) 0%, rgba(201,48,48,0) 60%),
+    linear-gradient(90deg, #122142 0%, #0c0a1c 52%, #161033 100%);
+
+  border: 1px solid rgba(245,197,66,.32);
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,.06),
+    0 12px 36px rgba(124,92,255,.30),
+    0 4px 18px rgba(245,197,66,.18),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -20px 46px rgba(0,0,0,.58);
+  animation: barBreath 7s ease-in-out infinite;
+}
+
+/* glossy top sheen */
+.bar::before {
+  content: "";
+  position: absolute;
+  inset: 1px 1px auto 1px;
+  height: 46%;
+  border-radius: 21px 21px 42% 42% / 21px 21px 60% 60%;
+  background: linear-gradient(180deg, rgba(255,255,255,.20) 0%, rgba(255,255,255,0) 100%);
+  pointer-events: none;
+}
+
+@keyframes barBreath {
+  0%, 100% { box-shadow:
+    0 0 0 1px rgba(255,255,255,.06),
+    0 12px 36px rgba(124,92,255,.30),
+    0 4px 18px rgba(245,197,66,.18),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -20px 46px rgba(0,0,0,.58); }
+  50% { box-shadow:
+    0 0 0 1px rgba(255,255,255,.09),
+    0 14px 46px rgba(124,92,255,.44),
+    0 6px 26px rgba(245,197,66,.30),
+    inset 0 1px 0 rgba(255,255,255,.26),
+    inset 0 -20px 46px rgba(0,0,0,.58); }
+}
+
+/* thin marquee of gold "bulbs" running along the top edge */
+.marquee {
+  position: absolute;
+  left: 22px; right: 22px; top: 7px;
+  height: 4px;
+  border-radius: 4px;
+  background-image: radial-gradient(circle, var(--gold-hi) 0 38%, rgba(245,197,66,0) 42%);
+  background-size: 18px 4px;
+  background-repeat: repeat-x;
+  opacity: .8;
+  filter: drop-shadow(0 0 4px rgba(245,197,66,.8));
+  animation: marqueeRun 1.1s linear infinite;
+}
+@keyframes marqueeRun { to { background-position: 18px 0; } }
+
+/* ---- LEFT: emblem + suit pips ---- */
+.bar-left { display: flex; align-items: center; gap: 12px; justify-self: start; }
+.emblem { width: 38px; height: 38px; filter: drop-shadow(0 0 8px rgba(245,197,66,.7)); }
+.suits { display: grid; grid-template-columns: 1fr 1fr; gap: 1px 6px; font-size: 15px; line-height: 1; }
+.suit { color: #e9e3ff; opacity: .85; text-shadow: 0 1px 2px rgba(0,0,0,.6); }
+.suit.red { color: #ff5d6c; }
+
+/* ---- CENTER: hero CTA ---- */
+.hero {
+  justify-self: center;
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  white-space: nowrap;
+  font-weight: 900;
+  letter-spacing: .01em;
+  line-height: 1;
+}
+.hero-follow {
+  font-size: 33px;
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0,0,0,.55), 0 0 16px rgba(124,92,255,.4);
+}
+.hero-eq {
+  font-size: 30px;
+  color: var(--gold);
+  text-shadow: 0 0 14px rgba(245,197,66,.8);
+}
+.hero-reward {
+  font-size: 33px;
+  background: linear-gradient(100deg, var(--gold-hi) 0%, var(--gold) 30%, var(--pink) 70%, var(--violet) 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: gradientSlide 6s ease-in-out infinite, rewardGlow 2.6s ease-in-out infinite;
+}
+@keyframes gradientSlide { 0%,100%{ background-position: 0% 50%; } 50%{ background-position: 100% 50%; } }
+@keyframes rewardGlow {
+  0%,100% { filter: drop-shadow(0 0 10px rgba(245,197,66,.5)); }
+  50%     { filter: drop-shadow(0 0 20px rgba(255,106,181,.65)); }
+}
+
+/* ---- RIGHT: spinning casino chip ---- */
+.bar-right { justify-self: end; display: flex; align-items: center; }
+.chip {
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  position: relative;
+  background:
+    repeating-conic-gradient(var(--gold) 0 18deg, #0c0a1c 18deg 36deg);
+  box-shadow:
+    0 0 0 4px var(--red),
+    0 0 0 6px rgba(245,197,66,.85),
+    0 4px 14px rgba(0,0,0,.5),
+    inset 0 0 12px rgba(0,0,0,.5);
+  animation: chipSpin 6s linear infinite;
+  display: flex; align-items: center; justify-content: center;
+}
+.chip-face {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff7dc, var(--gold) 60%, #b8860b 100%);
+  color: #5a3d00;
+  font-weight: 900; font-size: 19px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 1px 2px rgba(255,255,255,.7), inset 0 -2px 4px rgba(0,0,0,.3);
+}
+@keyframes chipSpin { to { transform: rotate(360deg); } }
+
+/* =====================================================================
+   IDLE POP-UP
+   A sprite rises from behind the bar, holds, fades. JS sets the image
+   + a motion class (spin / tumble / burst / fan) per sprite.
+   ===================================================================== */
+/* Shared glossy "reward tile" backing for pop-ups & celebration. The
+   pre-rendered sprites carry a warm bloom; framing them on a dark felt
+   tile makes that bloom read as inner glow and keeps a clean alpha edge
+   over gameplay (no pink haze). */
+.popup, .celebrate-tile {
+  border-radius: 24px;
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(245,197,66,.18) 0%, rgba(245,197,66,0) 55%),
+    linear-gradient(160deg, #1b2547 0%, #0d0b1e 55%, #1a1136 100%);
+  border: 2px solid rgba(245,197,66,.7);
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,.4),
+    0 14px 30px rgba(0,0,0,.6),
+    0 0 34px rgba(245,197,66,.45),
+    0 0 24px rgba(124,92,255,.4),
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -16px 30px rgba(0,0,0,.5);
+  overflow: hidden;
+}
+.popup::before, .celebrate-tile::before {        /* top sheen */
+  content: "";
+  position: absolute;
+  inset: 1px 1px auto 1px;
+  height: 42%;
+  border-radius: 23px 23px 50% 50% / 23px 23px 70% 70%;
+  background: linear-gradient(180deg, rgba(255,255,255,.20), rgba(255,255,255,0));
+  pointer-events: none;
+  z-index: 2;
+}
+
+.popup {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;              /* float just above the bar lip */
+  transform: translate(-50%, 40px) scale(.6);
+  width: 196px; height: 178px;
+  opacity: 0;
+  pointer-events: none;
+}
+.popup-img {
+  position: absolute;
+  inset: 12px;
+  width: calc(100% - 24px); height: calc(100% - 24px);
+  object-fit: contain;
+  filter: brightness(1.12) drop-shadow(0 6px 12px rgba(0,0,0,.5)) drop-shadow(0 0 16px rgba(245,197,66,.55));
+}
+.popup.show {
+  animation: popRise 2.8s cubic-bezier(.2,.9,.25,1) forwards;
+}
+@keyframes popRise {
+  0%   { opacity: 0; transform: translate(-50%, 40px) scale(.55); }
+  16%  { opacity: 1; transform: translate(-50%, -10px) scale(1.04); }
+  24%  { transform: translate(-50%, -2px) scale(1); }
+  78%  { opacity: 1; transform: translate(-50%, -2px) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -26px) scale(.96); }
+}
+/* per-sprite motion layered onto the inner img */
+.popup.spin   .popup-img { animation: spinY 1.4s ease-in-out; }
+.popup.tumble .popup-img { animation: tumble 1.1s ease-out; }
+.popup.burst  .popup-img { animation: burst 1.0s cubic-bezier(.2,1.6,.4,1); }
+.popup.fan    .popup-img { animation: fanIn .9s ease-out; }
+@keyframes spinY  { 0%{ transform: rotateY(0); } 100%{ transform: rotateY(720deg); } }
+@keyframes tumble { 0%{ transform: rotate(-40deg); } 70%{ transform: rotate(22deg); } 100%{ transform: rotate(0); } }
+@keyframes burst  { 0%{ transform: scale(.4); } 60%{ transform: scale(1.18); } 100%{ transform: scale(1); } }
+@keyframes fanIn  { 0%{ transform: rotate(-14deg) scale(.7); } 100%{ transform: rotate(0) scale(1); } }
+
+/* =====================================================================
+   FOLLOW CELEBRATION
+   Bigger sprite FX + a "thanks for following" card with avatar.
+   ===================================================================== */
+.celebrate {
+  position: absolute;
+  inset: 0;
+  display: none;
+}
+.celebrate.show { display: block; }
+
+.celebrate-tile {
+  position: absolute;
+  left: 50%; bottom: 76px;       /* leave the strip below for the thanks card */
+  transform: translateX(-50%);
+  width: 230px; height: 146px;
+  opacity: 0;
+}
+.celebrate.show .celebrate-tile { animation: tileIn 4.6s cubic-bezier(.2,.9,.25,1) forwards; }
+@keyframes tileIn {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(46px) scale(.6); }
+  12%  { opacity: 1; transform: translateX(-50%) translateY(-6px) scale(1.06); }
+  20%  { transform: translateX(-50%) translateY(0) scale(1); }
+  82%  { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-26px) scale(.97); }
+}
+.celebrate-img {
+  position: absolute; inset: 12px;
+  width: calc(100% - 24px); height: calc(100% - 24px);
+  object-fit: contain;
+  opacity: 1;
+  filter: brightness(1.14) drop-shadow(0 8px 16px rgba(0,0,0,.55)) drop-shadow(0 0 22px rgba(245,197,66,.6));
+}
+/* celebration motion flourishes applied to the img (entrance is the tile's) */
+.celebrate.show.var-slots .celebrate-img { animation: slotShake .11s linear 7 .95s; }
+.celebrate.show.var-cards .celebrate-img { animation: cardSwell 1.1s ease-out .35s; }
+.celebrate.show.var-coins .celebrate-img { animation: burst .8s cubic-bezier(.2,1.6,.4,1) .3s; }
+@keyframes slotShake { 0%,100%{ margin-left:0; } 25%{ margin-left:-5px; } 75%{ margin-left:5px; } }
+@keyframes cardSwell { 0%{ filter: drop-shadow(0 0 0 rgba(245,197,66,0)); } 50%{ filter: drop-shadow(0 0 30px rgba(245,197,66,.9)); } }
+
+/* Coin-rain (used by the coins celebration + flair on others) */
+.coinrain { position: absolute; inset: -40px 0 0 0; overflow: visible; }
+.coinrain .coin {
+  position: absolute;
+  top: -40px;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff7dc, var(--gold) 58%, #b8860b 100%);
+  box-shadow: 0 0 8px rgba(245,197,66,.8), inset 0 1px 2px rgba(255,255,255,.7), inset 0 -2px 3px rgba(0,0,0,.35);
+  opacity: 0;
+}
+.coinrain .coin::after {
+  content: "$"; position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 900; color: #5a3d00;
+}
+.celebrate.show .coinrain .coin { animation: coinFall var(--dur,1.6s) linear var(--delay,0s) infinite; }
+@keyframes coinFall {
+  0%   { opacity: 0; transform: translateY(0) rotate(0); }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { opacity: 0; transform: translateY(230px) rotate(320deg); }
+}
+
+/* ---- Thanks card ---- */
+.thanks {
+  position: absolute;
+  left: 50%; bottom: 8px;
+  transform: translate(-50%, 16px);
+  display: flex; align-items: center; gap: 13px;
+  padding: 8px 20px 8px 10px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(18,33,66,.92), rgba(22,16,51,.92));
+  border: 1px solid rgba(245,197,66,.5);
+  box-shadow: 0 10px 30px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.2), 0 0 26px rgba(245,197,66,.3);
+  opacity: 0;
+}
+.celebrate.show .thanks { animation: thanksIn 4.6s ease forwards; }
+@keyframes thanksIn {
+  0%, 12% { opacity: 0; transform: translate(-50%, 16px) scale(.9); }
+  20%     { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  84%     { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100%    { opacity: 0; transform: translate(-50%, -8px) scale(.98); }
+}
+.thanks-avatar {
+  width: 52px; height: 52px; flex: 0 0 auto;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--violet), var(--pink));
+  border: 2px solid var(--gold);
+  box-shadow: 0 0 14px rgba(245,197,66,.6);
+  background-size: cover; background-position: center;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-weight: 900; font-size: 22px;
+  overflow: hidden;
+}
+.thanks-text { display: flex; flex-direction: column; line-height: 1.15; }
+.thanks-line { font-size: 13px; font-weight: 800; letter-spacing: .14em; color: var(--ink-soft); }
+.thanks-user {
+  font-size: 26px; font-weight: 900;
+  background: linear-gradient(90deg, var(--gold-hi), var(--gold) 55%, var(--pink));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  text-shadow: 0 0 18px rgba(245,197,66,.4);
+  max-width: 460px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* =====================================================================
+   DEBUG / DEV
+   ===================================================================== */
+.dev-status {
+  position: absolute; left: 14px; top: 10px;
+  font: 600 12px/1 "Segoe UI", system-ui, sans-serif;
+  color: #cbd5e1; background: rgba(0,0,0,.55);
+  padding: 5px 9px; border-radius: 7px;
+  border: 1px solid rgba(255,255,255,.14);
+}
+.dev-btn {
+  position: absolute; right: 14px; top: 8px;
+  font: 700 12px "Segoe UI", system-ui, sans-serif;
+  color: #1a1330; background: var(--gold);
+  padding: 6px 12px; border: 0; border-radius: 8px; cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0,0,0,.4);
+}
+
+/* =====================================================================
+   REDUCED MOTION — keep the static hero bar, drop the kinetic stuff.
+   ===================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  .bar, .marquee, .hero-reward, .chip { animation: none !important; }
+  .popup { display: none !important; }            /* skip idle pop-ups entirely */
+  .celebrate.show .celebrate-tile { animation: fadeHold 4.6s ease forwards; }
+  .celebrate.show .celebrate-img { animation: none !important; }
+  .celebrate.show .coinrain { display: none; }
+  .celebrate.show .thanks { animation: fadeHold 4.6s ease forwards; }
+  @keyframes fadeHold { 0%{ opacity: 0; } 8%,90%{ opacity: 1; } 100%{ opacity: 0; } }
+}

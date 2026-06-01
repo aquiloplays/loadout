@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout — GWYF Follow Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Gamble With Your Friends (GWYF) follow overlay for TikTok LIVE.
+
+  A thin glossy casino bar ("FOLLOW = RANDOM GAME EFFECT") that lives in the
+  middle of Clay's vertical canvas. Idle game-themed sprites pop UP above the
+  bar every 8-12s; a TikFinity follow event triggers a bigger celebration
+  with the follower's name + profile pic, then returns to the idle hero CTA.
+
+  Canvas: 1080 x 360 transparent. The bar occupies the bottom ~130px; the
+  space above is the pop-up stage (transparent until a sprite plays). Position
+  the source so the BAR lands in your safe zone — the headroom above it sits
+  over your gameplay and is clear except during a pop-up.
+
+  Drop into OBS (Browser Source, 1080 x 360, transparent):
+    https://widget.aquilo.gg/overlays/follow-gwyf/
+
+  Optional URL params:
+    tikfinity  - TikFinity WebSocket URL (default ws://localhost:21213/)
+    assets     - sprite base URL (default ./assets/ ; e.g. a worker /asset/ prefix)
+    demo       - "1" auto-fires a sample follow every ~10s (for testing/preview)
+    debug      - "1" shows a connection-status chip + a "simulate follow" button
+-->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="stage" id="stage">
+
+    <!-- Pop-up stage: idle sprites + follow celebration render here, above the bar -->
+    <div class="popzone" id="popzone">
+      <!-- Idle sprite pop-up -->
+      <div class="popup" id="popup">
+        <img class="popup-img" id="popupImg" alt="">
+      </div>
+
+      <!-- Follow celebration -->
+      <div class="celebrate" id="celebrate">
+        <div class="coinrain" id="coinrain"></div>
+        <div class="celebrate-tile" id="celebrateFx">
+          <img class="celebrate-img" id="celebrateImg" alt="">
+        </div>
+        <div class="thanks" id="thanks">
+          <div class="thanks-avatar" id="thanksAvatar"><span id="thanksInitial"></span></div>
+          <div class="thanks-text">
+            <div class="thanks-line">THANKS FOR FOLLOWING</div>
+            <div class="thanks-user" id="thanksUser">@username</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- The hero bar -->
+    <div class="bar" id="bar">
+      <!-- LEFT: brand emblem + suit pips -->
+      <div class="bar-left">
+        <svg class="emblem" viewBox="0 0 32 32" aria-hidden="true">
+          <defs>
+            <linearGradient id="emb" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#f5c542"/>
+              <stop offset="0.55" stop-color="#ff6ab5"/>
+              <stop offset="1" stop-color="#7c5cff"/>
+            </linearGradient>
+          </defs>
+          <path d="M16 3 L28 27 L21.5 27 L16 14.5 L10.5 27 L4 27 Z" fill="url(#emb)"/>
+          <path d="M16 16.5 L19 23 L13 23 Z" fill="#0c0a1c"/>
+        </svg>
+        <div class="suits" aria-hidden="true">
+          <span class="suit red">&#9829;</span><span class="suit">&#9824;</span>
+          <span class="suit red">&#9830;</span><span class="suit">&#9827;</span>
+        </div>
+      </div>
+
+      <!-- CENTER: the persistent hero CTA -->
+      <div class="hero">
+        <span class="hero-follow">FOLLOW</span>
+        <span class="hero-eq">=</span>
+        <span class="hero-reward">RANDOM GAME EFFECT</span>
+      </div>
+
+      <!-- RIGHT: spinning chip accent -->
+      <div class="bar-right">
+        <div class="chip" aria-hidden="true">
+          <div class="chip-face">$</div>
+        </div>
+      </div>
+
+      <!-- thin gold marquee lights along the top edge -->
+      <div class="marquee" aria-hidden="true"></div>
+    </div>
+
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>
