@@ -514,6 +514,11 @@ const TOKENS = [
 // Merged here at module load so battle/packs/decks see one catalogue.
 import { EXPANSION_CARDS } from './cards-expansion.js';
 import { SPIRE_LEGENDARIES, SPIRE_TOKENS } from './spire-cards.js';
+// Per-id DISPLAY-text diversification (tools/diversify-effects.py). Many
+// procedurally-generated cards shared identical effect descriptions; this
+// map rewrites only the `text` string with variety. Mechanics, keywords,
+// abilities, and numbers are untouched — applied as the LAST merge below.
+import { CARD_TEXT_OVERRIDES } from './card-text-overrides.js';
 
 const RAW_ROSTER = [
   ...Object.values(CHAMPIONS_RAW),
@@ -530,7 +535,12 @@ const RAW_ROSTER = [
 ];
 
 export const CARDS = Object.fromEntries(
-  RAW_ROSTER.map(c => [c.id, normaliseCard({ ...c, ...(GENERATED_EFFECTS[c.id] || {}) })])
+  RAW_ROSTER.map(c => [c.id, normaliseCard({
+    ...c,
+    ...(GENERATED_EFFECTS[c.id] || {}),
+    // Display-text override wins last; only ever touches `text`.
+    ...(CARD_TEXT_OVERRIDES[c.id] ? { text: CARD_TEXT_OVERRIDES[c.id] } : {}),
+  })])
 );
 
 // Sanity check at module load — duplicate IDs would silently overwrite,
