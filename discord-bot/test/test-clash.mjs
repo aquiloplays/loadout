@@ -602,7 +602,7 @@ const P5_STREAMER = 'u_p5_streamer';
 const t5 = await ensureTown(env, P5_GUILD, P5_STREAMER);
 ok('ensureTown seeds obstacles array', Array.isArray(t5.obstacles) && t5.obstacles.length >= 4 && t5.obstacles.length <= 6);
 ok('ensureTown seeds engineers slot',  t5.engineers && t5.engineers.total === 1);
-ok('ensureTown seeds grid bounds',     t5.grid && t5.grid.w === 16 && t5.grid.h === 16);
+ok('ensureTown seeds grid bounds',     t5.grid && t5.grid.w === 48 && t5.grid.h === 48);
 ok('obstacles carry id/kind/x/y/status',
    t5.obstacles.every(o => typeof o.id === 'number' && typeof o.kind === 'string' &&
                             typeof o.x === 'number' && typeof o.y === 'number' &&
@@ -624,7 +624,7 @@ await env.LOADOUT_BOLTS.put('clash:town:' + LEGACY, JSON.stringify({
 const backfilled = await ensureTown(env, LEGACY, 'u_legacy');
 ok('legacy backfill adds obstacles', Array.isArray(backfilled.obstacles) && backfilled.obstacles.length >= 4);
 ok('legacy backfill adds engineers', backfilled.engineers && backfilled.engineers.total === 1);
-ok('legacy backfill adds grid',      backfilled.grid && backfilled.grid.w === 16);
+ok('legacy backfill adds grid',      backfilled.grid && backfilled.grid.w === 48);
 
 // Public /clash/town/<g> surfaces the new shape.
 const p5PublicResp = await handleClashTownPublic(env, '/clash/town/' + P5_GUILD);
@@ -640,7 +640,7 @@ ok('public town payload includes obstacleCatalogue',
 // Grid bumped to 24x24 by the Clash-expansion E5 (layout editor).
 // Was 16x16 in the original Phase-5 contract; updated post-merge.
 ok('public town payload includes grid',
-   p5PublicBody.grid && p5PublicBody.grid.w === 24,
+   p5PublicBody.grid && p5PublicBody.grid.w === 48,
    `grid=${JSON.stringify(p5PublicBody.grid)}`);
 
 // /web/clash/town now ships wallet + obstacles + engineers for the
@@ -674,7 +674,7 @@ ok('/web/clash/town returns engineers',
 ok('/web/clash/town returns obstacleCatalogue',
    p5TownBody.obstacleCatalogue && p5TownBody.obstacleCatalogue.rock.clearScrap === 200);
 ok('/web/clash/town returns grid',
-   p5TownBody.grid && p5TownBody.grid.w === 16);
+   p5TownBody.grid && p5TownBody.grid.w === 48);
 
 // /web/clash/donate — happy path, partial-cap, empty wallet, bad amount.
 const donateReq = await webPost('/web/clash/donate', {
