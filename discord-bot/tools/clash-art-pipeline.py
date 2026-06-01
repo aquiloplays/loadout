@@ -58,8 +58,12 @@ def _download(url, tries=5):
         time.sleep(2 + i * 2)
     raise RuntimeError(f'download failed: {last}')
 
+# Set by main() from --force: re-generate even if art is cached + ignore
+# state.done (for re-tints that must overwrite existing assets).
+FORCE = False
+
 def gen(prompt, aspect, out_path):
-    if out_path.exists():
+    if out_path.exists() and not FORCE:
         return out_path, False
     if not TOKEN:
         raise SystemExit('REPLICATE_API_TOKEN not set')
@@ -246,16 +250,25 @@ def compose_unit_sheet(unit):
     return out, manifest
 
 # ── Batch D: field tiles + props + wildlife ────────────────────────
+# Warm Clash-of-Clans palette anchor (2026-06 aesthetic overhaul). Every
+# field/prop prompt carries this so the set reads as sunlit cartoon CoC,
+# not the old cosmic-purple/blue tones.
+WARM = ("Warm vibrant Clash-of-Clans cartoon palette: sunlit grass green "
+        "#6cc24a, warm earthy browns, golden highlights, bright friendly "
+        "daylight. NO cosmic purple, NO cosmic blue, NO dark space tones")
+
 def jobs_D():
     jobs = []
     def add(aid, prompt, aspect='1:1', isolate=True):
         jobs.append({'key': f'field:{aid}', 'kvKey': f'pixel-art-clash:field:{aid}',
                      'assetUrl': f'https://{WORKER}/asset/clash-art/field/{aid}.png',
                      'prompt': prompt, 'aspect': aspect, 'isolate': isolate, 'seed_center': False})
-    base = f"{PIXEL}. Three-quarter top-down isometric game-board"
+    base = f"{PIXEL}. {WARM}. Three-quarter top-down isometric game-board"
     # Ground tiles — opaque seamless squares.
-    for aid, desc in [('grass-1', 'lush green grass'), ('grass-2', 'darker patchy grass'),
-                      ('dirt', 'packed brown dirt'), ('sand', 'pale desert sand')]:
+    for aid, desc in [('grass-1', 'vibrant sunlit cartoon grass, lush #6cc24a green'),
+                      ('grass-2', 'vibrant cartoon grass with slightly darker tufts, #6cc24a anchor'),
+                      ('dirt', 'warm packed earthy-brown dirt'),
+                      ('sand', 'warm pale golden sand')]:
         add(aid, f"{base} ground tile of {desc}, seamless tileable texture, flat square top-down tile. No text.",
             isolate=False)
     # Edge / path tiles — opaque squares.
@@ -271,20 +284,23 @@ def jobs_D():
                       ('rocks-ground', 'rocky pebbled ground')]:
         add(aid, f"{base} terrain tile: {desc}, seamless edges, flat square top-down tile. No text.",
             isolate=False)
-    # Decorative props — transparent.
-    props = [('tree-1', 'a round broadleaf tree'), ('tree-2', 'a tall pine tree'),
-             ('tree-3', 'a gnarled old oak tree'), ('rock-1', 'a mossy boulder'),
-             ('rock-2', 'a cluster of small rocks'), ('rock-3', 'a tall standing stone'),
-             ('bush-1', 'a leafy green bush'), ('bush-2', 'a flowering bush'),
-             ('bush-3', 'a berry shrub'), ('flower-1', 'a patch of red flowers'),
-             ('flower-2', 'a patch of yellow flowers'), ('flower-3', 'a patch of blue flowers'),
-             ('npc-tent', 'a colorful merchant tent'), ('well', 'a stone wishing well'),
-             ('signpost', 'a wooden signpost'), ('hay-bale', 'a round hay bale'),
-             ('watchtower', 'a small wooden watchtower'), ('barrel', 'a wooden barrel'),
-             ('crate', 'a wooden supply crate'), ('lamppost', 'an ornate iron lamppost'),
-             ('fence', 'a short wooden fence segment'), ('statue', 'a heroic stone statue')]
+    # Decorative props — transparent, warm earth tones.
+    props = [('tree-1', 'a round warm-green broadleaf cartoon tree with a brown trunk'),
+             ('tree-2', 'a tall warm-green pine cartoon tree with a brown trunk'),
+             ('tree-3', 'a gnarled warm-green oak cartoon tree with a thick brown trunk'),
+             ('rock-1', 'a gray-brown boulder with a warm soft shadow'),
+             ('rock-2', 'a cluster of small gray-brown rocks'),
+             ('rock-3', 'a tall gray-brown standing stone'),
+             ('bush-1', 'a bright sage-green leafy bush'), ('bush-2', 'a bright sage-green flowering bush'),
+             ('bush-3', 'a bright sage-green berry shrub'), ('flower-1', 'a patch of bright red cartoon flowers'),
+             ('flower-2', 'a patch of bright yellow cartoon flowers'), ('flower-3', 'a patch of bright purple cartoon flowers'),
+             ('npc-tent', 'a colorful warm-toned merchant tent'), ('well', 'a warm gray-brown stone wishing well'),
+             ('signpost', 'a warm wooden signpost'), ('hay-bale', 'a golden round hay bale'),
+             ('watchtower', 'a warm timber watchtower'), ('barrel', 'a warm wooden barrel'),
+             ('crate', 'a warm wooden supply crate'), ('lamppost', 'a warm iron lamppost'),
+             ('fence', 'a warm wooden fence segment'), ('statue', 'a heroic warm gray-brown stone statue')]
     for aid, desc in props:
-        add(aid, f"{PIXEL}. {desc}, a single decorative game-board prop, three-quarter isometric view. {ON_MAGENTA}. No text.")
+        add(aid, f"{PIXEL}. {WARM}. {desc}, a single decorative game-board prop, three-quarter isometric view. {ON_MAGENTA}. No text.")
     # Animated wildlife — wide 4-frame strips (sliced by the site via the field manifest).
     for aid, desc in [('deer-idle', 'a deer standing idle, subtle breathing'),
                       ('deer-walk', 'a deer walking, a 4-step walk cycle'),
@@ -476,6 +492,8 @@ def main(argv):
     pace = float(argv[argv.index('--pace') + 1]) if '--pace' in argv else 1.0
     do_commit = '--commit' in argv
     max_jobs = int(argv[argv.index('--max') + 1]) if '--max' in argv else 10**9
+    global FORCE
+    FORCE = '--force' in argv
     if batch == 'A':
         return run_A(pace, do_commit, max_jobs)
     if batch == 'C':
@@ -485,7 +503,9 @@ def main(argv):
 
     jobs = BATCHES[batch]()
     st = load_state(); done = set(st['done'])
-    todo = [j for j in jobs if j['key'] not in done][:max_jobs]
+    # --force re-tints: process every job (ignore done) + gen() overwrites
+    # cached art. The flush still records done (dedup not critical).
+    todo = (jobs if FORCE else [j for j in jobs if j['key'] not in done])[:max_jobs]
     print(f'batch {batch}: {len(jobs)} jobs | {len(jobs)-len(todo)} done | {len(todo)} remaining | spend ${st["spend"]:.2f}')
 
     pending = []   # (job, out_path)

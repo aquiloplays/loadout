@@ -2381,9 +2381,18 @@ async function handlePixelArtAsset(req, env, path) {
   const kvKey = `pixel-art-${category}:${segments.join(':')}`;
   const buf = await env.LOADOUT_BOLTS.get(kvKey, { type: 'arrayBuffer' });
   if (!buf) return new Response('art-not-uploaded', { status: 404 });
+  // Clash assets are mid-aesthetic-overhaul (2026-06 warm-CoC re-tint):
+  // they're re-arted in place under the SAME URL, so a year-long
+  // immutable cache would pin the old cosmic-palette art on clients (the
+  // same trap the card-art cache-bust hit). Serve clash art with a short
+  // TTL so re-tints propagate within ~an hour without versioning every
+  // site-constructed URL; everything else stays immutable (content-
+  // addressed, never re-arted in place). Restore immutable for clash
+  // once the overhaul lands + URLs are versioned.
+  const isClash = category === 'clash';
   const headers = {
     'content-type':   'image/png',
-    'cache-control':  'public, max-age=31536000, immutable',
+    'cache-control':  isClash ? 'public, max-age=3600' : 'public, max-age=31536000, immutable',
     'access-control-allow-origin': '*',
     'content-length': String(buf.byteLength),
   };
