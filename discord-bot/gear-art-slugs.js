@@ -8,10 +8,14 @@
 // whole catalogue. See tools/gear-worn-overlay-pipeline.py.
 //
 // Worn-overlay URL (built by character-composite.js):
-//   /asset/gear-art/<slot>/<slug>/<variant>-worn.png
-//     variant = 'base'   for sex-agnostic archetypes (weapons, trinket)
-//     variant = <sex>     for armor (torso/limb shape differs by sex)
-//   -> KV pixel-art-gear:<slot>:<slug>:<variant>-worn
+//   /asset/gear-art/<slot>/<slug>/<sex>-worn.png
+//   -> KV pixel-art-gear:<slot>:<slug>:<sex>-worn
+//
+// Every archetype is rendered per-sex: the Phase 1 bodies differ in
+// vertical framing, scale, and torso/hand position between male and
+// female, so a single overlay can't register across both. (Within a
+// sex, class build varies less — overlays are extracted from a median-
+// build rep and tolerate the residual, same as Phase 1 hair.)
 //
 // Rarity is NOT in the key — the base art is rarity-agnostic; the rarity
 // sheen is a CSS tint (see rarityTintHex). gearArtSlug() is the same
@@ -95,15 +99,15 @@ function armorMaterial(item) {
 
 // Map a gear item -> its worn-overlay archetype identity, or null when
 // the item has no paper-doll layer (consumables, unknown slots).
-//   { slot, slug, sexed }
-// `slug` is the archetype within the slot; `sexed` => the overlay is
-// rendered per-sex (armor) vs sex-agnostic (weapon/trinket).
+//   { slot, slug }
+// `slug` is the archetype within the slot. Every archetype is rendered
+// per-sex (see header), so callers always pick the <sex>-worn variant.
 export function gearArtSlug(item) {
   if (!item) return null;
   const slot = norm(item.slot);
-  if (slot === 'weapon') return { slot, slug: weaponArchetype(item), sexed: false };
-  if (ARMOR_SLOTS.has(slot)) return { slot, slug: armorMaterial(item), sexed: true };
-  if (slot === 'trinket')  return { slot: 'trinket', slug: 'amulet', sexed: false };
+  if (slot === 'weapon') return { slot, slug: weaponArchetype(item) };
+  if (ARMOR_SLOTS.has(slot)) return { slot, slug: armorMaterial(item) };
+  if (slot === 'trinket')  return { slot: 'trinket', slug: 'amulet' };
   return null; // consumable / unrenderable
 }
 
