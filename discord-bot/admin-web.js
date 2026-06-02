@@ -344,6 +344,19 @@ async function routeAnniversaryBackfill(env, guildId, body) {
   return json(r, r.ok ? 200 : 400);
 }
 
+// Owner-only: lock in the current Triple-C campaign game + announce it.
+async function routeTripleCSet(env, guildId, body) {
+  const gameSlug = String(body?.gameSlug || '').trim();
+  if (!gameSlug) return json({ ok: false, error: 'gameSlug-required' }, 400);
+  const { setCurrentTripleC, announceTripleC } = await import('./triple-c.js');
+  const r = await setCurrentTripleC(env, guildId, gameSlug, body?._setBy || null);
+  if (!r.ok) return json(r, 400);
+  // Best-effort Discord announce; never blocks the set.
+  let announced = null;
+  try { announced = await announceTripleC(env, r.current); } catch { /* ignore */ }
+  return json({ ok: true, current: r.current, announced });
+}
+
 export async function handleAdminWeb(env, route, guildId, body) {
   if (!body || body._owner !== true) {
     return json({ ok: false, error: 'forbidden', message: 'owner-only.' }, 403);
@@ -355,6 +368,7 @@ export async function handleAdminWeb(env, route, guildId, body) {
     case 'admin/clear-binding':  return await routeAdminClearBinding(env, guildId, body);
     case 'admin/pipe-tests':     return await routeAdminPipeTests(env, guildId);
     case 'admin/anniversary-backfill': return await routeAnniversaryBackfill(env, guildId, body);
+    case 'admin/triple-c/set':         return await routeTripleCSet(env, guildId, body);
     default:                     return json({ ok: false, error: 'not-found' }, 404);
   }
 }

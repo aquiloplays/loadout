@@ -733,6 +733,12 @@ export default {
     if (path === '/activity/sse' || path === '/activity/publish') {
       return handleActivityStream(req, env, path);
     }
+    // Triple-C current campaign + pool — public, CORS-open (site's
+    // StreamSchedule + admin dropdown). Owner-gated `set` is at
+    // POST /web/admin/triple-c/set.
+    if (path === '/triple-c/current' || path === '/triple-c/pool') {
+      return handleTripleCPublic(req, env, path);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -2545,6 +2551,25 @@ async function handleActivityStream(req, env, path) {
       { status: r.ok ? 200 : 502, headers: { 'content-type': 'application/json', ...cors } });
   }
   return new Response('not-found', { status: 404, headers: cors });
+}
+
+// ── Triple-C current/pool (public, CORS) ────────────────────────
+async function handleTripleCPublic(req, env, path) {
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=60', ...cors };
+  try {
+    if (path === '/triple-c/pool') {
+      const { getTripleCPool } = await import('./triple-c.js');
+      return new Response(JSON.stringify({ ok: true, pool: getTripleCPool() }), { status: 200, headers });
+    }
+    const { getCurrentTripleC } = await import('./triple-c.js');
+    const current = await getCurrentTripleC(env);
+    return new Response(JSON.stringify({ ok: true, current }), { status: 200, headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 120) }),
+      { status: 500, headers });
+  }
 }
 
 // ── Poll composite asset route ─────────────────────────────────
