@@ -583,5 +583,7 @@ export const VARIETY_POLL = Object.freeze({
     { value: 'balatro',          label: 'Balatro' },
     { value: 'vampire_crawlers', label: 'Vampire Crawlers (CC)' },
     { value: 'burgie',           label: "Burgie's Cozy Kitchen" },
+    { value: 'everything_crab',  label: 'Everything is Crab' },
+    { value: 'egging_on',        label: 'Egging On' },
   ],
 });
