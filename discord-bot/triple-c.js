@@ -32,7 +32,7 @@ export function getTripleCPool() {
     gameSlug: o.value,
     name: o.label,
     artUrl: SLUG_APPID[o.value]
-      ? `https://cdn.akamai.steamstatic.com/steam/apps/${SLUG_APPID[o.value]}/header.jpg`
+      ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${SLUG_APPID[o.value]}/header.jpg`
       : null,
   }));
 }
@@ -44,7 +44,7 @@ function poolEntry(slug) {
     gameSlug: o.value,
     name: o.label,
     artUrl: SLUG_APPID[o.value]
-      ? `https://cdn.akamai.steamstatic.com/steam/apps/${SLUG_APPID[o.value]}/header.jpg`
+      ? `https://cdn.cloudflare.steamstatic.com/steam/apps/${SLUG_APPID[o.value]}/header.jpg`
       : null,
   };
 }

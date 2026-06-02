@@ -72,8 +72,8 @@ function gameSlug(name) {
 function steamArtUrls(appId) {
   const id = String(appId);
   return {
-    headerUrl:  `https://cdn.akamai.steamstatic.com/steam/apps/${id}/header.jpg`,
-    capsuleUrl: `https://cdn.akamai.steamstatic.com/steam/apps/${id}/capsule_616x353.jpg`,
+    headerUrl:  `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}/header.jpg`,
+    capsuleUrl: `https://cdn.cloudflare.steamstatic.com/steam/apps/${id}/capsule_616x353.jpg`,
     storeUrl:   `https://store.steampowered.com/app/${id}/`,
   };
 }
