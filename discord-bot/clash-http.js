@@ -75,21 +75,67 @@ function json(obj, status = 200, extraHeaders = {}) {
 // ── GET /clash-leaderboard ──────────────────────────────────────────
 //
 // Top 25 raiders + top 25 towns, globally. Excluded accounts filtered
-// out at the source (clash-state already drops them). 60s server-side
-// cache so a busy aquilo.gg /clash page doesn't churn the list.
+// out at the source (clash-state already drops them).
+//
+// Caching layers, in order of preference:
+//   1. Cloudflare Cache API (edge cache) — 60s public. FREE; doesn't
+//      burn KV-read quota. Most repeat hits resolve here.
+//   2. KV `clash:leaderboard:global` mirror — fallback if Cache API
+//      cold. Same 60s TTL, set with a 5x KV TTL so a stale-but-valid
+//      copy survives a brief edge eviction.
+//
+// Why two layers: a busy page that polls the leaderboard would burn
+// thousands of KV reads on cache miss (topRaiders/topTowns walk the
+// full clash:trophies:* + clash:prestige:* keyspaces and get() each
+// hit). Cache API absorbs the steady-state load for free; the KV
+// mirror covers the tail.
+//
+// If KV throws (quota exhausted), we still return a clean JSON 503
+// rather than letting the Worker emit a 1101.
 
 const LEADERBOARD_CACHE_KEY = 'clash:leaderboard:global';
 const LEADERBOARD_TTL_S = 60;
+const LEADERBOARD_EDGE_URL = 'https://loadout-discord.aquiloplays.workers.dev/__cache/clash-leaderboard';
 
 export async function handleClashLeaderboardHttp(req, env) {
-  const cached = await env.LOADOUT_BOLTS.get(LEADERBOARD_CACHE_KEY, { type: 'json' });
-  if (cached && (Date.now() - (cached.updatedAt || 0)) < LEADERBOARD_TTL_S * 1000) {
-    return json(cached, 200, CORS);
+  // Layer 1: Cloudflare Cache API. Key by a stable internal URL so we
+  // don't depend on the request URL (and so the same cache works for
+  // GETs from any origin). `caches` is a CF Workers global; Node test
+  // runs don't have it — guard so the test path stays clean.
+  const cache = typeof caches !== 'undefined' ? caches.default : null;
+  const cacheReq = cache ? new Request(LEADERBOARD_EDGE_URL, { method: 'GET' }) : null;
+  if (cache && cacheReq) {
+    try {
+      const hit = await cache.match(cacheReq);
+      if (hit) return new Response(hit.body, hit);
+    } catch { /* cache miss / unavailable */ }
   }
-  const [raiders, towns] = await Promise.all([
-    topRaiders(env, 25),
-    topTowns(env, 25),
-  ]);
+
+  // Layer 2: KV mirror. Wrapped — KV exhaustion mustn't crash the
+  // response.
+  try {
+    const cached = await env.LOADOUT_BOLTS.get(LEADERBOARD_CACHE_KEY, { type: 'json' });
+    if (cached && (Date.now() - (cached.updatedAt || 0)) < LEADERBOARD_TTL_S * 1000) {
+      const resp = json(cached, 200, CORS);
+      // Backfill the edge cache so subsequent hits skip KV entirely.
+      if (cache && cacheReq) {
+        try { await cache.put(cacheReq, resp.clone()); } catch {}
+      }
+      return resp;
+    }
+  } catch (err) {
+    return clashQuotaErrorOr500(err);
+  }
+
+  let raiders, towns;
+  try {
+    [raiders, towns] = await Promise.all([
+      topRaiders(env, 25),
+      topTowns(env, 25),
+    ]);
+  } catch (err) {
+    return clashQuotaErrorOr500(err);
+  }
   const payload = {
     updatedAt: Date.now(),
     raiders: raiders.map((r, i) => ({
@@ -111,7 +157,26 @@ export async function handleClashLeaderboardHttp(req, env) {
       expirationTtl: LEADERBOARD_TTL_S * 5,
     });
   } catch { /* non-fatal */ }
-  return json(payload, 200, CORS);
+  const resp = json(payload, 200, CORS);
+  if (cache && cacheReq) {
+    try { await cache.put(cacheReq, resp.clone()); } catch {}
+  }
+  return resp;
+}
+
+// Map a KV quota error to a graceful JSON 503 so callers see
+// "service temporarily unavailable" instead of Cloudflare's bare 1101
+// HTML page. Anything else surfaces as a 500.
+function clashQuotaErrorOr500(err) {
+  const msg = String(err?.message || err || '');
+  if (msg.includes('limit exceeded')) {
+    return json(
+      { error: 'kv-quota-exhausted', message: 'Clash is briefly offline while Workers KV resets at 00:00 UTC.' },
+      503,
+      CORS,
+    );
+  }
+  return json({ error: 'internal', message: msg.slice(0, 200) }, 500, CORS);
 }
 
 // ── GET /clash/town/<guildId> ───────────────────────────────────────
@@ -124,6 +189,14 @@ export async function handleClashLeaderboardHttp(req, env) {
 export async function handleClashTownPublic(env, path) {
   const guildId = path.slice('/clash/town/'.length).replace(/\/+$/, '');
   if (!guildId) return json({ error: 'guildId required' }, 400, CORS);
+  try {
+    return await handleClashTownPublicInner(env, guildId);
+  } catch (err) {
+    return clashQuotaErrorOr500(err);
+  }
+}
+
+async function handleClashTownPublicInner(env, guildId) {
   if (await isTownExcluded(env, guildId)) {
     return json({ error: 'town-not-public' }, 404, CORS);
   }
