@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TikTok Follow Overlay — Fallout 4 (Pip-Boy)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: "Share Tech Mono", "Courier New", Courier, monospace;
+  }
+
+  /* Ambient radstorm particle layer (full window, behind stage) */
+  #bgFX {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #stage {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translate3d(-50%, 0, 0);
+    width: 440px;
+    height: 260px;
+    pointer-events: none;
+    z-index: 1;
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  #stage.shake { animation: stageShake 0.2s linear; }
+  @keyframes stageShake {
+    0%,100% { transform: translate3d(-50%, 0, 0); }
+    20%  { transform: translate3d(calc(-50% - 4px), 2px, 0); }
+    40%  { transform: translate3d(calc(-50% + 4px), -2px, 0); }
+    60%  { transform: translate3d(calc(-50% - 3px), 1px, 0); }
+    80%  { transform: translate3d(calc(-50% + 3px), -1px, 0); }
+  }
+
+  /* 440x36 Pip-Boy green terminal bar */
+  #bar {
+    position: absolute;
+    left: 0; bottom: 0;
+    width: 440px;
+    height: 36px;
+    overflow: hidden;
+    pointer-events: auto;
+    isolation: isolate;
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.8),
+      0 0 0 2px #0a200c,
+      0 0 0 3px #4dff4d,
+      0 0 18px rgba(77,255,77,0.45);
+    animation: barPulse 2.6s steps(60) infinite;
+  }
+  /* CRT-flicker style pulse — subtle, terminal-ish */
+  @keyframes barPulse {
+    0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #0a200c, 0 0 0 3px #4dff4d, 0 0 16px rgba(77,255,77,0.40); }
+    47%      { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #0a200c, 0 0 0 3px #5bff5b, 0 0 28px rgba(77,255,77,0.85); }
+    49%      { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #0a200c, 0 0 0 3px #2faf2f, 0 0 10px rgba(77,255,77,0.30); }
+    51%      { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #0a200c, 0 0 0 3px #5bff5b, 0 0 26px rgba(77,255,77,0.80); }
+  }
+
+  /* Dark CRT background */
+  .bg {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(120% 160% at 50% 0%, rgba(20,70,24,0.55) 0%, rgba(6,18,8,1) 70%),
+      linear-gradient(180deg, #0c1f0e 0%, #050d06 100%);
+    z-index: 1;
+  }
+  /* CRT scanlines over the bar */
+  .scan {
+    position: absolute; inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      180deg,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 1px,
+      rgba(0,0,0,0.22) 2px,
+      rgba(0,0,0,0.22) 3px
+    );
+    mix-blend-mode: multiply;
+  }
+  /* CTA / thank-you text layer */
+  #textLayer {
+    position: absolute; inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    z-index: 5;
+    color: #b6ffb6;
+    font-family: "Share Tech Mono", "Courier New", monospace;
+    font-size: 20px;
+    letter-spacing: 1px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-shadow:
+      0 0 5px rgba(77,255,77,0.9),
+      0 0 12px rgba(77,255,77,0.55),
+      1px 1px 0 #021004;
+  }
+  #textInner {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: font-size 0.15s ease;
+  }
+
+  #barFX {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  #demoPanel {
+    position: fixed; top: 10px; right: 10px;
+    background: rgba(6,16,8,0.9); color: #b6ffb6;
+    font-family: "Share Tech Mono", monospace; font-size: 12px;
+    padding: 10px; border-radius: 6px; border: 1px solid rgba(77,255,77,0.4);
+    z-index: 9999; min-width: 196px;
+  }
+  #demoPanel h4 { font-size: 12px; margin-bottom: 6px; letter-spacing: 1px; color: #5bff5b; }
+  #demoPanel button {
+    display: block; width: 100%; margin-top: 4px; padding: 5px 8px;
+    background: #0f2a12; color: #c6ffc6; border: 1px solid #2f7a32; border-radius: 4px; cursor: pointer; font-size: 11px;
+    font-family: "Share Tech Mono", monospace;
+  }
+  #demoPanel button:hover { background: #16401a; }
+  #demoPanel select, #demoPanel input[type="text"], #demoPanel input[type="number"] {
+    width: 100%; padding: 4px; background: #08160a; color: #c6ffc6; border: 1px solid #2f7a32; border-radius: 3px; font-size: 11px; margin-top: 4px;
+    font-family: "Share Tech Mono", monospace;
+  }
+  #demoPanel.hidden { display: none; }
+  #wsStatus { font-size: 10px; padding: 3px 6px; border-radius: 3px; display: inline-block; margin-top: 6px; }
+  #wsStatus.on  { background: #134a13; color: #8fff8f; }
+  #wsStatus.off { background: #4a1313; color: #ff8f8f; }
+  #wsStatus.try { background: #4a4413; color: #ffd98f; }
+  .row { display: flex; gap: 4px; }
+  .row > * { flex: 1; }
+</style>
+</head>
+<body>
+
+<canvas id="bgFX"></canvas>
+
+<div id="stage">
+  <canvas id="aboveFX" width="440" height="224"></canvas>
+  <div id="bar">
+    <div class="bg"></div>
+    <canvas id="barFX" width="440" height="36"></canvas>
+    <div class="scan"></div>
+    <div id="textLayer"><span id="textInner">Follow = Random Game Effect</span></div>
+  </div>
+</div>
+
+<div id="demoPanel" class="hidden">
+  <h4>FALLOUT 4 OVERLAY</h4>
+  <button id="btnFollow">Trigger 1 Follow</button>
+  <input type="text" id="demoUser" placeholder="username" value="Vault101">
+  <input type="number" id="demoBatch" placeholder="batch size" value="1" min="1" max="20">
+  <button id="btnBatch">Trigger Batch</button>
+  <button id="btnPeek">Test Idle Peek</button>
+  <button id="btnLoop">Auto-Loop: OFF</button>
+  <button id="btnHide">Hide Panel (H)</button>
+  <div id="wsStatus" class="off">WS: disconnected</div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG  — Pip-Boy / Fallout 4 theme
+// ============================================================
+const CTA_TEXT   = "Follow = Random Game Effect";
+const PROMO_TEXT = "Follow us at aquilo.gg/play • Triple-C Campaign: Fallout 4";
+
+// URL params (preserved from template family + Fallout extras)
+const params       = new URLSearchParams(location.search);
+const SHOW_DEMO    = params.get("demo") === "1";
+const CYCLE_NAMES  = params.get("cycle") !== "off";
+const PARTICLE_KIND= (params.get("particles") || "rads").toLowerCase(); // rads | dust | none
+const SHOT_MODE    = params.get("shot"); // "mobs" => line up all sprites for a contact shot
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  animating: false,
+  followQueue: [],
+  thankActive: false,
+  totalFollowers: 0,
+  lastFollower: "",
+  recentFollowers: [],
+  signShowTime: 0,
+  signDuration: 5000,
+  signImgCache: {},
+  idleSprites: [],
+  idleTimer: null,
+  idleAnimFrame: null,
+  autoLoop: false,
+  autoLoopTimer: null,
+};
+
+// ============================================================
+// DOM refs
+// ============================================================
+const $stage     = document.getElementById("stage");
+const $bar       = document.getElementById("bar");
+const $textInner = document.getElementById("textInner");
+const $textLayer = document.getElementById("textLayer");
+const $barFX     = document.getElementById("barFX");
+const $aboveFX   = document.getElementById("aboveFX");
+const $bgFX      = document.getElementById("bgFX");
+const barCtx     = $barFX.getContext("2d");
+const aboveCtx   = $aboveFX.getContext("2d");
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function clearBarFX()   { barCtx.clearRect(0, 0, $barFX.width, $barFX.height); }
+function clearAboveFX() { aboveCtx.clearRect(0, 0, $aboveFX.width, $aboveFX.height); }
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+
+function blendHex(a, b, t) {
+  const ar = parseInt(a.slice(1,3),16), ag = parseInt(a.slice(3,5),16), ab = parseInt(a.slice(5,7),16);
+  const br = parseInt(b.slice(1,3),16), bg = parseInt(b.slice(3,5),16), bb = parseInt(b.slice(5,7),16);
+  return `rgb(${Math.round(ar+(br-ar)*t)},${Math.round(ag+(bg-ag)*t)},${Math.round(ab+(bb-ab)*t)})`;
+}
+
+function renderCTA() {
+  resetTextSize();
+  $textInner.textContent = CTA_TEXT;
+  $textLayer.style.visibility = "visible";
+}
+
+const BASE_FONT_SIZE = 22;
+const MIN_FONT_SIZE  = 11;
+function resetTextSize() { $textInner.style.fontSize = ""; }
+
+// ============================================================
+// PIP-BOY PALETTE
+// ============================================================
+const GP = {
+  main:   { fill:"#3ddc4a", line:"#0c350f", hi:"#bfffc4", dim:"#1f8f2c", glow:"#4dff4d" },
+  shadow: { fill:"#08220c", line:"#08220c", hi:"#08220c", dim:"#08220c", glow:"#08220c" },
+  flash:  { fill:"#e8ffe8", line:"#bfffbf", hi:"#ffffff", dim:"#cfffcf", glow:"#ffffff" },
+};
+
+// Faint CRT scanlines drawn over an icon's bounding box
+function drawScanlines(ctx, x, y, w, h, alpha) {
+  ctx.save();
+  ctx.globalAlpha = (alpha == null ? 1 : alpha) * 0.16;
+  ctx.fillStyle = "#03120a";
+  for (let yy = Math.floor(y); yy < y + h; yy += 2) ctx.fillRect(x, yy, w, 1);
+  ctx.restore();
+}
+
+// ============================================================
+// FALLOUT 4 SPRITES — code-drawn Pip-Boy-green iconography.
+// Each fn draws an icon centered at the origin, spanning ~ +/-7.5u
+// where u = size/16. Color set `c` = {fill,line,hi,dim}.
+// drawSprite() handles the 2.5D extrude, glow, and scanlines.
+// ============================================================
+function lineW(u, n) { return Math.max(1, u * n); }
+
+// 1) Vault Boy — round head, side hair, wink, big grin, thumbs-up hand
+function drawVaultBoy(ctx, u, c) {
+  // head
+  ctx.fillStyle = c.fill;
+  ctx.beginPath(); ctx.arc(-1.2*u, -3.2*u, 4.6*u, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.stroke();
+  // hair sweep (top-left flick)
+  ctx.fillStyle = c.line;
+  ctx.beginPath();
+  ctx.moveTo(-5.4*u, -5.0*u);
+  ctx.quadraticCurveTo(-3.0*u, -8.6*u, 1.0*u, -6.6*u);
+  ctx.quadraticCurveTo(-2.0*u, -6.4*u, -3.2*u, -4.0*u);
+  ctx.closePath(); ctx.fill();
+  // wink eye (left, closed line) + open eye (right dot)
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.55); ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(-3.6*u, -3.6*u); ctx.lineTo(-2.1*u, -3.6*u); ctx.stroke();
+  ctx.fillStyle = c.line;
+  ctx.beginPath(); ctx.arc(0.3*u, -3.7*u, 0.55*u, 0, Math.PI*2); ctx.fill();
+  // big grin
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.7);
+  ctx.beginPath(); ctx.arc(-1.0*u, -2.0*u, 2.6*u, 0.15*Math.PI, 0.85*Math.PI); ctx.stroke();
+  // cheek highlight
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(-3.4*u, -2.0*u, 0.7*u, 0, Math.PI*2); ctx.fill();
+  // raised arm + thumbs-up fist (right side)
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.55);
+  // forearm
+  ctx.beginPath();
+  ctx.moveTo(2.0*u, 1.4*u);
+  ctx.lineTo(4.2*u, -0.4*u);
+  ctx.lineTo(5.6*u, 1.0*u);
+  ctx.lineTo(3.6*u, 3.2*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // fist
+  ctx.beginPath(); ctx.arc(5.2*u, -0.4*u, 1.7*u, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  // thumb up
+  ctx.beginPath();
+  ctx.moveTo(4.4*u, -1.6*u);
+  ctx.quadraticCurveTo(4.6*u, -3.8*u, 5.7*u, -3.6*u);
+  ctx.quadraticCurveTo(6.4*u, -3.0*u, 6.2*u, -1.3*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+}
+
+// 2) Pip-Boy device — wrist unit body, screen w/ waveform, knobs
+function drawPipBoy(ctx, u, c) {
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6);
+  // body
+  ctx.fillStyle = c.fill;
+  roundRect(ctx, -6*u, -6*u, 11*u, 12*u, 1.4*u); ctx.fill(); ctx.stroke();
+  // screen recess
+  ctx.fillStyle = c.line;
+  roundRect(ctx, -4.6*u, -4.6*u, 7.4*u, 7.2*u, 0.8*u); ctx.fill();
+  // screen glow
+  ctx.fillStyle = c.dim;
+  roundRect(ctx, -4.1*u, -4.1*u, 6.4*u, 6.2*u, 0.6*u); ctx.fill();
+  // waveform / vault boy silhouette dot on screen
+  ctx.strokeStyle = c.hi; ctx.lineWidth = lineW(u,0.5); ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(-3.6*u, 0.4*u);
+  ctx.lineTo(-2.2*u, 0.4*u);
+  ctx.lineTo(-1.4*u, -2.0*u);
+  ctx.lineTo(-0.2*u, 2.2*u);
+  ctx.lineTo(0.8*u, -0.6*u);
+  ctx.lineTo(1.6*u, 0.4*u);
+  ctx.lineTo(2.6*u, 0.4*u);
+  ctx.stroke();
+  // knobs (right edge)
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.45);
+  ctx.beginPath(); ctx.arc(6*u, -3.2*u, 1.0*u, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(6*u, 0*u, 1.0*u, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(6*u, 3.2*u, 1.0*u, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+}
+
+// 3) Deathclaw — horned reptilian head profile, open jaw, teeth
+function drawDeathclaw(ctx, u, c) {
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // skull/head facing left
+  ctx.beginPath();
+  ctx.moveTo(-6.5*u, 1.2*u);            // snout tip
+  ctx.lineTo(-2.0*u, -0.2*u);           // upper snout
+  ctx.lineTo(-0.5*u, -2.0*u);           // brow
+  ctx.lineTo(3.0*u, -2.6*u);            // back of head top
+  ctx.lineTo(5.0*u, 0.5*u);             // jaw hinge
+  ctx.lineTo(1.5*u, 2.0*u);             // throat
+  ctx.lineTo(-1.5*u, 3.0*u);            // lower jaw
+  ctx.lineTo(-5.8*u, 2.6*u);            // chin
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // two long swept-back horns
+  ctx.fillStyle = c.fill;
+  ctx.beginPath();
+  ctx.moveTo(1.0*u, -2.4*u);
+  ctx.quadraticCurveTo(4.5*u, -7.0*u, 7.2*u, -6.2*u);
+  ctx.quadraticCurveTo(5.0*u, -5.0*u, 2.4*u, -2.0*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(2.6*u, -2.5*u);
+  ctx.quadraticCurveTo(6.2*u, -5.4*u, 8.0*u, -3.6*u);
+  ctx.quadraticCurveTo(5.6*u, -3.4*u, 3.6*u, -1.6*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // eye (angry slit)
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6);
+  ctx.beginPath(); ctx.moveTo(-1.0*u, -0.9*u); ctx.lineTo(0.8*u, -0.4*u); ctx.stroke();
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(-0.2*u, -0.7*u, 0.4*u, 0, Math.PI*2); ctx.fill();
+  // teeth
+  ctx.fillStyle = c.hi;
+  for (let i = 0; i < 4; i++) {
+    const tx = -5.2*u + i*1.5*u;
+    ctx.beginPath();
+    ctx.moveTo(tx, 1.6*u); ctx.lineTo(tx+0.7*u, 1.6*u); ctx.lineTo(tx+0.35*u, 2.6*u);
+    ctx.closePath(); ctx.fill();
+  }
+}
+
+// 4) Nuka-Cola bottle — contour bottle, cap, star swirl
+function drawNuka(ctx, u, c) {
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // bottle body (classic contour)
+  ctx.beginPath();
+  ctx.moveTo(-1.6*u, -6.2*u);          // neck top L
+  ctx.lineTo(-1.6*u, -4.4*u);
+  ctx.quadraticCurveTo(-3.4*u, -3.6*u, -3.0*u, -1.4*u);  // shoulder
+  ctx.quadraticCurveTo(-2.4*u, 0.2*u, -3.2*u, 2.0*u);    // waist pinch
+  ctx.quadraticCurveTo(-3.6*u, 5.4*u, -2.0*u, 6.6*u);    // base L
+  ctx.lineTo(2.0*u, 6.6*u);
+  ctx.quadraticCurveTo(3.6*u, 5.4*u, 3.2*u, 2.0*u);
+  ctx.quadraticCurveTo(2.4*u, 0.2*u, 3.0*u, -1.4*u);
+  ctx.quadraticCurveTo(3.4*u, -3.6*u, 1.6*u, -4.4*u);
+  ctx.lineTo(1.6*u, -6.2*u);           // neck top R
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // cap
+  ctx.fillStyle = c.hi;
+  roundRect(ctx, -2.0*u, -7.6*u, 4.0*u, 1.7*u, 0.4*u); ctx.fill();
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.4); ctx.stroke();
+  // label swirl
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.8);
+  ctx.beginPath(); ctx.arc(0, 2.4*u, 2.2*u, 0.2*Math.PI, 1.7*Math.PI); ctx.stroke();
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(0, 2.4*u, 0.7*u, 0, Math.PI*2); ctx.fill();
+  // fizz highlight
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(-1.6*u, -1.0*u, 0.4*u, 0, Math.PI*2); ctx.fill();
+}
+
+// 5) Power Armor T-60 helmet — dome, single round lens, breather slits, antenna
+function drawPowerArmor(ctx, u, c) {
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // dome / helmet
+  ctx.beginPath();
+  ctx.moveTo(-5.2*u, 4.6*u);
+  ctx.lineTo(-5.6*u, -1.0*u);
+  ctx.quadraticCurveTo(-5.2*u, -6.4*u, 0, -6.6*u);
+  ctx.quadraticCurveTo(5.2*u, -6.4*u, 5.6*u, -1.0*u);
+  ctx.lineTo(5.2*u, 4.6*u);
+  ctx.quadraticCurveTo(0, 6.2*u, -5.2*u, 4.6*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // brow ridge
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.7);
+  ctx.beginPath(); ctx.moveTo(-5.0*u, -1.0*u); ctx.quadraticCurveTo(0, -3.0*u, 5.0*u, -1.0*u); ctx.stroke();
+  // single round eye lens
+  ctx.fillStyle = c.line;
+  ctx.beginPath(); ctx.arc(0, 0.8*u, 2.6*u, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(0, 0.8*u, 1.7*u, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = c.dim;
+  ctx.beginPath(); ctx.arc(-0.5*u, 0.3*u, 0.7*u, 0, Math.PI*2); ctx.fill();
+  // breather slits (chin)
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.5);
+  for (let i = 0; i < 3; i++) {
+    const sy = 3.4*u + i*0.9*u;
+    ctx.beginPath(); ctx.moveTo(-2.4*u, sy); ctx.lineTo(2.4*u, sy); ctx.stroke();
+  }
+  // antenna
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.5);
+  ctx.beginPath(); ctx.moveTo(4.6*u, -4.6*u); ctx.lineTo(6.2*u, -7.4*u); ctx.stroke();
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(6.3*u, -7.6*u, 0.6*u, 0, Math.PI*2); ctx.fill();
+}
+
+// 6) Brotherhood of Steel — gear cog + wings + downward sword
+function drawBoS(ctx, u, c) {
+  // gear cog (center)
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.5);
+  const teeth = 10, rOut = 3.2*u, rIn = 2.5*u;
+  ctx.beginPath();
+  for (let i = 0; i < teeth*2; i++) {
+    const a = (i/(teeth*2))*Math.PI*2 - Math.PI/2;
+    const r = i % 2 === 0 ? rOut : rIn;
+    const px = Math.cos(a)*r, py = Math.sin(a)*r;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.line;
+  ctx.beginPath(); ctx.arc(0, 0, 1.3*u, 0, Math.PI*2); ctx.fill();
+  // wings (left + right) — three feather strokes each
+  ctx.strokeStyle = c.fill; ctx.lineCap = "round"; ctx.lineWidth = lineW(u,0.9);
+  for (const dir of [-1, 1]) {
+    for (let i = 0; i < 3; i++) {
+      const yoff = -1.4*u + i*1.4*u;
+      ctx.beginPath();
+      ctx.moveTo(dir*3.0*u, yoff);
+      ctx.quadraticCurveTo(dir*5.5*u, yoff-0.6*u, dir*7.4*u, yoff+0.4*u);
+      ctx.stroke();
+    }
+  }
+  // downward sword through cog
+  ctx.strokeStyle = c.hi; ctx.lineWidth = lineW(u,0.7); ctx.lineCap = "butt";
+  ctx.beginPath(); ctx.moveTo(0, -4.6*u); ctx.lineTo(0, 6.8*u); ctx.stroke();
+  // crossguard
+  ctx.beginPath(); ctx.moveTo(-1.8*u, -3.6*u); ctx.lineTo(1.8*u, -3.6*u); ctx.stroke();
+  // pommel
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(0, -4.9*u, 0.7*u, 0, Math.PI*2); ctx.fill();
+  // blade tip
+  ctx.beginPath(); ctx.moveTo(-0.8*u, 6.2*u); ctx.lineTo(0.8*u, 6.2*u); ctx.lineTo(0, 7.6*u); ctx.closePath(); ctx.fill();
+}
+
+// 7) Vault-Tec vault door — big circular gear door + "111"
+function drawVaultDoor(ctx, u, c) {
+  // outer track ring
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,1.0);
+  ctx.beginPath(); ctx.arc(0, 0, 7.0*u, 0, Math.PI*2); ctx.stroke();
+  // gear-door body
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.5);
+  const teeth = 12, rOut = 6.0*u, rIn = 5.2*u;
+  ctx.beginPath();
+  for (let i = 0; i < teeth*2; i++) {
+    const a = (i/(teeth*2))*Math.PI*2;
+    const r = i % 2 === 0 ? rOut : rIn;
+    const px = Math.cos(a)*r, py = Math.sin(a)*r;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // concentric rings
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6);
+  ctx.beginPath(); ctx.arc(0, 0, 4.4*u, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, 3.4*u, 0, Math.PI*2); ctx.stroke();
+  // center disc
+  ctx.fillStyle = c.line;
+  ctx.beginPath(); ctx.arc(0, 0, 3.0*u, 0, Math.PI*2); ctx.fill();
+  // "111"
+  ctx.fillStyle = c.hi;
+  ctx.font = `bold ${3.0*u}px "Share Tech Mono", monospace`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("111", 0, 0.3*u);
+}
+
+// 8) Synth (Gen-1) — skeletal metal skull, round eyes, exposed jaw
+function drawSynth(ctx, u, c) {
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // cranium
+  ctx.beginPath();
+  ctx.moveTo(-4.6*u, 2.0*u);
+  ctx.quadraticCurveTo(-5.2*u, -5.6*u, 0, -6.0*u);
+  ctx.quadraticCurveTo(5.2*u, -5.6*u, 4.6*u, 2.0*u);
+  ctx.lineTo(3.2*u, 2.4*u);
+  ctx.lineTo(-3.2*u, 2.4*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // eye sockets (glowing)
+  ctx.fillStyle = c.line;
+  ctx.beginPath(); ctx.arc(-2.2*u, -1.4*u, 1.6*u, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.2*u, -1.4*u, 1.6*u, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(-2.2*u, -1.4*u, 0.8*u, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.2*u, -1.4*u, 0.8*u, 0, Math.PI*2); ctx.fill();
+  // nasal
+  ctx.fillStyle = c.line;
+  ctx.beginPath(); ctx.moveTo(0, -0.4*u); ctx.lineTo(-0.7*u, 1.0*u); ctx.lineTo(0.7*u, 1.0*u); ctx.closePath(); ctx.fill();
+  // exposed jaw + teeth
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.5);
+  roundRect(ctx, -3.4*u, 2.6*u, 6.8*u, 2.6*u, 0.6*u); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.4);
+  for (let i = 1; i < 6; i++) {
+    const tx = -3.4*u + i*(6.8*u/6);
+    ctx.beginPath(); ctx.moveTo(tx, 2.7*u); ctx.lineTo(tx, 5.0*u); ctx.stroke();
+  }
+  // neck servo
+  ctx.fillStyle = c.dim;
+  roundRect(ctx, -1.6*u, 5.0*u, 3.2*u, 1.8*u, 0.4*u); ctx.fill();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+
+const FO_SPRITES = {
+  vaultboy:   drawVaultBoy,
+  pipboy:     drawPipBoy,
+  deathclaw:  drawDeathclaw,
+  nuka:       drawNuka,
+  powerarmor: drawPowerArmor,
+  bos:        drawBoS,
+  vaultdoor:  drawVaultDoor,
+  synth:      drawSynth,
+};
+const PEEK_SPRITES = ["vaultboy","pipboy","deathclaw","nuka","powerarmor","bos","vaultdoor","synth"];
+
+// Draw a sprite with 2.5D extrude shadow + green glow + silhouette scanlines.
+// Rendered to an offscreen buffer so CRT scanlines clip to the icon (no square
+// tile artifact when a sprite floats over live gameplay).
+const _spriteBuf = document.createElement("canvas");
+const _sbx = _spriteBuf.getContext("2d");
+function drawSprite(ctx, name, cx, cy, size, alpha, flash) {
+  const fn = FO_SPRITES[name];
+  if (!fn) return;
+  const u = size / 16;
+  const a = alpha == null ? 1 : alpha;
+  const pad = Math.ceil(size * 0.6);     // room for glow halo, horns, wings, thumb
+  const bw = Math.ceil(size + pad * 2);
+  _spriteBuf.width = bw; _spriteBuf.height = bw;
+  const g = _sbx;
+  const ox = bw / 2, oy = bw / 2;
+  // extrude shadow (offset down-right) for pseudo-3D depth
+  g.save(); g.translate(ox + u*0.9, oy + u*0.9); fn(g, u, GP.shadow); g.restore();
+  // main pass with green glow
+  g.save();
+  g.translate(ox, oy);
+  g.shadowColor = "rgba(77,255,77,0.55)";
+  g.shadowBlur = u * 1.6;
+  fn(g, u, flash ? GP.flash : GP.main);
+  g.restore();
+  // CRT scanlines — clipped to painted pixels only
+  g.save();
+  g.globalCompositeOperation = "source-atop";
+  g.globalAlpha = 0.16;
+  g.fillStyle = "#03120a";
+  for (let yy = 0; yy < bw; yy += 2) g.fillRect(0, yy, bw, 1);
+  g.restore();
+  // blit to target
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.drawImage(_spriteBuf, cx - ox, cy - oy);
+  ctx.restore();
+}
+
+// ============================================================
+// FOLLOW PIPELINE
+// ============================================================
+function handleFollow(user, pic) {
+  const entry = { user: user || "Dweller", pic: pic || "" };
+  state.followQueue.push(entry);
+  if (!state.animating && !state.thankActive) processQueue();
+}
+
+function processQueue() {
+  if (state.followQueue.length === 0) return;
+  stopIdleLoop();
+  const batch = state.followQueue.splice(0, state.followQueue.length);
+  state.animating = true;
+  playFalloutAnim(() => {
+    state.animating = false;
+    showThankYou(batch);
+  });
+}
+
+function showThankYou(list) {
+  state.thankActive = true;
+  state.totalFollowers += list.length;
+  state.lastFollower = list[list.length - 1].user;
+  state.recentFollowers = list.slice();
+  for (const f of list) {
+    if (f.pic && !state.signImgCache[f.pic]) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = f.pic;
+      state.signImgCache[f.pic] = img;
+    }
+  }
+  state.signShowTime = 0;
+  playThankYouCanvas(list, () => endThankYou());
+}
+
+function endThankYou() {
+  state.thankActive = false;
+  clearBarFX();
+  clearAboveFX();
+  startIdleLoop();
+  if (state.followQueue.length > 0) processQueue();
+}
+
+// ============================================================
+// THANK-YOU RENDERER (above bar)
+// ============================================================
+function fitTextSize(ctx, text, maxFontSize, minFontSize, maxW, fontFamily) {
+  let lo = minFontSize, hi = maxFontSize, best = lo;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    ctx.font = `${mid}px ${fontFamily}`;
+    if (ctx.measureText(text).width <= maxW) { best = mid; lo = mid + 1; }
+    else { hi = mid - 1; }
+  }
+  return best;
+}
+
+function playThankYouCanvas(list, onComplete) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const t0 = performance.now();
+  const FADE_IN = 400, HOLD_END = 3500, FADE_OUT_END = 4200;
+  const total = list.length;
+  let cycleIdx = 0;
+  const cycleMs = total > 1 ? Math.max(600, Math.floor(3100 / total)) : 0;
+
+  const BAR_W = 440, TEXT_PAD = 24;
+  const MAX_TEXT_W = BAR_W - TEXT_PAD;
+  const FONT_FAMILY = '"Share Tech Mono", monospace';
+  const MAX_FONT = 20, MIN_FONT = 10;
+
+  function getText() {
+    if (total === 1) return "Vault Dweller @" + list[0].user + " has registered with Vault-Tec";
+    return total + " new Vault Dwellers registered with Vault-Tec";
+  }
+  let text = getText();
+  let fontSize = fitTextSize(aboveCtx, text, MAX_FONT, MIN_FONT, MAX_TEXT_W, FONT_FAMILY);
+
+  function frame(now) {
+    const t = now - t0;
+    let alpha;
+    if (t < FADE_IN) {
+      const p = t / FADE_IN; alpha = 1 - Math.pow(1 - p, 2);
+    } else if (t < HOLD_END) {
+      alpha = 1;
+      if (total > 1 && cycleMs > 0) {
+        const newIdx = Math.floor((t - FADE_IN) / cycleMs) % total;
+        if (newIdx !== cycleIdx) {
+          cycleIdx = newIdx;
+          text = "@" + list[cycleIdx].user + " registered";
+          fontSize = fitTextSize(aboveCtx, text, MAX_FONT, MIN_FONT, MAX_TEXT_W, FONT_FAMILY);
+        }
+      }
+    } else if (t < FADE_OUT_END) {
+      const p = (t - HOLD_END) / (FADE_OUT_END - HOLD_END); alpha = (1 - p) * (1 - p);
+    } else {
+      clearAboveFX(); onComplete(); return;
+    }
+
+    clearAboveFX();
+    aboveCtx.save();
+    aboveCtx.globalAlpha = alpha;
+    aboveCtx.font = `${fontSize}px ${FONT_FAMILY}`;
+    aboveCtx.textAlign = "center";
+    aboveCtx.textBaseline = "middle";
+    const ty = H - 30;
+    aboveCtx.beginPath();
+    aboveCtx.rect((W - BAR_W) / 2, 0, BAR_W, H);
+    aboveCtx.clip();
+    aboveCtx.fillStyle = "#021004";
+    aboveCtx.fillText(text, W/2 + 1, ty + 1);
+    aboveCtx.shadowColor = "rgba(77,255,77,0.7)";
+    aboveCtx.shadowBlur = 10;
+    aboveCtx.fillStyle = "#cfffcf";
+    aboveCtx.fillText(text, W/2, ty);
+    aboveCtx.restore();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ============================================================
+// PIP-BOY TERMINAL COUNTER SIGN
+// ============================================================
+function drawFollowerCounter(alpha, now) {
+  if (state.totalFollowers === 0 || alpha <= 0) return;
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const signW = 250, signH = 50;
+  const sx = (W - signW) / 2;
+  const sy = H - signH - 16;
+
+  const batch = state.recentFollowers.length > 0 ? state.recentFollowers : [{user: state.lastFollower, pic: ""}];
+  const elapsed = now - state.signShowTime;
+  const idx = CYCLE_NAMES ? Math.floor(elapsed / 900) % batch.length : batch.length - 1;
+  const cur = batch[idx];
+
+  // terminal flicker
+  const flick = 0.86 + 0.14 * (Math.sin(now*0.02) > 0.7 ? 0.4 : 1);
+  aboveCtx.save();
+  aboveCtx.globalAlpha = alpha;
+
+  // bezel
+  aboveCtx.fillStyle = "#06150a";
+  roundRect(aboveCtx, sx-3, sy-3, signW+6, signH+6, 6); aboveCtx.fill();
+  // screen
+  const g = aboveCtx.createLinearGradient(0, sy, 0, sy+signH);
+  g.addColorStop(0, "#0c2c12"); g.addColorStop(1, "#061608");
+  aboveCtx.fillStyle = g;
+  roundRect(aboveCtx, sx, sy, signW, signH, 4); aboveCtx.fill();
+  // border glow
+  aboveCtx.strokeStyle = "#4dff4d";
+  aboveCtx.lineWidth = 2;
+  aboveCtx.shadowColor = "rgba(77,255,77,0.6)";
+  aboveCtx.shadowBlur = 8;
+  roundRect(aboveCtx, sx, sy, signW, signH, 4); aboveCtx.stroke();
+  aboveCtx.shadowBlur = 0;
+
+  // header bar
+  aboveCtx.fillStyle = "rgba(77,255,77,0.16)";
+  aboveCtx.fillRect(sx, sy, signW, 15);
+  aboveCtx.font = '11px "Share Tech Mono", monospace';
+  aboveCtx.textAlign = "left"; aboveCtx.textBaseline = "middle";
+  aboveCtx.fillStyle = "#8fff9a";
+  aboveCtx.fillText("VAULT-TEC REGISTRATION TERMINAL", sx + 8, sy + 8);
+
+  // body text (green CRT)
+  aboveCtx.globalAlpha = alpha * flick;
+  aboveCtx.shadowColor = "rgba(77,255,77,0.7)";
+  aboveCtx.shadowBlur = 6;
+  aboveCtx.fillStyle = "#7dff7d";
+  aboveCtx.font = '14px "Share Tech Mono", monospace';
+  aboveCtx.fillText("REGISTERED: " + state.totalFollowers, sx + 10, sy + 28);
+  const rawName = cur && cur.user ? cur.user : "";
+  const nameText = rawName.length > 18 ? rawName.slice(0, 16) + ".." : rawName;
+  aboveCtx.fillStyle = "#bfffbf";
+  aboveCtx.fillText("LAST: @" + nameText, sx + 10, sy + 42);
+  aboveCtx.shadowBlur = 0;
+
+  // blinking cursor
+  if (Math.floor(now / 500) % 2 === 0) {
+    aboveCtx.fillStyle = "#7dff7d";
+    aboveCtx.fillRect(sx + signW - 16, sy + 36, 7, 9);
+  }
+
+  // scanlines over screen
+  aboveCtx.globalAlpha = alpha * 0.18;
+  aboveCtx.fillStyle = "#021004";
+  for (let yy = sy + 15; yy < sy + signH; yy += 3) aboveCtx.fillRect(sx, yy, signW, 1);
+
+  aboveCtx.restore();
+}
+
+// ============================================================
+// IDLE ANIMATIONS — sprite peek-up (round-robin)
+// ============================================================
+let peekIndex = 0;
+function scheduleIdleEvent() {
+  state.idleTimer = setTimeout(() => {
+    if (state.animating || state.thankActive) return;
+    startSpritePeek();
+    scheduleIdleEvent();
+  }, rand(4000, 8000));
+}
+
+function startSpritePeek(forced) {
+  const name = forced || PEEK_SPRITES[peekIndex];
+  if (!forced) peekIndex = (peekIndex + 1) % PEEK_SPRITES.length;
+  const sz = 60;
+  const x = randInt(24, $aboveFX.width - 24 - sz);
+  const H = $aboveFX.height;
+  const GAP = 6;
+  const hiddenY = H + 14;
+  const peekY   = H - sz - GAP;
+  const t0 = performance.now();
+  const RISE = 420, HOLD = 1700, LOWER = 2100;
+
+  state.idleSprites.push({
+    draw(now) {
+      const t = now - t0;
+      if (t > LOWER) return false;
+      let y;
+      if (t < RISE) {
+        const p = t / RISE;
+        y = hiddenY + (peekY - hiddenY) * (1 - Math.pow(1 - p, 5));
+      } else if (t < HOLD) {
+        const bp = (t - RISE) / (HOLD - RISE);
+        y = peekY + Math.sin(bp * Math.PI * 4) * 2.5;
+      } else {
+        const p = (t - HOLD) / (LOWER - HOLD);
+        y = peekY + (hiddenY - peekY) * (p * p * p);
+      }
+      drawSprite(aboveCtx, name, x + sz/2, y + sz/2, sz, 1, false);
+      return true;
+    }
+  });
+}
+
+// ============================================================
+// FLOATING PROMO TEXT
+// ============================================================
+function drawPromoText(now) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const ty = H - 64;
+  const bob = Math.sin(now * 0.002) * 1.5;
+  aboveCtx.save();
+  aboveCtx.font = '12px "Share Tech Mono", monospace';
+  aboveCtx.textAlign = "center";
+  aboveCtx.textBaseline = "middle";
+  aboveCtx.fillStyle = "#021004";
+  aboveCtx.fillText(PROMO_TEXT, W/2 + 1, ty + bob + 1);
+  aboveCtx.shadowColor = "rgba(77,255,77,0.6)";
+  aboveCtx.shadowBlur = 6;
+  aboveCtx.fillStyle = "#bfffbf";
+  aboveCtx.fillText(PROMO_TEXT, W/2, ty + bob);
+  aboveCtx.restore();
+}
+
+// ============================================================
+// IDLE RENDER LOOP
+// ============================================================
+function startIdleLoop() {
+  if (state.totalFollowers > 0) state.signShowTime = performance.now();
+  scheduleIdleEvent();
+  function idleFrame(now) {
+    if (state.animating || state.thankActive) return;
+    clearAboveFX();
+    let signVisible = false, signAlpha = 0;
+    if (state.signShowTime > 0) {
+      const elapsed = now - state.signShowTime;
+      const fadeStart = state.signDuration, fadeEnd = fadeStart + 800;
+      if (elapsed < fadeEnd) {
+        signVisible = true;
+        signAlpha = elapsed > fadeStart ? 1 - (elapsed - fadeStart) / 800 : 1;
+      }
+    }
+    if (!signVisible) drawPromoText(now);
+    if (signVisible) drawFollowerCounter(signAlpha, now);
+    for (let i = state.idleSprites.length - 1; i >= 0; i--) {
+      if (!state.idleSprites[i].draw(now)) state.idleSprites.splice(i, 1);
+    }
+    state.idleAnimFrame = requestAnimationFrame(idleFrame);
+  }
+  state.idleAnimFrame = requestAnimationFrame(idleFrame);
+}
+
+function stopIdleLoop() {
+  cancelAnimationFrame(state.idleAnimFrame);
+  clearTimeout(state.idleTimer);
+  state.idleTimer = null;
+  state.idleAnimFrame = null;
+  state.idleSprites = [];
+}
+
+// ============================================================
+// FALLOUT FOLLOW CELEBRATION  (6 phases)
+//   popIn 500 / idle 400 / charge 750 / boom 200 / smoke 850 / fade 300
+// ============================================================
+function drawMushroom(ctx, cx, baseY, grow, alpha) {
+  // grow 0..1 controls rise + size; classic stem + billowing cap silhouette
+  if (alpha <= 0.01) return;
+  const rise = grow * 70;
+  const capY = baseY - 40*grow - 36;
+  const capR = 14 + 34*grow;
+  const stemW = 8 + 16*grow;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // stem
+  const stemTop = baseY - rise;
+  const sg = ctx.createLinearGradient(0, stemTop, 0, baseY);
+  sg.addColorStop(0, "#3a4a30"); sg.addColorStop(1, "#1a2416");
+  ctx.fillStyle = sg;
+  ctx.beginPath();
+  ctx.moveTo(cx - stemW*0.4, baseY);
+  ctx.quadraticCurveTo(cx - stemW*0.7, (baseY+capY)/2, cx - stemW*0.5, capY+8);
+  ctx.lineTo(cx + stemW*0.5, capY+8);
+  ctx.quadraticCurveTo(cx + stemW*0.7, (baseY+capY)/2, cx + stemW*0.4, baseY);
+  ctx.closePath(); ctx.fill();
+  // base dust flare
+  ctx.fillStyle = "rgba(60,80,46,0.5)";
+  ctx.beginPath(); ctx.ellipse(cx, baseY-2, stemW*1.6, 7, 0, 0, Math.PI*2); ctx.fill();
+  // billowing cap (overlapping circles)
+  const capG = ctx.createRadialGradient(cx, capY, capR*0.2, cx, capY, capR);
+  capG.addColorStop(0, "#5a6e44"); capG.addColorStop(0.55, "#374a2c"); capG.addColorStop(1, "#1c2616");
+  ctx.fillStyle = capG;
+  const lobes = [[0,0,1.0],[-0.7,0.15,0.62],[0.7,0.15,0.62],[-0.35,-0.3,0.55],[0.35,-0.3,0.55],[0,-0.45,0.5]];
+  for (const [lx, ly, lr] of lobes) {
+    ctx.beginPath(); ctx.arc(cx + lx*capR, capY + ly*capR, capR*lr, 0, Math.PI*2); ctx.fill();
+  }
+  // radioactive green rim glow
+  ctx.globalAlpha = alpha * 0.5;
+  ctx.strokeStyle = "rgba(77,255,77,0.6)";
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(cx, capY, capR*0.95, Math.PI, Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+
+function playFalloutAnim(done, freezeMs) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const barW = $barFX.width, barH = $barFX.height;
+  const frozen = freezeMs != null;
+
+  const heroSize = 86;
+  const heroCX   = W/2;
+  const restCY   = H - 54;
+  const spawnCY  = H + heroSize;
+
+  const t0 = performance.now();
+  const PH = {
+    popIn:   [0,    500],
+    idle:    [500,  900],
+    charge:  [900,  1650],
+    boom:    [1650, 1850],
+    smoke:   [1850, 2700],
+    fadeEnd: [2700, 3000],
+  };
+  function pt(t, [a,b]) { return Math.max(0, Math.min(1, (t-a)/(b-a))); }
+  function easeOutBounce(p) {
+    const n1 = 7.5625, d1 = 2.75;
+    if (p < 1/d1) return n1*p*p;
+    else if (p < 2/d1) { p -= 1.5/d1; return n1*p*p + 0.75; }
+    else if (p < 2.5/d1) { p -= 2.25/d1; return n1*p*p + 0.9375; }
+    else { p -= 2.625/d1; return n1*p*p + 0.984375; }
+  }
+
+  const caps = [];   // bottle-cap debris
+  const sparks = []; // radiation sparks
+  const motes = [];  // radstorm green motes
+  let boomFired = false, shookScreen = false;
+
+  function seedExplosion() {
+    const cx = heroCX, cy = restCY;
+    for (let i = 0; i < 34; i++) {
+      const ang = rand(0, Math.PI * 2), spd = rand(2.5, 7);
+      caps.push({
+        x: cx + rand(-6, 6), y: cy + rand(-6, 6),
+        vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - rand(1.5, 3.5),
+        r: rand(3, 5.5), gold: Math.random() < 0.45,
+        rot: rand(0, Math.PI*2), rotSpd: rand(-0.2, 0.2),
+        life: 0, maxLife: rand(900, 1600),
+      });
+    }
+    for (let i = 0; i < 26; i++) {
+      const ang = rand(0, Math.PI * 2), spd = rand(3, 9);
+      sparks.push({
+        x: cx, y: cy, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - rand(1, 2),
+        size: rand(1.5, 3), col: Math.random() < 0.6 ? "#7dff5a" : "#d6ff3a",
+        life: 0, maxLife: rand(350, 750),
+      });
+    }
+    for (let i = 0; i < 22; i++) {
+      motes.push({
+        x: cx + rand(-40, 40), y: cy + rand(-30, 10),
+        vx: rand(-0.5, 0.5), vy: rand(-0.7, -0.2),
+        r: rand(1, 2.6), col: "#6dff6d",
+        life: 0, maxLife: rand(900, 1500), delay: randInt(0, 200),
+      });
+    }
+  }
+
+  function drawCap(ctx, c, a) {
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.translate(c.x, c.y); ctx.rotate(c.rot);
+    ctx.fillStyle = c.gold ? "#d4a02a" : "#b7bcc4";
+    ctx.beginPath(); ctx.arc(0, 0, c.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = c.gold ? "#8a6512" : "#6f747c";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 8; i++) {
+      const a2 = (i/8)*Math.PI*2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a2)*c.r*0.7, Math.sin(a2)*c.r*0.7);
+      ctx.lineTo(Math.cos(a2)*c.r, Math.sin(a2)*c.r);
+      ctx.stroke();
+    }
+    ctx.fillStyle = c.gold ? "#f0d27a" : "#e2e6ec";
+    ctx.beginPath(); ctx.arc(0, 0, c.r*0.4, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  let lastFrameTime = t0;
+  function frame(now) {
+    const t = now - t0;
+    const dt = Math.min(32, now - lastFrameTime); lastFrameTime = now;
+    const dtF = dt / 16.667;
+
+    clearAboveFX();
+    clearBarFX();
+
+    if (t < PH.popIn[1]) {
+      // POP IN — Vault Boy bounces up, thumbs-up
+      const p = pt(t, PH.popIn);
+      const cy = spawnCY + (restCY - spawnCY) * easeOutBounce(p);
+      drawSprite(aboveCtx, "vaultboy", heroCX, cy, heroSize, 1, false);
+    }
+    else if (t < PH.idle[1]) {
+      // IDLE — hover + thumbs-up pulse (scale)
+      const p = pt(t, PH.idle);
+      const cy = restCY + Math.sin(p * Math.PI * 2) * 2;
+      const pulse = 1 + Math.sin(p * Math.PI * 2) * 0.06;
+      drawSprite(aboveCtx, "vaultboy", heroCX, cy, heroSize * pulse, 1, false);
+    }
+    else if (t < PH.charge[1]) {
+      // CHARGE — Pip-Boy screen flicker + static, RADSTORM INCOMING, shake ramps
+      const p = pt(t, PH.charge);
+      const pulse = (Math.sin(p * Math.PI * 8 - Math.PI/2) + 1) / 2;
+      const flash = pulse * (0.1 + p * 0.5);
+      const shakeX = Math.sin(t * 0.05) * p * 3;
+      const shakeY = Math.cos(t * 0.06) * p * 2;
+      const swell = 1 + p * 0.12;
+      drawSprite(aboveCtx, "vaultboy", heroCX + shakeX, restCY + shakeY, heroSize * swell, 1, pulse > 0.6);
+      // green/white static specks over scene
+      const speckCount = Math.floor(40 * p);
+      for (let i = 0; i < speckCount; i++) {
+        aboveCtx.globalAlpha = rand(0.2, 0.7);
+        aboveCtx.fillStyle = Math.random() < 0.5 ? "#bfffbf" : "#ffffff";
+        aboveCtx.fillRect(randInt(0, W), randInt(H-110, H), randInt(1,3), randInt(1,2));
+      }
+      aboveCtx.globalAlpha = 1;
+      // RADSTORM INCOMING (flickering)
+      if (Math.floor(t / 90) % 2 === 0 || p > 0.7) {
+        aboveCtx.save();
+        aboveCtx.font = `bold ${14 + p*4}px "Share Tech Mono", monospace`;
+        aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
+        aboveCtx.shadowColor = "rgba(77,255,77,0.9)"; aboveCtx.shadowBlur = 10;
+        aboveCtx.fillStyle = "#021004";
+        aboveCtx.fillText("⚠ RADSTORM INCOMING ⚠", W/2 + 1, H - 120 + 1);
+        aboveCtx.fillStyle = p > 0.5 ? "#eaffea" : "#9dff9d";
+        aboveCtx.fillText("⚠ RADSTORM INCOMING ⚠", W/2, H - 120);
+        aboveCtx.restore();
+      }
+      // bar flicker tint
+      barCtx.fillStyle = `rgba(77,255,77,${0.06 + flash*0.25})`;
+      barCtx.fillRect(0, 0, barW, barH);
+    }
+    else if (t < PH.boom[1]) {
+      // BOOM — atomic flash + cap burst + mushroom begins
+      const p = pt(t, PH.boom);
+      if (!boomFired) { seedExplosion(); boomFired = true; }
+      if (!shookScreen) {
+        $stage.classList.remove("shake"); void $stage.offsetWidth;
+        $stage.classList.add("shake"); shookScreen = true;
+      }
+      const a = (1 - p) * (1 - p);
+      aboveCtx.fillStyle = `rgba(255,255,255,${a})`;
+      aboveCtx.fillRect(0, 0, W, H);
+      barCtx.fillStyle = `rgba(255,255,255,${a * 0.9})`;
+      barCtx.fillRect(0, 0, barW, barH);
+      // expanding flash ring
+      aboveCtx.strokeStyle = `rgba(190,255,160,${a})`;
+      aboveCtx.lineWidth = 4;
+      aboveCtx.beginPath(); aboveCtx.arc(heroCX, restCY, 20 + p*120, 0, Math.PI*2); aboveCtx.stroke();
+      drawMushroom(aboveCtx, heroCX, restCY + 8, p * 0.45, 0.7 * (1-a*0.4));
+      updateAndDrawExplosion(dtF, 1, t);
+    }
+    else if (t < PH.smoke[1]) {
+      // SMOKE — mushroom rises + billows, radstorm motes drift
+      const p = pt(t, PH.smoke);
+      drawMushroom(aboveCtx, heroCX, restCY + 8, 0.45 + p*0.55, 0.92);
+      updateAndDrawExplosion(dtF, 1, t);
+    }
+    else if (t < PH.fadeEnd[1]) {
+      // FADE — quadratic fade to clean
+      const p = pt(t, PH.fadeEnd);
+      const fade = (1 - p) * (1 - p);
+      drawMushroom(aboveCtx, heroCX, restCY + 8, 1, fade * 0.92);
+      updateAndDrawExplosion(dtF, fade, t);
+    }
+    else {
+      clearAboveFX(); clearBarFX();
+      $stage.classList.remove("shake");
+      done(); return;
+    }
+    if (!frozen) requestAnimationFrame(frame);
+  }
+
+  function updateAndDrawExplosion(dtF, alphaMul, t) {
+    // caps
+    for (let i = caps.length - 1; i >= 0; i--) {
+      const c = caps[i];
+      c.life += 16 * dtF;
+      c.x += c.vx * dtF; c.y += c.vy * dtF; c.vy += 0.22 * dtF;
+      c.vx *= Math.pow(0.99, dtF); c.rot += c.rotSpd * dtF;
+      if (c.life >= c.maxLife || c.y > H + 20) { caps.splice(i, 1); continue; }
+      drawCap(aboveCtx, c, Math.max(0, (1 - c.life/c.maxLife)) * alphaMul);
+    }
+    aboveCtx.globalAlpha = 1;
+    // sparks
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.life += 16 * dtF;
+      s.x += s.vx * dtF; s.y += s.vy * dtF; s.vy += 0.12 * dtF; s.vx *= Math.pow(0.97, dtF);
+      if (s.life >= s.maxLife) { sparks.splice(i, 1); continue; }
+      aboveCtx.globalAlpha = (1 - s.life/s.maxLife) * alphaMul;
+      aboveCtx.fillStyle = s.col;
+      aboveCtx.fillRect(Math.floor(s.x), Math.floor(s.y), s.size, s.size);
+    }
+    aboveCtx.globalAlpha = 1;
+    // radstorm motes
+    for (let i = motes.length - 1; i >= 0; i--) {
+      const m = motes[i];
+      if (m.delay > 0) { m.delay -= 16 * dtF; continue; }
+      m.life += 16 * dtF;
+      m.x += m.vx * dtF; m.y += m.vy * dtF;
+      if (m.life >= m.maxLife) { motes.splice(i, 1); continue; }
+      const lp = m.life / m.maxLife;
+      let a = 1; if (lp < 0.2) a = lp/0.2; else if (lp > 0.7) a = (1-lp)/0.3;
+      aboveCtx.globalAlpha = a * alphaMul * 0.85;
+      aboveCtx.fillStyle = m.col;
+      aboveCtx.shadowColor = "rgba(77,255,77,0.8)"; aboveCtx.shadowBlur = 4;
+      aboveCtx.beginPath(); aboveCtx.arc(m.x, m.y, m.r, 0, Math.PI*2); aboveCtx.fill();
+      aboveCtx.shadowBlur = 0;
+    }
+    aboveCtx.globalAlpha = 1;
+  }
+
+  if (frozen) {
+    // Synchronous stepping driver — evolves particles up to freezeMs and draws
+    // the final frame statically (no rAF), so a plain headless --screenshot
+    // reliably captures any celebration phase.
+    for (let tt = 0; tt <= freezeMs; tt += 16) frame(t0 + tt);
+  } else {
+    requestAnimationFrame(frame);
+  }
+}
+
+// ============================================================
+// AMBIENT RADSTORM PARTICLE LAYER (#bgFX, full window)
+// ============================================================
+let bgParticles = [];
+function initBgParticles() {
+  if (PARTICLE_KIND === "none") return;
+  const ctx = $bgFX.getContext("2d");
+  function resize() { $bgFX.width = window.innerWidth; $bgFX.height = window.innerHeight; }
+  resize();
+  window.addEventListener("resize", resize);
+  const count = 46;
+  for (let i = 0; i < count; i++) {
+    bgParticles.push({
+      x: Math.random() * $bgFX.width,
+      y: Math.random() * $bgFX.height,
+      vx: rand(-0.25, 0.25),
+      vy: PARTICLE_KIND === "dust" ? rand(0.1, 0.5) : rand(-0.5, -0.1),
+      r: rand(0.7, 2.4),
+    });
+  }
+  const isDust = PARTICLE_KIND === "dust";
+  function loop() {
+    ctx.clearRect(0, 0, $bgFX.width, $bgFX.height);
+    for (const p of bgParticles) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.y < -5) p.y = $bgFX.height + 5;
+      if (p.y > $bgFX.height + 5) p.y = -5;
+      if (p.x < -5) p.x = $bgFX.width + 5;
+      if (p.x > $bgFX.width + 5) p.x = -5;
+      ctx.globalAlpha = 0.5;
+      ctx.fillStyle = isDust ? "#9c8a5a" : "#4dff4d";
+      if (!isDust) { ctx.shadowColor = "rgba(77,255,77,0.7)"; ctx.shadowBlur = 5; }
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+// ============================================================
+// DEMO CONTROLS
+// ============================================================
+document.getElementById("btnFollow").addEventListener("click", (e) => {
+  e.stopPropagation();
+  handleFollow(document.getElementById("demoUser").value || "Vault101", "");
+});
+document.getElementById("btnBatch").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const n = parseInt(document.getElementById("demoBatch").value, 10) || 1;
+  const names = ["Vault101","NateW","NoraW","Codsworth","Preston","Nick","Piper","MacCready","Hancock","Curie"];
+  for (let i = 0; i < n; i++) handleFollow(names[i % names.length] + (i >= names.length ? i : ""), "");
+});
+document.getElementById("btnPeek").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!state.animating && !state.thankActive) startSpritePeek();
+});
+const $btnLoop = document.getElementById("btnLoop");
+$btnLoop.addEventListener("click", (e) => {
+  e.stopPropagation();
+  state.autoLoop = !state.autoLoop;
+  $btnLoop.textContent = "Auto-Loop: " + (state.autoLoop ? "ON" : "OFF");
+  if (state.autoLoop) runAutoLoop(); else clearTimeout(state.autoLoopTimer);
+});
+function runAutoLoop() {
+  if (!state.autoLoop) return;
+  const fakeUsers = ["Vault101","NateW","NoraW","Preston","Piper","Nick","Hancock"];
+  const batchSize = Math.random() < 0.6 ? 1 : randInt(2, 5);
+  for (let i = 0; i < batchSize; i++) handleFollow(fakeUsers[randInt(0, fakeUsers.length-1)] + randInt(1,999), "");
+  state.autoLoopTimer = setTimeout(runAutoLoop, randInt(5000, 9000));
+}
+document.getElementById("btnHide").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("demoPanel").classList.add("hidden");
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "h" || e.key === "H") document.getElementById("demoPanel").classList.toggle("hidden");
+});
+
+// ============================================================
+// TIKFINITY WEBSOCKET
+// ============================================================
+const $wsStatus = document.getElementById("wsStatus");
+function setWsStatus(cls, text) { $wsStatus.className = cls; $wsStatus.textContent = "WS: " + text; }
+function connectTikfinity() {
+  setWsStatus("try", "connecting...");
+  let ws;
+  try { ws = new WebSocket("ws://localhost:21213/"); }
+  catch (err) { setWsStatus("off", "failed"); setTimeout(connectTikfinity, 5000); return; }
+  ws.onopen  = () => setWsStatus("on", "connected");
+  ws.onclose = () => { setWsStatus("off", "disconnected"); setTimeout(connectTikfinity, 5000); };
+  ws.onerror = () => setWsStatus("off", "error");
+  ws.onmessage = (msg) => {
+    try {
+      const data = JSON.parse(msg.data);
+      if (data && (data.event === "follow" || data.type === "follow")) {
+        const d = data.data || data;
+        const name = d.nickname || d.uniqueId || d.userId || "Dweller";
+        const pic  = d.profilePictureUrl || d.profilePicture || "";
+        handleFollow(name, pic);
+      }
+    } catch (err) { /* ignore */ }
+  };
+}
+
+// ============================================================
+// SHOT MODE — line up every sprite for a contact screenshot
+// ============================================================
+function renderContactSheet() {
+  stopIdleLoop();
+  clearAboveFX();
+  const cols = 4, rows = 2, sz = 80;
+  const W = $aboveFX.width;
+  const cellW = W / cols, cellH = 96;
+  PEEK_SPRITES.forEach((name, i) => {
+    const cx = (i % cols) * cellW + cellW/2;
+    const cy = Math.floor(i / cols) * cellH + cellH/2 + 8;
+    drawSprite(aboveCtx, name, cx, cy, sz, 1, false);
+  });
+}
+
+// ============================================================
+// INIT
+// ============================================================
+if (SHOW_DEMO) document.getElementById("demoPanel").classList.remove("hidden");
+initBgParticles();
+renderCTA();
+connectTikfinity();
+if (SHOT_MODE === "mobs") {
+  renderContactSheet();
+} else {
+  startIdleLoop();
+}
+// Screenshot helpers:
+//   ?fire=1            — auto-trigger a live follow after load (visual smoke-test)
+//   ?freeze=<phase>    — render ONE static celebration frame (popin|idle|charge|
+//                        boom|smoke|fade), reliably captured by plain --screenshot
+if (params.get("fire")) {
+  setTimeout(() => handleFollow(params.get("user") || "Vault101", ""), 60);
+}
+const FREEZE_MS = { popin:300, idle:760, charge:1500, boom:1760, smoke:2350, fade:2860 };
+if (params.get("freeze")) {
+  stopIdleLoop();
+  const ms = FREEZE_MS[params.get("freeze")] != null ? FREEZE_MS[params.get("freeze")] : 1760;
+  playFalloutAnim(() => {}, ms);
+}
+// ?signshot=N — static render of the Pip-Boy registration terminal sign
+if (params.get("signshot")) {
+  stopIdleLoop();
+  state.totalFollowers = parseInt(params.get("signshot"), 10) || 7;
+  state.recentFollowers = [{ user: params.get("user") || "NateW", pic: "" }];
+  state.signShowTime = performance.now();
+  clearAboveFX();
+  drawFollowerCounter(1, performance.now());
+}
+window.triggerFollow = handleFollow;
+window.startSpritePeek = startSpritePeek;
+window.renderContactSheet = renderContactSheet;
+</script>
+</body>
+</html>
