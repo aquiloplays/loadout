@@ -566,20 +566,22 @@ export const TRIPLE_C_POLL = Object.freeze({
 export const VARIETY_POLL = Object.freeze({
   pollId:       'variety-2026-05',
   title:        'Variety Night — pick the game',
-  subtitle:     'Vote for the next Variety Night game. Streams Wed · Fri. CC icon = Crowd Control supported (crowdcontrol.live).',
+  subtitle:     'Vote for the next Variety Night game. Streams Wed. CC icon = Crowd Control supported (crowdcontrol.live).',
   compositeKey: 'variety',
+  // 2026-06 (Batch C3): reconciled to the 9-game Variety pool, matching
+  // games:v1. Retro Rewind moved to Dad Game Sunday (C2); the sim/cozy
+  // titles that used to live here (waterpark, paralives, supermarket,
+  // pws2, hf2, roadside) are dad-sunday games now and were removed from
+  // variety. Added Burgie's Cozy Kitchen. (CC) = Crowd Control supported.
   options: [
-    { value: 'waterpark',        label: 'Waterpark Simulator (CC)' },
-    { value: 'retro_rewind',     label: 'Retro Rewind (CC)' },
-    { value: 'sts2',             label: 'Slay the Spire 2 (CC)' },
-    { value: 'roadside',         label: 'Roadside Research' },
-    { value: 'supermarket',      label: 'Supermarket Simulator (CC)' },
-    { value: 'vampire_crawlers', label: 'Vampire Crawlers (CC)' },
+    { value: 'climbing',         label: 'A Difficult Game About Climbing' },
+    { value: 'ballxpit',         label: 'BALL x PIT' },
     { value: 'megabonk',         label: 'Megabonk (CC)' },
-    { value: 'subnautica2',      label: 'Subnautica 2' },
-    { value: 'paralives',        label: 'Paralives' },
-    { value: 'pws2',             label: 'PowerWash Simulator 2' },
-    { value: 'hf2',              label: 'House Flipper 2' },
-    { value: 'ranch_sim',        label: 'Ranch Simulator' },
+    { value: 'flip_master',      label: 'Flip Master' },
+    { value: 'sts2',             label: 'Slay the Spire 2 (CC)' },
+    { value: 'cloverpit',        label: 'CloverPit' },
+    { value: 'balatro',          label: 'Balatro' },
+    { value: 'vampire_crawlers', label: 'Vampire Crawlers (CC)' },
+    { value: 'burgie',           label: "Burgie's Cozy Kitchen" },
   ],
 });
