@@ -158,8 +158,10 @@ console.log('— getPublicSchedule: shape + CN winner');
     SCHEDULE_CHANNEL_ID: '1507973920282640485',
     POLL_CHANNEL_ID:     '1508318930845044786',
   };
-  // No saved sched → load returns defaults; CN slot has no winner →
-  // status = 'vote-open'.
+  // No saved sched → load returns defaults; vote nights have no winner →
+  // status = 'vote-open'. 2026-06: Triple-C (Mon/Tue/Thu/Fri) resolves the
+  // locked campaign (Fallout 4 default), Wed=variety, Sat=community, Sun=
+  // Dad Game Sunday. No rest days.
   const r1 = await getPublicSchedule(env, GUILD);
   assert(r1.ok, 'ok:true');
   eq(r1.guildId, GUILD, 'guildId echoed');
@@ -169,18 +171,24 @@ console.log('— getPublicSchedule: shape + CN winner');
   eq(sat1.slot, 'cn', 'saturday slot=cn');
   eq(sat1.status, 'vote-open', 'no winner → vote-open');
   eq(sat1.game, null, 'no game yet');
-  // Minecraft days carry Minecraft game info.
+  // Sunday is Dad Game Sunday — voted, no winner yet → vote-open.
   const sun = r1.days.find(d => d.weekday === 'sunday');
-  eq(sun.slot, 'stream', 'sunday=stream');
-  eq(sun.game?.name, 'Minecraft', 'sunday game = Minecraft');
-  assert(/wikimedia/.test(sun.game.artUrl || ''), 'sunday art = wikimedia');
-  eq(sun.game.store, 'mojang', 'sunday store=mojang');
-  eq(sun.status, 'scheduled', 'sunday status=scheduled');
-  // Off days.
+  eq(sun.slot, 'dad-sunday', 'sunday=dad-sunday');
+  eq(sun.game, null, 'sunday no game yet');
+  eq(sun.status, 'vote-open', 'sunday status=vote-open');
+  // Triple-C days resolve the locked campaign (Fallout 4 default).
+  const mon = r1.days.find(d => d.weekday === 'monday');
+  eq(mon.slot, 'stream', 'monday slot=stream (Triple-C)');
+  eq(mon.game?.name, 'Fallout 4', 'monday game = Fallout 4 (default campaign)');
+  eq(mon.status, 'scheduled', 'monday status=scheduled');
+  // Tuesday is now a Triple-C day too (no more rest days).
   const tue = r1.days.find(d => d.weekday === 'tuesday');
-  eq(tue.slot, 'off', 'tuesday off');
-  eq(tue.game, null, 'tuesday no game');
-  eq(tue.status, 'off', 'tuesday status=off');
+  eq(tue.slot, 'stream', 'tuesday slot=stream (Triple-C)');
+  eq(tue.game?.name, 'Fallout 4', 'tuesday game = Fallout 4');
+  // Wednesday is Variety Night — voted.
+  const wed = r1.days.find(d => d.weekday === 'wednesday');
+  eq(wed.slot, 'variety', 'wednesday slot=variety');
+  eq(wed.status, 'vote-open', 'wednesday vote-open');
 
   // Now seed a CN winner + read again. Winner has a Steam URL →
   // store='steam'.

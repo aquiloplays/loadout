@@ -25,7 +25,7 @@ import { gameSlug } from './today-game.js';
 // slot enum and dynamic game resolution (see resolveSlotGame):
 //   triple-c → fixed campaign   variety → Wed vote   community → Sat vote
 const WEEKLY = [
-  { day: 'sunday',    kind: 'triple-c'  },
+  { day: 'sunday',    kind: 'dad-sunday' },   // 2026-06: Dad Game Sunday (was Triple-C)
   { day: 'monday',    kind: 'triple-c'  },
   { day: 'tuesday',   kind: 'triple-c'  },
   { day: 'wednesday', kind: 'variety'   },

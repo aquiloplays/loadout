@@ -740,6 +740,11 @@ export default {
     if (path === '/triple-c/current' || path === '/triple-c/pool') {
       return handleTripleCPublic(req, env, path);
     }
+    // Dad Game Sunday current game + pool — public, CORS-open (mirrors
+    // Triple-C). Owner-gated `set` is at POST /web/admin/dad-sunday/set.
+    if (path === '/dad-sunday/current' || path === '/dad-sunday/pool') {
+      return handleDadSundayPublic(req, env, path);
+    }
     if (path === '/vote-hub/lineup') {
       return handleLineupPublic(req, env);
     }
@@ -2685,6 +2690,24 @@ async function handleTripleCPublic(req, env, path) {
     }
     const { getCurrentTripleC } = await import('./triple-c.js');
     const current = await getCurrentTripleC(env);
+    return new Response(JSON.stringify({ ok: true, current }), { status: 200, headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 120) }),
+      { status: 500, headers });
+  }
+}
+
+async function handleDadSundayPublic(req, env, path) {
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=60', ...cors };
+  try {
+    if (path === '/dad-sunday/pool') {
+      const { getDadSundayPool } = await import('./dad-sunday.js');
+      return new Response(JSON.stringify({ ok: true, pool: await getDadSundayPool(env) }), { status: 200, headers });
+    }
+    const { getCurrentDadSunday } = await import('./dad-sunday.js');
+    const current = await getCurrentDadSunday(env);
     return new Response(JSON.stringify({ ok: true, current }), { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 120) }),

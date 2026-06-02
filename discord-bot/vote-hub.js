@@ -64,6 +64,11 @@ export const PHASE = Object.freeze({
   CN_OPEN:        'cn-open',
   CN_CLOSED:      'cn-closed',
   CN_QUEUE:       'cn-queue',
+  // 2026-06: Dad Game Sunday vote — Fri 12:00 ET → Sun 12:00 ET, winner
+  // plays Sunday. Replaces the old weekend CN_QUEUE phase in the cron
+  // tiling (the queue-join handler is kept for back-compat).
+  DAD_OPEN:       'dad-open',
+  DAD_CLOSED:     'dad-closed',
 });
 
 // ── Config ──────────────────────────────────────────────────────
@@ -97,6 +102,16 @@ export async function getConfig(env, guildId) {
     cnVoteCloseWeekday:  raw?.cnVoteCloseWeekday  || 'friday',
     cnVoteCloseHourEt:   Number.isInteger(raw?.cnVoteCloseHourEt)
                             ? raw.cnVoteCloseHourEt : 12,
+
+    // Dad Game Sunday voting window (2026-06). Opens when CN closes,
+    // closes Sunday noon — winner plays Sunday night.
+    dadVoteOpenWeekday:  raw?.dadVoteOpenWeekday  || 'friday',
+    dadVoteOpenHourEt:   Number.isInteger(raw?.dadVoteOpenHourEt)
+                            ? raw.dadVoteOpenHourEt : 12,
+    dadVoteCloseWeekday: raw?.dadVoteCloseWeekday || 'sunday',
+    dadVoteCloseHourEt:  Number.isInteger(raw?.dadVoteCloseHourEt)
+                            ? raw.dadVoteCloseHourEt : 12,
+
     // CN queue opens its own day/hour, separate from the vote close.
     cnQueueOpenWeekday:  raw?.cnQueueOpenWeekday  || 'saturday',
     cnQueueOpenHourEt:   Number.isInteger(raw?.cnQueueOpenHourEt)
@@ -150,6 +165,8 @@ export async function setConfig(env, guildId, patch) {
     ['varietyVoteCloseWeekday', 'varietyVoteCloseWeekday'],
     ['cnVoteOpenWeekday',  'cnVoteOpenWeekday'],
     ['cnVoteCloseWeekday', 'cnVoteCloseWeekday'],
+    ['dadVoteOpenWeekday',  'dadVoteOpenWeekday'],
+    ['dadVoteCloseWeekday', 'dadVoteCloseWeekday'],
     ['cnQueueOpenWeekday', 'cnQueueOpenWeekday'],
   ]) {
     if (patch[src] !== undefined) {
@@ -159,7 +176,8 @@ export async function setConfig(env, guildId, patch) {
     }
   }
   for (const k of ['varietyVoteOpenHourEt', 'varietyVoteCloseHourEt',
-                   'cnVoteOpenHourEt', 'cnVoteCloseHourEt', 'cnQueueOpenHourEt']) {
+                   'cnVoteOpenHourEt', 'cnVoteCloseHourEt',
+                   'dadVoteOpenHourEt', 'dadVoteCloseHourEt', 'cnQueueOpenHourEt']) {
     if (patch[k] !== undefined) {
       next[k] = Math.max(0, Math.min(23, Number(patch[k]) || 12));
     }
@@ -176,6 +194,7 @@ export async function getState(env, guildId) {
     phase: raw?.phase || PHASE.CLOSED,
     varietyPollId: raw?.varietyPollId || null,
     cnPollId:      raw?.cnPollId      || null,
+    dadPollId:     raw?.dadPollId     || null,
     lastTransitionUtc: raw?.lastTransitionUtc || 0,
   };
 }
@@ -247,6 +266,8 @@ async function buildPhaseEmbed(env, guildId, state, config) {
   const tsVarClose = nextEventTimestamp(nowMs, config.varietyVoteCloseWeekday, config.varietyVoteCloseHourEt);
   const tsCnOpen  = nextEventTimestamp(nowMs, config.cnVoteOpenWeekday,  config.cnVoteOpenHourEt);
   const tsCnClose = nextEventTimestamp(nowMs, config.cnVoteCloseWeekday, config.cnVoteCloseHourEt);
+  const tsDadOpen  = nextEventTimestamp(nowMs, config.dadVoteOpenWeekday,  config.dadVoteOpenHourEt);
+  const tsDadClose = nextEventTimestamp(nowMs, config.dadVoteCloseWeekday, config.dadVoteCloseHourEt);
   const tsCnQueue = nextEventTimestamp(nowMs, config.cnQueueOpenWeekday, config.cnQueueOpenHourEt);
   const tFmt = (ms, fmt) => ms ? `<t:${Math.floor(ms / 1000)}:${fmt}>` : null;
 
@@ -278,14 +299,16 @@ async function buildPhaseEmbed(env, guildId, state, config) {
     };
   }
 
-  if (state.phase === PHASE.VARIETY_OPEN || state.phase === PHASE.CN_OPEN) {
-    const kind = state.phase === PHASE.VARIETY_OPEN ? 'variety' : 'cn';
-    const label = kind === 'variety' ? '🎲 Variety night' : '🏆 Community night';
-    const tsClose = kind === 'variety' ? tsVarClose : tsCnClose;
-    const night = kind === 'variety' ? 'Wednesday' : 'Saturday';
+  if (state.phase === PHASE.VARIETY_OPEN || state.phase === PHASE.CN_OPEN || state.phase === PHASE.DAD_OPEN) {
+    const kind = state.phase === PHASE.VARIETY_OPEN ? 'variety'
+               : state.phase === PHASE.CN_OPEN ? 'cn' : 'dad';
+    const label = kind === 'variety' ? '🎲 Variety night'
+                : kind === 'cn' ? '🏆 Community night' : '🛋️ Dad Game Sunday';
+    const tsClose = kind === 'variety' ? tsVarClose : kind === 'cn' ? tsCnClose : tsDadClose;
+    const night = kind === 'variety' ? 'Wednesday' : kind === 'cn' ? 'Saturday' : 'Sunday';
     const lines = [`Tap **Vote** to pick ${night}'s game. You can change your vote until polls close.`];
     if (tsClose) lines.push('', `🏁 Voting closes ${tFmt(tsClose, 'F')} (${tFmt(tsClose, 'R')})`);
-    if (kind === 'cn' && tsCnQueue) lines.push(`🎮 Saturday queue opens ${tFmt(tsCnQueue, 'F')}`);
+    if (kind === 'cn' && tsDadOpen) lines.push(`🛋️ Dad Game Sunday vote opens ${tFmt(tsDadOpen, 'F')}`);
     if (kind === 'variety' && tsCnOpen) lines.push(`🏆 Community Night vote opens ${tFmt(tsCnOpen, 'F')}`);
     return {
       embed: {
@@ -304,9 +327,11 @@ async function buildPhaseEmbed(env, guildId, state, config) {
     };
   }
 
-  if (state.phase === PHASE.VARIETY_CLOSED || state.phase === PHASE.CN_CLOSED) {
-    const kind = state.phase === PHASE.VARIETY_CLOSED ? 'variety' : 'cn';
-    const label = kind === 'variety' ? '🎲 Variety night' : '🏆 Community night';
+  if (state.phase === PHASE.VARIETY_CLOSED || state.phase === PHASE.CN_CLOSED || state.phase === PHASE.DAD_CLOSED) {
+    const kind = state.phase === PHASE.VARIETY_CLOSED ? 'variety'
+               : state.phase === PHASE.CN_CLOSED ? 'cn' : 'dad';
+    const label = kind === 'variety' ? '🎲 Variety night'
+                : kind === 'cn' ? '🏆 Community night' : '🛋️ Dad Game Sunday';
     const winner = await getStoredWinner(env, guildId, kind);
     const lines = [
       winner
@@ -405,7 +430,11 @@ async function writeBallots(env, guildId, eventKey, ballots) {
 // filtered by pool ('variety' | 'community'). Falls back to the D1
 // games table when the catalog is empty so older guilds still work.
 
-const poolForKind = (kind) => (kind === 'variety' ? 'variety' : 'community');
+const poolForKind = (kind) =>
+  kind === 'variety' ? 'variety' : kind === 'dad' ? 'dad-sunday' : 'community';
+
+const expectedPhaseForKind = (kind) =>
+  kind === 'variety' ? PHASE.VARIETY_OPEN : kind === 'dad' ? PHASE.DAD_OPEN : PHASE.CN_OPEN;
 
 async function getEligibleGames(env, guildId, pool) {
   try {
@@ -524,16 +553,22 @@ export async function tickPhaseTransition(env, guildId) {
   const inCnVote = isInWindow(et,
     config.cnVoteOpenWeekday,  config.cnVoteOpenHourEt,
     config.cnVoteCloseWeekday, config.cnVoteCloseHourEt);
-  // Queue window: from queue-open until the next variety vote-open wraps.
-  const inQueue = isInWindow(et,
-    config.cnQueueOpenWeekday,      config.cnQueueOpenHourEt,
-    config.varietyVoteOpenWeekday,  config.varietyVoteOpenHourEt);
+  // Dad Game Sunday vote: Fri 12:00 ET → Sun 12:00 ET (winner plays Sun).
+  const inDadVote = isInWindow(et,
+    config.dadVoteOpenWeekday,  config.dadVoteOpenHourEt,
+    config.dadVoteCloseWeekday, config.dadVoteCloseHourEt);
 
+  // 2026-06 weekly tiling (Clay): three back-to-back voted nights —
+  //   VARIETY_OPEN  Mon 12 → Wed 12   (Wed = Variety Night)
+  //   CN_OPEN       Wed 12 → Fri 12   (Sat = Community Night)
+  //   DAD_OPEN      Fri 12 → Sun 12   (Sun = Dad Game Sunday)
+  //   DAD_CLOSED    Sun 12 → Mon 12   (winner-announce gap)
+  // (Triple-C is a fixed show — no phase.)
   let desired;
   if (inVarietyVote)   desired = PHASE.VARIETY_OPEN;
   else if (inCnVote)   desired = PHASE.CN_OPEN;
-  else if (inQueue)    desired = PHASE.CN_QUEUE;
-  else                 desired = PHASE.CN_CLOSED; // Fri-noon → Sat-morning gap
+  else if (inDadVote)  desired = PHASE.DAD_OPEN;
+  else                 desired = PHASE.DAD_CLOSED; // Sun-noon → Mon-noon gap
 
   if (desired === state.phase) {
     // Same phase — no-op (saves a Discord edit).
@@ -552,6 +587,11 @@ export async function tickPhaseTransition(env, guildId) {
     state.cnPollId = winner?.gameId || null;
     if (winner) await announceVoteResult(env, guildId, 'cn', winner);
   }
+  if (state.phase === PHASE.DAD_OPEN) {
+    const winner = await tallyAndStoreWinner(env, guildId, 'dad');
+    state.dadPollId = winner?.gameId || null;
+    if (winner) await announceVoteResult(env, guildId, 'dad', winner);
+  }
 
   state.phase = desired;
   state.lastTransitionUtc = Date.now();
@@ -561,9 +601,10 @@ export async function tickPhaseTransition(env, guildId) {
   const channelId = await getChannelBinding(env, guildId, 'vote');
   if (channelId) await postOrRefreshHub(env, guildId, channelId);
 
-  // Entering the weekend queue → (re)post + pin the "this week's
-  // lineup" recap once per queue-entry.
-  if (desired === PHASE.CN_QUEUE) {
+  // Entering the Dad-Sunday vote (Fri) → (re)post + pin the "this week's
+  // lineup" recap: variety + community are both decided by now, so the
+  // pin shows the full week.
+  if (desired === PHASE.DAD_OPEN) {
     await postLineupRecap(env, guildId).catch(() => {});
   }
 
@@ -602,8 +643,9 @@ async function announceVoteResult(env, guildId, kind, winner) {
   if (!env.DISCORD_BOT_TOKEN || !winner) return { ok: false };
   const channelId = (await getChannelBinding(env, guildId, 'vote'))
     || env.VOTE_HUB_CHANNEL || '1508318929855184987';
-  const label = kind === 'variety' ? '🎲 Variety Night' : '🏆 Community Night';
-  const night = kind === 'variety' ? 'Wednesday' : 'Saturday';
+  const label = kind === 'variety' ? '🎲 Variety Night'
+              : kind === 'cn' ? '🏆 Community Night' : '🛋️ Dad Game Sunday';
+  const night = kind === 'variety' ? 'Wednesday' : kind === 'cn' ? 'Saturday' : 'Sunday';
   const embed = {
     title: `${label} — winner: ${winner.name}`,
     description:
@@ -638,10 +680,15 @@ export async function buildLineupEmbed(env, guildId) {
   } catch { /* optional */ }
   const variety = await getStoredWinner(env, guildId, 'variety');
   const cn = await getStoredWinner(env, guildId, 'cn');
+  let dad = null;
+  try {
+    const { getCurrentDadSunday } = await import('./dad-sunday.js');
+    dad = await getCurrentDadSunday(env, guildId);
+  } catch { /* optional */ }
 
   const fields = [
     {
-      name: '📺 Triple-C · Sun · Mon · Tue · Thu · Fri',
+      name: '📺 Triple-C · Mon · Tue · Thu · Fri',
       value: tripleC?.name ? `**${tripleC.name}**` : '_TBA_',
     },
     {
@@ -651,6 +698,10 @@ export async function buildLineupEmbed(env, guildId) {
     {
       name: '🏆 Community Night · Sat',
       value: cn?.name ? `**${cn.name}**` : '_Decided by Wednesday–Friday vote_',
+    },
+    {
+      name: '🛋️ Dad Game Sunday · Sun',
+      value: dad?.name ? `**${dad.name}**` : '_Decided by Friday–Sunday vote_',
     },
   ];
   const embed = {
@@ -756,8 +807,8 @@ export async function handleVoteHubComponent(env, data) {
 
   if (action === 'vote') {
     const kind = parts[2];
-    if (kind !== 'variety' && kind !== 'cn') return eph('Bad event kind.');
-    const expectedPhase = kind === 'variety' ? PHASE.VARIETY_OPEN : PHASE.CN_OPEN;
+    if (kind !== 'variety' && kind !== 'cn' && kind !== 'dad') return eph('Bad event kind.');
+    const expectedPhase = expectedPhaseForKind(kind);
     if (state.phase !== expectedPhase) {
       return eph(`That vote isn't open right now (phase: ${state.phase}).`);
     }
@@ -767,7 +818,7 @@ export async function handleVoteHubComponent(env, data) {
     const kind = parts[2];
     const gameId = parts[3];
     if (!gameId) return eph('Bad cast button.');
-    const expectedPhase = kind === 'variety' ? PHASE.VARIETY_OPEN : PHASE.CN_OPEN;
+    const expectedPhase = expectedPhaseForKind(kind);
     if (state.phase !== expectedPhase) {
       return eph(`That vote just closed.`);
     }
@@ -818,7 +869,8 @@ async function voteMenu(env, guildId, userId, kind) {
     type: RESP_CHAT,
     data: {
       embeds: [{
-        title: kind === 'variety' ? '🎲 Variety night vote' : '🏆 Community night vote',
+        title: kind === 'variety' ? '🎲 Variety night vote'
+             : kind === 'dad' ? '🛋️ Dad Game Sunday vote' : '🏆 Community night vote',
         description: currentVote
           ? 'Your pick is highlighted in green. Tap a different game to change your vote.'
           : 'Pick the game you want to play. You can change your vote until the poll closes.',
@@ -856,7 +908,7 @@ async function standingsMenu(env, guildId, kind) {
     type: RESP_CHAT,
     data: {
       embeds: [{
-        title: `📊 ${kind === 'variety' ? 'Variety' : 'Community'} night standings · ${total === 1 ? '1 vote' : `${total} votes`}`,
+        title: `📊 ${kind === 'variety' ? 'Variety' : kind === 'dad' ? 'Dad Game Sunday' : 'Community'} night standings · ${total === 1 ? '1 vote' : `${total} votes`}`,
         description: lines.join('\n'),
         color: 0x9147ff,
       }],
@@ -867,14 +919,15 @@ async function standingsMenu(env, guildId, kind) {
 
 async function statusMenu(env, guildId, userId, state, config) {
   const lines = [`Phase: **${state.phase}**`];
-  for (const kind of ['variety', 'cn']) {
+  for (const kind of ['variety', 'cn', 'dad']) {
     const eventKey = eventKeyFor(kind);
     const ballots = await readBallots(env, guildId, eventKey);
     const myVote = ballots[userId];
     if (myVote) {
       const games = await getEligibleGames(env, guildId, poolForKind(kind));
       const g = games.find(x => String(x.id) === String(myVote));
-      lines.push(`${kind === 'variety' ? '🎲' : '🏆'} ${kind} vote: **${g?.name || 'unknown'}**`);
+      const icon = kind === 'variety' ? '🎲' : kind === 'cn' ? '🏆' : '🛋️';
+      lines.push(`${icon} ${kind} vote: **${g?.name || 'unknown'}**`);
     }
   }
   // Queue position when applicable.

@@ -19,7 +19,7 @@ const FLAG_EPHEMERAL = 64;
 const RESP_CHAT = 4;
 
 const DOW_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const SCHEDULE_KINDS = ['fixed', 'variety', 'community'];
+const SCHEDULE_KINDS = ['fixed', 'variety', 'community', 'dad-sunday'];
 const POOL_KINDS = ['community', 'variety'];
 const HH_MM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -38,7 +38,7 @@ const DEFAULT_SCHEDULE = {
   // (Fallout 4 to start) is set via /web/admin/triple-c/set and shown
   // dynamically on the embed; the day `label` stays the show name.
   days: [
-    { dow: 0, label: 'Triple-C',        kind: 'fixed',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 0, label: 'Dad Game Sunday', kind: 'dad-sunday', startLocal: '22:30', endLocal: '00:30' },
     { dow: 1, label: 'Triple-C',        kind: 'fixed',     startLocal: '22:30', endLocal: '00:30' },
     { dow: 2, label: 'Triple-C',        kind: 'fixed',     startLocal: '22:30', endLocal: '00:30' },
     { dow: 3, label: 'Variety Night',   kind: 'variety',   startLocal: '22:30', endLocal: '00:30' },
