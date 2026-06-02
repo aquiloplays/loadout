@@ -11,7 +11,7 @@
 
 import { CARDS, CHAMPIONS } from './cards-content.js';
 import {
-  getCollection, ensureCollection,
+  getCollection, ensureCollection, addCardsToCollection,
   getActiveDeckId,
   listPendingPacks,
   getActiveMatch, readLog, getTrophies,
@@ -19,7 +19,7 @@ import {
   newId,
 } from './cards-state.js';
 import {
-  saveDeck, dropDeck, activateDeck, listDeckSummaries, buildStarterDeck,
+  saveDeck, dropDeck, activateDeck, listDeckSummaries, buildStarterDeck, buildPoolStarterDeck,
 } from './cards-decks.js';
 import {
   buyPack, openPack, claimDailyFreePack, creditPack,
@@ -47,6 +47,7 @@ const ROUTES = new Set([
   'boltbound/decks/delete',
   'boltbound/decks/activate',
   'boltbound/decks/starter',
+  'boltbound/starter-deck',
   'boltbound/packs/buy',
   'boltbound/packs/open',
   'boltbound/packs/free-daily',
@@ -253,6 +254,32 @@ async function routeDecksStarter(env, guildId, userId) {
   const r = await saveDeck(env, guildId, userId, deck, className);
   if (r.ok) await activateDeck(env, guildId, userId, r.deck.id);
   return json(r);
+}
+
+// POST /web/boltbound/starter-deck — one-click "Get a starter deck" CTA
+// for players with no deck. Idempotent: if the player already has any
+// saved deck, returns it untouched. Otherwise grants a weak, balanced
+// 20-card starter (champion + 19 cards, ~70/25/5 common/uncommon/rare,
+// NO legendaries/epics) into the collection, saves it, and sets it
+// ACTIVE. The deck is fully editable later via the normal deck builder.
+const STARTER_CLASSES = ['warrior', 'mage', 'rogue', 'ranger', 'healer'];
+async function routeStarterDeck(env, guildId, userId) {
+  // Idempotent — already has a deck → return it, no changes.
+  const existing = await listDeckSummaries(env, guildId, userId);
+  if (existing && existing.length) {
+    const activeId = await getActiveDeckId(env, guildId, userId);
+    return json({ ok: true, existing: true, activeDeckId: activeId || existing[0].id, decks: existing });
+  }
+  // Equal-weighted champion class.
+  const cls = STARTER_CLASSES[Math.floor(Math.random() * STARTER_CLASSES.length)];
+  const { deck, grantIds } = buildPoolStarterDeck(cls);
+  // Grant the 19 cards so saveDeck's ownership check passes (these are
+  // the player's starter collection — editable/disenchantable later).
+  await addCardsToCollection(env, guildId, userId, grantIds);
+  const r = await saveDeck(env, guildId, userId, deck, cls);
+  if (!r.ok) return json(r, 400);
+  await activateDeck(env, guildId, userId, r.deck.id);
+  return json({ ok: true, deck: r.deck, championClass: cls, granted: grantIds.length });
 }
 
 async function routePacksBuy(env, guildId, userId, body) {
@@ -539,6 +566,7 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/decks/delete')    return await routeDecksDelete(env, guildId, userId, body);
     if (route === 'boltbound/decks/activate')  return await routeDecksActivate(env, guildId, userId, body);
     if (route === 'boltbound/decks/starter')   return await routeDecksStarter(env, guildId, userId);
+    if (route === 'boltbound/starter-deck')    return await routeStarterDeck(env, guildId, userId);
     if (route === 'boltbound/packs/buy')       return await routePacksBuy(env, guildId, userId, body);
     if (route === 'boltbound/packs/open')      return await routePacksOpen(env, guildId, userId, body);
     if (route === 'boltbound/packs/free-daily') return await routePacksFreeDaily(env, guildId, userId);

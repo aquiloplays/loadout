@@ -10,7 +10,7 @@
 // is glue + validation.
 
 import {
-  CARDS, RARITY_DECK_CAP, CHAMPIONS, championForClass,
+  CARDS, RARITY_DECK_CAP, RARITY_POOLS, CHAMPIONS, championForClass,
   DECK_SIZE, validateDeck,
 } from './cards-content.js';
 import {
@@ -87,6 +87,51 @@ export function buildStarterDeck(collection, championClass, opts = {}) {
     ts: 0,
   };
   return deck;
+}
+
+// ── Public: pool-based starter deck (for brand-new players) ─────────
+//
+// Unlike buildStarterDeck (which draws from what the viewer already
+// owns), this builds a weak, balanced 20-card deck straight from the
+// global catalogue pools — used by the one-click "Get a starter deck"
+// CTA for players with no deck (and possibly no collection). The caller
+// GRANTS the returned `grantIds` into the collection before saveDeck so
+// ownership validation passes. Composition (19 non-champion cards):
+// ~70% common / 25% uncommon / 5% rare; NO legendaries/epics (weak by
+// design). Champion is chosen by the caller (equal-weighted) + passed in.
+//
+// Returns { deck, grantIds } where deck.cards includes the champion
+// (saveDeck strips + re-adds) and grantIds are the 19 cards to grant.
+export function buildPoolStarterDeck(championClass, rng = Math.random) {
+  const cls = championClass || 'warrior';
+  const champId = championForClass(cls);
+  // 13 + 5 + 1 = 19 → 68% / 26% / 5%, matching the ~70/25/5 target.
+  const plan = [['common', 13], ['uncommon', 5], ['rare', 1]];
+  const grantIds = [];
+  for (const [rarity, want] of plan) {
+    const pool = (RARITY_POOLS[rarity] || []).filter(
+      c => !c.token && (c.type === 'minion' || c.type === 'spell'));
+    if (!pool.length) continue;
+    // Cap copies-per-card for variety (≤2, never above the deck cap).
+    const cap = Math.min(RARITY_DECK_CAP[rarity] || 1, 2);
+    const used = {};
+    let added = 0, guard = 0;
+    while (added < want && guard++ < 5000) {
+      const c = pool[Math.floor(rng() * pool.length)];
+      if ((used[c.id] || 0) >= cap) continue;
+      used[c.id] = (used[c.id] || 0) + 1;
+      grantIds.push(c.id);
+      added++;
+    }
+  }
+  const deck = {
+    id: newId().slice(0, 12),
+    name: 'Starter Deck',
+    cards: [champId, ...grantIds],
+    championClass: cls,
+    ts: 0,
+  };
+  return { deck, grantIds };
 }
 
 // ── Public: save a deck + run validation ────────────────────────────
