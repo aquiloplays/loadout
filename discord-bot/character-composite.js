@@ -19,6 +19,8 @@
 // B/C assets land. Each entry carries a `phase` hint so the site can
 // skip/fall-back per layer.
 
+import { gearArtSlug, rarityTintHex } from './gear-art-slugs.js';
+
 const WORKER_HOST = 'loadout-discord.aquiloplays.workers.dev';
 
 const PHASE_A_LIVE   = 'A';
@@ -30,6 +32,14 @@ function slugify(s) {
   return String(s || '').toLowerCase()
     .replace(/[^a-z0-9-]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+// Parse the "<slot>/<slug>" art stamp into the gearArtSlug shape, or null.
+function parseArtStamp(art) {
+  if (typeof art !== 'string') return null;
+  const [slot, slug, extra] = art.split('/');
+  if (!slot || !slug || extra) return null;
+  return { slot, slug };
 }
 
 // Given the hero record, return the manifest the site renderer
@@ -94,40 +104,37 @@ export function buildCompositeManifest(hero) {
     });
   }
 
-  // 5. Per-slot gear overlays. The slot list mirrors SHOP_POOL slots
-  // (weapon, head, chest, legs, boots, trinket). Each equipped item
-  // has an itemId; the site reaches into the player's bag to read the
-  // (slot, name, rarity) for that id. For URL construction we use the
-  // item record passed inline on equipped[slot] if present (modern
-  // shape) else just emit the bare slot for the site to resolve.
+  // 5. Per-slot gear overlays (Phase 2 — LIVE). equipped[slot] stores a
+  // bare bag-instance id (string); we resolve it against hero.bag to get
+  // the item record, then map it to its worn-overlay ARCHETYPE via
+  // gearArtSlug (item.art is the same value stamped at mint — preferred
+  // when present, derived otherwise so legacy/lootbox bag items still
+  // render). The overlay is rendered per-sex and the rarity sheen is a
+  // CSS tint over the rarity-agnostic base (tintHex). The icon URL keeps
+  // the per-item-name convention used by the inventory grid.
   const GEAR_SLOTS = ['weapon', 'head', 'chest', 'legs', 'boots', 'trinket', 'hands'];
+  const bagIx = {};
+  for (const it of (hero?.bag || [])) if (it && it.id) bagIx[it.id] = it;
   const baseZ = 40;
   for (const slot of GEAR_SLOTS) {
-    const item = equipped[slot];
-    if (!item) continue;
-    if (typeof item === 'string') {
-      // Bare item id; site resolves the slug/rarity client-side.
-      layers.push({
-        kind:    'gear',
-        slot,
-        itemId:  item,
-        url:     null,
-        z:       baseZ + GEAR_SLOTS.indexOf(slot),
-        phase:   PHASE_C_CHIP,
-      });
-      continue;
-    }
-    const slug   = slugify(item.name || '');
+    const ref = equipped[slot];
+    if (!ref) continue;
+    const item = (typeof ref === 'string') ? bagIx[ref] : ref;
+    if (!item) continue; // equipped id not in bag — skip cleanly
+    const arch = parseArtStamp(item.art) || gearArtSlug(item);
+    if (!arch) continue; // unrenderable (consumable, unknown slot)
     const rarity = String(item.rarity || 'common').toLowerCase();
+    const nameSlug = slugify(item.name || '');
     layers.push({
       kind:    'gear',
       slot,
       itemId:  item.id || null,
-      url:     `https://${WORKER_HOST}/asset/gear-art/${slot}/${slug}/${rarity}-worn.png`,
-      iconUrl: `https://${WORKER_HOST}/asset/gear-art/${slot}/${slug}/${rarity}.png`,
+      url:     `https://${WORKER_HOST}/asset/gear-art/${arch.slot}/${arch.slug}/${sex}-worn.png`,
+      iconUrl: nameSlug ? `https://${WORKER_HOST}/asset/gear-art/${slot}/${nameSlug}/${rarity}.png` : null,
       z:       baseZ + GEAR_SLOTS.indexOf(slot),
       phase:   PHASE_C_CHIP,
-      meta:    { name: item.name, rarity },
+      tintHex: rarityTintHex(rarity),
+      meta:    { name: item.name, rarity, archetype: `${arch.slot}/${arch.slug}` },
     });
   }
 
