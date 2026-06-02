@@ -141,6 +141,28 @@ BUILDING_THEME = {
     'decoyBanner': 'a decoy banner standard',
 }
 
+# Explicit per-tier visual progression by ABSOLUTE level (2026-06 W3).
+# The old ratio-based 3-tier prompt left buildings looking uniform; this
+# maps absolute level → a strong, concrete material/size/ornament brief
+# so L1 reads tiny-wooden and L10+ reads massive-gilded, consistently
+# across every building (a level-7 anything looks iron-reinforced).
+def tier_brief(L):
+    if L <= 3:
+        return ('SMALL and humble — single-story, basic rough WOODEN planks and thatch '
+                'on bare dirt-and-stone foundations, minimal ornamentation, freshly built',
+                'EARLY TIER (level 1-3, the smallest + plainest form)')
+    if L <= 6:
+        return ('MEDIUM-sized — two-story, sturdy STONE-AND-TIMBER walls with a tiled roof, '
+                'modest defensive details, a few support beams and modest trim',
+                'MID TIER (level 4-6, noticeably bigger + sturdier than early tier)')
+    if L <= 9:
+        return ('LARGE and imposing — multi-story, IRON-REINFORCED dressed-stone construction '
+                'with elaborate carved details, corner towers, sturdy battlements and metal braces',
+                'HIGH TIER (level 7-9, clearly larger + heavily fortified)')
+    return ('MASSIVE and majestic — a towering multi-story fortress form, heavy IRON plating '
+            'with GILDED GOLD trim, ornate banners and flags, grand ornamentation, glowing accents',
+            'MAX TIER (level 10+, the biggest + most glorious form)')
+
 def jobs_B():
     data = json.loads(Path('C:/tmp/clash-buildings.json').read_text(encoding='utf-8'))
     jobs = []
@@ -149,15 +171,12 @@ def jobs_B():
         theme = BUILDING_THEME.get(slug, f'a fantasy base building ({name})')
         maxL = max(b['levels'])
         for L in b['levels']:
-            ratio = L / maxL
-            tier = ('a basic early-level' if ratio <= 0.34 else
-                    'a reinforced mid-level' if ratio <= 0.67 else
-                    'a fully-upgraded ornate high-level')
-            prompt = (f"{PIXEL}. {WARM}. {theme}, {tier} version (upgrade level {L} of {maxL} — "
-                      f"higher levels are larger + more fortified). Built from warm timber, "
-                      f"stone, and golden roof tiles like a Clash of Clans base building — "
-                      f"chunky, cartoon, vibrant, friendly daylight. Three-quarter top-down "
-                      f"isometric game-board view. {ON_MAGENTA}. No text.")
+            look, tierline = tier_brief(L)
+            prompt = (f"{PIXEL}. {WARM}. {theme} — {look}. This is upgrade level {L} of {maxL}, "
+                      f"{tierline}: higher-level buildings are VISIBLY bigger, taller, and more "
+                      f"heavily fortified than lower levels. Built like a Clash of Clans base "
+                      f"building — chunky, cartoon, vibrant, friendly daylight. Three-quarter "
+                      f"top-down isometric game-board view. {ON_MAGENTA}. No text.")
             jobs.append({
                 'key': f'buildings:{slug}:{L}',
                 'kvKey': f'pixel-art-clash:buildings:{slug}:{L}',
@@ -390,8 +409,8 @@ def run_E(pace, do_commit):
         ('crit-dragoncat', 'a cute small orange dragon-cat familiar'),
         ('crit-bluepup',   'a cute round blue slime-pup familiar'),
         ('crit-mothling',  'a glowing amber moth familiar'),
-        ('crit-runefox',   'a small fox familiar with glowing rune markings'),
-        ('crit-stonegrub', 'a tiny armored stone-grub familiar'),
+        ('crit-runefox',   'a small bright orange fox familiar with cyan glowing rune markings (NO purple, NO pink, NO magenta tones)'),
+        ('crit-stonegrub', 'a tiny brown-and-tan armored stone-grub familiar (earthy browns, NO purple, NO pink, NO magenta tones)'),
         ('crit-wispbird',  'a small ghostly wisp-bird familiar'),
     ]
     for cid, desc in critters:
@@ -493,13 +512,21 @@ def git_push(n, batch):
         print('  (git skip:', str(e)[:60], ')')
 
 def kv_bulk_put(entries):
+    # Windows wrangler intermittently throws "fetch failed" on large
+    # bulk-put payloads — retry with backoff before giving up so one
+    # transient blip doesn't crash a long batch run mid-flush.
     with tempfile.NamedTemporaryFile(mode='w', suffix='-clash.json', delete=False, encoding='utf-8') as fh:
         json.dump(entries, fh); tmp = Path(fh.name)
     try:
-        res = subprocess.run(f'npx wrangler kv bulk put "{tmp}" --binding {KV_NS} --remote',
-                             shell=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
-        if res.returncode != 0:
-            raise RuntimeError('bulk put failed: ' + (res.stderr or res.stdout or '')[-300:])
+        last = ''
+        for attempt in range(4):
+            res = subprocess.run(f'npx wrangler kv bulk put "{tmp}" --binding {KV_NS} --remote',
+                                 shell=True, capture_output=True, text=True, encoding='utf-8', errors='replace')
+            if res.returncode == 0:
+                return
+            last = (res.stderr or res.stdout or '')[-300:]
+            time.sleep(5 + attempt * 5)
+        raise RuntimeError('bulk put failed after retries: ' + last)
     finally:
         try: tmp.unlink()
         except OSError: pass
