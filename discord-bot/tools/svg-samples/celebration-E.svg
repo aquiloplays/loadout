@@ -1,0 +1,200 @@
+<svg viewBox="0 0 480 270">
+  <defs>
+    <radialGradient id="e_burstGlow" cx="50%" cy="46%" r="60%">
+      <stop offset="0%" stop-color="#9d8cff" stop-opacity="0.45"/>
+      <stop offset="40%" stop-color="#2bd4d4" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#0a0c12" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="e_avFill" cx="42%" cy="36%" r="72%">
+      <stop offset="0%" stop-color="#aef3ea"/>
+      <stop offset="45%" stop-color="#2bd4d4"/>
+      <stop offset="100%" stop-color="#7a5cff"/>
+    </radialGradient>
+    <linearGradient id="e_ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7de4d4"/>
+      <stop offset="50%" stop-color="#9d8cff"/>
+      <stop offset="100%" stop-color="#ffd24a"/>
+    </linearGradient>
+    <linearGradient id="e_gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff3c4"/>
+      <stop offset="35%" stop-color="#ffd24a"/>
+      <stop offset="100%" stop-color="#e89b15"/>
+    </linearGradient>
+    <linearGradient id="e_plus" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff6cf"/>
+      <stop offset="50%" stop-color="#ffd24a"/>
+      <stop offset="100%" stop-color="#f4a01a"/>
+    </linearGradient>
+    <linearGradient id="e_panel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#141a2c" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#080a12" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="e_banner" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7a5cff"/>
+      <stop offset="50%" stop-color="#2bd4d4"/>
+      <stop offset="100%" stop-color="#7de4d4"/>
+    </linearGradient>
+    <linearGradient id="e_tickFace" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0e1626"/>
+      <stop offset="50%" stop-color="#16223a"/>
+      <stop offset="100%" stop-color="#0a1020"/>
+    </linearGradient>
+    <linearGradient id="e_rollFade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#aef3ea" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#aef3ea" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#aef3ea" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="e_glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="e_softShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="e_goldGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feGaussianBlur stdDeviation="2.6" result="gb"/>
+      <feMerge><feMergeNode in="gb"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="e_avClip"><circle cx="120" cy="118" r="40"/></clipPath>
+    <clipPath id="e_tickClip"><rect x="244" y="150" width="178" height="46" rx="9"/></clipPath>
+  </defs>
+
+  <!-- ambient burst wash (partial opacity, stays an overlay) -->
+  <rect x="0" y="0" width="480" height="270" fill="url(#e_burstGlow)"/>
+
+  <!-- radiating speed-burst rays behind avatar -->
+  <g opacity="0.5" filter="url(#e_glow)">
+    <g fill="none" stroke="#7de4d4" stroke-width="2" stroke-linecap="round" opacity="0.7">
+      <line x1="120" y1="118" x2="120" y2="44"/>
+      <line x1="120" y1="118" x2="186" y2="62"/>
+      <line x1="120" y1="118" x2="54" y2="62"/>
+      <line x1="120" y1="118" x2="190" y2="118"/>
+      <line x1="120" y1="118" x2="50" y2="118"/>
+      <line x1="120" y1="118" x2="178" y2="176"/>
+      <line x1="120" y1="118" x2="62" y2="176"/>
+      <line x1="120" y1="118" x2="120" y2="190"/>
+    </g>
+  </g>
+
+  <!-- spark + star + heart burst -->
+  <g filter="url(#e_goldGlow)">
+    <g fill="#ffd24a">
+      <path d="M183 70 l3.2 6.6 7.2 1 -5.2 5.1 1.2 7.2 -6.4-3.4 -6.4 3.4 1.2-7.2 -5.2-5.1 7.2-1z"/>
+      <path d="M58 56 l2.4 5 5.4 .8 -3.9 3.8 .9 5.4 -4.8-2.5 -4.8 2.5 .9-5.4 -3.9-3.8 5.4-.8z"/>
+      <path d="M196 150 l2 4.2 4.6 .7 -3.3 3.2 .8 4.6 -4.1-2.2 -4.1 2.2 .8-4.6 -3.3-3.2 4.6-.7z"/>
+    </g>
+    <g fill="#9d8cff">
+      <path d="M44 110 l1.9 4 4.4 .6 -3.2 3.1 .8 4.4 -3.9-2.1 -3.9 2.1 .8-4.4 -3.2-3.1 4.4-.6z"/>
+      <path d="M170 188 l1.7 3.6 4 .6 -2.9 2.8 .7 4 -3.5-1.9 -3.5 1.9 .7-4 -2.9-2.8 4-.6z"/>
+    </g>
+    <!-- hearts -->
+    <g fill="#7de4d4">
+      <path d="M88 44 c-3-5-11-3-11 3 0 5 8 9 11 12 3-3 11-7 11-12 0-6-8-8-11-3z"/>
+    </g>
+    <g fill="#aef3ea">
+      <path d="M150 200 c-2.2-3.6-8-2.2-8 2.2 0 3.6 5.8 6.5 8 8.6 2.2-2.1 8-5 8-8.6 0-4.4-5.8-5.8-8-2.2z" opacity="0.9"/>
+    </g>
+    <!-- four-point glints -->
+    <g fill="#ffffff" opacity="0.9">
+      <path d="M205 96 l1.5 5 5 1.5 -5 1.5 -1.5 5 -1.5-5 -5-1.5 5-1.5z"/>
+      <path d="M36 84 l1.2 4 4 1.2 -4 1.2 -1.2 4 -1.2-4 -4-1.2 4-1.2z"/>
+      <path d="M120 32 l1.3 4.4 4.4 1.3 -4.4 1.3 -1.3 4.4 -1.3-4.4 -4.4-1.3 4.4-1.3z"/>
+    </g>
+    <!-- scattered spark dots -->
+    <g fill="#ffd24a">
+      <circle cx="74" cy="166" r="2.4"/><circle cx="168" cy="48" r="2.2"/>
+      <circle cx="200" cy="128" r="2"/><circle cx="46" cy="138" r="2"/>
+    </g>
+    <g fill="#7de4d4"><circle cx="158" cy="170" r="2"/><circle cx="62" cy="92" r="1.8"/></g>
+  </g>
+
+  <!-- avatar glow ring -->
+  <circle cx="120" cy="118" r="47" fill="none" stroke="url(#e_ring)" stroke-width="5" filter="url(#e_glow)"/>
+  <circle cx="120" cy="118" r="42" fill="none" stroke="#0a0c12" stroke-width="2.5" opacity="0.7"/>
+
+  <!-- avatar -->
+  <g filter="url(#e_softShadow)">
+    <circle cx="120" cy="118" r="40" fill="url(#e_avFill)"/>
+    <g clip-path="url(#e_avClip)">
+      <ellipse cx="120" cy="92" rx="42" ry="22" fill="#aef3ea" opacity="0.35"/>
+      <!-- friendly silhouette face -->
+      <circle cx="120" cy="106" r="14" fill="#0a0c12" opacity="0.82"/>
+      <path d="M96 152 c0-15 11-24 24-24 13 0 24 9 24 24 z" fill="#0a0c12" opacity="0.82"/>
+      <!-- smiley accents -->
+      <circle cx="114" cy="104" r="2.6" fill="#aef3ea"/>
+      <circle cx="126" cy="104" r="2.6" fill="#aef3ea"/>
+      <path d="M113 110 q7 6 14 0" fill="none" stroke="#aef3ea" stroke-width="2.2" stroke-linecap="round"/>
+    </g>
+    <circle cx="120" cy="118" r="40" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.25"/>
+  </g>
+
+  <!-- tier badges around avatar -->
+  <g filter="url(#e_softShadow)">
+    <!-- gold sub star -->
+    <g transform="translate(158,84)">
+      <circle r="13" fill="url(#e_gold)" stroke="#fff3c4" stroke-width="1.2"/>
+      <path d="M0 -8 l2.4 5 5.4 .8 -3.9 3.8 .9 5.4 -4.8-2.5 -4.8 2.5 .9-5.4 -3.9-3.8 5.4-.8z" fill="#7a4a06"/>
+    </g>
+    <!-- patreon P -->
+    <g transform="translate(78,150)">
+      <circle r="12.5" fill="#9d8cff" stroke="#c9beff" stroke-width="1.2"/>
+      <circle cx="2.5" cy="-1" r="5" fill="#0a0c12"/>
+      <rect x="-6" y="-7" width="3" height="15" rx="1.4" fill="#0a0c12"/>
+    </g>
+    <!-- cheer/bits gem -->
+    <g transform="translate(160,150)">
+      <circle r="12.5" fill="#16223a" stroke="#2bd4d4" stroke-width="1.2"/>
+      <path d="M0 -7 l6 4 -2.4 8 -7.2 0 -2.4-8z" fill="#7de4d4"/>
+      <path d="M0 -7 l6 4 -6 2 -6-2z" fill="#aef3ea"/>
+    </g>
+  </g>
+
+  <!-- big floating +1 -->
+  <g filter="url(#e_goldGlow)">
+    <text x="206" y="116" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="900" fill="url(#e_plus)" stroke="#7a4a06" stroke-width="1.4" letter-spacing="-2">+1</text>
+  </g>
+
+  <!-- LEVEL UP kicker -->
+  <text x="240" y="50" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="800" letter-spacing="5" fill="#aef3ea" filter="url(#e_glow)">LEVEL UP</text>
+
+  <!-- score ticker panel -->
+  <g filter="url(#e_softShadow)">
+    <rect x="240" y="146" width="186" height="54" rx="11" fill="url(#e_panel)" stroke="url(#e_ring)" stroke-width="1.6"/>
+  </g>
+  <text x="250" y="142" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="800" letter-spacing="3" fill="#7de4d4">FOLLOWERS</text>
+
+  <!-- ticker face -->
+  <rect x="244" y="150" width="178" height="46" rx="9" fill="url(#e_tickFace)"/>
+  <g clip-path="url(#e_tickClip)">
+    <!-- subtle scanline sheen -->
+    <rect x="244" y="150" width="178" height="10" fill="#ffffff" opacity="0.06"/>
+    <!-- score digits -->
+    <text x="256" y="186" font-family="'Courier New', monospace" font-size="34" font-weight="700" letter-spacing="2" fill="#aef3ea" filter="url(#e_glow)">1,24</text>
+    <!-- digit-roll cue on the last digit -->
+    <g opacity="0.45">
+      <text x="392" y="170" font-family="'Courier New', monospace" font-size="30" font-weight="700" fill="url(#e_rollFade)">7</text>
+    </g>
+    <text x="392" y="186" font-family="'Courier New', monospace" font-size="34" font-weight="700" fill="#ffd24a" filter="url(#e_glow)">8</text>
+    <g opacity="0.4">
+      <text x="392" y="206" font-family="'Courier New', monospace" font-size="30" font-weight="700" fill="url(#e_rollFade)">9</text>
+    </g>
+    <!-- roll bracket cue -->
+    <path d="M388 156 l8 0 M388 190 l8 0" stroke="#ffd24a" stroke-width="1.4" opacity="0.7"/>
+  </g>
+  <rect x="244" y="150" width="178" height="46" rx="9" fill="none" stroke="#2bd4d4" stroke-width="1" opacity="0.5"/>
+
+  <!-- lower FOLLOWED banner -->
+  <g filter="url(#e_softShadow)">
+    <rect x="40" y="212" width="400" height="40" rx="20" fill="url(#e_panel)" stroke="url(#e_banner)" stroke-width="2"/>
+    <rect x="46" y="218" width="10" height="28" rx="5" fill="url(#e_banner)"/>
+  </g>
+  <text x="240" y="238" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="900" letter-spacing="0.5" fill="#ffffff">
+    <tspan fill="#7de4d4">@aurora_fan</tspan><tspan fill="#ffffff"> </tspan><tspan fill="#ffd24a" filter="url(#e_glow)">FOLLOWED</tspan>
+  </text>
+
+  <!-- corner aurora accent ticks -->
+  <g opacity="0.8" filter="url(#e_glow)">
+    <path d="M40 206 q-2-10 8-12" fill="none" stroke="#9d8cff" stroke-width="2" stroke-linecap="round"/>
+    <path d="M440 206 q2-10 -8-12" fill="none" stroke="#2bd4d4" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg>

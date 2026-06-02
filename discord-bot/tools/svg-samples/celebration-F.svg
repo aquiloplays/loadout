@@ -1,0 +1,131 @@
+<svg viewBox="0 0 480 270">
+  <defs>
+    <linearGradient id="f_glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a2030" stop-opacity="0.86"/>
+      <stop offset="0.5" stop-color="#12161f" stop-opacity="0.82"/>
+      <stop offset="1" stop-color="#0a0c12" stop-opacity="0.88"/>
+    </linearGradient>
+    <linearGradient id="f_sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="0.18" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="f_accent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.5" stop-color="#2bd4d4"/>
+      <stop offset="1" stop-color="#9d8cff"/>
+    </linearGradient>
+    <linearGradient id="f_ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7de4d4"/>
+      <stop offset="0.55" stop-color="#2bd4d4"/>
+      <stop offset="1" stop-color="#9d8cff"/>
+    </linearGradient>
+    <radialGradient id="f_av" cx="0.4" cy="0.32" r="0.85">
+      <stop offset="0" stop-color="#9d8cff"/>
+      <stop offset="0.55" stop-color="#7a5cff"/>
+      <stop offset="1" stop-color="#3a2f7a"/>
+    </radialGradient>
+    <radialGradient id="f_softlight" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2bd4d4" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#2bd4d4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="f_check" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="1" stop-color="#2bd4d4"/>
+    </linearGradient>
+    <radialGradient id="f_gem" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.6" stop-color="#2bd4d4"/>
+      <stop offset="1" stop-color="#1f8fa8"/>
+    </radialGradient>
+    <radialGradient id="f_gold" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffe89a"/>
+      <stop offset="0.6" stop-color="#ffd24a"/>
+      <stop offset="1" stop-color="#c99419"/>
+    </radialGradient>
+    <filter id="f_shadow" x="-40%" y="-40%" width="180%" height="200%">
+      <feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="f_glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="3.2" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="f_avclip">
+      <circle cx="304" cy="58" r="22"/>
+    </clipPath>
+    <clipPath id="f_cardclip">
+      <rect x="244" y="28" width="216" height="62" rx="18"/>
+    </clipPath>
+  </defs>
+
+  <!-- ambient soft light behind toast (overlay-safe, low opacity) -->
+  <ellipse cx="352" cy="58" rx="150" ry="78" fill="url(#f_softlight)"/>
+
+  <!-- frosted glass card -->
+  <g filter="url(#f_shadow)">
+    <rect x="244" y="28" width="216" height="62" rx="18" fill="url(#f_glass)"/>
+  </g>
+  <g clip-path="url(#f_cardclip)">
+    <rect x="244" y="28" width="216" height="34" fill="url(#f_sheen)"/>
+    <!-- subtle vertical aurora accent line, left edge -->
+    <rect x="248" y="40" width="2.4" height="38" rx="1.2" fill="url(#f_accent)" opacity="0.95"/>
+  </g>
+  <!-- crisp glass border -->
+  <rect x="244.6" y="28.6" width="214.8" height="60.8" rx="17.4" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1.1"/>
+  <rect x="245.6" y="29.6" width="212.8" height="58.8" rx="16.4" fill="none" stroke="#000000" stroke-opacity="0.25" stroke-width="0.8"/>
+
+  <!-- avatar glow ring -->
+  <circle cx="304" cy="58" r="25" fill="none" stroke="url(#f_ring)" stroke-width="2.6" filter="url(#f_glow)"/>
+  <circle cx="304" cy="58" r="23.4" fill="none" stroke="#0a0c12" stroke-opacity="0.5" stroke-width="1"/>
+  <!-- avatar fill + face placeholder -->
+  <circle cx="304" cy="58" r="22" fill="url(#f_av)"/>
+  <g clip-path="url(#f_avclip)">
+    <ellipse cx="304" cy="46" rx="18" ry="16" fill="#ffffff" opacity="0.07"/>
+    <!-- friendly silhouette -->
+    <circle cx="304" cy="51" r="7.6" fill="#eef0ff" opacity="0.92"/>
+    <path d="M289 78 q15 -18 30 0 Z" fill="#eef0ff" opacity="0.92"/>
+  </g>
+
+  <!-- live aurora dot accent (top-right of avatar ring) -->
+  <circle cx="322" cy="40" r="5.4" fill="#0a0c12"/>
+  <circle cx="322" cy="40" r="3.6" fill="url(#f_check)" filter="url(#f_glow)"/>
+
+  <!-- text block -->
+  <text x="340" y="52" font-family="Helvetica, Arial, sans-serif" font-size="15.5" font-weight="600" fill="#ffffff" letter-spacing="0.2">@aurora_fan</text>
+  <!-- tiny aurora checkmark next to name -->
+  <g transform="translate(437.5 47)">
+    <circle cx="0" cy="0" r="6.2" fill="url(#f_check)"/>
+    <path d="M-2.8 0.2 L-0.8 2.4 L3 -2.4" fill="none" stroke="#0a0c12" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- sub-label -->
+  <text x="340" y="68" font-family="Helvetica, Arial, sans-serif" font-size="10.5" font-weight="500" fill="#aef3ea" opacity="0.82" letter-spacing="0.6">Followed</text>
+
+  <!-- tier badges row -->
+  <g transform="translate(403 64.5)">
+    <!-- gold sub star -->
+    <g>
+      <circle cx="0" cy="0" r="6.6" fill="url(#f_gold)"/>
+      <circle cx="0" cy="0" r="6.6" fill="none" stroke="#7a5a10" stroke-opacity="0.5" stroke-width="0.6"/>
+      <path d="M0 -3.6 L1.1 -1.1 L3.8 -0.8 L1.8 1 L2.4 3.7 L0 2.3 L-2.4 3.7 L-1.8 1 L-3.8 -0.8 L-1.1 -1.1 Z" fill="#5a3e08"/>
+    </g>
+    <!-- patreon P -->
+    <g transform="translate(16 0)">
+      <circle cx="0" cy="0" r="6.6" fill="#ff5a4a"/>
+      <circle cx="0" cy="0" r="6.6" fill="none" stroke="#a82e22" stroke-opacity="0.5" stroke-width="0.6"/>
+      <text x="0" y="3.3" text-anchor="middle" font-family="Georgia, serif" font-size="9.5" font-weight="700" fill="#ffffff">P</text>
+    </g>
+    <!-- cheer bits gem -->
+    <g transform="translate(32 0)">
+      <path d="M0 -6.4 L5.4 -2.2 L3.4 5.4 L-3.4 5.4 L-5.4 -2.2 Z" fill="url(#f_gem)"/>
+      <path d="M0 -6.4 L0 5.4 M-5.4 -2.2 L5.4 -2.2" stroke="#0a0c12" stroke-opacity="0.35" stroke-width="0.7"/>
+      <path d="M0 -6.4 L5.4 -2.2 L3.4 5.4 Z" fill="#ffffff" opacity="0.16"/>
+    </g>
+  </g>
+
+  <!-- soft bottom aurora accent line under text -->
+  <rect x="340" y="74" width="86" height="1.4" rx="0.7" fill="url(#f_accent)" opacity="0.5"/>
+</svg>

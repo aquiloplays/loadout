@@ -1,0 +1,143 @@
+<svg viewBox="0 0 480 270" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="b_wash" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2bd4d4"/>
+      <stop offset="0.45" stop-color="#7de4d4"/>
+      <stop offset="0.75" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#7a5cff"/>
+    </linearGradient>
+    <radialGradient id="b_glowbg" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#aef3ea" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#2bd4d4" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#0a0c12" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="b_av" cx="0.4" cy="0.32" r="0.85">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.45" stop-color="#7de4d4"/>
+      <stop offset="0.8" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#7a5cff"/>
+    </radialGradient>
+    <linearGradient id="b_ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.5" stop-color="#2bd4d4"/>
+      <stop offset="1" stop-color="#9d8cff"/>
+    </linearGradient>
+    <linearGradient id="b_shock" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#aef3ea" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#aef3ea" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#9d8cff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="b_name" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.5" stop-color="#7de4d4"/>
+      <stop offset="1" stop-color="#9d8cff"/>
+    </linearGradient>
+    <linearGradient id="b_head" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#ffd24a"/>
+    </linearGradient>
+    <radialGradient id="b_gold" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff0c0"/>
+      <stop offset="0.6" stop-color="#ffd24a"/>
+      <stop offset="1" stop-color="#d99a1a"/>
+    </radialGradient>
+    <radialGradient id="b_gem" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#d9ccff"/>
+      <stop offset="0.6" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#7a5cff"/>
+    </radialGradient>
+    <filter id="b_soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="bl"/>
+      <feMerge><feMergeNode in="bl"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="b_blur" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <filter id="b_drop" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.6" flood-color="#0a0c12" flood-opacity="0.6"/>
+    </filter>
+    <clipPath id="b_avclip"><circle cx="240" cy="108" r="38"/></clipPath>
+  </defs>
+
+  <!-- translucent aurora wash (partial opacity, overlay-safe) -->
+  <rect x="0" y="0" width="480" height="270" fill="url(#b_wash)" opacity="0.30"/>
+  <ellipse cx="240" cy="120" rx="280" ry="150" fill="url(#b_glowbg)"/>
+  <path d="M0 70 Q120 30 240 75 T480 60 L480 0 L0 0 Z" fill="#2bd4d4" opacity="0.14" filter="url(#b_blur)"/>
+  <path d="M0 210 Q140 250 280 200 T480 220 L480 270 L0 270 Z" fill="#7a5cff" opacity="0.14" filter="url(#b_blur)"/>
+
+  <!-- confetti -->
+  <g opacity="0.95">
+    <rect x="40" y="34" width="10" height="5" rx="1" fill="#7de4d4" transform="rotate(28 45 36)"/>
+    <rect x="92" y="20" width="8" height="4" rx="1" fill="#ffd24a" transform="rotate(-40 96 22)"/>
+    <rect x="150" y="46" width="9" height="5" rx="1" fill="#aef3ea" transform="rotate(15 154 48)"/>
+    <rect x="200" y="26" width="7" height="4" rx="1" fill="#9d8cff" transform="rotate(60 203 28)"/>
+    <rect x="270" y="40" width="10" height="5" rx="1" fill="#2bd4d4" transform="rotate(-25 275 42)"/>
+    <rect x="330" y="22" width="8" height="4" rx="1" fill="#ffd24a" transform="rotate(45 334 24)"/>
+    <rect x="392" y="48" width="9" height="5" rx="1" fill="#7de4d4" transform="rotate(-15 396 50)"/>
+    <rect x="440" y="30" width="7" height="4" rx="1" fill="#9d8cff" transform="rotate(35 443 32)"/>
+    <rect x="20" y="100" width="9" height="5" rx="1" fill="#aef3ea" transform="rotate(-50 24 102)"/>
+    <rect x="64" y="140" width="8" height="4" rx="1" fill="#2bd4d4" transform="rotate(20 68 142)"/>
+    <rect x="120" y="116" width="10" height="5" rx="1" fill="#9d8cff" transform="rotate(-30 125 118)"/>
+    <rect x="412" y="110" width="9" height="5" rx="1" fill="#7de4d4" transform="rotate(50 416 112)"/>
+    <rect x="450" y="150" width="8" height="4" rx="1" fill="#ffd24a" transform="rotate(-20 454 152)"/>
+    <rect x="36" y="186" width="9" height="5" rx="1" fill="#2bd4d4" transform="rotate(40 40 188)"/>
+    <rect x="100" y="214" width="8" height="4" rx="1" fill="#aef3ea" transform="rotate(-35 104 216)"/>
+    <rect x="158" y="240" width="10" height="5" rx="1" fill="#9d8cff" transform="rotate(22 163 242)"/>
+    <rect x="320" y="236" width="9" height="5" rx="1" fill="#7de4d4" transform="rotate(-45 324 238)"/>
+    <rect x="380" y="208" width="8" height="4" rx="1" fill="#ffd24a" transform="rotate(30 384 210)"/>
+    <rect x="436" y="232" width="9" height="5" rx="1" fill="#2bd4d4" transform="rotate(-18 440 234)"/>
+    <rect x="240" y="244" width="7" height="4" rx="1" fill="#aef3ea" transform="rotate(55 243 246)"/>
+  </g>
+
+  <!-- expanding shockwave rings -->
+  <circle cx="240" cy="108" r="74" fill="none" stroke="url(#b_shock)" stroke-width="5" opacity="0.9" filter="url(#b_soft)"/>
+  <circle cx="240" cy="108" r="92" fill="none" stroke="#aef3ea" stroke-width="1.6" opacity="0.45"/>
+  <circle cx="240" cy="108" r="58" fill="none" stroke="#ffd24a" stroke-width="1.2" opacity="0.5"/>
+
+  <!-- radiating sparks/stars -->
+  <g stroke-linecap="round" filter="url(#b_soft)">
+    <line x1="240" y1="50" x2="240" y2="30" stroke="#aef3ea" stroke-width="2.4"/>
+    <line x1="240" y1="166" x2="240" y2="186" stroke="#9d8cff" stroke-width="2.4"/>
+    <line x1="182" y1="108" x2="160" y2="108" stroke="#7de4d4" stroke-width="2.4"/>
+    <line x1="298" y1="108" x2="320" y2="108" stroke="#7de4d4" stroke-width="2.4"/>
+    <line x1="200" y1="68" x2="184" y2="52" stroke="#ffd24a" stroke-width="2"/>
+    <line x1="280" y1="68" x2="296" y2="52" stroke="#aef3ea" stroke-width="2"/>
+    <line x1="200" y1="148" x2="184" y2="164" stroke="#9d8cff" stroke-width="2"/>
+    <line x1="280" y1="148" x2="296" y2="164" stroke="#7de4d4" stroke-width="2"/>
+  </g>
+  <g fill="#fff8e0" filter="url(#b_soft)">
+    <path d="M186 44 l1.6 4.4 4.4 1.6 -4.4 1.6 -1.6 4.4 -1.6-4.4 -4.4-1.6 4.4-1.6 z"/>
+    <path d="M300 50 l1.4 3.8 3.8 1.4 -3.8 1.4 -1.4 3.8 -1.4-3.8 -3.8-1.4 3.8-1.4 z"/>
+    <path d="M166 130 l1.4 3.8 3.8 1.4 -3.8 1.4 -1.4 3.8 -1.4-3.8 -3.8-1.4 3.8-1.4 z" fill="#aef3ea"/>
+    <path d="M318 142 l1.4 3.8 3.8 1.4 -3.8 1.4 -1.4 3.8 -1.4-3.8 -3.8-1.4 3.8-1.4 z" fill="#ffd24a"/>
+  </g>
+
+  <!-- avatar -->
+  <circle cx="240" cy="108" r="46" fill="#0a0c12" opacity="0.55" filter="url(#b_blur)"/>
+  <circle cx="240" cy="108" r="44" fill="none" stroke="url(#b_ring)" stroke-width="5" filter="url(#b_soft)"/>
+  <circle cx="240" cy="108" r="38" fill="url(#b_av)"/>
+  <g clip-path="url(#b_avclip)">
+    <circle cx="240" cy="98" r="14" fill="#ffffff" opacity="0.92"/>
+    <path d="M212 150 q28-30 56 0 z" fill="#ffffff" opacity="0.92"/>
+    <circle cx="234" cy="96" r="2.4" fill="#0a0c12"/>
+    <circle cx="246" cy="96" r="2.4" fill="#0a0c12"/>
+    <path d="M232 104 q8 7 16 0" fill="none" stroke="#0a0c12" stroke-width="2" stroke-linecap="round"/>
+    <ellipse cx="240" cy="80" rx="30" ry="14" fill="#ffffff" opacity="0.18"/>
+  </g>
+
+  <!-- name -->
+  <text x="240" y="206" text-anchor="middle" font-family="Verdana, Geneva, sans-serif" font-size="22" font-weight="bold" fill="url(#b_name)" filter="url(#b_drop)" letter-spacing="0.5">@aurora_fan</text>
+
+  <!-- headline -->
+  <text x="240" y="234" text-anchor="middle" font-family="Verdana, Geneva, sans-serif" font-size="16" font-weight="bold" fill="url(#b_head)" filter="url(#b_drop)" letter-spacing="3">FOLLOWED!</text>
+
+  <!-- tier badges -->
+  <g filter="url(#b_drop)">
+    <circle cx="196" cy="248" r="11" fill="url(#b_gold)" stroke="#fff0c0" stroke-width="1"/>
+    <path d="M196 241 l2 4 4.4 .6 -3.2 3.1 .8 4.4 -4-2.1 -4 2.1 .8-4.4 -3.2-3.1 4.4-.6 z" fill="#7a5510"/>
+    <circle cx="240" cy="252" r="11" fill="#e85b9c" stroke="#ffd6ea" stroke-width="1"/>
+    <text x="240" y="256" text-anchor="middle" font-family="Verdana, sans-serif" font-size="12" font-weight="bold" fill="#ffffff">P</text>
+    <path d="M284 240 l9 6 -3.6 10 -10.8 0 -3.6-10 z" fill="url(#b_gem)" stroke="#d9ccff" stroke-width="1"/>
+    <path d="M284 244 l4.5 3 -1.8 5 -5.4 0 -1.8-5 z" fill="#aef3ea" opacity="0.55"/>
+  </g>
+</svg>

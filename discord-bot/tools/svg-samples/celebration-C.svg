@@ -1,0 +1,191 @@
+<svg viewBox="0 0 480 270" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="c_burst" cx="50%" cy="46%" r="62%">
+      <stop offset="0%" stop-color="#ffe9a8" stop-opacity="0.85"/>
+      <stop offset="30%" stop-color="#ffd24a" stop-opacity="0.42"/>
+      <stop offset="62%" stop-color="#b81f2a" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#0a0c12" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="c_ray" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe7a0" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffd24a" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="c_banner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e23b3b"/>
+      <stop offset="48%" stop-color="#b6212a"/>
+      <stop offset="52%" stop-color="#9a1822"/>
+      <stop offset="100%" stop-color="#6e0f17"/>
+    </linearGradient>
+    <linearGradient id="c_bannerSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32"/>
+      <stop offset="18%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="c_gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff2c0"/>
+      <stop offset="42%" stop-color="#ffd24a"/>
+      <stop offset="100%" stop-color="#b8821f"/>
+    </linearGradient>
+    <linearGradient id="c_goldRim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff6d2"/>
+      <stop offset="50%" stop-color="#ffce47"/>
+      <stop offset="100%" stop-color="#9c6c18"/>
+    </linearGradient>
+    <radialGradient id="c_av" cx="38%" cy="32%" r="80%">
+      <stop offset="0%" stop-color="#aef3ea"/>
+      <stop offset="45%" stop-color="#2bd4d4"/>
+      <stop offset="100%" stop-color="#7a5cff"/>
+    </radialGradient>
+    <linearGradient id="c_ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff2c0"/>
+      <stop offset="50%" stop-color="#ffd24a"/>
+      <stop offset="100%" stop-color="#a8741c"/>
+    </linearGradient>
+    <linearGradient id="c_title" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff8df"/>
+      <stop offset="55%" stop-color="#ffe49a"/>
+      <stop offset="100%" stop-color="#e9b13c"/>
+    </linearGradient>
+    <linearGradient id="c_subStar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe9a8"/>
+      <stop offset="100%" stop-color="#e9a91f"/>
+    </linearGradient>
+    <filter id="c_glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="c_soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="c_textsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.2" flood-color="#5a0a10" flood-opacity="0.9"/>
+    </filter>
+    <clipPath id="c_avclip"><circle cx="0" cy="0" r="34"/></clipPath>
+  </defs>
+
+  <!-- color burst -->
+  <ellipse cx="240" cy="128" rx="250" ry="150" fill="url(#c_burst)"/>
+  <g filter="url(#c_glow)" opacity="0.85">
+    <g fill="url(#c_ray)">
+      <polygon points="240,128 226,-30 254,-30"/>
+      <polygon points="240,128 300,-22 326,-8"/>
+      <polygon points="240,128 360,8 380,30"/>
+      <polygon points="240,128 412,70 422,96"/>
+      <polygon points="240,128 180,-22 154,-8"/>
+      <polygon points="240,128 120,8 100,30"/>
+      <polygon points="240,128 68,70 58,96"/>
+      <polygon points="240,128 405,170 420,150"/>
+      <polygon points="240,128 75,170 60,150"/>
+    </g>
+  </g>
+
+  <!-- soft spark particles -->
+  <g fill="#ffe9a8" opacity="0.9" filter="url(#c_glow)">
+    <circle cx="96" cy="62" r="2.4"/>
+    <circle cx="392" cy="58" r="2"/>
+    <circle cx="430" cy="120" r="1.8"/>
+    <circle cx="58" cy="118" r="2.1"/>
+    <circle cx="150" cy="40" r="1.5"/>
+    <circle cx="340" cy="34" r="1.7"/>
+    <circle cx="408" cy="200" r="1.6"/>
+    <circle cx="70" cy="206" r="1.6"/>
+  </g>
+
+  <!-- ===== BANNER ===== -->
+  <g filter="url(#c_soft)">
+    <!-- back tails -->
+    <polygon points="36,118 70,108 70,176 36,186 50,152" fill="#6e0f17"/>
+    <polygon points="444,118 410,108 410,176 444,186 430,152" fill="#6e0f17"/>
+    <!-- ribbon notched ends -->
+    <polygon points="58,104 422,104 410,144 422,184 58,184 70,144" fill="url(#c_banner)"/>
+    <!-- inner gold frame lines -->
+    <polyline points="74,114 406,114" stroke="url(#c_gold)" stroke-width="2" fill="none" opacity="0.95"/>
+    <polyline points="74,174 406,174" stroke="url(#c_gold)" stroke-width="2" fill="none" opacity="0.95"/>
+    <!-- sheen -->
+    <polygon points="58,104 422,104 410,144 422,184 58,184 70,144" fill="url(#c_bannerSheen)"/>
+    <!-- ribbon outer edge highlight -->
+    <polygon points="58,104 422,104 410,144 422,184 58,184 70,144" fill="none" stroke="#ffd98a" stroke-opacity="0.5" stroke-width="1"/>
+  </g>
+
+  <!-- gold corner flourishes -->
+  <g fill="url(#c_goldRim)" filter="url(#c_glow)">
+    <path d="M74,108 q18,-10 34,2 q-16,-2 -22,8 q-2,-8 -12,-10z"/>
+    <path d="M406,108 q-18,-10 -34,2 q16,-2 22,8 q2,-8 12,-10z"/>
+    <path d="M74,180 q18,10 34,-2 q-16,2 -22,-8 q-2,8 -12,10z"/>
+    <path d="M406,180 q-18,10 -34,-2 q16,2 22,-8 q2,8 12,10z"/>
+  </g>
+
+  <!-- headline text -->
+  <text x="240" y="138" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="34" letter-spacing="3" fill="url(#c_title)" filter="url(#c_textsh)" style="font-stretch:expanded">NEW FOLLOWER</text>
+  <!-- @name on banner -->
+  <text x="240" y="166" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="14" letter-spacing="2" fill="#ffe9b8" filter="url(#c_textsh)">@aurora_fan</text>
+
+  <!-- ===== AVATAR in laurel frame (left) ===== -->
+  <g transform="translate(96,128)" filter="url(#c_soft)">
+    <!-- laurel branches -->
+    <g fill="none" stroke="url(#c_ring)" stroke-width="3" stroke-linecap="round" opacity="0.95" filter="url(#c_glow)">
+      <path d="M-44,18 q-12,-22 -2,-46"/>
+      <path d="M44,18 q12,-22 2,-46"/>
+    </g>
+    <g fill="url(#c_gold)" opacity="0.95">
+      <path d="M-46,8 q-9,-2 -11,-11 q9,2 11,11z"/>
+      <path d="M-49,-4 q-9,-3 -10,-12 q9,3 10,12z"/>
+      <path d="M-50,-16 q-8,-4 -8,-13 q8,4 8,13z"/>
+      <path d="M-48,-28 q-7,-5 -6,-14 q7,5 6,14z"/>
+      <path d="M46,8 q9,-2 11,-11 q-9,2 -11,11z"/>
+      <path d="M49,-4 q9,-3 10,-12 q-9,3 -10,12z"/>
+      <path d="M50,-16 q8,-4 8,-13 q-8,4 -8,13z"/>
+      <path d="M48,-28 q7,-5 6,-14 q-7,5 -6,14z"/>
+    </g>
+    <!-- glowing ring -->
+    <circle cx="0" cy="0" r="39" fill="#0a0c12" opacity="0.6"/>
+    <circle cx="0" cy="0" r="37.5" fill="none" stroke="url(#c_ring)" stroke-width="4.5" filter="url(#c_glow)"/>
+    <!-- avatar fill -->
+    <g clip-path="url(#c_avclip)">
+      <circle cx="0" cy="0" r="34" fill="url(#c_av)"/>
+      <ellipse cx="-10" cy="-12" rx="16" ry="11" fill="#ffffff" opacity="0.22"/>
+      <!-- friendly face -->
+      <circle cx="-11" cy="-4" r="4" fill="#0a0c12"/>
+      <circle cx="11" cy="-4" r="4" fill="#0a0c12"/>
+      <circle cx="-9.5" cy="-5.5" r="1.3" fill="#ffffff"/>
+      <circle cx="12.5" cy="-5.5" r="1.3" fill="#ffffff"/>
+      <path d="M-13,10 q13,13 26,0" fill="none" stroke="#0a0c12" stroke-width="3.4" stroke-linecap="round"/>
+    </g>
+    <!-- ring crest gem -->
+    <circle cx="0" cy="-39" r="6" fill="url(#c_subStar)" stroke="#7a4d10" stroke-width="1" filter="url(#c_glow)"/>
+    <polygon points="0,-43 1.4,-39.6 5,-39 2.2,-36.6 3,-33 0,-35 -3,-33 -2.2,-36.6 -5,-39 -1.4,-39.6" fill="#7a4d10"/>
+  </g>
+
+  <!-- ===== TIER BADGES (right) ===== -->
+  <g transform="translate(392,128)" filter="url(#c_soft)">
+    <!-- gold sub star -->
+    <g transform="translate(0,-30)">
+      <circle r="15" fill="#1a1320" stroke="url(#c_ring)" stroke-width="2"/>
+      <polygon points="0,-9 2.7,-2.8 9.2,-2.6 4,1.6 5.7,7.9 0,4 -5.7,7.9 -4,1.6 -9.2,-2.6 -2.7,-2.8" fill="url(#c_subStar)" filter="url(#c_glow)"/>
+    </g>
+    <!-- patreon P -->
+    <g transform="translate(0,2)">
+      <circle r="15" fill="#1a1320" stroke="#7de4d4" stroke-width="2"/>
+      <circle cx="2" cy="-1" r="5.5" fill="none" stroke="#aef3ea" stroke-width="3.4"/>
+      <rect x="-6.5" y="-8" width="3.2" height="16" rx="1" fill="#aef3ea"/>
+    </g>
+    <!-- cheer bits gem -->
+    <g transform="translate(0,34)">
+      <circle r="15" fill="#1a1320" stroke="#9d8cff" stroke-width="2"/>
+      <polygon points="0,-7 7,-1 0,9 -7,-1" fill="#9d8cff" filter="url(#c_glow)"/>
+      <polygon points="0,-7 0,9 7,-1" fill="#c7bcff"/>
+      <polygon points="-7,-1 7,-1 0,-7" fill="#e6e0ff" opacity="0.8"/>
+    </g>
+  </g>
+
+  <!-- restyle note -->
+  <g transform="translate(240,206)">
+    <rect x="-86" y="-9" width="172" height="18" rx="9" fill="#0a0c12" opacity="0.5"/>
+    <circle cx="-74" cy="0" r="3" fill="#2bd4d4"/>
+    <text x="6" y="3.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="600" font-size="9" letter-spacing="0.6" fill="#aef3ea">banner restyles to each game's victory screen</text>
+  </g>
+
+  <!-- bottom aurora glow strip -->
+  <rect x="0" y="244" width="480" height="26" fill="url(#c_banner)" opacity="0.0"/>
+  <ellipse cx="240" cy="232" rx="200" ry="14" fill="#ffd24a" opacity="0.12" filter="url(#c_glow)"/>
+</svg>

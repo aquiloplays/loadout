@@ -1,0 +1,846 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:968px; background:#101117;
+         font-family:"Segoe UI", Arial, Helvetica, sans-serif; color:#e7ecf3; }
+  header { padding:13px 22px 10px; border-bottom:2px solid #2bd4d4; }
+  header h1 { font-size:24px; font-weight:800; color:#aef3ea; }
+  header p  { font-size:13px; color:#9aa6b6; margin-top:4px; }
+  .grid { display:grid; grid-template-columns:repeat(2,1fr); }
+  .cell { padding:14px 14px 6px; position:relative; }
+  .stage { position:relative; height:248px; border-radius:10px; overflow:hidden;
+           border:1px solid #2a2f38;
+           background:
+             radial-gradient(circle at 30% 25%, rgba(60,72,90,0.5), rgba(0,0,0,0) 60%),
+             radial-gradient(circle at 75% 80%, rgba(40,30,60,0.5), rgba(0,0,0,0) 60%),
+             linear-gradient(160deg, #1b2129 0%, #0e1116 100%); }
+  .stage svg { position:absolute; inset:0; width:100% !important; height:100% !important; display:block; }
+  .badge { position:absolute; top:6px; left:6px; z-index:5;
+           background:#2bd4d4; color:#06222a; font-weight:800; font-size:14px;
+           width:26px; height:26px; line-height:26px; text-align:center;
+           border-radius:7px; box-shadow:0 1px 4px rgba(0,0,0,0.6); }
+  .label { margin-top:8px; }
+  .label .t { font-size:15px; font-weight:800; color:#f2f4f8; }
+  .label .d { font-size:11.5px; color:#9aa6b6; margin-top:2px; line-height:1.3; }
+</style></head><body>
+  <header>
+    <h1>Follow Overlay &mdash; Celebration Design Options</h1>
+    <p>Pick one (A&ndash;F) &middot; freeze-frame of each design at its peak moment &middot; avatar/name/badges are placeholders (real values come from TikTok/Twitch at runtime) &middot; pure SVG, $0</p>
+  </header>
+  <div class="grid">
+<div class="cell"><span class="badge">A</span><div class="stage"><svg viewBox="0 0 480 270">
+  <defs>
+    <linearGradient id="a_auroraEdge" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2bd4d4"/>
+      <stop offset="0.4" stop-color="#7de4d4"/>
+      <stop offset="0.7" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#7a5cff"/>
+    </linearGradient>
+    <linearGradient id="a_glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#141826" stop-opacity="0.86"/>
+      <stop offset="0.5" stop-color="#0a0c12" stop-opacity="0.84"/>
+      <stop offset="1" stop-color="#05060a" stop-opacity="0.82"/>
+    </linearGradient>
+    <linearGradient id="a_glassSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="0.18" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="a_avatarFill" cx="0.4" cy="0.32" r="0.85">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.45" stop-color="#7de4d4"/>
+      <stop offset="0.8" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#5b46c9"/>
+    </radialGradient>
+    <linearGradient id="a_ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.45" stop-color="#2bd4d4"/>
+      <stop offset="0.75" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#ffd24a"/>
+    </linearGradient>
+    <linearGradient id="a_underline" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2bd4d4" stop-opacity="0"/>
+      <stop offset="0.12" stop-color="#2bd4d4"/>
+      <stop offset="0.55" stop-color="#7de4d4"/>
+      <stop offset="0.8" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#9d8cff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="a_gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe79a"/>
+      <stop offset="0.5" stop-color="#ffd24a"/>
+      <stop offset="1" stop-color="#e0a417"/>
+    </linearGradient>
+    <linearGradient id="a_trail" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7de4d4" stop-opacity="0"/>
+      <stop offset="1" stop-color="#aef3ea" stop-opacity="0.9"/>
+    </linearGradient>
+    <radialGradient id="a_avGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7de4d4" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#7de4d4" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="a_glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="a_softShadow" x="-30%" y="-40%" width="160%" height="200%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="a_textGlow" x="-30%" y="-60%" width="160%" height="240%">
+      <feGaussianBlur stdDeviation="1.1" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="a_avatarClip"><circle cx="78" cy="186" r="34"/></clipPath>
+    <clipPath id="a_bannerClip"><rect x="20" y="150" width="440" height="74" rx="16"/></clipPath>
+  </defs>
+
+  <!-- soft partial wash so it reads as overlay, never full opaque -->
+  <rect x="0" y="138" width="480" height="132" fill="#0a0c12" opacity="0.10"/>
+
+  <!-- motion speed-lines implying slide-in -->
+  <g opacity="0.7">
+    <rect x="372" y="166" width="74" height="2.4" rx="1.2" fill="url(#a_trail)"/>
+    <rect x="392" y="182" width="58" height="2" rx="1" fill="url(#a_trail)" opacity="0.8"/>
+    <rect x="384" y="198" width="66" height="2.2" rx="1.1" fill="url(#a_trail)" opacity="0.65"/>
+    <rect x="402" y="212" width="44" height="1.8" rx="0.9" fill="url(#a_trail)" opacity="0.5"/>
+  </g>
+
+  <!-- banner glow trail on leading edge -->
+  <rect x="14" y="150" width="14" height="74" rx="7" fill="#7de4d4" opacity="0.30" filter="url(#a_glow)"/>
+
+  <!-- banner body -->
+  <g filter="url(#a_softShadow)">
+    <rect x="20" y="150" width="440" height="74" rx="16" fill="url(#a_auroraEdge)"/>
+    <rect x="22.5" y="152.5" width="435" height="69" rx="14" fill="url(#a_glass)"/>
+  </g>
+  <!-- glass sheen -->
+  <g clip-path="url(#a_bannerClip)">
+    <rect x="22.5" y="152.5" width="435" height="30" fill="url(#a_glassSheen)"/>
+    <rect x="20" y="150" width="3" height="74" fill="#aef3ea" opacity="0.5"/>
+  </g>
+
+  <!-- avatar glow halo -->
+  <circle cx="78" cy="186" r="46" fill="url(#a_avGlow)"/>
+
+  <!-- avatar ring -->
+  <circle cx="78" cy="186" r="39" fill="none" stroke="url(#a_ring)" stroke-width="4.5" filter="url(#a_glow)"/>
+  <circle cx="78" cy="186" r="35.5" fill="none" stroke="#0a0c12" stroke-width="2" opacity="0.6"/>
+
+  <!-- avatar placeholder face -->
+  <g clip-path="url(#a_avatarClip)">
+    <circle cx="78" cy="186" r="34" fill="url(#a_avatarFill)"/>
+    <circle cx="78" cy="178" r="11" fill="#0a0c12" opacity="0.82"/>
+    <path d="M58 214 a20 16 0 0 1 40 0 Z" fill="#0a0c12" opacity="0.82"/>
+    <circle cx="68" cy="176" r="2.4" fill="#aef3ea"/>
+    <circle cx="79" cy="176" r="2.4" fill="#aef3ea"/>
+    <path d="M68 184 q5.5 5 13 0" fill="none" stroke="#aef3ea" stroke-width="2" stroke-linecap="round"/>
+  </g>
+
+  <!-- tier badge cluster near avatar -->
+  <g filter="url(#a_textGlow)">
+    <!-- gold sub star -->
+    <g transform="translate(54,150)">
+      <circle r="10.5" fill="url(#a_gold)" stroke="#fff7df" stroke-width="1"/>
+      <path d="M0 -6 1.8 -1.8 6 -1.8 2.6 1 3.8 5.4 0 2.8 -3.8 5.4 -2.6 1 -6 -1.8 -1.8 -1.8 Z" fill="#5a3a00"/>
+    </g>
+    <!-- Patreon P -->
+    <g transform="translate(80,144)">
+      <circle r="10" fill="#9d8cff" stroke="#cfc6ff" stroke-width="1"/>
+      <circle cx="2.5" cy="-1" r="4.4" fill="#0a0c12"/>
+      <rect x="-4.5" y="-6" width="2.6" height="13" rx="1" fill="#0a0c12"/>
+    </g>
+    <!-- cheer/bits gem -->
+    <g transform="translate(106,150)">
+      <circle r="10" fill="#2bd4d4" stroke="#aef3ea" stroke-width="1"/>
+      <path d="M0 -6 5 -1 0 6 -5 -1 Z" fill="#0a3b3b"/>
+      <path d="M0 -6 5 -1 0 0 Z" fill="#7de4d4"/>
+      <path d="M0 -6 -5 -1 0 0 Z" fill="#aef3ea"/>
+    </g>
+  </g>
+
+  <!-- eyebrow label -->
+  <g>
+    <rect x="138" y="160" width="11" height="11" rx="2.5" fill="url(#a_gold)"/>
+    <path d="M141 165.5 l1.8 1.8 3.2 -3.6" fill="none" stroke="#5a3a00" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="155" y="169.5" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="700" letter-spacing="3.2" fill="#7de4d4">NEW FOLLOWER</text>
+  </g>
+
+  <!-- headline -->
+  <text x="138" y="198" font-family="Arial, Helvetica, sans-serif" font-size="23" font-weight="800" fill="#ffffff" filter="url(#a_textGlow)">Welcome, <tspan fill="#ffd24a">@aurora_fan</tspan>!</text>
+
+  <!-- swept aurora underline -->
+  <rect x="138" y="206" width="300" height="3" rx="1.5" fill="url(#a_underline)" filter="url(#a_glow)"/>
+  <circle cx="438" cy="207.5" r="3" fill="#aef3ea" filter="url(#a_glow)"/>
+
+  <!-- small kinetic sparkles -->
+  <g fill="#aef3ea" filter="url(#a_glow)">
+    <path d="M428 168 l1.4 3 3 1.4 -3 1.4 -1.4 3 -1.4 -3 -3 -1.4 3 -1.4 Z" opacity="0.9"/>
+    <circle cx="120" cy="178" r="1.6" opacity="0.8"/>
+    <circle cx="452" cy="200" r="1.4" opacity="0.7"/>
+  </g>
+</svg></div><div class="label"><div class="t">A &mdash; Cinematic Lower-Third Reveal</div><div class="d">A glassy aurora-edged lower-third banner slid in with avatar ring, tier badges, and a swept underline at peak.</div></div></div>
+<div class="cell"><span class="badge">B</span><div class="stage"><svg viewBox="0 0 480 270" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="b_wash" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2bd4d4"/>
+      <stop offset="0.45" stop-color="#7de4d4"/>
+      <stop offset="0.75" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#7a5cff"/>
+    </linearGradient>
+    <radialGradient id="b_glowbg" cx="0.5" cy="0.42" r="0.62">
+      <stop offset="0" stop-color="#aef3ea" stop-opacity="0.55"/>
+      <stop offset="0.5" stop-color="#2bd4d4" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#0a0c12" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="b_av" cx="0.4" cy="0.32" r="0.85">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.45" stop-color="#7de4d4"/>
+      <stop offset="0.8" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#7a5cff"/>
+    </radialGradient>
+    <linearGradient id="b_ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.5" stop-color="#2bd4d4"/>
+      <stop offset="1" stop-color="#9d8cff"/>
+    </linearGradient>
+    <linearGradient id="b_shock" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#aef3ea" stop-opacity="0"/>
+      <stop offset="0.5" stop-color="#aef3ea" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#9d8cff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="b_name" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.5" stop-color="#7de4d4"/>
+      <stop offset="1" stop-color="#9d8cff"/>
+    </linearGradient>
+    <linearGradient id="b_head" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#ffd24a"/>
+    </linearGradient>
+    <radialGradient id="b_gold" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff0c0"/>
+      <stop offset="0.6" stop-color="#ffd24a"/>
+      <stop offset="1" stop-color="#d99a1a"/>
+    </radialGradient>
+    <radialGradient id="b_gem" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#d9ccff"/>
+      <stop offset="0.6" stop-color="#9d8cff"/>
+      <stop offset="1" stop-color="#7a5cff"/>
+    </radialGradient>
+    <filter id="b_soft" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="bl"/>
+      <feMerge><feMergeNode in="bl"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="b_blur" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <filter id="b_drop" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="1.5" stdDeviation="1.6" flood-color="#0a0c12" flood-opacity="0.6"/>
+    </filter>
+    <clipPath id="b_avclip"><circle cx="240" cy="108" r="38"/></clipPath>
+  </defs>
+
+  <!-- translucent aurora wash (partial opacity, overlay-safe) -->
+  <rect x="0" y="0" width="480" height="270" fill="url(#b_wash)" opacity="0.30"/>
+  <ellipse cx="240" cy="120" rx="280" ry="150" fill="url(#b_glowbg)"/>
+  <path d="M0 70 Q120 30 240 75 T480 60 L480 0 L0 0 Z" fill="#2bd4d4" opacity="0.14" filter="url(#b_blur)"/>
+  <path d="M0 210 Q140 250 280 200 T480 220 L480 270 L0 270 Z" fill="#7a5cff" opacity="0.14" filter="url(#b_blur)"/>
+
+  <!-- confetti -->
+  <g opacity="0.95">
+    <rect x="40" y="34" width="10" height="5" rx="1" fill="#7de4d4" transform="rotate(28 45 36)"/>
+    <rect x="92" y="20" width="8" height="4" rx="1" fill="#ffd24a" transform="rotate(-40 96 22)"/>
+    <rect x="150" y="46" width="9" height="5" rx="1" fill="#aef3ea" transform="rotate(15 154 48)"/>
+    <rect x="200" y="26" width="7" height="4" rx="1" fill="#9d8cff" transform="rotate(60 203 28)"/>
+    <rect x="270" y="40" width="10" height="5" rx="1" fill="#2bd4d4" transform="rotate(-25 275 42)"/>
+    <rect x="330" y="22" width="8" height="4" rx="1" fill="#ffd24a" transform="rotate(45 334 24)"/>
+    <rect x="392" y="48" width="9" height="5" rx="1" fill="#7de4d4" transform="rotate(-15 396 50)"/>
+    <rect x="440" y="30" width="7" height="4" rx="1" fill="#9d8cff" transform="rotate(35 443 32)"/>
+    <rect x="20" y="100" width="9" height="5" rx="1" fill="#aef3ea" transform="rotate(-50 24 102)"/>
+    <rect x="64" y="140" width="8" height="4" rx="1" fill="#2bd4d4" transform="rotate(20 68 142)"/>
+    <rect x="120" y="116" width="10" height="5" rx="1" fill="#9d8cff" transform="rotate(-30 125 118)"/>
+    <rect x="412" y="110" width="9" height="5" rx="1" fill="#7de4d4" transform="rotate(50 416 112)"/>
+    <rect x="450" y="150" width="8" height="4" rx="1" fill="#ffd24a" transform="rotate(-20 454 152)"/>
+    <rect x="36" y="186" width="9" height="5" rx="1" fill="#2bd4d4" transform="rotate(40 40 188)"/>
+    <rect x="100" y="214" width="8" height="4" rx="1" fill="#aef3ea" transform="rotate(-35 104 216)"/>
+    <rect x="158" y="240" width="10" height="5" rx="1" fill="#9d8cff" transform="rotate(22 163 242)"/>
+    <rect x="320" y="236" width="9" height="5" rx="1" fill="#7de4d4" transform="rotate(-45 324 238)"/>
+    <rect x="380" y="208" width="8" height="4" rx="1" fill="#ffd24a" transform="rotate(30 384 210)"/>
+    <rect x="436" y="232" width="9" height="5" rx="1" fill="#2bd4d4" transform="rotate(-18 440 234)"/>
+    <rect x="240" y="244" width="7" height="4" rx="1" fill="#aef3ea" transform="rotate(55 243 246)"/>
+  </g>
+
+  <!-- expanding shockwave rings -->
+  <circle cx="240" cy="108" r="74" fill="none" stroke="url(#b_shock)" stroke-width="5" opacity="0.9" filter="url(#b_soft)"/>
+  <circle cx="240" cy="108" r="92" fill="none" stroke="#aef3ea" stroke-width="1.6" opacity="0.45"/>
+  <circle cx="240" cy="108" r="58" fill="none" stroke="#ffd24a" stroke-width="1.2" opacity="0.5"/>
+
+  <!-- radiating sparks/stars -->
+  <g stroke-linecap="round" filter="url(#b_soft)">
+    <line x1="240" y1="50" x2="240" y2="30" stroke="#aef3ea" stroke-width="2.4"/>
+    <line x1="240" y1="166" x2="240" y2="186" stroke="#9d8cff" stroke-width="2.4"/>
+    <line x1="182" y1="108" x2="160" y2="108" stroke="#7de4d4" stroke-width="2.4"/>
+    <line x1="298" y1="108" x2="320" y2="108" stroke="#7de4d4" stroke-width="2.4"/>
+    <line x1="200" y1="68" x2="184" y2="52" stroke="#ffd24a" stroke-width="2"/>
+    <line x1="280" y1="68" x2="296" y2="52" stroke="#aef3ea" stroke-width="2"/>
+    <line x1="200" y1="148" x2="184" y2="164" stroke="#9d8cff" stroke-width="2"/>
+    <line x1="280" y1="148" x2="296" y2="164" stroke="#7de4d4" stroke-width="2"/>
+  </g>
+  <g fill="#fff8e0" filter="url(#b_soft)">
+    <path d="M186 44 l1.6 4.4 4.4 1.6 -4.4 1.6 -1.6 4.4 -1.6-4.4 -4.4-1.6 4.4-1.6 z"/>
+    <path d="M300 50 l1.4 3.8 3.8 1.4 -3.8 1.4 -1.4 3.8 -1.4-3.8 -3.8-1.4 3.8-1.4 z"/>
+    <path d="M166 130 l1.4 3.8 3.8 1.4 -3.8 1.4 -1.4 3.8 -1.4-3.8 -3.8-1.4 3.8-1.4 z" fill="#aef3ea"/>
+    <path d="M318 142 l1.4 3.8 3.8 1.4 -3.8 1.4 -1.4 3.8 -1.4-3.8 -3.8-1.4 3.8-1.4 z" fill="#ffd24a"/>
+  </g>
+
+  <!-- avatar -->
+  <circle cx="240" cy="108" r="46" fill="#0a0c12" opacity="0.55" filter="url(#b_blur)"/>
+  <circle cx="240" cy="108" r="44" fill="none" stroke="url(#b_ring)" stroke-width="5" filter="url(#b_soft)"/>
+  <circle cx="240" cy="108" r="38" fill="url(#b_av)"/>
+  <g clip-path="url(#b_avclip)">
+    <circle cx="240" cy="98" r="14" fill="#ffffff" opacity="0.92"/>
+    <path d="M212 150 q28-30 56 0 z" fill="#ffffff" opacity="0.92"/>
+    <circle cx="234" cy="96" r="2.4" fill="#0a0c12"/>
+    <circle cx="246" cy="96" r="2.4" fill="#0a0c12"/>
+    <path d="M232 104 q8 7 16 0" fill="none" stroke="#0a0c12" stroke-width="2" stroke-linecap="round"/>
+    <ellipse cx="240" cy="80" rx="30" ry="14" fill="#ffffff" opacity="0.18"/>
+  </g>
+
+  <!-- name -->
+  <text x="240" y="206" text-anchor="middle" font-family="Verdana, Geneva, sans-serif" font-size="22" font-weight="bold" fill="url(#b_name)" filter="url(#b_drop)" letter-spacing="0.5">@aurora_fan</text>
+
+  <!-- headline -->
+  <text x="240" y="234" text-anchor="middle" font-family="Verdana, Geneva, sans-serif" font-size="16" font-weight="bold" fill="url(#b_head)" filter="url(#b_drop)" letter-spacing="3">FOLLOWED!</text>
+
+  <!-- tier badges -->
+  <g filter="url(#b_drop)">
+    <circle cx="196" cy="248" r="11" fill="url(#b_gold)" stroke="#fff0c0" stroke-width="1"/>
+    <path d="M196 241 l2 4 4.4 .6 -3.2 3.1 .8 4.4 -4-2.1 -4 2.1 .8-4.4 -3.2-3.1 4.4-.6 z" fill="#7a5510"/>
+    <circle cx="240" cy="252" r="11" fill="#e85b9c" stroke="#ffd6ea" stroke-width="1"/>
+    <text x="240" y="256" text-anchor="middle" font-family="Verdana, sans-serif" font-size="12" font-weight="bold" fill="#ffffff">P</text>
+    <path d="M284 240 l9 6 -3.6 10 -10.8 0 -3.6-10 z" fill="url(#b_gem)" stroke="#d9ccff" stroke-width="1"/>
+    <path d="M284 244 l4.5 3 -1.8 5 -5.4 0 -1.8-5 z" fill="#aef3ea" opacity="0.55"/>
+  </g>
+</svg></div><div class="label"><div class="t">B &mdash; Aurora Wash + Particle Confetti</div><div class="d">Peak follow-celebration: translucent teal-violet aurora wash, raining aurora confetti, center avatar bursting through an expanding shockwave ring with radiating sparks.</div></div></div>
+<div class="cell"><span class="badge">C</span><div class="stage"><svg viewBox="0 0 480 270" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="c_burst" cx="50%" cy="46%" r="62%">
+      <stop offset="0%" stop-color="#ffe9a8" stop-opacity="0.85"/>
+      <stop offset="30%" stop-color="#ffd24a" stop-opacity="0.42"/>
+      <stop offset="62%" stop-color="#b81f2a" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#0a0c12" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="c_ray" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe7a0" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffd24a" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="c_banner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e23b3b"/>
+      <stop offset="48%" stop-color="#b6212a"/>
+      <stop offset="52%" stop-color="#9a1822"/>
+      <stop offset="100%" stop-color="#6e0f17"/>
+    </linearGradient>
+    <linearGradient id="c_bannerSheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.32"/>
+      <stop offset="18%" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="c_gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff2c0"/>
+      <stop offset="42%" stop-color="#ffd24a"/>
+      <stop offset="100%" stop-color="#b8821f"/>
+    </linearGradient>
+    <linearGradient id="c_goldRim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff6d2"/>
+      <stop offset="50%" stop-color="#ffce47"/>
+      <stop offset="100%" stop-color="#9c6c18"/>
+    </linearGradient>
+    <radialGradient id="c_av" cx="38%" cy="32%" r="80%">
+      <stop offset="0%" stop-color="#aef3ea"/>
+      <stop offset="45%" stop-color="#2bd4d4"/>
+      <stop offset="100%" stop-color="#7a5cff"/>
+    </radialGradient>
+    <linearGradient id="c_ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff2c0"/>
+      <stop offset="50%" stop-color="#ffd24a"/>
+      <stop offset="100%" stop-color="#a8741c"/>
+    </linearGradient>
+    <linearGradient id="c_title" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff8df"/>
+      <stop offset="55%" stop-color="#ffe49a"/>
+      <stop offset="100%" stop-color="#e9b13c"/>
+    </linearGradient>
+    <linearGradient id="c_subStar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffe9a8"/>
+      <stop offset="100%" stop-color="#e9a91f"/>
+    </linearGradient>
+    <filter id="c_glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="c_soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="c_textsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.2" flood-color="#5a0a10" flood-opacity="0.9"/>
+    </filter>
+    <clipPath id="c_avclip"><circle cx="0" cy="0" r="34"/></clipPath>
+  </defs>
+
+  <!-- color burst -->
+  <ellipse cx="240" cy="128" rx="250" ry="150" fill="url(#c_burst)"/>
+  <g filter="url(#c_glow)" opacity="0.85">
+    <g fill="url(#c_ray)">
+      <polygon points="240,128 226,-30 254,-30"/>
+      <polygon points="240,128 300,-22 326,-8"/>
+      <polygon points="240,128 360,8 380,30"/>
+      <polygon points="240,128 412,70 422,96"/>
+      <polygon points="240,128 180,-22 154,-8"/>
+      <polygon points="240,128 120,8 100,30"/>
+      <polygon points="240,128 68,70 58,96"/>
+      <polygon points="240,128 405,170 420,150"/>
+      <polygon points="240,128 75,170 60,150"/>
+    </g>
+  </g>
+
+  <!-- soft spark particles -->
+  <g fill="#ffe9a8" opacity="0.9" filter="url(#c_glow)">
+    <circle cx="96" cy="62" r="2.4"/>
+    <circle cx="392" cy="58" r="2"/>
+    <circle cx="430" cy="120" r="1.8"/>
+    <circle cx="58" cy="118" r="2.1"/>
+    <circle cx="150" cy="40" r="1.5"/>
+    <circle cx="340" cy="34" r="1.7"/>
+    <circle cx="408" cy="200" r="1.6"/>
+    <circle cx="70" cy="206" r="1.6"/>
+  </g>
+
+  <!-- ===== BANNER ===== -->
+  <g filter="url(#c_soft)">
+    <!-- back tails -->
+    <polygon points="36,118 70,108 70,176 36,186 50,152" fill="#6e0f17"/>
+    <polygon points="444,118 410,108 410,176 444,186 430,152" fill="#6e0f17"/>
+    <!-- ribbon notched ends -->
+    <polygon points="58,104 422,104 410,144 422,184 58,184 70,144" fill="url(#c_banner)"/>
+    <!-- inner gold frame lines -->
+    <polyline points="74,114 406,114" stroke="url(#c_gold)" stroke-width="2" fill="none" opacity="0.95"/>
+    <polyline points="74,174 406,174" stroke="url(#c_gold)" stroke-width="2" fill="none" opacity="0.95"/>
+    <!-- sheen -->
+    <polygon points="58,104 422,104 410,144 422,184 58,184 70,144" fill="url(#c_bannerSheen)"/>
+    <!-- ribbon outer edge highlight -->
+    <polygon points="58,104 422,104 410,144 422,184 58,184 70,144" fill="none" stroke="#ffd98a" stroke-opacity="0.5" stroke-width="1"/>
+  </g>
+
+  <!-- gold corner flourishes -->
+  <g fill="url(#c_goldRim)" filter="url(#c_glow)">
+    <path d="M74,108 q18,-10 34,2 q-16,-2 -22,8 q-2,-8 -12,-10z"/>
+    <path d="M406,108 q-18,-10 -34,2 q16,-2 22,8 q2,-8 12,-10z"/>
+    <path d="M74,180 q18,10 34,-2 q-16,2 -22,-8 q-2,8 -12,10z"/>
+    <path d="M406,180 q-18,10 -34,-2 q16,2 22,-8 q2,8 12,10z"/>
+  </g>
+
+  <!-- headline text -->
+  <text x="240" y="138" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="34" letter-spacing="3" fill="url(#c_title)" filter="url(#c_textsh)" style="font-stretch:expanded">NEW FOLLOWER</text>
+  <!-- @name on banner -->
+  <text x="240" y="166" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="14" letter-spacing="2" fill="#ffe9b8" filter="url(#c_textsh)">@aurora_fan</text>
+
+  <!-- ===== AVATAR in laurel frame (left) ===== -->
+  <g transform="translate(96,128)" filter="url(#c_soft)">
+    <!-- laurel branches -->
+    <g fill="none" stroke="url(#c_ring)" stroke-width="3" stroke-linecap="round" opacity="0.95" filter="url(#c_glow)">
+      <path d="M-44,18 q-12,-22 -2,-46"/>
+      <path d="M44,18 q12,-22 2,-46"/>
+    </g>
+    <g fill="url(#c_gold)" opacity="0.95">
+      <path d="M-46,8 q-9,-2 -11,-11 q9,2 11,11z"/>
+      <path d="M-49,-4 q-9,-3 -10,-12 q9,3 10,12z"/>
+      <path d="M-50,-16 q-8,-4 -8,-13 q8,4 8,13z"/>
+      <path d="M-48,-28 q-7,-5 -6,-14 q7,5 6,14z"/>
+      <path d="M46,8 q9,-2 11,-11 q-9,2 -11,11z"/>
+      <path d="M49,-4 q9,-3 10,-12 q-9,3 -10,12z"/>
+      <path d="M50,-16 q8,-4 8,-13 q-8,4 -8,13z"/>
+      <path d="M48,-28 q7,-5 6,-14 q-7,5 -6,14z"/>
+    </g>
+    <!-- glowing ring -->
+    <circle cx="0" cy="0" r="39" fill="#0a0c12" opacity="0.6"/>
+    <circle cx="0" cy="0" r="37.5" fill="none" stroke="url(#c_ring)" stroke-width="4.5" filter="url(#c_glow)"/>
+    <!-- avatar fill -->
+    <g clip-path="url(#c_avclip)">
+      <circle cx="0" cy="0" r="34" fill="url(#c_av)"/>
+      <ellipse cx="-10" cy="-12" rx="16" ry="11" fill="#ffffff" opacity="0.22"/>
+      <!-- friendly face -->
+      <circle cx="-11" cy="-4" r="4" fill="#0a0c12"/>
+      <circle cx="11" cy="-4" r="4" fill="#0a0c12"/>
+      <circle cx="-9.5" cy="-5.5" r="1.3" fill="#ffffff"/>
+      <circle cx="12.5" cy="-5.5" r="1.3" fill="#ffffff"/>
+      <path d="M-13,10 q13,13 26,0" fill="none" stroke="#0a0c12" stroke-width="3.4" stroke-linecap="round"/>
+    </g>
+    <!-- ring crest gem -->
+    <circle cx="0" cy="-39" r="6" fill="url(#c_subStar)" stroke="#7a4d10" stroke-width="1" filter="url(#c_glow)"/>
+    <polygon points="0,-43 1.4,-39.6 5,-39 2.2,-36.6 3,-33 0,-35 -3,-33 -2.2,-36.6 -5,-39 -1.4,-39.6" fill="#7a4d10"/>
+  </g>
+
+  <!-- ===== TIER BADGES (right) ===== -->
+  <g transform="translate(392,128)" filter="url(#c_soft)">
+    <!-- gold sub star -->
+    <g transform="translate(0,-30)">
+      <circle r="15" fill="#1a1320" stroke="url(#c_ring)" stroke-width="2"/>
+      <polygon points="0,-9 2.7,-2.8 9.2,-2.6 4,1.6 5.7,7.9 0,4 -5.7,7.9 -4,1.6 -9.2,-2.6 -2.7,-2.8" fill="url(#c_subStar)" filter="url(#c_glow)"/>
+    </g>
+    <!-- patreon P -->
+    <g transform="translate(0,2)">
+      <circle r="15" fill="#1a1320" stroke="#7de4d4" stroke-width="2"/>
+      <circle cx="2" cy="-1" r="5.5" fill="none" stroke="#aef3ea" stroke-width="3.4"/>
+      <rect x="-6.5" y="-8" width="3.2" height="16" rx="1" fill="#aef3ea"/>
+    </g>
+    <!-- cheer bits gem -->
+    <g transform="translate(0,34)">
+      <circle r="15" fill="#1a1320" stroke="#9d8cff" stroke-width="2"/>
+      <polygon points="0,-7 7,-1 0,9 -7,-1" fill="#9d8cff" filter="url(#c_glow)"/>
+      <polygon points="0,-7 0,9 7,-1" fill="#c7bcff"/>
+      <polygon points="-7,-1 7,-1 0,-7" fill="#e6e0ff" opacity="0.8"/>
+    </g>
+  </g>
+
+  <!-- restyle note -->
+  <g transform="translate(240,206)">
+    <rect x="-86" y="-9" width="172" height="18" rx="9" fill="#0a0c12" opacity="0.5"/>
+    <circle cx="-74" cy="0" r="3" fill="#2bd4d4"/>
+    <text x="6" y="3.5" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="600" font-size="9" letter-spacing="0.6" fill="#aef3ea">banner restyles to each game's victory screen</text>
+  </g>
+
+  <!-- bottom aurora glow strip -->
+  <rect x="0" y="244" width="480" height="26" fill="url(#c_banner)" opacity="0.0"/>
+  <ellipse cx="240" cy="232" rx="200" ry="14" fill="#ffd24a" opacity="0.12" filter="url(#c_glow)"/>
+</svg></div><div class="label"><div class="t">C &mdash; Game-Themed Hero Moment</div><div class="d">A Hades-style crimson+gold angular victory ribbon reading "NEW FOLLOWER" with ornate flourishes, a laurel-framed @aurora_fan avatar, and a radial crimson/gold ray burst — restyles per active game.</div></div></div>
+<div class="cell"><span class="badge">D</span><div class="stage"><svg viewBox="0 0 480 270"><defs><linearGradient id="d_bgwash" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9d8cff" stop-opacity="0.18"/><stop offset="0.5" stop-color="#2bd4d4" stop-opacity="0.07"/><stop offset="1" stop-color="#0a0c12" stop-opacity="0"/></linearGradient><radialGradient id="d_glow" cx="0.5" cy="0.42" r="0.62"><stop offset="0" stop-color="#7de4d4" stop-opacity="0.55"/><stop offset="0.55" stop-color="#9d8cff" stop-opacity="0.22"/><stop offset="1" stop-color="#0a0c12" stop-opacity="0"/></radialGradient><linearGradient id="d_frame" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#aef3ea"/><stop offset="0.28" stop-color="#2bd4d4"/><stop offset="0.55" stop-color="#7a5cff"/><stop offset="0.78" stop-color="#9d8cff"/><stop offset="1" stop-color="#2bd4d4"/></linearGradient><linearGradient id="d_foil" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffffff" stop-opacity="0"/><stop offset="0.4" stop-color="#ffffff" stop-opacity="0.85"/><stop offset="0.5" stop-color="#aef3ea" stop-opacity="0.9"/><stop offset="0.6" stop-color="#ffffff" stop-opacity="0.85"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient><linearGradient id="d_card" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#141a2c"/><stop offset="0.5" stop-color="#0e1320"/><stop offset="1" stop-color="#080a12"/></linearGradient><linearGradient id="d_gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff0b8"/><stop offset="0.5" stop-color="#ffd24a"/><stop offset="1" stop-color="#c98a16"/></linearGradient><radialGradient id="d_av" cx="0.4" cy="0.32" r="0.85"><stop offset="0" stop-color="#aef3ea"/><stop offset="0.5" stop-color="#2bd4d4"/><stop offset="1" stop-color="#7a5cff"/></radialGradient><linearGradient id="d_portrait" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a2440"/><stop offset="1" stop-color="#0c1322"/></linearGradient><linearGradient id="d_plate" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#21304f"/><stop offset="1" stop-color="#0f1828"/></linearGradient><radialGradient id="d_gem" cx="0.4" cy="0.3" r="0.8"><stop offset="0" stop-color="#aef3ea"/><stop offset="0.6" stop-color="#2bd4d4"/><stop offset="1" stop-color="#1b6f86"/></radialGradient><filter id="d_soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4"/></filter><filter id="d_drop" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#000000" flood-opacity="0.55"/></filter><filter id="d_ringglow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.4"/></filter><clipPath id="d_avclip"><circle cx="0" cy="0" r="33"/></clipPath><clipPath id="d_cardclip"><rect x="-78" y="-108" width="156" height="216" rx="14"/></clipPath></defs><rect x="0" y="0" width="480" height="270" fill="url(#d_bgwash)"/><ellipse cx="240" cy="120" rx="210" ry="150" fill="url(#d_glow)"/><g opacity="0.9"><circle cx="92" cy="58" r="2.3" fill="#aef3ea" filter="url(#d_ringglow)"/><circle cx="402" cy="78" r="2" fill="#ffd24a" filter="url(#d_ringglow)"/><circle cx="63" cy="170" r="1.8" fill="#9d8cff" filter="url(#d_ringglow)"/><circle cx="420" cy="200" r="2.4" fill="#7de4d4" filter="url(#d_ringglow)"/><circle cx="150" cy="36" r="1.6" fill="#fff0b8" filter="url(#d_ringglow)"/><circle cx="360" cy="40" r="1.5" fill="#aef3ea" filter="url(#d_ringglow)"/></g><g transform="translate(264 138) rotate(7)" opacity="0.62"><rect x="-78" y="-108" width="156" height="216" rx="14" fill="url(#d_frame)"/><rect x="-72" y="-102" width="144" height="204" rx="11" fill="url(#d_card)"/></g><g transform="translate(232 134) rotate(-6) skewY(-2)" filter="url(#d_drop)"><rect x="-83" y="-113" width="166" height="226" rx="16" fill="url(#d_frame)" opacity="0.6" filter="url(#d_soft)"/><rect x="-78" y="-108" width="156" height="216" rx="14" fill="url(#d_frame)"/><rect x="-72" y="-102" width="144" height="204" rx="11" fill="url(#d_card)"/><g clip-path="url(#d_cardclip)"><rect x="-66" y="-96" width="132" height="192" rx="8" fill="url(#d_portrait)"/><rect x="-78" y="-108" width="40" height="216" fill="url(#d_foil)" opacity="0.35" transform="translate(40 0) skewX(-12)"/></g><rect x="-72" y="-102" width="144" height="204" rx="11" fill="none" stroke="url(#d_gold)" stroke-width="1.6" opacity="0.85"/><rect x="-66" y="-96" width="132" height="100" rx="8" fill="none" stroke="#2bd4d4" stroke-width="1" opacity="0.45"/><g transform="translate(0 -56)"><circle cx="0" cy="0" r="40" fill="#7a5cff" opacity="0.5" filter="url(#d_soft)"/><circle cx="0" cy="0" r="37" fill="none" stroke="url(#d_gold)" stroke-width="3"/><circle cx="0" cy="0" r="33.5" fill="none" stroke="#aef3ea" stroke-width="1.4" opacity="0.8"/><g clip-path="url(#d_avclip)"><rect x="-33" y="-33" width="66" height="66" fill="url(#d_av)"/><circle cx="0" cy="-8" r="11" fill="#ffffff" opacity="0.95"/><path d="M-19 30 Q0 8 19 30 L19 33 -19 33 Z" fill="#ffffff" opacity="0.95"/><circle cx="-9" cy="-30" r="20" fill="#ffffff" opacity="0.12"/></g><path d="M-4 -2 a3 3 0 0 1 8 0" fill="none" stroke="#16324a" stroke-width="2" opacity="0.5"/></g><g transform="translate(0 2)"><rect x="-60" y="-13" width="120" height="26" rx="6" fill="url(#d_plate)" stroke="url(#d_gold)" stroke-width="1.2"/><text x="0" y="5" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle" letter-spacing="0.4">@aurora_fan</text></g><text x="0" y="38" font-family="Arial,Helvetica,sans-serif" font-size="9" font-weight="700" fill="#7de4d4" text-anchor="middle" letter-spacing="2.2">NEW FOLLOWER</text><g transform="translate(-44 66)"><circle cx="0" cy="0" r="13" fill="#1a2236" stroke="url(#d_gold)" stroke-width="1.4"/><path d="M0 -8 L2.4 -2.4 8 -2 3.6 2 5 7.6 0 4.4 -5 7.6 -3.6 2 -8 -2 -2.4 -2.4 Z" fill="url(#d_gold)"/></g><g transform="translate(0 66)"><circle cx="0" cy="0" r="13" fill="#241a3a" stroke="#9d8cff" stroke-width="1.4"/><text x="0" y="5" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="800" fill="#aef3ea" text-anchor="middle">P</text></g><g transform="translate(44 66)"><circle cx="0" cy="0" r="13" fill="#13283a" stroke="#2bd4d4" stroke-width="1.4"/><path d="M0 -7 L6 -2 4 7 -4 7 -6 -2 Z" fill="url(#d_gem)"/><path d="M0 -7 L0 7 M-6 -2 L6 -2" stroke="#aef3ea" stroke-width="0.6" opacity="0.7"/></g><g transform="translate(54 -86)"><path d="M0 -10 L9 -3 5.6 9 -5.6 9 -9 -3 Z" fill="#0d1626" stroke="url(#d_gold)" stroke-width="1.2"/><path d="M0 -6 L5 -1.6 3 6 -3 6 -5 -1.6 Z" fill="url(#d_gem)"/><circle cx="-1.5" cy="-2" r="1.4" fill="#ffffff" opacity="0.9"/></g><rect x="-78" y="-108" width="50" height="216" fill="url(#d_foil)" opacity="0.5" transform="translate(50 0) skewX(-14)"><animate attributeName="opacity" values="0.5;0.5" dur="1s"/></rect></g><g transform="translate(232 134) rotate(-6)" opacity="0.95"><circle cx="-78" cy="-104" r="3" fill="#ffffff" filter="url(#d_ringglow)"/><path d="M-78 -111 l1.6 5 5 1.6 -5 1.6 -1.6 5 -1.6 -5 -5 -1.6 5 -1.6 Z" fill="#fff0b8" filter="url(#d_ringglow)"/><path d="M80 86 l1.3 4 4 1.3 -4 1.3 -1.3 4 -1.3 -4 -4 -1.3 4 -1.3 Z" fill="#aef3ea" filter="url(#d_ringglow)"/></g></svg></div><div class="label"><div class="t">D &mdash; Card Reveal</div><div class="d">A tilted premium aurora-gold trading card flips face-on revealing the follower's avatar, name plate, tier badges and a gem deck-art slot, with a second card peeking behind and foil-edge shimmer.</div></div></div>
+<div class="cell"><span class="badge">E</span><div class="stage"><svg viewBox="0 0 480 270">
+  <defs>
+    <radialGradient id="e_burstGlow" cx="50%" cy="46%" r="60%">
+      <stop offset="0%" stop-color="#9d8cff" stop-opacity="0.45"/>
+      <stop offset="40%" stop-color="#2bd4d4" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#0a0c12" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="e_avFill" cx="42%" cy="36%" r="72%">
+      <stop offset="0%" stop-color="#aef3ea"/>
+      <stop offset="45%" stop-color="#2bd4d4"/>
+      <stop offset="100%" stop-color="#7a5cff"/>
+    </radialGradient>
+    <linearGradient id="e_ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7de4d4"/>
+      <stop offset="50%" stop-color="#9d8cff"/>
+      <stop offset="100%" stop-color="#ffd24a"/>
+    </linearGradient>
+    <linearGradient id="e_gold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff3c4"/>
+      <stop offset="35%" stop-color="#ffd24a"/>
+      <stop offset="100%" stop-color="#e89b15"/>
+    </linearGradient>
+    <linearGradient id="e_plus" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fff6cf"/>
+      <stop offset="50%" stop-color="#ffd24a"/>
+      <stop offset="100%" stop-color="#f4a01a"/>
+    </linearGradient>
+    <linearGradient id="e_panel" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#141a2c" stop-opacity="0.92"/>
+      <stop offset="100%" stop-color="#080a12" stop-opacity="0.92"/>
+    </linearGradient>
+    <linearGradient id="e_banner" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#7a5cff"/>
+      <stop offset="50%" stop-color="#2bd4d4"/>
+      <stop offset="100%" stop-color="#7de4d4"/>
+    </linearGradient>
+    <linearGradient id="e_tickFace" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0e1626"/>
+      <stop offset="50%" stop-color="#16223a"/>
+      <stop offset="100%" stop-color="#0a1020"/>
+    </linearGradient>
+    <linearGradient id="e_rollFade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#aef3ea" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#aef3ea" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#aef3ea" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="e_glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="3.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="e_softShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3.5" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="e_goldGlow" x="-90%" y="-90%" width="280%" height="280%">
+      <feGaussianBlur stdDeviation="2.6" result="gb"/>
+      <feMerge><feMergeNode in="gb"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <clipPath id="e_avClip"><circle cx="120" cy="118" r="40"/></clipPath>
+    <clipPath id="e_tickClip"><rect x="244" y="150" width="178" height="46" rx="9"/></clipPath>
+  </defs>
+
+  <!-- ambient burst wash (partial opacity, stays an overlay) -->
+  <rect x="0" y="0" width="480" height="270" fill="url(#e_burstGlow)"/>
+
+  <!-- radiating speed-burst rays behind avatar -->
+  <g opacity="0.5" filter="url(#e_glow)">
+    <g fill="none" stroke="#7de4d4" stroke-width="2" stroke-linecap="round" opacity="0.7">
+      <line x1="120" y1="118" x2="120" y2="44"/>
+      <line x1="120" y1="118" x2="186" y2="62"/>
+      <line x1="120" y1="118" x2="54" y2="62"/>
+      <line x1="120" y1="118" x2="190" y2="118"/>
+      <line x1="120" y1="118" x2="50" y2="118"/>
+      <line x1="120" y1="118" x2="178" y2="176"/>
+      <line x1="120" y1="118" x2="62" y2="176"/>
+      <line x1="120" y1="118" x2="120" y2="190"/>
+    </g>
+  </g>
+
+  <!-- spark + star + heart burst -->
+  <g filter="url(#e_goldGlow)">
+    <g fill="#ffd24a">
+      <path d="M183 70 l3.2 6.6 7.2 1 -5.2 5.1 1.2 7.2 -6.4-3.4 -6.4 3.4 1.2-7.2 -5.2-5.1 7.2-1z"/>
+      <path d="M58 56 l2.4 5 5.4 .8 -3.9 3.8 .9 5.4 -4.8-2.5 -4.8 2.5 .9-5.4 -3.9-3.8 5.4-.8z"/>
+      <path d="M196 150 l2 4.2 4.6 .7 -3.3 3.2 .8 4.6 -4.1-2.2 -4.1 2.2 .8-4.6 -3.3-3.2 4.6-.7z"/>
+    </g>
+    <g fill="#9d8cff">
+      <path d="M44 110 l1.9 4 4.4 .6 -3.2 3.1 .8 4.4 -3.9-2.1 -3.9 2.1 .8-4.4 -3.2-3.1 4.4-.6z"/>
+      <path d="M170 188 l1.7 3.6 4 .6 -2.9 2.8 .7 4 -3.5-1.9 -3.5 1.9 .7-4 -2.9-2.8 4-.6z"/>
+    </g>
+    <!-- hearts -->
+    <g fill="#7de4d4">
+      <path d="M88 44 c-3-5-11-3-11 3 0 5 8 9 11 12 3-3 11-7 11-12 0-6-8-8-11-3z"/>
+    </g>
+    <g fill="#aef3ea">
+      <path d="M150 200 c-2.2-3.6-8-2.2-8 2.2 0 3.6 5.8 6.5 8 8.6 2.2-2.1 8-5 8-8.6 0-4.4-5.8-5.8-8-2.2z" opacity="0.9"/>
+    </g>
+    <!-- four-point glints -->
+    <g fill="#ffffff" opacity="0.9">
+      <path d="M205 96 l1.5 5 5 1.5 -5 1.5 -1.5 5 -1.5-5 -5-1.5 5-1.5z"/>
+      <path d="M36 84 l1.2 4 4 1.2 -4 1.2 -1.2 4 -1.2-4 -4-1.2 4-1.2z"/>
+      <path d="M120 32 l1.3 4.4 4.4 1.3 -4.4 1.3 -1.3 4.4 -1.3-4.4 -4.4-1.3 4.4-1.3z"/>
+    </g>
+    <!-- scattered spark dots -->
+    <g fill="#ffd24a">
+      <circle cx="74" cy="166" r="2.4"/><circle cx="168" cy="48" r="2.2"/>
+      <circle cx="200" cy="128" r="2"/><circle cx="46" cy="138" r="2"/>
+    </g>
+    <g fill="#7de4d4"><circle cx="158" cy="170" r="2"/><circle cx="62" cy="92" r="1.8"/></g>
+  </g>
+
+  <!-- avatar glow ring -->
+  <circle cx="120" cy="118" r="47" fill="none" stroke="url(#e_ring)" stroke-width="5" filter="url(#e_glow)"/>
+  <circle cx="120" cy="118" r="42" fill="none" stroke="#0a0c12" stroke-width="2.5" opacity="0.7"/>
+
+  <!-- avatar -->
+  <g filter="url(#e_softShadow)">
+    <circle cx="120" cy="118" r="40" fill="url(#e_avFill)"/>
+    <g clip-path="url(#e_avClip)">
+      <ellipse cx="120" cy="92" rx="42" ry="22" fill="#aef3ea" opacity="0.35"/>
+      <!-- friendly silhouette face -->
+      <circle cx="120" cy="106" r="14" fill="#0a0c12" opacity="0.82"/>
+      <path d="M96 152 c0-15 11-24 24-24 13 0 24 9 24 24 z" fill="#0a0c12" opacity="0.82"/>
+      <!-- smiley accents -->
+      <circle cx="114" cy="104" r="2.6" fill="#aef3ea"/>
+      <circle cx="126" cy="104" r="2.6" fill="#aef3ea"/>
+      <path d="M113 110 q7 6 14 0" fill="none" stroke="#aef3ea" stroke-width="2.2" stroke-linecap="round"/>
+    </g>
+    <circle cx="120" cy="118" r="40" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.25"/>
+  </g>
+
+  <!-- tier badges around avatar -->
+  <g filter="url(#e_softShadow)">
+    <!-- gold sub star -->
+    <g transform="translate(158,84)">
+      <circle r="13" fill="url(#e_gold)" stroke="#fff3c4" stroke-width="1.2"/>
+      <path d="M0 -8 l2.4 5 5.4 .8 -3.9 3.8 .9 5.4 -4.8-2.5 -4.8 2.5 .9-5.4 -3.9-3.8 5.4-.8z" fill="#7a4a06"/>
+    </g>
+    <!-- patreon P -->
+    <g transform="translate(78,150)">
+      <circle r="12.5" fill="#9d8cff" stroke="#c9beff" stroke-width="1.2"/>
+      <circle cx="2.5" cy="-1" r="5" fill="#0a0c12"/>
+      <rect x="-6" y="-7" width="3" height="15" rx="1.4" fill="#0a0c12"/>
+    </g>
+    <!-- cheer/bits gem -->
+    <g transform="translate(160,150)">
+      <circle r="12.5" fill="#16223a" stroke="#2bd4d4" stroke-width="1.2"/>
+      <path d="M0 -7 l6 4 -2.4 8 -7.2 0 -2.4-8z" fill="#7de4d4"/>
+      <path d="M0 -7 l6 4 -6 2 -6-2z" fill="#aef3ea"/>
+    </g>
+  </g>
+
+  <!-- big floating +1 -->
+  <g filter="url(#e_goldGlow)">
+    <text x="206" y="116" font-family="Arial, Helvetica, sans-serif" font-size="62" font-weight="900" fill="url(#e_plus)" stroke="#7a4a06" stroke-width="1.4" letter-spacing="-2">+1</text>
+  </g>
+
+  <!-- LEVEL UP kicker -->
+  <text x="240" y="50" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="800" letter-spacing="5" fill="#aef3ea" filter="url(#e_glow)">LEVEL UP</text>
+
+  <!-- score ticker panel -->
+  <g filter="url(#e_softShadow)">
+    <rect x="240" y="146" width="186" height="54" rx="11" fill="url(#e_panel)" stroke="url(#e_ring)" stroke-width="1.6"/>
+  </g>
+  <text x="250" y="142" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="800" letter-spacing="3" fill="#7de4d4">FOLLOWERS</text>
+
+  <!-- ticker face -->
+  <rect x="244" y="150" width="178" height="46" rx="9" fill="url(#e_tickFace)"/>
+  <g clip-path="url(#e_tickClip)">
+    <!-- subtle scanline sheen -->
+    <rect x="244" y="150" width="178" height="10" fill="#ffffff" opacity="0.06"/>
+    <!-- score digits -->
+    <text x="256" y="186" font-family="'Courier New', monospace" font-size="34" font-weight="700" letter-spacing="2" fill="#aef3ea" filter="url(#e_glow)">1,24</text>
+    <!-- digit-roll cue on the last digit -->
+    <g opacity="0.45">
+      <text x="392" y="170" font-family="'Courier New', monospace" font-size="30" font-weight="700" fill="url(#e_rollFade)">7</text>
+    </g>
+    <text x="392" y="186" font-family="'Courier New', monospace" font-size="34" font-weight="700" fill="#ffd24a" filter="url(#e_glow)">8</text>
+    <g opacity="0.4">
+      <text x="392" y="206" font-family="'Courier New', monospace" font-size="30" font-weight="700" fill="url(#e_rollFade)">9</text>
+    </g>
+    <!-- roll bracket cue -->
+    <path d="M388 156 l8 0 M388 190 l8 0" stroke="#ffd24a" stroke-width="1.4" opacity="0.7"/>
+  </g>
+  <rect x="244" y="150" width="178" height="46" rx="9" fill="none" stroke="#2bd4d4" stroke-width="1" opacity="0.5"/>
+
+  <!-- lower FOLLOWED banner -->
+  <g filter="url(#e_softShadow)">
+    <rect x="40" y="212" width="400" height="40" rx="20" fill="url(#e_panel)" stroke="url(#e_banner)" stroke-width="2"/>
+    <rect x="46" y="218" width="10" height="28" rx="5" fill="url(#e_banner)"/>
+  </g>
+  <text x="240" y="238" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="900" letter-spacing="0.5" fill="#ffffff">
+    <tspan fill="#7de4d4">@aurora_fan</tspan><tspan fill="#ffffff"> </tspan><tspan fill="#ffd24a" filter="url(#e_glow)">FOLLOWED</tspan>
+  </text>
+
+  <!-- corner aurora accent ticks -->
+  <g opacity="0.8" filter="url(#e_glow)">
+    <path d="M40 206 q-2-10 8-12" fill="none" stroke="#9d8cff" stroke-width="2" stroke-linecap="round"/>
+    <path d="M440 206 q2-10 -8-12" fill="none" stroke="#2bd4d4" stroke-width="2" stroke-linecap="round"/>
+  </g>
+</svg></div><div class="label"><div class="t">E &mdash; Score-Burst Level-Up</div><div class="d">Arcade level-up freeze-frame: bold gold +1 by a glowing avatar, a 1,248 follower score ticker with digit-roll, star/spark burst, and an "@aurora_fan FOLLOWED" banner.</div></div></div>
+<div class="cell"><span class="badge">F</span><div class="stage"><svg viewBox="0 0 480 270">
+  <defs>
+    <linearGradient id="f_glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1a2030" stop-opacity="0.86"/>
+      <stop offset="0.5" stop-color="#12161f" stop-opacity="0.82"/>
+      <stop offset="1" stop-color="#0a0c12" stop-opacity="0.88"/>
+    </linearGradient>
+    <linearGradient id="f_sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="0.18" stop-color="#ffffff" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="f_accent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.5" stop-color="#2bd4d4"/>
+      <stop offset="1" stop-color="#9d8cff"/>
+    </linearGradient>
+    <linearGradient id="f_ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7de4d4"/>
+      <stop offset="0.55" stop-color="#2bd4d4"/>
+      <stop offset="1" stop-color="#9d8cff"/>
+    </linearGradient>
+    <radialGradient id="f_av" cx="0.4" cy="0.32" r="0.85">
+      <stop offset="0" stop-color="#9d8cff"/>
+      <stop offset="0.55" stop-color="#7a5cff"/>
+      <stop offset="1" stop-color="#3a2f7a"/>
+    </radialGradient>
+    <radialGradient id="f_softlight" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#2bd4d4" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#2bd4d4" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="f_check" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="1" stop-color="#2bd4d4"/>
+    </linearGradient>
+    <radialGradient id="f_gem" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#aef3ea"/>
+      <stop offset="0.6" stop-color="#2bd4d4"/>
+      <stop offset="1" stop-color="#1f8fa8"/>
+    </radialGradient>
+    <radialGradient id="f_gold" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#ffe89a"/>
+      <stop offset="0.6" stop-color="#ffd24a"/>
+      <stop offset="1" stop-color="#c99419"/>
+    </radialGradient>
+    <filter id="f_shadow" x="-40%" y="-40%" width="180%" height="200%">
+      <feDropShadow dx="0" dy="5" stdDeviation="9" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+    <filter id="f_glow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="3.2" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <clipPath id="f_avclip">
+      <circle cx="304" cy="58" r="22"/>
+    </clipPath>
+    <clipPath id="f_cardclip">
+      <rect x="244" y="28" width="216" height="62" rx="18"/>
+    </clipPath>
+  </defs>
+
+  <!-- ambient soft light behind toast (overlay-safe, low opacity) -->
+  <ellipse cx="352" cy="58" rx="150" ry="78" fill="url(#f_softlight)"/>
+
+  <!-- frosted glass card -->
+  <g filter="url(#f_shadow)">
+    <rect x="244" y="28" width="216" height="62" rx="18" fill="url(#f_glass)"/>
+  </g>
+  <g clip-path="url(#f_cardclip)">
+    <rect x="244" y="28" width="216" height="34" fill="url(#f_sheen)"/>
+    <!-- subtle vertical aurora accent line, left edge -->
+    <rect x="248" y="40" width="2.4" height="38" rx="1.2" fill="url(#f_accent)" opacity="0.95"/>
+  </g>
+  <!-- crisp glass border -->
+  <rect x="244.6" y="28.6" width="214.8" height="60.8" rx="17.4" fill="none" stroke="#ffffff" stroke-opacity="0.14" stroke-width="1.1"/>
+  <rect x="245.6" y="29.6" width="212.8" height="58.8" rx="16.4" fill="none" stroke="#000000" stroke-opacity="0.25" stroke-width="0.8"/>
+
+  <!-- avatar glow ring -->
+  <circle cx="304" cy="58" r="25" fill="none" stroke="url(#f_ring)" stroke-width="2.6" filter="url(#f_glow)"/>
+  <circle cx="304" cy="58" r="23.4" fill="none" stroke="#0a0c12" stroke-opacity="0.5" stroke-width="1"/>
+  <!-- avatar fill + face placeholder -->
+  <circle cx="304" cy="58" r="22" fill="url(#f_av)"/>
+  <g clip-path="url(#f_avclip)">
+    <ellipse cx="304" cy="46" rx="18" ry="16" fill="#ffffff" opacity="0.07"/>
+    <!-- friendly silhouette -->
+    <circle cx="304" cy="51" r="7.6" fill="#eef0ff" opacity="0.92"/>
+    <path d="M289 78 q15 -18 30 0 Z" fill="#eef0ff" opacity="0.92"/>
+  </g>
+
+  <!-- live aurora dot accent (top-right of avatar ring) -->
+  <circle cx="322" cy="40" r="5.4" fill="#0a0c12"/>
+  <circle cx="322" cy="40" r="3.6" fill="url(#f_check)" filter="url(#f_glow)"/>
+
+  <!-- text block -->
+  <text x="340" y="52" font-family="Helvetica, Arial, sans-serif" font-size="15.5" font-weight="600" fill="#ffffff" letter-spacing="0.2">@aurora_fan</text>
+  <!-- tiny aurora checkmark next to name -->
+  <g transform="translate(437.5 47)">
+    <circle cx="0" cy="0" r="6.2" fill="url(#f_check)"/>
+    <path d="M-2.8 0.2 L-0.8 2.4 L3 -2.4" fill="none" stroke="#0a0c12" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- sub-label -->
+  <text x="340" y="68" font-family="Helvetica, Arial, sans-serif" font-size="10.5" font-weight="500" fill="#aef3ea" opacity="0.82" letter-spacing="0.6">Followed</text>
+
+  <!-- tier badges row -->
+  <g transform="translate(403 64.5)">
+    <!-- gold sub star -->
+    <g>
+      <circle cx="0" cy="0" r="6.6" fill="url(#f_gold)"/>
+      <circle cx="0" cy="0" r="6.6" fill="none" stroke="#7a5a10" stroke-opacity="0.5" stroke-width="0.6"/>
+      <path d="M0 -3.6 L1.1 -1.1 L3.8 -0.8 L1.8 1 L2.4 3.7 L0 2.3 L-2.4 3.7 L-1.8 1 L-3.8 -0.8 L-1.1 -1.1 Z" fill="#5a3e08"/>
+    </g>
+    <!-- patreon P -->
+    <g transform="translate(16 0)">
+      <circle cx="0" cy="0" r="6.6" fill="#ff5a4a"/>
+      <circle cx="0" cy="0" r="6.6" fill="none" stroke="#a82e22" stroke-opacity="0.5" stroke-width="0.6"/>
+      <text x="0" y="3.3" text-anchor="middle" font-family="Georgia, serif" font-size="9.5" font-weight="700" fill="#ffffff">P</text>
+    </g>
+    <!-- cheer bits gem -->
+    <g transform="translate(32 0)">
+      <path d="M0 -6.4 L5.4 -2.2 L3.4 5.4 L-3.4 5.4 L-5.4 -2.2 Z" fill="url(#f_gem)"/>
+      <path d="M0 -6.4 L0 5.4 M-5.4 -2.2 L5.4 -2.2" stroke="#0a0c12" stroke-opacity="0.35" stroke-width="0.7"/>
+      <path d="M0 -6.4 L5.4 -2.2 L3.4 5.4 Z" fill="#ffffff" opacity="0.16"/>
+    </g>
+  </g>
+
+  <!-- soft bottom aurora accent line under text -->
+  <rect x="340" y="74" width="86" height="1.4" rx="0.7" fill="url(#f_accent)" opacity="0.5"/>
+</svg></div><div class="label"><div class="t">F &mdash; Minimalist Premium Notification</div><div class="d">Apple-style frosted-glass follow toast docked top-right: avatar, @aurora_fan, "Followed" sub-label, aurora accent line and tier badges.</div></div></div>
+</div></body></html>
