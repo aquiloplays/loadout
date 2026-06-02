@@ -287,6 +287,145 @@ async function bumpContribution(env, userId, amount) {
     .bind(amount, now(), String(userId)).run();
 }
 
+// ── dweller customization (cosmetic paper-doll appearance) ────────────
+// Reuses the Hero Phase-1 customization framework (site:
+// heroCustomization.ts) plus a vault-specific OUTFIT overlay. Stored in
+// vault_dweller_customization (vault-dweller-customization-migration.sql),
+// keyed by the same user_id as vault_dweller. INTENTIONALLY decoupled
+// from the core vault: every read here is wrapped so a not-yet-applied
+// table NEVER breaks getState/snapshot/enlist — it just returns null and
+// the viewer falls back to the class+sex sprite.
+
+// Validation whitelists — keep in lockstep with the SHARED contract +
+// site src/lib/vaultDweller.ts / heroCustomization.ts.
+const VC_SEXES = new Set(['male', 'female']);
+const VC_CLASS_KEYS = new Set(['warrior', 'mage', 'rogue', 'ranger', 'healer']);
+const VC_OUTFITS = new Set(['jumpsuit', 'reinforced', 'hazmat']);
+const VC_PREMIUM_OUTFITS = new Set(['reinforced', 'hazmat']);
+const VC_FREE_OUTFIT = 'jumpsuit';
+const VC_STR_MAX = 32; // clamp any free-form palette/style id length
+
+function vcClampStr(v, fallback = '') {
+  const s = String(v == null ? '' : v).trim().slice(0, VC_STR_MAX);
+  return s || fallback;
+}
+
+// Parse a stored row into the SHARED VaultDwellerCustomization shape, or
+// null when the row is absent/blank. hair/eyes are JSON columns.
+function rowToCustomization(row) {
+  if (!row) return null;
+  const sex = VC_SEXES.has(row.sex) ? row.sex : 'male';
+  const classKey = VC_CLASS_KEYS.has(row.class_key) ? row.class_key : 'warrior';
+  const outfit = VC_OUTFITS.has(row.outfit) ? row.outfit : VC_FREE_OUTFIT;
+  const hair = jparse(row.hair, {}) || {};
+  const eyes = jparse(row.eyes, {}) || {};
+  const out = {
+    sex,
+    classKey,
+    skinTone: vcClampStr(row.skin_tone, 'light'),
+    outfit,
+    hair: { style: vcClampStr(hair.style, 'short'), color: vcClampStr(hair.color, 'brown') },
+    eyes: { style: vcClampStr(eyes.style, 'round'), color: vcClampStr(eyes.color, 'brown') },
+  };
+  // facial is male-only; "clean" means no facial layer.
+  if (sex === 'male') out.facial = vcClampStr(row.facial, 'clean');
+  return out;
+}
+
+// Read one user's customization. Returns null on absence OR any error
+// (missing table during the rollout window). NEVER throws.
+export async function getDwellerCustomization(env, userId) {
+  try {
+    const D = db(env);
+    const row = await D.prepare('SELECT * FROM vault_dweller_customization WHERE user_id=?')
+      .bind(String(userId)).first();
+    return rowToCustomization(row);
+  } catch {
+    return null;
+  }
+}
+
+// Batch-read customizations for a set of user ids → Map(userId ->
+// VaultDwellerCustomization). Defensive: returns an empty Map on any
+// error so snapshot() never breaks. Chunks the IN(...) to stay well
+// under SQLite's bound-variable ceiling.
+async function getDwellerCustomizationsBatch(env, userIds) {
+  const out = new Map();
+  const ids = (userIds || []).map(String).filter(Boolean);
+  if (!ids.length) return out;
+  try {
+    const D = db(env);
+    const CHUNK = 90;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const slice = ids.slice(i, i + CHUNK);
+      const placeholders = slice.map(() => '?').join(',');
+      const { results } = await D.prepare(
+        `SELECT * FROM vault_dweller_customization WHERE user_id IN (${placeholders})`
+      ).bind(...slice).all();
+      for (const row of (results || [])) {
+        const c = rowToCustomization(row);
+        if (c) out.set(String(row.user_id), c);
+      }
+    }
+  } catch {
+    return new Map(); // table not applied yet → everyone falls back
+  }
+  return out;
+}
+
+// Validate + persist one user's customization. `isPremium` comes from the
+// route (worker-side Patreon check) — premium outfits are downgraded to
+// the free jumpsuit when the caller isn't premium. Returns the stored,
+// normalized customization. Wrapped so a missing table degrades to a
+// typed { ok:false, error:'not-live' } instead of a 500.
+export async function setDwellerCustomization(env, userId, guildId, payload, isPremium = false) {
+  const g = defaultGuild(env, guildId);
+  const p = payload && typeof payload === 'object' ? payload : {};
+
+  const sex = VC_SEXES.has(p.sex) ? p.sex : 'male';
+  const classKey = VC_CLASS_KEYS.has(p.classKey) ? p.classKey : 'warrior';
+  const skinTone = vcClampStr(p.skinTone, 'light');
+
+  let outfit = VC_OUTFITS.has(p.outfit) ? p.outfit : VC_FREE_OUTFIT;
+  // Premium gate: reinforced/hazmat require a paid Patreon; non-premium
+  // callers are silently downgraded to the free jumpsuit.
+  if (VC_PREMIUM_OUTFITS.has(outfit) && !isPremium) outfit = VC_FREE_OUTFIT;
+
+  const hair = {
+    style: vcClampStr(p.hair?.style, 'short'),
+    color: vcClampStr(p.hair?.color, 'brown'),
+  };
+  const eyes = {
+    style: vcClampStr(p.eyes?.style, 'round'),
+    color: vcClampStr(p.eyes?.color, 'brown'),
+  };
+  // facial only persists for male dwellers; default "clean" = no layer.
+  const facial = sex === 'male' ? vcClampStr(p.facial, 'clean') : null;
+
+  try {
+    const D = db(env);
+    const t = now();
+    await D.prepare(
+      `INSERT INTO vault_dweller_customization
+        (user_id, guild_id, sex, class_key, skin_tone, outfit, hair, eyes, facial, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         guild_id=excluded.guild_id, sex=excluded.sex, class_key=excluded.class_key,
+         skin_tone=excluded.skin_tone, outfit=excluded.outfit, hair=excluded.hair,
+         eyes=excluded.eyes, facial=excluded.facial, updated_at=excluded.updated_at`
+    ).bind(
+      String(userId), String(g), sex, classKey, skinTone, outfit,
+      JSON.stringify(hair), JSON.stringify(eyes), facial, t,
+    ).run();
+  } catch (e) {
+    return { ok: false, error: 'not-live', message: 'Dweller customization storage is finalising.' };
+  }
+
+  const customization = { sex, classKey, skinTone, outfit, hair, eyes };
+  if (sex === 'male') customization.facial = facial;
+  return { ok: true, customization, downgraded: VC_PREMIUM_OUTFITS.has(p.outfit) && !isPremium };
+}
+
 // ── resources ─────────────────────────────────────────────────────────
 
 export function recomputeResources(st, dwellers) {
@@ -532,6 +671,11 @@ export async function snapshot(env, guildId) {
     listDwellers(env, g),
     getActiveCrises(env, g),
   ]);
+  // Batch-load cosmetic customizations for the listed dwellers. Wrapped
+  // defensively inside getDwellerCustomizationsBatch — a not-yet-applied
+  // table returns an empty Map and every dweller falls back to the
+  // class+sex sprite (customization: null).
+  const custMap = await getDwellerCustomizationsBatch(env, dwellers.map(d => d.user_id));
   // Decorate rooms with catalog metadata + occupancy for the renderer.
   const occupancy = {};
   for (const rid of Object.values(st.assignments)) occupancy[rid] = (occupancy[rid] || 0) + 1;
@@ -552,6 +696,9 @@ export async function snapshot(env, guildId) {
     dwellers: dwellers.map(d => ({
       userId: d.user_id, username: d.username, class: d.class,
       room: d.assigned_room, contribution: d.contribution_total,
+      // SHARED contract: VaultDwellerCustomization | null. null when the
+      // user hasn't customized (viewer falls back to class+sex sprite).
+      customization: custMap.get(String(d.user_id)) || null,
     })),
     assignments: st.assignments,
     resources: st.resources,
@@ -619,4 +766,25 @@ export async function routeVaultStartCrisis(env, guildId, discordId, body) {
   const roomId = body?.roomId ? String(body.roomId) : null;
   const r = await startCrisis(env, guildId, { kind, roomId, severity: Number(body?.severity) || 1 });
   return jres(r, r.ok ? 200 : 400);
+}
+
+// Save the caller's dweller appearance (cosmetic paper-doll). Self-acting
+// (a viewer styles their own dweller). Premium outfits (reinforced/hazmat)
+// require a paid Patreon — resolved worker-side via userHasPaidPatreon so
+// the browser can't forge premium. The body carries the customization
+// payload under `customization` (or at the top level, for flexibility).
+export async function routeVaultDwellerCustomize(env, guildId, discordId, body) {
+  const payload = (body && typeof body.customization === 'object' && body.customization)
+    ? body.customization
+    : body;
+  let isPremium = false;
+  try {
+    const { userHasPaidPatreon } = await import('./patreon-link.js');
+    isPremium = await userHasPaidPatreon(env, discordId);
+  } catch { isPremium = false; }
+  // setDwellerCustomization(env, userId, guildId, …): the dweller row is
+  // keyed by the USER (discordId), scoped to the guild. Passing them in the
+  // wrong order keys the row by guildId and snapshot() can never match it.
+  const r = await setDwellerCustomization(env, discordId, guildId, payload, isPremium);
+  return jres(r, r.ok ? 200 : (r.error === 'not-live' ? 503 : 400));
 }

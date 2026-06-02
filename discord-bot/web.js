@@ -37,6 +37,7 @@ import { verifyHmac } from './auth.js';
 import {
   routeVaultStatePost, routeVaultAssign, routeVaultExpand,
   routeVaultContributeCrisis, routeVaultStartCrisis,
+  routeVaultDwellerCustomize,
 } from './vault-community.js';
 import {
   getCatalog,
@@ -376,6 +377,7 @@ const ROUTES = new Set([
   'vault/expand',            // POST — { amount? } contribute toward the next room
   'vault/contribute-to-crisis', // POST — { crisisId, amount? } help resolve a crisis
   'vault/start-crisis',      // POST — { kind, roomId?, severity? } owner-only crisis trigger
+  'vault/dweller-customize', // POST — { customization } save the caller's dweller paper-doll (premium outfits gated worker-side)
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -449,6 +451,10 @@ export async function handleWeb(req, env) {
     if (route === 'vault/assign')   return await routeVaultAssign(env, guildId, discordId, body);
     if (route === 'vault/expand')   return await routeVaultExpand(env, guildId, discordId, body);
     if (route === 'vault/contribute-to-crisis') return await routeVaultContributeCrisis(env, guildId, discordId, body);
+    // Self-acting: a viewer styles their own dweller. Premium outfits
+    // (reinforced/hazmat) are gated worker-side via userHasPaidPatreon
+    // inside the handler, so a forged body can't unlock them.
+    if (route === 'vault/dweller-customize') return await routeVaultDwellerCustomize(env, guildId, discordId, body);
     if (route === 'vault/start-crisis') {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routeVaultStartCrisis(env, guildId, discordId, body);
