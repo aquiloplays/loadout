@@ -1,0 +1,16 @@
+{
+ "done": [],
+ "spend": 1.6,
+ "qa_pass": {},
+ "dropped": [
+  "eyes:round",
+  "eyes:narrow",
+  "eyes:sharp",
+  "eyes:soft"
+ ],
+ "uploaded": [
+  "heroset:male:114",
+  "heroset:female:126",
+  "facial:None:36"
+ ]
+}
