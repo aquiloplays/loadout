@@ -36,14 +36,18 @@ RESEARCH = json.loads((HERE / 'follow-overlay-branding-research.json').read_text
 SAMPLE_SLUGS = ["eldenring", "cyberpunk2077", "supermarket_simulator",
                 "phasmophobia", "balatro", "ball_x_pit"]
 
-# NOTE: we cut with rembg (segmenter), so we do NOT need a chroma key. A plain
-# soft NEUTRAL studio background avoids the magenta bleed flux pushes into glossy/
-# reflective subjects (e.g. chrome carts) while still cutting cleanly.
-PROMPT_TPL = ("{item}, {style}. Color palette: {palette}. "
-              "Authentic game-asset style matching {game}. "
+# ARTISTIC-ONLY (Clay 2026-06-02): bake "artistic illustrated" + an explicit
+# "no photoreal" exclusion into EVERY prompt, so even realistic-aesthetic games
+# are interpreted as illustration, not CGI. We cut with rembg (segmenter), so no
+# chroma key is needed -- a plain neutral #404040 studio backdrop avoids the
+# magenta bleed flux pushes into glossy subjects while still cutting cleanly.
+PROMPT_TPL = ("{item}, artistic hand-drawn 2D illustration matching {game}'s aesthetic, {style}. "
+              "Color palette: {palette}. "
               "Single isolated object, centered, full object in frame, generous empty margin. "
-              "Isolated on a plain soft neutral light-grey studio background, even seamless backdrop. "
-              "Premium professional game-asset illustration, sharp focus, high detail, "
+              "Isolated on a plain neutral studio grey #404040 background, even seamless backdrop. "
+              "Premium professional 2D illustration / digital painting, hand-crafted, flat 2D artwork, "
+              "sharp focus, high detail, "
+              "no 3D render, no glossy 3D icon, no CGI, no photoreal, no photography, "
               "no text, no watermark, no logo, no border.")
 
 

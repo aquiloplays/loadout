@@ -1,5 +1,6 @@
 {
   "_note": "Per-game visual-identity research for the follow-overlay sprite + theme work. Sources: Steam store pages (Claude in Chrome, 2026-06-02) + established franchise art direction. item=most iconic object for a sprite; style=aesthetic cue for the Replicate prompt; palette=color direction (prompt + Phase 4 bar/glow); fontWeb=Google-Fonts-ish match for Phase 4 promo/counter. Extend this for the ~20 Triple-C games at Phase 3.",
+  "_rule": "ARTISTIC-ONLY (Clay 2026-06-02): every sprite must be artistic/illustrated -- painterly, cel-shaded, hand-drawn linework, stylized 2D/vector, premium cartoon/anime, or watercolor/ink. NEVER photoreal 3D renders, realistic photography, or hyperreal CGI. Even games with a realistic aesthetic (Supermarket Sim, PowerWash, Manor Lords, Witcher 3 cinematic) are interpreted artistically, not photoreal. The prompt template hard-codes 'artistic illustrated' + 'no photoreal CGI'; keep every per-game `style` value artistic.",
   "games": {
     "eldenring": {
       "game": "Elden Ring",
@@ -19,8 +20,8 @@
     },
     "supermarket_simulator": {
       "game": "Supermarket Simulator",
-      "item": "a clean chrome shopping cart, three-quarter view, a couple of grocery boxes in the basket",
-      "style": "clean realistic 3D render game asset, soft studio lighting, tidy and bright (NOT cartoon - the game is realistic first-person 3D)",
+      "item": "a friendly shopping cart, three-quarter view, a couple of grocery boxes in the basket",
+      "style": "flat 2D hand-drawn illustration with bold dark ink outlines and painterly cel shading, vibrant storybook poster art, completely flat (no 3D depth, no glossy render)",
       "palette": "friendly grocery green and warm white with red accents, clean and bright",
       "fontWeb": "Baloo 2",
       "barColor": "#39b54a", "glow": "rgba(57,181,74,0.5)"
