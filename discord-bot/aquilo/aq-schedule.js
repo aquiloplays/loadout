@@ -257,6 +257,17 @@ export async function postOrRefreshSchedule(env, guildId) {
   const msg = await postChannelMessage(env, sched.channel_id, payload);
   sched.message_id = msg.id;
   await saveSchedule(env, guildId, sched);
+  // Pin the freshly-posted schedule so it stays the channel's pinned
+  // embed (edit-in-place above preserves an existing pin, so we only
+  // pin on a fresh post). Best-effort — a missing Manage Messages perm
+  // shouldn't fail the post.
+  try {
+    await discordFetch(env,
+      '/channels/' + encodeURIComponent(sched.channel_id) + '/pins/' + encodeURIComponent(msg.id),
+      { method: 'PUT' });
+  } catch (e) {
+    console.warn('[aq-schedule] pin failed', e?.message || e);
+  }
   return msg.id;
 }
 
