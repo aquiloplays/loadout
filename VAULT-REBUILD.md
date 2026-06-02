@@ -71,6 +71,42 @@ Warrior → Security Office · Mage → Reactor Lab · Rogue → Stealth Bay · 
    drives it; wire a small cron to grant Vault Overseer to the top N
    contributors (role exists, assignment not yet automated).
 
+## Rework — 2026-06-02 (Clay's feedback pass)
+
+Shipped on top of the overnight v1. Branding confirmed **"Aquilo's Vault"**
+everywhere (the v1 had already used it; only stylistic "Fallout-Shelter-style"
+comments remained, now softened).
+
+| Part | What shipped | Where |
+|---|---|---|
+| Rooms carved into rock | All 16 room cells re-rendered as **front-facing** scenes hewn into the mountain with rough natural-stone apertures that blend into the bedrock (watchtower/reactor-lab look). Opaque full-bleed (no magenta key); the viewer composites a rock-edge vignette so edges fade into the terrain. | `vault-art-pipeline.py` (rooms now `isolate=False`), re-rendered + live in KV |
+| Idle scene animations | Per-room-type `ROOM_FX` registry: generator turbine, water bubbles, diner steam, training dummy, medical heart-blip + IV drip, reactor runes, garden grow-light, storage dust, science/radio. Clipped per room; **skipped under `prefers-reduced-motion`**. | `VaultCrossSection.tsx` |
+| Animated dwellers | Deterministic walk + class-task state machine — FNV-1a `userId` hash desyncs pacing, mirror-on-turn, walk bob, periodic class task (warrior jab / mage glow / healer blip / ranger aim / rogue flicker). **No per-frame randomness.** | `VaultCrossSection.tsx` |
+| Customizable dwellers | New `vault_dweller_customization` D1 table (applied), `get/setDwellerCustomization` (+ server-side validation & premium gate), `snapshot().dwellers[].customization`, HMAC route `POST /web/vault/dweller-customize`, site `/profile/vault-dweller` customizer reusing the Hero paper-doll + an OUTFIT pick. | `vault-community.js`, `web.js`, `vault-dweller-customization-migration.sql`, `aquilo-site` (`vaultDweller.ts`, `VaultDwellerCustomizer.tsx`, `HeroComposite.tsx` `vaultOutfit` prop, Pages proxy) |
+| Outfit art | 6 overlays generated (jumpsuit/reinforced/hazmat × M/F) at `/asset/vault/outfit-<slug>-<sex>.png`. | KV |
+
+**Replicate spend:** ~$1.32 this pass (16 rooms force-regen + 6 outfits); $3.06 cumulative on `pixel-art-vault:*`.
+
+**Art-tool caveat (important):** Flux rendered the outfit overlays as **full
+figures** (head/face/hands included), not headless floating garments. So the
+customizer does **not** composite the outfit over the hero paper-doll (it would
+occlude the user's hair/face). Instead the page shows the personalized paper-doll
+("Your look") **alongside** the chosen outfit portrait. The `HeroComposite.vaultOutfit`
+layer prop is in place (backward-compatible) for when true garment-only overlay art exists.
+
+**Verification:** both repos typecheck clean (site `tsc` 0 errors; worker `node --check` OK);
+worker deployed (version `12a3c820`); D1 migration applied; live snapshot emits the
+`customization` path; `/play/vault` mounts cleanly in-browser (HUD/terminal/caption, no
+errors). Live animated pixels could **not** be captured headlessly — the preview tab is
+backgrounded so `requestAnimationFrame` is paused (verified 0 ticks while hidden); the
+room art + canvas draw path were verified directly instead.
+
+**Follow-ups (not blocking):**
+- Draw the `outfit-<slug>-<sex>.png` layer on the small cross-section dwellers too (viewer currently uses the base class+sex sprite; outfit shows on the profile page).
+- Cross-section consumes only `customization.classKey`/`sex`; `skinTone`/`hair`/`eyes`/`facial` are typed but not yet drawn at that scale.
+- Pre-existing lint nit at `VaultCrossSection.tsx` (set-state-in-effect on the poll) — untouched, out of scope.
+- The audio/music subsystem (`BoltboundSpire`/`PlayExpedition`/`TownManager`/`PwaShell`/`AchievementUnlockToast`/`public/audio`/`scripts/audio-*`) is a **separate in-flight chip's** uncommitted work — deliberately left untouched & uncommitted.
+
 ## Operating notes
 - Re-arm Discord setup: `wrangler kv key put vault-setup-token <hex> --binding LOADOUT_BOLTS --remote`, then `POST /admin/vault/setup/<guild>?token=<hex>` (idempotent).
 - Force a crisis (owner): signed `POST /web/vault/start-crisis` `{kind, roomId?, severity?}` (kinds: raiders, fire, radstorm, infestation, power-failure).
