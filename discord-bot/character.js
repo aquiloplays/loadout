@@ -20,6 +20,7 @@ import {
   STARTER_GEAR,
   applyClassSelection,
 } from './dungeon.js';
+import { resolveEquippedArt } from './character-composite.js';
 import { getPet, computeMood } from './pet.js';
 import { getWallet, spend, earn } from './wallet.js';
 
@@ -972,6 +973,13 @@ export async function getCharacterLookWeb(env, guildId, userId) {
     hairSwatches: buildHairSwatches(),
     className: hero.className || null,
     starterGranted: !!hero.starterGranted,
+    // Equipped gear + per-slot worn-overlay archetype, so the site
+    // paper-doll (ProfileCharacter -> HeroAvatar) renders gear without
+    // shipping the catalogue. equippedArt[slot] = "<slot>/<slug>".
+    // `sex` drives the per-sex worn-overlay variant (and the body).
+    sex: hero.custom?.sex === 'female' ? 'female' : 'male',
+    equipped: hero.equipped || {},
+    equippedArt: resolveEquippedArt(hero),
     classes,
     // Lock state — true once the player has committed via
     // saveCharacterLookWeb. While locked, /web/character/save and

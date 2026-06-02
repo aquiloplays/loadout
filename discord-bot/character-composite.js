@@ -151,6 +151,30 @@ export function buildCompositeManifest(hero) {
   };
 }
 
+// Resolve a per-slot worn-overlay archetype map { slot: "<slot>/<slug>" }
+// from a hero's equipped (slot -> bag-instance id) map and bag. The site
+// paper-doll uses this to build /asset/gear-art/<slot>/<slug>/<sex>-worn
+// without shipping the gear catalogue. Prefers the stamped item.art,
+// derives via gearArtSlug otherwise (legacy/lootbox items).
+export function resolveEquippedArt(hero) {
+  const equipped = hero?.equipped || {};
+  const bagIx = {};
+  for (const it of (hero?.bag || [])) if (it && it.id) bagIx[it.id] = it;
+  const out = {};
+  for (const [slot, ref] of Object.entries(equipped)) {
+    if (!ref) continue;
+    const item = (typeof ref === 'string') ? bagIx[ref] : ref;
+    if (!item) continue;
+    let art = (typeof item.art === 'string' && /^[a-z]+\/[a-z0-9-]+$/.test(item.art)) ? item.art : '';
+    if (!art) {
+      const a = gearArtSlug(item);
+      if (a) art = `${a.slot}/${a.slug}`;
+    }
+    if (art) out[slot] = art;
+  }
+  return out;
+}
+
 // Coarse hair-color lookup so the site renderer doesn't have to ship
 // the palette. Values are CSS-safe hex used as a tint on the alpha
 // hair sprite (Phase B asset).
