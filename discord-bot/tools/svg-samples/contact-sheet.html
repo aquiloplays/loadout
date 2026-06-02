@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { width:984px; height:812px; background:#101117;
+         font-family: "Segoe UI", Arial, Helvetica, sans-serif; color:#e7ecf3; }
+  header { padding:14px 22px 10px; border-bottom:2px solid #2bd4d4; }
+  header h1 { font-size:27px; font-weight:800; color:#aef3ea; letter-spacing:.2px; }
+  header p  { font-size:14px; color:#9aa6b6; margin-top:5px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:0; }
+  .cell { padding:18px 18px 8px; }
+  .panel { background:#404040; border:1px solid #565656; border-radius:12px;
+           height:236px; display:flex; align-items:center; justify-content:center; }
+  .label { margin-top:9px; }
+  .label .g { font-size:18px; font-weight:800; color:#f2f4f8; }
+  .label .s { font-size:12px; color:#7de4d4; margin-top:1px; }
+  svg { display:block; }
+</style>
+</head>
+<body>
+  <header>
+    <h1>Follow Overlay — Hand-Crafted Cartoon SVG Sprites</h1>
+    <p>Pure code · vector · $0 · bold outlines + cel shading · Clash of Clans / Adventure Time energy · 6 of ~50 games · approval gate</p>
+  </header>
+  <div class="grid">
+
+    <!-- ===================== 1. ELDEN RING — Flask of Crimson Tears ===================== -->
+    <div class="cell"><div class="panel">
+      <svg viewBox="0 0 256 256" width="206" height="206">
+        <ellipse cx="128" cy="234" rx="64" ry="11" fill="#000" opacity="0.20"/>
+        <!-- neck -->
+        <rect x="111" y="70" width="34" height="50" rx="9" fill="#d7a843" stroke="#2a1c0c" stroke-width="7"/>
+        <!-- bulb -->
+        <path d="M68 170 C68 122 96 102 128 102 C160 102 188 122 188 170 C188 214 162 234 128 234 C94 234 68 214 68 170 Z"
+              fill="#eec159" stroke="#2a1c0c" stroke-width="7.5" stroke-linejoin="round"/>
+        <!-- cel shadow crescent -->
+        <path d="M158 116 C182 134 188 168 182 192 C174 218 150 230 126 232 C156 224 172 200 173 170 C174 146 170 128 158 116 Z" fill="#c8902f"/>
+        <!-- glowing crimson core -->
+        <circle cx="118" cy="174" r="36" fill="#d62b38" stroke="#2a1c0c" stroke-width="6"/>
+        <circle cx="118" cy="174" r="21" fill="#ff5d63"/>
+        <circle cx="110" cy="166" r="7.5" fill="#ffd2d2"/>
+        <!-- bulb highlight -->
+        <path d="M92 130 C82 144 79 162 84 178 C90 158 99 144 113 135 C105 128 98 127 92 130 Z" fill="#fff3cd" opacity="0.9"/>
+        <!-- gold band at neck base -->
+        <rect x="102" y="106" width="52" height="15" rx="7" fill="#f4d271" stroke="#2a1c0c" stroke-width="7"/>
+        <!-- wax seal drip -->
+        <path d="M101 112 C96 128 106 134 101 144 C111 139 116 129 113 117 Z" fill="#8e1a22" stroke="#2a1c0c" stroke-width="4" stroke-linejoin="round"/>
+        <!-- cork -->
+        <rect x="107" y="48" width="42" height="30" rx="9" fill="#aa722f" stroke="#2a1c0c" stroke-width="7"/>
+        <rect x="115" y="54" width="26" height="8" rx="4" fill="#cd9050"/>
+      </svg>
+    </div><div class="label"><div class="g">Elden Ring</div><div class="s">flask of crimson tears</div></div></div>
+
+    <!-- ===================== 2. CYBERPUNK 2077 — biochip ===================== -->
+    <div class="cell"><div class="panel">
+      <svg viewBox="0 0 256 256" width="206" height="206">
+        <ellipse cx="128" cy="226" rx="74" ry="12" fill="#000" opacity="0.20"/>
+        <!-- contact pins -->
+        <g fill="#caa70a" stroke="#161200" stroke-width="5" stroke-linejoin="round">
+          <rect x="74" y="46" width="16" height="18" rx="3"/><rect x="120" y="42" width="16" height="22" rx="3"/><rect x="166" y="46" width="16" height="18" rx="3"/>
+          <rect x="74" y="192" width="16" height="18" rx="3"/><rect x="120" y="192" width="16" height="22" rx="3"/><rect x="166" y="192" width="16" height="18" rx="3"/>
+          <rect x="46" y="74" width="18" height="16" rx="3"/><rect x="42" y="120" width="22" height="16" rx="3"/><rect x="46" y="166" width="18" height="16" rx="3"/>
+          <rect x="192" y="74" width="18" height="16" rx="3"/><rect x="192" y="120" width="22" height="16" rx="3"/><rect x="192" y="166" width="18" height="16" rx="3"/>
+        </g>
+        <!-- chip body with notched corner -->
+        <path d="M86 58 H198 Q210 58 210 70 V198 Q210 210 198 210 H70 Q58 210 58 198 V86 L86 58 Z"
+              fill="#fcdd0a" stroke="#161200" stroke-width="7.5" stroke-linejoin="round"/>
+        <!-- cel shadow (lower-right) -->
+        <path d="M210 120 V198 Q210 210 198 210 H120 C170 206 200 178 210 120 Z" fill="#d9b400"/>
+        <!-- inner board -->
+        <rect x="86" y="86" width="98" height="98" rx="10" fill="#1b1606" stroke="#161200" stroke-width="6"/>
+        <!-- traces -->
+        <g stroke="#fcdd0a" stroke-width="5" fill="none" stroke-linecap="round">
+          <path d="M104 110 H150 V150"/><path d="M166 104 V140 H132"/><path d="M104 166 H140"/>
+        </g>
+        <!-- nodes -->
+        <circle cx="150" cy="150" r="13" fill="#ff3df0" stroke="#161200" stroke-width="5"/>
+        <circle cx="104" cy="110" r="9" fill="#2be8ec" stroke="#161200" stroke-width="5"/>
+        <circle cx="166" cy="104" r="7" fill="#2be8ec" stroke="#161200" stroke-width="4"/>
+        <!-- corner gleam -->
+        <path d="M74 72 L96 66 L80 92 Z" fill="#fff7a8" opacity="0.85"/>
+      </svg>
+    </div><div class="label"><div class="g">Cyberpunk 2077</div><div class="s">cyberware biochip</div></div></div>
+
+    <!-- ===================== 3. SUPERMARKET SIM — shopping cart ===================== -->
+    <div class="cell"><div class="panel">
+      <svg viewBox="0 0 256 256" width="206" height="206">
+        <ellipse cx="132" cy="232" rx="78" ry="11" fill="#000" opacity="0.20"/>
+        <!-- groceries poking out -->
+        <rect x="92" y="92" width="40" height="40" rx="6" fill="#56c45a" stroke="#16241c" stroke-width="6"/>
+        <rect x="98" y="100" width="28" height="9" rx="3" fill="#9be88f"/>
+        <rect x="128" y="80" width="44" height="52" rx="6" fill="#f0a23a" stroke="#16241c" stroke-width="6"/>
+        <rect x="135" y="90" width="30" height="10" rx="3" fill="#ffd089"/>
+        <rect x="160" y="100" width="30" height="32" rx="6" fill="#e2473f" stroke="#16241c" stroke-width="6"/>
+        <!-- basket body (trapezoid) -->
+        <path d="M70 128 H206 L190 196 H92 L70 128 Z" fill="#b7c6da" stroke="#1c2636" stroke-width="7.5" stroke-linejoin="round"/>
+        <!-- cel shadow inside basket right -->
+        <path d="M206 128 L190 196 H150 L168 132 Z" fill="#93a3bb"/>
+        <!-- basket grid -->
+        <g stroke="#1c2636" stroke-width="5" stroke-linecap="round">
+          <path d="M99 150 H182"/><path d="M104 172 H176"/>
+          <path d="M118 130 L112 194"/><path d="M140 130 V194"/><path d="M162 130 L168 194"/>
+        </g>
+        <!-- handle -->
+        <path d="M70 128 L52 96 H40" fill="none" stroke="#e23b54" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        <!-- wheels -->
+        <circle cx="104" cy="210" r="15" fill="#2b3340" stroke="#0e131b" stroke-width="6"/>
+        <circle cx="104" cy="210" r="5" fill="#9fb0c4"/>
+        <circle cx="176" cy="210" r="15" fill="#2b3340" stroke="#0e131b" stroke-width="6"/>
+        <circle cx="176" cy="210" r="5" fill="#9fb0c4"/>
+        <!-- top rim highlight -->
+        <path d="M78 130 H150" stroke="#e6eef8" stroke-width="5" stroke-linecap="round" opacity="0.8"/>
+      </svg>
+    </div><div class="label"><div class="g">Supermarket Simulator</div><div class="s">loaded shopping cart</div></div></div>
+
+    <!-- ===================== 4. PHASMOPHOBIA — EMF reader ===================== -->
+    <div class="cell"><div class="panel">
+      <svg viewBox="0 0 256 256" width="206" height="206">
+        <ellipse cx="128" cy="232" rx="52" ry="10" fill="#000" opacity="0.22"/>
+        <!-- antenna -->
+        <path d="M104 66 L86 36" stroke="#20262e" stroke-width="8" stroke-linecap="round"/>
+        <circle cx="84" cy="32" r="9" fill="#7dffae" stroke="#0e1218" stroke-width="5"/>
+        <!-- body -->
+        <rect x="92" y="62" width="72" height="160" rx="16" fill="#333b46" stroke="#0e1218" stroke-width="7.5"/>
+        <!-- cel shadow right -->
+        <path d="M164 78 V206 Q164 222 148 222 H134 C156 218 156 200 156 178 V78 Z" fill="#222932"/>
+        <!-- screen -->
+        <rect x="104" y="76" width="48" height="58" rx="7" fill="#0b1a10" stroke="#0e1218" stroke-width="5"/>
+        <!-- LED bars (rising) -->
+        <rect x="110" y="116" width="36" height="9" rx="2" fill="#2f9e58"/>
+        <rect x="110" y="104" width="30" height="9" rx="2" fill="#3ad36a"/>
+        <rect x="110" y="92"  width="22" height="9" rx="2" fill="#7dffae"/>
+        <rect x="110" y="80"  width="12" height="9" rx="2" fill="#caffe0"/>
+        <!-- buttons -->
+        <circle cx="116" cy="160" r="11" fill="#e2473f" stroke="#0e1218" stroke-width="5"/>
+        <circle cx="148" cy="160" r="9" fill="#566374" stroke="#0e1218" stroke-width="5"/>
+        <rect x="106" y="184" width="44" height="12" rx="6" fill="#566374" stroke="#0e1218" stroke-width="5"/>
+        <!-- body gleam -->
+        <path d="M100 78 V200" stroke="#6b7b8e" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+      </svg>
+    </div><div class="label"><div class="g">Phasmophobia</div><div class="s">EMF reader</div></div></div>
+
+    <!-- ===================== 5. BALATRO — Joker card ===================== -->
+    <div class="cell"><div class="panel">
+      <svg viewBox="0 0 256 256" width="206" height="206">
+        <ellipse cx="132" cy="230" rx="60" ry="11" fill="#000" opacity="0.20"/>
+        <g transform="rotate(-8 128 132)">
+          <!-- card -->
+          <rect x="72" y="44" width="112" height="160" rx="14" fill="#f5eedd" stroke="#241d33" stroke-width="7.5"/>
+          <!-- cel shadow edge -->
+          <path d="M184 58 V190 Q184 204 170 204 H150 C172 200 172 182 172 150 V58 Z" fill="#dccfb2"/>
+          <!-- card sheen -->
+          <path d="M84 52 L120 50 L92 120 L80 120 Z" fill="#fffdf3" opacity="0.6"/>
+          <!-- inner frame -->
+          <rect x="84" y="56" width="88" height="136" rx="9" fill="none" stroke="#2b6fe2" stroke-width="5"/>
+          <!-- jester hat emblem (3-point, with bells) -->
+          <path d="M128 96 C104 100 94 118 98 138 C108 128 118 130 128 138 C138 130 148 128 158 138 C162 118 152 100 128 96 Z"
+                fill="#e23b54" stroke="#241d33" stroke-width="6" stroke-linejoin="round"/>
+          <path d="M128 104 V134" stroke="#a31f33" stroke-width="5" stroke-linecap="round"/>
+          <circle cx="98"  cy="138" r="8" fill="#ffd24a" stroke="#241d33" stroke-width="4.5"/>
+          <circle cx="158" cy="138" r="8" fill="#2b6fe2" stroke="#241d33" stroke-width="4.5"/>
+          <circle cx="128" cy="94" r="7" fill="#ffd24a" stroke="#241d33" stroke-width="4.5"/>
+          <!-- hat band -->
+          <rect x="110" y="138" width="36" height="15" rx="6" fill="#1a2a4a" stroke="#241d33" stroke-width="4"/>
+          <rect x="116" y="142" width="24" height="5" rx="2" fill="#3a5a9a"/>
+          <!-- corner suit pips: red diamond (TL) + blue club (BR) -->
+          <path d="M96 70 L104 80 L96 90 L88 80 Z" fill="#e23b54" stroke="#241d33" stroke-width="3.5" stroke-linejoin="round"/>
+          <g transform="translate(160 178)" stroke="#241d33" stroke-width="3.5">
+            <circle cx="0" cy="-4" r="5.5" fill="#2b6fe2"/><circle cx="-6" cy="4" r="5.5" fill="#2b6fe2"/><circle cx="6" cy="4" r="5.5" fill="#2b6fe2"/>
+            <path d="M-2 6 H2 V13 H-2 Z" fill="#2b6fe2" stroke="none"/>
+          </g>
+        </g>
+      </svg>
+    </div><div class="label"><div class="g">Balatro</div><div class="s">joker card</div></div></div>
+
+    <!-- ===================== 6. BALL x PIT — ball cluster ===================== -->
+    <div class="cell"><div class="panel">
+      <svg viewBox="0 0 256 256" width="206" height="206">
+        <ellipse cx="128" cy="226" rx="80" ry="13" fill="#000" opacity="0.20"/>
+        <!-- back balls -->
+        <g stroke="#15151c" stroke-width="7">
+          <circle cx="96"  cy="118" r="40" fill="#21c7d6"/>
+          <circle cx="170" cy="112" r="36" fill="#ff3df0"/>
+        </g>
+        <!-- cel shadows back -->
+        <path d="M120 96 a40 40 0 0 1 -10 56 a40 40 0 0 0 14 -52 Z" fill="#1796a3"/>
+        <!-- front balls -->
+        <g stroke="#15151c" stroke-width="7">
+          <circle cx="74"  cy="176" r="34" fill="#ffd24a"/>
+          <circle cx="138" cy="186" r="40" fill="#9be23b"/>
+          <circle cx="196" cy="170" r="30" fill="#ff7a3d"/>
+        </g>
+        <!-- cel shadows front (crescents) -->
+        <path d="M96 152 a34 34 0 0 1 -6 48 a34 34 0 0 0 10 -45 Z" fill="#d6a52f"/>
+        <path d="M166 158 a40 40 0 0 1 -8 56 a40 40 0 0 0 12 -53 Z" fill="#6fab26"/>
+        <path d="M218 150 a30 30 0 0 1 -6 42 a30 30 0 0 0 9 -39 Z" fill="#d65f29"/>
+        <!-- specular highlights -->
+        <g fill="#ffffff" opacity="0.9">
+          <circle cx="84"  cy="106" r="8"/><circle cx="158" cy="100" r="7"/>
+          <circle cx="63"  cy="165" r="7"/><circle cx="124" cy="172" r="9"/><circle cx="186" cy="160" r="6"/>
+        </g>
+      </svg>
+    </div><div class="label"><div class="g">BALL x PIT</div><div class="s">arcade ball cluster</div></div></div>
+
+  </div>
+</body>
+</html>
