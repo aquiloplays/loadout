@@ -107,6 +107,9 @@ export async function handleExt(req, env, ctx) {
     if (req.method === 'POST' && route === 'checkin') {
       return await extCheckin(env, guildId, userId, req);
     }
+    if (req.method === 'GET' && route === 'checkin/card') {
+      return await extCheckinCard(env, guildId, twId);
+    }
     if (req.method === 'GET' && route === 'leaderboard') {
       return await extLeaderboard(env, guildId, userId, url.searchParams.get('type'));
     }
@@ -352,6 +355,46 @@ async function extLeaderboard(env, guildId, userId, type) {
 const CHECKIN_COOLDOWN_MS = 20 * 60 * 60 * 1000; // 20h
 const CHECKIN_STREAK_WINDOW_MS = 48 * 60 * 60 * 1000;
 const CHECKIN_KEY = (g, u) => `checkin:${g}:${u}`;
+
+// GET /ext/checkin/card — the panel's mini preview of the viewer's saved
+// STREAM check-in card (frame / badges / tagline + tier accent). The panel
+// identity is tw:<twId>; the card config is Discord-keyed, so we resolve the
+// Twitch→Discord link (plink:twitch:<twId>). Unlinked viewers get a prompt to
+// link rather than a card. Read-only; entitlement-gated cosmetics resolved
+// server-side so the preview reflects what would actually appear on stream.
+async function extCheckinCard(env, guildId, twId) {
+  let discordId = null;
+  try { discordId = await env.LOADOUT_BOLTS.get(`plink:twitch:${twId}`); } catch { /* unlinked */ }
+  if (!discordId) return json({ ok: true, linked: false, config: null });
+
+  const { getCardConfig, resolveEntitlements, computeBadges, FRAMES, BADGES } =
+    await import('./stream-checkin.js');
+  const [config, viewer] = await Promise.all([
+    getCardConfig(env, discordId),
+    resolveEntitlements(env, guildId, discordId),
+  ]);
+  const earned = computeBadges(viewer);
+  const frame = FRAMES.find((f) => f.id === config.frame) || FRAMES[0];
+  const tierChip = (config.frame === 'patron' || viewer.patronTier)
+    ? 'Patron'
+    : (viewer.subTier >= 1 ? 'Tier ' + viewer.subTier : '');
+  return json({
+    ok: true,
+    linked: true,
+    accent: frame.accent,
+    tierChip,
+    config: {
+      frame: config.frame,
+      bg: config.bg,
+      anim: config.anim,
+      tagline: config.tagline || '',
+      badges: (config.badges || []).map((id) => ({
+        id, label: (BADGES.find((b) => b.id === id) || {}).label || id,
+      })),
+    },
+    earnedCount: earned.length,
+  });
+}
 
 // ASCII control characters (range 0x00-0x1f plus DEL 0x7f) — stripped
 // from viewer-supplied text so nothing can break the overlay markup.
