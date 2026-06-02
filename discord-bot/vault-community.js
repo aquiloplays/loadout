@@ -114,6 +114,15 @@ function fire(env, kind, payload) {
   return publishActivity(env, { kind, ts: now(), ...payload }).catch(() => {});
 }
 
+// Fire-and-forget Discord side-effect (announce embeds, DMs, role
+// grants). Dynamic import keeps vault-discord.js -> vault-community.js
+// the only static edge (no cycle). Never throws into the caller.
+function discord(env, fnName, ...args) {
+  return import('./vault-discord.js')
+    .then(m => (typeof m[fnName] === 'function' ? m[fnName](env, ...args) : null))
+    .catch(() => {});
+}
+
 // ── seed + state I/O ──────────────────────────────────────────────────
 
 function seedState(guildId) {
@@ -347,6 +356,7 @@ export async function contributeToExpansion(env, guildId, userId, amount = 1) {
   await putState(env, st);
   if (unlocked) {
     fire(env, 'vault.room.unlocked', { guildId: g, ...unlocked, byUser: userId ? String(userId) : null });
+    discord(env, 'postVaultStatus', g, `🔓 New room online: **${unlocked.name}**. The vault grows!`);
   }
   return {
     ok: true,
@@ -403,6 +413,8 @@ export async function startCrisis(env, guildId, { kind, roomId = null, severity 
   fire(env, 'vault.crisis.start', {
     guildId: g, crisisId: id, kind, name: def.name, roomId, severity, threshold, endsAt, fx: def.fx,
   });
+  discord(env, 'announceCrisisStart', g,
+    { crisisId: id, kind, roomId, threshold }, st.rooms);
   return { ok: true, crisisId: id, kind, name: def.name, roomId, threshold, endsAt };
 }
 
@@ -437,7 +449,10 @@ export async function contributeToCrisis(env, guildId, userId, crisisId, amount 
       guildId: g, crisisId: String(crisisId), kind: row.kind,
       resolution: 'resolved', contributors: Object.keys(contributions).length,
     });
+    discord(env, 'announceCrisisResolved', g, { crisisId: String(crisisId), kind: row.kind }, 'resolved');
   }
+  // Contributing to a live crisis makes you a Crisis Responder.
+  if (userId) discord(env, 'grantCrisisResponder', g, String(userId));
   return {
     ok: true, crisisId: String(crisisId), contributed: amount,
     progress, threshold: row.threshold, resolved,
@@ -458,6 +473,7 @@ export async function expireCrises(env, guildId) {
       .bind(t, 'failed', row.id).run();
     expired.push(row.id);
     fire(env, 'vault.crisis.resolved', { guildId: g, crisisId: row.id, kind: row.kind, resolution: 'failed' });
+    discord(env, 'announceCrisisResolved', g, { crisisId: row.id, kind: row.kind }, 'failed');
   }
   if (expired.length) {
     const st = await getState(env, g);

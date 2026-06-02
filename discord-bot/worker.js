@@ -807,6 +807,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_quest-trace/')) {
       return handleQuestTrace(req, env, path);
     }
+    // Aquilo's Vault — one-shot guild setup: create the Vault Dweller /
+    // Overseer / Crisis Responder roles, the Vault category, and the
+    // #vault-status / #vault-crises / #vault-overseer channels, persisting
+    // ids to guild:cfg. Token-gated (KV `vault-setup-token`). Idempotent
+    // (matches existing roles/channels by name) so re-runs are safe.
+    if (method === 'POST' && path.startsWith('/admin/vault/setup/')) {
+      return handleVaultSetup(req, env, path);
+    }
 
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
@@ -5337,6 +5345,39 @@ async function handleListCommands(req, env, path) {
 //      handler resolves the channel without needing welcome-cfg.
 //
 // Returns a JSON summary of what was done + any non-fatal warnings.
+// One-shot Aquilo's Vault guild setup. Token-gated (KV `vault-setup-token`,
+// armed by the operator just before calling). Idempotent, so on a partial
+// failure you can re-arm the token and re-run safely.
+async function handleVaultSetup(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','vault','setup',':guildId']
+  const guildId = parts[3];
+  if (!guildId) return new Response('guildId required', { status: 400 });
+
+  const u = new URL(req.url);
+  const got = u.searchParams.get('token') || '';
+  const expected = await env.LOADOUT_BOLTS.get('vault-setup-token');
+  if (!expected) return new Response('vault setup not armed (set KV vault-setup-token first)', { status: 410 });
+  if (!got || got !== expected) return new Response('bad token', { status: 401 });
+  // Single-use — burn before side-effects. Re-arm to retry (idempotent).
+  await env.LOADOUT_BOLTS.delete('vault-setup-token');
+
+  if (!env.DISCORD_BOT_TOKEN) {
+    return new Response('worker not provisioned (DISCORD_BOT_TOKEN required)', { status: 503 });
+  }
+  try {
+    const { setupVaultGuild } = await import('./vault-discord.js');
+    const report = await setupVaultGuild(env, guildId);
+    return new Response(JSON.stringify(report, null, 2), {
+      status: report.ok ? 200 : 207,
+      headers: { 'content-type': 'application/json' },
+    });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e) }), {
+      status: 500, headers: { 'content-type': 'application/json' },
+    });
+  }
+}
+
 async function handleBootstrapL8(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','_bootstrap-l8',':guildId']
   const guildId = parts[2];
