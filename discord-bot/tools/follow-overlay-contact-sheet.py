@@ -36,18 +36,18 @@ RESEARCH = json.loads((HERE / 'follow-overlay-branding-research.json').read_text
 SAMPLE_SLUGS = ["eldenring", "cyberpunk2077", "supermarket_simulator",
                 "phasmophobia", "balatro", "ball_x_pit"]
 
-# ARTISTIC-ONLY (Clay 2026-06-02): bake "artistic illustrated" + an explicit
-# "no photoreal" exclusion into EVERY prompt, so even realistic-aesthetic games
-# are interpreted as illustration, not CGI. We cut with rembg (segmenter), so no
-# chroma key is needed -- a plain neutral #404040 studio backdrop avoids the
-# magenta bleed flux pushes into glossy subjects while still cutting cleanly.
-PROMPT_TPL = ("{item}, artistic hand-drawn 2D illustration matching {game}'s aesthetic, {style}. "
-              "Color palette: {palette}. "
-              "Single isolated object, centered, full object in frame, generous empty margin. "
-              "Isolated on a plain neutral studio grey #404040 background, even seamless backdrop. "
-              "Premium professional 2D illustration / digital painting, hand-crafted, flat 2D artwork, "
-              "sharp focus, high detail, "
-              "no 3D render, no glossy 3D icon, no CGI, no photoreal, no photography, "
+# CARTOONISH (Clay 2026-06-02): polished cartoon across ALL games -- bold black
+# outlines, saturated cel shading, exaggerated proportions, Clash of Clans /
+# Adventure Time / Steven Universe energy. Match the game's SUBJECT, impose the
+# cartoon STYLE. We cut with rembg, so no chroma key -- neutral #404040 backdrop.
+PROMPT_TPL = ("{item}, cartoon-style illustration matching {game}'s subject matter, "
+              "bold black outlines, saturated cel-shaded colors ({palette}), "
+              "stylized exaggerated proportions, chunky shapes with big highlights, "
+              "premium polished animated-movie quality, "
+              "Clash of Clans / Adventure Time / Steven Universe aesthetic energy, "
+              "single isolated object centered, full object in frame, generous margin, "
+              "isolated on a plain neutral studio grey #404040 background, "
+              "no photoreal CGI, no 3D render, no painterly realism, no pixel art, "
               "no text, no watermark, no logo, no border.")
 
 

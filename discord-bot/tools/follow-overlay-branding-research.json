@@ -1,53 +1,53 @@
 {
-  "_note": "Per-game visual-identity research for the follow-overlay sprite + theme work. Sources: Steam store pages (Claude in Chrome, 2026-06-02) + established franchise art direction. item=most iconic object for a sprite; style=aesthetic cue for the Replicate prompt; palette=color direction (prompt + Phase 4 bar/glow); fontWeb=Google-Fonts-ish match for Phase 4 promo/counter. Extend this for the ~20 Triple-C games at Phase 3.",
-  "_rule": "ARTISTIC-ONLY (Clay 2026-06-02): every sprite must be artistic/illustrated -- painterly, cel-shaded, hand-drawn linework, stylized 2D/vector, premium cartoon/anime, or watercolor/ink. NEVER photoreal 3D renders, realistic photography, or hyperreal CGI. Even games with a realistic aesthetic (Supermarket Sim, PowerWash, Manor Lords, Witcher 3 cinematic) are interpreted artistically, not photoreal. The prompt template hard-codes 'artistic illustrated' + 'no photoreal CGI'; keep every per-game `style` value artistic.",
+  "_note": "Per-game visual-identity research for the follow-overlay sprite + theme work. Sources: Steam store pages (Claude in Chrome, 2026-06-02) + established franchise art direction. item=most iconic object for a sprite; style=aesthetic cue; palette=color direction (prompt + Phase 4 bar/glow); fontWeb=Google-Fonts-ish match for Phase 4 promo/counter. Extend this for the ~20 Triple-C games at Phase 3.",
+  "_rule": "CARTOONISH (Clay 2026-06-02, supersedes 'artistic-only'): every sprite is a polished CARTOON -- bold black outlines, saturated cel-shaded colors with clear flat color regions (no gradient mush), stylized exaggerated proportions (chunky shapes, big highlights), Saturday-morning / animated-TV / animated-movie energy. Reference: Clash of Clans (which we nailed for the Clash building art), Adventure Time, Steven Universe, The Simpsons, premium mobile-game polish. This applies to ALL games incl. realistic-aesthetic ones (Supermarket Sim, PowerWash, Manor Lords, Witcher 3) and overrides each game's native look -- match the game's SUBJECT MATTER, impose the cartoon STYLE. NOT acceptable: photoreal 3D, glossy 3D-icon renders, realistic painterly digital painting, CRT-fuzz/gritty pixel art, atmospheric horror realism. The prompt template hard-codes the cartoon styling; keep every per-game `style` value cartoon.",
   "games": {
     "eldenring": {
       "game": "Elden Ring",
-      "item": "an ornate golden flask brimming with glowing crimson liquid, a Flask of Crimson Tears, weathered engraved gold filigree and a cork stopper",
-      "style": "painterly high-detail dark-fantasy game asset, dramatic chiaroscuro rim light, cel-shaded depth",
-      "palette": "tarnished Erdtree gold and deep blood crimson on near-black, muted earthy shadows",
+      "item": "a golden flask with a bronze cap and a red wax seal, glowing crimson liquid inside (a Flask of Crimson Tears)",
+      "style": "polished cartoon, bold black outlines, cel-shaded, fantasy-adventure energy",
+      "palette": "tarnished gold and bright blood-crimson, with deep shadow accents",
       "fontWeb": "Cinzel",
       "barColor": "#c9a44c", "glow": "rgba(201,164,76,0.5)"
     },
     "cyberpunk2077": {
       "game": "Cyberpunk 2077",
-      "item": "a futuristic cyberware biochip implant (a Relic shard), etched holographic circuitry, glowing edge",
-      "style": "sleek high-tech sci-fi game asset, glossy industrial, sharp neon edge glow",
-      "palette": "signature acid yellow #FCEE0A and black with cyan and hot-magenta neon accents",
+      "item": "a chunky yellow cyberware chip with magenta and cyan neon accents",
+      "style": "polished cartoon, bold black outlines, cel-shaded, neon-tech energy",
+      "palette": "signature acid yellow #FCEE0A with hot-magenta and cyan neon accents on black",
       "fontWeb": "Rajdhani",
       "barColor": "#fcee0a", "glow": "rgba(252,238,10,0.55)"
     },
     "supermarket_simulator": {
       "game": "Supermarket Simulator",
-      "item": "a friendly shopping cart, three-quarter view, a couple of grocery boxes in the basket",
-      "style": "flat 2D hand-drawn illustration with bold dark ink outlines and painterly cel shading, vibrant storybook poster art, completely flat (no 3D depth, no glossy render)",
-      "palette": "friendly grocery green and warm white with red accents, clean and bright",
+      "item": "a chunky shopping cart full of colorful grocery boxes",
+      "style": "polished cartoon, bold black outlines, cel-shaded, friendly retail energy (NOT photoreal, NOT 3D render)",
+      "palette": "friendly grocery green and warm white with bright red accents",
       "fontWeb": "Baloo 2",
       "barColor": "#39b54a", "glow": "rgba(57,181,74,0.5)"
     },
     "phasmophobia": {
       "game": "Phasmophobia",
-      "item": "an EMF reader handheld ghost-hunting device, worn dark plastic, a row of glowing green LED bars lit on its face",
-      "style": "atmospheric realistic horror game asset, moody low-key lighting, slight grain",
-      "palette": "near-black charcoal with eerie phosphor-green LED glow, cold desaturated",
+      "item": "an EMF reader handheld device with a glowing green LED display",
+      "style": "polished cartoon, bold black outlines, cel-shaded, spooky-but-playful energy (cartoon, NOT horror realism)",
+      "palette": "dark charcoal device with bright phosphor-green glow accents",
       "fontWeb": "Special Elite",
       "barColor": "#3ad36a", "glow": "rgba(58,211,106,0.45)"
     },
     "balatro": {
       "game": "Balatro",
-      "item": "a stylized Joker playing card standing upright (Jimbo the joker), bold poker-art face",
-      "style": "hand-crafted pixel art with subtle CRT scanline fuzz, psychedelic, bold flat shapes",
-      "palette": "deep indigo-navy background, card-suit red and blue, gold accents, hint of green felt",
+      "item": "a playing-card joker with a big smiling face, red and blue suits",
+      "style": "polished cartoon, bold black outlines, cel-shaded, playful card-game energy (cartoon, NOT gritty pixel art)",
+      "palette": "deep indigo-navy, card-suit red and blue, bright gold accents",
       "fontWeb": "VT323",
       "barColor": "#e23b54", "glow": "rgba(226,59,84,0.5)",
       "casino": true
     },
     "ball_x_pit": {
       "game": "BALL x PIT",
-      "item": "a vibrant bouncing ball orb with a short motion trail, or a small cluster of colorful balls",
-      "style": "colorful pixel-art arcade game asset, crisp pixels, energetic (game is 2D pixel-graphics + colorful, NOT smooth minimalist)",
-      "palette": "vivid saturated arcade colors - electric cyan, magenta and lime on dark",
+      "item": "a colorful cluster of glossy arcade balls",
+      "style": "polished cartoon, bold black outlines, cel-shaded, energetic arcade vibe (cartoon, NOT pixel art)",
+      "palette": "vivid saturated arcade colors - electric cyan, magenta and lime",
       "fontWeb": "Press Start 2P",
       "barColor": "#2bd4d4", "glow": "rgba(43,212,212,0.5)"
     }
