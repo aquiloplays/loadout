@@ -1136,6 +1136,16 @@ export default {
       return new Response(JSON.stringify(snap), { status: snap.ok ? 200 : 500, headers });
     }
 
+    // PvP duels — viewer-vs-viewer D20 hero battles. Self-routing module owns
+    // its HMAC gate (challenge/accept/decline/bet/spectator-pick are POST,
+    // HMAC-signed) plus public GET reads (battle/queue/snapshot/history) that
+    // must bypass web.js's POST-only gate. Claimed BEFORE the generic /web
+    // router. See pvp.js.
+    if (path.startsWith('/web/pvp/')) {
+      const { handlePvpRoute } = await import('./pvp.js');
+      return handlePvpRoute(req, env, path);
+    }
+
     if (path.startsWith('/web/')) {
       const { handleWeb } = await import('./web.js');
       return handleWeb(req, env);
