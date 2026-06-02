@@ -1,8 +1,9 @@
 """
 Aquilo's Vault — premium cross-section art batch (Flux 1.1 Pro Ultra).
 
-Generates the gritty-industrial Fallout-Shelter cross-section art set for
-the worker-native vault (terrain, vault door, 16 room cells, per-class
+Generates the gritty-industrial Aquilo's-Vault cross-section art set
+(Fallout-Shelter-style cutaway template) for the worker-native vault
+(terrain, vault door, 16 room cells carved into rock, per-class
 dweller sprites, crisis FX, HUD chrome), magenta-keys the isolated
 assets to transparent, and uploads to Cloudflare KV under
 `pixel-art-vault:<asset>` (served by the worker at
@@ -200,13 +201,25 @@ def jobs():
         f"trim, the number 86 stenciled on it, head-on view. {ON_MAGENTA}",
         '1:1', isolate=True, seed_center=False)
 
-    # 3. 16 room cells (isolated horizontal room dioramas).
+    # 3. 16 room cells — FRONT-FACING scenes CARVED INTO the mountain rock.
+    #    Opaque full-bleed (NOT magenta-keyed): the rough natural-stone
+    #    aperture that frames each scene is baked into the art so the room
+    #    reads as a cavern hewn into the cliff (matching the watchtower +
+    #    reactor-lab look) rather than a box sitting on a rock backdrop.
+    #    The viewer composites a soft rock-edge vignette on top for blend.
     for rtype, desc in ROOM_DESC.items():
         add(f'room-{rtype}',
-            f"{VAULT_STYLE}. Interior side-cutaway of {desc}, framed by riveted steel "
-            f"bulkhead walls as one room cell of a fallout vault, clean readable, evenly "
-            f"lit, no characters. {ON_MAGENTA}",
-            '3:2', isolate=True, seed_center=False)
+            f"{VAULT_STYLE}. A strictly FRONT-FACING flat head-on 2D elevation view, as if "
+            f"looking through a rough irregular opening hewn straight into a mountain cliff "
+            f"face, of {desc}. The scene is CARVED INTO solid rock: jagged natural stone "
+            f"walls and dark bedrock frame the interior on every side, the rocky aperture "
+            f"edges are uneven and organic and fade into the surrounding dark stone, the "
+            f"interior is lit by a warm sodium-lamp amber glow spilling out of the opening. "
+            f"Reinforced with riveted steel bulkhead plating bolted into the raw rock around "
+            f"the rim. No perspective tilt, no isometric angle, no floor-plan top-down view, "
+            f"no characters. Same carved-into-the-cliff aesthetic as a watchtower or reactor "
+            f"lab dug into a mountainside.",
+            '3:2', isolate=False)
 
     # 4. Per-class dweller sprites (5 classes x 2 sexes), front idle.
     CLASS_LOOK = {
@@ -223,6 +236,29 @@ def jobs():
                 f"{look}, standing idle, friendly, small simple readable character, "
                 f"thick clean outline. {ON_MAGENTA}",
                 '2:3', isolate=True, seed_center=False)
+
+    # 4b. Vault-outfit overlay layers for the customizable dweller paper-
+    #     doll (drawn OVER the hero body in HeroComposite on the profile
+    #     page). Transparent, aligned to a centered front-facing standing
+    #     humanoid on the 5:7 hero grid; head / hands / face left bare so
+    #     the hero's own hair / facial / skin layers show through. Served
+    #     at /asset/vault/outfit-<slug>-<sex>.png. Premium slugs (reinforced
+    #     / hazmat) are tier-gated client-side; jumpsuit is free.
+    OUTFITS = {
+        'jumpsuit':   'a classic blue-and-yellow Vault-Tec jumpsuit / overalls with a numbered collar and utility belt',
+        'reinforced': 'a reinforced armored vault jumpsuit with riveted steel shoulder pauldrons and a chest plate bolted over the overalls',
+        'hazmat':     'a heavy yellow rad-shielded hazmat vault suit with reinforced seams, chest gauge and hose fittings',
+    }
+    for slug, look in OUTFITS.items():
+        for sex, who in (('male', 'man'), ('female', 'woman')):
+            add(f'outfit-{slug}-{sex}',
+                f"{VAULT_STYLE}. A front-facing full-body WORN-CLOTHING overlay of {look}, "
+                f"worn by a standing {who} facing the viewer, showing ONLY the suit covering "
+                f"the torso, arms and legs. NO head, NO face, NO hair, NO hands, NO visible "
+                f"skin, NO background scenery -- just the floating worn garment shape, "
+                f"centered and aligned to a standing humanoid figure, simple clean readable "
+                f"thick-outline pixel-art. {ON_MAGENTA}",
+                '3:4', isolate=True, seed_center=False)
 
     # 5. Crisis FX overlays (match CRISIS_KINDS fx keys).
     CRISIS = {
