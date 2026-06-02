@@ -1,0 +1,151 @@
+<svg viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="au_domeGrad" cx="42%" cy="32%" r="72%">
+      <stop offset="0%" stop-color="#ff8a8c"/>
+      <stop offset="28%" stop-color="#ff6b6b"/>
+      <stop offset="62%" stop-color="#e63b3f"/>
+      <stop offset="88%" stop-color="#c62a30"/>
+      <stop offset="100%" stop-color="#a81f2b"/>
+    </radialGradient>
+    <radialGradient id="au_domeRim" cx="50%" cy="50%" r="50%">
+      <stop offset="78%" stop-color="#a81f2b" stop-opacity="0"/>
+      <stop offset="93%" stop-color="#8c1822" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#6e1019" stop-opacity="0.9"/>
+    </radialGradient>
+    <linearGradient id="au_collarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c62a30"/>
+      <stop offset="50%" stop-color="#9c1d27"/>
+      <stop offset="100%" stop-color="#7a141d"/>
+    </linearGradient>
+    <linearGradient id="au_baseTopGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#dfe5ee"/>
+      <stop offset="45%" stop-color="#b8c0cc"/>
+      <stop offset="100%" stop-color="#959daa"/>
+    </linearGradient>
+    <linearGradient id="au_baseSideGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#aab2bf"/>
+      <stop offset="40%" stop-color="#8a93a0"/>
+      <stop offset="100%" stop-color="#69707c"/>
+    </linearGradient>
+    <linearGradient id="au_ridgeGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c8cfd9"/>
+      <stop offset="100%" stop-color="#7c838f"/>
+    </linearGradient>
+    <radialGradient id="au_baseTopSheen" cx="38%" cy="20%" r="80%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="45%" stop-color="#ffffff" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="au_specBig" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="55%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="au_groundShadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#10131a" stop-opacity="0.5"/>
+      <stop offset="70%" stop-color="#10131a" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#10131a" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="au_metalEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#eef2f7"/>
+      <stop offset="100%" stop-color="#9aa2af"/>
+    </linearGradient>
+    <filter id="au_softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="au_ground" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <filter id="au_domeShine" x="-20%" y="-20%" width="140%" height="140%">
+      <feSpecularLighting result="spec" surfaceScale="3" specularConstant="0.85" specularExponent="22" lighting-color="#ffffff">
+        <fePointLight x="95" y="70" z="160"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="specClip"/>
+      <feComposite in="SourceGraphic" in2="specClip" operator="arithmetic" k1="0" k2="1" k3="0.9" k4="0"/>
+    </filter>
+    <clipPath id="au_hazardClip">
+      <path d="M128 170 a82 30 0 1 0 0.1 0 Z"/>
+    </clipPath>
+    <clipPath id="au_domeClip">
+      <ellipse cx="128" cy="116" rx="62" ry="58"/>
+    </clipPath>
+  </defs>
+
+  <!-- ground shadow -->
+  <ellipse cx="128" cy="214" rx="92" ry="22" fill="url(#au_groundShadow)" filter="url(#au_ground)"/>
+
+  <!-- ===== METAL BASE ===== -->
+  <!-- base side / depth -->
+  <path d="M30 178 a98 36 0 0 0 196 0 l0 14 a98 36 0 0 1 -196 0 Z" fill="url(#au_baseSideGrad)" stroke="#2a2f38" stroke-width="3"/>
+  <!-- base top disc -->
+  <ellipse cx="128" cy="178" rx="98" ry="36" fill="url(#au_baseTopGrad)" stroke="#2a2f38" stroke-width="3"/>
+  <ellipse cx="128" cy="176" rx="98" ry="36" fill="url(#au_baseTopSheen)"/>
+
+  <!-- ridged bevel ring on base -->
+  <ellipse cx="128" cy="178" rx="82" ry="29" fill="none" stroke="url(#au_ridgeGrad)" stroke-width="5"/>
+  <ellipse cx="128" cy="178" rx="82" ry="29" fill="none" stroke="#5a616d" stroke-width="1.4" stroke-opacity="0.7"/>
+
+  <!-- rivets around base -->
+  <g stroke="#5b626e" stroke-width="1">
+    <circle cx="48" cy="176" r="4.4" fill="url(#au_metalEdge)"/>
+    <circle cx="80" cy="200" r="4.4" fill="url(#au_metalEdge)"/>
+    <circle cx="128" cy="208" r="4.4" fill="url(#au_metalEdge)"/>
+    <circle cx="176" cy="200" r="4.4" fill="url(#au_metalEdge)"/>
+    <circle cx="208" cy="176" r="4.4" fill="url(#au_metalEdge)"/>
+    <circle cx="176" cy="156" r="4" fill="url(#au_metalEdge)"/>
+    <circle cx="80" cy="156" r="4" fill="url(#au_metalEdge)"/>
+  </g>
+  <g fill="#ffffff" fill-opacity="0.7">
+    <circle cx="46.6" cy="174.6" r="1.4"/>
+    <circle cx="78.6" cy="198.6" r="1.4"/>
+    <circle cx="126.6" cy="206.6" r="1.4"/>
+    <circle cx="174.6" cy="198.6" r="1.4"/>
+    <circle cx="206.6" cy="174.6" r="1.4"/>
+  </g>
+
+  <!-- ===== HAZARD STRIPE RING ===== -->
+  <ellipse cx="128" cy="170" rx="82" ry="30" fill="#7a141d"/>
+  <g clip-path="url(#au_hazardClip)">
+    <rect x="40" y="138" width="180" height="70" fill="#e63b3f"/>
+    <g fill="#f4f6f8">
+      <polygon points="46,138 70,138 30,208 6,208"/>
+      <polygon points="86,138 110,138 70,208 46,208"/>
+      <polygon points="126,138 150,138 110,208 86,208"/>
+      <polygon points="166,138 190,138 150,208 126,208"/>
+      <polygon points="206,138 230,138 190,208 166,208"/>
+    </g>
+    <ellipse cx="128" cy="158" rx="82" ry="30" fill="#ffffff" fill-opacity="0.16"/>
+  </g>
+  <ellipse cx="128" cy="170" rx="82" ry="30" fill="none" stroke="#2a2f38" stroke-width="3.2"/>
+  <!-- inner collar lip of hazard ring -->
+  <ellipse cx="128" cy="168" rx="56" ry="22" fill="url(#au_collarGrad)" stroke="#2a2f38" stroke-width="2.6"/>
+  <ellipse cx="128" cy="166" rx="56" ry="22" fill="none" stroke="#6e1019" stroke-width="1.2"/>
+
+  <!-- ===== RED DOME BUTTON ===== -->
+  <!-- collar under dome -->
+  <ellipse cx="128" cy="150" rx="58" ry="24" fill="url(#au_collarGrad)" stroke="#2a2f38" stroke-width="3"/>
+  <ellipse cx="128" cy="150" rx="58" ry="24" fill="url(#au_domeRim)"/>
+
+  <!-- dome body -->
+  <g filter="url(#au_domeShine)">
+    <path d="M70 138 a58 56 0 0 1 116 0 a58 24 0 0 1 -116 0 Z" fill="url(#au_domeGrad)" stroke="#2a2f38" stroke-width="3.2"/>
+  </g>
+  <!-- dome rim shading -->
+  <path d="M70 138 a58 56 0 0 1 116 0 a58 24 0 0 1 -116 0 Z" fill="url(#au_domeRim)"/>
+
+  <!-- contour highlight band -->
+  <g clip-path="url(#au_domeClip)">
+    <path d="M74 108 q54 -34 108 0" fill="none" stroke="#ffb3b3" stroke-width="6" stroke-opacity="0.45" stroke-linecap="round"/>
+    <ellipse cx="106" cy="98" rx="34" ry="22" fill="url(#au_specBig)" filter="url(#au_softGlow)"/>
+    <ellipse cx="98" cy="92" rx="14" ry="9" fill="#ffffff" fill-opacity="0.95"/>
+    <!-- lower bounce light -->
+    <path d="M84 146 q44 18 88 0" fill="none" stroke="#ff8a8c" stroke-width="4" stroke-opacity="0.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- crisp top-edge highlight -->
+  <path d="M82 96 q46 -30 92 0" fill="none" stroke="#ffffff" stroke-width="2" stroke-opacity="0.55" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,181 @@
+<svg viewBox="0 0 256 256">
+  <defs>
+    <radialGradient id="hk_discFill" cx="42%" cy="38%" r="72%">
+      <stop offset="0%" stop-color="#f6f1e6"/>
+      <stop offset="48%" stop-color="#efe9dc"/>
+      <stop offset="78%" stop-color="#ddd4c1"/>
+      <stop offset="100%" stop-color="#cfc6b2"/>
+    </radialGradient>
+    <radialGradient id="hk_innerSink" cx="50%" cy="50%" r="55%">
+      <stop offset="0%" stop-color="#cfc6b2" stop-opacity="0"/>
+      <stop offset="70%" stop-color="#cfc6b2" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#b7ad97" stop-opacity="0.85"/>
+    </radialGradient>
+    <radialGradient id="hk_rimFill" cx="40%" cy="34%" r="78%">
+      <stop offset="0%" stop-color="#33424b"/>
+      <stop offset="45%" stop-color="#1d2a32"/>
+      <stop offset="82%" stop-color="#13202a"/>
+      <stop offset="100%" stop-color="#0e171c"/>
+    </radialGradient>
+    <linearGradient id="hk_rimBevelTop" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#536775" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#536775" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hk_rimBevelBot" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0a1015" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#0a1015" stop-opacity="0.9"/>
+    </linearGradient>
+    <radialGradient id="hk_gemFill" cx="46%" cy="40%" r="62%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#e6f8ff"/>
+      <stop offset="62%" stop-color="#bfe9ff"/>
+      <stop offset="88%" stop-color="#88c4e6"/>
+      <stop offset="100%" stop-color="#5d97bc"/>
+    </radialGradient>
+    <radialGradient id="hk_gemGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#bfe9ff" stop-opacity="0.95"/>
+      <stop offset="55%" stop-color="#9fd6f5" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#9fd6f5" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="hk_gemSeat" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#9aae b a" stop-opacity="0"/>
+      <stop offset="60%" stop-color="#b7ad97" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#9c9078" stop-opacity="0.9"/>
+    </radialGradient>
+    <linearGradient id="hk_topHi" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fffdf6" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#fffdf6" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="hk_rimLight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#bfe9ff" stop-opacity="0.7"/>
+      <stop offset="50%" stop-color="#bfe9ff" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#bfe9ff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="hk_groundShadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0b1418" stop-opacity="0.55"/>
+      <stop offset="70%" stop-color="#0b1418" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#0b1418" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="hk_softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4.5" result="b"/>
+      <feMerge>
+        <feMergeNode in="b"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="hk_inkSoft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="0.6"/>
+    </filter>
+    <filter id="hk_ground" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+    <filter id="hk_gemShine" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
+      <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.85" specularExponent="18" lighting-color="#eafaff" result="spec">
+        <fePointLight x="92" y="78" z="120"/>
+      </feSpecularLighting>
+      <feComposite in="spec" in2="SourceAlpha" operator="in" result="specClip"/>
+      <feComposite in="SourceGraphic" in2="specClip" operator="arithmetic" k1="0" k2="1" k3="1" k4="0"/>
+    </filter>
+    <filter id="hk_carveTex" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="1.5"/>
+    </filter>
+    <clipPath id="hk_discClip">
+      <circle cx="128" cy="126" r="74"/>
+    </clipPath>
+  </defs>
+
+  <!-- ground shadow -->
+  <ellipse cx="128" cy="218" rx="62" ry="15" fill="url(#hk_groundShadow)" filter="url(#hk_ground)"/>
+
+  <!-- outer ornate rim -->
+  <circle cx="128" cy="126" r="100" fill="url(#hk_rimFill)" filter="url(#hk_inkSoft)"/>
+  <circle cx="128" cy="126" r="100" fill="none" stroke="#0a1015" stroke-width="2.5"/>
+  <circle cx="128" cy="124" r="99" fill="none" stroke="url(#hk_rimBevelTop)" stroke-width="3"/>
+  <circle cx="128" cy="128" r="99" fill="none" stroke="url(#hk_rimBevelBot)" stroke-width="3"/>
+  <circle cx="128" cy="126" r="100" fill="url(#hk_rimLight)" opacity="0.55"/>
+
+  <!-- carved ornament ring on rim -->
+  <g filter="url(#hk_carveTex)">
+    <circle cx="128" cy="126" r="90" fill="none" stroke="#0a1318" stroke-width="3.5"/>
+    <circle cx="128" cy="126" r="83" fill="none" stroke="#3a4b55" stroke-width="1.4" opacity="0.7"/>
+  </g>
+
+  <!-- ornament studs around rim -->
+  <g fill="#0c161b" stroke="#46586350" stroke-width="0.8">
+    <circle cx="128" cy="40" r="4.6"/>
+    <circle cx="189" cy="65" r="4.6"/>
+    <circle cx="214" cy="126" r="4.6"/>
+    <circle cx="189" cy="187" r="4.6"/>
+    <circle cx="128" cy="212" r="4.6"/>
+    <circle cx="67" cy="187" r="4.6"/>
+    <circle cx="42" cy="126" r="4.6"/>
+    <circle cx="67" cy="65" r="4.6"/>
+  </g>
+  <g fill="#7d93a0" opacity="0.55">
+    <circle cx="126.5" cy="38.5" r="1.6"/>
+    <circle cx="187.5" cy="63.5" r="1.6"/>
+    <circle cx="212.5" cy="124.5" r="1.6"/>
+    <circle cx="65.5" cy="63.5" r="1.6"/>
+    <circle cx="40.5" cy="124.5" r="1.6"/>
+  </g>
+
+  <!-- petal ornament flourishes -->
+  <g clip-path="url(#hk_discClip)" opacity="0">
+    <rect width="256" height="256"/>
+  </g>
+  <g stroke="#34454f" stroke-width="1.3" fill="none" opacity="0.7" filter="url(#hk_inkSoft)">
+    <path d="M128 36 q9 18 0 30 q-9 -12 0 -30 Z"/>
+    <path d="M220 126 q-18 9 -30 0 q12 -9 30 0 Z"/>
+    <path d="M128 216 q-9 -18 0 -30 q9 12 0 30 Z"/>
+    <path d="M36 126 q18 -9 30 0 q-12 9 -30 0 Z"/>
+  </g>
+
+  <!-- notch in the rim (top) -->
+  <path d="M118 28 L128 46 L138 28 Z" fill="#0e171c" stroke="#0a1015" stroke-width="1"/>
+  <path d="M120 30 L128 44 L136 30" fill="none" stroke="#46586340" stroke-width="0.8"/>
+
+  <!-- bone-white inner disc -->
+  <circle cx="128" cy="126" r="74" fill="url(#hk_discFill)" filter="url(#hk_inkSoft)"/>
+  <circle cx="128" cy="126" r="74" fill="url(#hk_innerSink)"/>
+  <circle cx="128" cy="126" r="74" fill="none" stroke="#0a1318" stroke-width="2"/>
+  <circle cx="128" cy="123" r="73" fill="none" stroke="url(#hk_topHi)" stroke-width="2.5"/>
+
+  <!-- carved inner ring detail -->
+  <g clip-path="url(#hk_discClip)">
+    <circle cx="128" cy="126" r="60" fill="none" stroke="#b7ad97" stroke-width="2" opacity="0.8"/>
+    <circle cx="128" cy="126" r="60" fill="none" stroke="#fff8ea" stroke-width="0.9" opacity="0.7" transform="translate(0,-1.5)"/>
+    <circle cx="128" cy="126" r="46" fill="none" stroke="#c7bea9" stroke-width="1.4" opacity="0.7"/>
+    <!-- faint engraved curves -->
+    <path d="M88 96 q40 -22 80 0" fill="none" stroke="#bdb39d" stroke-width="1.1" opacity="0.6"/>
+    <path d="M88 156 q40 22 80 0" fill="none" stroke="#bdb39d" stroke-width="1.1" opacity="0.6"/>
+    <path d="M96 88 q-22 40 0 80" fill="none" stroke="#bdb39d" stroke-width="1.1" opacity="0.5"/>
+    <path d="M160 88 q22 40 0 80" fill="none" stroke="#bdb39d" stroke-width="1.1" opacity="0.5"/>
+  </g>
+
+  <!-- gem seat shadow -->
+  <circle cx="128" cy="126" r="30" fill="url(#hk_gemSeat)"/>
+  <circle cx="128" cy="126" r="29" fill="none" stroke="#0c1318" stroke-width="1.6" opacity="0.7"/>
+
+  <!-- pale glow halo -->
+  <circle cx="128" cy="126" r="40" fill="url(#hk_gemGlow)" filter="url(#hk_softGlow)"/>
+
+  <!-- center gem -->
+  <g filter="url(#hk_gemShine)">
+    <circle cx="128" cy="126" r="25" fill="url(#hk_gemFill)"/>
+  </g>
+  <circle cx="128" cy="126" r="25" fill="none" stroke="#5d97bc" stroke-width="1.2" opacity="0.8"/>
+  <circle cx="128" cy="126" r="25" fill="url(#hk_gemGlow)" opacity="0.4"/>
+
+  <!-- gem facet highlights -->
+  <ellipse cx="120" cy="116" rx="9" ry="6" fill="#ffffff" opacity="0.85" filter="url(#hk_inkSoft)"/>
+  <ellipse cx="134" cy="134" rx="5" ry="3.5" fill="#eafaff" opacity="0.55"/>
+  <path d="M111 120 q17 -10 34 2" fill="none" stroke="#ffffff" stroke-width="1.1" opacity="0.6"/>
+
+  <!-- top-left specular sweep on disc -->
+  <path d="M70 86 q30 -22 70 -16 q-40 6 -64 34 q-8 -10 -6 -18 Z" fill="#fffdf6" opacity="0.35" clip-path="url(#hk_discClip)" filter="url(#hk_inkSoft)"/>
+
+  <!-- cool rim light arc (upper-left) -->
+  <path d="M70 64 a90 90 0 0 1 60 -28" fill="none" stroke="#bfe9ff" stroke-width="2.4" opacity="0.55" filter="url(#hk_softGlow)"/>
+</svg>

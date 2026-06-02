@@ -1,0 +1,168 @@
+<svg viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="pw_bodyGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffc15e"/>
+      <stop offset="0.45" stop-color="#f0a02a"/>
+      <stop offset="1" stop-color="#d9851a"/>
+    </linearGradient>
+    <linearGradient id="pw_bodyGrad2" x1="0" y1="0" x2="1" y2="0.4">
+      <stop offset="0" stop-color="#ffce78"/>
+      <stop offset="0.5" stop-color="#f0a02a"/>
+      <stop offset="1" stop-color="#cf7d14"/>
+    </linearGradient>
+    <linearGradient id="pw_gripGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4c525c"/>
+      <stop offset="0.5" stop-color="#3a3f47"/>
+      <stop offset="1" stop-color="#272b31"/>
+    </linearGradient>
+    <linearGradient id="pw_gripHi" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6b727d"/>
+      <stop offset="1" stop-color="#3a3f47"/>
+    </linearGradient>
+    <linearGradient id="pw_lanceGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eef1f5"/>
+      <stop offset="0.35" stop-color="#c2c8d0"/>
+      <stop offset="0.6" stop-color="#9aa1ab"/>
+      <stop offset="1" stop-color="#8a909a"/>
+    </linearGradient>
+    <linearGradient id="pw_lanceHi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pw_collarGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd789"/>
+      <stop offset="0.5" stop-color="#f0a02a"/>
+      <stop offset="1" stop-color="#c9790f"/>
+    </linearGradient>
+    <radialGradient id="pw_triggerGrad" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#5a616b"/>
+      <stop offset="1" stop-color="#2c3036"/>
+    </radialGradient>
+    <linearGradient id="pw_waterGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="0.35" stop-color="#bfe3f0" stop-opacity="0.85"/>
+      <stop offset="0.75" stop-color="#7fc8e6" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#7fc8e6" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="pw_waterGrad2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#cfeef7" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#7fc8e6" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="pw_mistGrad" cx="0.2" cy="0.5" r="0.9">
+      <stop offset="0" stop-color="#dff4fb" stop-opacity="0.7"/>
+      <stop offset="0.6" stop-color="#bfe3f0" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#bfe3f0" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pw_groundGrad" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#000000" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="pw_mistBlur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4.5"/>
+    </filter>
+    <filter id="pw_dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="4" stdDeviation="3" flood-color="#1a1f25" flood-opacity="0.45"/>
+    </filter>
+    <filter id="pw_metalSpec" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.2" result="pw_b"/>
+      <feSpecularLighting in="pw_b" surfaceScale="3" specularConstant="0.9" specularExponent="20" lighting-color="#ffffff" result="pw_s">
+        <fePointLight x="60" y="40" z="120"/>
+      </feSpecularLighting>
+      <feComposite in="pw_s" in2="SourceAlpha" operator="in" result="pw_sc"/>
+      <feComposite in="SourceGraphic" in2="pw_sc" operator="arithmetic" k1="0" k2="1" k3="0.9" k4="0"/>
+    </filter>
+  </defs>
+
+  <!-- ground shadow -->
+  <ellipse cx="120" cy="216" rx="86" ry="16" fill="url(#pw_groundGrad)"/>
+
+  <!-- ============ GUN ASSEMBLY ============ -->
+  <g filter="url(#pw_dropShadow)">
+
+    <!-- dark grip -->
+    <path d="M70 96 C66 96 62 100 62 108 L66 176 C67 186 73 192 82 192 C92 192 98 184 97 174 L92 110 C91 100 84 96 76 96 Z" fill="url(#pw_gripGrad)"/>
+    <path d="M70 98 C67 99 66 104 66 110 L70 170 C70 176 74 180 79 180 L74 110 C73 103 72 99 70 98 Z" fill="url(#pw_gripHi)" opacity="0.6"/>
+    <!-- grip texture lines -->
+    <path d="M68 120 L90 122" stroke="#23272d" stroke-width="2" opacity="0.5"/>
+    <path d="M69 132 L92 134" stroke="#23272d" stroke-width="2" opacity="0.5"/>
+    <path d="M70 144 L93 146" stroke="#23272d" stroke-width="2" opacity="0.5"/>
+    <path d="M71 156 L94 158" stroke="#23272d" stroke-width="2" opacity="0.5"/>
+    <path d="M72 168 L95 170" stroke="#23272d" stroke-width="2" opacity="0.5"/>
+
+    <!-- trigger guard -->
+    <path d="M96 104 C112 104 118 118 116 140 C115 152 108 160 96 160 L96 150 C104 150 106 144 106 136 C106 122 102 114 92 114 Z" fill="#2c3036"/>
+    <!-- trigger -->
+    <path d="M96 112 C104 114 106 124 102 138 C100 146 95 150 90 148 L92 116 Z" fill="url(#pw_triggerGrad)"/>
+    <path d="M95 116 C100 118 100 126 97 134" stroke="#787f8a" stroke-width="1.6" fill="none" opacity="0.7"/>
+
+    <!-- main body (orange) -->
+    <path d="M64 96 C60 84 64 72 82 70 L150 66 C160 65 168 70 170 82 L170 104 C168 116 158 120 148 120 L84 122 C72 122 66 110 64 96 Z" fill="url(#pw_bodyGrad)"/>
+    <!-- body upper highlight -->
+    <path d="M82 72 L150 68 C158 67 164 71 166 80 L166 86 C150 80 110 80 82 86 Z" fill="url(#pw_bodyGrad2)" opacity="0.85"/>
+    <path d="M84 74 L148 70 C155 69 160 73 161 79 C140 76 108 77 84 82 Z" fill="#ffe2a3" opacity="0.65"/>
+    <!-- body lower shadow -->
+    <path d="M70 108 C76 118 88 120 100 120 L148 119 C156 119 163 115 166 108 C150 116 96 116 70 108 Z" fill="#c9790f" opacity="0.7"/>
+    <!-- seam line -->
+    <path d="M76 96 L160 92" stroke="#cf7d14" stroke-width="2" opacity="0.55"/>
+    <!-- rivets -->
+    <circle cx="90" cy="100" r="3.2" fill="#d9851a"/>
+    <circle cx="89" cy="99" r="1.3" fill="#ffe2a3"/>
+    <circle cx="150" cy="96" r="3.2" fill="#d9851a"/>
+    <circle cx="149" cy="95" r="1.3" fill="#ffe2a3"/>
+
+    <!-- front orange collar where lance meets body -->
+    <path d="M166 78 C176 78 182 86 182 96 C182 106 176 114 166 114 L160 112 L160 80 Z" fill="url(#pw_collarGrad)"/>
+    <path d="M168 82 C175 82 179 88 179 96 C179 104 175 110 168 110" fill="none" stroke="#ffe2a3" stroke-width="2" opacity="0.6"/>
+
+  </g>
+
+  <!-- ============ METAL LANCE ============ -->
+  <g filter="url(#pw_metalSpec)">
+    <!-- lance barrel -->
+    <path d="M180 88 L236 78 C240 77 242 80 242 84 L242 92 C242 96 240 99 236 99 L180 104 Z" fill="url(#pw_lanceGrad)"/>
+    <!-- lance top highlight -->
+    <path d="M182 89 L236 80 C238 80 239 81 239 83 L239 86 L182 93 Z" fill="url(#pw_lanceHi)"/>
+    <!-- lance bottom shade -->
+    <path d="M182 100 L236 96 C238 96 239 97 239 98 L182 103 Z" fill="#7a818b" opacity="0.7"/>
+    <!-- collar rings on lance -->
+    <rect x="196" y="84" width="5" height="16" rx="2" fill="#aeb5bf"/>
+    <rect x="197" y="84" width="2" height="16" fill="#eef1f5" opacity="0.8"/>
+    <rect x="214" y="82" width="5" height="15" rx="2" fill="#aeb5bf"/>
+    <rect x="215" y="82" width="2" height="15" fill="#eef1f5" opacity="0.8"/>
+  </g>
+
+  <!-- nozzle tip -->
+  <g filter="url(#pw_metalSpec)">
+    <path d="M236 78 L248 80 C251 81 252 84 252 87 L252 90 C252 93 250 95 247 95 L236 99 Z" fill="url(#pw_lanceGrad)"/>
+    <circle cx="249" cy="87" r="2.4" fill="#5b626c"/>
+    <circle cx="248.4" cy="86.4" r="0.9" fill="#cfd5dd"/>
+  </g>
+
+  <!-- ============ WATER JET ============ -->
+  <!-- soft mist behind -->
+  <g filter="url(#pw_mistBlur)" opacity="0.85">
+    <path d="M250 88 C230 90 210 118 196 150 C214 132 236 110 252 100 Z" fill="url(#pw_mistGrad)"/>
+    <ellipse cx="210" cy="130" rx="34" ry="26" fill="url(#pw_mistGrad)"/>
+  </g>
+
+  <!-- water fan layers -->
+  <path d="M250 88 C234 92 214 116 196 152 C190 162 184 174 180 186 C200 168 230 122 252 96 Z" fill="url(#pw_waterGrad)"/>
+  <path d="M250 88 C236 94 220 116 206 144 C200 156 196 166 193 176 C208 152 234 116 252 98 Z" fill="url(#pw_waterGrad2)"/>
+  <!-- bright core stream -->
+  <path d="M250 88 C240 92 228 106 218 124 C212 134 208 142 205 150 C218 130 238 104 252 92 Z" fill="#ffffff" opacity="0.55"/>
+  <path d="M250 89 C244 92 237 100 231 110" stroke="#ffffff" stroke-width="2" opacity="0.8" fill="none"/>
+
+  <!-- droplets -->
+  <circle cx="206" cy="120" r="2.6" fill="#dff4fb" opacity="0.9"/>
+  <circle cx="205.4" cy="119.4" r="0.9" fill="#ffffff"/>
+  <circle cx="196" cy="138" r="3.2" fill="#bfe3f0" opacity="0.85"/>
+  <circle cx="195.2" cy="137.2" r="1" fill="#ffffff"/>
+  <circle cx="188" cy="160" r="2.4" fill="#7fc8e6" opacity="0.8"/>
+  <circle cx="200" cy="156" r="2" fill="#dff4fb" opacity="0.85"/>
+  <circle cx="182" cy="178" r="2.8" fill="#bfe3f0" opacity="0.8"/>
+  <circle cx="214" cy="108" r="1.8" fill="#ffffff" opacity="0.85"/>
+  <circle cx="178" cy="190" r="2" fill="#7fc8e6" opacity="0.7"/>
+  <circle cx="192" cy="172" r="1.6" fill="#dff4fb" opacity="0.8"/>
+  <circle cx="222" cy="100" r="1.4" fill="#ffffff" opacity="0.8"/>
+</svg>

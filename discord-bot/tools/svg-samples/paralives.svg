@@ -1,0 +1,164 @@
+<svg viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="pa_wallGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbf3e2"/>
+      <stop offset="0.45" stop-color="#f4ead6"/>
+      <stop offset="1" stop-color="#e0d2b4"/>
+    </linearGradient>
+    <linearGradient id="pa_wallShade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#cabd9c" stop-opacity="0.85"/>
+      <stop offset="0.5" stop-color="#d8c9a8" stop-opacity="0"/>
+      <stop offset="1" stop-color="#cabd9c" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pa_roofGrad" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#6fd0c9"/>
+      <stop offset="0.4" stop-color="#4fb6b0"/>
+      <stop offset="1" stop-color="#3a8f8a"/>
+    </linearGradient>
+    <linearGradient id="pa_roofHi" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bff0ec" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#bff0ec" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pa_roofEave" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#338480"/>
+      <stop offset="1" stop-color="#2c736f"/>
+    </linearGradient>
+    <linearGradient id="pa_doorGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e89c5c"/>
+      <stop offset="0.5" stop-color="#d98a4a"/>
+      <stop offset="1" stop-color="#bb6f36"/>
+    </linearGradient>
+    <linearGradient id="pa_doorPanel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c97c3e"/>
+      <stop offset="1" stop-color="#a8612e"/>
+    </linearGradient>
+    <radialGradient id="pa_knob" cx="0.35" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#fff2c8"/>
+      <stop offset="0.5" stop-color="#f0c560"/>
+      <stop offset="1" stop-color="#b88a2e"/>
+    </radialGradient>
+    <linearGradient id="pa_winGrad" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#e3f4fa"/>
+      <stop offset="0.5" stop-color="#bfe3f0"/>
+      <stop offset="1" stop-color="#8fc7da"/>
+    </linearGradient>
+    <linearGradient id="pa_winRefl" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="pa_chimGrad" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#e7b388"/>
+      <stop offset="0.5" stop-color="#cf9466"/>
+      <stop offset="1" stop-color="#a86f44"/>
+    </linearGradient>
+    <radialGradient id="pa_smoke" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pa_groundShadow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#3a3028" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#3a3028" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pa_warmGlow" cx="0.5" cy="0.4" r="0.6">
+      <stop offset="0" stop-color="#fff4d8" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#fff4d8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="pa_soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.2"/>
+    </filter>
+    <filter id="pa_drop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3" flood-color="#4a3f33" flood-opacity="0.35"/>
+    </filter>
+    <filter id="pa_glassShine" x="-20%" y="-20%" width="140%" height="140%">
+      <feSpecularLighting in="SourceAlpha" surfaceScale="3" specularConstant="0.8" specularExponent="18" lighting-color="#ffffff" result="pa_spec">
+        <fePointLight x="60" y="60" z="120"/>
+      </feSpecularLighting>
+      <feComposite in="pa_spec" in2="SourceAlpha" operator="in" result="pa_specClip"/>
+      <feComposite in="SourceGraphic" in2="pa_specClip" operator="arithmetic" k1="0" k2="1" k3="0.6" k4="0"/>
+    </filter>
+    <filter id="pa_roofTex" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9 0.04" numOctaves="2" seed="7" result="pa_n"/>
+      <feDisplacementMap in="SourceGraphic" in2="pa_n" scale="2.2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+
+  <!-- ground shadow -->
+  <ellipse cx="128" cy="222" rx="92" ry="18" fill="url(#pa_groundShadow)"/>
+
+  <!-- warm light wash -->
+  <ellipse cx="120" cy="150" rx="110" ry="90" fill="url(#pa_warmGlow)" filter="url(#pa_soft)"/>
+
+  <!-- chimney (behind roof) -->
+  <g filter="url(#pa_drop)">
+    <rect x="168" y="44" width="26" height="46" rx="5" fill="url(#pa_chimGrad)" stroke="#5a5048" stroke-width="2.4"/>
+    <rect x="164" y="40" width="34" height="11" rx="4" fill="#c98f5e" stroke="#5a5048" stroke-width="2.4"/>
+    <rect x="172" y="52" width="6" height="34" rx="3" fill="#e9c39c" opacity="0.6"/>
+  </g>
+
+  <!-- smoke puffs -->
+  <circle cx="181" cy="34" r="7" fill="url(#pa_smoke)" filter="url(#pa_soft)"/>
+  <circle cx="189" cy="22" r="9" fill="url(#pa_smoke)" filter="url(#pa_soft)"/>
+  <circle cx="178" cy="14" r="11" fill="url(#pa_smoke)" filter="url(#pa_soft)"/>
+
+  <!-- wall body -->
+  <g filter="url(#pa_drop)">
+    <rect x="52" y="108" width="152" height="104" rx="16" fill="url(#pa_wallGrad)" stroke="#5a5048" stroke-width="3"/>
+    <rect x="52" y="108" width="152" height="104" rx="16" fill="url(#pa_wallShade)"/>
+    <!-- wall left highlight strip -->
+    <rect x="60" y="116" width="10" height="88" rx="5" fill="#fff8ea" opacity="0.55"/>
+    <!-- baseboard -->
+    <rect x="56" y="198" width="144" height="12" rx="6" fill="#d8c9a8"/>
+    <rect x="56" y="198" width="144" height="5" rx="2.5" fill="#cabd9c" opacity="0.7"/>
+  </g>
+
+  <!-- roof -->
+  <g filter="url(#pa_drop)">
+    <path d="M44 116 L128 44 L212 116 Z" fill="url(#pa_roofGrad)" stroke="#5a5048" stroke-width="3" stroke-linejoin="round" filter="url(#pa_roofTex)"/>
+    <!-- roof left highlight -->
+    <path d="M62 112 L128 56 L128 70 L78 112 Z" fill="url(#pa_roofHi)"/>
+    <!-- roof right shade -->
+    <path d="M128 56 L196 112 L150 112 L128 78 Z" fill="#3a8f8a" opacity="0.55"/>
+    <!-- ridge line -->
+    <path d="M128 44 L128 112" stroke="#2c736f" stroke-width="2" opacity="0.4"/>
+  </g>
+  <!-- eave board -->
+  <rect x="44" y="112" width="168" height="11" rx="5" fill="url(#pa_roofEave)" stroke="#5a5048" stroke-width="2.6"/>
+  <rect x="50" y="114" width="156" height="3.5" rx="1.5" fill="#5fc2bc" opacity="0.6"/>
+
+  <!-- window -->
+  <g filter="url(#pa_drop)">
+    <rect x="70" y="134" width="48" height="46" rx="6" fill="#e7d8b8" stroke="#5a5048" stroke-width="3"/>
+    <g filter="url(#pa_glassShine)">
+      <rect x="76" y="140" width="36" height="34" rx="3" fill="url(#pa_winGrad)"/>
+    </g>
+    <!-- window mullions -->
+    <rect x="92.5" y="140" width="3" height="34" fill="#e7d8b8"/>
+    <rect x="76" y="155" width="36" height="3" fill="#e7d8b8"/>
+    <!-- reflection streak -->
+    <path d="M80 172 L100 142 L108 142 L84 172 Z" fill="url(#pa_winRefl)" opacity="0.8"/>
+    <path d="M78 172 L88 158 L92 158 L82 172 Z" fill="#ffffff" opacity="0.35"/>
+    <!-- window sill -->
+    <rect x="66" y="178" width="56" height="6" rx="3" fill="#d8c9a8" stroke="#5a5048" stroke-width="2"/>
+  </g>
+
+  <!-- door -->
+  <g filter="url(#pa_drop)">
+    <rect x="138" y="142" width="44" height="70" rx="20" ry="20" fill="url(#pa_doorGrad)" stroke="#5a5048" stroke-width="3"/>
+    <!-- door arched top accent -->
+    <path d="M144 162 a16 16 0 0 1 32 0 Z" fill="#eaa86a" opacity="0.55"/>
+    <!-- door panels -->
+    <rect x="148" y="168" width="24" height="16" rx="4" fill="url(#pa_doorPanel)"/>
+    <rect x="148" y="188" width="24" height="18" rx="4" fill="url(#pa_doorPanel)"/>
+    <!-- panel highlights -->
+    <rect x="150" y="170" width="20" height="3" rx="1.5" fill="#f0b27a" opacity="0.6"/>
+    <rect x="150" y="190" width="20" height="3" rx="1.5" fill="#f0b27a" opacity="0.6"/>
+    <!-- left edge light -->
+    <rect x="142" y="150" width="5" height="56" rx="2.5" fill="#f4b079" opacity="0.5"/>
+    <!-- knob -->
+    <circle cx="146" cy="180" r="5" fill="url(#pa_knob)" stroke="#8a6420" stroke-width="1.2"/>
+    <circle cx="144.4" cy="178.4" r="1.6" fill="#fff7da" opacity="0.9"/>
+  </g>
+
+  <!-- gentle overall top sheen on walls -->
+  <rect x="56" y="112" width="144" height="20" rx="10" fill="#ffffff" opacity="0.18" filter="url(#pa_soft)"/>
+</svg>
