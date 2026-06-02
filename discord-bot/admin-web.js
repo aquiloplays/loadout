@@ -357,6 +357,13 @@ async function routeTripleCSet(env, guildId, body) {
   return json({ ok: true, current: r.current, announced });
 }
 
+// Owner-only: (re)post + pin the weekly lineup recap on demand.
+async function routeLineupPost(env, guildId, body) {
+  const { postLineupRecap } = await import('./vote-hub.js');
+  const r = await postLineupRecap(env, guildId);
+  return json(r, r.ok ? 200 : 502);
+}
+
 export async function handleAdminWeb(env, route, guildId, body) {
   if (!body || body._owner !== true) {
     return json({ ok: false, error: 'forbidden', message: 'owner-only.' }, 403);
@@ -369,6 +376,7 @@ export async function handleAdminWeb(env, route, guildId, body) {
     case 'admin/pipe-tests':     return await routeAdminPipeTests(env, guildId);
     case 'admin/anniversary-backfill': return await routeAnniversaryBackfill(env, guildId, body);
     case 'admin/triple-c/set':         return await routeTripleCSet(env, guildId, body);
+    case 'admin/lineup/post':          return await routeLineupPost(env, guildId, body);
     default:                     return json({ ok: false, error: 'not-found' }, 404);
   }
 }

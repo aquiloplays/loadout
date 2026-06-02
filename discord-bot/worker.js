@@ -739,6 +739,9 @@ export default {
     if (path === '/triple-c/current' || path === '/triple-c/pool') {
       return handleTripleCPublic(req, env, path);
     }
+    if (path === '/vote-hub/lineup') {
+      return handleLineupPublic(req, env);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -2568,6 +2571,23 @@ async function handleTripleCPublic(req, env, path) {
     return new Response(JSON.stringify({ ok: true, current }), { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 120) }),
+      { status: 500, headers });
+  }
+}
+
+// Public: the "this week's lineup" embed (Triple-C + voted nights).
+// Read-only preview — the pinned Discord post is driven by the Sat
+// cron / the owner-gated POST /web/admin/lineup/post.
+async function handleLineupPublic(req, env) {
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=60', ...cors };
+  try {
+    const { buildLineupEmbed } = await import('./vote-hub.js');
+    const embed = await buildLineupEmbed(env, env.AQUILO_VAULT_GUILD_ID);
+    return new Response(JSON.stringify({ ok: true, embed }), { status: 200, headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 160) }),
       { status: 500, headers });
   }
 }
