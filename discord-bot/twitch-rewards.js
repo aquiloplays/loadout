@@ -310,6 +310,11 @@ async function handleFollowReward(env, guildId, aquiloId, twitchUserId, ev) {
   const grant = await grantBolts(env, guildId, aquiloId, FOLLOW_BOLTS, 'twitch:follow');
   if (!grant.ok) return { ok: false, reason: grant.reason, error: grant.error };
   await env.LOADOUT_BOLTS.put(KV_FOLLOW_FLAG(twitchUserId), '1');
+  // Durable per-user entitlement record (stream check-in card badges).
+  try {
+    const { recordFollowEntitlement } = await import('./stream-checkin.js');
+    await recordFollowEntitlement(env, guildId, aquiloId, Number(ev.followedAt) || Date.now());
+  } catch { /* entitlement record best-effort */ }
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.userName || 'New follower' },
     description: `📡 Followed on Twitch → <@${aquiloId}> earned **+${FOLLOW_BOLTS}** bolts.`,
@@ -331,6 +336,10 @@ async function handleSubReward(env, guildId, aquiloId, twitchUserId, ev, isResub
   const bolts = Math.round(base * multiplier);
   const grant = await grantBolts(env, guildId, aquiloId, bolts, isResub ? 'twitch:resub' : 'twitch:sub');
   if (!grant.ok) return { ok: false, reason: grant.reason };
+  try {
+    const { recordSubEntitlement } = await import('./stream-checkin.js');
+    await recordSubEntitlement(env, guildId, aquiloId, tier);
+  } catch { /* entitlement record best-effort */ }
   const role = await grantSubRoleWithExpiry(env, guildId, aquiloId, tier);
   const tierLabel = tier === '2000' ? 'Tier 2' : tier === '3000' ? 'Tier 3' : 'Tier 1';
   const desc = isResub
@@ -352,6 +361,10 @@ async function handleGiftGivenReward(env, guildId, aquiloId, twitchUserId, ev) {
   const bonus = Math.round(perRecipient * GIFT_GIVER_BONUS_PCT * count);
   const grant = await grantBolts(env, guildId, aquiloId, bonus, 'twitch:gift-given');
   if (!grant.ok) return { ok: false, reason: grant.reason };
+  try {
+    const { addGiftEntitlement } = await import('./stream-checkin.js');
+    await addGiftEntitlement(env, guildId, aquiloId, count);
+  } catch { /* entitlement record best-effort */ }
   const desc = count > 1
     ? `🎁 **Gifted ${count} ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} subs** → <@${aquiloId}> earned **+${bonus}** bolts (20% gift bonus).`
     : `🎁 **Gifted a ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} sub** → <@${aquiloId}> earned **+${bonus}** bolts (20% gift bonus).`;
@@ -368,6 +381,10 @@ async function handleCheerReward(env, guildId, aquiloId, twitchUserId, ev) {
   if (bolts <= 0) return { ok: true, action: 'skipped-zero' };
   const grant = await grantBolts(env, guildId, aquiloId, bolts, 'twitch:cheer');
   if (!grant.ok) return { ok: false, reason: grant.reason };
+  try {
+    const { addCheerEntitlement } = await import('./stream-checkin.js');
+    await addCheerEntitlement(env, guildId, aquiloId, bits);
+  } catch { /* entitlement record best-effort */ }
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.userName || 'Cheerer' },
     description: `💎 **Cheered ${bits.toLocaleString()} bits** → <@${aquiloId}> earned **+${bolts.toLocaleString()}** bolts.`,

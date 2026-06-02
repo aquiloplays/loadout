@@ -289,6 +289,13 @@ const ROUTES = new Set([
   'checkin/status',          // POST — read streak + card + pending bonuses
   'checkin/card',            // POST — upsert the user's embed card config
   'checkin/bonus/collect',   // POST — claim one bonus (or 'all')
+  // Stream check-in card (on-stream "I'm here" card; stream-checkin.js).
+  // Separate from the daily check-in above — D1-backed customization +
+  // entitlement-gated cosmetics + the OBS overlay trigger.
+  'checkin/card/me',         // POST — saved config + earned badges + filtered catalogs
+  'checkin/card/save',       // POST — validate vs entitlements + upsert config
+  'checkin/show',            // POST — rate-limited; publish streamcheckin.shown to OBS
+  'checkin/badges',          // POST — earned-badge list (optional lookupUserId)
   // Boltbound per-user card art override (meme-GIF skin layer).
   // Rendering integrated 2026-05-28: cards-web routeState ships the
   // user's overrides + the global defaults in the bootstrap payload.
@@ -558,6 +565,10 @@ export async function handleWeb(req, env) {
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
     if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
     if (route === 'checkin/bonus/collect') return await routeCommunityCheckinBonusCollect(env, guildId, discordId, body);
+    if (route === 'checkin/card/me')       return await routeStreamCheckinCardMe(env, guildId, discordId);
+    if (route === 'checkin/card/save')     return await routeStreamCheckinCardSave(env, guildId, discordId, body);
+    if (route === 'checkin/show')          return await routeStreamCheckinShow(env, guildId, discordId, body);
+    if (route === 'checkin/badges')        return await routeStreamCheckinBadges(env, guildId, discordId, body);
     if (route === 'cards/art-override')    return await routeCardsArtOverride(env, guildId, discordId, body);
     if (route === 'cards/suggest-art-terms') return await routeCardsSuggestArtTerms(env, body);
     if (route === 'cards/skin')            return await routeCardsSkinSet(env, guildId, discordId, body);
@@ -2675,6 +2686,38 @@ async function routeCommunityCheckinCard(env, guildId, discordId, body) {
   }
   const r = await putCard(env, guildId, discordId, body?.card || {});
   return json(r, r.ok ? 200 : 400);
+}
+
+// ── Stream check-in card (on-stream "I'm here" card) ──────────────────
+async function routeStreamCheckinCardMe(env, guildId, discordId) {
+  const { cardMe } = await import('./stream-checkin.js');
+  return json(await cardMe(env, guildId, discordId));
+}
+
+async function routeStreamCheckinCardSave(env, guildId, discordId, body) {
+  // POST { discordId, guildId, card: { frame, bg, anim, badges[], tagline } }
+  const { saveCardConfig } = await import('./stream-checkin.js');
+  const r = await saveCardConfig(env, guildId, discordId, body?.card || {});
+  return json(r, r.ok ? 200 : 400);
+}
+
+async function routeStreamCheckinShow(env, guildId, discordId, body) {
+  // POST { discordId, guildId, displayName?, profilePic? }
+  const { showOnStream } = await import('./stream-checkin.js');
+  const r = await showOnStream(env, guildId, discordId, body || {});
+  return json(r, r.ok ? 200 : (r.error === 'rate-limited' ? 429 : 400));
+}
+
+async function routeStreamCheckinBadges(env, guildId, discordId, body) {
+  // POST { discordId, guildId, lookupUserId? } — earned badges (self by default).
+  const { badgesFor } = await import('./stream-checkin.js');
+  let targetId = discordId;
+  const lookupRaw = body?.lookupUserId;
+  if (lookupRaw != null) {
+    const lookup = String(lookupRaw).trim();
+    if (/^\d{5,25}$/.test(lookup)) targetId = lookup;
+  }
+  return json(await badgesFor(env, guildId, targetId));
 }
 
 // Boltbound per-user card art override. POST shape:
