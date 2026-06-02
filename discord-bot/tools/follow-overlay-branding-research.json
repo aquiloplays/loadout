@@ -1,11 +1,11 @@
 {
   "_note": "Per-game visual-identity research for the follow-overlay sprite + theme work. Sources: Steam store pages (Claude in Chrome, 2026-06-02) + established franchise art direction. item=most iconic object for a sprite; style=aesthetic cue; palette=color direction (prompt + Phase 4 bar/glow); fontWeb=Google-Fonts-ish match for Phase 4 promo/counter. Extend this for the ~20 Triple-C games at Phase 3.",
-  "_rule": "CARTOONISH (Clay 2026-06-02, supersedes 'artistic-only'): every sprite is a polished CARTOON -- bold black outlines, saturated cel-shaded colors with clear flat color regions (no gradient mush), stylized exaggerated proportions (chunky shapes, big highlights), Saturday-morning / animated-TV / animated-movie energy. Reference: Clash of Clans (which we nailed for the Clash building art), Adventure Time, Steven Universe, The Simpsons, premium mobile-game polish. This applies to ALL games incl. realistic-aesthetic ones (Supermarket Sim, PowerWash, Manor Lords, Witcher 3) and overrides each game's native look -- match the game's SUBJECT MATTER, impose the cartoon STYLE. NOT acceptable: photoreal 3D, glossy 3D-icon renders, realistic painterly digital painting, CRT-fuzz/gritty pixel art, atmospheric horror realism. The prompt template hard-codes the cartoon styling; keep every per-game `style` value cartoon.",
+  "_rule": "GAME-ACCURATE SVG (Clay 2026-06-02, supersedes cartoon-only): NO single style across games. Each hand-crafted SVG sprite matches how that game's OWN in-game UI/asset actually looks -- like the real item icon lifted out of the game. Push DEPTH: many paths, gradients (linear+radial), multiple shading layers, fine textural detail, rim/specular light -- premium illustration polish, never a flat sticker or doodle. Per-game look lives in each game's `styleNote`. Pure SVG/code, $0 (Replicate is dropped for overlay sprites). Idle peeks stay items-only (a card-face like Balatro's Jimbo counts as a card OBJECT, allowed). Source: discord-bot/tools/svg-samples/.",
   "games": {
     "eldenring": {
       "game": "Elden Ring",
       "item": "a golden flask with a bronze cap and a red wax seal, glowing crimson liquid inside (a Flask of Crimson Tears)",
-      "style": "polished cartoon, bold black outlines, cel-shaded, fantasy-adventure energy",
+      "style": "game-accurate: ornate medieval-fantasy glass flask cradled in gold filigree, painterly red-glass glow, somber palette, decorative scrollwork cap (matches the in-game Flask of Crimson Tears icon)",
       "palette": "tarnished gold and bright blood-crimson, with deep shadow accents",
       "fontWeb": "Cinzel",
       "barColor": "#c9a44c", "glow": "rgba(201,164,76,0.5)"
@@ -13,7 +13,7 @@
     "cyberpunk2077": {
       "game": "Cyberpunk 2077",
       "item": "a chunky yellow cyberware chip with magenta and cyan neon accents",
-      "style": "polished cartoon, bold black outlines, cel-shaded, neon-tech energy",
+      "style": "game-accurate: glitchy neon Night City HUD chip, circuitry traces, holographic interference scanlines, sharp angular edges, chromatic glitch offsets in cyan/magenta",
       "palette": "signature acid yellow #FCEE0A with hot-magenta and cyan neon accents on black",
       "fontWeb": "Rajdhani",
       "barColor": "#fcee0a", "glow": "rgba(252,238,10,0.55)"
@@ -21,7 +21,7 @@
     "supermarket_simulator": {
       "game": "Supermarket Simulator",
       "item": "a chunky shopping cart full of colorful grocery boxes",
-      "style": "polished cartoon, bold black outlines, cel-shaded, friendly retail energy (NOT photoreal, NOT 3D render)",
+      "style": "game-accurate: clean low-poly casual-sim shopping cart, minimal stylization, simple flat facet shading, readable everyday object, light outlines",
       "palette": "friendly grocery green and warm white with bright red accents",
       "fontWeb": "Baloo 2",
       "barColor": "#39b54a", "glow": "rgba(57,181,74,0.5)"
@@ -29,15 +29,15 @@
     "phasmophobia": {
       "game": "Phasmophobia",
       "item": "an EMF reader handheld device with a glowing green LED display",
-      "style": "polished cartoon, bold black outlines, cel-shaded, spooky-but-playful energy (cartoon, NOT horror realism)",
+      "style": "game-accurate: dim atmospheric realism, scuffed dark-plastic casing with subtle sheen, glass screen with phosphor-green readout + reflection, restrained palette",
       "palette": "dark charcoal device with bright phosphor-green glow accents",
       "fontWeb": "Special Elite",
       "barColor": "#3ad36a", "glow": "rgba(58,211,106,0.45)"
     },
     "balatro": {
       "game": "Balatro",
-      "item": "a playing-card joker with a big smiling face, red and blue suits",
-      "style": "polished cartoon, bold black outlines, cel-shaded, playful card-game energy (cartoon, NOT gritty pixel art)",
+      "item": "the Jimbo joker card: red three-point jester hat, round eyes + small smile, blue ruffled collar, JOKER text up both side edges, thin red border",
+      "style": "game-accurate: flat minimalist Balatro deck-card aesthetic, stark clean color blocks, thin border, very light shading (the game's UI is famously flat)",
       "palette": "deep indigo-navy, card-suit red and blue, bright gold accents",
       "fontWeb": "VT323",
       "barColor": "#e23b54", "glow": "rgba(226,59,84,0.5)",
@@ -46,7 +46,7 @@
     "ball_x_pit": {
       "game": "BALL x PIT",
       "item": "a colorful cluster of glossy arcade balls",
-      "style": "polished cartoon, bold black outlines, cel-shaded, energetic arcade vibe (cartoon, NOT pixel art)",
+      "style": "game-accurate: vibrant retro-arcade neon, glossy balls with radial gloss + chromatic cyan/magenta rim light, glow halo, energetic",
       "palette": "vivid saturated arcade colors - electric cyan, magenta and lime",
       "fontWeb": "Press Start 2P",
       "barColor": "#2bd4d4", "glow": "rgba(43,212,212,0.5)"

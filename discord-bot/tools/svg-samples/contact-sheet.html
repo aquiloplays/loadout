@@ -7,12 +7,13 @@
   body { width:984px; height:812px; background:#101117;
          font-family: "Segoe UI", Arial, Helvetica, sans-serif; color:#e7ecf3; }
   header { padding:14px 22px 10px; border-bottom:2px solid #2bd4d4; }
-  header h1 { font-size:27px; font-weight:800; color:#aef3ea; letter-spacing:.2px; }
-  header p  { font-size:14px; color:#9aa6b6; margin-top:5px; }
+  header h1 { font-size:26px; font-weight:800; color:#aef3ea; letter-spacing:.2px; }
+  header p  { font-size:13.5px; color:#9aa6b6; margin-top:5px; }
   .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:0; }
   .cell { padding:18px 18px 8px; }
   .panel { background:#404040; border:1px solid #565656; border-radius:12px;
-           height:236px; display:flex; align-items:center; justify-content:center; }
+           height:236px; display:flex; align-items:center; justify-content:center;
+           background-image:radial-gradient(circle at 50% 40%, #4a4a4a, #383838); }
   .label { margin-top:9px; }
   .label .g { font-size:18px; font-weight:800; color:#f2f4f8; }
   .label .s { font-size:12px; color:#7de4d4; margin-top:1px; }
@@ -21,185 +22,261 @@
 </head>
 <body>
   <header>
-    <h1>Follow Overlay — Hand-Crafted Cartoon SVG Sprites</h1>
-    <p>Pure code · vector · $0 · bold outlines + cel shading · Clash of Clans / Adventure Time energy · 6 of ~50 games · approval gate</p>
+    <h1>Follow Overlay — Game-Accurate SVG Sprites (depth pass)</h1>
+    <p>Pure vector · $0 · each sprite matches its own game's real in-game asset look · gradients + layered shading + fine detail · 6 of ~50 games · approval gate</p>
   </header>
   <div class="grid">
 
-    <!-- ===================== 1. ELDEN RING — Flask of Crimson Tears ===================== -->
+    <!-- ============ 1. ELDEN RING — Flask of Crimson Tears (ornate gold filigree, painterly glass) ============ -->
     <div class="cell"><div class="panel">
-      <svg viewBox="0 0 256 256" width="206" height="206">
-        <ellipse cx="128" cy="234" rx="64" ry="11" fill="#000" opacity="0.20"/>
+      <svg viewBox="0 0 256 256" width="208" height="208">
+        <defs>
+          <radialGradient id="er_glass" cx="42%" cy="38%" r="68%">
+            <stop offset="0%" stop-color="#ff8a7e"/><stop offset="38%" stop-color="#e63b3f"/>
+            <stop offset="78%" stop-color="#a81f2b"/><stop offset="100%" stop-color="#6c121d"/>
+          </radialGradient>
+          <linearGradient id="er_gold" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#fbe7a6"/><stop offset="42%" stop-color="#d8a948"/>
+            <stop offset="100%" stop-color="#8a5e22"/>
+          </linearGradient>
+          <linearGradient id="er_gold2" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#f6d98a"/><stop offset="100%" stop-color="#a9772c"/>
+          </linearGradient>
+          <radialGradient id="er_halo" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="rgba(255,90,80,0.55)"/><stop offset="100%" stop-color="rgba(255,90,80,0)"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="128" cy="232" rx="60" ry="11" fill="#000" opacity="0.22"/>
+        <circle cx="128" cy="172" r="74" fill="url(#er_halo)"/>
+        <!-- ornate cradle arms (behind glass) -->
+        <path d="M96 108 C66 122 58 168 74 200 C82 216 96 224 96 224" fill="none" stroke="url(#er_gold)" stroke-width="11" stroke-linecap="round"/>
+        <path d="M160 108 C190 122 198 168 182 200 C174 216 160 224 160 224" fill="none" stroke="url(#er_gold)" stroke-width="11" stroke-linecap="round"/>
+        <path d="M74 200 C64 204 60 214 66 222 C72 216 74 210 80 210 Z" fill="url(#er_gold2)" stroke="#5a3c14" stroke-width="3"/>
+        <path d="M182 200 C192 204 196 214 190 222 C184 216 182 210 176 210 Z" fill="url(#er_gold2)" stroke="#5a3c14" stroke-width="3"/>
+        <!-- glass bulb -->
+        <path d="M84 172 C84 130 104 112 128 112 C152 112 172 130 172 172 C172 208 152 224 128 224 C104 224 84 208 84 172 Z"
+              fill="url(#er_glass)" stroke="#4a1118" stroke-width="6"/>
+        <!-- liquid meniscus highlight -->
+        <ellipse cx="128" cy="142" rx="34" ry="10" fill="#ff9b8e" opacity="0.55"/>
+        <!-- deep core glow -->
+        <ellipse cx="120" cy="178" rx="22" ry="26" fill="#ff5b54" opacity="0.5"/>
+        <!-- glass specular streak -->
+        <path d="M100 138 C90 152 88 172 92 190 C99 168 108 152 120 144 C112 138 105 137 100 138 Z" fill="#ffffff" opacity="0.45"/>
+        <!-- cradle front bands over glass -->
+        <path d="M88 150 C108 162 148 162 168 150" fill="none" stroke="url(#er_gold2)" stroke-width="8" stroke-linecap="round" opacity="0.95"/>
+        <path d="M92 196 C112 206 144 206 164 196" fill="none" stroke="url(#er_gold2)" stroke-width="8" stroke-linecap="round" opacity="0.95"/>
         <!-- neck -->
-        <rect x="111" y="70" width="34" height="50" rx="9" fill="#d7a843" stroke="#2a1c0c" stroke-width="7"/>
-        <!-- bulb -->
-        <path d="M68 170 C68 122 96 102 128 102 C160 102 188 122 188 170 C188 214 162 234 128 234 C94 234 68 214 68 170 Z"
-              fill="#eec159" stroke="#2a1c0c" stroke-width="7.5" stroke-linejoin="round"/>
-        <!-- cel shadow crescent -->
-        <path d="M158 116 C182 134 188 168 182 192 C174 218 150 230 126 232 C156 224 172 200 173 170 C174 146 170 128 158 116 Z" fill="#c8902f"/>
-        <!-- glowing crimson core -->
-        <circle cx="118" cy="174" r="36" fill="#d62b38" stroke="#2a1c0c" stroke-width="6"/>
-        <circle cx="118" cy="174" r="21" fill="#ff5d63"/>
-        <circle cx="110" cy="166" r="7.5" fill="#ffd2d2"/>
-        <!-- bulb highlight -->
-        <path d="M92 130 C82 144 79 162 84 178 C90 158 99 144 113 135 C105 128 98 127 92 130 Z" fill="#fff3cd" opacity="0.9"/>
-        <!-- gold band at neck base -->
-        <rect x="102" y="106" width="52" height="15" rx="7" fill="#f4d271" stroke="#2a1c0c" stroke-width="7"/>
-        <!-- wax seal drip -->
-        <path d="M101 112 C96 128 106 134 101 144 C111 139 116 129 113 117 Z" fill="#8e1a22" stroke="#2a1c0c" stroke-width="4" stroke-linejoin="round"/>
-        <!-- cork -->
-        <rect x="107" y="48" width="42" height="30" rx="9" fill="#aa722f" stroke="#2a1c0c" stroke-width="7"/>
-        <rect x="115" y="54" width="26" height="8" rx="4" fill="#cd9050"/>
+        <path d="M114 86 L142 86 L139 116 L117 116 Z" fill="url(#er_glass)" stroke="#4a1118" stroke-width="5"/>
+        <rect x="106" y="104" width="44" height="13" rx="5" fill="url(#er_gold)" stroke="#5a3c14" stroke-width="4"/>
+        <!-- ornate cap -->
+        <path d="M110 86 L146 86 L142 64 C142 56 134 50 128 50 C122 50 114 56 114 64 Z" fill="url(#er_gold)" stroke="#5a3c14" stroke-width="5"/>
+        <path d="M118 70 H138 M120 78 H136" stroke="#7a531c" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="128" cy="46" r="6" fill="url(#er_gold2)" stroke="#5a3c14" stroke-width="3"/>
+        <path d="M118 60 C122 56 134 56 138 60" stroke="#fff0c4" stroke-width="2.5" fill="none" opacity="0.8"/>
       </svg>
     </div><div class="label"><div class="g">Elden Ring</div><div class="s">flask of crimson tears</div></div></div>
 
-    <!-- ===================== 2. CYBERPUNK 2077 — biochip ===================== -->
+    <!-- ============ 2. CYBERPUNK 2077 — biochip (glitchy neon HUD, angular, holo scanlines) ============ -->
     <div class="cell"><div class="panel">
-      <svg viewBox="0 0 256 256" width="206" height="206">
-        <ellipse cx="128" cy="226" rx="74" ry="12" fill="#000" opacity="0.20"/>
-        <!-- contact pins -->
-        <g fill="#caa70a" stroke="#161200" stroke-width="5" stroke-linejoin="round">
-          <rect x="74" y="46" width="16" height="18" rx="3"/><rect x="120" y="42" width="16" height="22" rx="3"/><rect x="166" y="46" width="16" height="18" rx="3"/>
-          <rect x="74" y="192" width="16" height="18" rx="3"/><rect x="120" y="192" width="16" height="22" rx="3"/><rect x="166" y="192" width="16" height="18" rx="3"/>
-          <rect x="46" y="74" width="18" height="16" rx="3"/><rect x="42" y="120" width="22" height="16" rx="3"/><rect x="46" y="166" width="18" height="16" rx="3"/>
-          <rect x="192" y="74" width="18" height="16" rx="3"/><rect x="192" y="120" width="22" height="16" rx="3"/><rect x="192" y="166" width="18" height="16" rx="3"/>
+      <svg viewBox="0 0 256 256" width="208" height="208">
+        <defs>
+          <linearGradient id="cp_y" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#fff58a"/><stop offset="45%" stop-color="#fcdd0a"/>
+            <stop offset="100%" stop-color="#c39c00"/>
+          </linearGradient>
+          <linearGradient id="cp_board" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#241d05"/><stop offset="100%" stop-color="#0d0a02"/>
+          </linearGradient>
+          <radialGradient id="cp_core" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#ff8df6"/><stop offset="60%" stop-color="#ff3df0"/><stop offset="100%" stop-color="#a81d9e"/>
+          </radialGradient>
+          <clipPath id="cp_clip"><path d="M84 56 H196 L210 70 V196 Q210 210 196 210 H70 Q56 210 56 196 V84 Z"/></clipPath>
+        </defs>
+        <ellipse cx="128" cy="224" rx="76" ry="12" fill="#000" opacity="0.22"/>
+        <!-- glitch offsets -->
+        <path d="M84 56 H196 L210 70 V196 Q210 210 196 210 H70 Q56 210 56 196 V84 Z" fill="#2be8ec" opacity="0.35" transform="translate(-6,3)"/>
+        <path d="M84 56 H196 L210 70 V196 Q210 210 196 210 H70 Q56 210 56 196 V84 Z" fill="#ff3df0" opacity="0.30" transform="translate(5,-3)"/>
+        <!-- pins -->
+        <g fill="#b8990a" stroke="#161200" stroke-width="4">
+          <rect x="92" y="44" width="13" height="16"/><rect x="124" y="42" width="13" height="18"/><rect x="156" y="44" width="13" height="16"/>
+          <rect x="92" y="206" width="13" height="16"/><rect x="124" y="206" width="13" height="18"/><rect x="156" y="206" width="13" height="16"/>
+          <rect x="44" y="96" width="14" height="13"/><rect x="42" y="126" width="16" height="13"/><rect x="44" y="156" width="14" height="13"/>
+          <rect x="200" y="96" width="14" height="13"/><rect x="200" y="126" width="16" height="13"/><rect x="200" y="156" width="14" height="13"/>
         </g>
-        <!-- chip body with notched corner -->
-        <path d="M86 58 H198 Q210 58 210 70 V198 Q210 210 198 210 H70 Q58 210 58 198 V86 L86 58 Z"
-              fill="#fcdd0a" stroke="#161200" stroke-width="7.5" stroke-linejoin="round"/>
-        <!-- cel shadow (lower-right) -->
-        <path d="M210 120 V198 Q210 210 198 210 H120 C170 206 200 178 210 120 Z" fill="#d9b400"/>
+        <!-- body -->
+        <path d="M84 56 H196 L210 70 V196 Q210 210 196 210 H70 Q56 210 56 196 V84 Z" fill="url(#cp_y)" stroke="#161200" stroke-width="6.5" stroke-linejoin="round"/>
         <!-- inner board -->
-        <rect x="86" y="86" width="98" height="98" rx="10" fill="#1b1606" stroke="#161200" stroke-width="6"/>
-        <!-- traces -->
-        <g stroke="#fcdd0a" stroke-width="5" fill="none" stroke-linecap="round">
-          <path d="M104 110 H150 V150"/><path d="M166 104 V140 H132"/><path d="M104 166 H140"/>
+        <rect x="84" y="84" width="100" height="100" rx="6" fill="url(#cp_board)" stroke="#161200" stroke-width="5"/>
+        <!-- circuit traces -->
+        <g stroke="#ffe23a" stroke-width="3.5" fill="none" stroke-linecap="square" opacity="0.95">
+          <path d="M100 104 H146 V146"/><path d="M168 100 V134 H134"/><path d="M100 164 H138 V140"/><path d="M150 168 H170"/>
         </g>
-        <!-- nodes -->
-        <circle cx="150" cy="150" r="13" fill="#ff3df0" stroke="#161200" stroke-width="5"/>
-        <circle cx="104" cy="110" r="9" fill="#2be8ec" stroke="#161200" stroke-width="5"/>
-        <circle cx="166" cy="104" r="7" fill="#2be8ec" stroke="#161200" stroke-width="4"/>
-        <!-- corner gleam -->
-        <path d="M74 72 L96 66 L80 92 Z" fill="#fff7a8" opacity="0.85"/>
+        <g fill="#2be8ec"><rect x="98" y="102" width="6" height="6"/><rect x="166" y="98" width="6" height="6"/><rect x="148" y="166" width="6" height="6"/></g>
+        <!-- core node -->
+        <circle cx="146" cy="146" r="15" fill="url(#cp_core)" stroke="#161200" stroke-width="4"/>
+        <circle cx="146" cy="146" r="22" fill="none" stroke="#2be8ec" stroke-width="2.5" opacity="0.8"/>
+        <!-- holographic interference scanlines -->
+        <g clip-path="url(#cp_clip)" stroke="#bff8ff" stroke-width="1.6" opacity="0.22">
+          <path d="M56 76 H210"/><path d="M56 92 H210"/><path d="M56 108 H210"/><path d="M56 124 H210"/><path d="M56 140 H210"/>
+          <path d="M56 156 H210"/><path d="M56 172 H210"/><path d="M56 188 H210"/><path d="M56 204 H210"/>
+        </g>
+        <!-- sharp edge highlight + glitch chips -->
+        <path d="M84 60 H188" stroke="#fffbcf" stroke-width="3" opacity="0.85"/>
+        <rect x="60" y="100" width="14" height="5" fill="#2be8ec" opacity="0.9"/>
+        <rect x="190" y="150" width="16" height="5" fill="#ff3df0" opacity="0.9"/>
       </svg>
     </div><div class="label"><div class="g">Cyberpunk 2077</div><div class="s">cyberware biochip</div></div></div>
 
-    <!-- ===================== 3. SUPERMARKET SIM — shopping cart ===================== -->
+    <!-- ============ 3. SUPERMARKET SIM — cart (clean low-poly casual sim, simple facet shading) ============ -->
     <div class="cell"><div class="panel">
-      <svg viewBox="0 0 256 256" width="206" height="206">
-        <ellipse cx="132" cy="232" rx="78" ry="11" fill="#000" opacity="0.20"/>
-        <!-- groceries poking out -->
-        <rect x="92" y="92" width="40" height="40" rx="6" fill="#56c45a" stroke="#16241c" stroke-width="6"/>
-        <rect x="98" y="100" width="28" height="9" rx="3" fill="#9be88f"/>
-        <rect x="128" y="80" width="44" height="52" rx="6" fill="#f0a23a" stroke="#16241c" stroke-width="6"/>
-        <rect x="135" y="90" width="30" height="10" rx="3" fill="#ffd089"/>
-        <rect x="160" y="100" width="30" height="32" rx="6" fill="#e2473f" stroke="#16241c" stroke-width="6"/>
-        <!-- basket body (trapezoid) -->
-        <path d="M70 128 H206 L190 196 H92 L70 128 Z" fill="#b7c6da" stroke="#1c2636" stroke-width="7.5" stroke-linejoin="round"/>
-        <!-- cel shadow inside basket right -->
-        <path d="M206 128 L190 196 H150 L168 132 Z" fill="#93a3bb"/>
-        <!-- basket grid -->
-        <g stroke="#1c2636" stroke-width="5" stroke-linecap="round">
-          <path d="M99 150 H182"/><path d="M104 172 H176"/>
-          <path d="M118 130 L112 194"/><path d="M140 130 V194"/><path d="M162 130 L168 194"/>
+      <svg viewBox="0 0 256 256" width="208" height="208">
+        <ellipse cx="132" cy="232" rx="76" ry="10" fill="#000" opacity="0.18"/>
+        <!-- groceries: low-poly faceted boxes -->
+        <g stroke="#2a3340" stroke-width="3" stroke-linejoin="round">
+          <path d="M96 96 L124 96 L124 130 L96 130 Z" fill="#5cc35f"/><path d="M124 96 L132 90 L132 124 L124 130 Z" fill="#3f9a44"/><path d="M96 96 L104 90 L132 90 L124 96 Z" fill="#7fd982"/>
+          <path d="M130 80 L166 80 L166 130 L130 130 Z" fill="#efa53e"/><path d="M166 80 L174 74 L174 124 L166 130 Z" fill="#c87f24"/><path d="M130 80 L138 74 L174 74 L166 80 Z" fill="#ffc070"/>
+          <path d="M168 104 L192 104 L192 130 L168 130 Z" fill="#e2473f"/><path d="M192 104 L198 99 L198 125 L192 130 Z" fill="#b62f29"/>
+        </g>
+        <!-- basket: faceted metal, light outlines -->
+        <path d="M70 126 H208 L192 196 H90 Z" fill="#cdd8e6"/>
+        <path d="M208 126 L192 196 H150 L166 130 Z" fill="#a8b6c8"/>
+        <path d="M70 126 H208 L166 130 H82 Z" fill="#e0e8f2"/>
+        <path d="M70 126 H208 L192 196 H90 Z" fill="none" stroke="#5d6b7e" stroke-width="4" stroke-linejoin="round"/>
+        <!-- grid -->
+        <g stroke="#8794a6" stroke-width="3" stroke-linecap="round" opacity="0.95">
+          <path d="M96 150 H184"/><path d="M101 172 H178"/>
+          <path d="M116 130 L110 194"/><path d="M139 130 V194"/><path d="M162 130 L168 194"/>
         </g>
         <!-- handle -->
-        <path d="M70 128 L52 96 H40" fill="none" stroke="#e23b54" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M70 126 L52 92 H40" fill="none" stroke="#d6394f" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M70 126 L52 92" stroke="#ff6b7e" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
         <!-- wheels -->
-        <circle cx="104" cy="210" r="15" fill="#2b3340" stroke="#0e131b" stroke-width="6"/>
-        <circle cx="104" cy="210" r="5" fill="#9fb0c4"/>
-        <circle cx="176" cy="210" r="15" fill="#2b3340" stroke="#0e131b" stroke-width="6"/>
-        <circle cx="176" cy="210" r="5" fill="#9fb0c4"/>
-        <!-- top rim highlight -->
-        <path d="M78 130 H150" stroke="#e6eef8" stroke-width="5" stroke-linecap="round" opacity="0.8"/>
+        <g stroke="#23303f" stroke-width="4">
+          <circle cx="106" cy="208" r="14" fill="#3a4656"/><circle cx="106" cy="208" r="5" fill="#aab8c8"/>
+          <circle cx="176" cy="208" r="14" fill="#3a4656"/><circle cx="176" cy="208" r="5" fill="#aab8c8"/>
+        </g>
       </svg>
     </div><div class="label"><div class="g">Supermarket Simulator</div><div class="s">loaded shopping cart</div></div></div>
 
-    <!-- ===================== 4. PHASMOPHOBIA — EMF reader ===================== -->
+    <!-- ============ 4. PHASMOPHOBIA — EMF reader (dim realism, glass screen, scuffed plastic) ============ -->
     <div class="cell"><div class="panel">
-      <svg viewBox="0 0 256 256" width="206" height="206">
-        <ellipse cx="128" cy="232" rx="52" ry="10" fill="#000" opacity="0.22"/>
+      <svg viewBox="0 0 256 256" width="208" height="208">
+        <defs>
+          <linearGradient id="ph_case" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#46505d"/><stop offset="35%" stop-color="#313944"/>
+            <stop offset="78%" stop-color="#222932"/><stop offset="100%" stop-color="#141921"/>
+          </linearGradient>
+          <radialGradient id="ph_screenglow" cx="50%" cy="60%" r="60%">
+            <stop offset="0%" stop-color="#9dffc4"/><stop offset="55%" stop-color="#1f6e3c"/><stop offset="100%" stop-color="#06140c"/>
+          </radialGradient>
+          <radialGradient id="ph_led" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="#d6ffe6"/><stop offset="45%" stop-color="#3ad36a"/><stop offset="100%" stop-color="#0f5a2a"/>
+          </radialGradient>
+        </defs>
+        <ellipse cx="128" cy="232" rx="50" ry="10" fill="#000" opacity="0.25"/>
         <!-- antenna -->
-        <path d="M104 66 L86 36" stroke="#20262e" stroke-width="8" stroke-linecap="round"/>
-        <circle cx="84" cy="32" r="9" fill="#7dffae" stroke="#0e1218" stroke-width="5"/>
-        <!-- body -->
-        <rect x="92" y="62" width="72" height="160" rx="16" fill="#333b46" stroke="#0e1218" stroke-width="7.5"/>
-        <!-- cel shadow right -->
-        <path d="M164 78 V206 Q164 222 148 222 H134 C156 218 156 200 156 178 V78 Z" fill="#222932"/>
+        <path d="M104 62 L84 34" stroke="#1a1f27" stroke-width="8" stroke-linecap="round"/>
+        <circle cx="82" cy="30" r="9" fill="url(#ph_led)" stroke="#0c1117" stroke-width="4"/>
+        <circle cx="82" cy="30" r="15" fill="#3ad36a" opacity="0.18"/>
+        <!-- casing -->
+        <rect x="90" y="58" width="76" height="166" rx="17" fill="url(#ph_case)" stroke="#0c1117" stroke-width="6.5"/>
+        <!-- left sheen -->
+        <path d="M98 70 V210" stroke="#6c7a8c" stroke-width="5" stroke-linecap="round" opacity="0.55"/>
+        <!-- scuffs -->
+        <g stroke="#717f90" stroke-width="2" stroke-linecap="round" opacity="0.4">
+          <path d="M150 92 l8 4"/><path d="M146 176 l10 -3"/><path d="M134 206 l7 4"/>
+        </g>
         <!-- screen -->
-        <rect x="104" y="76" width="48" height="58" rx="7" fill="#0b1a10" stroke="#0e1218" stroke-width="5"/>
-        <!-- LED bars (rising) -->
-        <rect x="110" y="116" width="36" height="9" rx="2" fill="#2f9e58"/>
-        <rect x="110" y="104" width="30" height="9" rx="2" fill="#3ad36a"/>
-        <rect x="110" y="92"  width="22" height="9" rx="2" fill="#7dffae"/>
-        <rect x="110" y="80"  width="12" height="9" rx="2" fill="#caffe0"/>
+        <rect x="102" y="74" width="52" height="60" rx="7" fill="url(#ph_screenglow)" stroke="#0c1117" stroke-width="5"/>
+        <!-- readout bars -->
+        <g>
+          <rect x="108" y="116" width="40" height="9" rx="2" fill="#2f9e58"/>
+          <rect x="108" y="104" width="33" height="9" rx="2" fill="#3ad36a"/>
+          <rect x="108" y="92"  width="24" height="9" rx="2" fill="#86ffb0"/>
+          <rect x="108" y="80"  width="13" height="9" rx="2" fill="#d6ffe6"/>
+        </g>
+        <!-- glass reflection -->
+        <path d="M106 78 L130 76 L112 130 L104 130 Z" fill="#ffffff" opacity="0.12"/>
         <!-- buttons -->
-        <circle cx="116" cy="160" r="11" fill="#e2473f" stroke="#0e1218" stroke-width="5"/>
-        <circle cx="148" cy="160" r="9" fill="#566374" stroke="#0e1218" stroke-width="5"/>
-        <rect x="106" y="184" width="44" height="12" rx="6" fill="#566374" stroke="#0e1218" stroke-width="5"/>
-        <!-- body gleam -->
-        <path d="M100 78 V200" stroke="#6b7b8e" stroke-width="5" stroke-linecap="round" opacity="0.7"/>
+        <circle cx="114" cy="160" r="11" fill="#c8392f" stroke="#0c1117" stroke-width="5"/>
+        <circle cx="111" cy="156" r="3.5" fill="#ff7a6e" opacity="0.8"/>
+        <circle cx="148" cy="160" r="9" fill="#3b4654" stroke="#0c1117" stroke-width="5"/>
+        <rect x="104" y="184" width="48" height="13" rx="6" fill="#2a323d" stroke="#0c1117" stroke-width="5"/>
+        <rect x="110" y="188" width="20" height="4" rx="2" fill="#5a6675" opacity="0.7"/>
       </svg>
     </div><div class="label"><div class="g">Phasmophobia</div><div class="s">EMF reader</div></div></div>
 
-    <!-- ===================== 5. BALATRO — Joker card ===================== -->
+    <!-- ============ 5. BALATRO — Jimbo joker card (flat minimalist, accurate) ============ -->
     <div class="cell"><div class="panel">
-      <svg viewBox="0 0 256 256" width="206" height="206">
-        <ellipse cx="132" cy="230" rx="60" ry="11" fill="#000" opacity="0.20"/>
-        <g transform="rotate(-8 128 132)">
+      <svg viewBox="0 0 256 256" width="208" height="208">
+        <ellipse cx="132" cy="230" rx="58" ry="10" fill="#000" opacity="0.20"/>
+        <g transform="rotate(-7 128 130)">
           <!-- card -->
-          <rect x="72" y="44" width="112" height="160" rx="14" fill="#f5eedd" stroke="#241d33" stroke-width="7.5"/>
-          <!-- cel shadow edge -->
-          <path d="M184 58 V190 Q184 204 170 204 H150 C172 200 172 182 172 150 V58 Z" fill="#dccfb2"/>
-          <!-- card sheen -->
-          <path d="M84 52 L120 50 L92 120 L80 120 Z" fill="#fffdf3" opacity="0.6"/>
-          <!-- inner frame -->
-          <rect x="84" y="56" width="88" height="136" rx="9" fill="none" stroke="#2b6fe2" stroke-width="5"/>
-          <!-- jester hat emblem (3-point, with bells) -->
-          <path d="M128 96 C104 100 94 118 98 138 C108 128 118 130 128 138 C138 130 148 128 158 138 C162 118 152 100 128 96 Z"
-                fill="#e23b54" stroke="#241d33" stroke-width="6" stroke-linejoin="round"/>
-          <path d="M128 104 V134" stroke="#a31f33" stroke-width="5" stroke-linecap="round"/>
-          <circle cx="98"  cy="138" r="8" fill="#ffd24a" stroke="#241d33" stroke-width="4.5"/>
-          <circle cx="158" cy="138" r="8" fill="#2b6fe2" stroke="#241d33" stroke-width="4.5"/>
-          <circle cx="128" cy="94" r="7" fill="#ffd24a" stroke="#241d33" stroke-width="4.5"/>
-          <!-- hat band -->
-          <rect x="110" y="138" width="36" height="15" rx="6" fill="#1a2a4a" stroke="#241d33" stroke-width="4"/>
-          <rect x="116" y="142" width="24" height="5" rx="2" fill="#3a5a9a"/>
-          <!-- corner suit pips: red diamond (TL) + blue club (BR) -->
-          <path d="M96 70 L104 80 L96 90 L88 80 Z" fill="#e23b54" stroke="#241d33" stroke-width="3.5" stroke-linejoin="round"/>
-          <g transform="translate(160 178)" stroke="#241d33" stroke-width="3.5">
-            <circle cx="0" cy="-4" r="5.5" fill="#2b6fe2"/><circle cx="-6" cy="4" r="5.5" fill="#2b6fe2"/><circle cx="6" cy="4" r="5.5" fill="#2b6fe2"/>
-            <path d="M-2 6 H2 V13 H-2 Z" fill="#2b6fe2" stroke="none"/>
-          </g>
+          <rect x="74" y="40" width="108" height="180" rx="12" fill="#f4eddc" stroke="#b23042" stroke-width="6"/>
+          <rect x="82" y="48" width="92" height="164" rx="8" fill="none" stroke="#d8324a" stroke-width="2.5"/>
+          <!-- subtle right-edge shade -->
+          <path d="M182 52 V208 Q182 220 170 220 H156 C174 216 174 200 174 168 V52 Z" fill="#e7ddc6"/>
+          <!-- JOKER side text -->
+          <text x="78" y="92" font-family="Arial, sans-serif" font-size="15" font-weight="800" letter-spacing="2" fill="#d8324a" writing-mode="tb" glyph-orientation-vertical="0" transform="rotate(90 86 86)">JOKER</text>
+          <text x="170" y="168" font-family="Arial, sans-serif" font-size="15" font-weight="800" letter-spacing="2" fill="#2f6fd6" transform="rotate(-90 170 168)">JOKER</text>
+          <!-- Jimbo: blue ruffled collar -->
+          <path d="M104 170 C100 156 112 150 128 150 C144 150 156 156 152 170 C146 162 138 162 134 170 C131 162 125 162 122 170 C118 162 110 162 104 170 Z"
+                fill="#2f6fd6" stroke="#1c2440" stroke-width="4" stroke-linejoin="round"/>
+          <!-- face -->
+          <ellipse cx="128" cy="128" rx="26" ry="27" fill="#f3c89a" stroke="#1c2440" stroke-width="4"/>
+          <!-- eyes -->
+          <circle cx="118" cy="124" r="6.5" fill="#ffffff" stroke="#1c2440" stroke-width="3"/>
+          <circle cx="138" cy="124" r="6.5" fill="#ffffff" stroke="#1c2440" stroke-width="3"/>
+          <circle cx="118" cy="125" r="2.4" fill="#1c2440"/><circle cx="138" cy="125" r="2.4" fill="#1c2440"/>
+          <!-- smile -->
+          <path d="M118 140 C124 146 132 146 138 140" fill="none" stroke="#1c2440" stroke-width="3" stroke-linecap="round"/>
+          <!-- red 3-point jester hat -->
+          <path d="M100 110 C100 92 112 80 128 80 C144 80 156 92 156 110 C150 102 142 100 138 106 C134 96 122 96 118 106 C114 100 106 102 100 110 Z"
+                fill="#e1394b" stroke="#1c2440" stroke-width="4.5" stroke-linejoin="round"/>
+          <circle cx="100" cy="110" r="6" fill="#ffd24a" stroke="#1c2440" stroke-width="3.5"/>
+          <circle cx="156" cy="110" r="6" fill="#ffd24a" stroke="#1c2440" stroke-width="3.5"/>
+          <circle cx="128" cy="78" r="5.5" fill="#ffd24a" stroke="#1c2440" stroke-width="3.5"/>
+          <!-- hat brim -->
+          <rect x="104" y="106" width="48" height="11" rx="5" fill="#c22a3b" stroke="#1c2440" stroke-width="4"/>
         </g>
       </svg>
-    </div><div class="label"><div class="g">Balatro</div><div class="s">joker card</div></div></div>
+    </div><div class="label"><div class="g">Balatro</div><div class="s">Jimbo joker card</div></div></div>
 
-    <!-- ===================== 6. BALL x PIT — ball cluster ===================== -->
+    <!-- ============ 6. BALL x PIT — ball cluster (retro-arcade neon, glossy + chromatic glow) ============ -->
     <div class="cell"><div class="panel">
-      <svg viewBox="0 0 256 256" width="206" height="206">
-        <ellipse cx="128" cy="226" rx="80" ry="13" fill="#000" opacity="0.20"/>
+      <svg viewBox="0 0 256 256" width="208" height="208">
+        <defs>
+          <radialGradient id="bp_glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stop-color="rgba(120,255,255,0.45)"/><stop offset="100%" stop-color="rgba(120,255,255,0)"/>
+          </radialGradient>
+          <radialGradient id="bp_cy" cx="38%" cy="32%" r="72%"><stop offset="0%" stop-color="#bafcff"/><stop offset="45%" stop-color="#21c7d6"/><stop offset="100%" stop-color="#0d6f7e"/></radialGradient>
+          <radialGradient id="bp_mg" cx="38%" cy="32%" r="72%"><stop offset="0%" stop-color="#ffc4f8"/><stop offset="45%" stop-color="#ff3df0"/><stop offset="100%" stop-color="#9a1591"/></radialGradient>
+          <radialGradient id="bp_yl" cx="38%" cy="32%" r="72%"><stop offset="0%" stop-color="#fff6cf"/><stop offset="45%" stop-color="#ffd24a"/><stop offset="100%" stop-color="#b8841a"/></radialGradient>
+          <radialGradient id="bp_lm" cx="38%" cy="32%" r="72%"><stop offset="0%" stop-color="#e9ffc0"/><stop offset="45%" stop-color="#9be23b"/><stop offset="100%" stop-color="#4f8a16"/></radialGradient>
+          <radialGradient id="bp_or" cx="38%" cy="32%" r="72%"><stop offset="0%" stop-color="#ffd9bd"/><stop offset="45%" stop-color="#ff7a3d"/><stop offset="100%" stop-color="#b8451a"/></radialGradient>
+        </defs>
+        <ellipse cx="128" cy="226" rx="82" ry="13" fill="#000" opacity="0.20"/>
+        <circle cx="128" cy="150" r="98" fill="url(#bp_glow)"/>
         <!-- back balls -->
-        <g stroke="#15151c" stroke-width="7">
-          <circle cx="96"  cy="118" r="40" fill="#21c7d6"/>
-          <circle cx="170" cy="112" r="36" fill="#ff3df0"/>
-        </g>
-        <!-- cel shadows back -->
-        <path d="M120 96 a40 40 0 0 1 -10 56 a40 40 0 0 0 14 -52 Z" fill="#1796a3"/>
+        <circle cx="96" cy="116" r="40" fill="url(#bp_cy)" stroke="#0d2b30" stroke-width="4"/>
+        <circle cx="170" cy="110" r="36" fill="url(#bp_mg)" stroke="#3a0a37" stroke-width="4"/>
         <!-- front balls -->
-        <g stroke="#15151c" stroke-width="7">
-          <circle cx="74"  cy="176" r="34" fill="#ffd24a"/>
-          <circle cx="138" cy="186" r="40" fill="#9be23b"/>
-          <circle cx="196" cy="170" r="30" fill="#ff7a3d"/>
+        <circle cx="72" cy="178" r="33" fill="url(#bp_yl)" stroke="#4a3206" stroke-width="4"/>
+        <circle cx="138" cy="188" r="40" fill="url(#bp_lm)" stroke="#26430a" stroke-width="4"/>
+        <circle cx="198" cy="170" r="29" fill="url(#bp_or)" stroke="#4a1c08" stroke-width="4"/>
+        <!-- chromatic rim lights -->
+        <g fill="none" stroke-linecap="round" opacity="0.85">
+          <path d="M126 96 A40 40 0 0 1 132 150" stroke="#ff3df0" stroke-width="3"/>
+          <path d="M64 150 A40 40 0 0 1 70 200" stroke="#2be8ec" stroke-width="3"/>
+          <path d="M172 156 A40 40 0 0 1 168 222" stroke="#2be8ec" stroke-width="3"/>
         </g>
-        <!-- cel shadows front (crescents) -->
-        <path d="M96 152 a34 34 0 0 1 -6 48 a34 34 0 0 0 10 -45 Z" fill="#d6a52f"/>
-        <path d="M166 158 a40 40 0 0 1 -8 56 a40 40 0 0 0 12 -53 Z" fill="#6fab26"/>
-        <path d="M218 150 a30 30 0 0 1 -6 42 a30 30 0 0 0 9 -39 Z" fill="#d65f29"/>
-        <!-- specular highlights -->
-        <g fill="#ffffff" opacity="0.9">
-          <circle cx="84"  cy="106" r="8"/><circle cx="158" cy="100" r="7"/>
-          <circle cx="63"  cy="165" r="7"/><circle cx="124" cy="172" r="9"/><circle cx="186" cy="160" r="6"/>
+        <!-- specular gloss -->
+        <g fill="#ffffff" opacity="0.92">
+          <ellipse cx="84" cy="102" rx="9" ry="6" transform="rotate(-30 84 102)"/>
+          <ellipse cx="158" cy="98" rx="8" ry="5" transform="rotate(-30 158 98)"/>
+          <ellipse cx="62" cy="166" rx="7" ry="4.5" transform="rotate(-30 62 166)"/>
+          <ellipse cx="126" cy="174" rx="10" ry="6" transform="rotate(-30 126 174)"/>
+          <ellipse cx="188" cy="160" rx="6" ry="4" transform="rotate(-30 188 160)"/>
         </g>
       </svg>
     </div><div class="label"><div class="g">BALL x PIT</div><div class="s">arcade ball cluster</div></div></div>
