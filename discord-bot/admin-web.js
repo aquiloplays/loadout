@@ -364,6 +364,14 @@ async function routeLineupPost(env, guildId, body) {
   return json(r, r.ok ? 200 : 502);
 }
 
+// Owner-only: mirror the upcoming schedule into Discord scheduled events.
+async function routeStreamEventsSync(env, guildId, body) {
+  const { syncStreamEvents } = await import('./stream-events.js');
+  const horizonDays = Number.isInteger(body?.horizonDays) ? body.horizonDays : 7;
+  const r = await syncStreamEvents(env, guildId, { horizonDays });
+  return json(r, r.ok ? 200 : 502);
+}
+
 export async function handleAdminWeb(env, route, guildId, body) {
   if (!body || body._owner !== true) {
     return json({ ok: false, error: 'forbidden', message: 'owner-only.' }, 403);
@@ -377,6 +385,7 @@ export async function handleAdminWeb(env, route, guildId, body) {
     case 'admin/anniversary-backfill': return await routeAnniversaryBackfill(env, guildId, body);
     case 'admin/triple-c/set':         return await routeTripleCSet(env, guildId, body);
     case 'admin/lineup/post':          return await routeLineupPost(env, guildId, body);
+    case 'admin/stream-events/sync':   return await routeStreamEventsSync(env, guildId, body);
     default:                     return json({ ok: false, error: 'not-found' }, 404);
   }
 }

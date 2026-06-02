@@ -1273,6 +1273,19 @@ export default {
             } catch (e) { console.warn('[cron] random-drop', e?.message || e); }
           })());
         }
+        // 30-minute pre-stream ping. Opt-in via STREAM_PING_CHANNEL —
+        // the helper no-ops (and we skip the import) when it's unset,
+        // so this stays cheap on the every-minute trigger. A per-event
+        // KV marker guarantees exactly one ping per stream.
+        if (env.STREAM_PING_CHANNEL && env.AQUILO_VAULT_GUILD_ID) {
+          ctx.waitUntil((async () => {
+            try {
+              const { preStreamPings } = await import('./stream-events.js');
+              const r = await preStreamPings(env, env.AQUILO_VAULT_GUILD_ID);
+              if (r?.sent?.length) console.log('[cron] pre-stream ping:', JSON.stringify(r.sent));
+            } catch (e) { console.warn('[cron] pre-stream ping', e?.message || e); }
+          })());
+        }
         // Hourly work below is the OLD :17 schedule — only runs when
         // the current minute is 17 to preserve the original cadence.
         if (mm !== 17) {
@@ -1399,6 +1412,18 @@ export default {
             if (r?.scanned) console.log('[cron] pet-evolve:', r.scanned, 'scanned,', r.evolved, 'evolved');
           } catch (e) { console.warn('[cron] pet-evolve', e?.message || e); }
         })());
+        // Mirror the stream schedule into Discord guild scheduled
+        // events (idempotent — skips dateKeys already created). See
+        // stream-events.js.
+        if (env.AQUILO_VAULT_GUILD_ID) {
+          ctx.waitUntil((async () => {
+            try {
+              const { syncStreamEvents } = await import('./stream-events.js');
+              const r = await syncStreamEvents(env, env.AQUILO_VAULT_GUILD_ID);
+              if (r?.created?.length) console.log('[cron] stream-events:', JSON.stringify(r));
+            } catch (e) { console.warn('[cron] stream-events', e?.message || e); }
+          })());
+        }
       }
       // Clash housekeeping piggybacks on the :23 hourly tick — CF
       // free plan caps a Worker at 5 cron triggers and we're using

@@ -227,6 +227,36 @@ function nextStreamFrom(schedule, now = Date.now()) {
   return null;
 }
 
+// Every scheduled stream that starts within the next `horizonDays`
+// days (ET-aware). Used by stream-events.js to mirror the schedule
+// into Discord guild scheduled events. Returns soonest-first.
+export function upcomingStreams(schedule, horizonDays = 7, now = Date.now()) {
+  if (!schedule || !Array.isArray(schedule.days)) return [];
+  const tz = schedule.tz || 'America/New_York';
+  const today = nowInZone(tz, now);
+  const out = [];
+  for (let offset = 0; offset <= horizonDays; offset++) {
+    const dayIdx = (today.dow + offset) % 7;
+    const day = schedule.days.find((dd) => dd.dow === dayIdx);
+    if (!day || !day.startLocal) continue;
+    const [h, mi] = day.startLocal.split(':').map(Number);
+    if (!Number.isFinite(h) || !Number.isFinite(mi)) continue;
+    const target = addDaysInZone(today.y, today.m, today.d, offset);
+    const startsAt = zonedTimeToEpoch(target.y, target.m, target.d, h, mi, tz);
+    if (startsAt <= now) continue;
+    out.push({
+      startsAt,
+      endsAt: dayEndEpoch(day, target, tz),
+      label: day.label,
+      kind: day.kind,
+      dow: day.dow,
+      startLocal: day.startLocal,
+      dateKey: `${target.y}-${String(target.m).padStart(2, '0')}-${String(target.d).padStart(2, '0')}`,
+    });
+  }
+  return out.sort((a, b) => a.startsAt - b.startsAt);
+}
+
 function voteActiveAt(schedule, now = Date.now()) {
   if (!schedule || !Array.isArray(schedule.days)) return { active: false };
   const tz = schedule.tz || 'America/New_York';

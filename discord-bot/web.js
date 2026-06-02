@@ -279,6 +279,7 @@ const ROUTES = new Set([
   'admin/anniversary-backfill',  // POST {_owner, maxPages?, cursor?} — stamp legacy anniv:seen
   'admin/triple-c/set',          // POST {_owner, gameSlug} — lock the Triple-C campaign + announce
   'admin/lineup/post',           // POST {_owner} — (re)post + pin the weekly lineup recap
+  'admin/stream-events/sync',    // POST {_owner, horizonDays?} — mirror schedule → Discord events
   // Daily community check-in (unified with /checkin slash command).
   'checkin',                 // POST — record today's check-in
   'checkin/status',          // POST — read streak + card + pending bonuses
