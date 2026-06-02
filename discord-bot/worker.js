@@ -692,7 +692,8 @@ export default {
       path.startsWith('/asset/pack/') ||
       path.startsWith('/asset/hero-body/') ||
       path.startsWith('/asset/spire-boss/') ||
-      path.startsWith('/asset/spire-map/')
+      path.startsWith('/asset/spire-map/') ||
+      path.startsWith('/asset/vault/')
     )) {
       return handlePixelArtAsset(req, env, path);
     }
@@ -1092,6 +1093,29 @@ export default {
       return handleDeathCount(req, env, path);
     }
 
+    // Aquilo's Vault — public cross-section snapshot for the /play/vault
+    // viewer + on-stream overlay. Claimed BEFORE the generic /web router
+    // so this GET bypasses the site HMAC (read-only, CORS-open, short
+    // cache). Mutations go through the HMAC-gated POST /web/vault/*
+    // routes in web.js. See vault-community.js.
+    if ((method === 'GET' || method === 'HEAD') && path === '/web/vault/state') {
+      const guild = url.searchParams.get('guild') || env.AQUILO_VAULT_GUILD_ID;
+      let snap;
+      try {
+        const { snapshot } = await import('./vault-community.js');
+        snap = await snapshot(env, guild);
+      } catch (e) {
+        snap = { ok: false, error: String(e?.message || e) };
+      }
+      const headers = {
+        'content-type': 'application/json',
+        'cache-control': 'public, max-age=5',
+        'access-control-allow-origin': '*',
+      };
+      if (method === 'HEAD') return new Response(null, { status: snap.ok ? 200 : 500, headers });
+      return new Response(JSON.stringify(snap), { status: snap.ok ? 200 : 500, headers });
+    }
+
     if (path.startsWith('/web/')) {
       const { handleWeb } = await import('./web.js');
       return handleWeb(req, env);
@@ -1263,6 +1287,18 @@ export default {
                               r.credited, 'min credited,', r.crossings, 'crossings');
                 }
               } catch (e) { console.warn('[cron] twitch-drops', e?.message || e); }
+            })());
+            // Aquilo's Vault — every-5-min tick: expire stale crises,
+            // low-probability crisis spawn, recompute resource bars.
+            // Rides the every-minute trigger (4-cron ceiling). No-ops
+            // cleanly when the vault hasn't been seeded yet.
+            ctx.waitUntil((async () => {
+              try {
+                const { tickVault } = await import('./vault-community.js');
+                const r = await tickVault(env, activeGuildId);
+                if (r?.spawn) console.log('[cron] vault crisis spawned:', r.spawn.kind, r.spawn.crisisId);
+                if (r?.expired?.length) console.log('[cron] vault crises expired:', r.expired.length);
+              } catch (e) { console.warn('[cron] vault tick', e?.message || e); }
             })());
           }
         }
@@ -2394,7 +2430,7 @@ async function handleCardArtAsset(req, env, path) {
 // shell injection / wide-open lookups. We allow lowercase alpha-
 // numeric + period + hyphen — enough for `champ.warrior`, `level-3`,
 // etc., but no slashes/dots/dot-dot.
-const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
+const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map|vault)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
 const PIXEL_ART_SEG_RE   = /^[A-Za-z0-9][A-Za-z0-9.\-]*$/;
 const PIXEL_ART_CATEGORY = {
   'hero-art':     'hero',
@@ -2415,6 +2451,10 @@ const PIXEL_ART_CATEGORY = {
   // 2026-05-30 — Spire Maps (Slay-the-Spire branching paths).
   // Keys: pixel-art-spire-map:bg:<theme>, :node:<type>, :path:<id>.
   'spire-map':    'spire-map',
+  // 2026-06-02 — Aquilo's Vault cross-section art (terrain/door/rooms/
+  // dwellers/crisis-fx/HUD). Keys: pixel-art-vault:<asset>. Served on a
+  // short TTL while the art batch is actively being built/re-arted.
+  'vault':        'vault',
 };
 
 async function handlePixelArtAsset(req, env, path) {
@@ -2446,7 +2486,7 @@ async function handlePixelArtAsset(req, env, path) {
   // 2026-06 hero customization overhaul: hero-body (skin-tone variants) +
   // hero-art are re-uploaded in place during the build, so keep them on a
   // short TTL until the paper-doll set stabilizes, then restore immutable.
-  const isShortCache = ['clash', 'pack', 'cardback', 'hero-body', 'hero'].includes(category);
+  const isShortCache = ['clash', 'pack', 'cardback', 'hero-body', 'hero', 'vault'].includes(category);
   const headers = {
     'content-type':   'image/png',
     'cache-control':  isShortCache ? 'public, max-age=3600' : 'public, max-age=31536000, immutable',

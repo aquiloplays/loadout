@@ -35,6 +35,10 @@ import { getWallet, applyVaultDelta } from './wallet.js';
 import { recordStat } from './recap.js';
 import { verifyHmac } from './auth.js';
 import {
+  routeVaultStatePost, routeVaultAssign, routeVaultExpand,
+  routeVaultContributeCrisis, routeVaultStartCrisis,
+} from './vault-community.js';
+import {
   getCatalog,
   getPrice,
   getHistory,
@@ -359,6 +363,12 @@ const ROUTES = new Set([
   // for the relay read; the reactions path stays at `/web/chat/recent`.
   'chat/send',               // POST — { channelId, content } → webhook post styled as caller
   'chat/relay/recent',       // POST — { channelId, limit? } → relay ringbuffer + per-msg sentViaPwa decoration
+  // Aquilo's Vault — community cross-section layer (vault-community.js).
+  'vault/state',             // POST — authenticated snapshot (public GET also at /web/vault/state)
+  'vault/assign',            // POST — { room, targetUserId? } assign a dweller to a room
+  'vault/expand',            // POST — { amount? } contribute toward the next room
+  'vault/contribute-to-crisis', // POST — { crisisId, amount? } help resolve a crisis
+  'vault/start-crisis',      // POST — { kind, roomId?, severity? } owner-only crisis trigger
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
@@ -425,6 +435,17 @@ export async function handleWeb(req, env) {
     if (route === 'chat/react')   return await routeChatReact(env, discordId, body);
     if (route === 'chat/unreact') return await routeChatUnreact(env, discordId, body);
     if (route === 'chat/channels') return await routeChatChannels(env, guildId, discordId);
+    // Aquilo's Vault — community cross-section. Reads are open to any
+    // signed session; assign/expand/contribute are self-acting; the
+    // raw crisis trigger is owner-gated.
+    if (route === 'vault/state')    return await routeVaultStatePost(env, guildId, discordId, body);
+    if (route === 'vault/assign')   return await routeVaultAssign(env, guildId, discordId, body);
+    if (route === 'vault/expand')   return await routeVaultExpand(env, guildId, discordId, body);
+    if (route === 'vault/contribute-to-crisis') return await routeVaultContributeCrisis(env, guildId, discordId, body);
+    if (route === 'vault/start-crisis') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeVaultStartCrisis(env, guildId, discordId, body);
+    }
     if (route === 'admin/polls/list') {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routePollsList(env);
