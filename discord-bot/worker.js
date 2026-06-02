@@ -1101,6 +1101,18 @@ export default {
       return handleDeathCount(req, env, path);
     }
 
+    // Twitch panel scratch-off cards — its own token/secret-auth subsystem
+    // (Twitch panel + on-stream relay). Claimed BEFORE the generic /web
+    // router so public reads + gated writes bypass the site HMAC. The
+    // bit-purchase webhook is gated on SCRATCH_WEBHOOK_SECRET; admin writes
+    // on SCRATCH_ADMIN_TOKEN/STREAMDECK_TOKEN. See scratch-off.js.
+    if (path.startsWith('/web/scratch/') ||
+        path.startsWith('/web/admin/scratch/') ||
+        path === '/web/twitch/bit-purchase-webhook') {
+      const { handleScratch } = await import('./scratch-off.js');
+      return handleScratch(req, env, path);
+    }
+
     // Aquilo's Vault — public cross-section snapshot for the /play/vault
     // viewer + on-stream overlay. Claimed BEFORE the generic /web router
     // so this GET bypasses the site HMAC (read-only, CORS-open, short

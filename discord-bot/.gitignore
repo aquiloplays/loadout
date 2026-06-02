@@ -1,1 +1,4 @@
 STREAMDECK_TOKEN.local.txt
+
+# scratch-off admin token (local only)
+.scratch-admin-token.local
