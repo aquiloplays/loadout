@@ -193,6 +193,54 @@ async function readBody(req) {
   try { return await req.json(); } catch { return {}; }
 }
 
+// ── Twitch bits receipt verification ───────────────────────────────────
+// Twitch's bits.onTransactionComplete hands the panel a `transactionReceipt`
+// JWT (HS256) signed with the extension secret. When TWITCH_EXT_SECRET is
+// configured we verify it; otherwise we decode-only (with a warning flag)
+// so the flow works in the extension's test/loopback rig before the secret
+// is wired. Returns { ok, verified, sku, bits, userId, txnId } or null.
+function b64urlToBytes(s) {
+  s = String(s).replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+function b64urlToJson(s) {
+  try { return JSON.parse(new TextDecoder().decode(b64urlToBytes(s))); } catch { return null; }
+}
+
+async function verifyTwitchReceipt(env, jwt) {
+  if (!jwt || typeof jwt !== 'string' || jwt.split('.').length !== 3) return null;
+  const [h, p, sig] = jwt.split('.');
+  const payload = b64urlToJson(p);
+  if (!payload) return null;
+  let verified = false;
+  const secretB64 = String(env.TWITCH_EXT_SECRET || '').trim();
+  if (secretB64) {
+    try {
+      const key = await crypto.subtle.importKey(
+        'raw', b64urlToBytes(secretB64.replace(/-/g, '+').replace(/_/g, '/')),
+        { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+      verified = await crypto.subtle.verify('HMAC', key, b64urlToBytes(sig),
+        new TextEncoder().encode(`${h}.${p}`));
+    } catch { verified = false; }
+    if (!verified) return { ok: false, verified: false, reason: 'bad-signature' };
+  }
+  // Bits receipt shape: { topic, exp, data: { transactionId, userId, time,
+  // product: { sku, displayName, cost: { amount, type } } } }
+  const data = payload.data || payload;
+  const product = data.product || {};
+  return {
+    ok: true, verified,
+    sku: product.sku || data.sku || null,
+    bits: (product.cost && Number(product.cost.amount)) || 0,
+    userId: data.userId || payload.user_id || null,
+    txnId: data.transactionId || data.transaction_id || null,
+  };
+}
+
 // ── Outcome selection ──────────────────────────────────────────────────
 
 function weightedPick(rows) {
@@ -327,6 +375,40 @@ export async function handleScratch(req, env, path) {
       return jsonResp({ ok: true, reused, ticket: ticketPublic(ticket, { includeOutcome: false }) });
     }
 
+    // ---- Panel-facing mint from a Twitch bits transaction receipt ------
+    // The panel calls Twitch.ext.bits.useBits('scratch_card'); on
+    // onTransactionComplete it POSTs the receipt here. We verify the JWT
+    // when TWITCH_EXT_SECRET is set (decode-only otherwise so the test rig
+    // works). Body: { userId, userName, transactionReceipt, sku }.
+    if (method === 'POST' && path === '/web/scratch/mint') {
+      const b = await readBody(req);
+      let userId = String(b.userId || '').trim();
+      let userName = b.userName || b.displayName || null;
+      let sku = String(b.sku || b.product || '').trim();
+      let bits = 0, txnId = null, verified = false;
+      if (b.transactionReceipt) {
+        const r = await verifyTwitchReceipt(env, b.transactionReceipt);
+        if (!r || r.ok === false) return jsonResp({ ok: false, error: 'bad-receipt' }, 400);
+        verified = r.verified;
+        sku = r.sku || sku;
+        bits = r.bits || 0;
+        txnId = r.txnId || null;
+        userId = r.userId || userId;
+      } else {
+        // No receipt — only allowed in the extension test rig / loopback,
+        // where Twitch does not always surface a receipt. Tag bits as 0.
+        if (!SCRATCH_SKUS.has(sku)) sku = 'scratch_card_100';
+      }
+      if (!userId) return jsonResp({ ok: false, error: 'missing-userId',
+        hint: 'share Twitch identity (requestIdShare) before buying' }, 400);
+      if (sku && !SCRATCH_SKUS.has(sku)) return jsonResp({ ok: false, error: 'unknown-sku', sku }, 400);
+      const { ticket, reused } = await mintTicket(env, {
+        userId, userName, bits, sku: sku || 'scratch_card_100', txnId,
+      });
+      return jsonResp({ ok: true, reused, verified,
+        ticket: ticketPublic(ticket, { includeOutcome: false }) });
+    }
+
     // ---- Admin: mint a ticket WITHOUT bits (end-to-end testing) --------
     if (method === 'POST' && path === '/web/admin/scratch/test-mint') {
       if (!tokenOk(req, env, url)) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
@@ -437,6 +519,34 @@ export async function handleScratch(req, env, path) {
       return await handlePoolCrud(env, await readBody(req));
     }
 
+    // ---- Admin: Haiku-generate pools for games -------------------------
+    // Body: { games: [slug,...] | "missing", perGame: 12 }. Caller chunks
+    // the list (Workers wall/subrequest limits). Skips games that already
+    // have rows unless "missing" excludes them (it does).
+    if (method === 'POST' && path === '/web/admin/scratch/generate-pools') {
+      if (!tokenOk(req, env, url)) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+      await ensureSchema(env);
+      const b = await readBody(req);
+      const perGame = Math.max(4, Math.min(24, parseInt(b.perGame, 10) || 12));
+      let games = b.games;
+      if (games === 'missing' || !Array.isArray(games)) {
+        const d = db(env);
+        games = [];
+        for (const slug of Object.keys(GAMES)) {
+          const have = await d.prepare(`SELECT COUNT(*) AS n FROM scratch_outcome_pool WHERE game_slug = ?`)
+            .bind(slug).first();
+          if (!have || !have.n) games.push(slug);
+        }
+      }
+      games = games.filter((g) => GAMES[g]).slice(0, 8); // cap per call
+      const results = [];
+      for (const slug of games) {
+        try { results.push(await generatePoolForGame(env, slug, perGame)); }
+        catch (e) { results.push({ slug, inserted: 0, error: String(e?.message || e).slice(0, 120) }); }
+      }
+      return jsonResp({ ok: true, generated: results });
+    }
+
     // ---- Admin: seed actions + pools -----------------------------------
     if (method === 'POST' && path === '/web/admin/scratch/seed') {
       if (!tokenOk(req, env, url)) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
@@ -544,6 +654,84 @@ async function handlePoolCrud(env, body) {
     added++;
   }
   return jsonResp({ ok: true, added });
+}
+
+// ── Haiku pool generation ──────────────────────────────────────────────
+// Bulk-generate per-game challenge/tamper entries via Claude Haiku using
+// the worker's ANTHROPIC_API_KEY. Voice: no em dashes, no cringe,
+// dry/dark-humored, mechanical TCG-style brevity. Tampers must reference an
+// action_key from the registry. Caller chunks the games list (Workers
+// subrequest/wall limits), token-gated.
+
+const HAIKU_MODEL = 'claude-haiku-4-5-20251001';
+
+async function callHaiku(env, prompt) {
+  const key = String(env.ANTHROPIC_API_KEY || '').trim();
+  if (!key) throw new Error('ANTHROPIC_API_KEY not set');
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: HAIKU_MODEL,
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!r.ok) throw new Error('anthropic ' + r.status + ' ' + (await r.text()).slice(0, 160));
+  const j = await r.json();
+  return (j.content || []).map((c) => c.text || '').join('');
+}
+
+function extractJsonArray(text) {
+  const a = text.indexOf('[');
+  const b = text.lastIndexOf(']');
+  if (a < 0 || b < 0 || b < a) return null;
+  try { return JSON.parse(text.slice(a, b + 1)); } catch { return null; }
+}
+
+async function generatePoolForGame(env, slug, perGame) {
+  const name = GAMES[slug] || slug;
+  const actions = STREAMER_BOT_ACTIONS.map((a) => a.action_key + ' (' + a.action_name + ')').join(', ');
+  const prompt =
+`You write outcomes for a Twitch scratch-off card mini-game on the channel "Aquilo".
+Current game: ${name}.
+
+Produce ${perGame} winning outcomes a viewer can roll. Mix two kinds:
+- "challenge": something the streamer (Clay) performs live, ideally tied to ${name}'s mechanics.
+- "tamper": a Streamer.bot control tamper. tamper outcomes MUST set actionKey to one of these exact keys: ${actions}. Set durationSec (10 to 90).
+
+Voice rules, strict:
+- No em dashes. No exclamation-mark spam. No cringe, no hype words, no emoji.
+- Dry, dark-humored, mechanical TCG-card brevity. One sentence each, imperative.
+- Reference ${name} specifically where it fits (its enemies, mechanics, items, lingo).
+
+Return ONLY a JSON array, no prose. Each element:
+{"kind":"challenge"|"tamper","body":string,"actionKey":string|null,"durationSec":number,"weight":number}
+weight 5 to 12. challenge entries have actionKey null and durationSec 0 unless timed.`;
+  const text = await callHaiku(env, prompt);
+  const arr = extractJsonArray(text);
+  if (!Array.isArray(arr)) return { slug, inserted: 0, error: 'parse-failed' };
+  const d = db(env);
+  const validKeys = new Set(STREAMER_BOT_ACTIONS.map((a) => a.action_key));
+  let inserted = 0, i = 0;
+  for (const e of arr) {
+    if (!e || (e.kind !== 'challenge' && e.kind !== 'tamper') || !e.body) continue;
+    let actionKey = e.kind === 'tamper' ? (e.actionKey || null) : null;
+    if (e.kind === 'tamper' && (!actionKey || !validKeys.has(actionKey))) actionKey = 'random_keys';
+    const id = `op_${slug}_g${i++}_${now().toString(36)}`;
+    await d.prepare(
+      `INSERT INTO scratch_outcome_pool (id, game_slug, kind, body, action_key, weight, duration_sec, active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`)
+      .bind(id, slug, e.kind, String(e.body).slice(0, 240), actionKey,
+            Math.max(1, Math.min(20, parseInt(e.weight, 10) || 10)),
+            Math.max(0, Math.min(120, parseInt(e.durationSec, 10) || 0)), now()).run();
+    inserted++;
+  }
+  return { slug, inserted };
 }
 
 // ── Seed data ──────────────────────────────────────────────────────────
