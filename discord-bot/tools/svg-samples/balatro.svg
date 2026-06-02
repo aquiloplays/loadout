@@ -1,0 +1,189 @@
+<svg viewBox="0 0 256 256">
+  <defs>
+    <linearGradient id="ba_cardFace" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f8f2e3"/>
+      <stop offset="0.55" stop-color="#f4eddc"/>
+      <stop offset="1" stop-color="#ece2cb"/>
+    </linearGradient>
+    <linearGradient id="ba_border" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e44a5e"/>
+      <stop offset="0.5" stop-color="#d8324a"/>
+      <stop offset="1" stop-color="#bd2640"/>
+    </linearGradient>
+    <linearGradient id="ba_hatGrad" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#ee4a5b"/>
+      <stop offset="0.55" stop-color="#e1394b"/>
+      <stop offset="1" stop-color="#cc2c3e"/>
+    </linearGradient>
+    <linearGradient id="ba_hatShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cf2d3f"/>
+      <stop offset="1" stop-color="#b9263a"/>
+    </linearGradient>
+    <radialGradient id="ba_face" cx="0.45" cy="0.38" r="0.75">
+      <stop offset="0" stop-color="#f8d4ac"/>
+      <stop offset="0.6" stop-color="#f3c89a"/>
+      <stop offset="1" stop-color="#e6b585"/>
+    </radialGradient>
+    <linearGradient id="ba_collar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3f80e6"/>
+      <stop offset="0.55" stop-color="#2f6fd6"/>
+      <stop offset="1" stop-color="#245bb8"/>
+    </linearGradient>
+    <radialGradient id="ba_bell" cx="0.38" cy="0.32" r="0.8">
+      <stop offset="0" stop-color="#fff0bf"/>
+      <stop offset="0.5" stop-color="#ffd24a"/>
+      <stop offset="1" stop-color="#e0a91f"/>
+    </radialGradient>
+    <radialGradient id="ba_eye" cx="0.4" cy="0.35" r="0.8">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e7ecf4"/>
+    </radialGradient>
+    <linearGradient id="ba_groundShadow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="rgba(20,24,40,0.35)"/>
+      <stop offset="1" stop-color="rgba(20,24,40,0)"/>
+    </linearGradient>
+
+    <filter id="ba_drop" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="5" stdDeviation="5" flood-color="#141828" flood-opacity="0.4"/>
+    </filter>
+    <filter id="ba_soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="2.2"/>
+    </filter>
+    <filter id="ba_grain" x="-20%" y="-20%" width="140%" height="140%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="7" result="n"/>
+      <feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.5 0"/>
+      <feComposite operator="in" in2="SourceGraphic"/>
+    </filter>
+    <filter id="ba_bellShine" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.2" result="b"/>
+      <feSpecularLighting in="b" surfaceScale="3" specularConstant="0.8" specularExponent="14" lighting-color="#fffbe6" result="s">
+        <fePointLight x="70" y="40" z="90"/>
+      </feSpecularLighting>
+      <feComposite in="s" in2="SourceAlpha" operator="in" result="sc"/>
+      <feComposite in="SourceGraphic" in2="sc" operator="arithmetic" k1="0" k2="1" k3="1" k4="0"/>
+    </filter>
+
+    <clipPath id="ba_cardClip">
+      <rect x="-78" y="-112" width="156" height="224" rx="16" ry="16"/>
+    </clipPath>
+  </defs>
+
+  <!-- ground shadow -->
+  <ellipse cx="128" cy="234" rx="74" ry="13" fill="url(#ba_groundShadow)"/>
+
+  <g transform="translate(128 122) rotate(-7)">
+    <!-- card body -->
+    <g filter="url(#ba_drop)">
+      <rect x="-78" y="-112" width="156" height="224" rx="16" ry="16" fill="url(#ba_border)"/>
+      <rect x="-71" y="-105" width="142" height="210" rx="11" ry="11" fill="url(#ba_cardFace)"/>
+    </g>
+
+    <!-- thin inner bevel -->
+    <rect x="-71" y="-105" width="142" height="210" rx="11" ry="11" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="1.3"/>
+    <rect x="-67" y="-101" width="134" height="202" rx="9" ry="9" fill="none" stroke="#1c2440" stroke-opacity="0.08" stroke-width="1"/>
+
+    <!-- paper grain -->
+    <g clip-path="url(#ba_cardClip)">
+      <rect x="-78" y="-112" width="156" height="224" fill="#1c2440" opacity="0.05" filter="url(#ba_grain)"/>
+    </g>
+
+    <!-- corner pips -->
+    <g>
+      <polygon points="-58,-92 -52,-83 -58,-74 -64,-83" fill="#d8324a"/>
+      <text x="-58" y="-66" font-family="sans-serif" font-size="10" font-weight="700" fill="#d8324a" text-anchor="middle">J</text>
+      <!-- bottom-right club -->
+      <g transform="translate(58 85)">
+        <circle cx="0" cy="-3.5" r="3.4" fill="#2f6fd6"/>
+        <circle cx="-3.4" cy="1.6" r="3.4" fill="#2f6fd6"/>
+        <circle cx="3.4" cy="1.6" r="3.4" fill="#2f6fd6"/>
+        <rect x="-1.1" y="1.5" width="2.2" height="4.6" fill="#2f6fd6"/>
+      </g>
+      <text x="58" y="74" font-family="sans-serif" font-size="10" font-weight="700" fill="#2f6fd6" text-anchor="middle">J</text>
+    </g>
+
+    <!-- vertical JOKER text on side edges -->
+    <text transform="translate(-60 26) rotate(-90)" font-family="sans-serif" font-size="14" font-weight="800" letter-spacing="3" fill="#d8324a" text-anchor="middle">JOKER</text>
+    <text transform="translate(60 -26) rotate(90)" font-family="sans-serif" font-size="14" font-weight="800" letter-spacing="3" fill="#2f6fd6" text-anchor="middle">JOKER</text>
+
+    <!-- ===== JIMBO ===== -->
+    <!-- faint shadow under hat -->
+    <ellipse cx="0" cy="-30" rx="40" ry="10" fill="#1c2440" opacity="0.12" filter="url(#ba_soft)"/>
+
+    <!-- jester hat: three points -->
+    <g>
+      <!-- left point -->
+      <path d="M-38,-30 C-44,-58 -50,-78 -40,-88 C-34,-80 -28,-58 -22,-40 Z" fill="url(#ba_hatGrad)"/>
+      <!-- right point -->
+      <path d="M38,-30 C44,-58 50,-78 40,-88 C34,-80 28,-58 22,-40 Z" fill="url(#ba_hatGrad)"/>
+      <!-- center point -->
+      <path d="M-14,-44 C-10,-72 -4,-92 0,-96 C4,-92 10,-72 14,-44 Z" fill="url(#ba_hatGrad)"/>
+      <!-- hat base band -->
+      <path d="M-40,-30 C-26,-44 26,-44 40,-30 C40,-22 30,-14 0,-14 C-30,-14 -40,-22 -40,-30 Z" fill="url(#ba_hatGrad)"/>
+      <!-- band underside shade -->
+      <path d="M-40,-30 C-26,-44 26,-44 40,-30 C40,-24 34,-19 30,-17 C20,-26 -20,-26 -30,-17 C-34,-19 -40,-24 -40,-30 Z" fill="url(#ba_hatShade)" opacity="0.55"/>
+      <!-- hat top highlight -->
+      <path d="M-12,-50 C-8,-70 -3,-86 0,-90 C2,-84 3,-74 3,-60" fill="none" stroke="#ff6e7c" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+    </g>
+
+    <!-- bells -->
+    <g filter="url(#ba_bellShine)">
+      <circle cx="-41" cy="-88" r="7" fill="url(#ba_bell)"/>
+      <circle cx="41" cy="-88" r="7" fill="url(#ba_bell)"/>
+      <circle cx="0" cy="-96" r="7" fill="url(#ba_bell)"/>
+    </g>
+    <g fill="#a87a14" opacity="0.6">
+      <rect x="-43" y="-86" width="4" height="1.4" rx="0.7"/>
+      <rect x="39" y="-86" width="4" height="1.4" rx="0.7"/>
+      <rect x="-2" y="-94" width="4" height="1.4" rx="0.7"/>
+    </g>
+
+    <!-- face -->
+    <ellipse cx="0" cy="2" rx="32" ry="30" fill="url(#ba_face)"/>
+    <ellipse cx="0" cy="2" rx="32" ry="30" fill="none" stroke="#d9a877" stroke-width="1.2" opacity="0.5"/>
+
+    <!-- eyes -->
+    <circle cx="-12" cy="-2" r="7.5" fill="url(#ba_eye)" stroke="#1c2440" stroke-width="1.2"/>
+    <circle cx="12" cy="-2" r="7.5" fill="url(#ba_eye)" stroke="#1c2440" stroke-width="1.2"/>
+    <circle cx="-11" cy="-1" r="3.2" fill="#1c2440"/>
+    <circle cx="13" cy="-1" r="3.2" fill="#1c2440"/>
+    <circle cx="-12" cy="-2.5" r="1.1" fill="#ffffff"/>
+    <circle cx="11.8" cy="-2.5" r="1.1" fill="#ffffff"/>
+
+    <!-- cheeks -->
+    <circle cx="-21" cy="9" r="4" fill="#f0a98a" opacity="0.5"/>
+    <circle cx="21" cy="9" r="4" fill="#f0a98a" opacity="0.5"/>
+
+    <!-- smile -->
+    <path d="M-11,12 C-5,20 5,20 11,12" fill="none" stroke="#1c2440" stroke-width="2.4" stroke-linecap="round"/>
+
+    <!-- collar shadow -->
+    <ellipse cx="0" cy="34" rx="36" ry="9" fill="#1c2440" opacity="0.12" filter="url(#ba_soft)"/>
+
+    <!-- ruffled jester collar -->
+    <g>
+      <path d="M-40,34
+               C-36,24 -28,26 -26,34
+               C-24,26 -16,26 -13,34
+               C-11,26 -3,26 0,34
+               C3,26 11,26 13,34
+               C16,26 24,26 26,34
+               C28,26 36,24 40,34
+               C40,46 30,54 0,54
+               C-30,54 -40,46 -40,34 Z"
+            fill="url(#ba_collar)"/>
+      <!-- collar ruffle scallop lines -->
+      <g fill="none" stroke="#1f4f9e" stroke-width="1.4" opacity="0.6">
+        <path d="M-26,34 C-24,42 -22,46 -19,48"/>
+        <path d="M-13,34 C-12,42 -10,47 -7,49"/>
+        <path d="M0,34 C0,42 0,47 0,49"/>
+        <path d="M13,34 C12,42 10,47 7,49"/>
+        <path d="M26,34 C24,42 22,46 19,48"/>
+      </g>
+      <!-- collar highlight rim -->
+      <path d="M-40,34 C-36,24 -28,26 -26,34 C-24,26 -16,26 -13,34 C-11,26 -3,26 0,34 C3,26 11,26 13,34 C16,26 24,26 26,34 C28,26 36,24 40,34"
+            fill="none" stroke="#6c9cf0" stroke-width="1.5" opacity="0.8"/>
+      <!-- center collar bell -->
+      <circle cx="0" cy="46" r="5.5" fill="url(#ba_bell)" filter="url(#ba_bellShine)"/>
+    </g>
+  </g>
+</svg>
