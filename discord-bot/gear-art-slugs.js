@@ -122,6 +122,7 @@ export function gearArtStamp(item) {
 export function rarityTintHex(rarity) {
   return ({
     uncommon: '#5bff95', rare: '#4a8aff', epic: '#a98fff', legendary: '#ffd166',
+    champion: '#ff6ab5',
   })[norm(rarity)] || null;
 }
 

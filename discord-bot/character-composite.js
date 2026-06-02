@@ -21,6 +21,8 @@
 
 import { gearArtSlug, rarityTintHex } from './gear-art-slugs.js';
 
+export { rarityTintHex };
+
 const WORKER_HOST = 'loadout-discord.aquiloplays.workers.dev';
 
 const PHASE_A_LIVE   = 'A';
@@ -171,6 +173,27 @@ export function resolveEquippedArt(hero) {
       if (a) art = `${a.slot}/${a.slug}`;
     }
     if (art) out[slot] = art;
+  }
+  return out;
+}
+
+// Resolve a per-slot rarity-tint map { slot: '#rrggbb' } from a hero's
+// equipped (slot -> bag-instance id) map and bag. The site paper-doll
+// applies this as a CSS multiply tint over the rarity-agnostic worn
+// overlay (common rarity -> no entry, no tint). Mirrors the `tintHex`
+// the manifest emits per gear layer, but flattened to the slot map the
+// /web/character payload uses alongside equippedArt.
+export function resolveEquippedTint(hero) {
+  const equipped = hero?.equipped || {};
+  const bagIx = {};
+  for (const it of (hero?.bag || [])) if (it && it.id) bagIx[it.id] = it;
+  const out = {};
+  for (const [slot, ref] of Object.entries(equipped)) {
+    if (!ref) continue;
+    const item = (typeof ref === 'string') ? bagIx[ref] : ref;
+    if (!item) continue;
+    const hex = rarityTintHex(String(item.rarity || 'common'));
+    if (hex) out[slot] = hex;
   }
   return out;
 }

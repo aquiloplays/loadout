@@ -90,6 +90,7 @@ import { ensureTown, getQueue } from './clash-state.js';
 import {
   getCharacterLookWeb,
   saveCharacterLookWeb,
+  saveCharacterCustomizationWeb,
   applyClassWeb,
   resetCharacterWeb,
   putAvatarWeb,
@@ -1707,9 +1708,18 @@ async function routeCharacterGet(env, guildId, userId) {
 }
 
 async function routeCharacterSave(env, guildId, userId, body) {
+  // Two payload shapes share this route:
+  //   { customization: {...} } — site paper-doll editor (debounced look
+  //     edits; allowed even when locked, since only class is lock-gated).
+  //   { look: {...} }          — legacy glossy-figure axes + the empty
+  //     `{ look: {} }` commit beat that flips locked=true on first save.
+  if (body && typeof body.customization === 'object' && body.customization) {
+    const r = await saveCharacterCustomizationWeb(env, guildId, userId, body.customization);
+    return json(r, statusFor(r));
+  }
   const lookPatch = (body && typeof body.look === 'object' && body.look) ? body.look : null;
   if (!lookPatch) {
-    return json({ ok: false, error: 'bad-body', message: 'look object required' }, 400);
+    return json({ ok: false, error: 'bad-body', message: 'look or customization object required' }, 400);
   }
   const r = await saveCharacterLookWeb(env, guildId, userId, lookPatch);
   return json(r, statusFor(r));

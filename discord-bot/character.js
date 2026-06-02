@@ -20,7 +20,7 @@ import {
   STARTER_GEAR,
   applyClassSelection,
 } from './dungeon.js';
-import { resolveEquippedArt } from './character-composite.js';
+import { resolveEquippedArt, resolveEquippedTint } from './character-composite.js';
 import { getPet, computeMood } from './pet.js';
 import { getWallet, spend, earn } from './wallet.js';
 
@@ -980,6 +980,13 @@ export async function getCharacterLookWeb(env, guildId, userId) {
     sex: hero.custom?.sex === 'female' ? 'female' : 'male',
     equipped: hero.equipped || {},
     equippedArt: resolveEquippedArt(hero),
+    // Per-slot rarity tint (hex) for the site paper-doll's CSS multiply
+    // sheen — common gear is absent (no tint). A2.
+    equippedTint: resolveEquippedTint(hero),
+    // Full paper-doll customization (site HeroCustomization shape), or
+    // null for legacy heroes — the site then synthesizes a default from
+    // className. A3: this is what finally renders per-user paper-dolls.
+    customization: getCustomizationForWeb(hero),
     classes,
     // Lock state — true once the player has committed via
     // saveCharacterLookWeb. While locked, /web/character/save and
@@ -1095,6 +1102,114 @@ export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
     renderUrl: buildRenderUrl(env, guildId, userId, hero.lookVersion || 0),
     changed,
     locked: true,
+  };
+}
+
+// ── Paper-doll customization (site /play/character editor) ───────
+//
+// SEPARATE from the legacy `hero.custom` glossy-figure look above.
+// The site CharacterEditor + HeroComposite paper-doll renderer use a
+// different (newer) vocabulary — skin tones fair/light/tan/brown/dark/
+// deepest, hair styles short/buzz/long/..., aquilo-palette hair colors,
+// etc. — and stores the whole HeroCustomization object verbatim on
+// `hero.customization`. The two coexist: `hero.custom` still drives the
+// Discord embed's procedural render; `hero.customization` drives the
+// site's layered sprite stack (body+hair+eyes+facial+gear).
+//
+// Mirrors aquilo-site/src/lib/heroCustomization.ts — keep in sync.
+const PAPERDOLL_OPTIONS = {
+  sex:       ['male', 'female'],
+  classKey:  ['warrior', 'mage', 'rogue', 'ranger', 'healer'],
+  skinTone:  ['fair', 'light', 'tan', 'brown', 'dark', 'deepest'],
+  hairStyle: ['short', 'buzz', 'long', 'ponytail', 'mohawk', 'curly', 'wavy', 'bald',
+              'braided', 'twin', 'bun'],
+  hairColor: ['blonde', 'brown', 'black', 'red', 'gray', 'white', 'aquilo-violet',
+              'aurora-pink', 'aurora-green', 'cyan', 'amber', 'magenta'],
+  eyeStyle:  ['round', 'narrow', 'sharp', 'soft'],
+  eyeColor:  ['brown', 'blue', 'green', 'amber', 'violet', 'gray'],
+  facial:    ['clean', 'mustache', 'goatee', 'full'],
+};
+const PAPERDOLL_DEFAULT = {
+  sex: 'male', classKey: 'warrior', skinTone: 'light',
+  hair: { style: 'short', color: 'brown' },
+  eyes: { style: 'round', color: 'brown' },
+  facial: 'clean', background: 'aurora-drift',
+};
+
+// Coerce an arbitrary client payload into a complete, valid
+// HeroCustomization. Unknown axis values fall back to the previous
+// stored value (or the default) rather than rejecting the whole save —
+// a single odd field must never drop the rest of a debounced patch.
+// `background` is validated separately (Patreon-gated catalogue) by the
+// caller, so it's passed through untouched here.
+function sanitizeCustomization(input, prev) {
+  const base = prev && typeof prev === 'object' ? prev : PAPERDOLL_DEFAULT;
+  const pick = (axis, val, fallback) =>
+    (val != null && PAPERDOLL_OPTIONS[axis].includes(String(val))) ? String(val) : fallback;
+  const inHair = (input && input.hair) || {};
+  const inEyes = (input && input.eyes) || {};
+  return {
+    sex:      pick('sex', input?.sex, base.sex || PAPERDOLL_DEFAULT.sex),
+    classKey: pick('classKey', input?.classKey, base.classKey || PAPERDOLL_DEFAULT.classKey),
+    skinTone: pick('skinTone', input?.skinTone, base.skinTone || PAPERDOLL_DEFAULT.skinTone),
+    hair: {
+      style: pick('hairStyle', inHair.style, base.hair?.style || PAPERDOLL_DEFAULT.hair.style),
+      color: pick('hairColor', inHair.color, base.hair?.color || PAPERDOLL_DEFAULT.hair.color),
+    },
+    eyes: {
+      style: pick('eyeStyle', inEyes.style, base.eyes?.style || PAPERDOLL_DEFAULT.eyes.style),
+      color: pick('eyeColor', inEyes.color, base.eyes?.color || PAPERDOLL_DEFAULT.eyes.color),
+    },
+    facial: pick('facial', input?.facial, base.facial || PAPERDOLL_DEFAULT.facial),
+    background: (input && input.background != null)
+      ? String(input.background)
+      : (base.background || PAPERDOLL_DEFAULT.background),
+  };
+}
+
+// SAVE: persist the site paper-doll customization. Independent of the
+// lock flow — a locked character can still re-style their look (only
+// class is lock-gated, handled by applyClassWeb). Bumps lookVersion so
+// every ?v=-pinned render URL refreshes. `background` is gate-validated
+// like the legacy look save.
+export async function saveCharacterCustomizationWeb(env, guildId, userId, customization) {
+  if (!customization || typeof customization !== 'object') {
+    return { ok: false, error: 'bad-body', message: 'customization object required' };
+  }
+  if (customization.background != null) {
+    const { validateBackgroundForUser } = await import('./character-backgrounds.js');
+    const r = await validateBackgroundForUser(env, userId, String(customization.background));
+    if (!r.ok) return r;
+  }
+  const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
+  const next = sanitizeCustomization(customization, hero.customization);
+  const changed = JSON.stringify(next) !== JSON.stringify(hero.customization || null);
+  hero.customization = next;
+  if (changed) hero.lookVersion = (hero.lookVersion || 0) + 1;
+  hero.lastUpdatedUtc = new Date().toISOString();
+  await env.LOADOUT_BOLTS.put(`d:hero:${guildId}:${userId}`, JSON.stringify(hero));
+  return {
+    ok: true,
+    customization: next,
+    lookVersion: hero.lookVersion || 0,
+    renderUrl: buildRenderUrl(env, guildId, userId, hero.lookVersion || 0),
+    changed,
+    locked: !!hero.locked,
+  };
+}
+
+// Read the persisted paper-doll customization in the site's
+// HeroCustomization shape, or null for legacy heroes that never saved
+// one (the site then synthesizes a default keyed off className).
+// classKey is always reconciled to the hero's real className so the
+// body silhouette matches even if a stale classKey was stored.
+function getCustomizationForWeb(hero) {
+  const c = hero && hero.customization;
+  if (!c || typeof c !== 'object') return null;
+  const cls = String(hero.className || c.classKey || 'warrior').toLowerCase();
+  return {
+    ...c,
+    classKey: PAPERDOLL_OPTIONS.classKey.includes(cls) ? cls : (c.classKey || 'warrior'),
   };
 }
 
