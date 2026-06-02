@@ -29,6 +29,7 @@
 
 import { publishActivity } from './activity-do.js';
 import { getChannelGame } from './twitch-helix.js';
+import { enqueueOverlay } from './ext-engage.js';
 
 // ── Tunables ───────────────────────────────────────────────────────────
 
@@ -587,22 +588,30 @@ async function fireRevealEvents(env, row) {
   }
 }
 
-// Emit the specific firing event (scratch.tamper / scratch.challenge). For
-// tampers this is the signal the Loadout-side relay listens for to POST to
-// Streamer.bot's local WebSocket.
+// Emit the specific firing event (scratch.tamper / scratch.challenge). This
+// dual-publishes (like stream-checkin.js): publishActivity feeds the site +
+// community activity SSE, while enqueueOverlay drops a relay:overlay-* KV
+// trigger that Clay's EXISTING Streamer.bot/OBS poller consumes — that is
+// the path that actually executes the tamper / shows the on-stream reveal.
+// Map the action in Streamer.bot off `actionKey` (see SCRATCH-OFF-STREAMERBOT.md).
 async function emitHitFire(env, row, forced) {
   const od = jparse(row.outcome_data, {});
+  const ts = now();
   if (row.outcome === 'tamper') {
-    await publishActivity(env, {
-      kind: 'scratch.tamper', ticketId: row.id, viewer: row.user_name || null,
-      gameSlug: row.game_slug, actionKey: od.actionKey || null,
-      durationSec: od.durationSec || 0, body: od.body, forced: !!forced,
-    }).catch(() => {});
+    const payload = {
+      ticketId: row.id, viewer: row.user_name || null, gameSlug: row.game_slug,
+      actionKey: od.actionKey || null, durationSec: od.durationSec || 0,
+      body: od.body, forced: !!forced,
+    };
+    await publishActivity(env, { kind: 'scratch.tamper', ...payload }).catch(() => {});
+    await enqueueOverlay(env, { type: 'scratch_tamper', bus_kind: 'scratch.tamper', ...payload, ts }).catch(() => {});
   } else if (row.outcome === 'challenge') {
-    await publishActivity(env, {
-      kind: 'scratch.challenge', ticketId: row.id, viewer: row.user_name || null,
-      gameSlug: row.game_slug, body: od.body, durationSec: od.durationSec || 0, forced: !!forced,
-    }).catch(() => {});
+    const payload = {
+      ticketId: row.id, viewer: row.user_name || null, gameSlug: row.game_slug,
+      body: od.body, durationSec: od.durationSec || 0, forced: !!forced,
+    };
+    await publishActivity(env, { kind: 'scratch.challenge', ...payload }).catch(() => {});
+    await enqueueOverlay(env, { type: 'scratch_challenge', bus_kind: 'scratch.challenge', ...payload, ts }).catch(() => {});
   }
 }
 

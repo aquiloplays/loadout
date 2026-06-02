@@ -90,10 +90,40 @@ Aquilo Bus (activity DO):
 `challenge` outcomes emit `scratch.challenge` (no actionKey — Clay performs
 it; the panel/overlay just announces it).
 
-Streamer.bot exposes a local WebSocket server (default `ws://127.0.0.1:8080/`,
-older builds `ws://127.0.0.1:21474/`). A small relay subscribes to the bus
-and posts a `DoAction` for the matching `actionKey`. **MVP for tonight is
-the bus event only** — the relay below is the follow-up.
+### Turnkey path — reuse the existing overlay poller (no new relay needed)
+
+The worker dual-publishes every hit (like `stream-checkin.js`):
+
+- `publishActivity` → the site + community activity SSE (for the web viewer).
+- `enqueueOverlay` → a `relay:overlay-*` KV trigger that **Clay's existing
+  Streamer.bot poller already drains** via `GET /relay/pending?for=overlay`
+  (RELAY_TOKEN-gated, deletes on read).
+
+So the Streamer.bot side needs **no new process**. In the action that already
+polls `/relay/pending?for=overlay`, branch on `trigger.type`:
+
+```
+trigger.type === "scratch_tamper"     -> run the action mapped from trigger.actionKey,
+                                         for trigger.durationSec seconds
+trigger.type === "scratch_challenge"  -> show trigger.body on the overlay / read it to chat
+```
+
+Trigger payloads:
+
+```jsonc
+{ "type":"scratch_tamper", "bus_kind":"scratch.tamper", "actionKey":"invert_mouse",
+  "durationSec":60, "viewer":"SomeViewer", "gameSlug":"fallout4", "body":"...",
+  "ticketId":"st_...", "forced":false, "ts":1780400000000 }
+{ "type":"scratch_challenge", "bus_kind":"scratch.challenge", "body":"...",
+  "durationSec":0, "viewer":"SomeViewer", "gameSlug":"fallout4", "ticketId":"st_...", "ts":... }
+```
+
+### Direct WS path (alternative)
+
+Streamer.bot also exposes a local WebSocket server (default `ws://127.0.0.1:8080/`,
+older builds `ws://127.0.0.1:21474/`). A standalone relay can instead subscribe
+to the activity SSE and post a `DoAction` for the matching `actionKey`. Use this
+only if you'd rather not extend the existing overlay poller.
 
 ### Action registry
 
