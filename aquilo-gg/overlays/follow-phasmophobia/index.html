@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TikTok Follow Overlay — Phasmophobia (Ghost Hunt)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: "Special Elite", "Courier New", Courier, monospace;
+  }
+
+  /* Ambient spirit-wisp particle layer (full window, behind stage) */
+  #bgFX {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #stage {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translate3d(-50%, 0, 0);
+    width: 440px;
+    height: 260px;
+    pointer-events: none;
+    z-index: 1;
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  #stage.shake { animation: stageShake 0.2s linear; }
+  @keyframes stageShake {
+    0%,100% { transform: translate3d(-50%, 0, 0); }
+    20%  { transform: translate3d(calc(-50% - 4px), 2px, 0); }
+    40%  { transform: translate3d(calc(-50% + 4px), -2px, 0); }
+    60%  { transform: translate3d(calc(-50% - 3px), 1px, 0); }
+    80%  { transform: translate3d(calc(-50% + 3px), -1px, 0); }
+  }
+
+  /* 440x36 paranormal-purple bar with failing-power flicker */
+  #bar {
+    position: absolute;
+    left: 0; bottom: 0;
+    width: 440px;
+    height: 36px;
+    overflow: hidden;
+    pointer-events: auto;
+    isolation: isolate;
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.85),
+      0 0 0 2px #160a2c,
+      0 0 0 3px #7c3aed,
+      0 0 18px rgba(124,58,237,0.5);
+    animation: barPulse 3.7s steps(74) infinite;
+  }
+  /* Erratic flicker — occasionally dims hard like failing power */
+  @keyframes barPulse {
+    0%   { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #7c3aed, 0 0 16px rgba(124,58,237,0.45); }
+    11%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #9b6bff, 0 0 30px rgba(124,58,237,0.95); }
+    13%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #2a1448, 0 0 4px rgba(124,58,237,0.10); }
+    15%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #8b54f5, 0 0 24px rgba(124,58,237,0.80); }
+    38%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #7c3aed, 0 0 18px rgba(124,58,237,0.55); }
+    41%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #1c0e34, 0 0 3px rgba(124,58,237,0.06); }
+    43%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #9b6bff, 0 0 28px rgba(124,58,237,0.90); }
+    67%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #6c2fd6, 0 0 14px rgba(124,58,237,0.40); }
+    71%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #25113f, 0 0 4px rgba(124,58,237,0.08); }
+    74%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #8b54f5, 0 0 26px rgba(124,58,237,0.85); }
+    100% { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #7c3aed, 0 0 16px rgba(124,58,237,0.45); }
+  }
+
+  /* Deep night-black haunted gloom */
+  .bg {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(120% 160% at 50% 0%, rgba(60,28,120,0.45) 0%, rgba(6,4,12,1) 72%),
+      linear-gradient(180deg, #110a22 0%, #050308 100%);
+    z-index: 1;
+  }
+  /* Faint VHS-style scanlines over the bar */
+  .scan {
+    position: absolute; inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      180deg,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 1px,
+      rgba(0,0,0,0.26) 2px,
+      rgba(0,0,0,0.26) 3px
+    );
+    mix-blend-mode: multiply;
+  }
+  /* CTA / thank-you text layer — pale ghostly italic */
+  #textLayer {
+    position: absolute; inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    z-index: 5;
+    color: #e8e3ff;
+    font-family: "Special Elite", "Courier New", monospace;
+    font-style: italic;
+    font-size: 19px;
+    letter-spacing: 1px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-shadow:
+      0 0 6px rgba(155,107,255,0.9),
+      0 0 14px rgba(124,58,237,0.6),
+      1px 1px 0 #0a0418;
+  }
+  #textInner {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: font-size 0.15s ease;
+  }
+
+  #barFX {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  #demoPanel {
+    position: fixed; top: 10px; right: 10px;
+    background: rgba(10,5,20,0.92); color: #e8e3ff;
+    font-family: "Special Elite", monospace; font-size: 12px;
+    padding: 10px; border-radius: 6px; border: 1px solid rgba(124,58,237,0.5);
+    z-index: 9999; min-width: 196px;
+  }
+  #demoPanel h4 { font-size: 12px; margin-bottom: 6px; letter-spacing: 1px; color: #9b6bff; }
+  #demoPanel button {
+    display: block; width: 100%; margin-top: 4px; padding: 5px 8px;
+    background: #1c0e34; color: #d9ccff; border: 1px solid #5a2da0; border-radius: 4px; cursor: pointer; font-size: 11px;
+    font-family: "Special Elite", monospace;
+  }
+  #demoPanel button:hover { background: #2a1452; }
+  #demoPanel select, #demoPanel input[type="text"], #demoPanel input[type="number"] {
+    width: 100%; padding: 4px; background: #120822; color: #d9ccff; border: 1px solid #5a2da0; border-radius: 3px; font-size: 11px; margin-top: 4px;
+    font-family: "Special Elite", monospace;
+  }
+  #demoPanel.hidden { display: none; }
+  #wsStatus { font-size: 10px; padding: 3px 6px; border-radius: 3px; display: inline-block; margin-top: 6px; }
+  #wsStatus.on  { background: #2a1452; color: #c2a8ff; }
+  #wsStatus.off { background: #4a1320; color: #ff8fa0; }
+  #wsStatus.try { background: #4a3a13; color: #ffd98f; }
+  .row { display: flex; gap: 4px; }
+  .row > * { flex: 1; }
+</style>
+</head>
+<body>
+
+<canvas id="bgFX"></canvas>
+
+<div id="stage">
+  <canvas id="aboveFX" width="440" height="224"></canvas>
+  <div id="bar">
+    <div class="bg"></div>
+    <canvas id="barFX" width="440" height="36"></canvas>
+    <div class="scan"></div>
+    <div id="textLayer"><span id="textInner">Follow = Random Game Effect</span></div>
+  </div>
+</div>
+
+<div id="demoPanel" class="hidden">
+  <h4>PHASMOPHOBIA OVERLAY</h4>
+  <button id="btnFollow">Trigger 1 Follow</button>
+  <input type="text" id="demoUser" placeholder="username" value="Hunter">
+  <input type="number" id="demoBatch" placeholder="batch size" value="1" min="1" max="20">
+  <button id="btnBatch">Trigger Batch</button>
+  <button id="btnPeek">Test Idle Peek</button>
+  <button id="btnLoop">Auto-Loop: OFF</button>
+  <button id="btnHide">Hide Panel (H)</button>
+  <div id="wsStatus" class="off">WS: disconnected</div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG  — Phasmophobia / ghost-hunt theme
+// ============================================================
+const CTA_TEXT   = "Follow = Random Game Effect";
+const PROMO_TEXT = "Hunt with us — aquilo.gg • Community Night";
+
+// URL params (preserved from template family + Phasmo extras)
+const params       = new URLSearchParams(location.search);
+const SHOW_DEMO    = params.get("demo") === "1";
+const CYCLE_NAMES  = params.get("cycle") !== "off";
+const PARTICLE_KIND= (params.get("particles") || "wisps").toLowerCase(); // wisps | dust | none
+const SHOT_MODE    = params.get("shot"); // "mobs" => line up all sprites for a contact shot
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  animating: false,
+  followQueue: [],
+  thankActive: false,
+  totalFollowers: 0,
+  lastFollower: "",
+  recentFollowers: [],
+  signShowTime: 0,
+  signDuration: 5000,
+  signImgCache: {},
+  idleSprites: [],
+  idleTimer: null,
+  idleAnimFrame: null,
+  autoLoop: false,
+  autoLoopTimer: null,
+};
+
+// ============================================================
+// DOM refs
+// ============================================================
+const $stage     = document.getElementById("stage");
+const $bar       = document.getElementById("bar");
+const $textInner = document.getElementById("textInner");
+const $textLayer = document.getElementById("textLayer");
+const $barFX     = document.getElementById("barFX");
+const $aboveFX   = document.getElementById("aboveFX");
+const $bgFX      = document.getElementById("bgFX");
+const barCtx     = $barFX.getContext("2d");
+const aboveCtx   = $aboveFX.getContext("2d");
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function clearBarFX()   { barCtx.clearRect(0, 0, $barFX.width, $barFX.height); }
+function clearAboveFX() { aboveCtx.clearRect(0, 0, $aboveFX.width, $aboveFX.height); }
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+
+function blendHex(a, b, t) {
+  const ar = parseInt(a.slice(1,3),16), ag = parseInt(a.slice(3,5),16), ab = parseInt(a.slice(5,7),16);
+  const br = parseInt(b.slice(1,3),16), bg = parseInt(b.slice(3,5),16), bb = parseInt(b.slice(5,7),16);
+  return `rgb(${Math.round(ar+(br-ar)*t)},${Math.round(ag+(bg-ag)*t)},${Math.round(ab+(bb-ab)*t)})`;
+}
+
+function renderCTA() {
+  resetTextSize();
+  $textInner.textContent = CTA_TEXT;
+  $textLayer.style.visibility = "visible";
+}
+
+const BASE_FONT_SIZE = 22;
+const MIN_FONT_SIZE  = 11;
+function resetTextSize() { $textInner.style.fontSize = ""; }
+
+// ============================================================
+// PHASMO PALETTE — paranormal purple / ghost-white
+// ============================================================
+const GP = {
+  main:   { fill:"#9b6bff", line:"#2a1244", hi:"#e8e3ff", dim:"#5a2da0", glow:"#7c3aed" },
+  shadow: { fill:"#170a2c", line:"#170a2c", hi:"#170a2c", dim:"#170a2c", glow:"#170a2c" },
+  flash:  { fill:"#f3eeff", line:"#d9ccff", hi:"#ffffff", dim:"#e8e3ff", glow:"#ffffff" },
+};
+
+// Faint scanlines drawn over an icon's bounding box
+function drawScanlines(ctx, x, y, w, h, alpha) {
+  ctx.save();
+  ctx.globalAlpha = (alpha == null ? 1 : alpha) * 0.16;
+  ctx.fillStyle = "#0a0418";
+  for (let yy = Math.floor(y); yy < y + h; yy += 2) ctx.fillRect(x, yy, w, 1);
+  ctx.restore();
+}
+
+// ============================================================
+// PHASMOPHOBIA SPRITES — code-drawn ghost-hunt equipment + ghosts.
+// Each fn draws an icon centered at the origin, spanning ~ +/-7.5u
+// where u = size/16. Color set `c` = {fill,line,hi,dim,glow}.
+// drawSprite() handles the 2.5D extrude, glow, and scanlines.
+// ============================================================
+function lineW(u, n) { return Math.max(1, u * n); }
+
+// 1) Spirit Box — handheld radio scanner: body, screen, antenna, speaker grille
+function drawSpiritBox(ctx, u, c) {
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // antenna (top-right, angled)
+  ctx.lineCap = "round";
+  ctx.beginPath(); ctx.moveTo(3.6*u, -5.0*u); ctx.lineTo(6.4*u, -8.2*u); ctx.stroke();
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(6.6*u, -8.4*u, 0.6*u, 0, Math.PI*2); ctx.fill();
+  // body
+  ctx.fillStyle = c.fill;
+  roundRect(ctx, -4.6*u, -5.0*u, 9.2*u, 12.0*u, 1.2*u); ctx.fill(); ctx.stroke();
+  // frequency screen
+  ctx.fillStyle = c.line;
+  roundRect(ctx, -3.4*u, -3.8*u, 6.8*u, 3.4*u, 0.5*u); ctx.fill();
+  // scanning readout bars on screen
+  ctx.fillStyle = c.hi;
+  for (let i = 0; i < 5; i++) {
+    const bh = (0.6 + (i % 3) * 0.7) * u;
+    ctx.fillRect((-2.8 + i*1.3)*u, -1.0*u - bh, 0.7*u, bh);
+  }
+  // speaker grille (lower)
+  ctx.strokeStyle = c.dim; ctx.lineWidth = lineW(u,0.5);
+  for (let i = 0; i < 4; i++) {
+    const gy = 1.0*u + i*1.1*u;
+    ctx.beginPath(); ctx.moveTo(-3.2*u, gy); ctx.lineTo(3.2*u, gy); ctx.stroke();
+  }
+  // scan button
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(3.1*u, -3.0*u, 0.55*u, 0, Math.PI*2); ctx.fill();
+}
+
+// 2) EMF Reader — handheld with 5 LED bars (green->red readout)
+function drawEMF(ctx, u, c) {
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // body (rounded handheld)
+  ctx.fillStyle = c.fill;
+  roundRect(ctx, -4.2*u, -6.0*u, 8.4*u, 12.4*u, 1.6*u); ctx.fill(); ctx.stroke();
+  // upper readout window
+  ctx.fillStyle = c.line;
+  roundRect(ctx, -3.0*u, -4.8*u, 6.0*u, 2.2*u, 0.4*u); ctx.fill();
+  ctx.fillStyle = c.hi;
+  ctx.font = `bold ${1.7*u}px "Special Elite", monospace`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("EMF", 0, -3.6*u);
+  // 5 LED bars climbing (EMF accent: green low -> red high)
+  const ledCols = ["#36e07a","#7bdb3a","#e3d22e","#e8902a","#e83a3a"];
+  for (let i = 0; i < 5; i++) {
+    const ly = 4.6*u - i*1.7*u;
+    ctx.fillStyle = c.line;
+    roundRect(ctx, -2.8*u, ly - 0.7*u, 5.6*u, 1.2*u, 0.25*u); ctx.fill();
+    // lit lower bars only (idle reads ~2)
+    if (i < 2) {
+      ctx.fillStyle = ledCols[i];
+      roundRect(ctx, -2.6*u, ly - 0.55*u, 5.2*u, 0.9*u, 0.2*u); ctx.fill();
+    }
+  }
+}
+
+// 3) Spirit / Ouija Board — board with arc of glyphs + planchette
+function drawOuija(ctx, u, c) {
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // board (rounded plaque)
+  ctx.fillStyle = c.fill;
+  roundRect(ctx, -7.0*u, -5.2*u, 14.0*u, 10.4*u, 1.2*u); ctx.fill(); ctx.stroke();
+  // arc of letter ticks
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.5); ctx.lineCap = "round";
+  for (let i = 0; i <= 10; i++) {
+    const a = Math.PI + (i/10)*Math.PI;
+    const x1 = Math.cos(a)*5.6*u, y1 = -1.0*u + Math.sin(a)*3.4*u;
+    const x2 = Math.cos(a)*4.6*u, y2 = -1.0*u + Math.sin(a)*2.8*u;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  }
+  // YES / NO corner marks
+  ctx.fillStyle = c.hi;
+  ctx.font = `bold ${1.5*u}px "Special Elite", monospace`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("YES", -4.8*u, 3.4*u);
+  ctx.fillText("NO", 4.8*u, 3.4*u);
+  // planchette (teardrop with viewing hole)
+  ctx.fillStyle = c.dim; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.5);
+  ctx.beginPath();
+  ctx.moveTo(0.6*u, -2.6*u);
+  ctx.quadraticCurveTo(3.0*u, -1.8*u, 2.4*u, 1.0*u);
+  ctx.quadraticCurveTo(1.4*u, 3.2*u, -0.4*u, 2.0*u);
+  ctx.quadraticCurveTo(-1.8*u, 0.8*u, -1.0*u, -1.4*u);
+  ctx.quadraticCurveTo(-0.4*u, -2.6*u, 0.6*u, -2.6*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(0.6*u, -0.2*u, 0.9*u, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = c.line;
+  ctx.beginPath(); ctx.arc(0.6*u, -0.2*u, 0.45*u, 0, Math.PI*2); ctx.fill();
+}
+
+// 4) Video Camera — camcorder body with night-vision lens + REC dot
+function drawCamera(ctx, u, c) {
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // body
+  ctx.fillStyle = c.fill;
+  roundRect(ctx, -6.2*u, -3.2*u, 9.4*u, 6.4*u, 1.0*u); ctx.fill(); ctx.stroke();
+  // lens barrel (right)
+  ctx.beginPath();
+  ctx.moveTo(3.2*u, -2.2*u);
+  ctx.lineTo(6.6*u, -3.4*u);
+  ctx.lineTo(6.6*u, 3.4*u);
+  ctx.lineTo(3.2*u, 2.2*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // night-vision lens (green glow eye)
+  ctx.fillStyle = c.line;
+  ctx.beginPath(); ctx.arc(5.4*u, 0, 1.9*u, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "#36e07a";
+  ctx.beginPath(); ctx.arc(5.4*u, 0, 1.2*u, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(5.0*u, -0.4*u, 0.45*u, 0, Math.PI*2); ctx.fill();
+  // top mic / handle
+  ctx.fillStyle = c.dim;
+  roundRect(ctx, -4.6*u, -4.6*u, 4.2*u, 1.6*u, 0.4*u); ctx.fill();
+  // flip-out screen (left)
+  ctx.fillStyle = c.line;
+  roundRect(ctx, -5.4*u, -1.8*u, 4.0*u, 3.6*u, 0.4*u); ctx.fill();
+  ctx.strokeStyle = "#36e07a"; ctx.lineWidth = lineW(u,0.4);
+  ctx.beginPath(); ctx.moveTo(-5.0*u, 1.2*u); ctx.lineTo(-4.2*u, -0.6*u); ctx.lineTo(-3.4*u, 0.8*u); ctx.lineTo(-2.4*u, -1.0*u); ctx.stroke();
+  // REC dot
+  ctx.fillStyle = "#e83a3a";
+  ctx.beginPath(); ctx.arc(-1.4*u, -2.0*u, 0.6*u, 0, Math.PI*2); ctx.fill();
+}
+
+// 5) Crucifix — wooden cross with worn grain
+function drawCrucifix(ctx, u, c) {
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // vertical beam
+  roundRect(ctx, -1.5*u, -7.2*u, 3.0*u, 14.4*u, 0.4*u); ctx.fill(); ctx.stroke();
+  // horizontal beam
+  roundRect(ctx, -5.6*u, -3.4*u, 11.2*u, 3.0*u, 0.4*u); ctx.fill(); ctx.stroke();
+  // wood grain lines
+  ctx.strokeStyle = c.dim; ctx.lineWidth = lineW(u,0.35);
+  ctx.beginPath(); ctx.moveTo(-0.5*u, -6.6*u); ctx.lineTo(-0.5*u, 6.6*u); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0.6*u, -6.4*u); ctx.lineTo(0.6*u, 6.2*u); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-5.0*u, -2.4*u); ctx.lineTo(5.0*u, -2.4*u); ctx.stroke();
+  // binding wrap at center
+  ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6);
+  ctx.beginPath(); ctx.moveTo(-1.5*u, -2.4*u); ctx.lineTo(1.5*u, -1.0*u); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-1.5*u, -1.0*u); ctx.lineTo(1.5*u, -2.4*u); ctx.stroke();
+  // faint holy highlight
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.arc(-0.9*u, -5.6*u, 0.5*u, 0, Math.PI*2); ctx.fill();
+}
+
+// 6) Flashlight — torch body with conical beam
+function drawFlashlight(ctx, u, c) {
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
+  // barrel (angled down-left to up-right)
+  ctx.save();
+  ctx.rotate(-0.35);
+  // handle
+  roundRect(ctx, -1.0*u, -1.4*u, 8.5*u, 2.8*u, 0.6*u); ctx.fill(); ctx.stroke();
+  // head (wider front)
+  ctx.beginPath();
+  ctx.moveTo(-1.0*u, -1.9*u);
+  ctx.lineTo(-3.2*u, -2.6*u);
+  ctx.lineTo(-3.2*u, 2.6*u);
+  ctx.lineTo(-1.0*u, 1.9*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // tail cap
+  ctx.fillStyle = c.dim;
+  roundRect(ctx, 7.0*u, -1.0*u, 1.4*u, 2.0*u, 0.3*u); ctx.fill();
+  // lens
+  ctx.fillStyle = c.hi;
+  ctx.beginPath(); ctx.ellipse(-3.2*u, 0, 0.7*u, 2.0*u, 0, 0, Math.PI*2); ctx.fill();
+  // conical beam
+  ctx.fillStyle = "rgba(232,227,255,0.30)";
+  ctx.beginPath();
+  ctx.moveTo(-3.4*u, -2.0*u);
+  ctx.lineTo(-9.0*u, -5.2*u);
+  ctx.lineTo(-9.0*u, 5.2*u);
+  ctx.lineTo(-3.4*u, 2.0*u);
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// 7) Wraith — floating cloaked ghost figure (drawn faint/translucent)
+function drawWraith(ctx, u, c) {
+  ctx.save();
+  ctx.globalAlpha = 0.62; // translucent apparition
+  ctx.fillStyle = c.fill; ctx.strokeStyle = c.glow; ctx.lineWidth = lineW(u,0.5); ctx.lineJoin = "round";
+  // hooded cloaked body with wispy tattered hem
+  ctx.beginPath();
+  ctx.moveTo(0, -7.0*u);                       // top of hood
+  ctx.quadraticCurveTo(-4.4*u, -6.2*u, -4.0*u, -1.0*u);  // left shoulder/cloak
+  ctx.quadraticCurveTo(-4.6*u, 3.0*u, -3.4*u, 6.6*u);
+  // tattered wisp hem
+  ctx.lineTo(-2.4*u, 4.8*u);
+  ctx.lineTo(-1.4*u, 6.8*u);
+  ctx.lineTo(-0.5*u, 4.6*u);
+  ctx.lineTo(0.5*u, 6.9*u);
+  ctx.lineTo(1.4*u, 4.7*u);
+  ctx.lineTo(2.4*u, 6.6*u);
+  ctx.lineTo(3.4*u, 4.8*u);
+  ctx.quadraticCurveTo(4.6*u, 3.0*u, 4.0*u, -1.0*u);
+  ctx.quadraticCurveTo(4.4*u, -6.2*u, 0, -7.0*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // dark hood cavity
+  ctx.fillStyle = c.line;
+  ctx.beginPath();
+  ctx.moveTo(0, -5.2*u);
+  ctx.quadraticCurveTo(-2.6*u, -4.6*u, -2.2*u, -1.4*u);
+  ctx.quadraticCurveTo(0, -0.4*u, 2.2*u, -1.4*u);
+  ctx.quadraticCurveTo(2.6*u, -4.6*u, 0, -5.2*u);
+  ctx.closePath(); ctx.fill();
+  // hollow glowing eyes
+  ctx.fillStyle = c.hi; ctx.shadowColor = c.glow; ctx.shadowBlur = u*2;
+  ctx.beginPath(); ctx.arc(-1.0*u, -3.0*u, 0.6*u, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.0*u, -3.0*u, 0.6*u, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+// 8) Apparition — faint floating spirit face/orb, very translucent
+function drawApparition(ctx, u, c) {
+  ctx.save();
+  ctx.globalAlpha = 0.48; // very faint
+  // outer aura
+  const g = ctx.createRadialGradient(0, -0.5*u, 0.5*u, 0, -0.5*u, 6.6*u);
+  g.addColorStop(0, c.hi);
+  g.addColorStop(0.4, c.fill);
+  g.addColorStop(1, "rgba(124,58,237,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, -0.5*u, 6.6*u, 0, Math.PI*2); ctx.fill();
+  // ghostly face — head outline
+  ctx.fillStyle = "rgba(232,227,255,0.55)";
+  ctx.strokeStyle = c.glow; ctx.lineWidth = lineW(u,0.4); ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, -5.4*u);
+  ctx.quadraticCurveTo(-3.8*u, -5.0*u, -3.6*u, -0.6*u);
+  ctx.quadraticCurveTo(-3.4*u, 3.2*u, 0, 4.2*u);
+  ctx.quadraticCurveTo(3.4*u, 3.2*u, 3.6*u, -0.6*u);
+  ctx.quadraticCurveTo(3.8*u, -5.0*u, 0, -5.4*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // hollow eyes (dark voids)
+  ctx.fillStyle = "rgba(20,8,40,0.7)";
+  ctx.beginPath(); ctx.ellipse(-1.4*u, -1.6*u, 0.9*u, 1.3*u, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(1.4*u, -1.6*u, 0.9*u, 1.3*u, 0, 0, Math.PI*2); ctx.fill();
+  // gaping mouth
+  ctx.beginPath(); ctx.ellipse(0, 1.8*u, 0.9*u, 1.5*u, 0, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+
+const FO_SPRITES = {
+  spiritbox:   drawSpiritBox,
+  emf:         drawEMF,
+  ouija:       drawOuija,
+  camera:      drawCamera,
+  crucifix:    drawCrucifix,
+  flashlight:  drawFlashlight,
+  wraith:      drawWraith,
+  apparition:  drawApparition,
+};
+const PEEK_SPRITES = ["spiritbox","emf","ouija","camera","crucifix","flashlight","wraith","apparition"];
+
+// Draw a sprite with 2.5D extrude shadow + purple glow + silhouette scanlines.
+// Rendered to an offscreen buffer so scanlines clip to the icon (no square
+// tile artifact when a sprite floats over live gameplay).
+const _spriteBuf = document.createElement("canvas");
+const _sbx = _spriteBuf.getContext("2d");
+function drawSprite(ctx, name, cx, cy, size, alpha, flash) {
+  const fn = FO_SPRITES[name];
+  if (!fn) return;
+  const u = size / 16;
+  const a = alpha == null ? 1 : alpha;
+  const pad = Math.ceil(size * 0.6);     // room for glow halo, antenna, beam, hem
+  const bw = Math.ceil(size + pad * 2);
+  _spriteBuf.width = bw; _spriteBuf.height = bw;
+  const g = _sbx;
+  const ox = bw / 2, oy = bw / 2;
+  // extrude shadow (offset down-right) for pseudo-3D depth
+  g.save(); g.translate(ox + u*0.9, oy + u*0.9); fn(g, u, GP.shadow); g.restore();
+  // main pass with purple glow
+  g.save();
+  g.translate(ox, oy);
+  g.shadowColor = "rgba(124,58,237,0.6)";
+  g.shadowBlur = u * 1.6;
+  fn(g, u, flash ? GP.flash : GP.main);
+  g.restore();
+  // scanlines — clipped to painted pixels only
+  g.save();
+  g.globalCompositeOperation = "source-atop";
+  g.globalAlpha = 0.16;
+  g.fillStyle = "#0a0418";
+  for (let yy = 0; yy < bw; yy += 2) g.fillRect(0, yy, bw, 1);
+  g.restore();
+  // blit to target
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.drawImage(_spriteBuf, cx - ox, cy - oy);
+  ctx.restore();
+}
+
+// ============================================================
+// FOLLOW PIPELINE
+// ============================================================
+function handleFollow(user, pic) {
+  const entry = { user: user || "Investigator", pic: pic || "" };
+  state.followQueue.push(entry);
+  if (!state.animating && !state.thankActive) processQueue();
+}
+
+function processQueue() {
+  if (state.followQueue.length === 0) return;
+  stopIdleLoop();
+  const batch = state.followQueue.splice(0, state.followQueue.length);
+  state.animating = true;
+  playFalloutAnim(() => {
+    state.animating = false;
+    showThankYou(batch);
+  });
+}
+
+function showThankYou(list) {
+  state.thankActive = true;
+  state.totalFollowers += list.length;
+  state.lastFollower = list[list.length - 1].user;
+  state.recentFollowers = list.slice();
+  for (const f of list) {
+    if (f.pic && !state.signImgCache[f.pic]) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = f.pic;
+      state.signImgCache[f.pic] = img;
+    }
+  }
+  state.signShowTime = 0;
+  playThankYouCanvas(list, () => endThankYou());
+}
+
+function endThankYou() {
+  state.thankActive = false;
+  clearBarFX();
+  clearAboveFX();
+  startIdleLoop();
+  if (state.followQueue.length > 0) processQueue();
+}
+
+// ============================================================
+// THANK-YOU RENDERER (above bar)
+// ============================================================
+function fitTextSize(ctx, text, maxFontSize, minFontSize, maxW, fontFamily) {
+  let lo = minFontSize, hi = maxFontSize, best = lo;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    ctx.font = `${mid}px ${fontFamily}`;
+    if (ctx.measureText(text).width <= maxW) { best = mid; lo = mid + 1; }
+    else { hi = mid - 1; }
+  }
+  return best;
+}
+
+function playThankYouCanvas(list, onComplete) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const t0 = performance.now();
+  const FADE_IN = 400, HOLD_END = 3500, FADE_OUT_END = 4200;
+  const total = list.length;
+  let cycleIdx = 0;
+  const cycleMs = total > 1 ? Math.max(600, Math.floor(3100 / total)) : 0;
+
+  const BAR_W = 440, TEXT_PAD = 24;
+  const MAX_TEXT_W = BAR_W - TEXT_PAD;
+  const FONT_FAMILY = '"Special Elite", monospace';
+  const MAX_FONT = 20, MIN_FONT = 10;
+
+  function getText() {
+    if (total === 1) return "@" + list[0].user + " has joined the investigation";
+    return total + " new investigators joined the hunt";
+  }
+  let text = getText();
+  let fontSize = fitTextSize(aboveCtx, text, MAX_FONT, MIN_FONT, MAX_TEXT_W, FONT_FAMILY);
+
+  function frame(now) {
+    const t = now - t0;
+    let alpha;
+    if (t < FADE_IN) {
+      const p = t / FADE_IN; alpha = 1 - Math.pow(1 - p, 2);
+    } else if (t < HOLD_END) {
+      alpha = 1;
+      if (total > 1 && cycleMs > 0) {
+        const newIdx = Math.floor((t - FADE_IN) / cycleMs) % total;
+        if (newIdx !== cycleIdx) {
+          cycleIdx = newIdx;
+          text = "@" + list[cycleIdx].user + " joined";
+          fontSize = fitTextSize(aboveCtx, text, MAX_FONT, MIN_FONT, MAX_TEXT_W, FONT_FAMILY);
+        }
+      }
+    } else if (t < FADE_OUT_END) {
+      const p = (t - HOLD_END) / (FADE_OUT_END - HOLD_END); alpha = (1 - p) * (1 - p);
+    } else {
+      clearAboveFX(); onComplete(); return;
+    }
+
+    clearAboveFX();
+    aboveCtx.save();
+    aboveCtx.globalAlpha = alpha;
+    aboveCtx.font = `${fontSize}px ${FONT_FAMILY}`;
+    aboveCtx.textAlign = "center";
+    aboveCtx.textBaseline = "middle";
+    const ty = H - 30;
+    aboveCtx.beginPath();
+    aboveCtx.rect((W - BAR_W) / 2, 0, BAR_W, H);
+    aboveCtx.clip();
+    aboveCtx.fillStyle = "#0a0418";
+    aboveCtx.fillText(text, W/2 + 1, ty + 1);
+    aboveCtx.shadowColor = "rgba(124,58,237,0.8)";
+    aboveCtx.shadowBlur = 10;
+    aboveCtx.fillStyle = "#e8e3ff";
+    aboveCtx.fillText(text, W/2, ty);
+    aboveCtx.restore();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ============================================================
+// INVESTIGATION JOURNAL COUNTER SIGN
+// ============================================================
+function drawFollowerCounter(alpha, now) {
+  if (state.totalFollowers === 0 || alpha <= 0) return;
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const signW = 250, signH = 50;
+  const sx = (W - signW) / 2;
+  const sy = H - signH - 16;
+
+  const batch = state.recentFollowers.length > 0 ? state.recentFollowers : [{user: state.lastFollower, pic: ""}];
+  const elapsed = now - state.signShowTime;
+  const idx = CYCLE_NAMES ? Math.floor(elapsed / 900) % batch.length : batch.length - 1;
+  const cur = batch[idx];
+
+  // candlelit flicker
+  const flick = 0.84 + 0.16 * (Math.sin(now*0.013) > 0.6 ? 0.4 : 1);
+  aboveCtx.save();
+  aboveCtx.globalAlpha = alpha;
+
+  // outer shadow / book edge
+  aboveCtx.fillStyle = "#0a0418";
+  roundRect(aboveCtx, sx-3, sy-3, signW+6, signH+6, 6); aboveCtx.fill();
+  // aged paper page (warm parchment over purple)
+  const g = aboveCtx.createLinearGradient(0, sy, 0, sy+signH);
+  g.addColorStop(0, "#2b2236"); g.addColorStop(0.5, "#241a30"); g.addColorStop(1, "#1a1226");
+  aboveCtx.fillStyle = g;
+  roundRect(aboveCtx, sx, sy, signW, signH, 4); aboveCtx.fill();
+  // purple border glow
+  aboveCtx.strokeStyle = "#7c3aed";
+  aboveCtx.lineWidth = 2;
+  aboveCtx.shadowColor = "rgba(124,58,237,0.6)";
+  aboveCtx.shadowBlur = 8;
+  roundRect(aboveCtx, sx, sy, signW, signH, 4); aboveCtx.stroke();
+  aboveCtx.shadowBlur = 0;
+
+  // header bar
+  aboveCtx.fillStyle = "rgba(124,58,237,0.20)";
+  aboveCtx.fillRect(sx, sy, signW, 15);
+  aboveCtx.font = '11px "Special Elite", monospace';
+  aboveCtx.textAlign = "left"; aboveCtx.textBaseline = "middle";
+  aboveCtx.fillStyle = "#c2a8ff";
+  aboveCtx.fillText("INVESTIGATION JOURNAL", sx + 8, sy + 8);
+
+  // handwritten body (pale ghost-ink)
+  aboveCtx.globalAlpha = alpha * flick;
+  aboveCtx.shadowColor = "rgba(124,58,237,0.7)";
+  aboveCtx.shadowBlur = 6;
+  aboveCtx.fillStyle = "#d9ccff";
+  aboveCtx.font = '14px "Special Elite", monospace';
+  aboveCtx.fillText("GHOSTS IDENTIFIED: " + state.totalFollowers, sx + 10, sy + 28);
+  const rawName = cur && cur.user ? cur.user : "";
+  const nameText = rawName.length > 18 ? rawName.slice(0, 16) + ".." : rawName;
+  aboveCtx.fillStyle = "#e8e3ff";
+  aboveCtx.fillText("LAST: @" + nameText, sx + 10, sy + 42);
+  aboveCtx.shadowBlur = 0;
+
+  // blinking pen cursor
+  if (Math.floor(now / 500) % 2 === 0) {
+    aboveCtx.fillStyle = "#c2a8ff";
+    aboveCtx.fillRect(sx + signW - 16, sy + 36, 7, 9);
+  }
+
+  // faint scanlines / paper grain over page
+  aboveCtx.globalAlpha = alpha * 0.16;
+  aboveCtx.fillStyle = "#0a0418";
+  for (let yy = sy + 15; yy < sy + signH; yy += 3) aboveCtx.fillRect(sx, yy, signW, 1);
+
+  aboveCtx.restore();
+}
+
+// ============================================================
+// IDLE ANIMATIONS — sprite peek-up (round-robin)
+// ============================================================
+let peekIndex = 0;
+function scheduleIdleEvent() {
+  state.idleTimer = setTimeout(() => {
+    if (state.animating || state.thankActive) return;
+    startSpritePeek();
+    scheduleIdleEvent();
+  }, rand(4000, 8000));
+}
+
+function startSpritePeek(forced) {
+  const name = forced || PEEK_SPRITES[peekIndex];
+  if (!forced) peekIndex = (peekIndex + 1) % PEEK_SPRITES.length;
+  const sz = 60;
+  const x = randInt(24, $aboveFX.width - 24 - sz);
+  const H = $aboveFX.height;
+  const GAP = 6;
+  const hiddenY = H + 14;
+  const peekY   = H - sz - GAP;
+  const t0 = performance.now();
+  const RISE = 420, HOLD = 1700, LOWER = 2100;
+
+  state.idleSprites.push({
+    draw(now) {
+      const t = now - t0;
+      if (t > LOWER) return false;
+      let y;
+      if (t < RISE) {
+        const p = t / RISE;
+        y = hiddenY + (peekY - hiddenY) * (1 - Math.pow(1 - p, 5));
+      } else if (t < HOLD) {
+        const bp = (t - RISE) / (HOLD - RISE);
+        y = peekY + Math.sin(bp * Math.PI * 4) * 2.5;
+      } else {
+        const p = (t - HOLD) / (LOWER - HOLD);
+        y = peekY + (hiddenY - peekY) * (p * p * p);
+      }
+      drawSprite(aboveCtx, name, x + sz/2, y + sz/2, sz, 1, false);
+      return true;
+    }
+  });
+}
+
+// ============================================================
+// FLOATING PROMO TEXT
+// ============================================================
+function drawPromoText(now) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const ty = H - 64;
+  const bob = Math.sin(now * 0.002) * 1.5;
+  aboveCtx.save();
+  aboveCtx.font = '12px "Special Elite", monospace';
+  aboveCtx.textAlign = "center";
+  aboveCtx.textBaseline = "middle";
+  aboveCtx.fillStyle = "#0a0418";
+  aboveCtx.fillText(PROMO_TEXT, W/2 + 1, ty + bob + 1);
+  aboveCtx.shadowColor = "rgba(124,58,237,0.6)";
+  aboveCtx.shadowBlur = 6;
+  aboveCtx.fillStyle = "#d9ccff";
+  aboveCtx.fillText(PROMO_TEXT, W/2, ty + bob);
+  aboveCtx.restore();
+}
+
+// ============================================================
+// IDLE RENDER LOOP
+// ============================================================
+function startIdleLoop() {
+  if (state.totalFollowers > 0) state.signShowTime = performance.now();
+  scheduleIdleEvent();
+  function idleFrame(now) {
+    if (state.animating || state.thankActive) return;
+    clearAboveFX();
+    let signVisible = false, signAlpha = 0;
+    if (state.signShowTime > 0) {
+      const elapsed = now - state.signShowTime;
+      const fadeStart = state.signDuration, fadeEnd = fadeStart + 800;
+      if (elapsed < fadeEnd) {
+        signVisible = true;
+        signAlpha = elapsed > fadeStart ? 1 - (elapsed - fadeStart) / 800 : 1;
+      }
+    }
+    if (!signVisible) drawPromoText(now);
+    if (signVisible) drawFollowerCounter(signAlpha, now);
+    for (let i = state.idleSprites.length - 1; i >= 0; i--) {
+      if (!state.idleSprites[i].draw(now)) state.idleSprites.splice(i, 1);
+    }
+    state.idleAnimFrame = requestAnimationFrame(idleFrame);
+  }
+  state.idleAnimFrame = requestAnimationFrame(idleFrame);
+}
+
+function stopIdleLoop() {
+  cancelAnimationFrame(state.idleAnimFrame);
+  clearTimeout(state.idleTimer);
+  state.idleTimer = null;
+  state.idleAnimFrame = null;
+  state.idleSprites = [];
+}
+
+// ============================================================
+// PHASMO FOLLOW CELEBRATION  (6 phases)
+//   popIn 500 / idle 400 / charge 750 / boom 200 / smoke 850 / fade 300
+//   equipment rises -> lights flicker + EMF spikes to 5 -> lights cut,
+//   apparition fades in -> camera FLASH -> flashlight strobe + ghost
+//   dissolves into spirit wisps -> "EVIDENCE FOUND" -> fade.
+// ============================================================
+// Draws the EMF reader at large scale with N bars lit (0..5).
+function drawEMFReadout(ctx, cx, cy, scale, litLevel, alpha) {
+  if (alpha <= 0.01) return;
+  const u = scale;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy);
+  ctx.strokeStyle = "#2a1244"; ctx.lineWidth = Math.max(1, u*0.6); ctx.lineJoin = "round";
+  ctx.shadowColor = "rgba(124,58,237,0.6)"; ctx.shadowBlur = u*1.4;
+  // body
+  ctx.fillStyle = "#9b6bff";
+  roundRect(ctx, -4.2*u, -6.0*u, 8.4*u, 12.4*u, 1.6*u); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // window
+  ctx.fillStyle = "#2a1244";
+  roundRect(ctx, -3.0*u, -4.8*u, 6.0*u, 2.2*u, 0.4*u); ctx.fill();
+  ctx.fillStyle = "#e8e3ff";
+  ctx.font = `bold ${1.7*u}px "Special Elite", monospace`;
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("EMF " + litLevel, 0, -3.6*u);
+  // 5 LED bars
+  const ledCols = ["#36e07a","#7bdb3a","#e3d22e","#e8902a","#e83a3a"];
+  for (let i = 0; i < 5; i++) {
+    const ly = 4.6*u - i*1.7*u;
+    ctx.fillStyle = "#2a1244";
+    roundRect(ctx, -2.8*u, ly - 0.7*u, 5.6*u, 1.2*u, 0.25*u); ctx.fill();
+    if (i < litLevel) {
+      ctx.fillStyle = ledCols[i];
+      ctx.shadowColor = ledCols[i]; ctx.shadowBlur = u*1.2;
+      roundRect(ctx, -2.6*u, ly - 0.55*u, 5.2*u, 0.9*u, 0.2*u); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+  ctx.restore();
+}
+
+// Big ghost apparition fading into the gloom.
+function drawGhostApparition(ctx, cx, cy, scale, alpha, riseWob) {
+  if (alpha <= 0.01) return;
+  const u = scale;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(cx, cy + (riseWob || 0));
+  // aura glow
+  const g = ctx.createRadialGradient(0, -0.5*u, 0.5*u, 0, -0.5*u, 7.5*u);
+  g.addColorStop(0, "rgba(232,227,255,0.85)");
+  g.addColorStop(0.45, "rgba(155,107,255,0.5)");
+  g.addColorStop(1, "rgba(124,58,237,0)");
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(0, -0.5*u, 7.5*u, 0, Math.PI*2); ctx.fill();
+  // cloaked spectral body with wispy hem
+  ctx.fillStyle = "rgba(220,210,255,0.55)";
+  ctx.strokeStyle = "rgba(155,107,255,0.8)"; ctx.lineWidth = Math.max(1,u*0.4); ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, -7.2*u);
+  ctx.quadraticCurveTo(-4.6*u, -6.2*u, -4.2*u, -0.6*u);
+  ctx.quadraticCurveTo(-4.8*u, 3.4*u, -3.4*u, 6.8*u);
+  ctx.lineTo(-2.2*u, 5.0*u); ctx.lineTo(-1.2*u, 7.0*u);
+  ctx.lineTo(-0.2*u, 4.8*u); ctx.lineTo(0.8*u, 7.1*u);
+  ctx.lineTo(1.8*u, 4.9*u); ctx.lineTo(2.8*u, 6.9*u);
+  ctx.lineTo(3.6*u, 5.0*u);
+  ctx.quadraticCurveTo(4.8*u, 3.4*u, 4.2*u, -0.6*u);
+  ctx.quadraticCurveTo(4.6*u, -6.2*u, 0, -7.2*u);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // dark hood void
+  ctx.fillStyle = "rgba(20,8,40,0.6)";
+  ctx.beginPath();
+  ctx.moveTo(0, -5.4*u);
+  ctx.quadraticCurveTo(-2.8*u, -4.8*u, -2.4*u, -1.2*u);
+  ctx.quadraticCurveTo(0, -0.2*u, 2.4*u, -1.2*u);
+  ctx.quadraticCurveTo(2.8*u, -4.8*u, 0, -5.4*u);
+  ctx.closePath(); ctx.fill();
+  // glowing hollow eyes
+  ctx.fillStyle = "#ffffff"; ctx.shadowColor = "#c2a8ff"; ctx.shadowBlur = u*2.5;
+  ctx.beginPath(); ctx.arc(-1.1*u, -3.2*u, 0.7*u, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.1*u, -3.2*u, 0.7*u, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+function playFalloutAnim(done, freezeMs) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const barW = $barFX.width, barH = $barFX.height;
+  const frozen = freezeMs != null;
+
+  const heroSize = 86;
+  const heroCX   = W/2;
+  const restCY   = H - 54;
+  const spawnCY  = H + heroSize;
+
+  const t0 = performance.now();
+  const PH = {
+    popIn:   [0,    500],
+    idle:    [500,  900],
+    charge:  [900,  1650],
+    boom:    [1650, 1850],
+    smoke:   [1850, 2700],
+    fadeEnd: [2700, 3000],
+  };
+  function pt(t, [a,b]) { return Math.max(0, Math.min(1, (t-a)/(b-a))); }
+  function easeOutBounce(p) {
+    const n1 = 7.5625, d1 = 2.75;
+    if (p < 1/d1) return n1*p*p;
+    else if (p < 2/d1) { p -= 1.5/d1; return n1*p*p + 0.75; }
+    else if (p < 2.5/d1) { p -= 2.25/d1; return n1*p*p + 0.9375; }
+    else { p -= 2.625/d1; return n1*p*p + 0.984375; }
+  }
+
+  const wisps  = [];  // rising spirit wisps
+  const sparks = [];  // EMF sparks
+  const motes  = [];  // ambient ghost-orbs
+  let boomFired = false, shookScreen = false;
+
+  function seedManifest() {
+    const cx = heroCX, cy = restCY;
+    // rising spirit wisps — drift upward, sway
+    for (let i = 0; i < 26; i++) {
+      wisps.push({
+        x: cx + rand(-46, 46), y: cy + rand(-10, 24),
+        vx: rand(-0.4, 0.4), vy: rand(-1.6, -0.6),
+        r: rand(3, 7), sway: rand(0, Math.PI*2), swaySpd: rand(0.02, 0.06),
+        col: Math.random() < 0.5 ? "#c2a8ff" : "#e8e3ff",
+        life: 0, maxLife: rand(900, 1700), delay: randInt(0, 260),
+      });
+    }
+    // EMF sparks — sharp purple/white burst
+    for (let i = 0; i < 28; i++) {
+      const ang = rand(0, Math.PI * 2), spd = rand(3, 9);
+      sparks.push({
+        x: cx, y: cy, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - rand(1, 2),
+        size: rand(1.5, 3), col: Math.random() < 0.55 ? "#9b6bff" : "#e8e3ff",
+        life: 0, maxLife: rand(350, 750),
+      });
+    }
+    // ambient ghost-orbs floating
+    for (let i = 0; i < 18; i++) {
+      motes.push({
+        x: cx + rand(-50, 50), y: cy + rand(-40, 10),
+        vx: rand(-0.5, 0.5), vy: rand(-0.7, -0.2),
+        r: rand(1, 2.6), col: "#b89bff",
+        life: 0, maxLife: rand(900, 1500), delay: randInt(0, 200),
+      });
+    }
+  }
+
+  function drawWisp(ctx, w, a) {
+    ctx.save();
+    ctx.globalAlpha = a;
+    const sx = w.x + Math.sin(w.sway) * 6;
+    const grd = ctx.createRadialGradient(sx, w.y, 0, sx, w.y, w.r*2);
+    grd.addColorStop(0, w.col);
+    grd.addColorStop(1, "rgba(124,58,237,0)");
+    ctx.fillStyle = grd;
+    ctx.beginPath(); ctx.arc(sx, w.y, w.r*2, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  let lastFrameTime = t0;
+  function frame(now) {
+    const t = now - t0;
+    const dt = Math.min(32, now - lastFrameTime); lastFrameTime = now;
+    const dtF = dt / 16.667;
+
+    clearAboveFX();
+    clearBarFX();
+
+    if (t < PH.popIn[1]) {
+      // POP IN — spirit box bounces up
+      const p = pt(t, PH.popIn);
+      const cy = spawnCY + (restCY - spawnCY) * easeOutBounce(p);
+      drawSprite(aboveCtx, "spiritbox", heroCX, cy, heroSize, 1, false);
+    }
+    else if (t < PH.idle[1]) {
+      // IDLE — hover + subtle scan pulse
+      const p = pt(t, PH.idle);
+      const cy = restCY + Math.sin(p * Math.PI * 2) * 2;
+      const pulse = 1 + Math.sin(p * Math.PI * 2) * 0.06;
+      drawSprite(aboveCtx, "spiritbox", heroCX, cy, heroSize * pulse, 1, false);
+    }
+    else if (t < PH.charge[1]) {
+      // CHARGE — lights flicker hard, EMF reader spikes 1->5, dread shake ramps
+      const p = pt(t, PH.charge);
+      // hard erratic flicker: random dark cuts
+      const flicker = (Math.sin(t*0.04) * 0.5 + 0.5);
+      const hardCut = (Math.random() < 0.10 * p) ? 0.15 : 1;     // failing-power blink
+      const sceneDim = (0.55 + 0.45*flicker) * hardCut;
+      // darken the gloom behind
+      aboveCtx.fillStyle = `rgba(6,4,12,${0.35 * p})`;
+      aboveCtx.fillRect(0, 0, W, H);
+      const shakeX = Math.sin(t * 0.06) * p * 4;
+      const shakeY = Math.cos(t * 0.07) * p * 3;
+      // EMF reader climbs to level 5
+      const litLevel = Math.min(5, 1 + Math.floor(p * 5));
+      drawEMFReadout(aboveCtx, heroCX + shakeX, restCY + shakeY, 4.6, litLevel, sceneDim);
+      // static specks (electrical interference)
+      const speckCount = Math.floor(38 * p);
+      for (let i = 0; i < speckCount; i++) {
+        aboveCtx.globalAlpha = rand(0.2, 0.7) * hardCut;
+        aboveCtx.fillStyle = Math.random() < 0.5 ? "#d9ccff" : "#9b6bff";
+        aboveCtx.fillRect(randInt(0, W), randInt(H-110, H), randInt(1,3), randInt(1,2));
+      }
+      aboveCtx.globalAlpha = 1;
+      // "EMF LEVEL 5" warning (flickering, appears as it spikes)
+      if ((Math.floor(t / 80) % 2 === 0 || p > 0.75) && litLevel >= 4) {
+        aboveCtx.save();
+        aboveCtx.font = `bold ${14 + p*4}px "Special Elite", monospace`;
+        aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
+        aboveCtx.shadowColor = "rgba(232,58,58,0.9)"; aboveCtx.shadowBlur = 10;
+        aboveCtx.fillStyle = "#0a0418";
+        aboveCtx.fillText("EMF LEVEL 5", W/2 + 1, H - 120 + 1);
+        aboveCtx.fillStyle = p > 0.5 ? "#ff6b6b" : "#e83a3a";
+        aboveCtx.fillText("EMF LEVEL 5", W/2, H - 120);
+        aboveCtx.restore();
+      }
+      // bar flicker tint (purple)
+      barCtx.fillStyle = `rgba(124,58,237,${(0.06 + flicker*0.22) * hardCut})`;
+      barCtx.fillRect(0, 0, barW, barH);
+    }
+    else if (t < PH.boom[1]) {
+      // BOOM — lights cut to dark, apparition fades in, camera FLASH burst
+      const p = pt(t, PH.boom);
+      if (!boomFired) { seedManifest(); boomFired = true; }
+      if (!shookScreen) {
+        $stage.classList.remove("shake"); void $stage.offsetWidth;
+        $stage.classList.add("shake"); shookScreen = true;
+      }
+      // black-out the gloom (lights cut)
+      aboveCtx.fillStyle = `rgba(4,3,9,${0.55 + 0.35*(1-p)})`;
+      aboveCtx.fillRect(0, 0, W, H);
+      // ghost apparition emerging from dark
+      drawGhostApparition(aboveCtx, heroCX, restCY - 4, 6.0, 0.4 + p*0.55, Math.sin(t*0.02)*2);
+      // camera FLASH — white strobe burst late in phase
+      if (p > 0.45) {
+        const fp = (p - 0.45) / 0.55;
+        const a = Math.sin(fp * Math.PI); // ramp up then down within the strobe
+        aboveCtx.fillStyle = `rgba(255,255,255,${a})`;
+        aboveCtx.fillRect(0, 0, W, H);
+        barCtx.fillStyle = `rgba(255,255,255,${a * 0.9})`;
+        barCtx.fillRect(0, 0, barW, barH);
+      }
+      updateAndDrawManifest(dtF, 1, t);
+    }
+    else if (t < PH.smoke[1]) {
+      // SMOKE — flashlight strobe sweep + ghost dissolves into wisps, EVIDENCE FOUND
+      const p = pt(t, PH.smoke);
+      // dark room
+      aboveCtx.fillStyle = `rgba(4,3,9,${0.55 * (1-p*0.4)})`;
+      aboveCtx.fillRect(0, 0, W, H);
+      // flashlight strobe sweep — a moving light cone
+      const sweepX = W * (0.15 + 0.7 * ((Math.sin(t*0.012) + 1) / 2));
+      const strobe = (Math.floor(t / 70) % 2 === 0) ? 0.9 : 0.35;
+      const beam = aboveCtx.createRadialGradient(sweepX, restCY-10, 6, sweepX, restCY-10, 130);
+      beam.addColorStop(0, `rgba(232,227,255,${0.30*strobe})`);
+      beam.addColorStop(1, "rgba(232,227,255,0)");
+      aboveCtx.fillStyle = beam;
+      aboveCtx.beginPath(); aboveCtx.arc(sweepX, restCY-10, 130, 0, Math.PI*2); aboveCtx.fill();
+      // ghost dissolving (fade out as it rises)
+      drawGhostApparition(aboveCtx, heroCX, restCY - 4 - p*26, 6.0, (1-p)*0.85, Math.sin(t*0.02)*2);
+      updateAndDrawManifest(dtF, 1, t);
+      // EVIDENCE FOUND big text
+      aboveCtx.save();
+      aboveCtx.font = `bold 22px "Special Elite", monospace`;
+      aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
+      const tShow = Math.min(1, p / 0.3);
+      aboveCtx.globalAlpha = tShow * (p > 0.85 ? (1-p)/0.15 : 1);
+      aboveCtx.shadowColor = "rgba(124,58,237,0.95)"; aboveCtx.shadowBlur = 14;
+      aboveCtx.fillStyle = "#0a0418";
+      aboveCtx.fillText("EVIDENCE FOUND", W/2 + 1, H - 116 + 1);
+      aboveCtx.fillStyle = "#e8e3ff";
+      aboveCtx.fillText("EVIDENCE FOUND", W/2, H - 116);
+      aboveCtx.restore();
+    }
+    else if (t < PH.fadeEnd[1]) {
+      // FADE — quadratic fade to clean
+      const p = pt(t, PH.fadeEnd);
+      const fade = (1 - p) * (1 - p);
+      aboveCtx.fillStyle = `rgba(4,3,9,${0.3 * fade})`;
+      aboveCtx.fillRect(0, 0, W, H);
+      updateAndDrawManifest(dtF, fade, t);
+    }
+    else {
+      clearAboveFX(); clearBarFX();
+      $stage.classList.remove("shake");
+      done(); return;
+    }
+    if (!frozen) requestAnimationFrame(frame);
+  }
+
+  function updateAndDrawManifest(dtF, alphaMul, t) {
+    // rising spirit wisps
+    for (let i = wisps.length - 1; i >= 0; i--) {
+      const w = wisps[i];
+      if (w.delay > 0) { w.delay -= 16 * dtF; continue; }
+      w.life += 16 * dtF;
+      w.x += w.vx * dtF; w.y += w.vy * dtF; w.sway += w.swaySpd * dtF;
+      if (w.life >= w.maxLife || w.y < -20) { wisps.splice(i, 1); continue; }
+      const lp = w.life / w.maxLife;
+      let a = 1; if (lp < 0.2) a = lp/0.2; else if (lp > 0.6) a = (1-lp)/0.4;
+      drawWisp(aboveCtx, w, a * alphaMul * 0.8);
+    }
+    aboveCtx.globalAlpha = 1;
+    // EMF sparks
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.life += 16 * dtF;
+      s.x += s.vx * dtF; s.y += s.vy * dtF; s.vy += 0.12 * dtF; s.vx *= Math.pow(0.97, dtF);
+      if (s.life >= s.maxLife) { sparks.splice(i, 1); continue; }
+      aboveCtx.globalAlpha = (1 - s.life/s.maxLife) * alphaMul;
+      aboveCtx.fillStyle = s.col;
+      aboveCtx.fillRect(Math.floor(s.x), Math.floor(s.y), s.size, s.size);
+    }
+    aboveCtx.globalAlpha = 1;
+    // ambient ghost-orbs
+    for (let i = motes.length - 1; i >= 0; i--) {
+      const m = motes[i];
+      if (m.delay > 0) { m.delay -= 16 * dtF; continue; }
+      m.life += 16 * dtF;
+      m.x += m.vx * dtF; m.y += m.vy * dtF;
+      if (m.life >= m.maxLife) { motes.splice(i, 1); continue; }
+      const lp = m.life / m.maxLife;
+      let a = 1; if (lp < 0.2) a = lp/0.2; else if (lp > 0.7) a = (1-lp)/0.3;
+      aboveCtx.globalAlpha = a * alphaMul * 0.8;
+      aboveCtx.fillStyle = m.col;
+      aboveCtx.shadowColor = "rgba(124,58,237,0.8)"; aboveCtx.shadowBlur = 4;
+      aboveCtx.beginPath(); aboveCtx.arc(m.x, m.y, m.r, 0, Math.PI*2); aboveCtx.fill();
+      aboveCtx.shadowBlur = 0;
+    }
+    aboveCtx.globalAlpha = 1;
+  }
+
+  if (frozen) {
+    // Synchronous stepping driver — evolves particles up to freezeMs and draws
+    // the final frame statically (no rAF), so a plain headless --screenshot
+    // reliably captures any celebration phase.
+    for (let tt = 0; tt <= freezeMs; tt += 16) frame(t0 + tt);
+  } else {
+    requestAnimationFrame(frame);
+  }
+}
+
+// ============================================================
+// AMBIENT SPIRIT-WISP PARTICLE LAYER (#bgFX, full window)
+// ============================================================
+let bgParticles = [];
+function initBgParticles() {
+  if (PARTICLE_KIND === "none") return;
+  const ctx = $bgFX.getContext("2d");
+  function resize() { $bgFX.width = window.innerWidth; $bgFX.height = window.innerHeight; }
+  resize();
+  window.addEventListener("resize", resize);
+  const count = 42;
+  for (let i = 0; i < count; i++) {
+    bgParticles.push({
+      x: Math.random() * $bgFX.width,
+      y: Math.random() * $bgFX.height,
+      vx: rand(-0.2, 0.2),
+      vy: PARTICLE_KIND === "dust" ? rand(0.1, 0.5) : rand(-0.4, -0.08),
+      r: rand(0.8, 2.6),
+    });
+  }
+  const isDust = PARTICLE_KIND === "dust";
+  function loop() {
+    ctx.clearRect(0, 0, $bgFX.width, $bgFX.height);
+    for (const p of bgParticles) {
+      p.x += p.vx; p.y += p.vy;
+      if (p.y < -5) p.y = $bgFX.height + 5;
+      if (p.y > $bgFX.height + 5) p.y = -5;
+      if (p.x < -5) p.x = $bgFX.width + 5;
+      if (p.x > $bgFX.width + 5) p.x = -5;
+      ctx.globalAlpha = 0.45;
+      ctx.fillStyle = isDust ? "#7a6a8a" : "#9b6bff";
+      if (!isDust) { ctx.shadowColor = "rgba(124,58,237,0.7)"; ctx.shadowBlur = 6; }
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+// ============================================================
+// DEMO CONTROLS
+// ============================================================
+document.getElementById("btnFollow").addEventListener("click", (e) => {
+  e.stopPropagation();
+  handleFollow(document.getElementById("demoUser").value || "Hunter", "");
+});
+document.getElementById("btnBatch").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const n = parseInt(document.getElementById("demoBatch").value, 10) || 1;
+  const names = ["Hunter","Wraith","Banshee","Yurei","Demon","Spirit","Phantom","Revenant","Mare","Onryo"];
+  for (let i = 0; i < n; i++) handleFollow(names[i % names.length] + (i >= names.length ? i : ""), "");
+});
+document.getElementById("btnPeek").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!state.animating && !state.thankActive) startSpritePeek();
+});
+const $btnLoop = document.getElementById("btnLoop");
+$btnLoop.addEventListener("click", (e) => {
+  e.stopPropagation();
+  state.autoLoop = !state.autoLoop;
+  $btnLoop.textContent = "Auto-Loop: " + (state.autoLoop ? "ON" : "OFF");
+  if (state.autoLoop) runAutoLoop(); else clearTimeout(state.autoLoopTimer);
+});
+function runAutoLoop() {
+  if (!state.autoLoop) return;
+  const fakeUsers = ["Hunter","Wraith","Banshee","Yurei","Demon","Spirit","Phantom","Revenant","Mare","Onryo"];
+  const batchSize = Math.random() < 0.6 ? 1 : randInt(2, 5);
+  for (let i = 0; i < batchSize; i++) handleFollow(fakeUsers[randInt(0, fakeUsers.length-1)] + randInt(1,999), "");
+  state.autoLoopTimer = setTimeout(runAutoLoop, randInt(5000, 9000));
+}
+document.getElementById("btnHide").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("demoPanel").classList.add("hidden");
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "h" || e.key === "H") document.getElementById("demoPanel").classList.toggle("hidden");
+});
+
+// ============================================================
+// TIKFINITY WEBSOCKET
+// ============================================================
+const $wsStatus = document.getElementById("wsStatus");
+function setWsStatus(cls, text) { $wsStatus.className = cls; $wsStatus.textContent = "WS: " + text; }
+function connectTikfinity() {
+  setWsStatus("try", "connecting...");
+  let ws;
+  try { ws = new WebSocket("ws://localhost:21213/"); }
+  catch (err) { setWsStatus("off", "failed"); setTimeout(connectTikfinity, 5000); return; }
+  ws.onopen  = () => setWsStatus("on", "connected");
+  ws.onclose = () => { setWsStatus("off", "disconnected"); setTimeout(connectTikfinity, 5000); };
+  ws.onerror = () => setWsStatus("off", "error");
+  ws.onmessage = (msg) => {
+    try {
+      const data = JSON.parse(msg.data);
+      if (data && (data.event === "follow" || data.type === "follow")) {
+        const d = data.data || data;
+        const name = d.nickname || d.uniqueId || d.userId || "Investigator";
+        const pic  = d.profilePictureUrl || d.profilePicture || "";
+        handleFollow(name, pic);
+      }
+    } catch (err) { /* ignore */ }
+  };
+}
+
+// ============================================================
+// SHOT MODE — line up every sprite for a contact screenshot
+// ============================================================
+function renderContactSheet() {
+  stopIdleLoop();
+  clearAboveFX();
+  const cols = 4, rows = 2, sz = 80;
+  const W = $aboveFX.width;
+  const cellW = W / cols, cellH = 96;
+  PEEK_SPRITES.forEach((name, i) => {
+    const cx = (i % cols) * cellW + cellW/2;
+    const cy = Math.floor(i / cols) * cellH + cellH/2 + 8;
+    drawSprite(aboveCtx, name, cx, cy, sz, 1, false);
+  });
+}
+
+// ============================================================
+// INIT
+// ============================================================
+if (SHOW_DEMO) document.getElementById("demoPanel").classList.remove("hidden");
+initBgParticles();
+renderCTA();
+connectTikfinity();
+if (SHOT_MODE === "mobs") {
+  renderContactSheet();
+} else {
+  startIdleLoop();
+}
+// Screenshot helpers:
+//   ?fire=1            — auto-trigger a live follow after load (visual smoke-test)
+//   ?freeze=<phase>    — render ONE static celebration frame (popin|idle|charge|
+//                        boom|smoke|fade), reliably captured by plain --screenshot
+if (params.get("fire")) {
+  setTimeout(() => handleFollow(params.get("user") || "Hunter", ""), 60);
+}
+const FREEZE_MS = { popin:300, idle:760, charge:1500, boom:1820, smoke:2350, fade:2860 };
+if (params.get("freeze")) {
+  stopIdleLoop();
+  const ms = FREEZE_MS[params.get("freeze")] != null ? FREEZE_MS[params.get("freeze")] : 1820;
+  playFalloutAnim(() => {}, ms);
+}
+// ?signshot=N — static render of the investigation journal sign
+if (params.get("signshot")) {
+  stopIdleLoop();
+  state.totalFollowers = parseInt(params.get("signshot"), 10) || 7;
+  state.recentFollowers = [{ user: params.get("user") || "Wraith", pic: "" }];
+  state.signShowTime = performance.now();
+  clearAboveFX();
+  drawFollowerCounter(1, performance.now());
+}
+window.triggerFollow = handleFollow;
+window.startSpritePeek = startSpritePeek;
+window.renderContactSheet = renderContactSheet;
+</script>
+</body>
+</html>

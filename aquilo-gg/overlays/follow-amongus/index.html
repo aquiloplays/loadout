@@ -1,0 +1,1318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>TikTok Follow Overlay — Among Us (Emergency Meeting)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    overflow: hidden;
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+  }
+
+  /* Ambient starfield particle layer (full window, behind stage) */
+  #bgFX {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #stage {
+    position: fixed;
+    left: 50%;
+    bottom: 20px;
+    transform: translate3d(-50%, 0, 0);
+    width: 440px;
+    height: 260px;
+    pointer-events: none;
+    z-index: 1;
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+  #stage.shake { animation: stageShake 0.2s linear; }
+  @keyframes stageShake {
+    0%,100% { transform: translate3d(-50%, 0, 0); }
+    20%  { transform: translate3d(calc(-50% - 4px), 2px, 0); }
+    40%  { transform: translate3d(calc(-50% + 4px), -2px, 0); }
+    60%  { transform: translate3d(calc(-50% - 3px), 1px, 0); }
+    80%  { transform: translate3d(calc(-50% + 3px), -1px, 0); }
+  }
+
+  /* 440x36 spaceship-HUD bar — dark metal w/ crewmate-red trim */
+  #bar {
+    position: absolute;
+    left: 0; bottom: 0;
+    width: 440px;
+    height: 36px;
+    overflow: hidden;
+    pointer-events: auto;
+    isolation: isolate;
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.8),
+      0 0 0 2px #1a0b0b,
+      0 0 0 3px #c93030,
+      0 0 18px rgba(201,48,48,0.50);
+    animation: barPulse 2.6s ease-in-out infinite;
+  }
+  /* Alarm-style pulse — red glow swells like a meeting alert */
+  @keyframes barPulse {
+    0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #1a0b0b, 0 0 0 3px #c93030, 0 0 16px rgba(201,48,48,0.40); }
+    50%      { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #1a0b0b, 0 0 0 3px #e84545, 0 0 30px rgba(232,69,69,0.90); }
+  }
+
+  /* Dark spaceship-interior background */
+  .bg {
+    position: absolute; inset: 0;
+    background:
+      radial-gradient(120% 160% at 50% 0%, rgba(70,20,20,0.45) 0%, rgba(12,14,20,1) 70%),
+      linear-gradient(180deg, #1a1d27 0%, #0a0c12 100%);
+    z-index: 1;
+  }
+  /* Visor-glass sheen over the bar */
+  .scan {
+    position: absolute; inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      180deg,
+      rgba(0,0,0,0) 0px,
+      rgba(0,0,0,0) 2px,
+      rgba(143,211,232,0.05) 3px,
+      rgba(0,0,0,0) 4px
+    );
+    mix-blend-mode: screen;
+  }
+  /* CTA / thank-you text layer */
+  #textLayer {
+    position: absolute; inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    z-index: 5;
+    color: #f2f4f8;
+    font-family: "Inter", "Segoe UI", Arial, sans-serif;
+    font-weight: 800;
+    font-size: 19px;
+    letter-spacing: 0.5px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-shadow:
+      0 0 5px rgba(201,48,48,0.7),
+      0 0 12px rgba(201,48,48,0.4),
+      1px 1px 0 #0a0c12;
+  }
+  #textInner {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: font-size 0.15s ease;
+  }
+
+  #barFX {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  #demoPanel {
+    position: fixed; top: 10px; right: 10px;
+    background: rgba(14,16,24,0.92); color: #dfe4ee;
+    font-family: "Inter", sans-serif; font-size: 12px; font-weight: 600;
+    padding: 10px; border-radius: 6px; border: 1px solid rgba(201,48,48,0.5);
+    z-index: 9999; min-width: 196px;
+  }
+  #demoPanel h4 { font-size: 12px; margin-bottom: 6px; letter-spacing: 1px; color: #e84545; font-weight: 800; }
+  #demoPanel button {
+    display: block; width: 100%; margin-top: 4px; padding: 5px 8px;
+    background: #2a1414; color: #ffdede; border: 1px solid #7a2f2f; border-radius: 4px; cursor: pointer; font-size: 11px;
+    font-family: "Inter", sans-serif; font-weight: 600;
+  }
+  #demoPanel button:hover { background: #401a1a; }
+  #demoPanel select, #demoPanel input[type="text"], #demoPanel input[type="number"] {
+    width: 100%; padding: 4px; background: #14161e; color: #dfe4ee; border: 1px solid #7a2f2f; border-radius: 3px; font-size: 11px; margin-top: 4px;
+    font-family: "Inter", sans-serif; font-weight: 600;
+  }
+  #demoPanel.hidden { display: none; }
+  #wsStatus { font-size: 10px; padding: 3px 6px; border-radius: 3px; display: inline-block; margin-top: 6px; }
+  #wsStatus.on  { background: #134a13; color: #8fff8f; }
+  #wsStatus.off { background: #4a1313; color: #ff8f8f; }
+  #wsStatus.try { background: #4a4413; color: #ffd98f; }
+  .row { display: flex; gap: 4px; }
+  .row > * { flex: 1; }
+</style>
+</head>
+<body>
+
+<canvas id="bgFX"></canvas>
+
+<div id="stage">
+  <canvas id="aboveFX" width="440" height="224"></canvas>
+  <div id="bar">
+    <div class="bg"></div>
+    <canvas id="barFX" width="440" height="36"></canvas>
+    <div class="scan"></div>
+    <div id="textLayer"><span id="textInner">Follow = Random Game Effect</span></div>
+  </div>
+</div>
+
+<div id="demoPanel" class="hidden">
+  <h4>AMONG US OVERLAY</h4>
+  <button id="btnFollow">Trigger 1 Follow</button>
+  <input type="text" id="demoUser" placeholder="username" value="Red">
+  <input type="number" id="demoBatch" placeholder="batch size" value="1" min="1" max="20">
+  <button id="btnBatch">Trigger Batch</button>
+  <button id="btnPeek">Test Idle Peek</button>
+  <button id="btnLoop">Auto-Loop: OFF</button>
+  <button id="btnHide">Hide Panel (H)</button>
+  <div id="wsStatus" class="off">WS: disconnected</div>
+</div>
+
+<script>
+// ============================================================
+// CONFIG  — Among Us / Emergency Meeting theme
+// ============================================================
+const CTA_TEXT   = "Follow = Random Game Effect";
+const PROMO_TEXT = "Watch the impostor — aquilo.gg • Community Night";
+
+// URL params (preserved from template family + Among Us extras)
+const params       = new URLSearchParams(location.search);
+const SHOW_DEMO    = params.get("demo") === "1";
+const CYCLE_NAMES  = params.get("cycle") !== "off";
+const PARTICLE_KIND= (params.get("particles") || "stars").toLowerCase(); // stars | dust | none
+const SHOT_MODE    = params.get("shot"); // "mobs" => line up all sprites for a contact shot
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  animating: false,
+  followQueue: [],
+  thankActive: false,
+  totalFollowers: 0,
+  lastFollower: "",
+  recentFollowers: [],
+  signShowTime: 0,
+  signDuration: 5000,
+  signImgCache: {},
+  idleSprites: [],
+  idleTimer: null,
+  idleAnimFrame: null,
+  autoLoop: false,
+  autoLoopTimer: null,
+};
+
+// ============================================================
+// DOM refs
+// ============================================================
+const $stage     = document.getElementById("stage");
+const $bar       = document.getElementById("bar");
+const $textInner = document.getElementById("textInner");
+const $textLayer = document.getElementById("textLayer");
+const $barFX     = document.getElementById("barFX");
+const $aboveFX   = document.getElementById("aboveFX");
+const $bgFX      = document.getElementById("bgFX");
+const barCtx     = $barFX.getContext("2d");
+const aboveCtx   = $aboveFX.getContext("2d");
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function clearBarFX()   { barCtx.clearRect(0, 0, $barFX.width, $barFX.height); }
+function clearAboveFX() { aboveCtx.clearRect(0, 0, $aboveFX.width, $aboveFX.height); }
+function rand(min, max) { return Math.random() * (max - min) + min; }
+function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+
+function blendHex(a, b, t) {
+  const ar = parseInt(a.slice(1,3),16), ag = parseInt(a.slice(3,5),16), ab = parseInt(a.slice(5,7),16);
+  const br = parseInt(b.slice(1,3),16), bg = parseInt(b.slice(3,5),16), bb = parseInt(b.slice(5,7),16);
+  return `rgb(${Math.round(ar+(br-ar)*t)},${Math.round(ag+(bg-ag)*t)},${Math.round(ab+(bb-ab)*t)})`;
+}
+
+function renderCTA() {
+  resetTextSize();
+  $textInner.textContent = CTA_TEXT;
+  $textLayer.style.visibility = "visible";
+}
+
+const BASE_FONT_SIZE = 22;
+const MIN_FONT_SIZE  = 11;
+function resetTextSize() { $textInner.style.fontSize = ""; }
+
+// ============================================================
+// AMONG US PALETTE
+//   Default crewmate body = classic crewmate red; visor light-blue.
+//   Per-sprite the body color is overridden via the sprite fn's own
+//   bodyColor (passed through c via a small wrapper). flash = bright.
+// ============================================================
+const VISOR     = "#8fd3e8";   // visor glass light-blue
+const VISOR_HI  = "#dff4fb";   // visor highlight
+const GP = {
+  main:   { fill:"#c51111", line:"#7a0c0c", hi:"#ff5c5c", dim:"#8a0f0f", glow:"#e84545", visor:VISOR, visorHi:VISOR_HI },
+  shadow: { fill:"#070809", line:"#070809", hi:"#070809", dim:"#070809", glow:"#070809", visor:"#070809", visorHi:"#070809" },
+  flash:  { fill:"#ffe2e2", line:"#ffb3b3", hi:"#ffffff", dim:"#ffd0d0", glow:"#ffffff", visor:"#eafaff", visorHi:"#ffffff" },
+};
+
+// Faint glass sheen drawn over an icon's bounding box
+function drawScanlines(ctx, x, y, w, h, alpha) {
+  ctx.save();
+  ctx.globalAlpha = (alpha == null ? 1 : alpha) * 0.10;
+  ctx.fillStyle = "#8fd3e8";
+  for (let yy = Math.floor(y); yy < y + h; yy += 3) ctx.fillRect(x, yy, w, 1);
+  ctx.restore();
+}
+
+// ============================================================
+// AMONG US SPRITES — code-drawn crewmate iconography.
+// Each fn draws an icon centered at the origin, spanning ~ +/-7.5u
+// where u = size/16. Color set `c` = {fill,line,hi,dim,visor,visorHi}.
+// drawSprite() handles the 2.5D extrude, glow, and sheen.
+//
+// Per-color crewmates share one body painter; the wrapper sprite fns
+// just supply their body color before delegating to crewmateBody().
+// ============================================================
+function lineW(u, n) { return Math.max(1, u * n); }
+
+// derive a darker outline + lighter highlight from a base body hex
+function shade(hex, amt) {
+  let r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  r = Math.max(0, Math.min(255, Math.round(r + amt)));
+  g = Math.max(0, Math.min(255, Math.round(g + amt)));
+  b = Math.max(0, Math.min(255, Math.round(b + amt)));
+  return "#" + [r,g,b].map(v => v.toString(16).padStart(2,"0")).join("");
+}
+
+// Core bean-shaped crewmate. `c` carries fill/line/hi (already themed for
+// shadow/flash passes); for the per-color crewmates we recompute line/hi
+// from the body color unless it's a shadow/flash override (uniform color).
+function crewmateBody(ctx, u, c, bodyColor) {
+  const uniform = (c.fill === c.line && c.fill === c.hi); // shadow / flash pass
+  const body = uniform ? c.fill : bodyColor;
+  const line = uniform ? c.line : shade(bodyColor, -70);
+  const hi   = uniform ? c.hi   : shade(bodyColor, 70);
+  const visor   = uniform ? c.visor   : VISOR;
+  const visorHi = uniform ? c.visorHi : VISOR_HI;
+
+  ctx.lineJoin = "round";
+
+  // backpack bump (behind body, on the right side)
+  ctx.fillStyle = body; ctx.strokeStyle = line; ctx.lineWidth = lineW(u,0.55);
+  roundRect(ctx, 3.4*u, -2.6*u, 3.4*u, 6.4*u, 1.4*u); ctx.fill(); ctx.stroke();
+
+  // main capsule body — rounded vertical bean
+  ctx.beginPath();
+  ctx.moveTo(-4.4*u, 5.2*u);                       // bottom-left
+  ctx.lineTo(-4.4*u, -2.4*u);                       // up left side
+  ctx.quadraticCurveTo(-4.4*u, -7.0*u, 0, -7.0*u);  // round the top
+  ctx.quadraticCurveTo(4.2*u, -7.0*u, 4.2*u, -2.4*u); // down right
+  ctx.lineTo(4.2*u, 5.2*u);                         // right side
+  ctx.closePath();
+  ctx.fillStyle = body; ctx.strokeStyle = line; ctx.lineWidth = lineW(u,0.6);
+  ctx.fill(); ctx.stroke();
+
+  // leg notch at the bottom (split into two stubby legs)
+  ctx.fillStyle = line;
+  ctx.beginPath();
+  ctx.moveTo(-0.6*u, 5.2*u);
+  ctx.quadraticCurveTo(-0.1*u, 3.0*u, 0.4*u, 5.2*u);
+  ctx.closePath(); ctx.fill();
+
+  // vertical body shading on the left edge for volume
+  ctx.save();
+  ctx.globalAlpha = 0.35;
+  ctx.fillStyle = shade(uniform ? body : bodyColor, uniform ? 0 : -55);
+  if (!uniform) {
+    ctx.beginPath();
+    ctx.moveTo(-4.4*u, 5.2*u);
+    ctx.lineTo(-4.4*u, -2.4*u);
+    ctx.quadraticCurveTo(-4.4*u, -7.0*u, -1.6*u, -7.0*u);
+    ctx.lineTo(-1.6*u, 5.2*u);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+
+  // visor — horizontal oval on upper-front, slightly left of center
+  ctx.fillStyle = uniform ? c.visor : "#3a4a55"; // dark rim for color pass
+  ctx.beginPath();
+  ctx.ellipse(-0.4*u, -3.2*u, 3.6*u, 2.3*u, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = visor;
+  ctx.beginPath();
+  ctx.ellipse(-0.4*u, -3.2*u, 3.0*u, 1.8*u, 0, 0, Math.PI*2);
+  ctx.fill();
+  // visor highlight glint
+  ctx.fillStyle = visorHi;
+  ctx.beginPath();
+  ctx.ellipse(-1.6*u, -3.9*u, 1.0*u, 0.55*u, -0.3, 0, Math.PI*2);
+  ctx.fill();
+
+  // body top highlight
+  ctx.fillStyle = hi;
+  ctx.save(); ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.ellipse(-1.8*u, -5.4*u, 1.4*u, 0.8*u, -0.4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// Per-color crewmate sprite wrappers
+function drawCrewRed(ctx, u, c)    { crewmateBody(ctx, u, c, "#c51111"); }
+function drawCrewBlue(ctx, u, c)   { crewmateBody(ctx, u, c, "#132ed1"); }
+function drawCrewGreen(ctx, u, c)  { crewmateBody(ctx, u, c, "#117f2d"); }
+function drawCrewYellow(ctx, u, c) { crewmateBody(ctx, u, c, "#f5f557"); }
+function drawCrewPink(ctx, u, c)   { crewmateBody(ctx, u, c, "#ed54ba"); }
+function drawCrewCyan(ctx, u, c)   { crewmateBody(ctx, u, c, "#39fed4"); }
+
+// Impostor — same bean shape, dark/menacing, red visor glint
+function drawImpostor(ctx, u, c) {
+  const uniform = (c.fill === c.line && c.fill === c.hi);
+  const body = uniform ? c.fill : "#3a0d0d";
+  const line = uniform ? c.line : "#1c0606";
+  const hi   = uniform ? c.hi   : "#7a1f1f";
+
+  ctx.lineJoin = "round";
+  // backpack
+  ctx.fillStyle = body; ctx.strokeStyle = line; ctx.lineWidth = lineW(u,0.55);
+  roundRect(ctx, 3.4*u, -2.6*u, 3.4*u, 6.4*u, 1.4*u); ctx.fill(); ctx.stroke();
+  // body
+  ctx.beginPath();
+  ctx.moveTo(-4.4*u, 5.2*u);
+  ctx.lineTo(-4.4*u, -2.4*u);
+  ctx.quadraticCurveTo(-4.4*u, -7.0*u, 0, -7.0*u);
+  ctx.quadraticCurveTo(4.2*u, -7.0*u, 4.2*u, -2.4*u);
+  ctx.lineTo(4.2*u, 5.2*u);
+  ctx.closePath();
+  ctx.fillStyle = body; ctx.strokeStyle = line; ctx.lineWidth = lineW(u,0.6);
+  ctx.fill(); ctx.stroke();
+  // leg notch
+  ctx.fillStyle = line;
+  ctx.beginPath();
+  ctx.moveTo(-0.6*u, 5.2*u);
+  ctx.quadraticCurveTo(-0.1*u, 3.0*u, 0.4*u, 5.2*u);
+  ctx.closePath(); ctx.fill();
+  // sinister visor — dark with a menacing red glint
+  ctx.fillStyle = uniform ? c.visor : "#150505";
+  ctx.beginPath();
+  ctx.ellipse(-0.4*u, -3.2*u, 3.6*u, 2.3*u, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = uniform ? c.visor : "#2a0a0a";
+  ctx.beginPath();
+  ctx.ellipse(-0.4*u, -3.2*u, 3.0*u, 1.8*u, 0, 0, Math.PI*2);
+  ctx.fill();
+  // red glint
+  ctx.fillStyle = uniform ? c.visorHi : "#ff3b3b";
+  ctx.save(); ctx.shadowColor = "rgba(255,40,40,0.9)"; ctx.shadowBlur = u*2;
+  ctx.beginPath(); ctx.ellipse(-1.4*u, -3.4*u, 0.9*u, 0.5*u, -0.3, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+  // tiny dripping fangs under the visor for menace
+  ctx.fillStyle = hi;
+  ctx.beginPath();
+  ctx.moveTo(-1.4*u, -1.4*u); ctx.lineTo(-0.8*u, -1.4*u); ctx.lineTo(-1.1*u, -0.3*u); ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0.4*u, -1.4*u); ctx.lineTo(1.0*u, -1.4*u); ctx.lineTo(0.7*u, -0.3*u); ctx.closePath(); ctx.fill();
+}
+
+// Emergency button — red dome button on a round metal table
+function drawEmergencyButton(ctx, u, c) {
+  const uniform = (c.fill === c.line && c.fill === c.hi);
+  const metal   = uniform ? c.fill : "#9aa3b0";
+  const metalLn = uniform ? c.line : "#4c545f";
+  const metalHi = uniform ? c.hi   : "#d7deea";
+  const red     = uniform ? c.fill : "#d11616";
+  const redLn   = uniform ? c.line : "#7a0c0c";
+  const redHi   = uniform ? c.hi   : "#ff6a6a";
+
+  ctx.lineJoin = "round";
+  // round table top (ellipse)
+  ctx.fillStyle = metal; ctx.strokeStyle = metalLn; ctx.lineWidth = lineW(u,0.6);
+  ctx.beginPath(); ctx.ellipse(0, 3.0*u, 7.0*u, 2.6*u, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+  // table side / pedestal
+  ctx.fillStyle = uniform ? c.dim : "#6d7682";
+  ctx.beginPath();
+  ctx.moveTo(-7.0*u, 3.0*u); ctx.lineTo(-7.0*u, 5.0*u);
+  ctx.quadraticCurveTo(0, 7.4*u, 7.0*u, 5.0*u); ctx.lineTo(7.0*u, 3.0*u);
+  ctx.quadraticCurveTo(0, 5.6*u, -7.0*u, 3.0*u); ctx.closePath(); ctx.fill();
+  // table-top highlight
+  ctx.fillStyle = metalHi; ctx.save(); ctx.globalAlpha = 0.4;
+  ctx.beginPath(); ctx.ellipse(-2.0*u, 2.3*u, 2.4*u, 0.8*u, 0, 0, Math.PI*2); ctx.fill(); ctx.restore();
+  // button base ring
+  ctx.fillStyle = uniform ? c.dim : "#3a4049";
+  ctx.beginPath(); ctx.ellipse(0, 0.4*u, 4.4*u, 1.8*u, 0, 0, Math.PI*2); ctx.fill();
+  // red dome
+  ctx.fillStyle = red; ctx.strokeStyle = redLn; ctx.lineWidth = lineW(u,0.6);
+  ctx.beginPath();
+  ctx.ellipse(0, -1.2*u, 3.8*u, 3.0*u, 0, Math.PI, 0, true);
+  ctx.lineTo(3.8*u, -0.6*u);
+  ctx.ellipse(0, -0.6*u, 3.8*u, 1.3*u, 0, 0, Math.PI, false);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // dome glow highlight
+  ctx.fillStyle = redHi; ctx.save(); ctx.globalAlpha = 0.7;
+  ctx.beginPath(); ctx.ellipse(-1.2*u, -2.4*u, 1.2*u, 0.9*u, -0.3, 0, Math.PI*2); ctx.fill(); ctx.restore();
+}
+
+// Electrical task panel — wire-matching panel (3 colored wires + ports)
+function drawWirePanel(ctx, u, c) {
+  const uniform = (c.fill === c.line && c.fill === c.hi);
+  const panel   = uniform ? c.fill : "#2b2f3a";
+  const panelLn = uniform ? c.line : "#12141b";
+  const port    = uniform ? c.dim  : "#0b0d12";
+
+  ctx.lineJoin = "round";
+  // panel body
+  ctx.fillStyle = panel; ctx.strokeStyle = panelLn; ctx.lineWidth = lineW(u,0.7);
+  roundRect(ctx, -6.6*u, -6.0*u, 13.2*u, 12.0*u, 1.2*u); ctx.fill(); ctx.stroke();
+  // inner recess
+  ctx.fillStyle = uniform ? c.line : "#1a1d26";
+  roundRect(ctx, -5.6*u, -5.0*u, 11.2*u, 10.0*u, 0.8*u); ctx.fill();
+
+  const wireCols = uniform ? [c.hi, c.hi, c.hi] : ["#e02a2a", "#1f7be0", "#f0d020"];
+  const ys = [-3.0*u, 0, 3.0*u];
+  // left ports + right ports + connecting wires (crossed like the task)
+  const rightOrder = uniform ? [0,1,2] : [2,0,1];
+  for (let i = 0; i < 3; i++) {
+    const ly = ys[i];
+    const ry = ys[rightOrder[i]];
+    // wire
+    ctx.strokeStyle = wireCols[i]; ctx.lineWidth = lineW(u,1.1); ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(-4.4*u, ly);
+    ctx.bezierCurveTo(-1.0*u, ly, 1.0*u, ry, 4.4*u, ry);
+    ctx.stroke();
+    // left port
+    ctx.fillStyle = port; ctx.beginPath(); ctx.arc(-5.0*u, ly, 1.0*u, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = wireCols[i]; ctx.beginPath(); ctx.arc(-5.0*u, ly, 0.5*u, 0, Math.PI*2); ctx.fill();
+    // right port
+    ctx.fillStyle = port; ctx.beginPath(); ctx.arc(5.0*u, ry, 1.0*u, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = wireCols[rightOrder[i]]; ctx.beginPath(); ctx.arc(5.0*u, ry, 0.5*u, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.lineCap = "butt";
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y,   x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x,   y+h, r);
+  ctx.arcTo(x,   y+h, x,   y,   r);
+  ctx.arcTo(x,   y,   x+w, y,   r);
+  ctx.closePath();
+}
+
+const AU_SPRITES = {
+  red:      drawCrewRed,
+  blue:     drawCrewBlue,
+  green:    drawCrewGreen,
+  yellow:   drawCrewYellow,
+  pink:     drawCrewPink,
+  cyan:     drawCrewCyan,
+  impostor: drawImpostor,
+  button:   drawEmergencyButton,
+  wires:    drawWirePanel,
+};
+const PEEK_SPRITES = ["red","blue","green","yellow","pink","cyan","impostor","button"];
+
+// Draw a sprite with 2.5D extrude shadow + red glow + glass sheen.
+// Rendered to an offscreen buffer so the sheen clips to the icon (no square
+// tile artifact when a sprite floats over live gameplay).
+const _spriteBuf = document.createElement("canvas");
+const _sbx = _spriteBuf.getContext("2d");
+function drawSprite(ctx, name, cx, cy, size, alpha, flash) {
+  const fn = AU_SPRITES[name];
+  if (!fn) return;
+  const u = size / 16;
+  const a = alpha == null ? 1 : alpha;
+  const pad = Math.ceil(size * 0.6);     // room for glow halo, backpack, table
+  const bw = Math.ceil(size + pad * 2);
+  _spriteBuf.width = bw; _spriteBuf.height = bw;
+  const g = _sbx;
+  const ox = bw / 2, oy = bw / 2;
+  // extrude shadow (offset down-right) for pseudo-3D depth
+  g.save(); g.translate(ox + u*1.1, oy + u*1.1); fn(g, u, GP.shadow); g.restore();
+  // main pass with red glow
+  g.save();
+  g.translate(ox, oy);
+  g.shadowColor = "rgba(201,48,48,0.5)";
+  g.shadowBlur = u * 1.6;
+  fn(g, u, flash ? GP.flash : GP.main);
+  g.restore();
+  // glass sheen — clipped to painted pixels only
+  g.save();
+  g.globalCompositeOperation = "source-atop";
+  g.globalAlpha = 0.08;
+  g.fillStyle = "#8fd3e8";
+  for (let yy = 0; yy < bw; yy += 3) g.fillRect(0, yy, bw, 1);
+  g.restore();
+  // blit to target
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.drawImage(_spriteBuf, cx - ox, cy - oy);
+  ctx.restore();
+}
+
+// ============================================================
+// FOLLOW PIPELINE
+// ============================================================
+function handleFollow(user, pic) {
+  const entry = { user: user || "Crewmate", pic: pic || "" };
+  state.followQueue.push(entry);
+  if (!state.animating && !state.thankActive) processQueue();
+}
+
+function processQueue() {
+  if (state.followQueue.length === 0) return;
+  stopIdleLoop();
+  const batch = state.followQueue.splice(0, state.followQueue.length);
+  state.animating = true;
+  playAmongAnim(() => {
+    state.animating = false;
+    showThankYou(batch);
+  });
+}
+
+function showThankYou(list) {
+  state.thankActive = true;
+  state.totalFollowers += list.length;
+  state.lastFollower = list[list.length - 1].user;
+  state.recentFollowers = list.slice();
+  for (const f of list) {
+    if (f.pic && !state.signImgCache[f.pic]) {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = f.pic;
+      state.signImgCache[f.pic] = img;
+    }
+  }
+  state.signShowTime = 0;
+  playThankYouCanvas(list, () => endThankYou());
+}
+
+function endThankYou() {
+  state.thankActive = false;
+  clearBarFX();
+  clearAboveFX();
+  startIdleLoop();
+  if (state.followQueue.length > 0) processQueue();
+}
+
+// ============================================================
+// THANK-YOU RENDERER (above bar)
+// ============================================================
+function fitTextSize(ctx, text, maxFontSize, minFontSize, maxW, fontFamily) {
+  let lo = minFontSize, hi = maxFontSize, best = lo;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    ctx.font = `${mid}px ${fontFamily}`;
+    if (ctx.measureText(text).width <= maxW) { best = mid; lo = mid + 1; }
+    else { hi = mid - 1; }
+  }
+  return best;
+}
+
+function playThankYouCanvas(list, onComplete) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const t0 = performance.now();
+  const FADE_IN = 400, HOLD_END = 3500, FADE_OUT_END = 4200;
+  const total = list.length;
+  let cycleIdx = 0;
+  const cycleMs = total > 1 ? Math.max(600, Math.floor(3100 / total)) : 0;
+
+  const BAR_W = 440, TEXT_PAD = 24;
+  const MAX_TEXT_W = BAR_W - TEXT_PAD;
+  const FONT_FAMILY = '800 16px "Inter", sans-serif';
+  const MAX_FONT = 20, MIN_FONT = 10;
+
+  function getText() {
+    if (total === 1) return "@" + list[0].user + " has boarded the ship";
+    return total + " new crewmates boarded the ship";
+  }
+  let text = getText();
+  let fontSize = fitTextSize(aboveCtx, text, MAX_FONT, MIN_FONT, MAX_TEXT_W, FONT_FAMILY);
+
+  function frame(now) {
+    const t = now - t0;
+    let alpha;
+    if (t < FADE_IN) {
+      const p = t / FADE_IN; alpha = 1 - Math.pow(1 - p, 2);
+    } else if (t < HOLD_END) {
+      alpha = 1;
+      if (total > 1 && cycleMs > 0) {
+        const newIdx = Math.floor((t - FADE_IN) / cycleMs) % total;
+        if (newIdx !== cycleIdx) {
+          cycleIdx = newIdx;
+          text = "@" + list[cycleIdx].user + " boarded";
+          fontSize = fitTextSize(aboveCtx, text, MAX_FONT, MIN_FONT, MAX_TEXT_W, FONT_FAMILY);
+        }
+      }
+    } else if (t < FADE_OUT_END) {
+      const p = (t - HOLD_END) / (FADE_OUT_END - HOLD_END); alpha = (1 - p) * (1 - p);
+    } else {
+      clearAboveFX(); onComplete(); return;
+    }
+
+    clearAboveFX();
+    aboveCtx.save();
+    aboveCtx.globalAlpha = alpha;
+    aboveCtx.font = `800 ${fontSize}px "Inter", sans-serif`;
+    aboveCtx.textAlign = "center";
+    aboveCtx.textBaseline = "middle";
+    const ty = H - 30;
+    aboveCtx.beginPath();
+    aboveCtx.rect((W - BAR_W) / 2, 0, BAR_W, H);
+    aboveCtx.clip();
+    aboveCtx.fillStyle = "#0a0c12";
+    aboveCtx.fillText(text, W/2 + 1, ty + 1);
+    aboveCtx.shadowColor = "rgba(201,48,48,0.7)";
+    aboveCtx.shadowBlur = 10;
+    aboveCtx.fillStyle = "#f2f4f8";
+    aboveCtx.fillText(text, W/2, ty);
+    aboveCtx.restore();
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ============================================================
+// EMERGENCY-MEETING PLACARD COUNTER SIGN
+// ============================================================
+function drawFollowerCounter(alpha, now) {
+  if (state.totalFollowers === 0 || alpha <= 0) return;
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const signW = 250, signH = 50;
+  const sx = (W - signW) / 2;
+  const sy = H - signH - 16;
+
+  const batch = state.recentFollowers.length > 0 ? state.recentFollowers : [{user: state.lastFollower, pic: ""}];
+  const elapsed = now - state.signShowTime;
+  const idx = CYCLE_NAMES ? Math.floor(elapsed / 900) % batch.length : batch.length - 1;
+  const cur = batch[idx];
+
+  // alarm pulse
+  const flick = 0.86 + 0.14 * (Math.sin(now*0.012) > 0.3 ? 1 : 0.5);
+  aboveCtx.save();
+  aboveCtx.globalAlpha = alpha;
+
+  // outer bezel (dark metal)
+  aboveCtx.fillStyle = "#0a0c12";
+  roundRect(aboveCtx, sx-3, sy-3, signW+6, signH+6, 7); aboveCtx.fill();
+  // body
+  const g = aboveCtx.createLinearGradient(0, sy, 0, sy+signH);
+  g.addColorStop(0, "#23262f"); g.addColorStop(1, "#13151d");
+  aboveCtx.fillStyle = g;
+  roundRect(aboveCtx, sx, sy, signW, signH, 5); aboveCtx.fill();
+  // red border glow
+  aboveCtx.strokeStyle = "#e84545";
+  aboveCtx.lineWidth = 2;
+  aboveCtx.shadowColor = "rgba(232,69,69,0.7)";
+  aboveCtx.shadowBlur = 8;
+  roundRect(aboveCtx, sx, sy, signW, signH, 5); aboveCtx.stroke();
+  aboveCtx.shadowBlur = 0;
+
+  // header bar (red placard)
+  aboveCtx.fillStyle = "rgba(201,48,48,0.85)";
+  roundRect(aboveCtx, sx, sy, signW, 16, 5); aboveCtx.fill();
+  aboveCtx.fillRect(sx, sy + 8, signW, 8);
+  aboveCtx.font = '800 11px "Inter", sans-serif';
+  aboveCtx.textAlign = "left"; aboveCtx.textBaseline = "middle";
+  aboveCtx.fillStyle = "#fff5f5";
+  aboveCtx.fillText("EMERGENCY MEETING", sx + 8, sy + 9);
+
+  // body text
+  aboveCtx.globalAlpha = alpha * flick;
+  aboveCtx.shadowColor = "rgba(143,211,232,0.6)";
+  aboveCtx.shadowBlur = 5;
+  aboveCtx.fillStyle = "#dff4fb";
+  aboveCtx.font = '800 14px "Inter", sans-serif';
+  aboveCtx.fillText("CREWMATES: " + state.totalFollowers, sx + 10, sy + 30);
+  const rawName = cur && cur.user ? cur.user : "";
+  const nameText = rawName.length > 18 ? rawName.slice(0, 16) + ".." : rawName;
+  aboveCtx.fillStyle = "#ff8f8f";
+  aboveCtx.font = '600 13px "Inter", sans-serif';
+  aboveCtx.fillText("LAST: @" + nameText, sx + 10, sy + 43);
+  aboveCtx.shadowBlur = 0;
+
+  // little crewmate marker, blinking like a report light
+  if (Math.floor(now / 500) % 2 === 0) {
+    drawSprite(aboveCtx, "red", sx + signW - 18, sy + 34, 22, alpha, false);
+  }
+
+  aboveCtx.restore();
+}
+
+// ============================================================
+// FLOATING PROMO TEXT
+// ============================================================
+function drawPromoText(now) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const ty = H - 64;
+  const bob = Math.sin(now * 0.002) * 1.5;
+  aboveCtx.save();
+  aboveCtx.font = '700 12px "Inter", sans-serif';
+  aboveCtx.textAlign = "center";
+  aboveCtx.textBaseline = "middle";
+  aboveCtx.fillStyle = "#0a0c12";
+  aboveCtx.fillText(PROMO_TEXT, W/2 + 1, ty + bob + 1);
+  aboveCtx.shadowColor = "rgba(201,48,48,0.6)";
+  aboveCtx.shadowBlur = 6;
+  aboveCtx.fillStyle = "#f2dede";
+  aboveCtx.fillText(PROMO_TEXT, W/2, ty + bob);
+  aboveCtx.restore();
+}
+
+// ============================================================
+// IDLE ANIMATIONS — sprite peek-up (round-robin)
+// ============================================================
+let peekIndex = 0;
+function scheduleIdleEvent() {
+  state.idleTimer = setTimeout(() => {
+    if (state.animating || state.thankActive) return;
+    startSpritePeek();
+    scheduleIdleEvent();
+  }, rand(4000, 8000));
+}
+
+function startSpritePeek(forced) {
+  const name = forced || PEEK_SPRITES[peekIndex];
+  if (!forced) peekIndex = (peekIndex + 1) % PEEK_SPRITES.length;
+  const sz = 60;
+  const x = randInt(24, $aboveFX.width - 24 - sz);
+  const H = $aboveFX.height;
+  const GAP = 6;
+  const hiddenY = H + 14;
+  const peekY   = H - sz - GAP;
+  const t0 = performance.now();
+  const RISE = 420, HOLD = 1700, LOWER = 2100;
+
+  state.idleSprites.push({
+    draw(now) {
+      const t = now - t0;
+      if (t > LOWER) return false;
+      let y;
+      if (t < RISE) {
+        const p = t / RISE;
+        y = hiddenY + (peekY - hiddenY) * (1 - Math.pow(1 - p, 5));
+      } else if (t < HOLD) {
+        const bp = (t - RISE) / (HOLD - RISE);
+        y = peekY + Math.sin(bp * Math.PI * 4) * 2.5;
+      } else {
+        const p = (t - HOLD) / (LOWER - HOLD);
+        y = peekY + (hiddenY - peekY) * (p * p * p);
+      }
+      drawSprite(aboveCtx, name, x + sz/2, y + sz/2, sz, 1, false);
+      return true;
+    }
+  });
+}
+
+// ============================================================
+// IDLE RENDER LOOP
+// ============================================================
+function startIdleLoop() {
+  if (state.totalFollowers > 0) state.signShowTime = performance.now();
+  scheduleIdleEvent();
+  function idleFrame(now) {
+    if (state.animating || state.thankActive) return;
+    clearAboveFX();
+    let signVisible = false, signAlpha = 0;
+    if (state.signShowTime > 0) {
+      const elapsed = now - state.signShowTime;
+      const fadeStart = state.signDuration, fadeEnd = fadeStart + 800;
+      if (elapsed < fadeEnd) {
+        signVisible = true;
+        signAlpha = elapsed > fadeStart ? 1 - (elapsed - fadeStart) / 800 : 1;
+      }
+    }
+    if (!signVisible) drawPromoText(now);
+    if (signVisible) drawFollowerCounter(signAlpha, now);
+    for (let i = state.idleSprites.length - 1; i >= 0; i--) {
+      if (!state.idleSprites[i].draw(now)) state.idleSprites.splice(i, 1);
+    }
+    state.idleAnimFrame = requestAnimationFrame(idleFrame);
+  }
+  state.idleAnimFrame = requestAnimationFrame(idleFrame);
+}
+
+function stopIdleLoop() {
+  cancelAnimationFrame(state.idleAnimFrame);
+  clearTimeout(state.idleTimer);
+  state.idleTimer = null;
+  state.idleAnimFrame = null;
+  state.idleSprites = [];
+}
+
+// ============================================================
+// AMONG US FOLLOW CELEBRATION  (6 phases)
+//   popIn 500 / idle 400 / charge 750 / boom 200 / smoke 850 / fade 300
+//   popIn = crewmate pops up. idle = hover. charge = EMERGENCY MEETING
+//   red flash + alarm shake. boom = ejection (flung spinning off into the
+//   starfield). smoke = giant EJECTED text + impostor verdict + bones/stars.
+//   Alternate impostor verdict each celebration.
+// ============================================================
+let _ejectVerdictToggle = false;
+
+// floating bone (femur-ish) particle
+function drawBone(ctx, b, a) {
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.translate(b.x, b.y); ctx.rotate(b.rot);
+  ctx.fillStyle = "#eef1f4";
+  ctx.strokeStyle = "#b8bec6"; ctx.lineWidth = 1;
+  const L = b.r * 2.4, kr = b.r * 0.7;
+  // shaft
+  ctx.fillRect(-L/2, -b.r*0.32, L, b.r*0.64);
+  // knobs at each end
+  for (const ex of [-L/2, L/2]) {
+    ctx.beginPath(); ctx.arc(ex, -b.r*0.42, kr, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex,  b.r*0.42, kr, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function playAmongAnim(done, freezeMs) {
+  const W = $aboveFX.width, H = $aboveFX.height;
+  const barW = $barFX.width, barH = $barFX.height;
+  const frozen = freezeMs != null;
+
+  const heroSize = 86;
+  const heroCX   = W/2;
+  const restCY   = H - 54;
+  const spawnCY  = H + heroSize;
+
+  // pick the hero crewmate color + verdict for this celebration
+  const crewColors = ["red","blue","green","yellow","pink","cyan"];
+  const heroName = frozen ? "red" : crewColors[randInt(0, crewColors.length-1)];
+  const wasImpostor = frozen ? true : (_ejectVerdictToggle = !_ejectVerdictToggle);
+  const ejectName = (state.recentFollowers[0] && state.recentFollowers[0].user) ||
+                    state.lastFollower || "Crewmate";
+
+  const t0 = performance.now();
+  const PH = {
+    popIn:   [0,    500],
+    idle:    [500,  900],
+    charge:  [900,  1650],
+    boom:    [1650, 1850],
+    smoke:   [1850, 2700],
+    fadeEnd: [2700, 3000],
+  };
+  function pt(t, [a,b]) { return Math.max(0, Math.min(1, (t-a)/(b-a))); }
+  function easeOutBounce(p) {
+    const n1 = 7.5625, d1 = 2.75;
+    if (p < 1/d1) return n1*p*p;
+    else if (p < 2/d1) { p -= 1.5/d1; return n1*p*p + 0.75; }
+    else if (p < 2.5/d1) { p -= 2.25/d1; return n1*p*p + 0.9375; }
+    else { p -= 2.625/d1; return n1*p*p + 0.984375; }
+  }
+
+  const bones = [];  // floating bone debris
+  const sparks = [];  // ejection sparks
+  const stars  = [];  // drifting starfield specks
+  // ejection trajectory for the flung crewmate
+  const eject = { x: heroCX, y: restCY, vx: 0, vy: 0, rot: 0, rotSpd: 0, started: false };
+  let boomFired = false, shookScreen = false;
+
+  function seedEjection() {
+    // fling the crewmate sideways + up (random L/R), spinning
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    eject.vx = dir * rand(5, 8);
+    eject.vy = -rand(2, 4);
+    eject.rotSpd = dir * rand(0.18, 0.32);
+    eject.started = true;
+    const cx = heroCX, cy = restCY;
+    for (let i = 0; i < 14; i++) {
+      bones.push({
+        x: cx + rand(-10, 10), y: cy + rand(-10, 10),
+        vx: rand(-2.5, 2.5), vy: rand(-3.5, -0.5),
+        r: rand(3, 5), rot: rand(0, Math.PI*2), rotSpd: rand(-0.2, 0.2),
+        life: 0, maxLife: rand(1100, 1900),
+      });
+    }
+    for (let i = 0; i < 24; i++) {
+      const ang = rand(0, Math.PI * 2), spd = rand(2.5, 7.5);
+      sparks.push({
+        x: cx, y: cy, vx: Math.cos(ang)*spd, vy: Math.sin(ang)*spd - rand(1, 2),
+        size: rand(1.5, 3), col: Math.random() < 0.5 ? "#8fd3e8" : "#ffffff",
+        life: 0, maxLife: rand(350, 700),
+      });
+    }
+    for (let i = 0; i < 30; i++) {
+      stars.push({
+        x: rand(0, W), y: rand(H-120, H),
+        vx: rand(-0.4, 0.4), vy: rand(-0.6, -0.15),
+        r: rand(0.7, 2.0), tw: rand(0, Math.PI*2),
+        life: 0, maxLife: rand(1000, 1800), delay: randInt(0, 200),
+      });
+    }
+  }
+
+  let lastFrameTime = t0;
+  function frame(now) {
+    const t = now - t0;
+    const dt = Math.min(32, now - lastFrameTime); lastFrameTime = now;
+    const dtF = dt / 16.667;
+
+    clearAboveFX();
+    clearBarFX();
+
+    if (t < PH.popIn[1]) {
+      // POP IN — crewmate bounces up
+      const p = pt(t, PH.popIn);
+      const cy = spawnCY + (restCY - spawnCY) * easeOutBounce(p);
+      drawSprite(aboveCtx, heroName, heroCX, cy, heroSize, 1, false);
+    }
+    else if (t < PH.idle[1]) {
+      // IDLE — hover + slight bob/pulse
+      const p = pt(t, PH.idle);
+      const cy = restCY + Math.sin(p * Math.PI * 2) * 2;
+      const pulse = 1 + Math.sin(p * Math.PI * 2) * 0.06;
+      drawSprite(aboveCtx, heroName, heroCX, cy, heroSize * pulse, 1, false);
+    }
+    else if (t < PH.charge[1]) {
+      // CHARGE — EMERGENCY MEETING red flash + alarm shake + red vignette
+      const p = pt(t, PH.charge);
+      const pulse = (Math.sin(p * Math.PI * 8 - Math.PI/2) + 1) / 2;
+      const flash = pulse * (0.1 + p * 0.5);
+      const shakeX = Math.sin(t * 0.05) * p * 3;
+      const shakeY = Math.cos(t * 0.06) * p * 2;
+      const swell = 1 + p * 0.10;
+      // red vignette pulses
+      const vg = aboveCtx.createRadialGradient(W/2, H-40, 20, W/2, H-40, 230);
+      vg.addColorStop(0, "rgba(201,48,48,0)");
+      vg.addColorStop(1, `rgba(201,48,48,${0.15 + pulse*0.35*p})`);
+      aboveCtx.fillStyle = vg;
+      aboveCtx.fillRect(0, 0, W, H);
+
+      drawSprite(aboveCtx, heroName, heroCX + shakeX, restCY + shakeY, heroSize * swell, 1, pulse > 0.6);
+
+      // alarm static specks
+      const speckCount = Math.floor(34 * p);
+      for (let i = 0; i < speckCount; i++) {
+        aboveCtx.globalAlpha = rand(0.2, 0.7);
+        aboveCtx.fillStyle = Math.random() < 0.5 ? "#ff9a9a" : "#ffffff";
+        aboveCtx.fillRect(randInt(0, W), randInt(H-110, H), randInt(1,3), randInt(1,2));
+      }
+      aboveCtx.globalAlpha = 1;
+      // EMERGENCY MEETING (flickering)
+      if (Math.floor(t / 90) % 2 === 0 || p > 0.7) {
+        aboveCtx.save();
+        aboveCtx.font = `800 ${15 + p*4}px "Inter", sans-serif`;
+        aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
+        aboveCtx.shadowColor = "rgba(232,69,69,0.95)"; aboveCtx.shadowBlur = 12;
+        aboveCtx.fillStyle = "#0a0c12";
+        aboveCtx.fillText("EMERGENCY MEETING", W/2 + 1, H - 120 + 1);
+        aboveCtx.fillStyle = p > 0.5 ? "#ffffff" : "#ff9a9a";
+        aboveCtx.fillText("EMERGENCY MEETING", W/2, H - 120);
+        aboveCtx.restore();
+      }
+      // bar alarm tint
+      barCtx.fillStyle = `rgba(232,69,69,${0.06 + flash*0.30})`;
+      barCtx.fillRect(0, 0, barW, barH);
+    }
+    else if (t < PH.boom[1]) {
+      // BOOM — ejection: scene flash + crewmate flung spinning off
+      const p = pt(t, PH.boom);
+      if (!boomFired) { seedEjection(); boomFired = true; }
+      if (!shookScreen) {
+        $stage.classList.remove("shake"); void $stage.offsetWidth;
+        $stage.classList.add("shake"); shookScreen = true;
+      }
+      const a = (1 - p) * (1 - p);
+      aboveCtx.fillStyle = `rgba(255,255,255,${a})`;
+      aboveCtx.fillRect(0, 0, W, H);
+      barCtx.fillStyle = `rgba(255,255,255,${a * 0.9})`;
+      barCtx.fillRect(0, 0, barW, barH);
+      // expanding flash ring
+      aboveCtx.strokeStyle = `rgba(143,211,232,${a})`;
+      aboveCtx.lineWidth = 4;
+      aboveCtx.beginPath(); aboveCtx.arc(heroCX, restCY, 20 + p*120, 0, Math.PI*2); aboveCtx.stroke();
+      updateAndDrawEjection(dtF, 1, t);
+    }
+    else if (t < PH.smoke[1]) {
+      // SMOKE — giant EJECTED text + verdict, bones + stars drift
+      const p = pt(t, PH.smoke);
+      updateAndDrawEjection(dtF, 1, t);
+      drawEjectText(p, 1);
+    }
+    else if (t < PH.fadeEnd[1]) {
+      // FADE — quadratic fade to clean
+      const p = pt(t, PH.fadeEnd);
+      const fade = (1 - p) * (1 - p);
+      updateAndDrawEjection(dtF, fade, t);
+      drawEjectText(1, fade);
+    }
+    else {
+      clearAboveFX(); clearBarFX();
+      $stage.classList.remove("shake");
+      done(); return;
+    }
+    if (!frozen) requestAnimationFrame(frame);
+  }
+
+  function drawEjectText(grow, alphaMul) {
+    const W = $aboveFX.width, H = $aboveFX.height;
+    const size = 26 + grow * 8;
+    aboveCtx.save();
+    aboveCtx.globalAlpha = alphaMul;
+    aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
+    // EJECTED
+    aboveCtx.font = `800 ${size}px "Inter", sans-serif`;
+    aboveCtx.shadowColor = "rgba(0,0,0,0.9)"; aboveCtx.shadowBlur = 8;
+    aboveCtx.fillStyle = "#0a0c12";
+    aboveCtx.fillText("EJECTED", W/2 + 2, H - 96 + 2);
+    aboveCtx.shadowColor = "rgba(143,211,232,0.7)"; aboveCtx.shadowBlur = 12;
+    aboveCtx.fillStyle = "#ffffff";
+    aboveCtx.fillText("EJECTED", W/2, H - 96);
+    // verdict line
+    const verdict = wasImpostor
+      ? "@" + ejectName + " was An Impostor."
+      : "@" + ejectName + " was not An Impostor.";
+    aboveCtx.font = `700 14px "Inter", sans-serif`;
+    aboveCtx.shadowColor = "rgba(0,0,0,0.9)"; aboveCtx.shadowBlur = 6;
+    aboveCtx.fillStyle = "#0a0c12";
+    aboveCtx.fillText(verdict, W/2 + 1, H - 70 + 1);
+    aboveCtx.shadowColor = wasImpostor ? "rgba(232,69,69,0.8)" : "rgba(143,211,232,0.7)";
+    aboveCtx.shadowBlur = 8;
+    aboveCtx.fillStyle = wasImpostor ? "#ff8f8f" : "#bfe9f5";
+    aboveCtx.fillText(verdict, W/2, H - 70);
+    aboveCtx.restore();
+  }
+
+  function updateAndDrawEjection(dtF, alphaMul, t) {
+    // the flung crewmate spinning off into the starfield
+    if (eject.started) {
+      eject.x += eject.vx * dtF;
+      eject.y += eject.vy * dtF;
+      eject.vy += 0.04 * dtF;          // slight drift, near-weightless in space
+      eject.rot += eject.rotSpd * dtF;
+      aboveCtx.save();
+      aboveCtx.globalAlpha = alphaMul;
+      aboveCtx.translate(eject.x, eject.y);
+      aboveCtx.rotate(eject.rot);
+      drawSprite(aboveCtx, heroName, 0, 0, 64, 1, false);
+      aboveCtx.restore();
+      aboveCtx.globalAlpha = 1;
+    }
+    // drifting stars
+    for (let i = stars.length - 1; i >= 0; i--) {
+      const s = stars[i];
+      if (s.delay > 0) { s.delay -= 16 * dtF; continue; }
+      s.life += 16 * dtF;
+      s.x += s.vx * dtF; s.y += s.vy * dtF; s.tw += 0.15 * dtF;
+      if (s.life >= s.maxLife) { stars.splice(i, 1); continue; }
+      const lp = s.life / s.maxLife;
+      let a = 1; if (lp < 0.2) a = lp/0.2; else if (lp > 0.7) a = (1-lp)/0.3;
+      const tw = 0.6 + 0.4 * Math.sin(s.tw);
+      aboveCtx.globalAlpha = a * alphaMul * tw;
+      aboveCtx.fillStyle = "#dff4fb";
+      aboveCtx.shadowColor = "rgba(143,211,232,0.8)"; aboveCtx.shadowBlur = 4;
+      aboveCtx.beginPath(); aboveCtx.arc(s.x, s.y, s.r, 0, Math.PI*2); aboveCtx.fill();
+      aboveCtx.shadowBlur = 0;
+    }
+    aboveCtx.globalAlpha = 1;
+    // ejection sparks
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const s = sparks[i];
+      s.life += 16 * dtF;
+      s.x += s.vx * dtF; s.y += s.vy * dtF; s.vy += 0.10 * dtF; s.vx *= Math.pow(0.97, dtF);
+      if (s.life >= s.maxLife) { sparks.splice(i, 1); continue; }
+      aboveCtx.globalAlpha = (1 - s.life/s.maxLife) * alphaMul;
+      aboveCtx.fillStyle = s.col;
+      aboveCtx.fillRect(Math.floor(s.x), Math.floor(s.y), s.size, s.size);
+    }
+    aboveCtx.globalAlpha = 1;
+    // floating bones
+    for (let i = bones.length - 1; i >= 0; i--) {
+      const b = bones[i];
+      b.life += 16 * dtF;
+      b.x += b.vx * dtF; b.y += b.vy * dtF; b.vy += 0.03 * dtF; b.rot += b.rotSpd * dtF;
+      if (b.life >= b.maxLife) { bones.splice(i, 1); continue; }
+      const lp = b.life / b.maxLife;
+      let a = 1; if (lp > 0.7) a = (1-lp)/0.3;
+      drawBone(aboveCtx, b, Math.max(0, a) * alphaMul);
+    }
+    aboveCtx.globalAlpha = 1;
+  }
+
+  if (frozen) {
+    // Synchronous stepping driver — evolves particles up to freezeMs and draws
+    // the final frame statically (no rAF), so a plain headless --screenshot
+    // reliably captures any celebration phase.
+    for (let tt = 0; tt <= freezeMs; tt += 16) frame(t0 + tt);
+  } else {
+    requestAnimationFrame(frame);
+  }
+}
+
+// ============================================================
+// AMBIENT STARFIELD PARTICLE LAYER (#bgFX, full window)
+// ============================================================
+let bgParticles = [];
+function initBgParticles() {
+  if (PARTICLE_KIND === "none") return;
+  const ctx = $bgFX.getContext("2d");
+  function resize() { $bgFX.width = window.innerWidth; $bgFX.height = window.innerHeight; }
+  resize();
+  window.addEventListener("resize", resize);
+  const count = 46;
+  for (let i = 0; i < count; i++) {
+    bgParticles.push({
+      x: Math.random() * $bgFX.width,
+      y: Math.random() * $bgFX.height,
+      vx: rand(-0.18, 0.18),
+      vy: PARTICLE_KIND === "dust" ? rand(0.1, 0.5) : rand(-0.35, -0.08),
+      r: rand(0.6, 2.2),
+      tw: rand(0, Math.PI*2),
+    });
+  }
+  const isDust = PARTICLE_KIND === "dust";
+  function loop() {
+    ctx.clearRect(0, 0, $bgFX.width, $bgFX.height);
+    for (const p of bgParticles) {
+      p.x += p.vx; p.y += p.vy; p.tw += 0.04;
+      if (p.y < -5) p.y = $bgFX.height + 5;
+      if (p.y > $bgFX.height + 5) p.y = -5;
+      if (p.x < -5) p.x = $bgFX.width + 5;
+      if (p.x > $bgFX.width + 5) p.x = -5;
+      const tw = isDust ? 1 : (0.55 + 0.45 * Math.sin(p.tw));
+      ctx.globalAlpha = 0.55 * tw;
+      ctx.fillStyle = isDust ? "#7a6a4a" : "#dff4fb";
+      if (!isDust) { ctx.shadowColor = "rgba(143,211,232,0.7)"; ctx.shadowBlur = 5; }
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(loop);
+  }
+  loop();
+}
+
+// ============================================================
+// DEMO CONTROLS
+// ============================================================
+document.getElementById("btnFollow").addEventListener("click", (e) => {
+  e.stopPropagation();
+  handleFollow(document.getElementById("demoUser").value || "Red", "");
+});
+document.getElementById("btnBatch").addEventListener("click", (e) => {
+  e.stopPropagation();
+  const n = parseInt(document.getElementById("demoBatch").value, 10) || 1;
+  const names = ["Red","Blue","Green","Cyan","Pink","Lime","Orange","White","Black","Purple"];
+  for (let i = 0; i < n; i++) handleFollow(names[i % names.length] + (i >= names.length ? i : ""), "");
+});
+document.getElementById("btnPeek").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (!state.animating && !state.thankActive) startSpritePeek();
+});
+const $btnLoop = document.getElementById("btnLoop");
+$btnLoop.addEventListener("click", (e) => {
+  e.stopPropagation();
+  state.autoLoop = !state.autoLoop;
+  $btnLoop.textContent = "Auto-Loop: " + (state.autoLoop ? "ON" : "OFF");
+  if (state.autoLoop) runAutoLoop(); else clearTimeout(state.autoLoopTimer);
+});
+function runAutoLoop() {
+  if (!state.autoLoop) return;
+  const fakeUsers = ["Red","Blue","Green","Cyan","Pink","Lime","Orange","White","Black","Purple"];
+  const batchSize = Math.random() < 0.6 ? 1 : randInt(2, 5);
+  for (let i = 0; i < batchSize; i++) handleFollow(fakeUsers[randInt(0, fakeUsers.length-1)] + randInt(1,999), "");
+  state.autoLoopTimer = setTimeout(runAutoLoop, randInt(5000, 9000));
+}
+document.getElementById("btnHide").addEventListener("click", (e) => {
+  e.stopPropagation();
+  document.getElementById("demoPanel").classList.add("hidden");
+});
+window.addEventListener("keydown", (e) => {
+  if (e.key === "h" || e.key === "H") document.getElementById("demoPanel").classList.toggle("hidden");
+});
+
+// ============================================================
+// TIKFINITY WEBSOCKET
+// ============================================================
+const $wsStatus = document.getElementById("wsStatus");
+function setWsStatus(cls, text) { $wsStatus.className = cls; $wsStatus.textContent = "WS: " + text; }
+function connectTikfinity() {
+  setWsStatus("try", "connecting...");
+  let ws;
+  try { ws = new WebSocket("ws://localhost:21213/"); }
+  catch (err) { setWsStatus("off", "failed"); setTimeout(connectTikfinity, 5000); return; }
+  ws.onopen  = () => setWsStatus("on", "connected");
+  ws.onclose = () => { setWsStatus("off", "disconnected"); setTimeout(connectTikfinity, 5000); };
+  ws.onerror = () => setWsStatus("off", "error");
+  ws.onmessage = (msg) => {
+    try {
+      const data = JSON.parse(msg.data);
+      if (data && (data.event === "follow" || data.type === "follow")) {
+        const d = data.data || data;
+        const name = d.nickname || d.uniqueId || d.userId || "Crewmate";
+        const pic  = d.profilePictureUrl || d.profilePicture || "";
+        handleFollow(name, pic);
+      }
+    } catch (err) { /* ignore */ }
+  };
+}
+
+// ============================================================
+// SHOT MODE — line up every sprite for a contact screenshot
+// ============================================================
+function renderContactSheet() {
+  stopIdleLoop();
+  clearAboveFX();
+  const cols = 4, rows = 2, sz = 80;
+  const W = $aboveFX.width;
+  const cellW = W / cols, cellH = 96;
+  PEEK_SPRITES.forEach((name, i) => {
+    const cx = (i % cols) * cellW + cellW/2;
+    const cy = Math.floor(i / cols) * cellH + cellH/2 + 8;
+    drawSprite(aboveCtx, name, cx, cy, sz, 1, false);
+  });
+}
+
+// ============================================================
+// INIT
+// ============================================================
+if (SHOW_DEMO) document.getElementById("demoPanel").classList.remove("hidden");
+initBgParticles();
+renderCTA();
+connectTikfinity();
+if (SHOT_MODE === "mobs") {
+  renderContactSheet();
+} else {
+  startIdleLoop();
+}
+// Screenshot helpers:
+//   ?fire=1            — auto-trigger a live follow after load (visual smoke-test)
+//   ?freeze=<phase>    — render ONE static celebration frame (popin|idle|charge|
+//                        boom|smoke|fade), reliably captured by plain --screenshot
+if (params.get("fire")) {
+  setTimeout(() => handleFollow(params.get("user") || "Red", ""), 60);
+}
+const FREEZE_MS = { popin:300, idle:760, charge:1500, boom:1760, smoke:2350, fade:2860 };
+if (params.get("freeze")) {
+  stopIdleLoop();
+  const ms = FREEZE_MS[params.get("freeze")] != null ? FREEZE_MS[params.get("freeze")] : 1760;
+  playAmongAnim(() => {}, ms);
+}
+// ?signshot=N — static render of the emergency-meeting placard sign
+if (params.get("signshot")) {
+  stopIdleLoop();
+  state.totalFollowers = parseInt(params.get("signshot"), 10) || 7;
+  state.recentFollowers = [{ user: params.get("user") || "Red", pic: "" }];
+  state.signShowTime = performance.now();
+  clearAboveFX();
+  drawFollowerCounter(1, performance.now());
+}
+window.triggerFollow = handleFollow;
+window.startSpritePeek = startSpritePeek;
+window.renderContactSheet = renderContactSheet;
+</script>
+</body>
+</html>
