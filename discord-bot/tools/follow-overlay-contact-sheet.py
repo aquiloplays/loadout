@@ -29,32 +29,21 @@ CACHE = Path(tempfile.gettempdir()) / 'follow-contact-sheet'; CACHE.mkdir(parent
 FORCE = '--force' in sys.argv
 MIN_PNG = 4000
 
-# (slug, game display, item, style hint, casino?) -- 6 across the style range
-SAMPLES = [
-    ("eldenring", "Elden Ring",
-     "a single ornate golden flask filled with glowing crimson liquid, a Flask of Crimson Tears, engraved metal filigree and cork stopper",
-     "high-quality painterly cel-shaded dark-fantasy game asset, dramatic rim light", False),
-    ("cyberpunk2077", "Cyberpunk 2077",
-     "a single glowing neon cyberware implant chip, holographic circuitry etched on it, cyan and magenta neon edge glow",
-     "sleek high-tech sci-fi game asset, crisp clean illustration", False),
-    ("supermarket_simulator", "Supermarket Simulator",
-     "a single clean chrome shopping cart, friendly and tidy, three-quarter view",
-     "clean cheerful 2D cartoon game asset, soft even shading, bright", False),
-    ("phasmophobia", "Phasmophobia",
-     "a single EMF reader handheld ghost-hunting device, worn dark plastic, a row of glowing green LED bars lit on its face",
-     "atmospheric muted horror game asset, moody low-key lighting", False),
-    ("balatro", "Balatro",
-     "a single stylized Joker playing card standing upright, bold poker face art, vivid red and deep blue",
-     "vibrant casino card-game asset, bold flat illustration, slight pixel-poker flavour", True),
-    ("ball_x_pit", "Ball x Pit",
-     "a single glowing neon orb sphere with a soft luminous motion trail",
-     "minimalist abstract arcade game asset, clean luminous glow on a plain field", False),
-]
+# Research-informed sample set. Sprite item / style / palette per game come from
+# follow-overlay-branding-research.json (Steam + franchise art-direction research,
+# Claude in Chrome 2026-06-02), NOT generic guesses. 6 across the style range.
+RESEARCH = json.loads((HERE / 'follow-overlay-branding-research.json').read_text(encoding='utf-8'))['games']
+SAMPLE_SLUGS = ["eldenring", "cyberpunk2077", "supermarket_simulator",
+                "phasmophobia", "balatro", "ball_x_pit"]
 
-PROMPT_TPL = ("{item}, game-asset style matching {game}, {style}. "
+# NOTE: we cut with rembg (segmenter), so we do NOT need a chroma key. A plain
+# soft NEUTRAL studio background avoids the magenta bleed flux pushes into glossy/
+# reflective subjects (e.g. chrome carts) while still cutting cleanly.
+PROMPT_TPL = ("{item}, {style}. Color palette: {palette}. "
+              "Authentic game-asset style matching {game}. "
               "Single isolated object, centered, full object in frame, generous empty margin. "
-              "Isolated on a solid flat magenta background #FF00FF. "
-              "Clean professional 2D illustration, premium quality, sharp focus, "
+              "Isolated on a plain soft neutral light-grey studio background, even seamless backdrop. "
+              "Premium professional game-asset illustration, sharp focus, high detail, "
               "no text, no watermark, no logo, no border.")
 
 
@@ -171,7 +160,7 @@ def compose(cuts):
     f_title = load_font(30, bold=True)
     f_sub = load_font(15)
     d.text((PAD, 16), "Follow Overlay - Premium Item Sprite Samples", font=f_title, fill=(174, 243, 234))
-    d.text((PAD, 52), "flux-1.1-pro-ultra + rembg  |  6 of ~38 games  |  approval gate before bulk regen",
+    d.text((PAD, 52), "flux-1.1-pro-ultra + rembg  |  per-game branding research  |  6 of ~38 games  |  approval gate",
            font=f_sub, fill=(150, 160, 176))
     d.line([(0, HEAD - 1), (W, HEAD - 1)], fill=(43, 212, 212), width=2)
     f_game = load_font(20, bold=True)
@@ -202,14 +191,17 @@ def main():
         print('REPLICATE_API_TOKEN missing'); return 2
     spend = 0.0
     cuts = []
-    for slug, game, item, style, casino in SAMPLES:
+    for slug in SAMPLE_SLUGS:
+        r = RESEARCH[slug]
+        game, item, style, palette = r['game'], r['item'], r['style'], r['palette']
+        casino = bool(r.get('casino'))
         raw_p = CACHE / f'{slug}_raw.png'
         cut_p = CACHE / f'{slug}_cut.png'
         if cut_p.exists() and not FORCE:
             print(f'{slug}: cut (cache)')
             cuts.append((slug, game, Image.open(cut_p).convert('RGBA')))
             continue
-        prompt = PROMPT_TPL.format(item=item, game=game, style=style)
+        prompt = PROMPT_TPL.format(item=item, game=game, style=style, palette=palette)
         print(f'{slug}: generating...')
         _, billed = gen(prompt, raw_p, casino)
         if billed:

@@ -1,0 +1,54 @@
+{
+  "_note": "Per-game visual-identity research for the follow-overlay sprite + theme work. Sources: Steam store pages (Claude in Chrome, 2026-06-02) + established franchise art direction. item=most iconic object for a sprite; style=aesthetic cue for the Replicate prompt; palette=color direction (prompt + Phase 4 bar/glow); fontWeb=Google-Fonts-ish match for Phase 4 promo/counter. Extend this for the ~20 Triple-C games at Phase 3.",
+  "games": {
+    "eldenring": {
+      "game": "Elden Ring",
+      "item": "an ornate golden flask brimming with glowing crimson liquid, a Flask of Crimson Tears, weathered engraved gold filigree and a cork stopper",
+      "style": "painterly high-detail dark-fantasy game asset, dramatic chiaroscuro rim light, cel-shaded depth",
+      "palette": "tarnished Erdtree gold and deep blood crimson on near-black, muted earthy shadows",
+      "fontWeb": "Cinzel",
+      "barColor": "#c9a44c", "glow": "rgba(201,164,76,0.5)"
+    },
+    "cyberpunk2077": {
+      "game": "Cyberpunk 2077",
+      "item": "a futuristic cyberware biochip implant (a Relic shard), etched holographic circuitry, glowing edge",
+      "style": "sleek high-tech sci-fi game asset, glossy industrial, sharp neon edge glow",
+      "palette": "signature acid yellow #FCEE0A and black with cyan and hot-magenta neon accents",
+      "fontWeb": "Rajdhani",
+      "barColor": "#fcee0a", "glow": "rgba(252,238,10,0.55)"
+    },
+    "supermarket_simulator": {
+      "game": "Supermarket Simulator",
+      "item": "a clean chrome shopping cart, three-quarter view, a couple of grocery boxes in the basket",
+      "style": "clean realistic 3D render game asset, soft studio lighting, tidy and bright (NOT cartoon - the game is realistic first-person 3D)",
+      "palette": "friendly grocery green and warm white with red accents, clean and bright",
+      "fontWeb": "Baloo 2",
+      "barColor": "#39b54a", "glow": "rgba(57,181,74,0.5)"
+    },
+    "phasmophobia": {
+      "game": "Phasmophobia",
+      "item": "an EMF reader handheld ghost-hunting device, worn dark plastic, a row of glowing green LED bars lit on its face",
+      "style": "atmospheric realistic horror game asset, moody low-key lighting, slight grain",
+      "palette": "near-black charcoal with eerie phosphor-green LED glow, cold desaturated",
+      "fontWeb": "Special Elite",
+      "barColor": "#3ad36a", "glow": "rgba(58,211,106,0.45)"
+    },
+    "balatro": {
+      "game": "Balatro",
+      "item": "a stylized Joker playing card standing upright (Jimbo the joker), bold poker-art face",
+      "style": "hand-crafted pixel art with subtle CRT scanline fuzz, psychedelic, bold flat shapes",
+      "palette": "deep indigo-navy background, card-suit red and blue, gold accents, hint of green felt",
+      "fontWeb": "VT323",
+      "barColor": "#e23b54", "glow": "rgba(226,59,84,0.5)",
+      "casino": true
+    },
+    "ball_x_pit": {
+      "game": "BALL x PIT",
+      "item": "a vibrant bouncing ball orb with a short motion trail, or a small cluster of colorful balls",
+      "style": "colorful pixel-art arcade game asset, crisp pixels, energetic (game is 2D pixel-graphics + colorful, NOT smooth minimalist)",
+      "palette": "vivid saturated arcade colors - electric cyan, magenta and lime on dark",
+      "fontWeb": "Press Start 2P",
+      "barColor": "#2bd4d4", "glow": "rgba(43,212,212,0.5)"
+    }
+  }
+}
