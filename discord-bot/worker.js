@@ -2400,7 +2400,10 @@ async function handlePixelArtAsset(req, env, path) {
   // place under the same URL (clash overhaul; pack/cardback brand-fix) —
   // otherwise the year-long immutable cache pins stale bytes (the
   // card-art cache trap). Restore immutable once each stabilizes.
-  const isShortCache = ['clash', 'pack', 'cardback'].includes(category);
+  // 2026-06 hero customization overhaul: hero-body (skin-tone variants) +
+  // hero-art are re-uploaded in place during the build, so keep them on a
+  // short TTL until the paper-doll set stabilizes, then restore immutable.
+  const isShortCache = ['clash', 'pack', 'cardback', 'hero-body', 'hero'].includes(category);
   const headers = {
     'content-type':   'image/png',
     'cache-control':  isShortCache ? 'public, max-age=3600' : 'public, max-age=31536000, immutable',
@@ -2908,7 +2911,9 @@ async function handleHeroCustomLayerAsset(req, env, path) {
   if (!buf) return new Response('not-uploaded', { status: 404 });
   const headers = {
     'content-type':   'image/png',
-    'cache-control':  'public, max-age=31536000, immutable',
+    // Short TTL during the 2026-06 customization overhaul (overlays are
+    // re-uploaded in place as the set is refined); restore immutable after.
+    'cache-control':  'public, max-age=3600',
     'access-control-allow-origin': '*',
     'content-length': String(buf.byteLength),
   };
