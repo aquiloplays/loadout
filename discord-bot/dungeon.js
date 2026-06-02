@@ -12,6 +12,7 @@ import { getWallet, applyVaultDelta } from './wallet.js';
 import {
   addFreeze, getFreezes, FREEZE_PRICE, MAX_FREEZES_PER_TYPE,
 } from './streak-freeze.js';
+import { gearArtStamp } from './gear-art-slugs.js';
 
 // Worker-side shop pool — full catalog mirror of the DLL's
 // DungeonContent.Loot. The /loadout shop view doesn't show this
@@ -670,6 +671,11 @@ export async function applyClassSelection(env, guild, userId, key) {
         foundIn: 'Starter gear',
         foundUtc: new Date().toISOString(),
       };
+      // Paper-doll worn-overlay archetype (additive; the id stays a
+      // unique bag-instance handle). Render-side derives this too for
+      // legacy bag items, so the stamp is an optimization, not a
+      // contract — see gear-art-slugs.js / character-composite.js.
+      minted.art = gearArtStamp(minted);
       hero.bag.push(minted);
       granted.push(minted);
       // Auto-equip into the matching slot if it's empty. We don't
@@ -1107,6 +1113,7 @@ export async function doShopBuy(env, guild, userId, itemName) {
     foundIn: 'shop',
     foundUtc: new Date().toISOString()
   };
+  item.art = gearArtStamp(item);   // paper-doll archetype (see gear-art-slugs.js)
   hero.bag.push(item);
   await saveHero(env, guild, userId, hero);
 
