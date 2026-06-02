@@ -222,6 +222,17 @@ export async function getStreamInfo(env, broadcasterId) {
   return j.data[0];
 }
 
+// Returns the broadcaster's CURRENTLY-SET category — { gameId, gameName,
+// title } — which works even when the channel is OFFLINE (unlike
+// getStreamInfo). Used by the death counter to know which game's
+// counter to bump. null on error / not configured.
+export async function getChannelGame(env, broadcasterId) {
+  const j = await helixFetch(env, '/channels', { broadcaster_id: broadcasterId });
+  if (!j || !Array.isArray(j.data) || j.data.length === 0) return null;
+  const c = j.data[0];
+  return { gameId: c.game_id || null, gameName: c.game_name || null, title: c.title || null };
+}
+
 // Returns the User object for a numeric broadcaster id (used to
 // surface profile_image_url + display_name on the live embed).
 export async function getUserById(env, userId) {

@@ -1083,6 +1083,15 @@ export default {
     // aquilo.gg website minigames -- HMAC from the site's Pages
     // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +
     // MINIGAMES-WEB-DESIGN.md.
+    // Death counter — its own token-auth subsystem (Stream Deck button
+    // + OBS overlay). Must be claimed BEFORE the generic /web router so
+    // the public GET reads + token-gated writes bypass the site HMAC.
+    // See death-counter.js.
+    if (path.startsWith('/web/death-count/') || path.startsWith('/web/admin/death-count/')) {
+      const { handleDeathCount } = await import('./death-counter.js');
+      return handleDeathCount(req, env, path);
+    }
+
     if (path.startsWith('/web/')) {
       const { handleWeb } = await import('./web.js');
       return handleWeb(req, env);
