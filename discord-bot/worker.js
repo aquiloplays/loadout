@@ -1622,6 +1622,19 @@ export default {
           ctx.waitUntil(tickPhaseTransition(env, guildIdForVoteHub).then(r =>
             console.log('[cron] vote-hub', JSON.stringify(r))).catch(e =>
             console.warn('[cron] vote-hub', e?.message || e)));
+          // Refresh the rolling weekly-schedule pinned embed (edit-in-
+          // place, idempotent — no-ops when nothing changed / no schedule
+          // channel is bound). Keeps the pinned embed current with the
+          // Triple-C campaign + vote winners; self-heals the 2026-06 stale-
+          // Minecraft embed without a manual trigger.
+          ctx.waitUntil((async () => {
+            try {
+              const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
+              await postOrRefreshSchedule(env, guildIdForVoteHub);
+            } catch (e) {
+              console.warn('[cron] schedule-embed', e?.message || e);
+            }
+          })());
         }
         // Scheduled messages — scan due records + send. Cron fires
         // hourly so the worst-case delivery latency is ~1h; the

@@ -1,30 +1,87 @@
-// Stream schedule v3 (rev 2026-05-14): fixed weekly rotation with Saturday
-// as the single Community Night and Tue/Thu as intentional rest days.
-//   Sun/Mon/Wed/Fri → Minecraft (10:30 PM-12:30 AM ET)
-//   Tue/Thu         → REST (no stream)
-//   Sat             → Community Night (game decided by 6 PM ET poll)
-// Single rolling embed in SCHEDULE_CHANNEL_ID. The CN slot shows
-// "TBD - vote at 6 PM ET" until Saturday's poll closes, then updates
-// in place to the winning game + cover art.
+// Stream schedule v3 (rev 2026-06): Triple-C (Crowd Control Campaign) is
+// the fixed show; Wed = Variety Night (Mon→Wed vote), Sat = Community
+// Night (Wed→Fri vote). NO rest days. Per-day games are resolved
+// DYNAMICALLY at render time so the embed + site never drift from the
+// locked-in campaign / vote winners:
+//   Sun/Mon/Tue/Thu/Fri → Triple-C campaign game (triple-c:current, e.g.
+//                          Fallout 4) — set via /web/admin/triple-c/set
+//   Wed                  → Variety Night winner (vote-hub:winner:variety)
+//   Sat                  → Community Night winner (vote-hub:winner:cn)
+// Single rolling embed in the schedule channel; vote nights show
+// "vote in progress" until their poll closes.
+//
+// 2026-06 bugfix: the previous rev hardcoded `Minecraft` on every fixed
+// day, so the schedule + the /aquilo/schedule/public feed (which drives
+// the aquilo.gg tiles AND this pinned embed) showed Minecraft instead of
+// the locked-in Triple-C game. Now every slot pulls its real game.
 
 import {
   postChannelMessage, editChannelMessage, discordFetch, COLOR_SCHEDULE, cap, getETInfo
 } from './util.js';
-import { MINECRAFT_ART } from './bootstrap.js';
 import { broadcastOverlayUpdate } from './overlay-do.js';
 import { gameSlug } from './today-game.js';
 
-// Fixed weekly rotation, Sun -> Sat order.
-// `is_off:true` = rest day (no stream); displayed as "💤 Rest" in the embed.
+// Fixed weekly rotation, Sun -> Sat order. `kind` drives both the public
+// slot enum and dynamic game resolution (see resolveSlotGame):
+//   triple-c → fixed campaign   variety → Wed vote   community → Sat vote
 const WEEKLY = [
-  { day: 'sunday',    game: 'Minecraft', is_cn: false, is_off: false },
-  { day: 'monday',    game: 'Minecraft', is_cn: false, is_off: false },
-  { day: 'tuesday',   game: null,        is_cn: false, is_off: true  },
-  { day: 'wednesday', game: 'Minecraft', is_cn: false, is_off: false },
-  { day: 'thursday',  game: null,        is_cn: false, is_off: true  },
-  { day: 'friday',    game: 'Minecraft', is_cn: false, is_off: false },
-  { day: 'saturday',  game: null,        is_cn: true,  is_off: false }
+  { day: 'sunday',    kind: 'triple-c'  },
+  { day: 'monday',    kind: 'triple-c'  },
+  { day: 'tuesday',   kind: 'triple-c'  },
+  { day: 'wednesday', kind: 'variety'   },
+  { day: 'thursday',  kind: 'triple-c'  },
+  { day: 'friday',    kind: 'triple-c'  },
+  { day: 'saturday',  kind: 'community' },
 ];
+
+// kind → the public `slot` enum the site + Discord embed consume.
+const PUBLIC_SLOT = {
+  'triple-c': 'stream', 'variety': 'variety', 'community': 'cn', 'dad-sunday': 'dad-sunday',
+};
+
+// Resolve a day's game from the authoritative source for its kind.
+// Returns { name, artUrl, store, voteCompleted? } or null (vote not yet
+// decided / nothing locked in → caller renders a placeholder).
+async function resolveSlotGame(env, guildId, kind, sched) {
+  if (kind === 'triple-c') {
+    try {
+      const { getCurrentTripleC } = await import('../triple-c.js');
+      const c = await getCurrentTripleC(env, guildId);
+      if (c && c.name) {
+        return { name: c.name, artUrl: c.artUrl || null, store: storeFromArtUrl(c.artUrl) };
+      }
+    } catch { /* optional */ }
+    return null;
+  }
+  if (kind === 'dad-sunday') {
+    try {
+      const { getCurrentDadSunday } = await import('../dad-sunday.js');
+      const c = await getCurrentDadSunday(env, guildId);
+      if (c && c.name) {
+        return { name: c.name, artUrl: c.artUrl || null, store: storeFromArtUrl(c.artUrl) };
+      }
+    } catch { /* dad-sunday.js ships in C2 */ }
+    return null;
+  }
+  if (kind === 'variety' || kind === 'community') {
+    const voteKind = kind === 'variety' ? 'variety' : 'cn';
+    let w = null;
+    try { w = await env.LOADOUT_BOLTS.get(`vote-hub:winner:${guildId}:${voteKind}`, { type: 'json' }); }
+    catch { /* fall through */ }
+    // Legacy CN winner store (aq-schedule's own cn_winners) — kept as a
+    // fallback so a winner recorded by the old poll path still shows.
+    if ((!w || !w.name) && kind === 'community') {
+      const legacy = sched.cn_winners && sched.cn_winners.saturday;
+      if (legacy && legacy.name) w = { name: legacy.name, art_url: legacy.art_url };
+    }
+    if (w && w.name) {
+      const art = w.art_url || w.artUrl || null;
+      return { name: w.name, artUrl: art, store: storeFromArtUrl(art), voteCompleted: true };
+    }
+    return null;
+  }
+  return null;
+}
 
 const KEY = (gid) => 'schedule:' + gid;
 
@@ -53,43 +110,46 @@ async function saveSchedule(env, guildId, sched) {
   await env.STATE.put(KEY(guildId), JSON.stringify(sched));
 }
 
-function buildSchedulePayload(sched) {
+// 2026-06: async — each day resolves its real game (Triple-C campaign /
+// vote winner) via resolveSlotGame. `image` (large) for decided vote
+// winners so a closed vote reads rich; `thumbnail` for the fixed
+// Triple-C / Dad-Sunday campaign art so it doesn't dominate every row.
+const TIME_LABEL = '10:30 PM-12:30 AM ET';
+const SLOT_META = {
+  'triple-c':   { emoji: '📺', show: 'Triple-C' },
+  'variety':    { emoji: '🎲', show: 'Variety Night' },
+  'community':  { emoji: '🏆', show: 'Community Night' },
+  'dad-sunday': { emoji: '🛋️', show: 'Dad Game Sunday' },
+};
+
+async function buildSchedulePayload(env, guildId, sched) {
   const headerEmbed = {
     title: '📅 Aquilo · Weekly Stream Schedule',
-    description: 'Hop in any night. **Community Night** games are decided by the poll — tap **Vote for this week** in <#' + (sched.poll_channel_id || '') + '>.',
-    color: COLOR_SCHEDULE
+    description: 'Hop in any night. **Variety** + **Community Night** games are decided by the poll — tap **Vote** in <#' + (sched.poll_channel_id || '') + '>.',
+    color: COLOR_SCHEDULE,
   };
 
-  const dayEmbeds = WEEKLY.map(slot => {
-    let game = slot.game;
-    let art  = null;
+  const dayEmbeds = [];
+  for (const slot of WEEKLY) {
+    const meta = SLOT_META[slot.kind] || { emoji: '📺', show: cap(slot.kind) };
+    const game = await resolveSlotGame(env, guildId, slot.kind, sched);
+    const isVoted = slot.kind === 'variety' || slot.kind === 'community';
     let desc;
-    if (slot.is_off) {
-      desc = '💤 **Rest day** — no stream';
-    } else if (slot.is_cn) {
-      const winner = sched.cn_winners?.[slot.day];
-      if (winner) { game = winner.name; art = winner.art_url; }
-      desc = game
-        ? '🎲 **Community Night** · 10:30 PM-12:30 AM ET\n**' + game + '**'
-        : '🎲 **Community Night · vote in progress** · 10:30 PM-12:30 AM ET\n_Tap **Vote for this week** in <#' + (sched.poll_channel_id || '') + '> — timing is shown in the voting embed._';
+    if (game && game.name) {
+      desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n**${game.name}**`;
+    } else if (isVoted) {
+      desc = `${meta.emoji} **${meta.show} · vote in progress** · ${TIME_LABEL}\n_Tap **Vote** in <#${sched.poll_channel_id || ''}> — timing is shown in the voting embed._`;
     } else {
-      art  = MINECRAFT_ART;
-      desc = '⛏️ **' + game + '** · 10:30 PM-12:30 AM ET';
+      desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n_TBA_`;
     }
-    const embed = {
-      title: cap(slot.day),
-      description: desc,
-      color: COLOR_SCHEDULE
-    };
-    // Use `image` (large) for CN winner art so the schedule looks
-    // rich once a vote closes; non-CN days keep the smaller
-    // `thumbnail` so Minecraft's logo doesn't dominate every row.
+    const embed = { title: cap(slot.day), description: desc, color: COLOR_SCHEDULE };
+    const art = game && game.artUrl;
     if (art) {
-      if (slot.is_cn && sched.cn_winners?.[slot.day]) embed.image = { url: art };
+      if (game.voteCompleted) embed.image = { url: art };
       else embed.thumbnail = { url: art };
     }
-    return embed;
-  });
+    dayEmbeds.push(embed);
+  }
 
   return { embeds: [headerEmbed, ...dayEmbeds] };
 }
@@ -118,28 +178,19 @@ function buildSchedulePayload(sched) {
 
 export async function getPublicSchedule(env, guildId) {
   const sched = await loadSchedule(env, guildId);
-  const days = WEEKLY.map(slot => {
-    let game = null;
-    let status = slot.is_off ? 'off' : 'scheduled';
-    if (slot.is_cn) {
-      const winner = sched.cn_winners?.[slot.day];
-      if (winner && winner.name) {
-        game = { name: winner.name, artUrl: winner.art_url || null, store: storeFromArtUrl(winner.art_url) };
-        status = 'vote-completed';
-      } else {
-        status = 'vote-open';
-      }
-    } else if (!slot.is_off) {
-      game = { name: slot.game, artUrl: slot.game === 'Minecraft' ? MINECRAFT_ART : null, store: 'mojang' };
-    }
-    return {
+  const days = [];
+  for (const slot of WEEKLY) {
+    const game = await resolveSlotGame(env, guildId, slot.kind, sched);
+    const isVoted = slot.kind === 'variety' || slot.kind === 'community' || slot.kind === 'dad-sunday';
+    const status = isVoted ? (game ? 'vote-completed' : 'vote-open') : 'scheduled';
+    days.push({
       weekday: slot.day,
-      slot:    slot.is_off ? 'off' : (slot.is_cn ? 'cn' : 'stream'),
+      slot:    PUBLIC_SLOT[slot.kind] || 'stream',
       game,
       status,
-      times:   slot.is_off ? null : { startEt: '22:30', endEt: '00:30' },
-    };
-  });
+      times:   { startEt: '22:30', endEt: '00:30' },
+    });
+  }
   return {
     ok: true,
     guildId,
@@ -193,7 +244,7 @@ export async function postOrRefreshSchedule(env, guildId) {
   }
   sched.channel_id = resolvedChannel;
   sched.poll_channel_id = b.poll || sched.poll_channel_id;
-  const payload = buildSchedulePayload(sched);
+  const payload = await buildSchedulePayload(env, guildId, sched);
 
   if (sched.message_id) {
     try {

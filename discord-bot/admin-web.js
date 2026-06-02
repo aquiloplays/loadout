@@ -354,6 +354,12 @@ async function routeTripleCSet(env, guildId, body) {
   // Best-effort Discord announce; never blocks the set.
   let announced = null;
   try { announced = await announceTripleC(env, r.current); } catch { /* ignore */ }
+  // Refresh the pinned weekly-schedule embed so the locked-in campaign
+  // shows on the Triple-C days immediately (edit-in-place, best-effort).
+  try {
+    const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
+    await postOrRefreshSchedule(env, guildId);
+  } catch { /* ignore */ }
   return json({ ok: true, current: r.current, announced });
 }
 
