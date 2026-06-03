@@ -74,8 +74,10 @@ export async function setCurrentTripleC(env, guildId, gameSlug, setBy) {
 // Post the "Triple-C is now X" announcement embed. Best-effort.
 export async function announceTripleC(env, current) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
-  const channelId = String(env.TRIPLE_C_ANNOUNCE_CHANNEL || env.FOURTHWALL_SALES_CHANNEL
-    || '1508318929855184987').trim();
+  // Lock-in announcements land in the 📅 schedule channel (next to the
+  // pinned weekly embed), not the vote channel — see task brief #5.
+  const channelId = String(env.TRIPLE_C_ANNOUNCE_CHANNEL || env.SCHEDULE_CHANNEL_ID
+    || '1507973920282640485').trim();
   if (!channelId) return { ok: false, error: 'no-channel' };
   const time = env.STREAM_TIME_ET || '22:30';
   const [h, m] = time.split(':').map(Number);

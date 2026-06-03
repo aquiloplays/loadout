@@ -80,8 +80,10 @@ export async function setCurrentDadSunday(env, guildId, gameSlug, setBy) {
 // Post the "Dad Game Sunday is now X" announcement embed. Best-effort.
 export async function announceDadSunday(env, current) {
   if (!env.DISCORD_BOT_TOKEN || !current) return { ok: false, error: 'no-bot-token' };
-  const channelId = String(env.TRIPLE_C_ANNOUNCE_CHANNEL || env.FOURTHWALL_SALES_CHANNEL
-    || '1508318929855184987').trim();
+  // Mirror Triple-C: Dad Game Sunday lock-ins announce in the 📅
+  // schedule channel alongside the pinned weekly embed (task brief #5).
+  const channelId = String(env.TRIPLE_C_ANNOUNCE_CHANNEL || env.SCHEDULE_CHANNEL_ID
+    || '1507973920282640485').trim();
   if (!channelId) return { ok: false, error: 'no-channel' };
   const embed = {
     title: `🛋️ Dad Game Sunday is now: ${current.name}`,

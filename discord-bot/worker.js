@@ -777,6 +777,14 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_bootstrap-l8/')) {
       return handleBootstrapL8(req, env, path);
     }
+    // One-shot, KV-token-gated force-refresh of the pinned weekly
+    // schedule embed (Triple-C campaign + Dad Sunday + vote winners).
+    // Same `refresh-schedule-token` self-destruct gate as the L8
+    // bootstrap — lets an operator re-render the embed immediately
+    // without the site HMAC (the :23 cron self-heals it otherwise).
+    if (method === 'POST' && path.startsWith('/admin/_refresh-schedule/')) {
+      return handleOneShotRefreshSchedule(req, env, path);
+    }
     // L9 phase-2: create missing channels, bind feature slots,
     // bind commands → channels, post the current schedule. Same
     // one-shot KV-token gate as the L8 bootstrap. See handler for
@@ -4217,6 +4225,35 @@ async function handleAquiloRefreshSchedule(req, env, path) {
     return jsonResp({ ok: true, messageId, via: auth.via }, 200);
   } catch (e) {
     return jsonResp({ ok: false, error: String(e?.message || e), via: auth.via }, 502);
+  }
+}
+
+// ── /admin/_refresh-schedule/:guildId (one-shot KV token) ────────
+//
+// Force a re-render of the pinned weekly schedule embed without the
+// site HMAC. Gated by `refresh-schedule-token` in KV (written by the
+// operator immediately before the call); the token self-destructs on
+// first use, so the endpoint is inert without it. Idempotent —
+// postOrRefreshSchedule edits the pinned message in place.
+async function handleOneShotRefreshSchedule(req, env, path) {
+  const parts = path.split('/').filter(Boolean);  // ['admin','_refresh-schedule',':g']
+  const guildId = parts[2] || env.AQUILO_VAULT_GUILD_ID;
+  if (!guildId) return new Response('guildId required', { status: 400 });
+  const u = new URL(req.url);
+  const got = u.searchParams.get('token') || '';
+  const expected = await env.LOADOUT_BOLTS.get('refresh-schedule-token');
+  if (!expected) return new Response('refresh token never armed or already consumed', { status: 410 });
+  if (!got || got !== expected) return new Response('bad token', { status: 401 });
+  // Burn the token before side-effects so a partial failure can't be retried.
+  await env.LOADOUT_BOLTS.delete('refresh-schedule-token');
+  try {
+    const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
+    const messageId = await postOrRefreshSchedule(env, guildId);
+    return new Response(JSON.stringify({ ok: true, messageId }),
+      { status: 200, headers: { 'content-type': 'application/json' } });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e) }),
+      { status: 502, headers: { 'content-type': 'application/json' } });
   }
 }
 

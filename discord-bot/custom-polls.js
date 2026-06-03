@@ -568,11 +568,11 @@ export const VARIETY_POLL = Object.freeze({
   title:        'Variety Night — pick the game',
   subtitle:     'Vote for the next Variety Night game. Streams Wed. CC icon = Crowd Control supported (crowdcontrol.live).',
   compositeKey: 'variety',
-  // 2026-06 (Batch C3): reconciled to the 9-game Variety pool, matching
-  // games:v1. Retro Rewind moved to Dad Game Sunday (C2); the sim/cozy
-  // titles that used to live here (waterpark, paralives, supermarket,
-  // pws2, hf2, roadside) are dad-sunday games now and were removed from
-  // variety. Added Burgie's Cozy Kitchen. (CC) = Crowd Control supported.
+  // 2026-06 (Batch C3): the final 9-game Variety pool, matching games:v1.
+  // Retro Rewind moved to Dad Game Sunday (C2); the sim/cozy titles that
+  // used to live here (waterpark, paralives, supermarket, pws2, hf2,
+  // roadside) are dad-sunday games now. Retro Rewind out, Burgie's Cozy
+  // Kitchen in. (CC) = Crowd Control supported.
   options: [
     { value: 'climbing',         label: 'A Difficult Game About Climbing' },
     { value: 'ballxpit',         label: 'BALL x PIT' },
@@ -583,7 +583,5 @@ export const VARIETY_POLL = Object.freeze({
     { value: 'balatro',          label: 'Balatro' },
     { value: 'vampire_crawlers', label: 'Vampire Crawlers (CC)' },
     { value: 'burgie',           label: "Burgie's Cozy Kitchen" },
-    { value: 'everything_crab',  label: 'Everything is Crab' },
-    { value: 'egging_on',        label: 'Egging On' },
   ],
 });
