@@ -10,6 +10,7 @@
 // start of unrelated requests.
 
 import { verifyHmac } from './auth.js';
+import { isOwnerUserId } from './excluded.js';
 
 function json(obj, status = 200, extra = {}) {
   return new Response(JSON.stringify(obj), {
@@ -319,6 +320,8 @@ export async function handleSupporterWall(req, env, _path) {
       const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
       if (!rec) continue;
       const userId = k.name.slice('patreon:tier:'.length);
+      // Never list the owner (Clay) on his own supporter wall.
+      if (isOwnerUserId(userId)) continue;
       // Pull username from pprofile (preferred), fall back to the
       // Patreon-stored display name (the raw real-name we DON'T want
       // to show if a username was set).

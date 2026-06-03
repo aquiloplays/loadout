@@ -58,6 +58,21 @@ export function isExcludedUserId(env, userId) {
 }
 
 /**
+ * True if the userId is one of the owner's own accounts (Clay), checked
+ * regardless of LEADERBOARD_EXCLUDE_ENABLED. Use this where the owner
+ * should NEVER appear no matter the leaderboard toggle, e.g. his own
+ * Patron / supporter wall. Accepts a bare Discord snowflake or a
+ * "tw:<twitch id>" wallet key.
+ */
+export function isOwnerUserId(userId) {
+  if (!userId) return false;
+  const s = String(userId);
+  if (EXCLUDED_DISCORD_IDS.has(s)) return true;
+  if (s.startsWith('tw:') && EXCLUDED_TWITCH_IDS.has(s.slice(3))) return true;
+  return false;
+}
+
+/**
  * True if the given wallet snapshot (the value side of wallet:<g>:<id>
  * or the panel's hero/checkin records) belongs to an excluded account.
  * Walks the `links` array so we catch wallets that haven't been keyed
