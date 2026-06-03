@@ -73,6 +73,11 @@ THEMES = {
     'fire':   'roaring orange-red flames and embers',
     'frost':  'icy blue frost and shards',
     'spire':  'a towering mystical spire, otherworldly',
+    # CR-2 Voidborn expansion — cosmic horror, the dark between stars.
+    # Dark purple + sickly green palette, eldritch and unsettling.
+    'voidborn': ('cosmic horror from the void between stars, writhing dark '
+                 'tendrils and eldritch geometry, deep indigo and violet-black '
+                 'with sickly bioluminescent green accents, unsettling and grim'),
     'tok':    'a simple summoned creature',
     'u':      'vivid elemental magic',
     's':      'a dramatic magical spell effect',
