@@ -87,7 +87,8 @@ export async function announceDadSunday(env, current) {
   if (!channelId) return { ok: false, error: 'no-channel' };
   const embed = {
     title: `🛋️ Dad Game Sunday is now: ${current.name}`,
-    description: 'The cozy Sunday game is locked in.\nStreams **Sunday** at **10:30 PM ET**.',
+    description: 'Pour something warm and claim the comfy chair. This week we go full dad mode with **'
+      + current.name + '**.\nSundays at **10:30 PM ET**. No yardwork required.',
     color: 0xe6a86b,
     image: current.artUrl ? { url: current.artUrl } : undefined,
     footer: { text: 'Dad Game Sunday · cozy / sim / management' },
