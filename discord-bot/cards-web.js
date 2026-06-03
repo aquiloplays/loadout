@@ -40,6 +40,7 @@ import {
 import { loadHero } from './hero-state.js';
 import { getWallet } from './wallet.js';
 import { getLoginStatus, claimDailyLogin } from './boltbound-login.js';
+import { listTodaysQuests, claimQuest, rerollQuest, progressBoltbound } from './daily-quests.js';
 import {
   SETS, SET_IDS, isReleased, isNewlyReleased, timeUntilRelease,
 } from './boltbound-sets.js';
@@ -49,6 +50,10 @@ import { postChannelMessage } from './aquilo/util.js';
 const ROUTES = new Set([
   'boltbound/state',
   'boltbound/catalogue',
+  // RET-2: Boltbound daily quests (today/claim/reroll).
+  'boltbound/quests/today',
+  'boltbound/quests/claim',
+  'boltbound/quests/reroll',
   'boltbound/decks/save',
   'boltbound/decks/delete',
   'boltbound/decks/activate',
@@ -93,6 +98,7 @@ const ROUTES = new Set([
 const READ_ROUTES = new Set([
   'boltbound/state',
   'boltbound/catalogue',
+  'boltbound/quests/today',
   'boltbound/sets',
   'boltbound/match/state',
   'boltbound/log',
@@ -458,12 +464,14 @@ async function routeMatchAction(env, guildId, userId, body) {
   // play-card targeting context, and "hero" -> opp hero on an attack;
   // explicit "selfHero" is for self-target spells like Iron Skin).
   let action = null;
+  let playedCardId = null;
   if (kind === 'play') {
     const handIdx = Number(body && body.handIndex);
     if (!Number.isInteger(handIdx) || handIdx < 0) return json({ ok: false, error: 'bad-hand-index' });
     const t = body && body.target;
     const targetUid = (t === null || t === undefined || t === '') ? null : String(t);
     action = { kind: 'playCard', handIdx, targetUid };
+    playedCardId = (m.hands[side] && m.hands[side][handIdx]) || null;
     // CR-2 pick-one mechanics (Choose One / Adapt / Discover). Optional —
     // the resolver falls back to a seeded default when absent.
     if (Number.isInteger(+body.chooseOption))   action.chooseOption   = +body.chooseOption;
@@ -483,6 +491,21 @@ async function routeMatchAction(env, guildId, userId, body) {
     return json({ ok: false, error: 'bad-kind' });
   }
   const r = await takeAction(env, m, side, action);
+  // RET-2 — Boltbound daily-quest progress for web matches. Best-effort;
+  // a tracking failure must never block the action response.
+  try {
+    if (r.ok && kind === 'play' && playedCardId) {
+      const c = CARDS[playedCardId];
+      await progressBoltbound(env, userId, 'cards', 1);
+      if (c && c.type === 'spell') await progressBoltbound(env, userId, 'cast', 1);
+      else if (c && c.type === 'minion') await progressBoltbound(env, userId, 'summon', 1);
+    }
+    if (r.ok && r.ended && r.match) {
+      await progressBoltbound(env, userId, 'play', 1);
+      const won = r.match.status === (side === 'A' ? 'A-won' : 'B-won');
+      if (won) await progressBoltbound(env, userId, 'win', 1);
+    }
+  } catch { /* non-fatal */ }
   return json({ ok: !!r.ok, error: r.error || null, match: r.match ? renderableState(r.match, userId) : null, ended: !!r.ended });
 }
 async function routeMatchMulligan(env, guildId, userId, body) {
@@ -603,6 +626,55 @@ async function routeLoginStatus(env, guildId, userId) {
 async function routeLoginClaim(env, guildId, userId) {
   const r = await claimDailyLogin(env, guildId, userId);
   return json(r, r.ok || r.alreadyClaimed ? 200 : 400);
+}
+
+// ── RET-2: Boltbound daily quests ───────────────────────────────────
+//
+// Thin wrappers over the shared daily-quests engine, scoped to
+// game='boltbound'. `today` maps the worker quest shape onto the
+// site's QuestDef contract; `claim` grants the reward; `reroll`
+// swaps one quest (1/day).
+
+function mapQuest(entry) {
+  const d = entry.def || {};
+  const reward = d.reward || {};
+  const bits = [];
+  if (reward.bolts) bits.push(`${reward.bolts} Bolts`);
+  if (reward.aether) bits.push(`${reward.aether} Aether`);
+  if (reward.xp) bits.push(`${reward.xp} XP`);
+  return {
+    id: d.id,
+    title: d.title || d.id,
+    description: d.description || '',
+    progress: entry.progress || 0,
+    goal: d.threshold || 1,
+    rewardBolts: reward.bolts || 0,
+    rewardLabel: bits.join(' + ') || null,
+    claimed: !!entry.claimed,
+  };
+}
+function nextUtcMidnight() {
+  const now = Date.now();
+  const d = new Date(now);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0, 0);
+}
+async function routeQuestsToday(env, guildId, userId) {
+  const entries = await listTodaysQuests(env, userId, 'boltbound');
+  return json({ ok: true, quests: entries.map(mapQuest), resetUtc: nextUtcMidnight() });
+}
+async function routeQuestsClaim(env, guildId, userId, body) {
+  const questId = String((body && body.questId) || '').trim();
+  if (!questId) return json({ ok: false, error: 'bad-quest-id' }, 400);
+  const r = await claimQuest(env, userId, questId, { guildId });
+  if (!r.ok) return json({ ok: false, error: r.reason || 'claim-failed' }, 400);
+  const wallet = await getWallet(env, guildId, userId);
+  return json({ ok: true, granted: r.granted || null, wallet: { balance: wallet.balance || 0 } });
+}
+async function routeQuestsReroll(env, guildId, userId, body) {
+  const questId = body && body.questId ? String(body.questId).trim() : null;
+  const r = await rerollQuest(env, userId, 'boltbound', questId);
+  if (!r.ok) return json({ ok: false, error: r.reason || 'reroll-failed' }, 400);
+  return json({ ok: true, oldId: r.oldId, newId: r.newId, quests: (r.quests || []).map(mapQuest) });
 }
 
 // ── Trade routes ───────────────────────────────────────────────────
@@ -764,6 +836,9 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/log')             return await routeLog(env, guildId, userId);
     if (route === 'boltbound/login/status')    return await routeLoginStatus(env, guildId, userId);
     if (route === 'boltbound/login/claim')     return await routeLoginClaim(env, guildId, userId);
+    if (route === 'boltbound/quests/today')    return await routeQuestsToday(env, guildId, userId);
+    if (route === 'boltbound/quests/claim')    return await routeQuestsClaim(env, guildId, userId, body);
+    if (route === 'boltbound/quests/reroll')   return await routeQuestsReroll(env, guildId, userId, body);
     if (route === 'boltbound/settings/get')    return await routeSettingsGet(env, userId);
     if (route === 'boltbound/settings/set')    return await routeSettingsSet(env, userId, body);
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);

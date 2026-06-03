@@ -24,6 +24,28 @@
 const QUESTS_PER_DAY = 5;             // visible quest count per user per day
 const ROTATION_KV_TTL_SECONDS = 60 * 60 * 36; // 36h (covers DST + clock skew)
 
+// RET-2 — per-game visible count override. Boltbound shows exactly 3
+// (one Easy / one Medium / one Hard, see getRotation). Other games keep
+// the QUESTS_PER_DAY default.
+const GAME_QUEST_COUNT = { boltbound: 3 };
+function questCountFor(game) { return GAME_QUEST_COUNT[game] || QUESTS_PER_DAY; }
+
+// RET-2 — per-user, per-day reroll override. One reroll/day swaps a
+// single quest for a fresh draw. Stored separately from the shared
+// rotation snapshot so it never leaks between users.
+const REROLL_KEY = (userId, dayKey, game) =>
+  `daily-quests:reroll:${userId}:${dayKey}:${game || 'all'}`;
+const REROLL_KV_TTL_SECONDS = 60 * 60 * 36;
+
+// Difficulty tier from a quest's Bolts reward (Boltbound rotation only).
+function rewardBolts(def) { return Number(def?.reward?.bolts) || 0; }
+function tierOf(def) {
+  const b = rewardBolts(def);
+  if (b <= 50) return 'easy';
+  if (b <= 150) return 'medium';
+  return 'hard';
+}
+
 // ── D1 helpers ─────────────────────────────────────────────────────
 
 async function db(env) {
@@ -139,7 +161,26 @@ async function getRotation(env, dayKey, game) {
   const defs = await loadActiveDefs(env, game);
   if (!defs.length) return [];
   const rng = makeRng(dayKey + (game ? ':' + game : ''));
-  const picked = pickWeighted(defs, Math.min(QUESTS_PER_DAY, defs.length), rng);
+  let picked;
+  if (game === 'boltbound') {
+    // Tiered: one Easy + one Medium + one Hard so the daily set always
+    // spans the difficulty curve. Falls back to filling from the whole
+    // pool if a tier is empty (keeps the count stable mid-tuning).
+    const byTier = { easy: [], medium: [], hard: [] };
+    for (const d of defs) byTier[tierOf(d)].push(d);
+    picked = [];
+    for (const t of ['easy', 'medium', 'hard']) {
+      if (byTier[t].length) picked.push(...pickWeighted(byTier[t], 1, rng));
+    }
+    const want = Math.min(questCountFor(game), defs.length);
+    if (picked.length < want) {
+      const have = new Set(picked.map(d => d.id));
+      const rest = defs.filter(d => !have.has(d.id));
+      picked.push(...pickWeighted(rest, want - picked.length, rng));
+    }
+  } else {
+    picked = pickWeighted(defs, Math.min(questCountFor(game), defs.length), rng);
+  }
   const questIds = picked.map(d => d.id);
   try {
     await env.LOADOUT_BOLTS.put(
@@ -151,6 +192,114 @@ async function getRotation(env, dayKey, game) {
   return questIds;
 }
 
+// ── RET-2: per-user reroll ──────────────────────────────────────────
+//
+// One reroll per day per game. The override is a { used, swaps } record
+// where `swaps` maps an original rotation id → its replacement id, so
+// the user's effective set is the shared rotation with those ids
+// substituted (order preserved). We store the override per-user so it
+// never affects anyone else's quests.
+
+async function readReroll(env, userId, dayKey, game) {
+  try {
+    const r = await env.LOADOUT_BOLTS.get(REROLL_KEY(userId, dayKey, game), { type: 'json' });
+    if (r && typeof r === 'object') return { used: !!r.used, swaps: r.swaps || {} };
+  } catch { /* default below */ }
+  return { used: false, swaps: {} };
+}
+
+function applySwaps(ids, swaps) {
+  return ids.map(id => (swaps && swaps[id]) ? swaps[id] : id);
+}
+
+async function applyReroll(env, userId, dayKey, game, baseIds) {
+  const r = await readReroll(env, userId, dayKey, game);
+  if (!r.swaps || !Object.keys(r.swaps).length) return baseIds;
+  return applySwaps(baseIds, r.swaps);
+}
+
+// Reroll one quest in today's set. If `questId` is omitted we reroll the
+// hardest unclaimed quest (the most common "this is annoying" target).
+// Returns { ok, oldId, newId, quests } or { ok:false, reason }.
+export async function rerollQuest(env, userId, game, questId, nowMs) {
+  if (!userId) return { ok: false, reason: 'bad-args' };
+  const dayKey = todayUtcKey(nowMs);
+  const r = await readReroll(env, userId, dayKey, game);
+  if (r.used) return { ok: false, reason: 'already-rerolled-today' };
+
+  const baseIds = await getRotation(env, dayKey, game);
+  if (!baseIds.length) return { ok: false, reason: 'no-rotation' };
+  const effIds = applySwaps(baseIds, r.swaps);
+
+  // Resolve current defs so we can pick a sensible swap target + a
+  // replacement that isn't already in the set.
+  const allDefs = await loadActiveDefs(env, game);
+  const byId = new Map(allDefs.map(d => [d.id, d]));
+  const currentSet = new Set(effIds);
+
+  // Don't reroll a quest the user has already finished/claimed today —
+  // that would be a free re-grind. Read their progress rows.
+  const D = await db(env);
+  const ph = effIds.map(() => '?').join(',');
+  const progRows = await D.prepare(
+    `SELECT quest_id, progress, claimed FROM user_daily_quest
+      WHERE user_id = ? AND day = ? AND quest_id IN (${ph})`
+  ).bind(userId, dayKey, ...effIds).all();
+  const claimedSet = new Set((progRows?.results || [])
+    .filter(row => Number(row.claimed) === 1).map(row => row.quest_id));
+
+  // Pick the target: the requested id (if valid + not claimed), else the
+  // hardest non-claimed quest in the set.
+  let target = null;
+  if (questId && currentSet.has(questId) && !claimedSet.has(questId)) {
+    target = questId;
+  } else {
+    const candidates = effIds.filter(id => !claimedSet.has(id) && byId.has(id));
+    candidates.sort((a, b) => rewardBolts(byId.get(b)) - rewardBolts(byId.get(a)));
+    target = candidates[0] || null;
+  }
+  if (!target) return { ok: false, reason: 'nothing-to-reroll' };
+
+  // Replacement: a same-game def not already in the set, biased to the
+  // same tier so the difficulty mix is preserved.
+  const targetTier = tierOf(byId.get(target));
+  let pool = allDefs.filter(d => !currentSet.has(d.id) && tierOf(d) === targetTier);
+  if (!pool.length) pool = allDefs.filter(d => !currentSet.has(d.id));
+  if (!pool.length) return { ok: false, reason: 'no-replacement' };
+  const rng = makeRng(`${dayKey}:${userId}:reroll:${target}`);
+  const replacement = pickWeighted(pool, 1, rng)[0];
+
+  const swaps = { ...r.swaps, [target]: replacement.id };
+  try {
+    await env.LOADOUT_BOLTS.put(
+      REROLL_KEY(userId, dayKey, game),
+      JSON.stringify({ used: true, swaps, at: Date.now() }),
+      { expirationTtl: REROLL_KV_TTL_SECONDS },
+    );
+  } catch { /* best-effort; failure just means they can try again */ }
+
+  const quests = await listTodaysQuests(env, userId, game, nowMs);
+  return { ok: true, oldId: target, newId: replacement.id, quests };
+}
+
+// RET-2 — bump every active quest of a Boltbound event for this user.
+// `event` is the id-segment after `boltbound.` (play | win | cards |
+// summon | cast). Cheap no-op when none of today's quests match.
+export async function progressBoltbound(env, userId, event, delta = 1, nowMs) {
+  if (!userId || !event) return;
+  let quests;
+  try { quests = await listTodaysQuests(env, userId, 'boltbound', nowMs); }
+  catch { return; }
+  const prefix = `boltbound.${event}.`;
+  for (const q of quests) {
+    if (!q?.def?.id || q.claimed) continue;
+    if (q.def.id.startsWith(prefix)) {
+      try { await incrementQuest(env, userId, q.def.id, delta, nowMs); }
+      catch { /* one bad quest shouldn't abort the rest */ }
+    }
+  }
+}
+
 // ── Public API ────────────────────────────────────────────────────
 
 // Today's quests for a user. Each entry is { def, progress, claimed }.
@@ -159,8 +308,10 @@ async function getRotation(env, dayKey, game) {
 export async function listTodaysQuests(env, userId, game, nowMs) {
   if (!userId) return [];
   const dayKey = todayUtcKey(nowMs);
-  const questIds = await getRotation(env, dayKey, game);
-  if (!questIds.length) return [];
+  const baseIds = await getRotation(env, dayKey, game);
+  if (!baseIds.length) return [];
+  // Apply this user's reroll swaps (if any) over the shared rotation.
+  const questIds = await applyReroll(env, userId, dayKey, game, baseIds);
 
   const D = await db(env);
   // Pull progress rows in one query (IN ?,?,?). D1 doesn't support
@@ -286,6 +437,15 @@ export async function claimQuest(env, userId, questId, opts = {}) {
       // via admin if needed. Mirrors how spire.js handles grant
       // failures (logs, surfaces in return shape).
       granted.walletError = e?.message || String(e);
+    }
+  }
+  // Aether is best-effort too (RET-2 — Medium/Hard quests pay Aether).
+  if (def.reward.aether && guildId) {
+    try {
+      const aether = opts.aetherModule || (await import('./aether.js'));
+      await aether.grantAether(env, guildId, userId, def.reward.aether, `daily-quest:${def.id}`);
+    } catch (e) {
+      granted.aetherError = e?.message || String(e);
     }
   }
   // XP is best-effort the same way. progression/xp uses earnXp().
