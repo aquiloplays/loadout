@@ -263,6 +263,15 @@ const ROUTES = new Set([
   // services upload + clear; clear is triggered by `clear: true` flag
   // or by submitting an empty dataBase64.
   'character/avatar',
+  // Discord rich-presence web fallback (Batch B). The site reports the
+  // viewer's current aquilo.gg activity here; the worker persists it to
+  // KV with a heartbeat-expiry so a future desktop consumer (StreamFusion
+  // Discord RPC) can read the feed. userId-keyed + guild-agnostic, so
+  // these three bypass the strict discordId/guildId gate (handled early
+  // in handleWeb, before that gate). See DISCORD-RICH-PRESENCE.md.
+  'presence/update',
+  'presence/clear',
+  'presence/feed',
   // New-viewer funnel — referral attribution. /me returns the
   // caller's stable referral code + bring-in stats; /attribute is
   // what the site POSTs after Patreon-link to record (refereeId,
@@ -418,6 +427,18 @@ export async function handleWeb(req, env) {
 
   let body;
   try { body = JSON.parse(bodyText); } catch { return json({ error: 'bad-json' }, 400); }
+
+  // Discord-presence web fallback — handled BEFORE the discordId/guildId
+  // gate below because presence is per-user + guild-agnostic: the site
+  // proxy forwards { userId, key, state, detail } (no guildId, and
+  // `userId` not `discordId`). Already HMAC-verified above. feed is
+  // owner-gated for the future desktop RPC consumer.
+  if (route === 'presence/update') return await routePresenceUpdate(env, body);
+  if (route === 'presence/clear')  return await routePresenceClear(env, body);
+  if (route === 'presence/feed') {
+    if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+    return await routePresenceFeed(env);
+  }
 
   const discordId = String((body && body.discordId) || '').trim();
   const guildId = String((body && body.guildId) || '').trim();
@@ -673,6 +694,74 @@ export async function handleWeb(req, env) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
   }
   return json({ error: 'not-found' }, 404);
+}
+
+// ── Discord rich-presence web fallback ────────────────────────────────
+// The browser can't reach Discord's local IPC, so the site reports the
+// viewer's current aquilo.gg activity here and the worker persists it to
+// KV (STATE) under presence:user:<id> with a short heartbeat-expiry. The
+// site re-reports every 60s; a 200s TTL survives ~3 missed beats then the
+// entry self-expires, so a closed tab never leaves a stale status stuck.
+//
+// This is the durable handoff: the actual "set the user's Discord status"
+// step is a desktop concern (StreamFusion's discord-rpc client), blocked
+// on Clay minting a Discord application client ID. Until then this feed is
+// the source of truth that step will poll. See DISCORD-RICH-PRESENCE.md.
+const PRESENCE_TTL_SEC = 200;
+const PRESENCE_PREFIX = 'presence:user:';
+
+function presenceKey(userId) { return PRESENCE_PREFIX + userId; }
+
+// Trim free-text presence fields to a sane length so a forged payload
+// can't bloat a KV value. Discord custom statuses cap ~128 chars anyway.
+function clampPresenceStr(v, max) {
+  return String(v == null ? '' : v).replace(/[\u0000-\u001f]+/g, ' ').slice(0, max).trim();
+}
+
+export async function routePresenceUpdate(env, body) {
+  const userId = String((body && body.userId) || '').trim();
+  if (!/^\d{5,25}$/.test(userId)) return json({ error: 'bad-user-id' }, 400);
+  if (!env.STATE) return json({ error: 'not-configured' }, 503);
+  const rec = {
+    userId,
+    key: clampPresenceStr(body && body.key, 32) || 'idle',
+    state: clampPresenceStr(body && body.state, 128),
+    detail: clampPresenceStr(body && body.detail, 128),
+    ts: Date.now(),
+  };
+  try {
+    await env.STATE.put(presenceKey(userId), JSON.stringify(rec), { expirationTtl: PRESENCE_TTL_SEC });
+  } catch (e) {
+    return json({ error: 'store-failed', message: String((e && e.message) || e) }, 500);
+  }
+  return json({ ok: true, ttl: PRESENCE_TTL_SEC });
+}
+
+export async function routePresenceClear(env, body) {
+  const userId = String((body && body.userId) || '').trim();
+  if (!/^\d{5,25}$/.test(userId)) return json({ error: 'bad-user-id' }, 400);
+  if (!env.STATE) return json({ error: 'not-configured' }, 503);
+  try { await env.STATE.delete(presenceKey(userId)); } catch { /* idle */ }
+  return json({ ok: true });
+}
+
+// Owner-gated read for the future desktop RPC consumer. Lists every live
+// presence (KV TTL already evicts stale ones). Capped at 1000 keys — the
+// active-viewer set never approaches that.
+export async function routePresenceFeed(env) {
+  if (!env.STATE) return json({ error: 'not-configured' }, 503);
+  const out = [];
+  try {
+    const listed = await env.STATE.list({ prefix: PRESENCE_PREFIX, limit: 1000 });
+    for (const k of listed.keys || []) {
+      const raw = await env.STATE.get(k.name);
+      if (!raw) continue;
+      try { out.push(JSON.parse(raw)); } catch { /* skip malformed */ }
+    }
+  } catch (e) {
+    return json({ error: 'read-failed', message: String((e && e.message) || e) }, 500);
+  }
+  return json({ ok: true, presences: out });
 }
 
 async function routeWallet(env, guildId, userId) {
