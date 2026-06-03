@@ -1,7 +1,8 @@
 // Triple-C (Crowd Control Campaign) current-game state + admin API.
 //
-// 2026-06 schedule update. Triple-C is the fixed show on Sun/Mon/Tue/
-// Thu/Fri. The currently-locked-in campaign game is picked from the
+// 2026-06 schedule update. Triple-C is the fixed show on Mon/Tue/Thu
+// (Sun moved to Dad Game Sunday, Fri to Community Night). The
+// currently-locked-in campaign game is picked from the
 // TRIPLE_C_POLL pool (custom-polls.js) and persisted here so the
 // schedule embed + the site can show it. Initial value: Fallout 4.
 //
@@ -84,7 +85,7 @@ export async function announceTripleC(env, current) {
   const pretty = `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'} ET`;
   const embed = {
     title: `📺 Triple-C is now: ${current.name}`,
-    description: `The Crowd Control Campaign game is locked in.\nStreams **Sun · Mon · Tue · Thu · Fri** at **${pretty}**.`,
+    description: `The Crowd Control Campaign game is locked in.\nStreams **Mon · Tue · Thu** at **${pretty}**.`,
     color: 0x9b6cff,
     image: current.artUrl ? { url: current.artUrl } : undefined,
     footer: { text: 'Triple-C · Crowd Control Campaign' },

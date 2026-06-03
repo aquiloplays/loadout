@@ -1,12 +1,14 @@
 // Stream schedule v3 (rev 2026-06): Triple-C (Crowd Control Campaign) is
-// the fixed show; Wed = Variety Night (Mon→Wed vote), Sat = Community
-// Night (Wed→Fri vote). NO rest days. Per-day games are resolved
-// DYNAMICALLY at render time so the embed + site never drift from the
-// locked-in campaign / vote winners:
-//   Sun/Mon/Tue/Thu/Fri → Triple-C campaign game (triple-c:current, e.g.
-//                          Fallout 4) — set via /web/admin/triple-c/set
-//   Wed                  → Variety Night winner (vote-hub:winner:variety)
-//   Sat                  → Community Night winner (vote-hub:winner:cn)
+// the fixed show; Wed = Variety Night (Mon->Wed vote), Fri + Sat =
+// Community Night (Wed->Thu vote, one winner covers both weekend nights),
+// Sun = Dad Game Sunday (Thu->Sun vote). NO rest days. Per-day games are
+// resolved DYNAMICALLY at render time so the embed + site never drift from
+// the locked-in campaign / vote winners:
+//   Mon/Tue/Thu  -> Triple-C campaign game (triple-c:current, e.g.
+//                   Fallout 4), set via /web/admin/triple-c/set
+//   Wed          -> Variety Night winner (vote-hub:winner:variety)
+//   Fri + Sat    -> Community Night winner (vote-hub:winner:cn)
+//   Sun          -> Dad Game Sunday (dad-sunday:current or dad vote winner)
 // Single rolling embed in the schedule channel; vote nights show
 // "vote in progress" until their poll closes.
 //
@@ -30,7 +32,7 @@ const WEEKLY = [
   { day: 'tuesday',   kind: 'triple-c'  },
   { day: 'wednesday', kind: 'variety'   },
   { day: 'thursday',  kind: 'triple-c'  },
-  { day: 'friday',    kind: 'triple-c'  },
+  { day: 'friday',    kind: 'community' },   // 2026-06: Friday joined Community Night (was Triple-C)
   { day: 'saturday',  kind: 'community' },
 ];
 
@@ -125,7 +127,7 @@ const SLOT_META = {
 async function buildSchedulePayload(env, guildId, sched) {
   const headerEmbed = {
     title: '📅 Aquilo · Weekly Stream Schedule',
-    description: 'Hop in any night. **Variety** + **Community Night** games are decided by the poll — tap **Vote** in <#' + (sched.poll_channel_id || '') + '>.',
+    description: 'Hop in any night. **Variety** + **Community Night** games are decided by the poll. Tap **Vote** in <#' + (sched.poll_channel_id || '') + '>.',
     color: COLOR_SCHEDULE,
   };
 
@@ -138,7 +140,7 @@ async function buildSchedulePayload(env, guildId, sched) {
     if (game && game.name) {
       desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n**${game.name}**`;
     } else if (isVoted) {
-      desc = `${meta.emoji} **${meta.show} · vote in progress** · ${TIME_LABEL}\n_Tap **Vote** in <#${sched.poll_channel_id || ''}> — timing is shown in the voting embed._`;
+      desc = `${meta.emoji} **${meta.show} · vote in progress** · ${TIME_LABEL}\n_Tap **Vote** in <#${sched.poll_channel_id || ''}>. Timing is shown in the voting embed._`;
     } else {
       desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n_TBA_`;
     }

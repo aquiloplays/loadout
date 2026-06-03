@@ -75,12 +75,16 @@ export const PHASE = Object.freeze({
 
 export async function getConfig(env, guildId) {
   const raw = await env.LOADOUT_BOLTS.get(HUB_CONFIG_KEY(guildId), { type: 'json' });
-  // v3 schedule (2026-06, Clay): BOTH variety + community are voted,
-  // back-to-back in one channel:
-  //   • Variety vote   Mon 12:00 ET → Wed 12:00 ET   (Wed = Variety Night)
-  //   • Community vote Wed 12:00 ET → Fri 12:00 ET   (Sat = Community Night)
-  //   • Community queue Sat morning → next Mon vote-open (covers the wknd)
-  // Triple-C (Sun/Mon/Tue/Thu/Fri) is a fixed show — no vote — set via
+  // v3 schedule (2026-06, Clay): variety + community + dad are all voted,
+  // back-to-back in one channel. Friday joined Community Night, so the
+  // community vote now closes a day earlier (Thursday noon) to lock the
+  // game in before the Friday stream. One community winner covers BOTH
+  // Friday and Saturday.
+  //   . Variety vote   Mon 12:00 ET -> Wed 12:00 ET  (Wed = Variety Night)
+  //   . Community vote Wed 12:00 ET -> Thu 12:00 ET  (Fri + Sat = Community)
+  //   . Dad vote       Thu 12:00 ET -> Sun 12:00 ET  (Sun = Dad Game Sunday)
+  //   . Community queue Sat morning -> next Mon vote-open (covers the wknd)
+  // Triple-C (Mon/Tue/Thu) is a fixed show, no vote, set via
   // /web/admin/triple-c/set. Each window's open/close is its own
   // weekday+hour so the multi-day spans work.
   return {
@@ -92,20 +96,22 @@ export async function getConfig(env, guildId) {
     varietyVoteCloseHourEt:  Number.isInteger(raw?.varietyVoteCloseHourEt)
                                 ? raw.varietyVoteCloseHourEt : 12,
 
-    // Legacy single-weekday field — no longer drives transitions.
+    // Legacy single-weekday field, no longer drives transitions.
     varietyWeekday: raw?.varietyWeekday || null,
 
-    // CN voting window — multi-day allowed.
+    // CN voting window, multi-day allowed. Closes Thursday noon (2026-06:
+    // pulled in from Friday) so Friday + Saturday Community Night both
+    // play the same locked-in winner.
     cnVoteOpenWeekday:   raw?.cnVoteOpenWeekday   || 'wednesday',
     cnVoteOpenHourEt:    Number.isInteger(raw?.cnVoteOpenHourEt)
                             ? raw.cnVoteOpenHourEt : 12,
-    cnVoteCloseWeekday:  raw?.cnVoteCloseWeekday  || 'friday',
+    cnVoteCloseWeekday:  raw?.cnVoteCloseWeekday  || 'thursday',
     cnVoteCloseHourEt:   Number.isInteger(raw?.cnVoteCloseHourEt)
                             ? raw.cnVoteCloseHourEt : 12,
 
-    // Dad Game Sunday voting window (2026-06). Opens when CN closes,
-    // closes Sunday noon — winner plays Sunday night.
-    dadVoteOpenWeekday:  raw?.dadVoteOpenWeekday  || 'friday',
+    // Dad Game Sunday voting window (2026-06). Opens Thursday noon when CN
+    // closes, closes Sunday noon so the winner plays Sunday night.
+    dadVoteOpenWeekday:  raw?.dadVoteOpenWeekday  || 'thursday',
     dadVoteOpenHourEt:   Number.isInteger(raw?.dadVoteOpenHourEt)
                             ? raw.dadVoteOpenHourEt : 12,
     dadVoteCloseWeekday: raw?.dadVoteCloseWeekday || 'sunday',
@@ -305,7 +311,7 @@ async function buildPhaseEmbed(env, guildId, state, config) {
     const label = kind === 'variety' ? '🎲 Variety night'
                 : kind === 'cn' ? '🏆 Community night' : '🛋️ Dad Game Sunday';
     const tsClose = kind === 'variety' ? tsVarClose : kind === 'cn' ? tsCnClose : tsDadClose;
-    const night = kind === 'variety' ? 'Wednesday' : kind === 'cn' ? 'Saturday' : 'Sunday';
+    const night = kind === 'variety' ? 'Wednesday' : kind === 'cn' ? 'Friday & Saturday' : 'Sunday';
     const lines = [`Tap **Vote** to pick ${night}'s game. You can change your vote until polls close.`];
     if (tsClose) lines.push('', `🏁 Voting closes ${tFmt(tsClose, 'F')} (${tFmt(tsClose, 'R')})`);
     if (kind === 'cn' && tsDadOpen) lines.push(`🛋️ Dad Game Sunday vote opens ${tFmt(tsDadOpen, 'F')}`);
@@ -540,13 +546,14 @@ export async function tickPhaseTransition(env, guildId) {
   const state  = await getState(env, guildId);
   const et = getETInfo(new Date());
 
-  // v3 schedule (2026-06): two back-to-back voted events plus a
-  // weekend community queue, tiling the week:
-  //   • VARIETY_OPEN  Mon 12:00 ET → Wed 12:00 ET
-  //   • CN_OPEN       Wed 12:00 ET → Fri 12:00 ET
-  //   • CN_CLOSED     Fri 12:00 ET → Sat 10:00 ET  (winner-announce gap)
-  //   • CN_QUEUE      Sat 10:00 ET → Mon 12:00 ET  (covers the weekend)
-  // Triple-C is a fixed show — no phase here.
+  // v3 schedule (2026-06): three back-to-back voted events tiling the
+  // week. Community closes Thursday now (Friday joined Community Night)
+  // so the winner is locked before the Friday stream:
+  //   . VARIETY_OPEN  Mon 12:00 ET -> Wed 12:00 ET
+  //   . CN_OPEN       Wed 12:00 ET -> Thu 12:00 ET
+  //   . DAD_OPEN      Thu 12:00 ET -> Sun 12:00 ET
+  //   . DAD_CLOSED    Sun 12:00 ET -> Mon 12:00 ET  (winner-announce gap)
+  // Triple-C is a fixed show, no phase here.
   const inVarietyVote = isInWindow(et,
     config.varietyVoteOpenWeekday,  config.varietyVoteOpenHourEt,
     config.varietyVoteCloseWeekday, config.varietyVoteCloseHourEt);
@@ -558,12 +565,12 @@ export async function tickPhaseTransition(env, guildId) {
     config.dadVoteOpenWeekday,  config.dadVoteOpenHourEt,
     config.dadVoteCloseWeekday, config.dadVoteCloseHourEt);
 
-  // 2026-06 weekly tiling (Clay): three back-to-back voted nights —
-  //   VARIETY_OPEN  Mon 12 → Wed 12   (Wed = Variety Night)
-  //   CN_OPEN       Wed 12 → Fri 12   (Sat = Community Night)
-  //   DAD_OPEN      Fri 12 → Sun 12   (Sun = Dad Game Sunday)
-  //   DAD_CLOSED    Sun 12 → Mon 12   (winner-announce gap)
-  // (Triple-C is a fixed show — no phase.)
+  // 2026-06 weekly tiling (Clay): three back-to-back voted nights.
+  //   VARIETY_OPEN  Mon 12 -> Wed 12   (Wed = Variety Night)
+  //   CN_OPEN       Wed 12 -> Thu 12   (Fri + Sat = Community Night)
+  //   DAD_OPEN      Thu 12 -> Sun 12   (Sun = Dad Game Sunday)
+  //   DAD_CLOSED    Sun 12 -> Mon 12   (winner-announce gap)
+  // (Triple-C is a fixed show, no phase.)
   let desired;
   if (inVarietyVote)   desired = PHASE.VARIETY_OPEN;
   else if (inCnVote)   desired = PHASE.CN_OPEN;
@@ -645,9 +652,9 @@ async function announceVoteResult(env, guildId, kind, winner) {
     || env.VOTE_HUB_CHANNEL || '1508318929855184987';
   const label = kind === 'variety' ? '🎲 Variety Night'
               : kind === 'cn' ? '🏆 Community Night' : '🛋️ Dad Game Sunday';
-  const night = kind === 'variety' ? 'Wednesday' : kind === 'cn' ? 'Saturday' : 'Sunday';
+  const night = kind === 'variety' ? 'Wednesday' : kind === 'cn' ? 'Friday & Saturday' : 'Sunday';
   const embed = {
-    title: `${label} — winner: ${winner.name}`,
+    title: `${label} winner: ${winner.name}`,
     description:
       `The votes are in! **${winner.name}** won` +
       (winner.votes ? ` with **${winner.votes}** vote${winner.votes === 1 ? '' : 's'}` : '') +
@@ -688,20 +695,20 @@ export async function buildLineupEmbed(env, guildId) {
 
   const fields = [
     {
-      name: '📺 Triple-C · Mon · Tue · Thu · Fri',
+      name: '📺 Triple-C · Mon · Tue · Thu',
       value: tripleC?.name ? `**${tripleC.name}**` : '_TBA_',
     },
     {
       name: '🎲 Variety Night · Wed',
-      value: variety?.name ? `**${variety.name}**` : '_Decided by Monday–Wednesday vote_',
+      value: variety?.name ? `**${variety.name}**` : '_Decided by the Monday to Wednesday vote_',
     },
     {
-      name: '🏆 Community Night · Sat',
-      value: cn?.name ? `**${cn.name}**` : '_Decided by Wednesday–Friday vote_',
+      name: '🏆 Community Night · Fri & Sat',
+      value: cn?.name ? `**${cn.name}**` : '_Decided by the Wednesday to Thursday vote_',
     },
     {
       name: '🛋️ Dad Game Sunday · Sun',
-      value: dad?.name ? `**${dad.name}**` : '_Decided by Friday–Sunday vote_',
+      value: dad?.name ? `**${dad.name}**` : '_Decided by the Thursday to Sunday vote_',
     },
   ];
   const embed = {

@@ -33,17 +33,19 @@ const DEFAULT_SCHEDULE = {
   updatedAt: 0,
   updatedBy: null,
   // 2026-06 schedule update (Clay): Triple-C (Crowd Control Campaign) is
-  // the fixed show Sun/Mon/Tue/Thu/Fri; Wed = Variety Night; Sat =
-  // Community Night. Same start times. The Triple-C campaign game
-  // (Fallout 4 to start) is set via /web/admin/triple-c/set and shown
-  // dynamically on the embed; the day `label` stays the show name.
+  // the fixed show Mon/Tue/Thu; Wed = Variety Night; Fri + Sat = Community
+  // Night (one community vote covers the weekend pair, so the same game
+  // plays both nights); Sun = Dad Game Sunday. Same start times. The
+  // Triple-C campaign game (Fallout 4 to start) is set via
+  // /web/admin/triple-c/set and shown dynamically on the embed; the day
+  // `label` stays the show name.
   days: [
     { dow: 0, label: 'Dad Game Sunday', kind: 'dad-sunday', startLocal: '22:30', endLocal: '00:30' },
     { dow: 1, label: 'Triple-C',        kind: 'fixed',     startLocal: '22:30', endLocal: '00:30' },
     { dow: 2, label: 'Triple-C',        kind: 'fixed',     startLocal: '22:30', endLocal: '00:30' },
     { dow: 3, label: 'Variety Night',   kind: 'variety',   startLocal: '22:30', endLocal: '00:30' },
     { dow: 4, label: 'Triple-C',        kind: 'fixed',     startLocal: '22:30', endLocal: '00:30' },
-    { dow: 5, label: 'Triple-C',        kind: 'fixed',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 5, label: 'Community Night', kind: 'community', startLocal: '22:30', endLocal: '00:30' },
     { dow: 6, label: 'Community Night', kind: 'community', startLocal: '22:30', endLocal: '00:30' },
   ],
 };

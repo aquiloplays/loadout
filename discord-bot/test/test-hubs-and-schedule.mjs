@@ -158,10 +158,10 @@ console.log('— getPublicSchedule: shape + CN winner');
     SCHEDULE_CHANNEL_ID: '1507973920282640485',
     POLL_CHANNEL_ID:     '1508318930845044786',
   };
-  // No saved sched → load returns defaults; vote nights have no winner →
-  // status = 'vote-open'. 2026-06: Triple-C (Mon/Tue/Thu/Fri) resolves the
-  // locked campaign (Fallout 4 default), Wed=variety, Sat=community, Sun=
-  // Dad Game Sunday. No rest days.
+  // No saved sched, so load returns defaults; vote nights have no winner,
+  // so status = 'vote-open'. 2026-06: Triple-C (Mon/Tue/Thu) resolves the
+  // locked campaign (Fallout 4 default), Wed=variety, Fri + Sat=community,
+  // Sun=Dad Game Sunday. No rest days.
   const r1 = await getPublicSchedule(env, GUILD);
   assert(r1.ok, 'ok:true');
   eq(r1.guildId, GUILD, 'guildId echoed');
