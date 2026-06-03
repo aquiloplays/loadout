@@ -323,7 +323,7 @@ export const ACHIEVEMENTS_CATALOG = [
   { id: 'quick.high-roller', category: 'quick', title: 'High Roller',
     description: 'Place a single bet of 1,000 bolts or more.', iconKind: 'coin',
     rarity: 'rare', xpReward: 100,
- countAtLeast: 1 }] },
+    triggers: [{ kind: 'quick.game.played', withMeta: { bet: 1000 }, countAtLeast: 1 }] },
   { id: 'quick.crash-2x', category: 'quick', title: 'Crash Survivor',
     description: 'Cash out a crash run at 2× or higher.', iconKind: 'crash',
     rarity: 'common', xpReward: 50,
