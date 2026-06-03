@@ -832,7 +832,18 @@ async function routeRoomCancel(env, guildId, userId) {
 // the structured deck so it can rank by copies + serve Deck of the Day.
 
 async function routeDeckShare(env, guildId, userId, body) {
-  return json(await shareDeck(env, userId, body || {}));
+  const b = body || {};
+  // Common path: share a SAVED deck by id — resolve its cards +
+  // champion here so the site only sends { deckId, name, archetype }.
+  // Falls through to explicit `cards` (deck-code import sharing).
+  if (b.deckId && !Array.isArray(b.cards)) {
+    const { getDeck } = await import('./cards-state.js');
+    const d = await getDeck(env, guildId, userId, String(b.deckId));
+    if (!d) return json({ ok: false, error: 'deck-not-found' }, 404);
+    b.cards = d.cards;
+    if (!b.championClass) b.championClass = d.championClass;
+  }
+  return json(await shareDeck(env, userId, b));
 }
 async function routeDeckCommunity(env, guildId, userId, body) {
   return json(await listCommunity(env, {
