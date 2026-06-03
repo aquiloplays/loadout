@@ -411,8 +411,8 @@ export async function anniversaryDailyCron(env, opts = {}) {
 
 // ── HTTP route handler ────────────────────────────────────────────
 // 2026-05-31, exposes celebrateAnniversary + getFirstSeen via HMAC
-// HTTP for the site to call. Pattern matches daily-quests/twitch-drops/
-// pet-leveling: GET is public for the read path, POST is HMAC-gated.
+// HTTP for the site to call. Pattern matches daily-quests/pet-leveling:
+// GET is public for the read path, POST is HMAC-gated.
 
 function _ajson(obj, status = 200) {
   return new Response(JSON.stringify(obj), {

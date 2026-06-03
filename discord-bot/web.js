@@ -237,10 +237,6 @@ const ROUTES = new Set([
   'boltrain/trigger',        // POST, open a rain (T2+ only)
   'boltrain/claim',          // POST, first-click claim
   'boltrain/state',          // POST, current event state (+ youClaimed)
-  // Random Drops (random-drops.js), rarity-weighted chest spawns.
-  'randomdrop/state',        // POST, current drop (+ youClaimed)
-  'randomdrop/claim',        // POST, first-click claim
-  'randomdrop/spawn',        // POST, owner-only manual spawn (testing)
   'quest/snapshot',          // POST, checklist with claim state
   'quest/claim',             // POST, claim one step (or 'all')
   'quest/mark-patreon-linked', // POST, flip the patreon-linked completion flag (called by site after OAuth)
@@ -474,12 +470,6 @@ export async function handleWeb(req, env) {
     if (route === 'boltrain/trigger')         return await routeBoltRainTrigger(env, guildId, discordId);
     if (route === 'boltrain/claim')           return await routeBoltRainClaim(env, guildId, discordId);
     if (route === 'boltrain/state')           return await routeBoltRainState(env, guildId, discordId);
-    if (route === 'randomdrop/state')         return await routeRandomDropState(env, guildId, discordId);
-    if (route === 'randomdrop/claim')         return await routeRandomDropClaim(env, guildId, discordId);
-    if (route === 'randomdrop/spawn') {
-      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
-      return await routeRandomDropSpawn(env, guildId);
-    }
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
     if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
     if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
@@ -1013,30 +1003,6 @@ async function routeBoltRainClaim(env, guildId, discordId) {
 async function routeBoltRainState(env, guildId, discordId) {
   const { getBoltRainState } = await import('./bolt-rain.js');
   const r = await getBoltRainState(env, guildId, discordId);
-  return json(r, r.ok ? 200 : 400);
-}
-
-// ── /web/randomdrop/*, rarity-weighted chest spawns ─────────────────
-async function routeRandomDropState(env, guildId, discordId) {
-  const { getRandomDropState } = await import('./random-drops.js');
-  const r = await getRandomDropState(env, guildId, discordId);
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeRandomDropClaim(env, guildId, discordId) {
-  const { claimRandomDrop } = await import('./random-drops.js');
-  const r = await claimRandomDrop(env, guildId, discordId);
-  const code = r.ok ? 200
-    : r.error === 'not-active' ? 410
-    : r.error === 'already-claimed' ? 409
-    : r.error === 'depleted' ? 409
-    : 400;
-  return json(r, code);
-}
-
-async function routeRandomDropSpawn(env, guildId) {
-  const { spawnRandomDrop } = await import('./random-drops.js');
-  const r = await spawnRandomDrop(env, guildId);
   return json(r, r.ok ? 200 : 400);
 }
 

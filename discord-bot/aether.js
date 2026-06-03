@@ -25,7 +25,6 @@ export const MILESTONE_AETHER = Object.freeze({
   'anniversary':      50,   // base; multiplied by years at call site
   'pass-tier':        10,
   'squad-join':        5,
-  'drop-claim':       15,
   'bolt-rain-claim':   3,
   'first-game':       20,
 });

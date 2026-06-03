@@ -1030,13 +1030,6 @@ export default {
       const { handleReplayRxRoute } = await import('./boltbound-replays-rx.js');
       return handleReplayRxRoute(req, env, path);
     }
-    // Twitch Drops, per-viewer cumulative watch-time + milestone
-    // claims. handleDropsRoute dispatches both GET /me and POST /claim
-    // by method+path. See twitch-drops.js.
-    if (path === '/web/twitch-drops/me' || path === '/web/twitch-drops/claim') {
-      const { handleDropsRoute } = await import('./twitch-drops.js');
-      return handleDropsRoute(req, env, path);
-    }
     // Spire Maps, Slay-the-Spire branching path layer per run.
     // 4 endpoints dispatched by handleSpireMapRoute: POST /generate,
     // GET /me/:runId, POST /advance, POST /resolve. See spire-map.js.
@@ -1230,36 +1223,7 @@ export default {
                 }
               } catch (e) { console.warn('[cron] bolt-rain', e?.message || e); }
             })());
-            // Twitch Drops watch-time tick (shares the 5-min cadence).
-            // Walks linked viewers, +5 min to each while live, checks
-            // milestone crossings. No-op when stream is offline.
-            ctx.waitUntil((async () => {
-              try {
-                const { watchTimeTickCron } = await import('./twitch-drops.js');
-                const r = await watchTimeTickCron(env);
-                if (r?.ok && (r.credited || r.crossings)) {
-                  console.log('[cron] twitch-drops:', r.walkedUsers, 'viewers,',
-                              r.credited, 'min credited,', r.crossings, 'crossings');
-                }
-              } catch (e) { console.warn('[cron] twitch-drops', e?.message || e); }
-            })());
           }
-        }
-        // Random Drops, rarity-weighted community chest spawn every 2
-        // hours. randomDropCron self-gates to even-hour:00 via a KV
-        // 2h-bucket marker (the account is at the 4-cron ceiling, so
-        // this rides the every-minute trigger instead of its own
-        // `0 */2 * * *` cron). No-op off-cadence / already-spawned.
-        if (activeGuildId) {
-          ctx.waitUntil((async () => {
-            try {
-              const { randomDropCron } = await import('./random-drops.js');
-              const r = await randomDropCron(env);
-              if (r?.spawned?.ok && !r.spawned.alreadyActive) {
-                console.log('[cron] random-drop spawned', r.spawned.rarity, 'bucket', r.bucket);
-              }
-            } catch (e) { console.warn('[cron] random-drop', e?.message || e); }
-          })());
         }
         // 30-minute pre-stream ping. Opt-in via STREAM_PING_CHANNEL, // the helper no-ops (and we skip the import) when it's unset,
         // so this stays cheap on the every-minute trigger. A per-event
