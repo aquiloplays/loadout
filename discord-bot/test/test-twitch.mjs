@@ -140,7 +140,7 @@ console.log('— EventSub webhook: bad signature → 403, no handler run');
   const ctx = { waitUntil: (p) => calls.push(p) };
   const body = JSON.stringify({
     subscription: { type: 'stream.online' },
-    event: { broadcaster_user_id: '1497793223' },
+    event: { broadcaster_user_id: '991099623' },
   });
   const req = new Request('https://w/twitch/eventsub', {
     method: 'POST',
@@ -167,7 +167,7 @@ console.log('— EventSub webhook: notification + replay swallow');
   const ts = '2026-05-26T02:00:00Z';
   const body = JSON.stringify({
     subscription: { type: 'stream.online' },
-    event: { broadcaster_user_id: '1497793223' },
+    event: { broadcaster_user_id: '991099623' },
   });
   const sig = await sign(SECRET, id, ts, body);
   const make = () => new Request('https://w/twitch/eventsub', {
@@ -490,7 +490,7 @@ console.log('— setupTwitchSubscriptions: misconfig + user-auth skipping');
     LOADOUT_BOLTS: makeKv(),
     TWITCH_CLIENT_ID: 'cid', TWITCH_CLIENT_SECRET: 'sec',
     TWITCH_EVENTSUB_SECRET: 'es-sec',
-    CLAY_TWITCH_CHANNEL_ID: '1497793223',
+    CLAY_TWITCH_CHANNEL_ID: '991099623',
   };
   // Stub fetch so listSubscriptions returns [] and createSubscription
   // 'creates' deterministic ids without going to twitch.

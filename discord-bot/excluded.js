@@ -22,10 +22,12 @@ const EXCLUDED_DISCORD_IDS = new Set([
 ]);
 
 const EXCLUDED_TWITCH_IDS = new Set([
-  '1497793223', // Clay's Twitch channel id (aquilogg)
+  '991099623',  // Clay's Twitch channel id (prodigalttv) — active 2026-06-02
+  '1497793223', // Clay's old Twitch channel id (aquilogg) — kept for legacy wallets
 ]);
 
 const EXCLUDED_LINK_HANDLES = new Set([
+  'twitch:prodigalttv',
   'twitch:aquilogg',
   'tiktok:%40aquilo.gg',
   'tiktok:aquilo.gg',

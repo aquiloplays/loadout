@@ -61,7 +61,7 @@ function endedEmbed({ user, login, startedAt, lastTitle, lastGame, lastPeakViewe
   if (lastPeakViewers) lines.push('👥 peak: ' + lastPeakViewers.toLocaleString());
   if (durationMs > 0)  lines.push('⏱ streamed for ' + dur);
   lines.push('');
-  lines.push('Catch the next one at https://twitch.tv/' + (login || 'aquilogg'));
+  lines.push('Catch the next one at https://twitch.tv/' + (login || 'prodigalttv'));
   return {
     title: '⚫ ' + (user?.display_name || login || 'Streamer') + ' is offline',
     description: lines.join('\n'),
@@ -136,7 +136,7 @@ export async function postLiveEmbed(env, broadcasterId) {
   const post = await discordRest(env, 'POST',
     `/channels/${liveChannelId}/messages`,
     {
-      content: '🔴 Live now: https://twitch.tv/' + (login || 'aquilogg'),
+      content: '🔴 Live now: https://twitch.tv/' + (login || 'prodigalttv'),
       embeds: [liveEmbed({ stream, user, login })],
       allowed_mentions: { parse: [] },
     });

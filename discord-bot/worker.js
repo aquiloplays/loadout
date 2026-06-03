@@ -502,6 +502,16 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_twitch-setup-debug/')) {
       return handleTwitchSetupDebug(req, env, path);
     }
+    // One-shot account-swap maintenance: resolve a login → broadcaster
+    // id and/or DELETE every EventSub subscription tied to a given
+    // (old) broadcaster id. Used for the 2026-06-02 aquilogg →
+    // prodigalttv swap. KV-token-gated (bootstrap-twitch-prune-token),
+    // re-runnable (idempotent). ?resolve=<login> and ?broadcaster=<id>
+    // (&dryRun=1 to preview). See handleTwitchPrune.
+    if ((method === 'POST' || method === 'GET') &&
+        path.startsWith('/admin/_twitch-prune/')) {
+      return handleTwitchPrune(req, env, path);
+    }
     // Post the backfill summary embed to the admin hub channel.
     // KV-token gated, self-destructing — Clay re-mints when he wants
     // a fresh snapshot.
@@ -3492,6 +3502,95 @@ async function handleTwitchSetupDebug(req, env, path) {
   const { setupTwitchSubscriptions } = await import('./twitch-eventsub.js');
   const r = await setupTwitchSubscriptions(env, opts);
   return jsonResp(r);
+}
+
+// ── /admin/_twitch-prune/:token (KV-token, idempotent) ───────────
+//
+// Account-swap maintenance for the 2026-06-02 aquilogg → prodigalttv
+// migration. Two independent jobs, both optional via query params:
+//
+//   ?resolve=<login>      Look up a Twitch login via Helix /users and
+//                         return its numeric broadcaster id. Confirms
+//                         the new account id server-side (uses the
+//                         worker's TWITCH_CLIENT_ID/SECRET app token
+//                         (no secret ever leaves the worker).
+//
+//   ?broadcaster=<id>     DELETE every EventSub subscription whose
+//                         condition is tied to that broadcaster id
+//                         (broadcaster_user_id / to_broadcaster_user_id
+//                         / moderator_user_id). Subs for OTHER
+//                         broadcasters are left untouched. Add
+//                         &dryRun=1 to preview the match set without
+//                         deleting.
+//
+// Token NOT self-destructed — re-running is a no-op (a second prune
+// finds zero matches). Delete `bootstrap-twitch-prune-token` from KV
+// when finished.
+async function handleTwitchPrune(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','_twitch-prune',':token']
+  const token = parts[2];
+  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-twitch-prune-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+
+  const u = new URL(req.url);
+  const resolveLogin = (u.searchParams.get('resolve') || '').trim().toLowerCase();
+  const broadcaster  = (u.searchParams.get('broadcaster') || '').trim();
+  const dryRun       = u.searchParams.get('dryRun') === '1';
+
+  const { helixFetch, listSubscriptions, deleteSubscription } =
+    await import('./twitch-helix.js');
+
+  const out = { ok: true, dryRun };
+
+  // — Resolve login → id (optional).
+  if (resolveLogin) {
+    const j = await helixFetch(env, '/users', { login: resolveLogin }).catch(() => null);
+    const user = j?.data?.[0] || null;
+    out.resolve = user
+      ? { login: user.login, id: user.id, displayName: user.display_name }
+      : { login: resolveLogin, id: null, error: 'not-found' };
+  }
+
+  // — Prune EventSub subs for a broadcaster id (optional).
+  if (broadcaster) {
+    const all = await listSubscriptions(env);
+    const tiedToBroadcaster = (s) => {
+      const c = s.condition || {};
+      return String(c.broadcaster_user_id || '') === broadcaster
+          || String(c.to_broadcaster_user_id || '') === broadcaster
+          || String(c.moderator_user_id || '') === broadcaster;
+    };
+    const matches = all.filter(tiedToBroadcaster);
+    const deleted = [];
+    const failed = [];
+    if (!dryRun) {
+      for (const s of matches) {
+        try {
+          const r = await deleteSubscription(env, s.id);
+          if (r && (r.ok || r.status === 204)) deleted.push({ id: s.id, type: s.type });
+          else failed.push({ id: s.id, type: s.type, reason: 'delete-failed' });
+        } catch (e) {
+          failed.push({ id: s.id, type: s.type, reason: String(e?.message || e) });
+        }
+      }
+    }
+    out.prune = {
+      broadcaster,
+      totalSubs: all.length,
+      matched: matches.map(s => ({ id: s.id, type: s.type, status: s.status, condition: s.condition })),
+      matchedCount: matches.length,
+      deletedCount: dryRun ? 0 : deleted.length,
+      deleted,
+      failed,
+      remainingOtherBroadcasters: all.length - matches.length,
+    };
+  }
+
+  if (!resolveLogin && !broadcaster) {
+    out.note = 'pass ?resolve=<login> and/or ?broadcaster=<id> (&dryRun=1 to preview)';
+  }
+  return jsonResp(out);
 }
 
 // ── /admin/_card-art-wipe/:token (KV-token, idempotent) ──────────

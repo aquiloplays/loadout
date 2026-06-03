@@ -139,7 +139,7 @@ function makeMockDB() {
 
 function makeEnv() { return { DB: makeMockDB() }; }
 
-const OWNER = 'owner-1', CH = 'aquilogg';
+const OWNER = 'owner-1', CH = 'prodigalttv';
 
 // ── lifecycle ─────────────────────────────────────────────────────
 

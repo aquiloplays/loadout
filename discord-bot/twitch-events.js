@@ -393,7 +393,7 @@ export function streamEndedSummaryEmbed({ user, login, startedAt, lastTitle, las
   if (totalFollows != null) lines.push(`📈 Total follows: ${totalFollows.toLocaleString()}`);
   if (totalSubs != null)    lines.push(`💜 Total subs: ${totalSubs.toLocaleString()}`);
   lines.push('');
-  lines.push(`See you next stream at https://twitch.tv/${login || 'aquilogg'}`);
+  lines.push(`See you next stream at https://twitch.tv/${login || 'prodigalttv'}`);
   return {
     color: EVENT_COLORS.ended,
     author: { name: (user?.display_name || login || 'Streamer') + ' — stream wrap',

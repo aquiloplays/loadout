@@ -73,7 +73,7 @@ function makeEnv() {
   return {
     DB: makeD1(),
     LOADOUT_BOLTS: makeKV(),
-    CLAY_TWITCH_CHANNEL_ID: '1497793223',
+    CLAY_TWITCH_CHANNEL_ID: '991099623',
     TWITCH_CLIENT_ID: 'cid', TWITCH_CLIENT_SECRET: 'csec',
     SCRATCH_ADMIN_TOKEN: 'admintok',
     DISCORD_BOT_TOKEN: 'bottok', SCRATCH_ECHO_CHANNEL_ID: '999',

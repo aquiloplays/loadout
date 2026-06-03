@@ -445,7 +445,7 @@ Stored at `clash:exclude` as a single small JSON document:
 {
   "_comment": "Excluded from every Clash leaderboard. Easy to flip off when testing is done.",
   "patreon_emails":  ["bisherclay@gmail.com"],
-  "twitch_user_ids": ["1497793223"],
+  "twitch_user_ids": ["991099623", "1497793223"],
   "discord_user_ids": []
 }
 ```
@@ -614,8 +614,9 @@ Optional Loadout worker env override:
 ### Exclude list (Clay's testing account)
 
 Stored at KV key `clash:exclude` in `LOADOUT_BOLTS`. Default seeded
-on first read with `bisherclay@gmail.com` (Patreon) and `1497793223`
-(Twitch). Clay's Discord ID resolves at runtime via the wallet
+on first read with `bisherclay@gmail.com` (Patreon) and `991099623`
+(Twitch · prodigalttv; legacy `1497793223`/aquilogg retained). Clay's
+Discord ID resolves at runtime via the wallet
 `links: []` array — if Clay's Discord account is wallet-linked to
 either his Twitch ID or Patreon email, the resolver pins his Discord
 ID automatically across every leaderboard query. Flip-off paths:

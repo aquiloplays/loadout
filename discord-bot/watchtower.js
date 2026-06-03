@@ -24,7 +24,7 @@ async function resolveBroadcaster(env, channel) {
   if (!raw || raw === 'me') {
     const id = String(env.CLAY_TWITCH_CHANNEL_ID || '').trim();
     if (!id) return null;
-    return { id, login: env.CLAY_TWITCH_LOGIN || 'aquilogg', displayName: null };
+    return { id, login: env.CLAY_TWITCH_LOGIN || 'prodigalttv', displayName: null };
   }
   if (/^\d+$/.test(raw)) {
     const j = await helixFetch(env, '/users', { id: raw }).catch(() => null);

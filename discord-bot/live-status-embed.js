@@ -124,7 +124,7 @@ async function discordDelete(env, channelId, messageId) {
 // broadcaster user_id. Cached implicitly via getUserById's Helix call.
 async function loginFor(env, broadcasterId) {
   const user = await getUserById(env, broadcasterId).catch(() => null);
-  return user?.login || env.CLAY_TWITCH_LOGIN || 'aquilogg';
+  return user?.login || env.CLAY_TWITCH_LOGIN || 'prodigalttv';
 }
 
 export async function handleStreamOnline(env, broadcasterId) {

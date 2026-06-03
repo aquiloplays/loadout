@@ -23,7 +23,7 @@ const SYNC_KEY = (g) => `stream-events:synced:${g}`;
 const PING_KEY = (g) => `stream-events:pinged:${g}`;
 
 function twitchUrl(env) {
-  return `https://twitch.tv/${env.CLAY_TWITCH_LOGIN || 'aquilogg'}`;
+  return `https://twitch.tv/${env.CLAY_TWITCH_LOGIN || 'prodigalttv'}`;
 }
 
 function gid(env, guildId) {

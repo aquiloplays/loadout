@@ -58,9 +58,14 @@ DISCORD_APP_ID = "1500849448866025573"
 # Primary Aquilo guild ID. Used as the default/active guild across the
 # schedule embeds, stream pings, vote hub, lineup, and admin HMAC auth.
 AQUILO_VAULT_GUILD_ID = "1504103035951906883"
-# Clay's Twitch channel (login: aquilogg) — relay room-key derivation +
-# channel gate for /ext/* routes.
-CLAY_TWITCH_CHANNEL_ID = "1497793223"
+# Clay's Twitch channel (login: prodigalttv) — relay room-key derivation +
+# channel gate for /ext/* routes. Swapped 2026-06-02 from aquilogg
+# (1497793223) → prodigalttv (991099623) per Clay; old aquilogg OAuth
+# registration kept dormant for a potential switch-back.
+CLAY_TWITCH_CHANNEL_ID = "991099623"
+# Twitch login slug used for twitch.tv/<login> links + display. Falls
+# back to the live Helix lookup; this var is the explicit override.
+CLAY_TWITCH_LOGIN = "prodigalttv"
 
 # ── Aquilo-server channel + role wiring ────────────────────────────────
 # Rewritten 2026-05 to point at the channels created by the L6 guild
