@@ -26,6 +26,7 @@ import {
   challengeCreate,
   challengeAccept,
   challengeDecline,
+  openAiMatch,
   getAdapter,
 } from './boardgames-engine.js';
 
@@ -40,6 +41,7 @@ const BOARD_ROUTES = new Set([
   'board/challenge/create',
   'board/challenge/accept',
   'board/challenge/decline',
+  'board/ai/new',
 ]);
 
 export function isBoardRoute(sub) {
@@ -130,6 +132,14 @@ export async function routeBoard(env, route, guildId, discordId, body) {
     if (!challengeId) return json({ ok: false, error: 'bad-request' }, 400);
     const r = await challengeDecline(env, discordId, challengeId);
     return json(r);
+  }
+
+  if (route === 'board/ai/new') {
+    const game = String(body.game || '');
+    if (!getAdapter(game)) return json({ ok: false, error: 'bad-game' }, 400);
+    const difficulty = String(body.difficulty || '');
+    const r = await openAiMatch(env, guildId, game, difficulty, { userId: discordId, displayName });
+    return json(r, r.ok ? 200 : 400);
   }
 
   return json({ ok: false, error: 'not-found' }, 404);

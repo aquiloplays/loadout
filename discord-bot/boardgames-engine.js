@@ -55,6 +55,7 @@
 //   terminate cleanly.
 
 import { earn, spend, getWallet } from './wallet.js';
+import { pickAiMove, AI_PERSONAS, isValidDifficulty } from './boardgames-ai.js';
 
 const MATCH_PREFIX = 'bg:match:';
 const USER_PREFIX = 'bg:user:';
@@ -62,6 +63,12 @@ const QUEUE_PREFIX = 'bg:queue:';
 const OPTIN_PREFIX = 'bg:optin:';
 const CHALLENGE_PREFIX = 'bg:challenge:';
 const USER_CHALLENGES_PREFIX = 'bg:user:challenges:';
+
+// Synthetic opponent id for solo vs-AI matches. Non-numeric so the
+// your-turn push (which validates a Discord snowflake) skips it; we also
+// exclude it from active-match bookkeeping and PvP stats.
+const AI_USER_ID = 'ai';
+function isAiUser(id) { return id === AI_USER_ID; }
 
 // Soft ceiling so a stalemated lobby doesn't pin a player into infinite
 // active games. Anything above this fails newGame() with too-many-active.
@@ -124,6 +131,7 @@ async function saveUserActive(env, guildId, userId, rec) {
 }
 
 async function addUserActive(env, guildId, userId, matchId) {
+  if (isAiUser(userId)) return;
   const rec = await loadUserActive(env, guildId, userId);
   if (!rec.activeMatchIds.includes(matchId)) {
     rec.activeMatchIds.push(matchId);
@@ -132,6 +140,7 @@ async function addUserActive(env, guildId, userId, matchId) {
 }
 
 async function removeUserActive(env, guildId, userId, matchId) {
+  if (isAiUser(userId)) return;
   const rec = await loadUserActive(env, guildId, userId);
   rec.activeMatchIds = rec.activeMatchIds.filter(m => m !== matchId);
   await saveUserActive(env, guildId, userId, rec);
@@ -331,12 +340,30 @@ export async function applyMove(env, guildId, userId, matchId, move) {
       m.turnDeadline = Date.now() + TURN_DEADLINE_MS;
       // Fire-and-forget push to the player whose turn it just became.
       // Their discordId IS the userId we stored on creation (same
-      // namespace as wallet ids in this deploy).
-      const newIdx = newTurn === 'p1' ? 0 : 1;
-      const targetUserId = m.players[newIdx].userId;
-      try {
-        await notifyYourTurn(env, m, targetUserId);
-      } catch { /* notification best-effort */ }
+      // namespace as wallet ids in this deploy). Skipped for vs-AI: the
+      // AI side has no Discord id and replies in this same request.
+      if (!m.ai) {
+        const newIdx = newTurn === 'p1' ? 0 : 1;
+        const targetUserId = m.players[newIdx].userId;
+        try {
+          await notifyYourTurn(env, m, targetUserId);
+        } catch { /* notification best-effort */ }
+      }
+    }
+  }
+
+  // Solo vs-AI: play the AI's reply(s) now so this response already
+  // reflects the AI's move. If the AI ends the match, settle + clean up
+  // exactly like a human-terminated game.
+  if (m.status === 'active' && m.ai && adapter.sideToMove(m.state) === m.ai.side) {
+    applyAiTurns(adapter, m);
+    if (m.status === 'finished') {
+      await settleEscrow(env, m);
+      await emitBoardgameProgression(env, m);
+      await removeUserActive(env, guildId, m.players[0].userId, m.id);
+      await removeUserActive(env, guildId, m.players[1].userId, m.id);
+    } else {
+      m.turnDeadline = Date.now() + TURN_DEADLINE_MS;
     }
   }
 
@@ -570,6 +597,75 @@ async function openMatch(env, guildId, game, wager, players) {
   return match;
 }
 
+/**
+ * Open a solo match against an AI opponent. The human is always p1 (so
+ * they move first); the AI is a synthetic p2 whose replies are computed
+ * server-side in applyMove. No wager / escrow, vs-AI is practice.
+ */
+export async function openAiMatch(env, guildId, game, difficulty, human) {
+  const adapter = getAdapter(game);
+  if (!adapter) return { ok: false, error: 'bad-game' };
+  if (!isValidDifficulty(difficulty)) return { ok: false, error: 'bad-difficulty' };
+
+  const userActive = await loadUserActive(env, guildId, human.userId);
+  if ((userActive.activeMatchIds || []).length >= MAX_ACTIVE_PER_USER) {
+    return { ok: false, error: 'too-many-active', message: 'Finish a game in progress first.' };
+  }
+
+  const persona = AI_PERSONAS[difficulty];
+  const now = Date.now();
+  const match = {
+    id: randomId('m'),
+    game,
+    players: [
+      { userId: human.userId, displayName: human.displayName || 'Player' },
+      { userId: AI_USER_ID, displayName: persona.name },
+    ],
+    wager: 0,
+    pot: 0,
+    state: adapter.initialState(),
+    status: 'active',
+    turn: 'p1',
+    winner: null,
+    history: [],
+    createdAt: now,
+    updatedAt: now,
+    turnDeadline: now + TURN_DEADLINE_MS,
+    guildId,
+    escrowed: false,
+    ai: { side: 'p2', difficulty },
+  };
+  await saveMatch(env, match);
+  await addUserActive(env, guildId, human.userId, match.id);
+  return { ok: true, matchId: match.id, match: redactMatch(match, human.userId) };
+}
+
+// Play out the AI's reply(s) on a vs-AI match, mutating `m` in place. A
+// checkers multi-jump keeps the AI on the move, so we loop until it's
+// the human's turn again (or the match ends). Pure/synchronous: pickAiMove
+// + adapter.applyMove don't touch KV. The guard caps a pathological loop.
+function applyAiTurns(adapter, m) {
+  const aiSide = m.ai.side;
+  let guard = 0;
+  while (m.status === 'active' && adapter.sideToMove(m.state) === aiSide && guard++ < 80) {
+    const move = pickAiMove(adapter, m.game, m.state, aiSide, m.ai.difficulty);
+    if (!move) break;
+    const res = adapter.applyMove(m.state, aiSide, move);
+    if (!res.ok) break;
+    m.state = res.state;
+    m.lastMove = { side: aiSide, move, ts: Date.now() };
+    m.history = m.history || [];
+    m.history.push(m.lastMove);
+    if (res.terminal) {
+      m.status = 'finished';
+      m.winner = res.terminal.winner;
+      m.winReason = res.terminal.reason || null;
+      m.turnDeadline = null;
+      break;
+    }
+  }
+}
+
 async function settleEscrow(env, m) {
   if (!m.escrowed || m.wager <= 0) return;
   const [p1, p2] = m.players;
@@ -588,6 +684,9 @@ async function settleEscrow(env, m) {
 // finished/abandoned. Dedup by matchId so re-running emits once.
 export async function emitBoardgameProgression(env, m) {
   if (!m || m.status === 'active' || m.status === 'waiting') return;
+  // vs-AI is practice: no PvP progression / quest / achievement credit
+  // (and the synthetic AI id must never receive events).
+  if (m.ai) return;
   try {
     const { emitProgressionEvent } = await import('./progression/event-bus.js');
     const [p1, p2] = m.players;
@@ -622,6 +721,7 @@ export async function getStatsFor(env, userId, _guildId = null) {
     for (const k of r.keys) {
       const m = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
       if (!m || !Array.isArray(m.players)) continue;
+      if (m.ai) continue;   // vs-AI practice doesn't count toward PvP W/L
       const p1 = m.players[0]?.userId, p2 = m.players[1]?.userId;
       const side = p1 === userId ? 'p1' : p2 === userId ? 'p2' : null;
       if (!side) continue;
@@ -684,6 +784,7 @@ function redactMatch(m, userId) {
     game: m.game,
     players: m.players,
     you: youIdx === 0 ? 'p1' : 'p2',
+    ai: m.ai || null,
     wager: m.wager,
     pot: m.pot,
     state: m.state,
