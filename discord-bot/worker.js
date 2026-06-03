@@ -151,16 +151,6 @@ export default {
     if (path.startsWith('/sync/'))                                   return handleSync(req, env, path);
     if (path.startsWith('/tips/'))                                   return handleTip(req, env, path);
 
-    // Aquilo's Vault integration: gated to the guild in env.AQUILO_VAULT_GUILD_ID
-    if (method === 'POST' && path === '/credit-bolts')               return handleVaultCredit(req, env);
-
-    // Read-only balance lookup for cross-bot surfaces (FS Bot /wallet,
-    // future StreamFusion widget). HMAC-gated with the same
-    // X-Aquilo-Vault-Bolts-Secret as /credit-bolts so we don't expose
-    // arbitrary wallet shapes on the open web. Guild allow-list also
-    // applies — only AQUILO_VAULT_GUILD_ID can be queried.
-    if (method === 'GET' && path === '/wallet-balance')              return handleWalletBalanceRead(req, env);
-
     // aquilo-bot counting game integration. Awards/deducts bolts when a
     // viewer correctly counts (or breaks the chain) in the counting
     // channel. Auth: shared secret in X-Counting-Secret header
@@ -429,15 +419,6 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/vote-hub/retire-legacy/')) {
       return handleVoteHubRetireLegacy(req, env, path);
     }
-    // Aquilo's Vault — webhook for game events from FS-Bot (Railway)
-    // + admin endpoint to (re)post the actions hub.
-    if (method === 'POST' && path === '/vault/event') {
-      const { handleVaultEventWebhook } = await import('./vault-hub.js');
-      return handleVaultEventWebhook(req, env);
-    }
-    if (method === 'POST' && path.startsWith('/admin/vault/post-actions/')) {
-      return handleVaultPostActions(req, env, path);
-    }
     // CN games-list catalogue. Multi-embed listing of every active
     // CN game with art + Steam links. See cn-games-list-hub.js.
     if (method === 'POST' && path.startsWith('/admin/cn-games-list/post-hub/')) {
@@ -692,8 +673,7 @@ export default {
       path.startsWith('/asset/pack/') ||
       path.startsWith('/asset/hero-body/') ||
       path.startsWith('/asset/spire-boss/') ||
-      path.startsWith('/asset/spire-map/') ||
-      path.startsWith('/asset/vault/')
+      path.startsWith('/asset/spire-map/')
     )) {
       return handlePixelArtAsset(req, env, path);
     }
@@ -820,15 +800,6 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_quest-trace/')) {
       return handleQuestTrace(req, env, path);
     }
-    // Aquilo's Vault — one-shot guild setup: create the Vault Dweller /
-    // Overseer / Crisis Responder roles, the Vault category, and the
-    // #vault-status / #vault-crises / #vault-overseer channels, persisting
-    // ids to guild:cfg. Token-gated (KV `vault-setup-token`). Idempotent
-    // (matches existing roles/channels by name) so re-runs are safe.
-    if (method === 'POST' && path.startsWith('/admin/vault/setup/')) {
-      return handleVaultSetup(req, env, path);
-    }
-
     // Twitch panel extension backend — additive, JWT- + channel-gated.
     // Public read-only stocks snapshot for the aquilo.gg /stocks page +
     // the Twitch panel's read-only Stocks tab. No auth gate — returns
@@ -1126,29 +1097,6 @@ export default {
       return handleScratch(req, env, path);
     }
 
-    // Aquilo's Vault — public cross-section snapshot for the /play/vault
-    // viewer + on-stream overlay. Claimed BEFORE the generic /web router
-    // so this GET bypasses the site HMAC (read-only, CORS-open, short
-    // cache). Mutations go through the HMAC-gated POST /web/vault/*
-    // routes in web.js. See vault-community.js.
-    if ((method === 'GET' || method === 'HEAD') && path === '/web/vault/state') {
-      const guild = url.searchParams.get('guild') || env.AQUILO_VAULT_GUILD_ID;
-      let snap;
-      try {
-        const { snapshot } = await import('./vault-community.js');
-        snap = await snapshot(env, guild);
-      } catch (e) {
-        snap = { ok: false, error: String(e?.message || e) };
-      }
-      const headers = {
-        'content-type': 'application/json',
-        'cache-control': 'public, max-age=5',
-        'access-control-allow-origin': '*',
-      };
-      if (method === 'HEAD') return new Response(null, { status: snap.ok ? 200 : 500, headers });
-      return new Response(JSON.stringify(snap), { status: snap.ok ? 200 : 500, headers });
-    }
-
     // PvP duels — viewer-vs-viewer D20 hero battles. Self-routing module owns
     // its HMAC gate (challenge/accept/decline/bet/spectator-pick are POST,
     // HMAC-signed) plus public GET reads (battle/queue/snapshot/history) that
@@ -1330,18 +1278,6 @@ export default {
                               r.credited, 'min credited,', r.crossings, 'crossings');
                 }
               } catch (e) { console.warn('[cron] twitch-drops', e?.message || e); }
-            })());
-            // Aquilo's Vault — every-5-min tick: expire stale crises,
-            // low-probability crisis spawn, recompute resource bars.
-            // Rides the every-minute trigger (4-cron ceiling). No-ops
-            // cleanly when the vault hasn't been seeded yet.
-            ctx.waitUntil((async () => {
-              try {
-                const { tickVault } = await import('./vault-community.js');
-                const r = await tickVault(env, activeGuildId);
-                if (r?.spawn) console.log('[cron] vault crisis spawned:', r.spawn.kind, r.spawn.crisisId);
-                if (r?.expired?.length) console.log('[cron] vault crises expired:', r.expired.length);
-              } catch (e) { console.warn('[cron] vault tick', e?.message || e); }
             })());
           }
         }
@@ -1770,74 +1706,6 @@ function jsonCors(body, status) {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'content-type': 'application/json', ...LEADERBOARD_CORS },
-  });
-}
-
-// ---- /credit-bolts (Aquilo's Vault → Loadout Bolts) ---------------------
-// Vault bot calls here to mirror cap activity into off-stream Bolts.
-// Auth: shared secret in X-Aquilo-Vault-Bolts-Secret header.
-// Allow-list: env.AQUILO_VAULT_GUILD_ID restricts which guild can be credited
-// (so a leaked secret can only target the configured Vault server, not any
-// random Loadout-using server).
-
-async function handleVaultCredit(req, env) {
-  const expected = env.AQUILO_VAULT_BOLTS_SECRET;
-  if (!expected) return new Response('credit endpoint not provisioned', { status: 503 });
-  const got = req.headers.get('x-aquilo-vault-bolts-secret');
-  if (got !== expected) return new Response('bad secret', { status: 401 });
-
-  let body;
-  try { body = await req.json(); } catch { return new Response('bad json', { status: 400 }); }
-
-  const guildId = String(body.guild_id || '');
-  const userId  = String(body.user_id  || '');
-  const amount  = Number(body.amount);
-  const reason  = String(body.reason || 'vault');
-
-  if (!guildId || !userId || !Number.isFinite(amount)) {
-    return new Response('guild_id, user_id, integer amount required', { status: 400 });
-  }
-  const allowed = env.AQUILO_VAULT_GUILD_ID;
-  if (allowed && guildId !== String(allowed)) {
-    return new Response('guild not allowed', { status: 403 });
-  }
-
-  const { wallet, was_new } = await applyVaultDelta(env, guildId, userId, Math.trunc(amount), reason);
-  return json({ ok: true, balance: wallet.balance, was_new });
-}
-
-// ---- /wallet-balance (read-only cross-bot lookup) -----------------------
-// Lets the Aquilo's Vault bot's /wallet command (and future surfaces)
-// show the SAME bolts number that /loadout shows in this server. No
-// mutation — pure read. Auth + allow-list mirror /credit-bolts.
-async function handleWalletBalanceRead(req, env) {
-  const expected = env.AQUILO_VAULT_BOLTS_SECRET;
-  if (!expected) return new Response('wallet endpoint not provisioned', { status: 503 });
-  const got = req.headers.get('x-aquilo-vault-bolts-secret');
-  if (got !== expected) return new Response('bad secret', { status: 401 });
-
-  const url = new URL(req.url);
-  const guildId = String(url.searchParams.get('guild_id') || '');
-  const userId  = String(url.searchParams.get('user_id')  || '');
-  if (!guildId || !userId) {
-    return new Response('guild_id, user_id query params required', { status: 400 });
-  }
-  const allowed = env.AQUILO_VAULT_GUILD_ID;
-  if (allowed && guildId !== String(allowed)) {
-    return new Response('guild not allowed', { status: 403 });
-  }
-
-  const { getWallet } = await import('./wallet.js');
-  const w = await getWallet(env, guildId, userId);
-  return json({
-    ok: true,
-    balance:        w.balance        || 0,
-    lifetimeEarned: w.lifetimeEarned || 0,
-    lifetimeSpent:  w.lifetimeSpent  || 0,
-    dailyStreak:    w.dailyStreak    || 0,
-    lastEarnUtc:    w.lastEarnUtc    || 0,
-    lastEarnReason: w.lastEarnReason || '',
-    linkedCount:   (w.links || []).length,
   });
 }
 
@@ -2486,7 +2354,7 @@ async function handleCardArtAsset(req, env, path) {
 // shell injection / wide-open lookups. We allow lowercase alpha-
 // numeric + period + hyphen — enough for `champ.warrior`, `level-3`,
 // etc., but no slashes/dots/dot-dot.
-const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map|vault)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
+const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
 const PIXEL_ART_SEG_RE   = /^[A-Za-z0-9][A-Za-z0-9.\-]*$/;
 const PIXEL_ART_CATEGORY = {
   'hero-art':     'hero',
@@ -2507,10 +2375,6 @@ const PIXEL_ART_CATEGORY = {
   // 2026-05-30 — Spire Maps (Slay-the-Spire branching paths).
   // Keys: pixel-art-spire-map:bg:<theme>, :node:<type>, :path:<id>.
   'spire-map':    'spire-map',
-  // 2026-06-02 — Aquilo's Vault cross-section art (terrain/door/rooms/
-  // dwellers/crisis-fx/HUD). Keys: pixel-art-vault:<asset>. Served on a
-  // short TTL while the art batch is actively being built/re-arted.
-  'vault':        'vault',
 };
 
 async function handlePixelArtAsset(req, env, path) {
@@ -2542,7 +2406,7 @@ async function handlePixelArtAsset(req, env, path) {
   // 2026-06 hero customization overhaul: hero-body (skin-tone variants) +
   // hero-art are re-uploaded in place during the build, so keep them on a
   // short TTL until the paper-doll set stabilizes, then restore immutable.
-  const isShortCache = ['clash', 'pack', 'cardback', 'hero-body', 'hero', 'vault'].includes(category);
+  const isShortCache = ['clash', 'pack', 'cardback', 'hero-body', 'hero'].includes(category);
   const headers = {
     'content-type':   'image/png',
     'cache-control':  isShortCache ? 'public, max-age=3600' : 'public, max-age=31536000, immutable',
@@ -4146,29 +4010,6 @@ async function handleVoteHubConfig(req, env, path) {
   return jsonResp({ ...r, via: auth.via }, 200);
 }
 
-async function handleVaultPostActions(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','vault','post-actions',':g']
-  const guildId = parts[3];
-  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
-  const body = await req.text();
-  const auth = await verifyAdminAuth(req, env, guildId, body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
-  let opts = {};
-  if (body) {
-    try { opts = JSON.parse(body) || {}; }
-    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
-  }
-  const { postActionsHubForGuild } = await import('./vault-hub.js');
-  const r = await postActionsHubForGuild(env, guildId, {
-    channelId: typeof opts.channelId === 'string' ? opts.channelId.trim() : undefined,
-  });
-  if (!r.ok) {
-    const status = r.error === 'no-vault-actions-channel' ? 404 : r.error === 'post-failed' ? 502 : 400;
-    return jsonResp({ ...r, via: auth.via }, status);
-  }
-  return jsonResp({ ...r, via: auth.via }, 200);
-}
-
 async function handleVoteHubRetireLegacy(req, env, path) {
   const parts = path.split('/').filter(Boolean);
   const guildId = parts[3];
@@ -5440,39 +5281,6 @@ async function handleListCommands(req, env, path) {
 //      handler resolves the channel without needing welcome-cfg.
 //
 // Returns a JSON summary of what was done + any non-fatal warnings.
-// One-shot Aquilo's Vault guild setup. Token-gated (KV `vault-setup-token`,
-// armed by the operator just before calling). Idempotent, so on a partial
-// failure you can re-arm the token and re-run safely.
-async function handleVaultSetup(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','vault','setup',':guildId']
-  const guildId = parts[3];
-  if (!guildId) return new Response('guildId required', { status: 400 });
-
-  const u = new URL(req.url);
-  const got = u.searchParams.get('token') || '';
-  const expected = await env.LOADOUT_BOLTS.get('vault-setup-token');
-  if (!expected) return new Response('vault setup not armed (set KV vault-setup-token first)', { status: 410 });
-  if (!got || got !== expected) return new Response('bad token', { status: 401 });
-  // Single-use — burn before side-effects. Re-arm to retry (idempotent).
-  await env.LOADOUT_BOLTS.delete('vault-setup-token');
-
-  if (!env.DISCORD_BOT_TOKEN) {
-    return new Response('worker not provisioned (DISCORD_BOT_TOKEN required)', { status: 503 });
-  }
-  try {
-    const { setupVaultGuild } = await import('./vault-discord.js');
-    const report = await setupVaultGuild(env, guildId);
-    return new Response(JSON.stringify(report, null, 2), {
-      status: report.ok ? 200 : 207,
-      headers: { 'content-type': 'application/json' },
-    });
-  } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e) }), {
-      status: 500, headers: { 'content-type': 'application/json' },
-    });
-  }
-}
-
 async function handleBootstrapL8(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','_bootstrap-l8',':guildId']
   const guildId = parts[2];

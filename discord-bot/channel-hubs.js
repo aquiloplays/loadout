@@ -109,10 +109,7 @@ const HUBS = Object.freeze({
       '• **Clash** — town builder + raids\n' +
       '• **Quick games** — coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash\n' +
       '• **Character** — open the upload-based hero editor\n' +
-      '• **RPG (Loadout)** — wallet, inventory, kit, daily\n\n' +
-      '_Aquilo\'s Vault lives in its own pair of channels now — see #vault-actions for player actions, #vault-events for the game feed._',
-    // 5 buttons in one row (Vault was removed per Clay — moved to
-    // dedicated vault-actions + vault-events channels).
+      '• **RPG (Loadout)** — wallet, inventory, kit, daily',
     rows: () => [
       [
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Boltbound',     custom_id: 'play:boltbound' },
@@ -717,53 +714,6 @@ export async function handlePlayHubComponent(env, data) {
           ],
         }],
       });
-    } catch (e) {
-      return eph('❌ ' + (e?.message || e));
-    }
-  }
-
-  if (action === 'vault') {
-    // Aquilo's Vault — community shared treasury. The actual
-    // page may not exist yet on the site; pointing at the
-    // clash treasury manager which is the closest extant surface.
-    return {
-      type: RESP_CHAT,
-      data: {
-        embeds: [{
-          title: '🏛️ Aquilo\'s Vault',
-          description:
-            'The community treasury. Bolts deposited fund the Clash town + community events.\n\n' +
-            'Manage on aquilo.gg or use the buttons below.',
-          color: 0xe6c474,
-        }],
-        components: [{
-          type: COMPONENT_ROW,
-          components: [
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Open Vault',     url: `${site}/vault/` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Town treasury',  url: `${site}/clash/town/${guildId}/` },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 100',     custom_id: 'play:vault-donate:100' },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 500',     custom_id: 'play:vault-donate:500' },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 1000',    custom_id: 'play:vault-donate:1000' },
-          ],
-        }],
-        flags: FLAG_EPHEMERAL,
-      },
-    };
-  }
-  if (action === 'vault-donate') {
-    const amount = parseInt((cid.split(':')[2] || ''), 10);
-    if (!Number.isFinite(amount) || amount <= 0) return eph('❌ Bad donate amount.');
-    try {
-      const { addTreasury } = await import('./clash-state.js');
-      const { spend, getWallet } = await import('./wallet.js');
-      const w = await getWallet(env, guildId, userId);
-      if ((w.balance || 0) < amount) {
-        return eph(`❌ You only have ${(w.balance || 0).toLocaleString()} bolts.`);
-      }
-      const r = await spend(env, guildId, userId, amount, 'vault-donate');
-      if (!r || r.balance < 0) return eph('❌ Could not deduct bolts.');
-      await addTreasury(env, guildId, amount);
-      return eph(`🏛️ Donated **${amount}** bolts to the town treasury. New balance: **${r.balance.toLocaleString()}**.`);
     } catch (e) {
       return eph('❌ ' + (e?.message || e));
     }

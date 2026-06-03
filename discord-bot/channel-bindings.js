@@ -35,10 +35,6 @@ const BINDING_KEYS = Object.freeze([
   // sharing one channel. See vote-hub.js. KV-only (admins bind via
   // /admin/channels/bind/<g>).
   'vote',
-  // Aquilo's Vault — split across two channels per Clay's request.
-  // vault-events: outbound game events from Railway with action
-  // buttons. vault-actions: persistent player-action menu.
-  'vault-events', 'vault-actions',
   // Twitch event embed routing (see twitch-events.js).
   //   stream-notifications: catch-all default for follows / subs /
   //     gifts / cheers / raids / redemptions etc. when no per-event
@@ -93,8 +89,6 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   play:              null,
   achievements:      null,
   vote:              null,
-  'vault-events':    null,
-  'vault-actions':   null,
   // Twitch event channels — KV-only, set via /twitch-event set.
   'stream-notifications': null,
   'live-now':             null,

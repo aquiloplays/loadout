@@ -232,9 +232,7 @@ async function routeAdminSnapshot(env, guildId) {
     // Diagnostic flags for the UI's "Setup & Status" card.
     flags: {
       hasDiscordToken:   !!env.DISCORD_BOT_TOKEN,
-      hasVaultSecret:    !!env.AQUILO_VAULT_BOLTS_SECRET,
       hasWebSecret:      !!env.AQUILO_SITE_WEB_SECRET,
-      vaultGuildId:      env.AQUILO_VAULT_GUILD_ID || null,
       twitchChannelId:   env.CLAY_TWITCH_CHANNEL_ID || null,
     },
   });

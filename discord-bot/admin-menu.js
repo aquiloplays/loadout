@@ -255,11 +255,6 @@ async function runHealthChecks(env, guildId) {
     return 'configured';
   });
 
-  await tryCheck('Aquilo\'s Vault bolts secret', async () => {
-    if (!env.AQUILO_VAULT_BOLTS_SECRET) throw new Error('not set (Aquilo\'s Vault bot /wallet will be dormant)');
-    return 'configured';
-  });
-
   await tryCheck('Discord public key', async () => {
     const pk = await env.LOADOUT_BOLTS.get('publickey');
     if (!pk) throw new Error('no `publickey` in KV -- interactions will 500');

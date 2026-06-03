@@ -11,7 +11,6 @@ compatibility_date = "2025-09-01"
 #   DISCORD_BOT_TOKEN          bot token used by the slash-command +
 #                              chat-reactions Discord REST calls
 #   DISCORD_PUBLIC_KEY         ed25519 verifier for /interactions
-#   AQUILO_VAULT_BOLTS_SECRET  vault → bolts credit channel
 #   AQUILO_SITE_WEB_SECRET     site → bot HMAC for /web/* (incl. the
 #                              new /web/chat/recent + react routes)
 #   AQUILO_BOT_SECRET          ops → bot for /announce + /broadcast
@@ -38,20 +37,6 @@ compatibility_date = "2025-09-01"
 #                              headers, SHA-256 over ts+"\n"+body).
 #                              Without it the gifter-roles webhook
 #                              returns 503.
-#   VAULT_WEBHOOK_SECRET       REQUIRED for /vault/event — FS-Bot
-#                              (Railway) signs each game-event POST
-#                              with the same hex. Headers
-#                              x-aquilo-vault-ts + x-aquilo-vault-sig.
-#                              Without it the Vault events feed
-#                              returns 503.
-#   VAULT_INGEST_URL           Optional. URL on the Railway side that
-#                              accepts button-click forwards from the
-#                              Vault events channel (vault:evt:<id>:
-#                              <action> custom_ids). Unset = clicks
-#                              ephemerally ack with "Vault not wired"
-#                              instead of forwarding.
-#   VAULT_INGEST_SECRET        HMAC secret used to sign the forward
-#                              request. Set alongside VAULT_INGEST_URL.
 #   TIKFINITY_WEBHOOK_SECRET   REQUIRED for /tikfinity/event — Clay
 #                              pastes the same hex into TikFinity's
 #                              "Trigger WebHook" custom header config
@@ -70,8 +55,8 @@ compatibility_date = "2025-09-01"
 # Public env. Per-guild secrets are stored in KV, not here.
 ALLOW_ANY_GUILD = "true"   # set to "false" to lock down to specific guild IDs
 DISCORD_APP_ID = "1500849448866025573"
-# Aquilo's Vault → Loadout Bolts integration: only this guild can be credited.
-# AQUILO_VAULT_BOLTS_SECRET is a worker secret (set via `wrangler secret put`).
+# Primary Aquilo guild ID. Used as the default/active guild across the
+# schedule embeds, stream pings, vote hub, lineup, and admin HMAC auth.
 AQUILO_VAULT_GUILD_ID = "1504103035951906883"
 # Clay's Twitch channel (login: aquilogg) — relay room-key derivation +
 # channel gate for /ext/* routes.

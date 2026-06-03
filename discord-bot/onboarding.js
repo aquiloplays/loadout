@@ -71,7 +71,7 @@ export const INTERESTS = Object.freeze([
 // Ordered step machine — drives next/back navigation + the funnel
 // counter buckets. Each id is also the `step` value persisted in
 // `onboard:state:<g>:<u>`.
-export const STEP_ORDER = ['welcome', 'interests', 'links', 'character', 'pwa', 'age18', 'vault', 'tour', 'complete'];
+export const STEP_ORDER = ['welcome', 'interests', 'links', 'character', 'pwa', 'age18', 'tour', 'complete'];
 
 // Discord component constants — mirrored from util.js / character.js
 // for callsite isolation.
@@ -544,47 +544,6 @@ async function viewAge18(env, guildId) {
   };
 }
 
-// ── Join the Vault step ─────────────────────────────────────────────
-//
-// Aquilo's Vault is the shared community cross-section (vault-community.js
-// + vault-discord.js). Opting in grants the Vault Dweller role and
-// stations the user in their RPG class's starter room (Warrior->Security,
-// Mage->Reactor, Rogue->Stealth, Ranger->Watchtower, Healer->Medical).
-// Class is read from the hero profile; unknown class just enlists them
-// roomless (they pick a room later on the Vault page).
-async function viewVault(env, guildId, userId) {
-  let klass = null;
-  try {
-    const { resolveUserClass } = await import('./vault-discord.js');
-    klass = await resolveUserClass(env, guildId, userId);
-  } catch { /* best-effort */ }
-  const STARTER = { warrior: 'the Security Office', mage: 'the Reactor Lab', rogue: 'the Stealth Bay',
-                    ranger: 'the Watchtower', healer: 'the Medical Bay' };
-  const placement = klass
-    ? `As a **${klass}**, you'll be stationed in **${STARTER[klass]}**.`
-    : `Pick your class on the character page and you'll be auto-stationed; until then you can choose a room on the Vault page.`;
-  return {
-    flags: FLAG_EPHEMERAL,
-    embeds: [{
-      title: '🏚 Join Aquilo\'s Vault?',
-      description:
-        `The community runs one shared underground **Vault** — a Fallout-Shelter-style ` +
-        `cross-section you all build and defend together.\n\n` +
-        `Opt in to become a **Vault Dweller**: you get stationed in a room, help **expand** ` +
-        `the vault, and rally when **crises** hit (raiders, fire, radstorms).\n\n` +
-        `${placement}\n\nWatch it live at the Vault page — synced with Discord in real time.`,
-      color: 0x5bff95,
-    }],
-    components: [{
-      type: COMPONENT_ROW,
-      components: [
-        { type: COMPONENT_BUTTON, style: BTN_SUCCESS,   label: 'Join the Vault', custom_id: 'onb:vault:yes' },
-        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Maybe later',     custom_id: 'onb:vault:no'  },
-      ],
-    }],
-  };
-}
-
 async function viewTour(env, guildId) {
   const brand = await getBranding(env, guildId);
   const cfg = await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' });
@@ -698,7 +657,6 @@ async function viewForStep(env, guildId, userId, state) {
     case 'character': return viewCharacter(env, guildId);
     case 'pwa':       return viewPwa(env, guildId);
     case 'age18':     return viewAge18(env, guildId);
-    case 'vault':     return viewVault(env, guildId, userId);
     case 'tour':      return viewTour(env, guildId);
     case 'complete':  return viewAlreadyOnboarded(env, guildId, userId, state);
     case 'welcome':
@@ -793,32 +751,9 @@ export async function handleOnboardComponent(env, data) {
           }).catch(() => {});
       }
     }
-    // Either choice advances past age18 to the next step (now: vault).
+    // Either choice advances past age18 to the next step.
     await markStepDone(env, guildId, userId, state, 'age18');
     state.step = STEP_ORDER[STEP_ORDER.indexOf('age18') + 1] || 'tour';
-    await putState(env, guildId, userId, state);
-    return { type: RESP_UPDATE_MSG, data: await viewForStep(env, guildId, userId, state) };
-  }
-
-  // Join-the-Vault click. Yes -> grant Vault Dweller role + enlist the
-  // dweller (auto-stationed by RPG class via enlistDweller). No -> skip.
-  // Both advance to the next step (tour).
-  if (action === 'vault') {
-    const choice = segs[2];
-    if (choice === 'yes') {
-      try {
-        const { enlistDweller } = await import('./vault-community.js');
-        const { grantVaultDweller, resolveUserClass } = await import('./vault-discord.js');
-        const username = data?.member?.user?.username || data?.user?.username || null;
-        const klass = await resolveUserClass(env, guildId, userId);
-        await grantVaultDweller(env, guildId, userId);
-        await enlistDweller(env, guildId, userId, { username, klass });
-      } catch (e) {
-        console.warn('[onboard] vault enlist', e?.message || e);
-      }
-    }
-    await markStepDone(env, guildId, userId, state, 'vault');
-    state.step = STEP_ORDER[STEP_ORDER.indexOf('vault') + 1] || 'tour';
     await putState(env, guildId, userId, state);
     return { type: RESP_UPDATE_MSG, data: await viewForStep(env, guildId, userId, state) };
   }

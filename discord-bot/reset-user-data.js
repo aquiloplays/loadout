@@ -23,7 +23,6 @@
 //   guild:* / channel-binding:*         — admin config
 //   secret:*                            — auth secrets
 //   onboard:role-map:*                  — admin-side role wiring
-//   vault:* / vault-actions:*           — separate Vault service state
 //   gifter-roles:* / level-tier-roles:* — role-membership snapshots
 //
 // Returns per-prefix counts so the admin tooling can show what got
