@@ -875,7 +875,10 @@ export function generateGoblinArmy(thLevel, seed, { mode = 'normal' } = {}) {
 export function demolishRefund(kind, level) {
   const b = BUILDINGS[kind];
   if (!b) return {};
-  const base = b.cost?.[level] || b.cost?.[1] || {};
+  // Refund tracks the live build curve (25% of what the tier cost),
+  // not the verbatim authored arrays.
+  const built = townBuildCost(kind, level) || townBuildCost(kind, 1);
+  const base = built?.cost || {};
   const refund = {};
   for (const k of Object.keys(base)) {
     const v = base[k];
@@ -893,17 +896,73 @@ export function personalTroopCost(troopId, count) {
   return { bolts: t.bolts * count, timeMs: t.time * count };
 }
 
+// ── Level-scaling curve (Clash overhaul wave 1) ──────────────────────
+//
+// Both build COST and build/upgrade TIME ramp geometrically with level
+// so the early game is fast + cheap and high levels are a meaningful
+// grind. Tuned to the wave-1 brief's feel anchors (approximate — the
+// curve is the source of truth, the anchors are a sanity check):
+//
+//   level   build time          cost vs the building's base tier
+//   ─────   ──────────          ────────────────────────────────
+//   L1      ~30s                1×    (the "charter" tier)
+//   L5      ~3.5min             ~4.4×
+//   L10     ~34min             ~20×
+//   L15     ~3h (time cap)     ~88×
+//
+// Cost keeps each building's authored resource MIX (its first buildable
+// "charter" vector — bolts/wood/stone/iron/gold/cores/scrap) and scales
+// that vector; only the magnitude grows. This is the single curve shape
+// applied to every upgradeable building. The hand-authored cost[]/time[]
+// arrays in BUILDINGS are retained for their resource MIX + unlock
+// gating (leading nulls = "not buildable below this tier") but their
+// per-level magnitudes are now derived, not read verbatim.
+const BUILD_TIME_L1_MS  = 30_000;            // first-tier build ~30s
+const BUILD_TIME_GROWTH = 1.6;               // per-level time multiplier
+const BUILD_TIME_CAP_MS = 3 * 3_600_000;     // hard cap so nothing exceeds 3h
+const COST_GROWTH       = 1.45;              // per-level cost multiplier
+
+export function buildTimeForLevel(level) {
+  const L = Math.max(1, Math.floor(level || 1));
+  return Math.min(
+    BUILD_TIME_CAP_MS,
+    Math.round(BUILD_TIME_L1_MS * Math.pow(BUILD_TIME_GROWTH, L - 1)),
+  );
+}
+
+// The lowest level a building can be built at = the index of its first
+// non-null cost entry. Town buildings unlock at L1; advanced defenses
+// (mortar, eagleEye, …) gate their first tier higher via leading nulls.
+function baseTierFor(b) {
+  const arr = b?.cost || [];
+  for (let L = 1; L < arr.length; L++) {
+    if (arr[L]) return { minL: L, base: arr[L] };
+  }
+  return null;
+}
+
 export function townBuildCost(kind, targetLevel) {
   const b = BUILDINGS[kind];
   if (!b) return null;
-  const c = b.cost?.[targetLevel];
-  const t = b.time?.[targetLevel];
-  if (!c || t == null) return null;
+  const L = Math.floor(targetLevel || 0);
+  const maxL = maxLevelForBuilding(kind);
+  if (L < 1 || L > maxL) return null;
+  const tier = baseTierFor(b);
+  if (!tier || L < tier.minL) return null;   // below the building's unlock tier
+  // Scale the building's own charter vector from its base tier. Absolute
+  // level drives the TIME curve (so a tier-5 unlock already takes longer
+  // at first build than a tier-1 building's first build).
+  const mult = Math.pow(COST_GROWTH, L - tier.minL);
+  const cost = {};
+  for (const k of Object.keys(tier.base)) {
+    const v = tier.base[k];
+    if (Number.isFinite(v) && v > 0) cost[k] = Math.max(1, Math.round(v * mult));
+  }
   // The returned cost may include any of: bolts, scrap, cores, wood,
   // stone, iron, gold. Callers iterating only legacy resources still
   // work (extra fields are ignored), but the resource-aware charger
   // in clash-resources.chargeResources reads all seven.
-  return { cost: c, timeMs: t };
+  return { cost, timeMs: buildTimeForLevel(L) };
 }
 
 // Maximum level for a given building kind — used by townBuildCost
@@ -936,9 +995,12 @@ export function footprintFor(kind) {
 export function repairBuildingCost(kind, level, hpRatio) {
   const b = BUILDINGS[kind];
   if (!b) return null;
-  const baseCost = b.cost?.[level];
-  const baseTime = b.time?.[level];
-  if (!baseCost || baseTime == null) return null;
+  // Derive from the live build curve so repair tracks the same scaling
+  // as build/upgrade rather than a stale verbatim array.
+  const built = townBuildCost(kind, level);
+  if (!built) return null;
+  const baseCost = built.cost;
+  const baseTime = built.timeMs;
   const ratio = Math.max(0, Math.min(1, 1 - (Number(hpRatio) || 0)));
   const cost = {};
   for (const k of Object.keys(baseCost)) {

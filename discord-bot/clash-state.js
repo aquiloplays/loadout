@@ -16,10 +16,13 @@ import { getWallet } from './wallet.js';
 import { generateInitialObstacles } from './clash-content.js';
 
 // Authoritative buildable town-grid size (square). Bumped 16 -> 48
-// (2026-06) to match the client default; ensureTown lazily upgrades
-// existing towns to this on next load. Exported so placement
-// validation (clash-layout.js) + the HTTP payloads stay in sync.
-export const TOWN_GRID = 48;
+// (2026-06), then 48 -> 96 (Clash overhaul wave 1) to give a Clash-of-
+// Clans-scale plot (4× the buildable area) with room for a decorative
+// field border around the town. ensureTown lazily upgrades existing
+// towns to this on next load (grid only grows — building coordinates
+// are untouched, so no town is reset). Exported so placement validation
+// (clash-layout.js) + the HTTP payloads stay in sync.
+export const TOWN_GRID = 96;
 
 // ── Excluded accounts (leaderboard-only filter) ──────────────────────
 //
