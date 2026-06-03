@@ -588,29 +588,45 @@ export const DUPE_BOLTS = {
 // ── Pack definitions ─────────────────────────────────────────────────
 //
 // `weights` is the per-slot rarity weighting. The pack opens by rolling
-// 5 slots; for each, we pick a rarity using these weights, then a
+// 3 slots; for each, we pick a rarity using these weights, then a
 // uniform card within that rarity's pool. Champions are never pulled.
+//
+// PACK SIZE: 3 cards (universal rule, 2026-06-02). Packs were 5 cards;
+// the rarity weights below were rebalanced so the *value* per pack holds
+// despite the smaller size — the non-common rates were scaled up by ~5/3
+// and the common filler trimmed, so a 3-card pack carries roughly the
+// same expected count of uncommon / rare / legendary as the old 5-card
+// pack. The smaller pack is therefore richer per card, not just shorter.
 
 export const PACKS = {
   common: {
     id: 'common',
     name: 'Boltbound Common Pack',
-    cards: 5,
-    weights: { common: 100, uncommon: 0, rare: 0, legendary: 0 },
+    cards: 3,
+    // The free/daily floor pack. Pure-common at 5 cards felt like enough;
+    // at 3 cards we sprinkle a real uncommon chance so the daily claim
+    // still feels worth opening.
+    weights: { common: 80, uncommon: 20, rare: 0, legendary: 0 },
     priceBolts: null,            // not directly purchasable
   },
   bolt: {
     id: 'bolt',
     name: 'Boltbound Bolt Pack',
-    cards: 5,
-    weights: { common: 60, uncommon: 30, rare: 9, legendary: 1 },
+    cards: 3,
+    // Was 60/30/9/1 over 5 slots (expected ~1.5 uncommon, 0.45 rare,
+    // 0.05 legendary). Rebalanced over 3 slots to hold those expected
+    // counts: uncommon/rare/legendary scaled up, commons trimmed.
+    weights: { common: 33, uncommon: 50, rare: 15, legendary: 2 },
     priceBolts: 250,
   },
   voltaic: {
     id: 'voltaic',
     name: 'Boltbound Voltaic Pack',
-    cards: 5,
-    weights: { common: 30, uncommon: 40, rare: 25, legendary: 5 },
+    cards: 3,
+    // The premium drop-only pack. Was 30/40/25/5 over 5 slots (expected
+    // ~1.5 rare+legendary per pack). Rebalanced over 3 slots to keep that
+    // rare+ value: ~half of every slot is now rare-or-better.
+    weights: { common: 10, uncommon: 40, rare: 42, legendary: 8 },
     priceBolts: null,            // drop-only — Clash 3-star + lootbox + Patreon
   },
 };

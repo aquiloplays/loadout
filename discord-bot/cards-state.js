@@ -90,8 +90,8 @@ export async function addCardToCollection(env, guildId, userId, cardId) {
 }
 
 // Bulk add — same return shape per card. Used when opening a pack so
-// the redemption summary can show "you got 5 cards: X (new), Y
-// (duplicate → 5 Bolts), Z (new), ..."
+// the redemption summary can show "you got 3 cards: X (new), Y
+// (duplicate → 5 Bolts), Z (new)"
 export async function addCardsToCollection(env, guildId, userId, cardIds) {
   const col = await getCollection(env, guildId, userId);
   const results = [];
@@ -205,7 +205,7 @@ export function resolveDeckChampion(deck) {
 // Shape: { id, packType, source, mintedUtc, rolled?: [cardId,...] }
 // `rolled` is null when the pack is unopened. Server pre-rolls at
 // redeem-time using rng seeded by the pack id, then freezes the
-// pulls. A second open call returns the same five cards — supports
+// pulls. A second open call returns the same cards — supports
 // the future web reveal page consuming a server-pre-rolled list.
 
 export async function mintPendingPack(env, guildId, userId, packType, source) {

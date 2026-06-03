@@ -52,7 +52,7 @@ function rng(seed) {
 //
 // pullPack(packType, rng, opts={ forceOneLegendary?: bool }) -> [cardId,...]
 //
-// - 5 slots per pack (PACKS[packType].cards).
+// - 3 slots per pack (PACKS[packType].cards).
 // - For each slot, pick a rarity using PACKS[packType].weights, then
 //   a uniform card within that rarity's pool.
 // - If `forceOneLegendary` is set and no legendary was rolled in any
@@ -66,7 +66,7 @@ export function pullPack(packType, rngFn, opts = {}) {
   if (!pack) throw new Error('unknown pack type: ' + packType);
 
   const slots = [];
-  for (let i = 0; i < (pack.cards || 5); i++) {
+  for (let i = 0; i < (pack.cards || 3); i++) {
     const rarity = rollRarity(pack.weights, rngFn);
     const pool = RARITY_POOLS[rarity] || [];
     if (!pool.length) {
