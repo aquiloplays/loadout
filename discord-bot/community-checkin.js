@@ -429,11 +429,18 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
       console.warn('[checkin-v2] compose failed:', e?.message || e);
     }
   }
+  // Embed image comes ONLY from a genuine user source: the v2
+  // composite, the GIF they chose in the compose flow, or their saved
+  // custom card. Per Clay (2026-06-02): users who haven't customised no
+  // longer get the "Welcome Back" default-card.png slapped on — the
+  // brand/global default fallbacks are intentionally dropped here so a
+  // no-card check-in posts a clean embed (author + streak + message)
+  // with no image. (brand.checkinDefaultImageUrl itself defaults to that
+  // same default-card.png, so it has to go too, not just DEFAULT_IMAGE_URL.)
   const image = imageOverride
     || opts.gifUrl
     || card?.imageUrl
-    || brand.checkinDefaultImageUrl
-    || DEFAULT_IMAGE_URL;
+    || null;
   const display = member?.displayName || 'friend';
   const avatarPick = await resolveAvatar(env, userId, card, member);
   const avatar     = avatarPick.url;
@@ -465,9 +472,9 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
     author: { name: `${display} checked in`, icon_url: avatar },
     description: lines.join('\n'),
     color: accent,
-    image: { url: image },
     timestamp: new Date().toISOString(),
   };
+  if (image) embed.image = { url: image };
   if (thumbnailOverride) embed.thumbnail = { url: thumbnailOverride };
 
   const r = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
