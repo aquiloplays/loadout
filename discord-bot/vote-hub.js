@@ -983,6 +983,92 @@ export async function retireOldCnVoteHub(env, guildId) {
 
 // ── Test exports ────────────────────────────────────────────────
 
+// ── Web vote casting + public read (aquilo.gg /schedule day pages) ──
+//
+// Mirror of the Discord vh:cast flow for an HMAC-verified web session.
+// The site proxy stamps discordId + guildId from the linked session and
+// forwards { kind, gameId }. We validate the vote is open for that kind
+// and the game is in the pool, then record one ballot (changing a vote
+// is allowed until the poll closes). One community winner covers both
+// Friday and Saturday.
+
+function normalizeVoteKind(kind) {
+  const v = String(kind || '').toLowerCase();
+  if (v === 'variety') return 'variety';
+  if (v === 'cn' || v === 'community') return 'cn';
+  if (v === 'dad' || v === 'dad-sunday') return 'dad';
+  return null;
+}
+
+export async function castWebVote(env, guildId, userId, kind, gameId) {
+  const k = normalizeVoteKind(kind);
+  if (!k) return { ok: false, error: 'bad-kind' };
+  if (!/^\d{5,25}$/.test(String(userId || ''))) return { ok: false, error: 'bad-user' };
+  const state = await getState(env, guildId);
+  if (state.phase !== expectedPhaseForKind(k)) {
+    return { ok: false, error: 'vote-not-open', phase: state.phase };
+  }
+  const games = await getEligibleGames(env, guildId, poolForKind(k));
+  const chosen = games.find((g) => String(g.id) === String(gameId));
+  if (!chosen) return { ok: false, error: 'unknown-game' };
+  const eventKey = eventKeyFor(k);
+  const ballots = await readBallots(env, guildId, eventKey);
+  ballots[userId] = String(gameId);
+  await writeBallots(env, guildId, eventKey, ballots);
+  const counts = {};
+  for (const gid of Object.values(ballots)) counts[gid] = (counts[gid] || 0) + 1;
+  return {
+    ok: true,
+    kind: k,
+    yourVote: String(gameId),
+    totalVotes: Object.values(counts).reduce((a, b) => a + b, 0),
+    games: games.map((g) => ({
+      id: g.id, name: g.name, artUrl: g.art_url || null, votes: counts[g.id] || 0,
+    })),
+  };
+}
+
+// Public, unauth read for the /schedule day pages + the schedule vote
+// pill. Per kind: whether the vote is open, when it next opens/closes
+// (epoch ms), the pool with live counts, and the stored winner.
+export async function getVotePublic(env, guildId) {
+  const gid = guildId || String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+  const config = await getConfig(env, gid);
+  const state = await getState(env, gid);
+  const now = Date.now();
+  const defs = [
+    { kind: 'variety', phase: PHASE.VARIETY_OPEN,
+      openWd: config.varietyVoteOpenWeekday, openHr: config.varietyVoteOpenHourEt,
+      closeWd: config.varietyVoteCloseWeekday, closeHr: config.varietyVoteCloseHourEt },
+    { kind: 'cn', phase: PHASE.CN_OPEN,
+      openWd: config.cnVoteOpenWeekday, openHr: config.cnVoteOpenHourEt,
+      closeWd: config.cnVoteCloseWeekday, closeHr: config.cnVoteCloseHourEt },
+    { kind: 'dad', phase: PHASE.DAD_OPEN,
+      openWd: config.dadVoteOpenWeekday, openHr: config.dadVoteOpenHourEt,
+      closeWd: config.dadVoteCloseWeekday, closeHr: config.dadVoteCloseHourEt },
+  ];
+  const kinds = {};
+  for (const d of defs) {
+    const eventKey = eventKeyFor(d.kind);
+    const ballots = await readBallots(env, gid, eventKey);
+    const counts = {};
+    for (const v of Object.values(ballots)) counts[v] = (counts[v] || 0) + 1;
+    const games = await getEligibleGames(env, gid, poolForKind(d.kind));
+    const winner = await getStoredWinner(env, gid, d.kind);
+    kinds[d.kind] = {
+      open: state.phase === d.phase,
+      opensAt: nextEventTimestamp(now, d.openWd, d.openHr),
+      closesAt: nextEventTimestamp(now, d.closeWd, d.closeHr),
+      totalVotes: Object.values(counts).reduce((a, b) => a + b, 0),
+      games: games.map((g) => ({
+        id: g.id, name: g.name, artUrl: g.art_url || null, votes: counts[g.id] || 0,
+      })),
+      winner: winner ? { name: winner.name, artUrl: winner.art_url || null, votes: winner.votes || 0 } : null,
+    };
+  }
+  return { ok: true, phase: state.phase, now, kinds };
+}
+
 export {
   daysUntilWeekday as _daysUntilWeekdayForTest,
   eventKeyFor      as _eventKeyForForTest,
