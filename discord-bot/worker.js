@@ -731,6 +731,10 @@ export default {
     if (path === '/vote-hub/lineup') {
       return handleLineupPublic(req, env);
     }
+    // Public, CORS-open vote state (site /schedule day pages + vote pill).
+    if (path === '/vote-hub/public') {
+      return handleVotePublic(req, env);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -2475,6 +2479,23 @@ async function handleLineupPublic(req, env) {
     const { buildLineupEmbed } = await import('./vote-hub.js');
     const embed = await buildLineupEmbed(env, env.AQUILO_VAULT_GUILD_ID);
     return new Response(JSON.stringify({ ok: true, embed }), { status: 200, headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 160) }),
+      { status: 500, headers });
+  }
+}
+
+// Public: per-kind vote state (open flag, open/close timestamps, pool with
+// live counts, stored winner). Drives the aquilo.gg /schedule day pages +
+// the schedule vote pill. CORS-open like the Triple-C reads.
+async function handleVotePublic(req, env) {
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=15', ...cors };
+  try {
+    const { getVotePublic } = await import('./vote-hub.js');
+    const data = await getVotePublic(env, env.AQUILO_VAULT_GUILD_ID);
+    return new Response(JSON.stringify(data), { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 160) }),
       { status: 500, headers });

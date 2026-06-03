@@ -164,6 +164,7 @@ const ROUTES = new Set([
   'admin/pipe-tests',
   'admin/triple-c/set',          // POST {_owner, gameSlug}, lock the Triple-C campaign + announce
   'admin/lineup/post',           // POST {_owner}, (re)post + pin the weekly lineup recap
+  'vote-hub/cast',               // POST { kind, gameId }, cast a web vote (discord-linked)
   'admin/stream-events/sync',    // POST {_owner, horizonDays?}, mirror schedule → Discord events
   // Daily community check-in (unified with /checkin slash command).
   'checkin',                 // POST, record today's check-in
@@ -365,6 +366,7 @@ export async function handleWeb(req, env) {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routeQueuesCloseNight(env, guildId);
     }
+    if (route === 'vote-hub/cast')         return await routeVoteHubCast(env, guildId, discordId, body);
     if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
     if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId);
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
@@ -706,6 +708,18 @@ async function routeQueuesClose(env, guildId, body) {
 async function routeQueuesCloseNight(env, guildId) {
   const r = await closeNight(env, guildId);
   return json(r, r.ok ? 200 : 400);
+}
+
+// Cast a schedule vote from aquilo.gg. discordId + guildId are stamped by
+// the site proxy from the verified session; kind + gameId are forwarded
+// from the day page. Delegates to vote-hub.js so Discord + web share one
+// ballot store.
+async function routeVoteHubCast(env, guildId, discordId, body) {
+  const { castWebVote } = await import('./vote-hub.js');
+  const r = await castWebVote(env, guildId, discordId,
+    String((body && body.kind) || ''), String((body && body.gameId) || ''));
+  const code = r.ok ? 200 : (r.error === 'vote-not-open' ? 409 : 400);
+  return json(r, code);
 }
 
 
