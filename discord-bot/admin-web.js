@@ -351,22 +351,6 @@ async function routeTripleCSet(env, guildId, body) {
   return json({ ok: true, current: r.current, announced });
 }
 
-async function routeDadSundaySet(env, guildId, body) {
-  const gameSlug = String(body?.gameSlug || '').trim();
-  if (!gameSlug) return json({ ok: false, error: 'gameSlug-required' }, 400);
-  const { setCurrentDadSunday, announceDadSunday } = await import('./dad-sunday.js');
-  const r = await setCurrentDadSunday(env, guildId, gameSlug, body?._setBy || null);
-  if (!r.ok) return json(r, 400);
-  let announced = null;
-  try { announced = await announceDadSunday(env, r.current); } catch { /* ignore */ }
-  // Refresh the pinned weekly-schedule embed so Sunday shows the lock-in.
-  try {
-    const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
-    await postOrRefreshSchedule(env, guildId);
-  } catch { /* ignore */ }
-  return json({ ok: true, current: r.current, announced });
-}
-
 // Owner-only: (re)post + pin the weekly lineup recap on demand.
 async function routeLineupPost(env, guildId, body) {
   const { postLineupRecap } = await import('./vote-hub.js');
@@ -399,7 +383,6 @@ export async function handleAdminWeb(env, route, guildId, body) {
     case 'admin/clear-binding':  return await routeAdminClearBinding(env, guildId, body);
     case 'admin/pipe-tests':     return await routeAdminPipeTests(env, guildId);
     case 'admin/triple-c/set':         return await routeTripleCSet(env, guildId, body);
-    case 'admin/dad-sunday/set':       return await routeDadSundaySet(env, guildId, body);
     case 'admin/lineup/post':          return await routeLineupPost(env, guildId, body);
     case 'admin/stream-events/sync':   return await routeStreamEventsSync(env, guildId, body);
     default:                     return json({ ok: false, error: 'not-found' }, 404);

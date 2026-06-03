@@ -1,21 +1,14 @@
-// Stream schedule v3 (rev 2026-06): Triple-C (Crowd Control Campaign) is
-// the fixed show; Wed = Variety Night (Mon->Wed vote), Fri + Sat =
-// Community Night (Wed->Thu vote, one winner covers both weekend nights),
-// Sun = Dad Game Sunday (Thu->Sun vote). NO rest days. Per-day games are
-// resolved DYNAMICALLY at render time so the embed + site never drift from
-// the locked-in campaign / vote winners:
-//   Mon/Tue/Thu  -> Triple-C campaign game (triple-c:current, e.g.
+// Stream schedule v3.1 (rev 2026-06-03): simplified to 4 streamed days.
+// Dad Game Sunday REMOVED entirely (Sunday is Triple-C now).
+//   Sun + Fri    -> Triple-C campaign game (triple-c:current, e.g.
 //                   Fallout 4), set via /web/admin/triple-c/set
 //   Wed          -> Variety Night winner (vote-hub:winner:variety)
-//   Fri + Sat    -> Community Night winner (vote-hub:winner:cn)
-//   Sun          -> Dad Game Sunday (dad-sunday:current or dad vote winner)
-// Single rolling embed in the schedule channel; vote nights show
-// "vote in progress" until their poll closes.
-//
-// 2026-06 bugfix: the previous rev hardcoded `Minecraft` on every fixed
-// day, so the schedule + the /aquilo/schedule/public feed (which drives
-// the aquilo.gg tiles AND this pinned embed) showed Minecraft instead of
-// the locked-in Triple-C game. Now every slot pulls its real game.
+//   Sat          -> Community Night winner (vote-hub:winner:cn)
+//   Mon/Tue/Thu  -> no scheduled stream (off)
+// Per-day games are resolved DYNAMICALLY at render time so the embed +
+// site never drift from the locked-in campaign / vote winners. Off days
+// are skipped in the embed and surface as slot 'off' (filtered out) on
+// the public feed.
 
 import {
   postChannelMessage, editChannelMessage, discordFetch, COLOR_SCHEDULE, cap, getETInfo
@@ -25,25 +18,26 @@ import { gameSlug } from './today-game.js';
 
 // Fixed weekly rotation, Sun -> Sat order. `kind` drives both the public
 // slot enum and dynamic game resolution (see resolveSlotGame):
-//   triple-c → fixed campaign   variety → Wed vote   community → Sat vote
+//   triple-c -> fixed campaign   variety -> Wed vote   community -> Sat vote
+//   off -> no scheduled stream
 const WEEKLY = [
-  { day: 'sunday',    kind: 'dad-sunday' },   // 2026-06: Dad Game Sunday (was Triple-C)
-  { day: 'monday',    kind: 'triple-c'  },
-  { day: 'tuesday',   kind: 'triple-c'  },
-  { day: 'wednesday', kind: 'variety'   },
-  { day: 'thursday',  kind: 'triple-c'  },
-  { day: 'friday',    kind: 'community' },   // 2026-06: Friday joined Community Night (was Triple-C)
+  { day: 'sunday',    kind: 'triple-c' },   // 2026-06-03: Sunday is Triple-C (Dad Game Sunday removed)
+  { day: 'monday',    kind: 'off'      },
+  { day: 'tuesday',   kind: 'off'      },
+  { day: 'wednesday', kind: 'variety'  },
+  { day: 'thursday',  kind: 'off'      },
+  { day: 'friday',    kind: 'triple-c' },   // 2026-06-03: Friday back to Triple-C
   { day: 'saturday',  kind: 'community' },
 ];
 
-// kind → the public `slot` enum the site + Discord embed consume.
+// kind -> the public `slot` enum the site + Discord embed consume.
 const PUBLIC_SLOT = {
-  'triple-c': 'stream', 'variety': 'variety', 'community': 'cn', 'dad-sunday': 'dad-sunday',
+  'triple-c': 'stream', 'variety': 'variety', 'community': 'cn', 'off': 'off',
 };
 
 // Resolve a day's game from the authoritative source for its kind.
 // Returns { name, artUrl, store, voteCompleted? } or null (vote not yet
-// decided / nothing locked in → caller renders a placeholder).
+// decided / nothing locked in / off day -> caller renders a placeholder).
 async function resolveSlotGame(env, guildId, kind, sched) {
   if (kind === 'triple-c') {
     try {
@@ -53,16 +47,6 @@ async function resolveSlotGame(env, guildId, kind, sched) {
         return { name: c.name, artUrl: c.artUrl || null, store: storeFromArtUrl(c.artUrl) };
       }
     } catch { /* optional */ }
-    return null;
-  }
-  if (kind === 'dad-sunday') {
-    try {
-      const { getCurrentDadSunday } = await import('../dad-sunday.js');
-      const c = await getCurrentDadSunday(env, guildId);
-      if (c && c.name) {
-        return { name: c.name, artUrl: c.artUrl || null, store: storeFromArtUrl(c.artUrl) };
-      }
-    } catch { /* dad-sunday.js ships in C2 */ }
     return null;
   }
   if (kind === 'variety' || kind === 'community') {
@@ -87,8 +71,9 @@ async function resolveSlotGame(env, guildId, kind, sched) {
 
 const KEY = (gid) => 'schedule:' + gid;
 
-// Schedule + poll channels both go through channel-bindings.js now, // KV per-guild override with the wrangler.toml [vars] entry as
-// fallback. Imported async per-call so the module load stays cheap.
+// Schedule + poll channels both go through channel-bindings.js now, KV
+// per-guild override with the wrangler.toml [vars] entry as fallback.
+// Imported async per-call so the module load stays cheap.
 async function bindings(env, guildId) {
   const { getChannelBinding } = await import('../channel-bindings.js');
   return {
@@ -114,24 +99,25 @@ async function saveSchedule(env, guildId, sched) {
 // 2026-06: async, each day resolves its real game (Triple-C campaign /
 // vote winner) via resolveSlotGame. `image` (large) for decided vote
 // winners so a closed vote reads rich; `thumbnail` for the fixed
-// Triple-C / Dad-Sunday campaign art so it doesn't dominate every row.
+// Triple-C campaign art so it doesn't dominate every row. Off days are
+// skipped so the embed only lists the streamed nights.
 const TIME_LABEL = '10:30 PM-12:30 AM ET';
 const SLOT_META = {
   'triple-c':   { emoji: '📺', show: 'Triple-C' },
   'variety':    { emoji: '🎲', show: 'Variety Night' },
   'community':  { emoji: '🏆', show: 'Community Night' },
-  'dad-sunday': { emoji: '🛋️', show: 'Dad Game Sunday' },
 };
 
 async function buildSchedulePayload(env, guildId, sched) {
   const headerEmbed = {
     title: '📅 Aquilo · Weekly Stream Schedule',
-    description: 'Hop in any night. **Variety** + **Community Night** games are decided by the poll. Tap **Vote** in <#' + (sched.poll_channel_id || '') + '>.',
+    description: 'Streaming **Sun · Wed · Fri · Sat**. **Variety** + **Community Night** games are decided by the poll. Tap **Vote** in <#' + (sched.poll_channel_id || '') + '>.',
     color: COLOR_SCHEDULE,
   };
 
   const dayEmbeds = [];
   for (const slot of WEEKLY) {
+    if (slot.kind === 'off') continue;   // off days are not listed
     const meta = SLOT_META[slot.kind] || { emoji: '📺', show: cap(slot.kind) };
     const game = await resolveSlotGame(env, guildId, slot.kind, sched);
     const isVoted = slot.kind === 'variety' || slot.kind === 'community';
@@ -157,32 +143,26 @@ async function buildSchedulePayload(env, guildId, sched) {
 
 // ── Public read, canonical schedule JSON for aquilo.gg ──────────
 //
-// Stable shape (aquilo-site parallel session is building the public
-// /schedule page against this):
-//   {
-//     ok: true,
-//     guildId,
-//     nowUtc,
-//     poll_channel_id, schedule_channel_id,
-//     days: [
-//       { weekday, slot: "stream"|"cn"|"off",
-//         game: { name, artUrl, store }?,
-//         status: "scheduled"|"vote-open"|"vote-completed"|"off",
-//         times: { startEt, endEt } }
-//     ]
-//   }
-//
-// CN slot semantics:
-//   • status = "vote-completed" when sched.cn_winners[day] is set
-//   • status = "vote-open" otherwise (placeholder render on the site)
-// Non-CN slots are always "scheduled".
+// Stable shape (the aquilo-site /schedule surfaces read this):
+//   { ok, guildId, nowUtc, poll_channel_id, schedule_channel_id,
+//     days: [ { weekday, slot, game?, status, times } ] }
+// Off days surface as slot 'off' / status 'off' (the site proxy filters
+// them out of the per-slot overlay). Non-voted streamed days are always
+// "scheduled".
 
 export async function getPublicSchedule(env, guildId) {
   const sched = await loadSchedule(env, guildId);
   const days = [];
   for (const slot of WEEKLY) {
+    if (slot.kind === 'off') {
+      days.push({
+        weekday: slot.day, slot: 'off', game: null, status: 'off',
+        times: { startEt: null, endEt: null },
+      });
+      continue;
+    }
     const game = await resolveSlotGame(env, guildId, slot.kind, sched);
-    const isVoted = slot.kind === 'variety' || slot.kind === 'community' || slot.kind === 'dad-sunday';
+    const isVoted = slot.kind === 'variety' || slot.kind === 'community';
     const status = isVoted ? (game ? 'vote-completed' : 'vote-open') : 'scheduled';
     days.push({
       weekday: slot.day,
@@ -214,24 +194,14 @@ function storeFromArtUrl(artUrl) {
 
 // Post a fresh schedule embed (or edit the existing one in place). Stores
 // the message_id so future updates edit instead of spamming new embeds.
-//
-// Channel-binding migration: if the resolved schedule channel
-// changed since the last save (admin set a new binding), delete the
-// prior embed in the OLD channel and post fresh in the new one.
-// Best-effort delete, if the old message is gone or the bot can't
-// see the old channel, we just leave the orphan and proceed.
 export async function postOrRefreshSchedule(env, guildId) {
   const sched = await loadSchedule(env, guildId);
   const b = await bindings(env, guildId);
   const resolvedChannel = b.schedule;
   if (!resolvedChannel) {
-    // Nothing bound + no env fallback, no-op rather than crash.
     console.warn('[aq-schedule] no schedule channel bound, skipping post');
     return null;
   }
-  // Detect channel migration. The stored `sched.channel_id` is where
-  // the LAST post lives; if the binding has flipped, sweep the old
-  // message and post fresh in the new channel.
   if (sched.channel_id && sched.channel_id !== resolvedChannel && sched.message_id) {
     try {
       await discordFetch(env,
@@ -258,10 +228,6 @@ export async function postOrRefreshSchedule(env, guildId) {
   const msg = await postChannelMessage(env, sched.channel_id, payload);
   sched.message_id = msg.id;
   await saveSchedule(env, guildId, sched);
-  // Pin the freshly-posted schedule so it stays the channel's pinned
-  // embed (edit-in-place above preserves an existing pin, so we only
-  // pin on a fresh post). Best-effort, a missing Manage Messages perm
-  // shouldn't fail the post.
   try {
     await discordFetch(env,
       '/channels/' + encodeURIComponent(sched.channel_id) + '/pins/' + encodeURIComponent(msg.id),
@@ -282,8 +248,6 @@ export async function updateScheduleForWinner(env, guildId, dayOfWeek, winnerNam
   await saveSchedule(env, guildId, sched);
   await postOrRefreshSchedule(env, guildId);
 
-  // Push to overlay clients (instant theme switch). Mirrors today-game.js
-  // payload shape so the overlay code is the same regardless of source.
   const { weekday: today } = getETInfo();
   if (today === dayOfWeek) {
     await broadcastOverlayUpdate(env, {
@@ -298,7 +262,7 @@ export async function updateScheduleForWinner(env, guildId, dayOfWeek, winnerNam
 }
 
 // Called when posting Wednesday's poll (first CN of the week): clears all
-// three CN slots so the embed shows "TBD - vote at 6 PM" again.
+// CN slots so the embed shows "vote in progress" again.
 export async function resetWeeklyCnWinners(env, guildId) {
   const sched = await loadSchedule(env, guildId);
   sched.cn_winners = {};
