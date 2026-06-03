@@ -141,6 +141,33 @@ export async function acceptChallenge(env, guildId, recipientId, senderId) {
   return { ok: true, match };
 }
 
+// Friend-room match — like acceptChallenge but matched by a shared
+// room code (boltbound-rooms.js) instead of a Discord challenge
+// record. Flags match.private so it does NOT touch the ranked ladder.
+export async function startRoomMatch(env, guildId, creatorId, joinerId) {
+  if (String(creatorId) === String(joinerId)) return { ok: false, error: 'cannot-join-own-room' };
+  const creatorDeck = await getActiveDeck(env, guildId, creatorId);
+  if (!creatorDeck) return { ok: false, error: 'creator-no-deck' };
+  const joinerDeck = await getActiveDeck(env, guildId, joinerId);
+  if (!joinerDeck) return { ok: false, error: 'no-active-deck' };
+  for (const uid of [creatorId, joinerId]) {
+    const a = await getActiveMatch(env, guildId, uid);
+    if (a && (a.status === 'active' || a.status === 'mulligan')) {
+      return { ok: false, error: uid === joinerId ? 'already-in-match' : 'creator-in-match' };
+    }
+  }
+  const matchId = newId();
+  const match = createMatch({
+    matchId, guildId,
+    playerA: { userId: creatorId, deck: creatorDeck.cards, championClass: creatorDeck.championClass },
+    playerB: { userId: joinerId,  deck: joinerDeck.cards,  championClass: joinerDeck.championClass },
+    createdUtc: Date.now(),
+  });
+  match.private = true;
+  await persistMatch(env, guildId, match);
+  return { ok: true, match };
+}
+
 // ── Turn handling ───────────────────────────────────────────────────
 
 // Apply a human action, then run any pending NPC turns.

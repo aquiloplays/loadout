@@ -45,6 +45,7 @@ import { getStats, recordPlay, recordMatchEnd, recordPackOpen, statForTrigger, t
 import { listAchievements, getUserAchievements, checkAndUnlock } from './achievements-d1.js';
 import { getRankedMe, getRankedLeaderboard } from './boltbound-ranked.js';
 import { getArenaState, startArenaRun, pickArenaCard, playArenaMatch, retireArenaRun, getArenaHistory } from './boltbound-arena.js';
+import { createRoom, joinRoom, getMyRoom, cancelRoom } from './boltbound-rooms.js';
 import {
   SETS, SET_IDS, isReleased, isNewlyReleased, timeUntilRelease,
 } from './boltbound-sets.js';
@@ -71,6 +72,11 @@ const ROUTES = new Set([
   'boltbound/arena/match',
   'boltbound/arena/retire',
   'boltbound/arena/history',
+  // RET-6: friend-match private rooms (code-based PvP, no ranked).
+  'boltbound/room/create',
+  'boltbound/room/join',
+  'boltbound/room/mine',
+  'boltbound/room/cancel',
   'boltbound/decks/save',
   'boltbound/decks/delete',
   'boltbound/decks/activate',
@@ -122,6 +128,7 @@ const READ_ROUTES = new Set([
   'boltbound/ranked/leaderboard',
   'boltbound/arena/state',
   'boltbound/arena/history',
+  'boltbound/room/mine',
   'boltbound/sets',
   'boltbound/match/state',
   'boltbound/log',
@@ -790,6 +797,26 @@ async function routeArenaHistory(env, guildId, userId) {
   return json(await getArenaHistory(env, userId, 10));
 }
 
+// ── RET-6: friend-match private rooms ───────────────────────────────
+//
+// create mints a 6-char code; join puts creator + joiner into a
+// private PvP match (no ranked); mine is the creator's waiting poll.
+
+async function routeRoomCreate(env, guildId, userId) {
+  return json(await createRoom(env, guildId, userId));
+}
+async function routeRoomJoin(env, guildId, userId, body) {
+  const code = String((body && body.code) || '').trim();
+  if (!code) return json({ ok: false, error: 'bad-code' }, 400);
+  return json(await joinRoom(env, guildId, userId, code));
+}
+async function routeRoomMine(env, guildId, userId) {
+  return json(await getMyRoom(env, guildId, userId));
+}
+async function routeRoomCancel(env, guildId, userId) {
+  return json(await cancelRoom(env, guildId, userId));
+}
+
 // ── Trade routes ───────────────────────────────────────────────────
 //
 // Auth is already enforced upstream by web.js (HMAC) — `userId` here
@@ -962,6 +989,10 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/arena/match')       return await routeArenaMatch(env, guildId, userId);
     if (route === 'boltbound/arena/retire')      return await routeArenaRetire(env, guildId, userId);
     if (route === 'boltbound/arena/history')     return await routeArenaHistory(env, guildId, userId);
+    if (route === 'boltbound/room/create')       return await routeRoomCreate(env, guildId, userId);
+    if (route === 'boltbound/room/join')         return await routeRoomJoin(env, guildId, userId, body);
+    if (route === 'boltbound/room/mine')         return await routeRoomMine(env, guildId, userId);
+    if (route === 'boltbound/room/cancel')       return await routeRoomCancel(env, guildId, userId);
     if (route === 'boltbound/settings/get')    return await routeSettingsGet(env, userId);
     if (route === 'boltbound/settings/set')    return await routeSettingsSet(env, userId, body);
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);

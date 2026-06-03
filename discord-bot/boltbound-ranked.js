@@ -227,7 +227,7 @@ async function ensureCurrentSeason(env, row, nowMs) {
 // from cards-match.finaliseIfEnded. NPC matches must NOT call this.
 // `match` is the raw match object (has guildId, players, status).
 export async function applyRankedResult(env, match) {
-  if (!match || match.npc) return;
+  if (!match || match.npc || match.private) return;
   const aWon = match.status === 'A-won';
   const bWon = match.status === 'B-won';
   if (!aWon && !bWon) return; // draws don't move the ladder
