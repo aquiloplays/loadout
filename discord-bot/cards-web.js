@@ -43,6 +43,7 @@ import { getLoginStatus, claimDailyLogin } from './boltbound-login.js';
 import { listTodaysQuests, claimQuest, rerollQuest, progressBoltbound } from './daily-quests.js';
 import { getStats, recordPlay, recordMatchEnd, recordPackOpen, statForTrigger, triggerEvents } from './boltbound-stats.js';
 import { listAchievements, getUserAchievements, checkAndUnlock } from './achievements-d1.js';
+import { getRankedMe, getRankedLeaderboard } from './boltbound-ranked.js';
 import {
   SETS, SET_IDS, isReleased, isNewlyReleased, timeUntilRelease,
 } from './boltbound-sets.js';
@@ -59,6 +60,9 @@ const ROUTES = new Set([
   // RET-3: achievement gallery (catalog + per-viewer unlock/progress).
   'boltbound/achievements/list',
   'boltbound/achievements/me',
+  // RET-4: ranked ladder (current rank + season + leaderboard).
+  'boltbound/ranked/me',
+  'boltbound/ranked/leaderboard',
   'boltbound/decks/save',
   'boltbound/decks/delete',
   'boltbound/decks/activate',
@@ -106,6 +110,8 @@ const READ_ROUTES = new Set([
   'boltbound/quests/today',
   'boltbound/achievements/list',
   'boltbound/achievements/me',
+  'boltbound/ranked/me',
+  'boltbound/ranked/leaderboard',
   'boltbound/sets',
   'boltbound/match/state',
   'boltbound/log',
@@ -734,6 +740,19 @@ async function routeAchievementsMe(env, guildId, userId) {
   return json({ ok: true, achievements, points: { earned, total } });
 }
 
+// ── RET-4: ranked ladder ────────────────────────────────────────────
+//
+// Reads only — the ladder mutates server-side on PvP match finalise
+// (cards-match.js → applyRankedResult). `me` returns current rank +
+// season countdown; `leaderboard` is the season's top 100.
+
+async function routeRankedMe(env, guildId, userId) {
+  return json(await getRankedMe(env, userId));
+}
+async function routeRankedLeaderboard(env, guildId, userId) {
+  return json(await getRankedLeaderboard(env, 100));
+}
+
 // ── Trade routes ───────────────────────────────────────────────────
 //
 // Auth is already enforced upstream by web.js (HMAC) — `userId` here
@@ -898,6 +917,8 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/quests/reroll')   return await routeQuestsReroll(env, guildId, userId, body);
     if (route === 'boltbound/achievements/list') return await routeAchievementsList(env, guildId, userId);
     if (route === 'boltbound/achievements/me')   return await routeAchievementsMe(env, guildId, userId);
+    if (route === 'boltbound/ranked/me')         return await routeRankedMe(env, guildId, userId);
+    if (route === 'boltbound/ranked/leaderboard') return await routeRankedLeaderboard(env, guildId, userId);
     if (route === 'boltbound/settings/get')    return await routeSettingsGet(env, userId);
     if (route === 'boltbound/settings/set')    return await routeSettingsSet(env, userId, body);
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);

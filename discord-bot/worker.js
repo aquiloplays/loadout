@@ -1356,6 +1356,16 @@ export default {
             else console.warn('[cron] daily-quests:', r?.error);
           } catch (e) { console.warn('[cron] daily-quests', e?.message || e); }
         })());
+        // RET-4 — Boltbound ranked monthly season close. Piggybacks on
+        // this daily 0 1 * * * cron (CF 4-cron ceiling); self-gates to
+        // the 1st of the month + a per-season KV marker.
+        ctx.waitUntil((async () => {
+          try {
+            const { rankedSeasonCron } = await import('./boltbound-ranked.js');
+            const r = await rankedSeasonCron(env);
+            if (r?.ok && r.settled) console.log('[cron] ranked season close:', r.season, 'settled', r.settled);
+          } catch (e) { console.warn('[cron] ranked season', e?.message || e); }
+        })());
         // Mirror the stream schedule into Discord guild scheduled
         // events (idempotent — skips dateKeys already created). See
         // stream-events.js.

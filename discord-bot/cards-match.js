@@ -439,6 +439,12 @@ async function finaliseIfEnded(env, match) {
       }
     } catch { /* non-fatal */ }
   }
+  // RET-4 — feed the ranked ladder (PvP only; the helper no-ops on
+  // NPC matches and draws). Best-effort; must not block finalise.
+  try {
+    const { applyRankedResult } = await import('./boltbound-ranked.js');
+    await applyRankedResult(env, match);
+  } catch (e) { console.warn('[ranked] finalise hook', e?.message || e); }
   match.settled = true;
 }
 
