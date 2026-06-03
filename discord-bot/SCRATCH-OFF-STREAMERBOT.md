@@ -149,6 +149,51 @@ Most are AutoHotkey / vJoy / input-injection actions Clay already has or
 can build; the timed ones use a Streamer.bot sub-action "wait N seconds"
 then revert.
 
+### Tamper executor (turnkey auto-revert) — `streamerbot/actions/scratch-tamper.cs`
+
+Drop `scratch-tamper.cs` in as a Streamer.bot **inline C# action** named
+`Scratch Tamper`. It owns the **auto-revert timer** for every tamper (hard
+capped at 120s), runs the start on a background thread, waits `durationSec`,
+then reverts — even if the start threw. Only one tamper runs at a time.
+
+**Wire the trigger (no edit to the relay needed):** add a Streamer.bot
+**WebSocket Client** pointed at the local Aquilo Bus
+`ws://127.0.0.1:7470/aquilo/bus/?secret=<bus-secret>`. The relay already
+forwards every `scratch.tamper` there. Configure the client to trigger
+`Scratch Tamper` on messages where `kind == "scratch.tamper"`, mapping the
+message `data` fields onto args: `actionKey`, `durationSec`, `viewer`, `body`.
+
+The executor handles tampers in two tiers:
+
+- **DIRECT** (no setup): `random_keys`, `force_jump`, `spam_emote` are pure
+  keyboard injection done in the file. They use a safe virtual-key set (no
+  Alt/Ctrl/Win/Esc/Tab/F-keys) so nothing alt-tabs or closes the game.
+  `spam_emote` taps the key in the `scratch.emoteKey` global (default `B`).
+- **ROUTED** (you build two actions per key): the OS/game remaps
+  (`invert_mouse`, `swap_wasd`, `lock_crouch`, `force_walk`, `sensitivity_max`,
+  `mouse_drift`, `flip_screen`, `deafen`, `mute_mic`). The executor runs
+  `scratch.tamper.<actionKey>.start`, waits, then runs
+  `scratch.tamper.<actionKey>.revert`. You only build the start/revert pair;
+  the timing + safety is handled for you.
+
+**AHK example — `scratch.tamper.invert_mouse.start` / `.revert`:** a tiny
+AutoHotkey script that swaps the mouse Y axis (or your in-game invert toggle).
+The `.start` action launches it; the `.revert` action kills it / toggles back.
+Because THIS executor calls `.revert` on a guaranteed timer, even a crash of
+the start path still restores normal input within `durationSec`.
+
+```ahk
+; invert_mouse.ahk — toggled by Streamer.bot start/revert actions
+; (illustrative; use your game's own invert bind where one exists)
+#Persistent
+SetMouseDelay, -1
+Loop {
+  MouseGetPos, x, y
+  ; mirror Y movement; replace with your real injection if needed
+  Sleep, 5
+}
+```
+
 ### Relay options
 
 **A. Streamer.bot "Aquilo Bus" listener (recommended).** Run the tiny
