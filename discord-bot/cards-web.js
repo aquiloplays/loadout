@@ -46,6 +46,7 @@ import { listAchievements, getUserAchievements, checkAndUnlock } from './achieve
 import { getRankedMe, getRankedLeaderboard } from './boltbound-ranked.js';
 import { getArenaState, startArenaRun, pickArenaCard, playArenaMatch, retireArenaRun, getArenaHistory } from './boltbound-arena.js';
 import { createRoom, joinRoom, getMyRoom, cancelRoom } from './boltbound-rooms.js';
+import { shareDeck, listCommunity, getSharedDeck, copySharedDeck } from './boltbound-decks-share.js';
 import {
   SETS, SET_IDS, isReleased, isNewlyReleased, timeUntilRelease,
 } from './boltbound-sets.js';
@@ -77,6 +78,11 @@ const ROUTES = new Set([
   'boltbound/room/join',
   'boltbound/room/mine',
   'boltbound/room/cancel',
+  // RET-7: deck sharing + community decks.
+  'boltbound/deck/share',
+  'boltbound/deck/community',
+  'boltbound/deck/get',
+  'boltbound/deck/copy',
   'boltbound/decks/save',
   'boltbound/decks/delete',
   'boltbound/decks/activate',
@@ -129,6 +135,8 @@ const READ_ROUTES = new Set([
   'boltbound/arena/state',
   'boltbound/arena/history',
   'boltbound/room/mine',
+  'boltbound/deck/community',
+  'boltbound/deck/get',
   'boltbound/sets',
   'boltbound/match/state',
   'boltbound/log',
@@ -817,6 +825,28 @@ async function routeRoomCancel(env, guildId, userId) {
   return json(await cancelRoom(env, guildId, userId));
 }
 
+// ── RET-7: deck sharing + community decks ───────────────────────────
+//
+// share/copy are writes (copy bumps the copy count); community/get are
+// reads. Portable deck CODES are encoded client-side; the worker keeps
+// the structured deck so it can rank by copies + serve Deck of the Day.
+
+async function routeDeckShare(env, guildId, userId, body) {
+  return json(await shareDeck(env, userId, body || {}));
+}
+async function routeDeckCommunity(env, guildId, userId, body) {
+  return json(await listCommunity(env, {
+    championClass: body && body.classFilter ? String(body.classFilter) : null,
+    archetype: body && body.archetype ? String(body.archetype).toLowerCase() : null,
+  }));
+}
+async function routeDeckGet(env, guildId, userId, body) {
+  return json(await getSharedDeck(env, (body && body.sharedId) || ''));
+}
+async function routeDeckCopy(env, guildId, userId, body) {
+  return json(await copySharedDeck(env, (body && body.sharedId) || ''));
+}
+
 // ── Trade routes ───────────────────────────────────────────────────
 //
 // Auth is already enforced upstream by web.js (HMAC) — `userId` here
@@ -993,6 +1023,10 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/room/join')         return await routeRoomJoin(env, guildId, userId, body);
     if (route === 'boltbound/room/mine')         return await routeRoomMine(env, guildId, userId);
     if (route === 'boltbound/room/cancel')       return await routeRoomCancel(env, guildId, userId);
+    if (route === 'boltbound/deck/share')        return await routeDeckShare(env, guildId, userId, body);
+    if (route === 'boltbound/deck/community')    return await routeDeckCommunity(env, guildId, userId, body);
+    if (route === 'boltbound/deck/get')          return await routeDeckGet(env, guildId, userId, body);
+    if (route === 'boltbound/deck/copy')         return await routeDeckCopy(env, guildId, userId, body);
     if (route === 'boltbound/settings/get')    return await routeSettingsGet(env, userId);
     if (route === 'boltbound/settings/set')    return await routeSettingsSet(env, userId, body);
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);
