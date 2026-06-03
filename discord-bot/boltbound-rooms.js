@@ -10,7 +10,8 @@
 //   cards:room:<CODE>          -> { code, creatorId, guildId, createdUtc, status, matchId }
 //   cards:room-owner:<userId>  -> CODE   (so a creator can find/cancel their room)
 
-import { startRoomMatch, renderableState, getActiveMatch } from './cards-match.js';
+import { startRoomMatch, renderableState } from './cards-match.js';
+import { getActiveMatch } from './cards-state.js';
 
 const ROOM_TTL_SECONDS = 300; // 5 minutes
 const ROOM_KEY = (code) => `cards:room:${code}`;

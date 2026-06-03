@@ -287,6 +287,18 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/discord/create-locked-channel/')) {
       return handleCreateLockedChannel(req, env, path);
     }
+    // One-shot guild message cleanup + menu-channel permission lockdown.
+    // KV-token gated (bootstrap-discord-cleanup-token). Drives ONE channel
+    // (or thread) per call so each request stays under the subrequest
+    // budget; the local driver tools/discord-cleanup-run.mjs loops. Modes:
+    //   ?mode=plan                 -> classify channels (no writes)
+    //   ?mode=clean&channel=<id>   -> snapshot-to-KV then delete one channel
+    //   ?mode=lockdown&channel=<id>-> deny @everyone send, allow bots
+    //   ?mode=verify&channel=<id>  -> sample remaining + resolved @everyone
+    //   ?mode=archive&channel=<id> -> decode an archive entry (recovery check)
+    if (method === 'POST' && path.startsWith('/admin/discord/cleanup/')) {
+      return handleDiscordCleanup(req, env, path);
+    }
     // Post (or edit-in-place) the Steam-backed community-night
     // game roster. Optional body { channelId, appIds: [...] };
     // defaults to channel-binding(vote) + cn-games-roster.js
@@ -4925,6 +4937,69 @@ async function handleCreateLockedChannel(req, env, path) {
   }
   return jsonResp({ ok: true, reused: true, id: channel.id, name: channel.name,
     via: auth.via }, 200);
+}
+
+// ── /admin/discord/cleanup/:guildId/:token (KV-token, per-channel) ──
+// Path: /admin/discord/cleanup/<guildId>/<token>?mode=...&channel=...
+// Token gate compares against KV `bootstrap-discord-cleanup-token` and is
+// NOT consumed (the driver runs many slices, then deletes the token). One
+// channel per call keeps each request well under the subrequest budget.
+async function handleDiscordCleanup(req, env, path) {
+  const parts = path.split('/').filter(Boolean);   // ['admin','discord','cleanup',':g',':token']
+  const guildId = parts[3];
+  const token = parts[4];
+  if (!guildId || !token) return jsonResp({ ok: false, error: 'guildId + token required' }, 400);
+  const stored = await env.LOADOUT_BOLTS.get('bootstrap-discord-cleanup-token').catch(() => null);
+  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
+  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
+
+  const url = new URL(req.url);
+  const mode = (url.searchParams.get('mode') || 'plan').toLowerCase();
+  const channelId = url.searchParams.get('channel') || '';
+  const runId = url.searchParams.get('runId') || 'run';
+  const cleanup = await import('./discord-cleanup.js');
+
+  if (mode === 'plan') {
+    const r = await cleanup.planCleanup(env, guildId);
+    return jsonResp(r, r.ok ? 200 : 502);
+  }
+  if (mode === 'clean') {
+    if (!channelId) return jsonResp({ ok: false, error: 'channel required' }, 400);
+    const isForum = url.searchParams.get('forum') === '1';
+    const name = url.searchParams.get('name') || '';
+    const r = await cleanup.cleanChannel(env, channelId, {
+      runId, channelName: name, isForumContainer: isForum, guildId });
+    return jsonResp(r, r.ok ? 200 : 400);
+  }
+  if (mode === 'lockdown') {
+    if (!channelId) return jsonResp({ ok: false, error: 'channel required' }, 400);
+    const botIds = [LOADOUT_CLEANUP_BOT_IDS(env)].flat();
+    const r = await cleanup.lockdownMenuChannel(env, guildId, channelId, botIds);
+    return jsonResp(r, r.ok ? 200 : 400);
+  }
+  if (mode === 'verify') {
+    if (!channelId) return jsonResp({ ok: false, error: 'channel required' }, 400);
+    const sample = await cleanup.verifyChannel(env, channelId);
+    const lock = await cleanup.verifyLock(env, guildId, channelId);
+    return jsonResp({ ok: true, channelId, sample, lock }, 200);
+  }
+  if (mode === 'archive') {
+    if (!channelId) return jsonResp({ ok: false, error: 'channel required' }, 400);
+    const r = await cleanup.readArchive(env, runId, channelId);
+    // Don't echo full message bodies back over the wire — just the shape.
+    if (r.ok) return jsonResp({ ok: true, channelId: r.channelId, channelName: r.channelName,
+      count: r.count, parts: r.parts, truncated: r.truncated, sample: (r.messages || []).slice(0, 3) }, 200);
+    return jsonResp(r, 404);
+  }
+  return jsonResp({ ok: false, error: 'unknown-mode' }, 400);
+}
+
+// Bot identities allowed to keep posting in locked menu channels: the
+// Loadout bot user id (directive) + this worker's own app id.
+function LOADOUT_CLEANUP_BOT_IDS(env) {
+  const ids = ['1107161695262085210'];
+  if (env.DISCORD_APP_ID && !ids.includes(env.DISCORD_APP_ID)) ids.push(env.DISCORD_APP_ID);
+  return ids;
 }
 
 // ── /admin/counting/reset/:guildId (HMAC) ─────────────────────────
