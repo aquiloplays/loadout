@@ -1,4 +1,4 @@
-// Smoke test for card-art-backfill.runCardArtBackfillSlice — stubs
+// Smoke test for card-art-backfill.runCardArtBackfillSlice, stubs
 // Giphy + verifies the slice writes KV, surfaces samples + done flag.
 
 import { runCardArtBackfillSlice } from '../card-art-backfill.js';
@@ -47,7 +47,7 @@ function stubGiphyOk(seedUrl) {
   return () => { globalThis.fetch = realFetch; };
 }
 
-console.log('— bail when GIPHY_API_KEY missing');
+console.log('- bail when GIPHY_API_KEY missing');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const r = await runCardArtBackfillSlice(env, { offset: 0, limit: 1 });
@@ -55,7 +55,7 @@ console.log('— bail when GIPHY_API_KEY missing');
   eq(r.error, 'no-giphy-api-key', 'error name');
 }
 
-console.log('— happy slice: 3 cards, all hit');
+console.log('- happy slice: 3 cards, all hit');
 {
   const restore = stubGiphyOk('https://media.giphy.com/foo.gif');
   try {
@@ -76,7 +76,7 @@ console.log('— happy slice: 3 cards, all hit');
   } finally { restore(); }
 }
 
-console.log('— skipped: already-set cards don\'t re-hit Giphy');
+console.log('- skipped: already-set cards don\'t re-hit Giphy');
 {
   let giphyCalls = 0;
   const realFetch = globalThis.fetch;
@@ -100,7 +100,7 @@ console.log('— skipped: already-set cards don\'t re-hit Giphy');
   } finally { globalThis.fetch = realFetch; }
 }
 
-console.log('— rate-limit rewinds nextOffset (no card-skip burn)');
+console.log('- rate-limit rewinds nextOffset (no card-skip burn)');
 {
   // Stub: first card returns 429, no other Giphy calls succeed.
   const realFetch = globalThis.fetch;
@@ -123,7 +123,7 @@ console.log('— rate-limit rewinds nextOffset (no card-skip burn)');
   } finally { globalThis.fetch = realFetch; }
 }
 
-console.log('— force=true overwrites');
+console.log('- force=true overwrites');
 {
   const restore = stubGiphyOk('https://media.giphy.com/forced.gif');
   try {
@@ -140,5 +140,5 @@ console.log('— force=true overwrites');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

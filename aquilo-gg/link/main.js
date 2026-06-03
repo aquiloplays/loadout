@@ -4,7 +4,7 @@
  * Flow:
  *   1. User clicks "Connect with Patreon" → we redirect to Patreon's authorize
  *      URL with a state nonce stored in sessionStorage.
- *   2. Patreon redirects back to /link with ?code=...&state=... — we POST the
+ *   2. Patreon redirects back to /link with ?code=...&state=..., we POST the
  *      code to the worker's /api/exchange endpoint (server-side: adds the
  *      client_secret, exchanges, returns the user's identity + tier + a
  *      short-lived session token).

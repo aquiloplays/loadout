@@ -1,4 +1,4 @@
-// Birthday tracker. `/birthday set MM-DD` saves a date (no year — privacy);
+// Birthday tracker. `/birthday set MM-DD` saves a date (no year, privacy);
 // daily cron at 10 AM ET posts a callout in #engagement and drops 100
 // Bolts for everyone whose birthday is today.
 //
@@ -52,7 +52,7 @@ export async function handleBirthdayCommand(data, env) {
     const row = await env.DB.prepare(
       'SELECT month_day FROM birthdays WHERE guild_id = ? AND user_id = ?'
     ).bind(data.guild_id, target).first();
-    if (!row) return ephemeral(target === userId ? 'You haven\'t set a birthday yet — `/birthday set MM-DD`.' : '_That user hasn\'t set a birthday._');
+    if (!row) return ephemeral(target === userId ? 'You haven\'t set a birthday yet, `/birthday set MM-DD`.' : '_That user hasn\'t set a birthday._');
     return ephemeral(`🎂 ${target === userId ? 'You' : `<@${target}>`} → **${formatMD(row.month_day)}**`);
   }
 
@@ -71,14 +71,14 @@ export async function runBirthdayCron(env) {
   ).bind(md).all();
   if (!results || results.length === 0) return;
 
-  // Build a single message that pings everyone — Discord caps at 100 users.
+  // Build a single message that pings everyone, Discord caps at 100 users.
   const mentions = results.slice(0, 50).map(r => `<@${r.user_id}>`).join(' ');
   const lines = [
     `🎂 **It's a storm-day!**`,
     '',
     `Today's birthdays: ${mentions}`,
     '',
-    `Everyone celebrated gets **${BDAY_BONUS_BOLTS} Bolts** on the house — check your wallet with \`/loadout\`.`,
+    `Everyone celebrated gets **${BDAY_BONUS_BOLTS} Bolts** on the house, check your wallet with \`/loadout\`.`,
   ];
 
   try {

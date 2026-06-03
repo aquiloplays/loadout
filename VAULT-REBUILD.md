@@ -1,8 +1,7 @@
-# Aquilo's Vault — worker-native community cross-section (rebuild)
+# Aquilo's Vault, worker-native community cross-section (rebuild)
 
-**Shipped overnight 2026-06-02.** Built the new *community* Aquilo's Vault —
-a single shared Fallout-Shelter-style cross-section the whole community
-builds and defends together — fully inside the Loadout Cloudflare Worker.
+**Shipped overnight 2026-06-02.** Built the new *community* Aquilo's Vault, a single shared Fallout-Shelter-style cross-section the whole community
+builds and defends together, fully inside the Loadout Cloudflare Worker.
 This is **additive**: it does not touch the legacy per-user FS-Bot RPG.
 
 ## ⚠ Scope decision (please confirm)
@@ -10,7 +9,7 @@ This is **additive**: it does not touch the legacy per-user FS-Bot RPG.
 The brief framed this as "rebuild a viewer / drop the Railway bot entirely."
 On disk, the reality is different and that changed the plan:
 
-- `../FS Bot/bot.py` is **9,157 lines / ~36 SQLite tables** — a full mature
+- `../FS Bot/bot.py` is **9,157 lines / ~36 SQLite tables**, a full mature
   RPG (dwellers, items, raids, factions, perks, pets, expeditions, market…)
   with **live player save data** in `vault.db`.
 - The brief's data model (`vault_state` / `vault_dweller(userId,assignedRoom,class)`
@@ -23,7 +22,7 @@ On disk, the reality is different and that changed the plan:
 **Decision:** built the new community vault additively; did **NOT** port the
 9k-line RPG (infeasible overnight, not in the data model); did **NOT** delete
 Railway or `vault.db`. The Railway service + save data are **parked** (already
-502ing → nothing working was lost). Final cutover is yours to flip — see below.
+502ing → nothing working was lost). Final cutover is yours to flip, see below.
 
 ## What shipped (all live)
 
@@ -51,7 +50,7 @@ Warrior → Security Office · Mage → Reactor Lab · Rogue → Stealth Bay · 
 ## Outstanding manual actions (for Clay)
 
 1. **Deploy aquilo-site.** The viewer is committed locally on `master`
-   (`38e0afc`) but **NOT pushed** — the repo has the in-flight site-polish
+   (`38e0afc`) but **NOT pushed**, the repo has the in-flight site-polish
    chip's uncommitted work, and aquilo-site auto-deploys on push. Coordinate
    the push/deploy with that work.
 2. **Decide the legacy FS-Bot cutover.** The new community vault is the
@@ -63,15 +62,15 @@ Warrior → Security Office · Mage → Reactor Lab · Rogue → Stealth Bay · 
      `handleVaultPostActions` in `worker.js`; `vault-hub.js`; and the site's
      `functions/api/web/vault/[[route]].js` + `_lib/vault-bridge.js` (or
      repoint them at the new worker routes).
-   - These were left in place tonight for reversibility — they no-op cleanly
+   - These were left in place tonight for reversibility, they no-op cleanly
      when their secrets are unset.
 3. **(Optional) Import legacy dwellers** into the new community vault
    (map `vault.db` dwellers → `vault_dweller`, infer class from room).
-4. **(Optional) Overseer role automation** — `vault_dweller.contribution_total`
+4. **(Optional) Overseer role automation**, `vault_dweller.contribution_total`
    drives it; wire a small cron to grant Vault Overseer to the top N
    contributors (role exists, assignment not yet automated).
 
-## Rework — 2026-06-02 (Clay's feedback pass)
+## Rework, 2026-06-02 (Clay's feedback pass)
 
 Shipped on top of the overnight v1. Branding confirmed **"Aquilo's Vault"**
 everywhere (the v1 had already used it; only stylistic "Fallout-Shelter-style"
@@ -81,7 +80,7 @@ comments remained, now softened).
 |---|---|---|
 | Rooms carved into rock | All 16 room cells re-rendered as **front-facing** scenes hewn into the mountain with rough natural-stone apertures that blend into the bedrock (watchtower/reactor-lab look). Opaque full-bleed (no magenta key); the viewer composites a rock-edge vignette so edges fade into the terrain. | `vault-art-pipeline.py` (rooms now `isolate=False`), re-rendered + live in KV |
 | Idle scene animations | Per-room-type `ROOM_FX` registry: generator turbine, water bubbles, diner steam, training dummy, medical heart-blip + IV drip, reactor runes, garden grow-light, storage dust, science/radio. Clipped per room; **skipped under `prefers-reduced-motion`**. | `VaultCrossSection.tsx` |
-| Animated dwellers | Deterministic walk + class-task state machine — FNV-1a `userId` hash desyncs pacing, mirror-on-turn, walk bob, periodic class task (warrior jab / mage glow / healer blip / ranger aim / rogue flicker). **No per-frame randomness.** | `VaultCrossSection.tsx` |
+| Animated dwellers | Deterministic walk + class-task state machine, FNV-1a `userId` hash desyncs pacing, mirror-on-turn, walk bob, periodic class task (warrior jab / mage glow / healer blip / ranger aim / rogue flicker). **No per-frame randomness.** | `VaultCrossSection.tsx` |
 | Customizable dwellers | New `vault_dweller_customization` D1 table (applied), `get/setDwellerCustomization` (+ server-side validation & premium gate), `snapshot().dwellers[].customization`, HMAC route `POST /web/vault/dweller-customize`, site `/profile/vault-dweller` customizer reusing the Hero paper-doll + an OUTFIT pick. | `vault-community.js`, `web.js`, `vault-dweller-customization-migration.sql`, `aquilo-site` (`vaultDweller.ts`, `VaultDwellerCustomizer.tsx`, `HeroComposite.tsx` `vaultOutfit` prop, Pages proxy) |
 | Outfit art | 6 overlays generated (jumpsuit/reinforced/hazmat × M/F) at `/asset/vault/outfit-<slug>-<sex>.png`. | KV |
 
@@ -97,15 +96,15 @@ layer prop is in place (backward-compatible) for when true garment-only overlay 
 **Verification:** both repos typecheck clean (site `tsc` 0 errors; worker `node --check` OK);
 worker deployed (version `12a3c820`); D1 migration applied; live snapshot emits the
 `customization` path; `/play/vault` mounts cleanly in-browser (HUD/terminal/caption, no
-errors). Live animated pixels could **not** be captured headlessly — the preview tab is
+errors). Live animated pixels could **not** be captured headlessly, the preview tab is
 backgrounded so `requestAnimationFrame` is paused (verified 0 ticks while hidden); the
 room art + canvas draw path were verified directly instead.
 
 **Follow-ups (not blocking):**
 - Draw the `outfit-<slug>-<sex>.png` layer on the small cross-section dwellers too (viewer currently uses the base class+sex sprite; outfit shows on the profile page).
 - Cross-section consumes only `customization.classKey`/`sex`; `skinTone`/`hair`/`eyes`/`facial` are typed but not yet drawn at that scale.
-- Pre-existing lint nit at `VaultCrossSection.tsx` (set-state-in-effect on the poll) — untouched, out of scope.
-- The audio/music subsystem (`BoltboundSpire`/`PlayExpedition`/`TownManager`/`PwaShell`/`AchievementUnlockToast`/`public/audio`/`scripts/audio-*`) is a **separate in-flight chip's** uncommitted work — deliberately left untouched & uncommitted.
+- Pre-existing lint nit at `VaultCrossSection.tsx` (set-state-in-effect on the poll), untouched, out of scope.
+- The audio/music subsystem (`BoltboundSpire`/`PlayExpedition`/`TownManager`/`PwaShell`/`AchievementUnlockToast`/`public/audio`/`scripts/audio-*`) is a **separate in-flight chip's** uncommitted work, deliberately left untouched & uncommitted.
 
 ## Operating notes
 - Re-arm Discord setup: `wrangler kv key put vault-setup-token <hex> --binding LOADOUT_BOLTS --remote`, then `POST /admin/vault/setup/<guild>?token=<hex>` (idempotent).

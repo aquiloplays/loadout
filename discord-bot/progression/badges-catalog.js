@@ -1,4 +1,4 @@
-// Progression — badge catalogue.
+// Progression, badge catalogue.
 //
 // PROGRESSION-SYSTEM-DESIGN.md §7. Each badge is a 64×64 PNG at
 // aquilo-gg/sprites/progression/badges/<id>.png. Badges are awarded

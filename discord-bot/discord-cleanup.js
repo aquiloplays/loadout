@@ -36,8 +36,7 @@ const EXPLICIT_MENU_CHANNEL_IDS = new Set([
 // roster). The worker stores each hub's message id in KV and edits it in
 // place; deleting the embed would 404 the next edit. Sourced from
 // wrangler.toml (POLL/QUEUE_CHANNEL_ID) + the locked-in ids in memory
-// (vote-hub, poll, cn-games roster). Preserved but NOT force-locked —
-// some (suggestions, lfg) are channels members are meant to post in.
+// (vote-hub, poll, cn-games roster). Preserved but NOT force-locked, // some (suggestions, lfg) are channels members are meant to post in.
 const KNOWN_BOT_HUB_IDS = new Set([
   '1507973910107389952',   // suggestions  (POLL_CHANNEL_ID)
   '1507973931372646490',   // lfg          (QUEUE_CHANNEL_ID)
@@ -46,8 +45,7 @@ const KNOWN_BOT_HUB_IDS = new Set([
   '1509201629482713158',   // cn-games     (cn-games-list roster hub)
 ]);
 
-// Welcome / rules / info / announcement channels: preserved (NOT locked —
-// they are typically already configured; we only avoid deleting from them).
+// Welcome / rules / info / announcement channels: preserved (NOT locked, // they are typically already configured; we only avoid deleting from them).
 const PROTECT_NAME_RE =
   /(announce|rule|info|welcome|onboard|start.?here|read.?me|getting.?started|verify)/i;
 

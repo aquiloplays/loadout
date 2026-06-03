@@ -19,9 +19,9 @@
  *   font        family  CSS font-family stack, URL-encoded.
  *                       e.g. font=Inter%2Csans-serif
  *   scale       0.1-3   scales the whole overlay (body zoom). Distinct
- *                       from fontScale conceptually — scale is "make
+ *                       from fontScale conceptually, scale is "make
  *                       the whole thing bigger/smaller", fontScale is
- *                       "make the text bigger" — but both land on
+ *                       "make the text bigger", but both land on
  *                       body zoom in CEF. When both are set, they
  *                       multiply.
  *   opacity     0-100   whole-overlay opacity (body opacity). Lets a
@@ -29,7 +29,7 @@
  *                       quieter against busy gameplay.
  *   offsetX     px      nudge the overlay horizontally (+ = right).
  *   offsetY     px      nudge the overlay vertically (+ = down).
- *                       Offsets apply as a body translate — handy for
+ *                       Offsets apply as a body translate, handy for
  *                       pixel-aligning against a webcam frame or HUD.
  */
 (() => {

@@ -1,4 +1,4 @@
-// Per-guild channel bindings — KV-backed config with wrangler.toml
+// Per-guild channel bindings, KV-backed config with wrangler.toml
 // fallback. Lets Clay rebind a channel (queue / live / recap / clips
 // / lfg) without redeploying the worker.
 //
@@ -6,7 +6,7 @@
 //   1. KV `channel-binding:<guildId>:<key>` (string value, the
 //      channel snowflake)
 //   2. wrangler.toml [vars] env-var fallback (per BINDING_ENV_FALLBACK
-//      below) — preserves legacy behaviour when nothing is bound
+//      below), preserves legacy behaviour when nothing is bound
 //   3. null (caller decides whether to skip / surface an error)
 //
 // Admin route POST /admin/channels/bind/<guildId> takes
@@ -24,14 +24,14 @@ const BINDING_KEYS = Object.freeze([
   // Phase: CN games-list catalogue channel (cn-games-list-hub.js)
   'games-list',
   // Phase 1 channel hubs (check-in / character / bolts / play /
-  // achievements) — see <key>-hub.js for each.
+  // achievements), see <key>-hub.js for each.
   // NOTE: `checkin` is the HUB channel (interactive surface);
   // `checkin-results` is where the "X checked in! +N bolts" embed
   // lands. Separating them lets the hub live in a low-noise
   // interactive room while completion posts go to general/feed.
   'checkin', 'checkin-results',
   'character', 'bolts', 'play', 'achievements',
-  // Unified voting hub — variety + community night, separate events
+  // Unified voting hub, variety + community night, separate events
   // sharing one channel. See vote-hub.js. KV-only (admins bind via
   // /admin/channels/bind/<g>).
   'vote',
@@ -39,21 +39,20 @@ const BINDING_KEYS = Object.freeze([
   //   stream-notifications: catch-all default for follows / subs /
   //     gifts / cheers / raids / redemptions etc. when no per-event
   //     override is set (see twitch-event-channel:<eventType> KV).
-  //   live-now: bigger "going live" announcement embed channel —
-  //     separate from the existing `live` binding which is the
+  //   live-now: bigger "going live" announcement embed channel, //     separate from the existing `live` binding which is the
   //     edit-in-place lifecycle (postLiveEmbed → markStreamOffline).
   //     If unbound, falls through to the `live` binding so the
   //     existing single-channel setup keeps working.
   //   redemptions-feed: channel-point redemption embeds (high-volume
-  //     for active streams — Clay can route it to a low-noise
+  //     for active streams, Clay can route it to a low-noise
   //     "feed" channel).
   'stream-notifications', 'live-now', 'redemptions-feed',
   // Twitch rewards feed (see twitch-rewards.js). Bolt + role grants
   // for Twitch events fire a short embed here so the community sees
   // who earned what. Distinct from `stream-notifications` (the
-  // event embed itself) — these are the *reward* posts.
+  // event embed itself), these are the *reward* posts.
   'twitch-rewards-feed',
-  // Seasonal Spire clear feed — milestone floor 5/9/boss embeds posted
+  // Seasonal Spire clear feed, milestone floor 5/9/boss embeds posted
   // here when a player clears. Falls back to twitch-rewards-feed
   // (the #rewards channel) if unbound, which is the natural overflow.
   'spire-clears',
@@ -74,7 +73,7 @@ const BINDING_KEYS = Object.freeze([
 // Source-of-truth mapping from binding key → fallback env var name.
 // Adding a new binding key is two edits: append to BINDING_KEYS +
 // add the env var here. (No env fallback for hub-channel bindings
-// — they're KV-only; admins set them via /admin/channels/bind/<g>.)
+//, they're KV-only; admins set them via /admin/channels/bind/<g>.)
 const BINDING_ENV_FALLBACK = Object.freeze({
   queue:        'QUEUE_CHANNEL_ID',
   live:         'LIVE_CHANNEL_ID',
@@ -92,7 +91,7 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   play:              null,
   achievements:      null,
   vote:              null,
-  // Twitch event channels — KV-only, set via /twitch-event set.
+  // Twitch event channels, KV-only, set via /twitch-event set.
   'stream-notifications': null,
   'live-now':             null,
   'redemptions-feed':     null,
@@ -116,9 +115,9 @@ export function isValidBinding(key) {
   return BINDING_KEYS.includes(String(key));
 }
 
-// Async — KV reads are async. Every call site that needs a channel
+// Async, KV reads are async. Every call site that needs a channel
 // id calls this. Returns the resolved channel snowflake or null.
-// `guildId` may be null (worker has no guild context) — falls
+// `guildId` may be null (worker has no guild context), falls
 // straight to the env-var fallback.
 export async function getChannelBinding(env, guildId, key) {
   if (!isValidBinding(key)) return null;
@@ -151,7 +150,7 @@ export async function setChannelBinding(env, guildId, key, channelId) {
   return { ok: true, binding: key, channelId: raw };
 }
 
-// Bulk read for the admin status surface — returns { key: { kv,
+// Bulk read for the admin status surface, returns { key: { kv,
 // env, resolved } } for every binding. KV value is what /admin set;
 // env is the wrangler fallback; resolved is the effective value.
 export async function listChannelBindings(env, guildId) {

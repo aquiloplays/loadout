@@ -1,4 +1,4 @@
-// AI GM — Anthropic API wrapper for the campaign module.
+// AI GM, Anthropic API wrapper for the campaign module.
 //
 // Default model: claude-haiku-4-5-20251001 (Clay 2026-05: prefer
 // Haiku for cost; Sonnet is the upgrade path for important beats
@@ -6,7 +6,7 @@
 // campaign session in D1; calls refuse to fire once cost_cents
 // crosses cost_cap_cents.
 //
-// System prompt is baked verbatim from Clay's spec — em-dash ban,
+// System prompt is baked verbatim from Clay's spec, em-dash ban,
 // 2-4 sentence beats, dry-humored DM voice, real consequences,
 // d20 combat with visible rolls. Adventure premise + party
 // characters are injected per-call so the GM has context without
@@ -15,7 +15,7 @@
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
 
-// Haiku 4.5 pricing as of 2026-05 — $1.00 / 1M input tokens,
+// Haiku 4.5 pricing as of 2026-05, $1.00 / 1M input tokens,
 // $5.00 / 1M output tokens. Conservative; actual published rates
 // may be lower. Used only for the per-campaign budget cap; not
 // surfaced to players as a precise number.
@@ -64,7 +64,7 @@ export function buildSystemPrompt({ partyBlob, premise }) {
 // atk, def, class). Falls back gracefully when fields are missing.
 export function formatCharacter(userId, displayName, hero) {
   if (!hero) {
-    return `${displayName} (id ${userId}) — class: unknown, no character sheet on file.`;
+    return `${displayName} (id ${userId}), class: unknown, no character sheet on file.`;
   }
   const cls = hero.className || hero.class || 'unclassed';
   const lvl = hero.level || 1;

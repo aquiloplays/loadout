@@ -1,4 +1,4 @@
-// Community-Night vote menu hub — persistent embed in the CN
+// Community-Night vote menu hub, persistent embed in the CN
 // channel with four buttons that walk users through the existing
 // vote / queue / status flows without typing slash commands.
 //
@@ -37,11 +37,11 @@ export async function buildHubEmbed(env, guildId) {
     embed: {
       title: '🎲 Community Night',
       description:
-        `Saturday is **Community Night** — the community picks the game.\n\n` +
+        `Saturday is **Community Night**, the community picks the game.\n\n` +
         `• **Vote for this week** opens the current poll\n` +
         `• **View standings** shows live counts\n` +
         `• **Join CN queue** locks your slot for tonight's stream\n` +
-        `• **My status** — your vote + queue position`,
+        `• **My status**, your vote + queue position`,
       color: brand.accentColor || 0x9147ff,
       footer: { text: 'Vote is one-per-user-per-week. Change it any time until the poll closes.' },
     },
@@ -97,7 +97,7 @@ export async function postCnVoteHub(env, guildId, channelId) {
   return { ok: true, channelId, messageId: j.id, deletedPrior };
 }
 
-// Admin HTTP entry — resolves channel via opts + channel-binding(poll)
+// Admin HTTP entry, resolves channel via opts + channel-binding(poll)
 // (the CN vote hub lives in the same channel as the poll). Mirrors
 // postLfgHubForGuild in lfg-hub.js.
 export async function postCnVoteHubForGuild(env, guildId, opts = {}) {
@@ -133,7 +133,7 @@ export async function handleCnVoteComponent(env, data) {
   if (action === 'vote')        return voteMenu(env, guildId, userId);
   if (action === 'standings')   return standingsMenu(env, guildId);
   if (action === 'queue-join') {
-    // Re-emit through aquilo-queue.js — its handler is generic
+    // Re-emit through aquilo-queue.js, its handler is generic
     // (reads from KV state, doesn't need the queue-message context).
     const { handleQueueButton } = await import('./aquilo/aq-queue.js');
     return handleQueueButton(env, { ...data, data: { ...data.data, custom_id: 'queue:join' } }, guildId);
@@ -250,7 +250,7 @@ async function standingsMenu(env, guildId) {
     data: {
       embeds: [{
         title: '📊 Live standings · ' + (total === 1 ? '1 vote' : `${total} votes`),
-        description: lines.length ? lines.join('\n') : '_no votes yet — be the first_',
+        description: lines.length ? lines.join('\n') : '_no votes yet, be the first_',
         color: 0x9147ff,
         footer: { text: 'Refresh by tapping the button again. Voting closes Sat 9 PM ET.' },
       }],

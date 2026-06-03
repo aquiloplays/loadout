@@ -28,7 +28,7 @@
     if (hideTimer) clearTimeout(hideTimer);
 
     headline.textContent = payload.broadcaster
-      ? payload.broadcaster + " — Stream Recap"
+      ? payload.broadcaster + ", Stream Recap"
       : "Stream Recap";
 
     const cells = [

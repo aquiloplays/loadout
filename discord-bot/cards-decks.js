@@ -1,4 +1,4 @@
-// Boltbound — deck building service.
+// Boltbound, deck building service.
 //
 // Thin layer on top of cards-state's storage helpers + cards-content's
 // validateDeck. Owns the "auto-build a starter deck" path so a
@@ -6,7 +6,7 @@
 // open their welcome Common Pack.
 //
 // Slash-command-facing operations live here so cards.js stays as a
-// dispatch shell. KV writes are still in cards-state.js — this module
+// dispatch shell. KV writes are still in cards-state.js, this module
 // is glue + validation.
 
 import {
@@ -24,7 +24,7 @@ const MAX_SAVED_DECKS = 6;
 // ── Public: build a starter deck from the viewer's collection ───────
 //
 // Greedy fill: start with the viewer's champion, then drain the
-// collection by rarity (lowest first — commons are the abundant glue)
+// collection by rarity (lowest first, commons are the abundant glue)
 // honouring the deck cap. Returns a deck object ready to be saved.
 //
 // Called after the welcome Common Pack lands so the first /boltbound
@@ -94,7 +94,7 @@ export function buildStarterDeck(collection, championClass, opts = {}) {
 //
 // Unlike buildStarterDeck (which draws from what the viewer already
 // owns), this builds a weak, balanced 20-card deck straight from the
-// global catalogue pools — used by the one-click "Get a starter deck"
+// global catalogue pools, used by the one-click "Get a starter deck"
 // CTA for players with no deck (and possibly no collection). The caller
 // GRANTS the returned `grantIds` into the collection before saveDeck so
 // ownership validation passes. Composition (19 non-champion cards):
@@ -145,7 +145,7 @@ export async function saveDeck(env, guildId, userId, deck, championClass) {
   if (!deck || !Array.isArray(deck.cards)) return { ok: false, error: 'deck-required' };
 
   // Drop any champion entries the caller may have included and re-add
-  // the canonical one — keeps the saved record portable across class
+  // the canonical one, keeps the saved record portable across class
   // swaps (the resolveDeckChampion helper rewrites on read).
   const cls = championClass || deck.championClass || 'warrior';
   const stripped = deck.cards.filter(id => CARDS[id]?.rarity !== 'champion');
@@ -159,7 +159,7 @@ export async function saveDeck(env, guildId, userId, deck, championClass) {
   const v = validateDeck({ cards: materialised });
   if (!v.ok) return { ok: false, error: v.error };
 
-  // Unreleased-set gate (KV-aware — see boltbound-release.js). A card from
+  // Unreleased-set gate (KV-aware, see boltbound-release.js). A card from
   // an expansion that hasn't been flipped live yet can't be decked. core
   // is always allowed.
   const released = new Set(await releasedSetIds(env));
@@ -171,7 +171,7 @@ export async function saveDeck(env, guildId, userId, deck, championClass) {
     }
   }
 
-  // Check ownership — viewer must own every non-champion, non-token card
+  // Check ownership, viewer must own every non-champion, non-token card
   // in the requested quantity.
   const col = await getCollection(env, guildId, userId);
   const counts = {};

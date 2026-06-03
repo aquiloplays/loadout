@@ -30,7 +30,7 @@
 //   3. (card.id OR card.name) substring-matches at least one poolTag
 //      when poolTags is non-empty
 //
-// Deterministic when given a seed (matchId) — so a player can't
+// Deterministic when given a seed (matchId), so a player can't
 // quit-retry to re-roll the boss into a softer deck.
 
 import { CARDS } from './cards-content.js';
@@ -98,7 +98,7 @@ function filterPoolByTagsAndTier(themeTags, templatePoolTags, tier) {
   });
 }
 
-// Untagged pool — fallback when the tagged pool is too thin to fill
+// Untagged pool, fallback when the tagged pool is too thin to fill
 // the deck size. Same rarity + mana filter.
 function filterPoolByTier(tier) {
   const allowed = new Set(DEFAULTS[tier].allowedRarities);
@@ -126,9 +126,9 @@ function themeTagsForSeason(themeId) {
  * Generate an NPC deck for a given floor, given the season + an NPC
  * row from spire_npcs (or null to fall back to tier defaults).
  *
- * @param {string} themeId     — season themeId (e.g. 'ember-court')
- * @param {object} npcRow      — { difficulty_tier, deck_template, ... } from spire_npcs
- * @param {string} seedKey     — deterministic seed (use spire_runs.id + ':' + floor)
+ * @param {string} themeId, season themeId (e.g. 'ember-court')
+ * @param {object} npcRow, { difficulty_tier, deck_template, ... } from spire_npcs
+ * @param {string} seedKey, deterministic seed (use spire_runs.id + ':' + floor)
  * @returns {{championClass, cards: string[]}}
  */
 export function generateSpireNpcDeck(themeId, npcRow, seedKey) {
@@ -154,7 +154,7 @@ export function generateSpireNpcDeck(themeId, npcRow, seedKey) {
   const rng = seededRng((seedKey || '') + ':' + (npcRow.npc_key || ''));
 
   // 1. Forced cards first (e.g. boss-only legendaries from the seasonal
-  //    exclusive list — present in the catalogue, gated by the template).
+  //    exclusive list, present in the catalogue, gated by the template).
   const out = [];
   const forced = Array.isArray(template.forceCardIds) ? template.forceCardIds : [];
   for (const id of forced) {
@@ -162,7 +162,7 @@ export function generateSpireNpcDeck(themeId, npcRow, seedKey) {
     if (CARDS[id] && !CARDS[id].token) out.push(id);
   }
 
-  // 2. Themed pool — fill the bulk of the deck.
+  // 2. Themed pool, fill the bulk of the deck.
   const themed = filterPoolByTagsAndTier(themeTags, poolTags, tier);
   if (themed.length) {
     // Cap rare picks to the template's raresAllowed.
@@ -176,7 +176,7 @@ export function generateSpireNpcDeck(themeId, npcRow, seedKey) {
     }
   }
 
-  // 3. Untagged fallback — if the theme pool was too thin, top up with
+  // 3. Untagged fallback, if the theme pool was too thin, top up with
   //    catalogue commons/uncommons so the deck always fills.
   if (out.length < size) {
     const fallback = filterPoolByTier(tier).filter(c => c.rarity !== 'rare' && c.rarity !== 'legendary');

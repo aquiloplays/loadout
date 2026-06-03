@@ -14,7 +14,7 @@ function ok(c, m) { if (c) { pass++; console.log('  PASS', m); } else { fail++; 
 function eq(a, b, m) { if (a === b) { pass++; console.log('  PASS', m); } else { fail++; console.log('  FAIL', m, '(want', b, 'got', a, ')'); } }
 
 // Generic in-memory KV with prefix list support (covers collection,
-// pending packs, wallet, pity, release overrides — all plain KV ops).
+// pending packs, wallet, pity, release overrides, all plain KV ops).
 function makeEnv() {
   const m = new Map();
   return {

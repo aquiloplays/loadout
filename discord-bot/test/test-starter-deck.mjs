@@ -19,7 +19,7 @@ function lcg(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 10139
 const CLASSES = ['warrior', 'mage', 'rogue', 'ranger', 'healer'];
 
 for (const cls of CLASSES) {
-  console.log(`— buildPoolStarterDeck("${cls}")`);
+  console.log(`- buildPoolStarterDeck("${cls}")`);
   const { deck, grantIds } = buildPoolStarterDeck(cls, lcg(cls.length * 7 + 1));
 
   eq(deck.cards.length, DECK_SIZE, `deck has ${DECK_SIZE} cards (incl champion)`);
@@ -56,7 +56,7 @@ for (const cls of CLASSES) {
 }
 
 // Random (unseeded) runs still hold the invariants.
-console.log('— invariants hold across 25 random builds');
+console.log('- invariants hold across 25 random builds');
 {
   let ok = true;
   for (let i = 0; i < 25; i++) {
@@ -70,5 +70,5 @@ console.log('— invariants hold across 25 random builds');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

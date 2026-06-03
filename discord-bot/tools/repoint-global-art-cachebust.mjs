@@ -11,7 +11,7 @@
 //
 // AUDIT (via /admin/_card-art-summary): all 1267 global-card-art records
 // already point at the premium /asset/card-art URL (source
-// premium-overhaul-v1) — 0 Giphy, 0 stale. So this is NOT a stale-URL
+// premium-overhaul-v1), 0 Giphy, 0 stale. So this is NOT a stale-URL
 // problem; it's an immutable-cache-on-unchanged-URL problem.
 //
 // FIX: re-point every global-card-art record's memeGifUrl to a VERSIONED
@@ -50,7 +50,7 @@ const entries = ids.map(id => ({
 
 console.log(`re-pointing ${entries.length} global-card-art records -> /asset/card-art/<id>.png?v=${VER}`);
 console.log('sample:', entries[0].key, '->', JSON.parse(entries[0].value).memeGifUrl);
-if (DRY) { console.log('(dry run — not writing)'); process.exit(0); }
+if (DRY) { console.log('(dry run, not writing)'); process.exit(0); }
 
 // Chunk the bulk put (small JSON values; one chunk easily fits, but
 // stay well under the wire ceiling).
@@ -65,4 +65,4 @@ for (let i = 0; i < entries.length; i += CHUNK) {
   written += chunk.length;
   console.log(`  wrote ${written}/${entries.length}`);
 }
-console.log(`done — ${written} records re-pointed to ?v=${VER}`);
+console.log(`done, ${written} records re-pointed to ?v=${VER}`);

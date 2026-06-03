@@ -1,4 +1,4 @@
-// Unit tests for achievements-d1.js — the new D1-backed achievement
+// Unit tests for achievements-d1.js, the new D1-backed achievement
 // engine. Distinct from progression/achievements.js (KV+XP+event-bus,
 // already serving /web/achievements/*) and aquilo/achievements.js
 // (legacy CATALOG bump-and-announce). This module is namespaced
@@ -20,7 +20,7 @@ function eq(a, b, m)  { if (a === b) { pass++; console.log('  ✅', m); } else {
 // ── In-memory D1 mock ─────────────────────────────────────────────
 //
 // Stores two arrays (achievement_def, user_achievement) and pattern-
-// matches the SQL strings the module emits. Not a SQL engine — just
+// matches the SQL strings the module emits. Not a SQL engine, just
 // enough surface for these tests. If the module's queries change,
 // the mock must change in lockstep.
 
@@ -44,7 +44,7 @@ function makeMockDB() {
         return null;
       },
       async all() {
-        // listAchievements (no bind — fully unparameterized)
+        // listAchievements (no bind, fully unparameterized)
         if (/FROM achievement_def\s+WHERE active = 1\s+ORDER BY tier, id/i.test(sql)) {
           return { results: defs.filter(d => d.active === 1) };
         }
@@ -144,7 +144,7 @@ function makeEnv() {
 
 // ── Tests ─────────────────────────────────────────────────────────
 
-console.log('— listAchievements returns seeded rows');
+console.log('- listAchievements returns seeded rows');
 {
   const env = makeEnv();
   const all = await listAchievements(env);
@@ -159,7 +159,7 @@ console.log('— listAchievements returns seeded rows');
   eq(def.tier, 'silver', 'tier populated');
 }
 
-console.log('— tryUnlock is idempotent');
+console.log('- tryUnlock is idempotent');
 {
   const env = makeEnv();
   const uid = 'user-A';
@@ -174,7 +174,7 @@ console.log('— tryUnlock is idempotent');
   eq(env.DB._userAch.length, 1, 'only one row written to user_achievement');
 }
 
-console.log('— tryUnlock with unknown id is a soft no-op');
+console.log('- tryUnlock with unknown id is a soft no-op');
 {
   const env = makeEnv();
   const r = await tryUnlock(env, 'user-B', 'no-such-thing');
@@ -182,7 +182,7 @@ console.log('— tryUnlock with unknown id is a soft no-op');
   eq(r.achievement, null, 'unknown id → no payload');
 }
 
-console.log('— getUserAchievements returns unlocked rows newest first');
+console.log('- getUserAchievements returns unlocked rows newest first');
 {
   const env = makeEnv();
   const uid = 'user-C';
@@ -200,18 +200,18 @@ console.log('— getUserAchievements returns unlocked rows newest first');
   eq(list[1].id, 'first-checkin', 'older second (checkin)');
 }
 
-console.log('— checkAndUnlock: one-shot trigger fires on matching type');
+console.log('- checkAndUnlock: one-shot trigger fires on matching type');
 {
   const env = makeEnv();
   const fired = await checkAndUnlock(env, 'user-D', { type: 'pet-tamed' });
   eq(fired.length, 1, 'one achievement fires');
   eq(fired[0].id, 'first-pet-tamed', 'first-pet-tamed unlocked');
-  // Second call is idempotent — no double-fire.
+  // Second call is idempotent, no double-fire.
   const fired2 = await checkAndUnlock(env, 'user-D', { type: 'pet-tamed' });
   eq(fired2.length, 0, 'second matching event → 0 new unlocks');
 }
 
-console.log('— checkAndUnlock: cumulative trigger respects threshold');
+console.log('- checkAndUnlock: cumulative trigger respects threshold');
 {
   const env = makeEnv();
   const uid = 'user-E';
@@ -234,7 +234,7 @@ console.log('— checkAndUnlock: cumulative trigger respects threshold');
   assert(!cIds.includes('checkin-200'), 'checkin-200 not fired at count=50');
 }
 
-console.log('— checkAndUnlock: value-based trigger fallback when count absent');
+console.log('- checkAndUnlock: value-based trigger fallback when count absent');
 {
   const env = makeEnv();
   const uid = 'user-F';
@@ -246,14 +246,14 @@ console.log('— checkAndUnlock: value-based trigger fallback when count absent'
   assert(!aIds.includes('bolts-counted-500'), 'bolts-counted-500 gated');
 }
 
-console.log('— checkAndUnlock: unknown event type returns []');
+console.log('- checkAndUnlock: unknown event type returns []');
 {
   const env = makeEnv();
   const r = await checkAndUnlock(env, 'user-G', { type: 'does-not-exist' });
   eq(r.length, 0, 'no defs match → empty array');
 }
 
-console.log('— checkAndUnlock: missing user/event returns []');
+console.log('- checkAndUnlock: missing user/event returns []');
 {
   const env = makeEnv();
   eq((await checkAndUnlock(env, null, { type: 'checkin', count: 1 })).length, 0, 'null userId → []');
@@ -262,5 +262,5 @@ console.log('— checkAndUnlock: missing user/event returns []');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

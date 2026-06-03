@@ -1,4 +1,4 @@
-// Aurora Spire — northern lights, sky-veils, dream-spirits, wind.
+// Aurora Spire, northern lights, sky-veils, dream-spirits, wind.
 // 5 events: 2 pure upside, 2 tradeoff, 1 gamble.
 
 export const AURORA_SPIRE_EVENTS = Object.freeze([
@@ -13,7 +13,7 @@ export const AURORA_SPIRE_EVENTS = Object.freeze([
         label: 'Join the dance',
         outcomes: [
           { weight: 60, effect: { type: 'hp_gain', amount: 10 },        text: 'You spin until your wounds knit. (+10 HP)' },
-          { weight: 40, effect: { type: 'buff', name: 'aurora-grace', floors: 3 }, text: 'A shimmer settles on your shoulders — Aurora Grace, 3 floors.' },
+          { weight: 40, effect: { type: 'buff', name: 'aurora-grace', floors: 3 }, text: 'A shimmer settles on your shoulders, Aurora Grace, 3 floors.' },
         ],
       },
       {
@@ -29,7 +29,7 @@ export const AURORA_SPIRE_EVENTS = Object.freeze([
     id: 'dream-spirit-pact',
     name: 'The Dream-Spirit Pact',
     description:
-      "A pale, antlered figure offers you a sip from a cup of starlit water. She warns: 'Drink and you will dream. What you find in the dream is yours — what finds you, is also yours.'",
+      "A pale, antlered figure offers you a sip from a cup of starlit water. She warns: 'Drink and you will dream. What you find in the dream is yours, what finds you, is also yours.'",
     choices: [
       {
         id: 'drink',
@@ -66,7 +66,7 @@ export const AURORA_SPIRE_EVENTS = Object.freeze([
         id: 'chase',
         label: 'Chase them',
         outcomes: [
-          { weight: 70, effect: { type: 'relic_grant', tier: 'minor' }, text: 'You catch the dropped pin — a minor relic.' },
+          { weight: 70, effect: { type: 'relic_grant', tier: 'minor' }, text: 'You catch the dropped pin, a minor relic.' },
           { weight: 30, effect: { type: 'hp_loss', amount: 4 },          text: 'You skid on frost and land hard. (-4 HP)' },
         ],
       },

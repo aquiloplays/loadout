@@ -1,24 +1,23 @@
 // Twitch event → Discord embed rendering + routing.
 //
 // This module owns:
-//   1. Per-event-type embed builders (followEmbed, subEmbed, …) —
-//      the v2 brand palette gives each event type a distinctive
+//   1. Per-event-type embed builders (followEmbed, subEmbed, …), //      the v2 brand palette gives each event type a distinctive
 //      colour stripe so a glance at the channel is informative.
-//   2. resolveEventChannel() — the per-event-type → channel routing
+//   2. resolveEventChannel(), the per-event-type → channel routing
 //      that lets Clay split (say) follows into one channel and
 //      redemptions into another. Defaults all to a single
 //      'stream-notifications' binding; per-event overrides in KV
 //      take precedence.
-//   3. eventTypeEnabled() — admin toggle that lets Clay disable an
+//   3. eventTypeEnabled(), admin toggle that lets Clay disable an
 //      event type without removing the EventSub subscription.
 //      Useful when a channel is rate-limited by a spike (gift bomb,
 //      hype train).
-//   4. handle*() — entry points the EventSub webhook dispatcher
+//   4. handle*(), entry points the EventSub webhook dispatcher
 //      calls when a notification arrives. Each fetches the routing
 //      target, checks the toggle, then posts the embed.
 //
 // twitch-live.js handles the special-case STREAM.ONLINE / .OFFLINE
-// LIFECYCLE EMBED (the edit-in-place "🔴 Streaming" card) — that
+// LIFECYCLE EMBED (the edit-in-place "🔴 Streaming" card), that
 // embed IS the going-live notification. This module owns the
 // stream.offline wrap embed (`handleStreamEndedSummary`) which posts
 // a separate summary once the stream ends.
@@ -34,14 +33,14 @@
 //                                            (counter used in footer copy).
 //   twitch-event:cumulative:follows:<gid> → running total of follow events.
 //
-// All embed colors live in EVENT_COLORS — sourced from the v2 brand
+// All embed colors live in EVENT_COLORS, sourced from the v2 brand
 // palette per Clay's spec. Changing a color is one place.
 
 import { getChannelBinding } from './channel-bindings.js';
 import { resolveTwitchLogin } from './twitch-login-resolver.js';
 
-// ── Brand palette (aquilo v2 — violet / pink / green only) ────────
-// Clay 2026-05 redesign — strip gold / orange / bright red. The
+// ── Brand palette (aquilo v2, violet / pink / green only) ────────
+// Clay 2026-05 redesign, strip gold / orange / bright red. The
 // gradient banner image on each embed carries the visual interest;
 // the Discord embed `color` left-stripe stays in the brand trio.
 // Subdued moments (stream wrap, ban) use neutral greys.
@@ -83,7 +82,7 @@ function bannerUrl(key) {
 }
 
 // Resolve sub-tier from Twitch tier string. Drives which sub banner
-// gets surfaced — tier-1/2/3 each have distinct gradient pairings.
+// gets surfaced, tier-1/2/3 each have distinct gradient pairings.
 function subBannerKey(tier) {
   switch (String(tier || '1000')) {
     case '2000': return 'sub-t2';
@@ -97,7 +96,7 @@ function subBannerKey(tier) {
 // ── Event-type catalogue ──────────────────────────────────────────
 // Source of truth for which event types this module knows. The slash
 // command's autocomplete + the admin toggle accept these; anything
-// else is rejected. Order matters for command choices — most-common
+// else is rejected. Order matters for command choices, most-common
 // first.
 export const EVENT_TYPES = Object.freeze([
   'follow', 'sub', 'gift', 'resub', 'cheer', 'raid',
@@ -130,7 +129,7 @@ export async function resolveEventChannel(env, guildId, eventType) {
     const v = await env.LOADOUT_BOLTS.get(CHANNEL_OVERRIDE_KEY(eventType));
     if (v && /^\d{15,25}$/.test(v)) return v;
   } catch { /* fall through */ }
-  // 2. Default — special routing for a few event types where Clay
+  // 2. Default, special routing for a few event types where Clay
   // has explicit channel keys.
   if (eventType === 'ended') {
     // Stream-wrap summary; honor live-now first, then live, then default.
@@ -159,7 +158,7 @@ export async function eventTypeEnabled(env, eventType) {
   }
 }
 
-// Cumulative counter — used by footer copy ("Total follows: 142").
+// Cumulative counter, used by footer copy ("Total follows: 142").
 // Failure-tolerant: a KV error just means the counter doesn't render
 // this round.
 async function incrementCounter(env, kind, guildId) {
@@ -185,7 +184,7 @@ async function getCounter(env, kind, guildId) {
 //
 // Fetches a fresh route + toggle, then posts. Honors `opts.content`
 // for a leading text line (used by raid + live to @-mention pings
-// role). Allowed_mentions kept tight — only the role id we explicitly
+// role). Allowed_mentions kept tight, only the role id we explicitly
 // listed gets pinged, never @everyone / @here.
 
 async function postToChannel(env, channelId, embed, opts = {}) {
@@ -314,7 +313,7 @@ export function resubEmbed({ userName, userLogin, tier, cumulativeMonths, streak
 }
 
 export function giftSubEmbed({ gifterName, gifterLogin, tier, total, cumulativeTotal, isAnon }) {
-  // Single OR community gift bomb — `total` is the number gifted in
+  // Single OR community gift bomb, `total` is the number gifted in
   // this single event. cumulativeTotal is the gifter's lifetime gift
   // count if Twitch surfaced it.
   const t = tierLabel(tier);
@@ -336,7 +335,7 @@ export function giftSubEmbed({ gifterName, gifterLogin, tier, total, cumulativeT
   };
 }
 
-// Cheer scaling — pick visual variant based on bit amount. Hue is
+// Cheer scaling, pick visual variant based on bit amount. Hue is
 // constant (gold), but the title intensity escalates.
 function cheerSizeLabel(bits) {
   if (bits >= 10_000) return { tag: 'MASSIVE CHEER', emoji: '💎💎💎' };
@@ -377,7 +376,7 @@ export function raidEmbed({ fromBroadcasterName, fromBroadcasterLogin, viewers }
 
 // End-of-stream summary. lastTitle/lastGame/lastPeakViewers are
 // the last-seen values stashed by twitch-live.js's lifecycle state;
-// follow/sub/cheer totals are best-effort — Twitch doesn't expose
+// follow/sub/cheer totals are best-effort, Twitch doesn't expose
 // per-stream aggregates, so we report the lifetime cumulative
 // counters (Clay can reset via /twitch-event reset-counters).
 export function streamEndedSummaryEmbed({ user, login, startedAt, lastTitle, lastGame, lastPeakViewers, totalFollows, totalSubs }) {
@@ -397,7 +396,7 @@ export function streamEndedSummaryEmbed({ user, login, startedAt, lastTitle, las
   lines.push(`See you next stream at https://twitch.tv/${login}`);
   return {
     color: EVENT_COLORS.ended,
-    author: { name: (user?.display_name || login || 'Streamer') + ' — stream wrap',
+    author: { name: (user?.display_name || login || 'Streamer') + ', stream wrap',
               icon_url: user?.profile_image_url || undefined },
     description: lines.join('\n'),
     thumbnail: user?.profile_image_url ? { url: user.profile_image_url } : undefined,
@@ -422,7 +421,7 @@ export function redemptionEmbed({ userName, userLogin, rewardTitle, rewardCost, 
   };
 }
 
-// Hype train — three variants, distinct titles, same brand colour.
+// Hype train, three variants, distinct titles, same brand colour.
 // progress + end carry running totals.
 export function hypeTrainBeginEmbed({ goal, total, level, expiresAt }) {
   const t = expiresAt ? asUnix(expiresAt) : null;
@@ -435,7 +434,7 @@ export function hypeTrainBeginEmbed({ goal, total, level, expiresAt }) {
     ].filter(Boolean).join('\n'),
     image: { url: bannerUrl('hype') },
     timestamp: new Date().toISOString(),
-    footer: { text: 'All aboard — subs / bits / gifts power the train' },
+    footer: { text: 'All aboard, subs / bits / gifts power the train' },
   };
 }
 
@@ -459,13 +458,13 @@ export function hypeTrainProgressEmbed({ level, total, goal, lastContribUser, la
 
 export function hypeTrainEndEmbed({ level, total, topContributions }) {
   const lines = [
-    `Reached **Level ${level || 1}** — total **${Number(total || 0).toLocaleString()}**`,
+    `Reached **Level ${level || 1}**, total **${Number(total || 0).toLocaleString()}**`,
   ];
   if (Array.isArray(topContributions) && topContributions.length) {
     lines.push('');
     lines.push('**Top contributors:**');
     for (const c of topContributions.slice(0, 5)) {
-      lines.push(`• **${c.user_name || c.user_login || '?'}** — ${Number(c.total || 0).toLocaleString()} ${c.type || ''}`);
+      lines.push(`• **${c.user_name || c.user_login || '?'}**, ${Number(c.total || 0).toLocaleString()} ${c.type || ''}`);
     }
   }
   return {
@@ -495,12 +494,12 @@ export function pollBeginEmbed({ title, choices, endsAt }) {
 export function pollEndEmbed({ title, status, choices }) {
   const winning = (Array.isArray(choices) ? [...choices] : [])
     .sort((a, b) => (Number(b.votes || 0) - Number(a.votes || 0)))[0] || null;
-  const lines = [`**${title || 'untitled poll'}** — closed`, ''];
+  const lines = [`**${title || 'untitled poll'}**, closed`, ''];
   if (Array.isArray(choices)) {
     for (const c of choices) {
       const votes = Number(c.votes || 0);
       const marker = winning && winning.id === c.id ? '🏆' : '•';
-      lines.push(`${marker} ${c.title || c.id || '?'} — ${votes.toLocaleString()} votes`);
+      lines.push(`${marker} ${c.title || c.id || '?'}, ${votes.toLocaleString()} votes`);
     }
   }
   return {
@@ -531,13 +530,13 @@ export function predictionBeginEmbed({ title, outcomes, endsAt }) {
 }
 
 export function predictionEndEmbed({ title, status, outcomes, winningOutcomeId }) {
-  const lines = [`**${title || 'untitled prediction'}** — locked`, ''];
+  const lines = [`**${title || 'untitled prediction'}**, locked`, ''];
   if (Array.isArray(outcomes)) {
     for (const o of outcomes) {
       const points = Number(o.channel_points || 0);
       const users  = Number(o.users || 0);
       const marker = winningOutcomeId && o.id === winningOutcomeId ? '🏆' : '•';
-      lines.push(`${marker} **${o.title || o.id || '?'}** — ${points.toLocaleString()} pts (${users} users)`);
+      lines.push(`${marker} **${o.title || o.id || '?'}**, ${points.toLocaleString()} pts (${users} users)`);
     }
   }
   return {
@@ -594,7 +593,7 @@ export async function handleFollow(env, payload) {
   }, total);
   const post = await dispatchEmbed(env, gid, 'follow', embed);
   // Cross-credit any aquilo-linked viewer for following on Twitch.
-  // Lifetime per-tid flag — no refollow exploit.
+  // Lifetime per-tid flag, no refollow exploit.
   try {
     const { grantTwitchEventReward } = await import('./twitch-rewards.js');
     await grantTwitchEventReward(env, ev.user_id, 'follow', { userName: ev.user_name });
@@ -606,7 +605,7 @@ export async function handleSubscribe(env, payload) {
   const ev = payload?.event || {};
   const gid = defaultGuildId(env);
   if (!gid) return { skipped: 'no-guild' };
-  // Skip gift recipient subs — those are part of the gift event's
+  // Skip gift recipient subs, those are part of the gift event's
   // headline and we don't want to double-post.
   if (ev.is_gift === true) return { skipped: 'gift-recipient' };
   const total = await incrementCounter(env, 'subs', gid);
@@ -627,7 +626,7 @@ export async function handleSubscribe(env, payload) {
 }
 
 export async function handleSubscriptionMessage(env, payload) {
-  // The "resub with message" event — fires when an existing
+  // The "resub with message" event, fires when an existing
   // subscriber renews + posts a chat message.
   const ev = payload?.event || {};
   const gid = defaultGuildId(env);
@@ -675,7 +674,7 @@ export async function handleSubscriptionGift(env, payload) {
     isAnon:           !!ev.is_anonymous,
   });
   const post = await dispatchEmbed(env, gid, 'gift', embed);
-  // Gifter bonus — 20% of recipient bolt reward per gift, scaled by total.
+  // Gifter bonus, 20% of recipient bolt reward per gift, scaled by total.
   // Anonymous gifters have no resolvable Twitch user id → skip.
   if (!ev.is_anonymous && ev.user_id) {
     try {
@@ -702,7 +701,7 @@ export async function handleCheer(env, payload) {
     isAnon:    !!ev.is_anonymous,
   });
   const post = await dispatchEmbed(env, gid, 'cheer', embed);
-  // Cheer bolt reward — skip for anonymous (no resolvable Twitch id).
+  // Cheer bolt reward, skip for anonymous (no resolvable Twitch id).
   if (!ev.is_anonymous && ev.user_id) {
     try {
       const { grantTwitchEventReward } = await import('./twitch-rewards.js');
@@ -732,7 +731,7 @@ export async function handleRaid(env, payload) {
     content: mentionRoleId ? `<@&${mentionRoleId}> raid incoming!` : undefined,
     mentionRoleId,
   });
-  // Raid-leader bonus (per-raider rewards skipped — channel.raid
+  // Raid-leader bonus (per-raider rewards skipped, channel.raid
   // doesn't carry individual raider Twitch ids).
   try {
     const { grantTwitchEventReward } = await import('./twitch-rewards.js');
@@ -905,7 +904,7 @@ export async function handleUnban(env, payload) {
   return await dispatchEmbed(env, gid, 'unban', embed);
 }
 
-// Convenience export — dispatch table keyed by Twitch subscription.type
+// Convenience export, dispatch table keyed by Twitch subscription.type
 // value. twitch-eventsub.js uses this to route incoming notifications
 // without one giant switch.
 export const EVENT_TYPE_HANDLERS = Object.freeze({
@@ -933,7 +932,7 @@ export const EVENT_TYPE_HANDLERS = Object.freeze({
 // ── Admin: list + set + toggle ────────────────────────────────────
 //
 // Used by both the slash command handlers AND the optional HMAC
-// /admin/twitch-event/* HTTP routes (if Clay wires those — slash is
+// /admin/twitch-event/* HTTP routes (if Clay wires those, slash is
 // the primary surface).
 export async function listEventRoutes(env, guildId) {
   const out = [];

@@ -12,12 +12,12 @@ rotating aquilo.gg + Clay product callout that fades every ~7s.
    or the hosted path (`https://aquilo.gg/overlays/tiktok/follow-reward.html`).
 3. **Width 1080 · Height 120.** Leave "Shutdown source when not visible" off.
 4. **Position:** full width at X = 0, and set Y to the gap between your cam/chat
-   row and the game capture (≈ Y 740 on a 1080×1920 canvas — nudge to taste).
+   row and the game capture (≈ Y 740 on a 1080×1920 canvas, nudge to taste).
 5. Background is transparent by default; no green-screen / chroma key needed.
 
 ## URL flags
-- `?compact=1` — hide the rotating callout (hero-only minimal mode).
-- `?theme=violet|pink|teal` — per-stream accent tint.
-- `?interval=10` — rotation speed in seconds (default 7).
+- `?compact=1`, hide the rotating callout (hero-only minimal mode).
+- `?theme=violet|pink|teal`, per-stream accent tint.
+- `?interval=10`, rotation speed in seconds (default 7).
 
 Edit the `CONFIG` block at the top of the `<script>` to change callout copy.

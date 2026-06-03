@@ -1,4 +1,4 @@
-// Integration test for pvp.js — exercises the whole module (router → HMAC →
+// Integration test for pvp.js, exercises the whole module (router → HMAC →
 // D1 → wallet escrow → resolve → spectator picks/bets → settlement → champion)
 // against a REAL SQL engine (node:sqlite) and the real wallet KV logic, with
 // properly HMAC-signed requests. Only the network edges (Discord DM, activity
@@ -15,7 +15,7 @@ import { handlePvpRoute } from '../pvp.js';
 
 if (!globalThis.crypto) globalThis.crypto = nodeCrypto;
 
-// pvp.js's ensureSchema uses a module-scoped isolate flag — correct in prod
+// pvp.js's ensureSchema uses a module-scoped isolate flag, correct in prod
 // (one DB per isolate) but it means our per-block fresh in-memory DBs would be
 // skipped after the first. So we exec the real migration on every fresh DB.
 const MIGRATION = readFileSync(fileURLToPath(new URL('../pvp-migration.sql', import.meta.url)), 'utf8');
@@ -108,7 +108,7 @@ async function GET(env, path) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-console.log('— direct challenge → accept → settle (wager escrow + payout)');
+console.log('- direct challenge → accept → settle (wager escrow + payout)');
 {
   const env = makeEnv();
   const CH = '111111111111111111', OPP = '222222222222222222';
@@ -180,7 +180,7 @@ console.log('— direct challenge → accept → settle (wager escrow + payout)'
   eq(await balanceOf(env, B_A), 400 + expectBetA, 'bettor A parimutuel payout');
   eq(await balanceOf(env, B_B), 400 + expectBetB, 'bettor B parimutuel payout');
 
-  // 9) settle is idempotent — second GET doesn't double-pay
+  // 9) settle is idempotent, second GET doesn't double-pay
   await GET(env, '/web/pvp/battle/' + bid);
   eq(await balanceOf(env, winnerId), 1100, 'no double payout on re-read');
 
@@ -195,7 +195,7 @@ console.log('— direct challenge → accept → settle (wager escrow + payout)'
   eq(snap.data.record.won, 1, 'winner record won=1');
 }
 
-console.log('— decline refunds the challenger');
+console.log('- decline refunds the challenger');
 {
   const env = makeEnv();
   const CH = '111111111111111111', OPP = '222222222222222222';
@@ -207,7 +207,7 @@ console.log('— decline refunds the challenger');
   eq(await balanceOf(env, CH), 500, 'challenger refunded on decline');
 }
 
-console.log('— insufficient bolts rejects the challenge');
+console.log('- insufficient bolts rejects the challenge');
 {
   const env = makeEnv();
   const CH = '111111111111111111';
@@ -217,7 +217,7 @@ console.log('— insufficient bolts rejects the challenge');
   eq(await balanceOf(env, CH), 30, 'balance untouched on rejected challenge');
 }
 
-console.log('— queue challenge auto-fights the sitting champion');
+console.log('- queue challenge auto-fights the sitting champion');
 {
   const env = makeEnv();
   const CHAMP = '222222222222222222', NEW = '111111111111111111';
@@ -236,5 +236,5 @@ console.log('— queue challenge auto-fights the sitting champion');
   assert(champ.userId === CHAMP || champ.userId === NEW, 'a champion still holds the throne');
 }
 
-console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAIL'} — ${pass} passed, ${fail} failed`);
+console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAIL'}, ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

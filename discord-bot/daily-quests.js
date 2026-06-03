@@ -1,13 +1,13 @@
-// Daily Quests — per-day rotating quest set across the Aquilo game
+// Daily Quests, per-day rotating quest set across the Aquilo game
 // surface (check-in, Boltbound, Clash, counting, pet, spire).
 //
 // Storage layout:
-//   D1 daily_quest_def         — quest catalogue (seeded by migration)
-//   D1 user_daily_quest        — per-(user, quest, day) progress + claim flag
-//   KV daily-quests:rotation:<YYYY-MM-DD> — today's rotation snapshot (8 IDs)
+//   D1 daily_quest_def, quest catalogue (seeded by migration)
+//   D1 user_daily_quest, per-(user, quest, day) progress + claim flag
+//   KV daily-quests:rotation:<YYYY-MM-DD>, today's rotation snapshot (8 IDs)
 //
 // The rotation snapshot is what fixes the user-visible "today" set in
-// place — without it, two calls to listTodaysQuests at different
+// place, without it, two calls to listTodaysQuests at different
 // minutes could see different active defs if an admin edited the
 // catalogue mid-day. We pick once (weighted random, deterministic per
 // day via seed), cache to KV, and reuse for the rest of the day.
@@ -24,13 +24,13 @@
 const QUESTS_PER_DAY = 5;             // visible quest count per user per day
 const ROTATION_KV_TTL_SECONDS = 60 * 60 * 36; // 36h (covers DST + clock skew)
 
-// RET-2 — per-game visible count override. Boltbound shows exactly 3
+// RET-2, per-game visible count override. Boltbound shows exactly 3
 // (one Easy / one Medium / one Hard, see getRotation). Other games keep
 // the QUESTS_PER_DAY default.
 const GAME_QUEST_COUNT = { boltbound: 3 };
 function questCountFor(game) { return GAME_QUEST_COUNT[game] || QUESTS_PER_DAY; }
 
-// RET-2 — per-user, per-day reroll override. One reroll/day swaps a
+// RET-2, per-user, per-day reroll override. One reroll/day swaps a
 // single quest for a fresh draw. Stored separately from the shared
 // rotation snapshot so it never leaks between users.
 const REROLL_KEY = (userId, dayKey, game) =>
@@ -147,7 +147,7 @@ function parseDef(row) {
 
 // Returns the list of def IDs that make up today's rotation. Reads
 // from KV if cached; otherwise picks + writes once. Caller passes the
-// optional `game` filter — game-filtered rotations are cached under a
+// optional `game` filter, game-filtered rotations are cached under a
 // distinct KV key so callers can ask for "just my Boltbound quests".
 async function getRotation(env, dayKey, game) {
   const kvKey = `daily-quests:rotation:${dayKey}` + (game ? `:${game}` : '');
@@ -237,8 +237,7 @@ export async function rerollQuest(env, userId, game, questId, nowMs) {
   const byId = new Map(allDefs.map(d => [d.id, d]));
   const currentSet = new Set(effIds);
 
-  // Don't reroll a quest the user has already finished/claimed today —
-  // that would be a free re-grind. Read their progress rows.
+  // Don't reroll a quest the user has already finished/claimed today, // that would be a free re-grind. Read their progress rows.
   const D = await db(env);
   const ph = effIds.map(() => '?').join(',');
   const progRows = await D.prepare(
@@ -282,7 +281,7 @@ export async function rerollQuest(env, userId, game, questId, nowMs) {
   return { ok: true, oldId: target, newId: replacement.id, quests };
 }
 
-// RET-2 — bump every active quest of a Boltbound event for this user.
+// RET-2, bump every active quest of a Boltbound event for this user.
 // `event` is the id-segment after `boltbound.` (play | win | cards |
 // summon | cast). Cheap no-op when none of today's quests match.
 export async function progressBoltbound(env, userId, event, delta = 1, nowMs) {
@@ -412,7 +411,7 @@ export async function claimQuest(env, userId, questId, opts = {}) {
     return { ok: false, reason: 'not-complete', progress: Number(row.progress), threshold: def.threshold };
   }
 
-  // Atomic-ish claim flag — UPDATE … WHERE claimed = 0 means a
+  // Atomic-ish claim flag, UPDATE … WHERE claimed = 0 means a
   // concurrent claim loses (changes = 0).
   const upd = await D.prepare(
     `UPDATE user_daily_quest
@@ -432,14 +431,14 @@ export async function claimQuest(env, userId, questId, opts = {}) {
       const wallet = opts.walletModule || (await import('./wallet.js'));
       await wallet.earn(env, guildId, userId, def.reward.bolts, `daily-quest:${def.id}`);
     } catch (e) {
-      // Don't unwind the claim — the wallet write failure is logged
+      // Don't unwind the claim, the wallet write failure is logged
       // but the user keeps the "claimed" mark so they can re-attempt
       // via admin if needed. Mirrors how spire.js handles grant
       // failures (logs, surfaces in return shape).
       granted.walletError = e?.message || String(e);
     }
   }
-  // Aether is best-effort too (RET-2 — Medium/Hard quests pay Aether).
+  // Aether is best-effort too (RET-2, Medium/Hard quests pay Aether).
   if (def.reward.aether && guildId) {
     try {
       const aether = opts.aetherModule || (await import('./aether.js'));
@@ -460,7 +459,7 @@ export async function claimQuest(env, userId, questId, opts = {}) {
   return { ok: true, granted, questId: def.id };
 }
 
-// Daily-reset cron — runs at 00:00 UTC. Doesn't mutate any user data
+// Daily-reset cron, runs at 00:00 UTC. Doesn't mutate any user data
 // (today's rows are still valid, yesterday's are history). Pre-warms
 // the rotation snapshot for the new day so the first lookup of the
 // morning doesn't pay the pick+write cost. Returns the rotation it
@@ -480,7 +479,7 @@ export async function dailyResetCron(env, nowMs) {
 // view of today's rotation; POST routes (claim, increment) HMAC-gated
 // via x-aquilo-web-ts + x-aquilo-web-sig signed with
 // AQUILO_SITE_WEB_SECRET. The site's Pages Functions sign on the
-// caller's behalf — see web.js for the verifier.
+// caller's behalf, see web.js for the verifier.
 
 function _json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {

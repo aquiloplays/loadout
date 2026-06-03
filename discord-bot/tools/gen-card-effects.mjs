@@ -6,7 +6,7 @@
 //
 // Engine-safety first: Boltbound's battle resolver only executes the
 // LOCKED keyword set (taunt/charge/shield/stealth/lifesteal/poison/reach/
-// spell-immune — see KEYWORDS in cards-content.js). So we assign exactly
+// spell-immune, see KEYWORDS in cards-content.js). So we assign exactly
 // ONE power-budgeted, engine-supported keyword per card, by stat-archetype
 // + element theme, and the display text states precisely what the engine
 // does (no text that lies about behavior). Deterministic + reproducible.

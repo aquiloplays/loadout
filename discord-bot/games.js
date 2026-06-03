@@ -7,7 +7,7 @@
 // are play money - we'd rather they feel generous than rake. A streamer
 // who wants a sink can configure via slash command flags later.
 //
-// 2026-05 — the cooldown helper lives in games-quick.js so the seven
+// 2026-05, the cooldown helper lives in games-quick.js so the seven
 // new quick games share one anti-spam window with coinflip + dice.
 // Routes in web.js call cooldownCheck() BEFORE the spend(), and
 // cooldownTouch() AFTER. games.js itself stays cooldown-free so the
@@ -30,7 +30,7 @@ function rng(maxExclusive) {
   return v % maxExclusive;
 }
 
-// PROGRESSION (P1 trailing) — fire minigame.played for coinflip + dice
+// PROGRESSION (P1 trailing), fire minigame.played for coinflip + dice
 // (capped at 6/day by the XP table). Wrapper used by both functions.
 async function _emitMinigame(env, userId, guildId, game) {
   try {
@@ -89,7 +89,7 @@ export async function dice(env, guildId, userId, bet, target) {
 // deadline at 8 PM their local time on day two of a streak or it
 // broke. Shifted to ET day boundaries 2026-05-20 so the reset is
 // "midnight, your local-ish time" for most viewers. Same rule on
-// Discord, the Twitch panel, and the website — single function,
+// Discord, the Twitch panel, and the website, single function,
 // single source of truth.
 const DAILY_BASE = 100;
 // Streak multiplier curve (2026-05 retune): grows gradually so day 1
@@ -99,7 +99,7 @@ const DAILY_BASE = 100;
 // Day 10: 0.70x   (70 bolts)
 // Day 20: 1.20x  (120 bolts)
 // Day 50: 2.70x  (270 bolts)
-// Day 95: 4.95x  (495 bolts) — soft cap, see DAILY_STREAK_CAP.
+// Day 95: 4.95x  (495 bolts), soft cap, see DAILY_STREAK_CAP.
 const DAILY_STREAK_CAP = 100;
 function dailyMultiplier(streak) {
   const n = Math.max(1, Math.min(DAILY_STREAK_CAP, Math.floor(streak) || 1));
@@ -122,7 +122,7 @@ function etDateString(ms) {
 function prevEtDate(dateStr) {
   const [y, m, d] = dateStr.split('-').map(Number);
   // Build a UTC date at noon (well clear of any DST edges) and step
-  // back exactly 24h — the resulting UTC date's Y/M/D is still the
+  // back exactly 24h, the resulting UTC date's Y/M/D is still the
   // previous calendar day in ANY tz that doesn't move backwards
   // by more than a day at a transition, which is every real TZ.
   const ms = Date.UTC(y, m - 1, d, 12) - 86400_000;
@@ -136,7 +136,7 @@ function prevEtDate(dateStr) {
 function msUntilNextEtMidnight(now) {
   const today = etDateString(now);
   // Next midnight in ET = first epoch ms where etDateString(ms) > today.
-  // Binary search is overkill — step forward by hours. ET day is
+  // Binary search is overkill, step forward by hours. ET day is
   // typically ~24h, never more than 25 (DST fall-back). 26 is safe.
   for (let h = 1; h <= 26; h++) {
     const probe = now + h * 3600_000;
@@ -197,7 +197,7 @@ export async function daily(env, guildId, userId) {
   w.lastDailyEtDate = today;
   w.lastEarnReason = 'daily:streak:' + w.dailyStreak;
   await putWallet(env, guildId, userId, w);
-  // PROGRESSION (P1) — daily claim XP + streak milestones. Dedup keyed
+  // PROGRESSION (P1), daily claim XP + streak milestones. Dedup keyed
   // by ET date so repeated calls in one day grant once.
   try {
     const { emitProgressionEvent } = await import('./progression/event-bus.js');
@@ -216,6 +216,6 @@ export async function daily(env, guildId, userId) {
     won: true, payout,
     streak: w.dailyStreak,
     multiplier: mult,
-    explanation: '🎁 +' + payout + ' bolts (day ' + w.dailyStreak + ' streak — ' + mult.toFixed(2) + 'x). Come back tomorrow (resets at midnight ET).',
+    explanation: '🎁 +' + payout + ' bolts (day ' + w.dailyStreak + ' streak, ' + mult.toFixed(2) + 'x). Come back tomorrow (resets at midnight ET).',
   };
 }

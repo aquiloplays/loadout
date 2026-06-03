@@ -9,9 +9,9 @@
 // KV: triple-c:current:<guildId> -> { gameSlug, name, artUrl, setUtc, setBy }
 //
 // Endpoints (wired in worker/web):
-//   GET  /triple-c/current        public  — current campaign
-//   GET  /triple-c/pool           public  — the 23-game pool (admin dropdown)
-//   POST /web/admin/triple-c/set  owner   — { gameSlug } -> lock it in + announce
+//   GET  /triple-c/current        public, current campaign
+//   GET  /triple-c/pool           public, the 23-game pool (admin dropdown)
+//   POST /web/admin/triple-c/set  owner, { gameSlug } -> lock it in + announce
 
 import { TRIPLE_C_POLL } from './custom-polls.js';
 
@@ -55,7 +55,7 @@ export async function getCurrentTripleC(env, guildId) {
   let rec = null;
   try { rec = await env.LOADOUT_BOLTS.get(KEY(gid), { type: 'json' }); } catch { /* ignore */ }
   if (rec && rec.gameSlug) return rec;
-  // Lazy default — Fallout 4 until an owner sets one.
+  // Lazy default, Fallout 4 until an owner sets one.
   const def = poolEntry(DEFAULT_SLUG);
   return { ...def, setUtc: 0, setBy: null, default: true };
 }
@@ -76,7 +76,7 @@ export async function setCurrentTripleC(env, guildId, gameSlug, setBy) {
 export async function announceTripleC(env, current) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
   // Lock-in announcements land in the 📅 schedule channel (next to the
-  // pinned weekly embed), not the vote channel — see task brief #5.
+  // pinned weekly embed), not the vote channel, see task brief #5.
   const channelId = String(env.TRIPLE_C_ANNOUNCE_CHANNEL || env.SCHEDULE_CHANNEL_ID
     || '1507973920282640485').trim();
   if (!channelId) return { ok: false, error: 'no-channel' };

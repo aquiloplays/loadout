@@ -1,17 +1,17 @@
 /*
- * Loadout — Hype Train overlay client.
+ * Loadout, Hype Train overlay client.
  *
  * Subscribes to `hypetrain.*` from the local Aquilo Bus. Loadout's
  * HypeTrainModule aggregates fuel from every supported platform and
  * publishes start / level / contribute / end events.
  *
  * Render lifecycle:
- *   start       — slide card in, run the train banner animation,
+ *   start, slide card in, run the train banner animation,
  *                 show the cross-platform "fuel the train" tip,
  *                 start the 5-min countdown
- *   contribute  — bump the fill bar, brief flash, reset countdown
- *   level       — re-run the train banner with a "LEVEL N" headline
- *   end         — final celebration, hide tip, fade out
+ *   contribute, bump the fill bar, brief flash, reset countdown
+ *   level, re-run the train banner with a "LEVEL N" headline
+ *   end, final celebration, hide tip, fade out
  *
  * Train banner: 🚂🚃🚃 glides right→left, "HYPE TRAIN!" trails behind
  * staggered ~250ms. CSS owns the keyframes; JS just toggles .running
@@ -27,7 +27,7 @@
   const pos = params.get('pos');
   if (pos) document.body.dataset.pos = pos;
 
-  // Source filter. Loadout runs two hype trains in parallel — a
+  // Source filter. Loadout runs two hype trains in parallel, a
   // cross-platform aggregate (source="all") and a Twitch-only one
   // (source="twitch"). Every hypetrain.* event carries a `source`
   // field; this overlay renders only the events that match. Default
@@ -67,7 +67,7 @@
     const remaining = hypeDeadline - Date.now();
     countdown.textContent = fmtMmSs(remaining);
     if (remaining <= 0) {
-      // Train timed out without an explicit end event — clean up.
+      // Train timed out without an explicit end event, clean up.
       cleanupAfterEnd(lvl ? Number(lvl.textContent) || 1 : 1);
     }
   }
@@ -131,7 +131,7 @@
 
   function handle(msg) {
     const d = msg.data || {};
-    // Source gate — drop events from the other train. A hypetrain.*
+    // Source gate, drop events from the other train. A hypetrain.*
     // event with no `source` is treated as "all" for back-compat with
     // any pre-dual-train publisher.
     const evtSource = (d.source || 'all').toLowerCase();
@@ -149,14 +149,14 @@
         startCountdown();
         break;
       case 'hypetrain.contribute':
-        // threshold may not be on contribute — main bus payload reuses
+        // threshold may not be on contribute, main bus payload reuses
         // lastThreshold from the most recent event that did include it.
         setBar(d.level || (lvl ? Number(lvl.textContent) || 1 : 1),
                d.totalFuel != null ? d.totalFuel : (lastFuel + (d.fuel || 0)),
                d.threshold || lastThreshold);
         setContributor((d.user || '') + ' +' + (d.fuel || 0) + ' fuel');
         flashBar();
-        // Each contribution resets the countdown — matches Twitch's
+        // Each contribution resets the countdown, matches Twitch's
         // hype-train extension behaviour.
         hypeDeadline = Date.now() + HYPE_DEFAULT_MS;
         tickCountdown();

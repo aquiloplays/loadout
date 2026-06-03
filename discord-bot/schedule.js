@@ -4,15 +4,15 @@
 // surfaces write the same LOADOUT_BOLTS KV keys so either is usable in
 // isolation:
 //
-//   schedule:v1:<guildId>  — { version, tz, updatedAt, updatedBy, days[7] }
-//   games:v1:<guildId>     — { version, updatedAt, updatedBy, items[] }
+//   schedule:v1:<guildId>, { version, tz, updatedAt, updatedBy, days[7] }
+//   games:v1:<guildId>, { version, updatedAt, updatedBy, items[] }
 //
 // Both records carry an `updatedBy` of "web" or "discord" so it's clear
 // which surface made the last edit. See aquilo-site/SCHEDULE-SYSTEM-DESIGN.md
 // for the full data model.
 //
 // MANAGE_GUILD is enforced by Discord via the slash commands'
-// default_member_permissions in commands-spec.js — no extra in-handler
+// default_member_permissions in commands-spec.js, no extra in-handler
 // gate needed.
 
 const FLAG_EPHEMERAL = 64;
@@ -66,7 +66,7 @@ function gameSlug(name) {
     .slice(0, 48) || 'game';
 }
 
-// Legacy deterministic URL guess — only correct for some pre-2024
+// Legacy deterministic URL guess, only correct for some pre-2024
 // titles. Used as a last-resort fallback when Steam's appdetails API
 // is unavailable. New adds always prefer fetchSteamArt() which returns
 // the real, possibly-hashed URLs (header_alt_assets_<n>.jpg variants
@@ -290,8 +290,8 @@ async function readVoteChannel(env, guildId) {
 
 // ── HTTP read routes (public + extension) ─────────────────────────────
 //
-// /schedule/public, /games/public — unauth, used by aquilo-site
-// /ext/schedule, /ext/games — wired separately in ext.js (JWT-gated)
+// /schedule/public, /games/public, unauth, used by aquilo-site
+// /ext/schedule, /ext/games, wired separately in ext.js (JWT-gated)
 //
 // Identical payload between public + ext, minus any viewer-specific
 // data. Phase 3 will add the queue layers on top of this.
@@ -342,7 +342,7 @@ export async function handlePublicGamesHttp(env) {
 }
 
 // Called from ext.js when the panel hits /ext/schedule (already
-// JWT-gated and channel-locked there — we just need the same payload).
+// JWT-gated and channel-locked there, we just need the same payload).
 export async function handleExtSchedule(env, guildId) {
   const [schedule, games, voteChannel] = await Promise.all([
     readSchedule(env, guildId),
@@ -376,7 +376,7 @@ async function scheduleView(env, guildId) {
   const sch = await readSchedule(env, guildId);
   const lines = sch.days.map((d) => {
     const time = d.startLocal
-      ? (d.endLocal ? `${d.startLocal}–${d.endLocal}` : d.startLocal)
+      ? (d.endLocal ? `${d.startLocal}-${d.endLocal}` : d.startLocal)
       : 'off';
     return `**${DOW_LABELS[d.dow]}** · ${d.label} · ${time} · _${d.kind}_`;
   });
@@ -391,12 +391,12 @@ async function scheduleSet(env, guildId, opts) {
   const dowRaw = map.day;
   const dow = Number(dowRaw);
   if (!Number.isInteger(dow) || dow < 0 || dow > 6) {
-    return reply('Pick a day (0–6, Sun–Sat).');
+    return reply('Pick a day (0-6, Sun-Sat).');
   }
   const sch = await readSchedule(env, guildId);
   const days = sch.days.map((d) => ({ ...d }));
   const day = days.find((d) => d.dow === dow);
-  if (!day) return reply('Schedule corruption — day not found. Reset via aquilo.gg /admin.');
+  if (!day) return reply('Schedule corruption, day not found. Reset via aquilo.gg /admin.');
 
   if (typeof map.label === 'string' && map.label.trim()) {
     day.label = map.label.slice(0, 80).trim();
@@ -432,7 +432,7 @@ async function scheduleSet(env, guildId, opts) {
 
   await writeSchedule(env, guildId, { ...sch, days });
   const time = day.startLocal
-    ? (day.endLocal ? `${day.startLocal}–${day.endLocal}` : day.startLocal)
+    ? (day.endLocal ? `${day.startLocal}-${day.endLocal}` : day.startLocal)
     : 'off';
   return reply(`✅ ${DOW_LABELS[dow]}: **${day.label}** · ${time} · _${day.kind}_`);
 }
@@ -468,7 +468,7 @@ async function gamesView(env, guildId) {
   const cat = await readGames(env, guildId);
   if (cat.items.length === 0) return reply('No games in the catalog. Add one with `/games add steam:<appid>`.');
   const lines = cat.items.map((g) => {
-    const pools = g.pools.join('+') || '—';
+    const pools = g.pools.join('+') || '-';
     const steam = g.steamAppId ? `Steam ${g.steamAppId}` : 'custom';
     return `• **${g.name}** · \`${g.id}\` · ${steam} · pools: ${pools}`;
   });
@@ -523,7 +523,7 @@ async function gamesAdd(env, guildId, opts) {
   };
   cat.items.push(item);
   await writeGames(env, guildId, cat);
-  return reply(`✅ Added **${item.name}** (\`${item.id}\`, appid ${appId}) — pools: ${pools.join('+')}.`);
+  return reply(`✅ Added **${item.name}** (\`${item.id}\`, appid ${appId}), pools: ${pools.join('+')}.`);
 }
 
 async function gamesRemove(env, guildId, opts) {

@@ -1,4 +1,4 @@
-// Expansion sets — 4x200 catalogue, set-aware packs, and the KV-driven
+// Expansion sets, 4x200 catalogue, set-aware packs, and the KV-driven
 // release gate (staged hidden until an admin flip).
 //
 // Run with:  node test/test-voidborn-set.mjs

@@ -1,4 +1,4 @@
-// Aquilo Pass v2 — D1-backed seasonal battle pass.
+// Aquilo Pass v2, D1-backed seasonal battle pass.
 //
 // 2026-05-31 sprint. 30 tiers per season, free + premium tracks. The
 // reward catalogue lives in D1 (aquilo_pass_reward, seeded per season);
@@ -21,7 +21,7 @@
 //   setPremium(env, userId, on)              -> own/disown the premium track
 
 const TIERS = 30;
-const XP_PER_TIER = 100;          // flat — 3000 XP for a full pass
+const XP_PER_TIER = 100;          // flat, 3000 XP for a full pass
 const SEASON_ONE_ID = 'season-1';
 
 function db(env) {
@@ -82,7 +82,7 @@ export async function seedSeasonOne(env, opts = {}) {
     await D.prepare(
       `INSERT OR IGNORE INTO aquilo_pass_season (id, name, started_at, ends_at, tiers, active)
        VALUES (?, ?, ?, NULL, ?, 1)`
-    ).bind(SEASON_ONE_ID, 'Season 1 — Stormrise', now, TIERS).run();
+    ).bind(SEASON_ONE_ID, 'Season 1, Stormrise', now, TIERS).run();
   }
   let inserted = 0;
   for (const [tier, track, kind, payload] of seasonOneRewards()) {

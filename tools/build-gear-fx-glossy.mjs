@@ -1,20 +1,20 @@
-// J4 — Glossy legendary gear FX halos (per-slot, 128×160).
+// J4, Glossy legendary gear FX halos (per-slot, 128×160).
 //
 // Replaces the retired 64×80 gear/fx/<itemSlug>.png halos with a
 // per-slot halo overlay anchored at the slot's body position. Six
-// halos total (one per equipable slot) — the halo signals "this
+// halos total (one per equipable slot), the halo signals "this
 // gear piece is legendary rarity" by floating a soft gold/violet
 // glow around the gear's footprint on the hero.
 //
 // Output: aquilo-gg/sprites/gear/figure/fx/<slot>.png    (6 PNGs)
-//   weapon  — glow around the right hand (where weapons render)
-//   head    — halo over the helmet
-//   chest   — soft aura over the torso
-//   legs    — glow band over the legs
-//   boots   — pulse around the feet
-//   trinket — sparkle accent at the chest amulet position
+//   weapon, glow around the right hand (where weapons render)
+//   head, halo over the helmet
+//   chest, soft aura over the torso
+//   legs, glow band over the legs
+//   boots, pulse around the feet
+//   trinket, sparkle accent at the chest amulet position
 //
-// Each PNG is mostly transparent — only the glow + sparkles paint.
+// Each PNG is mostly transparent, only the glow + sparkles paint.
 // Composes ABOVE the equipped gear so the halo reads as overlay
 // magic on top of the equipped piece.
 //
@@ -65,7 +65,7 @@ function sparkle(cx, cy, size = 6, color = PALETTE.gold.hi) {
 // ── Per-slot FX bodies ──────────────────────────────────────────
 
 const FX = {
-  // Right-hand weapon glow — sits at the weapon anchor (102, 90)
+  // Right-hand weapon glow, sits at the weapon anchor (102, 90)
   weapon: () => `
 ${radialGlow({ cx: 102, cy: 90, r: 38, id: 'fx-w' })}
 ${sparkle(120, 56, 5)}
@@ -73,7 +73,7 @@ ${sparkle(86, 62, 4, PALETTE.cream.hi)}
 ${sparkle(112, 122, 4)}
 ${sparkle(96, 96, 3, PALETTE.cream.hi)}`,
 
-  // Head halo — over the helmet area
+  // Head halo, over the helmet area
   head: () => `
 ${radialGlow({ cx: 64, cy: 36, r: 36, id: 'fx-h' })}
 <!-- ring halo arc above head -->
@@ -85,7 +85,7 @@ ${sparkle(40, 12, 5)}
 ${sparkle(92, 12, 5)}
 ${sparkle(64, 4, 4, PALETTE.cream.hi)}`,
 
-  // Torso aura — soft body glow
+  // Torso aura, soft body glow
   chest: () => `
 ${radialGlow({ cx: 64, cy: 84, r: 50, id: 'fx-c' })}
 ${sparkle(28, 70, 5)}

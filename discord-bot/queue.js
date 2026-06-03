@@ -9,8 +9,8 @@
 //   read-only with a "Join in Discord" deep-link.
 //
 //   capMode:
-//     "per-match" — each game queue independently capped at perMatchCap
-//     "per-night" — combined joiner count across all open game queues
+//     "per-match", each game queue independently capped at perMatchCap
+//     "per-night", combined joiner count across all open game queues
 //                  capped at perNightCap
 //
 // KV:
@@ -133,7 +133,7 @@ export async function snapshotQueue(env, guildId, dateOverride) {
   };
 }
 
-// ── Write — open ──────────────────────────────────────────────────────
+// ── Write, open ──────────────────────────────────────────────────────
 
 // Open a game queue. If the night's record doesn't exist yet, this
 // initialises it with the supplied cap policy. Subsequent opens inherit
@@ -151,7 +151,7 @@ export async function openQueue(env, guildId, args) {
     record = emptyQueueRecord(date, kind, mode, c);
   } else if (record.closedAt) {
     // Re-opening after a close on the same day: clear the close
-    // marker. Don't wipe joiners — let the admin keep building.
+    // marker. Don't wipe joiners, let the admin keep building.
     record.closedAt = null;
     if (capMode && (capMode === 'per-match' || capMode === 'per-night')) {
       record.capMode = capMode;
@@ -186,7 +186,7 @@ export async function openQueue(env, guildId, args) {
   };
 }
 
-// ── Write — close ─────────────────────────────────────────────────────
+// ── Write, close ─────────────────────────────────────────────────────
 
 export async function closeQueue(env, guildId, gameId) {
   const date = await todayStreamDate(env, guildId);
@@ -210,7 +210,7 @@ export async function closeNight(env, guildId) {
   return { ok: true, message: '🌙 All queues closed for the night.' };
 }
 
-// ── Write — join / leave (Discord users) ──────────────────────────────
+// ── Write, join / leave (Discord users) ──────────────────────────────
 
 export async function joinQueue(env, guildId, gameId, discordUser) {
   if (!gameId || !discordUser || !discordUser.id) {
@@ -224,7 +224,7 @@ export async function joinQueue(env, guildId, gameId, discordUser) {
   if (!slot) return { ok: false, error: 'not-open', message: `No queue for \`${gameId}\`.` };
 
   const userId = String(discordUser.id);
-  // Already in this queue? Be idempotent — return success.
+  // Already in this queue? Be idempotent, return success.
   if (slot.joiners.some((j) => String(j.discordUserId) === userId)) {
     return { ok: true, alreadyIn: true, gameId, count: slot.joiners.length, message: 'You\'re already in this queue.' };
   }
@@ -249,7 +249,7 @@ export async function joinQueue(env, guildId, gameId, discordUser) {
     joinedAt: Date.now(),
   });
   await writeQueue(env, guildId, date, record);
-  // B9 — community night auto-DM. Fire a "you're up next" DM to anyone
+  // B9, community night auto-DM. Fire a "you're up next" DM to anyone
   // in the top 3 positions whose status hasn't been notified yet.
   // (Best-effort, swallowed on error.)
   try {
@@ -264,7 +264,7 @@ export async function joinQueue(env, guildId, gameId, discordUser) {
   };
 }
 
-// B9 — DM the top 3 players for a queue the first time they reach
+// B9, DM the top 3 players for a queue the first time they reach
 // up-next status. Persistent across calls via slot.upNextNotified[].
 async function notifyUpNext(env, guildId, gameId, slot, record) {
   const TOP_N = 3;
@@ -286,11 +286,11 @@ async function notifyUpNext(env, guildId, gameId, slot, record) {
     try {
       await sendDm(env, j.discordUserId, { content: lines.join('\n') });
       fired.push(j.discordUserId);
-    } catch { /* user has DMs off or left the guild — skip */ }
+    } catch { /* user has DMs off or left the guild, skip */ }
   }
   if (fired.length) {
     slot.upNextNotified.push(...fired);
-    // No separate write — caller already persisted slot via writeQueue.
+    // No separate write, caller already persisted slot via writeQueue.
     // But we mutated slot.upNextNotified after that write; re-write
     // the queue record so the marker is durable.
     const date = await todayStreamDate(env, guildId);
@@ -330,7 +330,7 @@ export async function handleQueueSlash(env, guild, data) {
     if (!snap.open && snap.games.length === 0) {
       return reply(`No queue is open tonight (${snap.streamDate}).`);
     }
-    const lines = snap.games.map((g) => `• \`${g.gameId}\` — ${g.count}` +
+    const lines = snap.games.map((g) => `• \`${g.gameId}\`, ${g.count}` +
       (snap.capMode === 'per-match' ? `/${snap.perMatchCap}` : '') + ' joiner' + (g.count === 1 ? '' : 's'));
     const capLine = snap.capMode === 'per-night'
       ? `Night cap: ${snap.totals.joiners}/${snap.perNightCap}`
@@ -375,7 +375,7 @@ export async function handleQueueSlash(env, guild, data) {
 
 // ── Auto-open at 9 PM ET ──────────────────────────────────────────────
 //
-// Called from worker.js's scheduled() handler. Idempotent — uses a
+// Called from worker.js's scheduled() handler. Idempotent, uses a
 // 24h-TTL marker key so multiple ticks per evening can't double-open.
 //
 // Algorithm:
@@ -407,7 +407,7 @@ export async function autoOpenIfDue(env, guildId, now = Date.now()) {
   const existing = await readQueue(env, guildId, date);
   if (existing) return { fired: false, reason: 'already-open' };
 
-  // Atomic-enough marker — we'll re-read after writing as a sanity
+  // Atomic-enough marker, we'll re-read after writing as a sanity
   // check, but KV race wide enough that the worst case is one extra
   // (empty) record creation per night.
   const markerKey = AUTO_MARKER_KEY(guildId, date);
@@ -430,7 +430,7 @@ export async function autoOpenIfDue(env, guildId, now = Date.now()) {
 // Tells aquilo-site to fan out a web-push notification to every
 // subscriber when a queue opens. HMAC-signed with AQUILO_SITE_WEB_SECRET
 // (the same shared secret the site uses to call /web/* on this Worker),
-// so trust is symmetric. Best-effort — caller wraps in try/catch and a
+// so trust is symmetric. Best-effort, caller wraps in try/catch and a
 // failed push never blocks the queue from opening.
 
 export async function notifyQueueOpened(env, guildId, streamDate, gameId) {

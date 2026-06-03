@@ -4,7 +4,7 @@
 // streamer fulfills via the /hub "📦 Fulfill Purchases" button.
 //
 // Bolts deduction goes through Loadout via its existing
-// bolts.spend.request bus protocol — exposed here as
+// bolts.spend.request bus protocol, exposed here as
 // POST {LOADOUT_BOLT_API_BASE}/spend with the standard secret header.
 //
 // Public API:
@@ -35,7 +35,7 @@ export async function handleShopCommand(data, env) {
       embeds: [{
         color: COLOR_QUEUE,
         title: SHOP_TITLE,
-        description: '_The shop is empty right now — check back after the streamer restocks._'
+        description: '_The shop is empty right now, check back after the streamer restocks._'
       }],
       flags: FLAG_EPHEMERAL,
     });
@@ -46,7 +46,7 @@ export async function handleShopCommand(data, env) {
                      r.stock <= 0     ? ' _(sold out)_' :
                                         ` _(${r.stock} left)_`;
     const desc = r.description ? `\n_${r.description}_` : '';
-    return `**${r.label}** — ⚡ **${r.price}** Bolts${stockTag}${desc}`;
+    return `**${r.label}**, ⚡ **${r.price}** Bolts${stockTag}${desc}`;
   });
 
   const components = chunkButtons(rows.filter(r => r.stock == null || r.stock > 0));
@@ -112,7 +112,7 @@ export async function handleShopBuyClick(env, data) {
     spendResult = await resp.json().catch(() => ({}));
     if (!resp.ok) {
       return ephemeral(spendResult?.error === 'insufficient_funds'
-        ? `❌ Not enough Bolts — you need ⚡ ${item.price}.`
+        ? `❌ Not enough Bolts, you need ⚡ ${item.price}.`
         : '❌ Purchase failed.');
     }
   } catch (e) {
@@ -139,13 +139,13 @@ export async function handleShopBuyClick(env, data) {
     const adminCh = env.STAFF_HUB_CHANNEL_ID || env.AQUILO_ADMIN_HUB_CHANNEL_ID;
     try {
       await postChannelMessage(env, adminCh, {
-        content: `📦 New purchase — <@${userId}> bought **${item.label}** for ⚡ ${item.price}. Fulfill via \`/hub\` → 📦 Fulfill.`
+        content: `📦 New purchase, <@${userId}> bought **${item.label}** for ⚡ ${item.price}. Fulfill via \`/hub\` → 📦 Fulfill.`
       });
     } catch {}
   }
 
   return ephemeral(
-    `✅ Purchased **${item.label}** for ⚡ ${item.price}. The streamer will fulfill within 24h — keep an eye on DMs.`
+    `✅ Purchased **${item.label}** for ⚡ ${item.price}. The streamer will fulfill within 24h, keep an eye on DMs.`
   );
 }
 

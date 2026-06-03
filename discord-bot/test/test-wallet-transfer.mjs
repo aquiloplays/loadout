@@ -1,4 +1,4 @@
-// Focused unit test for wallet.transfer() — the refund-on-earn-failure
+// Focused unit test for wallet.transfer(), the refund-on-earn-failure
 // compensator added during the audit sweep. The /loadout gift command
 // + the Twitch panel both call this; the docstring claims atomicity
 // (economy.md L41) so the compensator must actually compensate.

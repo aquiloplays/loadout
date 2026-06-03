@@ -1,29 +1,29 @@
-// Boltbound replay reactions + comments — social layer on top of the
+// Boltbound replay reactions + comments, social layer on top of the
 // existing Boltbound replay infra (cards-battle.js emits the match.log
 // snapshot, the replay store is keyed by `replayId`).
 //
-// This module owns the social state ONLY — it never mutates the
+// This module owns the social state ONLY, it never mutates the
 // replay itself. Reactions + comments are stored in their own D1
 // tables (replay_reaction + replay_comment), keyed by replayId.
 //
 // Storage:
-//   D1 replay_reaction   PK (replayId, userId, type) — idempotent toggle
+//   D1 replay_reaction   PK (replayId, userId, type), idempotent toggle
 //   D1 replay_comment    autoincrement id, FK-style replayId
 //
 // Endpoints (all under /web/boltbound/replays/<id>/…):
-//   POST .../react      { type }                — HMAC, write
-//   POST .../comment    { text, turnIndex? }    — HMAC, write
-//   GET  .../reactions  ?viewer=<userId>        — public, counts + viewer's own
-//   GET  .../comments   ?limit=&offset=         — public, newest-first
+//   POST .../react      { type }, HMAC, write
+//   POST .../comment    { text, turnIndex? }, HMAC, write
+//   GET  .../reactions  ?viewer=<userId>, public, counts + viewer's own
+//   GET  .../comments   ?limit=&offset=, public, newest-first
 //
 // Reactions:
-//   Allowed types are frozen — REACTION_TYPES. addReaction() is
+//   Allowed types are frozen, REACTION_TYPES. addReaction() is
 //   idempotent on (replayId,userId,type): re-firing returns
 //   alreadyReacted:true without throwing on the unique-key conflict.
 //
 // Comments:
 //   Hard cap of 500 chars per body (trimmed). Per-user per-replay
-//   limit of MAX_COMMENTS_PER_USER (50) — enforced via a COUNT(*)
+//   limit of MAX_COMMENTS_PER_USER (50), enforced via a COUNT(*)
 //   precheck so the user gets a clean { ok:false, reason:'cap-reached' }
 //   instead of an opaque insert error.
 
@@ -45,7 +45,7 @@ async function db(env) {
 
 // ── Reactions ────────────────────────────────────────────────────
 
-// Toggle a single reaction on. Idempotent — re-firing the same
+// Toggle a single reaction on. Idempotent, re-firing the same
 // (replayId, userId, type) returns { ok:true, alreadyReacted:true }
 // instead of bumping the row twice.
 export async function addReaction(env, replayId, userId, type) {
@@ -55,7 +55,7 @@ export async function addReaction(env, replayId, userId, type) {
   }
   const D = await db(env);
   // Pre-check existence so we can distinguish first-react from re-react
-  // in the response — INSERT OR IGNORE would silently no-op and we'd
+  // in the response, INSERT OR IGNORE would silently no-op and we'd
   // lose the signal.
   const existing = await D.prepare(
     `SELECT 1 AS hit FROM replay_reaction
@@ -70,7 +70,7 @@ export async function addReaction(env, replayId, userId, type) {
   return { ok: true, alreadyReacted: false };
 }
 
-// Remove a single reaction. Always returns ok:true — the caller's UI
+// Remove a single reaction. Always returns ok:true, the caller's UI
 // is toggle-style, so "remove what's not there" is not an error.
 export async function removeReaction(env, replayId, userId, type) {
   if (!replayId || !userId) return { ok: false, error: 'ids-required' };
@@ -122,7 +122,7 @@ function zeroCounts() {
 
 // ── Comments ─────────────────────────────────────────────────────
 
-// Add a comment on a replay. turnIndex is optional — when set, the UI
+// Add a comment on a replay. turnIndex is optional, when set, the UI
 // can anchor the comment to a specific turn in the replay timeline.
 // Enforces the per-user/per-replay cap up-front so we return a clean
 // reason instead of relying on a DB-side constraint.

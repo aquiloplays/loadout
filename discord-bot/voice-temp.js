@@ -1,4 +1,4 @@
-// Temp voice channels — slash-command driven, with cron cleanup.
+// Temp voice channels, slash-command driven, with cron cleanup.
 //
 // Cloudflare Workers can't maintain a Discord Gateway connection, so
 // the canonical "join channel X to auto-create your own VC" UX needs
@@ -18,12 +18,12 @@
 // been empty > 60s (keeps short bathroom breaks from triggering a
 // delete). Deletion uses the bot's MANAGE_CHANNELS perm.
 //
-// Config (env vars — both set in wrangler.toml):
-//   DISCORD_BOT_TOKEN              — bot REST auth
-//   TEMP_VC_PARENT_ID              — the "➕│join to create" voice
+// Config (env vars, both set in wrangler.toml):
+//   DISCORD_BOT_TOKEN, bot REST auth
+//   TEMP_VC_PARENT_ID, the "➕│join to create" voice
 //                                    channel; joining it triggers
 //                                    a new temp-VC spawn for that user
-//   TEMP_VC_CATEGORY_ID            — (optional) Discord category id
+//   TEMP_VC_CATEGORY_ID, (optional) Discord category id
 //                                    new temp VCs nest under. Leave
 //                                    unset to spawn at guild root.
 
@@ -69,7 +69,7 @@ export async function createTempVcForUser(env, { guildId, userId, displayName })
   // 2. Move the user into it. PATCH /guilds/:g/members/:u with channel_id.
   // This needs MOVE_MEMBERS perm + the user must already be in a voice
   // channel. If they're not currently in voice, the move is a no-op
-  // (PATCH returns 400). We tolerate that — the user just walks into
+  // (PATCH returns 400). We tolerate that, the user just walks into
   // the new channel manually.
   let moved = false;
   try {
@@ -99,7 +99,7 @@ export async function createTempVcForUser(env, { guildId, userId, displayName })
 //
 // Asks Discord for voice-state members of each tracked temp VC; any
 // that have been empty more than EMPTY_GRACE_MS get deleted.
-// Bounded — at most ~100 tracked rooms in practice.
+// Bounded, at most ~100 tracked rooms in practice.
 
 export async function sweepEmptyTempVcs(env, nowUtc = Date.now()) {
   if (!env.DISCORD_BOT_TOKEN) return { swept: 0, reason: 'no-bot-token' };
@@ -112,17 +112,17 @@ export async function sweepEmptyTempVcs(env, nowUtc = Date.now()) {
     const rec = await env.LOADOUT_BOLTS.get(TEMPVC_KEY(chId), { type: 'json' });
     if (!rec) continue;
     // Fetch the channel's current voice members. Discord exposes this
-    // via GET /guilds/:guildId/voice-states — but that endpoint only
+    // via GET /guilds/:guildId/voice-states, but that endpoint only
     // returns states with channel_id. Easier: list guild voice states
     // via /guilds/:guildId/voice-states (member count by channel) is
-    // not REST — must use Gateway. Instead: try a member-count probe
-    // via GET /channels/:chId — Discord includes nothing useful there.
+    // not REST, must use Gateway. Instead: try a member-count probe
+    // via GET /channels/:chId, Discord includes nothing useful there.
     // Reality: the only REST way to know "is this voice channel empty"
     // is to call /guilds/:guildId/voice-states/:userId for each
     // tracked member, which is fiddly.
     //
     // Workaround: track empty-since via DLL forwarding (preferred) OR
-    // use the channel age + "no PATCH activity" heuristic — delete if
+    // use the channel age + "no PATCH activity" heuristic, delete if
     // age > 4h AND no recorded activity. That's permissive on the
     // "delete fast" side but never destroys a busy room. The DLL
     // forwarding path (when it lands) updates lastSeenActivityUtc on
@@ -157,7 +157,7 @@ export async function sweepEmptyTempVcs(env, nowUtc = Date.now()) {
 //
 // HMAC-gated endpoint the DLL calls on every voice-state update so we
 // can:
-//   (a) drive the "join-to-create" flow — when a user joins the
+//   (a) drive the "join-to-create" flow, when a user joins the
 //       configured TEMP_VC_PARENT_ID channel, spawn a temp VC for them.
 //   (b) stamp lastActivityUtc on tracked temp VCs so the sweep doesn't
 //       delete a busy room.
@@ -169,7 +169,7 @@ export async function sweepEmptyTempVcs(env, nowUtc = Date.now()) {
 // Env-var naming: aligned with wrangler.toml (TEMP_VC_PARENT_ID is the
 // "➕│join to create" voice channel id). The optional TEMP_VC_CATEGORY_ID
 // (above, in createTempVcForUser) is a SEPARATE category id under
-// which newly-spawned temp VCs are nested — leave unset to spawn them
+// which newly-spawned temp VCs are nested, leave unset to spawn them
 // at the guild root.
 export async function handleVoiceStateUpdate(env, payload) {
   const { guildId, userId, displayName, channelId } = payload || {};
@@ -201,7 +201,7 @@ export async function handleVoiceStateUpdate(env, payload) {
 export async function handleVoiceSlash(env, guildId, userId, displayName) {
   const r = await createTempVcForUser(env, { guildId, userId, displayName });
   if (!r.ok) {
-    return `❌ Couldn't create your voice channel: ${r.error}${r.detail ? ' — ' + r.detail.slice(0, 80) : ''}`;
+    return `❌ Couldn't create your voice channel: ${r.error}${r.detail ? ', ' + r.detail.slice(0, 80) : ''}`;
   }
   const moveNote = r.moved ? ' I moved you in.' : ' Walk into it whenever you\'re ready.';
   return `🎤 Created **${r.channel.name}**.${moveNote} It\'ll auto-delete when nobody\'s been in it for a while.`;

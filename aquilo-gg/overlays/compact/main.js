@@ -1,5 +1,5 @@
 /*
- * Loadout — compact unified overlay client.
+ * Loadout, compact unified overlay client.
  *
  * Single 400x120 card. Two layers (idle + active) crossfade based on
  * whether anything's happening on the bus. Idle layer is a slow
@@ -27,7 +27,7 @@
   // bumped type so it reads on a phone-screen-sized canvas. CSS does
   // the actual layout via body[data-vertical="1"]; main.js is just
   // the flag setter. Defaults the position to bottom-center when the
-  // streamer hasn't picked one — TikTok's UI chrome sits along the
+  // streamer hasn't picked one, TikTok's UI chrome sits along the
   // right edge so a centered card reads cleaner.
   const vertical = params.get('vertical') === '1';
   if (vertical) {
@@ -35,7 +35,7 @@
     if (!pos) document.body.dataset.pos = 'bc';
   }
 
-  // Bare mode — drops the card's solid background entirely so the
+  // Bare mode, drops the card's solid background entirely so the
   // overlay reads as floating text + chips against gameplay rather
   // than a panel laid on top. CSS keeps everything legible against
   // any backdrop via heavy text-shadows, outline glow on the badge,
@@ -99,8 +99,7 @@
   const gLever    = gameEl.querySelector('.g-lever');
   const gReels    = [$('gReel0'), $('gReel1'), $('gReel2')];
 
-  // Show / hide a layer by toggling the existing `.hidden` class —
-  // the rest of the overlay's transitions key off it.
+  // Show / hide a layer by toggling the existing `.hidden` class, // the rest of the overlay's transitions key off it.
   function showLayer(el) {
     if (!el) return;
     [idleEl, activeEl, gameEl, hypeEl].forEach(function (l) { if (l && l !== el) l.classList.add('hidden'); });
@@ -141,7 +140,7 @@
     const remaining = hypeDeadline - Date.now();
     if (hypeCountdown) hypeCountdown.textContent = fmtMmSs(remaining);
     if (remaining <= 0) {
-      // Train timed out without an explicit end event — clean up.
+      // Train timed out without an explicit end event, clean up.
       hypeEnd({ finalLevel: hypeLevelNow });
     }
   }
@@ -191,8 +190,7 @@
     setHypeBar(d.totalFuel != null ? d.totalFuel : (hypeFuelNow + (d.fuel || 0)),
                d.threshold || hypeThreshold);
     flashBar();
-    // Each contribution resets the timer to the default duration —
-    // matches Twitch's hype-train behaviour where new fuel extends
+    // Each contribution resets the timer to the default duration, // matches Twitch's hype-train behaviour where new fuel extends
     // the window.
     hypeDeadline = Date.now() + HYPE_DEFAULT_MS;
     tickHypeCountdown();
@@ -205,7 +203,7 @@
     setHypeBar(d.fuel || 0, d.threshold || hypeThreshold);
     runTrainAnim();
     // After 1.6s the banner text fades and we re-set it back to the
-    // running headline — UX cue that the level-up moment is over.
+    // running headline, UX cue that the level-up moment is over.
     setTimeout(function () {
       if (hypeBannerText && hypeActive) hypeBannerText.textContent = 'HYPE TRAIN!';
     }, 1800);
@@ -244,7 +242,7 @@
 
   // Streamer-supplied per-category icon overrides. Set on receipt of
   // commands.icons; falls back to the in-house pixel-art icon set per
-  // category. Standing rule: NO emoji as visual assets — every badge
+  // category. Standing rule: NO emoji as visual assets, every badge
   // is either a streamer-supplied image OR a path under
   // /sprites/ui/icons/<name>.png.
   let iconOverrides = {};
@@ -318,7 +316,7 @@
   }
   function startIdle() {
     if (idleTimer) clearInterval(idleTimer);
-    // Honour the ?show= filter — when 'commands' is excluded the idle
+    // Honour the ?show= filter, when 'commands' is excluded the idle
     // ticker stays hidden entirely. The card just disappears between
     // events, which is what streamers who flip it off explicitly
     // want.
@@ -437,7 +435,7 @@
   }
   function runSlots(d) {
     gSlots.classList.add('show');
-    // Lever pull — fires ~240ms before reels lock so the read is
+    // Lever pull, fires ~240ms before reels lock so the read is
     // "pull → spin → settle". Same retrigger trick as the standalone
     // overlay: remove → reflow → add so back-to-back !slots events
     // re-run the transition.
@@ -513,7 +511,7 @@
     // Hype-train events are routed to the takeover state machine
     // BEFORE the regular event-card path, regardless of category
     // filter. (Hype's category gate runs inside hypeStart.)
-    // Loadout runs two trains — only render the cross-platform one
+    // Loadout runs two trains, only render the cross-platform one
     // ("all") here so a Twitch-only train doesn't double-fire the
     // takeover. Events with no source default to "all".
     if (k.indexOf('hypetrain.') === 0) {
@@ -566,7 +564,7 @@
         evt = { tone: 'counter', badge: '#', title: (d.display || d.name), sub: (d.value != null ? String(d.value) : '?') };
         break;
       // hypetrain.* short-circuited to the takeover state machine
-      // above — no event-card pump path for them anymore.
+      // above, no event-card pump path for them anymore.
       case 'bolts.minigame.coinflip':
         if (!d.user) return;
         // Route to the game layer so the coin actually flips before
@@ -595,13 +593,13 @@
       case 'rotation.song.playing':
         if (!d.title) return;
         evt = { tone: 'welcome', badge: '/sprites/ui/icons/glossy/music.png',
-                title: d.title + (d.artist ? ' — ' + d.artist : ''),
+                title: d.title + (d.artist ? ', ' + d.artist : ''),
                 sub: (d.source || 'Spotify') + (d.requestedBy ? '  · req by ' + d.requestedBy : '') };
         break;
       case 'rotation.song.queued':
         if (!d.title) return;
         evt = { tone: 'info', badge: '/sprites/ui/icons/glossy/plus.png',
-                title: 'Queued: ' + d.title + (d.artist ? ' — ' + d.artist : ''),
+                title: 'Queued: ' + d.title + (d.artist ? ', ' + d.artist : ''),
                 sub: (d.requestedBy ? 'by ' + d.requestedBy : 'priority request') };
         break;
       case 'tips.received':

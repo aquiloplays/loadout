@@ -1,29 +1,29 @@
-// Destructive one-shot — wipes user-facing economy + progression state
+// Destructive one-shot, wipes user-facing economy + progression state
 // for a guild. Driven by POST /admin/reset-user-data/<g> (HMAC-gated
 // + confirm-string-gated). NEVER fires implicitly.
 //
 // Wipes:
-//   wallet:<g>:<u>                 — Bolts balances (uses resetAllWallets
+//   wallet:<g>:<u>, Bolts balances (uses resetAllWallets
 //                                    which zeroes counters + preserves
 //                                    the user's links[] array so /link
 //                                    pairings survive)
-//   community-checkin:<g>:<u>      — daily check-in streak / lastDayEt
-//   community-checkin-bonus:<g>:<u> — unclaimed bonus queue
-//   freeze:<g>:<u>                 — streak shields (economy item)
-//   pxp:<u>                        — progression XP / level (NOT guild-
+//   community-checkin:<g>:<u>, daily check-in streak / lastDayEt
+//   community-checkin-bonus:<g>:<u>, unclaimed bonus queue
+//   freeze:<g>:<u>, streak shields (economy item)
+//   pxp:<u>, progression XP / level (NOT guild-
 //                                    scoped in KV; wipes ALL of this
 //                                    user's XP across every guild they
 //                                    appear in. Acceptable for the
 //                                    single-guild Aquilo deploy)
 //
 // Preserves (do NOT delete):
-//   character:* / character-portrait:*  — avatars users have uploaded
-//   checkin-card:<g>:<u>                — PWA check-in card cosmetics
-//   referral:* / ref-attrib:*           — referral attributions
-//   guild:* / channel-binding:*         — admin config
-//   secret:*                            — auth secrets
-//   onboard:role-map:*                  — admin-side role wiring
-//   gifter-roles:* / level-tier-roles:* — role-membership snapshots
+//   character:* / character-portrait:*, avatars users have uploaded
+//   checkin-card:<g>:<u>, PWA check-in card cosmetics
+//   referral:* / ref-attrib:*, referral attributions
+//   guild:* / channel-binding:*, admin config
+//   secret:*, auth secrets
+//   onboard:role-map:*, admin-side role wiring
+//   gifter-roles:* / level-tier-roles:*, role-membership snapshots
 //
 // Returns per-prefix counts so the admin tooling can show what got
 // wiped, plus a list of any error reasons.
@@ -31,7 +31,7 @@
 import { resetAllWallets } from './wallet.js';
 
 const KEY_LIMIT = 1000;
-const MAX_PAGES = 50;   // 50 × 1000 = 50k per prefix — enough for any
+const MAX_PAGES = 50;   // 50 × 1000 = 50k per prefix, enough for any
                          // single Aquilo-scale guild and bounded against
                          // runaway scans.
 
@@ -55,7 +55,7 @@ async function deletePrefix(env, prefix) {
   return { deleted, pages, complete: false };
 }
 
-// Scan pxp:* — keys are pxp:<userId>, NOT guild-scoped. For the
+// Scan pxp:*, keys are pxp:<userId>, NOT guild-scoped. For the
 // Aquilo single-guild deploy this is fine; for a hypothetical multi-
 // guild deploy a caller would need to scope by user list instead.
 async function deletePxpAll(env) {
@@ -70,7 +70,7 @@ export async function resetUserData(env, guildId, opts = {}) {
 
   const summary = {};
 
-  // wallets — use the existing resetAllWallets so links[] is preserved
+  // wallets, use the existing resetAllWallets so links[] is preserved
   // and the on-disk shape stays canonical. Returns the count of
   // wallets cleared rather than deleted; the KV records remain but
   // are zeroed.

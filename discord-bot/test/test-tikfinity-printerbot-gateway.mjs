@@ -1,8 +1,8 @@
 // Coverage for the May 2026 batch:
-//   • tikfinity.js  — auth + payload mapping + non-gift skip + amount math
-//   • printerbot.js — webhook create + reuse + missing channelId
-//   • auth.js verifyGatewaySig — legacy header + HMAC + bad-secret reject
-//   • guild-features.handleStarboardReaction — action:"remove" skipped
+//   • tikfinity.js, auth + payload mapping + non-gift skip + amount math
+//   • printerbot.js, webhook create + reuse + missing channelId
+//   • auth.js verifyGatewaySig, legacy header + HMAC + bad-secret reject
+//   • guild-features.handleStarboardReaction, action:"remove" skipped
 //
 // Run from repo root:
 //   node discord-bot/test/test-tikfinity-printerbot-gateway.mjs
@@ -65,7 +65,7 @@ async function hmacHex(secret, msg) {
 }
 
 // ── TikFinity ────────────────────────────────────────────────────
-console.log('— tikfinity: no secret → 503');
+console.log('- tikfinity: no secret → 503');
 {
   const env = { LOADOUT_BOLTS: makeKv(), AQUILO_VAULT_GUILD_ID: GUILD };
   const req = new Request('https://w/tikfinity/event', {
@@ -77,7 +77,7 @@ console.log('— tikfinity: no secret → 503');
   eq(r.status, 503, '503 with no TIKFINITY_WEBHOOK_SECRET');
 }
 
-console.log('— tikfinity: bad/missing secret → 401');
+console.log('- tikfinity: bad/missing secret → 401');
 {
   const env = { LOADOUT_BOLTS: makeKv(), TIKFINITY_WEBHOOK_SECRET: TF_SECRET, AQUILO_VAULT_GUILD_ID: GUILD };
   const req = new Request('https://w/tikfinity/event', {
@@ -97,7 +97,7 @@ console.log('— tikfinity: bad/missing secret → 401');
   eq(r2.status, 401, '401 on missing secret header');
 }
 
-console.log('— tikfinity: gift event credits the contributor');
+console.log('- tikfinity: gift event credits the contributor');
 {
   const env = { LOADOUT_BOLTS: makeKv(), TIKFINITY_WEBHOOK_SECRET: TF_SECRET, AQUILO_VAULT_GUILD_ID: GUILD };
   const ts0 = Date.UTC(2026, 4, 26, 12, 0, 0);   // 2026-05-26 12:00 UTC
@@ -122,7 +122,7 @@ console.log('— tikfinity: gift event credits the contributor');
   eq(bucket, '50', 'KV bucket persisted');
 }
 
-console.log('— tikfinity: non-gift events 200 + skipped');
+console.log('- tikfinity: non-gift events 200 + skipped');
 {
   const env = { LOADOUT_BOLTS: makeKv(), TIKFINITY_WEBHOOK_SECRET: TF_SECRET, AQUILO_VAULT_GUILD_ID: GUILD };
   const body = JSON.stringify({ event: 'follow', uniqueId: 'anyone' });
@@ -138,7 +138,7 @@ console.log('— tikfinity: non-gift events 200 + skipped');
   eq(j.event, 'follow', 'event echoed');
 }
 
-console.log('— tikfinity: missing uniqueId → 400');
+console.log('- tikfinity: missing uniqueId → 400');
 {
   const env = { LOADOUT_BOLTS: makeKv(), TIKFINITY_WEBHOOK_SECRET: TF_SECRET, AQUILO_VAULT_GUILD_ID: GUILD };
   const body = JSON.stringify({ event: 'gift', diamondCount: 1, repeatCount: 1 });
@@ -153,7 +153,7 @@ console.log('— tikfinity: missing uniqueId → 400');
   eq(j.error, 'no-uniqueId', 'no-uniqueId error');
 }
 
-console.log('— tikfinity: zero diamonds → 400');
+console.log('- tikfinity: zero diamonds → 400');
 {
   const env = { LOADOUT_BOLTS: makeKv(), TIKFINITY_WEBHOOK_SECRET: TF_SECRET, AQUILO_VAULT_GUILD_ID: GUILD };
   const body = JSON.stringify({ event: 'gift', uniqueId: 'a', diamondCount: 0, repeatCount: 5 });
@@ -167,7 +167,7 @@ console.log('— tikfinity: zero diamonds → 400');
 }
 
 // ── recordGifterEvent direct ─────────────────────────────────────
-console.log('— recordGifterEvent: bad shape returns ok:false');
+console.log('- recordGifterEvent: bad shape returns ok:false');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const r1 = await recordGifterEvent(env, GUILD, 'tip', 'tiktok', '', 5, Date.now());
@@ -179,7 +179,7 @@ console.log('— recordGifterEvent: bad shape returns ok:false');
 }
 
 // ── verifyGatewaySig ─────────────────────────────────────────────
-console.log('— verifyGatewaySig: legacy x-counting-secret accepted');
+console.log('- verifyGatewaySig: legacy x-counting-secret accepted');
 {
   const env = { AQUILO_GATEWAY_SECRET: GW_SECRET };
   const req = new Request('https://w/whatever', {
@@ -192,7 +192,7 @@ console.log('— verifyGatewaySig: legacy x-counting-secret accepted');
   eq(r.via, 'shared-gateway', 'via tag');
 }
 
-console.log('— verifyGatewaySig: legacy COUNTING_WEBHOOK_SECRET also accepted');
+console.log('- verifyGatewaySig: legacy COUNTING_WEBHOOK_SECRET also accepted');
 {
   const env = { COUNTING_WEBHOOK_SECRET: 'old-counting' };
   const req = new Request('https://w/whatever', {
@@ -205,7 +205,7 @@ console.log('— verifyGatewaySig: legacy COUNTING_WEBHOOK_SECRET also accepted'
   eq(r.via, 'shared-counting', 'via tag legacy counting');
 }
 
-console.log('— verifyGatewaySig: HMAC path');
+console.log('- verifyGatewaySig: HMAC path');
 {
   const env = { AQUILO_GATEWAY_SECRET: GW_SECRET };
   const body = '{"hello":"world"}';
@@ -221,7 +221,7 @@ console.log('— verifyGatewaySig: HMAC path');
   eq(r.via, 'gw-hmac', 'via tag hmac');
 }
 
-console.log('— verifyGatewaySig: wrong secret rejected');
+console.log('- verifyGatewaySig: wrong secret rejected');
 {
   const env = { AQUILO_GATEWAY_SECRET: GW_SECRET };
   const req = new Request('https://w/whatever', {
@@ -233,7 +233,7 @@ console.log('— verifyGatewaySig: wrong secret rejected');
   eq(r.ok, false, 'wrong secret → ok:false');
 }
 
-console.log('— verifyGatewaySig: tampered HMAC rejected');
+console.log('- verifyGatewaySig: tampered HMAC rejected');
 {
   const env = { AQUILO_GATEWAY_SECRET: GW_SECRET };
   const ts = String(Math.floor(Date.now() / 1000));
@@ -248,7 +248,7 @@ console.log('— verifyGatewaySig: tampered HMAC rejected');
 }
 
 // ── handleStarboardReaction action discriminator ─────────────────
-console.log('— starboard: action:"remove" is a no-op');
+console.log('- starboard: action:"remove" is a no-op');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const r = await handleStarboardReaction(env, {
@@ -260,12 +260,12 @@ console.log('— starboard: action:"remove" is a no-op');
     emoji: { name: '⭐' },
   });
   eq(r.skipped, 'remove-action', 'remove skipped');
-  // Should NOT have written the dedup stamp — no Discord call either.
+  // Should NOT have written the dedup stamp, no Discord call either.
   const stamp = await env.LOADOUT_BOLTS.get(`guild:star:${GUILD}:M`);
   eq(stamp, null, 'no dedup stamp on remove');
 }
 
-console.log('— starboard: action:"add" + non-star emoji still routed through emoji check');
+console.log('- starboard: action:"add" + non-star emoji still routed through emoji check');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const r = await handleStarboardReaction(env, {
@@ -274,10 +274,10 @@ console.log('— starboard: action:"add" + non-star emoji still routed through e
   eq(r.skipped, 'wrong-emoji', 'add + non-⭐ still hits wrong-emoji branch');
 }
 
-console.log('— starboard: undefined action (legacy forwarder) still flows through');
+console.log('- starboard: undefined action (legacy forwarder) still flows through');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
-  // No `action` field — should reach the emoji check, not be auto-skipped.
+  // No `action` field, should reach the emoji check, not be auto-skipped.
   const r = await handleStarboardReaction(env, {
     emoji: { name: 'not-a-star' },
   });
@@ -285,7 +285,7 @@ console.log('— starboard: undefined action (legacy forwarder) still flows thro
 }
 
 // ── PrinterBot ───────────────────────────────────────────────────
-console.log('— printerbot: no token → ok:false');
+console.log('- printerbot: no token → ok:false');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const r = await ensurePrinterBotWebhook(env, GUILD, 'C123');
@@ -293,7 +293,7 @@ console.log('— printerbot: no token → ok:false');
   eq(r.error, 'no-bot-token', 'no-bot-token error');
 }
 
-console.log('— printerbot: missing channelId → ok:false');
+console.log('- printerbot: missing channelId → ok:false');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   const r = await ensurePrinterBotWebhook(env, GUILD, '');
@@ -301,7 +301,7 @@ console.log('— printerbot: missing channelId → ok:false');
   eq(r.error, 'channel-id-required', 'channel-id-required error');
 }
 
-console.log('— printerbot: create-new path persists URL');
+console.log('- printerbot: create-new path persists URL');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async (url, init) => {
@@ -326,7 +326,7 @@ console.log('— printerbot: create-new path persists URL');
   eq(stored.channelId, 'CHAN', 'persisted channel id');
 }
 
-console.log('— printerbot: reuses existing webhook on re-run');
+console.log('- printerbot: reuses existing webhook on re-run');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async (url, init) => {
@@ -344,7 +344,7 @@ console.log('— printerbot: reuses existing webhook on re-run');
   eq(r.reused, true, 'flagged reused');
 }
 
-console.log('— printerbot: list-fail surfaces error');
+console.log('- printerbot: list-fail surfaces error');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async () => new Response('forbidden', { status: 403 });
@@ -358,7 +358,7 @@ console.log('— printerbot: list-fail surfaces error');
 console.log('');
 globalThis.fetch = realFetch;
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

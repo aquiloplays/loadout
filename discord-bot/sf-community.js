@@ -17,12 +17,12 @@
 //   GET  /community/live       Public list of currently-live community
 //                              members. Backs the aquilo.gg community
 //                              page. No auth. Stale entries pruned on read
-//                              (default 6 min — SF heartbeats every 90s,
+//                              (default 6 min, SF heartbeats every 90s,
 //                              giving us ~4 missed heartbeats of slack).
 //
 // Auth (POST endpoints):
 //   X-SF-Community-Key header == env.SF_COMMUNITY_KEY (wrangler secret).
-//   The key is embedded in the shipped StreamFusion build — same soft-spam
+//   The key is embedded in the shipped StreamFusion build, same soft-spam
 //   model as the X-Live-Key the retired aquilo-live worker used. Not a
 //   real secret; just enough to keep casual abuse off the endpoint.
 //
@@ -32,7 +32,7 @@
 //                              title, game, viewers, startedAt, lastSeen,
 //                              live }. Single-key model (matches the
 //                              retired aquilo-live worker) avoids KV
-//                              list() eventual-consistency lag — a
+//                              list() eventual-consistency lag, a
 //                              streamer who just went live shows up on
 //                              the public radar on the very next read.
 //   sf_community:channel:guild:<gid>
@@ -40,14 +40,14 @@
 //                              (admin-web.js LOADOUT_BINDINGS).
 //
 // Discord posting:
-//   Uses env.DISCORD_BOT_TOKEN (same as sf-release.js — slash command
+//   Uses env.DISCORD_BOT_TOKEN (same as sf-release.js, slash command
 //   registration is broken in this deploy but channel-message POSTs
 //   work fine).
 
 import { getActiveGuildId } from './aquilo/config.js';
 
 // ── Tuning constants ──────────────────────────────────────────────
-const STALE_MS         = 6 * 60 * 1000;  // 6 min — drop from /community/live if no heartbeat
+const STALE_MS         = 6 * 60 * 1000;  // 6 min, drop from /community/live if no heartbeat
 const KV_LIVE_KEY      = 'sf:community:live:all';
 const SF_COMMUNITY_BINDING_KEY = (gid) => 'sf_community:channel:guild:' + gid;
 // Optional separate route for SF "going live" embeds. When bound,
@@ -62,13 +62,13 @@ const SNOWFLAKE_RE     = /^\d{15,25}$/;
 // Per-event-type embed colours. Picked from embeds.js COLORS so the
 // community channel reads like the rest of the bot's surface.
 const EMBED_COLORS = {
-  live:   0x7C5CFF, // aquilo violet — "now live" announcement
-  follow: 0x6BA9FF, // accent-2     — follows
-  sub:    0x3FB950, // win green    — subs / resubs
-  gift:   0xF0B429, // gold         — gift subs / bombs
-  cheer:  0xB452FF, // purple       — bits / cheers
-  raid:   0xFF5DAA, // pink         — raids
-  tip:    0x00F2EA, // cyan         — tips
+  live:   0x7C5CFF, // aquilo violet, "now live" announcement
+  follow: 0x6BA9FF, // accent-2, follows
+  sub:    0x3FB950, // win green, subs / resubs
+  gift:   0xF0B429, // gold, gift subs / bombs
+  cheer:  0xB452FF, // purple, bits / cheers
+  raid:   0xFF5DAA, // pink, raids
+  tip:    0x00F2EA, // cyan, tips
   default: 0x3A86FF,
 };
 // Platforms we render labels for. Map matches what SF sends.
@@ -117,7 +117,7 @@ async function readLiveMap(env) {
   return {};
 }
 async function writeLiveMap(env, map) {
-  // No expirationTtl — entries are pruned by lastSeen on read. KV writes
+  // No expirationTtl, entries are pruned by lastSeen on read. KV writes
   // are eventually-consistent globally; that's fine here because we
   // only ever read-modify-write from a single Worker isolate per
   // request, and the public radar is allowed to be a few seconds behind.
@@ -167,7 +167,7 @@ async function postEmbed(env, channelId, embed) {
   if (!env.DISCORD_BOT_TOKEN || !SNOWFLAKE_RE.test(channelId)) return { ok: false, error: 'no-token-or-channel' };
   const payload = {
     embeds: [embed],
-    // Belt-and-braces — server never wants pings from these embeds even
+    // Belt-and-braces, server never wants pings from these embeds even
     // if a malicious payload sneaked an @everyone token into the
     // description string.
     allowed_mentions: { parse: [] },
@@ -235,7 +235,7 @@ function eventEmbed(ev) {
 
 // Render an event into an embed title + description pair. Falls back to
 // a generic phrasing if the event-type is unknown (the worker is
-// permissive — SF is the source of truth for what counts as a
+// permissive, SF is the source of truth for what counts as a
 // shareable event, the worker just renders).
 function describeEvent(ev) {
   const user = ev.user || 'Someone';
@@ -272,7 +272,7 @@ function describeEvent(ev) {
                  : `**${user}** tipped.` };
     default:
       return { title: 'Event',
-               description: `**${user}** — ${s(ev.eventType, 64)}` };
+               description: `**${user}**, ${s(ev.eventType, 64)}` };
   }
 }
 
@@ -297,7 +297,7 @@ export async function handleCommunityLive(req, env) {
   const prev = map[userId];
 
   if (!live) {
-    // Going-offline heartbeat — drop the entry. We don't post a Discord
+    // Going-offline heartbeat, drop the entry. We don't post a Discord
     // embed for going offline; the live announcement is one-shot per
     // session, the radar just stops showing them.
     if (prev) {
@@ -325,7 +325,7 @@ export async function handleCommunityLive(req, env) {
   map[userId] = entry;
   await writeLiveMap(env, map);
 
-  // Fire Discord embed only on the leading edge — first heartbeat of a
+  // Fire Discord embed only on the leading edge, first heartbeat of a
   // new live session, or first heartbeat after a stale gap. Subsequent
   // 90s heartbeats while live get NO embed.
   const isNewSession = !prev || prev.live !== true;
@@ -340,7 +340,7 @@ export async function handleCommunityLive(req, env) {
       const r = await postEmbed(env, channel.channelId, liveEmbed(entry));
       posted = r.ok ? { channelId: channel.channelId, messageId: r.messageId } : { error: r.error };
     }
-    // G1 — fan out 'friend.live' to the streamer's aquilo friends. The
+    // G1, fan out 'friend.live' to the streamer's aquilo friends. The
     // SF userId is whatever StreamFusion sends (typically a Twitch
     // numeric id for tw streamers). notifyFriendsOfGoLive resolves
     // via plink:twitch:<id> → aquilo userId. No-op if the streamer
@@ -386,7 +386,7 @@ export async function handleCommunityEvent(req, env) {
 
   const channel = await resolveCommunityChannel(env);
   if (!channel) {
-    // No binding configured yet — ack so the client doesn't retry
+    // No binding configured yet, ack so the client doesn't retry
     // forever, but signal in the response that the embed was dropped.
     return json({ ok: true, action: 'no-binding' });
   }
@@ -421,7 +421,7 @@ export async function handleCommunityEvent(req, env) {
 //   }
 //
 // Sort: viewers desc, with no-viewer entries last; tie-break by startedAt
-// asc (earlier-live first). The userId field is INTERNAL — never returned
+// asc (earlier-live first). The userId field is INTERNAL, never returned
 // on the public surface so an opted-in streamer can't be re-identified
 // across name changes.
 export async function handlePublicCommunityLive(req, env) {
@@ -430,7 +430,7 @@ export async function handlePublicCommunityLive(req, env) {
   const dirty = pruneStale(map, now);
   if (dirty) {
     // Write back the pruned map so we don't redo this work on every
-    // hit. Don't block on it — the response is what matters.
+    // hit. Don't block on it, the response is what matters.
     await writeLiveMap(env, map).catch(() => {});
   }
   const list = Object.values(map).map((e) => ({
@@ -457,7 +457,7 @@ export async function handlePublicCommunityLive(req, env) {
     staleMs: STALE_MS,
     live: list,
   }, 200, {
-    // Public consumers can cache lightly — aquilo.gg's community page
+    // Public consumers can cache lightly, aquilo.gg's community page
     // is fine refreshing every 30s; we don't want every page load
     // hitting KV.
     'cache-control': 'public, max-age=0, s-maxage=20',

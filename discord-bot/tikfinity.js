@@ -14,7 +14,7 @@
 // Clay pastes the same value into TikFinity's HTTP-action headers
 // dialog.
 //
-// Body schema — TikFinity action payloads are user-templated, but
+// Body schema, TikFinity action payloads are user-templated, but
 // we accept the conventional TikTok-Live field names. Minimum:
 //
 //   {
@@ -27,7 +27,7 @@
 //   }
 //
 // Non-gift events (follow / like / share / sub) ack 200 with
-// `skipped: 'unhandled-event'` — TikFinity doesn't have a way to
+// `skipped: 'unhandled-event'`, TikFinity doesn't have a way to
 // filter on its side without a custom action per event type, so we
 // take everything and discard what we don't aggregate.
 
@@ -64,7 +64,7 @@ export async function handleTikFinityEvent(req, env) {
   }
   // Diamond value × combo size = total diamonds attributed to this
   // event. Both fields can be strings in TikFinity's variable
-  // substitution — `Number()` handles either.
+  // substitution, `Number()` handles either.
   const diamondCount = Number(payload.diamondCount ?? payload.diamonds ?? 0);
   const repeatCount  = Number(payload.repeatCount  ?? payload.giftCount ?? 1);
   const amount = Math.trunc(diamondCount * (repeatCount > 0 ? repeatCount : 1));

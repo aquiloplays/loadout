@@ -1,11 +1,11 @@
-// J3 — Glossy pet sprites + mood overlays at the figure canvas dims.
+// J3, Glossy pet sprites + mood overlays at the figure canvas dims.
 //
 // Replaces the retired 64×80 pixel pet PNGs with 128×160 glossy
 // SVGs baked to PNG so character.js compose can layer them on the
 // new HD figure canvas without the dimension-mismatch crash.
 //
-// Pet sits at the lower-right of the figure canvas — beside the
-// hero's right foot — so it's clearly an in-frame companion
+// Pet sits at the lower-right of the figure canvas, beside the
+// hero's right foot, so it's clearly an in-frame companion
 // (z=15, behind the body).
 //
 // Catalogue matches discord-bot/pet.js SPECIES_COLOURS:
@@ -21,9 +21,9 @@
 // = 8 × 4 = 32 species×colour PNGs.
 //
 // Mood overlays (positioned above pet head):
-//   hungry  — bowl + steam
-//   dirty   — soap bubbles
-//   sad     — rain cloud
+//   hungry, bowl + steam
+//   dirty, soap bubbles
+//   sad, rain cloud
 //
 // Output: aquilo-gg/sprites/pet/glossy/<species>-<colour>.png  (32)
 //         aquilo-gg/sprites/pet/glossy/mood-<hint>.png          (3)
@@ -43,7 +43,7 @@ mkdirSync(OUT, { recursive: true });
 
 const W = 128, H = 160;
 
-// Pet anchor — lower-right of the figure canvas, beside the hero's
+// Pet anchor, lower-right of the figure canvas, beside the hero's
 // right foot. Centred on (PCX, PCY). L1 quality pass (2026-05):
 // bumped the centre slightly down + right so the pet sits clear of
 // the hero's right hand (cx=94, y=128) and the bigger pet
@@ -57,7 +57,7 @@ const PCX = 100, PCY = 132;
 // dog" reads warm gold, a "voltaic dragonling" reads brand-violet.
 
 const COLOR = {
-  // shared palette tones — referenced by per-species maps below
+  // shared palette tones, referenced by per-species maps below
   inkBlack:  { hi: '#3a3e4a', base: '#1c1f29', lo: '#0a0c14', stroke: '#020308' },
   warmGrey:  { hi: '#c8c1ad', base: '#9c937e', lo: '#665d4d', stroke: '#2a261d' },
   ginger:    { hi: '#f6b97a', base: '#d68034', lo: '#964c10', stroke: '#3a1a04' },
@@ -297,7 +297,7 @@ ${contactShadow({ cx: PCX, cy: PCY + 22, rx: 22, ry: 5 })}
       fill="url(#pet-grad)" stroke="${c.stroke}" stroke-width="2" stroke-linejoin="round"/>
 <path d="M ${PCX + 6} ${PCY - 20} L ${PCX + 10} ${PCY - 30} L ${PCX + 14} ${PCY - 20} Z"
       fill="url(#pet-grad)" stroke="${c.stroke}" stroke-width="2" stroke-linejoin="round"/>
-<!-- face disc (lighter cream surrounding eyes — classic owl idiom) -->
+<!-- face disc (lighter cream surrounding eyes, classic owl idiom) -->
 <ellipse cx="${PCX - 6}" cy="${PCY - 10}" rx="8" ry="9" fill="${PALETTE.cream.hi}" opacity="0.85"/>
 <ellipse cx="${PCX + 6}" cy="${PCY - 10}" rx="8" ry="9" fill="${PALETTE.cream.hi}" opacity="0.85"/>
 <!-- eyes (BIG yellow + bigger pupils) -->
@@ -378,7 +378,7 @@ ${contactShadow({ cx: PCX, cy: PCY + 22, rx: 24, ry: 5 })}
 function petSlime(c) {
   return `
 ${contactShadow({ cx: PCX, cy: PCY + 22, rx: 28, ry: 6 })}
-<!-- blob body (jelly droplet shape — wide base, narrow top) -->
+<!-- blob body (jelly droplet shape, wide base, narrow top) -->
 <path d="M ${PCX - 26} ${PCY + 18}
          Q ${PCX - 30} ${PCY - 4} ${PCX - 18} ${PCY - 18}
          Q ${PCX - 6} ${PCY - 26} ${PCX + 4} ${PCY - 24}
@@ -422,7 +422,7 @@ ${contactShadow({ cx: PCX, cy: PCY + 22, rx: 28, ry: 6 })}
 function petDragonling(c) {
   return `
 ${contactShadow({ cx: PCX, cy: PCY + 22, rx: 24, ry: 5 })}
-<!-- BACK WING (spread, more dramatic — bat-style) -->
+<!-- BACK WING (spread, more dramatic, bat-style) -->
 <path d="M ${PCX + 2} ${PCY - 4}
          Q ${PCX + 24} ${PCY - 28} ${PCX + 34} ${PCY - 14}
          L ${PCX + 30} ${PCY - 10}
@@ -532,7 +532,7 @@ ${contactShadow({ cx: PCX, cy: PCY + 22, rx: 26, ry: 5 })}
 <!-- body (squat wide oval, bigger) -->
 <ellipse cx="${PCX}" cy="${PCY + 4}" rx="22" ry="16"
          fill="url(#pet-rgrad)" stroke="${c.stroke}" stroke-width="2.5"/>
-<!-- belly (lighter cream, big oval — frog idiom) -->
+<!-- belly (lighter cream, big oval, frog idiom) -->
 <ellipse cx="${PCX}" cy="${PCY + 10}" rx="15" ry="9" fill="${c.hi}" opacity="0.7"/>
 <ellipse cx="${PCX}" cy="${PCY + 10}" rx="15" ry="9" fill="none" stroke="${c.lo}" stroke-width="1" opacity="0.4"/>
 <!-- back spots (warts on darker top) -->

@@ -1,4 +1,4 @@
-// Unit tests for spire-map.js — covers map generation invariants,
+// Unit tests for spire-map.js, covers map generation invariants,
 // determinism, advance/resolve dispatch, and weighted-outcome
 // resolution.
 
@@ -51,7 +51,7 @@ function mockEnv() {
 
 // ── Test suite ───────────────────────────────────────────────────
 
-console.log('— NODE_TYPES frozen 7-type roster');
+console.log('- NODE_TYPES frozen 7-type roster');
 {
   eq(NODE_TYPES.length, 7, '7 node types');
   for (const t of ['combat','elite','rest','shop','treasure','event','boss']) {
@@ -60,7 +60,7 @@ console.log('— NODE_TYPES frozen 7-type roster');
   assert(Object.isFrozen(NODE_TYPES), 'array is frozen');
 }
 
-console.log('— generateMap shape + invariants (ember-court / runA)');
+console.log('- generateMap shape + invariants (ember-court / runA)');
 {
   const m = generateMap('ember-court', 'runA');
   eq(m.totalFloors, 10, '10 floors total');
@@ -84,7 +84,7 @@ console.log('— generateMap shape + invariants (ember-court / runA)');
   }
 }
 
-console.log('— generateMap constraint floors satisfied');
+console.log('- generateMap constraint floors satisfied');
 {
   // Run many seeds and verify the placement constraints hold every time.
   for (let i = 0; i < 30; i++) {
@@ -104,7 +104,7 @@ console.log('— generateMap constraint floors satisfied');
   }
 }
 
-console.log('— generateMap forms a DAG where every node reaches boss');
+console.log('- generateMap forms a DAG where every node reaches boss');
 {
   const m = generateMap('sunken-vault', 'reach-test');
   const byId = new Map(m.nodes.map(n => [n.id, n]));
@@ -144,7 +144,7 @@ console.log('— generateMap forms a DAG where every node reaches boss');
   }
 }
 
-console.log('— generateMap is deterministic for same (theme, runId)');
+console.log('- generateMap is deterministic for same (theme, runId)');
 {
   const a = generateMap('frost-citadel', 'same-run');
   const b = generateMap('frost-citadel', 'same-run');
@@ -157,7 +157,7 @@ console.log('— generateMap is deterministic for same (theme, runId)');
   assert(JSON.stringify(a) !== JSON.stringify(d), 'different theme → different map');
 }
 
-console.log('— saveMap + getMapForRun round-trip');
+console.log('- saveMap + getMapForRun round-trip');
 {
   const env = mockEnv();
   const m = generateMap('verdant-hollow', 'rt-1');
@@ -169,7 +169,7 @@ console.log('— saveMap + getMapForRun round-trip');
   eq(got.completedNodes.length, 0, 'completedNodes empty on fresh save');
 }
 
-console.log('— advanceTo: entry node accepted, non-entry rejected');
+console.log('- advanceTo: entry node accepted, non-entry rejected');
 {
   const env = mockEnv();
   const m = generateMap('verdant-hollow', 'adv-1');
@@ -186,7 +186,7 @@ console.log('— advanceTo: entry node accepted, non-entry rejected');
   eq(ok.currentNode, f1.id, 'currentNode updated');
 }
 
-console.log('— advanceTo: rejects non-child of currentNode');
+console.log('- advanceTo: rejects non-child of currentNode');
 {
   const env = mockEnv();
   const m = generateMap('mirror-garden', 'adv-2');
@@ -215,7 +215,7 @@ console.log('— advanceTo: rejects non-child of currentNode');
   }
 }
 
-console.log('— resolveNode: combat dispatches with npcDeck');
+console.log('- resolveNode: combat dispatches with npcDeck');
 {
   const env = mockEnv();
   const m = generateMap('clockwork-foundry', 'res-1');
@@ -228,7 +228,7 @@ console.log('— resolveNode: combat dispatches with npcDeck');
   assert(r.npcDeck && typeof r.npcDeck === 'object', 'npcDeck payload present');
 }
 
-console.log('— resolveNode: rest requires choice, heal vs upgrade');
+console.log('- resolveNode: rest requires choice, heal vs upgrade');
 {
   const env = mockEnv();
   const m = generateMap('cinder-apex', 'res-2');
@@ -255,7 +255,7 @@ console.log('— resolveNode: rest requires choice, heal vs upgrade');
   assert(upgrade.ok && upgrade.type === 'rest-upgrade-instruction', 'upgrade returns instruction');
 }
 
-console.log('— resolveNode: shop returns inventory');
+console.log('- resolveNode: shop returns inventory');
 {
   const env = mockEnv();
   const synthetic = {
@@ -272,7 +272,7 @@ console.log('— resolveNode: shop returns inventory');
   assert(r.inventory.every(it => typeof it.price === 'number' && it.price > 0), 'all items have price > 0');
 }
 
-console.log('— resolveNode: treasure offer then grant');
+console.log('- resolveNode: treasure offer then grant');
 {
   const env = mockEnv();
   const synthetic = {
@@ -295,7 +295,7 @@ console.log('— resolveNode: treasure offer then grant');
   assert(!bad.ok && bad.error === 'invalid-choice', 'invalid choice rejected');
 }
 
-console.log('— resolveNode: event honors weighted outcomes with mocked RNG');
+console.log('- resolveNode: event honors weighted outcomes with mocked RNG');
 {
   // Use pickOutcome directly with a controlled RNG.
   const { pickOutcome } = __internals;
@@ -317,7 +317,7 @@ console.log('— resolveNode: event honors weighted outcomes with mocked RNG');
   eq(pickOutcome([], rng), null, 'empty outcomes → null');
 }
 
-console.log('— resolveNode: event resolves via fallback catalogue + weighted outcomes');
+console.log('- resolveNode: event resolves via fallback catalogue + weighted outcomes');
 {
   const env = mockEnv();
   const synthetic = {
@@ -339,7 +339,7 @@ console.log('— resolveNode: event resolves via fallback catalogue + weighted o
   assert(r.outcome && r.outcome.effect, 'outcome has an effect payload');
 }
 
-console.log('— resolveNode: boss returns npcDeck reference');
+console.log('- resolveNode: boss returns npcDeck reference');
 {
   const env = mockEnv();
   const synthetic = {
@@ -356,5 +356,5 @@ console.log('— resolveNode: boss returns npcDeck reference');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

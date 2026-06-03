@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TikTok Follow Overlay — Fallout 4 (Pip-Boy)</title>
+<title>TikTok Follow Overlay, Fallout 4 (Pip-Boy)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
@@ -62,7 +62,7 @@
       0 0 18px rgba(77,255,77,0.45);
     animation: barPulse 2.6s steps(60) infinite;
   }
-  /* CRT-flicker style pulse — subtle, terminal-ish */
+  /* CRT-flicker style pulse, subtle, terminal-ish */
   @keyframes barPulse {
     0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #0a200c, 0 0 0 3px #4dff4d, 0 0 16px rgba(77,255,77,0.40); }
     47%      { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #0a200c, 0 0 0 3px #5bff5b, 0 0 28px rgba(77,255,77,0.85); }
@@ -182,7 +182,7 @@
 
 <script>
 // ============================================================
-// CONFIG  — Pip-Boy / Fallout 4 theme
+// CONFIG, Pip-Boy / Fallout 4 theme
 // ============================================================
 const CTA_TEXT   = "Follow = Random Game Effect";
 const PROMO_TEXT = "Follow us at aquilo.gg/play • Triple-C Campaign: Fallout 4";
@@ -270,14 +270,14 @@ function drawScanlines(ctx, x, y, w, h, alpha) {
 }
 
 // ============================================================
-// FALLOUT 4 SPRITES — code-drawn Pip-Boy-green iconography.
+// FALLOUT 4 SPRITES, code-drawn Pip-Boy-green iconography.
 // Each fn draws an icon centered at the origin, spanning ~ +/-7.5u
 // where u = size/16. Color set `c` = {fill,line,hi,dim}.
 // drawSprite() handles the 2.5D extrude, glow, and scanlines.
 // ============================================================
 function lineW(u, n) { return Math.max(1, u * n); }
 
-// 1) Vault Boy — round head, side hair, wink, big grin, thumbs-up hand
+// 1) Vault Boy, round head, side hair, wink, big grin, thumbs-up hand
 function drawVaultBoy(ctx, u, c) {
   // head
   ctx.fillStyle = c.fill;
@@ -320,7 +320,7 @@ function drawVaultBoy(ctx, u, c) {
   ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
-// 2) Pip-Boy device — wrist unit body, screen w/ waveform, knobs
+// 2) Pip-Boy device, wrist unit body, screen w/ waveform, knobs
 function drawPipBoy(ctx, u, c) {
   ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6);
   // body
@@ -350,7 +350,7 @@ function drawPipBoy(ctx, u, c) {
   ctx.beginPath(); ctx.arc(6*u, 3.2*u, 1.0*u, 0, Math.PI*2); ctx.fill(); ctx.stroke();
 }
 
-// 3) Deathclaw — horned reptilian head profile, open jaw, teeth
+// 3) Deathclaw, horned reptilian head profile, open jaw, teeth
 function drawDeathclaw(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // skull/head facing left
@@ -391,7 +391,7 @@ function drawDeathclaw(ctx, u, c) {
   }
 }
 
-// 4) Nuka-Cola bottle — contour bottle, cap, star swirl
+// 4) Nuka-Cola bottle, contour bottle, cap, star swirl
 function drawNuka(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // bottle body (classic contour)
@@ -421,7 +421,7 @@ function drawNuka(ctx, u, c) {
   ctx.beginPath(); ctx.arc(-1.6*u, -1.0*u, 0.4*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 5) Power Armor T-60 helmet — dome, single round lens, breather slits, antenna
+// 5) Power Armor T-60 helmet, dome, single round lens, breather slits, antenna
 function drawPowerArmor(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // dome / helmet
@@ -456,7 +456,7 @@ function drawPowerArmor(ctx, u, c) {
   ctx.beginPath(); ctx.arc(6.3*u, -7.6*u, 0.6*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 6) Brotherhood of Steel — gear cog + wings + downward sword
+// 6) Brotherhood of Steel, gear cog + wings + downward sword
 function drawBoS(ctx, u, c) {
   // gear cog (center)
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.5);
@@ -471,7 +471,7 @@ function drawBoS(ctx, u, c) {
   ctx.closePath(); ctx.fill(); ctx.stroke();
   ctx.fillStyle = c.line;
   ctx.beginPath(); ctx.arc(0, 0, 1.3*u, 0, Math.PI*2); ctx.fill();
-  // wings (left + right) — three feather strokes each
+  // wings (left + right), three feather strokes each
   ctx.strokeStyle = c.fill; ctx.lineCap = "round"; ctx.lineWidth = lineW(u,0.9);
   for (const dir of [-1, 1]) {
     for (let i = 0; i < 3; i++) {
@@ -494,7 +494,7 @@ function drawBoS(ctx, u, c) {
   ctx.beginPath(); ctx.moveTo(-0.8*u, 6.2*u); ctx.lineTo(0.8*u, 6.2*u); ctx.lineTo(0, 7.6*u); ctx.closePath(); ctx.fill();
 }
 
-// 7) Vault-Tec vault door — big circular gear door + "111"
+// 7) Vault-Tec vault door, big circular gear door + "111"
 function drawVaultDoor(ctx, u, c) {
   // outer track ring
   ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,1.0);
@@ -524,7 +524,7 @@ function drawVaultDoor(ctx, u, c) {
   ctx.fillText("111", 0, 0.3*u);
 }
 
-// 8) Synth (Gen-1) — skeletal metal skull, round eyes, exposed jaw
+// 8) Synth (Gen-1), skeletal metal skull, round eyes, exposed jaw
 function drawSynth(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // cranium
@@ -604,7 +604,7 @@ function drawSprite(ctx, name, cx, cy, size, alpha, flash) {
   g.shadowBlur = u * 1.6;
   fn(g, u, flash ? GP.flash : GP.main);
   g.restore();
-  // CRT scanlines — clipped to painted pixels only
+  // CRT scanlines, clipped to painted pixels only
   g.save();
   g.globalCompositeOperation = "source-atop";
   g.globalAlpha = 0.16;
@@ -812,7 +812,7 @@ function drawFollowerCounter(alpha, now) {
 }
 
 // ============================================================
-// IDLE ANIMATIONS — sprite peek-up (round-robin)
+// IDLE ANIMATIONS, sprite peek-up (round-robin)
 // ============================================================
 let peekIndex = 0;
 function scheduleIdleEvent() {
@@ -1048,20 +1048,20 @@ function playFalloutAnim(done, freezeMs) {
     clearBarFX();
 
     if (t < PH.popIn[1]) {
-      // POP IN — Vault Boy bounces up, thumbs-up
+      // POP IN, Vault Boy bounces up, thumbs-up
       const p = pt(t, PH.popIn);
       const cy = spawnCY + (restCY - spawnCY) * easeOutBounce(p);
       drawSprite(aboveCtx, "vaultboy", heroCX, cy, heroSize, 1, false);
     }
     else if (t < PH.idle[1]) {
-      // IDLE — hover + thumbs-up pulse (scale)
+      // IDLE, hover + thumbs-up pulse (scale)
       const p = pt(t, PH.idle);
       const cy = restCY + Math.sin(p * Math.PI * 2) * 2;
       const pulse = 1 + Math.sin(p * Math.PI * 2) * 0.06;
       drawSprite(aboveCtx, "vaultboy", heroCX, cy, heroSize * pulse, 1, false);
     }
     else if (t < PH.charge[1]) {
-      // CHARGE — Pip-Boy screen flicker + static, RADSTORM INCOMING, shake ramps
+      // CHARGE, Pip-Boy screen flicker + static, RADSTORM INCOMING, shake ramps
       const p = pt(t, PH.charge);
       const pulse = (Math.sin(p * Math.PI * 8 - Math.PI/2) + 1) / 2;
       const flash = pulse * (0.1 + p * 0.5);
@@ -1094,7 +1094,7 @@ function playFalloutAnim(done, freezeMs) {
       barCtx.fillRect(0, 0, barW, barH);
     }
     else if (t < PH.boom[1]) {
-      // BOOM — atomic flash + cap burst + mushroom begins
+      // BOOM, atomic flash + cap burst + mushroom begins
       const p = pt(t, PH.boom);
       if (!boomFired) { seedExplosion(); boomFired = true; }
       if (!shookScreen) {
@@ -1114,13 +1114,13 @@ function playFalloutAnim(done, freezeMs) {
       updateAndDrawExplosion(dtF, 1, t);
     }
     else if (t < PH.smoke[1]) {
-      // SMOKE — mushroom rises + billows, radstorm motes drift
+      // SMOKE, mushroom rises + billows, radstorm motes drift
       const p = pt(t, PH.smoke);
       drawMushroom(aboveCtx, heroCX, restCY + 8, 0.45 + p*0.55, 0.92);
       updateAndDrawExplosion(dtF, 1, t);
     }
     else if (t < PH.fadeEnd[1]) {
-      // FADE — quadratic fade to clean
+      // FADE, quadratic fade to clean
       const p = pt(t, PH.fadeEnd);
       const fade = (1 - p) * (1 - p);
       drawMushroom(aboveCtx, heroCX, restCY + 8, 1, fade * 0.92);
@@ -1175,7 +1175,7 @@ function playFalloutAnim(done, freezeMs) {
   }
 
   if (frozen) {
-    // Synchronous stepping driver — evolves particles up to freezeMs and draws
+    // Synchronous stepping driver, evolves particles up to freezeMs and draws
     // the final frame statically (no rAF), so a plain headless --screenshot
     // reliably captures any celebration phase.
     for (let tt = 0; tt <= freezeMs; tt += 16) frame(t0 + tt);
@@ -1291,7 +1291,7 @@ function connectTikfinity() {
 }
 
 // ============================================================
-// SHOT MODE — line up every sprite for a contact screenshot
+// SHOT MODE, line up every sprite for a contact screenshot
 // ============================================================
 function renderContactSheet() {
   stopIdleLoop();
@@ -1319,8 +1319,8 @@ if (SHOT_MODE === "mobs") {
   startIdleLoop();
 }
 // Screenshot helpers:
-//   ?fire=1            — auto-trigger a live follow after load (visual smoke-test)
-//   ?freeze=<phase>    — render ONE static celebration frame (popin|idle|charge|
+//   ?fire=1, auto-trigger a live follow after load (visual smoke-test)
+//   ?freeze=<phase>, render ONE static celebration frame (popin|idle|charge|
 //                        boom|smoke|fade), reliably captured by plain --screenshot
 if (params.get("fire")) {
   setTimeout(() => handleFollow(params.get("user") || "Vault101", ""), 60);
@@ -1331,7 +1331,7 @@ if (params.get("freeze")) {
   const ms = FREEZE_MS[params.get("freeze")] != null ? FREEZE_MS[params.get("freeze")] : 1760;
   playFalloutAnim(() => {}, ms);
 }
-// ?signshot=N — static render of the Pip-Boy registration terminal sign
+// ?signshot=N, static render of the Pip-Boy registration terminal sign
 if (params.get("signshot")) {
   stopIdleLoop();
   state.totalFollowers = parseInt(params.get("signshot"), 10) || 7;

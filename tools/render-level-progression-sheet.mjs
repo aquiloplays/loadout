@@ -1,4 +1,4 @@
-// Visual QA for per-level progression — pick a few representative
+// Visual QA for per-level progression, pick a few representative
 // kinds and show L1 → L10 side by side so it's obvious each level
 // looks distinct.
 

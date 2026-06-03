@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TikTok Follow Overlay — Among Us (Emergency Meeting)</title>
+<title>TikTok Follow Overlay, Among Us (Emergency Meeting)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;800&display=swap" rel="stylesheet">
@@ -46,7 +46,7 @@
     80%  { transform: translate3d(calc(-50% + 3px), -1px, 0); }
   }
 
-  /* 440x36 spaceship-HUD bar — dark metal w/ crewmate-red trim */
+  /* 440x36 spaceship-HUD bar, dark metal w/ crewmate-red trim */
   #bar {
     position: absolute;
     left: 0; bottom: 0;
@@ -62,7 +62,7 @@
       0 0 18px rgba(201,48,48,0.50);
     animation: barPulse 2.6s ease-in-out infinite;
   }
-  /* Alarm-style pulse — red glow swells like a meeting alert */
+  /* Alarm-style pulse, red glow swells like a meeting alert */
   @keyframes barPulse {
     0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #1a0b0b, 0 0 0 3px #c93030, 0 0 16px rgba(201,48,48,0.40); }
     50%      { box-shadow: 0 4px 14px rgba(0,0,0,0.8), 0 0 0 2px #1a0b0b, 0 0 0 3px #e84545, 0 0 30px rgba(232,69,69,0.90); }
@@ -181,10 +181,10 @@
 
 <script>
 // ============================================================
-// CONFIG  — Among Us / Emergency Meeting theme
+// CONFIG, Among Us / Emergency Meeting theme
 // ============================================================
 const CTA_TEXT   = "Follow = Random Game Effect";
-const PROMO_TEXT = "Watch the impostor — aquilo.gg • Community Night";
+const PROMO_TEXT = "Watch the impostor, aquilo.gg • Community Night";
 
 // URL params (preserved from template family + Among Us extras)
 const params       = new URLSearchParams(location.search);
@@ -274,7 +274,7 @@ function drawScanlines(ctx, x, y, w, h, alpha) {
 }
 
 // ============================================================
-// AMONG US SPRITES — code-drawn crewmate iconography.
+// AMONG US SPRITES, code-drawn crewmate iconography.
 // Each fn draws an icon centered at the origin, spanning ~ +/-7.5u
 // where u = size/16. Color set `c` = {fill,line,hi,dim,visor,visorHi}.
 // drawSprite() handles the 2.5D extrude, glow, and sheen.
@@ -310,7 +310,7 @@ function crewmateBody(ctx, u, c, bodyColor) {
   ctx.fillStyle = body; ctx.strokeStyle = line; ctx.lineWidth = lineW(u,0.55);
   roundRect(ctx, 3.4*u, -2.6*u, 3.4*u, 6.4*u, 1.4*u); ctx.fill(); ctx.stroke();
 
-  // main capsule body — rounded vertical bean
+  // main capsule body, rounded vertical bean
   ctx.beginPath();
   ctx.moveTo(-4.4*u, 5.2*u);                       // bottom-left
   ctx.lineTo(-4.4*u, -2.4*u);                       // up left side
@@ -342,7 +342,7 @@ function crewmateBody(ctx, u, c, bodyColor) {
   }
   ctx.restore();
 
-  // visor — horizontal oval on upper-front, slightly left of center
+  // visor, horizontal oval on upper-front, slightly left of center
   ctx.fillStyle = uniform ? c.visor : "#3a4a55"; // dark rim for color pass
   ctx.beginPath();
   ctx.ellipse(-0.4*u, -3.2*u, 3.6*u, 2.3*u, 0, 0, Math.PI*2);
@@ -374,7 +374,7 @@ function drawCrewYellow(ctx, u, c) { crewmateBody(ctx, u, c, "#f5f557"); }
 function drawCrewPink(ctx, u, c)   { crewmateBody(ctx, u, c, "#ed54ba"); }
 function drawCrewCyan(ctx, u, c)   { crewmateBody(ctx, u, c, "#39fed4"); }
 
-// Impostor — same bean shape, dark/menacing, red visor glint
+// Impostor, same bean shape, dark/menacing, red visor glint
 function drawImpostor(ctx, u, c) {
   const uniform = (c.fill === c.line && c.fill === c.hi);
   const body = uniform ? c.fill : "#3a0d0d";
@@ -401,7 +401,7 @@ function drawImpostor(ctx, u, c) {
   ctx.moveTo(-0.6*u, 5.2*u);
   ctx.quadraticCurveTo(-0.1*u, 3.0*u, 0.4*u, 5.2*u);
   ctx.closePath(); ctx.fill();
-  // sinister visor — dark with a menacing red glint
+  // sinister visor, dark with a menacing red glint
   ctx.fillStyle = uniform ? c.visor : "#150505";
   ctx.beginPath();
   ctx.ellipse(-0.4*u, -3.2*u, 3.6*u, 2.3*u, 0, 0, Math.PI*2);
@@ -423,7 +423,7 @@ function drawImpostor(ctx, u, c) {
   ctx.moveTo(0.4*u, -1.4*u); ctx.lineTo(1.0*u, -1.4*u); ctx.lineTo(0.7*u, -0.3*u); ctx.closePath(); ctx.fill();
 }
 
-// Emergency button — red dome button on a round metal table
+// Emergency button, red dome button on a round metal table
 function drawEmergencyButton(ctx, u, c) {
   const uniform = (c.fill === c.line && c.fill === c.hi);
   const metal   = uniform ? c.fill : "#9aa3b0";
@@ -461,7 +461,7 @@ function drawEmergencyButton(ctx, u, c) {
   ctx.beginPath(); ctx.ellipse(-1.2*u, -2.4*u, 1.2*u, 0.9*u, -0.3, 0, Math.PI*2); ctx.fill(); ctx.restore();
 }
 
-// Electrical task panel — wire-matching panel (3 colored wires + ports)
+// Electrical task panel, wire-matching panel (3 colored wires + ports)
 function drawWirePanel(ctx, u, c) {
   const uniform = (c.fill === c.line && c.fill === c.hi);
   const panel   = uniform ? c.fill : "#2b2f3a";
@@ -546,7 +546,7 @@ function drawSprite(ctx, name, cx, cy, size, alpha, flash) {
   g.shadowBlur = u * 1.6;
   fn(g, u, flash ? GP.flash : GP.main);
   g.restore();
-  // glass sheen — clipped to painted pixels only
+  // glass sheen, clipped to painted pixels only
   g.save();
   g.globalCompositeOperation = "source-atop";
   g.globalAlpha = 0.08;
@@ -770,7 +770,7 @@ function drawPromoText(now) {
 }
 
 // ============================================================
-// IDLE ANIMATIONS — sprite peek-up (round-robin)
+// IDLE ANIMATIONS, sprite peek-up (round-robin)
 // ============================================================
 let peekIndex = 0;
 function scheduleIdleEvent() {
@@ -964,20 +964,20 @@ function playAmongAnim(done, freezeMs) {
     clearBarFX();
 
     if (t < PH.popIn[1]) {
-      // POP IN — crewmate bounces up
+      // POP IN, crewmate bounces up
       const p = pt(t, PH.popIn);
       const cy = spawnCY + (restCY - spawnCY) * easeOutBounce(p);
       drawSprite(aboveCtx, heroName, heroCX, cy, heroSize, 1, false);
     }
     else if (t < PH.idle[1]) {
-      // IDLE — hover + slight bob/pulse
+      // IDLE, hover + slight bob/pulse
       const p = pt(t, PH.idle);
       const cy = restCY + Math.sin(p * Math.PI * 2) * 2;
       const pulse = 1 + Math.sin(p * Math.PI * 2) * 0.06;
       drawSprite(aboveCtx, heroName, heroCX, cy, heroSize * pulse, 1, false);
     }
     else if (t < PH.charge[1]) {
-      // CHARGE — EMERGENCY MEETING red flash + alarm shake + red vignette
+      // CHARGE, EMERGENCY MEETING red flash + alarm shake + red vignette
       const p = pt(t, PH.charge);
       const pulse = (Math.sin(p * Math.PI * 8 - Math.PI/2) + 1) / 2;
       const flash = pulse * (0.1 + p * 0.5);
@@ -1018,7 +1018,7 @@ function playAmongAnim(done, freezeMs) {
       barCtx.fillRect(0, 0, barW, barH);
     }
     else if (t < PH.boom[1]) {
-      // BOOM — ejection: scene flash + crewmate flung spinning off
+      // BOOM, ejection: scene flash + crewmate flung spinning off
       const p = pt(t, PH.boom);
       if (!boomFired) { seedEjection(); boomFired = true; }
       if (!shookScreen) {
@@ -1037,13 +1037,13 @@ function playAmongAnim(done, freezeMs) {
       updateAndDrawEjection(dtF, 1, t);
     }
     else if (t < PH.smoke[1]) {
-      // SMOKE — giant EJECTED text + verdict, bones + stars drift
+      // SMOKE, giant EJECTED text + verdict, bones + stars drift
       const p = pt(t, PH.smoke);
       updateAndDrawEjection(dtF, 1, t);
       drawEjectText(p, 1);
     }
     else if (t < PH.fadeEnd[1]) {
-      // FADE — quadratic fade to clean
+      // FADE, quadratic fade to clean
       const p = pt(t, PH.fadeEnd);
       const fade = (1 - p) * (1 - p);
       updateAndDrawEjection(dtF, fade, t);
@@ -1143,7 +1143,7 @@ function playAmongAnim(done, freezeMs) {
   }
 
   if (frozen) {
-    // Synchronous stepping driver — evolves particles up to freezeMs and draws
+    // Synchronous stepping driver, evolves particles up to freezeMs and draws
     // the final frame statically (no rAF), so a plain headless --screenshot
     // reliably captures any celebration phase.
     for (let tt = 0; tt <= freezeMs; tt += 16) frame(t0 + tt);
@@ -1261,7 +1261,7 @@ function connectTikfinity() {
 }
 
 // ============================================================
-// SHOT MODE — line up every sprite for a contact screenshot
+// SHOT MODE, line up every sprite for a contact screenshot
 // ============================================================
 function renderContactSheet() {
   stopIdleLoop();
@@ -1289,8 +1289,8 @@ if (SHOT_MODE === "mobs") {
   startIdleLoop();
 }
 // Screenshot helpers:
-//   ?fire=1            — auto-trigger a live follow after load (visual smoke-test)
-//   ?freeze=<phase>    — render ONE static celebration frame (popin|idle|charge|
+//   ?fire=1, auto-trigger a live follow after load (visual smoke-test)
+//   ?freeze=<phase>, render ONE static celebration frame (popin|idle|charge|
 //                        boom|smoke|fade), reliably captured by plain --screenshot
 if (params.get("fire")) {
   setTimeout(() => handleFollow(params.get("user") || "Red", ""), 60);
@@ -1301,7 +1301,7 @@ if (params.get("freeze")) {
   const ms = FREEZE_MS[params.get("freeze")] != null ? FREEZE_MS[params.get("freeze")] : 1760;
   playAmongAnim(() => {}, ms);
 }
-// ?signshot=N — static render of the emergency-meeting placard sign
+// ?signshot=N, static render of the emergency-meeting placard sign
 if (params.get("signshot")) {
   stopIdleLoop();
   state.totalFollowers = parseInt(params.get("signshot"), 10) || 7;

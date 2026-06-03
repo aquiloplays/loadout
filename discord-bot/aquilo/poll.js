@@ -5,7 +5,7 @@
 // Lifecycle:
 //   - Cron fires hourly. At 6 PM ET on Wed/Fri/Sat, postCnPoll posts a
 //     fresh poll message in POLL_CHANNEL_ID and resets the schedule's CN
-//     winners (only on Wednesday — the first CN of the week).
+//     winners (only on Wednesday, the first CN of the week).
 //   - Cross-week winner exclusion: this week's previous CN winners are
 //     filtered out before the candidate set is built. Week boundary is
 //     Sunday 00:00 ET (approximated with UTC midnight of the calendar
@@ -89,7 +89,7 @@ async function buildPollPayload(env, poll, options) {
     title: '🎮 ' + cap(poll.day_of_week) + ' Community Night · What are we playing?',
     description: closed
       ? '🔒 Voting closed. **' + totalVotes + '** vote' + (totalVotes === 1 ? '' : 's') + ' · winner highlighted below.'
-      : `Voting closes ${closeTag}. Tap a button to vote — you can change your vote until the poll closes.\n\n_` + totalVotes + ' vote' + (totalVotes === 1 ? '' : 's') + ' so far._',
+      : `Voting closes ${closeTag}. Tap a button to vote, you can change your vote until the poll closes.\n\n_` + totalVotes + ' vote' + (totalVotes === 1 ? '' : 's') + ' so far._',
     color: COLOR_POLL
   };
 
@@ -107,7 +107,7 @@ async function buildPollPayload(env, poll, options) {
     return e;
   });
 
-  // Buttons — one per game. Up to 5 per row, so 8 fits in 2 rows.
+  // Buttons, one per game. Up to 5 per row, so 8 fits in 2 rows.
   const components = [];
   let currentRow = [];
   for (const o of options) {
@@ -143,7 +143,7 @@ export async function postCnPoll(env, dayOfWeek) {
 
   // Per-guild KV binding (with POLL_CHANNEL_ID env fallback). See
   // channel-bindings.js. Lock in the resolved channel for THIS
-  // poll's lifecycle by storing it on the DB row — closeCnPoll +
+  // poll's lifecycle by storing it on the DB row, closeCnPoll +
   // refreshPollMessage read from the row, so a mid-cycle rebind
   // won't strand an open poll.
   const { getChannelBinding } = await import('../channel-bindings.js');
@@ -230,8 +230,7 @@ export async function postCnPoll(env, dayOfWeek) {
 //
 // `ctx` is optional. When provided (cron + hub button paths via worker.js),
 // the eligible-patron DM batch runs via ctx.waitUntil so the worker stays
-// alive until DMs finish. Without ctx, DMs may get cut off (acceptable —
-// the queue post itself still succeeds).
+// alive until DMs finish. Without ctx, DMs may get cut off (acceptable, // the queue post itself still succeeds).
 export async function closeCnPoll(env, ctx) {
   const guildId = await ensureBootstrap(env);
   const poll = await getOpenPoll(env, guildId);
@@ -264,7 +263,7 @@ export async function closeCnPoll(env, ctx) {
     catch (e) { console.error('[poll] queue post', e?.message || e); }
 
     // Async: DM eligible patrons. Requires Server Members intent in the
-    // dev portal — without it the members fetch 401s and we silently bail.
+    // dev portal, without it the members fetch 401s and we silently bail.
     if (queuePost?.messageId) {
       const dmTask = notifyEligibleQueueOpen(
         env, guildId, poll.id, poll.day_of_week, winner.name,

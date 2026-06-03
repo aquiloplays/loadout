@@ -1,4 +1,4 @@
-// LFG hub — persistent embed in the LFG channel with buttons users
+// LFG hub, persistent embed in the LFG channel with buttons users
 // click instead of typing /lfg. Mirrors the onboarding-hub pattern:
 //
 //   Persistent embed   "🎮 Looking for Game"
@@ -53,7 +53,7 @@ const BTN_DANGER         = 4;
 
 const HUB_MSG_KEY = (g) => `lfg:hub-msg:${g}`;
 
-// Hint list — same shape as DEFAULT_WELCOME_CHANNEL_HINTS in
+// Hint list, same shape as DEFAULT_WELCOME_CHANNEL_HINTS in
 // onboarding.js. Used when /admin/lfg/post-hub gets no explicit
 // channelId / channelName and the binding isn't set.
 const DEFAULT_LFG_CHANNEL_HINTS = [
@@ -90,7 +90,7 @@ export async function buildHubEmbed(env, guildId) {
         `Click **Create LFG post** to ping the community to play with you.\n\n` +
         `**How it works**\n` +
         `• Pick a game + slots, drop a note, optionally a voice channel\n` +
-        `• Anyone can hit **Join** on your post — it auto-closes when full\n` +
+        `• Anyone can hit **Join** on your post, it auto-closes when full\n` +
         `• Use **Browse open posts** to see what's already running\n` +
         `• **Close my post** ends your active LFG early`,
       color: brand.accentColor || 0x7c5cff,
@@ -113,7 +113,7 @@ export async function postLfgHub(env, guildId, channelId) {
   if (!channelId) return { ok: false, error: 'no-channel-id' };
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
 
-  // Delete any prior hub message tracked in KV (best-effort — gone-
+  // Delete any prior hub message tracked in KV (best-effort, gone-
   // already is fine, that's exactly what we want).
   let deletedPrior = false;
   try {
@@ -150,7 +150,7 @@ export async function postLfgHub(env, guildId, channelId) {
   return { ok: true, channelId, messageId: j.id, deletedPrior };
 }
 
-// Admin HTTP route entry — resolves channel via opts + channel-
+// Admin HTTP route entry, resolves channel via opts + channel-
 // binding then defers to postLfgHub. Mirrors postWelcomeEmbedForGuild
 // in onboarding.js.
 export async function postLfgHubForGuild(env, guildId, opts = {}) {
@@ -161,7 +161,7 @@ export async function postLfgHubForGuild(env, guildId, opts = {}) {
   } else {
     // Order:
     //   1. explicit channelName substring match (caller's request)
-    //   2. channel-binding(lfg) — same source the slash/hub use at runtime
+    //   2. channel-binding(lfg), same source the slash/hub use at runtime
     //   3. DEFAULT_LFG_CHANNEL_HINTS via pickLfgChannel
     const chRes = await fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`, {
       headers: {
@@ -201,7 +201,7 @@ export async function postLfgHubForGuild(env, guildId, opts = {}) {
 
 // ── Component / modal handlers ───────────────────────────────────
 
-// Button click router — `lfg:` prefix.
+// Button click router, `lfg:` prefix.
 export async function handleLfgHubComponent(env, data) {
   const userId = data.member?.user?.id || data.user?.id;
   const userName =
@@ -229,7 +229,7 @@ export async function handleLfgHubComponent(env, data) {
   return { type: RESP_CHAT, data: { content: 'Unknown LFG action: ' + cid, flags: FLAG_EPHEMERAL } };
 }
 
-// Modal submit — `modal:lfg-create`.
+// Modal submit, `modal:lfg-create`.
 export async function handleLfgModalSubmit(env, data) {
   const userId = data.member?.user?.id || data.user?.id;
   const userName =
@@ -259,7 +259,7 @@ export async function handleLfgModalSubmit(env, data) {
   if (!r.ok) {
     if (r.error === 'too-many-active') {
       return { type: RESP_CHAT, data: {
-        content: '❌ You already have 3 active LFG posts — close one first.',
+        content: '❌ You already have 3 active LFG posts, close one first.',
         flags: FLAG_EPHEMERAL,
       } };
     }
@@ -278,7 +278,7 @@ export async function handleLfgModalSubmit(env, data) {
   return {
     type: RESP_CHAT,
     data: {
-      content: `✅ Posted LFG for **${game}** — ${slots} slot${slots === 1 ? '' : 's'}.\n` +
+      content: `✅ Posted LFG for **${game}**, ${slots} slot${slots === 1 ? '' : 's'}.\n` +
         `id: \`${r.lfg.id}\``,
       flags: FLAG_EPHEMERAL,
     },
@@ -415,14 +415,14 @@ async function joinByButton(env, guildId, userId, userName, lfgId) {
     };
   }
   let extra = '';
-  if (r.autoClosed) extra = '\n🟢 That filled the post — game on!';
+  if (r.autoClosed) extra = '\n🟢 That filled the post, game on!';
   return {
     type: RESP_CHAT,
     data: { content: `✅ Joined **${r.lfg.game}** (${r.lfg.players.length}/${r.lfg.slots}).${extra}`, flags: FLAG_EPHEMERAL },
   };
 }
 
-// Companion "rich ping" — separate message, NOT the lfg.js status
+// Companion "rich ping", separate message, NOT the lfg.js status
 // embed. Includes the host's character avatar, class, level, notes,
 // + a Join button. Posts in the LFG channel.
 async function postEnrichedLfgPing(env, guildId, userId, userName, lfg, notes) {
@@ -430,7 +430,7 @@ async function postEnrichedLfgPing(env, guildId, userId, userName, lfg, notes) {
     || env.LFG_CHANNEL_ID
     || env.ENGAGEMENT_CHANNEL_ID;
   if (!channelId || !env.DISCORD_BOT_TOKEN) return;
-  // Hero + level lookups are best-effort — if any one fails we still
+  // Hero + level lookups are best-effort, if any one fails we still
   // post the ping with reduced detail.
   let hero = null;
   let xp = null;

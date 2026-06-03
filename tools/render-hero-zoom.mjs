@@ -47,7 +47,7 @@ function composeHero(hero) {
   layers.push(pngLayer(join(FIG_DIR, 'default-trousers.png')));
   // z=30 legs gear
   if (hero.legs)   layers.push(pngLayer(join(GEAR_DIR, 'legs',   `${hero.legs}.png`)));
-  // z=33 default tunic — covers leg gear TOP with the skirt
+  // z=33 default tunic, covers leg gear TOP with the skirt
   layers.push(pngLayer(join(FIG_DIR, 'default-tunic.png')));
   // z=35 boots
   if (hero.boots)  layers.push(pngLayer(join(GEAR_DIR, 'boots',  `${hero.boots}.png`)));
@@ -70,7 +70,7 @@ function composeHero(hero) {
   if (hero.head)   layers.push(pngLayer(join(GEAR_DIR, 'head', `${hero.head}.png`)));
   // z=78 weapon
   if (hero.weapon) layers.push(pngLayer(join(GEAR_DIR, 'weapon', `${hero.weapon}.png`)));
-  // z=79 hand overlay — grips the weapon
+  // z=79 hand overlay, grips the weapon
   if (hero.weapon) layers.push(pngLayer(join(FIG_DIR, `hand-overlay-${hero.skinTone}.png`)));
   if (hero.legendarySlots) {
     for (const slot of hero.legendarySlots) {

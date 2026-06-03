@@ -1,4 +1,4 @@
-// Unified voting hub — variety night + community night, separate
+// Unified voting hub, variety night + community night, separate
 // events sharing ONE channel + ONE persistent embed. Replaces the
 // old cn-vote-hub.js (which only handled CN and lived in the CN
 // queue channel).
@@ -7,7 +7,7 @@
 //
 //   closed            no active vote. Embed shows "Next vote opens
 //                       at 6 PM ET on <next event date>". No buttons
-//                       that take a vote action — instead a
+//                       that take a vote action, instead a
 //                       Patreon CTA + boost prompt.
 //
 //   variety-open      variety vote active (between 18:00 ET and
@@ -55,7 +55,7 @@ const BTN_LINK           = 5;
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-// Phase constants — exported so the cron + tests can reference them
+// Phase constants, exported so the cron + tests can reference them
 // without string drift.
 export const PHASE = Object.freeze({
   CLOSED:         'closed',
@@ -64,7 +64,7 @@ export const PHASE = Object.freeze({
   CN_OPEN:        'cn-open',
   CN_CLOSED:      'cn-closed',
   CN_QUEUE:       'cn-queue',
-  // 2026-06: Dad Game Sunday vote — Fri 12:00 ET → Sun 12:00 ET, winner
+  // 2026-06: Dad Game Sunday vote, Fri 12:00 ET → Sun 12:00 ET, winner
   // plays Sunday. Replaces the old weekend CN_QUEUE phase in the cron
   // tiling (the queue-join handler is kept for back-compat).
   DAD_OPEN:       'dad-open',
@@ -123,7 +123,7 @@ export async function getConfig(env, guildId) {
     cnQueueOpenHourEt:   Number.isInteger(raw?.cnQueueOpenHourEt)
                             ? raw.cnQueueOpenHourEt : 10,
 
-    // Legacy single-window fields — preserved for back-compat with
+    // Legacy single-window fields, preserved for back-compat with
     // any caller that still reads them. Default-aligned to the new
     // CN values but tickPhaseTransition no longer uses them.
     cnWeekday:      raw?.cnWeekday      || raw?.cnVoteOpenWeekday || 'wednesday',
@@ -132,7 +132,7 @@ export async function getConfig(env, guildId) {
   };
 }
 
-// "Minute of week" — 0 at Sunday 00:00 ET, max 10079 at Sat 23:59 ET.
+// "Minute of week", 0 at Sunday 00:00 ET, max 10079 at Sat 23:59 ET.
 // Used by the multi-day window check below.
 function minuteOfWeek(weekday, hourEt) {
   return DAY_NAMES.indexOf(String(weekday).toLowerCase()) * 1440 + hourEt * 60;
@@ -165,7 +165,7 @@ export async function setConfig(env, guildId, patch) {
   }
   if (patch.openHourEt  !== undefined) next.openHourEt  = Math.max(0, Math.min(23, Number(patch.openHourEt) || 18));
   if (patch.closeHourEt !== undefined) next.closeHourEt = Math.max(0, Math.min(23, Number(patch.closeHourEt) || 21));
-  // v2 CN window fields — multi-day voting + separate queue open.
+  // v2 CN window fields, multi-day voting + separate queue open.
   for (const [src, dst] of [
     ['varietyVoteOpenWeekday',  'varietyVoteOpenWeekday'],
     ['varietyVoteCloseWeekday', 'varietyVoteCloseWeekday'],
@@ -211,7 +211,7 @@ async function putState(env, guildId, state) {
 
 // ── Date math ────────────────────────────────────────────────────
 //
-// Pure-ish — works in any timezone the cron observes. Returns the
+// Pure-ish, works in any timezone the cron observes. Returns the
 // next event date (YYYY-MM-DD in ET) for the given weekday name.
 // `nowEt` is { weekday, year, month, day, hour } from getETInfo.
 //
@@ -240,7 +240,7 @@ export function nextEventTimestamp(nowMs, targetWeekday, hourEt) {
   // window, advance a week.
   if (days === 0 && nowEt.hour >= 22) days = 7;
   // Build a Date for (today + days) at hourEt ET. Convert ET → UTC
-  // via the offset — getETInfo gives us the ET clock but not the
+  // via the offset, getETInfo gives us the ET clock but not the
   // offset, so re-derive via Intl.
   const dt = new Date(nowMs + days * 86_400_000);
   // Pin the hour by ET: re-compute UTC = ET + (offset). Use a
@@ -342,7 +342,7 @@ async function buildPhaseEmbed(env, guildId, state, config) {
     const lines = [
       winner
         ? `**Winner:** ${winner.name}${winner.votes ? ` (${winner.votes} vote${winner.votes === 1 ? '' : 's'})` : ''}`
-        : '_Votes are in — winner being tallied._',
+        : '_Votes are in, winner being tallied._',
     ];
     if (tsCnQueue) lines.push('', `🎮 Saturday queue opens ${tFmt(tsCnQueue, 'F')} (${tFmt(tsCnQueue, 'R')})`);
     const embed = {
@@ -412,7 +412,7 @@ async function putStoredWinner(env, guildId, kind, winner) {
 // or "cn:<week>" so a fresh week always starts a fresh ballot.
 
 function weekStampEt() {
-  // Calendar week stamp in ET — used as the eventKey suffix so a
+  // Calendar week stamp in ET, used as the eventKey suffix so a
   // new week's vote doesn't carry over the previous week's ballots.
   const et = getETInfo(new Date());
   return `${et.year}-${String(et.month).padStart(2, '0')}-${String(et.day).padStart(2, '0')}`;
@@ -488,7 +488,7 @@ export async function postOrRefreshHub(env, guildId, channelId) {
       },
     );
     if (r.ok) return { ok: true, channelId, messageId: prior.messageId, action: 'edited' };
-    // Message gone — fall through to fresh post.
+    // Message gone, fall through to fresh post.
   }
   // Delete any prior in a different channel.
   if (prior?.channelId && prior?.messageId && prior.channelId !== channelId) {
@@ -513,7 +513,7 @@ export async function postOrRefreshHub(env, guildId, channelId) {
   return { ok: true, channelId, messageId: j.id, action: 'posted' };
 }
 
-// Admin HTTP entry — resolves channel via opts → vote binding.
+// Admin HTTP entry, resolves channel via opts → vote binding.
 export async function postVoteHubForGuild(env, guildId, opts = {}) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
   let channelId = opts.channelId;
@@ -578,11 +578,11 @@ export async function tickPhaseTransition(env, guildId) {
   else                 desired = PHASE.DAD_CLOSED; // Sun-noon → Mon-noon gap
 
   if (desired === state.phase) {
-    // Same phase — no-op (saves a Discord edit).
+    // Same phase, no-op (saves a Discord edit).
     return { phase: state.phase, transitioned: false };
   }
 
-  // Close transitions — tally + announce the winner of the vote we're
+  // Close transitions, tally + announce the winner of the vote we're
   // leaving. (Leaving VARIETY_OPEN ⇒ Wed noon; leaving CN_OPEN ⇒ Fri noon.)
   if (state.phase === PHASE.VARIETY_OPEN) {
     const winner = await tallyAndStoreWinner(env, guildId, 'variety');
@@ -794,8 +794,8 @@ export async function handleVoteHubComponent(env, data) {
           description:
             nextLine + '\n\n' +
             `Boost the community while you wait:\n` +
-            `• 💎 **Patron** — priority CN queue access + bolts perks\n` +
-            `• 🚀 **Server boost** — also unlocks priority queue access`,
+            `• 💎 **Patron**, priority CN queue access + bolts perks\n` +
+            `• 🚀 **Server boost**, also unlocks priority queue access`,
           color: 0xe6c474,
         }],
         components: [{

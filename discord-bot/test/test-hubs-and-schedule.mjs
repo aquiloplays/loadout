@@ -8,7 +8,7 @@
 //   • postHub refuses unknown hub key
 //   • cn-vote-hub.buildHubEmbed has the 4 buttons w/ the right cnv:* ids
 //   • cn-games-list-hub.pickGamesListChannel hint order
-//   • aq-schedule.getPublicSchedule shape — 7 days, slot/status,
+//   • aq-schedule.getPublicSchedule shape, 7 days, slot/status,
 //     CN winner reflected, store='steam' when art is a steam URL
 //
 // Run from repo root:
@@ -66,7 +66,7 @@ function makeKv() {
 
 const GUILD = '1504103035951906883';
 
-console.log('— channel-hubs: catalogue + builders');
+console.log('- channel-hubs: catalogue + builders');
 {
   eq(HUB_KEYS, ['checkin', 'character', 'bolts', 'play', 'achievements'], 'HUB_KEYS pinned');
   // _HUBS_FOR_TEST contract.
@@ -77,7 +77,7 @@ console.log('— channel-hubs: catalogue + builders');
   }
 }
 
-console.log('— buildHubEmbed per key');
+console.log('- buildHubEmbed per key');
 {
   for (const k of HUB_KEYS) {
     const env = { LOADOUT_BOLTS: makeKv() };
@@ -91,7 +91,7 @@ console.log('— buildHubEmbed per key');
   eq(bad, null, 'unknown hub key → null');
 }
 
-console.log('— pickHubChannel: explicit / name / hint / null');
+console.log('- pickHubChannel: explicit / name / hint / null');
 {
   const hub = _HUBS_FOR_TEST.checkin;   // hints: ['check-in', 'checkin', 'daily']
   const chs = [
@@ -110,7 +110,7 @@ console.log('— pickHubChannel: explicit / name / hint / null');
   eq(pickHubChannel([{ id: '3', name: 'check-in-voice', type: 2 }], hub, {}), null, 'voice-only → null');
 }
 
-console.log('— postHub: refuses unknown key');
+console.log('- postHub: refuses unknown key');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   const r = await postHub(env, GUILD, 'whatever', '1500000000000000001');
@@ -119,7 +119,7 @@ console.log('— postHub: refuses unknown key');
   assert(Array.isArray(r.allowed) && r.allowed.length === 5, 'returns allowed list');
 }
 
-console.log('— cn-vote-hub: button catalogue');
+console.log('- cn-vote-hub: button catalogue');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const { embed, components } = await buildCnVoteEmbed(env, GUILD);
@@ -129,7 +129,7 @@ console.log('— cn-vote-hub: button catalogue');
   eq(ids, ['cnv:vote', 'cnv:standings', 'cnv:queue-join', 'cnv:status'], 'four buttons w/ cnv:* ids');
 }
 
-console.log('— cn-games-list-hub: hint order + steam URL extractor');
+console.log('- cn-games-list-hub: hint order + steam URL extractor');
 {
   eq(_DEFAULT_GAMES_LIST_HINTS_FOR_TEST,
     ['cn-games', 'community-night-games', 'game-options', 'cn-game'],
@@ -150,7 +150,7 @@ console.log('— cn-games-list-hub: hint order + steam URL extractor');
   eq(pickGamesListChannel(chs, { channelName: 'options' })?.id, '3', 'name substring overrides hint order');
 }
 
-console.log('— getPublicSchedule: shape + CN winner');
+console.log('- getPublicSchedule: shape + CN winner');
 {
   const env = {
     LOADOUT_BOLTS: makeKv(),
@@ -171,7 +171,7 @@ console.log('— getPublicSchedule: shape + CN winner');
   eq(sat1.slot, 'cn', 'saturday slot=cn');
   eq(sat1.status, 'vote-open', 'no winner → vote-open');
   eq(sat1.game, null, 'no game yet');
-  // Sunday is Dad Game Sunday — voted, no winner yet → vote-open.
+  // Sunday is Dad Game Sunday, voted, no winner yet → vote-open.
   const sun = r1.days.find(d => d.weekday === 'sunday');
   eq(sun.slot, 'dad-sunday', 'sunday=dad-sunday');
   eq(sun.game, null, 'sunday no game yet');
@@ -185,7 +185,7 @@ console.log('— getPublicSchedule: shape + CN winner');
   const tue = r1.days.find(d => d.weekday === 'tuesday');
   eq(tue.slot, 'stream', 'tuesday slot=stream (Triple-C)');
   eq(tue.game?.name, 'Fallout 4', 'tuesday game = Fallout 4');
-  // Wednesday is Variety Night — voted.
+  // Wednesday is Variety Night, voted.
   const wed = r1.days.find(d => d.weekday === 'wednesday');
   eq(wed.slot, 'variety', 'wednesday slot=variety');
   eq(wed.status, 'vote-open', 'wednesday vote-open');
@@ -207,7 +207,7 @@ console.log('— getPublicSchedule: shape + CN winner');
 
 console.log('');
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

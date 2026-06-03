@@ -15,7 +15,7 @@
 // Filters (mirror tools/backfill-card-art.mjs in spirit):
 //   - host must be on the same allow-list as cards-art-override.js
 //   - file size must be ≤ 5 MB (Giphy reports orig.size when known)
-//   - aspect ratio in [0.4, 2.5] — reject super-tall or super-wide
+//   - aspect ratio in [0.4, 2.5], reject super-tall or super-wide
 //   - rating=pg (SFW gate) at the search layer
 //
 // Worker CPU time scales with active work, not idle fetch waits, so
@@ -32,7 +32,7 @@ const MIN_ASPECT    = 0.4;
 const MAX_ASPECT    = 2.5;
 const GIPHY_LIMIT   = 10;
 const GIPHY_RATING  = 'pg';
-// Default in-slice pacing — sleep between cards. Giphy's free public
+// Default in-slice pacing, sleep between cards. Giphy's free public
 // tier rate-limits at ~100 searches/hour per key; at avg 3 terms per
 // card the safe budget is ~33 cards/hour = ~108 seconds per card.
 // We cap default delay lower than that and let the driver compensate
@@ -98,7 +98,7 @@ async function giphySearch(apiKey, term) {
 }
 
 // suggestArtTerms ranks SHORTEST FIRST (broader search) which is the
-// right default for a user-facing picker — the user sees 6 suggestions
+// right default for a user-facing picker, the user sees 6 suggestions
 // and picks. For the backfill we want the OPPOSITE: longest first, so
 // specific terms like "champion steel" beat the generic type fallback
 // "hero" (otherwise every Champion-type card picks the same GIF off
@@ -212,7 +212,7 @@ export async function runCardArtBackfillSlice(env, opts = {}) {
       // card so the next slice retries it; don't count it as a miss
       // since we never actually attempted it (Giphy bounced). Without
       // this rewind, the driver burns through the catalogue without
-      // doing work — the bug that lost 700+ cards on the first resume
+      // doing work, the bug that lost 700+ cards on the first resume
       // run (driver thought 1155/1252, actual KV was 413).
       out.processed = i;
       out.nextOffset = offset + i;
@@ -224,7 +224,7 @@ export async function runCardArtBackfillSlice(env, opts = {}) {
     }
   }
 
-  // Cap samples to last 5 — the operator loop logs these periodically.
+  // Cap samples to last 5, the operator loop logs these periodically.
   if (out.samples.length > 5) out.samples = out.samples.slice(-5);
   out.done = (out.nextOffset >= total);
   return out;

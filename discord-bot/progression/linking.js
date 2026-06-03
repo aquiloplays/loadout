@@ -1,4 +1,4 @@
-// Progression — external-account linking.
+// Progression, external-account linking.
 //
 // PROGRESSION-SYSTEM-DESIGN.md §5.4. Lets viewers link Steam, Epic,
 // Xbox, Battle.net, YouTube, TikTok, Patreon (read-only) for friend-
@@ -11,7 +11,7 @@
 //                 key only required to fetch the persona name)
 //   - Twitch      OAuth implicit grant (existing app credentials)
 //   - Epic / Xbox / Battle.net / YouTube / TikTok    standard OAuth 2.0
-//   - PSN / Manual entry  no public OAuth — text field + unverified flag
+//   - PSN / Manual entry  no public OAuth, text field + unverified flag
 //
 // Each link returns a result the redirect target can render in JSON
 // or plain text. Removal is always allowed (rate-limited to 1/day
@@ -57,7 +57,7 @@ export async function applyLink(env, userId, platform, payload, opts = {}) {
   if (existing && existing !== userId) {
     return { ok: false, error: 'already-linked', toUserId: existing };
   }
-  // 24h relink cooldown — the same user removing + re-adding the same
+  // 24h relink cooldown, the same user removing + re-adding the same
   // external id is allowed, but the cooldown defuses sock-puppet swap
   // patterns (see §11.4).
   const existingLink = profile.linkedAccounts?.[platform];
@@ -78,7 +78,7 @@ export async function applyLink(env, userId, platform, payload, opts = {}) {
     extra: payload.extra || {},
   };
   await putProfile(env, userId, profile);
-  // Reverse index (no TTL — durable).
+  // Reverse index (no TTL, durable).
   await env.LOADOUT_BOLTS.put(idxKey, userId);
 
   // Achievement event. Stable key = externalId so re-linking after
@@ -121,7 +121,7 @@ export async function removeLink(env, userId, platform) {
 
 // ── Manual entry (PSN / unsupported) ──────────────────────────────
 //
-// No OAuth round trip — viewer types the handle into a form. We mark
+// No OAuth round trip, viewer types the handle into a form. We mark
 // `source: 'manual'` so the profile UI can show an "unverified" badge
 // and disable tournament-eligibility checks until the platform adds
 // a verification path.
@@ -140,7 +140,7 @@ export async function applyManualLink(env, userId, platform, handle) {
 //
 // The actual platform-specific HTTP exchanges live in oauth-<plat>.js
 // modules (under progression/oauth/). This module dispatches the
-// /link/start and /link/callback routes — they delegate to the
+// /link/start and /link/callback routes, they delegate to the
 // per-platform handlers.
 
 export async function startLinkFlow(env, platform, userId, returnUrl) {
@@ -169,11 +169,11 @@ async function loadHandler(platform) {
 // Clay confirmed: there is only ONE Patreon tier in the supported
 // configuration, so premium is all-or-nothing. We consult the
 // existing patreon:tier:<userId> record (set by ext-patreon-link.js
-// OAuth flow) as a presence check only — the stored value doesn't
+// OAuth flow) as a presence check only, the stored value doesn't
 // matter, just whether the record exists.
 //
 // `isPatron` is the only Patreon-gate primitive. There is no
-// readPatreonTier or patreonRewardMultiplier — those were artefacts
+// readPatreonTier or patreonRewardMultiplier, those were artefacts
 // of an earlier multi-tier sketch that's been dropped.
 
 export async function isPatron(env, userId) {

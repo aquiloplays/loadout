@@ -1,4 +1,4 @@
-// Referral system — each linked member can refer new members and earn
+// Referral system, each linked member can refer new members and earn
 // a reward when a referee hits their first meaningful milestone.
 //
 // Two attribution paths:
@@ -13,11 +13,11 @@
 //      automatically. Until then, path (A) covers it.
 //
 // Milestone semantics: each referee can only credit their referrer
-// ONCE. The first milestone (whichever fires first — Patreon-link or
+// ONCE. The first milestone (whichever fires first, Patreon-link or
 // first community check-in) pays out + locks the record. Subsequent
 // milestones for the same referee are no-ops.
 //
-// Reward (single Patreon tier — no scaling per Clay):
+// Reward (single Patreon tier, no scaling per Clay):
 //   • 50 bolts
 //   • 1 'bolt' Boltbound pack
 //
@@ -73,8 +73,7 @@ export async function getOrMintCode(env, guildId, userId) {
   const existing = await env.LOADOUT_BOLTS.get(CODE_KEY_BY_USER(guildId, userId));
   if (existing) return existing;
   // Mint a fresh code. Collision check against the reverse-lookup KV
-  // (would mean two random 8-char codes landed on the same string —
-  // possible but vanishingly rare).
+  // (would mean two random 8-char codes landed on the same string, // possible but vanishingly rare).
   let code;
   for (let attempt = 0; attempt < 5; attempt++) {
     const c = generateCode();
@@ -125,7 +124,7 @@ export async function recordAttribution(env, guildId, refereeId, refCode) {
     attributedUtc: now,
   }));
 
-  // Bump referrer's running count (no payout yet — that fires on the
+  // Bump referrer's running count (no payout yet, that fires on the
   // first milestone, not at attribution time).
   const stats = await getReferrerStats(env, guildId, referrerId);
   stats.count += 1;
@@ -136,7 +135,7 @@ export async function recordAttribution(env, guildId, refereeId, refCode) {
 }
 
 // Discord-invite attribution path. Dormant until the gateway shim
-// starts forwarding GUILD_MEMBER_ADD with an `invite_code` field — at
+// starts forwarding GUILD_MEMBER_ADD with an `invite_code` field, at
 // which point welcome.js can call this with the joiner's id + the
 // invite code Discord reports they used. Map invite_code → refCode →
 // referrer via the same recordAttribution() flow.

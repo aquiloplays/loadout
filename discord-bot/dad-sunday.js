@@ -1,4 +1,4 @@
-// Dad Game Sunday — current-game state + admin API (2026-06 schedule
+// Dad Game Sunday, current-game state + admin API (2026-06 schedule
 // update). Sundays moved from Triple-C to "Dad Game Sunday": cozy / sim /
 // management games. The Sunday game is decided by the Fri→Sun community
 // vote (vote-hub kind 'dad'), but an owner can LOCK a specific game to
@@ -12,9 +12,9 @@
 // KV: dad-sunday:current:<guildId> -> { gameSlug, name, artUrl, store, setUtc, setBy }
 //
 // Endpoints (wired in worker/web):
-//   GET  /dad-sunday/current        public — current Sunday game
-//   GET  /dad-sunday/pool           public — the 10-game pool (admin dropdown)
-//   POST /web/admin/dad-sunday/set  owner  — { gameSlug } -> lock it + announce
+//   GET  /dad-sunday/current        public, current Sunday game
+//   GET  /dad-sunday/pool           public, the 10-game pool (admin dropdown)
+//   POST /web/admin/dad-sunday/set  owner, { gameSlug } -> lock it + announce
 
 const KEY = (g) => `dad-sunday:current:${g}`;
 const POOL = 'dad-sunday';

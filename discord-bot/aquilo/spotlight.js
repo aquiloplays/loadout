@@ -67,12 +67,12 @@ export async function postPatronSpotlight(env) {
   const joinedAt = pick.joined_at ? new Date(pick.joined_at) : null;
   const memberSinceDays = joinedAt ? Math.floor((Date.now() - joinedAt.getTime()) / 86400000) : null;
 
-  const lines = ['🎉 **<@' + userId + '>** — _' + tier + '_'];
+  const lines = ['🎉 **<@' + userId + '>**, _' + tier + '_'];
   if (memberSinceDays !== null) {
     lines.push('Member for ' + memberSinceDays + ' day' + (memberSinceDays === 1 ? '' : 's'));
   }
   lines.push('');
-  lines.push('Drop a 👋 in the replies — show some love!');
+  lines.push('Drop a 👋 in the replies, show some love!');
 
   const embed = {
     title: '🌟 Patron Spotlight',

@@ -1,8 +1,8 @@
-// Phase P — Viewer→Patreon real linking (panel-driven).
+// Phase P, Viewer→Patreon real linking (panel-driven).
 //
 // GET /ext/patreon/link-start  (JWT-gated, identity-required):
 //   Mints a short-lived (5 min) JWT carrying { tw_id, exp } signed with
-//   TWITCH_EXT_SECRET — the same secret the aquilo-site Pages Function
+//   TWITCH_EXT_SECRET, the same secret the aquilo-site Pages Function
 //   uses to verify it on the OAuth callback. Returns:
 //     { ok: true, url: "https://aquilo.gg/api/link/start?platform=patreon&extToken=..." }
 //   The panel opens that URL in a new tab; the user authorizes Patreon
@@ -11,7 +11,7 @@
 //   into the shared KV. After that, routePatronCorner sees the mapping
 //   and flips eligibility to { eligible: true, kind: 'patron' }.
 //
-// Opaque viewers (no identity share) cannot link — we can't tie an
+// Opaque viewers (no identity share) cannot link, we can't tie an
 // anonymous opaque_user_id to a real Patreon account safely. They get
 // an "identity-required" 400 the panel turns into a share prompt.
 

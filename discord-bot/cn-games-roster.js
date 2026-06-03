@@ -1,4 +1,4 @@
-// Community-night games roster — ONE message in #community-night-games:
+// Community-night games roster, ONE message in #community-night-games:
 //   embed (composite art + <t:> timestamps + brand color)
 // + up to 5 rows of link buttons (Game Name • $price; 🔥 prefix on sale).
 //
@@ -62,7 +62,7 @@ export const ROSTER = [
   { name: 'Species: Unknown',         appId: 2747330 },
 ];
 
-// Legacy export — preserved for any external caller. Now derived
+// Legacy export, preserved for any external caller. Now derived
 // from ROSTER (Steam-backed entries only).
 export const DEFAULT_APPIDS = ROSTER.filter(g => g.appId).map(g => g.appId);
 

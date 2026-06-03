@@ -12,7 +12,7 @@
 // Run:
 //   node tools/dump-expansion-manifest.mjs
 //
-// Idempotent — re-runnable. The PS1 generator only reads from this
+// Idempotent, re-runnable. The PS1 generator only reads from this
 // file; regenerating sprites after a content edit goes: `node ...mjs`
 // then `pwsh -File tools/build-card-sprites.ps1 -Expansion`.
 

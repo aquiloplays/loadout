@@ -44,13 +44,13 @@ const SAMPLES = [
     slug:  'style-4-cyberpunk-synthwave',
     label: 'Cyberpunk / synthwave',
     seed:  404,
-    prompt: 'Cyberpunk fire bolt — a digital plasma sphere of violet and pink energy crackling with neon code, glitch artifacts, retro grid background, vaporwave palette, game card art',
+    prompt: 'Cyberpunk fire bolt, a digital plasma sphere of violet and pink energy crackling with neon code, glitch artifacts, retro grid background, vaporwave palette, game card art',
   },
   {
     slug:  'style-5-glossy-game-premium',
     label: 'Glossy game premium (Aquilo house style)',
     seed:  505,
-    prompt: 'A glossy vector game illustration of a magical firebolt — concentrated aurora-pink energy bolt mid-flight, sharp vector edges with soft gradient shading, subtle violet contrail, dark cosmic background with aurora particles, premium trading card art for a game called Boltbound, no text in image',
+    prompt: 'A glossy vector game illustration of a magical firebolt, concentrated aurora-pink energy bolt mid-flight, sharp vector edges with soft gradient shading, subtle violet contrail, dark cosmic background with aurora particles, premium trading card art for a game called Boltbound, no text in image',
   },
 ];
 
@@ -124,12 +124,12 @@ for (let i = 0; i < SAMPLES.length; i++) {
 
     // Flux-schnell typically reports per-prediction USD cost via the
     // metrics.predict_time + the model's price-per-second. Replicate's
-    // public API returns `metrics.predict_time` (seconds) — Schnell
+    // public API returns `metrics.predict_time` (seconds), Schnell
     // bills ~$0.003/image at 4 steps. Honest estimate when no
     // explicit cost field is present.
     const seconds = done.metrics?.predict_time || null;
     // Replicate flux-schnell is currently $0.003 per output image
-    // (fixed-price model — not per-second). Hardcode for the report.
+    // (fixed-price model, not per-second). Hardcode for the report.
     const cost = 0.003;
     totalCostUsd += cost;
 

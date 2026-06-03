@@ -1,4 +1,4 @@
-// LFG (Looking-For-Game / "Open for playing") — shared between the
+// LFG (Looking-For-Game / "Open for playing"), shared between the
 // aquilo.gg website + the /lfg Discord slash command.
 //
 // State layout (KV):
@@ -15,7 +15,7 @@
 //      and moves the entry from active to archive.
 //
 // One config: LFG_CHANNEL_ID (set in wrangler.toml; per-guild via the
-// future bindings dropdown) — falls back to ENGAGEMENT_CHANNEL_ID
+// future bindings dropdown), falls back to ENGAGEMENT_CHANNEL_ID
 // when unset so we don't break Day 1.
 
 const ACTIVE_KEY = (id) => `lfg:active:${id}`;
@@ -36,7 +36,7 @@ async function putIndex(env, idx) {
   await env.LOADOUT_BOLTS.put(INDEX_KEY, JSON.stringify(idx));
 }
 
-// Designated LFG channel — KV-backed binding via channel-bindings.js
+// Designated LFG channel, KV-backed binding via channel-bindings.js
 // (`channel-binding:<g>:lfg`), wrangler.toml LFG_CHANNEL_ID env-var
 // fallback, then ENGAGEMENT_CHANNEL_ID as a last-resort fallback.
 // Legacy `lfg:channel:<g>` KV key is still consulted for back-compat
@@ -60,10 +60,10 @@ function buildEmbed(lfg) {
   const open = !lfg.closedUtc && lfg.players.length < lfg.slots;
   const status = lfg.closedUtc
     ? '🔒 Closed'
-    : (open ? `🎮 ${lfg.slots - lfg.players.length}/${lfg.slots} slots open` : '🟢 Full — starting soon');
+    : (open ? `🎮 ${lfg.slots - lfg.players.length}/${lfg.slots} slots open` : '🟢 Full, starting soon');
   const playersList = lfg.players.length
     ? lfg.players.map(p => `<@${p.userId}>`).join(' · ')
-    : '_no players yet — be the first!_';
+    : '_no players yet, be the first!_';
   return {
     title: `Looking to play: ${lfg.game}`,
     description: status,
@@ -78,7 +78,7 @@ function buildEmbed(lfg) {
   };
 }
 
-// Post or edit the Discord embed for this LFG. Best-effort — if Discord
+// Post or edit the Discord embed for this LFG. Best-effort, if Discord
 // fails, LFG state remains in KV so the website still works.
 async function postOrEditEmbed(env, lfg) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
@@ -152,7 +152,7 @@ export async function createLfg(env, { userId, hostName, game, slots, guildId = 
   await env.LOADOUT_BOLTS.put(ACTIVE_KEY(lfg.id), JSON.stringify(lfg));
   idx.unshift({ lfgId: lfg.id, createdUtc: lfg.createdUtc });
   await putIndex(env, idx);
-  // F2 — Fan out to host's friends (Discord DM + web-push). Fire-and-
+  // F2, Fan out to host's friends (Discord DM + web-push). Fire-and-
   // forget; LFG state is already persisted so a fan-out failure
   // doesn't break the host's creation flow.
   try {
@@ -186,7 +186,7 @@ export async function closeLfg(env, lfgId, byUserId) {
   const lfg = await env.LOADOUT_BOLTS.get(ACTIVE_KEY(lfgId), { type: 'json' });
   if (!lfg) return { ok: false, error: 'not-found' };
   if (lfg.closedUtc) return { ok: true, alreadyClosed: true, lfg };
-  // Only the host (or an admin caller — checked at the dispatch site)
+  // Only the host (or an admin caller, checked at the dispatch site)
   // can close.
   if (lfg.hostUserId !== byUserId) return { ok: false, error: 'forbidden' };
   lfg.closedUtc = Date.now();

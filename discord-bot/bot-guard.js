@@ -1,4 +1,4 @@
-// Central helper — is this shim-forwarded MESSAGE_CREATE / reaction /
+// Central helper, is this shim-forwarded MESSAGE_CREATE / reaction /
 // member-add / voice-state event from a Discord bot?
 //
 // The aquilo-gateway shim (see aquilo-gateway/aquilo_gateway.py)
@@ -12,10 +12,10 @@
 //
 // The shim's payload shape places the flag in MULTIPLE locations
 // depending on the event type:
-//   payload.bot        — legacy top-level (older payloads)
-//   payload.isBot      — camelCase mirror added in the May 2026 shim
-//   payload.author.bot — Discord-slim subset (MESSAGE_CREATE shape)
-//   payload.user.bot   — GUILD_MEMBER_ADD shape
+//   payload.bot, legacy top-level (older payloads)
+//   payload.isBot, camelCase mirror added in the May 2026 shim
+//   payload.author.bot, Discord-slim subset (MESSAGE_CREATE shape)
+//   payload.user.bot, GUILD_MEMBER_ADD shape
 //
 // Checking only one of these is what produced the May 2026 counting
 // loop. Always use this helper.
@@ -23,7 +23,7 @@
 // Shim's MESSAGE_CREATE payload uses `id` (Discord-slim) and
 // `messageId` (camelCase mirror), NOT `message_id`. Handlers that
 // read `payload.message_id` get undefined and end up POSTing to
-// /messages/undefined/* — which Discord 404s silently inside the
+// /messages/undefined/*, which Discord 404s silently inside the
 // try/catch wrapper. This was the May 2026 "bot isn't reacting"
 // incident's root cause for counting + checkin.
 export function messageIdOf(payload) {

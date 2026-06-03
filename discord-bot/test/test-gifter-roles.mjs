@@ -1,4 +1,4 @@
-// Gifter-roles harness — HMAC webhook + rolling-window math +
+// Gifter-roles harness, HMAC webhook + rolling-window math +
 // reconciliation logic.
 //
 // Coverage:
@@ -87,7 +87,7 @@ function makeReq(body, opts = {}) {
   return new Request('https://w/streamerbot/event', { method: 'POST', headers, body });
 }
 
-console.log('— categories sanity');
+console.log('- categories sanity');
 {
   eq(Object.keys(GIFTER_CATEGORIES), ['sub', 'tiktok', 'cheer'], 'three categories');
   eq(GIFTER_CATEGORIES.sub.name,    'Top Sub Gifter',    'sub name');
@@ -95,7 +95,7 @@ console.log('— categories sanity');
   eq(GIFTER_CATEGORIES.cheer.name,  'Top Cheerer',       'cheer name');
 }
 
-console.log('— event-type → category mapping');
+console.log('- event-type → category mapping');
 {
   eq(_categoryForTest('sub-gift', 'twitch'), 'sub',    'sub-gift twitch');
   eq(_categoryForTest('tip',      'tiktok'), 'tiktok', 'tip tiktok');
@@ -104,7 +104,7 @@ console.log('— event-type → category mapping');
   eq(_categoryForTest('whatever', 'tiktok'), null,     'unknown type');
 }
 
-console.log('— webhook: bad signature + replay');
+console.log('- webhook: bad signature + replay');
 {
   const env = { LOADOUT_BOLTS: makeKv(), STREAMERBOT_WEBHOOK_SECRET: SECRET, AQUILO_VAULT_GUILD_ID: GUILD };
   const body = JSON.stringify({ type: 'sub-gift', platform: 'twitch', twitchLogin: 'someone', amount: 1 });
@@ -120,7 +120,7 @@ console.log('— webhook: bad signature + replay');
   eq(r3.status, 503, 'no secret → 503');
 }
 
-console.log('— webhook: validation');
+console.log('- webhook: validation');
 {
   const env = { LOADOUT_BOLTS: makeKv(), STREAMERBOT_WEBHOOK_SECRET: SECRET, AQUILO_VAULT_GUILD_ID: GUILD };
   async function call(payload) {
@@ -143,7 +143,7 @@ console.log('— webhook: validation');
   eq(j3.error, 'no-contributor-login', 'missing login rejected');
 }
 
-console.log('— webhook: accumulates per day per user');
+console.log('- webhook: accumulates per day per user');
 {
   const env = { LOADOUT_BOLTS: makeKv(), STREAMERBOT_WEBHOOK_SECRET: SECRET, AQUILO_VAULT_GUILD_ID: GUILD };
   // Pin event.ts so the day is deterministic.
@@ -168,7 +168,7 @@ console.log('— webhook: accumulates per day per user');
   eq(ident.platform, 'twitch', 'platform stored');
 }
 
-console.log('— rolling30dLeaderboard math');
+console.log('- rolling30dLeaderboard math');
 {
   const env = { LOADOUT_BOLTS: makeKv(), AQUILO_VAULT_GUILD_ID: GUILD };
   // alice +5 today, +3 1d ago, +9 31d ago (out of window).
@@ -199,7 +199,7 @@ console.log('— rolling30dLeaderboard math');
   eq(board[0].discordUserId, null, 'bob unlinked');
 }
 
-console.log('— gifterRolesDailyTick: top-3 add + revoke fall-outs + idempotent');
+console.log('- gifterRolesDailyTick: top-3 add + revoke fall-outs + idempotent');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake', AQUILO_VAULT_GUILD_ID: GUILD };
   await env.LOADOUT_BOLTS.put(`gifter-roles:${GUILD}`,
@@ -250,12 +250,12 @@ console.log('— gifterRolesDailyTick: top-3 add + revoke fall-outs + idempotent
   eq(r.summary.sub.top3Ids.sort(), ['alice-uid', 'bob-uid', 'carol-uid'].sort(), 'top3 ids');
   eq(grants.sort(),  ['alice-uid', 'bob-uid', 'carol-uid'].sort(), '3 PUT grants');
   eq(revokes.sort(), ['dave-uid', 'eve-uid'].sort(),               '2 DELETE revokes');
-  // Marker stamped — second call same UTC day is a no-op.
+  // Marker stamped, second call same UTC day is a no-op.
   const r2 = await gifterRolesDailyTick(env);
   eq(r2.skipped, 'already-ran-today', 'second run same day skipped');
 }
 
-console.log('— ensureGifterRoles: creates the three roles');
+console.log('- ensureGifterRoles: creates the three roles');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async (url, init) => {
@@ -277,7 +277,7 @@ console.log('— ensureGifterRoles: creates the three roles');
   eq(Object.keys(map).sort(), ['cheer', 'sub', 'tiktok'].sort(), 'map written');
 }
 
-console.log('— identity / day helpers');
+console.log('- identity / day helpers');
 {
   eq(_identityKeyForTest('twitch', 'Alice'), 'twitch:alice', 'lowercased');
   eq(_identityKeyForTest('TIKTOK', 'BoB'),   'tiktok:bob',   'lowercased both');
@@ -291,7 +291,7 @@ console.log('— identity / day helpers');
 console.log('');
 globalThis.fetch = realFetch;
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

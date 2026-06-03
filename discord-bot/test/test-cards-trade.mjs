@@ -43,9 +43,9 @@ function ok(label, cond, detail) {
 
 const env = { LOADOUT_BOLTS: makeKvShim() };
 const G = '1504103035951906883';
-const A = '111111111111111111';   // Alice — proposer
-const B = '222222222222222222';   // Bob   — recipient
-const C = '333333333333333333';   // Carl  — spectator
+const A = '111111111111111111';   // Alice, proposer
+const B = '222222222222222222';   // Bob, recipient
+const C = '333333333333333333';   // Carl, spectator
 
 // Pick two known tradable cards from the catalogue.
 const tradableIds = Object.values(CARDS)
@@ -190,7 +190,7 @@ ok('proposer cancel succeeds', cancel.ok && cancel.trade?.status === 'cancelled'
 
 // ── re-validate at ACCEPT time when collection changed ──────────────
 // Propose CARD1 from Bob, then secretly remove CARD1 from his
-// collection before accept — accept must reject.
+// collection before accept, accept must reject.
 const p4 = await proposeTrade(env, {
   guildId: G, fromUserId: B, toUserId: A,
   fromCards: [CARD1], toCards: [CARD3],

@@ -1,8 +1,7 @@
 // Loadout Discord bot - Cloudflare Worker entry point.
 //
 // Single-tenant Discord application: one bot ("Loadout"), one Public Key,
-// many guilds. Streamers don't create their own Discord app anymore —
-// they invite our bot and run /loadout-claim with a code minted by their
+// many guilds. Streamers don't create their own Discord app anymore, // they invite our bot and run /loadout-claim with a code minted by their
 // Loadout install.
 //
 // Routes:
@@ -51,7 +50,7 @@ export { OverlayBroadcaster } from './aquilo/worker.js';
 // ACTIVITY_DO; see wrangler.toml [[migrations]] v2-activity-do.
 export { ActivityBroadcaster } from './activity-do.js';
 
-// Discord interaction "claim" command custom handler — defined here rather
+// Discord interaction "claim" command custom handler, defined here rather
 // than commands.js because it touches the claim KV and cross-cuts the
 // invite flow's state. Returns a Discord interaction response object.
 async function handleClaimCommand(env, data) {
@@ -121,7 +120,7 @@ export default {
       return new Response('loadout-discord ok', { status: 200, headers: { 'content-type': 'text/plain' } });
     }
 
-    // Public leaderboard for a guild — read-only, no auth. Filters out
+    // Public leaderboard for a guild, read-only, no auth. Filters out
     // wallets with no linked public platform so Discord-only users
     // don't get surfaced on the open web.
     if (method === 'GET' && path.startsWith('/leaderboard/')) {
@@ -177,7 +176,7 @@ export default {
       return handleRegisterCommands(req, env, path);
     }
     // Drop the onboarding welcome embed into a guild text channel
-    // from the admin tooling — same HMAC scheme as register-commands,
+    // from the admin tooling, same HMAC scheme as register-commands,
     // body { channelId?, channelName? }. See onboarding.js for the
     // channel-pick heuristic and the shared poster.
     if (method === 'POST' && path.startsWith('/admin/onboarding/post-embed/')) {
@@ -193,12 +192,12 @@ export default {
     // Create the baseline opt-in interest roles if a guild doesn't
     // already have a role matching each interest's heuristic. Body
     // { roles?: [{ key, name, color?, mentionable?, hoist?,
-    //   permissions? }] } — omit `roles` to use BASELINE_ROLE_SPECS.
-    // Idempotent — existing matching roles are skipped, not duped.
+    //   permissions? }] }, omit `roles` to use BASELINE_ROLE_SPECS.
+    // Idempotent, existing matching roles are skipped, not duped.
     if (method === 'POST' && path.startsWith('/admin/onboarding/ensure-roles/')) {
       return handleOnboardingEnsureRoles(req, env, path);
     }
-    // Level-tier roles (Apprentice/Veteran/Elite/Mythic) — create
+    // Level-tier roles (Apprentice/Veteran/Elite/Mythic), create
     // the four roles + map them in KV. Idempotent. See
     // level-tier-roles.js for the threshold spec.
     if (method === 'POST' && path.startsWith('/admin/level-tier-roles/ensure/')) {
@@ -227,7 +226,7 @@ export default {
       const { handleTikFinityEvent } = await import('./tikfinity.js');
       return handleTikFinityEvent(req, env);
     }
-    // PrinterBot Discord webhook — Clay's receipt-style image
+    // PrinterBot Discord webhook, Clay's receipt-style image
     // generator posts directly into a dedicated channel. We create
     // a channel-scoped Discord webhook once + persist the URL at
     // printerbot:webhook-url:<g>. See printerbot.js.
@@ -237,7 +236,7 @@ export default {
     if (method === 'GET' && path.startsWith('/admin/printerbot/webhook-url/')) {
       return handlePrinterBotWebhookUrl(req, env, path);
     }
-    // DESTRUCTIVE — wipes user-facing economy + progression for a guild.
+    // DESTRUCTIVE, wipes user-facing economy + progression for a guild.
     // Requires body { confirm: "yes-i-mean-it" } so a misfire can't
     // nuke the data. See reset-user-data.js for the wiped/preserved
     // prefix list.
@@ -246,7 +245,7 @@ export default {
     }
     // Counting-channel cleanup. Bulk-deletes bot-authored messages
     // within the optional `?since=<unix>` window (default: no lower
-    // bound — capped by Discord's 14-day bulk-delete limit). See
+    // bound, capped by Discord's 14-day bulk-delete limit). See
     // counting-purge.js.
     if (method === 'POST' && path.startsWith('/admin/counting/purge-bot-messages/')) {
       return handleCountingPurgeBotMessages(req, env, path);
@@ -277,7 +276,7 @@ export default {
       return handleReleaseNotesPost(req, env, path);
     }
     // Provision the 18+ role + category + age-restricted channel
-    // (idempotent — reuses any matching role/channel found by name).
+    // (idempotent, reuses any matching role/channel found by name).
     if (method === 'POST' && path.startsWith('/admin/discord/setup-18plus/')) {
       return handleSetup18Plus(req, env, path);
     }
@@ -306,14 +305,13 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/cn-roster/post/')) {
       return handleCnRosterPost(req, env, path);
     }
-    // Repost (or edit-in-place) the self-roles channel message —
-    // picks up D1 self_roles changes AND injects the standalone
+    // Repost (or edit-in-place) the self-roles channel message, // picks up D1 self_roles changes AND injects the standalone
     // 18+ self-claim button. Same path the hub button takes, just
     // HMAC-authed so it can be triggered programmatically.
     if (method === 'POST' && path.startsWith('/admin/self-roles/post/')) {
       return handleSelfRolesPost(req, env, path);
     }
-    // Sectioned self-roles hub — provision + post. Provision creates
+    // Sectioned self-roles hub, provision + post. Provision creates
     // the Discord roles for each category (Pings / Name Color /
     // Region / Platform / Pronouns) and stores their IDs in
     // self-roles-hub:roles:<g>. Post lays out one message per
@@ -328,13 +326,13 @@ export default {
     // (channel explainer embeds, announcements that don't fit a
     // dedicated endpoint, etc.) without hand-rolling a new route
     // per use case. Body { channelId, embeds: [...], components?,
-    // content? } — POST verbatim to the channel as the bot.
+    // content? }, POST verbatim to the channel as the bot.
     if (method === 'POST' && path.startsWith('/admin/post-embed/')) {
       return handlePostEmbed(req, env, path);
     }
     // Provision the counting-game "I CAN'T COUNT" shame role +
     // (optionally) apply a SEND_MESSAGES channel deny on the
-    // counting channel for that role. Idempotent — reuses any
+    // counting channel for that role. Idempotent, reuses any
     // existing role with the same name. Stamps the resolved
     // role ID at KV `counting:fail_role_id:<g>` so the counting
     // fail-handler picks it up without a worker redeploy.
@@ -342,7 +340,7 @@ export default {
       return handleCountingProvisionShameRole(req, env, path);
     }
     // One-shot test post for the check-in v2 composite renderer
-    // (variant C — bg + gif composite). Posts a sample embed to a
+    // (variant C, bg + gif composite). Posts a sample embed to a
     // DM (recipientUserId) or a channel (channelId fallback). Used
     // while CHECKIN_EMBED_V2 is still gated off so Clay can preview
     // the design without enabling it for all users.
@@ -371,7 +369,7 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/gifter-roles/ensure/')) {
       return handleGifterRolesEnsure(req, env, path);
     }
-    // Scheduled-messages CRUD — admin-authored, fires from the :23
+    // Scheduled-messages CRUD, admin-authored, fires from the :23
     // hourly cron. Four routes share the same HMAC scheme as the
     // other /admin/* endpoints. See scheduled-messages.js for the
     // record schema + index layout.
@@ -388,7 +386,7 @@ export default {
     if (method === 'GET' && path.startsWith('/admin/channels/list/')) {
       return handleChannelsList(req, env, path);
     }
-    // Persistent LFG hub embed — admin posts it once into the LFG
+    // Persistent LFG hub embed, admin posts it once into the LFG
     // channel; users click buttons instead of typing /lfg. See
     // lfg-hub.js. Mirrors /admin/onboarding/post-embed.
     if (method === 'POST' && path.startsWith('/admin/lfg/post-hub/')) {
@@ -396,13 +394,13 @@ export default {
     }
     // Force a fresh schedule embed post / refresh. With the schedule
     // channel binding now KV-driven, this is the simplest way to
-    // immediately relocate the embed after a rebind — calls
+    // immediately relocate the embed after a rebind, calls
     // aquilo/aq-schedule.postOrRefreshSchedule which detects the
     // channel-mismatch + handles the delete-old + post-new dance.
     if (method === 'POST' && path.startsWith('/admin/aquilo/refresh-schedule/')) {
       return handleAquiloRefreshSchedule(req, env, path);
     }
-    // CN vote-menu hub — persistent embed in the poll-bound channel
+    // CN vote-menu hub, persistent embed in the poll-bound channel
     // with vote / standings / queue-join / status buttons. Defers to
     // postCnVoteHubForGuild in cn-vote-hub.js.
     if (method === 'POST' && path.startsWith('/admin/cn-vote/post-hub/')) {
@@ -423,7 +421,7 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/cn-games-list/post-hub/')) {
       return handleCnGamesListPostHub(req, env, path);
     }
-    // Phase-1 channel hubs — one route, key in the path. See
+    // Phase-1 channel hubs, one route, key in the path. See
     // channel-hubs.js for the catalogue + HUB_KEYS.
     if (method === 'POST' && path.startsWith('/admin/hubs/post/')) {
       return handleChannelHubPost(req, env, path);
@@ -431,7 +429,7 @@ export default {
     // Twitch EventSub webhook. Signature is verified inside the
     // handler against env.TWITCH_EVENTSUB_SECRET. Three message
     // types: webhook_callback_verification (challenge handshake),
-    // notification (real event — dispatch to twitch-live.js),
+    // notification (real event, dispatch to twitch-live.js),
     // revocation (log + ack). See twitch-eventsub.js.
     if (method === 'POST' && path === '/twitch/eventsub') {
       const { handleEventSubWebhook } = await import('./twitch-eventsub.js');
@@ -439,12 +437,11 @@ export default {
     }
     // Admin-side EventSub subscription manager. HMAC-gated. Creates
     // stream.online + stream.offline subs for Clay's broadcaster id
-    // pointing at THIS worker's /twitch/eventsub URL. Idempotent —
-    // skips subs that already exist.
+    // pointing at THIS worker's /twitch/eventsub URL. Idempotent, // skips subs that already exist.
     if (method === 'POST' && path.startsWith('/admin/twitch-setup/')) {
       return handleTwitchSetup(req, env, path);
     }
-    // Self-serve Twitch OAuth — bootstrap-token-gated start URL Clay
+    // Self-serve Twitch OAuth, bootstrap-token-gated start URL Clay
     // clicks once, Twitch redirects back to /admin/twitch-oauth/callback,
     // refresh token lands in KV, EventSub subs auto-provision. The
     // start URL is mintable via `wrangler kv key put bootstrap-twitch-oauth-token <value>`.
@@ -457,14 +454,14 @@ export default {
       const { handleTwitchOauthCallback } = await import('./twitch-oauth.js');
       return handleTwitchOauthCallback(req, env);
     }
-    // Global Boltbound card-art defaults — bulk-set used by the
+    // Global Boltbound card-art defaults, bulk-set used by the
     // backfill script. KV-token-gated so the local script can call
     // without HMAC signing. Same one-shot consumption pattern as
     // _clay-batch / _rewards-bootstrap. Self-destructs on first hit.
     if (method === 'POST' && path.startsWith('/admin/_card-art-bulk-set/')) {
       return handleCardArtBulkSetBootstrap(req, env, path);
     }
-    // Iterating slice of the Giphy backfill — operator calls this in
+    // Iterating slice of the Giphy backfill, operator calls this in
     // a curl loop with ?offset=N&limit=K. KV-token NOT consumed per
     // call (so the loop can drive many requests); the operator
     // deletes the token after they're done. The token-vs-empty check
@@ -484,7 +481,7 @@ export default {
     // backfill as the default render layer. This endpoint wipes the
     // entire global-card-art:* prefix in one call. The dated backup
     // (global-card-art-backup-gifs-2026-05-29:*) is left intact so
-    // the audit trail survives. Token NOT self-destructed — repeats
+    // the audit trail survives. Token NOT self-destructed, repeats
     // are idempotent (a second run hits an empty prefix and reports 0).
     if (method === 'POST' && path.startsWith('/admin/_card-art-wipe/')) {
       return handleCardArtWipe(req, env, path);
@@ -513,17 +510,17 @@ export default {
       return handleTwitchPrune(req, env, path);
     }
     // Post the backfill summary embed to the admin hub channel.
-    // KV-token gated, self-destructing — Clay re-mints when he wants
+    // KV-token gated, self-destructing, Clay re-mints when he wants
     // a fresh snapshot.
     if (method === 'POST' && path.startsWith('/admin/_card-art-summary/')) {
       return handleCardArtSummaryBootstrap(req, env, path);
     }
-    // List every global card-art default — used by the run-summary
+    // List every global card-art default, used by the run-summary
     // step + Clay's spot-check. HMAC-gated.
     if (method === 'GET' && path === '/admin/card-art/list') {
       return handleCardArtList(req, env);
     }
-    // Single-card global set/clear — used by /admin card-art remix.
+    // Single-card global set/clear, used by /admin card-art remix.
     if (method === 'POST' && path === '/admin/card-art/set') {
       return handleCardArtSet(req, env);
     }
@@ -532,12 +529,12 @@ export default {
     }
     // Post or refresh the pinned Games-Menu message in #games
     // (channel defaults to 1507973935973531808 for the Aquilo guild,
-    // can be overridden via body {channelId}). Idempotent — uses
+    // can be overridden via body {channelId}). Idempotent, uses
     // games-menu:msg:<gid> KV to PATCH the existing pin.
     if (method === 'POST' && path.startsWith('/admin/games-menu/post/')) {
       return handleGamesMenuPost(req, env, path);
     }
-    // Custom-poll lifecycle — see custom-polls.js for the model.
+    // Custom-poll lifecycle, see custom-polls.js for the model.
     // /admin/polls/launch         posts the two pre-defined Triple-C
     //                              + Variety polls (Clay 2026-05-28).
     // /admin/polls/close/:pollId  force-closes a poll regardless of
@@ -545,7 +542,7 @@ export default {
     if (method === 'POST' && path === '/admin/polls/launch') {
       return handlePollsLaunch(req, env);
     }
-    // One-shot KV-token-gated launch — used by operator scripts that
+    // One-shot KV-token-gated launch, used by operator scripts that
     // don't have HMAC signing capability. Set the matching token in
     // KV (`bootstrap-poll-launch-token`) via wrangler kv key put +
     // call this URL. Self-destructs on success so it can't be replayed.
@@ -555,7 +552,7 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/polls/close/')) {
       return handlePollsForceClose(req, env, path);
     }
-    // One-shot — scan the guild for members currently holding the
+    // One-shot, scan the guild for members currently holding the
     // I CAN'T COUNT shame role + remove. Used to clean up users whose
     // expiry KV entry was lost to the pre-2026-05-28 silent-drop
     // sweep bug. Idempotent: re-running on a clean guild scans +
@@ -571,12 +568,12 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_mc-role-delete/')) {
       return handleMcRoleDelete(req, env, path);
     }
-    // Twitch reward roles — provision Twitch Sub / T2 / T3 roles +
+    // Twitch reward roles, provision Twitch Sub / T2 / T3 roles +
     // store ids at twitch-rewards:role:<gid>:<tier>. Idempotent.
     if (method === 'POST' && path.startsWith('/admin/twitch-rewards/ensure-roles/')) {
       return handleTwitchRewardsEnsureRoles(req, env, path);
     }
-    // One-shot KV-token-gated bootstrap — creates the #rewards
+    // One-shot KV-token-gated bootstrap, creates the #rewards
     // channel, binds twitch-rewards-feed to it, AND provisions the
     // three sub-tier roles in a single shot. Used to fire the
     // rewards feature live without needing HMAC signing in the
@@ -584,7 +581,7 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_rewards-bootstrap/')) {
       return handleRewardsBootstrap(req, env, path);
     }
-    // Support tickets — post or refresh the persistent embed in
+    // Support tickets, post or refresh the persistent embed in
     // the configured #support channel. Idempotent: PATCHes via the
     // support-tickets:panel:<gid> KV pointer, falls back to a
     // fresh post + pin if the prior message was deleted.
@@ -607,12 +604,12 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/hero-bg/')) {
       return handleHeroBgAsset(req, env, path);
     }
-    // Spire art (2026-05-29 sprint) — 12 themes × (boss + backdrop + 9 NPCs).
+    // Spire art (2026-05-29 sprint), 12 themes × (boss + backdrop + 9 NPCs).
     // KV keys: pixel-art-spire-{boss,backdrop,npc}:<theme>[:<role>]
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/spire-art/')) {
       return handleSpireAsset(req, env, path);
     }
-    // Phase B character customization layers — hair (sex+style),
+    // Phase B character customization layers, hair (sex+style),
     // eyes (style only), facial (style only). KV-backed, year-long
     // cache. Composite manifest points renderers at these.
     if ((method === 'GET' || method === 'HEAD') && (
@@ -626,26 +623,26 @@ export default {
       return handleSupportPanelBootstrap(req, env, path);
     }
     // One-shot KV-token-gated post: Patreon gift embed + link button
-    // in a target channel. Idempotent — KV pointer + title-match
+    // in a target channel. Idempotent, KV pointer + title-match
     // fallback. Self-destructs on success.
     if (method === 'POST' && path.startsWith('/admin/_gift-embed-post/')) {
       return handleGiftEmbedPost(req, env, path);
     }
-    // One-shot KV-token-gated batch — runs the four "Clay would
+    // One-shot KV-token-gated batch, runs the four "Clay would
     // otherwise have to fire by hand" admin actions in sequence:
     // self-roles-hub provision, games-menu post, mc-whitelist
     // ensure-role, slash-command re-register. Self-destructs.
     if (method === 'POST' && path.startsWith('/admin/_clay-batch/')) {
       return handleClayBatch(req, env, path);
     }
-    // Diagnostic — dumps the current Twitch-side EventSub
+    // Diagnostic, dumps the current Twitch-side EventSub
     // subscriptions for the configured app token. HMAC-gated like
     // /admin/twitch-setup so Clay can call from the site admin or
     // a wrangler-secret-aware operator script.
     if (method === 'POST' && path.startsWith('/admin/twitch-eventsub/list/')) {
       return handleTwitchEventsubList(req, env, path);
     }
-    // Public asset route — Twitch event embed gradient banners. PNGs
+    // Public asset route, Twitch event embed gradient banners. PNGs
     // live in LOADOUT_BOLTS under keys `twitch-banner:<type>`,
     // uploaded once via `wrangler kv key put --path`. Served with a
     // year-long immutable cache so Discord's CDN warms once and
@@ -655,7 +652,7 @@ export default {
       return handleTwitchBannerAsset(req, env, path);
     }
     // Boltbound v9 pixel-art card asset route. KV-backed (storage
-    // option chosen 2026-05-29 — R2 would have been faster-serving
+    // option chosen 2026-05-29, R2 would have been faster-serving
     // but ships slower; this gets pixel art live today). One key per
     // card: `pixel-art-card:<cardId>` → raw PNG bytes. The site
     // renderer looks up via globalArt map (cards-global-art.js), so
@@ -663,7 +660,7 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/card-art/')) {
       return handleCardArtAsset(req, env, path);
     }
-    // Generic pixel-art asset routes — heroes, gear. All share
+    // Generic pixel-art asset routes, heroes, gear. All share
     // the same KV-backed pattern as card-art:
     //   /asset/hero-art/<classId>.png      -> pixel-art-hero:<classId>
     //   /asset/gear-art/<slot>/<name>/<rarity>.png
@@ -689,7 +686,7 @@ export default {
       return handlePollCompositeAsset(req, env, path);
     }
     // Boltbound match FX (damage numbers, beams, particles). Served
-    // straight off pixel-art-boltbound:fx:<name> — the .png suffix is
+    // straight off pixel-art-boltbound:fx:<name>, the .png suffix is
     // kept in the key (unlike the stripping pixel-art route) so it
     // matches the upload convention. e.g.
     //   /asset/boltbound-fx/damage-numbers-sheet.png
@@ -704,7 +701,7 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/boltbound-arena/')) {
       return handleBoltboundArenaAsset(req, env, path);
     }
-    // Streamer Watchtower — public live-stats JSON for an OBS Browser
+    // Streamer Watchtower, public live-stats JSON for an OBS Browser
     // Source. CORS-open, 5s-cached. GET /watchtower/stream/:channel
     // (channel = login | numeric id | 'me' for Clay's channel).
     if (path.startsWith('/watchtower/stream/')) {
@@ -725,13 +722,13 @@ export default {
     if (path === '/activity/sse' || path === '/activity/publish') {
       return handleActivityStream(req, env, path);
     }
-    // Triple-C current campaign + pool — public, CORS-open (site's
+    // Triple-C current campaign + pool, public, CORS-open (site's
     // StreamSchedule + admin dropdown). Owner-gated `set` is at
     // POST /web/admin/triple-c/set.
     if (path === '/triple-c/current' || path === '/triple-c/pool') {
       return handleTripleCPublic(req, env, path);
     }
-    // Dad Game Sunday current game + pool — public, CORS-open (mirrors
+    // Dad Game Sunday current game + pool, public, CORS-open (mirrors
     // Triple-C). Owner-gated `set` is at POST /web/admin/dad-sunday/set.
     if (path === '/dad-sunday/current' || path === '/dad-sunday/pool') {
       return handleDadSundayPublic(req, env, path);
@@ -764,14 +761,14 @@ export default {
     //   1. PUT slash commands (global + per-guild)
     //   2. Post the ticket panel into 🛠️│support (looked up by name)
     //   3. Backfill guild:cfg.ids with ch_introductions (looked up
-    //      by name) — vc_join_to_create + cat_voice already present.
+    //      by name), vc_join_to_create + cat_voice already present.
     if (method === 'POST' && path.startsWith('/admin/_bootstrap-l8/')) {
       return handleBootstrapL8(req, env, path);
     }
     // One-shot, KV-token-gated force-refresh of the pinned weekly
     // schedule embed (Triple-C campaign + Dad Sunday + vote winners).
     // Same `refresh-schedule-token` self-destruct gate as the L8
-    // bootstrap — lets an operator re-render the embed immediately
+    // bootstrap, lets an operator re-render the embed immediately
     // without the site HMAC (the :23 cron self-heals it otherwise).
     if (method === 'POST' && path.startsWith('/admin/_refresh-schedule/')) {
       return handleOneShotRefreshSchedule(req, env, path);
@@ -811,7 +808,7 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_quest-trace/')) {
       return handleQuestTrace(req, env, path);
     }
-    // Public read-only sports snapshot for the panel's Sports tab — the
+    // Public read-only sports snapshot for the panel's Sports tab, the
     // 48h upcoming-games slice with optional moneyline odds.
     if (method === 'GET' && path === '/sports/public') {
       const { publicSportsSnapshot } = await import('./bet.js');
@@ -830,7 +827,7 @@ export default {
       const { handlePublicGamesHttp } = await import('./schedule.js');
       return handlePublicGamesHttp(env);
     }
-    // Public canonical aquilo schedule — same data the Discord
+    // Public canonical aquilo schedule, same data the Discord
     // schedule embed renders from, served as JSON for the
     // aquilo.gg /schedule page. Edge-cached 30s. See
     // aquilo/aq-schedule.js getPublicSchedule for the response
@@ -875,7 +872,7 @@ export default {
     if (path.startsWith('/ext/')) return handleExt(req, env, ctx);
 
     // Public read-only starboard wall for aquilo.gg /community/. Same
-    // public-read shape as /stocks/public + /queues/public — no
+    // public-read shape as /stocks/public + /queues/public, no
     // auth, edge-cacheable. Path sits under /web/ for parity with the
     // site's other /api/* proxy paths, but is claimed BEFORE the
     // /web/* HMAC dispatcher below since it's a public read.
@@ -919,7 +916,7 @@ export default {
       });
     }
 
-    // Progression (P2) routes — public reads, claimed BEFORE the
+    // Progression (P2) routes, public reads, claimed BEFORE the
     // generic /web/* dispatcher below (which is HMAC-gated and would
     // reject public reads). /p/season/* must be matched FIRST since
     // it's a sub-path of /p/* and the userId-shaped path below would
@@ -932,7 +929,7 @@ export default {
       const { handleProfilePage } = await import('./progression/http.js');
       return handleProfilePage(req, env, path);
     }
-    // P5 — account-link OAuth/OpenID flows. These live under
+    // P5, account-link OAuth/OpenID flows. These live under
     // /web/profile/link/ specifically so the more-generic profile
     // dispatcher below doesn't intercept the redirect callbacks.
     if (path.startsWith('/web/profile/link/')) {
@@ -955,7 +952,7 @@ export default {
       const { handleWebBadges } = await import('./progression/http.js');
       return handleWebBadges(req, env, path);
     }
-    // (season public read is dispatched up top under /p/season — see
+    // (season public read is dispatched up top under /p/season, see
     // line 245. Claim POST is routed via the HMAC-gated /web/* path
     // → /web/season/claim in web.js.)
     if (path === '/web/progression/dashboard') {
@@ -969,59 +966,59 @@ export default {
     // bridge to these. Ordered BEFORE the generic /web/ dispatcher so
     // public-GET endpoints don't get gated by web.js's method check.
 
-    // B1 — Username
+    // B1, Username
     if (path.startsWith('/web/community/username')) {
       const { handleUsername } = await import('./community.js');
       return handleUsername(req, env, path);
     }
-    // B2 — Gamertags
+    // B2, Gamertags
     if (path.startsWith('/web/gamertags/')) {
       const { handleGamertags } = await import('./community.js');
       return handleGamertags(req, env, path);
     }
-    // B3 — Guild channels
+    // B3, Guild channels
     if (path.startsWith('/web/guild/') && path.endsWith('/channels')) {
       const { handleGuildChannels } = await import('./community.js');
       return handleGuildChannels(req, env, path);
     }
-    // B4 — Members list
+    // B4, Members list
     if (path === '/web/community/members') {
       const { handleMembers } = await import('./community.js');
       return handleMembers(req, env, path);
     }
-    // Public supporter wall (B1 integration — username field surfaces here)
+    // Public supporter wall (B1 integration, username field surfaces here)
     if (path === '/community/supporters' && method === 'GET') {
       const { handleSupporterWall } = await import('./community.js');
       return handleSupporterWall(req, env, path);
     }
-    // B5 — LFG
+    // B5, LFG
     if (path.startsWith('/web/lfg')) {
       const { handleLfgRoute } = await import('./lfg.js');
       return handleLfgRoute(req, env, path);
     }
-    // B6 — Discord-DM fan-out
+    // B6, Discord-DM fan-out
     if (path === '/push/dm') {
       const { handlePushDm } = await import('./push-dm.js');
       return handlePushDm(req, env);
     }
-    // F1 — Friends system (HMAC-gated writes, public GETs)
+    // F1, Friends system (HMAC-gated writes, public GETs)
     if (path.startsWith('/web/friends/') || path === '/web/friends') {
       const { handleFriendsRoute } = await import('./friends.js');
       return handleFriendsRoute(req, env, path);
     }
-    // Daily Quests — cross-game rotating quest set (HMAC-gated writes,
+    // Daily Quests, cross-game rotating quest set (HMAC-gated writes,
     // public GET for today's rotation). See daily-quests.js.
     if (path.startsWith('/web/quests/')) {
       const { handleQuestsRoute } = await import('./daily-quests.js');
       return handleQuestsRoute(req, env, path);
     }
-    // Trash-talk emotes — per-match emote ring buffer + rate limit.
+    // Trash-talk emotes, per-match emote ring buffer + rate limit.
     // POST is HMAC-gated; GET feed is public. See boltbound-emotes.js.
     if (path === '/web/boltbound/emote' || path.startsWith('/web/boltbound/emote/feed/')) {
       const { handleEmoteRoute } = await import('./boltbound-emotes.js');
       return handleEmoteRoute(req, env, path);
     }
-    // Replay reactions + comments — extends the existing Boltbound
+    // Replay reactions + comments, extends the existing Boltbound
     // replays surface with a social layer. See boltbound-replays-rx.js.
     if (path.startsWith('/web/boltbound/replays/') && (
         path.endsWith('/react') || path.endsWith('/comment') ||
@@ -1029,21 +1026,21 @@ export default {
       const { handleReplayRxRoute } = await import('./boltbound-replays-rx.js');
       return handleReplayRxRoute(req, env, path);
     }
-    // Twitch Drops — per-viewer cumulative watch-time + milestone
+    // Twitch Drops, per-viewer cumulative watch-time + milestone
     // claims. handleDropsRoute dispatches both GET /me and POST /claim
     // by method+path. See twitch-drops.js.
     if (path === '/web/twitch-drops/me' || path === '/web/twitch-drops/claim') {
       const { handleDropsRoute } = await import('./twitch-drops.js');
       return handleDropsRoute(req, env, path);
     }
-    // Spire Maps — Slay-the-Spire branching path layer per run.
+    // Spire Maps, Slay-the-Spire branching path layer per run.
     // 4 endpoints dispatched by handleSpireMapRoute: POST /generate,
     // GET /me/:runId, POST /advance, POST /resolve. See spire-map.js.
     if (path.startsWith('/web/spire-map/')) {
       const { handleSpireMapRoute } = await import('./spire-map.js');
       return handleSpireMapRoute(req, env, path);
     }
-    // Anniversary celebrations — public GET /me/<g>/<u> for the
+    // Anniversary celebrations, public GET /me/<g>/<u> for the
     // firstSeen + anniversary-today view; POST /celebrate HMAC-gated
     // to claim the per-year reward (cron handles the announcement
     // post automatically). See anniversary.js.
@@ -1051,12 +1048,12 @@ export default {
       const { handleAnniversaryRoute } = await import('./anniversary.js');
       return handleAnniversaryRoute(req, env, path);
     }
-    // F3 — Community activity feed (public GET)
+    // F3, Community activity feed (public GET)
     if (path === '/community/feed') {
       const { handleCommunityFeedRoute } = await import('./activity-feed.js');
       return handleCommunityFeedRoute(req, env);
     }
-    // G2 — Weekly community challenge (public GET)
+    // G2, Weekly community challenge (public GET)
     if (path === '/community/challenge' || path === '/community/challenge/history') {
       const { handleChallengeRoute } = await import('./challenges.js');
       return handleChallengeRoute(req, env, path);
@@ -1065,7 +1062,7 @@ export default {
     // aquilo.gg website minigames -- HMAC from the site's Pages
     // Functions, signed with AQUILO_SITE_WEB_SECRET. See web.js +
     // MINIGAMES-WEB-DESIGN.md.
-    // Death counter — its own token-auth subsystem (Stream Deck button
+    // Death counter, its own token-auth subsystem (Stream Deck button
     // + OBS overlay). Must be claimed BEFORE the generic /web router so
     // the public GET reads + token-gated writes bypass the site HMAC.
     // See death-counter.js.
@@ -1074,7 +1071,7 @@ export default {
       return handleDeathCount(req, env, path);
     }
 
-    // Twitch panel scratch-off cards — its own token/secret-auth subsystem
+    // Twitch panel scratch-off cards, its own token/secret-auth subsystem
     // (Twitch panel + on-stream relay). Claimed BEFORE the generic /web
     // router so public reads + gated writes bypass the site HMAC. The
     // bit-purchase webhook is gated on SCRATCH_WEBHOOK_SECRET; admin writes
@@ -1092,13 +1089,13 @@ export default {
       return handleWeb(req, env);
     }
 
-    // Overlay relay queue — polled by Streamer.bot, RELAY_TOKEN-gated.
+    // Overlay relay queue, polled by Streamer.bot, RELAY_TOKEN-gated.
     if (path.startsWith('/relay/')) return handleRelay(req, env);
 
     // StreamFusion release-notes webhook (ported from the retired
     // StreamFusion/bot-service /post-release Node service). Voice-
-    // channel detection — the only piece that needed a persistent
-    // Gateway connection — was scrapped per Clay, so this is the
+    // channel detection, the only piece that needed a persistent
+    // Gateway connection, was scrapped per Clay, so this is the
     // only SF-specific feature worth migrating into the Worker.
     // X-SF-Release-Secret header carries the auth; matches
     // SF_RELEASE_SECRET. See discord-bot/sf-release.js.
@@ -1107,7 +1104,7 @@ export default {
       return handlePostRelease(req, env);
     }
 
-    // StreamFusion community-sharing surface — see sf-community.js.
+    // StreamFusion community-sharing surface, see sf-community.js.
     //   POST /sf/community-live     opt-in live-status heartbeat
     //   POST /sf/community-event    opt-in event relay (follows/subs/etc)
     //   GET  /community/live        public radar consumed by aquilo.gg
@@ -1124,7 +1121,7 @@ export default {
       return handlePublicCommunityLive(req, env);
     }
 
-    // StreamFusion community-night queue manager — see sf-queue.js.
+    // StreamFusion community-night queue manager, see sf-queue.js.
     //   POST /sf/queue          full queue + per-joiner links for the panel
     //   POST /sf/queue/remove   drop a joiner after the streamer marks done
     if (method === 'POST' && path === '/sf/queue') {
@@ -1144,7 +1141,7 @@ export default {
       return handleCharacterRender(req, env, path);
     }
 
-    // User-uploaded hero avatar — public read. Stored in KV with
+    // User-uploaded hero avatar, public read. Stored in KV with
     // contentType metadata; route streams the bytes back. Cache pinned
     // to ?v=<uploadedAt>. See character.js handleCharacterAvatar.
     // Path shape: /character/avatar/<userId>(.bin|.png|.jpg|...)
@@ -1175,13 +1172,13 @@ export default {
   //   17 * * * *      stocks price refresh (stocks.js)
   //   23 * * * *      sports games + bet settlement + bolts-feed digest
   //   0 1,2 * * *     queue auto-open at 9 PM ET (1 UTC = 21 EST,
-  //                   2 UTC = 21 EDT — one fires per day depending on
+  //                   2 UTC = 21 EDT, one fires per day depending on
   //                   DST. autoOpenIfDue() filters on local hour == 21
   //                   so only the live one actually does anything.)
   // Errors caught per job so a single bad source can't break the rest.
   async scheduled(event, env, ctx) {
     try {
-      // 2026-05-29 sprint — what was the `:17` hourly cron is now the
+      // 2026-05-29 sprint, what was the `:17` hourly cron is now the
       // every-minute trigger so the live-status-embed dashboard can
       // refresh per minute. The original hourly work is gated by
       // `mm === 17` below so its cadence is preserved. The other 59
@@ -1189,7 +1186,7 @@ export default {
       // KV read + a noop unless an embed is tracked).
       if (event.cron === '* * * * *') {
         const mm = new Date(event.scheduledTime || Date.now()).getUTCMinutes();
-        // Every-minute dashboard refresh. KV-gated — no-ops cleanly
+        // Every-minute dashboard refresh. KV-gated, no-ops cleanly
         // when no stream is being tracked.
         ctx.waitUntil((async () => {
           try {
@@ -1197,7 +1194,7 @@ export default {
             await refreshLiveStatusEmbed(env);
           } catch (e) { console.warn('[cron] live-status refresh', e?.message || e); }
         })());
-        // Stream-bonus accrual — Aether + Watchtower per-minute ticks.
+        // Stream-bonus accrual, Aether + Watchtower per-minute ticks.
         // Both no-op when Clay isn't live (isStreamLive read inside).
         // Independent waitUntil per call so a slow KV list on one
         // doesn't block the other.
@@ -1215,7 +1212,7 @@ export default {
               await liveAccrueWatchtowerBoltsTick(env, activeGuildId);
             } catch (e) { console.warn('[cron] watchtower tick', e?.message || e); }
           })());
-          // Bolt rain — fires every 5 minutes (mm % 5 === 0). Random
+          // Bolt rain, fires every 5 minutes (mm % 5 === 0). Random
           // drops to ~5 viewers chosen from the wallet prefix.
           // Lighter cadence so it stays a "treat" not a firehose.
           if (mm % 5 === 0) {
@@ -1244,7 +1241,7 @@ export default {
             })());
           }
         }
-        // Random Drops — rarity-weighted community chest spawn every 2
+        // Random Drops, rarity-weighted community chest spawn every 2
         // hours. randomDropCron self-gates to even-hour:00 via a KV
         // 2h-bucket marker (the account is at the 4-cron ceiling, so
         // this rides the every-minute trigger instead of its own
@@ -1260,8 +1257,7 @@ export default {
             } catch (e) { console.warn('[cron] random-drop', e?.message || e); }
           })());
         }
-        // 30-minute pre-stream ping. Opt-in via STREAM_PING_CHANNEL —
-        // the helper no-ops (and we skip the import) when it's unset,
+        // 30-minute pre-stream ping. Opt-in via STREAM_PING_CHANNEL, // the helper no-ops (and we skip the import) when it's unset,
         // so this stays cheap on the every-minute trigger. A per-event
         // KV marker guarantees exactly one ping per stream.
         if (env.STREAM_PING_CHANNEL && env.AQUILO_VAULT_GUILD_ID) {
@@ -1273,7 +1269,7 @@ export default {
             } catch (e) { console.warn('[cron] pre-stream ping', e?.message || e); }
           })());
         }
-        // Hourly work below is the OLD :17 schedule — only runs when
+        // Hourly work below is the OLD :17 schedule, only runs when
         // the current minute is 17 to preserve the original cadence.
         if (mm !== 17) {
           return;
@@ -1297,7 +1293,7 @@ export default {
             console.warn('[cron] cn-roster refresh', e?.message || e);
           }
         })());
-        // Twitch hourly bundle — live-embed refresh + clip poll +
+        // Twitch hourly bundle, live-embed refresh + clip poll +
         // Sunday-22-ET clip-of-the-week + Sunday-20-ET weekly recap.
         // Each task is independently best-effort + no-ops cleanly
         // when the relevant secrets/env aren't set.
@@ -1346,7 +1342,7 @@ export default {
       } else if (event.cron === '23 * * * *') {
         const { betCronTick } = await import('./bet.js');
         ctx.waitUntil(betCronTick(env));
-        // Bolts-feed digest piggybacks on the :23 tick — no extra cron
+        // Bolts-feed digest piggybacks on the :23 tick, no extra cron
         // slot needed in wrangler.toml. Independent waitUntil so a
         // failure in one doesn't cancel the other.
         const { boltsFeedCronTick } = await import('./bolts-feed.js');
@@ -1375,7 +1371,7 @@ export default {
         }
         // Daily-quests rotation pre-warm. Piggybacks on this :01 UTC
         // cron because CF caps the worker at 4 cron triggers. The 1h
-        // delay vs intended 00:00 UTC reset is cosmetic — getRotation
+        // delay vs intended 00:00 UTC reset is cosmetic, getRotation
         // is lazy + idempotent so the first request after midnight
         // computes the new day's set if the cron hasn't yet.
         ctx.waitUntil((async () => {
@@ -1386,7 +1382,7 @@ export default {
             else console.warn('[cron] daily-quests:', r?.error);
           } catch (e) { console.warn('[cron] daily-quests', e?.message || e); }
         })());
-        // RET-4 — Boltbound ranked monthly season close. Piggybacks on
+        // RET-4, Boltbound ranked monthly season close. Piggybacks on
         // this daily 0 1 * * * cron (CF 4-cron ceiling); self-gates to
         // the 1st of the month + a per-season KV marker.
         ctx.waitUntil((async () => {
@@ -1397,7 +1393,7 @@ export default {
           } catch (e) { console.warn('[cron] ranked season', e?.message || e); }
         })());
         // Mirror the stream schedule into Discord guild scheduled
-        // events (idempotent — skips dateKeys already created). See
+        // events (idempotent, skips dateKeys already created). See
         // stream-events.js.
         if (env.AQUILO_VAULT_GUILD_ID) {
           ctx.waitUntil((async () => {
@@ -1416,10 +1412,10 @@ export default {
         // firing once per hour is correct and idempotent. The
         // standalone worker's old 12:30 AM ET queue-cleanup minute-
         // branch shifts to 1:23 AM ET, which is a cosmetic ~30 min
-        // delay on a post-stream message cleanup — fine.
+        // delay on a post-stream message cleanup, fine.
         const { aquiloScheduledTick } = await import('./aquilo/worker.js');
         ctx.waitUntil(aquiloScheduledTick(event, env, ctx));
-        // Consolidated daily-bonus push — first :23 tick at/after
+        // Consolidated daily-bonus push, first :23 tick at/after
         // 13 UTC fires the once-per-day PWA notification to
         // subscribers reminding them that boltbound free pack,
         // loadout daily, check-in, and daily missions are all
@@ -1427,7 +1423,7 @@ export default {
         // per UTC day even though the cron runs hourly.
         const { dailyBonusCronTick } = await import('./daily-bonus-push.js');
         ctx.waitUntil(dailyBonusCronTick(env));
-        // Board-game async forfeit sweep — any correspondence match
+        // Board-game async forfeit sweep, any correspondence match
         // whose 24h per-move deadline elapsed gets resolved to the
         // opponent (wager goes with the win). On-read paths in
         // boardgames-engine.js also catch expired matches when a
@@ -1435,7 +1431,7 @@ export default {
         // for games no one is watching.
         const { cronSweepExpiredMatches } = await import('./boardgames-engine.js');
         ctx.waitUntil(cronSweepExpiredMatches(env));
-        // Gifter roles — rebuilds top-3 membership per category from
+        // Gifter roles, rebuilds top-3 membership per category from
         // the rolling 30d buckets + trims old buckets. KV-marker
         // gated to once per UTC day so the hourly :23 firing doesn't
         // thrash Discord role REST 24× a day.
@@ -1444,10 +1440,10 @@ export default {
           console.log('[cron] gifter-roles daily', JSON.stringify(r))).catch(e =>
           console.warn('[cron] gifter-roles', e?.message || e)));
         // (Removed 2026-05-31: the MC paid-Patreon whitelist daily sweep.
-        // Clay dropped Minecraft as a featured offering — no more role
+        // Clay dropped Minecraft as a featured offering, no more role
         // gating. The #smp-chat channel + DiscordSRV bridge stay; only
         // the "Minecraft Whitelist" role + its gating were removed.)
-        // Custom-poll close sweep — runs every :23 (hourly), no marker
+        // Custom-poll close sweep, runs every :23 (hourly), no marker
         // needed since pollsCronSweep is itself a per-poll closeAt
         // gate. Cost is one KV-list of ~5 keys; cheap.
         ctx.waitUntil((async () => {
@@ -1459,7 +1455,7 @@ export default {
             console.warn('[cron] custom-polls sweep', e?.message || e);
           }
         })());
-        // Twitch reward-role expiry sweep — hourly, idempotent. Iterates
+        // Twitch reward-role expiry sweep, hourly, idempotent. Iterates
         // the twitch-rewards:expiry list + removes expired sub-tier
         // roles. Same retry-on-failure shape as the counting sweep.
         ctx.waitUntil((async () => {
@@ -1473,7 +1469,7 @@ export default {
             console.warn('[cron] twitch-rewards expiry', e?.message || e);
           }
         })());
-        // Support-ticket stale sweep — once-per-UTC-day via marker.
+        // Support-ticket stale sweep, once-per-UTC-day via marker.
         // Closes tickets with no activity for 30 days; archives the
         // thread + DMs the requester. Cheap when no candidates.
         ctx.waitUntil((async () => {
@@ -1489,7 +1485,7 @@ export default {
             console.warn('[cron] support-tickets auto-close', e?.message || e);
           }
         })());
-        // Anniversary celebrations — once-per-UTC-day sweep (gated by
+        // Anniversary celebrations, once-per-UTC-day sweep (gated by
         // an anniv:cron:last-sweep KV marker inside the helper). Walks
         // the anniv:seen keyspace + posts a celebratory embed in the
         // games-hub channel for anyone whose join-anniversary is today.
@@ -1515,7 +1511,7 @@ export default {
             console.warn('[cron] spire rotate', e?.message || e);
           }
         })());
-        // Unified vote-hub phase transitions — runs hourly, re-renders
+        // Unified vote-hub phase transitions, runs hourly, re-renders
         // the hub embed on phase change. See vote-hub.js.
         const guildIdForVoteHub = env.AQUILO_VAULT_GUILD_ID;
         if (guildIdForVoteHub) {
@@ -1524,7 +1520,7 @@ export default {
             console.log('[cron] vote-hub', JSON.stringify(r))).catch(e =>
             console.warn('[cron] vote-hub', e?.message || e)));
           // Refresh the rolling weekly-schedule pinned embed (edit-in-
-          // place, idempotent — no-ops when nothing changed / no schedule
+          // place, idempotent, no-ops when nothing changed / no schedule
           // channel is bound). Keeps the pinned embed current with the
           // Triple-C campaign + vote winners; self-heals the 2026-06 stale-
           // Minecraft embed without a manual trigger.
@@ -1537,7 +1533,7 @@ export default {
             }
           })());
         }
-        // Scheduled messages — scan due records + send. Cron fires
+        // Scheduled messages, scan due records + send. Cron fires
         // hourly so the worst-case delivery latency is ~1h; the
         // record's status flips to 'sent' on success, 'failed' on
         // the second consecutive failure. See scheduled-messages.js.
@@ -1558,7 +1554,7 @@ export default {
 // ---- /leaderboard/:guildId (public, read-only) ---------------------------
 // Returns the top-N wallets for a guild, filtered to viewers who have
 // linked at least one public platform handle (twitch/youtube/etc). The
-// goal is community-facing "top contributors" surfaces — Discord-only
+// goal is community-facing "top contributors" surfaces, Discord-only
 // users haven't opted in to public identification, so we omit them.
 //
 // Response shape:
@@ -1594,7 +1590,7 @@ async function handlePublicLeaderboard(req, env, path) {
     Math.max(1, parseInt(url.searchParams.get('limit') || '10', 10) || 10)
   );
 
-  // Server-side cache — leaderboard is the same for everyone, no point
+  // Server-side cache, leaderboard is the same for everyone, no point
   // recomputing per request.
   const cacheKey = `leaderboard-cache:${guildId}`;
   try {
@@ -1638,7 +1634,7 @@ async function handlePublicLeaderboard(req, env, path) {
     };
 
     // Cache for 2x the freshness window so a stampede doesn't all
-    // recompute at exactly 60s. Lazy refresh — first request after
+    // recompute at exactly 60s. Lazy refresh, first request after
     // expiry rebuilds and overwrites.
     try {
       await env.LOADOUT_BOLTS.put(cacheKey, JSON.stringify(payload), {
@@ -1664,7 +1660,7 @@ function jsonCors(body, status) {
 // ---- /counting/award-bolts (aquilo-bot → Loadout) ----------------------
 // Counting-game integration. aquilo-bot calls here on each successful
 // count (positive amount) or fail (negative amount). Same wallet
-// primitive as the Vault integration — applyVaultDelta handles the
+// primitive as the Vault integration, applyVaultDelta handles the
 // balance clamp at 0 and tracks lifetimeEarned/Spent correctly.
 //
 // Auth: shared secret in X-Counting-Secret header, set as
@@ -1711,7 +1707,7 @@ async function handleDiscordInteractions(req, env, ctx) {
   // PING
   if (data.type === 1) return json({ type: 1 });
 
-  // /loadout-claim is special-cased — handled inline because it touches
+  // /loadout-claim is special-cased, handled inline because it touches
   // the claim KV. Everything else flows through handleInteraction.
   if (data.type === 2 && data?.data?.name === 'loadout-claim') {
     const resp = await handleClaimCommand(env, data);
@@ -1771,8 +1767,7 @@ async function claimStatus(req, env, path) {
 // posts a normalized donation here. We append it to a rolling per-guild
 // log; the DLL polls /sync/<guild>/tips?since=<ms> to pick them up,
 // award bolts, and republish on the local Aquilo Bus so overlays light
-// up. We deliberately don't accept upstream webhook formats directly —
-// the streamer wires their provider to this endpoint via a Streamer.bot
+// up. We deliberately don't accept upstream webhook formats directly, // the streamer wires their provider to this endpoint via a Streamer.bot
 // HTTP request action that posts the normalized shape:
 //
 //   POST /tips/<guildId>/<secret>
@@ -1823,12 +1818,12 @@ async function handleTip(req, env, path) {
     ts:             Date.now()
   };
 
-  // Append to the rolling tip log. Capped at 200 entries — the DLL
+  // Append to the rolling tip log. Capped at 200 entries, the DLL
   // polls every minute and clears its cursor, so even an active
   // multi-day-offline backlog stays well under cap.
   const key = 'tips:' + guildId;
   const existing = (await env.LOADOUT_BOLTS.get(key, { type: 'json' })) || [];
-  // Dedup by tipId — re-deliveries from the streamer's tip provider
+  // Dedup by tipId, re-deliveries from the streamer's tip provider
   // would otherwise double-credit the viewer.
   if (existing.some(e => e.tipId === tip.tipId)) {
     return new Response(JSON.stringify({ ok: true, dedup: true }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -1860,7 +1855,7 @@ async function handleSync(req, env, path) {
   const ok = await verifyHmac(stored.secret, ts || '', body, sig || '');
   if (!ok) return new Response('bad signature', { status: 401 });
 
-  // B7 — /sync/:guildId/voice/joined — DLL forwards Discord voice-state
+  // B7, /sync/:guildId/voice/joined, DLL forwards Discord voice-state
   // events here so the worker can drive "join channel X → spawn a temp
   // VC" without maintaining a Gateway connection. HMAC same as the
   // other /sync/* routes. Body: { userId, displayName?, channelId|null }.
@@ -1875,7 +1870,7 @@ async function handleSync(req, env, path) {
     return new Response(JSON.stringify(r), { status: r.ok ? 200 : 400, headers: { 'content-type': 'application/json' } });
   }
 
-  // /sync/:guildId/games?since=<ms> — DLL pulls recent minigame results so
+  // /sync/:guildId/games?since=<ms>, DLL pulls recent minigame results so
   // they can be republished on the local Aquilo Bus. Same HMAC scheme as
   // the wallet endpoints; ts+\n is the signed payload for GETs.
   if (sub === 'games' && req.method === 'GET') {
@@ -1887,7 +1882,7 @@ async function handleSync(req, env, path) {
     return new Response(JSON.stringify({ events: fresh, ts: latest }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
 
-  // /sync/:guildId/tips?since=<ms> — DLL pulls recent tip events to award
+  // /sync/:guildId/tips?since=<ms>, DLL pulls recent tip events to award
   // bolts locally and republish on the Aquilo Bus. Same HMAC scheme as
   // the wallet endpoints; ts+\n is the signed payload for GETs. Returns
   // { tips: [...], ts } so the DLL can advance its cursor.
@@ -1900,7 +1895,7 @@ async function handleSync(req, env, path) {
     return new Response(JSON.stringify({ tips: fresh, ts: latest }), { status: 200, headers: { 'content-type': 'application/json' } });
   }
 
-  // /sync/:guildId/profiles?since=<ms> — DLL pulls Discord-side profile
+  // /sync/:guildId/profiles?since=<ms>, DLL pulls Discord-side profile
   // edits (/profile-set-bio, etc.) and merges them into its local
   // ViewerProfileStore via the wallet's identity links. Returns
   // { profiles: [{userId, profile, deleted, ts}], ts } so the DLL can
@@ -1912,7 +1907,7 @@ async function handleSync(req, env, path) {
     return new Response(JSON.stringify(page), { status: 200, headers: { 'content-type': 'application/json' } });
   }
 
-  // /sync/:guildId/heroes — DLL pushes the dungeon hero registry
+  // /sync/:guildId/heroes, DLL pushes the dungeon hero registry
   // (DungeonGameStore) so the /loadout menu can render stream-earned
   // gear without polling the DLL on every Hero / Bag click. Body:
   //   { ts: <ms>, heroes: { "twitch:bish":  {level,xp,bag,equipped,...}, ... } }
@@ -1920,7 +1915,7 @@ async function handleSync(req, env, path) {
   // /loadout menu can resolve a Discord user → wallet → first link →
   // hero in two KV reads. The Worker's own per-Discord-user hero
   // (d:hero:<guild>:<userId>) stays as fallback for users who haven't
-  // linked yet — it's the off-stream-only progression path.
+  // linked yet, it's the off-stream-only progression path.
   if (sub === 'heroes' && req.method === 'POST') {
     let payload; try { payload = JSON.parse(body); } catch { return new Response('bad json', { status: 400 }); }
     const heroes = payload?.heroes || {};
@@ -1937,7 +1932,7 @@ async function handleSync(req, env, path) {
                         { status: 200, headers: { 'content-type': 'application/json' } });
   }
 
-  // /sync/:guildId/digest — DLL posts a weekly stats snapshot here once
+  // /sync/:guildId/digest, DLL posts a weekly stats snapshot here once
   // a week. We format it as a rich Discord embed and POST to the
   // configured channel via the bot token. The DLL only retries on
   // failure, so a Discord 5xx self-heals next minute.
@@ -1970,7 +1965,7 @@ async function handleSync(req, env, path) {
     }
   }
 
-  // /sync/:guildId/reset-wallets — streamer-initiated wipe of every
+  // /sync/:guildId/reset-wallets, streamer-initiated wipe of every
   // wallet balance + lifetime counter for the guild. Links and the
   // streamer's bot config are preserved so viewers don't need to
   // re-link after a reset. HMAC-gated by the same scheme as push/pull.
@@ -2012,7 +2007,7 @@ async function handleSyncInit(req, env, guildId) {
 }
 
 // ---- /admin/register-commands/:guildId (HMAC) ---------------------------
-// POST body: optional. Empty body is fine — the commands list is baked
+// POST body: optional. Empty body is fine, the commands list is baked
 // into the deployed Worker. Returns Discord's response so the caller can
 // confirm the new command count.
 
@@ -2090,21 +2085,21 @@ async function handleRegisterCommands(req, env, path) {
 // ── /admin/onboarding/post-embed/:guildId (HMAC) ─────────────────────
 //
 // Posts the persistent welcome embed into a guild text channel from
-// the admin tooling — useful when Clay isn't running the
+// the admin tooling, useful when Clay isn't running the
 // /onboard post-embed slash in-server.
 //
 // Body (JSON, optional fields):
 //   { channelId?: '<snowflake>', channelName?: 'string' }
 //
 // Resolution order:
-//   1. channelId — used verbatim, no REST lookup
-//   2. channelName — first GUILD_TEXT channel whose name contains
+//   1. channelId, used verbatim, no REST lookup
+//   2. channelName, first GUILD_TEXT channel whose name contains
 //                     the lowercased search string (substring match)
-//   3. neither    — first GUILD_TEXT channel matching any of
+//   3. neither, first GUILD_TEXT channel matching any of
 //                     'start-here', 'welcome', 'introductions', '👋',
 //                     tried in that order
 //
-// Idempotent — any prior welcome message tracked at
+// Idempotent, any prior welcome message tracked at
 // `onboard:welcome-msg:<g>` is deleted before posting. Re-running
 // just relocates the embed.
 //
@@ -2144,7 +2139,7 @@ async function handleOnboardingPostEmbed(req, env, path) {
 // onboarding interest keys (see INTERESTS in onboarding.js) and
 // persist the mapping at `onboard:role-map:<g>`.
 //
-// Body: {} (no inputs — the heuristic is fixed in code so re-running
+// Body: {} (no inputs, the heuristic is fixed in code so re-running
 // against the same guild always produces the same mapping for the
 // same role names).
 //
@@ -2173,7 +2168,7 @@ async function handleOnboardingSetupRoles(req, env, path) {
 //
 // Create the baseline opt-in interest roles if (and only if) the
 // guild doesn't already have a role satisfying the same heuristic
-// for each interest key. Idempotent — re-running on a guild that
+// for each interest key. Idempotent, re-running on a guild that
 // already has matching roles returns every key under `skipped`
 // with reason `already-exists`. See onboarding.js
 // ensureBaselineRoles for the per-key shape.
@@ -2194,7 +2189,7 @@ async function handleOnboardingSetupRoles(req, env, path) {
 //
 // Create (or refresh) the Twitch EventSub subscriptions for Clay's
 // broadcaster id, pointing at this worker's /twitch/eventsub URL.
-// Idempotent — re-running on an already-configured guild returns
+// Idempotent, re-running on an already-configured guild returns
 // the existing subs in the `existing` array.
 //
 // Body (JSON, optional):
@@ -2229,12 +2224,11 @@ async function handleTwitchSetup(req, env, path) {
 
 // ── GET /asset/twitch-banner/:type[.png] ─────────────────────────
 //
-// Public — no auth. Type is one of the keys produced by
+// Public, no auth. Type is one of the keys produced by
 // build-twitch-banners.py (follow, sub-t1/2/3, gift, resub, cheer,
 // raid, live, ended, hype, redemption, poll, prediction, ban,
 // unban). Strips an optional `.png` suffix so the URL can be either
-// /asset/twitch-banner/follow or /asset/twitch-banner/follow.png —
-// the .png variant is what we put in embed image URLs because some
+// /asset/twitch-banner/follow or /asset/twitch-banner/follow.png, // the .png variant is what we put in embed image URLs because some
 // CDNs sniff extension over content-type.
 const TWITCH_BANNER_RE = /^\/asset\/twitch-banner\/([a-z0-9-]+?)(?:\.png)?$/;
 
@@ -2246,7 +2240,7 @@ async function handleTwitchBannerAsset(req, env, path) {
   if (!buf) return new Response('banner-not-uploaded', { status: 404 });
   const headers = {
     'content-type':   'image/png',
-    // Immutable + 1 year — banners are content-addressed by their
+    // Immutable + 1 year, banners are content-addressed by their
     // event-type key. To update an existing type, re-upload with
     // the same key; Discord won't fetch again until the cache
     // expires at its edge (or a fresh embed forces a re-fetch).
@@ -2262,7 +2256,7 @@ async function handleTwitchBannerAsset(req, env, path) {
 
 // ── GET /asset/card-art/:cardId[.png] ────────────────────────────
 //
-// Public — no auth. cardId can be a dotted identifier (e.g.
+// Public, no auth. cardId can be a dotted identifier (e.g.
 // "champ.warrior", "arcane.c001", "spire.token.frost"). Strips an
 // optional trailing `.png` so embed URLs can include the extension
 // for picky CDNs.
@@ -2282,7 +2276,7 @@ async function handleCardArtAsset(req, env, path) {
   const headers = {
     'content-type':   'image/png',
     // Year-long browser cache + edge cache. Pixel art is content-
-    // addressed by cardId — a re-render uploads the same key and
+    // addressed by cardId, a re-render uploads the same key and
     // requires a versioned URL (or a manual KV clear + edge purge)
     // to roll out faster than the cache TTL.
     'cache-control':  'public, max-age=31536000, immutable',
@@ -2298,31 +2292,31 @@ async function handleCardArtAsset(req, env, path) {
 // Maps /asset/<category>/<path>.png → KV key pixel-art-<category>:<path>
 // where <category> is `hero`, `gear`, `clash`, or `pet`. Path
 // components are slash-separated in the URL and colon-joined in the
-// KV key — matches the asset-overhaul phase taxonomy.
+// KV key, matches the asset-overhaul phase taxonomy.
 //
 // Same caching contract as card-art: 1-year immutable + open CORS.
 //
 // Strict character class on path components prevents traversal /
 // shell injection / wide-open lookups. We allow lowercase alpha-
-// numeric + period + hyphen — enough for `champ.warrior`, `level-3`,
+// numeric + period + hyphen, enough for `champ.warrior`, `level-3`,
 // etc., but no slashes/dots/dot-dot.
 const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
 const PIXEL_ART_SEG_RE   = /^[A-Za-z0-9][A-Za-z0-9.\-]*$/;
 const PIXEL_ART_CATEGORY = {
   'hero-art':     'hero',
   'gear-art':     'gear',
-  // 2026-05-30 — sprite-redesign batch namespaces. Boltbound UI
+  // 2026-05-30, sprite-redesign batch namespaces. Boltbound UI
   // assets (hero frames, crystals, buttons, dropzones, bgs, chest)
   // upload to pixel-art-boltbound-ui:<head>:<rest>. Cardbacks +
-  // packs are flat — pixel-art-cardback:<id> and pixel-art-pack:<id>.
+  // packs are flat, pixel-art-cardback:<id> and pixel-art-pack:<id>.
   'boltbound-ui': 'boltbound-ui',
   'cardback':     'cardback',
   'pack':         'pack',
-  // 2026-05-30 — paper-doll base bodies (P-A.2 cascade) +
+  // 2026-05-30, paper-doll base bodies (P-A.2 cascade) +
   // Pro-Ultra-generated monthly Spire boss portraits.
   'hero-body':    'hero-body',
   'spire-boss':   'spire-boss',
-  // 2026-05-30 — Spire Maps (Slay-the-Spire branching paths).
+  // 2026-05-30, Spire Maps (Slay-the-Spire branching paths).
   // Keys: pixel-art-spire-map:bg:<theme>, :node:<type>, :path:<id>.
   'spire-map':    'spire-map',
 };
@@ -2332,7 +2326,7 @@ async function handlePixelArtAsset(req, env, path) {
   if (!m) return new Response('not-found', { status: 404 });
   const category = PIXEL_ART_CATEGORY[m[1]];
   if (!category) return new Response('not-found', { status: 404 });
-  // Validate every path component — guards against `..` and other
+  // Validate every path component, guards against `..` and other
   // identifiers that slipped past the outer regex's lazy match.
   const segments = m[2].split('/');
   for (const s of segments) {
@@ -2350,8 +2344,7 @@ async function handlePixelArtAsset(req, env, path) {
   // addressed, never re-arted in place). Restore immutable for clash
   // once the overhaul lands + URLs are versioned.
   // Short cache during active aesthetic work for categories re-arted in
-  // place under the same URL (clash overhaul; pack/cardback brand-fix) —
-  // otherwise the year-long immutable cache pins stale bytes (the
+  // place under the same URL (clash overhaul; pack/cardback brand-fix), // otherwise the year-long immutable cache pins stale bytes (the
   // card-art cache trap). Restore immutable once each stabilizes.
   // 2026-06 hero customization overhaul: hero-body (skin-tone variants) +
   // hero-art are re-uploaded in place during the build, so keep them on a
@@ -2369,7 +2362,7 @@ async function handlePixelArtAsset(req, env, path) {
 
 // ── Boltbound FX asset route ────────────────────────────────────
 // Match-polish FX live under pixel-art-boltbound:fx:<name>. The name
-// segment keeps its extension (.png) — these are sprite sheets the
+// segment keeps its extension (.png), these are sprite sheets the
 // match renderer slices, not the suffix-stripped per-card art.
 const BOLTBOUND_FX_RE = /^\/asset\/boltbound-fx\/([A-Za-z0-9][A-Za-z0-9.\-]*)$/;
 
@@ -2454,7 +2447,7 @@ async function handleWatchtower(req, env, path) {
 }
 
 // ── Public Twitch login resolver ────────────────────────────────
-// GET /api/twitch/login — resolves the canonical broadcaster's CURRENT
+// GET /api/twitch/login, resolves the canonical broadcaster's CURRENT
 // login (username) from the permanent broadcaster id. CORS-open, edge +
 // KV cached 1h. ?bust=1 forces a fresh Helix lookup (admin rename push).
 async function handleTwitchLogin(req, env) {
@@ -2509,7 +2502,7 @@ async function handleActivityStream(req, env, path) {
     return stub.fetch('https://do/sse', { signal: req.signal });
   }
 
-  // POST /activity/publish — internal producer endpoint. Gated by a
+  // POST /activity/publish, internal producer endpoint. Gated by a
   // shared key so only the site/ops can push (in-process producers use
   // publishActivity() directly + don't hit this path).
   if (path === '/activity/publish') {
@@ -2572,7 +2565,7 @@ async function handleDadSundayPublic(req, env, path) {
 }
 
 // Public: the "this week's lineup" embed (Triple-C + voted nights).
-// Read-only preview — the pinned Discord post is driven by the Sat
+// Read-only preview, the pinned Discord post is driven by the Sat
 // cron / the owner-gated POST /web/admin/lineup/post.
 async function handleLineupPublic(req, env) {
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
@@ -2599,7 +2592,7 @@ async function handlePollCompositeAsset(req, env, path) {
   if (!buf) return new Response('composite-not-uploaded', { status: 404 });
   const headers = {
     'content-type':   'image/png',
-    'cache-control':  'public, max-age=86400',   // 1 day — re-renders are possible
+    'cache-control':  'public, max-age=86400',   // 1 day, re-renders are possible
     'access-control-allow-origin': '*',
     'content-length': String(buf.byteLength),
   };
@@ -2612,11 +2605,11 @@ async function handlePollCompositeAsset(req, env, path) {
 // Posts both pre-defined polls (Triple-C + Variety). Body (optional):
 //   { channelId?: string, closeAt?: number, replace?: bool }
 // Defaults: channel `1508318929855184987`, close at unix 1780200000
-// (Sun 2026-05-31 00:00 EDT). Idempotent — second call with the
+// (Sun 2026-05-31 00:00 EDT). Idempotent, second call with the
 // same pollIds returns `poll-exists` unless `replace: true`.
 async function handlePollsLaunch(req, env) {
   const body = await req.text();
-  // Auth — HMAC against AQUILO_VAULT_GUILD_ID so the standard admin
+  // Auth, HMAC against AQUILO_VAULT_GUILD_ID so the standard admin
   // signer works without a per-poll guild context.
   const guildId = env.AQUILO_VAULT_GUILD_ID || '';
   const auth = await verifyAdminAuth(req, env, guildId, body);
@@ -2705,7 +2698,7 @@ async function handleGamesMenuPost(req, env, path) {
 
 // ── /admin/_clay-batch/:token (KV-token, self-destructing) ──────
 //
-// One-shot batch — runs four admin actions in sequence that Clay
+// One-shot batch, runs four admin actions in sequence that Clay
 // would otherwise need to HMAC-sign by hand:
 //   1. self-roles-hub provision  (mints SF/Loadout/Rotation Updates roles)
 //   2. games-menu post           (pinned menu in #games)
@@ -2748,7 +2741,7 @@ async function handleClayBatch(req, env, path) {
     results.gamesMenuPost = { ok: false, error: e?.message || String(e) };
   }
 
-  // 3. (Removed 2026-05-31) mc-whitelist ensure-role — Minecraft dropped
+  // 3. (Removed 2026-05-31) mc-whitelist ensure-role, Minecraft dropped
   //    as a featured offering; no whitelist role is provisioned anymore.
 
   // 4. Register slash commands at guild scope.
@@ -2785,7 +2778,7 @@ async function handleClayBatch(req, env, path) {
 //
 // Posts (or PATCHes) the Patreon gift embed + link button in a
 // target channel. Two-tier idempotency:
-//   1. KV `gift-embed:msg:<channelId>` → { messageId } — if present,
+//   1. KV `gift-embed:msg:<channelId>` → { messageId }, if present,
 //      PATCH the message in place.
 //   2. Fallback: list the last 50 channel messages, look for one
 //      authored by this bot whose first embed title starts with
@@ -2814,7 +2807,7 @@ async function handleGiftEmbedPost(req, env, path) {
     embeds: [{
       title: '🎁 Gift Aquilo Supporter Access',
       description: [
-        'Give a friend a paid Patreon membership and they unlock every Patreon perk across the Aquilo ecosystem — exclusive cosmetics, priority queue access, hero campaign slots, early access to new tools, and more.',
+        'Give a friend a paid Patreon membership and they unlock every Patreon perk across the Aquilo ecosystem, exclusive cosmetics, priority queue access, hero campaign slots, early access to new tools, and more.',
         '',
         'Free Patreon memberships work too, but paid gifts unlock everything immediately.',
       ].join('\n'),
@@ -2839,14 +2832,14 @@ async function handleGiftEmbedPost(req, env, path) {
     'User-Agent':    'loadout-discord gift-embed-post',
   };
 
-  // Step 1 — KV pointer.
+  // Step 1, KV pointer.
   let priorMessageId = null;
   try {
     const ptr = await env.LOADOUT_BOLTS.get(`gift-embed:msg:${channelId}`, { type: 'json' });
     if (ptr?.messageId) priorMessageId = String(ptr.messageId);
   } catch { /* ignore */ }
 
-  // Step 2 — title-match fallback (scan the last 50 messages).
+  // Step 2, title-match fallback (scan the last 50 messages).
   if (!priorMessageId) {
     try {
       const list = await fetch(
@@ -2907,7 +2900,7 @@ async function handleGiftEmbedPost(req, env, path) {
 
 // ── GET /asset/mc-howto/:slug[.png] ──────────────────────────────
 //
-// Same shape as the twitch-banner asset route — KV-backed PNG with
+// Same shape as the twitch-banner asset route, KV-backed PNG with
 // a year-long immutable cache. Used by the mc-howto embed to host
 // the server-logo + 2 screenshots without paying multipart-PATCH
 // gymnastics on the Discord side.
@@ -3014,18 +3007,18 @@ async function handleHeroBgAsset(req, env, path) {
 //
 // Posts the "How to Join the Aquilo Minecraft Server" embed in a
 // specified channel. KV pointer `mc-howto:msg:<channelId>` makes this
-// idempotent — a second call PATCHes the existing message instead of
+// idempotent, a second call PATCHes the existing message instead of
 // posting a duplicate. Pins on first post. The token is NOT
 // self-destructed so Clay can re-fire it when the missing screenshot
 // attachments arrive (the second fire will PATCH with the images
 // embedded).
 //
 // Body (optional JSON):
-//   { channelId? — defaults to 1505948104208420924,
+//   { channelId?, defaults to 1505948104208420924,
 //     serverLogoUrl?,         // first attachment from Clay (server logo)
 //     verifyScreenshotUrl?,   // second attachment (verification code msg)
 //     dmScreenshotUrl?,       // third attachment (DM walkthrough)
-//     guildId? — for pin perm; defaults to env.AQUILO_VAULT_GUILD_ID }
+//     guildId?, for pin perm; defaults to env.AQUILO_VAULT_GUILD_ID }
 //
 // Returns { ok, action: 'created'|'updated', channelId, messageId,
 //           pinned, embeds: N }
@@ -3086,7 +3079,7 @@ async function handleMcHowtoBootstrap(req, env, path) {
   const j = await r.json();
   await env.LOADOUT_BOLTS.put(pointerKey, j.id);
 
-  // Pin — best-effort. If the bot lacks Manage Messages in the channel
+  // Pin, best-effort. If the bot lacks Manage Messages in the channel
   // we surface the failure but still return ok:true on the post itself
   // so the operator knows the embed is up.
   let pinned = false;
@@ -3105,14 +3098,14 @@ async function handleMcHowtoBootstrap(req, env, path) {
                     pinned, pinError });
 }
 
-// Build the message payload — embeds + link-button row. Pulled out so
+// Build the message payload, embeds + link-button row. Pulled out so
 // both POST + PATCH share the same shape and a second fire (after
 // Clay drops the screenshots) re-renders with the images attached.
 function buildMcHowtoMessage(opts = {}) {
   const PATREON_URL  = 'https://www.patreon.com/cw/aquilo/membership';
   const BEDROCK_URL  = 'https://www.youtube.com/watch?v=xHLHKuM1lRo';
   // /channels/@me/<botId> only resolves if a DM channel already exists
-  // — first-time users get a 404 or blank screen. /users/<botId> opens
+  //, first-time users get a 404 or blank screen. /users/<botId> opens
   // the bot's profile (works on desktop + mobile) which has a
   // Send Message button that mints the DM channel on click.
   const BOT_DM_URL   = 'https://discord.com/users/1503469848225775686';
@@ -3122,7 +3115,7 @@ function buildMcHowtoMessage(opts = {}) {
   const VIOLET       = 0x7C5CFF;
   const AURORA_PINK  = 0xFF6AB5;
 
-  // Embed 1 — header + Steps 1-3. The server logo image anchors the
+  // Embed 1, header + Steps 1-3. The server logo image anchors the
   // top of the message; Steps 1-3 walk through join + role-link +
   // connect. Step 4 (verify) lives in its own embeds below so the
   // screenshot sits next to its instructions.
@@ -3134,7 +3127,7 @@ function buildMcHowtoMessage(opts = {}) {
       ...(opts.serverLogoUrl ? { icon_url: opts.serverLogoUrl } : {}),
     },
     description: [
-      '**Step 1 — Become a paid Patreon supporter**',
+      '**Step 1, Become a paid Patreon supporter**',
       '',
       `Join Aquilo's Patreon as a paid member at:`,
       PATREON_URL,
@@ -3142,7 +3135,7 @@ function buildMcHowtoMessage(opts = {}) {
       'The Aquilo Minecraft Server is permanently supporter-only. ' +
       'Any paid tier unlocks access.',
       '',
-      '**Step 2 — Link your Discord to Patreon**',
+      '**Step 2, Link your Discord to Patreon**',
       '',
       `After joining Patreon, link your Discord account to your Patreon ` +
       `to receive the **Patreon Supporter** role (<@&${PATREON_ROLE}>) ` +
@@ -3155,7 +3148,7 @@ function buildMcHowtoMessage(opts = {}) {
       '4. Find Discord and click Connect → Authorize',
       '5. Click "Join Server"',
       '',
-      '**Step 3 — Connect to the server**',
+      '**Step 3, Connect to the server**',
       '',
       '**Java Edition:** Add `aquilo.mc.gg` to your server list and connect.',
       '',
@@ -3167,16 +3160,16 @@ function buildMcHowtoMessage(opts = {}) {
     ...(opts.serverLogoUrl ? { image: { url: opts.serverLogoUrl } } : {}),
   };
 
-  // Embed 2 — Step 4 part 1: the in-game verification message screenshot
+  // Embed 2, Step 4 part 1: the in-game verification message screenshot
   // with copy explaining what the player will see when they connect.
   // Violet color marks the visual break from Steps 1-3.
-  // Embed 3 — Step 4 part 2: the Discord DM walkthrough, aurora pink.
-  // Discord allows up to 10 embeds per message — we use 3.
+  // Embed 3, Step 4 part 2: the Discord DM walkthrough, aurora pink.
+  // Discord allows up to 10 embeds per message, we use 3.
   const embeds = [mainEmbed];
   if (opts.verifyScreenshotUrl) {
     embeds.push({
       color: VIOLET,
-      title: '🎮 Step 4 — Verify your account',
+      title: '🎮 Step 4, Verify your account',
       description: 'When you first connect, you\'ll see this ' +
         'verification message in-game. The four-digit code shown is ' +
         'what you\'ll DM to the bot in the next step.',
@@ -3263,8 +3256,8 @@ async function handleSupportTicketsPostPanel(req, env, path) {
 // roleProvisioning }.
 //
 // Body (optional JSON):
-//   { guildId? — defaults to env.AQUILO_VAULT_GUILD_ID,
-//     channelName? — defaults to '🎁│rewards' }
+//   { guildId?, defaults to env.AQUILO_VAULT_GUILD_ID,
+//     channelName?, defaults to '🎁│rewards' }
 async function handleRewardsBootstrap(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','_rewards-bootstrap',':token']
   const token = parts[2];
@@ -3285,7 +3278,7 @@ async function handleRewardsBootstrap(req, env, path) {
 
   if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
 
-  // Step 1 — learn the parent_id of the live-now channel so the new
+  // Step 1, learn the parent_id of the live-now channel so the new
   // channel sits in the same notifications-style category. Falls back
   // to no parent if anything goes sideways.
   let parentId = null;
@@ -3305,7 +3298,7 @@ async function handleRewardsBootstrap(req, env, path) {
     console.warn('[rewards-bootstrap] parent lookup', e?.message || e);
   }
 
-  // Step 2 — create the channel. Permission overwrites:
+  // Step 2, create the channel. Permission overwrites:
   //   @everyone   allow: VIEW_CHANNEL (0x400) | READ_MESSAGE_HISTORY (0x10000) | ADD_REACTIONS (0x40)
   //               deny:  SEND_MESSAGES (0x800)
   // Bot's app role bypasses send-deny via Manage Channels grant.
@@ -3339,11 +3332,11 @@ async function handleRewardsBootstrap(req, env, path) {
   const channel = await cr.json();
   const channelId = String(channel.id);
 
-  // Step 3 — bind.
+  // Step 3, bind.
   const { setChannelBinding } = await import('./channel-bindings.js');
   const bindResult = await setChannelBinding(env, guildId, 'twitch-rewards-feed', channelId);
 
-  // Step 4 — provision the three Twitch Sub roles.
+  // Step 4, provision the three Twitch Sub roles.
   const { ensureRewardRoles } = await import('./twitch-rewards.js');
   const roleResult = await ensureRewardRoles(env, guildId);
 
@@ -3436,7 +3429,7 @@ async function handleCardArtBulkSetBootstrap(req, env, path) {
 //   { offset?: number, limit?: number, force?: boolean }
 // Default limit is 25 (card-art-backfill.js DEFAULT_LIMIT). The
 // token gate compares against KV `bootstrap-card-art-backfill-token`
-// but does NOT consume it on success — operator runs many slices in
+// but does NOT consume it on success, operator runs many slices in
 // a loop, then deletes the token themselves once `done: true`.
 async function handleCardArtBackfillSlice(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-backfill',':token']
@@ -3464,7 +3457,7 @@ async function handleCardArtBackfillSlice(req, env, path) {
 // Snapshots every global-card-art:* entry to
 // global-card-art-backup-gifs-<date>:* so the pixel-art overhaul
 // can overwrite the live map without losing the Giphy GIF assignments.
-// Idempotent — skips entries that already have a backup record.
+// Idempotent, skips entries that already have a backup record.
 async function handleCardArtBackup(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-backup',':token']
   const token = parts[2];
@@ -3565,7 +3558,7 @@ async function handleTwitchSetupDebug(req, env, path) {
 //                         &dryRun=1 to preview the match set without
 //                         deleting.
 //
-// Token NOT self-destructed — re-running is a no-op (a second prune
+// Token NOT self-destructed, re-running is a no-op (a second prune
 // finds zero matches). Delete `bootstrap-twitch-prune-token` from KV
 // when finished.
 async function handleTwitchPrune(req, env, path) {
@@ -3585,7 +3578,7 @@ async function handleTwitchPrune(req, env, path) {
 
   const out = { ok: true, dryRun };
 
-  // — Resolve login → id (optional).
+  //, Resolve login → id (optional).
   if (resolveLogin) {
     const j = await helixFetch(env, '/users', { login: resolveLogin }).catch(() => null);
     const user = j?.data?.[0] || null;
@@ -3594,7 +3587,7 @@ async function handleTwitchPrune(req, env, path) {
       : { login: resolveLogin, id: null, error: 'not-found' };
   }
 
-  // — Prune EventSub subs for a broadcaster id (optional).
+  //, Prune EventSub subs for a broadcaster id (optional).
   if (broadcaster) {
     const all = await listSubscriptions(env);
     const tiedToBroadcaster = (s) => {
@@ -3638,18 +3631,18 @@ async function handleTwitchPrune(req, env, path) {
 // ── /admin/_card-art-wipe/:token (KV-token, idempotent) ──────────
 //
 // Wipes every global-card-art:* entry. Clay's directive (2026-05-29)
-// after going all-in on pixel art — the Giphy backfill is no longer
+// after going all-in on pixel art, the Giphy backfill is no longer
 // the render default. Keeps the dated backup under
 // global-card-art-backup-gifs-<date>:* (different prefix) untouched
 // for the audit trail.
 //
-// IMPORTANT: also fixed a latent bug — the earlier `listAllGlobalArt`
+// IMPORTANT: also fixed a latent bug, the earlier `listAllGlobalArt`
 // in cards-global-art.js did 515 sequential KV reads on every
 // /web/boltbound/state call, which is what was breaking the live
 // Boltbound bootstrap once the Giphy backfill loaded the prefix.
 // The fn is now parallelised at 20-concurrency; this wipe + parallel
 // listing together restore the bootstrap. Token NOT self-destructed
-// — a second call is a no-op.
+//, a second call is a no-op.
 async function handleCardArtWipe(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-wipe',':token']
   const token = parts[2];
@@ -3671,8 +3664,8 @@ async function handleCardArtWipe(req, env, path) {
 // overridden via body {channelId}). Self-destructing token.
 //
 // Embed shape:
-//   • Totals — backfilled / catalogue / coverage %
-//   • Source breakdown — giphy / manual-remix / other
+//   • Totals, backfilled / catalogue / coverage %
+//   • Source breakdown, giphy / manual-remix / other
 //   • Top-N (default 20) sample rows: cardName → preview thumb url
 //
 // Body (optional JSON): { channelId?, sampleSize? }
@@ -3699,7 +3692,7 @@ async function handleCardArtSummaryBootstrap(req, env, path) {
   const totalCatalogue = Object.keys(CARDS).length;
 
   // Walk the full global-card-art KV prefix to collect records (not
-  // just URLs — we want source + searchTerm + cardName).
+  // just URLs, we want source + searchTerm + cardName).
   const records = [];
   let cursor;
   for (let i = 0; i < 12; i++) {
@@ -3738,7 +3731,7 @@ async function handleCardArtSummaryBootstrap(req, env, path) {
     .map(([s, n]) => `\`${s}\`: ${n}`)
     .join(' · ') || 'none';
 
-  // Sample — pick the most recent N (rough proxy for "freshest" choices).
+  // Sample, pick the most recent N (rough proxy for "freshest" choices).
   const sample = [...records]
     .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
     .slice(0, sampleSize);
@@ -3747,14 +3740,14 @@ async function handleCardArtSummaryBootstrap(req, env, path) {
   ).join('\n');
 
   const embed = {
-    title: '🎴 Boltbound card-art backfill — summary',
+    title: '🎴 Boltbound card-art backfill, summary',
     color: 0x9b6cff,
     description:
       `**${totalBackfilled} / ${totalCatalogue}** cards have global default art.  ` +
       `Coverage: **${coveragePct}%** · Missing: **${missingCount}**`,
     fields: [
       { name: 'By source',       value: sourceLines, inline: false },
-      { name: `Sample (latest ${sample.length})`, value: sampleLines.slice(0, 1024) || '—', inline: false },
+      { name: `Sample (latest ${sample.length})`, value: sampleLines.slice(0, 1024) || '-', inline: false },
     ],
     footer: { text: 'Mismatches? /admin card-art remix card-id:<id> shows 5 fresh candidates.' },
     timestamp: new Date().toISOString(),
@@ -3877,7 +3870,7 @@ async function handleOnboardingEnsureRoles(req, env, path) {
 //
 // Create the four level-tier roles (Apprentice/Veteran/Elite/Mythic)
 // + persist the {key:roleId} map at `level-tier-roles:<g>`.
-// Idempotent — reuses existing roles when name OR mapped-id matches.
+// Idempotent, reuses existing roles when name OR mapped-id matches.
 async function handleLevelTierRolesEnsure(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','level-tier-roles','ensure',':g']
   const guildId = parts[3];
@@ -3899,7 +3892,7 @@ async function handleLevelTierRolesEnsure(req, env, path) {
 //
 // One-time-per-guild grant pass: for every pxp:<userId> record,
 // grant the tier roles the user has already earned. Idempotent
-// (KV marker — pass `{ force: true }` body to re-scan).
+// (KV marker, pass `{ force: true }` body to re-scan).
 async function handleLevelTierRolesBackfill(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','level-tier-roles','backfill',':g']
   const guildId = parts[3];
@@ -3977,7 +3970,7 @@ async function handleScheduleMsg(req, env, path, method) {
 //
 // Unified post-hub endpoint for the phase-1 channel hubs. Key must
 // be one of channel-hubs.HUB_KEYS (checkin / character / bolts /
-// play / achievements). Body: { channelId?, channelName? } — same
+// play / achievements). Body: { channelId?, channelName? }, same
 // channel-discovery contract as the other post-hub routes.
 async function handleChannelHubPost(req, env, path) {
   const parts = path.split('/').filter(Boolean);  // ['admin','hubs','post',':g',':key']
@@ -4147,8 +4140,7 @@ async function handleAquiloRefreshSchedule(req, env, path) {
 // Force a re-render of the pinned weekly schedule embed without the
 // site HMAC. Gated by `refresh-schedule-token` in KV (written by the
 // operator immediately before the call); the token self-destructs on
-// first use, so the endpoint is inert without it. Idempotent —
-// postOrRefreshSchedule edits the pinned message in place.
+// first use, so the endpoint is inert without it. Idempotent, // postOrRefreshSchedule edits the pinned message in place.
 async function handleOneShotRefreshSchedule(req, env, path) {
   const parts = path.split('/').filter(Boolean);  // ['admin','_refresh-schedule',':g']
   const guildId = parts[2] || env.AQUILO_VAULT_GUILD_ID;
@@ -4173,7 +4165,7 @@ async function handleOneShotRefreshSchedule(req, env, path) {
 
 // ── /admin/channels/bind/:guildId (HMAC) ─────────────────────────
 //
-// Body { binding, channelId } — binding ∈ {queue, live, recap, clips, lfg}.
+// Body { binding, channelId }, binding ∈ {queue, live, recap, clips, lfg}.
 // channelId="" clears the binding so the env fallback re-engages.
 // Returns the resolved value after the write.
 async function handleChannelsBind(req, env, path) {
@@ -4298,7 +4290,7 @@ async function handlePrinterBotWebhookUrl(req, env, path) {
 // Body (JSON): { confirm: "yes-i-mean-it" }
 // Wipes wallet:<g>:*, community-checkin:<g>:*, community-checkin-bonus:<g>:*,
 // freeze:<g>:*, and (global) pxp:*. Preserves character/referral/admin
-// config — see reset-user-data.js for the full preserve list.
+// config, see reset-user-data.js for the full preserve list.
 async function handleResetUserData(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['admin','reset-user-data',':g']
   const guildId = parts[2];
@@ -4314,7 +4306,7 @@ async function handleResetUserData(req, env, path) {
   if (opts.confirm !== 'yes-i-mean-it') {
     return jsonResp({
       ok: false, error: 'confirm-required',
-      hint: 'POST { "confirm": "yes-i-mean-it" } — this destroys economy + progression state.',
+      hint: 'POST { "confirm": "yes-i-mean-it" }, this destroys economy + progression state.',
     }, 400);
   }
   const { resetUserData } = await import('./reset-user-data.js');
@@ -4352,14 +4344,14 @@ async function handleCountingPurgeBotMessages(req, env, path) {
 
 // ── /admin/rules/rebuild/:guildId (HMAC) ──────────────────────────
 // Body: { channelId,
-//         body?        — plain-text rules (used when embed is omitted),
-//         embed?       — Discord embed object (title, description, color, ...),
-//         withVerify?: true — append a ✅ Verify button row (custom_id: guild:verify)
+//         body?, plain-text rules (used when embed is omitted),
+//         embed?, Discord embed object (title, description, color, ...),
+//         withVerify?: true, append a ✅ Verify button row (custom_id: guild:verify)
 //       }
 //
 // Resolution:
 //   1. Delete the prior rules post tracked at rules:msg:<g>
-//      (preferred — that's our own stamp, no scan needed)
+//      (preferred, that's our own stamp, no scan needed)
 //   2. ELSE scan recent messages and delete the first bot/webhook
 //      TEXT message (no image attachment, content > 20 chars)
 //   3. Post the new body or embed (+ optional Verify button)
@@ -4393,7 +4385,7 @@ async function handleRulesRebuild(req, env, path) {
       { method: 'DELETE', headers: H });
     if (del.ok || del.status === 204 || del.status === 404) deletedId = stamp.messageId;
   } else {
-    // 2) No stamp — scan + delete first bot text message (no image)
+    // 2) No stamp, scan + delete first bot text message (no image)
     const listRes = await fetch(
       `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages?limit=50`,
       { headers: H });
@@ -4532,7 +4524,7 @@ async function handlePermsLockdown(req, env, path) {
 // ── /admin/release-notes/post/:guildId (HMAC) ─────────────────────
 // Body: { channelId, product, version, dateIso, title?, color?,
 //         bullets: [strings], imageUrl? }
-// Dedupes against release-notes:<g>:<product> — deletes the prior
+// Dedupes against release-notes:<g>:<product>, deletes the prior
 // post if present, then posts a new embed and stamps the id.
 async function handleReleaseNotesPost(req, env, path) {
   const parts = path.split('/').filter(Boolean);
@@ -4600,7 +4592,7 @@ async function handleReleaseNotesPost(req, env, path) {
 // Body (JSON, all optional):
 //   { name?: "I CAN'T COUNT", color?: 0xff6ab5,
 //     applyChannelDeny?: true }
-// Defaults match Clay's 2026-05 spec — aurora pink, hoisted,
+// Defaults match Clay's 2026-05 spec, aurora pink, hoisted,
 // channel-deny on the configured counting channel ON by default.
 async function handleCountingProvisionShameRole(req, env, path) {
   const parts = path.split('/').filter(Boolean);
@@ -4673,7 +4665,7 @@ async function handlePostEmbed(req, env, path) {
 // At least one of recipientUserId / channelId required. If
 // recipientUserId is set, the bot opens a DM channel and posts
 // there; otherwise it posts to channelId. The embed shape matches
-// the variant C spec — composite image fills the embed, gif also
+// the variant C spec, composite image fills the embed, gif also
 // renders as thumbnail (Discord renders animated GIF thumbnails),
 // author header with displayName + avatar, description carries the
 // streak/XP/bolts pills + optional message.
@@ -4691,7 +4683,7 @@ async function handleCheckinV2TestPost(req, env, path) {
 
   if (!opts.imageBase64) {
     return jsonResp({ ok: false, error: 'image-required',
-      message: 'POST body needs imageBase64 — the composite GIF bytes. Generate with build-checkin-v2-test.py.' }, 400);
+      message: 'POST body needs imageBase64, the composite GIF bytes. Generate with build-checkin-v2-test.py.' }, 400);
   }
 
   // Decode the composite.
@@ -4702,7 +4694,7 @@ async function handleCheckinV2TestPost(req, env, path) {
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   } catch { return jsonResp({ ok: false, error: 'bad-base64' }, 400); }
 
-  // Resolve destination — prefer DM if recipientUserId set.
+  // Resolve destination, prefer DM if recipientUserId set.
   let channelId = String(opts.channelId || '').trim();
   let destLabel = channelId ? 'channel:' + channelId : null;
   if (opts.recipientUserId) {
@@ -4742,7 +4734,7 @@ async function handleCheckinV2TestPost(req, env, path) {
   const embed = {
     author: { name: `${display} checked in`,
               icon_url: opts.avatarUrl || undefined },
-    description: lines.join('\n') || '_Test check-in — preview the new embed._',
+    description: lines.join('\n') || '_Test check-in, preview the new embed._',
     color: Number.isFinite(opts.accentColor) ? opts.accentColor : 0x7c5cff,
     image: { url: 'attachment://checkin-v2-test.gif' },
     timestamp: new Date().toISOString(),
@@ -4750,7 +4742,7 @@ async function handleCheckinV2TestPost(req, env, path) {
   };
   if (opts.gifUrl) embed.thumbnail = { url: opts.gifUrl };
 
-  // Multipart upload — same pattern as the cn-roster composite post.
+  // Multipart upload, same pattern as the cn-roster composite post.
   const form = new FormData();
   form.append('files[0]', new Blob([bytes], { type: 'image/gif' }), 'checkin-v2-test.gif');
   form.append('payload_json', JSON.stringify({
@@ -4775,14 +4767,14 @@ async function handleCheckinV2TestPost(req, env, path) {
 
 // ── /admin/self-roles-hub/provision/:guildId (HMAC) ───────────────
 // Creates (or reuses) the Discord roles for each hub category:
-//   • Pings (4): Stream / YouTube / Events / Game Night — migrates
+//   • Pings (4): Stream / YouTube / Events / Game Night, migrates
 //     IDs from guild-builder's cfg.ids when present.
 //   • Name Color (11): Aquilo Violet, Aurora Pink, Aurora Green,
 //     Red, Orange, Yellow, Blue, Cyan, White, Purple, Black-ish.
 //   • Region (5): NA East / NA West / EU / Asia / Oceania.
 //   • Platform (4): PC / Xbox / PlayStation / Switch.
 //   • Pronouns (4): He/Him / She/Her / They/Them / Other-Ask-Me.
-// Idempotent — reuses any role with a matching name. Stores the
+// Idempotent, reuses any role with a matching name. Stores the
 // resulting {category: {value: roleId}} map at
 // self-roles-hub:roles:<g>. NOTE: name-color roles are created at
 // the bottom of the hierarchy; admin must reorder them above
@@ -4802,7 +4794,7 @@ async function handleSelfRolesHubProvision(req, env, path) {
 
 // ── /admin/self-roles-hub/post/:guildId (HMAC) ────────────────────
 // Posts (or edits-in-place) one message per category into the roles
-// channel. Body { channelId } — defaults to env.ROLES_CHANNEL_ID
+// channel. Body { channelId }, defaults to env.ROLES_CHANNEL_ID
 // which is the canonical #roles channel for Aquilo.
 async function handleSelfRolesHubPost(req, env, path) {
   const parts = path.split('/').filter(Boolean);
@@ -4842,16 +4834,15 @@ async function handleSelfRolesPost(req, env, path) {
 
 // ── /admin/cn-roster/post/:guildId (HMAC) ─────────────────────────
 // Body (JSON): { channelId, imageBase64, purgeFirst? }
-//   channelId    — defaults to channel-binding(games-list) → (vote)
-//   imageBase64  — REQUIRED. The composite-grid PNG generated by
+//   channelId, defaults to channel-binding(games-list) → (vote)
+//   imageBase64, REQUIRED. The composite-grid PNG generated by
 //                  build-cn-composite.py. Uploaded as a Discord
 //                  attachment + referenced from embed.image as
 //                  attachment://cn-roster.png.
-//   purgeFirst   — true wipes any prior roster message (incl. the
+//   purgeFirst, true wipes any prior roster message (incl. the
 //                  legacy multi-embed layout) before posting.
 //
-// Subsequent refreshes (price edits) run via the :17 cron tick —
-// they don't re-upload the composite; they PATCH the existing
+// Subsequent refreshes (price edits) run via the :17 cron tick, // they don't re-upload the composite; they PATCH the existing
 // message's components in place.
 async function handleCnRosterPost(req, env, path) {
   const parts = path.split('/').filter(Boolean);
@@ -4871,7 +4862,7 @@ async function handleCnRosterPost(req, env, path) {
   }
   if (!channelId) return jsonResp({ ok: false, error: 'no-channel' }, 400);
   if (!opts.imageBase64) return jsonResp({ ok: false, error: 'image-required',
-    message: 'POST body must include imageBase64 — the composite PNG. Generate with build-cn-composite.py.' }, 400);
+    message: 'POST body must include imageBase64, the composite PNG. Generate with build-cn-composite.py.' }, 400);
   const { postRoster } = await import('./cn-games-roster.js');
   const r = await postRoster(env, guildId, channelId, opts.imageBase64, {
     purgeFirst: !!opts.purgeFirst,
@@ -4906,7 +4897,7 @@ async function handleSetup18Plus(req, env, path) {
   const H = { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN };
   const report = { steps: {} };
 
-  // 1) Role — find by name or create. No extra permissions (the role
+  // 1) Role, find by name or create. No extra permissions (the role
   // itself is purely a visibility gate; we apply view perms on the
   // channel).
   const rolesRes = await fetch(
@@ -4933,7 +4924,7 @@ async function handleSetup18Plus(req, env, path) {
     report.steps.role = { reused: true, id: role.id, name: role.name };
   }
 
-  // 2) Category — find by name or create with view-deny @everyone + view-allow role
+  // 2) Category, find by name or create with view-deny @everyone + view-allow role
   const channelsRes = await fetch(
     `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`,
     { headers: H });
@@ -5127,7 +5118,7 @@ async function handleDiscordCleanup(req, env, path) {
   if (mode === 'archive') {
     if (!channelId) return jsonResp({ ok: false, error: 'channel required' }, 400);
     const r = await cleanup.readArchive(env, runId, channelId);
-    // Don't echo full message bodies back over the wire — just the shape.
+    // Don't echo full message bodies back over the wire, just the shape.
     if (r.ok) return jsonResp({ ok: true, channelId: r.channelId, channelName: r.channelName,
       count: r.count, parts: r.parts, truncated: r.truncated, sample: (r.messages || []).slice(0, 3) }, 200);
     return jsonResp(r, 404);
@@ -5203,7 +5194,7 @@ async function handleWelcomeBackfillCounter(req, env, path) {
 //   }
 //
 // Resolution order for the target channel:
-//   1. opts.channelId        — explicit override
+//   1. opts.channelId, explicit override
 //   2. guild:cfg.ids.<channelKind> (defaults to "ch_<key>")
 //   3. fail with `no-channel`
 //
@@ -5404,10 +5395,10 @@ async function handleListCommands(req, env, path) {
 // Self-contained deploy step for the L8 feature batch. Token-gated via
 // `bootstrap-l8-token` in KV (written by the operator immediately
 // before calling). On first match, the KV entry is deleted so the
-// endpoint is single-use — leaving the route in place is harmless.
+// endpoint is single-use, leaving the route in place is harmless.
 //
 // Actions, in order:
-//   1. Re-register slash commands GLOBALLY (idempotent — picks up
+//   1. Re-register slash commands GLOBALLY (idempotent, picks up
 //      /ticket and any other newly-added entries in commands-spec.js).
 //   2. Look up the live channel list for :guildId, find:
 //        • 🛠️│support  (or any channel name containing "support")
@@ -5428,7 +5419,7 @@ async function handleBootstrapL8(req, env, path) {
   if (!expected) return new Response('bootstrap already consumed or never armed', { status: 410 });
   if (!got || got !== expected) return new Response('bad token', { status: 401 });
 
-  // Single-use — burn the token before doing any side-effects so a
+  // Single-use, burn the token before doing any side-effects so a
   // partial failure can't be retried with the same token.
   await env.LOADOUT_BOLTS.delete('bootstrap-l8-token');
 
@@ -5445,11 +5436,11 @@ async function handleBootstrapL8(req, env, path) {
   // TWICE in the Discord picker (one copy per scope). Guild-only
   // registration is instant + clean; once the bot is shipped to
   // additional guilds we'll fan-out per-guild from a known list
-  // (cheap — 31 commands, one PUT each, ~200ms total).
+  // (cheap, 31 commands, one PUT each, ~200ms total).
   //
   // ALSO: PUT [] globally to clear any previously-registered global
   // copies left behind by the old dual-registration path. Idempotent
-  // — re-running this is fine.
+  //, re-running this is fine.
   {
     const globalUrl = `https://discord.com/api/v10/applications/${appId}/commands`;
     const clearGlobal = await fetch(globalUrl, {
@@ -5498,7 +5489,7 @@ async function handleBootstrapL8(req, env, path) {
     introductions:  introsCh  ? { id: introsCh.id,  name: introsCh.name,  type: introsCh.type  } : null,
   };
 
-  // 3) Post ticket panel into support channel — only if it's a TEXT
+  // 3) Post ticket panel into support channel, only if it's a TEXT
   // channel (type 0). The current 🛠️│support is a FORUM (type 15)
   // from the original guild build; per Clay's spec it's being
   // repurposed as the ticket-panel channel, so we POST regardless
@@ -5517,7 +5508,7 @@ async function handleBootstrapL8(req, env, path) {
 
   // 4) Backfill guild:cfg.ids.ch_introductions so the welcome handler
   // resolves a channel without needing a separate welcome-cfg record.
-  // vc_join_to_create + cat_voice already exist in cfg.ids — confirm
+  // vc_join_to_create + cat_voice already exist in cfg.ids, confirm
   // they're present and surface a warning if not.
   const cfgKey = `guild:cfg:${guildId}`;
   const cfg = (await env.LOADOUT_BOLTS.get(cfgKey, { type: 'json' })) || { ids: {} };
@@ -5539,9 +5530,9 @@ async function handleBootstrapL8(req, env, path) {
       cat_voice:          cfg.ids.cat_voice || null,
     },
     warnings: [
-      !cfg.ids.vc_join_to_create ? 'vc_join_to_create missing — temp VCs will skip' : null,
-      !cfg.ids.cat_voice         ? 'cat_voice missing — new temp VCs will land at root'  : null,
-      !cfg.ids.ch_introductions  ? 'ch_introductions missing — welcome embed has no target' : null,
+      !cfg.ids.vc_join_to_create ? 'vc_join_to_create missing, temp VCs will skip' : null,
+      !cfg.ids.cat_voice         ? 'cat_voice missing, new temp VCs will land at root'  : null,
+      !cfg.ids.ch_introductions  ? 'ch_introductions missing, welcome embed has no target' : null,
     ].filter(Boolean),
   };
 
@@ -5554,13 +5545,13 @@ async function handleBootstrapL8(req, env, path) {
 // `bootstrap-l8-token` to KV, calls endpoint, KV entry self-destructs
 // on first valid call). Idempotent operations:
 //
-//   1. Re-register slash commands (guild-only + clear global) — re-uses
+//   1. Re-register slash commands (guild-only + clear global), re-uses
 //      the same path L8 fixed for the duplicate-command issue.
 //   2. Create channels that don't exist yet:
-//        • 📰│activity-feed            (text — community events)
-//        • 🃏│games                     (text — game commands hub)
-//        • 🗳️│voting                    (text — community-night polls)
-//        • 🧩│community-night-queue     (text — queue sign-ups)
+//        • 📰│activity-feed            (text, community events)
+//        • 🃏│games                     (text, game commands hub)
+//        • 🗳️│voting                    (text, community-night polls)
+//        • 🧩│community-night-queue     (text, queue sign-ups)
 //      Each create is idempotent: GET /guilds/{g}/channels first;
 //      if a name match exists, adopt it.
 //   3. Write the IDs into guild:cfg:<g>.ids:
@@ -5628,7 +5619,7 @@ async function handlePhase2(req, env, path) {
     const n = needle.toLowerCase();
     return channels.find(c => (c.name || '').toLowerCase().includes(n));
   }
-  // Reusable parent for new community-style text channels — the
+  // Reusable parent for new community-style text channels, the
   // "community" category from the existing server build, fetched
   // by name. If absent, channels land at root (still works, just
   // ungrouped). For the queue channel we prefer the games category
@@ -5698,7 +5689,7 @@ async function handlePhase2(req, env, path) {
 
   // 5) Per-guild env-overlay for SCHEDULE / POLL / QUEUE channel ids
   // (aq-schedule.js reads from env, with KV `schedule:<g>.channel_id`
-  // taking precedence — we set it directly).
+  // taking precedence, we set it directly).
   if (cfg.ids.ch_schedule) {
     const schedKey = `schedule:${guildId}`;
     const sched = (await env.STATE?.get?.(schedKey).then(v => v && JSON.parse(v)).catch(() => null)) || {};
@@ -5725,7 +5716,7 @@ async function handlePhase2(req, env, path) {
 // 1. Create 📣│self-promo under the existing community category if
 //    no `*self-promo*` text channel already exists.
 // 2. Find the existing verify-button message in 🫡│rules (looking for
-//    the bot's own message with a button) and DELETE it — so the
+//    the bot's own message with a button) and DELETE it, so the
 //    new rules embed lands ABOVE it after a re-post.
 // 3. POST the stylized rules embed (banner image + 10-rule body) to
 //    🫡│rules.
@@ -5764,7 +5755,7 @@ async function handlePhase3Rules(req, env, path) {
         name: '📣│self-promo',
         type: 0,
         parent_id: catCommunity?.id,
-        topic: 'Share your streams, videos, projects — your own content only. No bare invite links or ads.',
+        topic: 'Share your streams, videos, projects, your own content only. No bare invite links or ads.',
       }),
     });
     if (!create.ok) {
@@ -5783,7 +5774,7 @@ async function handlePhase3Rules(req, env, path) {
   }
 
   // 2) Find + delete the existing verify-button message (bot-authored
-  //    message with a component button — newest 50 messages should
+  //    message with a component button, newest 50 messages should
   //    cover this comfortably).
   const appId = env.DISCORD_APP_ID;
   const msgsRes = await fetch(`https://discord.com/api/v10/channels/${rulesCh.id}/messages?limit=50`, { headers: H });
@@ -5810,18 +5801,18 @@ async function handlePhase3Rules(req, env, path) {
   const rulesEmbed = {
     title: 'Aquilo Community Rules',
     description: [
-      `**1 — Be respectful.** Treat everyone with kindness. No harassment, hate speech, slurs, discrimination, or personal attacks. Disagree without being hostile.`,
-      `**2 — Keep it appropriate.** No NSFW, gory, or shocking content anywhere. Keep language and content friendly for a mixed-age community.`,
-      `**3 — No spam.** Don't flood channels, spam emojis or mentions, mass-ping, or post the same thing repeatedly.`,
-      `**4 — Use the right channels.** Keep conversations on-topic. Support questions go through the ticket system.`,
-      `**5 — No unsolicited self-promo or advertising.** Don't post invite links or ads, and don't DM members ads. Share your own content in <#${selfPromoCh.id}> where it belongs.`,
-      `**6 — Respect privacy.** No sharing anyone's personal information, no posting private messages or screenshots without consent.`,
-      `**7 — Settle conflicts properly.** No drama, call-outs, or witch-hunts in public. Open a ticket instead.`,
-      `**8 — Play fair.** Don't cheat, exploit, or abuse bugs in the games or the bolts economy. Report bugs — don't farm them.`,
-      `**9 — Follow Discord's rules.** Everyone must follow Discord's Terms of Service and Community Guidelines.`,
-      `**10 — Staff have the final say.** Listen to the moderators. Rules can be updated, and staff may act on anything that harms the community.`,
+      `**1, Be respectful.** Treat everyone with kindness. No harassment, hate speech, slurs, discrimination, or personal attacks. Disagree without being hostile.`,
+      `**2, Keep it appropriate.** No NSFW, gory, or shocking content anywhere. Keep language and content friendly for a mixed-age community.`,
+      `**3, No spam.** Don't flood channels, spam emojis or mentions, mass-ping, or post the same thing repeatedly.`,
+      `**4, Use the right channels.** Keep conversations on-topic. Support questions go through the ticket system.`,
+      `**5, No unsolicited self-promo or advertising.** Don't post invite links or ads, and don't DM members ads. Share your own content in <#${selfPromoCh.id}> where it belongs.`,
+      `**6, Respect privacy.** No sharing anyone's personal information, no posting private messages or screenshots without consent.`,
+      `**7, Settle conflicts properly.** No drama, call-outs, or witch-hunts in public. Open a ticket instead.`,
+      `**8, Play fair.** Don't cheat, exploit, or abuse bugs in the games or the bolts economy. Report bugs, don't farm them.`,
+      `**9, Follow Discord's rules.** Everyone must follow Discord's Terms of Service and Community Guidelines.`,
+      `**10, Staff have the final say.** Listen to the moderators. Rules can be updated, and staff may act on anything that harms the community.`,
       ``,
-      `_Welcome to Aquilo — have fun and look out for each other._`,
+      `_Welcome to Aquilo, have fun and look out for each other._`,
     ].join('\n\n'),
     color: BRAND_ACCENT,
     image: { url: RULES_HEADER_URL },
@@ -5903,7 +5894,7 @@ async function handleChatTest(req, env, path) {
   let channelId = u.searchParams.get('channelId') || '';
   if (!channelId) {
     // Default to the first channel in the COMMUNITY_CHAT_CHANNELS_JSON
-    // allow-list — that's the canonical relay-eligible channel.
+    // allow-list, that's the canonical relay-eligible channel.
     try {
       const arr = JSON.parse(env.COMMUNITY_CHAT_CHANNELS_JSON || '[]');
       const first = arr[0];
@@ -5911,7 +5902,7 @@ async function handleChatTest(req, env, path) {
     } catch { /* idle */ }
   }
   const discordId = u.searchParams.get('discordId') || env.AQUILO_VAULT_GUILD_ID || '';
-  const content   = u.searchParams.get('content')   || 'chat-relay diagnostic — please ignore';
+  const content   = u.searchParams.get('content')   || 'chat-relay diagnostic, please ignore';
 
   const report = {
     inputs: { guildId, channelId, discordId, content },
@@ -5946,12 +5937,12 @@ async function handleChatTest(req, env, path) {
 // read-only @everyone overwrite on top).
 //
 // Profiles:
-//   "open"     — no role-based view restriction (default for
+//   "open", no role-based view restriction (default for
 //                start-here so the verification gate works).
-//   "member"   — deny @everyone VIEW; allow `role_member` VIEW.
-//   "patron"   — deny @everyone VIEW; allow `role_patron` VIEW.
-//   "staff"    — deny @everyone VIEW; allow `role_owner` + `role_mod`.
-//   "voice-member" — like "member" but also CONNECT + SPEAK.
+//   "member", deny @everyone VIEW; allow `role_member` VIEW.
+//   "patron", deny @everyone VIEW; allow `role_patron` VIEW.
+//   "staff", deny @everyone VIEW; allow `role_owner` + `role_mod`.
+//   "voice-member", like "member" but also CONNECT + SPEAK.
 //
 // Read-only flag (channel-level extra): @everyone gets an explicit
 //   deny on SEND_MESSAGES + CREATE_PUBLIC_THREADS + SEND_MESSAGES_IN_THREADS.
@@ -5984,7 +5975,7 @@ async function handlePhase4Perms(req, env, path) {
   const cfg = (await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' })) || { ids: {} };
   const ids = cfg.ids || {};
 
-  // Required role ids — bail loudly if any are missing rather than
+  // Required role ids, bail loudly if any are missing rather than
   // writing partial overwrites.
   const everyoneId = guildId;                  // @everyone role id == guild id
   const memberId   = ids.role_member;
@@ -6049,7 +6040,7 @@ async function handlePhase4Perms(req, env, path) {
     const out = [];
     switch (profile) {
       case 'open':
-        // No overwrites — channels default to "anyone with role can see".
+        // No overwrites, channels default to "anyone with role can see".
         // Pre-verification members hit @everyone permissions only,
         // which include VIEW_CHANNEL by default.
         break;
@@ -6166,7 +6157,7 @@ async function handlePhase4Perms(req, env, path) {
       desired = parent.desired.map(o => ({ ...o }));
       basis   = 'category:' + parent.profile;
     } else {
-      // No parent — use the open profile so we don't accidentally
+      // No parent, use the open profile so we don't accidentally
       // hide things at the root level.
       desired = buildOverwrites('open');
       basis   = 'orphan:open';
@@ -6260,7 +6251,7 @@ async function handleQuestTrace(req, env, path) {
 // ---- /admin/guild-inventory/:guildId ------------------------------------
 //
 // Read-only dump of every category, channel, role, and AutoMod rule in
-// the target guild — same admin-auth as the register/list endpoints
+// the target guild, same admin-auth as the register/list endpoints
 // (per-guild HMAC OR AQUILO_SITE_WEB_SECRET fallback). Used to recon
 // existing server state before applying a guild-build.
 async function handleGuildInventory(req, env, path) {
@@ -6327,7 +6318,7 @@ async function handleGuildInventory(req, env, path) {
 
 // ---- /admin/guild-build/:guildId  --------------------------------------
 //
-// Idempotent reconciler — applies the baked SERVER_SPEC against the
+// Idempotent reconciler, applies the baked SERVER_SPEC against the
 // guild's current state. Default mode is DRY-RUN; pass ?apply=1 to
 // execute. Same admin auth as guild-inventory.
 //
@@ -6337,7 +6328,7 @@ async function handleGuildInventory(req, env, path) {
 //   • Channels matched by name. Missing → created in correct
 //     category. Existing → re-parented to the spec category +
 //     ensured to be the right TYPE if a type mismatch is recoverable
-//     (we never delete to fix a type mismatch — we leave it + log).
+//     (we never delete to fix a type mismatch, we leave it + log).
 //   • Roles matched by name. Missing → created with color/hoist;
 //     existing → kept.
 //   • Nothing is deleted. The endpoint returns a `noted_extras`
@@ -6406,7 +6397,7 @@ async function handleGuildAutomod(req, env, path) {
 
   const rules = [
     {
-      // Discord caps KEYWORD_PRESET rules at ONE per guild — so all
+      // Discord caps KEYWORD_PRESET rules at ONE per guild, so all
       // three baked-in word lists go into the single rule.
       // PRESET ids: 1=PROFANITY, 2=SEXUAL_CONTENT, 3=SLURS.
       name: 'Profanity + sexual + slurs (Discord presets)',
@@ -6459,7 +6450,7 @@ async function handleGuildAutomod(req, env, path) {
   //
   // PLUS: trigger types 4 (KEYWORD_PRESET) and 5 (MENTION_SPAM) are
   // capped at 1 rule per type per guild. Whatever existing rule
-  // occupies those slots gets removed too — our managed rule has to
+  // occupies those slots gets removed too, our managed rule has to
   // be the single occupant for the create to succeed. (Name-match
   // alone misses these when Discord normalises the stored name
   // slightly differently than what we POSTed.)
@@ -6548,7 +6539,7 @@ async function handleGuildAutomod(req, env, path) {
 }
 
 // ---- /admin/ticket-panel/:guildId  (HMAC) --------------------------------
-// Body: { channelId: "<id>" } — posts the ticket-panel button in that
+// Body: { channelId: "<id>" }, posts the ticket-panel button in that
 // channel and remembers it as the panel target for future reposts /
 // stale-message replacement.
 async function handleTicketPanelPost(req, env, path) {
@@ -6604,7 +6595,7 @@ function buildDigestEmbed(p) {
   const accentInt = parseInt((p.accent || '#3A86FF').replace('#', ''), 16) || 0x3A86FF;
 
   // Top earners: fenced-code list so handles align cleanly even with
-  // wide names. Markdown won't help much in Discord embeds — the
+  // wide names. Markdown won't help much in Discord embeds, the
   // monospace block is the most legible option.
   const top = Array.isArray(p.topEarners) ? p.topEarners : [];
   let topField;
@@ -6620,23 +6611,23 @@ function buildDigestEmbed(p) {
     topField = lines.join('\n');
   }
 
-  // Highlights field — auto-pruned to skip rows that didn't happen.
+  // Highlights field, auto-pruned to skip rows that didn't happen.
   const highlights = [];
   if (p.hypeTrains > 0) highlights.push(`🚂  **${p.hypeTrains}** hype train${p.hypeTrains === 1 ? '' : 's'} (peak Lv ${p.hypeTrainMaxLevel || 0})`);
   if (p.heistsSucceeded > 0) {
-    const crew = p.biggestHeistCrew > 0 ? ` — biggest pulled with ${p.biggestHeistCrew} crewmates for ${fmtNum(p.biggestHeistPot)} ${emoji}` : '';
+    const crew = p.biggestHeistCrew > 0 ? `, biggest pulled with ${p.biggestHeistCrew} crewmates for ${fmtNum(p.biggestHeistPot)} ${emoji}` : '';
     highlights.push(`🦹  **${p.heistsSucceeded}** heist${p.heistsSucceeded === 1 ? '' : 's'} pulled${crew}`);
   }
   if (p.minigamesPlayed > 0) highlights.push(`🎰  **${fmtNum(p.minigamesPlayed)}** minigames played`);
   if (p.tipsCount > 0) {
-    const big = p.biggestTipUsd > 0 ? ` — biggest from **${p.biggestTipper || 'anonymous'}** at ${fmtUsd(p.biggestTipUsd)}` : '';
+    const big = p.biggestTipUsd > 0 ? `, biggest from **${p.biggestTipper || 'anonymous'}** at ${fmtUsd(p.biggestTipUsd)}` : '';
     highlights.push(`💖  **${p.tipsCount}** tip${p.tipsCount === 1 ? '' : 's'} totalling ${fmtUsd(p.tipsTotalUsd)}${big}`);
   }
   if (p.welcomesShown > 0) highlights.push(`👋  **${fmtNum(p.welcomesShown)}** welcome${p.welcomesShown === 1 ? '' : 's'} delivered`);
-  const highlightsField = highlights.length > 0 ? highlights.join('\n') : '_quiet week — try a hype train next stream._';
+  const highlightsField = highlights.length > 0 ? highlights.join('\n') : '_quiet week, try a hype train next stream._';
 
   return {
-    title:       `📊 Weekly digest — ${safeStreamer}`,
+    title:       `📊 Weekly digest, ${safeStreamer}`,
     description: `Here's what went down this week.`,
     color:       accentInt,
     timestamp:   new Date().toISOString(),
@@ -6652,7 +6643,7 @@ function buildDigestEmbed(p) {
         inline: true
       },
       {
-        name:   '​',                        // zero-width spacer — keeps layout stable
+        name:   '​',                        // zero-width spacer, keeps layout stable
         value:  '​',
         inline: true
       },

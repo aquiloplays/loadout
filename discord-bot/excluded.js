@@ -22,14 +22,14 @@ const EXCLUDED_DISCORD_IDS = new Set([
 ]);
 
 const EXCLUDED_TWITCH_IDS = new Set([
-  '991099623',  // Clay's Twitch channel id (prodigalttv) — active 2026-06-02
-  '1497793223', // Clay's old Twitch channel id (aquilogg) — kept for legacy wallets
+  '991099623',  // Clay's Twitch channel id (prodigalttv), active 2026-06-02
+  '1497793223', // Clay's old Twitch channel id (aquilogg), kept for legacy wallets
 ]);
 
 // Legacy username-based fallback for cross-linked wallets whose link
 // record carries only a handle (no platform id). Twitch logins can be
 // renamed, so the ID-based EXCLUDED_TWITCH_IDS above is the canonical,
-// rename-proof mechanism — a link record that carries a numeric id is
+// rename-proof mechanism, a link record that carries a numeric id is
 // matched against that set instead (see isExcludedWallet). These
 // handles only catch link records that predate id capture.
 const EXCLUDED_LINK_HANDLES = new Set([
@@ -61,7 +61,7 @@ export function isExcludedUserId(env, userId) {
  * True if the given wallet snapshot (the value side of wallet:<g>:<id>
  * or the panel's hero/checkin records) belongs to an excluded account.
  * Walks the `links` array so we catch wallets that haven't been keyed
- * to Clay's Discord ID directly — e.g. an unlinked Twitch viewer who
+ * to Clay's Discord ID directly, e.g. an unlinked Twitch viewer who
  * happens to use the `aquilogg` handle.
  */
 export function isExcludedWallet(env, userId, wallet) {
@@ -72,7 +72,7 @@ export function isExcludedWallet(env, userId, wallet) {
     if (!l) continue;
     const platform = String(l.platform || '').toLowerCase();
     // Prefer the permanent platform id when the link record carries one
-    // — rename-proof. (Twitch logins change; ids don't.)
+    //, rename-proof. (Twitch logins change; ids don't.)
     const linkId = l.id != null ? String(l.id) : (l.userId != null ? String(l.userId) : null);
     if (platform === 'twitch' && linkId && EXCLUDED_TWITCH_IDS.has(linkId)) return true;
     // Legacy fallback: handle match for link records without an id.

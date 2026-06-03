@@ -1,4 +1,4 @@
-// Gear-art archetype slugs — single source of truth for the hero
+// Gear-art archetype slugs, single source of truth for the hero
 // paper-doll worn-overlay layer (Phase 2, 2026-06).
 //
 // The 185 SHOP_POOL rows collapse to ~50 visual ARCHETYPES: every sword
@@ -14,10 +14,10 @@
 // Every archetype is rendered per-sex: the Phase 1 bodies differ in
 // vertical framing, scale, and torso/hand position between male and
 // female, so a single overlay can't register across both. (Within a
-// sex, class build varies less — overlays are extracted from a median-
+// sex, class build varies less, overlays are extracted from a median-
 // build rep and tolerate the residual, same as Phase 1 hair.)
 //
-// Rarity is NOT in the key — the base art is rarity-agnostic; the rarity
+// Rarity is NOT in the key, the base art is rarity-agnostic; the rarity
 // sheen is a CSS tint (see rarityTintHex). gearArtSlug() is the same
 // mapping used at mint (dungeon.js stamps item.art) AND at render
 // (character-composite.js, as a fallback for legacy/lootbox bag items
@@ -64,7 +64,7 @@ const MATERIAL_NAME_RULES = [
   [/robe|vestal|arcane|sun-?touched|sun crown|circlet|cowl|voidweave|stormcaller|shadow cowl|holy|priest|cleric|vestment/, 'robe'],
 ];
 const ARMOR_SLOTS = new Set(['head', 'chest', 'legs', 'boots']);
-// Boots have no distinct 'robe' silhouette — robe footwear reads as cloth.
+// Boots have no distinct 'robe' silhouette, robe footwear reads as cloth.
 const SLOT_MATERIALS = {
   head:  ['cloth', 'leather', 'mail', 'plate', 'robe'],
   chest: ['cloth', 'leather', 'mail', 'plate', 'robe'],

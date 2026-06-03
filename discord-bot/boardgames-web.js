@@ -1,4 +1,4 @@
-// /web/board/* — boardgames HTTP surface.
+// /web/board/*, boardgames HTTP surface.
 //
 // Routes (all POST, dispatched from web.js):
 //   board/snapshot         { } -> { matches, challenges, optIn, games, balance }

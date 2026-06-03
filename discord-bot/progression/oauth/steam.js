@@ -1,4 +1,4 @@
-// Steam OpenID 2.0 — sign-in flow.
+// Steam OpenID 2.0, sign-in flow.
 //
 // Steam doesn't offer OAuth, but their OpenID flow is stable + the
 // industry standard. Round trip:

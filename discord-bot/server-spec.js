@@ -1,13 +1,12 @@
 // Declarative desired-state spec for the Aquilo Discord server.
 // guild-builder.js consumes this and reconciles the actual guild
-// against it (idempotent — re-running is safe).
+// against it (idempotent, re-running is safe).
 //
 // Discord channel TYPES used here:
 //   text=0, voice=2, category=4, announcement=5, stage=13, forum=15
 //
 // Name conventions:
-//   categories      ╭— <emoji> <lowercase name> —
-//   text channels   <emoji>│<lowercase-kebab-name>   (vertical bar is U+2502)
+//   categories      ╭- <emoji> <lowercase name>, //   text channels   <emoji>│<lowercase-kebab-name>   (vertical bar is U+2502)
 //   voice channels  <emoji>│<title case>
 //
 // Permission overwrites are minimal (the bot manages them post-create
@@ -18,7 +17,7 @@ export const SERVER_SPEC = {
   // ── Categories + their channels, in display order ───────────────────
   categories: [
     {
-      name: '╭— ‼️ start here —',
+      name: '╭- ‼️ start here -',
       channels: [
         { name: '🫡│rules',         type: 'text' },
         { name: '📣│announcements', type: 'announcement' },
@@ -26,18 +25,18 @@ export const SERVER_SPEC = {
       ],
     },
     {
-      name: '╭— 💬 community —',
+      name: '╭- 💬 community -',
       channels: [
         { name: '💬│general',         type: 'text' },
         { name: '👋│introductions',   type: 'text' },
         { name: '📸│media-and-clips', type: 'text' },
         { name: '🗳️│suggestions',     type: 'text' },
-        { name: '⭐│highlights',      type: 'text', topic: 'Starboard — top-reacted posts land here.' },
-        { name: '🔢│counting',        type: 'text', topic: 'Counting game — post the next integer (no doubles).' },
+        { name: '⭐│highlights',      type: 'text', topic: 'Starboard, top-reacted posts land here.' },
+        { name: '🔢│counting',        type: 'text', topic: 'Counting game, post the next integer (no doubles).' },
       ],
     },
     {
-      name: '╭— 🔴 streams & content —',
+      name: '╭- 🔴 streams & content -',
       channels: [
         { name: '🔴│live-now', type: 'text', topic: 'Go-live announcements.' },
         { name: '📅│schedule', type: 'text', topic: 'Stream schedule + community-night signups.' },
@@ -45,7 +44,7 @@ export const SERVER_SPEC = {
       ],
     },
     {
-      name: '╭— 🛠️ products —',
+      name: '╭- 🛠️ products -',
       channels: [
         { name: '📢│updates',         type: 'text' },
         { name: '🛠️│support',         type: 'forum', topic: 'Open a thread for help with Loadout / Aquilo apps.' },
@@ -53,7 +52,7 @@ export const SERVER_SPEC = {
       ],
     },
     {
-      name: '╭— 🎮 games & play —',
+      name: '╭- 🎮 games & play -',
       channels: [
         { name: '🎮│game-night',       type: 'text' },
         { name: '🧩│looking-for-game', type: 'text', topic: 'Use /lfg to post sessions.' },
@@ -62,20 +61,20 @@ export const SERVER_SPEC = {
       ],
     },
     {
-      name: '╭— ⛏️ minecraft —',
+      name: '╭- ⛏️ minecraft -',
       channels: [
         { name: '⛏️│smp-info', type: 'text' },
         { name: '💬│smp-chat', type: 'text' },
       ],
     },
     {
-      name: '╭— 💎 patrons —',
+      name: '╭- 💎 patrons -',
       channels: [
         { name: '💎│patron-lounge', type: 'text', patronOnly: true },
       ],
     },
     {
-      name: '╭— 🔊 voice —',
+      name: '╭- 🔊 voice -',
       channels: [
         { name: '➕│join to create', type: 'voice', tempVcParent: true },
         { name: '🔊│general',        type: 'voice' },
@@ -85,7 +84,7 @@ export const SERVER_SPEC = {
       ],
     },
     {
-      name: '╭— 🛡️ staff —',
+      name: '╭- 🛡️ staff -',
       channels: [
         { name: '🧑‍✈️│staff-chat', type: 'text', staffOnly: true },
         { name: '📋│mod-log',     type: 'text', staffOnly: true },
@@ -107,7 +106,7 @@ export const SERVER_SPEC = {
     { name: 'YouTube Pings', color: 0xED4245, hoist: false, mentionable: true,  selfAssign: true },
     { name: 'Event Pings',   color: 0xFEE75C, hoist: false, mentionable: true,  selfAssign: true },
     { name: 'Game Night',    color: 0x57F287, hoist: false, mentionable: true,  selfAssign: true },
-    // Activity / progression tie-in roles — granted by the progression
+    // Activity / progression tie-in roles, granted by the progression
     // system in worker.js when a viewer crosses a level threshold.
     { name: 'Lv 5+',  color: 0x99AAB5, hoist: false, mentionable: false, levelRole: 5  },
     { name: 'Lv 10+', color: 0x99AAB5, hoist: false, mentionable: false, levelRole: 10 },

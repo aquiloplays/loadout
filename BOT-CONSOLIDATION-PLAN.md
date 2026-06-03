@@ -1,4 +1,4 @@
-# Bot consolidation plan — three bots into Loadout
+# Bot consolidation plan, three bots into Loadout
 
 > Status: **planning doc only, nothing built.** Multi-phase.
 >
@@ -17,8 +17,8 @@ on-call surface area:
 
 | Bot | App ID | Where it runs | What it does |
 | --- | --- | --- | --- |
-| **Loadout bot** | 1500849448866025573 | Cloudflare Worker (`discord-bot/` in this repo) | The big one — Bolts wallet, dungeon, leaderboard, schedule, /loadout hub, panel bridge |
-| **aquilo-bot** | 1500929968002044075 | Cloudflare Worker (`aquilo-bot/worker/`) — also has a legacy Railway Node service in `aquilo-bot/src/` | /announce + /broadcast posting; community-night poll → schedule embed → queue post; song rotation; achievements; counting; check-in; suggestions; passport; birthdays; trivia; shop; clip-of-the-week; tickets; self-roles; setup-wizard hub |
+| **Loadout bot** | 1500849448866025573 | Cloudflare Worker (`discord-bot/` in this repo) | The big one, Bolts wallet, dungeon, leaderboard, schedule, /loadout hub, panel bridge |
+| **aquilo-bot** | 1500929968002044075 | Cloudflare Worker (`aquilo-bot/worker/`), also has a legacy Railway Node service in `aquilo-bot/src/` | /announce + /broadcast posting; community-night poll → schedule embed → queue post; song rotation; achievements; counting; check-in; suggestions; passport; birthdays; trivia; shop; clip-of-the-week; tickets; self-roles; setup-wizard hub |
 | **StreamFusion bot** | 1494759611922645003 | Railway Node service (`StreamFusion/bot-service/`) | Holds a Discord Gateway WebSocket; forwards `VOICE_STATE_UPDATE` / member-join / message events to subscribed SF clients via SSE; `/post-release` webhook for release notes |
 
 The win for consolidating: **one bot per server**, one token to rotate,
@@ -36,7 +36,7 @@ of pretending it away.
 
 ## 2. What each bot does today (quick map)
 
-### Loadout bot — `discord-bot/`
+### Loadout bot, `discord-bot/`
 Already a Cloudflare Worker on the `LOADOUT_BOLTS` KV namespace. Routes
 `/interactions` and a fleet of sync/webhook endpoints. Slash commands:
 `/loadout-claim`, `/loadout`, `/stocks`, `/bet`, `/hub`, `/admin`,
@@ -44,12 +44,12 @@ Already a Cloudflare Worker on the `LOADOUT_BOLTS` KV namespace. Routes
 work. Identity model: per-guild wallet keyed by `wallet:<guildId>:<userId>`
 with a `links: []` array for cross-platform identities.
 
-### aquilo-bot — `aquilo-bot/`
+### aquilo-bot, `aquilo-bot/`
 **Currently has two live editions:** an older Railway Node app in `src/`
 (Express + discord.js v14, gateway connection) and the newer Cloudflare
 Worker in `worker/` (interactions-based, KV `STATE` + D1 `aquilo_bot_db`
 + Durable Object `OverlayBroadcaster` for the stream-overlay socket).
-The Worker edition is the canonical one going forward — the README
+The Worker edition is the canonical one going forward, the README
 calls the `src/` version "Deploy on Railway" but the Worker has full
 parity and much more (achievements, birthdays, daily polls, counting,
 passport, shop, trivia, tickets, self-roles, etc.).
@@ -64,7 +64,7 @@ night WebSocket push to overlays.
 POST surfaces: `/announce`, `/broadcast`, `/fourthwall`,
 `/counting/award-bolts`. Auth via `AQUILO_BOT_SECRET` shared secret.
 
-### StreamFusion bot — `StreamFusion/bot-service/`
+### StreamFusion bot, `StreamFusion/bot-service/`
 Node Express + `ws`. Holds **one** Discord Gateway connection with
 intents `GUILDS | GUILD_MEMBERS | GUILD_VOICE_STATES | GUILD_MESSAGES`,
 fans out events to SSE clients keyed by Patreon user, verifies each
@@ -76,16 +76,16 @@ reconnect.
 
 ---
 
-## 3. The hard constraint — voice/member events need a Gateway
+## 3. The hard constraint, voice/member events need a Gateway
 
 Discord exposes two delivery models for events:
 
-1. **HTTP Interactions** — Discord POSTs to your webhook URL per slash
+1. **HTTP Interactions**, Discord POSTs to your webhook URL per slash
    command / button click / modal submit. Stateless. Cloudflare
    Workers handle this beautifully (`/interactions` route, Ed25519
    signature verification). This is what both Loadout and the
    aquilo-bot Worker use.
-2. **Gateway WebSocket** — your bot opens an outbound WebSocket to
+2. **Gateway WebSocket**, your bot opens an outbound WebSocket to
    `wss://gateway.discord.gg`, sends an `IDENTIFY` with intents,
    receives a real-time event stream including `READY`, `GUILD_CREATE`,
    `GUILD_MEMBER_ADD`, `MESSAGE_CREATE`, **`VOICE_STATE_UPDATE`**, etc.,
@@ -102,32 +102,32 @@ host SF's voice-join detector.
 
 In rough order of "least disruptive" → "most ambitious":
 
-#### Option A — Keep a minimal standalone gateway daemon
+#### Option A, Keep a minimal standalone gateway daemon
 **Recommended for v1.** Strip `StreamFusion/bot-service/` down to just
 the Gateway listener: connect, receive events, forward them by HTTP
 POST to a new Loadout Worker endpoint (`/gateway/event`, HMAC-signed).
-Everything else — SSE fanout, Patreon verification, `/associate`,
-`/post-release` — moves into the Loadout Worker. The daemon becomes a
+Everything else, SSE fanout, Patreon verification, `/associate`,
+`/post-release`, moves into the Loadout Worker. The daemon becomes a
 ~150-line pure relay with no business logic.
 
 - ✅ One Discord app token (the merged Loadout bot's), all logic in
       the Worker, SSE/auth/routing get the Loadout deployment story.
 - ✅ Daemon stays small enough to run on Railway free tier or Fly.io
-      Hobby ($0–5/mo). Restart is trivial; no state.
+      Hobby ($0-5/mo). Restart is trivial; no state.
 - ✅ If the daemon ever goes down, the *only* feature affected is
-      voice-join detection — everything else (interactions, /announce,
+      voice-join detection, everything else (interactions, /announce,
       polls, schedule) keeps working because that's all on the
       Worker.
 - ⚠️ Two deployments still. Not "one bot" infrastructurally.
 
-#### Option B — Cloudflare Durable Object holding the Gateway
+#### Option B, Cloudflare Durable Object holding the Gateway
 A Durable Object *can* open and hold an outbound WebSocket. With the
 hibernation API (`acceptWebSocket()` on inbound, `WebSocket.setAttachment()`
 for outbound state), a DO can in theory keep a Gateway connection alive
 across hibernation cycles, with an `alarm()` driving the 41-second
 heartbeat.
 
-- ✅ "One deployment" achieved literally — everything in the Worker
+- ✅ "One deployment" achieved literally, everything in the Worker
       surface.
 - ⚠️ **Unproven.** Cloudflare's hibernation API is documented for
       *inbound* WebSockets (your DO accepting clients), not outbound
@@ -137,27 +137,26 @@ heartbeat.
 - ⚠️ Gateway requires precise heartbeat timing or Discord drops you.
       DO alarms have minute-level reliability, not second-level.
       Drift = disconnect cycles = missed voice events.
-- ⚠️ Requires the Workers Paid plan ($5/mo) — same as
+- ⚠️ Requires the Workers Paid plan ($5/mo), same as
       `aquilo-bot/worker/wrangler.toml` already does for
       `OverlayBroadcaster`, so not a new cost.
 - ⚠️ Discord's rate limits + identify limits get harder to manage
       from a hibernating context. One bad deploy and you hit the
       daily IDENTIFY cap, locking you out for 24h.
 
-#### Option C — Drop voice-join entirely
+#### Option C, Drop voice-join entirely
 If SF's voice-join feature is rarely used, the cheapest collapse is to
 remove it from the product. Then there's no Gateway requirement and
 everything goes into the Worker.
 
 - ✅ Truly one bot, one deployment.
 - ⚠️ Reduces SF's EA value prop. Worth a separate conversation with
-      SF EA users — is voice-join actually used?
+      SF EA users, is voice-join actually used?
 
-#### Option D — Manual "I'm in voice" signal from the SF client
+#### Option D, Manual "I'm in voice" signal from the SF client
 StreamFusion already runs on the user's machine. SF could detect when
 the user's Discord client is in a voice channel locally (via Discord
-RPC / IPC API on the desktop), then push that fact up to the Worker —
-no gateway listener at all. This sidesteps option A entirely.
+RPC / IPC API on the desktop), then push that fact up to the Worker, no gateway listener at all. This sidesteps option A entirely.
 
 - ✅ Truly serverless; one bot.
 - ⚠️ Requires SF to integrate with the Discord RPC protocol; that's
@@ -193,16 +192,16 @@ Worker absorb 95% of the surface.
 ### Merges with light adaptation
 - `OverlayBroadcaster` Durable Object (live game-of-the-night socket).
   DO classes can move into the Loadout Worker but the `wrangler.toml`
-  binding stays — just renamed and bound to the new Worker. **Existing
+  binding stays, just renamed and bound to the new Worker. **Existing
   socket subscribers need to be told to connect to the new hostname.**
 - The legacy `aquilo-bot/src/` Railway Node service is fully
   superseded by the Worker edition. Decommission after the migration
   cuts over.
-- Auth secrets — `AQUILO_BOT_SECRET`, `RELEASE_POST_SECRET`,
+- Auth secrets, `AQUILO_BOT_SECRET`, `RELEASE_POST_SECRET`,
   `LOADOUT_BOLT_API_SECRET`, `COUNTING_WEBHOOK_SECRET` all live as
   Wrangler secrets on the merged Worker. Some can be consolidated
   (they all serve the same "trusted webhook caller" role), but
-  rotating them at the same moment is risky — keep them separate
+  rotating them at the same moment is risky, keep them separate
   through the migration and unify later.
 
 ### Blocked by the Gateway constraint (see §3)
@@ -212,7 +211,7 @@ Worker absorb 95% of the surface.
 - StreamFusion's Patreon-token verification on `/events` (can move
   to the Worker easily).
 - StreamFusion's `/post-release` webhook (can move to the Worker;
-  no Gateway required — it just posts a message via REST).
+  no Gateway required, it just posts a message via REST).
 
 So the only piece that's actually *stuck* on a Node daemon is the
 Gateway listener itself. Everything around it lifts cleanly.
@@ -243,24 +242,23 @@ bots have to be removed.
      `Send Messages | Embed Links | Read History | Add Reactions |
      Manage Roles | Manage Channels | Manage Messages` for the
      features that need them. Some of these are **privileged intents**
-     (`GUILD_MEMBERS`, `MESSAGE_CONTENT` if SF reads message text)
-     — they have to be turned on in the dev portal AND requested via
+     (`GUILD_MEMBERS`, `MESSAGE_CONTENT` if SF reads message text), they have to be turned on in the dev portal AND requested via
      a verification process once the bot is in 75+ servers.
 - ⚠️ The Loadout bot's current presence string + avatar are
      Loadout-branded. If aquilo-bot's `/announce` is going to post as
-     "Loadout", that's a brand decision — could feel weird in servers
+     "Loadout", that's a brand decision, could feel weird in servers
      that use the bot purely for announcements.
 
 ### Keep ALL THREE app IDs (but collapse the *deployments*)
 
 - ✅ Zero re-invite work for existing servers.
-- ✅ Each bot keeps its own brand presence — "Loadout" in Loadout
+- ✅ Each bot keeps its own brand presence, "Loadout" in Loadout
      servers, "aquilo.gg" in aquilo announcement servers, "StreamFusion"
      in SF EA servers.
 - ⚠️ The Worker `/interactions` endpoint has to multiplex three
      `DISCORD_PUBLIC_KEY` values (one per app) and dispatch to the
-     right handler per app. Doable — verify all three signatures, the
-     one that matches identifies the app — but it's an extra layer of
+     right handler per app. Doable, verify all three signatures, the
+     one that matches identifies the app, but it's an extra layer of
      complexity.
 - ⚠️ Three bot tokens still in rotation, three Developer Portal apps
      to maintain.
@@ -287,7 +285,7 @@ Top-level commands published today:
 
 | Loadout (`discord-bot/commands-spec.js`) | aquilo-bot Worker (`aquilo-bot/worker/worker.js`) | SF bot |
 | --- | --- | --- |
-| `/loadout` | `/announce` | *(none — no slash commands, just `/post-release` webhook + Gateway listener)* |
+| `/loadout` | `/announce` | *(none, no slash commands, just `/post-release` webhook + Gateway listener)* |
 | `/loadout-claim` | `/hub` | |
 | `/stocks` | `/setup` | |
 | `/bet` | `/suggest` | |
@@ -325,7 +323,7 @@ overlapping verbs likely lurk in subcommands).
 | Namespace | Owner today | Action |
 | --- | --- | --- |
 | `LOADOUT_BOLTS` | Loadout Worker | Keep as-is. Bind to merged Worker. |
-| `STATE` (aquilo-bot, id `4db0dbf...`) | aquilo-bot Worker | Bind to merged Worker under a different binding name (e.g. `AQUILO_STATE`). **Do not** merge keys into `LOADOUT_BOLTS` — prefix collisions are easy, and KV namespaces are free. |
+| `STATE` (aquilo-bot, id `4db0dbf...`) | aquilo-bot Worker | Bind to merged Worker under a different binding name (e.g. `AQUILO_STATE`). **Do not** merge keys into `LOADOUT_BOLTS`, prefix collisions are easy, and KV namespaces are free. |
 
 KV bindings are cheap. Add both namespaces to the merged Worker's
 `wrangler.toml`. Migration is "wire up a binding", not "copy keys."
@@ -335,7 +333,7 @@ KV bindings are cheap. Add both namespaces to the merged Worker's
 | --- | --- | --- |
 | `aquilo_bot_db` (id `292de930...`) | aquilo-bot Worker | Bind to merged Worker as `DB`. Loadout Worker doesn't currently use D1, so no rename needed. |
 
-D1 is bound the same way — add to `wrangler.toml`, no data movement.
+D1 is bound the same way, add to `wrangler.toml`, no data movement.
 
 ### Durable Objects
 | DO class | Owner today | Action |
@@ -345,7 +343,7 @@ D1 is bound the same way — add to `wrangler.toml`, no data movement.
 ### In-memory state on SF bot
 Already lossy (Map of `guildId → users`, `userId → SSE conns`).
 Self-heals on reconnect. Migration plan: just don't drop both old SF
-bot and new merged bot at the same time — let SF clients reconnect to
+bot and new merged bot at the same time, let SF clients reconnect to
 the new endpoint with their existing Patreon tokens; they'll
 re-`/associate` automatically.
 
@@ -369,31 +367,31 @@ PATREON_CAMPAIGN_ID        # SF Patreon verification
 
 Don't bundle. Each phase ships independently with a working rollback.
 
-### Phase 0 — Decisions + spike (1 week)
+### Phase 0, Decisions + spike (1 week)
 - Pick one-app vs three-apps (§5). The recommendation is one-app
   (Loadout) but Clay's call.
 - Pick Option A vs B vs C vs D for the Gateway constraint (§3). The
-  recommendation is **A — minimal standalone gateway daemon** that
+  recommendation is **A, minimal standalone gateway daemon** that
   POSTs to a Loadout Worker endpoint.
 - Spike: prove out the daemon-to-Worker event forwarding with a real
   voice-join event hitting an SSE client end-to-end. Throw away the
   prototype after; the point is to validate the model before we
   commit.
 
-### Phase 1 — Move aquilo-bot Worker into Loadout (2 weeks)
+### Phase 1, Move aquilo-bot Worker into Loadout (2 weeks)
 - Copy `aquilo-bot/worker/` contents into `discord-bot/aquilo/` (new
-  subdir). Keep file boundaries — don't rewrite as part of the move.
+  subdir). Keep file boundaries, don't rewrite as part of the move.
 - Add `wrangler.toml` bindings for `STATE` (renamed `AQUILO_STATE`),
   `DB`, `OverlayBroadcaster`, the schedule/poll channels, achievement
   roles, all the other `[vars]` from the aquilo-bot wrangler.
-- Wire the cron handler — merged Worker's `scheduled()` dispatches
+- Wire the cron handler, merged Worker's `scheduled()` dispatches
   Loadout cron tasks AND aquilo-bot cron tasks. Time-check
   separately, no shared state needed.
-- Wire the interactions handler — `worker.js`'s slash command
+- Wire the interactions handler, `worker.js`'s slash command
   dispatcher gets the aquilo-bot command cases appended. Resolve the
-  `/hub` collision (rename aquilo's to `/aquilo-hub` for v1 — clean
+  `/hub` collision (rename aquilo's to `/aquilo-hub` for v1, clean
   later).
-- Wire the webhook endpoints — `/announce`, `/broadcast`,
+- Wire the webhook endpoints, `/announce`, `/broadcast`,
   `/fourthwall`, `/counting/*`. Auth shim accepts the existing
   secrets unchanged so external callers (Fourthwall, presence
   forwarder, CMS) don't break.
@@ -408,8 +406,8 @@ Don't bundle. Each phase ships independently with a working rollback.
   data is untouched because we never wrote to it from the new
   Worker until cutover.
 
-### Phase 2 — Move StreamFusion into Loadout (2 weeks)
-- Build the minimal gateway daemon (Option A) — fork
+### Phase 2, Move StreamFusion into Loadout (2 weeks)
+- Build the minimal gateway daemon (Option A), fork
   `StreamFusion/bot-service/index.js` down to: connect to Gateway,
   receive events, POST to merged Worker's `/gateway/event` endpoint
   with HMAC. Strip everything else.
@@ -417,7 +415,7 @@ Don't bundle. Each phase ships independently with a working rollback.
   `/post-release`, Patreon verification cache. SSE client state lives
   in a Durable Object (`SfFanout`) so multiple SF clients per user
   get the same events.
-- Move release-notes posting (`/post-release`) — pure REST call to
+- Move release-notes posting (`/post-release`), pure REST call to
   Discord, no Gateway needed; this lifts straight into the Worker
   with no daemon dependency.
 - **Cutover gate**: deploy daemon + Worker SSE alongside the existing
@@ -430,8 +428,8 @@ Don't bundle. Each phase ships independently with a working rollback.
   Daemon + new Worker code can stay deployed (no harm) while the
   bug is fixed.
 
-### Phase 3 — Cleanup + brand cohesion (1 week)
-- Resolve `/hub` properly — refactor to `/hub` with subgroups
+### Phase 3, Cleanup + brand cohesion (1 week)
+- Resolve `/hub` properly, refactor to `/hub` with subgroups
   `loadout` / `aquilo` so the namespace reflects the merged product.
 - Resolve `/admin` + `/setup` overlap.
 - Move announcement webhook customisation so posts can render as
@@ -442,7 +440,7 @@ Don't bundle. Each phase ships independently with a working rollback.
 - Delete dead env-vars; rotate the now-shared webhook secrets if
   desired.
 
-### Phase 4 — Optional: try Option B
+### Phase 4, Optional: try Option B
 If the standalone gateway daemon is annoying enough to operate (Railway
 bills, restart on deploy, etc.), prototype the Durable Object Gateway
 approach in a sidecar. Run it in parallel with the daemon for a month
@@ -462,7 +460,7 @@ to validate disconnect/identify behavior, then cut over.
   a fast "deregister + re-register" rollback if the merged bot
   misbehaves.
 - **Keep KV namespaces separate.** Tempting to consolidate into one
-  KV per Worker. Don't — namespace boundaries are a free isolation
+  KV per Worker. Don't, namespace boundaries are a free isolation
   layer. If a feature regresses, you can roll back that namespace's
   Worker module without touching the others.
 - **Health checks.** Merged Worker `/health` should return the
@@ -475,9 +473,9 @@ to validate disconnect/identify behavior, then cut over.
 ## 10. Open questions for Clay
 
 1. **Which gateway option (§3) are you committing to?** Recommendation
-   is **Option A — minimal standalone daemon, everything else in the
+   is **Option A, minimal standalone daemon, everything else in the
    Worker**. Confirm or pick a different path before we spike.
-2. **One Discord app or three?** Recommendation is **one — the
+2. **One Discord app or three?** Recommendation is **one, the
    Loadout app survives, the other two retire**. Are you OK with the
    re-invite churn (every server using aquilo-bot or SF-bot has to
    invite the Loadout bot)?
@@ -507,7 +505,7 @@ to validate disconnect/identify behavior, then cut over.
    migration (less risk of accidental downtime)? Recommendation:
    keep through, rotate at the end of phase 3.
 9. **Patreon campaign ID.** SF and Loadout both verify against
-   `PATREON_CAMPAIGN_ID` — is it the **same** campaign for both, or
+   `PATREON_CAMPAIGN_ID`, is it the **same** campaign for both, or
    does each product map to its own Patreon tier within one
    campaign? Affects how `/events` (SF) and `/loadout` Patreon
    checks share code.

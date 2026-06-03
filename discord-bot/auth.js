@@ -1,7 +1,7 @@
 // Discord Ed25519 signature verification using the discord-interactions
 // library. Earlier this file hand-rolled WebCrypto Ed25519, which works
 // in unit tests but kept failing Discord's developer-portal endpoint
-// verification — silent false return, no error trace. Switching to the
+// verification, silent false return, no error trace. Switching to the
 // library removes my code as a variable; if it can't verify, the issue
 // is elsewhere (public key mismatch, body mutation upstream, etc.).
 //
@@ -30,10 +30,10 @@ export async function verifyDiscordSignature(req, publicKeyHex) {
 // (`x-aquilo-gw-{ts,sig}`) signed with AQUILO_GATEWAY_SECRET. The
 // shim sends both during rollout; once everything's converted we can
 // retire the shared-secret path. Returns `{ ok, via }` matching the
-// verifyAdminAuth shape — callers can log `via` for observability.
+// verifyAdminAuth shape, callers can log `via` for observability.
 //
 // The shared-secret path accepts BOTH AQUILO_GATEWAY_SECRET and the
-// older COUNTING_WEBHOOK_SECRET — Clay can rotate from one to the
+// older COUNTING_WEBHOOK_SECRET, Clay can rotate from one to the
 // other without dropping forwarded events mid-flight.
 export async function verifyGatewaySig(req, env, body) {
   const legacy = req.headers.get('x-counting-secret') || '';
@@ -80,7 +80,7 @@ function hexToBytes(h) {
 // Twitch Extension JWT verification (HS256). The extension "secret" from
 // the Twitch dev console is base64-encoded; decode it to the HMAC key.
 // Returns the decoded payload ({ channel_id, opaque_user_id, user_id?,
-// role, exp, ... }) on success, or null on any failure — so callers can
+// role, exp, ... }) on success, or null on any failure, so callers can
 // treat null as "unauthorized" without distinguishing the cause.
 export async function verifyTwitchExtJwt(token, base64Secret) {
   if (!token || !base64Secret) return null;
@@ -140,7 +140,7 @@ function b64urlToBytes(s) {
   return out;
 }
 
-// Twitch Bits transaction receipt — signed with the same HS256 extension
+// Twitch Bits transaction receipt, signed with the same HS256 extension
 // secret as the auth JWT. Verifies the signature and returns the payload
 // ({ topic, exp?, data: { transactionId, userId, product: { sku, cost } } })
 // or null. `exp` is checked only when present (receipts may omit it).

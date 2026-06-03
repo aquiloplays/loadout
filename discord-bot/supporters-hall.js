@@ -1,4 +1,4 @@
-// Hall of Supporters — read-only roster of opted-in Patreon supporters.
+// Hall of Supporters, read-only roster of opted-in Patreon supporters.
 //
 // 2026-05-29 MVP unblocking the /supporter page on the site. Walks
 // the patreon:tier:<userId>:* prefix, filters opted-in patrons,

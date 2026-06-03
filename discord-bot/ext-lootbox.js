@@ -1,15 +1,15 @@
-// Tier 3 — Bits-fueled community loot boxes.
+// Tier 3, Bits-fueled community loot boxes.
 //
 // POST /ext/lootbox/roll  (JWT-gated, Bits-receipt-gated):
 //   body: { bits: <transactionReceipt JWT from Twitch.ext.bits.useBits> }
 // On valid receipt (topic=bits_transaction_receipt, sku=loot_box) the
-// purchase fans out to the whole audience — every viewer who currently
+// purchase fans out to the whole audience, every viewer who currently
 // has the panel open (tracked by the presence key below) gets one box
 // rolled into their bag, including the buyer. One purchase, one box for
 // each watcher. (Clay 2026-05: this is now a community grant, not a
 // single-viewer purchase.)
 //
-// Purchases are extension-only — verified via verifyBitsReceipt against
+// Purchases are extension-only, verified via verifyBitsReceipt against
 // TWITCH_EXT_SECRET. There is no other purchase path (no website
 // purchase, no admin grant, no slash-command buy). The website
 // /api/admin/lootbox/catalog endpoint only edits the catalog; it never
@@ -44,27 +44,27 @@ const PRODUCT_SKU = 'loot_box';
 // so any callers that destructure { glyph } don't crash.
 // 2026-06 archive: the dungeon RPG, Hero paper-doll, Clash, Vault, and Pet
 // were removed, so their gear/item drops are gone. The loot pool is now
-// Boltbound-economy only — Bolts, Aether, and Boltbound packs. Bolts/Aether
+// Boltbound-economy only, Bolts, Aether, and Boltbound packs. Bolts/Aether
 // `slot:'bolts'|'aether'` entries credit the wallet / aether ledger;
 // `slot:'pack'` mints a pending Boltbound pack via cards-packs.creditPack.
 export const DEFAULT_CATALOG = {
   items: [
-    // Bolts — the staple drop, amount scaled by rarity tier.
+    // Bolts, the staple drop, amount scaled by rarity tier.
     { slot: 'bolts',  rarity: 'common',    name: '60 Bolts',    glyph: '', amount: 60 },
     { slot: 'bolts',  rarity: 'common',    name: '120 Bolts',   glyph: '', amount: 120 },
     { slot: 'bolts',  rarity: 'rare',      name: '300 Bolts',   glyph: '', amount: 300 },
     { slot: 'bolts',  rarity: 'epic',      name: '800 Bolts',   glyph: '', amount: 800 },
     { slot: 'bolts',  rarity: 'legendary', name: '2,000 Bolts', glyph: '', amount: 2000 },
-    // Aether — premium currency, rarer tiers only.
+    // Aether, premium currency, rarer tiers only.
     { slot: 'aether', rarity: 'rare',      name: '5 Aether',    glyph: '', amount: 5 },
     { slot: 'aether', rarity: 'epic',      name: '15 Aether',   glyph: '', amount: 15 },
     { slot: 'aether', rarity: 'legendary', name: '40 Aether',   glyph: '', amount: 40 },
-    // Boltbound packs — credited via cards-packs.creditPack.
+    // Boltbound packs, credited via cards-packs.creditPack.
     { slot: 'pack',   rarity: 'common',    name: 'Boltbound Common Pack',  glyph: '', packType: 'common',  goldValue: 0 },
     { slot: 'pack',   rarity: 'rare',      name: 'Boltbound Bolt Pack',    glyph: '', packType: 'bolt',    goldValue: 0 },
     { slot: 'pack',   rarity: 'epic',      name: 'Boltbound Voltaic Pack', glyph: '', packType: 'voltaic', goldValue: 0 },
   ],
-  // Per-rarity selection weights — draw a rarity tier, then a uniform item
+  // Per-rarity selection weights, draw a rarity tier, then a uniform item
   // within. Ratios matter, not the sum. Tuned so legendaries feel rare but
   // reachable over a session of bits spending.
   weights: { common: 54, rare: 28, epic: 14, legendary: 4 },
@@ -103,7 +103,7 @@ async function currentStreamStamp(env) {
 
 // Read the panel's tw->Patreon mapping (populated by aquilo-site's
 // /api/link/callback when the viewer linked through the panel). No
-// fallback to wallet.links here — keep this path narrow and explicit.
+// fallback to wallet.links here, keep this path narrow and explicit.
 async function isPatronTw(env, userId) {
   try {
     const map = await env.LOADOUT_BOLTS.get(TW_PATREON_KEY(userId), {
@@ -197,12 +197,12 @@ function newItemId() {
 
 // ── Community fan-out ────────────────────────────────────────────────
 //
-// presence:<guild>:<userId>  — last-seen ms, 5-min TTL. Stamped from
+// presence:<guild>:<userId>, last-seen ms, 5-min TTL. Stamped from
 // handleExt on every /ext/* request, so viewers who close the panel
 // age out and the fan-out hits an accurate "who's watching with the
 // panel open right now" set.
 //
-// lbgrant:<guild>:<recipient>:<grantId> — pending "you got a community
+// lbgrant:<guild>:<recipient>:<grantId>, pending "you got a community
 // loot box from <buyer>" notification, drained by GET /ext/lootbox/grants
 // when the panel comes back to the foreground. The item itself is
 // already in the recipient's bag; this record is purely so the panel
@@ -219,7 +219,7 @@ const PRESENCE_TTL = 5 * 60; // 5 minutes
 const GRANT_KEY = (guild, recipient, gid) =>
   `lbgrant:${guild}:${recipient}:${gid}`;
 const GRANT_PREFIX = (guild, recipient) => `lbgrant:${guild}:${recipient}:`;
-const GRANT_TTL = 60 * 60; // 1h — panel has an hour to surface the toast
+const GRANT_TTL = 60 * 60; // 1h, panel has an hour to surface the toast
 const MAX_GRANT_RECIPIENTS = 500;
 
 export async function stampPresence(env, guildId, userId) {
@@ -276,7 +276,7 @@ async function grantCurrency(env, guildId, recipientId, pick) {
 async function grantOneTo(env, guildId, recipientId, catalog, buyerId) {
   const pick = rollItem(catalog);
   if (!pick) return null;
-  // Boltbound pack drop — slot:'pack' entries don't land in the gear
+  // Boltbound pack drop, slot:'pack' entries don't land in the gear
   // bag; they mint a pending Boltbound pack via cards-packs.creditPack.
   // See CARD-GAME-DESIGN.md §4.1.
   if (pick.slot === 'pack' && pick.packType) {
@@ -295,7 +295,7 @@ async function grantOneTo(env, guildId, recipientId, catalog, buyerId) {
     };
     // Pack notification ride the same grant ring buffer so the panel
     // can toast "you got a Boltbound Bolt Pack". The pack itself is
-    // already pending under cards:pending — open it via /boltbound.
+    // already pending under cards:pending, open it via /boltbound.
     if (recipientId !== buyerId) {
       const gid = newItemId().slice(0, 12);
       try {
@@ -308,7 +308,7 @@ async function grantOneTo(env, guildId, recipientId, catalog, buyerId) {
     }
     return packItem;
   }
-  // Bolts / Aether currency drop — credited to the wallet / aether ledger.
+  // Bolts / Aether currency drop, credited to the wallet / aether ledger.
   if (pick.slot === 'bolts' || pick.slot === 'aether') {
     const item = await grantCurrency(env, guildId, recipientId, pick);
     item.foundIn = recipientId === buyerId ? 'Community Loot Box (yours)' : 'Community Loot Box';
@@ -328,7 +328,7 @@ async function grantOneTo(env, guildId, recipientId, catalog, buyerId) {
   item.foundIn = recipientId === buyerId ? 'Community Loot Box (yours)' : 'Community Loot Box';
   await appendToBag(env, guildId, recipientId, item);
   // Notification record so the recipient's panel can toast. Skip for
-  // the buyer — they get the box back in the response body directly.
+  // the buyer, they get the box back in the response body directly.
   if (recipientId !== buyerId) {
     const gid = newItemId().slice(0, 12);
     try {
@@ -366,13 +366,13 @@ export async function rollLootBox(env, guildId, userId, req, ctx) {
 
   const catalog = await loadCatalog(env);
   // Grant the buyer's own box up front so we can return it in the
-  // response — the buyer always gets at least one, even if presence
+  // response, the buyer always gets at least one, even if presence
   // listing somehow misses them (race with the TTL).
   const buyerItem = await grantOneTo(env, guildId, userId, catalog, userId);
   if (!buyerItem) return json({ error: 'empty-catalog' }, 500);
 
   const viewers = await listCurrentViewers(env, guildId);
-  // Strip the buyer from the fan-out — they already got their box.
+  // Strip the buyer from the fan-out, they already got their box.
   const others = viewers.filter((id) => id !== userId);
 
   // Async fan-out. The buyer's response returns immediately; the other
@@ -423,7 +423,7 @@ export async function drainLootBoxGrants(env, guildId, userId) {
 //     Patreon link flow), the larger of the two when both apply.
 //
 // subscribed: passed by the panel as ?subscribed=1 from
-// Twitch.ext.viewer.subscriptionStatus — the JWT itself doesn't carry
+// Twitch.ext.viewer.subscriptionStatus, the JWT itself doesn't carry
 // subscription state, same pattern Tier-1 patron-corner uses.
 export async function rollLootBoxFree(env, guildId, userId, req) {
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
@@ -462,7 +462,7 @@ export async function rollLootBoxFree(env, guildId, userId, req) {
   const pick = rollItem(catalog);
   if (!pick) return json({ error: 'empty-catalog' }, 500);
 
-  // Boltbound pack — mint via cards-packs.creditPack instead of bag.
+  // Boltbound pack, mint via cards-packs.creditPack instead of bag.
   let item;
   if (pick.slot === 'pack' && pick.packType) {
     const { creditPack } = await import('./cards-packs.js');
@@ -489,7 +489,7 @@ export async function rollLootBoxFree(env, guildId, userId, req) {
 
   // Increment AFTER the roll so a roll failure (catalog empty, KV
   // write throwing) doesn't burn a free box. KV is eventually
-  // consistent — a fast double-click could in theory let a viewer
+  // consistent, a fast double-click could in theory let a viewer
   // claim allowance+1 on rare occasions; the blast radius is small
   // enough that we don't pay the Durable-Objects price to avoid it.
   await env.LOADOUT_BOLTS.put(counterKey, String(used + 1), {
@@ -507,7 +507,7 @@ export async function rollLootBoxFree(env, guildId, userId, req) {
   });
 }
 
-// GET /ext/lootbox/free-state — what the panel calls on load to decide
+// GET /ext/lootbox/free-state, what the panel calls on load to decide
 // whether to show a "Free loot box" button + how many are left.
 export async function freeLootBoxState(env, guildId, userId, req) {
   const url = new URL(req.url);

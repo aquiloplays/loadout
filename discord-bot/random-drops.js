@@ -1,4 +1,4 @@
-// Random Drops — rarity-weighted community chest spawns.
+// Random Drops, rarity-weighted community chest spawns.
 //
 // 2026-05-31 sprint. Every 2 hours a chest spawns for the community to
 // claim (first-click-claims, limited slots). The rarity is weighted; the
@@ -155,7 +155,7 @@ export async function getRandomDropState(env, guildId, userId) {
   };
 }
 
-// Cron entry — fires from the every-minute trigger. Self-gates to
+// Cron entry, fires from the every-minute trigger. Self-gates to
 // even-hour:00 (the `0 */2 * * *` cadence) via a 2-hour-bucket KV
 // marker so it spawns at most once per 2-hour window. No-op otherwise.
 export async function randomDropCron(env, opts = {}) {

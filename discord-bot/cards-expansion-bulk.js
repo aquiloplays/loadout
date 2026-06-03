@@ -1,4 +1,4 @@
-// Boltbound — bulk expansion-set generator (CR-2 scale-up to 200/set).
+// Boltbound, bulk expansion-set generator (CR-2 scale-up to 200/set).
 //
 // Clay 2026-06-03: each quarterly expansion is now 200 cards (~120 minions
 // + ~60 spells + ~20 legendaries). Voidborn keeps its 50 hand-authored
@@ -15,7 +15,7 @@
 // flavour are assembled from per-set word pools in the Aquilo voice: dry,
 // dark-humoured, no em dashes, no fantasy cliche.
 //
-// IDs: `<slug>.x<NNN>` for cards, `<slug>.t<N>` for generated tokens — a
+// IDs: `<slug>.x<NNN>` for cards, `<slug>.t<N>` for generated tokens, a
 // distinct namespace from the hand-authored `voidborn.c01` / `voidborn.tok.*`
 // so nothing collides (verified by the dedupe + schema checks in
 // cards-content.js).
@@ -30,7 +30,7 @@ function hashStr(s) {
 function pick(seedStr, n) { return n <= 0 ? 0 : hashStr(seedStr) % n; }
 function choose(seedStr, arr) { return arr[pick(seedStr, arr.length)]; }
 
-// Vanilla stat budget — mirrors cards-expansion.js: 2*mana+1 + rarity
+// Vanilla stat budget, mirrors cards-expansion.js: 2*mana+1 + rarity
 // bonus, minus the cost of keywords/abilities, split by a bias.
 const RARITY_BONUS = { common: 0, uncommon: 1, rare: 2, legendary: 4 };
 const KW_COST = { taunt: 0, charge: 2, rush: 1, shield: 1, stealth: 1, lifesteal: 2, poison: 2, reach: 1, 'spell-immune': 2, reborn: 2, echo: 1 };
@@ -325,7 +325,7 @@ function assignMinion(card, cfg, seed, mana, rarity, idx) {
     }
     return;
   }
-  // Ability minion — set-flavoured.
+  // Ability minion, set-flavoured.
   if (cfg.deathrattle && pick(seed + 'dr', 2) === 0) {
     // Deathrattle minion (voidborn focus).
     const drRoll = pick(seed + 'drk', 4);

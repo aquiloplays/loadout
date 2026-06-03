@@ -1,4 +1,4 @@
-// Unit tests for pvp-combat.js — the deterministic D20 hero-duel resolver.
+// Unit tests for pvp-combat.js, the deterministic D20 hero-duel resolver.
 // Covers: determinism (same seed → identical log), termination (turn cap),
 // HP/winner invariants, dodge/crit/fumble edges, and each combat ability
 // (lifesteal, first-hit-immune, death-save, execute, reflect) plus statuses
@@ -32,7 +32,7 @@ function C(over = {}) {
 }
 
 // ── determinism ──────────────────────────────────────────────────────────
-console.log('— determinism');
+console.log('- determinism');
 {
   const a = C({ userId: 'a', name: 'Aytch', className: 'rogue', critPct: 10, dodgePct: 10 });
   const b = C({ userId: 'b', name: 'Bishop', className: 'mage', critPct: 10, dodgePct: 5 });
@@ -46,7 +46,7 @@ console.log('— determinism');
 }
 
 // ── termination + HP/winner invariants over many seeds ─────────────────────
-console.log('— invariants across 400 seeded battles');
+console.log('- invariants across 400 seeded battles');
 {
   let drawCount = 0, koCount = 0, maxTurns = 0;
   for (let i = 0; i < 400; i++) {
@@ -81,7 +81,7 @@ console.log('— invariants across 400 seeded battles');
 }
 
 // ── damage applied equals hp drop ──────────────────────────────────────────
-console.log('— damage accounting');
+console.log('- damage accounting');
 {
   // High-atk, no-dodge attacker vs a fragile defender: trace hp deltas.
   const a = C({ userId: 'a', atk: 12, def: 0, dodgePct: 0, critPct: 0, hpMax: 100 });
@@ -104,7 +104,7 @@ console.log('— damage accounting');
 }
 
 // ── dodge: a 95% dodger almost never gets hit by basic attacks ──────────────
-console.log('— dodge');
+console.log('- dodge');
 {
   const a = C({ userId: 'a', atk: 8, critPct: 0 });
   const b = C({ userId: 'b', atk: 1, dodgePct: 95, hpMax: 200, def: 0 });
@@ -115,7 +115,7 @@ console.log('— dodge');
 }
 
 // ── lifesteal heals the attacker ───────────────────────────────────────────
-console.log('— lifesteal');
+console.log('- lifesteal');
 {
   const a = C({ userId: 'a', atk: 12, def: 0, abilities: ['lifesteal'], hpMax: 60 });
   const b = C({ userId: 'b', atk: 8, def: 0, hpMax: 60 });
@@ -125,7 +125,7 @@ console.log('— lifesteal');
 }
 
 // ── first-hit immunity shrugs off exactly one blow ──────────────────────────
-console.log('— first-hit immune');
+console.log('- first-hit immune');
 {
   const a = C({ userId: 'a', atk: 12, def: 0, critPct: 0, dodgePct: 0 });
   const b = C({ userId: 'b', atk: 1, def: 0, abilities: ['first-hit-immune'], hpMax: 200, dodgePct: 0 });
@@ -135,7 +135,7 @@ console.log('— first-hit immune');
 }
 
 // ── death save: survive lethal once at 1 hp ─────────────────────────────────
-console.log('— death save');
+console.log('- death save');
 {
   const a = C({ userId: 'a', atk: 40, def: 0, critPct: 0, dodgePct: 0 });
   const b = C({ userId: 'b', atk: 1, def: 0, abilities: ['death-save-once'], hpMax: 20, dodgePct: 0 });
@@ -146,7 +146,7 @@ console.log('— death save');
 }
 
 // ── execute: rogue crit KOs a low target ────────────────────────────────────
-console.log('— execute');
+console.log('- execute');
 {
   // Force crits via critPct 95; rogue with execute vs a target it can bring low.
   const a = C({ userId: 'a', className: 'rogue', atk: 10, def: 0, critPct: 95, abilities: ['execute'], dodgePct: 0 });
@@ -159,7 +159,7 @@ console.log('— execute');
 }
 
 // ── reflect: mage returns damage to the attacker ────────────────────────────
-console.log('— reflect');
+console.log('- reflect');
 {
   const a = C({ userId: 'a', atk: 14, def: 0, critPct: 0, dodgePct: 0, hpMax: 80 });
   const b = C({ userId: 'b', className: 'mage', atk: 1, def: 0, abilities: ['reflect'], hpMax: 200, dodgePct: 0 });
@@ -169,7 +169,7 @@ console.log('— reflect');
 }
 
 // ── ultimate fires once at low HP ───────────────────────────────────────────
-console.log('— ultimate (low-HP signature)');
+console.log('- ultimate (low-HP signature)');
 {
   // Even match so both drop low; assert each side fires at most one ultimate.
   const a = C({ userId: 'a', className: 'mage', atk: 7, def: 1, hpMax: 30 });
@@ -187,7 +187,7 @@ console.log('— ultimate (low-HP signature)');
 }
 
 // ── statuses: mage crit applies burn (DoT tick) ─────────────────────────────
-console.log('— status effects');
+console.log('- status effects');
 {
   const a = C({ userId: 'a', className: 'mage', atk: 10, def: 0, critPct: 95, dodgePct: 0 });
   const b = C({ userId: 'b', atk: 1, def: 0, hpMax: 200, dodgePct: 0 });
@@ -197,7 +197,7 @@ console.log('— status effects');
 }
 
 // ── combatantFromHero maps stats correctly ──────────────────────────────────
-console.log('— combatantFromHero');
+console.log('- combatantFromHero');
 {
   const hero = { className: 'Healer', level: 7, hpMax: 30 };
   const eff = { atk: 9, def: 4, bonus: { hpFlat: 10, critPct: 12, dodgePct: 8, abilities: ['lifesteal'] } };
@@ -215,5 +215,5 @@ console.log('— combatantFromHero');
   eq(bad.atk, 4, 'default atk floor');
 }
 
-console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAIL'} — ${pass} passed, ${fail} failed`);
+console.log(`\n${fail === 0 ? '✅ ALL PASS' : '❌ FAIL'}, ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

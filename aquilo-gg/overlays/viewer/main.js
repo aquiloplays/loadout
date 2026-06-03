@@ -17,7 +17,7 @@
   const duration = parseInt(params.get('duration') || '10000', 10);
   const debug = params.get('debug') === '1';
 
-  // Position — historically `align`; also accept `pos` so the
+  // Position, historically `align`; also accept `pos` so the
   // all-in-one composite drives every overlay with one consistent
   // param name. `align` wins if both are somehow set.
   const align = params.get('align') || params.get('pos');
@@ -99,8 +99,7 @@
        </div>`).join('');
 
     // Socials + gamer tags chips. Each chip renders the real brand
-    // SVG from simpleicons.org rather than an emoji approximation —
-    // a Twitter chip shows the X bird, a PSN chip shows the Sony
+    // SVG from simpleicons.org rather than an emoji approximation, // a Twitter chip shows the X bird, a PSN chip shows the Sony
     // PlayStation logo, etc. Falls back to a plain "@" pill if the
     // platform isn't in the slug map (rare; whitelist covers the
     // common cases).

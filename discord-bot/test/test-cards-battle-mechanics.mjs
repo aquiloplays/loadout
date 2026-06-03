@@ -60,7 +60,7 @@ function legal(m, side, action) { m.active = side; return isLegalAction(m, { ...
 console.log('rush:');
 {
   const m = freshMatch();
-  play(m, 'A', 'beast.u004');           // Vale Boar — rush
+  play(m, 'A', 'beast.u004');           // Vale Boar, rush
   const r = lastBoard(m, 'A');
   ok(r.canAttack === true, 'rush minion can attack the turn it is played');
   ok(has(r, 'rush-fresh'), 'rush minion carries rush-fresh the turn it lands');
@@ -76,7 +76,7 @@ console.log('rush:');
   const r2 = m.board.A.find(x => x.cardId === 'beast.u004');
   ok(r2 && !has(r2, 'rush-fresh'), 'rush-fresh clears on the owner\'s next turn');
   // (A taunt minion may still block face; what we assert is that the rush
-  // window itself has lifted — no longer 'rush-no-hero'.)
+  // window itself has lifted, no longer 'rush-no-hero'.)
   const faceLegal2 = legal(m, 'A', { kind: 'attack', attackerUid: r2.uid, defenderUid: 'hero' });
   ok(faceLegal2.reason !== 'rush-no-hero', 'rush face-restriction lifts on later turns');
 }
@@ -87,7 +87,7 @@ console.log('freeze:');
   const m = freshMatch();
   play(m, 'B', 'tok.boneknight');       // a B minion to be frozen
   const victim = lastBoard(m, 'B');
-  play(m, 'A', 'spire.s06.permafrost'); // Permafrost Lich — onPlay freeze allEnemyMinions
+  play(m, 'A', 'spire.s06.permafrost'); // Permafrost Lich, onPlay freeze allEnemyMinions
   ok(has(victim, 'frozen'), 'Permafrost Lich freezes enemy minions on play');
   victim.canAttack = true;              // even if it could, frozen blocks it
   const fl = legal(m, 'B', { kind: 'attack', attackerUid: victim.uid, defenderUid: 'hero' });
@@ -102,7 +102,7 @@ console.log('freeze:');
 console.log('spell-immune:');
 {
   const m = freshMatch();
-  play(m, 'B', 'arcane.c002');          // Apprentice — spell-immune
+  play(m, 'B', 'arcane.c002');          // Apprentice, spell-immune
   const immune = lastBoard(m, 'B');
   const immHpBefore = immune.hp;
   play(m, 'B', 'tok.boneknight');       // a normal minion for comparison
@@ -182,7 +182,7 @@ console.log('revealAndDraw:');
 console.log('taunt:');
 {
   const m = freshMatch();
-  play(m, 'B', 'r.boltknight');     // Bolt Knight — Taunt 4/5
+  play(m, 'B', 'r.boltknight');     // Bolt Knight, Taunt 4/5
   play(m, 'B', 'test.vanilla');     // a guaranteed non-taunt body
   const taunt = m.board.B.find(x => x.cardId === 'r.boltknight');
   const nontaunt = m.board.B.find(x => x.cardId === 'test.vanilla');
@@ -200,10 +200,10 @@ console.log('taunt:');
 console.log('divine shield (shield):');
 {
   const m = freshMatch();
-  play(m, 'B', 'u.tankknight');     // Tank Knight — Shield 4/6
+  play(m, 'B', 'u.tankknight');     // Tank Knight, Shield 4/6
   const sh = lastBoard(m, 'B');
   const hp0 = sh.hp;
-  play(m, 'A', 'u.firebolt', sh.uid);   // 3 dmg — absorbed by the shield
+  play(m, 'A', 'u.firebolt', sh.uid);   // 3 dmg, absorbed by the shield
   eq(sh.hp, hp0, 'Ward negates the first instance of damage');
   ok(!has(sh, 'shield'), 'the shield is consumed after blocking once');
   play(m, 'A', 'u.firebolt', sh.uid);   // now it lands
@@ -217,7 +217,7 @@ console.log('poison:');
   play(m, 'A', 'u.honeybadger');    // 2/3 Poison
   const pois = lastBoard(m, 'A');
   pois.canAttack = true; pois.status = (pois.status || []).filter(s => s !== 'rush-fresh');
-  play(m, 'B', 'test.vanilla');     // 7/6 — far more HP than the badger's 2 atk
+  play(m, 'B', 'test.vanilla');     // 7/6, far more HP than the badger's 2 atk
   const big = lastBoard(m, 'B');
   m.active = 'A';                   // playing on B flipped the active side
   applyAction(m, { kind: 'attack', side: 'A', attackerUid: pois.uid, defenderUid: big.uid });
@@ -261,7 +261,7 @@ console.log('deathrattle:');
 {
   const m = freshMatch();
   m.hands.A = [];
-  play(m, 'A', 'voidborn.c01');     // Drift Lantern — Deathrattle: draw a card
+  play(m, 'A', 'voidborn.c01');     // Drift Lantern, Deathrattle: draw a card
   const lantern = lastBoard(m, 'A');
   lantern.hp = 0;
   play(m, 'A', 'tok.boneknight');   // any play resolves deaths
@@ -272,7 +272,7 @@ console.log('deathrattle:');
 console.log('reborn:');
 {
   const m = freshMatch();
-  play(m, 'A', 'voidborn.c07');     // Threadbare Revenant — Reborn 2/3
+  play(m, 'A', 'voidborn.c07');     // Threadbare Revenant, Reborn 2/3
   const first = lastBoard(m, 'A');
   first.hp = 0;
   play(m, 'A', 'tok.boneknight');
@@ -297,23 +297,23 @@ console.log('recruit:');
   ok(m.board.A.some(x => x.cardId === 'tok.boneknight'), 'the recruited body is a deck minion');
 }
 
-// ── COMBO (Embercrown/Tides preview — synthetic card) ────────────────
+// ── COMBO (Embercrown/Tides preview, synthetic card) ────────────────
 console.log('combo:');
 {
   const m = freshMatch();
   const hp0 = m.hp.B;
-  play(m, 'A', 'test.combo');     // FIRST card this turn — combo must NOT fire
+  play(m, 'A', 'test.combo');     // FIRST card this turn, combo must NOT fire
   eq(m.hp.B, hp0, 'Combo does not fire on the first card of the turn');
 }
 {
   const m = freshMatch();
   const hp0 = m.hp.B;
   play(m, 'A', 'tok.boneknight'); // a first card
-  play(m, 'A', 'test.combo');     // second card — combo fires for 5 to face
+  play(m, 'A', 'test.combo');     // second card, combo fires for 5 to face
   eq(m.hp.B, hp0 - 5, 'Combo fires when it is not the turn\'s first card');
 }
 
-// ── OVERLOAD (Tides preview — synthetic card) ────────────────────────
+// ── OVERLOAD (Tides preview, synthetic card) ────────────────────────
 console.log('overload:');
 {
   const m = freshMatch();

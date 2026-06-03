@@ -1,4 +1,4 @@
-// Twitch event rewards — cross-credit aquilo users for Twitch activity
+// Twitch event rewards, cross-credit aquilo users for Twitch activity
 // (Clay 2026-05-28).
 //
 // When a Twitch EventSub notification fires (follow / sub / resub /
@@ -17,7 +17,7 @@
 //   gift given         giver gets 20% of recipient's bolt reward
 //   cheer              floor(bits / 10) bolts
 //   raid leader        +1,000 bolts (raiders' per-user rewards skipped
-//                                    — channel.raid payload doesn't carry
+//, channel.raid payload doesn't carry
 //                                    individual raider Twitch ids)
 //
 // Each reward posts a small embed to the `twitch-rewards-feed` channel
@@ -33,12 +33,12 @@
 //   twitch-rewards:role:<gid>:<tier>  → role snowflake (set by
 //                                       ensureRewardRoles)
 //   twitch-rewards:expiry             → JSON array [{userId, roleId,
-//                                       guildId, expiresAtMs}] — generic
+//                                       guildId, expiresAtMs}], generic
 //                                       expiry list; cron sweeps it.
 //
 // Anti-abuse:
 //   • follow: lifetime KV flag prevents unfollow-then-refollow farming
-//   • sub/cheer: no extra anti-abuse — Twitch verifies the purchase
+//   • sub/cheer: no extra anti-abuse, Twitch verifies the purchase
 //   • cheer cap: caller's choice; default is no cap (bits cost money,
 //     a 10k-bit cheer is intended to reward 1000 bolts)
 
@@ -70,7 +70,7 @@ const ROLE_TIER_NAME = Object.freeze({
 const ROLE_TIER_COLOR = Object.freeze({
   '1000':  0x7c5cff,  // violet
   '2000':  0xff6ab5,  // pink
-  '3000':  0x5bff95,  // green — top tier
+  '3000':  0x5bff95,  // green, top tier
   'Prime': 0x7c5cff,
 });
 
@@ -112,7 +112,7 @@ async function resolveAquiloId(env, twitchUserId) {
 //
 // Creates "Twitch Sub" / "Twitch Sub T2" / "Twitch Sub T3" roles if
 // missing, persists their IDs at `twitch-rewards:role:<gid>:<tier>`
-// KV. Idempotent — re-running matches existing roles by name.
+// KV. Idempotent, re-running matches existing roles by name.
 
 export async function ensureRewardRoles(env, guildId) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
@@ -182,7 +182,7 @@ async function scheduleRoleRemoval(env, guildId, userId, roleId, durationMs) {
   await saveExpiryList(env, list);
 }
 
-// Cron entry — sweeps expired sub-tier roles. Same retry-on-failure
+// Cron entry, sweeps expired sub-tier roles. Same retry-on-failure
 // shape as the counting.js sweep fix: 404 → drop, other → keep with
 // retries counter, max 24 attempts.
 const MAX_RETRIES = 24;
@@ -278,7 +278,7 @@ async function postRewardEmbed(env, guildId, payload) {
 // streakMonths, cumulativeMonths, recipientTwitchUserId, total }).
 //
 // Returns { ok, action, granted: [...], skipped?, embed? }.
-// Never throws — all error paths return ok:false with a `reason`.
+// Never throws, all error paths return ok:false with a `reason`.
 
 export async function grantTwitchEventReward(env, twitchUserId, eventType, eventData = {}) {
   const guildId = env.AQUILO_VAULT_GUILD_ID;
@@ -393,7 +393,7 @@ async function handleCheerReward(env, guildId, aquiloId, twitchUserId, ev) {
 }
 
 async function handleRaidLeaderReward(env, guildId, aquiloId, twitchUserId, ev) {
-  // Per-raider rewards skipped — channel.raid payload only includes
+  // Per-raider rewards skipped, channel.raid payload only includes
   // the raider (broadcaster) id + viewer count, not individual viewer
   // Twitch ids. Leader gets the +1000 bolts.
   const grant = await grantBolts(env, guildId, aquiloId, RAID_LEADER_BOLTS, 'twitch:raid-leader');
@@ -402,7 +402,7 @@ async function handleRaidLeaderReward(env, guildId, aquiloId, twitchUserId, ev) 
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.fromBroadcasterName || 'Raider' },
     description: `⚔️ **Raided with ${viewers.toLocaleString()} viewer${viewers === 1 ? '' : 's'}** → <@${aquiloId}> earned **+${RAID_LEADER_BOLTS}** bolts (raid-leader bonus).`,
-    footer: { text: 'Per-raider bonuses unavailable — Twitch doesn\'t share individual raider ids' },
+    footer: { text: 'Per-raider bonuses unavailable, Twitch doesn\'t share individual raider ids' },
   });
   return { ok: true, action: 'granted', granted: [{ bolts: RAID_LEADER_BOLTS }], embed };
 }

@@ -7,7 +7,7 @@
 // Re-runnable / idempotent: already-cleaned channels report 0 deleted.
 //
 // Env:
-//   CLEANUP_TOKEN   required — matches KV bootstrap-discord-cleanup-token
+//   CLEANUP_TOKEN   required, matches KV bootstrap-discord-cleanup-token
 //   GUILD_ID        default 1504103035951906883 (Aquilo guild)
 //   WORKER_BASE     default https://loadout-discord.aquiloplays.workers.dev
 //   RUN_ID          default cleanup-<unix>  (shared archive key namespace)

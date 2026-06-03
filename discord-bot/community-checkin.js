@@ -1,14 +1,14 @@
-// Daily community check-in — unified across the website and Discord.
+// Daily community check-in, unified across the website and Discord.
 //
 // This is check-in #1, the "community daily check-in." It is DISTINCT
 // from the Twitch-extension stream check-in in ext.js (which lives on
 // `checkin:<g>:<u>` with `tw:<twitchId>` userIds and protects with the
 // 'stream'-type freeze). The earlier Discord pic-attachment check-in
-// in aquilo-bot/checkin.js was retired 2026-05 — this module is the
+// in aquilo-bot/checkin.js was retired 2026-05, this module is the
 // single Discord-side community check-in going forward.
 //
 // User-facing contract (per Clay):
-//   • A viewer can check in from aquilo.gg OR from Discord — the two
+//   • A viewer can check in from aquilo.gg OR from Discord, the two
 //     dedup against ONE record per ET day. Surface doesn't matter;
 //     they get one check-in per day regardless.
 //   • The embed posted to the Discord check-in channel shows: their
@@ -22,15 +22,15 @@
 //     cutoff. Miss → 0, unless they hold a streak shield (a
 //     'discord'-type entry in streak-freeze.js), in which case the
 //     shield is consumed and the streak is preserved.
-//   • Daily bonuses are made AVAILABLE TO COLLECT — not auto-granted.
+//   • Daily bonuses are made AVAILABLE TO COLLECT, not auto-granted.
 //     /web/checkin/bonus/collect drains the queue.
 //
 // KV layout (all on LOADOUT_BOLTS):
-//   community-checkin:<g>:<u>        — streak state
+//   community-checkin:<g>:<u>, streak state
 //     { streak, longest, lastDayEt, total, lastUtc, lastSurface }
-//   checkin-card:<g>:<u>             — site-controlled embed customisation
+//   checkin-card:<g>:<u>, site-controlled embed customisation
 //     { imageUrl, accentColor?, headline?, subtitle?, updatedUtc }
-//   community-checkin-bonus:<g>:<u>  — queue of unclaimed bonuses
+//   community-checkin-bonus:<g>:<u>, queue of unclaimed bonuses
 //     { pending: [{ id, kind, amount, label, grantedUtc }] }
 
 import { earn, getWallet } from './wallet.js';
@@ -42,7 +42,7 @@ const STATE_KEY = (g, u) => `community-checkin:${g}:${u}`;
 const CARD_KEY  = (g, u) => `checkin-card:${g}:${u}`;
 const QUEUE_KEY = (g, u) => `community-checkin-bonus:${g}:${u}`;
 
-// Daily payout — base bolts the user can claim once per day after
+// Daily payout, base bolts the user can claim once per day after
 // checking in. v2 rebalance (2026-05): paced through economy-pace.js
 // so retunes are a single edit. v1 was 5 base / 5-15-50 streak;
 // v2 is 2 base / 3-8-25 streak (slower wallet growth, milestone
@@ -61,7 +61,7 @@ export const STREAK_MILESTONES = [
 const DEFAULT_ACCENT = 0xF47FFF;
 const DEFAULT_IMAGE_URL =
   'https://aquilo.gg/sprites/checkin/default-card.png';
-// Where the website hosts the "customise your card" page — derived
+// Where the website hosts the "customise your card" page, derived
 // per-guild from branding.siteUrl at call time. The customizer is
 // mounted under /profile (ProfileHub → CheckinCardCustomizer); the
 // older /checkin path was a 404.
@@ -145,7 +145,7 @@ export async function putCard(env, guildId, userId, card) {
     if (v && !/^https:\/\//i.test(v)) return { ok: false, error: 'custom-avatar-url-must-be-https' };
     next.customAvatarUrl = v.slice(0, 500) || null;
   }
-  // backgroundId — the picker on aquilo.gg writes a slug ("fireflies-
+  // backgroundId, the picker on aquilo.gg writes a slug ("fireflies-
   // violet", "aurora", etc.) here. The site owns the slug → CDN URL
   // mapping (GET /api/web/checkin/backgrounds returns the catalog);
   // the worker just stores the slug so the embed renderer can ask
@@ -165,7 +165,7 @@ export async function putCard(env, guildId, userId, card) {
     }
   }
   // Pass-through for the legacy theme/effect strings the v1 picker
-  // wrote. Don't validate — they're already in the wild on saved
+  // wrote. Don't validate, they're already in the wild on saved
   // records and the site is the source of truth for shape.
   if (card?.theme !== undefined) {
     next.theme = card.theme == null ? null : String(card.theme).slice(0, 60);
@@ -199,7 +199,7 @@ function bonusId(kind, day, salt) {
 
 async function enqueueBonus(env, guildId, userId, bonus) {
   const q = await loadQueue(env, guildId, userId);
-  // De-dup by id — re-firing the same bonus on a same-day retry
+  // De-dup by id, re-firing the same bonus on a same-day retry
   // shouldn't double-pay.
   if (q.pending.some(b => b.id === bonus.id)) return q;
   q.pending.push(bonus);
@@ -268,14 +268,14 @@ async function resolveAvatar(env, userId, card, member) {
   return { url: fallback, source: 'discord' };
 }
 
-// ── Check-in embed v2 — composite renderer stub ──────────────────────
+// ── Check-in embed v2, composite renderer stub ──────────────────────
 //
 // Variant C spec (2026-05-27, awaiting Clay's final pick):
 //   * Background dimensions: 1200×675 (user-selected card image,
 //     stored under the user's card record).
 //   * Foreground: chosen GIF resized to ~35% canvas width, centered
 //     over the background. Soft radial vignette behind for legibility.
-//   * Per-frame composite — for each frame of the source GIF, paste
+//   * Per-frame composite, for each frame of the source GIF, paste
 //     the resized frame over the bg with the vignette. Re-export as
 //     a single animated GIF.
 //   * Cache by sha256(bgId + '|' + gifUrl) → composite URL. KV key
@@ -354,7 +354,7 @@ async function composeCheckinCard(env, { bgUrl, gifUrl, bgId }) {
 }
 
 // HMAC-signed POST helper for the site composite endpoint. Mirrors
-// daily-bonus-push.js signedPost — same x-aquilo-web-ts/sig contract,
+// daily-bonus-push.js signedPost, same x-aquilo-web-ts/sig contract,
 // inlined to keep this module's import surface narrow.
 async function siteSignedPost(secret, url, payloadObj) {
   const body = JSON.stringify(payloadObj);
@@ -378,7 +378,7 @@ async function siteSignedPost(secret, url, payloadObj) {
 
 async function postCheckinEmbed(env, guildId, userId, state, card, member, isFirstTimeNoCard, opts = {}) {
   // Resolution order:
-  //   1. channel-binding(checkin-results) — KV-only, set by Clay
+  //   1. channel-binding(checkin-results), KV-only, set by Clay
   //      to route result embeds away from the hub channel
   //   2. legacy admin-menu getCheckinChannel (KV `checkin:channel:guild:<g>`)
   //   3. null → no-op skip with reason
@@ -400,7 +400,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   const brand   = await getBranding(env, guildId);
   const accent  = (card?.accentColor != null ? card.accentColor : (brand.accentColor || DEFAULT_ACCENT));
 
-  // CHECKIN_EMBED_V2 (variant C) — server-side composite of the
+  // CHECKIN_EMBED_V2 (variant C), server-side composite of the
   // user-selected card background with the chosen GIF centered over
   // it (~35% width, soft radial vignette behind for legibility),
   // exported as a fresh animated GIF and cached by
@@ -424,7 +424,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
         thumbnailOverride = opts.gifUrl;
       }
     } catch (e) {
-      // Composite failed — log and fall through to v1 image stack so
+      // Composite failed, log and fall through to v1 image stack so
       // the check-in still posts cleanly.
       console.warn('[checkin-v2] compose failed:', e?.message || e);
     }
@@ -432,7 +432,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   // Embed image comes ONLY from a genuine user source: the v2
   // composite, the GIF they chose in the compose flow, or their saved
   // custom card. Per Clay (2026-06-02): users who haven't customised no
-  // longer get the "Welcome Back" default-card.png slapped on — the
+  // longer get the "Welcome Back" default-card.png slapped on, the
   // brand/global default fallbacks are intentionally dropped here so a
   // no-card check-in posts a clean embed (author + streak + message)
   // with no image. (brand.checkinDefaultImageUrl itself defaults to that
@@ -455,7 +455,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   const lines = [];
   const composedMessage = String(opts.message || '').trim();
   // Discord renders `> text` as a blockquote with a coloured left
-  // rail — visually quotes the user's typed message and lifts it
+  // rail, visually quotes the user's typed message and lifts it
   // above the streak/XP/bolts pills. Sits at the top of the
   // description (right under the author header). Per Clay's spec
   // (quote-style + italicized + near author).
@@ -586,13 +586,13 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
     }
   }
 
-  // XP grant — fire through the progression event bus so the daily
+  // XP grant, fire through the progression event bus so the daily
   // check-in XP (table key 'daily.claimed' = 20 XP, daily cap 20) +
   // any streak-milestone XP land on the user's XP record. Event-bus
   // dedup is keyed on meta.id so a same-day re-call doesn't double-
   // grant. Fire-and-forget; a failed grant must never roll back the
   // check-in. Streak XP is intentionally separate from the bolt
-  // milestones — the XP table has 'daily.streak.{7,30,100}' tuned by
+  // milestones, the XP table has 'daily.streak.{7,30,100}' tuned by
   // PROGRESSION-SYSTEM-DESIGN.md §4.2.
   try {
     await emitProgressionEvent(env, {
@@ -609,9 +609,9 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
         meta: { id: 'community-checkin:streak-' + nextStreak + ':' + today },
       });
     }
-  } catch { /* non-fatal — check-in already persisted */ }
+  } catch { /* non-fatal, check-in already persisted */ }
 
-  // Post the embed (best-effort — a failure here doesn't roll back
+  // Post the embed (best-effort, a failure here doesn't roll back
   // the check-in itself; the user still got their streak + bonuses).
   // opts { message, gifUrl } come from the /checkin compose flow
   // and bake the user's message + chosen GIF directly into the card.
@@ -633,7 +633,7 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
   // ✨ Very-rare Voltaic lucky-drop on each successful daily check-in
   // (seeded on the ET-day so a user can't re-roll within the same
   // day). When it hits, the pack lands in their pending-packs queue
-  // — opened the next time they play Boltbound. Non-fatal: any
+  //, opened the next time they play Boltbound. Non-fatal: any
   // failure here doesn't roll back the check-in itself.
   let luckyVoltaic = null;
   try {
@@ -654,7 +654,7 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
     embed,
     firstTimeNoCard,
     // Present only on the rare lottery win. Site/Discord reply can
-    // surface a "you got a Voltaic pack!" celebration — the pack is
+    // surface a "you got a Voltaic pack!" celebration, the pack is
     // already in their pending queue and opens via the existing
     // Boltbound pack-open flow.
     luckyVoltaic: luckyVoltaic ? { id: luckyVoltaic.id, packType: 'voltaic' } : null,
@@ -684,7 +684,7 @@ export async function getStatus(env, guildId, userId) {
 }
 
 // Collect one bonus by id, or all if bonusId === 'all'. Credits the
-// wallet and removes from the queue. Idempotent — collecting an
+// wallet and removes from the queue. Idempotent, collecting an
 // already-collected id returns { ok:true, alreadyCollected:true }.
 export async function collectBonus(env, guildId, userId, claimId) {
   const queue = await loadQueue(env, guildId, userId);
@@ -731,7 +731,7 @@ export async function collectBonus(env, guildId, userId, claimId) {
 //      the existing aqci:pick handler in aquilo/checkin-slash.js can
 //      patch it.
 //   3. Reply ephemeral with the streak summary AND a "🎬 Search a
-//      GIF" button — same custom_id (aqci:search) the picker already
+//      GIF" button, same custom_id (aqci:search) the picker already
 //      dispatches off, so no new component handlers needed.
 //   4. The picker chain (aqci:search → modal:aqci_search →
 //      aqci:pick:<tok>:<i>) runs as before; the pick handler now
@@ -775,7 +775,7 @@ async function loadCardPointer(env, guildId, userId, today) {
 // click is what actually fires recordCheckin + posts the card with
 // the GIF + message baked in.
 //
-// Component chain — dispatched in aquilo/worker.js:
+// Component chain, dispatched in aquilo/worker.js:
 //   1. /checkin                          → opens modal:ci2_compose
 //   2. modal:ci2_compose                 → handleCheckinComposeSubmit
 //                                          → Giphy /v1/gifs/search,
@@ -849,7 +849,7 @@ export async function handleCheckinComposeSubmit(env, data) {
   }
   if (!env.GIPHY_API_KEY) {
     return { type: 4, data: {
-      content: '⚠️ GIF search isn\'t available — `GIPHY_API_KEY` is not set on the worker.',
+      content: '⚠️ GIF search isn\'t available, `GIPHY_API_KEY` is not set on the worker.',
       flags: 64,
     } };
   }
@@ -857,7 +857,7 @@ export async function handleCheckinComposeSubmit(env, data) {
   const message = (getModalFieldValue(data, 'message') || '').trim();
   if (!q) return { type: 4, data: { content: 'Empty GIF search.', flags: 64 } };
 
-  // Giphy search — same shape as aquilo/checkin-slash.js, kept local
+  // Giphy search, same shape as aquilo/checkin-slash.js, kept local
   // here to avoid cross-module coupling.
   let results;
   try {
@@ -989,7 +989,7 @@ export async function handleCheckinPickSubmit(env, data) {
             if (message) {
               const desc = String(head.description || '');
               const lines = desc.split('\n');
-              // First italic line was the prior message — replace it.
+              // First italic line was the prior message, replace it.
               // Otherwise prepend a fresh one.
               // Blockquote-style replacement (matches the post-time
               // format above). Detects either the legacy `💬 _msg_`
@@ -1023,12 +1023,12 @@ export async function handleCheckinPickSubmit(env, data) {
   if (r.alreadyToday) {
     lines.push(`✅ Already checked in today. Card updated with the new GIF${message ? ' + message' : ''}. **${r.streak}-day** streak going strong.`);
     if (r.pendingBonusCount) {
-      lines.push(`🎁 **${r.pendingBonusCount}** unclaimed bonus${r.pendingBonusCount > 1 ? 'es' : ''} — collect on aquilo.gg/profile.`);
+      lines.push(`🎁 **${r.pendingBonusCount}** unclaimed bonus${r.pendingBonusCount > 1 ? 'es' : ''}, collect on aquilo.gg/profile.`);
     }
   } else {
     lines.push(`✅ Checked in! **${r.streak}-day** streak.`);
-    if (r.freezeUsed)    lines.push('❄ A **Streak Shield** saved your streak — one shield consumed.');
-    if (r.luckyVoltaic)  lines.push('⚡ **JACKPOT** — a **Voltaic pack** dropped! Open it via `/boltbound`.');
+    if (r.freezeUsed)    lines.push('❄ A **Streak Shield** saved your streak, one shield consumed.');
+    if (r.luckyVoltaic)  lines.push('⚡ **JACKPOT**, a **Voltaic pack** dropped! Open it via `/boltbound`.');
     if (r.pendingBonusCount) {
       lines.push(`🎁 **${r.pendingBonusCount}** bonus${r.pendingBonusCount > 1 ? 'es' : ''} ready to collect on aquilo.gg/profile.`);
     }
@@ -1036,7 +1036,7 @@ export async function handleCheckinPickSubmit(env, data) {
       lines.push(`✨ First time? Customise your check-in card at aquilo.gg${CUSTOMISE_PATH}.`);
     }
     if (!r.embed?.posted && r.embed?.reason !== 'already-today') {
-      lines.push(`_(couldn't post the embed: ${r.embed?.reason || 'unknown'} — your check-in still counted.)_`);
+      lines.push(`_(couldn't post the embed: ${r.embed?.reason || 'unknown'}, your check-in still counted.)_`);
     }
   }
 

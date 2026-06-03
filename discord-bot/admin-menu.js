@@ -190,7 +190,7 @@ function errorView(msg) {
 // ---- Setup & Status dashboard ----------------------------------------
 
 function fmtAgo(ms) {
-  if (!ms) return '—';
+  if (!ms) return '-';
   const delta = Date.now() - ms;
   if (delta < 60_000)        return Math.round(delta / 1000) + 's ago';
   if (delta < 3_600_000)     return Math.round(delta / 60_000) + 'm ago';
@@ -284,11 +284,11 @@ function manualChecklist() {
   // is a checkbox + one-liner so the dashboard doubles as an onboarding
   // guide.
   return [
-    '☐ **Slash commands registered** — `POST /admin/register-commands/<install-id>` (HMAC-gated)',
-    '☐ **Twitch Bits products published** — `loot_box`, `dungeon_skip_cooldown`, `song_request` in Twitch dev console',
+    '☐ **Slash commands registered**, `POST /admin/register-commands/<install-id>` (HMAC-gated)',
+    '☐ **Twitch Bits products published**, `loot_box`, `dungeon_skip_cooldown`, `song_request` in Twitch dev console',
     '☐ **TWITCH_EXT_SECRET set** on aquilo-site Pages (panel-ext JWT)',
     '☐ **panel-bridge.json** at `%APPDATA%\\Aquilo\\` (workerUrl + relayToken)',
-    '☐ **Streamer.bot DLL installed** — run `Loadout/tools/install-dev.ps1`',
+    '☐ **Streamer.bot DLL installed**, run `Loadout/tools/install-dev.ps1`',
     '☐ **Aquilo Bus running** at `ws://127.0.0.1:7470` (started by Streamer.bot action)',
   ].join('\n');
 }
@@ -300,7 +300,7 @@ async function setupView(env, guildId) {
   const checkin = await getCheckinChannel(env, guildId);
 
   const checks = await runHealthChecks(env, guildId);
-  const checkLines = checks.map((c) => (c.ok ? '✓' : '✗') + ' ' + c.label + ' — ' + c.detail);
+  const checkLines = checks.map((c) => (c.ok ? '✓' : '✗') + ' ' + c.label + ', ' + c.detail);
 
   const description =
     '**📡 Channel bindings**\n' +
@@ -549,7 +549,7 @@ function pipeResultsView(report) {
 
   const lines = results.map((r) => {
     const icon = r.ok ? '✅' : '❌';
-    return icon + ' **' + r.label + '** — ' + r.ms + 'ms · ' + r.detail;
+    return icon + ' **' + r.label + '**, ' + r.ms + 'ms · ' + r.detail;
   });
 
   const color = allOk ? 0x46d160 : (passed >= 3 ? 0xf7b500 : 0xff5c5c);

@@ -3,8 +3,8 @@
 // (self-register endpoint). Adding a command means editing one file.
 //
 // We intentionally publish only TWO slash commands to Discord:
-//   /loadout-claim  — server admin one-time bind (MANAGE_GUILD)
-//   /loadout        — opens an ephemeral menu with buttons + select
+//   /loadout-claim, server admin one-time bind (MANAGE_GUILD)
+//   /loadout, opens an ephemeral menu with buttons + select
 //                     menus + modals for everything else: wallet,
 //                     daily, gift, leaderboard, hero, bag, equip,
 //                     unequip, sell, shop, buy, train, profile,
@@ -12,7 +12,7 @@
 //
 // The unified menu lives in loadout-menu.js. Replacing 24 granular
 // slash commands with one menu command made discoverability much
-// better — viewers don't need to remember 24 incantations and don't
+// better, viewers don't need to remember 24 incantations and don't
 // need to type structured arguments; the menu walks them through it.
 
 // https://discord.com/developers/docs/interactions/application-commands#application-command-object-application-command-option-type
@@ -33,17 +33,17 @@ export const COMMANDS = [
   },
   {
     name: 'loadout',
-    description: 'Open the Loadout menu — wallet, hero, bag, shop, daily, gift, profile, more',
-    // Hidden from viewer autocomplete (Clay 2026-05-28) — viewers
+    description: 'Open the Loadout menu, wallet, hero, bag, shop, daily, gift, profile, more',
+    // Hidden from viewer autocomplete (Clay 2026-05-28), viewers
     // reach the Loadout main menu via the pinned games menu in #games.
     default_member_permissions: '0',
   },
-  // B7 — Temp voice channels
+  // B7, Temp voice channels
   {
     name: 'voice',
     description: 'Create a personal voice channel; auto-deletes after a while when empty',
   },
-  // L8 — Ticketing
+  // L8, Ticketing
   {
     name: 'ticket',
     description: 'Open a private support ticket',
@@ -51,7 +51,7 @@ export const COMMANDS = [
       { type: TYPE_STRING, name: 'topic', description: 'What\'s the ticket about? (optional)', required: false },
     ],
   },
-  // Community daily check-in — unified with aquilo.gg/checkin (one
+  // Community daily check-in, unified with aquilo.gg/checkin (one
   // check-in per ET day per user regardless of surface).
   {
     name: 'checkin',
@@ -64,7 +64,7 @@ export const COMMANDS = [
   //   /campaign end
   {
     name: 'campaign',
-    description: 'AI-DM\'d D&D-style one-shot — party up via DMs, ~3-5h, resumable',
+    description: 'AI-DM\'d D&D-style one-shot, party up via DMs, ~3-5h, resumable',
     default_member_permissions: '0',
     options: [
       {
@@ -80,7 +80,7 @@ export const COMMANDS = [
       {
         type: 1,
         name: 'action',
-        description: 'Take your turn — describe what your character does',
+        description: 'Take your turn, describe what your character does',
         options: [
           { type: 3, name: 'text', description: 'Your action this turn', required: true,
             min_length: 1, max_length: 600 },
@@ -112,26 +112,26 @@ export const COMMANDS = [
   },
   {
     name: 'quest',
-    description: 'Your Welcome Checklist — steps + reward status',
+    description: 'Your Welcome Checklist, steps + reward status',
   },
-  // Bot-driven onboarding flow — runs without Discord's built-in
+  // Bot-driven onboarding flow, runs without Discord's built-in
   // Server Settings → Onboarding feature. See onboarding.js.
   //   /onboard               start (or resume) the interactive flow
   //   /onboard post-embed    (admin) post the persistent welcome embed
   //                            with the "Begin onboarding" button
-  //   /onboard status        (admin) funnel stats — started, completed,
+  //   /onboard status        (admin) funnel stats, started, completed,
   //                            per-step counts
   {
     // Top 5 contributors per category (sub gifters, TikTok gifters,
     // cheerers) over a rolling 30-day window. The top 3 in each
-    // category also hold the matching Discord role — see
+    // category also hold the matching Discord role, see
     // gifter-roles.js.
     name: 'topgifters',
     description: 'Top contributors (sub gifts / TikTok tips / cheers) over the last 30 days',
   },
   {
     name: 'onboard',
-    description: 'Quick onboarding flow — interests, links, character, tour',
+    description: 'Quick onboarding flow, interests, links, character, tour',
     options: [
       {
         type: TYPE_SUBCOMMAND, name: 'post-embed',
@@ -143,7 +143,7 @@ export const COMMANDS = [
       },
     ],
   },
-  // Productization — self-serve setup wizard for new tenants.
+  // Productization, self-serve setup wizard for new tenants.
   // MANAGE_GUILD gated. Subcommands: (none) = open wizard; channel =
   // bind one channel; feature = toggle one feature; status = snapshot.
   {
@@ -213,10 +213,10 @@ export const COMMANDS = [
       },
     ],
   },
-  // B8 — LFG slash command (same backing state as /web/lfg/create)
+  // B8, LFG slash command (same backing state as /web/lfg/create)
   {
     name: 'lfg',
-    description: 'Looking for game — post an "open for playing" embed',
+    description: 'Looking for game, post an "open for playing" embed',
     default_member_permissions: '0',
     options: [
       {
@@ -252,7 +252,7 @@ export const COMMANDS = [
     // prop bets) slots in cleanly under /bet <group> <subcommand>.
     name: 'bet',
     description: 'Bolts-denominated sports betting',
-    // Admin-only — viewers reach betting via /hub on the menu.
+    // Admin-only, viewers reach betting via /hub on the menu.
     default_member_permissions: '0',
     options: [
       {
@@ -276,7 +276,7 @@ export const COMMANDS = [
                   { name: 'away', value: 'away' },
                 ],
               },
-              { type: TYPE_INTEGER, name: 'bolts', description: 'Stake — capped at 10% of wallet', required: true, min_value: 1 },
+              { type: TYPE_INTEGER, name: 'bolts', description: 'Stake, capped at 10% of wallet', required: true, min_value: 1 },
             ],
           },
           {
@@ -292,11 +292,11 @@ export const COMMANDS = [
     ],
   },
   {
-    // Viewer hub — entry point with category buttons (Loadout, Stocks,
+    // Viewer hub, entry point with category buttons (Loadout, Stocks,
     // Sports, Profile, Help). The Loadout game menu stays at /loadout;
     // this is the broader "everything Aquilo" surface.
     name: 'hub',
-    description: 'Open the Aquilo hub — Loadout, Stocks, Sports, Profile',
+    description: 'Open the Aquilo hub, Loadout, Stocks, Sports, Profile',
     default_member_permissions: '0',
   },
   {
@@ -355,18 +355,18 @@ export const COMMANDS = [
               { name: 'Raid (incoming)',              value: 'raid' },
               { name: 'Stream ended (summary)',       value: 'ended' },
               { name: 'Channel-point redemption',     value: 'redemption' },
-              { name: 'Hype train — begin',           value: 'hypeTrainBegin' },
-              { name: 'Hype train — progress',        value: 'hypeTrainProgress' },
-              { name: 'Hype train — end',             value: 'hypeTrainEnd' },
-              { name: 'Poll — begin',                 value: 'pollBegin' },
-              { name: 'Poll — end',                   value: 'pollEnd' },
-              { name: 'Prediction — begin',           value: 'predictionBegin' },
-              { name: 'Prediction — end',             value: 'predictionEnd' },
+              { name: 'Hype train, begin',           value: 'hypeTrainBegin' },
+              { name: 'Hype train, progress',        value: 'hypeTrainProgress' },
+              { name: 'Hype train, end',             value: 'hypeTrainEnd' },
+              { name: 'Poll, begin',                 value: 'pollBegin' },
+              { name: 'Poll, end',                   value: 'pollEnd' },
+              { name: 'Prediction, begin',           value: 'predictionBegin' },
+              { name: 'Prediction, end',             value: 'predictionEnd' },
               { name: 'Mod: ban / timeout',           value: 'ban' },
               { name: 'Mod: unban',                   value: 'unban' },
             ],
           },
-          // channel option uses TYPE 7 = CHANNEL — Discord returns
+          // channel option uses TYPE 7 = CHANNEL, Discord returns
           // the channel id directly so we don't need to parse mentions.
           { type: 7, name: 'channel', description: 'Target channel (omit to clear the override)', required: false },
         ],
@@ -385,13 +385,13 @@ export const COMMANDS = [
               { name: 'Raid (incoming)',              value: 'raid' },
               { name: 'Stream ended (summary)',       value: 'ended' },
               { name: 'Channel-point redemption',     value: 'redemption' },
-              { name: 'Hype train — begin',           value: 'hypeTrainBegin' },
-              { name: 'Hype train — progress',        value: 'hypeTrainProgress' },
-              { name: 'Hype train — end',             value: 'hypeTrainEnd' },
-              { name: 'Poll — begin',                 value: 'pollBegin' },
-              { name: 'Poll — end',                   value: 'pollEnd' },
-              { name: 'Prediction — begin',           value: 'predictionBegin' },
-              { name: 'Prediction — end',             value: 'predictionEnd' },
+              { name: 'Hype train, begin',           value: 'hypeTrainBegin' },
+              { name: 'Hype train, progress',        value: 'hypeTrainProgress' },
+              { name: 'Hype train, end',             value: 'hypeTrainEnd' },
+              { name: 'Poll, begin',                 value: 'pollBegin' },
+              { name: 'Poll, end',                   value: 'pollEnd' },
+              { name: 'Prediction, begin',           value: 'predictionBegin' },
+              { name: 'Prediction, end',             value: 'predictionEnd' },
               { name: 'Mod: ban / timeout',           value: 'ban' },
               { name: 'Mod: unban',                   value: 'unban' },
             ],
@@ -402,7 +402,7 @@ export const COMMANDS = [
     ],
   },
   {
-    // Weekly stream-schedule editor — writes the same `schedule:v1:<g>`
+    // Weekly stream-schedule editor, writes the same `schedule:v1:<g>`
     // KV record that aquilo.gg's /admin Schedule editor writes. Either
     // surface stays usable if the other is inconvenient. MANAGE_GUILD.
     // See aquilo-site/SCHEDULE-SYSTEM-DESIGN.md for the data model.
@@ -451,7 +451,7 @@ export const COMMANDS = [
     ],
   },
   {
-    // Game catalog editor — writes the same `games:v1:<g>` KV record
+    // Game catalog editor, writes the same `games:v1:<g>` KV record
     // that aquilo.gg's /admin Games editor writes. Steam art URLs are
     // derived deterministically from the appId at write time.
     // MANAGE_GUILD. See SCHEDULE-SYSTEM-DESIGN.md.
@@ -508,7 +508,7 @@ export const COMMANDS = [
     // -- this is the only write surface for joiners. See
     // aquilo-site/SCHEDULE-SYSTEM-DESIGN.md Phase 3.
     name: 'queue',
-    description: 'Community / Variety Night queue — open, join, leave, view',
+    description: 'Community / Variety Night queue, open, join, leave, view',
     // Admin-only at the top level; viewers reach queue via vote-hub
     // buttons in the dedicated queue channel.
     default_member_permissions: '0',
@@ -572,7 +572,7 @@ export const COMMANDS = [
   //
   // The viewer-facing /suggest, /encounter, /sr-add, /sr-list,
   // /sr-remove commands the original aquilo-bot worker dispatched
-  // are intentionally NOT registered — they migrated to button-driven
+  // are intentionally NOT registered, they migrated to button-driven
   // UI inside the /aquilo-hub viewer-hub message (see aquilo/viewer-
   // hub.js). The dispatch cases in commands.js handle stale clients.
 
@@ -654,7 +654,7 @@ export const COMMANDS = [
   },
   {
     name: 'passport',
-    description: 'View your Aquilo profile — streak, achievements, stats',
+    description: 'View your Aquilo profile, streak, achievements, stats',
     default_member_permissions: '0',
     options: [
       { type: TYPE_USER, name: 'user', description: 'View someone else\'s passport', required: false },
@@ -683,7 +683,7 @@ export const COMMANDS = [
   },
   // /checkin moved to the canonical entry near the top of this file
   // (community-checkin.js handler, with the GIPHY gif-picker rolled
-  // in). Duplicate fold-in entry deleted 2026-05 — Discord rejects
+  // in). Duplicate fold-in entry deleted 2026-05, Discord rejects
   // two slash commands with the same name on the same guild.
   {
     name: 'trivia-add',
@@ -691,14 +691,14 @@ export const COMMANDS = [
     default_member_permissions: '8192',     // MANAGE_MESSAGES
   },
   {
-    // Boltbound — async card-battler. See CARD-GAME-DESIGN.md.
+    // Boltbound, async card-battler. See CARD-GAME-DESIGN.md.
     // Phase 1 surface is command-driven (one slash per turn) so the
     // 24h-per-turn async pace works cleanly inside Discord's
     // stateless interaction model. Web + Twitch surfaces (Phase 2)
     // get the click-to-target UI on top of the same backend.
     name: 'boltbound',
     default_member_permissions: '0',
-    description: 'Boltbound — collect cards, build decks, battle other viewers',
+    description: 'Boltbound, collect cards, build decks, battle other viewers',
     options: [
       { type: TYPE_SUBCOMMAND, name: 'status',      description: 'Your Boltbound profile + collection summary' },
       { type: TYPE_SUBCOMMAND, name: 'packs',       description: 'List your pending packs' },
@@ -795,7 +795,7 @@ export const COMMANDS = [
       { type: TYPE_SUBCOMMAND, name: 'mulligan',
         description: 'Mulligan your starting hand',
         options: [
-          { type: TYPE_STRING, name: 'keep', description: 'CSV of hand indices to KEEP (e.g. 0,2,3 — blank keeps none)', required: false },
+          { type: TYPE_STRING, name: 'keep', description: 'CSV of hand indices to KEEP (e.g. 0,2,3, blank keeps none)', required: false },
         ],
       },
       { type: TYPE_SUBCOMMAND, name: 'move',
@@ -843,7 +843,7 @@ export const COMMANDS = [
     ],
   },
   {
-    // Bolts-denominated quick games — the same 7 games the website
+    // Bolts-denominated quick games, the same 7 games the website
     // exposes at /play (blackjack, roulette, wheel, hi-lo, mines,
     // plinko, crash). One subcommand per game. Stateful games
     // (blackjack, hi-lo, mines) attach action buttons to the response
@@ -853,19 +853,19 @@ export const COMMANDS = [
     // slash registration is blocked. This entry is ready to publish
     // the moment the token is rotated.
     name: 'play',
-    description: 'Play a quick-bolts game — blackjack, roulette, wheel, hi-lo, mines, plinko, crash',
+    description: 'Play a quick-bolts game, blackjack, roulette, wheel, hi-lo, mines, plinko, crash',
     default_member_permissions: '0',
     options: [
       {
         type: TYPE_SUBCOMMAND, name: 'blackjack',
-        description: 'Standard blackjack — natural pays 3:2, dealer stands on 17',
+        description: 'Standard blackjack, natural pays 3:2, dealer stands on 17',
         options: [
           { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
         ],
       },
       {
         type: TYPE_SUBCOMMAND, name: 'roulette',
-        description: 'Spin the wheel — pick a color, parity, range, or a specific number',
+        description: 'Spin the wheel, pick a color, parity, range, or a specific number',
         options: [
           { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
           {
@@ -879,7 +879,7 @@ export const COMMANDS = [
               { name: 'low 1-18 (2×)',  value: 'low' },
               { name: 'high 19-36 (2×)', value: 'high' },
               // Bare-number bets accepted as a free-text fallback via
-              // /play roulette pick:17  — but Discord doesn't let us
+              // /play roulette pick:17, but Discord doesn't let us
               // mix free-text with choices when choices is present.
               // For number bets, use /play roulette-number instead
               // (added below as a separate subcommand).
@@ -889,7 +889,7 @@ export const COMMANDS = [
       },
       {
         type: TYPE_SUBCOMMAND, name: 'roulette-number',
-        description: 'Roulette — bet on a specific number 0-36 (pays 36×)',
+        description: 'Roulette, bet on a specific number 0-36 (pays 36×)',
         options: [
           { type: TYPE_INTEGER, name: 'bet',    description: 'Bolts to wager', required: true, min_value: 1 },
           { type: TYPE_INTEGER, name: 'number', description: 'Number 0-36',   required: true, min_value: 0, max_value: 36 },
@@ -897,7 +897,7 @@ export const COMMANDS = [
       },
       {
         type: TYPE_SUBCOMMAND, name: 'wheel',
-        description: 'Multiplier wheel — low risk = safer, high risk = jackpot',
+        description: 'Multiplier wheel, low risk = safer, high risk = jackpot',
         options: [
           { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
           {
@@ -912,14 +912,14 @@ export const COMMANDS = [
       },
       {
         type: TYPE_SUBCOMMAND, name: 'hilo',
-        description: 'Higher-or-lower — keep guessing to grow the multiplier; cash out anytime',
+        description: 'Higher-or-lower, keep guessing to grow the multiplier; cash out anytime',
         options: [
           { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
         ],
       },
       {
         type: TYPE_SUBCOMMAND, name: 'mines',
-        description: 'Reveal tiles without hitting a bomb — cash out anytime',
+        description: 'Reveal tiles without hitting a bomb, cash out anytime',
         options: [
           { type: TYPE_INTEGER, name: 'bet',   description: 'Bolts to wager', required: true, min_value: 1 },
           { type: TYPE_INTEGER, name: 'bombs', description: 'Bombs hidden in the 5×5 grid (1-24, default 3)',
@@ -928,7 +928,7 @@ export const COMMANDS = [
       },
       {
         type: TYPE_SUBCOMMAND, name: 'plinko',
-        description: 'Drop a ball through pegs — bucket multiplier pays out',
+        description: 'Drop a ball through pegs, bucket multiplier pays out',
         options: [
           { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
           {
@@ -943,7 +943,7 @@ export const COMMANDS = [
       },
       {
         type: TYPE_SUBCOMMAND, name: 'crash',
-        description: 'Multiplier climbs from 1× — cash out before it busts',
+        description: 'Multiplier climbs from 1×, cash out before it busts',
         options: [
           { type: TYPE_INTEGER, name: 'bet',     description: 'Bolts to wager', required: true, min_value: 1 },
           { type: TYPE_INTEGER, name: 'cashout', description: 'Auto-cashout at this multiplier × 100 (e.g. 200 = 2.00×)',

@@ -80,7 +80,7 @@ export async function runTriviaCron(env) {
   }
 }
 
-/** Button click — validate answer, award Bolts on first-correct. */
+/** Button click, validate answer, award Bolts on first-correct. */
 export async function handleTriviaClick(env, data) {
   const id = data?.data?.custom_id || '';
   const [, roundIdStr, correctFlag] = id.split(':');
@@ -96,7 +96,7 @@ export async function handleTriviaClick(env, data) {
   if (round.closed_at) {
     return ephemeral(round.winner_id === userId
       ? '✅ You already won this round.'
-      : `Too late — <@${round.winner_id}> got there first.`);
+      : `Too late, <@${round.winner_id}> got there first.`);
   }
   if (correctFlag !== '1') {
     return ephemeral('❌ Wrong answer.');
@@ -108,7 +108,7 @@ export async function handleTriviaClick(env, data) {
   ).bind(userId, roundId).run();
 
   if (!upd.meta?.changes) {
-    return ephemeral('Beaten to it — someone else just answered.');
+    return ephemeral('Beaten to it, someone else just answered.');
   }
 
   // Award Bolts via Loadout cross-bot endpoint.
@@ -132,7 +132,7 @@ export async function handleTriviaClick(env, data) {
       await editChannelMessage(env, env.ENGAGEMENT_CHANNEL_ID, round.message_id, {
         embeds: [{
           color: 0x43A047,
-          title: '🧠 Daily Trivia — solved',
+          title: '🧠 Daily Trivia, solved',
           description: `<@${userId}> got it. +${TRIVIA_BOLTS} Bolts.\n\nNew round tomorrow at 4 PM ET.`,
           timestamp: new Date().toISOString()
         }],
@@ -171,7 +171,7 @@ export async function handleTriviaEditSubmit(env, data) {
   const total = await env.DB.prepare(
     'SELECT COUNT(*) AS n FROM trivia_questions WHERE guild_id = ? AND active = 1'
   ).bind(data.guild_id).first();
-  return ephemeral(`📚 Added — pool now has **${total?.n || 0}** active questions.`);
+  return ephemeral(`📚 Added, pool now has **${total?.n || 0}** active questions.`);
 }
 
 // ---- helpers -----------------------------------------------------------

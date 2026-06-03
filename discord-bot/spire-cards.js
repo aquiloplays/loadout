@@ -1,6 +1,6 @@
-// Boltbound — Seasonal Spire exclusive cards.
+// Boltbound, Seasonal Spire exclusive cards.
 //
-// One legendary minion per Spire season — only granted to a player
+// One legendary minion per Spire season, only granted to a player
 // when they boss-clear that season's spire (first-time only). After
 // the season rotates, the card stays in the player's collection but
 // is no longer obtainable.
@@ -8,10 +8,10 @@
 // Plus the season tokens (e.g. Verdant Hollow's thorn vine) that boss
 // mechanics summon. Tokens are not pullable / not in decks.
 //
-// Naming convention: `spire.s<NN>.<slug>` — s01-s12, slug from the
+// Naming convention: `spire.s<NN>.<slug>`, s01-s12, slug from the
 // season's seasonalExclusiveCard reference in spire-seasons.js.
 
-// Legendary minions — boss-clear rewards.
+// Legendary minions, boss-clear rewards.
 export const SPIRE_LEGENDARIES = [
   {
     id: 'spire.s01.embercrown',

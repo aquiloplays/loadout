@@ -1,4 +1,4 @@
-// Anniversary celebrations — cross-cutting premium feature.
+// Anniversary celebrations, cross-cutting premium feature.
 //
 // 2026-05-30 sprint. Tracks each linked user's "firstSeen" date and,
 // on the yearly anniversary of that date, lets them claim a one-time
@@ -25,7 +25,7 @@
 // stamped on the wallet as a conservative lower-bound proxy (a user
 // who earned/claimed at time T was, by definition, "seen" no later
 // than T). Where the wallet carries no timestamp at all, the backfill
-// stamps the run moment — anniversaries for those users start counting
+// stamps the run moment, anniversaries for those users start counting
 // from the backfill, which is the best we can recover.
 
 import { earn } from './wallet.js';
@@ -38,10 +38,10 @@ const CRON_MARKER = 'anniv:cron:last-sweep';
 const KEY_USER_BADGES = (u) => `pbadge:${u}`;
 
 // Default games-hub channel for the celebratory post. Overridable via
-// the `anniversary` channel-binding (KV-only — see channel-bindings.js).
+// the `anniversary` channel-binding (KV-only, see channel-bindings.js).
 const GAMES_HUB_CHANNEL_ID = '1507973935973531808';
 
-// Day in ms — anniversary math is all UTC-calendar-day based.
+// Day in ms, anniversary math is all UTC-calendar-day based.
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ── firstSeen tracking ────────────────────────────────────────────
@@ -56,7 +56,7 @@ export async function getFirstSeen(env, guildId, userId) {
 
 // Idempotent, min-wins. Records `whenUtc` (defaults to now) as the
 // user's firstSeen unless an earlier value is already stored. Safe to
-// call on every activity event — it only writes when it actually
+// call on every activity event, it only writes when it actually
 // moves the timestamp earlier (or sets it the first time).
 export async function recordFirstSeen(env, guildId, userId, whenUtc) {
   if (!guildId || !userId) return { ok: false, error: 'bad-args' };
@@ -73,7 +73,7 @@ export async function recordFirstSeen(env, guildId, userId, whenUtc) {
 // an anniv:seen record, derives the earliest known activity timestamp
 // from the wallet and stamps it. Bounded to `maxPages` KV-list pages
 // (1000 keys each) per call so a huge guild doesn't blow the 10ms CPU
-// budget — re-run to continue (idempotent: already-stamped users are
+// budget, re-run to continue (idempotent: already-stamped users are
 // skipped). Returns counts.
 export async function backfillFirstSeen(env, guildId, opts = {}) {
   if (!guildId) return { ok: false, error: 'no-guild' };
@@ -162,7 +162,7 @@ export function computeAnniversary(firstSeenUtc, nowUtc) {
   } else if (todayMidnight < annivThisYear) {
     targetYear = tY;          // anniversary still ahead this calendar year
   } else {
-    targetYear = tY + 1;      // already passed — next one is next year
+    targetYear = tY + 1;      // already passed, next one is next year
   }
 
   const targetMidnight = Date.UTC(targetYear, fM, fD);
@@ -172,7 +172,7 @@ export function computeAnniversary(firstSeenUtc, nowUtc) {
     : Math.round((targetMidnight - todayMidnight) / DAY_MS);
 
   // A "0th anniversary" (signed up earlier today, same calendar year)
-  // is not an anniversary — guard so brand-new users don't see year 0.
+  // is not an anniversary, guard so brand-new users don't see year 0.
   if (years <= 0) {
     // Their first anniversary is next year.
     const nextMidnight = Date.UTC(fY + 1, fM, fD);
@@ -274,7 +274,7 @@ export async function celebrateAnniversary(env, guildId, userId, opts = {}) {
   await earn(env, guildId, userId, reward.bolts, `anniversary:y${a.years}`);
   const badge = await grantAnniversaryBadge(env, userId, reward.badgeId);
 
-  // Aether economy grant — scales with the anniversary year. Best-effort
+  // Aether economy grant, scales with the anniversary year. Best-effort
   // (no D1 binding in some test envs); never blocks the bolt+badge grant.
   let aether = 0;
   try {
@@ -306,14 +306,14 @@ async function targetChannelId(env, guildId) {
 function buildAnniversaryEmbed(userId, years, milestone) {
   const yearWord = years === 1 ? 'year' : 'years';
   const title = milestone
-    ? `🎉 ${years} ${yearWord} — a milestone anniversary!`
+    ? `🎉 ${years} ${yearWord}, a milestone anniversary!`
     : `🎂 Happy ${years}-${yearWord === 'year' ? 'year' : 'year'} anniversary!`;
   return {
     embeds: [{
       title: title.slice(0, 256),
       description:
         `<@${userId}> has been part of the community for **${years} ${yearWord}** today! 🎈\n\n` +
-        `Head to your dashboard to claim your anniversary reward — ` +
+        `Head to your dashboard to claim your anniversary reward, ` +
         `**bolts${milestone ? ' (doubled for the milestone!)' : ''}** plus an exclusive ` +
         `**Year ${years}** cosmetic badge.`,
       color: milestone ? 0xFFD24A : 0xFF7AC6,
@@ -335,7 +335,7 @@ async function discordPost(env, channelId, payload) {
   return { ok: true };
 }
 
-// Post the celebratory embed for one user. Best-effort — no-ops when
+// Post the celebratory embed for one user. Best-effort, no-ops when
 // the bot token is missing.
 export async function announceAnniversary(env, guildId, userId, years, milestone) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
@@ -349,7 +349,7 @@ export async function announceAnniversary(env, guildId, userId, years, milestone
 // Once-per-UTC-day sweep. Walks the anniv:seen keyspace, finds users
 // whose anniversary is today, and posts the celebratory embed (once
 // per user per year via the anniv:claimed-style announce marker). The
-// reward itself is pull-based (the user claims via /celebrate) — the
+// reward itself is pull-based (the user claims via /celebrate), the
 // cron only handles the announcement so the games-hub channel lights
 // up even for users who don't open the dashboard.
 //
@@ -400,7 +400,7 @@ export async function anniversaryDailyCron(env, opts = {}) {
     cursor = page.cursor;
   }
 
-  // Only stamp the day-marker when we completed the full walk — a
+  // Only stamp the day-marker when we completed the full walk, a
   // truncated run (more pages pending) should re-enter next tick.
   if (!cursor) {
     await env.LOADOUT_BOLTS.put(CRON_MARKER, today);
@@ -410,7 +410,7 @@ export async function anniversaryDailyCron(env, opts = {}) {
 
 
 // ── HTTP route handler ────────────────────────────────────────────
-// 2026-05-31 — exposes celebrateAnniversary + getFirstSeen via HMAC
+// 2026-05-31, exposes celebrateAnniversary + getFirstSeen via HMAC
 // HTTP for the site to call. Pattern matches daily-quests/twitch-drops/
 // pet-leveling: GET is public for the read path, POST is HMAC-gated.
 
@@ -443,7 +443,7 @@ async function _agateHmac(req, env) {
 }
 
 export async function handleAnniversaryRoute(req, env, path) {
-  // GET /web/anniversary/me/<guildId>/<userId> — public, returns the
+  // GET /web/anniversary/me/<guildId>/<userId>, public, returns the
   // current firstSeen + computed anniversary state.
   if (req.method === 'GET' && path.startsWith('/web/anniversary/me/')) {
     const parts = path.slice('/web/anniversary/me/'.length).split('/');
@@ -455,7 +455,7 @@ export async function handleAnniversaryRoute(req, env, path) {
     const a = computeAnniversary(firstSeenUtc, Date.now());
     return _ajson({ ok: true, firstSeenUtc, anniversary: a });
   }
-  // POST /web/anniversary/celebrate — HMAC-gated. Body: { guildId, userId }.
+  // POST /web/anniversary/celebrate, HMAC-gated. Body: { guildId, userId }.
   const gate = await _agateHmac(req, env);
   if (!gate.ok) return _ajson({ error: gate.error }, gate.status);
   const b = gate.body || {};

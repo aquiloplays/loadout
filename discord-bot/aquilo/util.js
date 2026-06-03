@@ -214,7 +214,7 @@ export function getETInfo(date = new Date()) {
 // Compute the start-of-week boundary (Sunday 00:00 ET, in UTC ISO form) for
 // the given date. Used to filter "polls posted this week" for cross-poll
 // winner exclusion. Approximation: returns midnight UTC of the calendar
-// date that was Sunday in ET — close enough since polls fire at fixed
+// date that was Sunday in ET, close enough since polls fire at fixed
 // 6/9 PM ET, never near the boundary.
 export function weekStartET(date = new Date()) {
   const info = getETInfo(date);
@@ -256,7 +256,7 @@ export function openThread(env, channelId, messageId, name, autoArchiveMinutes =
 }
 
 // Open a DM channel with a user and post a message. Returns the message
-// object. Most failures are 50007 (cannot message this user) — caller
+// object. Most failures are 50007 (cannot message this user), caller
 // should swallow.
 export async function sendDm(env, userId, payload) {
   const ch = await discordFetch(env, '/users/@me/channels', {

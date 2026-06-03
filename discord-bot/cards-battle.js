@@ -1,20 +1,20 @@
-// Boltbound — deterministic battle engine.
+// Boltbound, deterministic battle engine.
 //
-// Pure functions. No KV I/O, no Date.now(), no Math.random — all RNG
+// Pure functions. No KV I/O, no Date.now(), no Math.random, all RNG
 // goes through a seeded generator. The same (match, action) input
 // always produces the same (match', log) output, so /boltbound log
 // can show a faithful replay and the future web client can re-run a
 // match locally to render the animation.
 //
-// Same posture as clash-raid.js — see CARD-GAME-DESIGN.md §2 for the
+// Same posture as clash-raid.js, see CARD-GAME-DESIGN.md §2 for the
 // match shape and §3 for the ability key dictionary.
 //
 // Public API:
-//   createMatch(opts)                    — build initial match state
-//   applyMulligan(match, side, idxs)     — replace 0..N starting cards
-//   applyAction(match, action)           — { match, events, ended? }
-//   isLegalAction(match, action)         — preflight a UI action
-//   summariseMatch(match)                — receipt-shape projection for /log
+//   createMatch(opts), build initial match state
+//   applyMulligan(match, side, idxs), replace 0..N starting cards
+//   applyAction(match, action), { match, events, ended? }
+//   isLegalAction(match, action), preflight a UI action
+//   summariseMatch(match), receipt-shape projection for /log
 
 import { CARDS, CHAMPIONS, championForClass, KEYWORDS, ADAPT_POOL } from './cards-content.js';
 
@@ -33,7 +33,7 @@ function makeRng(seed) {
   return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 100000) / 100000; };
 }
 
-// Match-scoped rng — keyed off the match seed + a step counter so
+// Match-scoped rng, keyed off the match seed + a step counter so
 // every action has its own stable sub-seed. We bump match.rngStep
 // before each rng call so order matters but the same starting seed
 // always replays identically.
@@ -112,7 +112,7 @@ export function createMatch(opts) {
 }
 
 function shuffleDeck(cardIds, ctx) {
-  // Fisher–Yates with the match RNG. Mutates a copy.
+  // Fisher-Yates with the match RNG. Mutates a copy.
   const arr = cardIds.slice();
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rngFloat(ctx) * (i + 1));
@@ -121,7 +121,7 @@ function shuffleDeck(cardIds, ctx) {
   return arr;
 }
 
-// Internal — no fatigue, just take the top of deck. Used by createMatch
+// Internal, no fatigue, just take the top of deck. Used by createMatch
 // to draw starting hands before fatigue rules apply.
 function drawCardsRaw(match, side, n) {
   for (let i = 0; i < n; i++) {
@@ -130,14 +130,14 @@ function drawCardsRaw(match, side, n) {
     if (match.hands[side].length < HAND_CAP) {
       match.hands[side].push(id);
     } else {
-      // Burn — over hand cap, discarded.
+      // Burn, over hand cap, discarded.
       match.graveyard[side].push(id);
       push(match, { t: match.turn, kind: 'burn', side, cardId: id });
     }
   }
 }
 
-// Turn-time draw — applies fatigue when the deck is empty.
+// Turn-time draw, applies fatigue when the deck is empty.
 function drawTurnStart(match, side) {
   if (match.decks[side].length === 0) {
     match.fatigueDmg[side] = (match.fatigueDmg[side] || 0) + 1;
@@ -161,7 +161,7 @@ function drawTurnStart(match, side) {
 // One-shot. Replace the chosen subset of starting hand with the same
 // number of fresh cards. The discarded ones go BACK to the bottom of
 // the deck (so the replacement pool is non-overlapping with the
-// discards — Hearthstone rule).
+// discards, Hearthstone rule).
 
 export function applyMulligan(match, side, handIndices) {
   if (match.status !== 'mulligan') return match;
@@ -195,7 +195,7 @@ export function applyMulligan(match, side, handIndices) {
 
 function startTurn(match, side) {
   match.active = side;
-  // Max mana up to 10 — but at the very start (turn 1 going-first), the
+  // Max mana up to 10, but at the very start (turn 1 going-first), the
   // active player gets 1 base mana NOT incremented from prior turn.
   if (match.mana[side].max < 10) match.mana[side].max += 1;
   match.mana[side].cur = match.mana[side].max + (match.bonusMana[side] || 0);
@@ -208,10 +208,10 @@ function startTurn(match, side) {
     push(match, { t: match.turn, kind: 'overload', side, locked });
     match.overloadNext[side] = 0;
   }
-  // New turn — the Combo gate resets (the next card played is "first").
+  // New turn, the Combo gate resets (the next card played is "first").
   match.cardsPlayed[side] = 0;
   // Untap at the start of the OWNER's turn (charge/rush handle the
-  // play-turn case). Frozen minions thaw instead of untapping — they miss
+  // play-turn case). Frozen minions thaw instead of untapping, they miss
   // exactly this one turn, then act normally next turn.
   for (const m of match.board[side]) {
     m.exhausted = false;
@@ -242,8 +242,8 @@ function startTurn(match, side) {
   for (const m of match.board[side]) fireAbilities(match, m, side, 'startOfTurn');
   // Draw a card.
   drawTurnStart(match, side);
-  // Counter-next-spell flag is for the OPPONENT's next spell — reset
-  // the *opposite* side's flag here (no — actually we set it when
+  // Counter-next-spell flag is for the OPPONENT's next spell, reset
+  // the *opposite* side's flag here (no, actually we set it when
   // Relic Seal is cast; it'll be consumed by the opponent's next spell).
   // Don't touch it here; that gets handled in cast resolution.
   push(match, { t: match.turn, kind: 'turn-start', side, mana: { ...match.mana[side] } });
@@ -266,7 +266,7 @@ function endTurn(match, side) {
     if (match.heroTempHp?.[s]) match.heroTempHp[s] = 0;
   }
   push(match, { t: match.turn, kind: 'turn-end', side });
-  // Fatigue check — if past turn 20, start global fatigue.
+  // Fatigue check, if past turn 20, start global fatigue.
   if (match.turn >= 20) {
     match.hp.A -= 2;
     match.hp.B -= 2;
@@ -363,7 +363,7 @@ function playCardAction(match, action) {
   match.board[side].push(minion);
   push(match, { t: match.turn, kind: 'play-minion', side, cardId, uid: minion.uid, atk: minion.atk, hp: minion.hp });
 
-  // Process onPlay abilities — they may need the picked target from
+  // Process onPlay abilities, they may need the picked target from
   // the action. Combo abilities fire on top only when this isn't the
   // first card of the turn.
   fireAbilities(match, minion, side, 'onPlay', fireCtx);
@@ -427,7 +427,7 @@ function attackAction(match, action) {
   let target = null;
   const targetUid = action.defenderUid;
 
-  // Identify the target — either a minion or the hero.
+  // Identify the target, either a minion or the hero.
   if (targetUid === 'hero') {
     // Reach bypasses taunts.
     const hasReach = (attacker.keywords || []).includes('reach');
@@ -475,7 +475,7 @@ function attackAction(match, action) {
       attacker.hp = 0;
       push(match, { t: match.turn, kind: 'poison-kill', uid: attacker.uid });
     }
-    // Lifesteal on attacker — only if they hit a minion too.
+    // Lifesteal on attacker, only if they hit a minion too.
     if ((attacker.keywords || []).includes('lifesteal')) {
       match.hp[side] = Math.min(STARTING_HP, match.hp[side] + attacker.atk);
       push(match, { t: match.turn, kind: 'lifesteal-heal', side, amount: attacker.atk, hp: match.hp[side] });
@@ -514,7 +514,7 @@ function dealDamage(match, source, target, amount) {
 }
 
 function resolveDeaths(match) {
-  // Multiple passes — a deathrattle can damage others which can die.
+  // Multiple passes, a deathrattle can damage others which can die.
   for (let pass = 0; pass < 8; pass++) {
     let died = false;
     for (const side of ['A', 'B']) {
@@ -644,7 +644,7 @@ function runEffect(match, side, ab, ctx) {
           }
           push(match, { t: match.turn, kind: 'buff-temp', uid: t.minion.uid, valueAtk: ab.valueAtk || 0, valueHp: ab.valueHp || 0 });
         } else if (t.kind === 'hero' && ab.valueHp) {
-          // Iron Skin — adds temporary HP that doesn't survive end of turn.
+          // Iron Skin, adds temporary HP that doesn't survive end of turn.
           match.heroTempHp = match.heroTempHp || { A: 0, B: 0 };
           match.heroTempHp[t.side] += ab.valueHp;
           match.hp[t.side] += ab.valueHp;
@@ -726,7 +726,7 @@ function runEffect(match, side, ab, ctx) {
       return;
     }
     case 'peekDeck': {
-      // No-op for the resolver — the peek is a UI affordance, not a state change.
+      // No-op for the resolver, the peek is a UI affordance, not a state change.
       push(match, { t: match.turn, kind: 'peek', side, value: ab.value || 1 });
       return;
     }
@@ -861,7 +861,7 @@ function runEffect(match, side, ab, ctx) {
       return;
     }
     default:
-      // Unknown effect — log and continue. Don't crash the resolver on
+      // Unknown effect, log and continue. Don't crash the resolver on
       // a new ability key being added without a handler.
       push(match, { t: match.turn, kind: 'unknown-effect', eff });
   }
@@ -881,7 +881,7 @@ function resolveTargets(match, side, ab, ctx) {
                                  out.push({ kind: 'hero', side: opp });
                                  break;
     case 'allFriendlyMinions':   for (const m of match.board[side]) if (m.hp > 0) out.push({ kind: 'minion', minion: m, side });    break;
-    case 'allFriendlyTribe':     // tribal synergy — friendly minions of ab.tribe
+    case 'allFriendlyTribe':     // tribal synergy, friendly minions of ab.tribe
                                  for (const m of match.board[side]) {
                                    if (m.hp <= 0) continue;
                                    const c = CARDS[m.cardId];
@@ -913,7 +913,7 @@ function resolveTargets(match, side, ab, ctx) {
       break;
     }
     case 'pickedTarget': {
-      // The action carries `targetUid` — a minion uid, or 'oppHero' / 'selfHero'.
+      // The action carries `targetUid`, a minion uid, or 'oppHero' / 'selfHero'.
       const tu = ctx.pickedTargetUid;
       if (tu === 'oppHero')  out.push({ kind: 'hero', side: opp });
       else if (tu === 'selfHero') out.push({ kind: 'hero', side });
@@ -955,14 +955,14 @@ function makeBoardMinion(match, card, side) {
     exhausted: !((card.keywords || []).includes('charge')),
   };
   if ((card.keywords || []).includes('charge')) m.canAttack = true;
-  // Rush: can attack the turn it's played, but minions only — not the
+  // Rush: can attack the turn it's played, but minions only, not the
   // enemy hero. The 'rush-fresh' status enforces the no-hero window and
   // is cleared at the owner's next start-of-turn.
   if ((card.keywords || []).includes('rush')) { m.canAttack = true; m.exhausted = false; m.status.push('rush-fresh'); }
   if ((card.keywords || []).includes('shield')) m.status.push('shield');
   if ((card.keywords || []).includes('stealth')) m.status.push('stealth-fresh');
   // Voltaic Mage 'spellDamageBonus' is keyed off ability with effect:'buff' trigger:'spellDamageBonus'
-  // — stored on the minion record so the spell-cast path can fold it in.
+  //, stored on the minion record so the spell-cast path can fold it in.
   const sda = (card.abilities || []).find(a => a.trigger === 'spellDamageBonus');
   if (sda) m.spellDamageBonus = sda.value || 1;
   // Hollow King gate

@@ -1,4 +1,4 @@
-// /encounter — viewer-facing fun command. Rolls a random event from a
+// /encounter, viewer-facing fun command. Rolls a random event from a
 // curated list; some events award bolts, some deduct, some are neutral.
 // Per-user cooldown (10 min) to keep chat from filling with rolls.
 // Bolts are credited via the Loadout wallet (shared with counting.js).
@@ -12,7 +12,7 @@ const COOLDOWN_KEY = (uid) => 'encounter_cd:' + uid;
 
 // 28 events. Bolt math is roughly zero-sum across the table so heavy
 // rolling doesn't either blow the wallet up or grind it to dust. Tune
-// the list freely — the bot doesn't care about ordering.
+// the list freely, the bot doesn't care about ordering.
 const ENCOUNTERS = [
   // Wins
   { emoji: '💎', text: 'You stumble onto diamond ore!',                                    bolts:  20 },
@@ -22,7 +22,7 @@ const ENCOUNTERS = [
   { emoji: '🐟', text: 'You catch a rare fish. The chat is impressed.',                    bolts:   8 },
   { emoji: '🎯', text: 'Critical hit on a passing mob.',                                   bolts:  12 },
   { emoji: '✨', text: 'A streamer-shaped figure smiles upon you.',                        bolts:   7 },
-  { emoji: '🦊', text: 'A fox darts past — drops something shiny.',                        bolts:   5 },
+  { emoji: '🦊', text: 'A fox darts past, drops something shiny.',                        bolts:   5 },
   // Neutrals
   { emoji: '🌧️', text: 'It starts raining. You stay dry, somehow.',                       bolts:   0 },
   { emoji: '🌅', text: 'You catch a perfect sunrise. Inner peace +1.',                     bolts:   0 },

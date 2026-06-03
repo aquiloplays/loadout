@@ -1,4 +1,4 @@
-// Banners — 5-25 player banded community alliances. The unit of
+// Banners, 5-25 player banded community alliances. The unit of
 // participation in Banner Wars (see banner-wars.js).
 //
 // 2026-05-29 MVP. Site UI is already scaffolded with greyed-out
@@ -18,8 +18,7 @@
 //     members: [userId], maxMembers, motto, color (#rrggbb),
 //     bannerCoinsTreasury, warsWon, warsLost, createdUtc, updatedUtc }
 //
-// Currency: Banner Coins (`bc`) live as a sibling on wallet.js —
-// added under `wallet.bannerCoins`. Earned by raid contributions
+// Currency: Banner Coins (`bc`) live as a sibling on wallet.js, // added under `wallet.bannerCoins`. Earned by raid contributions
 // and war wins, spent on banner-only cosmetics + war boosts.
 
 import { getWallet, putWallet } from './wallet.js';
@@ -29,7 +28,7 @@ const MAX_MEMBERS = 25;
 const TAG_RE      = /^[A-Z0-9]{3,5}$/;
 const NAME_RE     = /^[A-Za-z0-9 '-]{3,30}$/;
 
-// Founding cost — 500 bolts. High enough that banners aren't churned;
+// Founding cost, 500 bolts. High enough that banners aren't churned;
 // low enough that an active viewer can spin one up in a week.
 const FOUND_COST_BOLTS = 500;
 
@@ -160,7 +159,7 @@ export async function createBanner(env, guildId, userId, opts = {}) {
              need: FOUND_COST_BOLTS, have: wallet.balance || 0,
              message: `Need ${FOUND_COST_BOLTS} bolts to found a banner.` };
   }
-  // Tag uniqueness — index scan. Cheap; index is short.
+  // Tag uniqueness, index scan. Cheap; index is short.
   const idx = await readIndex(env, guildId);
   for (const bid of (idx.bannerIds || [])) {
     const b = await readBanner(env, guildId, bid);
@@ -224,13 +223,13 @@ export async function leaveBanner(env, guildId, userId) {
   if (!m?.bannerId) return { ok: false, error: 'not-in-banner' };
   const banner = await readBanner(env, guildId, m.bannerId);
   if (!banner) {
-    // Stale membership — clear and return ok.
+    // Stale membership, clear and return ok.
     await clearMember(env, guildId, userId);
     return { ok: true, deleted: 'stale' };
   }
   banner.members = (banner.members || []).filter(u => u !== userId);
 
-  // Owner left — promote longest-tenured remaining, or dissolve the
+  // Owner left, promote longest-tenured remaining, or dissolve the
   // banner if no one else.
   let dissolved = false;
   if (banner.ownerId === userId) {
@@ -251,7 +250,7 @@ export async function leaveBanner(env, guildId, userId) {
   return { ok: true, dissolved };
 }
 
-// Kick — owner-only. Idempotent.
+// Kick, owner-only. Idempotent.
 export async function kickFromBanner(env, guildId, callerId, opts = {}) {
   const targetId = String(opts.userId || '').trim();
   if (!targetId) return { ok: false, error: 'bad-args' };

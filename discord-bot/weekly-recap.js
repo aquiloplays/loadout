@@ -1,4 +1,4 @@
-// Weekly recap — Sunday 8pm ET, one styled embed in RECAP_CHANNEL_ID
+// Weekly recap, Sunday 8pm ET, one styled embed in RECAP_CHANNEL_ID
 // summarising the past 7 days.
 //
 // Assembler is opportunistic: each section is independently best-
@@ -7,7 +7,7 @@
 // and grow new sections automatically once the corresponding data
 // surfaces (new-member counter once the gateway shim lands, etc.).
 //
-// One-per-ISO-week idempotency via `recap:weekly:last-week:<g>` — a
+// One-per-ISO-week idempotency via `recap:weekly:last-week:<g>`, a
 // re-run on the same Sunday is a no-op so we can't double-post even
 // if the :17 hourly cron somehow ticks twice (cron at-least-once
 // delivery semantics).
@@ -27,7 +27,7 @@ function isoWeek(date = new Date()) {
   return d.getUTCFullYear() + '-W' + String(weekNo).padStart(2, '0');
 }
 
-// ── Section collectors — each returns a {title, value} embed-field
+// ── Section collectors, each returns a {title, value} embed-field
 // or null when there's no data. assembleSections() filters nulls
 // out so the embed is tight.
 
@@ -56,7 +56,7 @@ async function sectionTopStarboard(env, guildId) {
     const lines = top.map((p, i) => {
       const snippet = (p.content || '').slice(0, 80).replace(/\n+/g, ' ');
       const link = p.originalUrl ? ` · [jump](${p.originalUrl})` : '';
-      return `${i + 1}. ${p.starCount || 0} ⭐ — **${p.authorName || 'someone'}**` +
+      return `${i + 1}. ${p.starCount || 0} ⭐, **${p.authorName || 'someone'}**` +
              (snippet ? `: _${snippet}${(p.content || '').length > 80 ? '…' : ''}_` : '') +
              link;
     });
@@ -71,20 +71,20 @@ async function sectionClashWars(env, guildId) {
   // The clash module's town-records use a structure (town:<g>) that
   // doesn't currently track a per-week win counter; without that
   // we'd be scraping every war record across all towns to assemble
-  // a leaderboard. Skip — emit nothing rather than fake numbers. If
+  // a leaderboard. Skip, emit nothing rather than fake numbers. If
   // a `clash:wars:weekly:<g>` aggregator gets added later this
   // section can fill in without a recap.js change.
   try {
     const aggregator = await env.LOADOUT_BOLTS.get(`clash:wars:weekly:${guildId}`, { type: 'json' });
     if (!Array.isArray(aggregator) || aggregator.length === 0) return null;
     const top = aggregator.slice(0, 3);
-    const lines = top.map((w, i) => `${i + 1}. **${w.townName || w.guildId}** — ${w.wins} wins`);
+    const lines = top.map((w, i) => `${i + 1}. **${w.townName || w.guildId}**, ${w.wins} wins`);
     return { name: '⚔️  Top Clash war winners', value: lines.join('\n'), inline: false };
   } catch { return null; }
 }
 
 async function sectionBoltbound(env, guildId) {
-  // Same shape as the Clash section — graceful skip when no
+  // Same shape as the Clash section, graceful skip when no
   // weekly aggregator exists yet. Future-proof key:
   // `boltbound:weekly:<g>` → [{ userId, wins, ... }, ...].
   try {
@@ -93,7 +93,7 @@ async function sectionBoltbound(env, guildId) {
     const best = aggregator[0];
     return {
       name: '🃏  Best Boltbound this week',
-      value: `<@${best.userId}> — **${best.wins}** wins`,
+      value: `<@${best.userId}>, **${best.wins}** wins`,
       inline: false,
     };
   } catch { return null; }
@@ -127,7 +127,7 @@ async function sectionNewMembers(env, guildId) {
 }
 
 async function sectionTopReactions(env, guildId) {
-  // Gateway-shim-dependent — we don't ingest MESSAGE_REACTION_ADD
+  // Gateway-shim-dependent, we don't ingest MESSAGE_REACTION_ADD
   // events from chat-at-large, just the starboard ⭐ pathway. Until
   // a forwarder writes a `guild:reactions:weekly:<g>` aggregator
   // (top emoji counts), this section omits.
@@ -135,7 +135,7 @@ async function sectionTopReactions(env, guildId) {
     const aggregator = await env.LOADOUT_BOLTS.get(`guild:reactions:weekly:${guildId}`, { type: 'json' });
     if (!Array.isArray(aggregator) || aggregator.length === 0) return null;
     const top = aggregator.slice(0, 5);
-    const lines = top.map((r, i) => `${i + 1}. ${r.emoji} — ${r.count}`);
+    const lines = top.map((r, i) => `${i + 1}. ${r.emoji}, ${r.count}`);
     return { name: '🎉  Most-used reactions', value: lines.join('\n'), inline: false };
   } catch { return null; }
 }
@@ -163,7 +163,7 @@ export async function postWeeklyRecap(env) {
   ])).filter(Boolean);
 
   // Even with zero data sections we stamp the week so we don't
-  // keep retrying every hourly tick this Sunday — and we still
+  // keep retrying every hourly tick this Sunday, and we still
   // post a one-line "quiet week" embed so the channel stays alive.
   await env.LOADOUT_BOLTS.put(LAST_WEEK_KEY(guildId), week);
 

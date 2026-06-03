@@ -1,4 +1,4 @@
-// Progression — anti-abuse tightening.
+// Progression, anti-abuse tightening.
 //
 // PROGRESSION-SYSTEM-DESIGN.md §11. Sock-puppet first-week hold,
 // chat-message dedup, tournament-eligibility (Steam-link required for
@@ -7,7 +7,7 @@
 // New-account hold:
 //   - First L10 milestone XP is HELD for 7 days after the user's
 //     pprofile.createdUtc. Stops drive-by sockpuppet farms.
-//   - We don't block the XP grant — we just defer the L10 *meta-
+//   - We don't block the XP grant, we just defer the L10 *meta-
 //     achievement* unlock (Top of the Class) for 7 days. The
 //     achievement engine's checkAchievements consults this gate via
 //     `isFirstWeekHeld`.
@@ -32,7 +32,7 @@ export async function isFirstWeekHeld(env, userId) {
 // Filter discord.message events through a 5-min hash dedup. Returns
 // true if the message is fresh (grant XP), false if it's a recent
 // duplicate (skip). The hash is djb2-style over the lowercased
-// message body — cheap, no crypto.subtle round-trip.
+// message body, cheap, no crypto.subtle round-trip.
 function djb2(s) {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = (((h << 5) + h) ^ s.charCodeAt(i)) | 0;

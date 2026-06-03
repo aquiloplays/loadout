@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One-shot — post the season-reset announcement to the Aquilo updates
+// One-shot, post the season-reset announcement to the Aquilo updates
 // channel via the worker's sanctioned admin channel-post endpoint
 // (/admin/post-embed/:guildId, per-guild HMAC). The guild signing secret
 // is read from KV at run time and used only to sign the request; it is
@@ -14,7 +14,7 @@ import { createHmac } from 'node:crypto';
 const WORKER = 'https://loadout-discord.aquiloplays.workers.dev';
 const NS_ID = 'ffa4638187fd4c71b65f62e00b9437fa';
 const GUILD = '1504103035951906883';
-const CHANNEL = '1507973904164061194';   // 💬│general — CHECKIN/ENGAGEMENT/LEADERBOARD channel
+const CHANNEL = '1507973904164061194';   // 💬│general, CHECKIN/ENGAGEMENT/LEADERBOARD channel
                                          // (where daily check-in embeds post; bot-confirmed)
 const EXECUTE = process.argv.includes('--execute');
 const WRANGLER = process.platform === 'win32' ? 'npx.cmd' : 'npx';
@@ -44,11 +44,11 @@ const ts = String(Math.floor(Date.now() / 1000));
 
 console.log('--- announcement ---');
 console.log(TEXT);
-console.log('\ntarget channel:', CHANNEL, '(💬│general — check-in channel)');
+console.log('\ntarget channel:', CHANNEL, '(💬│general, check-in channel)');
 console.log('endpoint:', `${WORKER}/admin/post-embed/${GUILD}`);
 
 if (!EXECUTE) {
-  console.log('\nDRY RUN — re-run with --execute to post.');
+  console.log('\nDRY RUN, re-run with --execute to post.');
   process.exit(0);
 }
 

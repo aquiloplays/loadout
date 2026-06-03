@@ -1,4 +1,4 @@
-<!-- Thanks for the PR. Brief is fine — we read every line. -->
+<!-- Thanks for the PR. Brief is fine, we read every line. -->
 
 ## What changed
 

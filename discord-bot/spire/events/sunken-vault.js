@@ -1,4 +1,4 @@
-// Sunken Vault — water, drowned treasure, eel-priests, kelp-grown stone.
+// Sunken Vault, water, drowned treasure, eel-priests, kelp-grown stone.
 // 5 events: 1 pure upside, 3 tradeoff, 1 gamble.
 
 export const SUNKEN_VAULT_EVENTS = Object.freeze([
@@ -12,7 +12,7 @@ export const SUNKEN_VAULT_EVENTS = Object.freeze([
         id: 'open',
         label: 'Open it',
         outcomes: [
-          { weight: 55, effect: { type: 'bolts_gain', amount: 40 },     text: 'Gold coins tumble out — 40 bolts.' },
+          { weight: 55, effect: { type: 'bolts_gain', amount: 40 },     text: 'Gold coins tumble out, 40 bolts.' },
           { weight: 30, effect: { type: 'relic_grant', tier: 'minor' }, text: 'A barnacled clockwork heart, still beating. Minor relic.' },
           { weight: 15, effect: { type: 'hp_loss', amount: 10 },         text: 'The chest snaps shut on your hand. (-10 HP)' },
         ],
@@ -30,7 +30,7 @@ export const SUNKEN_VAULT_EVENTS = Object.freeze([
     id: 'eel-priest',
     name: 'The Eel-Priest',
     description:
-      "A long, robed figure with the smooth head of a moray eel offers to bless your deck — but warns that the sea takes as it gives.",
+      "A long, robed figure with the smooth head of a moray eel offers to bless your deck, but warns that the sea takes as it gives.",
     choices: [
       {
         id: 'accept',
@@ -91,7 +91,7 @@ export const SUNKEN_VAULT_EVENTS = Object.freeze([
     id: 'pearl-diver',
     name: 'The Pearl Diver',
     description:
-      "A woman with gills along her neck offers to dive for a pearl on your behalf — for a fee.",
+      "A woman with gills along her neck offers to dive for a pearl on your behalf, for a fee.",
     choices: [
       {
         id: 'pay-small',
@@ -106,7 +106,7 @@ export const SUNKEN_VAULT_EVENTS = Object.freeze([
         label: 'Pay 50 bolts',
         outcomes: [
           { weight: 80, effect: { type: 'card_grant', rarity: 'epic' }, text: 'She comes up with a black pearl the size of a fist.' },
-          { weight: 20, effect: { type: 'card_grant', rarity: 'rare' },  text: 'She returns with a smaller pearl than promised — still good.' },
+          { weight: 20, effect: { type: 'card_grant', rarity: 'rare' },  text: 'She returns with a smaller pearl than promised, still good.' },
         ],
       },
       {

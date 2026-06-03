@@ -1,7 +1,7 @@
 // Dynamic live-status dashboard embed.
 //
 // 2026-05-29 sprint addition. Distinct from the existing "going live"
-// announcement card in twitch-live.js — this is a per-minute refreshing
+// announcement card in twitch-live.js, this is a per-minute refreshing
 // dashboard embed in a separate channel (1507973917350957067 by
 // default) that the community can glance at to see viewer count, hype
 // train state, etc.
@@ -24,7 +24,7 @@ import { getChannelBinding } from './channel-bindings.js';
 
 const DEFAULT_CHANNEL_ID = '1507973917350957067';
 const KEY = (g) => `live-status-embed:${g}`;
-// Embed cache TTL — Discord caches embed images by URL; cache-bust
+// Embed cache TTL, Discord caches embed images by URL; cache-bust
 // query bumps every minute so the thumbnail re-fetches.
 
 async function activeGuildId(env) {
@@ -69,7 +69,7 @@ function buildEmbed({ stream, login, hypeTrain }) {
     fields.push({ name: '🎯 Game', value: stream.game_name, inline: true });
   }
   const embed = {
-    title: `🔴 Aquilo is LIVE — ${stream.title || 'Streaming now'}`.slice(0, 256),
+    title: `🔴 Aquilo is LIVE, ${stream.title || 'Streaming now'}`.slice(0, 256),
     description: stream.game_name ? `Playing **${stream.game_name}**` : 'Stream is live',
     color: 0xFF4757,
     image: { url: liveThumbUrl(login, cacheBust) },
@@ -152,7 +152,7 @@ export async function handleStreamOnline(env, broadcasterId) {
       }));
       return { ok: true, action: 'patched', messageId: existing.messageId };
     }
-    // Patch failed (likely 404 — message deleted). Fall through to POST.
+    // Patch failed (likely 404, message deleted). Fall through to POST.
     await env.LOADOUT_BOLTS.delete(KEY(guildId));
   }
 
@@ -181,7 +181,7 @@ export async function refreshLiveStatusEmbed(env) {
 
   const stream = await getStreamInfo(env, rec.broadcasterId);
   if (!stream) {
-    // Stream went offline — Helix returned nothing. Clean up.
+    // Stream went offline, Helix returned nothing. Clean up.
     return handleStreamOffline(env, rec.broadcasterId);
   }
   const login = await loginFor(env, rec.broadcasterId);
@@ -194,7 +194,7 @@ export async function refreshLiveStatusEmbed(env) {
   const r = await discordPatch(env, rec.channelId, rec.messageId, payload);
   if (!r.ok) {
     if (r.status === 404) {
-      // Message gone — clear KV so a future stream.online posts fresh.
+      // Message gone, clear KV so a future stream.online posts fresh.
       await env.LOADOUT_BOLTS.delete(KEY(guildId));
       return { ok: true, action: 'cleared-stale' };
     }
@@ -212,7 +212,7 @@ export async function handleHypeTrainBegin(env, payload) {
 
 export async function handleHypeTrainProgress(env, payload) {
   const ev = payload?.event || {};
-  // Twitch carries total + goal — derive percent. Falls back to 0.
+  // Twitch carries total + goal, derive percent. Falls back to 0.
   const total = Number(ev.total || ev.progress || 0);
   const goal  = Number(ev.goal || 1) || 1;
   const level = Number(ev.level || 1);
@@ -230,7 +230,7 @@ async function _hypeUpdate(env, payload, hypeTrain) {
   const rec = await env.LOADOUT_BOLTS.get(KEY(guildId), { type: 'json' });
   if (!rec?.messageId) return { ok: true, skipped: 'no-tracked-embed' };
   // Stamp a 30-min expiry on the hype train so progress events stop
-  // being stale if `end` is missed — refresh cron clears expired state.
+  // being stale if `end` is missed, refresh cron clears expired state.
   const next = { ...rec };
   if (hypeTrain) {
     next.hypeTrain = { ...hypeTrain, expiresUtc: new Date(Date.now() + 30 * 60_000).toISOString() };

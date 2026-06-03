@@ -19,8 +19,8 @@ CI runs `tools/build-dll.ps1` + `tools/build-sb-import.ps1` on every PR.
 - **Comments:** explain *why* a thing exists or *why* a counterintuitive choice was made. Skip `// increment counter` style narration.
 - **Identifiers:** `PascalCase` for types/methods/properties, `_camelCase` for private fields, `kCamel` not used.
 - **Async:** every `Task`-returning method does `.ConfigureAwait(false)` unless it's a UI thread caller.
-- **Exceptions:** module event handlers must never let an exception propagate to the dispatcher — write to `Util.ErrorLog` and bail.
-- **WPF:** no MVVM frameworks, just code-behind. Brand colors come from `UI/Styles.xaml` — never hardcode.
+- **Exceptions:** module event handlers must never let an exception propagate to the dispatcher, write to `Util.ErrorLog` and bail.
+- **WPF:** no MVVM frameworks, just code-behind. Brand colors come from `UI/Styles.xaml`, never hardcode.
 - **Branding:** match the SF / aquilo.gg palette exactly (`#0E0E10` / `#3A86FF` / Segoe UI / 8 px radius). If you change a brand color in this repo, change it in StreamFusion too.
 
 ## Adding a module
@@ -29,7 +29,7 @@ CI runs `tools/build-dll.ps1` + `tools/build-sb-import.ps1` on every PR.
 2. Add a toggle to `ModulesConfig` in `src/Loadout.Core/Settings/LoadoutSettings.cs` (default **false**).
 3. If you need new persisted state, add a config class next to `ModulesConfig` and a property on `LoadoutSettings`.
 4. If you need a new Patreon gate, add an entry to `Feature` enum in `src/Loadout.Core/Patreon/Entitlements.cs` and the tier mapping in `IsUnlocked`.
-5. Register the module in `SbEventDispatcher.RegisterDefaultModules()`. Order matters — anything that *reads* tracker state should come AFTER the producer.
+5. Register the module in `SbEventDispatcher.RegisterDefaultModules()`. Order matters, anything that *reads* tracker state should come AFTER the producer.
 6. Add a checkbox to `OnboardingWindow.xaml` Step 3 + load/save/preset wiring in the `.cs`.
 7. If you need a new SB event kind, extend `01-event.cs`'s `MapKind` and add the trigger type to `tools/build-sb-import.ps1`.
 8. Build, test, regenerate the bundle, document in `CONFIG.md`.
@@ -44,7 +44,7 @@ CI runs `tools/build-dll.ps1` + `tools/build-sb-import.ps1` on every PR.
 
 ## Adding a Streamer.bot trigger
 
-1. Find the numeric type via `tools/dump-sb-enums.ps1` — it dumps `Streamer.bot.Common.Events.EventType` from your local SB install.
+1. Find the numeric type via `tools/dump-sb-enums.ps1`, it dumps `Streamer.bot.Common.Events.EventType` from your local SB install.
 2. Add the constant to `tools/build-sb-import.ps1`.
 3. Add the trigger to the appropriate event-trampoline action's trigger list.
 4. Map it to a string `kind` in `streamerbot/actions/01-event.cs`'s `MapKind`.
@@ -68,7 +68,7 @@ The script bumps version in `Loadout.Core.csproj` + `streamerbot/actions/00-boot
 
 - **Subject lines:** imperative, ≤72 chars (`Add Apex damage threshold setting`, not `Added apex damage threshold setting`).
 - **Body:** explain the *why* if it's not obvious from the change.
-- **Scope:** keep commits focused — one logical change per commit. Refactor commits separate from feature commits.
+- **Scope:** keep commits focused, one logical change per commit. Refactor commits separate from feature commits.
 - **No commit emoji.** Save them for chat.
 
 ## License

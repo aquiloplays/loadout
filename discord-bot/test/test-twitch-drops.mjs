@@ -1,4 +1,4 @@
-// Unit tests for twitch-drops — state init, tick accrual + milestone
+// Unit tests for twitch-drops, state init, tick accrual + milestone
 // crossing, claim flow (success + already-claimed), locked-claim
 // gate, and HMAC route shape.
 //
@@ -96,7 +96,7 @@ function makeMockPacks() {
   };
 }
 
-// Helper — seed N twitch links so listLinkedAquiloIds returns N
+// Helper, seed N twitch links so listLinkedAquiloIds returns N
 // aquilo user IDs.
 async function seedLinks(kv, pairs /* [[twitchId, aquiloId], ...] */) {
   for (const [tid, aid] of pairs) {
@@ -114,7 +114,7 @@ console.log('-- MILESTONES shape');
   eq(MILESTONES[0].reward.bolts, 50, '15-min reward = 50 bolts');
   eq(MILESTONES[1].reward.packId, 'pack-bronze', '30-min reward = pack-bronze');
   eq(MILESTONES[3].reward.packId, 'pack-gold', '120-min reward = pack-gold');
-  // Frozen — mutation should throw in strict mode (ES modules are strict).
+  // Frozen, mutation should throw in strict mode (ES modules are strict).
   let threw = false;
   try { MILESTONES.push({ minutes: 999 }); } catch { threw = true; }
   assert(threw, 'MILESTONES is frozen');
@@ -129,7 +129,7 @@ console.log('-- newlyCrossedMilestones detection');
   const c3 = __internals.newlyCrossedMilestones(0, 130);
   deepEq(c3, [15, 30, 60, 120], '0 to 130 crosses all four');
   const c4 = __internals.newlyCrossedMilestones(60, 65);
-  deepEq(c4, [], '60 to 65 — no new milestone');
+  deepEq(c4, [], '60 to 65, no new milestone');
 }
 
 console.log('-- getDropsState init for new user');
@@ -191,7 +191,7 @@ console.log('-- watchTimeTickCron crosses 15-min milestone, marks unlocked');
   await setLive(kv);
   await seedLinks(kv, [['t-1', 'aq-1']]);
 
-  // Tick 3 times (5+5+5=15) — third tick should cross the 15-min milestone.
+  // Tick 3 times (5+5+5=15), third tick should cross the 15-min milestone.
   // Each tick uses a different nowMs so dedup doesn't bite.
   const t0 = Date.UTC(2026, 5, 1, 12, 0);
   await watchTimeTickCron(env, { nowMs: t0 });
@@ -212,11 +212,11 @@ console.log('-- watchTimeTickCron is dedup-safe within window');
   await seedLinks(kv, [['t-1', 'aq-1']]);
   const t0 = Date.UTC(2026, 5, 1, 12, 0);
   await watchTimeTickCron(env, { nowMs: t0 });
-  // Re-fire immediately (cron retry) — should NOT double-credit.
+  // Re-fire immediately (cron retry), should NOT double-credit.
   const r2 = await watchTimeTickCron(env, { nowMs: t0 + 1000 });
   eq(r2.skippedDedup, 1, 'second back-to-back tick skipped per-user');
   const s = await getDropsState(env, 'aq-1');
-  eq(s.watchMinutes, 5, 'still 5 min (not 10) — dedup held');
+  eq(s.watchMinutes, 5, 'still 5 min (not 10), dedup held');
 }
 
 console.log('-- claimDropMilestone success grants bolts');
@@ -355,5 +355,5 @@ console.log('-- handleDropsRoute unknown path → 404');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

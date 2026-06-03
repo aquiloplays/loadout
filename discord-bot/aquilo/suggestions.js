@@ -1,7 +1,7 @@
 // Game suggestion box. Users can `/suggest <game> [reason]` to suggest
 // new games for the community-night rotation. Suggestions land in D1
 // with status='pending'. Admin reviews via the hub "Review Suggestions"
-// button — ephemeral list with Approve / Dismiss buttons per row.
+// button, ephemeral list with Approve / Dismiss buttons per row.
 // Approve inserts into `games` (active=1); Dismiss marks as dismissed.
 
 import {
@@ -61,7 +61,7 @@ export async function reviewSuggestions(env, data) {
   // Discord limits 5 rows per message, so cap at 5 suggestions per view.
   const lines = list.map((s, i) => {
     const r = s.reason ? '\n   _' + s.reason.slice(0, 200) + '_' : '';
-    return (i + 1) + '. **' + s.game_name + '** — by <@' + s.user_id + '>' + r;
+    return (i + 1) + '. **' + s.game_name + '**, by <@' + s.user_id + '>' + r;
   });
   const embed = {
     title: '💡 Pending Game Suggestions (' + list.length + ')',
@@ -111,7 +111,7 @@ export async function handleSuggestionAction(env, data) {
     await env.DB.prepare(
       `UPDATE game_suggestions SET status = 'approved', reviewed_at = datetime('now') WHERE id = ?`
     ).bind(id).run();
-    return ephemeral('✅ **' + s.game_name + '** approved + added to the pool. (No cover art yet — use 🖼️ Set Game Art on the hub to add one.)');
+    return ephemeral('✅ **' + s.game_name + '** approved + added to the pool. (No cover art yet, use 🖼️ Set Game Art on the hub to add one.)');
   }
 
   if (action === 'dismiss') {

@@ -1,4 +1,4 @@
-// Unit tests for boltbound-emotes — input validation, 5s gap,
+// Unit tests for boltbound-emotes, input validation, 5s gap,
 // per-match 10-emote cap, feed ring buffer, route handler.
 //
 // Run from discord-bot/:
@@ -38,7 +38,7 @@ function makeEnv() {
 
 // ── ALLOWED_EMOTES is frozen + exact set ──────────────────────────
 
-console.log('— ALLOWED_EMOTES shape');
+console.log('- ALLOWED_EMOTES shape');
 {
   eq(ALLOWED_EMOTES.length, 6, 'six curated emotes');
   for (const e of ['wave','party','think','embarrassed','fire','pray']) {
@@ -49,7 +49,7 @@ console.log('— ALLOWED_EMOTES shape');
 
 // ── Input validation ──────────────────────────────────────────────
 
-console.log('— sendEmote rejects bad inputs');
+console.log('- sendEmote rejects bad inputs');
 {
   const env = makeEnv();
   const a = await sendEmote(env, '', 'A', 'wave', 1000);
@@ -73,7 +73,7 @@ console.log('— sendEmote rejects bad inputs');
 
 // ── Rate limit: 1 emote / 5s per (matchId, side) ──────────────────
 
-console.log('— rate-limit 5s gap per side');
+console.log('- rate-limit 5s gap per side');
 {
   const env = makeEnv();
   const t0 = 1_000_000;
@@ -98,7 +98,7 @@ console.log('— rate-limit 5s gap per side');
 
 // ── Per-match cap: 10 emotes per side per match ──────────────────
 
-console.log('— per-match 10-emote cap per side');
+console.log('- per-match 10-emote cap per side');
 {
   const env = makeEnv();
   const t0 = 2_000_000;
@@ -118,7 +118,7 @@ console.log('— per-match 10-emote cap per side');
 
 // ── Feed ring buffer ──────────────────────────────────────────────
 
-console.log('— readFeed returns recent emotes (and respects sinceTs)');
+console.log('- readFeed returns recent emotes (and respects sinceTs)');
 {
   const env = makeEnv();
   const t0 = 3_000_000;
@@ -144,7 +144,7 @@ console.log('— readFeed returns recent emotes (and respects sinceTs)');
 
 // ── KV write feed cap ─────────────────────────────────────────────
 
-console.log('— feed caps at FEED_CAP entries');
+console.log('- feed caps at FEED_CAP entries');
 {
   const env = makeEnv();
   const t0 = 4_000_000;
@@ -160,7 +160,7 @@ console.log('— feed caps at FEED_CAP entries');
 
 // ── kv-unavailable guard ──────────────────────────────────────────
 
-console.log('— missing LOADOUT_BOLTS → kv-unavailable');
+console.log('- missing LOADOUT_BOLTS → kv-unavailable');
 {
   const env = { AQUILO_SITE_WEB_SECRET: 'x' };
   const r = await sendEmote(env, 'm', 'A', 'wave', 1);
@@ -181,7 +181,7 @@ async function hmacSign(secret, ts, body) {
   return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-console.log('— GET /web/boltbound/emote/feed/:matchId returns events');
+console.log('- GET /web/boltbound/emote/feed/:matchId returns events');
 {
   const env = makeEnv();
   await sendEmote(env, 'mhttp', 'A', 'fire', 5_000_000);
@@ -194,7 +194,7 @@ console.log('— GET /web/boltbound/emote/feed/:matchId returns events');
   eq(data.events[0].emoteId, 'fire', 'emote payload correct');
 }
 
-console.log('— POST /web/boltbound/emote requires valid HMAC');
+console.log('- POST /web/boltbound/emote requires valid HMAC');
 {
   const env = makeEnv();
   const body = JSON.stringify({ matchId: 'mp', playerSide: 'A', emoteId: 'wave' });
@@ -227,7 +227,7 @@ console.log('— POST /web/boltbound/emote requires valid HMAC');
   eq(data.broadcast.matchId, 'mp', 'broadcast matchId');
 }
 
-console.log('— POST with bad emoteId → 400');
+console.log('- POST with bad emoteId → 400');
 {
   const env = makeEnv();
   const body = JSON.stringify({ matchId: 'mp', playerSide: 'A', emoteId: 'rage' });
@@ -247,7 +247,7 @@ console.log('— POST with bad emoteId → 400');
   eq(data.reason, 'invalid-emote', 'reason invalid-emote');
 }
 
-console.log('— unknown path → 404');
+console.log('- unknown path → 404');
 {
   const env = makeEnv();
   const req = new Request('https://example.com/web/boltbound/emote/wat', { method: 'GET' });
@@ -256,5 +256,5 @@ console.log('— unknown path → 404');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1,6 +1,6 @@
-// Progression — XP grant + level math + per-user storage.
+// Progression, XP grant + level math + per-user storage.
 //
-// PROGRESSION-SYSTEM-DESIGN.md §4 — owns the pxp:<userId> hot record
+// PROGRESSION-SYSTEM-DESIGN.md §4, owns the pxp:<userId> hot record
 // and the level curve. The event bus (event-bus.js) calls grantXp()
 // after dedup; this module handles per-kind caps, the global daily
 // soft cap (500 XP/day with 1/3 accrual beyond), and level math.
@@ -8,7 +8,7 @@
 import { loadXpTable, xpForKind, dailyCapForKind } from './xp-table.js';
 
 // Polynomial curve. v1 was xpToReach(level) = 100×level + 30×level^1.6.
-// v2 rebalance (2026-05) — doubled both coefficients so L25/50/100
+// v2 rebalance (2026-05), doubled both coefficients so L25/50/100
 // actually feel earned. New: 200×level + 60×level^1.6. At L1 the
 // math now returns 260 XP to reach L2 (was 130). XP grants themselves
 // stayed at v1 amounts; the curve carries the slowdown.
@@ -24,7 +24,7 @@ export function xpToReach(level) {
   return Math.round(200 * level + 60 * Math.pow(level, 1.6));
 }
 
-// Cumulative XP needed to *reach* level N — i.e. once xp >= xpAtLevel(N)
+// Cumulative XP needed to *reach* level N, i.e. once xp >= xpAtLevel(N)
 // the user is at L N. xpAtLevel(1) === 0, xpAtLevel(2) === 130, etc.
 export function xpAtLevel(level) {
   let total = 0;
@@ -32,7 +32,7 @@ export function xpAtLevel(level) {
   return total;
 }
 
-// Level for a given cumulative XP. Tight loop; no caching — runs in
+// Level for a given cumulative XP. Tight loop; no caching, runs in
 // microseconds at any practical XP value.
 export function levelForXp(xp) {
   if (xp <= 0) return 1;
@@ -43,11 +43,11 @@ export function levelForXp(xp) {
     if (cum + cost > xp) return lv;
     cum += cost;
     lv++;
-    if (lv > 200) return lv;   // safety floor — practical ceiling well below
+    if (lv > 200) return lv;   // safety floor, practical ceiling well below
   }
 }
 
-// Progress fraction within the current level — used by the UI XP bar.
+// Progress fraction within the current level, used by the UI XP bar.
 export function progressInLevel(xp) {
   const lv = levelForXp(xp);
   const floor = xpAtLevel(lv);
@@ -65,7 +65,7 @@ export function progressInLevel(xp) {
 
 // ── Storage ─────────────────────────────────────────────────────────
 
-const SOFT_DAILY_CAP = 500;       // §4.2 — beyond this, accrual at 1/3
+const SOFT_DAILY_CAP = 500;       // §4.2, beyond this, accrual at 1/3
 const SOFT_CAP_RATE  = 1 / 3;
 
 function ymdUtc(nowUtc = Date.now()) {
@@ -74,7 +74,7 @@ function ymdUtc(nowUtc = Date.now()) {
 
 const RECORD_KEY = (userId) => `pxp:${userId}`;
 
-// Default record shape. Tiny — kept lean for hot reads on every grant
+// Default record shape. Tiny, kept lean for hot reads on every grant
 // + every profile load.
 function freshRecord() {
   return {
@@ -190,7 +190,7 @@ export async function readXpDisplay(env, userId) {
   };
 }
 
-// Top-N leaderboard by total XP. Walks pxp:* — bounded (≤ 5 pages).
+// Top-N leaderboard by total XP. Walks pxp:*, bounded (≤ 5 pages).
 // Called by /web/xp/leaderboard at most once a minute (cached upstream).
 export async function topXp(env, limit = 25) {
   const rows = [];

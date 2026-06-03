@@ -1,4 +1,4 @@
-// Boltbound Seasonal Spire — core module.
+// Boltbound Seasonal Spire, core module.
 //
 // Owns the run lifecycle (start → advance/lose-life → complete/fail/
 // abandon), reward grants, and leaderboard queries. The /web/play/
@@ -105,7 +105,7 @@ async function snapshotDeck(env, guildId, userId) {
       if (deck) return { championClass: deck.championClass, cards: deck.cards };
     }
   } catch { /* fall through to starter */ }
-  // No deck — generate one from the starter builder.
+  // No deck, generate one from the starter builder.
   try {
     const { buildStarterDeck } = await import('./cards-decks.js');
     const collection = { cards: {} };
@@ -219,7 +219,7 @@ export async function recordResult(env, guildId, userId, opts = {}) {
       livesRemaining: 0,
     };
   }
-  // Lives left — retry the same floor.
+  // Lives left, retry the same floor.
   await D.prepare(
     `UPDATE spire_runs
        SET lives_remaining = ?, floor_clears = ?, updated_at = datetime('now')
@@ -261,7 +261,7 @@ async function grantClearRewards(env, guildId, userId, season, run, floor) {
   const clear = await getClearRecord(env, userId, season.id);
   const isBoss = floor >= TOTAL_FLOORS;
 
-  // First-clear gating — read the matching flag from spire_clears.
+  // First-clear gating, read the matching flag from spire_clears.
   const flagCol = floor === 5 ? 'floor5_first_claimed'
                 : floor === 9 ? 'floor9_first_claimed'
                 : isBoss      ? 'boss_first_claimed'
@@ -290,7 +290,7 @@ async function grantClearRewards(env, guildId, userId, season, run, floor) {
     return { granted: [], note: 'milestone-already-claimed' };
   }
 
-  // First-time path — actually grant the milestone reward.
+  // First-time path, actually grant the milestone reward.
   const granted = [];
   const { creditPack } = await import('./cards-packs.js');
   if (floor === 5) {
@@ -299,11 +299,11 @@ async function grantClearRewards(env, guildId, userId, season, run, floor) {
   } else if (floor === 9) {
     const pack = await creditPack(env, guildId, userId, 'epic', 'spire.floor9');
     if (pack?.ok) granted.push({ kind: 'pack', packType: 'epic', packId: pack.pack?.id });
-    granted.push({ kind: 'cosmetic', cosmeticId: 'spire-badge', note: 'cosmetics module wires this — placeholder' });
+    granted.push({ kind: 'cosmetic', cosmeticId: 'spire-badge', note: 'cosmetics module wires this, placeholder' });
   } else if (isBoss) {
     const pack = await creditPack(env, guildId, userId, 'legendary', 'spire.boss');
     if (pack?.ok) granted.push({ kind: 'pack', packType: 'legendary', packId: pack.pack?.id });
-    // Seasonal exclusive — append to the user's collection directly.
+    // Seasonal exclusive, append to the user's collection directly.
     const exclusiveId = SPIRE_EXCLUSIVE_BY_THEME[season.theme_id];
     if (exclusiveId) {
       try {
@@ -311,7 +311,7 @@ async function grantClearRewards(env, guildId, userId, season, run, floor) {
         await addCardToCollection(env, guildId, userId, exclusiveId, 1);
         granted.push({ kind: 'card', cardId: exclusiveId });
       } catch (e) {
-        // Non-fatal — pack still landed, exclusive will be retried via
+        // Non-fatal, pack still landed, exclusive will be retried via
         // /spire/run/me reconcile path.
       }
     }
@@ -346,7 +346,7 @@ async function grantClearRewards(env, guildId, userId, season, run, floor) {
 
   // Fire-and-forget post into the #spire-clears feed (falls back to
   // twitch-rewards-feed / #rewards if unbound). Embed failure is
-  // non-fatal — the player's grant already landed.
+  // non-fatal, the player's grant already landed.
   postClearFeedEmbed(env, guildId, userId, season, floor, granted).catch(() => {});
 
   return { granted, note: 'first-clear' };
@@ -366,7 +366,7 @@ async function postClearFeedEmbed(env, guildId, userId, season, floor, granted) 
                       : `cleared floor ${floor}`;
   const themeName = season.name || season.theme_id;
 
-  // Format the granted-rewards list — short, embed-friendly.
+  // Format the granted-rewards list, short, embed-friendly.
   const rewardLines = (granted || []).map(g => {
     if (g.kind === 'pack')     return `🎁 ${g.packType?.toUpperCase() || 'Pack'} pack`;
     if (g.kind === 'card')     return `🃏 \`${g.cardId}\` (seasonal exclusive)`;
@@ -377,7 +377,7 @@ async function postClearFeedEmbed(env, guildId, userId, season, floor, granted) 
   }).filter(Boolean);
 
   const embed = {
-    title: `🗼 Spire — ${themeName}`,
+    title: `🗼 Spire, ${themeName}`,
     description: `<@${userId}> **${milestoneText}** of the ${themeName} Spire.`,
     color: isBoss ? 0xfacc15 : (floor === 9 ? 0xa855f7 : 0x3b82f6),
     fields: rewardLines.length ? [{ name: 'Rewards', value: rewardLines.join('\n') }] : [],
@@ -528,7 +528,7 @@ export const SPIRE_INTERNAL = {
 //   3. INSERT (or fetch) the new month's spire_seasons row + flag it
 //      active. (lazyCreate via currentSeason() handles INSERT.)
 //
-// Idempotent — gated by KV marker `spire:rotate:last-month` (value =
+// Idempotent, gated by KV marker `spire:rotate:last-month` (value =
 // 'YYYY-MM'). Re-running the cron mid-month is a no-op.
 export async function rotateSeasonIfNeeded(env, nowMs) {
   const now = new Date(nowMs || Date.now());
@@ -546,7 +546,7 @@ export async function rotateSeasonIfNeeded(env, nowMs) {
   ).first();
 
   // If the active row's theme already matches, just stamp the marker
-  // and exit — the season is fresh, nothing to rotate.
+  // and exit, the season is fresh, nothing to rotate.
   if (active && active.theme_id === expectedTheme.themeId) {
     await env.LOADOUT_BOLTS.put(markerKey, monthKey);
     return { rotated: false, reason: 'theme-already-active' };

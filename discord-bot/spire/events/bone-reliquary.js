@@ -1,4 +1,4 @@
-// Bone Reliquary — necromancy, ossuaries, soul-coin, gravetenders.
+// Bone Reliquary, necromancy, ossuaries, soul-coin, gravetenders.
 // 5 events: 1 pure upside, 2 tradeoff, 2 gamble.
 
 export const BONE_RELIQUARY_EVENTS = Object.freeze([

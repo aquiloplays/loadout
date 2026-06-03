@@ -1,4 +1,4 @@
-// Glossy gear catalogue — all 185 items from dungeon.js SHOP_POOL.
+// Glossy gear catalogue, all 185 items from dungeon.js SHOP_POOL.
 //
 // Each gear icon is a 192×192 SVG composed from:
 //   • rarity glow backdrop (per-rarity radial behind item)
@@ -61,7 +61,7 @@ while ((m = reEntry.exec(dungeonSrc)) !== null) {
 }
 console.log(`parsed ${items.length} gear entries from SHOP_POOL`);
 if (items.length !== 185) {
-  console.warn(`expected 185, got ${items.length} — regex may be drifting`);
+  console.warn(`expected 185, got ${items.length}, regex may be drifting`);
 }
 
 const W = 192, H = 192;
@@ -337,7 +337,7 @@ function shapeHelm(pal, accent) {
 }
 
 function shapeHood(pal, accent) {
-  // Hood draped AROUND the face — a horseshoe/U shape that opens at
+  // Hood draped AROUND the face, a horseshoe/U shape that opens at
   // the front so the face stays visible. Width tighter than before
   // (was a dome covering the entire head + ears + sides). The drape
   // falls down behind the shoulders.
@@ -358,7 +358,7 @@ function shapeHood(pal, accent) {
 <path d="M ${CX - 36} ${CY - 18}
          Q ${CX} ${CY - 36} ${CX + 36} ${CY - 18}"
       fill="none" stroke="${PALETTE[accent].hi}" stroke-width="3" opacity="0.85"/>
-<!-- shoulder cape — the drape falls to here -->
+<!-- shoulder cape, the drape falls to here -->
 <path d="M ${CX - 56} ${CY + 40} Q ${CX} ${CY + 56} ${CX + 56} ${CY + 40}"
       fill="none" stroke="${PALETTE[pal].stroke}" stroke-width="2" opacity="0.6"/>
 <!-- gloss on left side of drape -->
@@ -438,7 +438,7 @@ function shapeRobe(pal, accent) {
   //
   // Geometry: shoulder line at CY-46 spans ±28; hem at CY+78
   // spans ±70. The slope is a STRAIGHT LINE (with a tiny ease
-  // at top/bottom) — that's what makes it an A-line not an egg.
+  // at top/bottom), that's what makes it an A-line not an egg.
   const SHOULDER_W = 28;
   const HEM_W      = 70;
   const SHOULDER_Y = -46;
@@ -447,7 +447,7 @@ function shapeRobe(pal, accent) {
   const SLEEVE_TOP = -42;
   const SLEEVE_END = 36;      // sleeve hem at ~3/4 down the robe
   return `
-<!-- SLEEVE DRAPES — hanging from the shoulders, BEHIND the body.
+<!-- SLEEVE DRAPES, hanging from the shoulders, BEHIND the body.
      These give the robe visible sleeve mass on each side. -->
 <path d="M ${CX - SHOULDER_W + 2} ${CY + SLEEVE_TOP}
          L ${CX - SHOULDER_W - SLEEVE_W} ${CY + SLEEVE_TOP + 6}
@@ -462,7 +462,7 @@ function shapeRobe(pal, accent) {
          L ${CX + SHOULDER_W - 8} ${CY + SLEEVE_TOP + 4} Z"
       fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3" stroke-linejoin="round"/>
 
-<!-- MAIN ROBE — clean A-line. Straight slope from shoulder line
+<!-- MAIN ROBE, clean A-line. Straight slope from shoulder line
      down to wide hem. No mid-bulge. -->
 <path d="M ${CX - SHOULDER_W} ${CY + SHOULDER_Y}
          L ${CX - HEM_W} ${CY + HEM_Y}
@@ -474,7 +474,7 @@ function shapeRobe(pal, accent) {
          Q ${CX - 10} ${CY + SHOULDER_Y - 6} ${CX - SHOULDER_W} ${CY + SHOULDER_Y} Z"
       fill="url(#gk-grad-${pal})" stroke="${PALETTE[pal].stroke}" stroke-width="3.5" stroke-linejoin="round"/>
 
-<!-- LIGHT-SIDE FORM HIGHLIGHT — a single vertical band on the left
+<!-- LIGHT-SIDE FORM HIGHLIGHT, a single vertical band on the left
      side of the robe. Crisp, not a radial blob. -->
 <path d="M ${CX - SHOULDER_W + 4} ${CY + SHOULDER_Y + 4}
          L ${CX - HEM_W + 10} ${CY + HEM_Y - 4}
@@ -482,14 +482,14 @@ function shapeRobe(pal, accent) {
          L ${CX - SHOULDER_W + 12} ${CY + SHOULDER_Y + 4} Z"
       fill="${PALETTE.white}" opacity="0.32"/>
 
-<!-- SHADOW-SIDE FORM SHADOW — single right-side overlay -->
+<!-- SHADOW-SIDE FORM SHADOW, single right-side overlay -->
 <path d="M ${CX + 2} ${CY + SHOULDER_Y - 1}
          L ${CX + 4} ${CY + HEM_Y - 4}
          L ${CX + HEM_W - 4} ${CY + HEM_Y - 4}
          L ${CX + SHOULDER_W - 2} ${CY + SHOULDER_Y} Z"
       fill="${PALETTE[pal].lo}" opacity="0.4"/>
 
-<!-- SKIRT FOLDS — 4 vertical drape lines radiating to the hem -->
+<!-- SKIRT FOLDS, 4 vertical drape lines radiating to the hem -->
 <g stroke="${PALETTE[pal].stroke}" stroke-width="1.2" opacity="0.5" fill="none">
   <path d="M ${CX - 14} ${CY - 10} L ${CX - 38} ${CY + HEM_Y - 6}"/>
   <path d="M ${CX - 4}  ${CY - 12} L ${CX - 12} ${CY + HEM_Y - 6}"/>
@@ -497,7 +497,7 @@ function shapeRobe(pal, accent) {
   <path d="M ${CX + 14} ${CY - 10} L ${CX + 38} ${CY + HEM_Y - 6}"/>
 </g>
 
-<!-- HEM TRIM — visible band at the bottom -->
+<!-- HEM TRIM, visible band at the bottom -->
 <path d="M ${CX - HEM_W + 2} ${CY + HEM_Y - 2}
          L ${CX + HEM_W - 2} ${CY + HEM_Y - 2}"
       stroke="${PALETTE[accent].hi}" stroke-width="3" opacity="0.85"/>
@@ -505,7 +505,7 @@ function shapeRobe(pal, accent) {
          L ${CX + HEM_W - 2} ${CY + HEM_Y + 2}"
       stroke="${PALETTE[pal].stroke}" stroke-width="1.5" opacity="0.8"/>
 
-<!-- COLLAR — V-neckline at the top -->
+<!-- COLLAR, V-neckline at the top -->
 <path d="M ${CX - 22} ${CY + SHOULDER_Y - 4}
          L ${CX - 4} ${CY + SHOULDER_Y + 16}
          L ${CX + 4} ${CY + SHOULDER_Y + 16}
@@ -663,7 +663,7 @@ function shapeOrb(pal, accent) {
 }
 
 function shapeCharm(pal, accent) {
-  // Generic feather / fang / coin charm — a small motif hanging on a cord
+  // Generic feather / fang / coin charm, a small motif hanging on a cord
   return `
 <!-- cord -->
 <path d="M ${CX - 50} ${CY - 50} Q ${CX} ${CY - 70} ${CX + 50} ${CY - 50}"
@@ -731,24 +731,23 @@ function pickAccent(item, basePal) {
 // Templates above give one shape per (slot, weaponType, subtype).
 // Without further differentiation, "Knight's Sword" + "Bronze
 // Shortsword" + "Steel Longsword" read as recolours of the same
-// silhouette. Each item now also gets a unique inscribed motif —
-// a small badge / emblem / gem clipped onto a slot-specific
-// anchor — so the eye picks up "this is a DIFFERENT item" even
+// silhouette. Each item now also gets a unique inscribed motif, // a small badge / emblem / gem clipped onto a slot-specific
+// anchor, so the eye picks up "this is a DIFFERENT item" even
 // across siblings.
 //
 // Motif kind selection:
 //   1. Keyword match against item.name + item.setName (fire→flame,
-//      frost→snowflake, shadow→eye, etc.) — most semantic.
+//      frost→snowflake, shadow→eye, etc.), most semantic.
 //   2. Deterministic hash fallback so unmatched items pick a
 //      consistent motif from the library.
 //
 // Per-slot anchor (where the motif sits on the icon's template):
-//   weapon  — pommel (just below the grip)
-//   head    — forehead (center-front of helmet)
-//   chest   — chest-medallion (center of torso)
-//   legs    — belt-buckle (top-center of trousers)
-//   boots   — ankle clasp (top-center between boot cuffs)
-//   trinket — gem center (overlay on existing gem)
+//   weapon, pommel (just below the grip)
+//   head, forehead (center-front of helmet)
+//   chest, chest-medallion (center of torso)
+//   legs, belt-buckle (top-center of trousers)
+//   boots, ankle clasp (top-center between boot cuffs)
+//   trinket, gem center (overlay on existing gem)
 //
 // Motif colour resolved from item.setName / item.rarity / item.
 // preferredClass so set-pieces share an emblem hue.
@@ -975,7 +974,7 @@ function pickMotifColor(item, basePal) {
   }
   // Default = rarity ring colour for crisp tint
   if (RARITY[item.rarity]) return RARITY[item.rarity].ring;
-  // Final fallback — gold against most palettes
+  // Final fallback, gold against most palettes
   void basePal;
   return PALETTE.gold.hi;
 }
@@ -988,15 +987,15 @@ function motifAnchor(slot) {
     // weapon: upper-right of canvas, off to the side of the blade,
     // so swords/axes/staffs all get a clear inscribed crest area.
     case 'weapon':  return { cx: CX + 56, cy: CY - 60, r: 12 };
-    // head: forehead/visor band — sits on most helm/hood/cap templates
+    // head: forehead/visor band, sits on most helm/hood/cap templates
     case 'head':    return { cx: CX,      cy: CY + 6,  r: 12 };
-    // chest: middle of torso — most templates leave a clear centre
+    // chest: middle of torso, most templates leave a clear centre
     case 'chest':   return { cx: CX,      cy: CY + 30, r: 12 };
     // legs: belt buckle position
     case 'legs':    return { cx: CX,      cy: CY - 50, r: 11 };
     // boots: between the two boots at the cuff line
     case 'boots':   return { cx: CX,      cy: CY - 28, r: 11 };
-    // trinket: gem centre — sits on top of the existing gem mount
+    // trinket: gem centre, sits on top of the existing gem mount
     case 'trinket': return { cx: CX,      cy: CY + 60, r: 11 };
     default:        return { cx: CX,      cy: CY,      r: 11 };
   }
@@ -1053,7 +1052,7 @@ for (const item of items) {
   const svg = svgWrapper({
     width: W, height: H,
     body,
-    title: `${item.name} — ${item.rarity}`,
+    title: `${item.name}, ${item.rarity}`,
     desc: `Loadout gear icon. slot=${item.slot} rarity=${item.rarity} weaponType=${item.weaponType}.`,
   });
   const id = safeId(item);

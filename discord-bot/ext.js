@@ -1,21 +1,21 @@
-// Twitch extension backend — /ext/* routes.
+// Twitch extension backend, /ext/* routes.
 //
 // Serves the aquilo.gg Twitch Panel extension's Loadout UI. Every route
 // is authenticated by the Twitch extension JWT (Authorization: Bearer)
-// and channel-gated to Clay's Twitch channel — other channels get 403,
+// and channel-gated to Clay's Twitch channel, other channels get 403,
 // so other Loadout streamers keep the OBS-overlay experience untouched.
 //
 // Config (Worker vars / secrets):
-//   TWITCH_EXT_SECRET       secret — base64 extension secret (JWT key)
-//   CLAY_TWITCH_CHANNEL_ID  var    — Clay's numeric Twitch channel id
-//   AQUILO_VAULT_GUILD_ID   var    — Clay's Discord guild, reused as the
+//   TWITCH_EXT_SECRET       secret, base64 extension secret (JWT key)
+//   CLAY_TWITCH_CHANNEL_ID  var, Clay's numeric Twitch channel id
+//   AQUILO_VAULT_GUILD_ID   var, Clay's Discord guild, reused as the
 //                                    Loadout guild for his channel
-//   RELAY_TOKEN             secret — shared token for the /relay/pending poll
+//   RELAY_TOKEN             secret, shared token for the /relay/pending poll
 // Until TWITCH_EXT_SECRET / CLAY_TWITCH_CHANNEL_ID are set every route
-// returns 401/403 — safe to deploy ahead of the Twitch app existing.
+// returns 401/403, safe to deploy ahead of the Twitch app existing.
 //
 // Identity bridge: a Twitch viewer's Loadout records live under a `tw:`
-// keyspace — wallet:<guild>:tw:<id>, d:hero:<guild>:tw:<id> — separate
+// keyspace, wallet:<guild>:tw:<id>, d:hero:<guild>:tw:<id>, separate
 // from Discord users (bare numeric ids) in the same guild, so the two
 // never collide. FUTURE merge phase: a `link:tw:<twId>` -> discordId
 // record will let resolveLoadoutUserId() resolve to the shared Discord
@@ -93,7 +93,7 @@ export async function handleExt(req, env, ctx) {
   const userId = resolveLoadoutUserId(twId);
 
   // Stamp viewer presence so community loot-box grants know who's
-  // currently watching with the panel open. Fire-and-forget — every
+  // currently watching with the panel open. Fire-and-forget, every
   // /ext/* request keeps the 5-min TTL alive, ageing out viewers
   // who close the panel.
   const presencePromise = stampPresence(env, guildId, userId);
@@ -176,7 +176,7 @@ export async function handleExt(req, env, ctx) {
         return await handleExtQuick(env, guildId, userId, req, route);
       }
     }
-    // Sports betting on the panel — moneyline/spread/total/parlay,
+    // Sports betting on the panel, moneyline/spread/total/parlay,
     // same engine as the website + Discord. See ext-bets.js.
     if (route.indexOf('bets/') === 0) {
       const { isExtBetsRoute, handleExtBets } = await import('./ext-bets.js');
@@ -201,11 +201,11 @@ export async function handleExt(req, env, ctx) {
 }
 
 // ---- Relay queue --------------------------------------------------------
-// GET /relay/pending — polled by a Streamer.bot action on Clay's PC, which
+// GET /relay/pending, polled by a Streamer.bot action on Clay's PC, which
 // republishes each trigger as a `checkin.shown` event on the local Aquilo
 // Bus so the OBS check-in overlay plays. Gated by the RELAY_TOKEN shared
 // secret (Streamer.bot is not a Twitch viewer, so no JWT). Returns and
-// deletes the pending triggers — at-most-once delivery, single poller.
+// deletes the pending triggers, at-most-once delivery, single poller.
 export async function handleRelay(req, env) {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, '');
@@ -295,7 +295,7 @@ async function extDaily(env, guildId, userId) {
   return json({ result, balance: w.balance || 0 });
 }
 
-// GET /ext/recap — rolling-window recap stats for the "Your last
+// GET /ext/recap, rolling-window recap stats for the "Your last
 // session" panel card. isLiveNow gates the card (hidden while live).
 async function extRecap(env, guildId, userId) {
   const recap = await getRecap(env, guildId, userId);
@@ -318,13 +318,13 @@ async function extRecap(env, guildId, userId) {
 async function extLeaderboard(env, guildId, userId, type) {
   if (type === 'checkin') return extCheckinLeaderboard(env, guildId, userId);
 
-  // type=bolts (default) — rank by wallet balance.
+  // type=bolts (default), rank by wallet balance.
   // Big limit: leaderboard() lists every wallet key regardless, so the
-  // limit only sizes the returned slice — 5000 makes the caller's rank
+  // limit only sizes the returned slice, 5000 makes the caller's rank
   // accurate without extra KV reads.
   const all = await leaderboard(env, guildId, 5000);
 
-  // Public top list: only entries with a linked public handle — mirrors
+  // Public top list: only entries with a linked public handle, mirrors
   // the privacy rule of the existing /leaderboard/:guildId route.
   const top = [];
   for (const e of all) {
@@ -345,14 +345,13 @@ async function extLeaderboard(env, guildId, userId, type) {
 
 // ---- Daily check-in -----------------------------------------------------
 // Records a cloud check-in (count + streak + cooldown) and enqueues a relay
-// trigger so the OBS overlay plays. Separate from the bolts `daily` claim —
-// check-in is the presence action; it does not award bolts here.
+// trigger so the OBS overlay plays. Separate from the bolts `daily` claim, // check-in is the presence action; it does not award bolts here.
 
 const CHECKIN_COOLDOWN_MS = 20 * 60 * 60 * 1000; // 20h
 const CHECKIN_STREAK_WINDOW_MS = 48 * 60 * 60 * 1000;
 const CHECKIN_KEY = (g, u) => `checkin:${g}:${u}`;
 
-// GET /ext/checkin/card — the panel's mini preview of the viewer's saved
+// GET /ext/checkin/card, the panel's mini preview of the viewer's saved
 // STREAM check-in card (frame / badges / tagline + tier accent). The panel
 // identity is tw:<twId>; the card config is Discord-keyed, so we resolve the
 // Twitch→Discord link (plink:twitch:<twId>). Unlinked viewers get a prompt to
@@ -392,11 +391,11 @@ async function extCheckinCard(env, guildId, twId) {
   });
 }
 
-// ASCII control characters (range 0x00-0x1f plus DEL 0x7f) — stripped
+// ASCII control characters (range 0x00-0x1f plus DEL 0x7f), stripped
 // from viewer-supplied text so nothing can break the overlay markup.
 const CONTROL_CHARS = /[\x00-\x1f\x7f]/g;
 
-// Small starter profanity list — matched whole-word, case-insensitive, and
+// Small starter profanity list, matched whole-word, case-insensitive, and
 // masked (not rejected) so the viewer still gets their check-in. Clay's
 // mods are the real backstop.
 const PROFANITY = [
@@ -434,7 +433,7 @@ async function extCheckin(env, guildId, userId, req) {
   try {
     body = await req.json();
   } catch {
-    /* empty body is fine — a check-in with no message */
+    /* empty body is fine, a check-in with no message */
   }
 
   const key = CHECKIN_KEY(guildId, userId);
@@ -490,7 +489,7 @@ async function extCheckin(env, guildId, userId, req) {
   rec.name = name;
   await env.LOADOUT_BOLTS.put(key, JSON.stringify(rec));
 
-  // PROGRESSION (P1) — stream check-in XP. Dedup keyed by the UTC date
+  // PROGRESSION (P1), stream check-in XP. Dedup keyed by the UTC date
   // so multiple check-ins in the same window grant once.
   try {
     const { emitProgressionEvent } = await import('./progression/event-bus.js');

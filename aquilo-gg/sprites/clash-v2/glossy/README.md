@@ -10,8 +10,8 @@ ImageMagick / Inkscape.
 ```
 tools/glossy-art-kit.mjs        ← shared defs (palette, gradients, filters)
 tools/build-clash-glossy.mjs    ← Clash building generator
-tools/build-clash-troops-glossy.mjs   (Wave 2 — pending)
-tools/build-clash-decorations-glossy.mjs   (Wave 2 — pending)
+tools/build-clash-troops-glossy.mjs   (Wave 2, pending)
+tools/build-clash-decorations-glossy.mjs   (Wave 2, pending)
 ```
 
 Run: `node tools/build-clash-glossy.mjs`.
@@ -38,7 +38,7 @@ aquilo-gg/sprites/clash-v2/glossy/
 
 Same model as the existing PNGs: the `aquilo-site` Pages repo
 vendors `aquilo-gg/sprites/clash-v2/glossy/` into
-`public/sprites/clash-v2/glossy/`. Manual push required — Clay owns
+`public/sprites/clash-v2/glossy/`. Manual push required, Clay owns
 that Pages project.
 
 ## Switching the worker to glossy paths

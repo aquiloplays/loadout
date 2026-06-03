@@ -1,4 +1,4 @@
-// aquilo-bot dispatch module — post bot-consolidation fold-in.
+// aquilo-bot dispatch module, post bot-consolidation fold-in.
 //
 // Originally this file WAS the aquilo-bot Worker entrypoint. After the
 // consolidation it's a sibling dispatch module under the loadout-discord
@@ -13,7 +13,7 @@
 //   dispatchAquiloInteraction  Discord interaction routing (assumes
 //                              signature already verified by the
 //                              Loadout entrypoint with the unified
-//                              app's public key — no re-verify here)
+//                              app's public key, no re-verify here)
 //   aquiloScheduledTick        cron entrypoint for the 0,30 * * * *
 //                              trigger
 //
@@ -82,7 +82,7 @@ import {
   handleCheckinSearchButton, handleCheckinPickButton,
   handleCheckinSearchSubmit,
 } from './checkin-slash.js';
-// /checkin v2 — modal-first compose flow (gif + message before posting).
+// /checkin v2, modal-first compose flow (gif + message before posting).
 // Old aqci:* chain above stays wired for backward compat.
 import {
   handleCheckinComposeSubmit, handleCheckinPickSubmit,
@@ -127,7 +127,7 @@ const RESP_PONG            = 1;
 const RESP_CHAT            = 4;
 const FLAG_EPHEMERAL       = 64;
 
-// HTTP entrypoint — Loadout's main worker.js falls through to this
+// HTTP entrypoint, Loadout's main worker.js falls through to this
 // for any aquilo-owned route. Returns `null` when no aquilo route
 // matches the request so the Loadout entrypoint can keep its own
 // fallthrough (404, etc.). Same signature pattern as the rest of the
@@ -155,7 +155,7 @@ export async function handleAquiloHttp(req, env, ctx, url) {
   // shared COUNTING_WEBHOOK_SECRET isn't configured. Fans out to clip
   // tracker + community-chat ringbuffer (each no-ops when its channel
   // doesn't match). The legacy Discord pic-attachment check-in
-  // previously fanned out from here as well — retired 2026-05 in
+  // previously fanned out from here as well, retired 2026-05 in
   // favour of the unified daily check-in (community-checkin.js on
   // loadout-discord, surfaced as both /checkin and POST /web/checkin).
   if (method === 'POST' && path === '/counting/message') {
@@ -172,7 +172,7 @@ export async function handleAquiloHttp(req, env, ctx, url) {
       const clip = await trackClipMessage(env, payload).catch(() => ({ tracked: false }));
       const { handleCheckinMessage } = await import('./checkin.js');
       const checkin = await handleCheckinMessage(env, payload).catch(e => ({ error: String(e?.message || e) }));
-      // Community-chat ringbuffer — drops the message into KV if the
+      // Community-chat ringbuffer, drops the message into KV if the
       // channel is in COMMUNITY_CHAT_CHANNELS_JSON. The /community/chat
       // public-read endpoint serves this back to the website.
       const { handleCommunityChatMessage } = await import('./community-chat.js');
@@ -183,7 +183,7 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     }
   }
 
-  // Gateway-forwarded GUILD_MEMBER_ADD — drives the welcome embed.
+  // Gateway-forwarded GUILD_MEMBER_ADD, drives the welcome embed.
   // Same shared-secret auth as /counting/message.
   // Payload (Discord GUILD_MEMBER_ADD slim subset):
   //   { guild_id, user: { id, username, global_name, avatar, bot } }
@@ -205,7 +205,7 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     }
   }
 
-  // Gateway-forwarded GUILD_MEMBER_UPDATE — drives booster perks.
+  // Gateway-forwarded GUILD_MEMBER_UPDATE, drives booster perks.
   // Payload (slim): { guild_id, user, premium_since, roles }
   if (method === 'POST' && path === '/member/updated') {
     if (!env.AQUILO_GATEWAY_SECRET && !env.COUNTING_WEBHOOK_SECRET) {
@@ -225,7 +225,7 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     }
   }
 
-  // Gateway-forwarded VOICE_STATE_UPDATE — drives temp-VC create/cleanup.
+  // Gateway-forwarded VOICE_STATE_UPDATE, drives temp-VC create/cleanup.
   // Payload (slim): { guild_id, channel_id, user_id, session_id }
   if (method === 'POST' && path === '/voice/state') {
     if (!env.AQUILO_GATEWAY_SECRET && !env.COUNTING_WEBHOOK_SECRET) {
@@ -266,7 +266,7 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     }
   }
 
-  // Gateway-forwarded MESSAGE_REACTION_ADD — drives the ⭐ starboard.
+  // Gateway-forwarded MESSAGE_REACTION_ADD, drives the ⭐ starboard.
   // Same shared-secret auth as /counting/message (aquilo-presence
   // sends both with the same COUNTING_WEBHOOK_SECRET header).
   //
@@ -294,7 +294,7 @@ export async function handleAquiloHttp(req, env, ctx, url) {
   // MESSAGE_CREATE for. Post-fold the LOADOUT_BOLT_API base happens to
   // point right back at this same Worker (`/checkin-channel/<guild>`
   // is defined in loadout-discord/worker.js), so the fetch is a
-  // same-Worker hop now — still fine, just internally routed.
+  // same-Worker hop now, still fine, just internally routed.
   if (method === 'GET' && path === '/forward-channels') {
     const channels = new Set();
     if (env.COUNTING_CHANNEL_ID) channels.add(String(env.COUNTING_CHANNEL_ID));
@@ -372,12 +372,12 @@ export async function handleAquiloHttp(req, env, ctx, url) {
   if (method === 'GET'    && path === '/sr/pending') return handlePendingGet(env, req);
   if (method === 'DELETE' && path === '/sr/pending') return handlePendingDelete(env);
 
-  // No aquilo route matched — let the Loadout entrypoint continue
+  // No aquilo route matched, let the Loadout entrypoint continue
   // its own dispatch.
   return null;
 }
 
-// Cron entrypoint — Loadout's scheduled() handler delegates the
+// Cron entrypoint, Loadout's scheduled() handler delegates the
 // 0,30 * * * * trigger here.
 export async function aquiloScheduledTick(event, env, ctx) {
   return handleScheduled(event, env, ctx);
@@ -395,7 +395,7 @@ export async function dispatchAquiloInteraction(data, env, ctx) {
     try { gEnv = await envForGuild(env, data.guild_id); }
     catch (e) { /* fall through to raw env */ }
     try { await ensureBootstrap(gEnv); }
-    catch (e) { /* swallow — handlers below will surface clearer errors */ }
+    catch (e) { /* swallow, handlers below will surface clearer errors */ }
   }
 
   if (data.type === TYPE_APPLICATION_CMD) {
@@ -433,7 +433,7 @@ async function handleScheduled(event, env, ctx) {
   // Post-stream queue cleanup. Originally fired at 12:30 AM ET; after
   // the bot-consolidation fold-in we ride the :23 hourly cron instead
   // of a dedicated 0,30 trigger (CF free-plan 4-cron ceiling), so this
-  // fires at 1:23 AM ET on Sunday — a cosmetic ~30 min delay.
+  // fires at 1:23 AM ET on Sunday, a cosmetic ~30 min delay.
   if (hour === 1 && weekday === 'sunday') {
     try { await cleanupQueueAfterStream(env); }
     catch (e) { console.error('[cron] queue cleanup', e?.message || e); }
@@ -441,7 +441,7 @@ async function handleScheduled(event, env, ctx) {
 
   // ---- hourly jobs (unchanged from the pre-fold cadence) ----
   // (used to gate on minute === 0; now runs every hour at :23
-  // — per-task hour checks below still fire on the right hour
+  //, per-task hour checks below still fire on the right hour
   // boundary, just 23 min later than the old :00 schedule.)
   await runScheduledPoll(env, weekday, hour, ctx);
 
@@ -478,30 +478,30 @@ async function handleScheduled(event, env, ctx) {
     catch (e) { console.error('[cron vote-remind]', e?.message || e); }
   }
 
-  // Sunday 10 AM ET — weekly community-night recap.
+  // Sunday 10 AM ET, weekly community-night recap.
   if (weekday === 'sunday' && hour === 10) {
     try { await postWeeklyRecap(env); }
     catch (e) { console.error('[cron recap]', e?.message || e); }
   }
 
-  // 10 AM ET daily — server-milestone check.
+  // 10 AM ET daily, server-milestone check.
   if (hour === 10) {
     try { await checkMemberMilestones(env); }
     catch (e) { console.error('[cron milestones]', e?.message || e); }
   }
 
-  // Every cron tick — refresh the /hub message's status panel.
+  // Every cron tick, refresh the /hub message's status panel.
   // No-op if /hub hasn't been run yet (no msg_id stored).
   try { await refreshHubMessage(env); }
   catch (e) { console.error('[cron hub-refresh]', e?.message || e); }
 
-  // 3 AM ET daily — delete poll messages older than 7 days.
+  // 3 AM ET daily, delete poll messages older than 7 days.
   if (hour === 3) {
     try { await cleanupOldPollMessages(env); }
     catch (e) { console.error('[cron cleanup]', e?.message || e); }
   }
 
-  // Every cron tick — sweep expired counting-fail roles. Granularity is
+  // Every cron tick, sweep expired counting-fail roles. Granularity is
   // bounded by the cron interval (currently every 30 min), so a fail
   // role can persist up to ~30 min past its configured expiry. Fine.
   try { await sweepFailRoles(env); }
@@ -517,35 +517,35 @@ async function handleScheduled(event, env, ctx) {
 
   // ---- v3 cron entries -----------------------------------------------
 
-  // 10 AM ET daily — birthdays callout (parallel with milestones).
+  // 10 AM ET daily, birthdays callout (parallel with milestones).
   if (hour === 10) {
     try { await runBirthdayCron(env); }
     catch (e) { console.error('[cron birthdays]', e?.message || e); }
   }
 
-  // 4 PM ET daily — post the daily trivia question.
+  // 4 PM ET daily, post the daily trivia question.
   if (hour === 16) {
     try { await runTriviaCron(env); }
     catch (e) { console.error('[cron trivia]', e?.message || e); }
   }
 
-  // Hourly — refresh clip reactions (cheap, bounded to ≤50 messages).
+  // Hourly, refresh clip reactions (cheap, bounded to ≤50 messages).
   try { await refreshClipReactions(env); }
   catch (e) { console.error('[cron clip-refresh]', e?.message || e); }
 
-  // Sunday 10 AM ET — post clip of the week.
+  // Sunday 10 AM ET, post clip of the week.
   if (weekday === 'sunday' && hour === 10) {
     try { await postClipOfTheWeek(env); }
     catch (e) { console.error('[cron clip-of-week]', e?.message || e); }
   }
 
-  // Monday 10 AM ET — weekly leaderboard channel refresh.
+  // Monday 10 AM ET, weekly leaderboard channel refresh.
   if (weekday === 'monday' && hour === 10) {
     try { await refreshLeaderboardChannel(env); }
     catch (e) { console.error('[cron leaderboard]', e?.message || e); }
   }
 
-  // Every cron tick — returning-member DM scan (cheap, bounded query).
+  // Every cron tick, returning-member DM scan (cheap, bounded query).
   try { await runReturningCron(env); }
   catch (e) { console.error('[cron returning]', e?.message || e); }
 }
@@ -607,14 +607,14 @@ async function handleFourthwall(req, env) {
 // consolidation, the Loadout entrypoint does ONE verification with
 // the unified app's key and then calls `dispatchAquiloInteraction`
 // above for any command name in the aquilo set. The verification
-// path here was dead and is gone — see commands.js for the live
+// path here was dead and is gone, see commands.js for the live
 // dispatch flow.
 
 async function handleAppCommand(data, env, ctx) {
   const cmdName = data.data?.name;
   const userId = data?.member?.user?.id || data?.user?.id;
 
-  // Best-effort presence bookkeeping for every command — drives returning-
+  // Best-effort presence bookkeeping for every command, drives returning-
   // member DMs + cross-product streak. Never blocks the response.
   if (userId && data.guild_id) {
     ctx.waitUntil(touchSeen(env, data.guild_id, userId));

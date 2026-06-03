@@ -1,4 +1,4 @@
-// Ember Court — lava, fire, noble bloodlines, throne politics.
+// Ember Court, lava, fire, noble bloodlines, throne politics.
 // 6 events: 2 pure upside, 3 tradeoff, 1 gamble.
 
 export const EMBER_COURT_EVENTS = Object.freeze([
@@ -6,7 +6,7 @@ export const EMBER_COURT_EVENTS = Object.freeze([
     id: 'firefall-bargain',
     name: 'The Firefall Throne',
     description:
-      "A molten cascade pours from the obsidian throne above. The court whispers that any who drink may be reforged — or rendered ash.",
+      "A molten cascade pours from the obsidian throne above. The court whispers that any who drink may be reforged, or rendered ash.",
     choices: [
       {
         id: 'drink-deep',
@@ -21,7 +21,7 @@ export const EMBER_COURT_EVENTS = Object.freeze([
         id: 'sip-cautious',
         label: 'Sip cautiously',
         outcomes: [
-          { weight: 70, effect: { type: 'card_upgrade', count: 1 }, text: 'A single card glows hotter — and stronger.' },
+          { weight: 70, effect: { type: 'card_upgrade', count: 1 }, text: 'A single card glows hotter, and stronger.' },
           { weight: 30, effect: { type: 'hp_loss', amount: 5 },     text: 'Even a sip is enough to blister. (-5 HP)' },
         ],
       },
@@ -38,7 +38,7 @@ export const EMBER_COURT_EVENTS = Object.freeze([
     id: 'lich-king-bargain',
     name: "Bargain with the Lich Margrave",
     description:
-      "A skeletal noble in soot-blackened velvet offers you a deal. He wants a memory of yours — and offers a relic of his court in exchange.",
+      "A skeletal noble in soot-blackened velvet offers you a deal. He wants a memory of yours, and offers a relic of his court in exchange.",
     choices: [
       {
         id: 'accept',
@@ -92,7 +92,7 @@ export const EMBER_COURT_EVENTS = Object.freeze([
     id: 'goblin-merchant',
     name: 'Help a Goblin Merchant',
     description:
-      "A merchant goblin's cart has thrown a wheel on the lava bridge. His wares — pots, scrolls, a half-melted ring — are sliding toward the edge.",
+      "A merchant goblin's cart has thrown a wheel on the lava bridge. His wares, pots, scrolls, a half-melted ring, are sliding toward the edge.",
     choices: [
       {
         id: 'help',
@@ -152,7 +152,7 @@ export const EMBER_COURT_EVENTS = Object.freeze([
         id: 'duel',
         label: 'Accept the duel',
         outcomes: [
-          { weight: 50, effect: { type: 'relic_grant', tier: 'major' }, text: 'You win cleanly. He surrenders his dueling pin — a major relic.' },
+          { weight: 50, effect: { type: 'relic_grant', tier: 'major' }, text: 'You win cleanly. He surrenders his dueling pin, a major relic.' },
           { weight: 50, effect: { type: 'hp_loss', amount: 15 },         text: 'You lose. He lets you live, barely. (-15 HP)' },
         ],
       },

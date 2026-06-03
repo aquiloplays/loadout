@@ -1,9 +1,9 @@
-// ext-bets.js — Twitch-panel handlers for sports betting.
+// ext-bets.js, Twitch-panel handlers for sports betting.
 //
 // The website + Discord call into bet.js directly via /web/bet/* and
 // /bet sports place. This module wraps the same `runPlaceJson` for the
 // Twitch panel under /ext/bets/*, with the same wallet, same caps, and
-// the same KV-shared bets store — single source of truth, no logic fork.
+// the same KV-shared bets store, single source of truth, no logic fork.
 //
 // Routes:
 //   POST /ext/bets/snapshot           -> { ok, balance, active, history, games }
@@ -42,14 +42,14 @@ export function isExtBetsRoute(route) {
 }
 
 export async function handleExtBets(env, guildId, userId, req, route) {
-  // Snapshot is the page-load read — pure read of upcoming games +
+  // Snapshot is the page-load read, pure read of upcoming games +
   // user's active/history + wallet balance. No write rate-limit.
   if (route === 'bets/snapshot') {
     const bets = await getUserBetsPublic(env, guildId, userId);
     const wallet = await getWallet(env, guildId, userId);
 
     // Reuse publicSportsSnapshot for the upcoming-games slice. It
-    // returns a Response — drill in to grab the body so we can merge.
+    // returns a Response, drill in to grab the body so we can merge.
     let games = [];
     try {
       const r = await publicSportsSnapshot(env);

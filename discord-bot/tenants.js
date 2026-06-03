@@ -3,7 +3,7 @@
 // tenant?" lookup.
 //
 // A guild becomes a tenant by completing /setup (or by being grandfathered
-// in via env.AQUILO_VAULT_GUILD_ID — the existing Aquilo deployment).
+// in via env.AQUILO_VAULT_GUILD_ID, the existing Aquilo deployment).
 // /web/* and /credit-bolts and /wallet-balance and other surface routes
 // check isRegisteredTenant() before serving so a forged-cookie request
 // for an un-onboarded guild still 403s.
@@ -14,7 +14,7 @@
 //
 // Caller pattern:
 //   const t = await isRegisteredTenant(env, guildId);
-//   if (!t) return new Response('guild not registered — run /setup', { status: 403 });
+//   if (!t) return new Response('guild not registered, run /setup', { status: 403 });
 
 const TENANT_KEY = (g) => `guild:tenant:${g}`;
 
@@ -43,7 +43,7 @@ export async function isRegisteredTenant(env, guildId) {
 }
 
 // Create/upsert a tenant record. Called from /setup (slash + web).
-// Idempotent — re-running /setup just bumps updatedUtc and keeps
+// Idempotent, re-running /setup just bumps updatedUtc and keeps
 // ownerId. Status defaults to 'active'.
 export async function registerTenant(env, guildId, opts = {}) {
   if (!guildId) return { ok: false, error: 'no-guild' };
@@ -72,7 +72,7 @@ export async function setSetupStep(env, guildId, step) {
   return { ok: true, tenant: t };
 }
 
-// Suspend / unsuspend (admin tooling — not exposed to streamers).
+// Suspend / unsuspend (admin tooling, not exposed to streamers).
 export async function setTenantStatus(env, guildId, status) {
   const t = await getTenant(env, guildId);
   if (!t) return { ok: false, error: 'no-tenant' };

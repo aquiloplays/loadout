@@ -1,6 +1,6 @@
-// today-game.js — Public GET endpoint that returns tonight's stream game.
+// today-game.js, Public GET endpoint that returns tonight's stream game.
 //
-// Consumed by widget.aquilo.gg/overlays/follow-stream/ — the multi-theme
+// Consumed by widget.aquilo.gg/overlays/follow-stream/, the multi-theme
 // follow overlay polls this on load + every minute and swaps its theme
 // to match the game of the night.
 //
@@ -49,7 +49,7 @@ export async function handleTodayGame(env, req) {
     const { weekday } = getETInfo(new Date());
     const fixed = WEEKLY[weekday];
 
-    // Rest day — overlay should show its idle/offline theme.
+    // Rest day, overlay should show its idle/offline theme.
     if (REST_DAYS.has(weekday)) {
       return jsonResp({
         weekday,
@@ -71,7 +71,7 @@ export async function handleTodayGame(env, req) {
       });
     }
 
-    // Community Night day (Saturday) — pull the poll winner from KV.
+    // Community Night day (Saturday), pull the poll winner from KV.
     const gid = await env.STATE.get('guild_id');
     if (!gid) {
       return jsonResp({

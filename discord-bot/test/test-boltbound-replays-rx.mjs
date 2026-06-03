@@ -1,4 +1,4 @@
-// Unit tests for boltbound-replays-rx — reactions (idempotent toggle)
+// Unit tests for boltbound-replays-rx, reactions (idempotent toggle)
 // + comments (length + per-user cap).
 //
 // Run from discord-bot/:
@@ -136,7 +136,7 @@ function runMutation(sql, b, reactions, comments, nextIdFn) {
 
 // ── Tests ─────────────────────────────────────────────────────────
 
-console.log('— REACTION_TYPES + helpers');
+console.log('- REACTION_TYPES + helpers');
 {
   assert(Object.isFrozen(REACTION_TYPES), 'REACTION_TYPES is frozen');
   assert(REACTION_TYPES.includes('like'), 'has like');
@@ -147,7 +147,7 @@ console.log('— REACTION_TYPES + helpers');
   for (const t of REACTION_TYPES) eq(zero[t], 0, `zeroCounts[${t}]=0`);
 }
 
-console.log('— addReaction is idempotent');
+console.log('- addReaction is idempotent');
 {
   const env = { DB: makeMockDb() };
   const r1 = await addReaction(env, 'rep-1', 'user-a', 'like');
@@ -164,7 +164,7 @@ console.log('— addReaction is idempotent');
   eq(env.DB._reactions.length, 2, 'now 2 rows');
 }
 
-console.log('— addReaction rejects bad type');
+console.log('- addReaction rejects bad type');
 {
   const env = { DB: makeMockDb() };
   const r = await addReaction(env, 'rep-1', 'user-a', 'fire');
@@ -174,10 +174,10 @@ console.log('— addReaction rejects bad type');
     'error response surfaces the allowed list');
 }
 
-console.log('— removeReaction is forgiving');
+console.log('- removeReaction is forgiving');
 {
   const env = { DB: makeMockDb() };
-  // Remove without ever adding — still ok:true (toggle UI semantics).
+  // Remove without ever adding, still ok:true (toggle UI semantics).
   const r1 = await removeReaction(env, 'rep-x', 'user-a', 'like');
   eq(r1.ok, true, 'remove-without-add → ok:true');
   // Add then remove.
@@ -188,14 +188,14 @@ console.log('— removeReaction is forgiving');
   eq(env.DB._reactions.length, 0, 'row deleted');
 }
 
-console.log('— getReactions aggregates counts + viewer set');
+console.log('- getReactions aggregates counts + viewer set');
 {
   const env = { DB: makeMockDb() };
   await addReaction(env, 'rep-2', 'u1', 'like');
   await addReaction(env, 'rep-2', 'u2', 'like');
   await addReaction(env, 'rep-2', 'u2', 'gg');
   await addReaction(env, 'rep-2', 'u3', 'clutch');
-  // Decoy on another replay — must not leak in.
+  // Decoy on another replay, must not leak in.
   await addReaction(env, 'rep-other', 'u1', 'like');
 
   const all = await getReactions(env, 'rep-2');
@@ -215,7 +215,7 @@ console.log('— getReactions aggregates counts + viewer set');
   eq(fromU3.viewerReactions[0], 'clutch', 'u3 reacted clutch');
 }
 
-console.log('— addComment length validation');
+console.log('- addComment length validation');
 {
   const env = { DB: makeMockDb() };
   // Empty body
@@ -249,7 +249,7 @@ console.log('— addComment length validation');
   eq(r6.reason, 'bad-turn-index', 'reason = bad-turn-index');
 }
 
-console.log('— addComment enforces 50-per-user cap');
+console.log('- addComment enforces 50-per-user cap');
 {
   const env = { DB: makeMockDb() };
   for (let i = 0; i < __internals.MAX_COMMENTS_PER_USER; i++) {
@@ -270,12 +270,12 @@ console.log('— addComment enforces 50-per-user cap');
   eq(blocked.reason, 'cap-reached', 'reason = cap-reached');
   eq(blocked.max, __internals.MAX_COMMENTS_PER_USER, 'max surfaced');
 
-  // And cap is per-replay — a different replay starts fresh.
+  // And cap is per-replay, a different replay starts fresh.
   const onOther = await addComment(env, 'rep-different', 'spammer', 'fresh slate');
   eq(onOther.ok, true, 'cap is per-replay, not global');
 }
 
-console.log('— listComments newest-first + paging');
+console.log('- listComments newest-first + paging');
 {
   const env = { DB: makeMockDb() };
   // Manually seed comments with strictly increasing createdAt so the
@@ -304,5 +304,5 @@ console.log('— listComments newest-first + paging');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1,4 +1,4 @@
-// /play — Discord slash command for the 7 quick-bolts games.
+// /play, Discord slash command for the 7 quick-bolts games.
 //
 // Single-shot games (roulette, wheel, plinko, crash) resolve in one
 // command and return the result inline.
@@ -10,7 +10,7 @@
 // type 7).
 //
 // Every game body calls the exact same games-quick.js function the
-// website + Twitch panel use — single source of truth, no rule
+// website + Twitch panel use, single source of truth, no rule
 // divergence possible.
 //
 // NOTE: at write time the Loadout bot token is invalid so slash-command
@@ -78,7 +78,7 @@ export async function handlePlayCommand(env, data, guildId, userId, userName) {
       case 'mines':            return await runMinesStart(env, guildId, userId, userName, bet, opts.bombs);
       case 'plinko':           return await runPlinko(env, guildId, userId, userName, bet, opts.risk);
       // Crash auto-cashout is sent as integer ×100 (Discord can't take
-      // a float option) — convert back to multiplier here.
+      // a float option), convert back to multiplier here.
       case 'crash':            return await runCrash(env, guildId, userId, userName, bet, opts.cashout ? Number(opts.cashout) / 100 : 0);
       default:                 return reply('Unknown game: ' + sub);
     }
@@ -90,13 +90,13 @@ export async function handlePlayCommand(env, data, guildId, userId, userName) {
 // ── Component (button) router ────────────────────────────────────────
 //
 // custom_id format: qg:<game>:<action>[:<arg>]
-//   qg:bj:hit           — blackjack hit
-//   qg:bj:stand         — blackjack stand
-//   qg:hl:higher        — hilo higher
-//   qg:hl:lower         — hilo lower
-//   qg:hl:cash          — hilo cashout
-//   qg:mn:<tile>        — mines reveal tile (0..24)
-//   qg:mn:cash          — mines cashout
+//   qg:bj:hit, blackjack hit
+//   qg:bj:stand, blackjack stand
+//   qg:hl:higher, hilo higher
+//   qg:hl:lower, hilo lower
+//   qg:hl:cash, hilo cashout
+//   qg:mn:<tile>, mines reveal tile (0..24)
+//   qg:mn:cash, mines cashout
 
 export async function handlePlayComponent(env, data) {
   const cid = data.data?.custom_id || '';
@@ -110,7 +110,7 @@ export async function handlePlayComponent(env, data) {
 
   // Lock down button-presses to the player who started the hand. The
   // games-quick.js session key includes the user id, so a different
-  // user clicking can only act on their OWN session (if any) — but
+  // user clicking can only act on their OWN session (if any), but
   // discord shows the buttons on a public message, so we still want
   // a friendly "this isn't your hand" reply rather than silently
   // mutating someone else's session.
@@ -161,7 +161,7 @@ export async function handlePlayComponent(env, data) {
 async function runRoulette(env, guildId, userId, userName, bet, pickRaw) {
   // Allowed picks: red, black, even, odd, low, high (1-18 / 19-36),
   // or a single number 0-36. games-quick.js's roulette doesn't accept
-  // a bare "green" color — but `0` is the only green pocket, so a
+  // a bare "green" color, but `0` is the only green pocket, so a
   // number bet on 0 is the equivalent.
   const pick = parsePick(pickRaw);
   if (!pick) return reply("Pick must be one of: red, black, even, odd, low, high, or a number 0-36.");
@@ -171,7 +171,7 @@ async function runRoulette(env, guildId, userId, userName, bet, pickRaw) {
   const w = await getWallet(env, guildId, userId);
   const verb = r.won ? `won **${(r.payout || 0).toLocaleString()}** bolts` : `lost **${bet.toLocaleString()}** bolts`;
   return reply(
-    `🎰 Roulette · ${userName}\nLanded on **${r.spin} ${r.color}** — ${verb}.\nBalance: **${(w.balance || 0).toLocaleString()}**`,
+    `🎰 Roulette · ${userName}\nLanded on **${r.spin} ${r.color}**, ${verb}.\nBalance: **${(w.balance || 0).toLocaleString()}**`,
     /* ephemeral */ false,
   );
 }
@@ -184,7 +184,7 @@ async function runWheel(env, guildId, userId, userName, bet, risk) {
   const mult = r.multiplier ? r.multiplier.toFixed(2) + '×' : '0×';
   const tail = r.won ? `won **${(r.payout || 0).toLocaleString()}**` : `lost **${bet.toLocaleString()}**`;
   return reply(
-    `🎡 Wheel · ${userName}\nMultiplier landed: **${mult}** — ${tail}\nBalance: **${(w.balance || 0).toLocaleString()}**`,
+    `🎡 Wheel · ${userName}\nMultiplier landed: **${mult}**, ${tail}\nBalance: **${(w.balance || 0).toLocaleString()}**`,
     false,
   );
 }
@@ -197,7 +197,7 @@ async function runPlinko(env, guildId, userId, userName, bet, risk) {
   const mult = r.multiplier ? r.multiplier.toFixed(2) + '×' : '0×';
   const tail = r.won ? `won **${(r.payout || 0).toLocaleString()}**` : `lost **${bet.toLocaleString()}**`;
   return reply(
-    `🪜 Plinko · ${userName}\nBucket multiplier: **${mult}** — ${tail}\nBalance: **${(w.balance || 0).toLocaleString()}**`,
+    `🪜 Plinko · ${userName}\nBucket multiplier: **${mult}**, ${tail}\nBalance: **${(w.balance || 0).toLocaleString()}**`,
     false,
   );
 }
@@ -209,8 +209,8 @@ async function runCrash(env, guildId, userId, userName, bet, cashoutAt) {
   const w = await getWallet(env, guildId, userId);
   const target = (r.cashout || 0).toFixed(2) + '×';
   const bust = (r.bust || 0).toFixed(2) + '×';
-  const verb = r.won ? `cashed out at ${target} — won **${(r.payout || 0).toLocaleString()}**`
-    : `crashed at ${bust} before ${target} — lost **${bet.toLocaleString()}**`;
+  const verb = r.won ? `cashed out at ${target}, won **${(r.payout || 0).toLocaleString()}**`
+    : `crashed at ${bust} before ${target}, lost **${bet.toLocaleString()}**`;
   return reply(
     `🚀 Crash · ${userName}\n${verb}\nBalance: **${(w.balance || 0).toLocaleString()}**`,
     false,
@@ -248,14 +248,14 @@ function updateBlackjack(r, userName, freshMessage = false) {
       : updateContent(r.message || 'Blackjack error.');
   }
 
-  const handStr = (cards) => Array.isArray(cards) ? cards.map(prettyCard).join(' ') : '—';
+  const handStr = (cards) => Array.isArray(cards) ? cards.map(prettyCard).join(' ') : '-';
   const tail = (r.phase === 'finished' || r.finished)
     ? `\n**${outcomeLabel(r.outcome)}** · Payout **${(r.payout || 0).toLocaleString()}** · Balance **${(r.balance || 0).toLocaleString()}**`
     : `\nBalance **${(r.balance || 0).toLocaleString()}**`;
 
   const content =
     `🃏 Blackjack · ${userName}\n` +
-    `Your hand: ${handStr(r.player)} (**${r.playerTotal ?? '—'}**)\n` +
+    `Your hand: ${handStr(r.player)} (**${r.playerTotal ?? '-'}**)\n` +
     `Dealer:    ${handStr(r.dealer)}${r.phase === 'player' ? ' (one face-down)' : ''}` +
     (r.dealerTotal != null ? ` (**${r.dealerTotal}**)` : '') +
     tail;
@@ -282,10 +282,10 @@ function updateHilo(r, userName, freshMessage = false) {
   }
 
   const mult = (r.multiplier || 1).toFixed(2) + '×';
-  const card = r.currentCard != null ? prettyCard(r.currentCard) : '—';
+  const card = r.currentCard != null ? prettyCard(r.currentCard) : '-';
   const finished = r.phase === 'finished' || r.finished;
   const head = finished
-    ? `🎲 Hi-Lo · ${userName}\nFinal card **${card}**.\n**${r.outcome || 'done'}** at **${mult}** — Payout **${(r.payout || 0).toLocaleString()}**.\nBalance **${(r.balance || 0).toLocaleString()}**`
+    ? `🎲 Hi-Lo · ${userName}\nFinal card **${card}**.\n**${r.outcome || 'done'}** at **${mult}**, Payout **${(r.payout || 0).toLocaleString()}**.\nBalance **${(r.balance || 0).toLocaleString()}**`
     : `🎲 Hi-Lo · ${userName}\nCurrent card: **${card}**. Multiplier so far: **${mult}**\nBalance **${(r.balance || 0).toLocaleString()}**`;
 
   const components = finished ? [] : [
@@ -313,7 +313,7 @@ function updateMines(r, userName, freshMessage = false) {
   const mult = (r.multiplier || 1).toFixed(2) + '×';
   const finished = r.phase === 'finished' || r.finished;
   const head = finished
-    ? `💣 Mines · ${userName}\n${r.outcome === 'win' ? 'Cashed out' : 'Boom'} at **${mult}** — Payout **${(r.payout || 0).toLocaleString()}**.\nBalance **${(r.balance || 0).toLocaleString()}**`
+    ? `💣 Mines · ${userName}\n${r.outcome === 'win' ? 'Cashed out' : 'Boom'} at **${mult}**, Payout **${(r.payout || 0).toLocaleString()}**.\nBalance **${(r.balance || 0).toLocaleString()}**`
     : `💣 Mines · ${userName}\nMultiplier: **${mult}** · Bombs: **${r.bombs || 3}**\nTap a tile to reveal, or cash out.\nBalance **${(r.balance || 0).toLocaleString()}**`;
 
   // 5×5 grid of buttons = 5 action rows of 5 buttons each. Discord
@@ -325,7 +325,7 @@ function updateMines(r, userName, freshMessage = false) {
   // shown; cash-out becomes a 6th button in the LAST row by replacing
   // the bottom-right tile button with cash-out IF the tile is still
   // hidden. If it's already revealed (and game's still going), we drop
-  // cash-out into a tile that's been clicked — no, that breaks 5x5.
+  // cash-out into a tile that's been clicked, no, that breaks 5x5.
   //
   // Cleanest: use 4 rows of 5 tile buttons (positions 0..19) plus a
   // 5th row with the last 5 tile buttons (20..24); the cash-out is a
@@ -399,7 +399,7 @@ function optMap(opts) {
 
 function parsePick(raw) {
   if (raw == null) return null;
-  // Numbers come through as INTEGER option type — Discord stringifies them
+  // Numbers come through as INTEGER option type, Discord stringifies them
   // anyway; allow either shape.
   if (typeof raw === 'number') {
     if (raw >= 0 && raw <= 36) return { kind: 'number', number: raw };

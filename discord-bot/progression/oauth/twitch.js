@@ -1,8 +1,8 @@
-// Twitch OAuth — authorization code flow.
+// Twitch OAuth, authorization code flow.
 //
 // Requires env.TWITCH_CLIENT_ID + env.TWITCH_CLIENT_SECRET (already
 // set for the panel extension JWT verification). Scope is `user:read`
-// — just need login + id.
+//, just need login + id.
 
 const AUTH_URL = 'https://id.twitch.tv/oauth2/authorize';
 const TOKEN_URL = 'https://id.twitch.tv/oauth2/token';

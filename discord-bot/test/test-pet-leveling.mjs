@@ -162,7 +162,7 @@ ok('MAX_LEVEL = 20',    __TEST__.MAX_LEVEL === 20);
   // > 0. So big-appetite isn't applied on this first feed grant -
   // the unlock check fires on the *next* level. Adjust expectation:
   // big-appetite ability adds +2 XP only if pet.abilities includes it.)
-  // Trigger level-up to L2 — adds 'test-aura' (min_level=2) AND
+  // Trigger level-up to L2, adds 'test-aura' (min_level=2) AND
   // backfills the L1 abilities we missed. Make XP grant comfortable.
   const r2 = await addPetXp(env, userId, guildId, 30, 'feed');
   ok('60 XP rolls L1→L2',
@@ -232,7 +232,7 @@ ok('MAX_LEVEL = 20',    __TEST__.MAX_LEVEL === 20);
 {
   const env = makeEnv();
   const guildId = 'g1', userId = 'u_evo';
-  // Level 3 — qualifies for voltaic_drake (level 3, min_happiness=50).
+  // Level 3, qualifies for voltaic_drake (level 3, min_happiness=50).
   // Happiness is fresh 100 so condition passes.
   seedPet(env, guildId, userId, { level: 3 });
   const r = await tryEvolvePet(env, userId, guildId);
@@ -247,7 +247,7 @@ ok('MAX_LEVEL = 20',    __TEST__.MAX_LEVEL === 20);
 {
   const env = makeEnv();
   const guildId = 'g1', userId = 'u_evo2';
-  // Level 3 but happiness too low — voltaic_drake (min_happiness=50)
+  // Level 3 but happiness too low, voltaic_drake (min_happiness=50)
   // blocked, but ember_drake (level 2, no condition) qualifies.
   seedPet(env, guildId, userId, {
     level: 3,
@@ -275,7 +275,7 @@ ok('MAX_LEVEL = 20',    __TEST__.MAX_LEVEL === 20);
   seedPet(env, 'g1', 'cron_a', { level: 3 });                 // eligible
   seedPet(env, 'g1', 'cron_b', { level: 1 });                 // not eligible
   seedPet(env, 'g2', 'cron_c', { level: 5 });                 // eligible
-  // Pre-existing released marker — should be skipped.
+  // Pre-existing released marker, should be skipped.
   env.LOADOUT_BOLTS._store.set('pet:released:g1:cron_d',
     JSON.stringify({ until: Date.now() + 1000 }));
   const r = await autoEvolveCron(env);

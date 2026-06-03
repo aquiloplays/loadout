@@ -1,4 +1,4 @@
-// Boltbound — in-match emote broadcaster.
+// Boltbound, in-match emote broadcaster.
 //
 // During a live Boltbound match the two players can lob a tiny set of
 // curated emotes at each other (wave / party / think / embarrassed /
@@ -8,13 +8,13 @@
 //
 // Storage:
 //   KV emote-rl:<matchId>:<side>   { lastTs: number, count: number }
-//       Rate-limit window — `count` is the per-match-per-player total
+//       Rate-limit window, `count` is the per-match-per-player total
 //       since the match started (caps at PER_MATCH_CAP). `lastTs` is the
 //       most recent emote ms so we can enforce the 5s gap. TTL ~6h so
 //       the row evicts itself when matchId expires.
 //
 //   KV emote-feed:<matchId>        [{ side, emoteId, ts }, ...]
-//       Ring buffer of the last FEED_CAP emotes for this match — the
+//       Ring buffer of the last FEED_CAP emotes for this match, the
 //       site polls this when it can't keep a live SSE open, and any
 //       future SSE bus reads from the same key so reconnects don't
 //       lose the last few seconds of emotes.
@@ -23,12 +23,12 @@
 // `text/event-stream` route exists), so sendEmote returns the
 // broadcast payload to the caller and persists the feed entry. The
 // site polls /web/boltbound/emote/feed via cards-web.js (out of scope
-// here — see endpointsToWire). When/if a real SSE bus lands, hook it
+// here, see endpointsToWire). When/if a real SSE bus lands, hook it
 // into the `broadcast` payload return of sendEmote.
 
 import { verifyHmac } from './auth.js';
 
-// Locked set — adding emotes is a server+client change so we freeze
+// Locked set, adding emotes is a server+client change so we freeze
 // the array to make accidental mutations a clear runtime error.
 export const ALLOWED_EMOTES = Object.freeze([
   'wave', 'party', 'think', 'embarrassed', 'fire', 'pray',
@@ -47,7 +47,7 @@ const FEED_KEY = (matchId)       => `emote-feed:${matchId}`;
 
 // ── Public API ────────────────────────────────────────────────────
 
-// sendEmote — rate-limit check, append to feed, return broadcast
+// sendEmote, rate-limit check, append to feed, return broadcast
 // payload. Returns one of:
 //   { ok: true, broadcast: { matchId, playerSide, emoteId, ts } }
 //   { ok: false, reason: 'invalid-emote' | 'invalid-side' |
@@ -56,7 +56,7 @@ const FEED_KEY = (matchId)       => `emote-feed:${matchId}`;
 //     retryAfterMs?: number, count?: number }
 //
 // Callers (HTTP handler, future Discord button) treat ok:false as a
-// soft failure — never throws. nowMs is injectable for tests.
+// soft failure, never throws. nowMs is injectable for tests.
 export async function sendEmote(env, matchId, playerSide, emoteId, nowMs) {
   if (!env || !env.LOADOUT_BOLTS) {
     return { ok: false, reason: 'kv-unavailable' };
@@ -70,7 +70,7 @@ export async function sendEmote(env, matchId, playerSide, emoteId, nowMs) {
 
   const now = Number.isFinite(nowMs) ? Number(nowMs) : Date.now();
 
-  // Rate-limit gate — read current row, check gap + cap, then bump.
+  // Rate-limit gate, read current row, check gap + cap, then bump.
   let rl;
   try {
     rl = await env.LOADOUT_BOLTS.get(RL_KEY(mid, side), { type: 'json' });
@@ -97,10 +97,10 @@ export async function sendEmote(env, matchId, playerSide, emoteId, nowMs) {
       JSON.stringify(nextRl),
       { expirationTtl: RL_TTL_S },
     );
-  } catch { /* non-fatal — worst case caller can re-spam */ }
+  } catch { /* non-fatal, worst case caller can re-spam */ }
 
   // Append to the feed ring buffer. Newest at the tail; cap at
-  // FEED_CAP. Best-effort — feed loss just means the next poll is
+  // FEED_CAP. Best-effort, feed loss just means the next poll is
   // empty, the emote still fired locally on the sender's client.
   try {
     let feed = await env.LOADOUT_BOLTS.get(FEED_KEY(mid), { type: 'json' });
@@ -118,7 +118,7 @@ export async function sendEmote(env, matchId, playerSide, emoteId, nowMs) {
   return { ok: true, broadcast };
 }
 
-// readFeed — the polling endpoint. Returns up to FEED_CAP recent
+// readFeed, the polling endpoint. Returns up to FEED_CAP recent
 // emotes, optionally filtered by `sinceTs` so the site can ask "give
 // me everything after the last one I rendered."
 export async function readFeed(env, matchId, sinceTs) {
@@ -174,7 +174,7 @@ async function _gateHmac(req, env) {
 }
 
 export async function handleEmoteRoute(req, env, path) {
-  // GET feed — public, no HMAC. Path: /web/boltbound/emote/feed/<matchId>
+  // GET feed, public, no HMAC. Path: /web/boltbound/emote/feed/<matchId>
   if (req.method === 'GET' && path.startsWith('/web/boltbound/emote/feed/')) {
     const matchId = path.slice('/web/boltbound/emote/feed/'.length).split('/')[0];
     if (!matchId) return _json({ error: 'matchId required' }, 400);
@@ -184,7 +184,7 @@ export async function handleEmoteRoute(req, env, path) {
     return _json({ matchId, events });
   }
 
-  // POST emote — HMAC-gated.
+  // POST emote, HMAC-gated.
   if (req.method === 'POST' && path === '/web/boltbound/emote') {
     const gate = await _gateHmac(req, env);
     if (!gate.ok) return _json({ error: gate.error }, gate.status);

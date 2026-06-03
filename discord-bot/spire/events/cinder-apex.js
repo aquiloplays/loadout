@@ -1,4 +1,4 @@
-// Cinder Apex — volcano summit, ash, dragons, lava-glass forges.
+// Cinder Apex, volcano summit, ash, dragons, lava-glass forges.
 // 5 events: 1 pure upside, 2 tradeoff, 2 gamble.
 
 export const CINDER_APEX_EVENTS = Object.freeze([

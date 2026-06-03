@@ -70,7 +70,7 @@ async function resolveSlotGame(env, guildId, kind, sched) {
     let w = null;
     try { w = await env.LOADOUT_BOLTS.get(`vote-hub:winner:${guildId}:${voteKind}`, { type: 'json' }); }
     catch { /* fall through */ }
-    // Legacy CN winner store (aq-schedule's own cn_winners) — kept as a
+    // Legacy CN winner store (aq-schedule's own cn_winners), kept as a
     // fallback so a winner recorded by the old poll path still shows.
     if ((!w || !w.name) && kind === 'community') {
       const legacy = sched.cn_winners && sched.cn_winners.saturday;
@@ -87,8 +87,7 @@ async function resolveSlotGame(env, guildId, kind, sched) {
 
 const KEY = (gid) => 'schedule:' + gid;
 
-// Schedule + poll channels both go through channel-bindings.js now —
-// KV per-guild override with the wrangler.toml [vars] entry as
+// Schedule + poll channels both go through channel-bindings.js now, // KV per-guild override with the wrangler.toml [vars] entry as
 // fallback. Imported async per-call so the module load stays cheap.
 async function bindings(env, guildId) {
   const { getChannelBinding } = await import('../channel-bindings.js');
@@ -112,7 +111,7 @@ async function saveSchedule(env, guildId, sched) {
   await env.STATE.put(KEY(guildId), JSON.stringify(sched));
 }
 
-// 2026-06: async — each day resolves its real game (Triple-C campaign /
+// 2026-06: async, each day resolves its real game (Triple-C campaign /
 // vote winner) via resolveSlotGame. `image` (large) for decided vote
 // winners so a closed vote reads rich; `thumbnail` for the fixed
 // Triple-C / Dad-Sunday campaign art so it doesn't dominate every row.
@@ -156,7 +155,7 @@ async function buildSchedulePayload(env, guildId, sched) {
   return { embeds: [headerEmbed, ...dayEmbeds] };
 }
 
-// ── Public read — canonical schedule JSON for aquilo.gg ──────────
+// ── Public read, canonical schedule JSON for aquilo.gg ──────────
 //
 // Stable shape (aquilo-site parallel session is building the public
 // /schedule page against this):
@@ -219,14 +218,14 @@ function storeFromArtUrl(artUrl) {
 // Channel-binding migration: if the resolved schedule channel
 // changed since the last save (admin set a new binding), delete the
 // prior embed in the OLD channel and post fresh in the new one.
-// Best-effort delete — if the old message is gone or the bot can't
+// Best-effort delete, if the old message is gone or the bot can't
 // see the old channel, we just leave the orphan and proceed.
 export async function postOrRefreshSchedule(env, guildId) {
   const sched = await loadSchedule(env, guildId);
   const b = await bindings(env, guildId);
   const resolvedChannel = b.schedule;
   if (!resolvedChannel) {
-    // Nothing bound + no env fallback — no-op rather than crash.
+    // Nothing bound + no env fallback, no-op rather than crash.
     console.warn('[aq-schedule] no schedule channel bound, skipping post');
     return null;
   }
@@ -261,7 +260,7 @@ export async function postOrRefreshSchedule(env, guildId) {
   await saveSchedule(env, guildId, sched);
   // Pin the freshly-posted schedule so it stays the channel's pinned
   // embed (edit-in-place above preserves an existing pin, so we only
-  // pin on a fresh post). Best-effort — a missing Manage Messages perm
+  // pin on a fresh post). Best-effort, a missing Manage Messages perm
   // shouldn't fail the post.
   try {
     await discordFetch(env,

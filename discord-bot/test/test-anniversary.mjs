@@ -1,4 +1,4 @@
-// Unit tests for anniversary.js — the join-anniversary celebrations
+// Unit tests for anniversary.js, the join-anniversary celebrations
 // backend (premium feature #4). Covers firstSeen min-wins tracking,
 // the backfill proxy, the UTC-calendar anniversary math, and the
 // idempotent reward claim.
@@ -63,7 +63,7 @@ const NOW_2026_05_30 = Date.UTC(2026, 4, 30, 12, 0, 0);
 
 // ── firstSeen tracking ────────────────────────────────────────────
 
-console.log('— recordFirstSeen is min-wins + idempotent');
+console.log('- recordFirstSeen is min-wins + idempotent');
 {
   const env = makeEnv();
   const t2024 = Date.UTC(2024, 0, 15);
@@ -84,7 +84,7 @@ console.log('— recordFirstSeen is min-wins + idempotent');
   eq(await getFirstSeen(env, G, U), t2024, 'now 2024');
 }
 
-console.log('— getFirstSeen returns null when absent / bad args');
+console.log('- getFirstSeen returns null when absent / bad args');
 {
   const env = makeEnv();
   eq(await getFirstSeen(env, G, 'nobody'), null, 'absent → null');
@@ -93,7 +93,7 @@ console.log('— getFirstSeen returns null when absent / bad args');
 
 // ── backfill ──────────────────────────────────────────────────────
 
-console.log('— backfillFirstSeen uses earliest wallet activity, skips stamped');
+console.log('- backfillFirstSeen uses earliest wallet activity, skips stamped');
 {
   const env = makeEnv();
   const kv = env.LOADOUT_BOLTS;
@@ -102,7 +102,7 @@ console.log('— backfillFirstSeen uses earliest wallet activity, skips stamped'
     balance: 5, lastEarnUtc: Date.UTC(2025, 5, 1), lastDailyUtc: Date.UTC(2025, 3, 1),
   }));
   await kv.put(`wallet:${G}:wB`, JSON.stringify({ balance: 0 }));
-  // wC already has a firstSeen — must be skipped.
+  // wC already has a firstSeen, must be skipped.
   await kv.put(`wallet:${G}:wC`, JSON.stringify({ balance: 1, lastEarnUtc: Date.UTC(2025, 0, 1) }));
   await kv.put(`anniv:seen:${G}:wC`, String(Date.UTC(2020, 0, 1)));
 
@@ -120,7 +120,7 @@ console.log('— backfillFirstSeen uses earliest wallet activity, skips stamped'
 
 // ── anniversary math ──────────────────────────────────────────────
 
-console.log('— isMilestoneYear: 1 + multiples of 5');
+console.log('- isMilestoneYear: 1 + multiples of 5');
 {
   assert(isMilestoneYear(1), 'year 1 is milestone');
   assert(isMilestoneYear(5), 'year 5 is milestone');
@@ -129,7 +129,7 @@ console.log('— isMilestoneYear: 1 + multiples of 5');
   assert(!isMilestoneYear(7), 'year 7 is not');
 }
 
-console.log('— anniversaryReward scales + doubles on milestone + caps');
+console.log('- anniversaryReward scales + doubles on milestone + caps');
 {
   eq(anniversaryReward(1).bolts, 200, 'y1: 100 base ×2 milestone = 200');
   eq(anniversaryReward(2).bolts, 200, 'y2: 200 base, no milestone');
@@ -139,7 +139,7 @@ console.log('— anniversaryReward scales + doubles on milestone + caps');
   eq(anniversaryReward(2).badgeId, 'anniversary-y2', 'badge id stable per year');
 }
 
-console.log('— computeAnniversary: anniversary today');
+console.log('- computeAnniversary: anniversary today');
 {
   // Joined exactly 2 years ago today (2024-05-30).
   const first = Date.UTC(2024, 4, 30);
@@ -150,7 +150,7 @@ console.log('— computeAnniversary: anniversary today');
   assert(!a.milestone, 'year 2 not milestone');
 }
 
-console.log('— computeAnniversary: upcoming anniversary later this year');
+console.log('- computeAnniversary: upcoming anniversary later this year');
 {
   // Joined 2024-08-15 → next anniversary 2026-08-15, ~77 days out.
   const first = Date.UTC(2024, 7, 15);
@@ -160,7 +160,7 @@ console.log('— computeAnniversary: upcoming anniversary later this year');
   assert(!a.anniversaryToday, 'not today');
 }
 
-console.log('— computeAnniversary: anniversary already passed → next year');
+console.log('- computeAnniversary: anniversary already passed → next year');
 {
   // Joined 2023-01-10 → 2026-01-10 already passed → next is 2027-01-10 (4yr).
   const first = Date.UTC(2023, 0, 10);
@@ -169,7 +169,7 @@ console.log('— computeAnniversary: anniversary already passed → next year');
   assert(a.daysUntil > 0, 'daysUntil positive');
 }
 
-console.log('— computeAnniversary: brand-new user (joined today) → no year-0');
+console.log('- computeAnniversary: brand-new user (joined today) → no year-0');
 {
   const a = computeAnniversary(NOW_2026_05_30, NOW_2026_05_30 + 1000);
   eq(a.years, 1, 'first anniversary is year 1');
@@ -177,7 +177,7 @@ console.log('— computeAnniversary: brand-new user (joined today) → no year-0
   assert(a.daysUntil > 300, 'roughly a year out');
 }
 
-console.log('— computeAnniversary: invalid input → null');
+console.log('- computeAnniversary: invalid input → null');
 {
   eq(computeAnniversary(0, NOW_2026_05_30), null, 'zero → null');
   eq(computeAnniversary(NaN, NOW_2026_05_30), null, 'NaN → null');
@@ -185,7 +185,7 @@ console.log('— computeAnniversary: invalid input → null');
 
 // ── checkAnniversary ──────────────────────────────────────────────
 
-console.log('— checkAnniversary: null when no firstSeen');
+console.log('- checkAnniversary: null when no firstSeen');
 {
   const env = makeEnv();
   const r = await checkAnniversary(env, G, 'ghost', { nowUtc: NOW_2026_05_30 });
@@ -193,7 +193,7 @@ console.log('— checkAnniversary: null when no firstSeen');
   eq(r.anniversary, null, 'anniversary null');
 }
 
-console.log('— checkAnniversary: surfaces reward + claimed flag');
+console.log('- checkAnniversary: surfaces reward + claimed flag');
 {
   const env = makeEnv();
   await recordFirstSeen(env, G, U, Date.UTC(2024, 4, 30));   // 2 yrs ago today
@@ -206,7 +206,7 @@ console.log('— checkAnniversary: surfaces reward + claimed flag');
 
 // ── celebrateAnniversary ──────────────────────────────────────────
 
-console.log('— celebrateAnniversary: not today → no grant');
+console.log('- celebrateAnniversary: not today → no grant');
 {
   const env = makeEnv();
   await recordFirstSeen(env, G, U, Date.UTC(2024, 7, 15));   // Aug, not today
@@ -216,7 +216,7 @@ console.log('— celebrateAnniversary: not today → no grant');
   eq(r.reason, 'not-today', 'reason not-today');
 }
 
-console.log('— celebrateAnniversary: grants once, idempotent second call');
+console.log('- celebrateAnniversary: grants once, idempotent second call');
 {
   const env = makeEnv();
   await recordFirstSeen(env, G, U, Date.UTC(2024, 4, 30));   // 2 yrs ago today
@@ -241,7 +241,7 @@ console.log('— celebrateAnniversary: grants once, idempotent second call');
   eq(w2.balance, 200, 'wallet not double-credited');
 }
 
-console.log('— celebrateAnniversary: no firstSeen → error');
+console.log('- celebrateAnniversary: no firstSeen → error');
 {
   const env = makeEnv();
   const r = await celebrateAnniversary(env, G, 'ghost', { nowUtc: NOW_2026_05_30 });
@@ -250,5 +250,5 @@ console.log('— celebrateAnniversary: no firstSeen → error');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

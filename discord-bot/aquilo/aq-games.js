@@ -53,7 +53,7 @@ export async function handleGameAddSubmit(env, data) {
   await env.DB.prepare(
     'INSERT INTO games (guild_id, name, art_url) VALUES (?, ?, ?)'
   ).bind(guildId, name, art_url).run();
-  return ephemeral('✅ Added **' + name + '** to the pool' + (art_url ? '' : ' (no art set — use 🖼️ Set Game Art to add one).'));
+  return ephemeral('✅ Added **' + name + '** to the pool' + (art_url ? '' : ' (no art set, use 🖼️ Set Game Art to add one).'));
 }
 
 export async function handleGameRemoveSubmit(env, data) {

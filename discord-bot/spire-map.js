@@ -1,4 +1,4 @@
-// Spire Map — Slay-the-Spire-style branching path per run.
+// Spire Map, Slay-the-Spire-style branching path per run.
 //
 // Generates a 10-floor DAG of nodes (combat, elite, rest, shop,
 // treasure, event, boss) deterministically from (seasonTheme, runId)
@@ -32,7 +32,7 @@
 //   map_json       TEXT
 //   current_node   TEXT
 //   completed_nodes TEXT  (JSON array of node ids)
-//   updated_at     INTEGER (ms epoch — for cleanup queries)
+//   updated_at     INTEGER (ms epoch, for cleanup queries)
 
 import { CARDS } from './cards-content.js';
 
@@ -49,7 +49,7 @@ const MID_MIN       = 3;   // floors 2-9 width range
 const MID_MAX       = 5;
 const MAP_WIDTH     = 7;   // logical slot count (0..MAP_WIDTH-1) for renderer x
 
-// ── PRNG (mulberry32 — copied from daily-quests.js pattern) ──────
+// ── PRNG (mulberry32, copied from daily-quests.js pattern) ──────
 
 export function makeRng(seedStr) {
   let h = 1779033703 ^ String(seedStr || '').length;
@@ -122,7 +122,7 @@ function assignTypes(rng, widths) {
     for (let i = 0; i < widths[f]; i++) slots.push({ floor: f + 1, i, type: 'combat' });
   }
 
-  // Floor 1 is always combat — already defaulted.
+  // Floor 1 is always combat, already defaulted.
   // Floor 10 is the boss.
   for (const s of slots) {
     if (s.floor === TOTAL_FLOORS) s.type = 'boss';
@@ -161,7 +161,7 @@ function assignTypes(rng, widths) {
   const shopCandidates = shuffle(pool(shopFloor, shopFloor));
   if (shopCandidates.length) shopCandidates[0].type = 'shop';
   else {
-    // Floor was fully consumed by elites/rests — try the other.
+    // Floor was fully consumed by elites/rests, try the other.
     const fallback = shuffle(pool(shopFloor === 5 ? 6 : 5, shopFloor === 5 ? 6 : 5));
     if (fallback.length) fallback[0].type = 'shop';
   }
@@ -223,7 +223,7 @@ function connectFloors(rng, nodesById, widths) {
       }
     }
 
-    // Orphan sweep — any child with no parents gets the nearest one.
+    // Orphan sweep, any child with no parents gets the nearest one.
     for (const c of children) {
       if (c.parentIds.length) continue;
       const nearest = parents.slice()
@@ -234,7 +234,7 @@ function connectFloors(rng, nodesById, widths) {
 }
 
 // Verify every node has a forward path to the boss. Done by reverse
-// BFS from the boss — any node not reached gets a synthesised edge
+// BFS from the boss, any node not reached gets a synthesised edge
 // from itself to a nearest reachable next-floor node. Defensive; with
 // the orphan sweep above this is rarely needed.
 function ensureBossReachable(nodesById) {
@@ -271,7 +271,7 @@ function ensureBossReachable(nodesById) {
 }
 
 // Build an encounter payload per node. The payload is opaque to the
-// generator — resolveNode reads it back at resolution time. Combat /
+// generator, resolveNode reads it back at resolution time. Combat /
 // elite / boss encode an NPC seed; event encodes the eventId.
 function encounterFor(node, theme, rng) {
   switch (node.type) {
@@ -286,7 +286,7 @@ function encounterFor(node, theme, rng) {
       // generator resolves it via spire_npcs by themeId.
       return { npcId: `${theme}.boss`, difficulty: 'boss' };
     case 'event':
-      // eventId selected at generation time — actual outcomes are
+      // eventId selected at generation time, actual outcomes are
       // looked up at resolve time from the event catalogue.
       return { eventId: `${theme}:event:${Math.floor(rng() * 1_000_000)}` };
     case 'treasure':
@@ -407,7 +407,7 @@ export async function advanceTo(env, runId, nodeId) {
   if (!parsed?.map) return { ok: false, error: 'corrupt-map' };
   const target = parsed.map.nodes.find(n => n.id === nodeId);
   if (!target) return { ok: false, error: 'unknown-node' };
-  // Entry pick (no current node yet) — must be floor 1.
+  // Entry pick (no current node yet), must be floor 1.
   if (!parsed.currentNode) {
     if (target.floor !== 1) return { ok: false, error: 'not-entry' };
   } else {
@@ -434,7 +434,7 @@ async function loadEventCatalogue() {
       const mod = await import('./spire/events/index.js');
       return mod.EVENTS_BY_THEME || {};
     } catch {
-      // The theme files aren't shipped yet — return an empty
+      // The theme files aren't shipped yet, return an empty
       // catalogue. resolveNode falls back to a generic "wanderer"
       // event so the resolver still returns a sensible payload.
       return {};
@@ -446,7 +446,7 @@ async function loadEventCatalogue() {
 const FALLBACK_EVENT = Object.freeze({
   id: 'fallback-wanderer',
   name: 'A Wandering Stranger',
-  description: 'A figure offers an exchange — coin for a small risk.',
+  description: 'A figure offers an exchange, coin for a small risk.',
   choices: [
     {
       id: 'accept',
@@ -468,14 +468,14 @@ async function lookupEvent(themeId, eventId) {
   const cat = await loadEventCatalogue();
   const themed = cat[themeId];
   if (!Array.isArray(themed) || !themed.length) return FALLBACK_EVENT;
-  // eventId may not match a real catalogue entry — use it as a seed
+  // eventId may not match a real catalogue entry, use it as a seed
   // to pick one deterministically.
   const rng = makeRng(`${themeId}:${eventId}`);
   return themed[Math.floor(rng() * themed.length)] || FALLBACK_EVENT;
 }
 
 // Pick a weighted outcome from a list. Outcomes are { weight, ... }.
-// Total weight is not assumed to sum to 100 — we normalise.
+// Total weight is not assumed to sum to 100, we normalise.
 function pickOutcome(outcomes, rng) {
   if (!Array.isArray(outcomes) || !outcomes.length) return null;
   const total = outcomes.reduce((s, o) => s + Math.max(1, o.weight || 1), 0);
@@ -494,7 +494,7 @@ function rarityRank(r) {
 }
 
 function rarePlusCards() {
-  // Built lazily — the catalogue can be large. Module-level cache.
+  // Built lazily, the catalogue can be large. Module-level cache.
   if (rarePlusCards._cache) return rarePlusCards._cache;
   const out = Object.values(CARDS || {})
     .filter(c => !c?.token && c?.type !== 'champion')
@@ -541,7 +541,7 @@ function pickTreasureCards(seed) {
 
 // Dispatch by node type. Caller (worker route) is responsible for
 // actually triggering the Boltbound NPC fight (combat/elite/boss),
-// crediting bolts, applying card grants, etc. — this function just
+// crediting bolts, applying card grants, etc., this function just
 // computes the resolution payload.
 export async function resolveNode(env, runId, nodeId, choice = null, opts = {}) {
   const parsed = await getMapForRun(env, runId);
@@ -563,7 +563,7 @@ export async function resolveNode(env, runId, nodeId, choice = null, opts = {}) 
     case 'combat':
     case 'elite': {
       // Caller triggers the Boltbound NPC fight. The npcDeck shape
-      // is just the encounter payload — the worker's combat route
+      // is just the encounter payload, the worker's combat route
       // will pass it to generateSpireNpcDeck.
       return {
         ok: true, type: 'combat-needed',
@@ -578,7 +578,7 @@ export async function resolveNode(env, runId, nodeId, choice = null, opts = {}) 
       if (c === 'heal') {
         return { ok: true, type: 'rest-heal', healPercent: node.encounter?.healPercent || 50 };
       }
-      // 'upgrade' — returns an instruction the caller hands off to
+      // 'upgrade', returns an instruction the caller hands off to
       // the deck-upgrade flow. cardId TBD by the site picker.
       return { ok: true, type: 'rest-upgrade-instruction' };
     }
@@ -589,7 +589,7 @@ export async function resolveNode(env, runId, nodeId, choice = null, opts = {}) 
     case 'treasure': {
       const offered = pickTreasureCards(seed);
       if (!choice) {
-        // First call — show the 3 cards.
+        // First call, show the 3 cards.
         return { ok: true, type: 'treasure-offer', cards: offered };
       }
       const picked = offered.find(c => c.cardId === choice);
@@ -660,7 +660,7 @@ async function _gateHmac(req, env) {
 //   POST /web/spire-map/advance   { runId, nodeId }            → HMAC
 //   POST /web/spire-map/resolve   { runId, nodeId, choice? }   → HMAC
 export async function handleSpireMapRoute(req, env, path) {
-  // Public GET — site renders the map on first paint.
+  // Public GET, site renders the map on first paint.
   if (req.method === 'GET' && path.startsWith('/web/spire-map/me/')) {
     const runId = path.slice('/web/spire-map/me/'.length).split('/')[0];
     if (!runId) return _json({ error: 'runId required' }, 400);

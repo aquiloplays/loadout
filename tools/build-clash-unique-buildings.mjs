@@ -1,4 +1,4 @@
-// K4b — Family-clone redesign for the 23 buildings that previously
+// K4b, Family-clone redesign for the 23 buildings that previously
 // shared archetype shapes. Each kind now has a genuinely distinct
 // silhouette + structural motif, not just a recoloured base.
 //
@@ -7,35 +7,35 @@
 // from the new L1 sources):
 //
 //   Collectors (5):
-//     sawmill   — riverside watermill with waterwheel + log stack
-//     quarry    — open-cut pit with stacked rocks + pickaxe
-//     forge     — open-air smithy: anvil + bellows + flame chimney
-//     mint      — coin press building with stacked coins
-//     workshop  — gear-rack workshop with tool wall + workbench
+//     sawmill, riverside watermill with waterwheel + log stack
+//     quarry, open-cut pit with stacked rocks + pickaxe
+//     forge, open-air smithy: anvil + bellows + flame chimney
+//     mint, coin press building with stacked coins
+//     workshop, gear-rack workshop with tool wall + workbench
 //
 //   Vaults (4):
-//     lumberVault — log silo (cylindrical stack of stacked logs)
-//     stoneVault  — slate bunker (low blocky stone vault with iron door)
-//     ironVault   — riveted iron safe (cube with massive lock dial)
-//     goldVault   — gilded treasury (vault door with star + columns)
+//     lumberVault, log silo (cylindrical stack of stacked logs)
+//     stoneVault, slate bunker (low blocky stone vault with iron door)
+//     ironVault, riveted iron safe (cube with massive lock dial)
+//     goldVault, gilded treasury (vault door with star + columns)
 //
 //   Defense towers (9):
-//     mortar       — squat siege bunker (wide low body, big bowl on top)
-//     mageTower    — slim wizard spire (twisted purple column, glowing crystal)
-//     infernoTower — spiked obsidian column with flame jets at sides
-//     bombTower    — round powder keg tower with iron bands + lit fuse
-//     heavyCannon  — wheeled siege cannon battlement (low platform)
-//     voltaicCoil  — open lattice scaffold + tesla ball at the top
-//     skyMine      — narrow pylon with a spiked mine hanging from a boom
-//     skywardBow   — wooden ballista platform with crossed beams
-//     eagleEye     — slender observation post with rotating spyglass
+//     mortar, squat siege bunker (wide low body, big bowl on top)
+//     mageTower, slim wizard spire (twisted purple column, glowing crystal)
+//     infernoTower, spiked obsidian column with flame jets at sides
+//     bombTower, round powder keg tower with iron bands + lit fuse
+//     heavyCannon, wheeled siege cannon battlement (low platform)
+//     voltaicCoil, open lattice scaffold + tesla ball at the top
+//     skyMine, narrow pylon with a spiked mine hanging from a boom
+//     skywardBow, wooden ballista platform with crossed beams
+//     eagleEye, slender observation post with rotating spyglass
 //
 //   Floor traps (5):
-//     trap         — wooden pit trap (cross-hatched plank lid)
-//     infernoTrap  — flame-vent grate (brass slits + flame tongues)
-//     springTrap   — coiled-spring pad (visible spring under a plate)
-//     staticTrap   — copper-coil mat (concentric rings)
-//     caltrops     — scatter of caltrops on grass (no plate)
+//     trap, wooden pit trap (cross-hatched plank lid)
+//     infernoTrap, flame-vent grate (brass slits + flame tongues)
+//     springTrap, coiled-spring pad (visible spring under a plate)
+//     staticTrap, copper-coil mat (concentric rings)
+//     caltrops, scatter of caltrops on grass (no plate)
 //
 // Run: node tools/build-clash-unique-buildings.mjs
 
@@ -307,7 +307,7 @@ ${inkedRect({ x: 36, y: 184, w: 184, h: 22, r: 3, gradient: 'gk-grad-wood', stro
 // ── Vaults ────────────────────────────────────────────────────
 
 function lumberVault() {
-  // Stacked log silo — circular stack of cut logs.
+  // Stacked log silo, circular stack of cut logs.
   return `
 ${SHADOW}
 <!-- back support posts -->
@@ -347,7 +347,7 @@ ${SHADOW}
 }
 
 function stoneVault() {
-  // Low slate bunker — wide squat blocky vault with massive iron door.
+  // Low slate bunker, wide squat blocky vault with massive iron door.
   return `
 ${SHADOW}
 <!-- bunker body (very wide + low) -->
@@ -396,7 +396,7 @@ ${SHADOW}
 }
 
 function ironVault() {
-  // Riveted iron safe — a perfect cube with a big lock dial.
+  // Riveted iron safe, a perfect cube with a big lock dial.
   return `
 ${SHADOW}
 <!-- cube body -->
@@ -437,7 +437,7 @@ ${glossPath(`M 60 96 L 68 96 L 68 200 L 64 220 L 60 220 Z`, 0.4)}
 }
 
 function goldVault() {
-  // Gilded treasury — gold vault door with star + columns, gold piles in front.
+  // Gilded treasury, gold vault door with star + columns, gold piles in front.
   return `
 ${SHADOW}
 <!-- back wall (creamy stone) -->
@@ -480,7 +480,7 @@ ${glossPath(`M 48 94 L 124 76 L 126 80 L 52 96 Z`, 0.5)}
 // ── Defense towers ───────────────────────────────────────────
 
 function mortar() {
-  // Squat wide siege bunker — broad low body with a huge bowl on top.
+  // Squat wide siege bunker, broad low body with a huge bowl on top.
   return `
 ${SHADOW}
 <!-- wide platform -->
@@ -792,7 +792,7 @@ ${inkedRect({ x: 56, y: 188, w: 144, h: 30, r: 5, gradient: 'gk-grad-wood', stro
 }
 
 function eagleEye() {
-  // Slender observation post — tall thin tower with rotating spyglass on swivel.
+  // Slender observation post, tall thin tower with rotating spyglass on swivel.
   return `
 ${SHADOW}
 <!-- thin base -->
@@ -834,7 +834,7 @@ ${SHADOW}
 // ── Floor traps ──────────────────────────────────────────────
 
 function trap() {
-  // Wooden pit trap — square plank lid with cross-hatched cover.
+  // Wooden pit trap, square plank lid with cross-hatched cover.
   return `
 ${SHADOW}
 <!-- ground hole -->
@@ -869,7 +869,7 @@ ${SHADOW}
 }
 
 function infernoTrap() {
-  // Flame-vent grate — brass plate with slit vents + tongues of flame.
+  // Flame-vent grate, brass plate with slit vents + tongues of flame.
   return `
 ${SHADOW}
 <!-- brass grate plate -->
@@ -908,7 +908,7 @@ ${SHADOW}
 }
 
 function springTrap() {
-  // Coiled-spring pad — visible heavy spring + a plate hovering above.
+  // Coiled-spring pad, visible heavy spring + a plate hovering above.
   return `
 ${SHADOW}
 <!-- ground anchor -->
@@ -946,7 +946,7 @@ ${glossPath(`M 60 110 L 196 110 L 196 116 L 60 116 Z`, 0.5)}
 }
 
 function staticTrap() {
-  // Copper-coil mat — concentric copper rings on a circular plate, arcs pulsing.
+  // Copper-coil mat, concentric copper rings on a circular plate, arcs pulsing.
   return `
 ${SHADOW}
 <!-- outer copper plate -->
@@ -967,7 +967,7 @@ ${SHADOW}
   <circle cx="88" cy="214" r="3"/>
   <circle cx="168" cy="214" r="3"/>
 </g>
-<!-- centre orb (sapphire — electric) -->
+<!-- centre orb (sapphire, electric) -->
 <circle cx="128" cy="200" r="12" fill="url(#gk-rgrad-sapphire)" stroke="${PALETTE.sapphire.stroke}" stroke-width="3"/>
 <ellipse cx="124" cy="196" rx="4" ry="2" fill="${PALETTE.white}" opacity="0.85"/>
 <!-- electric arcs jumping out -->
@@ -981,7 +981,7 @@ ${SHADOW}
 }
 
 function caltrops() {
-  // Scatter of caltrops on grass — no plate; just spikes on ground.
+  // Scatter of caltrops on grass, no plate; just spikes on ground.
   return `
 ${SHADOW}
 <!-- grass tuft base -->
@@ -1048,7 +1048,7 @@ for (const k of KINDS) {
   const svg = svgWrapper({
     width: W, height: H,
     body: k.body(),
-    title: `${k.id} (L1, K4b redesign) — glossy`,
+    title: `${k.id} (L1, K4b redesign), glossy`,
     desc: 'Distinct-silhouette glossy Clash building. Source: tools/build-clash-unique-buildings.mjs.',
   });
   const out = join(OUT, `${k.id}-L1.svg`);

@@ -32,7 +32,7 @@ export async function touchSeen(env, guildId, userId) {
  *
  * Simplification: we don't track previous timestamps; instead we run this
  * cron RIGHT AFTER touchSeen, comparing the current last_ts to a 30-day
- * cutoff. So this only matters if a user was inactive long enough — once
+ * cutoff. So this only matters if a user was inactive long enough, once
  * dm_sent_at is set, we won't DM them again until manually cleared.
  *
  * To avoid notifying people who've never been here long enough, we also
@@ -44,7 +44,7 @@ export async function runReturningCron(env) {
   // and whose row predates today by > 30 days.
   const cutoff = new Date(Date.now() - RETURN_THRESHOLD_DAYS * 86400000).toISOString().slice(0, 19).replace('T', ' ');
   // Note: last_seen.last_ts = now, but we want previous value > 30 days
-  // ago. We approximate by tracking "first_seen" separately — simplest:
+  // ago. We approximate by tracking "first_seen" separately, simplest:
   // if `welcomed.welcomed_at` is older than 30 days OR `member_joins.joined_at`
   // is older than 30 days, we count them.
   const { results } = await env.DB.prepare(
@@ -91,7 +91,7 @@ async function sendReturnDM(env, userId) {
       body: JSON.stringify({
         content:
           '🌩️ **Welcome back to Aquilo!**\n\n' +
-          `It's been a while — here's a returning-storm bonus of **${RETURN_BOLTS} Bolts**.\n` +
+          `It's been a while, here's a returning-storm bonus of **${RETURN_BOLTS} Bolts**.\n` +
           'Catch up: run `/passport` for your streak, `/loadout` for your wallet, and the viewer hub for what to do next.'
       })
     });

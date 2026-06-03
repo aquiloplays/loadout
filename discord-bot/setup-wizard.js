@@ -6,14 +6,14 @@
 // streamer can /setup again later to resume or change settings.
 //
 // Steps:
-//   1. INIT  — register the guild as a tenant (writes guild:tenant:<g>)
-//   2. CHANNELS — bind the channels Loadout needs: welcome, counting,
+//   1. INIT, register the guild as a tenant (writes guild:tenant:<g>)
+//   2. CHANNELS, bind the channels Loadout needs: welcome, counting,
 //                  check-in, support, voice category, join-to-create VC.
 //                  Reuses any IDs already in guild:cfg:<g>.ids.
-//   3. FEATURES — opt in/out of the optional surfaces (Boltbound,
+//   3. FEATURES, opt in/out of the optional surfaces (Boltbound,
 //                  Clash, daily check-in, ticketing, temp VCs). Defaults
 //                  to all-on for new tenants.
-//   4. CONFIRM — summary + "Looks good" button writes a final tenant
+//   4. CONFIRM, summary + "Looks good" button writes a final tenant
 //                 record with setupStep='complete'.
 //
 // Surface parity: every step also exposes a POST /web/setup/* route
@@ -42,9 +42,9 @@ export const FEATURE_CATALOG = [
   { id: 'booster',      label: 'Booster perks',             default: true,
     note: 'Bolt multiplier + welcome pack on server boost (needs shim).' },
   { id: 'boltbound',    label: 'Boltbound card game',        default: true,
-    note: '/boltbound — collectible card duel + Twitch ext integration.' },
+    note: '/boltbound, collectible card duel + Twitch ext integration.' },
   { id: 'clash',        label: 'Clash town builder',        default: true,
-    note: '/clash — base-building + raids vs goblins.' },
+    note: '/clash, base-building + raids vs goblins.' },
   { id: 'referrals',    label: 'Referrals + onboarding',    default: true,
     note: '/referral + /quest + aquilo.gg/quest funnel.' },
 ];
@@ -58,7 +58,7 @@ export const CHANNEL_SLOTS = [
   { id: 'ch_welcome',           label: 'Welcome channel',            type: 'text',
     note: 'Welcome embed lands here on each new member join.' },
   { id: 'ch_counting',          label: 'Counting channel',           type: 'text',
-    note: 'Numbers-only — bot reacts ✅/❌ to each message.' },
+    note: 'Numbers-only, bot reacts ✅/❌ to each message.' },
   { id: 'ch_checkin',           label: 'Daily check-in channel',     type: 'text',
     note: 'Where /checkin posts the embed.' },
   { id: 'ch_support',           label: 'Support / ticket panel',      type: 'text',
@@ -104,10 +104,10 @@ async function renderStepInit(env, guildId, userId) {
     data: {
       flags: FLAG_EPHEMERAL,
       embeds: [{
-        title: isResume ? '⚙️  Loadout setup — resume' : '✨  Loadout setup — welcome!',
+        title: isResume ? '⚙️  Loadout setup, resume' : '✨  Loadout setup, welcome!',
         description: isResume
-          ? `This server already has a Loadout tenant record (created <t:${Math.floor((existing.createdUtc || 0)/1000)}:R>).\n\nClick **Continue** to revisit the wizard — current settings are kept as defaults.`
-          : 'This four-step wizard configures Loadout for your server. Each step is saved so you can `/setup` again later to change anything.\n\n**Step 1 of 4 — register your server**\nLooks good? Click **Continue** to register and move to channel bindings.',
+          ? `This server already has a Loadout tenant record (created <t:${Math.floor((existing.createdUtc || 0)/1000)}:R>).\n\nClick **Continue** to revisit the wizard, current settings are kept as defaults.`
+          : 'This four-step wizard configures Loadout for your server. Each step is saved so you can `/setup` again later to change anything.\n\n**Step 1 of 4, register your server**\nLooks good? Click **Continue** to register and move to channel bindings.',
         color: 0x5fa0f8,
         footer: { text: 'Setup · step 1/4' },
       }],
@@ -130,18 +130,18 @@ async function renderStepChannels(env, guildId) {
   const cfg = await getGuildCfg(env, guildId);
   const rows = CHANNEL_SLOTS.map(s => {
     const bound = cfg.ids?.[s.id];
-    return `• **${s.label}** _(${s.type})_  — ${bound ? `<#${bound}>` : '_unbound_'}\n  ${s.note}`;
+    return `• **${s.label}** _(${s.type})_, ${bound ? `<#${bound}>` : '_unbound_'}\n  ${s.note}`;
   });
   return {
     type: RESP_UPDATE,
     data: {
       flags: FLAG_EPHEMERAL,
       embeds: [{
-        title: '📍  Step 2 of 4 — channel bindings',
+        title: '📍  Step 2 of 4, channel bindings',
         description:
           'Loadout needs to know which channel each feature should target. Open the website setup page to bind channels with dropdowns, OR run `/setup channel <slot> <channel>` to bind one at a time.\n\n'
           + rows.join('\n\n')
-          + '\n\n**Either way, click _Next_ when you\'re done — unbound channels just mean that feature stays dormant.**',
+          + '\n\n**Either way, click _Next_ when you\'re done, unbound channels just mean that feature stays dormant.**',
         color: 0x5fa0f8,
         footer: { text: 'Setup · step 2/4' },
       }],
@@ -149,7 +149,7 @@ async function renderStepChannels(env, guildId) {
         type: 1, components: [
           { type: 2, style: 5, label: 'Bind on aquilo.gg',
             url: `https://aquilo.gg/setup?step=channels&guild=${guildId}` },
-          { type: 2, style: 3, label: 'Next — features',
+          { type: 2, style: 3, label: 'Next, features',
             custom_id: `setup:step3:${guildId}` },
         ],
       }],
@@ -162,16 +162,16 @@ async function renderStepFeatures(env, guildId) {
   const features = await getFeatures(env, guildId);
   const rows = FEATURE_CATALOG.map(f => {
     const on = features[f.id] !== false;
-    return `${on ? '✅' : '◯'}  **${f.label}** — ${f.note}`;
+    return `${on ? '✅' : '◯'}  **${f.label}**, ${f.note}`;
   });
   return {
     type: RESP_UPDATE,
     data: {
       flags: FLAG_EPHEMERAL,
       embeds: [{
-        title: '🎛️  Step 3 of 4 — feature toggles',
+        title: '🎛️  Step 3 of 4, feature toggles',
         description:
-          'All features default on. Toggle anything off you don\'t want for your community — you can change these any time via `/setup` or the website.\n\n'
+          'All features default on. Toggle anything off you don\'t want for your community, you can change these any time via `/setup` or the website.\n\n'
           + rows.join('\n\n')
           + '\n\n_Click a feature on the website to toggle, or click _Next_ to accept the current state._',
         color: 0x5fa0f8,
@@ -181,7 +181,7 @@ async function renderStepFeatures(env, guildId) {
         type: 1, components: [
           { type: 2, style: 5, label: 'Toggle on aquilo.gg',
             url: `https://aquilo.gg/setup?step=features&guild=${guildId}` },
-          { type: 2, style: 3, label: 'Next — review',
+          { type: 2, style: 3, label: 'Next, review',
             custom_id: `setup:step4:${guildId}` },
         ],
       }],
@@ -200,7 +200,7 @@ async function renderStepConfirm(env, guildId) {
 
   const lines = [
     `**Channels bound (${bound.length}/${CHANNEL_SLOTS.length}):**`,
-    bound.length ? bound.map(s => `• ${s.label} → <#${cfg.ids[s.id]}>`).join('\n') : '_(none yet — features needing channels stay dormant)_',
+    bound.length ? bound.map(s => `• ${s.label} → <#${cfg.ids[s.id]}>`).join('\n') : '_(none yet, features needing channels stay dormant)_',
     '',
     `**Features enabled (${featuresOn.length}/${FEATURE_CATALOG.length}):**`,
     featuresOn.length ? featuresOn.map(l => `• ${l}`).join('\n') : '_(none)_',
@@ -217,7 +217,7 @@ async function renderStepConfirm(env, guildId) {
     data: {
       flags: FLAG_EPHEMERAL,
       embeds: [{
-        title: '🏁  Step 4 of 4 — review & finish',
+        title: '🏁  Step 4 of 4, review & finish',
         description: lines.join('\n'),
         color: 0x5fa0f8,
         footer: { text: 'Setup · step 4/4 · click Finish to complete' },
@@ -303,7 +303,7 @@ async function slashBindings(env, guildId) {
   const b = await loadBindings(env, guildId);
   const entries = Object.entries(b).filter(([_, v]) => Array.isArray(v) && v.length);
   if (entries.length === 0) {
-    return { type: RESP_CHAT, data: { content: '_No command bindings set — every command works in every channel._', flags: FLAG_EPHEMERAL } };
+    return { type: RESP_CHAT, data: { content: '_No command bindings set, every command works in every channel._', flags: FLAG_EPHEMERAL } };
   }
   const lines = ['🔗  **Command bindings**', ''];
   for (const [cmd, channels] of entries.sort()) {
@@ -315,7 +315,7 @@ async function slashBindings(env, guildId) {
 async function slashChannel(env, guildId, options) {
   const slotId   = options.find(o => o.name === 'slot')?.value;
   // Discord sends TYPE_CHANNEL (type 7) options as the channel ID
-  // string directly in `value` — no parsing needed.
+  // string directly in `value`, no parsing needed.
   const channelId = String(options.find(o => o.name === 'channel')?.value || '');
   const slot = CHANNEL_SLOTS.find(s => s.id === slotId);
   if (!slot) {
@@ -409,7 +409,7 @@ export async function handleSetupComponent(env, data) {
   return { type: RESP_CHAT, data: { content: `Unknown setup action \`${action}\`.`, flags: FLAG_EPHEMERAL } };
 }
 
-// ── Web endpoints — POST /web/setup/* ──────────────────────────────────
+// ── Web endpoints, POST /web/setup/* ──────────────────────────────────
 //
 // The site mirrors the same flow with richer UI (channel pickers from
 // /web/guild/<g>/channels, role pickers, etc.). All HMAC-gated via

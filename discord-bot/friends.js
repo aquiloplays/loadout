@@ -1,11 +1,11 @@
-// Friends system — bidirectional friendship + pending request flow.
+// Friends system, bidirectional friendship + pending request flow.
 //
 // State (KV, mirrored on both sides):
 //   pfriends:<userId>  {
 //     friends:  [userId, ...],           // accepted (mirrored)
 //     incoming: [{ fromUserId, sentUtc }, ...],
 //     outgoing: [{ toUserId,   sentUtc }, ...],
-//     blocked:  [userId, ...],           // (reserved — no UI yet)
+//     blocked:  [userId, ...],           // (reserved, no UI yet)
 //   }
 //
 // pprofile.friends is the historical array (already used by privacy
@@ -62,8 +62,7 @@ async function putFriends(env, userId, rec) {
 }
 
 // Mirror onto pprofile.friends so the existing privacy gate +
-// readFullProfile.friendCount field keep working. Best-effort —
-// pprofile may not exist yet for new users; we create it.
+// readFullProfile.friendCount field keep working. Best-effort, // pprofile may not exist yet for new users; we create it.
 async function syncProfileFriends(env, userId, friendsList) {
   try {
     const { getProfile, putProfile } = await import('./progression/profile.js');
@@ -159,7 +158,7 @@ export async function removeFriend(env, viewerUserId, targetUserId) {
 // readFriendsDisplay enriches the friends list with each friend's
 // aquilo.gg username + visible gamertags (reusing the visibility
 // flags from the B2 gamertag system). Walks pprofile + pgamertags
-// for each friend — bounded by MAX_FRIENDS.
+// for each friend, bounded by MAX_FRIENDS.
 
 const GAMERTAG_PLATFORMS = ['steam', 'xbox', 'psn', 'epic'];
 
@@ -231,14 +230,14 @@ export async function handleFriendsRoute(req, env, path) {
     const target = String(b.targetUserId || '').trim();
     if (!target) return json({ error: 'targetUserId required' }, 400);
     const r = await sendFriendRequest(env, userId, target);
-    // Best-effort notification — send a Discord DM to the target if
+    // Best-effort notification, send a Discord DM to the target if
     // they're opted in. We do this inline since friend requests are
     // low-volume.
     if (r.ok) {
       try {
         const { sendDm } = await import('./aquilo/util.js');
         await sendDm(env, target, {
-          content: `🤝 **Friend request** — <@${userId}> wants to be your friend on aquilo.gg.\nAccept or decline at https://aquilo.gg/friends.`,
+          content: `🤝 **Friend request**, <@${userId}> wants to be your friend on aquilo.gg.\nAccept or decline at https://aquilo.gg/friends.`,
         });
       } catch { /* DMs might be off */ }
     }
@@ -274,7 +273,7 @@ export async function handleFriendsRoute(req, env, path) {
 // ── LFG fan-out helper (used by lfg.js createLfg) ────────────────
 //
 // For each of the host's friends, send a Discord DM via the existing
-// /push/dm payload contract (in-process — no HTTP loopback) AND fire
+// /push/dm payload contract (in-process, no HTTP loopback) AND fire
 // a /api/push/external web-push so opted-in friends get the
 // notification on aquilo.gg too. Respects each friend's pprofile.
 // pushPrefs.discordDm + pushPrefs.kinds['friend.lfg'].
@@ -317,7 +316,7 @@ export async function notifyFriendsOfLfg(env, lfg) {
 // Fired ONCE per new live-session for a streamer who is linked to an
 // aquilo account. The SF heartbeat payload doesn't always carry an
 // aquilo userId, so callers can pass either an aquilo userId or a
-// Twitch userId — we resolve via plink:twitch:<id> as a fallback.
+// Twitch userId, we resolve via plink:twitch:<id> as a fallback.
 //
 // Per-friend Discord DM via sendDm AND web-push fan-out via the
 // /api/push/external relay. Respects pprofile.pushPrefs.discordDm +
@@ -338,7 +337,7 @@ export async function notifyFriendsOfGoLive(env, args = {}) {
   }
   if (!userId) return { sent: 0, skipped: 0, reason: 'no-aquilo-link' };
 
-  // Session dedup — by stable session start (rounded to nearest hour
+  // Session dedup, by stable session start (rounded to nearest hour
   // so we don't double-fire on flapping heartbeats inside one stream).
   const sessionKey = `friend.live:notified:${userId}:${Math.floor(Date.now() / 3_600_000)}`;
   try {

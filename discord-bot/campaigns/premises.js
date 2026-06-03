@@ -1,4 +1,4 @@
-// Adventure premise catalogue — ~10 D&D one-shots the AI GM rolls
+// Adventure premise catalogue, ~10 D&D one-shots the AI GM rolls
 // between when a campaign starts. Each premise is a tight setup
 // (location, hook, antagonist, twist) the GM expands into a 3-5 hour
 // session.

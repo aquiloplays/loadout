@@ -5,15 +5,15 @@
 //
 // Config shape:
 //   {
-//     platform:    string                — KV key prefix
-//     authUrl:     string                — provider's authorize endpoint
-//     tokenUrl:    string                — provider's token endpoint
-//     scope:       string                — space-separated scopes
+//     platform:    string, KV key prefix
+//     authUrl:     string, provider's authorize endpoint
+//     tokenUrl:    string, provider's token endpoint
+//     scope:       string, space-separated scopes
 //     userFetch:   async (token, env) -> { id, handle, displayName }
-//     clientIdEnv: string                — env var name for client id
-//     clientSecretEnv: string            — env var name for client secret
-//     extraStartParams?: object          — extra params on the auth redirect
-//     extraTokenBody?: object            — extra body fields on token exchange
+//     clientIdEnv: string, env var name for client id
+//     clientSecretEnv: string, env var name for client secret
+//     extraStartParams?: object, extra params on the auth redirect
+//     extraTokenBody?: object, extra body fields on token exchange
 //   }
 
 export function makeOAuthHandler(cfg) {

@@ -31,7 +31,7 @@ const CLAP_EMOJI = '👏';
 export async function trackClipMessage(env, payload) {
   if (!env?.DB) return { tracked: false };
   // Drop bot-authored messages. The gateway shim forwards every
-  // MESSAGE_CREATE including our own bot's outgoing relays — without
+  // MESSAGE_CREATE including our own bot's outgoing relays, without
   // this guard we'd seed a 👏 reaction on the bot's own posts AND
   // bump clip_curator achievements against undefined author ids.
   const { isBotPayload } = await import('../bot-guard.js');
@@ -94,7 +94,7 @@ export async function refreshClipReactions(env) {
         'UPDATE clips SET clap_count = ?, last_synced = datetime(\'now\') WHERE message_id = ?'
       ).bind(count, c.message_id).run();
     } catch (e) {
-      // Likely deleted or perms changed — soft-skip.
+      // Likely deleted or perms changed, soft-skip.
     }
   }
 }

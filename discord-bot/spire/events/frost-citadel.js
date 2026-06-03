@@ -1,4 +1,4 @@
-// Frost Citadel — ice, snow, glacier-knights, frozen hearts.
+// Frost Citadel, ice, snow, glacier-knights, frozen hearts.
 // 5 events: 1 pure upside, 3 tradeoff, 1 gamble.
 
 export const FROST_CITADEL_EVENTS = Object.freeze([

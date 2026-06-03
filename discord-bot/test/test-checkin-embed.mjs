@@ -56,7 +56,7 @@ function installFetch() {
         return { nick: null, user: { username: 'clay', global_name: 'Clay', avatar: null, id: '42' } };
       }, async text() { return ''; } };
     }
-    // Unused side paths (composite endpoint, etc.) — pretend not-found.
+    // Unused side paths (composite endpoint, etc.), pretend not-found.
     return { ok: false, status: 404, async json() { return {}; }, async text() { return ''; } };
   };
 }
@@ -72,7 +72,7 @@ async function bindChannel(kv) {
 installFetch();
 
 // ── Case 1: no card + a typed message ─────────────────────────────────
-console.log('— no custom card + a typed message');
+console.log('- no custom card + a typed message');
 {
   const kv = makeKv();
   await bindChannel(kv);
@@ -90,7 +90,7 @@ console.log('— no custom card + a typed message');
 }
 
 // ── Case 1b: no card, no gif (web-style check-in), no message ──────────
-console.log('— no custom card, no GIF, no message (web surface)');
+console.log('- no custom card, no GIF, no message (web surface)');
 {
   const kv = makeKv();
   await bindChannel(kv);
@@ -105,7 +105,7 @@ console.log('— no custom card, no GIF, no message (web surface)');
 }
 
 // ── Case 2: customised card + a typed message ─────────────────────────
-console.log('— customised card + a typed message');
+console.log('- customised card + a typed message');
 {
   const kv = makeKv();
   await bindChannel(kv);
@@ -119,7 +119,7 @@ console.log('— customised card + a typed message');
 }
 
 // ── Case 3: customised card, no message ───────────────────────────────
-console.log('— customised card, no message');
+console.log('- customised card, no message');
 {
   const kv = makeKv();
   await bindChannel(kv);
@@ -133,5 +133,5 @@ console.log('— customised card, no message');
 }
 
 console.log('');
-console.log(failures === 0 ? 'PASSED — all assertions ok' : `FAILED — ${failures} assertion(s)`);
+console.log(failures === 0 ? 'PASSED, all assertions ok' : `FAILED, ${failures} assertion(s)`);
 process.exit(failures === 0 ? 0 : 1);

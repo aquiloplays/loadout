@@ -1,18 +1,18 @@
 // Character composite render manifest.
 //
 // 2026-05-29 Phase A. The site renderer composites a hero out of
-// stacked PNG layers — base body + hair + eyes + facial + per-slot
+// stacked PNG layers, base body + hair + eyes + facial + per-slot
 // gear-on-character overlays. This module emits the list of asset
 // URLs to fetch for a given (look + equipped) state so the site
 // renderer doesn't need to know the URL convention.
 //
 // Phase A layer set:
-//   1. body — /asset/hero-art/<class>(-female)?.png   (Phase A live)
-//   2. hair — /asset/hero-art/hair/<style>-<sex>.png   (Phase B — chip)
-//   3. eyes — /asset/hero-art/eyes/<style>.png        (Phase B — chip)
-//   4. facial — /asset/hero-art/facial/<style>.png    (male only, Phase B)
-//   5. gear overlays — /asset/gear-art/<slot>/<slug>/<rarity>-worn.png
-//                                                       (Phase C — chip)
+//   1. body, /asset/hero-art/<class>(-female)?.png   (Phase A live)
+//   2. hair, /asset/hero-art/hair/<style>-<sex>.png   (Phase B, chip)
+//   3. eyes, /asset/hero-art/eyes/<style>.png        (Phase B, chip)
+//   4. facial, /asset/hero-art/facial/<style>.png    (male only, Phase B)
+//   5. gear overlays, /asset/gear-art/<slot>/<slug>/<rarity>-worn.png
+//                                                       (Phase C, chip)
 //
 // Phase A returns the base layer + stub URLs for B/C so the site can
 // build the layered DIV with src tags that 404 cleanly until Phase
@@ -59,7 +59,7 @@ export function buildCompositeManifest(hero) {
 
   const layers = [];
 
-  // 1. Base body — class + sex. Phase A: live URL for both sexes.
+  // 1. Base body, class + sex. Phase A: live URL for both sexes.
   const bodyClassPart = sex === 'female' ? `${className}-female` : className;
   layers.push({
     kind:    'body',
@@ -69,7 +69,7 @@ export function buildCompositeManifest(hero) {
     meta:    { className, sex, skinTone },
   });
 
-  // 2. Hair sprite (Phase B — LIVE 2026-05-29). KV key shape is
+  // 2. Hair sprite (Phase B, LIVE 2026-05-29). KV key shape is
   // pixel-art-hero-hair:<sex>-<style>; site renders the alpha sprite
   // and tints via CSS filter using `tintHex` (no per-color sprite).
   layers.push({
@@ -81,7 +81,7 @@ export function buildCompositeManifest(hero) {
     tintHex: hexForHairColor(hairColor),
   });
 
-  // 3. Eyes — alpha-only sprite, color applied programmatically.
+  // 3. Eyes, alpha-only sprite, color applied programmatically.
   // eyeStyle isn't on the data model (only eyeColor is); default to
   // `round` for everyone. Future iteration may add eyeStyle to the
   // customize UI.
@@ -94,7 +94,7 @@ export function buildCompositeManifest(hero) {
     tintHex: hexForEyeColor(eyeColor),
   });
 
-  // 4. Facial hair — male only. Skip for female; the facial value
+  // 4. Facial hair, male only. Skip for female; the facial value
   // is a no-op render-side for female characters.
   if (sex === 'male' && facial !== 'clean') {
     layers.push({
@@ -106,10 +106,10 @@ export function buildCompositeManifest(hero) {
     });
   }
 
-  // 5. Per-slot gear overlays (Phase 2 — LIVE). equipped[slot] stores a
+  // 5. Per-slot gear overlays (Phase 2, LIVE). equipped[slot] stores a
   // bare bag-instance id (string); we resolve it against hero.bag to get
   // the item record, then map it to its worn-overlay ARCHETYPE via
-  // gearArtSlug (item.art is the same value stamped at mint — preferred
+  // gearArtSlug (item.art is the same value stamped at mint, preferred
   // when present, derived otherwise so legacy/lootbox bag items still
   // render). The overlay is rendered per-sex and the rarity sheen is a
   // CSS tint over the rarity-agnostic base (tintHex). The icon URL keeps
@@ -122,7 +122,7 @@ export function buildCompositeManifest(hero) {
     const ref = equipped[slot];
     if (!ref) continue;
     const item = (typeof ref === 'string') ? bagIx[ref] : ref;
-    if (!item) continue; // equipped id not in bag — skip cleanly
+    if (!item) continue; // equipped id not in bag, skip cleanly
     const arch = parseArtStamp(item.art) || gearArtSlug(item);
     if (!arch) continue; // unrenderable (consumable, unknown slot)
     const rarity = String(item.rarity || 'common').toLowerCase();

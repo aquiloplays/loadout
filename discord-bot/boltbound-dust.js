@@ -1,4 +1,4 @@
-// Boltbound — per-card "dust" economy primitive.
+// Boltbound, per-card "dust" economy primitive.
 //
 // Hearthstone-style disenchant currency, distinct from the pack-craft
 // `fragments` in cards-fragments.js. Dust is earned by disenchanting
@@ -10,7 +10,7 @@
 // Storage (per-user, account-wide like trophies / fragments):
 //   cards:dust:<userId> -> integer balance
 //
-// Locked tables (CARD-GAME-DESIGN.md §14b — per-card dust). These match
+// Locked tables (CARD-GAME-DESIGN.md §14b, per-card dust). These match
 // the client defaults baked into the site crafting UI so the worker is
 // authoritative without the UI having to re-fetch a cost table.
 
@@ -75,7 +75,7 @@ export async function disenchantCard(env, guildId, userId, cardId) {
   const owned = (col.cards && col.cards[cardId]) || 0;
   if (owned < 1) return { ok: false, error: 'not-owned' };
 
-  // Protect saved decks — can't disenchant below their usage.
+  // Protect saved decks, can't disenchant below their usage.
   const decks = await listDecks(env, guildId, userId);
   let maxUse = 0, blockedBy = null;
   for (const d of decks) {

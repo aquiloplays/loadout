@@ -1,6 +1,6 @@
-// Progression — public profile + stats aggregator.
+// Progression, public profile + stats aggregator.
 //
-// PROGRESSION-SYSTEM-DESIGN.md §5 — owns pprofile:<userId> and the
+// PROGRESSION-SYSTEM-DESIGN.md §5, owns pprofile:<userId> and the
 // "render every feature's stats card" aggregator. Each feature module
 // exports a getStatsFor(env, userId) the profile page calls in
 // parallel; the order is deterministic (FEATURE_ORDER below) but
@@ -70,12 +70,12 @@ export async function setProfileBio(env, userId, bio, opts = {}) {
     p.privacy = opts.privacy;
   }
   if (Array.isArray(opts.badgesShowcase)) {
-    // Validate showcase against owned badges (lazy import — P4 wires it).
+    // Validate showcase against owned badges (lazy import, P4 wires it).
     let owned = new Set();
     try {
       const { getOwnedBadgeIds } = await import('./badges.js');
       if (getOwnedBadgeIds) owned = new Set(await getOwnedBadgeIds(env, userId));
-    } catch { /* P4 module not yet present — accept all */ }
+    } catch { /* P4 module not yet present, accept all */ }
     p.badgesShowcase = opts.badgesShowcase
       .filter(id => typeof id === 'string')
       .slice(0, 3)

@@ -1,12 +1,12 @@
-// Progression — seasons + battle pass.
+// Progression, seasons + battle pass.
 //
 // PROGRESSION-SYSTEM-DESIGN.md §8. 90-day seasons, 50 tiers, free +
-// Patreon-gated premium track (single tier, patron/non-patron — see
+// Patreon-gated premium track (single tier, patron/non-patron, see
 // linking.isPatron). Each tier costs 1,000 XP linearly (XP feeds
-// the pass automatically — the bus calls recordSeasonProgress on
+// the pass automatically, the bus calls recordSeasonProgress on
 // every event, which is wired below).
 //
-// Season templates live in season-templates.js — lock-in advance, hot-
+// Season templates live in season-templates.js, lock-in advance, hot-
 // swappable from the season:active KV singleton at rollover.
 //
 // Storage:
@@ -24,15 +24,15 @@
 //
 // PATREON-CANCEL BEHAVIOR (2026-05, Clay):
 //   Premium tiers EARNED while a patron stay claimable after cancel
-//   — until the season expires. The user simply stops accruing NEW
+//, until the season expires. The user simply stops accruing NEW
 //   premium-eligible tiers the moment they cancel. Tracking lives on
-//   `premiumEarnedTiers[]` — recordSeasonProgress pushes a tier
+//   `premiumEarnedTiers[]`, recordSeasonProgress pushes a tier
 //   number into the array only when the user is currently isPatron
 //   at the moment of crossing. claimTier for premium passes if the
 //   tier is in that list (current Patreon state irrelevant).
 //
 //   Backwards compat: pre-this-change pseason records have no
-//   premiumEarnedTiers field. On first encounter we backfill — if
+//   premiumEarnedTiers field. On first encounter we backfill, if
 //   the user is currently a patron, treat all tiers up to rec.tier
 //   as earned-while-patron; otherwise empty. New tier crossings
 //   accumulate normally from there.
@@ -83,7 +83,7 @@ function templateForCounter(counter) {
   return t;
 }
 
-// Idempotent — call from the cron tick. If no active season, mint
+// Idempotent, call from the cron tick. If no active season, mint
 // the first one. If active.endUtc is in the past, roll over.
 export async function ensureCurrentSeason(env, nowUtc = Date.now()) {
   const active = await getActiveSeason(env);
@@ -117,7 +117,7 @@ function freshUser(seasonId) {
     tier: 0,
     claimedFree: [],
     claimedPrem: [],
-    premium: false,            // sticky — set true the first time the user redeems any premium reward
+    premium: false,            // sticky, set true the first time the user redeems any premium reward
     premiumEarnedTiers: [],    // tiers crossed while the user was an active patron
   };
 }
@@ -129,7 +129,7 @@ function backfillPremiumEarnedTiers(rec, isPatronNow) {
   if (Array.isArray(rec.premiumEarnedTiers)) return;
   // If the user is currently a patron we conservatively assume every
   // tier they reached so far was reached while patron. If they're
-  // not currently patron, we assume none — they can re-subscribe
+  // not currently patron, we assume none, they can re-subscribe
   // if they want to retroactively claim, matching pre-change
   // behaviour. Future tier crossings track precisely per recordSeasonProgress.
   rec.premiumEarnedTiers = isPatronNow
@@ -146,7 +146,7 @@ export async function putUserSeason(env, userId, rec) {
   await env.LOADOUT_BOLTS.put(PUSER_KEY(userId), JSON.stringify(rec));
 }
 
-// Bus consumer #3 — called by event-bus.js right after the XP grant.
+// Bus consumer #3, called by event-bus.js right after the XP grant.
 // xpResult carries the amount that was actually granted (post-cap).
 // We mirror that into the user's seasonal progress + recompute tier.
 export async function recordSeasonProgress(env, event, xpResult) {
@@ -157,7 +157,7 @@ export async function recordSeasonProgress(env, event, xpResult) {
   if (!rec || rec.seasonId !== active.seasonId) {
     rec = freshUser(active.seasonId);
   }
-  // Catch-up multiplier — last N days of season, all XP counts at 1.5×.
+  // Catch-up multiplier, last N days of season, all XP counts at 1.5×.
   let credit = xpResult.granted;
   if (event.utc >= active.catchUpStartsUtc) {
     credit = Math.round(credit * active.catchUpMult);
@@ -168,7 +168,7 @@ export async function recordSeasonProgress(env, event, xpResult) {
   const tierJumped = newTier > previousTier;
   rec.tier = newTier;
 
-  // Patron-cancel tracking — stamp each newly-crossed tier as
+  // Patron-cancel tracking, stamp each newly-crossed tier as
   // "earned while patron" IFF the user is currently isPatron. If
   // they cancel mid-season the freeze is immediate: subsequent tier
   // crossings won't be stamped, so they can't claim those tiers'
@@ -180,12 +180,12 @@ export async function recordSeasonProgress(env, event, xpResult) {
       const patronNow = await isPatron(env, event.userId);
       backfillPremiumEarnedTiers(rec, patronNow);
       // If the user is currently a patron, mark the newly-crossed
-      // tiers too — backfill above only covers up to previousTier.
+      // tiers too, backfill above only covers up to previousTier.
       if (patronNow) {
         for (let t = previousTier + 1; t <= newTier; t++) rec.premiumEarnedTiers.push(t);
       }
     } else {
-      // Normal path — extra read only when a tier was actually crossed.
+      // Normal path, extra read only when a tier was actually crossed.
       const patronNow = await isPatron(env, event.userId);
       if (patronNow) {
         for (let t = previousTier + 1; t <= newTier; t++) {
@@ -203,16 +203,16 @@ export async function recordSeasonProgress(env, event, xpResult) {
 //
 // Viewer hits a tier → claim reward. Free track is always claimable;
 // premium track is gated on Patreon membership (patron / non-patron,
-// no tiers — see linking.isPatron).
+// no tiers, see linking.isPatron).
 //
-// Idempotent — re-claim returns alreadyClaimed:true.
+// Idempotent, re-claim returns alreadyClaimed:true.
 
 export async function claimTier(env, userId, tier, track) {
   if (track !== 'free' && track !== 'premium') return { ok: false, error: 'bad-track' };
   const active = await getActiveSeason(env);
   if (!active) return { ok: false, error: 'no-active-season' };
   if (tier < 1 || tier > active.tierCount) return { ok: false, error: 'bad-tier' };
-  // SEASON-END EXPIRY — unclaimed rewards die when the season
+  // SEASON-END EXPIRY, unclaimed rewards die when the season
   // rolls over. The ensureCurrentSeason path also wipes the user's
   // rec on rollover, but we reject explicitly here so the website
   // gets a clean error code it can render as "season ended; rewards
@@ -229,7 +229,7 @@ export async function claimTier(env, userId, tier, track) {
   const claimedList = track === 'free' ? rec.claimedFree : rec.claimedPrem;
   if (claimedList.includes(tier)) return { ok: false, error: 'already-claimed' };
 
-  // Premium gate — claimable IFF the user earned this tier while
+  // Premium gate, claimable IFF the user earned this tier while
   // they were a patron (premiumEarnedTiers tracks that precisely).
   // A cancelled-mid-season patron keeps access to tiers they
   // already earned; new accruals stop the moment they cancel.
@@ -241,16 +241,16 @@ export async function claimTier(env, userId, tier, track) {
         ok: false,
         error: 'premium-locked',
         reason: patronNow
-          ? 'tier-not-earned-while-patron'   // shouldn't happen for current patrons — every cross is stamped
+          ? 'tier-not-earned-while-patron'   // shouldn't happen for current patrons, every cross is stamped
           : 'cancelled-after-tier-earned',   // user cancelled before crossing this tier
       };
     }
-    rec.premium = true;   // sticky — record that this user redeemed premium
+    rec.premium = true;   // sticky, record that this user redeemed premium
   }
 
   // Look up the reward for this tier+track. Pad with empty if the
   // template doesn't define the tier exactly (treat as no reward).
-  // Rewards are granted verbatim — no per-tier multipliers anymore.
+  // Rewards are granted verbatim, no per-tier multipliers anymore.
   const baseList = active.rewardsTable[tier - 1] || { free: {}, premium: {} };
   const base = baseList[track] || {};
   const reward = {
@@ -311,7 +311,7 @@ export async function readSeasonDisplay(env, userId) {
   if (!rec || rec.seasonId !== active.seasonId) {
     rec = freshUser(active.seasonId);
   }
-  // Patron presence check — single-tier, all-or-nothing.
+  // Patron presence check, single-tier, all-or-nothing.
   const patron = await isPatron(env, userId);
   // Make sure premiumEarnedTiers is populated so the per-tier claim
   // state below is correct for pre-change records.
@@ -346,7 +346,7 @@ export async function readSeasonDisplay(env, userId) {
     // Per-tier claim-state matrix so the website can render the
     // "Claim" / "Claimed" / "Locked" / "Expired" badge per tile
     // without re-deriving the rules client-side. Driven entirely
-    // by server-side state — single source of truth.
+    // by server-side state, single source of truth.
     tiers: active.rewardsTable.map((row, i) => {
       const tier = i + 1;
       const reached = rec.tier >= tier;
@@ -359,12 +359,12 @@ export async function readSeasonDisplay(env, userId) {
         premium: row.premium || {},
         state: {
           reached,
-          // free track — anyone who reached the tier can claim, until expiry
+          // free track, anyone who reached the tier can claim, until expiry
           freeClaimState:    !reached ? 'locked'
                             : freeClaimed ? 'claimed'
                             : expired ? 'expired'
                             : 'claimable',
-          // premium track — must have earned the tier WHILE patron
+          // premium track, must have earned the tier WHILE patron
           premiumClaimState: !reached ? 'locked'
                             : premClaimed ? 'claimed'
                             : !earnedPrem ? 'patron-locked'

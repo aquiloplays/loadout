@@ -2,12 +2,12 @@
 //
 // 2026-06 schedule update (Chunk 6). For each stream in the next
 // horizon (default 7 days) we ensure a Discord *external* scheduled
-// event exists — name = "<show>: <game>", location = the Twitch URL,
+// event exists, name = "<show>: <game>", location = the Twitch URL,
 // thumbnail = the game's Steam header art. Discord then handles
 // "Interested" subscriptions + its own pre-event reminders natively.
 //
 // On top of that, an optional 30-minute pre-stream ping posts a short
-// embed to env.STREAM_PING_CHANNEL (opt-in — no ping is sent if that
+// embed to env.STREAM_PING_CHANNEL (opt-in, no ping is sent if that
 // var is unset, so we never spam an unknown channel).
 //
 // KV:
@@ -23,7 +23,7 @@ import { resolveTwitchLogin } from './twitch-login-resolver.js';
 const SYNC_KEY = (g) => `stream-events:synced:${g}`;
 const PING_KEY = (g) => `stream-events:pinged:${g}`;
 
-// Dynamic — resolves the current login from the canonical broadcaster
+// Dynamic, resolves the current login from the canonical broadcaster
 // id (KV-cached 1h) so a username rename needs no code change.
 async function twitchUrl(env) {
   return `https://twitch.tv/${await resolveTwitchLogin(env, env.CLAY_TWITCH_CHANNEL_ID)}`;
@@ -126,7 +126,7 @@ export async function syncStreamEvents(env, guildId, { horizonDays = 7 } = {}) {
 }
 
 // 30-minute pre-stream ping. Opt-in: only fires when STREAM_PING_CHANNEL
-// is configured. Safe to call every minute — a per-event KV marker
+// is configured. Safe to call every minute, a per-event KV marker
 // guarantees exactly one ping per stream.
 export async function preStreamPings(env, guildId) {
   const channelId = String(env.STREAM_PING_CHANNEL || '').trim();
@@ -144,7 +144,7 @@ export async function preStreamPings(env, guildId) {
     const mins = (ev.startsAt - now) / 60000;
     if (mins <= 30 && mins > 0 && !pinged[dateKey]) {
       const embed = {
-        title: `🔴 Live in ~30 minutes — ${ev.name}`,
+        title: `🔴 Live in ~30 minutes, ${ev.name}`,
         description: `Stream starts <t:${Math.floor(ev.startsAt / 1000)}:R> on ${url}`,
         color: 0x9b6cff,
       };

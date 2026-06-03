@@ -4,13 +4,13 @@
 // POST /member/updated. Detects boost-start (no prior boost, now has
 // premium_since OR the Nitro Booster role) and boost-end.
 //
-// Perks granted on boost START (idempotent — one grant per boost
+// Perks granted on boost START (idempotent, one grant per boost
 // session, tracked at guild:booster-state:<g>:<u>):
 //   • 2 Voltaic packs (the high-rarity drop pool)
 //   • 1 Bolt pack
 //   • A persistent BOOST_BOLTS_MULTIPLIER flag in their wallet so
 //     wallet.earn() multiplies their bolt earnings while boosting.
-//     (See wallet.js — `earn()` checks for the active booster flag.)
+//     (See wallet.js, `earn()` checks for the active booster flag.)
 //
 // Revoked on boost END:
 //   • Multiplier flag cleared
@@ -19,7 +19,7 @@
 // KV layout:
 //   guild:booster-state:<g>:<u>  { isBoosting: bool, since: ms,
 //                                  packsGrantedUtc: ms }
-//   wallet:<g>:<u>.boosterMultiplierUntil  ms — wallet.earn reads this
+//   wallet:<g>:<u>.boosterMultiplierUntil  ms, wallet.earn reads this
 
 import { creditPack } from './cards-packs.js';
 import { getWallet, putWallet } from './wallet.js';
@@ -36,7 +36,7 @@ export const BOOSTER_PACK_GRANTS = [
 // (always present on boosters; managed by Discord).
 function isBoosting(payload) {
   if (payload.premium_since) return true;
-  // Booster role detection — look for a role id matching the system
+  // Booster role detection, look for a role id matching the system
   // "Server Booster" role. We don't track its id; instead we rely on
   // the `premium_since` field which is set when a boost is active.
   // (Falls back to false if premium_since is null/missing.)
@@ -80,7 +80,7 @@ async function startBoosting(env, guildId, userId, payload) {
   await putWallet(env, guildId, userId, wal);
 
   // Idempotently grant the welcome pack bundle. The state record's
-  // `packsGrantedUtc` is the dedup stamp — re-firing the event in
+  // `packsGrantedUtc` is the dedup stamp, re-firing the event in
   // the same boost session does NOT re-grant.
   const state = (await loadState(env, guildId, userId)) || {};
   const grants = [];

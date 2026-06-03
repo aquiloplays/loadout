@@ -1,4 +1,4 @@
-// Spire Events — themed encounter catalogue.
+// Spire Events, themed encounter catalogue.
 //
 // Each spire theme has its own module exporting an array of events.
 // The map-resolver picks a random event from EVENTS_BY_THEME[themeId]

@@ -1,4 +1,4 @@
-// Boltbound card crafting (dust system) — MVP unblocking the site UI.
+// Boltbound card crafting (dust system), MVP unblocking the site UI.
 //
 // 2026-05-29. Hearthstone-tier economy:
 //   common    disenchant=5    craft=40
@@ -70,7 +70,7 @@ export async function disenchant(env, guildId, userId, cardId, opts = {}) {
   if (owned <= 0) return { ok: false, error: 'not-owned' };
   if (owned === 1 && !opts.force) {
     return { ok: false, error: 'last-copy',
-             message: 'Last copy — pass force:true to disenchant your only copy.' };
+             message: 'Last copy, pass force:true to disenchant your only copy.' };
   }
   col.cards[cardId] = owned - 1;
   if (col.cards[cardId] === 0) delete col.cards[cardId];

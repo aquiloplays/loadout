@@ -1,4 +1,4 @@
-// Rotation song-request backend for the Twitch panel — /ext/rotation/*.
+// Rotation song-request backend for the Twitch panel, /ext/rotation/*.
 //
 // Send path is HTTP poll/ingest: the Rotation widget's extension bridge
 // (gated on streamer.extensionEnabled) polls /relay/pending?for=rotation,
@@ -208,7 +208,7 @@ async function rotRequest(env, guildId, userId, body) {
   }
   const bitsRequired = !hasFree && deriveBitsRequired(vs);
 
-  // Payment gate — Bits receipt only required when bitsRequired.
+  // Payment gate, Bits receipt only required when bitsRequired.
   if (bitsRequired) {
     const receipt = await verifyBitsReceipt(body.bits, env.TWITCH_EXT_SECRET);
     const product = receipt && receipt.data && receipt.data.product;
@@ -227,7 +227,7 @@ async function rotRequest(env, guildId, userId, body) {
 
   const paid = bitsRequired || hasFree;
 
-  // D+c hybrid — re-validate now we hold the charge.
+  // D+c hybrid, re-validate now we hold the charge.
   const v = await runValidate(env, text, uri, paid);
   if (!v.ok) {
     if (bitsRequired) await env.LOADOUT_BOLTS.put(freeKey, '1');
@@ -295,7 +295,7 @@ export async function handleRotation(env, guildId, userId, sub, req) {
   return json({ error: 'not-found' }, 404);
 }
 
-// POST /relay/ingest — the widget extension bridge forwards results here.
+// POST /relay/ingest, the widget extension bridge forwards results here.
 export async function ingestRotation(req, env) {
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
   const token = req.headers.get('X-Relay-Token') || '';

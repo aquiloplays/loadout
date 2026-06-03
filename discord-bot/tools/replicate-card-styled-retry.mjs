@@ -45,7 +45,7 @@ async function createPrediction(sample) {
       // Parse retry_after and wait.
       let after = 12;
       try { after = JSON.parse(t).retry_after || 12; } catch {}
-      console.warn(`  429 — sleeping ${after + 2}s and retrying`);
+      console.warn(`  429, sleeping ${after + 2}s and retrying`);
       await new Promise(r => setTimeout(r, (after + 2) * 1000));
       return createPrediction(sample);
     }

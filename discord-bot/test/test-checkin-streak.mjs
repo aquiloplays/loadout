@@ -5,11 +5,11 @@
 // button (imported a removed export, crashed → no state ever
 // written). The button is fixed in this batch; this test exists to
 // pin down that the underlying recordCheckin streak math is correct
-// — if Clay sees streak=0 AFTER the button fix lands and he checks
+//, if Clay sees streak=0 AFTER the button fix lands and he checks
 // in successfully, that's a different bug than what's covered here.
 //
 // Coverage:
-//   • fresh user — first check-in → streak = 1
+//   • fresh user, first check-in → streak = 1
 //   • same-day duplicate → alreadyToday, no streak bump
 //   • next-day check-in (delta=1) → streak rolls from 1 → 2
 //   • two-day gap (delta=2) without freeze → streak resets to 1
@@ -69,7 +69,7 @@ function etDaysAgo(delta) {
 const GUILD = '1504103035951906883';
 const USER  = '209640265063006208';
 
-console.log('— fresh user → streak = 1');
+console.log('- fresh user → streak = 1');
 {
   const env = makeEnv();
   const r = await recordCheckin(env, GUILD, USER, 'test');
@@ -87,7 +87,7 @@ console.log('— fresh user → streak = 1');
   eq(s.checkedInToday, true, 'getStatus.checkedInToday');
 }
 
-console.log('— same-day duplicate → idempotent, no bump');
+console.log('- same-day duplicate → idempotent, no bump');
 {
   const env = makeEnv();
   await recordCheckin(env, GUILD, USER, 'test');
@@ -99,16 +99,16 @@ console.log('— same-day duplicate → idempotent, no bump');
   eq(st.total, 1, 'total unchanged');
 }
 
-console.log('— next-day check-in → streak rolls 1 → 2');
+console.log('- next-day check-in → streak rolls 1 → 2');
 {
   const env = makeEnv();
   // Seed yesterday's state directly (simulating the situation
-  // Clay reports — checked in yesterday, PWA reads today).
+  // Clay reports, checked in yesterday, PWA reads today).
   await env.LOADOUT_BOLTS.put(`community-checkin:${GUILD}:${USER}`, JSON.stringify({
     streak: 1, longest: 1, lastDayEt: etDaysAgo(1), total: 1, lastUtc: Date.now() - 86_400_000,
     lastSurface: 'test',
   }));
-  // Critically — getStatus called BEFORE recording today's check-in
+  // Critically, getStatus called BEFORE recording today's check-in
   // should already return streak=1 (the saved value). If Clay's PWA
   // shows 0 here, it's a site-side bug, not the worker's.
   const beforeToday = await getStatus(env, GUILD, USER);
@@ -125,7 +125,7 @@ console.log('— next-day check-in → streak rolls 1 → 2');
   eq(after.checkedInToday, true, 'checkedInToday true');
 }
 
-console.log('— two-day gap (no freeze) → streak resets to 1');
+console.log('- two-day gap (no freeze) → streak resets to 1');
 {
   const env = makeEnv();
   await env.LOADOUT_BOLTS.put(`community-checkin:${GUILD}:${USER}`, JSON.stringify({
@@ -138,7 +138,7 @@ console.log('— two-day gap (no freeze) → streak resets to 1');
   eq(r.longest, 7, 'longest preserved');
 }
 
-console.log('— two-day gap WITH freeze → streak preserved + 1');
+console.log('- two-day gap WITH freeze → streak preserved + 1');
 {
   const env = makeEnv();
   await env.LOADOUT_BOLTS.put(`community-checkin:${GUILD}:${USER}`, JSON.stringify({
@@ -159,7 +159,7 @@ console.log('— two-day gap WITH freeze → streak preserved + 1');
 
 console.log('');
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

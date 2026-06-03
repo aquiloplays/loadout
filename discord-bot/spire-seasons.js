@@ -1,24 +1,24 @@
-// Seasonal Spire — 12-theme rotation roster.
+// Seasonal Spire, 12-theme rotation roster.
 //
 // Each month the 1st-of-month cron picks the next theme by index
 // (SPIRE_THEMES[monthIndex]) and writes a fresh row into the
-// spire_seasons D1 table. Theme order is FIXED — viewers see the
+// spire_seasons D1 table. Theme order is FIXED, viewers see the
 // same cadence regardless of when they joined.
 //
 // Each theme:
-//   themeId             — stable id used in URLs + KV
-//   name                — human-readable
-//   description         — 1-line flavour for the season-preview embed
-//   visualTreatment     — site renderer hints (palette + tower art)
-//   bossMechanic        — { id, phase, params } — engine consumes
+//   themeId, stable id used in URLs + KV
+//   name, human-readable
+//   description, 1-line flavour for the season-preview embed
+//   visualTreatment, site renderer hints (palette + tower art)
+//   bossMechanic, { id, phase, params }, engine consumes
 //                          when match.kind='spire-boss' AND
 //                          season.themeId matches
-//   curatedCardPool     — substring tags that filter the catalogue
+//   curatedCardPool, substring tags that filter the catalogue
 //                          when generating an NPC deck (theme cohesion)
-//   seasonalExclusiveCard — cardId from cards-content the boss-clear
+//   seasonalExclusiveCard, cardId from cards-content the boss-clear
 //                          unlocks. Lives in cards-content under
 //                          the rarity 'legendary'.
-//   bossNpc             — { name, deckTemplate } for floor-10
+//   bossNpc, { name, deckTemplate } for floor-10
 //
 // Rotation logic: SPIRE_THEMES is a 12-entry list. The cron picks by
 // (currentMonth - epochMonth) % 12, where epochMonth is the launch
@@ -35,7 +35,7 @@ export const SPIRE_THEMES = Object.freeze([
     bossMechanic: {
       id:     'ember.end-of-turn-burn',
       phase:  'end-of-turn',
-      params: { damageToAllFriendly: 1, message: 'The Ember Court burns — 1 dmg to all your minions.' },
+      params: { damageToAllFriendly: 1, message: 'The Ember Court burns, 1 dmg to all your minions.' },
     },
     curatedCardPool: ['fire', 'ember', 'flame', 'pyre', 'cinder'],
     seasonalExclusiveCard: 'spire.s01.embercrown',
@@ -49,7 +49,7 @@ export const SPIRE_THEMES = Object.freeze([
     bossMechanic: {
       id:     'aurora.start-of-turn-mana-drain',
       phase:  'start-of-turn',
-      params: { manaReduction: 1, floor: 2, message: 'Aurora drain — you have 1 less mana this turn (min 2).' },
+      params: { manaReduction: 1, floor: 2, message: 'Aurora drain, you have 1 less mana this turn (min 2).' },
     },
     curatedCardPool: ['storm', 'aurora', 'star', 'lumen', 'volt'],
     seasonalExclusiveCard: 'spire.s02.aurorablade',
@@ -63,7 +63,7 @@ export const SPIRE_THEMES = Object.freeze([
     bossMechanic: {
       id:     'sunken.discard-on-draw',
       phase:  'on-draw',
-      params: { discardEveryNth: 4, message: 'The Vault hungers — every 4th draw is discarded.' },
+      params: { discardEveryNth: 4, message: 'The Vault hungers, every 4th draw is discarded.' },
     },
     curatedCardPool: ['tide', 'depth', 'kraken', 'coral', 'siren', 'drown'],
     seasonalExclusiveCard: 'spire.s03.tidescepter',
@@ -72,7 +72,7 @@ export const SPIRE_THEMES = Object.freeze([
   {
     themeId:    'verdant-hollow',
     name:       'Verdant Hollow',
-    description: 'Roots have eaten the spire — the trees keep score now.',
+    description: 'Roots have eaten the spire, the trees keep score now.',
     visualTreatment: { palette: ['#166534', '#84cc16', '#bef264'], tower: 'verdant-tower.png' },
     bossMechanic: {
       id:     'verdant.summon-thorn',
@@ -86,12 +86,12 @@ export const SPIRE_THEMES = Object.freeze([
   {
     themeId:    'sandstorm-bazaar',
     name:       'Sandstorm Bazaar',
-    description: 'A merchant city buried in a thousand years of dunes — the wares now haggle back.',
+    description: 'A merchant city buried in a thousand years of dunes, the wares now haggle back.',
     visualTreatment: { palette: ['#b45309', '#fbbf24', '#fde68a'], tower: 'sandstorm-tower.png' },
     bossMechanic: {
       id:     'sandstorm.swap-attack',
       phase:  'start-of-turn',
-      params: { swapAtkHpEveryNth: 3, message: 'Sandstorm — every 3rd turn, swap atk/hp on all minions.' },
+      params: { swapAtkHpEveryNth: 3, message: 'Sandstorm, every 3rd turn, swap atk/hp on all minions.' },
     },
     curatedCardPool: ['sand', 'dune', 'desert', 'bazaar', 'sphinx', 'oasis'],
     seasonalExclusiveCard: 'spire.s05.duneturban',
@@ -105,7 +105,7 @@ export const SPIRE_THEMES = Object.freeze([
     bossMechanic: {
       id:     'frost.freeze-random',
       phase:  'start-of-turn',
-      params: { freezeRandomFriendly: 1, message: 'Frost grips one of your minions — frozen this turn.' },
+      params: { freezeRandomFriendly: 1, message: 'Frost grips one of your minions, frozen this turn.' },
     },
     curatedCardPool: ['frost', 'ice', 'glacier', 'snow', 'rime', 'winter', 'sleet'],
     seasonalExclusiveCard: 'spire.s06.permafrost',
@@ -119,7 +119,7 @@ export const SPIRE_THEMES = Object.freeze([
     bossMechanic: {
       id:     'foundry.double-effects',
       phase:  'on-play',
-      params: { doubleBattlecryEveryNth: 3, message: 'The gears grind — every 3rd boss minion fires twice.' },
+      params: { doubleBattlecryEveryNth: 3, message: 'The gears grind, every 3rd boss minion fires twice.' },
     },
     curatedCardPool: ['gear', 'cog', 'forge', 'automaton', 'piston', 'clockwork', 'mech'],
     seasonalExclusiveCard: 'spire.s07.cogheart',
@@ -128,7 +128,7 @@ export const SPIRE_THEMES = Object.freeze([
   {
     themeId:    'mirror-garden',
     name:       'Mirror Garden',
-    description: 'Every reflection is a different you — and they all want the throne.',
+    description: 'Every reflection is a different you, and they all want the throne.',
     visualTreatment: { palette: ['#831843', '#f472b6', '#fce7f3'], tower: 'mirror-tower.png' },
     bossMechanic: {
       id:     'mirror.copy-minion',
@@ -162,7 +162,7 @@ export const SPIRE_THEMES = Object.freeze([
     bossMechanic: {
       id:     'apex.fatigue-double',
       phase:  'on-draw',
-      params: { fatigueMultiplier: 2, message: 'The Apex burns your library — fatigue damage is doubled.' },
+      params: { fatigueMultiplier: 2, message: 'The Apex burns your library, fatigue damage is doubled.' },
     },
     curatedCardPool: ['lava', 'magma', 'volcanic', 'cinder', 'apex', 'meteor'],
     seasonalExclusiveCard: 'spire.s10.apexorb',
@@ -176,7 +176,7 @@ export const SPIRE_THEMES = Object.freeze([
     bossMechanic: {
       id:     'stargazer.predict-redraw',
       phase:  'on-draw',
-      params: { revealOpponentTopcard: true, swapIfMatch: true, message: 'The Stargazer sees your draws — if it matches the boss, the boss redraws.' },
+      params: { revealOpponentTopcard: true, swapIfMatch: true, message: 'The Stargazer sees your draws, if it matches the boss, the boss redraws.' },
     },
     curatedCardPool: ['star', 'cosmos', 'astral', 'nebula', 'stellar', 'celestial'],
     seasonalExclusiveCard: 'spire.s11.starcharter',
@@ -190,7 +190,7 @@ export const SPIRE_THEMES = Object.freeze([
     bossMechanic: {
       id:     'velvet.lifesteal-boss',
       phase:  'persistent',
-      params: { bossLifesteal: true, message: 'The Velvet Catacomb — all boss minion damage heals the boss.' },
+      params: { bossLifesteal: true, message: 'The Velvet Catacomb, all boss minion damage heals the boss.' },
     },
     curatedCardPool: ['velvet', 'crimson', 'vampire', 'catacomb', 'blood', 'fang'],
     seasonalExclusiveCard: 'spire.s12.crimsongoblet',
@@ -199,7 +199,7 @@ export const SPIRE_THEMES = Object.freeze([
 ]);
 
 // Resolve the active theme for a given UTC year+month. Stable across
-// years — index 0 is the SPIRE_EPOCH month, then rotates forward.
+// years, index 0 is the SPIRE_EPOCH month, then rotates forward.
 export function themeForMonth(year, month1to12) {
   const epochMonths = SPIRE_EPOCH.year * 12 + (SPIRE_EPOCH.month - 1);
   const targetMonths = year * 12 + (month1to12 - 1);
@@ -207,7 +207,7 @@ export function themeForMonth(year, month1to12) {
   return SPIRE_THEMES[offset % SPIRE_THEMES.length];
 }
 
-// UTC month bounds — ISO 8601 timestamps the cron writes into
+// UTC month bounds, ISO 8601 timestamps the cron writes into
 // spire_seasons.starts_at / ends_at. End is the last second of the
 // month so the leaderboard "season ending in" countdown is precise.
 export function monthBoundsUtc(year, month1to12) {

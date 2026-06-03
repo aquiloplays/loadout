@@ -1,4 +1,4 @@
-# Aquilo Bus — Event Reference
+# Aquilo Bus, Event Reference
 
 The Aquilo Bus is the localhost pub/sub WebSocket at `ws://127.0.0.1:7470/aquilo/bus/`
 hosted by the Loadout DLL. Every other Aquilo product (StreamFusion, Loadout
@@ -15,14 +15,14 @@ register a new handler. Source of truth is the code under
 
 - Wire format: one JSON object per WebSocket frame.
 - Outgoing event: `{ v: 1, kind: "<name>", data: <object> }`.
-- Subscribe: `{ v: 1, kind: "subscribe", kinds: ["counter.*"] }` — glob suffix is
+- Subscribe: `{ v: 1, kind: "subscribe", kinds: ["counter.*"] }`, glob suffix is
   the only wildcard supported.
 - Auth: shared secret at `%APPDATA%\Aquilo\bus-secret.txt`; clients pass it as
   `?secret=<value>` on the connect URL.
 - In-process observers: `AquiloBus.LocalPublished` event fires for every
   `Publish` call (used by `PanelBridgeModule` to mirror state to the Worker).
 - In-process handlers: `RegisterHandler(kind, handler)` runs **only** for
-  messages a connected client publishes — in-process `Publish` calls do **not**
+  messages a connected client publishes, in-process `Publish` calls do **not**
   invoke handlers. This asymmetry is intentional: the handlers are for
   client-originated requests like `bolts.spend.request`.
 
@@ -81,9 +81,9 @@ Produced by `DungeonModule`. The OBS dungeon overlay reads scenes timed by
 | `dungeon.joined` | `{ user, platform, partySize, hero }` | each `!join` |
 | `dungeon.started` | `{ dungeonName, partySize }` | join window closes |
 | `dungeon.scene` | `{ delayMs, kind, text, glyph, targetUser, partyHp[], options[] }` | every scene in the run; `options[]` non-empty on the branching scene |
-| `dungeon.cooldown` | `{ untilUtc, durationSec }` | `StartDungeon` (Phase BR polish) — panel-bridge surfaces the channel cooldown |
+| `dungeon.cooldown` | `{ untilUtc, durationSec }` | `StartDungeon` (Phase BR polish), panel-bridge surfaces the channel cooldown |
 | `dungeon.vote` | `{ tally: { optionId: count } }` | every `!dungeon vote` (Phase BR live tally) |
-| `dungeon.choice` | `{ optionId, votes, tally, viaTimeout, resolveText, glyph }` | end of vote window — branch resolved |
+| `dungeon.choice` | `{ optionId, votes, tally, viaTimeout, resolveText, glyph }` | end of vote window, branch resolved |
 | `dungeon.completed` | `{ dungeonName, biome, hadBoss, partySize, outcomes[] }` | run finished |
 | `achievement.unlocked` | `{ user, platform, id, name, description, glyph, bolts }` | a hero unlocks one |
 
@@ -192,7 +192,7 @@ its own lifecycle in chat.
 
 ### PanelBridgeModule observers (`AquiloBus.LocalPublished`)
 
-These don't ride the bus directly — `PanelBridgeModule` taps the in-process
+These don't ride the bus directly, `PanelBridgeModule` taps the in-process
 `LocalPublished` event and POSTs to the Loadout Worker's `/relay/dll-ingest`
 endpoint with one of these `type` discriminators:
 

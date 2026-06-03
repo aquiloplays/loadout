@@ -1,4 +1,4 @@
-// Progression — badges runtime.
+// Progression, badges runtime.
 //
 // PROGRESSION-SYSTEM-DESIGN.md §7. Owns pbadge:<userId> (the per-user
 // owned-badges list + 3-slot showcase) and exposes read/write helpers
@@ -27,7 +27,7 @@ export async function putBadges(env, userId, rec) {
   await env.LOADOUT_BOLTS.put(KEY(userId), JSON.stringify(rec));
 }
 
-// Used by P3's achievement engine. Awards a badge to a user — no-op
+// Used by P3's achievement engine. Awards a badge to a user, no-op
 // if already owned.
 export async function awardBadge(env, userId, badgeId, source) {
   if (!BADGES_BY_ID[badgeId]) return { ok: false, error: 'unknown-badge' };
@@ -56,14 +56,14 @@ export async function setShowcase(env, userId, badgeIds) {
   return { ok: true, showcase: cleaned };
 }
 
-// Exported for profile.js — used to validate the showcase array passed
+// Exported for profile.js, used to validate the showcase array passed
 // in via setProfileBio.
 export async function getOwnedBadgeIds(env, userId) {
   const rec = await getBadges(env, userId);
   return rec.owned || [];
 }
 
-// Profile-page display payload — full catalog joined with ownership
+// Profile-page display payload, full catalog joined with ownership
 // state, sorted by rarity then category. Owned + showcased come first.
 export async function readBadgesDisplay(env, userId) {
   const rec = await getBadges(env, userId);

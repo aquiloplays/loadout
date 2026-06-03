@@ -35,7 +35,7 @@ import { ensureBootstrap } from './bootstrap.js';
 // `idle:voting` (legacy): single message id from the v1 layout. We still
 // look it up + delete during refresh so old idles don't pile up after the
 // migration to multi-message.
-// `idle:voting:msgs`: JSON array of message ids — header + N cards chunks.
+// `idle:voting:msgs`: JSON array of message ids, header + N cards chunks.
 const KV_VOTING_IDLE_LEGACY = 'idle:voting';
 const KV_VOTING_IDLE_MSGS   = 'idle:voting:msgs';
 const KV_QUEUE_IDLE         = 'idle:queue';
@@ -47,7 +47,7 @@ async function deleteMessageSafely(env, channelId, messageId) {
       '/channels/' + encodeURIComponent(channelId) +
       '/messages/' + encodeURIComponent(messageId),
       { method: 'DELETE' });
-  } catch { /* already deleted, perms changed, or 404 — fine */ }
+  } catch { /* already deleted, perms changed, or 404, fine */ }
 }
 
 // ---- Voting idle -------------------------------------------------------
@@ -73,10 +73,10 @@ async function buildVotingIdlePayloads(env, guildId) {
 
   const inRotation = (active || []).length
     ? active.map(g => '• ' + g.name).join('\n')
-    : '_no active games — use ➕ Add Game on the hub_';
+    : '_no active games, use ➕ Add Game on the hub_';
   const playedList = (played || []).length
     ? played.map(p => '• **' + p.name + '** (' + cap(p.day_of_week) + ')').join('\n')
-    : '_none yet — vote at 6 PM ET on stream day_';
+    : '_none yet, vote at 6 PM ET on stream day_';
 
   const headerEmbed = {
     title: '📊 Community Night · Game Pool',
@@ -170,7 +170,7 @@ function buildQueueIdlePayload(env) {
       'It opens automatically at **9 PM ET** on **Wed / Fri / Sat** for these roles:\n' +
       '🥇 **Patrons** (priority by tier)\n' +
       '⭐ **Server Boosters**\n\n' +
-      'Become a patron or boost the server to play with us on community nights — see you in the queue!',
+      'Become a patron or boost the server to play with us on community nights, see you in the queue!',
     color: COLOR_QUEUE
   };
   const components = [{

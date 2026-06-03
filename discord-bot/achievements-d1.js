@@ -1,10 +1,9 @@
-// Achievements — root-level, D1-backed event-driven unlock engine.
+// Achievements, root-level, D1-backed event-driven unlock engine.
 //
 // 2026-05-30 sprint. Lives at discord-bot/achievements.js so any
 // gameplay module (checkin, boltbound, counting, …) can call
 // checkAndUnlock(env, userId, { type, count?, value? }) right after
-// the event that might satisfy an achievement trigger. Idempotent —
-// the user_achievement table's composite primary key (user_id +
+// the event that might satisfy an achievement trigger. Idempotent, // the user_achievement table's composite primary key (user_id +
 // achievement_id) makes re-unlocks a no-op INSERT OR IGNORE.
 //
 // Two complementary read APIs:
@@ -16,7 +15,7 @@
 //   checkAndUnlock(env, userId, evt)  → trigger-driven cascade
 //
 // NOTE: this is a deliberately separate, simpler engine from
-// discord-bot/progression/achievements.js — that one is the deep
+// discord-bot/progression/achievements.js, that one is the deep
 // XP+badge progression catalog wired through event-bus.js with KV
 // counter tracking. This module is the lightweight D1 alternative
 // that gameplay modules can hit directly without going through the
@@ -84,7 +83,7 @@ export async function getUserAchievements(env, userId) {
 
 // ── Write API ─────────────────────────────────────────────────────
 
-// Direct unlock by id. Idempotent — INSERT OR IGNORE on the composite
+// Direct unlock by id. Idempotent, INSERT OR IGNORE on the composite
 // PK means the second call is a no-op (newlyUnlocked=false). Returns
 // the full achievement payload so callers can announce.
 export async function tryUnlock(env, userId, achievementId, _ctx) {
@@ -103,8 +102,7 @@ export async function tryUnlock(env, userId, achievementId, _ctx) {
   const now = Date.now();
   // SQLite quirk: D1 doesn't surface a portable "did I insert" flag
   // through `meta.changes` reliably on INSERT OR IGNORE across all
-  // versions, so we do a SELECT first to determine newness. Cheap —
-  // the PK lookup is O(log n).
+  // versions, so we do a SELECT first to determine newness. Cheap, // the PK lookup is O(log n).
   const existing = await D.prepare(
     'SELECT unlocked_at FROM user_achievement WHERE user_id = ? AND achievement_id = ? LIMIT 1'
   ).bind(userId, achievementId).first();
@@ -129,10 +127,10 @@ export async function tryUnlock(env, userId, achievementId, _ctx) {
 // ── Trigger matching ──────────────────────────────────────────────
 //
 // Event shape: { type, count?, value? }
-//   type  — required, matches achievement_def.trigger_type
-//   count — for cumulative-count triggers ("10-checkins"); if the
+//   type, required, matches achievement_def.trigger_type
+//   count, for cumulative-count triggers ("10-checkins"); if the
 //           event's count >= threshold, unlock fires
-//   value — for sum-style triggers ("50-bolts-counted"); if the
+//   value, for sum-style triggers ("50-bolts-counted"); if the
 //           running event value >= threshold, unlock fires
 //
 // We don't track per-user counters here on purpose. The caller is the
@@ -170,7 +168,7 @@ export async function checkAndUnlock(env, userId, event) {
   ).bind(event.type).all();
   if (!defs || !defs.length) return [];
 
-  // Skip defs the user already owns — single query is cheaper than
+  // Skip defs the user already owns, single query is cheaper than
   // N round-trips inside tryUnlock when most are already unlocked.
   const { results: owned } = await D.prepare(
     'SELECT achievement_id FROM user_achievement WHERE user_id = ?'

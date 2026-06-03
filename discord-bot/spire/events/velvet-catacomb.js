@@ -1,4 +1,4 @@
-// Velvet Catacomb — gothic crypt, candle-mass, vampires, blood-pacts.
+// Velvet Catacomb, gothic crypt, candle-mass, vampires, blood-pacts.
 // 6 events: 1 pure upside, 3 tradeoff, 2 gamble.
 
 export const VELVET_CATACOMB_EVENTS = Object.freeze([
@@ -67,7 +67,7 @@ export const VELVET_CATACOMB_EVENTS = Object.freeze([
         label: 'Take the bag',
         outcomes: [
           { weight: 60, effect: { type: 'bolts_gain', amount: 40 }, text: 'You count 40 bolts inside.' },
-          { weight: 25, effect: { type: 'relic_grant', tier: 'minor' }, text: 'A velvet pouch holds a small jeweled charm — minor relic.' },
+          { weight: 25, effect: { type: 'relic_grant', tier: 'minor' }, text: 'A velvet pouch holds a small jeweled charm, minor relic.' },
           { weight: 15, effect: { type: 'hp_loss', amount: 10 },         text: 'The skeleton sits up. You drop everything and run. (-10 HP)' },
         ],
       },
@@ -146,7 +146,7 @@ export const VELVET_CATACOMB_EVENTS = Object.freeze([
     id: 'cobweb-throne',
     name: 'The Cobweb Throne',
     description:
-      "A throne draped in centuries of cobweb sits at the head of a long hall. It is unoccupied — or appears to be.",
+      "A throne draped in centuries of cobweb sits at the head of a long hall. It is unoccupied, or appears to be.",
     choices: [
       {
         id: 'sit',

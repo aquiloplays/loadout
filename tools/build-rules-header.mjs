@@ -5,7 +5,7 @@
 // PALETTE / svgWrapper / contactShadow + the brand gradient.
 //
 // Pure decoration (resvg has fonts disabled so we can't render the
-// word "RULES" as text — instead a stylised shield + bolt motif with
+// word "RULES" as text, instead a stylised shield + bolt motif with
 // the brand gradient does the visual heavy lifting; the rules text
 // renders in the Discord embed below the image where Discord uses
 // its native font stack).

@@ -11,10 +11,10 @@
 //   campaign:decline:<sessionId>
 //
 // Architecture choices:
-//   • D1 table campaign_sessions (schema.sql) — one row per session
+//   • D1 table campaign_sessions (schema.sql), one row per session
 //   • State machine: forming → active → (paused | complete | abandoned)
 //   • DM-group creation isn't possible for bots, so the spec's "shared
-//     DM group" lands as ephemeral-only narration in v1 — every party
+//     DM group" lands as ephemeral-only narration in v1, every party
 //     member runs /campaign action and gets the next beat as their
 //     own ephemeral. v2 can upgrade to an auto-created private channel
 //     under a Campaigns category when channel-provisioning lands.
@@ -206,7 +206,7 @@ async function buildPartyBlob(env, guildId, userIds) {
 
 // ── Slash commands ──────────────────────────────────────────────────
 
-// /campaign start — initiates a new session with 1-3 invitees.
+// /campaign start, initiates a new session with 1-3 invitees.
 // Slash spec lives in commands-spec.js; this just consumes the
 // parsed options.
 export async function handleCampaignStart(env, data) {
@@ -231,7 +231,7 @@ export async function handleCampaignStart(env, data) {
   }
   if (inviteIds.length > 3) inviteIds.length = 3;
 
-  // Refuse if the starter is already in an active session — keep
+  // Refuse if the starter is already in an active session, keep
   // things simple for v1, one campaign per starter at a time.
   const existing = await loadActiveSessionForUser(env, guildId, userId);
   if (existing) {
@@ -281,7 +281,7 @@ export async function handleCampaignStart(env, data) {
   };
 }
 
-// Component handler — accept / decline buttons.
+// Component handler, accept / decline buttons.
 export async function handleCampaignComponent(env, data) {
   const userId  = data.member?.user?.id || data.user?.id;
   const guildId = data.guild_id;
@@ -326,7 +326,7 @@ export async function handleCampaignComponent(env, data) {
     return ephemeral(`✅ Accepted. Waiting on ${pending.length} more: ${pending.map(u => `<@${u}>`).join(' ')}`);
   }
 
-  // All accepted — pick a premise + generate the opening beat.
+  // All accepted, pick a premise + generate the opening beat.
   return openCampaign(env, session);
 }
 
@@ -340,7 +340,7 @@ async function openCampaign(env, session) {
   const partyBlob = await buildPartyBlob(env, session.guildId, party);
   const systemPrompt = buildSystemPrompt({ partyBlob, premise });
 
-  // Opening beat — single user turn primes the GM with "scene-set".
+  // Opening beat, single user turn primes the GM with "scene-set".
   const openingTurn = {
     role: 'user',
     content: 'Open the scene. Establish the location, the immediate situation, and the first hook the party encounters. Two to four sentences.',
@@ -374,7 +374,7 @@ async function openCampaign(env, session) {
   await saveSession(env, session);
 
   const lines = [
-    `🎲 **Campaign \`${session.id.slice(0, 8)}\` — _${premise.title}_**`,
+    `🎲 **Campaign \`${session.id.slice(0, 8)}\`, _${premise.title}_**`,
     `Party: ${party.map(u => `<@${u}>`).join(', ')}`,
     '',
     r.text,
@@ -392,7 +392,7 @@ async function openCampaign(env, session) {
   };
 }
 
-// /campaign action — submits a player action; bot generates the next
+// /campaign action, submits a player action; bot generates the next
 // beat and returns it ephemeral. The action is visible only to the
 // acting player in v1 (no DM group / private-channel infra yet);
 // future iterations will post turns to a shared campaign channel.
@@ -458,7 +458,7 @@ export async function handleCampaignAction(env, data) {
   };
 }
 
-// /campaign status — show progress + budget for the caller's
+// /campaign status, show progress + budget for the caller's
 // current campaign.
 export async function handleCampaignStatus(env, data) {
   await ensureSchema(env);
@@ -488,7 +488,7 @@ export async function handleCampaignStatus(env, data) {
   return ephemeral(lines.join('\n'));
 }
 
-// /campaign end — starter-only. Marks status='complete' (player-led
+// /campaign end, starter-only. Marks status='complete' (player-led
 // completion) or 'abandoned' (no party).
 export async function handleCampaignEnd(env, data) {
   await ensureSchema(env);

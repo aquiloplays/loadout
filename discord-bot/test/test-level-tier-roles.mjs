@@ -1,7 +1,7 @@
 // Tier-role matcher + backfill harness.
 //
 // Coverage:
-//   • tiersForLevel: pure function — L0/L4/L5/L24/L25/L49/L50/L99/L100/L150
+//   • tiersForLevel: pure function, L0/L4/L5/L24/L25/L49/L50/L99/L100/L150
 //   • tiersCrossedBy: stacking + only flags thresholds crossed in THIS grant
 //   • grantTierRolesForCrossedLevels: skips when no map; grants when map
 //     present + a tier was crossed; falls back to AQUILO_VAULT_GUILD_ID
@@ -65,46 +65,46 @@ globalThis.fetch = async (input, init) => {
 const GUILD = '1504103035951906883';
 const USER  = '209640265063006208';
 
-console.log('— specs sanity');
+console.log('- specs sanity');
 {
   eq(LEVEL_TIER_SPECS.map(s => s.key), ['apprentice', 'veteran', 'elite', 'mythic'], 'four tiers, in order');
   eq(LEVEL_TIER_SPECS.map(s => s.level), [5, 25, 50, 100], 'thresholds');
 }
 
-console.log('— tiersForLevel');
+console.log('- tiersForLevel');
 {
-  eq(tiersForLevel(0), [], 'L0 — none');
-  eq(tiersForLevel(4), [], 'L4 — none');
-  eq(tiersForLevel(5), ['apprentice'], 'L5 — apprentice only');
-  eq(tiersForLevel(24), ['apprentice'], 'L24 — apprentice only');
-  eq(tiersForLevel(25), ['apprentice', 'veteran'], 'L25 — stacks');
-  eq(tiersForLevel(49), ['apprentice', 'veteran'], 'L49 — stacks');
-  eq(tiersForLevel(50), ['apprentice', 'veteran', 'elite'], 'L50 — stacks');
-  eq(tiersForLevel(99), ['apprentice', 'veteran', 'elite'], 'L99 — stacks');
-  eq(tiersForLevel(100), ['apprentice', 'veteran', 'elite', 'mythic'], 'L100 — all four');
-  eq(tiersForLevel(150), ['apprentice', 'veteran', 'elite', 'mythic'], 'L150 — all four');
+  eq(tiersForLevel(0), [], 'L0, none');
+  eq(tiersForLevel(4), [], 'L4, none');
+  eq(tiersForLevel(5), ['apprentice'], 'L5, apprentice only');
+  eq(tiersForLevel(24), ['apprentice'], 'L24, apprentice only');
+  eq(tiersForLevel(25), ['apprentice', 'veteran'], 'L25, stacks');
+  eq(tiersForLevel(49), ['apprentice', 'veteran'], 'L49, stacks');
+  eq(tiersForLevel(50), ['apprentice', 'veteran', 'elite'], 'L50, stacks');
+  eq(tiersForLevel(99), ['apprentice', 'veteran', 'elite'], 'L99, stacks');
+  eq(tiersForLevel(100), ['apprentice', 'veteran', 'elite', 'mythic'], 'L100, all four');
+  eq(tiersForLevel(150), ['apprentice', 'veteran', 'elite', 'mythic'], 'L150, all four');
 }
 
-console.log('— tiersCrossedBy');
+console.log('- tiersCrossedBy');
 {
   eq(tiersCrossedBy([]), [], 'empty');
-  eq(tiersCrossedBy([3, 4]), [], 'L3-L4 — no threshold');
-  eq(tiersCrossedBy([5]), ['apprentice'], 'L5 crossing — apprentice');
+  eq(tiersCrossedBy([3, 4]), [], 'L3-L4, no threshold');
+  eq(tiersCrossedBy([5]), ['apprentice'], 'L5 crossing, apprentice');
   // A grant that jumps L24 → L26 crosses L25 only.
-  eq(tiersCrossedBy([25, 26]), ['veteran'], 'mixed — only veteran flagged');
+  eq(tiersCrossedBy([25, 26]), ['veteran'], 'mixed, only veteran flagged');
   // A bulk grant that crosses multiple tiers in one shot.
   eq(tiersCrossedBy([5, 25, 50]), ['apprentice', 'veteran', 'elite'], 'three at once');
   eq(tiersCrossedBy([100]), ['mythic'], 'just mythic');
 }
 
-console.log('— grantTierRolesForCrossedLevels: skips when no map');
+console.log('- grantTierRolesForCrossedLevels: skips when no map');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake', AQUILO_VAULT_GUILD_ID: GUILD };
   const r = await grantTierRolesForCrossedLevels(env, USER, [5], GUILD);
   eq(r.skipped, 'no-role-map', 'no-role-map');
 }
 
-console.log('— grantTierRolesForCrossedLevels: skips when no tier crossed');
+console.log('- grantTierRolesForCrossedLevels: skips when no tier crossed');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake', AQUILO_VAULT_GUILD_ID: GUILD };
   await env.LOADOUT_BOLTS.put(`level-tier-roles:${GUILD}`,
@@ -114,14 +114,14 @@ console.log('— grantTierRolesForCrossedLevels: skips when no tier crossed');
   eq(r.skipped, 'no-tier-crossed', 'no-tier-crossed');
 }
 
-console.log('— grantTierRolesForCrossedLevels: PUTs the right role, handles 204/404/403');
+console.log('- grantTierRolesForCrossedLevels: PUTs the right role, handles 204/404/403');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake', AQUILO_VAULT_GUILD_ID: GUILD };
   await env.LOADOUT_BOLTS.put(`level-tier-roles:${GUILD}`,
     JSON.stringify({
       apprentice: '900000000000000005',   // 204 (success)
-      veteran:    '900000000000000025',   // 404 (member or role missing — skip)
-      elite:      '900000000000000050',   // 403 (forbidden — skip)
+      veteran:    '900000000000000025',   // 404 (member or role missing, skip)
+      elite:      '900000000000000050',   // 403 (forbidden, skip)
       mythic:     '900000000000000100',   // 204
     }));
   const seen = [];
@@ -133,7 +133,7 @@ console.log('— grantTierRolesForCrossedLevels: PUTs the right role, handles 20
     if (url.endsWith('/roles/900000000000000100')) return new Response(null, { status: 204 });
     return new Response('?', { status: 500 });
   };
-  // A bulk grant crossing all four tiers — fictional, but exercises every branch.
+  // A bulk grant crossing all four tiers, fictional, but exercises every branch.
   const r = await grantTierRolesForCrossedLevels(env, USER, [5, 25, 50, 100], GUILD);
   fetchHandler = null;
   assert(r.ok, 'ok:true');
@@ -144,7 +144,7 @@ console.log('— grantTierRolesForCrossedLevels: PUTs the right role, handles 20
   eq(seen.length, 4, 'one PUT per tier');
 }
 
-console.log('— ensureLevelTierRoles: reuses by name + creates missing');
+console.log('- ensureLevelTierRoles: reuses by name + creates missing');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   const created = [];
@@ -152,7 +152,7 @@ console.log('— ensureLevelTierRoles: reuses by name + creates missing');
     if ((init.method === 'GET' || !init.method) && url.endsWith(`/guilds/${GUILD}/roles`)) {
       return new Response(JSON.stringify([
         { id: GUILD,                name: '@everyone' },
-        { id: '900000000000000005', name: 'Apprentice' },   // exists — reuse
+        { id: '900000000000000005', name: 'Apprentice' },   // exists, reuse
       ]), { status: 200 });
     }
     if (init.method === 'POST' && url.endsWith(`/guilds/${GUILD}/roles`)) {
@@ -180,7 +180,7 @@ console.log('— ensureLevelTierRoles: reuses by name + creates missing');
   assert(/^9501000/.test(map.veteran), 'kv-map veteran has a fresh id');
 }
 
-console.log('— ensureLevelTierRoles: full reuse on second call');
+console.log('- ensureLevelTierRoles: full reuse on second call');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   await env.LOADOUT_BOLTS.put(`level-tier-roles:${GUILD}`, JSON.stringify({
@@ -211,7 +211,7 @@ console.log('— ensureLevelTierRoles: full reuse on second call');
   eq(postCalled, 0, 'no POST issued');
 }
 
-console.log('— backfillLevelTierRoles: grants based on stored xp + level');
+console.log('- backfillLevelTierRoles: grants based on stored xp + level');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   await env.LOADOUT_BOLTS.put(`level-tier-roles:${GUILD}`, JSON.stringify({
@@ -243,7 +243,7 @@ console.log('— backfillLevelTierRoles: grants based on stored xp + level');
   const for333 = grants.filter(g => g.user === '333').map(g => g.role).sort();
   eq(for333.sort(), ['900100000000000005', '900100000000000025', '900100000000000050', '900100000000000100'].sort(),
      'L130 player gets all four roles');
-  // Marker stamped — second call skips.
+  // Marker stamped, second call skips.
   const r2 = await backfillLevelTierRoles(env, GUILD);
   eq(r2.skipped, 'already-done', 'second backfill skipped via marker');
   // force:true re-scans.
@@ -257,7 +257,7 @@ console.log('— backfillLevelTierRoles: grants based on stored xp + level');
 console.log('');
 globalThis.fetch = realFetch;
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

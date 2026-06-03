@@ -60,7 +60,7 @@ function makeKv() {
   };
 }
 
-// fetch stub — settable per test.
+// fetch stub, settable per test.
 let fetchHandler = null;
 const realFetch = globalThis.fetch;
 globalThis.fetch = async (input, init) => {
@@ -71,9 +71,9 @@ globalThis.fetch = async (input, init) => {
 const GUILD = '1504103035951906883';
 
 // ─────────────────────────────────────────────────────────────────
-console.log('— matchesInterest: hits per key');
+console.log('- matchesInterest: hits per key');
 {
-  // gamenight — token-pair + the "gamenight" / "game-night" forms
+  // gamenight, token-pair + the "gamenight" / "game-night" forms
   assert(matchesInterest('gamenight',   '🎮 Game Night'),       'gamenight: Game Night');
   assert(matchesInterest('gamenight',   'game-night ping'),     'gamenight: game-night ping');
   assert(matchesInterest('gamenight',   'GAMENIGHT'),           'gamenight: GAMENIGHT');
@@ -101,26 +101,26 @@ console.log('— matchesInterest: hits per key');
   assert(matchesInterest('art',         'Art channel pings'),   'art: Art channel pings');
   assert(matchesInterest('art',         'Artist'),              'art: Artist');
   assert(matchesInterest('art',         '🎨 art'),              'art: 🎨 art');
-  // The art trap — must NOT match.
+  // The art trap, must NOT match.
   assert(!matchesInterest('art',        'Party People'),        'art: NOT Party People');
   assert(!matchesInterest('art',        'Smart Mod'),           'art: NOT Smart Mod');
   assert(!matchesInterest('art',        'Departed'),            'art: NOT Departed');
   assert(!matchesInterest('art',        'Cartoon Fans'),        'art: NOT Cartoon Fans');
 }
 
-console.log('— matchInterestRoles: full pass');
+console.log('- matchInterestRoles: full pass');
 {
   const roles = [
-    { id: GUILD,                 name: '@everyone' },                     // skip — id == guildId
+    { id: GUILD,                 name: '@everyone' },                     // skip, id == guildId
     { id: '900000000000000001',  name: '🎮 Game Night Ping' },
     { id: '900000000000000003',  name: 'Boltbound TCG' },
     { id: '900000000000000004',  name: 'Board Games' },
     { id: '900000000000000005',  name: 'Just Watching' },
     { id: '900000000000000006',  name: '🎨 Artists' },
-    { id: '900000000000000007',  name: 'Party People',  managed: false }, // art trap — no match
-    { id: '900000000000000008',  name: 'Loadout Bot',   managed: true  }, // skip — managed
-    { id: '900000000000000009',  name: '' },                              // skip — empty name
-    // Second potential match — first wins for art.
+    { id: '900000000000000007',  name: 'Party People',  managed: false }, // art trap, no match
+    { id: '900000000000000008',  name: 'Loadout Bot',   managed: true  }, // skip, managed
+    { id: '900000000000000009',  name: '' },                              // skip, empty name
+    // Second potential match, first wins for art.
     { id: '900000000000000010',  name: 'Art Drops' },
   ];
   const r = matchInterestRoles(roles, GUILD);
@@ -132,7 +132,7 @@ console.log('— matchInterestRoles: full pass');
   eq(r.unmapped, [], 'all five mapped');
 }
 
-console.log('— matchInterestRoles: gaps');
+console.log('- matchInterestRoles: gaps');
 {
   const roles = [
     { id: GUILD,                 name: '@everyone' },
@@ -145,7 +145,7 @@ console.log('— matchInterestRoles: gaps');
   eq(r.unmapped.sort(), ['art', 'boardgames', 'gamenight', 'watching'].sort(), 'four unmapped');
 }
 
-console.log('— pickWelcomeChannel: explicit channelId');
+console.log('- pickWelcomeChannel: explicit channelId');
 {
   const chs = [
     { id: '1', name: 'general',   type: 0 },
@@ -160,14 +160,14 @@ console.log('— pickWelcomeChannel: explicit channelId');
   eq(r2, null, 'unknown channelId returns null');
 }
 
-console.log('— pickWelcomeChannel: channelName substring');
+console.log('- pickWelcomeChannel: channelName substring');
 {
   const chs = [
     { id: '1', name: 'general',           type: 0 },
     { id: '2', name: '👋│introductions',  type: 0 },
     { id: '3', name: 'welcome-here',      type: 0 },
   ];
-  // Lowercased substring match — picks first.
+  // Lowercased substring match, picks first.
   const r = pickWelcomeChannel(chs, { channelName: 'WELCOME' });
   eq(r, { id: '3', name: 'welcome-here' }, 'case-insensitive substring');
   const r2 = pickWelcomeChannel(chs, { channelName: 'intro' });
@@ -176,10 +176,10 @@ console.log('— pickWelcomeChannel: channelName substring');
   eq(r3, null, 'no match returns null');
 }
 
-console.log('— pickWelcomeChannel: default-hint order');
+console.log('- pickWelcomeChannel: default-hint order');
 {
   eq(DEFAULT_WELCOME_CHANNEL_HINTS, ['start-here', 'welcome', 'introductions', '👋'], 'hint order pinned');
-  // welcome present but start-here also present — start-here wins.
+  // welcome present but start-here also present, start-here wins.
   const chs = [
     { id: '1', name: 'random',          type: 0 },
     { id: '2', name: 'welcome-back',    type: 0 },
@@ -206,7 +206,7 @@ console.log('— pickWelcomeChannel: default-hint order');
   eq(pickWelcomeChannel(chs4, {}), null, 'nothing matches → null');
 }
 
-console.log('— pickWelcomeChannel: ignores non-text channels');
+console.log('- pickWelcomeChannel: ignores non-text channels');
 {
   const chs = [
     { id: '1', name: 'Welcome VC',      type: 2 },   // voice
@@ -217,7 +217,7 @@ console.log('— pickWelcomeChannel: ignores non-text channels');
   eq(r, { id: '3', name: 'welcome-text' }, 'only GUILD_TEXT (type 0) considered');
 }
 
-console.log('— matchAndSetupGuildRoles: persists flat map, loadRoleMap reads it back');
+console.log('- matchAndSetupGuildRoles: persists flat map, loadRoleMap reads it back');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async (url) => {
@@ -241,7 +241,7 @@ console.log('— matchAndSetupGuildRoles: persists flat map, loadRoleMap reads i
   eq(m, { gamenight: '900000000000000001', boltbound: '900000000000000002' }, 'persisted map round-trips');
 }
 
-console.log('— matchAndSetupGuildRoles: REST failure surfaces');
+console.log('- matchAndSetupGuildRoles: REST failure surfaces');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async () => new Response('forbidden', { status: 403 });
@@ -252,7 +252,7 @@ console.log('— matchAndSetupGuildRoles: REST failure surfaces');
   eq(r.status, 403, 'status echoed');
 }
 
-console.log('— postWelcomeEmbedForGuild: explicit channelId path');
+console.log('- postWelcomeEmbedForGuild: explicit channelId path');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   const calls = [];
@@ -272,10 +272,10 @@ console.log('— postWelcomeEmbedForGuild: explicit channelId path');
   assert(!calls.some(c => c.url.includes('/guilds/')), 'NO /guilds/ REST call when channelId given');
 }
 
-console.log('— postWelcomeEmbedForGuild: looks up channel by name + deletes prior');
+console.log('- postWelcomeEmbedForGuild: looks up channel by name + deletes prior');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
-  // Pre-seed a prior welcome message — should get DELETEd first.
+  // Pre-seed a prior welcome message, should get DELETEd first.
   await env.LOADOUT_BOLTS.put(`onboard:welcome-msg:${GUILD}`,
     JSON.stringify({ channelId: '9999', messageId: '8888', postedAt: 1 }));
 
@@ -311,7 +311,7 @@ console.log('— postWelcomeEmbedForGuild: looks up channel by name + deletes pr
   eq(meta.messageId, '950000000000000777', 'KV welcome-msg id rewritten');
 }
 
-console.log('— postWelcomeEmbedForGuild: no channel candidate → 404-style error');
+console.log('- postWelcomeEmbedForGuild: no channel candidate → 404-style error');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async (url) => {
@@ -328,24 +328,24 @@ console.log('— postWelcomeEmbedForGuild: no channel candidate → 404-style er
   assert(Array.isArray(r.tried), 'returns tried list');
 }
 
-console.log('— BASELINE_ROLE_SPECS sanity');
+console.log('- BASELINE_ROLE_SPECS sanity');
 {
   eq(BASELINE_ROLE_SPECS.map(s => s.key),
      ['boltbound', 'boardgames', 'watching', 'art'],
      'baseline keys in spec order');
-  // Each one matches its own heuristic — important, otherwise a freshly
+  // Each one matches its own heuristic, important, otherwise a freshly
   // created role wouldn't get re-picked up by matchAndSetupGuildRoles.
   for (const s of BASELINE_ROLE_SPECS) {
     assert(matchesInterest(s.key, s.name), `${s.key}: name "${s.name}" matches its own heuristic`);
   }
 }
 
-console.log('— normaliseRoleSpecs');
+console.log('- normaliseRoleSpecs');
 {
   const cleaned = normaliseRoleSpecs([
     { key: 'boltbound', name: '  Boltbound  ', color: 0x123456 },
     { key: 'NOT_A_KEY', name: 'whatever' },                  // dropped
-    { key: 'art', name: '' },                                // dropped — empty name
+    { key: 'art', name: '' },                                // dropped, empty name
     { key: 'art', name: 'Artists', color: 'bad', hoist: true },
     { key: 'watching', name: 'Just Watching' },              // no color → 0
   ]);
@@ -361,13 +361,13 @@ console.log('— normaliseRoleSpecs');
   eq(cleaned[2].color, 0, 'missing color → 0');
 }
 
-console.log('— ensureBaselineRoles: defaults + creates missing');
+console.log('- ensureBaselineRoles: defaults + creates missing');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   const created = [];
   fetchHandler = async (url, init) => {
     if (init.method === 'GET' || !init.method) {
-      // /guilds/{g}/roles list — pretend only "Game Night" exists.
+      // /guilds/{g}/roles list, pretend only "Game Night" exists.
       if (url.endsWith(`/guilds/${GUILD}/roles`)) {
         return new Response(JSON.stringify([
           { id: GUILD,                name: '@everyone' },
@@ -405,7 +405,7 @@ console.log('— ensureBaselineRoles: defaults + creates missing');
   eq(r.skipped, [], 'no skips');
 }
 
-console.log('— ensureBaselineRoles: skips already-existing matches (no dupes)');
+console.log('- ensureBaselineRoles: skips already-existing matches (no dupes)');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   let createCount = 0;
@@ -441,7 +441,7 @@ console.log('— ensureBaselineRoles: skips already-existing matches (no dupes)'
   eq(skipMap.watching.reason, 'already-exists', 'watching skip reason');
 }
 
-console.log('— ensureBaselineRoles: skips managed + @everyone correctly');
+console.log('- ensureBaselineRoles: skips managed + @everyone correctly');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async (url, init) => {
@@ -471,7 +471,7 @@ console.log('— ensureBaselineRoles: skips managed + @everyone correctly');
   eq(r.created[0].key, 'boltbound', 'boltbound created');
 }
 
-console.log('— ensureBaselineRoles: surfaces Discord create failures per-key');
+console.log('- ensureBaselineRoles: surfaces Discord create failures per-key');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   fetchHandler = async (url, init) => {
@@ -501,7 +501,7 @@ console.log('— ensureBaselineRoles: surfaces Discord create failures per-key')
   eq(r.skipped[0].status, 403, 'status echoed');
 }
 
-console.log('— ensureBaselineRoles: full idempotent re-run is all-skips');
+console.log('- ensureBaselineRoles: full idempotent re-run is all-skips');
 {
   // First pass creates everything; second pass against the same
   // (now-populated) guild should be all-skip with reason
@@ -532,7 +532,7 @@ console.log('— ensureBaselineRoles: full idempotent re-run is all-skips');
 console.log('');
 globalThis.fetch = realFetch;
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

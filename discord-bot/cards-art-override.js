@@ -1,6 +1,6 @@
 // Per-user Boltbound card art overrides.
 //
-// Cards in cards-content.js are a STATIC catalogue — every player
+// Cards in cards-content.js are a STATIC catalogue, every player
 // who owns a copy of "MIMESIS" sees the same baked sprite at
 // aquilo.gg/sprites/cards/<cardId>.png. This module adds a thin
 // per-(guild, user, cardId) override layer so players can swap the
@@ -27,7 +27,7 @@
 //     content after the validation pass.
 //
 // Content-rating gate (Giphy/Tenor "g" or "pg" only) is enforced by
-// the caller — when the player picks a GIF via the search modal in
+// the caller, when the player picks a GIF via the search modal in
 // the editor, the editor passes only `rating: 'pg'` to the Giphy
 // search. URLs pasted directly fall back to the host-allowlist
 // check; we can't read a rating off a raw CDN URL.
@@ -82,7 +82,7 @@ async function probeGifUrl(url) {
   }
 
   if (headRes.status === 405 || headRes.status === 403) {
-    // CDN refused HEAD — fall back to a tiny ranged GET. Even if the
+    // CDN refused HEAD, fall back to a tiny ranged GET. Even if the
     // CDN ignores the Range header we cap on Content-Length below.
     try {
       const ranged = await fetch(url, {
@@ -93,7 +93,7 @@ async function probeGifUrl(url) {
       }
       const contentType = String(ranged.headers.get('content-type') || '').toLowerCase();
       const contentLength = parseInt(ranged.headers.get('content-length') || '0', 10) || 0;
-      // Also sniff the first 4 bytes for the GIF89a magic — belt
+      // Also sniff the first 4 bytes for the GIF89a magic, belt
       // and braces against a server lying about Content-Type.
       const bytes = new Uint8Array(await ranged.arrayBuffer());
       const magic = String.fromCharCode(...bytes.slice(0, 4));
@@ -135,7 +135,7 @@ export async function setOverride(env, guildId, userId, cardId, url) {
   if (!guildId || !userId || !cardId) {
     return { ok: false, error: 'bad-args' };
   }
-  // Card must exist in the static catalogue — overriding a non-card
+  // Card must exist in the static catalogue, overriding a non-card
   // is meaningless and a sign of a bad client.
   if (!CARDS[cardId]) {
     return { ok: false, error: 'unknown-card', cardId };
@@ -175,7 +175,7 @@ export async function clearOverride(env, guildId, userId, cardId) {
 
 // List every override the user has set for a given guild. Used by
 // the editor UI to show "you've customised these N cards" status.
-// KV list is a single round-trip with a prefix scan — fine for a
+// KV list is a single round-trip with a prefix scan, fine for a
 // per-user view (player will have at most a few dozen overrides
 // in practice).
 export async function listOverridesForUser(env, guildId, userId) {

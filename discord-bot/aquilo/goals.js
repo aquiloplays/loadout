@@ -46,7 +46,7 @@ export async function checkMemberMilestones(env) {
 
   // Find the highest milestone we've crossed but not yet celebrated.
   // If multiple new ones (e.g. server seeded with 1k members), pick the
-  // largest crossed one and skip the smaller ones — celebrating "100,
+  // largest crossed one and skip the smaller ones, celebrating "100,
   // 150, 200, 500, 1000" in sequence is spammy.
   let next = null;
   for (const m of MEMBER_MILESTONES) {

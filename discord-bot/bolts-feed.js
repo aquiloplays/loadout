@@ -3,7 +3,7 @@
 // Design choice: digest-only, edit-in-place (option B in the spec).
 // A per-transaction firehose would have meant threading a "maybe post"
 // hook through every earn() / spend() / applyVaultDelta() call in
-// wallet.js — touching the 15+ sites catalogued in economy.md just to
+// wallet.js, touching the 15+ sites catalogued in economy.md just to
 // gate them on a threshold + binding lookup. That risks regressions in
 // the wallet primitive that the entire bolts economy rides on, and
 // produces a feed that gets noisy fast even at threshold 250.
@@ -22,8 +22,8 @@
 //   bolts:feed:guild:<guildId>  -> { channelId, messageId, boundAt }
 //
 // Wired in:
-//   admin-menu.js — bind / clear buttons
-//   worker.js scheduled() — runs `boltsFeedCronTick` alongside betCronTick
+//   admin-menu.js, bind / clear buttons
+//   worker.js scheduled(), runs `boltsFeedCronTick` alongside betCronTick
 
 import { leaderboard } from './wallet.js';
 
@@ -63,7 +63,7 @@ async function listBoltsFeeds(env) {
 
 // Walk every wallet:<guildId>:* key to compute server-wide totals. This
 // is the same prefix-scan pattern leaderboard() uses. Cheap enough for
-// the hourly cron — KV list is paginated and we cap each page at 1000.
+// the hourly cron, KV list is paginated and we cap each page at 1000.
 async function computeServerTotals(env, guildId) {
   let cursor;
   let totalBalance = 0;
@@ -100,7 +100,7 @@ export async function buildDigestEmbed(env, guildId) {
   let leaderboardBlock;
   if (!top || top.length === 0) {
     leaderboardBlock =
-      '*No wallets yet — earn bolts via `/loadout daily`, mini-games, bets, ' +
+      '*No wallets yet, earn bolts via `/loadout daily`, mini-games, bets, ' +
       'or stocks to land on this board.*';
   } else {
     const rows = top.map((entry, i) => {
@@ -130,13 +130,12 @@ export async function buildDigestEmbed(env, guildId) {
   };
 }
 
-// Discord REST helpers — duplicated from stocks.js intentionally so this
+// Discord REST helpers, duplicated from stocks.js intentionally so this
 // module has no inbound dep on stocks.js. Keep both copies thin.
 //
 // Returns the HTTP status (0 on network failure) instead of just a
 // boolean so the caller can distinguish "message gone" (404) from
-// "Discord blip" (5xx). The latter should NOT unbind the feed —
-// otherwise one transient Discord outage permanently silences every
+// "Discord blip" (5xx). The latter should NOT unbind the feed, // otherwise one transient Discord outage permanently silences every
 // guild's hourly digest until a streamer re-binds.
 async function discordPatchMessage(env, channelId, messageId, body) {
   if (!env.DISCORD_BOT_TOKEN) return 0;
@@ -188,7 +187,7 @@ export async function bindBoltsFeed(env, guildId, channelId) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, reason: 'bot token missing' };
   const embed = await buildDigestEmbed(env, guildId);
   const msg = await discordPostMessage(env, channelId, { embeds: [embed] });
-  if (!msg || !msg.id) return { ok: false, reason: "couldn't post message — check channel perms" };
+  if (!msg || !msg.id) return { ok: false, reason: "couldn't post message, check channel perms" };
   await setBoltsFeed(env, guildId, channelId, msg.id);
   return { ok: true, channelId, messageId: msg.id };
 }
@@ -203,9 +202,9 @@ export async function boltsFeedCronTick(env) {
   for (const f of feeds) {
     const embed = await buildDigestEmbed(env, f.guildId);
     const status = await discordPatchMessage(env, f.channelId, f.messageId, { embeds: [embed] });
-    // 404 = message deleted, 403 = lost channel perms — both worth
+    // 404 = message deleted, 403 = lost channel perms, both worth
     // releasing the binding for. Anything else (5xx, network blip, 0)
-    // is transient — keep the binding and retry next hour.
+    // is transient, keep the binding and retry next hour.
     if (status === 404 || status === 403) await clearBoltsFeed(env, f.guildId);
   }
 }

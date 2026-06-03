@@ -2,7 +2,7 @@
 //
 //   node discord-bot/test/test-character-pet.mjs
 //
-// Doesn't render PNGs — that path is already covered by
+// Doesn't render PNGs, that path is already covered by
 // test-png-codec.mjs. This is the data-model + slash-command-level
 // coverage: schema backfill, pet adoption gating, care decay, mood
 // thresholds.

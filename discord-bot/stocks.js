@@ -1,4 +1,4 @@
-// Bolts-denominated stock market — real public stocks via Yahoo Finance.
+// Bolts-denominated stock market, real public stocks via Yahoo Finance.
 //
 // Single source: yahoo_stock. Cron hits Yahoo's public chart API once an
 // hour per ticker (well under any sane rate limit) and writes the latest
@@ -10,8 +10,8 @@
 // Multiplier is per-ticker so AAPL at $230 and GME at $20 can both land
 // in a comparable bolts-of-spending range. Calibrate at registration.
 //
-// Market hours: regular session is 09:30–16:00 ET on weekdays. Outside
-// that, Yahoo returns the last-close as `regularMarketPrice` — fine,
+// Market hours: regular session is 09:30-16:00 ET on weekdays. Outside
+// that, Yahoo returns the last-close as `regularMarketPrice`, fine,
 // the bolts price holds steady until the market re-opens, history just
 // flatlines. Bots can still trade at last-close; feels like a real
 // after-hours market emulation.
@@ -21,7 +21,7 @@
 //   stock:price:<TICKER>                       latest { price, raw, asOf }
 //   stock:history:<TICKER>                     last 720 samples (~30 days hourly)
 //   stock:holdings:<guildId>:<userId>          { TICKER: shares }
-//   stocks:ticker:guild:<guildId>              { channelId, messageId } — auto-update channel pin
+//   stocks:ticker:guild:<guildId>              { channelId, messageId }, auto-update channel pin
 //
 // Slash command surface (registered in commands-spec.js, dispatched
 // from commands.js):
@@ -30,8 +30,8 @@
 //   /stocks sell <ticker> <shares>
 //   /stocks portfolio
 //   /stocks chart <ticker>
-//   /stocks ticker-setup   (admin) — bind the current channel as the auto-update ticker board
-//   /stocks ticker-clear   (admin) — release the binding
+//   /stocks ticker-setup   (admin), bind the current channel as the auto-update ticker board
+//   /stocks ticker-clear   (admin), release the binding
 
 import { json } from './ext-shared.js';
 import { spend, earn, getWallet } from './wallet.js';
@@ -45,13 +45,13 @@ const FLAG_EPHEMERAL = 1 << 6;
 const RESP_CHAT = 4;
 const PERMISSION_MANAGE_GUILD = 0x20;
 
-// User-Agent is required for Yahoo — bare-bones clients get 403.
+// User-Agent is required for Yahoo, bare-bones clients get 403.
 const YAHOO_UA = 'Mozilla/5.0 (compatible; aquilo-stocks/1.0)';
 
-// Starter catalog — 20 real public stocks across tech / gaming /
-// entertainment. Multipliers target a 50–200 bolts range for typical
+// Starter catalog, 20 real public stocks across tech / gaming /
+// entertainment. Multipliers target a 50-200 bolts range for typical
 // market levels; tune via /admin if needed. `source: 'yahoo_stock'` is
-// the only supported source — the multi-source experiment got scrapped
+// the only supported source, the multi-source experiment got scrapped
 // in favour of real-market emulation.
 export const DEFAULT_CATALOG = {
   tickers: [
@@ -91,7 +91,7 @@ export const DEFAULT_CATALOG = {
 // Yahoo-only real-stock emulation. On first encounter, wipe the old
 // stock:price / stock:history / stock:holdings prefixes + the old
 // catalog record so leftover ticker keys don't shadow the new ones.
-// Idempotent — sentinel value is checked first.
+// Idempotent, sentinel value is checked first.
 const SCHEMA_KEY = 'stocks:schema:v';
 const SCHEMA_VERSION = '2';
 
@@ -111,7 +111,7 @@ async function migrateIfNeeded(env) {
     }
     try { await env.LOADOUT_BOLTS.delete(CATALOG_KEY); } catch { /* idle */ }
     await env.LOADOUT_BOLTS.put(SCHEMA_KEY, SCHEMA_VERSION);
-  } catch { /* idle — next invocation retries */ }
+  } catch { /* idle, next invocation retries */ }
 }
 
 // ---- KV access ---------------------------------------------------------
@@ -180,10 +180,10 @@ async function putHoldings(env, guildId, userId, h) {
 //   * Per-trade history list
 //   * Trading stats (best trade, biggest loss, total invested, etc.)
 //
-// We keep the last 200 entries — enough for any reasonable session
+// We keep the last 200 entries, enough for any reasonable session
 // of trading, capped to keep the KV record bounded. Older entries
 // roll off the front; realised-PnL summaries should be persisted
-// separately if we ever need full history (not yet — 200 is plenty).
+// separately if we ever need full history (not yet, 200 is plenty).
 //
 // Shape: [{ asOf, action: "buy"|"sell", ticker, shares, price,
 //          bolts, fee, balanceAfter }]
@@ -208,14 +208,14 @@ async function appendStocksTransaction(env, guildId, userId, txn) {
 
 // Compute per-ticker average cost basis from the transaction log.
 // FIFO would give different unrealized-PnL on partial sells; we use
-// AVERAGE-COST because the player doesn't pick lots — the UI shows
+// AVERAGE-COST because the player doesn't pick lots, the UI shows
 // "your average cost was X, current price is Y" which is intuitive
 // and matches how real brokerages display unrealized gains on
 // taxable accounts (HIFO/FIFO is a tax-filing concept only).
 //
 // Returns { [ticker]: { qty, totalCost } } where totalCost includes
 // fees so the average reflects the all-in price the player paid.
-// On a sell we DON'T mutate totalCost proportionally — we instead
+// On a sell we DON'T mutate totalCost proportionally, we instead
 // reduce qty by the sold amount and lower totalCost by the same
 // proportion, preserving the avg-cost per remaining share.
 // ── Price alerts ─────────────────────────────────────────────────────
@@ -228,7 +228,7 @@ async function appendStocksTransaction(env, guildId, userId, txn) {
 //
 // Storage: stock:alerts:<guildId>:<userId> → [{ id, ticker, target,
 //          direction, createdAt }]
-// Cap: 20 alerts per user — generous enough to set one per ticker
+// Cap: 20 alerts per user, generous enough to set one per ticker
 // and a couple extra, capped so the KV record stays small.
 const ALERTS_CAP = 20;
 const ALERTS_KEY = (g, u) => `stock:alerts:${g}:${u}`;
@@ -281,7 +281,7 @@ export async function createStockAlert(env, guildId, userId, args) {
   return { ok: true, alert };
 }
 
-// Delete a single alert by id. Idempotent — deleting a non-existent
+// Delete a single alert by id. Idempotent, deleting a non-existent
 // id is a no-op (success), so a double-tap from the UI doesn't error.
 export async function deleteStockAlert(env, guildId, userId, alertId) {
   const list = await getStockAlerts(env, guildId, userId);
@@ -293,7 +293,7 @@ export async function deleteStockAlert(env, guildId, userId, alertId) {
 // Scan all users' alerts after a price refresh. Walk stock:alerts:*
 // KV keys, check each pending alert against the freshly-written
 // current price + the previous tick's price (from history). An alert
-// fires when the price has CROSSED the target between ticks — not
+// fires when the price has CROSSED the target between ticks, not
 // when it's merely sitting on the wrong side at scan time, which
 // would re-fire every tick until manually deleted.
 //
@@ -301,7 +301,7 @@ export async function deleteStockAlert(env, guildId, userId, alertId) {
 // userIds: [userId]), then remove the alert from the user's list.
 async function scanStockAlerts(env) {
   // Pre-fetch the current + previous price for every catalogue
-  // ticker — one pair of KV reads each, not N×M as we walk users.
+  // ticker, one pair of KV reads each, not N×M as we walk users.
   const catalog = await getCatalog(env);
   const priceNow = {};
   const pricePrev = {};
@@ -312,7 +312,7 @@ async function scanStockAlerts(env) {
     if (hist.length >= 2) {
       pricePrev[t.ticker] = hist[hist.length - 2].price;
     } else if (hist.length === 1) {
-      // Only one tick on record — treat prev = current so nothing
+      // Only one tick on record, treat prev = current so nothing
       // crosses on the very first cron after a fresh deploy.
       pricePrev[t.ticker] = hist[0].price;
     }
@@ -398,7 +398,7 @@ async function scanStockAlerts(env) {
 //
 // Storage: stock:pv:<guildId>:<userId> → [{ date: "YYYY-MM-DD", value }]
 // Rolling window: PV_HISTORY_DAYS entries; old entries roll off the
-// front. 90 days × ~50 bytes per entry = ~4 KB per user — well under
+// front. 90 days × ~50 bytes per entry = ~4 KB per user, well under
 // the 25 MB KV value limit.
 //
 // Sentinel: stock:pv:lastsnap:<YYYY-MM-DD> set on the first cron tick
@@ -426,7 +426,7 @@ export async function getPortfolioValueHistory(env, guildId, userId) {
 }
 
 async function putPortfolioValueHistory(env, guildId, userId, list) {
-  // Cap at PV_HISTORY_DAYS entries — older entries roll off so the
+  // Cap at PV_HISTORY_DAYS entries, older entries roll off so the
   // KV value stays small.
   const trimmed = list.length > PV_HISTORY_DAYS
     ? list.slice(-PV_HISTORY_DAYS)
@@ -439,8 +439,7 @@ async function putPortfolioValueHistory(env, guildId, userId, list) {
 
 // Walk every stock:holdings:<g>:<u> KV key, compute the current
 // total portfolio value (qty × current price), and append today's
-// data point to the user's PV history. Idempotent for the day —
-// already-snapshot users get their existing today-entry updated, not
+// data point to the user's PV history. Idempotent for the day, // already-snapshot users get their existing today-entry updated, not
 // duplicated, so a partial run that crashes mid-way can resume safely.
 export async function maybeSnapshotPortfolioValues(env) {
   const today = todayUtcDate();
@@ -461,7 +460,7 @@ export async function maybeSnapshotPortfolioValues(env) {
 
   // Enumerate users with any holdings. KV .list() paginates; loop
   // until list_complete. Limit cap of 1000 per page is the worker
-  // default — enough for our community size at any plausible growth.
+  // default, enough for our community size at any plausible growth.
   let cursor;
   let snapshotted = 0;
   for (let pages = 0; pages < 50; pages++) {
@@ -487,7 +486,7 @@ export async function maybeSnapshotPortfolioValues(env) {
           value += qty * price;
         }
         // Even if value is 0 (e.g. holdings exists but all prices
-        // missed this cron), record it — the chart should show a flat
+        // missed this cron), record it, the chart should show a flat
         // line rather than a gap. Skipping would distort the slope.
         const list = await getPortfolioValueHistory(env, guildId, userId);
         const rounded = Math.round(value);
@@ -519,7 +518,7 @@ export async function maybeSnapshotPortfolioValues(env) {
   return { ok: true, date: today, snapshotted };
 }
 
-// Build the full web-portfolio payload — every position the user
+// Build the full web-portfolio payload, every position the user
 // holds (or has previously closed) plus aggregate totals, recent
 // txns, and derived stats. The shape is consumed verbatim by the
 // site's /play/stocks page; keeping derivation here means Discord
@@ -568,7 +567,7 @@ export async function buildStocksPortfolio(env, guildId, userId) {
       realizedPnl,
     });
   }
-  // Sort by current value desc — biggest positions on top, closed
+  // Sort by current value desc, biggest positions on top, closed
   // positions with realized PnL at the bottom.
   out.sort((a, b) => (b.value || 0) - (a.value || 0));
 
@@ -618,15 +617,14 @@ export async function buildStocksPortfolio(env, guildId, userId) {
     getPortfolioValueHistory(env, guildId, userId),
     getStockAlerts(env, guildId, userId),
   ]);
-  // Append today's running value if it isn't already snapshotted —
-  // gives the chart a live "right edge" that updates between daily
+  // Append today's running value if it isn't already snapshotted, // gives the chart a live "right edge" that updates between daily
   // snapshots rather than freezing at yesterday's close.
   const today = todayUtcDate();
   const pvOut = [...pvHistory];
   if (pvOut.length === 0 || pvOut[pvOut.length - 1].date !== today) {
     pvOut.push({ date: today, value: Math.round(totalValue), live: true });
   } else {
-    // Same-day entry exists (snapshot ran already) — overlay current
+    // Same-day entry exists (snapshot ran already), overlay current
     // value on top so the chart reflects intraday movement.
     const last = pvOut[pvOut.length - 1];
     pvOut[pvOut.length - 1] = { ...last, value: Math.round(totalValue), live: true };
@@ -655,7 +653,7 @@ export async function buildStocksPortfolio(env, guildId, userId) {
 
 export function computeCostBasis(transactions) {
   const positions = {};
-  // Realised P&L per ticker — running sum of (proceeds - basisRemoved)
+  // Realised P&L per ticker, running sum of (proceeds - basisRemoved)
   // across all sells. proceeds is net (after fee); basisRemoved is
   // qtyAvg * sharesSold so realized number reflects the actual gain
   // a player would book on that sale.
@@ -687,7 +685,7 @@ export function computeCostBasis(transactions) {
 
 // ---- Source fetchers ---------------------------------------------------
 
-// Yahoo Finance chart API. No auth — just needs a User-Agent. Smallest
+// Yahoo Finance chart API. No auth, just needs a User-Agent. Smallest
 // useful payload: ?interval=1d&range=2d. We only read meta.regularMarketPrice
 // (Yahoo gives the last-close price outside regular trading hours, so
 // bots can still trade weekends + after-hours at the last close).
@@ -727,7 +725,7 @@ function priceFromRaw(t, raw) {
 
 // Iterate every ticker, fetch the source value, compute price, write
 // the new latest + append to history. Per-ticker errors don't abort
-// the rest of the tick — the next cron will retry.
+// the rest of the tick, the next cron will retry.
 export async function stocksCronTick(env) {
   await migrateIfNeeded(env);
   const catalog = await getCatalog(env);
@@ -744,16 +742,16 @@ export async function stocksCronTick(env) {
       hist.push({ price, asOf });
       await putHistory(env, t.ticker, hist);
       updated++;
-    } catch { /* skip — next tick will retry */ }
+    } catch { /* skip, next tick will retry */ }
   }
   // After prices are refreshed, push the auto-update channel board for
   // every guild that has one bound. Errors here are isolated per guild.
   try { await refreshAllTickerBoards(env); } catch (e) { console.warn('[stocks] ticker board refresh failed:', e && e.message); }
-  // Price-alert scan — fires PWA pushes on threshold crossings using
+  // Price-alert scan, fires PWA pushes on threshold crossings using
   // the freshly-written prices. Wrapped so a push outage can't block
   // the rest of the cron.
   try { await scanStockAlerts(env); } catch (e) { console.warn('[stocks] alerts scan failed:', e && e.message); }
-  // Daily portfolio-value snapshot — gated to once per UTC day via
+  // Daily portfolio-value snapshot, gated to once per UTC day via
   // a sentinel KV key so it lands on the first stocks tick of the
   // day no matter which cron trigger gets us here.
   try { await maybeSnapshotPortfolioValues(env); } catch (e) { console.warn('[stocks] PV snapshot failed:', e && e.message); }
@@ -835,10 +833,10 @@ async function buildTickerEmbed(env) {
     const price = rec ? rec.price : null;
     const change = pctChange(hist);
     const sign = change == null ? '' : (change >= 0 ? '+' : '');
-    const changeStr = change == null ? '—' : (sign + change.toFixed(1) + '%');
+    const changeStr = change == null ? '-' : (sign + change.toFixed(1) + '%');
     rows.push(
       String(t.ticker).padEnd(6) +
-      (price == null ? '—'.padStart(7) : String(price).padStart(7)) + '  ' +
+      (price == null ? '-'.padStart(7) : String(price).padStart(7)) + '  ' +
       changeStr.padStart(7) + '   ' +
       t.name,
     );
@@ -957,7 +955,7 @@ function fmtNum(n) {
   return String(n);
 }
 
-// 1% rounded up, min 1 bolt — applies to both buy cost and sell gross.
+// 1% rounded up, min 1 bolt, applies to both buy cost and sell gross.
 function calcFee(amount) {
   return Math.max(1, Math.ceil((amount * FEE_PCT) / 100));
 }
@@ -986,16 +984,16 @@ export async function renderStocksList(env) {
     const price = rec ? rec.price : null;
     const change = pctChange(hist);
     const sign = change == null ? '' : (change >= 0 ? '+' : '');
-    const changeStr = change == null ? '—' : (sign + change.toFixed(1) + '%');
+    const changeStr = change == null ? '-' : (sign + change.toFixed(1) + '%');
     rows.push(
       '`' + String(t.ticker).padEnd(6) + '` ' +
-      (price == null ? '—'.padStart(6) : String(price).padStart(6)) + '  ' +
+      (price == null ? '-'.padStart(6) : String(price).padStart(6)) + '  ' +
       changeStr.padStart(7) + '   ' +
       t.name,
     );
   }
   return (
-    '**Stocks** — bolts-denominated\n```\nTICKER PRICE   24H Δ    NAME\n' +
+    '**Stocks**, bolts-denominated\n```\nTICKER PRICE   24H Δ    NAME\n' +
     rows.join('\n') +
     '\n```\nBuy with `/stocks buy <ticker> <bolts>` · 1% fee on every trade.'
   );
@@ -1015,7 +1013,7 @@ export async function runBuyJson(env, guildId, userId, args) {
   if (!def) return { ok: false, error: 'unknown-ticker', message: 'Unknown ticker: `' + ticker + '`.' };
   const rec = await getPrice(env, def.ticker);
   if (!rec || !rec.price) {
-    return { ok: false, error: 'no-price', message: 'No price yet for `' + def.ticker + '` — try again after the next cron tick.' };
+    return { ok: false, error: 'no-price', message: 'No price yet for `' + def.ticker + '`, try again after the next cron tick.' };
   }
   const price = rec.price;
   const wallet = await getWallet(env, guildId, userId);
@@ -1045,7 +1043,7 @@ export async function runBuyJson(env, guildId, userId, args) {
   // Append to the per-user transaction log. `bolts` here is the
   // all-in cost (price*shares + fee) so cost-basis averaging stays
   // accurate. Wrap in a swallow so a KV failure can't roll back the
-  // successful trade — worst case the txn doesn't appear in history.
+  // successful trade, worst case the txn doesn't appear in history.
   try {
     await appendStocksTransaction(env, guildId, userId, {
       asOf: new Date().toISOString(),
@@ -1058,7 +1056,7 @@ export async function runBuyJson(env, guildId, userId, args) {
       balanceAfter: balance,
     });
   } catch { /* non-fatal */ }
-  // PROGRESSION (P1 trailing) — stocks trade XP.
+  // PROGRESSION (P1 trailing), stocks trade XP.
   try {
     const { emitProgressionEvent } = await import('./progression/event-bus.js');
     await emitProgressionEvent(env, {
@@ -1127,7 +1125,7 @@ export async function runSellJson(env, guildId, userId, args) {
       balanceAfter: balance,
     });
   } catch { /* non-fatal */ }
-  // PROGRESSION (P1 trailing) — stocks trade XP.
+  // PROGRESSION (P1 trailing), stocks trade XP.
   try {
     const { emitProgressionEvent } = await import('./progression/event-bus.js');
     await emitProgressionEvent(env, {
@@ -1173,8 +1171,8 @@ export async function renderPortfolio(env, guildId, userId) {
     rows.push(
       '`' + t.padEnd(6) + '` ' +
       String(shares).padStart(5) + ' @ ' +
-      String(price != null ? price : '—').padStart(5) +
-      '  = ' + (price != null ? fmtNum(value) : '—'),
+      String(price != null ? price : '-').padStart(5) +
+      '  = ' + (price != null ? fmtNum(value) : '-'),
     );
   }
   const wallet = await getWallet(env, guildId, userId);
@@ -1217,7 +1215,7 @@ export async function renderChart(env, args) {
   const change = first ? ((last - first) / first) * 100 : 0;
   const sign = change >= 0 ? '+' : '';
   return (
-    '**' + def.ticker + '** — ' + def.name + '\n```\n' + sparkline + '\n```\n' +
+    '**' + def.ticker + '**, ' + def.name + '\n```\n' + sparkline + '\n```\n' +
     'Min ' + min + ' · Max ' + max + ' · Now ' + last + ' bolts · ' +
     sign + change.toFixed(1) + '% over the window.'
   );
@@ -1226,7 +1224,7 @@ export async function renderChart(env, args) {
 // Public read-only snapshot for the aquilo.gg /stocks page + the Twitch
 // panel's read-only Stocks tab. Returns the catalog + every ticker's
 // current price + a downsampled history slice for sparklines. No auth
-// gate, no user data — viewers can browse without signing in.
+// gate, no user data, viewers can browse without signing in.
 export async function publicStocksSnapshot(env) {
   const catalog = await getCatalog(env);
   const prices = {};
@@ -1267,7 +1265,7 @@ async function setupTickerBoard(env, guildId, channelId, memberPermissions) {
   const embed = await buildTickerEmbed(env);
   const posted = await discordPostMessage(env, channelId, { embeds: [embed] });
   if (!posted || !posted.id) {
-    return "Couldn't post in this channel — make sure the bot can Send Messages and Embed Links here.";
+    return "Couldn't post in this channel, make sure the bot can Send Messages and Embed Links here.";
   }
   await setTickerBoard(env, guildId, channelId, posted.id);
   return '📌 This channel is now the auto-updating stocks ticker. The board refreshes every hour.';
@@ -1283,7 +1281,7 @@ async function clearTickerBoardCmd(env, guildId, memberPermissions) {
   return '✅ Ticker board released. The previous message stays in the channel; the bot just stops updating it.';
 }
 
-// PROGRESSION (P2) — stocks portfolio headline. Account-wide.
+// PROGRESSION (P2), stocks portfolio headline. Account-wide.
 export async function getStatsFor(env, userId, _guildId = null) {
   let positions = 0, distinctTickers = 0, trades = 0;
   const seenTickers = new Set();

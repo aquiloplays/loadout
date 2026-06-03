@@ -1,4 +1,4 @@
-// Weekly leaderboard channel post. Mondays at 10 AM ET — edit-in-place
+// Weekly leaderboard channel post. Mondays at 10 AM ET, edit-in-place
 // embed listing top-10 streaks, top-10 achievement earners, and top-3
 // clip submitters for the past week.
 //
@@ -32,26 +32,26 @@ export async function refreshLeaderboardChannel(env) {
   const embed = {
     color: COLOR_SCHEDULE,
     title: '⚡ Aquilo Leaderboards',
-    description: `Updated weekly — next refresh ${nextRefreshTag}.`,
+    description: `Updated weekly, next refresh ${nextRefreshTag}.`,
     fields: [
       {
         name: '⚡ Top streaks',
         value: streaks.length
-          ? streaks.map((r, i) => `**${i + 1}.** <@${r.user_id}> — ${r.current_days}d`).join('\n')
+          ? streaks.map((r, i) => `**${i + 1}.** <@${r.user_id}>, ${r.current_days}d`).join('\n')
           : '_no streaks yet_',
         inline: false,
       },
       {
         name: '🏆 Most achievements',
         value: earners.length
-          ? earners.map((r, i) => `**${i + 1}.** <@${r.user_id}> — ${r.earned} earned`).join('\n')
+          ? earners.map((r, i) => `**${i + 1}.** <@${r.user_id}>, ${r.earned} earned`).join('\n')
           : '_no achievements unlocked yet_',
         inline: false,
       },
       {
         name: '🎬 Top clip submitters this week',
         value: topClips.length
-          ? topClips.map((r, i) => `**${i + 1}.** <@${r.author_id}> — ${r.n} clips`).join('\n')
+          ? topClips.map((r, i) => `**${i + 1}.** <@${r.author_id}>, ${r.n} clips`).join('\n')
           : '_no clips yet this week_',
         inline: false,
       },
@@ -79,7 +79,7 @@ export async function refreshLeaderboardChannel(env) {
 }
 
 async function pickGuildId(env) {
-  // Best-effort — read from KV. Set by bootstrap on first command.
+  // Best-effort, read from KV. Set by bootstrap on first command.
   try {
     const raw = await env.STATE.get('active_guild_id');
     if (raw) return raw;

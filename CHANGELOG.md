@@ -32,47 +32,47 @@ effect after `tools/install-dev.ps1` (dev install) or a tagged release.
 
 
 
-- **Bolts stock market** — Yahoo Finance real-stock emulation. 20 starter tickers (AAPL, MSFT, GOOGL, META, AMZN, NVDA, AMD, INTC, TSLA, GME, EA, TTWO, RBLX, U, NFLX, DIS, SPOT, ROKU, COIN, MSTR). Hourly cron at `:17` writes prices + appends to history. Spot trading only, integer shares, 1% trade fee. `/stocks list / buy / sell / portfolio / chart` slash subcommands.
-- **Auto-updating stocks ticker board** — `/stocks ticker-setup` binds the current channel; a single embed is PATCHed in place every cron tick. `/stocks ticker-clear` releases the binding.
-- **Sports betting** — ESPN-driven NFL/NBA/MLB/NHL. Hourly cron at `:23` refreshes a 48 h cache + settles every open bet whose game has finished. Stake capped at 10% of wallet, 1.95× even-money or American moneyline payout, ties refund. `/bet sports list / place / active / history` with `STRING_AUTOCOMPLETE` on the game picker.
-- **Sports feed channel** — `/admin → Bind sports feed here` posts newly-seen games to the bound channel with `<@user>` mentions for every league/team subscriber. Inline bet buttons + mute-league + open-hub buttons.
-- **League / team subscriptions** — `/hub → Sports → Subscriptions` toggles + a search modal that scans the team registry. One-shot ESPN teams-endpoint seed populates the registry on first cron so the search works immediately. Reverse indexes (`sports:subs:league:*`, `sports:subs:team:*`) give the cron O(1) subscriber lookup per game.
-- **`/hub` — viewer-facing entry hub.** All flows ephemeral and component-driven (buttons, select menus, modals). Drilldowns for Loadout / Stocks / Sports / Profile / Help. Modal-driven buy/sell/chart/bet placement. Pagination for the ticker list (10/page) and upcoming games (4/page with inline bet buttons). Bet-feed embeds use Discord dynamic timestamps (`<t:UNIX:F>` + `:R`) so kickoff times auto-localize per viewer.
-- **`/admin` — server-admin hub** (MANAGE_GUILD). Surfaces install bind + stocks ticker board explainer + sports feed bind/clear.
+- **Bolts stock market**, Yahoo Finance real-stock emulation. 20 starter tickers (AAPL, MSFT, GOOGL, META, AMZN, NVDA, AMD, INTC, TSLA, GME, EA, TTWO, RBLX, U, NFLX, DIS, SPOT, ROKU, COIN, MSTR). Hourly cron at `:17` writes prices + appends to history. Spot trading only, integer shares, 1% trade fee. `/stocks list / buy / sell / portfolio / chart` slash subcommands.
+- **Auto-updating stocks ticker board**, `/stocks ticker-setup` binds the current channel; a single embed is PATCHed in place every cron tick. `/stocks ticker-clear` releases the binding.
+- **Sports betting**, ESPN-driven NFL/NBA/MLB/NHL. Hourly cron at `:23` refreshes a 48 h cache + settles every open bet whose game has finished. Stake capped at 10% of wallet, 1.95× even-money or American moneyline payout, ties refund. `/bet sports list / place / active / history` with `STRING_AUTOCOMPLETE` on the game picker.
+- **Sports feed channel**, `/admin → Bind sports feed here` posts newly-seen games to the bound channel with `<@user>` mentions for every league/team subscriber. Inline bet buttons + mute-league + open-hub buttons.
+- **League / team subscriptions**, `/hub → Sports → Subscriptions` toggles + a search modal that scans the team registry. One-shot ESPN teams-endpoint seed populates the registry on first cron so the search works immediately. Reverse indexes (`sports:subs:league:*`, `sports:subs:team:*`) give the cron O(1) subscriber lookup per game.
+- **`/hub`, viewer-facing entry hub.** All flows ephemeral and component-driven (buttons, select menus, modals). Drilldowns for Loadout / Stocks / Sports / Profile / Help. Modal-driven buy/sell/chart/bet placement. Pagination for the ticker list (10/page) and upcoming games (4/page with inline bet buttons). Bet-feed embeds use Discord dynamic timestamps (`<t:UNIX:F>` + `:R`) so kickoff times auto-localize per viewer.
+- **`/admin`, server-admin hub** (MANAGE_GUILD). Surfaces install bind + stocks ticker board explainer + sports feed bind/clear.
 
 ### Changed
 
 - Loadout main menu (`/loadout` and the hub Loadout drilldown) now has a `🌐 Hub` button so users can hop back to `/hub` from anywhere in the loadout flow.
-- `/bet sports list` formatting — `padStart(4) + '@' + padEnd(4)` for team abbreviations so the `@` lines up regardless of abbr length.
+- `/bet sports list` formatting, `padStart(4) + '@' + padEnd(4)` for team abbreviations so the `@` lines up regardless of abbr length.
 
 ### Infrastructure
 
 - Worker crons grow to two entries (`17 * * * *` stocks, `23 * * * *` sports + feed). `worker.js#scheduled` dispatches by `event.cron`.
-- Component routing in `commands.js` dispatches by `custom_id` prefix — `hub:*` → hub-menu, `admin:*` → admin-menu, `lo:*` → loadout-menu. Same pattern for `MODAL_SUBMIT` (`hub:modal:*` → hub modals).
+- Component routing in `commands.js` dispatches by `custom_id` prefix, `hub:*` → hub-menu, `admin:*` → admin-menu, `lo:*` → loadout-menu. Same pattern for `MODAL_SUBMIT` (`hub:modal:*` → hub modals).
 
-(No DLL release tagged — all changes ship on the Worker + aquilo-site sides only.)
+(No DLL release tagged, all changes ship on the Worker + aquilo-site sides only.)
 
 ---
 
 ## [1.9.0] - 2026-05-19
 
-BR-core polish — configurable branch chance, branch-kill loot re-roll, live vote/cooldown events.
+BR-core polish, configurable branch chance, branch-kill loot re-roll, live vote/cooldown events.
 
 ### Added
 
-- `DungeonConfig.BranchChancePct` (default 20) — branch frequency is now runtime-tunable; `DungeonEngine.Run` reads it instead of the prior hard-coded `r.Next(100) < 20`.
+- `DungeonConfig.BranchChancePct` (default 20), branch frequency is now runtime-tunable; `DungeonEngine.Run` reads it instead of the prior hard-coded `r.Next(100) < 20`.
 - `DungeonOutcome.HpStart` captures pre-branch HP so the engine can re-derive survival when a branch effect lands.
-- New bus events `dungeon.cooldown {untilUtc, durationSec}` (published on `StartDungeon`) and `dungeon.vote {tally}` (published on every chat or panel vote). `PanelBridgeModule` observes both — cooldown goes to a long-TTL `panelbridge:cooldown:dungeon` KV record, vote tally rides on the next dungeon snapshot push.
+- New bus events `dungeon.cooldown {untilUtc, durationSec}` (published on `StartDungeon`) and `dungeon.vote {tally}` (published on every chat or panel vote). `PanelBridgeModule` observes both, cooldown goes to a long-TTL `panelbridge:cooldown:dungeon` KV record, vote tally rides on the next dungeon snapshot push.
 - Worker `GET /ext/dungeon/cooldown` returns `{ active, untilUtc, durationSec }` and is exempt from the 30 s staleness gate the other panel-bridge state routes enforce.
 
 ### Changed
 
-- `ApplyBranchEffectToOutcomes` now re-derives survival after applying the HP delta. A previously alive hero killed by a branch loses their loot drop, has gold zeroed and XP halved, and loses the boss-slayer flag — matching the engine's regular handling of fallen heroes. Branch-heals don't conjure loot (drops are computed pre-branch).
+- `ApplyBranchEffectToOutcomes` now re-derives survival after applying the HP delta. A previously alive hero killed by a branch loses their loot drop, has gold zeroed and XP halved, and loses the boss-slayer flag, matching the engine's regular handling of fallen heroes. Branch-heals don't conjure loot (drops are computed pre-branch).
 - `PanelBridgeModule.ReplayTick` stamps `openedAt` + `voteWindowMs` on the snapshot when a branching scene becomes current, so the panel can render a real countdown rather than guessing.
 
 ### Docs
 
-- `CastBranchVote` inline-documents the second-vote-overwrites semantics — viewers can change their mind during the 30 s window, but the first-vote tiebreak still uses the viewer's INITIAL `VoteSeq` stamp.
+- `CastBranchVote` inline-documents the second-vote-overwrites semantics, viewers can change their mind during the 30 s window, but the first-vote tiebreak still uses the viewer's INITIAL `VoteSeq` stamp.
 
 ---
 
@@ -83,14 +83,14 @@ Phase D (duels in panel) + Phase C (content expansion).
 ### Added
 
 - `PanelBridgeModule` mirrors `duel.*` bus events to the Worker as a new `type: duel` state. Worker exposes JWT-gated `GET /ext/duel/state`. Twitch panel reads it and renders a duel banner on the Dungeon tab (challenger/defender, phase pill, recent strikes, winner + payout). The duel engine itself was already in `DungeonModule`; this just surfaces it.
-- 20 new dungeon-content beats across the existing pools — 5 monsters (Pixie Trickster, Cinder Grub, Bog Witch, Tax Collector, Pyrohound), 4 traps (Glue Trap, Cursed Mirror, Riddle Door, Echoing Bellow), 3 NPCs (Ghostly Librarian, Demon Lawyer, Stray Cat), 2 shrines (Sleeper, Joker), 6 flavour scenes.
+- 20 new dungeon-content beats across the existing pools, 5 monsters (Pixie Trickster, Cinder Grub, Bog Witch, Tax Collector, Pyrohound), 4 traps (Glue Trap, Cursed Mirror, Riddle Door, Echoing Bellow), 3 NPCs (Ghostly Librarian, Demon Lawyer, Stray Cat), 2 shrines (Sleeper, Joker), 6 flavour scenes.
 - 30 new loot items across rarities (7 common / 7 uncommon / 6 rare / 5 epic / 5 legendary), including flavour pieces (Embarrassing Note, Genuine Plot Device, Helm of the Final Boss). New carriers for existing abilities (phoenix, lifesteal, scholar, lucky, boss-slayer).
 
 ---
 
 ## [1.7.0] - 2026-05-19
 
-Phase BR-core — branching dungeons (vote + cooldown skip).
+Phase BR-core, branching dungeons (vote + cooldown skip).
 
 ### Added
 
@@ -126,13 +126,13 @@ Tech-debt cleanup on the panel-bridge surface.
 
 ### Docs
 
-- Backfilled the bodyless CHANGELOG entries for 1.1.0 – 1.4.0 from the actual git history between release commits.
+- Backfilled the bodyless CHANGELOG entries for 1.1.0-1.4.0 from the actual git history between release commits.
 
 ---
 
 ## [1.4.0] - 2026-05-19
 
-B3 Panel Bridge sub-phase 2 — Commands UP.
+B3 Panel Bridge sub-phase 2, Commands UP.
 
 ### Added
 
@@ -144,7 +144,7 @@ B3 Panel Bridge sub-phase 2 — Commands UP.
 
 ## [1.3.0] - 2026-05-19
 
-B3 Panel Bridge sub-phase 1 — State DOWN.
+B3 Panel Bridge sub-phase 1, State DOWN.
 
 ### Added
 
@@ -160,26 +160,26 @@ B3 Panel Bridge sub-phase 1 — State DOWN.
 ### Added
 
 - Twitch panel extension `/ext/*` route family on the Discord Worker: `/ext/hero`, `/ext/wallet`, `/ext/daily`, `/ext/checkin`, `/ext/leaderboard` (dual: bolts + check-ins), `/ext/recap`, `/ext/vods`, `/ext/goals`, `/ext/patron-corner`, `/ext/cheer`, plus the `/ext/loadout/*` Bag / Shop / Play surface.
-- Rotation (Songs) integration — Spotify-backed search, `!songrequest` plumbing, viewer-state-aware request flow, relay queue scoped via `?for=` so check-in and rotation pollers don't race.
+- Rotation (Songs) integration, Spotify-backed search, `!songrequest` plumbing, viewer-state-aware request flow, relay queue scoped via `?for=` so check-in and rotation pollers don't race.
 - Aquilo Check-in Relay action for Streamer.bot (bundled and standalone `.sb`).
-- Streamer.bot Aquilo Relay action — unified, kind-agnostic relay for every Tier 2 overlay event.
-- Tier 1 engagement read routes — VODs, goals, patron corner.
-- Tier 2 feature A — tap-to-cheer (Worker route + transparent OBS engagement overlay).
+- Streamer.bot Aquilo Relay action, unified, kind-agnostic relay for every Tier 2 overlay event.
+- Tier 1 engagement read routes, VODs, goals, patron corner.
+- Tier 2 feature A, tap-to-cheer (Worker route + transparent OBS engagement overlay).
 - Rolling 24-hour per-viewer window for stream-recap stats.
 
 ### Changed
 
-- Single Patron tier replaces the prior tiered model — every feature is included for any Patron.
+- Single Patron tier replaces the prior tiered model, every feature is included for any Patron.
 - Discord bot consolidates duplicated CORS / JSON / debounce helpers into `ext-shared.js`, imported by all four `/ext` modules.
 
 ### Removed
 
-- `/link` slash command — Patreon linking now flows through the Loadout settings UI.
+- `/link` slash command, Patreon linking now flows through the Loadout settings UI.
 - Unused `#panel` node and other unshipped scaffolding from the engagement overlay.
 
 ### Fixed
 
-- `rotation.js` KV writes — clamp `expirationTtl` to the 60 s Cloudflare minimum.
+- `rotation.js` KV writes, clamp `expirationTtl` to the 60 s Cloudflare minimum.
 - `/ext/loadout/shop` returned a spurious "debit failed" when the buy was actually successful.
 
 ---
@@ -188,7 +188,7 @@ B3 Panel Bridge sub-phase 1 — State DOWN.
 
 ### Removed
 
-- Feature paywalls — every module is now available to every Loadout user regardless of supporter tier. Patron multipliers on Bolts and shoutout polish stay as paid extras; everything else is free.
+- Feature paywalls, every module is now available to every Loadout user regardless of supporter tier. Patron multipliers on Bolts and shoutout polish stay as paid extras; everything else is free.
 
 ### Changed
 
@@ -210,7 +210,7 @@ First public release on `loadout-downloads`. Same kit as the prior 0.1.0 interna
 
 ---
 
-## [0.1.0] — Initial public release
+## [0.1.0], Initial public release
 
 First release. The whole kit ships in one import string.
 
@@ -218,7 +218,7 @@ First release. The whole kit ships in one import string.
 
 **Suite foundation**
 - One-string Streamer.bot import bundle (`loadout-import.sb.txt`) with 9 trampoline actions; no References-tab editing required
-- `Loadout.dll` (.NET Framework 4.8 WPF) — single-file install, downloaded automatically by the bootstrap action on first launch
+- `Loadout.dll` (.NET Framework 4.8 WPF), single-file install, downloaded automatically by the bootstrap action on first launch
 - 8-step onboarding wizard (Welcome → Platforms → Modules → Discord → AI → Webhook → Patreon → Done) with Recommended / Enable-all / Disable-all preset buttons
 - Tabbed Settings UI matching the StreamFusion / aquilo.gg brand palette (`#0E0E10` / `#3A86FF` / Segoe UI / 8 px radius)
 - Branded multi-resolution tray icon with health-status row (Bus state · Patreon tier · enabled module count · quiet mode)
@@ -226,61 +226,61 @@ First release. The whole kit ships in one import string.
 - Auto-update checker on a 6-hour cadence, channel-aware (stable / beta)
 
 **Aquilo Bus**
-- Localhost WebSocket pub/sub at `ws://127.0.0.1:7470/aquilo/bus/` — versioned protocol, kind-glob filters, bidirectional, secret-authenticated
-- Per-machine shared secret at `%APPDATA%\Aquilo\bus-secret.txt` — auto-generated on first run, read by both Loadout and StreamFusion
+- Localhost WebSocket pub/sub at `ws://127.0.0.1:7470/aquilo/bus/`, versioned protocol, kind-glob filters, bidirectional, secret-authenticated
+- Per-machine shared secret at `%APPDATA%\Aquilo\bus-secret.txt`, auto-generated on first run, read by both Loadout and StreamFusion
 - StreamFusion drop-in client (`integrations/streamfusion/aquilo-bus.js`) with main-process WebSocket + preload IPC bridge
 
 **24 modules (all OFF by default; enabled via onboarding or Settings)**
 - Info commands: `!uptime` · `!followage` · `!accountage` · `!title` · `!game` · `!so` · `!lurk` · `!unlurk` · `!socials` · `!discord` · `!quote add/get/random` · custom commands
-- Context-aware welcomes (first-time / returning / sub / VIP / mod tiers — last three gated to Tier 2)
+- Context-aware welcomes (first-time / returning / sub / VIP / mod tiers, last three gated to Tier 2)
 - Multi-platform alerts (follow / sub / cheer / raid / super chat / membership / TikTok gift) with per-kind 3 s coalescing
 - Auto-timed messages with chat-activity gating, broadcaster-pause cooldown, and randomized order
-- AI-personalized shoutouts on raids — Anthropic Claude or OpenAI, BYOK or Tier 3 bundled
-- Discord live-status auto-poster — go-live embed, edit on title/category change, archive on offline
-- Webhook inbox — HTTP listener (configurable port) with X-Loadout-Secret auth, Aquilo Bus broadcast, and SB action invocation per path mapping
-- Stream recap to Discord on `streamOffline` — top chatters, follows, subs, raids, hype moments
-- Hate-raid detector — pattern-based, no chat noise (Tier 3)
-- Sub raid trains — burst detection at 3/6/10/20 subs in 60 s
-- TikTok hype train — synthetic for TikFinity gifts (Tier 3)
+- AI-personalized shoutouts on raids, Anthropic Claude or OpenAI, BYOK or Tier 3 bundled
+- Discord live-status auto-poster, go-live embed, edit on title/category change, archive on offline
+- Webhook inbox, HTTP listener (configurable port) with X-Loadout-Secret auth, Aquilo Bus broadcast, and SB action invocation per path mapping
+- Stream recap to Discord on `streamOffline`, top chatters, follows, subs, raids, hype moments
+- Hate-raid detector, pattern-based, no chat noise (Tier 3)
+- Sub raid trains, burst detection at 3/6/10/20 subs in 60 s
+- TikTok hype train, synthetic for TikFinity gifts (Tier 3)
 - First-words celebration on Twitch + YouTube native events
 - Ad-break heads-up on `TwitchUpcomingAd`
 - Auto-poll on category change with chat reaction prompt
-- VIP rotation auto-magic — weekly engagement-based, mod-overridable via `!viprotate` (Tier 3)
+- VIP rotation auto-magic, weekly engagement-based, mod-overridable via `!viprotate` (Tier 3)
 - Crowd Control coin tracker with `!cccoins` / `!cccoinsall` / `!mycoins` and engagement integration
 - Sub anniversary milestone detector (3 / 6 / 12 / 18 / 24 / 36 / 48+ months)
-- Counters — `!deaths`, `!wins`, custom counters with chat increment / decrement / reset and live overlay
-- Daily Check-In — Twitch channel-point reward OR `!checkin` command on any platform; rotating stat overlay with avatar, sub flair, Patreon flair
-- Goals — follower / sub / bit / coin trackers with live overlay updates
-- Bolts ⚡ — unified cross-platform points wallet with sub & Patreon multipliers, daily streak bonus, anti-AFK chat cap; `!bolts`, `!leaderboard`, `!gift`, `!boltrain`
-- Apex 👑 — top-viewer mode with cross-platform damage; TikTok gifts chip away at HP just like Twitch subs; finisher takes the crown; `!apex`, `!apex top`, `!apex set`, `!apex kill`
-- Identity linker — `!link <platform> <user>` viewer self-claim, `!linkapprove` mod approval; canonical key shared across Bolts, Apex, and Engagement modules
-- Engagement tracker — persistent per-viewer activity store (msg count, sub events, gifts, raids, bits, CC coins) backing the VIP rotation and CC leaderboard
+- Counters, `!deaths`, `!wins`, custom counters with chat increment / decrement / reset and live overlay
+- Daily Check-In, Twitch channel-point reward OR `!checkin` command on any platform; rotating stat overlay with avatar, sub flair, Patreon flair
+- Goals, follower / sub / bit / coin trackers with live overlay updates
+- Bolts ⚡, unified cross-platform points wallet with sub & Patreon multipliers, daily streak bonus, anti-AFK chat cap; `!bolts`, `!leaderboard`, `!gift`, `!boltrain`
+- Apex 👑, top-viewer mode with cross-platform damage; TikTok gifts chip away at HP just like Twitch subs; finisher takes the crown; `!apex`, `!apex top`, `!apex set`, `!apex kill`
+- Identity linker, `!link <platform> <user>` viewer self-claim, `!linkapprove` mod approval; canonical key shared across Bolts, Apex, and Engagement modules
+- Engagement tracker, persistent per-viewer activity store (msg count, sub events, gifts, raids, bits, CC coins) backing the VIP rotation and CC leaderboard
 
 **Chat noise reduction**
-- `ChatGate` central rate limiter — per-key cooldowns + per-area enable flags + global 30 / minute cap + Quiet Mode master mute (`!loadout quiet`)
+- `ChatGate` central rate limiter, per-key cooldowns + per-area enable flags + global 30 / minute cap + Quiet Mode master mute (`!loadout quiet`)
 - All 24 modules route their chat output through ChatGate; under any combination of settings the suite cannot exceed 30 chat messages per minute total
-- Counter chat acks support every-Nth and silent modes — overlays still update instantly via the bus
+- Counter chat acks support every-Nth and silent modes, overlays still update instantly via the bus
 
 **OBS overlays at aquilo.gg/overlays/**
-- `/check-in` — avatar, sub / VIP / mod / Patreon flairs, rotating stream stats, four animation themes
-- `/counters` — configurable counter cards with three layouts and three themes
-- `/goals` — kind-themed progress bars (sub purple→blue, bit gold, follower pink→blue, coin cyan)
-- `/bolts` — unified Bolts overlay (leaderboard ticker + earn toasts + bolt rain + streak banner + gift bursts) in one OBS source
-- `/apex` — Apex card with avatar, animated tier-shifting HP bar, reign timer, rolling damage feed, dethrone splash
-- `/link` — Patreon supporter self-claim flow
+- `/check-in`, avatar, sub / VIP / mod / Patreon flairs, rotating stream stats, four animation themes
+- `/counters`, configurable counter cards with three layouts and three themes
+- `/goals`, kind-themed progress bars (sub purple→blue, bit gold, follower pink→blue, coin cyan)
+- `/bolts`, unified Bolts overlay (leaderboard ticker + earn toasts + bolt rain + streak banner + gift bursts) in one OBS source
+- `/apex`, Apex card with avatar, animated tier-shifting HP bar, reign timer, rolling damage feed, dethrone splash
+- `/link`, Patreon supporter self-claim flow
 
 **Cloudflare Worker**
-- `aquilo-gg/worker/loadout-link-worker.js` — drop-in additive routes for the existing StreamFusion patreon-proxy; KV-backed handle mappings; `/api/link/exchange`, `/api/link/handles` (POST + DELETE), `/api/link/lookup` (anonymous tier check)
+- `aquilo-gg/worker/loadout-link-worker.js`, drop-in additive routes for the existing StreamFusion patreon-proxy; KV-backed handle mappings; `/api/link/exchange`, `/api/link/handles` (POST + DELETE), `/api/link/lookup` (anonymous tier check)
 
 **Tooling**
-- `tools/build-dll.ps1` — DLL build wrapper around `dotnet build`
-- `tools/build-sb-import.ps1` — generates the SBAE-format import bundle (4-byte SBAE header + gzip + base64)
-- `tools/build-icon.ps1` — multi-resolution `Loadout.ico` generator
-- `tools/decode-sb-export.ps1` — debug helper for round-tripping bundles
-- `tools/dump-sb-enums.ps1` — extracts `Streamer.bot.Common.Events.EventType` from the SB DLLs (used to verify all 30+ trigger numbers we ship)
-- `tools/install-dev.ps1` — local dev install: builds + copies DLL to `<Streamerbot>/data/Loadout/`
-- `tools/release.ps1` — version bump + build + package + tag + push
+- `tools/build-dll.ps1`, DLL build wrapper around `dotnet build`
+- `tools/build-sb-import.ps1`, generates the SBAE-format import bundle (4-byte SBAE header + gzip + base64)
+- `tools/build-icon.ps1`, multi-resolution `Loadout.ico` generator
+- `tools/decode-sb-export.ps1`, debug helper for round-tripping bundles
+- `tools/dump-sb-enums.ps1`, extracts `Streamer.bot.Common.Events.EventType` from the SB DLLs (used to verify all 30+ trigger numbers we ship)
+- `tools/install-dev.ps1`, local dev install: builds + copies DLL to `<Streamerbot>/data/Loadout/`
+- `tools/release.ps1`, version bump + build + package + tag + push
 
 **Errors & ops**
-- `loadout-errors.log` — append-only error log in the data folder, auto-rotates at 1 MB; every module-level exception in `SbEventDispatcher` writes a timestamped line
+- `loadout-errors.log`, append-only error log in the data folder, auto-rotates at 1 MB; every module-level exception in `SbEventDispatcher` writes a timestamped line
 - `!loadout help` · `!loadout reload` · `!loadout settings` · `!loadout quiet` chat commands

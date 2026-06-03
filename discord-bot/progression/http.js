@@ -1,4 +1,4 @@
-// Progression — HTTP surface.
+// Progression, HTTP surface.
 //
 // PROGRESSION-SYSTEM-DESIGN.md §10.2. All progression routes route
 // through this module; worker.js dispatches `/p/*`, `/web/profile/*`,
@@ -34,7 +34,7 @@ function json(obj, status = 200, extra = {}) {
   });
 }
 
-// HTML profile page — server-rendered. The aquilo-site team will
+// HTML profile page, server-rendered. The aquilo-site team will
 // likely replace this with a richer client; this is the no-dependency
 // shippable v1 so the URL is live the moment the worker deploys.
 function html(body, status = 200) {
@@ -56,7 +56,7 @@ function renderProfileHtml(full) {
   const p = full.profile;
   const x = full.xp;
   const lvBar = Math.round((x.pct || 0) * 100);
-  // Badge ribbon — render the 3 showcase badges as 48×48 sprites at
+  // Badge ribbon, render the 3 showcase badges as 48×48 sprites at
   // the top of the page. If the user has no showcase set, pull up to
   // 3 most-recent earned badges.
   const showcaseIds = (p.badgesShowcase && p.badgesShowcase.length)
@@ -66,7 +66,7 @@ function renderProfileHtml(full) {
     showcaseIds.map(id => {
       const b = (full.badges?.items || []).find(x => x.id === id);
       if (!b) return '';
-      return `<img class="badge r-${escapeHtml(b.rarity)}" src="${SPRITE_BASE_URL}/${escapeHtml(b.spritePath)}" alt="${escapeHtml(b.name)}" title="${escapeHtml(b.name)} — ${escapeHtml(b.description)}" />`;
+      return `<img class="badge r-${escapeHtml(b.rarity)}" src="${SPRITE_BASE_URL}/${escapeHtml(b.spritePath)}" alt="${escapeHtml(b.name)}" title="${escapeHtml(b.name)}, ${escapeHtml(b.description)}" />`;
     }).join('')
   }</div>` : '';
   const cards = (full.stats || []).filter(s => !s.error && s.primary).map(s => `
@@ -75,7 +75,7 @@ function renderProfileHtml(full) {
       <div class="card-primary"><span class="lbl">${escapeHtml(s.primary.label)}</span> <span class="val">${escapeHtml(String(s.primary.value))}</span></div>
       ${s.secondary ? `<div class="card-sec">${s.secondary.map(r => `<span>${escapeHtml(r.label)}: <b>${escapeHtml(String(r.value))}</b></span>`).join(' · ')}</div>` : ''}
     </div>`).join('\n');
-  // Achievement strip — 12 most-recent unlocks + count summary.
+  // Achievement strip, 12 most-recent unlocks + count summary.
   const achStripItems = (full.achievements?.items || [])
     .filter(a => a.unlocked)
     .slice(0, 12)
@@ -84,7 +84,7 @@ function renderProfileHtml(full) {
   const achHeader = full.achievements
     ? `${full.achievements.earned} / ${full.achievements.total} unlocked`
     : '';
-  // Season pass strip — current tier / next tier / time-left.
+  // Season pass strip, current tier / next tier / time-left.
   const sActive = full.season?.active;
   const sUser = full.season?.user;
   const seasonSection = sActive ? (() => {
@@ -92,7 +92,7 @@ function renderProfileHtml(full) {
     const daysLeft = Math.max(0, Math.ceil((sActive.endUtc - Date.now()) / 86400_000));
     const premiumBlurb = sUser.premiumUnlocked
       ? `<span class="ach r-epic">Premium unlocked (Patreon)</span>`
-      : `<span class="muted">Premium track locked — link Patreon to unlock.</span>`;
+      : `<span class="muted">Premium track locked, link Patreon to unlock.</span>`;
     return `<div class="seasonwrap">
       <h3>Season: ${escapeHtml(sActive.theme)} <span class="muted">${daysLeft}d left</span></h3>
       <div class="seasonbar"><div style="width:${tierPct}%"></div></div>
@@ -102,10 +102,10 @@ function renderProfileHtml(full) {
   const achSection = full.achievements ? `
     <div class="achwrap">
       <h3>Achievements <span class="muted">${achHeader}</span></h3>
-      ${achStripItems ? `<div class="achstrip">${achStripItems}</div>` : '<div class="muted">No unlocks yet — go play.</div>'}
+      ${achStripItems ? `<div class="achstrip">${achStripItems}</div>` : '<div class="muted">No unlocks yet, go play.</div>'}
     </div>` : '';
   const linked = Object.entries(p.linkedAccounts || {}).map(([plat, acc]) => `
-    <span class="link plat-${escapeHtml(plat)}">${escapeHtml(plat)}: ${escapeHtml(acc.handle || acc.id || '—')}</span>`).join(' ');
+    <span class="link plat-${escapeHtml(plat)}">${escapeHtml(plat)}: ${escapeHtml(acc.handle || acc.id || '-')}</span>`).join(' ');
   const recent = (full.recentActivity || []).map(r =>
     `<li><b>${escapeHtml(r.kind)}</b> · <span class="muted">${new Date(r.utc).toISOString().slice(0,19).replace('T',' ')} UTC</span></li>`
   ).join('');
@@ -173,7 +173,7 @@ function renderProfileHtml(full) {
   ${achSection}
   ${full.badges && !full.gated ? `<div class="trophyCabinet">
     <h3>Trophy Cabinet <span class="muted">${full.badges.earned}/${full.badges.total}</span></h3>
-    <div class="grid">${full.badges.items.slice(0, 36).map(b => `<img class="badge r-${escapeHtml(b.rarity)} ${b.owned ? '' : 'locked'}" src="${SPRITE_BASE_URL}/${escapeHtml(b.spritePath)}" alt="${escapeHtml(b.name)}" title="${escapeHtml(b.name)} — ${escapeHtml(b.description)}" />`).join('')}</div>
+    <div class="grid">${full.badges.items.slice(0, 36).map(b => `<img class="badge r-${escapeHtml(b.rarity)} ${b.owned ? '' : 'locked'}" src="${SPRITE_BASE_URL}/${escapeHtml(b.spritePath)}" alt="${escapeHtml(b.name)}" title="${escapeHtml(b.name)}, ${escapeHtml(b.description)}" />`).join('')}</div>
   </div>` : ''}
   ${recent && !full.gated ? `<div class="recent"><h3>Recent activity</h3><ul>${recent}</ul></div>` : ''}
 </body></html>`;
@@ -207,7 +207,7 @@ export async function handleWebProfile(req, env, path) {
   if (!userId) return json({ error: 'userId required' }, 400);
   const url = new URL(req.url);
   const viewerUserId = url.searchParams.get('viewer') || null;
-  // Read endpoints — public, no auth.
+  // Read endpoints, public, no auth.
   if (req.method === 'GET' && parts.length === 3) {
     const full = await readFullProfile(env, userId, { viewerUserId });
     return json(full);
@@ -241,7 +241,7 @@ export async function handleWebDashboard(req, env, _path) {
   return json(data);
 }
 
-// PUBLIC season reads (no auth) — mirrors the /p/<userId> profile pattern.
+// PUBLIC season reads (no auth), mirrors the /p/<userId> profile pattern.
 // Wired in worker.js under `/p/season/...`, claimed before the generic
 // /web/* HMAC dispatcher.
 //
@@ -251,7 +251,7 @@ export async function handleWebDashboard(req, env, _path) {
 // The CLAIM POST (which mutates wallet/badge/fragment ledgers) used to
 // live alongside these reads at /web/season/<userId>/claim, but that
 // prefix was claimed before the generic HMAC dispatcher so the POST
-// was reachable WITHOUT a signature — anyone who knew a userId could
+// was reachable WITHOUT a signature, anyone who knew a userId could
 // fire claims on someone else's account. Auth-gap fix (2026-05): the
 // public read moves here, the claim moves under the HMAC path
 // (routeSeasonClaim in web.js → /web/season/claim, body-bound discordId).
@@ -353,7 +353,7 @@ export async function handleWebBadges(req, env, path) {
 export async function handleWebAchievements(req, env, path) {
   const parts = path.split('/').filter(Boolean);   // ['web','achievements',...]
   if (parts[2] === 'catalog') {
-    // Public catalog — strip secret achievements (visible only when earned).
+    // Public catalog, strip secret achievements (visible only when earned).
     const out = ACHIEVEMENTS_CATALOG.map(a => ({
       id: a.id, category: a.category, title: a.secret ? 'Hidden Achievement' : a.title,
       description: a.secret ? 'Find me by playing.' : a.description,

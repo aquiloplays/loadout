@@ -11,7 +11,7 @@
 // once-per-day fire is gated by a KV marker (`daily-bonus-push:YYYYMMDD`),
 // so as long as ONE :23 tick lands during the eligibility window each
 // day, the push goes out exactly once. The eligibility window is "any
-// :23 tick at UTC hour 13 or later, up to 23" — this gives us many
+// :23 tick at UTC hour 13 or later, up to 23", this gives us many
 // chances to fire even if the cron skips a tick, while still being
 // late enough that all the daily resets we summarise have actually
 // happened (boltbound resets at 00:00 UTC, loadout daily resets at
@@ -20,13 +20,13 @@
 // The push reaches subscribers via aquilo-site /api/push/external,
 // gated by AQUILO_SITE_WEB_SECRET (the same shared HMAC secret
 // clash-push.js uses). Subscribers can opt out of the "dailyBonus"
-// tag in NotificationPrefs — fan-out drops opt-outs server-side.
+// tag in NotificationPrefs, fan-out drops opt-outs server-side.
 
 const PUSH_URL_FALLBACK = 'https://aquilo.gg/api/push/external';
 const KV_MARKER_PREFIX = 'daily-bonus-push:';
 // Earliest UTC hour at which the daily push is eligible to fire.
 // Boltbound daily pack resets at 00:00 UTC, loadout daily resets at
-// midnight ET (04-05 UTC). 13:00 UTC ≈ 8 AM EST / 5 AM PST — early
+// midnight ET (04-05 UTC). 13:00 UTC ≈ 8 AM EST / 5 AM PST, early
 // enough to catch a US morning routine, late enough that everyone's
 // resets are in the past.
 const FIRE_HOUR_UTC = 13;
@@ -80,7 +80,7 @@ export async function dailyBonusCronTick(env) {
     const existing = await kv.get(marker);
     if (existing) return { fired: false, reason: 'already-fired' };
   } catch {
-    /* keep going — failing closed means we never push */
+    /* keep going, failing closed means we never push */
   }
 
   const secret = env.AQUILO_SITE_WEB_SECRET || env.CLASH_PUSH_SECRET;
@@ -90,7 +90,7 @@ export async function dailyBonusCronTick(env) {
   const payload = {
     kind: 'daily.bonus.ready',
     title: 'Daily bonuses are ready',
-    body: 'Free Boltbound pack, Loadout daily, check-in, and missions all reset — claim them before they reset again.',
+    body: 'Free Boltbound pack, Loadout daily, check-in, and missions all reset, claim them before they reset again.',
     url: 'https://aquilo.gg/play/',
     audience: { kind: 'all' },
     tag: 'dailyBonus',
@@ -102,7 +102,7 @@ export async function dailyBonusCronTick(env) {
     if (!res.ok) {
       const txt = await res.text().catch(() => '');
       console.warn('[daily-bonus-push] non-2xx:', res.status, txt.slice(0, 200));
-      // Do NOT write the marker on failure — let the next :23 tick retry.
+      // Do NOT write the marker on failure, let the next :23 tick retry.
       return { fired: false, reason: 'http-' + res.status };
     }
     // Mark fired AFTER the push succeeded so a transient failure

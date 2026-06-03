@@ -1,12 +1,12 @@
 /*
- * Loadout — Apex overlay client.
+ * Loadout, Apex overlay client.
  *
  * Reflects the current Apex viewer's state. Subscribes to apex.* on the
  * Aquilo Bus:
  *   apex.state      full state snapshot (sent every minute + on connect)
- *   apex.crowned    a new champion took the spot — refresh card
- *   apex.damaged    HP changed — animate bar + push damage line into feed
- *   apex.dethroned  reign ended — splash, then refresh
+ *   apex.crowned    a new champion took the spot, refresh card
+ *   apex.damaged    HP changed, animate bar + push damage line into feed
+ *   apex.dethroned  reign ended, splash, then refresh
  */
 (() => {
   const $ = (id) => document.getElementById(id);

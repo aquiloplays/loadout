@@ -1,4 +1,4 @@
-// Twitch-panel Loadout routes — /ext/loadout/*.
+// Twitch-panel Loadout routes, /ext/loadout/*.
 //
 // Presentation layer over the Discord bot's economy/game logic. Each
 // route resolves the viewer through ext.js's `tw:` identity bridge and
@@ -15,7 +15,7 @@ import { recordStat } from './recap.js';
 
 import { json, debounced } from './ext-shared.js';
 
-// Twitch app token (client-credentials, cached) — used to resolve a
+// Twitch app token (client-credentials, cached), used to resolve a
 // gift recipient's login name to a numeric id, and reused by the
 // Tier 1 /ext/vods route.
 export async function getTwitchAppToken(env) {
@@ -44,8 +44,7 @@ export async function getTwitchAppToken(env) {
 
 // Resolve a numeric Twitch user_id to its canonical login (chat username).
 // Cached per id for 24 h. Used by the panel-bridge so a command queued by
-// an identity-shared viewer credits the same wallet their chat plays do —
-// `tw:<login>` is the canonical key, and the panel JWT only carries the
+// an identity-shared viewer credits the same wallet their chat plays do, // `tw:<login>` is the canonical key, and the panel JWT only carries the
 // numeric id. Returns null for opaque-only viewers or on any failure
 // (caller falls back to the panel-body name).
 export async function resolveTwitchLoginById(env, userId) {

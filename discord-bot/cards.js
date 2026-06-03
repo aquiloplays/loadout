@@ -1,8 +1,8 @@
-// Boltbound — Discord slash command + component dispatch.
+// Boltbound, Discord slash command + component dispatch.
 //
 // One top-level command, `/boltbound`. See CARD-GAME-DESIGN.md §5.
 //
-// Each turn of a match is one slash invocation — this avoids Discord
+// Each turn of a match is one slash invocation, this avoids Discord
 // component-state plumbing and keeps the surface honest for the async
 // 24h-per-turn pace. Phase 2 (web + Twitch) gets the click-to-target
 // pretty UI on top of the same backend.
@@ -78,7 +78,7 @@ export async function handleBoltboundCommand(env, data, userId, userName) {
     const col = await getCollection(env, guildId, userId);
     const starter = buildStarterDeck(col, championClass, { name: 'Starter' });
     // Save returns ok:false until the welcome pack is opened (the
-    // collection is empty). That's fine — caller will see the
+    // collection is empty). That's fine, caller will see the
     // status message guide them to open the pack first.
     await saveDeck(env, guildId, userId, starter, championClass);
     // If save failed (empty collection), don't activate; surface the
@@ -192,7 +192,7 @@ async function renderStatus(env, guildId, userId, userName) {
   const activeMatch = await getActiveMatch(env, guildId, userId);
   const frags = await getFragments(env, userId);
   const lines = [
-    `**${userName} — Boltbound profile**`,
+    `**${userName}, Boltbound profile**`,
     `🏆 Trophies: **${trophies.trophies}** · Tier: ${trophies.tier} · Peak: ${trophies.peak}`,
     `🃏 Collection: **${cardCount}** cards · Decks: ${decks.length}/6 ${active ? `(active: ${active.name})` : '(none active)'}`,
     `📦 Pending packs: **${packs.length}** ${packs.length ? `(\`/boltbound packs\` to view)` : ''}`,
@@ -202,10 +202,10 @@ async function renderStatus(env, guildId, userId, userName) {
   ];
   if (activeMatch && activeMatch.status === 'active') {
     lines.push(``);
-    lines.push(`▶ **Match in progress** — \`/boltbound match\` to view, \`/boltbound move\` to play.`);
+    lines.push(`▶ **Match in progress**, \`/boltbound match\` to view, \`/boltbound move\` to play.`);
   } else if (activeMatch && activeMatch.status === 'mulligan') {
     lines.push(``);
-    lines.push(`▶ **Mulligan pending** — \`/boltbound mulligan keep:1,2,3\` to choose what to keep.`);
+    lines.push(`▶ **Mulligan pending**, \`/boltbound mulligan keep:1,2,3\` to choose what to keep.`);
   } else {
     lines.push(``);
     lines.push(`Play: \`/boltbound play npc\` (instant) or \`/boltbound play queue\` (PvP wait queue).`);
@@ -229,7 +229,7 @@ async function renderPacks(env, guildId, userId) {
   for (const p of packs) {
     const def = PACKS[p.packType] || { name: p.packType };
     const age = ageStr(p.mintedUtc);
-    lines.push(`• \`${p.id.slice(0, 8)}\` — ${def.name} _(from ${p.source}, ${age} ago)_`);
+    lines.push(`• \`${p.id.slice(0, 8)}\`, ${def.name} _(from ${p.source}, ${age} ago)_`);
   }
   lines.push('');
   lines.push('Open one: `/boltbound open id:<id>` (first 8 chars are enough).');
@@ -252,9 +252,9 @@ async function openPackById(env, guildId, userId, packId) {
   for (const res of r.results) {
     const card = CARDS[res.cardId];
     if (res.credited) {
-      lines.push(`• ${rarityGlyph(card?.rarity)} **${card?.name || res.cardId}** _(${card?.rarity})_ — added (you now own ${res.count})`);
+      lines.push(`• ${rarityGlyph(card?.rarity)} **${card?.name || res.cardId}** _(${card?.rarity})_, added (you now own ${res.count})`);
     } else {
-      lines.push(`• ${rarityGlyph(card?.rarity)} ${card?.name || res.cardId} _(${card?.rarity})_ — duplicate, **+${res.dupeBolts} Bolts**`);
+      lines.push(`• ${rarityGlyph(card?.rarity)} ${card?.name || res.cardId} _(${card?.rarity})_, duplicate, **+${res.dupeBolts} Bolts**`);
     }
   }
   if (r.totalDupeBolts > 0) {
@@ -269,7 +269,7 @@ async function buyPackHandler(env, guildId, userId, packId) {
   const r = await buyPack(env, guildId, userId, packId);
   if (!r.ok) {
     if (r.error === 'insufficient-bolts') return `❌ Not enough Bolts. Need ${r.need}, have ${r.have}.`;
-    if (r.error === 'not-purchasable') return `❌ That pack isn't for sale — drop-only.`;
+    if (r.error === 'not-purchasable') return `❌ That pack isn't for sale, drop-only.`;
     return `❌ ${r.error}`;
   }
   return `✅ Bought **${PACKS[r.pack.packType]?.name}**. Open it: \`/boltbound open id:${r.pack.id.slice(0, 8)}\``;
@@ -308,7 +308,7 @@ async function renderCollection(env, guildId, userId, rarityFilter) {
     }
     lines.push(`• ${card.name} (${card.mana} mana) ×${n}`);
   }
-  // Truncate hard if oversized — Discord max message ~2000 chars.
+  // Truncate hard if oversized, Discord max message ~2000 chars.
   let out = lines.join('\n');
   if (out.length > 1900) out = out.slice(0, 1900) + '\n…(truncated)';
   return out;
@@ -324,7 +324,7 @@ async function renderDeckList(env, guildId, userId) {
   const lines = ['**📚 Your decks:**', ''];
   for (const d of decks) {
     const marker = d.active ? ' ✅' : '';
-    lines.push(`• \`${d.id}\` — **${d.name}**${marker}  _(${d.championClass}, ${d.cardsCount} cards)_`);
+    lines.push(`• \`${d.id}\`, **${d.name}**${marker}  _(${d.championClass}, ${d.cardsCount} cards)_`);
   }
   lines.push('');
   lines.push('Activate: `/boltbound deck active deck:<id>` · Rebuild starter: `/boltbound deck rebuild`');
@@ -388,7 +388,7 @@ async function startNpcMatchHandler(env, guildId, userId, archetype) {
     return { privateMessage: `❌ ${r.error}` };
   }
   return { privateMessage: [
-    `🃏 **Boltbound — vs ${r.match.npc.archetype} bot.**`,
+    `🃏 **Boltbound, vs ${r.match.npc.archetype} bot.**`,
     `Mulligan: \`/boltbound mulligan keep:0,1,2,3\` (or just \`/boltbound mulligan\` to keep all).`,
   ].join('\n') };
 }
@@ -435,7 +435,7 @@ async function renderChallenges(env, guildId, userId) {
   const inbox = await listChallenges(env, guildId, userId);
   if (!inbox.length) return '📭 No pending challenges.';
   const lines = ['**📜 Pending challenges to you:**', ''];
-  for (const c of inbox) lines.push(`• from <@${c.sender}> _(${ageStr(c.ts)} ago)_ — \`/boltbound play accept user:<@${c.sender}>\``);
+  for (const c of inbox) lines.push(`• from <@${c.sender}> _(${ageStr(c.ts)} ago)_, \`/boltbound play accept user:<@${c.sender}>\``);
   return lines.join('\n');
 }
 
@@ -447,7 +447,7 @@ async function renderMatch(env, guildId, userId) {
 
   if (match.status === 'mulligan') {
     return [
-      `**Mulligan — ${state.you.hand.length} cards**`,
+      `**Mulligan, ${state.you.hand.length} cards**`,
       '',
       ...state.you.hand.map((id, i) => `  \`${i}\` ${rarityGlyph(CARDS[id]?.rarity)} ${CARDS[id]?.name} (${CARDS[id]?.mana})`),
       '',
@@ -456,14 +456,14 @@ async function renderMatch(env, guildId, userId) {
   }
   if (match.status !== 'active') {
     return [
-      `**Match ended — ${match.status}**`,
+      `**Match ended, ${match.status}**`,
       `Your HP: ${state.you.hp} · Opp HP: ${state.them.hp}`,
       '',
       '`/boltbound log` for the recap.',
     ].join('\n');
   }
   return [
-    `**Boltbound — turn ${match.turn} (${state.yourTurn ? 'YOUR TURN' : 'opp turn'})**`,
+    `**Boltbound, turn ${match.turn} (${state.yourTurn ? 'YOUR TURN' : 'opp turn'})**`,
     '',
     `__You__   ❤️ ${state.you.hp}   ⚡ ${state.you.mana.cur}/${state.you.mana.max}   📥 hand ${state.you.handCount}   🃏 deck ${state.you.deckCount}`,
     `__Opp__   ❤️ ${state.them.hp}   ⚡ ${state.them.mana.cur}/${state.them.mana.max}   📥 hand ${state.them.handCount}   🃏 deck ${state.them.deckCount}` + (state.them.npc ? ` _(NPC: ${state.them.npc.archetype})_` : ''),
@@ -475,7 +475,7 @@ async function renderMatch(env, guildId, userId) {
     state.them.board.length ? state.them.board.map(m => `  \`${m.uid}\` ${CARDS[m.cardId]?.name} ${m.atk}/${m.hp}${(m.keywords || []).length ? ' [' + m.keywords.join(',') + ']' : ''}`).join('\n') : '  _(empty)_',
     '',
     '**Your hand:**',
-    state.you.hand.length ? state.you.hand.map((id, i) => `  \`${i}\` ${rarityGlyph(CARDS[id]?.rarity)} ${CARDS[id]?.name} (${CARDS[id]?.mana} mana) — ${CARDS[id]?.text || ''}`).join('\n') : '  _(empty)_',
+    state.you.hand.length ? state.you.hand.map((id, i) => `  \`${i}\` ${rarityGlyph(CARDS[id]?.rarity)} ${CARDS[id]?.name} (${CARDS[id]?.mana} mana), ${CARDS[id]?.text || ''}`).join('\n') : '  _(empty)_',
     '',
     state.yourTurn ? '`/boltbound move card:<idx> [target:<uid|oppHero|selfHero>]` · `/boltbound attack attacker:<uid> target:<uid|hero>` · `/boltbound end-turn`' : '_Waiting on opponent. Refresh with `/boltbound match`._',
   ].join('\n');
@@ -541,13 +541,13 @@ async function mulliganHandler(env, guildId, userId, keepCsv) {
   if (!side) return '❌ Internal: not a side.';
   if (match.status !== 'mulligan') return '❌ Not in mulligan phase.';
   // `keep` is a CSV of indices to KEEP. The engine takes the indices
-  // to REPLACE — so we compute the complement.
+  // to REPLACE, so we compute the complement.
   const keepIdxs = (keepCsv || '').split(',').map(s => s.trim()).filter(Boolean).map(n => parseInt(n, 10)).filter(Number.isInteger);
   const handLen = match.hands[side].length;
   const toReplace = [];
   for (let i = 0; i < handLen; i++) if (!keepIdxs.includes(i)) toReplace.push(i);
   // If keep was unspecified entirely, default to "keep all" (toReplace stays empty if keepCsv non-empty).
-  // If keepCsv is empty AND user explicitly wants to mulligan all, they'd say `keep:` (still empty) — we treat that as keep-all.
+  // If keepCsv is empty AND user explicitly wants to mulligan all, they'd say `keep:` (still empty), we treat that as keep-all.
   // To mulligan everything, the user passes `keep:` with no values OR a value that doesn't include any of 0..n-1, e.g. `keep:99`.
   await takeMulligan(env, match, side, toReplace);
   // Re-read in case NPC finished mulligan and turns ran.
@@ -560,7 +560,7 @@ function renderEndedShort(match, userId) {
   const draw = match.status === 'draw';
   const tag = won ? '🏆 **WIN**' : draw ? '🤝 **DRAW**' : '💀 **LOSS**';
   return [
-    `${tag} — Turn ${match.turn}`,
+    `${tag}, Turn ${match.turn}`,
     `You: ${state.you.hp} HP · Opp: ${state.them.hp} HP`,
     '',
     '`/boltbound log` for replay · `/boltbound play npc` for another round.',
@@ -593,7 +593,7 @@ async function renderFragments(env, userId) {
     '',
     '**Craft costs (frags → pack):**',
     `  • Common Pack: ${CRAFT_COST.common} frags`,
-    `  • Bolt Pack:   ${CRAFT_COST.bolt} frags  _(60% more than 250 Bolts — Bolts is the faster path)_`,
+    `  • Bolt Pack:   ${CRAFT_COST.bolt} frags  _(60% more than 250 Bolts, Bolts is the faster path)_`,
     `  • Voltaic Pack:${CRAFT_COST.voltaic} frags  _(otherwise drop-only)_`,
     '',
     'Recycle: `/boltbound recycle card:<id> count:<n>` · Craft: `/boltbound craft pack:bolt`',
@@ -652,10 +652,10 @@ async function renderLeaderboard(env, guildId) {
   const resolved = (await Promise.all(out)).filter(x => x.v);
   resolved.sort((a, b) => (b.v.trophies || 0) - (a.v.trophies || 0));
   if (!resolved.length) return '📭 No rankings yet.';
-  const lines = ['**🏆 Boltbound — Top Trophies**', ''];
+  const lines = ['**🏆 Boltbound, Top Trophies**', ''];
   for (let i = 0; i < Math.min(10, resolved.length); i++) {
     const { userId, v } = resolved[i];
-    lines.push(`${i + 1}. <@${userId}> — **${v.trophies}** trophies (${tierOf(v.trophies)})`);
+    lines.push(`${i + 1}. <@${userId}>, **${v.trophies}** trophies (${tierOf(v.trophies)})`);
   }
   return lines.join('\n');
 }

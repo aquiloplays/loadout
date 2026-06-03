@@ -1,10 +1,10 @@
-// Aquilo Pass — Boltbound-focused seasonal battle pass.
+// Aquilo Pass, Boltbound-focused seasonal battle pass.
 //
 // 2026-05-29. 50 tiers per season (one per Spire monthly theme).
 // XP accumulates from Boltbound + mini-game activity that emits a
-// progression event — Boltbound match wins, pack opens, Spire clears,
+// progression event, Boltbound match wins, pack opens, Spire clears,
 // pet evolutions, daily check-in. Free track always claimable. Premium track gated
-// on paid Patreon — caller can buy the premium pass mid-season for
+// on paid Patreon, caller can buy the premium pass mid-season for
 // retroactive premium-tier claim eligibility (future hook; MVP just
 // gates on userHasPaidPatreon).
 //
@@ -17,7 +17,7 @@
 //                                             claimedPremium: [tier...],
 //                                             updatedUtc }
 //
-// XP curve: 100 + (tier * 25) per tier — tier 1 = 100 XP, tier 50 =
+// XP curve: 100 + (tier * 25) per tier, tier 1 = 100 XP, tier 50 =
 // 1325 XP. Total across the season = (50 * (100 + 50*25/2)) ≈
 // 36 250 XP. Roughly 4-6 weeks of moderate activity for free, faster
 // for active players.
@@ -68,7 +68,7 @@ export const XP_BY_KIND = Object.freeze({
   'checkin.claimed':            5,
 });
 
-// Rewards per (tier, track). Hand-tuned MVP — first season uses a
+// Rewards per (tier, track). Hand-tuned MVP, first season uses a
 // generic catalog. Later seasons can override via the season def in
 // KV (aquilo-pass:season:<seasonId>.rewardsOverride).
 const TIER_REWARDS_DEFAULT = (() => {
@@ -120,7 +120,7 @@ async function writeUserPass(env, userId, seasonId, rec) {
 // ── Public API ──────────────────────────────────────────────────
 
 // Grant XP for one event. Idempotent on (kind, eventId) when eventId
-// is provided — caller passes a stable id to dedupe retries.
+// is provided, caller passes a stable id to dedupe retries.
 export async function grantPassXp(env, userId, kind, opts = {}) {
   if (!userId || !kind) return { ok: false, error: 'bad-args' };
   const xp = opts.overrideXp != null
@@ -175,7 +175,7 @@ export async function getPassState(env, userId) {
   };
 }
 
-// Claim a tier (free or premium). Idempotent — re-claim is a no-op
+// Claim a tier (free or premium). Idempotent, re-claim is a no-op
 // returning the existing reward record.
 export async function claimPassTier(env, guildId, userId, opts = {}) {
   const tier  = Math.max(1, Math.min(TIERS_PER_SEASON, parseInt(opts.tier, 10) || 0));
@@ -202,7 +202,7 @@ export async function claimPassTier(env, guildId, userId, opts = {}) {
   const reward = TIER_REWARDS_DEFAULT[tier - 1]?.[track];
   if (!reward) return { ok: false, error: 'no-reward' };
 
-  // Grant reward — bolts use wallet.earn, packs use creditPack,
+  // Grant reward, bolts use wallet.earn, packs use creditPack,
   // cosmetics use the cosmetics module (or skip if not wired yet).
   let granted = { kind: reward.kind };
   try {
@@ -215,7 +215,7 @@ export async function claimPassTier(env, guildId, userId, opts = {}) {
       granted.packId   = r?.pack?.id || null;
       granted.packType = reward.packType;
     } else if (reward.kind === 'cosmetic') {
-      // Best-effort cosmetics grant — module may not be wired in MVP.
+      // Best-effort cosmetics grant, module may not be wired in MVP.
       try {
         const cos = await import('./cosmetics.js').catch(() => null);
         if (cos?.grantCosmetic) await cos.grantCosmetic(env, userId, reward.cosmeticId);

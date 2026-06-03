@@ -1,4 +1,4 @@
-// Unit tests for daily-quests — list / increment / claim flow, error
+// Unit tests for daily-quests, list / increment / claim flow, error
 // gates (claim-before-complete + double-claim), rotation determinism.
 //
 // Run from discord-bot/:
@@ -29,7 +29,7 @@ function eq(a, b, m)  { if (a === b) { pass++; console.log('  ✅', m); } else {
 //   - UPDATE user_daily_quest SET claimed = 1 …
 //   - SELECT progress, claimed FROM user_daily_quest WHERE user_id = ? AND quest_id = ? AND day = ?
 //
-// We don't run a real sqlite engine — these tests only need to verify
+// We don't run a real sqlite engine, these tests only need to verify
 // module logic, not D1's SQL parser. So the mock stores rows as JS
 // arrays and dispatches per-statement.
 
@@ -170,7 +170,7 @@ function seedDefs(env, defs) {
 
 // ── Tests ─────────────────────────────────────────────────────────
 
-console.log('— todayUtcKey shape');
+console.log('- todayUtcKey shape');
 {
   const k = todayUtcKey(Date.UTC(2026, 5, 15, 12, 30)); // June 15 2026
   eq(k, '2026-06-15', 'mid-day UTC → YYYY-MM-DD');
@@ -178,7 +178,7 @@ console.log('— todayUtcKey shape');
   eq(k2, '2026-01-01', 'Jan 1 00:00 UTC');
 }
 
-console.log('— makeRng is deterministic');
+console.log('- makeRng is deterministic');
 {
   const a = __internals.makeRng('seed');
   const b = __internals.makeRng('seed');
@@ -188,7 +188,7 @@ console.log('— makeRng is deterministic');
   assert(__internals.makeRng('seed')() !== c(), 'different seed → different draws');
 }
 
-console.log('— pickWeighted respects k + uniqueness');
+console.log('- pickWeighted respects k + uniqueness');
 {
   const defs = [
     { id: 'a', weight: 1 },
@@ -204,7 +204,7 @@ console.log('— pickWeighted respects k + uniqueness');
   eq(all.length, 3, 'k > pool clamps to pool size');
 }
 
-console.log('— listTodaysQuests for new user returns rotation with zero progress');
+console.log('- listTodaysQuests for new user returns rotation with zero progress');
 {
   const env = { DB: makeMockDb(), LOADOUT_BOLTS: makeMockKv() };
   seedDefs(env, [
@@ -221,7 +221,7 @@ console.log('— listTodaysQuests for new user returns rotation with zero progre
   }
 }
 
-console.log('— increment + claim flow grants wallet');
+console.log('- increment + claim flow grants wallet');
 {
   const env = { DB: makeMockDb(), LOADOUT_BOLTS: makeMockKv(), AQUILO_VAULT_GUILD_ID: 'g1' };
   seedDefs(env, [
@@ -264,7 +264,7 @@ console.log('— increment + claim flow grants wallet');
   eq(wallet.grants.length, 1, 'no extra wallet grant on double-claim');
 }
 
-console.log('— listTodaysQuests reflects in-progress + claimed state');
+console.log('- listTodaysQuests reflects in-progress + claimed state');
 {
   const env = { DB: makeMockDb(), LOADOUT_BOLTS: makeMockKv(), AQUILO_VAULT_GUILD_ID: 'g1' };
   seedDefs(env, [
@@ -286,7 +286,7 @@ console.log('— listTodaysQuests reflects in-progress + claimed state');
   eq(e2.claimed, true, 'claimed flag set');
 }
 
-console.log('— unknown quest → safe no-op');
+console.log('- unknown quest → safe no-op');
 {
   const env = { DB: makeMockDb(), LOADOUT_BOLTS: makeMockKv() };
   const r = await incrementQuest(env, 'u', 'does-not-exist', 1, Date.UTC(2026, 5, 4));
@@ -297,7 +297,7 @@ console.log('— unknown quest → safe no-op');
   eq(c.reason, 'unknown-quest', 'reason = unknown-quest');
 }
 
-console.log('— dailyResetCron warms rotation snapshot in KV');
+console.log('- dailyResetCron warms rotation snapshot in KV');
 {
   const env = { DB: makeMockDb(), LOADOUT_BOLTS: makeMockKv() };
   seedDefs(env, [
@@ -315,5 +315,5 @@ console.log('— dailyResetCron warms rotation snapshot in KV');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1,6 +1,6 @@
-// Progression — achievements engine.
+// Progression, achievements engine.
 //
-// PROGRESSION-SYSTEM-DESIGN.md §6 — checks every progressionEvent
+// PROGRESSION-SYSTEM-DESIGN.md §6, checks every progressionEvent
 // against the catalogue (achievements-catalog.js), updates per-user
 // progress counters at pach:<userId>, and unlocks entries whose
 // triggers are all satisfied. Pure read-modify-write per event;
@@ -145,7 +145,7 @@ export async function checkAchievements(env, event) {
   }
   await putAchievements(env, event.userId, rec);
 
-  // Side effects of unlock — XP + badge + push + recursive trigger
+  // Side effects of unlock, XP + badge + push + recursive trigger
   // for meta-achievements ("achievement.unlocked"). All wrapped so a
   // single failure doesn't abort the others.
   for (const ach of unlocked) {
@@ -160,7 +160,7 @@ export async function checkAchievements(env, event) {
 }
 
 async function applyUnlockSideEffects(env, userId, ach) {
-  // XP grant — use the catalogue xpReward (overrides table default).
+  // XP grant, use the catalogue xpReward (overrides table default).
   try {
     const { grantXp } = await import('./xp.js');
     await grantXp(env, userId, 'achievement.unlocked', {
@@ -168,7 +168,7 @@ async function applyUnlockSideEffects(env, userId, ach) {
     });
   } catch { /* non-fatal */ }
 
-  // Badge grant — P4 wires the catalog; until then we still record
+  // Badge grant, P4 wires the catalog; until then we still record
   // ownership on `pbadge:<userId>` so the inventory is populated when
   // P4 lands.
   if (ach.badgeId) {
@@ -198,7 +198,7 @@ async function applyUnlockSideEffects(env, userId, ach) {
     });
   } catch { /* non-fatal */ }
 
-  // Push notification — uses the dedicated pushAchievementUnlocked
+  // Push notification, uses the dedicated pushAchievementUnlocked
   // helper so the PWA sees kind='achievement.unlocked' with the right
   // title + body.
   try {

@@ -1,11 +1,11 @@
-// Stream check-in cards — the on-stream "I'm here" moment.
+// Stream check-in cards, the on-stream "I'm here" moment.
 //
 // A viewer hits Check In (Twitch panel or aquilo.gg) → the worker resolves
 // their saved card customization + earned badges, validates everything
 // against their REAL entitlements (no faking), and enqueues a
 // `streamcheckin.shown` Aquilo Bus event that the OBS stream-checkin overlay
 // animates for ~3-5s. Separate from the daily community check-in
-// (community-checkin.js) — that one tracks streaks + bolts.
+// (community-checkin.js), that one tracks streaks + bolts.
 //
 // Public API:
 //   getCardConfig(env, userId)                     -> saved config (defaults if none)
@@ -17,7 +17,7 @@
 //   showOnStream(env, guildId, userId, body)       -> rate-limited publish of the card
 //
 // Entitlement counters this module READS (written on the Twitch EventSub hot
-// path by twitch-rewards.js via the record* helpers below — durable, keyed by
+// path by twitch-rewards.js via the record* helpers below, durable, keyed by
 // Discord id, accumulate going forward):
 //   twitch:sub:<g>:<u>    -> { tier, sinceUtc, lastUtc }
 //   twitch:cheer:<g>:<u>  -> cumulative bits (integer)
@@ -56,7 +56,7 @@ export const ANIMATIONS = Object.freeze([
   { id: 'aurora-rise',   label: 'Aurora Rise',      req: (v) => v.subTier >= 1 || v.patronPaid || v.giftCount >= 1 },
 ]);
 
-// Badge definitions — `id` is the wire value, `test` decides "earned".
+// Badge definitions, `id` is the wire value, `test` decides "earned".
 export const BADGES = Object.freeze([
   { id: 'sub-t1',     label: 'Tier 1 Sub',   test: (v) => v.subTier >= 1 },
   { id: 'sub-t2',     label: 'Tier 2 Sub',   test: (v) => v.subTier >= 2 },
@@ -144,7 +144,7 @@ export async function resolveEntitlements(env, guildId, userId) {
   v.giftCount = Number(await env.LOADOUT_BOLTS.get(K_GIFT(g, userId)).catch(() => 0)) || 0;
   v.followedAt = Number(await env.LOADOUT_BOLTS.get(K_FOLLOW(g, userId)).catch(() => 0)) || 0;
 
-  // Patreon (durably readable today) — patreon-link.js, keyed by Discord id.
+  // Patreon (durably readable today), patreon-link.js, keyed by Discord id.
   try {
     const { getPatreonTier } = await import('./patreon-link.js');
     const p = await getPatreonTier(env, userId);
@@ -252,7 +252,7 @@ export async function saveCardConfig(env, guildId, userId, patch = {}) {
   return { ok: true, config: { userId: String(userId), ...v.config, lastUpdated: now } };
 }
 
-// ── /web/checkin/card/me — config + entitlements + filtered catalogs ─
+// ── /web/checkin/card/me, config + entitlements + filtered catalogs ─
 export async function cardMe(env, guildId, userId) {
   const [config, viewer] = await Promise.all([
     getCardConfig(env, userId),
@@ -312,7 +312,7 @@ async function resolveProfile(env, guildId, userId, body) {
   return { displayName: displayName || 'Viewer', profilePic };
 }
 
-// ── /web/checkin/show — rate-limited publish to the OBS overlay ─────
+// ── /web/checkin/show, rate-limited publish to the OBS overlay ─────
 const SHOW_COOLDOWN_MS = 3 * 60 * 1000; // 1 per 3 minutes per viewer
 const K_SHOW_RATE = (u) => `streamcheckin:rate:${u}`;
 
@@ -328,7 +328,7 @@ export async function showOnStream(env, guildId, userId, body = {}) {
   }
 
   // Resolve current config + entitlements, then RE-VALIDATE the stored config
-  // against live entitlements (defense in depth — entitlements can lapse).
+  // against live entitlements (defense in depth, entitlements can lapse).
   const config = await getCardConfig(env, userId);
   const viewer = await resolveEntitlements(env, guildId, userId);
   const earned = computeBadges(viewer);

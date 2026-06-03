@@ -1,4 +1,4 @@
-// Unit tests for aquilo-pass-d1.js — the D1 battle pass (30 tiers,
+// Unit tests for aquilo-pass-d1.js, the D1 battle pass (30 tiers,
 // free+premium). Covers seeding, XP→tier, state shape, claim
 // eligibility (tier-gate, premium-lock, idempotency), and premium.
 //
@@ -108,7 +108,7 @@ function makeKV() {
 function makeEnv() { return { DB: makeMockDB(), LOADOUT_BOLTS: makeKV() }; }
 const U = 'u1', G = 'g1';
 
-console.log('— tierForXp');
+console.log('- tierForXp');
 {
   eq(tierForXp(0), 0, '0 xp → tier 0');
   eq(tierForXp(99), 0, '99 xp → tier 0');
@@ -117,7 +117,7 @@ console.log('— tierForXp');
   eq(tierForXp(99999), 30, 'capped at 30');
 }
 
-console.log('— seedSeasonOne creates season + 60 rewards (idempotent)');
+console.log('- seedSeasonOne creates season + 60 rewards (idempotent)');
 {
   const env = makeEnv();
   const r = await seedSeasonOne(env);
@@ -129,7 +129,7 @@ console.log('— seedSeasonOne creates season + 60 rewards (idempotent)');
   eq(s.id, 'season-1', 'active season is season-1');
 }
 
-console.log('— getPassState shape + claimability gating');
+console.log('- getPassState shape + claimability gating');
 {
   const env = makeEnv();
   await seedSeasonOne(env);
@@ -147,7 +147,7 @@ console.log('— getPassState shape + claimability gating');
   eq(t5.free.kind, 'pack', 'tier5 free is a pack');
 }
 
-console.log('— claimTier: free track, tier-gate + idempotency');
+console.log('- claimTier: free track, tier-gate + idempotency');
 {
   const env = makeEnv();
   await seedSeasonOne(env);
@@ -168,7 +168,7 @@ console.log('— claimTier: free track, tier-gate + idempotency');
   assert(st.tiers.find(t => t.tier === 2).freeClaimed, 'tier2 free marked claimed');
 }
 
-console.log('— claimTier: premium locked until owned');
+console.log('- claimTier: premium locked until owned');
 {
   const env = makeEnv();
   await seedSeasonOne(env);
@@ -187,7 +187,7 @@ console.log('— claimTier: premium locked until owned');
   assert(pb.owned.includes('pass-s1-emote-spark'), 'pbadge got the cosmetic');
 }
 
-console.log('— grantPassXp reports tiersGained');
+console.log('- grantPassXp reports tiersGained');
 {
   const env = makeEnv();
   await seedSeasonOne(env);
@@ -198,5 +198,5 @@ console.log('— grantPassXp reports tiersGained');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

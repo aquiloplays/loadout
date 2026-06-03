@@ -1,4 +1,4 @@
-// Quick-bet bolts games — Blackjack, Roulette, Wheel, Higher/Lower,
+// Quick-bet bolts games, Blackjack, Roulette, Wheel, Higher/Lower,
 // Mines, Plinko, Crash. Companion to games.js (which owns the
 // historical coinflip/dice/daily). Kept in a separate module so the
 // 2026-05 expansion doesn't trample git history on games.js or fight
@@ -6,7 +6,7 @@
 //
 // House philosophy is identical to games.js: outcomes are
 // server-authoritative, RNG is crypto.getRandomValues, payouts are
-// generous (small or zero house edge) — bolts are play money, the
+// generous (small or zero house edge), bolts are play money, the
 // game should feel rewarding to play, not punishing.
 //
 // Every public handler validates its inputs, runs spend() before any
@@ -18,7 +18,7 @@
 // dispatching to the game; the game itself never touches the
 // cooldown KV. cooldownTouch() is then called AFTER a successful
 // play to start the next window. Stateful games (blackjack, hilo,
-// mines) only touch the cooldown on the START action — once you're
+// mines) only touch the cooldown on the START action, once you're
 // in a hand you can hit/reveal as fast as you like.
 
 import { earn, spend, getWallet } from './wallet.js';
@@ -76,7 +76,7 @@ const COOLDOWN_MS = QUICK_GAME_COOLDOWN_MS;
 
 // v2 rebalance: cap absolute net win per quick-game at the bet plus
 // QUICK_GAME_NET_WIN_CAP. Wagers still play at real odds (so the 36×
-// roulette number bet is still a real lottery) — the cap stops a
+// roulette number bet is still a real lottery), the cap stops a
 // lucky streak of high-stake wins from minting tens of thousands of
 // bolts in an evening. If gross <= bet (a loss or push) the cap is a
 // no-op. Used everywhere a `gross` value lands in the wallet.
@@ -88,7 +88,7 @@ const COOLDOWN_KEY = (uid) => `gamecd:${uid}`;
 
 // Returns { ok: true } if the cooldown is clear, or
 // { ok: false, error: 'cooldown', cooldownMs, message } if still cooling.
-// Pure read — does NOT extend the cooldown. Use cooldownTouch() to
+// Pure read, does NOT extend the cooldown. Use cooldownTouch() to
 // arm the next window AFTER a successful play.
 export async function cooldownCheck(env, userId) {
   if (!env || !env.LOADOUT_BOLTS) return { ok: true };
@@ -101,7 +101,7 @@ export async function cooldownCheck(env, userId) {
     ok: false,
     error: 'cooldown',
     cooldownMs: remain,
-    message: 'Slow down — wait ' + Math.ceil(remain / 1000) + 's between plays.',
+    message: 'Slow down, wait ' + Math.ceil(remain / 1000) + 's between plays.',
   };
 }
 
@@ -113,7 +113,7 @@ export async function cooldownTouch(env, userId, ms) {
   return until;
 }
 
-// PROGRESSION (P1) — every quick-game play emits a played event +
+// PROGRESSION (P1), every quick-game play emits a played event +
 // optionally a bigwin event if payout > 5× stake. Dedup keyed by a
 // per-play synthetic id so concurrent plays in the same minute each
 // count. Called from every game's payout path below.
@@ -138,7 +138,7 @@ export async function emitQuickGame(env, userId, guildId, kind, bet, gross) {
 //
 // Blackjack / Hi-Lo / Mines all keep multi-step state in KV:
 //   gamestate:<kind>:<userId>  ->  JSON { ... }
-// 30-minute TTL — long enough that a player can be afk, short enough
+// 30-minute TTL, long enough that a player can be afk, short enough
 // that abandoned hands self-clean.
 
 const SESSION_KEY = (kind, uid) => `gamestate:${kind}:${uid}`;
@@ -171,7 +171,7 @@ async function withBalance(env, guildId, userId, body) {
 // ── Blackjack ────────────────────────────────────────────────────────
 //
 // Standard rules, single deck, S17 (dealer stands on soft 17). No
-// double/split for v1 — keeps the UI + state minimal. Naturals (21
+// double/split for v1, keeps the UI + state minimal. Naturals (21
 // from the first two cards) pay 3:2.
 
 function blackjackTotal(cards) {
@@ -194,7 +194,7 @@ export async function blackjackStart(env, guildId, userId, bet) {
   if (!Number.isFinite(bet) || bet <= 0) {
     return { ok: false, error: 'bad-bet', message: 'Bet must be a positive number.' };
   }
-  // Refuse to start a second hand on top of an existing one — the
+  // Refuse to start a second hand on top of an existing one, the
   // player has to finish or surrender first (surrender = stand at
   // current total for now).
   const existing = await loadSession(env, 'blackjack', userId);
@@ -214,7 +214,7 @@ export async function blackjackStart(env, guildId, userId, bet) {
   };
 
   if (state.natural) {
-    // Player has a natural — settle immediately. Dealer also reveals;
+    // Player has a natural, settle immediately. Dealer also reveals;
     // if dealer also has natural, push (refund), else 3:2 win.
     return await blackjackResolve(env, guildId, userId, state);
   }
@@ -289,13 +289,13 @@ async function blackjackResolve(env, guildId, userId, state) {
   let outcome, gross, explanation;
   if (state.natural && dealerNatural) {
     outcome = 'push'; gross = state.bet;
-    explanation = 'Both naturals — push. Bet refunded.';
+    explanation = 'Both naturals, push. Bet refunded.';
   } else if (state.natural) {
     outcome = 'natural'; gross = Math.floor(state.bet * 2.5);
-    explanation = 'Blackjack! Paid 3:2 — +' + (gross - state.bet) + ' bolts.';
+    explanation = 'Blackjack! Paid 3:2, +' + (gross - state.bet) + ' bolts.';
   } else if (dealerBust) {
     outcome = 'dealer-bust'; gross = state.bet * 2;
-    explanation = 'Dealer busts at ' + dTotal + '. You win — +' + state.bet + ' bolts.';
+    explanation = 'Dealer busts at ' + dTotal + '. You win, +' + state.bet + ' bolts.';
   } else if (pTotal > dTotal) {
     outcome = 'win'; gross = state.bet * 2;
     explanation = 'You ' + pTotal + ' vs dealer ' + dTotal + '. +' + state.bet + ' bolts.';
@@ -411,7 +411,7 @@ export async function roulette(env, guildId, userId, bet, pick) {
     payout: gross - bet,
     pick: pickLabel,
     explanation: win
-      ? 'Landed on ' + spin + ' ' + color + ' — you had ' + pickLabel + '. +' + (gross - bet) + ' bolts.'
+      ? 'Landed on ' + spin + ' ' + color + ', you had ' + pickLabel + '. +' + (gross - bet) + ' bolts.'
       : 'Landed on ' + spin + ' ' + color + '. Lost ' + bet + ' bolts.',
   });
 }
@@ -422,7 +422,7 @@ export async function roulette(env, guildId, userId, bet, pick) {
 // low  -> mostly small wins, no zero
 // med  -> some zeros, bigger spikes
 // high -> mostly zeros, occasional huge spike
-// House EV is tuned ~95% — slight house edge, big swing.
+// House EV is tuned ~95%, slight house edge, big swing.
 
 const WHEEL_TABLES = {
   low:  [1.5, 1.2, 1.2, 0.0, 1.5, 1.2, 1.2, 0.0, 1.5, 1.2, 1.2, 2.0],
@@ -456,8 +456,8 @@ export async function wheel(env, guildId, userId, bet, risk) {
     multiplier: mult,
     payout: gross - bet,
     explanation: mult <= 0
-      ? 'Wheel stopped on 0× — lost ' + bet + ' bolts.'
-      : 'Wheel stopped on ' + mult + '× — ' + (gross > bet ? '+' : '') + (gross - bet) + ' bolts.',
+      ? 'Wheel stopped on 0×, lost ' + bet + ' bolts.'
+      : 'Wheel stopped on ' + mult + '×, ' + (gross > bet ? '+' : '') + (gross - bet) + ' bolts.',
   });
 }
 
@@ -540,7 +540,7 @@ export async function hiloGuess(env, guildId, userId, guess) {
   const cv = cardValue(state.current);
   const nv = cardValue(next);
   if (nv === cv) {
-    // tie — push, no change to multiplier, deal again
+    // tie, push, no change to multiplier, deal again
     state.current = next;
     await saveSession(env, 'hilo', userId, state);
     return await withBalance(env, guildId, userId, {
@@ -552,7 +552,7 @@ export async function hiloGuess(env, guildId, userId, guess) {
       multiplier: state.multiplier,
       steps: state.steps,
       history: state.history,
-      explanation: 'Tie — push, free re-deal.',
+      explanation: 'Tie, push, free re-deal.',
     });
   }
   const correct = (guess === 'higher' && nv > cv) || (guess === 'lower' && nv < cv);
@@ -575,7 +575,7 @@ export async function hiloGuess(env, guildId, userId, guess) {
       explanation: 'Wrong! ' + cardLabel(next) + ' is ' + (nv > cv ? 'higher' : 'lower') + '. Lost ' + state.bet + ' bolts.',
     });
   }
-  // Correct — bump multiplier using the BEFORE-deal probability.
+  // Correct, bump multiplier using the BEFORE-deal probability.
   const mult = hiloMultiplier(cv, guess, state.deck.concat([next]));
   state.multiplier = state.multiplier * mult;
   state.current = next;
@@ -619,7 +619,7 @@ export async function hiloCashout(env, guildId, userId) {
     history: state.history,
     outcome: 'cashout',
     payout: state.payout,
-    explanation: 'Cashed out at ' + state.multiplier.toFixed(2) + '× — +' + (gross - state.bet) + ' bolts.',
+    explanation: 'Cashed out at ' + state.multiplier.toFixed(2) + '×, +' + (gross - state.bet) + ' bolts.',
   });
 }
 
@@ -659,7 +659,7 @@ export async function minesStart(env, guildId, userId, bet, bombs) {
   const sp = await spend(env, guildId, userId, bet, 'mines:wager');
   if (!sp.ok) return { ok: false, error: 'insufficient', message: sp.reason };
 
-  // Server-side bomb layout — never sent to the client.
+  // Server-side bomb layout, never sent to the client.
   const positions = Array.from({ length: MINES_GRID_SIZE }, (_, i) => i);
   for (let i = positions.length - 1; i > 0; i--) {
     const j = rng(i + 1);
@@ -752,7 +752,7 @@ export async function minesCashout(env, guildId, userId) {
     multiplier: state.multiplier,
     outcome: 'cashout',
     payout: state.payout,
-    explanation: 'Cashed out at ' + state.multiplier.toFixed(2) + '× — +' + (gross - state.bet) + ' bolts.',
+    explanation: 'Cashed out at ' + state.multiplier.toFixed(2) + '×, +' + (gross - state.bet) + ' bolts.',
   });
 }
 
@@ -803,8 +803,8 @@ export async function plinko(env, guildId, userId, bet, risk) {
     multiplier: mult,
     payout: gross - bet,
     explanation: mult <= 0
-      ? 'Hit ' + mult + '× — lost ' + bet + ' bolts.'
-      : 'Hit ' + mult + '× — ' + (gross > bet ? '+' : '') + (gross - bet) + ' bolts.',
+      ? 'Hit ' + mult + '×, lost ' + bet + ' bolts.'
+      : 'Hit ' + mult + '×, ' + (gross > bet ? '+' : '') + (gross - bet) + ' bolts.',
   });
 }
 
@@ -862,7 +862,7 @@ export async function crash(env, guildId, userId, bet, cashout) {
 
 // ── Snapshot ────────────────────────────────────────────────────────
 //
-// One read for the /play games surface — returns the active state of
+// One read for the /play games surface, returns the active state of
 // every stateful game (blackjack/hilo/mines) so the UI can resume an
 // in-progress hand on reload.
 
@@ -902,11 +902,11 @@ function sanitizeMines(s) {
   return { bet: s.bet, bombs: s.bombs, revealed: s.revealed, multiplier: s.multiplier };
 }
 
-// PROGRESSION (P2) — quick-games headline. Cooldown KV doesn't keep
+// PROGRESSION (P2), quick-games headline. Cooldown KV doesn't keep
 // long-term state; we approximate by counting session ids. The
 // achievement engine in P3 will track exact plays via the event log.
 export async function getStatsFor(env, userId, _guildId = null) {
-  // Quick-games are mostly stateless once a hand resolves — there's
+  // Quick-games are mostly stateless once a hand resolves, there's
   // no persistent counter to read. Surface the cooldown state + a
   // placeholder until P3 lands the event-driven counters.
   const cd = await cooldownCheck(env, userId);

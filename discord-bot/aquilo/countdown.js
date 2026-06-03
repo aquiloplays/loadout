@@ -49,12 +49,12 @@ function computeNextStream(env, now = new Date()) {
   const todayIdx = WEEKDAYS.indexOf(et.weekday);
   const todayIsStream = !NO_STREAM_DAYS.has(et.weekday);
 
-  // (1) Live now — today is a stream day and we're past stream-start.
+  // (1) Live now, today is a stream day and we're past stream-start.
   if (todayIsStream && minutesNow >= minutesStart && minutesNow < minutesStart + streamLenMin) {
     return { weekday: et.weekday, minutesAway: 0, isLive: true };
   }
 
-  // (2) Tail of yesterday's stream — early morning of a day after a stream night.
+  // (2) Tail of yesterday's stream, early morning of a day after a stream night.
   if (tailMin > 0 && minutesNow < tailMin) {
     const yIdx = (todayIdx + 6) % 7;
     const yesterday = WEEKDAYS[yIdx];
@@ -96,15 +96,15 @@ function buildCountdownPayload(env) {
   if (isCn) {
     const pollTs = nextEventTimestamp(Date.now(), next.weekday, 18);
     flavor = pollTs
-      ? `🎲 Community Night — game decided by the poll at <t:${Math.floor(pollTs / 1000)}:t>`
-      : '🎲 Community Night — game decided by the 6 PM ET poll';
+      ? `🎲 Community Night, game decided by the poll at <t:${Math.floor(pollTs / 1000)}:t>`
+      : '🎲 Community Night, game decided by the 6 PM ET poll';
   } else {
     flavor = '⛏️ Minecraft Night (10:30 PM-12:30 AM ET)';   // recurring time range
   }
 
   let body;
   if (next.isLive) {
-    body = '🔴 **LIVE NOW** — ' + cap(next.weekday) + ' · ' + flavor;
+    body = '🔴 **LIVE NOW**, ' + cap(next.weekday) + ' · ' + flavor;
   } else {
     body = '🟢 **Next stream:** ' + cap(next.weekday) + ' · ' + startStr + ' ET\n' +
            '⏱ in ~**' + relativeTimeText(next.minutesAway) + '**\n' +
@@ -121,7 +121,7 @@ function buildCountdownPayload(env) {
   return { embeds: [embed] };
 }
 
-// Short, glanceable text for the channel topic — always visible at the top
+// Short, glanceable text for the channel topic, always visible at the top
 // of the channel regardless of scroll. Discord caps topic at 1024 chars.
 function buildTopicText(env) {
   const next = computeNextStream(env);
@@ -163,9 +163,9 @@ function buildVcName(env) {
 // Cron entry: every hour. Drives THREE surfaces, each independent (any
 // of them can be unconfigured / failing without breaking the others):
 //
-//   1. COUNTDOWN_VC_ID name — most visible, lives in the sidebar
-//   2. COUNTDOWN_CHANNEL_ID topic — visible at top of that channel
-//   3. KV_MSG embed — rich detail, click-through, pinnable
+//   1. COUNTDOWN_VC_ID name, most visible, lives in the sidebar
+//   2. COUNTDOWN_CHANNEL_ID topic, visible at top of that channel
+//   3. KV_MSG embed, rich detail, click-through, pinnable
 //
 // Surfaces 1 + 2 need MANAGE_CHANNEL on the respective channels. Without
 // it those updates fail silently and the embed-edit path still works.
@@ -208,7 +208,7 @@ export async function refreshCountdown(env) {
 }
 
 // Hub button: prime all configured surfaces (VC name, channel topic,
-// rich embed). Each is independent — partial success is fine.
+// rich embed). Each is independent, partial success is fine.
 export async function initCountdown(env) {
   if (!env.COUNTDOWN_VC_ID && !env.COUNTDOWN_CHANNEL_ID) {
     return ephemeral('Set at least one of COUNTDOWN_VC_ID or COUNTDOWN_CHANNEL_ID in wrangler.toml first.');
@@ -221,10 +221,10 @@ export async function initCountdown(env) {
       await setChannelName(env, env.COUNTDOWN_VC_ID, buildVcName(env));
       lines.push('✅ Voice-channel name updated (visible in the sidebar).');
     } catch (e) {
-      lines.push('⚠️ VC name update failed — bot role needs **Manage Channel** on that voice channel. (' + (e?.message || e) + ')');
+      lines.push('⚠️ VC name update failed, bot role needs **Manage Channel** on that voice channel. (' + (e?.message || e) + ')');
     }
   } else {
-    lines.push('ℹ️ COUNTDOWN_VC_ID unset — sidebar countdown disabled.');
+    lines.push('ℹ️ COUNTDOWN_VC_ID unset, sidebar countdown disabled.');
   }
 
   if (env.COUNTDOWN_CHANNEL_ID) {
@@ -232,18 +232,18 @@ export async function initCountdown(env) {
       await setChannelTopic(env, env.COUNTDOWN_CHANNEL_ID, buildTopicText(env));
       lines.push('✅ Channel topic updated (visible at the top of <#' + env.COUNTDOWN_CHANNEL_ID + '>).');
     } catch (e) {
-      lines.push('⚠️ Topic update failed — bot role needs **Manage Channel** in <#' + env.COUNTDOWN_CHANNEL_ID + '>. (' + (e?.message || e) + ')');
+      lines.push('⚠️ Topic update failed, bot role needs **Manage Channel** in <#' + env.COUNTDOWN_CHANNEL_ID + '>. (' + (e?.message || e) + ')');
     }
 
     try {
       const msg = await postChannelMessage(env, env.COUNTDOWN_CHANNEL_ID, buildCountdownPayload(env));
       await env.STATE.put(KV_MSG, msg.id);
-      lines.push('📌 Rich-embed posted (id: ' + msg.id + ') — pin it if you want.');
+      lines.push('📌 Rich-embed posted (id: ' + msg.id + '), pin it if you want.');
     } catch (e) {
       lines.push('⚠️ Embed post failed: ' + (e?.message || e));
     }
   } else {
-    lines.push('ℹ️ COUNTDOWN_CHANNEL_ID unset — channel topic + rich embed disabled.');
+    lines.push('ℹ️ COUNTDOWN_CHANNEL_ID unset, channel topic + rich embed disabled.');
   }
 
   return ephemeral(lines.join('\n'));

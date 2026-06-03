@@ -1,10 +1,9 @@
-// Boltbound — pack opening, pull rates, integration hooks.
+// Boltbound, pack opening, pull rates, integration hooks.
 //
 // Three pack SKUs: common (1/day free, lootbox + Clash 1★ drop), bolt
-// (250 Bolts purchase, Clash 2-3★ drop, lootbox), voltaic (drop-only —
-// Clash 3★ upgrade, lootbox premium, Patreon).
+// (250 Bolts purchase, Clash 2-3★ drop, lootbox), voltaic (drop-only, // Clash 3★ upgrade, lootbox premium, Patreon).
 //
-// Pull mechanics — see CARD-GAME-DESIGN.md §4 for the locked design:
+// Pull mechanics, see CARD-GAME-DESIGN.md §4 for the locked design:
 //   • Per-slot rarity weighting from PACKS[id].weights.
 //   • Uniform pick within a rarity's pool.
 //   • Bad-luck pity: every 30 Bolt/Voltaic packs without a legendary
@@ -14,7 +13,7 @@
 //
 // `creditPack(env, guildId, userId, packType, source)` is THE hook
 // that ext-lootbox.js and clash.js call to grant a pack. It mints a
-// pending-pack record under cards:pending:<g>:<u>:<id> — the actual
+// pending-pack record under cards:pending:<g>:<u>:<id>, the actual
 // roll happens at openPack() time, so the website/Discord reveal can
 // be driven by pre-rolled cards stored in the record.
 
@@ -58,7 +57,7 @@ function rng(seed) {
 //   a uniform card within that rarity's pool.
 // - If `forceOneLegendary` is set and no legendary was rolled in any
 //   slot, retroactively replace the lowest-rarity slot's pull with a
-//   legendary roll. This is the pity-system mechanic — the random walk
+//   legendary roll. This is the pity-system mechanic, the random walk
 //   is preserved up to the swap so the same seed still produces a
 //   visually-coherent pull, just with one slot bumped.
 
@@ -136,7 +135,7 @@ export async function creditPack(env, guildId, userId, packType, source, setId) 
     return { ok: false, error: 'unknown-pack-type' };
   }
   // Expansion-set guard: a pack can only be tied to a RELEASED set
-  // (release is KV-overridable — see boltbound-release.js). Unreleased /
+  // (release is KV-overridable, see boltbound-release.js). Unreleased /
   // unknown sets fall back to core so nobody can open a set before Clay
   // flips it live by crafting a request.
   const set = (setId && setId !== 'core' && await isExpansionReleased(env, setId)) ? setId : 'core';
@@ -146,14 +145,14 @@ export async function creditPack(env, guildId, userId, packType, source, setId) 
   await ensureCollection(env, guildId, userId);
   const rec = await mintPendingPack(env, guildId, userId, packType, source, set);
 
-  // ✨ Lucky-drop hook (rolls only on FREE creditPack calls — i.e.
+  // ✨ Lucky-drop hook (rolls only on FREE creditPack calls, i.e.
   // every pack source EXCEPT the explicit 'purchase:bolt' / 'purchase:voltaic'
   // paths). A very-rare bonus Voltaic pack drops alongside the
   // requested pack. Reroll-resistant: we use the freshly-minted
   // pack id as the seed source so a streamer can't farm by repeatedly
   // calling creditPack with the same args.
   //
-  // Probability target: feels "lottery rare" — a daily check-in user
+  // Probability target: feels "lottery rare", a daily check-in user
   // should hit roughly one drop every several months on average. A
   // viewer with multiple daily touchpoints (check-in + a daily +
   // booster claim) sees about one per quarter.
@@ -162,14 +161,14 @@ export async function creditPack(env, guildId, userId, packType, source, setId) 
 }
 
 // Free-drop chance per eligible creditPack call. 1/600 ≈ 0.167%.
-// Tuned to "very rare but real" — a player with three daily-grant
+// Tuned to "very rare but real", a player with three daily-grant
 // touchpoints averages one drop per ~6.5 months. Tweakable here in
 // isolation if it feels off after live play.
 const LUCKY_VOLTAIC_DENOMINATOR = 600;
 
 // Sources that DO NOT eligible for the free drop. Paid pack purchases
 // already pay the user their voltaic + the lottery would be double-dipping.
-// Direct 'admin' / 'starter' grants also skip — those are intentional
+// Direct 'admin' / 'starter' grants also skip, those are intentional
 // hand-outs that shouldn't carry a hidden lottery payout.
 const LUCKY_VOLTAIC_INELIGIBLE_SOURCES = new Set([
   'admin', 'starter',
@@ -180,7 +179,7 @@ async function maybeRollVoltaicLuckyDrop(env, guildId, userId, packType, source,
   // Never compound: if we just credited a voltaic, don't roll another.
   if (packType === 'voltaic') return null;
   if (LUCKY_VOLTAIC_INELIGIBLE_SOURCES.has(String(source))) return null;
-  // The new pack's id is fresh and unguessable — seed the roll with it
+  // The new pack's id is fresh and unguessable, seed the roll with it
   // so the chance is bound to THIS specific credit event (not the
   // user's identity, which would let them re-roll by retrying).
   const seedSalt = `pack:${packType}:${mintedRec?.id || crypto.randomUUID()}`;
@@ -220,7 +219,7 @@ export async function openPack(env, guildId, userId, packId) {
 
   let rolled = rec.rolled;
   if (!rolled) {
-    // First open — roll the pulls deterministically from the pack id.
+    // First open, roll the pulls deterministically from the pack id.
     const seedStr = `${guildId}:${userId}:${packId}`;
     const r = rng(hashStr(seedStr));
     const isPaid = rec.packType === 'bolt' || rec.packType === 'voltaic';
@@ -258,7 +257,7 @@ export async function openPack(env, guildId, userId, packId) {
   // the receipt the caller renders is from the in-memory `results`.
   await deletePendingPack(env, guildId, userId, packId);
 
-  // PROGRESSION (P1) — pack-open XP. Dedup keyed by packId so retries
+  // PROGRESSION (P1), pack-open XP. Dedup keyed by packId so retries
   // grant once. Legendary pulls fire a meta flag for the achievement
   // engine to read in P3.
   try {

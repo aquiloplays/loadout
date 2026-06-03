@@ -1,4 +1,4 @@
-// /admin card-art remix — Clay's fix-up loop for the auto-backfill.
+// /admin card-art remix, Clay's fix-up loop for the auto-backfill.
 //
 // Flow:
 //   1. Operator runs /admin card-art remix card-id:<cardId>
@@ -57,7 +57,7 @@ function passesFilters(orig) {
   return true;
 }
 
-// Same rank-longest-first as card-art-backfill.js — keep these in
+// Same rank-longest-first as card-art-backfill.js, keep these in
 // sync so the candidates Clay sees match the auto-backfill's term
 // preference.
 function rerankForRemix(terms) {
@@ -113,7 +113,7 @@ async function gatherCandidates(apiKey, cardId) {
   return out;
 }
 
-// Slash entry point — interaction.data.options[].options[].value
+// Slash entry point, interaction.data.options[].options[].value
 // path: admin → card-art (group) → remix (sub) → card-id (string).
 //
 // Returns a Discord interaction response payload (deferred handler
@@ -150,7 +150,7 @@ export async function handleCardArtRemixCommand(env, interaction) {
       flags: 64,   // EPHEMERAL
       content: `Remix candidates for **${card.name}** (\`${cardId}\`). Pick one:`,
       embeds: candidates.slice(0, 10).map((c, i) => ({
-        title: `Candidate ${i + 1} — “${c.searchTerm}”`,
+        title: `Candidate ${i + 1}, “${c.searchTerm}”`,
         image: { url: c.url },
         footer: { text: c.title ? c.title.slice(0, 120) : '' },
         color: 0x9b6cff,
@@ -165,7 +165,7 @@ export async function handleCardArtRemixCommand(env, interaction) {
               placeholder: 'Pick a candidate',
               min_values: 1, max_values: 1,
               options: candidates.map((c, i) => ({
-                label: `Candidate ${i + 1} — ${c.searchTerm}`.slice(0, 100),
+                label: `Candidate ${i + 1}, ${c.searchTerm}`.slice(0, 100),
                 value: String(i),
                 description: (c.title || c.url.split('/').pop() || '').slice(0, 100),
               })),

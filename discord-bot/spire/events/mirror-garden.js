@@ -1,4 +1,4 @@
-// Mirror Garden — silver pools, doubles, illusions, reflective topiary.
+// Mirror Garden, silver pools, doubles, illusions, reflective topiary.
 // 5 events: 1 pure upside, 3 tradeoff, 1 gamble.
 
 export const MIRROR_GARDEN_EVENTS = Object.freeze([
@@ -6,7 +6,7 @@ export const MIRROR_GARDEN_EVENTS = Object.freeze([
     id: 'silver-pool',
     name: 'The Silver Pool',
     description:
-      "A pool of perfectly still quicksilver shows your reflection — but the reflection is not quite you. It smiles when you do not.",
+      "A pool of perfectly still quicksilver shows your reflection, but the reflection is not quite you. It smiles when you do not.",
     choices: [
       {
         id: 'speak',
@@ -118,7 +118,7 @@ export const MIRROR_GARDEN_EVENTS = Object.freeze([
     id: 'whispering-fountain',
     name: 'The Whispering Fountain',
     description:
-      "A small fountain murmurs sentences in your own voice — sentences you do not remember saying. A coin slot is etched into the basin.",
+      "A small fountain murmurs sentences in your own voice, sentences you do not remember saying. A coin slot is etched into the basin.",
     choices: [
       {
         id: 'feed',

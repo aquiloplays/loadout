@@ -50,7 +50,7 @@ let totalSkipped = 0;
 let started      = Date.now();
 let total        = null;
 
-console.log(`Driving worker backfill — base=${base} limit=${limit}${force ? ' force=true' : ''}`);
+console.log(`Driving worker backfill, base=${base} limit=${limit}${force ? ' force=true' : ''}`);
 
 while (true) {
   let r;
@@ -88,7 +88,7 @@ while (true) {
   if (r.rateLimited) {
     // Worker now rewinds nextOffset to the rate-limited card so the
     // next request retries it. Sleep long enough for Giphy's hourly
-    // window to substantially recover — 60s wasn't enough on prior
+    // window to substantially recover, 60s wasn't enough on prior
     // runs. 10 minutes between retries keeps us under any plausible
     // per-key budget.
     console.warn('  worker reported rate-limit; sleeping 10 min');
@@ -100,7 +100,7 @@ while (true) {
 }
 
 console.log('');
-console.log('— Backfill complete —');
+console.log('- Backfill complete -');
 console.log(`Total cards:    ${total}`);
 console.log(`  Hits:         ${totalHits}`);
 console.log(`  Misses:       ${totalMisses}`);

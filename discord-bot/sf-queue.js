@@ -6,23 +6,23 @@
 //                           with per-joiner Steam/Epic/Twitch links pulled
 //                           from each joiner's wallet. The standard
 //                           /queues/public surface deliberately omits
-//                           joiner identity — this endpoint is the
+//                           joiner identity, this endpoint is the
 //                           streamer-only equivalent that includes it.
 //
 //   POST /sf/queue/remove   Drops a joiner from a game queue. Called by
 //                           the panel when the streamer marks someone
-//                           "done" — keeps the worker's queue in sync
+//                           "done", keeps the worker's queue in sync
 //                           with what the streamer is actually working
 //                           through, so Discord /queue view counts stay
 //                           accurate while community night is running.
 //
 // Auth: X-SF-Queue-Key header == env.SF_QUEUE_KEY (wrangler secret).
-// Soft-secret model — embedded in the shipped StreamFusion build, same
+// Soft-secret model, embedded in the shipped StreamFusion build, same
 // as SF_COMMUNITY_KEY. Not a real secret; the gate just stops casual
 // abuse of the joiner-identity surface from random people who notice
 // the route in the SF build. The exposed identity (Discord display +
 // Discord user ID + linked Steam/Epic IDs) is no more sensitive than
-// what a Discord member already sees in the same guild — the streamer
+// what a Discord member already sees in the same guild, the streamer
 // just gets it batched + machine-readable.
 //
 // Guild resolution: the active-guild pointer (config:active_guild_id in
@@ -65,7 +65,7 @@ async function readJoinerLinks(env, guildId, discordUserId) {
     for (const l of links) {
       if (!l || !l.platform || !l.username) continue;
       const p = String(l.platform).toLowerCase();
-      // First-write-wins on duplicate platforms — wallets occasionally
+      // First-write-wins on duplicate platforms, wallets occasionally
       // accumulate stale entries when a viewer relinks; the freshest
       // link is usually the first one written by the most recent
       // applySnapshot() pass.
@@ -139,7 +139,7 @@ export async function handleSfQueueRead(req, env) {
 
   const record = await readQueue(env, guildId, streamDate);
   if (!record) {
-    // No record yet — return the same shape but empty so the panel
+    // No record yet, return the same shape but empty so the panel
     // can render a coherent "queue hasn't been opened yet" state.
     const snap = await snapshotQueue(env, guildId, streamDate);
     return json({
@@ -201,7 +201,7 @@ export async function handleSfQueueRead(req, env) {
 
 // ── POST /sf/queue/remove ──────────────────────────────────────────
 //
-// Drops a joiner from a game queue. Idempotent — removing someone who
+// Drops a joiner from a game queue. Idempotent, removing someone who
 // isn't there returns ok with removed:false.
 //
 // Body:

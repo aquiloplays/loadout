@@ -1,4 +1,4 @@
-// Aether economy — D1-backed tracked ledger with milestone grants.
+// Aether economy, D1-backed tracked ledger with milestone grants.
 //
 // 2026-05-31 sprint. Distinct from the passive live-accrual counter in
 // stream-bonus.js (wallet.aether, which fuels Clash while Clay is
@@ -52,7 +52,7 @@ async function ensureRow(env, guildId, userId) {
   const D = db(env);
   let row = await readRow(D, guildId, userId);
   if (row) return row;
-  // First touch — seed from legacy wallet.aether (best-effort).
+  // First touch, seed from legacy wallet.aether (best-effort).
   let opening = 0;
   try {
     const w = await env.LOADOUT_BOLTS.get(`wallet:${guildId}:${userId}`, { type: 'json' });
@@ -116,7 +116,7 @@ export async function getAetherHistory(env, guildId, userId, limit) {
 
 // Internal apply: signed delta, writes the row + ledger atomically-ish
 // (D1 has no multi-statement txn in the Workers binding, but a crash
-// between the two writes is recoverable — the ledger is the audit, the
+// between the two writes is recoverable, the ledger is the audit, the
 // row is the source of truth).
 async function applyDelta(env, guildId, userId, delta, reason) {
   const D = db(env);
@@ -155,7 +155,7 @@ export async function spendAether(env, guildId, userId, amount, reason) {
   return applyDelta(env, guildId, userId, -amt, reason || 'spend');
 }
 
-// Milestone hook — single entry point gameplay code calls when a
+// Milestone hook, single entry point gameplay code calls when a
 // milestone fires. `kind` keys into MILESTONE_AETHER. `opts.multiplier`
 // scales the base (e.g. anniversary years). Unknown kinds no-op.
 export async function grantAetherForMilestone(env, guildId, userId, kind, opts = {}) {

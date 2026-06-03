@@ -1,7 +1,7 @@
-// Boltbound card trading — player-to-player offers.
+// Boltbound card trading, player-to-player offers.
 //
 // Single module that owns every read/write against the trade KV keys.
-// Pure business logic — the web/Discord glue lives in cards-web.js
+// Pure business logic, the web/Discord glue lives in cards-web.js
 // (notification side-effects are not part of the core flow).
 //
 // ── KV layout ────────────────────────────────────────────────────────
@@ -26,13 +26,13 @@
 //      entirely in memory.
 //   4. STAMP trade as accepted + persist (the "commit point").
 //   5. Persist FINAL collection/wallet states (writes are absolute,
-//      not increments — re-applying yields the same result).
+//      not increments, re-applying yields the same result).
 //   6. Delete index pointers.
 //
 // On retry after step 4: step 1 short-circuits and returns the cached
 // resolution. On retry between step 4 and 6: the writes in step 5
 // are idempotent because they put the absolute final state, not a
-// delta — re-running them produces the same KV value.
+// delta, re-running them produces the same KV value.
 
 import { CARDS, RARITY_DECK_CAP } from './cards-content.js';
 import { getCollection, putCollection } from './cards-state.js';
@@ -72,8 +72,8 @@ function tallyCards(list) {
 
 // Cards are tradable iff:
 //   • they exist in the catalogue
-//   • they aren't champions (untradable by design — class-bound)
-//   • they aren't tokens (untradable — generated mid-match)
+//   • they aren't champions (untradable by design, class-bound)
+//   • they aren't tokens (untradable, generated mid-match)
 function isCardTradable(cardId) {
   const card = CARDS[cardId];
   if (!card) return false;
@@ -109,7 +109,7 @@ function ownsAll(col, list) {
 
 // Compute the new collection that results from removing `removeList`
 // then adding `addList`. Returns a NEW object (does not mutate input).
-// Removing is capped at 0 (defensive — we re-validate ownership
+// Removing is capped at 0 (defensive, we re-validate ownership
 // before calling, but a CARD already at 0 won't go negative). Adding
 // is capped at the rarity deck cap; any overflow surfaces as
 // `cappedOverflow` so the caller can decide whether to convert to
@@ -157,7 +157,7 @@ async function countPending(env, guildId, userId) {
 export async function getTrade(env, guildId, tradeId) {
   const raw = await env.LOADOUT_BOLTS.get(TRADE_KEY(guildId, tradeId), { type: 'json' });
   if (!raw) return null;
-  // Lazy expiry — if older than TRADE_TTL_MS and still pending, flip
+  // Lazy expiry, if older than TRADE_TTL_MS and still pending, flip
   // to 'expired' on read. The KV record will get rewritten on the
   // next mutation; until then the read returns the expired view.
   if (raw.status === 'pending' && Date.now() - raw.proposedUtc > TRADE_TTL_MS) {
@@ -169,7 +169,7 @@ export async function getTrade(env, guildId, tradeId) {
 }
 
 // List trades by direction ('incoming' | 'outgoing' | 'both').
-// Returns only LIVE (pending) trades — index pointers are deleted
+// Returns only LIVE (pending) trades, index pointers are deleted
 // on resolve. Caller can supplement with historical lookups by
 // tradeId if needed (we don't currently surface a "history" view).
 export async function listTrades(env, guildId, userId, direction) {
@@ -216,7 +216,7 @@ export async function proposeTrade(env, params) {
   if (!/^\d{5,25}$/.test(toUserId))   return { ok: false, error: 'bad-to-id' };
   if (fromUserId === toUserId)        return { ok: false, error: 'self-trade' };
 
-  // Each side must offer something — empty trades are nonsensical.
+  // Each side must offer something, empty trades are nonsensical.
   if (fromCards.length === 0 && fromBolts === 0) return { ok: false, error: 'empty-from-side' };
   if (toCards.length === 0   && toBolts === 0)   return { ok: false, error: 'empty-to-side' };
 
@@ -228,7 +228,7 @@ export async function proposeTrade(env, params) {
   const toCheck   = validateCardList(toCards,   'to');
   if (toCheck)   return { ok: false, ...toCheck };
 
-  // Pending-offer cap (PER-SIDE — applies to both proposer and recipient
+  // Pending-offer cap (PER-SIDE, applies to both proposer and recipient
   // so a flood of incoming offers can't lock someone out of trading).
   const fromPending = await countPending(env, guildId, fromUserId);
   if (fromPending >= MAX_PENDING_PER_USER) {
@@ -314,7 +314,7 @@ export async function acceptTrade(env, guildId, tradeId, acceptorId) {
   const toColApplied   = applyCardDelta(toCol,   trade.toCards,   trade.fromCards);
 
   // Cards over the rarity cap on the receiving side become dupe
-  // overflow — recorded on the trade record so the response can
+  // overflow, recorded on the trade record so the response can
   // surface "X copies were over your deck cap and silently dropped".
   // We do NOT auto-convert to bolts here (keeps the trade purely a
   // card+bolts swap with deterministic outcomes).

@@ -5,8 +5,8 @@ Loadout Cloudflare Worker (`discord-bot/`). Lives in this repo so the
 worker side and the shim side can move together.
 
 The worker can only receive Discord events via the interactions webhook
-(slash commands + buttons). Anything else — member joins, message
-activity, reactions, voice state — needs a long-lived gateway connection.
+(slash commands + buttons). Anything else, member joins, message
+activity, reactions, voice state, needs a long-lived gateway connection.
 This shim is that connection.
 
 ## What it forwards
@@ -38,8 +38,8 @@ This shim is that connection.
 
 Every POST carries both:
 
-- `x-counting-secret: <AQUILO_GATEWAY_SECRET>` — legacy shared-secret path
-- `x-aquilo-gw-ts: <unix-seconds>` + `x-aquilo-gw-sig: <hmac>` — HMAC path
+- `x-counting-secret: <AQUILO_GATEWAY_SECRET>`, legacy shared-secret path
+- `x-aquilo-gw-ts: <unix-seconds>` + `x-aquilo-gw-sig: <hmac>`, HMAC path
 
 The worker's `verifyGatewaySig` (`discord-bot/auth.js`) accepts either.
 HMAC is the preferred path; the shared-secret header is kept for back-compat.
@@ -60,10 +60,9 @@ The Presence intent is NOT required.
 2. In the service's **Settings → Root Directory**, set `aquilo-gateway`
    so Railway builds + runs from this subfolder rather than the repo root.
 3. In **Variables**, set the three required env vars above.
-4. Save — Railway will detect `requirements.txt` + `runtime.txt` + `Procfile`
+4. Save, Railway will detect `requirements.txt` + `runtime.txt` + `Procfile`
    via Nixpacks and build automatically.
-5. Once the service is up, hit `https://<service>.up.railway.app/healthz`
-   — should return `{"ok": true, "service": "aquilo-gateway",
+5. Once the service is up, hit `https://<service>.up.railway.app/healthz`, should return `{"ok": true, "service": "aquilo-gateway",
    "connectionState": "ready", ...}` once the gateway connects.
 
 ## Local development

@@ -1,4 +1,4 @@
-// Limited-time Boltbound card drops — MVP unblocking the site UI.
+// Limited-time Boltbound card drops, MVP unblocking the site UI.
 //
 // 2026-05-29. Drop events are themed monthly runs (e.g. "Bone Reliquary
 // drops Nov 2026"); a subset of cards is flagged as belonging to the
@@ -15,7 +15,7 @@
 //   { id, name, theme, startsUtc, endsUtc, cardIds: [...],
 //     multiplier: number, createdUtc, updatedUtc }
 //
-// Pack-roller integration is a separate diff in cards-packs.js — this
+// Pack-roller integration is a separate diff in cards-packs.js, this
 // module owns the event registry + activation + queries.
 
 const KEY = {
@@ -48,7 +48,7 @@ export async function getActiveDrop(env) {
   const nowMs = Date.now();
   const endsMs = Date.parse(event.endsUtc || '') || 0;
   if (endsMs && endsMs < nowMs) {
-    // Event window passed — close it lazily on next active read.
+    // Event window passed, close it lazily on next active read.
     await env.LOADOUT_BOLTS.delete(KEY.active).catch(() => {});
     return { ok: true, active: null, justClosed: event.id };
   }
@@ -128,7 +128,7 @@ export async function getActiveDropWeights(env) {
   };
 }
 
-// Cron tick — close any active event whose window has passed + activate
+// Cron tick, close any active event whose window has passed + activate
 // the next eligible upcoming event. Called from the monthly cron.
 export async function rotateActiveDrop(env) {
   const cur = await getActiveDrop(env);    // side-effect: lazy-closes stale

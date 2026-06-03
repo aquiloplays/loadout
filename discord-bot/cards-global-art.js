@@ -1,13 +1,13 @@
-// Global card-art defaults — a per-cardId layer that sits between
+// Global card-art defaults, a per-cardId layer that sits between
 // the per-user override (cards-art-override.js) and the baked
 // sprite. Set once via the backfill script or /admin card-art remix,
 // every viewer sees the meme GIF unless they've personally overridden
 // the same card.
 //
 // Render precedence (highest → lowest):
-//   1. per-user override   — cards-art-override:<g>:<u>:<cardId>
-//   2. global default      — global-card-art:<cardId>       (this module)
-//   3. baked sprite        — aquilo.gg/sprites/cards/<cardId>.png
+//   1. per-user override, cards-art-override:<g>:<u>:<cardId>
+//   2. global default, global-card-art:<cardId>       (this module)
+//   3. baked sprite, aquilo.gg/sprites/cards/<cardId>.png
 //
 // Storage:
 //   KV `global-card-art:<cardId>` → JSON record
@@ -23,7 +23,7 @@ const KEY_PREFIX = 'global-card-art:';
 const KEY        = (cardId) => `${KEY_PREFIX}${cardId}`;
 const MAX_BYTES  = 5_000_000;
 
-// Same allow-list as cards-art-override.js — keep them in sync so the
+// Same allow-list as cards-art-override.js, keep them in sync so the
 // per-user editor + the backfill share one trust boundary.
 const ALLOWED_HOSTS = new Set([
   'media.giphy.com',
@@ -111,7 +111,7 @@ export async function bulkSetGlobalArt(env, items, opts = {}) {
 
 // Read every global default in one call. Returns a compact
 // { [cardId]: memeGifUrl } map so the bootstrap response can include
-// the entire defaults table without ballooning the payload — the per-
+// the entire defaults table without ballooning the payload, the per-
 // card record (searchTerm, source, validatedAt) is available via
 // getGlobalArt(cardId) for the admin UI.
 //
@@ -119,12 +119,12 @@ export async function bulkSetGlobalArt(env, items, opts = {}) {
 // the per-key `get` sequentially inside the page loop. Each KV read
 // is a ~10-50ms subrequest, so 500+ entries blew past the bootstrap
 // budget and broke /web/boltbound/state on the live Boltbound page. Now
-// each page's `get`s run in parallel — wall-clock is one round-trip
+// each page's `get`s run in parallel, wall-clock is one round-trip
 // per page instead of N. The 8-page cap (1000 keys/page) covers up
 // to 8000 entries; the catalogue is 1252 so two pages suffice.
 //
 // Cloudflare allows up to 50 simultaneous outbound subrequests per
-// worker request and KV reads count as subrequests — but lazy-getting
+// worker request and KV reads count as subrequests, but lazy-getting
 // in 1000-key chunks would exceed that. So we chunk each page into
 // concurrency-limited batches.
 const LIST_GET_CONCURRENCY = 20;
@@ -154,7 +154,7 @@ export async function listAllGlobalArt(env) {
 
 // Bulk-delete every global-card-art entry. Returns { deleted, pages }
 // so the caller can surface the count. Used by the 2026-05-29 "axe
-// Giphy" admin endpoint — Clay went all-in on pixel art and wants the
+// Giphy" admin endpoint, Clay went all-in on pixel art and wants the
 // stale Giphy backfill off the precedence chain entirely. The
 // pre-existing backup at global-card-art-backup-gifs-2026-05-29:* is
 // untouched (different prefix) so the audit trail survives.
@@ -162,7 +162,7 @@ export async function listAllGlobalArt(env) {
 // Deletes are issued in parallel batches (same concurrency cap as
 // reads above) and the function pages through the entire prefix until
 // list_complete, so it's safe to call against a fresh state where
-// some pixel-art entries have already started landing — only the
+// some pixel-art entries have already started landing, only the
 // global-card-art:* prefix is touched; the backup prefix is not.
 export async function bulkDeleteAllGlobalArt(env) {
   let deleted = 0;

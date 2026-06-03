@@ -63,7 +63,7 @@ export async function postWeeklyRecap(env) {
     // uses Wed-noon → Fri 23:59 multi-day windows). Exact timestamps
     // are rendered by vote-hub.js's buildPhaseEmbed in viewers' local
     // timezones, so the footer just nudges users to that channel.
-    footer: { text: 'Vote in the community-night voting channel — timestamps render in your local timezone.' }
+    footer: { text: 'Vote in the community-night voting channel, timestamps render in your local timezone.' }
   };
 
   const scheduleChannelId = await getChannelBinding(env, guildId, 'schedule');

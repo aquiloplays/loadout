@@ -1,9 +1,9 @@
-// /web/admin/* — owner-only admin surface, called from aquilo.gg/admin.
+// /web/admin/*, owner-only admin surface, called from aquilo.gg/admin.
 //
 // Background: Clay can't bind channels via Discord slash commands
 // because the bot token is invalid in this deploy (/admin and /setup
 // never registered). The website is now the canonical admin surface
-// — every channel binding, every config toggle, every setup/status
+//, every channel binding, every config toggle, every setup/status
 // action lives here.
 //
 // Auth model (mirrors queues/*):
@@ -20,7 +20,7 @@
 //   POST /web/admin/clear-binding    -> clear a loadout channel binding
 //
 // All routes return { ok:true, ... } on success, { ok:false, error, message }
-// on failure. HTTP status is always 200 — the structured ok flag is
+// on failure. HTTP status is always 200, the structured ok flag is
 // the source of truth (mirrors /web/clash/raid contract).
 
 import {
@@ -59,8 +59,7 @@ const LOADOUT_BINDINGS = {
   checkin:       { key: (g) => 'checkin:channel:guild:'      + g, preserveKnownGameIds: false, hasMessageId: false },
   // StreamFusion community-share channel (see sf-community.js). New
   // embeds posted per "now live" announcement + per relayed event, no
-  // in-place edits, so the binding is the lightest of the bunch —
-  // just { channelId, boundAt }.
+  // in-place edits, so the binding is the lightest of the bunch, // just { channelId, boundAt }.
   sf_community:  { key: (g) => 'sf_community:channel:guild:' + g, preserveKnownGameIds: false, hasMessageId: false },
 };
 
@@ -138,7 +137,7 @@ export const CONFIG_FIELD_META = {
   COUNTING_FAIL_PENALTY:      { type: 'int',     label: 'Counting fail penalty',    section: 'tuning'   },
   COUNTING_FAIL_DURATION_MIN: { type: 'int',     label: 'Counting fail duration (min)', section: 'tuning' },
   PRODUCTS:                   { type: 'json',    label: 'Products map',             section: 'advanced', hint: 'JSON object: {"loadout":{"channel":"…","role_ping":"…"}}' },
-  SR_ROLE_LIMITS_JSON:        { type: 'json',    label: 'Song-request role limits', section: 'advanced', hint: 'JSON object — see README' },
+  SR_ROLE_LIMITS_JSON:        { type: 'json',    label: 'Song-request role limits', section: 'advanced', hint: 'JSON object, see README' },
   ACHIEVEMENT_ROLES_JSON:     { type: 'json',    label: 'Achievement roles',        section: 'advanced', hint: 'JSON object' },
   CHECKIN_CHANNEL_ID:         { type: 'channel', label: 'Daily check-in channel',   section: 'channels' },
   LEADERBOARD_CHANNEL_ID:     { type: 'channel', label: 'Leaderboard channel',      section: 'channels' },
@@ -147,7 +146,7 @@ export const CONFIG_FIELD_META = {
 };
 
 // Map every SETUP_KEY so the snapshot returns an entry for each even
-// if it isn't in the explicit meta above (defensive — surface unknown
+// if it isn't in the explicit meta above (defensive, surface unknown
 // keys with a sensible default rather than dropping them).
 function metaForKey(key) {
   return CONFIG_FIELD_META[key] || { type: 'string', label: key, section: 'advanced' };
@@ -156,7 +155,7 @@ function metaForKey(key) {
 // Validate a value matches its declared type. Returns { ok, value: <normalised>, error? }.
 function validateField(key, raw) {
   const meta = metaForKey(key);
-  // "" / null means "clear this binding" — always allowed.
+  // "" / null means "clear this binding", always allowed.
   if (raw == null || raw === '') return { ok: true, value: '' };
   const v = String(raw).trim();
   switch (meta.type) {
@@ -189,7 +188,7 @@ function validateField(key, raw) {
 //
 // Each takes (env, guildId, body) and returns a Response. The web.js
 // dispatcher resolves the route name and forwards to the matching
-// handler below. discordId is unused — admin actions are guild-wide
+// handler below. discordId is unused, admin actions are guild-wide
 // and gated by the _owner flag, not per-user identity.
 
 // Snapshot: returns every binding + every config value the web admin
@@ -211,7 +210,7 @@ async function routeAdminSnapshot(env, guildId) {
 
   // Envelope: for every SETUP_KEY, expose { key, meta, value, envDefault }.
   // envDefault helps the UI label "unset (using deploy default X)" instead
-  // of "empty" — important for keys like STREAM_TIME_ET where the default
+  // of "empty", important for keys like STREAM_TIME_ET where the default
   // is meaningful behaviour.
   const fields = SETUP_KEYS.map((key) => ({
     key,
@@ -245,7 +244,7 @@ async function routeAdminSnapshot(env, guildId) {
 //   scope:   "aquilo" | "loadout"
 //   key:     SETUP_KEYS member (scope=aquilo) or
 //            "sports" | "stocks" | "bolts" | "checkin" (scope=loadout)
-//   value:   string — channel ID, role ID, JSON, free text, or "" to clear
+//   value:   string, channel ID, role ID, JSON, free text, or "" to clear
 async function routeAdminConfig(env, guildId, body) {
   const scope = String((body && body.scope) || '').toLowerCase();
   const key = String((body && body.key) || '').trim();
@@ -301,7 +300,7 @@ async function routeAdminClearBinding(env, guildId, body) {
 }
 
 // Run the five integration-health pipe tests. Same checks the Discord
-// /admin "Run pipe tests" button does — Yahoo (stocks), ESPN (sports),
+// /admin "Run pipe tests" button does, Yahoo (stocks), ESPN (sports),
 // bolts-feed digest assembly, channel-reach via Discord API, and a KV
 // write→read→delete round-trip. Each check has its own 10s timeout;
 // all five run in parallel so total wall time is whichever is slowest.
@@ -334,7 +333,7 @@ async function routeAdminPipeTests(env, guildId) {
 // re-check _owner here too as defence in depth in case the caller
 // forgot.
 // Owner-only: backfill anniv:seen records for legacy wallet holders.
-// Cursor-paginated — pass back the returned `cursor` to continue a
+// Cursor-paginated, pass back the returned `cursor` to continue a
 // large guild across calls. Idempotent (already-stamped users skip).
 async function routeAnniversaryBackfill(env, guildId, body) {
   const { backfillFirstSeen } = await import('./anniversary.js');

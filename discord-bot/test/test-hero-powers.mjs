@@ -1,4 +1,4 @@
-// Unit tests for hero-powers — gate logic, resolve effects,
+// Unit tests for hero-powers, gate logic, resolve effects,
 // turn-boundary reset.
 //
 // Run from discord-bot/:
@@ -53,7 +53,7 @@ function makeMinion(uid, atk, hp, maxHp) {
 
 // ── 1. catalogue ─────────────────────────────────────────────────
 
-console.log('— HERO_POWER_DEFS catalogue');
+console.log('- HERO_POWER_DEFS catalogue');
 {
   const classes = ['warrior', 'mage', 'rogue', 'ranger', 'healer'];
   for (const cls of classes) {
@@ -61,7 +61,7 @@ console.log('— HERO_POWER_DEFS catalogue');
     eq(HERO_POWER_DEFS[cls].manaCost, 2, `${cls} costs 2 mana`);
     assert(typeof HERO_POWER_DEFS[cls].name === 'string', `${cls} has a name`);
   }
-  // Frozen — adding a key should fail silently or throw in strict.
+  // Frozen, adding a key should fail silently or throw in strict.
   let mutated = false;
   try { HERO_POWER_DEFS.invented = { id: 'x' }; if (HERO_POWER_DEFS.invented) mutated = true; }
   catch { /* expected */ }
@@ -70,7 +70,7 @@ console.log('— HERO_POWER_DEFS catalogue');
 
 // ── 2. initHeroPowerForMatch ─────────────────────────────────────
 
-console.log('— initHeroPowerForMatch defaults');
+console.log('- initHeroPowerForMatch defaults');
 {
   const w = initHeroPowerForMatch('warrior');
   eq(w.id, 'warrior', 'warrior id set');
@@ -84,7 +84,7 @@ console.log('— initHeroPowerForMatch defaults');
 
 // ── 3. canUseHeroPower gates ────────────────────────────────────
 
-console.log('— canUseHeroPower mana + once-per-turn');
+console.log('- canUseHeroPower mana + once-per-turn');
 {
   const m = makeMatch();
   // Mana gate
@@ -111,7 +111,7 @@ console.log('— canUseHeroPower mana + once-per-turn');
 
 // ── 4. resolveHeroPower per class ───────────────────────────────
 
-console.log('— resolveHeroPower: warrior Armor Up');
+console.log('- resolveHeroPower: warrior Armor Up');
 {
   const m = makeMatch({ aClass: 'warrior' });
   const r = resolveHeroPower(m, 'A');
@@ -128,7 +128,7 @@ console.log('— resolveHeroPower: warrior Armor Up');
   eq(m.heroArmor.A, 2, 'armor unchanged by rejected re-fire');
 }
 
-console.log('— resolveHeroPower: mage Fire Bolt');
+console.log('- resolveHeroPower: mage Fire Bolt');
 {
   // Fire Bolt at enemy hero.
   const m1 = makeMatch({ aClass: 'mage' });
@@ -153,7 +153,7 @@ console.log('— resolveHeroPower: mage Fire Bolt');
   eq(m3.heroPower.A.usedThisTurn, false, 'no flag flip on rejected');
 }
 
-console.log('— resolveHeroPower: rogue Coin Strike');
+console.log('- resolveHeroPower: rogue Coin Strike');
 {
   const m = makeMatch({ aClass: 'rogue' });
   const r = resolveHeroPower(m, 'A');
@@ -164,7 +164,7 @@ console.log('— resolveHeroPower: rogue Coin Strike');
   eq(m.coinPool.A[0].hp, 1, 'coin hp = +1');
 }
 
-console.log('— resolveHeroPower: ranger Mark Target');
+console.log('- resolveHeroPower: ranger Mark Target');
 {
   const enemyMinion = makeMinion('u-2', 5, 5);
   const m = makeMatch({ aClass: 'ranger', minionsB: [enemyMinion] });
@@ -181,7 +181,7 @@ console.log('— resolveHeroPower: ranger Mark Target');
   eq(r2.log[0].kind, 'hero-power-rejected', 'mark own minion → rejected');
 }
 
-console.log('— resolveHeroPower: healer Lesser Heal');
+console.log('- resolveHeroPower: healer Lesser Heal');
 {
   // Heal own hero.
   const m1 = makeMatch({ aClass: 'healer' });
@@ -211,7 +211,7 @@ console.log('— resolveHeroPower: healer Lesser Heal');
 
 // ── 5. onTurnEnd resets the flag ─────────────────────────────────
 
-console.log('— onTurnEnd resets usedThisTurn for the outgoing player');
+console.log('- onTurnEnd resets usedThisTurn for the outgoing player');
 {
   const m = makeMatch({ aClass: 'warrior' });
   resolveHeroPower(m, 'A');
@@ -226,7 +226,7 @@ console.log('— onTurnEnd resets usedThisTurn for the outgoing player');
   eq(r2.log[0].kind, 'hero-power', 'can re-fire after onTurnEnd');
 }
 
-console.log('— onTurnEnd clears same-turn marks placed by outgoing player');
+console.log('- onTurnEnd clears same-turn marks placed by outgoing player');
 {
   const enemy = makeMinion('u-6', 3, 3);
   const m = makeMatch({ aClass: 'ranger', minionsB: [enemy] });
@@ -239,7 +239,7 @@ console.log('— onTurnEnd clears same-turn marks placed by outgoing player');
 
 // ── 6. Independence between sides ────────────────────────────────
 
-console.log('— B firing does not affect A flag (and vice-versa)');
+console.log('- B firing does not affect A flag (and vice-versa)');
 {
   const m = makeMatch({ aClass: 'warrior', bClass: 'mage' });
   m.active = 'B';
@@ -251,5 +251,5 @@ console.log('— B firing does not affect A flag (and vice-versa)');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

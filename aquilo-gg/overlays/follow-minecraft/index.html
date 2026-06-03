@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TikTok Follow Overlay — Minecraft (Premium)</title>
+<title>TikTok Follow Overlay, Minecraft (Premium)</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -67,7 +67,7 @@
     0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.7), 0 0 0 3px var(--glow),        0 0 18px var(--glow-soft, rgba(95,207,79,0.45)); }
     50%      { box-shadow: 0 4px 14px rgba(0,0,0,0.7), 0 0 0 3px var(--glow-bright), 0 0 32px var(--glow-soft, rgba(95,207,79,0.85)); }
   }
-  /* Enchantment table shimmer — overrides glow purple for ~3s */
+  /* Enchantment table shimmer, overrides glow purple for ~3s */
   #bar.enchanted { --glow: #b265ff; --glow-bright: #d9a3ff; --glow-soft: rgba(178,101,255,0.8); }
 
   .bg {
@@ -514,7 +514,7 @@ function drawFollowerCounter(alpha, now) {
 }
 
 // ============================================================
-// 3D MOB CUBES (#1 — 10 procedural mobs)
+// 3D MOB CUBES (#1-10 procedural mobs)
 // ============================================================
 const MOB3D = {
   creeper: { base:["#5fcf4f","#57c247","#67d657","#4fbc3f"], light:["#7ae35e","#6fd454","#82eb65","#6bcf50"], dark:["#3b9230","#327f28","#459f38","#2f7a25"], outline:"#1a3a0a", hole:"#0a0a0a",
@@ -540,7 +540,7 @@ const MOB3D = {
 };
 // Real Minecraft mob textures (front-face PNGs) loaded at runtime when present.
 // When a texture loads, the cube renderer uses it for the front face and falls
-// back to procedural pixel-art otherwise — so the overlay never breaks if a file
+// back to procedural pixel-art otherwise, so the overlay never breaks if a file
 // is missing. Default base ./textures/ ; override with ?textures=<url> ; disable
 // with ?textures=off. Files are named per mob, e.g. textures/creeper.png.
 const headImages = {};
@@ -557,7 +557,7 @@ function loadMobTextures() {
         for (const k of [...cubeCache.keys()]) if (k.startsWith(name + "_")) cubeCache.delete(k);
       }
     };
-    img.onerror = () => {};   // silent — procedural fallback stays in place
+    img.onerror = () => {};   // silent, procedural fallback stays in place
     img.src = TEXTURE_BASE + name + ".png";
   });
 }
@@ -576,7 +576,7 @@ function getMobCube(mobName, size) {
     for (let xx = lX; xx < rX; xx++) { ctx.fillStyle = pickGreen(m.light, Math.floor((xx-lX)/pxPer), Math.floor((depth-dy-1)/pxPer), 11); ctx.fillRect(xx, yy, 1, 1); } }
   for (let dx = 0; dx < depth; dx++) { const xx = fx+actualSize+dx, tY = fy-(dx+1), bY = fy+actualSize-(dx+1);
     for (let yy = tY; yy < bY; yy++) { ctx.fillStyle = pickGreen(m.dark, Math.floor(dx/pxPer), Math.floor((yy-tY)/pxPer), 22); ctx.fillRect(xx, yy, 1, 1); } }
-  // FRONT face — real Minecraft texture if loaded, else procedural pixel-art
+  // FRONT face, real Minecraft texture if loaded, else procedural pixel-art
   const fimg = headImages[mobName];
   if (fimg && ((fimg.naturalWidth || fimg.width) > 0)) {
     ctx.drawImage(fimg, fx, fy, actualSize, actualSize);
@@ -618,7 +618,7 @@ function drawMobHead3D(ctx, mobName, cx, cy, size, flashMix) {
 }
 
 // ============================================================
-// IDLE EVENTS — peek (70%) + mining (30%)  (#4)
+// IDLE EVENTS, peek (70%) + mining (30%)  (#4)
 // ============================================================
 const PEEK_MOBS = ["creeper","zombie","skeleton","enderman","witch","blaze","slime","wither_skeleton","allay","axolotl"];
 let peekMobIndex = 0;
@@ -728,20 +728,20 @@ function startMining() {
 // ============================================================
 // IDLE RENDER LOOP
 // ============================================================
-// Hovering server invite — two lines, bobbing together above the bar.
+// Hovering server invite, two lines, bobbing together above the bar.
 function drawPromoText(now) {
   const W = $aboveFX.width, H = $aboveFX.height, cx = W/2;
   const bob = Math.sin(now * 0.002) * 1.5;
   aboveCtx.save();
   aboveCtx.textAlign = "center"; aboveCtx.textBaseline = "middle";
-  // Line 1 — invite
+  // Line 1, invite
   const l1 = "Join Our Java/Bedrock Server!", y1 = H - 70 + bob;
   aboveCtx.font = 'bold 14px "Courier New", monospace';
   aboveCtx.fillStyle = "#000"; aboveCtx.fillText(l1, cx+1, y1+1); aboveCtx.fillText(l1, cx+2, y1+2);
   aboveCtx.shadowColor = "rgba(95,207,79,0.6)"; aboveCtx.shadowBlur = 6;
   aboveCtx.fillStyle = "#e8ffd0"; aboveCtx.fillText(l1, cx, y1);
   aboveCtx.shadowBlur = 0;
-  // Line 2 — address (gold, larger, eye-catching)
+  // Line 2, address (gold, larger, eye-catching)
   const l2 = "aquilo.mc.gg", y2 = H - 50 + bob;
   aboveCtx.font = 'bold 19px "Courier New", monospace';
   aboveCtx.fillStyle = "#1a1206"; aboveCtx.fillText(l2, cx+1, y2+1); aboveCtx.fillText(l2, cx+2, y2+2);
@@ -774,7 +774,7 @@ function stopIdleLoop() {
 }
 
 // ============================================================
-// ENCHANTMENT SHIMMER (#8) — purple glow + SGA runes on the bar
+// ENCHANTMENT SHIMMER (#8), purple glow + SGA runes on the bar
 // ============================================================
 const SGA = "ᔑʖᓵ↸ᒷ⎓⊣⍑╎⋮ꖌꖎᒲリ𝙹!¡ᑑ∷ᓭℸ⚍⍊∴/||⨅";
 function triggerEnchant() {
@@ -862,7 +862,7 @@ function spawnParticle(type) {
   return { ...base, vx: rand(-0.15,0.15), vy: rand(-0.5,-0.2), r: rand(1,2.2), col: pick(["#ff9020","#ffd060","#ff6020"]), sway: rand(0,6.28) }; // sparks
 }
 
-// Day-night (#6) — 20-min cycle. Returns interpolated look.
+// Day-night (#6), 20-min cycle. Returns interpolated look.
 const CYCLE_MS = 1200000;
 const cycleStart = performance.now();
 const DN = [
@@ -936,7 +936,7 @@ function bgLoop(now) {
 }
 
 // ============================================================
-// CELEBRATION SCENES (#2) — weighted dispatcher
+// CELEBRATION SCENES (#2), weighted dispatcher
 // ============================================================
 const SCENES = [
   { id:"creeper",   fn: playCreeperBoom,  weight: 3 },
@@ -1232,7 +1232,7 @@ window.triggerFollow = handleFollow;
   document.body.style.background = "linear-gradient(150deg,#27613f 0%,#1f6f8b 38%,#3a3060 72%,#52364a 100%)";
   document.getElementById("demoPanel").classList.add("hidden");
 
-  // Mob-roster grid — draws all 10 cubes continuously under REAL rAF so async
+  // Mob-roster grid, draws all 10 cubes continuously under REAL rAF so async
   // textures finish loading before a capture (the freeze-pump can't await them).
   if (SHOT === "mobs") {
     stopIdleLoop();

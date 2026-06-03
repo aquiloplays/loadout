@@ -23,7 +23,7 @@ function ok(label, cond, detail) {
 }
 
 // In-memory KV stub matching the parts of LOADOUT_BOLTS the code uses
-// (get with optional {type:'json'}, put, list — list isn't exercised
+// (get with optional {type:'json'}, put, list, list isn't exercised
 // in these tests but stubbed for safety).
 function makeKv() {
   const store = new Map();
@@ -95,7 +95,7 @@ console.log('--- character lock + reset ---');
 // ── Class pick is gated by the same lock ────────────────────────────
 {
   const env = await freshEnv();
-  // Class first (unlocked) — succeeds.
+  // Class first (unlocked), succeeds.
   const c1 = await applyClassWeb(env, GUILD, USER, 'warrior');
   ok('class pick before lock: ok', c1.ok === true);
 

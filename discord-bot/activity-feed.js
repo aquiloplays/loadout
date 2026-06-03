@@ -1,21 +1,21 @@
-// Activity feed — community-wide ring buffer of noteworthy events.
+// Activity feed, community-wide ring buffer of noteworthy events.
 //
 // Source: the progressionEvent bus (event-bus.js calls
 // `appendIfNoteworthy` as a 4th consumer). Only "highlight-worthy"
-// kinds make it in — not every XP tick. Cap 200 entries.
+// kinds make it in, not every XP tick. Cap 200 entries.
 //
 // KV layout:
 //   feed:community     [{ id, kind, userId, username, guildId, meta, utc }, ...]
 //                       newest first, cap 200
 //
 // Public read endpoint: GET /community/feed?limit=50
-// No auth — same shape as the public supporter wall.
+// No auth, same shape as the public supporter wall.
 
 const FEED_KEY = 'feed:community';
 const FEED_CAP = 200;
 
 // Which event kinds bubble up to the community feed. Tuned to be
-// "interesting to scroll past" — not chatty. Anything not in this
+// "interesting to scroll past", not chatty. Anything not in this
 // set gets dropped on the floor.
 //
 // Some kinds are conditional (e.g. level.reached only at milestones,
@@ -47,7 +47,7 @@ function passesNoteworthyFilter(event) {
       return RARE_RARITIES.has(String(m.rarity || '').toLowerCase());
     case 'cards.pack.opened':
       // The pack-open emitter (cards-packs.js) sets `m.hadLegendary`
-      // when the rolled pack contained a legendary pull — that's the
+      // when the rolled pack contained a legendary pull, that's the
       // canonical "noteworthy" signal. Earlier this filter checked
       // `m.rarity` / `m.legendary`, neither of which the emitter
       // populates, so legendary pulls never reached the feed.
@@ -60,7 +60,7 @@ function passesNoteworthyFilter(event) {
   }
 }
 
-// Best-effort username lookup — cheap because the bus already runs
+// Best-effort username lookup, cheap because the bus already runs
 // inside the request lifecycle and the call site is async.
 async function usernameFor(env, userId) {
   try {
@@ -94,7 +94,7 @@ export async function appendIfNoteworthy(env, event) {
     await env.LOADOUT_BOLTS.put(FEED_KEY, JSON.stringify(arr));
     // Fire-and-forget Discord post into the guild's bound activity-
     // feed channel (if configured). Failure must not roll back the
-    // KV write — the website feed is the authoritative surface; the
+    // KV write, the website feed is the authoritative surface; the
     // Discord post is a nice-to-have nudge for in-server visibility.
     if (event.guildId) {
       postActivityToDiscord(env, event.guildId, entry).catch(() => {});
@@ -108,13 +108,13 @@ export async function appendIfNoteworthy(env, event) {
 
 // ── Discord-side push ─────────────────────────────────────────────
 // Resolves the bound channel from guild:cfg:<g>.ids.ch_activity_feed
-// (set by the new /loadout-setup channel slot — slot id 'ch_activity_feed').
+// (set by the new /loadout-setup channel slot, slot id 'ch_activity_feed').
 // One-line content post (no embed) so the channel reads like a feed:
 //
 //   ⭐  **Alice** unlocked a legendary achievement!
 //
 // We keep the per-kind format table small + opinionated. Unknown
-// kinds fall back to a generic line — better one ugly line than a
+// kinds fall back to a generic line, better one ugly line than a
 // silently-dropped event.
 
 const KIND_FORMAT = {
@@ -139,7 +139,7 @@ async function postActivityToDiscord(env, guildId, entry) {
     cfg = await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' });
   } catch { /* idle */ }
   const channelId = cfg?.ids?.ch_activity_feed;
-  if (!channelId) return;  // no bound feed channel — silent skip
+  if (!channelId) return;  // no bound feed channel, silent skip
   const fmt = KIND_FORMAT[entry.kind];
   const content = fmt
     ? fmt(entry.username, entry.meta || {})
@@ -169,7 +169,7 @@ export async function readCommunityFeed(env, { limit = 50, sinceUtc = null } = {
 
 // ── HTTP dispatcher ──────────────────────────────────────────────
 //
-// Public read — no auth. Mirror of /community/supporters.
+// Public read, no auth. Mirror of /community/supporters.
 
 function json(obj, status = 200) {
   return new Response(JSON.stringify(obj), {

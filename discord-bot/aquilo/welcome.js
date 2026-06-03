@@ -1,10 +1,10 @@
-// Welcome ritual — fires once per (guild, user) the first time we see
+// Welcome ritual, fires once per (guild, user) the first time we see
 // them act. Posts a celebratory card in #engagement, grants 100 starter
 // Bolts via Loadout's award-bolts endpoint, and unlocks the "First Light"
 // achievement.
 //
 // Trigger surface: any handler that wants to mark "this user is now
-// active" — viewer-hub clicks, /suggest, /sr-add, first count, first
+// active", viewer-hub clicks, /suggest, /sr-add, first count, first
 // /passport. Idempotent: once-per-user via the `welcomed` D1 table.
 //
 // Public API:
@@ -20,7 +20,7 @@ const STARTER_BOLTS = 100;
  * per user; { welcomed: false, reason } afterward.
  *
  * Caller passes `member` (Discord interaction member object) when
- * available — used for the welcome card's pretty name + avatar.
+ * available, used for the welcome card's pretty name + avatar.
  */
 export async function maybeWelcome(env, guildId, userId, member = null) {
   if (!env?.DB || !guildId || !userId) {
@@ -41,7 +41,7 @@ export async function maybeWelcome(env, guildId, userId, member = null) {
   catch (e) { console.error('[welcome] achievement bump failed', e?.message || e); }
 
   // 2) Credit 100 starter Bolts via Loadout's cross-bot endpoint.
-  // /counting/award-bolts is the receiver — it requires the
+  // /counting/award-bolts is the receiver, it requires the
   // x-counting-secret header and a guild_id in the body. The header
   // name + missing guild_id were a long-standing silent fail
   // (boltsCredited stayed false; the welcome card downgraded to the
@@ -82,7 +82,7 @@ export async function maybeWelcome(env, guildId, userId, member = null) {
         `🌩️ **Welcome to Aquilo, ${username}!**`,
         '',
         boltsCredited
-          ? `You've been credited **${STARTER_BOLTS} starter Bolts** — run \`/loadout\` to claim your daily, peek the shop, or flip a coin.`
+          ? `You've been credited **${STARTER_BOLTS} starter Bolts**, run \`/loadout\` to claim your daily, peek the shop, or flip a coin.`
           : `Run \`/loadout\` to set up your hero and start earning Bolts.`,
         '',
         '✨ React to this message with the storm emoji to say hi.',

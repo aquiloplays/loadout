@@ -1,9 +1,9 @@
-// Boltbound — ranked ladder + monthly seasons (RET-4).
+// Boltbound, ranked ladder + monthly seasons (RET-4).
 //
 // Ladder: Bronze 5 → Bronze 1 → Silver 5 → … → Diamond 1 → Legend.
 // Five tiers of five divisions (index 0..24) plus Legend (index 25).
 // Win = +1 star, 5 stars = promote (stars reset). At 0 stars, 5 losses
-// demote one division — except you can't fall below the bottom of the
+// demote one division, except you can't fall below the bottom of the
 // highest tier you've reached (the "floor"), and Legend never demotes
 // in-season. PvP matches feed the ladder; NPC matches don't.
 //
@@ -13,8 +13,8 @@
 // reset two tiers down. Settlement is idempotent per (user, season).
 //
 // D1:
-//   ranked_player  — one row per user (current season + counters)
-//   ranked_season  — season log (for the close cron's bookkeeping)
+//   ranked_player, one row per user (current season + counters)
+//   ranked_season, season log (for the close cron's bookkeeping)
 
 import { applyVaultDelta } from './wallet.js';
 import { creditPack } from './cards-packs.js';
@@ -150,7 +150,7 @@ function applyResult(row, won) {
   } else {
     row.losses += 1;
     if (row.rank_index >= LEGEND_INDEX) {
-      // Legend is apex — no in-season demotion.
+      // Legend is apex, no in-season demotion.
     } else if (row.stars > 0) {
       row.stars -= 1;
     } else if (row.rank_index > row.floor_index) {
@@ -170,7 +170,7 @@ function applyResult(row, won) {
 
 // Grant a row's end-of-season reward (by peak tier) and return a
 // summary. Skips players who didn't play that season. Best-effort
-// grants — a failure is logged into the summary, never thrown.
+// grants, a failure is logged into the summary, never thrown.
 async function grantSeasonReward(env, row) {
   if ((row.wins + row.losses) === 0) return { granted: false, reason: 'inactive' };
   const tier = tierKey(row.peak_index);
@@ -292,7 +292,7 @@ export async function getRankedMe(env, userId) {
   const now = Date.now();
   let row = await readRow(env, userId);
   if (!row) {
-    // Unranked — show a placeholder at Bronze 5 without writing a row
+    // Unranked, show a placeholder at Bronze 5 without writing a row
     // (so the leaderboard isn't polluted by people who never queued).
     return { ok: true, ranked: false, rank: shapeRank(blankRow(userId, null, seasonKey(now)), now) };
   }
@@ -350,7 +350,7 @@ export async function rankedSeasonCron(env, nowMs) {
 
   let settled = 0, cursor = null, scanned = 0;
   try {
-    // Settle in pages — D1 can hold many rows; cap iterations defensively.
+    // Settle in pages, D1 can hold many rows; cap iterations defensively.
     for (let i = 0; i < 50; i++) {
       const stmt = cursor
         ? db(env).prepare('SELECT * FROM ranked_player WHERE season != ? AND user_id > ? ORDER BY user_id LIMIT 200').bind(cur, cursor)

@@ -1,7 +1,7 @@
-// Boltbound — KV state module.
+// Boltbound, KV state module.
 //
 // Owns every read/write against the `cards:*` family of keys in the
-// shared LOADOUT_BOLTS namespace. Same posture as clash-state.js — the
+// shared LOADOUT_BOLTS namespace. Same posture as clash-state.js, the
 // schema lives in exactly one place and every other Boltbound module
 // (cards-packs, cards-battle, cards-match, cards.js) goes through these
 // helpers.
@@ -34,7 +34,7 @@ const CHALLENGE_PREFIX = (g, recipient)       => `cards:challenge:${g}:${recipie
 //
 // Shape: { cards: { cardId: count }, ts, championClass? }
 // `championClass` is a hint of what dungeon class the viewer's
-// HeroState was when their collection was last touched — used to
+// HeroState was when their collection was last touched, used to
 // pick the default champion for a freshly-built deck. The Champion
 // card itself is NOT stored in the collection (it's granted at
 // play-time based on current class).
@@ -50,7 +50,7 @@ export async function putCollection(env, guildId, userId, col) {
   return col;
 }
 
-// First-/boltbound bootstrap. Idempotent — if the row already exists,
+// First-/boltbound bootstrap. Idempotent, if the row already exists,
 // no-op. Returns { isNew, collection } so the welcome flow knows
 // whether to credit the welcome pack.
 export async function ensureCollection(env, guildId, userId, championClass) {
@@ -68,7 +68,7 @@ export async function ensureCollection(env, guildId, userId, championClass) {
 //     actual wallet credit (we don't want to import the wallet module
 //     here and create a circular dep).
 //
-// Champions are never collected — they're granted at play-time. If a
+// Champions are never collected, they're granted at play-time. If a
 // pack roller somehow asks to credit a champion id, we drop it.
 export async function addCardToCollection(env, guildId, userId, cardId) {
   const card = CARDS[cardId];
@@ -80,7 +80,7 @@ export async function addCardToCollection(env, guildId, userId, cardId) {
   const have = col.cards[cardId] || 0;
   const cap = RARITY_DECK_CAP[card.rarity] || 1;
   if (have >= cap) {
-    // Past cap — duplicate refund instead of adding a card.
+    // Past cap, duplicate refund instead of adding a card.
     const { DUPE_BOLTS } = await import('./cards-content.js');
     return { credited: false, dupeBolts: DUPE_BOLTS[card.rarity] || 0, cardId };
   }
@@ -89,7 +89,7 @@ export async function addCardToCollection(env, guildId, userId, cardId) {
   return { credited: true, count: col.cards[cardId], cardId };
 }
 
-// Bulk add — same return shape per card. Used when opening a pack so
+// Bulk add, same return shape per card. Used when opening a pack so
 // the redemption summary can show "you got 3 cards: X (new), Y
 // (duplicate → 5 Bolts), Z (new)"
 export async function addCardsToCollection(env, guildId, userId, cardIds) {
@@ -181,14 +181,14 @@ export async function getActiveDeck(env, guildId, userId) {
 
 // Replace the deck's champion slot with the one matching its
 // championClass. The deck record itself stores the class, NOT the
-// champion card id — that way a class swap doesn't require rewriting
+// champion card id, that way a class swap doesn't require rewriting
 // every saved deck.
 export function resolveDeckChampion(deck) {
   if (!deck || !Array.isArray(deck.cards)) return deck;
   const out = { ...deck, cards: deck.cards.slice() };
   // Find the existing champion slot (any 'champ.*' id) and replace
   // it with the champion for the deck's recorded class. If no
-  // champion is present at all, prepend one — protects against
+  // champion is present at all, prepend one, protects against
   // pre-validate-fix decks.
   let foundIdx = -1;
   for (let i = 0; i < out.cards.length; i++) {
@@ -205,7 +205,7 @@ export function resolveDeckChampion(deck) {
 // Shape: { id, packType, source, mintedUtc, rolled?: [cardId,...] }
 // `rolled` is null when the pack is unopened. Server pre-rolls at
 // redeem-time using rng seeded by the pack id, then freezes the
-// pulls. A second open call returns the same cards — supports
+// pulls. A second open call returns the same cards, supports
 // the future web reveal page consuming a server-pre-rolled list.
 
 export async function mintPendingPack(env, guildId, userId, packType, source, setId) {
@@ -287,7 +287,7 @@ export async function markFreePackClaimed(env, guildId, userId) {
 //
 // Per-user (NOT per-guild). Increments on every Bolt or Voltaic pack
 // opened. On every 30th of those without a legendary pulled, the next
-// pack guarantees a legendary slot — see cards-packs.js for the
+// pack guarantees a legendary slot, see cards-packs.js for the
 // consumer.
 
 export async function getPity(env, userId) {
@@ -444,7 +444,7 @@ export async function adjustTrophies(env, userId, delta) {
   return { ...t, tier: tierOf(t.trophies) };
 }
 
-// PROGRESSION (P2) — Boltbound headline stats for the unified profile.
+// PROGRESSION (P2), Boltbound headline stats for the unified profile.
 // Trophies are account-wide (cards:trophies is global, not per-guild).
 // Collection count walks cards:col:*:<userId> for the user's collection
 // across every guild.
@@ -572,7 +572,7 @@ export async function consumeChallenge(env, guildId, senderId, recipientId) {
 // ── Utility ──────────────────────────────────────────────────────────
 
 export function newId() {
-  // Same shape ext-lootbox.js uses for item ids — 32-char lower-hex.
+  // Same shape ext-lootbox.js uses for item ids, 32-char lower-hex.
   // Used for pack ids, match ids, etc.
   const arr = crypto.getRandomValues(new Uint8Array(16));
   return Array.from(arr, (b) => b.toString(16).padStart(2, '0')).join('');

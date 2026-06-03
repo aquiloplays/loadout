@@ -88,7 +88,7 @@ function buildQueueMessage(q, eligibleCount) {
   if (q.art_url) header.image = { url: q.art_url };
 
   const list = q.entries.length === 0
-    ? ['_Queue is empty — first to click joins._']
+    ? ['_Queue is empty, first to click joins._']
     : q.entries.map((e, i) => {
         const badge = priorityBadge(e.priority, eligibleCount);
         return (i + 1) + '. ' + (badge ? badge + ' ' : '') + '<@' + e.user_id + '>';
@@ -115,7 +115,7 @@ function buildQueueMessage(q, eligibleCount) {
 // idle CTA so the channel doesn't show both at once.
 //
 // Also creates a discussion thread on the new queue post so chatter
-// about tonight's game stays organized — no manual setup needed.
+// about tonight's game stays organized, no manual setup needed.
 export async function postQueueMessage(env, guildId, dayOfWeek, gameName, artUrl) {
   const eligibleRoles = getEligibleRoles(env);
 
@@ -278,7 +278,7 @@ export async function handleQueueButton(env, data, guildId) {
       const dayLabel = q.day_of_week ? cap(q.day_of_week) + ' Community Night' : 'Community Night';
       await sendDm(env, next.user_id, {
         content: '🎮 **You\'re up!** ' + dayLabel + (q.game ? ' · **' + q.game + '**' : '') +
-                 '\n\nGet to chat / VC — the streamer just pulled you from the queue.'
+                 '\n\nGet to chat / VC, the streamer just pulled you from the queue.'
       });
     } catch (e) { /* DMs disabled on user side - silent */ }
 

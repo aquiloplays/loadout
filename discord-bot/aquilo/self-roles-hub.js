@@ -5,22 +5,22 @@
 // message from guild-builder.js.
 //
 // Categories (in display order):
-//   1. 🔔 Notification Pings   — multi-select (Stream / YouTube /
+//   1. 🔔 Notification Pings, multi-select (Stream / YouTube /
 //                                Events / Game Night). Migrates the
 //                                pre-existing guild:role:* IDs out of
 //                                guild-builder's KV cfg.ids so users
 //                                keep whatever they already toggled.
-//   2. 🎨 Name Color           — single-select / mutex (11 colors).
+//   2. 🎨 Name Color, single-select / mutex (11 colors).
 //                                Hierarchy note: these must sit
 //                                ABOVE the user's other coloured
 //                                roles for Discord to render the
 //                                colour. Admin reorders post-provision.
-//   3. 🌎 Region               — multi-select (NA East / NA West /
+//   3. 🌎 Region, multi-select (NA East / NA West /
 //                                EU / Asia / Oceania).
-//   4. 🎮 Platform             — multi-select (PC / Xbox / PS / Switch).
-//   5. 🪪 Pronouns             — multi-select (He/Him / She/Her /
+//   4. 🎮 Platform, multi-select (PC / Xbox / PS / Switch).
+//   5. 🪪 Pronouns, multi-select (He/Him / She/Her /
 //                                They/Them / Other-Ask-Me).
-//   6. 🔞 18+ Access           — keeps the existing two-tap warning
+//   6. 🔞 18+ Access, keeps the existing two-tap warning
 //                                flow from self-roles.js handle18PlusClick;
 //                                this hub just re-posts the button.
 //
@@ -65,7 +65,7 @@ export const CATEGORIES = [
   {
     key: 'pings',
     title: '🔔 Notification Pings',
-    blurb: 'Toggle the pings you want — multi-select.',
+    blurb: 'Toggle the pings you want, multi-select.',
     placeholder: '🔔 Choose which pings you want',
     multi: true,
     options: [
@@ -74,12 +74,12 @@ export const CATEGORIES = [
       { value: 'event',          label: 'Event Pings',    emoji: { name: '📅' }, color: 0xFEE75C, existingIdKey: 'role_event'     },
       { value: 'gamenight',      label: 'Game Night',     emoji: { name: '🎮' }, color: 0x9147ff, existingIdKey: 'role_gamenight' },
       // Server-meta announcements (new channels, role system updates,
-      // server-wide announcements) — distinct from stream/CN pings so
+      // server-wide announcements), distinct from stream/CN pings so
       // people who want feature updates can subscribe without
       // signing up for every live alert.
       { value: 'server_updates', label: 'Server Updates', emoji: { name: '📢' }, color: 0x7c5cff },
       // Per-product release pings. Each ties to the GitHub Actions
-      // release workflow in its repo — the workflow @-mentions the
+      // release workflow in its repo, the workflow @-mentions the
       // matching role when a new build ships. Aquilo violet across
       // all three so they read as a coherent "Updates" group.
       { value: 'sf_updates',       label: 'StreamFusion Updates', emoji: { name: '📡' }, color: 0x7c5cff },
@@ -149,7 +149,7 @@ export const CATEGORIES = [
   },
 ];
 
-// 18+ is special — kept as a button that triggers the existing
+// 18+ is special, kept as a button that triggers the existing
 // handle18PlusClick warning flow in self-roles.js. The hub still
 // renders a dedicated message for it so it sits visually beside the
 // other categories.
@@ -159,9 +159,9 @@ export const AGE18_CATEGORY = {
   blurb: 'Opt in to the adult-conversation chat. Click to read the warning and confirm.',
 };
 
-// Interests — opt-in pings for activity sub-communities. Mirrors the
+// Interests, opt-in pings for activity sub-communities. Mirrors the
 // 6-entry INTERESTS catalogue from onboarding.js. Role IDs are NOT
-// stored under self-roles-hub:roles:<g>.interests — instead, they're
+// stored under self-roles-hub:roles:<g>.interests, instead, they're
 // resolved at render-time from the onboarding role-map at KV
 // `onboard:role-map:<g>` (with env.ONBOARD_ROLE_MAP fallback) via
 // onboarding.js's loadRoleMap helper, so this surface stays in sync
@@ -171,7 +171,7 @@ export const AGE18_CATEGORY = {
 export const INTERESTS_CATEGORY = {
   key: 'interests',
   title: '⭐ Interests',
-  blurb: 'Opt into pings for the activities you care about. These mirror your onboarding picks — toggle any time.',
+  blurb: 'Opt into pings for the activities you care about. These mirror your onboarding picks, toggle any time.',
   placeholder: '⭐ Pick your interest pings',
   multi: true,
   options: [
@@ -210,7 +210,7 @@ function findCategory(key) {
   return CATEGORIES.find(c => c.key === key) || null;
 }
 
-// ── Discord helpers (raw fetch — keep cross-module coupling thin) ────
+// ── Discord helpers (raw fetch, keep cross-module coupling thin) ────
 
 async function dapi(env, method, path, body) {
   const init = {
@@ -237,8 +237,7 @@ async function listGuildRoles(env, guildId) {
 
 // ── Role provisioning ────────────────────────────────────────────────
 //
-// Creates a Discord role per option in each category. Idempotent —
-// reuses any existing role with the same name (case-insensitive).
+// Creates a Discord role per option in each category. Idempotent, // reuses any existing role with the same name (case-insensitive).
 // Pings migrate from guild-builder.js cfg.ids when present so users
 // keep whatever pings they already opted into. Returns the full
 // {category: {option: roleId}} map written to KV.
@@ -337,13 +336,13 @@ function buildHubMessage(brandAccent = 0x7c5cff) {
       title: '🪪 Pick your roles',
       description:
         'Tap **Open Role Picker** to set your pings, region, platform, pronouns, name colour, and adult-content opt-in.\n\n' +
-        'Your selections are **only visible to you** — the picker pops up as an ephemeral.',
+        'Your selections are **only visible to you**, the picker pops up as an ephemeral.',
       color: brandAccent,
       footer: {
         // Patreon gift-link CTA. Patreon hosts the gift flow (fan-to-
         // fan gifting is enabled on Clay's page); we just surface the
         // link here so viewers see it alongside the ping-role picker.
-        text: '💝 Gift Aquilo Supporter access — patreon.com/aquilo/gift',
+        text: '💝 Gift Aquilo Supporter access, patreon.com/aquilo/gift',
       },
     }],
     components: [{
@@ -357,7 +356,7 @@ function buildHubMessage(brandAccent = 0x7c5cff) {
           custom_id: HUB_BTN_OPEN,
         },
         {
-          // LINK button — opens the Patreon gift flow in a new tab.
+          // LINK button, opens the Patreon gift flow in a new tab.
           // Discord renders link buttons inline with no callback, so
           // this never round-trips through the worker.
           type: COMPONENT_BUTTON,
@@ -373,7 +372,7 @@ function buildHubMessage(brandAccent = 0x7c5cff) {
 }
 
 // Build a single category's select-menu component. `memberRoleIds`
-// is the set of role IDs the user currently has — used to mark
+// is the set of role IDs the user currently has, used to mark
 // matching options as `default: true` so the picker renders with the
 // current selections pre-filled.
 function buildCategorySelect(category, catRoleMap, memberRoleIds) {
@@ -388,7 +387,7 @@ function buildCategorySelect(category, catRoleMap, memberRoleIds) {
     };
   });
   // Category-specific placeholder makes each select self-labeling
-  // — important because Discord renders the message content body
+  //, important because Discord renders the message content body
   // FIRST and all action rows beneath it, so without per-select
   // labels users see a stack of selects under the last header in
   // the body. Falls back to a generic prompt if the category
@@ -406,7 +405,7 @@ function buildCategorySelect(category, catRoleMap, memberRoleIds) {
 }
 
 // Build the main picker ephemeral payload. Layout (5 action rows
-// max — Discord cap):
+// max, Discord cap):
 //   Row 1: 🔔 Pings select       (multi)
 //   Row 2: 🌎 Region select      (multi)
 //   Row 3: 🎮 Platform select    (multi)
@@ -427,11 +426,11 @@ function buildPickerEphemeral(roleIds, memberRoleIds, banner = null) {
   if (banner) lines.push('', banner);
   lines.push(
     '',
-    '🔔 **Pings** — what you want to be pinged for',
-    '🌎 **Region** — roughly where you play from',
-    '🎮 **Platform** — what you play on',
-    '🪪 **Pronouns** — pick what you go by',
-    '📂 **More & specials** — interests, name colour, 18+ via the buttons below',
+    '🔔 **Pings**, what you want to be pinged for',
+    '🌎 **Region**, roughly where you play from',
+    '🎮 **Platform**, what you play on',
+    '🪪 **Pronouns**, pick what you go by',
+    '📂 **More & specials**, interests, name colour, 18+ via the buttons below',
   );
 
   const components = [];
@@ -469,7 +468,7 @@ function buildColorPickerEphemeral(roleIds, memberRoleIds, banner = null) {
   const cat = CATEGORIES.find(c => c.key === 'colors');
   const lines = [
     '## 🎨 Name Colour',
-    '_Pick one — mutex. Choosing a new colour replaces your previous pick._',
+    '_Pick one, mutex. Choosing a new colour replaces your previous pick._',
   ];
   if (banner) lines.push('', banner);
   lines.push('', '_Mod note: colour roles must sit ABOVE other coloured roles in the hierarchy for Discord to render the colour on your name._');
@@ -484,7 +483,7 @@ function buildColorPickerEphemeral(roleIds, memberRoleIds, banner = null) {
   };
 }
 
-// Build the More Roles sub-picker — currently just the Interests
+// Build the More Roles sub-picker, currently just the Interests
 // select. Lives in its own ephemeral spawned from the [📂 More Roles]
 // button so it doesn't steal a row from the main picker. `roleMap`
 // is the resolved interest-key → discordRoleId map (loaded via
@@ -498,7 +497,7 @@ function buildInterestsPickerEphemeral(roleMap, memberRoleIds, banner = null) {
   // Empty mapping = admin hasn't configured the onboarding role-map
   // yet. Render a hint instead of a broken (un-grantable) select.
   if (!roleMap || Object.keys(roleMap).length === 0) {
-    lines.push('', '_⚠ No interest roles configured yet — admin needs to run `/onboard role-map` (or set the `ONBOARD_ROLE_MAP` env var) before this section works._');
+    lines.push('', '_⚠ No interest roles configured yet, admin needs to run `/onboard role-map` (or set the `ONBOARD_ROLE_MAP` env var) before this section works._');
     return {
       content: lines.join('\n'),
       flags: FLAG_EPHEMERAL,
@@ -595,7 +594,7 @@ export async function postOrRefreshHub(env, guildId, channelId) {
       payload);
     if (r.ok) messageId = prior.messageId;
   } else if (prior?.channelId && prior?.messageId) {
-    // Channel changed — best-effort delete the old message before re-posting.
+    // Channel changed, best-effort delete the old message before re-posting.
     await dapi(env, 'DELETE',
       `/channels/${encodeURIComponent(prior.channelId)}/messages/${encodeURIComponent(prior.messageId)}`)
       .catch(() => {});
@@ -642,7 +641,7 @@ export async function handleOpenPicker(env, data) {
 
   const roleIds = await env.LOADOUT_BOLTS.get(ROLES_KV_KEY(guildId), { type: 'json' });
   if (!roleIds) {
-    return ephemeral('Role picker not configured yet — ask a mod to run `/admin/self-roles-hub/provision`.');
+    return ephemeral('Role picker not configured yet, ask a mod to run `/admin/self-roles-hub/provision`.');
   }
   const memberRoleIds = new Set(data.member?.roles || []);
   return {
@@ -657,7 +656,7 @@ export async function handleOpenColorPicker(env, data) {
   if (!userId || !guildId) return ephemeral('Run this in a server.');
 
   const roleIds = await env.LOADOUT_BOLTS.get(ROLES_KV_KEY(guildId), { type: 'json' });
-  if (!roleIds) return ephemeral('Role picker not configured yet — ask a mod to run provision.');
+  if (!roleIds) return ephemeral('Role picker not configured yet, ask a mod to run provision.');
   const memberRoleIds = new Set(data.member?.roles || []);
   return {
     type: RESP_CHAT,
@@ -767,7 +766,7 @@ export async function handleHubSelect(env, data) {
   if (addedLabels.length)   bannerParts.push('➕ Added: ' + addedLabels.join(', '));
   if (removedLabels.length) bannerParts.push('➖ Removed: ' + removedLabels.join(', '));
   if (failures.length) {
-    bannerParts.push(`⚠ ${failures.length} op(s) failed — bot role may sit BELOW these roles in the hierarchy.`);
+    bannerParts.push(`⚠ ${failures.length} op(s) failed, bot role may sit BELOW these roles in the hierarchy.`);
   }
   const banner = bannerParts.length ? '✅ ' + bannerParts.join(' · ') : null;
 

@@ -2,14 +2,14 @@
 //
 // aquilo-presence (the Railway-hosted Discord Gateway keeper) forwards
 // every MESSAGE_CREATE from an allow-listed channel to POST
-// /counting/message. This handler is one of the fan-out targets — it
+// /counting/message. This handler is one of the fan-out targets, it
 // keeps the last N messages PER ALLOWED CHAT CHANNEL in KV so the
 // public /community/chat endpoint can render a live feed on
 // aquilo.gg/community/.
 //
 // Channels included here are read at runtime from env.COMMUNITY_CHAT_CHANNELS_JSON
 // (a JSON array of channel IDs). The same array is merged into
-// /forward-channels so aquilo-presence picks them up dynamically — no
+// /forward-channels so aquilo-presence picks them up dynamically, no
 // Railway redeploy needed to add a channel.
 //
 // KV layout:
@@ -22,7 +22,7 @@
 
 const CHAT_PREFIX = 'community-chat:';
 const MAX_MESSAGES_PER_CHANNEL = 50;
-// TTL is mostly defensive — KV would happily hold the keys forever, but
+// TTL is mostly defensive, KV would happily hold the keys forever, but
 // 24h means an abandoned channel grooms itself. The active channels are
 // re-written constantly so the TTL keeps refreshing.
 const TTL_S = 24 * 60 * 60;
@@ -60,7 +60,7 @@ export function parseEmoji(raw) {
       animated: false,
     };
   }
-  // Unicode glyph — reject if it contains characters that look like
+  // Unicode glyph, reject if it contains characters that look like
   // injection (colons / digits-only / whitespace-only). Keep it
   // permissive otherwise: Discord accepts a wide range of glyphs.
   if (/[:<>@/\\]/.test(s)) return null;
@@ -130,7 +130,7 @@ export async function handleCommunityChatMessage(env, payload) {
 
   // Drop the very common "bot relay echo" loop: if the message author
   // is a bot AND a webhook-style embed message (DiscordSRV joins use
-  // webhook author), still keep it — those are MC join/leave/chat
+  // webhook author), still keep it, those are MC join/leave/chat
   // events bridged through. Only drop our own bot's outgoing relays
   // (which never carry useful chat).
   const norm = normalise(payload);
@@ -143,7 +143,7 @@ export async function handleCommunityChatMessage(env, payload) {
     if (Array.isArray(existing)) list = existing;
   } catch { /* fall through to empty */ }
 
-  // Dedupe — same message id arriving twice (e.g. transient redelivery)
+  // Dedupe, same message id arriving twice (e.g. transient redelivery)
   // shouldn't double-render.
   if (list.find(m => m.id === norm.id)) {
     return { stored: false, reason: 'duplicate' };
@@ -163,7 +163,7 @@ export async function handleCommunityChatMessage(env, payload) {
 }
 
 /**
- * Read the ringbuffer for a channel (public read — gates which channels
+ * Read the ringbuffer for a channel (public read, gates which channels
  * are exposed via the COMMUNITY_CHAT_CHANNELS_JSON allow-list; no
  * additional auth).
  */
@@ -187,7 +187,7 @@ export async function readCommunityChat(env, channelId, limit) {
 //
 // Web users (aquilo.gg PWA / desktop) don't have a Discord identity of
 // their own. When a web user reacts, the BOT adds the reaction to the
-// Discord message on their behalf — so a reaction visible in Discord
+// Discord message on their behalf, so a reaction visible in Discord
 // is the bot's reaction, regardless of how many web users actually
 // reacted. To make per-user reaction state meaningful on the web side
 // we mirror it in KV:
@@ -211,7 +211,7 @@ export async function readCommunityChat(env, channelId, limit) {
 // Fetch the current Discord message via REST so we can read its
 // reactions[] field. Returns the raw Discord message object or null.
 // The caller is responsible for falling back to a no-reactions render
-// when this returns null (e.g. on 404 — message deleted).
+// when this returns null (e.g. on 404, message deleted).
 async function fetchDiscordMessage(env, channelId, messageId) {
   if (!env.DISCORD_BOT_TOKEN) return null;
   try {
@@ -300,7 +300,7 @@ function mergeReactions(discordReactions, webMap, asUserId) {
   // Web-only reactions: the bot tried to react but Discord doesn't
   // know about it (e.g. message deleted, custom emoji unavailable),
   // OR the per-message GET races behind a fresh add. Surface them so
-  // the UI stays consistent — count starts at the web user list size.
+  // the UI stays consistent, count starts at the web user list size.
   for (const [key, webUsers] of Object.entries(webMap)) {
     if (seen.has(key)) continue;
     if (!Array.isArray(webUsers) || webUsers.length === 0) continue;
@@ -322,7 +322,7 @@ function mergeReactions(discordReactions, webMap, asUserId) {
 // Discord-native reactions + web-side KV state. The `asUserId` is the
 // aquilo Discord ID of the requesting PWA user (used to stamp `me` on
 // each reaction). Fans out one Discord REST GET per message in
-// parallel — at ringbuffer cap (50) that's 50 concurrent requests
+// parallel, at ringbuffer cap (50) that's 50 concurrent requests
 // inside a single Worker invocation, well below CF/Discord rate
 // thresholds.
 export async function readCommunityChatWithReactions(env, channelId, limit, asUserId) {
@@ -401,14 +401,14 @@ export async function removeWebReaction(env, channelId, messageId, emoji, asUser
 // ---- Normaliser ----------------------------------------------------------
 
 // Reduce a Discord MESSAGE_CREATE payload (already partially trimmed by
-// aquilo-presence — content, attachments, author basics) to the shape
+// aquilo-presence, content, attachments, author basics) to the shape
 // the website renders.
 function normalise(p) {
   if (!p.message_id && !p.id && !p.messageId) return null;
   const id = String(p.message_id || p.id || p.messageId);
   // Shim sends author as a nested object (Discord-slim subset):
   //   p.author.{id, username, global_name, bot}
-  // Fall through to the flat fields older payloads may carry — the
+  // Fall through to the flat fields older payloads may carry, the
   // PWA was rendering "someone" for every chat message because we
   // were only reading the flat fields, which the shim doesn't emit.
   const authorObj = p.author && typeof p.author === 'object' ? p.author : null;
@@ -437,7 +437,7 @@ function normalise(p) {
       })).filter(a => a.url)
     : [];
 
-  // L9 — PWA chat improvements (Clay 2026-05-28):
+  // L9, PWA chat improvements (Clay 2026-05-28):
   // (a) Avatar URL. The gateway shim now sends `author.avatar_url`
   //     as a full CDN URL; fall back to deriving from author.avatar
   //     (hash) when only the hash arrived from an older shim build.
@@ -449,11 +449,11 @@ function normalise(p) {
     const ext = hash.startsWith('a_') ? 'gif' : 'png';
     avatar = `https://cdn.discordapp.com/avatars/${userId}/${hash}.${ext}?size=64`;
   } else if (userId) {
-    // Default avatar — Discord rotates 6 default colors keyed off userId.
+    // Default avatar, Discord rotates 6 default colors keyed off userId.
     const idx = Number(BigInt(userId) % 6n);
     avatar = `https://cdn.discordapp.com/embed/avatars/${idx}.png`;
   }
-  // (b) Embeds — keep a slim subset the PWA cares about so KV writes
+  // (b) Embeds, keep a slim subset the PWA cares about so KV writes
   //     don't bloat. Per-embed cap: 4 (Discord lets up to 10).
   const embeds = Array.isArray(p.embeds)
     ? p.embeds.slice(0, 4).map(e => ({
@@ -473,7 +473,7 @@ function normalise(p) {
     ts: Date.now(),
     userId,
     username,
-    // Emit BOTH camelCase keys for backward compat — older PWA
+    // Emit BOTH camelCase keys for backward compat, older PWA
     // builds may read `avatar`; the canonical key is `avatarUrl`
     // (matches the chat.ts ChatMessage type).
     avatar,
@@ -483,7 +483,7 @@ function normalise(p) {
     embeds,
     bot: isBot,
     bridge,
-    // Reactions are populated incrementally by the bot — see
+    // Reactions are populated incrementally by the bot, see
     // readCommunityChatWithReactions() below. New messages have no
     // reactions yet, so the field starts empty.
     reactions: [],

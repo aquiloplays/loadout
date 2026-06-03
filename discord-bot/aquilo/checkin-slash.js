@@ -1,4 +1,4 @@
-// GIPHY gif-picker for /checkin — consolidated 2026-05.
+// GIPHY gif-picker for /checkin, consolidated 2026-05.
 //
 // Originally this module shipped its OWN /checkin slash command (D1-
 // backed streak, auto-credit bolts, slim embed). That handler was
@@ -6,7 +6,7 @@
 // /checkin now lives in community-checkin.js (KV-backed streak, queued
 // bonuses, rich per-user card). The picker flow below (button → modal
 // → search → pick) is preserved verbatim except that handleCheckinPick
-// no longer rebuilds the embed from saved fields — it fetches the live
+// no longer rebuilds the embed from saved fields, it fetches the live
 // message, mutates `image`, and PATCHes back, so it works against
 // whatever embed shape community-checkin posted.
 //
@@ -65,12 +65,12 @@ export async function handleCheckinSearchSubmit(env, data) {
   const userId = data?.member?.user?.id || data?.user?.id;
   if (!userId) return ephemeral('Couldn\'t identify you. Try /checkin again.');
   if (!env.GIPHY_API_KEY) {
-    return ephemeral('⚠️ GIF search isn\'t available — `GIPHY_API_KEY` isn\'t set on the worker.');
+    return ephemeral('⚠️ GIF search isn\'t available, `GIPHY_API_KEY` isn\'t set on the worker.');
   }
   const q = (getModalField(data, 'q') || '').trim();
   if (!q) return ephemeral('Empty search.');
 
-  // Giphy /v1/gifs/search — request 5 results, fixed_height for the
+  // Giphy /v1/gifs/search, request 5 results, fixed_height for the
   // ephemeral preview embeds. Rating g/pg keeps the picker safe for
   // a general-audience channel.
   let results;
@@ -93,7 +93,7 @@ export async function handleCheckinSearchSubmit(env, data) {
     return ephemeral('No GIFs found for `' + q.slice(0, 40) + '`. Try a different search.');
   }
 
-  // Pack the results — title + the display URL we'll set on the
+  // Pack the results, title + the display URL we'll set on the
   // card. images.original gives us a non-resized full GIF; embed
   // will render it at a sensible size.
   const picks = results.slice(0, 5).map((g, i) => ({
@@ -107,7 +107,7 @@ export async function handleCheckinSearchSubmit(env, data) {
   }
 
   // Stash the result set in KV under a random token. Buttons carry
-  // the token + index — Discord's 100-char custom_id ceiling means
+  // the token + index, Discord's 100-char custom_id ceiling means
   // we can't pack the URL directly.
   const token = (crypto.randomUUID && crypto.randomUUID()) || Math.random().toString(36).slice(2);
   await env.LOADOUT_BOLTS.put(
@@ -117,7 +117,7 @@ export async function handleCheckinSearchSubmit(env, data) {
   );
 
   // Render: one embed per result (so the user sees the GIF inline),
-  // one button per result (one row, 5 buttons max — Discord's row
+  // one button per result (one row, 5 buttons max, Discord's row
   // cap is exactly what we need).
   const embeds = picks.map((p, i) => ({
     title: '#' + (i + 1) + ' · ' + p.title,
@@ -144,7 +144,7 @@ export async function handleCheckinSearchSubmit(env, data) {
 // Consolidated 2026-05: the picker now FETCHES the live card embed and
 // mutates just `image: { url }` instead of rebuilding the embed from
 // stashed fields. This way the patch works against whatever embed shape
-// posted the card — community-checkin.js's rich avatar / streak / brand
+// posted the card, community-checkin.js's rich avatar / streak / brand
 // embed, the slim fallback below, or anything a future surface posts.
 // The KV card stash needs only the (channelId, messageId) pointer.
 
@@ -168,7 +168,7 @@ export async function handleCheckinPickButton(env, data) {
   const today = todayET();
   const card = await env.LOADOUT_BOLTS.get(KV_CARD_PREFIX + guildId + ':' + userId + ':' + today, { type: 'json' });
   if (!card || !card.channelId || !card.messageId) {
-    // No card pointer — community-checkin's embed post must have
+    // No card pointer, community-checkin's embed post must have
     // failed (channel-unbound, Discord error). Post a slim
     // standalone GIF card so the user still gets the share.
     const fallbackChannel = env.CHECKIN_CHANNEL_ID || null;
@@ -191,7 +191,7 @@ export async function handleCheckinPickButton(env, data) {
         }),
       });
     } catch (e) {
-      return ephemeral('Couldn\'t post the GIF — ' + String(e?.message || e));
+      return ephemeral('Couldn\'t post the GIF, ' + String(e?.message || e));
     }
     await env.LOADOUT_BOLTS.put(
       KV_CARD_PREFIX + guildId + ':' + userId + ':' + today,
@@ -212,7 +212,7 @@ export async function handleCheckinPickButton(env, data) {
       '/messages/'  + encodeURIComponent(card.messageId),
     );
   } catch (e) {
-    return ephemeral('Couldn\'t fetch your check-in card — ' + String(e?.message || e));
+    return ephemeral('Couldn\'t fetch your check-in card, ' + String(e?.message || e));
   }
   const liveEmbeds = Array.isArray(live?.embeds) ? live.embeds : [];
   const head = liveEmbeds[0] ? { ...liveEmbeds[0] } : {
@@ -226,7 +226,7 @@ export async function handleCheckinPickButton(env, data) {
       allowed_mentions: { parse: [] },
     });
   } catch (e) {
-    return ephemeral('Couldn\'t update your card — ' + String(e?.message || e));
+    return ephemeral('Couldn\'t update your card, ' + String(e?.message || e));
   }
 
   // Persist the chosen GIF in the card record so a follow-up pick

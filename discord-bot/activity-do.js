@@ -8,7 +8,7 @@
 // Why SSE (not WebSocket like OverlayBroadcaster): the activity feed is
 // strictly one-way server→client, so SSE is simpler on the client
 // (EventSource auto-reconnects) and needs no upgrade handshake. The
-// trade-off is no hibernation — the DO stays warm while a stream is
+// trade-off is no hibernation, the DO stays warm while a stream is
 // connected (billed wall-time), which is fine for the during-stream
 // usage window.
 //

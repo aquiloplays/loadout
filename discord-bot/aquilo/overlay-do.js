@@ -1,6 +1,6 @@
 // Durable Object: WebSocket broadcaster for the stream overlay.
 //
-// Why a DO: Cloudflare Workers are stateless — they can't hold a
+// Why a DO: Cloudflare Workers are stateless, they can't hold a
 // persistent socket across requests. A DO gives us a single in-memory
 // instance with a connection list. When a CN poll closes and the
 // schedule's cn_winners updates, schedule.js broadcasts the new
@@ -63,7 +63,7 @@ export class OverlayBroadcaster {
     return new Response('not found', { status: 404 });
   }
 
-  // Hibernation handlers — DO wakes up when these fire.
+  // Hibernation handlers, DO wakes up when these fire.
   webSocketMessage(ws, _message) { /* no-op: clients only listen */ }
   webSocketClose(ws)              { this.sessions.delete(ws); }
   webSocketError(ws, _err)        { this.sessions.delete(ws); }

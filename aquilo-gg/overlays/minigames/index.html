@@ -2,13 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Loadout — Bolts Minigames Overlay</title>
+<title>Loadout, Bolts Minigames Overlay</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!--
   Bolts minigames visualizer. Subscribes to bolts.minigame.* on the
   Aquilo Bus and renders a quick animated take on each game (coinflip
-  spins, dice tumble) with the wager / result / payout. Ephemeral —
-  card slides in, animates, reveals the outcome, slides out.
+  spins, dice tumble) with the wager / result / payout. Ephemeral, card slides in, animates, reveals the outcome, slides out.
 
   Drop into OBS:
     https://widget.aquilo.gg/overlays/minigames/?bus=ws://127.0.0.1:7470/aquilo/bus/&secret=YOUR_SECRET
@@ -80,21 +79,21 @@
           <div class="lever-base"></div>
         </div>
       </div>
-      <!-- !rps face-off — viewer's pick on the left, bot's pick on the
+      <!-- !rps face-off, viewer's pick on the left, bot's pick on the
            right. JS swaps the glyph after the "shake" animation lands. -->
       <div class="rps">
         <div class="rps-side viewer"><span class="rps-glyph" id="rps-viewer"><img class="ico ico--xl" src="/sprites/ui/icons/glossy/rock.png" alt=""></span><span class="rps-label">YOU</span></div>
         <div class="rps-vs">VS</div>
         <div class="rps-side bot"><span class="rps-glyph" id="rps-bot"><img class="ico ico--xl" src="/sprites/ui/icons/glossy/rock.png" alt=""></span><span class="rps-label">BOT</span></div>
       </div>
-      <!-- !roulette wheel — outer ring spins, ball drifts toward the
+      <!-- !roulette wheel, outer ring spins, ball drifts toward the
            winning pocket. JS sets the result color via data attr. -->
       <div class="roulette">
         <div class="wheel" id="roulette-wheel"></div>
         <div class="ball"  id="roulette-ball"></div>
         <div class="pocket" id="roulette-pocket">0</div>
       </div>
-      <!-- !heist vault — pot fills as contributors join. JS toggles
+      <!-- !heist vault, pot fills as contributors join. JS toggles
            .show / .success / .failure to drive the state.
              .heist-vault-door  → animated bank-vault door + dial
              .heist-meter-fill  → liquid-fill bar of the pot vs target

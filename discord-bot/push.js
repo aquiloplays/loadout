@@ -1,4 +1,4 @@
-// PWA push notifications — shared fan-out helper.
+// PWA push notifications, shared fan-out helper.
 //
 // The Loadout Worker fires events to the aquilo.gg push pipeline over a
 // single HMAC-signed POST. The aquilo-site `/api/push/external` endpoint
@@ -9,7 +9,7 @@
 // Contract aligned with aquilo-site's functions/api/push/external.js:
 //   secret env name:  AQUILO_SITE_WEB_SECRET   (same secret that gates
 //                     /api/push/queue-open and other site<->bot
-//                     callbacks — one secret to rotate, not one per
+//                     callbacks, one secret to rotate, not one per
 //                     route)
 //   request headers:  x-aquilo-web-ts  (unix seconds)
 //                     x-aquilo-web-sig (hex sha256("${ts}\n${rawBody}"))
@@ -18,7 +18,7 @@
 // `audience.userIds` (Discord user IDs) is honoured by aquilo-site:
 // the push fan-out filters to identity-linked subscriptions whose
 // stored Discord ID is in the list. Subscriptions without a linked
-// Discord ID are NEVER included in a filtered audience — that's the
+// Discord ID are NEVER included in a filtered audience, that's the
 // correct privacy default. When `audience.userIds` is empty/absent
 // the fan-out goes to every subscriber, matching the stream.online
 // "live now" broadcast.
@@ -48,12 +48,12 @@ async function signedPost(secret, url, payloadObj) {
 }
 
 // Fire an event push. `title` and `body` are the notification text;
-// `url` is the deep link. Returns { ok, sent? } — failures are logged
+// `url` is the deep link. Returns { ok, sent? }, failures are logged
 // but never throw, because a push outage shouldn't break a slash
 // command response.
 export async function firePush(env, event) {
   // The shared site<->bot HMAC secret. Same secret that gates the
-  // queue-open and other aquilo-site callbacks — one rotation point.
+  // queue-open and other aquilo-site callbacks, one rotation point.
   const secret = env.AQUILO_SITE_WEB_SECRET || env.CLASH_PUSH_SECRET;
   if (!secret) {
     // Push not configured (likely a dev deploy). Skip silently.
@@ -65,7 +65,7 @@ export async function firePush(env, event) {
     title: event.title || 'aquilo.gg',
     body: event.body || '',
     url: event.url || 'https://aquilo.gg/',
-    // Optional audience hints — the receiver MAY use these later when
+    // Optional audience hints, the receiver MAY use these later when
     // the push:sub:* records get identity-linked. Today the endpoint
     // just calls pushToAll() (filtered by audience.userIds when set).
     audience: event.audience || { kind: 'all' },
@@ -97,7 +97,7 @@ export const pushAchievementUnlocked = (env, { userId, achTitle, achDescription,
     kind: 'achievement.unlocked',
     title: 'Achievement unlocked',
     body: achDescription
-      ? `${achTitle} — ${achDescription}`
+      ? `${achTitle}, ${achDescription}`
       : (achTitle || 'You earned a new achievement.'),
     url: 'https://aquilo.gg/profile/',
     audience: { kind: 'user', userId },

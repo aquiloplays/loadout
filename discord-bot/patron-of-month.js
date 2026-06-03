@@ -1,4 +1,4 @@
-// Patron of the Month — auto-select monthly winner + history surface.
+// Patron of the Month, auto-select monthly winner + history surface.
 //
 // 2026-05-29 MVP unblocking the site's patron-of-month feature.
 // First-of-month cron (wired in worker.js scheduled handler) picks
@@ -90,7 +90,7 @@ export async function setPatronOptOut(env, userId, optOut) {
   return { ok: true, optOut: !!optOut };
 }
 
-// Cron + admin entrypoint. Idempotent — re-running for the same month
+// Cron + admin entrypoint. Idempotent, re-running for the same month
 // returns the existing record instead of re-selecting.
 export async function runMonthlySelection(env) {
   const ym = prevYearMonth();
@@ -118,8 +118,8 @@ export async function runMonthlySelection(env) {
           headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'content-type': 'application/json' },
           body: JSON.stringify({
             embeds: [{
-              title: `Patron of the Month — ${ym}`,
-              description: `<@${winner.userId}> — thank you for being our ` +
+              title: `Patron of the Month, ${ym}`,
+              description: `<@${winner.userId}>, thank you for being our ` +
                 `most generous supporter this month. Your support keeps ` +
                 `Aquilo flying. 💜`,
               color: 0xFF6AB5,
@@ -147,7 +147,7 @@ export async function runMonthlySelection(env) {
   return { ok: true, month: ym, winner, announced, roleGranted };
 }
 
-// Sweep — strip the role from anyone whose expiry has passed. Called
+// Sweep, strip the role from anyone whose expiry has passed. Called
 // from the same cron tick so winners get exactly 30 days.
 export async function sweepExpiredRoles(env) {
   if (!env.DISCORD_BOT_TOKEN || !env.AQUILO_VAULT_GUILD_ID

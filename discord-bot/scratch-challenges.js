@@ -1,4 +1,4 @@
-// Scratch-off outcome content — per-game challenge + tamper pools.
+// Scratch-off outcome content, per-game challenge + tamper pools.
 //
 // THIS IS THE FILE TO EDIT when you want to add or reword scratch outcomes.
 // It is pure data (no D1, no fetch) so it is safe to hand-tune. `seedScratch`
@@ -7,8 +7,8 @@
 // re-running POST /web/admin/scratch/seed?force=1 reseeds.
 //
 // Two outcome kinds:
-//   challenge — something Clay performs live (chat-driven). actionKey null.
-//   tamper    — a Streamer.bot control tamper. actionKey MUST be one of the
+//   challenge, something Clay performs live (chat-driven). actionKey null.
+//   tamper, a Streamer.bot control tamper. actionKey MUST be one of the
 //               registry keys below; durationSec is the auto-revert length.
 //
 // Voice rules (strict, Aquilo): no em dashes, no exclamation spam, no cringe,

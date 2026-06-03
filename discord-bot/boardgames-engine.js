@@ -1,10 +1,10 @@
-// Boardgames engine — server-authoritative PvP board games (chess,
+// Boardgames engine, server-authoritative PvP board games (chess,
 // checkers, connect4, …).
 //
 // All games share the same lifecycle, matchmaking, opt-in, and wager
 // escrow. Per-game rules are isolated in adapter modules registered in
 // the ADAPTERS map at the bottom of this file. Adding a new game = a
-// new adapter + one line in ADAPTERS — no engine changes.
+// new adapter + one line in ADAPTERS, no engine changes.
 //
 // ---------------------------------------------------------------------
 // KV layout (all under env.LOADOUT_BOLTS)
@@ -16,7 +16,7 @@
 //   bg:queue:<game>:<guildId>     -> JSON [{ userId, wager, joinedAt, displayName }]
 //                                       random-matchup waiting room. One per
 //                                       (game, guild) so a different wager
-//                                       doesn't fragment matchmaking — pairing
+//                                       doesn't fragment matchmaking, pairing
 //                                       picks the closest-wager match.
 //   bg:optin:<guildId>:<userId>   -> "1" | (absent = opted out)
 //                                       random-matchup eligibility. Direct
@@ -27,13 +27,13 @@
 //   bg:user:challenges:<userId>   -> [challengeIds]  inbox pointer.
 //
 // MATCH STATUS values:
-//   "waiting"   — created server-side, both players locked, board ready,
+//   "waiting", created server-side, both players locked, board ready,
 //                 wager escrowed. (Created either by direct-challenge
 //                 accept or by queue pair-up.)
-//   "active"    — moves in flight. (Engine flips waiting→active on the
+//   "active", moves in flight. (Engine flips waiting→active on the
 //                 first move, but for v1 we just start at active.)
-//   "finished"  — terminal. `winner` field is "p1" | "p2" | "draw".
-//   "abandoned" — one side resigned. winner = the OTHER side.
+//   "finished", terminal. `winner` field is "p1" | "p2" | "draw".
+//   "abandoned", one side resigned. winner = the OTHER side.
 //
 // All state mutations bump updatedAt. Clients poll match state every
 // 2-3s during their opponent's turn.
@@ -51,7 +51,7 @@
 //     draw    refunds wager to each side.
 //     resign  treats the opponent as winner.
 // - Edge case: if escrowed funds disappear (corrupted KV, etc.) the
-//   refund is best-effort — we log + return ok so the game can still
+//   refund is best-effort, we log + return ok so the game can still
 //   terminate cleanly.
 
 import { earn, spend, getWallet } from './wallet.js';
@@ -71,13 +71,13 @@ const MAX_ACTIVE_PER_USER = 5;
 const CHALLENGE_TTL_MS = 10 * 60 * 1000;
 const CHALLENGE_TTL_S = Math.floor(CHALLENGE_TTL_MS / 1000);
 
-// Match record TTL — keep terminated matches around for a day so the
+// Match record TTL, keep terminated matches around for a day so the
 // loser can review the final position, then GC away.
 const FINISHED_MATCH_TTL_S = 24 * 60 * 60;
 
 // Async / correspondence model: each player has 24 hours to make their
 // move once it becomes their turn. Missing the window forfeits the
-// match — opponent wins, wager goes to them. Stamped on the match as
+// match, opponent wins, wager goes to them. Stamped on the match as
 // `turnDeadline` (unix ms) on every turn flip (NOT on multi-jumps
 // where the same player keeps the turn).
 const TURN_DEADLINE_MS = 24 * 60 * 60 * 1000;
@@ -148,8 +148,8 @@ async function saveQueue(env, game, guildId, list) {
 
 // ── Adapter contract ─────────────────────────────────────────────────
 // Each adapter exports:
-//   initialState(): object              — fresh board / state
-//   legalMoves(state, side): Move[]     — for the side-to-move (optional, used
+//   initialState(): object, fresh board / state
+//   legalMoves(state, side): Move[], for the side-to-move (optional, used
 //                                          for client hints / pre-validation)
 //   applyMove(state, side, move):
 //     { ok: true, state, terminal?: { winner: 'p1'|'p2'|'draw', reason } }
@@ -187,7 +187,7 @@ export function listGames() {
 // ── Public engine API ─────────────────────────────────────────────────
 
 /**
- * Snapshot read for the page-load — returns the user's active matches +
+ * Snapshot read for the page-load, returns the user's active matches +
  * incoming challenges + opt-in state.
  *
  * Side-effect: any of the user's matches whose turn-deadline has passed
@@ -232,7 +232,7 @@ export async function snapshot(env, guildId, userId) {
 
 /**
  * Toggle whether this user is included in the random-matchup pool. Off
- * by default — direct challenges still work either way.
+ * by default, direct challenges still work either way.
  */
 export async function setOptIn(env, guildId, userId, on) {
   if (on) {
@@ -324,7 +324,7 @@ export async function applyMove(env, guildId, userId, matchId, move) {
     await removeUserActive(env, guildId, m.players[1].userId, m.id);
   } else {
     // Only reset the per-move clock when the TURN ACTUALLY FLIPS.
-    // Checkers multi-jumps keep the same player on the move — they
+    // Checkers multi-jumps keep the same player on the move, they
     // shouldn't get a fresh 24h every jump in their own chain.
     const newTurn = adapter.sideToMove(m.state);
     if (newTurn !== prevTurn) {
@@ -345,7 +345,7 @@ export async function applyMove(env, guildId, userId, matchId, move) {
 }
 
 /**
- * Resign — counts as a loss for the resigning side.
+ * Resign, counts as a loss for the resigning side.
  */
 export async function resign(env, guildId, userId, matchId) {
   const m = await loadMatch(env, matchId);
@@ -431,7 +431,7 @@ export async function queueJoin(env, guildId, userId, displayName, game, wager) 
     return { ok: true, status: 'matched', matchId: match.id };
   }
 
-  // No candidate — escrow my wager + sit in the queue.
+  // No candidate, escrow my wager + sit in the queue.
   if (w > 0) {
     const chargeMe = await spend(env, guildId, userId, w, 'boardgames:queue:escrow:' + game);
     if (!chargeMe.ok) return { ok: false, error: 'insufficient', message: chargeMe.reason };
@@ -459,7 +459,7 @@ export async function queueLeave(env, guildId, userId, game) {
  * Create a direct-challenge request from one player to another. The
  * target sees it in their snapshot inbox + can accept or decline.
  *
- * Wager is NOT escrowed here — we charge on accept. That avoids the
+ * Wager is NOT escrowed here, we charge on accept. That avoids the
  * common UX trap of "I challenged 5 friends for 1000 bolts each and
  * now my balance is locked while they ignore me." The wager is just
  * the proposed stake.
@@ -534,7 +534,7 @@ export async function challengeDecline(env, userId, challengeId) {
   const c = await env.LOADOUT_BOLTS.get(CHALLENGE_PREFIX + challengeId, { type: 'json' });
   if (!c) return { ok: false, error: 'not-found' };
   if (c.toId !== userId && c.fromId !== userId) return { ok: false, error: 'forbidden' };
-  // Wager wasn't charged yet — nothing to refund.
+  // Wager wasn't charged yet, nothing to refund.
   await env.LOADOUT_BOLTS.delete(CHALLENGE_PREFIX + challengeId);
   return { ok: true };
 }
@@ -583,7 +583,7 @@ async function settleEscrow(env, m) {
   }
 }
 
-// PROGRESSION (P1) — fire match.played for both sides + match.won for
+// PROGRESSION (P1), fire match.played for both sides + match.won for
 // the winner. Called by the engine right after the match flips to
 // finished/abandoned. Dedup by matchId so re-running emits once.
 export async function emitBoardgameProgression(env, m) {
@@ -610,7 +610,7 @@ export async function emitBoardgameProgression(env, m) {
   } catch { /* non-fatal */ }
 }
 
-// PROGRESSION (P2) — board games headline stats. Walks bg:match:*
+// PROGRESSION (P2), board games headline stats. Walks bg:match:*
 // for matches this user appears in. Capped at 5 list pages so a
 // flooded match index can't OOM the profile page.
 export async function getStatsFor(env, userId, _guildId = null) {
@@ -652,7 +652,7 @@ export async function getStatsFor(env, userId, _guildId = null) {
 }
 
 // Redact things the OTHER player shouldn't see. For perfect-information
-// games (chess/checkers/connect4) this is mostly identity — both sides
+// games (chess/checkers/connect4) this is mostly identity, both sides
 // see the board. We still surface a `you` field so the client knows
 // which side it's playing without re-deriving from userId.
 //
@@ -660,7 +660,7 @@ export async function getStatsFor(env, userId, _guildId = null) {
 // destination hints + forced-capture markers without re-implementing
 // the rules in TypeScript. Returning legals only for the side whose
 // turn it is keeps the payload small (and gives nothing useful to the
-// opponent — chess/checkers are perfect-info anyway).
+// opponent, chess/checkers are perfect-info anyway).
 function redactMatch(m, userId) {
   const youIdx = m.players[0].userId === userId ? 0 : 1;
   const adapter = getAdapter(m.game);
@@ -739,7 +739,7 @@ export async function checkAndExpireMatch(env, m) {
 }
 
 /**
- * Worker cron tick — scans every match key for expired ones and
+ * Worker cron tick, scans every match key for expired ones and
  * resolves them. Catches abandoned games no one is actively viewing
  * (the on-read expiry path in snapshot/getMatch/applyMove handles the
  * ones that ARE being viewed). Cheap: ~one KV list + per-match get +
@@ -753,7 +753,7 @@ export async function cronSweepExpiredMatches(env) {
   let scanned = 0;
   let expired = 0;
   // Cap iterations: KV list returns up to 1000 keys per page. Five
-  // pages = up to 5k active matches — plenty of headroom for a hobby
+  // pages = up to 5k active matches, plenty of headroom for a hobby
   // community and bounded so a runaway state can't pin the cron tick.
   for (let i = 0; i < 5; i++) {
     const r = await env.LOADOUT_BOLTS.list({ prefix: MATCH_PREFIX, cursor, limit: 1000 });
@@ -775,7 +775,7 @@ export async function cronSweepExpiredMatches(env) {
 // HMAC-signed POST to aquilo-site /api/push/external with audience
 // filtered to the target player's Discord ID + the boardYourTurn tag
 // (which subscribers can opt out of via NotificationPrefs). Mirrors the
-// pattern in daily-bonus-push.js + clash-push.js — one secret, one
+// pattern in daily-bonus-push.js + clash-push.js, one secret, one
 // rotation point. Failures are swallowed so a push outage never
 // blocks a move.
 async function notifyYourTurn(env, m, targetUserId) {
@@ -788,11 +788,11 @@ async function notifyYourTurn(env, m, targetUserId) {
     : m.game === 'chess' ? 'Chess'
     : m.game;
   const body = m.wager > 0
-    ? `${opponent.displayName || 'Opponent'} moved — ${m.pot.toLocaleString()} bolts on the line. You have 24 h.`
-    : `${opponent.displayName || 'Opponent'} moved — you have 24 h to reply.`;
+    ? `${opponent.displayName || 'Opponent'} moved, ${m.pot.toLocaleString()} bolts on the line. You have 24 h.`
+    : `${opponent.displayName || 'Opponent'} moved, you have 24 h to reply.`;
   const payload = {
     kind: 'board.your-turn',
-    title: `Your move — ${gameLabel}`,
+    title: `Your move, ${gameLabel}`,
     body,
     url: `https://aquilo.gg/play/board/${m.game}/match/?id=${m.id}`,
     audience: { kind: 'user', userIds: [String(targetUserId)] },
@@ -822,7 +822,7 @@ async function notifyYourTurn(env, m, targetUserId) {
   } catch { /* best-effort */ }
 }
 
-// Convenience for the snapshot endpoint — fetch the wallet balance so
+// Convenience for the snapshot endpoint, fetch the wallet balance so
 // the client doesn't have to make a separate call.
 export async function snapshotWithWallet(env, guildId, userId) {
   const snap = await snapshot(env, guildId, userId);

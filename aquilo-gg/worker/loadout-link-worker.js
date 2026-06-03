@@ -1,5 +1,5 @@
 /**
- * Loadout Link Worker — additive routes for the existing
+ * Loadout Link Worker, additive routes for the existing
  * streamfusion-patreon-proxy worker. Drop these handlers into the existing
  * worker (or merge as a separate route under the same domain) and bind:
  *
@@ -33,8 +33,8 @@
 
 // ---- Shared helpers (use existing worker's secrets) -------------------------
 const PATREON_TIER_IDS = {
-  tier2: '28147937',     // $6 — Early Access
-  tier3: '28147942'      // $10 — Contributor
+  tier2: '28147937',     // $6, Early Access
+  tier3: '28147942'      // $10, Contributor
 };
 const PATREON_CAMPAIGN_ID = '3410750';
 const TOKEN_TTL_SEC = 24 * 60 * 60;

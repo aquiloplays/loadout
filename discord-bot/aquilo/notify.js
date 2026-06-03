@@ -56,7 +56,7 @@ async function fetchEligibleMembers(env, guildId, eligibleRoles) {
 }
 
 // Notify all eligible patrons that the queue is open. Skips opt-outs and
-// users we already DM'd for this poll. Designed for ctx.waitUntil — runs
+// users we already DM'd for this poll. Designed for ctx.waitUntil, runs
 // async after the close response.
 export async function notifyEligibleQueueOpen(env, guildId, pollId, dayOfWeek, gameName, queueChannelId, queueMessageId) {
   const eligible = getEligibleRoles(env);
@@ -144,7 +144,7 @@ export async function notifyUnvotedEligibles(env, guildId) {
     ? `(closes <t:${Math.floor(closeTs / 1000)}:R>)`
     : '(closes in ~1 hour)';
   const content = `⏰ **${dayLabel} Community Night poll closes soon** ${closeTag}.\n\n` +
-                  'You haven\'t voted yet — your pick decides what we play tonight!';
+                  'You haven\'t voted yet, your pick decides what we play tonight!';
   const components = [{
     type: 1,
     components: [

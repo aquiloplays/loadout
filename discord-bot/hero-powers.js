@@ -1,4 +1,4 @@
-// Hero Powers — class-specific once-per-turn 2-mana abilities.
+// Hero Powers, class-specific once-per-turn 2-mana abilities.
 //
 // Boltbound previously had no analogue to Hearthstone's hero power.
 // This module introduces five pre-written powers (one per hero class)
@@ -6,31 +6,31 @@
 // endpoint can dispatch on `action.type === 'hero_power'` without
 // rewriting cards-battle.js.
 //
-// Match-state extension (additive — old saves still load):
+// Match-state extension (additive, old saves still load):
 //   match.heroPower[side] = { id, manaCost, usedThisTurn }
 //
 // `id` is the class key ('warrior' | 'mage' | 'rogue' | 'ranger' |
 // 'healer'). The `usedThisTurn` flag flips to true when resolveHeroPower
-// runs and is cleared by onTurnEnd() for the OUTGOING player — same
+// runs and is cleared by onTurnEnd() for the OUTGOING player, same
 // shape as Hearthstone, so a player can fire their power, then end
 // turn, then re-fire on their next turn.
 //
 // All five powers cost 2 mana. They are wired through cards-match's
 // existing `takeAction` machinery (the worker's combat-action endpoint
-// already dispatches by action.kind/type — see integration note at the
+// already dispatches by action.kind/type, see integration note at the
 // bottom of this file for the touchpoint).
 //
 // Effect surface (kept intentionally narrow to match the existing
 // battle engine without new ability primitives):
-//   warrior — Armor Up:    +2 to match.heroArmor[side] (new field, init 0)
-//   mage    — Fire Bolt:   1 dmg to opts.targetId ('hero' | minion uid)
-//   rogue   — Coin Strike: pushes a temporary +0/+1 coin into match.coinPool[side]
-//   ranger  — Mark Target: enemy minion marked; next attack against it gets +1 dmg this turn
-//   healer  — Lesser Heal: +2 HP to opts.targetId (own hero or own minion)
+//   warrior, Armor Up:    +2 to match.heroArmor[side] (new field, init 0)
+//   mage, Fire Bolt:   1 dmg to opts.targetId ('hero' | minion uid)
+//   rogue, Coin Strike: pushes a temporary +0/+1 coin into match.coinPool[side]
+//   ranger, Mark Target: enemy minion marked; next attack against it gets +1 dmg this turn
+//   healer, Lesser Heal: +2 HP to opts.targetId (own hero or own minion)
 //
 // "Mark Target" + "Coin Strike" are intentionally tracked in
 // match-state side-tables (markedTargets, coinPool) rather than the
-// minion record — the existing engine doesn't have a hook for the
+// minion record, the existing engine doesn't have a hook for the
 // hero-power consumer, so each affordance reads its own scratch slot
 // when the orchestrator wires it in. Tests cover that the slots are
 // populated correctly.
@@ -70,7 +70,7 @@ export const HERO_POWER_DEFS = Object.freeze({
     effect:   'mark',      // enemy minion takes +1 dmg from next attack this turn
     value:    1,
     needsTarget: true,
-    text:     'Hero Power: mark an enemy minion — it takes +1 damage from the next attack this turn.',
+    text:     'Hero Power: mark an enemy minion, it takes +1 damage from the next attack this turn.',
   }),
   healer: Object.freeze({
     id:       'healer',
@@ -106,7 +106,7 @@ export function initHeroPowerForMatch(playerHeroClass) {
 // ── Gate ────────────────────────────────────────────────────────────
 
 // True if `playerSide` can fire their hero power right now. Mirrors
-// the shape of cards-battle's isLegalAction return — { ok, reason }.
+// the shape of cards-battle's isLegalAction return, { ok, reason }.
 // Callers (combat-action handler) should preflight with this before
 // calling resolveHeroPower so the UI can render a disabled button +
 // tooltip without paying the resolver cost.
@@ -308,7 +308,7 @@ export function onTurnEnd(matchState, playerSide) {
   if (hp) hp.usedThisTurn = false;
   // Drop any marks placed BY this player this turn. (Marks placed by
   // the opponent persist into our turn so they still affect our
-  // attacks — though in practice the orchestrator should also call
+  // attacks, though in practice the orchestrator should also call
   // onTurnEnd for the opponent when their turn flips; this is a
   // belt-and-braces sweep.)
   if (matchState.markedTargets) {

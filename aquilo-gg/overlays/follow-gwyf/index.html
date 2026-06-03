@@ -2,13 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TikTok Follow Overlay — Gamble With Your Friends</title>
+<title>TikTok Follow Overlay, Gamble With Your Friends</title>
 <style>
   /* ============================================================
      GWYF follow overlay. Same architecture as the Minecraft
      template (440x260 stage, pulsing bar, above-bar FX canvas,
-     3D pixel-cube peek-ups, 6-phase celebration, felt counter)
-     — only the theme tokens are swapped to a casino look.
+     3D pixel-cube peek-ups, 6-phase celebration, felt counter), only the theme tokens are swapped to a casino look.
      ============================================================ */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
@@ -55,7 +54,7 @@
     50%      { box-shadow: 0 4px 14px rgba(0,0,0,0.7), 0 0 0 3px #ffe07a, 0 0 30px rgba(245,197,66,0.85), 0 0 40px rgba(201,48,48,0.35); }
   }
 
-  /* Clean dark background — designed for high readability */
+  /* Clean dark background, designed for high readability */
   .bg {
     position: absolute; inset: 0;
     background: linear-gradient(180deg, #1a1226 0%, #0a0712 100%);
@@ -573,7 +572,7 @@ function drawFollowerCounter(alpha, now) {
 }
 
 // ============================================================
-// IDLE ANIMATIONS — 3D casino cube peek-ups
+// IDLE ANIMATIONS, 3D casino cube peek-ups
 // ============================================================
 
 // Deterministic pseudo-random per coordinate so texture is stable
@@ -598,12 +597,12 @@ function blendHex(a, b, t) {
 }
 
 // ============================================================
-// 3D CASINO CUBES — chip / die / coin / ace / seven
+// 3D CASINO CUBES, chip / die / coin / ace / seven
 // ============================================================
 // Pseudo-isometric cube: front face (8x8 icon), lighter top, darker right.
 // `face` uses "X" = hole color (the icon), "." = mottled base. Each cube
 // carries its own base/light/dark/outline/hole palette so a single renderer
-// draws every casino symbol — no external images needed.
+// draws every casino symbol, no external images needed.
 const MOB3D = {
   // Red poker chip with cream edge dashes + open center
   chip: {
@@ -673,7 +672,7 @@ const MOB3D = {
       "........",
     ],
   },
-  // Lucky seven (slot-reel symbol) — red 7 on a cream reel
+  // Lucky seven (slot-reel symbol), red 7 on a cream reel
   seven: {
     base:   ["#f6efd8","#efe6cc","#faf3de","#ebe2c6"],
     light:  ["#fffaf0","#fff5e6","#fffbf2","#fdf3df"],
@@ -692,7 +691,7 @@ const MOB3D = {
   },
 };
 
-// Front-face image overrides (unused — all cubes are procedural). Kept so the
+// Front-face image overrides (unused, all cubes are procedural). Kept so the
 // renderer's image-vs-fallback branch stays identical to the template.
 const headImages = {};
 
@@ -748,7 +747,7 @@ function getMobCube(mobName, size) {
     }
   }
 
-  // FRONT face — image if available, else procedural icon
+  // FRONT face, image if available, else procedural icon
   const img = headImages[mobName];
   const hasImg = img && ((img.naturalWidth || img.width) > 0);
   if (hasImg) {
@@ -872,7 +871,7 @@ function drawMobHead3D(ctx, mobName, cx, cy, size, flashMix) {
   ctx.strokeRect(fx + 0.5, fy + 0.5, actualSize - 1, actualSize - 1);
 }
 
-// ---- Idle peek — casino cubes pop up above the bar, round-robin ----
+// ---- Idle peek, casino cubes pop up above the bar, round-robin ----
 const PEEK_MOBS = ["coin", "die", "chip", "ace", "seven"];
 let peekMobIndex = 0;
 function scheduleIdleEvent() {
@@ -963,7 +962,7 @@ function startIdleLoop() {
     if (!signVisible) drawPromoText(now);
     // 2) Follower counter sign
     if (signVisible) drawFollowerCounter(signAlpha, now);
-    // 3) Cube peek-ups last — drawn in front
+    // 3) Cube peek-ups last, drawn in front
     for (let i = state.idleMobs.length - 1; i >= 0; i--) {
       const alive = state.idleMobs[i].draw(now);
       if (!alive) state.idleMobs.splice(i, 1);
@@ -985,8 +984,7 @@ function stopIdleLoop() {
 // JACKPOT CELEBRATION
 // ============================================================
 // Same 6-phase timeline as the Minecraft creeper: a lucky-seven slot symbol
-// pops up, bobs, "spins" (charge: pulsing flash + swell + shake), then BOOM —
-// a JACKPOT! flash with a coin/chip explosion (gold + silver debris, dollar
+// pops up, bobs, "spins" (charge: pulsing flash + swell + shake), then BOOM, // a JACKPOT! flash with a coin/chip explosion (gold + silver debris, dollar
 // sparks, smoke puffs) + screen shake, settling back into the idle loop.
 function playJackpotAnim(done) {
   const W = $aboveFX.width, H = $aboveFX.height;
@@ -1015,7 +1013,7 @@ function playJackpotAnim(done) {
     else { p -= 2.625/d1; return n1*p*p + 0.984375; }
   }
 
-  // Explosion particles / debris / smoke — seeded at boom
+  // Explosion particles / debris / smoke, seeded at boom
   const debris = [];
   const sparks = [];
   const smokePuffs = [];
@@ -1045,7 +1043,7 @@ function playJackpotAnim(done) {
         rot: 0,
       });
     }
-    // Sparks — gold glints, with a third rendered as floating "$" dollar marks
+    // Sparks, gold glints, with a third rendered as floating "$" dollar marks
     for (let i = 0; i < 26; i++) {
       const ang = rand(0, Math.PI * 2);
       const spd = rand(3, 8);
@@ -1061,7 +1059,7 @@ function playJackpotAnim(done) {
         maxLife: rand(400, 800),
       });
     }
-    // Smoke puffs — smaller, tighter cloud
+    // Smoke puffs, smaller, tighter cloud
     for (let i = 0; i < 14; i++) {
       const ang = rand(0, Math.PI * 2);
       const dist = rand(0, 8);
@@ -1367,7 +1365,7 @@ window.triggerFollow = handleFollow;
 // ---- Screenshot / QA staging (?shot=idle|follow) ----
 // Drops a gameplay-like backdrop behind the transparent overlay, hides the
 // demo panel, then DETERMINISTICALLY pumps the rAF-driven canvas to a chosen
-// point in the timeline and freezes it — so a plain headless capture always
+// point in the timeline and freezes it, so a plain headless capture always
 // lands on a complete frame (independent of rAF scheduling / tab visibility).
 (() => {
   const SHOT = new URLSearchParams(location.search).get("shot");

@@ -1,10 +1,10 @@
-// /passport — unified cross-product profile card. Shows everything
+// /passport, unified cross-product profile card. Shows everything
 // Aquilo Bot knows about the caller (or a mentioned user) on one embed:
 // streak · achievements · birthday · trivia wins · suggestions · songs
 // queued · counting peak · last seen.
 //
 // Data that lives in OTHER bots (Loadout Bolts, MC playtime, SF tier) is
-// surfaced as deep-link buttons rather than fetched cross-bot — keeps the
+// surfaced as deep-link buttons rather than fetched cross-bot, keeps the
 // command snappy and avoids a tangle of bot-to-bot HTTP.
 //
 // Public API:
@@ -39,13 +39,13 @@ export async function handlePassportCommand(data, env) {
   return chat({ embeds: [embed], components, flags: FLAG_EPHEMERAL });
 }
 
-/** Build the embed payload — usable from /passport, hub button, welcome ritual. */
+/** Build the embed payload, usable from /passport, hub button, welcome ritual. */
 export async function buildPassportEmbed(env, guildId, userId) {
   const streak = await getStreak(env, guildId, userId);
   const allAch = await listAllForUser(env, guildId, userId);
   const earned = allAch.filter(a => a.earned_at);
 
-  // Other per-user stats — best-effort lookups, all wrapped in try/catch
+  // Other per-user stats, best-effort lookups, all wrapped in try/catch
   // so a missing table or null env doesn't blow up the whole card.
   const stats = await collectStats(env, guildId, userId);
   const bday  = await fetchBirthday(env, guildId, userId);
@@ -55,7 +55,7 @@ export async function buildPassportEmbed(env, guildId, userId) {
   lines.push(`<@${userId}>`);
   lines.push('');
 
-  // Streak block — biggest visual.
+  // Streak block, biggest visual.
   if (streak) {
     const streakIcon = streak.current_days >= 100 ? '🌪️'
                     : streak.current_days >= 30  ? '🌬️'
@@ -63,7 +63,7 @@ export async function buildPassportEmbed(env, guildId, userId) {
                     : '✨';
     lines.push(`${streakIcon} **Streak:** ${streak.current_days} day${streak.current_days === 1 ? '' : 's'} · longest ${streak.longest_days}`);
   } else {
-    lines.push('✨ **Streak:** none yet — chat, count, or use the viewer hub today to start one.');
+    lines.push('✨ **Streak:** none yet, chat, count, or use the viewer hub today to start one.');
   }
 
   // Activity stats inline.
@@ -82,7 +82,7 @@ export async function buildPassportEmbed(env, guildId, userId) {
   // Achievement row.
   lines.push('');
   if (earned.length === 0) {
-    lines.push(`🏆 **Achievements:** none earned yet — ${CATALOG.length} available.`);
+    lines.push(`🏆 **Achievements:** none earned yet, ${CATALOG.length} available.`);
   } else {
     const icons = earned.slice(0, 12).map(e => {
       const cat = CATALOG.find(c => c.key === e.key);
@@ -148,10 +148,10 @@ async function buildAchievementsEmbed(env, guildId, userId) {
     if (a.secret && !byKey[a.key]?.earned_at) continue;   // hide secrets until earned
     const row = byKey[a.key];
     if (row?.earned_at) {
-      lines.push(`✅ ${a.icon} **${a.name}** — ${a.tagline}`);
+      lines.push(`✅ ${a.icon} **${a.name}**, ${a.tagline}`);
     } else if (a.threshold > 1) {
       const pr = Math.min(row?.progress || 0, a.threshold);
-      lines.push(`⬜ ${a.icon} ${a.name} — ${pr} / ${a.threshold}`);
+      lines.push(`⬜ ${a.icon} ${a.name}, ${pr} / ${a.threshold}`);
     } else {
       lines.push(`⬜ ${a.icon} ${a.name}`);
     }
@@ -174,11 +174,11 @@ async function buildTopStreaksEmbed(env, guildId) {
     return {
       color: PASSPORT_COLOR,
       title: '⚡ Top Streaks',
-      description: '_No streaks yet — be the first._'
+      description: '_No streaks yet, be the first._'
     };
   }
   const lines = rows.map((r, i) =>
-    `**${i + 1}.** <@${r.user_id}> — ${r.current_days}d (longest ${r.longest_days})`
+    `**${i + 1}.** <@${r.user_id}>, ${r.current_days}d (longest ${r.longest_days})`
   );
   return {
     color: PASSPORT_COLOR,
@@ -231,7 +231,7 @@ async function collectStats(env, guildId, userId) {
     if (c) out.clips = c.n;
   }
 
-  // Song pre-queue total entries — lives in KV, not D1. Skip for now; cheap to add later.
+  // Song pre-queue total entries, lives in KV, not D1. Skip for now; cheap to add later.
   return out;
 }
 

@@ -1,4 +1,4 @@
-// A7 — Glossy UI icon set for OBS overlays + Discord embeds.
+// A7, Glossy UI icon set for OBS overlays + Discord embeds.
 //
 // Replaces the 32 pixel icons under aquilo-gg/sprites/ui/icons/
 // with a glossy SVG-sourced library, baked to PNG so the existing
@@ -33,7 +33,7 @@ const CX = 32, CY = 32;
 // read crisply at 16 px.
 
 const ICONS = {
-  // Brand bolt — violet → green like the wordmark gradient.
+  // Brand bolt, violet → green like the wordmark gradient.
   bolt: () => `
 <defs>
   <linearGradient id="bolt-grad" x1="0" y1="0" x2="1" y2="1">
@@ -56,7 +56,7 @@ const ICONS = {
          Z"
       fill="#FFFFFF" opacity="0.6"/>`,
 
-  // Trophy — gold cup with handles.
+  // Trophy, gold cup with handles.
   trophy: () => `
 <!-- base -->
 <rect x="${CX - 14}" y="50" width="28" height="8" rx="2"
@@ -78,7 +78,7 @@ const ICONS = {
 <!-- gloss -->
 <ellipse cx="${CX - 6}" cy="16" rx="6" ry="3" fill="#FFFFFF" opacity="0.55"/>`,
 
-  // Crown — gold with gem.
+  // Crown, gold with gem.
   crown: () => `
 <path d="M 10 50
          L 10 28
@@ -100,7 +100,7 @@ const ICONS = {
 <path d="M 12 30 L 16 30 L 22 18 L 24 22 L ${CX} 32 L 36 26 L 40 18 L 46 30 L 50 30 L 50 38 L 12 38 Z"
       fill="#FFFFFF" opacity="0.25"/>`,
 
-  // Coin — gold disc with embossed bolt motif (path-based; Resvg
+  // Coin, gold disc with embossed bolt motif (path-based; Resvg
   // skips system fonts in our bake config so $ text won't render).
   coin: () => `
 <circle cx="${CX}" cy="${CY}" r="26" fill="url(#gk-rgrad-gold)" stroke="${PALETTE.gold.stroke}" stroke-width="3"/>
@@ -115,7 +115,7 @@ const ICONS = {
       fill="${PALETTE.gold.stroke}" stroke="${PALETTE.gold.stroke}" stroke-width="1" stroke-linejoin="round" opacity="0.85"/>
 <ellipse cx="${CX - 10}" cy="${CY - 14}" rx="9" ry="4" fill="#FFFFFF" opacity="0.5"/>`,
 
-  // Gem — faceted diamond.
+  // Gem, faceted diamond.
   gem: () => `
 <path d="M ${CX} 8
          L 14 26
@@ -135,7 +135,7 @@ const ICONS = {
 <!-- top facet gloss -->
 <path d="M ${CX} 8 L 14 26 L ${CX} 22 Z" fill="#FFFFFF" opacity="0.65"/>`,
 
-  // Heart — pink, glossy.
+  // Heart, pink, glossy.
   heart: () => `
 <path d="M ${CX} 56
          Q 8 38 12 22
@@ -154,7 +154,7 @@ const ICONS = {
 </defs>
 <ellipse cx="22" cy="22" rx="8" ry="4" fill="#FFFFFF" opacity="0.65"/>`,
 
-  // Flame — orange→yellow tongue.
+  // Flame, orange→yellow tongue.
   flame: () => `
 <defs>
   <linearGradient id="flame-grad" x1="0" y1="1" x2="0" y2="0">
@@ -180,7 +180,7 @@ const ICONS = {
       fill="${PALETTE.gold.hi}" opacity="0.85"/>
 <path d="M ${CX} 42 Q 28 36 32 28 Q ${CX + 2} 34 ${CX} 42 Z" fill="#FFFFFF" opacity="0.6"/>`,
 
-  // Gift — box with bow.
+  // Gift, box with bow.
   gift: () => `
 <!-- box body -->
 <rect x="8" y="26" width="48" height="32" rx="3"
@@ -199,7 +199,7 @@ const ICONS = {
 <!-- gloss -->
 <path d="M 12 24 L 14 56 L 22 56 L 22 24 Z" fill="#FFFFFF" opacity="0.35"/>`,
 
-  // Star — 5-point gold.
+  // Star, 5-point gold.
   star: () => `
 <path d="M ${CX} 6
          L ${CX + 8} 24
@@ -215,7 +215,7 @@ const ICONS = {
 <path d="M ${CX} 14 L ${CX + 5} 25 L ${CX + 14} 26 L ${CX + 3} 34 Z"
       fill="#FFFFFF" opacity="0.5"/>`,
 
-  // Sparkle — 4-point burst.
+  // Sparkle, 4-point burst.
   sparkle: () => `
 <path d="M ${CX} 4 L ${CX + 4} ${CY - 4} L ${CY + 28} ${CY} L ${CX + 4} ${CY + 4} L ${CX} ${CY + 28} L ${CX - 4} ${CY + 4} L ${CY - 28} ${CY} L ${CX - 4} ${CY - 4} Z"
       fill="url(#gk-grad-cream)" stroke="${PALETTE.gold.stroke}" stroke-width="2" stroke-linejoin="round"/>
@@ -224,7 +224,7 @@ const ICONS = {
 <circle cx="14" cy="50" r="2" fill="${PALETTE.gold.hi}"/>
 <circle cx="50" cy="14" r="2" fill="${PALETTE.gold.hi}"/>`,
 
-  // Shield — heater shield with brand colors.
+  // Shield, heater shield with brand colors.
   shield: () => `
 <path d="M ${CX} 6
          L 10 14
@@ -242,7 +242,7 @@ const ICONS = {
 <!-- gloss -->
 <path d="M 14 16 L 16 38 L 22 36 L 22 16 Z" fill="#FFFFFF" opacity="0.35"/>`,
 
-  // Sword — same as gear weapon-sword but small.
+  // Sword, same as gear weapon-sword but small.
   sword: () => `
 <rect x="${CX - 3}" y="6" width="6" height="36" rx="2"
       fill="url(#gk-grad-steel)" stroke="${PALETTE.steel.stroke}" stroke-width="2"/>
@@ -255,7 +255,7 @@ const ICONS = {
 <circle cx="${CX}" cy="58" r="3.5" fill="url(#gk-rgrad-gold)" stroke="${PALETTE.gold.stroke}" stroke-width="1.5"/>
 <rect x="${CX - 1.5}" y="8" width="3" height="32" fill="${PALETTE.white}" opacity="0.45"/>`,
 
-  // Skull — cartoon with eye sockets.
+  // Skull, cartoon with eye sockets.
   skull: () => `
 <path d="M ${CX} 6
          Q 10 8 10 28
@@ -282,7 +282,7 @@ const ICONS = {
 <!-- highlight -->
 <ellipse cx="20" cy="14" rx="6" ry="4" fill="#FFFFFF" opacity="0.55"/>`,
 
-  // Bomb — black sphere with fuse spark.
+  // Bomb, black sphere with fuse spark.
   bomb: () => `
 <circle cx="${CX}" cy="${CY + 4}" r="22" fill="url(#gk-rgrad-dark)" stroke="${PALETTE.dark.stroke}" stroke-width="3"/>
 <rect x="${CX - 4}" y="8" width="8" height="8" fill="url(#gk-grad-iron)" stroke="${PALETTE.ink}" stroke-width="1.5"/>
@@ -292,7 +292,7 @@ const ICONS = {
 <circle cx="${CX + 20}" cy="4" r="2" fill="${PALETTE.white}"/>
 <ellipse cx="${CX - 8}" cy="${CY - 4}" rx="6" ry="4" fill="${PALETTE.white}" opacity="0.45"/>`,
 
-  // Dice — d6 with pips.
+  // Dice, d6 with pips.
   dice: () => `
 <rect x="10" y="10" width="44" height="44" rx="6"
       fill="url(#gk-grad-cream)" stroke="${PALETTE.ink}" stroke-width="2.5"/>
@@ -306,21 +306,21 @@ const ICONS = {
 </g>
 <path d="M 12 12 L 12 30 L 18 30 L 18 12 Z" fill="#FFFFFF" opacity="0.4"/>`,
 
-  // Check — green tick.
+  // Check, green tick.
   check: () => `
 <circle cx="${CX}" cy="${CY}" r="26" fill="url(#gk-rgrad-emerald)" stroke="${PALETTE.emerald.stroke}" stroke-width="3"/>
 <path d="M 18 32 L 28 42 L 46 22"
       fill="none" stroke="${PALETTE.white}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
 <ellipse cx="22" cy="20" rx="8" ry="4" fill="#FFFFFF" opacity="0.4"/>`,
 
-  // Plus — green plus button.
+  // Plus, green plus button.
   plus: () => `
 <circle cx="${CX}" cy="${CY}" r="26" fill="url(#gk-rgrad-emerald)" stroke="${PALETTE.emerald.stroke}" stroke-width="3"/>
 <rect x="${CX - 12}" y="${CY - 3}" width="24" height="6" rx="2" fill="${PALETTE.white}"/>
 <rect x="${CX - 3}" y="${CY - 12}" width="6" height="24" rx="2" fill="${PALETTE.white}"/>
 <ellipse cx="22" cy="20" rx="8" ry="4" fill="#FFFFFF" opacity="0.4"/>`,
 
-  // Alert — yellow triangle.
+  // Alert, yellow triangle.
   alert: () => `
 <path d="M ${CX} 6
          L 56 54
@@ -330,7 +330,7 @@ const ICONS = {
 <circle cx="${CX}" cy="46" r="3.5" fill="${PALETTE.ink}"/>
 <path d="M 16 50 L ${CX} 14 L ${CX + 4} 14 L 20 50 Z" fill="#FFFFFF" opacity="0.35"/>`,
 
-  // Camera — body + lens.
+  // Camera, body + lens.
   camera: () => `
 <rect x="8" y="20" width="48" height="32" rx="4"
       fill="url(#gk-grad-dark)" stroke="${PALETTE.ink}" stroke-width="2.5"/>
@@ -342,7 +342,7 @@ const ICONS = {
 <!-- red light -->
 <circle cx="48" cy="26" r="2" fill="${PALETTE.ruby.hi}"/>`,
 
-  // Castle — simple silhouette.
+  // Castle, simple silhouette.
   castle: () => `
 <g fill="url(#gk-grad-stone)" stroke="${PALETTE.stone.stroke}" stroke-width="2" stroke-linejoin="round">
   <rect x="10" y="22" width="44" height="32" rx="2"/>
@@ -366,7 +366,7 @@ const ICONS = {
 <rect x="${CX - 0.5}" y="0" width="2" height="8" fill="${PALETTE.ink}"/>
 <path d="M ${CX + 1} 1 L ${CX + 9} 3 L ${CX + 1} 5 Z" fill="url(#gk-grad-ruby)" stroke="${PALETTE.ruby.stroke}" stroke-width="1"/>`,
 
-  // Chat — speech bubble.
+  // Chat, speech bubble.
   chat: () => `
 <path d="M 8 16 Q 8 8 16 8 L 48 8 Q 56 8 56 16 L 56 38 Q 56 46 48 46 L 28 46 L 18 56 L 20 46 L 16 46 Q 8 46 8 38 Z"
       fill="url(#gk-grad-sapphire)" stroke="${PALETTE.sapphire.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
@@ -377,7 +377,7 @@ const ICONS = {
 </g>
 <ellipse cx="20" cy="14" rx="6" ry="3" fill="#FFFFFF" opacity="0.5"/>`,
 
-  // Construction — traffic cone.
+  // Construction, traffic cone.
   construction: () => `
 <path d="M ${CX} 6 L 16 54 L 48 54 Z"
       fill="url(#gk-grad-gold)" stroke="${PALETTE.gold.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
@@ -388,7 +388,7 @@ const ICONS = {
 <rect x="12" y="54" width="40" height="6" rx="2" fill="url(#gk-grad-dark)" stroke="${PALETTE.ink}" stroke-width="2"/>
 <path d="M ${CX - 4} 8 L 18 44 L 22 44 Z" fill="#FFFFFF" opacity="0.4"/>`,
 
-  // Droplet — water drop.
+  // Droplet, water drop.
   droplet: () => `
 <path d="M ${CX} 6
          Q 18 22 16 36
@@ -398,7 +398,7 @@ const ICONS = {
       fill="url(#gk-rgrad-sapphire)" stroke="${PALETTE.sapphire.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
 <ellipse cx="22" cy="26" rx="4" ry="8" fill="${PALETTE.white}" opacity="0.55"/>`,
 
-  // ID — id card.
+  // ID, id card.
   id: () => `
 <rect x="6" y="14" width="52" height="36" rx="4"
       fill="url(#gk-grad-cream)" stroke="${PALETTE.ink}" stroke-width="2.5"/>
@@ -411,7 +411,7 @@ const ICONS = {
 </g>
 <path d="M 8 16 L 8 22 L 56 22 L 56 18 Z" fill="#FFFFFF" opacity="0.35"/>`,
 
-  // Music — eighth note.
+  // Music, eighth note.
   music: () => `
 <rect x="38" y="8" width="4" height="38" fill="url(#gk-grad-amethyst)" stroke="${PALETTE.amethyst.stroke}" stroke-width="1.5"/>
 <rect x="22" y="14" width="4" height="38" fill="url(#gk-grad-amethyst)" stroke="${PALETTE.amethyst.stroke}" stroke-width="1.5"/>
@@ -420,7 +420,7 @@ const ICONS = {
 <ellipse cx="18" cy="50" rx="8" ry="6" fill="url(#gk-rgrad-amethyst)" stroke="${PALETTE.amethyst.stroke}" stroke-width="2"/>
 <ellipse cx="34" cy="44" rx="8" ry="6" fill="url(#gk-rgrad-amethyst)" stroke="${PALETTE.amethyst.stroke}" stroke-width="2"/>`,
 
-  // Paper — document.
+  // Paper, document.
   paper: () => `
 <path d="M 12 6 L 42 6 L 54 18 L 54 58 L 12 58 Z"
       fill="url(#gk-grad-cream)" stroke="${PALETTE.ink}" stroke-width="2.5" stroke-linejoin="round"/>
@@ -432,7 +432,7 @@ const ICONS = {
 </g>
 <path d="M 14 8 L 14 56 L 22 56 L 22 8 Z" fill="#FFFFFF" opacity="0.3"/>`,
 
-  // Rock — for RPS.
+  // Rock, for RPS.
   rock: () => `
 <path d="M 12 50
          Q 8 36 14 28
@@ -445,7 +445,7 @@ const ICONS = {
 <path d="M 18 26 Q 20 18 28 18 Q 24 24 22 30 Z" fill="${PALETTE.white}" opacity="0.45"/>
 <path d="M 36 36 L 42 32 L 44 38 L 38 40 Z" fill="${PALETTE.stone.lo}" opacity="0.55"/>`,
 
-  // Scissors — RPS.
+  // Scissors, RPS.
   scissors: () => `
 <g stroke="${PALETTE.iron.stroke}" stroke-width="2.5" fill="url(#gk-grad-iron)">
   <path d="M ${CX} ${CY} L 50 8 L 56 14 L ${CX + 4} 34 Z" stroke-linejoin="round"/>
@@ -455,7 +455,7 @@ const ICONS = {
 <circle cx="46" cy="46" r="9" fill="none" stroke="${PALETTE.gold.hi}" stroke-width="4"/>
 <circle cx="${CX}" cy="${CY}" r="3" fill="${PALETTE.ink}"/>`,
 
-  // Swirl — spiral.
+  // Swirl, spiral.
   swirl: () => `
 <path d="M ${CX} ${CY}
          m -2 0
@@ -472,7 +472,7 @@ const ICONS = {
          a 20 20 0 1 1 -20 0"
       fill="none" stroke="${PALETTE.amethyst.stroke}" stroke-width="2" stroke-linecap="round"/>`,
 
-  // Target — bullseye.
+  // Target, bullseye.
   target: () => `
 <circle cx="${CX}" cy="${CY}" r="26" fill="url(#gk-grad-cream)" stroke="${PALETTE.ink}" stroke-width="2.5"/>
 <circle cx="${CX}" cy="${CY}" r="20" fill="url(#gk-grad-ruby)" stroke="${PALETTE.ruby.stroke}" stroke-width="2"/>
@@ -481,7 +481,7 @@ const ICONS = {
 <circle cx="${CX}" cy="${CY}" r="3" fill="${PALETTE.ink}"/>
 <ellipse cx="${CX - 8}" cy="${CY - 12}" rx="5" ry="3" fill="${PALETTE.white}" opacity="0.5"/>`,
 
-  // Train — engine.
+  // Train, engine.
   train: () => `
 <rect x="8" y="20" width="40" height="28" rx="3"
       fill="url(#gk-grad-ruby)" stroke="${PALETTE.ruby.stroke}" stroke-width="2.5"/>
@@ -496,7 +496,7 @@ const ICONS = {
 <!-- gloss -->
 <rect x="10" y="22" width="6" height="22" fill="#FFFFFF" opacity="0.35"/>`,
 
-  // Wave — water wave.
+  // Wave, water wave.
   wave: () => `
 <path d="M 6 36
          Q 16 22 26 36

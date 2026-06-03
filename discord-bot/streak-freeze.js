@@ -1,4 +1,4 @@
-// Streak Freeze items — Duolingo-style streak protection.
+// Streak Freeze items, Duolingo-style streak protection.
 //
 // Two types, deliberately separate because the two streaks are independent:
 //   - "stream"  protects the Twitch stream check-in streak in
@@ -8,7 +8,7 @@
 //                community-checkin:<g>:<u>, keyed by Discord user id.
 //                Consumed by community-checkin.js's recordCheckin() when
 //                delta > 1 ET-day. (Previously protected the retired
-//                aquilo-bot pic/gif check-in's D1 table — the freeze
+//                aquilo-bot pic/gif check-in's D1 table, the freeze
 //                stockpile carries over since the KV identity is the same
 //                bare Discord user id.)
 //

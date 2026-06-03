@@ -116,7 +116,7 @@ export async function postLiveEmbed(env, broadcasterId) {
   const login = (user && user.login) || (stream.user_login) || await resolveTwitchLogin(env, broadcasterId);
 
   // If we already have a live state for THIS stream (same streamId)
-  // — e.g. EventSub delivered the same event twice — edit instead of
+  //, e.g. EventSub delivered the same event twice, edit instead of
   // double-posting. Different streamId = legit new stream, post fresh.
   const prior = await loadState(env, broadcasterId);
   if (prior && prior.streamId === stream.id) {
@@ -131,7 +131,7 @@ export async function postLiveEmbed(env, broadcasterId) {
       });
       return { ok: true, action: 'edited-existing', messageId: prior.messageId, channelId: prior.channelId };
     }
-    // Edit failed (message deleted?) — fall through and post fresh.
+    // Edit failed (message deleted?), fall through and post fresh.
   }
 
   const post = await discordRest(env, 'POST',
@@ -164,7 +164,7 @@ export async function refreshLiveEmbed(env, broadcasterId) {
   if (!state) return { skipped: 'no-live-state' };
   const stream = await getStreamInfo(env, broadcasterId);
   if (!stream) {
-    // Stream gone offline while we weren't looking — treat as a
+    // Stream gone offline while we weren't looking, treat as a
     // missed stream.offline event and finalise.
     return await markStreamOffline(env, broadcasterId);
   }
@@ -210,7 +210,7 @@ export async function markStreamOffline(env, broadcasterId) {
         lastPeakViewers: state.lastPeakViewers,
       })],
     });
-  // Clear state regardless of edit success — we don't want a stuck
+  // Clear state regardless of edit success, we don't want a stuck
   // live record if the message itself was deleted. A failed edit is
   // logged but doesn't block the state cleanup.
   if (!upd.ok) console.warn('[twitch-live] offline edit failed', upd.status);

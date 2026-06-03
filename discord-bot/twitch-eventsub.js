@@ -1,6 +1,6 @@
 // Twitch EventSub webhook handler.
 //
-// POST /twitch/eventsub — Twitch posts here for three message types
+// POST /twitch/eventsub, Twitch posts here for three message types
 // (header `Twitch-Eventsub-Message-Type`):
 //
 //   webhook_callback_verification
@@ -17,13 +17,13 @@
 //     Twitch told us the subscription is gone (auth revoked, user
 //     deleted, etc.). Log + ack 200.
 //
-// Signature verification is REQUIRED for every request — Twitch
+// Signature verification is REQUIRED for every request, Twitch
 // signs as
 //   HMAC-SHA256(secret, messageId + messageTimestamp + rawBody)
 // hex-encoded, sent in the `Twitch-Eventsub-Message-Signature`
 // header prefixed with "sha256=". An attacker who forges a notify
 // without the secret can't reach our handlers. Bail with 403 on a
-// bad sig — Twitch will retry, and we don't want to act on it.
+// bad sig, Twitch will retry, and we don't want to act on it.
 //
 // Also a 10-min message-id replay window: re-deliveries are
 // idempotently swallowed (returns 200 without re-processing the
@@ -52,7 +52,7 @@ const REPLAY_TTL_S = 10 * 60;
 
 // Constant-time comparison so a timing attack can't probe the secret
 // one byte at a time. Both inputs are hex strings of the SAME length
-// — caller has already enforced length equality.
+//, caller has already enforced length equality.
 function timingSafeEqualHex(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string' || a.length !== b.length) return false;
   let diff = 0;
@@ -85,7 +85,7 @@ export async function handleEventSubWebhook(req, env, ctx) {
   const messageType = req.headers.get('twitch-eventsub-message-type');
   const timestamp   = req.headers.get('twitch-eventsub-message-timestamp');
   const headerSig   = req.headers.get('twitch-eventsub-message-signature');
-  // Read the body ONCE as raw text — signature verification + JSON
+  // Read the body ONCE as raw text, signature verification + JSON
   // parsing both consume the same bytes.
   const body = await req.text();
 
@@ -93,7 +93,7 @@ export async function handleEventSubWebhook(req, env, ctx) {
     messageId, timestamp, body, headerSig);
   if (!ok) return new Response('bad-signature', { status: 403 });
 
-  // Replay-protect — once we've seen a message_id, swallow re-deliveries.
+  // Replay-protect, once we've seen a message_id, swallow re-deliveries.
   if (messageId) {
     const seen = await env.LOADOUT_BOLTS.get(REPLAY_KEY(messageId));
     if (seen) return new Response(null, { status: 200 });
@@ -129,16 +129,16 @@ export async function handleEventSubWebhook(req, env, ctx) {
     const broadcasterId = payload?.event?.broadcaster_user_id
       || payload?.event?.broadcaster_id
       || payload?.subscription?.condition?.broadcaster_user_id;
-    // ACK fast — handlers run via waitUntil so slow Discord posts
+    // ACK fast, handlers run via waitUntil so slow Discord posts
     // can't push us past Twitch's 10-sec timeout.
     if (subType === 'stream.online' && broadcasterId) {
-      // Single work unit: postLiveEmbed — twitch-live.js's edit-in-place
+      // Single work unit: postLiveEmbed, twitch-live.js's edit-in-place
       // lifecycle card on the existing `live` binding. Clay handles the
       // "going live" announce via this same lifecycle card; the bigger
       // separate announce embed was removed to avoid double-firing.
       ctx.waitUntil(postLiveEmbed(env, broadcasterId).catch(e =>
         console.warn('[twitch-eventsub] postLiveEmbed', e?.message || e)));
-      // 2026-05-29 sprint — dynamic dashboard embed in the
+      // 2026-05-29 sprint, dynamic dashboard embed in the
       // live-status-embed binding (defaults to 1507973917350957067).
       ctx.waitUntil((async () => {
         try {
@@ -159,7 +159,7 @@ export async function handleEventSubWebhook(req, env, ctx) {
           console.warn('[twitch-eventsub] markStreamOffline', e?.message || e));
         await handleStreamEndedSummary(env, payload, { getStreamInfo, getUserById }, lifecycleState)
           .catch(e => console.warn('[twitch-eventsub] handleStreamEndedSummary', e?.message || e));
-        // 2026-05-29 sprint — also tear down the dashboard embed.
+        // 2026-05-29 sprint, also tear down the dashboard embed.
         try {
           const { handleStreamOffline } = await import('./live-status-embed.js');
           await handleStreamOffline(env, broadcasterId);
@@ -167,8 +167,8 @@ export async function handleEventSubWebhook(req, env, ctx) {
       })());
     } else if (subType && EVENT_TYPE_HANDLERS[subType]) {
       // All other typed events route through the twitch-events.js
-      // dispatch table. Each handler is itself defensive — null guild,
-      // missing channel, toggle-off — and returns a shape the caller
+      // dispatch table. Each handler is itself defensive, null guild,
+      // missing channel, toggle-off, and returns a shape the caller
       // can ignore. We log the result so a "no-channel" skip surfaces.
       ctx.waitUntil((async () => {
         try {
@@ -182,7 +182,7 @@ export async function handleEventSubWebhook(req, env, ctx) {
           console.warn('[twitch-eventsub]', subType, 'handler threw:', e?.message || e);
         }
       })());
-      // 2026-05-29 sprint — side-effect for the dashboard embed.
+      // 2026-05-29 sprint, side-effect for the dashboard embed.
       // Hype-train events flow into the live-status-embed's hype-train
       // field. Independent waitUntil so a failure here doesn't break
       // the primary handler above.
@@ -200,7 +200,7 @@ export async function handleEventSubWebhook(req, env, ctx) {
         })());
       }
     } else if (subType) {
-      // Unknown sub type — still ack so Twitch doesn't retry forever.
+      // Unknown sub type, still ack so Twitch doesn't retry forever.
       console.log('[twitch-eventsub] unhandled subType:', subType);
     }
     return new Response(null, { status: 204 });
@@ -213,7 +213,7 @@ export async function handleEventSubWebhook(req, env, ctx) {
 //
 // Per-type config: which API version, which condition shape, which
 // token kind (app vs user) is required. Order matters for the
-// `created` array readout — kept roughly user-facing-priority.
+// `created` array readout, kept roughly user-facing-priority.
 //
 // Token-kind notes:
 //   - app:  works with the app access token (CLIENT_ID/SECRET only).
@@ -227,45 +227,45 @@ export async function handleEventSubWebhook(req, env, ctx) {
 // Condition shape notes:
 //   - Most types: { broadcaster_user_id }.
 //   - channel.follow v2: also needs { moderator_user_id } (we use
-//     the broadcaster id — the broadcaster is implicitly a moderator
+//     the broadcaster id, the broadcaster is implicitly a moderator
 //     in their own channel).
 //   - channel.raid (incoming): { to_broadcaster_user_id }.
 function buildWantTypes(broadcasterId) {
   return [
-    // — Stream lifecycle (app token, no scope).
+    //, Stream lifecycle (app token, no scope).
     { type: 'stream.online',  version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: false },
     { type: 'stream.offline', version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: false },
-    // — Channel.follow v2 (USER token, moderator:read:followers).
+    //, Channel.follow v2 (USER token, moderator:read:followers).
     { type: 'channel.follow', version: '2',
       condition: { broadcaster_user_id: broadcasterId, moderator_user_id: broadcasterId },
       userToken: true },
-    // — Subs / resubs / gifts (USER token, channel:read:subscriptions).
+    //, Subs / resubs / gifts (USER token, channel:read:subscriptions).
     { type: 'channel.subscribe',            version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
     { type: 'channel.subscription.message', version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
     { type: 'channel.subscription.gift',    version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
-    // — Cheers (USER token, bits:read).
+    //, Cheers (USER token, bits:read).
     { type: 'channel.cheer',                version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
-    // — Incoming raid (app token, no scope; the TO field is the
+    //, Incoming raid (app token, no scope; the TO field is the
     //   broadcaster, since we want to detect raids INTO Clay).
     { type: 'channel.raid', version: '1',
       condition: { to_broadcaster_user_id: broadcasterId },
       userToken: false },
-    // — Channel-point redemptions (USER token, channel:read:redemptions).
+    //, Channel-point redemptions (USER token, channel:read:redemptions).
     { type: 'channel.channel_points_custom_reward_redemption.add', version: '1',
       condition: { broadcaster_user_id: broadcasterId }, userToken: true },
-    // — Hype train (channel:read:hype_train). v1 was retired late 2025;
+    //, Hype train (channel:read:hype_train). v1 was retired late 2025;
     //   v2 is the current shape. Twitch returns "invalid subscription
     //   type and version" if v1 is requested today.
     { type: 'channel.hype_train.begin',    version: '2', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
     { type: 'channel.hype_train.progress', version: '2', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
     { type: 'channel.hype_train.end',      version: '2', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
-    // — Polls (USER token, channel:read:polls).
+    //, Polls (USER token, channel:read:polls).
     { type: 'channel.poll.begin', version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
     { type: 'channel.poll.end',   version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
-    // — Predictions (USER token, channel:read:predictions).
+    //, Predictions (USER token, channel:read:predictions).
     { type: 'channel.prediction.begin', version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
     { type: 'channel.prediction.end',   version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
-    // — Moderation (USER token, channel:moderate).
+    //, Moderation (USER token, channel:moderate).
     { type: 'channel.ban',   version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
     { type: 'channel.unban', version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: true },
   ];
@@ -273,7 +273,7 @@ function buildWantTypes(broadcasterId) {
 
 // Two existing subs are "the same" when the (type, version, condition,
 // callback) tuple matches. We only consider enabled or pending status
-// as the "already" predicate — failed/auth-revoked subs should be
+// as the "already" predicate, failed/auth-revoked subs should be
 // recreated so the count repairs itself.
 function conditionsMatch(a, b) {
   if (!a || !b) return false;
@@ -287,7 +287,7 @@ function conditionsMatch(a, b) {
 // ── /admin/twitch-setup/<guildId> ────────────────────────────────
 //
 // Create (or refresh) the EventSub subscriptions for Clay's
-// broadcaster id. Idempotent — checks existing subscriptions first
+// broadcaster id. Idempotent, checks existing subscriptions first
 // and only creates ones that don't already exist + match our
 // (callback, secret) pair. Caller hits this AFTER setting the three
 // Twitch secrets so the webhook handshake has somewhere to verify
@@ -296,10 +296,10 @@ function conditionsMatch(a, b) {
 // User-token-requiring subs (follow / sub / cheer / hype train /
 // poll / prediction / ban / channel point) are SKIPPED with a
 // `skipped-no-user-auth` reason when TWITCH_USER_REFRESH_TOKEN is
-// absent — caller sees the array and knows to set up OAuth before
+// absent, caller sees the array and knows to set up OAuth before
 // rerunning.
 //
-// `opts.only` — optional array of subscription types to set up
+// `opts.only`, optional array of subscription types to set up
 // (rest are skipped). Useful for replaying a failed type after
 // fixing scopes.
 export async function setupTwitchSubscriptions(env, opts = {}) {
@@ -346,7 +346,7 @@ export async function setupTwitchSubscriptions(env, opts = {}) {
       if (created && Array.isArray(created.data) && created.data[0]) {
         out.created.push({ type: spec.type, id: created.data[0].id, status: created.data[0].status });
       } else if (created && created._error) {
-        // 2026-05-29 — surface the actual Twitch error so scope/version/
+        // 2026-05-29, surface the actual Twitch error so scope/version/
         // condition mismatches can be diagnosed without a wrangler tail.
         out.failed.push({
           type: spec.type,

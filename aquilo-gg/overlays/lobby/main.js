@@ -1,10 +1,10 @@
 /*
- * Loadout — pre-stream lobby overlay.
+ * Loadout, pre-stream lobby overlay.
  *
  * Subscribes to:
- *   lobby.config       — streamer-side override of title/subtitle/countdown
- *   welcome.fired      — adds the viewer to the arrival board
- *   chat.message       — `!ready` adds the viewer to the arrival board
+ *   lobby.config, streamer-side override of title/subtitle/countdown
+ *   welcome.fired, adds the viewer to the arrival board
+ *   chat.message, `!ready` adds the viewer to the arrival board
  *
  * If the streamer hasn't published lobby.config yet, the URL params
  * ?title= ?subtitle= ?countdownTo= drive the same fields.
@@ -15,7 +15,7 @@
   const busUrl = params.get('bus') || 'ws://127.0.0.1:7470/aquilo/bus/';
   const secret = params.get('secret') || '';
 
-  // Initial config from URL params — the streamer can also publish
+  // Initial config from URL params, the streamer can also publish
   // `lobby.config` on the bus to swap these live.
   let cfg = {
     title:        params.get('title')        || 'Starting soon',
@@ -149,7 +149,7 @@
         if (d.user) addArrival(d.user, d.platform || 'twitch');
         break;
       case 'chat.message':
-        // !ready opt-in — the viewer marks themselves "in the crew".
+        // !ready opt-in, the viewer marks themselves "in the crew".
         if (typeof d.text === 'string' && /^!\s*ready\b/i.test(d.text.trim()) && d.user) {
           addArrival(d.user, d.platform || 'twitch');
         }

@@ -1,15 +1,15 @@
-// Stream-bonus module — features that only activate while Clay is
+// Stream-bonus module, features that only activate while Clay is
 // live on Twitch.
 //
 // 2026-05-29 sprint features (j, k, n):
-//   j. Aether — new Clash resource that only generates while live.
+//   j. Aether, new Clash resource that only generates while live.
 //      Stored on the existing wallet record as wallet.aether.
-//   k. Streamer Watchtower — virtual Clash building that lights up
+//   k. Streamer Watchtower, virtual Clash building that lights up
 //      while Clay is live + grants a passive bolts bonus. The
 //      auto-grant is read-time (no town-state migration needed);
 //      isWatchtowerActive(env) returns the live-flag the renderer
 //      uses for the glow effect.
-//   n. Bolt rain — applyVaultDelta wraps all bolt grants with a
+//   n. Bolt rain, applyVaultDelta wraps all bolt grants with a
 //      1.2x multiplier when live. Plus periodic random drops at a
 //      configurable cadence (cron-driven).
 //
@@ -51,7 +51,7 @@ export async function isStreamLive(env) {
 // ── Aether ────────────────────────────────────────────────────────
 //
 // Per-tick accrual called from the cron (every minute via the :17
-// piggyback chain — or whichever cron runs). Walks every active wallet
+// piggyback chain, or whichever cron runs). Walks every active wallet
 // in the guild and adds the live-only amount. Cheap: KV list paginated.
 // `liveAccrueAetherTick` is idempotent per minute via the `lastAetherTickUtc`
 // stamp on the wallet record.
@@ -72,7 +72,7 @@ export async function liveAccrueAetherTick(env, guildId) {
       try {
         const w = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
         if (!w) continue;
-        // Per-minute dedup — re-running within 50s adds nothing.
+        // Per-minute dedup, re-running within 50s adds nothing.
         const last = w.lastAetherTickUtc || 0;
         const now  = Date.now();
         if (now - last < 50_000) continue;
@@ -95,7 +95,7 @@ export async function getAether(env, guildId, userId) {
 
 // ── Watchtower ───────────────────────────────────────────────────
 //
-// Virtual auto-on building — no town-state mutation, no per-user
+// Virtual auto-on building, no town-state mutation, no per-user
 // records. isWatchtowerActive returns the renderer flag; the passive
 // bolts bonus is a separate per-tick walk that mirrors the Aether
 // loop above.
@@ -137,11 +137,11 @@ export async function liveAccrueWatchtowerBoltsTick(env, guildId) {
 
 // ── Bolt rain ────────────────────────────────────────────────────
 //
-// applyBoltRainMultiplier wraps a bolts grant — caller pulls it in
+// applyBoltRainMultiplier wraps a bolts grant, caller pulls it in
 // at any grant site to amplify by 1.2x while live. Best-effort: if
 // the live-probe fails the caller still gets the base amount.
 //
-// boltRainTick is the periodic "random drop" pulse — fires N viewers
+// boltRainTick is the periodic "random drop" pulse, fires N viewers
 // chosen at random from the wallet prefix and gives them 50-500 bolts.
 
 export async function applyBoltRainMultiplier(env, amount) {

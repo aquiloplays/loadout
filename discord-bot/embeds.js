@@ -1,4 +1,4 @@
-// Discord embed builders — shared layout and brand language so every
+// Discord embed builders, shared layout and brand language so every
 // command response feels like part of the same product. We deliberately
 // don't pull a chart/canvas library in; pure embed JSON is fast, cache-
 // friendly on Cloudflare Workers, and renders identically across Discord
@@ -39,7 +39,7 @@ export function dt(ms) {
   });
 }
 
-// Inline progress bar — a 12-segment block-character bar, useful in
+// Inline progress bar, a 12-segment block-character bar, useful in
 // embed fields where chart libs aren't available. Fills proportionally
 // from 0 → max with a softer character for the unfilled portion.
 export function bar(value, max, len = 12) {
@@ -92,7 +92,7 @@ export function balanceEmbed({ userId, userName, wallet, links }) {
   };
 }
 
-// /daily reward — color shifts from accent (low streak) → gold (cap)
+// /daily reward, color shifts from accent (low streak) → gold (cap)
 // so the moment is visually rewarded as the streak grows.
 export function dailyEmbed({ userName, payout, streak }) {
   const cappedColor = streak >= 10 ? COLORS.gold : streak >= 5 ? COLORS.purple : COLORS.accent;
@@ -113,7 +113,7 @@ export function dailyEmbed({ userName, payout, streak }) {
   };
 }
 
-// Coinflip / dice / minigame result embed — outcome drives the colour
+// Coinflip / dice / minigame result embed, outcome drives the colour
 // + heading. Wagers under 10 bolts skip the celebration treatment so
 // chat doesn't get drowned in /coinflip 1 spam.
 export function gameEmbed({ kind, won, userName, wager, payout, result, target, rolled }) {
@@ -142,7 +142,7 @@ export function gameEmbed({ kind, won, userName, wager, payout, result, target, 
   };
 }
 
-// Hero / RPG embed — level + HP + class + active equipment as inline
+// Hero / RPG embed, level + HP + class + active equipment as inline
 // fields. Sized to fit Discord's 25-field limit and renders cleanly
 // with or without an avatar.
 export function heroEmbed({ userName, hero, equippedItems }) {
@@ -169,7 +169,7 @@ export function heroEmbed({ userName, hero, equippedItems }) {
     }
   ];
 
-  // Equipment summary — top 3 slots only so the embed stays scannable.
+  // Equipment summary, top 3 slots only so the embed stays scannable.
   if (equippedItems && equippedItems.length > 0) {
     const lines = equippedItems.slice(0, 6).map(it =>
       `${it.glyph || '·'}  **${it.name}**  _(${it.rarity || '?'} ${it.slot})_${it.ability ? '  🔮 ' + it.ability : ''}`
@@ -186,7 +186,7 @@ export function heroEmbed({ userName, hero, equippedItems }) {
   };
 }
 
-// Shop preview embed — shows up to 12 items in a fenced-code list so
+// Shop preview embed, shows up to 12 items in a fenced-code list so
 // alignment stays clean across mobile and desktop. Highlight items
 // matching the viewer's class with a sparkle.
 export function shopEmbed({ items, viewerClass, rotateInLabel }) {
@@ -211,7 +211,7 @@ export function shopEmbed({ items, viewerClass, rotateInLabel }) {
 }
 
 // Achievement notification embed. Used when a viewer hits a milestone
-// (dungeon, bolts, hype train) — posts in the streamer's notification
+// (dungeon, bolts, hype train), posts in the streamer's notification
 // channel so achievements feel earned rather than silent.
 export function achievementEmbed({ userName, achievementName, description, glyph, rewardBolts }) {
   return {
@@ -224,7 +224,7 @@ export function achievementEmbed({ userName, achievementName, description, glyph
   };
 }
 
-// Helper — duplicates the DLL's level curve so embeds can render the
+// Helper, duplicates the DLL's level curve so embeds can render the
 // XP bar without a sync round-trip.
 function xpForLevelLocal(level) {
   if (level <= 1) return 50;

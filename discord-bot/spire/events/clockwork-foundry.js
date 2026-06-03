@@ -1,4 +1,4 @@
-// Clockwork Foundry — brass, steam, gear-priests, automatons, oil.
+// Clockwork Foundry, brass, steam, gear-priests, automatons, oil.
 // 6 events: 2 pure upside, 3 tradeoff, 1 gamble.
 
 export const CLOCKWORK_FOUNDRY_EVENTS = Object.freeze([

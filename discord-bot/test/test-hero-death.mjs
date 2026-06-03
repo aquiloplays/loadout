@@ -1,4 +1,4 @@
-// Standalone harness for hero-death.js — the soft-death + revive
+// Standalone harness for hero-death.js, the soft-death + revive
 // system layered onto the dungeon hero record. Stubs LOADOUT_BOLTS
 // with the same in-memory KV pattern other tests use.
 //
@@ -77,7 +77,7 @@ const GUILD = 'g1', USER = 'u1';
 const KEY = `d:hero:${GUILD}:${USER}`;
 
 // ─── reviveCost ────────────────────────────────────────────────
-console.log('reviveCost — scaling:');
+console.log('reviveCost, scaling:');
 eq(reviveCost({ level: 1 }),   500,  'L1  = 500 (base)');
 eq(reviveCost({ level: 10 }),  725,  'L10 = 500 + 9*25');
 eq(reviveCost({ level: 30 }), 1225,  'L30 = 500 + 29*25');
@@ -86,7 +86,7 @@ eq(reviveCost({}),             500,  'no level → base');
 eq(reviveCost(null),           500,  'null hero → base (safe)');
 
 // ─── isDead ────────────────────────────────────────────────────
-console.log('isDead — pure helper:');
+console.log('isDead, pure helper:');
 assert(isDead({ status: 'dead' })  === true,  '"dead" → true');
 assert(isDead({ status: 'alive' }) === false, '"alive" → false');
 assert(isDead({})                  === false, 'missing status → false');
@@ -100,7 +100,7 @@ eq(REVIVE_ITEM.goldValue, 500,            'base price 500');
 assert(REVIVE_ITEM.consumable === true,   'consumable: true');
 
 // ─── killHero ──────────────────────────────────────────────────
-console.log('killHero — happy path:');
+console.log('killHero, happy path:');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   await env.LOADOUT_BOLTS.put(KEY, JSON.stringify(mkHero()));
@@ -122,7 +122,7 @@ console.log('killHero — happy path:');
   eq(bagIds, ['mystery-pot'], 'equipped items removed from bag, other items preserved');
 }
 
-console.log('killHero — idempotent on already-dead:');
+console.log('killHero, idempotent on already-dead:');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   await env.LOADOUT_BOLTS.put(KEY, JSON.stringify(mkHero({ status: 'dead' })));
@@ -131,11 +131,11 @@ console.log('killHero — idempotent on already-dead:');
   assert(res.alreadyDead === true, 'alreadyDead flag set');
 }
 
-// (no "missing hero" case — dungeon.loadHero always synthesizes a fresh
+// (no "missing hero" case, dungeon.loadHero always synthesizes a fresh
 // hero, so the if(!hero) branch in killHero is defensive belt-and-braces.)
 
 // ─── reviveHero ────────────────────────────────────────────────
-console.log('reviveHero — happy path:');
+console.log('reviveHero, happy path:');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const dead = mkHero({ status: 'dead', hpCurrent: 0, diedAt: '2026-05-29T00:00:00.000Z', deathReason: 'expedition', equipped: {} });
@@ -152,7 +152,7 @@ console.log('reviveHero — happy path:');
   eq(stored.equipped, {},     'equipped stays empty (lost gear stays lost)');
 }
 
-console.log('reviveHero — rejects an alive hero:');
+console.log('reviveHero, rejects an alive hero:');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   await env.LOADOUT_BOLTS.put(KEY, JSON.stringify(mkHero()));
@@ -161,7 +161,7 @@ console.log('reviveHero — rejects an alive hero:');
 }
 
 // ─── useReviveElixir ───────────────────────────────────────────
-console.log('useReviveElixir — happy path: consume + revive atomically:');
+console.log('useReviveElixir, happy path: consume + revive atomically:');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const dead = mkHero({
@@ -183,7 +183,7 @@ console.log('useReviveElixir — happy path: consume + revive atomically:');
   eq(bagIds, ['mystery-pot'], 'one elixir consumed, other bag items preserved');
 }
 
-console.log('useReviveElixir — no elixir in bag:');
+console.log('useReviveElixir, no elixir in bag:');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const dead = mkHero({
@@ -196,7 +196,7 @@ console.log('useReviveElixir — no elixir in bag:');
   eq(res.reviveCost, 600, 'includes reviveCost (L5) to drive buy CTA');
 }
 
-console.log('useReviveElixir — rejects an alive hero:');
+console.log('useReviveElixir, rejects an alive hero:');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const alive = mkHero({
@@ -213,8 +213,8 @@ console.log('useReviveElixir — rejects an alive hero:');
 
 console.log('');
 if (failures) {
-  console.log(`FAIL — ${failures} assertion(s) failed`);
+  console.log(`FAIL, ${failures} assertion(s) failed`);
   process.exit(1);
 } else {
-  console.log('OK — all hero-death assertions passed');
+  console.log('OK, all hero-death assertions passed');
 }

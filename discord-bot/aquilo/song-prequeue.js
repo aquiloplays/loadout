@@ -1,4 +1,4 @@
-// Rotation widget — Discord pre-queue.
+// Rotation widget, Discord pre-queue.
 //
 // Lets viewers add songs to the streamer's Rotation widget queue via
 // Discord slash commands BEFORE the stream goes live. The widget at
@@ -17,8 +17,7 @@
 //   DELETE /sr/pending     widget clears all delivered entries (auth: AQUILO_BOT_SECRET)
 //   DELETE /sr/pending/:id widget clears a single delivered entry (auth: AQUILO_BOT_SECRET)
 //
-// Storage: Workers KV under `sr:pending` (single-streamer for now —
-// per-guild keying is a v2 if/when this bot becomes multi-tenant).
+// Storage: Workers KV under `sr:pending` (single-streamer for now, // per-guild keying is a v2 if/when this bot becomes multi-tenant).
 //
 // Role-based limits via wrangler.toml [vars].SR_ROLE_LIMITS_JSON:
 //   [
@@ -28,13 +27,13 @@
 //   ]
 //
 // First matching role (top-to-bottom) wins. @everyone is the implicit
-// fallback at the bottom — if no entry has role_id="@everyone", users
+// fallback at the bottom, if no entry has role_id="@everyone", users
 // with no listed roles can't add at all.
 
 import { ephemeral, flattenOptions, FLAG_EPHEMERAL, RESP_CHAT } from './util.js';
 
 const KEY = 'sr:pending';
-const MAX_TOTAL_ENTRIES = 200;            // hard cap per channel — defends against runaway viewer adds
+const MAX_TOTAL_ENTRIES = 200;            // hard cap per channel, defends against runaway viewer adds
 
 // ---------- Storage helpers ----------
 
@@ -200,14 +199,14 @@ export async function handleSrClear(env, data) {
 
 // ---------- HTTP route handlers (called from worker.js) ----------
 
-// GET /sr/pending — widget pulls. Returns JSON in the shape that
+// GET /sr/pending, widget pulls. Returns JSON in the shape that
 // rotation/src/prequeue-puller.js expects:
 //   { asOf: ISO, entries: [...] }
 // The widget injects each entry via submitRequest with mod-bypass.
 //
 // `since` query param (ms epoch) lets the widget short-circuit by
 // ignoring entries it already pulled. We don't actively prune older
-// entries here — the widget calls DELETE /sr/pending after a
+// entries here, the widget calls DELETE /sr/pending after a
 // successful pull to clear delivered ones.
 export async function handlePendingGet(env, request) {
   const url = new URL(request.url);
@@ -234,9 +233,9 @@ export async function handlePendingGet(env, request) {
   });
 }
 
-// DELETE /sr/pending — widget clears the whole queue after a
+// DELETE /sr/pending, widget clears the whole queue after a
 // successful pull. Bot-side state stays empty until the next
-// /sr-add. Idempotent — calling on an already-empty list is fine.
+// /sr-add. Idempotent, calling on an already-empty list is fine.
 export async function handlePendingDelete(env) {
   await savePending(env, []);
   return new Response(JSON.stringify({ ok: true, cleared: true }), {

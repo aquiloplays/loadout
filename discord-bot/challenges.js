@@ -1,4 +1,4 @@
-// Weekly community challenges — a shared community-wide goal that
+// Weekly community challenges, a shared community-wide goal that
 // rotates every Monday at 00:00 UTC. Players contribute through
 // normal play; the bus calls contributeToChallenge() as a 5th consumer.
 //
@@ -20,7 +20,7 @@
 //
 // On completion: Discord celebratory embed posted to the community
 // channel (resolved via sf-community.js binding). Top contributors
-// (5 by count) receive a small bolts reward — flat, single-tier
+// (5 by count) receive a small bolts reward, flat, single-tier
 // (no Patreon scaling per project constraint).
 
 import { getActiveGuildId } from './aquilo/config.js';
@@ -126,7 +126,7 @@ function isoWeekKey(date = new Date()) {
   return `${year}-W${String(week).padStart(2, '0')}`;
 }
 
-// Picks the next template — round-robins through the catalog by index
+// Picks the next template, round-robins through the catalog by index
 // of last template + 1, with a deterministic seed so retries land on
 // the same choice within an ISO week.
 function pickNextTemplate(prevTemplateId) {
@@ -166,7 +166,7 @@ async function pushToList(env, entry) {
 
 // ── Rotation ──────────────────────────────────────────────────────
 //
-// Called from the cron tick. Idempotent — uses the ISO-week marker so
+// Called from the cron tick. Idempotent, uses the ISO-week marker so
 // only one rotation fires per week even if the cron is invoked
 // hourly. Also runs on cold start if there's no current challenge
 // yet (first-deploy bootstrap).
@@ -177,7 +177,7 @@ export async function rotateIfDue(env) {
   const current = await readCurrent(env);
   if (current && lastWeek === thisWeek) return { ok: true, action: 'no-op' };
 
-  // Close out the existing one (if any) — archive + final embed.
+  // Close out the existing one (if any), archive + final embed.
   if (current) {
     current.expiresUtc = current.expiresUtc || Date.now();
     if (!current.completedUtc && current.progress >= current.target) {
@@ -198,7 +198,7 @@ export async function rotateIfDue(env) {
     try { await postCompletionEmbed(env, current); } catch (e) {
       console.warn('[challenges] completion embed failed:', e && e.message);
     }
-    // Top-contributor rewards — fire on completion only, not on
+    // Top-contributor rewards, fire on completion only, not on
     // expiry without completion.
     if (current.completedUtc) {
       try { await rewardTopContributors(env, current); } catch (e) {
@@ -248,7 +248,7 @@ export async function contributeToChallenge(env, event) {
     const delta = template?.units ? Math.max(0, template.units(event) | 0) : 1;
     if (!delta) return { ok: true, skipped: true };
 
-    // KV is eventually consistent — concurrent contributions can race.
+    // KV is eventually consistent, concurrent contributions can race.
     // The single-isolate write here is fine because the bus is the
     // only writer and emits are serialized per request. A lost update
     // across regions is acceptable here (community goal, not a wallet).
@@ -306,7 +306,7 @@ async function postNewChallengeEmbed(env, challenge) {
   if (!ch) return;
   const embed = {
     color: 0x7C5CFF,
-    title: `${challenge.icon || '🎯'} New community challenge — ${challenge.name}`,
+    title: `${challenge.icon || '🎯'} New community challenge, ${challenge.name}`,
     description: challenge.description,
     fields: [
       { name: 'Goal', value: `0 / ${challenge.target.toLocaleString()}`, inline: true },
@@ -314,7 +314,7 @@ async function postNewChallengeEmbed(env, challenge) {
       { name: 'Reward', value: `${challenge.reward.bolts.toLocaleString()} bolts to the top ${challenge.reward.top} contributors`, inline: false },
     ],
     timestamp: new Date().toISOString(),
-    footer: { text: 'aquilo.gg — community challenge' },
+    footer: { text: 'aquilo.gg, community challenge' },
   };
   await postEmbed(env, ch.channelId, embed);
 }
@@ -326,15 +326,15 @@ async function postCompletionEmbed(env, challenge) {
   const lines = top.length
     ? await Promise.all(top.map(async (c, i) => {
         const name = await usernameFor(env, c.userId);
-        return `${i + 1}. **${name}** — ${c.count.toLocaleString()} contributions`;
+        return `${i + 1}. **${name}**, ${c.count.toLocaleString()} contributions`;
       }))
     : ['_no recorded contributions_'];
   const wonIt = challenge.completedUtc && challenge.progress >= challenge.target;
   const embed = {
     color: wonIt ? 0x3FB950 : 0xF0B429,
     title: wonIt
-      ? `🎉 Community challenge complete — ${challenge.name}`
-      : `⏰ Community challenge ended — ${challenge.name}`,
+      ? `🎉 Community challenge complete, ${challenge.name}`
+      : `⏰ Community challenge ended, ${challenge.name}`,
     description: wonIt
       ? `The community hit **${challenge.progress.toLocaleString()} / ${challenge.target.toLocaleString()}**. Bolts going out to the top contributors.`
       : `Final tally: **${challenge.progress.toLocaleString()} / ${challenge.target.toLocaleString()}**. New challenge starting now.`,
@@ -342,7 +342,7 @@ async function postCompletionEmbed(env, challenge) {
       { name: 'Top contributors', value: lines.join('\n') },
     ],
     timestamp: new Date().toISOString(),
-    footer: { text: 'aquilo.gg — community challenge' },
+    footer: { text: 'aquilo.gg, community challenge' },
   };
   await postEmbed(env, ch.channelId, embed);
 }
@@ -369,7 +369,7 @@ async function rewardTopContributors(env, challenge) {
   const split = Math.floor((challenge.reward?.bolts || 0) / top.length);
   if (split <= 0) return;
   // Wallets are per-guild; we use the active guild as the home guild
-  // for the credit. Best-effort — wallet earns are non-fatal here.
+  // for the credit. Best-effort, wallet earns are non-fatal here.
   const guildId = await getActiveGuildId(env);
   if (!guildId) return;
   try {
@@ -401,7 +401,7 @@ export async function handleChallengeRoute(req, env, path) {
     const list = (await env.LOADOUT_BOLTS.get(LIST_KEY, { type: 'json' })) || [];
     return json({ history: list });
   }
-  // Default — current challenge + progress + top-10 contributors.
+  // Default, current challenge + progress + top-10 contributors.
   const current = await readCurrent(env);
   if (!current) return json({ current: null });
   const top = topContributors(current, 10);

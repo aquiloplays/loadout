@@ -55,7 +55,7 @@ export async function handleSelfRoleAddSubmit(env, data) {
   const label   = (getModalField(data, 'label')   || '').trim();
   const emoji   = (getModalField(data, 'emoji')   || '').trim() || null;
   if (!role_id || !label) return ephemeral('Role ID + label required.');
-  if (!/^\d{15,25}$/.test(role_id)) return ephemeral('Role ID looks wrong — should be a long number (right-click role → Copy ID).');
+  if (!/^\d{15,25}$/.test(role_id)) return ephemeral('Role ID looks wrong, should be a long number (right-click role → Copy ID).');
 
   try {
     await env.DB.prepare(
@@ -81,13 +81,13 @@ export async function handleSelfRoleRemoveSubmit(env, data) {
 // ---- Public roles message ---------------------------------------------
 
 // Reserve the bottom row for the 18+ self-claim button. Lives outside
-// the D1 self_roles table on purpose — it carries a warning + audit
+// the D1 self_roles table on purpose, it carries a warning + audit
 // flow the other toggles don't need.
 const AGE18_BUTTON = {
   custom_id: 'roles:age18:start',
   label: '18+ access',
   emoji: { name: '🔞' },
-  style: 2, // BTN_SECONDARY — matches the other toggle buttons visually
+  style: 2, // BTN_SECONDARY, matches the other toggle buttons visually
   type: 2,  // COMPONENT_BUTTON
 };
 
@@ -97,7 +97,7 @@ function buildSelfRolesPayload(roles) {
     description:
       (roles.length
         ? 'Click a button to give yourself that role. Click again to remove it.'
-        : '_No self-assign roles configured yet — admin: use the hub to add some._') +
+        : '_No self-assign roles configured yet, admin: use the hub to add some._') +
       '\n\n**🔞 18+ access** opts you into the adult-conversation chat area. ' +
       'Tap below to read the warning and confirm.',
     color: COLOR_SCHEDULE
@@ -126,7 +126,7 @@ function buildSelfRolesPayload(roles) {
   return { embeds: [embed], components };
 }
 
-// Internal — used by both the hub button (admin click) and the HMAC
+// Internal, used by both the hub button (admin click) and the HMAC
 // admin endpoint. No auth check inside; callers gate.
 async function _postOrRefreshInternal(env, guildId) {
   if (!env.ROLES_CHANNEL_ID) return { ok: false, error: 'roles-channel-not-set' };
@@ -161,7 +161,7 @@ export async function postOrRefreshSelfRolesMessage(env, data) {
   return ephemeral(`🪪 ${verb} self-roles message in <#${env.ROLES_CHANNEL_ID}> (${r.rolesCount} role${r.rolesCount === 1 ? '' : 's'})${r.action === 'posted' ? '. Message id: ' + r.messageId : ''}.`);
 }
 
-// HMAC-admin entry — called from worker.js handleSelfRolesPost.
+// HMAC-admin entry, called from worker.js handleSelfRolesPost.
 export async function postSelfRolesAdmin(env, guildId) {
   return _postOrRefreshInternal(env, guildId);
 }
@@ -245,7 +245,7 @@ async function handle18PlusClick(env, data, action) {
   const cfg    = await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' });
   const roleId = cfg?.ids?.role_age18;
   const modLog = cfg?.ids?.ch_mod_log;
-  if (!roleId) return ephemeral('18+ role not configured yet — ask a mod to run `/admin/discord/setup-18plus`.');
+  if (!roleId) return ephemeral('18+ role not configured yet, ask a mod to run `/admin/discord/setup-18plus`.');
 
   const has = (data.member?.roles || []).includes(roleId);
 
@@ -278,10 +278,10 @@ async function handle18PlusClick(env, data, action) {
           title: '🔞 Are you 18 or older?',
           description:
             `Aquilo has a small **18+** chat area for adult conversations.\n` +
-            `It's tucked away in its own category — you won't see it unless ` +
+            `It's tucked away in its own category, you won't see it unless ` +
             `you opt in here.\n\n` +
             `**⚠ Critical:** By claiming the 18+ role while under 18, you will be ` +
-            `**permanently banned** from the server. This is non-negotiable — ` +
+            `**permanently banned** from the server. This is non-negotiable, ` +
             `Discord's Terms of Service require us to enforce it.\n\n` +
             `Cancel if you'd rather not opt in.`,
           color: 0xff6ab5,
@@ -320,7 +320,7 @@ async function handle18PlusClick(env, data, action) {
     if (!r.ok && r.status !== 204) {
       return ephemeral(`Couldn't ${action === 'confirm' ? 'grant' : 'remove'} the 18+ role (${r.status}). Ping a mod.`);
     }
-    // Audit log — only on grant (matches the onboarding pattern;
+    // Audit log, only on grant (matches the onboarding pattern;
     // removal is captured natively by Discord's audit log).
     if (action === 'confirm' && modLog) {
       const username = data?.member?.user?.username || data?.user?.username || 'unknown';
@@ -331,7 +331,7 @@ async function handle18PlusClick(env, data, action) {
           headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
                      'Content-Type': 'application/json' },
           body: JSON.stringify({
-            content: `🔞 **18+ self-grant via roles channel** — <@${userId}> (${username}, id \`${userId}\`) claimed the 18+ role at <t:${ts}:F>.\n` +
+            content: `🔞 **18+ self-grant via roles channel**, <@${userId}> (${username}, id \`${userId}\`) claimed the 18+ role at <t:${ts}:F>.\n` +
                      `If their account looks under 18, ban per the onboarding warning copy.`,
             allowed_mentions: { parse: [] },
           }),

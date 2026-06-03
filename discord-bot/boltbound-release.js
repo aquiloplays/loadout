@@ -1,4 +1,4 @@
-// Boltbound — KV-backed expansion release overrides.
+// Boltbound, KV-backed expansion release overrides.
 //
 // The registry in boltbound-sets.js gives each expansion a far-future
 // placeholder releaseUtc (so everything ships HIDDEN). Clay flips a set

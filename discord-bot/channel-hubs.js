@@ -1,4 +1,4 @@
-// Channel hubs — phase 1: thin menu embeds for high-traffic channels
+// Channel hubs, phase 1: thin menu embeds for high-traffic channels
 // (#check-in, #character, #bolts, #play, #achievements).
 //
 // Each hub is a persistent embed with a row of buttons that
@@ -9,7 +9,7 @@
 //   • Some buttons open ephemeral content rendered here
 //   • Some are LINK buttons pointing at aquilo.gg
 //
-// The hubs are ADDITIVE — slash commands keep working. The point
+// The hubs are ADDITIVE, slash commands keep working. The point
 // is one-tap discovery in the room people already hang out in.
 //
 // Hub catalogue + builders are pure data; the dispatcher routes
@@ -51,11 +51,11 @@ const HUBS = Object.freeze({
       '• Tap **Check in now** to log today and pick a GIF for your card\n' +
       '• **My streak** shows your current run',
     footer: '/checkin still works if you prefer typing.',
-    // Daily-bonus button removed 2026-05-27 per Clay — bolts are
+    // Daily-bonus button removed 2026-05-27 per Clay, bolts are
     // already covered by `Check in now`, so the dedicated button
     // was redundant. The checkin:daily action handler stays in
     // handleCheckinHubComponent for backward compat with any cached
-    // button on stale messages — it now just hints at the merged UX.
+    // button on stale messages, it now just hints at the merged UX.
     buttons: () => [
       { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Check in now',  custom_id: 'checkin:run'    },
       { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My streak',     custom_id: 'checkin:streak' },
@@ -67,9 +67,9 @@ const HUBS = Object.freeze({
     channelHints: ['bolts', 'economy', 'wallet'],
     description:
       'Bolts are the cross-platform currency. Earn from daily check-in, games, raids, gifting and more.\n\n' +
-      '• **Check balance** — current + lifetime\n' +
-      '• **Transfer bolts** — send to another viewer\n' +
-      '• **Wallet history** — recent earn / spend events',
+      '• **Check balance**, current + lifetime\n' +
+      '• **Transfer bolts**, send to another viewer\n' +
+      '• **Wallet history**, recent earn / spend events',
     footer: '/loadout has the same surface as this hub.',
     buttons: () => [
       { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Check balance',   custom_id: 'bolts:balance' },
@@ -82,10 +82,10 @@ const HUBS = Object.freeze({
     color: 0x3a82ff,
     channelHints: ['play', 'games'],
     description:
-      'Every gameplay surface — one hub. Tap any tile to open it.\n\n' +
-      '• **Boltbound** — async card battler\n' +
-      '• **Quick games** — coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash\n' +
-      '• **Loadout** — wallet, daily, profile',
+      'Every gameplay surface, one hub. Tap any tile to open it.\n\n' +
+      '• **Boltbound**, async card battler\n' +
+      '• **Quick games**, coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash\n' +
+      '• **Loadout**, wallet, daily, profile',
     rows: () => [
       [
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Boltbound',     custom_id: 'play:boltbound' },
@@ -100,9 +100,9 @@ const HUBS = Object.freeze({
     channelHints: ['achievement', 'milestone'],
     description:
       'Climb the ladder. Achievements grant XP + the level-tier roles (Apprentice / Veteran / Elite / Mythic).\n\n' +
-      '• **My achievements** — what you\'ve unlocked\n' +
-      '• **Catalogue** — what\'s out there to chase\n' +
-      '• **Top XP** — leaderboard',
+      '• **My achievements**, what you\'ve unlocked\n' +
+      '• **Catalogue**, what\'s out there to chase\n' +
+      '• **Top XP**, leaderboard',
     footer: '/passport still shows your full profile.',
     buttons: () => [
       { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'My achievements', custom_id: 'ach:mine' },
@@ -206,7 +206,7 @@ export async function postHub(env, guildId, key, channelId) {
   return { ok: true, key, channelId, messageId: j.id, deletedPrior };
 }
 
-// Admin HTTP entry — resolves channel via opts → KV channel-binding
+// Admin HTTP entry, resolves channel via opts → KV channel-binding
 // (channel-bindings.js uses the same hub key as the binding key) →
 // guild-channel name hints. Returns a clear "create the channel
 // first" error when nothing matches.
@@ -260,7 +260,7 @@ const ephEmbed = (embed, extra = {}) => ({
   data: { embeds: [embed], flags: FLAG_EPHEMERAL, ...extra },
 });
 
-// checkin:* — defer the actual check-in flow to the existing
+// checkin:*, defer the actual check-in flow to the existing
 // aqci:* dispatcher already wired up. checkin:run kicks off the
 // gif picker by re-emitting the search button click; the other
 // two render ephemeral content here.
@@ -274,7 +274,7 @@ export async function handleCheckinHubComponent(env, data) {
   if (action === 'run') {
     // Re-emit through the canonical /checkin slash handler. The
     // older alias `handleCheckinSlashCommand` in aquilo/checkin-slash.js
-    // was retired during the May 2026 consolidation — calling it
+    // was retired during the May 2026 consolidation, calling it
     // crashed with "interaction failed" because the import resolved
     // to undefined. handleCheckinCommand in community-checkin.js
     // reads only data.guild_id + data.member.user.id so it's
@@ -296,7 +296,7 @@ export async function handleCheckinHubComponent(env, data) {
     }
   }
   if (action === 'daily') {
-    return eph('Tap **Check in now** above — it covers the daily bolts grant in one shot.');
+    return eph('Tap **Check in now** above, it covers the daily bolts grant in one shot.');
   }
   return eph('Unknown check-in action: ' + cid);
 }
@@ -360,7 +360,7 @@ export async function handleBoltsHubComponent(env, data) {
       title: '📜 Wallet history',
       description:
         (w.lastEarnUtc ? `Last earn: <t:${Math.floor(w.lastEarnUtc / 1000)}:R> · ${w.lastEarnReason || ''}\n` : '') +
-        '_(Full history coming in a follow-up — use the website for now.)_',
+        '_(Full history coming in a follow-up, use the website for now.)_',
       color: 0xe6c474,
     });
   }
@@ -396,7 +396,7 @@ export async function handleBoltsTransferModal(env, data) {
   }
 }
 
-// play:* — six surfaces, each opens a real ephemeral submenu
+// play:*, six surfaces, each opens a real ephemeral submenu
 // (deep web links + in-Discord actions where they make sense).
 // No "use /<command>" punts.
 export async function handlePlayHubComponent(env, data) {
@@ -432,7 +432,7 @@ export async function handlePlayHubComponent(env, data) {
         embeds: [{
           title: '🃏 Boltbound',
           description:
-            'Async card battler — collect cards, build decks, battle other viewers.' +
+            'Async card battler, collect cards, build decks, battle other viewers.' +
             collectionLine + activeLine,
           color: 0x3a82ff,
         }],
@@ -452,13 +452,13 @@ export async function handlePlayHubComponent(env, data) {
   }
   if (action === 'boltbound-daily') {
     // Wire straight into the existing daily-pack flow (slash command
-    // /boltbound daily). No slash round-trip — call the underlying
+    // /boltbound daily). No slash round-trip, call the underlying
     // function directly.
     try {
       const { claimDailyFreePack } = await import('./cards-packs.js');
       const r = await claimDailyFreePack(env, guildId, userId);
       if (!r || !r.ok) {
-        return eph(`❌ ${r?.error === 'already-claimed' ? 'Already claimed today — come back tomorrow.' : (r?.error || 'daily-claim-failed')}`);
+        return eph(`❌ ${r?.error === 'already-claimed' ? 'Already claimed today, come back tomorrow.' : (r?.error || 'daily-claim-failed')}`);
       }
       return eph(`🎁 Claimed today's free **Common Pack**. Open via aquilo.gg/play/boltbound/.`);
     } catch (e) {
@@ -468,7 +468,7 @@ export async function handlePlayHubComponent(env, data) {
 
   if (action === 'quick') {
     // Stateless quick games (coinflip / dice / roulette / wheel /
-    // plinko / crash) run INLINE — tap the button, the worker
+    // plinko / crash) run INLINE, tap the button, the worker
     // resolves the round using the existing games / games-quick
     // helpers, and replies ephemeral. Stateful games (blackjack /
     // hilo / mines) need turn-by-turn UI; for now they keep the
@@ -537,7 +537,7 @@ export async function handlePlayHubComponent(env, data) {
         description: `${verdict}\n${detail ? `_${detail}_\n` : ''}Balance: **${(w2.balance || 0).toLocaleString()}** bolts.`,
         color: won ? 0x42c97a : 0x6a7488,
       }, {
-        // Quick-replay button — same stake, same game.
+        // Quick-replay button, same stake, same game.
         components: [{
           type: COMPONENT_ROW,
           components: [
@@ -553,7 +553,7 @@ export async function handlePlayHubComponent(env, data) {
 
 
   if (action === 'rpg') {
-    // The Loadout RPG surface — wallet / inventory / kit / daily.
+    // The Loadout RPG surface, wallet / inventory / kit / daily.
     // These all live in the existing /loadout slash command's
     // menu. Surface their web equivalents directly + inline
     // wallet snapshot.
@@ -593,7 +593,7 @@ export async function handlePlayHubComponent(env, data) {
       }
       const { getWallet } = await import('./wallet.js');
       const w = await getWallet(env, guildId, userId);
-      return eph(`💰 Daily claimed — **+${r.payout}** bolts (streak ${r.streak}). Balance: **${(w.balance || 0).toLocaleString()}**.`);
+      return eph(`💰 Daily claimed, **+${r.payout}** bolts (streak ${r.streak}). Balance: **${(w.balance || 0).toLocaleString()}**.`);
     } catch (e) {
       return eph('❌ ' + (e?.message || e));
     }
@@ -664,11 +664,11 @@ export async function handleAchievementsHubComponent(env, data) {
           title: '📚 Achievement catalogue',
           description:
             'Categories:\n' +
-            '• 🔢 Counting — streaks + perfect runs in #counting\n' +
-            '• ✅ Check-in — daily / milestone\n' +
-            '• 🃏 Boltbound — collection / battle / win streak\n' +
-            '• 🎮 Quick games — variety + win streaks\n' +
-            '• 🏆 Tier — level milestones (5/25/50/100)',
+            '• 🔢 Counting, streaks + perfect runs in #counting\n' +
+            '• ✅ Check-in, daily / milestone\n' +
+            '• 🃏 Boltbound, collection / battle / win streak\n' +
+            '• 🎮 Quick games, variety + win streaks\n' +
+            '• 🏆 Tier, level milestones (5/25/50/100)',
           color: 0xff9d6c,
         }],
         components: [{
@@ -693,7 +693,7 @@ export async function handleAchievementsHubComponent(env, data) {
           color: 0xff9d6c,
         });
       }
-      const lines = rows.map((r, i) => `${i + 1}. <@${r.userId}> — **${(r.xp || 0).toLocaleString()}** XP (L${r.level || 1})`);
+      const lines = rows.map((r, i) => `${i + 1}. <@${r.userId}>, **${(r.xp || 0).toLocaleString()}** XP (L${r.level || 1})`);
       return ephEmbed({
         title: '🏆 Top XP · all-time',
         description: lines.join('\n'),

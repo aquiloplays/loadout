@@ -1,4 +1,4 @@
-// Unit tests for random-drops.js — rarity-weighted community chest
+// Unit tests for random-drops.js, rarity-weighted community chest
 // spawns. Covers weighted rarity selection, spawn/no-stack, claim
 // (first-click, dedup, depletion, reward fan-out), expiry, and the
 // even-hour cron gate.
@@ -29,7 +29,7 @@ function makeKV() {
 function makeEnv() { return { LOADOUT_BOLTS: makeKV(), AQUILO_VAULT_GUILD_ID: 'g1' }; }
 const G = 'g1';
 
-console.log('— pickRarity is weighted (rand boundaries)');
+console.log('- pickRarity is weighted (rand boundaries)');
 {
   eq(pickRarity(0.0).rarity, 'common', 'rand 0 → common');
   eq(pickRarity(0.49).rarity, 'common', 'rand .49 → common');
@@ -39,7 +39,7 @@ console.log('— pickRarity is weighted (rand boundaries)');
   eq(pickRarity(0.995).rarity, 'legendary', 'rand .995 → legendary');
 }
 
-console.log('— spawnRandomDrop + no stacking');
+console.log('- spawnRandomDrop + no stacking');
 {
   const env = makeEnv();
   const r = await spawnRandomDrop(env, G, { rand: 0.0 });   // common
@@ -52,7 +52,7 @@ console.log('— spawnRandomDrop + no stacking');
   eq(again.rarity, 'common', 'still the common one');
 }
 
-console.log('— claimRandomDrop: first-click, dedup, reward, depletion');
+console.log('- claimRandomDrop: first-click, dedup, reward, depletion');
 {
   const env = makeEnv();
   // legendary for max reward variety, but force tiny slot count via def.
@@ -82,7 +82,7 @@ console.log('— claimRandomDrop: first-click, dedup, reward, depletion');
   assert(!c3.ok && c3.error === 'depleted', 'depleted');
 }
 
-console.log('— expiry → not-active');
+console.log('- expiry → not-active');
 {
   const env = makeEnv();
   await spawnRandomDrop(env, G, { rand: 0 });
@@ -95,7 +95,7 @@ console.log('— expiry → not-active');
   assert(!c.ok && c.error === 'not-active', 'claim refused');
 }
 
-console.log('— randomDropCron even-hour gate + bucket dedup');
+console.log('- randomDropCron even-hour gate + bucket dedup');
 {
   const env = makeEnv();
   // Odd hour → off-cadence.
@@ -113,7 +113,7 @@ console.log('— randomDropCron even-hour gate + bucket dedup');
   eq(midHour.skipped, 'off-cadence', 'mid-hour skipped');
 }
 
-console.log('— getRandomDropState youClaimed');
+console.log('- getRandomDropState youClaimed');
 {
   const env = makeEnv();
   await spawnRandomDrop(env, G, { rand: 0 });
@@ -126,5 +126,5 @@ console.log('— getRandomDropState youClaimed');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

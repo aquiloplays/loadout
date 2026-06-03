@@ -1,4 +1,4 @@
-// Unit tests for aether.js — the D1-backed Aether economy ledger.
+// Unit tests for aether.js, the D1-backed Aether economy ledger.
 // Covers lazy seed from legacy wallet.aether, grant/spend with ledger
 // rows, insufficient-balance refusal, history ordering, and the
 // milestone-grant hook.
@@ -89,7 +89,7 @@ function makeEnv(walletAether) {
 
 const G = 'g1', U = 'u1';
 
-console.log('— getAetherBalance: fresh user with no legacy aether seeds 0');
+console.log('- getAetherBalance: fresh user with no legacy aether seeds 0');
 {
   const env = makeEnv();
   const r = await getAetherBalance(env, G, U);
@@ -98,7 +98,7 @@ console.log('— getAetherBalance: fresh user with no legacy aether seeds 0');
   eq(r.lifetimeEarned, 0, 'lifetimeEarned 0');
 }
 
-console.log('— lazy seed folds in legacy wallet.aether on first touch');
+console.log('- lazy seed folds in legacy wallet.aether on first touch');
 {
   const env = makeEnv(120);   // legacy wallet has 120 aether
   const r = await getAetherBalance(env, G, U);
@@ -109,7 +109,7 @@ console.log('— lazy seed folds in legacy wallet.aether on first touch');
   assert(hist.transactions.some(t => t.reason.startsWith('seed:')), 'seed tx logged');
 }
 
-console.log('— grantAether adds + logs');
+console.log('- grantAether adds + logs');
 {
   const env = makeEnv();
   const g1 = await grantAether(env, G, U, 50, 'test-grant');
@@ -124,7 +124,7 @@ console.log('— grantAether adds + logs');
   eq(hist.transactions[0].balanceAfter, 75, 'balanceAfter 75');
 }
 
-console.log('— grantAether rejects non-positive');
+console.log('- grantAether rejects non-positive');
 {
   const env = makeEnv();
   const r = await grantAether(env, G, U, 0, 'x');
@@ -132,7 +132,7 @@ console.log('— grantAether rejects non-positive');
   eq(r.error, 'bad-amount', 'bad-amount');
 }
 
-console.log('— spendAether debits + refuses overdraw');
+console.log('- spendAether debits + refuses overdraw');
 {
   const env = makeEnv();
   await grantAether(env, G, U, 100, 'seed');
@@ -148,7 +148,7 @@ console.log('— spendAether debits + refuses overdraw');
   eq(s2.balance, 70, 'balance unchanged at 70');
 }
 
-console.log('— grantAetherForMilestone: known + multiplier + unknown');
+console.log('- grantAetherForMilestone: known + multiplier + unknown');
 {
   const env = makeEnv();
   const r = await grantAetherForMilestone(env, G, U, 'anniversary', { multiplier: 3 });
@@ -163,7 +163,7 @@ console.log('— grantAetherForMilestone: known + multiplier + unknown');
   eq(bad.error, 'unknown-milestone', 'unknown-milestone');
 }
 
-console.log('— getAetherHistory respects limit');
+console.log('- getAetherHistory respects limit');
 {
   const env = makeEnv();
   for (let i = 0; i < 5; i++) await grantAether(env, G, U, 1, `g${i}`);
@@ -172,5 +172,5 @@ console.log('— getAetherHistory respects limit');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

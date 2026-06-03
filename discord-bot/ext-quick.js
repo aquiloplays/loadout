@@ -1,4 +1,4 @@
-// ext-quick.js — Twitch-panel handlers for the 7 quick-bolts games
+// ext-quick.js, Twitch-panel handlers for the 7 quick-bolts games
 // (blackjack, roulette, wheel, hi-lo, mines, plinko, crash).
 //
 // The website surface (aquilo-site/play) already calls into games-quick.js
@@ -83,7 +83,7 @@ export function isExtQuickRoute(route) {
 }
 
 export async function handleExtQuick(env, guildId, userId, req, route) {
-  // Snapshot is the page-load resume probe — pure read of any in-progress
+  // Snapshot is the page-load resume probe, pure read of any in-progress
   // hand state + the cooldown window. Free of writes; never rate-limited.
   if (route === 'quick/snapshot') {
     const snap = await quickGamesSnapshot(env, guildId, userId);
@@ -92,7 +92,7 @@ export async function handleExtQuick(env, guildId, userId, req, route) {
 
   // Every other route is a write; gate on the shared cooldown first.
   // STATEFUL games (blackjack hit/stand, hilo guess/cashout, mines
-  // reveal/cashout) intentionally skip this — the cooldown gates only
+  // reveal/cashout) intentionally skip this, the cooldown gates only
   // the START action, matching the contract in games-quick.js / web.js.
   const isStart =
     route === 'quick/blackjack/start' ||

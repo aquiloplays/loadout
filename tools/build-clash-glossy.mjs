@@ -1,4 +1,4 @@
-// Glossy Clash buildings — Wave 1 source-art generator.
+// Glossy Clash buildings, Wave 1 source-art generator.
 //
 // Renders the core 8 buildings (townhall, wall, cannon, archerTower,
 // storage, barracks, buildersHut, warTent) at L1 in the glossy
@@ -9,7 +9,7 @@
 // primitives so the lighting, outline, gloss, and shadow stay
 // consistent across the catalogue. Successive levels are deferred
 // to Wave 2 (a level-progression layer mostly recolors banners +
-// adds detail layers — cheap once the L1 baseline lands).
+// adds detail layers, cheap once the L1 baseline lands).
 //
 // Run:
 //   node tools/build-clash-glossy.mjs
@@ -37,7 +37,7 @@ const OUT_DIR = join(ROOT, 'aquilo-gg/sprites/clash-v2/glossy/buildings');
 mkdirSync(OUT_DIR, { recursive: true });
 
 const W = 256, H = 256;
-// Reference baseline — everything anchors to the ground line so
+// Reference baseline, everything anchors to the ground line so
 // buildings sit on the contact-shadow ellipse consistently.
 const GROUND_Y = 224;
 const SHADOW = contactShadow({ cx: W/2, cy: GROUND_Y + 8, rx: 92, ry: 14 });
@@ -81,7 +81,7 @@ ${glossyBanner({ x: W/2 + 2, y: y - 60, w: 40, h: 22, gradient: 'gk-grad-ruby' }
 }
 
 // ── wall ─────────────────────────────────────────────────────────
-// Stone wall block — crenellated top, mortar courses, gold rivets.
+// Stone wall block, crenellated top, mortar courses, gold rivets.
 function wall() {
   const x = 56, y = 110, w = 144, h = GROUND_Y - y;
   return `
@@ -320,14 +320,14 @@ ${door({ cx: W/2 - 24, yBottom: GROUND_Y - 4, w: 34, h: 44 })}
 }
 
 // ── warTent ──────────────────────────────────────────────────────
-// Command tent — striped canvas, banner, sword crossed at door.
+// Command tent, striped canvas, banner, sword crossed at door.
 function warTent() {
   const x = 36, w = 184;
   const tentBase = GROUND_Y - 6;
   const tentPeak = 78;
   return `
 ${SHADOW}
-<!-- tent body — wide trapezoid -->
+<!-- tent body, wide trapezoid -->
 <path d="M ${x + 24} ${tentBase}
          L ${x} ${tentBase}
          L ${x + 36} ${tentPeak + 24}
@@ -354,7 +354,7 @@ ${SHADOW}
          L ${x + 60} ${tentPeak + 26}
          L ${x + 28} ${tentBase} Z"
       fill="url(#gk-gloss)" opacity="0.55"/>
-<!-- door flap — dark v-cut centre -->
+<!-- door flap, dark v-cut centre -->
 <path d="M ${W/2 - 26} ${tentBase}
          L ${W/2} ${tentPeak + 60}
          L ${W/2 + 26} ${tentBase} Z"
@@ -394,7 +394,7 @@ for (const k of KINDS) {
   const svg = svgWrapper({
     width: W, height: H,
     body: k.body(),
-    title: `${k.id} (L1) — glossy`,
+    title: `${k.id} (L1), glossy`,
     desc: 'Loadout Clash building, glossy art style. Source: tools/build-clash-glossy.mjs.',
   });
   const out = join(OUT_DIR, `${k.id}-L1.svg`);

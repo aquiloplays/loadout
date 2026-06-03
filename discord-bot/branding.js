@@ -11,12 +11,12 @@
 //
 // Read pattern at call sites:
 //   const b = await getBranding(env, guildId);
-//   const url = b.siteUrl;          // never empty — falls back to default
+//   const url = b.siteUrl;          // never empty, falls back to default
 //   const color = b.accentColor;    // 0xRRGGBB
 
 const KEY = (g) => `guild:branding:${g}`;
 
-// Defaults — Aquilo's branding. ANY change here is a default change
+// Defaults, Aquilo's branding. ANY change here is a default change
 // for every un-customised tenant, so prefer per-guild override KV writes
 // over editing this table.
 const DEFAULTS = Object.freeze({

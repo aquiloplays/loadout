@@ -1,4 +1,4 @@
-// Epic Games OAuth — needs EPIC_CLIENT_ID + EPIC_CLIENT_SECRET set on
+// Epic Games OAuth, needs EPIC_CLIENT_ID + EPIC_CLIENT_SECRET set on
 // the worker (registered via Epic Developer Portal).
 import { makeOAuthHandler } from './_generic.js';
 

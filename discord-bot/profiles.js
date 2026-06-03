@@ -1,5 +1,5 @@
 // Viewer profile storage on the Worker side. Mirrors the DLL's
-// ViewerProfileStore one-to-one — same shape, same semantics — so a
+// ViewerProfileStore one-to-one, same shape, same semantics, so a
 // `/profile-set-bio` slash command and a chat `!setbio` end up in
 // the same logical record once the DLL's poller pulls the Worker
 // updates back home.

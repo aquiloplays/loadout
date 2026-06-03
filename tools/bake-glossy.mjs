@@ -16,11 +16,11 @@ import { Resvg } from '@resvg/resvg-js';
 
 /**
  * Bake an SVG string to PNG bytes.
- * @param {string} svg — SVG document text
+ * @param {string} svg, SVG document text
  * @param {object} opts
- * @param {number} opts.width  — target raster width (pixels)
- * @param {number} opts.height — target raster height (pixels)
- * @param {string} [opts.background] — optional bg colour ('transparent' default)
+ * @param {number} opts.width, target raster width (pixels)
+ * @param {number} opts.height, target raster height (pixels)
+ * @param {string} [opts.background], optional bg colour ('transparent' default)
  * @returns {Promise<Buffer>}
  */
 export async function bake(svg, { width, height, background } = {}) {
@@ -29,7 +29,7 @@ export async function bake(svg, { width, height, background } = {}) {
     background: background || 'rgba(0,0,0,0)',
     // Use the system 'sans-serif' for any <text> nodes (we don't
     // rely on text in the glossy library, but the icon shop emoji
-    // glyphs in some legacy assets do — harmless if unused).
+    // glyphs in some legacy assets do, harmless if unused).
     font: { loadSystemFonts: false },
     // Crisp anti-aliased shapes.
     shapeRendering: 2,   // 2 = geometricPrecision
@@ -37,13 +37,13 @@ export async function bake(svg, { width, height, background } = {}) {
     imageRendering: 0,
   };
   const renderer = new Resvg(svg, resvgOpts);
-  // Verify height matches — if the SVG viewBox aspect mismatches
+  // Verify height matches, if the SVG viewBox aspect mismatches
   // the requested width:height, Resvg honours the width and the
   // output height comes from the aspect. We force the exact box
   // by re-fitting via `mode: 'height'` if needed.
   const png = renderer.render();
   const buf = png.asPng();
-  // Aspect check — if the SVG's natural box differs from the
+  // Aspect check, if the SVG's natural box differs from the
   // requested w:h, the per-generator can re-issue with a corrected
   // viewBox. We trust the caller to pass a matching pair.
   void height;

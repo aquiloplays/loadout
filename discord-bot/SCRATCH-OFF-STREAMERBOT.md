@@ -1,4 +1,4 @@
-# Scratch-off cards — Streamer.bot + Twitch bits wiring
+# Scratch-off cards, Streamer.bot + Twitch bits wiring
 
 The scratch-off subsystem (`scratch-off.js`) is fully working server-side:
 viewers buy a card, scratch it open in the Twitch panel, and the worker
@@ -23,7 +23,7 @@ product with that SKU:
 - Twitch dev console → your Extension → **Monetization → Manage Bits Products**
 - Create a product:
   - **SKU**: `scratch_card`  (the worker also accepts `scratch_card_100`
-    and `aquilo_scratch_100` — see `SCRATCH_SKUS` in `scratch-off.js`)
+    and `aquilo_scratch_100`, see `SCRATCH_SKUS` in `scratch-off.js`)
   - **Cost**: `100` bits (or whatever you want; the worker records the
     receipt's amount)
   - **In development** until you submit the extension version for review.
@@ -55,7 +55,7 @@ body:   { "userId", "userName", "sku", "bits", "transactionId" }
 
 `SCRATCH_WEBHOOK_SECRET` is set as a worker secret (value in the gitignored
 `discord-bot/.scratch-admin-token.local`). Repeated `transactionId`s are
-idempotent — the same purchase returns the same ticket.
+idempotent, the same purchase returns the same ticket.
 
 ### Test without spending bits
 
@@ -87,10 +87,10 @@ Aquilo Bus (activity DO):
 }
 ```
 
-`challenge` outcomes emit `scratch.challenge` (no actionKey — Clay performs
+`challenge` outcomes emit `scratch.challenge` (no actionKey, Clay performs
 it; the panel/overlay just announces it).
 
-### Turnkey path — reuse the existing overlay poller (no new relay needed)
+### Turnkey path, reuse the existing overlay poller (no new relay needed)
 
 The worker dual-publishes every hit (like `stream-checkin.js`):
 
@@ -149,12 +149,12 @@ Most are AutoHotkey / vJoy / input-injection actions Clay already has or
 can build; the timed ones use a Streamer.bot sub-action "wait N seconds"
 then revert.
 
-### Tamper executor (turnkey auto-revert) — `streamerbot/actions/scratch-tamper.cs`
+### Tamper executor (turnkey auto-revert), `streamerbot/actions/scratch-tamper.cs`
 
 Drop `scratch-tamper.cs` in as a Streamer.bot **inline C# action** named
 `Scratch Tamper`. It owns the **auto-revert timer** for every tamper (hard
 capped at 120s), runs the start on a background thread, waits `durationSec`,
-then reverts — even if the start threw. Only one tamper runs at a time.
+then reverts, even if the start threw. Only one tamper runs at a time.
 
 **Wire the trigger (no edit to the relay needed):** add a Streamer.bot
 **WebSocket Client** pointed at the local Aquilo Bus
@@ -176,14 +176,14 @@ The executor handles tampers in two tiers:
   `scratch.tamper.<actionKey>.revert`. You only build the start/revert pair;
   the timing + safety is handled for you.
 
-**AHK example — `scratch.tamper.invert_mouse.start` / `.revert`:** a tiny
+**AHK example, `scratch.tamper.invert_mouse.start` / `.revert`:** a tiny
 AutoHotkey script that swaps the mouse Y axis (or your in-game invert toggle).
 The `.start` action launches it; the `.revert` action kills it / toggles back.
 Because THIS executor calls `.revert` on a guaranteed timer, even a crash of
 the start path still restores normal input within `durationSec`.
 
 ```ahk
-; invert_mouse.ahk — toggled by Streamer.bot start/revert actions
+; invert_mouse.ahk, toggled by Streamer.bot start/revert actions
 ; (illustrative; use your game's own invert bind where one exists)
 #Persistent
 SetMouseDelay, -1

@@ -2,7 +2,7 @@
 
 `settings.json` lives at `%APPDATA%\Loadout\settings.json`. Most settings have a UI in **Settings → \<tab\>**; this page is the canonical reference for what every field does.
 
-Hand-edits take effect after `!loadout reload` (mod) — no Streamer.bot restart needed.
+Hand-edits take effect after `!loadout reload` (mod), no Streamer.bot restart needed.
 
 ---
 
@@ -32,7 +32,7 @@ Hand-edits take effect after `!loadout reload` (mod) — no Streamer.bot restart
 }
 ```
 
-Per-platform send/receive enable. Modules check this before posting to or reacting from each platform. **Note:** TikTok via TikFinity is read-only — outbound TikTok posting isn't supported by the platform.
+Per-platform send/receive enable. Modules check this before posting to or reacting from each platform. **Note:** TikTok via TikFinity is read-only, outbound TikTok posting isn't supported by the platform.
 
 ---
 
@@ -175,7 +175,7 @@ Every module ships **OFF by default**. Enable individually in `Settings → Modu
 "Discord": {
   "LiveStatusWebhook":   "",        // posts on go-live, edits on title/category change
   "RecapWebhook":        "",        // optional separate channel for stream recap
-  "GoLiveTemplate":      "🔴 **{broadcaster}** is now live!\n**{title}** — *{game}*\n{url}",
+  "GoLiveTemplate":      "🔴 **{broadcaster}** is now live!\n**{title}**, *{game}*\n{url}",
   "AutoEditOnChange":    true,
   "ArchiveOnOffline":    true       // strikethrough + footer instead of delete
 }
@@ -227,8 +227,8 @@ Every hit publishes `webhook.received` on the Aquilo Bus AND optionally fires th
 
 `Settings → General` exposes:
 
-- **Update channel** — `stable` or `beta`
-- **Re-run onboarding** — opens the wizard fresh
+- **Update channel**, `stable` or `beta`
+- **Re-run onboarding**, opens the wizard fresh
 
 Hand-edit the rest in `settings.json`; reload via `!loadout reload`.
 

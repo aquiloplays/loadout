@@ -1,9 +1,9 @@
-// Banner Wars — weekly bracketed PvP between Banners.
+// Banner Wars, weekly bracketed PvP between Banners.
 //
 // 2026-05-29 MVP. The site-side war UI is scaffolded with greyed-out
 // buttons; this module emits the data model + endpoint surface so
 // the scaffold can light up with shape-correct responses. The actual
-// bracket-engine (seeding, advancing, scoring) is a follow-up — for
+// bracket-engine (seeding, advancing, scoring) is a follow-up, for
 // MVP, war state is "no active war" by default + a declare flow that
 // records a 1-on-1 challenge.
 //
@@ -20,9 +20,9 @@
 //     opensUtc, closesUtc }
 //
 // State machine (MVP):
-//   open  — banners declare interest, no actual raids yet
-//   live  — bracket seeded, raids count toward score
-//   closed — week ended, winners archived
+//   open, banners declare interest, no actual raids yet
+//   live, bracket seeded, raids count toward score
+//   closed, week ended, winners archived
 
 import { _internal as B } from './banners.js';
 
@@ -130,7 +130,7 @@ export async function declareWar(env, guildId, userId, opts = {}) {
   return { ok: true, weekId, war };
 }
 
-// Member raid — accumulates star points toward the banner's score.
+// Member raid, accumulates star points toward the banner's score.
 // MVP: caller asserts a raid outcome (`stars: 0..3`). The full
 // validation (defense layout snapshot, replay seed, anti-cheat) is a
 // follow-up that lands when the Clash raid resolver gets refactored.
@@ -173,7 +173,7 @@ export async function recordRaid(env, guildId, userId, opts = {}) {
            score: war.scores[myMember.bannerId] };
 }
 
-// Admin/cron — flip an open war to live by seeding the bracket from
+// Admin/cron, flip an open war to live by seeding the bracket from
 // the declarations list. MVP: round-robin (every banner pairs vs
 // every other). Bracket engine v2 will do single-elim seeded by
 // previous-week scores.
@@ -196,7 +196,7 @@ export async function seedWarBracket(env, guildId) {
   return { ok: true, weekId, pairings: bracket.length };
 }
 
-// Admin/cron — close + archive a war.
+// Admin/cron, close + archive a war.
 export async function closeWar(env, guildId) {
   const weekId = await env.LOADOUT_BOLTS.get(KEY.active(guildId));
   if (!weekId) return { ok: false, error: 'no-week' };

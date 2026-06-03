@@ -1,4 +1,4 @@
-// Sanity test for the pure-JS PNG codec — decode + encode round trip
+// Sanity test for the pure-JS PNG codec, decode + encode round trip
 // of a real generated sprite, then composite two layers.
 //
 // Run from repo root:
@@ -42,7 +42,7 @@ for (let i = 0; i < decoded.pixels.length; i++) {
 ok('round-trip pixels match',  mismatches === 0, `mismatches=${mismatches}`);
 
 // Compose: layer the body on top of an empty (fully transparent)
-// canvas — composite output should equal the body input.
+// canvas, composite output should equal the body input.
 const empty = {
   width: decoded.width,
   height: decoded.height,

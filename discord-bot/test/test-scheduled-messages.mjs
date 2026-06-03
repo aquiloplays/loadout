@@ -72,7 +72,7 @@ globalThis.fetch = async (input, init) => {
 const GUILD = '1504103035951906883';
 const CH    = '1500000000000000001';
 
-console.log('— validateCreate');
+console.log('- validateCreate');
 {
   const future = Date.now() + 60_000;
   // Valid.
@@ -97,7 +97,7 @@ console.log('— validateCreate');
     'bad-scheduledUtc', 'non-numeric scheduledUtc');
 }
 
-console.log('— padDue: lex-sort matches numeric');
+console.log('- padDue: lex-sort matches numeric');
 {
   eq(_padDueForTest(0).length,             16, 'pads to 16');
   eq(_padDueForTest(123).length,           16, 'pads number');
@@ -107,7 +107,7 @@ console.log('— padDue: lex-sort matches numeric');
   assert(a < b, '1k lex-sorts before 10k');
 }
 
-console.log('— createScheduled + listScheduled');
+console.log('- createScheduled + listScheduled');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const future1 = Date.now() + 10_000;
@@ -135,7 +135,7 @@ console.log('— createScheduled + listScheduled');
   assert(r3.errors.includes('bad-channel-id'), 'errors detail');
 }
 
-console.log('— cancelScheduled');
+console.log('- cancelScheduled');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const r = await createScheduled(env, GUILD,
@@ -158,7 +158,7 @@ console.log('— cancelScheduled');
   eq(list.cancelled.length, 1, '1 cancelled');
 }
 
-console.log('— editScheduled');
+console.log('- editScheduled');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const future1 = Date.now() + 60_000;
@@ -168,7 +168,7 @@ console.log('— editScheduled');
   const e1 = await editScheduled(env, GUILD, r.id, { content: 'updated' });
   assert(e1.ok, 'content edit ok');
   eq(e1.item.content, 'updated', 'content updated');
-  // Edit scheduledUtc — re-keys due index.
+  // Edit scheduledUtc, re-keys due index.
   const future2 = Date.now() + 120_000;
   const e2 = await editScheduled(env, GUILD, r.id, { scheduledUtc: future2 });
   assert(e2.ok, 'scheduledUtc edit ok');
@@ -179,7 +179,7 @@ console.log('— editScheduled');
   // Bad scheduledUtc (past).
   const e3 = await editScheduled(env, GUILD, r.id, { scheduledUtc: Date.now() - 1000 });
   eq(e3.error, 'bad-scheduledUtc', 'past time rejected');
-  // Cancel then try to edit — refused.
+  // Cancel then try to edit, refused.
   await cancelScheduled(env, GUILD, r.id);
   const e4 = await editScheduled(env, GUILD, r.id, { content: 'should not' });
   eq(e4.error, 'not-pending', 'cant edit cancelled');
@@ -188,7 +188,7 @@ console.log('— editScheduled');
   eq(e5.error, 'not-found', 'not-found');
 }
 
-console.log('— processDueMessages: send + sweep');
+console.log('- processDueMessages: send + sweep');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   // Two due records, one future.
@@ -240,7 +240,7 @@ console.log('— processDueMessages: send + sweep');
   eq(sentIdx.length, 2, '2 in sent index');
 }
 
-console.log('— processDueMessages: retry on first failure, then move to failed');
+console.log('- processDueMessages: retry on first failure, then move to failed');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   const past = Date.now() - 30_000;
@@ -255,14 +255,14 @@ console.log('— processDueMessages: retry on first failure, then move to failed
   await env.LOADOUT_BOLTS.put(`sched-msg:status:${GUILD}:pending:${_padDueForTest(past)}:${id}`, id);
 
   fetchHandler = async () => new Response('forbidden', { status: 403 });
-  // First tick — attempt 1 fails → stays pending with attempts=1.
+  // First tick, attempt 1 fails → stays pending with attempts=1.
   const r1 = await processDueMessages(env, GUILD);
   eq(r1.processed, 1, 'tick1: 1 processed');
   eq(r1.failed, 1,    'tick1: counted as failure');
   const after1 = await getScheduled(env, GUILD, id);
   eq(after1.status, 'pending', 'still pending after tick1');
   eq(after1.attempts, 1, 'attempts=1');
-  // Second tick — attempt 2 fails → moves to status:failed.
+  // Second tick, attempt 2 fails → moves to status:failed.
   const r2 = await processDueMessages(env, GUILD);
   fetchHandler = null;
   eq(r2.processed, 1, 'tick2: 1 processed');
@@ -282,7 +282,7 @@ console.log('— processDueMessages: retry on first failure, then move to failed
 console.log('');
 globalThis.fetch = realFetch;
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

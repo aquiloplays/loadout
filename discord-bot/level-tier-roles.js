@@ -1,4 +1,4 @@
-// Level-tier Discord roles — auto-granted as players cross XP-level
+// Level-tier Discord roles, auto-granted as players cross XP-level
 // thresholds. Four scaled-back tiers (was a bigger ladder in an
 // earlier design; pared to these four per Clay).
 //
@@ -7,7 +7,7 @@
 //   L50  → Elite       (violet)
 //   L100 → Mythic      (gold)
 //
-// Roles STACK — hitting Veteran does NOT remove Apprentice. So a
+// Roles STACK, hitting Veteran does NOT remove Apprentice. So a
 // Mythic player ends up with all four. Discord's role membership is
 // idempotent on the REST side (PUT a role the user already has =
 // 204), so re-granting is a safe no-op; we don't track which tiers
@@ -17,7 +17,7 @@
 //   { apprentice: '<id>', veteran: '<id>', elite: '<id>', mythic: '<id>' }
 //
 // Hook: event-bus.js consumes `xpResult.levelsCrossed` after every
-// grantXp() and calls grantTierRolesForCrossedLevels() — that\'s
+// grantXp() and calls grantTierRolesForCrossedLevels(), that\'s
 // where new-level grants land. The admin /ensure endpoint creates
 // the roles + writes the map; the admin /backfill endpoint walks
 // every pxp:* record and grants any tier the user has already
@@ -29,7 +29,7 @@ import { levelForXp } from './progression/xp.js';
 const ROLE_MAP_KEY = (g) => `level-tier-roles:${g}`;
 const BACKFILL_MARKER_KEY = (g) => `level-tier-roles:backfill-done:${g}`;
 
-// Stable spec for the four tiers — order matters (lowest level
+// Stable spec for the four tiers, order matters (lowest level
 // first; admin /ensure creates in this order). Exported for tests.
 export const LEVEL_TIER_SPECS = Object.freeze([
   { key: 'apprentice', name: 'Apprentice', color: 0x6a7488, level: 5   },
@@ -39,7 +39,7 @@ export const LEVEL_TIER_SPECS = Object.freeze([
 ]);
 
 // Pure: given a level + a role map, return the tier keys that should
-// be held at that level. Stacking semantics — higher level includes
+// be held at that level. Stacking semantics, higher level includes
 // all lower tiers. Exported for tests so the threshold logic is
 // independently verifiable.
 export function tiersForLevel(level) {
@@ -123,7 +123,7 @@ async function putRoleOnUser(env, guildId, userId, roleId) {
 //   - no role map exists for the user's guild
 //   - the user doesn't have a Discord id we can resolve (XP is
 //     keyed by Discord userId so this is the userId we already
-//     have; the "no guild" case is the one to worry about — XP
+//     have; the "no guild" case is the one to worry about, XP
 //     events emit without guildId when fired from web routes; in
 //     that case fall back to AQUILO_VAULT_GUILD_ID).
 
@@ -152,7 +152,7 @@ export async function grantTierRolesForCrossedLevels(env, userId, levelsCrossed,
 
 // ── Admin: ensure the four roles exist + map them ─────────────────
 //
-// Mirrors onboarding.ensureBaselineRoles. Idempotent — checks
+// Mirrors onboarding.ensureBaselineRoles. Idempotent, checks
 // existing roles for any whose name matches a spec, reuses if found,
 // creates otherwise. Persists the flat {key: roleId} map.
 
@@ -218,7 +218,7 @@ export async function ensureLevelTierRoles(env, guildId) {
   return { ok: true, map, created, reused, failed };
 }
 
-// ── Admin: backfill — grant tier roles to every player who's
+// ── Admin: backfill, grant tier roles to every player who's
 //          already crossed the threshold. Idempotent via a KV
 //          marker so re-running doesn't re-scan.
 //

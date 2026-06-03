@@ -1,4 +1,4 @@
-// Tanks — turn-based artillery PvP adapter for the boardgames engine.
+// Tanks, turn-based artillery PvP adapter for the boardgames engine.
 //
 // Two tanks on either side of a 1-D destructible heightmap. Each turn,
 // the side-to-move submits { angle, power }. The worker resolves the
@@ -13,7 +13,7 @@
 // client needs to replay the animation faithfully (trajectory points,
 // impact, crater geometry, per-tank damage).
 //
-// State shape (also the over-the-wire contract — redactMatch passes
+// State shape (also the over-the-wire contract, redactMatch passes
 // state through unchanged because tanks is perfect-information):
 //   {
 //     w, h,                    // logical map size (cells × max height)
@@ -72,7 +72,7 @@ const SPEED_SCALE     = 1.0;     // power → initial velocity (cells/s)
 const GRAVITY         = 60;      // cells/s² downward
 const WIND_MAX        = 6;       // cells/s² horizontal accel, signed
 const DT              = 0.05;    // simulation step (s)
-const MAX_STEPS       = 600;     // 30s of in-flight — overshoots into 'timeout'
+const MAX_STEPS       = 600;     // 30s of in-flight, overshoots into 'timeout'
 const SAMPLE_EVERY    = 3;       // sample every Nth step into trajectory
 const ANGLE_MIN       = 1;
 const ANGLE_MAX       = 179;
@@ -107,7 +107,7 @@ export const adapter = {
   sideToMove(s) { return s.turn; },
   isTerminal(s) { return !!s.winner; },
 
-  // No enumerable legal-moves for a continuous game — return the
+  // No enumerable legal-moves for a continuous game, return the
   // valid input bounds so the client can render slider min/max.
   legalMoves(s) {
     if (s.winner) return [];
@@ -178,7 +178,7 @@ export const adapter = {
         }
       }
       if (flight.impact.reason === 'tank' && flight.hitTankSide) {
-        // Direct hit — extra damage on top of blast falloff.
+        // Direct hit, extra damage on top of blast falloff.
         const i = flight.hitTankSide === 'p1' ? 0 : 1;
         damages[i].amount += DIRECT_HIT_DMG;
       }
@@ -201,7 +201,7 @@ export const adapter = {
     };
     // Trajectory-stripped copy for the kill-feed history. Without
     // dropping trajectory[] the shot log would be the biggest thing
-    // in state — a 30-shot match would pile ~12 KB of sample points
+    // in state, a 30-shot match would pile ~12 KB of sample points
     // into KV with nothing rendering them after the first turn.
     next.shotLog = (next.shotLog || []).slice();
     next.shotLog.push({
@@ -290,7 +290,7 @@ function simulate({ x0, y0, angle, power, wind, gravity, terrain, tanks, shooter
       }
     }
 
-    // Ground collision — heightmap is sampled at the integer cell
+    // Ground collision, heightmap is sampled at the integer cell
     // containing x. When y dips at or below terrain height we've hit.
     const cellX = Math.floor(x);
     if (y <= terrain[cellX]) {
@@ -318,7 +318,7 @@ function applyCrater(terrain, crater) {
     const d2 = dx * dx;
     const r2 = radius * radius;
     if (d2 >= r2) continue;
-    // Parabolic well — full depth at centre, zero at the rim.
+    // Parabolic well, full depth at centre, zero at the rim.
     const drop = Math.round(depth * (1 - d2 / r2));
     terrain[i] = Math.max(0, terrain[i] - drop);
   }
@@ -327,7 +327,7 @@ function applyCrater(terrain, crater) {
 function settleTanksOnTerrain(tanks, terrain) {
   // Tanks sit on top of whatever terrain is below them. If a crater
   // dug below a tank, it drops. (No fall damage in v1.) Tank x is
-  // unchanged — only its derived y moves.
+  // unchanged, only its derived y moves.
   // Nothing to do to the state object here; the y is derived from
   // terrain[tank.x] at render time. This function is a hook for
   // future polish (e.g. lateral roll into pits).
@@ -376,7 +376,7 @@ function generateTerrain(width, maxHeight, seed) {
 }
 
 // Per-turn wind. Derived from (matchSeed, shotsFired) so it's
-// reproducible from state alone — a re-render or a replay never sees
+// reproducible from state alone, a re-render or a replay never sees
 // a different wind than what actually fired.
 function windFor(seed, shotIdx) {
   const rng = mulberry32(hashSeed(seed + ':' + shotIdx));
@@ -424,7 +424,7 @@ function hashSeed(s) {
   return h >>> 0;
 }
 
-// Mulberry32 — small, fast, deterministic 32-bit PRNG.
+// Mulberry32, small, fast, deterministic 32-bit PRNG.
 function mulberry32(seed) {
   let a = seed >>> 0;
   return function () {

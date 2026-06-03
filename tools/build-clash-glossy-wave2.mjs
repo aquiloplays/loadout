@@ -1,4 +1,4 @@
-// Glossy Clash Wave 2 — collectors / vaults / defenses / traps / decoy.
+// Glossy Clash Wave 2, collectors / vaults / defenses / traps / decoy.
 //
 // Same kit as Wave 1. Uses archetype helpers so a category of
 // kindred kinds (e.g. all four collectors) shares a base silhouette
@@ -447,7 +447,7 @@ function caltropsHazard({ cx, cy }) {
 }
 
 // ── decoyBanner ──────────────────────────────────────────────────
-// Standalone shape (not really a tower) — a flagpole on a base with
+// Standalone shape (not really a tower), a flagpole on a base with
 // a big rallying banner.
 function decoyBanner() {
   const cx = W/2;
@@ -519,7 +519,7 @@ for (const k of KINDS) {
   const svg = svgWrapper({
     width: W, height: H,
     body: k.body(),
-    title: `${k.id} (L1) — glossy`,
+    title: `${k.id} (L1), glossy`,
     desc: 'Loadout Clash building, glossy art style. Source: tools/build-clash-glossy-wave2.mjs.',
   });
   const out = join(OUT_DIR, `${k.id}-L1.svg`);

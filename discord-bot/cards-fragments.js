@@ -1,4 +1,4 @@
-// Boltbound CR-1 — Recycle → Fragments → Craft.
+// Boltbound CR-1, Recycle → Fragments → Craft.
 //
 // Players recycle owned cards into per-user fragment balance, then
 // craft new packs from fragments. The Bolts purchase path stays.
@@ -34,9 +34,9 @@ export const RECYCLE_YIELD = {
 };
 
 export const CRAFT_COST = {
-  common:  100,   // common pack — frag-only path; commons stream in via daily/lootbox
-  bolt:    400,   // bolt pack — 60% more value than the 250-Bolts purchase
-  voltaic: 1500,  // voltaic pack — drop-only otherwise, so this is also a frag-only path
+  common:  100,   // common pack, frag-only path; commons stream in via daily/lootbox
+  bolt:    400,   // bolt pack, 60% more value than the 250-Bolts purchase
+  voltaic: 1500,  // voltaic pack, drop-only otherwise, so this is also a frag-only path
 };
 
 // ── KV ───────────────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ export async function craftPack(env, guildId, userId, packType) {
   if (cur < cost) {
     return { ok: false, error: 'insufficient-fragments', need: cost, have: cur };
   }
-  // Debit first, mint second — if the credit fails for any reason the
+  // Debit first, mint second, if the credit fails for any reason the
   // viewer's fragments are NOT lost (we refund on the failure path).
   const after = await addFragments(env, userId, -cost, 'craft:' + packType);
   const credited = await creditPack(env, guildId, userId, packType, 'craft');
@@ -151,7 +151,7 @@ export async function craftPack(env, guildId, userId, packType) {
     await addFragments(env, userId, cost, 'craft:refund:' + credited.error);
     return { ok: false, error: credited.error };
   }
-  // PROGRESSION (P1) — craft XP.
+  // PROGRESSION (P1), craft XP.
   try {
     const { emitProgressionEvent } = await import('./progression/event-bus.js');
     await emitProgressionEvent(env, {

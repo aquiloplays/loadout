@@ -36,7 +36,7 @@ function stubGifProbe() {
 // We can't import handleWeb directly (it needs HMAC + tenant gate),
 // so we test the underlying routeCardsSkin* handlers via the
 // cards-art-override module behaviour they wrap.
-console.log('— set + list + clear via underlying override module');
+console.log('- set + list + clear via underlying override module');
 {
   const restore = stubGifProbe();
   try {
@@ -55,7 +55,7 @@ console.log('— set + list + clear via underlying override module');
   } finally { restore(); }
 }
 
-console.log('— skin/set wrapper: missing fields → 400');
+console.log('- skin/set wrapper: missing fields → 400');
 {
   // Inline mini-handler that mirrors routeCardsSkinSet shape.
   async function callSet(env, body) {
@@ -71,7 +71,7 @@ console.log('— skin/set wrapper: missing fields → 400');
   eq(r2.error, 'gifUrl-required', 'no gifUrl → error');
 }
 
-console.log('— skin list shape: { skins: { cardId: url } }');
+console.log('- skin list shape: { skins: { cardId: url } }');
 {
   const restore = stubGifProbe();
   try {
@@ -93,5 +93,5 @@ console.log('— skin list shape: { skins: { cardId: url } }');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

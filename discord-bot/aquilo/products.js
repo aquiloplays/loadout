@@ -2,7 +2,7 @@
 // string), falling back to baked-in defaults. Same shape as the Node
 // version's src/products.js so the migration is drop-in.
 //
-// Workers don't have process.env — vars come in via the env binding
+// Workers don't have process.env, vars come in via the env binding
 // argument from fetch(). We accept it explicitly.
 
 const DEFAULT_PRODUCTS = {

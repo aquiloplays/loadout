@@ -1,12 +1,12 @@
-// Boltbound — grindy daily login rewards.
+// Boltbound, grindy daily login rewards.
 //
 // "Login" = opening the Boltbound hub on the site (/play/boltbound).
-// Visiting aquilo.gg alone does NOT count — the site fires the claim
+// Visiting aquilo.gg alone does NOT count, the site fires the claim
 // only from the hub mount.
 //
 // Design intent (Clay, 2026-06): GRINDY. We do not give cards away
 // daily. The daily grant is a small Bolts + Aether trickle; PACKS only
-// drop at streak milestones. Streaks reset on ANY missed UTC day — no
+// drop at streak milestones. Streaks reset on ANY missed UTC day, no
 // grace period. So the loop is "log in every single day or lose it".
 //
 //   daily            small Bolts (50-200, scales with streak) + Aether (5-10)
@@ -113,13 +113,13 @@ async function writeState(env, userId, st) {
 // ── Public: status (read-only) ──────────────────────────────────────
 
 // Returns the current streak + whether today is claimable + a preview
-// of the next milestone. Does NOT mutate — the hub calls this on mount,
+// of the next milestone. Does NOT mutate, the hub calls this on mount,
 // then POSTs claim only if claimableToday.
 export async function getLoginStatus(env, userId, nowMs) {
   const st = await readState(env, userId);
   const today = utcKey(nowMs);
   const claimedToday = st.lastClaimDate === today;
-  // If they missed a day, the displayed streak is "about to reset" — we
+  // If they missed a day, the displayed streak is "about to reset", we
   // show the live (pre-reset) value but flag it so the UI can warn.
   const gap = daysBetween(st.lastClaimDate, today);
   const willReset = gap != null && gap > 1;
@@ -152,7 +152,7 @@ export async function getLoginStatus(env, userId, nowMs) {
 
 // Increment the streak (resetting if a day was missed), grant the
 // daily reward + any milestone reward, return a detailed receipt. Once
-// per UTC day — a second call the same day is a no-op { ok:false,
+// per UTC day, a second call the same day is a no-op { ok:false,
 // alreadyClaimed:true }.
 export async function claimDailyLogin(env, guildId, userId, nowMs) {
   const st = await readState(env, userId);
@@ -255,7 +255,7 @@ async function echoMilestone(env, userId, ms, streak) {
   const { postChannelMessage } = await import('./aquilo/util.js');
   const blurbs = {
     monthly:   `kept the lights on for **30 straight days**. The grind respects the grind.`,
-    quarterly: `hit a **90-day** Boltbound streak. Ninety days. Touch grass — after you open these packs.`,
+    quarterly: `hit a **90-day** Boltbound streak. Ninety days. Touch grass, after you open these packs.`,
     yearly:    `logged in **365 days in a row**. A full year. We are concerned and impressed in equal measure.`,
   };
   const blurb = blurbs[ms.kind] || `reached a ${streak}-day login streak.`;

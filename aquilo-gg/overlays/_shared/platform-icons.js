@@ -1,5 +1,5 @@
 /*
- * Loadout overlays — shared platform icon registry.
+ * Loadout overlays, shared platform icon registry.
  *
  * Maps streamer-friendly platform tokens (twitter, ig, psn, etc.) to
  * canonical simpleicons.org slugs, plus exposes helpers to build the

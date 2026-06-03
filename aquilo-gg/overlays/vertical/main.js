@@ -1,5 +1,5 @@
 /*
- * Loadout — vertical-stream overlay client.
+ * Loadout, vertical-stream overlay client.
  *
  * Subscribes to the same bus events the compact overlay does
  * (bolts.* / welcome.* / hypetrain.* / counter.* / minigame.* /
@@ -38,7 +38,7 @@
     side:   ['lc', 'rc']
   };
   if (!validPos[mode]) {
-    // Unknown mode — fall back to tile so OBS still renders something.
+    // Unknown mode, fall back to tile so OBS still renders something.
     document.body.dataset.mode = 'tile';
   } else {
     document.body.dataset.mode = mode;
@@ -69,7 +69,7 @@
   let bannerSeenAnyEvent = false;
   let sideTotalCount = 0;
 
-  // Reset the tone-* class on a card. Idempotent — strip every tone
+  // Reset the tone-* class on a card. Idempotent, strip every tone
   // we know about then add the new one.
   const TONES = ['bolts', 'welcome', 'counter', 'streak', 'hype', 'win', 'lose'];
   function setTone(el, tone) {
@@ -181,7 +181,7 @@
   // ── Event mapping ─────────────────────────────────────────────────
   // Translate bus events into the {tone, badge, title, sub, kind}
   // shape the renderers consume. Keep the title under ~20 chars when
-  // possible — the tile/banner modes can clip. Side mode tolerates
+  // possible, the tile/banner modes can clip. Side mode tolerates
   // more because the card wraps.
   function fromBus(msg) {
     if (!msg || !msg.kind) return null;

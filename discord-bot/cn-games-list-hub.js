@@ -1,4 +1,4 @@
-// Community-Night games-list catalogue — pinned set of embeds in a
+// Community-Night games-list catalogue, pinned set of embeds in a
 // dedicated channel listing every CN-eligible game with cover art
 // + a "Play it" store link.
 //
@@ -45,8 +45,7 @@ export function pickGamesListChannel(channels, opts = {}) {
   return null;
 }
 
-// Build the per-game embed shape. Returns the array of embeds —
-// caller chunks into 10-per-message.
+// Build the per-game embed shape. Returns the array of embeds, // caller chunks into 10-per-message.
 async function buildGameEmbeds(env, guildId) {
   if (!env.DB) return [];
   const { results: rows } = await env.DB.prepare(
@@ -84,7 +83,7 @@ async function buildHeader(env, guildId, count) {
     title: '🎲 Community Night · Games Catalogue',
     description:
       `${count} game${count === 1 ? '' : 's'} in the rotation. The community votes one ` +
-      `into Saturday's stream — tap **Vote for this week** in <#${(await getChannelBinding(env, guildId, 'poll')) || ''}>.`,
+      `into Saturday's stream, tap **Vote for this week** in <#${(await getChannelBinding(env, guildId, 'poll')) || ''}>.`,
     color: brand.accentColor || 0x9147ff,
     footer: { text: 'Catalogue auto-refreshes when the rotation is updated.' },
   };
@@ -135,7 +134,7 @@ export async function postGamesListHub(env, guildId, channelId) {
 
   const embeds = await buildGameEmbeds(env, guildId);
   if (embeds.length === 0) {
-    return { ok: false, error: 'no-games', message: 'D1 games table is empty — run bootstrap first' };
+    return { ok: false, error: 'no-games', message: 'D1 games table is empty, run bootstrap first' };
   }
   const header = await buildHeader(env, guildId, embeds.length);
 
@@ -163,7 +162,7 @@ export async function postGamesListHub(env, guildId, channelId) {
   return { ok: true, channelId, messageIds: posted.map(p => p.messageId), gamesCount: embeds.length, deletedPrior };
 }
 
-// Admin HTTP entry — discovers channel via opts → KV binding → name
+// Admin HTTP entry, discovers channel via opts → KV binding → name
 // hints. If nothing matches, returns a clear "create the channel
 // first" error so Clay knows what to do.
 export async function postGamesListHubForGuild(env, guildId, opts = {}) {
@@ -193,7 +192,7 @@ export async function postGamesListHubForGuild(env, guildId, opts = {}) {
       return {
         ok: false,
         error: 'no-channel-match',
-        message: 'No channel matched any of: ' + DEFAULT_GAMES_LIST_HINTS.join(', ') + '. Create a text channel (e.g. #cn-games), then re-run /admin/cn-games-list/post-hub — or bind explicitly via /admin/channels/bind with binding="games-list".',
+        message: 'No channel matched any of: ' + DEFAULT_GAMES_LIST_HINTS.join(', ') + '. Create a text channel (e.g. #cn-games), then re-run /admin/cn-games-list/post-hub, or bind explicitly via /admin/channels/bind with binding="games-list".',
         tried: DEFAULT_GAMES_LIST_HINTS,
       };
     }

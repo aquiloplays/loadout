@@ -22,7 +22,7 @@ fs.mkdirSync(OUT_DIR, { recursive: true });
 
 const MODEL_URL = 'https://api.replicate.com/v1/models/black-forest-labs/flux-1.1-pro-ultra/predictions';
 
-// Shared style suffix — keeps every sprite in the Boltbound "Glossy Game
+// Shared style suffix, keeps every sprite in the Boltbound "Glossy Game
 // Premium" family and forces the flat chroma background for keying.
 const STYLE = "Glossy Game Premium vector illustration, premium casino game aesthetic, "
   + "aurora-tinted violet and pink rim highlights, warm gold and casino-red accents, "
@@ -97,7 +97,7 @@ for (let i = 0; i < ASSETS.length; i++) {
       try { created = await createPrediction(a); break; }
       catch (e) {
         if (attempt < 2 && /402|429|5\d\d/.test(e.message)) {
-          console.warn(`  ${e.message.slice(0, 40)} — retry in 8s`);
+          console.warn(`  ${e.message.slice(0, 40)}, retry in 8s`);
           await new Promise(r => setTimeout(r, 8000));
           continue;
         }

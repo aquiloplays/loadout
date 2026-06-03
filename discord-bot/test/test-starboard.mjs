@@ -58,7 +58,7 @@ function makeItem(i, overrides = {}) {
 
 const GUILD = '1504103035951906883';
 
-console.log('— append + read basic');
+console.log('- append + read basic');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const r1 = await appendStarboardRecent(env, GUILD, makeItem(1));
@@ -72,7 +72,7 @@ console.log('— append + read basic');
   eq(read.items[0].starCount, 7, 'starCount survives roundtrip');
 }
 
-console.log('— dedup by messageId on re-append');
+console.log('- dedup by messageId on re-append');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   await appendStarboardRecent(env, GUILD, makeItem(1, { starCount: 5 }));
@@ -87,7 +87,7 @@ console.log('— dedup by messageId on re-append');
   eq(read.items[0].content, 'updated', 're-append overwrites content');
 }
 
-console.log('— cap at STARBOARD_RECENT_CAP (50)');
+console.log('- cap at STARBOARD_RECENT_CAP (50)');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   // Add 55 distinct items
@@ -104,7 +104,7 @@ console.log('— cap at STARBOARD_RECENT_CAP (50)');
   );
 }
 
-console.log('— limit clamping');
+console.log('- limit clamping');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   for (let i = 1; i <= 30; i++) {
@@ -122,7 +122,7 @@ console.log('— limit clamping');
   eq(rBig.items.length, 30, 'huge limit clamps to the cap (only 30 stored)');
 }
 
-console.log('— missing env / missing guild');
+console.log('- missing env / missing guild');
 {
   const r = await readStarboardRecent({}, GUILD, 5);
   eq(r, { ok: false, items: [] }, 'no LOADOUT_BOLTS → ok:false');
@@ -133,7 +133,7 @@ console.log('— missing env / missing guild');
   eq(r3, { ok: true, items: [] }, 'empty ringbuffer → ok:true, items:[]');
 }
 
-console.log('— append refuses bad input');
+console.log('- append refuses bad input');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   eq(await appendStarboardRecent(env, GUILD, null), { stored: false }, 'null item refused');
@@ -144,7 +144,7 @@ console.log('— append refuses bad input');
 
 console.log('');
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

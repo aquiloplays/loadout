@@ -1,4 +1,4 @@
-// Thin Twitch Helix client — App Access Token cached in KV, no-config
+// Thin Twitch Helix client, App Access Token cached in KV, no-config
 // graceful fall-through. Imported by:
 //   • twitch-eventsub.js  (subscription manager + revocation)
 //   • twitch-live.js      (live-embed post/refresh)
@@ -10,19 +10,19 @@
 // token uses.
 //
 // All exported helpers return null (or { ok: false, ... }) when the
-// three Twitch env secrets aren't set — callers MUST handle a null
+// three Twitch env secrets aren't set, callers MUST handle a null
 // return rather than throwing. Cron tasks check isTwitchConfigured()
 // up front and warn-+-skip cleanly.
 
 // Distinct from ext-loadout.js's `twitch:apptoken` (which stores
-// the raw token string only — no JSON wrapper, no expiry tracked
+// the raw token string only, no JSON wrapper, no expiry tracked
 // on our side). Using a separate key prevents
 // `KV.get(.., type:'json')` from blowing up on the legacy string
 // shape and keeps each module's cache lifecycle independent.
 const TOKEN_KEY = 'twitch:apptoken-helix';
 
 // User-token cache key (separate from the app-token cache because the
-// auth shape + lifetime differ — user tokens are minted by refresh
+// auth shape + lifetime differ, user tokens are minted by refresh
 // against env.TWITCH_USER_REFRESH_TOKEN and rotate every ~4h).
 const USER_TOKEN_KEY = 'twitch:user-token-helix';
 // User-token refresh rotation: Twitch returns a NEW refresh_token
@@ -35,11 +35,10 @@ export function isTwitchConfigured(env) {
   return !!(env && env.TWITCH_CLIENT_ID && env.TWITCH_CLIENT_SECRET);
 }
 
-// True iff we have everything required to mint a USER access token —
-// app-token isConfigured() returns true alone doesn't imply user-token
+// True iff we have everything required to mint a USER access token, // app-token isConfigured() returns true alone doesn't imply user-token
 // subs can be created. Used by setupTwitchSubscriptions to skip
 // user-token-requiring subs cleanly when only the app token is set.
-// Async because KV reads are async — the OAuth self-serve flow stores
+// Async because KV reads are async, the OAuth self-serve flow stores
 // the refresh token in KV (not as a worker secret), so a sync env-only
 // check would miss it and incorrectly skip every user-token sub right
 // after the operator finished OAuth.
@@ -94,7 +93,7 @@ export async function getAppAccessToken(env) {
 // channel.cheer, channel.poll.*, channel.prediction.*,
 // channel.hype_train.*, channel.channel_points_custom_reward_redemption.add,
 // channel.ban/unban) REQUIRE a user access token from the broadcaster
-// — app token won't authorize the subscription.
+//, app token won't authorize the subscription.
 //
 // We bootstrap with env.TWITCH_USER_REFRESH_TOKEN (set once via
 // `wrangler secret put`); each subsequent refresh rotates the
@@ -113,7 +112,7 @@ export async function getUserAccessToken(env) {
   if (cached && cached.token && cached.expiresAt > Date.now() + 60_000) {
     return cached.token;
   }
-  // Refresh — prefer the KV-rotated refresh token, fall back to env.
+  // Refresh, prefer the KV-rotated refresh token, fall back to env.
   let refresh = null;
   try {
     refresh = await env.LOADOUT_BOLTS.get(USER_REFRESH_KEY);
@@ -151,13 +150,13 @@ export async function getUserAccessToken(env) {
   return j.access_token;
 }
 
-// Generic Helix fetch — handles the Bearer + Client-Id headers, one
+// Generic Helix fetch, handles the Bearer + Client-Id headers, one
 // retry on 401 (token rotated under us). Returns the parsed JSON
 // body or null on failure. Caller decides whether null is an error
 // or a no-op.
 //
 // `opts.userToken: true` swaps in the user access token (for endpoints
-// that require user-context auth — currently only used by EventSub
+// that require user-context auth, currently only used by EventSub
 // subscription creation for the user-token-only topics).
 export async function helixFetch(env, path, params, opts = {}) {
   if (!isTwitchConfigured(env)) return null;
@@ -184,7 +183,7 @@ export async function helixFetch(env, path, params, opts = {}) {
   };
   let resp = await fetch(u.toString(), init);
   if (resp.status === 401) {
-    // Token died under us — wipe + try once more with a fresh one.
+    // Token died under us, wipe + try once more with a fresh one.
     const cacheKey = opts.userToken ? USER_TOKEN_KEY : TOKEN_KEY;
     await env.LOADOUT_BOLTS.delete(cacheKey).catch(() => {});
     const fresh = opts.userToken
@@ -199,7 +198,7 @@ export async function helixFetch(env, path, params, opts = {}) {
   try { body = await resp.json(); } catch { /* not JSON */ }
   if (!resp.ok) {
     console.warn('[twitch-helix]', resp.status, path, body ? JSON.stringify(body).slice(0, 200) : '');
-    // 2026-05-29 — callers that need the actual Twitch error body to
+    // 2026-05-29, callers that need the actual Twitch error body to
     // diagnose can pass returnErrors:true. Default behavior (null on
     // error) preserved for everything else.
     if (opts.returnErrors) {
@@ -215,15 +214,15 @@ export async function helixFetch(env, path, params, opts = {}) {
 
 // Returns the active stream object (live) OR null (offline / not
 // configured). Helix returns an empty `data` array for offline
-// channels — we flatten that to null so callers can just `if (stream)`.
+// channels, we flatten that to null so callers can just `if (stream)`.
 export async function getStreamInfo(env, broadcasterId) {
   const j = await helixFetch(env, '/streams', { user_id: broadcasterId });
   if (!j || !Array.isArray(j.data) || j.data.length === 0) return null;
   return j.data[0];
 }
 
-// Returns the broadcaster's CURRENTLY-SET category — { gameId, gameName,
-// title } — which works even when the channel is OFFLINE (unlike
+// Returns the broadcaster's CURRENTLY-SET category, { gameId, gameName,
+// title }, which works even when the channel is OFFLINE (unlike
 // getStreamInfo). Used by the death counter to know which game's
 // counter to bump. null on error / not configured.
 export async function getChannelGame(env, broadcasterId) {
@@ -242,7 +241,7 @@ export async function getUserById(env, userId) {
 }
 
 // Returns clips created since `startedAtIso` (ISO 8601 string).
-// Pagination ignored — for a 10-min polling window we'll never get
+// Pagination ignored, for a 10-min polling window we'll never get
 // more than a handful of clips.
 export async function getRecentClips(env, broadcasterId, startedAtIso) {
   const j = await helixFetch(env, '/clips', {
@@ -257,13 +256,13 @@ export async function getRecentClips(env, broadcasterId, startedAtIso) {
 // ── EventSub subscriptions ────────────────────────────────────────
 //
 // Create a subscription for a given (type, condition) pair. Idempotent
-// at the cost of an extra GET — caller can deduplicate via
+// at the cost of an extra GET, caller can deduplicate via
 // listSubscriptions() before posting. Twitch's POST itself rejects
 // dupes with `409 Conflict`, which we treat as success here.
 //
 // `callbackUrl` is the public URL of THIS worker's /twitch/eventsub
 // route. `secret` is the HMAC secret Twitch will use to sign every
-// notification — must match env.TWITCH_EVENTSUB_SECRET on the
+// notification, must match env.TWITCH_EVENTSUB_SECRET on the
 // worker side or signature verification will fail.
 //
 // `opts.userToken: true` mints the subscription under the broadcaster
@@ -273,7 +272,7 @@ export async function getRecentClips(env, broadcasterId, startedAtIso) {
 // / channel.ban/unban). `opts.version` overrides the default '1'
 // (channel.follow now requires '2').
 export async function createSubscription(env, type, condition, callbackUrl, secret, opts = {}) {
-  // 2026-05-29 fix — webhook-transport EventSub ALWAYS uses the app
+  // 2026-05-29 fix, webhook-transport EventSub ALWAYS uses the app
   // access token, regardless of which scopes the subscription type
   // needs. The user OAuth flow is still required (so Clay grants the
   // scopes against our client_id and Twitch remembers them for the

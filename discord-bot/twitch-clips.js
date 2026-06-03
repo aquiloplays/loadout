@@ -1,9 +1,9 @@
 // Twitch clip cross-post + "Clip of the Week".
 //
-// Twitch removed the clip-created webhook in 2022 — Helix `clips`
+// Twitch removed the clip-created webhook in 2022, Helix `clips`
 // polling is the only path. Called from the :17 hourly cron:
 //   • If currently live (twitch:live:state:<b> present): poll every
-//     hour (still hourly because that's the cron cadence — the
+//     hour (still hourly because that's the cron cadence, the
 //     "10 min during live, 30 min otherwise" target needs a DO
 //     alarm or paid cron tier; the hourly cadence is close enough
 //     to catch clips before they go stale, and dedupe means a
@@ -42,7 +42,7 @@ async function loadPostedSet(env, broadcasterId) {
   return Array.isArray(list) ? list : [];
 }
 async function savePostedSet(env, broadcasterId, list) {
-  // FIFO trim — newest at the END.
+  // FIFO trim, newest at the END.
   const trimmed = list.length > POSTED_CAP ? list.slice(-POSTED_CAP) : list;
   await env.LOADOUT_BOLTS.put(POSTED_KEY(broadcasterId), JSON.stringify(trimmed));
 }
@@ -94,7 +94,7 @@ async function reactTo(env, channelId, messageId, emoji) {
 
 export async function pollNewClipsCron(env) {
   if (!isTwitchConfigured(env)) {
-    console.warn('[twitch-clips] twitch not configured — skip');
+    console.warn('[twitch-clips] twitch not configured, skip');
     return { skipped: 'twitch-not-configured' };
   }
   const clipsChannelId = await getChannelBinding(env, env.AQUILO_VAULT_GUILD_ID, 'clips');
@@ -102,7 +102,7 @@ export async function pollNewClipsCron(env) {
   const broadcasterId = env.CLAY_TWITCH_CHANNEL_ID;
   if (!broadcasterId) return { skipped: 'no-broadcaster-id' };
 
-  // Tick gating — when offline, only poll every 3rd hourly tick.
+  // Tick gating, when offline, only poll every 3rd hourly tick.
   const liveState = await env.LOADOUT_BOLTS.get(`twitch:live:state:${broadcasterId}`);
   if (!liveState) {
     const tick = (parseInt((await env.LOADOUT_BOLTS.get(POLL_TICK_KEY(broadcasterId))) || '0', 10) || 0) + 1;
@@ -110,7 +110,7 @@ export async function pollNewClipsCron(env) {
     if (tick % 3 !== 0) return { skipped: 'tick-gated', tick };
   }
 
-  // 24h lookback window — generous enough to catch a clip that was
+  // 24h lookback window, generous enough to catch a clip that was
   // made just before the previous tick and only landed in Helix's
   // index a few minutes later. Dedup handles duplicates.
   const since = startedAtIsoForWindow(1);
@@ -142,7 +142,7 @@ export async function pollNewClipsCron(env) {
         url:         clip.url || null,
         title:       clip.title || null,
       }),
-      { expirationTtl: 30 * 24 * 60 * 60 },   // 30-day TTL — covers the 7-day window with cushion
+      { expirationTtl: 30 * 24 * 60 * 60 },   // 30-day TTL, covers the 7-day window with cushion
     );
     // Prefill 👍 / 👎 so viewers see them and can one-tap react.
     await reactTo(env, clipsChannelId, post.body.id, '👍');
@@ -161,7 +161,7 @@ export async function pollNewClipsCron(env) {
 // "Clip of the Week" announcement embed in CLIPS_CHANNEL_ID.
 //
 // 250-bolt reward goes to the clip creator IF we can resolve their
-// Twitch username → Discord id via the wallet `links` array — that's
+// Twitch username → Discord id via the wallet `links` array, that's
 // the same lookup the bolts-feed digest uses. Otherwise a shout-out
 // with no payout (still publicly recognised).
 //
@@ -189,8 +189,7 @@ export async function postClipOfTheWeekCron(env) {
   const lastWeek = await env.LOADOUT_BOLTS.get(LAST_WEEKLY_KEY(broadcasterId));
   if (lastWeek === week) return { skipped: 'already-fired-this-week', week };
 
-  // Scan posted clips. We don't keep a separate "last week's" list —
-  // list the posted set then filter each meta record by postedAt.
+  // Scan posted clips. We don't keep a separate "last week's" list, // list the posted set then filter each meta record by postedAt.
   const posted = await loadPostedSet(env, broadcasterId);
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const candidates = [];
@@ -202,7 +201,7 @@ export async function postClipOfTheWeekCron(env) {
     candidates.push({ clipId, ...meta });
   }
   if (candidates.length === 0) {
-    // Nothing to tally — still stamp the week so we don't keep
+    // Nothing to tally, still stamp the week so we don't keep
     // looking. Avoids the worst case of re-scanning the meta records
     // on every hourly tick after Sunday until we move past 22 ET.
     await env.LOADOUT_BOLTS.put(LAST_WEEKLY_KEY(broadcasterId), week);
@@ -231,7 +230,7 @@ export async function postClipOfTheWeekCron(env) {
 
   // Reward the creator if we can resolve their wallet via the
   // twitch link record. Best-effort; failing to resolve isn't a
-  // hard error — the embed still posts.
+  // hard error, the embed still posts.
   let rewardedDiscordId = null;
   let rewardedBolts = 0;
   if (best.creatorName) {
@@ -251,7 +250,7 @@ export async function postClipOfTheWeekCron(env) {
   const lines = [
     `🏆  **Clip of the Week** 🏆`,
     `_${best.title || 'Untitled clip'}_`,
-    `Clipped by **${best.creatorName || 'someone'}** — ${best.ups} 👍 / ${best.downs} 👎 (net ${best.net})`,
+    `Clipped by **${best.creatorName || 'someone'}**, ${best.ups} 👍 / ${best.downs} 👎 (net ${best.net})`,
     `${best.url || ''}`,
     '',
     rewardedDiscordId

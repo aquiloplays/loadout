@@ -3,9 +3,9 @@
 // 2026-05-29 sprint. First-of-month tick:
 //   1. Look up active Spire season (from spire-seasons.js / spire.js).
 //   2. Find the cosmetic whose themeSeason matches.
-//   3. Walk patreon:tier:* — for each active (tier present, non-free)
+//   3. Walk patreon:tier:*, for each active (tier present, non-free)
 //      patron, grant the cosmetic into pbadge:<userId>.
-//   4. Idempotent — re-runs don't duplicate.
+//   4. Idempotent, re-runs don't duplicate.
 
 const KEY_USER_BADGES = (u) => `pbadge:${u}`;
 
@@ -84,7 +84,7 @@ export async function runMonthlyAutoGrant(env, opts = {}) {
   return { ok: true, seasonSlug, cosmetic, walked, granted, skipped };
 }
 
-// Get a user's owned cosmetics list — backs the play/cosmetics/me endpoint.
+// Get a user's owned cosmetics list, backs the play/cosmetics/me endpoint.
 export async function getCosmeticsForUser(env, userId) {
   const rec = await env.LOADOUT_BOLTS.get(KEY_USER_BADGES(userId), { type: 'json' });
   return {

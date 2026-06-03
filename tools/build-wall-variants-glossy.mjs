@@ -1,4 +1,4 @@
-// K2 — 16 glossy wall connectivity variants.
+// K2-16 glossy wall connectivity variants.
 //
 // A wall tile is rendered by mask4 = bit0(north) | bit1(east) |
 // bit2(south) | bit3(west) indicating which of the 4 cardinal
@@ -41,7 +41,7 @@ const SHADOW = contactShadow({ cx: W/2, cy: GROUND_Y + 8, rx: 92, ry: 14 });
 
 // ── Geometry ──────────────────────────────────────────────────
 //
-// We render the tile as a stone "+" — a central core, plus up to
+// We render the tile as a stone "+", a central core, plus up to
 // four cardinal arms that extend to the tile edge when a
 // neighbour is present in that direction. End-caps (no neighbour)
 // get a merlon-style closure so the wall reads as ending.
@@ -89,7 +89,7 @@ function endCap(dir) {
 </g>`;
     }
     case 'S': {
-      // Bottom edge — a base trim accent (gold rivet band so the
+      // Bottom edge, a base trim accent (gold rivet band so the
       // wall ends with a finished look, not just cut off).
       return `<rect x="${LEFT + 4}" y="${BOTTOM - 6}" width="${CORE - 8}" height="8" rx="2"
                     fill="url(#gk-grad-gold)" stroke="${PALETTE.gold.stroke}" stroke-width="2"/>`;
@@ -115,7 +115,7 @@ function endCap(dir) {
   }
 }
 
-// Core block — always present, with mortar courses + gloss highlight.
+// Core block, always present, with mortar courses + gloss highlight.
 function core() {
   return `
 <rect x="${LEFT}" y="${TOP}" width="${CORE}" height="${CORE}" rx="6"

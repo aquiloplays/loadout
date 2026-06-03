@@ -5,13 +5,13 @@
 // Twitch category, bumps that game's counter, and publishes a
 // `death.recorded` Aquilo-Bus event so the overlay updates live.
 //
-// Auth model (this subsystem is its own thing — not the site HMAC):
+// Auth model (this subsystem is its own thing, not the site HMAC):
 //   • Writes (increment, set) + the bulk read (all) are gated by a
 //     static token in env.STREAMDECK_TOKEN, supplied as the
 //     `x-streamdeck-token` header OR a `?token=` query param. This is
 //     the simplest thing that works for a single local Stream Deck
 //     button (no HMAC signing on the device).
-//   • Per-game + current reads are public (CORS-open) — overlays need
+//   • Per-game + current reads are public (CORS-open), overlays need
 //     them with no secret baked into the browser source.
 //
 // KV:  death-count:<gameSlug> = { count, lastUpdated, name }
@@ -29,7 +29,7 @@ import { publishActivity } from './activity-do.js';
 
 const KEY = (slug) => `death-count:${slug}`;
 
-// The seedable roster — slug → display name. Mirrors the 2026-06
+// The seedable roster, slug → display name. Mirrors the 2026-06
 // schedule pools (Triple-C 23 + Variety 8 + Community 11 = 42).
 export const DEATH_GAMES = {
   // Triple-C pool
@@ -167,8 +167,7 @@ async function writeCount(env, slug, count) {
   return rec;
 }
 
-// Seed every roster game at 0 if it has no record yet. Idempotent —
-// existing counts are never overwritten.
+// Seed every roster game at 0 if it has no record yet. Idempotent, // existing counts are never overwritten.
 export async function seedDeathCounts(env) {
   let seeded = 0, existing = 0;
   for (const [slug, name] of Object.entries(DEATH_GAMES)) {
@@ -264,7 +263,7 @@ async function resolveCurrentSlug(env) {
 }
 
 async function incrementCurrent(env, url) {
-  // Optional explicit override (?gameSlug=) — lets Stream Deck target a
+  // Optional explicit override (?gameSlug=), lets Stream Deck target a
   // specific game, and makes the endpoint testable while offline.
   let slug = (url.searchParams.get('gameSlug') || '').trim() || null;
   let gameName = slug ? DEATH_GAMES[slug] : null;
@@ -282,7 +281,7 @@ async function incrementCurrent(env, url) {
   const cur = await readCount(env, slug);
   const rec = await writeCount(env, slug, cur.count + 1);
 
-  // Aquilo Bus — overlay updates live, no polling.
+  // Aquilo Bus, overlay updates live, no polling.
   await publishActivity(env, {
     kind: 'death.recorded',
     gameSlug: slug,

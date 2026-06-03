@@ -30,7 +30,7 @@ try {
   entries = await fs.readdir(framesDir);
 } catch (e) {
   if (e.code === 'ENOENT') {
-    console.log('No _legendary-frames directory found — nothing to do.');
+    console.log('No _legendary-frames directory found, nothing to do.');
     process.exit(0);
   }
   throw e;
@@ -81,4 +81,4 @@ for (const [slug, list] of groups) {
 // Clean up intermediates
 await fs.rm(framesDir, { recursive: true, force: true });
 
-console.log(`Done — ${total} legendary APNG(s) written.`);
+console.log(`Done, ${total} legendary APNG(s) written.`);

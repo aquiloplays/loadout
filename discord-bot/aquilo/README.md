@@ -1,4 +1,4 @@
-# aquilo-bot — Worker edition
+# aquilo-bot, Worker edition
 
 Cloudflare Worker drop-in replacement for the Node service in `../src/`.
 Same functional surface, zero hosting cost on free tier (100k req/day).
@@ -14,7 +14,7 @@ Same functional surface, zero hosting cost on free tier (100k req/day).
 | `GET /` (landing page) | dropped (cosmetic only) |
 | `/announce` slash command | identical, served via Discord HTTP interactions instead of the Discord.js Gateway |
 
-Auth, payload shape, env config — all identical. Existing callers (the
+Auth, payload shape, env config, all identical. Existing callers (the
 GitHub Actions release workflow that posts to `/announce`, Fourthwall's
 webhook config) need only to swap the URL.
 
@@ -57,7 +57,7 @@ Railway service.
 
 ## What stays on Node
 
-The original `../src/` Railway service still works — keep it deployed
+The original `../src/` Railway service still works, keep it deployed
 during migration, point `wrangler dev` at a test Discord guild for the
 slash command, validate everything moves cleanly, then cut over and
 shut down Railway.

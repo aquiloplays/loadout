@@ -1,4 +1,4 @@
-// Unified /loadout menu — one slash command opens an ephemeral message
+// Unified /loadout menu, one slash command opens an ephemeral message
 // (private to the caller) that exposes every other Loadout-bot action
 // as buttons / select menus / modals. Replaces the old surface of 24
 // granular slash commands.
@@ -7,34 +7,34 @@
 // dispatch in commands.js can hand the entire MESSAGE_COMPONENT and
 // MODAL_SUBMIT traffic to one handler here.
 //
-//   lo:home                       — back to main
-//   lo:wallet                     — balance / lifetime / streak view
-//   lo:daily                      — claim daily (button → result)
-//   lo:gift                       — gift flow: opens a UserSelect
-//   lo:gift:user                  — UserSelect submit → opens amount modal
-//   lo:leaderboard                — top 10 view
-//   lo:hero                       — character sheet
-//   lo:bag                        — inventory list
-//   lo:equip                      — equip flow: select an item
-//   lo:equip:do:<itemId>          — execute equip
-//   lo:unequip                    — unequip flow: select a slot
-//   lo:unequip:do:<slot>          — execute unequip
-//   lo:sell                       — sell flow: select an item
-//   lo:sell:do:<itemId>           — execute sell
-//   lo:shop                       — shop view
-//   lo:buy                        — buy flow: select an item
-//   lo:buy:do:<index>             — execute buy
-//   lo:train                      — pick a training focus
-//   lo:train:do:<focus>           — execute training (5 rounds)
-//   lo:games                      — quick games sub-menu
-//   lo:coinflip                   — open coinflip modal
-//   lo:dice                       — open dice modal
-//   lo:link                       — open link modal
-//   lo:profile                    — profile view
-//   lo:profile:edit:<field>       — open edit modal for that field
-//   lo:profile:clear              — wipe profile
-//   lo:help                       — help view
-//   lo:close                      — delete the menu (DELETE_MESSAGE response)
+//   lo:home, back to main
+//   lo:wallet, balance / lifetime / streak view
+//   lo:daily, claim daily (button → result)
+//   lo:gift, gift flow: opens a UserSelect
+//   lo:gift:user, UserSelect submit → opens amount modal
+//   lo:leaderboard, top 10 view
+//   lo:hero, character sheet
+//   lo:bag, inventory list
+//   lo:equip, equip flow: select an item
+//   lo:equip:do:<itemId>, execute equip
+//   lo:unequip, unequip flow: select a slot
+//   lo:unequip:do:<slot>, execute unequip
+//   lo:sell, sell flow: select an item
+//   lo:sell:do:<itemId>, execute sell
+//   lo:shop, shop view
+//   lo:buy, buy flow: select an item
+//   lo:buy:do:<index>, execute buy
+//   lo:train, pick a training focus
+//   lo:train:do:<focus>, execute training (5 rounds)
+//   lo:games, quick games sub-menu
+//   lo:coinflip, open coinflip modal
+//   lo:dice, open dice modal
+//   lo:link, open link modal
+//   lo:profile, profile view
+//   lo:profile:edit:<field>, open edit modal for that field
+//   lo:profile:clear, wipe profile
+//   lo:help, help view
+//   lo:close, delete the menu (DELETE_MESSAGE response)
 
 import { getWallet, transfer, leaderboard, applyVaultDelta } from './wallet.js';
 import { coinflip, dice, daily } from './games.js';
@@ -93,7 +93,7 @@ export async function handleComponent(data, env) {
   const view  = parts[1] || 'home';
 
   // Components inherit the "ephemeral" flag from the source message
-  // automatically when we use UPDATE_MESSAGE — the caller still sees it
+  // automatically when we use UPDATE_MESSAGE, the caller still sees it
   // as their own private message.
 
   switch (view) {
@@ -168,7 +168,7 @@ export async function handleModal(data, env) {
       const r = await profileFieldAction(env, guild, userId, field, fields);
       return updateMessage({ ...r, components: [backRow('lo:profile')] });
     }
-    // (Modal `avatar` removed in 2025-05 — avatars auto-resolve from
+    // (Modal `avatar` removed in 2025-05, avatars auto-resolve from
     // the viewer's Discord avatar in the menu and their stream profile
     // pic on the overlay. cmdSetAvatar stays exported in case we want
     // to re-add a custom-URL slot later.)
@@ -189,7 +189,7 @@ async function mainView(env, guild, userId, userName) {
     (w.dailyStreak ? ` · 🔥 ${w.dailyStreak}-day streak` : '') +
     (linked ? ` · 🔗 ${linked}` : ''),
     '',
-    '_Tap a button to do anything below — only you can see this menu._'
+    '_Tap a button to do anything below, only you can see this menu._'
   ];
 
   return {
@@ -209,7 +209,7 @@ async function mainView(env, guild, userId, userName) {
       row(
         button('❌ Close',          'lo:close',       BTN_DANGER),
         // Routes via the prefix dispatcher in commands.js to the hub
-        // root — gives the user a one-click escape back to /hub when
+        // root, gives the user a one-click escape back to /hub when
         // they entered this menu through the hub Loadout drilldown.
         button('🌐 Hub',            'hub:home',       BTN_SECONDARY)
       )
@@ -235,7 +235,7 @@ async function walletView(env, guild, userId, userName) {
 
 async function dailyAction(env, guild, userId, userName) {
   const r = await daily(env, guild, userId);
-  // Cooldown / error path keeps the plain-text reply — embeds shouldn't
+  // Cooldown / error path keeps the plain-text reply, embeds shouldn't
   // celebrate a "you already claimed" reply.
   if (!r.won) {
     return {
@@ -260,10 +260,10 @@ async function leaderboardView(env, guild) {
   }
   const lines = top.map((row, i) => {
     const medal = ['🥇', '🥈', '🥉'][i] || `   ${i + 1}.`;
-    return `${medal}  <@${row.userId}>  —  **${row.w.balance}** bolts`;
+    return `${medal}  <@${row.userId}>, **${row.w.balance}** bolts`;
   });
   return {
-    content: '📊 **Top 10 — this server**\n' + lines.join('\n'),
+    content: '📊 **Top 10, this server**\n' + lines.join('\n'),
     components: [backRow()]
   };
 }
@@ -362,7 +362,7 @@ async function cmdDiceInline(env, guild, userId, bet, target, userName) {
 async function profileView(env, guild, userId, userName) {
   const p = await getProfile(env, guild, userId);
   const lines = [
-    `🪪 **Profile** — ${userName}`,
+    `🪪 **Profile**, ${userName}`,
     p?.bio       ? `> _${truncate(p.bio, 280)}_` : '_(no bio set)_',
     '',
     p?.pronouns  ? `**Pronouns:** ${p.pronouns}` : '',
@@ -409,14 +409,14 @@ async function profileClearAction(env, guild, userId) {
 function helpView() {
   return {
     content:
-      '❓ **Loadout — what every button does**\n' +
-      '• **Wallet / Daily / Gift / Leaderboard** — your bolts (the cross-platform currency).\n' +
-      '• **Hero** — your dungeon character (level, HP, attack, defense, equipped gear).\n' +
-      '• **Bag** — items you found in `!dungeon` runs or bought from the shop. Equip / unequip / sell from here.\n' +
-      '• **Shop** — buy gear off-stream with bolts.\n' +
-      '• **Train** — spend bolts to grind XP / HP between streams.\n' +
-      '• **Profile** — !profile bio, pronouns, social handles, gamer tags. Same data the chat command + viewer overlay show.\n' +
-      '• **Quick games** — coinflip / dice for grinding bolts.',
+      '❓ **Loadout, what every button does**\n' +
+      '• **Wallet / Daily / Gift / Leaderboard**, your bolts (the cross-platform currency).\n' +
+      '• **Hero**, your dungeon character (level, HP, attack, defense, equipped gear).\n' +
+      '• **Bag**, items you found in `!dungeon` runs or bought from the shop. Equip / unequip / sell from here.\n' +
+      '• **Shop**, buy gear off-stream with bolts.\n' +
+      '• **Train**, spend bolts to grind XP / HP between streams.\n' +
+      '• **Profile**, !profile bio, pronouns, social handles, gamer tags. Same data the chat command + viewer overlay show.\n' +
+      '• **Quick games**, coinflip / dice for grinding bolts.',
     components: [backRow()]
   };
 }
@@ -447,7 +447,7 @@ function giftAmountModal(toId) {
 function coinflipModal() {
   return {
     custom_id: 'lo:m:coinflip',
-    title: 'Coinflip — wager bolts',
+    title: 'Coinflip, wager bolts',
     components: [{
       type: COMPONENT_ROW,
       components: [{ type: COMPONENT_TEXT_INPUT, custom_id: 'bet', label: 'Wager (bolts)', style: INPUT_SHORT,
@@ -459,7 +459,7 @@ function coinflipModal() {
 function diceModal() {
   return {
     custom_id: 'lo:m:dice',
-    title: 'Dice — wager + target',
+    title: 'Dice, wager + target',
     components: [
       {
         type: COMPONENT_ROW,
@@ -539,7 +539,7 @@ function selectRow(customId, placeholder, options) {
 }
 // Returns a single ActionRow (not wrapped in an array). The earlier
 // shape returned [ROW] which made `components: [row(...), backRow()]`
-// produce `[ROW, [ROW]]` — Discord rejected that as "interaction
+// produce `[ROW, [ROW]]`, Discord rejected that as "interaction
 // failed". Callers now use `components: [backRow()]` for a single row
 // or `[row(...), backRow()]` for a top + bottom-row layout.
 function backRow(target = 'lo:home') {
@@ -578,13 +578,13 @@ function sortBag(bag) {
 // Two storage layers, merged on read so Discord-set fields (avatar /
 // className / custom) survive the DLL's 5-minute hero snapshot push:
 //
-//   1. d:hero-by-handle:<guild>:<platform>:<handle> — DLL push. Holds
+//   1. d:hero-by-handle:<guild>:<platform>:<handle>, DLL push. Holds
 //      progression stats from on-stream play.
-//   2. d:hero:<guild>:<userId>                       — Worker-local,
+//   2. d:hero:<guild>:<userId>, Worker-local,
 //      where /loadout writes Discord-side mutations.
 //
 // Bag is unioned across both; equipped slots merged. Earlier this
-// returned the DLL hero outright when present — local was ignored
+// returned the DLL hero outright when present, local was ignored
 // entirely, so any /loadout-set avatar / class / custom was invisible.
 async function loadHeroFor(env, guild, userId) {
   const w = await getWallet(env, guild, userId);
@@ -602,7 +602,7 @@ async function loadHeroFor(env, guild, userId) {
   if (!dllHero && !local) return { bag: [], equipped: {} };
   if (!dllHero) return local;
   if (!local)   return dllHero;
-  // Merge with the same rules dungeon.js's loadHero uses — keep them
+  // Merge with the same rules dungeon.js's loadHero uses, keep them
   // in sync. Discord-set fields prefer local; progression stats prefer
   // DLL; bag is unioned; equipped merged with DLL winning on conflict.
   const merged = Object.assign({}, dllHero);

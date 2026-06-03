@@ -1,4 +1,4 @@
-// Boltbound — deck sharing + community decks (RET-7).
+// Boltbound, deck sharing + community decks (RET-7).
 //
 // Players publish a saved deck to the community gallery; others browse
 // the most-copied lists, copy a deck (bumps its copy count + returns the
@@ -78,7 +78,7 @@ export async function shareDeck(env, userId, body) {
   if (!name) return { ok: false, error: 'name-required' };
   if (!cards) return { ok: false, error: 'bad-deck' };
 
-  // Cap the per-user shared-deck count — trim the oldest beyond 25.
+  // Cap the per-user shared-deck count, trim the oldest beyond 25.
   try {
     const { results } = await db(env).prepare(
       'SELECT id FROM boltbound_shared_deck WHERE owner_id = ? ORDER BY created_at DESC'
@@ -115,7 +115,7 @@ export async function listCommunity(env, opts = {}) {
   ).bind(...binds).all();
   const decks = (results || []).map(r => shapeRow(r, false));
 
-  // Deck of the Day — most copies today; fall back to the all-time
+  // Deck of the Day, most copies today; fall back to the all-time
   // most-copied if nothing has been copied yet today.
   let deckOfTheDay = null;
   const today = dayKey();
@@ -129,7 +129,7 @@ export async function listCommunity(env, opts = {}) {
   return { ok: true, deckOfTheDay, decks };
 }
 
-// Fetch one shared deck (bumps views) — returns the card list for import.
+// Fetch one shared deck (bumps views), returns the card list for import.
 export async function getSharedDeck(env, id) {
   const sid = String(id || '').trim();
   if (!sid) return { ok: false, error: 'bad-id' };
@@ -139,7 +139,7 @@ export async function getSharedDeck(env, id) {
   return { ok: true, deck: shapeRow(r, true) };
 }
 
-// Copy a deck — bumps the copy count (+ today's bucket) and returns the
+// Copy a deck, bumps the copy count (+ today's bucket) and returns the
 // card list so the client can import / save it.
 export async function copySharedDeck(env, id) {
   const sid = String(id || '').trim();

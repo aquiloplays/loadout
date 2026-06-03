@@ -1,4 +1,4 @@
-// SF release-notes posting — ported from the retired
+// SF release-notes posting, ported from the retired
 // StreamFusion/bot-service/index.js /post-release handler.
 //
 // Voice-channel detection (the only thing that needed a persistent
@@ -21,15 +21,14 @@
 //     summary?:    "Short user-friendly blurb when provided, full
 //                   release notes get linked underneath."
 //     url?:        "https://github.com/.../releases/tag/v1.5.0",
-//     color?:      0x7c5cff (default — aquilo violet),
+//     color?:      0x7c5cff (default, aquilo violet),
 //     pingRoleId?: "1486090420675936488"      optional role mention
 //   }
 //
 // Returns: { ok, messageId, channelId } or { ok: false, error }.
 //
 // Posts as the unified Loadout bot (the surviving Discord app after
-// consolidation). The pre-1.7 StreamFusion bot identity is retired —
-// any release-notes channel where the old SF bot was the author will
+// consolidation). The pre-1.7 StreamFusion bot identity is retired, // any release-notes channel where the old SF bot was the author will
 // now see the Loadout bot post instead. That's intentional (one bot
 // is the whole point of the consolidation).
 
@@ -55,7 +54,7 @@ export async function handlePostRelease(req, env) {
 
   // Description = summary OR full body, capped at Discord's 4096 limit.
   // When `summary` is present, always append a "Full release notes →"
-  // link — the whole point of a summary is to keep the embed short
+  // link, the whole point of a summary is to keep the embed short
   // and point readers at the full body on GitHub.
   let desc = String(body.summary || body.body || '');
   const linkSuffix = '\n\n[Full release notes on GitHub →](' + (body.url || '#') + ')';

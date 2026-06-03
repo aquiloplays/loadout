@@ -1,13 +1,13 @@
-// K3 — Per-level building progression overlays.
+// K3, Per-level building progression overlays.
 //
 // Rather than hand-author 32 building kinds × 10 levels = 320
 // shapes from scratch, we read each existing L1 glossy SVG and
 // composite a level-specific accent overlay on top. Each level
-// adds visible "this building has been upgraded" cues — banners,
-// gold trim, crowns, gems, sparkle particles — so a viewer can
+// adds visible "this building has been upgraded" cues, banners,
+// gold trim, crowns, gems, sparkle particles, so a viewer can
 // tell at a glance what level a building is.
 //
-// Progression scheme (cumulative — L10 has everything L2..L9
+// Progression scheme (cumulative, L10 has everything L2..L9
 // stacked):
 //   L1   baseline (no overlay)
 //   L2   small pennant on top
@@ -23,7 +23,7 @@
 // Output: aquilo-gg/sprites/clash-v2/glossy/buildings/<kind>-L<n>.svg
 //         for n in 2..10. L1 stays as-is.
 //
-// Wall variants (wall-L1-NN.svg) are intentionally SKIPPED — those
+// Wall variants (wall-L1-NN.svg) are intentionally SKIPPED, those
 // are connectivity tiles, not single-building art. Per-level wall
 // variants is a separate (deferred) wave that would multiply by 16.
 //
@@ -45,7 +45,7 @@ const W = 256, H = 256;
 //
 // All buildings are anchored bottom-centre to GROUND_Y=224.
 // Their visible silhouette typically spans y=60..224 and x=40..216.
-// Overlay accents go BELOW (front-of) the building? No — they
+// Overlay accents go BELOW (front-of) the building? No, they
 // composite ON TOP so they appear in front of the building when
 // they overlap. We tune positions to sit just outside the core
 // silhouette so they don't clip building art.
@@ -182,7 +182,7 @@ function sideBanners() {
 }
 
 function legendaryTrimAndSparkles() {
-  // Gold sparkle particles + outer glow ring — legendary upgrade
+  // Gold sparkle particles + outer glow ring, legendary upgrade
   function spark(cx, cy, size) {
     return `<path d="M ${cx} ${cy - size}
                      L ${cx + size * 0.3} ${cy - size * 0.3}
@@ -213,7 +213,7 @@ ${spark(110, 50, 5)}
 ${spark(146, 50, 5)}`;
 }
 
-// Cumulative overlay stack — each level INCLUDES everything below it.
+// Cumulative overlay stack, each level INCLUDES everything below it.
 // (Higher level = visibly more decorated, telegraphs progression.)
 const LEVEL_OVERLAYS = {
   2:  [pennantLeft],
@@ -228,7 +228,7 @@ const LEVEL_OVERLAYS = {
 };
 
 // rarityGlow defines its own <defs> per render, so when the same
-// overlay function fires twice (impossible here — cumulative
+// overlay function fires twice (impossible here, cumulative
 // includes each once) the second would clash. The cumulative
 // arrays only include each helper once so this is fine.
 
@@ -241,7 +241,7 @@ const LEVEL_OVERLAYS = {
 // Then build the new svg as: header + inner + overlay + footer.
 //
 // The growth-plate overlay needs to render BEHIND the building,
-// not on top — so we split inner: keep <defs>, then prepend
+// not on top, so we split inner: keep <defs>, then prepend
 // growth-plate + rarity-glow, then re-append the rest. Front
 // overlays append normally.
 

@@ -1,4 +1,4 @@
-# Patreon gift memberships — feature spec
+# Patreon gift memberships, feature spec
 
 **Status:** research + decision pending. **Do not build yet.** Clay picks Path A or Path B.
 
@@ -15,38 +15,38 @@ The only real friction: **gifts do not trigger pledge webhooks**, so aquilo can'
 
 ---
 
-## Path A — Patreon native fan-to-fan gifting
+## Path A, Patreon native fan-to-fan gifting
 
 ### How it works
-1. **Sender** logs into Patreon, visits Clay's page, picks **gift duration (1–12 months)** + any non-limited tier, pays at the per-tier rate × months.
+1. **Sender** logs into Patreon, visits Clay's page, picks **gift duration (1-12 months)** + any non-limited tier, pays at the per-tier rate × months.
 2. Sender gets a **gift link** by email (link expires in 90 days if unredeemed).
 3. **Sender shares the gift link** with the recipient via any out-of-band channel (Discord DM, text, etc.).
 4. **Recipient** opens the link on **desktop or mobile web** (not the Patreon mobile app), creates / logs into a Patreon account, redeems.
-5. Recipient appears as an Active patron at that tier for the gift period. Patreon does NOT auto-charge them after the period ends — they're prompted 3 days before expiry to add payment to convert to paid.
+5. Recipient appears as an Active patron at that tier for the gift period. Patreon does NOT auto-charge them after the period ends, they're prompted 3 days before expiry to add payment to convert to paid.
 
 ### Aquilo integration
 - **No build required.** Aquilo already gates on `patreon:tier:<userId>` (per [`patreon-link.js`](discord-bot/patreon-link.js)).
 - Whoever writes `patreon:tier:<userId>` (the aquilo-site OAuth callback walks the member list) will see the gifted recipient as a normal patron during the gift window and write the tier record.
-- **Detection latency** = the poll cadence of the existing patreon-tier writer (unknown — site-side).
+- **Detection latency** = the poll cadence of the existing patreon-tier writer (unknown, site-side).
 - **Expiry latency** = same. When the gift period ends and the recipient doesn't convert, they drop off Patreon's member list and the next poll removes their tier record. The existing [`userHasPaidPatreon`](discord-bot/patreon-link.js) gate (which the new [Item 12 MC whitelist](discord-bot/mc-whitelist.js) depends on) flips to false on the next sync.
 
 ### What Clay needs to do
 1. **Verify gifting is enabled:** Patreon → Creator dashboard → Promotions → "Gifted by others" → Settings icon → toggle "Enable gifts by fans" ON if not already.
-2. **Surface the gift flow** to viewers via a Discord embed or aquilo.gg page: "Gift a friend N months of Aquilo Supporter access — opens Patreon, costs $X/mo × N." Link to Clay's Patreon page.
-3. **(Optional)** Add a Discord/aquilo notification when a gift lands. Since Patreon doesn't webhook on gifts, the only way is to detect a *new* Active patron in the next member-list poll and DM them — that's already approximately what aquilo does for new patron grants.
+2. **Surface the gift flow** to viewers via a Discord embed or aquilo.gg page: "Gift a friend N months of Aquilo Supporter access, opens Patreon, costs $X/mo × N." Link to Clay's Patreon page.
+3. **(Optional)** Add a Discord/aquilo notification when a gift lands. Since Patreon doesn't webhook on gifts, the only way is to detect a *new* Active patron in the next member-list poll and DM them, that's already approximately what aquilo does for new patron grants.
 
 ### Caveats / known limitations of Path A
 | Issue | Impact | Mitigation |
 |---|---|---|
 | No webhook on gift redemption | Aquilo finds out at next member-poll, not in real-time. | Acceptable for non-time-critical features. Poll cadence is already in place. |
-| No webhook on gift expiry | Same — drop-off detected at next poll. | Same. The MC whitelist sweep already handles paid→unpaid transitions on a daily cron. |
-| Gift link must be sent out-of-band | Sender has to share the link to recipient via Discord / text / etc. | Acceptable. Patreon emails the link to the sender — they paste it. |
+| No webhook on gift expiry | Same, drop-off detected at next poll. | Same. The MC whitelist sweep already handles paid→unpaid transitions on a daily cron. |
+| Gift link must be sent out-of-band | Sender has to share the link to recipient via Discord / text / etc. | Acceptable. Patreon emails the link to the sender, they paste it. |
 | Mobile-app redemption not supported | Recipient must open the link on web. | Minor friction; document on the gift-prompt embed. |
-| API v2 exposes gifted memberships in the member list | We can DETECT a gifted patron is "gifted" vs "paid" if we want to badge them differently. | Optional — track in the existing `patreon:tier` record's metadata. |
+| API v2 exposes gifted memberships in the member list | We can DETECT a gifted patron is "gifted" vs "paid" if we want to badge them differently. | Optional, track in the existing `patreon:tier` record's metadata. |
 
 ---
 
-## Path B — aquilo-side equivalent (custom "Sponsor a Friend")
+## Path B, aquilo-side equivalent (custom "Sponsor a Friend")
 
 Only build this if Path A is ruled out for a specific reason (e.g. Clay wants gifting to NOT require recipients to have a Patreon account, or wants to bypass Patreon's per-tier pricing for an aquilo-internal "supporter" pass).
 
@@ -57,7 +57,7 @@ Only build this if Path A is ruled out for a specific reason (e.g. Clay wants gi
 2. **Sender specifies recipient** at checkout: recipient's aquilo Discord ID (the same one used for the wallet).
 3. On payment success, aquilo writes `patreon-gifted:<recipientDiscordId>` → `{expires_at, gifted_by, tier, source}`.
 4. Existing [`userHasPatreon`](discord-bot/patreon-link.js) extends to check the `patreon-gifted` key alongside the real signals (a fourth signal).
-5. Existing [`userHasPaidPatreon`](discord-bot/patreon-link.js) likewise extends — `paid: true` returns when the gift is active.
+5. Existing [`userHasPaidPatreon`](discord-bot/patreon-link.js) likewise extends, `paid: true` returns when the gift is active.
 6. **Recipient gets a DM**: "🎁 @userA gifted you N months of Aquilo Supporter. Here's what unlocks: [list of paid-only perks, including MC whitelist]."
 7. **Profile shows the gift** + expiry date.
 8. **Daily cron** sweeps expired gifts, removes the flag, sends a "your gift just expired" DM.
@@ -69,7 +69,7 @@ Only build this if Path A is ruled out for a specific reason (e.g. Clay wants gi
 
 ### Why this is heavier than it looks
 - Stripe brings in PCI scope concerns even with Checkout (Clay's worker becomes part of the flow once we handle webhook secrets).
-- Patreon one-time pledges are awkward — Patreon's billing model assumes recurring memberships; one-shots are second-class.
+- Patreon one-time pledges are awkward, Patreon's billing model assumes recurring memberships; one-shots are second-class.
 - Reconciling refunds / chargebacks requires us to invalidate gift flags retroactively.
 
 ### When Path B IS worth it
@@ -89,7 +89,7 @@ None of these are stated requirements right now.
 1. Clay → verify "Enable gifts by fans" toggle is ON in Patreon Promotions tab.
 2. Clay → confirm the existing patreon-tier writer's poll cadence is acceptable for gift-detection latency (probably already ≤24h, which is fine).
 3. Loadout worker → add a small embed surface in the games-menu / hub: "Gift Aquilo Supporter access" with a `[link button → Clay's Patreon page]`.
-4. (Optional) Loadout worker → in the patreon-tier writer's next-poll diff, detect first-time patrons + DM with a "Welcome — here's what unlocks" message. This already exists or is close to existing for paid patrons; extend to cover the gifted variant.
+4. (Optional) Loadout worker → in the patreon-tier writer's next-poll diff, detect first-time patrons + DM with a "Welcome, here's what unlocks" message. This already exists or is close to existing for paid patrons; extend to cover the gifted variant.
 
 ### Action items if Clay picks B (NOT recommended without a strong reason)
 - Significant build: spawn as a separate chip targeting `discord-bot/` + the aquilo-site checkout flow.
@@ -99,7 +99,7 @@ None of these are stated requirements right now.
 
 ## Sources
 
-- [How to gift memberships to other fans — Patreon Help](https://support.patreon.com/hc/en-us/articles/31344987943949-How-to-gift-memberships-to-other-fans)
-- [FAQ: Fan gifting — Patreon Help](https://support.patreon.com/hc/en-us/articles/31345081474189-FAQ-Fan-gifting)
-- [Redeeming a gift from a creator — Patreon Help](https://support.patreon.com/hc/en-us/articles/31345076251917-Redeeming-a-gift-from-a-creator)
-- [Gifted pledges neither trigger a webhook nor are they exposed properly in the API — Patreon Developers Forum](https://www.patreondevelopers.com/t/gifted-pledges-neither-trigger-a-webhook-nor-are-they-exposed-properly-in-the-api/9808)
+- [How to gift memberships to other fans, Patreon Help](https://support.patreon.com/hc/en-us/articles/31344987943949-How-to-gift-memberships-to-other-fans)
+- [FAQ: Fan gifting, Patreon Help](https://support.patreon.com/hc/en-us/articles/31345081474189-FAQ-Fan-gifting)
+- [Redeeming a gift from a creator, Patreon Help](https://support.patreon.com/hc/en-us/articles/31345076251917-Redeeming-a-gift-from-a-creator)
+- [Gifted pledges neither trigger a webhook nor are they exposed properly in the API, Patreon Developers Forum](https://www.patreondevelopers.com/t/gifted-pledges-neither-trigger-a-webhook-nor-are-they-exposed-properly-in-the-api/9808)

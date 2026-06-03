@@ -1,4 +1,4 @@
-// Verdant Hollow — overgrown jungle, druids, fae bargains, root-runes.
+// Verdant Hollow, overgrown jungle, druids, fae bargains, root-runes.
 // 5 events: 2 pure upside, 2 tradeoff, 1 gamble.
 
 export const VERDANT_HOLLOW_EVENTS = Object.freeze([

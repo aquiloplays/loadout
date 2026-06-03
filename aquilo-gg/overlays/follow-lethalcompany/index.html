@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TikTok Follow Overlay — Lethal Company (Facility Terminal)</title>
+<title>TikTok Follow Overlay, Lethal Company (Facility Terminal)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
@@ -62,7 +62,7 @@
       0 0 18px rgba(58,122,58,0.55);
     animation: barPulse 2.6s steps(60) infinite;
   }
-  /* CRT-flicker style pulse — sickly facility green */
+  /* CRT-flicker style pulse, sickly facility green */
   @keyframes barPulse {
     0%, 100% { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #0a1c08, 0 0 0 3px #3a7a3a, 0 0 16px rgba(58,122,58,0.45); }
     47%      { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #0a1c08, 0 0 0 3px #6ab23a, 0 0 28px rgba(106,178,58,0.85); }
@@ -182,10 +182,10 @@
 
 <script>
 // ============================================================
-// CONFIG  — Lethal Company / Facility Terminal theme
+// CONFIG, Lethal Company / Facility Terminal theme
 // ============================================================
 const CTA_TEXT   = "Follow = Random Game Effect";
-const PROMO_TEXT = "Meet the quota — aquilo.gg • Community Night";
+const PROMO_TEXT = "Meet the quota, aquilo.gg • Community Night";
 
 // URL params (preserved from template family + Lethal Company extras)
 const params       = new URLSearchParams(location.search);
@@ -270,14 +270,14 @@ function drawScanlines(ctx, x, y, w, h, alpha) {
 }
 
 // ============================================================
-// LETHAL COMPANY SPRITES — code-drawn facility-green iconography.
+// LETHAL COMPANY SPRITES, code-drawn facility-green iconography.
 // Each fn draws an icon centered at the origin, spanning ~ +/-7.5u
 // where u = size/16. Color set `c` = {fill,line,hi,dim}.
 // drawSprite() handles the 2.5D extrude, glow, and scanlines.
 // ============================================================
 function lineW(u, n) { return Math.max(1, u * n); }
 
-// 1) Employee — green jumpsuit body + round bubble space-helmet w/ visor glint
+// 1) Employee, green jumpsuit body + round bubble space-helmet w/ visor glint
 function drawEmployee(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // torso / jumpsuit
@@ -313,7 +313,7 @@ function drawEmployee(ctx, u, c) {
   ctx.beginPath(); ctx.arc(-1.6*u, -4.6*u, 0.6*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 2) Bracken — tall thin leafy-backed humanoid, hunched, two glowing eyes
+// 2) Bracken, tall thin leafy-backed humanoid, hunched, two glowing eyes
 function drawBracken(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // long thin body, slightly hunched
@@ -348,7 +348,7 @@ function drawBracken(ctx, u, c) {
   }
 }
 
-// 3) Coil-Head — pale mannequin head/figure on a thin coiled spring neck
+// 3) Coil-Head, pale mannequin head/figure on a thin coiled spring neck
 function drawCoilHead(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // thin rigid mannequin body
@@ -370,7 +370,7 @@ function drawCoilHead(ctx, u, c) {
   ctx.beginPath(); ctx.arc(0, 0.6*u, 1.0*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 4) Eyeless Dog — eyeless quadruped, huge fanged maw splitting open
+// 4) Eyeless Dog, eyeless quadruped, huge fanged maw splitting open
 function drawEyelessDog(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // body
@@ -389,7 +389,7 @@ function drawEyelessDog(ctx, u, c) {
   ctx.lineTo(-6.8*u, 0.6*u);    // snout tip lower
   ctx.lineTo(-2.6*u, 1.6*u);
   ctx.closePath(); ctx.fill(); ctx.stroke();
-  // the big vertical splitting maw (signature) — dark cavity
+  // the big vertical splitting maw (signature), dark cavity
   ctx.fillStyle = c.line;
   ctx.beginPath();
   ctx.moveTo(-6.6*u, -0.2*u);
@@ -411,7 +411,7 @@ function drawEyelessDog(ctx, u, c) {
   ctx.beginPath(); ctx.moveTo(-1.0*u, -2.8*u); ctx.lineTo(1.4*u, -3.6*u); ctx.lineTo(1.2*u, -1.2*u); ctx.closePath(); ctx.fill(); ctx.stroke();
 }
 
-// 5) Jester — jack-in-the-box: cranking box w/ crank handle + a screaming head popping
+// 5) Jester, jack-in-the-box: cranking box w/ crank handle + a screaming head popping
 function drawJester(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // box base
@@ -451,7 +451,7 @@ function drawJester(ctx, u, c) {
   ctx.beginPath(); ctx.moveTo(2.0*u, -4.0*u); ctx.lineTo(3.2*u, -4.4*u); ctx.stroke();
 }
 
-// 6) Wall clock — round scrap clock, hands, two top bells
+// 6) Wall clock, round scrap clock, hands, two top bells
 function drawClock(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6);
   // top bells
@@ -484,7 +484,7 @@ function drawClock(ctx, u, c) {
   ctx.beginPath(); ctx.moveTo(0, 5.8*u); ctx.lineTo(0, 7.0*u); ctx.stroke();
 }
 
-// 7) Metal pipe — angled scrap pipe segment with end flanges
+// 7) Metal pipe, angled scrap pipe segment with end flanges
 function drawPipe(ctx, u, c) {
   ctx.save();
   ctx.rotate(-0.5);
@@ -507,7 +507,7 @@ function drawPipe(ctx, u, c) {
   ctx.restore();
 }
 
-// 8) Yield sign — downward triangle warning sign on a thin post
+// 8) Yield sign, downward triangle warning sign on a thin post
 function drawYieldSign(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.7); ctx.lineJoin = "round";
   // post
@@ -582,7 +582,7 @@ function drawSprite(ctx, name, cx, cy, size, alpha, flash) {
   g.shadowBlur = u * 1.6;
   fn(g, u, flash ? GP.flash : GP.main);
   g.restore();
-  // CRT scanlines — clipped to painted pixels only
+  // CRT scanlines, clipped to painted pixels only
   g.save();
   g.globalCompositeOperation = "source-atop";
   g.globalAlpha = 0.16;
@@ -790,7 +790,7 @@ function drawFollowerCounter(alpha, now) {
 }
 
 // ============================================================
-// IDLE ANIMATIONS — sprite peek-up (round-robin)
+// IDLE ANIMATIONS, sprite peek-up (round-robin)
 // ============================================================
 let peekIndex = 0;
 function scheduleIdleEvent() {
@@ -933,7 +933,7 @@ function playLethalAnim(done, freezeMs) {
   const restCY   = H - 54;
   const spawnCY  = H + heroSize;
 
-  // QUOTA MET vs QUOTA FAILED — decided once per celebration (mostly MET).
+  // QUOTA MET vs QUOTA FAILED, decided once per celebration (mostly MET).
   // Frozen (screenshot) frames force MET for a deterministic, positive preview.
   const quotaMet = frozen ? true : Math.random() < 0.78;
 
@@ -1031,20 +1031,20 @@ function playLethalAnim(done, freezeMs) {
     clearBarFX();
 
     if (t < PH.popIn[1]) {
-      // POP IN — employee bounces up
+      // POP IN, employee bounces up
       const p = pt(t, PH.popIn);
       const cy = spawnCY + (restCY - spawnCY) * easeOutBounce(p);
       drawSprite(aboveCtx, "employee", heroCX, cy, heroSize, 1, false);
     }
     else if (t < PH.idle[1]) {
-      // IDLE — hover + subtle scale pulse
+      // IDLE, hover + subtle scale pulse
       const p = pt(t, PH.idle);
       const cy = restCY + Math.sin(p * Math.PI * 2) * 2;
       const pulse = 1 + Math.sin(p * Math.PI * 2) * 0.06;
       drawSprite(aboveCtx, "employee", heroCX, cy, heroSize * pulse, 1, false);
     }
     else if (t < PH.charge[1]) {
-      // CHARGE — ship-takeoff alarm: red/green warning flash, SHIP LEAVING, shake ramps
+      // CHARGE, ship-takeoff alarm: red/green warning flash, SHIP LEAVING, shake ramps
       const p = pt(t, PH.charge);
       const pulse = (Math.sin(p * Math.PI * 8 - Math.PI/2) + 1) / 2;
       const flash = pulse * (0.1 + p * 0.5);
@@ -1086,7 +1086,7 @@ function playLethalAnim(done, freezeMs) {
       barCtx.fillRect(0, 0, barW, barH);
     }
     else if (t < PH.boom[1]) {
-      // BOOM — giant QUOTA MET/FAILED slams in + scrap-shake
+      // BOOM, giant QUOTA MET/FAILED slams in + scrap-shake
       const p = pt(t, PH.boom);
       if (!boomFired) { seedTakeoff(); boomFired = true; }
       if (!shookScreen) {
@@ -1107,7 +1107,7 @@ function playLethalAnim(done, freezeMs) {
       drawQuotaText(aboveCtx, quotaMet, 0.4 + p*0.6, 1);
     }
     else if (t < PH.smoke[1]) {
-      // SMOKE — dead-employee body tumbles, scrap debris + facility dust drift
+      // SMOKE, dead-employee body tumbles, scrap debris + facility dust drift
       const p = pt(t, PH.smoke);
       updateAndDrawTakeoff(dtF, 1, t);
       // body physics
@@ -1117,7 +1117,7 @@ function playLethalAnim(done, freezeMs) {
       drawQuotaText(aboveCtx, quotaMet, 1, 1 - p*0.15);
     }
     else if (t < PH.fadeEnd[1]) {
-      // FADE — quadratic fade to clean
+      // FADE, quadratic fade to clean
       const p = pt(t, PH.fadeEnd);
       const fade = (1 - p) * (1 - p);
       body.x += body.vx * dtF; body.y += body.vy * dtF; body.vy += 0.10 * dtF;
@@ -1191,7 +1191,7 @@ function playLethalAnim(done, freezeMs) {
   }
 
   if (frozen) {
-    // Synchronous stepping driver — evolves particles up to freezeMs and draws
+    // Synchronous stepping driver, evolves particles up to freezeMs and draws
     // the final frame statically (no rAF), so a plain headless --screenshot
     // reliably captures any celebration phase.
     for (let tt = 0; tt <= freezeMs; tt += 16) frame(t0 + tt);
@@ -1307,7 +1307,7 @@ function connectTikfinity() {
 }
 
 // ============================================================
-// SHOT MODE — line up every sprite for a contact screenshot
+// SHOT MODE, line up every sprite for a contact screenshot
 // ============================================================
 function renderContactSheet() {
   stopIdleLoop();
@@ -1335,8 +1335,8 @@ if (SHOT_MODE === "mobs") {
   startIdleLoop();
 }
 // Screenshot helpers:
-//   ?fire=1            — auto-trigger a live follow after load (visual smoke-test)
-//   ?freeze=<phase>    — render ONE static celebration frame (popin|idle|charge|
+//   ?fire=1, auto-trigger a live follow after load (visual smoke-test)
+//   ?freeze=<phase>, render ONE static celebration frame (popin|idle|charge|
 //                        boom|smoke|fade), reliably captured by plain --screenshot
 if (params.get("fire")) {
   setTimeout(() => handleFollow(params.get("user") || "Employee", ""), 60);
@@ -1347,7 +1347,7 @@ if (params.get("freeze")) {
   const ms = FREEZE_MS[params.get("freeze")] != null ? FREEZE_MS[params.get("freeze")] : 1760;
   playLethalAnim(() => {}, ms);
 }
-// ?signshot=N — static render of The Company quota terminal sign
+// ?signshot=N, static render of The Company quota terminal sign
 if (params.get("signshot")) {
   stopIdleLoop();
   state.totalFollowers = parseInt(params.get("signshot"), 10) || 7;

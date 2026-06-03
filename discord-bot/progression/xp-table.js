@@ -1,6 +1,6 @@
-// Progression — XP grant table.
+// Progression, XP grant table.
 //
-// PROGRESSION-SYSTEM-DESIGN.md §4.2 — the single source of truth for
+// PROGRESSION-SYSTEM-DESIGN.md §4.2, the single source of truth for
 // "how much XP does <event kind> grant?". Hot-swappable from KV
 // (pxp:table singleton) so we can re-tune without a deploy; this
 // module is the embedded fallback when the KV record isn't loaded yet.
@@ -38,7 +38,7 @@ export const XP_TABLE = {
   'hero.levelup':         { xp: 25 },
 
   // ── Clash ────────────────────────────────────────────────────────
-  'clash.raid.played':    { xp:  8,                notes: 'floor — fired even on 0★ losses' },
+  'clash.raid.played':    { xp:  8,                notes: 'floor, fired even on 0★ losses' },
   'clash.raid.won.1':     { xp: 12 },
   'clash.raid.won.2':     { xp: 25 },
   'clash.raid.won.3':     { xp: 50 },
@@ -47,7 +47,7 @@ export const XP_TABLE = {
   'clash.donated':        { xp:  1, dailyCap: 50,  notes: '1 XP per 100 bolts donated, cap 50/day' },
 
   // ── Boltbound ────────────────────────────────────────────────────
-  'cards.match.played':   { xp: 10,                notes: 'floor — fired on every match start' },
+  'cards.match.played':   { xp: 10,                notes: 'floor, fired on every match start' },
   'cards.match.won.npc':  { xp: 15 },
   'cards.match.won.pvp':  { xp: 30 },
   'cards.pack.opened':    { xp:  5 },
@@ -71,7 +71,7 @@ export const XP_TABLE = {
   'pet.tamed':            { xp: 40,                notes: 'once per pet species' },
   'pet.fed':              { xp:  3, dailyCap: 3 },
 
-  // ── Achievements (variable XP — see catalog entry's xpReward) ────
+  // ── Achievements (variable XP, see catalog entry's xpReward) ────
   'achievement.unlocked': { xp: 50,                notes: 'default; overridden by catalog entry' },
 
   // ── Tournament ────────────────────────────────────────────────────
@@ -94,13 +94,13 @@ export async function loadXpTable(env, nowUtc = Date.now()) {
   let kv = null;
   try {
     kv = await env.LOADOUT_BOLTS.get('pxp:table', { type: 'json' });
-  } catch { /* ignore — fall through to embedded */ }
+  } catch { /* ignore, fall through to embedded */ }
   _tableCache = { ...XP_TABLE, ...(kv || {}) };
   _tableCachedAtUtc = nowUtc;
   return _tableCache;
 }
 
-// For tests + cron — bust the cache.
+// For tests + cron, bust the cache.
 export function _resetXpTableCache() { _tableCache = null; _tableCachedAtUtc = 0; }
 
 // Convenience.

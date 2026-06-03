@@ -8,8 +8,7 @@
 //   listEarned(env, guildId, userId)         -> [{ key, earned_at }, ...]
 //   listAll()                                -> CATALOG (for /passport progress view)
 //
-// Adding a new achievement: append to CATALOG. No DB migration needed —
-// the achievements table is keyed by (guild, user, key) string.
+// Adding a new achievement: append to CATALOG. No DB migration needed, // the achievements table is keyed by (guild, user, key) string.
 
 import { discordFetch } from './util.js';
 
@@ -88,7 +87,7 @@ export async function bump(env, guildId, userId, key, delta = 1) {
   const ach = CATALOG_BY_KEY[key];
   if (!ach) return { progress: 0, threshold: 0, newly_earned: false, achievement: null };
 
-  // UPSERT — track progress even before unlock.
+  // UPSERT, track progress even before unlock.
   await env.DB.prepare(
     `INSERT INTO achievements (guild_id, user_id, key, progress)
        VALUES (?, ?, ?, ?)
@@ -146,7 +145,7 @@ export async function bumpAndAnnounce(env, guildId, userId, key, delta = 1) {
     try {
       const { postChannelMessage } = await import('./util.js');
       await postChannelMessage(env, env.ENGAGEMENT_CHANNEL_ID, {
-        content: `🏆 <@${userId}> earned **${r.achievement.icon} ${r.achievement.name}** — ${r.achievement.tagline}`,
+        content: `🏆 <@${userId}> earned **${r.achievement.icon} ${r.achievement.name}**, ${r.achievement.tagline}`,
         allowed_mentions: { users: [userId] }
       });
     } catch (e) {

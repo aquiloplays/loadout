@@ -1,4 +1,4 @@
-// Character system — paper-doll render endpoint + sprite lookup +
+// Character system, paper-doll render endpoint + sprite lookup +
 // /character slash command dispatch.
 //
 // One source of truth for "given a hero + their pet, return the
@@ -23,7 +23,7 @@ import {
 import { resolveEquippedArt, resolveEquippedTint } from './character-composite.js';
 import { getWallet, spend, earn } from './wallet.js';
 
-// Reset price — pay this many Bolts to unlock a locked character so
+// Reset price, pay this many Bolts to unlock a locked character so
 // the player can re-pick class + customisation.
 export const CHARACTER_RESET_COST = 5000;
 
@@ -31,17 +31,17 @@ export const CHARACTER_RESET_COST = 5000;
 //
 // May 2026 product call: we scrapped the procedurally-rendered visible
 // character. Players still HAVE a character (class, stats, lock, etc.)
-// but the *picture* is now whatever they upload — a screenshot, a
+// but the *picture* is now whatever they upload, a screenshot, a
 // drawing, a gif of their hero, whatever. The pixel-art compositor
 // stays alive as the fallback render so back-compat surfaces (Discord
 // embed, Twitch panel, dungeon overlay) keep working when no avatar
 // is set.
 //
 // Storage: KV value = raw bytes, metadata = { contentType, size,
-// uploadedAt, guildId }. No R2 binding in wrangler.toml — KV handles
+// uploadedAt, guildId }. No R2 binding in wrangler.toml, KV handles
 // 25MB values fine and we cap at 4MB anyway.
 //
-// Key shape — keyed by Discord userId (NOT guild-scoped) so the
+// Key shape, keyed by Discord userId (NOT guild-scoped) so the
 // avatar follows the user across guilds. A single account = a single
 // uploaded picture. Cross-guild reuse mirrors how Discord itself
 // scopes avatars.
@@ -70,7 +70,7 @@ function decodeBase64(s) {
   if (!raw) return null;
   const m = raw.match(/^data:[^;]+;base64,(.*)$/);
   if (m) raw = m[1];
-  // Defensive — atob will throw on non-base64 input.
+  // Defensive, atob will throw on non-base64 input.
   try {
     const bin = atob(raw);
     const bytes = new Uint8Array(bin.length);
@@ -89,7 +89,7 @@ function avatarUrl(env, userId, uploadedAt) {
 
 // One-shot metadata lookup so getCharacterLookWeb can stamp
 // avatarUrl without pulling the bytes. `.list({ prefix })` would be
-// wasteful for a single key — getWithMetadata is the right primitive,
+// wasteful for a single key, getWithMetadata is the right primitive,
 // just discard the value here.
 async function getAvatarMeta(env, userId) {
   if (!env || !env.LOADOUT_BOLTS || !userId) return null;
@@ -111,7 +111,7 @@ export async function getAvatarUrl(env, userId) {
 
 // PUT /web/character/avatar handler core. Validates contentType +
 // decoded byte length, writes value + metadata, returns the public
-// URL. Intentionally NOT subject to hero.locked — see the comment on
+// URL. Intentionally NOT subject to hero.locked, see the comment on
 // `clearAvatarWeb` for the rationale.
 //
 // Returns:
@@ -161,12 +161,12 @@ export async function putAvatarWeb(env, userId, contentType, dataBase64, guildId
   };
 }
 
-// CLEAR — delete the user's avatar. Like putAvatarWeb, NOT gated on
+// CLEAR, delete the user's avatar. Like putAvatarWeb, NOT gated on
 // hero.locked. The lock is a customization-of-the-procedural-figure
 // guard; the upload is an unrelated cosmetic slot the player owns
 // outright. A locked player can still swap or remove their picture.
 //
-// Idempotent — clearing a missing avatar still returns ok:true with
+// Idempotent, clearing a missing avatar still returns ok:true with
 // avatarUrl:null so the UI's "Remove" button works the same either way.
 export async function clearAvatarWeb(env, userId) {
   if (!env || !env.LOADOUT_BOLTS) {
@@ -179,13 +179,13 @@ export async function clearAvatarWeb(env, userId) {
   return { ok: true, avatarUrl: null };
 }
 
-// Public read — GET /character/avatar/<userId>(.bin)
+// Public read, GET /character/avatar/<userId>(.bin)
 // Streams the stored bytes back with the right Content-Type pulled
 // from KV metadata. Returns 404 if no avatar is stored. Cache pinned
 // to ?v=<uploadedAt> so the URL changes on every swap.
 export async function handleCharacterAvatar(req, env, path) {
   // Path shape: /character/avatar/<userId> with optional .bin /.png/etc
-  // tail (we ignore the extension — Content-Type comes from metadata).
+  // tail (we ignore the extension, Content-Type comes from metadata).
   const m = path.match(/^\/character\/avatar\/(\d{5,25})(?:\.[A-Za-z0-9]+)?$/);
   if (!m) return new Response('not-found', { status: 404 });
   const userId = m[1];
@@ -208,7 +208,7 @@ export async function handleCharacterAvatar(req, env, path) {
     headers: {
       'content-type': contentType,
       // ?v=<uploadedAt> changes on every swap, so a 7-day immutable
-      // cache is safe — old URLs naturally expire when the player
+      // cache is safe, old URLs naturally expire when the player
       // uploads a fresh image.
       'cache-control': 'public, max-age=604800, immutable',
       'access-control-allow-origin': '*',
@@ -223,7 +223,7 @@ export async function handleCharacterAvatar(req, env, path) {
 // Pages at https://aquilo.gg/sprites/...
 //
 // The widget.aquilo.gg mirror was the original plan but the Pages
-// project for that hostname never got created — until/unless it does,
+// project for that hostname never got created, until/unless it does,
 // the canonical source is aquilo.gg directly. Override via the
 // SPRITE_BASE_URL env var if you want to test against a different
 // origin (e.g. a Pages preview deploy).
@@ -233,7 +233,7 @@ function spriteBase(env) {
 
 // In-memory cache. Decoded layers stay in this map until the Worker
 // isolate cycles. Keys are URLs; values are decoded image objects
-// `{ width, height, pixels }`. ~20 KB per 64×80 sprite — ~10 MB for
+// `{ width, height, pixels }`. ~20 KB per 64×80 sprite, ~10 MB for
 // the full 500-sprite roster, well under the 128 MB isolate budget.
 const SPRITE_CACHE = new Map();
 
@@ -241,18 +241,18 @@ const SPRITE_CACHE = new Map();
 // fetch so we can bypass the Cloudflare Pages edge cache (and the
 // Worker's in-memory SPRITE_CACHE, which keys on the full URL) when
 // a new generator pass ships. Also baked into renderPreviewUrl so
-// the *composed* /character/render URL changes too — that busts the
+// the *composed* /character/render URL changes too, that busts the
 // downstream layer (Discord embed URL cache, browser <img> cache,
 // any CDN that fronts the worker). The aquilo-site repo still has
 // to be manually re-vendored from aquilo-gg/sprites/ for the new
-// files to exist on the Pages origin — this version stamp only
+// files to exist on the Pages origin, this version stamp only
 // handles caches once they're up.
 //
 // Bump history:
-//   v2-rpg      I1 (2026-05) — retro-RPG body sprite rework
-//   v3-figure   L1 (2026-05) — game-icon figure rework + characterful
+//   v2-rpg      I1 (2026-05), retro-RPG body sprite rework
+//   v3-figure   L1 (2026-05), game-icon figure rework + characterful
 //                              pets + retuned gear paper-doll anchors
-//   v4-figure   L2 (2026-05) — deep figure rework after Clay flagged
+//   v4-figure   L2 (2026-05), deep figure rework after Clay flagged
 //                              v3 as still janky: continuous-flow arms
 //                              with bicep bulge (no segmented joints),
 //                              wider neck with trapezius shading,
@@ -266,7 +266,7 @@ const SPRITE_CACHE = new Map();
 //                              longer a plain cone), redesigned hood
 //                              that drapes around the face instead of
 //                              sealing it shut.
-//   v5-figure   L3 (2026-05) — full proportion + form rebuild after
+//   v5-figure   L3 (2026-05), full proportion + form rebuild after
 //                              Clay flagged L2 as still bottom-heavy
 //                              with a head pasted on. New deliberate
 //                              4-heads-tall ratio (HEAD_R 28→18,
@@ -285,7 +285,7 @@ const SPRITE_CACHE = new Map();
 //                              to slim side strands, default tunic
 //                              with visible short sleeves so it reads
 //                              as a tunic not a tank top.
-//   v6-arms     L3+ (2026-05) — targeted ARMS-only fix after Clay
+//   v6-arms     L3+ (2026-05), targeted ARMS-only fix after Clay
 //                              flagged L3 arms as over-corrected:
 //                              too long (hanging to mid-thigh), too
 //                              bulky at shoulder, dramatic carrot
@@ -297,9 +297,9 @@ const SPRITE_CACHE = new Map();
 //                              armWristW 4→5 (gentler taper, ~75 %
 //                              not ~35 %), HAND_R 7→5 (proportional
 //                              to wrist, ~50 % wider). Removed the
-//                              bicep bulge Bezier — arms run nearly
+//                              bicep bulge Bezier, arms run nearly
 //                              straight with subtle taper.
-//   v7-polish   L4 (2026-05) — polish pass: more expressive eyes
+//   v7-polish   L4 (2026-05), polish pass: more expressive eyes
 //                              (full iris + inner ring + double
 //                              gloss + lower lid line), friendly
 //                              mouth with corner upturns + lower-lip
@@ -310,7 +310,7 @@ const SPRITE_CACHE = new Map();
 //                              (light side / shadow side), tidier
 //                              curly-afro silhouette that sits on
 //                              the head rather than floating above.
-//   v8-layers   L5 (2026-05) — layering framework fix after Clay
+//   v8-layers   L5 (2026-05), layering framework fix after Clay
 //                              flagged the composite as "stacked
 //                              stickers" with legs in front of tunic
 //                              and weapons floating beside hands:
@@ -324,11 +324,11 @@ const SPRITE_CACHE = new Map();
 //                              layer at z=79 re-paints the hand on
 //                              top of the weapon so the figure
 //                              visibly grips it. Framework remains
-//                              fully generic — every gear item in
+//                              fully generic, every gear item in
 //                              every slot composes on any body type.
 const SPRITE_ASSET_VERSION = 'v8-layers';
 
-// Canvas size — pixel-perfect compose, all layers share these dims.
+// Canvas size, pixel-perfect compose, all layers share these dims.
 // Glossy bar (2026-05 art campaign, see tools/build-character-glossy.mjs
 // + tools/glossy-art-kit.mjs) replaces the retired 64×80 pixel
 // pipeline with an HD 128×160 figure canvas. Every layer the
@@ -345,7 +345,7 @@ async function fetchSprite(env, relPath) {
   // too so a deploy bumps the in-isolate decode cache automatically.
   const url = baseUrl + '?av=' + encodeURIComponent(SPRITE_ASSET_VERSION);
   if (SPRITE_CACHE.has(url)) return SPRITE_CACHE.get(url);
-  // 5-min CF cache (was 1h) — once the aquilo-site mirror updates,
+  // 5-min CF cache (was 1h), once the aquilo-site mirror updates,
   // a stale layer cycles within minutes instead of an hour.
   const res = await fetch(url, { cf: { cacheTtl: 300 } });
   if (!res.ok) return null;
@@ -363,7 +363,7 @@ async function fetchSprite(env, relPath) {
 // `{ relPath, paletteMap? }` entries that the compositor fetches +
 // composes back-to-front.
 //
-// Z-ORDER (L5 — fixed so the figure reads as ONE character, not
+// Z-ORDER (L5, fixed so the figure reads as ONE character, not
 // stacked stickers). Each slot describes WHY that index, not just
 // what:
 //
@@ -371,7 +371,7 @@ async function fetchSprite(env, relPath) {
 //   z=15 pet             companion lower-right, behind the body
 //   z=20 body            figure base (skin: torso + arms + legs)
 //   z=22 default-trousers   bare-legs cover; leg gear paints over
-//   z=30 legs gear       tassets / pants / greaves — covers trousers
+//   z=30 legs gear       tassets / pants / greaves, covers trousers
 //   z=33 default-tunic   tunic skirt covers TOP of legs gear so the
 //                        skirt visibly drapes over the legs (FIX for
 //                        Clay's "legs render in front of tunic" bug);
@@ -381,14 +381,14 @@ async function fetchSprite(env, relPath) {
 //   z=45 front-trinket   amulet / pendant over chest
 //   z=60 hair            on top of head
 //   z=65 face overlay    eyes + accent on the head
-//   z=70 head gear       helmet / hood — covers hair
+//   z=70 head gear       helmet / hood, covers hair
 //   z=78 weapon          painted BEFORE the hand-overlay so the
 //                        hand visibly grips the weapon at z=79
 //   z=79 hand-overlay    re-paints the right hand on top of the
-//                        weapon grip — "held in hand", not "next to"
+//                        weapon grip, "held in hand", not "next to"
 //   z=90 fx              legendary glow particles on top
 //
-// Slots without a sprite are skipped — no placeholder. The body
+// Slots without a sprite are skipped, no placeholder. The body
 // always renders; everything else is optional.
 async function resolveLayers(env, hero, opts) {
   const layers = [];
@@ -407,7 +407,7 @@ async function resolveLayers(env, hero, opts) {
   // Glossy gear filename pattern: <slot>-<rarity>-<snake-name>.
   // Items in the bag carry slot + rarity + name already; if a
   // catalogue row has an explicit spriteId we honour that (it
-  // overrides the pattern — used by tests + future curated drops).
+  // overrides the pattern, used by tests + future curated drops).
   function gearSafeId(it) {
     if (!it) return null;
     if (it.spriteId) return it.spriteId;
@@ -417,7 +417,7 @@ async function resolveLayers(env, hero, opts) {
   }
   const itemSlot = (slot) => inv[eq[slot]];
 
-  // z=10 — back accessory (trinket flagged with back-cape semantics)
+  // z=10, back accessory (trinket flagged with back-cape semantics)
   const trinket = itemSlot('trinket');
   const trinketSafe = gearSafeId(trinket);
   const isBackTrinket = trinketSafe && /(^|-)(cape|cloak|wings?|mantle|drape|veil|feather)(-|$)/.test(trinketSafe);
@@ -425,36 +425,36 @@ async function resolveLayers(env, hero, opts) {
     layers.push({ rel: `gear/figure/trinket/${trinketSafe}.png` });
   }
 
-  // z=20 — body (glossy 128×160)
+  // z=20, body (glossy 128×160)
   layers.push({ rel: `figure/glossy/body-${hero.custom.bodyType || 'slim'}-${hero.custom.skinTone || 'fair'}.png` });
 
-  // z=22 — DEFAULT TROUSERS. Bare-legs cover; gets painted over by
+  // z=22, DEFAULT TROUSERS. Bare-legs cover; gets painted over by
   // leg gear (z=30) when equipped. Optional so an older mirror that
   // only has the legacy default-clothing.png still composes.
   layers.push({ rel: 'figure/glossy/default-trousers.png', optional: true });
 
-  // z=30 — legs gear (paints over default trousers)
+  // z=30, legs gear (paints over default trousers)
   {
     const it = itemSlot('legs');
     const sid = gearSafeId(it);
     if (sid) layers.push({ rel: `gear/figure/legs/${sid}.png` });
   }
 
-  // z=33 — DEFAULT TUNIC (bodice + sleeves + belt + skirt). Drawn
+  // z=33, DEFAULT TUNIC (bodice + sleeves + belt + skirt). Drawn
   // AFTER leg gear so the tunic SKIRT visibly covers the top of any
   // equipped leg gear. Chest gear (z=40) still covers the bodice.
   // Optional so a stale mirror falls through to the legacy single
   // default-clothing.png at z=25.
   layers.push({ rel: 'figure/glossy/default-tunic.png', optional: true });
 
-  // z=35 — boots
+  // z=35, boots
   {
     const it = itemSlot('boots');
     const sid = gearSafeId(it);
     if (sid) layers.push({ rel: `gear/figure/boots/${sid}.png` });
   }
 
-  // z=40 — chest gear (cuirass / robe / coat). Painted over the
+  // z=40, chest gear (cuirass / robe / coat). Painted over the
   // tunic bodice; leaves the skirt at z=33 visible below.
   {
     const it = itemSlot('chest');
@@ -462,13 +462,12 @@ async function resolveLayers(env, hero, opts) {
     if (sid) layers.push({ rel: `gear/figure/chest/${sid}.png` });
   }
 
-  // z=45 — front trinket (non-back)
+  // z=45, front trinket (non-back)
   if (trinketSafe && !isBackTrinket) {
     layers.push({ rel: `gear/figure/trinket/${trinketSafe}.png` });
   }
 
-  // z=60 — hair. Glossy ships per-(style,colour) variants —
-  // gradient fills don't survive paletteSwap cleanly, so we bake
+  // z=60, hair. Glossy ships per-(style,colour) variants, // gradient fills don't survive paletteSwap cleanly, so we bake
   // the colour into the file instead of swapping at render time.
   if (hero.custom.hairStyle && hero.custom.hairStyle !== 'bald') {
     layers.push({
@@ -476,7 +475,7 @@ async function resolveLayers(env, hero, opts) {
     });
   }
 
-  // z=65 — face overlay (eye colour + accent)
+  // z=65, face overlay (eye colour + accent)
   if (hero.custom.eyeColor) {
     layers.push({ rel: `figure/glossy/eyes-${hero.custom.eyeColor}.png` });
   }
@@ -484,20 +483,20 @@ async function resolveLayers(env, hero, opts) {
     layers.push({ rel: `figure/glossy/accent-${hero.custom.accent}.png` });
   }
 
-  // z=70 — head gear (over hair)
+  // z=70, head gear (over hair)
   const head = itemSlot('head');
   const headSafe = gearSafeId(head);
   if (headSafe) layers.push({ rel: `gear/figure/head/${headSafe}.png` });
 
-  // z=78 — weapon, painted BEFORE the hand-overlay so the hand
+  // z=78, weapon, painted BEFORE the hand-overlay so the hand
   // appears to grip the weapon (not float beside it).
   const weapon = itemSlot('weapon');
   const weaponSafe = gearSafeId(weapon);
   if (weaponSafe) layers.push({ rel: `gear/figure/weapon/${weaponSafe}.png` });
 
-  // z=79 — HAND OVERLAY. Re-paints the right hand on top of the
+  // z=79, HAND OVERLAY. Re-paints the right hand on top of the
   // weapon so the figure visibly grips the weapon. Skin-tone matches
-  // the body. Optional — when the mirror is mid-vendor and the
+  // the body. Optional, when the mirror is mid-vendor and the
   // hand-overlay PNG doesn't exist yet, weapon still renders fine.
   if (weaponSafe) {
     layers.push({
@@ -506,7 +505,7 @@ async function resolveLayers(env, hero, opts) {
     });
   }
 
-  // z=90 — fx (legendary halo overlays). One per-slot halo at
+  // z=90, fx (legendary halo overlays). One per-slot halo at
   // gear/figure/fx/<slot>.png, painted ABOVE the equipped gear so
   // the glow reads as overlay magic. Dedup'd by slot so a hero
   // wearing two legendaries in the same slot (impossible) doesn't
@@ -528,8 +527,8 @@ async function resolveLayers(env, hero, opts) {
 // Hair sprites are authored at the "brown" reference palette
 // (matches build-sprites.ps1 $HAIR_COLOURS.brown).
 //
-// HD bar (Phase-4) hair uses 5 tone steps — deep / shadow / base /
-// high / top — to support proper upper-left-light shading on the
+// HD bar (Phase-4) hair uses 5 tone steps, deep / shadow / base /
+// high / top, to support proper upper-left-light shading on the
 // larger 64×80 canvas. Old 3-tone sprites no longer ship; if you
 // ever resurrect them, just leave the deep/top entries unmatched
 // (paletteSwap silently skips pixels that don't match any from).
@@ -589,7 +588,7 @@ export async function handleCharacterRender(req, env, path) {
 
   // Query-string look override.
   //
-  // Without this the preview can only show the LAST-SAVED look — the
+  // Without this the preview can only show the LAST-SAVED look, the
   // /play character editor would have to save after every pick to see
   // a change. We let each axis be overridden via ?bodyType=, ?skinTone=,
   // ... and apply them in-memory before resolveLayers. Each axis is
@@ -598,7 +597,7 @@ export async function handleCharacterRender(req, env, path) {
   // here would break the live preview's <img> in flight).
   //
   // Caller is responsible for cache-busting (?v= already changes when
-  // any axis flips — we don't enforce that, but the site pins it).
+  // any axis flips, we don't enforce that, but the site pins it).
   const lookKeys = ['bodyType', 'skinTone', 'hairStyle', 'hairColor', 'eyeColor', 'accent'];
   let looksOverridden = false;
   for (const k of lookKeys) {
@@ -613,7 +612,7 @@ export async function handleCharacterRender(req, env, path) {
   const layerSpecs = await resolveLayers(env, hero, opts);
   // Seed a canvas-dim transparent layer FIRST so png-codec compose's
   // "take dims from layers[0]" can't be hijacked by a rogue layer
-  // (e.g. a vendor-mid asset still at legacy 64×80) — the seed
+  // (e.g. a vendor-mid asset still at legacy 64×80), the seed
   // pins the output to SPRITE_W × SPRITE_H and the resilient
   // compositor silently drops anything else that doesn't match.
   const layers = [blank(SPRITE_W, SPRITE_H)];
@@ -628,7 +627,7 @@ export async function handleCharacterRender(req, env, path) {
       continue;
     }
     if (spec.paletteFor === 'hair') {
-      // Defensive — paletteSwap requires matching pixel layout; if
+      // Defensive, paletteSwap requires matching pixel layout; if
       // the layer has unexpected dims (vendor accident) we let the
       // compositor's resilience handle the skip.
       try { layers.push(paletteSwap(img, hairPaletteMap(spec.colourKey))); }
@@ -656,7 +655,7 @@ function blank(width, height) {
   return { width, height, pixels: new Uint8Array(width * height * 4) };
 }
 
-// ── /character slash command — Discord ephemeral editor ──────────
+// ── /character slash command, Discord ephemeral editor ──────────
 //
 // Five select-menus + Save / Random / Cancel buttons + a live
 // preview embed image. The preview is just the render endpoint URL
@@ -697,14 +696,14 @@ export async function preferredHeroImageUrl(env, guildId, userId, version) {
   return renderPreviewUrl(env, guildId, userId, version);
 }
 
-// Build the editor message — selects + preview + buttons.
+// Build the editor message, selects + preview + buttons.
 async function buildEditor(env, guildId, userId) {
   const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
   const look = hero.custom;
   // Prefer the user-uploaded avatar if set; the procedural render
   // stays around as a fallback (and as what the per-axis selects
   // below actually edit). May 2026: Clay scrapped the visible-
-  // character UI on the site — the editor still works for users who
+  // character UI on the site, the editor still works for users who
   // haven't uploaded an avatar yet, and the selects continue to drive
   // the procedural render at /character/render/<g>/<u>.png.
   const preview = await preferredHeroImageUrl(env, guildId, userId, hero.lookVersion || 0);
@@ -755,7 +754,7 @@ export async function handleCharacterCommand(env, data) {
   return { type: RESP_CHAT, data: await buildEditor(env, guildId, userId) };
 }
 
-// Discord component handler — routes all `character:*` custom_ids.
+// Discord component handler, routes all `character:*` custom_ids.
 export async function handleCharacterComponent(env, data) {
   const cid = data.data?.custom_id || '';
   const guildId = data.guild_id;
@@ -777,7 +776,7 @@ export async function handleCharacterComponent(env, data) {
     return { type: RESP_UPDATE, data: await buildEditor(env, guildId, userId) };
   }
   if (cid === 'character:save') {
-    // No-op — every select already saved + bumped lookVersion.
+    // No-op, every select already saved + bumped lookVersion.
     return ephemeral('💾 Saved.');
   }
   if (cid === 'character:eyes') {
@@ -845,7 +844,7 @@ async function buildEyesEditor(env, guildId, userId) {
   };
 }
 
-// Persistence helpers — write through to the existing hero record.
+// Persistence helpers, write through to the existing hero record.
 // We load via the same shared loader to inherit the DLL-merge so
 // editing a look doesn't accidentally wipe DLL-canonical stats.
 async function updateLookField(env, guildId, userId, field, value, bumpVersion) {
@@ -876,13 +875,13 @@ async function randomiseLook(env, guildId, userId) {
 //
 // Read + save the look block for the aquilo.gg /character page. Same
 // hero record, same Phase-0 backfill, same lookVersion bump as the
-// Discord editor — so a save from the web bumps the cache-buster
+// Discord editor, so a save from the web bumps the cache-buster
 // pinned in render URLs everywhere (Discord embed, Twitch panel,
 // site preview) and the next embed re-fetches.
 
 const LOOK_AXES = ['bodyType', 'skinTone', 'hairStyle', 'hairColor', 'eyeColor', 'accent', 'sex', 'facial'];
 
-// Hair colour swatches for the web picker — hex strings derived from
+// Hair colour swatches for the web picker, hex strings derived from
 // the base (mid-tone) colour in HAIR_COLOURS_RGB above. Keeping the
 // derivation here so it stays in lockstep with the actual palette
 // swap the renderer uses.
@@ -898,7 +897,7 @@ function buildHairSwatches() {
   return out;
 }
 
-// Build the render URL the way the Discord editor does — pinned to
+// Build the render URL the way the Discord editor does, pinned to
 // hero.lookVersion so the web UI's <img> tag swaps automatically on
 // save.
 function buildRenderUrl(env, guildId, userId, version) {
@@ -906,7 +905,7 @@ function buildRenderUrl(env, guildId, userId, version) {
 }
 
 // GET: returns the player's current look + the full option catalogue.
-// The site uses this on /character page load. Always succeeds — Phase
+// The site uses this on /character page load. Always succeeds, Phase
 // 0 backfill guarantees a complete look even for first-time visitors.
 //
 // Also carries class state so the web editor can render the class
@@ -940,7 +939,7 @@ export async function getCharacterLookWeb(env, guildId, userId) {
   });
   // May 2026: avatarUrl is the new canonical hero picture (user-
   // uploaded). `look` + `renderUrl` stay in the payload for back-
-  // compat — the site is dropping the visible-character UI but the
+  // compat, the site is dropping the visible-character UI but the
   // procedural render remains as a fallback for Discord embeds.
   const upUrl = await getAvatarUrl(env, userId);
   return {
@@ -968,20 +967,20 @@ export async function getCharacterLookWeb(env, guildId, userId) {
     equipped: hero.equipped || {},
     equippedArt: resolveEquippedArt(hero),
     // Per-slot rarity tint (hex) for the site paper-doll's CSS multiply
-    // sheen — common gear is absent (no tint). A2.
+    // sheen, common gear is absent (no tint). A2.
     equippedTint: resolveEquippedTint(hero),
     // Full paper-doll customization (site HeroCustomization shape), or
-    // null for legacy heroes — the site then synthesizes a default from
+    // null for legacy heroes, the site then synthesizes a default from
     // className. A3: this is what finally renders per-user paper-dolls.
     customization: getCustomizationForWeb(hero),
     classes,
-    // Lock state — true once the player has committed via
+    // Lock state, true once the player has committed via
     // saveCharacterLookWeb. While locked, /web/character/save and
     // /web/character/class both reject with `error: 'character-locked'`;
     // the only path back to an editable character is paying
     // CHARACTER_RESET_COST via /web/character/reset.
     //
-    // NOTE: the lock does NOT cover the uploaded avatar — a locked
+    // NOTE: the lock does NOT cover the uploaded avatar, a locked
     // hero can still PUT /web/character/avatar to swap the picture.
     locked: !!hero.locked,
     resetCost: CHARACTER_RESET_COST,
@@ -991,7 +990,7 @@ export async function getCharacterLookWeb(env, guildId, userId) {
 // SAVE CLASS: set the hero's class. On first-time selection (when
 // hero.starterGranted is still false) the class's starter-gear loadout
 // is minted into the hero's bag. Subsequent class changes only flip
-// className + HP — no re-granting.
+// className + HP, no re-granting.
 //
 // Lock semantics: once hero.locked is true (set by the first
 // saveCharacterLookWeb), this route rejects with `character-locked`.
@@ -1021,7 +1020,7 @@ export async function applyClassWeb(env, guildId, userId, className) {
 
 // SAVE: validates each axis against CHARACTER_LOOK_OPTIONS, then
 // writes through. Body shape: { look: { bodyType, skinTone, ... } }.
-// Partial updates are allowed — unspecified fields keep their current
+// Partial updates are allowed, unspecified fields keep their current
 // value. Unknown fields are ignored; bad values reject the whole save
 // with `{ ok: false, error: 'bad-look', field, value }` so the UI
 // can highlight the offending picker.
@@ -1030,7 +1029,7 @@ export async function applyClassWeb(env, guildId, userId, className) {
 // unlocked hero) sets hero.locked = true. From that point on every
 // /web/character/save returns `error: 'character-locked'` until the
 // player pays CHARACTER_RESET_COST via /web/character/reset. The
-// per-axis Phase-0 backfill is unaffected — fresh visitors get a
+// per-axis Phase-0 backfill is unaffected, fresh visitors get a
 // deterministic default look on GET, and the first save commits it
 // (locking) regardless of whether they actually changed anything.
 export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
@@ -1046,7 +1045,7 @@ export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
       return { ok: false, error: 'bad-look', field: axis, value: String(v).slice(0, 32) };
     }
   }
-  // Phase A.5 — background lives outside CHARACTER_LOOK_OPTIONS
+  // Phase A.5, background lives outside CHARACTER_LOOK_OPTIONS
   // because the catalogue is mutable and Patreon-gated; validate via
   // the gating function. Server-side gate; the client can't bypass
   // it by spoofing the patreon_only flag.
@@ -1096,14 +1095,14 @@ export async function saveCharacterLookWeb(env, guildId, userId, lookPatch) {
 //
 // SEPARATE from the legacy `hero.custom` glossy-figure look above.
 // The site CharacterEditor + HeroComposite paper-doll renderer use a
-// different (newer) vocabulary — skin tones fair/light/tan/brown/dark/
+// different (newer) vocabulary, skin tones fair/light/tan/brown/dark/
 // deepest, hair styles short/buzz/long/..., aquilo-palette hair colors,
-// etc. — and stores the whole HeroCustomization object verbatim on
+// etc., and stores the whole HeroCustomization object verbatim on
 // `hero.customization`. The two coexist: `hero.custom` still drives the
 // Discord embed's procedural render; `hero.customization` drives the
 // site's layered sprite stack (body+hair+eyes+facial+gear).
 //
-// Mirrors aquilo-site/src/lib/heroCustomization.ts — keep in sync.
+// Mirrors aquilo-site/src/lib/heroCustomization.ts, keep in sync.
 const PAPERDOLL_OPTIONS = {
   sex:       ['male', 'female'],
   classKey:  ['warrior', 'mage', 'rogue', 'ranger', 'healer'],
@@ -1125,8 +1124,7 @@ const PAPERDOLL_DEFAULT = {
 
 // Coerce an arbitrary client payload into a complete, valid
 // HeroCustomization. Unknown axis values fall back to the previous
-// stored value (or the default) rather than rejecting the whole save —
-// a single odd field must never drop the rest of a debounced patch.
+// stored value (or the default) rather than rejecting the whole save, // a single odd field must never drop the rest of a debounced patch.
 // `background` is validated separately (Patreon-gated catalogue) by the
 // caller, so it's passed through untouched here.
 function sanitizeCustomization(input, prev) {
@@ -1155,7 +1153,7 @@ function sanitizeCustomization(input, prev) {
 }
 
 // SAVE: persist the site paper-doll customization. Independent of the
-// lock flow — a locked character can still re-style their look (only
+// lock flow, a locked character can still re-style their look (only
 // class is lock-gated, handled by applyClassWeb). Bumps lookVersion so
 // every ?v=-pinned render URL refreshes. `background` is gate-validated
 // like the legacy look save.
@@ -1203,7 +1201,7 @@ function getCustomizationForWeb(hero) {
 // RESET: spend CHARACTER_RESET_COST Bolts to unlock a locked
 // character so the player can re-pick class + customisation.
 //
-// Atomicity model — KV is eventually-consistent so we sequence
+// Atomicity model, KV is eventually-consistent so we sequence
 // carefully and compensate on failure:
 //   1. Pre-check: load hero. If not locked → return `not-locked` (no
 //      charge). If wallet < cost → return `insufficient-bolts` (no
@@ -1213,7 +1211,7 @@ function getCustomizationForWeb(hero) {
 //   4. If step 3 throws, refund via earn() so the player isn't left
 //      with a charged wallet AND a still-locked character.
 //
-// Look + class are preserved across reset — the player keeps their
+// Look + class are preserved across reset, the player keeps their
 // existing picks, but can now change them. Re-picking + saving will
 // re-lock.
 //
@@ -1267,7 +1265,7 @@ export async function resetCharacterWeb(env, guildId, userId) {
     hero.lastUpdatedUtc = new Date().toISOString();
     await env.LOADOUT_BOLTS.put(`d:hero:${guildId}:${userId}`, JSON.stringify(hero));
   } catch (err) {
-    // Compensate — refund the spend so the player isn't charged for a
+    // Compensate, refund the spend so the player isn't charged for a
     // reset that didn't land.
     await earn(env, guildId, userId, CHARACTER_RESET_COST, 'character-reset-refund');
     const after = await getWallet(env, guildId, userId);
@@ -1301,7 +1299,7 @@ function walletSnap(w) {
   };
 }
 
-// PROGRESSION (P2) — hero stats card. Reads d:hero:<guildId>:<userId>
+// PROGRESSION (P2), hero stats card. Reads d:hero:<guildId>:<userId>
 // across every guild (account-wide hero view). Picks the highest-level
 // hero as the headline.
 export async function getStatsFor(env, userId, _guildId = null) {

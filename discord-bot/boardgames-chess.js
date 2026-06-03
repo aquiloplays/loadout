@@ -11,7 +11,7 @@
 //   c=0 = file a (left), c=7 = file h (right)
 //   index i = r * 8 + c
 //
-// Cell encoding — sign for color, magnitude for type:
+// Cell encoding, sign for color, magnitude for type:
 //   0 = empty
 //   +1 P  +2 N  +3 B  +4 R  +5 Q  +6 K   (white)
 //   -1..-6 same for black
@@ -147,7 +147,7 @@ export const adapter = {
 
 // ── Pseudo-legal generator ───────────────────────────────────────────
 // Generates moves that respect piece movement and don't capture own
-// pieces, but doesn't filter "leaves king in check" — that's the
+// pieces, but doesn't filter "leaves king in check", that's the
 // caller's job.
 
 function generatePseudo(state, color) {
@@ -203,7 +203,7 @@ function addPawn(out, state, from, color) {
         out.push({ from, to: ti, kind: 'capture' });
       }
     }
-    // En passant — target square is the empty square the enemy pawn
+    // En passant, target square is the empty square the enemy pawn
     // skipped over (state.enPassant).
     if (state.enPassant !== null && ti === state.enPassant) {
       out.push({ from, to: ti, kind: 'ep' });
@@ -389,7 +389,7 @@ function squareAttacked(board, i, color) {
 
   // Pawn attacks (note: enemy pawns attack from THEIR direction,
   // which means they sit one rank in the direction THEY move FROM
-  // — easier to enumerate by the squares from which an enemy pawn
+  //, easier to enumerate by the squares from which an enemy pawn
   // could capture INTO i).
   const pDir = enemy === 'w' ? -1 : 1;
   for (const dc of [-1, 1]) {
@@ -441,7 +441,7 @@ function squareAttacked(board, i, color) {
       nr += dr; nc += dc;
     }
   }
-  // Mark `color` as used — silence linters.
+  // Mark `color` as used, silence linters.
   void color; void sideOf;
   return false;
 }

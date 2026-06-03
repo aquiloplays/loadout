@@ -13,7 +13,7 @@ const DEFAULT_PROMPTS = [
   "If you could only play ONE community-night game forever, which one?",
   "Drop a meme from your favorite stream moment lately",
   "Which game do you wish was in the rotation? Tell me with `/suggest`!",
-  "Minecraft Night or Community Night — sound off",
+  "Minecraft Night or Community Night, sound off",
   "What's everyone playing off-stream right now?",
   "Best snack while watching a stream?"
 ];
@@ -42,7 +42,7 @@ async function nextIndex(env, mod) {
 // Cron entry: noon ET daily. Picks the next prompt, posts to the
 // QotD channel. Resolution order:
 //   1. env.QOTD_CHANNEL_ID  (the dedicated QotD channel, when set)
-//   2. env.ENGAGEMENT_CHANNEL_ID (legacy fallback — pre-2026-05-28
+//   2. env.ENGAGEMENT_CHANNEL_ID (legacy fallback, pre-2026-05-28
 //      QotD landed in #engagement alongside polls/birthdays/goals)
 export async function postDailyPrompt(env) {
   const target = env.QOTD_CHANNEL_ID || env.ENGAGEMENT_CHANNEL_ID;
@@ -56,7 +56,7 @@ export async function postDailyPrompt(env) {
     title: '💬 Question of the Day',
     description: prompt,
     color: COLOR_SCHEDULE,
-    footer: { text: 'Reply in thread or this channel — no wrong answers' }
+    footer: { text: 'Reply in thread or this channel, no wrong answers' }
   };
   await postChannelMessage(env, target, { embeds: [embed] });
   return { posted: true, prompt, channel: target };

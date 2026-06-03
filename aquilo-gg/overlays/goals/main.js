@@ -14,7 +14,7 @@
   if (layout) document.body.dataset.layout = layout;
   if (theme)  document.body.dataset.theme  = theme;
 
-  // Position anchor — tl | tr | bl | br | tc | bc | lc | rc. Lets the
+  // Position anchor, tl | tr | bl | br | tc | bc | lc | rc. Lets the
   // all-in-one composite move the goal bars clear of other layers.
   // Default left-center keeps the historic side-of-screen placement.
   const pos = params.get('pos');

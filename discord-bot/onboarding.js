@@ -1,4 +1,4 @@
-// Bot-driven onboarding flow — independent of Discord's built-in
+// Bot-driven onboarding flow, independent of Discord's built-in
 // Server Settings → Onboarding feature.
 //
 // Two entry points TODAY:
@@ -9,11 +9,11 @@
 //
 // Auto-DM on join lights up automatically when the aquilo-presence
 // gateway shim starts forwarding GUILD_MEMBER_ADD events to
-// /member/joined — welcome.js calls maybeSendOnboardingDm() in
+// /member/joined, welcome.js calls maybeSendOnboardingDm() in
 // that handler; it's a no-op today (no shim) and a real DM later
 // (no flag flip needed).
 //
-// Multi-step component flow. Buttons / selects / modals only — no
+// Multi-step component flow. Buttons / selects / modals only, no
 // modal text input needed for the v1 (no free-text fields).
 //
 // Steps (in order):
@@ -27,7 +27,7 @@
 //   7. complete     bonus grant (idempotent) + recordMilestone for
 //                    referral funnel
 //
-// State machine — every transition writes through, so a user who
+// State machine, every transition writes through, so a user who
 // closes Discord mid-flow and runs /onboard again resumes on the
 // step they were on, with their `choices` preserved. Re-running
 // after completion shows a "you're already onboarded" recap.
@@ -57,7 +57,7 @@ import { getBranding } from './branding.js';
 export const ONBOARD_BONUS_BOLTS = 100;
 export const ONBOARD_BONUS_PACK  = 'bolt';
 
-// Stable interest keys — same set used by the multi-select component
+// Stable interest keys, same set used by the multi-select component
 // values, the KV role-map shape, and the admin status table.
 export const INTERESTS = Object.freeze([
   { key: 'gamenight',  label: '🎮 Game Night',        description: 'Weekly community game sessions' },
@@ -67,12 +67,12 @@ export const INTERESTS = Object.freeze([
   { key: 'art',        label: '🎨 Art-only',          description: 'Art channels + drops' },
 ]);
 
-// Ordered step machine — drives next/back navigation + the funnel
+// Ordered step machine, drives next/back navigation + the funnel
 // counter buckets. Each id is also the `step` value persisted in
 // `onboard:state:<g>:<u>`.
 export const STEP_ORDER = ['welcome', 'interests', 'links', 'pwa', 'age18', 'tour', 'complete'];
 
-// Discord component constants — mirrored from util.js / character.js
+// Discord component constants, mirrored from util.js / character.js
 // for callsite isolation.
 const RESP_CHAT          = 4;
 const RESP_UPDATE_MSG    = 7;
@@ -125,7 +125,7 @@ async function putState(env, guildId, userId, state) {
 }
 
 // Marks a step done in BOTH the user's state and the per-guild
-// funnel counter — idempotent on both (re-completing the same step
+// funnel counter, idempotent on both (re-completing the same step
 // won't double-count). Also bumps `started` the first time we see
 // this user.
 async function markStepDone(env, guildId, userId, state, stepId) {
@@ -151,7 +151,7 @@ async function bumpFunnel(env, guildId, deltas, alreadyMarkedSteps) {
   cur.started   = (cur.started || 0)   + (deltas.started   || 0);
   cur.completed = (cur.completed || 0) + (deltas.completed || 0);
   for (const [step, n] of Object.entries(deltas.perStep || {})) {
-    // Honour the per-user dedupe — caller passes the set of steps
+    // Honour the per-user dedupe, caller passes the set of steps
     // this user has already bumped funnel for so a resume mid-flow
     // doesn't double-count.
     if (alreadyMarkedSteps && alreadyMarkedSteps.includes(step)) continue;
@@ -171,7 +171,7 @@ export async function getFunnel(env, guildId) {
 // Reads guild:onboard:role-map:<g> KV (admin-set, JSON). Falls back
 // to the deploy-time ONBOARD_ROLE_MAP env var, which is itself JSON.
 // Either source is a flat `{ interestKey: '<discordRoleId>' }`
-// object — keys that aren't in INTERESTS are ignored, role ids that
+// object, keys that aren't in INTERESTS are ignored, role ids that
 // don't exist in the guild get skipped at grant-time with a log
 // line (see grantRolesForInterests).
 export async function loadRoleMap(env, guildId) {
@@ -215,7 +215,7 @@ async function discordApi(env, method, path) {
 //   - the interest isn't in the role map
 //   - the configured role id no longer exists in the guild (404)
 //   - the bot lacks Manage Roles or the role is above the bot's
-//     highest role (403) — surface but don't crash the flow
+//     highest role (403), surface but don't crash the flow
 export async function grantRolesForInterests(env, guildId, userId, interestKeys) {
   const roleMap = await loadRoleMap(env, guildId);
   const granted = [];
@@ -244,8 +244,7 @@ export async function grantRolesForInterests(env, guildId, userId, interestKeys)
 
 // Idempotent: grants ONBOARD_BONUS_BOLTS + 1 'bolt' pack ONCE per
 // user. Subsequent calls are no-ops + report { alreadyGranted: true }.
-// Also fires recordMilestone('onboard') for the referral funnel —
-// also idempotent (referrals.js gates on milestoneFiredUtc per
+// Also fires recordMilestone('onboard') for the referral funnel, // also idempotent (referrals.js gates on milestoneFiredUtc per
 // referee), so a re-run after the user was later attributed still
 // pays the referrer once.
 export async function completeOnboarding(env, guildId, userId, state) {
@@ -266,7 +265,7 @@ export async function completeOnboarding(env, guildId, userId, state) {
   if (!state.completedSteps.includes('complete')) state.completedSteps.push('complete');
   await putState(env, guildId, userId, state);
 
-  // Funnel — bump the global `completed` counter once per user.
+  // Funnel, bump the global `completed` counter once per user.
   await bumpFunnel(env, guildId, { completed: 1, perStep: { complete: 1 } },
     state.funnelMarked || []);
 
@@ -289,7 +288,7 @@ export async function completeOnboarding(env, guildId, userId, state) {
 
 // The persistent welcome embed (posted by /onboard post-embed into
 // the #start-here channel). Button id is `onb:begin`. Clay can
-// re-post any time without state drift — the embed is purely a
+// re-post any time without state drift, the embed is purely a
 // link to the flow; state lives in KV per-user.
 export async function buildWelcomeEmbed(env, guildId) {
   const brand = await getBranding(env, guildId);
@@ -349,7 +348,7 @@ async function viewInterests(env, guildId, state) {
     flags: FLAG_EPHEMERAL,
     embeds: [{
       title: '🎯 What brings you here?',
-      description: 'Pick anything that catches your eye — I\'ll give you matching ping roles.',
+      description: 'Pick anything that catches your eye, I\'ll give you matching ping roles.',
       color: (await getBranding(env, guildId)).accentColor,
     }],
     components: [
@@ -388,11 +387,11 @@ async function viewLinks(env, guildId) {
       title: '🔗 Link your accounts',
       description:
         `Optional, but recommended:\n\n` +
-        `• **Twitch** — counts your stream presence toward streak rewards. ` +
+        `• **Twitch**, counts your stream presence toward streak rewards. ` +
         `Tap the button for a short video walking through the link flow.\n\n` +
-        `• **Patreon** — connecting Patreon **links all your accounts together** ` +
+        `• **Patreon**, connecting Patreon **links all your accounts together** ` +
         `(Twitch, Discord, and your Aquilo profile become one identity). ` +
-        `You **do not need a paid membership** — free Patreon works perfectly. ` +
+        `You **do not need a paid membership**, free Patreon works perfectly. ` +
         `Paid supporters are immensely appreciated and unlock cosmetics, ` +
         `priority CN queue slots, and a referral-payout slot.\n\n` +
         `_Twitch tutorial opens in YouTube; Patreon opens on ${brand.siteUrl}._`,
@@ -402,14 +401,14 @@ async function viewLinks(env, guildId) {
       {
         type: COMPONENT_ROW,
         components: [
-          // Twitch button — points at the in-house tutorial video
+          // Twitch button, points at the in-house tutorial video
           // (https://youtu.be/o10HaIc1P3Q) per Clay 2026-05-27 so
           // first-time users see the linking flow walked through
           // before they try it themselves. The actual link step
           // still happens on /profile.
           { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'How to link Twitch',
             url: 'https://www.youtube.com/watch?v=o10HaIc1P3Q' },
-          // Patreon button — site's only OAuth entry is Patreon
+          // Patreon button, site's only OAuth entry is Patreon
           // (auth.aquilo.gg → Patreon → site reads social_connections
           // for Twitch/YouTube/TikTok). `?link=patreon` is a hint a
           // Profile-page update can use to pre-open the linker tab.
@@ -430,7 +429,7 @@ async function viewLinks(env, guildId) {
 
 // ── PWA install step ────────────────────────────────────────────────
 //
-// Aquilo runs as a Progressive Web App — installing it gets push
+// Aquilo runs as a Progressive Web App, installing it gets push
 // notifications (stream live, CN vote opening, queue position),
 // full-screen launch, and noticeably faster loads than the browser
 // tab. Pure how-to embed; no role / KV state to mutate. Skip and
@@ -444,11 +443,11 @@ async function viewPwa(env, guildId) {
       description:
         `Why install? Push notifications when streams go live, full-screen launch, ` +
         `and ~3× faster loads vs. a browser tab.\n\n` +
-        `**iPhone / iPad** — Safari only (Chrome on iOS can't install PWAs)\n` +
+        `**iPhone / iPad**, Safari only (Chrome on iOS can't install PWAs)\n` +
         `1. Open ${brand.siteUrl} in **Safari**\n` +
         `2. Tap the **Share** button (square with arrow up)\n` +
         `3. Scroll down → **Add to Home Screen** → **Add**\n\n` +
-        `**Android** — Chrome\n` +
+        `**Android**, Chrome\n` +
         `1. Open ${brand.siteUrl} in **Chrome**\n` +
         `2. Tap the **⋮ three-dot menu** (top right)\n` +
         `3. Tap **Install app** (or **Add to Home Screen**)\n\n` +
@@ -475,7 +474,7 @@ async function viewPwa(env, guildId) {
 
 // ── 18+ age-gate step ───────────────────────────────────────────────
 //
-// Strict warning copy — Discord ToS requires age verification for
+// Strict warning copy, Discord ToS requires age verification for
 // access to age-restricted content (we honour it via channel `nsfw:
 // true` + role gate). The "Yes, I'm 18+" button grants the role
 // stored at guild:cfg.ids.role_age18 (provisioned by
@@ -489,14 +488,14 @@ async function viewAge18(env, guildId) {
       title: '🔞 Are you 18 or older?',
       description:
         `Aquilo has a small **18+** chat area for adult conversations.\n` +
-        `It's tucked away in its own category — you won't see it unless ` +
+        `It's tucked away in its own category, you won't see it unless ` +
         `you opt in here.\n\n` +
         `**⚠ Critical:** By claiming the 18+ role while under 18, you will be ` +
-        `**permanently banned** from the server. This is non-negotiable — ` +
+        `**permanently banned** from the server. This is non-negotiable, ` +
         `Discord's Terms of Service require us to enforce it.\n\n` +
         `Totally fine to skip this step if you'd rather not engage with ` +
         `the 18+ side. Nothing else in onboarding depends on it.`,
-      color: 0xff6ab5,   // brand pink — matches the role color
+      color: 0xff6ab5,   // brand pink, matches the role color
     }],
     components: [
       {
@@ -515,7 +514,7 @@ async function viewTour(env, guildId) {
   const cfg = await env.LOADOUT_BOLTS.get(`guild:cfg:${guildId}`, { type: 'json' });
   const ids = cfg?.ids || {};
   // Channel mentions render as #channel-name when the bot can see
-  // them, else as a grey "deleted-channel" — either way they don\'t
+  // them, else as a grey "deleted-channel", either way they don\'t
   // break the embed. Skip missing slots gracefully.
   const ch = (slot) => ids[slot] ? `<#${ids[slot]}>` : null;
   const lines = [];
@@ -523,7 +522,7 @@ async function viewTour(env, guildId) {
   if (ch('ch_lfg'))       lines.push(`• Looking for game → ${ch('ch_lfg')} (or \`/lfg create\`)`);
   if (ch('ch_games'))     lines.push(`• Game hub → ${ch('ch_games')}`);
   if (ch('ch_highlights'))lines.push(`• Top posts wall → ${ch('ch_highlights')}`);
-  if (lines.length === 0) lines.push('• Look around — channels show up here once a mod runs `/loadout-setup`.');
+  if (lines.length === 0) lines.push('• Look around, channels show up here once a mod runs `/loadout-setup`.');
   lines.push('');
   lines.push(`• The full community page lives at ${brand.siteUrl}/community/`);
   return {
@@ -546,7 +545,7 @@ async function viewComplete(env, guildId, userId, state, grantInfo) {
   const brand = await getBranding(env, guildId);
   const w = await getWallet(env, guildId, userId).catch(() => ({ balance: 0 }));
   const grantLine = grantInfo.alreadyGranted
-    ? '_You\'d already claimed your starter bonus — nothing extra granted this run._'
+    ? '_You\'d already claimed your starter bonus, nothing extra granted this run._'
     : `🎁 **+${grantInfo.bolts} bolts** + 1 Boltbound **${grantInfo.pack}** pack landed in your wallet.`;
   return {
     flags: FLAG_EPHEMERAL,
@@ -569,10 +568,10 @@ async function viewAlreadyOnboarded(env, guildId, userId, state) {
   const lines = [
     `You finished onboarding ${state.completedAt ? `<t:${Math.floor(state.completedAt / 1000)}:R>` : 'previously'}.`,
     '',
-    `**Steps you\'ve done:** ${done.length ? done.join(', ') : '(none recorded — legacy state)'}`,
+    `**Steps you\'ve done:** ${done.length ? done.join(', ') : '(none recorded, legacy state)'}`,
   ];
   if (remaining.length) {
-    lines.push(`**Skipped:** ${remaining.join(', ')} — re-run a step any time with the buttons below.`);
+    lines.push(`**Skipped:** ${remaining.join(', ')}, re-run a step any time with the buttons below.`);
   } else {
     lines.push('All steps marked done. 👏');
   }
@@ -608,7 +607,7 @@ export async function handleOnboardCommand(env, data) {
   if (sub === 'post-embed') return handlePostEmbedSubcommand(env, data);
   if (sub === 'status')     return handleStatusSubcommand(env, data);
 
-  // Default — interactive flow.
+  // Default, interactive flow.
   const state = await getState(env, guildId, userId);
   if (state.bonusGranted) {
     return { type: RESP_CHAT, data: await viewAlreadyOnboarded(env, guildId, userId, state) };
@@ -629,7 +628,7 @@ async function viewForStep(env, guildId, userId, state) {
   }
 }
 
-// Component dispatcher — `onb:*` custom_ids.
+// Component dispatcher, `onb:*` custom_ids.
 export async function handleOnboardComponent(env, data) {
   const guildId = data.guild_id;
   const userId  = data.member?.user?.id || data.user?.id;
@@ -642,7 +641,7 @@ export async function handleOnboardComponent(env, data) {
 
   let state = await getState(env, guildId, userId);
 
-  // The persistent welcome-embed button — same as /onboard with no args.
+  // The persistent welcome-embed button, same as /onboard with no args.
   if (action === 'begin') {
     // First click ever bumps `started` counter via markStepDone on welcome.
     await markStepDone(env, guildId, userId, state, 'welcome');
@@ -651,7 +650,7 @@ export async function handleOnboardComponent(env, data) {
     return { type: RESP_CHAT, data: await viewInterests(env, guildId, state) };
   }
 
-  // Restart from completed — wipe state but KEEP bonusGranted (no
+  // Restart from completed, wipe state but KEEP bonusGranted (no
   // double-grant) and KEEP completedAt for the recap.
   if (action === 'restart') {
     const wasGranted = state.bonusGranted;
@@ -665,7 +664,7 @@ export async function handleOnboardComponent(env, data) {
     return { type: RESP_UPDATE_MSG, data: await viewWelcome(env, guildId) };
   }
 
-  // Step navigation — `onb:step:<id>` jumps to a step (used by Skip
+  // Step navigation, `onb:step:<id>` jumps to a step (used by Skip
   // buttons that need to land in the next view without marking the
   // skipped step as completed).
   if (action === 'step') {
@@ -687,9 +686,9 @@ export async function handleOnboardComponent(env, data) {
     const modLog  = cfg?.ids?.ch_mod_log;
     if (choice === 'yes') {
       if (!roleId) {
-        return { type: RESP_CHAT, data: { content: '18+ role not configured yet — ping a mod.', flags: FLAG_EPHEMERAL } };
+        return { type: RESP_CHAT, data: { content: '18+ role not configured yet, ping a mod.', flags: FLAG_EPHEMERAL } };
       }
-      // PUT is idempotent — re-clicking just re-grants the same role.
+      // PUT is idempotent, re-clicking just re-grants the same role.
       const r = await fetch(
         `https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/members/${encodeURIComponent(userId)}/roles/${encodeURIComponent(roleId)}`,
         { method: 'PUT',
@@ -698,7 +697,7 @@ export async function handleOnboardComponent(env, data) {
       if (!r.ok && r.status !== 204) {
         return { type: RESP_CHAT, data: { content: `Couldn't grant the role (${r.status}). Ping a mod.`, flags: FLAG_EPHEMERAL } };
       }
-      // Audit log — fire-and-forget; the user's flow keeps moving
+      // Audit log, fire-and-forget; the user's flow keeps moving
       // even if mod-log isn't configured.
       if (modLog) {
         const username = data?.member?.user?.username || data?.user?.username || 'unknown';
@@ -709,7 +708,7 @@ export async function handleOnboardComponent(env, data) {
             headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
                        'Content-Type': 'application/json' },
             body: JSON.stringify({
-              content: `🔞 **18+ self-grant** — <@${userId}> (${username}, id \`${userId}\`) claimed the 18+ role at <t:${ts}:F>.\n` +
+              content: `🔞 **18+ self-grant**, <@${userId}> (${username}, id \`${userId}\`) claimed the 18+ role at <t:${ts}:F>.\n` +
                        `If their account looks under 18, ban per the onboarding warning copy.`,
               allowed_mentions: { parse: [] },
             }),
@@ -738,7 +737,7 @@ export async function handleOnboardComponent(env, data) {
     return { type: RESP_UPDATE_MSG, data: await viewInterests(env, guildId, state) };
   }
 
-  // Step-complete + advance — `onb:advance:<currentStep>`. Marks
+  // Step-complete + advance, `onb:advance:<currentStep>`. Marks
   // the current step done, advances to the next, renders that view.
   // The final advance (tour → complete) triggers completion.
   if (action === 'advance') {
@@ -764,13 +763,13 @@ export async function handleOnboardComponent(env, data) {
 
 // ── Shared poster ──────────────────────────────────────────────────
 //
-// Core "drop the welcome embed in this channel" routine — used by
+// Core "drop the welcome embed in this channel" routine, used by
 // both the /onboard post-embed slash handler AND the admin HTTP
 // route in worker.js (POST /admin/onboarding/post-embed/<g>).
 //
 // Idempotency model: any prior welcome message tracked at
 // `onboard:welcome-msg:<g>` is deleted first (best-effort, since
-// it may already be gone — channel deleted, message swept). The
+// it may already be gone, channel deleted, message swept). The
 // new message id is then recorded over the top. Re-running just
 // relocates the embed cleanly.
 //
@@ -794,7 +793,7 @@ export async function postOnboardingEmbed(env, guildId, channelId) {
       );
       if (delRes.ok || delRes.status === 204 || delRes.status === 404) deletedPrior = true;
     }
-  } catch { /* ignore — old message may already be gone */ }
+  } catch { /* ignore, old message may already be gone */ }
 
   const { embed, components } = await buildWelcomeEmbed(env, guildId);
   const r = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
@@ -834,14 +833,14 @@ async function handlePostEmbedSubcommand(env, data) {
     } };
   }
   return { type: RESP_CHAT, data: {
-    content: `✅ Welcome embed posted in <#${r.channelId}> — message id \`${r.messageId}\`.`,
+    content: `✅ Welcome embed posted in <#${r.channelId}>, message id \`${r.messageId}\`.`,
     flags: FLAG_EPHEMERAL,
   } };
 }
 
 // ── /onboard status (admin) ────────────────────────────────────────
 //
-// Ephemeral funnel snapshot — per-step counts + completion rate.
+// Ephemeral funnel snapshot, per-step counts + completion rate.
 // Pulled from the per-guild `onboard:funnel:<g>` aggregate counter.
 async function handleStatusSubcommand(env, data) {
   if (!isAdmin(data)) {
@@ -850,7 +849,7 @@ async function handleStatusSubcommand(env, data) {
   const guildId = data.guild_id;
   const funnel  = await getFunnel(env, guildId);
   const lines = [
-    `🚥 **Onboarding funnel — ${data.guild_id}**`,
+    `🚥 **Onboarding funnel, ${data.guild_id}**`,
     '',
     `Started: **${funnel.started || 0}**`,
     `Completed: **${funnel.completed || 0}** (${pct(funnel.completed, funnel.started)})`,
@@ -864,12 +863,12 @@ async function handleStatusSubcommand(env, data) {
   }
   const roleMap = await loadRoleMap(env, guildId);
   lines.push('');
-  lines.push(`**Role-map keys configured:** ${Object.keys(roleMap).length ? Object.keys(roleMap).join(', ') : '_(none — set onboard:role-map:<g> KV or ONBOARD_ROLE_MAP env)_'}`);
+  lines.push(`**Role-map keys configured:** ${Object.keys(roleMap).length ? Object.keys(roleMap).join(', ') : '_(none, set onboard:role-map:<g> KV or ONBOARD_ROLE_MAP env)_'}`);
   return { type: RESP_CHAT, data: { content: lines.join('\n'), flags: FLAG_EPHEMERAL } };
 }
 
 function pct(num, denom) {
-  if (!denom) return '—';
+  if (!denom) return '-';
   return Math.round((num / denom) * 100) + '%';
 }
 
@@ -923,7 +922,7 @@ export function pickWelcomeChannel(channels, opts = {}) {
 //
 // Heuristic name-matching of an interest key against the guild's
 // role list. Tokenized on non-letter chars (so "🎮 Game Night"
-// becomes ["game", "night"]) — that gives us word-boundary
+// becomes ["game", "night"]), that gives us word-boundary
 // semantics for free and avoids the "art" trap (token "party"
 // won't match the predicate `tokens.includes('art')`).
 //
@@ -932,7 +931,7 @@ export function pickWelcomeChannel(channels, opts = {}) {
 // ignored. @everyone (role id == guildId) and managed roles
 // (`managed: true`, integration / bot roles) are skipped.
 //
-// `interestKey` MUST be one of INTERESTS[].key — unknown keys
+// `interestKey` MUST be one of INTERESTS[].key, unknown keys
 // return false. Exported for the test harness.
 export function matchesInterest(key, roleName) {
   const tokens = tokenize(roleName);
@@ -952,7 +951,7 @@ export function matchesInterest(key, roleName) {
               'lurker', 'lurkers',
               'viewer', 'viewers'].some(w => tokens.includes(w));
     case 'art':
-      // Token-level membership — "art", "arts", "artist", "artists".
+      // Token-level membership, "art", "arts", "artist", "artists".
       // Won't match "party" / "smart" / "depart" because tokenize()
       // splits on non-letters, so "art" is its own token only when
       // surrounded by non-letters (or at start/end).
@@ -992,7 +991,7 @@ export function matchInterestRoles(roles, guildId) {
 //
 // Resolve a channel id from { channelId?, channelName? } and post
 // the welcome embed there via the shared postOnboardingEmbed().
-// Designed for the worker.js admin route — pure resolution +
+// Designed for the worker.js admin route, pure resolution +
 // existing poster, no Discord-interaction shape baked in.
 //
 // Returns:
@@ -1003,7 +1002,7 @@ export async function postWelcomeEmbedForGuild(env, guildId, opts = {}) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
   let pick;
   if (opts.channelId && !opts.channelName) {
-    // Caller supplied an explicit id — no REST round-trip needed,
+    // Caller supplied an explicit id, no REST round-trip needed,
     // but we still record the (potentially unknown) name for the
     // report. Discord will reject the post itself if the id is bogus.
     pick = { id: String(opts.channelId), name: '' };
@@ -1038,23 +1037,23 @@ export async function postWelcomeEmbedForGuild(env, guildId, opts = {}) {
 // ── Admin: ensure baseline interest roles exist ────────────────────
 //
 // Companion to matchAndSetupGuildRoles. The setup-roles flow can
-// only map roles that ALREADY exist in the guild — if a tenant
+// only map roles that ALREADY exist in the guild, if a tenant
 // doesn't have, say, a "Boltbound" role for opt-in pings, the
 // `boltbound` interest stays unmapped and users picking it just get a
 // `no-mapping` skip.
 //
 // This helper fills that gap: for each provided spec, check if any
 // existing role already matches the heuristic for that interest
-// key (via matchesInterest). If a hit, skip — DON\'T create a
+// key (via matchesInterest). If a hit, skip, DON\'T create a
 // duplicate (the user may have already hand-rolled the role).
 // Otherwise POST a fresh opt-in ping role with the supplied
 // name/colour and `permissions: "0"` (no perms by default).
 //
-// Default spec set is BASELINE_ROLE_SPECS below — covers the
+// Default spec set is BASELINE_ROLE_SPECS below, covers the
 // interest keys Aquilo's onboarding ships with. Body { roles: [...] }
 // overrides if a different tenant wants a different palette / names.
 //
-// Idempotent — re-running on a guild that already has matching
+// Idempotent, re-running on a guild that already has matching
 // roles is a no-op (every key in `skipped`).
 
 export const BASELINE_ROLE_SPECS = Object.freeze([
@@ -1093,8 +1092,8 @@ export function normaliseRoleSpecs(specs) {
 //   roleCount }.
 //
 // `skipped.reason` is one of:
-//   - 'already-exists' — a role already satisfies the heuristic
-//   - 'create-failed'  — Discord 4xx/5xx; status echoed
+//   - 'already-exists', a role already satisfies the heuristic
+//   - 'create-failed', Discord 4xx/5xx; status echoed
 export async function ensureBaselineRoles(env, guildId, specsArg) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
   const specs = normaliseRoleSpecs(
@@ -1120,7 +1119,7 @@ export async function ensureBaselineRoles(env, guildId, specsArg) {
   const skipped = [];
   for (const spec of specs) {
     // Skip if any current role (other than @everyone or a managed
-    // role) already satisfies the heuristic for this key — we DON\'T
+    // role) already satisfies the heuristic for this key, we DON\'T
     // want to dupe a role someone made manually with a slightly
     // different name.
     const hit = (existing || []).find(role =>
@@ -1170,7 +1169,7 @@ export async function ensureBaselineRoles(env, guildId, specsArg) {
 // map to `onboard:role-map:<g>`, return the structured result so
 // Clay can see what landed.
 //
-// Re-running overwrites the map — safe because matchInterestRoles
+// Re-running overwrites the map, safe because matchInterestRoles
 // is deterministic over the (current) role list. If the guild's
 // role names change, the next run reflects that. Existing
 // onboarding state records aren't affected; only the mapping
@@ -1201,7 +1200,7 @@ export async function matchAndSetupGuildRoles(env, guildId) {
 // ── Future-gated auto-DM hook ──────────────────────────────────────
 //
 // Called from welcome.js handleMemberJoined. Today, with no gateway
-// shim, that handler is never invoked — so this fires zero times.
+// shim, that handler is never invoked, so this fires zero times.
 // Once the shim lands + starts POSTing /member/joined, every join
 // will get a DM with the welcome embed + the same "Begin onboarding"
 // button. Failures (DM closed, rate limit) are logged + swallowed so

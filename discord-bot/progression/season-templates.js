@@ -1,4 +1,4 @@
-// Progression — season templates + reward table.
+// Progression, season templates + reward table.
 //
 // PROGRESSION-SYSTEM-DESIGN.md §8. Three templates locked in advance;
 // after we cycle through them the engine wraps round to template 0
@@ -7,8 +7,7 @@
 // Reward calibration target:
 // - Free track: bolts-heavy with a fragment trickle. A daily player
 //   should reach tier ~25 in 90 days, ~30 if they push.
-// - Premium track (Patreon-gated, single-tier all-or-nothing —
-//   patron / non-patron, no multipliers): 2× the free bolts at each
+// - Premium track (Patreon-gated, single-tier all-or-nothing, //   patron / non-patron, no multipliers): 2× the free bolts at each
 //   tier, bigger fragment + lootbox grants, plus the mid/max badges
 //   + flair frames + title that the free track doesn't get.
 
@@ -19,7 +18,7 @@ export const CATCH_UP_DAYS = 7;
 export const CATCH_UP_MULT = 1.5;
 
 // 50-tier reward table. Each entry: { free: {...}, premium: {...} }.
-// Rewards are granted verbatim on claim — no per-tier multipliers
+// Rewards are granted verbatim on claim, no per-tier multipliers
 // (single-tier Patreon: patron unlocks the premium column wholesale,
 // non-patron gets the free column only).
 //
@@ -38,7 +37,7 @@ export const REWARD_BASE_TABLE = (() => {
     // Fragments every other tier on free, every tier on premium.
     if (t % 2 === 0) free.fragments = 25 + Math.floor(t / 2) * 5;
     premium.fragments = 50 + Math.floor(t / 2) * 8;
-    // Lootboxes — every 5 tiers free, every 3 premium.
+    // Lootboxes, every 5 tiers free, every 3 premium.
     if (t % 5 === 0) free.lootboxes = 1;
     if (t % 3 === 0) premium.lootboxes = 1;
     rows.push({ free, premium });

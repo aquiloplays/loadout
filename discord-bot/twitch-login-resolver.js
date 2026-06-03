@@ -4,7 +4,7 @@
 // can be changed by the broadcaster at any time. Every place that links
 // to twitch.tv/<login> or renders the slug resolves it HERE from the
 // canonical broadcaster id, so a username change needs ZERO code or env
-// edits — the new login is picked up automatically within the cache TTL
+// edits, the new login is picked up automatically within the cache TTL
 // (or instantly via refreshTwitchLogin / an admin cache-bust).
 //
 // Resolution order:
@@ -27,7 +27,7 @@ const TTL_S = 3600; // 1 hour
 
 // Resolve the current login for a broadcaster id. Defaults to the
 // canonical channel (env.CLAY_TWITCH_CHANNEL_ID) when no id is passed.
-// Never throws — returns the env fallback (or null) on any failure.
+// Never throws, returns the env fallback (or null) on any failure.
 export async function resolveTwitchLogin(env, broadcasterId) {
   const id = String(broadcasterId || (env && env.CLAY_TWITCH_CHANNEL_ID) || '').trim();
   const envFallback = (env && env.CLAY_TWITCH_LOGIN) || null;
@@ -51,7 +51,7 @@ export async function resolveTwitchLogin(env, broadcasterId) {
     }
   } catch { /* fall through to env fallback */ }
 
-  // 3. Helix failed (network / misconfig) — env override keeps links live.
+  // 3. Helix failed (network / misconfig), env override keeps links live.
   return envFallback;
 }
 

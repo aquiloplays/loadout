@@ -47,7 +47,7 @@ function buildHubPayload(env, statusBlock = null) {
   desc.push('**Eligible queue roles:** ' + eligibleCount + ' (priority order, highest first)');
   desc.push('**Crons:** every 30 min UTC; acts at 6 PM + 9 PM ET on Wed/Fri/Sat');
   desc.push('');
-  desc.push('_Pick a section below — each opens its action panel (only you see it). Status refreshes every 30 min; 🔄 refreshes now._');
+  desc.push('_Pick a section below, each opens its action panel (only you see it). Status refreshes every 30 min; 🔄 refreshes now._');
   const embed = {
     title: '🎛️ Aquilo Bot · Admin Hub',
     description: desc.join('\n'),
@@ -77,7 +77,7 @@ function buildHubPayload(env, statusBlock = null) {
   return { embeds: [embed], components };
 }
 
-// Per-section action panel — returned as an ephemeral when a section
+// Per-section action panel, returned as an ephemeral when a section
 // nav button is clicked. Each section's buttons keep their original
 // custom_ids so the action handlers below are unchanged.
 function sectionPanel(section) {
@@ -145,7 +145,7 @@ function sectionPanel(section) {
   const s = S[section];
   if (!s) return ephemeral('Unknown section.');
   return chat({
-    content: '**' + s.title + '** — pick an action _(only you see this)_:',
+    content: '**' + s.title + '**, pick an action _(only you see this)_:',
     components: [row(...s.buttons)],
     flags: 64
   });
@@ -159,11 +159,11 @@ const KV_HUB_MSG = 'aquilo:msg';  // { channel_id, message_id }
 
 export async function buildStatusBlock(env) {
   const lines = [];
-  // Lazy imports — used here so the modules' deps don't leak elsewhere.
+  // Lazy imports, used here so the modules' deps don't leak elsewhere.
   let live = null, openPoll = null, queueSize = 0, countingState = null;
 
   // Live state via countdown.computeNextStream (re-derived inline to
-  // avoid an import cycle — same parse-stream-time logic).
+  // avoid an import cycle, same parse-stream-time logic).
   try {
     const { computeNextStream, relativeTimeText } = await import('./countdown.js');
     const next = computeNextStream(env);
@@ -192,7 +192,7 @@ export async function buildStatusBlock(env) {
     if (cRaw) {
       try { countingState = JSON.parse(cRaw); } catch {}
     }
-  } catch (e) { /* guildless or no DB — silent */ }
+  } catch (e) { /* guildless or no DB, silent */ }
 
   lines.push('**📊 Status**');
   lines.push(live);
@@ -232,7 +232,7 @@ export async function refreshHubMessage(env) {
   }
 }
 
-// /hub slash command handler — posts the hub message in the current
+// /hub slash command handler, posts the hub message in the current
 // channel. Also stashes the new message_id in KV so cron + the 🔄
 // button can edit it in place going forward (status panel auto-refresh).
 export async function handleHubCommand(data, env) {
@@ -261,7 +261,7 @@ export async function handleHubButton(env, data, ctx) {
   const parts = (data.data?.custom_id || '').split(':');
   const action = parts[1];
 
-  // Section navigation — "aquilo:sec:<section>" → ephemeral action panel.
+  // Section navigation, "aquilo:sec:<section>" → ephemeral action panel.
   if (action === 'sec') return sectionPanel(parts[2]);
 
   const guildId = await ensureBootstrap(env);
@@ -335,7 +335,7 @@ export async function handleHubButton(env, data, ctx) {
     try {
       const v = await refreshVotingIdle(env);
       const q = await refreshQueueIdle(env);
-      return ephemeral('♻️ Idle CTAs posted/refreshed.\n• Voting idle: ' + (v?.messageId ? '<#' + env.POLL_CHANNEL_ID + '> id `' + v.messageId + '`' : '(skipped — POLL_CHANNEL_ID unset)') + '\n• Queue idle: ' + (q?.messageId ? '<#' + env.QUEUE_CHANNEL_ID + '> id `' + q.messageId + '`' : '(skipped — QUEUE_CHANNEL_ID unset)'));
+      return ephemeral('♻️ Idle CTAs posted/refreshed.\n• Voting idle: ' + (v?.messageId ? '<#' + env.POLL_CHANNEL_ID + '> id `' + v.messageId + '`' : '(skipped, POLL_CHANNEL_ID unset)') + '\n• Queue idle: ' + (q?.messageId ? '<#' + env.QUEUE_CHANNEL_ID + '> id `' + q.messageId + '`' : '(skipped, QUEUE_CHANNEL_ID unset)'));
     } catch (e) { return ephemeral('Failed: ' + (e?.message || e)); }
   }
 
@@ -347,7 +347,7 @@ export async function handleHubButton(env, data, ctx) {
 
   if (action === 'status_refresh') {
     const r = await refreshHubMessage(env);
-    if (r.skipped) return ephemeral('No hub message tracked yet — re-run /hub. (' + r.skipped + ')');
+    if (r.skipped) return ephemeral('No hub message tracked yet, re-run /hub. (' + r.skipped + ')');
     return ephemeral('🔄 Status panel refreshed.');
   }
 

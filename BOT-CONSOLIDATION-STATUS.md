@@ -1,11 +1,11 @@
-# Bot consolidation — execution status
+# Bot consolidation, execution status
 
 Companion to `BOT-CONSOLIDATION-PLAN.md`. Tracks what's actually shipped
 during this consolidation pass.
 
 > **Clay's voice-channel call (2026-05-20):** "forget the voice channel
 > feature. Scrap it completely." That removes the only piece that
-> needed a persistent Discord Gateway connection — every remaining
+> needed a persistent Discord Gateway connection, every remaining
 > feature can run inside Cloudflare Workers, so the standalone
 > Node-on-Railway `StreamFusion/bot-service` daemon disappears
 > entirely.
@@ -21,8 +21,7 @@ there are gone. The Railway service that ran this daemon is now
 unowned and can be decommissioned.
 
 ### ✅ `/sf/post-release` ported to the Loadout Worker
-The one feature from `bot-service` that was actually worth keeping —
-the GitHub-release-notes webhook — moved into the Loadout Worker.
+The one feature from `bot-service` that was actually worth keeping, the GitHub-release-notes webhook, moved into the Loadout Worker.
 
 - **New file:** `discord-bot/sf-release.js`
 - **New route:** `POST https://loadout-discord.aquiloplays.workers.dev/sf/post-release`
@@ -33,21 +32,21 @@ the GitHub-release-notes webhook — moved into the Loadout Worker.
   matches the post-rebrand brand. Callers can still override.
 - **Bot identity:** posts as the unified Loadout bot
   (`1500849448866025573`), not the retired StreamFusion app
-  (`1494759611922645003`). That's by design — one bot is the whole
+  (`1494759611922645003`). That's by design, one bot is the whole
   point of the consolidation.
 
-### Deferred (but planned + scoped — see below)
+### Deferred (but planned + scoped, see below)
 
 - `aquilo-bot/worker/` fold-in into the Loadout Worker.
 - aquilo-bot app retirement.
 - StreamFusion app retirement.
 - PWA push subscription identity-linking (the other session has
-  already shipped most of this — see "What's already done by the
+  already shipped most of this, see "What's already done by the
   other session" below).
 
 ## Why aquilo-bot wasn't folded in this pass
 
-The aquilo-bot Worker is substantial — ~40 modules, a KV namespace
+The aquilo-bot Worker is substantial, ~40 modules, a KV namespace
 (`STATE`), a D1 database (`aquilo_bot_db`), a Durable Object
 (`OverlayBroadcaster` powering a live "today's game" WebSocket push),
 hourly + half-hourly cron triggers, and a thirteen-slash-command
@@ -58,7 +57,7 @@ surface (`/announce`, `/hub`, `/setup`, `/suggest`, `/encounter`,
 Three concrete reasons a one-shot fold-in is risky:
 
 1. **Durable Object identity is pinned to a Worker script.** Cloudflare
-   DOs live attached to the Worker that declares the class — to
+   DOs live attached to the Worker that declares the class, to
    migrate `OverlayBroadcaster` from the aquilo-bot Worker to the
    loadout-discord Worker requires creating a new DO class in
    loadout-discord, deploying a `[[migrations]]` block, optionally
@@ -74,7 +73,7 @@ Three concrete reasons a one-shot fold-in is risky:
    tree. Folding both into one Worker without renaming one side
    breaks every cached button in already-delivered Discord messages
    on the side we rename. The plan calls for renaming aquilo's to
-   `aquilo:*` — safe at the new-worker level but it'll bork old
+   `aquilo:*`, safe at the new-worker level but it'll bork old
    admin-hub messages until those naturally roll out of
    message-cache.
 
@@ -82,7 +81,7 @@ Three concrete reasons a one-shot fold-in is risky:
    Worker at 5 cron triggers. Loadout currently uses 4 (stocks :17,
    sports/bolts-feed/clash :23, queue-open EST and EDT). Adding
    aquilo-bot's `0,30 * * * *` would put us at exactly the limit
-   (and the prior :13 9 Clash cron was already over) — workable, but
+   (and the prior :13 9 Clash cron was already over), workable, but
    it means **no further cron slots are available for anything
    else** without upgrading the plan or further folding.
 
@@ -94,18 +93,18 @@ properly-scoped follow-up.
 ## What's already done by the other session
 
 The other session that's been working on aquilo-site has shipped
-pieces that complement this consolidation — flagging them so we
+pieces that complement this consolidation, flagging them so we
 don't redo work.
 
 - **`functions/api/push/external.js`** with `audience.userIds`
-  filtering — the canonical version that ships with master, gated
+  filtering, the canonical version that ships with master, gated
   by `AQUILO_SITE_WEB_SECRET` + `x-aquilo-web-ts/sig` headers.
   Loadout's `clash-push.js` was rewired to match this contract.
 - **PWA push subscribe** appears to now store a Discord identity
   alongside each subscription endpoint, so `audience.userIds`
   actually filters fan-out. (See aquilo-site master commit
   `e3eae71`.)
-- **`functions/api/clash/sync/[[route]].js`** — the aquilo-site
+- **`functions/api/clash/sync/[[route]].js`**, the aquilo-site
   read-through proxy that backs the future drag-and-drop base
   editor.
 
@@ -141,7 +140,7 @@ This means most of what was deferred at the end of Phase 4
    to push `/clash`, `/queue`, and the rest of the live command
    tree. This is the same fix that unblocks `/clash` in Discord.
 
-### Phase 1.5 (the actual aquilo-bot fold-in — separate session)
+### Phase 1.5 (the actual aquilo-bot fold-in, separate session)
 5. Move `aquilo-bot/worker/*.js` into `discord-bot/aquilo/*.js`.
 6. Rename `hub:*` `custom_id` prefixes in the moved files to
    `aquilo:*`; rename `/hub` slash command to `/aquilo-hub` (per
@@ -156,7 +155,7 @@ This means most of what was deferred at the end of Phase 4
    `POLL_CHANNEL_ID`, `QUEUE_CHANNEL_ID`, `QUEUE_ELIGIBLE_ROLES_JSON`,
    `PATREON_URL`, etc.).
 9. Add the aquilo cron (`0,30 * * * *`) to `[triggers].crons`. This
-   pushes us to 5 — the free-plan ceiling — so no further cron
+   pushes us to 5, the free-plan ceiling, so no further cron
    triggers are addable without upgrading.
 10. Wire dispatchers: aquilo command cases in `commands.js`,
     component `aquilo:*` prefix routing, `MODAL_SUBMIT` prefix
@@ -189,7 +188,7 @@ For tracking:
 
 ```
 aquilo-bot/worker/worker.js          → discord-bot/aquilo/worker.js       (entrypoint; merged into discord-bot/worker.js dispatch)
-aquilo-bot/worker/auth.js            → discord-bot/aquilo/auth.js         (or merge into discord-bot/auth.js — same verifyHmac)
+aquilo-bot/worker/auth.js            → discord-bot/aquilo/auth.js         (or merge into discord-bot/auth.js, same verifyHmac)
 aquilo-bot/worker/embed.js           → discord-bot/aquilo/embed.js
 aquilo-bot/worker/products.js        → discord-bot/aquilo/products.js
 aquilo-bot/worker/config.js          → discord-bot/aquilo/config.js
@@ -197,10 +196,10 @@ aquilo-bot/worker/hub.js             → discord-bot/aquilo/hub.js          (ren
 aquilo-bot/worker/setup.js           → discord-bot/aquilo/setup.js
 aquilo-bot/worker/bootstrap.js       → discord-bot/aquilo/bootstrap.js
 aquilo-bot/worker/util.js            → discord-bot/aquilo/util.js
-aquilo-bot/worker/overlay-do.js      → discord-bot/aquilo/overlay-do.js   (Durable Object class — needs migration block)
+aquilo-bot/worker/overlay-do.js      → discord-bot/aquilo/overlay-do.js   (Durable Object class, needs migration block)
 aquilo-bot/worker/poll.js            → discord-bot/aquilo/poll.js
 aquilo-bot/worker/daily-poll.js      → discord-bot/aquilo/daily-poll.js
-aquilo-bot/worker/queue.js           → discord-bot/aquilo/aq-queue.js     (renamed — discord-bot already has queue.js for community-night queue)
+aquilo-bot/worker/queue.js           → discord-bot/aquilo/aq-queue.js     (renamed, discord-bot already has queue.js for community-night queue)
 aquilo-bot/worker/rotation-poll.js   → discord-bot/aquilo/rotation-poll.js
 aquilo-bot/worker/song-prequeue.js   → discord-bot/aquilo/song-prequeue.js
 aquilo-bot/worker/notify.js          → discord-bot/aquilo/notify.js
@@ -227,8 +226,8 @@ aquilo-bot/worker/suggestions.js     → discord-bot/aquilo/suggestions.js
 aquilo-bot/worker/tickets.js         → discord-bot/aquilo/tickets.js
 aquilo-bot/worker/idle-msgs.js       → discord-bot/aquilo/idle-msgs.js
 aquilo-bot/worker/goals.js           → discord-bot/aquilo/goals.js
-aquilo-bot/worker/viewer-hub.js      → discord-bot/aquilo/viewer-hub.js   (Loadout already has hub-menu.js — separate file)
-aquilo-bot/worker/schedule.js        → discord-bot/aquilo/aq-schedule.js  (renamed — discord-bot already has schedule.js)
+aquilo-bot/worker/viewer-hub.js      → discord-bot/aquilo/viewer-hub.js   (Loadout already has hub-menu.js, separate file)
+aquilo-bot/worker/schedule.js        → discord-bot/aquilo/aq-schedule.js  (renamed, discord-bot already has schedule.js)
 aquilo-bot/worker/games.js           → discord-bot/aquilo/aq-games.js     (renamed for the same reason)
 aquilo-bot/worker/achievements.js    → discord-bot/aquilo/achievements.js
 aquilo-bot/worker/bolts.js           → discord-bot/aquilo/bolts.js

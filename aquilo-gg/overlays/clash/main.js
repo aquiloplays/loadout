@@ -1,5 +1,5 @@
 /*
- * Loadout — Clash overlay client.
+ * Loadout, Clash overlay client.
  *
  * Subscribes to clash.* events on the local Aquilo Bus (the DLL pulls
  * /sync/<guildId>/clash-events on a polling loop and republishes
@@ -8,7 +8,7 @@
  *
  * Why no framework: this loads inside an OBS browser source with no
  * build pipeline. Vanilla DOM + tiny render functions is the right
- * tool — matches every other overlay in this repo.
+ * tool, matches every other overlay in this repo.
  */
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -28,7 +28,7 @@
   const TOAST_DUR_MS = 7000;
   // How many toasts to keep stacked at once before the oldest is
   // forcibly removed. Older overlays let the DOM grow unbounded
-  // during a raid storm — that's a memory leak in OBS over a long
+  // during a raid storm, that's a memory leak in OBS over a long
   // session.
   const MAX_TOASTS = 6;
 
@@ -51,21 +51,21 @@
         return {
           variant: 'incoming', icon: 'sword', meta: 'INCOMING RAID',
           title: `${data.attackerName || 'A raider'} is hitting your town`,
-          body: data.war ? 'Part of an active war — defend hard.' : '',
+          body: data.war ? 'Part of an active war, defend hard.' : '',
         };
       case 'clash.raid.sacked':
       case 'raid.sacked':
         return {
           variant: 'sacked', icon: 'bomb', meta: 'TOWN SACKED',
           title: `${data.attackerName || 'A raider'} sacked your town`,
-          body: starLine(data.stars) + ' — loot taken from treasury.',
+          body: starLine(data.stars) + ', loot taken from treasury.',
         };
       case 'clash.raid.defended':
       case 'raid.defended':
         return {
           variant: 'defended', icon: 'shield', meta: 'TOWN HELD',
           title: `Held the line against ${data.attackerName || 'a raider'}`,
-          body: starLine(data.stars) + ' — defenders pushed them back.',
+          body: starLine(data.stars) + ', defenders pushed them back.',
         };
       case 'clash.raid.result':
       case 'raid.result':
@@ -85,7 +85,7 @@
       case 'war.active':
         return {
           variant: 'war', icon: 'sword', meta: 'WAR LIVE',
-          title: 'War window open — 24 hours',
+          title: 'War window open, 24 hours',
           body: 'Raid the opposing community for amplified rewards.',
         };
       case 'clash.war.refused':
@@ -106,7 +106,7 @@
       case 'war.ended':
         return {
           variant: 'war', icon: 'trophy', meta: 'WAR ENDED',
-          title: `War ended — ${data.scores?.attacker || 0}★ vs ${data.scores?.defender || 0}★`,
+          title: `War ended, ${data.scores?.attacker || 0}★ vs ${data.scores?.defender || 0}★`,
           body: data.winner ? `Winner: ${data.winner}.` : '',
         };
       case 'clash.build.complete':
@@ -181,7 +181,7 @@
       setStatus('connected');
       backoff = 1000;
       ws.send(JSON.stringify({ v: 1, kind: 'hello',     client: 'overlay-clash' }));
-      // Subscribe to the full clash.* family — the resolver fans out
+      // Subscribe to the full clash.* family, the resolver fans out
       // both clash.* prefixed kinds and the bare DLL-republished
       // shapes ("raid.incoming", "war.active" etc.).
       ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: ['clash.*', 'raid.*', 'war.*', 'build.*', 'shield.*'] }));

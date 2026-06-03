@@ -1,4 +1,4 @@
-// Bolt Rain — interactive, Patreon-T2+-triggered community bolt drop.
+// Bolt Rain, interactive, Patreon-T2+-triggered community bolt drop.
 //
 // 2026-05-31 sprint. Distinct from stream-bonus.js's passive boltRainTick
 // (a cron pulse that silently gives N random viewers bolts). THIS is a
@@ -17,7 +17,7 @@
 // Concurrency note: KV is eventually-consistent, so under a thundering
 // herd the maxClaims cap + per-user dedup are best-effort (a few extra
 // claims may slip through at the boundary). Acceptable for a 60s hype
-// moment — the pool is intentionally generous, not a ledger.
+// moment, the pool is intentionally generous, not a ledger.
 
 import { earn } from './wallet.js';
 
@@ -40,7 +40,7 @@ export async function isPatreonT2Plus(env, userId) {
     const cents = Number(rec.amount_cents || rec.pledge_cents
       || (rec.amount || rec.pledge ? (rec.amount || rec.pledge) * 100 : 0)) || 0;
     if (cents >= T2_MIN_CENTS) return true;
-    // No usable amount field — fall back to the tier label (tier 2-9,
+    // No usable amount field, fall back to the tier label (tier 2-9,
     // or a premium-sounding name).
     if (/tier\s*([2-9]|1\d)/.test(tier)) return true;
     if (/\b(gold|platinum|vip|founder|legend|champion|mythic)\b/.test(tier)) return true;

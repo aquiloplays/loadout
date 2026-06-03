@@ -1,4 +1,4 @@
-// Unit tests for twitch-oauth.js — the self-serve OAuth flow.
+// Unit tests for twitch-oauth.js, the self-serve OAuth flow.
 // Covers: bootstrap-token consumption, state CSRF, code exchange,
 // refresh-token persistence at the KV key twitch-helix reads from.
 
@@ -41,7 +41,7 @@ function makeEnv(overrides = {}) {
   };
 }
 
-console.log('— /admin/_twitch-oauth-start/:token');
+console.log('- /admin/_twitch-oauth-start/:token');
 {
   const env = makeEnv();
   await env.LOADOUT_BOLTS.put('bootstrap-twitch-oauth-token', 'secret-bootstrap-value');
@@ -81,7 +81,7 @@ console.log('— /admin/_twitch-oauth-start/:token');
   eq(r3.status, 403, 'wrong token still rejected after fresh bootstrap');
 }
 
-console.log('— /admin/twitch-oauth/callback');
+console.log('- /admin/twitch-oauth/callback');
 {
   const env = makeEnv();
   // Seed a valid state.
@@ -95,7 +95,7 @@ console.log('— /admin/twitch-oauth/callback');
     if (u.startsWith('https://id.twitch.tv/oauth2/token')) {
       const body = String(init?.body || '');
       // Differentiate the user-code exchange from the app-credentials
-      // exchange that setupTwitchSubscriptions makes — they hit the
+      // exchange that setupTwitchSubscriptions makes, they hit the
       // same URL but with different grant_type.
       if (body.includes('grant_type=authorization_code') && exchangeBodySeen === null) {
         exchangeBodySeen = body;
@@ -120,7 +120,7 @@ console.log('— /admin/twitch-oauth/callback');
       }), { status: 200, headers: { 'content-type': 'application/json' } });
     }
     // setupTwitchSubscriptions makes other calls (oauth2/token for app
-    // token, helix subscriptions list/create) — stub minimally so it
+    // token, helix subscriptions list/create), stub minimally so it
     // succeeds without trying to reach the live API.
     if (u.startsWith('https://api.twitch.tv/helix/eventsub/subscriptions') && init?.method !== 'POST') {
       return new Response(JSON.stringify({ data: [] }),
@@ -151,7 +151,7 @@ console.log('— /admin/twitch-oauth/callback');
     const rOk = await handleTwitchOauthCallback(reqOk, env);
     eq(rOk.status, 200, 'good state + code → 200');
     const html = await rOk.text();
-    assert(html.includes('Twitch OAuth — connected'),  'success page rendered');
+    assert(html.includes('Twitch OAuth, connected'),  'success page rendered');
     assert(html.includes('aquilo'),                     'authorized login shown');
     assert(html.includes('Authorized account matches'), 'broadcaster match acknowledged');
 
@@ -163,7 +163,7 @@ console.log('— /admin/twitch-oauth/callback');
     const stateAfter = await env.LOADOUT_BOLTS.get('twitch-oauth:state:state-good-1');
     eq(stateAfter, null, 'state nonce deleted after use');
 
-    // Exchange body shape — grant_type, code, redirect_uri all present.
+    // Exchange body shape, grant_type, code, redirect_uri all present.
     assert(exchangeBodySeen.includes('grant_type=authorization_code'), 'exchange uses authorization_code grant');
     assert(exchangeBodySeen.includes('code=auth-code-1'),               'exchange forwards the code');
     assert(exchangeBodySeen.includes('redirect_uri=https'),             'exchange includes redirect_uri');
@@ -172,7 +172,7 @@ console.log('— /admin/twitch-oauth/callback');
   }
 }
 
-console.log('— missing code or state');
+console.log('- missing code or state');
 {
   const env = makeEnv();
   const reqNoCode = new Request('https://w/admin/twitch-oauth/callback?state=x');
@@ -181,5 +181,5 @@ console.log('— missing code or state');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

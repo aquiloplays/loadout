@@ -3,24 +3,24 @@
 // Slash commands published to Discord: /loadout-claim, /loadout.
 // Everything else (balance, gift, daily, hero, equip, profile, etc.)
 // runs through buttons + select menus + modals inside the /loadout
-// ephemeral message — see loadout-menu.js for the entire menu graph.
+// ephemeral message, see loadout-menu.js for the entire menu graph.
 //
 // The legacy granular commands (/balance, /gift, /daily, /coinflip,
 // /dice, /link, /help, /profile*, /hero, /inventory, /equip, /sell,
 // /shop*, /training) are NOT published anymore but the underlying
-// wallet / games / profile / dungeon modules stay — the menu calls
+// wallet / games / profile / dungeon modules stay, the menu calls
 // them. If a user has a stale slash command lingering in their
 // client, the dispatcher answers with a hint to use /loadout instead.
 //
 // Discord interaction types:
-//   1 PING               — endpoint health check
-//   2 APPLICATION_CMD    — slash command invocation
-//   3 MESSAGE_COMPONENT  — button / select-menu click on our messages
-//   5 MODAL_SUBMIT       — modal form submission
+//   1 PING, endpoint health check
+//   2 APPLICATION_CMD, slash command invocation
+//   3 MESSAGE_COMPONENT, button / select-menu click on our messages
+//   5 MODAL_SUBMIT, modal form submission
 // Response types:
-//   4 CHANNEL_MESSAGE_WITH_SOURCE — new ephemeral or public message
-//   7 UPDATE_MESSAGE              — replace the source ephemeral message in place
-//   9 MODAL                       — open a modal popup
+//   4 CHANNEL_MESSAGE_WITH_SOURCE, new ephemeral or public message
+//   7 UPDATE_MESSAGE, replace the source ephemeral message in place
+//   9 MODAL, open a modal popup
 
 import { renderLoadoutCommand, handleComponent, handleModal } from './loadout-menu.js';
 import { handleBet, handleBetAutocomplete } from './bet.js';
@@ -29,13 +29,13 @@ import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
 import { handleSchedule, handleGames } from './schedule.js';
 import { handleQueueSlash } from './queue.js';
 // Aquilo-bot fold-in. Single dispatcher that owns the aquilo command
-// family — see discord-bot/aquilo/worker.js dispatchAquiloInteraction.
+// family, see discord-bot/aquilo/worker.js dispatchAquiloInteraction.
 import { dispatchAquiloInteraction } from './aquilo/worker.js';
-// Character + pet system — pixel-art identity + tamagotchi.
-// Boltbound — async card-battler. See CARD-GAME-DESIGN.md.
+// Character + pet system, pixel-art identity + tamagotchi.
+// Boltbound, async card-battler. See CARD-GAME-DESIGN.md.
 import { handleBoltboundCommand, handleBoltboundComponent } from './cards.js';
 // Bolts-denominated quick games (blackjack/roulette/wheel/hilo/mines/
-// plinko/crash) — shares games-quick.js with the website + Twitch panel.
+// plinko/crash), shares games-quick.js with the website + Twitch panel.
 import { handlePlayCommand, handlePlayComponent } from './quickgames-command.js';
 
 const TYPE_PING                = 1;
@@ -52,13 +52,12 @@ const FLAG_EPHEMERAL = 64;
 const ACK_PONG = { type: RESP_PONG };
 
 // Aquilo-bot fold-in: button/select custom_id prefixes that the aquilo
-// dispatch family owns. The hub:* prefix is intentionally NOT here —
-// it was rewritten to aquilo:* during the fold-in to avoid colliding
+// dispatch family owns. The hub:* prefix is intentionally NOT here, // it was rewritten to aquilo:* during the fold-in to avoid colliding
 // with Loadout's viewer hub. See BOT-CONSOLIDATION-STATUS.md.
 const AQUILO_COMPONENT_PREFIXES = [
   'vote:', 'queue:', 'aquilo:', 'notify:', 'tot:', 'sug:', 'roles:',
   'setup:', 'vh:', 'passport:', 'trivia:', 'shop:', 'ticket:',
-  // /checkin gif picker — see aquilo/checkin-slash.js
+  // /checkin gif picker, see aquilo/checkin-slash.js
   'aqci:',
 ];
 
@@ -86,7 +85,7 @@ export async function handleInteraction(req, env, body, ctx) {
       return json(await handleGuildComponent(env, data));
     }
     if (cid.startsWith('onb:'))       {
-      // Bot-driven onboarding flow — see onboarding.js. Buttons +
+      // Bot-driven onboarding flow, see onboarding.js. Buttons +
       // selects all start with `onb:` (begin, restart, step:<id>,
       // advance:<id>, pick:<id>).
       const { handleOnboardComponent } = await import('./onboarding.js');
@@ -99,14 +98,14 @@ export async function handleInteraction(req, env, body, ctx) {
       return json(await handleLfgHubComponent(env, data));
     }
     if (cid.startsWith('cnv:'))       {
-      // Legacy CN vote menu — retired in favour of `vh:` below, but
+      // Legacy CN vote menu, retired in favour of `vh:` below, but
       // kept dispatching so stale-button clicks on un-swept old
       // messages route somewhere sensible.
       const { handleCnVoteComponent } = await import('./cn-vote-hub.js');
       return json(await handleCnVoteComponent(env, data));
     }
     if (cid.startsWith('vh:'))        {
-      // Unified vote hub — variety + community night, state-machine
+      // Unified vote hub, variety + community night, state-machine
       // driven. See vote-hub.js.
       const { handleVoteHubComponent } = await import('./vote-hub.js');
       return json(await handleVoteHubComponent(env, data));
@@ -171,14 +170,14 @@ export async function handleInteraction(req, env, body, ctx) {
       }
     }
     if (cid.startsWith('st:')) {
-      // Support tickets — string-select / button dispatch. See
+      // Support tickets, string-select / button dispatch. See
       // support-tickets.js. Modal submission is routed in the
       // modal-submit branch below (Discord interaction-type 5).
       const { handleSupportTicketComponent } = await import('./support-tickets.js');
       return json(await handleSupportTicketComponent(data, env));
     }
     if (cid.startsWith('ca:rmx:pick:')) {
-      // /admin card-art remix — candidate-picker select. See
+      // /admin card-art remix, candidate-picker select. See
       // card-art-remix.js. The select value is the candidate index.
       const { handleCardArtRemixSelect } = await import('./card-art-remix.js');
       return json(await handleCardArtRemixSelect(env, data));
@@ -204,21 +203,21 @@ export async function handleInteraction(req, env, body, ctx) {
   if (data.type === TYPE_MODAL_SUBMIT) {
     // Route hub-originated modals to their dedicated handler.
     // Aquilo-bot modals use a bare `modal:*` prefix; Loadout's
-    // viewer hub modals use `hub:modal:*` — the two don't collide.
+    // viewer hub modals use `hub:modal:*`, the two don't collide.
     const cid = data.data?.custom_id || '';
     if (cid.startsWith('hub:modal:')) return handleHubModal(data, env);
-    // LFG hub create modal — bare modal:lfg-* prefix, claimed here
+    // LFG hub create modal, bare modal:lfg-* prefix, claimed here
     // before the generic modal:* aquilo route.
     if (cid.startsWith('modal:lfg-')) {
       const { handleLfgModalSubmit } = await import('./lfg-hub.js');
       return json(await handleLfgModalSubmit(env, data));
     }
-    // Support tickets — modal submit (subject + description).
+    // Support tickets, modal submit (subject + description).
     if (cid.startsWith('st:submit:')) {
       const { handleSupportTicketModal } = await import('./support-tickets.js');
       return json(await handleSupportTicketModal(data, env));
     }
-    // Phase-1 channel-hub modal submits — claimed before the
+    // Phase-1 channel-hub modal submits, claimed before the
     // generic modal:* aquilo route, same as the LFG modal.
     if (cid === 'modal:bolts-transfer') {
       const { handleBoltsTransferModal } = await import('./channel-hubs.js');
@@ -252,19 +251,19 @@ export async function handleInteraction(req, env, body, ctx) {
       if (!gate.ok && gate.allowed.length) {
         return json(wrongChannelReply(cmd, gate.allowed));
       }
-    } catch { /* fall through — bindings are best-effort */ }
+    } catch { /* fall through, bindings are best-effort */ }
   }
 
   switch (cmd) {
     case 'loadout':
-      // Main menu — auto-creates the wallet (so first-time users see
+      // Main menu, auto-creates the wallet (so first-time users see
       // 0 bolts rather than an error) and surfaces the link button if
       // they haven't connected a stream identity yet.
       return json(await renderLoadoutCommand(env, guild, userId, userName));
 
 
     case 'bet':
-      // Sports betting — subcommand-group dispatch in bet.js.
+      // Sports betting, subcommand-group dispatch in bet.js.
       return json(await handleBet(env, guild, userId, userName, data.data?.options || []));
 
     case 'hub':
@@ -277,7 +276,7 @@ export async function handleInteraction(req, env, body, ctx) {
       // check would only fire if Discord changed its enforcement
       // model, so we trust the platform here.
       //
-      // Subcommand-group dispatch — only `card-art remix` lives
+      // Subcommand-group dispatch, only `card-art remix` lives
       // here today. Bare /admin (no subcommand) falls through to
       // the legacy hub renderer.
       const opts = data.data?.options || [];
@@ -311,9 +310,9 @@ export async function handleInteraction(req, env, body, ctx) {
           embeds: [{
             title: '💝 Gift Aquilo Supporter access',
             description: [
-              "Gift Aquilo Supporter access to a friend — every paid gift gets them all the Patreon perks in the Aquilo ecosystem.",
+              "Gift Aquilo Supporter access to a friend, every paid gift gets them all the Patreon perks in the Aquilo ecosystem.",
               "",
-              "Patreon hosts the checkout flow. Pick 1–12 months, any tier — they get the gift link via email + redeem on patreon.com.",
+              "Patreon hosts the checkout flow. Pick 1-12 months, any tier, they get the gift link via email + redeem on patreon.com.",
               "",
               "**[Open Patreon gift link below ↓](https://www.patreon.com/aquilo/gift)**",
             ].join('\n'),
@@ -334,13 +333,13 @@ export async function handleInteraction(req, env, body, ctx) {
       });
 
     case 'schedule':
-      // Stream-schedule editor — writes the same `schedule:v1:<g>` KV
+      // Stream-schedule editor, writes the same `schedule:v1:<g>` KV
       // record that aquilo.gg/admin writes. MANAGE_GUILD enforced by
       // Discord (default_member_permissions).
       return json(await handleSchedule(env, guild, data.data?.options || []));
 
     case 'games':
-      // Game-catalog editor — companion to /schedule. Writes
+      // Game-catalog editor, companion to /schedule. Writes
       // `games:v1:<g>` shared with aquilo.gg/admin.
       return json(await handleGames(env, guild, data.data?.options || []));
 
@@ -357,13 +356,13 @@ export async function handleInteraction(req, env, body, ctx) {
 
     case 'play':
       // Bolts quick games. Single source of truth for game logic is
-      // games-quick.js — the website + Twitch panel call the same
+      // games-quick.js, the website + Twitch panel call the same
       // exports. Stateful games (blackjack/hilo/mines) drive their
       // continuation through button components routed by 'qg:' prefix.
       return handlePlayCommand(env, data, guild, userId, userName);
 
     case 'voice': {
-      // B7 — temp voice channels. /voice creates a personal VC + moves
+      // B7, temp voice channels. /voice creates a personal VC + moves
       // the caller in. Auto-deletes on inactivity (cron sweep).
       const { handleVoiceSlash } = await import('./voice-temp.js');
       const text = await handleVoiceSlash(env, guild, userId, userName);
@@ -371,15 +370,14 @@ export async function handleInteraction(req, env, body, ctx) {
     }
 
     case 'ticket': {
-      // L8 — Support ticketing. Opens a private channel visible only
+      // L8, Support ticketing. Opens a private channel visible only
       // to the opener + 🛡️ Moderator.
       const { handleTicketCommand } = await import('./tickets.js');
       return json(await handleTicketCommand(env, data));
     }
 
     case 'checkin': {
-      // Daily community check-in. Same core as POST /web/checkin —
-      // one check-in per ET day per user, regardless of surface.
+      // Daily community check-in. Same core as POST /web/checkin, // one check-in per ET day per user, regardless of surface.
       const { handleCheckinCommand } = await import('./community-checkin.js');
       return json(await handleCheckinCommand(env, data));
     }
@@ -410,7 +408,7 @@ export async function handleInteraction(req, env, body, ctx) {
     }
 
     case 'onboard': {
-      // Bot-driven onboarding flow — independent of Discord's built-in
+      // Bot-driven onboarding flow, independent of Discord's built-in
       // Server Settings → Onboarding feature. /onboard runs the
       // interactive walkthrough; /onboard post-embed + /onboard status
       // are admin subcommands. See onboarding.js.
@@ -434,7 +432,7 @@ export async function handleInteraction(req, env, body, ctx) {
     }
 
     case 'lfg': {
-      // B8 — LFG slash command. Shares state with POST /web/lfg/create
+      // B8, LFG slash command. Shares state with POST /web/lfg/create
       // so an LFG created via the website appears in /lfg list, and
       // vice versa.
       const sub = (data.data?.options || [])[0];
@@ -448,12 +446,12 @@ export async function handleInteraction(req, env, body, ctx) {
           userId, hostName: userName, game: getOpt('game'), slots: getOpt('slots'), guildId: guild,
         });
         resp = r.ok
-          ? `🎮 Opened **${r.lfg.game}** — ${r.lfg.players.length}/${r.lfg.slots}. id \`${r.lfg.id}\`. See the embed in the LFG channel.`
+          ? `🎮 Opened **${r.lfg.game}**, ${r.lfg.players.length}/${r.lfg.slots}. id \`${r.lfg.id}\`. See the embed in the LFG channel.`
           : `❌ ${r.error}`;
       } else if (sub.name === 'join') {
         const r = await lfg.joinLfg(env, getOpt('id'), { userId, name: userName });
         resp = r.ok
-          ? `✅ Joined **${r.lfg.game}** (${r.lfg.players.length}/${r.lfg.slots}).${r.autoClosed ? ' That was the last slot — it just closed.' : ''}`
+          ? `✅ Joined **${r.lfg.game}** (${r.lfg.players.length}/${r.lfg.slots}).${r.autoClosed ? ' That was the last slot, it just closed.' : ''}`
           : `❌ ${r.error}`;
       } else if (sub.name === 'close') {
         const r = await lfg.closeLfg(env, getOpt('id'), userId);
@@ -487,7 +485,7 @@ export async function handleInteraction(req, env, body, ctx) {
     case 'sr-clear':
     case 'rotation-poll':
       // /checkin used to fall through here to aquilo's GIPHY slash
-      // handler — now consolidated into community-checkin.js (the
+      // handler, now consolidated into community-checkin.js (the
       // first 'case checkin' above) with the gif picker rolled in.
       return dispatchAquiloInteraction(data, env, ctx);
 
@@ -495,8 +493,8 @@ export async function handleInteraction(req, env, body, ctx) {
       // /loadout-claim is handled inline in worker.js (separate path)
       // because it needs to verify the install code without going
       // through the wallet/menu plumbing. If we end up here it means
-      // worker.js fell through — best-effort hint.
-      return reply('That command is handled by Loadout — try again in a moment.');
+      // worker.js fell through, best-effort hint.
+      return reply('That command is handled by Loadout, try again in a moment.');
 
     // Fallthrough for legacy granular commands. We don't publish these
     // anymore but Discord caches client-side, so a stale entry might
@@ -506,7 +504,7 @@ export async function handleInteraction(req, env, body, ctx) {
     case 'profile': case 'profile-set-bio': case 'profile-set-pfp':
     case 'profile-set-pronouns': case 'profile-set-social':
     case 'profile-set-gamertag': case 'profile-clear':
-      return reply('💡 We replaced the individual commands with a single menu — run **/loadout** instead.');
+      return reply('💡 We replaced the individual commands with a single menu, run **/loadout** instead.');
 
     default:
       return reply('Unknown command: ' + cmd);

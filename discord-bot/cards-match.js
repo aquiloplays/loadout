@@ -1,4 +1,4 @@
-// Boltbound — match orchestrator + PvP queue + NPC turn driver.
+// Boltbound, match orchestrator + PvP queue + NPC turn driver.
 //
 // Sits between the pure cards-battle resolver and the Discord
 // command layer. Owns:
@@ -91,7 +91,7 @@ export async function queueOrMatchPvp(env, guildId, userId) {
     await enqueueQueue(env, guildId, userId, deck.id);
     return { ok: true, queued: true };
   }
-  // Partner is waiting — load their deck. If their deck has gone
+  // Partner is waiting, load their deck. If their deck has gone
   // missing or invalid (e.g. they deleted it after queueing), drop them
   // and re-queue this caller so we don't lose the request.
   const partnerDeck = await loadDeckForMatch(env, guildId, partner.userId, partner.deckId);
@@ -111,7 +111,7 @@ export async function queueOrMatchPvp(env, guildId, userId) {
   return { ok: true, match };
 }
 
-// Direct challenge — Phase 1 ships the "lay a challenge in their
+// Direct challenge, Phase 1 ships the "lay a challenge in their
 // inbox" half; acceptance turns it into a match the same way the
 // queue path does.
 
@@ -141,7 +141,7 @@ export async function acceptChallenge(env, guildId, recipientId, senderId) {
   return { ok: true, match };
 }
 
-// Friend-room match — like acceptChallenge but matched by a shared
+// Friend-room match, like acceptChallenge but matched by a shared
 // room code (boltbound-rooms.js) instead of a Discord challenge
 // record. Flags match.private so it does NOT touch the ranked ladder.
 export async function startRoomMatch(env, guildId, creatorId, joinerId) {
@@ -192,7 +192,7 @@ export async function takeAction(env, match, side, action) {
   return { ok: true, match: r.match, ended: r.match.status !== 'active' };
 }
 
-// Mulligan handler — same idea, kicks NPC's turn 1 immediately after
+// Mulligan handler, same idea, kicks NPC's turn 1 immediately after
 // both sides finish their mulligan if the NPC is on side B.
 export async function takeMulligan(env, match, side, handIndices) {
   applyMulligan(match, side, handIndices);
@@ -221,7 +221,7 @@ export async function takeMulligan(env, match, side, handIndices) {
 function runNpcTurn(match) {
   if (!match.npc) return;
   const side = match.npc.side;
-  // Hard ceiling on actions per turn — protects against any policy
+  // Hard ceiling on actions per turn, protects against any policy
   // loop that doesn't terminate (charge minions playing into
   // themselves etc.).
   for (let step = 0; step < 30; step++) {
@@ -233,7 +233,7 @@ function runNpcTurn(match) {
     }
     const r = applyAction(match, action);
     if (r.error) {
-      // Defensive — if the bot picks an illegal action (shouldn't
+      // Defensive, if the bot picks an illegal action (shouldn't
       // happen), just end turn so we don't infinite-loop.
       applyAction(match, { kind: 'endTurn', side });
       return;
@@ -247,14 +247,14 @@ function runNpcTurn(match) {
 function pickNpcAction(match, side, archetype) {
   const opp = side === 'A' ? 'B' : 'A';
 
-  // 1. PLAY CARDS — pick the policy that matches archetype.
+  // 1. PLAY CARDS, pick the policy that matches archetype.
   const playable = playableHandIndices(match, side);
   if (playable.length) {
     const pick = pickPlay(match, side, archetype, playable);
     if (pick) return pick;
   }
 
-  // 2. ATTACK — pick the policy that matches archetype.
+  // 2. ATTACK, pick the policy that matches archetype.
   const attackers = match.board[side].filter(m => m.canAttack && m.hp > 0 && !(m.hollowKing && (match.spellsCast[side] || 0) < 3));
   if (attackers.length) {
     const atk = pickAttack(match, side, archetype, attackers);
@@ -279,20 +279,20 @@ function pickPlay(match, side, archetype, playable) {
   // Cards sorted by current preference per archetype.
   const ranked = playable.map(i => ({ i, c: CARDS[match.hands[side][i]] }));
   if (archetype === 'aggro') {
-    // Greedy — play the highest-attack minion that fits.
+    // Greedy, play the highest-attack minion that fits.
     ranked.sort((x, y) => (y.c.atk || 0) - (x.c.atk || 0));
   } else if (archetype === 'control') {
-    // Patient — play the highest-HP / highest-cost minion or removal/heal spell.
+    // Patient, play the highest-HP / highest-cost minion or removal/heal spell.
     ranked.sort((x, y) => (y.c.hp || 0) + (y.c.mana || 0) - ((x.c.hp || 0) + (x.c.mana || 0)));
   } else {
-    // Midrange — play the highest-mana card that fits (board curve).
+    // Midrange, play the highest-mana card that fits (board curve).
     ranked.sort((x, y) => (y.c.mana || 0) - (x.c.mana || 0));
   }
   for (const { i, c } of ranked) {
     // Spells: pick a target if needed.
     if (c.type === 'spell') {
       const targetUid = pickSpellTarget(match, side, c, archetype);
-      // Even if the targetUid is null, we still try the play — the
+      // Even if the targetUid is null, we still try the play, the
       // resolver will fall through to a no-op (covered by the
       // resolveTargets returning []), and the spell is spent.
       return { kind: 'playCard', side, handIdx: i, targetUid };
@@ -345,7 +345,7 @@ function pickSpellTarget(match, side, card, archetype) {
 }
 
 function pickMinionPlayTarget(match, side, card, archetype) {
-  // Reuse the spell target picker — same intent.
+  // Reuse the spell target picker, same intent.
   return pickSpellTarget(match, side, card, archetype);
 }
 
@@ -361,7 +361,7 @@ function pickAttack(match, side, archetype, attackers) {
 
     if (archetype === 'aggro') {
       if (canFace) return { kind: 'attack', side, attackerUid: attacker.uid, defenderUid: 'hero' };
-      // Must go through taunts — pick smallest-HP taunt to remove fast.
+      // Must go through taunts, pick smallest-HP taunt to remove fast.
       if (targetableMinions.length) {
         targetableMinions.sort((a, b) => (a.hp || 0) - (b.hp || 0));
         return { kind: 'attack', side, attackerUid: attacker.uid, defenderUid: targetableMinions[0].uid };
@@ -374,7 +374,7 @@ function pickAttack(match, side, archetype, attackers) {
       }
       if (canFace) return { kind: 'attack', side, attackerUid: attacker.uid, defenderUid: 'hero' };
     } else {
-      // Midrange — kill profitable trades, else face.
+      // Midrange, kill profitable trades, else face.
       const trade = targetableMinions.find(m => attacker.atk >= m.hp && m.atk < attacker.hp);
       if (trade) return { kind: 'attack', side, attackerUid: attacker.uid, defenderUid: trade.uid };
       if (canFace) return { kind: 'attack', side, attackerUid: attacker.uid, defenderUid: 'hero' };
@@ -396,7 +396,7 @@ function pickAttack(match, side, archetype, attackers) {
 //   3. Clear the active-match-ref pointer so the next /boltbound play
 //      starts fresh.
 //
-// Idempotent — re-running on the same finished match no-ops (we mark
+// Idempotent, re-running on the same finished match no-ops (we mark
 // match.settled=true after the first pass).
 
 async function finaliseIfEnded(env, match) {
@@ -449,7 +449,7 @@ async function finaliseIfEnded(env, match) {
     await appendLog(env, match.guildId, userId, receipt);
     await setActiveMatchId(env, match.guildId, userId, '');
 
-    // PROGRESSION (P1) — emit cards.match.played (floor) + cards.match.won.*
+    // PROGRESSION (P1), emit cards.match.played (floor) + cards.match.won.*
     // on victory. Dedup by matchId so re-runs grant XP once.
     try {
       const { emitProgressionEvent } = await import('./progression/event-bus.js');
@@ -466,7 +466,7 @@ async function finaliseIfEnded(env, match) {
       }
     } catch { /* non-fatal */ }
   }
-  // RET-4 — feed the ranked ladder (PvP only; the helper no-ops on
+  // RET-4, feed the ranked ladder (PvP only; the helper no-ops on
   // NPC matches and draws). Best-effort; must not block finalise.
   try {
     const { applyRankedResult } = await import('./boltbound-ranked.js');

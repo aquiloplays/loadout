@@ -1,4 +1,4 @@
-// Smoke test for card-art-remix.js — verifies slash + select dispatch.
+// Smoke test for card-art-remix.js, verifies slash + select dispatch.
 
 import { handleCardArtRemixCommand, handleCardArtRemixSelect } from '../card-art-remix.js';
 
@@ -34,7 +34,7 @@ function stubGiphy(urls) {
   return { restore: () => { globalThis.fetch = real; }, calls: () => calls };
 }
 
-console.log('— slash: no GIPHY_API_KEY → ephemeral message');
+console.log('- slash: no GIPHY_API_KEY → ephemeral message');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const r = await handleCardArtRemixCommand(env, {
@@ -49,7 +49,7 @@ console.log('— slash: no GIPHY_API_KEY → ephemeral message');
   assert(r.data.content.includes('GIPHY_API_KEY'), 'mentions GIPHY_API_KEY');
 }
 
-console.log('— slash: unknown card → ephemeral error');
+console.log('- slash: unknown card → ephemeral error');
 {
   const env = { LOADOUT_BOLTS: makeKv(), GIPHY_API_KEY: 'k' };
   const r = await handleCardArtRemixCommand(env, {
@@ -63,7 +63,7 @@ console.log('— slash: unknown card → ephemeral error');
   assert(r.data.content.includes('Unknown cardId'), 'unknown card error');
 }
 
-console.log('— slash: happy path returns 5 embeds + select menu');
+console.log('- slash: happy path returns 5 embeds + select menu');
 {
   const stub = stubGiphy([
     'https://media.giphy.com/c1.gif',
@@ -96,7 +96,7 @@ console.log('— slash: happy path returns 5 embeds + select menu');
   } finally { stub.restore(); }
 }
 
-console.log('— select: persists chosen candidate to global-card-art');
+console.log('- select: persists chosen candidate to global-card-art');
 {
   const env = { LOADOUT_BOLTS: makeKv(), GIPHY_API_KEY: 'k' };
   // Seed a picker stash.
@@ -126,7 +126,7 @@ console.log('— select: persists chosen candidate to global-card-art');
   eq(stillThere, null, 'picker cleared after pick');
 }
 
-console.log('— select: expired picker → friendly error');
+console.log('- select: expired picker → friendly error');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const r = await handleCardArtRemixSelect(env, {
@@ -137,5 +137,5 @@ console.log('— select: expired picker → friendly error');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -158,15 +158,15 @@ export async function listTicketTypesEphemeral(env, data) {
   const types = await listTicketTypes(env, guildId);
   const lines = [];
   lines.push('**🎫 Ticket setup**');
-  lines.push('• Staff role: ' + (c.staff_role_id ? '<@&' + c.staff_role_id + '>' : '_unset — Configure first_'));
+  lines.push('• Staff role: ' + (c.staff_role_id ? '<@&' + c.staff_role_id + '>' : '_unset, Configure first_'));
   lines.push('• Category: ' + (c.category_id ? '`' + c.category_id + '`' : '_unset (tickets created at top level)_'));
   lines.push('• Log channel: ' + (c.log_channel_id ? '<#' + c.log_channel_id + '>' : '_unset_'));
   lines.push('');
   lines.push('**Types (' + types.length + '):**');
-  if (!types.length) lines.push('_none — add some with ➕ Add Type_');
+  if (!types.length) lines.push('_none, add some with ➕ Add Type_');
   else for (const t of types) {
     lines.push('• ' + (t.emoji ? t.emoji + ' ' : '') + '**' + t.label + '**' +
-      (t.description ? ' — ' + t.description : '') +
+      (t.description ? ', ' + t.description : '') +
       (t.ping_role_id ? ' _(pings <@&' + t.ping_role_id + '>)_' : ''));
   }
   return ephemeral(lines.join('\n'));
@@ -203,7 +203,7 @@ export async function postTicketPanel(env, data) {
   const guildId = await ensureBootstrap(env);
   const config = await getTicketConfig(env, guildId);
   if (!config.staff_role_id) {
-    return ephemeral('⚠️ Configure the ticket system first (**⚙️ Configure** — staff role is required).');
+    return ephemeral('⚠️ Configure the ticket system first (**⚙️ Configure**, staff role is required).');
   }
   const types = await listTicketTypes(env, guildId);
   if (!types.length) {
@@ -249,7 +249,7 @@ async function openTicket(env, data, typeId) {
   if (!guildId || !userId) return ephemeral('Couldn\'t identify you.');
 
   const config = await getTicketConfig(env, guildId);
-  if (!config.staff_role_id) return ephemeral('Ticket system isn\'t configured yet — ping an admin.');
+  if (!config.staff_role_id) return ephemeral('Ticket system isn\'t configured yet, ping an admin.');
 
   const type = await env.DB.prepare(
     'SELECT * FROM ticket_types WHERE id = ? AND guild_id = ?'
@@ -423,6 +423,6 @@ async function deleteTicket(env, data) {
   } catch (e) {
     return ephemeral('Couldn\'t delete the channel: ' + (e?.message || e));
   }
-  // No further response needed — the channel is gone.
+  // No further response needed, the channel is gone.
   return ephemeral('🗑️ Deleted.');
 }

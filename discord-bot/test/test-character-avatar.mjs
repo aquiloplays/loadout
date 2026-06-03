@@ -44,7 +44,7 @@ function eq(a, b, label) {
   assert(ok, label);
 }
 
-// KV stub — values are stored as { value, metadata }. Supports
+// KV stub, values are stored as { value, metadata }. Supports
 // put(key, value, opts?), get(key, opts?), getWithMetadata(key, opts?),
 // delete(key), list({ prefix }).
 function makeKv() {
@@ -93,7 +93,7 @@ const GUILD = '1504103035951906883';
 const USER  = '209640265063006208';
 const ENV_BASE = { PUBLIC_WORKER_URL: 'https://loadout-discord.test.workers.dev' };
 
-// Smallest valid-ish image — 8 raw bytes is enough for the validator;
+// Smallest valid-ish image, 8 raw bytes is enough for the validator;
 // it doesn't decode. Base64-encoded.
 function b64(bytes) {
   let s = '';
@@ -104,7 +104,7 @@ function b64(bytes) {
 const PNG_HEADER = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const TINY_PNG_B64 = b64(PNG_HEADER);
 
-console.log('— constants exported');
+console.log('- constants exported');
 {
   eq(AVATAR_MAX_BYTES, 4 * 1024 * 1024, 'AVATAR_MAX_BYTES = 4MB');
   assert(AVATAR_ALLOWED_CONTENT_TYPES.has('image/png'),  'png allowed');
@@ -114,7 +114,7 @@ console.log('— constants exported');
   assert(!AVATAR_ALLOWED_CONTENT_TYPES.has('image/svg+xml'), 'svg refused');
 }
 
-console.log('— valid upload');
+console.log('- valid upload');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   const r = await putAvatarWeb(env, USER, 'image/png', TINY_PNG_B64, GUILD);
@@ -126,7 +126,7 @@ console.log('— valid upload');
   assert(r.avatarUrl.includes('?v=' + r.uploadedAt), 'avatarUrl pinned to uploadedAt');
 }
 
-console.log('— GET round-trip');
+console.log('- GET round-trip');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   await putAvatarWeb(env, USER, 'image/gif', b64(new Uint8Array([0x47, 0x49, 0x46, 0x38, 0x39, 0x61])), GUILD);
@@ -140,7 +140,7 @@ console.log('— GET round-trip');
   eq(Array.from(buf), [0x47, 0x49, 0x46, 0x38, 0x39, 0x61], 'body bytes round-trip');
 }
 
-console.log('— oversized rejection');
+console.log('- oversized rejection');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   // Construct a payload one byte over the cap.
@@ -156,7 +156,7 @@ console.log('— oversized rejection');
   eq(url, null, 'no avatar persisted on rejection');
 }
 
-console.log('— bad contentType');
+console.log('- bad contentType');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   const r = await putAvatarWeb(env, USER, 'image/svg+xml', TINY_PNG_B64, GUILD);
@@ -168,18 +168,18 @@ console.log('— bad contentType');
   assert(r2.ok, 'uppercase contentType normalized');
 }
 
-console.log('— bad / empty base64');
+console.log('- bad / empty base64');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   const r1 = await putAvatarWeb(env, USER, 'image/png', '!@#$%^', GUILD);
   eq(r1.error, 'bad-data', 'invalid base64 → bad-data');
   // Empty string is handled by routeCharacterAvatar (clear path), but
-  // putAvatarWeb directly with '' returns bad-data — both fine.
+  // putAvatarWeb directly with '' returns bad-data, both fine.
   const r2 = await putAvatarWeb(env, USER, 'image/png', '', GUILD);
   eq(r2.error, 'bad-data', 'empty base64 → bad-data');
 }
 
-console.log('— data: URI prefix stripped');
+console.log('- data: URI prefix stripped');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   const dataUri = 'data:image/png;base64,' + TINY_PNG_B64;
@@ -188,7 +188,7 @@ console.log('— data: URI prefix stripped');
   eq(r.size, PNG_HEADER.length, 'size matches decoded body, not the prefix');
 }
 
-console.log('— clear via clear flag');
+console.log('- clear via clear flag');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   await putAvatarWeb(env, USER, 'image/png', TINY_PNG_B64, GUILD);
@@ -205,7 +205,7 @@ console.log('— clear via clear flag');
   eq(resp.status, 404, 'GET 404s after clear');
 }
 
-console.log('— clear idempotent');
+console.log('- clear idempotent');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   const c1 = await clearAvatarWeb(env, USER);
@@ -215,12 +215,12 @@ console.log('— clear idempotent');
   eq(c2.avatarUrl, null, 'avatarUrl null');
 }
 
-console.log('— locked character can still upload + clear');
+console.log('- locked character can still upload + clear');
 {
   // Direct simulation: write a hero record with locked:true to KV,
   // then exercise both avatar paths. Neither putAvatarWeb nor
   // clearAvatarWeb touches the hero record, so the lock has no
-  // effect — that\'s the requirement (cosmetic upload is independent
+  // effect, that\'s the requirement (cosmetic upload is independent
   // of the class-lock slot).
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   await env.LOADOUT_BOLTS.put(
@@ -233,18 +233,18 @@ console.log('— locked character can still upload + clear');
   assert(typeof url === 'string' && url.length > 0, 'getAvatarUrl returns the URL');
   const c = await clearAvatarWeb(env, USER);
   assert(c.ok, 'clear succeeds against a locked hero');
-  // And the hero record is unchanged — lock is still set.
+  // And the hero record is unchanged, lock is still set.
   const hero = await env.LOADOUT_BOLTS.get(`d:hero:${GUILD}:${USER}`, { type: 'json' });
   eq(hero.locked, true, 'hero.locked untouched by avatar swap');
 }
 
-console.log('— getAvatarUrl null when no avatar');
+console.log('- getAvatarUrl null when no avatar');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   eq(await getAvatarUrl(env, USER), null, 'no kv entry → null');
 }
 
-console.log('— GET handler edge cases');
+console.log('- GET handler edge cases');
 {
   const env = { ...ENV_BASE, LOADOUT_BOLTS: makeKv() };
   // Unknown user.
@@ -253,7 +253,7 @@ console.log('— GET handler edge cases');
     env, '/character/avatar/' + USER,
   );
   eq(r1.status, 404, 'unknown user 404s');
-  // Malformed path — non-snowflake id.
+  // Malformed path, non-snowflake id.
   const r2 = await handleCharacterAvatar(
     new Request('https://w/character/avatar/not-a-snowflake'),
     env, '/character/avatar/not-a-snowflake',
@@ -269,7 +269,7 @@ console.log('— GET handler edge cases');
 
 console.log('');
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

@@ -1,4 +1,4 @@
-// Card-art suggestion helpers — given a Boltbound cardId, derive
+// Card-art suggestion helpers, given a Boltbound cardId, derive
 // (a) 4-6 Giphy/Tenor search terms that match the card's name +
 // function so the editor UI can pre-populate suggestions, and (b)
 // a 1-line plain-English description rendered alongside the card.
@@ -20,7 +20,7 @@ const STOPWORDS = new Set([
 // Effect-name → search-term overrides. The card system uses dry
 // internal names ('damage', 'heal'); meme-GIF search wants vivid
 // evocations ('explosion', 'healing'). Multiple terms allowed per
-// effect — picker can de-dup downstream.
+// effect, picker can de-dup downstream.
 const EFFECT_TERMS = {
   damage:    ['explosion', 'attack'],
   heal:      ['healing', 'recovery'],
@@ -77,12 +77,12 @@ export function suggestArtTerms(cardId) {
   }
   const terms = new Set();
 
-  // 1. Name tokens — usually the most evocative cues.
+  // 1. Name tokens, usually the most evocative cues.
   const nameWords = tokenizeName(card.name);
   for (const tok of nameWords) terms.add(tok);
 
   // 2. Multi-word phrases from the name (e.g. "Lightning Strike" gets
-  // both "lightning" + "lightning strike" — phrase often searches
+  // both "lightning" + "lightning strike", phrase often searches
   // better on Giphy than single words).
   if (nameWords.length >= 2) {
     terms.add(nameWords.slice(0, 2).join(' '));
@@ -136,7 +136,7 @@ export function describeCard(card) {
     const stats = (card.type === 'minion' || card.type === 'champion')
       ? ` (${card.atk}/${card.hp})`
       : '';
-    return `${typeLabel}${stats} — ${card.text.trim()}`.slice(0, 200);
+    return `${typeLabel}${stats}, ${card.text.trim()}`.slice(0, 200);
   }
 
   const parts = [];
@@ -153,5 +153,5 @@ export function describeCard(card) {
     }
   }
   if (parts.length === 0) parts.push('No effect text on file.');
-  return `${typeLabel} — ${parts.join(' · ')}`.slice(0, 200);
+  return `${typeLabel}, ${parts.join(' · ')}`.slice(0, 200);
 }

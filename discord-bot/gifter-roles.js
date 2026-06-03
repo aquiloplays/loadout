@@ -2,7 +2,7 @@
 //
 // Three Discord roles, each held by the current TOP 3 in that
 // category over the last 30 days. Driven by Streamer.bot HTTP
-// actions posting to /streamerbot/event — payload schema documented
+// actions posting to /streamerbot/event, payload schema documented
 // at the top of handleStreamerbotEvent below.
 //
 // Rolling-window math:
@@ -18,7 +18,7 @@
 //   gifter-roles:<guildId>  → { sub: '<roleId>', tiktok: '<roleId>',
 //                               cheer: '<roleId>' }
 //
-// Per-event identity buckets (for the slash command + report — keep
+// Per-event identity buckets (for the slash command + report, keep
 // the username even for unlinked contributors so they still appear
 // in the leaderboard):
 //   gifter-identity:<cat>:<g>:<key>  → { platform, login, lastSeenUtc }
@@ -227,10 +227,10 @@ export async function rolling30dLeaderboard(env, category, guildId, limit = 50) 
   const days = lastNDays(ROLLING_WINDOW_DAYS);
   // Per day: list `gifter:<cat>:<g>:` and filter by suffix `:<day>`.
   // Cheaper alternative would be one list call + filtering everything
-  // — for a 30-day window with hundreds of contributors that's a few
+  //, for a 30-day window with hundreds of contributors that's a few
   // KB of keys. Doing it per-day keeps the list smaller per call.
   let cursor;
-  // Single list call across the whole category — KV list returns
+  // Single list call across the whole category, KV list returns
   // names only (no values), then we GET per key. Fewer round trips
   // than 30 per-day lists.
   const prefix = `gifter:${category}:${guildId}:`;
@@ -272,7 +272,7 @@ export async function rolling30dLeaderboard(env, category, guildId, limit = 50) 
 // ── Daily cron: rebuild top-3 role membership + trim old buckets ──
 //
 // Idempotent per UTC day via gifter-roles:last-cron-day:<g>. Fires
-// on the :23 hourly tick — gated to once per UTC day so we don't
+// on the :23 hourly tick, gated to once per UTC day so we don't
 // thrash Discord role REST calls 24× per day.
 
 export async function gifterRolesDailyTick(env) {
@@ -302,7 +302,7 @@ export async function gifterRolesDailyTick(env) {
 async function reconcileCategory(env, guildId, category, roleId) {
   if (!roleId) return { skipped: 'no-role-id-for-' + category };
   const board = await rolling30dLeaderboard(env, category, guildId, 50);
-  // Top 3 with a Discord link — unlinked contributors can lead the
+  // Top 3 with a Discord link, unlinked contributors can lead the
   // leaderboard but can't hold the role (no member to grant to).
   const top3Ids = board.filter(r => r.discordUserId).slice(0, 3).map(r => r.discordUserId);
   // Who currently holds the role on the Discord side?
@@ -322,7 +322,7 @@ async function reconcileCategory(env, guildId, category, roleId) {
 
 // Discord REST: list every member that currently holds a given
 // role id. /guilds/{g}/members?limit=1000 pages over the whole
-// roster — fine for aquilo's size (hundreds), would need
+// roster, fine for aquilo's size (hundreds), would need
 // pagination loop if we grow past ~1000.
 async function listRoleHolders(env, guildId, roleId) {
   const holders = new Set();
@@ -498,7 +498,7 @@ export async function handleTopGiftersCommand(env, data) {
       const who = r.discordUserId
         ? `<@${r.discordUserId}>`
         : (r.login || r.key);
-      return `${i + 1}. **${r.total.toLocaleString()}** — ${who}` +
+      return `${i + 1}. **${r.total.toLocaleString()}**, ${who}` +
              (r.discordUserId ? ` _(${r.platform}: ${r.login})_` : '');
     });
     fields.push({ name: spec.name, value: lines.join('\n'), inline: false });

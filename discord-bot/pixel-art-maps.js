@@ -9,7 +9,7 @@
 //                                  -> pixel-art-clash:units:<id>
 //   - pets    (8 species)         -> pixel-art-pet:<id>
 //
-// This module lists all four KV prefixes (in parallel — KV list is one
+// This module lists all four KV prefixes (in parallel, KV list is one
 // round-trip per page, no per-key GET) and shapes them into the maps
 // the PWA renderers expect:
 //
@@ -20,7 +20,7 @@
 //   globalPetArt:   { [petId]:     url }
 //
 // Each URL is deterministic from the KV key, so we don't need to GET
-// any values — `list` returns names only, which is the cheapest KV
+// any values, `list` returns names only, which is the cheapest KV
 // operation. For ~370 keys total spread across 4 prefixes, this adds
 // ~100-200ms to the bootstrap (one list round-trip per prefix, all
 // fired in parallel).

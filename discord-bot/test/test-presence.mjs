@@ -2,7 +2,7 @@
 // (routePresenceUpdate / routePresenceClear / routePresenceFeed).
 //
 // These three bypass handleWeb's strict discordId/guildId gate because
-// presence is per-user + guild-agnostic — the site proxy forwards
+// presence is per-user + guild-agnostic, the site proxy forwards
 // { userId, key, state, detail } (no guildId). We test the handlers
 // directly against an in-memory KV mock that models the put/get/list/
 // delete contract + expirationTtl.
@@ -40,7 +40,7 @@ async function bodyOf(resp) { return JSON.parse(await resp.text()); }
 async function run() {
   const USER = '123456789012345678';
 
-  // 1. update — stores under presence:user:<id> with a TTL.
+  // 1. update, stores under presence:user:<id> with a TTL.
   {
     const STATE = makeKV();
     const resp = await routePresenceUpdate({ STATE }, {
@@ -58,7 +58,7 @@ async function run() {
     assert(typeof rec.ts === 'number', 'stamped ts');
   }
 
-  // 2. update — rejects a bad user id and never writes.
+  // 2. update, rejects a bad user id and never writes.
   {
     const STATE = makeKV();
     const resp = await routePresenceUpdate({ STATE }, { userId: 'not-a-snowflake' });
@@ -66,7 +66,7 @@ async function run() {
     eq(STATE.store.size, 0, 'nothing written on reject');
   }
 
-  // 3. update — clamps oversized + control-char fields to single-line.
+  // 3. update, clamps oversized + control-char fields to single-line.
   {
     const STATE = makeKV();
     const longState = 'x'.repeat(500);
@@ -78,7 +78,7 @@ async function run() {
     assert(rec.detail.length <= 128, 'detail clamped to <=128 chars');
   }
 
-  // 4. clear — removes the entry.
+  // 4. clear, removes the entry.
   {
     const STATE = makeKV();
     await routePresenceUpdate({ STATE }, { userId: USER, key: 'idle' });
@@ -88,7 +88,7 @@ async function run() {
     assert(!STATE.store.has('presence:user:' + USER), 'entry gone after clear');
   }
 
-  // 5. feed — lists every live presence.
+  // 5. feed, lists every live presence.
   {
     const STATE = makeKV();
     await routePresenceUpdate({ STATE }, { userId: '111111111111111111', key: 'clash' });
@@ -100,7 +100,7 @@ async function run() {
     assert(b.presences.every(p => p.userId && p.key), 'feed entries carry userId + key');
   }
 
-  // 6. defensive — no STATE binding -> 503, not a throw.
+  // 6. defensive, no STATE binding -> 503, not a throw.
   {
     const resp = await routePresenceUpdate({}, { userId: USER, key: 'idle' });
     eq(resp.status, 503, 'missing KV binding -> 503');

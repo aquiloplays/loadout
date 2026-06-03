@@ -1,4 +1,4 @@
-// Aquilo engagement overlay — OBS browser source for the tap-to-cheer
+// Aquilo engagement overlay, OBS browser source for the tap-to-cheer
 // effect. Connects to the local Aquilo Bus and floats the tapped emote
 // up the screen on each cheer.shown event.
 (function () {
@@ -54,7 +54,7 @@
     if (kind === "cheer.shown") return showCheer(data);
   }
 
-  // ── feature A — tap-to-cheer ─────────────────────────────────────────
+  // ── feature A, tap-to-cheer ─────────────────────────────────────────
   function showCheer(d) {
     var em = document.createElement("div");
     em.className = "cheer-emote";

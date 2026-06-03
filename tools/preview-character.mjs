@@ -27,7 +27,7 @@ for (const a of argv) {
   if (m) args[m[1]] = m[2];
 }
 
-// Default look — exercises every layer type
+// Default look, exercises every layer type
 const look = {
   body: args.body || 'stocky',
   skin: args.skin || 'fair',
@@ -48,7 +48,7 @@ function parseGear(s) {
   return out;
 }
 
-// Hair palette swap data — must mirror character.js HAIR_REF +
+// Hair palette swap data, must mirror character.js HAIR_REF +
 // HAIR_COLOURS_RGB. We extend to 5 tones for the HD bar.
 const HAIR_REF = {
   deep: [0x22, 0x12, 0x0b], shadow: [0x3b, 0x25, 0x1a], base: [0x5a, 0x3a, 0x26], high: [0x7a, 0x52, 0x36], top: [0xa0, 0x72, 0x48],
@@ -96,7 +96,7 @@ async function loadLayer(rel) {
 
 async function composeLook(look, outName) {
   const layers = [];
-  // Back trinket (cape) — if applicable
+  // Back trinket (cape), if applicable
   if (look.gear.trinket && /(^|-)(cape|cloak|wing|mantle|drape|veil|feather)(-|$)/.test(look.gear.trinket)) {
     const l = await loadLayer(`gear/trinket/${look.gear.trinket}.png`);
     if (l) layers.push(l);
@@ -104,7 +104,7 @@ async function composeLook(look, outName) {
   // Body
   const body = await loadLayer(`figure/body-${look.body}-${look.skin}.png`);
   if (body) layers.push(body);
-  // Default clothing — always rendered; chest/legs gear paints over it.
+  // Default clothing, always rendered; chest/legs gear paints over it.
   const clothes = await loadLayer('figure/default-clothing.png');
   if (clothes) layers.push(clothes);
   // Legs / boots / chest gear

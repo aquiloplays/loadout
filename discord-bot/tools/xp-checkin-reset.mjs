@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One-shot reset — Aquilo Pass XP + daily check-in counters back to 0.
+// One-shot reset, Aquilo Pass XP + daily check-in counters back to 0.
 //
 // Clay's directive (2026-06-02): start everyone on a fresh season climb.
 // Resets engagement/grind counters ONLY; currency, collections, decks,
@@ -53,7 +53,7 @@ function wr(args) {
     const out = (r.stdout || '') + (r.stderr || '');
     if (r.status === 0) return r.stdout || '';
     last = out;
-    // Transient Cloudflare API auth/availability blips — retry briefly.
+    // Transient Cloudflare API auth/availability blips, retry briefly.
     if (/code: ?(10000|9109)|fetch failed|ECONNRESET|timed? ?out/i.test(out)) continue;
     break;
   }
@@ -93,7 +93,7 @@ function d1(sql) {
 }
 
 // ── Snapshot + verify one structure ─────────────────────────────────────
-// Returns { ok, key, size } — ok:false aborts that structure's reset.
+// Returns { ok, key, size }, ok:false aborts that structure's reset.
 function snapshot(name, payload) {
   const key = ARCHIVE(name);
   kvPutJson(key, payload, { ttl: TTL_S });
@@ -158,7 +158,7 @@ report.structures = {
 };
 console.log('  current state:', JSON.stringify(report.structures, null, 2));
 
-// ── Preserve sample (before) — prove currency/collection untouched ──────
+// ── Preserve sample (before), prove currency/collection untouched ──────
 // Sample the union of users we touch, so the report can show before/after.
 const sampleUsers = [...new Set([
   ...pxpKeys.map((k) => k.slice('pxp:'.length)),
@@ -202,7 +202,7 @@ if (!allSnapsOk) {
 }
 
 if (!EXECUTE) {
-  console.log('\n[3/4] DRY RUN — no reset performed. Re-run with --execute to apply.');
+  console.log('\n[3/4] DRY RUN, no reset performed. Re-run with --execute to apply.');
   finish(0);
 }
 
@@ -286,7 +286,7 @@ verify.pxp_sumXp_after = pxpAfterSum;
 verify.community_checkin_sumStreak_after = ccAfterStreak;
 verify.community_checkin_sumTotal_after = ccAfterTotal;
 
-// Preserve check (after) — must equal `before`.
+// Preserve check (after), must equal `before`.
 const preserveAfter = {};
 let preserveOk = true;
 for (const u of sampleUsers) {
@@ -303,7 +303,7 @@ for (const u of sampleUsers) {
 report.preserve.after = preserveAfter;
 verify.preserveOk = preserveOk;
 
-// Snapshot retrievable — decode one archive entry and confirm pre-reset data.
+// Snapshot retrievable, decode one archive entry and confirm pre-reset data.
 const checkKey = report.snapshots['community-checkin']?.key || report.snapshots['pxp']?.key;
 const decoded = kvGetJson(checkKey);
 const decodedKeys = decoded?.keys ? Object.keys(decoded.keys).length : (decoded?.rows?.length ?? 0);
@@ -316,7 +316,7 @@ const zeroed =
   Number(uppAfter.sx) === 0 && Number(dcAfter.sc) === 0 && Number(dcAfter.st) === 0 &&
   pxpAfterSum === 0 && ccAfterStreak === 0 && ccAfterTotal === 0;
 if (!zeroed) report.errors.push('post-reset-sums-nonzero');
-if (!preserveOk) console.error('  !! PRESERVE CHECK FAILED — currency/collection changed.');
+if (!preserveOk) console.error('  !! PRESERVE CHECK FAILED, currency/collection changed.');
 
 console.log(`\n=== ${report.errors.length ? 'COMPLETED WITH ERRORS' : 'RESET COMPLETE'} ===`);
 finish(report.errors.length ? 2 : 0);

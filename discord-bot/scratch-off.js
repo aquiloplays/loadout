@@ -4,19 +4,19 @@
 // The card has a tactile pointer-drag scratch interaction (client-side,
 // in aquilo-site). Most cards lose; ~HIT_RATE hit. The OUTCOME IS DECIDED
 // SERVER-SIDE AT MINT TIME and withheld from the client until the viewer
-// has physically scratched past REVEAL_THRESHOLD — so a viewer cannot read
+// has physically scratched past REVEAL_THRESHOLD, so a viewer cannot read
 // the result early off the wire. On a hit the outcome is either a
 // chat-driven CHALLENGE (Clay performs it live) or a Streamer.bot TAMPER
 // (invert mouse, swap WASD, mute mic, …) that fires through the Aquilo Bus
 // to a Loadout-side relay (see SCRATCH-OFF-STREAMERBOT.md).
 //
 // The current game is detected from Clay's Twitch category (getChannelGame
-// in twitch-helix.js — same lookup the death counter uses) and normalized
+// in twitch-helix.js, same lookup the death counter uses) and normalized
 // to a slug; that drives both the themed outcome pool and the panel's
 // per-game card art.
 //
 // Storage: D1 env.DB (scratch_ticket / scratch_outcome_pool /
-// scratch_streamer_bot_action — see scratch-off-migration.sql). The schema
+// scratch_streamer_bot_action, see scratch-off-migration.sql). The schema
 // is also self-applied lazily (ensureSchema) so a missed migration
 // degrades gracefully. Live updates fan out on the Aquilo Bus via
 // publishActivity() as scratch.* events.
@@ -44,7 +44,7 @@ const SCRATCH_SKUS = new Set([    // Twitch product SKUs that mint a card
 // ── Pacing guards (so a hot pool never overwhelms Clay) ─────────────────
 // Hits are rate-limited PER STREAM SESSION (keyed on the live Twitch stream
 // id). A roll that would win is downgraded to a loss when the cap is hit or
-// the cooldown has not elapsed — outcome is still decided server-side at
+// the cooldown has not elapsed, outcome is still decided server-side at
 // mint, just bounded. Tunable without a redeploy via the scratch:cfg KV
 // (admin endpoint below); these are the defaults.
 const MAX_HITS_PER_STREAM = 4;          // 3-5 hits/stream ceiling
@@ -208,7 +208,7 @@ function rid(prefix) {
   return prefix + '_' + now().toString(36) + '_' + Math.floor(Math.random() * 1e9).toString(36);
 }
 
-// Lazy schema apply — runs the migration statements once per isolate so a
+// Lazy schema apply, runs the migration statements once per isolate so a
 // cold worker works even if `wrangler d1 execute` was never run. The flag
 // is module-scoped (per V8 isolate); a fresh isolate re-runs the harmless
 // IF NOT EXISTS statements.
@@ -255,7 +255,7 @@ function jsonResp(obj, status = 200, extraHeaders = {}) {
   });
 }
 
-// Admin/owner gate — reuses the Stream Deck token if no dedicated one is
+// Admin/owner gate, reuses the Stream Deck token if no dedicated one is
 // set, so the trigger + CRUD endpoints work out of the box tonight.
 function tokenOk(req, env, url) {
   const want = String(env.SCRATCH_ADMIN_TOKEN || env.STREAMDECK_TOKEN || '').trim();
@@ -364,7 +364,7 @@ async function rollOutcome(env, gameSlug, opts = {}) {
   }
   const pick = weightedPick(rows);
   if (!pick) {
-    // No pool seeded at all — degrade to a generic challenge so a "hit"
+    // No pool seeded at all, degrade to a generic challenge so a "hit"
     // still feels like a win rather than silently becoming a loss.
     return { outcome: 'challenge', outcomeData: {
       poolId: null, body: 'Pose for the stream for 10 seconds.', durationSec: 10 } };
@@ -446,7 +446,7 @@ async function mintTicket(env, { userId, userName, bits, sku, txnId, liveCtx }) 
 
 // Mint behind the live/pause guard. When `enforce`, an offline or paused
 // channel BLOCKS the mint (no ticket created) and the caller treats any bits
-// as refundable — Clay should never get hit while away or mid-transition.
+// as refundable, Clay should never get hit while away or mid-transition.
 // The no-receipt loopback/test path passes enforce:false so localhost demos
 // and the extension test rig keep working off-stream.
 async function guardedMint(env, args, { enforce = true } = {}) {
@@ -482,7 +482,7 @@ async function echoHitToDiscord(env, row) {
   const kind = row.outcome === 'tamper' ? 'control tamper' : 'challenge';
   const dur = od.durationSec ? ` (${od.durationSec}s)` : '';
   const content =
-    `🎟️ **${who}** scratched a winner on **${game}** — ${kind}${dur}\n> ${od.body || ''}`;
+    `🎟️ **${who}** scratched a winner on **${game}**, ${kind}${dur}\n> ${od.body || ''}`;
   await discordPostMessage(env, channelId, {
     content, allowed_mentions: { parse: [] },
   }).catch(() => {});
@@ -543,7 +543,7 @@ export async function handleScratch(req, env, path) {
         txnId = r.txnId || null;
         userId = r.userId || userId;
       } else {
-        // No receipt — only allowed in the extension test rig / loopback,
+        // No receipt, only allowed in the extension test rig / loopback,
         // where Twitch does not always surface a receipt. Tag bits as 0.
         if (!SCRATCH_SKUS.has(sku)) sku = 'scratch_card_100';
       }
@@ -801,7 +801,7 @@ async function fireRevealEvents(env, row) {
 // Emit the specific firing event (scratch.tamper / scratch.challenge). This
 // dual-publishes (like stream-checkin.js): publishActivity feeds the site +
 // community activity SSE, while enqueueOverlay drops a relay:overlay-* KV
-// trigger that Clay's EXISTING Streamer.bot/OBS poller consumes — that is
+// trigger that Clay's EXISTING Streamer.bot/OBS poller consumes, that is
 // the path that actually executes the tamper / shows the on-stream reveal.
 // Map the action in Streamer.bot off `actionKey` (see SCRATCH-OFF-STREAMERBOT.md).
 async function emitHitFire(env, row, forced) {

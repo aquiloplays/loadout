@@ -1,11 +1,11 @@
-// Community endpoints — username + gamertags + guild channels + members.
+// Community endpoints, username + gamertags + guild channels + members.
 //
 // HMAC-gated like the rest of /web/*. Aquilo-site's Pages Functions
 // hit these to power the supporter wall, profile-edit form, board-
 // game invite picker, and admin "bind a channel" dropdowns.
 //
 // All routes share the same auth helper (gateHmac) defined in
-// progression/http.js — we re-implement a tiny version here so this
+// progression/http.js, we re-implement a tiny version here so this
 // module doesn't pull in the progression dependency graph on cold
 // start of unrelated requests.
 
@@ -51,8 +51,8 @@ async function gateHmac(req, env) {
 // the chosen handle in the UI).
 //
 // Routes:
-//   GET  /web/community/username/<userId>   public — returns { username }
-//   POST /web/community/username            HMAC  — { userId, username } sets it
+//   GET  /web/community/username/<userId>   public, returns { username }
+//   POST /web/community/username            HMAC, { userId, username } sets it
 //
 // Username rules: 3-24 chars, alphanumeric + underscore + dash, case-
 // insensitive unique. The supporter-wall feeder reads pprofile.username
@@ -97,7 +97,7 @@ export async function handleUsername(req, env, path) {
 //
 // Sits alongside pprofile.linkedAccounts (which holds OAuth-verified
 // accounts used for friending). Gamertags are user-controlled display
-// IDs — the user types them and chooses what to show publicly. Some
+// IDs, the user types them and chooses what to show publicly. Some
 // platforms (Steam, Epic) end up with both records; that's fine, they
 // serve different needs.
 
@@ -124,7 +124,7 @@ export async function handleGamertags(req, env, path) {
   const tail = parts[2] || null;
 
   if (req.method === 'GET' && tail && tail !== 'me') {
-    // Public view — visible-only fields.
+    // Public view, visible-only fields.
     const rec = await getGamertags(env, tail);
     const out = {};
     for (const p of GAMERTAG_PLATFORMS) {
@@ -133,7 +133,7 @@ export async function handleGamertags(req, env, path) {
     return json({ userId: tail, gamertags: out });
   }
   if (req.method === 'GET' && tail === 'me') {
-    // Owner view — all fields + visibility flags. Caller passes
+    // Owner view, all fields + visibility flags. Caller passes
     // ?userId=... since this endpoint is HMAC-gated on the website
     // side already.
     const gate = await gateHmac(req, env);
@@ -150,7 +150,7 @@ export async function handleGamertags(req, env, path) {
     const userId = String(gate.body.userId || '').trim();
     if (!/^\d{5,25}$/.test(userId)) return json({ error: 'bad-user-id' }, 400);
     const rec = await getGamertags(env, userId);
-    // Patch the requested platforms only — caller can update one at a
+    // Patch the requested platforms only, caller can update one at a
     // time without clobbering the others.
     const patch = gate.body.gamertags || {};
     for (const platform of GAMERTAG_PLATFORMS) {
@@ -168,12 +168,12 @@ export async function handleGamertags(req, env, path) {
 // ── B3: GET guild channels ─────────────────────────────────────────
 //
 // Returns the Discord guild's text channels for the admin "binding"
-// dropdown on aquilo.gg. Requires a valid DISCORD_BOT_TOKEN — if the
+// dropdown on aquilo.gg. Requires a valid DISCORD_BOT_TOKEN, if the
 // token is missing/invalid, returns { channels: [], warning: '...' }
 // so the UI can show a "token's not set up yet" hint instead of
 // breaking.
 //
-// Caches per-guild for 5 minutes — Discord rate-limits this endpoint
+// Caches per-guild for 5 minutes, Discord rate-limits this endpoint
 // at ~50 reqs/minute per bot, and the dropdown won't change every
 // click.
 
@@ -305,7 +305,7 @@ export async function handleMembers(req, env, path) {
 // pprofile, and return their chosen `username` instead of the raw
 // Patreon display name. If no username was set, we fall back to the
 // Patreon record's stored name (Clay's instruction: "set when a user
-// links their Patreon" — but historic links may not have one yet).
+// links their Patreon", but historic links may not have one yet).
 //
 // Public read, no HMAC.
 

@@ -2,9 +2,9 @@
 // twitch-clips.js + weekly-recap.js).
 //
 // Coverage:
-//   • EventSub HMAC signature verification — matching, mismatching,
+//   • EventSub HMAC signature verification, matching, mismatching,
 //     malformed, missing prefix, wrong-length-but-same-prefix.
-//   • EventSub replay protection — second delivery with same
+//   • EventSub replay protection, second delivery with same
 //     message-id swallowed (returns 200 without re-processing).
 //   • EventSub challenge handshake responds 200 with the challenge
 //     verbatim, plain text.
@@ -69,7 +69,7 @@ function makeKv() {
   };
 }
 
-// Compute the Twitch signature for a synthetic message — used both
+// Compute the Twitch signature for a synthetic message, used both
 // to feed valid inputs to the verifier and to construct a realistic
 // webhook request.
 async function sign(secret, messageId, timestamp, body) {
@@ -86,7 +86,7 @@ async function sign(secret, messageId, timestamp, body) {
 const SECRET = 'super-secret-test-value-not-the-real-one';
 
 // ─────────────────────────────────────────────────────────────────
-console.log('— verifyEventSubSignature: happy + sad paths');
+console.log('- verifyEventSubSignature: happy + sad paths');
 {
   const id   = 'msg-12345';
   const ts   = '2026-05-26T00:00:00Z';
@@ -100,7 +100,7 @@ console.log('— verifyEventSubSignature: happy + sad paths');
   assert(!await verifyEventSubSignature(SECRET, id, ts, body, ''),          'empty header rejected');
   assert(!await verifyEventSubSignature(SECRET, id, ts, body, 'md5=' + sig.slice(7)),
          'wrong algorithm prefix rejected');
-  // Same-prefix-different-bytes — must still reject.
+  // Same-prefix-different-bytes, must still reject.
   const tampered = 'sha256=' + 'a'.repeat(sig.length - 'sha256='.length);
   assert(!await verifyEventSubSignature(SECRET, id, ts, body, tampered),    'mismatched signature bytes rejected');
   // Null / missing inputs.
@@ -108,7 +108,7 @@ console.log('— verifyEventSubSignature: happy + sad paths');
   assert(!await verifyEventSubSignature(SECRET, '', ts, body, sig),         'empty messageId rejected');
 }
 
-console.log('— EventSub webhook: challenge handshake');
+console.log('- EventSub webhook: challenge handshake');
 {
   const env = { LOADOUT_BOLTS: makeKv(), TWITCH_EVENTSUB_SECRET: SECRET };
   const body = JSON.stringify({ challenge: 'ping-1234', subscription: { id: 's1' } });
@@ -133,7 +133,7 @@ console.log('— EventSub webhook: challenge handshake');
   eq(resp.headers.get('content-type'), 'text/plain', 'plain-text content-type');
 }
 
-console.log('— EventSub webhook: bad signature → 403, no handler run');
+console.log('- EventSub webhook: bad signature → 403, no handler run');
 {
   const env = { LOADOUT_BOLTS: makeKv(), TWITCH_EVENTSUB_SECRET: SECRET };
   const calls = [];
@@ -158,7 +158,7 @@ console.log('— EventSub webhook: bad signature → 403, no handler run');
   eq(calls.length, 0, 'no waitUntil scheduled (handler never ran)');
 }
 
-console.log('— EventSub webhook: notification + replay swallow');
+console.log('- EventSub webhook: notification + replay swallow');
 {
   const env = { LOADOUT_BOLTS: makeKv(), TWITCH_EVENTSUB_SECRET: SECRET };
   const calls = [];
@@ -186,17 +186,17 @@ console.log('— EventSub webhook: notification + replay swallow');
   // stream.online schedules TWO work units:
   //   1. twitch-live.js edit-in-place lifecycle card (postLiveEmbed)
   //   2. live-status-embed.js dashboard handler (per-minute refresh)
-  // The bigger announce embed was removed — Clay's lifecycle card IS
+  // The bigger announce embed was removed, Clay's lifecycle card IS
   // the going-live notif; the dashboard is a separate refreshing
   // surface in 1507973917350957067.
   eq(calls.length, 2, 'two waitUntil queued (lifecycle + dashboard)');
-  // Replay — same message-id. Should be swallowed without scheduling.
+  // Replay, same message-id. Should be swallowed without scheduling.
   const r2 = await handleEventSubWebhook(make(), env, ctx);
   eq(r2.status, 200, 'replay → 200');
   eq(calls.length, 2, 'no extra waitUntil on replay');
 }
 
-console.log('— EventSub webhook: revocation acks 200');
+console.log('- EventSub webhook: revocation acks 200');
 {
   const env = { LOADOUT_BOLTS: makeKv(), TWITCH_EVENTSUB_SECRET: SECRET };
   const ctx = { waitUntil: () => {} };
@@ -219,7 +219,7 @@ console.log('— EventSub webhook: revocation acks 200');
   eq(resp.status, 200, 'revocation → 200');
 }
 
-console.log('— EventSub webhook: no secret configured → 503');
+console.log('- EventSub webhook: no secret configured → 503');
 {
   const env = { LOADOUT_BOLTS: makeKv() /* no TWITCH_EVENTSUB_SECRET */ };
   const req = new Request('https://w/twitch/eventsub', { method: 'POST', body: '{}' });
@@ -227,7 +227,7 @@ console.log('— EventSub webhook: no secret configured → 503');
   eq(resp.status, 503, 'unconfigured → 503');
 }
 
-console.log('— twitch-helix: isTwitchConfigured guard');
+console.log('- twitch-helix: isTwitchConfigured guard');
 {
   assert(!isTwitchConfigured(null),                                  'null env → false');
   assert(!isTwitchConfigured({}),                                    'empty env → false');
@@ -236,7 +236,7 @@ console.log('— twitch-helix: isTwitchConfigured guard');
   assert(isTwitchConfigured({ TWITCH_CLIENT_ID: 'x', TWITCH_CLIENT_SECRET: 'y' }), 'both → true');
 }
 
-console.log('— ISO week helper');
+console.log('- ISO week helper');
 {
   // 2026-05-26 is a Tuesday → ISO week 22 of 2026.
   eq(clipIsoWeek(new Date('2026-05-26T12:00:00Z')),  '2026-W22', 'Tue mid-week 2026');
@@ -245,12 +245,12 @@ console.log('— ISO week helper');
   eq(clipIsoWeek(new Date('2027-01-01T12:00:00Z')),  '2026-W53', 'Jan 1 2027 → 2026-W53');
   // Jan 4 is always in week 1 of its ISO year.
   eq(clipIsoWeek(new Date('2026-01-04T12:00:00Z')),  '2026-W01', 'Jan 4 2026 → 2026-W01');
-  // Sunday at end of week — should belong to the same ISO week as
+  // Sunday at end of week, should belong to the same ISO week as
   // the preceding Mon-Sat (not yet rolled over).
   eq(clipIsoWeek(new Date('2026-05-31T23:00:00Z')),  '2026-W22', 'Sun end of W22 still W22');
 }
 
-console.log('— weekly-recap: ISO-week idempotency');
+console.log('- weekly-recap: ISO-week idempotency');
 {
   const env = {
     LOADOUT_BOLTS: makeKv(),
@@ -272,7 +272,7 @@ console.log('— weekly-recap: ISO-week idempotency');
   globalThis.fetch = realFetch;
   assert(r1.ok, 'first call posts');
   assert(r1.week, 'returns week');
-  // KV marker now stamped — re-running same week is a skip.
+  // KV marker now stamped, re-running same week is a skip.
   globalThis.fetch = async () => new Response('SHOULD NOT FETCH', { status: 500 });
   const r2 = await postWeeklyRecap(env);
   globalThis.fetch = realFetch;
@@ -281,10 +281,10 @@ console.log('— weekly-recap: ISO-week idempotency');
   eq(postCount, 1, 'exactly one POST');
 }
 
-console.log('— weekly-recap: skips cleanly when no channel');
+console.log('- weekly-recap: skips cleanly when no channel');
 {
   // With the channel-binding refactor the recap now needs (bot token,
-  // guild id, recap channel) — any missing → skip with the matching
+  // guild id, recap channel), any missing → skip with the matching
   // reason code. Test all three skip paths.
   eq((await postWeeklyRecap({ LOADOUT_BOLTS: makeKv() })).skipped,
     'no-bot-token', 'no token → no-bot-token');
@@ -298,12 +298,12 @@ console.log('— weekly-recap: skips cleanly when no channel');
 }
 
 // ─────────────────────────────────────────────────────────────────
-// twitch-events.js — embed builders + routing
+// twitch-events.js, embed builders + routing
 // ─────────────────────────────────────────────────────────────────
 
-console.log('— twitch-events: brand palette + event catalogue');
+console.log('- twitch-events: brand palette + event catalogue');
 {
-  // Per Clay's 2026-05 spec — aquilo trio only (violet/pink/green/grey),
+  // Per Clay's 2026-05 spec, aquilo trio only (violet/pink/green/grey),
   // no more gold/orange/bright-red. Gradients live on the banner image.
   const VIOLET = 0x7c5cff, PINK = 0xff6ab5, GREEN = 0x5bff95, GREY = 0x6e7588;
   eq(EVENT_COLORS.follow,           VIOLET, 'follow violet');
@@ -324,7 +324,7 @@ console.log('— twitch-events: brand palette + event catalogue');
   assert(!isValidEventType('garbage-event'), 'unknown event-type rejected');
 }
 
-console.log('— embed builders: smoke-test each renders something sensible');
+console.log('- embed builders: smoke-test each renders something sensible');
 {
   const fe = followEmbed({ userName: 'Alice', followedAt: '2026-05-27T10:00:00Z' }, 42);
   eq(fe.color, EVENT_COLORS.follow,  'follow embed colour');
@@ -414,11 +414,11 @@ console.log('— embed builders: smoke-test each renders something sensible');
   assert(/twitch-banner\/unban/.test(ub.image?.url || ''), 'unban embed has unban banner');
 }
 
-console.log('— twitch-events: routing precedence + toggle');
+console.log('- twitch-events: routing precedence + toggle');
 {
   const kv = makeKv();
   const env = { LOADOUT_BOLTS: kv };
-  // No bindings yet — resolveEventChannel returns null.
+  // No bindings yet, resolveEventChannel returns null.
   eq(await resolveEventChannel(env, 'gid-1', 'follow'), null, 'unbound → null');
   // Set the default 'stream-notifications' binding.
   await kv.put('channel-binding:gid-1:stream-notifications', '111111111111111111');
@@ -460,7 +460,7 @@ console.log('— twitch-events: routing precedence + toggle');
   eq(followRow.override, '222222222222222222', 'follow override surfaces in list');
 }
 
-console.log('— hasTwitchUserAuth guard');
+console.log('- hasTwitchUserAuth guard');
 {
   assert(!(await hasTwitchUserAuth(null)),                                                 'null env → false');
   assert(!(await hasTwitchUserAuth({ TWITCH_CLIENT_ID: 'a', TWITCH_CLIENT_SECRET: 'b', LOADOUT_BOLTS: makeKv() })), 'no refresh token → false');
@@ -480,7 +480,7 @@ console.log('— hasTwitchUserAuth guard');
   }
 }
 
-console.log('— setupTwitchSubscriptions: misconfig + user-auth skipping');
+console.log('- setupTwitchSubscriptions: misconfig + user-auth skipping');
 {
   // Missing twitch config returns guard.
   const r1 = await setupTwitchSubscriptions({ LOADOUT_BOLTS: makeKv() });
@@ -536,7 +536,7 @@ console.log('— setupTwitchSubscriptions: misconfig + user-auth skipping');
   eq(r2.hasUserAuth, false, 'hasUserAuth flag echoed in response');
 }
 
-console.log('— EventSub webhook: dispatch routes to twitch-events handlers');
+console.log('- EventSub webhook: dispatch routes to twitch-events handlers');
 {
   const env = {
     LOADOUT_BOLTS: makeKv(),
@@ -590,7 +590,7 @@ console.log('— EventSub webhook: dispatch routes to twitch-events handlers');
 
 console.log('');
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

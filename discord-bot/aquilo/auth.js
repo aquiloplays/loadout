@@ -2,13 +2,13 @@
 //
 // Earlier this file hand-rolled the Ed25519 verify against Cloudflare's
 // WebCrypto. Worked in tests but Discord's developer-portal "verify
-// endpoint" save kept failing — and the failure mode was a silent
+// endpoint" save kept failing, and the failure mode was a silent
 // crypto.subtle.verify -> false, no error trace, hard to diagnose. We
 // switched to the discord-interactions library because:
 //   1. It's used by 100k+ Discord bots; if it can't verify, the issue
 //      is elsewhere (key value, body mutation, etc.).
 //   2. Removes my code as a variable when debugging.
-//   3. Their verifyKey exposes a Boolean — same shape we need.
+//   3. Their verifyKey exposes a Boolean, same shape we need.
 //
 // Library source: https://github.com/discord/discord-interactions-js
 // Internally uses crypto.subtle.verify('Ed25519', ...) against an

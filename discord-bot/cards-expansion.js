@@ -1,4 +1,4 @@
-// Boltbound — CR-1 expansion catalogue.
+// Boltbound, CR-1 expansion catalogue.
 //
 // Generated from declarative family definitions. ~960 new cards across
 // 15 families × 4 rarities. The existing 82 cards in cards-content.js
@@ -15,8 +15,8 @@
 // ─────────────────────────────────────────────────────────────────────
 // Generator approach: each family declares its name lists + ability
 // palette + visual archetype. The buildFamily() function below stamps
-// out cards from these declarations. The output is deterministic — same
-// declarations always produce the same card records — so anyone
+// out cards from these declarations. The output is deterministic, same
+// declarations always produce the same card records, so anyone
 // auditing the catalogue gets a stable diff per change.
 
 // ── Vanilla stat formula ─────────────────────────────────────────────
@@ -77,9 +77,9 @@ function statsFromBudget(mana, rarity, abilities, keywords, split = 0) {
 // Each family lists name pools per rarity. We size the pools to match
 // the per-family count (36c / 18u / 8r / 2l). The buildFamily()
 // generator below assigns mana costs + ability templates by walking
-// these lists in order — same input → same output.
+// these lists in order, same input → same output.
 
-// Mana distribution per common name (per family). 36 names — 4@1, 6@2,
+// Mana distribution per common name (per family). 36 names, 4@1, 6@2,
 // 6@3, 6@4, 5@5, 4@6, 3@7, 2@8. Index 0..35.
 const COMMON_MANA = [
   1,1,1,1,
@@ -92,7 +92,7 @@ const COMMON_MANA = [
   8,8,
 ];
 
-// Uncommon: 18 names — leans mid-curve. 2@2, 3@3, 4@4, 3@5, 3@6, 2@7, 1@8.
+// Uncommon: 18 names, leans mid-curve. 2@2, 3@3, 4@4, 3@5, 3@6, 2@7, 1@8.
 const UNCOMMON_MANA = [
   2,2,
   3,3,3,
@@ -106,7 +106,7 @@ const UNCOMMON_MANA = [
 // Rare: 8 names. Mid-to-high. 1@3, 2@4, 2@5, 1@6, 1@7, 1@8.
 const RARE_MANA = [3, 4,4, 5,5, 6, 7, 8];
 
-// Legendary: 2 cards — one mid-cost (5-7), one big (8-10).
+// Legendary: 2 cards, one mid-cost (5-7), one big (8-10).
 const LEGENDARY_MANA = [6, 9];
 
 // ── Ability templates ────────────────────────────────────────────────
@@ -116,7 +116,7 @@ const LEGENDARY_MANA = [6, 9];
 // curve; we use a deterministic walk (template index = card index %
 // pool size) so the catalogue stays stable across regens.
 
-// Legendary templates — every legendary has at least one unique
+// Legendary templates, every legendary has at least one unique
 // mechanic. Each family's 2 legendaries cycle through these.
 const MINION_TEMPLATES_LEGENDARY = [
   // 1: AoE on-play
@@ -147,7 +147,7 @@ const MINION_TEMPLATES_LEGENDARY = [
   ], keywords: ['taunt'] },
 ];
 
-// Standard minion templates — used by physical / vanilla-ish families.
+// Standard minion templates, used by physical / vanilla-ish families.
 const MINION_TEMPLATES_BASIC = {
   common: [
     { keywords: [] },                                        // vanilla
@@ -180,7 +180,7 @@ const MINION_TEMPLATES_BASIC = {
   ],
 };
 
-// Spells per family — light vs heavy variants
+// Spells per family, light vs heavy variants
 const SPELL_TEMPLATES = {
   common: [
     { effect: 'damage', target: 'pickedTarget', value: 1, mana: 1 },
@@ -799,7 +799,7 @@ const FAMILIES = [
   // ── relic ─────────────────────────────────────────────────────────
   // (kept slug id 'vault' for back-compat with previously-issued card
   // IDs e.g. `vault.c001`; user-facing names + display tribe label
-  // are 'Relic' — see cards-content.js + CARD-GAME-DESIGN.md.)
+  // are 'Relic', see cards-content.js + CARD-GAME-DESIGN.md.)
   {
     id: 'vault', tribe: 'vault', paletteHint: 'vault-gold',
     displayTribe: 'Relic',
@@ -975,7 +975,7 @@ function buildFamily(fam, famIndex) {
       const template = pickTemplate(minionTemplates, tIdx, mana);
       const id = `${fam.id}.${rarity[0]}${String(i + 1).padStart(3, '0')}`;
       const minion = makeMinion({ id, name, rarity, family: fam.id, mana, template, splitBias: fam.splitBias || 0, tribe });
-      // Visual archetype hint — flyers for high-mana dragons + fae.
+      // Visual archetype hint, flyers for high-mana dragons + fae.
       if (fam.id === 'dragon' || fam.id === 'fae') minion.visualArchetype = mana >= 5 ? archetypeF : archetypeM;
       else minion.visualArchetype = archetypeM;
       out.push(minion);
@@ -996,7 +996,7 @@ function buildFamily(fam, famIndex) {
     }
   }
 
-  // One token per family — used by onDeath:summon templates.
+  // One token per family, used by onDeath:summon templates.
   out.push({
     id: `tok.${fam.id}.swarm`,
     name: `${fam.id.charAt(0).toUpperCase() + fam.id.slice(1)} Swarm`,
@@ -1021,7 +1021,7 @@ export const EXPANSION_FAMILIES = FAMILIES.map(f => ({ id: f.id, tribe: f.tribe,
 export const EXPANSION_CARDS = (function build() {
   const all = [];
   for (let i = 0; i < FAMILIES.length; i++) all.push(...buildFamily(FAMILIES[i], i));
-  // Name dedupe — across the whole expansion (a "Pack Knight" should
+  // Name dedupe, across the whole expansion (a "Pack Knight" should
   // only exist once even if multiple families/lists supply it).
   // Adds Roman numeral suffix II, III etc. when duplicates appear.
   const seenNames = new Map();        // name -> count

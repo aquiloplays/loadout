@@ -1,4 +1,4 @@
-// K1 — Visual QA contact sheets for the whole glossy library.
+// K1, Visual QA contact sheets for the whole glossy library.
 //
 // One sheet per asset group. SVGs get baked to PNG inline so the
 // sheet shows the actual rendered output. Labels under each tile
@@ -65,7 +65,7 @@ async function makeSheet({ dir, label, tileW = 192, tileH = 192, cols = 6, filte
 
 console.log('Rendering QA contact sheets...');
 
-// Buildings (32 — one tile each)
+// Buildings (32, one tile each)
 await makeSheet({
   dir: join(ROOT, 'aquilo-gg/sprites/clash-v2/glossy/buildings'),
   label: 'buildings',

@@ -1,4 +1,4 @@
-// Unit tests for Spire — covers run state machine, reward gating,
+// Unit tests for Spire, covers run state machine, reward gating,
 // season rotation idempotency, deck generator, boss mechanic dispatch.
 
 import { themeForMonth, monthBoundsUtc, SPIRE_THEMES } from '../spire-seasons.js';
@@ -10,7 +10,7 @@ let pass = 0, fail = 0;
 function assert(c, m) { if (c) { pass++; console.log('  ✅', m); } else { fail++; console.log('  ❌', m); } }
 function eq(a, b, m)  { if (a === b) { pass++; console.log('  ✅', m); } else { fail++; console.log('  ❌', m, '(want:', b, 'got:', a, ')'); } }
 
-console.log('— seasons roster shape');
+console.log('- seasons roster shape');
 {
   eq(SPIRE_THEMES.length, 12, '12 themes');
   for (const t of SPIRE_THEMES) {
@@ -21,7 +21,7 @@ console.log('— seasons roster shape');
   }
 }
 
-console.log('— themeForMonth rotation is stable from epoch');
+console.log('- themeForMonth rotation is stable from epoch');
 {
   const m0 = themeForMonth(2026, 6);   // SPIRE_EPOCH = June 2026
   eq(m0.themeId, 'ember-court', 'epoch month = ember-court');
@@ -34,14 +34,14 @@ console.log('— themeForMonth rotation is stable from epoch');
   eq(pre.themeId, 'ember-court', 'pre-epoch months clamp');
 }
 
-console.log('— monthBoundsUtc');
+console.log('- monthBoundsUtc');
 {
   const b = monthBoundsUtc(2026, 6);
   eq(b.startsAt, '2026-06-01T00:00:00.000Z', 'June 2026 starts at month 1');
   assert(b.endsAt.startsWith('2026-06-30T23:59:59'), 'June 2026 ends at month-end');
 }
 
-console.log('— tierForFloor');
+console.log('- tierForFloor');
 {
   eq(tierForFloor(1),  'easy',   'floor 1 = easy');
   eq(tierForFloor(3),  'easy',   'floor 3 = easy');
@@ -52,14 +52,14 @@ console.log('— tierForFloor');
   eq(tierForFloor(10), 'boss',   'floor 10 = boss');
 }
 
-console.log('— deck generator: fallback when no npc row');
+console.log('- deck generator: fallback when no npc row');
 {
   const d = generateSpireNpcDeck('ember-court', null, 'seed-a');
   assert(d.cards.length >= 12, 'fallback fills >=12');
   assert(d.championClass, 'has champion class');
 }
 
-console.log('— deck generator: themed pool prefers fire.* for ember-court');
+console.log('- deck generator: themed pool prefers fire.* for ember-court');
 {
   const npcRow = {
     npc_key: 'ember.boss', difficulty_tier: 'boss',
@@ -72,7 +72,7 @@ console.log('— deck generator: themed pool prefers fire.* for ember-court');
   assert(firePicks >= 5, `themed fire.* cards present (${firePicks} found)`);
 }
 
-console.log('— deck generator: deterministic seed');
+console.log('- deck generator: deterministic seed');
 {
   const npcRow = {
     npc_key: 'ember.boss', difficulty_tier: 'medium',
@@ -83,7 +83,7 @@ console.log('— deck generator: deterministic seed');
   eq(JSON.stringify(d1.cards), JSON.stringify(d2.cards), 'same seed → identical deck');
 }
 
-console.log('— deck generator: different seed varies output');
+console.log('- deck generator: different seed varies output');
 {
   const npcRow = {
     npc_key: 'ember.boss', difficulty_tier: 'medium',
@@ -94,7 +94,7 @@ console.log('— deck generator: different seed varies output');
   assert(JSON.stringify(d1.cards) !== JSON.stringify(d2.cards), 'different seeds → different decks');
 }
 
-console.log('— boss mechanic registry covers all 12 seasons');
+console.log('- boss mechanic registry covers all 12 seasons');
 {
   const registry = new Set(listMechanicIds());
   for (const t of SPIRE_THEMES) {
@@ -102,7 +102,7 @@ console.log('— boss mechanic registry covers all 12 seasons');
   }
 }
 
-console.log('— boss mechanic dispatch: ember end-of-turn-burn');
+console.log('- boss mechanic dispatch: ember end-of-turn-burn');
 {
   const match = {
     kind: 'spire-boss',
@@ -115,7 +115,7 @@ console.log('— boss mechanic dispatch: ember end-of-turn-burn');
   eq(match.board.A[1].hp, 1, 'minion 2 hp reduced 3→1');
 }
 
-console.log('— boss mechanic dispatch: no-op when not spire-boss');
+console.log('- boss mechanic dispatch: no-op when not spire-boss');
 {
   const match = {
     kind: 'pvp',
@@ -127,7 +127,7 @@ console.log('— boss mechanic dispatch: no-op when not spire-boss');
   eq(match.board.A[0].hp, 5, 'hp unchanged');
 }
 
-console.log('— boss mechanic dispatch: phase mismatch is no-op');
+console.log('- boss mechanic dispatch: phase mismatch is no-op');
 {
   const match = {
     kind: 'spire-boss',
@@ -139,7 +139,7 @@ console.log('— boss mechanic dispatch: phase mismatch is no-op');
   eq(match.board.A[0].hp, 5, 'hp unchanged');
 }
 
-console.log('— boss mechanic dispatch: frost.freeze-random');
+console.log('- boss mechanic dispatch: frost.freeze-random');
 {
   const match = {
     kind: 'spire-boss',
@@ -152,23 +152,23 @@ console.log('— boss mechanic dispatch: frost.freeze-random');
   eq(frozenCount, 1, 'exactly one minion frozen');
 }
 
-console.log('— boss mechanic dispatch: sunken vault discard-on-draw');
+console.log('- boss mechanic dispatch: sunken vault discard-on-draw');
 {
   const match = {
     kind: 'spire-boss',
     bossMechanic: { id: 'sunken.discard-on-draw', phase: 'on-draw', params: { discardEveryNth: 2 } },
     hands: { A: ['card1', 'card2'], B: [] },
   };
-  // First draw — no discard.
+  // First draw, no discard.
   const log1 = applyBossMechanic(match, 'on-draw', { playerSide: 'A', bossSide: 'B', drawingSide: 'A', drawnCardId: 'card1' });
   eq(log1, null, '1st draw → no discard');
   eq(match.hands.A.length, 2, 'hand unchanged');
-  // Second draw — discard fires.
+  // Second draw, discard fires.
   const log2 = applyBossMechanic(match, 'on-draw', { playerSide: 'A', bossSide: 'B', drawingSide: 'A', drawnCardId: 'card2' });
   assert(log2 && log2.length, '2nd draw → discard log emitted');
   eq(match.hands.A.length, 1, 'hand reduced 2→1');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

@@ -1,15 +1,15 @@
-// Streamer Watchtower — live-stats JSON for an OBS Browser Source.
+// Streamer Watchtower, live-stats JSON for an OBS Browser Source.
 //
 // 2026-05-31 sprint. A public, unauthenticated, CORS-open endpoint the
 // streamer drops into OBS as a Browser Source (or the site renders as a
 // widget). GET /watchtower/stream/:channel returns the current live
-// snapshot — viewer count, game, title, uptime, hype-train state.
+// snapshot, viewer count, game, title, uptime, hype-train state.
 //
 // Distinct from stream-bonus.js's Watchtower (a virtual Clash building
 // that lights up while live). This one is the *broadcast stats panel*.
 //
 // Cached for 5s in KV (watchtower:cache:<key>) so a busy OBS source
-// polling every second can't hammer the Helix rate limit — at most one
+// polling every second can't hammer the Helix rate limit, at most one
 // upstream fetch per channel per 5s window regardless of viewer count.
 
 import { getStreamInfo, helixFetch, isTwitchConfigured } from './twitch-helix.js';
@@ -46,7 +46,7 @@ function thumbUrl(login) {
 }
 
 // Hype-train state is tracked by live-status-embed.js on the active
-// guild's rec — surface it here too so the OBS panel can show it.
+// guild's rec, surface it here too so the OBS panel can show it.
 async function hypeTrainState(env) {
   const guildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
   if (!guildId) return null;

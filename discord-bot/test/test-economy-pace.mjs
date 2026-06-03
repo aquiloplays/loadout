@@ -1,4 +1,4 @@
-// Economy v2 (2026-05) — pin every paced value so a future drift
+// Economy v2 (2026-05), pin every paced value so a future drift
 // (someone hardcodes a payout, or someone retunes ECONOMY_PACE without
 // updating the doc) trips a test failure.
 //
@@ -29,7 +29,7 @@ function eq(a, b, label) {
 }
 
 // ── ECONOMY_PACE constants ─────────────────────────────────────────
-console.log('— economy-pace.js constants');
+console.log('- economy-pace.js constants');
 {
   eq(ECONOMY_PACE,             0.4,    'ECONOMY_PACE = 0.4');
   eq(QUICK_GAME_NET_WIN_CAP,   1000,   'QUICK_GAME_NET_WIN_CAP = 1000');
@@ -39,7 +39,7 @@ console.log('— economy-pace.js constants');
 }
 
 // ── Helpers ────────────────────────────────────────────────────────
-console.log('— paceBolts (min-1 clamp)');
+console.log('- paceBolts (min-1 clamp)');
 {
   eq(paceBolts(100),    40, 'paceBolts(100) = 40');
   eq(paceBolts(50),     20, 'paceBolts(50) = 20');
@@ -51,7 +51,7 @@ console.log('— paceBolts (min-1 clamp)');
   eq(paceBolts(-5),     0,  'paceBolts(negative) = 0');
 }
 
-console.log('— paceMilestone (50% scale)');
+console.log('- paceMilestone (50% scale)');
 {
   eq(paceMilestone(5),  3,  'paceMilestone(5) = 3 (rounded 2.5)');
   eq(paceMilestone(15), 8,  'paceMilestone(15) = 8 (rounded 7.5)');
@@ -59,20 +59,20 @@ console.log('— paceMilestone (50% scale)');
   eq(paceMilestone(1),  1,  'paceMilestone(1) = 1 (min clamp)');
 }
 
-console.log('— paceCooldown (slower = longer)');
+console.log('- paceCooldown (slower = longer)');
 {
   eq(paceCooldown(2000),  5000,   'paceCooldown(2s) = 5s');
   eq(paceCooldown(30 * 60 * 1000), 4500000, 'paceCooldown(30min) = 75min');
 }
 
-console.log('— paceFunnel (passthrough for one-time grants)');
+console.log('- paceFunnel (passthrough for one-time grants)');
 {
   eq(paceFunnel(100),   100,  'paceFunnel(100) = 100 (unchanged)');
   eq(paceFunnel(50),    50,   'paceFunnel(50) = 50 (unchanged)');
 }
 
 // ── Check-in payouts ───────────────────────────────────────────────
-console.log('— community-checkin payouts');
+console.log('- community-checkin payouts');
 {
   eq(DAILY_BASE_BOLTS, 2, 'DAILY_BASE_BOLTS = 2 (was 5)');
   eq(STREAK_MILESTONES.length, 3, '3 milestones');
@@ -88,9 +88,9 @@ console.log('— community-checkin payouts');
 }
 
 // ── Counting drip semantic ─────────────────────────────────────────
-console.log('— counting drip math');
+console.log('- counting drip math');
 {
-  // Mirror of the formula in aquilo/counting.js — pins the expected
+  // Mirror of the formula in aquilo/counting.js, pins the expected
   // reward at each milestone count.
   function dripReward(num) {
     let r = 0;
@@ -107,7 +107,7 @@ console.log('— counting drip math');
   eq(dripReward(50),  2, 'count 50 → 2 bolts');
   eq(dripReward(100), 7, 'count 100 → 7 bolts (5+25+100 all hit)');
 
-  // 100-count perfect run total — 20 (×5 hits) + 4 (×25 hits) + 5 (the
+  // 100-count perfect run total, 20 (×5 hits) + 4 (×25 hits) + 5 (the
   // one ×100 hit) = 29. The 100 itself also satisfies ×5 and ×25 so it
   // earns 7 on that single count.
   let total100 = 0;
@@ -116,10 +116,10 @@ console.log('— counting drip math');
 }
 
 // ── XP curve ───────────────────────────────────────────────────────
-console.log('— XP curve (steepened)');
+console.log('- XP curve (steepened)');
 {
   eq(xpToReach(1),  0, 'L1 = 0 (start)');
-  // v2 formula: round(200·L + 60·L^1.6) — exactly 2× the v1 formula
+  // v2 formula: round(200·L + 60·L^1.6), exactly 2× the v1 formula
   // at every level (mod ±1 from independent round).
   function v2(L) { return Math.round(200 * L + 60 * Math.pow(L, 1.6)); }
   function v1(L) { return Math.round(100 * L + 30 * Math.pow(L, 1.6)); }
@@ -138,7 +138,7 @@ console.log('— XP curve (steepened)');
 
 console.log('');
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

@@ -1,4 +1,4 @@
-// Glossy Art Kit — the shared visual foundation for the post-pixel
+// Glossy Art Kit, the shared visual foundation for the post-pixel
 // art style. Everything else (Clash buildings, gear, character,
 // overlays, DLL UI) references this module so the whole library
 // stays visually coherent.
@@ -9,7 +9,7 @@
 //
 // Format: SVG source-of-truth. Browsers serve SVG natively; any
 // consumer that needs raster bakes via tools/bake-glossy.mjs (or
-// the consumer's own pipeline — sharp, resvg, ImageMagick, etc).
+// the consumer's own pipeline, sharp, resvg, ImageMagick, etc).
 //
 // Authoring pattern: each asset module imports this kit, calls
 // `svgWrapper({width, height, body, ...})`, and writes the result.
@@ -24,12 +24,12 @@
 // outline ring, `.base` as the dominant tone.
 
 export const PALETTE = {
-  // Earth tones — buildings, woodwork, terrain
+  // Earth tones, buildings, woodwork, terrain
   wood:    { hi: '#C99560', base: '#A06A36', lo: '#6E4621', stroke: '#3B240F' },
   stone:   { hi: '#C9CCD4', base: '#9298A4', lo: '#5E6471', stroke: '#262B36' },
   brick:   { hi: '#CE684D', base: '#9C4231', lo: '#6A2618', stroke: '#321009' },
   thatch:  { hi: '#E3B563', base: '#B0832F', lo: '#79581B', stroke: '#3C2A0A' },
-  // Cool tones — defenses, metals
+  // Cool tones, defenses, metals
   steel:   { hi: '#A0B0BE', base: '#6F8190', lo: '#3F4D5A', stroke: '#171E27' },
   iron:    { hi: '#6B7080', base: '#43485A', lo: '#21253A', stroke: '#0B0E1C' },
   copper:  { hi: '#E2A172', base: '#B36839', lo: '#7A3F1B', stroke: '#3A1A07' },
@@ -49,7 +49,7 @@ export const PALETTE = {
   white:   '#FFFFFF',
 };
 
-// Rarity tints — used by rarityGlow + accent rings on collectables.
+// Rarity tints, used by rarityGlow + accent rings on collectables.
 export const RARITY = {
   common:    { glow: '#9298A4', ring: '#C9CCD4', label: '#475467' },
   uncommon:  { glow: '#3D9226', ring: '#5BDD96', label: '#1F5712' },
@@ -113,7 +113,7 @@ export function sharedDefs() {
       <feComposite in="SourceGraphic" in2="specMasked" operator="arithmetic"
                    k1="0" k2="1" k3="1" k4="0"/>
     </filter>
-    <!-- gloss highlight — white→transparent, upper-left -->
+    <!-- gloss highlight, white→transparent, upper-left -->
     <linearGradient id="gk-gloss" x1="0" y1="0" x2="0.7" y2="0.9">
       <stop offset="0"    stop-color="#FFFFFF" stop-opacity="0.85"/>
       <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.18"/>
@@ -137,15 +137,15 @@ export function contactShadow({ cx, cy, rx, ry }) {
   return `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="url(#gk-contact-shadow)"/>`;
 }
 
-// Rarity glow backing — sits BEHIND the asset, ahead of background.
+// Rarity glow backing, sits BEHIND the asset, ahead of background.
 // Pass the bounding box of the asset; the glow is a 1.15× ellipse.
 export function rarityGlow({ rarity, cx, cy, rx, ry }) {
   if (!RARITY[rarity]) return '';
   return `<ellipse cx="${cx}" cy="${cy}" rx="${rx * 1.18}" ry="${ry * 1.18}" fill="url(#gk-rarity-${rarity})"/>`;
 }
 
-// Upper-left gloss arc — overlay near the top of any rounded body.
-// `path` should be a rounded-rect or ellipse top arc; `opacity` 0.5–0.9.
+// Upper-left gloss arc, overlay near the top of any rounded body.
+// `path` should be a rounded-rect or ellipse top arc; `opacity` 0.5-0.9.
 export function glossArc({ d, opacity = 0.75 }) {
   return `<path d="${d}" fill="url(#gk-gloss)" opacity="${opacity}" pointer-events="none"/>`;
 }
@@ -157,7 +157,7 @@ export function inkedStroke({ d, width = 4, color = PALETTE.ink, fill = 'none' }
   return `<path d="${d}" fill="${fill}" stroke="${color}" stroke-width="${width}" stroke-linejoin="round" stroke-linecap="round"/>`;
 }
 
-// Inner accent ring/detail — used for door frames, window trims,
+// Inner accent ring/detail, used for door frames, window trims,
 // gem settings. `color` defaults to the gold-glow.
 export function accentRing({ d, color = PALETTE.gold.hi, width = 2, opacity = 0.95 }) {
   return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linejoin="round" opacity="${opacity}"/>`;
@@ -170,7 +170,7 @@ export function accentRing({ d, color = PALETTE.gold.hi, width = 2, opacity = 0.
 // top so the file is self-contained (no cross-file <use href>).
 //
 // Conventions:
-//   • viewBox is always "0 0 W H" — caller picks W/H
+//   • viewBox is always "0 0 W H", caller picks W/H
 //   • Default 256×256 for buildings, 192×192 for troops/icons
 //   • shape-rendering="geometricPrecision" for clean curves
 
@@ -186,7 +186,7 @@ ${title ? `  <title>${title}</title>\n` : ''}${desc ? `  <desc>${desc}</desc>\n`
 
 // ── Convenience: a rounded-rect with full glossy treatment ───────
 //
-// A common pattern — a chunky body with the standard glossy
+// A common pattern, a chunky body with the standard glossy
 // treatment baked in. Returns the SVG markup for the shape +
 // outline + gloss. Caller is responsible for placing it.
 
@@ -212,7 +212,7 @@ export function glossyRoundedRect({
           fill="url(#gk-gloss)" opacity="${glossOpacity}" pointer-events="none"/>`;
 }
 
-// Glossy ellipse / dome — for cannon barrels, gem domes, etc.
+// Glossy ellipse / dome, for cannon barrels, gem domes, etc.
 export function glossyEllipse({ cx, cy, rx, ry, gradient = 'gk-grad-steel', outline = PALETTE.ink, outlineWidth = 4, glossOpacity = 0.7 }) {
   return `
     <ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"

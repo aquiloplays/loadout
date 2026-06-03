@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Loadout — Compact Overlay</title>
+<title>Loadout, Compact Overlay</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <!--
   One pane that fades to whichever Loadout event is currently happening
@@ -19,7 +19,7 @@
     holdMs     - active card hold time (default 4500, min 1500)
     idleRotate - seconds between commands while idle (default 30, min 10)
     accent     - hex (overrides --accent via _shared/theme.js)
-    accent2    - hex (overrides --accent2 — used for gradients)
+    accent2    - hex (overrides --accent2, used for gradients)
     font       - css font-family stack
     fontScale  - 0.5..2.0 multiplier on size
 
@@ -31,7 +31,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body data-pos="tr">
-  <!-- "How to advance the train" tip — only shown when a hype train
+  <!-- "How to advance the train" tip, only shown when a hype train
        is active. Sits ABOVE the card so the takeover doesn't crowd it.
        Lists the cross-platform actions that fuel the aggregate train. -->
   <div id="hypeTip" class="hype-tip" hidden>
@@ -60,13 +60,13 @@
     <!-- Game layer: the badge slot becomes a 56px-square visual that
          flips / rolls / spins per the bolts.minigame.* event kind, then
          settles on the result. Styled to read at the compact card's
-         88px height — coin and die are 56x56 circles/squares, slots
+         88px height, coin and die are 56x56 circles/squares, slots
          are 3 ~14x40 mini reels with staggered settle. -->
     <div id="game" class="layer hidden">
       <div class="game-visual">
         <!-- 3D coin: 2 round faces + 16 thin side panels around the
              y-axis. Compact uses 16 segments (vs 24 in the full
-             overlay) — at 56px the eye doesn't read the difference,
+             overlay), at 56px the eye doesn't read the difference,
              and the smaller cell count keeps frame cost down. -->
         <div class="g-coin">
           <span class="g-coin-face heads">H</span>
@@ -119,9 +119,9 @@
     <!-- Hype-train takeover layer. Shows from hypetrain.start through
          hypetrain.end, taking over the entire card so the train read
          is unmistakable. Three sub-states:
-           * banner   — train glides right-to-left, "HYPE TRAIN!" trails
-           * bar      — fuel-fill bar + level + countdown timer
-           * level-up — banner re-runs with the new level number
+           * banner, train glides right-to-left, "HYPE TRAIN!" trails
+           * bar, fuel-fill bar + level + countdown timer
+           * level-up, banner re-runs with the new level number
          Banner overlays the bar during animations; CSS handles the
          z-stack. -->
     <div id="hype" class="layer hidden hype">

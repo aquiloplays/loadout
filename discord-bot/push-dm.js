@@ -1,4 +1,4 @@
-// Discord-DM fan-out — INBOUND from aquilo-site.
+// Discord-DM fan-out, INBOUND from aquilo-site.
 //
 // The aquilo-site batch wired the front-end notification UX (per-user
 // "push and/or Discord ping" toggle) but the actual Discord delivery
@@ -52,7 +52,7 @@ async function gateHmac(req, env) {
 }
 
 // Read per-user push prefs. Falls back to "DMs enabled" when no record
-// — viewers haven't been migrated to the new system explicitly opt
+//, viewers haven't been migrated to the new system explicitly opt
 // out yet, and silence-by-default would mean Day-1 nobody gets DMs.
 async function readPushPrefs(env, userId) {
   try {
@@ -123,7 +123,7 @@ async function resolveAudience(env, payload) {
   return [];
 }
 
-// Build the DM payload — uses provided embed if any, else default
+// Build the DM payload, uses provided embed if any, else default
 // rendering with title/body/url.
 function buildDmPayload(payload) {
   if (payload.embed) return { embeds: [payload.embed] };

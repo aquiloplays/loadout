@@ -1,4 +1,4 @@
-// Twitch Drops — watch-time accrual + milestone rewards for
+// Twitch Drops, watch-time accrual + milestone rewards for
 // Twitch-linked aquilo viewers while Clay is live.
 //
 // Concept (Clay 2026-05-30 spec):
@@ -10,7 +10,7 @@
 //     reward (bolts or a pack). Unlocks are auto-detected at tick
 //     time; viewers claim each unlocked milestone manually so the
 //     web UI gets to show a "claim" affordance with a nice toast.
-//   • Cumulative minutes never reset — milestones are lifetime, not
+//   • Cumulative minutes never reset, milestones are lifetime, not
 //     per-stream. A drop-in viewer who racks up watch-time across
 //     many sessions can claim each tier exactly once.
 //
@@ -34,7 +34,7 @@
 // Live-state probe is shared with stream-bonus.js (isStreamLive) so
 // the two modules see the same "is Clay live" answer. Reward grant
 // flows through wallet.earn (bolts) + cards-packs.creditPack (packs)
-// — both go through the existing economy pipeline so booster
+//, both go through the existing economy pipeline so booster
 // multipliers + lifetime stats apply identically to other grants.
 
 import { isStreamLive } from './stream-bonus.js';
@@ -65,10 +65,10 @@ const PACK_ID_TO_TYPE = Object.freeze({
 });
 
 // How many cumulative minutes each tick credits. Five minutes ==
-// the boltRain cadence in worker.js — both fire on mm % 5 === 0.
+// the boltRain cadence in worker.js, both fire on mm % 5 === 0.
 const MINUTES_PER_TICK = 5;
 
-// Per-user dedup window — re-running the tick within this window is
+// Per-user dedup window, re-running the tick within this window is
 // a no-op for that user. Slightly under one MINUTES_PER_TICK interval
 // so a slightly-late tick still credits, but a back-to-back retry
 // inside the same minute doesn't double-pay.
@@ -85,7 +85,7 @@ function freshState() {
 
 function normalizeState(raw) {
   const s = { ...freshState(), ...(raw || {}) };
-  // Defensive coercion — KV round-trips drop types if a write was
+  // Defensive coercion, KV round-trips drop types if a write was
   // ever truncated; this guarantees the rest of the module sees
   // arrays + integers exactly.
   s.watchMinutes = Math.max(0, Math.floor(Number(s.watchMinutes) || 0));
@@ -107,7 +107,7 @@ async function writeState(env, userId, state) {
   await env.LOADOUT_BOLTS.put(KV_KEY(userId), JSON.stringify(state));
 }
 
-// Public read — adds derived `milestonesUnlocked` + `milestonesClaimed`
+// Public read, adds derived `milestonesUnlocked` + `milestonesClaimed`
 // names alongside the raw arrays so the web embed has both shapes
 // (the test contract uses milestonesUnlocked/Claimed; KV stores
 // unlocked/claimed to keep the on-disk record terse).
@@ -159,7 +159,7 @@ async function listLinkedAquiloIds(env) {
     if (page.list_complete || !page.cursor) break;
     cursor = page.cursor;
   }
-  // Dedup — a viewer could in theory have multiple Twitch links
+  // Dedup, a viewer could in theory have multiple Twitch links
   // (account migration etc); we only want to credit them once.
   return Array.from(new Set(out));
 }
@@ -187,7 +187,7 @@ export async function watchTimeTickCron(env, opts = {}) {
     walkedUsers++;
     try {
       const s = await readState(env, userId);
-      // Per-user dedup — if the last tick was very recent (cron
+      // Per-user dedup, if the last tick was very recent (cron
       // retry / overlap), skip this user. Stays per-user so a fresh
       // linker mid-window still gets their first credit.
       if (s.lastTickUtc && (now - s.lastTickUtc) < TICK_DEDUP_MS) {
@@ -241,7 +241,7 @@ export async function claimDropMilestone(env, userId, minutes, opts = {}) {
 
   // Move unlocked→claimed BEFORE the grant so a concurrent claim
   // racing the same milestone hits the already-claimed branch.
-  // (KV doesn't have CAS — this is the best we can do, and mirrors
+  // (KV doesn't have CAS, this is the best we can do, and mirrors
   // daily-quests' claim-flag-first pattern.)
   s.unlocked = s.unlocked.filter(x => x !== m);
   if (!s.claimed.includes(m)) s.claimed.push(m);
@@ -309,8 +309,8 @@ async function _gateHmac(req, env) {
 }
 
 export async function handleDropsRoute(req, env, path) {
-  // GET /web/twitch-drops/me?userId=<id> — public, no HMAC. (The
-  // viewer's own watch state is non-sensitive — mirrors how friends
+  // GET /web/twitch-drops/me?userId=<id>, public, no HMAC. (The
+  // viewer's own watch state is non-sensitive, mirrors how friends
   // GET is public.)
   if (req.method === 'GET' && path === '/web/twitch-drops/me') {
     const url = new URL(req.url);
@@ -337,7 +337,7 @@ export async function handleDropsRoute(req, env, path) {
   return _json({ error: 'unknown-op' }, 404);
 }
 
-// Test-only — lets the harness reach internals (listLinkedAquiloIds,
+// Test-only, lets the harness reach internals (listLinkedAquiloIds,
 // newlyCrossedMilestones) without exporting them publicly.
 export const __internals = {
   listLinkedAquiloIds,

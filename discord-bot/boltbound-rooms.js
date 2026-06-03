@@ -1,4 +1,4 @@
-// Boltbound — friend match private rooms (RET-6).
+// Boltbound, friend match private rooms (RET-6).
 //
 // A player creates a room → gets a 6-char code (e.g. "VOID42") → shares
 // it with a friend → the friend joins with the code → the two are put
@@ -16,7 +16,7 @@ import { getActiveMatch } from './cards-state.js';
 const ROOM_TTL_SECONDS = 300; // 5 minutes
 const ROOM_KEY = (code) => `cards:room:${code}`;
 const OWNER_KEY = (userId) => `cards:room-owner:${userId}`;
-// No I/O/0/1 — unambiguous when read aloud or copied.
+// No I/O/0/1, unambiguous when read aloud or copied.
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function randomCode(n = 6) {

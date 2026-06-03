@@ -3,22 +3,22 @@
 // The Twitch extension JWT payload carries `role` = 'viewer' |
 // 'moderator' | 'broadcaster' | 'external', signed by Twitch. handleExt
 // has already verified the JWT and the channel gate before reaching
-// here — we only need to gate on role.
+// here, we only need to gate on role.
 //
 // Routes (all JWT-gated, mod/broadcaster role required):
 //
-//   GET  /ext/mod/state                — capabilities + current queue
+//   GET  /ext/mod/state, capabilities + current queue
 //                                         snapshot + dungeon cooldown
 //                                         so the panel's mod section
 //                                         can populate without three
 //                                         separate fetches.
-//   GET  /ext/mod/games                — list of game ids known to the
+//   GET  /ext/mod/games, list of game ids known to the
 //                                         site (passes through
 //                                         /games/public).
-//   POST /ext/mod/queue/open           — { gameId, capMode?, cap? }
-//   POST /ext/mod/queue/close          — { gameId }
-//   POST /ext/mod/queue/close-night    — close all queues for tonight.
-//   POST /ext/mod/dungeon/skip         — enqueue a free 'skip' command
+//   POST /ext/mod/queue/open, { gameId, capMode?, cap? }
+//   POST /ext/mod/queue/close, { gameId }
+//   POST /ext/mod/queue/close-night, close all queues for tonight.
+//   POST /ext/mod/dungeon/skip, enqueue a free 'skip' command
 //                                         into the DLL command queue
 //                                         (no Bits/bolts charge).
 //
@@ -60,7 +60,7 @@ export async function handleExtMod(env, guildId, payload, req, ctx, route) {
   return json({ error: 'not-found' }, 404);
 }
 
-// GET /ext/mod/state — bundled snapshot the panel uses to render
+// GET /ext/mod/state, bundled snapshot the panel uses to render
 // the moderator card without three round-trips.
 async function modState(env, guildId) {
   const queueSnap = await snapshotQueue(env, guildId);
@@ -79,7 +79,7 @@ async function modState(env, guildId) {
   });
 }
 
-// GET /ext/mod/games — game catalog the queue admin needs for the
+// GET /ext/mod/games, game catalog the queue admin needs for the
 // "Open queue for <game>" picker. Wraps the existing /games/public
 // snapshot the bot already builds for the website + panel.
 async function modGames(env) {
@@ -144,13 +144,13 @@ async function modQueueClose(env, guildId, req) {
   return json(result);
 }
 
-// POST /ext/mod/queue/close-night — closes every game queue for tonight.
+// POST /ext/mod/queue/close-night, closes every game queue for tonight.
 async function modQueueCloseNight(env, guildId) {
   const result = await closeNight(env, guildId);
   return json(result);
 }
 
-// POST /ext/mod/dungeon/skip — free 'skip' command (no Bits/bolts).
+// POST /ext/mod/dungeon/skip, free 'skip' command (no Bits/bolts).
 // Synthesizes the same dll-pending record that skipCooldown uses for
 // paid skips so PanelBridgeModule + DungeonModule replay it the
 // existing way. The trusted skip flag is recognised solely by the

@@ -1,4 +1,4 @@
-// Boltbound — expansion-set registry + release scheduling.
+// Boltbound, expansion-set registry + release scheduling.
 //
 // Single source of truth for which card sets exist, their theme/palette,
 // the mechanics they lean on, and WHEN they unlock. Pure metadata: this
@@ -8,7 +8,7 @@
 //
 // Release model: a set's cards are hidden from pack pulls + the deck
 // builder until `releaseUtc`. `core` is always live. New quarterly drops
-// are $3 each ($12/year) — the price lives on the storefront, not here.
+// are $3 each ($12/year), the price lives on the storefront, not here.
 //
 // Scheduling note: every timestamp is computed with Date.UTC at module
 // load (NOT Date.now), so the registry itself stays deterministic; only
@@ -105,8 +105,7 @@ export function releasedSetIds(now = Date.now()) {
   return SET_IDS.filter(id => isReleased(id, now));
 }
 
-// A set counts as "newly released" for the first 7 days after launch —
-// drives the site banner + the expansion.released announcement window.
+// A set counts as "newly released" for the first 7 days after launch, // drives the site banner + the expansion.released announcement window.
 const NEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 export function isNewlyReleased(setId, now = Date.now()) {
   const s = SETS[setId];

@@ -1,4 +1,4 @@
-// Integration test for scratch-off.js — exercises mint → scratch → reveal
+// Integration test for scratch-off.js, exercises mint → scratch → reveal
 // with the NEW pacing guards (offline block + refund, per-stream hit cap,
 // hit cooldown, loss consolation bolts, Discord echo) against a real SQL
 // engine (node:sqlite) and the real KV logic. The only network edges (Twitch

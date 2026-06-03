@@ -1,4 +1,4 @@
-// Sandstorm Bazaar — desert markets, djinn, sun-coins, mirage tents.
+// Sandstorm Bazaar, desert markets, djinn, sun-coins, mirage tents.
 // 6 events: 2 pure upside, 3 tradeoff, 1 gamble.
 
 export const SANDSTORM_BAZAAR_EVENTS = Object.freeze([
@@ -12,7 +12,7 @@ export const SANDSTORM_BAZAAR_EVENTS = Object.freeze([
         id: 'rub',
         label: 'Rub the lamp',
         outcomes: [
-          { weight: 40, effect: { type: 'relic_grant', tier: 'major' }, text: 'A djinn unfurls and grants you a major relic — and is gone.' },
+          { weight: 40, effect: { type: 'relic_grant', tier: 'major' }, text: 'A djinn unfurls and grants you a major relic, and is gone.' },
           { weight: 30, effect: { type: 'card_grant', rarity: 'epic' }, text: 'A djinn smiles and tucks an epic card into your sash.' },
           { weight: 20, effect: { type: 'bolts_gain', amount: 60 },     text: 'A storm of gold coins erupts from the lamp. (+60 bolts)' },
           { weight: 10, effect: { type: 'hp_loss', amount: 12 },         text: 'The djinn was angry. He scorches you and flees. (-12 HP)' },
@@ -61,7 +61,7 @@ export const SANDSTORM_BAZAAR_EVENTS = Object.freeze([
     id: 'sun-coin-gambit',
     name: 'The Sun-Coin Gambit',
     description:
-      "A grinning merchant offers a flat sun-coin. 'Bright side, double; dark side, lose. Best odds in the bazaar — flip once?'",
+      "A grinning merchant offers a flat sun-coin. 'Bright side, double; dark side, lose. Best odds in the bazaar, flip once?'",
     choices: [
       {
         id: 'flip-small',

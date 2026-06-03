@@ -62,7 +62,7 @@ function makeKv() {
 
 const GUILD = '1504103035951906883';
 
-console.log('— catalog sanity');
+console.log('- catalog sanity');
 {
   eq(_BINDING_KEYS_FOR_TEST,
     ['queue', 'live', 'recap', 'clips', 'lfg', 'schedule', 'poll',
@@ -101,7 +101,7 @@ console.log('— catalog sanity');
   assert(!isValidBinding('garbage'), '!isValidBinding(garbage)');
 }
 
-console.log('— schedule + poll: KV wins, env falls back');
+console.log('- schedule + poll: KV wins, env falls back');
 {
   const env = {
     LOADOUT_BOLTS: makeKv(),
@@ -116,12 +116,12 @@ console.log('— schedule + poll: KV wins, env falls back');
   await setChannelBinding(env, GUILD, 'poll',     '1500000000000000888');
   eq(await getChannelBinding(env, GUILD, 'schedule'), '1500000000000000999', 'schedule KV override');
   eq(await getChannelBinding(env, GUILD, 'poll'),     '1500000000000000888', 'poll KV override');
-  // Clear both — env back in play.
+  // Clear both, env back in play.
   await setChannelBinding(env, GUILD, 'schedule', '');
   eq(await getChannelBinding(env, GUILD, 'schedule'), '1500000000000000777', 'schedule env after clear');
 }
 
-console.log('— getChannelBinding precedence');
+console.log('- getChannelBinding precedence');
 {
   const env = {
     LOADOUT_BOLTS: makeKv(),
@@ -144,7 +144,7 @@ console.log('— getChannelBinding precedence');
   eq(await getChannelBinding(env, GUILD, 'whatever'), null, 'unknown key → null');
 }
 
-console.log('— setChannelBinding');
+console.log('- setChannelBinding');
 {
   const env = { LOADOUT_BOLTS: makeKv(), QUEUE_CHANNEL_ID: '1500000000000000111' };
   // Set good.
@@ -164,7 +164,7 @@ console.log('— setChannelBinding');
   // No guild.
   const r4 = await setChannelBinding(env, '', 'queue', '1500000000000000222');
   eq(r4.error, 'no-guild-id', 'no-guild-id');
-  // Clear path — empty string deletes the KV entry, fallback re-engages.
+  // Clear path, empty string deletes the KV entry, fallback re-engages.
   const r5 = await setChannelBinding(env, GUILD, 'queue', '');
   eq(r5.ok, true, 'clear ok');
   eq(r5.channelId, null, 'clear returns null channelId');
@@ -172,7 +172,7 @@ console.log('— setChannelBinding');
   eq(await getChannelBinding(env, GUILD, 'queue'), '1500000000000000111', 'env back in play');
 }
 
-console.log('— listChannelBindings');
+console.log('- listChannelBindings');
 {
   const env = {
     LOADOUT_BOLTS: makeKv(),
@@ -201,7 +201,7 @@ console.log('— listChannelBindings');
   eq(list.recap.resolved, null, 'recap null');
 }
 
-console.log('— pickLfgChannel: explicit id / name / hints / non-text / null');
+console.log('- pickLfgChannel: explicit id / name / hints / non-text / null');
 {
   const chs = [
     { id: '1', name: 'general',              type: 0 },
@@ -216,7 +216,7 @@ console.log('— pickLfgChannel: explicit id / name / hints / non-text / null');
   // Name substring.
   eq(pickLfgChannel(chs, { channelName: 'looking' })?.id, '2', 'name substring picks first');
   eq(pickLfgChannel(chs, { channelName: 'NOPE' }), null, 'no match → null');
-  // Default hints — order = ['looking-for-game', 'lfg', 'looking-for', '🧩'].
+  // Default hints, order = ['looking-for-game', 'lfg', 'looking-for', '🧩'].
   // Channel #2 contains "looking-for-game", so wins.
   eq(pickLfgChannel(chs, {})?.id, '2', 'default-hint match');
   // Voice channels ignored.
@@ -227,7 +227,7 @@ console.log('— pickLfgChannel: explicit id / name / hints / non-text / null');
     ['looking-for-game', 'lfg', 'looking-for', '🧩'], 'hint catalog pinned');
 }
 
-console.log('— buildHubEmbed exposes the three buttons w/ correct custom_ids');
+console.log('- buildHubEmbed exposes the three buttons w/ correct custom_ids');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const { embed, components } = await buildHubEmbed(env, GUILD);
@@ -245,7 +245,7 @@ console.log('— buildHubEmbed exposes the three buttons w/ correct custom_ids')
 
 console.log('');
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

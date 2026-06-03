@@ -1,4 +1,4 @@
-// Temp voice channels — PartyBeast-style join-to-create.
+// Temp voice channels, PartyBeast-style join-to-create.
 //
 // Flow:
 //   1. Member joins the ➕│join-to-create voice channel.
@@ -97,7 +97,7 @@ export async function handleVoiceStateUpdate(env, payload) {
         results.reused = reuseId;
         return results;
       }
-      // stale — clear the index entry, mint a fresh one
+      // stale, clear the index entry, mint a fresh one
       await env.LOADOUT_BOLTS.delete(KEY_BYOWNER(guildId, userId));
       await env.LOADOUT_BOLTS.delete(KEY_OWNER(reuseId));
     }
@@ -159,7 +159,7 @@ export async function handleVoiceStateUpdate(env, payload) {
     results.created = newVcId;
   }
 
-  // (b) Empty-check sweep — when a voice state changes, the channel
+  // (b) Empty-check sweep, when a voice state changes, the channel
   // they LEFT may now be empty. We don't know the previous channel
   // from the payload (Discord doesn't include it), so we check every
   // known temp VC. Cheap because count is small.
@@ -186,16 +186,16 @@ async function sweepEmptyTempVcs(env, guildId) {
   const deleted = [];
   for (const c of candidates) {
     // Don't delete a room that was created in the last 10 seconds
-    // — the mint-and-move is two API calls and the user's join
+    //, the mint-and-move is two API calls and the user's join
     // may not have hit Discord's state by the time we sweep.
     if (Date.now() - (c.rec.createdUtc || 0) < 10_000) continue;
 
-    // Fetch live channel — voice_states are NOT on the channel
+    // Fetch live channel, voice_states are NOT on the channel
     // record (we'd need GUILD_VOICE_STATES or the live snapshot).
     // Instead we use the guild's voice-state list for the parent
     // channel: GET /guilds/{guild}/voice-states isn't a public
     // endpoint. We hit /channels/{id} which returns voice members
-    // if the bot has the right intents — and short-circuit to
+    // if the bot has the right intents, and short-circuit to
     // "check member presence" via a different signal: try to fetch
     // recent VOICE_STATE_UPDATE-tracked members from KV.
     //
@@ -205,14 +205,14 @@ async function sweepEmptyTempVcs(env, guildId) {
     // voice-state events: as long as anyone's in there, more
     // events fire and the channel keeps getting bumped. When
     // EVERYONE leaves, the next voice-state event from anywhere in
-    // the guild triggers this sweep — and we delete here.
+    // the guild triggers this sweep, and we delete here.
     //
     // To actually know occupancy, hit Discord's GET /channels/{id}
     // which includes `voice_states` for voice channels when the bot
     // has GUILDS + GUILD_VOICE_STATES intent.
     const ch = await dapi(env, 'GET', `/channels/${c.channelId}`);
     if (!ch.ok) {
-      // Already gone — clean up KV.
+      // Already gone, clean up KV.
       await env.LOADOUT_BOLTS.delete(c.key);
       if (c.rec.ownerId) await env.LOADOUT_BOLTS.delete(KEY_BYOWNER(guildId, c.rec.ownerId));
       deleted.push({ channelId: c.channelId, reason: 'already-gone' });
@@ -220,7 +220,7 @@ async function sweepEmptyTempVcs(env, guildId) {
     }
     // Discord doesn't reliably include `voice_states` on this REST
     // call. Use a different heuristic: try a tiny RTC region edit
-    // — no-op for a populated channel, errors for a dead one. Or:
+    //, no-op for a populated channel, errors for a dead one. Or:
     // delete the channel IF its `rtc_region` isn't set + creation
     // is >5 min old. To keep things simple and safe, we rely on a
     // separate periodic-sweep cron (every 30 min) that uses the
@@ -229,7 +229,7 @@ async function sweepEmptyTempVcs(env, guildId) {
     // count drops to zero. Until then, this REST sweep just cleans
     // up obviously-orphaned KV records.
     if (Date.now() - (c.rec.createdUtc || 0) > 4 * 60 * 60 * 1000) {
-      // 4h-old room with no recent voice event in 30 min — assume
+      // 4h-old room with no recent voice event in 30 min, assume
       // empty + delete. Conservative; better to leave one ghost
       // around than to disband a long live conversation.
       const del = await dapi(env, 'DELETE', `/channels/${c.channelId}`);
@@ -260,7 +260,7 @@ export async function handleTempVcEmpty(env, payload) {
   return { deleted: channelId };
 }
 
-// ── Component handler — owner control buttons ───────────────────────────
+// ── Component handler, owner control buttons ───────────────────────────
 
 export async function handleTempVcComponent(env, data) {
   const cid = data.data?.custom_id || '';

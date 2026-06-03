@@ -1,6 +1,6 @@
-// Progression — achievements catalogue.
+// Progression, achievements catalogue.
 //
-// PROGRESSION-SYSTEM-DESIGN.md §6.3 — ~120 entries spanning every
+// PROGRESSION-SYSTEM-DESIGN.md §6.3, ~120 entries spanning every
 // game + stream + Discord. Each entry is a small JSON record the
 // engine (achievements.js) walks against the progressionEvent stream.
 //
@@ -17,7 +17,7 @@
 //                         { kind, countAtLeast?, sumAtLeast?, withMeta? }
 //                         { allOf: [...] }, { anyOf: [...] }
 //   xpReward            grant on unlock (default 50 normal / 200 legendary)
-//   badgeId             optional — awards the badge id at unlock (P4)
+//   badgeId             optional, awards the badge id at unlock (P4)
 //   secret              hidden until earned (locked to ~5% of catalogue)
 //   seasonId            null = always-on; non-null = season-specific
 //
@@ -505,7 +505,7 @@ export const ACHIEVEMENTS_CATALOG = [
 
   // ── CROSS-CUTTING + META (6) ─────────────────────────────────────
   { id: 'meta.polyglot', category: 'cross-cutting', title: 'Polyglot',
-    description: 'Play every game type — Clash + Boltbound + board + quick.', iconKind: 'star-lg',
+    description: 'Play every game type, Clash + Boltbound + board + quick.', iconKind: 'star-lg',
     rarity: 'rare', xpReward: 200, badgeId: 'polyglot',
     triggers: [
       { kind: 'clash.raid.played', countAtLeast: 1 },

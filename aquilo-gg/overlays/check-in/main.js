@@ -1,5 +1,5 @@
 /*
- * Loadout — Daily Check-In overlay client.
+ * Loadout, Daily Check-In overlay client.
  *
  * Connects to the local Aquilo Bus, listens for `checkin.shown` /
  * `checkin.enriched`, renders the card, rotates stats, and auto-hides after
@@ -44,7 +44,7 @@
     userEl.textContent = ev.user || 'Anonymous';
 
     // Premium hook: paid roles (Patron, sub T1-T3) get a richer
-    // animation layer — aurora swirl, particle trails, gold beams.
+    // animation layer, aurora swirl, particle trails, gold beams.
     // The CSS keys off this attribute.
     const premium = computePremium(ev);
     if (premium) {
@@ -98,12 +98,12 @@
     // Viewer-supplied message: shows whatever the viewer typed after
     // !checkin (or the channel-points reward prompt input). Twitch emote
     // tokens get spliced in as <img> from the {start, end} ranges; YouTube
-    // / TikTok emoji come through as Unicode and render as text — no special
+    // / TikTok emoji come through as Unicode and render as text, no special
     // handling needed because we use textContent + DOM nodes (no innerHTML)
     // so the page stays XSS-safe even if a viewer types a < or & in chat.
     renderMessage(ev.message || '', ev.emotes || []);
 
-    // Stats — render every entry, then animate one at a time.
+    // Stats, render every entry, then animate one at a time.
     statsEl.innerHTML = '';
     const stats = ev.stats || [];
     for (let i = 0; i < stats.length; i++) {
@@ -146,7 +146,7 @@
   function enrich(ev) {
     // Apply enriched fields onto the currently displayed card.
     if (!currentEvent || !ev) return;
-    if (ev.user !== currentEvent.user) return;     // wrong target — different check-in already shown
+    if (ev.user !== currentEvent.user) return;     // wrong target, different check-in already shown
     if (ev.pfp && !pfpEl.src) {
       pfpEl.src = ev.pfp;
       card.dataset.hasPfp = 'true';
@@ -189,14 +189,14 @@
    * Render the viewer's message line with Twitch emote tokens spliced in.
    *
    * The bus payload carries `message` (raw text the viewer typed) plus
-   * `emotes` (sorted by start index — see CheckInModule.ExtractEmotes).
+   * `emotes` (sorted by start index, see CheckInModule.ExtractEmotes).
    * Each emote has {name, url, start, end} where start/end are character
    * indices into `message` (Twitch IRC-style, end is INCLUSIVE).
    *
    * We walk left-to-right, appending the in-between text as Text nodes
    * and the emote ranges as <img> elements. textContent + appendChild
    * keep the rendering XSS-safe even though chat is a hostile input
-   * surface — never use innerHTML with viewer-supplied strings.
+   * surface, never use innerHTML with viewer-supplied strings.
    *
    * YouTube / TikTok emoji are unicode characters in `message`; they
    * render naturally without needing emote ranges. The emotes array is

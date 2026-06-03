@@ -2,7 +2,7 @@
 //
 // applyServerSpec(token, guildId, spec, { apply }) reads the guild's
 // current state via Discord REST, computes a plan against `spec`, and
-// (if apply=true) creates anything missing. NEVER deletes — extras
+// (if apply=true) creates anything missing. NEVER deletes, extras
 // are surfaced in the returned `noted_extras` for caller review.
 //
 // Channel TYPES used:
@@ -34,7 +34,7 @@ async function dapi(token, method, path, body) {
   return { ok: r.ok, status: r.status, body: parsed, raw: text };
 }
 
-// Sleep so we respect Discord's rate limits — Discord's global
+// Sleep so we respect Discord's rate limits, Discord's global
 // budget is generous (~50 req/s), but per-resource buckets are
 // tighter. A 250ms gap between channel creates is a safe default.
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -91,7 +91,7 @@ export async function applyServerSpec(token, guildId, spec, { apply = false } = 
       color: rspec.color || 0,
       hoist: !!rspec.hoist,
       mentionable: !!rspec.mentionable,
-      permissions: '0',  // baseline — explicit grants happen via channel overwrites
+      permissions: '0',  // baseline, explicit grants happen via channel overwrites
     });
     if (!create.ok) {
       report.roles.errors.push({ name: rspec.name, status: create.status, body: create.raw.slice(0, 200) });
@@ -114,7 +114,7 @@ export async function applyServerSpec(token, guildId, spec, { apply = false } = 
     if (existing && existing.type !== TYPE_NUM.category) {
       report.categories.errors.push({
         name: cat.name,
-        message: `name exists as type ${TYPE_NAME[existing.type] || existing.type}, not category — leaving alone`,
+        message: `name exists as type ${TYPE_NAME[existing.type] || existing.type}, not category, leaving alone`,
         existingId: existing.id,
       });
       continue;
@@ -164,7 +164,7 @@ export async function applyServerSpec(token, guildId, spec, { apply = false } = 
         if (existing.type !== wantType) {
           // Discord supports a type swap only between text↔announcement
           // and within voice types. For other mismatches we don't try
-          // to recover — leave the existing channel and surface a note.
+          // to recover, leave the existing channel and surface a note.
           const canSwap = (existing.type === 0 && wantType === 5) || (existing.type === 5 && wantType === 0);
           if (canSwap && apply) {
             const patch = await dapi(token, 'PATCH', `/channels/${existing.id}`, { type: wantType });
@@ -253,7 +253,7 @@ export async function applyServerSpec(token, guildId, spec, { apply = false } = 
   return report;
 }
 
-// ── PHASE 2 — finalize the built guild ─────────────────────────────────
+// ── PHASE 2, finalize the built guild ─────────────────────────────────
 //
 // Run AFTER applyServerSpec. Looks up every channel + role by name,
 // applies category-level permission overwrites (visibility gating),
@@ -292,15 +292,15 @@ export async function applyPhase2(token, guildId, kv) {
     role_youtube:    roleId('YouTube Pings'),
     role_event:      roleId('Event Pings'),
     role_gamenight:  roleId('Game Night'),
-    cat_start:       channelId('╭— ‼️ start here —'),
-    cat_community:   channelId('╭— 💬 community —'),
-    cat_streams:     channelId('╭— 🔴 streams & content —'),
-    cat_products:    channelId('╭— 🛠️ products —'),
-    cat_games:       channelId('╭— 🎮 games & play —'),
-    cat_minecraft:   channelId('╭— ⛏️ minecraft —'),
-    cat_patrons:     channelId('╭— 💎 patrons —'),
-    cat_voice:       channelId('╭— 🔊 voice —'),
-    cat_staff:       channelId('╭— 🛡️ staff —'),
+    cat_start:       channelId('╭- ‼️ start here -'),
+    cat_community:   channelId('╭- 💬 community -'),
+    cat_streams:     channelId('╭- 🔴 streams & content -'),
+    cat_products:    channelId('╭- 🛠️ products -'),
+    cat_games:       channelId('╭- 🎮 games & play -'),
+    cat_minecraft:   channelId('╭- ⛏️ minecraft -'),
+    cat_patrons:     channelId('╭- 💎 patrons -'),
+    cat_voice:       channelId('╭- 🔊 voice -'),
+    cat_staff:       channelId('╭- 🛡️ staff -'),
     ch_rules:        channelId('🫡│rules'),
     ch_announcements:channelId('📣│announcements'),
     ch_roles:        channelId('🎭│roles'),
@@ -319,7 +319,7 @@ export async function applyPhase2(token, guildId, kv) {
     vc_afk:          channelId('😴│afk'),
   };
 
-  // ── Permission overwrites — one PATCH per category ─────────────────
+  // ── Permission overwrites, one PATCH per category ─────────────────
   //
   // The semantic is: gate VIEW per category. Channels inside inherit.
   // `everyone` deny + `member` allow on the public categories means

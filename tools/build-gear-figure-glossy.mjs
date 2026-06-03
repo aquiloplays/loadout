@@ -1,4 +1,4 @@
-// A5b — Gear paper-doll figure layers.
+// A5b, Gear paper-doll figure layers.
 //
 // Takes each of the 185 glossy gear icon SVGs (192×192, item
 // centred at 96,96) and re-projects it onto the 128×160 figure
@@ -18,7 +18,7 @@
 //   • rarity glow ellipse (fill="url(#gk-rarity-…)")
 //   • contact-shadow ellipse (fill="url(#gk-contact-shadow)")
 //   • the icon's rarity ring (cx=96 cy=96 r=86 stroke ring)
-// The gear shape itself + its inline defs survive the pass — the
+// The gear shape itself + its inline defs survive the pass, the
 // gloss highlights, gradient fills, and accent rings on the shape
 // are all part of the glossy idiom and look correct at figure
 // scale.
@@ -56,7 +56,7 @@ const FIGURE_W = 128, FIGURE_H = 160;
 function anchorFor(slot) {
   // Each entry: { cx, cy, scale, rotateDeg? }
   //
-  // Anchors retuned 2026-05 (L3 quality pass) — the figure is now
+  // Anchors retuned 2026-05 (L3 quality pass), the figure is now
   // ~4 heads tall with a smaller head, longer torso, longer legs.
   // Anchors that targeted the L2 chibi proportions left every gear
   // piece floating up around the chest.
@@ -73,7 +73,7 @@ function anchorFor(slot) {
   //   right hand: cx=90, cy=116            (HAND_OFFSET_X=26, HAND_R=7)
   switch (slot) {
     case 'head':
-      // Smaller head than L2 — scale 0.28 → 192*0.28 ≈ 54 px box
+      // Smaller head than L2, scale 0.28 → 192*0.28 ≈ 54 px box
       // (head sphere is 36 wide; gear has 9 px halo for plumes /
       // antler / hood drape on each side).
       return { cx: 64, cy: 30, scale: 0.28, rotateDeg: 0 };
@@ -83,7 +83,7 @@ function anchorFor(slot) {
       // shoulder pads / pauldrons.
       return { cx: 64, cy: 80, scale: 0.32, rotateDeg: 0 };
     case 'legs':
-      // Over the legs zone — centred between hip (y=110) and ankle
+      // Over the legs zone, centred between hip (y=110) and ankle
       // (y=152), mid ≈ 130. Scale 0.28 → 54-px box.
       return { cx: 64, cy: 130, scale: 0.28, rotateDeg: 0 };
     case 'boots':
@@ -92,7 +92,7 @@ function anchorFor(slot) {
       // cy=140 puts soles right at FOOT_Y=156.
       return { cx: 64, cy: 140, scale: 0.26, rotateDeg: 0 };
     case 'weapon':
-      // GRIP-ALIGNED to the right hand (cx=86, cy=108 — body.js
+      // GRIP-ALIGNED to the right hand (cx=86, cy=108, body.js
       // HAND_OFFSET_X=22, HAND_Y=108). Icon center lands ON the
       // hand so the visible grip sits inside the palm; blade /
       // staff body extends above. The hand-overlay layer (z=79)
@@ -148,7 +148,7 @@ function stripIconContextElements(inner) {
   );
   // Icon-scale rarity ring: <circle cx="96" cy="96" r="86" fill="none" ...
   // (these are the big rings on rare+ items, they'd show as
-  // sweeping circles around the gear on the hero — strip them.)
+  // sweeping circles around the gear on the hero, strip them.)
   out = out.replace(
     /<circle\s+cx="96"\s+cy="96"\s+r="86"[^/>]*\/>/g, ''
   );

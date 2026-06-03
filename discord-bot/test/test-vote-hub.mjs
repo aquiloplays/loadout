@@ -64,7 +64,7 @@ globalThis.fetch = async (input, init) => {
 const GUILD = '1504103035951906883';
 const USER  = '209640265063006208';
 
-console.log('— PHASE constants');
+console.log('- PHASE constants');
 {
   eq(PHASE.CLOSED,        'closed',         'closed');
   eq(PHASE.VARIETY_OPEN,  'variety-open',   'variety-open');
@@ -74,7 +74,7 @@ console.log('— PHASE constants');
   eq(PHASE.CN_QUEUE,      'cn-queue',       'cn-queue');
 }
 
-console.log('— daysUntilWeekday');
+console.log('- daysUntilWeekday');
 {
   eq(_daysUntilWeekdayForTest('tuesday', 'saturday'), 4, 'Tue → Sat');
   eq(_daysUntilWeekdayForTest('saturday', 'saturday'), 0, 'Sat → Sat same day');
@@ -83,7 +83,7 @@ console.log('— daysUntilWeekday');
   eq(_daysUntilWeekdayForTest('bogus', 'saturday'), null, 'bad input → null');
 }
 
-console.log('— config defaults + setConfig');
+console.log('- config defaults + setConfig');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const def = await getConfig(env, GUILD);
@@ -106,7 +106,7 @@ console.log('— config defaults + setConfig');
   eq((await getConfig(env, GUILD)).varietyWeekday, null, 'cleared');
 }
 
-console.log('— state default');
+console.log('- state default');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const s = await getState(env, GUILD);
@@ -115,7 +115,7 @@ console.log('— state default');
   eq(s.cnPollId, null, 'no cn poll');
 }
 
-console.log('— component dispatch: vh:status (always allowed)');
+console.log('- component dispatch: vh:status (always allowed)');
 {
   const env = { LOADOUT_BOLTS: makeKv(), STATE: makeKv() };
   const data = { guild_id: GUILD, member: { user: { id: USER } }, data: { custom_id: 'vh:status' } };
@@ -124,7 +124,7 @@ console.log('— component dispatch: vh:status (always allowed)');
   assert(/Your voting status/.test(r.data.embeds[0].title), 'title');
 }
 
-console.log('— component dispatch: closed-phase intercept on vote action');
+console.log('- component dispatch: closed-phase intercept on vote action');
 {
   const env = { LOADOUT_BOLTS: makeKv(), STATE: makeKv() };
   // Default state = closed.
@@ -137,7 +137,7 @@ console.log('— component dispatch: closed-phase intercept on vote action');
   assert(labels.some(l => /Patron/.test(l)), 'Patreon CTA button');
 }
 
-console.log('— vh:cast persists the ballot');
+console.log('- vh:cast persists the ballot');
 {
   // Force phase = cn-open + minimal DB stub via env.DB so
   // getEligibleGames returns one game.
@@ -164,7 +164,7 @@ console.log('— vh:cast persists the ballot');
   eq(ballots[USER], 'g1', 'user vote recorded');
 }
 
-console.log('— retireOldCnVoteHub clears KV');
+console.log('- retireOldCnVoteHub clears KV');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   await env.LOADOUT_BOLTS.put(`cn-vote:hub-msg:${GUILD}`,
@@ -182,7 +182,7 @@ console.log('— retireOldCnVoteHub clears KV');
 console.log('');
 globalThis.fetch = realFetch;
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

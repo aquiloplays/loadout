@@ -1,13 +1,13 @@
 /*
- * Loadout — Dungeon Crawler overlay client.
+ * Loadout, Dungeon Crawler overlay client.
  *
  * Subscribes to dungeon.* and duel.* on the local Aquilo Bus, then
  * orchestrates the four UI states:
- *   idle      — transparent, render nothing
- *   recruit   — !join window with countdown bar + party tiles
- *   adventure — scene log scrolling on the right
- *   loot      — final survivor cards centered
- *   duel      — 1v1 panel with HP bars + scene log between
+ *   idle, transparent, render nothing
+ *   recruit, !join window with countdown bar + party tiles
+ *   adventure, scene log scrolling on the right
+ *   loot, final survivor cards centered
+ *   duel, 1v1 panel with HP bars + scene log between
  *
  * Why a state machine rather than panels-as-CSS-modes: scenes arrive
  * with absolute delayMs offsets from the run start (the DLL builds
@@ -55,13 +55,13 @@
   // Streamer-supplied custom assets (drop-in via URL params so the
   // streamer can swap themes per-game / per-stream without restarting
   // OBS):
-  //   ?bg=https://...  — background image painted behind every panel.
+  //   ?bg=https://..., background image painted behind every panel.
   //                       Image is centered + cover-fit so any aspect
   //                       ratio works; CSS handles the dim layer.
-  //   ?bgOpacity=0..100 — how strong the dim layer is over the image
+  //   ?bgOpacity=0..100, how strong the dim layer is over the image
   //                       (defaults to 50 so panels stay readable on
   //                       a busy background).
-  //   ?titleBg=#hex      — hex tint for the recruit / adventure cards
+  //   ?titleBg=#hex, hex tint for the recruit / adventure cards
   //                       (overrides the default cyan/blue gradient).
   // Stay in sync with whatever the Settings → Overlays card writes.
   const bgUrl     = params.get('bg') || '';
@@ -97,8 +97,7 @@
 
   // ─── Medieval pixel-art class sprites ───────────────────────────
   //
-  // 16×24 viewBox so the figure has proper full-body proportions —
-  // head, torso, legs, feet all visible. Composed from layers at
+  // 16×24 viewBox so the figure has proper full-body proportions, // head, torso, legs, feet all visible. Composed from layers at
   // render time:
   //
   //   1. Cape (behind everything, peeks out by hips)
@@ -112,13 +111,13 @@
   //   9. Held weapon (class default OR equipped weapon)
   //   10. Trinket accent
   //
-  // Armour SETS — when an equipped piece's setName matches one of
+  // Armour SETS, when an equipped piece's setName matches one of
   // SET_PALETTES, that slot's render uses the set palette instead
   // of the class default. Four sets coexist with mixed pieces:
-  //   ironclad     — silver plate, riveted look
-  //   dragonscale  — olive scales with gold trim
-  //   shadow       — deep purple cuirass with red trim
-  //   arcane       — violet robes with cyan runes
+  //   ironclad, silver plate, riveted look
+  //   dragonscale, olive scales with gold trim
+  //   shadow, deep purple cuirass with red trim
+  //   arcane, violet robes with cyan runes
   //
   // shape-rendering="crispEdges" + image-rendering: pixelated keep
   // pixels sharp at every avatar size.
@@ -150,7 +149,7 @@
     red:    '#F85149'
   };
 
-  // Class default outfit colours — used when custom.primary / .secondary
+  // Class default outfit colours, used when custom.primary / .secondary
   // are not set. Keep these in sync with DungeonContent.Classes' tint.
   const CLASS_PRIMARY = {
     warrior: '#F85149',
@@ -167,7 +166,7 @@
     healer:  '#00F2EA'
   };
 
-  // Cape options — drawn behind the body. "none" omits the layer.
+  // Cape options, drawn behind the body. "none" omits the layer.
   const CAPE_PRESETS = {
     none:   null,
     cloak:  { color: '#3A2200' },
@@ -175,15 +174,15 @@
     scarf:  { color: '#F85149', short: true }
   };
 
-  // SVG primitive — every layer below builds out of these calls.
+  // SVG primitive, every layer below builds out of these calls.
   function rect(x, y, w, h, color) {
     return '<rect x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" fill="' + color + '"/>';
   }
 
-  // Per-armour-set palettes — when an equipped piece carries one of
+  // Per-armour-set palettes, when an equipped piece carries one of
   // these set names, the slot's render switches to its colours and
   // pattern. Mixed sets coexist (e.g. Ironclad helm + Dragonscale
-  // chest is fine — each slot renders independently). Keep these in
+  // chest is fine, each slot renders independently). Keep these in
   // sync with DungeonContent.Sets on the DLL side.
   const SET_PALETTES = {
     ironclad:    { primary: '#8B8B96', secondary: '#5A5A66', accent: '#C4C4D0' },
@@ -192,7 +191,7 @@
     arcane:      { primary: '#3A1F5A', secondary: '#5A2A7F', accent: '#00F2EA' }
   };
 
-  // Hair styles — rendered behind the head layer. Classes with full
+  // Hair styles, rendered behind the head layer. Classes with full
   // headgear (warrior helmet, mage hat, rogue hood) hide hair on
   // purpose; classes with partial hats (ranger, healer) leave hair
   // visible. The y/height offsets below assume 16×24 viewBox.
@@ -208,13 +207,13 @@
     return                   rect(4, 3, 8, 1, c) + rect(3, 4, 1, 1, c) + rect(12, 4, 1, 1, c);
   }
 
-  // Cape — rendered first so it sits behind the body. Peeks out at
+  // Cape, rendered first so it sits behind the body. Peeks out at
   // the shoulders + below the legs to read as a long flowing cloak.
   function capeLayer(capeKey) {
     const def = CAPE_PRESETS[(capeKey || 'none').toLowerCase()];
     if (!def) return '';
     if (def.short) return rect(5, 7, 6, 1, def.color);   // scarf at neckline
-    // Long cloak — covers shoulders down to the boots.
+    // Long cloak, covers shoulders down to the boots.
     return rect(2, 8, 1, 12, def.color) +
            rect(13, 8, 1, 12, def.color) +
            rect(3, 19, 10, 2, def.color);
@@ -230,27 +229,27 @@
   function bootsLayer(eq, classKey) {
     const set = eq && eq.boots && SET_PALETTES[(eq.boots.setName || '').toLowerCase()];
     if (set) {
-      // Ironclad sabatons — silver, with metal sheen highlight on top
+      // Ironclad sabatons, silver, with metal sheen highlight on top
       return rect(5, 21, 2, 3, set.secondary) + rect(9, 21, 2, 3, set.secondary) +
              rect(5, 21, 2, 1, set.accent)    + rect(9, 21, 2, 1, set.accent);
     }
-    // Class default — leather boots for most, sandals for healer
+    // Class default, leather boots for most, sandals for healer
     if (classKey === 'healer') {
       return rect(5, 22, 2, 2, '#5A3F1B') + rect(9, 22, 2, 2, '#5A3F1B');
     }
     return rect(5, 21, 2, 3, '#3A2200') + rect(9, 21, 2, 3, '#3A2200');
   }
 
-  // Legs/pants: rows 16-20 (5 px tall — calves through to ankles).
+  // Legs/pants: rows 16-20 (5 px tall, calves through to ankles).
   function legsLayer(eq, classKey) {
     const set = eq && eq.legs && SET_PALETTES[(eq.legs.setName || '').toLowerCase()];
     if (set) {
-      // Plate greaves — vertical seam line down each leg
+      // Plate greaves, vertical seam line down each leg
       return rect(5, 16, 2, 5, set.primary) + rect(9, 16, 2, 5, set.primary) +
              rect(5, 16, 1, 5, set.accent)  + rect(9, 16, 1, 5, set.accent);
     }
     if (classKey === 'mage' || classKey === 'healer') {
-      // Robe extends down here — handled by torsoLayer; this layer
+      // Robe extends down here, handled by torsoLayer; this layer
       // returns nothing so the robe is unbroken.
       return '';
     }
@@ -264,7 +263,7 @@
     return rect(5, 16, 2, 5, '#1A1A22') + rect(9, 16, 2, 5, '#1A1A22');
   }
 
-  // Torso: rows 8-13 (6 px tall — chest down to hip). Belt sits at
+  // Torso: rows 8-13 (6 px tall, chest down to hip). Belt sits at
   // row 14 and is part of this layer because belts always render.
   function torsoLayer(eq, classKey, primaryOverride) {
     const set = eq && eq.chest && SET_PALETTES[(eq.chest.setName || '').toLowerCase()];
@@ -294,12 +293,12 @@
       return s;
     }
 
-    // Class defaults — distinctive silhouettes per class.
+    // Class defaults, distinctive silhouettes per class.
     const primary = primaryOverride || CLASS_PRIMARY[classKey] || '#3A86FF';
     const secondary = CLASS_SECONDARY[classKey] || '#3A2200';
 
     if (classKey === 'mage') {
-      // Long robe — covers torso AND legs, cinched at the waist
+      // Long robe, covers torso AND legs, cinched at the waist
       let s = rect(4, 8, 8, 12, primary) +                       // robe top→bottom
               rect(3, 19, 10, 1, primary) +                      // hem flares out
               rect(4, 14, 8, 1, secondary) +                     // sash
@@ -328,14 +327,14 @@
              rect(8, 8, 1, 6, '#3A2200') +    // quiver strap
              rect(4, 14, 8, 1, '#3A2200');
     }
-    // warrior — gambeson + chest plate
+    // warrior, gambeson + chest plate
     return rect(4, 8, 8, 6, primary) +
            rect(7, 9, 2, 4, secondary) +      // central seam
            rect(7, 10, 2, 1, '#C4C4D0') +     // metal rivet
            rect(4, 14, 8, 1, '#3A2200');      // belt
   }
 
-  // Arms — skin coloured strips on either side of the torso. Lengths
+  // Arms, skin coloured strips on either side of the torso. Lengths
   // depend on the class robe coverage.
   function armsLayer(skin, classKey) {
     if (classKey === 'mage' || classKey === 'healer') {
@@ -345,11 +344,11 @@
     return rect(3, 8, 1, 6, skin) + rect(12, 8, 1, 6, skin);
   }
 
-  // Face — skin patch + eyes. Always renders the same shape; class
+  // Face, skin patch + eyes. Always renders the same shape; class
   // headgear may obscure parts of it.
   function faceLayer(skin, eye, classKey) {
     if (classKey === 'rogue') {
-      // Hood casts shadow over face — only glowing eyes visible
+      // Hood casts shadow over face, only glowing eyes visible
       return rect(5, 4, 6, 4, '#0A1F11') +
              rect(6, 6, 1, 1, '#3FB950') + rect(9, 6, 1, 1, '#3FB950');
     }
@@ -357,13 +356,13 @@
            rect(6, 6, 1, 1, eye) + rect(9, 6, 1, 1, eye);
   }
 
-  // Headgear — class default OR equipped helm/hood/circlet.
+  // Headgear, class default OR equipped helm/hood/circlet.
   function headLayer(eq, classKey) {
     const set = eq && eq.head && SET_PALETTES[(eq.head.setName || '').toLowerCase()];
     if (set) {
       const setKey = (eq.head.setName || '').toLowerCase();
       if (setKey === 'ironclad') {
-        // Iron helm — silver dome, horizontal visor slit, side flaps
+        // Iron helm, silver dome, horizontal visor slit, side flaps
         return rect(4, 1, 8, 3, set.primary) +
                rect(4, 4, 8, 1, set.secondary) +    // visor slit
                rect(4, 5, 1, 3, set.primary)  + rect(11, 5, 1, 3, set.primary) +   // cheek guards
@@ -377,7 +376,7 @@
                rect(6, 6, 1, 1, '#F0B429')    + rect(9, 6, 1, 1, '#F0B429');       // glowing eyes
       }
       if (setKey === 'shadow') {
-        // Shadow cowl — extended hood
+        // Shadow cowl, extended hood
         return rect(4, 1, 8, 4, set.primary) +
                rect(3, 4, 10, 3, set.primary) +
                rect(5, 5, 6, 2, set.secondary) +    // shadow inside cowl
@@ -508,7 +507,7 @@
 
   function weaponLayer(eq, classKey) {
     const w = eq && eq.weapon;
-    // Resolve weapon type — equipped item wins, otherwise class default.
+    // Resolve weapon type, equipped item wins, otherwise class default.
     const wtype = (w && w.weaponType) ||
                   (classKey === 'warrior' ? 'sword'  :
                    classKey === 'mage'    ? 'staff'  :
@@ -526,7 +525,7 @@
                .replace(/#8B8B96/g, set.primary);
     }
 
-    // Rarity halo — epic / legendary / mythic gets an accent glow rect
+    // Rarity halo, epic / legendary / mythic gets an accent glow rect
     // beneath the weapon. The halo colour matches the rarity tier.
     if (w && (w.rarity === 'epic' || w.rarity === 'legendary' || w.rarity === 'mythic')) {
       const halo = w.rarity === 'mythic'   ? '#FF8FB0' :
@@ -543,7 +542,7 @@
     return svg;
   }
 
-  // Trinket — small accent on the chest when equipped. Doesn't have
+  // Trinket, small accent on the chest when equipped. Doesn't have
   // a set palette of its own; just shows the item's glyph.
   function trinketLayer(eq) {
     const t = eq && eq.trinket;
@@ -555,7 +554,7 @@
   // ── Sprite composer ────────────────────────────────────────────
   // characterSprite(className, custom, equipped) returns the full
   // composed SVG. equipped is { slot: { rarity, setName, glyph,
-  // name, slot } } — see DungeonModule.HeroToPayload.
+  // name, slot } }, see DungeonModule.HeroToPayload.
   function characterSprite(className, custom, equipped) {
     const c = (className || '').toLowerCase();
     if (!c || !CLASS_PRIMARY[c]) return '';
@@ -683,7 +682,7 @@
     scenesEl.replaceChildren();
   }
   function appendScene(p) {
-    // Adventure log only renders 6 most-recent scenes — older ones
+    // Adventure log only renders 6 most-recent scenes, older ones
     // scroll out of view to keep the panel readable.
     while (scenesEl.children.length >= 6) scenesEl.removeChild(scenesEl.firstChild);
     const line = document.createElement('div');
@@ -707,7 +706,7 @@
     setState('loot');
     lootGrid.replaceChildren();
     const outcomes = p.outcomes || [];
-    // Render outcomes in a fixed order — survivors first, fallen last.
+    // Render outcomes in a fixed order, survivors first, fallen last.
     const ordered = [...outcomes].sort((a, b) => (b.survived ? 1 : 0) - (a.survived ? 1 : 0));
     ordered.slice(0, 8).forEach((o, i) => {
       setTimeout(() => lootGrid.appendChild(makeLootCard(o)), i * 250);
@@ -730,7 +729,7 @@
     if (!o.survived) card.classList.add('fallen');
     if (o.classTint) card.style.setProperty('--ring', o.classTint);
 
-    // Avatar header — viewer's character, class-tinted ring, slotted
+    // Avatar header, viewer's character, class-tinted ring, slotted
     // above their name so the loot card reads as "this is THEIR card"
     // and not just generic loot from a generic encounter.
     const avatar = document.createElement('div');
@@ -756,7 +755,7 @@
     glyph.className = 'lc-glyph';
     // Pixel-art icon fallback when no item sprite shipped.
     // Item path comes from the worker (gear catalog); when absent we
-    // show coin for survivors / skull for the fallen — no emoji.
+    // show coin for survivors / skull for the fallen, no emoji.
     const fallbackIcon = o.survived ? 'coin' : 'skull';
     const itemHasSprite = item && (item.spriteId || (typeof item.glyph === 'string' && /^\//.test(item.glyph)));
     if (itemHasSprite) {
@@ -807,7 +806,7 @@
   function showDuelRecruit(p) {
     reset();
     setState('duel');
-    duelLname.textContent = p.challenger || '—';
+    duelLname.textContent = p.challenger || '-';
     duelRname.textContent = p.target || '???';
     duelLhp.style.transform = 'scaleX(1)';
     duelRhp.style.transform = 'scaleX(1)';
@@ -816,14 +815,14 @@
   }
   function showDuelStart(p) {
     setState('duel');
-    duelLname.textContent = p.challenger || '—';
-    duelRname.textContent = p.defender || '—';
+    duelLname.textContent = p.challenger || '-';
+    duelRname.textContent = p.defender || '-';
     duelLhp.style.transform = 'scaleX(1)';
     duelRhp.style.transform = 'scaleX(1)';
     duelLog.replaceChildren();
     duelResult.textContent = '';
     // Render the duelists' actual characters: avatar URL or class glyph,
-    // with class tint on the ring. Same pattern as party tiles — keeps
+    // with class tint on the ring. Same pattern as party tiles, keeps
     // the visual story consistent across the overlay.
     // Fallback uses an icon-name (resolved to /sprites/ui/icons/X.png
     // by paintDuelist) so we never render an emoji.
@@ -870,7 +869,7 @@
       line.className = 'scene-line ' + (p.kind || 'duel-strike');
       const g = document.createElement('div'); g.className = 's-glyph';
       // Scene glyph: if payload sends a sprite path use it, otherwise
-      // the in-house sword icon — no emoji default.
+      // the in-house sword icon, no emoji default.
       if (typeof p.glyph === 'string' && (/^\//.test(p.glyph) || /^https?:/i.test(p.glyph))) {
         const gi = document.createElement('img'); gi.className = 'ico'; gi.src = p.glyph; gi.alt = ''; g.appendChild(gi);
       } else {

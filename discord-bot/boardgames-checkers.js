@@ -26,13 +26,13 @@
 //   move you make must be a capture. Simple moves are rejected with
 //   error 'must-capture'.
 // - **Multi-jumps**: after a capture, if the same piece can capture
-//   again, the turn DOES NOT flip — the server sets `pendingFrom` and
+//   again, the turn DOES NOT flip, the server sets `pendingFrom` and
 //   waits for the next jump from that square. A player may stop a
 //   multi-jump only when no further capture is available. (UI tells
 //   them this via the legalMoves hint.)
 // - **Kinging**: a man that reaches its furthest rank becomes a king.
 //   Per American rule, kinging ENDS the turn even if more jumps would
-//   be available — kept here as it simplifies the multi-jump flow and
+//   be available, kept here as it simplifies the multi-jump flow and
 //   is the more common casual ruleset.
 // - **Win**: opponent has no pieces, or has pieces but no legal moves.
 // - **Draw**: 40 turns with no capture and no man-to-king (`movesSinceProgress`).
@@ -255,7 +255,7 @@ function hasWinner(state) {
   if (sideMoves.length === 0) {
     return state.turn === 'p1' ? 'p2' : 'p1';
   }
-  // Suppress unused-var warnings — kept for future use if we add early
+  // Suppress unused-var warnings, kept for future use if we add early
   // exits.
   void redCanMove; void whiteCanMove;
   return null;

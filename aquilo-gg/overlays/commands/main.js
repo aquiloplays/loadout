@@ -25,8 +25,7 @@
   if (showDesc != null) document.body.dataset.showDesc = showDesc;
 
   // Default 30s per command. ~1.6s of that goes to the transition
-  // (fade-out + fade-in), leaving ~28s of fully visible read time —
-  // long enough for a TikTok viewer who just walked in mid-stream
+  // (fade-out + fade-in), leaving ~28s of fully visible read time, // long enough for a TikTok viewer who just walked in mid-stream
   // to read both name and description without rushing. URL param
   // overrides; floor 10s.
   const rotateSec = Math.max(10, parseInt(params.get('rotate') || '30', 10));
@@ -85,7 +84,7 @@
   // Track the in-flight setTimeout so a fast tick or an ingestList
   // restart doesn't leave a stale swap pending. Without this, two
   // overlapping show() calls each schedule their own text-swap and
-  // both fight to flip .fading on / off — the card can land in the
+  // both fight to flip .fading on / off, the card can land in the
   // fading state with no follow-up swap.
   let swapTimer = null;
 

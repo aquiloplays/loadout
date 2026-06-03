@@ -1,4 +1,4 @@
-// Boltbound — Arena draft mode (RET-5).
+// Boltbound, Arena draft mode (RET-5).
 //
 // Hearthstone-style Arena: pay 1000 Bolts or 1 Arena ticket, draft a
 // 30-card deck (shown 3 at a time, pick one, x30, weighted toward
@@ -6,7 +6,7 @@
 // losses or 12 wins. Rewards escalate with the final win count.
 //
 // v1 match resolution: matches are resolved by a DRAFT-SENSITIVE
-// probabilistic model — a stronger drafted deck (better curve + bombs)
+// probabilistic model, a stronger drafted deck (better curve + bombs)
 // wins more, against an opponent whose strength ramps with your win
 // count. This keeps draft decisions meaningful and the run self-
 // contained; swapping to the interactive engine later only changes

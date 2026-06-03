@@ -23,10 +23,10 @@ const DEFAULT_GAMES = [
   { name: 'The Headliners',           art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3059070/62f137f87bbbe03ff34fe64f79aec4059532e849/header.jpg' },
   { name: 'Gamble With Your Friends', art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3892270/395e6d7972474333a698b26f8aa5597bf38109a1/header.jpg' },
   { name: 'LOCKDOWN Protocol',        art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/2780980/header.jpg' },
-  // Added in v4 of the bootstrap seed — Clay's expanded community-night
+  // Added in v4 of the bootstrap seed, Clay's expanded community-night
   // rotation. MIMESIS was already in v1 so not duplicated here.
   { name: 'Dead by Daylight',         art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/381210/header.jpg' },
-  // Fortnite is Epic-exclusive — no Steam header. The art_url below is
+  // Fortnite is Epic-exclusive, no Steam header. The art_url below is
   // the current Epic Games Store og:image (key art for the active
   // season). Epic rotates this file each season, so when it 404s the
   // bot still renders cleanly (null/404 cover handled gracefully) and
@@ -34,15 +34,15 @@ const DEFAULT_GAMES = [
   { name: 'Fortnite',                 art_url: 'https://cdn1.epicgames.com/offer/fn/FNBR_40-40_C7S2_Venison_EGS_Launcher_Blade_2560x1440_2560x1440-3afd36811467479f909b5b753522e63d' },
   { name: 'Among Us',                 art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/945360/header.jpg' },
   { name: 'Phasmophobia',             art_url: 'https://cdn.cloudflare.steamstatic.com/steam/apps/739630/header.jpg' },
-  // Added in v5 — variety-night picks. The games table doesn't carry
+  // Added in v5, variety-night picks. The games table doesn't carry
   // a per-row category (variety vs community is a schedule-slot
-  // property, not a game property — Saturday is the variety/CN day in
+  // property, not a game property, Saturday is the variety/CN day in
   // aq-schedule.js), so these land in the same single rotation pool
   // as the others. Steam IDs confirmed in v6: Vampire Crawlers
-  // (3265700) and Baby Steps (1281040) — Steam header art populated.
+  // (3265700) and Baby Steps (1281040), Steam header art populated.
   { name: 'Vampire Crawlers',         art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/3265700/5590e42cab09dacabee973dd2c3e27ef12ed4950/header.jpg' },
   { name: 'Baby Steps',               art_url: 'https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/1281040/8d57ee5f68ecf97305c2f7847b25f1fbe1c680c2/header.jpg' },
-  // Added in v6 — Clay's roster sweep (2026-05). Removed Slay the
+  // Added in v6, Clay's roster sweep (2026-05). Removed Slay the
   // Spire 2 / Cult of the Lamb / Roadside Research; added these
   // five. All Steam-resolvable so they also appear in the
   // cn-games-roster.js Steam-backed mirror.

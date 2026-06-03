@@ -2,11 +2,11 @@
 //
 // One static, brand-themed PNG that becomes the welcome embed's `image:`
 // field. The per-user info (username, avatar, member #) lives in the
-// embed's text + thumbnail and is rendered by Discord — that part is
+// embed's text + thumbnail and is rendered by Discord, that part is
 // dynamic. This backdrop is fixed and ships at
 // aquilo-gg/sprites/welcome/aquilo-welcome-card.png.
 //
-// 800×280 — Discord renders embed images at 400-ish wide so 2× scale
+// 800×280, Discord renders embed images at 400-ish wide so 2× scale
 // keeps it crisp on hi-DPI.
 //
 // Run:  node tools/build-welcome-card.mjs
@@ -61,7 +61,7 @@ const svg = svgWrapper({
 <!-- glossy halo behind the headline -->
 <ellipse cx="${W/2}" cy="${H/2}" rx="280" ry="100" fill="url(#halo)"/>
 
-<!-- Decorative glossy logo shape (no rendered text — resvg has fonts
+<!-- Decorative glossy logo shape (no rendered text, resvg has fonts
      disabled to keep the bake hermetic; the welcome embed's TITLE
      and DESCRIPTION carry the actual wording, so this stays pure
      decoration that won't clash with Discord's text). Stylised "A"

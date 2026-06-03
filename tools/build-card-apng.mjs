@@ -10,7 +10,7 @@
 // (overwriting the static-frame placeholder), and cleans up the
 // intermediates.
 //
-// Symmetric with tools/build-apng.mjs (for gear fx) — kept separate so
+// Symmetric with tools/build-apng.mjs (for gear fx), kept separate so
 // the two pipelines can evolve independently.
 
 import { promises as fs } from 'node:fs';
@@ -30,7 +30,7 @@ try {
   entries = await fs.readdir(framesDir);
 } catch (e) {
   if (e.code === 'ENOENT') {
-    console.log('No _card-legendary-frames directory — nothing to do.');
+    console.log('No _card-legendary-frames directory, nothing to do.');
     process.exit(0);
   }
   throw e;
@@ -81,4 +81,4 @@ for (const [cardId, list] of groups) {
 
 await fs.rm(framesDir, { recursive: true, force: true });
 
-console.log(`Done — ${total} card APNG(s) written.`);
+console.log(`Done, ${total} card APNG(s) written.`);

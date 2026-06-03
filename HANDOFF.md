@@ -1,8 +1,8 @@
-# Loadout — Workstation Handoff
+# Loadout, Workstation Handoff
 
 This repo is **the source of truth** for Loadout. Cloning it gives you everything needed to build, ship, and iterate. Nothing critical lives outside it except per-machine state (Patreon tokens, the Aquilo Bus secret, Streamer.bot's own data).
 
-## TL;DR — fresh workstation
+## TL;DR, fresh workstation
 
 ```powershell
 # 1. Install prereqs
@@ -23,24 +23,24 @@ cd loadout
 
 ## What you DON'T need to transfer
 
-- ❌ **Patreon tokens** — DPAPI-encrypted in `%APPDATA%\Loadout\patreon-state.bin` per Windows account; you re-OAuth on a new machine via Settings → Patreon → Connect
-- ❌ **Aquilo Bus secret** — auto-generated on first run at `%APPDATA%\Aquilo\bus-secret.txt`; share to overlays via the OBS browser-source URL
-- ❌ **Loadout settings.json** — recreated by the onboarding wizard. Optional: copy `%APPDATA%\Loadout\` from old machine to skip re-onboarding
-- ❌ **GitHub credentials** — `gh auth login` in browser
-- ❌ **Cloudflare account state** — Worker auto-deploys on git push
-- ❌ **Discord webhook URLs / API keys** — re-pasted in Settings on the new machine
+- ❌ **Patreon tokens**, DPAPI-encrypted in `%APPDATA%\Loadout\patreon-state.bin` per Windows account; you re-OAuth on a new machine via Settings → Patreon → Connect
+- ❌ **Aquilo Bus secret**, auto-generated on first run at `%APPDATA%\Aquilo\bus-secret.txt`; share to overlays via the OBS browser-source URL
+- ❌ **Loadout settings.json**, recreated by the onboarding wizard. Optional: copy `%APPDATA%\Loadout\` from old machine to skip re-onboarding
+- ❌ **GitHub credentials**, `gh auth login` in browser
+- ❌ **Cloudflare account state**, Worker auto-deploys on git push
+- ❌ **Discord webhook URLs / API keys**, re-pasted in Settings on the new machine
 
 ## What IS in the repo
 
-- `src/Loadout.Core/` — the DLL source (24 modules, settings, Aquilo Bus, Patreon, Apex, Bolts, …)
-- `streamerbot/actions/` — 9 inline-C# trampoline action files
-- `streamerbot/loadout-import.sb.txt` — the one-string SB import bundle (regenerated on every build)
-- `aquilo-gg/overlays/` — 5 OBS overlays (check-in, counters, goals, bolts, apex)
-- `aquilo-gg/loadout/` — landing-page source for `aquilo.gg/loadout`
-- `aquilo-gg/worker/loadout-link-worker.js` — additive routes for the StreamFusion Patreon worker (KV-backed handle mappings)
-- `integrations/streamfusion/` — drop-in Aquilo Bus client for SF (main + preload + IPC bridge)
-- `tools/` — build/release/install/diagnostic PowerShell scripts
-- `assets/Loadout.ico` + `Loadout.png` — branded multi-resolution icon
+- `src/Loadout.Core/`, the DLL source (24 modules, settings, Aquilo Bus, Patreon, Apex, Bolts, …)
+- `streamerbot/actions/`, 9 inline-C# trampoline action files
+- `streamerbot/loadout-import.sb.txt`, the one-string SB import bundle (regenerated on every build)
+- `aquilo-gg/overlays/`, 5 OBS overlays (check-in, counters, goals, bolts, apex)
+- `aquilo-gg/loadout/`, landing-page source for `aquilo.gg/loadout`
+- `aquilo-gg/worker/loadout-link-worker.js`, additive routes for the StreamFusion Patreon worker (KV-backed handle mappings)
+- `integrations/streamfusion/`, drop-in Aquilo Bus client for SF (main + preload + IPC bridge)
+- `tools/`, build/release/install/diagnostic PowerShell scripts
+- `assets/Loadout.ico` + `Loadout.png`, branded multi-resolution icon
 
 ## What lives in OTHER repos / machines (and how they connect)
 
@@ -49,7 +49,7 @@ cd loadout
 | `~/Desktop/aquilo-bot/` | Multi-product Discord announcements bot | Posts release notes, `/announce` slash command |
 | `~/Desktop/aquilo-widget/` | TV widget + Rotation music widget + Cloudflare sync worker | TV: subscribes to bus; Rotation: handles `rotation.song.request` (the `!boltsong` flow) |
 | `~/Desktop/StreamFusion/` | Multi-chat viewer | Aquilo Bus client; Patreon shares the same campaign |
-| `~/Desktop/StreamFusion/bot-service/` | SF release-notes Discord bot | Mirrored pattern — same `SF_RELEASE_POST_SECRET` powers both |
+| `~/Desktop/StreamFusion/bot-service/` | SF release-notes Discord bot | Mirrored pattern, same `SF_RELEASE_POST_SECRET` powers both |
 | Cloudflare Worker `streamfusion-patreon-proxy.bisherclay.workers.dev` | Patreon OAuth proxy + handle mappings | Loadout's PatreonClient + SupportersClient call it; `loadout-link-worker.js` adds the new routes |
 | Railway | aquilo-bot + SF bot-service hosting | aquilo-bot: `https://<railway>/announce` |
 
@@ -103,9 +103,9 @@ After a rebuild while SB is running: the boot action stages `Loadout.dll.new` an
 
 Required GitHub repo secrets (Settings → Secrets → Actions):
 
-- `SF_RELEASE_POST_SECRET` — same as the SF repo (paste from there)
-- `SF_RELEASE_PING_ROLE_ID` — optional Loadout-specific Discord role id
-- `SF_RELEASE_EMBED_COLOR` — defaults to `0x3A86FF` Loadout blue, leave unset
+- `SF_RELEASE_POST_SECRET`, same as the SF repo (paste from there)
+- `SF_RELEASE_PING_ROLE_ID`, optional Loadout-specific Discord role id
+- `SF_RELEASE_EMBED_COLOR`, defaults to `0x3A86FF` Loadout blue, leave unset
 
 ## Key brand constants (sync with StreamFusion if changed)
 
@@ -124,9 +124,9 @@ Brushes live in `src/Loadout.Core/UI/Styles.xaml` (DLL UI), `aquilo-gg/loadout/s
 
 ## Patreon shared infrastructure
 
-Loadout reuses the StreamFusion Patreon campaign (id `3410750`). Tier 2 ($6, id `28147937`) and Tier 3 ($10, id `28147942`) are still detected, but **no feature is gated on them** — every Loadout feature is free for everyone. Tier membership only drives sign-in identity, early access to brand-new features (they reach Tier 2/3 first, then everyone), and a small Bolts earning multiplier as a thank-you perk. Single OAuth sign-in covers both products. Owner email `bisherclay@gmail.com` is hard-coded as Tier 3 in `PatreonClient.cs` so creator-self-test works without pledging.
+Loadout reuses the StreamFusion Patreon campaign (id `3410750`). Tier 2 ($6, id `28147937`) and Tier 3 ($10, id `28147942`) are still detected, but **no feature is gated on them**, every Loadout feature is free for everyone. Tier membership only drives sign-in identity, early access to brand-new features (they reach Tier 2/3 first, then everyone), and a small Bolts earning multiplier as a thank-you perk. Single OAuth sign-in covers both products. Owner email `bisherclay@gmail.com` is hard-coded as Tier 3 in `PatreonClient.cs` so creator-self-test works without pledging.
 
-The same Cloudflare Worker (`streamfusion-patreon-proxy.bisherclay.workers.dev`) handles OAuth for both products. `aquilo-gg/worker/loadout-link-worker.js` is **additive** — it adds new routes (`/api/link/*` and the lifetime-license routes from INTEGRATION.md) without touching SF's existing routes. Merge by dispatching path-prefix `/api/link/` and `/api/loadout-license/` to `handleLink(request, env)`.
+The same Cloudflare Worker (`streamfusion-patreon-proxy.bisherclay.workers.dev`) handles OAuth for both products. `aquilo-gg/worker/loadout-link-worker.js` is **additive**, it adds new routes (`/api/link/*` and the lifetime-license routes from INTEGRATION.md) without touching SF's existing routes. Merge by dispatching path-prefix `/api/link/` and `/api/loadout-license/` to `handleLink(request, env)`.
 
 ## Aquilo Bus protocol cheat sheet
 
@@ -166,8 +166,8 @@ Full spec lives in `src/Loadout.Core/Bus/AquiloBus.cs` doc-comment.
 
 ## Stack ranked of "things to do next"
 
-1. **Push v0.1.0** — `gh repo create aquiloplays/loadout --private --source=. --push` then `git push origin v0.1.0`
-2. **Deploy aquilo-bot to Railway** — `cd ~/Desktop/aquilo-bot && railway init && railway up`
+1. **Push v0.1.0**, `gh repo create aquiloplays/loadout --private --source=. --push` then `git push origin v0.1.0`
+2. **Deploy aquilo-bot to Railway**, `cd ~/Desktop/aquilo-bot && railway init && railway up`
 3. Anything from `README.md` Phase 2 wishlist
 
 ## Quick troubleshooting
@@ -180,6 +180,6 @@ Full spec lives in `src/Loadout.Core/Bus/AquiloBus.cs` doc-comment.
 | Bolts didn't credit | Anti-AFK caps chat earns at 6/min/viewer; check `BoltsConfig` defaults |
 | Overlay shows "bus: connecting…" | Secret in URL must exactly match `%APPDATA%\Aquilo\bus-secret.txt` |
 | Discord webhook silent | Discord usually rate-limited; wait 10 min; check error log |
-| Patreon sign-in stalls | Loopback ports `17823–17825`; firewall may block. Same as StreamFusion. |
+| Patreon sign-in stalls | Loopback ports `17823-17825`; firewall may block. Same as StreamFusion. |
 
 For SB import problems specifically, run `tools/diff-sb-shape.ps1` to compare against a real SB action's field shape. The schema is reverse-engineered from your local SB so it tracks whatever version you have installed.

@@ -5,7 +5,7 @@
 // user, with at least one attachment whose content_type starts with
 // "image/" (covers png/jpg/gif/webp). v1 does attachment-only; embedded
 // Tenor/Giphy GIFs that arrive as embed links (not attachments) are
-// NOT counted — the user has to actually post an image. Easy to extend
+// NOT counted, the user has to actually post an image. Easy to extend
 // later by also inspecting `embeds[].type === 'gifv'`.
 //
 // Storage: D1 `discord_checkins` table, one row per (guild, user). Same
@@ -15,13 +15,13 @@
 //
 // Streak break protection: if `delta` > 1 day, we call the
 // loadout-discord Worker's POST /streak-freeze/consume (HMAC-gated by
-// LOADOUT_BOLT_API_SECRET — the same secret aquilo-bot already uses to
+// LOADOUT_BOLT_API_SECRET, the same secret aquilo-bot already uses to
 // credit bolts) with type='discord'. If a freeze is consumed, the
 // streak is preserved as if no miss occurred.
 //
 // Reward: base 5 bolts per check-in + tiered streak-milestone bonuses
 // (+5 at day 7, +10 at day 30, +25 at day 100). Calibrated to be
-// noticeable but not abusable — a daily picture post should feel
+// noticeable but not abusable, a daily picture post should feel
 // rewarded, not lucrative.
 //
 // Confirmation: ✅ reaction on the user's message. Mirrors counting.js
@@ -72,7 +72,7 @@ async function ensureTable(env) {
   // First-call-wins idempotent CREATE. KV flag avoids the round-trip on
   // every message after the first successful invocation. We deliberately
   // don't ship this in a migration file because the table is owned by
-  // this single module — co-locating the schema with its handler keeps
+  // this single module, co-locating the schema with its handler keeps
   // the surface obvious.
   const done = await env.STATE.get(KV_TABLE_INIT);
   if (done) return;
@@ -204,7 +204,7 @@ function milestoneBonus(streak) {
 //
 // Forwarded payload shape (from aquilo-gateway shim, see
 // aquilo-gateway/aquilo_gateway.py on_message). Bot flag lives at
-// payload.author.bot AND payload.isBot — never on a top-level
+// payload.author.bot AND payload.isBot, never on a top-level
 // payload.bot field. Checking the wrong field let bot messages
 // through and (paired with the same bug in counting.js)
 // caused a self-trigger loop where the bot's reactions to its
@@ -330,7 +330,7 @@ export async function handleCheckinMessage(env, payload) {
   };
 }
 
-// Test-mode harness — called by an admin-only Worker route so we can
+// Test-mode harness, called by an admin-only Worker route so we can
 // poke the handler end-to-end without spamming Discord. Exposed but the
 // auth lives at the route level in worker.js.
 export async function pipeCheckinTestProbe(env, opts = {}) {

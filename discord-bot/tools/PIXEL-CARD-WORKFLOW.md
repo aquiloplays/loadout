@@ -1,4 +1,4 @@
-# Pixel Card Asset Workflow — Best-Results Recipe
+# Pixel Card Asset Workflow, Best-Results Recipe
 
 This is the workflow that gets the best results for the Boltbound
 1252-card pixel asset library while sidestepping Flux Schnell's
@@ -7,19 +7,19 @@ biggest weakness (text legibility).
 ## The reality of Schnell text
 
 Flux Schnell is the cheapest tier at $0.003/image but it's a **4-step
-distilled model** — it cannot reliably render specific characters,
+distilled model**, it cannot reliably render specific characters,
 words, or numbers. The "MINOW" / "MINEE" / "CHAMPPION" artifacts we
 saw aren't fixable by prompt engineering alone. **No reasonable prompt
 gets clean text out of Schnell.**
 
 Options to fix it:
-1. **Pay more per image** — Flux Pro (~$0.04/image, ~13×) or Dev
+1. **Pay more per image**, Flux Pro (~$0.04/image, ~13×) or Dev
    (~$0.025/image, ~8×) render text 70-90% cleaner. For 1252 cards
    that's $50 instead of $4.
-2. **Use a text-strong model** — Ideogram v2 ($0.08/image) is purpose-
+2. **Use a text-strong model**, Ideogram v2 ($0.08/image) is purpose-
    built for text-in-images. Renders most words perfectly. ~$100 for
    the full library.
-3. **Stay on Schnell + overlay clean text with Pillow** — keep the
+3. **Stay on Schnell + overlay clean text with Pillow**, keep the
    visual cohesion + cost from Schnell, stamp just the critical 3-5
    text/number elements via Pillow. **~$4 cost, near-perfect text.**
 
@@ -27,11 +27,11 @@ Option 3 is the recommendation below.
 
 ## Recommended workflow
 
-### Step 1 — Schnell prompt strategy
+### Step 1, Schnell prompt strategy
 
 Tell the AI to render the visual elements but leave the actual
 characters/numbers EMPTY. Schnell is great at "an empty pixel gem
-socket waiting for a number" — much better than at "the number 4."
+socket waiting for a number", much better than at "the number 4."
 
 Prompt template per rarity tier:
 
@@ -59,14 +59,14 @@ The card art portion (centered, ~55% of the card) shows
 
 Vibrant 16-color palette, crisp pixel edges, no anti-aliasing,
 classic Final Fantasy VI / Chrono Trigger trading card aesthetic.
-NO TEXT, NO LETTERS, NO NUMBERS anywhere in the image — every
+NO TEXT, NO LETTERS, NO NUMBERS anywhere in the image, every
 banner and gem is EMPTY.
 ```
 
 Adding "NO TEXT" explicitly stops Schnell from hallucinating
 gibberish.
 
-### Step 2 — Thematic background based on card family
+### Step 2, Thematic background based on card family
 
 Map each card to its thematic context via id prefix + name keywords:
 
@@ -86,7 +86,7 @@ mirror/echo/twin/shimmer            → hall of mirrors
 default                             → dark arena with aurora particles
 ```
 
-### Step 3 — Pillow text overlays (the legibility fix)
+### Step 3, Pillow text overlays (the legibility fix)
 
 After AI generation, stamp these 4-5 elements in Press Start 2P
 (headers) and VT323 (body), all with 2-3px stroke outlines:
@@ -114,13 +114,13 @@ OVERLAY_POS = {
 Tune these by running 1 card per rarity through validation and
 adjusting until each text lands in the middle of its AI socket.
 
-### Step 4 — Rate limit + pacing
+### Step 4, Rate limit + pacing
 
 Replicate's per-key rate limit at the < $5 balance tier is 6/min
 with burst-1. The full 1252-card run needs ~14s pacing between
 calls. Total wall-clock: ~5 hours.
 
-### Step 5 — Hosting
+### Step 5, Hosting
 
 Save PNGs locally during the run. After completion, upload to R2
 (or another CDN) and update `global-card-art:<cardId>` KV entries

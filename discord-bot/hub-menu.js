@@ -1,7 +1,7 @@
-// /hub — viewer-facing entry hub. Every interaction is ephemeral and
+// /hub, viewer-facing entry hub. Every interaction is ephemeral and
 // component-driven; viewers should never need to type a slash command.
 //
-// Component routing prefix: "hub:" — extended paths:
+// Component routing prefix: "hub:", extended paths:
 //   hub:home
 //   hub:loadout                       drilldown (uses lo:* for deep flows)
 //   hub:stocks                        drilldown
@@ -87,7 +87,7 @@ function json(obj) {
 
 // Decide between UPDATE_MESSAGE (when the source is the user's own
 // ephemeral message) vs a fresh ephemeral reply (when the source is a
-// public-channel post — e.g. the bet feed). Discord won't let us
+// public-channel post, e.g. the bet feed). Discord won't let us
 // UPDATE_MESSAGE a public post into something only one user sees.
 function updateOrFollowup(sourceFlags, data) {
   const isEphemeralSource = ((sourceFlags || 0) & FLAG_EPHEMERAL) !== 0;
@@ -126,7 +126,7 @@ function rootView() {
     embeds: [{
       title: '🌐 Aquilo Hub',
       description:
-        'Everything Aquilo, in one place. Pick a section — every flow is ephemeral so only you see it.',
+        'Everything Aquilo, in one place. Pick a section, every flow is ephemeral so only you see it.',
       color: 0x3a86ff,
     }],
     components: [
@@ -252,16 +252,16 @@ async function stocksListPaged(env, page) {
     const price = rec ? rec.price : null;
     const change = pctChange(hist);
     const sign = change == null ? '' : (change >= 0 ? '+' : '');
-    const cstr = change == null ? '—' : (sign + change.toFixed(1) + '%');
+    const cstr = change == null ? '-' : (sign + change.toFixed(1) + '%');
     rows.push(
       '`' + String(t.ticker).padEnd(6) + '` ' +
-      (price == null ? '—'.padStart(6) : String(price).padStart(6)) + '  ' +
+      (price == null ? '-'.padStart(6) : String(price).padStart(6)) + '  ' +
       cstr.padStart(7) + '   ' + t.name,
     );
   }
   return {
     embeds: [{
-      title: '📋 All tickers — page ' + p + '/' + totalPages,
+      title: '📋 All tickers, page ' + p + '/' + totalPages,
       description: '```\nTICKER PRICE   24H Δ    NAME\n' + (rows.length ? rows.join('\n') : '(no tickers)') + '\n```',
       color: 0x3a86ff,
     }],
@@ -389,7 +389,7 @@ async function sportsView(env) {
     ? upcoming
         .map((g) =>
           '• ' + g.label + ': **' + (g.away.abbr || '?') + '** @ **' +
-          (g.home.abbr || '?') + '** — ' + fmtTimeShort(g.date),
+          (g.home.abbr || '?') + '**, ' + fmtTimeShort(g.date),
         )
         .join('\n')
     : 'No upcoming games in the cache yet.';
@@ -419,10 +419,10 @@ async function sportsView(env) {
   };
 }
 
-// Discord dynamic timestamp — auto-localizes per viewer. `:F` is the
+// Discord dynamic timestamp, auto-localizes per viewer. `:F` is the
 // full date-time, `:R` is the relative offset ("in 3 hours"). Combined
 // they read well inside an embed description. Avoid putting these
-// inside code blocks — they only render outside ```.
+// inside code blocks, they only render outside ```.
 function fmtTimeShort(iso) {
   if (!iso) return '';
   const ms = new Date(iso).getTime();
@@ -469,7 +469,7 @@ async function sportsUpcomingPaged(env, page) {
   components.push(backRow('hub:sports'));
   return {
     embeds: [{
-      title: '📅 Upcoming — page ' + p + '/' + totalPages,
+      title: '📅 Upcoming, page ' + p + '/' + totalPages,
       description: rows.length ? rows.join('\n') : 'No upcoming games in the window.',
       color: 0xff6ab5,
     }],
@@ -482,7 +482,7 @@ function sportsBetModal(side, gameId) {
     type: RESP_MODAL,
     data: {
       custom_id: 'hub:modal:sports-bet:' + side + ':' + gameId,
-      title: 'Place bet — ' + (side === 'home' ? 'Home' : 'Away'),
+      title: 'Place bet, ' + (side === 'home' ? 'Home' : 'Away'),
       components: [
         {
           type: COMPONENT_ROW,
@@ -674,7 +674,7 @@ export async function seedTeamRegistry(env) {
         changed = true;
       }
       seeded[s.league] = Date.now();
-    } catch { /* skip — next cron retries */ }
+    } catch { /* skip, next cron retries */ }
   }
   if (changed) {
     await env.LOADOUT_BOLTS.put(TEAM_REGISTRY_KEY, JSON.stringify(reg));
@@ -722,11 +722,11 @@ async function subsView(env, userId) {
     ? subbedTeams.slice(0, 12).map((entry) => {
         const [lg, tid] = entry.split(':');
         const team = (reg[lg] || []).find((t) => t.id === tid);
-        return '• ' + (lg.toUpperCase()) + ' — ' + (team ? team.name : tid);
+        return '• ' + (lg.toUpperCase()) + ', ' + (team ? team.name : tid);
       }).join('\n')
     : '_no teams subscribed_';
   const desc =
-    '**Leagues** — toggle below\n' +
+    '**Leagues**, toggle below\n' +
     LEAGUES_FOR_SUBS.map((l) =>
       '• ' + l.toUpperCase() + ' ' + (subbedLeagues.includes(l) ? '✓' : '✗'),
     ).join('\n') +
@@ -797,7 +797,7 @@ async function teamSearchResults(env, userId, q) {
     return {
       embeds: [{
         title: '🔎 Team search',
-        description: 'No teams found matching "' + q + '". The registry grows as games are seen by the cron — give it a few hours after a fresh deploy.',
+        description: 'No teams found matching "' + q + '". The registry grows as games are seen by the cron, give it a few hours after a fresh deploy.',
         color: 0xff6ab5,
       }],
       components: [backRow('hub:sports:subs')],
@@ -805,7 +805,7 @@ async function teamSearchResults(env, userId, q) {
   }
   return {
     embeds: [{
-      title: '🔎 Team search — "' + q + '"',
+      title: '🔎 Team search, "' + q + '"',
       description: 'Pick a team to toggle its subscription.',
       color: 0xff6ab5,
     }],
@@ -839,7 +839,7 @@ async function profileView(env, guild, userId) {
   catch { /* idle */ }
   const subbedLeagues = await getUserLeagueSubs(env, userId);
   const subbedTeams = await getUserTeamSubs(env, userId);
-  // Freeze inventory — lazy import so hub-menu has no module-load
+  // Freeze inventory, lazy import so hub-menu has no module-load
   // dependency on streak-freeze (keeps the import graph flat).
   let freezes = { stream: 0, discord: 0 };
   try {
@@ -865,11 +865,11 @@ function helpView() {
     embeds: [{
       title: '❓ Help',
       description:
-        '**Hub** — `/hub` opens this menu. Every flow is ephemeral.\n\n' +
-        '**Loadout** — bolts wallet, hero, bag, shop, daily claim, gift, coin-flip / dice / training mini-games.\n\n' +
-        '**Stocks** — bolts-priced real-stock emulation. 20 tickers refreshed hourly from Yahoo Finance. 1% trade fee.\n\n' +
-        '**Sports** — bet on NFL · NBA · MLB · NHL games. Stake capped at 10% of wallet. 1.95× even-money (or moneyline) payouts. Tied games refund.\n\n' +
-        '**Subscriptions** — pick leagues and teams to get pinged in the sports feed channel whenever a new game appears.\n\n' +
+        '**Hub**, `/hub` opens this menu. Every flow is ephemeral.\n\n' +
+        '**Loadout**, bolts wallet, hero, bag, shop, daily claim, gift, coin-flip / dice / training mini-games.\n\n' +
+        '**Stocks**, bolts-priced real-stock emulation. 20 tickers refreshed hourly from Yahoo Finance. 1% trade fee.\n\n' +
+        '**Sports**, bet on NFL · NBA · MLB · NHL games. Stake capped at 10% of wallet. 1.95× even-money (or moneyline) payouts. Tied games refund.\n\n' +
+        '**Subscriptions**, pick leagues and teams to get pinged in the sports feed channel whenever a new game appears.\n\n' +
         'Earn bolts by checking in on stream, mini-game wins, or gifts. Spend them anywhere in the hub.',
       color: 0x9a82ff,
     }],
@@ -928,7 +928,7 @@ export async function handleHubComponent(data, env) {
     return json(teamSearchModal());
   }
   if (segs[0] === 'sports' && segs[1] === 'subs' && segs[2] === 'teamtoggle') {
-    // String select — value is "<league>:<teamId>".
+    // String select, value is "<league>:<teamId>".
     const v = (data.data?.values || [])[0] || '';
     const [lg, tid] = v.split(':');
     if (lg && tid) await toggleTeamSub(env, userId, lg, tid);

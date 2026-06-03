@@ -1,8 +1,8 @@
-// Glossy Clash troops + backdrop — Wave 3.
+// Glossy Clash troops + backdrop, Wave 3.
 //
 // Troops are small character figurines (192×192). The art idiom is
-// the same as the buildings — gradient body lit upper-left, dark
-// inked outline, gloss highlights, gold/coloured accents — but the
+// the same as the buildings, gradient body lit upper-left, dark
+// inked outline, gloss highlights, gold/coloured accents, but the
 // silhouette is character-scaled.
 //
 // Each troop builds from a shared `troopFigure` archetype: contact
@@ -41,7 +41,7 @@ const SHADOW = contactShadow({ cx: W/2, cy: GROUND_Y + 6, rx: 54, ry: 9 });
 
 // ── Troop archetype helpers ─────────────────────────────────────
 
-// Body bean — torso/legs in one rounded shape. Bottom-anchored at GROUND_Y.
+// Body bean, torso/legs in one rounded shape. Bottom-anchored at GROUND_Y.
 function bodyBean({ cx = W/2, top = 96, bottom = GROUND_Y, w = 60, color = 'wood' }) {
   const halfW = w / 2;
   return `
@@ -67,7 +67,7 @@ function head({ cx = W/2, cy = 78, r = 26, color = 'cream' }) {
 <ellipse cx="${cx - r * 0.35}" cy="${cy - r * 0.4}" rx="${r * 0.45}" ry="${r * 0.25}" fill="${PALETTE.white}" opacity="0.5"/>`;
 }
 
-// Eyes — simple dark dots, can be glowing for monsters.
+// Eyes, simple dark dots, can be glowing for monsters.
 function eyes({ cx = W/2, cy = 76, gap = 10, color = PALETTE.ink, glow = false }) {
   if (glow) {
     return `
@@ -81,7 +81,7 @@ function eyes({ cx = W/2, cy = 76, gap = 10, color = PALETTE.ink, glow = false }
 <circle cx="${cx + gap}" cy="${cy}" r="3" fill="${color}"/>`;
 }
 
-// Helmet — half-dome on top of the head.
+// Helmet, half-dome on top of the head.
 function helmet({ cx = W/2, cy = 78, r = 26, color = 'iron', plume = null }) {
   const pal = PALETTE[color];
   const out = [
@@ -167,7 +167,7 @@ function hammer({ x, yBase, lean = -15, headColor = 'iron' }) {
 </g>`;
 }
 
-// Wings — angel/skyrider style.
+// Wings, angel/skyrider style.
 function wings({ cx, cy, span = 70, color = 'cream' }) {
   return `
 <path d="M ${cx - 6} ${cy}
@@ -378,7 +378,7 @@ ${glossyEllipse({ cx: W/2 + 60, cy: 128, rx: 28, ry: 22, gradient: 'gk-grad-iron
 `;
 }
 
-// Goblin variants — green-tinged, smaller heads, jagged teeth
+// Goblin variants, green-tinged, smaller heads, jagged teeth
 function goblinBase({ color = 'leaf', weapon = null, helmetColor = null, accent = null } = {}) {
   const parts = [SHADOW, bodyBean({ color, w: 50 }), head({ color: 'emerald' }), eyes({ color: PALETTE.gold.hi, glow: true })];
   if (helmetColor) parts.push(helmet({ color: helmetColor }));
@@ -402,7 +402,7 @@ function goblinScrapper() {
 }
 
 function goblinArcher() {
-  // Steel bow over wood-coloured body — original wood-on-wood
+  // Steel bow over wood-coloured body, original wood-on-wood
   // blended so the bow was invisible at troop scale.
   return goblinBase({
     color: 'wood',
@@ -479,7 +479,7 @@ ${sword({ x: W/2 + 24, yBase: 158, length: 50 })}
 }
 
 function wyrm() {
-  // Large serpent dragon — bigger silhouette
+  // Large serpent dragon, bigger silhouette
   return `${SHADOW}
 <!-- coiled body -->
 <path d="M 40 158
@@ -550,7 +550,7 @@ for (const t of TROOPS) {
   const svg = svgWrapper({
     width: W, height: H,
     body: t.body(),
-    title: `${t.id} — glossy troop`,
+    title: `${t.id}, glossy troop`,
     desc: 'Loadout Clash troop, glossy art style. Source: tools/build-clash-troops-glossy.mjs.',
   });
   const out = join(TROOP_DIR, `${t.id}.svg`);
@@ -563,7 +563,7 @@ for (const t of TROOPS) {
 //
 // Parallax stack: sky → mountains → hills → forest → grass.
 // Each is a wide (1024×320) layer the site composites/scrolls. SVG
-// is ideal — vector clouds, layered hills, etc. all scale.
+// is ideal, vector clouds, layered hills, etc. all scale.
 
 const BACK_W = 1024, BACK_H = 320;
 function sky() {
@@ -667,7 +667,7 @@ for (const b of BACKDROPS) {
   const svg = svgWrapper({
     width: BACK_W, height: BACK_H,
     body: b.body(),
-    title: `${b.id} — glossy backdrop layer`,
+    title: `${b.id}, glossy backdrop layer`,
     desc: 'Parallax layer for the Clash town view. Source: tools/build-clash-troops-glossy.mjs.',
   });
   const out = join(BACK_DIR, `${b.id}.svg`);

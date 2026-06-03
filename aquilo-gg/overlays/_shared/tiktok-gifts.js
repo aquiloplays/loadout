@@ -1,12 +1,12 @@
 /*
- * Loadout overlays — TikTok gift rendering helper.
+ * Loadout overlays, TikTok gift rendering helper.
  *
  * TikTok doesn't publish an official icon CDN, but the gift names
  * come through stable from the TikFinity → CPH path. This helper
  * surfaces a (sprite, label) pair per gift so overlays can render
  * `[gift icon] Rose ×2` without each overlay duplicating the formatting.
  *
- * No emoji — pixel-art only. We don't ship a per-gift sprite roster
+ * No emoji, pixel-art only. We don't ship a per-gift sprite roster
  * (TikTok's gift catalogue is too big to maintain in-repo), so every
  * gift currently renders with the shared /sprites/ui/icons/glossy/gift.png
  * icon. If a streamer wants per-gift artwork, override the icon
@@ -55,7 +55,7 @@
     return { icon: icon(d && d.giftName), label: label(d) };
   }
 
-  // Expose globally — overlays include this via <script src> and
+  // Expose globally, overlays include this via <script src> and
   // read window.TikTokGifts.{icon, label, render, setIconFor, normalize}.
   window.TikTokGifts = { icon, label, render, setIconFor, normalize };
 })();

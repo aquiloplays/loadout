@@ -13,7 +13,7 @@ import {
 const FLAG_EPHEMERAL = 64;
 const RESP_CHAT      = 4;
 
-// Pretty label per event type — kept in one place so list + set
+// Pretty label per event type, kept in one place so list + set
 // + toggle responses use the same human-readable copy.
 const PRETTY_LABEL = {
   follow:            'Follow',
@@ -24,13 +24,13 @@ const PRETTY_LABEL = {
   raid:              'Raid (incoming)',
   ended:             'Stream ended (summary)',
   redemption:        'Channel-point redemption',
-  hypeTrainBegin:    'Hype train — begin',
-  hypeTrainProgress: 'Hype train — progress',
-  hypeTrainEnd:      'Hype train — end',
-  pollBegin:         'Poll — begin',
-  pollEnd:           'Poll — end',
-  predictionBegin:   'Prediction — begin',
-  predictionEnd:     'Prediction — end',
+  hypeTrainBegin:    'Hype train, begin',
+  hypeTrainProgress: 'Hype train, progress',
+  hypeTrainEnd:      'Hype train, end',
+  pollBegin:         'Poll, begin',
+  pollEnd:           'Poll, end',
+  predictionBegin:   'Prediction, begin',
+  predictionEnd:     'Prediction, end',
   ban:               'Mod: ban / timeout',
   unban:             'Mod: unban',
 };
@@ -44,7 +44,7 @@ function ephemeralEmbed(embed) {
 }
 
 // Slash subcommand dispatch. options shape is the standard
-// Discord interaction-data options array — [{name:'list'|'set'|'toggle', options?}]
+// Discord interaction-data options array, [{name:'list'|'set'|'toggle', options?}]
 export async function handleTwitchEventSlash(env, guildId, options) {
   if (!guildId) return ephemeral('No guild context.');
   const sub = options[0];
@@ -88,7 +88,7 @@ async function runSet(env, opts) {
   if (!r.ok) return ephemeral(`Failed: ${r.error}`);
   const label = PRETTY_LABEL[type] || type;
   if (r.cleared) {
-    return ephemeral(`✅ Cleared override for **${label}** — will use the default \`stream-notifications\` binding now.`);
+    return ephemeral(`✅ Cleared override for **${label}**, will use the default \`stream-notifications\` binding now.`);
   }
   return ephemeral(`✅ **${label}** events will post to <#${r.override}>.`);
 }
@@ -104,7 +104,7 @@ async function runToggle(env, opts) {
   return ephemeral(
     enabled
       ? `✅ **${label}** embeds re-enabled.`
-      : `🔇 **${label}** embeds disabled — EventSub subscription still receives notifications, just no Discord post.`,
+      : `🔇 **${label}** embeds disabled, EventSub subscription still receives notifications, just no Discord post.`,
   );
 }
 

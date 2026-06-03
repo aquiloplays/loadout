@@ -33,12 +33,12 @@ function buildViewerHubPayload() {
   const embed = {
     title: '🎮 Aquilo · Viewer Commands',
     description:
-      'Tap a button for what you want to do — no need to remember slash commands.\n\n' +
-      '🎲 **Encounter** — roll a random event and gain/lose a few bolts (10-min cooldown)\n' +
-      '💡 **Suggest a Game** — propose a new game for community-night rotation\n' +
-      '🎵 **Add Song** — drop a track in the pre-stream music queue\n' +
-      '📋 **My Songs** — see your own pre-queued songs (only you can see this)\n' +
-      '❌ **Remove Song** — remove one of your songs by position',
+      'Tap a button for what you want to do, no need to remember slash commands.\n\n' +
+      '🎲 **Encounter**, roll a random event and gain/lose a few bolts (10-min cooldown)\n' +
+      '💡 **Suggest a Game**, propose a new game for community-night rotation\n' +
+      '🎵 **Add Song**, drop a track in the pre-stream music queue\n' +
+      '📋 **My Songs**, see your own pre-queued songs (only you can see this)\n' +
+      '❌ **Remove Song**, remove one of your songs by position',
     color: COLOR_SCHEDULE,
     footer: { text: 'Buttons here mirror your old slash commands.' }
   };
@@ -70,7 +70,7 @@ export async function postOrMoveViewerHub(env, data) {
         '/channels/' + encodeURIComponent(prev.channel_id) +
         '/messages/' + encodeURIComponent(prev.message_id),
         { method: 'DELETE' });
-    } catch { /* already gone — fine */ }
+    } catch { /* already gone, fine */ }
   }
 
   // Edit in place if same channel; else post fresh.
@@ -116,7 +116,7 @@ export async function handleViewerHubButton(env, data) {
   const action = (data.data?.custom_id || '').split(':')[1];
 
   if (action === 'encounter') {
-    // /encounter takes no args — reads only data.member.user.id, which
+    // /encounter takes no args, reads only data.member.user.id, which
     // is the same shape in slash + button contexts. Direct call.
     return handleEncounterCommand(data, env);
   }

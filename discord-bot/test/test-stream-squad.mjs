@@ -1,4 +1,4 @@
-// Unit tests for stream-squad.js — the D1-backed co-watch sessions +
+// Unit tests for stream-squad.js, the D1-backed co-watch sessions +
 // shared activity feed (premium feature #5).
 //
 // Uses an in-memory D1 mock that models the three tables and pattern-
@@ -143,7 +143,7 @@ const OWNER = 'owner-1', CH = 'prodigalttv';
 
 // ── lifecycle ─────────────────────────────────────────────────────
 
-console.log('— createSquad: owner auto-joins, count 1');
+console.log('- createSquad: owner auto-joins, count 1');
 {
   const env = makeEnv();
   const r = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -155,7 +155,7 @@ console.log('— createSquad: owner auto-joins, count 1');
   eq(env.DB._members.length, 1, 'one member row (owner)');
 }
 
-console.log('— createSquad: bad args');
+console.log('- createSquad: bad args');
 {
   const env = makeEnv();
   const r = await createSquad(env, { ownerUserId: '', twitchChannel: '' });
@@ -163,7 +163,7 @@ console.log('— createSquad: bad args');
   eq(r.error, 'bad-args', 'bad-args');
 }
 
-console.log('— ensureSquadForChannel: reuses active, then creates');
+console.log('- ensureSquadForChannel: reuses active, then creates');
 {
   const env = makeEnv();
   const a = await ensureSquadForChannel(env, { ownerUserId: 'system', twitchChannel: CH });
@@ -176,7 +176,7 @@ console.log('— ensureSquadForChannel: reuses active, then creates');
 
 // ── membership ────────────────────────────────────────────────────
 
-console.log('— joinSquad: new member bumps count + posts join event');
+console.log('- joinSquad: new member bumps count + posts join event');
 {
   const env = makeEnv();
   const { squad } = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -193,7 +193,7 @@ console.log('— joinSquad: new member bumps count + posts join event');
   eq(env.DB._events.filter(e => e.kind === 'join').length, 1, 'no duplicate join event');
 }
 
-console.log('— leaveSquad then re-join reuses the row');
+console.log('- leaveSquad then re-join reuses the row');
 {
   const env = makeEnv();
   const { squad } = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -209,7 +209,7 @@ console.log('— leaveSquad then re-join reuses the row');
   eq(env.DB._members.filter(m => m.user_id === 'viewer-B').length, 1, 'row reused, not duplicated');
 }
 
-console.log('— leaveSquad: non-member is a soft no-op');
+console.log('- leaveSquad: non-member is a soft no-op');
 {
   const env = makeEnv();
   const { squad } = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -217,7 +217,7 @@ console.log('— leaveSquad: non-member is a soft no-op');
   assert(r.ok && !r.wasMember, 'soft no-op');
 }
 
-console.log('— join refused on ended squad');
+console.log('- join refused on ended squad');
 {
   const env = makeEnv();
   const { squad } = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -229,7 +229,7 @@ console.log('— join refused on ended squad');
 
 // ── endSquad ──────────────────────────────────────────────────────
 
-console.log('— endSquad: owner only, idempotent');
+console.log('- endSquad: owner only, idempotent');
 {
   const env = makeEnv();
   const { squad } = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -247,7 +247,7 @@ console.log('— endSquad: owner only, idempotent');
 
 // ── activity feed ─────────────────────────────────────────────────
 
-console.log('— postSquadEvent: member only, feed newest-first');
+console.log('- postSquadEvent: member only, feed newest-first');
 {
   const env = makeEnv();
   const { squad } = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -276,7 +276,7 @@ console.log('— postSquadEvent: member only, feed newest-first');
   assert(feed.events.some(e => e.kind === 'join'), 'join event present');
 }
 
-console.log('— getSquadFeed: pagination via before cursor');
+console.log('- getSquadFeed: pagination via before cursor');
 {
   const env = makeEnv();
   const { squad } = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -298,7 +298,7 @@ console.log('— getSquadFeed: pagination via before cursor');
 
 // ── listActiveSquads ──────────────────────────────────────────────
 
-console.log('— listActiveSquads: only active, channel filter');
+console.log('- listActiveSquads: only active, channel filter');
 {
   const env = makeEnv();
   const a = await createSquad(env, { ownerUserId: OWNER, twitchChannel: 'chan-1' });
@@ -315,7 +315,7 @@ console.log('— listActiveSquads: only active, channel filter');
 
 // ── getSquad roster ───────────────────────────────────────────────
 
-console.log('— getSquad: returns session + active roster');
+console.log('- getSquad: returns session + active roster');
 {
   const env = makeEnv();
   const { squad } = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -331,7 +331,7 @@ console.log('— getSquad: returns session + active roster');
   assert(!ids.includes('viewer-D'), 'left member excluded');
 }
 
-console.log('— getSquad: not-found');
+console.log('- getSquad: not-found');
 {
   const env = makeEnv();
   const r = await getSquad(env, 'no-such-squad');
@@ -341,7 +341,7 @@ console.log('— getSquad: not-found');
 
 // ── handleSquadComponent (join button) ────────────────────────────
 
-console.log('— handleSquadComponent: join button acks ephemerally');
+console.log('- handleSquadComponent: join button acks ephemerally');
 {
   const env = makeEnv();
   const { squad } = await createSquad(env, { ownerUserId: OWNER, twitchChannel: CH });
@@ -358,7 +358,7 @@ console.log('— handleSquadComponent: join button acks ephemerally');
   assert(r.members.some(m => m.userId === 'clicker-1'), 'clicker joined');
 }
 
-console.log('— handleSquadComponent: unknown action');
+console.log('- handleSquadComponent: unknown action');
 {
   const env = makeEnv();
   const resp = await handleSquadComponent(env, {
@@ -370,5 +370,5 @@ console.log('— handleSquadComponent: unknown action');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

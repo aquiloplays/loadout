@@ -1,4 +1,4 @@
-// Scheduled Discord messages — admin-authored, fired by the :23
+// Scheduled Discord messages, admin-authored, fired by the :23
 // hourly cron tick. The aquilo-site /admin UI calls these four
 // HMAC-gated admin routes; the worker owns persistence + delivery.
 //
@@ -24,7 +24,7 @@
 //     components:   <array|undefined>,
 //     status:       'pending' | 'sent' | 'cancelled' | 'failed',
 //     createdAt:    <ms-epoch>,
-//     createdBy:    <string, opaque to us — e.g. site session id>,
+//     createdBy:    <string, opaque to us, e.g. site session id>,
 //     sentMsgId:    <snowflake|null>,
 //     sentAt:       <ms-epoch|null>,
 //     error:        <string|null>,    // populated on failure
@@ -39,14 +39,14 @@ const STATUSES = new Set(['pending', 'sent', 'cancelled', 'failed']);
 const MAX_ATTEMPTS = 2;   // initial send + 1 retry
 const LIST_PAGE_DEFAULT = 50;
 
-// 16-digit zero-padded ms-epoch — enough for ~5138 AD, so the
+// 16-digit zero-padded ms-epoch, enough for ~5138 AD, so the
 // lex-sort matches the numeric sort comfortably.
 function padDue(ms) {
   return String(Math.max(0, Math.floor(Number(ms) || 0))).padStart(16, '0');
 }
 
 function newId() {
-  // 8-byte random hex — collision-resistant for the volume we
+  // 8-byte random hex, collision-resistant for the volume we
   // expect (the admin UI creates one at a time, manually).
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
@@ -239,7 +239,7 @@ export async function processDueMessages(env, guildId, opts = {}) {
   for (let page = 0; page < 5; page++) {
     const r = await env.LOADOUT_BOLTS.list({ prefix, cursor, limit: 1000 });
     for (const k of r.keys) {
-      // Stop walking past the cutoff — list order is lex, padded
+      // Stop walking past the cutoff, list order is lex, padded
       // due-time sorts ascending, so first key past the cutoff
       // means no due items remain in this page.
       const tail = k.name.slice(prefix.length);
@@ -249,7 +249,7 @@ export async function processDueMessages(env, guildId, opts = {}) {
       const id = tail.slice(colonAt + 1);
       const rec = await getScheduled(env, guildId, id);
       if (!rec) {
-        // Index entry without an item — sweep it.
+        // Index entry without an item, sweep it.
         await env.LOADOUT_BOLTS.delete(k.name);
         continue;
       }
@@ -311,7 +311,7 @@ async function sendOne(env, guildId, rec) {
   const txt = await r.text();
   if (rec.attempts < MAX_ATTEMPTS) {
     // Retry once on the next cron tick by leaving status pending.
-    // Don't move the due index — it stays in place for the next pass.
+    // Don't move the due index, it stays in place for the next pass.
     rec.error = 'attempt-' + rec.attempts + ': http-' + r.status + ' ' + txt.slice(0, 120);
     await persistRecord(env, guildId, rec, null);
     return { ok: false, retry: true, status: r.status };
@@ -326,18 +326,18 @@ async function sendOne(env, guildId, rec) {
 //
 // Writes the canonical item record + manages the secondary indexes
 // (due-time + status). `prevStatus` is the status BEFORE the change
-// — null when the status didn't change OR this is a new record.
+//, null when the status didn't change OR this is a new record.
 
 async function persistRecord(env, guildId, rec, prevStatus) {
   await env.LOADOUT_BOLTS.put(ITEM_KEY(guildId, rec.id), JSON.stringify(rec));
-  // Due-time index — present only while pending.
+  // Due-time index, present only while pending.
   if (rec.status === 'pending') {
     await env.LOADOUT_BOLTS.put(DUE_KEY(guildId, rec.scheduledUtc, rec.id), rec.id);
   } else {
     // Sweep the due index entry on any terminal transition.
     await env.LOADOUT_BOLTS.delete(DUE_KEY(guildId, rec.scheduledUtc, rec.id));
   }
-  // Status index — refresh.
+  // Status index, refresh.
   if (prevStatus && STATUSES.has(prevStatus) && prevStatus !== rec.status) {
     await env.LOADOUT_BOLTS.delete(STATUS_KEY(guildId, prevStatus, rec.scheduledUtc, rec.id));
   }

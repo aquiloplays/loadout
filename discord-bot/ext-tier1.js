@@ -1,7 +1,7 @@
-// Twitch-panel Tier 1 engagement routes — read-only viewer surfaces:
-//   GET /ext/vods           — 3 most recent channel VODs (Helix, cached)
-//   GET /ext/goals          — owner-authored stream goals
-//   GET /ext/patron-corner  — gated extra content for subs / patrons
+// Twitch-panel Tier 1 engagement routes, read-only viewer surfaces:
+//   GET /ext/vods, 3 most recent channel VODs (Helix, cached)
+//   GET /ext/goals, owner-authored stream goals
+//   GET /ext/patron-corner, gated extra content for subs / patrons
 //
 // The goals and patron-corner CONTENT is authored by owner-gated admin
 // endpoints on aquilo.gg, which write the same shared LOADOUT_BOLTS KV
@@ -105,7 +105,7 @@ async function routeGoals(env, guildId) {
 // Eligibility = active Twitch subscriber OR Patreon-linked (inclusive).
 // The sub signal is supplied by the panel from Twitch.ext.viewer (the
 // extension JWT does not carry subscription status); the Patreon signal
-// is read from a `patreon` entry in the viewer's wallet links — which is
+// is read from a `patreon` entry in the viewer's wallet links, which is
 // forward-compatible but currently unpopulated, since no tw:<id> ->
 // Patreon mapping exists yet. Surfaced for revisit.
 async function routePatronCorner(env, guildId, userId, subscribed) {
@@ -118,7 +118,7 @@ async function routePatronCorner(env, guildId, userId, subscribed) {
   } catch {
     /* default to not-a-patron */
   }
-  // Phase P — direct tw→Patreon mapping (panel-driven OAuth). Set by
+  // Phase P, direct tw→Patreon mapping (panel-driven OAuth). Set by
   // aquilo-site's /api/link/callback when an extToken was supplied at
   // /api/link/start. Independent of the wallet.links list above; an
   // identity-shared viewer can light up "patron" without ever having

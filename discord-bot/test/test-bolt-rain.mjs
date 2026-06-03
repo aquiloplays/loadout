@@ -1,4 +1,4 @@
-// Unit tests for bolt-rain.js — the interactive Patreon-T2+ bolt rain.
+// Unit tests for bolt-rain.js, the interactive Patreon-T2+ bolt rain.
 // Covers the T2+ gate, trigger/no-stack, first-click claim, per-user
 // dedup, pool depletion, expiry, and wallet credit.
 //
@@ -32,7 +32,7 @@ function envWith(patreon) {
 }
 
 // ── T2+ gate ──────────────────────────────────────────────────────
-console.log('— isPatreonT2Plus gate');
+console.log('- isPatreonT2Plus gate');
 {
   eq(await isPatreonT2Plus(envWith(), 'nobody'), false, 'no record → false');
   eq(await isPatreonT2Plus(envWith({ userId: 'u', rec: { tier: 'free' } }), 'u'), false, 'free → false');
@@ -43,7 +43,7 @@ console.log('— isPatreonT2Plus gate');
 }
 
 // ── trigger gate + no-stack ───────────────────────────────────────
-console.log('— triggerBoltRain: gated + no stacking');
+console.log('- triggerBoltRain: gated + no stacking');
 {
   const env = envWith();
   const denied = await triggerBoltRain(env, G, 'free-user');
@@ -62,7 +62,7 @@ console.log('— triggerBoltRain: gated + no stacking');
 }
 
 // ── claim flow ────────────────────────────────────────────────────
-console.log('— claimBoltRain: first-click, dedup, depletion, wallet credit');
+console.log('- claimBoltRain: first-click, dedup, depletion, wallet credit');
 {
   const env = envWith({ userId: 'patron', rec: { tier: 'Tier 2', amount_cents: 800 } });
   await triggerBoltRain(env, G, 'patron', { perClaim: 10, maxClaims: 2 });
@@ -89,7 +89,7 @@ console.log('— claimBoltRain: first-click, dedup, depletion, wallet credit');
 }
 
 // ── expiry ────────────────────────────────────────────────────────
-console.log('— expired event → not-active');
+console.log('- expired event → not-active');
 {
   const env = envWith({ userId: 'patron', rec: { tier: 'Tier 2', amount_cents: 800 } });
   await triggerBoltRain(env, G, 'patron');
@@ -106,7 +106,7 @@ console.log('— expired event → not-active');
 }
 
 // ── state shape ───────────────────────────────────────────────────
-console.log('— getBoltRainState reports youClaimed');
+console.log('- getBoltRainState reports youClaimed');
 {
   const env = envWith({ userId: 'patron', rec: { tier: 'Tier 2', amount_cents: 800 } });
   await triggerBoltRain(env, G, 'patron', { perClaim: 5, maxClaims: 10 });
@@ -120,5 +120,5 @@ console.log('— getBoltRainState reports youClaimed');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

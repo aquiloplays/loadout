@@ -1,4 +1,4 @@
-// Stargazer Court — astrolabes, planetariums, oracles, cosmic patrons.
+// Stargazer Court, astrolabes, planetariums, oracles, cosmic patrons.
 // 5 events: 2 pure upside, 2 tradeoff, 1 gamble.
 
 export const STARGAZER_COURT_EVENTS = Object.freeze([
@@ -13,14 +13,14 @@ export const STARGAZER_COURT_EVENTS = Object.freeze([
         label: 'Receive a reading',
         outcomes: [
           { weight: 60, effect: { type: 'buff', name: 'starsight', floors: 5 },    text: 'Starsight: see the top card of your draw pile for 5 floors.' },
-          { weight: 40, effect: { type: 'card_upgrade', count: 1 },                 text: 'A small change in fate — one card improves.' },
+          { weight: 40, effect: { type: 'card_upgrade', count: 1 },                 text: 'A small change in fate, one card improves.' },
         ],
       },
       {
         id: 'commission',
         label: 'Commission a custom chart (-30 bolts)',
         outcomes: [
-          { weight: 100, effect: { type: 'relic_grant', tier: 'major' }, text: 'A folded chart slides into your pack — a major relic.' },
+          { weight: 100, effect: { type: 'relic_grant', tier: 'major' }, text: 'A folded chart slides into your pack, a major relic.' },
         ],
       },
     ],
@@ -121,7 +121,7 @@ export const STARGAZER_COURT_EVENTS = Object.freeze([
         id: 'offer-back',
         label: 'Offer one of yours in return',
         outcomes: [
-          { weight: 100, effect: { type: 'card_upgrade', count: 2 }, text: 'It takes your card, blesses it, and returns it improved — along with another.' },
+          { weight: 100, effect: { type: 'card_upgrade', count: 2 }, text: 'It takes your card, blesses it, and returns it improved, along with another.' },
         ],
       },
       {

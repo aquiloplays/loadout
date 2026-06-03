@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TikTok Follow Overlay — PEAK (Summit Climb)</title>
+<title>TikTok Follow Overlay, PEAK (Summit Climb)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800&display=swap" rel="stylesheet">
@@ -181,10 +181,10 @@
 
 <script>
 // ============================================================
-// CONFIG  — PEAK / co-op summit climb theme
+// CONFIG, PEAK / co-op summit climb theme
 // ============================================================
 const CTA_TEXT   = "Follow = Random Game Effect";
-const PROMO_TEXT = "Reach the peak — aquilo.gg • Community Night";
+const PROMO_TEXT = "Reach the peak, aquilo.gg • Community Night";
 
 // URL params (preserved from template family + PEAK extras)
 const params       = new URLSearchParams(location.search);
@@ -251,7 +251,7 @@ const MIN_FONT_SIZE  = 11;
 function resetTextSize() { $textInner.style.fontSize = ""; }
 
 // ============================================================
-// PEAK PALETTE — ice-blue / snow-white / slate rock / summit-gold
+// PEAK PALETTE, ice-blue / snow-white / slate rock / summit-gold
 // ============================================================
 const GP = {
   main:   { fill:"#88c8e0", line:"#1c3340", hi:"#f2f9ff", dim:"#5a6b78", glow:"#a6dcf0" },
@@ -269,14 +269,14 @@ function drawScanlines(ctx, x, y, w, h, alpha) {
 }
 
 // ============================================================
-// PEAK SPRITES — code-drawn alpine iconography.
+// PEAK SPRITES, code-drawn alpine iconography.
 // Each fn draws an icon centered at the origin, spanning ~ +/-7.5u
 // where u = size/16. Color set `c` = {fill,line,hi,dim,glow}.
 // drawSprite() handles the 2.5D extrude, glow, and frost sheen.
 // ============================================================
 function lineW(u, n) { return Math.max(1, u * n); }
 
-// 1) Climber REACHING UP — body stretched, one arm high grabbing a hold
+// 1) Climber REACHING UP, body stretched, one arm high grabbing a hold
 function drawClimberReach(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round"; ctx.lineCap = "round";
   // head
@@ -296,7 +296,7 @@ function drawClimberReach(ctx, u, c) {
   ctx.beginPath(); ctx.arc(3.6*u, -7.2*u, 0.7*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 2) Climber HANGING — both arms up on an overhang, body dangling
+// 2) Climber HANGING, both arms up on an overhang, body dangling
 function drawClimberHang(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round"; ctx.lineCap = "round";
   // overhang ledge above
@@ -316,7 +316,7 @@ function drawClimberHang(ctx, u, c) {
   ctx.beginPath(); ctx.moveTo(0, 3.4*u); ctx.lineTo(1.2*u, 5.8*u); ctx.lineTo(1.8*u, 7.0*u); ctx.stroke();
 }
 
-// 3) Climber MID-STRIDE — scrambling up, one leg high, opposite arm reaching
+// 3) Climber MID-STRIDE, scrambling up, one leg high, opposite arm reaching
 function drawClimberStride(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round"; ctx.lineCap = "round";
   // head
@@ -334,7 +334,7 @@ function drawClimberStride(ctx, u, c) {
   ctx.beginPath(); ctx.moveTo(-0.6*u, 1.8*u); ctx.lineTo(-2.4*u, 4.8*u); ctx.lineTo(-3.0*u, 6.8*u); ctx.stroke();
 }
 
-// 4) Mountain peak — snow-capped triangle with ridge lines
+// 4) Mountain peak, snow-capped triangle with ridge lines
 function drawPeak(ctx, u, c) {
   ctx.lineJoin = "round";
   // main rock mass
@@ -380,7 +380,7 @@ function drawPeak(ctx, u, c) {
   ctx.beginPath(); ctx.moveTo(-1.2*u, -8.4*u); ctx.lineTo(1.0*u, -7.9*u); ctx.lineTo(-1.2*u, -7.0*u); ctx.closePath(); ctx.fill();
 }
 
-// 5) Ice-axe / climbing pick — shaft, curved pick head, spike
+// 5) Ice-axe / climbing pick, shaft, curved pick head, spike
 function drawIceAxe(ctx, u, c) {
   ctx.lineJoin = "round"; ctx.lineCap = "round";
   // shaft (diagonal)
@@ -389,7 +389,7 @@ function drawIceAxe(ctx, u, c) {
   // shaft outline
   ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.4);
   ctx.beginPath(); ctx.moveTo(-4.4*u, -5.2*u); ctx.lineTo(3.6*u, 6.2*u); ctx.stroke();
-  // head — curved pick (one side) + adze (other), summit-gold steel
+  // head, curved pick (one side) + adze (other), summit-gold steel
   ctx.fillStyle = "#ffd56b"; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.5);
   // curved pick reaching down-right
   ctx.beginPath();
@@ -417,7 +417,7 @@ function drawIceAxe(ctx, u, c) {
   ctx.beginPath(); ctx.moveTo(0.4*u, 1.6*u); ctx.lineTo(1.6*u, 3.4*u); ctx.stroke();
 }
 
-// 6) Cave gem — glowing faceted crystal cluster
+// 6) Cave gem, glowing faceted crystal cluster
 function drawGem(ctx, u, c) {
   ctx.lineJoin = "round";
   // main crystal
@@ -459,7 +459,7 @@ function drawGem(ctx, u, c) {
   ctx.beginPath(); ctx.arc(-1.2*u, -2.6*u, 0.5*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 7) Pine tree — alpine conifer, snow-dusted tiers + trunk
+// 7) Pine tree, alpine conifer, snow-dusted tiers + trunk
 function drawPine(ctx, u, c) {
   ctx.lineJoin = "round";
   // trunk
@@ -484,7 +484,7 @@ function drawPine(ctx, u, c) {
   ctx.beginPath(); ctx.moveTo(0, 0.8*u); ctx.lineTo(-2.4*u, 4.2*u); ctx.lineTo(0, 3.2*u); ctx.closePath(); ctx.fill();
 }
 
-// 8) Mushroom — biome flora, rounded cap with spots + stem
+// 8) Mushroom, biome flora, rounded cap with spots + stem
 function drawMushroomSprite(ctx, u, c) {
   ctx.lineJoin = "round";
   // stem
@@ -564,7 +564,7 @@ function drawSprite(ctx, name, cx, cy, size, alpha, flash) {
   g.shadowBlur = u * 1.6;
   fn(g, u, flash ? GP.flash : GP.main);
   g.restore();
-  // frost sheen — clipped to painted pixels only
+  // frost sheen, clipped to painted pixels only
   g.save();
   g.globalCompositeOperation = "source-atop";
   g.globalAlpha = 0.10;
@@ -794,7 +794,7 @@ function drawFollowerCounter(alpha, now) {
 }
 
 // ============================================================
-// IDLE ANIMATIONS — sprite peek-up (round-robin)
+// IDLE ANIMATIONS, sprite peek-up (round-robin)
 // ============================================================
 let peekIndex = 0;
 function scheduleIdleEvent() {
@@ -1058,20 +1058,20 @@ function playPeakAnim(done, freezeMs) {
     clearBarFX();
 
     if (t < PH.popIn[1]) {
-      // POP IN — a climber bounces up into view (reaching)
+      // POP IN, a climber bounces up into view (reaching)
       const p = pt(t, PH.popIn);
       const cy = spawnCY + (restCY - spawnCY) * easeOutBounce(p);
       drawSprite(aboveCtx, "reach", heroCX, cy, heroSize, 1, false);
     }
     else if (t < PH.idle[1]) {
-      // IDLE — hover + breath pulse (scale)
+      // IDLE, hover + breath pulse (scale)
       const p = pt(t, PH.idle);
       const cy = restCY + Math.sin(p * Math.PI * 2) * 2;
       const pulse = 1 + Math.sin(p * Math.PI * 2) * 0.06;
       drawSprite(aboveCtx, "reach", heroCX, cy, heroSize * pulse, 1, false);
     }
     else if (t < PH.charge[1]) {
-      // CHARGE — wind/snow gust intensifies, SUMMIT PUSH text, shake ramps
+      // CHARGE, wind/snow gust intensifies, SUMMIT PUSH text, shake ramps
       const p = pt(t, PH.charge);
       const pulse = (Math.sin(p * Math.PI * 8 - Math.PI/2) + 1) / 2;
       const flash = pulse * (0.1 + p * 0.5);
@@ -1109,7 +1109,7 @@ function playPeakAnim(done, freezeMs) {
       barCtx.fillRect(0, 0, barW, barH);
     }
     else if (t < PH.boom[1]) {
-      // BOOM — bright summit-reached flash + the big peak begins to rise
+      // BOOM, bright summit-reached flash + the big peak begins to rise
       const p = pt(t, PH.boom);
       if (!boomFired) { seedBurst(); boomFired = true; }
       if (!shookScreen) {
@@ -1129,7 +1129,7 @@ function playPeakAnim(done, freezeMs) {
       updateAndDrawBurst(dtF, 1, t);
     }
     else if (t < PH.smoke[1]) {
-      // SMOKE — peak fully risen, climber plants gold flag, snow settles
+      // SMOKE, peak fully risen, climber plants gold flag, snow settles
       const p = pt(t, PH.smoke);
       summitApexY = drawSummitMountain(aboveCtx, heroCX, restCY + 50, 0.45 + p*0.55, 0.95);
       drawFlagPlanter(aboveCtx, heroCX, summitApexY, Math.min(1, p*1.3), 1, now);
@@ -1147,7 +1147,7 @@ function playPeakAnim(done, freezeMs) {
       updateAndDrawBurst(dtF, 1, t);
     }
     else if (t < PH.fadeEnd[1]) {
-      // FADE — quadratic fade to clean, flag still waving
+      // FADE, quadratic fade to clean, flag still waving
       const p = pt(t, PH.fadeEnd);
       const fade = (1 - p) * (1 - p);
       summitApexY = drawSummitMountain(aboveCtx, heroCX, restCY + 50, 1, fade * 0.95);
@@ -1206,7 +1206,7 @@ function playPeakAnim(done, freezeMs) {
   }
 
   if (frozen) {
-    // Synchronous stepping driver — evolves particles up to freezeMs and draws
+    // Synchronous stepping driver, evolves particles up to freezeMs and draws
     // the final frame statically (no rAF), so a plain headless --screenshot
     // reliably captures any celebration phase.
     for (let tt = 0; tt <= freezeMs; tt += 16) frame(t0 + tt);
@@ -1327,7 +1327,7 @@ function connectTikfinity() {
 }
 
 // ============================================================
-// SHOT MODE — line up every sprite for a contact screenshot
+// SHOT MODE, line up every sprite for a contact screenshot
 // ============================================================
 function renderContactSheet() {
   stopIdleLoop();
@@ -1355,8 +1355,8 @@ if (SHOT_MODE === "mobs") {
   startIdleLoop();
 }
 // Screenshot helpers:
-//   ?fire=1            — auto-trigger a live follow after load (visual smoke-test)
-//   ?freeze=<phase>    — render ONE static celebration frame (popin|idle|charge|
+//   ?fire=1, auto-trigger a live follow after load (visual smoke-test)
+//   ?freeze=<phase>, render ONE static celebration frame (popin|idle|charge|
 //                        boom|smoke|fade), reliably captured by plain --screenshot
 if (params.get("fire")) {
   setTimeout(() => handleFollow(params.get("user") || "Summit", ""), 60);
@@ -1367,7 +1367,7 @@ if (params.get("freeze")) {
   const ms = FREEZE_MS[params.get("freeze")] != null ? FREEZE_MS[params.get("freeze")] : 1760;
   playPeakAnim(() => {}, ms);
 }
-// ?signshot=N — static render of the alpine trail-sign summit log
+// ?signshot=N, static render of the alpine trail-sign summit log
 if (params.get("signshot")) {
   stopIdleLoop();
   state.totalFollowers = parseInt(params.get("signshot"), 10) || 7;

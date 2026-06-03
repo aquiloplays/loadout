@@ -16,7 +16,7 @@
 // KV layout:
 //   guild:join-counter:<g>     monotonic integer
 //   guild:welcome-cfg:<g>      { channelId, backdropUrl?, accentColor? }
-//   guild:welcomed:<g>:<uid>   '1' (dedup — same user joining twice in
+//   guild:welcomed:<g>:<uid>   '1' (dedup, same user joining twice in
 //                                    quick succession only triggers once)
 
 const BRAND_ACCENT_COLOR = 0xF47FFF;  // Aquilo pink
@@ -42,7 +42,7 @@ function ordinal(n) {
 // One-shot admin helper: seed guild:join-counter:<g> from Discord's
 // approximate_member_count so the FIRST observed new member doesn't
 // appear as "1st member" in a guild with hundreds of pre-existing
-// joiners. Idempotent — only seeds when the counter is unset, never
+// joiners. Idempotent, only seeds when the counter is unset, never
 // overwrites an already-running tally unless `force` is true.
 //
 // Discord's GET /guilds/<g>/preview requires the bot to be a member
@@ -94,18 +94,18 @@ export async function handleMemberJoined(env, payload) {
   const guildId = String(payload.guild_id);
   const userId = String(payload.user.id);
 
-  // Dedup — same user joining twice in quick succession only triggers
+  // Dedup, same user joining twice in quick succession only triggers
   // one welcome. 30-day TTL: re-joins after that DO trigger again.
   const dedupKey = `guild:welcomed:${guildId}:${userId}`;
   const already = await env.LOADOUT_BOLTS.get(dedupKey);
   if (already) return { skipped: 'already-welcomed' };
 
   // Resolution order:
-  //   1. channel-binding(welcome) — KV-only, set by Clay via
+  //   1. channel-binding(welcome), KV-only, set by Clay via
   //      /admin/channels/bind so rebinds take effect without
   //      a redeploy
-  //   2. guild:welcome-cfg.channelId — legacy per-guild override
-  //   3. guild:cfg.ids.ch_introductions — guild-build default
+  //   2. guild:welcome-cfg.channelId, legacy per-guild override
+  //   3. guild:cfg.ids.ch_introductions, guild-build default
   let channelId = null;
   try {
     const { getChannelBinding } = await import('./channel-bindings.js');
@@ -120,9 +120,8 @@ export async function handleMemberJoined(env, payload) {
   }
   if (!channelId) return { skipped: 'no-welcome-channel' };
 
-  // Bump the monotonic join counter — the "Nth member" we display.
-  // Note: this isn't backfilled with the guild's historical joins —
-  // it starts at 1 for the first new member we observe. For Aquilo
+  // Bump the monotonic join counter, the "Nth member" we display.
+  // Note: this isn't backfilled with the guild's historical joins, // it starts at 1 for the first new member we observe. For Aquilo
   // (~4 current members) this is fine; for a larger pre-existing
   // server you'd seed it via wrangler kv:key put.
   const counterRaw = await env.LOADOUT_BOLTS.get(`guild:join-counter:${guildId}`);
@@ -131,7 +130,7 @@ export async function handleMemberJoined(env, payload) {
 
   const displayName = payload.user.global_name || payload.user.username || 'friend';
   const avatar = avatarUrl(userId, payload.user.avatar);
-  // Per-guild branding overrides — falls back to Aquilo defaults if
+  // Per-guild branding overrides, falls back to Aquilo defaults if
   // the tenant hasn't customised any of these.
   const { getBranding } = await import('./branding.js');
   const brand = await getBranding(env, guildId);
@@ -146,7 +145,7 @@ export async function handleMemberJoined(env, payload) {
       `You're our **${ordinal(seq)} member** to join. 🎉\n\n` +
       `Read the rules in <#${guildCfg?.ids?.ch_rules || ''}>, pick up roles in ` +
       `<#${guildCfg?.ids?.ch_roles || ''}>, and say hi in this channel!\n\n` +
-      `🎯 **Open your Welcome Checklist** at ${brand.siteUrl}/quest — four quick steps with a bolts reward at each.`,
+      `🎯 **Open your Welcome Checklist** at ${brand.siteUrl}/quest, four quick steps with a bolts reward at each.`,
     color: accent,
     thumbnail: { url: avatar },
     image: { url: backdrop },
@@ -171,12 +170,11 @@ export async function handleMemberJoined(env, payload) {
     return { error: 'post-failed', status: r.status, body: txt.slice(0, 200) };
   }
 
-  // Mark dedup AFTER successful post — if the post fails (channel
+  // Mark dedup AFTER successful post, if the post fails (channel
   // gone, perms revoked) a retry can still try.
   await env.LOADOUT_BOLTS.put(dedupKey, '1', { expirationTtl: 30 * 24 * 60 * 60 });
 
-  // Auto-DM the new joiner with the onboarding flow. Best-effort —
-  // a DM 403 (user has DMs closed) is logged + ignored so the
+  // Auto-DM the new joiner with the onboarding flow. Best-effort, // a DM 403 (user has DMs closed) is logged + ignored so the
   // welcome embed above still stands. Dormant in practice until the
   // gateway shim starts forwarding GUILD_MEMBER_ADD, since this
   // function is what the shim calls.

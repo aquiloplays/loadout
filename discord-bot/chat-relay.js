@@ -3,8 +3,7 @@
 // A logged-in viewer can send a chat message from the PWA; the worker
 // posts it into the target Discord channel via a per-channel WEBHOOK
 // styled with the sender's username + avatar. In Discord it reads as
-// the user (with a small "bot" tag Discord adds to webhook messages —
-// the closest thing Discord's API permits to a true "post-as-user"
+// the user (with a small "bot" tag Discord adds to webhook messages, // the closest thing Discord's API permits to a true "post-as-user"
 // for third-party apps).
 //
 // Channel allow-list is the SAME COMMUNITY_CHAT_CHANNELS_JSON env that
@@ -39,11 +38,11 @@ const BY_MSG_KEY      = (mid) => `chat-relay:by-msg:${mid}`;
 // but if a viewer hovers the bot tag they see this hint. The substring
 // must NOT contain "loadout" or "aquilo" because the community-chat
 // ringbuffer in aquilo/community-chat.js demotes anything matching
-// those keywords to bridge=null (intentional — own-bot relay echoes
+// those keywords to bridge=null (intentional, own-bot relay echoes
 // shouldn't render as MC bridges).
 const WEBHOOK_NAME = 'Chat Bridge';
 
-// Small profanity list — same words as ext.js's stream-checkin
+// Small profanity list, same words as ext.js's stream-checkin
 // masker, kept in sync intentionally so the two surfaces look the
 // same to a viewer.
 const PROFANITY = [
@@ -53,7 +52,7 @@ const PROFANITY = [
 
 function sanitiseContent(raw) {
   let s = String(raw || '');
-  // Drop control characters (0x00-0x1f + DEL) — Discord renders some
+  // Drop control characters (0x00-0x1f + DEL), Discord renders some
   // of these but they're a footgun.
   s = s.replace(/[\x00-\x1f\x7f]/g, ' ');
   // Strip @everyone / @here at the source; we ALSO pass allowed_mentions
@@ -177,7 +176,7 @@ export async function sendFromPwa(env, { discordId, guildId, channelId, content 
     return { ok: false, error: 'channel-not-allowed' };
   }
 
-  // Content sanity first — refusing very short or empty messages
+  // Content sanity first, refusing very short or empty messages
   // saves the rate-limit token for real sends.
   const clean = sanitiseContent(content);
   if (!clean) return { ok: false, error: 'empty-after-sanitise' };
@@ -195,7 +194,7 @@ export async function sendFromPwa(env, { discordId, guildId, channelId, content 
   const member = await fetchMember(env, guildId, discordId)
     || { displayName: 'PWA user', avatar: avatarUrl(discordId, null) };
 
-  // Webhook for this channel — create on first use, cache the token.
+  // Webhook for this channel, create on first use, cache the token.
   const hook = await getOrCreateWebhook(env, channelId);
   if (hook?._err) {
     return { ok: false, error: hook._err, status: hook.status, detail: hook.body };
@@ -212,7 +211,7 @@ export async function sendFromPwa(env, { discordId, guildId, channelId, content 
       content:           clean,
       username:          member.displayName,
       avatar_url:        member.avatar,
-      // Belt + braces on @everyone/@here etc. — the sanitiser already
+      // Belt + braces on @everyone/@here etc., the sanitiser already
       // zero-width-spaces them but allowed_mentions parse:[] makes
       // Discord refuse to ping no matter what content survives.
       allowed_mentions:  { parse: [] },
@@ -231,7 +230,7 @@ export async function sendFromPwa(env, { discordId, guildId, channelId, content 
 
   // Stash a tiny lookup so the read endpoint can decorate messages
   // with `sentViaPwa:true` (and the original discordId, in case the
-  // PWA wants to confirm "this is mine"). 1h TTL — older messages
+  // PWA wants to confirm "this is mine"). 1h TTL, older messages
   // are still rendered, just without the via-PWA hint.
   try {
     await env.LOADOUT_BOLTS.put(BY_MSG_KEY(String(m.id)), JSON.stringify({
@@ -253,7 +252,7 @@ export async function sendFromPwa(env, { discordId, guildId, channelId, content 
 // Thin wrapper over the existing readCommunityChat() that tags each
 // message with `sentViaPwa: bool` + `mineDiscordId` (so the PWA can
 // dim its own optimistic-render copy once the server echo arrives).
-// The PWA could also poll GET /community/chat directly — this exists
+// The PWA could also poll GET /community/chat directly, this exists
 // for the symmetric /web/chat/* contract and the dedup hint.
 export async function recentForPwa(env, { channelId, limit, discordId }) {
   const { readCommunityChat } = await import('./aquilo/community-chat.js');

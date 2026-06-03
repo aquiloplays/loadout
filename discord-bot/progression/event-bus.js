@@ -1,6 +1,6 @@
-// Progression — the cross-cutting event bus.
+// Progression, the cross-cutting event bus.
 //
-// PROGRESSION-SYSTEM-DESIGN.md §3 — the single emit point every
+// PROGRESSION-SYSTEM-DESIGN.md §3, the single emit point every
 // feature talks to. Adding XP / achievement / season-pass plumbing
 // to a new feature means one call to emitProgressionEvent() at the
 // success path; everything downstream (XP grant, achievement check,
@@ -57,8 +57,7 @@ async function pushEventToRing(env, userId, event) {
 
 // ── Public emit ────────────────────────────────────────────────────
 //
-// Returns a result object the caller can ignore. Errors never throw —
-// the only thing that matters is that the feature's own state-write
+// Returns a result object the caller can ignore. Errors never throw, // the only thing that matters is that the feature's own state-write
 // already succeeded.
 
 export async function emitProgressionEvent(env, event) {
@@ -70,7 +69,7 @@ export async function emitProgressionEvent(env, event) {
     const dedupKey = `pevent:dedup:${identity}`;
     const seen = await env.LOADOUT_BOLTS.get(dedupKey);
     if (seen) return { ok: true, deduped: true, identity };
-    // 24h TTL on dedup marker — long enough that retries inside a day
+    // 24h TTL on dedup marker, long enough that retries inside a day
     // are caught, short enough that stale markers self-clean.
     await env.LOADOUT_BOLTS.put(dedupKey, '1', { expirationTtl: 86400 });
 
@@ -91,7 +90,7 @@ export async function emitProgressionEvent(env, event) {
     // Skip if this event IS already a level.reached (no infinite loop).
     if (xpResult?.levelsCrossed?.length && event.kind !== 'level.reached') {
       for (const lv of xpResult.levelsCrossed) {
-        // Direct grant — bypass the bus so we don't re-trigger the
+        // Direct grant, bypass the bus so we don't re-trigger the
         // XP consumer (level-reached doesn't grant XP itself).
         try {
           const { checkAchievements } = await import('./achievements.js');
@@ -105,9 +104,9 @@ export async function emitProgressionEvent(env, event) {
           }
         } catch { /* non-fatal */ }
       }
-      // Level-tier roles — grant Discord roles for every L5/L25/L50/L100
+      // Level-tier roles, grant Discord roles for every L5/L25/L50/L100
       // crossed in this event. Stacks (higher tier doesn't remove
-      // lower) — see level-tier-roles.js. No-op if the guild hasn't
+      // lower), see level-tier-roles.js. No-op if the guild hasn't
       // run /admin/level-tier-roles/ensure yet.
       try {
         const { grantTierRolesForCrossedLevels } = await import('../level-tier-roles.js');
@@ -125,7 +124,7 @@ export async function emitProgressionEvent(env, event) {
     try {
       const { checkAchievements } = await import('./achievements.js');
       if (checkAchievements) achResult = await checkAchievements(env, event);
-    } catch { /* module not present yet — that's fine, P3 wires it */ }
+    } catch { /* module not present yet, that's fine, P3 wires it */ }
 
     // ── Consumer #3: Season-pass progress ──
     let seasonResult = null;
@@ -140,7 +139,7 @@ export async function emitProgressionEvent(env, event) {
     try { await pushEventToRing(env, event.userId, event); } catch { /* non-fatal */ }
 
     // ── Consumer #4: Community activity feed (filtered ring) ──
-    // Only highlight-worthy kinds make it in — see activity-feed.js
+    // Only highlight-worthy kinds make it in, see activity-feed.js
     // for the kind/condition filter.
     try {
       const { appendIfNoteworthy } = await import('../activity-feed.js');

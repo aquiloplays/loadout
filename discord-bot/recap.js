@@ -4,14 +4,14 @@
 //   recap:<guild>:tw:<id>  ->  { windowStart, lastUpdated, stats: {...} }
 //
 // The window is a rolling 24h approximation of "last session" until
-// stream.online / stream.offline EventSub boundaries land — at which
+// stream.online / stream.offline EventSub boundaries land, at which
 // point getRecap's roll logic is the only thing that changes. The
 // stats schema and the route shape stay the same, so the panel and
 // the hook sites don't move when the switch happens.
 //
 // Stream-live signal: recap:streamLiveStamp is written by the
 // aquilo-site EventSub receiver (which shares this KV namespace) on
-// stream.online and deleted on stream.offline — single source of
+// stream.online and deleted on stream.offline, single source of
 // truth, no cross-Worker POST needed.
 
 const WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -19,7 +19,7 @@ const RECAP_TTL = 48 * 60 * 60; // KV auto-clean after 48h idle
 const LIVE_KEY = 'recap:streamLiveStamp';
 
 // All counter keys. New kinds (e.g. dungeon_* once B3's DLL→cloud
-// relay lands) can be appended — emptyStats/normalize fill them in
+// relay lands) can be appended, emptyStats/normalize fill them in
 // for existing rows, so old recap data stays readable.
 const STAT_KEYS = [
   'bolts_earned',
@@ -42,7 +42,7 @@ function freshRecap(now) {
   return { windowStart: now, lastUpdated: now, stats: emptyStats() };
 }
 
-// Return a normalized recap — fresh window if the stored one is stale
+// Return a normalized recap, fresh window if the stored one is stale
 // (older than WINDOW_MS) or missing; otherwise the stored stats with
 // every known key guaranteed present.
 function rollIfStale(recap, now) {
@@ -59,7 +59,7 @@ function rollIfStale(recap, now) {
 }
 
 // Apply a batch of increments. `deltas` = { stat_key: amount, ... }.
-// Best-effort — never throws, so a KV hiccup can't break the action
+// Best-effort, never throws, so a KV hiccup can't break the action
 // that called it. `userId` is the resolved tw:<id> identity.
 export async function recordStat(env, guild, userId, deltas) {
   if (!userId || !deltas) return;
@@ -74,7 +74,7 @@ export async function recordStat(env, guild, userId, deltas) {
     recap.lastUpdated = now;
     await env.LOADOUT_BOLTS.put(key, JSON.stringify(recap), { expirationTtl: RECAP_TTL });
   } catch {
-    /* best-effort — recap must never block a viewer action */
+    /* best-effort, recap must never block a viewer action */
   }
 }
 

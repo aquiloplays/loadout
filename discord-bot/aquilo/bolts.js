@@ -9,7 +9,7 @@
 
 export async function applyBolts(env, guildId, userId, amount, reason) {
   if (!env.LOADOUT_BOLT_API || !env.LOADOUT_BOLT_API_SECRET) {
-    console.warn('[bolts] Loadout API unconfigured — skip');
+    console.warn('[bolts] Loadout API unconfigured, skip');
     return { ok: false, reason: 'loadout_unconfigured' };
   }
   if (!Number.isFinite(amount) || amount === 0) {

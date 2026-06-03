@@ -6,7 +6,7 @@
 //
 //   🎭 Self-serve ping roles
 //      Four buttons in #🎭│roles with custom_ids
-//      "guild:role:{stream,youtube,event,gamenight}" — toggle the
+//      "guild:role:{stream,youtube,event,gamenight}", toggle the
 //      matching role on the caller.
 //
 //   ⭐ Starboard
@@ -16,13 +16,13 @@
 //      when a message crosses STARBOARD_THRESHOLD reactions of one
 //      kind. NOTE: this Worker doesn't run a gateway connection, so
 //      reaction events have to be forwarded into it. The infra is
-//      ready — the gateway wiring is a follow-up if/when Clay wants
+//      ready, the gateway wiring is a follow-up if/when Clay wants
 //      a hot starboard. For now, the highlights channel exists and
 //      this handler is callable from the admin surface.
 //
 //   🔢 Counting
 //      handleCountingMessage(env, msg) processes a new message in
-//      the #🔢│counting channel — accepts the next integer, deletes
+//      the #🔢│counting channel, accepts the next integer, deletes
 //      anything that isn't. State stored in KV at
 //      `guild:counting:<guildId>:state`. Same gateway-forward caveat
 //      as starboard.
@@ -32,7 +32,7 @@ import { sendDm } from './aquilo/util.js';
 export const STARBOARD_THRESHOLD = 5;
 export const STARBOARD_EMOJI     = '⭐';
 
-// Public-read starboard ringbuffer — fed by handleStarboardReaction
+// Public-read starboard ringbuffer, fed by handleStarboardReaction
 // once a message crosses STARBOARD_THRESHOLD, consumed by the public
 // GET /web/starboard/recent route the aquilo.gg starboard wall calls.
 // Keyed per guild so multi-guild deployments don't cross-pollinate.
@@ -40,12 +40,12 @@ export const STARBOARD_EMOJI     = '⭐';
 //   guild:starboard:recent:<guildId>  -> JSON array of items, capped
 //                                        at 50, sorted oldest→newest.
 //
-// 30-day TTL on the ringbuffer matches the dedup-stamp TTL — a
+// 30-day TTL on the ringbuffer matches the dedup-stamp TTL, a
 // quiet guild grooms itself; an active one keeps refreshing.
 const STARBOARD_RECENT_PREFIX = 'guild:starboard:recent:';
 const STARBOARD_RECENT_CAP    = 50;
 const STARBOARD_RECENT_TTL_S  = 30 * 24 * 60 * 60;
-// Public payload `content` cap — keeps Discord's 2000-char messages
+// Public payload `content` cap, keeps Discord's 2000-char messages
 // from blowing up the JSON the wall serializes for every viewer.
 const STARBOARD_CONTENT_CAP   = 500;
 
@@ -90,13 +90,13 @@ export async function handleGuildComponent(env, data) {
   if (!guildId || !userId) return eph('Run this in a server.');
 
   const cfg = await loadGuildCfg(env, guildId);
-  if (!cfg?.ids) return eph('Server isn\'t fully set up yet — ping a mod.');
+  if (!cfg?.ids) return eph('Server isn\'t fully set up yet, ping a mod.');
 
   // ── Verify ──────────────────────────────────────────────────────────
   if (cid === 'guild:verify') {
     const memberRoleId = cfg.ids.role_member;
-    if (!memberRoleId) return eph('Verification isn\'t configured — ping a mod.');
-    // PUT /guilds/{g}/members/{u}/roles/{r} is idempotent — already-
+    if (!memberRoleId) return eph('Verification isn\'t configured, ping a mod.');
+    // PUT /guilds/{g}/members/{u}/roles/{r} is idempotent, already-
     // verified members just get the same role re-granted and see the
     // same "you're in" message.
     const r = await discordApi(env, 'PUT', `/guilds/${guildId}/members/${userId}/roles/${memberRoleId}`);
@@ -140,7 +140,7 @@ export async function handleGuildComponent(env, data) {
 export async function handleStarboardReaction(env, payload) {
   // Gateway-shim sends MESSAGE_REACTION_ADD AND MESSAGE_REACTION_REMOVE
   // through the same /reaction/event route, distinguished by `action`.
-  // Only "add" should drive the starboard pin path — un-starring shouldn't
+  // Only "add" should drive the starboard pin path, un-starring shouldn't
   // re-fire the dedup-stamped post. `action: undefined` falls through for
   // back-compat with any forwarder that doesn't send the field yet.
   if (payload && payload.action === 'remove') return { skipped: 'remove-action' };
@@ -193,7 +193,7 @@ export async function handleStarboardReaction(env, payload) {
   // Stamp dedup (30-day TTL)
   await env.LOADOUT_BOLTS.put(stampKey, '1', { expirationTtl: 30 * 24 * 60 * 60 });
 
-  // Persist for the public wall (best-effort — a KV write fail here
+  // Persist for the public wall (best-effort, a KV write fail here
   // shouldn't undo the Discord post that already landed).
   try {
     await appendStarboardRecent(env, guildId, {
@@ -300,7 +300,7 @@ export async function handleCountingMessage(env, msg) {
                               : 'same-user-twice' };
   }
 
-  // Accept — add a ⭐ react and bump the state
+  // Accept, add a ⭐ react and bump the state
   await discordApi(env, 'PUT', `/channels/${msg.channel_id}/messages/${msg.id}/reactions/${encodeURIComponent('✅')}/@me`);
   await env.LOADOUT_BOLTS.put(stateKey, JSON.stringify({
     last: n, lastUserId: msg.author.id, ts: Date.now(),

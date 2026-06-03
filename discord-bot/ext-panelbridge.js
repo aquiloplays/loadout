@@ -1,4 +1,4 @@
-// B3 panel-bridge — the cloud half of the DLL <-> panel live-state
+// B3 panel-bridge, the cloud half of the DLL <-> panel live-state
 // channel (sub-phase 1: state DOWN, read-only).
 //
 // The DLL's PanelBridgeModule (Clay's install only, gated by
@@ -23,7 +23,7 @@ const STATE_KEY = {
   cooldown: 'panelbridge:cooldown:dungeon',
 };
 
-// POST /relay/dll-ingest — token-gated (X-Relay-Token), not JWT: the
+// POST /relay/dll-ingest, token-gated (X-Relay-Token), not JWT: the
 // caller is the local DLL module, not a Twitch viewer.
 export async function ingestDllState(req, env) {
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
@@ -44,7 +44,7 @@ export async function ingestDllState(req, env) {
     state: body.state || null,
     ts: Date.now(),
   };
-  // Cooldown records need to outlive the usual 60 s window — the
+  // Cooldown records need to outlive the usual 60 s window, the
   // panel reads them while no dungeon is active, until the cooldown
   // itself expires. Derive TTL from the carried untilUtc + a buffer;
   // everything else keeps the default short TTL so stale dungeon /
@@ -58,7 +58,7 @@ export async function ingestDllState(req, env) {
   return json({ ok: true });
 }
 
-// Read-side for cooldown is its own function — the dungeon-style
+// Read-side for cooldown is its own function, the dungeon-style
 // `panelBridgeState` enforces a 30-second staleness gate off `ts`,
 // which would expire a fresh cooldown record long before its actual
 // untilUtc. Here we trust the stored untilUtc directly.
@@ -80,7 +80,7 @@ export async function dungeonCooldownState(env) {
   });
 }
 
-// GET /ext/{dungeon,minigame}/state — JWT-gated panel reads. Returns
+// GET /ext/{dungeon,minigame}/state, JWT-gated panel reads. Returns
 // the cached state, or { active: false } when nothing is live.
 export async function panelBridgeState(env, kind) {
   const key = STATE_KEY[kind];
@@ -101,10 +101,10 @@ export async function panelBridgeState(env, kind) {
 //
 // The panel POSTs viewer-driven game commands; the DLL's PanelBridgeModule
 // polls them back and replays each as a synthesized chat event into its
-// existing game engines (no engine changes — the engines already parse
+// existing game engines (no engine changes, the engines already parse
 // chat commands).
 
-// Per-kind action allowlists — anything else is rejected at the edge so
+// Per-kind action allowlists, anything else is rejected at the edge so
 // the DLL only ever sees a known-good verb. `skip` is never accepted
 // from /ext/dungeon/cmd (it's gated by payment); see skipCooldown below.
 const CMD_ACTIONS = {
@@ -118,7 +118,7 @@ const SKIP_BOLTS_COST = 500;
 // Per-viewer-per-action debounce. KV's expirationTtl floors at 60 s, so
 // the entry lives at the cooldown record we actually want: a stored
 // ts that we compare against now() against COOLDOWN_MS. Anonymous
-// (no viewerId) requests skip the check — at-most-once is the goal,
+// (no viewerId) requests skip the check, at-most-once is the goal,
 // not anonymous DoS protection.
 const COOLDOWN_MS = 2000;
 
@@ -149,7 +149,7 @@ function cleanCmdArg(v) {
     .slice(0, 40);
 }
 
-// POST /ext/{dungeon,minigame}/cmd — JWT-gated. handleExt has already
+// POST /ext/{dungeon,minigame}/cmd, JWT-gated. handleExt has already
 // verified the Twitch ext JWT and the channel gate, so `payload` is
 // trusted; only `role` is security-relevant (it gates !dungeon etc.).
 export async function enqueuePanelCmd(env, kind, payload, req) {
@@ -176,7 +176,7 @@ export async function enqueuePanelCmd(env, kind, payload, req) {
   // user_id -> canonical Twitch login via Helix so the wallet credits the
   // same key as their chat play (cached per-id for 24 h). Opaque-only
   // viewers can't be linked to a chat identity; fall back to the panel-
-  // body name (cosmetic — that wallet stays panel-only).
+  // body name (cosmetic, that wallet stays panel-only).
   let canonicalName = '';
   if (payload && payload.user_id) {
     canonicalName = (await resolveTwitchLoginById(env, payload.user_id)) || '';
@@ -198,11 +198,11 @@ export async function enqueuePanelCmd(env, kind, payload, req) {
   return json({ ok: true });
 }
 
-// POST /ext/dungeon/skip-cooldown — JWT-gated, panel-driven. Pays the
+// POST /ext/dungeon/skip-cooldown, JWT-gated, panel-driven. Pays the
 // 10-min channel cooldown via either Bits (SKU dungeon_skip_cooldown,
 // 100 bits) OR a 500-bolts wallet debit. On success, enqueues a
 // dungeon "skip" command into the same dll-pending queue the DLL
-// already polls — PanelBridgeModule stamps the trusted skip flag so
+// already polls, PanelBridgeModule stamps the trusted skip flag so
 // DungeonModule.OnEvent bypasses its cooldown + mod gates exactly once.
 export async function skipCooldown(env, guildId, userId, payload, req) {
   if (req.method !== 'POST') return json({ error: 'method' }, 405);
@@ -235,7 +235,7 @@ export async function skipCooldown(env, guildId, userId, payload, req) {
     return json({ error: 'choose-payment' }, 400);
   }
 
-  // Resolve the canonical name same as enqueuePanelCmd — opaque viewers
+  // Resolve the canonical name same as enqueuePanelCmd, opaque viewers
   // keep their cosmetic body name, identity-shared viewers ride Helix.
   let canonicalName = '';
   if (payload && payload.user_id) {
@@ -258,7 +258,7 @@ export async function skipCooldown(env, guildId, userId, payload, req) {
   return json({ ok: true });
 }
 
-// GET /relay/dll-pending — X-Relay-Token gated, polled by the DLL. Returns
+// GET /relay/dll-pending, X-Relay-Token gated, polled by the DLL. Returns
 // and deletes every queued command (at-most-once, single poller), oldest
 // first so they replay into the engines in submit order.
 export async function drainDllCommands(req, env) {

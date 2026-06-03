@@ -12,7 +12,7 @@
 // Enforcement (commands.js dispatcher): before routing a slash
 // command, call isCommandAllowedHere(env, guildId, commandName,
 // channelId). If false, return an ephemeral "use this in #x" reply
-// — never run the handler. Buttons / select-menus / modals are NOT
+//, never run the handler. Buttons / select-menus / modals are NOT
 // gated here (a button on an ephemeral reply doesn't know which
 // channel it "belongs" to and gating those would be hostile).
 
@@ -31,7 +31,7 @@ export async function saveBindings(env, guildId, b) {
 
 // Predicate: should this command be allowed in this channel?
 // Returns { ok: true } or { ok: false, allowed: [channelId, ...] }.
-// `allowed: []` means there IS a binding but no channels — treat
+// `allowed: []` means there IS a binding but no channels, treat
 // as "command is currently disabled in this guild."
 export async function isCommandAllowedHere(env, guildId, commandName, channelId) {
   const b = await loadBindings(env, guildId);
@@ -39,7 +39,7 @@ export async function isCommandAllowedHere(env, guildId, commandName, channelId)
   if (!entry || (Array.isArray(entry) && entry.length === 0 && entry !== null)) {
     // No restriction set → allowed anywhere. (Empty array technically
     // means "no channels assigned, but the command isn't disabled
-    // either" — we treat that as unrestricted for the common case of
+    // either", we treat that as unrestricted for the common case of
     // a streamer adding the command name then clearing the channels.
     // To DISABLE a command, just delete it from the bindings map.)
     return { ok: true };

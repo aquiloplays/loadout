@@ -1,10 +1,9 @@
 // Hero background catalogue + Patreon gating.
 //
 // 2026-05-29 Phase A.5. The site renderer shows a customizable
-// background behind the hero composite. 19 entries — 7 free
+// background behind the hero composite. 19 entries, 7 free
 // (abstract CSS + scene pixel art) + 12 Patreon-only (spire-themed
-// pixel art). Patreon-only entries gate on userHasPaidPatreon —
-// non-patrons see them in the list with `asset_url: null` +
+// pixel art). Patreon-only entries gate on userHasPaidPatreon, // non-patrons see them in the list with `asset_url: null` +
 // `unlock_url` so the site can render a lock badge.
 //
 // Asset storage mirrors hero/gear pattern: KV `pixel-art-hero-bg:<id>`
@@ -17,11 +16,11 @@ const PATREON_URL = 'https://www.patreon.com/cw/aquilo/membership';
 
 // Catalogue. `hasAsset` distinguishes pixel-art entries (true) from
 // CSS-only abstracts (false). `cssClass` is non-null for entries that
-// carry a CSS class to apply on the site side — abstract entries
+// carry a CSS class to apply on the site side, abstract entries
 // use it as the sole renderer; pixel scenes may use it as an overlay
 // (only cosmic-aurora today, for the firefly drift).
 export const HERO_BACKGROUNDS = Object.freeze([
-  // ── Free — abstract (CSS only) ────────────────────────────────────
+  // ── Free, abstract (CSS only) ────────────────────────────────────
   { id: 'aurora-drift',     name: 'Aurora Drift',     category: 'abstract',
     hasAsset: false, cssClass: 'aq-bg-aurora-drift',     patreonOnly: false },
   { id: 'twilight-purple',  name: 'Twilight Purple',  category: 'abstract',
@@ -30,14 +29,14 @@ export const HERO_BACKGROUNDS = Object.freeze([
     hasAsset: false, cssClass: 'aq-bg-plain-white',      patreonOnly: false },
   { id: 'plain-dark',       name: 'Plain Dark',       category: 'abstract',
     hasAsset: false, cssClass: 'aq-bg-plain-dark',       patreonOnly: false },
-  // ── Free — scene (pixel art) ──────────────────────────────────────
+  // ── Free, scene (pixel art) ──────────────────────────────────────
   { id: 'forest-day',       name: 'Forest Day',       category: 'scene',
     hasAsset: true,  cssClass: null, patreonOnly: false },
   { id: 'snow-flurries',    name: 'Snow Flurries',    category: 'scene',
     hasAsset: true,  cssClass: null, patreonOnly: false },
   { id: 'beach-sunset',     name: 'Beach Sunset',     category: 'scene',
     hasAsset: true,  cssClass: null, patreonOnly: false },
-  // ── Patreon-only — spire-themed (pixel art) ───────────────────────
+  // ── Patreon-only, spire-themed (pixel art) ───────────────────────
   // cosmic-aurora also carries a CSS overlay for the firefly layer.
   { id: 'cosmic-aurora',     name: 'Cosmic Aurora',     category: 'spire-themed',
     hasAsset: true,  cssClass: 'aq-bg-cosmic-aurora-overlay', patreonOnly: true },

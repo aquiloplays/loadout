@@ -1,5 +1,5 @@
 /*
- * Loadout — Bolts minigames overlay client.
+ * Loadout, Bolts minigames overlay client.
  *
  * Subscribes to bolts.minigame.* on the Aquilo Bus. Each event spawns a
  * brief animated card showing the visual (coin or die), the user, the
@@ -32,7 +32,7 @@
   const wagerEl = $('wager');
   const outcome = $('outcome');
 
-  // Default symbol pool — always-available Twitch global emotes. Used
+  // Default symbol pool, always-available Twitch global emotes. Used
   // when the bus payload doesn't supply a `pool` array, so the overlay
   // has visual filler during the spin animation. Streamer can override
   // by configuring Bolts → Slots image pool in Loadout settings; the
@@ -158,7 +158,7 @@
                   || (reelImgs && reelImgs.length ? reelImgs : null)
                   || defaultPool;
 
-    // Lever pull — happens BEFORE the reels start spinning so the
+    // Lever pull, happens BEFORE the reels start spinning so the
     // visual reads as "pull → spin → settle" in that order. CSS
     // animation runs ~260ms down + ~350ms spring-back, but we kick
     // the spin off as soon as the down-stroke peaks (260ms) so the
@@ -231,7 +231,7 @@
     var botEl    = $('rps-bot');
     var sides    = rps.querySelectorAll('.rps-side');
 
-    // Pre-shake glyph is always rock — the reveal happens after the
+    // Pre-shake glyph is always rock, the reveal happens after the
     // shake animation lands so the viewer "sees" the throw.
     setRpsIcon(viewerEl, 'rock');
     setRpsIcon(botEl,    'rock');
@@ -319,7 +319,7 @@
 
   // ── Heist ──────────────────────────────────────────────────────────
   // Three states: open (joining), success, failure. The card stays open
-  // for the full join window — we don't hide it until the deadline +
+  // for the full join window, we don't hide it until the deadline +
   // a celebration buffer. setHeistMeter is called both on `start` and
   // `contribute` to redraw the fill bar against the current target.
   function setHeistMeter(totalPot, target) {
@@ -352,14 +352,14 @@
     if (heistCount) heistCount.textContent = '1';
     startHeistCountdown(d.deadlineMs || 60000);
     fillLines(d.initiator, d.stake, false, 0, 'pulled a heist! crew up with !join');
-    // Re-style the lines bottom-row — heist starts with no win/lose so
+    // Re-style the lines bottom-row, heist starts with no win/lose so
     // we strip the loss tint that fillLines applies by default.
     outcome.classList.remove('lose');
     outcome.textContent = 'JOIN THE CREW';
     outcome.classList.remove('win');
     card.classList.remove('win', 'lose');
     if (hideTimer) clearTimeout(hideTimer);
-    // Auto-hide if no settle event lands — defense in depth so a dropped
+    // Auto-hide if no settle event lands, defense in depth so a dropped
     // bus connection can't pin the overlay forever.
     hideTimer = setTimeout(function () {
       card.classList.add('hidden');
@@ -425,7 +425,7 @@
     card.classList.remove('win');
     card.classList.add('lose');
     fillLines(d.initiator || '', '', false, 0,
-      'HEIST FAILED — pot ' + (d.totalPot || 0) + '/' + (d.target || heistTarget));
+      'HEIST FAILED, pot ' + (d.totalPot || 0) + '/' + (d.target || heistTarget));
     if (pulseTimer) clearTimeout(pulseTimer);
     pulseTimer = setTimeout(function () {
       card.classList.remove('pulse');
@@ -437,7 +437,7 @@
   }
 
   function fillLines(user, wager, won, payout, mid) {
-    userEl.textContent = (user || '?') + ' — ' + mid;
+    userEl.textContent = (user || '?') + ', ' + mid;
     wagerEl.textContent = 'wagered ' + (wager || 0) + ' bolts';
     outcome.classList.remove('win', 'lose');
     if (won) {

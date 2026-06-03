@@ -54,44 +54,44 @@ const BACK_TRINKET_RE = /(^|-)(cape|cloak|wings?|mantle|drape|veil|feather)(-|$)
 function composeHero(hero) {
   const layers = [];
 
-  // z=10 — back trinket (if any)
+  // z=10, back trinket (if any)
   if (hero.trinket && BACK_TRINKET_RE.test(hero.trinket)) {
     layers.push(pngLayer(join(GEAR_DIR, 'trinket', `${hero.trinket}.png`)));
   }
-  // z=15 — pet
+  // z=15, pet
   if (hero.pet) {
     layers.push(pngLayer(join(PET_DIR, `${hero.pet.species}-${hero.pet.colour}.png`)));
     if (hero.pet.mood) {
       layers.push(pngLayer(join(PET_DIR, `mood-${hero.pet.mood}.png`)));
     }
   }
-  // z=20 — body
+  // z=20, body
   layers.push(pngLayer(join(FIG_DIR, `body-${hero.bodyType}-${hero.skinTone}.png`)));
-  // z=25 — default clothing
+  // z=25, default clothing
   layers.push(pngLayer(join(FIG_DIR, 'default-clothing.png')));
-  // z=30 / 35 / 40 — legs / boots / chest gear
+  // z=30 / 35 / 40, legs / boots / chest gear
   if (hero.legs)   layers.push(pngLayer(join(GEAR_DIR, 'legs',   `${hero.legs}.png`)));
   if (hero.boots)  layers.push(pngLayer(join(GEAR_DIR, 'boots',  `${hero.boots}.png`)));
   if (hero.chest)  layers.push(pngLayer(join(GEAR_DIR, 'chest',  `${hero.chest}.png`)));
-  // z=45 — front trinket
+  // z=45, front trinket
   if (hero.trinket && !BACK_TRINKET_RE.test(hero.trinket)) {
     layers.push(pngLayer(join(GEAR_DIR, 'trinket', `${hero.trinket}.png`)));
   }
-  // z=60 — hair
+  // z=60, hair
   if (hero.hairStyle && hero.hairStyle !== 'bald') {
     layers.push(pngLayer(join(FIG_DIR, `hair-${hero.hairStyle}-${hero.hairColor}.png`)));
   }
-  // z=65 — eyes
+  // z=65, eyes
   if (hero.eyeColor) layers.push(pngLayer(join(FIG_DIR, `eyes-${hero.eyeColor}.png`)));
-  // z=66 — accent
+  // z=66, accent
   if (hero.accent && hero.accent !== 'none') {
     layers.push(pngLayer(join(FIG_DIR, `accent-${hero.accent}.png`)));
   }
-  // z=70 — head gear (over hair)
+  // z=70, head gear (over hair)
   if (hero.head)   layers.push(pngLayer(join(GEAR_DIR, 'head', `${hero.head}.png`)));
-  // z=80 — weapon
+  // z=80, weapon
   if (hero.weapon) layers.push(pngLayer(join(GEAR_DIR, 'weapon', `${hero.weapon}.png`)));
-  // z=90 — legendary fx halos (per-slot)
+  // z=90, legendary fx halos (per-slot)
   if (hero.legendarySlots) {
     for (const slot of hero.legendarySlots) {
       layers.push(pngLayer(join(FX_DIR, `${slot}.png`)));
@@ -174,7 +174,7 @@ const TEST_HEROES = [
     bodyType: 'stocky', skinTone: 'ebony',
     hairStyle: 'curly-afro', hairColor: 'black',
     eyeColor: 'hazel', accent: 'none',
-    // no gear — confirms body + default-clothing render alone cleanly
+    // no gear, confirms body + default-clothing render alone cleanly
   },
   {
     name: 'G-warrior-with-pet-and-legendary',

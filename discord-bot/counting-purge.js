@@ -15,14 +15,14 @@
 //     a duplicate. We pre-filter age, single-instance batch.
 //   • Bulk-delete requires 2-100 messages. For a leftover singleton,
 //     fall back to DELETE /channels/<c>/messages/<id>.
-//   • Human messages are NEVER touched — author.id !== BOT_APP_ID and
+//   • Human messages are NEVER touched, author.id !== BOT_APP_ID and
 //     !author.webhook_id.
 //
 // Returns: { scanned, candidates, deleted, kept, errors[] }
 
 const BOT_APP_ID = '1500849448866025573';
 const DAYS_14_MS = 14 * 24 * 60 * 60 * 1000;
-const SCAN_PAGE_MAX = 20;    // 20 × 100 = 2000 messages — enough for the
+const SCAN_PAGE_MAX = 20;    // 20 × 100 = 2000 messages, enough for the
                               // worst-case loop blast radius
 const BULK_BATCH_MAX = 100;
 
@@ -44,7 +44,7 @@ async function discordFetchWithRetry(env, path, init = {}, attempts = 3) {
   for (let i = 0; i < attempts; i++) {
     const r = await discordFetch(env, path, init);
     if (r.status !== 429) return r;
-    // Peek at the body without consuming it for the caller — clone
+    // Peek at the body without consuming it for the caller, clone
     // first, then if we end up returning we keep the original.
     let waitMs = 1000;
     try {
@@ -55,7 +55,7 @@ async function discordFetchWithRetry(env, path, init = {}, attempts = 3) {
     if (i === attempts - 1) return r;
     await new Promise(res => setTimeout(res, waitMs));
   }
-  // Unreachable — the loop always returns from inside.
+  // Unreachable, the loop always returns from inside.
   return discordFetch(env, path, init);
 }
 

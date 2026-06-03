@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>TikTok Follow Overlay — Phasmophobia (Ghost Hunt)</title>
+<title>TikTok Follow Overlay, Phasmophobia (Ghost Hunt)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
@@ -62,7 +62,7 @@
       0 0 18px rgba(124,58,237,0.5);
     animation: barPulse 3.7s steps(74) infinite;
   }
-  /* Erratic flicker — occasionally dims hard like failing power */
+  /* Erratic flicker, occasionally dims hard like failing power */
   @keyframes barPulse {
     0%   { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #7c3aed, 0 0 16px rgba(124,58,237,0.45); }
     11%  { box-shadow: 0 4px 14px rgba(0,0,0,0.85), 0 0 0 2px #160a2c, 0 0 0 3px #9b6bff, 0 0 30px rgba(124,58,237,0.95); }
@@ -99,7 +99,7 @@
     );
     mix-blend-mode: multiply;
   }
-  /* CTA / thank-you text layer — pale ghostly italic */
+  /* CTA / thank-you text layer, pale ghostly italic */
   #textLayer {
     position: absolute; inset: 0;
     display: flex;
@@ -190,10 +190,10 @@
 
 <script>
 // ============================================================
-// CONFIG  — Phasmophobia / ghost-hunt theme
+// CONFIG, Phasmophobia / ghost-hunt theme
 // ============================================================
 const CTA_TEXT   = "Follow = Random Game Effect";
-const PROMO_TEXT = "Hunt with us — aquilo.gg • Community Night";
+const PROMO_TEXT = "Hunt with us, aquilo.gg • Community Night";
 
 // URL params (preserved from template family + Phasmo extras)
 const params       = new URLSearchParams(location.search);
@@ -260,7 +260,7 @@ const MIN_FONT_SIZE  = 11;
 function resetTextSize() { $textInner.style.fontSize = ""; }
 
 // ============================================================
-// PHASMO PALETTE — paranormal purple / ghost-white
+// PHASMO PALETTE, paranormal purple / ghost-white
 // ============================================================
 const GP = {
   main:   { fill:"#9b6bff", line:"#2a1244", hi:"#e8e3ff", dim:"#5a2da0", glow:"#7c3aed" },
@@ -278,14 +278,14 @@ function drawScanlines(ctx, x, y, w, h, alpha) {
 }
 
 // ============================================================
-// PHASMOPHOBIA SPRITES — code-drawn ghost-hunt equipment + ghosts.
+// PHASMOPHOBIA SPRITES, code-drawn ghost-hunt equipment + ghosts.
 // Each fn draws an icon centered at the origin, spanning ~ +/-7.5u
 // where u = size/16. Color set `c` = {fill,line,hi,dim,glow}.
 // drawSprite() handles the 2.5D extrude, glow, and scanlines.
 // ============================================================
 function lineW(u, n) { return Math.max(1, u * n); }
 
-// 1) Spirit Box — handheld radio scanner: body, screen, antenna, speaker grille
+// 1) Spirit Box, handheld radio scanner: body, screen, antenna, speaker grille
 function drawSpiritBox(ctx, u, c) {
   ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // antenna (top-right, angled)
@@ -316,7 +316,7 @@ function drawSpiritBox(ctx, u, c) {
   ctx.beginPath(); ctx.arc(3.1*u, -3.0*u, 0.55*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 2) EMF Reader — handheld with 5 LED bars (green->red readout)
+// 2) EMF Reader, handheld with 5 LED bars (green->red readout)
 function drawEMF(ctx, u, c) {
   ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // body (rounded handheld)
@@ -343,7 +343,7 @@ function drawEMF(ctx, u, c) {
   }
 }
 
-// 3) Spirit / Ouija Board — board with arc of glyphs + planchette
+// 3) Spirit / Ouija Board, board with arc of glyphs + planchette
 function drawOuija(ctx, u, c) {
   ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // board (rounded plaque)
@@ -378,7 +378,7 @@ function drawOuija(ctx, u, c) {
   ctx.beginPath(); ctx.arc(0.6*u, -0.2*u, 0.45*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 4) Video Camera — camcorder body with night-vision lens + REC dot
+// 4) Video Camera, camcorder body with night-vision lens + REC dot
 function drawCamera(ctx, u, c) {
   ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // body
@@ -411,7 +411,7 @@ function drawCamera(ctx, u, c) {
   ctx.beginPath(); ctx.arc(-1.4*u, -2.0*u, 0.6*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 5) Crucifix — wooden cross with worn grain
+// 5) Crucifix, wooden cross with worn grain
 function drawCrucifix(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // vertical beam
@@ -432,7 +432,7 @@ function drawCrucifix(ctx, u, c) {
   ctx.beginPath(); ctx.arc(-0.9*u, -5.6*u, 0.5*u, 0, Math.PI*2); ctx.fill();
 }
 
-// 6) Flashlight — torch body with conical beam
+// 6) Flashlight, torch body with conical beam
 function drawFlashlight(ctx, u, c) {
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.line; ctx.lineWidth = lineW(u,0.6); ctx.lineJoin = "round";
   // barrel (angled down-left to up-right)
@@ -464,7 +464,7 @@ function drawFlashlight(ctx, u, c) {
   ctx.restore();
 }
 
-// 7) Wraith — floating cloaked ghost figure (drawn faint/translucent)
+// 7) Wraith, floating cloaked ghost figure (drawn faint/translucent)
 function drawWraith(ctx, u, c) {
   ctx.save();
   ctx.globalAlpha = 0.62; // translucent apparition
@@ -501,7 +501,7 @@ function drawWraith(ctx, u, c) {
   ctx.restore();
 }
 
-// 8) Apparition — faint floating spirit face/orb, very translucent
+// 8) Apparition, faint floating spirit face/orb, very translucent
 function drawApparition(ctx, u, c) {
   ctx.save();
   ctx.globalAlpha = 0.48; // very faint
@@ -512,7 +512,7 @@ function drawApparition(ctx, u, c) {
   g.addColorStop(1, "rgba(124,58,237,0)");
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(0, -0.5*u, 6.6*u, 0, Math.PI*2); ctx.fill();
-  // ghostly face — head outline
+  // ghostly face, head outline
   ctx.fillStyle = "rgba(232,227,255,0.55)";
   ctx.strokeStyle = c.glow; ctx.lineWidth = lineW(u,0.4); ctx.lineJoin = "round";
   ctx.beginPath();
@@ -577,7 +577,7 @@ function drawSprite(ctx, name, cx, cy, size, alpha, flash) {
   g.shadowBlur = u * 1.6;
   fn(g, u, flash ? GP.flash : GP.main);
   g.restore();
-  // scanlines — clipped to painted pixels only
+  // scanlines, clipped to painted pixels only
   g.save();
   g.globalCompositeOperation = "source-atop";
   g.globalAlpha = 0.16;
@@ -785,7 +785,7 @@ function drawFollowerCounter(alpha, now) {
 }
 
 // ============================================================
-// IDLE ANIMATIONS — sprite peek-up (round-robin)
+// IDLE ANIMATIONS, sprite peek-up (round-robin)
 // ============================================================
 let peekIndex = 0;
 function scheduleIdleEvent() {
@@ -1007,7 +1007,7 @@ function playFalloutAnim(done, freezeMs) {
 
   function seedManifest() {
     const cx = heroCX, cy = restCY;
-    // rising spirit wisps — drift upward, sway
+    // rising spirit wisps, drift upward, sway
     for (let i = 0; i < 26; i++) {
       wisps.push({
         x: cx + rand(-46, 46), y: cy + rand(-10, 24),
@@ -1017,7 +1017,7 @@ function playFalloutAnim(done, freezeMs) {
         life: 0, maxLife: rand(900, 1700), delay: randInt(0, 260),
       });
     }
-    // EMF sparks — sharp purple/white burst
+    // EMF sparks, sharp purple/white burst
     for (let i = 0; i < 28; i++) {
       const ang = rand(0, Math.PI * 2), spd = rand(3, 9);
       sparks.push({
@@ -1059,20 +1059,20 @@ function playFalloutAnim(done, freezeMs) {
     clearBarFX();
 
     if (t < PH.popIn[1]) {
-      // POP IN — spirit box bounces up
+      // POP IN, spirit box bounces up
       const p = pt(t, PH.popIn);
       const cy = spawnCY + (restCY - spawnCY) * easeOutBounce(p);
       drawSprite(aboveCtx, "spiritbox", heroCX, cy, heroSize, 1, false);
     }
     else if (t < PH.idle[1]) {
-      // IDLE — hover + subtle scan pulse
+      // IDLE, hover + subtle scan pulse
       const p = pt(t, PH.idle);
       const cy = restCY + Math.sin(p * Math.PI * 2) * 2;
       const pulse = 1 + Math.sin(p * Math.PI * 2) * 0.06;
       drawSprite(aboveCtx, "spiritbox", heroCX, cy, heroSize * pulse, 1, false);
     }
     else if (t < PH.charge[1]) {
-      // CHARGE — lights flicker hard, EMF reader spikes 1->5, dread shake ramps
+      // CHARGE, lights flicker hard, EMF reader spikes 1->5, dread shake ramps
       const p = pt(t, PH.charge);
       // hard erratic flicker: random dark cuts
       const flicker = (Math.sin(t*0.04) * 0.5 + 0.5);
@@ -1111,7 +1111,7 @@ function playFalloutAnim(done, freezeMs) {
       barCtx.fillRect(0, 0, barW, barH);
     }
     else if (t < PH.boom[1]) {
-      // BOOM — lights cut to dark, apparition fades in, camera FLASH burst
+      // BOOM, lights cut to dark, apparition fades in, camera FLASH burst
       const p = pt(t, PH.boom);
       if (!boomFired) { seedManifest(); boomFired = true; }
       if (!shookScreen) {
@@ -1123,7 +1123,7 @@ function playFalloutAnim(done, freezeMs) {
       aboveCtx.fillRect(0, 0, W, H);
       // ghost apparition emerging from dark
       drawGhostApparition(aboveCtx, heroCX, restCY - 4, 6.0, 0.4 + p*0.55, Math.sin(t*0.02)*2);
-      // camera FLASH — white strobe burst late in phase
+      // camera FLASH, white strobe burst late in phase
       if (p > 0.45) {
         const fp = (p - 0.45) / 0.55;
         const a = Math.sin(fp * Math.PI); // ramp up then down within the strobe
@@ -1135,12 +1135,12 @@ function playFalloutAnim(done, freezeMs) {
       updateAndDrawManifest(dtF, 1, t);
     }
     else if (t < PH.smoke[1]) {
-      // SMOKE — flashlight strobe sweep + ghost dissolves into wisps, EVIDENCE FOUND
+      // SMOKE, flashlight strobe sweep + ghost dissolves into wisps, EVIDENCE FOUND
       const p = pt(t, PH.smoke);
       // dark room
       aboveCtx.fillStyle = `rgba(4,3,9,${0.55 * (1-p*0.4)})`;
       aboveCtx.fillRect(0, 0, W, H);
-      // flashlight strobe sweep — a moving light cone
+      // flashlight strobe sweep, a moving light cone
       const sweepX = W * (0.15 + 0.7 * ((Math.sin(t*0.012) + 1) / 2));
       const strobe = (Math.floor(t / 70) % 2 === 0) ? 0.9 : 0.35;
       const beam = aboveCtx.createRadialGradient(sweepX, restCY-10, 6, sweepX, restCY-10, 130);
@@ -1165,7 +1165,7 @@ function playFalloutAnim(done, freezeMs) {
       aboveCtx.restore();
     }
     else if (t < PH.fadeEnd[1]) {
-      // FADE — quadratic fade to clean
+      // FADE, quadratic fade to clean
       const p = pt(t, PH.fadeEnd);
       const fade = (1 - p) * (1 - p);
       aboveCtx.fillStyle = `rgba(4,3,9,${0.3 * fade})`;
@@ -1223,7 +1223,7 @@ function playFalloutAnim(done, freezeMs) {
   }
 
   if (frozen) {
-    // Synchronous stepping driver — evolves particles up to freezeMs and draws
+    // Synchronous stepping driver, evolves particles up to freezeMs and draws
     // the final frame statically (no rAF), so a plain headless --screenshot
     // reliably captures any celebration phase.
     for (let tt = 0; tt <= freezeMs; tt += 16) frame(t0 + tt);
@@ -1339,7 +1339,7 @@ function connectTikfinity() {
 }
 
 // ============================================================
-// SHOT MODE — line up every sprite for a contact screenshot
+// SHOT MODE, line up every sprite for a contact screenshot
 // ============================================================
 function renderContactSheet() {
   stopIdleLoop();
@@ -1367,8 +1367,8 @@ if (SHOT_MODE === "mobs") {
   startIdleLoop();
 }
 // Screenshot helpers:
-//   ?fire=1            — auto-trigger a live follow after load (visual smoke-test)
-//   ?freeze=<phase>    — render ONE static celebration frame (popin|idle|charge|
+//   ?fire=1, auto-trigger a live follow after load (visual smoke-test)
+//   ?freeze=<phase>, render ONE static celebration frame (popin|idle|charge|
 //                        boom|smoke|fade), reliably captured by plain --screenshot
 if (params.get("fire")) {
   setTimeout(() => handleFollow(params.get("user") || "Hunter", ""), 60);
@@ -1379,7 +1379,7 @@ if (params.get("freeze")) {
   const ms = FREEZE_MS[params.get("freeze")] != null ? FREEZE_MS[params.get("freeze")] : 1820;
   playFalloutAnim(() => {}, ms);
 }
-// ?signshot=N — static render of the investigation journal sign
+// ?signshot=N, static render of the investigation journal sign
 if (params.get("signshot")) {
   stopIdleLoop();
   state.totalFollowers = parseInt(params.get("signshot"), 10) || 7;

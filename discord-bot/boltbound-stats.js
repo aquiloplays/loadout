@@ -1,9 +1,9 @@
-// Boltbound — per-user lifetime stat counters (RET-3).
+// Boltbound, per-user lifetime stat counters (RET-3).
 //
 // The achievements engine (achievements-d1.js) is stateless about
 // counts: the caller passes the *current cumulative* value and the
 // engine unlocks every def whose threshold is met. This module is that
-// source of truth — a small KV-backed counter bag the web match/pack
+// source of truth, a small KV-backed counter bag the web match/pack
 // paths bump, then hand to checkAndUnlock(). It also drives the
 // achievement gallery's progress bars.
 //

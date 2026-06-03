@@ -2,7 +2,7 @@
 //   • bot-guard.isBotPayload handles every shim shape
 //   • reset-user-data.resetUserData wipes the right prefixes +
 //     preserves the right ones
-//   • counting reset semantic — state.current = 0 → next expected = 1
+//   • counting reset semantic, state.current = 0 → next expected = 1
 //   • welcome.backfillJoinCounter seeds + respects existing tally
 //
 // Run from repo root:
@@ -48,7 +48,7 @@ function makeKv() {
 const GUILD = '1504103035951906883';
 
 // ── bot-guard ────────────────────────────────────────────────────
-console.log('— isBotPayload covers every shim shape');
+console.log('- isBotPayload covers every shim shape');
 {
   assert(isBotPayload({ author: { bot: true } }),       'author.bot:true');
   assert(isBotPayload({ isBot: true }),                 'isBot:true');
@@ -63,7 +63,7 @@ console.log('— isBotPayload covers every shim shape');
 }
 
 // ── reset-user-data ──────────────────────────────────────────────
-console.log('— resetUserData wipes economy + progression, preserves config');
+console.log('- resetUserData wipes economy + progression, preserves config');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   // Seed: user-facing economy (should be wiped) + config (should survive)
@@ -106,9 +106,8 @@ console.log('— resetUserData wipes economy + progression, preserves config');
   assert(r.summary['pxp:'].deleted >= 1, 'pxp delete >= 1');
 }
 
-console.log('— resetUserData refuses without confirm string at the handler layer');
-// (the handler layer checks confirm; the lib itself accepts opts —
-// confirm is the route guard, not the lib's. Asserting opts.includeGlobalPxp
+console.log('- resetUserData refuses without confirm string at the handler layer');
+// (the handler layer checks confirm; the lib itself accepts opts, // confirm is the route guard, not the lib's. Asserting opts.includeGlobalPxp
 // behaviour here instead.)
 {
   const env = { LOADOUT_BOLTS: makeKv() };
@@ -120,9 +119,9 @@ console.log('— resetUserData refuses without confirm string at the handler lay
 }
 
 // ── counting reset semantic ──────────────────────────────────────
-console.log('— counting fail resets state.current to 0 → next expected = 1');
+console.log('- counting fail resets state.current to 0 → next expected = 1');
 {
-  // Snapshot from aquilo/counting.js — confirms the reset-to-0 invariant
+  // Snapshot from aquilo/counting.js, confirms the reset-to-0 invariant
   // Clay asked for ("set the next number back to 1"). Reads the
   // function source to grep for the assignment so this test also
   // catches accidental drift to e.g. state.current = 1 in the future.
@@ -141,7 +140,7 @@ console.log('— counting fail resets state.current to 0 → next expected = 1')
 }
 
 // ── welcome backfillJoinCounter ──────────────────────────────────
-console.log('— backfillJoinCounter seeds when unset + skips when set');
+console.log('- backfillJoinCounter seeds when unset + skips when set');
 {
   const env = { LOADOUT_BOLTS: makeKv(), DISCORD_BOT_TOKEN: 'fake' };
   const realFetch = globalThis.fetch;
@@ -158,7 +157,7 @@ console.log('— backfillJoinCounter seeds when unset + skips when set');
 
   const r2 = await backfillJoinCounter(env, GUILD);
   eq(r2.ok, true, 're-run ok');
-  eq(r2.skipped, 'already-set', 'idempotent — second call skips');
+  eq(r2.skipped, 'already-set', 'idempotent, second call skips');
   eq(r2.value, 42, 'value echoed');
 
   const r3 = await backfillJoinCounter(env, GUILD, { force: true });
@@ -168,7 +167,7 @@ console.log('— backfillJoinCounter seeds when unset + skips when set');
 
 console.log('');
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

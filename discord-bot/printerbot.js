@@ -28,7 +28,7 @@ export async function ensurePrinterBotWebhook(env, guildId, channelId, name = DE
   if (!guildId)   return { ok: false, error: 'guild-id-required' };
   if (!channelId) return { ok: false, error: 'channel-id-required' };
 
-  // List existing webhooks in the channel — re-use one we already
+  // List existing webhooks in the channel, re-use one we already
   // own to keep the URL stable across re-runs.
   const listRes = await fetch(
     `https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/webhooks`,

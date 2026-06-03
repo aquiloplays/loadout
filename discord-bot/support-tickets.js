@@ -2,13 +2,13 @@
 //
 // Architecture per the spec:
 //   • A persistent "Open a Ticket" message in #support
-//     (1505948032187760640 for the Aquilo guild) — string-select picks
+//     (1505948032187760640 for the Aquilo guild), string-select picks
 //     a category, button opens a modal for {subject, description}.
 //   • On submit: bot creates a PRIVATE THREAD in #support
 //     (`PRIVATE_THREAD` type = 12) named `🎟 <category> · <subject>`
 //     and adds the requester + every Staff role member.
 //   • Bot posts the requester's submission as the first thread message
-//     plus a closing pill — staff use in-thread component buttons to
+//     plus a closing pill, staff use in-thread component buttons to
 //     close / assign / change priority / change category.
 //   • D1 is the source of truth for state (status / priority /
 //     assignee / category). The Discord thread holds the conversation
@@ -19,7 +19,7 @@
 //   tidy, inherit category permissions, and the PWA admin UI can
 //   render Discord-style threads natively.
 //
-// Categories — fixed catalogue (NOT per-guild configurable). The
+// Categories, fixed catalogue (NOT per-guild configurable). The
 // existing aquilo/tickets.js had per-guild types; v2 trades that
 // flexibility for a consistent cross-guild surface the PWA can map
 // to icons + colours without learning a per-guild config.
@@ -32,10 +32,10 @@
 // Each DM honours a per-staff toggle stored at KV
 //   `ticket-notify-opt-out:<userId>` (set to '1' to suppress).
 //
-// Auto-close: daily :23 cron sweep — tickets with no `ticket_messages`
+// Auto-close: daily :23 cron sweep, tickets with no `ticket_messages`
 // activity in 30 days flip to status='auto_closed' + send a DM to the
 // requester. Re-open via reply detected in thread MESSAGE_CREATE
-// (out of scope for v1 — manual /ticket reopen for now).
+// (out of scope for v1, manual /ticket reopen for now).
 
 import {
   STAFF_ROLE_ID_FALLBACK,
@@ -249,7 +249,7 @@ export function buildSupportPanelMessage() {
     embeds: [{
       title: '🎟️ Open a Ticket',
       description: [
-        '**Need help with something?** Pick a category below and click **Open Ticket** — a private thread will open here just for you and the staff team.',
+        '**Need help with something?** Pick a category below and click **Open Ticket**, a private thread will open here just for you and the staff team.',
         '',
         'Use a ticket for anything you\'d rather not share publicly: account issues, payment questions, bugs, mod requests, support, etc.',
         '',
@@ -274,7 +274,7 @@ export function buildSupportPanelMessage() {
           })),
         }],
       },
-      // Button is informational — pressing it without a category just
+      // Button is informational, pressing it without a category just
       // prompts the user. Actual flow is triggered by the select.
       {
         type: COMP_ROW,
@@ -320,7 +320,7 @@ export async function postOrRefreshSupportPanel(env, guildId, opts = {}) {
 
 // ── Component dispatch ───────────────────────────────────────
 
-// Single entry point — routes `st:*` custom_ids. Returns a Discord
+// Single entry point, routes `st:*` custom_ids. Returns a Discord
 // interaction response.
 export async function handleSupportTicketComponent(data, env) {
   const customId = data.data?.custom_id || '';
@@ -370,15 +370,15 @@ export async function handleSupportTicketComponent(data, env) {
   }
 
   if (customId === 'st:openhint') {
-    return ephemeral('Pick a category from the select menu first 👆 — then the **Open Ticket** modal will appear.');
+    return ephemeral('Pick a category from the select menu first 👆, then the **Open Ticket** modal will appear.');
   }
 
   // In-thread admin component buttons (close, resolve, priority,
-  // assign, category). Staff-only — checked inline via the cached
+  // assign, category). Staff-only, checked inline via the cached
   // Staff role id.
   const isStaffCheck = async () => {
     const staffId = await staffRoleId(env, guildId);
-    if (!staffId) return true;  // no staff role configured — fail open
+    if (!staffId) return true;  // no staff role configured, fail open
     const roles = data.member?.roles || [];
     return Array.isArray(roles) && roles.includes(staffId);
   };
@@ -391,7 +391,7 @@ export async function handleSupportTicketComponent(data, env) {
     const actorId = data.member?.user?.id || data.user?.id;
     const actorName = data.member?.user?.global_name || data.member?.user?.username || 'staff';
     const r = await resolveTicket(env, ticketId, { actorId, actorName });
-    if (!r.ok) return ephemeral(`Couldn\'t resolve — ${r.error}`);
+    if (!r.ok) return ephemeral(`Couldn\'t resolve, ${r.error}`);
     return ephemeral(`✅ Ticket #${ticketId} marked resolved.`);
   }
   if (customId.startsWith('st:reopen:')) {
@@ -410,7 +410,7 @@ export async function handleSupportTicketComponent(data, env) {
     const actorId = data.member?.user?.id || data.user?.id;
     const actorName = data.member?.user?.global_name || data.member?.user?.username || 'staff';
     const r = await setPriority(env, ticketId, choice, { actorId, actorName });
-    if (!r.ok) return ephemeral(`Couldn\'t set — ${r.error}`);
+    if (!r.ok) return ephemeral(`Couldn\'t set, ${r.error}`);
     await notifyThreadPriorityChange(env, ticketId, choice, actorId);
     return ephemeral(`🚦 Ticket #${ticketId} priority set to **${choice}**.`);
   }
@@ -427,7 +427,7 @@ export async function handleSupportTicketComponent(data, env) {
     const actorId = data.member?.user?.id || data.user?.id;
     const actorName = data.member?.user?.global_name || data.member?.user?.username || 'staff';
     const r = await setCategory(env, ticketId, choice, { actorId, actorName });
-    if (!r.ok) return ephemeral(`Couldn\'t recategorize — ${r.error}`);
+    if (!r.ok) return ephemeral(`Couldn\'t recategorize, ${r.error}`);
     await notifyThreadCategoryChange(env, ticketId, choice, actorId);
     return ephemeral(`🏷 Ticket #${ticketId} recategorized to **${categoryLabel(choice)}**.`);
   }
@@ -444,7 +444,7 @@ export async function handleSupportTicketComponent(data, env) {
     const actorId = data.member?.user?.id || data.user?.id;
     const actorName = data.member?.user?.global_name || data.member?.user?.username || 'staff';
     const r = await setAssignee(env, ticketId, assignee, { actorId, actorName });
-    if (!r.ok) return ephemeral(`Couldn\'t assign — ${r.error}`);
+    if (!r.ok) return ephemeral(`Couldn\'t assign, ${r.error}`);
     await sendAssigneeDM(env, ticketId, assignee, actorName);
     await notifyThreadAssignmentChange(env, ticketId, assignee, actorId);
     return ephemeral(`👤 Ticket #${ticketId} assigned to <@${assignee}>.`);
@@ -506,7 +506,7 @@ function categorySelectMenu(ticketId) {
   };
 }
 
-// User-select (component type 5) — Discord renders an in-line user
+// User-select (component type 5), Discord renders an in-line user
 // picker the staff can search. Snowflakes come back in data.values.
 function assignSelectMenu(ticketId) {
   return {
@@ -589,7 +589,7 @@ async function sendNewTicketStaffFanout(env, ticketId) {
       if (Array.isArray(m.roles) && m.roles.includes(staffId) && m.user?.id) {
         const dm = await sendDM(env, m.user.id, {
           embeds: [{
-            title: `🎟 New ${categoryLabel(t.category)} ticket — #${ticketId}`,
+            title: `🎟 New ${categoryLabel(t.category)} ticket, #${ticketId}`,
             description: [
               `**${t.subject}**`,
               '',
@@ -624,7 +624,7 @@ async function sendCloseDM(env, ticketId, closerName) {
         `Closed by: ${closerName || 'staff'}`,
         t.close_reason ? `Reason: ${String(t.close_reason).slice(0, 300)}` : '',
         '',
-        'Thanks for reaching out! If anything else comes up, open a new ticket in #support — staff are happy to help.',
+        'Thanks for reaching out! If anything else comes up, open a new ticket in #support, staff are happy to help.',
       ].filter(Boolean).join('\n'),
       color: 0x6e7588,
     }],
@@ -640,7 +640,7 @@ export async function postNewTicketModLog(env, ticketId) {
   if (!ch) return { skipped: 'no-mod-log' };
   await dapi(env, 'POST', `/channels/${ch}/messages`, {
     embeds: [{
-      title: `🎟 New ticket — #${ticketId} ${categoryEmoji(t.category)} ${categoryLabel(t.category)}`,
+      title: `🎟 New ticket, #${ticketId} ${categoryEmoji(t.category)} ${categoryLabel(t.category)}`,
       description: [
         `**${t.subject}**`,
         '',
@@ -728,12 +728,12 @@ export async function handleSupportTicketModal(data, env) {
     if (opened.error === 'too-many-open') {
       return ephemeral(`You already have ${opened.openCount} open ticket${opened.openCount === 1 ? '' : 's'} (max ${MAX_OPEN_PER_USER}). Close one to open another.`);
     }
-    return ephemeral(`Couldn\'t open the ticket — ${opened.error || 'unknown error'}.`);
+    return ephemeral(`Couldn\'t open the ticket, ${opened.error || 'unknown error'}.`);
   }
-  return ephemeral(`✅ Ticket #${opened.ticketId} opened — head to <#${opened.threadId}> to follow it. Staff are pinged.`);
+  return ephemeral(`✅ Ticket #${opened.ticketId} opened, head to <#${opened.threadId}> to follow it. Staff are pinged.`);
 }
 
-// ── Open a ticket — create thread + first message + state ─────
+// ── Open a ticket, create thread + first message + state ─────
 
 export async function openTicket(env, opts) {
   const { guildId, requesterUserId, requesterName, category, subject, description } = opts;
@@ -768,7 +768,7 @@ export async function openTicket(env, opts) {
   await dapi(env, 'PUT',
     `/channels/${threadId}/thread-members/${encodeURIComponent(requesterUserId)}`).catch(() => {});
 
-  // Add every Staff role member to the thread. Best-effort — if the
+  // Add every Staff role member to the thread. Best-effort, if the
   // role isn't configured we skip; if the API fails per-user we still
   // continue (staff can self-join via the parent channel visibility).
   const staffId = await staffRoleId(env, guildId);
@@ -778,7 +778,7 @@ export async function openTicket(env, opts) {
       const members = await dapi(env, 'GET',
         `/guilds/${encodeURIComponent(guildId)}/roles/${encodeURIComponent(staffId)}/members?limit=100`);
       // Discord's `/roles/:r/members` is gated behind a community-tier
-      // boost on some servers — fall back to a member list filter.
+      // boost on some servers, fall back to a member list filter.
       if (!members.ok || !Array.isArray(members.body)) {
         const all = await dapi(env, 'GET',
           `/guilds/${encodeURIComponent(guildId)}/members?limit=1000`);
@@ -811,11 +811,11 @@ export async function openTicket(env, opts) {
     category, subject, description, priority: 'normal',
   });
   if (!ticketId) {
-    // D1 failed but the thread exists — surface a partial-success.
+    // D1 failed but the thread exists, surface a partial-success.
     return { ok: false, error: 'd1-insert-failed', threadId };
   }
 
-  // Post the first message in the thread — the requester's bundle +
+  // Post the first message in the thread, the requester's bundle +
   // staff close button.
   const firstMsg = await postFirstThreadMessage(env, {
     ticketId,
@@ -840,7 +840,7 @@ export async function openTicket(env, opts) {
   });
 
   // Best-effort notifications fan-out. Doesn't block the success
-  // response — the requester's "ticket opened" ack lands instantly
+  // response, the requester's "ticket opened" ack lands instantly
   // and these run in the background.
   postNewTicketModLog(env, ticketId).catch(() => {});
   sendNewTicketStaffFanout(env, ticketId).catch(() => {});
@@ -853,7 +853,7 @@ async function postFirstThreadMessage(env, { ticketId, threadId, requesterUserId
   const payload = {
     content: mention + `New ${categoryLabel(category)} ticket from <@${requesterUserId}>.`,
     embeds: [{
-      title: `${categoryEmoji(category)} #${ticketId} — ${subject}`,
+      title: `${categoryEmoji(category)} #${ticketId}, ${subject}`,
       description,
       color: 0x7c5cff,
       fields: [
@@ -867,7 +867,7 @@ async function postFirstThreadMessage(env, { ticketId, threadId, requesterUserId
     }],
     components: adminControlRows(ticketId),
     allowed_mentions: {
-      // Ping the requester + the staff role only — never @everyone.
+      // Ping the requester + the staff role only, never @everyone.
       users: [String(requesterUserId)],
       roles: staffRoleId ? [String(staffRoleId)] : [],
     },
@@ -900,7 +900,7 @@ async function handleCloseComponent(data, env, customId) {
   const userId = data.member?.user?.id || data.user?.id;
   const username = data.member?.user?.global_name || data.member?.user?.username || 'staff';
   const r = await closeTicket(env, ticketId, { actorId: userId, actorName: username, reason: null });
-  if (!r.ok) return ephemeral(`Couldn\'t close — ${r.error || 'unknown error'}.`);
+  if (!r.ok) return ephemeral(`Couldn\'t close, ${r.error || 'unknown error'}.`);
   return ephemeral(`✅ Ticket #${ticketId} closed. Thread will archive shortly.`);
 }
 
@@ -910,7 +910,7 @@ async function handleReopenComponent(data, env, customId) {
   const userId = data.member?.user?.id || data.user?.id;
   const username = data.member?.user?.global_name || data.member?.user?.username || 'staff';
   const r = await reopenTicket(env, ticketId, { actorId: userId, actorName: username });
-  if (!r.ok) return ephemeral(`Couldn\'t reopen — ${r.error || 'unknown error'}.`);
+  if (!r.ok) return ephemeral(`Couldn\'t reopen, ${r.error || 'unknown error'}.`);
   return ephemeral(`✅ Ticket #${ticketId} reopened.`);
 }
 
@@ -925,12 +925,12 @@ export async function closeTicket(env, ticketId, opts = {}) {
     guildId: t.guild_id, kind: 'close', userId: opts.actorId || null, username: opts.actorName || null,
     content: opts.reason || null, meta: { reason: opts.reason || null },
   });
-  // PATCH the thread — archive + lock, update embed.
+  // PATCH the thread, archive + lock, update embed.
   await dapi(env, 'PATCH', `/channels/${t.thread_id}`, {
     archived: true, locked: true,
   }).catch(() => {});
   await dapi(env, 'POST', `/channels/${t.thread_id}/messages`, {
-    content: `🔒 Ticket closed by <@${opts.actorId || 'system'}>` + (opts.reason ? ` — _${opts.reason.slice(0, 200)}_` : '.'),
+    content: `🔒 Ticket closed by <@${opts.actorId || 'system'}>` + (opts.reason ? `, _${opts.reason.slice(0, 200)}_` : '.'),
     allowed_mentions: { parse: [] },
   }).catch(() => {});
   // DM the requester with the thanks copy.
@@ -1043,7 +1043,7 @@ function safeJson(s) { try { return JSON.parse(s); } catch { return null; } }
 // member's Discord user via a webhook impersonation (so the avatar +
 // username show as them, not the bot). Falls back to a plain bot
 // message when the channel doesn't have a webhook (or creating one
-// fails — Discord caps webhooks at 15 per channel).
+// fails, Discord caps webhooks at 15 per channel).
 //
 // Also mirrors to ticket_messages so the timeline shows the reply.
 export async function respondAsStaff(env, ticketId, opts) {
@@ -1164,7 +1164,7 @@ export async function autoCloseStaleTickets(env) {
             '',
             `It had no activity for ${STALE_THRESHOLD_DAYS} days, so it was auto-closed to keep the queue tidy.`,
             '',
-            'If you still need help, open a fresh ticket in #support — staff will be happy to pick it back up.',
+            'If you still need help, open a fresh ticket in #support, staff will be happy to pick it back up.',
           ].join('\n'),
           color: 0x6e7588,
         }],

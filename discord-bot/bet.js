@@ -1,4 +1,4 @@
-// Sports betting — bolts-denominated, ESPN-driven.
+// Sports betting, bolts-denominated, ESPN-driven.
 //
 // Pulls upcoming + recent games for NFL / NBA / MLB / NHL from ESPN's
 // public scoreboard endpoint (no auth, no key). The hourly cron at
@@ -70,7 +70,7 @@ function normalizeEvent(label, ev) {
   if (!home || !away) return null;
   const status = ev.status && ev.status.type;
   const odds = comp.odds && comp.odds[0];
-  // Moneyline pulled defensively — ESPN's payload shifts shape per
+  // Moneyline pulled defensively, ESPN's payload shifts shape per
   // sport. We accept either a top-level number or a nested {moneyLine}.
   function pickMoneyline(o) {
     if (!o) return null;
@@ -80,7 +80,7 @@ function normalizeEvent(label, ev) {
   }
   // Spread + total when ESPN publishes them (DraftKings / Caesars feed
   // depending on sport / time). `spread` is the line FROM HOME'S POV
-  // — a negative number means home is favoured by that many. `overUnder`
+  //, a negative number means home is favoured by that many. `overUnder`
   // is the combined game total.
   const spreadLine = (odds && typeof odds.spread === 'number') ? odds.spread : null;
   const overUnder  = (odds && typeof odds.overUnder === 'number') ? odds.overUnder : null;
@@ -240,7 +240,7 @@ export async function betCronTick(env) {
   let settled = 0;
   for (const gid of openIds) {
     const g = gamesById[gid];
-    if (!g) continue; // game not in current scoreboard window — leave for later
+    if (!g) continue; // game not in current scoreboard window, leave for later
     if (g.state !== 'post' || !g.completed) continue;
     const bets = await getOpenBets(env, gid);
     if (bets.length === 0) {
@@ -251,8 +251,7 @@ export async function betCronTick(env) {
     // (worker crash mid-loop, or post-settle putOpenBets throwing in
     // the old order) can't re-fire the earn()s. The catch-and-skip
     // inside the loop means a per-bet failure shortchanges that one
-    // bet rather than re-paying every other bet on the next tick —
-    // the only way the old order failed was when a successful earn
+    // bet rather than re-paying every other bet on the next tick, // the only way the old order failed was when a successful earn
     // was followed by a putOpenBets throw, which the cron then
     // replayed wholesale. Shortchange is operator-recoverable;
     // double-credit silently inflates the economy.
@@ -267,17 +266,17 @@ export async function betCronTick(env) {
           await earn(env, bet.guildId, bet.userId, result.payout, 'bet-win:' + gid);
           await recordSettled(env, bet, 'win', result.payout);
         } else {
-          // Loss — stake already debited at place time.
+          // Loss, stake already debited at place time.
           await recordSettled(env, bet, 'loss', 0);
         }
         settled++;
       } catch (e) {
-        console.warn('[bet] settle failed for bet', bet.betId, 'on game', gid, '—', (e && e.message) || e);
+        console.warn('[bet] settle failed for bet', bet.betId, 'on game', gid, '-', (e && e.message) || e);
       }
     }
   }
 
-  // Parlays — sweep every open ticket; settle when every leg has a
+  // Parlays, sweep every open ticket; settle when every leg has a
   // finished game in the cache. Each leg uses settleSoloBet against
   // its locked line/odds.
   const parlayIds = await listOpenParlayIds(env);
@@ -322,7 +321,7 @@ export async function betCronTick(env) {
       // Idempotency (audit fix): compute the final status + payout
       // and persist parlay.status to KV BEFORE calling earn(). The
       // L293 guard above sees status !== 'open' on the next cron
-      // tick and skips — no double-credit. Trade-off: a thrown
+      // tick and skips, no double-credit. Trade-off: a thrown
       // earn shortchanges the player (operator-recoverable) rather
       // than the old order's silent double-payout on retry. Layered
       // on top: reconcile's P1 progression event still fires on
@@ -353,7 +352,7 @@ export async function betCronTick(env) {
       await recordSettledParlay(env, parlay);
       await removeOpenParlayId(env, pid);
 
-      // PROGRESSION (P1) — parlay win XP. Non-fatal: a
+      // PROGRESSION (P1), parlay win XP. Non-fatal: a
       // progression-bus hiccup can't undo the parlay settlement.
       if (nextStatus === 'won') {
         try {
@@ -367,7 +366,7 @@ export async function betCronTick(env) {
       }
       parlaysSettled++;
     } catch (e) {
-      console.warn('[bet] parlay settle failed for', pid, '—', (e && e.message) || e);
+      console.warn('[bet] parlay settle failed for', pid, '-', (e && e.message) || e);
     }
   }
 
@@ -394,7 +393,7 @@ async function recordSettledParlay(env, parlay) {
 //
 // Each guild can bind a "sports feed" channel via /admin. Every cron
 // tick, identify games whose IDs are new to that guild's tracker and
-// post each as a fresh embed (NOT edit-in-place — feed is chronological).
+// post each as a fresh embed (NOT edit-in-place, feed is chronological).
 // Pings subscribers via allowed_mentions.users; batches at 100 mentions
 // per post per Discord cap.
 
@@ -478,7 +477,7 @@ async function postGameAnnouncement(env, channelId, g) {
 }
 
 function fmtOddsLocal(americanOdds) {
-  if (typeof americanOdds !== 'number') return '—';
+  if (typeof americanOdds !== 'number') return '-';
   return americanOdds > 0 ? '+' + americanOdds : String(americanOdds);
 }
 
@@ -517,7 +516,7 @@ async function recordSettled(env, bet, outcome, payout) {
     settledAt: Date.now(),
   });
   await putUserBets(env, bet.guildId, bet.userId, u);
-  // PROGRESSION (P1) — bet settlement XP (winning side only).
+  // PROGRESSION (P1), bet settlement XP (winning side only).
   try {
     if (outcome === 'win') {
       const { emitProgressionEvent } = await import('./progression/event-bus.js');
@@ -600,11 +599,11 @@ export async function handleBetAutocomplete(env, options) {
     .slice(0, 25);
   const choices = scored.map(({ g }) => {
     // Name max 100 chars; we stay well under. Time is the upstream
-    // ISO with seconds trimmed — local-time formatting belongs on
+    // ISO with seconds trimmed, local-time formatting belongs on
     // the renderer, not on the autocomplete label.
     const live = g.state === 'in' ? '[LIVE] ' : '';
     const name = (live + g.label + ': ' + (g.away.abbr || '?') + ' @ ' +
-                  (g.home.abbr || '?') + ' — ' + fmtTime(g.date)).slice(0, 100);
+                  (g.home.abbr || '?') + ', ' + fmtTime(g.date)).slice(0, 100);
     return { name, value: String(g.id) };
   });
   return { type: 8, data: { choices } };
@@ -640,7 +639,7 @@ function fmtBolts(n) {
 }
 
 function fmtOdds(americanOdds) {
-  if (typeof americanOdds !== 'number') return '—';
+  if (typeof americanOdds !== 'number') return '-';
   return americanOdds > 0 ? '+' + americanOdds : String(americanOdds);
 }
 
@@ -653,7 +652,7 @@ function fmtTime(iso) {
   return d.toISOString().replace('T', ' ').slice(0, 16) + 'Z';
 }
 
-// Discord dynamic timestamp — auto-localizes to the viewer's locale +
+// Discord dynamic timestamp, auto-localizes to the viewer's locale +
 // time zone. `:F` = "Monday, May 19, 2026 7:00 PM"; `:R` = "in 3
 // hours". Use this anywhere the output renders inside an embed body
 // or a regular message (it doesn't render inside code blocks or
@@ -689,7 +688,7 @@ export async function renderSportsList(env) {
     const tag = g.state === 'in' ? 'LIVE ' : '';
     // padStart on the away abbr + padEnd on the home abbr lines the `@`
     // up flush against both team names regardless of abbreviation
-    // length — much cleaner than the prior left-pad-only formatting.
+    // length, much cleaner than the prior left-pad-only formatting.
     const away = (g.away.abbr || '?').padStart(4);
     const home = (g.home.abbr || '?').padEnd(4);
     return (
@@ -747,10 +746,10 @@ export async function runPlaceJson(env, guildId, userId, args) {
 
   // Spread/total need the line to exist at place time so we can lock it.
   if (kind === 'spread' && typeof g.spread !== 'number') {
-    return { ok: false, error: 'no-line', message: 'No spread published for this game yet — try moneyline or wait for the line.' };
+    return { ok: false, error: 'no-line', message: 'No spread published for this game yet, try moneyline or wait for the line.' };
   }
   if (kind === 'total' && typeof g.overUnder !== 'number') {
-    return { ok: false, error: 'no-line', message: 'No game total published for this game yet — try moneyline or wait for the line.' };
+    return { ok: false, error: 'no-line', message: 'No game total published for this game yet, try moneyline or wait for the line.' };
   }
 
   const wallet = await getWallet(env, guildId, userId);
@@ -775,7 +774,7 @@ export async function runPlaceJson(env, guildId, userId, args) {
   if (kind === 'moneyline') {
     lockedOdds = side === 'home' ? g.home.odds : g.away.odds;
   } else if (kind === 'spread') {
-    // Lock the line FROM THIS BETTOR'S POV — for the home side we lock
+    // Lock the line FROM THIS BETTOR'S POV, for the home side we lock
     // g.spread; for the away side we flip the sign. That keeps the
     // settlement math kind-agnostic (homeScore + bet.line vs awayScore
     // → did our team cover?).
@@ -807,7 +806,7 @@ export async function runPlaceJson(env, guildId, userId, args) {
   open.push(bet);
   await putOpenBets(env, g.id, open);
 
-  // PROGRESSION (P1) — bet placed.
+  // PROGRESSION (P1), bet placed.
   try {
     const { emitProgressionEvent } = await import('./progression/event-bus.js');
     await emitProgressionEvent(env, {
@@ -873,7 +872,7 @@ function formatPlaceMessage(g, bet, projected) {
 
 // ── Parlays ──────────────────────────────────────────────────────────
 //
-// Multi-leg ticket. All legs must hit (or push — push legs are dropped
+// Multi-leg ticket. All legs must hit (or push, push legs are dropped
 // from the parlay rather than refunded; remaining legs still must hit).
 // Combined payout is the product of each leg's decimal-odds multiplier
 // minus the house-edge cut, all applied to the stake.
@@ -1001,7 +1000,7 @@ export async function runPlaceParlayJson(env, guildId, userId, args) {
       side,
       lockedOdds,
       lockedLine,
-      // Cosmetic snapshot — what the bettor saw at place time. Read-only
+      // Cosmetic snapshot, what the bettor saw at place time. Read-only
       // for the renderer.
       awayAbbr: g.away.abbr || null,
       homeAbbr: g.home.abbr || null,
@@ -1013,7 +1012,7 @@ export async function runPlaceParlayJson(env, guildId, userId, args) {
     });
   }
 
-  // Wallet checks against the SAME caps as a solo bet — parlays should
+  // Wallet checks against the SAME caps as a solo bet, parlays should
   // not give a way around them.
   const wallet = await getWallet(env, guildId, userId);
   const balance = wallet.balance || 0;
@@ -1067,7 +1066,7 @@ export async function runPlaceParlayJson(env, guildId, userId, args) {
     projectedPayout: projected,
     balance: newBalance,
     message:
-      '🎟 **' + legs.length + '-leg parlay** for ' + fmtBolts(stake) + ' bolts — ' +
+      '🎟 **' + legs.length + '-leg parlay** for ' + fmtBolts(stake) + ' bolts, ' +
       mult.toFixed(2) + '× combined. If all legs hit you take **' + fmtBolts(projected) + ' bolts**.',
   };
 }
@@ -1163,7 +1162,7 @@ export async function renderHistory(env, guildId, userId) {
   return '**Last ' + hist.length + ' settled bets**\n```\n' + rows.join('\n') + '\n```';
 }
 
-// PROGRESSION (P2) — betting headline. Account-wide.
+// PROGRESSION (P2), betting headline. Account-wide.
 export async function getStatsFor(env, userId, _guildId = null) {
   let active = 0, settled = 0, wins = 0, losses = 0, totalStaked = 0, totalWon = 0;
   let cursor;

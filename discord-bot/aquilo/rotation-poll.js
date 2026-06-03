@@ -1,4 +1,4 @@
-// Rotation widget — pre-stream poll with live reaction tallies.
+// Rotation widget, pre-stream poll with live reaction tallies.
 //
 // Pairs with the widget-side D2 (rotation/src/discord-prestream-poll.js):
 // the widget can post a poll via webhook, but webhooks can't READ
@@ -19,7 +19,7 @@
 //                           buttons stay live (reactions are buttons!)
 //                           but the embed now shows the winner.
 //
-// HTTP routes: none — this whole flow is bot-side.
+// HTTP routes: none, this whole flow is bot-side.
 //
 // Cron: the existing hourly handler in worker.js calls
 // runScheduledRotationPoll(env). If a poll is open, fetch every
@@ -75,7 +75,7 @@ function buildPollEmbed(poll) {
   const lines = poll.options.map(o => {
     const c = poll.tallies?.[o.emoji] || 0;
     const isWinner = closed && o.emoji === winnerEmoji;
-    return `${isWinner ? '🏆 ' : ''}${o.emoji}  **${o.label}** — ${c} vote${c === 1 ? '' : 's'}`;
+    return `${isWinner ? '🏆 ' : ''}${o.emoji}  **${o.label}**, ${c} vote${c === 1 ? '' : 's'}`;
   });
 
   return {
@@ -110,8 +110,8 @@ async function handleRotationPollNew(env, data, opts) {
   if (!channelId) return ephemeral('Couldn\'t resolve a channel to post in.');
 
   const title   = String(opts.title || '').trim() || '🎶 Pre-stream vibe check';
-  const message = String(opts.message || '').trim() || 'React with the matching emoji to vote — I\'ll factor it in when queuing music.';
-  // Up to 5 options — gathered as option1..option5 each in form
+  const message = String(opts.message || '').trim() || 'React with the matching emoji to vote, I\'ll factor it in when queuing music.';
+  // Up to 5 options, gathered as option1..option5 each in form
   // "<emoji> <label>" (single space separator).
   const options = [];
   for (const k of ['option1', 'option2', 'option3', 'option4', 'option5']) {
@@ -120,7 +120,7 @@ async function handleRotationPollNew(env, data, opts) {
     const m = v.match(/^(\S+)\s+(.+)$/);
     if (!m) {
       return ephemeral(
-        `Option "${v}" is malformed — use \`<emoji> <label>\` (e.g. \`🔥 Hype / energy\`). The first whitespace-separated token is the emoji.`
+        `Option "${v}" is malformed, use \`<emoji> <label>\` (e.g. \`🔥 Hype / energy\`). The first whitespace-separated token is the emoji.`
       );
     }
     options.push({ emoji: m[1], label: m[2].slice(0, 80) });
@@ -128,7 +128,7 @@ async function handleRotationPollNew(env, data, opts) {
   if (options.length < 2) return ephemeral('Pass at least 2 options (`option1` + `option2`).');
 
   // Replace any open poll. The previous poll's message in Discord is
-  // left alone — its reactions still work but the cron refresh stops
+  // left alone, its reactions still work but the cron refresh stops
   // touching it (KV only tracks the current one).
   const poll = {
     title,
@@ -173,14 +173,14 @@ async function handleRotationPollClose(env, data) {
   return ephemeral('🔒 Poll closed and final tallies posted.');
 }
 
-// ---------- Cron entry — refresh tallies hourly ----------
+// ---------- Cron entry, refresh tallies hourly ----------
 
 export async function runScheduledRotationPoll(env) {
   const poll = await loadPoll(env);
   if (!poll || poll.closedAt) return;   // nothing to refresh
   try {
     const changed = await refreshTallies(env, poll);
-    if (!changed) return;   // no new votes since last refresh — skip the PATCH
+    if (!changed) return;   // no new votes since last refresh, skip the PATCH
     await editChannelMessage(env, poll.channelId, poll.messageId, { embeds: [buildPollEmbed(poll)] });
     await savePoll(env, poll);
   } catch (e) {

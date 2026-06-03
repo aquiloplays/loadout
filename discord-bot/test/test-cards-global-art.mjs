@@ -1,4 +1,4 @@
-// Unit tests for cards-global-art.js — the global default art layer.
+// Unit tests for cards-global-art.js, the global default art layer.
 
 import {
   isHostAllowed, getGlobalArt, setGlobalArt, clearGlobalArt,
@@ -33,7 +33,7 @@ function makeKv() {
   };
 }
 
-console.log('— isHostAllowed');
+console.log('- isHostAllowed');
 {
   assert(isHostAllowed('https://media.giphy.com/foo.gif'),        'giphy https → ok');
   assert(isHostAllowed('https://media.tenor.com/x.gif'),          'tenor https → ok');
@@ -44,7 +44,7 @@ console.log('— isHostAllowed');
   assert(!isHostAllowed('not-a-url'),                              'malformed → reject');
 }
 
-console.log('— setGlobalArt + getGlobalArt');
+console.log('- setGlobalArt + getGlobalArt');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   // Use a cardId that exists in the catalogue.
@@ -89,7 +89,7 @@ console.log('— setGlobalArt + getGlobalArt');
   eq(got.source, 'giphy',                                     'source roundtrip');
 }
 
-console.log('— clearGlobalArt');
+console.log('- clearGlobalArt');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const cid = 'champ.mage';
@@ -99,7 +99,7 @@ console.log('— clearGlobalArt');
   assert(!(await getGlobalArt(env, cid)), 'post-clear: absent');
 }
 
-console.log('— bulkSetGlobalArt');
+console.log('- bulkSetGlobalArt');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   const items = [
@@ -116,16 +116,16 @@ console.log('— bulkSetGlobalArt');
 
   // Re-run without force: existing entries skip.
   const r2 = await bulkSetGlobalArt(env, items.slice(0, 2));
-  eq(r2.set, 0,       'second pass — none set');
-  eq(r2.skipped, 2,   'second pass — both skipped');
+  eq(r2.set, 0,       'second pass, none set');
+  eq(r2.skipped, 2,   'second pass, both skipped');
 
   // Re-run with force: existing entries overwrite.
   const r3 = await bulkSetGlobalArt(env, items.slice(0, 2), { force: true });
-  eq(r3.set, 2,       'force pass — both set');
-  eq(r3.skipped, 0,   'force pass — none skipped');
+  eq(r3.set, 2,       'force pass, both set');
+  eq(r3.skipped, 0,   'force pass, none skipped');
 }
 
-console.log('— listAllGlobalArt');
+console.log('- listAllGlobalArt');
 {
   const env = { LOADOUT_BOLTS: makeKv() };
   await setGlobalArt(env, 'champ.warrior', { url: 'https://media.giphy.com/w.gif' });
@@ -137,5 +137,5 @@ console.log('— listAllGlobalArt');
 }
 
 console.log('');
-console.log(`PASSED — ${pass} ok / ${fail} failed`);
+console.log(`PASSED, ${pass} ok / ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

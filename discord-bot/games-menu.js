@@ -1,14 +1,14 @@
-// Games menu — the pinned message in #games (channel 1507973935973531808
+// Games menu, the pinned message in #games (channel 1507973935973531808
 // for the Aquilo guild) that surfaces every Loadout game entry point
 // as buttons. Each click opens an ephemeral with the existing per-game
-// menu — no logic duplication.
+// menu, no logic duplication.
 //
 // Why this exists (Clay 2026-05-28):
 //   Slash commands clutter Discord's autocomplete and force viewers to
 //   memorise 15+ incantations (/boltbound, /clash, /play, /campaign,
 //   …). Collapsing them into a single pinned message gives one
 //   discoverable entry point. The slashes that backed these flows are
-//   now `default_member_permissions: '0'` — admins can still run them
+//   now `default_member_permissions: '0'`, admins can still run them
 //   for testing, viewers get the menu.
 //
 // Routing:
@@ -19,7 +19,7 @@
 //   their own private window.
 //
 // Admin lifecycle:
-//   POST /admin/games-menu/post/:guildId — creates (or refreshes) the
+//   POST /admin/games-menu/post/:guildId, creates (or refreshes) the
 //   pinned message. Idempotent: reuses the existing message id from
 //   `games-menu:msg:<gid>` KV, falls back to posting fresh if the
 //   message was deleted. Also pins the new message + un-pins the
@@ -48,47 +48,47 @@ function row(...children) {
   return { type: COMP_ROW, components: children };
 }
 
-// The pinned message payload. Keep it stable — re-posts reuse the
+// The pinned message payload. Keep it stable, re-posts reuse the
 // same shape so subscribers/embed-cache stays consistent.
 export function pinnedMessage() {
   return {
     embeds: [{
       title: '🎮 Aquilo Games',
       description: [
-        'Welcome to the games hub. Each button opens its own private window — only you see it.',
+        'Welcome to the games hub. Each button opens its own private window, only you see it.',
         '',
-        '🃏 **Boltbound** — async card battler with weekly drafts.',
-        '⚔️ **Clash** — communal town builder + raids.',
-        '🎲 **Quick games** — blackjack, hilo, mines, dice — bet Bolts.',
-        '📜 **Campaign** — AI-DM\'d one-shot D&D with friends.',
-        '🐱 **Pet** — Patreon cosmetic pet + tamagotchi care loop.',
+        '🃏 **Boltbound**, async card battler with weekly drafts.',
+        '⚔️ **Clash**, communal town builder + raids.',
+        '🎲 **Quick games**, blackjack, hilo, mines, dice, bet Bolts.',
+        '📜 **Campaign**, AI-DM\'d one-shot D&D with friends.',
+        '🐱 **Pet**, Patreon cosmetic pet + tamagotchi care loop.',
         '',
-        '🦸 **Hero / Character** — class, gear, profile.',
-        '🛒 **Shop** — spend Bolts on cosmetics + buffs.',
-        '🌐 **Hub** — viewer leaderboards + stocks + bets.',
+        '🦸 **Hero / Character**, class, gear, profile.',
+        '🛒 **Shop**, spend Bolts on cosmetics + buffs.',
+        '🌐 **Hub**, viewer leaderboards + stocks + bets.',
       ].join('\n'),
       color: 0x7c5cff,
-      footer: { text: 'Tap a button — your menu opens privately.' },
+      footer: { text: 'Tap a button, your menu opens privately.' },
     }],
     components: [
-      // Row 1 — flagship games (primary style)
+      // Row 1, flagship games (primary style)
       row(
         button('🃏 Boltbound',      'gm:boltbound',  STYLE_PRIMARY),
         button('⚔️ Clash',          'gm:clash',      STYLE_PRIMARY),
         button('🎲 Quick games',    'gm:play',       STYLE_PRIMARY),
       ),
-      // Row 2 — narrative + sim
+      // Row 2, narrative + sim
       row(
         button('📜 Campaign',       'gm:campaign',   STYLE_SUCCESS),
         button('🐱 Pet',            'gm:pet',        STYLE_SUCCESS),
       ),
-      // Row 3 — character + economy
+      // Row 3, character + economy
       row(
         button('🦸 Hero',           'gm:hero',       STYLE_SECONDARY),
         button('👤 Character',      'gm:character',  STYLE_SECONDARY),
         button('🛒 Shop',           'gm:shop',       STYLE_SECONDARY),
       ),
-      // Row 4 — supporting hubs
+      // Row 4, supporting hubs
       row(
         button('💼 Loadout',        'gm:loadout',    STYLE_SECONDARY),
         button('🌐 Hub',            'gm:hub',        STYLE_SECONDARY),
@@ -101,7 +101,7 @@ export function pinnedMessage() {
 // ── Component dispatch ──────────────────────────────────────────────
 //
 // Each button click ACK's as a fresh ephemeral message (RESP_CHAT +
-// FLAG_EPHEMERAL), NOT an UPDATE — the pinned message stays put as
+// FLAG_EPHEMERAL), NOT an UPDATE, the pinned message stays put as
 // the next viewer's entry point.
 //
 // We forward the click to each game's existing slash handler with a
@@ -152,7 +152,7 @@ export async function handleGamesMenuComponent(data, env, ctx) {
         return forceEphemeral(r);
       }
       case 'loadout': {
-        // Loadout's home menu — wallet / daily / games / profile.
+        // Loadout's home menu, wallet / daily / games / profile.
         // Viewers navigate inside via lo:* buttons.
         const { renderLoadoutCommand } = await import('./loadout-menu.js');
         const r = await renderLoadoutCommand(env, guildId, userId, userName);
@@ -174,7 +174,7 @@ export async function handleGamesMenuComponent(data, env, ctx) {
   } catch (e) {
     console.warn('[games-menu]', key, e?.message || e);
     return FALLBACK_EPHEM(
-      `Sorry — \`${key}\` errored. Try again in a moment, or ping a mod.`,
+      `Sorry, \`${key}\` errored. Try again in a moment, or ping a mod.`,
     );
   }
 }
@@ -203,7 +203,7 @@ function forceEphemeral(resp) {
 //                            instead of double-posting.
 //
 // Idempotent. Safe to re-run after a deploy that changed the menu
-// shape — the PATCH lands the new embed + components.
+// shape, the PATCH lands the new embed + components.
 
 const KV_PIN = (gid) => `games-menu:msg:${gid}`;
 const DEFAULT_CHANNEL_ID = '1507973935973531808';   // #games in the Aquilo guild
@@ -242,7 +242,7 @@ export async function postOrRefreshGamesMenu(env, guildId, opts = {}) {
     if (upd.ok) {
       return { ok: true, action: 'patched', channelId, messageId: prior.messageId };
     }
-    // 404 means the user deleted it — fall through to fresh post.
+    // 404 means the user deleted it, fall through to fresh post.
     if (upd.status !== 404) {
       return { ok: false, error: 'patch-failed', status: upd.status, body: upd.body };
     }
@@ -257,7 +257,7 @@ export async function postOrRefreshGamesMenu(env, guildId, opts = {}) {
   const messageId = post.body?.id;
   await env.LOADOUT_BOLTS.put(KV_PIN(guildId), JSON.stringify({ channelId, messageId }));
 
-  // Pin it (best-effort — pinning fails silently if Discord caps the
+  // Pin it (best-effort, pinning fails silently if Discord caps the
   // channel's pin list at 50). un-pin the prior one first so we don't
   // accumulate stale pins.
   if (prior?.channelId === channelId && prior?.messageId) {

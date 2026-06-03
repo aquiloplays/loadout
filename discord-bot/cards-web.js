@@ -1,4 +1,4 @@
-// Boltbound — /web/boltbound/* + /ext/boltbound/* route handlers.
+// Boltbound, /web/boltbound/* + /ext/boltbound/* route handlers.
 //
 // Authoritative game logic lives in cards-*.js. This module is the
 // thin web glue: bootstrap one read for the page-load surface
@@ -197,7 +197,7 @@ async function routeState(env, guildId, userId) {
   const { listAllGlobalArt }     = await import('./cards-global-art.js');
   const { listAllPixelArtMaps }  = await import('./pixel-art-maps.js');
 
-  // 2026-05-30 — per-user meme-skin override feature removed. The
+  // 2026-05-30, per-user meme-skin override feature removed. The
   // bootstrap no longer reads cards-art-override or includes an
   // `artOverrides` map. globalArt + pixelArtMaps remain as the only
   // art-override layers. The cards-art-override.js module stays on
@@ -212,7 +212,7 @@ async function routeState(env, guildId, userId) {
     hasClaimedFreePackToday(env, guildId, userId),
     getFragments(env, userId),
     listAllGlobalArt(env),
-    // 2026-05-29 asset overhaul P3-P6 — four new globalArt sibling
+    // 2026-05-29 asset overhaul P3-P6, four new globalArt sibling
     // maps (hero / gear / clash / pet). Cheap: 4 parallel KV list
     // calls, no per-key GETs (URLs are deterministic from key names).
     listAllPixelArtMaps(env),
@@ -220,7 +220,7 @@ async function routeState(env, guildId, userId) {
 
   const activeMatch = await getActiveMatch(env, guildId, userId);
   const matchView = activeMatch ? renderableState(activeMatch, userId) : null;
-  // RET-8 — per-card dust balance for the crafting surface.
+  // RET-8, per-card dust balance for the crafting surface.
   const dustBalance = await getDust(env, userId);
 
   // Which sets are live right now (KV-overridable). The site filters the
@@ -258,19 +258,19 @@ async function routeState(env, guildId, userId) {
     wallet: { balance: wallet.balance || 0 },
     dust: dustBalance,
     freePackClaimedToday: !!freeClaimed,
-    // CR-1 — fragment balance + craft economy constants. Page can
+    // CR-1, fragment balance + craft economy constants. Page can
     // render the "Craft Pack" CTA + balance chip without follow-up.
     fragments: {
       balance: fragments || 0,
       recycleYield: RECYCLE_YIELD,
       craftCost: CRAFT_COST,
     },
-    // 2026-05-30 — `artOverrides` removed alongside the meme-skin
+    // 2026-05-30, `artOverrides` removed alongside the meme-skin
     // feature pull. Site renderer precedence is now just:
     //   gifUrl = globalArt[cardId] || baked
-    // Global card-art defaults — backfilled via the Giphy auto-match.
+    // Global card-art defaults, backfilled via the Giphy auto-match.
     globalArt,
-    // 2026-05-29 asset overhaul P3-P6 — pixel-art maps for hero,
+    // 2026-05-29 asset overhaul P3-P6, pixel-art maps for hero,
     // gear, clash, and pet renderers. Same precedence pattern as
     // globalArt: site renderer checks the map first, falls back to
     // baked sprite on a miss. See pixel-art-maps.js for shape.
@@ -279,7 +279,7 @@ async function routeState(env, guildId, userId) {
   });
 }
 
-// Card catalogue — public read-only (no per-viewer state). Cached on
+// Card catalogue, public read-only (no per-viewer state). Cached on
 // the worker side via a long s-maxage so the page-load fetch is cheap.
 async function routeCatalogue() {
   const cards = Object.fromEntries(
@@ -289,7 +289,7 @@ async function routeCatalogue() {
       keywords: c.keywords, text: c.text, token: c.token,
       needsTarget: c.needsTarget,
       spriteId: c.spriteId,
-      // CR-2 expansion fields — drive set badges/filters + the flavour
+      // CR-2 expansion fields, drive set badges/filters + the flavour
       // line + the keyword tooltip layer on the site.
       set: c.set || 'core',
       tribe: c.tribe || null,
@@ -307,12 +307,12 @@ async function routeCatalogue() {
   });
 }
 
-// Expansion-set gallery — released + upcoming sets with live card counts,
+// Expansion-set gallery, released + upcoming sets with live card counts,
 // countdowns, theme/palette, and mechanics. Public read-only. Also the
 // trigger point for the one-shot "new expansion" Discord announcement:
 // when a player loads the gallery and a set is newly released but not yet
 // announced, we fire it once (dedup'd in KV). It posts ONLY if a channel
-// is actually bound — never to a guessed channel.
+// is actually bound, never to a guessed channel.
 async function routeSets(env, guildId, userId) {
   const now = Date.now();
   // Live per-set pullable counts from the catalogue.
@@ -322,7 +322,7 @@ async function routeSets(env, guildId, userId) {
     const s = c.set || 'core';
     counts[s] = (counts[s] || 0) + 1;
   }
-  // Effective release times honour the KV admin overrides — a set Clay
+  // Effective release times honour the KV admin overrides, a set Clay
   // flipped live reads released:true here even though the registry date
   // is still the far-future placeholder.
   const eff = await listEffectiveReleases(env);
@@ -381,7 +381,7 @@ export async function announceExpansionReleaseOnce(env, guildId, setId) {
     channelId = await getChannelBinding(env, guildId, 'game-updates')
              || await getChannelBinding(env, guildId, 'play');
   } catch { channelId = null; }
-  if (!channelId || !env.DISCORD_BOT_TOKEN) return;   // nothing bound — stay quiet
+  if (!channelId || !env.DISCORD_BOT_TOKEN) return;   // nothing bound, stay quiet
 
   const embed = {
     title: `NEW: ${s.name} is here`,
@@ -399,7 +399,7 @@ export async function announceExpansionReleaseOnce(env, guildId, setId) {
       content: `A new Boltbound set just dropped. Open a **${s.name}** pack at https://aquilo.gg/play/boltbound/sets`,
       embeds: [embed],
     });
-  } catch { /* non-fatal — the flag already prevents retries */ }
+  } catch { /* non-fatal, the flag already prevents retries */ }
 }
 
 async function routeDecksSave(env, guildId, userId, body) {
@@ -433,7 +433,7 @@ async function routeDecksStarter(env, guildId, userId) {
   return json(r);
 }
 
-// POST /web/boltbound/starter-deck — one-click "Get a starter deck" CTA
+// POST /web/boltbound/starter-deck, one-click "Get a starter deck" CTA
 // for players with no deck. Idempotent: if the player already has any
 // saved deck, returns it untouched. Otherwise grants a weak, balanced
 // 20-card starter (champion + 19 cards, ~70/25/5 common/uncommon/rare,
@@ -441,7 +441,7 @@ async function routeDecksStarter(env, guildId, userId) {
 // ACTIVE. The deck is fully editable later via the normal deck builder.
 const STARTER_CLASSES = ['warrior', 'mage', 'rogue', 'ranger', 'healer'];
 async function routeStarterDeck(env, guildId, userId) {
-  // Idempotent — already has a deck → return it, no changes.
+  // Idempotent, already has a deck → return it, no changes.
   const existing = await listDeckSummaries(env, guildId, userId);
   if (existing && existing.length) {
     const activeId = await getActiveDeckId(env, guildId, userId);
@@ -451,7 +451,7 @@ async function routeStarterDeck(env, guildId, userId) {
   const cls = STARTER_CLASSES[Math.floor(Math.random() * STARTER_CLASSES.length)];
   const { deck, grantIds } = buildPoolStarterDeck(cls);
   // Grant the 19 cards so saveDeck's ownership check passes (these are
-  // the player's starter collection — editable/disenchantable later).
+  // the player's starter collection, editable/disenchantable later).
   await addCardsToCollection(env, guildId, userId, grantIds);
   const r = await saveDeck(env, guildId, userId, deck, cls);
   if (!r.ok) return json(r, 400);
@@ -471,7 +471,7 @@ async function routePacksOpen(env, guildId, userId, body) {
   const packId = String((body && body.packId) || '');
   if (!packId) return json({ ok: false, error: 'bad-pack' }, 400);
   const r = await openPack(env, guildId, userId, packId);
-  // RET-3 — pack-open count drives the 'Pack Rat' achievement line.
+  // RET-3, pack-open count drives the 'Pack Rat' achievement line.
   if (r && r.ok) {
     try {
       const stats = await recordPackOpen(env, userId, 1);
@@ -538,8 +538,7 @@ async function routeMatchAction(env, guildId, userId, body) {
     const targetUid = (t === null || t === undefined || t === '') ? null : String(t);
     action = { kind: 'playCard', handIdx, targetUid };
     playedCardId = (m.hands[side] && m.hands[side][handIdx]) || null;
-    // CR-2 pick-one mechanics (Choose One / Adapt / Discover). Optional —
-    // the resolver falls back to a seeded default when absent.
+    // CR-2 pick-one mechanics (Choose One / Adapt / Discover). Optional, // the resolver falls back to a seeded default when absent.
     if (Number.isInteger(+body.chooseOption))   action.chooseOption   = +body.chooseOption;
     if (Number.isInteger(+body.adaptChoice))    action.adaptChoice    = +body.adaptChoice;
     if (Number.isInteger(+body.discoverChoice)) action.discoverChoice = +body.discoverChoice;
@@ -557,7 +556,7 @@ async function routeMatchAction(env, guildId, userId, body) {
     return json({ ok: false, error: 'bad-kind' });
   }
   const r = await takeAction(env, m, side, action);
-  // RET-2 — Boltbound daily-quest progress for web matches. Best-effort;
+  // RET-2, Boltbound daily-quest progress for web matches. Best-effort;
   // a tracking failure must never block the action response.
   try {
     if (r.ok && kind === 'play' && playedCardId) {
@@ -571,7 +570,7 @@ async function routeMatchAction(env, guildId, userId, body) {
       await progressBoltbound(env, userId, 'play', 1);
       const won = r.match.status === (side === 'A' ? 'A-won' : 'B-won');
       if (won) await progressBoltbound(env, userId, 'win', 1);
-      // RET-3 — lifetime stats + achievement unlocks.
+      // RET-3, lifetime stats + achievement unlocks.
       const hero = await loadHero(env, guildId, userId).catch(() => null);
       const stats = await recordMatchEnd(env, userId, won, hero && hero.className);
       for (const ev of triggerEvents(stats)) await checkAndUnlock(env, userId, ev);
@@ -585,7 +584,7 @@ async function routeMatchMulligan(env, guildId, userId, body) {
   const side = sideOf(m, userId);
   if (!side) return json({ ok: false, error: 'not-in-match' });
   const keep = Array.isArray(body?.keep) ? body.keep.map(Number).filter(n => Number.isInteger(n) && n >= 0) : [];
-  // The handIndices param to takeMulligan is "indices to redraw" — caller
+  // The handIndices param to takeMulligan is "indices to redraw", caller
   // passes "keep"; we invert to "redraw everything not in keep".
   const handSize = m.hands[side].length;
   const redraw = [];
@@ -611,7 +610,7 @@ async function routeLog(env, guildId, userId) {
 // Stored on the per-user profile in KV under a `boltbound` sub-object so
 // the chosen arena + shuffle flag follow the player across devices. The
 // client treats localStorage as the fast local source of truth and uses
-// these endpoints purely to hydrate/persist cross-device — so a missing
+// these endpoints purely to hydrate/persist cross-device, so a missing
 // value or a never-deployed worker degrades to "local only", never an
 // error path the UI surfaces.
 
@@ -788,7 +787,7 @@ async function routeAchievementsMe(env, guildId, userId) {
 
 // ── RET-4: ranked ladder ────────────────────────────────────────────
 //
-// Reads only — the ladder mutates server-side on PvP match finalise
+// Reads only, the ladder mutates server-side on PvP match finalise
 // (cards-match.js → applyRankedResult). `me` returns current rank +
 // season countdown; `leaderboard` is the season's top 100.
 
@@ -854,7 +853,7 @@ async function routeRoomCancel(env, guildId, userId) {
 
 async function routeDeckShare(env, guildId, userId, body) {
   const b = body || {};
-  // Common path: share a SAVED deck by id — resolve its cards +
+  // Common path: share a SAVED deck by id, resolve its cards +
   // champion here so the site only sends { deckId, name, archetype }.
   // Falls through to explicit `cards` (deck-code import sharing).
   if (b.deckId && !Array.isArray(b.cards)) {
@@ -897,7 +896,7 @@ async function routeCardsCraft(env, guildId, userId, body) {
 
 // ── Trade routes ───────────────────────────────────────────────────
 //
-// Auth is already enforced upstream by web.js (HMAC) — `userId` here
+// Auth is already enforced upstream by web.js (HMAC), `userId` here
 // is the signed-in viewer, used as the actor for every trade action.
 // The HTTP-level `discordId` becomes the proposer (propose), the
 // acceptor/decliner (accept/decline), or the canceller (cancel).
@@ -982,7 +981,7 @@ async function routeTradeCollection(env, guildId, userId, body) {
 
 // Send a Discord DM to the trade recipient. Mirrors the format used
 // elsewhere (LFG / friend requests). Respects per-user push prefs
-// the same way /push/dm does — if the recipient opted out of DMs
+// the same way /push/dm does, if the recipient opted out of DMs
 // or specifically opted out of kind='boltbound-trade-offer', the
 // notification is silently skipped.
 async function notifyRecipient(env, trade) {

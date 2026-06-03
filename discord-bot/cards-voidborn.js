@@ -1,4 +1,4 @@
-// Boltbound — "Voidborn" expansion (CR-2, inaugural quarterly set).
+// Boltbound, "Voidborn" expansion (CR-2, inaugural quarterly set).
 //
 // 50 pullable cards: 30 minions + 15 spells + 5 legendaries, plus a
 // handful of summon-only tokens. Theme: cosmic horror, the dark between

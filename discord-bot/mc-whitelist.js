@@ -1,9 +1,9 @@
-// Minecraft whitelist role — REMOVAL ONLY.
+// Minecraft whitelist role, REMOVAL ONLY.
 //
 // Clay dropped Minecraft as a featured offering (2026-05-31). The old
 // paid-Patreon "Minecraft Whitelist" role + its gating (ensure-role,
 // per-user sync, daily sweep, revoke DMs) have been removed. The
-// #smp-chat channel + the DiscordSRV bridge stay intact — only the
+// #smp-chat channel + the DiscordSRV bridge stay intact, only the
 // Discord role and its gating were dropped.
 //
 // This module now exports a single one-shot helper used by the
@@ -61,7 +61,7 @@ export async function deleteWhitelistRole(env, guildId, opts = {}) {
   for (const roleId of targets) {
     const del = await discordREST(env, 'DELETE',
       `/guilds/${encodeURIComponent(guildId)}/roles/${encodeURIComponent(roleId)}`);
-    // 204 = deleted, 404 = already gone — both are success.
+    // 204 = deleted, 404 = already gone, both are success.
     if (del.ok || del.status === 204 || del.status === 404) deleted.push({ roleId, status: del.status });
     else failed.push({ roleId, status: del.status, body: del.body });
   }

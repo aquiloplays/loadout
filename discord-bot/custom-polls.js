@@ -10,9 +10,9 @@
 //   • Votes go to KV `poll:<id>:vote:<userId>` → `<optionValue>`.
 //     One vote per user; submitting again overwrites the prior pick.
 //   • "View Standings" renders an ephemeral horizontal bar chart of
-//     current tallies — keeps the public message clean.
+//     current tallies, keeps the public message clean.
 //   • At close time (cron sweep) the select-menu is disabled, the
-//     embed flips to "Voting closed — winner …", and a follow-up
+//     embed flips to "Voting closed, winner …", and a follow-up
 //     celebratory embed posts the winning game with full art.
 //
 // KV layout:
@@ -22,12 +22,12 @@
 //                                        options:[{value, label}],
 //                                        followUpMessageId? }
 //   poll:<id>:vote:<userId>      → option value (string), per-vote
-//   poll:<id>:tally              → JSON { [value]: count } — rebuilt
+//   poll:<id>:tally              → JSON { [value]: count }, rebuilt
 //                                        lazily on read; not the source
 //                                        of truth (votes are)
 //
 // Composite art is served by worker.js GET /asset/poll-composite/:id
-// from KV `poll-composite:<id>` — built locally by build-poll-composite.py
+// from KV `poll-composite:<id>`, built locally by build-poll-composite.py
 // and pre-uploaded.
 
 const RESP_CHAT          = 4;
@@ -48,7 +48,7 @@ const TALLY_KEY  = (id) => `poll:${id}:tally`;
 
 const ASSET_BASE = 'https://loadout-discord.aquiloplays.workers.dev/asset/poll-composite';
 
-// Brand violet — header stripe matches the gradient banners.
+// Brand violet, header stripe matches the gradient banners.
 const COLOR_OPEN     = 0x7c5cff;
 const COLOR_CLOSED   = 0x6e7588;
 const COLOR_WINNER   = 0x5bff95;
@@ -79,7 +79,7 @@ function buildOpenEmbed(state) {
       state.subtitle,
       '',
       `Voting closes <t:${state.closeAt}:F> (<t:${state.closeAt}:R>).`,
-      `Tap the select menu below to lock in your vote — change anytime until close.`,
+      `Tap the select menu below to lock in your vote, change anytime until close.`,
     ].join('\n'),
     image: { url: `${ASSET_BASE}/${state.compositeKey}.png?v=${state.version || 1}` },
     color: COLOR_OPEN,
@@ -90,7 +90,7 @@ function buildOpenEmbed(state) {
 function buildClosedEmbed(state, winner) {
   const winnerLabel = winner ? winner.label : '(no votes)';
   return {
-    title: state.title + ' — closed',
+    title: state.title + ', closed',
     description: [
       state.subtitle,
       '',
@@ -173,7 +173,7 @@ async function computeTally(env, pollId) {
     if (r.list_complete) break;
     cursor = r.cursor;
   }
-  // Cache for 60s — votes are not a tight loop and the cache busts on
+  // Cache for 60s, votes are not a tight loop and the cache busts on
   // any new vote via recordVote().
   try { await env.LOADOUT_BOLTS.put(TALLY_KEY(pollId), JSON.stringify(tally), { expirationTtl: 60 }); }
   catch { /* ignore */ }
@@ -194,7 +194,7 @@ export async function createPoll(env, opts) {
   if (!Array.isArray(opts.options) || opts.options.length < 2 || opts.options.length > 25) {
     return { ok: false, error: 'bad-options' };
   }
-  // Reject re-create when there's already a live message — caller can
+  // Reject re-create when there's already a live message, caller can
   // pass `replace: true` to delete the old one first.
   const prior = await readState(env, pollId);
   if (prior?.messageId && prior?.channelId && !opts.replace) {
@@ -244,7 +244,7 @@ export async function handlePollVote(data, env) {
   const choice   = String(data.data?.values?.[0] || '').trim();
   const userId   = data.member?.user?.id || data.user?.id;
   if (!pollId || !choice || !userId) {
-    return { type: RESP_CHAT, data: { content: 'Bad vote — missing data.', flags: FLAG_EPHEMERAL } };
+    return { type: RESP_CHAT, data: { content: 'Bad vote, missing data.', flags: FLAG_EPHEMERAL } };
   }
   const state = await readState(env, pollId);
   if (!state) {
@@ -297,7 +297,7 @@ export async function handlePollStandings(data, env) {
   });
   const max = rows[0]?.count || 0;
   const BAR_WIDTH = 16;
-  const lines = [`**Standings — ${state.title}**`, `Total votes: **${total}**`, ''];
+  const lines = [`**Standings, ${state.title}**`, `Total votes: **${total}**`, ''];
   for (const r of rows) {
     const filled = max > 0 ? Math.round((r.count / max) * BAR_WIDTH) : 0;
     const bar = '█'.repeat(filled) + '·'.repeat(BAR_WIDTH - filled);
@@ -337,21 +337,21 @@ export async function closePollNow(env, pollId) {
   const state = await readState(env, pollId);
   if (!state) return { ok: false, error: 'no-such-poll', pollId };
   const tally = await computeTally(env, pollId);
-  // Pick the winner — highest count; ties broken by first appearance in options.
+  // Pick the winner, highest count; ties broken by first appearance in options.
   let winner = null;
   for (const o of state.options) {
     const count = Number(tally[o.value] || 0);
     if (!winner || count > winner.count) winner = { ...o, count };
   }
   if (winner && winner.count === 0) winner = null;
-  // PATCH the original message — disable menu + flip embed to closed.
+  // PATCH the original message, disable menu + flip embed to closed.
   state.status = 'closed';
   await dapi(env, 'PATCH',
     `/channels/${state.channelId}/messages/${state.messageId}`, {
       embeds:     [buildClosedEmbed(state, winner)],
       components: buildOptionRows(state, true),
       allowed_mentions: { parse: [] },
-    }).catch(() => { /* ignore — we still want to save state */ });
+    }).catch(() => { /* ignore, we still want to save state */ });
   // Follow-up celebratory embed.
   if (winner) {
     const followUp = await dapi(env, 'POST',
@@ -378,7 +378,7 @@ export async function closePollNow(env, pollId) {
 // auth as the original create.
 
 // List every active + closed poll. Returns a summary array sorted by
-// closeAt desc (newest first), capped at 50 — the catalogue is small.
+// closeAt desc (newest first), capped at 50, the catalogue is small.
 export async function adminListPolls(env) {
   const out = [];
   let cursor = undefined;
@@ -411,10 +411,10 @@ export async function adminListPolls(env) {
   return { ok: true, polls: out.slice(0, 50) };
 }
 
-// Detail — full state + per-option tally + voter list. Voter list is
+// Detail, full state + per-option tally + voter list. Voter list is
 // the canonical `{userId, choice, ts}` shape; ordering is KV-list
 // insertion order (effectively most-recent-first by KV traversal).
-// Cap voter list at 5000 — enough for any single-poll audit.
+// Cap voter list at 5000, enough for any single-poll audit.
 export async function adminPollDetail(env, pollId) {
   const state = await readState(env, pollId);
   if (!state) return { ok: false, error: 'no-such-poll', pollId };
@@ -435,7 +435,7 @@ export async function adminPollDetail(env, pollId) {
   return { ok: true, poll: state, tally, voters };
 }
 
-// Lock — closes voting immediately. Reuses closePollNow (which
+// Lock, closes voting immediately. Reuses closePollNow (which
 // handles the embed PATCH + winner-announce follow-up).
 export async function adminLockPoll(env, pollId) {
   const state = await readState(env, pollId);
@@ -446,7 +446,7 @@ export async function adminLockPoll(env, pollId) {
   return await closePollNow(env, pollId);
 }
 
-// Extend — push closeAt by `hours` (positive). PATCHes the public
+// Extend, push closeAt by `hours` (positive). PATCHes the public
 // embed so the new close time appears immediately.
 export async function adminExtendPoll(env, pollId, hours) {
   const h = Number(hours);
@@ -470,7 +470,7 @@ export async function adminExtendPoll(env, pollId, hours) {
   return { ok: true, action: 'extended', pollId, newCloseAt: state.closeAt };
 }
 
-// Cancel — mark as cancelled (NOT closed; no winner declared), lock
+// Cancel, mark as cancelled (NOT closed; no winner declared), lock
 // the menu, replace the embed body with a "cancelled" message.
 export async function adminCancelPoll(env, pollId, reason) {
   const state = await readState(env, pollId);
@@ -478,11 +478,11 @@ export async function adminCancelPoll(env, pollId, reason) {
   if (state.status === 'cancelled') return { ok: true, action: 'already-cancelled', pollId };
   state.status = 'cancelled';
   const cancelEmbed = {
-    title: state.title + ' — cancelled',
+    title: state.title + ', cancelled',
     description: [
       state.subtitle,
       '',
-      '_This poll was cancelled — no winner declared._',
+      '_This poll was cancelled, no winner declared._',
       reason ? `\nReason: ${String(reason).slice(0, 300)}` : '',
     ].join('\n'),
     image: { url: `${ASSET_BASE}/${state.compositeKey}.png?v=${state.version || 1}` },
@@ -500,7 +500,7 @@ export async function adminCancelPoll(env, pollId, reason) {
 
 // ── Cron: sweep all open polls and close any past close time ───
 //
-// Lists every `poll:*` JSON key (cheap — small N), reads its status,
+// Lists every `poll:*` JSON key (cheap, small N), reads its status,
 // closes any whose closeAt has elapsed. Idempotent: re-running on a
 // fully-closed catalogue is a no-op.
 export async function pollsCronSweep(env) {
@@ -527,13 +527,13 @@ export async function pollsCronSweep(env) {
   return out;
 }
 
-// ── Public catalogues — the two polls Clay specified ───────────
+// ── Public catalogues, the two polls Clay specified ───────────
 //
 // Exported so the admin route can post both with a single call.
 
 export const TRIPLE_C_POLL = Object.freeze({
   pollId:       'triple-c-2026-05',
-  title:        'Triple-C Series — pick the game',
+  title:        'Triple-C Series, pick the game',
   subtitle:     'Vote for the next game in the Triple-C Series. Streams Sun · Mon · Tue · Thu.',
   compositeKey: 'triple-c',
   options: [
@@ -565,7 +565,7 @@ export const TRIPLE_C_POLL = Object.freeze({
 
 export const VARIETY_POLL = Object.freeze({
   pollId:       'variety-2026-05',
-  title:        'Variety Night — pick the game',
+  title:        'Variety Night, pick the game',
   subtitle:     'Vote for the next Variety Night game. Streams Wed. CC icon = Crowd Control supported (crowdcontrol.live).',
   compositeKey: 'variety',
   // 2026-06 (Batch C3): the final 9-game Variety pool, matching games:v1.

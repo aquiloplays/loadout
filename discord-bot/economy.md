@@ -1,11 +1,11 @@
-# Aquilo bolts — unified economy reference
+# Aquilo bolts, unified economy reference
 
 Bolts (⚡) are the unified currency across every Aquilo product:
 
 - the Loadout DLL (dungeons, mini-games, shop)
 - the Loadout Discord bot (`/loadout`, `/stocks`, `/bet`)
 - Aquilo's Vault Discord bot (its own separate shelter-builder game in
-  its own repo; credits via signed Worker delta — see §HMAC routes)
+  its own repo; credits via signed Worker delta, see §HMAC routes)
 - the Twitch panel extension (read-only views + Bits-funded loot boxes)
 
 There is one wallet per (guild, user) pair, stored at
@@ -35,11 +35,11 @@ Value:
 ```
 
 Helpers in `wallet.js`:
-- `getWallet(env, guildId, userId)` — defaults to a zero wallet
-- `earn(env, guildId, userId, amount, reason)` — credits, returns the updated wallet
-- `spend(env, guildId, userId, amount, reason)` — debits, returns `{ ok, balance, wallet?, reason? }`
-- `transfer(env, guildId, fromId, toId, amount)` — atomic gift between users
-- `applyVaultDelta(env, guildId, userId, amount, reason)` — signed credit/debit
+- `getWallet(env, guildId, userId)`, defaults to a zero wallet
+- `earn(env, guildId, userId, amount, reason)`, credits, returns the updated wallet
+- `spend(env, guildId, userId, amount, reason)`, debits, returns `{ ok, balance, wallet?, reason? }`
+- `transfer(env, guildId, fromId, toId, amount)`, atomic gift between users
+- `applyVaultDelta(env, guildId, userId, amount, reason)`, signed credit/debit
   from Aquilo's Vault bot (HMAC-verified at the Worker edge)
 
 ## Earn paths
@@ -78,13 +78,13 @@ Helpers in `wallet.js`:
 ## Bits paths (NOT wallet-touching)
 
 The Loadout system uses Twitch Bits in three places. These are separate from
-bolts — Bits receipts gate access to a feature but never become bolts:
+bolts, Bits receipts gate access to a feature but never become bolts:
 
 | Surface | SKU | Cost | What it gates |
 |---|---|---|---|
-| Loot boxes | `loot_box` | 50 bits | `POST /ext/lootbox/roll` — drops one item into the viewer's `hero.bag` |
+| Loot boxes | `loot_box` | 50 bits | `POST /ext/lootbox/roll`, drops one item into the viewer's `hero.bag` |
 | Dungeon cooldown skip | `dungeon_skip_cooldown` | 100 bits | clears the channel cooldown + auto-starts a dungeon |
-| Song requests | `song_request` | per-channel config | `POST /ext/rotation/request` — paid path when the viewer has no free quota |
+| Song requests | `song_request` | per-channel config | `POST /ext/rotation/request`, paid path when the viewer has no free quota |
 
 Bits receipts are verified server-side via `verifyBitsReceipt` in `auth.js` (HMAC
 against `TWITCH_EXT_SECRET`). The wallet is **not** credited from Bits; Bits go
@@ -94,17 +94,17 @@ directly to Clay's Twitch payout.
 
 Five surfaces read/write the same wallet:
 
-1. **Loadout DLL** — local `BoltsWallet` (`hero.bag` + balance), auto-synced
+1. **Loadout DLL**, local `BoltsWallet` (`hero.bag` + balance), auto-synced
    every 30 s by `Discord.DiscordSync` to the Worker `wallet:<g>:<u>` record.
-2. **aquilo.gg Discord bot** (this Worker) — direct reads + writes via the
+2. **aquilo.gg Discord bot** (this Worker), direct reads + writes via the
    `earn` / `spend` helpers.
-3. **Aquilo's Vault Discord bot** (`FS Bot/bot.py`) — credits via signed POST
+3. **Aquilo's Vault Discord bot** (`FS Bot/bot.py`), credits via signed POST
    to `<worker>/sync/<guildId>` which calls `applyVaultDelta`. Only the
    designated guild ID can credit.
-4. **Twitch panel extension** — reads via `/ext/wallet` (JWT-gated), spends via
+4. **Twitch panel extension**, reads via `/ext/wallet` (JWT-gated), spends via
    the same flows the Discord bot exposes (`/ext/lootbox/roll`,
    `/ext/dungeon/skip-cooldown`).
-5. **aquilo-site Pages** — `/api/admin/*` and `/api/link/*` write to specific
+5. **aquilo-site Pages**, `/api/admin/*` and `/api/link/*` write to specific
    sub-records (`tw_patreon:tw:<id>`, etc.) but do **not** mutate the wallet
    balance.
 
@@ -143,14 +143,14 @@ Five surfaces read/write the same wallet:
 | `POST /ext/lootbox/roll` | Ext JWT + Bits receipt | Bits → bag (no bolts) |
 | `POST /ext/dungeon/skip-cooldown` | Ext JWT | either Bits OR 500-bolt `spend` |
 | `POST /ext/{dungeon,minigame}/cmd` | Ext JWT | enqueues for DLL replay; bolts spend on DLL side |
-| `POST /sync/:guild` | HMAC `AQUILO_VAULT_BOLTS_SECRET` | `applyVaultDelta` — Vault bot crediting |
+| `POST /sync/:guild` | HMAC `AQUILO_VAULT_BOLTS_SECRET` | `applyVaultDelta`, Vault bot crediting |
 
 ## Adding a new earn or spend
 
 1. Pick a memorable `reason` tag (e.g. `feature:context`). It surfaces in the
    wallet's `lastEarn/SpendReason` and feeds debug + analytics.
 2. Call `earn` / `spend` from `wallet.js`. Don't write the wallet record
-   directly — those helpers handle lifetime totals + timestamps.
+   directly, those helpers handle lifetime totals + timestamps.
 3. Add a row to the appropriate table above. The grep
    `grep -rn 'await (earn|spend)' discord-bot --include=*.js` should match
    your new caller.

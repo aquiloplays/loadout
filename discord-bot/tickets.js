@@ -16,13 +16,13 @@
 //   • saves the full message history as a transcript in KV
 //   • locks the channel to read-only
 //   • optionally deletes after a 24h grace (the grace is left to a
-//     cron sweep we haven't wired yet — for now we just lock + mark)
+//     cron sweep we haven't wired yet, for now we just lock + mark)
 //
 // KV layout:
 //   guild:ticket:<g>:<ticketId>            canonical record
 //   guild:ticket-counter:<g>                next ticket integer
 //   guild:ticket-transcript:<g>:<ticketId>  []{ts, userId, username, content}
-//   guild:ticket-panel:<g>                  { channelId, messageId } — post target
+//   guild:ticket-panel:<g>                  { channelId, messageId }, post target
 
 const RESP_CHAT      = 4;
 const RESP_UPDATE    = 7;
@@ -178,7 +178,7 @@ export async function closeTicket(env, guildId, ticketId, closerId) {
   if (!isOpener && !isStaff) return { ok: false, error: 'not-authorized' };
 
   // Fetch full message history (paginated). Up to ~500 messages saved
-  // — past that, we save the most recent 500 to bound KV write size.
+  //, past that, we save the most recent 500 to bound KV write size.
   let before = null;
   const all = [];
   for (let i = 0; i < 5; i++) {
@@ -201,7 +201,7 @@ export async function closeTicket(env, guildId, ticketId, closerId) {
   all.reverse();
   await env.LOADOUT_BOLTS.put(`guild:ticket-transcript:${guildId}:${ticketId}`, JSON.stringify(all));
 
-  // Lock the channel — deny SEND for the opener and the @everyone catch.
+  // Lock the channel, deny SEND for the opener and the @everyone catch.
   const cur = await dapi(env, 'GET', `/channels/${rec.channelId}`);
   if (cur.ok) {
     const everyone = guildId;

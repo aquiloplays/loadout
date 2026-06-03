@@ -1,4 +1,4 @@
-// Tier 2 viewer-engagement routes — /ext/cheer, and (as those features
+// Tier 2 viewer-engagement routes, /ext/cheer, and (as those features
 // ship) the poll / quiz / code / raise-hand viewer endpoints.
 //
 // Every viewer action is JWT- + channel-gated by ext.js. Overlay-bound
@@ -8,7 +8,7 @@
 
 import { json, debounced } from './ext-shared.js';
 
-// Tap-to-cheer emote set — kept in sync with the panel's cheer bar.
+// Tap-to-cheer emote set, kept in sync with the panel's cheer bar.
 export const CHEER_EMOTES = ['🔥', '⚡', '💜', '🎮', '☕', '👏'];
 
 // Enqueue an overlay-bound trigger for the unified relay (?for=overlay).

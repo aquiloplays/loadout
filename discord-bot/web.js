@@ -1,4 +1,4 @@
-// /web/* — site → bot RPC for the aquilo.gg minigames page.
+// /web/*, site → bot RPC for the aquilo.gg minigames page.
 //
 // aquilo-site's Pages Functions own the Patreon auth (aq_link cookie +
 // per-session webSig CSRF token). When a logged-in patron clicks
@@ -18,7 +18,7 @@
 // timestamp skew. Mirrors the /sync/:guildId scheme exactly.
 //
 // games.js is the single source of truth for daily / coinflip /
-// dice — same code path that Discord's /loadout and the Twitch
+// dice, same code path that Discord's /loadout and the Twitch
 // panel's /ext/daily already use. No surface drift possible.
 
 import { coinflip, dice, daily } from './games.js';
@@ -57,7 +57,7 @@ const ROUTES = new Set([
   'daily',
   'coinflip',
   'dice',
-  // Community-chat reactions surface — see aquilo/community-chat.js
+  // Community-chat reactions surface, see aquilo/community-chat.js
   // for the storage + Discord REST wiring. /web/chat/recent returns
   // the ringbuffer enriched with per-message reactions (native
   // Discord + web-side KV merged). /web/chat/react + /web/chat/unreact
@@ -65,7 +65,7 @@ const ROUTES = new Set([
   'chat/recent',
   'chat/react',
   'chat/unreact',
-  // Live-poll admin surface — PWA admin UI consumes these. Owner-
+  // Live-poll admin surface, PWA admin UI consumes these. Owner-
   // gated via the existing _owner flag pattern. See custom-polls.js
   // adminListPolls / adminPollDetail / adminLockPoll / adminExtendPoll
   // / adminCancelPoll. Each accepts a body { pollId, ... } except
@@ -75,7 +75,7 @@ const ROUTES = new Set([
   'admin/polls/lock',
   'admin/polls/extend',
   'admin/polls/cancel',
-  // Support tickets — PWA admin compartment (Clay 2026-05-28).
+  // Support tickets, PWA admin compartment (Clay 2026-05-28).
   // Owner-gated via the same _owner flag pattern. See
   // support-tickets.js. Read + mutate the ticket queue.
   'admin/tickets/list',
@@ -85,12 +85,12 @@ const ROUTES = new Set([
   'admin/tickets/assign',
   'admin/tickets/priority',
   'admin/tickets/category',
-  // L9 — PWA chat (Clay 2026-05-28): expose every guild text channel
+  // L9, PWA chat (Clay 2026-05-28): expose every guild text channel
   // the requesting Discord user has VIEW_CHANNEL permission on, so
   // the PWA can switch between channels instead of being capped at
   // the COMMUNITY_CHAT_CHANNELS_JSON allow-list.
   'chat/channels',
-  // 2026-05 expansion — quick bolts games. Stateful games (blackjack,
+  // 2026-05 expansion, quick bolts games. Stateful games (blackjack,
   // hilo, mines) split into start/play/cashout sub-routes so the bot
   // can persist hand state across calls without re-deriving it from
   // the client. quick/snapshot is the page-load read that surfaces
@@ -119,7 +119,7 @@ const ROUTES = new Set([
   // bracketed war state. Site UI was scaffolded with greyed-out
   // buttons; these endpoints light up the flow. See banners.js +
   // banner-wars.js.
-  // 2026-05-29 — UI-live unblockers. MVPs land worker endpoints for
+  // 2026-05-29, UI-live unblockers. MVPs land worker endpoints for
   // four features whose site UI shipped against stubs.
   'play/supporters/hall',
   'play/supporters/opt-out',
@@ -131,7 +131,7 @@ const ROUTES = new Set([
   'play/dust/craft',
   'play/drops/active',
   'play/drops/upcoming',
-  // 2026-05-29 sprint — Aquilo Pass + stream-bonus probe.
+  // 2026-05-29 sprint, Aquilo Pass + stream-bonus probe.
   'pass/state',
   'pass/claim-tier',
   'stream/bonus-state',
@@ -157,17 +157,17 @@ const ROUTES = new Set([
   'presence/update',
   'presence/clear',
   'presence/feed',
-  // New-viewer funnel — referral attribution. /me returns the
+  // New-viewer funnel, referral attribution. /me returns the
   // caller's stable referral code + bring-in stats; /attribute is
   // what the site POSTs after Patreon-link to record (refereeId,
   // refCode). Reward payout (50 Bolts + 1 'bolt' pack to the
   // referrer) fires via recordMilestone('first-game') from the
   // noteFirstGame helper, hooked into routeDaily / routeCoinflip /
-  // routeDice below — first daily/coinflip/dice on an attributed
+  // routeDice below, first daily/coinflip/dice on an attributed
   // user pays out, then stamps the referee record so subsequent
   // plays are no-ops. A future quests.js port can fire additional
   // milestone kinds (first-checkin, patreon-link, …) without
-  // colliding — recordMilestone is gated on milestoneFiredUtc, not
+  // colliding, recordMilestone is gated on milestoneFiredUtc, not
   // on the kind.
   'referral/me',
   'referral/attribute',
@@ -176,93 +176,93 @@ const ROUTES = new Set([
   'admin/active-guild',
   'admin/clear-binding',
   'admin/pipe-tests',
-  'admin/anniversary-backfill',  // POST {_owner, maxPages?, cursor?} — stamp legacy anniv:seen
-  'admin/triple-c/set',          // POST {_owner, gameSlug} — lock the Triple-C campaign + announce
-  'admin/dad-sunday/set',        // POST {_owner, gameSlug} — lock Dad Game Sunday + announce
-  'admin/lineup/post',           // POST {_owner} — (re)post + pin the weekly lineup recap
-  'admin/stream-events/sync',    // POST {_owner, horizonDays?} — mirror schedule → Discord events
+  'admin/anniversary-backfill',  // POST {_owner, maxPages?, cursor?}, stamp legacy anniv:seen
+  'admin/triple-c/set',          // POST {_owner, gameSlug}, lock the Triple-C campaign + announce
+  'admin/dad-sunday/set',        // POST {_owner, gameSlug}, lock Dad Game Sunday + announce
+  'admin/lineup/post',           // POST {_owner}, (re)post + pin the weekly lineup recap
+  'admin/stream-events/sync',    // POST {_owner, horizonDays?}, mirror schedule → Discord events
   // Daily community check-in (unified with /checkin slash command).
-  'checkin',                 // POST — record today's check-in
-  'checkin/status',          // POST — read streak + card + pending bonuses
-  'checkin/card',            // POST — upsert the user's embed card config
-  'checkin/bonus/collect',   // POST — claim one bonus (or 'all')
+  'checkin',                 // POST, record today's check-in
+  'checkin/status',          // POST, read streak + card + pending bonuses
+  'checkin/card',            // POST, upsert the user's embed card config
+  'checkin/bonus/collect',   // POST, claim one bonus (or 'all')
   // Stream check-in card (on-stream "I'm here" card; stream-checkin.js).
-  // Separate from the daily check-in above — D1-backed customization +
+  // Separate from the daily check-in above, D1-backed customization +
   // entitlement-gated cosmetics + the OBS overlay trigger.
-  'checkin/card/me',         // POST — saved config + earned badges + filtered catalogs
-  'checkin/card/save',       // POST — validate vs entitlements + upsert config
-  'checkin/show',            // POST — rate-limited; publish streamcheckin.shown to OBS
-  'checkin/badges',          // POST — earned-badge list (optional lookupUserId)
+  'checkin/card/me',         // POST, saved config + earned badges + filtered catalogs
+  'checkin/card/save',       // POST, validate vs entitlements + upsert config
+  'checkin/show',            // POST, rate-limited; publish streamcheckin.shown to OBS
+  'checkin/badges',          // POST, earned-badge list (optional lookupUserId)
   // Boltbound per-user card art override (meme-GIF skin layer).
   // Rendering integrated 2026-05-28: cards-web routeState ships the
   // user's overrides + the global defaults in the bootstrap payload.
-  'cards/art-override',      // POST — { op: 'get'|'set'|'clear'|'list', cardId, url? }
-  'cards/suggest-art-terms', // POST — { cardId } → { searchTerms, description }
-  // Skin endpoints — thin REST-shaped wrappers on cards-art-override
+  'cards/art-override',      // POST, { op: 'get'|'set'|'clear'|'list', cardId, url? }
+  'cards/suggest-art-terms', // POST, { cardId } → { searchTerms, description }
+  // Skin endpoints, thin REST-shaped wrappers on cards-art-override
   // for the site to call directly instead of building op:set/etc
   // payloads. /web is POST-only so the spec's DELETE + GET get
   // mapped to POST /cards/skin/clear + POST /cards/skins.
-  'cards/skin',              // POST — { cardId, gifUrl } → set the user's skin
-  'cards/skin/clear',        // POST — { cardId }         → clear it
-  'cards/skins',             // POST — {}                 → { skins: { cardId: url } }
+  'cards/skin',              // POST, { cardId, gifUrl } → set the user's skin
+  'cards/skin/clear',        // POST, { cardId }         → clear it
+  'cards/skins',             // POST, {}                 → { skins: { cardId: url } }
   // Seasonal Spire (Boltbound solo roguelike). Spec: discord-bot/spire.js.
-  'play/spire/season',       // POST — current month's theme + reward preview + countdown
-  'play/spire/run/me',       // POST — active run state (or { active: null })
-  'play/spire/run/start',    // POST — start a new run (snapshots active deck)
-  'play/spire/run/result',   // POST — { floor, won } record floor outcome
-  'play/spire/run/abandon',  // POST — abandon active run
-  'play/spire/run/floor',    // POST — { floor } returns the NPC + decks for that floor's match
-  'play/spire/leaderboard',  // POST — { limit? } monthly clears + total clear count
-  // New-viewer funnel — referrals + onboarding quest.
-  'referral/me',             // POST — my code + stats
-  'referral/attribute',      // POST — record that this user was referred by CODE
+  'play/spire/season',       // POST, current month's theme + reward preview + countdown
+  'play/spire/run/me',       // POST, active run state (or { active: null })
+  'play/spire/run/start',    // POST, start a new run (snapshots active deck)
+  'play/spire/run/result',   // POST, { floor, won } record floor outcome
+  'play/spire/run/abandon',  // POST, abandon active run
+  'play/spire/run/floor',    // POST, { floor } returns the NPC + decks for that floor's match
+  'play/spire/leaderboard',  // POST, { limit? } monthly clears + total clear count
+  // New-viewer funnel, referrals + onboarding quest.
+  'referral/me',             // POST, my code + stats
+  'referral/attribute',      // POST, record that this user was referred by CODE
   // Anniversary celebrations (anniversary.js). The premium-feature
   // spec wrote these as GET/POST /web/anniversary/{check,celebrate}/:userId,
   // but every /web/* route here is POST + HMAC + body-bound discordId
   // (you can only act as yourself), so these follow that convention:
   // the acting user is body.discordId, no :userId path param.
-  'anniversary/check',       // POST — { discordId, guildId } → anniversary state (or null)
-  'anniversary/celebrate',   // POST — claim this year's reward (idempotent)
-  // Aether economy (aether.js) — D1 ledger, spendable premium currency.
-  'aether/balance',          // POST — { discordId, guildId } → balance + lifetime totals
-  'aether/spend',            // POST — { amount, reason? } → debit (insufficient-aether on overdraw)
-  'aether/history',          // POST — { limit? } → newest-first transaction ledger
-  // Aquilo Pass v2 (aquilo-pass-d1.js) — D1 battle pass, 30 tiers,
+  'anniversary/check',       // POST, { discordId, guildId } → anniversary state (or null)
+  'anniversary/celebrate',   // POST, claim this year's reward (idempotent)
+  // Aether economy (aether.js), D1 ledger, spendable premium currency.
+  'aether/balance',          // POST, { discordId, guildId } → balance + lifetime totals
+  'aether/spend',            // POST, { amount, reason? } → debit (insufficient-aether on overdraw)
+  'aether/history',          // POST, { limit? } → newest-first transaction ledger
+  // Aquilo Pass v2 (aquilo-pass-d1.js), D1 battle pass, 30 tiers,
   // free+premium. Namespaced pass2/* so it coexists with the legacy
   // KV pass at pass/state + pass/claim-tier.
-  'pass2/state',             // POST — full season + progress + per-tier reward state
-  'pass2/claim',             // POST — { tier, track } → claim one reward (idempotent)
-  'pass2/buy-premium',       // POST — own the premium track (gated on paid Patreon)
-  // Bolt Rain (bolt-rain.js) — Patreon-T2+-triggered 60s claim window.
-  'boltrain/trigger',        // POST — open a rain (T2+ only)
-  'boltrain/claim',          // POST — first-click claim
-  'boltrain/state',          // POST — current event state (+ youClaimed)
-  // Random Drops (random-drops.js) — rarity-weighted chest spawns.
-  'randomdrop/state',        // POST — current drop (+ youClaimed)
-  'randomdrop/claim',        // POST — first-click claim
-  'randomdrop/spawn',        // POST — owner-only manual spawn (testing)
-  'quest/snapshot',          // POST — checklist with claim state
-  'quest/claim',             // POST — claim one step (or 'all')
-  'quest/mark-patreon-linked', // POST — flip the patreon-linked completion flag (called by site after OAuth)
-  // Productization — self-serve setup wizard (web parity with /loadout-setup).
-  'setup/snapshot',          // POST — full tenant + channel + feature state
-  'setup/init',              // POST — register the tenant (idempotent)
-  'setup/channel',           // POST — bind one channel slot
-  'setup/feature',           // POST — toggle one feature on/off
-  'setup/finish',            // POST — mark setup as complete
-  'setup/branding',          // POST — { op: 'get' | undefined, brand: {...} }
+  'pass2/state',             // POST, full season + progress + per-tier reward state
+  'pass2/claim',             // POST, { tier, track } → claim one reward (idempotent)
+  'pass2/buy-premium',       // POST, own the premium track (gated on paid Patreon)
+  // Bolt Rain (bolt-rain.js), Patreon-T2+-triggered 60s claim window.
+  'boltrain/trigger',        // POST, open a rain (T2+ only)
+  'boltrain/claim',          // POST, first-click claim
+  'boltrain/state',          // POST, current event state (+ youClaimed)
+  // Random Drops (random-drops.js), rarity-weighted chest spawns.
+  'randomdrop/state',        // POST, current drop (+ youClaimed)
+  'randomdrop/claim',        // POST, first-click claim
+  'randomdrop/spawn',        // POST, owner-only manual spawn (testing)
+  'quest/snapshot',          // POST, checklist with claim state
+  'quest/claim',             // POST, claim one step (or 'all')
+  'quest/mark-patreon-linked', // POST, flip the patreon-linked completion flag (called by site after OAuth)
+  // Productization, self-serve setup wizard (web parity with /loadout-setup).
+  'setup/snapshot',          // POST, full tenant + channel + feature state
+  'setup/init',              // POST, register the tenant (idempotent)
+  'setup/channel',           // POST, bind one channel slot
+  'setup/feature',           // POST, toggle one feature on/off
+  'setup/finish',            // POST, mark setup as complete
+  'setup/branding',          // POST, { op: 'get' | undefined, brand: {...} }
   // Two-way Discord ↔ PWA chat relay. NOTE: the read path is namespaced
   // as `chat/relay/recent` to avoid colliding with main's existing
   // `chat/recent` (community-chat reactions reader, see L112). The
   // parallel aquilo-site session needs to call `/web/chat/relay/recent`
   // for the relay read; the reactions path stays at `/web/chat/recent`.
-  'chat/send',               // POST — { channelId, content } → webhook post styled as caller
-  'chat/relay/recent',       // POST — { channelId, limit? } → relay ringbuffer + per-msg sentViaPwa decoration
+  'chat/send',               // POST, { channelId, content } → webhook post styled as caller
+  'chat/relay/recent',       // POST, { channelId, limit? } → relay ringbuffer + per-msg sentViaPwa decoration
 ]);
 
 // Only the bisherclay@gmail.com session is currently allowed to open
 // or close queues from aquilo-site /admin. Owner-side gating happens
-// on the site (functions/api/admin/queues/*) — we double-check here
+// on the site (functions/api/admin/queues/*), we double-check here
 // by requiring the request to carry a `_owner: true` flag the site
 // stamps after verifying the aq_link cookie's `o:1` field.
 function ownerCheck(body) {
@@ -297,7 +297,7 @@ export async function handleWeb(req, env) {
   let body;
   try { body = JSON.parse(bodyText); } catch { return json({ error: 'bad-json' }, 400); }
 
-  // Discord-presence web fallback — handled BEFORE the discordId/guildId
+  // Discord-presence web fallback, handled BEFORE the discordId/guildId
   // gate below because presence is per-user + guild-agnostic: the site
   // proxy forwards { userId, key, state, detail } (no guildId, and
   // `userId` not `discordId`). Already HMAC-verified above. feed is
@@ -550,7 +550,7 @@ export async function routePresenceClear(env, body) {
 }
 
 // Owner-gated read for the future desktop RPC consumer. Lists every live
-// presence (KV TTL already evicts stale ones). Capped at 1000 keys — the
+// presence (KV TTL already evicts stale ones). Capped at 1000 keys, the
 // active-viewer set never approaches that.
 export async function routePresenceFeed(env) {
   if (!env.STATE) return json({ error: 'not-configured' }, 503);
@@ -597,7 +597,7 @@ async function noteGamePlayed(env, guildId, userId) {
 // Sibling to noteGamePlayed: fire the referral-funnel milestone for
 // the user's first wallet-touching activity. recordMilestone is
 // idempotent on the referee's milestoneFiredUtc stamp, so calling
-// on every play is safe — only the first one for an attributed
+// on every play is safe, only the first one for an attributed
 // user actually pays anything out (50 Bolts + 1 'bolt' pack to the
 // referrer). Forward-compatible with quests.js firing additional
 // milestone kinds; they're gated on the same stamp, not on the kind.
@@ -612,7 +612,7 @@ async function noteFirstGame(env, guildId, userId) {
 
 async function routeDaily(env, guildId, userId) {
   await noteGamePlayed(env, guildId, userId);
-  // Anniversary firstSeen heartbeat — daily claim is the cheapest
+  // Anniversary firstSeen heartbeat, daily claim is the cheapest
   // once-per-day-per-user activity signal. Min-wins, so it never
   // overrides an earlier stamp; for users created after the last
   // backfill this captures their join date going forward.
@@ -630,7 +630,7 @@ async function routeDaily(env, guildId, userId) {
       games_won: 1,
     });
     await noteFirstGame(env, guildId, userId);
-    // Aquilo Pass v2 XP — daily claim feeds battle-pass progression.
+    // Aquilo Pass v2 XP, daily claim feeds battle-pass progression.
     // Best-effort (no D1 binding in some envs); never blocks the claim.
     try {
       const { seedSeasonOne, grantPassXp } = await import('./aquilo-pass-d1.js');
@@ -728,7 +728,7 @@ async function routeBetPlace(env, guildId, userId, body) {
     });
     return json(r, r.ok ? 200 : 400);
   }
-  // Solo bet — same validation as before but kind-aware.
+  // Solo bet, same validation as before but kind-aware.
   const gameId = String(body && body.gameId || '').trim();
   const side = String(body && body.side || '').toLowerCase();
   if (!gameId) return json({ ok: false, error: 'bad-game', message: 'Pick a game.' }, 400);
@@ -824,7 +824,7 @@ async function routeDice(env, guildId, userId, body) {
 }
 
 
-// ── /web/referral/* — new-viewer funnel ─────────────────────────────
+// ── /web/referral/*, new-viewer funnel ─────────────────────────────
 //
 // POST /web/referral/me
 //   Body:  { discordId, guildId }
@@ -866,7 +866,7 @@ async function routeReferralAttribute(env, guildId, discordId, body) {
   return json(r, r.ok ? 200 : 400);
 }
 
-// ── /web/anniversary/* — celebrations ────────────────────────────────
+// ── /web/anniversary/*, celebrations ────────────────────────────────
 //
 // POST /web/anniversary/check
 //   Body: { discordId, guildId }
@@ -881,7 +881,7 @@ async function routeReferralAttribute(env, guildId, discordId, body) {
 //   anniversary AND that year hasn't been claimed.
 //   Returns: { ok, granted, years?, reward?, reason? }
 //
-// Touches firstSeen as a side effect — visiting the dashboard counts
+// Touches firstSeen as a side effect, visiting the dashboard counts
 // as activity, so an unseen user gets stamped on first check (their
 // anniversary clock starts now). Existing users keep their earlier
 // stamp (recordFirstSeen is min-wins).
@@ -898,7 +898,7 @@ async function routeAnniversaryCelebrate(env, guildId, discordId) {
   return json(r, statusFor(r));
 }
 
-// ── /web/aether/* — Aether economy ledger ────────────────────────────
+// ── /web/aether/*, Aether economy ledger ────────────────────────────
 async function routeAetherBalance(env, guildId, discordId) {
   const { getAetherBalance } = await import('./aether.js');
   const r = await getAetherBalance(env, guildId, discordId);
@@ -920,7 +920,7 @@ async function routeAetherHistory(env, guildId, discordId, body) {
   return json(r, r.ok ? 200 : 400);
 }
 
-// ── /web/pass2/* — Aquilo Pass v2 (D1) ───────────────────────────────
+// ── /web/pass2/*, Aquilo Pass v2 (D1) ───────────────────────────────
 const PASS2_PREMIUM_AETHER_COST = 500;
 
 async function routePass2State(env, discordId) {
@@ -976,7 +976,7 @@ async function routePass2BuyPremium(env, guildId, discordId) {
                 aetherBalance: spent.balance });
 }
 
-// ── /web/boltrain/* — interactive bolt rain ─────────────────────────
+// ── /web/boltrain/*, interactive bolt rain ─────────────────────────
 async function routeBoltRainTrigger(env, guildId, discordId) {
   const { triggerBoltRain } = await import('./bolt-rain.js');
   const r = await triggerBoltRain(env, guildId, discordId);
@@ -1004,7 +1004,7 @@ async function routeBoltRainState(env, guildId, discordId) {
   return json(r, r.ok ? 200 : 400);
 }
 
-// ── /web/randomdrop/* — rarity-weighted chest spawns ─────────────────
+// ── /web/randomdrop/*, rarity-weighted chest spawns ─────────────────
 async function routeRandomDropState(env, guildId, discordId) {
   const { getRandomDropState } = await import('./random-drops.js');
   const r = await getRandomDropState(env, guildId, discordId);
@@ -1034,7 +1034,7 @@ async function routeRandomDropSpawn(env, guildId) {
 //   - Start actions touch the per-viewer cooldown (cooldownTouch())
 //     so the next quick-game play is gated.
 //   - Mid-hand actions (hit, reveal, guess) do NOT touch the cooldown
-//     — once you're in a hand the pace is yours.
+//, once you're in a hand the pace is yours.
 //   - All handlers attach `cooldownUntil` (ms-epoch, 0 = clear) on
 //     terminal responses so the UI can render an accurate countdown
 //     without an extra round-trip.
@@ -1187,7 +1187,7 @@ async function routeCrash(env, guildId, userId, body) {
 //
 // Web users (aquilo.gg PWA / desktop) react to bridged Discord chat
 // messages via these three routes. The bot is the only Discord-side
-// reactor — see aquilo/community-chat.js for the per-user state
+// reactor, see aquilo/community-chat.js for the per-user state
 // model and the merge that produces the `me` flag.
 //
 // All three routes carry the standard discordId/guildId pair plus a
@@ -1237,7 +1237,7 @@ async function routeChatRecent(env, discordId, body) {
 // Discord permission computation (per Discord API docs §6):
 //   1. Start with the @everyone role's base permissions.
 //   2. OR in the permissions of every role the user has.
-//   3. If ADMINISTRATOR bit is set, user can see everything — skip
+//   3. If ADMINISTRATOR bit is set, user can see everything, skip
 //      overwrites.
 //   4. Apply channel overwrites in order:
 //      a. @everyone overwrite (deny then allow)
@@ -1267,7 +1267,7 @@ async function routeChatChannels(env, guildId, discordId) {
       fetch(`https://discord.com/api/v10/guilds/${encodeURIComponent(guildId)}/channels`, { headers }),
     ]);
     if (mResp.status === 404) {
-      // User isn't in the guild — return an empty list (rather than 403)
+      // User isn't in the guild, return an empty list (rather than 403)
       // so the PWA can render a friendly "join the server" prompt.
       return json({ ok: true, channels: [], reason: 'not-in-guild' });
     }
@@ -1301,7 +1301,7 @@ async function routeChatChannels(env, guildId, discordId) {
   // 4. Per-channel overwrite layer + filter.
   const visible = [];
   for (const ch of channels) {
-    // Only text-flavoured channels — type 0 (GUILD_TEXT) and 5 (GUILD_ANNOUNCEMENT)
+    // Only text-flavoured channels, type 0 (GUILD_TEXT) and 5 (GUILD_ANNOUNCEMENT)
     // qualify. Voice / forum / category etc. skipped.
     if (ch?.type !== 0 && ch?.type !== 5) continue;
 
@@ -1418,7 +1418,7 @@ async function routePollsCancel(env, body) {
 
 // ── Support tickets admin (owner-gated) ─────────────────────────
 //
-// All endpoints expect a verified site session — the worker reads
+// All endpoints expect a verified site session, the worker reads
 // discordId from the bridge for attribution on respond/close/assign.
 //
 // Filters on list: status, category, priority, assignee, requester.
@@ -1528,7 +1528,7 @@ async function routeChatUnreact(env, discordId, body) {
 //   track       'free' | 'premium'
 //
 // guildId is required by the outer dispatcher's auth but isn't read
-// by claimTier — season records are per-user, not per-guild.
+// by claimTier, season records are per-user, not per-guild.
 async function routeSeasonClaim(env, discordId, body) {
   const tier = parseInt(body && body.tier, 10) || 0;
   const track = (body && body.track) || 'free';
@@ -1559,9 +1559,9 @@ async function routeCommunityCheckinCard(env, guildId, discordId, body) {
   // POST { discordId, guildId, card: { imageUrl, accentColor?, headline?,
   //          subtitle?, backgroundId? } }
   // OR  POST { discordId, guildId, op: 'get', lookupUserId? }
-  //   — lookupUserId lets the site's /api/web/checkin/user-background
+  //, lookupUserId lets the site's /api/web/checkin/user-background
   //     endpoint resolve another user's saved card (just the bg
-  //     picker — the card fields are non-sensitive: image URL,
+  //     picker, the card fields are non-sensitive: image URL,
   //     accent colour, headline, subtitle, backgroundId slug).
   //     Falls back to the authenticated user's own card when
   //     lookupUserId is unset, missing, or fails the digits-only
@@ -1603,7 +1603,7 @@ async function routeStreamCheckinShow(env, guildId, discordId, body) {
 }
 
 async function routeStreamCheckinBadges(env, guildId, discordId, body) {
-  // POST { discordId, guildId, lookupUserId? } — earned badges (self by default).
+  // POST { discordId, guildId, lookupUserId? }, earned badges (self by default).
   const { badgesFor } = await import('./stream-checkin.js');
   let targetId = discordId;
   const lookupRaw = body?.lookupUserId;
@@ -1619,7 +1619,7 @@ async function routeStreamCheckinBadges(env, guildId, discordId, body) {
 //   { op: 'set',   cardId, url }         → validate + save
 //   { op: 'clear', cardId }              → drop the override
 //   { op: 'list' }                       → list every override for this user
-// Validation in cards-art-override.js — HTTPS only, host-allow-listed,
+// Validation in cards-art-override.js, HTTPS only, host-allow-listed,
 // HEAD-checked Content-Type=image/gif, size ≤ 5 MB. Rendering switch
 // to the override lands in a follow-up (per Clay 2026-05).
 async function routeCardsArtOverride(env, guildId, discordId, body) {
@@ -1647,7 +1647,7 @@ async function routeCardsArtOverride(env, guildId, discordId, body) {
   return json({ ok: false, error: 'bad-op', allowed: ['get', 'set', 'clear', 'list'] }, 400);
 }
 
-// 2026-05-30 — meme-skin card-art override feature REMOVED.
+// 2026-05-30, meme-skin card-art override feature REMOVED.
 // All three skin endpoints (set / clear / list) return 410 Gone.
 // The underlying cards-art-override.js module stays on disk for
 // historical reference + in case Clay decides to revert, but no
@@ -1677,7 +1677,7 @@ async function routeCardsSkinList() {
   }, 410);
 }
 
-// ── Seasonal Spire — thin wrappers over spire.js helpers ──────────
+// ── Seasonal Spire, thin wrappers over spire.js helpers ──────────
 
 async function routeSpireSeason(env) {
   const { getSeasonView } = await import('./spire.js');
@@ -1740,7 +1740,7 @@ async function routeSpireLeaderboard(env, body) {
 // ── Banners + Banner Wars (2026-05-29) ────────────────────────────
 //
 // MVP backend behind the site-side scaffolded UI. Thin web wrappers
-// over banners.js + banner-wars.js — the heavy logic stays in the
+// over banners.js + banner-wars.js, the heavy logic stays in the
 // modules so a future Discord-slash front-end can reuse it.
 
 async function routeBannerMe(env, guildId, userId) {
@@ -1864,7 +1864,7 @@ async function routeCardBackSet(env, userId, body) {
   return json(r, r.ok ? 200 : 400);
 }
 
-// /web/cards/suggest-art-terms — DEPRECATED 2026-05-30 alongside the
+// /web/cards/suggest-art-terms, DEPRECATED 2026-05-30 alongside the
 // meme-skin removal. The endpoint still returns search terms +
 // description so site code that uses the description text in other
 // surfaces (deck-builder card tooltips, etc.) keeps working, but it
@@ -1889,13 +1889,13 @@ async function routeCommunityCheckinBonusCollect(env, guildId, discordId, body) 
 // Web-bridge implicit Patreon-link signal.
 //
 // Reaching any /web/quest/* route IS proof the caller has a verified
-// Patreon session — aquilo-site's bridge ([[route]].js → postToBot)
+// Patreon session, aquilo-site's bridge ([[route]].js → postToBot)
 // requires a valid aq_link cookie, which is issued ONLY by the
 // Patreon OAuth callback. So if the bot receives the request with
 // a valid HMAC + a real discordId, that user has linked Patreon
 // (regardless of whether their Patreon profile had an avatar, or
-// whether any of the older worker-side signals — `patreon:tier:<u>`
-// presence, `wallet.links` patreon entry — were ever written).
+// whether any of the older worker-side signals, `patreon:tier:<u>`
+// presence, `wallet.links` patreon entry, were ever written).
 //
 // We therefore mark the explicit `quest:patreon-linked:<g>:<u>` flag
 // at the top of every web-quest route so the step's completion check
@@ -1986,7 +1986,7 @@ async function routeChatSend(env, guildId, discordId, body) {
 // 3-arg). Both have the same route name `chat/recent` on their
 // respective branches; main's reactions handler keeps the original
 // path. This PWA chat-relay reader is dispatched under
-// `chat/relay/recent` instead — the parallel aquilo-site session will
+// `chat/relay/recent` instead, the parallel aquilo-site session will
 // have to swap to that path when it wires the chat-relay UI.
 async function routeChatRelayRecent(env, guildId, discordId, body) {
   // POST { discordId, guildId, channelId, limit? }
@@ -2014,7 +2014,7 @@ async function routeQuestMarkPatreonLinked(env, guildId, discordId) {
   // the quest-completion flag AND fires the referral milestone (no-op
   // if the user isn't attributed or already-paid).
   //
-  // The flag-set is unconditional + idempotent — repeat calls just
+  // The flag-set is unconditional + idempotent, repeat calls just
   // re-stamp + return the same `verified` snapshot. The site is the
   // source of truth on "is this session Patreon-verified"; the worker
   // additionally confirms via patreon:tier:<userId> when present so

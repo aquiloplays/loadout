@@ -127,7 +127,7 @@ function componentData(customId, values) {
 
 // ── Tests ─────────────────────────────────────────────────────────
 
-console.log('— catalog stability');
+console.log('- catalog stability');
 {
   eq(STEP_ORDER, ['welcome', 'interests', 'links', 'pwa', 'age18', 'tour', 'complete'], 'STEP_ORDER');
   const keys = INTERESTS.map(i => i.key);
@@ -136,21 +136,21 @@ console.log('— catalog stability');
   eq(ONBOARD_BONUS_PACK,  'bolt', 'bonus pack');
 }
 
-console.log('— starting fresh');
+console.log('- starting fresh');
 {
   const env = envFor(makeKv());
   const r = await handleOnboardCommand(env, slashData());
   eq(r.type, 4, 'returns CHAT response');
   assert(r.data.flags === 64, 'ephemeral');
   assert(Array.isArray(r.data.embeds) && r.data.embeds[0].title.includes('Welcome'), 'welcome embed shown');
-  // No KV state should exist yet — viewWelcome doesn\'t persist.
+  // No KV state should exist yet, viewWelcome doesn\'t persist.
   const s = await getState(env, GUILD, USER);
   eq(s.step, 'welcome', 'state defaults to welcome');
   eq(s.bonusGranted, false, 'no bonus yet');
   eq(s.completedSteps, [], 'no steps marked');
 }
 
-console.log('— resume partway (state at pwa)');
+console.log('- resume partway (state at pwa)');
 {
   const env = envFor(makeKv());
   await env.LOADOUT_BOLTS.put(`onboard:state:${GUILD}:${USER}`, JSON.stringify({
@@ -162,11 +162,11 @@ console.log('— resume partway (state at pwa)');
   }));
   const r = await handleOnboardCommand(env, slashData());
   assert(r.data.embeds[0].title.includes('Install Aquilo'), 'pwa view shown');
-  // Funnel untouched on resume render — render is read-only.
+  // Funnel untouched on resume render, render is read-only.
   eq(await getFunnel(env, GUILD), { started: 0, completed: 0, perStep: {} }, 'funnel unchanged on resume');
 }
 
-console.log('— role-grant skipped when role missing');
+console.log('- role-grant skipped when role missing');
 {
   const env = envFor(makeKv());
   // No role map at all → every interest skipped with no-mapping.
@@ -199,7 +199,7 @@ console.log('— role-grant skipped when role missing');
   eq(calls.length, 3, 'one REST call per interest');
 }
 
-console.log('— env-var ONBOARD_ROLE_MAP fallback');
+console.log('- env-var ONBOARD_ROLE_MAP fallback');
 {
   const env = envFor(makeKv(), {
     ONBOARD_ROLE_MAP: JSON.stringify({ gamenight: '900000000000099999', notvalid: 'nope' }),
@@ -213,7 +213,7 @@ console.log('— env-var ONBOARD_ROLE_MAP fallback');
   eq(m2.gamenight, '888888888888888888', 'KV overrides env');
 }
 
-console.log('— bonus only fires once');
+console.log('- bonus only fires once');
 {
   const env = envFor(makeKv());
   // Stub DM channel + message endpoints + REST role fetches as 204
@@ -226,7 +226,7 @@ console.log('— bonus only fires once');
   eq(r1.bolts, ONBOARD_BONUS_BOLTS, 'bolts granted on first call');
   const w1 = await getWallet(env, GUILD, USER);
   eq(w1.balance, ONBOARD_BONUS_BOLTS, 'wallet balance is exactly the bonus');
-  // Second completion — reload state, call again.
+  // Second completion, reload state, call again.
   const state2 = await getState(env, GUILD, USER);
   eq(state2.bonusGranted, true, 'state persists bonusGranted');
   const r2 = await completeOnboarding(env, GUILD, USER, state2);
@@ -234,13 +234,13 @@ console.log('— bonus only fires once');
   eq(r2.bolts, 0, 'no bolts granted on second call');
   const w2 = await getWallet(env, GUILD, USER);
   eq(w2.balance, ONBOARD_BONUS_BOLTS, 'wallet balance unchanged on second call');
-  // Funnel — only one `completed` despite two completion calls.
+  // Funnel, only one `completed` despite two completion calls.
   const f = await getFunnel(env, GUILD);
   eq(f.completed, 1, 'funnel.completed exactly 1');
   fetchHandler = null;
 }
 
-console.log('— idempotent re-run after completion via /onboard');
+console.log('- idempotent re-run after completion via /onboard');
 {
   const env = envFor(makeKv());
   // Pre-seed completed state directly.
@@ -263,7 +263,7 @@ console.log('— idempotent re-run after completion via /onboard');
   eq(w.balance, 100, 'wallet unchanged after re-run');
 }
 
-console.log('— full flow walkthrough (advance buttons)');
+console.log('- full flow walkthrough (advance buttons)');
 {
   const env = envFor(makeKv());
   await env.LOADOUT_BOLTS.put(`onboard:role-map:${GUILD}`, JSON.stringify({
@@ -293,7 +293,7 @@ console.log('— full flow walkthrough (advance buttons)');
   assert(r.data.embeds[0].title.includes('Install Aquilo'), 'links → pwa');
   r = await handleOnboardComponent(env, componentData('onb:advance:pwa'));
   assert(r.data.embeds[0].title.includes('18'), 'pwa → age18');
-  // age18 has its own yes/no handler — emulate the "no" path to advance to tour.
+  // age18 has its own yes/no handler, emulate the "no" path to advance to tour.
   r = await handleOnboardComponent(env, componentData('onb:age18:no'));
   assert(r.data.embeds[0].title.includes('quick tour'), 'age18:no → tour');
   r = await handleOnboardComponent(env, componentData('onb:advance:tour'));
@@ -314,7 +314,7 @@ console.log('— full flow walkthrough (advance buttons)');
   fetchHandler = null;
 }
 
-console.log('— skip-button flow (skips don\'t complete the skipped step)');
+console.log('- skip-button flow (skips don\'t complete the skipped step)');
 {
   const env = envFor(makeKv());
   fetchHandler = async () => new Response('{}', { status: 200 });
@@ -329,7 +329,7 @@ console.log('— skip-button flow (skips don\'t complete the skipped step)');
   fetchHandler = null;
 }
 
-console.log('— /onboard status admin-gated');
+console.log('- /onboard status admin-gated');
 {
   const env = envFor(makeKv());
   // Non-admin should get the 🔒 message.
@@ -340,7 +340,7 @@ console.log('— /onboard status admin-gated');
   assert(/Onboarding funnel/.test(r2.data.content), 'admin sees funnel header');
 }
 
-console.log('— /onboard post-embed admin-gated');
+console.log('- /onboard post-embed admin-gated');
 {
   const env = envFor(makeKv());
   const r1 = await handleOnboardCommand(env, slashData('post-embed'));
@@ -361,7 +361,7 @@ console.log('— /onboard post-embed admin-gated');
   eq(rec.messageId, '900100200300400500', 'welcome-msg id recorded');
 }
 
-console.log('— buildWelcomeEmbed exposes the begin button id');
+console.log('- buildWelcomeEmbed exposes the begin button id');
 {
   const env = envFor(makeKv());
   const { embed, components } = await buildWelcomeEmbed(env, GUILD);
@@ -375,7 +375,7 @@ console.log('');
 // Restore real fetch so the harness exits cleanly.
 globalThis.fetch = realFetch;
 if (failures > 0) {
-  console.log('FAILED — ' + failures + ' assertion(s) failed');
+  console.log('FAILED, ' + failures + ' assertion(s) failed');
   process.exit(1);
 }
-console.log('PASSED — all assertions ok');
+console.log('PASSED, all assertions ok');

@@ -1,21 +1,21 @@
-// Boltbound — card catalogue + ability schema + champion + NPC decks.
+// Boltbound, card catalogue + ability schema + champion + NPC decks.
 //
-// Static content only — no KV I/O. Imported by cards-battle.js (ability
+// Static content only, no KV I/O. Imported by cards-battle.js (ability
 // dispatch), cards-packs.js (rarity pools for pull rolls), and
 // cards-decks.js (per-card deck-cap lookups).
 //
 // See CARD-GAME-DESIGN.md §3 for the locked roster shape. Card IDs are
-// stable identifiers — collection records reference cards by id, so
+// stable identifiers, collection records reference cards by id, so
 // renaming an existing card means MIGRATING the collection, not just
 // renaming the key here.
 //
 // Sprite convention (matches Clash + Character systems):
 //   aquilo-gg/sprites/cards/<cardId>.png        common/uncommon/rare 64x80 PNG
 //   aquilo-gg/sprites/cards/<cardId>.png        legendary tier: APNG animated
-// Both are served from https://aquilo.gg/sprites/cards/<cardId>.png — the
+// Both are served from https://aquilo.gg/sprites/cards/<cardId>.png, the
 // extension is .png either way (animated PNGs use the .png extension).
 //
-// LOCKED ABILITY KEYS — extending this set is the right place to grow
+// LOCKED ABILITY KEYS, extending this set is the right place to grow
 // the design space; ad-hoc ability strings in card records are NOT
 // supported. The battle resolver only understands what's listed here.
 
@@ -68,7 +68,7 @@ export const EFFECTS = [
   'reSummon',       // onDeath: resurrect the dying minion once (no loop).
   'revealAndDraw',  // value: N. Reveal the top N of deck and draw them.
   'doubleBattlecry',// re-fire the most recent other friendly minion's onPlay.
-  // CR-2 (Voidborn expansion) — deeper TCG mechanics.
+  // CR-2 (Voidborn expansion), deeper TCG mechanics.
   'recruit',        // value: maxMana. Pull a friendly minion of cost<=N from
                     //   your deck and summon it to your board.
   'adapt',          // grant the source one of a deterministic buff set (see
@@ -92,7 +92,7 @@ export const TARGETS = [
   'oppHand',
   'selfHand',
   'self',                 // the card itself (for onDeath returnToHand etc.)
-  'lastDeadFriendly',     // resurrect target — last friendly that hit graveyard
+  'lastDeadFriendly',     // resurrect target, last friendly that hit graveyard
   'allFriendlyTribe',     // friendly minions sharing ab.tribe (tribal synergy)
 ];
 
@@ -116,7 +116,7 @@ export const KEYWORDS = [
 //   · umbra (shadow) · verdant (nature).
 export const TRIBES = ['inferno', 'tide', 'tempest', 'hallow', 'umbra', 'verdant'];
 
-// Adapt buff pool — the source minion gains one of these on adapt. Kept
+// Adapt buff pool, the source minion gains one of these on adapt. Kept
 // deterministic + small so the engine can resolve it without a UI round
 // trip (action.adaptChoice picks an index; otherwise the seeded RNG does).
 export const ADAPT_POOL = [
@@ -168,7 +168,7 @@ export function normaliseCard(c) {
 // EXACTLY ONE Champion card, bound to whatever class their HeroState
 // currently has. A class swap auto-updates every deck's Champion.
 //
-// Champions are NOT pullable from packs — they're granted on
+// Champions are NOT pullable from packs, they're granted on
 // first-/boltbound and re-granted on class change.
 
 const CHAMPIONS_RAW = {
@@ -229,7 +229,7 @@ export function championForClass(cls) {
   return CHAMPIONS[cls]?.id || CHAMPIONS.warrior.id;
 }
 
-// ── Legendaries — heroes (5) ─────────────────────────────────────────
+// ── Legendaries, heroes (5) ─────────────────────────────────────────
 //
 // See CARD-GAME-DESIGN.md §3.2. One copy per deck. Animated APNG sprite
 // tier (matches Excalibur in the dungeon catalogue).
@@ -280,7 +280,7 @@ const LEGEND_HEROES = [
   },
 ];
 
-// ── Legendaries — dungeon bosses (5) ─────────────────────────────────
+// ── Legendaries, dungeon bosses (5) ─────────────────────────────────
 
 const LEGEND_BOSSES = [
   {
@@ -547,7 +547,7 @@ const COMMONS = [
     text: 'Your minions have +1 attack this turn.' },
 ];
 
-// ── Tokens — summoned, not pullable ──────────────────────────────────
+// ── Tokens, summoned, not pullable ──────────────────────────────────
 //
 // These cards never appear in a deck or the collection. They're spawned
 // by other cards' summon effects.
@@ -567,17 +567,17 @@ const TOKENS = [
 // Merged here at module load so battle/packs/decks see one catalogue.
 import { EXPANSION_CARDS } from './cards-expansion.js';
 import { SPIRE_LEGENDARIES, SPIRE_TOKENS } from './spire-cards.js';
-// CR-2 — the first quarterly expansion. Already rarity-stamped + set-tagged
+// CR-2, the first quarterly expansion. Already rarity-stamped + set-tagged
 // in its own module; merged in as-is (no per-rarity .map needed).
 import { VOIDBORN_CARDS } from './cards-voidborn.js';
-// CR-2 scale-up — procedurally generated bulk of all 4 expansions (200/set):
+// CR-2 scale-up, procedurally generated bulk of all 4 expansions (200/set):
 // the 150 Voidborn top-up + Tides/Embercrown/Verdant whole. Already
 // rarity/set/tribe-stamped. See cards-expansion-bulk.js.
 import { EXPANSION_BULK_CARDS, EXPANSION_BULK_TOKENS } from './cards-expansion-bulk.js';
 // Per-id DISPLAY-text diversification (tools/diversify-effects.py). Many
 // procedurally-generated cards shared identical effect descriptions; this
 // map rewrites only the `text` string with variety. Mechanics, keywords,
-// abilities, and numbers are untouched — applied as the LAST merge below.
+// abilities, and numbers are untouched, applied as the LAST merge below.
 import { CARD_TEXT_OVERRIDES } from './card-text-overrides.js';
 
 const RAW_ROSTER = [
@@ -589,12 +589,12 @@ const RAW_ROSTER = [
   ...COMMONS.map(c => ({ ...c, rarity: 'common' })),
   ...TOKENS.map(c => ({ ...c, rarity: 'token' })),
   ...EXPANSION_CARDS,
-  // Spire seasonal exclusives — legendary minions granted via boss-clear.
+  // Spire seasonal exclusives, legendary minions granted via boss-clear.
   ...SPIRE_LEGENDARIES.map(c => ({ ...c, rarity: 'legendary' })),
   ...SPIRE_TOKENS.map(c => ({ ...c, rarity: 'token' })),
   // CR-2 Voidborn expansion (already rarity-stamped + set:'voidborn').
   ...VOIDBORN_CARDS,
-  // CR-2 bulk generator — 150 Voidborn top-up + Tides/Embercrown/Verdant
+  // CR-2 bulk generator, 150 Voidborn top-up + Tides/Embercrown/Verdant
   // (200 each) + their tokens. Already rarity/set/tribe-stamped.
   ...EXPANSION_BULK_CARDS,
   ...EXPANSION_BULK_TOKENS,
@@ -609,7 +609,7 @@ export const CARDS = Object.fromEntries(
   })])
 );
 
-// Sanity check at module load — duplicate IDs would silently overwrite,
+// Sanity check at module load, duplicate IDs would silently overwrite,
 // which is a content bug we want to find at deploy time, not at runtime.
 (function dedupeCheck() {
   const seen = new Set();
@@ -621,7 +621,7 @@ export const CARDS = Object.fromEntries(
   }
 })();
 
-// Schema check at module load — keeps authoring errors in expansion data
+// Schema check at module load, keeps authoring errors in expansion data
 // files (cards-voidborn.js, future sets) from shipping as silent no-ops.
 // Validates the locked dictionaries: every keyword/trigger/effect/target
 // a card references must be implemented. Cheap to run, runs once.
@@ -695,7 +695,7 @@ export const DUPE_BOLTS = {
 //
 // PACK SIZE: 3 cards (universal rule, 2026-06-02). Packs were 5 cards;
 // the rarity weights below were rebalanced so the *value* per pack holds
-// despite the smaller size — the non-common rates were scaled up by ~5/3
+// despite the smaller size, the non-common rates were scaled up by ~5/3
 // and the common filler trimmed, so a 3-card pack carries roughly the
 // same expected count of uncommon / rare / legendary as the old 5-card
 // pack. The smaller pack is therefore richer per card, not just shorter.
@@ -729,7 +729,7 @@ export const PACKS = {
     // ~1.5 rare+legendary per pack). Rebalanced over 3 slots to keep that
     // rare+ value: ~half of every slot is now rare-or-better.
     weights: { common: 10, uncommon: 40, rare: 42, legendary: 8 },
-    priceBolts: null,            // drop-only — Clash 3-star + lootbox + Patreon
+    priceBolts: null,            // drop-only, Clash 3-star + lootbox + Patreon
   },
 };
 
@@ -739,12 +739,12 @@ export const PACK_IDS = Object.keys(PACKS);
 //
 // One deck per archetype. Cards are listed as cardId entries (with
 // repetition for multiples). The archetype's decision policy lives in
-// cards-match.js — these decks are paired with that policy so the
+// cards-match.js, these decks are paired with that policy so the
 // behaviour reads naturally.
 //
 // Each deck is exactly 20 cards (deckSize) including its champion.
 // Champion slot is filled at match-create with the same class
-// distribution the bot's archetype prefers — Aggro likes Warrior,
+// distribution the bot's archetype prefers, Aggro likes Warrior,
 // Control likes Mage, Midrange likes Ranger.
 
 export const NPC_DECKS = {
@@ -799,7 +799,7 @@ export const NPC_DECKS = {
       'leg.korrik',
     ],
   },
-  // CR-1 archetypes — pull from the expanded family pools.
+  // CR-1 archetypes, pull from the expanded family pools.
   // Tribal-beast: leans hard on the beast + wild families.
   tribal: {
     champion: 'ranger',
@@ -850,7 +850,7 @@ export const NPC_DECKS = {
   },
 };
 
-// Quick validity check at module load — NPC decks must reference
+// Quick validity check at module load, NPC decks must reference
 // real card ids.
 (function npcDeckCheck() {
   for (const [arch, deck] of Object.entries(NPC_DECKS)) {
@@ -880,7 +880,7 @@ export function getCard(id) {
   return CARDS[id] || null;
 }
 
-// Validate a deck — used by cards-decks.js. Champions count toward the
+// Validate a deck, used by cards-decks.js. Champions count toward the
 // 20-card total. Duplicates obey RARITY_DECK_CAP. Tokens are never
 // allowed in a deck.
 export const DECK_SIZE = 20;
@@ -895,7 +895,7 @@ export function validateDeck(deck) {
     const c = CARDS[id];
     if (!c) return { ok: false, error: `unknown card: ${id}` };
     if (c.token) return { ok: false, error: `tokens cannot be in decks: ${id}` };
-    // NOTE: the "unreleased set" gate is NOT here — release is KV-driven
+    // NOTE: the "unreleased set" gate is NOT here, release is KV-driven
     // (boltbound-release.js) and validateDeck is a pure/sync function. The
     // env-aware check lives in cards-decks.js saveDeck so a KV release/hide
     // takes effect without this static date lying.

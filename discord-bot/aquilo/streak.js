@@ -1,7 +1,7 @@
 // Cross-product daily streak. Ticks for ANY ecosystem action on a given
 // ET day (chat, count, /sr-add, encounter, suggest, trivia, etc.). Patron
 // roles get a 2x weight visible on the passport, but the streak day itself
-// is binary — you either acted today or you didn't.
+// is binary, you either acted today or you didn't.
 //
 // Storage: D1 `streaks` table, one row per (guild, user).
 //
@@ -68,7 +68,7 @@ export async function tickStreak(env, guildId, userId) {
 
   const delta = daysBetween(row.last_tick_et, today);
   if (delta === 0) {
-    // Already ticked today — no-op.
+    // Already ticked today, no-op.
     return { current: row.current_days, longest: row.longest_days, gained: false };
   }
 
@@ -76,7 +76,7 @@ export async function tickStreak(env, guildId, userId) {
   if (delta === 1) {
     current += 1;             // consecutive day, extends streak
   } else {
-    current = 1;              // gap — reset and start fresh
+    current = 1;              // gap, reset and start fresh
   }
   const longest = Math.max(row.longest_days, current);
 
@@ -106,7 +106,7 @@ export async function topStreaks(env, guildId, limit = 10) {
 
 /**
  * Fire-and-forget tick wrapper for handlers that don't want to await.
- * Drops the promise on the floor — callers should ctx.waitUntil() it
+ * Drops the promise on the floor, callers should ctx.waitUntil() it
  * when running inside the Worker request lifecycle.
  */
 export function tickAsync(env, guildId, userId) {

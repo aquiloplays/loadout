@@ -3,7 +3,7 @@
  *
  * Layered architecture: each "scene" registers a kind→handler dispatcher and
  * a render fn. Adding a scene later (duels, slots, lootboxes) is one entry in
- * the SCENES table — no overlay rewrite.
+ * the SCENES table, no overlay rewrite.
  */
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -21,7 +21,7 @@
                      .split(',').map(x => x.trim()).filter(Boolean);
 
   // Per-layer position overrides. A bare `pos` param positions every
-  // sub-layer at once — that's what the all-in-one composite forwards
+  // sub-layer at once, that's what the all-in-one composite forwards
   // so bolts lands in its assigned corner. A specific lbPos / toastPos /
   // streakPos / welcomePos still wins over the bare default when set.
   const posAll = params.get('pos');

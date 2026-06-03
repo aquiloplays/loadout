@@ -1,7 +1,7 @@
 // Glossy character figure pipeline.
 //
 // Replaces tools/build-sprites.ps1 for everything under
-// figure/* — body, hair, eyes, accent, default clothing. SVG
+// figure/*, body, hair, eyes, accent, default clothing. SVG
 // authored per kind, baked to PNG at 128×160 (HD glossy, 2× the
 // retired 64×80 pixel canvas).
 //
@@ -12,8 +12,8 @@
 //   aquilo-gg/sprites/figure/glossy/accent-<name>.png              (5)
 //   aquilo-gg/sprites/figure/glossy/default-clothing.png           (1)
 //
-// All variants are layer-compatible — same dims, same anchor
-// points — so character.js can compose them after the worker
+// All variants are layer-compatible, same dims, same anchor
+// points, so character.js can compose them after the worker
 // flip (deferred per Clay).
 //
 // Hair colour is now baked per-file rather than runtime
@@ -40,21 +40,21 @@ mkdirSync(OUT, { recursive: true });
 //
 // 128 wide × 160 tall. L2-rework proportions: ~4 heads tall, not the
 // stacked-low chibi blob the prior pass shipped. Head diameter ≈ 36,
-// torso ≈ 44, legs ≈ 50 — that gives a balanced stance instead of
+// torso ≈ 44, legs ≈ 50, that gives a balanced stance instead of
 // everything piled under a giant head.
 //
-//   y =  10–12   hair crown extra space
-//   y =  12–48   head             (HEAD_R=18 → 36-px sphere, cy=30)
-//   y =  46–58   neck             (12-px tapered column)
-//   y =  58–102  torso            (44-px tall: shoulders → waist)
-//   y = 100–110  hip flare        (slight)
-//   y = 110–132  thigh            (22 tall)
-//   y = 132–152  shin             (20 tall)
-//   y = 152–158  feet
+//   y =  10-12   hair crown extra space
+//   y =  12-48   head             (HEAD_R=18 → 36-px sphere, cy=30)
+//   y =  46-58   neck             (12-px tapered column)
+//   y =  58-102  torso            (44-px tall: shoulders → waist)
+//   y = 100-110  hip flare        (slight)
+//   y = 110-132  thigh            (22 tall)
+//   y = 132-152  shin             (20 tall)
+//   y = 152-158  feet
 //
 // Arms hang OUTSIDE the torso silhouette with a visible gap. Hand
 // circle sits well below the waist line so any tunic / armor never
-// hides it. Hand radius scaled to match the smaller head — 7 px
+// hides it. Hand radius scaled to match the smaller head, 7 px
 // reads as a fist at 128-px canvas without looking comical.
 
 const W = 128, H = 160;
@@ -66,9 +66,9 @@ const HIP_Y      = 110;
 const KNEE_Y     = 132;
 const ANKLE_Y    = 152;
 const FOOT_Y     = 156;
-// Arms — slim near-vertical limb. Hand sits roughly at hip level
+// Arms, slim near-vertical limb. Hand sits roughly at hip level
 // (HIP_Y=110) so the arm length matches the torso. HAND_OFFSET_X is
-// tight against the body — only a small natural gap from the torso
+// tight against the body, only a small natural gap from the torso
 // silhouette. HAND_R sized in proportion to the wrist (~50 % wider).
 const HAND_Y        = 108;
 const HAND_R        = 5;
@@ -131,7 +131,7 @@ const EYE_COLOURS = {
 // Cel-shaded approach (L3 rework): a SHALLOW linear gradient as the
 // base fill, then explicit shadow/highlight shapes drawn on top.
 // The prior radial-rgrad was the source of the "every body part is
-// an inflated balloon" look — soft gradient + circular shape = sphere.
+// an inflated balloon" look, soft gradient + circular shape = sphere.
 // A flat-ish base + crisp drawn shading reads as form, not a balloon.
 
 function skinDefs(skin) {
@@ -157,7 +157,7 @@ function skinDefs(skin) {
 // Premium mobile-RPG hero. Built like a real figure, not segmented
 // pieces:
 //
-//   • One CONTINUOUS arm path per side — shoulder cap → upper-arm
+//   • One CONTINUOUS arm path per side, shoulder cap → upper-arm
 //     bulge → elbow taper → forearm → wrist → hand. No visible bolt
 //     joints (the prior pass had shoulder + elbow as separate
 //     circles which read as a wooden mannequin).
@@ -179,7 +179,7 @@ function bodyShape(type, skin) {
 function bodyShapeL3(type, skin) {
   const cx = 64;
   const stocky = type === 'stocky';
-  // Torso — narrower than the L2 version, longer top-to-bottom
+  // Torso, narrower than the L2 version, longer top-to-bottom
   const shoulderHalf = stocky ? 22 : 18;
   const waistHalf    = stocky ? 16 : 13;
   const hipHalf      = stocky ? 19 : 16;
@@ -189,7 +189,7 @@ function bodyShapeL3(type, skin) {
   const rightWaistX    = cx + waistHalf;
   const leftHipX       = cx - hipHalf;
   const rightHipX      = cx + hipHalf;
-  // Arms — TAPERING limb, drawn as a separate shape with a visible
+  // Arms, TAPERING limb, drawn as a separate shape with a visible
   // GAP between the inner arm edge and the torso outer edge. Wider
   // at the shoulder, narrowing steadily to the wrist; the hand is
   // a clean circle slightly bigger than the wrist.
@@ -202,7 +202,7 @@ function bodyShapeL3(type, skin) {
   const armShoulderW = stocky ? 8 : 7;
   const armWristW    = stocky ? 6 : 5;
   // The arm's INNER edge sits ARM_GAP outside the torso outer edge
-  // — that gap is what makes the arm read as a separate limb rather
+  //, that gap is what makes the arm read as a separate limb rather
   // than a body bulge.
   const leftArmInnerTop  = leftShoulderX  - ARM_GAP;
   const rightArmInnerTop = rightShoulderX + ARM_GAP;
@@ -215,19 +215,19 @@ function bodyShapeL3(type, skin) {
   const leftWristOuterX  = leftHandX  - armWristW / 2;
   const rightWristInnerX = rightHandX - armWristW / 2;
   const rightWristOuterX = rightHandX + armWristW / 2;
-  // Legs — thigh → calf → ankle, longer than L2.
+  // Legs, thigh → calf → ankle, longer than L2.
   const thighOuterX = stocky ? 9 : 8;
   const kneeOuterX  = stocky ? 7 : 6;
   const ankleOuterX = stocky ? 5 : 4;
   const footW = stocky ? 16 : 14;
-  // Neck — short tapered column under the head
+  // Neck, short tapered column under the head
   const neckHalfBase = stocky ? 8 : 7;
   const neckHalfTop  = stocky ? 6 : 5;
   const NECK_TOP_Y   = HEAD_CY + HEAD_R - 3;
   const NECK_BASE_Y  = SHOULDER_Y;
   // Light direction: upper-LEFT. Highlight on left, shadow on right.
   // All "shadow" overlays use skin.lo at 0.4-0.6 opacity; highlights
-  // use skin.hi. NO radial gradients — flat shading reads as form,
+  // use skin.hi. NO radial gradients, flat shading reads as form,
   // soft gradients read as a balloon.
 
   return `
@@ -250,7 +250,7 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
          L ${leftWaistX} ${WAIST_Y}
          Q ${leftWaistX - 1} ${WAIST_Y - 12} ${leftShoulderX + 1} ${ARMPIT_Y - 2} Z"
       fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
-<!-- TORSO SHADOW SIDE (right half) — crisp flat shape, not a soft
+<!-- TORSO SHADOW SIDE (right half), crisp flat shape, not a soft
      gradient. Reads as cel-shading: light side / shadow side. -->
 <path d="M ${cx} ${SHOULDER_Y - 3}
          L ${rightShoulderX - 4} ${SHOULDER_Y - 4}
@@ -261,7 +261,7 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
          Q ${rightHipX - 3} ${HIP_Y + 3} ${rightHipX - 5} ${HIP_Y + 3}
          L ${cx} ${HIP_Y + 3} Z"
       fill="${skin.lo}" opacity="0.18"/>
-<!-- centre form line (sternum) — a single crisp shadow line, not a
+<!-- centre form line (sternum), a single crisp shadow line, not a
      radial blob. Gives the torso a centre plane. -->
 <path d="M ${cx} ${SHOULDER_Y - 1} L ${cx} ${WAIST_Y + 4}"
       stroke="${skin.lo}" stroke-width="1.1" opacity="0.55"/>
@@ -280,7 +280,7 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
      elbow bow. Hand is a palm + thumb combined path. Light side
      on the OUTER edge (away from torso), shadow on the inner. -->
 
-<!-- LEFT arm — clean straight taper, shoulder to wrist -->
+<!-- LEFT arm, clean straight taper, shoulder to wrist -->
 <path d="M ${leftArmOuterTop} ${SHOULDER_Y - 1}
          L ${leftWristOuterX} ${HAND_Y - HAND_R}
          L ${leftWristInnerX} ${HAND_Y - HAND_R}
@@ -296,11 +296,11 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
 <path d="M ${leftShoulderX - 2} ${SHOULDER_Y + 2}
          Q ${leftShoulderX} ${ARMPIT_Y - 2} ${leftShoulderX + 3} ${ARMPIT_Y}"
       fill="none" stroke="${skin.stroke}" stroke-width="1.6" opacity="0.5" stroke-linecap="round"/>
-<!-- LEFT arm OUTER highlight — soft stroke down the light side -->
+<!-- LEFT arm OUTER highlight, soft stroke down the light side -->
 <path d="M ${leftArmOuterTop + 1} ${SHOULDER_Y + 2}
          L ${leftWristOuterX + 1} ${HAND_Y - HAND_R - 1}"
       fill="none" stroke="${skin.hi}" stroke-width="1" opacity="0.55" stroke-linecap="round"/>
-<!-- LEFT hand — mitt: palm ellipse + thumb bump on the INNER (right)
+<!-- LEFT hand, mitt: palm ellipse + thumb bump on the INNER (right)
      side. Single closed path so the outline is continuous. -->
 <path d="M ${leftHandX} ${HAND_Y - HAND_R - 0.5}
          C ${leftHandX - HAND_R + 1} ${HAND_Y - HAND_R - 0.5},
@@ -331,13 +331,13 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
          Q ${leftHandX} ${HAND_Y + HAND_R} ${leftHandX + HAND_R - 1.5} ${HAND_Y + HAND_R - 2}"
       fill="none" stroke="${skin.stroke}" stroke-width="0.7" opacity="0.5"/>
 
-<!-- RIGHT arm — clean straight taper (mirror of left) -->
+<!-- RIGHT arm, clean straight taper (mirror of left) -->
 <path d="M ${rightArmOuterTop} ${SHOULDER_Y - 1}
          L ${rightWristOuterX} ${HAND_Y - HAND_R}
          L ${rightWristInnerX} ${HAND_Y - HAND_R}
          L ${rightArmInnerTop} ${SHOULDER_Y - 1} Z"
       fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="1.8" stroke-linejoin="round"/>
-<!-- RIGHT arm SHADOW — outer edge AND inner (this is the away-side
+<!-- RIGHT arm SHADOW, outer edge AND inner (this is the away-side
      limb relative to the upper-left light source) -->
 <path d="M ${(rightArmInnerTop + rightArmOuterTop) / 2 + 1} ${SHOULDER_Y - 1}
          L ${(rightWristInnerX + rightWristOuterX) / 2 + 1} ${HAND_Y - HAND_R}
@@ -348,12 +348,12 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
 <path d="M ${rightShoulderX + 2} ${SHOULDER_Y + 2}
          Q ${rightShoulderX} ${ARMPIT_Y - 2} ${rightShoulderX - 3} ${ARMPIT_Y}"
       fill="none" stroke="${skin.stroke}" stroke-width="1.6" opacity="0.5" stroke-linecap="round"/>
-<!-- RIGHT arm OUTER edge — this side is the SHADOW side (light from
+<!-- RIGHT arm OUTER edge, this side is the SHADOW side (light from
      upper-left), so paint a soft form shadow instead of a highlight -->
 <path d="M ${rightArmOuterTop - 1} ${SHOULDER_Y + 2}
          L ${rightWristOuterX - 1} ${HAND_Y - HAND_R - 1}"
       fill="none" stroke="${skin.lo}" stroke-width="1" opacity="0.45" stroke-linecap="round"/>
-<!-- RIGHT hand — mitt with thumb on the INNER (left) side -->
+<!-- RIGHT hand, mitt with thumb on the INNER (left) side -->
 <path d="M ${rightHandX} ${HAND_Y - HAND_R - 0.5}
          C ${rightHandX + HAND_R - 1} ${HAND_Y - HAND_R - 0.5},
            ${rightHandX + HAND_R + 0.5} ${HAND_Y - HAND_R + 2},
@@ -369,7 +369,7 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
            ${rightHandX - HAND_R + 1} ${HAND_Y - HAND_R - 0.5}
          L ${rightHandX} ${HAND_Y - HAND_R - 0.5} Z"
       fill="url(#skin-grad)" stroke="${skin.stroke}" stroke-width="1.6" stroke-linejoin="round"/>
-<!-- RIGHT hand SHADOW (palm shadow on the right side — away from light) -->
+<!-- RIGHT hand SHADOW (palm shadow on the right side, away from light) -->
 <path d="M ${rightHandX} ${HAND_Y - HAND_R - 0.5}
          C ${rightHandX + HAND_R - 1} ${HAND_Y - HAND_R - 0.5},
            ${rightHandX + HAND_R + 0.5} ${HAND_Y - HAND_R + 2},
@@ -462,7 +462,7 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
       fill="${skin.lo}" opacity="0.35"/>
 
 <!-- ── HEAD ── circle with flat cel-shading. Drawn last so it
-     sits ON TOP of the neck/torso. NO radial gradient — flat base
+     sits ON TOP of the neck/torso. NO radial gradient, flat base
      fill plus a single crescent shadow shape on the right + a
      small highlight on the upper-left. -->
 <circle cx="${HEAD_CX}" cy="${HEAD_CY}" r="${HEAD_R}"
@@ -487,11 +487,11 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
 
 <!-- ── FACE ── nose, mouth, brows (eyes are owned by the eyes-* layer).
      All offsets are scaled to the new HEAD_R=18 head. -->
-<!-- NOSE — small triangle nub (more visible than a dot) -->
+<!-- NOSE, small triangle nub (more visible than a dot) -->
 <path d="M ${HEAD_CX - 1.5} ${HEAD_CY + 4}
          Q ${HEAD_CX} ${HEAD_CY + 6} ${HEAD_CX + 1.5} ${HEAD_CY + 4}"
       fill="${skin.lo}" stroke="${skin.lo}" stroke-width="0.5" opacity="0.7"/>
-<!-- MOUTH — friendly smile with corner upturns + subtle lower-lip
+<!-- MOUTH, friendly smile with corner upturns + subtle lower-lip
      hint. Reads as intentional friendliness, not a default dot. -->
 <path d="M ${HEAD_CX - 5} ${HEAD_CY + 8.5}
          Q ${HEAD_CX} ${HEAD_CY + 11} ${HEAD_CX + 5} ${HEAD_CY + 8.5}"
@@ -504,7 +504,7 @@ ${contactShadow({ cx: 64, cy: FOOT_Y + 4, rx: 32, ry: 5 })}
 <!-- subtle lower-lip line -->
 <path d="M ${HEAD_CX - 3} ${HEAD_CY + 11.5} Q ${HEAD_CX} ${HEAD_CY + 12.5} ${HEAD_CX + 3} ${HEAD_CY + 11.5}"
       fill="none" stroke="${skin.lo}" stroke-width="0.7" opacity="0.5"/>
-<!-- BROWS — light arched, intentional + friendly. Lower opacity +
+<!-- BROWS, light arched, intentional + friendly. Lower opacity +
      thinner stroke so they read as brows, not slashes. -->
 <path d="M ${HEAD_CX - 9.5} ${HEAD_CY - 4}
          Q ${HEAD_CX - 7} ${HEAD_CY - 5.2} ${HEAD_CX - 3.5} ${HEAD_CY - 3.6}"
@@ -528,7 +528,7 @@ function bodySvg(type, toneName) {
 // ── Hair styles ─────────────────────────────────────────────────
 //
 // Each style is a function returning SVG body, parametrized by a
-// 5-tone palette object. Hair sits over the head crown — anchored
+// 5-tone palette object. Hair sits over the head crown, anchored
 // against (HEAD_CX, HEAD_CY).
 
 function hairDefs(c) {
@@ -651,10 +651,10 @@ function hairBraids(c) {
 }
 
 function hairCurlyAfro(c) {
-  // Tidier afro — base silhouette + intentionally placed curl bumps
+  // Tidier afro, base silhouette + intentionally placed curl bumps
   // (not random-feeling stack), all sitting cleanly around the head.
   return `
-<!-- base silhouette — a tighter dome so the afro sits ON the head
+<!-- base silhouette, a tighter dome so the afro sits ON the head
      instead of floating high above it -->
 <path d="M ${HEAD_CX - 26} ${HEAD_CY - 4}
          Q ${HEAD_CX - 30} ${HEAD_CY - 28} ${HEAD_CX} ${HEAD_CY - 36}
@@ -756,11 +756,11 @@ function hairMullet(c) {
 }
 
 function hairWizardLong(c) {
-  // Slimmer wizard-long hair — TWO long side strands that hang from
+  // Slimmer wizard-long hair, TWO long side strands that hang from
   // behind the ears down the sides, NOT a full draping curtain that
   // covers the chest. The strands taper to a point.
   return `
-<!-- crown — covers the top of the head -->
+<!-- crown, covers the top of the head -->
 <path d="M ${HEAD_CX - 24} ${HEAD_CY - 6}
          Q ${HEAD_CX - 26} ${HEAD_CY - 22} ${HEAD_CX - 8} ${HEAD_CY - 30}
          Q ${HEAD_CX + 8} ${HEAD_CY - 32} ${HEAD_CX + 24} ${HEAD_CY - 20}
@@ -774,7 +774,7 @@ function hairWizardLong(c) {
          Q ${HEAD_CX + 8} ${HEAD_CY - 4} ${HEAD_CX + 14} ${HEAD_CY - 16}
          Q ${HEAD_CX} ${HEAD_CY - 24} ${HEAD_CX - 14} ${HEAD_CY - 16} Z"
       fill="url(#hair-grad)" stroke="${c.deep}" stroke-width="2"/>
-<!-- LEFT side strand — narrow ribbon, tapers to a point at y≈+60 -->
+<!-- LEFT side strand, narrow ribbon, tapers to a point at y≈+60 -->
 <path d="M ${HEAD_CX - 22} ${HEAD_CY}
          Q ${HEAD_CX - 28} ${HEAD_CY + 20} ${HEAD_CX - 26} ${HEAD_CY + 40}
          Q ${HEAD_CX - 24} ${HEAD_CY + 60} ${HEAD_CX - 20} ${HEAD_CY + 70}
@@ -843,9 +843,9 @@ function eyesSvg(colourName) {
   return svgWrapper({
     width: W, height: H,
     title: `eyes-${colourName}`,
-    desc: 'Glossy eye layer — larger pupils + iris highlight so the face reads at 128-px.',
+    desc: 'Glossy eye layer, larger pupils + iris highlight so the face reads at 128-px.',
     body: `
-<!-- Layered eyes — sclera (white) with a hairline ink outline, full
+<!-- Layered eyes, sclera (white) with a hairline ink outline, full
      iris in the colour, dark pupil, and a small upper-left gloss
      catch. Sized for the HEAD_R=18 head. Reads as defined +
      expressive without being cartoon-creepy. -->
@@ -916,7 +916,7 @@ const ACCENTS = {
 };
 
 function accentSvg(name) {
-  // Same head-rescale wrap as hair — accents were authored against
+  // Same head-rescale wrap as hair, accents were authored against
   // the legacy 28-px head.
   const HEAD_CY_LEGACY = 44;
   const HEAD_R_LEGACY  = 28;
@@ -950,7 +950,7 @@ const _DC = {
   get TROUSER_TOP_Y() { return this.TUNIC_HEM_Y - 1; },
 };
 
-// Default TROUSERS only — drawn at z=22 so leg gear (z=30) cleanly
+// Default TROUSERS only, drawn at z=22 so leg gear (z=30) cleanly
 // covers them when equipped. The tunic (z=33) is drawn AFTER leg
 // gear so its skirt covers the leg-gear top.
 function defaultTrousersSvg() {
@@ -958,7 +958,7 @@ function defaultTrousersSvg() {
   return svgWrapper({
     width: W, height: H,
     title: 'default-trousers',
-    desc: 'Neutral peasant trousers — drawn before leg gear so leg gear hides them when equipped.',
+    desc: 'Neutral peasant trousers, drawn before leg gear so leg gear hides them when equipped.',
     body: `
 <!-- left trouser -->
 <path d="M ${d.cx - 1} ${d.TROUSER_TOP_Y}
@@ -990,7 +990,7 @@ function defaultTrousersSvg() {
 }
 
 // Default TUNIC only (sleeves + bodice + belt + skirt). Drawn at
-// z=33 — AFTER leg gear — so the skirt hem cleanly covers the top
+// z=33, AFTER leg gear, so the skirt hem cleanly covers the top
 // of any equipped leg gear. Chest gear (z=40) still covers the
 // bodice when equipped.
 function defaultTunicSvg() {
@@ -999,7 +999,7 @@ function defaultTunicSvg() {
   return svgWrapper({
     width: W, height: H,
     title: 'default-tunic',
-    desc: 'Neutral peasant tunic — drawn AFTER leg gear so the skirt covers leg-gear top.',
+    desc: 'Neutral peasant tunic, drawn AFTER leg gear so the skirt covers leg-gear top.',
     body: `
 <!-- ── SHORT SLEEVES ── -->
 <path d="M ${cx - shoulderHalf - 2} ${SHOULDER_Y - 2}
@@ -1051,7 +1051,7 @@ function defaultTunicSvg() {
          L ${cx - waistHalf + 7} ${WAIST_Y - 4}
          Q ${cx - 6} ${SHOULDER_Y + 14} ${cx - shoulderHalf + 10} ${TUNIC_TOP_Y + 4} Z"
       fill="#FFFFFF" opacity="0.35"/>
-<!-- AMBIENT-OCCLUSION strip just inside the hem — sits the tunic
+<!-- AMBIENT-OCCLUSION strip just inside the hem, sits the tunic
      skirt ON the legs gear when it overlaps -->
 <path d="M ${cx - hemHalf + 2} ${TUNIC_HEM_Y + 1}
          Q ${cx} ${TUNIC_HEM_Y + 4} ${cx + hemHalf - 2} ${TUNIC_HEM_Y + 1}"
@@ -1123,8 +1123,7 @@ function handOverlaySvg(toneName) {
 
 function defaultClothingSvg() { return defaultClothingSvgL3(); }
 function defaultClothingSvgL3() {
-  // Neutral peasant tunic + trousers. Real garment construction —
-  // not a rectangle:
+  // Neutral peasant tunic + trousers. Real garment construction, // not a rectangle:
   //   • Round neckline that visibly wraps around the neck
   //   • Sleeve caps over the shoulder joints
   //   • Cinched waist (narrower than shoulders + hips)
@@ -1134,7 +1133,7 @@ function defaultClothingSvgL3() {
   //   • Trousers with a centre seam + knee bend + cuff fold
   //
   // Anchored to the body anatomy constants (SHOULDER_Y / WAIST_Y /
-  // KNEE_Y / FOOT_Y) — these match build-character-glossy.mjs.
+  // KNEE_Y / FOOT_Y), these match build-character-glossy.mjs.
   const cx = 64;
   const shoulderHalf = 20;   // sleeve cap reaches past the body's shoulder line
   const waistHalf    = 14;   // tunic cinches IN at waist
@@ -1189,7 +1188,7 @@ function defaultClothingSvgL3() {
          Q ${cx - 10} ${TUNIC_TOP_Y - 2} ${cx - shoulderHalf + 2} ${TUNIC_TOP_Y + 2} Z"
       fill="url(#gk-grad-cream)" stroke="${PALETTE.cream.stroke}" stroke-width="2.5" stroke-linejoin="round"/>
 
-<!-- neckline rim shadow — gives the collar visual depth -->
+<!-- neckline rim shadow, gives the collar visual depth -->
 <path d="M ${cx - 7} ${SHOULDER_Y + 4}
          Q ${cx} ${SHOULDER_Y + 11} ${cx + 7} ${SHOULDER_Y + 4}"
       fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="1.5" opacity="0.65"/>
@@ -1208,14 +1207,14 @@ function defaultClothingSvgL3() {
 <path d="M ${cx + 10} ${SHOULDER_Y + 14} Q ${cx + 12} ${WAIST_Y - 6} ${cx + 8} ${WAIST_Y - 2}"
       fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="0.7" opacity="0.4"/>
 
-<!-- TUNIC GLOSS — upper-left highlight (consistent light direction) -->
+<!-- TUNIC GLOSS, upper-left highlight (consistent light direction) -->
 <path d="M ${cx - shoulderHalf + 4} ${TUNIC_TOP_Y + 4}
          Q ${cx - shoulderHalf + 1} ${SHOULDER_Y + 12} ${cx - waistHalf + 3} ${WAIST_Y - 4}
          L ${cx - waistHalf + 7} ${WAIST_Y - 4}
          Q ${cx - 6} ${SHOULDER_Y + 14} ${cx - shoulderHalf + 10} ${TUNIC_TOP_Y + 4} Z"
       fill="#FFFFFF" opacity="0.35"/>
 
-<!-- HEM — visible bottom edge of the tunic with shadow under -->
+<!-- HEM, visible bottom edge of the tunic with shadow under -->
 <path d="M ${cx - hemHalf + 2} ${TUNIC_HEM_Y + 1}
          Q ${cx} ${TUNIC_HEM_Y + 4} ${cx + hemHalf - 2} ${TUNIC_HEM_Y + 1}"
       fill="none" stroke="${PALETTE.cream.stroke}" stroke-width="1.4" opacity="0.85"/>
@@ -1279,7 +1278,7 @@ console.log('Baking character glossy assets…');
 
 let count = 0;
 
-// Bodies — 20.
+// Bodies, 20.
 for (const type of ['slim', 'stocky']) {
   for (const tone of Object.keys(SKIN_TONES)) {
     await bakeFile(bodySvg(type, tone), join(OUT, `body-${type}-${tone}.png`), { width: W, height: H });
@@ -1288,7 +1287,7 @@ for (const type of ['slim', 'stocky']) {
 }
 console.log(`  bodies: 20`);
 
-// Hair — 12 styles × 14 colours = 168.
+// Hair, 12 styles × 14 colours = 168.
 let hairCount = 0;
 for (const style of Object.keys(HAIR_STYLES)) {
   for (const colour of Object.keys(HAIR_COLOURS)) {
@@ -1299,21 +1298,21 @@ for (const style of Object.keys(HAIR_STYLES)) {
 count += hairCount;
 console.log(`  hair: ${hairCount}`);
 
-// Eyes — 8.
+// Eyes, 8.
 for (const colour of Object.keys(EYE_COLOURS)) {
   await bakeFile(eyesSvg(colour), join(OUT, `eyes-${colour}.png`), { width: W, height: H });
   count++;
 }
 console.log(`  eyes: ${Object.keys(EYE_COLOURS).length}`);
 
-// Accents — 5.
+// Accents, 5.
 for (const name of Object.keys(ACCENTS)) {
   await bakeFile(accentSvg(name), join(OUT, `accent-${name}.png`), { width: W, height: H });
   count++;
 }
 console.log(`  accents: ${Object.keys(ACCENTS).length}`);
 
-// Default clothing — 3 layers: combined (legacy single PNG), tunic
+// Default clothing, 3 layers: combined (legacy single PNG), tunic
 // (drawn AFTER leg gear so the skirt covers the leg-gear top), and
 // trousers (drawn BEFORE leg gear so leg gear covers them when worn).
 await bakeFile(defaultClothingSvg(), join(OUT, `default-clothing.png`), { width: W, height: H });
@@ -1322,7 +1321,7 @@ await bakeFile(defaultTrousersSvg(), join(OUT, `default-trousers.png`), { width:
 count += 3;
 console.log(`  default clothing: 3 (combined + tunic + trousers)`);
 
-// Hand overlays — one per skin tone (10). Painted at z=79, AFTER
+// Hand overlays, one per skin tone (10). Painted at z=79, AFTER
 // the weapon, so the figure visibly grips the weapon.
 let handCount = 0;
 for (const tone of Object.keys(SKIN_TONES)) {

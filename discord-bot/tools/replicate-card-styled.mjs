@@ -106,7 +106,7 @@ for (let i = 0; i < SAMPLES.length; i++) {
   console.log(`\n[${i+1}/${SAMPLES.length}] ${s.label}`);
   try {
     let created;
-    // Retry once on 402 — billing propagation can lag the first call.
+    // Retry once on 402, billing propagation can lag the first call.
     for (let attempt = 0; attempt < 2; attempt++) {
       try { created = await createPrediction(s); break; }
       catch (e) {

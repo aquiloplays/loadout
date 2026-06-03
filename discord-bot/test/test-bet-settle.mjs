@@ -21,7 +21,7 @@ import { betCronTick } from '../bet.js';
 import { earn, getWallet } from '../wallet.js';
 
 // Stub global fetch so refreshGamesCache hits its catch path on every
-// inner fetchLeague — refresh then writes [] for games. We block that
+// inner fetchLeague, refresh then writes [] for games. We block that
 // write (see kv.blockPutTo below) to force the betCronTick catch
 // branch to fall back to readGamesCache, which returns the games we
 // seeded directly into KV.
@@ -60,7 +60,7 @@ function makeKvShim() {
       for (const k of store.keys()) if (k.startsWith(prefix || '')) keys.push({ name: k });
       return { keys, list_complete: true };
     },
-    // Test helpers — these bypass the throw guards.
+    // Test helpers, these bypass the throw guards.
     _seedRaw(key, obj) { store.set(key, JSON.stringify(obj)); },
     _blockOnce(predicate, error) { oneShotBlocks.push({ predicate, error, fired: false }); },
     _blockAlways(predicate, error) { alwaysBlocks.push({ predicate, error }); },
@@ -121,13 +121,13 @@ console.log('--- bet/parlay settle idempotency ---');
   // readGamesCache (which returns the games we seeded above).
   kv._blockAlways((k) => k === GAMES_CACHE_KEY, new Error('test: refresh blocked'));
 
-  // Inject ONE-SHOT failure on the punter's wallet PUT — fires on the
+  // Inject ONE-SHOT failure on the punter's wallet PUT, fires on the
   // earn() inside parlay settlement, then subsequent puts succeed.
   // If the old code path were still in place, tick2 would re-fire
   // earn() and (with the wallet now writable) double-credit.
   kv._blockOnce((k) => k === `wallet:${GUILD}:${PUNTER}`, new Error('synthetic KV failure on payout'));
 
-  // Tick 1 — parlay decides as 'won', writes status='won' (the fix),
+  // Tick 1, parlay decides as 'won', writes status='won' (the fix),
   // then earn() throws and is caught.
   const tick1 = await betCronTick(env);
   ok('tick1 ran without throwing',
@@ -143,7 +143,7 @@ console.log('--- bet/parlay settle idempotency ---');
   ok('payout did NOT land on tick1 (earn threw, was caught)',
      wallet1.balance === 900, `bal=${wallet1.balance}`);
 
-  // Tick 2 — the L279 guard sees status !== 'open' and skips. Even
+  // Tick 2, the L279 guard sees status !== 'open' and skips. Even
   // though the wallet PUT is now writable, NO second earn() fires.
   const tick2 = await betCronTick(env);
   ok('tick2 ran without throwing', tick2 && typeof tick2.parlaysSettled === 'number',
@@ -188,7 +188,7 @@ console.log('--- bet/parlay settle idempotency ---');
 
   kv._blockAlways((k) => k === GAMES_CACHE_KEY, new Error('test: refresh blocked'));
 
-  // Tick 1 — settle, pay out.
+  // Tick 1, settle, pay out.
   const tick1 = await betCronTick(env);
   ok('single-bet tick1 reports settled=1',
      tick1.settled === 1, `tick1=${JSON.stringify(tick1)}`);
@@ -198,7 +198,7 @@ console.log('--- bet/parlay settle idempotency ---');
   // floor(100 * (1 + 100/110) * 0.975) = floor(186.13) = 186 → 900 + 186 = 1086.
   ok('single bet payout landed', w1.balance === 1086, `bal=${w1.balance}`);
 
-  // Tick 2 — the clear-then-settle fix means open list is now empty,
+  // Tick 2, the clear-then-settle fix means open list is now empty,
   // so this must be a no-op (no double-credit).
   const tick2 = await betCronTick(env);
   ok('single-bet tick2 is a no-op',
