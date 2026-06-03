@@ -106,6 +106,9 @@ DAILY_POLL_CHANNEL_ID = "1509565584092692512"
 QOTD_CHANNEL_ID       = "1509570450148036649"
 COUNTDOWN_CHANNEL_ID = "1507973917350957067"   # 🔴│live-now
 COUNTDOWN_VC_ID = ""                           # no dedicated countdown VC yet — Clay can create later
+# Where scratch-off wins (challenge/tamper hits) echo. Empty -> falls back to
+# COUNTDOWN_CHANNEL_ID (🔴│live-now), then CHECKIN_CHANNEL_ID. See scratch-off.js.
+SCRATCH_ECHO_CHANNEL_ID = ""
 ROLES_CHANNEL_ID = "1507973902146732222"       # 🎭│roles (self-assign panel)
 COUNTING_CHANNEL_ID = "1507973915270582333"    # 🔢│counting
 COUNTING_FAIL_ROLE_ID = ""                     # no penalty role configured

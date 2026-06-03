@@ -28,8 +28,10 @@
 //   - public reads are CORS-open + short-cached; mutations are gated
 
 import { publishActivity } from './activity-do.js';
-import { getChannelGame } from './twitch-helix.js';
+import { getChannelGame, getStreamInfo } from './twitch-helix.js';
 import { enqueueOverlay } from './ext-engage.js';
+import { discordPostMessage } from './bolts-feed.js';
+import { STREAMER_BOT_ACTIONS, LOSS_LINES, POOLS } from './scratch-challenges.js';
 
 // ── Tunables ───────────────────────────────────────────────────────────
 
@@ -38,6 +40,24 @@ const REVEAL_THRESHOLD = 70;      // % scratched before the outcome reveals
 const SCRATCH_SKUS = new Set([    // Twitch product SKUs that mint a card
   'scratch_card_100', 'scratch_card', 'aquilo_scratch_100',
 ]);
+
+// ── Pacing guards (so a hot pool never overwhelms Clay) ─────────────────
+// Hits are rate-limited PER STREAM SESSION (keyed on the live Twitch stream
+// id). A roll that would win is downgraded to a loss when the cap is hit or
+// the cooldown has not elapsed — outcome is still decided server-side at
+// mint, just bounded. Tunable without a redeploy via the scratch:cfg KV
+// (admin endpoint below); these are the defaults.
+const MAX_HITS_PER_STREAM = 4;          // 3-5 hits/stream ceiling
+const HIT_COOLDOWN_MS = 12 * 60 * 1000; // 12 min between consecutive hits
+const CONSOLATION_MIN = 1;              // tiny loss reward floor (bolts)
+const CONSOLATION_MAX = 5;              // tiny loss reward ceiling (bolts)
+const STREAM_STATE_TTL = 8 * 60 * 60;   // per-stream counter lifetime (s)
+
+// KV (LOADOUT_BOLTS) keys for the scratch pacing/economy state.
+const K_STREAM = (sid) => `scratch:stream:${sid}`;       // { hits, lastHitAt }
+const K_CONSOL = (uid) => `scratch:consol:${uid}`;       // running bolt tally
+const K_PAUSED = 'scratch:paused';                       // '1' while paused
+const K_CFG = 'scratch:cfg';                             // optional overrides
 
 // ── Game roster + slug resolution ──────────────────────────────────────
 // Slugs are kept identical to the death-counter roster so a game resolves
@@ -107,6 +127,67 @@ async function resolveCurrentGame(env) {
   const gameName = ch?.gameName || null;
   const slug = slugForTwitchGame(gameName);
   return { slug: slug || 'generic', gameName: slug ? gameName : (gameName || null) };
+}
+
+// ── Live + pacing state ─────────────────────────────────────────────────
+// One round-trip resolves whether Clay is live, the current stream id (the
+// per-session key for hit budgeting), the game, and the admin pause flag.
+// Offline or paused => mints are blocked (and bits, if any, are refundable).
+async function resolveLiveContext(env) {
+  const game = await resolveCurrentGame(env);
+  const broadcasterId = String(env.CLAY_TWITCH_CHANNEL_ID || '').trim();
+  let live = false, streamId = null;
+  if (broadcasterId) {
+    const s = await getStreamInfo(env, broadcasterId).catch(() => null);
+    if (s && s.id) { live = true; streamId = String(s.id); }
+  }
+  const paused = (await kvGet(env, K_PAUSED)) === '1';
+  return { live, streamId, paused, slug: game.slug, gameName: game.gameName };
+}
+
+// KV helpers over LOADOUT_BOLTS (same binding the overlay relay uses). All
+// degrade to no-ops when the binding is absent so the flow never 500s.
+async function kvGet(env, key, asJson = false) {
+  if (!env || !env.LOADOUT_BOLTS) return null;
+  try { return await env.LOADOUT_BOLTS.get(key, asJson ? { type: 'json' } : undefined); }
+  catch { return null; }
+}
+async function kvPut(env, key, val, ttl) {
+  if (!env || !env.LOADOUT_BOLTS) return;
+  try {
+    await env.LOADOUT_BOLTS.put(key, typeof val === 'string' ? val : JSON.stringify(val),
+      ttl ? { expirationTtl: ttl } : undefined);
+  } catch { /* idle */ }
+}
+
+// Runtime-tunable overrides (set via the admin pause/config endpoint).
+async function pacingCfg(env) {
+  const c = (await kvGet(env, K_CFG, true)) || {};
+  return {
+    maxHits: Number.isFinite(c.maxHits) ? c.maxHits : MAX_HITS_PER_STREAM,
+    cooldownMs: Number.isFinite(c.cooldownMs) ? c.cooldownMs : HIT_COOLDOWN_MS,
+    hitRate: Number.isFinite(c.hitRate) ? c.hitRate : HIT_RATE,
+  };
+}
+
+// Is a fresh hit allowed to fire right now for this stream session? Enforces
+// the per-stream cap + cooldown. streamId null (offline/no session) => the
+// game is unbounded test/loopback territory, allow (offline is gated earlier).
+async function hitBudgetOk(env, streamId, cfg) {
+  if (!streamId) return true;
+  const st = (await kvGet(env, K_STREAM(streamId), true)) || { hits: 0, lastHitAt: 0 };
+  if ((st.hits || 0) >= cfg.maxHits) return false;
+  if (st.lastHitAt && (now() - st.lastHitAt) < cfg.cooldownMs) return false;
+  return true;
+}
+
+// Record that a hit was minted for this stream session (bumps count + clock).
+async function recordHit(env, streamId) {
+  if (!streamId) return;
+  const st = (await kvGet(env, K_STREAM(streamId), true)) || { hits: 0, lastHitAt: 0 };
+  st.hits = (st.hits || 0) + 1;
+  st.lastHitAt = now();
+  await kvPut(env, K_STREAM(streamId), st, STREAM_STATE_TTL);
 }
 
 // ── D1 plumbing ────────────────────────────────────────────────────────
@@ -255,10 +336,21 @@ function weightedPick(rows) {
   return rows[rows.length - 1];
 }
 
+function consolationAmount() {
+  return CONSOLATION_MIN + Math.floor(Math.random() * (CONSOLATION_MAX - CONSOLATION_MIN + 1));
+}
+function loseOutcome() {
+  return { outcome: 'lose', outcomeData: { message: pickLoss(), consolationBolts: consolationAmount() } };
+}
+
 // Decide a ticket's outcome at mint. Returns { outcome, outcomeData }.
-async function rollOutcome(env, gameSlug) {
-  if (Math.random() >= HIT_RATE) {
-    return { outcome: 'lose', outcomeData: { message: pickLoss() } };
+// opts.allowHit gates wins (per-stream cap/cooldown): when false the card
+// always loses, regardless of the roll. opts.hitRate overrides the default.
+async function rollOutcome(env, gameSlug, opts = {}) {
+  const allowHit = opts.allowHit !== false;
+  const hitRate = Number.isFinite(opts.hitRate) ? opts.hitRate : HIT_RATE;
+  if (!allowHit || Math.random() >= hitRate) {
+    return loseOutcome();
   }
   const d = db(env);
   // Prefer the game's own pool; fall back to generic if it has none.
@@ -286,11 +378,6 @@ async function rollOutcome(env, gameSlug) {
   };
 }
 
-const LOSS_LINES = [
-  'No win this time.', 'Not this one. Try again.', 'Empty. Better luck next card.',
-  'Nothing here. The vault stays sealed.', 'Dud. Buy another.', 'So close. (Not really.)',
-  'House keeps this one.',
-];
 function pickLoss() { return LOSS_LINES[Math.floor(Math.random() * LOSS_LINES.length)]; }
 
 // ── Ticket helpers ─────────────────────────────────────────────────────
@@ -308,6 +395,7 @@ function ticketPublic(row, { includeOutcome }) {
     base.body = row.outcome === 'lose' ? (od.message || pickLoss()) : od.body;
     base.durationSec = od.durationSec || 0;
     base.actionKey = od.actionKey || null;
+    if (row.outcome === 'lose') base.consolationBolts = od.consolationBolts || 0;
   }
   return base;
 }
@@ -316,7 +404,10 @@ async function getTicket(env, id) {
   return await db(env).prepare(`SELECT * FROM scratch_ticket WHERE id = ?`).bind(String(id)).first();
 }
 
-async function mintTicket(env, { userId, userName, bits, sku, txnId }) {
+// Mint a ticket. `liveCtx` (from resolveLiveContext) supplies the stream
+// session id used for hit budgeting and the resolved game; when omitted
+// (admin test-mint) the game is resolved standalone and hits are unbounded.
+async function mintTicket(env, { userId, userName, bits, sku, txnId, liveCtx }) {
   await ensureSchema(env);
   const d = db(env);
   // Idempotency: a repeated Twitch transaction returns the existing ticket.
@@ -325,8 +416,14 @@ async function mintTicket(env, { userId, userName, bits, sku, txnId }) {
       .bind(String(txnId)).first();
     if (existing) return { ticket: existing, reused: true };
   }
-  const game = await resolveCurrentGame(env);
-  const { outcome, outcomeData } = await rollOutcome(env, game.slug);
+  const game = liveCtx
+    ? { slug: liveCtx.slug, gameName: liveCtx.gameName }
+    : await resolveCurrentGame(env);
+  const cfg = await pacingCfg(env);
+  const allowHit = await hitBudgetOk(env, liveCtx?.streamId, cfg);
+  const { outcome, outcomeData } = await rollOutcome(env, game.slug, { allowHit, hitRate: cfg.hitRate });
+  // A minted hit consumes a slot for this stream session (cap + cooldown).
+  if (outcome !== 'lose' && liveCtx?.streamId) await recordHit(env, liveCtx.streamId);
   const id = rid('st');
   const ts = now();
   await d.prepare(
@@ -345,6 +442,50 @@ async function mintTicket(env, { userId, userName, bits, sku, txnId }) {
 
   const ticket = await getTicket(env, id);
   return { ticket, reused: false };
+}
+
+// Mint behind the live/pause guard. When `enforce`, an offline or paused
+// channel BLOCKS the mint (no ticket created) and the caller treats any bits
+// as refundable — Clay should never get hit while away or mid-transition.
+// The no-receipt loopback/test path passes enforce:false so localhost demos
+// and the extension test rig keep working off-stream.
+async function guardedMint(env, args, { enforce = true } = {}) {
+  const liveCtx = await resolveLiveContext(env);
+  if (enforce && liveCtx.paused) return { block: 'paused', liveCtx };
+  if (enforce && !liveCtx.live) return { block: 'offline', liveCtx };
+  const r = await mintTicket(env, { ...args, liveCtx });
+  return { ...r, liveCtx };
+}
+
+// Grant a loss's tiny consolation bolts to the viewer's scratch tally
+// (scratch-local, kept off the Discord-linked economy on purpose). Returns
+// the new running total. Idempotent per ticket because it is only called on
+// the single reveal-crossing transition.
+async function grantConsolation(env, userId, amount) {
+  const key = K_CONSOL(String(userId));
+  const cur = parseInt(await kvGet(env, key), 10) || 0;
+  const total = cur + Math.max(0, amount | 0);
+  await kvPut(env, key, String(total));
+  return total;
+}
+
+// Echo a non-losing reveal to a Discord channel. Best-effort: no-ops without
+// a bot token or a configured channel. Aquilo voice (dry, no hype, no emoji
+// spam). Channel resolves SCRATCH_ECHO_CHANNEL_ID -> live-now -> check-in.
+async function echoHitToDiscord(env, row) {
+  const channelId = String(
+    env.SCRATCH_ECHO_CHANNEL_ID || env.COUNTDOWN_CHANNEL_ID || env.CHECKIN_CHANNEL_ID || '').trim();
+  if (!channelId || !env.DISCORD_BOT_TOKEN) return;
+  const od = jparse(row.outcome_data, {});
+  const who = row.user_name || 'A viewer';
+  const game = row.game_name || GAMES[row.game_slug] || 'the stream';
+  const kind = row.outcome === 'tamper' ? 'control tamper' : 'challenge';
+  const dur = od.durationSec ? ` (${od.durationSec}s)` : '';
+  const content =
+    `🎟️ **${who}** scratched a winner on **${game}** — ${kind}${dur}\n> ${od.body || ''}`;
+  await discordPostMessage(env, channelId, {
+    content, allowed_mentions: { parse: [] },
+  }).catch(() => {});
 }
 
 // ── Router ─────────────────────────────────────────────────────────────
@@ -369,11 +510,15 @@ export async function handleScratch(req, env, path) {
       if (!SCRATCH_SKUS.has(sku)) return jsonResp({ ok: false, error: 'unknown-sku', sku }, 400);
       const userId = String(b.userId || b.user_id || '').trim();
       if (!userId) return jsonResp({ ok: false, error: 'missing-userId' }, 400);
-      const { ticket, reused } = await mintTicket(env, {
+      const res = await guardedMint(env, {
         userId, userName: b.userName || b.user_name || b.displayName || null,
         bits: b.bits || b.cost || 0, sku, txnId: b.transactionId || b.transaction_id || b.txnId || null,
-      });
-      return jsonResp({ ok: true, reused, ticket: ticketPublic(ticket, { includeOutcome: false }) });
+      }, { enforce: true });
+      if (res.block) {
+        await publishActivity(env, { kind: 'scratch.refund', userId, reason: res.block }).catch(() => {});
+        return jsonResp({ ok: false, error: res.block, refundable: true });
+      }
+      return jsonResp({ ok: true, reused: res.reused, ticket: ticketPublic(res.ticket, { includeOutcome: false }) });
     }
 
     // ---- Panel-facing mint from a Twitch bits transaction receipt ------
@@ -381,15 +526,17 @@ export async function handleScratch(req, env, path) {
     // onTransactionComplete it POSTs the receipt here. We verify the JWT
     // when TWITCH_EXT_SECRET is set (decode-only otherwise so the test rig
     // works). Body: { userId, userName, transactionReceipt, sku }.
-    if (method === 'POST' && path === '/web/scratch/mint') {
+    if (method === 'POST' && (path === '/web/scratch/mint' || path === '/web/scratch/buy')) {
       const b = await readBody(req);
       let userId = String(b.userId || '').trim();
       let userName = b.userName || b.displayName || null;
       let sku = String(b.sku || b.product || '').trim();
       let bits = 0, txnId = null, verified = false;
+      let hasReceipt = false;
       if (b.transactionReceipt) {
         const r = await verifyTwitchReceipt(env, b.transactionReceipt);
         if (!r || r.ok === false) return jsonResp({ ok: false, error: 'bad-receipt' }, 400);
+        hasReceipt = true;
         verified = r.verified;
         sku = r.sku || sku;
         bits = r.bits || 0;
@@ -403,11 +550,21 @@ export async function handleScratch(req, env, path) {
       if (!userId) return jsonResp({ ok: false, error: 'missing-userId',
         hint: 'share Twitch identity (requestIdShare) before buying' }, 400);
       if (sku && !SCRATCH_SKUS.has(sku)) return jsonResp({ ok: false, error: 'unknown-sku', sku }, 400);
-      const { ticket, reused } = await mintTicket(env, {
+      // Enforce the offline/pause guard only when real bits were charged (a
+      // verified receipt). The receiptless loopback/test path is unguarded so
+      // localhost demos work off-stream.
+      const res = await guardedMint(env, {
         userId, userName, bits, sku: sku || 'scratch_card_100', txnId,
-      });
-      return jsonResp({ ok: true, reused, verified,
-        ticket: ticketPublic(ticket, { includeOutcome: false }) });
+      }, { enforce: hasReceipt });
+      if (res.block) {
+        await publishActivity(env, { kind: 'scratch.refund', userId, reason: res.block }).catch(() => {});
+        return jsonResp({ ok: false, error: res.block, refundable: true,
+          message: res.block === 'paused'
+            ? 'Scratch-offs are paused for a moment. Your bits are safe.'
+            : 'Clay is offline right now. Your bits are safe.' });
+      }
+      return jsonResp({ ok: true, reused: res.reused, verified,
+        ticket: ticketPublic(res.ticket, { includeOutcome: false }) });
     }
 
     // ---- Admin: mint a ticket WITHOUT bits (end-to-end testing) --------
@@ -444,7 +601,15 @@ export async function handleScratch(req, env, path) {
           .bind(newPct, ts, ticketId).run();
         const fresh = await getTicket(env, ticketId);
         await fireRevealEvents(env, fresh);
-        return jsonResp({ ok: true, ...ticketPublic(fresh, { includeOutcome: true }) });
+        // Grant the loss consolation once, on this single reveal transition.
+        const extra = {};
+        if (fresh.outcome === 'lose') {
+          const od = jparse(fresh.outcome_data, {});
+          if (od.consolationBolts > 0) {
+            extra.consolationTotal = await grantConsolation(env, fresh.user_id, od.consolationBolts);
+          }
+        }
+        return jsonResp({ ok: true, ...ticketPublic(fresh, { includeOutcome: true }), ...extra });
       }
       if (newPct !== row.scratch_pct) {
         await db(env).prepare(`UPDATE scratch_ticket SET scratch_pct = ? WHERE id = ?`)
@@ -477,12 +642,20 @@ export async function handleScratch(req, env, path) {
       return jsonResp({ ok: true, ticket: ticketPublic(row, { includeOutcome: true }) });
     }
 
-    // ---- Current game (panel theme) ------------------------------------
+    // ---- Current game (panel theme) + live/buy gate --------------------
+    // The panel reads `canBuy` to enable/disable the Buy button so bits are
+    // never spent while Clay is offline or paused (defense-in-depth with the
+    // mint guard). Optionally pass ?userId= to also return the viewer's
+    // running consolation-bolt tally for the panel footer.
     if (method === 'GET' && path === '/web/scratch/current-game') {
-      const game = await resolveCurrentGame(env);
-      return jsonResp({ ok: true, gameSlug: game.slug,
-        gameName: game.gameName || GAMES[game.slug] || null },
-        200, { 'cache-control': 'public, max-age=15' });
+      const ctx = await resolveLiveContext(env);
+      const uid = String(url.searchParams.get('userId') || '').trim();
+      const consolationTotal = uid ? (parseInt(await kvGet(env, K_CONSOL(uid)), 10) || 0) : undefined;
+      return jsonResp({ ok: true, gameSlug: ctx.slug,
+        gameName: ctx.gameName || GAMES[ctx.slug] || null,
+        live: ctx.live, paused: ctx.paused, canBuy: ctx.live && !ctx.paused,
+        ...(consolationTotal !== undefined ? { consolationTotal } : {}) },
+        200, { 'cache-control': 'public, max-age=10' });
     }
 
     // ---- Pool preview (UI) ---------------------------------------------
@@ -512,6 +685,40 @@ export async function handleScratch(req, env, path) {
         .bind(ts, row.id).run();
       await emitHitFire(env, { ...row, triggered: 1 }, /*forced*/ true);
       return jsonResp({ ok: true, ticketId: row.id, outcome: row.outcome, triggered: true });
+    }
+
+    // ---- Admin: pause toggle + live/pacing status ----------------------
+    // GET  -> current live + pause + per-stream hit budget snapshot.
+    // POST -> { paused?:bool, maxHits?:int, cooldownSec?:int, hitRate?:num,
+    //           resetStream?:bool } to pause during a game transition or
+    //           retune pacing live (no redeploy). Use to pause while you swap
+    //           games so a hit can't land mid-transition.
+    if (path === '/web/scratch/status' || path === '/web/admin/scratch/pause') {
+      if (!tokenOk(req, env, url)) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+      const ctx = await resolveLiveContext(env);
+      const cfg = await pacingCfg(env);
+      if (method === 'POST') {
+        const b = await readBody(req);
+        if (typeof b.paused === 'boolean') {
+          if (b.paused) await kvPut(env, K_PAUSED, '1', STREAM_STATE_TTL);
+          else if (env.LOADOUT_BOLTS) { try { await env.LOADOUT_BOLTS.delete(K_PAUSED); } catch { /* idle */ } }
+          ctx.paused = b.paused;
+        }
+        const over = {};
+        if (Number.isFinite(b.maxHits)) over.maxHits = Math.max(0, Math.min(20, b.maxHits | 0));
+        if (Number.isFinite(b.cooldownSec)) over.cooldownMs = Math.max(0, (b.cooldownSec | 0)) * 1000;
+        if (Number.isFinite(b.hitRate)) over.hitRate = Math.max(0, Math.min(1, Number(b.hitRate)));
+        if (Object.keys(over).length) await kvPut(env, K_CFG, { ...cfg, ...over, cooldownMs: over.cooldownMs ?? cfg.cooldownMs });
+        if (b.resetStream && ctx.streamId && env.LOADOUT_BOLTS) {
+          try { await env.LOADOUT_BOLTS.delete(K_STREAM(ctx.streamId)); } catch { /* idle */ }
+        }
+      }
+      const st = ctx.streamId ? ((await kvGet(env, K_STREAM(ctx.streamId), true)) || { hits: 0, lastHitAt: 0 }) : null;
+      return jsonResp({ ok: true, live: ctx.live, paused: ctx.paused, streamId: ctx.streamId,
+        gameSlug: ctx.slug, gameName: ctx.gameName,
+        cfg: { maxHits: cfg.maxHits, cooldownSec: Math.round(cfg.cooldownMs / 1000), hitRate: cfg.hitRate },
+        stream: st ? { hits: st.hits || 0, lastHitAt: st.lastHitAt || 0,
+          remaining: Math.max(0, cfg.maxHits - (st.hits || 0)) } : null });
     }
 
     // ---- Admin: outcome-pool CRUD --------------------------------------
@@ -577,6 +784,9 @@ async function fireRevealEvents(env, row) {
     kind: 'scratch.hit', ticketId: row.id, viewer: row.user_name || null,
     gameSlug: row.game_slug, kind2: row.outcome, body: od.body, durationSec: od.durationSec || 0,
   }).catch(() => {});
+  // Echo the win to Discord (#live-now by default). Best-effort, no-ops
+  // without a bot token / configured channel.
+  await echoHitToDiscord(env, row).catch(() => {});
   if (row.outcome === 'tamper') {
     // Auto-fire the Streamer.bot tamper.
     const ts = now();
@@ -742,155 +952,6 @@ weight 5 to 12. challenge entries have actionKey null and durationSec 0 unless t
   }
   return { slug, inserted };
 }
-
-// ── Seed data ──────────────────────────────────────────────────────────
-// Voice: no em dashes, no cringe, dry/dark-humored, mechanical TCG-style
-// brevity. Tampers reference a Streamer.bot action_key from the registry.
-
-const STREAMER_BOT_ACTIONS = [
-  { action_key: 'invert_mouse',  action_name: 'Invert Mouse',   default_duration_sec: 30, description: 'Invert mouse Y (and X) axis for the duration.' },
-  { action_key: 'swap_wasd',     action_name: 'Swap WASD',      default_duration_sec: 60, description: 'Remap movement keys so W/S and A/D are swapped.' },
-  { action_key: 'lock_crouch',   action_name: 'Lock Crouch',    default_duration_sec: 90, description: 'Force-hold the crouch key.' },
-  { action_key: 'force_jump',    action_name: 'Force Jump',     default_duration_sec: 30, description: 'Inject periodic jump key presses.' },
-  { action_key: 'mute_mic',      action_name: 'Mute Mic',       default_duration_sec: 10, description: 'Mute the streamer mic input.' },
-  { action_key: 'random_keys',   action_name: 'Random Keys',    default_duration_sec: 30, description: 'Inject random key presses.' },
-  { action_key: 'mouse_drift',   action_name: 'Mouse Drift',    default_duration_sec: 30, description: 'Apply a constant cursor drift in one direction.' },
-  { action_key: 'force_walk',    action_name: 'Force Walk',     default_duration_sec: 60, description: 'Hold the walk modifier so movement is slow.' },
-  { action_key: 'sensitivity_max', action_name: 'Max Sensitivity', default_duration_sec: 45, description: 'Spike look sensitivity to max.' },
-  { action_key: 'flip_screen',   action_name: 'Flip Screen',    default_duration_sec: 20, description: 'Flip the game capture upside down (display filter).' },
-  { action_key: 'deafen',        action_name: 'Deafen Game',    default_duration_sec: 30, description: 'Mute game audio output.' },
-  { action_key: 'spam_emote',    action_name: 'Force Emote',    default_duration_sec: 15, description: 'Trigger an in-game emote/taunt repeatedly.' },
-];
-
-const T = (body, actionKey, durationSec, weight = 10) => ({ kind: 'tamper', body, actionKey, durationSec, weight });
-const C = (body, durationSec = 0, weight = 10) => ({ kind: 'challenge', body, durationSec, weight });
-
-const POOLS = {
-  generic: [
-    C('Pose for the stream. Hold it 10 seconds.', 10),
-    C('Do 5 push-ups off camera. Chat counts.', 0),
-    C('Pick the worst dialogue option at the next prompt.', 0),
-    C('Read the next chat message in a villain voice.', 0),
-    C('Whisper everything you say for the next 2 minutes.', 120),
-    C('No coffee/drink for 5 minutes.', 300),
-    C('Name your next save file whatever chat picks.', 0),
-    C('Give a 20-second TED talk on your current objective.', 20),
-    C('Compliment the last person who followed.', 0),
-    C('Narrate the next 60 seconds like a nature documentary.', 60),
-    C('Switch to your worst posture for 3 minutes.', 180),
-    C('Do the next section one-handed.', 0, 6),
-    C('Sit in silence for 30 seconds. No talking.', 30),
-    C('Speak only in questions for 90 seconds.', 90),
-    T('Mouse inverted for 30 seconds.', 'invert_mouse', 30, 12),
-    T('WASD swapped for 60 seconds.', 'swap_wasd', 60, 10),
-    T('Mic muted for 10 seconds. Mid-sentence.', 'mute_mic', 10, 10),
-    T('Random key presses for 30 seconds.', 'random_keys', 30, 8),
-    T('Cursor drifts left for 30 seconds.', 'mouse_drift', 30, 8),
-    T('Look sensitivity maxed for 45 seconds.', 'sensitivity_max', 45, 6),
-    T('Forced to walk, no running, for 60 seconds.', 'force_walk', 60, 8),
-    T('Screen flips upside down for 20 seconds.', 'flip_screen', 20, 5),
-  ],
-  fallout4: [
-    C('Lone survivor. Dismiss your companion for the next quest.', 0, 8),
-    C('Pacifist mode. No kills for 5 minutes.', 300, 8),
-    C('Sell your best weapon to the next vendor.', 0, 6),
-    C('Talk to the next NPC entirely in character.', 0),
-    C('Drop all your stimpaks. Right now.', 0, 5),
-    C('Build something ugly in the next settlement. Chat names it.', 0),
-    C('Only V.A.T.S. for the next 5 minutes. No free aim.', 300, 7),
-    C('Wear the worst armor in your inventory until the next loading screen.', 0),
-    T('Mouse inverted for 60 seconds. Good luck in the wasteland.', 'invert_mouse', 60, 12),
-    T('Crouch locked for 90 seconds. Sneak whether you like it or not.', 'lock_crouch', 90, 9),
-    T('WASD swapped for 60 seconds.', 'swap_wasd', 60, 9),
-    T('Forced V.A.T.S. spam: random key presses for 30 seconds.', 'random_keys', 30, 7),
-    T('Pip-Boy posture: forced walk for 60 seconds.', 'force_walk', 60, 7),
-    T('Rad-vision: screen flips for 20 seconds.', 'flip_screen', 20, 5),
-  ],
-  among_us: [
-    C('Vote yourself out next round.', 0, 9),
-    C('Do not talk during the next meeting. At all.', 0, 9),
-    C('Accuse the first person who speaks next meeting.', 0, 7),
-    C('Self-report the next body you find.', 0, 6),
-    C('Follow one crewmate the entire next round. Say nothing.', 0),
-    C('Defend the most sus player like your life depends on it.', 0),
-    T('Random key presses for 30 seconds. Good luck doing tasks.', 'random_keys', 30, 10),
-    T('Mouse drift for 30 seconds.', 'mouse_drift', 30, 8),
-    T('Mic muted for 10 seconds next meeting.', 'mute_mic', 10, 8),
-  ],
-  sts2: [
-    C('Take the worst card option at the next 3 rewards.', 0, 9),
-    C('Skip the next relic. No exceptions.', 0, 7),
-    C('Open the next chest. Whatever it is, keep it.', 0, 6),
-    C('Play your hand left to right, no thinking, next combat.', 0, 7),
-    C('Purge your best card at the next merchant.', 0, 5),
-    C('Take the elite path at the next fork.', 0, 6),
-    T('Mouse drifts left for 2 turns worth of time (20 seconds).', 'mouse_drift', 20, 9),
-    T('Cursor sensitivity maxed for 45 seconds.', 'sensitivity_max', 45, 6),
-    T('Random key presses for 20 seconds mid-deckbuild.', 'random_keys', 20, 6),
-  ],
-  minecraft: [
-    C('Sleep is banned for the next night cycle.', 0, 7),
-    C('Drop your best tool into lava. Chat picks which.', 0, 6),
-    C('Only punch trees, no axe, for 3 minutes.', 180, 7),
-    C('Name the next tamed mob whatever chat says.', 0),
-    C('Build the next structure with no blocks but dirt.', 0, 6),
-    T('Mouse inverted for 45 seconds.', 'invert_mouse', 45, 11),
-    T('Crouch locked for 90 seconds. Sneak everywhere.', 'lock_crouch', 90, 9),
-    T('Forced jump presses for 30 seconds.', 'force_jump', 30, 8),
-    T('Forced walk for 60 seconds.', 'force_walk', 60, 7),
-  ],
-  lethal_company: [
-    C('Lead the way into the next building. No backing out.', 0, 8),
-    C('Drop your most valuable scrap and leave it for 60 seconds.', 60, 7),
-    C('No flashlight for the next 2 minutes.', 120, 7),
-    C('Narrate everything you see until you die or leave.', 0),
-    T('Mic muted for 10 seconds. Pick a bad moment.', 'mute_mic', 10, 10),
-    T('Mouse inverted for 30 seconds inside the facility.', 'invert_mouse', 30, 10),
-    T('Random key presses for 30 seconds.', 'random_keys', 30, 7),
-    T('Forced walk for 60 seconds. The monsters are not slow.', 'force_walk', 60, 7),
-  ],
-  peak: [
-    C('Take the worst climbing route at the next fork.', 0, 8),
-    C('Carry the heaviest item for the next 3 minutes.', 180, 7),
-    C('No stamina items for the next climb.', 0, 6),
-    T('Mouse inverted for 30 seconds mid-climb.', 'invert_mouse', 30, 11),
-    T('WASD swapped for 45 seconds.', 'swap_wasd', 45, 9),
-    T('Forced jump for 20 seconds. On a cliff. Sorry.', 'force_jump', 20, 7),
-  ],
-  content_warning: [
-    C('Film the next monster up close. No running.', 0, 8),
-    C('Do a 15-second piece to camera before the next room.', 15, 7),
-    C('Be the cameraperson the whole next dive.', 0),
-    T('Mic muted for 10 seconds while filming.', 'mute_mic', 10, 10),
-    T('Camera drift: mouse drift for 30 seconds.', 'mouse_drift', 30, 9),
-    T('Random key presses for 30 seconds.', 'random_keys', 30, 7),
-  ],
-  phasmophobia: [
-    C('Go in alone. Solo the next room.', 0, 9),
-    C('No flashlight in the next room. Total dark.', 0, 8),
-    C('Say the ghost type out loud and commit. No changing.', 0, 6),
-    T('Mic muted for 10 seconds during the hunt.', 'mute_mic', 10, 10),
-    T('Mouse inverted for 30 seconds.', 'invert_mouse', 30, 9),
-    T('Flashlight flicker: random key presses for 20 seconds.', 'random_keys', 20, 7),
-  ],
-  dbd: [
-    C('No looping. Hold W only at the next chase.', 0, 7),
-    C('Cleanse/bless the next totem even if it is a trap.', 0, 6),
-    C('Go for the save even if it is a bad idea.', 0, 7),
-    T('Mouse inverted for 30 seconds.', 'invert_mouse', 30, 10),
-    T('Look sensitivity maxed for 45 seconds.', 'sensitivity_max', 45, 7),
-    T('Forced walk for 30 seconds. In a chase. Brutal.', 'force_walk', 30, 6),
-  ],
-  eldenring: [
-    C('No blocking for the next 2 minutes.', 120, 8),
-    C('Two-hand your worst weapon until the next grace.', 0, 6),
-    C('No healing for the next 90 seconds.', 90, 7),
-    C('Bow to the next enemy before you fight it.', 0),
-    T('Mouse inverted for 45 seconds. Maidenless.', 'invert_mouse', 45, 11),
-    T('Lock crouch for 60 seconds.', 'lock_crouch', 60, 7),
-    T('Random key presses for 20 seconds.', 'random_keys', 20, 7),
-  ],
-};
 
 // Seed the action registry + outcome pools. Idempotent: by default skips
 // pools that already have rows for a game. `force` re-inserts (does not
