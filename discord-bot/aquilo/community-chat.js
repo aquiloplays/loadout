@@ -183,6 +183,54 @@ export async function readCommunityChat(env, channelId, limit) {
   return { ok: true, messages: list.slice(-n) };
 }
 
+/**
+ * Remove a single message from a channel ringbuffer. Called from the
+ * gateway-forwarded MESSAGE_DELETE handler (POST /message/deleted) so a
+ * message deleted in Discord stops showing on aquilo.gg/community. No-op
+ * if the channel isn't tracked or the id isn't in the buffer.
+ */
+export async function pruneDeletedMessage(env, channelId, messageId) {
+  if (!env.LOADOUT_BOLTS || !channelId || !messageId) return { pruned: false };
+  const key = CHAT_PREFIX + String(channelId);
+  let list;
+  try {
+    list = await env.LOADOUT_BOLTS.get(key, { type: 'json' });
+  } catch { return { pruned: false }; }
+  if (!Array.isArray(list)) return { pruned: false };
+  const next = list.filter((m) => String(m.id) !== String(messageId));
+  if (next.length === list.length) return { pruned: false };
+  try {
+    await env.LOADOUT_BOLTS.put(key, JSON.stringify(next), { expirationTtl: TTL_S });
+  } catch { return { pruned: false }; }
+  return { pruned: true, remaining: next.length };
+}
+
+/**
+ * Purge community-chat ringbuffers. Pass a channelId to clear one, or
+ * omit it to clear every `community-chat:*` key. Used to flush messages
+ * that were deleted in Discord before MESSAGE_DELETE forwarding existed
+ * (e.g. after a bulk moderation cleanup). Active channels refill from
+ * live forwarding within minutes. Returns the count of keys deleted.
+ */
+export async function purgeCommunityChat(env, channelId) {
+  if (!env.LOADOUT_BOLTS) return { ok: false, deleted: 0 };
+  if (channelId) {
+    try { await env.LOADOUT_BOLTS.delete(CHAT_PREFIX + String(channelId)); } catch { /* idle */ }
+    return { ok: true, deleted: 1 };
+  }
+  let deleted = 0;
+  let cursor;
+  for (let i = 0; i < 20; i++) {
+    const r = await env.LOADOUT_BOLTS.list({ prefix: CHAT_PREFIX, cursor, limit: 1000 });
+    for (const k of r.keys) {
+      try { await env.LOADOUT_BOLTS.delete(k.name); deleted++; } catch { /* idle */ }
+    }
+    if (r.list_complete) break;
+    cursor = r.cursor;
+  }
+  return { ok: true, deleted };
+}
+
 // ---- Reactions -----------------------------------------------------------
 //
 // Web users (aquilo.gg PWA / desktop) don't have a Discord identity of

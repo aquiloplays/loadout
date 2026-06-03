@@ -183,6 +183,30 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     }
   }
 
+  // Gateway-forwarded MESSAGE_DELETE, prunes the community-chat
+  // ringbuffer so a message deleted in Discord stops showing on
+  // aquilo.gg/community. Same shared-secret auth as /counting/message.
+  // Payload (slim Discord MESSAGE_DELETE subset): { channel_id, id }
+  if (method === 'POST' && path === '/message/deleted') {
+    if (!env.AQUILO_GATEWAY_SECRET && !env.COUNTING_WEBHOOK_SECRET) {
+      return json({ error: 'gateway secret unset' }, 503);
+    }
+    const bodyText = await req.text();
+    const auth = await verifyGatewaySig(req, env, bodyText);
+    if (!auth.ok) return json({ error: 'unauthorized' }, 401);
+    let payload;
+    try { payload = JSON.parse(bodyText); } catch { return json({ error: 'bad_json' }, 400); }
+    try {
+      const { pruneDeletedMessage } = await import('./community-chat.js');
+      const channelId = payload.channel_id || payload.channelId;
+      const messageId = payload.id || payload.message_id || payload.messageId;
+      const result = await pruneDeletedMessage(env, channelId, messageId);
+      return json({ ok: true, chat: result, via: auth.via });
+    } catch (e) {
+      return json({ error: String(e.message || e) }, 500);
+    }
+  }
+
   // Gateway-forwarded GUILD_MEMBER_ADD, drives the welcome embed.
   // Same shared-secret auth as /counting/message.
   // Payload (Discord GUILD_MEMBER_ADD slim subset):
