@@ -31,6 +31,9 @@ import {
   getActiveGuildId,
 } from './aquilo/config.js';
 import { runAllPipes } from './admin-menu.js';
+import { setExpansionRelease, listEffectiveReleases } from './boltbound-release.js';
+import { announceExpansionReleaseOnce } from './cards-web.js';
+import { SETS } from './boltbound-sets.js';
 
 function json(obj, status) {
   return new Response(JSON.stringify(obj), {
@@ -396,6 +399,12 @@ export async function handleAdminWeb(env, route, guildId, body) {
   if (!body || body._owner !== true) {
     return json({ ok: false, error: 'forbidden', message: 'owner-only.' }, 403);
   }
+  // Boltbound expansion release toggle (Clay flips a staged set live):
+  //   POST /web/admin/expansion/<slug>/release  -> set live now (+ announce)
+  //   POST /web/admin/expansion/<slug>/hide     -> revert to hidden
+  if (route.startsWith('admin/expansion/')) {
+    return await routeExpansionRelease(env, route, guildId);
+  }
   switch (route) {
     case 'admin/snapshot':       return await routeAdminSnapshot(env, guildId);
     case 'admin/config':         return await routeAdminConfig(env, guildId, body);
@@ -409,4 +418,42 @@ export async function handleAdminWeb(env, route, guildId, body) {
     case 'admin/stream-events/sync':   return await routeStreamEventsSync(env, guildId, body);
     default:                     return json({ ok: false, error: 'not-found' }, 404);
   }
+}
+
+// ── Boltbound expansion release toggle ───────────────────────────────
+//
+// Owner-gated (the _owner check above already ran). The slug + action are
+// in the path: admin/expansion/<slug>/(release|hide). `release` sets the
+// KV override to now and fires the launch announcement; `hide` clears the
+// override (back to the registry placeholder) and resets the announce flag
+// so a future release re-announces.
+async function routeExpansionRelease(env, route, guildId) {
+  const m = route.match(/^admin\/expansion\/([a-z0-9-]+)\/(release|hide)$/);
+  if (!m) return json({ ok: false, error: 'bad-route', message: 'use admin/expansion/<slug>/release|hide' }, 400);
+  const [, slug, action] = m;
+  if (!SETS[slug] || slug === 'core') {
+    return json({ ok: false, error: 'unknown-set', message: `no expansion "${slug}"` }, 404);
+  }
+  try {
+    if (action === 'release') {
+      await setExpansionRelease(env, slug, Date.now());
+      // Clear any stale announce flag so this release posts, then fire it.
+      try { await env.LOADOUT_BOLTS.delete(`expansion-announced:${slug}`); } catch { /* non-fatal */ }
+      announceExpansionReleaseOnce(env, guildId, slug).catch(() => {});
+    } else {
+      await setExpansionRelease(env, slug, null);
+      // Reset announce flag so a later real release announces again.
+      try { await env.LOADOUT_BOLTS.delete(`expansion-announced:${slug}`); } catch { /* non-fatal */ }
+    }
+  } catch (e) {
+    return json({ ok: false, error: 'release-failed', message: String(e && e.message || e) }, 500);
+  }
+  const eff = await listEffectiveReleases(env);
+  const releaseUtc = eff[slug];
+  return json({
+    ok: true, slug, action,
+    released: Date.now() >= releaseUtc,
+    releaseUtc,
+    name: SETS[slug].name,
+  });
 }

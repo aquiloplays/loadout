@@ -48,11 +48,12 @@ import { getArenaState, startArenaRun, pickArenaCard, playArenaMatch, retireAren
 import { createRoom, joinRoom, getMyRoom, cancelRoom } from './boltbound-rooms.js';
 import { shareDeck, listCommunity, getSharedDeck, copySharedDeck } from './boltbound-decks-share.js';
 import { craftCard, disenchantCard, getDust } from './boltbound-dust.js';
-import {
-  SETS, SET_IDS, isReleased, isNewlyReleased, timeUntilRelease,
-} from './boltbound-sets.js';
+import { SETS, SET_IDS } from './boltbound-sets.js';
+import { listEffectiveReleases, releasedSetIds } from './boltbound-release.js';
 import { getChannelBinding } from './channel-bindings.js';
 import { postChannelMessage } from './aquilo/util.js';
+
+const SET_NEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 const ROUTES = new Set([
   'boltbound/state',
@@ -222,9 +223,15 @@ async function routeState(env, guildId, userId) {
   // RET-8 — per-card dust balance for the crafting surface.
   const dustBalance = await getDust(env, userId);
 
+  // Which sets are live right now (KV-overridable). The site filters the
+  // collection grid + deck-builder pool + pack-set selector to these so
+  // staged-but-unreleased expansion cards stay hidden until Clay flips them.
+  const released = await releasedSetIds(env);
+
   return json({
     ok: true,
     champion: { id: champId, className },
+    releasedSets: released,
     collection: {
       cards: collection.cards || {},
       total: Object.values(collection.cards || {}).reduce((a, b) => a + b, 0),
@@ -315,8 +322,14 @@ async function routeSets(env, guildId, userId) {
     const s = c.set || 'core';
     counts[s] = (counts[s] || 0) + 1;
   }
+  // Effective release times honour the KV admin overrides — a set Clay
+  // flipped live reads released:true here even though the registry date
+  // is still the far-future placeholder.
+  const eff = await listEffectiveReleases(env);
   const sets = SET_IDS.map(id => {
     const s = SETS[id];
+    const releaseUtc = eff[id];
+    const released = now >= releaseUtc;
     return {
       id,
       name: s.name,
@@ -324,10 +337,11 @@ async function routeSets(env, guildId, userId) {
       theme: s.theme,
       mechanics: s.mechanics,
       tribe: s.tribe || null,
-      releaseUtc: s.releaseUtc,
-      released: isReleased(id, now),
-      newlyReleased: isNewlyReleased(id, now),
-      msUntilRelease: timeUntilRelease(id, now),
+      quarter: s.quarter || null,
+      releaseUtc,
+      released,
+      newlyReleased: released && (now - releaseUtc) < SET_NEW_WINDOW_MS,
+      comingSoon: !released,
       cardCount: counts[id] || 0,
       plannedCount: s.plannedCount,
       hidden: !!s.hidden,
@@ -351,7 +365,8 @@ async function routeSets(env, guildId, userId) {
 // KV flag dedups across every page load + every guild. Posts to the
 // `game-updates` channel binding, falling back to the `play` hub; if
 // neither is bound we mark it announced anyway so we don't keep trying.
-async function announceExpansionReleaseOnce(env, guildId, setId) {
+// Exported so the admin release endpoint can fire it immediately on flip.
+export async function announceExpansionReleaseOnce(env, guildId, setId) {
   const flagKey = `expansion-announced:${setId}`;
   try {
     if (await env.LOADOUT_BOLTS.get(flagKey)) return;

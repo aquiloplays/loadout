@@ -21,7 +21,7 @@
 import {
   PACKS, RARITY_POOLS, CARDS, DUPE_BOLTS, rarityPoolsForSet,
 } from './cards-content.js';
-import { isReleased } from './boltbound-sets.js';
+import { isExpansionReleased } from './boltbound-release.js';
 import {
   mintPendingPack, getPendingPack, freezePendingPack, deletePendingPack,
   addCardsToCollection,
@@ -135,10 +135,11 @@ export async function creditPack(env, guildId, userId, packType, source, setId) 
   if (!PACKS[packType]) {
     return { ok: false, error: 'unknown-pack-type' };
   }
-  // Expansion-set guard: a pack can only be tied to a RELEASED set.
-  // Unreleased / unknown sets fall back to core so nobody can open a set
-  // before its launch date by crafting a request.
-  const set = (setId && setId !== 'core' && isReleased(setId)) ? setId : 'core';
+  // Expansion-set guard: a pack can only be tied to a RELEASED set
+  // (release is KV-overridable — see boltbound-release.js). Unreleased /
+  // unknown sets fall back to core so nobody can open a set before Clay
+  // flips it live by crafting a request.
+  const set = (setId && setId !== 'core' && await isExpansionReleased(env, setId)) ? setId : 'core';
   // Make sure the collection row exists so the viewer can open the
   // pack later without a "you haven't played Boltbound yet" 404. No-op
   // when the row already exists.
@@ -290,8 +291,8 @@ export async function buyPack(env, guildId, userId, packType, setId) {
   const pack = PACKS[packType];
   if (!pack) return { ok: false, error: 'unknown-pack-type' };
   if (pack.priceBolts == null) return { ok: false, error: 'not-purchasable' };
-  // Refuse to charge for a set that hasn't launched yet.
-  if (setId && setId !== 'core' && !isReleased(setId)) {
+  // Refuse to charge for a set that hasn't launched yet (KV-aware).
+  if (setId && setId !== 'core' && !(await isExpansionReleased(env, setId))) {
     return { ok: false, error: 'set-not-released' };
   }
   const { getWallet } = await import('./wallet.js');

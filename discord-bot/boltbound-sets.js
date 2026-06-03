@@ -18,12 +18,20 @@
 
 const D = (y, m, d) => Date.UTC(y, m - 1, d);   // m is 1-based for sanity
 
+// Placeholder release for STAGED-but-unreleased expansions. Clay flips a
+// set live by writing a KV override (see boltbound-release.js + the admin
+// endpoint POST /web/admin/expansion/<slug>/release). The registry date
+// stays in 2099 so a set is hidden until someone explicitly releases it,
+// and reverting (POST .../hide) drops the override back to this placeholder.
+const UNRELEASED = D(2099, 12, 31);
+
 export const SETS = {
   core: {
     id: 'core',
     name: 'Core',
     releaseUtc: D(2026, 5, 1),
     plannedCount: null,                 // the whole legacy catalogue
+    quarter: 'Live',
     theme: { primary: '#7c5cff', secondary: '#22d3ee', accent: '#5bff95' },
     blurb: 'The founding Boltbound catalogue. Always in rotation.',
     mechanics: ['Taunt', 'Charge', 'Battlecry', 'Deathrattle'],
@@ -32,8 +40,9 @@ export const SETS = {
   voidborn: {
     id: 'voidborn',
     name: 'Voidborn',
-    releaseUtc: D(2026, 6, 3),          // inaugural expansion — live today
-    plannedCount: 50,
+    releaseUtc: UNRELEASED,             // staged hidden until Clay releases it
+    plannedCount: 200,
+    quarter: 'Q3 2026',
     theme: { primary: '#7b2cff', secondary: '#3dd66a', accent: '#b388ff' },
     blurb: 'Cosmic horror crawls in from the dark between stars. What dies down there does not always stay dead.',
     mechanics: ['Stealth', 'Reborn', 'Recruit', 'Deathrattle'],
@@ -42,8 +51,9 @@ export const SETS = {
   'tides-of-aether': {
     id: 'tides-of-aether',
     name: 'Tides of Aether',
-    releaseUtc: D(2026, 10, 1),         // Q4 2026
-    plannedCount: 50,
+    releaseUtc: UNRELEASED,             // Q4 2026 (staged hidden)
+    plannedCount: 200,
+    quarter: 'Q4 2026',
     theme: { primary: '#1e6fff', secondary: '#22d3ee', accent: '#7fe7ff' },
     blurb: 'The storm-tide rises. Freeze the board, ride the Overload, and let the spells do the talking.',
     mechanics: ['Freeze', 'Overload', 'Spell Damage', 'Tide tribal'],
@@ -52,8 +62,9 @@ export const SETS = {
   'embercrown-rising': {
     id: 'embercrown-rising',
     name: 'Embercrown Rising',
-    releaseUtc: D(2027, 1, 15),         // Q1 2027
-    plannedCount: 50,
+    releaseUtc: UNRELEASED,             // Q1 2027 (staged hidden)
+    plannedCount: 200,
+    quarter: 'Q1 2027',
     theme: { primary: '#ff5a3c', secondary: '#ffc24b', accent: '#ff8a5b' },
     blurb: 'A crown forged in open flame. Strike first, chain the Combo, and burn the rest down.',
     mechanics: ['Combo', 'Charge', 'Rush', 'Inferno tribal'],
@@ -62,8 +73,9 @@ export const SETS = {
   'verdant-awakening': {
     id: 'verdant-awakening',
     name: 'Verdant Awakening',
-    releaseUtc: D(2027, 4, 15),         // Q2 2027
-    plannedCount: 50,
+    releaseUtc: UNRELEASED,             // Q2 2027 (staged hidden)
+    plannedCount: 200,
+    quarter: 'Q2 2027',
     theme: { primary: '#27c93f', secondary: '#7dffb0', accent: '#39ffc2' },
     blurb: 'Something old wakes under the roots. It grows whether you tend it or not.',
     mechanics: ['Adapt', 'End-of-Turn buffs', 'Lifesteal', 'Verdant tribal'],

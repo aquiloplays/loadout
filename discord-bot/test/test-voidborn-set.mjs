@@ -1,82 +1,112 @@
-// Voidborn expansion — set architecture + scheduling + set-aware packs.
+// Expansion sets — 4x200 catalogue, set-aware packs, and the KV-driven
+// release gate (staged hidden until an admin flip).
 //
 // Run with:  node test/test-voidborn-set.mjs
 
 import { CARDS, rarityPoolsForSet } from '../cards-content.js';
 import { pullPack } from '../cards-packs.js';
+import { SETS, SET_IDS } from '../boltbound-sets.js';
 import {
-  SETS, SET_IDS, isReleased, isNewlyReleased, releasedSetIds,
-  latestReleasedSetId, timeUntilRelease,
-} from '../boltbound-sets.js';
+  isExpansionReleased, releasedSetIds, setExpansionRelease, listEffectiveReleases,
+} from '../boltbound-release.js';
 
 let pass = 0, fail = 0;
 function ok(c, m) { if (c) { pass++; console.log('  PASS', m); } else { fail++; console.log('  FAIL', m); } }
 function eq(a, b, m) { if (a === b) { pass++; console.log('  PASS', m); } else { fail++; console.log('  FAIL', m, '(want', b, 'got', a, ')'); } }
 
-// Deterministic xorshift RNG matching cards-packs.js seeding posture.
 function rng(seed) {
   let s = (seed >>> 0) || 1;
   return () => { s ^= s << 13; s ^= s >>> 17; s ^= s << 5; return ((s >>> 0) % 100000) / 100000; };
 }
 
+// In-memory KV mock for the release-override layer.
+function makeEnv() {
+  const store = {};
+  return {
+    LOADOUT_BOLTS: {
+      get: async (k, o) => { const v = store[k]; if (v == null) return null; return o && o.type === 'json' ? JSON.parse(v) : v; },
+      put: async (k, v) => { store[k] = v; },
+      delete: async (k) => { delete store[k]; },
+    },
+  };
+}
+
+const EXPANSIONS = ['voidborn', 'tides-of-aether', 'embercrown-rising', 'verdant-awakening'];
+
 // ── Catalogue integrity ──────────────────────────────────────────────
 console.log('catalogue:');
 {
-  const voidborn = Object.values(CARDS).filter(c => c.set === 'voidborn');
-  const pullable = voidborn.filter(c => !c.token);
-  eq(pullable.length, 50, 'Voidborn has exactly 50 pullable cards');
+  eq(SET_IDS.length, 5, 'five sets registered (core + 4 quarterly)');
+  for (const slug of EXPANSIONS) {
+    const all = Object.values(CARDS).filter(c => c.set === slug);
+    const pull = all.filter(c => !c.token);
+    eq(pull.length, 200, `${slug} has exactly 200 pullable cards`);
+    eq(pull.filter(c => c.rarity === 'legendary').length, 20, `${slug} has 20 legendaries`);
+    ok(pull.every(c => c.set === slug), `${slug} cards all tagged set:${slug}`);
+  }
   const core = Object.values(CARDS).filter(c => (c.set || 'core') === 'core');
-  ok(core.length >= 1267, 'core catalogue is intact (>=1267 cards)');
-  ok(voidborn.every(c => c.set === 'voidborn'), 'every Voidborn card is tagged set:voidborn');
-  ok(pullable.filter(c => c.rarity === 'legendary').length === 5, 'Voidborn has 5 legendaries');
-  ok(pullable.filter(c => c.type === 'spell').length === 15, 'Voidborn has 15 spells');
+  ok(core.length >= 1267, 'core catalogue intact (>=1267)');
 }
 
 // ── Set-aware rarity pools ───────────────────────────────────────────
 console.log('pools:');
 {
-  const vb = rarityPoolsForSet('voidborn');
-  ok(vb.common.every(c => c.set === 'voidborn'), 'voidborn common pool is voidborn-only');
-  ok(vb.legendary.length === 5, 'voidborn legendary pool has 5');
+  for (const slug of EXPANSIONS) {
+    const p = rarityPoolsForSet(slug);
+    ok(p.common.every(c => c.set === slug), `${slug} common pool is ${slug}-only`);
+    eq(p.legendary.length, 20, `${slug} legendary pool has 20`);
+  }
   const core = rarityPoolsForSet('core');
-  ok(core.common.every(c => c.set === 'core' || !c.set), 'core common pool excludes expansions');
-  ok(!core.common.some(c => c.id.startsWith('voidborn.')), 'no voidborn cards leak into the core pool');
+  ok(!core.common.some(c => EXPANSIONS.includes(c.set)), 'no expansion cards leak into the core pool');
 }
 
-// ── Pack rolls respect the set ───────────────────────────────────────
+// ── Pack rolls respect the set (pool selection is release-independent) ─
 console.log('packs:');
 {
-  // A Voidborn pack must only ever yield Voidborn cards.
-  let allVoidborn = true, anyVoidbornInCore = false;
-  for (let seed = 1; seed <= 200; seed++) {
-    const vbPull = pullPack('bolt', rng(seed), { set: 'voidborn' });
-    if (!vbPull.every(id => CARDS[id]?.set === 'voidborn')) allVoidborn = false;
-    const corePull = pullPack('bolt', rng(seed * 7 + 3));   // no set => core
-    if (corePull.some(id => CARDS[id]?.set === 'voidborn')) anyVoidbornInCore = true;
+  let vbOk = true, coreLeak = false, tidesOk = true;
+  for (let seed = 1; seed <= 150; seed++) {
+    if (!pullPack('bolt', rng(seed), { set: 'voidborn' }).every(id => CARDS[id]?.set === 'voidborn')) vbOk = false;
+    if (!pullPack('bolt', rng(seed * 3 + 1), { set: 'tides-of-aether' }).every(id => CARDS[id]?.set === 'tides-of-aether')) tidesOk = false;
+    if (pullPack('bolt', rng(seed * 7 + 5)).some(id => EXPANSIONS.includes(CARDS[id]?.set))) coreLeak = true;
   }
-  ok(allVoidborn, 'a Voidborn pack only contains Voidborn cards (200 seeds)');
-  ok(!anyVoidbornInCore, 'a default pack never contains Voidborn cards (200 seeds)');
-  const three = pullPack('bolt', rng(42), { set: 'voidborn' });
-  eq(three.length, 3, 'a pack opens exactly 3 cards');
+  ok(vbOk, 'a Voidborn pack only contains Voidborn cards (150 seeds)');
+  ok(tidesOk, 'a Tides pack only contains Tides cards (150 seeds)');
+  ok(!coreLeak, 'a default pack never contains expansion cards (150 seeds)');
 }
 
-// ── Release scheduling ───────────────────────────────────────────────
-console.log('scheduling:');
+// ── Registry: everything staged hidden ───────────────────────────────
+console.log('registry (staged hidden):');
 {
-  const now = SETS.voidborn.releaseUtc + 1000;   // just after Voidborn launch
-  ok(isReleased('voidborn', now), 'Voidborn is released at launch time');
-  ok(isReleased('core', now), 'core is always released');
-  ok(!isReleased('tides-of-aether', now), 'future set is NOT released at Voidborn launch');
-  ok(isNewlyReleased('voidborn', now), 'Voidborn is "newly released" right after launch');
-  ok(!isNewlyReleased('voidborn', now + 8 * 24 * 3600 * 1000), 'the new-set window closes after 7 days');
-  ok(timeUntilRelease('tides-of-aether', now) > 0, 'future set has time-until-release');
-  eq(timeUntilRelease('voidborn', now), 0, 'released set has 0 time-until-release');
-  const live = releasedSetIds(now);
-  ok(live.includes('voidborn') && live.includes('core'), 'releasedSetIds includes live sets');
-  ok(!live.includes('tides-of-aether'), 'releasedSetIds excludes unreleased sets');
-  eq(latestReleasedSetId(now), 'voidborn', 'latest released set is Voidborn at launch');
-  ok(SET_IDS.length === 5, 'five sets are registered (core + 4 quarterly)');
+  const now = Date.now();
+  for (const slug of EXPANSIONS) {
+    ok(SETS[slug].releaseUtc > now + 365 * 24 * 3600 * 1000, `${slug} registry date is a far-future placeholder`);
+    eq(SETS[slug].plannedCount, 200, `${slug} plannedCount is 200`);
+  }
 }
+
+// ── KV release gate: hidden → flip → released → revert → hidden ───────
+console.log('release gate (KV-driven):');
+await (async () => {
+  const env = makeEnv();
+  ok(await isExpansionReleased(env, 'core'), 'core is always released');
+  ok(!(await isExpansionReleased(env, 'voidborn')), 'voidborn hidden by default');
+  ok(!(await isExpansionReleased(env, 'tides-of-aether')), 'tides hidden by default');
+  eq((await releasedSetIds(env)).join(','), 'core', 'only core released by default');
+
+  await setExpansionRelease(env, 'voidborn', Date.now());
+  ok(await isExpansionReleased(env, 'voidborn'), 'voidborn released after admin flip');
+  ok(!(await isExpansionReleased(env, 'tides-of-aether')), 'tides still hidden after voidborn flip');
+  ok((await releasedSetIds(env)).includes('voidborn'), 'releasedSetIds includes voidborn after flip');
+  const eff = await listEffectiveReleases(env);
+  ok(eff.voidborn <= Date.now(), 'effective release time is now-ish after flip');
+
+  await setExpansionRelease(env, 'voidborn', null);
+  ok(!(await isExpansionReleased(env, 'voidborn')), 'voidborn hidden again after revert');
+
+  let threw = false;
+  try { await setExpansionRelease(env, 'core', Date.now()); } catch { threw = true; }
+  ok(threw, 'cannot override core release');
+})();
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

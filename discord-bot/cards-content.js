@@ -34,7 +34,7 @@
 // and card-art regens alike. Each entry is a single engine-supported
 // keyword (power-budgeted) + matching text.
 import { GENERATED_EFFECTS } from './card-effects-backfill.js';
-import { SET_IDS, isReleased } from './boltbound-sets.js';
+import { SET_IDS } from './boltbound-sets.js';
 
 export const TRIGGERS = [
   'onPlay',         // minion summoned from hand, OR spell cast
@@ -570,6 +570,10 @@ import { SPIRE_LEGENDARIES, SPIRE_TOKENS } from './spire-cards.js';
 // CR-2 — the first quarterly expansion. Already rarity-stamped + set-tagged
 // in its own module; merged in as-is (no per-rarity .map needed).
 import { VOIDBORN_CARDS } from './cards-voidborn.js';
+// CR-2 scale-up — procedurally generated bulk of all 4 expansions (200/set):
+// the 150 Voidborn top-up + Tides/Embercrown/Verdant whole. Already
+// rarity/set/tribe-stamped. See cards-expansion-bulk.js.
+import { EXPANSION_BULK_CARDS, EXPANSION_BULK_TOKENS } from './cards-expansion-bulk.js';
 // Per-id DISPLAY-text diversification (tools/diversify-effects.py). Many
 // procedurally-generated cards shared identical effect descriptions; this
 // map rewrites only the `text` string with variety. Mechanics, keywords,
@@ -590,6 +594,10 @@ const RAW_ROSTER = [
   ...SPIRE_TOKENS.map(c => ({ ...c, rarity: 'token' })),
   // CR-2 Voidborn expansion (already rarity-stamped + set:'voidborn').
   ...VOIDBORN_CARDS,
+  // CR-2 bulk generator — 150 Voidborn top-up + Tides/Embercrown/Verdant
+  // (200 each) + their tokens. Already rarity/set/tribe-stamped.
+  ...EXPANSION_BULK_CARDS,
+  ...EXPANSION_BULK_TOKENS,
 ];
 
 export const CARDS = Object.fromEntries(
@@ -887,10 +895,10 @@ export function validateDeck(deck) {
     const c = CARDS[id];
     if (!c) return { ok: false, error: `unknown card: ${id}` };
     if (c.token) return { ok: false, error: `tokens cannot be in decks: ${id}` };
-    // Cards from an expansion that hasn't launched yet can't be decked.
-    if (c.set && c.set !== 'core' && !isReleased(c.set)) {
-      return { ok: false, error: `${c.name} is from an unreleased set` };
-    }
+    // NOTE: the "unreleased set" gate is NOT here — release is KV-driven
+    // (boltbound-release.js) and validateDeck is a pure/sync function. The
+    // env-aware check lives in cards-decks.js saveDeck so a KV release/hide
+    // takes effect without this static date lying.
     counts.set(id, (counts.get(id) || 0) + 1);
     if (c.rarity === 'champion') championCount++;
   }

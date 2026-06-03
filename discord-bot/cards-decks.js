@@ -17,6 +17,7 @@ import {
   getCollection, listDecks, putDeck, deleteDeck, getDeck,
   setActiveDeckId, getActiveDeckId, newId,
 } from './cards-state.js';
+import { releasedSetIds } from './boltbound-release.js';
 
 const MAX_SAVED_DECKS = 6;
 
@@ -157,6 +158,18 @@ export async function saveDeck(env, guildId, userId, deck, championClass) {
   }
   const v = validateDeck({ cards: materialised });
   if (!v.ok) return { ok: false, error: v.error };
+
+  // Unreleased-set gate (KV-aware — see boltbound-release.js). A card from
+  // an expansion that hasn't been flipped live yet can't be decked. core
+  // is always allowed.
+  const released = new Set(await releasedSetIds(env));
+  for (const id of materialised) {
+    const c = CARDS[id];
+    const set = c?.set || 'core';
+    if (set !== 'core' && !released.has(set)) {
+      return { ok: false, error: `${c?.name || id} is from an unreleased set` };
+    }
+  }
 
   // Check ownership — viewer must own every non-champion, non-token card
   // in the requested quantity.
