@@ -1005,8 +1005,6 @@ namespace Loadout.UI
             TxtBoltsStreakCap.Text    = s.Bolts.DailyStreakCap.ToString();
             TxtBoltsAfkCap.Text       = s.Bolts.MaxChatEarnsPerMinute.ToString();
             TxtBoltsGiftFloor.Text    = s.Bolts.GiftMinAmount.ToString();
-            TxtBoltsRainMin.Text      = s.Bolts.BoltRainMinTotal.ToString();
-            TxtBoltsRainMax.Text      = s.Bolts.BoltRainMaxRecipients.ToString();
             if (TxtBoltsSlotsPool != null) TxtBoltsSlotsPool.Text = s.Bolts.SlotsImagePool ?? "";
             if (ChkBoltsSlotsUseTwitchEmotes != null) ChkBoltsSlotsUseTwitchEmotes.IsChecked = s.Bolts.SlotsUseTwitchEmotes;
             // Minigames bounds + per-user cooldown + result delay.
@@ -1293,8 +1291,6 @@ namespace Loadout.UI
                 if (double.TryParse(TxtBoltsStreakCap.Text, out dv) && dv >= 0) s.Bolts.DailyStreakCap    = dv;
                 if (int.TryParse(TxtBoltsAfkCap.Text,    out iv) && iv >= 0) s.Bolts.MaxChatEarnsPerMinute = iv;
                 if (int.TryParse(TxtBoltsGiftFloor.Text, out iv) && iv >= 0) s.Bolts.GiftMinAmount         = iv;
-                if (int.TryParse(TxtBoltsRainMin.Text,   out iv) && iv >= 0) s.Bolts.BoltRainMinTotal      = iv;
-                if (int.TryParse(TxtBoltsRainMax.Text,   out iv) && iv >= 1) s.Bolts.BoltRainMaxRecipients = iv;
                 // Slots reel pool: collapse Windows CRLF -> LF so what the
                 // overlay reads matches what the user typed in the textbox.
                 if (TxtBoltsSlotsPool != null) s.Bolts.SlotsImagePool = (TxtBoltsSlotsPool.Text ?? "").Replace("\r\n", "\n").Trim();
@@ -2381,7 +2377,6 @@ namespace Loadout.UI
             var layers = new List<string>();
             if (ChkLayerLeaderboard?.IsChecked == true) layers.Add("leaderboard");
             if (ChkLayerToast?.IsChecked       == true) layers.Add("toast");
-            if (ChkLayerRain?.IsChecked        == true) layers.Add("rain");
             if (ChkLayerStreak?.IsChecked      == true) layers.Add("streak");
             if (ChkLayerGiftBurst?.IsChecked   == true) layers.Add("giftburst");
             if (ChkLayerWelcomes?.IsChecked    == true) layers.Add("welcomes");
@@ -2782,7 +2777,7 @@ namespace Loadout.UI
             // Goals
             "CmbGoalsTheme", "TxtGoalsAccent", "TxtGoalsBgOpacity",
             // Bolts
-            "ChkLayerLeaderboard", "ChkLayerToast", "ChkLayerRain",
+            "ChkLayerLeaderboard", "ChkLayerToast",
             "ChkLayerStreak", "ChkLayerGiftBurst", "ChkLayerWelcomes",
             "TxtBoltsAccent", "TxtBoltsLbRows", "TxtBoltsToastDur", "TxtBoltsBgOpacity",
             // Apex

@@ -1003,8 +1003,6 @@ namespace Loadout.Settings
 
         // Spend rules.
         public int    GiftMinAmount       { get; set; } = 10;     // !gift floor
-        public int    BoltRainMinTotal    { get; set; } = 100;
-        public int    BoltRainMaxRecipients { get; set; } = 100;
 
         // Tip integration — when a viewer tips via Streamlabs / Stream
         // Elements / Ko-fi / etc., the streamer wires their provider's

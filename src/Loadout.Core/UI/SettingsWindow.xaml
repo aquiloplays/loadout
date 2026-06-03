@@ -1160,7 +1160,7 @@
 
                         <Expander Style="{StaticResource ExpandableCard}" Header="Spend / safety" Margin="0 0 0 14">
                             <Grid>
-                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
                                     <ColumnDefinition Width="*" /><ColumnDefinition Width="120" />
@@ -1169,10 +1169,6 @@
                                 <TextBox  Grid.Row="0" Grid.Column="1" x:Name="TxtBoltsAfkCap"        Margin="0 4 12 0" />
                                 <TextBlock Grid.Row="0" Grid.Column="2" Text="!gift floor"            Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
                                 <TextBox  Grid.Row="0" Grid.Column="3" x:Name="TxtBoltsGiftFloor"     Margin="0 4 0 0" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="!boltrain min total"    Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtBoltsRainMin"       Margin="0 4 12 0" />
-                                <TextBlock Grid.Row="1" Grid.Column="2" Text="!boltrain max recipients" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 6 12 0" />
-                                <TextBox  Grid.Row="1" Grid.Column="3" x:Name="TxtBoltsRainMax"       Margin="0 4 0 0" />
                             </Grid>
                         </Expander>
 
@@ -2816,14 +2812,13 @@
                                     <TextBlock FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource Brush.Fg.Primary}">
                                         <Run Text="OBS browser source:" Foreground="{StaticResource Brush.Fg.Muted}" />
                                         <Run Text=" 1920×1080" FontWeight="Bold" Foreground="{StaticResource Brush.Accent}" />
-                                        <Run Text=" — rain + giftburst layers fill the canvas" Foreground="{StaticResource Brush.Fg.Muted}" />
+                                        <Run Text=", giftburst layer fills the canvas" Foreground="{StaticResource Brush.Fg.Muted}" />
                                     </TextBlock>
                                 </Border>
                                 <TextBlock Text="Layers visible:" Style="{StaticResource Muted}" Margin="0 0 0 4" />
                                 <WrapPanel>
                                     <CheckBox x:Name="ChkLayerLeaderboard" Content="Leaderboard"    IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkLayerToast"       Content="Earn toasts"    IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
-                                    <CheckBox x:Name="ChkLayerRain"        Content="Bolt rain"      IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkLayerStreak"      Content="Streak banner"  IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkLayerGiftBurst"   Content="Gift bursts"    IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />
                                     <CheckBox x:Name="ChkLayerWelcomes"    Content="Welcomes"       IsChecked="True" Style="{StaticResource ToggleRow}" Margin="0 0 16 0" Click="OnOverlayUrlChange" />

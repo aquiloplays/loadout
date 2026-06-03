@@ -1209,21 +1209,6 @@ export default {
               await liveAccrueWatchtowerBoltsTick(env, activeGuildId);
             } catch (e) { console.warn('[cron] watchtower tick', e?.message || e); }
           })());
-          // Bolt rain, fires every 5 minutes (mm % 5 === 0). Random
-          // drops to ~5 viewers chosen from the wallet prefix.
-          // Lighter cadence so it stays a "treat" not a firehose.
-          if (mm % 5 === 0) {
-            ctx.waitUntil((async () => {
-              try {
-                const { boltRainTick } = await import('./stream-bonus.js');
-                const r = await boltRainTick(env, activeGuildId, { count: 5 });
-                if (r?.ok && r.drops?.length) {
-                  console.log('[cron] bolt-rain:', r.drops.length, 'drops,',
-                              r.total, 'total bolts');
-                }
-              } catch (e) { console.warn('[cron] bolt-rain', e?.message || e); }
-            })());
-          }
         }
         // 30-minute pre-stream ping. Opt-in via STREAM_PING_CHANNEL, // the helper no-ops (and we skip the import) when it's unset,
         // so this stays cheap on the every-minute trigger. A per-event

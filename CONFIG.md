@@ -101,9 +101,7 @@ Every module ships **OFF by default**. Enable individually in `Settings → Modu
   "MaxChatEarnsPerMinute":  6,    // per-viewer chat earn cap
 
   // Spend
-  "GiftMinAmount":          10,
-  "BoltRainMinTotal":      100,
-  "BoltRainMaxRecipients": 100
+  "GiftMinAmount":          10
 }
 ```
 

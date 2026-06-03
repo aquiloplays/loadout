@@ -201,8 +201,6 @@
       case 'bolts.streak':
         if (!d.user || (d.streakDays || 0) < 2) return null;
         return { kind: 'bolts.streak',  tone: 'streak', badge: '/sprites/ui/icons/glossy/flame.png', title: d.user, sub: (d.streakDays || 0) + '-day streak' };
-      case 'bolts.rain':
-        return { kind: 'bolts.rain',    tone: 'bolts',  badge: '/sprites/ui/icons/glossy/droplet.png', title: 'Bolt rain', sub: ((d.recipients && d.recipients.length) || '?') + ' showered' };
       case 'bolts.leaderboard': {
         const top = (d.top || []);
         if (top.length === 0) return null;

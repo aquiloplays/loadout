@@ -37,7 +37,6 @@ register a new handler. Source of truth is the code under
 | `bolts.refunded` | `BoltsModule` | `{ user, amount, reason }` | overlay `/bolts` |
 | `bolts.streak` | `BoltsModule` | `{ user, streak, payout }` | overlay `/bolts` (streak banner) |
 | `bolts.leaderboard` | `BoltsModule` | `{ entries: [{ user, balance }, ...] }` | overlay `/bolts` (ticker), `bolts-leaderboard.html` |
-| `bolts.rain` | `BoltsModule` | `{ user, amount, recipients }` | overlay `/bolts` (rain) |
 | `bolts.shop.purchased` | `BoltsModule` (shop) | `{ user, item, cost }` | overlay `/bolts` |
 
 **Request kinds (client-published, in-process handled):**

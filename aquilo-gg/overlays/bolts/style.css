@@ -216,34 +216,6 @@ html, body {
   100% { opacity: 0; transform: translate(-50%, -10px); }
 }
 
-/* ── Bolt rain (fullscreen) ──────────────────────────────────────────── */
-.rain {
-  inset: 0;
-  overflow: hidden;
-}
-.rain.active::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at center, rgba(124, 92, 255,.15) 0%, transparent 70%);
-  animation: flash 2s ease-out forwards;
-}
-@keyframes flash { 0%, 100% { opacity: 0; } 30% { opacity: 1; } }
-
-.bolt-particle {
-  position: absolute;
-  font-size: 28px;
-  pointer-events: none;
-  animation: fall linear forwards;
-  text-shadow: 0 0 14px rgba(124, 92, 255,.7);
-  user-select: none;
-}
-@keyframes fall {
-  0%   { transform: translateY(-10vh) rotate(0deg);  opacity: 0; }
-  10%  { opacity: 1; }
-  100% { transform: translateY(110vh) rotate(360deg); opacity: 1; }
-}
-
 /* ── Gift burst (centered transient) ─────────────────────────────────── */
 .giftburst {
   inset: 0;

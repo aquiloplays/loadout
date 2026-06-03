@@ -24,7 +24,6 @@ namespace Loadout.Modules
     ///   !bolts @user            show another viewer's balance
     ///   !leaderboard            top 5 balances
     ///   !gift @user N           transfer N bolts to another viewer
-    ///   !boltrain N [count]     broadcaster/mod: split N bolts across [count] random active chatters
     ///
     /// Earn events fire the bus event <c>bolts.earned</c> with details so the
     /// unified overlay can render a small floating "+N Bolts" toast.
@@ -33,8 +32,6 @@ namespace Loadout.Modules
     {
         // Anti-AFK: per-viewer chat earn timestamps within the last minute.
         private readonly Dictionary<string, Queue<DateTime>> _chatEarnTimes = new Dictionary<string, Queue<DateTime>>();
-        // Track who's chatted recently for !boltrain recipient pool.
-        private readonly Dictionary<string, DateTime> _activeChatters = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
         private DateTime _lastLeaderboardBroadcastUtc = DateTime.MinValue;
 
         public BoltsModule()
@@ -147,9 +144,6 @@ namespace Loadout.Modules
         {
             if (string.IsNullOrEmpty(ctx.User)) return;
 
-            // Track active chatters for boltrain.
-            _activeChatters[ctx.User] = DateTime.UtcNow;
-
             // Anti-AFK: cap chat earns per minute per viewer.
             var key = ctx.Platform.ToShortName() + ":" + ctx.User.ToLowerInvariant();
             if (!_chatEarnTimes.TryGetValue(key, out var window))
@@ -249,7 +243,6 @@ namespace Loadout.Modules
                 case "leaderboard":   CmdLeaderboard(ctx, s);       return;
                 case "lb":            CmdLeaderboard(ctx, s);       return;
                 case "gift":          CmdGift(ctx, rest, s);        return;
-                case "boltrain":      CmdBoltRain(ctx, rest, s);    return;
                 // Per-game enable gate. The streamer can disable any
                 // minigame from the Settings card (Bolts → Minigames)
                 // without having to zero its wager bounds. A disabled
@@ -1069,60 +1062,6 @@ namespace Loadout.Modules
             var lines = raw.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
             var trimmed = lines.Select(l => l.Trim()).Where(l => l.Length > 0).ToArray();
             return trimmed.Length >= 2 ? trimmed : DefaultSlotsPool;
-        }
-
-        private void CmdBoltRain(EventContext ctx, string rest, LoadoutSettings s)
-        {
-            var u = (ctx.UserType ?? "").ToLowerInvariant();
-            if (u != "broadcaster" && u != "moderator" && u != "mod") return;
-
-            var parts = (rest ?? "").Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 0) return;
-            if (!long.TryParse(parts[0], out var total) || total < s.Bolts.BoltRainMinTotal) return;
-            int recipientCap = parts.Length > 1 && int.TryParse(parts[1], out var c)
-                ? Math.Min(c, s.Bolts.BoltRainMaxRecipients)
-                : Math.Min(20, s.Bolts.BoltRainMaxRecipients);
-
-            // Recent active chatters (last 5 minutes), excluding mods/broadcaster.
-            var cutoff = DateTime.UtcNow.AddMinutes(-5);
-            var pool = _activeChatters
-                .Where(kv => kv.Value > cutoff)
-                .Select(kv => kv.Key)
-                .Where(name => !string.Equals(name, ctx.User, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-            if (pool.Count == 0) return;
-
-            // Random selection without replacement, capped.
-            var rng = new Random();
-            var picked = pool.OrderBy(_ => rng.Next()).Take(recipientCap).ToList();
-            var per = Math.Max(1, total / picked.Count);
-
-            foreach (var winner in picked)
-                BoltsWallet.Instance.Earn(ctx.Platform.ToShortName(), winner, per, "boltrain");
-
-            AquiloBus.Instance.Publish("bolts.rain", new
-            {
-                total,
-                perRecipient = per,
-                recipients = picked,
-                by = ctx.User,
-                platform = ctx.Platform.ToShortName()
-            });
-
-            // Re-dispatch a boltsSpent event so ApexModule deals damage from the broadcaster's spend.
-            try
-            {
-                var spentArgs = new System.Collections.Generic.Dictionary<string, object>(ctx.Raw)
-                {
-                    ["amount"] = (int)total
-                };
-                Sb.SbEventDispatcher.Instance.DispatchEvent("boltsSpent", spentArgs);
-            }
-            catch { }
-
-            if (!ChatGate.TrySend(ChatGate.Area.Bolts, "bolts:rain", TimeSpan.FromSeconds(5))) return;
-            new MultiPlatformSender(CphPlatformSender.Instance)
-                .Send(ctx.Platform, "⚡ Bolt rain! " + total + " " + s.Bolts.Emoji + " split across " + picked.Count + " active chatters.", s.Platforms);
         }
 
         // ── Cross-product bus handlers (#17) ─────────────────────────────────

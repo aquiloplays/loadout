@@ -17,7 +17,7 @@
   const busUrl   = params.get('bus')    || 'ws://127.0.0.1:7470/aquilo/bus/';
   const secret   = params.get('secret') || '';
   const debug    = params.get('debug')  === '1';
-  const enabled  = (params.get('layers') || 'leaderboard,toast,rain,streak,giftburst,welcomes')
+  const enabled  = (params.get('layers') || 'leaderboard,toast,streak,giftburst,welcomes')
                      .split(',').map(x => x.trim()).filter(Boolean);
 
   // Per-layer position overrides. A bare `pos` param positions every
@@ -59,7 +59,7 @@
   })();
 
   // Hide layers the user didn't enable.
-  const allLayers = ['leaderboard', 'toastTrack', 'rain', 'streak', 'giftburst', 'welcomeTrack'];
+  const allLayers = ['leaderboard', 'toastTrack', 'streak', 'giftburst', 'welcomeTrack'];
   for (const id of allLayers) {
     const el = $(id);
     if (!el) continue;
@@ -132,39 +132,6 @@
         // Cap queue length so a flood doesn't pile up forever.
         while (queue.length > 20) queue.shift();
         pump();
-      }
-    };
-  })();
-
-  // ── Scene: Bolt rain ──────────────────────────────────────────────────
-  const rain = (() => {
-    const el = $('rain');
-    return {
-      kinds: ['bolts.rain'],
-      onEvent: (msg) => {
-        const d = msg.data || {};
-        const recipientCount = (d.recipients && d.recipients.length) || 20;
-        el.classList.remove('hidden');
-        el.classList.add('active');
-
-        // Drop one bolt per recipient, capped at 80 so we don't melt the GPU.
-        const particleCount = Math.min(80, Math.max(20, recipientCount * 2));
-        for (let i = 0; i < particleCount; i++) {
-          // Pixel-bolt rain particles. Render the icon as <img>; size
-          // is set via inline width since the icon is 16×16 native.
-          const p = document.createElement('img');
-          p.className = 'bolt-particle ico';
-          p.src = '/sprites/ui/icons/glossy/bolt.png';
-          p.alt = '';
-          p.style.left  = (Math.random() * 100) + 'vw';
-          p.style.width = (18 + Math.random() * 28) + 'px';
-          p.style.height = p.style.width;
-          p.style.animationDuration = (1.5 + Math.random() * 2.0) + 's';
-          p.style.animationDelay    = (Math.random() * 0.6) + 's';
-          el.appendChild(p);
-          setTimeout(() => p.remove(), 4000);
-        }
-        setTimeout(() => { el.classList.remove('active'); el.classList.add('hidden'); }, 4500);
       }
     };
   })();
@@ -256,7 +223,7 @@
 
   // ── Scene table (Phase 2 features add a row here) ────────────────────
   const SCENES = {
-    leaderboard, toast, rain, streak, giftburst, welcomes
+    leaderboard, toast, streak, giftburst, welcomes
   };
 
   // Build kind→[scene] dispatch map for fast lookups.
@@ -322,7 +289,6 @@
     setTimeout(() => toast.onEvent({ kind: 'bolts.earned', data: { user: 'aquilo_plays', amount: 50 }}), 600);
     setTimeout(() => toast.onEvent({ kind: 'bolts.earned', data: { user: 'viewer_two', amount: 250 }}), 1400);
     setTimeout(() => streak.onEvent({ kind: 'bolts.streak', data: { user: 'viewer_three', streakDays: 12 }}), 2400);
-    setTimeout(() => rain.onEvent({   kind: 'bolts.rain',   data: { recipients: Array(30).fill('x') }}), 4000);
     setTimeout(() => giftburst.onEvent({ kind: 'bolts.gifted', data: { from: 'a', to: 'b', amount: 500 }}), 8000);
     setTimeout(() => welcomes.onEvent({ kind: 'welcome.fired', data: { user: 'new_friend', userType: 'firstTime', rendered: 'Welcome new_friend, glad you found us!' }}), 1100);
     setTimeout(() => welcomes.onEvent({ kind: 'welcome.fired', data: { user: 'sub_returner', userType: 'sub', rendered: 'sub_returner is back!' }}), 2200);

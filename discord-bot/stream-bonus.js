@@ -9,20 +9,15 @@
 //      auto-grant is read-time (no town-state migration needed);
 //      isWatchtowerActive(env) returns the live-flag the renderer
 //      uses for the glow effect.
-//   n. Bolt rain, applyVaultDelta wraps all bolt grants with a
-//      1.2x multiplier when live. Plus periodic random drops at a
-//      configurable cadence (cron-driven).
 //
-// All three hinge on isStreamLive(env), which reads the existing
+// Both hinge on isStreamLive(env), which reads the existing
 // twitch:live:state:<broadcasterId> KV record set by
 // twitch-eventsub.js.
 
 const BROADCASTER_ID_ENV = 'TWITCH_BROADCASTER_USER_ID';
-const BOLT_RAIN_MULTIPLIER = 1.20;            // +20% while live
 const AETHER_PER_MINUTE   = 5;                // base rate while live
 const AETHER_VIEWER_BONUS = 0.5;              // +0.5 per concurrent viewer
 const WATCHTOWER_BOLT_PER_MINUTE = 2;         // passive bolts/min while live
-const RANDOM_DROP_MIN = 50, RANDOM_DROP_MAX = 500;
 
 // Canonical "is the streamer live right now" probe. Reads
 // twitch:live:state:<broadcasterId>; record presence = live.
@@ -135,60 +130,7 @@ export async function liveAccrueWatchtowerBoltsTick(env, guildId) {
   return { ok: true, granted };
 }
 
-// ── Bolt rain ────────────────────────────────────────────────────
-//
-// applyBoltRainMultiplier wraps a bolts grant, caller pulls it in
-// at any grant site to amplify by 1.2x while live. Best-effort: if
-// the live-probe fails the caller still gets the base amount.
-//
-// boltRainTick is the periodic "random drop" pulse, fires N viewers
-// chosen at random from the wallet prefix and gives them 50-500 bolts.
-
-export async function applyBoltRainMultiplier(env, amount) {
-  const a = Number(amount) || 0;
-  if (a <= 0) return a;
-  const live = await isStreamLive(env);
-  if (!live.live) return a;
-  return Math.round(a * BOLT_RAIN_MULTIPLIER);
-}
-
-export async function boltRainTick(env, guildId, opts = {}) {
-  const live = await isStreamLive(env);
-  if (!live.live) return { ok: true, skipped: 'not-live' };
-  const { earn } = await import('./wallet.js');
-  const count = Math.max(1, Math.min(50, parseInt(opts.count, 10) || 5));
-  // Walk wallet keys + reservoir-sample.
-  let cursor, all = [];
-  for (let i = 0; i < 6; i++) {
-    const page = await env.LOADOUT_BOLTS.list({
-      prefix: `wallet:${guildId}:`, cursor, limit: 1000,
-    });
-    for (const k of (page.keys || [])) all.push(k.name);
-    if (page.list_complete || !page.cursor) break;
-    cursor = page.cursor;
-  }
-  if (!all.length) return { ok: true, skipped: 'no-wallets' };
-  // Shuffle-then-take avoids per-iteration Math.random in the loop.
-  const sampleSize = Math.min(count, all.length);
-  for (let i = all.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [all[i], all[j]] = [all[j], all[i]];
-  }
-  const winners = all.slice(0, sampleSize);
-  const drops = [];
-  for (const key of winners) {
-    const userId = key.slice(`wallet:${guildId}:`.length);
-    const amount = RANDOM_DROP_MIN + Math.floor(
-      Math.random() * (RANDOM_DROP_MAX - RANDOM_DROP_MIN + 1));
-    try {
-      await earn(env, guildId, userId, amount, 'bolt-rain');
-      drops.push({ userId, amount });
-    } catch { /* swallow */ }
-  }
-  return { ok: true, drops, total: drops.reduce((s, d) => s + d.amount, 0) };
-}
-
 export const _consts = {
-  BOLT_RAIN_MULTIPLIER, AETHER_PER_MINUTE, AETHER_VIEWER_BONUS,
-  WATCHTOWER_BOLT_PER_MINUTE, RANDOM_DROP_MIN, RANDOM_DROP_MAX,
+  AETHER_PER_MINUTE, AETHER_VIEWER_BONUS,
+  WATCHTOWER_BOLT_PER_MINUTE,
 };

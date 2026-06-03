@@ -60,7 +60,7 @@ Detailed walkthrough: [INSTALL.md](INSTALL.md)
 - **Counters**, `!deaths`, `!wins`, custom counters with chat increment/decrement and live overlay
 
 ### Engagement loops
-- **Bolts ⚡**, unified cross-platform wallet. Earn from chat / subs / cheers / raids / TikTok gifts / channel points. Multipliers from sub status, daily streak, Patreon tier. Spend via `!gift`, `!boltrain`, `!shop`. → [more below](#bolts-economy)
+- **Bolts ⚡**, unified cross-platform wallet. Earn from chat / subs / cheers / raids / TikTok gifts / channel points. Multipliers from sub status, daily streak, Patreon tier. Spend via `!gift`, `!shop`. → [more below](#bolts-economy)
 - **Daily Check-In**, overlay with avatar, sub flair, Patreon flair, rotating stream stats. Twitch channel-point reward OR `!checkin` command on any platform.
 - **Daily Quests**, three viewer-side quests per UTC day. Show up / earn bolts / play minigames / win a heist / tip the streamer. → [more below](#daily-quests--achievements)
 - **Achievements**, cross-product milestones (bolts, hype train, heists, tips). Unlock fires on the bus + bolt reward. → [more below](#daily-quests--achievements)
@@ -122,9 +122,9 @@ Single cross-platform points wallet. Default earn rates (May 2026 grindy rebalan
 
 **Multipliers** (additive): sub +0.5 · Patron +0.5 · daily streak +0.1/day capped at +1.0.
 
-**Commands**: `!bolts [@user]` · `!leaderboard` · `!gift @user N` · `!boltrain N [count]` (mod) · `!shop` · `!buy <name>`.
+**Commands**: `!bolts [@user]` · `!leaderboard` · `!gift @user N` · `!shop` · `!buy <name>`.
 
-**Overlay** at `widget.aquilo.gg/overlays/bolts` consolidates leaderboard ticker, earn toasts, bolt rain, streak banner, and gift bursts into one OBS browser source.
+**Overlay** at `widget.aquilo.gg/overlays/bolts` consolidates leaderboard ticker, earn toasts, streak banner, and gift bursts into one OBS browser source.
 
 ### Shop + minigames
 
