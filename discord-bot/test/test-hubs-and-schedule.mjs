@@ -159,9 +159,9 @@ console.log('- getPublicSchedule: shape + CN winner');
     POLL_CHANNEL_ID:     '1508318930845044786',
   };
   // No saved sched, so load returns defaults; vote nights have no winner,
-  // so status = 'vote-open'. 2026-06: Triple-C (Mon/Tue/Thu) resolves the
-  // locked campaign (Fallout 4 default), Wed=variety, Fri + Sat=community,
-  // Sun=Dad Game Sunday. No rest days.
+  // so status = 'vote-open'. 2026-06-03: Triple-C (Sun + Fri) resolves the
+  // locked campaign (Fallout 4 default), Wed=variety, Sat=community,
+  // Mon/Tue/Thu=off (no scheduled stream).
   const r1 = await getPublicSchedule(env, GUILD);
   assert(r1.ok, 'ok:true');
   eq(r1.guildId, GUILD, 'guildId echoed');
@@ -169,22 +169,23 @@ console.log('- getPublicSchedule: shape + CN winner');
   // Saturday is the CN day per WEEKLY.
   const sat1 = r1.days.find(d => d.weekday === 'saturday');
   eq(sat1.slot, 'cn', 'saturday slot=cn');
-  eq(sat1.status, 'vote-open', 'no winner → vote-open');
+  eq(sat1.status, 'vote-open', 'no winner -> vote-open');
   eq(sat1.game, null, 'no game yet');
-  // Sunday is Dad Game Sunday, voted, no winner yet → vote-open.
+  // Sunday + Friday are Triple-C days, resolve the locked campaign.
   const sun = r1.days.find(d => d.weekday === 'sunday');
-  eq(sun.slot, 'dad-sunday', 'sunday=dad-sunday');
-  eq(sun.game, null, 'sunday no game yet');
-  eq(sun.status, 'vote-open', 'sunday status=vote-open');
-  // Triple-C days resolve the locked campaign (Fallout 4 default).
+  eq(sun.slot, 'stream', 'sunday=stream (Triple-C)');
+  eq(sun.game?.name, 'Fallout 4', 'sunday game = Fallout 4 (default campaign)');
+  eq(sun.status, 'scheduled', 'sunday status=scheduled');
+  const fri = r1.days.find(d => d.weekday === 'friday');
+  eq(fri.slot, 'stream', 'friday=stream (Triple-C)');
+  eq(fri.game?.name, 'Fallout 4', 'friday game = Fallout 4');
+  // Monday/Tuesday/Thursday are off days (no scheduled stream).
   const mon = r1.days.find(d => d.weekday === 'monday');
-  eq(mon.slot, 'stream', 'monday slot=stream (Triple-C)');
-  eq(mon.game?.name, 'Fallout 4', 'monday game = Fallout 4 (default campaign)');
-  eq(mon.status, 'scheduled', 'monday status=scheduled');
-  // Tuesday is now a Triple-C day too (no more rest days).
-  const tue = r1.days.find(d => d.weekday === 'tuesday');
-  eq(tue.slot, 'stream', 'tuesday slot=stream (Triple-C)');
-  eq(tue.game?.name, 'Fallout 4', 'tuesday game = Fallout 4');
+  eq(mon.slot, 'off', 'monday slot=off');
+  eq(mon.game, null, 'monday no game');
+  eq(mon.status, 'off', 'monday status=off');
+  const thu = r1.days.find(d => d.weekday === 'thursday');
+  eq(thu.slot, 'off', 'thursday slot=off');
   // Wednesday is Variety Night, voted.
   const wed = r1.days.find(d => d.weekday === 'wednesday');
   eq(wed.slot, 'variety', 'wednesday slot=variety');
