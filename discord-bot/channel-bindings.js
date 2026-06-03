@@ -62,10 +62,9 @@ const BINDING_KEYS = Object.freeze([
   // dashboard with viewer count + hype-train state. Falls back to the
   // hardcoded channel ID in live-status-embed.js if unbound.
   'live-status-embed',
-  // Anniversary celebrations (anniversary.js) + Stream Squad
-  // (stream-squad.js) Discord posts. Both KV-only; each falls back to
-  // a hardcoded games-hub channel ID inside its module if unbound.
-  'anniversary', 'stream-squad',
+  // Anniversary celebrations (anniversary.js) Discord posts. KV-only;
+  // falls back to a hardcoded games-hub channel ID if unbound.
+  'anniversary',
 ]);
 
 // Source-of-truth mapping from binding key → fallback env var name.
@@ -102,7 +101,6 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   // Anniversary + Stream Squad: KV-only, hardcoded fallback lives in
   // the respective module (games-hub channel).
   'anniversary':          null,
-  'stream-squad':         null,
 });
 
 const BINDING_KEY = (g, k) => `channel-binding:${g}:${k}`;

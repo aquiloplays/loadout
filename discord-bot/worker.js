@@ -641,16 +641,14 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/card-art/')) {
       return handleCardArtAsset(req, env, path);
     }
-    // Generic pixel-art asset routes — heroes, gear, pets. All share
+    // Generic pixel-art asset routes — heroes, gear. All share
     // the same KV-backed pattern as card-art:
     //   /asset/hero-art/<classId>.png      -> pixel-art-hero:<classId>
     //   /asset/gear-art/<slot>/<name>/<rarity>.png
     //                                       -> pixel-art-gear:<slot>:<name>:<rarity>
-    //   /asset/pet-art/<petId>.png         -> pixel-art-pet:<petId>
     if ((method === 'GET' || method === 'HEAD') && (
       path.startsWith('/asset/hero-art/') ||
       path.startsWith('/asset/gear-art/') ||
-      path.startsWith('/asset/pet-art/') ||
       path.startsWith('/asset/boltbound-ui/') ||
       path.startsWith('/asset/cardback/') ||
       path.startsWith('/asset/pack/') ||
@@ -782,14 +780,6 @@ export default {
     // AND successfully claim.
     if (method === 'POST' && path.startsWith('/admin/_quest-trace/')) {
       return handleQuestTrace(req, env, path);
-    }
-    // Twitch panel extension backend — additive, JWT- + channel-gated.
-    // Public read-only stocks snapshot for the aquilo.gg /stocks page +
-    // the Twitch panel's read-only Stocks tab. No auth gate — returns
-    // catalog + prices + sparkline history slices.
-    if (method === 'GET' && path === '/stocks/public') {
-      const { publicStocksSnapshot } = await import('./stocks.js');
-      return publicStocksSnapshot(env);
     }
     // Public read-only sports snapshot for the panel's Sports tab — the
     // 48h upcoming-games slice with optional moneyline odds.
@@ -938,10 +928,6 @@ export default {
     // (season public read is dispatched up top under /p/season — see
     // line 245. Claim POST is routed via the HMAC-gated /web/* path
     // → /web/season/claim in web.js.)
-    if (path.startsWith('/web/tournaments')) {
-      const { handleWebTournaments } = await import('./progression/http.js');
-      return handleWebTournaments(req, env, path);
-    }
     if (path === '/web/progression/dashboard') {
       const { handleWebDashboard } = await import('./progression/http.js');
       return handleWebDashboard(req, env, path);
@@ -1019,16 +1005,6 @@ export default {
     if (path === '/web/twitch-drops/me' || path === '/web/twitch-drops/claim') {
       const { handleDropsRoute } = await import('./twitch-drops.js');
       return handleDropsRoute(req, env, path);
-    }
-    // Pet leveling / abilities / evolutions — extends the existing
-    // pet schema with level/xp/abilities. 4 endpoints dispatched by
-    // handlePetLevelingRoute: GET /level/:petId, GET /abilities/:petId,
-    // POST /evolve, POST /xp. See pet-leveling.js.
-    if (path.startsWith('/web/pet/level/') ||
-        path.startsWith('/web/pet/abilities/') ||
-        path === '/web/pet/evolve' || path === '/web/pet/xp') {
-      const { handlePetLevelingRoute } = await import('./pet-leveling.js');
-      return handlePetLevelingRoute(req, env, path);
     }
     // Spire Maps — Slay-the-Spire branching path layer per run.
     // 4 endpoints dispatched by handleSpireMapRoute: POST /generate,
@@ -1275,8 +1251,6 @@ export default {
       }
       if (event.cron === '17 * * * *' || (event.cron === '* * * * *' &&
           new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 17)) {
-        const { stocksCronTick } = await import('./stocks.js');
-        ctx.waitUntil(stocksCronTick(env));
         // CN-games roster Steam-price refresh. Fires every :17 but the
         // refreshRosterIfDue() helper short-circuits on a 6-hour KV
         // marker so it only actually re-fetches Steam ~4 times/day.
@@ -1381,17 +1355,6 @@ export default {
             if (r?.ok) console.log('[cron] daily-quests:', r.dayKey, 'warmed', r.warmed, 'ids');
             else console.warn('[cron] daily-quests:', r?.error);
           } catch (e) { console.warn('[cron] daily-quests', e?.message || e); }
-        })());
-        // Pet evolutions sweep — bounded to 5k pets per call. Any pet
-        // that crossed its evolution-level threshold yesterday gets
-        // its species mutated. Per-pet errors are collected into the
-        // return value rather than crashing the cron.
-        ctx.waitUntil((async () => {
-          try {
-            const { autoEvolveCron } = await import('./pet-leveling.js');
-            const r = await autoEvolveCron(env);
-            if (r?.scanned) console.log('[cron] pet-evolve:', r.scanned, 'scanned,', r.evolved, 'evolved');
-          } catch (e) { console.warn('[cron] pet-evolve', e?.message || e); }
         })());
         // Mirror the stream schedule into Discord guild scheduled
         // events (idempotent — skips dateKeys already created). See
@@ -2303,12 +2266,11 @@ async function handleCardArtAsset(req, env, path) {
 // shell injection / wide-open lookups. We allow lowercase alpha-
 // numeric + period + hyphen — enough for `champ.warrior`, `level-3`,
 // etc., but no slashes/dots/dot-dot.
-const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
+const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
 const PIXEL_ART_SEG_RE   = /^[A-Za-z0-9][A-Za-z0-9.\-]*$/;
 const PIXEL_ART_CATEGORY = {
   'hero-art':     'hero',
   'gear-art':     'gear',
-  'pet-art':      'pet',
   // 2026-05-30 — sprite-redesign batch namespaces. Boltbound UI
   // assets (hero frames, crystals, buttons, dropzones, bgs, chest)
   // upload to pixel-art-boltbound-ui:<head>:<rest>. Cardbacks +

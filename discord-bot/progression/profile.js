@@ -24,9 +24,7 @@ const FEATURE_ORDER = [
   { feature: 'boltbound', importPath: '../cards-state.js' },
   { feature: 'board',     importPath: '../boardgames-engine.js' },
   { feature: 'quick',     importPath: '../games-quick.js' },
-  { feature: 'stocks',    importPath: '../stocks.js' },
   { feature: 'bet',       importPath: '../bet.js' },
-  { feature: 'pet',       importPath: '../pet.js' },
   { feature: 'wallet',    importPath: '../wallet.js' },
 ];
 

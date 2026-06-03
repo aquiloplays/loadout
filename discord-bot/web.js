@@ -35,18 +35,6 @@ import { getWallet, applyVaultDelta } from './wallet.js';
 import { recordStat } from './recap.js';
 import { verifyHmac } from './auth.js';
 import {
-  getCatalog,
-  getPrice,
-  getHistory,
-  getHoldings,
-  runBuyJson,
-  runSellJson,
-  buildStocksPortfolio,
-  getStockAlerts,
-  createStockAlert,
-  deleteStockAlert,
-} from './stocks.js';
-import {
   publicSportsSnapshot,
   readGamesCache,
   refreshGamesCache,
@@ -121,13 +109,6 @@ const ROUTES = new Set([
   'mines/cashout',
   'plinko',
   'crash',
-  'stocks/snapshot',
-  'stocks/buy',
-  'stocks/sell',
-  'stocks/portfolio',
-  'stocks/alerts/list',
-  'stocks/alerts/create',
-  'stocks/alerts/delete',
   'bet/snapshot',
   'bet/place',
   'queues/snapshot',
@@ -166,8 +147,6 @@ const ROUTES = new Set([
   'play/war/active',
   'play/war/declare',
   'play/war/raid',
-  'pet/snapshot',
-  'pet/collect',
   'season/claim',
   // Discord rich-presence web fallback (Batch B). The site reports the
   // viewer's current aquilo.gg activity here; the worker persists it to
@@ -244,15 +223,6 @@ const ROUTES = new Set([
   // the acting user is body.discordId, no :userId path param.
   'anniversary/check',       // POST — { discordId, guildId } → anniversary state (or null)
   'anniversary/celebrate',   // POST — claim this year's reward (idempotent)
-  // Stream Squad (stream-squad.js) — co-watch sessions + shared feed.
-  'squad/create',            // POST — { twitchChannel } → new squad (owner auto-joins)
-  'squad/active',            // POST — { twitchChannel? } → active sessions
-  'squad/get',               // POST — { squadId } → session + roster
-  'squad/join',              // POST — { squadId }
-  'squad/leave',             // POST — { squadId }
-  'squad/end',               // POST — { squadId } (owner-only)
-  'squad/event',             // POST — { squadId, kind, payload } → append to feed
-  'squad/feed',              // POST — { squadId, limit?, before? } → newest-first feed
   // Aether economy (aether.js) — D1 ledger, spendable premium currency.
   'aether/balance',          // POST — { discordId, guildId } → balance + lifetime totals
   'aether/spend',            // POST — { amount, reason? } → debit (insufficient-aether on overdraw)
@@ -430,13 +400,6 @@ export async function handleWeb(req, env) {
     if (route === 'mines/cashout')      return await routeMinesCashout(env, guildId, discordId);
     if (route === 'plinko')             return await routePlinko(env, guildId, discordId, body);
     if (route === 'crash')              return await routeCrash(env, guildId, discordId, body);
-    if (route === 'stocks/snapshot') return await routeStocksSnapshot(env, guildId, discordId);
-    if (route === 'stocks/buy')  return await routeStocksBuy(env, guildId, discordId, body);
-    if (route === 'stocks/sell') return await routeStocksSell(env, guildId, discordId, body);
-    if (route === 'stocks/portfolio') return await routeStocksPortfolio(env, guildId, discordId);
-    if (route === 'stocks/alerts/list')   return await routeStocksAlertsList(env, guildId, discordId);
-    if (route === 'stocks/alerts/create') return await routeStocksAlertsCreate(env, guildId, discordId, body);
-    if (route === 'stocks/alerts/delete') return await routeStocksAlertsDelete(env, guildId, discordId, body);
     if (route === 'bet/snapshot') return await routeBetSnapshot(env, guildId, discordId);
     if (route === 'bet/place')    return await routeBetPlace(env, guildId, discordId, body);
     if (route === 'queues/snapshot') return await routeQueuesSnapshot(env, guildId, body);
@@ -453,8 +416,6 @@ export async function handleWeb(req, env) {
       return await routeQueuesCloseNight(env, guildId);
     }
     if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
-    if (route === 'pet/snapshot')          return await routePetSnapshot(env, guildId, discordId);
-    if (route === 'pet/collect')           return await routePetCollect(env, guildId, discordId);
     if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId);
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
     if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
@@ -504,14 +465,6 @@ export async function handleWeb(req, env) {
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
     if (route === 'anniversary/check')        return await routeAnniversaryCheck(env, guildId, discordId);
     if (route === 'anniversary/celebrate')    return await routeAnniversaryCelebrate(env, guildId, discordId);
-    if (route === 'squad/create')             return await routeSquadCreate(env, discordId, body);
-    if (route === 'squad/active')             return await routeSquadActive(env, body);
-    if (route === 'squad/get')                return await routeSquadGet(env, body);
-    if (route === 'squad/join')               return await routeSquadJoin(env, discordId, body);
-    if (route === 'squad/leave')              return await routeSquadLeave(env, discordId, body);
-    if (route === 'squad/end')                return await routeSquadEnd(env, discordId, body);
-    if (route === 'squad/event')              return await routeSquadEvent(env, discordId, body);
-    if (route === 'squad/feed')               return await routeSquadFeed(env, body);
     if (route === 'aether/balance')           return await routeAetherBalance(env, guildId, discordId);
     if (route === 'aether/spend')             return await routeAetherSpend(env, guildId, discordId, body);
     if (route === 'aether/history')           return await routeAetherHistory(env, guildId, discordId, body);
@@ -730,107 +683,6 @@ async function routeCoinflip(env, guildId, userId, body) {
 // recent-history slice for sparklines), plus the caller's holdings +
 // balance so the trade panel can render position size & cost basis.
 
-async function routeStocksSnapshot(env, guildId, userId) {
-  const [catalog, holdings, wallet] = await Promise.all([
-    getCatalog(env),
-    getHoldings(env, guildId, userId),
-    getWallet(env, guildId, userId),
-  ]);
-  // Pull prices + a short history per ticker so the UI can chart trends
-  // without a second call. The list is small (~20 tickers).
-  const tickers = (catalog && catalog.tickers) || [];
-  const priced = await Promise.all(
-    tickers.map(async (def) => {
-      const ticker = def && def.ticker;
-      if (!ticker) return null;
-      const [rec, history] = await Promise.all([
-        getPrice(env, ticker),
-        getHistory(env, ticker),
-      ]);
-      return {
-        ticker,
-        name: def.name || ticker,
-        source: def.source || null,
-        sourceRef: def.sourceRef || null,
-        price: (rec && rec.price) || null,
-        updatedAt: (rec && rec.updatedAt) || null,
-        history: Array.isArray(history) ? history.slice(-24) : [],
-        held: Number(holdings[ticker]) || 0,
-      };
-    }),
-  );
-  return json({
-    ok: true,
-    tickers: priced.filter(Boolean),
-    balance: wallet.balance || 0,
-    feePct: 1,
-  });
-}
-
-// Full per-user portfolio: positions with cost-basis + unrealized
-// gain, totals, recent transactions, and trading stats. Built on top
-// of getHoldings (qty source of truth) + the new transaction log
-// (cost-basis source of truth). Heavy enough to skip the snapshot
-// route on initial page load and only call here.
-async function routeStocksPortfolio(env, guildId, userId) {
-  const p = await buildStocksPortfolio(env, guildId, userId);
-  return json(p);
-}
-
-// ── /web/stocks/alerts/* ─────────────────────────────────────────────
-//
-// Per-user price alerts. List is GET-style (cheap, read-only).
-// Create takes { ticker, target, direction:"above"|"below" }; the
-// worker validates the ticker against the catalogue and the user's
-// alert-count cap (20). Delete takes { id }; idempotent. All gated
-// by the standard HMAC session — discordId/guildId come from the
-// verified Patreon session, not the browser.
-async function routeStocksAlertsList(env, guildId, userId) {
-  const alerts = await getStockAlerts(env, guildId, userId);
-  return json({ ok: true, alerts });
-}
-
-async function routeStocksAlertsCreate(env, guildId, userId, body) {
-  const r = await createStockAlert(env, guildId, userId, {
-    ticker: body && body.ticker,
-    direction: body && body.direction,
-    target: body && body.target,
-  });
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeStocksAlertsDelete(env, guildId, userId, body) {
-  const id = body && body.id;
-  if (!id) return json({ ok: false, error: 'bad-id', message: 'id is required.' }, 400);
-  const r = await deleteStockAlert(env, guildId, userId, id);
-  return json(r);
-}
-
-async function routeStocksBuy(env, guildId, userId, body) {
-  const ticker = String(body && body.ticker || '').toUpperCase();
-  const bolts = Number(body && body.bolts);
-  if (!ticker) return json({ ok: false, error: 'bad-ticker', message: 'Pick a ticker.' }, 400);
-  if (!Number.isFinite(bolts) || bolts <= 0) {
-    return json({ ok: false, error: 'bad-bolts', message: 'Bolts must be a positive number.' }, 400);
-  }
-  const r = await runBuyJson(env, guildId, userId, { ticker, bolts: Math.floor(bolts) });
-  // Buy and sell don't write to recap stats today (Discord's stock
-  // command never has either). Leave it that way for now -- stocks
-  // are a separate ledger from the "games_won/lost" win-rate stat.
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeStocksSell(env, guildId, userId, body) {
-  const ticker = String(body && body.ticker || '').toUpperCase();
-  const shares = Number(body && body.shares);
-  if (!ticker) return json({ ok: false, error: 'bad-ticker', message: 'Pick a ticker.' }, 400);
-  if (!Number.isInteger(shares) || shares <= 0) {
-    return json({ ok: false, error: 'bad-shares', message: 'Shares must be a positive integer.' }, 400);
-  }
-  const r = await runSellJson(env, guildId, userId, { ticker, shares });
-  return json(r, r.ok ? 200 : 400);
-}
-
 // ── Sports betting ────────────────────────────────────────────────────
 // Snapshot pulls the public games list (~48h window) and the caller's
 // active + recent-history bets. /web/bet/place runs the same runPlace
@@ -1044,77 +896,6 @@ async function routeAnniversaryCelebrate(env, guildId, discordId) {
   const { celebrateAnniversary } = await import('./anniversary.js');
   const r = await celebrateAnniversary(env, guildId, discordId);
   return json(r, statusFor(r));
-}
-
-// ── /web/squad/* — Stream Squad co-watch ─────────────────────────────
-//
-// All bound to body.discordId (the acting user). twitchChannel /
-// squadId / kind / payload come off the body. Module dynamically
-// imported so the D1 dependency only loads when a squad route is hit.
-async function routeSquadCreate(env, discordId, body) {
-  const twitchChannel = String((body && body.twitchChannel) || '').trim().toLowerCase();
-  if (!twitchChannel) return json({ ok: false, error: 'twitchChannel-required' }, 400);
-  const { createSquad } = await import('./stream-squad.js');
-  const r = await createSquad(env, { ownerUserId: discordId, twitchChannel });
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeSquadActive(env, body) {
-  const twitchChannel = body && body.twitchChannel
-    ? String(body.twitchChannel).trim().toLowerCase() : undefined;
-  const { listActiveSquads } = await import('./stream-squad.js');
-  const r = await listActiveSquads(env, { twitchChannel, limit: body && body.limit });
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeSquadGet(env, body) {
-  const squadId = String((body && body.squadId) || '').trim();
-  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
-  const { getSquad } = await import('./stream-squad.js');
-  const r = await getSquad(env, squadId);
-  return json(r, r.ok ? 200 : 404);
-}
-
-async function routeSquadJoin(env, discordId, body) {
-  const squadId = String((body && body.squadId) || '').trim();
-  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
-  const { joinSquad } = await import('./stream-squad.js');
-  const r = await joinSquad(env, squadId, discordId);
-  return json(r, r.ok ? 200 : (r.error === 'not-found' ? 404 : 400));
-}
-
-async function routeSquadLeave(env, discordId, body) {
-  const squadId = String((body && body.squadId) || '').trim();
-  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
-  const { leaveSquad } = await import('./stream-squad.js');
-  const r = await leaveSquad(env, squadId, discordId);
-  return json(r, r.ok ? 200 : (r.error === 'not-found' ? 404 : 400));
-}
-
-async function routeSquadEnd(env, discordId, body) {
-  const squadId = String((body && body.squadId) || '').trim();
-  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
-  const { endSquad } = await import('./stream-squad.js');
-  const r = await endSquad(env, squadId, discordId);
-  return json(r, r.ok ? 200 : (r.error === 'not-found' ? 404 : (r.error === 'not-owner' ? 403 : 400)));
-}
-
-async function routeSquadEvent(env, discordId, body) {
-  const squadId = String((body && body.squadId) || '').trim();
-  const kind = String((body && body.kind) || '').trim();
-  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
-  if (!kind)    return json({ ok: false, error: 'kind-required' }, 400);
-  const { postSquadEvent } = await import('./stream-squad.js');
-  const r = await postSquadEvent(env, squadId, discordId, kind, body && body.payload);
-  return json(r, r.ok ? 200 : (r.error === 'not-found' ? 404 : (r.error === 'not-a-member' ? 403 : 400)));
-}
-
-async function routeSquadFeed(env, body) {
-  const squadId = String((body && body.squadId) || '').trim();
-  if (!squadId) return json({ ok: false, error: 'squadId-required' }, 400);
-  const { getSquadFeed } = await import('./stream-squad.js');
-  const r = await getSquadFeed(env, squadId, { limit: body && body.limit, before: body && body.before });
-  return json(r, r.ok ? 200 : 400);
 }
 
 // ── /web/aether/* — Aether economy ledger ────────────────────────────
@@ -1730,48 +1511,6 @@ async function routeChatUnreact(env, discordId, body) {
   } catch (e) {
     return json({ ok: false, error: 'discord-unreact-failed', message: String(e?.message || e) }, 502);
   }
-}
-
-// ── /web/pet/snapshot ────────────────────────────────────────────
-//
-// Returns current pet state + pending-delivery preview. The website's
-// pet card uses this to show "deliveries waiting: N" and the
-// next-delivery countdown.
-async function routePetSnapshot(env, guildId, userId) {
-  const { getPet, computeMood, pendingDeliveriesFor } = await import('./pet.js');
-  const pet = await getPet(env, guildId, userId);
-  if (!pet) return json({ ok: true, pet: null });
-  const mood = computeMood(pet);
-  const pending = pendingDeliveriesFor(pet);
-  return json({
-    ok: true,
-    pet: {
-      species: pet.species,
-      colour: pet.colour,
-      name: pet.name,
-      adoptedUtc: pet.adoptedUtc,
-      mood,
-      lastDeliveryUtc: pet.lastDeliveryUtc || pet.adoptedUtc,
-    },
-    deliveries: {
-      pending: pending.count,
-      cap: 12,
-      intervalMs: pending.intervalMs,
-      nextInMs: pending.nextInMs,
-      nextDeliveryUtc: Date.now() + (pending.nextInMs || 0),
-    },
-  });
-}
-
-// ── /web/pet/collect ─────────────────────────────────────────────
-//
-// Claims all pending deliveries and returns the breakdown + the
-// fresh wallet snapshot. Empty result (claimed:0) is not an error —
-// the website can poll snapshot for the next-delivery timer.
-async function routePetCollect(env, guildId, userId) {
-  const { claimPetDeliveries } = await import('./pet.js');
-  const r = await claimPetDeliveries(env, guildId, userId);
-  return json(r, r.ok ? 200 : 400);
 }
 
 // ── /web/season/claim ────────────────────────────────────────────

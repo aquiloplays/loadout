@@ -42,36 +42,32 @@ const PRODUCT_SKU = 'loot_box';
 // pick a sprite by item.slot (and/or name) at render time. Leaving the
 // `glyph` field present-but-empty preserves the existing object shape
 // so any callers that destructure { glyph } don't crash.
+// 2026-06 archive: the dungeon RPG, Hero paper-doll, Clash, Vault, and Pet
+// were removed, so their gear/item drops are gone. The loot pool is now
+// Boltbound-economy only — Bolts, Aether, and Boltbound packs. Bolts/Aether
+// `slot:'bolts'|'aether'` entries credit the wallet / aether ledger;
+// `slot:'pack'` mints a pending Boltbound pack via cards-packs.creditPack.
 export const DEFAULT_CATALOG = {
   items: [
-    // common
-    { slot: 'weapon',  rarity: 'common',    name: 'Wooden Sword',   glyph: '', powerBonus: 1, defenseBonus: 0, ability: '',         goldValue: 40 },
-    { slot: 'head',    rarity: 'common',    name: 'Leather Cap',    glyph: '', powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 45 },
-    { slot: 'chest',   rarity: 'common',    name: 'Hide Vest',      glyph: '', powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
-    { slot: 'legs',    rarity: 'common',    name: 'Hempen Trousers', glyph: '', powerBonus: 0, defenseBonus: 1, ability: '',       goldValue: 40 },
-    { slot: 'boots',   rarity: 'common',    name: 'Worn Boots',     glyph: '', powerBonus: 0, defenseBonus: 1, ability: '',         goldValue: 40 },
-    { slot: 'trinket', rarity: 'common',    name: 'Lucky Coin',     glyph: '', powerBonus: 1, defenseBonus: 0, ability: 'lucky',    goldValue: 70 },
-    // rare
-    { slot: 'weapon',  rarity: 'rare',      name: 'Flamberge',      glyph: '', powerBonus: 5, defenseBonus: 0, ability: '',         goldValue: 540 },
-    { slot: 'chest',   rarity: 'rare',      name: 'Dragonscale Plate', glyph: '', powerBonus: 2, defenseBonus: 4, ability: '',      goldValue: 650 },
-    { slot: 'trinket', rarity: 'rare',      name: 'Crystal Pendant', glyph: '', powerBonus: 2, defenseBonus: 2, ability: '',        goldValue: 500 },
-    // epic
-    { slot: 'weapon',  rarity: 'epic',      name: 'Shadowfang',     glyph: '', powerBonus: 7, defenseBonus: 1, ability: '',         goldValue: 1200 },
-    { slot: 'chest',   rarity: 'epic',      name: 'Mithril Plate',  glyph: '', powerBonus: 2, defenseBonus: 7, ability: 'wardstone', goldValue: 1300 },
-    // legendary
-    { slot: 'weapon',  rarity: 'legendary', name: 'Excalibur',      glyph: '', powerBonus: 10, defenseBonus: 2, ability: '',        goldValue: 3000 },
-    // Boltbound packs — `slot: 'pack'` is intercepted by grantOneTo
-    // and credited via cards-packs.creditPack instead of dropped into
-    // the gear bag. See CARD-GAME-DESIGN.md §4.1.
-    { slot: 'pack',    rarity: 'common',    name: 'Boltbound Common Pack',  glyph: '', packType: 'common',  goldValue: 0 },
-    { slot: 'pack',    rarity: 'rare',      name: 'Boltbound Bolt Pack',    glyph: '', packType: 'bolt',    goldValue: 0 },
-    { slot: 'pack',    rarity: 'epic',      name: 'Boltbound Voltaic Pack', glyph: '', packType: 'voltaic', goldValue: 0 },
+    // Bolts — the staple drop, amount scaled by rarity tier.
+    { slot: 'bolts',  rarity: 'common',    name: '60 Bolts',    glyph: '', amount: 60 },
+    { slot: 'bolts',  rarity: 'common',    name: '120 Bolts',   glyph: '', amount: 120 },
+    { slot: 'bolts',  rarity: 'rare',      name: '300 Bolts',   glyph: '', amount: 300 },
+    { slot: 'bolts',  rarity: 'epic',      name: '800 Bolts',   glyph: '', amount: 800 },
+    { slot: 'bolts',  rarity: 'legendary', name: '2,000 Bolts', glyph: '', amount: 2000 },
+    // Aether — premium currency, rarer tiers only.
+    { slot: 'aether', rarity: 'rare',      name: '5 Aether',    glyph: '', amount: 5 },
+    { slot: 'aether', rarity: 'epic',      name: '15 Aether',   glyph: '', amount: 15 },
+    { slot: 'aether', rarity: 'legendary', name: '40 Aether',   glyph: '', amount: 40 },
+    // Boltbound packs — credited via cards-packs.creditPack.
+    { slot: 'pack',   rarity: 'common',    name: 'Boltbound Common Pack',  glyph: '', packType: 'common',  goldValue: 0 },
+    { slot: 'pack',   rarity: 'rare',      name: 'Boltbound Bolt Pack',    glyph: '', packType: 'bolt',    goldValue: 0 },
+    { slot: 'pack',   rarity: 'epic',      name: 'Boltbound Voltaic Pack', glyph: '', packType: 'voltaic', goldValue: 0 },
   ],
-  // Per-rarity selection weights — drawing the rarity tier first, then a
-  // uniform item within. Sums don't need to be 100; ratios are what
-  // matters. Tuned so legendaries feel rare but reachable over a session
-  // of bits spending.
-  weights: { common: 60, rare: 25, epic: 12, legendary: 3 },
+  // Per-rarity selection weights — draw a rarity tier, then a uniform item
+  // within. Ratios matter, not the sum. Tuned so legendaries feel rare but
+  // reachable over a session of bits spending.
+  weights: { common: 54, rare: 28, epic: 14, legendary: 4 },
 };
 
 const HERO_KEY = (guild, userId) => `hero:${guild}:${userId}`;
@@ -256,6 +252,27 @@ async function listCurrentViewers(env, guildId) {
   return Array.from(seen);
 }
 
+// Credit a Bolts / Aether currency drop and return a toast-shaped record.
+async function grantCurrency(env, guildId, recipientId, pick) {
+  const amount = Number(pick.amount) || 0;
+  if (pick.slot === 'bolts') {
+    const { applyVaultDelta } = await import('./wallet.js');
+    await applyVaultDelta(env, guildId, recipientId, amount, 'lootbox');
+  } else if (pick.slot === 'aether') {
+    const { grantAether } = await import('./aether.js');
+    await grantAether(env, guildId, recipientId, amount, 'lootbox');
+  }
+  return {
+    id: newItemId(),
+    slot: pick.slot,
+    rarity: pick.rarity || 'common',
+    name: pick.name || '',
+    amount,
+    glyph: pick.glyph || '',
+    foundUtc: new Date().toISOString(),
+  };
+}
+
 async function grantOneTo(env, guildId, recipientId, catalog, buyerId) {
   const pick = rollItem(catalog);
   if (!pick) return null;
@@ -290,6 +307,22 @@ async function grantOneTo(env, guildId, recipientId, catalog, buyerId) {
       } catch { /* idle */ }
     }
     return packItem;
+  }
+  // Bolts / Aether currency drop — credited to the wallet / aether ledger.
+  if (pick.slot === 'bolts' || pick.slot === 'aether') {
+    const item = await grantCurrency(env, guildId, recipientId, pick);
+    item.foundIn = recipientId === buyerId ? 'Community Loot Box (yours)' : 'Community Loot Box';
+    if (recipientId !== buyerId) {
+      const gid = newItemId().slice(0, 12);
+      try {
+        await env.LOADOUT_BOLTS.put(
+          GRANT_KEY(guildId, recipientId, gid),
+          JSON.stringify({ item, fromUserId: buyerId, ts: Date.now() }),
+          { expirationTtl: GRANT_TTL },
+        );
+      } catch { /* toast is best-effort */ }
+    }
+    return item;
   }
   const item = buildRolledItem(pick);
   item.foundIn = recipientId === buyerId ? 'Community Loot Box (yours)' : 'Community Loot Box';
@@ -445,6 +478,9 @@ export async function rollLootBoxFree(env, guildId, userId, req) {
       foundIn: 'Free Loot Box',
       foundUtc: new Date().toISOString(),
     };
+  } else if (pick.slot === 'bolts' || pick.slot === 'aether') {
+    item = await grantCurrency(env, guildId, userId, pick);
+    item.foundIn = 'Free Loot Box';
   } else {
     item = buildRolledItem(pick);
     item.foundIn = 'Free Loot Box';

@@ -151,11 +151,6 @@ export async function handleGamesMenuComponent(data, env, ctx) {
         const r = await handleCampaignCommand(env, subData, userId, userName);
         return forceEphemeral(r);
       }
-      case 'pet': {
-        const { handlePetCommand } = await import('./character.js');
-        const r = await handlePetCommand(env, blankData);
-        return forceEphemeral(r);
-      }
       case 'loadout': {
         // Loadout's home menu — wallet / daily / games / profile.
         // Viewers navigate inside via lo:* buttons.

@@ -23,7 +23,6 @@
 //   9 MODAL                       — open a modal popup
 
 import { renderLoadoutCommand, handleComponent, handleModal } from './loadout-menu.js';
-import { handleStocks } from './stocks.js';
 import { handleBet, handleBetAutocomplete } from './bet.js';
 import { renderHubCommand, handleHubComponent, handleHubModal } from './hub-menu.js';
 import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
@@ -33,7 +32,6 @@ import { handleQueueSlash } from './queue.js';
 // family — see discord-bot/aquilo/worker.js dispatchAquiloInteraction.
 import { dispatchAquiloInteraction } from './aquilo/worker.js';
 // Character + pet system — pixel-art identity + tamagotchi.
-import { handlePetCommand } from './pet-commands.js';
 // Boltbound — async card-battler. See CARD-GAME-DESIGN.md.
 import { handleBoltboundCommand, handleBoltboundComponent } from './cards.js';
 // Bolts-denominated quick games (blackjack/roulette/wheel/hilo/mines/
@@ -139,12 +137,6 @@ export async function handleInteraction(req, env, body, ctx) {
     if (cid.startsWith('tempvc:'))    {
       const { handleTempVcComponent } = await import('./temp-vc.js');
       return json(await handleTempVcComponent(env, data));
-    }
-    if (cid.startsWith('squad:'))     {
-      // Stream Squad "Join" button on the live-status embed. See
-      // stream-squad.js (custom_id squad:join:<squadId>).
-      const { handleSquadComponent } = await import('./stream-squad.js');
-      return json(await handleSquadComponent(env, data));
     }
     if (cid.startsWith('setup:'))     {
       // /loadout-setup wizard step buttons.
@@ -270,12 +262,6 @@ export async function handleInteraction(req, env, body, ctx) {
       // they haven't connected a stream identity yet.
       return json(await renderLoadoutCommand(env, guild, userId, userName));
 
-    case 'stocks': {
-      // Bolts-denominated stock market. Subcommands dispatched in stocks.js.
-      const perms = data.member?.permissions;
-      const channelId = data.channel_id || data.channel?.id;
-      return json(await handleStocks(env, guild, userId, userName, data.data?.options || [], perms, channelId));
-    }
 
     case 'bet':
       // Sports betting — subcommand-group dispatch in bet.js.
@@ -368,11 +354,6 @@ export async function handleInteraction(req, env, body, ctx) {
     case 'boltbound':
       // Async card-battler. See CARD-GAME-DESIGN.md.
       return json(await handleBoltboundCommand(env, data, userId, userName));
-
-    case 'pet':
-      // Patreon-gated cosmetic pet + tamagotchi care loop. See
-      // CHARACTER-SYSTEM-DESIGN.md §12.
-      return json(await handlePetCommand(env, data));
 
     case 'play':
       // Bolts quick games. Single source of truth for game logic is
@@ -499,9 +480,7 @@ export async function handleInteraction(req, env, body, ctx) {
     case 'encounter':
     case 'passport':
     case 'birthday':
-    case 'shop':
     case 'trivia-add':
-    case 'shop-add':
     case 'sr-add':
     case 'sr-list':
     case 'sr-remove':

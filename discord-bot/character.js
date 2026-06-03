@@ -21,7 +21,6 @@ import {
   applyClassSelection,
 } from './hero-state.js';
 import { resolveEquippedArt, resolveEquippedTint } from './character-composite.js';
-import { getPet, computeMood } from './pet.js';
 import { getWallet, spend, earn } from './wallet.js';
 
 // Reset price — pay this many Bolts to unlock a locked character so
@@ -391,7 +390,7 @@ async function fetchSprite(env, relPath) {
 //
 // Slots without a sprite are skipped — no placeholder. The body
 // always renders; everything else is optional.
-async function resolveLayers(env, hero, pet, opts) {
+async function resolveLayers(env, hero, opts) {
   const layers = [];
   const eq = hero.equipped || {};
   const inv = Object.fromEntries((hero.bag || []).map(it => [it.id, it]));
@@ -424,17 +423,6 @@ async function resolveLayers(env, hero, pet, opts) {
   const isBackTrinket = trinketSafe && /(^|-)(cape|cloak|wings?|mantle|drape|veil|feather)(-|$)/.test(trinketSafe);
   if (trinketSafe && isBackTrinket) {
     layers.push({ rel: `gear/figure/trinket/${trinketSafe}.png` });
-  }
-
-  // z=15 — pet (cosmetic companion, lower-right of the figure
-  // canvas beside the hero). Glossy 128×160 PNGs at
-  // pet/glossy/<species>-<colour>.png; mood overlay at
-  // pet/glossy/mood-<hint>.png floats above the pet head.
-  // Marked optional so missing assets (mid-vendor) degrade.
-  if (pet && !opts.nopet) {
-    layers.push({ rel: `pet/glossy/${pet.species}-${pet.colour}.png`, optional: true });
-    const mood = computeMood(pet);
-    if (mood?.hint) layers.push({ rel: `pet/glossy/mood-${mood.hint}.png`, optional: true });
   }
 
   // z=20 — body (glossy 128×160)
@@ -598,7 +586,6 @@ export async function handleCharacterRender(req, env, path) {
   const opts = { nopet: url.searchParams.get('nopet') === '1' };
 
   const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
-  const pet = await getPet(env, guildId, userId);
 
   // Query-string look override.
   //
@@ -623,7 +610,7 @@ export async function handleCharacterRender(req, env, path) {
     }
   }
 
-  const layerSpecs = await resolveLayers(env, hero, pet, opts);
+  const layerSpecs = await resolveLayers(env, hero, opts);
   // Seed a canvas-dim transparent layer FIRST so png-codec compose's
   // "take dims from layers[0]" can't be hijacked by a rogue layer
   // (e.g. a vendor-mid asset still at legacy 64×80) — the seed

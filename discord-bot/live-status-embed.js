@@ -46,7 +46,7 @@ function liveThumbUrl(login, ts) {
   return `https://static-cdn.jtvnw.net/previews-ttv/live_user_${login}-1920x1080.jpg?t=${ts}`;
 }
 
-function buildEmbed({ stream, login, hypeTrain, squadId }) {
+function buildEmbed({ stream, login, hypeTrain }) {
   const startedTsSec = Math.floor(Date.parse(stream.started_at || '') / 1000) || null;
   const cacheBust = Math.floor(Date.now() / 60000);   // changes every minute
 
@@ -79,14 +79,6 @@ function buildEmbed({ stream, login, hypeTrain, squadId }) {
     { type: 2, style: 5, label: 'Watch on Twitch',
       url: `https://twitch.tv/${login}`, emoji: { name: '📺' } },
   ];
-  // Stream Squad join button — present only once a squad's been
-  // ensured for this stream (squadId tracked in the live-status KV
-  // rec so it survives per-minute refreshes). custom_id is dispatched
-  // by the `squad:` prefix in commands.js → stream-squad.js.
-  if (squadId) {
-    row.push({ type: 2, style: 3, label: 'Join Stream Squad',
-      custom_id: `squad:join:${squadId}`, emoji: { name: '🎉' } });
-  }
   const components = [{ type: 1, components: row }];
   return { embeds: [embed], components };
 }
@@ -145,16 +137,7 @@ export async function handleStreamOnline(env, broadcasterId) {
   const stream = await getStreamInfo(env, broadcasterId);
   if (!stream) return { ok: false, error: 'stream-offline' };
   const login = await loginFor(env, broadcasterId);
-  // Ensure an active Stream Squad for this channel so the embed's
-  // "Join Stream Squad" button has a live squad behind it. Best-effort
-  // — a missing D1 binding or DB error just omits the button.
-  let squadId = null;
-  try {
-    const { ensureSquadForChannel } = await import('./stream-squad.js');
-    const sq = await ensureSquadForChannel(env, { ownerUserId: 'system', twitchChannel: login });
-    if (sq?.ok) squadId = sq.squad.id;
-  } catch (e) { console.warn('[live-status] ensure squad', e?.message || e); }
-  const payload = buildEmbed({ stream, login, squadId });
+  const payload = buildEmbed({ stream, login });
 
   // Idempotent: if KV already tracks a message, PATCH instead of POST.
   const existing = await env.LOADOUT_BOLTS.get(KEY(guildId), { type: 'json' });
@@ -163,7 +146,6 @@ export async function handleStreamOnline(env, broadcasterId) {
     if (r.ok) {
       await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify({
         ...existing, broadcasterId, startedAtIso: stream.started_at,
-        squadId: squadId || existing.squadId || null,
         updatedUtc: new Date().toISOString(),
       }));
       return { ok: true, action: 'patched', messageId: existing.messageId };
@@ -179,7 +161,6 @@ export async function handleStreamOnline(env, broadcasterId) {
     channelId,
     broadcasterId,
     startedAtIso: stream.started_at,
-    squadId:      squadId || null,
     updatedUtc:   new Date().toISOString(),
   };
   await env.LOADOUT_BOLTS.put(KEY(guildId), JSON.stringify(rec));
@@ -207,7 +188,7 @@ export async function refreshLiveStatusEmbed(env) {
   if (hypeTrain?.expiresUtc && Date.parse(hypeTrain.expiresUtc) < Date.now()) {
     hypeTrain = null;
   }
-  const payload = buildEmbed({ stream, login, hypeTrain, squadId: rec.squadId });
+  const payload = buildEmbed({ stream, login, hypeTrain });
   const r = await discordPatch(env, rec.channelId, rec.messageId, payload);
   if (!r.ok) {
     if (r.status === 404) {
@@ -266,14 +247,6 @@ export async function handleStreamOffline(env, broadcasterId) {
   const rec = await env.LOADOUT_BOLTS.get(KEY(guildId), { type: 'json' });
   if (!rec?.messageId) return { ok: true, skipped: 'no-tracked-embed' };
   await discordDelete(env, rec.channelId, rec.messageId);
-  // Wrap up the auto-created Stream Squad for this stream (best-effort;
-  // 'system' is the owner ensureSquadForChannel created it under).
-  if (rec.squadId) {
-    try {
-      const { endSquad } = await import('./stream-squad.js');
-      await endSquad(env, rec.squadId, 'system');
-    } catch (e) { console.warn('[live-status] end squad', e?.message || e); }
-  }
   await env.LOADOUT_BOLTS.delete(KEY(guildId));
   return { ok: true, action: 'deleted', messageId: rec.messageId };
 }

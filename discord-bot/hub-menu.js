@@ -134,7 +134,6 @@ function rootView() {
         type: COMPONENT_ROW,
         components: [
           { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: '💼 Loadout', custom_id: 'hub:loadout' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: '📈 Stocks',  custom_id: 'hub:stocks'  },
           { type: COMPONENT_BUTTON, style: STYLE_PRIMARY, label: '🏈 Sports',  custom_id: 'hub:sports'  },
         ],
       },
@@ -895,24 +894,10 @@ export async function handleHubComponent(data, env) {
   // hub:home, hub:loadout, hub:stocks, hub:sports, hub:profile, hub:help
   if (segs[0] === 'home')    return updateOrFollowup(sourceFlags, rootView());
   if (segs[0] === 'loadout') return updateOrFollowup(sourceFlags, await loadoutView(env, guild, userId));
-  if (segs[0] === 'stocks'  && segs.length === 1)
-    return updateOrFollowup(sourceFlags, await stocksView(env, guild, userId));
   if (segs[0] === 'sports'  && segs.length === 1)
     return updateOrFollowup(sourceFlags, await sportsView(env));
   if (segs[0] === 'profile') return updateOrFollowup(sourceFlags, await profileView(env, guild, userId));
   if (segs[0] === 'help')    return updateOrFollowup(sourceFlags, helpView());
-
-  // Stocks paths
-  if (segs[0] === 'stocks' && segs[1] === 'list' && segs[2] === 'p') {
-    const p = parseInt(segs[3], 10) || 1;
-    return updateOrFollowup(sourceFlags, await stocksListPaged(env, p));
-  }
-  if (segs[0] === 'stocks' && segs[1] === 'portfolio') {
-    return updateOrFollowup(sourceFlags, await stocksPortfolioView(env, guild, userId));
-  }
-  if (segs[0] === 'stocks' && segs[1] === 'buyprompt')   return json(buyModal());
-  if (segs[0] === 'stocks' && segs[1] === 'sellprompt')  return json(sellModal());
-  if (segs[0] === 'stocks' && segs[1] === 'chartprompt') return json(chartModal());
 
   // Sports paths
   if (segs[0] === 'sports' && segs[1] === 'upcoming' && segs[2] === 'p') {

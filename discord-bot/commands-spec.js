@@ -248,59 +248,6 @@ export const COMMANDS = [
     ],
   },
   {
-    // Bolts-denominated stock market. Prices driven by real upstream
-    // signals (Twitch viewer counts, Steam player counts, Spotify
-    // popularity) so they actually move. Spot only, integer shares,
-    // 1% fee, no leverage — see stocks.js.
-    name: 'stocks',
-    description: 'Buy and sell shares in real-world tickers, paid in bolts',
-    // Clay 2026-05-28: viewer-facing game slashes are admin-only —
-    // viewers reach the games via the pinned menu in #games. Admins
-    // can still run them directly (with MANAGE_GUILD) for testing.
-    default_member_permissions: '0',
-    options: [
-      {
-        type: TYPE_SUBCOMMAND, name: 'list',
-        description: 'Show all tickers and current prices',
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'buy',
-        description: 'Buy shares with bolts at the current price',
-        options: [
-          { type: TYPE_STRING,  name: 'ticker', description: 'Ticker symbol (e.g. CS2)', required: true },
-          { type: TYPE_INTEGER, name: 'bolts',  description: 'Bolts you want to spend',  required: true, min_value: 1 },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'sell',
-        description: 'Sell shares back to bolts at the current price',
-        options: [
-          { type: TYPE_STRING,  name: 'ticker', description: 'Ticker symbol', required: true },
-          { type: TYPE_INTEGER, name: 'shares', description: 'Shares to sell', required: true, min_value: 1 },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'portfolio',
-        description: 'Show your holdings and their total value in bolts',
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'chart',
-        description: 'Show a compact recent-price chart',
-        options: [
-          { type: TYPE_STRING, name: 'ticker', description: 'Ticker symbol', required: true },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'ticker-setup',
-        description: '(admin) Bind this channel as the auto-updating stocks board',
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'ticker-clear',
-        description: '(admin) Stop auto-updating the bound channel',
-      },
-    ],
-  },
-  {
     // Sports betting. Subcommand group so future expansion (e.g. esports,
     // prop bets) slots in cleanly under /bet <group> <subcommand>.
     name: 'bet',
@@ -734,11 +681,6 @@ export const COMMANDS = [
       },
     ],
   },
-  {
-    name: 'shop',
-    description: 'Browse the Aquilo Bolts shop and spend Bolts',
-    default_member_permissions: '0',
-  },
   // /checkin moved to the canonical entry near the top of this file
   // (community-checkin.js handler, with the GIPHY gif-picker rolled
   // in). Duplicate fold-in entry deleted 2026-05 — Discord rejects
@@ -747,54 +689,6 @@ export const COMMANDS = [
     name: 'trivia-add',
     description: '(admin) Add a trivia question to the daily rotation',
     default_member_permissions: '8192',     // MANAGE_MESSAGES
-  },
-  {
-    name: 'shop-add',
-    description: '(admin) Add or update a shop item',
-    default_member_permissions: '8192',     // MANAGE_MESSAGES
-  },
-
-  // ── Pet system ───────────────────────────────────────────────────
-  // Patreon-gated cosmetic companion with a tamagotchi care loop.
-  {
-    name: 'pet',
-    description: 'Adopt + care for a cosmetic pet (Patreon perk)',
-    default_member_permissions: '0',
-    options: [
-      {
-        type: TYPE_SUBCOMMAND, name: 'adopt',
-        description: 'Adopt a new pet (Patrons only)',
-        options: [
-          { type: TYPE_STRING, name: 'species', description: 'Pet species', required: true,
-            choices: [
-              { name: '🐱 Cat',         value: 'cat' },
-              { name: '🐶 Dog',         value: 'dog' },
-              { name: '🦉 Owl',         value: 'owl' },
-              { name: '🦊 Fox',         value: 'fox' },
-              { name: '🟢 Slime',       value: 'slime' },
-              { name: '🐲 Dragonling',  value: 'dragonling' },
-              { name: '🐸 Frog',        value: 'frog' },
-              { name: '🐰 Bunny',       value: 'bunny' },
-            ],
-          },
-          { type: TYPE_STRING, name: 'colour', description: 'Coat / scale colour', required: true, max_length: 20 },
-          { type: TYPE_STRING, name: 'name',   description: 'Name them (≤16 chars)', required: false, max_length: 16 },
-        ],
-      },
-      { type: TYPE_SUBCOMMAND, name: 'view',  description: 'Show your pet + stats' },
-      { type: TYPE_SUBCOMMAND, name: 'feed',  description: 'Feed your pet (10 Bolts, 30 min cooldown)' },
-      { type: TYPE_SUBCOMMAND, name: 'play',  description: 'Play with your pet (5 Bolts, 30 min cooldown)' },
-      { type: TYPE_SUBCOMMAND, name: 'clean', description: 'Clean your pet (5 Bolts, 30 min cooldown)' },
-      {
-        type: TYPE_SUBCOMMAND, name: 'rename',
-        description: 'Rename your pet',
-        options: [
-          { type: TYPE_STRING, name: 'name', description: 'New name (≤16 chars)', required: true, max_length: 16 },
-        ],
-      },
-      { type: TYPE_SUBCOMMAND, name: 'release', description: 'Release your pet (24h cooldown before re-adopting)' },
-      { type: TYPE_SUBCOMMAND, name: 'collect', description: 'Collect rewards your pet has brought back (auto-accrues every 4-8h)' },
-    ],
   },
   {
     // Boltbound — async card-battler. See CARD-GAME-DESIGN.md.
