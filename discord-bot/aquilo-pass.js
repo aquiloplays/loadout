@@ -1,9 +1,9 @@
-// Aquilo Pass — cross-game seasonal battle pass.
+// Aquilo Pass — Boltbound-focused seasonal battle pass.
 //
 // 2026-05-29. 50 tiers per season (one per Spire monthly theme).
-// XP accumulates from any game activity that emits a progression
-// event — Boltbound match wins, Clash raids, Spire clears, pet
-// evolutions, etc. Free track always claimable. Premium track gated
+// XP accumulates from Boltbound + mini-game activity that emits a
+// progression event — Boltbound match wins, pack opens, Spire clears,
+// pet evolutions, daily check-in. Free track always claimable. Premium track gated
 // on paid Patreon — caller can buy the premium pass mid-season for
 // retroactive premium-tier claim eligibility (future hook; MVP just
 // gates on userHasPaidPatreon).
@@ -60,19 +60,12 @@ export const XP_BY_KIND = Object.freeze({
   'boltbound.pack.opened':     15,
   'cards.crafted':             20,
   'cards.disenchanted':         5,
-  'clash.raid.won':            40,
-  'clash.raid.played':         15,
-  'clash.build.complete':      10,
-  'clash.troops-trained':      10,
   'spire.floor.cleared':       30,
   'spire.boss.defeated':      150,
   'spire.run.completed':      100,
   'pet.evolved':               75,
   'pet.fed':                    3,
   'checkin.claimed':            5,
-  'hero.died':                 10,
-  'banner.war.won':           100,
-  'banner.war.played':         25,
 });
 
 // Rewards per (tier, track). Hand-tuned MVP — first season uses a
