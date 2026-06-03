@@ -41,6 +41,8 @@ import { loadHero } from './hero-state.js';
 import { getWallet } from './wallet.js';
 import { getLoginStatus, claimDailyLogin } from './boltbound-login.js';
 import { listTodaysQuests, claimQuest, rerollQuest, progressBoltbound } from './daily-quests.js';
+import { getStats, recordPlay, recordMatchEnd, recordPackOpen, statForTrigger, triggerEvents } from './boltbound-stats.js';
+import { listAchievements, getUserAchievements, checkAndUnlock } from './achievements-d1.js';
 import {
   SETS, SET_IDS, isReleased, isNewlyReleased, timeUntilRelease,
 } from './boltbound-sets.js';
@@ -54,6 +56,9 @@ const ROUTES = new Set([
   'boltbound/quests/today',
   'boltbound/quests/claim',
   'boltbound/quests/reroll',
+  // RET-3: achievement gallery (catalog + per-viewer unlock/progress).
+  'boltbound/achievements/list',
+  'boltbound/achievements/me',
   'boltbound/decks/save',
   'boltbound/decks/delete',
   'boltbound/decks/activate',
@@ -99,6 +104,8 @@ const READ_ROUTES = new Set([
   'boltbound/state',
   'boltbound/catalogue',
   'boltbound/quests/today',
+  'boltbound/achievements/list',
+  'boltbound/achievements/me',
   'boltbound/sets',
   'boltbound/match/state',
   'boltbound/log',
@@ -412,6 +419,13 @@ async function routePacksOpen(env, guildId, userId, body) {
   const packId = String((body && body.packId) || '');
   if (!packId) return json({ ok: false, error: 'bad-pack' }, 400);
   const r = await openPack(env, guildId, userId, packId);
+  // RET-3 — pack-open count drives the 'Pack Rat' achievement line.
+  if (r && r.ok) {
+    try {
+      const stats = await recordPackOpen(env, userId, 1);
+      await checkAndUnlock(env, userId, { type: 'boltbound-pack', count: stats.packsOpened });
+    } catch { /* non-fatal */ }
+  }
   return json(r);
 }
 async function routePacksFreeDaily(env, guildId, userId) {
@@ -499,11 +513,16 @@ async function routeMatchAction(env, guildId, userId, body) {
       await progressBoltbound(env, userId, 'cards', 1);
       if (c && c.type === 'spell') await progressBoltbound(env, userId, 'cast', 1);
       else if (c && c.type === 'minion') await progressBoltbound(env, userId, 'summon', 1);
+      if (c) await recordPlay(env, userId, c.type);
     }
     if (r.ok && r.ended && r.match) {
       await progressBoltbound(env, userId, 'play', 1);
       const won = r.match.status === (side === 'A' ? 'A-won' : 'B-won');
       if (won) await progressBoltbound(env, userId, 'win', 1);
+      // RET-3 — lifetime stats + achievement unlocks.
+      const hero = await loadHero(env, guildId, userId).catch(() => null);
+      const stats = await recordMatchEnd(env, userId, won, hero && hero.className);
+      for (const ev of triggerEvents(stats)) await checkAndUnlock(env, userId, ev);
     }
   } catch { /* non-fatal */ }
   return json({ ok: !!r.ok, error: r.error || null, match: r.match ? renderableState(r.match, userId) : null, ended: !!r.ended });
@@ -677,6 +696,44 @@ async function routeQuestsReroll(env, guildId, userId, body) {
   return json({ ok: true, oldId: r.oldId, newId: r.newId, quests: (r.quests || []).map(mapQuest) });
 }
 
+// ── RET-3: achievements ─────────────────────────────────────────────
+//
+// `list` is the Boltbound catalog (every def whose trigger starts with
+// 'boltbound'); `me` joins that catalog with the viewer's unlocks +
+// live progress (from boltbound-stats) so the gallery renders locked /
+// unlocked / progress-bar states in one round-trip.
+
+function isBbAchievement(a) {
+  return a && a.trigger && typeof a.trigger.type === 'string' && a.trigger.type.startsWith('boltbound');
+}
+async function routeAchievementsList(env, guildId, userId) {
+  const all = await listAchievements(env);
+  return json({ ok: true, achievements: all.filter(isBbAchievement) });
+}
+async function routeAchievementsMe(env, guildId, userId) {
+  const [all, mine, stats] = await Promise.all([
+    listAchievements(env),
+    getUserAchievements(env, userId),
+    getStats(env, userId),
+  ]);
+  const unlockedAt = new Map(mine.map(a => [a.id, a.unlockedAt]));
+  const achievements = all.filter(isBbAchievement).map(a => {
+    const goal = a.trigger.threshold || 1;
+    const current = statForTrigger(a.trigger.type, stats);
+    return {
+      id: a.id, name: a.name, description: a.description, icon: a.icon,
+      tier: a.tier, points: a.points, goal,
+      progress: current == null ? null : Math.min(current, goal),
+      trackable: current != null,
+      unlocked: unlockedAt.has(a.id),
+      unlockedAt: unlockedAt.get(a.id) || null,
+    };
+  });
+  const earned = achievements.filter(a => a.unlocked).reduce((s, a) => s + (a.points || 0), 0);
+  const total = achievements.reduce((s, a) => s + (a.points || 0), 0);
+  return json({ ok: true, achievements, points: { earned, total } });
+}
+
 // ── Trade routes ───────────────────────────────────────────────────
 //
 // Auth is already enforced upstream by web.js (HMAC) — `userId` here
@@ -839,6 +896,8 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/quests/today')    return await routeQuestsToday(env, guildId, userId);
     if (route === 'boltbound/quests/claim')    return await routeQuestsClaim(env, guildId, userId, body);
     if (route === 'boltbound/quests/reroll')   return await routeQuestsReroll(env, guildId, userId, body);
+    if (route === 'boltbound/achievements/list') return await routeAchievementsList(env, guildId, userId);
+    if (route === 'boltbound/achievements/me')   return await routeAchievementsMe(env, guildId, userId);
     if (route === 'boltbound/settings/get')    return await routeSettingsGet(env, userId);
     if (route === 'boltbound/settings/set')    return await routeSettingsSet(env, userId, body);
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);
