@@ -204,6 +204,16 @@ TROOP_THEME = {
     'plagueDoctor': 'a sinister plague doctor in a beaked mask',
     'lightningSapper': 'a charged saboteur trailing electric arcs',
     'stormCaller': 'a storm shaman channeling thunderclouds',
+    # Goblin NPC raiders (2026-06 wave 2 — the attackers in goblin raids,
+    # rendered in the combat replay; previously fell back to procedural dots).
+    'goblinScrapper': 'a small scrappy green goblin raider swinging a crude club',
+    'goblinArcher': 'a small green goblin archer with a crude shortbow',
+    'goblinSapper': 'a frantic green goblin sapper clutching a lit round bomb',
+    'goblinChief': 'a burly green goblin chief with war paint and a big jagged cleaver',
+    'goblinMage': 'a hooded goblin shaman crackling with dark purple magic',
+    'goblinKing': 'a fat crowned goblin king in gilded armor wielding a jeweled scepter',
+    'goblinSkyrider': 'a green goblin rider mounted on a small flying bat-winged kite beast',
+    'wyrm': 'a fearsome winged dragon wyrm with armored scaled hide and glowing eyes',
 }
 ANIMS = [('idle', 4), ('walk-n', 4), ('walk-e', 4), ('walk-s', 4),
          ('walk-w', 4), ('attack', 5), ('death', 5)]
