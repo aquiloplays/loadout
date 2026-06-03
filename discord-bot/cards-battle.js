@@ -16,7 +16,7 @@
 //   isLegalAction(match, action)         — preflight a UI action
 //   summariseMatch(match)                — receipt-shape projection for /log
 
-import { CARDS, CHAMPIONS, championForClass, KEYWORDS } from './cards-content.js';
+import { CARDS, CHAMPIONS, championForClass, KEYWORDS, ADAPT_POOL } from './cards-content.js';
 
 // ── RNG ──────────────────────────────────────────────────────────────
 
@@ -84,6 +84,8 @@ export function createMatch(opts) {
     hp:     { A: STARTING_HP, B: STARTING_HP },
     mana:   { A: { cur: 0, max: 0 }, B: { cur: 0, max: 0 } },
     bonusMana: { A: 0, B: 0 },                // manaThisTurn carryover for current turn
+    overloadNext: { A: 0, B: 0 },             // mana locked NEXT turn by Overload (X)
+    cardsPlayed: { A: 0, B: 0 },              // cards played THIS turn (Combo gate)
     board:  { A: [], B: [] },
     graveyard: { A: [], B: [] },
     spellsCast: { A: 0, B: 0 },               // for The Hollow King's gate
@@ -198,6 +200,16 @@ function startTurn(match, side) {
   if (match.mana[side].max < 10) match.mana[side].max += 1;
   match.mana[side].cur = match.mana[side].max + (match.bonusMana[side] || 0);
   match.bonusMana[side] = 0;
+  // Overload: mana crystals locked by a card played LAST turn are unusable
+  // this turn. Consume the accumulator after applying so it only bites once.
+  if (match.overloadNext?.[side]) {
+    const locked = Math.min(match.mana[side].cur, match.overloadNext[side]);
+    match.mana[side].cur -= locked;
+    push(match, { t: match.turn, kind: 'overload', side, locked });
+    match.overloadNext[side] = 0;
+  }
+  // New turn — the Combo gate resets (the next card played is "first").
+  match.cardsPlayed[side] = 0;
   // Untap at the start of the OWNER's turn (charge/rush handle the
   // play-turn case). Frozen minions thaw instead of untapping — they miss
   // exactly this one turn, then act normally next turn.
@@ -330,8 +342,21 @@ function playCardAction(match, action) {
   match.mana[side].cur -= cost;
   match.hands[side].splice(idx, 1);
 
+  // Combo gate: this card triggers its `combo` abilities only if it is
+  // NOT the first card played this turn. Snapshot before we count it.
+  const isCombo = (match.cardsPlayed[side] || 0) > 0;
+  match.cardsPlayed[side] = (match.cardsPlayed[side] || 0) + 1;
+  // Choose One: which of the two onPlay option groups the player picked.
+  const chooseOption = Number.isInteger(+action.chooseOption) ? +action.chooseOption : 0;
+  // Overload (X): lock X of your mana crystals next turn (consumed in startTurn).
+  if (card.overload) match.overloadNext[side] = (match.overloadNext[side] || 0) + card.overload;
+
+  const fireCtx = { pickedTargetUid: action.targetUid, chooseOption, action };
+
   if (card.type === 'spell') {
-    return castSpell(match, side, card, action);
+    const r = castSpell(match, side, card, { ...action, _isCombo: isCombo, _chooseOption: chooseOption });
+    maybeEcho(match, side, card, cardId);
+    return r;
   }
   // Minion: place on board, then onPlay triggers.
   const minion = makeBoardMinion(match, card, side);
@@ -339,13 +364,28 @@ function playCardAction(match, action) {
   push(match, { t: match.turn, kind: 'play-minion', side, cardId, uid: minion.uid, atk: minion.atk, hp: minion.hp });
 
   // Process onPlay abilities — they may need the picked target from
-  // the action.
-  fireAbilities(match, minion, side, 'onPlay', { pickedTargetUid: action.targetUid });
+  // the action. Combo abilities fire on top only when this isn't the
+  // first card of the turn.
+  fireAbilities(match, minion, side, 'onPlay', fireCtx);
+  if (isCombo) fireAbilities(match, minion, side, 'combo', fireCtx);
+
+  maybeEcho(match, side, card, cardId);
 
   // Resolve deaths from any onPlay AoE damage.
   resolveDeaths(match);
   if (resolveVictoryIfAny(match)) return { match, ended: true };
   return { match };
+}
+
+// Echo: a played card with the `echo` keyword returns a copy to hand so
+// it can be replayed this turn until you run out of mana (the replay
+// still costs full mana, so it terminates naturally).
+function maybeEcho(match, side, card, cardId) {
+  if (!(card.keywords || []).includes('echo')) return;
+  if (match.hands[side].length < HAND_CAP) {
+    match.hands[side].push(cardId);
+    push(match, { t: match.turn, kind: 'echo', side, cardId });
+  }
 }
 
 function castSpell(match, side, card, action) {
@@ -360,9 +400,15 @@ function castSpell(match, side, card, action) {
   push(match, { t: match.turn, kind: 'cast-spell', side, cardId: card.id });
   // Spell damage bonus from Voltaic Mage etc.
   const spellDamageBonus = match.board[side].filter(m => (m.spellDamageBonus || 0) > 0).reduce((s, m) => s + m.spellDamageBonus, 0);
+  const chooseOption = action._chooseOption || 0;
+  const baseCtx = { spellDamageBonus, pickedTargetUid: action.targetUid, chooseOption, source: { kind: 'spell', cardId: card.id } };
   for (const ab of card.abilities || []) {
-    if (ab.trigger !== 'onCast') continue;
-    runEffect(match, side, ab, { spellDamageBonus, pickedTargetUid: action.targetUid, source: { kind: 'spell', cardId: card.id } });
+    // Choose One: skip the option group the player didn't pick.
+    if (ab.option !== undefined && ab.option !== chooseOption) continue;
+    // onCast always; `combo` abilities only when this isn't the turn's first card.
+    if (ab.trigger === 'onCast' || (ab.trigger === 'combo' && action._isCombo)) {
+      runEffect(match, side, ab, baseCtx);
+    }
   }
   match.graveyard[side].push(card.id);
   resolveDeaths(match);
@@ -461,6 +507,10 @@ function dealDamage(match, source, target, amount) {
   }
   m.hp -= amount;
   push(match, { t: match.turn, kind: 'minion-damage', uid: m.uid, amount, hp: m.hp });
+  // onDamage triggers fire for a minion that took (and survived) damage.
+  // A dying minion runs its onDeath path instead (resolveDeaths), so we
+  // skip onDamage at <=0 to avoid double-firing on the same blow.
+  if (m.hp > 0 && target.side) fireAbilities(match, m, target.side, 'onDamage', {});
 }
 
 function resolveDeaths(match) {
@@ -478,6 +528,21 @@ function resolveDeaths(match) {
           match.graveyard[side].push(m.cardId);
           // Fire onDeath triggers.
           fireAbilities(match, m, side, 'onDeath', { dying: true });
+          // Reborn (Phoenix): the FIRST time this minion dies it returns
+          // to the board with 1 HP, minus its Reborn keyword so it cannot
+          // loop. Silenced minions lose Reborn like every other keyword.
+          if ((m.keywords || []).includes('reborn') && !m.reborned
+              && !(m.status || []).includes('silenced')) {
+            const card = CARDS[m.cardId];
+            if (card) {
+              const nm = makeBoardMinion(match, card, side);
+              nm.hp = 1; nm.maxHp = 1;
+              nm.keywords = (nm.keywords || []).filter(k => k !== 'reborn');
+              nm.reborned = true;
+              live.push(nm);   // joins the rebuilt board; alive at 1 HP
+              push(match, { t: match.turn, kind: 'reborn', side, cardId: m.cardId, uid: nm.uid });
+            }
+          }
         } else {
           live.push(m);
         }
@@ -497,6 +562,8 @@ function fireAbilities(match, minion, side, trigger, ctx = {}) {
   if ((minion.status || []).includes('silenced')) return;
   for (const ab of card.abilities || []) {
     if (ab.trigger !== trigger) continue;
+    // Choose One: skip the option group the player didn't pick.
+    if (ab.option !== undefined && ab.option !== (ctx.chooseOption ?? 0)) continue;
     // A re-summoned copy does not re-trigger its own reSummon (no loop).
     if (ab.effect === 'reSummon' && minion.noReSummon) continue;
     runEffect(match, side, ab, { ...ctx, source: { kind: 'minion', uid: minion.uid, cardId: minion.cardId } });
@@ -720,6 +787,79 @@ function runEffect(match, side, ab, ctx) {
       }
       return;
     }
+    case 'recruit': {
+      // Pull a friendly MINION of cost <= value from your deck and summon
+      // it to the board. Removes it from the deck (so it can't be drawn
+      // twice). Seeded pick among eligible cards for replay determinism.
+      const maxMana = ab.value || 0;
+      const deck = match.decks[side];
+      const eligible = [];
+      for (let i = 0; i < deck.length; i++) {
+        const c = CARDS[deck[i]];
+        if (!c || c.type !== 'minion') continue;
+        if ((c.mana || 0) > maxMana) continue;
+        if (ab.tribe && c.tribe !== ab.tribe) continue;   // tribal recruit filter
+        eligible.push(i);
+      }
+      if (!eligible.length) { push(match, { t: match.turn, kind: 'recruit-miss', side }); return; }
+      const pickIdx = eligible[Math.floor(rng(match)() * eligible.length)];
+      const cardId = deck[pickIdx];
+      deck.splice(pickIdx, 1);
+      const c = CARDS[cardId];
+      const nm = makeBoardMinion(match, c, side);
+      match.board[side].push(nm);
+      push(match, { t: match.turn, kind: 'recruit', side, cardId, uid: nm.uid });
+      return;
+    }
+    case 'adapt': {
+      // Grant the source minion one buff from ADAPT_POOL. The player's
+      // pick (ctx.action.adaptChoice) wins; otherwise a seeded choice so
+      // NPCs + replays stay deterministic.
+      if (ctx.source?.kind !== 'minion') return;
+      const self = findMinion(match, side, ctx.source.uid);
+      if (!self) return;
+      let choice = Number(ctx.action?.adaptChoice);
+      if (!Number.isInteger(choice) || choice < 0 || choice >= ADAPT_POOL.length) {
+        choice = Math.floor(rng(match)() * ADAPT_POOL.length);
+      }
+      const pick = ADAPT_POOL[choice];
+      if (pick.buff) {
+        self.atk += pick.buff.valueAtk || 0;
+        self.hp  += pick.buff.valueHp  || 0;
+        self.maxHp = (self.maxHp || self.hp) + (pick.buff.valueHp || 0);
+      }
+      if (pick.keyword && !(self.keywords || []).includes(pick.keyword)) {
+        self.keywords.push(pick.keyword);
+        if (pick.keyword === 'shield' && !self.status.includes('shield')) self.status.push('shield');
+      }
+      push(match, { t: match.turn, kind: 'adapt', side, uid: self.uid, label: pick.label });
+      return;
+    }
+    case 'discover': {
+      // Reveal 3 candidate cards from a pool and add the picked one to
+      // hand. Pool = ab.pool (array of cardIds) or, by default, the
+      // caster's own deck. action.discoverChoice picks (0..2); else seeded.
+      const poolIds = Array.isArray(ab.pool) && ab.pool.length
+        ? ab.pool.filter(id => CARDS[id])
+        : match.decks[side].slice();
+      if (!poolIds.length) { push(match, { t: match.turn, kind: 'discover-miss', side }); return; }
+      const r = rng(match);
+      const candidates = [];
+      const work = poolIds.slice();
+      for (let i = 0; i < 3 && work.length; i++) {
+        candidates.push(work.splice(Math.floor(r() * work.length), 1)[0]);
+      }
+      let choice = Number(ctx.action?.discoverChoice);
+      if (!Number.isInteger(choice) || choice < 0 || choice >= candidates.length) choice = 0;
+      const cardId = candidates[choice];
+      if (match.hands[side].length < HAND_CAP) {
+        match.hands[side].push(cardId);
+        push(match, { t: match.turn, kind: 'discover', side, cardId, candidates });
+      } else {
+        push(match, { t: match.turn, kind: 'discover-burn', side, cardId });
+      }
+      return;
+    }
     default:
       // Unknown effect — log and continue. Don't crash the resolver on
       // a new ability key being added without a handler.
@@ -741,6 +881,13 @@ function resolveTargets(match, side, ab, ctx) {
                                  out.push({ kind: 'hero', side: opp });
                                  break;
     case 'allFriendlyMinions':   for (const m of match.board[side]) if (m.hp > 0) out.push({ kind: 'minion', minion: m, side });    break;
+    case 'allFriendlyTribe':     // tribal synergy — friendly minions of ab.tribe
+                                 for (const m of match.board[side]) {
+                                   if (m.hp <= 0) continue;
+                                   const c = CARDS[m.cardId];
+                                   if (c && c.tribe === ab.tribe) out.push({ kind: 'minion', minion: m, side });
+                                 }
+                                 break;
     case 'allMinions':           for (const m of match.board.A) if (m.hp > 0) out.push({ kind: 'minion', minion: m, side: 'A' });
                                  for (const m of match.board.B) if (m.hp > 0) out.push({ kind: 'minion', minion: m, side: 'B' });
                                  break;

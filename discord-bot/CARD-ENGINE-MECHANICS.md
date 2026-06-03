@@ -25,27 +25,50 @@ Anything a card declares MUST be in these sets or it is a silent no-op
 as the constraint set when generating or rewording card effects.
 
 **Triggers** (`abilities[].trigger`):
-`onPlay`, `onCast`, `onAttack`, `onDeath`, `endOfTurn`, `startOfTurn`,
+`onPlay`, `onCast`, `onAttack`, `onDamage`, `onDeath`, `endOfTurn`,
+`startOfTurn`, `combo` (fires only when this is NOT the turn's first card),
 `spellDamageBonus`.
 
 **Effects** (`abilities[].effect`):
 `damage`, `heal`, `draw`, `discard`, `summon`, `buff`, `buffThisTurn`,
 `destroy`, `returnToHand`, `copyOpponentCard`, `silence`, `counter`,
 `manaThisTurn`, `peekDeck`, `freeze`, `cloneSelf`, `reSummon`,
-`revealAndDraw`, `doubleBattlecry`.
+`revealAndDraw`, `doubleBattlecry`, `recruit`, `adapt`, `discover`.
 
 **Targets** (`abilities[].target`):
-`oppHero`, `selfHero`, `allEnemyMinions`, `allFriendlyMinions`,
-`allMinions`, `allOtherMinions`, `randomEnemyMinion`,
-`randomFriendlyMinion`, `pickedTarget`, `lastDeadFriendly`, `self`,
-`oppHand`, `selfHand`, `allEnemy` (= all enemy minions + enemy hero).
-(`draw`/`summon`/`counter`/`cloneSelf` etc. need no target.)
+`oppHero`, `selfHero`, `allEnemyMinions`, `allEnemy`/`allEnemies`,
+`allFriendlyMinions`, `allFriendlyTribe` (needs `ab.tribe`), `allMinions`,
+`allOtherMinions`, `randomEnemyMinion`, `randomFriendlyMinion`,
+`pickedTarget`, `lastDeadFriendly`, `self`, `oppHand`, `selfHand`.
+(`draw`/`summon`/`counter`/`cloneSelf`/`recruit`/`adapt` etc. need no target.)
 
 **Keywords** (`keywords[]`), all with combat/status behavior:
-`taunt`, `charge`, `rush`, `shield`, `lifesteal`, `poison`, `reach`,
-`stealth`, `spell-immune`, `regen` (cosmetic label; the heal comes from an
-`endOfTurn heal selfHero` ability), `cannot-attack-unless-3-spells`
-(Hollow King gate).
+`taunt`, `charge`, `rush`, `shield` (Ward), `lifesteal` (Drain), `poison`
+(Venomous), `reach`, `stealth` (Veiled), `spell-immune`, `reborn`
+(Phoenix — dies once, returns at 1 HP, loses the keyword), `echo`
+(returns a copy to hand the turn played), `regen` (cosmetic label; the
+heal comes from an `endOfTurn heal selfHero` ability),
+`cannot-attack-unless-3-spells` (Hollow King gate).
+
+**Card-level fields**: `set` (defaults `core`; expansion gating lives in
+`boltbound-sets.js`), `tribe` (one of `TRIBES` for tribal synergy),
+`overload` (0..3, locks that many mana next turn), `chooseOne` (two
+onPlay groups tagged `option:0`/`option:1`; the player's pick fires).
+
+### CR-2 additions (Voidborn expansion, 2026-06-03)
+- **reborn** — the first death summons a 1-HP copy with the keyword
+  stripped (no loop). Silence cancels it.
+- **recruit** (effect, `value`=maxMana, optional `tribe`) — pulls an
+  eligible minion OUT of your deck and summons it. Seeded pick.
+- **combo** (trigger) — extra effect when this isn't the turn's first card.
+- **overload** (card field) — locks `overload` mana at your next start-of-turn.
+- **onDamage** (trigger) — fires for a minion that took and SURVIVED damage.
+- **allFriendlyTribe** (target) — friendly minions sharing `ab.tribe`.
+- **adapt** / **discover** (effects) — pick-one mechanics; resolve via
+  `action.adaptChoice`/`action.discoverChoice`, else a seeded default.
+- A load-time **schemaCheck** in `cards-content.js` validates every
+  EXPANSION card's keywords/triggers/effects/targets against the locked
+  dictionaries so a typo can't ship as a silent no-op.
 
 ### Keyword semantics
 - **taunt** — enemies must attack it before anything else.

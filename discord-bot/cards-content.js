@@ -34,6 +34,7 @@
 // and card-art regens alike. Each entry is a single engine-supported
 // keyword (power-budgeted) + matching text.
 import { GENERATED_EFFECTS } from './card-effects-backfill.js';
+import { SET_IDS, isReleased } from './boltbound-sets.js';
 
 export const TRIGGERS = [
   'onPlay',         // minion summoned from hand, OR spell cast
@@ -43,6 +44,7 @@ export const TRIGGERS = [
   'onDeath',        // minion died (HP <= 0)
   'endOfTurn',      // end of *your* turn (the side this minion belongs to)
   'startOfTurn',    // start of *your* turn
+  'combo',          // fires only if this is NOT the first card you played this turn
 ];
 
 export const EFFECTS = [
@@ -59,12 +61,20 @@ export const EFFECTS = [
   'silence',        // strip all abilities + status from target minion
   'counter',        // mark next opponent spell as countered
   'manaThisTurn',   // value: N. Adds temporary mana to self this turn only.
+  'peekDeck',       // value: N. Look at the top N of deck (UI affordance).
   'fatigue',        // value: N. Self-damage per turn for stall games.
   'freeze',         // target: see TARGETS. Frozen minions skip their next turn.
   'cloneSelf',      // summon a fresh copy of the source minion (self side).
   'reSummon',       // onDeath: resurrect the dying minion once (no loop).
   'revealAndDraw',  // value: N. Reveal the top N of deck and draw them.
   'doubleBattlecry',// re-fire the most recent other friendly minion's onPlay.
+  // CR-2 (Voidborn expansion) — deeper TCG mechanics.
+  'recruit',        // value: maxMana. Pull a friendly minion of cost<=N from
+                    //   your deck and summon it to your board.
+  'adapt',          // grant the source one of a deterministic buff set (see
+                    //   ADAPT_POOL). action.adaptChoice picks; else seeded.
+  'discover',       // reveal 3 candidate cards (by ab.pool/type) and add one
+                    //   to hand. action.discoverChoice picks; else seeded.
 ];
 
 export const TARGETS = [
@@ -72,25 +82,50 @@ export const TARGETS = [
   'selfHero',
   'pickedTarget',         // chosen by the player at play-time (a minion or hero)
   'allEnemyMinions',
+  'allEnemy',              // all enemy minions PLUS the enemy hero
+  'allEnemies',           // alias of allEnemy (legacy spelling on one card)
   'allFriendlyMinions',
   'allMinions',
+  'allOtherMinions',      // every minion on the board except the source
   'randomEnemyMinion',
   'randomFriendlyMinion',
   'oppHand',
   'selfHand',
   'self',                 // the card itself (for onDeath returnToHand etc.)
   'lastDeadFriendly',     // resurrect target — last friendly that hit graveyard
+  'allFriendlyTribe',     // friendly minions sharing ab.tribe (tribal synergy)
 ];
 
 export const KEYWORDS = [
   'taunt',         // enemy attackers must target a taunt before other minions/hero
   'charge',        // can attack the turn played
-  'shield',        // first damage instance is negated; consumed on use
-  'stealth',       // cannot be targeted by enemies until this minion attacks
-  'lifesteal',     // damage dealt by this minion heals self hero
-  'poison',        // any damage this minion deals to a minion kills it
+  'rush',          // can attack the turn played, MINIONS ONLY (not enemy hero)
+  'shield',        // first damage instance is negated; consumed on use (Ward)
+  'stealth',       // cannot be targeted by enemies until this minion attacks (Veiled)
+  'lifesteal',     // damage dealt by this minion heals self hero (Drain)
+  'poison',        // any damage this minion deals to a minion kills it (Venomous)
   'reach',         // can attack hero even when enemy has taunts
   'spell-immune',  // ignored by enemy spells
+  'reborn',        // first time it dies, returns to the board with 1 HP (Phoenix)
+];
+
+// Tribal tags (the `tribe` field on a card). Cards with matching tribes
+// can buff/check one another via the allFriendlyTribe target. Aquilo
+// flavour names map onto the six expansion families:
+//   inferno (fire) · tide (water) · tempest (storm) · hallow (light)
+//   · umbra (shadow) · verdant (nature).
+export const TRIBES = ['inferno', 'tide', 'tempest', 'hallow', 'umbra', 'verdant'];
+
+// Adapt buff pool — the source minion gains one of these on adapt. Kept
+// deterministic + small so the engine can resolve it without a UI round
+// trip (action.adaptChoice picks an index; otherwise the seeded RNG does).
+export const ADAPT_POOL = [
+  { label: '+1/+1',        buff: { valueAtk: 1, valueHp: 1 } },
+  { label: '+3 attack',    buff: { valueAtk: 3, valueHp: 0 } },
+  { label: 'Taunt',        keyword: 'taunt' },
+  { label: 'Ward',         keyword: 'shield' },
+  { label: 'Drain',        keyword: 'lifesteal' },
+  { label: 'Venomous',     keyword: 'poison' },
 ];
 
 // Convenience normaliser used by the resolver. Cards always carry a
@@ -109,8 +144,21 @@ export function normaliseCard(c) {
     abilities: Array.isArray(c.abilities) ? c.abilities.map(a => ({ ...a })) : [],
     needsTarget: c.abilities?.some(a => a.target === 'pickedTarget') || false,
     text: c.text || '',
+    flavor: c.flavor || '',      // display-only flavour line (Aquilo voice)
     token: !!c.token,            // tokens cannot appear in decks
     spriteId: c.spriteId || `cards/${c.id}.png`,
+    // CR-2 expansion-set fields. Cards without these default to the
+    // original "core" set so the existing 1267-card catalogue is
+    // unaffected (everything pre-expansion reads as set:'core').
+    set: c.set || 'core',
+    tribe: c.tribe || null,      // null = no tribe (most core cards)
+    // Overload (X): the card costs its printed mana but locks X of your
+    // mana crystals next turn. 0 = no overload. Clamped 0..3.
+    overload: Math.max(0, Math.min(3, c.overload || 0)),
+    // Choose One: when true, the card carries two onPlay ability groups
+    // tagged `option:0` / `option:1`; the resolver fires the one the
+    // player picked (action.chooseOption), defaulting to 0.
+    chooseOne: !!c.chooseOne,
   };
 }
 
@@ -519,6 +567,9 @@ const TOKENS = [
 // Merged here at module load so battle/packs/decks see one catalogue.
 import { EXPANSION_CARDS } from './cards-expansion.js';
 import { SPIRE_LEGENDARIES, SPIRE_TOKENS } from './spire-cards.js';
+// CR-2 — the first quarterly expansion. Already rarity-stamped + set-tagged
+// in its own module; merged in as-is (no per-rarity .map needed).
+import { VOIDBORN_CARDS } from './cards-voidborn.js';
 // Per-id DISPLAY-text diversification (tools/diversify-effects.py). Many
 // procedurally-generated cards shared identical effect descriptions; this
 // map rewrites only the `text` string with variety. Mechanics, keywords,
@@ -537,6 +588,8 @@ const RAW_ROSTER = [
   // Spire seasonal exclusives — legendary minions granted via boss-clear.
   ...SPIRE_LEGENDARIES.map(c => ({ ...c, rarity: 'legendary' })),
   ...SPIRE_TOKENS.map(c => ({ ...c, rarity: 'token' })),
+  // CR-2 Voidborn expansion (already rarity-stamped + set:'voidborn').
+  ...VOIDBORN_CARDS,
 ];
 
 export const CARDS = Object.fromEntries(
@@ -560,14 +613,55 @@ export const CARDS = Object.fromEntries(
   }
 })();
 
+// Schema check at module load — keeps authoring errors in expansion data
+// files (cards-voidborn.js, future sets) from shipping as silent no-ops.
+// Validates the locked dictionaries: every keyword/trigger/effect/target
+// a card references must be implemented. Cheap to run, runs once.
+(function schemaCheck() {
+  const KW = new Set(KEYWORDS.concat(['regen', 'cannot-attack-unless-3-spells']));
+  const TR = new Set(TRIGGERS.concat(['spellDamageBonus']));
+  const EF = new Set(EFFECTS);
+  const TG = new Set(TARGETS.concat(['oppNextSpell', 'opp']));   // summon side + counter target sentinels
+  for (const c of Object.values(CARDS)) {
+    if (!SET_IDS.includes(c.set)) {
+      throw new Error(`cards-content.js: card ${c.id} has unknown set "${c.set}"`);
+    }
+    // Deep keyword/ability validation is scoped to EXPANSION cards only.
+    // The legacy "core" catalogue was audited at 2026-05-31 and carries a
+    // few vestigial-but-harmless target strings; we don't retroactively
+    // rewrite it. New sets (voidborn and onward) get the strict check so
+    // a typo can never ship as a silent no-op.
+    if ((c.set || 'core') === 'core') continue;
+    for (const k of c.keywords || []) {
+      if (!KW.has(k)) throw new Error(`cards-content.js: card ${c.id} has unknown keyword "${k}"`);
+    }
+    for (const ab of c.abilities || []) {
+      if (ab.trigger && !TR.has(ab.trigger)) throw new Error(`cards-content.js: card ${c.id} unknown trigger "${ab.trigger}"`);
+      if (ab.effect && !EF.has(ab.effect)) throw new Error(`cards-content.js: card ${c.id} unknown effect "${ab.effect}"`);
+      if (ab.target && !TG.has(ab.target)) throw new Error(`cards-content.js: card ${c.id} unknown target "${ab.target}"`);
+    }
+  }
+})();
+
 // ── Per-rarity card pools used by pack rolls + deck validation ───────
 
-export const RARITY_POOLS = {
-  common:    Object.values(CARDS).filter(c => c.rarity === 'common'),
-  uncommon:  Object.values(CARDS).filter(c => c.rarity === 'uncommon'),
-  rare:      Object.values(CARDS).filter(c => c.rarity === 'rare'),
-  legendary: Object.values(CARDS).filter(c => c.rarity === 'legendary'),
-};
+// Per-set rarity pools. A pack only ever pulls from ONE set; tokens +
+// champions are never pullable. `rarityPoolsForSet('core')` reproduces
+// the pre-expansion behaviour exactly (every legacy card is set:'core').
+export function rarityPoolsForSet(setId) {
+  const inSet = Object.values(CARDS).filter(c => (c.set || 'core') === setId && !c.token);
+  return {
+    common:    inSet.filter(c => c.rarity === 'common'),
+    uncommon:  inSet.filter(c => c.rarity === 'uncommon'),
+    rare:      inSet.filter(c => c.rarity === 'rare'),
+    legendary: inSet.filter(c => c.rarity === 'legendary'),
+  };
+}
+
+// Default pool = the core set. pullPack() uses this when no set is
+// specified, so all legacy pack sources (Clash drops, lootbox, daily,
+// purchase) keep pulling core cards and expansion cards never leak in.
+export const RARITY_POOLS = rarityPoolsForSet('core');
 
 export const RARITY_DECK_CAP = {
   champion: 1,        // always exactly 1 in your deck
@@ -793,6 +887,10 @@ export function validateDeck(deck) {
     const c = CARDS[id];
     if (!c) return { ok: false, error: `unknown card: ${id}` };
     if (c.token) return { ok: false, error: `tokens cannot be in decks: ${id}` };
+    // Cards from an expansion that hasn't launched yet can't be decked.
+    if (c.set && c.set !== 'core' && !isReleased(c.set)) {
+      return { ok: false, error: `${c.name} is from an unreleased set` };
+    }
     counts.set(id, (counts.get(id) || 0) + 1);
     if (c.rarity === 'champion') championCount++;
   }

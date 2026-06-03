@@ -208,10 +208,11 @@ export function resolveDeckChampion(deck) {
 // pulls. A second open call returns the same cards — supports
 // the future web reveal page consuming a server-pre-rolled list.
 
-export async function mintPendingPack(env, guildId, userId, packType, source) {
+export async function mintPendingPack(env, guildId, userId, packType, source, setId) {
   const id = newId();
   const pack = {
     id, packType, source,
+    set: setId || 'core',     // which card set this pack pulls from
     mintedUtc: Date.now(),
     rolled: null,
   };

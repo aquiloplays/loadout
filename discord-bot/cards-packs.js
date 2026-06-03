@@ -19,8 +19,9 @@
 // be driven by pre-rolled cards stored in the record.
 
 import {
-  PACKS, RARITY_POOLS, CARDS, DUPE_BOLTS,
+  PACKS, RARITY_POOLS, CARDS, DUPE_BOLTS, rarityPoolsForSet,
 } from './cards-content.js';
+import { isReleased } from './boltbound-sets.js';
 import {
   mintPendingPack, getPendingPack, freezePendingPack, deletePendingPack,
   addCardsToCollection,
@@ -65,15 +66,21 @@ export function pullPack(packType, rngFn, opts = {}) {
   const pack = PACKS[packType];
   if (!pack) throw new Error('unknown pack type: ' + packType);
 
+  // A pack pulls from exactly ONE set. Default 'core' keeps every legacy
+  // pack source (Clash drops, lootbox, daily, plain purchases) pulling the
+  // original catalogue; expansion packs pass opts.set to draw their cards.
+  const setId = opts.set || 'core';
+  const pools = setId === 'core' ? RARITY_POOLS : rarityPoolsForSet(setId);
+
   const slots = [];
   for (let i = 0; i < (pack.cards || 3); i++) {
     const rarity = rollRarity(pack.weights, rngFn);
-    const pool = RARITY_POOLS[rarity] || [];
+    const pool = pools[rarity] || [];
     if (!pool.length) {
-      // Fall back to common if the configured pool is empty — shouldn't
-      // happen with the locked catalogue but defensive against future
-      // edits.
-      slots.push({ rarity: 'common', cardId: pickFrom(RARITY_POOLS.common, rngFn) });
+      // Fall back to common if the configured pool is empty (e.g. a small
+      // expansion with no legendaries in a given weight roll).
+      const commons = pools.common && pools.common.length ? pools.common : RARITY_POOLS.common;
+      slots.push({ rarity: 'common', cardId: pickFrom(commons, rngFn) });
       continue;
     }
     slots.push({ rarity, cardId: pickFrom(pool, rngFn) });
@@ -86,13 +93,13 @@ export function pullPack(packType, rngFn, opts = {}) {
     for (let i = 1; i < slots.length; i++) {
       if ((order[slots[i].rarity] ?? 0) < (order[slots[lowestIdx].rarity] ?? 0)) lowestIdx = i;
     }
-    const legendaryPool = RARITY_POOLS.legendary;
-    if (legendaryPool.length) {
+    const legendaryPool = pools.legendary;
+    if (legendaryPool && legendaryPool.length) {
       slots[lowestIdx] = { rarity: 'legendary', cardId: pickFrom(legendaryPool, rngFn) };
     }
   }
 
-  return slots.map(s => s.cardId);
+  return slots.map(s => s.cardId).filter(Boolean);
 }
 
 function rollRarity(weights, rngFn) {
@@ -124,15 +131,19 @@ function pickFrom(pool, rngFn) {
 // Returns the freshly-minted pending-pack record so callers can show
 // "you got a <packname>" in their response.
 
-export async function creditPack(env, guildId, userId, packType, source) {
+export async function creditPack(env, guildId, userId, packType, source, setId) {
   if (!PACKS[packType]) {
     return { ok: false, error: 'unknown-pack-type' };
   }
+  // Expansion-set guard: a pack can only be tied to a RELEASED set.
+  // Unreleased / unknown sets fall back to core so nobody can open a set
+  // before its launch date by crafting a request.
+  const set = (setId && setId !== 'core' && isReleased(setId)) ? setId : 'core';
   // Make sure the collection row exists so the viewer can open the
   // pack later without a "you haven't played Boltbound yet" 404. No-op
   // when the row already exists.
   await ensureCollection(env, guildId, userId);
-  const rec = await mintPendingPack(env, guildId, userId, packType, source);
+  const rec = await mintPendingPack(env, guildId, userId, packType, source, set);
 
   // ✨ Lucky-drop hook (rolls only on FREE creditPack calls — i.e.
   // every pack source EXCEPT the explicit 'purchase:bolt' / 'purchase:voltaic'
@@ -218,7 +229,7 @@ export async function openPack(env, guildId, userId, packId) {
       pity = await getPity(env, userId);
       forceOneLegendary = (pity.packs || 0) >= 29;   // this pack will be the 30th, force.
     }
-    rolled = pullPack(rec.packType, r, { forceOneLegendary });
+    rolled = pullPack(rec.packType, r, { forceOneLegendary, set: rec.set || 'core' });
     await freezePendingPack(env, guildId, userId, packId, rolled);
     // Pity bookkeeping happens AFTER the roll so failed dispatches
     // don't burn the counter.
@@ -275,17 +286,21 @@ export async function openPack(env, guildId, userId, packId) {
 // wallet, mints a pending pack. Returns the pending pack so the
 // caller's response can offer "open now?".
 
-export async function buyPack(env, guildId, userId, packType) {
+export async function buyPack(env, guildId, userId, packType, setId) {
   const pack = PACKS[packType];
   if (!pack) return { ok: false, error: 'unknown-pack-type' };
   if (pack.priceBolts == null) return { ok: false, error: 'not-purchasable' };
+  // Refuse to charge for a set that hasn't launched yet.
+  if (setId && setId !== 'core' && !isReleased(setId)) {
+    return { ok: false, error: 'set-not-released' };
+  }
   const { getWallet } = await import('./wallet.js');
   const wallet = await getWallet(env, guildId, userId);
   if ((wallet.balance || 0) < pack.priceBolts) {
     return { ok: false, error: 'insufficient-bolts', need: pack.priceBolts, have: wallet.balance || 0 };
   }
   await applyVaultDelta(env, guildId, userId, -pack.priceBolts, 'boltbound:buy:' + packType);
-  const credited = await creditPack(env, guildId, userId, packType, 'purchase');
+  const credited = await creditPack(env, guildId, userId, packType, 'purchase', setId);
   return credited;
 }
 
