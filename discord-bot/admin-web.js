@@ -332,18 +332,6 @@ async function routeAdminPipeTests(env, guildId) {
 // Called by web.js after the HMAC verification + _owner gate. We
 // re-check _owner here too as defence in depth in case the caller
 // forgot.
-// Owner-only: backfill anniv:seen records for legacy wallet holders.
-// Cursor-paginated, pass back the returned `cursor` to continue a
-// large guild across calls. Idempotent (already-stamped users skip).
-async function routeAnniversaryBackfill(env, guildId, body) {
-  const { backfillFirstSeen } = await import('./anniversary.js');
-  const r = await backfillFirstSeen(env, guildId, {
-    maxPages: Number(body?.maxPages) || 6,
-    cursor: body?.cursor || undefined,
-  });
-  return json(r, r.ok ? 200 : 400);
-}
-
 // Owner-only: lock in the current Triple-C campaign game + announce it.
 async function routeTripleCSet(env, guildId, body) {
   const gameSlug = String(body?.gameSlug || '').trim();
@@ -410,7 +398,6 @@ export async function handleAdminWeb(env, route, guildId, body) {
     case 'admin/active-guild':   return await routeAdminActiveGuild(env, guildId, body);
     case 'admin/clear-binding':  return await routeAdminClearBinding(env, guildId, body);
     case 'admin/pipe-tests':     return await routeAdminPipeTests(env, guildId);
-    case 'admin/anniversary-backfill': return await routeAnniversaryBackfill(env, guildId, body);
     case 'admin/triple-c/set':         return await routeTripleCSet(env, guildId, body);
     case 'admin/dad-sunday/set':       return await routeDadSundaySet(env, guildId, body);
     case 'admin/lineup/post':          return await routeLineupPost(env, guildId, body);

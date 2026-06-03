@@ -151,13 +151,6 @@ export async function resolveEntitlements(env, guildId, userId) {
     if (p && p.linked) { v.patronTier = p.tier || (p.paid ? 'patron' : 'free'); v.patronPaid = !!p.paid; }
   } catch { /* patreon optional */ }
 
-  // Anniversary / account age (durably readable today).
-  try {
-    const { getFirstSeen, computeAnniversary } = await import('./anniversary.js');
-    const firstSeen = await getFirstSeen(env, g, userId);
-    if (firstSeen) { const a = computeAnniversary(firstSeen, Date.now()); v.anniversaryYears = a?.years || 0; }
-  } catch { /* anniversary optional */ }
-
   return v;
 }
 

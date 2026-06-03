@@ -57,47 +57,6 @@ export const COMMANDS = [
     name: 'checkin',
     description: 'Daily community check-in (also available on aquilo.gg)',
   },
-  // AI-driven D&D-style one-shot campaigns. See campaigns/campaigns.js.
-  //   /campaign start  invite1:@user [invite2:@user] [invite3:@user]
-  //   /campaign action text:<what you do>
-  //   /campaign status
-  //   /campaign end
-  {
-    name: 'campaign',
-    description: 'AI-DM\'d D&D-style one-shot, party up via DMs, ~3-5h, resumable',
-    default_member_permissions: '0',
-    options: [
-      {
-        type: 1, // SUB_COMMAND
-        name: 'start',
-        description: 'Start a new campaign with 1-3 invitees',
-        options: [
-          { type: 6, name: 'invite1', description: 'Invited player', required: true },
-          { type: 6, name: 'invite2', description: 'Invited player (optional)', required: false },
-          { type: 6, name: 'invite3', description: 'Invited player (optional)', required: false },
-        ],
-      },
-      {
-        type: 1,
-        name: 'action',
-        description: 'Take your turn, describe what your character does',
-        options: [
-          { type: 3, name: 'text', description: 'Your action this turn', required: true,
-            min_length: 1, max_length: 600 },
-        ],
-      },
-      {
-        type: 1,
-        name: 'status',
-        description: 'Show progress + AI budget for your current campaign',
-      },
-      {
-        type: 1,
-        name: 'end',
-        description: 'End the campaign (starter only)',
-      },
-    ],
-  },
   // New-viewer funnel
   {
     name: 'referral',

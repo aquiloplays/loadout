@@ -11,7 +11,6 @@ import { readXpDisplay } from './xp.js';
 import { getRecentEvents } from './event-bus.js';
 import { readAchievementsDisplay, achievementCountsFor } from './achievements.js';
 import { readBadgesDisplay, setShowcase as setBadgeShowcase } from './badges.js';
-import { readSeasonDisplay } from './season.js';
 
 const PROFILE_KEY = (userId) => `pprofile:${userId}`;
 const HANDLE_INDEX_KEY = (safe) => `pprofile:handle:${safe}`;
@@ -127,7 +126,7 @@ export async function aggregateStats(env, userId, guildId = null) {
 // from a single fetch.
 
 export async function readFullProfile(env, userId, opts = {}) {
-  const [profile, xp, stats, recent, achievements, achCounts, badges, season] = await Promise.all([
+  const [profile, xp, stats, recent, achievements, achCounts, badges] = await Promise.all([
     getProfile(env, userId),
     readXpDisplay(env, userId),
     aggregateStats(env, userId, opts.guildId || null),
@@ -135,7 +134,6 @@ export async function readFullProfile(env, userId, opts = {}) {
     readAchievementsDisplay(env, userId),
     achievementCountsFor(env, userId),
     readBadgesDisplay(env, userId),
-    readSeasonDisplay(env, userId).catch(() => ({ active: null })),
   ]);
 
   // Privacy resolution. Friends-only and private gate the stats body
@@ -170,7 +168,6 @@ export async function readFullProfile(env, userId, opts = {}) {
     achievements: gated ? null : achievements,
     achievementCounts: achCounts,
     badges,
-    season,
     gated,
   };
 }

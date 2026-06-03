@@ -19,7 +19,6 @@ import { readAchievementsDisplay } from './achievements.js';
 import { ACHIEVEMENTS_CATALOG } from './achievements-catalog.js';
 import { readBadgesDisplay, setShowcase as setBadgeShowcase } from './badges.js';
 import { BADGE_CATALOG } from './badges-catalog.js';
-import { readSeasonDisplay, claimTier, ensureCurrentSeason } from './season.js';
 import { dashboardSummary } from './abuse.js';
 
 function json(obj, status = 200, extra = {}) {
@@ -255,20 +254,6 @@ export async function handleWebDashboard(req, env, _path) {
 // fire claims on someone else's account. Auth-gap fix (2026-05): the
 // public read moves here, the claim moves under the HMAC path
 // (routeSeasonClaim in web.js → /web/season/claim, body-bound discordId).
-export async function handlePublicSeason(req, env, path) {
-  if (req.method !== 'GET') {
-    return json({ error: 'method-not-allowed', hint: 'POST /web/season/claim with HMAC for writes' }, 405);
-  }
-  const parts = path.split('/').filter(Boolean);  // ['p','season', ...]
-  if (parts[2] === 'active') {
-    const s = await ensureCurrentSeason(env);
-    return json({ active: s });
-  }
-  const userId = parts[2];
-  if (!userId) return json({ error: 'userId required' }, 400);
-  const data = await readSeasonDisplay(env, userId);
-  return json({ userId, ...data });
-}
 
 // /web/profile/link/start?platform=...&userId=...&returnUrl=...
 // /web/profile/link/callback?platform=...&state=...&code=...

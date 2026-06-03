@@ -126,15 +126,6 @@ export async function emitProgressionEvent(env, event) {
       if (checkAchievements) achResult = await checkAchievements(env, event);
     } catch { /* module not present yet, that's fine, P3 wires it */ }
 
-    // ── Consumer #3: Season-pass progress ──
-    let seasonResult = null;
-    try {
-      const { recordSeasonProgress } = await import('./season.js');
-      if (recordSeasonProgress) seasonResult = await recordSeasonProgress(env, event, xpResult);
-    } catch (e) {
-      console.warn('[progression] season progress failed:', e && e.message);
-    }
-
     // ── Recent-activity ring buffer (per-user) ──
     try { await pushEventToRing(env, event.userId, event); } catch { /* non-fatal */ }
 
@@ -159,7 +150,6 @@ export async function emitProgressionEvent(env, event) {
       identity,
       xp: xpResult,
       ach: achResult,
-      season: seasonResult,
     };
   } catch (e) {
     console.warn('[progression] emit failed:', e && e.message);

@@ -736,10 +736,6 @@ export default {
     if (path === '/vote-hub/lineup') {
       return handleLineupPublic(req, env);
     }
-    // Public, CORS-open vote state (site /schedule day pages + vote pill).
-    if (path === '/vote-hub/public') {
-      return handleVotePublic(req, env);
-    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -925,10 +921,6 @@ export default {
     // reject public reads). /p/season/* must be matched FIRST since
     // it's a sub-path of /p/* and the userId-shaped path below would
     // otherwise treat "season" as a userId.
-    if (method === 'GET' && path.startsWith('/p/season')) {
-      const { handlePublicSeason } = await import('./progression/http.js');
-      return handlePublicSeason(req, env, path);
-    }
     if (method === 'GET' && path.startsWith('/p/')) {
       const { handleProfilePage } = await import('./progression/http.js');
       return handleProfilePage(req, env, path);
@@ -1036,14 +1028,6 @@ export default {
     if (path.startsWith('/web/spire-map/')) {
       const { handleSpireMapRoute } = await import('./spire-map.js');
       return handleSpireMapRoute(req, env, path);
-    }
-    // Anniversary celebrations, public GET /me/<g>/<u> for the
-    // firstSeen + anniversary-today view; POST /celebrate HMAC-gated
-    // to claim the per-year reward (cron handles the announcement
-    // post automatically). See anniversary.js.
-    if (path.startsWith('/web/anniversary/')) {
-      const { handleAnniversaryRoute } = await import('./anniversary.js');
-      return handleAnniversaryRoute(req, env, path);
     }
     // F3, Community activity feed (public GET)
     if (path === '/community/feed') {
@@ -1436,20 +1420,6 @@ export default {
             await env.LOADOUT_BOLTS.put('support-tickets:cron:last-sweep', today);
           } catch (e) {
             console.warn('[cron] support-tickets auto-close', e?.message || e);
-          }
-        })());
-        // Anniversary celebrations, once-per-UTC-day sweep (gated by
-        // an anniv:cron:last-sweep KV marker inside the helper). Walks
-        // the anniv:seen keyspace + posts a celebratory embed in the
-        // games-hub channel for anyone whose join-anniversary is today.
-        // Reward claim itself is pull-based via /web/anniversary/celebrate.
-        ctx.waitUntil((async () => {
-          try {
-            const { anniversaryDailyCron } = await import('./anniversary.js');
-            const r = await anniversaryDailyCron(env);
-            if (r?.announced) console.log('[cron] anniversary', JSON.stringify(r));
-          } catch (e) {
-            console.warn('[cron] anniversary', e?.message || e);
           }
         })());
         // Seasonal Spire monthly rotation. Piggybacked on :23; the
@@ -2534,23 +2504,6 @@ async function handleLineupPublic(req, env) {
   }
 }
 
-// Public: per-kind vote state (open flag, open/close timestamps, pool with
-// live counts, stored winner). Drives the aquilo.gg /schedule day pages +
-// the schedule vote pill. CORS-open like the Triple-C / Dad reads.
-async function handleVotePublic(req, env) {
-  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
-  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-  const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=15', ...cors };
-  try {
-    const { getVotePublic } = await import('./vote-hub.js');
-    const data = await getVotePublic(env, env.AQUILO_VAULT_GUILD_ID);
-    return new Response(JSON.stringify(data), { status: 200, headers });
-  } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 160) }),
-      { status: 500, headers });
-  }
-}
-
 // ── Poll composite asset route ─────────────────────────────────
 const POLL_COMPOSITE_RE = /^\/asset\/poll-composite\/([a-z0-9-]+?)(?:\.png)?$/;
 
@@ -2777,7 +2730,7 @@ async function handleGiftEmbedPost(req, env, path) {
     embeds: [{
       title: '🎁 Gift Aquilo Supporter Access',
       description: [
-        'Give a friend a paid Patreon membership and they unlock every Patreon perk across the Aquilo ecosystem, exclusive cosmetics, priority queue access, hero campaign slots, early access to new tools, and more.',
+        'Give a friend a paid Patreon membership and they unlock every Patreon perk across the Aquilo ecosystem, exclusive cosmetics, priority queue access, early access to new tools, and more.',
         '',
         'Free Patreon memberships work too, but paid gifts unlock everything immediately.',
       ].join('\n'),

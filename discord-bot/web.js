@@ -130,9 +130,6 @@ const ROUTES = new Set([
   'play/dust/craft',
   'play/drops/active',
   'play/drops/upcoming',
-  // 2026-05-29 sprint, Aquilo Pass + stream-bonus probe.
-  'pass/state',
-  'pass/claim-tier',
   'stream/bonus-state',
   'play/cosmetics/me',
   'play/cards/back/list',
@@ -146,16 +143,6 @@ const ROUTES = new Set([
   'play/war/active',
   'play/war/declare',
   'play/war/raid',
-  'season/claim',
-  // Discord rich-presence web fallback (Batch B). The site reports the
-  // viewer's current aquilo.gg activity here; the worker persists it to
-  // KV with a heartbeat-expiry so a future desktop consumer (StreamFusion
-  // Discord RPC) can read the feed. userId-keyed + guild-agnostic, so
-  // these three bypass the strict discordId/guildId gate (handled early
-  // in handleWeb, before that gate). See DISCORD-RICH-PRESENCE.md.
-  'presence/update',
-  'presence/clear',
-  'presence/feed',
   // New-viewer funnel, referral attribution. /me returns the
   // caller's stable referral code + bring-in stats; /attribute is
   // what the site POSTs after Patreon-link to record (refereeId,
@@ -175,11 +162,9 @@ const ROUTES = new Set([
   'admin/active-guild',
   'admin/clear-binding',
   'admin/pipe-tests',
-  'admin/anniversary-backfill',  // POST {_owner, maxPages?, cursor?}, stamp legacy anniv:seen
   'admin/triple-c/set',          // POST {_owner, gameSlug}, lock the Triple-C campaign + announce
   'admin/dad-sunday/set',        // POST {_owner, gameSlug}, lock Dad Game Sunday + announce
   'admin/lineup/post',           // POST {_owner}, (re)post + pin the weekly lineup recap
-  'vote-hub/cast',               // POST { kind, gameId }, cast a web vote (discord-linked)
   'admin/stream-events/sync',    // POST {_owner, horizonDays?}, mirror schedule → Discord events
   // Daily community check-in (unified with /checkin slash command).
   'checkin',                 // POST, record today's check-in
@@ -216,23 +201,10 @@ const ROUTES = new Set([
   // New-viewer funnel, referrals + onboarding quest.
   'referral/me',             // POST, my code + stats
   'referral/attribute',      // POST, record that this user was referred by CODE
-  // Anniversary celebrations (anniversary.js). The premium-feature
-  // spec wrote these as GET/POST /web/anniversary/{check,celebrate}/:userId,
-  // but every /web/* route here is POST + HMAC + body-bound discordId
-  // (you can only act as yourself), so these follow that convention:
-  // the acting user is body.discordId, no :userId path param.
-  'anniversary/check',       // POST, { discordId, guildId } → anniversary state (or null)
-  'anniversary/celebrate',   // POST, claim this year's reward (idempotent)
   // Aether economy (aether.js), D1 ledger, spendable premium currency.
   'aether/balance',          // POST, { discordId, guildId } → balance + lifetime totals
   'aether/spend',            // POST, { amount, reason? } → debit (insufficient-aether on overdraw)
   'aether/history',          // POST, { limit? } → newest-first transaction ledger
-  // Aquilo Pass v2 (aquilo-pass-d1.js), D1 battle pass, 30 tiers,
-  // free+premium. Namespaced pass2/* so it coexists with the legacy
-  // KV pass at pass/state + pass/claim-tier.
-  'pass2/state',             // POST, full season + progress + per-tier reward state
-  'pass2/claim',             // POST, { tier, track } → claim one reward (idempotent)
-  'pass2/buy-premium',       // POST, own the premium track (gated on paid Patreon)
   'quest/snapshot',          // POST, checklist with claim state
   'quest/claim',             // POST, claim one step (or 'all')
   'quest/mark-patreon-linked', // POST, flip the patreon-linked completion flag (called by site after OAuth)
@@ -288,18 +260,6 @@ export async function handleWeb(req, env) {
 
   let body;
   try { body = JSON.parse(bodyText); } catch { return json({ error: 'bad-json' }, 400); }
-
-  // Discord-presence web fallback, handled BEFORE the discordId/guildId
-  // gate below because presence is per-user + guild-agnostic: the site
-  // proxy forwards { userId, key, state, detail } (no guildId, and
-  // `userId` not `discordId`). Already HMAC-verified above. feed is
-  // owner-gated for the future desktop RPC consumer.
-  if (route === 'presence/update') return await routePresenceUpdate(env, body);
-  if (route === 'presence/clear')  return await routePresenceClear(env, body);
-  if (route === 'presence/feed') {
-    if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
-    return await routePresenceFeed(env);
-  }
 
   const discordId = String((body && body.discordId) || '').trim();
   const guildId = String((body && body.guildId) || '').trim();
@@ -406,7 +366,6 @@ export async function handleWeb(req, env) {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routeQueuesCloseNight(env, guildId);
     }
-    if (route === 'vote-hub/cast')         return await routeVoteHubCast(env, guildId, discordId, body);
     if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
     if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId);
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
@@ -438,8 +397,6 @@ export async function handleWeb(req, env) {
     if (route === 'play/dust/craft')              return await routeDustCraft(env, guildId, discordId, body);
     if (route === 'play/drops/active')            return await routeDropsActive(env);
     if (route === 'play/drops/upcoming')          return await routeDropsUpcoming(env, body);
-    if (route === 'pass/state')                   return await routePassState(env, discordId);
-    if (route === 'pass/claim-tier')              return await routePassClaim(env, guildId, discordId, body);
     if (route === 'stream/bonus-state')           return await routeStreamBonusState(env);
     if (route === 'play/cosmetics/me')            return await routeCosmeticsMe(env, discordId);
     if (route === 'play/cards/back/list')         return await routeCardBackList(env, discordId);
@@ -455,14 +412,9 @@ export async function handleWeb(req, env) {
     if (route === 'play/war/raid')         return await routeWarRaid(env, guildId, discordId, body);
     if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
-    if (route === 'anniversary/check')        return await routeAnniversaryCheck(env, guildId, discordId);
-    if (route === 'anniversary/celebrate')    return await routeAnniversaryCelebrate(env, guildId, discordId);
     if (route === 'aether/balance')           return await routeAetherBalance(env, guildId, discordId);
     if (route === 'aether/spend')             return await routeAetherSpend(env, guildId, discordId, body);
     if (route === 'aether/history')           return await routeAetherHistory(env, guildId, discordId, body);
-    if (route === 'pass2/state')              return await routePass2State(env, discordId);
-    if (route === 'pass2/claim')              return await routePass2Claim(env, guildId, discordId, body);
-    if (route === 'pass2/buy-premium')        return await routePass2BuyPremium(env, guildId, discordId);
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
     if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
     if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
@@ -474,7 +426,6 @@ export async function handleWeb(req, env) {
     if (route === 'setup/branding')   return await routeSetupBranding(env, guildId, body);
     if (route === 'chat/send')        return await routeChatSend(env, guildId, discordId, body);
     if (route === 'chat/relay/recent') return await routeChatRelayRecent(env, guildId, discordId, body);
-    if (route === 'season/claim')          return await routeSeasonClaim(env, discordId, body);
     if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
     if (isBoardRoute(route))               return await routeBoard(env, route, guildId, discordId, body);
   } catch (e) {
@@ -595,14 +546,6 @@ async function noteFirstGame(env, guildId, userId) {
 
 async function routeDaily(env, guildId, userId) {
   await noteGamePlayed(env, guildId, userId);
-  // Anniversary firstSeen heartbeat, daily claim is the cheapest
-  // once-per-day-per-user activity signal. Min-wins, so it never
-  // overrides an earlier stamp; for users created after the last
-  // backfill this captures their join date going forward.
-  try {
-    const { recordFirstSeen } = await import('./anniversary.js');
-    await recordFirstSeen(env, guildId, userId);
-  } catch { /* non-fatal */ }
   const r = await daily(env, guildId, userId);
   if (r.won) {
     // games_won bumps on a successful daily so the recap card's
@@ -613,13 +556,6 @@ async function routeDaily(env, guildId, userId) {
       games_won: 1,
     });
     await noteFirstGame(env, guildId, userId);
-    // Aquilo Pass v2 XP, daily claim feeds battle-pass progression.
-    // Best-effort (no D1 binding in some envs); never blocks the claim.
-    try {
-      const { seedSeasonOne, grantPassXp } = await import('./aquilo-pass-d1.js');
-      await seedSeasonOne(env);
-      await grantPassXp(env, userId, 50, 'daily-claim');
-    } catch { /* pass optional */ }
   }
   // Surface the post-claim wallet so the UI doesn't need a follow-up
   // round trip.
@@ -773,18 +709,6 @@ async function routeQueuesCloseNight(env, guildId) {
   return json(r, r.ok ? 200 : 400);
 }
 
-// Cast a schedule vote from aquilo.gg. discordId + guildId are stamped by
-// the site proxy from the verified session; kind + gameId are forwarded
-// from the day page. Delegates to vote-hub.js so Discord + web share one
-// ballot store.
-async function routeVoteHubCast(env, guildId, discordId, body) {
-  const { castWebVote } = await import('./vote-hub.js');
-  const r = await castWebVote(env, guildId, discordId,
-    String((body && body.kind) || ''), String((body && body.gameId) || ''));
-  const code = r.ok ? 200 : (r.error === 'vote-not-open' ? 409 : 400);
-  return json(r, code);
-}
-
 
 async function routeDice(env, guildId, userId, body) {
   await noteGamePlayed(env, guildId, userId);
@@ -876,23 +800,6 @@ async function routeReferralAttribute(env, guildId, discordId, body) {
 //   anniversary AND that year hasn't been claimed.
 //   Returns: { ok, granted, years?, reward?, reason? }
 //
-// Touches firstSeen as a side effect, visiting the dashboard counts
-// as activity, so an unseen user gets stamped on first check (their
-// anniversary clock starts now). Existing users keep their earlier
-// stamp (recordFirstSeen is min-wins).
-async function routeAnniversaryCheck(env, guildId, discordId) {
-  const { recordFirstSeen, checkAnniversary } = await import('./anniversary.js');
-  await recordFirstSeen(env, guildId, discordId);
-  const r = await checkAnniversary(env, guildId, discordId);
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeAnniversaryCelebrate(env, guildId, discordId) {
-  const { celebrateAnniversary } = await import('./anniversary.js');
-  const r = await celebrateAnniversary(env, guildId, discordId);
-  return json(r, statusFor(r));
-}
-
 // ── /web/aether/*, Aether economy ledger ────────────────────────────
 async function routeAetherBalance(env, guildId, discordId) {
   const { getAetherBalance } = await import('./aether.js');
@@ -913,62 +820,6 @@ async function routeAetherHistory(env, guildId, discordId, body) {
   const { getAetherHistory } = await import('./aether.js');
   const r = await getAetherHistory(env, guildId, discordId, body && body.limit);
   return json(r, r.ok ? 200 : 400);
-}
-
-// ── /web/pass2/*, Aquilo Pass v2 (D1) ───────────────────────────────
-const PASS2_PREMIUM_AETHER_COST = 500;
-
-async function routePass2State(env, discordId) {
-  const { seedSeasonOne, getPassState } = await import('./aquilo-pass-d1.js');
-  // Lazy-seed Season 1 on first read so the pass is always populated.
-  await seedSeasonOne(env).catch(() => {});
-  const r = await getPassState(env, discordId);
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routePass2Claim(env, guildId, discordId, body) {
-  const tier = Math.floor(Number(body && body.tier) || 0);
-  const track = (body && body.track) === 'premium' ? 'premium' : 'free';
-  if (tier < 1) return json({ ok: false, error: 'tier-required' }, 400);
-  const { claimTier } = await import('./aquilo-pass-d1.js');
-  const r = await claimTier(env, guildId, discordId, tier, track);
-  const code = r.ok ? 200
-    : r.error === 'tier-not-reached' ? 409
-    : r.error === 'premium-locked' ? 403
-    : 400;
-  return json(r, code);
-}
-
-// Own the premium track: free for paid Patreon supporters, otherwise
-// purchasable for PASS2_PREMIUM_AETHER_COST aether.
-async function routePass2BuyPremium(env, guildId, discordId) {
-  const { setPremium, getPassState } = await import('./aquilo-pass-d1.js');
-  const state = await getPassState(env, discordId);
-  if (!state.ok) return json(state, 400);
-  if (state.progress.premium) return json({ ok: true, premium: true, alreadyOwned: true });
-
-  // Paid Patreon → free unlock.
-  let paid = false;
-  try {
-    const rec = await env.LOADOUT_BOLTS.get(`patreon:tier:${discordId}`, { type: 'json' });
-    const tier = String(rec?.tier || rec?.tierName || '').trim().toLowerCase();
-    paid = !!tier && tier !== 'free';
-  } catch { /* no patreon record */ }
-
-  if (paid) {
-    await setPremium(env, discordId, true);
-    return json({ ok: true, premium: true, via: 'patreon' });
-  }
-  // Otherwise buy with aether.
-  const { spendAether } = await import('./aether.js');
-  const spent = await spendAether(env, guildId, discordId, PASS2_PREMIUM_AETHER_COST, 'pass2:premium-unlock');
-  if (!spent.ok) {
-    return json({ ok: false, error: 'insufficient-aether', costAether: PASS2_PREMIUM_AETHER_COST,
-                  balance: spent.balance ?? 0 }, 402);
-  }
-  await setPremium(env, discordId, true);
-  return json({ ok: true, premium: true, via: 'aether', spentAether: PASS2_PREMIUM_AETHER_COST,
-                aetherBalance: spent.balance });
 }
 
 // ── Quick bolts games (2026-05) ──────────────────────────────────────
@@ -1460,13 +1311,6 @@ async function routeChatUnreact(env, discordId, body) {
 //
 // guildId is required by the outer dispatcher's auth but isn't read
 // by claimTier, season records are per-user, not per-guild.
-async function routeSeasonClaim(env, discordId, body) {
-  const tier = parseInt(body && body.tier, 10) || 0;
-  const track = (body && body.track) || 'free';
-  const { claimTier } = await import('./progression/season.js');
-  const r = await claimTier(env, discordId, tier, track);
-  return json(r, r.ok ? 200 : 400);
-}
 
 // ── Daily community check-in (unified with /checkin slash command) ────
 //

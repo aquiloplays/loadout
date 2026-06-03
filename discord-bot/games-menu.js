@@ -143,14 +143,6 @@ export async function handleGamesMenuComponent(data, env, ctx) {
         const r = await handlePlayCommand(env, blankData, guildId, userId, userName);
         return forceEphemeral(r);
       }
-      case 'campaign': {
-        // Campaign has no slashless renderer; surface the status sub-cmd.
-        const { handleCampaignCommand } = await import('./campaigns/campaigns.js');
-        const subData = { ...blankData, data: { ...(blankData.data || {}),
-          options: [{ name: 'status', type: 1, options: [] }] } };
-        const r = await handleCampaignCommand(env, subData, userId, userName);
-        return forceEphemeral(r);
-      }
       case 'loadout': {
         // Loadout's home menu, wallet / daily / games / profile.
         // Viewers navigate inside via lo:* buttons.
