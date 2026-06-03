@@ -420,14 +420,6 @@ export async function claimPetDeliveries(env, guildId, userId) {
       if (r.bolts) {
         totalBolts += r.bolts;
         summary.bolts += r.bolts;
-      } else if (r.material) {
-        const { addResources } = await import('./clash-resources.js');
-        await addResources(env, guildId, { [r.material]: r.amount });
-        summary.materials[r.material] = (summary.materials[r.material] || 0) + r.amount;
-      } else if (r.cores) {
-        const { addResources } = await import('./clash-resources.js');
-        await addResources(env, guildId, { cores: r.cores });
-        summary.cores += r.cores;
       } else if (r.fragments) {
         const { addFragments } = await import('./cards-fragments.js');
         await addFragments(env, userId, r.fragments, 'pet:delivery');

@@ -135,19 +135,6 @@ export default {
     // Loadout-side endpoints
     if (method === 'POST' && path === '/claim')                      return mintClaim(req, env);
     if (method === 'GET'  && path.startsWith('/claim/') && path.endsWith('/status')) return claimStatus(req, env, path);
-    // Clash sync routes MUST come before the generic /sync/ catch-all
-    // below — otherwise handleSync swallows /sync/<g>/clash-events,
-    // /sync/<g>/clash, /sync/<g>/clash/build, etc. and serves them as
-    // wallet snapshots, silently dropping the DLL's clash-events
-    // ring-buffer poll and the web editor's town write-throughs.
-    if (method === 'GET' && path.startsWith('/sync/') && path.endsWith('/clash-events')) {
-      const { handleClashEventsPull } = await import('./clash-http.js');
-      return handleClashEventsPull(req, env, path);
-    }
-    if (path.startsWith('/sync/') && (path.endsWith('/clash') || path.includes('/clash/'))) {
-      const { handleClashSync } = await import('./clash-http.js');
-      return handleClashSync(req, env, path);
-    }
     if (path.startsWith('/sync/'))                                   return handleSync(req, env, path);
     if (path.startsWith('/tips/'))                                   return handleTip(req, env, path);
 
@@ -654,19 +641,15 @@ export default {
     if ((method === 'GET' || method === 'HEAD') && path.startsWith('/asset/card-art/')) {
       return handleCardArtAsset(req, env, path);
     }
-    // Generic pixel-art asset routes — heroes, gear, clash buildings/
-    // units, pets. All share the same KV-backed pattern as card-art:
+    // Generic pixel-art asset routes — heroes, gear, pets. All share
+    // the same KV-backed pattern as card-art:
     //   /asset/hero-art/<classId>.png      -> pixel-art-hero:<classId>
     //   /asset/gear-art/<slot>/<name>/<rarity>.png
     //                                       -> pixel-art-gear:<slot>:<name>:<rarity>
-    //   /asset/clash-art/buildings/<kind>/<level>.png
-    //                                       -> pixel-art-clash:buildings:<kind>:<level>
-    //   /asset/clash-art/units/<id>.png    -> pixel-art-clash:units:<id>
     //   /asset/pet-art/<petId>.png         -> pixel-art-pet:<petId>
     if ((method === 'GET' || method === 'HEAD') && (
       path.startsWith('/asset/hero-art/') ||
       path.startsWith('/asset/gear-art/') ||
-      path.startsWith('/asset/clash-art/') ||
       path.startsWith('/asset/pet-art/') ||
       path.startsWith('/asset/boltbound-ui/') ||
       path.startsWith('/asset/cardback/') ||
@@ -1184,23 +1167,6 @@ export default {
       if (r) return r;
     }
 
-    // ── Clash (Phase 4) ────────────────────────────────────────────
-    // Public global leaderboard (top raiders + top towns) — no auth,
-    // mirrors /leaderboard/<guildId>. Future aquilo.gg /clash page
-    // hits this for the ranked-ladder view.
-    if (method === 'GET' && path === '/clash-leaderboard') {
-      const { handleClashLeaderboardHttp } = await import('./clash-http.js');
-      return handleClashLeaderboardHttp(req, env);
-    }
-    // Public per-town read for the web base editor + Twitch panel —
-    // returns enough state to render the town view client-side.
-    if (method === 'GET' && path.startsWith('/clash/town/')) {
-      const { handleClashTownPublic } = await import('./clash-http.js');
-      return handleClashTownPublic(env, path);
-    }
-    // /sync/<g>/clash[-events] are dispatched earlier (before the
-    // generic /sync/ catch-all). See the block near /claim.
-
     // /p/ profile page hoisted earlier in dispatch order doesn't fit
     // here cleanly because /p/ doesn't collide with anything; placed
     // earlier to be findable. (handled above the /web/ block.)
@@ -1449,15 +1415,7 @@ export default {
           })());
         }
       }
-      // Clash housekeeping piggybacks on the :23 hourly tick — CF
-      // free plan caps a Worker at 5 cron triggers and we're using
-      // all five for stocks/sports/queue/aquilo. Inside
-      // clash-cron.js the tick gates the once-per-day trophy decay
-      // via a `clash:cron:last-decay` KV marker so it only runs once
-      // per UTC day even though the cron fires hourly.
       if (event.cron === '23 * * * *') {
-        const { clashDailyCronTick } = await import('./clash-cron.js');
-        ctx.waitUntil(clashDailyCronTick(env, event.cron));
         // Aquilo-bot fold-in piggybacks on the same :23 tick (CF
         // free-plan 4-cron ceiling on this account). The aquilo
         // handler runs per-task hour checks and KV-marker dedupe so
@@ -2354,12 +2312,11 @@ async function handleCardArtAsset(req, env, path) {
 // shell injection / wide-open lookups. We allow lowercase alpha-
 // numeric + period + hyphen — enough for `champ.warrior`, `level-3`,
 // etc., but no slashes/dots/dot-dot.
-const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|clash-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
+const PIXEL_ART_ROUTE_RE = /^\/asset\/(hero-art|gear-art|pet-art|boltbound-ui|cardback|pack|hero-body|spire-boss|spire-map)\/([A-Za-z0-9][A-Za-z0-9.\-\/]*?)(?:\.png)?$/;
 const PIXEL_ART_SEG_RE   = /^[A-Za-z0-9][A-Za-z0-9.\-]*$/;
 const PIXEL_ART_CATEGORY = {
   'hero-art':     'hero',
   'gear-art':     'gear',
-  'clash-art':    'clash',
   'pet-art':      'pet',
   // 2026-05-30 — sprite-redesign batch namespaces. Boltbound UI
   // assets (hero frames, crystals, buttons, dropzones, bgs, chest)
@@ -2406,7 +2363,7 @@ async function handlePixelArtAsset(req, env, path) {
   // 2026-06 hero customization overhaul: hero-body (skin-tone variants) +
   // hero-art are re-uploaded in place during the build, so keep them on a
   // short TTL until the paper-doll set stabilizes, then restore immutable.
-  const isShortCache = ['clash', 'pack', 'cardback', 'hero-body', 'hero'].includes(category);
+  const isShortCache = ['pack', 'cardback', 'hero-body', 'hero'].includes(category);
   const headers = {
     'content-type':   'image/png',
     'cache-control':  isShortCache ? 'public, max-age=3600' : 'public, max-age=31536000, immutable',
@@ -5553,7 +5510,7 @@ async function handlePhase2(req, env, path) {
   const voting = cfg.ids.ch_voting;
   const queue  = cfg.ids.ch_cn_queue;
   const bindings = {};
-  if (games)   { bindings.play = [games]; bindings.boltbound = [games]; bindings.character = [games]; bindings.pet = [games]; bindings.clash = [games]; bindings.lfg = [games]; }
+  if (games)   { bindings.play = [games]; bindings.boltbound = [games]; bindings.character = [games]; bindings.pet = [games]; bindings.lfg = [games]; }
   if (checkin) { bindings.checkin = [checkin]; }
   if (voting)  { bindings['rotation-poll'] = [voting]; bindings['trivia-add'] = [voting]; }
   if (queue)   { bindings.queue = [queue]; bindings.schedule = [voting || games].filter(Boolean); }

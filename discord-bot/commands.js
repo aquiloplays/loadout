@@ -28,7 +28,6 @@ import { handleBet, handleBetAutocomplete } from './bet.js';
 import { renderHubCommand, handleHubComponent, handleHubModal } from './hub-menu.js';
 import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
 import { handleSchedule, handleGames } from './schedule.js';
-import { handleClashCommand, handleClashComponent } from './clash.js';
 import { handleQueueSlash } from './queue.js';
 // Aquilo-bot fold-in. Single dispatcher that owns the aquilo command
 // family — see discord-bot/aquilo/worker.js dispatchAquiloInteraction.
@@ -167,7 +166,6 @@ export async function handleInteraction(req, env, body, ctx) {
     }
     if (cid.startsWith('hub:'))       return handleHubComponent(data, env);
     if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
-    if (cid.startsWith('clash:'))     return json(await handleClashComponent(env, data));
     if (cid.startsWith('character:')) return json(await handleCharacterComponent(env, data));
     if (cid.startsWith('boltbound:')) return json(await handleBoltboundComponent(env, data));
     if (cid.startsWith('qg:'))        return handlePlayComponent(env, data);
@@ -371,10 +369,6 @@ export async function handleInteraction(req, env, body, ctx) {
       // Game-catalog editor — companion to /schedule. Writes
       // `games:v1:<g>` shared with aquilo.gg/admin.
       return json(await handleGames(env, guild, data.data?.options || []));
-
-    case 'clash':
-      // Town-and-raid feature. See CLASH-FEATURE-DESIGN.md.
-      return json(await handleClashCommand(env, data, userId, userName));
 
     case 'queue':
       // Community / Variety Night per-game queue. Open / close are

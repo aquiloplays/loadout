@@ -21,7 +21,6 @@ const HANDLE_INDEX_KEY = (safe) => `pprofile:handle:${safe}`;
 // module. The progression layer is the only thing that knows about
 // the union.
 const FEATURE_ORDER = [
-  { feature: 'clash',     importPath: '../clash-state.js' },
   { feature: 'boltbound', importPath: '../cards-state.js' },
   { feature: 'board',     importPath: '../boardgames-engine.js' },
   { feature: 'hero',      importPath: '../character.js' },

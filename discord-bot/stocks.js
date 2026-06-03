@@ -35,7 +35,7 @@
 
 import { json } from './ext-shared.js';
 import { spend, earn, getWallet } from './wallet.js';
-import { firePush } from './clash-push.js';
+import { firePush } from './push.js';
 
 const CATALOG_KEY = 'stocks:catalog:v1';
 const FEE_PCT = 1;

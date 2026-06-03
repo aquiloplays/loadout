@@ -138,11 +138,6 @@ export async function handleGamesMenuComponent(data, env, ctx) {
         const r = await handleBoltboundCommand(env, blankData, userId, userName);
         return forceEphemeral(r);
       }
-      case 'clash': {
-        const { handleClashCommand } = await import('./clash.js');
-        const r = await handleClashCommand(env, blankData, userId, userName);
-        return forceEphemeral(r);
-      }
       case 'play': {
         const { handlePlayCommand } = await import('./quickgames-command.js');
         const r = await handlePlayCommand(env, blankData, guildId, userId, userName);

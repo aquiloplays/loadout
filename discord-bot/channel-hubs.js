@@ -89,14 +89,12 @@ const HUBS = Object.freeze({
       'Bolts are the cross-platform currency. Earn from daily check-in, games, raids, gifting and more.\n\n' +
       '• **Check balance** — current + lifetime\n' +
       '• **Transfer bolts** — send to another viewer\n' +
-      '• **Wallet history** — recent earn / spend events\n' +
-      '• **Donate to Clash** — fund the community town treasury',
+      '• **Wallet history** — recent earn / spend events',
     footer: '/loadout has the same surface as this hub.',
     buttons: () => [
       { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Check balance',   custom_id: 'bolts:balance' },
       { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Transfer bolts',  custom_id: 'bolts:transfer' },
       { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Wallet history',  custom_id: 'bolts:history' },
-      { type: COMPONENT_BUTTON, style: BTN_SUCCESS,   label: 'Donate to Clash', custom_id: 'bolts:donate' },
     ],
   },
   play: {
@@ -106,14 +104,12 @@ const HUBS = Object.freeze({
     description:
       'Every gameplay surface — one hub. Tap any tile to open it.\n\n' +
       '• **Boltbound** — async card battler\n' +
-      '• **Clash** — town builder + raids\n' +
       '• **Quick games** — coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash\n' +
       '• **Character** — open the upload-based hero editor\n' +
       '• **RPG (Loadout)** — wallet, inventory, kit, daily',
     rows: () => [
       [
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Boltbound',     custom_id: 'play:boltbound' },
-        { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Clash',         custom_id: 'play:clash' },
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Quick games',   custom_id: 'play:quick' },
         { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Character',     custom_id: 'play:character' },
         { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'RPG (Loadout)', custom_id: 'play:rpg' },
@@ -468,37 +464,6 @@ export async function handleBoltsHubComponent(env, data) {
       color: 0xe6c474,
     });
   }
-  if (action === 'donate') {
-    // Quick donate flow — same pattern as play:vault-donate, but
-    // surfaced from the bolts hub for users who landed here first.
-    let treasuryLine = '';
-    try {
-      const { getTreasury } = await import('./clash-state.js');
-      const t = await getTreasury(env, guildId).catch(() => 0);
-      treasuryLine = `\n🏰 Current town treasury: **${(t || 0).toLocaleString()}** bolts`;
-    } catch { /* idle */ }
-    const brand = await getBranding(env, guildId);
-    return {
-      type: RESP_CHAT,
-      data: {
-        embeds: [{
-          title: '🏛️ Donate to Clash treasury',
-          description: 'Bolts donated fund the community town\'s upgrades + garrison.' + treasuryLine,
-          color: 0xe6c474,
-        }],
-        components: [{
-          type: COMPONENT_ROW,
-          components: [
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 100',  custom_id: 'play:vault-donate:100' },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 500',  custom_id: 'play:vault-donate:500' },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Donate 1000', custom_id: 'play:vault-donate:1000' },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Custom amount on aquilo.gg', url: `${brand.siteUrl || 'https://aquilo.gg'}/clash/town/${guildId}/` },
-          ],
-        }],
-        flags: FLAG_EPHEMERAL,
-      },
-    };
-  }
   return eph('Unknown bolts action: ' + cid);
 }
 
@@ -599,39 +564,6 @@ export async function handlePlayHubComponent(env, data) {
     } catch (e) {
       return eph('❌ ' + (e?.message || e));
     }
-  }
-
-  if (action === 'clash') {
-    // Quick town snapshot if available.
-    let townLine = '';
-    try {
-      const { getTown, getTreasury } = await import('./clash-state.js');
-      const town = await getTown(env, guildId).catch(() => null);
-      if (town) {
-        const treasury = await getTreasury(env, guildId).catch(() => 0);
-        townLine = `\n🏰 Town hall L${town.thLevel || 1} · treasury **${(treasury || 0).toLocaleString()}** bolts`;
-      }
-    } catch { /* idle */ }
-    return {
-      type: RESP_CHAT,
-      data: {
-        embeds: [{
-          title: '⚔️ Clash',
-          description: 'Build the community town. Raid for loot. Defend against attackers.' + townLine,
-          color: 0x3a82ff,
-        }],
-        components: [{
-          type: COMPONENT_ROW,
-          components: [
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Town manager',      url: `${site}/clash/town/${guildId}/` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Raid (goblins)',    url: `${site}/clash/?action=raid&kind=goblin` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Raid (player)',     url: `${site}/clash/?action=raid&kind=player` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Global leaderboard', url: `${site}/clash/leaderboard/` },
-          ],
-        }],
-        flags: FLAG_EPHEMERAL,
-      },
-    };
   }
 
   if (action === 'quick') {
@@ -859,7 +791,6 @@ export async function handleAchievementsHubComponent(env, data) {
             '• 🔢 Counting — streaks + perfect runs in #counting\n' +
             '• ✅ Check-in — daily / milestone\n' +
             '• 🃏 Boltbound — collection / battle / win streak\n' +
-            '• ⚔️ Clash — raid wins / town upgrades\n' +
             '• 🎮 Quick games — variety + win streaks\n' +
             '• 🏆 Tier — level milestones (5/25/50/100)',
           color: 0xff9d6c,

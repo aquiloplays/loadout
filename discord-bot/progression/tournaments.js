@@ -30,8 +30,6 @@ const GAMES = {
                weight: 4, label: 'Boltbound' },
   board:     { format: 'bracket', durationDays: [3, 4], capacity: 32,
                weight: 2, label: 'Board Games' },
-  clash:     { format: 'ladder',  durationDays: [3, 3], capacity: 9999,
-               weight: 2, label: 'Clash' },
   quick:     { format: 'ladder',  durationDays: [1, 2], capacity: 9999,
                weight: 2, label: 'Quick Games' },
 };

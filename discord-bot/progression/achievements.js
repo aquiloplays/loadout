@@ -200,13 +200,9 @@ async function applyUnlockSideEffects(env, userId, ach) {
 
   // Push notification — uses the dedicated pushAchievementUnlocked
   // helper so the PWA sees kind='achievement.unlocked' with the right
-  // title + body. Previously this called pushBuildComplete (a hack
-  // when the achievement push helper didn't exist yet), which sent
-  // kind='clash.build.complete' and a hardcoded body "Your troop
-  // training finished." — that body string is exactly what Clay saw
-  // under the wrong header on 2026-05-29. Both symptoms gone now.
+  // title + body.
   try {
-    const { pushAchievementUnlocked } = await import('../clash-push.js');
+    const { pushAchievementUnlocked } = await import('../push.js');
     if (pushAchievementUnlocked) {
       await pushAchievementUnlocked(env, {
         userId,
