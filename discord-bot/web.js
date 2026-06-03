@@ -28,7 +28,7 @@ import {
   roulette, wheel,
   hiloStart, hiloGuess, hiloCashout,
   minesStart, minesReveal, minesCashout,
-  plinko, crash,
+  plinko,
   quickGamesSnapshot,
 } from './games-quick.js';
 import { getWallet, applyVaultDelta } from './wallet.js';
@@ -108,7 +108,6 @@ const ROUTES = new Set([
   'mines/reveal',
   'mines/cashout',
   'plinko',
-  'crash',
   'bet/snapshot',
   'bet/place',
   'queues/snapshot',
@@ -400,7 +399,6 @@ export async function handleWeb(req, env) {
     if (route === 'mines/reveal')       return await routeMinesReveal(env, guildId, discordId, body);
     if (route === 'mines/cashout')      return await routeMinesCashout(env, guildId, discordId);
     if (route === 'plinko')             return await routePlinko(env, guildId, discordId, body);
-    if (route === 'crash')              return await routeCrash(env, guildId, discordId, body);
     if (route === 'bet/snapshot') return await routeBetSnapshot(env, guildId, discordId);
     if (route === 'bet/place')    return await routeBetPlace(env, guildId, discordId, body);
     if (route === 'queues/snapshot') return await routeQueuesSnapshot(env, guildId, body);
@@ -1179,18 +1177,6 @@ async function routePlinko(env, guildId, userId, body) {
   const cd = await cooldownCheck(env, userId);
   if (!cd.ok) return json({ ...cd, ok: false }, 429);
   const r = await plinko(env, guildId, userId, bet, risk);
-  if (!r.ok) return json(r, 400);
-  applyRecap(env, guildId, userId, r);
-  r.cooldownUntil = await cooldownTouch(env, userId);
-  return json(r);
-}
-
-async function routeCrash(env, guildId, userId, body) {
-  const bet = Number(body && body.bet);
-  const cashout = Number(body && body.cashout);
-  const cd = await cooldownCheck(env, userId);
-  if (!cd.ok) return json({ ...cd, ok: false }, 429);
-  const r = await crash(env, guildId, userId, bet, cashout);
   if (!r.ok) return json(r, 400);
   applyRecap(env, guildId, userId, r);
   r.cooldownUntil = await cooldownTouch(env, userId);

@@ -817,49 +817,6 @@ export async function plinko(env, guildId, userId, bet, risk) {
 //   - else: bust = 0.99 / (1 - r)   with r uniform in (0, 1)
 //     => median ≈ 1.97, heavy tail. House edge ≈ 1%.
 
-export async function crash(env, guildId, userId, bet, cashout) {
-  if (!Number.isFinite(bet) || bet <= 0) {
-    return { ok: false, error: 'bad-bet', message: 'Bet must be a positive number.' };
-  }
-  if (!Number.isFinite(cashout) || cashout < 1.01 || cashout > 1000) {
-    return { ok: false, error: 'bad-cashout', message: 'Cashout multiplier must be 1.01-1000.' };
-  }
-  const sp = await spend(env, guildId, userId, bet, 'crash:wager');
-  if (!sp.ok) return { ok: false, error: 'insufficient', message: sp.reason };
-
-  // Instant-bust roll, then sample a heavy-tail bust point.
-  const r = rngFloat();
-  let bust;
-  if (r < 0.04) {
-    bust = 1.00;
-  } else {
-    // Reuse another draw so the 4% instant-bust doesn't shift the tail.
-    const u = rngFloat();
-    bust = Math.max(1.01, 0.99 / (1 - u));
-    // Cap so a once-in-a-million 1e6× doesn't tip wallets into the gutter.
-    if (bust > 1000) bust = 1000;
-  }
-  bust = Math.floor(bust * 100) / 100;
-
-  const won = bust >= cashout;
-  let gross = 0;
-  if (won) gross = Math.floor(bet * cashout);
-  if (gross > 0) await earn(env, guildId, userId, capWin(bet, gross), 'crash:cashout');
-  await emitQuickGame(env, userId, guildId, 'crash', bet, gross);
-
-  return await withBalance(env, guildId, userId, {
-    ok: true,
-    won,
-    bet,
-    cashout,
-    bust,
-    payout: gross - bet,
-    explanation: won
-      ? '🚀 Cashed out at ' + cashout.toFixed(2) + '× before bust at ' + bust.toFixed(2) + '×. +' + (gross - bet) + ' bolts.'
-      : '💥 Busted at ' + bust.toFixed(2) + '× before your ' + cashout.toFixed(2) + '× cashout. Lost ' + bet + ' bolts.',
-  });
-}
-
 // ── Snapshot ────────────────────────────────────────────────────────
 //
 // One read for the /play games surface, returns the active state of

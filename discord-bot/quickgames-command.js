@@ -1,6 +1,6 @@
 // /play, Discord slash command for the 7 quick-bolts games.
 //
-// Single-shot games (roulette, wheel, plinko, crash) resolve in one
+// Single-shot games (roulette, wheel, plinko) resolve in one
 // command and return the result inline.
 //
 // Stateful games (blackjack, hilo, mines) post the opening hand with
@@ -24,7 +24,7 @@ import {
   roulette, wheel,
   hiloStart, hiloGuess, hiloCashout,
   minesStart, minesReveal, minesCashout,
-  plinko, crash,
+  plinko,
 } from './games-quick.js';
 import { getWallet } from './wallet.js';
 
@@ -49,13 +49,12 @@ const BTN_DANGER    = 4;
 //   /play hilo bet:25
 //   /play mines bet:25 bombs:3
 //   /play plinko bet:25 risk:medium
-//   /play crash bet:25 cashout:2
 
 export async function handlePlayCommand(env, data, guildId, userId, userName) {
   const sub = (data.data?.options?.[0]?.name || '').toLowerCase();
   const opts = optMap(data.data?.options?.[0]?.options || []);
 
-  if (!sub) return reply('Pick a game: /play blackjack | roulette | wheel | hilo | mines | plinko | crash');
+  if (!sub) return reply('Pick a game: /play blackjack | roulette | wheel | hilo | mines | plinko');
 
   const bet = Math.max(0, Math.floor(Number(opts.bet) || 0));
   if (bet <= 0) {
@@ -77,9 +76,6 @@ export async function handlePlayCommand(env, data, guildId, userId, userName) {
       case 'hilo':             return await runHiloStart(env, guildId, userId, userName, bet);
       case 'mines':            return await runMinesStart(env, guildId, userId, userName, bet, opts.bombs);
       case 'plinko':           return await runPlinko(env, guildId, userId, userName, bet, opts.risk);
-      // Crash auto-cashout is sent as integer ×100 (Discord can't take
-      // a float option), convert back to multiplier here.
-      case 'crash':            return await runCrash(env, guildId, userId, userName, bet, opts.cashout ? Number(opts.cashout) / 100 : 0);
       default:                 return reply('Unknown game: ' + sub);
     }
   } catch (e) {
@@ -198,21 +194,6 @@ async function runPlinko(env, guildId, userId, userName, bet, risk) {
   const tail = r.won ? `won **${(r.payout || 0).toLocaleString()}**` : `lost **${bet.toLocaleString()}**`;
   return reply(
     `🪜 Plinko · ${userName}\nBucket multiplier: **${mult}**, ${tail}\nBalance: **${(w.balance || 0).toLocaleString()}**`,
-    false,
-  );
-}
-
-async function runCrash(env, guildId, userId, userName, bet, cashoutAt) {
-  const r = await crash(env, guildId, userId, bet, Math.max(1, Number(cashoutAt) || 0));
-  await cooldownTouch(env, userId);
-  if (!r.ok) return reply(r.message || 'Crash error.');
-  const w = await getWallet(env, guildId, userId);
-  const target = (r.cashout || 0).toFixed(2) + '×';
-  const bust = (r.bust || 0).toFixed(2) + '×';
-  const verb = r.won ? `cashed out at ${target}, won **${(r.payout || 0).toLocaleString()}**`
-    : `crashed at ${bust} before ${target}, lost **${bet.toLocaleString()}**`;
-  return reply(
-    `🚀 Crash · ${userName}\n${verb}\nBalance: **${(w.balance || 0).toLocaleString()}**`,
     false,
   );
 }

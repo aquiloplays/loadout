@@ -38,7 +38,7 @@ import {
   roulette, wheel,
   hiloStart, hiloGuess, hiloCashout,
   minesStart, minesReveal, minesCashout,
-  plinko, crash,
+  plinko,
   quickGamesSnapshot,
 } from './games-quick.js';
 import { getWallet } from './wallet.js';
@@ -75,7 +75,6 @@ const ROUTES = new Set([
   'quick/mines/reveal',
   'quick/mines/cashout',
   'quick/plinko',
-  'quick/crash',
 ]);
 
 export function isExtQuickRoute(route) {
@@ -100,8 +99,7 @@ export async function handleExtQuick(env, guildId, userId, req, route) {
     route === 'quick/wheel' ||
     route === 'quick/hilo/start' ||
     route === 'quick/mines/start' ||
-    route === 'quick/plinko' ||
-    route === 'quick/crash';
+    route === 'quick/plinko';
 
   if (isStart) {
     const cd = await cooldownCheck(env, userId);
@@ -150,9 +148,6 @@ export async function handleExtQuick(env, guildId, userId, req, route) {
       break;
     case 'quick/plinko':
       r = await plinko(env, guildId, userId, num(body.bet), body.risk || 'medium');
-      break;
-    case 'quick/crash':
-      r = await crash(env, guildId, userId, num(body.bet), num(body.cashout) || 0);
       break;
     default:
       return json({ ok: false, error: 'not-found' }, 404);

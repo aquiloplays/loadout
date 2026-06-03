@@ -843,9 +843,9 @@ export const COMMANDS = [
     ],
   },
   {
-    // Bolts-denominated quick games, the same 7 games the website
+    // Bolts-denominated quick games, the same games the website
     // exposes at /play (blackjack, roulette, wheel, hi-lo, mines,
-    // plinko, crash). One subcommand per game. Stateful games
+    // plinko). One subcommand per game. Stateful games
     // (blackjack, hi-lo, mines) attach action buttons to the response
     // for continuation; single-shots resolve inline.
     //
@@ -853,7 +853,7 @@ export const COMMANDS = [
     // slash registration is blocked. This entry is ready to publish
     // the moment the token is rotated.
     name: 'play',
-    description: 'Play a quick-bolts game, blackjack, roulette, wheel, hi-lo, mines, plinko, crash',
+    description: 'Play a quick-bolts game, blackjack, roulette, wheel, hi-lo, mines, plinko',
     default_member_permissions: '0',
     options: [
       {
@@ -939,15 +939,6 @@ export const COMMANDS = [
               { name: 'high',   value: 'high' },
             ],
           },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'crash',
-        description: 'Multiplier climbs from 1×, cash out before it busts',
-        options: [
-          { type: TYPE_INTEGER, name: 'bet',     description: 'Bolts to wager', required: true, min_value: 1 },
-          { type: TYPE_INTEGER, name: 'cashout', description: 'Auto-cashout at this multiplier × 100 (e.g. 200 = 2.00×)',
-            required: false, min_value: 100, max_value: 10000 },
         ],
       },
     ],

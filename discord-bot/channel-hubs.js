@@ -84,7 +84,7 @@ const HUBS = Object.freeze({
     description:
       'Every gameplay surface, one hub. Tap any tile to open it.\n\n' +
       '• **Boltbound**, async card battler\n' +
-      '• **Quick games**, coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash\n' +
+      '• **Quick games**, coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko\n' +
       '• **Loadout**, wallet, daily, profile',
     rows: () => [
       [
@@ -493,7 +493,6 @@ export async function handlePlayHubComponent(env, data) {
             { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🎲 Dice',      custom_id: 'play:quick-game:dice' },
             { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🟢 Roulette',  custom_id: 'play:quick-game:roulette' },
             { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🎡 Wheel',     custom_id: 'play:quick-game:wheel' },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '⚡ Crash',     custom_id: 'play:quick-game:crash' },
           ]},
           { type: COMPONENT_ROW, components: [
             { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🟡 Plinko',    custom_id: 'play:quick-game:plinko' },
@@ -510,7 +509,7 @@ export async function handlePlayHubComponent(env, data) {
     const STAKE = 10;
     try {
       const { coinflip, dice } = await import('./games.js');
-      const { roulette, wheel, plinko, crash } = await import('./games-quick.js');
+      const { roulette, wheel, plinko } = await import('./games-quick.js');
       const { getWallet } = await import('./wallet.js');
       const w = await getWallet(env, guildId, userId);
       if ((w.balance || 0) < STAKE) {
@@ -522,7 +521,6 @@ export async function handlePlayHubComponent(env, data) {
       else if (game === 'roulette')  r = await roulette(env, guildId, userId, STAKE, { kind: 'red' });    // red bet
       else if (game === 'wheel')     r = await wheel(env, guildId, userId, STAKE, 'low');
       else if (game === 'plinko')    r = await plinko(env, guildId, userId, STAKE, 'low');
-      else if (game === 'crash')     r = await crash(env, guildId, userId, STAKE, 1.5);                    // 1.5× auto-cashout
       else return eph('Unknown quick game: ' + game);
 
       if (!r || (r.ok === false)) {
