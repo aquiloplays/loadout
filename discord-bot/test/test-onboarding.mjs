@@ -2,8 +2,8 @@
 //
 // Coverage (from the issue):
 //   • starting fresh           → /onboard with no state → welcome view
-//   • resume partway           → pre-seed state at step:'character',
-//                                 /onboard renders the character view
+//   • resume partway           → pre-seed state at step:'pwa',
+//                                 /onboard renders the pwa view
 //   • idempotent re-run after
 //     completion               → complete the flow once; second call
 //                                 returns the "already onboarded" recap
@@ -129,9 +129,9 @@ function componentData(customId, values) {
 
 console.log('— catalog stability');
 {
-  eq(STEP_ORDER, ['welcome', 'interests', 'links', 'character', 'pwa', 'age18', 'tour', 'complete'], 'STEP_ORDER');
+  eq(STEP_ORDER, ['welcome', 'interests', 'links', 'pwa', 'age18', 'tour', 'complete'], 'STEP_ORDER');
   const keys = INTERESTS.map(i => i.key);
-  eq(keys, ['gamenight', 'clash', 'boltbound', 'boardgames', 'watching', 'art'], 'INTERESTS keys');
+  eq(keys, ['gamenight', 'boltbound', 'boardgames', 'watching', 'art'], 'INTERESTS keys');
   eq(ONBOARD_BONUS_BOLTS, 100, 'bonus bolts');
   eq(ONBOARD_BONUS_PACK,  'bolt', 'bonus pack');
 }
@@ -150,18 +150,18 @@ console.log('— starting fresh');
   eq(s.completedSteps, [], 'no steps marked');
 }
 
-console.log('— resume partway (state at character)');
+console.log('— resume partway (state at pwa)');
 {
   const env = envFor(makeKv());
   await env.LOADOUT_BOLTS.put(`onboard:state:${GUILD}:${USER}`, JSON.stringify({
-    step: 'character',
+    step: 'pwa',
     choices: { interests: ['boltbound'] },
     completedSteps: ['welcome', 'interests', 'links'],
     bonusGranted: false,
     startedAt: 1700000000000,
   }));
   const r = await handleOnboardCommand(env, slashData());
-  assert(r.data.embeds[0].title.includes('character'), 'character view shown');
+  assert(r.data.embeds[0].title.includes('Install Aquilo'), 'pwa view shown');
   // Funnel untouched on resume render — render is read-only.
   eq(await getFunnel(env, GUILD), { started: 0, completed: 0, perStep: {} }, 'funnel unchanged on resume');
 }
@@ -170,7 +170,7 @@ console.log('— role-grant skipped when role missing');
 {
   const env = envFor(makeKv());
   // No role map at all → every interest skipped with no-mapping.
-  const r1 = await grantRolesForInterests(env, GUILD, USER, ['clash', 'boltbound']);
+  const r1 = await grantRolesForInterests(env, GUILD, USER, ['art', 'boltbound']);
   eq(r1.granted, [], 'no roles granted with empty map');
   eq(r1.skipped.length, 2, 'two skips');
   eq(r1.skipped[0].reason, 'no-mapping', 'reason no-mapping');
@@ -178,7 +178,7 @@ console.log('— role-grant skipped when role missing');
   // Now configure the map but make the bot REST return 404 (role
   // deleted in the guild) for one and 200 for the other.
   await env.LOADOUT_BOLTS.put(`onboard:role-map:${GUILD}`, JSON.stringify({
-    clash:     '900000000000000111',
+    art:       '900000000000000111',
     boltbound: '900000000000000222',
     gamenight: '900000000000000333',
   }));
@@ -190,9 +190,9 @@ console.log('— role-grant skipped when role missing');
     if (url.endsWith('/roles/900000000000000333')) return new Response('forbidden', { status: 403 });
     return new Response('?', { status: 500 });
   };
-  const r2 = await grantRolesForInterests(env, GUILD, USER, ['clash', 'boltbound', 'gamenight']);
+  const r2 = await grantRolesForInterests(env, GUILD, USER, ['art', 'boltbound', 'gamenight']);
   fetchHandler = null;
-  eq(r2.granted, ['clash'], 'only the 204 role granted');
+  eq(r2.granted, ['art'], 'only the 204 role granted');
   eq(r2.skipped.length, 2, 'two skipped');
   const reasons = r2.skipped.map(s => s.reason).sort();
   eq(reasons, ['forbidden', 'role-not-found'], 'reason codes');
@@ -202,15 +202,15 @@ console.log('— role-grant skipped when role missing');
 console.log('— env-var ONBOARD_ROLE_MAP fallback');
 {
   const env = envFor(makeKv(), {
-    ONBOARD_ROLE_MAP: JSON.stringify({ clash: '900000000000099999', notvalid: 'nope' }),
+    ONBOARD_ROLE_MAP: JSON.stringify({ gamenight: '900000000000099999', notvalid: 'nope' }),
   });
   const m = await loadRoleMap(env, GUILD);
-  eq(m.clash, '900000000000099999', 'env-var map honored');
+  eq(m.gamenight, '900000000000099999', 'env-var map honored');
   assert(!('notvalid' in m), 'unknown interest key dropped');
   // KV wins over env if present.
-  await env.LOADOUT_BOLTS.put(`onboard:role-map:${GUILD}`, JSON.stringify({ clash: '888888888888888888' }));
+  await env.LOADOUT_BOLTS.put(`onboard:role-map:${GUILD}`, JSON.stringify({ gamenight: '888888888888888888' }));
   const m2 = await loadRoleMap(env, GUILD);
-  eq(m2.clash, '888888888888888888', 'KV overrides env');
+  eq(m2.gamenight, '888888888888888888', 'KV overrides env');
 }
 
 console.log('— bonus only fires once');
@@ -246,8 +246,8 @@ console.log('— idempotent re-run after completion via /onboard');
   // Pre-seed completed state directly.
   await env.LOADOUT_BOLTS.put(`onboard:state:${GUILD}:${USER}`, JSON.stringify({
     step: 'complete',
-    choices: { interests: ['clash', 'boltbound'] },
-    completedSteps: ['welcome', 'interests', 'links', 'character', 'tour', 'complete'],
+    choices: { interests: ['boltbound'] },
+    completedSteps: ['welcome', 'interests', 'links', 'pwa', 'age18', 'tour', 'complete'],
     bonusGranted: true,
     startedAt: 1700000000000,
     completedAt: 1700000099999,
@@ -267,7 +267,7 @@ console.log('— full flow walkthrough (advance buttons)');
 {
   const env = envFor(makeKv());
   await env.LOADOUT_BOLTS.put(`onboard:role-map:${GUILD}`, JSON.stringify({
-    clash: '999999999999999001',
+    gamenight: '999999999999999001',
   }));
   fetchHandler = async (url) => {
     // Role-grant goes to 204; everything else (DM channel, pack mint)
@@ -281,18 +281,16 @@ console.log('— full flow walkthrough (advance buttons)');
   assert(r.data.embeds[0].title.includes('What brings you here'), 'after begin → interests view');
 
   // Pick interests via the select.
-  r = await handleOnboardComponent(env, componentData('onb:pick:interests', ['clash', 'boltbound']));
+  r = await handleOnboardComponent(env, componentData('onb:pick:interests', ['gamenight', 'boltbound']));
   assert(r.data.embeds[0].title.includes('What brings you here'), 'pick stays on interests view');
   const sAfterPick = await getState(env, GUILD, USER);
-  eq(sAfterPick.choices.interests, ['clash', 'boltbound'], 'choices persisted');
+  eq(sAfterPick.choices.interests, ['gamenight', 'boltbound'], 'choices persisted');
 
-  // Advance: interests → links → character → pwa → age18 → tour → complete.
+  // Advance: interests → links → pwa → age18 → tour → complete.
   r = await handleOnboardComponent(env, componentData('onb:advance:interests'));
   assert(r.data.embeds[0].title.includes('Link your accounts'), 'interests → links');
   r = await handleOnboardComponent(env, componentData('onb:advance:links'));
-  assert(r.data.embeds[0].title.includes('Your character'), 'links → character');
-  r = await handleOnboardComponent(env, componentData('onb:advance:character'));
-  assert(r.data.embeds[0].title.includes('Install Aquilo'), 'character → pwa');
+  assert(r.data.embeds[0].title.includes('Install Aquilo'), 'links → pwa');
   r = await handleOnboardComponent(env, componentData('onb:advance:pwa'));
   assert(r.data.embeds[0].title.includes('18'), 'pwa → age18');
   // age18 has its own yes/no handler — emulate the "no" path to advance to tour.
@@ -309,7 +307,7 @@ console.log('— full flow walkthrough (advance buttons)');
   const f = await getFunnel(env, GUILD);
   eq(f.started, 1, 'funnel started = 1');
   eq(f.completed, 1, 'funnel completed = 1');
-  for (const step of ['welcome', 'interests', 'links', 'character', 'pwa', 'age18', 'tour', 'complete']) {
+  for (const step of ['welcome', 'interests', 'links', 'pwa', 'age18', 'tour', 'complete']) {
     eq(f.perStep[step], 1, `funnel.perStep[${step}] = 1`);
   }
 

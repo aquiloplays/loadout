@@ -21,10 +21,10 @@
 //   2. interests    multi-select of ping-role opt-ins → roles granted
 //                    immediately, advance to next
 //   3. links        deep-links to /link/ for Twitch + Patreon → Next
-//   4. character    deep-link to /play/character/ (upload-based
-//                    editor) → Next
-//   5. tour         a key-channels embed → Finish
-//   6. complete     bonus grant (idempotent) + recordMilestone for
+//   4. pwa          how-to install the PWA → Next
+//   5. age18        18+ self-grant age gate → Next
+//   6. tour         a key-channels embed → Finish
+//   7. complete     bonus grant (idempotent) + recordMilestone for
 //                    referral funnel
 //
 // State machine — every transition writes through, so a user who
@@ -61,7 +61,6 @@ export const ONBOARD_BONUS_PACK  = 'bolt';
 // values, the KV role-map shape, and the admin status table.
 export const INTERESTS = Object.freeze([
   { key: 'gamenight',  label: '🎮 Game Night',        description: 'Weekly community game sessions' },
-  { key: 'clash',      label: '⚔️ Clash',             description: 'The town-builder + raid feature' },
   { key: 'boltbound',  label: '🃏 Boltbound',         description: 'Async card battler' },
   { key: 'boardgames', label: '♟️ Board games',       description: 'Chess, checkers, connect4' },
   { key: 'watching',   label: '👀 Just watching',     description: 'Stream notifications only' },
@@ -301,7 +300,6 @@ export async function buildWelcomeEmbed(env, guildId) {
         `Get oriented in 60 seconds:\n\n` +
         `• 🎮 Pick the channels + pings you want to see\n` +
         `• 🔗 Link your Twitch + Patreon (optional, unlocks perks)\n` +
-        `• 🧑 Set your character + upload a hero pic\n` +
         `• 🗺 Quick tour of where things live\n\n` +
         `Finish to grab **${ONBOARD_BONUS_BOLTS} bolts** + a starter pack.`,
       color: brand.accentColor,
@@ -329,12 +327,11 @@ async function viewWelcome(env, guildId) {
     embeds: [{
       title: `👋 Welcome to ${brand.brandName}!`,
       description:
-        `Five quick steps. Finish to grab **${ONBOARD_BONUS_BOLTS} bolts** + a starter pack.\n\n` +
+        `A few quick steps. Finish to grab **${ONBOARD_BONUS_BOLTS} bolts** + a starter pack.\n\n` +
         `1. Pick your interests\n` +
         `2. Link Twitch + Patreon\n` +
-        `3. Set up your character\n` +
-        `4. Quick tour of key channels\n` +
-        `5. Done!`,
+        `3. Quick tour of key channels\n` +
+        `4. Done!`,
       color: brand.accentColor,
     }],
     components: [{
@@ -396,7 +393,7 @@ async function viewLinks(env, guildId) {
         `• **Patreon** — connecting Patreon **links all your accounts together** ` +
         `(Twitch, Discord, and your Aquilo profile become one identity). ` +
         `You **do not need a paid membership** — free Patreon works perfectly. ` +
-        `Paid supporters are immensely appreciated and unlock pets, cosmetics, ` +
+        `Paid supporters are immensely appreciated and unlock cosmetics, ` +
         `priority CN queue slots, and a referral-payout slot.\n\n` +
         `_Twitch tutorial opens in YouTube; Patreon opens on ${brand.siteUrl}._`,
       color: brand.accentColor,
@@ -423,7 +420,7 @@ async function viewLinks(env, guildId) {
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Skip', custom_id: 'onb:step:character' },
+          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Skip', custom_id: 'onb:step:pwa' },
           { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Next ▶︎', custom_id: 'onb:advance:links' },
         ],
       },
@@ -944,8 +941,6 @@ export function matchesInterest(key, roleName) {
     case 'gamenight':
       return tokens.includes('gamenight')
           || (tokens.includes('game') && tokens.includes('night'));
-    case 'clash':
-      return tokens.includes('clash');
     case 'boltbound':
       return tokens.includes('boltbound')
           || (tokens.includes('bolt') && tokens.includes('bound'));
@@ -1044,8 +1039,8 @@ export async function postWelcomeEmbedForGuild(env, guildId, opts = {}) {
 //
 // Companion to matchAndSetupGuildRoles. The setup-roles flow can
 // only map roles that ALREADY exist in the guild — if a tenant
-// doesn't have, say, a "Clash" role for opt-in pings, the
-// `clash` interest stays unmapped and users picking it just get a
+// doesn't have, say, a "Boltbound" role for opt-in pings, the
+// `boltbound` interest stays unmapped and users picking it just get a
 // `no-mapping` skip.
 //
 // This helper fills that gap: for each provided spec, check if any
@@ -1055,7 +1050,7 @@ export async function postWelcomeEmbedForGuild(env, guildId, opts = {}) {
 // Otherwise POST a fresh opt-in ping role with the supplied
 // name/colour and `permissions: "0"` (no perms by default).
 //
-// Default spec set is BASELINE_ROLE_SPECS below — covers the five
+// Default spec set is BASELINE_ROLE_SPECS below — covers the
 // interest keys Aquilo's onboarding ships with. Body { roles: [...] }
 // overrides if a different tenant wants a different palette / names.
 //
@@ -1063,7 +1058,6 @@ export async function postWelcomeEmbedForGuild(env, guildId, opts = {}) {
 // roles is a no-op (every key in `skipped`).
 
 export const BASELINE_ROLE_SPECS = Object.freeze([
-  { key: 'clash',      name: 'Clash',         color: 0x2f8f55 },  // green
   { key: 'boltbound',  name: 'Boltbound',     color: 0x3a82ff },  // primary blue
   { key: 'boardgames', name: 'Board Games',   color: 0xe6c474 },  // amber
   { key: 'watching',   name: 'Just Watching', color: 0x6a7488 },  // soft slate

@@ -1,7 +1,7 @@
 // New-member onboarding quest — a short checklist that walks a fresh
 // viewer through the four engagement primitives in their first session.
 // Each step has a tiny reward to make the funnel feel rewarding even
-// before the bigger systems (Boltbound, dungeon, clash) light up.
+// before the bigger systems (Boltbound, mini-games, ranked) light up.
 //
 // Steps are deliberately stateless where possible — completion is
 // computed by reading the same KV/wallet records the user is already

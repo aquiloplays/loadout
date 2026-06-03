@@ -3,7 +3,7 @@
 // postWelcomeEmbedForGuild, matchAndSetupGuildRoles).
 //
 // Coverage:
-//   • role matcher: hits + misses for each of the six interest keys
+//   • role matcher: hits + misses for each interest key
 //   • role matcher: art-trap (must NOT match "party"/"smart"/"depart")
 //   • role matcher: skips @everyone + managed roles
 //   • role matcher: first-match-wins when multiple roles fit
@@ -80,10 +80,6 @@ console.log('— matchesInterest: hits per key');
   assert(!matchesInterest('gamenight',  'night owl'),           'gamenight: NOT night owl');
   assert(!matchesInterest('gamenight',  'gamers'),              'gamenight: NOT gamers');
 
-  // clash
-  assert(matchesInterest('clash',       '⚔ Clash Squad'),       'clash: ⚔ Clash Squad');
-  assert(!matchesInterest('clash',      'flashy'),              'clash: NOT flashy');
-
   // boltbound
   assert(matchesInterest('boltbound',   'Boltbound players'),   'boltbound: Boltbound players');
   assert(matchesInterest('boltbound',   'bolt-bound'),          'boltbound: bolt-bound');
@@ -117,7 +113,6 @@ console.log('— matchInterestRoles: full pass');
   const roles = [
     { id: GUILD,                 name: '@everyone' },                     // skip — id == guildId
     { id: '900000000000000001',  name: '🎮 Game Night Ping' },
-    { id: '900000000000000002',  name: 'Clash Squad' },
     { id: '900000000000000003',  name: 'Boltbound TCG' },
     { id: '900000000000000004',  name: 'Board Games' },
     { id: '900000000000000005',  name: 'Just Watching' },
@@ -130,12 +125,11 @@ console.log('— matchInterestRoles: full pass');
   ];
   const r = matchInterestRoles(roles, GUILD);
   eq(r.mapped.gamenight,  { id: '900000000000000001', name: '🎮 Game Night Ping' }, 'gamenight matched');
-  eq(r.mapped.clash,      { id: '900000000000000002', name: 'Clash Squad' },        'clash matched');
   eq(r.mapped.boltbound,  { id: '900000000000000003', name: 'Boltbound TCG' },      'boltbound matched');
   eq(r.mapped.boardgames, { id: '900000000000000004', name: 'Board Games' },        'boardgames matched');
   eq(r.mapped.watching,   { id: '900000000000000005', name: 'Just Watching' },      'watching matched');
   eq(r.mapped.art,        { id: '900000000000000006', name: '🎨 Artists' },         'art matched (first wins, NOT Art Drops)');
-  eq(r.unmapped, [], 'all six mapped');
+  eq(r.unmapped, [], 'all five mapped');
 }
 
 console.log('— matchInterestRoles: gaps');
@@ -144,11 +138,11 @@ console.log('— matchInterestRoles: gaps');
     { id: GUILD,                 name: '@everyone' },
     { id: '900000000000000001',  name: 'Members' },
     { id: '900000000000000002',  name: 'Mods' },
-    { id: '900000000000000003',  name: 'Clash Squad' },
+    { id: '900000000000000003',  name: 'Boltbound TCG' },
   ];
   const r = matchInterestRoles(roles, GUILD);
-  eq(Object.keys(r.mapped), ['clash'], 'only clash mapped');
-  eq(r.unmapped.sort(), ['art', 'boardgames', 'boltbound', 'gamenight', 'watching'].sort(), 'five unmapped');
+  eq(Object.keys(r.mapped), ['boltbound'], 'only boltbound mapped');
+  eq(r.unmapped.sort(), ['art', 'boardgames', 'gamenight', 'watching'].sort(), 'four unmapped');
 }
 
 console.log('— pickWelcomeChannel: explicit channelId');
@@ -241,7 +235,7 @@ console.log('— matchAndSetupGuildRoles: persists flat map, loadRoleMap reads i
   assert(r.ok, 'ok:true');
   eq(r.mapped.gamenight.id, '900000000000000001', 'gamenight id');
   eq(r.mapped.boltbound.id, '900000000000000002', 'boltbound id');
-  eq(r.unmapped.sort(), ['art', 'boardgames', 'clash', 'watching'].sort(), 'four unmapped');
+  eq(r.unmapped.sort(), ['art', 'boardgames', 'watching'].sort(), 'three unmapped');
   // loadRoleMap reads back the flat form.
   const m = await loadRoleMap(env, GUILD);
   eq(m, { gamenight: '900000000000000001', boltbound: '900000000000000002' }, 'persisted map round-trips');
@@ -337,7 +331,7 @@ console.log('— postWelcomeEmbedForGuild: no channel candidate → 404-style er
 console.log('— BASELINE_ROLE_SPECS sanity');
 {
   eq(BASELINE_ROLE_SPECS.map(s => s.key),
-     ['clash', 'boltbound', 'boardgames', 'watching', 'art'],
+     ['boltbound', 'boardgames', 'watching', 'art'],
      'baseline keys in spec order');
   // Each one matches its own heuristic — important, otherwise a freshly
   // created role wouldn't get re-picked up by matchAndSetupGuildRoles.
@@ -349,14 +343,14 @@ console.log('— BASELINE_ROLE_SPECS sanity');
 console.log('— normaliseRoleSpecs');
 {
   const cleaned = normaliseRoleSpecs([
-    { key: 'clash', name: '  Clash  ', color: 0x123456 },
+    { key: 'boltbound', name: '  Boltbound  ', color: 0x123456 },
     { key: 'NOT_A_KEY', name: 'whatever' },                  // dropped
     { key: 'art', name: '' },                                // dropped — empty name
     { key: 'art', name: 'Artists', color: 'bad', hoist: true },
     { key: 'watching', name: 'Just Watching' },              // no color → 0
   ]);
   eq(cleaned.length, 3, '3 valid out of 5 input');
-  eq(cleaned[0].name, 'Clash', 'name trimmed');
+  eq(cleaned[0].name, 'Boltbound', 'name trimmed');
   eq(cleaned[0].color, 0x123456, 'color preserved');
   eq(cleaned[0].mentionable, true, 'mentionable default true');
   eq(cleaned[0].hoist, false, 'hoist default false');
@@ -394,11 +388,11 @@ console.log('— ensureBaselineRoles: defaults + creates missing');
   fetchHandler = null;
 
   assert(r.ok, 'ok:true');
-  // 5 baseline keys minus already-present 0 = 5 creates (Game Night
+  // 4 baseline keys minus already-present 0 = 4 creates (Game Night
   // covers gamenight which ISN\'T in BASELINE_ROLE_SPECS, so no overlap).
-  eq(r.created.length, 5, 'created 5 roles');
-  eq(r.created.map(c => c.key).sort(), ['art', 'boardgames', 'boltbound', 'clash', 'watching'].sort(),
-     'all 5 baseline keys created');
+  eq(r.created.length, 4, 'created 4 roles');
+  eq(r.created.map(c => c.key).sort(), ['art', 'boardgames', 'boltbound', 'watching'].sort(),
+     'all 4 baseline keys created');
   // Each create POST'd with permissions:"0", mentionable:true, hoist:false.
   for (const c of created) {
     eq(c.body.permissions, '0',   `${c.body.name}: permissions "0"`);
@@ -418,10 +412,10 @@ console.log('— ensureBaselineRoles: skips already-existing matches (no dupes)'
   fetchHandler = async (url, init) => {
     if (!init.method || init.method === 'GET') {
       if (url.endsWith(`/guilds/${GUILD}/roles`)) {
-        // Pre-existing: Clash + Just Watching already manually made.
+        // Pre-existing: Boltbound + Just Watching already manually made.
         return new Response(JSON.stringify([
           { id: GUILD,                name: '@everyone' },
-          { id: '900000000000000010', name: 'Clash' },
+          { id: '900000000000000010', name: 'Boltbound' },
           { id: '900000000000000011', name: 'Just Watching' },
         ]), { status: 200, headers: { 'content-type': 'application/json' } });
       }
@@ -437,13 +431,13 @@ console.log('— ensureBaselineRoles: skips already-existing matches (no dupes)'
   const r = await ensureBaselineRoles(env, GUILD);
   fetchHandler = null;
   assert(r.ok, 'ok:true');
-  // 3 created (boltbound, boardgames, art), 2 skipped (clash, watching).
-  eq(createCount, 3, 'only 3 POSTs made');
-  eq(r.created.map(c => c.key).sort(), ['art', 'boardgames', 'boltbound'].sort(), 'created keys');
+  // 2 created (boardgames, art), 2 skipped (boltbound, watching).
+  eq(createCount, 2, 'only 2 POSTs made');
+  eq(r.created.map(c => c.key).sort(), ['art', 'boardgames'].sort(), 'created keys');
   eq(r.skipped.length, 2, 'two skipped');
   const skipMap = Object.fromEntries(r.skipped.map(s => [s.key, s]));
-  eq(skipMap.clash.reason, 'already-exists', 'clash skip reason');
-  eq(skipMap.clash.existing.id, '900000000000000010', 'clash existing id');
+  eq(skipMap.boltbound.reason, 'already-exists', 'boltbound skip reason');
+  eq(skipMap.boltbound.existing.id, '900000000000000010', 'boltbound existing id');
   eq(skipMap.watching.reason, 'already-exists', 'watching skip reason');
 }
 
@@ -455,10 +449,10 @@ console.log('— ensureBaselineRoles: skips managed + @everyone correctly');
       if (url.endsWith(`/guilds/${GUILD}/roles`)) {
         return new Response(JSON.stringify([
           { id: GUILD,                name: '@everyone' },
-          // A managed role NAMED "Clash" (e.g. some bot's integration role).
+          // A managed role NAMED "Boltbound" (e.g. some bot's integration role).
           // matchesInterest would normally hit this, but we want to skip
           // it because users can't be assigned managed roles.
-          { id: '900000000000000020', name: 'Clash', managed: true },
+          { id: '900000000000000020', name: 'Boltbound', managed: true },
         ]), { status: 200, headers: { 'content-type': 'application/json' } });
       }
     }
@@ -468,13 +462,13 @@ console.log('— ensureBaselineRoles: skips managed + @everyone correctly');
     }
     return new Response('?', { status: 500 });
   };
-  const r = await ensureBaselineRoles(env, GUILD, [{ key: 'clash', name: 'Clash', color: 0x2f8f55 }]);
+  const r = await ensureBaselineRoles(env, GUILD, [{ key: 'boltbound', name: 'Boltbound', color: 0x3a82ff }]);
   fetchHandler = null;
   assert(r.ok, 'ok:true');
   // The managed role doesn\'t count as a pre-existing match, so we
   // proceed to create our own opt-in version.
   eq(r.created.length, 1, 'created 1 (managed role ignored)');
-  eq(r.created[0].key, 'clash', 'clash created');
+  eq(r.created[0].key, 'boltbound', 'boltbound created');
 }
 
 console.log('— ensureBaselineRoles: surfaces Discord create failures per-key');
@@ -500,7 +494,7 @@ console.log('— ensureBaselineRoles: surfaces Discord create failures per-key')
   const r = await ensureBaselineRoles(env, GUILD);
   fetchHandler = null;
   assert(r.ok, 'overall ok:true even with per-key failure');
-  eq(r.created.length, 4, '4 successes');
+  eq(r.created.length, 3, '3 successes');
   eq(r.skipped.length, 1, '1 failure surfaced as skip');
   eq(r.skipped[0].key, 'art', 'art is the failure');
   eq(r.skipped[0].reason, 'create-failed', 'reason create-failed');
@@ -527,11 +521,11 @@ console.log('— ensureBaselineRoles: full idempotent re-run is all-skips');
     return new Response('?', { status: 500 });
   };
   const r1 = await ensureBaselineRoles(env, GUILD);
-  eq(r1.created.length, 5, 'first pass creates 5');
+  eq(r1.created.length, 4, 'first pass creates 4');
   const r2 = await ensureBaselineRoles(env, GUILD);
   fetchHandler = null;
   eq(r2.created.length, 0, 'second pass creates 0');
-  eq(r2.skipped.length, 5, 'second pass skips 5');
+  eq(r2.skipped.length, 4, 'second pass skips 4');
   assert(r2.skipped.every(s => s.reason === 'already-exists'), 'all skips are already-exists');
 }
 
