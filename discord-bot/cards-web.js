@@ -39,6 +39,7 @@ import {
 } from './cards-match.js';
 import { loadHero } from './hero-state.js';
 import { getWallet } from './wallet.js';
+import { getLoginStatus, claimDailyLogin } from './boltbound-login.js';
 
 const ROUTES = new Set([
   'boltbound/state',
@@ -60,6 +61,9 @@ const ROUTES = new Set([
   'boltbound/match/mulligan',
   'boltbound/match/concede',
   'boltbound/log',
+  // RET-1: grindy daily login rewards (streak-gated; no daily packs).
+  'boltbound/login/status',
+  'boltbound/login/claim',
   // CR-1: recycle/craft surface
   'boltbound/fragments',
   'boltbound/recycle',
@@ -80,6 +84,7 @@ const READ_ROUTES = new Set([
   'boltbound/catalogue',
   'boltbound/match/state',
   'boltbound/log',
+  'boltbound/login/status',
   'boltbound/fragments',
   'boltbound/trade/list',
   'boltbound/trade/get',
@@ -423,6 +428,22 @@ async function routeCraft(env, guildId, userId, body) {
   return json(r);
 }
 
+// ── RET-1: daily login reward routes ────────────────────
+//
+// `boltbound/login/status` (read) → current streak + next-milestone
+// preview + whether today is claimable.
+// `boltbound/login/claim`  (write) → bank the streak + grant the
+// (grindy) daily reward; packs only at 30/90/365-day milestones.
+
+async function routeLoginStatus(env, guildId, userId) {
+  const status = await getLoginStatus(env, userId);
+  return json(status);
+}
+async function routeLoginClaim(env, guildId, userId) {
+  const r = await claimDailyLogin(env, guildId, userId);
+  return json(r, r.ok || r.alreadyClaimed ? 200 : 400);
+}
+
 // ── Trade routes ───────────────────────────────────────────────────
 //
 // Auth is already enforced upstream by web.js (HMAC) — `userId` here
@@ -579,6 +600,8 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/match/mulligan')  return await routeMatchMulligan(env, guildId, userId, body);
     if (route === 'boltbound/match/concede')   return await routeMatchConcede(env, guildId, userId);
     if (route === 'boltbound/log')             return await routeLog(env, guildId, userId);
+    if (route === 'boltbound/login/status')    return await routeLoginStatus(env, guildId, userId);
+    if (route === 'boltbound/login/claim')     return await routeLoginClaim(env, guildId, userId);
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);
     if (route === 'boltbound/recycle')         return await routeRecycle(env, guildId, userId, body);
     if (route === 'boltbound/craft')           return await routeCraft(env, guildId, userId, body);
