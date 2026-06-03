@@ -19,6 +19,7 @@
 //   }
 
 import { getStreamInfo, getUserById } from './twitch-helix.js';
+import { resolveTwitchLogin } from './twitch-login-resolver.js';
 import { getChannelBinding } from './channel-bindings.js';
 
 const DEFAULT_CHANNEL_ID = '1507973917350957067';
@@ -121,10 +122,11 @@ async function discordDelete(env, channelId, messageId) {
 // ── Lifecycle handlers ──────────────────────────────────────────
 
 // Resolve the broadcaster login slug (twitch.tv/<login>) from the
-// broadcaster user_id. Cached implicitly via getUserById's Helix call.
+// broadcaster user_id. Dynamic + KV-cached so a username rename needs
+// no code/env change; resolveTwitchLogin falls back to env on failure.
 async function loginFor(env, broadcasterId) {
   const user = await getUserById(env, broadcasterId).catch(() => null);
-  return user?.login || env.CLAY_TWITCH_LOGIN || 'prodigalttv';
+  return user?.login || await resolveTwitchLogin(env, broadcasterId);
 }
 
 export async function handleStreamOnline(env, broadcasterId) {

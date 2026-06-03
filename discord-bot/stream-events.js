@@ -18,12 +18,15 @@
 // daily cron can call this safely. Past keys are pruned.
 
 import { readSchedule, upcomingStreams } from './schedule.js';
+import { resolveTwitchLogin } from './twitch-login-resolver.js';
 
 const SYNC_KEY = (g) => `stream-events:synced:${g}`;
 const PING_KEY = (g) => `stream-events:pinged:${g}`;
 
-function twitchUrl(env) {
-  return `https://twitch.tv/${env.CLAY_TWITCH_LOGIN || 'prodigalttv'}`;
+// Dynamic — resolves the current login from the canonical broadcaster
+// id (KV-cached 1h) so a username rename needs no code change.
+async function twitchUrl(env) {
+  return `https://twitch.tv/${await resolveTwitchLogin(env, env.CLAY_TWITCH_CHANNEL_ID)}`;
 }
 
 function gid(env, guildId) {
@@ -78,6 +81,7 @@ export async function syncStreamEvents(env, guildId, { horizonDays = 7 } = {}) {
   const streams = upcomingStreams(schedule, horizonDays);
   const synced = (await env.LOADOUT_BOLTS.get(SYNC_KEY(g), { type: 'json' })) || {};
   const auth = { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'Content-Type': 'application/json' };
+  const url = await twitchUrl(env);
   const out = { created: [], existing: [], failed: [] };
 
   for (const s of streams) {
@@ -93,8 +97,8 @@ export async function syncStreamEvents(env, guildId, { horizonDays = 7 } = {}) {
       entity_type: 3,              // EXTERNAL
       scheduled_start_time: startIso,
       scheduled_end_time: endIso,
-      entity_metadata: { location: twitchUrl(env) },
-      description: `Live on ${twitchUrl(env)}`.slice(0, 1000),
+      entity_metadata: { location: url },
+      description: `Live on ${url}`.slice(0, 1000),
     };
     const img = await fetchImageDataUri(game.art);
     if (img) body.image = img;
@@ -133,6 +137,7 @@ export async function preStreamPings(env, guildId) {
   const synced = (await env.LOADOUT_BOLTS.get(SYNC_KEY(g), { type: 'json' })) || {};
   const pinged = (await env.LOADOUT_BOLTS.get(PING_KEY(g), { type: 'json' })) || {};
   const now = Date.now();
+  const url = await twitchUrl(env);
   const sent = [];
 
   for (const [dateKey, ev] of Object.entries(synced)) {
@@ -140,7 +145,7 @@ export async function preStreamPings(env, guildId) {
     if (mins <= 30 && mins > 0 && !pinged[dateKey]) {
       const embed = {
         title: `🔴 Live in ~30 minutes — ${ev.name}`,
-        description: `Stream starts <t:${Math.floor(ev.startsAt / 1000)}:R> on ${twitchUrl(env)}`,
+        description: `Stream starts <t:${Math.floor(ev.startsAt / 1000)}:R> on ${url}`,
         color: 0x9b6cff,
       };
       const r = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {

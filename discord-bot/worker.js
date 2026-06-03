@@ -710,6 +710,14 @@ export default {
     if (path.startsWith('/watchtower/stream/')) {
       return handleWatchtower(req, env, path);
     }
+    // Public canonical-login resolver. GET /api/twitch/login returns
+    // { login, broadcasterId, cachedUntil } for Clay's channel, resolved
+    // live from the permanent broadcaster id (1h KV cache). aquilo-site
+    // proxies this for live embeds so a username rename needs no edits.
+    // ?bust=1 forces a fresh Helix lookup (admin cache-bust).
+    if (path === '/api/twitch/login') {
+      return handleTwitchLogin(req, env);
+    }
     // Community-activity SSE feed (activity-do.js). GET /activity/sse is
     // the public EventSource stream; POST /activity/publish is the
     // internal HMAC-gated producer endpoint (also reachable in-process
@@ -2439,6 +2447,40 @@ async function handleWatchtower(req, env, path) {
     'content-type': 'application/json',
     // Short edge cache matches the 5s upstream cache; OBS polls freely.
     'cache-control': 'public, max-age=5',
+    ...cors,
+  };
+  if (req.method === 'HEAD') return new Response(null, { status: 200, headers });
+  return new Response(JSON.stringify(data), { status: data.ok ? 200 : 502, headers });
+}
+
+// ── Public Twitch login resolver ────────────────────────────────
+// GET /api/twitch/login — resolves the canonical broadcaster's CURRENT
+// login (username) from the permanent broadcaster id. CORS-open, edge +
+// KV cached 1h. ?bust=1 forces a fresh Helix lookup (admin rename push).
+async function handleTwitchLogin(req, env) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-headers': '*',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    return new Response('method', { status: 405, headers: cors });
+  }
+  let data;
+  try {
+    const url = new URL(req.url);
+    const bust = url.searchParams.get('bust');
+    const mod = await import('./twitch-login-resolver.js');
+    if (bust) await mod.refreshTwitchLogin(env, env.CLAY_TWITCH_CHANNEL_ID).catch(() => {});
+    const { login, broadcasterId } = await mod.resolveCanonicalLogin(env);
+    data = { ok: !!login, login, broadcasterId, cachedUntil: Date.now() + 3600_000 };
+  } catch (e) {
+    data = { ok: false, error: 'resolve-failed', detail: String(e?.message || e).slice(0, 120) };
+  }
+  const headers = {
+    'content-type': 'application/json',
+    'cache-control': 'public, max-age=3600',
     ...cors,
   };
   if (req.method === 'HEAD') return new Response(null, { status: 200, headers });

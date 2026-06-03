@@ -13,6 +13,7 @@
 // upstream fetch per channel per 5s window regardless of viewer count.
 
 import { getStreamInfo, helixFetch, isTwitchConfigured } from './twitch-helix.js';
+import { resolveTwitchLogin } from './twitch-login-resolver.js';
 
 const CACHE_KEY = (k) => `watchtower:cache:${k}`;
 const CACHE_TTL_MS = 5000;
@@ -24,7 +25,7 @@ async function resolveBroadcaster(env, channel) {
   if (!raw || raw === 'me') {
     const id = String(env.CLAY_TWITCH_CHANNEL_ID || '').trim();
     if (!id) return null;
-    return { id, login: env.CLAY_TWITCH_LOGIN || 'prodigalttv', displayName: null };
+    return { id, login: await resolveTwitchLogin(env, id), displayName: null };
   }
   if (/^\d+$/.test(raw)) {
     const j = await helixFetch(env, '/users', { id: raw }).catch(() => null);

@@ -25,6 +25,7 @@
 //   broadcasterDisplayName, profileImageUrl, login }
 
 import { getStreamInfo, getUserById, isTwitchConfigured } from './twitch-helix.js';
+import { resolveTwitchLogin } from './twitch-login-resolver.js';
 import { getChannelBinding } from './channel-bindings.js';
 
 const STATE_KEY = (b) => `twitch:live:state:${b}`;
@@ -61,7 +62,7 @@ function endedEmbed({ user, login, startedAt, lastTitle, lastGame, lastPeakViewe
   if (lastPeakViewers) lines.push('👥 peak: ' + lastPeakViewers.toLocaleString());
   if (durationMs > 0)  lines.push('⏱ streamed for ' + dur);
   lines.push('');
-  lines.push('Catch the next one at https://twitch.tv/' + (login || 'prodigalttv'));
+  lines.push('Catch the next one at https://twitch.tv/' + login);
   return {
     title: '⚫ ' + (user?.display_name || login || 'Streamer') + ' is offline',
     description: lines.join('\n'),
@@ -112,7 +113,7 @@ export async function postLiveEmbed(env, broadcasterId) {
   const stream = await getStreamInfo(env, broadcasterId);
   if (!stream) return { skipped: 'helix-says-offline' };
   const user = await getUserById(env, broadcasterId);
-  const login = (user && user.login) || (stream.user_login) || null;
+  const login = (user && user.login) || (stream.user_login) || await resolveTwitchLogin(env, broadcasterId);
 
   // If we already have a live state for THIS stream (same streamId)
   // — e.g. EventSub delivered the same event twice — edit instead of
@@ -136,7 +137,7 @@ export async function postLiveEmbed(env, broadcasterId) {
   const post = await discordRest(env, 'POST',
     `/channels/${liveChannelId}/messages`,
     {
-      content: '🔴 Live now: https://twitch.tv/' + (login || 'prodigalttv'),
+      content: '🔴 Live now: https://twitch.tv/' + login,
       embeds: [liveEmbed({ stream, user, login })],
       allowed_mentions: { parse: [] },
     });
@@ -196,12 +197,13 @@ export async function markStreamOffline(env, broadcasterId) {
   const user = state.profileImageUrl
     ? { display_name: state.broadcasterDisplayName, profile_image_url: state.profileImageUrl }
     : (await getUserById(env, broadcasterId).catch(() => null));
+  const login = state.login || await resolveTwitchLogin(env, broadcasterId);
   const upd = await discordRest(env, 'PATCH',
     `/channels/${state.channelId}/messages/${state.messageId}`,
     {
       content: '',
       embeds: [endedEmbed({
-        user, login: state.login,
+        user, login,
         startedAt: state.startedAt,
         lastTitle: state.lastTitle,
         lastGame: state.lastGame,

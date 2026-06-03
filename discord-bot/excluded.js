@@ -26,6 +26,12 @@ const EXCLUDED_TWITCH_IDS = new Set([
   '1497793223', // Clay's old Twitch channel id (aquilogg) — kept for legacy wallets
 ]);
 
+// Legacy username-based fallback for cross-linked wallets whose link
+// record carries only a handle (no platform id). Twitch logins can be
+// renamed, so the ID-based EXCLUDED_TWITCH_IDS above is the canonical,
+// rename-proof mechanism — a link record that carries a numeric id is
+// matched against that set instead (see isExcludedWallet). These
+// handles only catch link records that predate id capture.
 const EXCLUDED_LINK_HANDLES = new Set([
   'twitch:prodigalttv',
   'twitch:aquilogg',
@@ -64,7 +70,13 @@ export function isExcludedWallet(env, userId, wallet) {
   const links = Array.isArray(wallet.links) ? wallet.links : [];
   for (const l of links) {
     if (!l) continue;
-    const key = String(l.platform || '').toLowerCase() + ':' + String(l.username || '');
+    const platform = String(l.platform || '').toLowerCase();
+    // Prefer the permanent platform id when the link record carries one
+    // — rename-proof. (Twitch logins change; ids don't.)
+    const linkId = l.id != null ? String(l.id) : (l.userId != null ? String(l.userId) : null);
+    if (platform === 'twitch' && linkId && EXCLUDED_TWITCH_IDS.has(linkId)) return true;
+    // Legacy fallback: handle match for link records without an id.
+    const key = platform + ':' + String(l.username || '');
     if (EXCLUDED_LINK_HANDLES.has(key)) return true;
   }
   return false;

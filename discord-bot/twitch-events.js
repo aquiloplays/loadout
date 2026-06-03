@@ -38,6 +38,7 @@
 // palette per Clay's spec. Changing a color is one place.
 
 import { getChannelBinding } from './channel-bindings.js';
+import { resolveTwitchLogin } from './twitch-login-resolver.js';
 
 // ── Brand palette (aquilo v2 — violet / pink / green only) ────────
 // Clay 2026-05 redesign — strip gold / orange / bright red. The
@@ -393,7 +394,7 @@ export function streamEndedSummaryEmbed({ user, login, startedAt, lastTitle, las
   if (totalFollows != null) lines.push(`📈 Total follows: ${totalFollows.toLocaleString()}`);
   if (totalSubs != null)    lines.push(`💜 Total subs: ${totalSubs.toLocaleString()}`);
   lines.push('');
-  lines.push(`See you next stream at https://twitch.tv/${login || 'prodigalttv'}`);
+  lines.push(`See you next stream at https://twitch.tv/${login}`);
   return {
     color: EVENT_COLORS.ended,
     author: { name: (user?.display_name || login || 'Streamer') + ' — stream wrap',
@@ -755,7 +756,7 @@ export async function handleStreamEndedSummary(env, payload, helixFns, lifecycle
   const totalSubs    = await getCounter(env, 'subs', gid);
   const embed = streamEndedSummaryEmbed({
     user,
-    login:           user?.login || lifecycleState?.login || null,
+    login:           user?.login || lifecycleState?.login || await resolveTwitchLogin(env, broadcasterId),
     startedAt:       lifecycleState?.startedAt || null,
     lastTitle:       lifecycleState?.lastTitle || null,
     lastGame:        lifecycleState?.lastGame  || null,
