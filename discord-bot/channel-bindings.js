@@ -65,6 +65,10 @@ const BINDING_KEYS = Object.freeze([
   // Anniversary celebrations (anniversary.js) Discord posts. KV-only;
   // falls back to a hardcoded games-hub channel ID if unbound.
   'anniversary',
+  // Boltbound game-update posts (new expansion-set launch announcements,
+  // cards-web.js announceExpansionRelease). KV-only; falls back to the
+  // `play` hub binding if unbound so a release post still lands somewhere.
+  'game-updates',
 ]);
 
 // Source-of-truth mapping from binding key → fallback env var name.
@@ -101,6 +105,9 @@ const BINDING_ENV_FALLBACK = Object.freeze({
   // Anniversary + Stream Squad: KV-only, hardcoded fallback lives in
   // the respective module (games-hub channel).
   'anniversary':          null,
+  // Boltbound game-updates: KV-only; cards-web falls back to the `play`
+  // binding in code, so no env var here.
+  'game-updates':         null,
 });
 
 const BINDING_KEY = (g, k) => `channel-binding:${g}:${k}`;

@@ -40,6 +40,11 @@ import {
 import { loadHero } from './hero-state.js';
 import { getWallet } from './wallet.js';
 import { getLoginStatus, claimDailyLogin } from './boltbound-login.js';
+import {
+  SETS, SET_IDS, isReleased, isNewlyReleased, timeUntilRelease,
+} from './boltbound-sets.js';
+import { getChannelBinding } from './channel-bindings.js';
+import { postChannelMessage } from './aquilo/util.js';
 
 const ROUTES = new Set([
   'boltbound/state',
@@ -52,6 +57,8 @@ const ROUTES = new Set([
   'boltbound/packs/buy',
   'boltbound/packs/open',
   'boltbound/packs/free-daily',
+  // CR-2: expansion-set gallery (released/upcoming + countdowns).
+  'boltbound/sets',
   'boltbound/match/start-npc',
   'boltbound/match/queue',
   'boltbound/match/challenge',
@@ -64,6 +71,10 @@ const ROUTES = new Set([
   // RET-1: grindy daily login rewards (streak-gated; no daily packs).
   'boltbound/login/status',
   'boltbound/login/claim',
+  // Per-user client prefs that sync cross-device (arena backdrop choice
+  // + shuffle). Stored on the player profile in KV.
+  'boltbound/settings/get',
+  'boltbound/settings/set',
   // CR-1: recycle/craft surface
   'boltbound/fragments',
   'boltbound/recycle',
@@ -82,9 +93,11 @@ const ROUTES = new Set([
 const READ_ROUTES = new Set([
   'boltbound/state',
   'boltbound/catalogue',
+  'boltbound/sets',
   'boltbound/match/state',
   'boltbound/log',
   'boltbound/login/status',
+  'boltbound/settings/get',
   'boltbound/fragments',
   'boltbound/trade/list',
   'boltbound/trade/get',
@@ -219,6 +232,13 @@ async function routeCatalogue() {
       keywords: c.keywords, text: c.text, token: c.token,
       needsTarget: c.needsTarget,
       spriteId: c.spriteId,
+      // CR-2 expansion fields — drive set badges/filters + the flavour
+      // line + the keyword tooltip layer on the site.
+      set: c.set || 'core',
+      tribe: c.tribe || null,
+      flavor: c.flavor || '',
+      overload: c.overload || 0,
+      chooseOne: !!c.chooseOne,
     }]),
   );
   return new Response(JSON.stringify({ ok: true, version: 1, cards }), {
@@ -228,6 +248,93 @@ async function routeCatalogue() {
       'cache-control': 'public, max-age=60, s-maxage=300',
     },
   });
+}
+
+// Expansion-set gallery — released + upcoming sets with live card counts,
+// countdowns, theme/palette, and mechanics. Public read-only. Also the
+// trigger point for the one-shot "new expansion" Discord announcement:
+// when a player loads the gallery and a set is newly released but not yet
+// announced, we fire it once (dedup'd in KV). It posts ONLY if a channel
+// is actually bound — never to a guessed channel.
+async function routeSets(env, guildId, userId) {
+  const now = Date.now();
+  // Live per-set pullable counts from the catalogue.
+  const counts = {};
+  for (const c of Object.values(CARDS)) {
+    if (c.token) continue;
+    const s = c.set || 'core';
+    counts[s] = (counts[s] || 0) + 1;
+  }
+  const sets = SET_IDS.map(id => {
+    const s = SETS[id];
+    return {
+      id,
+      name: s.name,
+      blurb: s.blurb,
+      theme: s.theme,
+      mechanics: s.mechanics,
+      tribe: s.tribe || null,
+      releaseUtc: s.releaseUtc,
+      released: isReleased(id, now),
+      newlyReleased: isNewlyReleased(id, now),
+      msUntilRelease: timeUntilRelease(id, now),
+      cardCount: counts[id] || 0,
+      plannedCount: s.plannedCount,
+      hidden: !!s.hidden,
+    };
+  });
+
+  // Best-effort one-shot launch announcement for any newly-released set.
+  for (const s of sets) {
+    if (s.newlyReleased && s.id !== 'core') {
+      announceExpansionReleaseOnce(env, guildId, s.id).catch(() => {});
+    }
+  }
+
+  return new Response(JSON.stringify({ ok: true, now, sets }), {
+    status: 200,
+    headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=60, s-maxage=120' },
+  });
+}
+
+// Fire the "NEW: <set> is here" Discord post at most once per set. The
+// KV flag dedups across every page load + every guild. Posts to the
+// `game-updates` channel binding, falling back to the `play` hub; if
+// neither is bound we mark it announced anyway so we don't keep trying.
+async function announceExpansionReleaseOnce(env, guildId, setId) {
+  const flagKey = `expansion-announced:${setId}`;
+  try {
+    if (await env.LOADOUT_BOLTS.get(flagKey)) return;
+  } catch { return; }
+  const s = SETS[setId];
+  if (!s) return;
+  // Reserve the flag up-front so concurrent loads don't double-post.
+  try { await env.LOADOUT_BOLTS.put(flagKey, String(Date.now())); } catch { return; }
+
+  let channelId = null;
+  try {
+    channelId = await getChannelBinding(env, guildId, 'game-updates')
+             || await getChannelBinding(env, guildId, 'play');
+  } catch { channelId = null; }
+  if (!channelId || !env.DISCORD_BOT_TOKEN) return;   // nothing bound — stay quiet
+
+  const embed = {
+    title: `NEW: ${s.name} is here`,
+    description: s.blurb,
+    color: parseInt((s.theme?.primary || '#7c5cff').replace('#', ''), 16),
+    fields: [
+      { name: 'Cards', value: String(s.plannedCount || ''), inline: true },
+      { name: 'Mechanics', value: (s.mechanics || []).join(', '), inline: true },
+    ],
+    footer: { text: 'Boltbound expansion' },
+    url: 'https://aquilo.gg/play/boltbound/sets',
+  };
+  try {
+    await postChannelMessage(env, channelId, {
+      content: `A new Boltbound set just dropped. Open a **${s.name}** pack at https://aquilo.gg/play/boltbound/sets`,
+      embeds: [embed],
+    });
+  } catch { /* non-fatal — the flag already prevents retries */ }
 }
 
 async function routeDecksSave(env, guildId, userId, body) {
@@ -289,7 +396,10 @@ async function routeStarterDeck(env, guildId, userId) {
 
 async function routePacksBuy(env, guildId, userId, body) {
   const packType = String((body && body.packType) || 'bolt');
-  const r = await buyPack(env, guildId, userId, packType);
+  // CR-2: optional set selector. Default 'core' (legacy behaviour). An
+  // unknown / unreleased set is rejected inside buyPack().
+  const setId = SET_IDS.includes(String(body && body.set)) ? String(body.set) : 'core';
+  const r = await buyPack(env, guildId, userId, packType, setId);
   return json(r);
 }
 async function routePacksOpen(env, guildId, userId, body) {
@@ -354,6 +464,11 @@ async function routeMatchAction(env, guildId, userId, body) {
     const t = body && body.target;
     const targetUid = (t === null || t === undefined || t === '') ? null : String(t);
     action = { kind: 'playCard', handIdx, targetUid };
+    // CR-2 pick-one mechanics (Choose One / Adapt / Discover). Optional —
+    // the resolver falls back to a seeded default when absent.
+    if (Number.isInteger(+body.chooseOption))   action.chooseOption   = +body.chooseOption;
+    if (Number.isInteger(+body.adaptChoice))    action.adaptChoice    = +body.adaptChoice;
+    if (Number.isInteger(+body.discoverChoice)) action.discoverChoice = +body.discoverChoice;
   } else if (kind === 'attack') {
     const attackerUid = String((body && body.attackerUid) || '');
     if (!attackerUid) return json({ ok: false, error: 'bad-attacker' });
@@ -397,6 +512,52 @@ async function routeLog(env, guildId, userId) {
   return json({ ok: true, log: (log || []).slice(0, 25) });
 }
 
+// ── Boltbound client prefs (arena backdrop) ─────────────────────────
+//
+// Stored on the per-user profile in KV under a `boltbound` sub-object so
+// the chosen arena + shuffle flag follow the player across devices. The
+// client treats localStorage as the fast local source of truth and uses
+// these endpoints purely to hydrate/persist cross-device — so a missing
+// value or a never-deployed worker degrades to "local only", never an
+// error path the UI surfaces.
+
+async function readProfile(env, userId) {
+  try {
+    return (await env.LOADOUT_BOLTS.get(`pprofile:${userId}`, { type: 'json' })) || {};
+  } catch {
+    return {};
+  }
+}
+
+async function routeSettingsGet(env, userId) {
+  const prof = await readProfile(env, userId);
+  const bb = (prof && prof.boltbound) || {};
+  return json({
+    ok: true,
+    settings: {
+      preferredArena: typeof bb.preferredArena === 'string' ? bb.preferredArena : null,
+      arenaShuffle: typeof bb.arenaShuffle === 'boolean' ? bb.arenaShuffle : null,
+    },
+  });
+}
+
+async function routeSettingsSet(env, userId, body) {
+  const prof = await readProfile(env, userId);
+  const next = { ...prof, boltbound: { ...(prof.boltbound || {}) } };
+  if (typeof body?.preferredArena === 'string') {
+    next.boltbound.preferredArena = body.preferredArena.slice(0, 48);
+  }
+  if (typeof body?.arenaShuffle === 'boolean') {
+    next.boltbound.arenaShuffle = body.arenaShuffle;
+  }
+  try {
+    await env.LOADOUT_BOLTS.put(`pprofile:${userId}`, JSON.stringify(next));
+  } catch (e) {
+    return json({ ok: false, error: 'persist', message: String((e && e.message) || e) }, 500);
+  }
+  return json({ ok: true, settings: next.boltbound });
+}
+
 // ── CR-1: recycle/craft routes ──────────────────────────────────────
 //
 // `boltbound/fragments` (read-only) → balance + economy constants.
@@ -428,7 +589,7 @@ async function routeCraft(env, guildId, userId, body) {
   return json(r);
 }
 
-// ── RET-1: daily login reward routes ────────────────────
+// ── RET-1: daily login reward routes ────────────────────────────────
 //
 // `boltbound/login/status` (read) → current streak + next-milestone
 // preview + whether today is claimable.
@@ -591,6 +752,7 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/packs/buy')       return await routePacksBuy(env, guildId, userId, body);
     if (route === 'boltbound/packs/open')      return await routePacksOpen(env, guildId, userId, body);
     if (route === 'boltbound/packs/free-daily') return await routePacksFreeDaily(env, guildId, userId);
+    if (route === 'boltbound/sets')            return await routeSets(env, guildId, userId);
     if (route === 'boltbound/match/start-npc') return await routeMatchStartNpc(env, guildId, userId, body);
     if (route === 'boltbound/match/queue')     return await routeMatchQueue(env, guildId, userId);
     if (route === 'boltbound/match/challenge') return await routeMatchChallenge(env, guildId, userId, body);
@@ -602,6 +764,8 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/log')             return await routeLog(env, guildId, userId);
     if (route === 'boltbound/login/status')    return await routeLoginStatus(env, guildId, userId);
     if (route === 'boltbound/login/claim')     return await routeLoginClaim(env, guildId, userId);
+    if (route === 'boltbound/settings/get')    return await routeSettingsGet(env, userId);
+    if (route === 'boltbound/settings/set')    return await routeSettingsSet(env, userId, body);
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);
     if (route === 'boltbound/recycle')         return await routeRecycle(env, guildId, userId, body);
     if (route === 'boltbound/craft')           return await routeCraft(env, guildId, userId, body);
