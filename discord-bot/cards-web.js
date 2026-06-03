@@ -44,6 +44,7 @@ import { listTodaysQuests, claimQuest, rerollQuest, progressBoltbound } from './
 import { getStats, recordPlay, recordMatchEnd, recordPackOpen, statForTrigger, triggerEvents } from './boltbound-stats.js';
 import { listAchievements, getUserAchievements, checkAndUnlock } from './achievements-d1.js';
 import { getRankedMe, getRankedLeaderboard } from './boltbound-ranked.js';
+import { getArenaState, startArenaRun, pickArenaCard, playArenaMatch, retireArenaRun, getArenaHistory } from './boltbound-arena.js';
 import {
   SETS, SET_IDS, isReleased, isNewlyReleased, timeUntilRelease,
 } from './boltbound-sets.js';
@@ -63,6 +64,13 @@ const ROUTES = new Set([
   // RET-4: ranked ladder (current rank + season + leaderboard).
   'boltbound/ranked/me',
   'boltbound/ranked/leaderboard',
+  // RET-5: Arena draft mode (draft -> run -> escalating rewards).
+  'boltbound/arena/state',
+  'boltbound/arena/start',
+  'boltbound/arena/pick',
+  'boltbound/arena/match',
+  'boltbound/arena/retire',
+  'boltbound/arena/history',
   'boltbound/decks/save',
   'boltbound/decks/delete',
   'boltbound/decks/activate',
@@ -112,6 +120,8 @@ const READ_ROUTES = new Set([
   'boltbound/achievements/me',
   'boltbound/ranked/me',
   'boltbound/ranked/leaderboard',
+  'boltbound/arena/state',
+  'boltbound/arena/history',
   'boltbound/sets',
   'boltbound/match/state',
   'boltbound/log',
@@ -753,6 +763,33 @@ async function routeRankedLeaderboard(env, guildId, userId) {
   return json(await getRankedLeaderboard(env, 100));
 }
 
+// ── RET-5: Arena draft mode ─────────────────────────────────────────
+//
+// state/history are reads; start/pick/match/retire are writes. Entry
+// costs 1000 Bolts or 1 Arena ticket; the draft + run + rewards loop
+// lives in boltbound-arena.js.
+
+async function routeArenaState(env, guildId, userId) {
+  return json(await getArenaState(env, guildId, userId));
+}
+async function routeArenaStart(env, guildId, userId, body) {
+  return json(await startArenaRun(env, guildId, userId, !!(body && body.useTicket)));
+}
+async function routeArenaPick(env, guildId, userId, body) {
+  const cardId = String((body && body.cardId) || '').trim();
+  if (!cardId) return json({ ok: false, error: 'bad-card' }, 400);
+  return json(await pickArenaCard(env, guildId, userId, cardId));
+}
+async function routeArenaMatch(env, guildId, userId) {
+  return json(await playArenaMatch(env, guildId, userId));
+}
+async function routeArenaRetire(env, guildId, userId) {
+  return json(await retireArenaRun(env, guildId, userId));
+}
+async function routeArenaHistory(env, guildId, userId) {
+  return json(await getArenaHistory(env, userId, 10));
+}
+
 // ── Trade routes ───────────────────────────────────────────────────
 //
 // Auth is already enforced upstream by web.js (HMAC) — `userId` here
@@ -919,6 +956,12 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/achievements/me')   return await routeAchievementsMe(env, guildId, userId);
     if (route === 'boltbound/ranked/me')         return await routeRankedMe(env, guildId, userId);
     if (route === 'boltbound/ranked/leaderboard') return await routeRankedLeaderboard(env, guildId, userId);
+    if (route === 'boltbound/arena/state')       return await routeArenaState(env, guildId, userId);
+    if (route === 'boltbound/arena/start')       return await routeArenaStart(env, guildId, userId, body);
+    if (route === 'boltbound/arena/pick')        return await routeArenaPick(env, guildId, userId, body);
+    if (route === 'boltbound/arena/match')       return await routeArenaMatch(env, guildId, userId);
+    if (route === 'boltbound/arena/retire')      return await routeArenaRetire(env, guildId, userId);
+    if (route === 'boltbound/arena/history')     return await routeArenaHistory(env, guildId, userId);
     if (route === 'boltbound/settings/get')    return await routeSettingsGet(env, userId);
     if (route === 'boltbound/settings/set')    return await routeSettingsSet(env, userId, body);
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);
