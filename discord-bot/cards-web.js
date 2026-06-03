@@ -47,6 +47,7 @@ import { getRankedMe, getRankedLeaderboard } from './boltbound-ranked.js';
 import { getArenaState, startArenaRun, pickArenaCard, playArenaMatch, retireArenaRun, getArenaHistory } from './boltbound-arena.js';
 import { createRoom, joinRoom, getMyRoom, cancelRoom } from './boltbound-rooms.js';
 import { shareDeck, listCommunity, getSharedDeck, copySharedDeck } from './boltbound-decks-share.js';
+import { craftCard, disenchantCard, getDust } from './boltbound-dust.js';
 import {
   SETS, SET_IDS, isReleased, isNewlyReleased, timeUntilRelease,
 } from './boltbound-sets.js';
@@ -83,6 +84,8 @@ const ROUTES = new Set([
   'boltbound/deck/community',
   'boltbound/deck/get',
   'boltbound/deck/copy',
+  // RET-8: per-card dust crafting (craft | disenchant a single copy).
+  'boltbound/cards/craft',
   'boltbound/decks/save',
   'boltbound/decks/delete',
   'boltbound/decks/activate',
@@ -216,6 +219,8 @@ async function routeState(env, guildId, userId) {
 
   const activeMatch = await getActiveMatch(env, guildId, userId);
   const matchView = activeMatch ? renderableState(activeMatch, userId) : null;
+  // RET-8 — per-card dust balance for the crafting surface.
+  const dustBalance = await getDust(env, userId);
 
   return json({
     ok: true,
@@ -244,6 +249,7 @@ async function routeState(env, guildId, userId) {
     log: (log || []).slice(0, 10),
     trophies: trophies || { trophies: 0, peak: 0, season: 1 },
     wallet: { balance: wallet.balance || 0 },
+    dust: dustBalance,
     freePackClaimedToday: !!freeClaimed,
     // CR-1 — fragment balance + craft economy constants. Page can
     // render the "Craft Pack" CTA + balance chip without follow-up.
@@ -858,6 +864,22 @@ async function routeDeckCopy(env, guildId, userId, body) {
   return json(await copySharedDeck(env, (body && body.sharedId) || ''));
 }
 
+// ── RET-8: per-card dust crafting ───────────────────────────────────
+//
+// body { cardId, action: 'craft' | 'dust' }. craft mints +1 copy for
+// the rarity's dust cost; dust (disenchant) destroys 1 copy for its
+// refund (deck-protected). The worker is authoritative on the tables
+// (boltbound-dust.js); the site mirrors them for display.
+
+async function routeCardsCraft(env, guildId, userId, body) {
+  const cardId = String((body && body.cardId) || '').trim();
+  const action = String((body && body.action) || '').trim();
+  if (!cardId) return json({ ok: false, error: 'bad-card' }, 400);
+  if (action === 'craft') return json(await craftCard(env, guildId, userId, cardId));
+  if (action === 'dust')  return json(await disenchantCard(env, guildId, userId, cardId));
+  return json({ ok: false, error: 'bad-action' }, 400);
+}
+
 // ── Trade routes ───────────────────────────────────────────────────
 //
 // Auth is already enforced upstream by web.js (HMAC) — `userId` here
@@ -1038,6 +1060,7 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/deck/community')    return await routeDeckCommunity(env, guildId, userId, body);
     if (route === 'boltbound/deck/get')          return await routeDeckGet(env, guildId, userId, body);
     if (route === 'boltbound/deck/copy')         return await routeDeckCopy(env, guildId, userId, body);
+    if (route === 'boltbound/cards/craft')       return await routeCardsCraft(env, guildId, userId, body);
     if (route === 'boltbound/settings/get')    return await routeSettingsGet(env, userId);
     if (route === 'boltbound/settings/set')    return await routeSettingsSet(env, userId, body);
     if (route === 'boltbound/fragments')       return await routeFragments(env, guildId, userId);
