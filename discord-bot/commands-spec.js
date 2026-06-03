@@ -754,14 +754,8 @@ export const COMMANDS = [
     default_member_permissions: '8192',     // MANAGE_MESSAGES
   },
 
-  // ── Character + pet system ───────────────────────────────────────
-  // Pixel-art identity editor + Patreon-gated cosmetic companion
-  // with a tamagotchi care loop. See CHARACTER-SYSTEM-DESIGN.md.
-  {
-    name: 'character',
-    description: 'Customise your pixel-art character — body, hair, eyes, accent',
-    default_member_permissions: '0',
-  },
+  // ── Pet system ───────────────────────────────────────────────────
+  // Patreon-gated cosmetic companion with a tamagotchi care loop.
   {
     name: 'pet',
     description: 'Adopt + care for a cosmetic pet (Patreon perk)',

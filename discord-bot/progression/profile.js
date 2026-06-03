@@ -23,7 +23,6 @@ const HANDLE_INDEX_KEY = (safe) => `pprofile:handle:${safe}`;
 const FEATURE_ORDER = [
   { feature: 'boltbound', importPath: '../cards-state.js' },
   { feature: 'board',     importPath: '../boardgames-engine.js' },
-  { feature: 'hero',      importPath: '../character.js' },
   { feature: 'quick',     importPath: '../games-quick.js' },
   { feature: 'stocks',    importPath: '../stocks.js' },
   { feature: 'bet',       importPath: '../bet.js' },

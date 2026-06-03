@@ -19,7 +19,7 @@ import {
   CLASSES,
   STARTER_GEAR,
   applyClassSelection,
-} from './dungeon.js';
+} from './hero-state.js';
 import { resolveEquippedArt, resolveEquippedTint } from './character-composite.js';
 import { getPet, computeMood } from './pet.js';
 import { getWallet, spend, earn } from './wallet.js';

@@ -33,7 +33,7 @@ import {
 import { getChannelBinding } from './channel-bindings.js';
 import { getBranding } from './branding.js';
 import { preferredHeroImageUrl } from './character.js';
-import { loadHero } from './dungeon.js';
+import { loadHero } from './hero-state.js';
 import { readXpDisplay } from './progression/xp.js';
 
 const RESP_CHAT          = 4;

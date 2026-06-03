@@ -71,7 +71,7 @@ export const INTERESTS = Object.freeze([
 // Ordered step machine — drives next/back navigation + the funnel
 // counter buckets. Each id is also the `step` value persisted in
 // `onboard:state:<g>:<u>`.
-export const STEP_ORDER = ['welcome', 'interests', 'links', 'character', 'pwa', 'age18', 'tour', 'complete'];
+export const STEP_ORDER = ['welcome', 'interests', 'links', 'pwa', 'age18', 'tour', 'complete'];
 
 // Discord component constants — mirrored from util.js / character.js
 // for callsite isolation.
@@ -431,37 +431,6 @@ async function viewLinks(env, guildId) {
   };
 }
 
-async function viewCharacter(env, guildId) {
-  const brand = await getBranding(env, guildId);
-  return {
-    flags: FLAG_EPHEMERAL,
-    embeds: [{
-      title: '🧑 Your character',
-      description:
-        `Two ways to set yours up:\n\n` +
-        `• **Easy** — upload a picture or GIF of your hero on the web editor\n` +
-        `• **Quick** — Discord: \`/character\` opens the in-Discord picker\n\n` +
-        `(You can change either at any time.)`,
-      color: brand.accentColor,
-    }],
-    components: [
-      {
-        type: COMPONENT_ROW,
-        components: [
-          { type: COMPONENT_BUTTON, style: BTN_LINK, label: 'Open web editor', url: `${brand.siteUrl}/play/character/` },
-        ],
-      },
-      {
-        type: COMPONENT_ROW,
-        components: [
-          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Skip', custom_id: 'onb:step:pwa' },
-          { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Next ▶︎', custom_id: 'onb:advance:character' },
-        ],
-      },
-    ],
-  };
-}
-
 // ── PWA install step ────────────────────────────────────────────────
 //
 // Aquilo runs as a Progressive Web App — installing it gets push
@@ -654,7 +623,6 @@ async function viewForStep(env, guildId, userId, state) {
   switch (state.step) {
     case 'interests': return viewInterests(env, guildId, state);
     case 'links':     return viewLinks(env, guildId);
-    case 'character': return viewCharacter(env, guildId);
     case 'pwa':       return viewPwa(env, guildId);
     case 'age18':     return viewAge18(env, guildId);
     case 'tour':      return viewTour(env, guildId);

@@ -60,26 +60,6 @@ import {
   closeNight,
   notifyQueueOpened,
 } from './queue.js';
-import {
-  loadHero,
-  attackOf,
-  defenseOf,
-  doInventory,
-  doEquip,
-  doUnequip,
-  doSell,
-  getDailyShop,
-  doShopBuy,
-} from './dungeon.js';
-import {
-  getCharacterLookWeb,
-  saveCharacterLookWeb,
-  saveCharacterCustomizationWeb,
-  applyClassWeb,
-  resetCharacterWeb,
-  putAvatarWeb,
-  clearAvatarWeb,
-} from './character.js';
 import { handleAdminWeb } from './admin-web.js';
 import { routeBoltbound, isBoltboundRoute } from './cards-web.js';
 import { routeBoard, isBoardRoute } from './boardgames-web.js';
@@ -154,19 +134,6 @@ const ROUTES = new Set([
   'queues/open',
   'queues/close',
   'queues/close-night',
-  'hero',
-  'equip',
-  'unequip',
-  'sell',
-  'shop',
-  'shop/buy',
-  'dungeon/skip-cooldown',
-  // Hero soft-death revive (2026-05-29). buy-revive purchases a
-  // Revive Elixir into the player's bag for the level-scaled bolts
-  // cost; use-revive consumes one elixir + flips the hero back to
-  // alive at full HP. Lost gear stays lost — see hero-death.js.
-  'dungeon/buy-revive',
-  'dungeon/use-revive',
   // Banners + Banner Wars (2026-05-29). 5-25 player alliances + weekly
   // bracketed war state. Site UI was scaffolded with greyed-out
   // buttons; these endpoints light up the flow. See banners.js +
@@ -183,18 +150,10 @@ const ROUTES = new Set([
   'play/dust/craft',
   'play/drops/active',
   'play/drops/upcoming',
-  // 2026-05-29 Phase A hero customization — composite manifest the
-  // site renderer consumes to stack PNG layers.
-  'character/composite',
-  'character/backgrounds',
   // 2026-05-29 sprint — Aquilo Pass + stream-bonus probe.
   'pass/state',
   'pass/claim-tier',
   'stream/bonus-state',
-  // 2026-05-29 sprint — 3 outstanding chips: skills, cosmetics, card backs.
-  'play/skills/snapshot',
-  'play/skills/allocate',
-  'play/skills/respec',
   'play/cosmetics/me',
   'play/cards/back/list',
   'play/cards/back/set',
@@ -209,24 +168,7 @@ const ROUTES = new Set([
   'play/war/raid',
   'pet/snapshot',
   'pet/collect',
-  'expedition/status',
-  'expedition/start',
-  'expedition/claim',
-  'expedition/history',
-  'expedition/backpack/catalog',
-  'expedition/backpack/buy',
-  'expedition/backpack/supply',
   'season/claim',
-  'character',
-  'character/save',
-  'character/class',
-  'character/reset',
-  // May 2026: user-uploaded hero avatar — supersedes the visible
-  // procedural character on the site. NOT subject to character-locked
-  // (see putAvatarWeb / clearAvatarWeb in character.js). Same path
-  // services upload + clear; clear is triggered by `clear: true` flag
-  // or by submitting an empty dataBase64.
-  'character/avatar',
   // Discord rich-presence web fallback (Batch B). The site reports the
   // viewer's current aquilo.gg activity here; the worker persists it to
   // KV with a heartbeat-expiry so a future desktop consumer (StreamFusion
@@ -510,16 +452,6 @@ export async function handleWeb(req, env) {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routeQueuesCloseNight(env, guildId);
     }
-    if (route === 'hero')     return await routeHero(env, guildId, discordId);
-    if (route === 'equip')    return await routeEquip(env, guildId, discordId, body);
-    if (route === 'unequip')  return await routeUnequip(env, guildId, discordId, body);
-    if (route === 'sell')     return await routeSell(env, guildId, discordId, body);
-    if (route === 'shop')     return await routeShop(env, guildId, discordId);
-    if (route === 'shop/buy') return await routeShopBuy(env, guildId, discordId, body);
-    if (route === 'dungeon/skip-cooldown') return await routeDungeonSkip(env, guildId, discordId);
-    if (route === 'dungeon/buy-revive')    return await routeDungeonBuyRevive(env, guildId, discordId);
-    if (route === 'dungeon/use-revive')    return await routeDungeonUseRevive(env, guildId, discordId);
-    if (route === 'character/class')       return await routeCharacterClass(env, guildId, discordId, body);
     if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
     if (route === 'pet/snapshot')          return await routePetSnapshot(env, guildId, discordId);
     if (route === 'pet/collect')           return await routePetCollect(env, guildId, discordId);
@@ -553,14 +485,9 @@ export async function handleWeb(req, env) {
     if (route === 'play/dust/craft')              return await routeDustCraft(env, guildId, discordId, body);
     if (route === 'play/drops/active')            return await routeDropsActive(env);
     if (route === 'play/drops/upcoming')          return await routeDropsUpcoming(env, body);
-    if (route === 'character/composite')          return await routeCharacterComposite(env, guildId, discordId);
-    if (route === 'character/backgrounds')        return await routeCharacterBackgrounds(env, discordId);
     if (route === 'pass/state')                   return await routePassState(env, discordId);
     if (route === 'pass/claim-tier')              return await routePassClaim(env, guildId, discordId, body);
     if (route === 'stream/bonus-state')           return await routeStreamBonusState(env);
-    if (route === 'play/skills/snapshot')         return await routeSkillsSnapshot(env, guildId, discordId);
-    if (route === 'play/skills/allocate')         return await routeSkillsAllocate(env, guildId, discordId, body);
-    if (route === 'play/skills/respec')           return await routeSkillsRespec(env, guildId, discordId);
     if (route === 'play/cosmetics/me')            return await routeCosmeticsMe(env, discordId);
     if (route === 'play/cards/back/list')         return await routeCardBackList(env, discordId);
     if (route === 'play/cards/back/set')          return await routeCardBackSet(env, discordId, body);
@@ -612,15 +539,6 @@ export async function handleWeb(req, env) {
     if (route === 'chat/send')        return await routeChatSend(env, guildId, discordId, body);
     if (route === 'chat/relay/recent') return await routeChatRelayRecent(env, guildId, discordId, body);
     if (route === 'season/claim')          return await routeSeasonClaim(env, discordId, body);
-    if (route.startsWith('expedition/')) {
-      const sub = route.slice('expedition/'.length);
-      const { handleExpeditionWeb } = await import('./expedition.js');
-      return await handleExpeditionWeb(env, guildId, discordId, body, sub);
-    }
-    if (route === 'character')             return await routeCharacterGet(env, guildId, discordId);
-    if (route === 'character/save')        return await routeCharacterSave(env, guildId, discordId, body);
-    if (route === 'character/reset')       return await routeCharacterReset(env, guildId, discordId);
-    if (route === 'character/avatar')      return await routeCharacterAvatar(env, guildId, discordId, body);
     if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
     if (isBoardRoute(route))               return await routeBoard(env, route, guildId, discordId, body);
   } catch (e) {
@@ -1020,196 +938,6 @@ async function routeQueuesCloseNight(env, guildId) {
   return json(r, r.ok ? 200 : 400);
 }
 
-// ── Hero / Inventory / Equip / Unequip / Sell (Phase 2) ───────────────
-
-async function routeHero(env, guildId, userId) {
-  const hero = await loadHero(env, guildId, userId);
-  const { bag, equipped } = await doInventory(env, guildId, userId);
-  return json({
-    ok: true,
-    hero: {
-      name: hero.name || '',
-      class: hero.class || 'rogue',
-      level: hero.level || 1,
-      hp: hero.hp || 0,
-      maxHp: hero.maxHp || 0,
-      attack: attackOf(hero),
-      defense: defenseOf(hero),
-      portrait: hero.portrait || null,
-    },
-    bag: Array.isArray(bag) ? bag : [],
-    equipped: equipped || {},
-  });
-}
-
-async function routeEquip(env, guildId, userId, body) {
-  const id = String(body && body.itemId || '').trim();
-  if (!id) return json({ ok: false, error: 'bad-args', message: 'Pick an item.' }, 400);
-  const r = await doEquip(env, guildId, userId, id);
-  if (!r.ok) {
-    const msg = r.reason === 'not-found'
-      ? `No item starting with \`${id}\` in your bag.`
-      : 'That item has no equip slot.';
-    return json({ ok: false, error: r.reason, message: msg }, 400);
-  }
-  return json({ ok: true, item: r.item, message: `Equipped ${r.item.name}.` });
-}
-
-async function routeUnequip(env, guildId, userId, body) {
-  const slot = String(body && body.slot || '').trim().toLowerCase();
-  if (!slot) return json({ ok: false, error: 'bad-args', message: 'Pick a slot.' }, 400);
-  const r = await doUnequip(env, guildId, userId, slot);
-  if (!r.ok) return json({ ok: false, error: r.reason, message: `Nothing equipped in ${slot}.` }, 400);
-  return json({ ok: true, slot, message: `Unequipped ${slot}.` });
-}
-
-async function routeSell(env, guildId, userId, body) {
-  const id = String(body && body.itemId || '').trim();
-  if (!id) return json({ ok: false, error: 'bad-args', message: 'Pick an item.' }, 400);
-  const r = await doSell(env, guildId, userId, id);
-  if (!r.ok) return json({ ok: false, error: r.reason, message: `No item starting with \`${id}\`.` }, 400);
-  return json({ ok: true, item: r.item, refund: r.refund, message: `Sold for ${r.refund} bolts.` });
-}
-
-// ── Shop (Phase 3) ────────────────────────────────────────────────────
-
-async function routeShop(env, guildId, userId) {
-  const stock = await getDailyShop(env, guildId);
-  // getDailyShop returns { date, items: [[slot, rarity, name, glyph, atk, def, price, setName, weaponType, preferredClass, ability], ...] }
-  // Reshape to JSON-friendly objects.
-  const items = (stock && stock.items ? stock.items : []).map((row) => ({
-    slot: row[0],
-    rarity: row[1],
-    name: row[2],
-    glyph: row[3],
-    powerBonus: row[4] || 0,
-    defenseBonus: row[5] || 0,
-    price: row[6] || 0,
-    setName: row[7] || '',
-    weaponType: row[8] || '',
-    preferredClass: row[9] || '',
-    ability: row[10] || '',
-  }));
-  const w = await getWallet(env, guildId, userId);
-  return json({
-    ok: true,
-    date: stock && stock.date,
-    items,
-    balance: w.balance || 0,
-  });
-}
-
-async function routeShopBuy(env, guildId, userId, body) {
-  const name = String(body && body.name || '').trim();
-  if (!name) return json({ ok: false, error: 'bad-args', message: 'Pick an item.' }, 400);
-  const r = await doShopBuy(env, guildId, userId, name);
-  if (!r.ok) {
-    const msg = r.reason === 'not-in-stock'
-      ? "That item isn't in today's shop stock."
-      : r.reason === 'insufficient'
-      ? `Need ${r.price} bolts; you have ${r.balance}.`
-      : 'Couldn\'t buy — try again.';
-    return json({ ok: false, error: r.reason, message: msg, ...r }, 400);
-  }
-  const w = await getWallet(env, guildId, userId);
-  return json({
-    ok: true,
-    item: r.item || null,
-    balance: w.balance || 0,
-    message: `Bought ${r.item ? r.item.name : 'item'}.`,
-  });
-}
-
-// ── Revive elixir ────────────────────────────────────────────────
-// Buy: charges level-scaled bolts and adds a Revive Elixir to bag.
-// Use: consumes one elixir + flips the hero from dead → alive @ full HP.
-// Two-step (buy then use) is intentional so a player who already owns
-// an elixir can revive without an extra purchase, and so the bag-state
-// matches Clay's spec ("an item the player owns").
-
-async function routeDungeonBuyRevive(env, guildId, userId) {
-  const { loadHero, saveHero, SHOP_ESSENTIALS } = await import('./dungeon.js');
-  const { reviveCost, REVIVE_ITEM_ID } = await import('./hero-death.js');
-  const hero = await loadHero(env, guildId, userId);
-  if (!hero) return json({ ok: false, error: 'no-hero' }, 400);
-  const cost = reviveCost(hero);
-  const wallet = await getWallet(env, guildId, userId);
-  if ((wallet.balance || 0) < cost) {
-    return json({
-      ok: false, error: 'insufficient-bolts',
-      message: `Need ${cost} bolts; you have ${wallet.balance || 0}.`,
-      need: cost, have: wallet.balance || 0,
-    }, 400);
-  }
-  try {
-    await applyVaultDelta(env, guildId, userId, -cost, 'dungeon:buy-revive');
-  } catch (e) {
-    return json({ ok: false, error: 'bolts-debit-failed', detail: String(e?.message || e) }, 500);
-  }
-  // Push a fresh elixir into the bag — the catalogue entry minus the
-  // gameplay-irrelevant description field, matching how other bag items
-  // are stored (see dungeon.js doShopBuy).
-  const tpl = (SHOP_ESSENTIALS || []).find(e => e.id === REVIVE_ITEM_ID);
-  const item = tpl ? {
-    id: tpl.id, slot: tpl.slot, rarity: tpl.rarity, name: tpl.name,
-    glyph: tpl.glyph, goldValue: cost, consumable: true,
-    spriteId: tpl.spriteId,
-  } : { id: REVIVE_ITEM_ID, slot: 'consumable', rarity: 'rare', name: 'Revive Elixir', glyph: '✨', goldValue: cost, consumable: true };
-  hero.bag = Array.isArray(hero.bag) ? hero.bag : [];
-  hero.bag.push(item);
-  await saveHero(env, guildId, userId, hero);
-  const fresh = await getWallet(env, guildId, userId);
-  return json({
-    ok: true,
-    item,
-    balance: fresh.balance || 0,
-    spent: cost,
-    message: `Bought Revive Elixir for ${cost} bolts.`,
-  });
-}
-
-async function routeDungeonUseRevive(env, guildId, userId) {
-  const { useReviveElixir, reviveCost } = await import('./hero-death.js');
-  const r = await useReviveElixir(env, guildId, userId);
-  if (!r.ok) {
-    const message =
-      r.error === 'no-hero'   ? "No hero on record."
-    : r.error === 'not-dead'  ? "Your hero is already alive."
-    : r.error === 'no-elixir' ? `No Revive Elixir in your bag. Buy one for ${r.reviveCost} bolts.`
-    : "Couldn't revive — try again.";
-    return json({ ok: false, error: r.error, message, reviveCost: r.reviveCost }, 400);
-  }
-  return json({
-    ok: true,
-    hero: r.hero,
-    message: 'Hero revived to full HP. Lost gear stays lost.',
-  });
-}
-
-// ── Dungeon skip-cooldown ────────────────────────────────────────
-//
-// I3 (2026-05): per-viewer cooldown removed. Dungeons only run while
-// Clay is live, so there's no rate-abuse vector — the 10-min
-// per-viewer lockout was friction without a purpose. The endpoint
-// now always queues a skip command for the DLL; PanelBridgeModule
-// stamps the trusted skip flag exactly as before.
-//
-// Bits + bolts payment paths (ext-panelbridge.js skipCooldown) are
-// unchanged — they're Twitch panel monetization SKUs, not part of
-// the website's web-skip flow.
-
-async function routeDungeonSkip(env, guildId, userId) {
-  const record = {
-    kind: 'dungeon',
-    action: 'skip',
-    arg: '',
-    user: { id: String(userId), name: 'web-patron', role: 'viewer' },
-    ts: Date.now(),
-  };
-  const key = 'relay:dll-pending:' + record.ts + '-' + Math.random().toString(36).slice(2, 8);
-  await env.LOADOUT_BOLTS.put(key, JSON.stringify(record), { expirationTtl: 90 });
-  return json({ ok: true, message: 'Cooldown skip queued. Watch the stream.' });
-}
 
 async function routeDice(env, guildId, userId, body) {
   await noteGamePlayed(env, guildId, userId);
@@ -1243,136 +971,6 @@ async function routeDice(env, guildId, userId, body) {
   });
 }
 
-async function routeCharacterGet(env, guildId, userId) {
-  const r = await getCharacterLookWeb(env, guildId, userId);
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeCharacterSave(env, guildId, userId, body) {
-  // Two payload shapes share this route:
-  //   { customization: {...} } — site paper-doll editor (debounced look
-  //     edits; allowed even when locked, since only class is lock-gated).
-  //   { look: {...} }          — legacy glossy-figure axes + the empty
-  //     `{ look: {} }` commit beat that flips locked=true on first save.
-  if (body && typeof body.customization === 'object' && body.customization) {
-    const r = await saveCharacterCustomizationWeb(env, guildId, userId, body.customization);
-    return json(r, statusFor(r));
-  }
-  const lookPatch = (body && typeof body.look === 'object' && body.look) ? body.look : null;
-  if (!lookPatch) {
-    return json({ ok: false, error: 'bad-body', message: 'look or customization object required' }, 400);
-  }
-  const r = await saveCharacterLookWeb(env, guildId, userId, lookPatch);
-  return json(r, statusFor(r));
-}
-
-// POST /web/character/reset
-//
-// Charges CHARACTER_RESET_COST Bolts (5,000) from the caller's wallet
-// and flips hero.locked back to false so the player can re-pick their
-// class + customisation. The look + class stay intact on reset; only
-// the lock flag clears. Re-saving will re-lock.
-//
-// Body fields:
-//   discordId   the acting user (set by site session)
-//   guildId     the player's home guild (set by site session)
-//   (no other fields — the cost is server-fixed, no client input)
-//
-// Response (HTTP status mirrors the error class — 200 ok, 409 locked,
-// 400 not-locked, 402 insufficient-bolts, 500 reset-failed):
-//   { ok: true, charged: 5000,
-//     wallet: { balance, lifetimeEarned, lifetimeSpent },
-//     locked: false, look, lookVersion, renderUrl }
-//   { ok: false, error: 'not-locked',         message, wallet }
-//   { ok: false, error: 'insufficient-bolts', required: 5000, balance, message, wallet }
-//   { ok: false, error: 'reset-failed',       message, wallet }
-async function routeCharacterReset(env, guildId, userId) {
-  const r = await resetCharacterWeb(env, guildId, userId);
-  return json(r, statusFor(r));
-}
-
-// POST /web/character/avatar — upload or clear a user-uploaded hero
-// picture. Replaces the procedural visible-character UX on the site.
-//
-// Body shape (JSON, HMAC-signed like every /web/* route):
-//   {
-//     discordId, guildId,
-//     contentType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp',
-//     dataBase64:  '<base64-encoded image bytes>',
-//     clear?: boolean
-//   }
-//
-// Semantics:
-//   - `clear: true` OR an empty `dataBase64` → delete the avatar
-//     (idempotent; returns avatarUrl: null either way).
-//   - Otherwise validate contentType + decoded size (≤ 4 MB),
-//     persist into KV with metadata, return the public avatar URL.
-//
-// NOT subject to character-locked — uploads are an independent
-// cosmetic slot the player owns regardless of class-lock state. See
-// putAvatarWeb in character.js for rationale.
-//
-// Status codes:
-//   200 — { ok: true, avatarUrl: <string|null>, contentType?, size? }
-//   400 — { ok: false, error: 'bad-content-type' | 'bad-data' }
-//   413 — { ok: false, error: 'too-large', max, size }
-//   503 — { ok: false, error: 'no-kv' | 'delete-failed' }
-async function routeCharacterAvatar(env, guildId, userId, body) {
-  const clear = !!(body && body.clear);
-  const dataBase64 = body && body.dataBase64;
-  if (clear || !dataBase64) {
-    const r = await clearAvatarWeb(env, userId);
-    return json(r, r.ok ? 200 : 503);
-  }
-  const contentType = body && body.contentType;
-  const r = await putAvatarWeb(env, userId, contentType, dataBase64, guildId);
-  if (r.ok) return json(r, 200);
-  if (r.error === 'too-large') return json(r, 413);
-  if (r.error === 'no-kv')     return json(r, 503);
-  return json(r, 400);
-}
-
-// Map the structured `error` discriminator → HTTP status. 200 for
-// success, 409 for state-conflict ('character-locked'), 402 for
-// insufficient-bolts, 500 for reset-failed, 400 for everything else
-// (validation + not-locked). The UI keys off the `error` string, so
-// the status is informational — but it lets cURL + browser devtools
-// glance at the right colour code at a glance.
-function statusFor(r) {
-  if (r && r.ok) return 200;
-  switch (r && r.error) {
-    case 'character-locked':   return 409;
-    case 'insufficient-bolts': return 402;
-    case 'reset-failed':       return 500;
-    default:                   return 400;
-  }
-}
-
-// ── /web/character/class ─────────────────────────────────────────
-//
-// Set the hero's class. Mirrors the Discord /loadout class slash
-// command but returns a structured response the site can render.
-//
-// Body fields:
-//   discordId   acting user (set by site session)
-//   guildId     target guild (set by site session)
-//   className   one of: warrior | mage | rogue | ranger | healer
-//
-// First-time selection mints the class's starter-gear loadout into
-// the hero's bag (5 items, all common rarity, class-flavoured).
-// Subsequent class changes only flip className + HP — gear is never
-// re-granted (tracked via hero.starterGranted).
-//
-// Response:
-//   { ok: true, className, classMeta: {name, atk, def, hp},
-//     granted: [{slot, name, rarity, powerBonus, defenseBonus, ...}],
-//     starterGranted: <bool>, hpMax }
-//   { ok: false, error: 'bad-class', value: '<bad>' }
-async function routeCharacterClass(env, guildId, userId, body) {
-  const className = body && body.className;
-  const r = await applyClassWeb(env, guildId, userId, className);
-  return json(r, statusFor(r));
-}
 
 // ── /web/referral/* — new-viewer funnel ─────────────────────────────
 //
@@ -2507,52 +2105,12 @@ async function routeDropsUpcoming(env, body) {
   return json(await getUpcomingDrops(env, { limit: body?.limit }));
 }
 
-async function routeCharacterComposite(env, guildId, userId) {
-  const { loadHero, applyLookBackfill } = await import('./dungeon.js');
-  const { buildCompositeManifest }       = await import('./character-composite.js');
-  const { resolveHeroBackground }        = await import('./character-backgrounds.js');
-  const hero = applyLookBackfill(await loadHero(env, guildId, userId), userId);
-  const background = await resolveHeroBackground(env, userId, hero);
-  return json({ ok: true, manifest: buildCompositeManifest(hero),
-                background,
-                hero: { className: hero.className, custom: hero.custom,
-                        equipped: hero.equipped, lookVersion: hero.lookVersion || 0 } });
-}
-
-async function routeCharacterBackgrounds(env, userId) {
-  const { listBackgroundsForUser } = await import('./character-backgrounds.js');
-  return json(await listBackgroundsForUser(env, userId));
-}
-
-async function routePassState(env, userId) {
-  const { getPassState } = await import('./aquilo-pass.js');
-  return json(await getPassState(env, userId));
-}
-async function routePassClaim(env, guildId, userId, body) {
-  const { claimPassTier } = await import('./aquilo-pass.js');
-  const r = await claimPassTier(env, guildId, userId, body || {});
-  return json(r, r.ok ? 200 : 400);
-}
 async function routeStreamBonusState(env) {
   const { isStreamLive, _consts } = await import('./stream-bonus.js');
   const live = await isStreamLive(env);
   return json({ ok: true, live, multipliers: _consts });
 }
 
-async function routeSkillsSnapshot(env, guildId, userId) {
-  const { getSkillsSnapshot } = await import('./hero-skills.js');
-  return json(await getSkillsSnapshot(env, guildId, userId));
-}
-async function routeSkillsAllocate(env, guildId, userId, body) {
-  const { allocateSkillPoint } = await import('./hero-skills.js');
-  const r = await allocateSkillPoint(env, guildId, userId, body || {});
-  return json(r, r.ok ? 200 : 400);
-}
-async function routeSkillsRespec(env, guildId, userId) {
-  const { respecSkillTree } = await import('./hero-skills.js');
-  const r = await respecSkillTree(env, guildId, userId);
-  return json(r, r.ok ? 200 : 400);
-}
 async function routeCosmeticsMe(env, userId) {
   const { getCosmeticsForUser } = await import('./monthly-cosmetic-grant.js');
   return json(await getCosmeticsForUser(env, userId));

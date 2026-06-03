@@ -61,26 +61,6 @@ const HUBS = Object.freeze({
       { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My streak',     custom_id: 'checkin:streak' },
     ],
   },
-  character: {
-    title: '🧑 Your Character',
-    color: 0x9b6cff,
-    channelHints: ['character', 'rpg'],
-    description:
-      'Customise your hero — Clay scrapped the visible-character UI so the editor is now upload-based.\n\n' +
-      '• **Open editor** — upload a hero pic/gif on aquilo.gg\n' +
-      '• **My stats** — class, level, hp, atk, def\n' +
-      '• **Pick class** — Warrior / Mage / Rogue / Ranger / Healer (one-time loadout)',
-    footer: '/character + /loadout still work as fallbacks.',
-    buttons: async (env, guildId) => {
-      const brand = await getBranding(env, guildId);
-      return [
-        { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Open editor',   url: `${brand.siteUrl}/play/character/` },
-        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My stats',      custom_id: 'chub:stats' },
-        { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Pick class',    custom_id: 'chub:class' },
-        { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Upload hero pic', url: `${brand.siteUrl}/play/character/#avatar` },
-      ];
-    },
-  },
   bolts: {
     title: '💰 Bolts',
     color: 0xe6c474,
@@ -105,14 +85,12 @@ const HUBS = Object.freeze({
       'Every gameplay surface — one hub. Tap any tile to open it.\n\n' +
       '• **Boltbound** — async card battler\n' +
       '• **Quick games** — coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko / crash\n' +
-      '• **Character** — open the upload-based hero editor\n' +
-      '• **RPG (Loadout)** — wallet, inventory, kit, daily',
+      '• **Loadout** — wallet, daily, profile',
     rows: () => [
       [
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Boltbound',     custom_id: 'play:boltbound' },
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Quick games',   custom_id: 'play:quick' },
-        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Character',     custom_id: 'play:character' },
-        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'RPG (Loadout)', custom_id: 'play:rpg' },
+        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Loadout',       custom_id: 'play:rpg' },
       ],
     ],
   },
@@ -323,84 +301,6 @@ export async function handleCheckinHubComponent(env, data) {
   return eph('Unknown check-in action: ' + cid);
 }
 
-// character:*
-export async function handleCharacterHubComponent(env, data) {
-  const cid = data.data?.custom_id || '';
-  const action = cid.split(':')[1];
-  const userId = data.member?.user?.id || data.user?.id;
-  const guildId = data.guild_id;
-  if (!userId || !guildId) return eph('Run this in a server.');
-
-  if (action === 'stats') {
-    try {
-      const { loadHero, attackOf, defenseOf } = await import('./dungeon.js');
-      const hero = await loadHero(env, guildId, userId);
-      let levelLine = '';
-      try {
-        const { readXpDisplay } = await import('./progression/xp.js');
-        const xp = await readXpDisplay(env, userId);
-        levelLine = `**L${xp.level}** · ${xp.xp.toLocaleString()} XP\n`;
-      } catch { /* idle */ }
-      return ephEmbed({
-        title: '📜 Your stats',
-        description:
-          levelLine +
-          `Class: **${hero.className || hero.class || '_unset_'}**\n` +
-          `HP: ${hero.hp || 0} / ${hero.maxHp || 0}\n` +
-          `Attack: ${attackOf(hero)}\n` +
-          `Defense: ${defenseOf(hero)}`,
-        color: 0x9b6cff,
-      });
-    } catch (e) {
-      return eph('Couldn\'t load your stats: ' + (e?.message || e));
-    }
-  }
-  if (action === 'class') {
-    return {
-      type: RESP_MODAL,
-      data: {
-        custom_id: 'modal:chub-class',
-        title: 'Pick your class',
-        components: [{
-          type: COMPONENT_ROW,
-          components: [{
-            type: COMPONENT_TEXT_INPUT,
-            custom_id: 'class',
-            label: 'Class (warrior / mage / rogue / ranger / healer)',
-            style: TEXT_INPUT_SHORT,
-            required: true,
-            min_length: 4,
-            max_length: 12,
-            placeholder: 'rogue',
-          }],
-        }],
-      },
-    };
-  }
-  return eph('Unknown character action: ' + cid);
-}
-
-// Modal submit for class picker — re-uses applyClassWeb so the
-// outcome matches what the website's /web/character/class route
-// would produce.
-export async function handleCharacterClassModal(env, data) {
-  const userId = data.member?.user?.id || data.user?.id;
-  const guildId = data.guild_id;
-  if (!userId || !guildId) return eph('Run this in a server.');
-  let cls = '';
-  for (const row of (data.data?.components || [])) {
-    for (const c of (row.components || [])) if (c.custom_id === 'class') cls = String(c.value || '').toLowerCase().trim();
-  }
-  if (!cls) return eph('Class name required.');
-  try {
-    const { applyClassWeb } = await import('./character.js');
-    const r = await applyClassWeb(env, guildId, userId, cls);
-    if (!r.ok) return eph(`❌ ${r.error || 'class-apply-failed'} — try warrior / mage / rogue / ranger / healer.`);
-    return eph(`✅ Class set to **${r.className}**.${r.starterGranted ? ` Starter gear granted (${(r.granted || []).length} items).` : ''}`);
-  } catch (e) {
-    return eph('❌ ' + (e?.message || e));
-  }
-}
 
 // bolts:*
 export async function handleBoltsHubComponent(env, data) {
@@ -651,30 +551,6 @@ export async function handlePlayHubComponent(env, data) {
     }
   }
 
-  if (action === 'character') {
-    // Same as the standalone character-hub: open the upload-based
-    // editor on the site + inline stats button.
-    return {
-      type: RESP_CHAT,
-      data: {
-        embeds: [{
-          title: '🧑 Character',
-          description: 'Upload a hero pic or GIF on the editor. Or pick a class inline.',
-          color: 0x9b6cff,
-        }],
-        components: [{
-          type: COMPONENT_ROW,
-          components: [
-            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Open editor',    url: `${site}/play/character/` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Upload hero pic', url: `${site}/play/character/#avatar` },
-            { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My stats',       custom_id: 'chub:stats' },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Pick class',     custom_id: 'chub:class' },
-          ],
-        }],
-        flags: FLAG_EPHEMERAL,
-      },
-    };
-  }
 
   if (action === 'rpg') {
     // The Loadout RPG surface — wallet / inventory / kit / daily.

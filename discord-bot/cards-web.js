@@ -37,7 +37,7 @@ import {
   startNpcMatch, queueOrMatchPvp, challengeUser, acceptChallenge,
   takeAction, takeMulligan, renderableState, sideOf,
 } from './cards-match.js';
-import { loadHero } from './dungeon.js';
+import { loadHero } from './hero-state.js';
 import { getWallet } from './wallet.js';
 
 const ROUTES = new Set([

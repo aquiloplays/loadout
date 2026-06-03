@@ -156,17 +156,9 @@ export async function handleGamesMenuComponent(data, env, ctx) {
         const r = await handlePetCommand(env, blankData);
         return forceEphemeral(r);
       }
-      case 'character': {
-        const { handleCharacterCommand } = await import('./character.js');
-        const r = await handleCharacterCommand(env, blankData);
-        return forceEphemeral(r);
-      }
-      case 'hero':
-      case 'loadout':
-      case 'shop': {
-        // Loadout's home menu IS the hero + shop + bag + train surface.
-        // Routing all three to renderLoadoutCommand gives the viewer
-        // one consistent ephemeral; they navigate inside via lo:* buttons.
+      case 'loadout': {
+        // Loadout's home menu — wallet / daily / games / profile.
+        // Viewers navigate inside via lo:* buttons.
         const { renderLoadoutCommand } = await import('./loadout-menu.js');
         const r = await renderLoadoutCommand(env, guildId, userId, userName);
         return forceEphemeral(r);

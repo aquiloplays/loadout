@@ -192,7 +192,7 @@ async function fetchDisplayName(env, guildId, userId) {
 }
 
 async function buildPartyBlob(env, guildId, userIds) {
-  const { loadHero } = await import('../dungeon.js');
+  const { loadHero } = await import('../hero-state.js');
   const lines = [];
   for (const uid of userIds) {
     const [hero, name] = await Promise.all([

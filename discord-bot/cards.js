@@ -34,7 +34,7 @@ import {
   getFragments, recycleCard, craftPack,
   RECYCLE_YIELD, CRAFT_COST,
 } from './cards-fragments.js';
-import { loadHero } from './dungeon.js';
+import { loadHero } from './hero-state.js';
 
 const RESP_CHAT   = 4;
 const RESP_UPDATE = 7;

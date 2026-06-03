@@ -33,7 +33,6 @@ import { handleQueueSlash } from './queue.js';
 // family — see discord-bot/aquilo/worker.js dispatchAquiloInteraction.
 import { dispatchAquiloInteraction } from './aquilo/worker.js';
 // Character + pet system — pixel-art identity + tamagotchi.
-import { handleCharacterCommand, handleCharacterComponent } from './character.js';
 import { handlePetCommand } from './pet-commands.js';
 // Boltbound — async card-battler. See CARD-GAME-DESIGN.md.
 import { handleBoltboundCommand, handleBoltboundComponent } from './cards.js';
@@ -121,12 +120,6 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleCheckinHubComponent } = await import('./channel-hubs.js');
       return json(await handleCheckinHubComponent(env, data));
     }
-    if (cid.startsWith('chub:'))      {
-      // Character HUB (distinct from the procedural editor's
-      // `character:` prefix which is dispatched below).
-      const { handleCharacterHubComponent } = await import('./channel-hubs.js');
-      return json(await handleCharacterHubComponent(env, data));
-    }
     if (cid.startsWith('bolts:'))     {
       const { handleBoltsHubComponent } = await import('./channel-hubs.js');
       return json(await handleBoltsHubComponent(env, data));
@@ -166,7 +159,6 @@ export async function handleInteraction(req, env, body, ctx) {
     }
     if (cid.startsWith('hub:'))       return handleHubComponent(data, env);
     if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
-    if (cid.startsWith('character:')) return json(await handleCharacterComponent(env, data));
     if (cid.startsWith('boltbound:')) return json(await handleBoltboundComponent(env, data));
     if (cid.startsWith('qg:'))        return handlePlayComponent(env, data);
     if (cid.startsWith('gm:')) {
@@ -236,10 +228,6 @@ export async function handleInteraction(req, env, body, ctx) {
     }
     // Phase-1 channel-hub modal submits — claimed before the
     // generic modal:* aquilo route, same as the LFG modal.
-    if (cid === 'modal:chub-class') {
-      const { handleCharacterClassModal } = await import('./channel-hubs.js');
-      return json(await handleCharacterClassModal(env, data));
-    }
     if (cid === 'modal:bolts-transfer') {
       const { handleBoltsTransferModal } = await import('./channel-hubs.js');
       return json(await handleBoltsTransferModal(env, data));
@@ -376,9 +364,6 @@ export async function handleInteraction(req, env, body, ctx) {
       // subcommands); join / leave are anyone.
       return json(await handleQueueSlash(env, guild, data));
 
-    case 'character':
-      // Pixel-art character editor. See CHARACTER-SYSTEM-DESIGN.md.
-      return json(await handleCharacterCommand(env, data));
 
     case 'boltbound':
       // Async card-battler. See CARD-GAME-DESIGN.md.
@@ -542,13 +527,6 @@ export async function handleInteraction(req, env, body, ctx) {
     case 'profile': case 'profile-set-bio': case 'profile-set-pfp':
     case 'profile-set-pronouns': case 'profile-set-social':
     case 'profile-set-gamertag': case 'profile-clear':
-    case 'hero': case 'inventory': case 'equip': case 'unequip':
-    // 'shop' deliberately omitted here: the aquilo fold-in claimed
-    // /shop as a community command above (case 'shop'), so duplicating
-    // it in this legacy-fallback block is both dead code and a
-    // duplicate-label parse error under modern esbuild. The legacy
-    // Loadout shop is reachable via /loadout anyway.
-    case 'sell': case 'shop-buy': case 'training':
       return reply('💡 We replaced the individual commands with a single menu — run **/loadout** instead.');
 
     default:

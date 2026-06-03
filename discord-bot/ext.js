@@ -25,9 +25,8 @@
 import { verifyTwitchExtJwt } from './auth.js';
 import { getWallet, leaderboard } from './wallet.js';
 import { daily } from './games.js';
-import { loadHero, attackOf, defenseOf, CLASSES } from './dungeon.js';
+import { loadHero, attackOf, defenseOf, CLASSES } from './hero-state.js';
 import { handleRotation, ingestRotation } from './rotation.js';
-import { handleLoadout } from './ext-loadout.js';
 import { recordStat, getRecap, isStreamLive } from './recap.js';
 import { handleTier1 } from './ext-tier1.js';
 import { handleEngage } from './ext-engage.js';
@@ -110,23 +109,6 @@ export async function handleExt(req, env, ctx) {
     if (req.method === 'GET' && route === 'checkin/card') {
       return await extCheckinCard(env, guildId, twId);
     }
-    // PvP duels from the panel. Identity = linked discord id (plink) when the
-    // viewer has linked, else the loadout user id 'tw:<twId>'. State is a read;
-    // challenge is the "Challenge Aquilo" write.
-    if (req.method === 'GET' && route === 'pvp/state') {
-      const { extPvpState } = await import('./pvp.js');
-      return json(await extPvpState(env, guildId));
-    }
-    if (req.method === 'POST' && route === 'pvp/challenge') {
-      const { extPvpChallenge } = await import('./pvp.js');
-      const linked = await env.LOADOUT_BOLTS.get(`plink:twitch:${twId}`).catch(() => null);
-      const callerId = linked || userId;
-      let bodyJson = {};
-      try { bodyJson = await req.json(); } catch { /* empty body ok */ }
-      const viewerName = String(bodyJson.displayName || bodyJson.userName || '').slice(0, 32);
-      const res = await extPvpChallenge(env, guildId, callerId, viewerName, bodyJson.wager);
-      return json(res, res.ok ? 200 : 400);
-    }
     if (req.method === 'GET' && route === 'leaderboard') {
       return await extLeaderboard(env, guildId, userId, url.searchParams.get('type'));
     }
@@ -184,9 +166,6 @@ export async function handleExt(req, env, ctx) {
     }
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
-    }
-    if (route.indexOf('loadout/') === 0) {
-      return await handleLoadout(env, guildId, userId, route.slice(8), req);
     }
     // Quick-bolts games on the panel (blackjack/roulette/wheel/hilo/mines/
     // plinko/crash). Identity is tw:<twId>; same wallet + same engine as
