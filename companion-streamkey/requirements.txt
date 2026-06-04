@@ -1,0 +1,7 @@
+# Runtime deps for the Aquilo Streamkey companion. Kept lean so the
+# PyInstaller single-file exe stays small and the build stays fast.
+Flask>=3.0.0
+requests>=2.32.0
+pystray>=0.19.5
+Pillow>=10.0.0
+packaging>=24.0
