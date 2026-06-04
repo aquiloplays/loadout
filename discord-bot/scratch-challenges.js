@@ -228,20 +228,24 @@ export const POOLS = {
     T('Random key presses for 20 seconds.', 'random_keys', 20, 7),
     T('Mic muted for 10 seconds during negotiations.', 'mute_mic', 10, 7),
   ],
-  // Workout category. Every outcome is a challenge Clay performs live, no
-  // tampers. Dry voice, no em dashes, no hype. Durations are the hold/timer.
+  // Workout pool. Universal (not game-specific). Every outcome is a challenge
+  // Clay performs live, no tampers. Dry Aquilo voice, no em dashes, no hype,
+  // no exclamation marks. Durations are the hold/timer in seconds. 15 starters.
   workout: [
-    C('Drop and give the stream 20 pushups.', 0, 10),
-    C('15 bodyweight squats. Chat counts each one.', 0, 10),
-    C('Hold a 30 second plank. No breaks.', 30, 9),
-    C('10 burpees. Right now, no stalling.', 0, 8),
-    C('One minute wall sit. Keep talking through it.', 60, 8),
-    C('25 jumping jacks before the next round.', 0, 9),
+    C('20 pushups. Chat counts.', 0, 10),
+    C('30 second plank. No flinching.', 30, 10),
+    C('15 squats. Right now.', 0, 10),
+    C('10 jumping jacks. Get the heart going.', 0, 9),
+    C('60 second wall sit. Show chat.', 60, 8),
+    C('20 crunches. Off camera.', 0, 8),
+    C('10 burpees. Welcome to hell.', 0, 7),
+    C('30 second mountain climbers.', 30, 8),
+    C('1 minute stretch break. Required.', 60, 7),
+    C('10 pushups and 10 squats combo.', 0, 8),
+    C('25 high knees. Keep talking.', 0, 8),
+    C('15 second hollow hold.', 15, 7),
     C('12 walking lunges across the room.', 0, 8),
-    C('30 seconds of high knees. Pace yourself.', 30, 8),
-    C('15 second hollow hold, then back to the game.', 15, 7),
-    C('Stretch it out for 60 seconds. Earn the rest.', 60, 7),
-    C('20 mountain climbers. No half reps.', 0, 8),
-    C('Calf raises until chat says stop. Cap 40.', 0, 6),
+    C('40 second wall sit, then back to it.', 40, 6),
+    C('20 calf raises. No rushing them.', 0, 7),
   ],
 };
