@@ -52,6 +52,22 @@ import { SETS, SET_IDS } from './boltbound-sets.js';
 import { listEffectiveReleases, releasedSetIds } from './boltbound-release.js';
 import { getChannelBinding } from './channel-bindings.js';
 import { postChannelMessage } from './aquilo/util.js';
+import { publishActivity } from './activity-do.js';
+
+// Boltbound → live-activity overlay. Emitted from the web transport layer
+// only (never the cards-battle resolver): match lifecycle + throttled
+// highlight plays. Best-effort and fire-and-forget; the overlay falls back
+// to a generic actor / champion when no display name is in scope.
+async function emitMatchActivity(env, kind, userId, extra) {
+  await publishActivity(env, { kind, userId: String(userId), ...extra }).catch(() => {});
+}
+// Display name when the site sent one on the request body, else null so the
+// overlay shows a generic "A challenger". Kept cheap on purpose: no extra
+// Discord lookups on the match hot path.
+function actorName(body) {
+  const n = body && (body.displayName || body.userName || body.name);
+  return n ? String(n).slice(0, 40) : null;
+}
 
 const SET_NEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -488,12 +504,23 @@ async function routePacksFreeDaily(env, guildId, userId) {
 async function routeMatchStartNpc(env, guildId, userId, body) {
   const archetype = String((body && body.archetype) || '');
   const r = await startNpcMatch(env, guildId, userId, archetype || null);
-  if (r.ok) return json({ ok: true, match: renderableState(r.match, userId) });
+  if (r.ok) {
+    await emitMatchActivity(env, 'boltbound.match.start', userId, {
+      viewer: actorName(body), mode: 'npc',
+    });
+    return json({ ok: true, match: renderableState(r.match, userId) });
+  }
   return json(r);
 }
-async function routeMatchQueue(env, guildId, userId) {
+async function routeMatchQueue(env, guildId, userId, body) {
   const r = await queueOrMatchPvp(env, guildId, userId);
-  if (r.ok && r.match) return json({ ok: true, match: renderableState(r.match, userId) });
+  // Only emit on an actual match (not while sitting in the queue).
+  if (r.ok && r.match) {
+    await emitMatchActivity(env, 'boltbound.match.start', userId, {
+      viewer: actorName(body), mode: 'pvp',
+    });
+    return json({ ok: true, match: renderableState(r.match, userId) });
+  }
   return json(r);
 }
 async function routeMatchChallenge(env, guildId, userId, body) {
@@ -506,7 +533,12 @@ async function routeMatchAccept(env, guildId, userId, body) {
   const senderId = String((body && body.senderId) || '');
   if (!/^\d{5,25}$/.test(senderId)) return json({ ok: false, error: 'bad-sender' }, 400);
   const r = await acceptChallenge(env, guildId, userId, senderId);
-  if (r.ok) return json({ ok: true, match: renderableState(r.match, userId) });
+  if (r.ok) {
+    await emitMatchActivity(env, 'boltbound.match.start', userId, {
+      viewer: actorName(body), mode: 'pvp',
+    });
+    return json({ ok: true, match: renderableState(r.match, userId) });
+  }
   return json(r);
 }
 async function routeMatchState(env, guildId, userId) {
@@ -565,6 +597,10 @@ async function routeMatchAction(env, guildId, userId, body) {
       if (c && c.type === 'spell') await progressBoltbound(env, userId, 'cast', 1);
       else if (c && c.type === 'minion') await progressBoltbound(env, userId, 'summon', 1);
       if (c) await recordPlay(env, userId, c.type);
+      // Live-activity highlight; the overlay throttles these per match.
+      if (c) await emitMatchActivity(env, 'boltbound.match.play', userId, {
+        viewer: actorName(body), card: c.name || playedCardId, cardType: c.type,
+      });
     }
     if (r.ok && r.ended && r.match) {
       await progressBoltbound(env, userId, 'play', 1);
@@ -574,6 +610,12 @@ async function routeMatchAction(env, guildId, userId, body) {
       const hero = await loadHero(env, guildId, userId).catch(() => null);
       const stats = await recordMatchEnd(env, userId, won, hero && hero.className);
       for (const ev of triggerEvents(stats)) await checkAndUnlock(env, userId, ev);
+      // Live-activity match-end card (win/loss + turn count).
+      await emitMatchActivity(env, 'boltbound.match.end', userId, {
+        viewer: actorName(body), won,
+        turns: Number(r.match.turn) || null,
+        mode: r.match.npc ? 'npc' : 'pvp',
+      });
     }
   } catch { /* non-fatal */ }
   return json({ ok: !!r.ok, error: r.error || null, match: r.match ? renderableState(r.match, userId) : null, ended: !!r.ended });
@@ -1043,7 +1085,7 @@ export async function routeBoltbound(env, guildId, userId, route, body, opts) {
     if (route === 'boltbound/packs/free-daily') return await routePacksFreeDaily(env, guildId, userId);
     if (route === 'boltbound/sets')            return await routeSets(env, guildId, userId);
     if (route === 'boltbound/match/start-npc') return await routeMatchStartNpc(env, guildId, userId, body);
-    if (route === 'boltbound/match/queue')     return await routeMatchQueue(env, guildId, userId);
+    if (route === 'boltbound/match/queue')     return await routeMatchQueue(env, guildId, userId, body);
     if (route === 'boltbound/match/challenge') return await routeMatchChallenge(env, guildId, userId, body);
     if (route === 'boltbound/match/accept')    return await routeMatchAccept(env, guildId, userId, body);
     if (route === 'boltbound/match/state')     return await routeMatchState(env, guildId, userId);

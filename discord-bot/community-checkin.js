@@ -37,6 +37,7 @@ import { earn, getWallet } from './wallet.js';
 import { consumeFreeze, getFreezes } from './streak-freeze.js';
 import { getCheckinChannel } from './admin-menu.js';
 import { emitProgressionEvent } from './progression/event-bus.js';
+import { publishActivity } from './activity-do.js';
 
 const STATE_KEY = (g, u) => `community-checkin:${g}:${u}`;
 const CARD_KEY  = (g, u) => `checkin-card:${g}:${u}`;
@@ -610,6 +611,16 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
       });
     }
   } catch { /* non-fatal, check-in already persisted */ }
+
+  // Live-activity overlay pulse (off by default on the overlay to avoid
+  // spam). Best-effort; carries the streak + any milestone. Name resolves
+  // from opts when the caller had one, else a generic actor on the overlay.
+  await publishActivity(env, {
+    kind: 'community.checkin', userId, guildId,
+    viewer: (opts && (opts.displayName || opts.userName || opts.name)) || null,
+    streak: nextStreak, longest: nextLongest,
+    milestone: (nextStreak === 7 || nextStreak === 30 || nextStreak === 100) ? nextStreak : null,
+  }).catch(() => {});
 
   // Post the embed (best-effort, a failure here doesn't roll back
   // the check-in itself; the user still got their streak + bonuses).

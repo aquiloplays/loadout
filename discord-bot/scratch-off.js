@@ -440,6 +440,14 @@ async function mintTicket(env, { userId, userName, bits, sku, txnId, liveCtx }) 
     viewer: userName || null, gameSlug: game.slug, gameName: game.gameName, bits: bits || 0,
   }).catch(() => {});
 
+  // scratch.start drives the activity overlay's mid-scratch card: a ticket
+  // now exists for this viewer, paint it foil-covered until the reveal.
+  // Distinct from scratch.purchased (which carries purchase accounting).
+  await publishActivity(env, {
+    kind: 'scratch.start', ticketId: id, userId: String(userId),
+    viewer: userName || null, gameSlug: game.slug, gameName: game.gameName,
+  }).catch(() => {});
+
   const ticket = await getTicket(env, id);
   return { ticket, reused: false };
 }
