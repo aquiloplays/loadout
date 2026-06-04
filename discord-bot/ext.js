@@ -231,7 +231,9 @@ export async function handleRelay(req, env) {
         ? 'relay:overlay-'
         : forParam === 'rotation'
           ? 'relay:rotation-'
-          : null;
+          : forParam === 'rotation-chat'
+            ? 'relay:rotchat-'
+            : null;
   if (!prefix) return json({ triggers: [] });
   const list = await env.LOADOUT_BOLTS.list({ prefix });
   const triggers = [];

@@ -1071,6 +1071,10 @@ export default {
 
     // Overlay relay queue, polled by Streamer.bot, RELAY_TOKEN-gated.
     if (path.startsWith('/relay/')) return handleRelay(req, env);
+    if (path === '/admin/rotation/config') {
+      const { handleRotationConfig } = await import('./rotation.js');
+      return handleRotationConfig(req, env);
+    }
 
     // StreamFusion release-notes webhook (ported from the retired
     // StreamFusion/bot-service /post-release Node service). Voice-
