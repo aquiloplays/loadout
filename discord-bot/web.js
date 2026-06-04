@@ -158,6 +158,7 @@ const ROUTES = new Set([
   'referral/me',
   'referral/attribute',
   'admin/snapshot',
+  'admin/panel-test',           // POST {_owner, action, ...}, owner-only panel test harness (isolated test:* state, dry-run tampers)
   'admin/config',
   'admin/active-guild',
   'admin/clear-binding',
@@ -310,6 +311,11 @@ export async function handleWeb(req, env) {
     if (route === 'admin/polls/cancel') {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routePollsCancel(env, body);
+    }
+    if (route === 'admin/panel-test') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      const { handlePanelTest } = await import('./panel-test.js');
+      return handlePanelTest(env, guildId, discordId, body);
     }
     if (route === 'admin/tickets/list') {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);

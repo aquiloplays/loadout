@@ -64,7 +64,7 @@ const DEFAULT_CONFIG = {
   },
 };
 
-async function getRotationConfig(env) {
+export async function getRotationConfig(env) {
   let cfg = {};
   try { cfg = (await env.LOADOUT_BOLTS.get(CONFIG_KEY, { type: 'json' })) || {}; }
   catch { /* defaults */ }
@@ -132,6 +132,14 @@ async function enqueueRotationChat(env, type, vars, cfg) {
       { expirationTtl: 60 },
     );
   } catch { /* chat is best-effort, never blocks a request */ }
+}
+
+// Render a chat-notification template WITHOUT enqueueing it, so the panel
+// test harness can dry-run what a given notification would post.
+export async function renderChatPreview(env, type, vars) {
+  const cfg = await getRotationConfig(env);
+  const tpl = cfg.chatTemplates[type] || '';
+  return { type, template: tpl, message: renderTemplate(tpl, vars || {}), enabled: cfg.chatEnabled };
 }
 
 // Rough queue ETA in whole minutes from the cached queue (sum of track
@@ -284,7 +292,7 @@ function rankTracks(tracks, opts = {}) {
 }
 
 // Find a clean (non-explicit) version of the same song. Returns a track or null.
-async function findCleanVersion(env, artist, song) {
+export async function findCleanVersion(env, artist, song) {
   if (!song) return null;
   const q = (artist ? 'artist:"' + artist + '" ' : '') + 'track:"' + song + '"';
   const r = await spotifyTracks(env, q, 12);
@@ -297,7 +305,7 @@ async function findCleanVersion(env, artist, song) {
 
 // Resolve any user input (free text OR a YouTube URL) to ranked Spotify
 // tracks. YouTube URLs are converted to a search string via oEmbed title.
-async function resolveQuery(env, rawQuery) {
+export async function resolveQuery(env, rawQuery) {
   let query = String(rawQuery || '').trim();
   let artist = null;
   let viaYouTube = false;
