@@ -80,6 +80,12 @@ export const GAMES = {
   phasmophobia: 'Phasmophobia', peak: 'PEAK', repo: 'R.E.P.O.', lethal_company: 'Lethal Company',
   rv_there_yet: 'RV There Yet?', gwyf: 'Gamble With Your Friends', pratfall: 'Pratfall',
   content_warning: 'Content Warning',
+  // Rotation-pool additions (Sun/Tue/Thu roster) not previously on the roster.
+  ale_tale_tavern: 'Ale & Tale Tavern', waterpark_sim: 'Waterpark Simulator',
+  retro_rewind: 'Retro Rewind', supermarket_sim: 'Supermarket Simulator',
+  schedule_1: 'Schedule 1', rimworld: 'RimWorld',
+  // Non-game category: scratch reveals a workout challenge for Clay.
+  workout: 'Workout',
 };
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -96,6 +102,10 @@ const TWITCH_ALIASES = {
   isaac: ['The Binding of Isaac: Repentance', 'The Binding of Isaac: Rebirth'],
   ball_x_pit: ['BALL X PIT'], clover_pit: ['Clover Pit'], repo: ['REPO'],
   rv_there_yet: ['RV There Yet'],
+  ale_tale_tavern: ['Ale and Tale Tavern', 'Ale & Tale Tavern'],
+  waterpark_sim: ['Waterpark Simulator', 'Water Park Simulator'],
+  retro_rewind: ['Retro Rewind'], supermarket_sim: ['Supermarket Simulator'],
+  schedule_1: ['Schedule I', 'Schedule One'], rimworld: ['Rimworld'],
 };
 
 const NAME_INDEX = (() => {
@@ -357,7 +367,16 @@ async function rollOutcome(env, gameSlug, opts = {}) {
   let rows = (await d.prepare(
     `SELECT id, kind, body, action_key, weight, duration_sec FROM scratch_outcome_pool
      WHERE game_slug = ? AND active = 1`).bind(gameSlug).all()).results || [];
-  if (!rows.length && gameSlug !== 'generic') {
+  // Workout never falls back to the generic tamper pool, a workout ticket must
+  // resolve to a workout move. Use the in-code POOLS.workout if D1 has no rows
+  // yet (so the category works before `scratch/seed` is re-run).
+  if (!rows.length && gameSlug === 'workout' && Array.isArray(POOLS.workout)) {
+    rows = POOLS.workout.map((e, i) => ({
+      id: `mem_workout_${i}`, kind: e.kind, body: e.body,
+      action_key: e.actionKey || null, weight: e.weight || 10, duration_sec: e.durationSec || 0,
+    }));
+  }
+  if (!rows.length && gameSlug !== 'generic' && gameSlug !== 'workout') {
     rows = (await d.prepare(
       `SELECT id, kind, body, action_key, weight, duration_sec FROM scratch_outcome_pool
        WHERE game_slug = 'generic' AND active = 1`).all()).results || [];
@@ -407,7 +426,7 @@ async function getTicket(env, id) {
 // Mint a ticket. `liveCtx` (from resolveLiveContext) supplies the stream
 // session id used for hit budgeting and the resolved game; when omitted
 // (admin test-mint) the game is resolved standalone and hits are unbounded.
-async function mintTicket(env, { userId, userName, bits, sku, txnId, liveCtx }) {
+async function mintTicket(env, { userId, userName, bits, sku, txnId, liveCtx, category }) {
   await ensureSchema(env);
   const d = db(env);
   // Idempotency: a repeated Twitch transaction returns the existing ticket.
@@ -416,9 +435,13 @@ async function mintTicket(env, { userId, userName, bits, sku, txnId, liveCtx }) 
       .bind(String(txnId)).first();
     if (existing) return { ticket: existing, reused: true };
   }
-  const game = liveCtx
-    ? { slug: liveCtx.slug, gameName: liveCtx.gameName }
-    : await resolveCurrentGame(env);
+  // The workout category is a non-game ticket type, it ignores the live Twitch
+  // game and always resolves to the workout pool (a challenge for Clay).
+  const game = category === 'workout'
+    ? { slug: 'workout', gameName: 'Workout' }
+    : liveCtx
+      ? { slug: liveCtx.slug, gameName: liveCtx.gameName }
+      : await resolveCurrentGame(env);
   const cfg = await pacingCfg(env);
   const allowHit = await hitBudgetOk(env, liveCtx?.streamId, cfg);
   const { outcome, outcomeData } = await rollOutcome(env, game.slug, { allowHit, hitRate: cfg.hitRate });
@@ -521,6 +544,7 @@ export async function handleScratch(req, env, path) {
       const res = await guardedMint(env, {
         userId, userName: b.userName || b.user_name || b.displayName || null,
         bits: b.bits || b.cost || 0, sku, txnId: b.transactionId || b.transaction_id || b.txnId || null,
+        category: b.category === 'workout' ? 'workout' : null,
       }, { enforce: true });
       if (res.block) {
         await publishActivity(env, { kind: 'scratch.refund', userId, reason: res.block }).catch(() => {});
@@ -563,6 +587,7 @@ export async function handleScratch(req, env, path) {
       // localhost demos work off-stream.
       const res = await guardedMint(env, {
         userId, userName, bits, sku: sku || 'scratch_card_100', txnId,
+        category: b.category === 'workout' ? 'workout' : null,
       }, { enforce: hasReceipt });
       if (res.block) {
         await publishActivity(env, { kind: 'scratch.refund', userId, reason: res.block }).catch(() => {});
@@ -582,6 +607,7 @@ export async function handleScratch(req, env, path) {
       const userId = String(b.userId || 'test-viewer').trim();
       const { ticket } = await mintTicket(env, {
         userId, userName: b.userName || 'Test Viewer', bits: 0, sku: 'scratch_card_100', txnId: null,
+        category: b.category === 'workout' ? 'workout' : null,
       });
       return jsonResp({ ok: true, ticket: ticketPublic(ticket, { includeOutcome: false }) });
     }
