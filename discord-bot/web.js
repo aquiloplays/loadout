@@ -85,6 +85,13 @@ const ROUTES = new Set([
   'admin/tickets/assign',
   'admin/tickets/priority',
   'admin/tickets/category',
+  // Streamlabs multistream RTMP creds surface for the OBS dock (Clay
+  // 2026-06-04). Owner-only via the same _owner flag. Streamlabs has no
+  // API for the RTMP ingest URL / stream key, so Clay pastes them once
+  // (save) and the OBS dock reads them back with copy buttons. Stored in
+  // KV streamlabs:multistream:<discordId>.
+  'admin/dock/streamkey',
+  'admin/dock/streamkey-save',
   // L9, PWA chat (Clay 2026-05-28): expose every guild text channel
   // the requesting Discord user has VIEW_CHANNEL permission on, so
   // the PWA can switch between channels instead of being capped at
@@ -163,12 +170,9 @@ const ROUTES = new Set([
   'admin/active-guild',
   'admin/clear-binding',
   'admin/pipe-tests',
-  'admin/rotation/set',          // POST {_owner, gameSlug}, lock the rotation game + announce
-  'admin/rotation/override',     // POST {_owner, dow, gameSlug|null}, per-weekday rotation override
-  'admin/schedule/override',     // POST {_owner, date, gameSlug|null}, one-shot per-date override
-  'admin/fo4cc/thumbnail',       // POST {_owner, url|null}, set/clear the FO4 CC thumbnail
+  'admin/triple-c/set',          // POST {_owner, gameSlug}, lock the Triple-C campaign + announce
+  'admin/dad-sunday/set',        // POST {_owner, gameSlug}, lock Dad Game Sunday + announce
   'admin/lineup/post',           // POST {_owner}, (re)post + pin the weekly lineup recap
-  'vote-hub/cast',               // POST { kind, gameId }, cast a web vote (discord-linked)
   'admin/stream-events/sync',    // POST {_owner, horizonDays?}, mirror schedule → Discord events
   // Daily community check-in (unified with /checkin slash command).
   'checkin',                 // POST, record today's check-in
@@ -345,6 +349,14 @@ export async function handleWeb(req, env) {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routeTicketsCategory(env, discordId, body);
     }
+    if (route === 'admin/dock/streamkey') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeDockStreamkeyGet(env, discordId);
+    }
+    if (route === 'admin/dock/streamkey-save') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      return await routeDockStreamkeySave(env, discordId, body);
+    }
     if (route === 'coinflip') return await routeCoinflip(env, guildId, discordId, body);
     if (route === 'dice')   return await routeDice(env, guildId, discordId, body);
     if (route === 'quick/snapshot')     return await routeQuickSnapshot(env, guildId, discordId);
@@ -375,7 +387,6 @@ export async function handleWeb(req, env) {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routeQueuesCloseNight(env, guildId);
     }
-    if (route === 'vote-hub/cast')         return await routeVoteHubCast(env, guildId, discordId, body);
     if (route.startsWith('admin/'))        return await handleAdminWeb(env, route, guildId, body);
     if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId);
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
@@ -717,18 +728,6 @@ async function routeQueuesClose(env, guildId, body) {
 async function routeQueuesCloseNight(env, guildId) {
   const r = await closeNight(env, guildId);
   return json(r, r.ok ? 200 : 400);
-}
-
-// Cast a schedule vote from aquilo.gg. discordId + guildId are stamped by
-// the site proxy from the verified session; kind + gameId are forwarded
-// from the day page. Delegates to vote-hub.js so Discord + web share one
-// ballot store.
-async function routeVoteHubCast(env, guildId, discordId, body) {
-  const { castWebVote } = await import('./vote-hub.js');
-  const r = await castWebVote(env, guildId, discordId,
-    String((body && body.kind) || ''), String((body && body.gameId) || ''));
-  const code = r.ok ? 200 : (r.error === 'vote-not-open' ? 409 : 400);
-  return json(r, code);
 }
 
 
@@ -1294,6 +1293,40 @@ async function routeTicketsCategory(env, discordId, body) {
   const { setCategory } = await import('./support-tickets.js');
   const r = await setCategory(env, ticketId, category, { actorId: discordId, actorName: body?.actorName || 'staff' });
   return json(r, r.ok ? 200 : 400);
+}
+
+// ── Streamlabs multistream stream-key surface (OBS dock) ─────────────
+//
+// Streamlabs exposes no API for the RTMP ingest URL / stream key, so the
+// owner pastes them once via the dock's setup form (save), and the OBS
+// dock reads them back with copy buttons to drop into Aitum Multistream.
+// Owner-only (the route dispatch already enforces ownerCheck). The key is
+// a credential: never logged, only returned in the owner-gated read.
+const DOCK_STREAMKEY_KV = (discordId) => `streamlabs:multistream:${discordId}`;
+
+async function routeDockStreamkeyGet(env, discordId) {
+  const rec = await env.LOADOUT_BOLTS.get(DOCK_STREAMKEY_KV(discordId), { type: 'json' }).catch(() => null);
+  if (!rec || !rec.url || !rec.key) {
+    return json({ ok: true, configured: false, url: '', key: '', refreshedAt: null });
+  }
+  return json({
+    ok: true, configured: true,
+    url: String(rec.url), key: String(rec.key),
+    refreshedAt: rec.refreshedAt || null,
+  });
+}
+
+async function routeDockStreamkeySave(env, discordId, body) {
+  const url = String((body && body.rtmpUrl) || '').trim().slice(0, 400);
+  const key = String((body && body.streamKey) || '').trim().slice(0, 400);
+  if (!url || !key) return json({ ok: false, error: 'missing', message: 'Both the RTMP URL and stream key are required.' }, 400);
+  // Light sanity check: Streamlabs ingest URLs are rtmp(s). Stay lenient so
+  // a non-standard ingest still saves, just nudge on obvious mistakes.
+  const looksRtmp = /^rtmps?:\/\//i.test(url);
+  const refreshedAt = Date.now();
+  await env.LOADOUT_BOLTS.put(DOCK_STREAMKEY_KV(discordId), JSON.stringify({ url, key, refreshedAt }));
+  // Do not echo the key back; the dock re-reads via the GET route.
+  return json({ ok: true, configured: true, refreshedAt, looksRtmp });
 }
 
 async function routeChatUnreact(env, discordId, body) {
