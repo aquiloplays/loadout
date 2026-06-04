@@ -177,11 +177,11 @@ export async function announceRotation(env, current) {
   const channelId = String(env.SCHEDULE_CHANNEL_ID || '1507973920282640485').trim();
   if (!channelId) return { ok: false, error: 'no-channel' };
   const embed = {
-    title: `🔁 Rotation is now: ${current.name}`,
-    description: `This week's rotation game is locked in.\nPlays **Sun · Tue · Thu** at **10:30 PM ET**.`,
+    title: `🔁 Tonight's Featured Run: ${current.name}`,
+    description: `This week's Featured Run is locked in.\nPlays **Sun · Tue · Thu** at **10:30 PM ET**.`,
     color: 0x5ad1ff,
     image: current.artUrl ? { url: current.artUrl } : undefined,
-    footer: { text: 'Rotation slot' },
+    footer: { text: 'Featured Run' },
   };
   const r = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
     method: 'POST',

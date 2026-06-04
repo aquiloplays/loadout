@@ -39,11 +39,11 @@ const DEFAULT_SCHEDULE = {
   // 4 to start) is set via /web/admin/triple-c/set and shown dynamically
   // on the embed; the day `label` stays the show name.
   days: [
-    { dow: 0, label: 'Rotation',        kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
+    { dow: 0, label: 'Featured Run',    kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
     { dow: 1, label: 'Fallout 4 CC: Chaos Workout Challenge', kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 2, label: 'Rotation',        kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
+    { dow: 2, label: 'Featured Run',    kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
     { dow: 3, label: 'Fallout 4 CC: Chaos Workout Challenge', kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 4, label: 'Rotation',        kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
+    { dow: 4, label: 'Featured Run',    kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
     { dow: 5, label: 'Fallout 4 CC: Chaos Workout Challenge', kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
     { dow: 6, label: 'Community Night', kind: 'community', startLocal: '22:30', endLocal: '00:30' },
   ],

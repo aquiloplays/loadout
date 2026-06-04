@@ -492,7 +492,7 @@ export async function buildLineupEmbed(env, guildId) {
       value: fo4cc?.name ? '**Locked in every M/W/F**' : '_TBA_',
     },
     {
-      name: '🔁 Rotation · Sun · Tue · Thu',
+      name: '🔁 Featured Run · Sun · Tue · Thu',
       value: rotation?.name ? `**${rotation.name}**` : '_Picked weekly by Clay_',
     },
     {

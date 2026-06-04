@@ -113,14 +113,14 @@ async function saveSchedule(env, guildId, sched) {
 const TIME_LABEL = '10:30 PM-12:30 AM ET';
 const SLOT_META = {
   'fo4cc':     { emoji: '💪', show: 'Fallout 4 CC: Chaos Workout Challenge' },
-  'rotation':  { emoji: '🔁', show: 'Rotation' },
+  'rotation':  { emoji: '🔁', show: 'Featured Run' },
   'community': { emoji: '🏆', show: 'Community Night' },
 };
 
 async function buildSchedulePayload(env, guildId, sched) {
   const headerEmbed = {
     title: '📅 Aquilo · Weekly Stream Schedule',
-    description: 'Fallout 4 CC Chaos Workout Mon/Wed/Fri, Rotation Sun/Tue/Thu, Community Night Sat. Tap **Vote** in <#' + (sched.poll_channel_id || '') + '> to pick the Community game.',
+    description: 'Fallout 4 CC Chaos Workout Mon/Wed/Fri, Featured Run Sun/Tue/Thu, Community Night Sat. Tap **Vote** in <#' + (sched.poll_channel_id || '') + '> to pick the Community game.',
     color: COLOR_SCHEDULE,
   };
 
