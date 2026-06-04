@@ -158,10 +158,9 @@ console.log('- getPublicSchedule: shape + CN winner');
     SCHEDULE_CHANNEL_ID: '1507973920282640485',
     POLL_CHANNEL_ID:     '1508318930845044786',
   };
-  // No saved sched, so load returns defaults; vote nights have no winner,
-  // so status = 'vote-open'. 2026-06-03: Triple-C (Sun + Fri) resolves the
-  // locked campaign (Fallout 4 default), Wed=variety, Sat=community,
-  // Mon/Tue/Thu=off (no scheduled stream).
+  // No saved sched, so load returns defaults. 2026-06-03 v3 final:
+  // Mon/Wed/Fri = Fallout 4 CC (fixed), Sun/Tue/Thu = Rotation (admin
+  // pick, none in test env -> null game), Sat = Community Night (vote).
   const r1 = await getPublicSchedule(env, GUILD);
   assert(r1.ok, 'ok:true');
   eq(r1.guildId, GUILD, 'guildId echoed');
@@ -171,25 +170,22 @@ console.log('- getPublicSchedule: shape + CN winner');
   eq(sat1.slot, 'cn', 'saturday slot=cn');
   eq(sat1.status, 'vote-open', 'no winner -> vote-open');
   eq(sat1.game, null, 'no game yet');
-  // Sunday + Friday are Triple-C days, resolve the locked campaign.
-  const sun = r1.days.find(d => d.weekday === 'sunday');
-  eq(sun.slot, 'stream', 'sunday=stream (Triple-C)');
-  eq(sun.game?.name, 'Fallout 4', 'sunday game = Fallout 4 (default campaign)');
-  eq(sun.status, 'scheduled', 'sunday status=scheduled');
-  const fri = r1.days.find(d => d.weekday === 'friday');
-  eq(fri.slot, 'stream', 'friday=stream (Triple-C)');
-  eq(fri.game?.name, 'Fallout 4', 'friday game = Fallout 4');
-  // Monday/Tuesday/Thursday are off days (no scheduled stream).
+  // Mon/Wed/Fri are Fallout 4 CC (fixed show).
   const mon = r1.days.find(d => d.weekday === 'monday');
-  eq(mon.slot, 'off', 'monday slot=off');
-  eq(mon.game, null, 'monday no game');
-  eq(mon.status, 'off', 'monday status=off');
-  const thu = r1.days.find(d => d.weekday === 'thursday');
-  eq(thu.slot, 'off', 'thursday slot=off');
-  // Wednesday is Variety Night, voted.
+  eq(mon.slot, 'fo4cc', 'monday slot=fo4cc');
+  eq(mon.game?.name, 'Fallout 4 CC: Chaos Workout Challenge', 'monday game = FO4 CC');
+  eq(mon.status, 'scheduled', 'monday status=scheduled');
   const wed = r1.days.find(d => d.weekday === 'wednesday');
-  eq(wed.slot, 'variety', 'wednesday slot=variety');
-  eq(wed.status, 'vote-open', 'wednesday vote-open');
+  eq(wed.slot, 'fo4cc', 'wednesday slot=fo4cc');
+  const fri = r1.days.find(d => d.weekday === 'friday');
+  eq(fri.slot, 'fo4cc', 'friday slot=fo4cc');
+  // Sun/Tue/Thu are Rotation (no admin pick in test env -> null game).
+  const sun = r1.days.find(d => d.weekday === 'sunday');
+  eq(sun.slot, 'rotation', 'sunday slot=rotation');
+  eq(sun.game, null, 'sunday no rotation pick yet');
+  eq(sun.status, 'scheduled', 'sunday status=scheduled');
+  const thu = r1.days.find(d => d.weekday === 'thursday');
+  eq(thu.slot, 'rotation', 'thursday slot=rotation');
 
   // Now seed a CN winner + read again. Winner has a Steam URL →
   // store='steam'.
