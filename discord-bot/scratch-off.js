@@ -35,7 +35,13 @@ import { STREAMER_BOT_ACTIONS, LOSS_LINES, POOLS } from './scratch-challenges.js
 
 // ── Tunables ───────────────────────────────────────────────────────────
 
-const HIT_RATE = 0.08;            // ~8% of cards win
+// Unified outcome rates. Every ticket can land a game challenge OR a workout
+// challenge OR nothing. Both win bands are pacing-gated. Roughly 6% + 6% =>
+// ~88% nothing. Tunable live via scratch:cfg (admin) without a redeploy.
+const HIT_RATE = 0.08;            // legacy single-band rate (kept for cfg compat)
+const GAME_HIT_RATE = 0.06;       // ~6% land a game-themed challenge/tamper
+const WORKOUT_HIT_RATE = 0.06;    // ~6% land a universal workout challenge
+const BIT_COST = 100;             // ticket price in bits (locked; cfg.bitCost overrides)
 const REVEAL_THRESHOLD = 70;      // % scratched before the outcome reveals
 const SCRATCH_SKUS = new Set([    // Twitch product SKUs that mint a card
   'scratch_card_100', 'scratch_card', 'aquilo_scratch_100',
@@ -58,6 +64,10 @@ const K_STREAM = (sid) => `scratch:stream:${sid}`;       // { hits, lastHitAt }
 const K_CONSOL = (uid) => `scratch:consol:${uid}`;       // running bolt tally
 const K_PAUSED = 'scratch:paused';                       // '1' while paused
 const K_CFG = 'scratch:cfg';                             // optional overrides
+// Admin-editable content overlays (layered over the code seed; KV wins).
+const K_GAMES = 'scratch:games';        // map slug -> {name,accent,accent2,icon,deep,tag,aliases}
+const K_CHALLENGES = 'scratch:challenges'; // full editable challenge list (array); reseeds D1
+const K_TAMPERS = 'scratch:tampers';    // map action_key -> {actionName,defaultDurationSec,description,pending}
 
 // ── Game roster + slug resolution ──────────────────────────────────────
 // Slugs are kept identical to the death-counter roster so a game resolves
@@ -86,6 +96,53 @@ export const GAMES = {
   schedule_1: 'Schedule 1', rimworld: 'RimWorld',
   // Non-game category: scratch reveals a workout challenge for Clay.
   workout: 'Workout',
+};
+
+// ── Per-game card THEME (face palette + icon) ───────────────────────────
+// Source of truth for the V1 lottery face. The panel fetches the merged map
+// (this + KV `scratch:games` admin overlay) from /web/scratch/themes and
+// renders the face; admin add/edit writes the KV overlay (KV wins). `icon`
+// is a key the panel maps to a drawn SVG, OR a raw '<svg ...>' string for
+// admin-pasted icons. Keep slugs in sync with GAMES.
+export const GAME_THEMES = {
+  generic: { accent: '#7c5cff', accent2: '#22d3ee', icon: 'star', title: 'AQUILO', tag: 'SCRATCH TO REVEAL' },
+  fallout4: { accent: '#43d17a', accent2: '#0c7a3c', deep: '#06351c', icon: 'cog', title: 'VAULT-TEC', tag: 'PULL THE LEVER, DWELLER' },
+  gwyf: { accent: '#5bff95', accent2: '#ffb454', deep: '#10331c', icon: 'dice', title: 'GAMBLE NIGHT', tag: 'TRUST NO ONE' },
+  repo: { accent: '#2bd4d4', accent2: '#1c8f8f', deep: '#0c1a22', icon: 'coin', title: 'R.E.P.O.', tag: 'MEET THE HAUL' },
+  peak: { accent: '#22d3ee', accent2: '#5bff95', deep: '#0c2230', icon: 'peak', title: 'PEAK', tag: 'REACH THE SUMMIT' },
+  lethal_company: { accent: '#2bd4d4', accent2: '#1a2230', deep: '#0c1620', icon: 'coin', title: 'COMPANY SCRIP', tag: 'MEET THE QUOTA' },
+  fortnite: { accent: '#22d3ee', accent2: '#ff6ab5', deep: '#10243a', icon: 'star', title: 'LOOT DROP', tag: 'DROP IN' },
+  dbd: { accent: '#ff424d', accent2: '#1f2233', deep: '#2a0c10', icon: 'skull', title: 'BLOODWEB', tag: 'ESCAPE OR DIE' },
+  phasmophobia: { accent: '#9a82ff', accent2: '#5b46c4', deep: '#0c0c18', icon: 'ghost', title: 'GHOST HUNT', tag: 'DO NOT LOOK AWAY' },
+  bg3: { accent: '#7c5cff', accent2: '#ff424d', deep: '#1a1030', icon: 'gem', title: 'MIND FLAYER', tag: 'ROLL THE DICE' },
+  ale_tale_tavern: { accent: '#e0a23c', accent2: '#6b3f1a', deep: '#2a1808', icon: 'flask', title: 'TAVERN', tag: 'LAST CALL' },
+  baby_steps: { accent: '#9ad17a', accent2: '#6b4a2a', deep: '#1f2a14', icon: 'leaf', title: 'BABY STEPS', tag: 'ONE STEP AT A TIME' },
+  cult_lamb: { accent: '#e23b6b', accent2: '#1a1024', deep: '#1a0a18', icon: 'skull', title: 'CULT', tag: 'PRAISE THE LAMB' },
+  waterpark_sim: { accent: '#2bb6ff', accent2: '#5bff95', deep: '#0c2236', icon: 'fish', title: 'WATERPARK', tag: 'MAKE A SPLASH' },
+  eldenring: { accent: '#ffd76a', accent2: '#7c5cff', deep: '#241a06', icon: 'sword', title: 'GOLDEN ORDER', tag: 'TOUCH GRACE' },
+  skyrim_se: { accent: '#8fb6d9', accent2: '#2a3a4a', deep: '#10202c', icon: 'sword', title: 'DRAGONBORN', tag: 'FUS RO DAH' },
+  hades: { accent: '#ff424d', accent2: '#ffb454', deep: '#240c10', icon: 'skull', title: 'BOON', tag: 'THERE IS NO ESCAPE' },
+  hollow_knight: { accent: '#22d3ee', accent2: '#0a0b12', deep: '#0a1620', icon: 'gem', title: 'GEO HUNT', tag: 'MIND THE HUSKS' },
+  kcd2: { accent: '#c8a24a', accent2: '#3a2e1a', deep: '#221a0c', icon: 'sword', title: 'BOHEMIA', tag: 'JESUS CHRIST BE PRAISED' },
+  blue_prince: { accent: '#5b8fff', accent2: '#cdb46a', deep: '#0c1830', icon: 'crown', title: 'BLUE PRINCE', tag: 'DRAW THE ROOM' },
+  retro_rewind: { accent: '#ff3ca6', accent2: '#21e6ff', deep: '#16122e', icon: 'star', title: 'RETRO REWIND', tag: 'PRESS START' },
+  stardew: { accent: '#5bff95', accent2: '#ffb454', deep: '#123018', icon: 'leaf', title: 'HARVEST', tag: 'TEND THE FOIL' },
+  supermarket_sim: { accent: '#ffb454', accent2: '#2bb6ff', deep: '#2a1c08', icon: 'dollar', title: 'CHECKOUT', tag: 'PRICE IT RIGHT' },
+  witcher3: { accent: '#e0c060', accent2: '#1f2233', deep: '#241f0c', icon: 'sword', title: 'GWENT', tag: 'TOSS A COIN' },
+  schedule_1: { accent: '#5bff95', accent2: '#1f6b3a', deep: '#0c2415', icon: 'leaf', title: 'SCHEDULE 1', tag: 'MOVE THE PRODUCT' },
+  rdr2: { accent: '#c8553d', accent2: '#1f2233', deep: '#2a120c', icon: 'star', title: 'BOUNTY', tag: 'DRAW' },
+  borderlands2: { accent: '#ff9e2c', accent2: '#b21f1f', deep: '#2a1604', icon: 'skull', title: 'VAULT HUNT', tag: 'OPEN THE VAULT' },
+  borderlands3: { accent: '#ff5fa2', accent2: '#ff9e2c', deep: '#2a0c1a', icon: 'skull', title: 'VAULT HUNT', tag: 'OPEN THE VAULT' },
+  dredge: { accent: '#2bd4d4', accent2: '#14333a', deep: '#0c2026', icon: 'fish', title: 'THE CATCH', tag: 'DO NOT PANIC' },
+  cyberpunk2077: { accent: '#fcee0a', accent2: '#ff003c', deep: '#241f04', icon: 'bolt', title: 'NIGHT CITY', tag: 'WAKE UP, SAMURAI' },
+  silksong: { accent: '#ff6ab5', accent2: '#22d3ee', deep: '#2a0c20', icon: 'gem', title: 'SILK', tag: 'SPIN THE THREAD' },
+  rimworld: { accent: '#d98a4a', accent2: '#3a2a1a', deep: '#241608', icon: 'skull', title: 'THE RIM', tag: 'RANDY DECIDES' },
+  sts2: { accent: '#ffb454', accent2: '#7c5cff', deep: '#1a1330', icon: 'gem', title: 'RELIC', tag: 'DRAW YOUR FATE' },
+  balatro: { accent: '#ff424d', accent2: '#5bff95', deep: '#2a0c10', icon: 'dice', title: 'JOKER', tag: 'STACK THE DECK' },
+  among_us: { accent: '#ff5fa2', accent2: '#1f9fc4', deep: '#14233a', icon: 'crewmate', title: 'CREWMATE', tag: 'IS IT SUS?' },
+  content_warning: { accent: '#ff6ab5', accent2: '#7c5cff', deep: '#240c20', icon: 'ghost', title: 'SPOOKTUBE', tag: 'GET THE SHOT' },
+  // Workout reveal frame palette (red/white gym). Not a live game face.
+  workout: { accent: '#e23b3b', accent2: '#b21f1f', deep: '#3a0d0d', icon: 'dumbbell', title: 'SWEAT-OFF', tag: 'NO PAIN, NO PAYOUT' },
 };
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -135,8 +192,27 @@ async function resolveCurrentGame(env) {
   if (!broadcasterId) return { slug: 'generic', gameName: null };
   const ch = await getChannelGame(env, broadcasterId).catch(() => null);
   const gameName = ch?.gameName || null;
-  const slug = slugForTwitchGame(gameName);
+  const slug = await resolveSlugMerged(env, gameName);
   return { slug: slug || 'generic', gameName: slug ? gameName : (gameName || null) };
+}
+
+// Slug resolution that also consults admin-added games in KV (scratch:games),
+// so a game added via the admin page resolves from its Twitch category too.
+async function resolveSlugMerged(env, gameName) {
+  const stat = slugForTwitchGame(gameName);
+  if (stat) return stat;
+  if (!gameName) return null;
+  const key = norm(gameName);
+  const overlay = (await kvGet(env, K_GAMES, true)) || {};
+  for (const [slug, ov] of Object.entries(overlay)) {
+    if (norm(ov.name || slug) === key) return slug;
+    for (const a of (ov.aliases || [])) if (norm(a) === key) return slug;
+  }
+  for (const [slug, ov] of Object.entries(overlay)) {
+    const n = norm(ov.name || slug);
+    if (n && (key.startsWith(n) || n.startsWith(key))) return slug;
+  }
+  return null;
 }
 
 // ── Live + pacing state ─────────────────────────────────────────────────
@@ -177,6 +253,9 @@ async function pacingCfg(env) {
     maxHits: Number.isFinite(c.maxHits) ? c.maxHits : MAX_HITS_PER_STREAM,
     cooldownMs: Number.isFinite(c.cooldownMs) ? c.cooldownMs : HIT_COOLDOWN_MS,
     hitRate: Number.isFinite(c.hitRate) ? c.hitRate : HIT_RATE,
+    gameRate: Number.isFinite(c.gameRate) ? c.gameRate : GAME_HIT_RATE,
+    workoutRate: Number.isFinite(c.workoutRate) ? c.workoutRate : WORKOUT_HIT_RATE,
+    bitCost: Number.isFinite(c.bitCost) ? c.bitCost : BIT_COST,
   };
 }
 
@@ -256,7 +335,7 @@ async function ensureSchema(env) {
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET, POST, OPTIONS',
-  'access-control-allow-headers': 'content-type, x-scratch-token, x-scratch-webhook-secret',
+  'access-control-allow-headers': 'content-type, x-scratch-token, x-streamdeck-token, x-aquilo-web-ts, x-aquilo-web-sig, x-scratch-webhook-secret',
 };
 
 function jsonResp(obj, status = 200, extraHeaders = {}) {
@@ -266,11 +345,15 @@ function jsonResp(obj, status = 200, extraHeaders = {}) {
 }
 
 // Admin/owner gate, reuses the Stream Deck token if no dedicated one is
-// set, so the trigger + CRUD endpoints work out of the box tonight.
+// set, so the trigger + CRUD endpoints work out of the box tonight. The site
+// admin page proxies through `postToBot`, which forwards the token as the
+// `x-streamdeck-token` header (the same channel the death-counter admin uses),
+// so accept that header too — no separate scratch secret to provision.
 function tokenOk(req, env, url) {
   const want = String(env.SCRATCH_ADMIN_TOKEN || env.STREAMDECK_TOKEN || '').trim();
   if (!want) return false;
-  const got = (req.headers.get('x-scratch-token') || url.searchParams.get('token') || '').trim();
+  const got = (req.headers.get('x-scratch-token') || req.headers.get('x-streamdeck-token') ||
+    url.searchParams.get('token') || '').trim();
   return got.length > 0 && got === want;
 }
 
@@ -354,22 +437,32 @@ function loseOutcome() {
 }
 
 // Decide a ticket's outcome at mint. Returns { outcome, outcomeData }.
-// opts.allowHit gates wins (per-stream cap/cooldown): when false the card
-// always loses, regardless of the roll. opts.hitRate overrides the default.
-async function rollOutcome(env, gameSlug, opts = {}) {
+// UNIFIED POOL: a single ticket type. On a roll it lands one of three:
+//   - workout challenge  (~opts.workoutRate, universal pool, outcomeData.workout)
+//   - game challenge/tamper (~opts.gameRate, themed to the live game)
+//   - nothing            (loss + consolation bolts, the rest)
+// opts.allowHit gates BOTH win bands (per-stream cap/cooldown): when false the
+// card always loses regardless of the roll.
+export async function rollOutcome(env, gameSlug, opts = {}) {
   const allowHit = opts.allowHit !== false;
-  const hitRate = Number.isFinite(opts.hitRate) ? opts.hitRate : HIT_RATE;
-  if (!allowHit || Math.random() >= hitRate) {
-    return loseOutcome();
-  }
+  const gameRate = Number.isFinite(opts.gameRate) ? opts.gameRate : GAME_HIT_RATE;
+  const workoutRate = Number.isFinite(opts.workoutRate) ? opts.workoutRate : WORKOUT_HIT_RATE;
+  if (!allowHit) return loseOutcome();
+  const r = Math.random();
+  if (r < workoutRate) return await pickFromPool(env, 'workout', { workout: true });
+  if (r < workoutRate + gameRate) return await pickFromPool(env, gameSlug, {});
+  return loseOutcome();
+}
+
+// Draw a winning outcome from a pool. Reads D1; falls back to the in-code
+// POOLS (workout) or the generic pool so a hit never silently becomes a loss.
+async function pickFromPool(env, gameSlug, extra = {}) {
   const d = db(env);
-  // Prefer the game's own pool; fall back to generic if it has none.
   let rows = (await d.prepare(
     `SELECT id, kind, body, action_key, weight, duration_sec FROM scratch_outcome_pool
      WHERE game_slug = ? AND active = 1`).bind(gameSlug).all()).results || [];
-  // Workout never falls back to the generic tamper pool, a workout ticket must
-  // resolve to a workout move. Use the in-code POOLS.workout if D1 has no rows
-  // yet (so the category works before `scratch/seed` is re-run).
+  // Workout uses the in-code POOLS.workout if D1 has no rows yet (so it works
+  // before `scratch/seed` is re-run). It never falls back to game tampers.
   if (!rows.length && gameSlug === 'workout' && Array.isArray(POOLS.workout)) {
     rows = POOLS.workout.map((e, i) => ({
       id: `mem_workout_${i}`, kind: e.kind, body: e.body,
@@ -383,16 +476,16 @@ async function rollOutcome(env, gameSlug, opts = {}) {
   }
   const pick = weightedPick(rows);
   if (!pick) {
-    // No pool seeded at all, degrade to a generic challenge so a "hit"
-    // still feels like a win rather than silently becoming a loss.
-    return { outcome: 'challenge', outcomeData: {
-      poolId: null, body: 'Pose for the stream for 10 seconds.', durationSec: 10 } };
+    return extra.workout
+      ? { outcome: 'challenge', outcomeData: { poolId: null, body: '20 pushups. Chat counts.', durationSec: 0, workout: true } }
+      : { outcome: 'challenge', outcomeData: { poolId: null, body: 'Pose for the stream for 10 seconds.', durationSec: 10 } };
   }
   return {
     outcome: pick.kind, // 'challenge' | 'tamper'
     outcomeData: {
       poolId: pick.id, body: pick.body, durationSec: pick.duration_sec || 0,
       actionKey: pick.action_key || null,
+      ...(extra.workout ? { workout: true } : {}),
     },
   };
 }
@@ -414,6 +507,7 @@ function ticketPublic(row, { includeOutcome }) {
     base.body = row.outcome === 'lose' ? (od.message || pickLoss()) : od.body;
     base.durationSec = od.durationSec || 0;
     base.actionKey = od.actionKey || null;
+    base.workout = !!od.workout; // true when the win came from the workout pool
     if (row.outcome === 'lose') base.consolationBolts = od.consolationBolts || 0;
   }
   return base;
@@ -426,7 +520,7 @@ async function getTicket(env, id) {
 // Mint a ticket. `liveCtx` (from resolveLiveContext) supplies the stream
 // session id used for hit budgeting and the resolved game; when omitted
 // (admin test-mint) the game is resolved standalone and hits are unbounded.
-async function mintTicket(env, { userId, userName, bits, sku, txnId, liveCtx, category }) {
+async function mintTicket(env, { userId, userName, bits, sku, txnId, liveCtx }) {
   await ensureSchema(env);
   const d = db(env);
   // Idempotency: a repeated Twitch transaction returns the existing ticket.
@@ -435,16 +529,15 @@ async function mintTicket(env, { userId, userName, bits, sku, txnId, liveCtx, ca
       .bind(String(txnId)).first();
     if (existing) return { ticket: existing, reused: true };
   }
-  // The workout category is a non-game ticket type, it ignores the live Twitch
-  // game and always resolves to the workout pool (a challenge for Clay).
-  const game = category === 'workout'
-    ? { slug: 'workout', gameName: 'Workout' }
-    : liveCtx
-      ? { slug: liveCtx.slug, gameName: liveCtx.gameName }
-      : await resolveCurrentGame(env);
+  // Single unified ticket type: the face themes to the live game; the reveal
+  // (rollOutcome) decides game challenge vs workout challenge vs nothing.
+  const game = liveCtx
+    ? { slug: liveCtx.slug, gameName: liveCtx.gameName }
+    : await resolveCurrentGame(env);
   const cfg = await pacingCfg(env);
   const allowHit = await hitBudgetOk(env, liveCtx?.streamId, cfg);
-  const { outcome, outcomeData } = await rollOutcome(env, game.slug, { allowHit, hitRate: cfg.hitRate });
+  const { outcome, outcomeData } = await rollOutcome(env, game.slug,
+    { allowHit, gameRate: cfg.gameRate, workoutRate: cfg.workoutRate });
   // A minted hit consumes a slot for this stream session (cap + cooldown).
   if (outcome !== 'lose' && liveCtx?.streamId) await recordHit(env, liveCtx.streamId);
   const id = rid('st');
@@ -685,11 +778,26 @@ export async function handleScratch(req, env, path) {
       const ctx = await resolveLiveContext(env);
       const uid = String(url.searchParams.get('userId') || '').trim();
       const consolationTotal = uid ? (parseInt(await kvGet(env, K_CONSOL(uid)), 10) || 0) : undefined;
+      const cfg = await pacingCfg(env);
+      const games = await mergedGames(env);
+      const theme = themeForSlug(games, ctx.slug);
       return jsonResp({ ok: true, gameSlug: ctx.slug,
-        gameName: ctx.gameName || GAMES[ctx.slug] || null,
+        gameName: ctx.gameName || (games[ctx.slug] && games[ctx.slug].name) || null,
         live: ctx.live, paused: ctx.paused, canBuy: ctx.live && !ctx.paused,
+        bitCost: cfg.bitCost, theme,
         ...(consolationTotal !== undefined ? { consolationTotal } : {}) },
         200, { 'cache-control': 'public, max-age=10' });
+    }
+
+    // ---- Merged card themes (panel face source) ------------------------
+    // code GAME_THEMES overlaid by the admin KV overlay (KV wins). The panel
+    // fetches this so admin-added/edited games theme their lottery face.
+    if (method === 'GET' && path === '/web/scratch/themes') {
+      const games = await mergedGames(env);
+      const themes = {};
+      for (const g of Object.values(games)) themes[g.slug] = themeForSlug(games, g.slug);
+      return jsonResp({ ok: true, bitCost: (await pacingCfg(env)).bitCost, themes },
+        200, { 'cache-control': 'public, max-age=20' });
     }
 
     // ---- Pool preview (UI) ---------------------------------------------
@@ -796,6 +904,56 @@ export async function handleScratch(req, env, path) {
       return jsonResp({ ok: true, ...res });
     }
 
+    // ---- Admin: content management (games + challenges + tampers) -------
+    // Read-everything for the /admin/scratch-off-content page.
+    if (method === 'GET' && path === '/web/admin/scratch/content') {
+      if (!tokenOk(req, env, url)) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+      const [games, challenges, tampers, cfg] = await Promise.all([
+        mergedGames(env), loadChallengeList(env), mergedTampers(env), pacingCfg(env),
+      ]);
+      const counts = {};
+      for (const c of challenges) counts[c.gameSlug] = (counts[c.gameSlug] || 0) + 1;
+      const gameList = Object.values(games).map((g) => ({ ...g, entryCount: counts[g.slug] || 0 }));
+      return jsonResp({ ok: true,
+        games: gameList, challenges, tampers: Object.values(tampers),
+        cfg: { bitCost: cfg.bitCost, gameRate: cfg.gameRate, workoutRate: cfg.workoutRate,
+          maxHits: cfg.maxHits, cooldownSec: Math.round(cfg.cooldownMs / 1000) } });
+    }
+
+    // Add / edit / delete a game theme (KV overlay; KV wins over code).
+    if (method === 'POST' && path === '/web/admin/scratch/game') {
+      if (!tokenOk(req, env, url)) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+      return await handleGameCrud(env, await readBody(req));
+    }
+
+    // Add / edit / delete a challenge (writes KV, reseeds D1; KV is the layer).
+    if (method === 'POST' && path === '/web/admin/scratch/challenge') {
+      if (!tokenOk(req, env, url)) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+      return await handleChallengeCrud(env, await readBody(req));
+    }
+
+    // Add / edit a tamper action (KV overlay + D1 upsert; new ones marked
+    // pending until the C# Streamer.bot action is wired).
+    if (method === 'POST' && path === '/web/admin/scratch/tamper') {
+      if (!tokenOk(req, env, url)) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+      return await handleTamperCrud(env, await readBody(req));
+    }
+
+    // Set economy/pacing config (bit cost, rates, caps). Defaults locked at 100.
+    if (method === 'POST' && path === '/web/admin/scratch/config') {
+      if (!tokenOk(req, env, url)) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+      const b = await readBody(req);
+      const cur = (await kvGet(env, K_CFG, true)) || {};
+      const over = { ...cur };
+      if (Number.isFinite(b.bitCost)) over.bitCost = Math.max(1, Math.min(10000, b.bitCost | 0));
+      if (Number.isFinite(b.maxHits)) over.maxHits = Math.max(0, Math.min(20, b.maxHits | 0));
+      if (Number.isFinite(b.cooldownSec)) over.cooldownMs = Math.max(0, (b.cooldownSec | 0)) * 1000;
+      if (Number.isFinite(b.gameRate)) over.gameRate = Math.max(0, Math.min(1, Number(b.gameRate)));
+      if (Number.isFinite(b.workoutRate)) over.workoutRate = Math.max(0, Math.min(1, Number(b.workoutRate)));
+      await kvPut(env, K_CFG, over);
+      return jsonResp({ ok: true, cfg: await pacingCfg(env) });
+    }
+
     return jsonResp({ ok: false, error: 'not-found' }, 404);
   } catch (e) {
     return jsonResp({ ok: false, error: String(e?.message || e).slice(0, 200) }, 500);
@@ -857,6 +1015,208 @@ async function emitHitFire(env, row, forced) {
     await publishActivity(env, { kind: 'scratch.challenge', ...payload }).catch(() => {});
     await enqueueOverlay(env, { type: 'scratch_challenge', bus_kind: 'scratch.challenge', ...payload, ts }).catch(() => {});
   }
+}
+
+// ── Admin content layer: merge + CRUD (games / challenges / tampers) ────
+// The code seed (GAMES, GAME_THEMES, POOLS, STREAMER_BOT_ACTIONS) is the base;
+// KV overlays (scratch:games / scratch:challenges / scratch:tampers) are the
+// live editable layer and WIN on conflicts. Challenge edits reseed D1 (the
+// pool rollOutcome reads); games/tampers are read merged on demand.
+
+const SLUG_RE = /^[a-z0-9_]{2,40}$/;
+
+// Resolve the full theme object (face palette) for a slug from a merged map.
+function themeForSlug(games, slug) {
+  const g = games[slug] || games.generic || {};
+  const base = GAME_THEMES.generic;
+  return {
+    accent: g.accent || base.accent, accent2: g.accent2 || base.accent2,
+    icon: g.icon || base.icon, deep: g.deep || '#0a0b12',
+    title: g.title || (g.name ? String(g.name).toUpperCase() : 'AQUILO'),
+    tag: g.tag || base.tag, name: g.name || slug,
+  };
+}
+
+// code GAMES + GAME_THEMES overlaid by the KV admin overlay (KV wins).
+async function mergedGames(env) {
+  const overlay = (await kvGet(env, K_GAMES, true)) || {};
+  const out = {};
+  for (const [slug, name] of Object.entries(GAMES)) {
+    const th = GAME_THEMES[slug] || {};
+    out[slug] = {
+      slug, name, accent: th.accent || GAME_THEMES.generic.accent,
+      accent2: th.accent2 || GAME_THEMES.generic.accent2, icon: th.icon || 'star',
+      deep: th.deep || '#0a0b12', title: th.title || name.toUpperCase(),
+      tag: th.tag || '', aliases: TWITCH_ALIASES[slug] || [], source: 'code',
+    };
+  }
+  for (const [slug, ov] of Object.entries(overlay)) {
+    if (!ov || typeof ov !== 'object') continue;
+    const base = out[slug];
+    out[slug] = {
+      slug, name: ov.name || (base && base.name) || slug,
+      accent: ov.accent || (base && base.accent) || GAME_THEMES.generic.accent,
+      accent2: ov.accent2 || (base && base.accent2) || GAME_THEMES.generic.accent2,
+      icon: ov.icon || (base && base.icon) || 'star',
+      deep: ov.deep || (base && base.deep) || '#0a0b12',
+      title: ov.title || (base && base.title) || String(ov.name || slug).toUpperCase(),
+      tag: ov.tag != null ? ov.tag : (base && base.tag) || '',
+      aliases: Array.isArray(ov.aliases) ? ov.aliases : (base && base.aliases) || [],
+      source: base ? 'code+admin' : 'admin',
+    };
+  }
+  return out;
+}
+
+// code STREAMER_BOT_ACTIONS overlaid by the KV tampers overlay.
+async function mergedTampers(env) {
+  const overlay = (await kvGet(env, K_TAMPERS, true)) || {};
+  const out = {};
+  for (const a of STREAMER_BOT_ACTIONS) {
+    out[a.action_key] = { actionKey: a.action_key, actionName: a.action_name,
+      defaultDurationSec: a.default_duration_sec, description: a.description, pending: false, source: 'code' };
+  }
+  for (const [k, ov] of Object.entries(overlay)) {
+    if (!ov || typeof ov !== 'object') continue;
+    const base = out[k];
+    out[k] = { actionKey: k, actionName: ov.actionName || (base && base.actionName) || k,
+      defaultDurationSec: Number.isFinite(ov.defaultDurationSec) ? ov.defaultDurationSec : (base ? base.defaultDurationSec : 30),
+      description: ov.description != null ? ov.description : (base && base.description) || '',
+      pending: ov.pending != null ? !!ov.pending : (base ? base.pending : true),
+      source: base ? 'code+admin' : 'admin' };
+  }
+  return out;
+}
+
+// Effective challenge list for editing. KV when present, else the live D1 pool
+// (so the first edit inherits whatever is currently seeded).
+async function loadChallengeList(env) {
+  const kv = await kvGet(env, K_CHALLENGES, true);
+  if (Array.isArray(kv)) return kv;
+  await ensureSchema(env);
+  const rows = (await db(env).prepare(
+    `SELECT id, game_slug, kind, body, action_key, weight, duration_sec, active
+     FROM scratch_outcome_pool ORDER BY game_slug, kind`).all()).results || [];
+  return rows.map((r) => ({ id: r.id, gameSlug: r.game_slug, kind: r.kind, body: r.body,
+    actionKey: r.action_key, weight: r.weight, durationSec: r.duration_sec, active: r.active }));
+}
+
+// Persist the challenge list to KV and rebuild D1 from it (KV is authoritative).
+async function saveChallengeList(env, list) {
+  await kvPut(env, K_CHALLENGES, list);
+  await ensureSchema(env);
+  const d = db(env);
+  const stmts = [d.prepare(`DELETE FROM scratch_outcome_pool`)];
+  for (const e of list) {
+    if (!e.gameSlug || !e.kind || !e.body) continue;
+    stmts.push(d.prepare(
+      `INSERT INTO scratch_outcome_pool (id, game_slug, kind, body, action_key, weight, duration_sec, active, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(String(e.id || rid('op')), String(e.gameSlug), String(e.kind), String(e.body).slice(0, 240),
+        e.actionKey || null, parseInt(e.weight, 10) || 10, parseInt(e.durationSec, 10) || 0,
+        e.active === 0 ? 0 : 1, now()));
+  }
+  await d.batch(stmts);
+}
+
+async function handleGameCrud(env, body) {
+  const op = String(body.op || 'add');
+  const overlay = (await kvGet(env, K_GAMES, true)) || {};
+  const slug = String(body.slug || '').trim().toLowerCase();
+  if (op === 'delete') {
+    if (!slug) return jsonResp({ ok: false, error: 'missing-slug' }, 400);
+    delete overlay[slug];
+    await kvPut(env, K_GAMES, overlay);
+    return jsonResp({ ok: true, deleted: slug, note: GAMES[slug] ? 'reverted-to-code-default' : 'removed' });
+  }
+  // add | update
+  if (!SLUG_RE.test(slug)) return jsonResp({ ok: false, error: 'bad-slug', hint: 'a-z 0-9 _ only' }, 400);
+  const prev = overlay[slug] || {};
+  const entry = {
+    name: body.name != null ? String(body.name).slice(0, 80) : prev.name,
+    accent: body.accent != null ? String(body.accent).slice(0, 32) : prev.accent,
+    accent2: body.accent2 != null ? String(body.accent2).slice(0, 32) : prev.accent2,
+    icon: body.icon != null ? String(body.icon).slice(0, 4000) : prev.icon,
+    deep: body.deep != null ? String(body.deep).slice(0, 32) : prev.deep,
+    tag: body.tag != null ? String(body.tag).slice(0, 80) : prev.tag,
+    title: body.title != null ? String(body.title).slice(0, 40) : prev.title,
+    aliases: Array.isArray(body.aliases) ? body.aliases.map((a) => String(a).slice(0, 80)).slice(0, 12) : prev.aliases,
+  };
+  overlay[slug] = entry;
+  await kvPut(env, K_GAMES, overlay);
+  return jsonResp({ ok: true, slug, game: { slug, ...entry } });
+}
+
+async function handleChallengeCrud(env, body) {
+  const op = String(body.op || 'add');
+  const list = await loadChallengeList(env);
+  if (op === 'delete') {
+    if (!body.id) return jsonResp({ ok: false, error: 'missing-id' }, 400);
+    const next = list.filter((e) => String(e.id) !== String(body.id));
+    if (next.length === list.length) return jsonResp({ ok: false, error: 'not-found' }, 404);
+    await saveChallengeList(env, next);
+    return jsonResp({ ok: true, deleted: String(body.id), count: next.length });
+  }
+  if (op === 'update') {
+    if (!body.id) return jsonResp({ ok: false, error: 'missing-id' }, 400);
+    const idx = list.findIndex((e) => String(e.id) === String(body.id));
+    if (idx < 0) return jsonResp({ ok: false, error: 'not-found' }, 404);
+    const cur = list[idx];
+    list[idx] = {
+      ...cur,
+      gameSlug: body.gameSlug != null ? String(body.gameSlug) : cur.gameSlug,
+      kind: body.kind != null ? String(body.kind) : cur.kind,
+      body: body.body != null ? String(body.body).slice(0, 240) : cur.body,
+      actionKey: body.actionKey !== undefined ? (body.actionKey || null) : cur.actionKey,
+      weight: body.weight != null ? (parseInt(body.weight, 10) || 10) : cur.weight,
+      durationSec: body.durationSec != null ? (parseInt(body.durationSec, 10) || 0) : cur.durationSec,
+      active: body.active != null ? (body.active ? 1 : 0) : cur.active,
+    };
+    await saveChallengeList(env, list);
+    return jsonResp({ ok: true, updated: String(body.id) });
+  }
+  // add
+  if (!body.gameSlug || !body.kind || !body.body) return jsonResp({ ok: false, error: 'missing-fields' }, 400);
+  const entry = { id: rid('op'), gameSlug: String(body.gameSlug), kind: String(body.kind),
+    body: String(body.body).slice(0, 240), actionKey: body.kind === 'tamper' ? (body.actionKey || 'random_keys') : null,
+    weight: parseInt(body.weight, 10) || 10, durationSec: parseInt(body.durationSec, 10) || 0, active: 1 };
+  list.push(entry);
+  await saveChallengeList(env, list);
+  return jsonResp({ ok: true, added: entry.id, count: list.length });
+}
+
+async function handleTamperCrud(env, body) {
+  const op = String(body.op || 'add');
+  const overlay = (await kvGet(env, K_TAMPERS, true)) || {};
+  const key = String(body.actionKey || '').trim();
+  if (!SLUG_RE.test(key)) return jsonResp({ ok: false, error: 'bad-action-key', hint: 'a-z 0-9 _ only' }, 400);
+  if (op === 'delete') {
+    delete overlay[key];
+    await kvPut(env, K_TAMPERS, overlay);
+    return jsonResp({ ok: true, deleted: key });
+  }
+  const isCode = STREAMER_BOT_ACTIONS.some((a) => a.action_key === key);
+  const prev = overlay[key] || {};
+  const entry = {
+    actionName: body.actionName != null ? String(body.actionName).slice(0, 80) : (prev.actionName || key),
+    defaultDurationSec: Number.isFinite(body.defaultDurationSec)
+      ? Math.max(0, Math.min(120, body.defaultDurationSec | 0)) : (prev.defaultDurationSec ?? 30),
+    description: body.description != null ? String(body.description).slice(0, 240) : (prev.description || ''),
+    // A brand-new key (not in the code registry) needs the C# Streamer.bot
+    // action wired before it actually fires, mark it pending.
+    pending: isCode ? false : (body.pending != null ? !!body.pending : true),
+  };
+  overlay[key] = entry;
+  await kvPut(env, K_TAMPERS, overlay);
+  // Mirror into D1 so weightedPick/seed see it.
+  await ensureSchema(env);
+  await db(env).prepare(
+    `INSERT INTO scratch_streamer_bot_action (action_key, action_name, default_duration_sec, cooldown_sec, description, active)
+     VALUES (?, ?, ?, 0, ?, 1)
+     ON CONFLICT(action_key) DO UPDATE SET action_name=excluded.action_name,
+       default_duration_sec=excluded.default_duration_sec, description=excluded.description`)
+    .bind(key, entry.actionName, entry.defaultDurationSec, entry.description).run();
+  return jsonResp({ ok: true, actionKey: key, tamper: { actionKey: key, ...entry } });
 }
 
 // Owner-gated CRUD over scratch_outcome_pool. body.op: add|update|delete|list.
