@@ -72,6 +72,7 @@ function cardLabel(c) { return cardRank(c) + cardSuit(c); }
 // v1 was 2.5s; v2 is 5s.
 import { QUICK_GAME_COOLDOWN_MS, QUICK_GAME_NET_WIN_CAP } from './economy-pace.js';
 import { publishActivity } from './activity-do.js';
+import { resolveActorName } from './actor-name.js';
 
 const COOLDOWN_MS = QUICK_GAME_COOLDOWN_MS;
 
@@ -135,9 +136,11 @@ export async function emitQuickGame(env, userId, guildId, kind, bet, gross) {
   } catch { /* non-fatal */ }
   // Live-activity overlay: a quick game resolved. `gross` is the payout,
   // so net = gross - bet (a push reads as a tiny loss, which is fine for
-  // an ambient feed). Name resolves to a generic actor on the overlay.
+  // an ambient feed). Resolve a real viewer name (chosen username / Patreon
+  // / Discord / Twitch login) so the overlay shows who played.
+  const viewer = await resolveActorName(env, guildId, userId).catch(() => null);
   await publishActivity(env, {
-    kind: 'minigame.result', userId, game: kind,
+    kind: 'minigame.result', userId, viewer, game: kind,
     won: gross > bet, bet, payout: gross - bet,
   }).catch(() => {});
 }

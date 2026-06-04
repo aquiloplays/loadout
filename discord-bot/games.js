@@ -16,6 +16,7 @@
 
 import { earn, spend } from './wallet.js';
 import { publishActivity } from './activity-do.js';
+import { resolveActorName } from './actor-name.js';
 
 function rng(maxExclusive) {
   const buf = new Uint32Array(1);
@@ -45,11 +46,13 @@ async function _emitMinigame(env, userId, guildId, game) {
 }
 
 // Surface a resolved coinflip/dice play to the live-activity overlay.
-// Best-effort: no name is in scope here (callers hold it), so the overlay
-// shows a friendly generic actor. `payout` is the net (negative on loss).
-async function _emitMinigameResult(env, userId, game, won, bet, payout) {
+// Resolves a real viewer name (chosen username / Patreon / Discord / Twitch
+// login) so the overlay shows who played; falls back to "A viewer" only when
+// nothing can be pulled. `payout` is the net (negative on loss).
+async function _emitMinigameResult(env, guildId, userId, game, won, bet, payout) {
+  const viewer = await resolveActorName(env, guildId, userId).catch(() => null);
   await publishActivity(env, {
-    kind: 'minigame.result', userId, game, won: !!won, bet, payout,
+    kind: 'minigame.result', userId, viewer, game, won: !!won, bet, payout,
   }).catch(() => {});
 }
 
@@ -62,7 +65,7 @@ export async function coinflip(env, guildId, userId, bet) {
   // Fair 50/50. Heads = win 2x bet (wager already deducted, so net +bet).
   const heads = rng(2) === 0;
   await _emitMinigame(env, userId, guildId, 'coinflip');
-  await _emitMinigameResult(env, userId, 'coinflip', heads, bet, heads ? bet : -bet);
+  await _emitMinigameResult(env, guildId, userId, 'coinflip', heads, bet, heads ? bet : -bet);
   if (heads) {
     await earn(env, guildId, userId, bet * 2, 'coinflip:win');
     return { won: true, payout: bet, explanation: '🪙 Heads! You won ' + bet + ' bolts.' };
@@ -85,7 +88,7 @@ export async function dice(env, guildId, userId, bet, target) {
   // "5x payout" parlance and is house-fair for a 1/6 chance.
   const roll = rng(6) + 1;
   await _emitMinigame(env, userId, guildId, 'dice');
-  await _emitMinigameResult(env, userId, 'dice', roll === target, bet, roll === target ? bet * 5 : -bet);
+  await _emitMinigameResult(env, guildId, userId, 'dice', roll === target, bet, roll === target ? bet * 5 : -bet);
   if (roll === target) {
     await earn(env, guildId, userId, bet * 6, 'dice:win:' + roll);
     return { won: true, roll, payout: bet * 5, explanation: '🎲 Rolled ' + roll + '! You won ' + (bet * 5) + ' bolts.' };
