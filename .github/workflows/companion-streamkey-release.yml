@@ -1,0 +1,52 @@
+name: companion-streamkey release
+
+# Builds the Aquilo Streamkey companion into a single-file Windows exe and
+# attaches it to a GitHub Release. Triggers only on companion tags so it does
+# not collide with the other release workflows.
+on:
+  push:
+    tags:
+      - "companion-streamkey-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: companion-streamkey
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Build exe
+        run: python build.py
+
+      - name: Smoke-import modules
+        run: python -c "import streamlabs_api, token_retriever, local_server, updater, autostart, _version; print('import ok', _version.__version__)"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Aquilo Streamkey ${{ github.ref_name }}
+          files: companion-streamkey/dist/AquiloStreamkey.exe
+          body: |
+            Aquilo Streamkey companion.
+
+            Download AquiloStreamkey.exe below and run it (system tray). Then add
+            the dock in OBS: Docks, Custom Browser Docks, Add,
+            https://aquilo.gg/dock/streamkey/
+
+            See companion-streamkey/README.md for setup.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
