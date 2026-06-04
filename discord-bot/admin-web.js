@@ -333,22 +333,47 @@ async function routeAdminPipeTests(env, guildId) {
 // re-check _owner here too as defence in depth in case the caller
 // forgot.
 // Owner-only: lock in the current Triple-C campaign game + announce it.
-async function routeTripleCSet(env, guildId, body) {
-  const gameSlug = String(body?.gameSlug || '').trim();
-  if (!gameSlug) return json({ ok: false, error: 'gameSlug-required' }, 400);
-  const { setCurrentTripleC, announceTripleC } = await import('./triple-c.js');
-  const r = await setCurrentTripleC(env, guildId, gameSlug, body?._setBy || null);
-  if (!r.ok) return json(r, 400);
-  // Best-effort Discord announce; never blocks the set.
-  let announced = null;
-  try { announced = await announceTripleC(env, r.current); } catch { /* ignore */ }
-  // Refresh the pinned weekly-schedule embed so the locked-in campaign
-  // shows on the Triple-C days immediately (edit-in-place, best-effort).
+async function refreshScheduleEmbed(env, guildId) {
   try {
     const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
     await postOrRefreshSchedule(env, guildId);
   } catch { /* ignore */ }
+}
+
+async function routeRotationSet(env, guildId, body) {
+  const gameSlug = String(body?.gameSlug || '').trim();
+  if (!gameSlug) return json({ ok: false, error: 'gameSlug-required' }, 400);
+  const { setCurrentRotation, announceRotation } = await import('./schedule-rotation.js');
+  const r = await setCurrentRotation(env, guildId, gameSlug, body?._setBy || null);
+  if (!r.ok) return json(r, 400);
+  let announced = null;
+  try { announced = await announceRotation(env, r.current); } catch { /* ignore */ }
+  await refreshScheduleEmbed(env, guildId);
   return json({ ok: true, current: r.current, announced });
+}
+
+async function routeRotationOverride(env, guildId, body) {
+  const { setRotationOverride } = await import('./schedule-rotation.js');
+  const r = await setRotationOverride(env, guildId, body?.dow, body?.gameSlug);
+  if (!r.ok) return json(r, 400);
+  await refreshScheduleEmbed(env, guildId);
+  return json(r);
+}
+
+async function routeScheduleOverride(env, guildId, body) {
+  const { setDateOverride } = await import('./schedule-rotation.js');
+  const r = await setDateOverride(env, guildId, body?.date, body?.gameSlug);
+  if (!r.ok) return json(r, 400);
+  await refreshScheduleEmbed(env, guildId);
+  return json(r);
+}
+
+async function routeFo4ccThumbnail(env, guildId, body) {
+  const { setFo4ccThumbnail } = await import('./schedule-rotation.js');
+  const r = await setFo4ccThumbnail(env, guildId, body?.url);
+  if (!r.ok) return json(r, 400);
+  await refreshScheduleEmbed(env, guildId);
+  return json(r);
 }
 
 // Owner-only: (re)post + pin the weekly lineup recap on demand.
@@ -382,7 +407,10 @@ export async function handleAdminWeb(env, route, guildId, body) {
     case 'admin/active-guild':   return await routeAdminActiveGuild(env, guildId, body);
     case 'admin/clear-binding':  return await routeAdminClearBinding(env, guildId, body);
     case 'admin/pipe-tests':     return await routeAdminPipeTests(env, guildId);
-    case 'admin/triple-c/set':         return await routeTripleCSet(env, guildId, body);
+    case 'admin/rotation/set':         return await routeRotationSet(env, guildId, body);
+    case 'admin/rotation/override':    return await routeRotationOverride(env, guildId, body);
+    case 'admin/schedule/override':    return await routeScheduleOverride(env, guildId, body);
+    case 'admin/fo4cc/thumbnail':      return await routeFo4ccThumbnail(env, guildId, body);
     case 'admin/lineup/post':          return await routeLineupPost(env, guildId, body);
     case 'admin/stream-events/sync':   return await routeStreamEventsSync(env, guildId, body);
     default:                     return json({ ok: false, error: 'not-found' }, 404);

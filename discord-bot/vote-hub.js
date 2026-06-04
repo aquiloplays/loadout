@@ -1,19 +1,14 @@
-// Unified voting hub, variety night + community night, separate
-// events sharing ONE channel + ONE persistent embed. Replaces the
-// old cn-vote-hub.js (which only handled CN and lived in the CN
-// queue channel).
+// Community-night voting hub. ONE channel + ONE persistent embed.
 //
-// 2026-06-03 schedule simplification (Clay): Dad Game Sunday REMOVED
-// entirely (Sunday is now Triple-C). Two voted nights remain:
-//   . Variety   Mon 12:00 ET -> Wed 12:00 ET  (Wed = Variety Night)
-//   . Community Wed 12:00 ET -> Fri 12:00 ET  (Sat = Community Night)
-// Outside those windows the hub sits CLOSED (Patreon CTA).
+// 2026-06-03 v3 final: Variety Night + Dad Game Sunday removed. The hub
+// now drives ONLY the Saturday Community Night vote:
+//   . Community vote Wed 12:00 ET -> Fri 12:00 ET  (Sat = Community Night)
+// Outside that window the hub sits CLOSED (Patreon CTA).
 //
 // KV layout:
 //   vote-hub:msg:<g>     { channelId, messageId, postedAt }
-//   vote-hub:state:<g>   { phase, varietyPollId?, cnPollId?,
-//                          lastTransitionUtc }
-//   vote-hub:config:<g>  { variety*/cn* weekday+hour windows }
+//   vote-hub:state:<g>   { phase, cnPollId?, lastTransitionUtc }
+//   vote-hub:config:<g>  { cn* + cnQueue* weekday+hour windows }
 
 import { getChannelBinding } from './channel-bindings.js';
 import { getBranding } from './branding.js';
@@ -35,43 +30,23 @@ const BTN_LINK           = 5;
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
-// Phase constants, exported so the cron + tests can reference them
-// without string drift.
+// Phase constants, exported so the cron + tests can reference them.
 export const PHASE = Object.freeze({
-  CLOSED:         'closed',
-  VARIETY_OPEN:   'variety-open',
-  VARIETY_CLOSED: 'variety-closed',
-  CN_OPEN:        'cn-open',
-  CN_CLOSED:      'cn-closed',
-  CN_QUEUE:       'cn-queue',
+  CLOSED:    'closed',
+  CN_OPEN:   'cn-open',
+  CN_CLOSED: 'cn-closed',
+  CN_QUEUE:  'cn-queue',
 });
 
 // ── Config ──────────────────────────────────────────────────────
 
 export async function getConfig(env, guildId) {
   const raw = await env.LOADOUT_BOLTS.get(HUB_CONFIG_KEY(guildId), { type: 'json' });
-  // v3.1 schedule (2026-06-03, Clay): two voted nights, back-to-back in
-  // one channel. Dad Game Sunday removed (Sunday is Triple-C now).
-  //   . Variety vote   Mon 12:00 ET -> Wed 12:00 ET  (Wed = Variety Night)
+  // v3 final (2026-06-03): only the Community Night vote remains.
   //   . Community vote Wed 12:00 ET -> Fri 12:00 ET  (Sat = Community Night)
-  //   . Community queue Sat morning -> next Mon vote-open (covers the wknd)
-  // Triple-C (Sun + Fri) is a fixed show, no vote, set via
-  // /web/admin/triple-c/set. Each window's open/close is its own
-  // weekday+hour so the multi-day spans work.
+  //   . Community queue Sat morning -> next Wed vote-open
   return {
-    // Variety voting window.
-    varietyVoteOpenWeekday:  raw?.varietyVoteOpenWeekday  || 'monday',
-    varietyVoteOpenHourEt:   Number.isInteger(raw?.varietyVoteOpenHourEt)
-                                ? raw.varietyVoteOpenHourEt : 12,
-    varietyVoteCloseWeekday: raw?.varietyVoteCloseWeekday || 'wednesday',
-    varietyVoteCloseHourEt:  Number.isInteger(raw?.varietyVoteCloseHourEt)
-                                ? raw.varietyVoteCloseHourEt : 12,
-
-    // Legacy single-weekday field, no longer drives transitions.
-    varietyWeekday: raw?.varietyWeekday || null,
-
-    // CN voting window, multi-day allowed. Closes Friday noon so the
-    // Saturday Community Night game is locked over the week.
+    // CN voting window, multi-day allowed.
     cnVoteOpenWeekday:   raw?.cnVoteOpenWeekday   || 'wednesday',
     cnVoteOpenHourEt:    Number.isInteger(raw?.cnVoteOpenHourEt)
                             ? raw.cnVoteOpenHourEt : 12,
@@ -84,40 +59,28 @@ export async function getConfig(env, guildId) {
     cnQueueOpenHourEt:   Number.isInteger(raw?.cnQueueOpenHourEt)
                             ? raw.cnQueueOpenHourEt : 10,
 
-    // Legacy single-window fields, preserved for back-compat with
-    // any caller that still reads them.
+    // Legacy single-window fields, preserved for back-compat.
     cnWeekday:      raw?.cnWeekday      || raw?.cnVoteOpenWeekday || 'wednesday',
     openHourEt:     Number.isInteger(raw?.openHourEt)  ? raw.openHourEt  : 12,
     closeHourEt:    Number.isInteger(raw?.closeHourEt) ? raw.closeHourEt : 23,
   };
 }
 
-// "Minute of week", 0 at Sunday 00:00 ET, max 10079 at Sat 23:59 ET.
-// Used by the multi-day window check below.
 function minuteOfWeek(weekday, hourEt) {
   return DAY_NAMES.indexOf(String(weekday).toLowerCase()) * 1440 + hourEt * 60;
 }
-// Is the current ET clock within [openWd openHr, closeWd closeHr)?
-// Wraps around the week boundary if needed.
 function isInWindow(et, openWd, openHr, closeWd, closeHr) {
   const now   = minuteOfWeek(et.weekday, et.hour);
   const open  = minuteOfWeek(openWd, openHr);
   const close = minuteOfWeek(closeWd, closeHr);
   if (open === close) return false;
   if (open < close)  return now >= open && now < close;
-  // Wrap: e.g. Sat-noon open to Tue-noon close.
   return now >= open || now < close;
 }
 
 export async function setConfig(env, guildId, patch) {
   const cur = await getConfig(env, guildId);
   const next = { ...cur };
-  if (patch.varietyWeekday !== undefined) {
-    const v = patch.varietyWeekday;
-    if (v === null || v === '') next.varietyWeekday = null;
-    else if (DAY_NAMES.includes(String(v).toLowerCase())) next.varietyWeekday = String(v).toLowerCase();
-    else return { ok: false, error: 'bad-varietyWeekday' };
-  }
   if (patch.cnWeekday !== undefined) {
     const v = String(patch.cnWeekday).toLowerCase();
     if (!DAY_NAMES.includes(v)) return { ok: false, error: 'bad-cnWeekday' };
@@ -125,10 +88,7 @@ export async function setConfig(env, guildId, patch) {
   }
   if (patch.openHourEt  !== undefined) next.openHourEt  = Math.max(0, Math.min(23, Number(patch.openHourEt) || 18));
   if (patch.closeHourEt !== undefined) next.closeHourEt = Math.max(0, Math.min(23, Number(patch.closeHourEt) || 21));
-  // v2 CN window fields, multi-day voting + separate queue open.
   for (const [src, dst] of [
-    ['varietyVoteOpenWeekday',  'varietyVoteOpenWeekday'],
-    ['varietyVoteCloseWeekday', 'varietyVoteCloseWeekday'],
     ['cnVoteOpenWeekday',  'cnVoteOpenWeekday'],
     ['cnVoteCloseWeekday', 'cnVoteCloseWeekday'],
     ['cnQueueOpenWeekday', 'cnQueueOpenWeekday'],
@@ -139,8 +99,7 @@ export async function setConfig(env, guildId, patch) {
       next[dst] = v;
     }
   }
-  for (const k of ['varietyVoteOpenHourEt', 'varietyVoteCloseHourEt',
-                   'cnVoteOpenHourEt', 'cnVoteCloseHourEt', 'cnQueueOpenHourEt']) {
+  for (const k of ['cnVoteOpenHourEt', 'cnVoteCloseHourEt', 'cnQueueOpenHourEt']) {
     if (patch[k] !== undefined) {
       next[k] = Math.max(0, Math.min(23, Number(patch[k]) || 12));
     }
@@ -155,7 +114,6 @@ export async function getState(env, guildId) {
   const raw = await env.LOADOUT_BOLTS.get(HUB_STATE_KEY(guildId), { type: 'json' });
   return {
     phase: raw?.phase || PHASE.CLOSED,
-    varietyPollId: raw?.varietyPollId || null,
     cnPollId:      raw?.cnPollId      || null,
     lastTransitionUtc: raw?.lastTransitionUtc || 0,
   };
@@ -175,9 +133,6 @@ function daysUntilWeekday(currentWeekday, targetWeekday) {
   return d;
 }
 
-// Build a "next event Date" timestamp (UTC ms) for the given target
-// weekday + ET hour, anchored to `nowMs`. Used by the embed's relative
-// timestamps and the site vote pill / day pages.
 export function nextEventTimestamp(nowMs, targetWeekday, hourEt) {
   if (!targetWeekday) return null;
   const nowEt = getETInfo(new Date(nowMs));
@@ -203,8 +158,6 @@ async function buildPhaseEmbed(env, guildId, state, config) {
   const accent = brand.accentColor || 0x9147ff;
 
   const nowMs = Date.now();
-  const tsVarOpen  = nextEventTimestamp(nowMs, config.varietyVoteOpenWeekday,  config.varietyVoteOpenHourEt);
-  const tsVarClose = nextEventTimestamp(nowMs, config.varietyVoteCloseWeekday, config.varietyVoteCloseHourEt);
   const tsCnOpen  = nextEventTimestamp(nowMs, config.cnVoteOpenWeekday,  config.cnVoteOpenHourEt);
   const tsCnClose = nextEventTimestamp(nowMs, config.cnVoteCloseWeekday, config.cnVoteCloseHourEt);
   const tsCnQueue = nextEventTimestamp(nowMs, config.cnQueueOpenWeekday, config.cnQueueOpenHourEt);
@@ -212,8 +165,8 @@ async function buildPhaseEmbed(env, guildId, state, config) {
 
   if (state.phase === PHASE.CLOSED) {
     const lines = [];
-    if (tsVarOpen) lines.push(`🗳️ Variety vote opens ${tFmt(tsVarOpen, 'F')} (${tFmt(tsVarOpen, 'R')})`);
     if (tsCnOpen)  lines.push(`🏆 Community vote opens ${tFmt(tsCnOpen, 'F')} (${tFmt(tsCnOpen, 'R')})`);
+    if (tsCnClose) lines.push(`🏁 Voting closes ${tFmt(tsCnClose, 'F')} (${tFmt(tsCnClose, 'R')})`);
     if (tsCnQueue) lines.push(`🎮 Saturday Community Night queue opens ${tFmt(tsCnQueue, 'F')}`);
     if (lines.length === 0) lines.push('_No events scheduled. Ask a mod to set the weekdays via /admin/vote-hub/config._');
     return {
@@ -223,7 +176,7 @@ async function buildPhaseEmbed(env, guildId, state, config) {
           lines.join('\n') +
           '\n\n_While voting is closed, support the community to unlock **priority CN queue access**:_',
         color: accent,
-        footer: { text: 'One vote per user per event. Votes can be changed until the poll closes.' },
+        footer: { text: 'One vote per user. Votes can be changed until the poll closes.' },
       },
       components: [{
         type: COMPONENT_ROW,
@@ -238,35 +191,28 @@ async function buildPhaseEmbed(env, guildId, state, config) {
     };
   }
 
-  if (state.phase === PHASE.VARIETY_OPEN || state.phase === PHASE.CN_OPEN) {
-    const kind = state.phase === PHASE.VARIETY_OPEN ? 'variety' : 'cn';
-    const label = kind === 'variety' ? '🎲 Variety night' : '🏆 Community night';
-    const tsClose = kind === 'variety' ? tsVarClose : tsCnClose;
-    const night = kind === 'variety' ? 'Wednesday' : 'Saturday';
-    const lines = [`Tap **Vote** to pick ${night}'s game. You can change your vote until polls close.`];
-    if (tsClose) lines.push('', `🏁 Voting closes ${tFmt(tsClose, 'F')} (${tFmt(tsClose, 'R')})`);
-    if (kind === 'variety' && tsCnOpen) lines.push(`🏆 Community Night vote opens ${tFmt(tsCnOpen, 'F')}`);
+  if (state.phase === PHASE.CN_OPEN) {
+    const lines = [`Tap **Vote** to pick Saturday's Community Night game. You can change your vote until polls close.`];
+    if (tsCnClose) lines.push('', `🏁 Voting closes ${tFmt(tsCnClose, 'F')} (${tFmt(tsCnClose, 'R')})`);
     return {
       embed: {
-        title: `🗳️ ${label} · voting open`,
+        title: '🗳️ 🏆 Community night · voting open',
         description: lines.join('\n'),
         color: accent,
       },
       components: [{
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Vote',           custom_id: `vh:vote:${kind}` },
-          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Live standings', custom_id: `vh:standings:${kind}` },
+          { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Vote',           custom_id: 'vh:vote:cn' },
+          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Live standings', custom_id: 'vh:standings:cn' },
           { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My status',      custom_id: 'vh:status' },
         ],
       }],
     };
   }
 
-  if (state.phase === PHASE.VARIETY_CLOSED || state.phase === PHASE.CN_CLOSED) {
-    const kind = state.phase === PHASE.VARIETY_CLOSED ? 'variety' : 'cn';
-    const label = kind === 'variety' ? '🎲 Variety night' : '🏆 Community night';
-    const winner = await getStoredWinner(env, guildId, kind);
+  if (state.phase === PHASE.CN_CLOSED) {
+    const winner = await getStoredWinner(env, guildId, 'cn');
     const lines = [
       winner
         ? `**Winner:** ${winner.name}${winner.votes ? ` (${winner.votes} vote${winner.votes === 1 ? '' : 's'})` : ''}`
@@ -274,7 +220,7 @@ async function buildPhaseEmbed(env, guildId, state, config) {
     ];
     if (tsCnQueue) lines.push('', `🎮 Saturday queue opens ${tFmt(tsCnQueue, 'F')} (${tFmt(tsCnQueue, 'R')})`);
     const embed = {
-      title: `🗳️ ${label} · voting closed`,
+      title: '🗳️ 🏆 Community night · voting closed',
       description: lines.join('\n'),
       color: accent,
     };
@@ -284,7 +230,7 @@ async function buildPhaseEmbed(env, guildId, state, config) {
       components: [{
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Final standings', custom_id: `vh:standings:${kind}` },
+          { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Final standings', custom_id: 'vh:standings:cn' },
           { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My status',       custom_id: 'vh:status' },
         ],
       }],
@@ -314,7 +260,6 @@ async function buildPhaseEmbed(env, guildId, state, config) {
     };
   }
 
-  // Defensive fallback.
   return {
     embed: { title: '🗳️ Voting', description: `_Unknown phase: ${state.phase}_`, color: accent },
     components: [],
@@ -351,11 +296,8 @@ async function writeBallots(env, guildId, eventKey, ballots) {
 
 // ── Game list (pool-eligible) ───────────────────────────────────
 
-const poolForKind = (kind) =>
-  kind === 'variety' ? 'variety' : 'community';
-
-const expectedPhaseForKind = (kind) =>
-  kind === 'variety' ? PHASE.VARIETY_OPEN : PHASE.CN_OPEN;
+const poolForKind = () => 'community';
+const expectedPhaseForKind = () => PHASE.CN_OPEN;
 
 async function getEligibleGames(env, guildId, pool) {
   try {
@@ -425,7 +367,6 @@ export async function postOrRefreshHub(env, guildId, channelId) {
   return { ok: true, channelId, messageId: j.id, action: 'posted' };
 }
 
-// Admin HTTP entry, resolves channel via opts -> vote binding.
 export async function postVoteHubForGuild(env, guildId, opts = {}) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
   let channelId = opts.channelId;
@@ -445,37 +386,21 @@ export async function tickPhaseTransition(env, guildId) {
   const state  = await getState(env, guildId);
   const et = getETInfo(new Date());
 
-  // v3.1 schedule (2026-06-03): two back-to-back voted nights, then the
-  // hub closes until Monday's variety vote opens again.
-  //   . VARIETY_OPEN  Mon 12:00 ET -> Wed 12:00 ET
-  //   . CN_OPEN       Wed 12:00 ET -> Fri 12:00 ET
-  //   . CLOSED        Fri 12:00 ET -> Mon 12:00 ET (weekend, Patreon CTA)
-  // Triple-C (Sun + Fri) is a fixed show, no phase here.
-  const inVarietyVote = isInWindow(et,
-    config.varietyVoteOpenWeekday,  config.varietyVoteOpenHourEt,
-    config.varietyVoteCloseWeekday, config.varietyVoteCloseHourEt);
+  // v3 final: ONE voted night.
+  //   . CN_OPEN  Wed 12:00 ET -> Fri 12:00 ET
+  //   . CLOSED   otherwise (Patreon CTA)
   const inCnVote = isInWindow(et,
     config.cnVoteOpenWeekday,  config.cnVoteOpenHourEt,
     config.cnVoteCloseWeekday, config.cnVoteCloseHourEt);
 
-  let desired;
-  if (inVarietyVote)   desired = PHASE.VARIETY_OPEN;
-  else if (inCnVote)   desired = PHASE.CN_OPEN;
-  else                 desired = PHASE.CLOSED;
+  const desired = inCnVote ? PHASE.CN_OPEN : PHASE.CLOSED;
 
   if (desired === state.phase) {
     return { phase: state.phase, transitioned: false };
   }
 
-  // Close transitions, tally + announce the winner of the vote we're
-  // leaving. Leaving CN_OPEN (Fri noon) also (re)posts the weekly
-  // lineup recap now that variety + community are both decided.
+  // Leaving CN_OPEN (Fri noon): tally + announce + (re)post lineup recap.
   let leftCn = false;
-  if (state.phase === PHASE.VARIETY_OPEN) {
-    const winner = await tallyAndStoreWinner(env, guildId, 'variety');
-    state.varietyPollId = winner?.gameId || null;
-    if (winner) await announceVoteResult(env, guildId, 'variety', winner);
-  }
   if (state.phase === PHASE.CN_OPEN) {
     const winner = await tallyAndStoreWinner(env, guildId, 'cn');
     state.cnPollId = winner?.gameId || null;
@@ -487,7 +412,6 @@ export async function tickPhaseTransition(env, guildId) {
   state.lastTransitionUtc = Date.now();
   await putState(env, guildId, state);
 
-  // Re-render the hub embed for the new phase.
   const channelId = await getChannelBinding(env, guildId, 'vote');
   if (channelId) await postOrRefreshHub(env, guildId, channelId);
 
@@ -529,14 +453,12 @@ async function announceVoteResult(env, guildId, kind, winner) {
   if (!env.DISCORD_BOT_TOKEN || !winner) return { ok: false };
   const channelId = (await getChannelBinding(env, guildId, 'vote'))
     || env.VOTE_HUB_CHANNEL || '1508318929855184987';
-  const label = kind === 'variety' ? '🎲 Variety Night' : '🏆 Community Night';
-  const night = kind === 'variety' ? 'Wednesday' : 'Saturday';
   const embed = {
-    title: `${label} winner: ${winner.name}`,
+    title: `🏆 Community Night winner: ${winner.name}`,
     description:
       `The votes are in! **${winner.name}** won` +
       (winner.votes ? ` with **${winner.votes}** vote${winner.votes === 1 ? '' : 's'}` : '') +
-      `.\nCatch it **${night} at 10:30 PM ET**.`,
+      `.\nCatch it **Saturday at 10:30 PM ET**.`,
     color: 0x9b6cff,
   };
   if (winner.art_url) embed.image = { url: winner.art_url };
@@ -552,28 +474,26 @@ async function announceVoteResult(env, guildId, kind, winner) {
   }
 }
 
-// Build the "this week's lineup" embed: fixed Triple-C campaign +
-// the two voted nights. Winners that haven't been decided yet show a
-// placeholder.
+// Build the "this week's lineup" embed: FO4 CC + Rotation + Community.
 export async function buildLineupEmbed(env, guildId) {
   const brand = await getBranding(env, guildId);
   const accent = brand.accentColor || 0x9b6cff;
-  let tripleC = null;
+  let fo4cc = null, rotation = null;
   try {
-    const { getCurrentTripleC } = await import('./triple-c.js');
-    tripleC = await getCurrentTripleC(env, guildId);
+    const { getFo4cc, getCurrentRotation } = await import('./schedule-rotation.js');
+    fo4cc = await getFo4cc(env, guildId);
+    rotation = await getCurrentRotation(env, guildId);
   } catch { /* optional */ }
-  const variety = await getStoredWinner(env, guildId, 'variety');
   const cn = await getStoredWinner(env, guildId, 'cn');
 
   const fields = [
     {
-      name: '📺 Triple-C · Sun · Fri',
-      value: tripleC?.name ? `**${tripleC.name}**` : '_TBA_',
+      name: '💪 Fallout 4 CC: Chaos Workout Challenge · Mon · Wed · Fri',
+      value: fo4cc?.name ? '**Locked in every M/W/F**' : '_TBA_',
     },
     {
-      name: '🎲 Variety Night · Wed',
-      value: variety?.name ? `**${variety.name}**` : '_Decided by the Monday to Wednesday vote_',
+      name: '🔁 Rotation · Sun · Tue · Thu',
+      value: rotation?.name ? `**${rotation.name}**` : '_Picked weekly by Clay_',
     },
     {
       name: '🏆 Community Night · Sat',
@@ -585,16 +505,15 @@ export async function buildLineupEmbed(env, guildId) {
     description: 'All streams start **10:30 PM ET**.',
     color: accent,
     fields,
-    footer: { text: 'Variety + Community games are picked by community vote.' },
+    footer: { text: 'Community game is picked by community vote.' },
   };
   if (cn?.art_url) embed.image = { url: cn.art_url };
-  else if (tripleC?.artUrl) embed.image = { url: tripleC.artUrl };
+  else if (fo4cc?.artUrl) embed.image = { url: fo4cc.artUrl };
   return embed;
 }
 
 const LINEUP_PIN_KEY = (g) => `vote-hub:lineup-pin:${g}`;
 
-// Post the weekly lineup recap and pin it, unpinning the prior recap.
 export async function postLineupRecap(env, guildId) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
   const channelId = (await getChannelBinding(env, guildId, 'vote'))
@@ -624,17 +543,10 @@ export async function postLineupRecap(env, guildId) {
   return { ok: true, channelId, messageId: j.id, pinned: pin.ok || pin.status === 204 };
 }
 
-// ── Web vote casting + public read (aquilo.gg /schedule day pages) ──
-//
-// Mirror of the Discord vh:cast flow for an HMAC-verified web session.
-// The site proxy stamps discordId + guildId from the linked session and
-// forwards { kind, gameId }. We validate the vote is open for that kind
-// and the game is in the pool, then record one ballot (changing a vote
-// is allowed until the poll closes).
+// ── Web vote casting + public read (aquilo.gg /schedule/community) ──
 
 function normalizeVoteKind(kind) {
   const v = String(kind || '').toLowerCase();
-  if (v === 'variety') return 'variety';
   if (v === 'cn' || v === 'community') return 'cn';
   return null;
 }
@@ -655,7 +567,7 @@ export async function castWebVote(env, guildId, userId, kind, gameId) {
   ballots[userId] = String(gameId);
   await writeBallots(env, guildId, eventKey, ballots);
   const counts = {};
-  for (const gid of Object.values(ballots)) counts[gid] = (counts[gid] || 0) + 1;
+  for (const id of Object.values(ballots)) counts[id] = (counts[id] || 0) + 1;
   return {
     ok: true,
     kind: k,
@@ -667,41 +579,27 @@ export async function castWebVote(env, guildId, userId, kind, gameId) {
   };
 }
 
-// Public, unauth read for the /schedule day pages + the schedule vote
-// pill. Per kind: whether the vote is open, when it next opens/closes
-// (epoch ms), the pool with live counts, and the stored winner.
 export async function getVotePublic(env, guildId) {
-  const gid = guildId || String(env.AQUILO_VAULT_GUILD_ID || '').trim();
-  const config = await getConfig(env, gid);
-  const state = await getState(env, gid);
+  const g = guildId || String(env.AQUILO_VAULT_GUILD_ID || '').trim();
+  const config = await getConfig(env, g);
+  const state = await getState(env, g);
   const now = Date.now();
-  const defs = [
-    { kind: 'variety', phase: PHASE.VARIETY_OPEN,
-      openWd: config.varietyVoteOpenWeekday, openHr: config.varietyVoteOpenHourEt,
-      closeWd: config.varietyVoteCloseWeekday, closeHr: config.varietyVoteCloseHourEt },
-    { kind: 'cn', phase: PHASE.CN_OPEN,
-      openWd: config.cnVoteOpenWeekday, openHr: config.cnVoteOpenHourEt,
-      closeWd: config.cnVoteCloseWeekday, closeHr: config.cnVoteCloseHourEt },
-  ];
-  const kinds = {};
-  for (const d of defs) {
-    const eventKey = eventKeyFor(d.kind);
-    const ballots = await readBallots(env, gid, eventKey);
-    const counts = {};
-    for (const v of Object.values(ballots)) counts[v] = (counts[v] || 0) + 1;
-    const games = await getEligibleGames(env, gid, poolForKind(d.kind));
-    const winner = await getStoredWinner(env, gid, d.kind);
-    kinds[d.kind] = {
-      open: state.phase === d.phase,
-      opensAt: nextEventTimestamp(now, d.openWd, d.openHr),
-      closesAt: nextEventTimestamp(now, d.closeWd, d.closeHr),
+  const eventKey = eventKeyFor('cn');
+  const ballots = await readBallots(env, g, eventKey);
+  const counts = {};
+  for (const id of Object.values(ballots)) counts[id] = (counts[id] || 0) + 1;
+  const games = await getEligibleGames(env, g, 'community');
+  const winner = await getStoredWinner(env, g, 'cn');
+  const kinds = {
+    cn: {
+      open: state.phase === PHASE.CN_OPEN,
+      opensAt: nextEventTimestamp(now, config.cnVoteOpenWeekday, config.cnVoteOpenHourEt),
+      closesAt: nextEventTimestamp(now, config.cnVoteCloseWeekday, config.cnVoteCloseHourEt),
       totalVotes: Object.values(counts).reduce((a, b) => a + b, 0),
-      games: games.map((g) => ({
-        id: g.id, name: g.name, artUrl: g.art_url || null, votes: counts[g.id] || 0,
-      })),
+      games: games.map((x) => ({ id: x.id, name: x.name, artUrl: x.art_url || null, votes: counts[x.id] || 0 })),
       winner: winner ? { name: winner.name, artUrl: winner.art_url || null, votes: winner.votes || 0 } : null,
-    };
-  }
+    },
+  };
   return { ok: true, phase: state.phase, now, kinds };
 }
 
@@ -720,16 +618,10 @@ export async function handleVoteHubComponent(env, data) {
   const state = await getState(env, guildId);
   const config = await getConfig(env, guildId);
 
-  // Patreon-CTA in closed phase intercept ANY action that's not status.
   if (state.phase === PHASE.CLOSED && action !== 'status') {
     const nowMs = Date.now();
-    const variety = nextEventTimestamp(nowMs, config.varietyVoteOpenWeekday, config.varietyVoteOpenHourEt);
     const cn = nextEventTimestamp(nowMs, config.cnVoteOpenWeekday, config.cnVoteOpenHourEt);
-    const nextLine =
-      (variety && cn) ? `Next vote: ${variety < cn ? 'variety' : 'cn'} <t:${Math.floor(Math.min(variety, cn) / 1000)}:R>`
-      : (variety) ? `Next variety vote <t:${Math.floor(variety / 1000)}:R>`
-      : (cn)      ? `Next CN vote <t:${Math.floor(cn / 1000)}:R>`
-      : '_No events scheduled._';
+    const nextLine = cn ? `Next Community vote <t:${Math.floor(cn / 1000)}:R>` : '_No events scheduled._';
     const brand = await getBranding(env, guildId);
     return {
       type: RESP_CHAT,
@@ -759,30 +651,27 @@ export async function handleVoteHubComponent(env, data) {
 
   if (action === 'vote') {
     const kind = parts[2];
-    if (kind !== 'variety' && kind !== 'cn') return eph('Bad event kind.');
-    const expectedPhase = expectedPhaseForKind(kind);
-    if (state.phase !== expectedPhase) {
+    if (kind !== 'cn') return eph('Bad event kind.');
+    if (state.phase !== PHASE.CN_OPEN) {
       return eph(`That vote isn't open right now (phase: ${state.phase}).`);
     }
-    return voteMenu(env, guildId, userId, kind);
+    return voteMenu(env, guildId, userId, 'cn');
   }
   if (action === 'cast') {
     const kind = parts[2];
     const gameId = parts[3];
-    if (!gameId) return eph('Bad cast button.');
-    const expectedPhase = expectedPhaseForKind(kind);
-    if (state.phase !== expectedPhase) {
+    if (kind !== 'cn' || !gameId) return eph('Bad cast button.');
+    if (state.phase !== PHASE.CN_OPEN) {
       return eph(`That vote just closed.`);
     }
-    const eventKey = eventKeyFor(kind);
+    const eventKey = eventKeyFor('cn');
     const ballots = await readBallots(env, guildId, eventKey);
     ballots[userId] = gameId;
     await writeBallots(env, guildId, eventKey, ballots);
-    return voteMenu(env, guildId, userId, kind);
+    return voteMenu(env, guildId, userId, 'cn');
   }
   if (action === 'standings') {
-    const kind = parts[2];
-    return standingsMenu(env, guildId, kind);
+    return standingsMenu(env, guildId, 'cn');
   }
   if (action === 'queue-join') {
     if (state.phase !== PHASE.CN_QUEUE) {
@@ -792,7 +681,7 @@ export async function handleVoteHubComponent(env, data) {
     return handleQueueButton(env, { ...data, data: { ...data.data, custom_id: 'queue:join' } }, guildId);
   }
   if (action === 'status') {
-    return statusMenu(env, guildId, userId, state, config);
+    return statusMenu(env, guildId, userId, state);
   }
   return eph('Unknown vote-hub action: ' + cid);
 }
@@ -820,7 +709,7 @@ async function voteMenu(env, guildId, userId, kind) {
     type: RESP_CHAT,
     data: {
       embeds: [{
-        title: kind === 'variety' ? '🎲 Variety night vote' : '🏆 Community night vote',
+        title: '🏆 Community night vote',
         description: currentVote
           ? 'Your pick is highlighted in green. Tap a different game to change your vote.'
           : 'Pick the game you want to play. You can change your vote until the poll closes.',
@@ -857,7 +746,7 @@ async function standingsMenu(env, guildId, kind) {
     type: RESP_CHAT,
     data: {
       embeds: [{
-        title: `📊 ${kind === 'variety' ? 'Variety' : 'Community'} night standings · ${total === 1 ? '1 vote' : `${total} votes`}`,
+        title: `📊 Community night standings · ${total === 1 ? '1 vote' : `${total} votes`}`,
         description: lines.join('\n'),
         color: 0x9147ff,
       }],
@@ -866,18 +755,15 @@ async function standingsMenu(env, guildId, kind) {
   };
 }
 
-async function statusMenu(env, guildId, userId, state, config) {
+async function statusMenu(env, guildId, userId, state) {
   const lines = [`Phase: **${state.phase}**`];
-  for (const kind of ['variety', 'cn']) {
-    const eventKey = eventKeyFor(kind);
-    const ballots = await readBallots(env, guildId, eventKey);
-    const myVote = ballots[userId];
-    if (myVote) {
-      const games = await getEligibleGames(env, guildId, poolForKind(kind));
-      const g = games.find(x => String(x.id) === String(myVote));
-      const icon = kind === 'variety' ? '🎲' : '🏆';
-      lines.push(`${icon} ${kind} vote: **${g?.name || 'unknown'}**`);
-    }
+  const eventKey = eventKeyFor('cn');
+  const ballots = await readBallots(env, guildId, eventKey);
+  const myVote = ballots[userId];
+  if (myVote) {
+    const games = await getEligibleGames(env, guildId, 'community');
+    const g = games.find(x => String(x.id) === String(myVote));
+    lines.push(`🏆 Community vote: **${g?.name || 'unknown'}**`);
   }
   if (state.phase === PHASE.CN_QUEUE) {
     try {

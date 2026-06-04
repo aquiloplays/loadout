@@ -162,7 +162,10 @@ const ROUTES = new Set([
   'admin/active-guild',
   'admin/clear-binding',
   'admin/pipe-tests',
-  'admin/triple-c/set',          // POST {_owner, gameSlug}, lock the Triple-C campaign + announce
+  'admin/rotation/set',          // POST {_owner, gameSlug}, lock the rotation game + announce
+  'admin/rotation/override',     // POST {_owner, dow, gameSlug|null}, per-weekday rotation override
+  'admin/schedule/override',     // POST {_owner, date, gameSlug|null}, one-shot per-date override
+  'admin/fo4cc/thumbnail',       // POST {_owner, url|null}, set/clear the FO4 CC thumbnail
   'admin/lineup/post',           // POST {_owner}, (re)post + pin the weekly lineup recap
   'vote-hub/cast',               // POST { kind, gameId }, cast a web vote (discord-linked)
   'admin/stream-events/sync',    // POST {_owner, horizonDays?}, mirror schedule → Discord events

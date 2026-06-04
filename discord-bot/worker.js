@@ -725,8 +725,8 @@ export default {
     // Triple-C current campaign + pool, public, CORS-open (site's
     // StreamSchedule + admin dropdown). Owner-gated `set` is at
     // POST /web/admin/triple-c/set.
-    if (path === '/triple-c/current' || path === '/triple-c/pool') {
-      return handleTripleCPublic(req, env, path);
+    if (path === '/rotation/current' || path === '/rotation/pool') {
+      return handleRotationPublic(req, env, path);
     }
     if (path === '/vote-hub/lineup') {
       return handleLineupPublic(req, env);
@@ -2450,17 +2450,17 @@ async function handleActivityStream(req, env, path) {
 }
 
 // ── Triple-C current/pool (public, CORS) ────────────────────────
-async function handleTripleCPublic(req, env, path) {
+async function handleRotationPublic(req, env, path) {
   const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, OPTIONS' };
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
   const headers = { 'content-type': 'application/json', 'cache-control': 'public, max-age=60', ...cors };
   try {
-    if (path === '/triple-c/pool') {
-      const { getTripleCPool } = await import('./triple-c.js');
-      return new Response(JSON.stringify({ ok: true, pool: getTripleCPool() }), { status: 200, headers });
+    if (path === '/rotation/pool') {
+      const { getRotationPool } = await import('./schedule-rotation.js');
+      return new Response(JSON.stringify({ ok: true, pool: getRotationPool() }), { status: 200, headers });
     }
-    const { getCurrentTripleC } = await import('./triple-c.js');
-    const current = await getCurrentTripleC(env);
+    const { getCurrentRotation } = await import('./schedule-rotation.js');
+    const current = await getCurrentRotation(env);
     return new Response(JSON.stringify({ ok: true, current }), { status: 200, headers });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 120) }),

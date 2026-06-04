@@ -19,7 +19,7 @@ const FLAG_EPHEMERAL = 64;
 const RESP_CHAT = 4;
 
 const DOW_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const SCHEDULE_KINDS = ['fixed', 'variety', 'community', 'dad-sunday'];
+const SCHEDULE_KINDS = ['fixed', 'variety', 'community', 'dad-sunday', 'fo4cc', 'rotation'];
 const POOL_KINDS = ['community', 'variety'];
 const HH_MM_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -39,12 +39,12 @@ const DEFAULT_SCHEDULE = {
   // 4 to start) is set via /web/admin/triple-c/set and shown dynamically
   // on the embed; the day `label` stays the show name.
   days: [
-    { dow: 0, label: 'Triple-C',        kind: 'fixed',     startLocal: '22:30', endLocal: '00:30' },
-    { dow: 1, label: 'No stream',       kind: 'fixed',     startLocal: null,    endLocal: null },
-    { dow: 2, label: 'No stream',       kind: 'fixed',     startLocal: null,    endLocal: null },
-    { dow: 3, label: 'Variety Night',   kind: 'variety',   startLocal: '22:30', endLocal: '00:30' },
-    { dow: 4, label: 'No stream',       kind: 'fixed',     startLocal: null,    endLocal: null },
-    { dow: 5, label: 'Triple-C',        kind: 'fixed',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 0, label: 'Rotation',        kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
+    { dow: 1, label: 'Fallout 4 CC: Chaos Workout Challenge', kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 2, label: 'Rotation',        kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
+    { dow: 3, label: 'Fallout 4 CC: Chaos Workout Challenge', kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 4, label: 'Rotation',        kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
+    { dow: 5, label: 'Fallout 4 CC: Chaos Workout Challenge', kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
     { dow: 6, label: 'Community Night', kind: 'community', startLocal: '22:30', endLocal: '00:30' },
   ],
 };

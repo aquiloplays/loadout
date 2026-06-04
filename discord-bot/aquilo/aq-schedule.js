@@ -1,14 +1,11 @@
-// Stream schedule v3.1 (rev 2026-06-03): simplified to 4 streamed days.
-// Dad Game Sunday REMOVED entirely (Sunday is Triple-C now).
-//   Sun + Fri    -> Triple-C campaign game (triple-c:current, e.g.
-//                   Fallout 4), set via /web/admin/triple-c/set
-//   Wed          -> Variety Night winner (vote-hub:winner:variety)
-//   Sat          -> Community Night winner (vote-hub:winner:cn)
-//   Mon/Tue/Thu  -> no scheduled stream (off)
-// Per-day games are resolved DYNAMICALLY at render time so the embed +
-// site never drift from the locked-in campaign / vote winners. Off days
-// are skipped in the embed and surface as slot 'off' (filtered out) on
-// the public feed.
+// Stream schedule v3 FINAL (rev 2026-06-03 PM): three shows.
+//   Sun / Tue / Thu -> Rotation slot (admin-picked, schedule-rotation.js)
+//   Mon / Wed / Fri -> Fallout 4 CC: Chaos Workout Challenge (fixed)
+//   Sat             -> Community Night (7-game pool, vote-hub:winner:cn)
+// Variety Night, Dad Game Sunday, and the Triple-C concept are all
+// removed. Per-day games resolve DYNAMICALLY so the embed + site never
+// drift. A one-shot per-date override (schedule:override:<ISO>) wins over
+// the show's default for any single night.
 
 import {
   postChannelMessage, editChannelMessage, discordFetch, COLOR_SCHEDULE, cap, getETInfo
@@ -16,48 +13,68 @@ import {
 import { broadcastOverlayUpdate } from './overlay-do.js';
 import { gameSlug } from './today-game.js';
 
-// Fixed weekly rotation, Sun -> Sat order. `kind` drives both the public
-// slot enum and dynamic game resolution (see resolveSlotGame):
-//   triple-c -> fixed campaign   variety -> Wed vote   community -> Sat vote
-//   off -> no scheduled stream
+// Fixed weekly rotation, Sun -> Sat. `dow` drives per-day override +
+// date resolution; `kind` drives the public slot enum + game source.
 const WEEKLY = [
-  { day: 'sunday',    kind: 'triple-c' },   // 2026-06-03: Sunday is Triple-C (Dad Game Sunday removed)
-  { day: 'monday',    kind: 'off'      },
-  { day: 'tuesday',   kind: 'off'      },
-  { day: 'wednesday', kind: 'variety'  },
-  { day: 'thursday',  kind: 'off'      },
-  { day: 'friday',    kind: 'triple-c' },   // 2026-06-03: Friday back to Triple-C
-  { day: 'saturday',  kind: 'community' },
+  { day: 'sunday',    dow: 0, kind: 'rotation'  },
+  { day: 'monday',    dow: 1, kind: 'fo4cc'     },
+  { day: 'tuesday',   dow: 2, kind: 'rotation'  },
+  { day: 'wednesday', dow: 3, kind: 'fo4cc'     },
+  { day: 'thursday',  dow: 4, kind: 'rotation'  },
+  { day: 'friday',    dow: 5, kind: 'fo4cc'     },
+  { day: 'saturday',  dow: 6, kind: 'community' },
 ];
 
 // kind -> the public `slot` enum the site + Discord embed consume.
 const PUBLIC_SLOT = {
-  'triple-c': 'stream', 'variety': 'variety', 'community': 'cn', 'off': 'off',
+  'fo4cc': 'fo4cc', 'rotation': 'rotation', 'community': 'cn',
 };
 
+// ISO date (YYYY-MM-DD, ET) of the next occurrence of `targetDow`,
+// anchored at noon UTC so whole-day arithmetic is DST-safe.
+const DOW_INDEX = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+function isoForDow(targetDow) {
+  const et = getETInfo();
+  const curDow = DOW_INDEX[et.weekday] ?? 0;
+  const ahead = (targetDow - curDow + 7) % 7;
+  const d = new Date(Date.UTC(et.year, et.month - 1, et.day, 12) + ahead * 86400000);
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+}
+
 // Resolve a day's game from the authoritative source for its kind.
-// Returns { name, artUrl, store, voteCompleted? } or null (vote not yet
-// decided / nothing locked in / off day -> caller renders a placeholder).
-async function resolveSlotGame(env, guildId, kind, sched) {
-  if (kind === 'triple-c') {
+// Order: per-date one-shot override -> show default. Returns
+// { name, artUrl, store, voteCompleted?, override? } or null.
+async function resolveSlotGame(env, guildId, kind, sched, dow) {
+  // 1. One-shot per-date override (any night).
+  try {
+    const { getDateOverride } = await import('../schedule-rotation.js');
+    const ov = await getDateOverride(env, guildId, isoForDow(dow));
+    if (ov && ov.name) {
+      return { name: ov.name, artUrl: ov.artUrl || null, store: storeFromArtUrl(ov.artUrl), override: true };
+    }
+  } catch { /* optional */ }
+
+  if (kind === 'fo4cc') {
     try {
-      const { getCurrentTripleC } = await import('../triple-c.js');
-      const c = await getCurrentTripleC(env, guildId);
-      if (c && c.name) {
-        return { name: c.name, artUrl: c.artUrl || null, store: storeFromArtUrl(c.artUrl) };
-      }
+      const { getFo4cc } = await import('../schedule-rotation.js');
+      const c = await getFo4cc(env, guildId);
+      return { name: c.name, artUrl: c.artUrl || null, store: c.store || storeFromArtUrl(c.artUrl) };
+    } catch { return null; }
+  }
+  if (kind === 'rotation') {
+    try {
+      const { getCurrentRotation } = await import('../schedule-rotation.js');
+      const c = await getCurrentRotation(env, guildId, dow);
+      if (c && c.name) return { name: c.name, artUrl: c.artUrl || null, store: storeFromArtUrl(c.artUrl) };
     } catch { /* optional */ }
     return null;
   }
-  if (kind === 'variety' || kind === 'community') {
-    const voteKind = kind === 'variety' ? 'variety' : 'cn';
+  if (kind === 'community') {
     let w = null;
-    try { w = await env.LOADOUT_BOLTS.get(`vote-hub:winner:${guildId}:${voteKind}`, { type: 'json' }); }
+    try { w = await env.LOADOUT_BOLTS.get(`vote-hub:winner:${guildId}:cn`, { type: 'json' }); }
     catch { /* fall through */ }
-    // Legacy CN winner store (aq-schedule's own cn_winners), kept as a
-    // fallback so a winner recorded by the old poll path still shows.
-    if ((!w || !w.name) && kind === 'community') {
-      const legacy = sched.cn_winners && sched.cn_winners.saturday;
+    if ((!w || !w.name) && sched.cn_winners && sched.cn_winners.saturday) {
+      const legacy = sched.cn_winners.saturday;
       if (legacy && legacy.name) w = { name: legacy.name, art_url: legacy.art_url };
     }
     if (w && w.name) {
@@ -71,9 +88,6 @@ async function resolveSlotGame(env, guildId, kind, sched) {
 
 const KEY = (gid) => 'schedule:' + gid;
 
-// Schedule + poll channels both go through channel-bindings.js now, KV
-// per-guild override with the wrangler.toml [vars] entry as fallback.
-// Imported async per-call so the module load stays cheap.
 async function bindings(env, guildId) {
   const { getChannelBinding } = await import('../channel-bindings.js');
   return {
@@ -96,38 +110,34 @@ async function saveSchedule(env, guildId, sched) {
   await env.STATE.put(KEY(guildId), JSON.stringify(sched));
 }
 
-// 2026-06: async, each day resolves its real game (Triple-C campaign /
-// vote winner) via resolveSlotGame. `image` (large) for decided vote
-// winners so a closed vote reads rich; `thumbnail` for the fixed
-// Triple-C campaign art so it doesn't dominate every row. Off days are
-// skipped so the embed only lists the streamed nights.
 const TIME_LABEL = '10:30 PM-12:30 AM ET';
 const SLOT_META = {
-  'triple-c':   { emoji: '📺', show: 'Triple-C' },
-  'variety':    { emoji: '🎲', show: 'Variety Night' },
-  'community':  { emoji: '🏆', show: 'Community Night' },
+  'fo4cc':     { emoji: '💪', show: 'Fallout 4 CC: Chaos Workout Challenge' },
+  'rotation':  { emoji: '🔁', show: 'Rotation' },
+  'community': { emoji: '🏆', show: 'Community Night' },
 };
 
 async function buildSchedulePayload(env, guildId, sched) {
   const headerEmbed = {
     title: '📅 Aquilo · Weekly Stream Schedule',
-    description: 'Streaming **Sun · Wed · Fri · Sat**. **Variety** + **Community Night** games are decided by the poll. Tap **Vote** in <#' + (sched.poll_channel_id || '') + '>.',
+    description: 'Fallout 4 CC Chaos Workout Mon/Wed/Fri, Rotation Sun/Tue/Thu, Community Night Sat. Tap **Vote** in <#' + (sched.poll_channel_id || '') + '> to pick the Community game.',
     color: COLOR_SCHEDULE,
   };
 
   const dayEmbeds = [];
   for (const slot of WEEKLY) {
-    if (slot.kind === 'off') continue;   // off days are not listed
     const meta = SLOT_META[slot.kind] || { emoji: '📺', show: cap(slot.kind) };
-    const game = await resolveSlotGame(env, guildId, slot.kind, sched);
-    const isVoted = slot.kind === 'variety' || slot.kind === 'community';
+    const game = await resolveSlotGame(env, guildId, slot.kind, sched, slot.dow);
+    const isVoted = slot.kind === 'community';
     let desc;
-    if (game && game.name) {
+    if (game && game.name && game.name !== meta.show) {
       desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n**${game.name}**`;
+    } else if (game && game.name) {
+      desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}`;
     } else if (isVoted) {
-      desc = `${meta.emoji} **${meta.show} · vote in progress** · ${TIME_LABEL}\n_Tap **Vote** in <#${sched.poll_channel_id || ''}>. Timing is shown in the voting embed._`;
+      desc = `${meta.emoji} **${meta.show} · vote in progress** · ${TIME_LABEL}\n_Tap **Vote** in <#${sched.poll_channel_id || ''}>._`;
     } else {
-      desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n_TBA_`;
+      desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n_Game picked weekly._`;
     }
     const embed = { title: cap(slot.day), description: desc, color: COLOR_SCHEDULE };
     const art = game && game.artUrl;
@@ -142,27 +152,13 @@ async function buildSchedulePayload(env, guildId, sched) {
 }
 
 // ── Public read, canonical schedule JSON for aquilo.gg ──────────
-//
-// Stable shape (the aquilo-site /schedule surfaces read this):
-//   { ok, guildId, nowUtc, poll_channel_id, schedule_channel_id,
-//     days: [ { weekday, slot, game?, status, times } ] }
-// Off days surface as slot 'off' / status 'off' (the site proxy filters
-// them out of the per-slot overlay). Non-voted streamed days are always
-// "scheduled".
 
 export async function getPublicSchedule(env, guildId) {
   const sched = await loadSchedule(env, guildId);
   const days = [];
   for (const slot of WEEKLY) {
-    if (slot.kind === 'off') {
-      days.push({
-        weekday: slot.day, slot: 'off', game: null, status: 'off',
-        times: { startEt: null, endEt: null },
-      });
-      continue;
-    }
-    const game = await resolveSlotGame(env, guildId, slot.kind, sched);
-    const isVoted = slot.kind === 'variety' || slot.kind === 'community';
+    const game = await resolveSlotGame(env, guildId, slot.kind, sched, slot.dow);
+    const isVoted = slot.kind === 'community';
     const status = isVoted ? (game ? 'vote-completed' : 'vote-open') : 'scheduled';
     days.push({
       weekday: slot.day,
@@ -182,18 +178,14 @@ export async function getPublicSchedule(env, guildId) {
   };
 }
 
-// Extract the store identifier from an art_url. Steam header URLs
-// follow `…/steam/apps/<appid>/…` so we can fingerprint deterministically.
 function storeFromArtUrl(artUrl) {
   if (!artUrl) return null;
   const s = String(artUrl);
   if (/\/steam\/apps\/\d+\//.test(s)) return 'steam';
-  if (/upload\.wikimedia\.org/.test(s)) return 'mojang';     // Minecraft fallback
+  if (/upload\.wikimedia\.org/.test(s)) return 'mojang';
   return null;
 }
 
-// Post a fresh schedule embed (or edit the existing one in place). Stores
-// the message_id so future updates edit instead of spamming new embeds.
 export async function postOrRefreshSchedule(env, guildId) {
   const sched = await loadSchedule(env, guildId);
   const b = await bindings(env, guildId);
@@ -222,7 +214,7 @@ export async function postOrRefreshSchedule(env, guildId) {
       await editChannelMessage(env, sched.channel_id, sched.message_id, payload);
       await saveSchedule(env, guildId, sched);
       return sched.message_id;
-    } catch { /* fall through to repost (message deleted, perms changed, etc) */ }
+    } catch { /* fall through to repost */ }
   }
 
   const msg = await postChannelMessage(env, sched.channel_id, payload);
@@ -238,9 +230,7 @@ export async function postOrRefreshSchedule(env, guildId) {
   return msg.id;
 }
 
-// Called from poll.js when a CN poll closes. Updates that day's slot
-// AND pushes the new game out to any connected overlay WebSocket
-// clients (skipped silently if OVERLAY_DO binding isn't configured).
+// Called from poll.js when a CN poll closes.
 export async function updateScheduleForWinner(env, guildId, dayOfWeek, winnerName, winnerArtUrl) {
   const sched = await loadSchedule(env, guildId);
   if (!sched.cn_winners) sched.cn_winners = {};
@@ -261,8 +251,6 @@ export async function updateScheduleForWinner(env, guildId, dayOfWeek, winnerNam
   }
 }
 
-// Called when posting Wednesday's poll (first CN of the week): clears all
-// CN slots so the embed shows "vote in progress" again.
 export async function resetWeeklyCnWinners(env, guildId) {
   const sched = await loadSchedule(env, guildId);
   sched.cn_winners = {};
