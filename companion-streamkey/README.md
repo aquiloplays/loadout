@@ -28,6 +28,35 @@ It pairs with the dock at https://aquilo.gg/dock/streamkey/.
 4. In OBS: Docks, Custom Browser Docks, Add, name it "Streamlabs
    Multistream", paste `https://aquilo.gg/dock/streamkey/`, Apply.
 
+## "Windows protected your PC" (SmartScreen)
+
+The first time you run the exe, Windows SmartScreen may show a blue
+"Windows protected your PC" box. That is expected for a new app that is not
+yet code-signed; it is not a virus warning, just an unknown-publisher notice.
+To run it:
+
+1. Click **More info** in the dialog.
+2. Click **Run anyway**.
+
+You only do this once per version. To be sure you have the genuine file, each
+release includes a `AquiloStreamkey.exe.sha256` checksum. Verify it in
+PowerShell:
+
+```powershell
+Get-FileHash .\AquiloStreamkey.exe -Algorithm SHA256
+```
+
+Compare the hash to the one in the release. You can also clear the
+downloaded-from-internet mark first:
+
+```powershell
+Unblock-File .\AquiloStreamkey.exe
+```
+
+Signing is on the roadmap (a Microsoft Store publisher account or a code
+signing certificate) which removes the prompt entirely. Until then the steps
+above are the way through.
+
 ## Use
 
 1. The dock shows a green "Connected" dot when the companion is running.
