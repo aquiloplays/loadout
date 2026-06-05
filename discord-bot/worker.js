@@ -715,7 +715,12 @@ export default {
     if (path === '/api/twitch/login') {
       return handleTwitchLogin(req, env);
     }
-    // Vault Hangar: the power-armor collection earned from gifted-sub Vertibird
+    // StreamFusion chat dock backend: premium gate, Haiku translate proxy,
+    // mod/clip stubs. See sfdock.js.
+    if (path.startsWith('/api/sfdock/')) {
+      const { handleSfDock } = await import('./sfdock.js');
+      return handleSfDock(req, env, path);
+    }    // Vault Hangar: the power-armor collection earned from gifted-sub Vertibird
     // drops. GET is public (the hangar overlay + aquilo.gg/hangar read it).
     // The test-drop POST is token-gated so Clay can fire a drop from a button.
     if (path === '/api/bobbleheads') {
