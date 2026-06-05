@@ -72,7 +72,10 @@ function computeAccess(ent) {
   const allowed = BASE_PRESETS.slice();
   const premiumUnlocked = [];
   for (const [group, def] of Object.entries(PREMIUM_GROUPS)) {
-    const unlocked = ent.cents >= def.minCents;
+    // Owner is always entitled to every premium group, regardless of pledge
+    // tier (a campaign owner often has a $0 entitled amount on their own
+    // campaign).
+    const unlocked = owner || ent.cents >= def.minCents;
     if (unlocked) { allowed.push(...def.presets); premiumUnlocked.push(group); }
   }
   return { ok: true, tier, owner, cents: ent.cents, allowed, premiumUnlocked };
