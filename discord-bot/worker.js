@@ -735,6 +735,12 @@ export default {
     if (path === '/vote-hub/public') {
       return handleVotePublic(req, env);
     }
+    // Server-side premium-preset entitlement for the Rotation widget
+    // (widget.aquilo.gg). CORS-open; the Patreon token is sent in the POST
+    // body (preferred) or ?token= for GET. Never logged or echoed.
+    if (path === '/api/widget/presets') {
+      return handleWidgetPresets(req, env);
+    }
     if (method === 'POST' && path.startsWith('/admin/list-commands/')) {
       return handleListCommands(req, env, path);
     }
@@ -2486,6 +2492,35 @@ async function handleLineupPublic(req, env) {
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e?.message || e).slice(0, 160) }),
       { status: 500, headers });
+  }
+}
+
+// Returns the preset slugs the visitor's Patreon tier unlocks for the
+// Rotation widget. The widget sends its Patreon access token; we derive the
+// real entitlement server-side (cached) so the gate cannot be bypassed by
+// editing localStorage. CORS-open. The token is read from the POST body
+// (preferred) or the ?token= query; it is never logged or returned.
+async function handleWidgetPresets(req, env) {
+  const cors = {
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET, POST, OPTIONS',
+    'access-control-allow-headers': 'content-type',
+  };
+  if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+  const headers = { 'content-type': 'application/json', 'cache-control': 'no-store', ...cors };
+  try {
+    let token = '';
+    if (req.method === 'POST') {
+      const body = await req.json().catch(() => ({}));
+      token = String((body && body.token) || '');
+    } else {
+      token = new URL(req.url).searchParams.get('token') || '';
+    }
+    const { getWidgetPresetAccess } = await import('./widget-presets.js');
+    const data = await getWidgetPresetAccess(env, token);
+    return new Response(JSON.stringify(data), { status: 200, headers });
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: 'server' }), { status: 500, headers });
   }
 }
 
