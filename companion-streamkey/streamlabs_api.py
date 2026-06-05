@@ -90,3 +90,18 @@ class StreamlabsTikTok:
         r = self.s.get(f"{BASE}/info", timeout=20)
         r.raise_for_status()
         return r.json()
+
+    def can_be_live(self):
+        """Whether this account has TikTok LIVE access (info.can_be_live).
+
+        Returns True/False, or None if the field is absent (treat as unknown).
+        """
+        info = self.get_info() or {}
+        data = info.get("data") if isinstance(info, dict) else None
+        src = data if isinstance(data, dict) else info
+        val = src.get("can_be_live")
+        if isinstance(val, bool):
+            return val
+        # Some payloads nest it; fall back to the top-level field.
+        top = info.get("can_be_live") if isinstance(info, dict) else None
+        return top if isinstance(top, bool) else None

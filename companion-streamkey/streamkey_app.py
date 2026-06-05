@@ -21,7 +21,7 @@ def now_ms():
 
 class App:
     def __init__(self):
-        self.controller = local_server.Controller()
+        self.controller = local_server.Controller(clock=now_ms)
         self._icon = None
 
     # tray actions -------------------------------------------------------

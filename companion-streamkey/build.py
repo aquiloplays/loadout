@@ -18,6 +18,9 @@ def main():
         "--noconfirm", "--clean",
         "--onefile", "--windowed",
         "--name", NAME,
+        "--icon", "assets/key.ico",
+        # Bundle the tray icon; tray.py resolves it via sys._MEIPASS.
+        "--add-data", "assets/tray-64.png;assets",
         # pystray's Windows backend + PIL plugins are pulled in dynamically.
         "--hidden-import", "pystray._win32",
         "--hidden-import", "PIL._tkinter_finder",

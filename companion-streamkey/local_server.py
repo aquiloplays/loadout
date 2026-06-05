@@ -32,13 +32,16 @@ PORT = 7480
 class Controller:
     """Owns auth + the active TikTok live session. Thread-safe."""
 
-    def __init__(self):
+    def __init__(self, clock=None):
         self._lock = threading.Lock()
+        self._clock = clock or (lambda: 0)
         self._api = None
         self._authed = False
         self.creds = None          # { url, key, id, refreshedAt }
         self.details = {"title": "", "category": "", "matureContent": False}
         self.live = False
+        self._cat_cache = {}       # query -> { at_ms, items }
+        self._access = None        # last known can_be_live
 
     # -- auth -------------------------------------------------------------
     def _ensure_api(self, allow_browser):
@@ -77,10 +80,13 @@ class Controller:
                 return {"active": True, **self.creds, "authed": True}
             return {"active": False, "authed": self.authed()}
 
+    # TikTok caps the live title at 32 characters.
+    TITLE_MAX = 32
+
     def set_details(self, title, category, mature):
         with self._lock:
             self.details = {
-                "title": str(title or "")[:250],
+                "title": str(title or "")[:self.TITLE_MAX],
                 "category": str(category or ""),
                 "matureContent": bool(mature),
             }
@@ -88,6 +94,8 @@ class Controller:
 
     def start(self, title, category, mature, refreshed_at):
         with self._lock:
+            if title and len(str(title)) > self.TITLE_MAX:
+                raise StreamlabsError(f"title-too-long (max {self.TITLE_MAX} characters)")
             self.set_details(title, category, mature)
             api = self._ensure_api(allow_browser=True)
             if api is None:
@@ -134,17 +142,49 @@ class Controller:
                 "category": category, "matureContent": mature, "authed": self.authed(),
             }
 
+    CAT_TTL_MS = 60 * 60 * 1000   # cache category search results for an hour
+
+    @staticmethod
+    def _category_enabled(c):
+        # Streamlabs returns live-eligible categories from this search, but if
+        # a payload ever carries an explicit eligibility flag, respect it.
+        for flag in ("enabled", "live_eligible", "is_enabled", "available"):
+            if flag in c and not c.get(flag):
+                return False
+        return True
+
     def categories(self, query, allow_browser):
+        key = (query or "").strip().lower()
         with self._lock:
+            hit = self._cat_cache.get(key)
+            if hit and (self._clock() - hit["at_ms"]) < self.CAT_TTL_MS:
+                return {"categories": hit["items"], "authed": True, "cached": True}
             api = self._ensure_api(allow_browser=allow_browser)
             if api is None:
                 return {"categories": [], "authed": False}
             try:
                 raw = api.search_categories(query)
-            except (StreamlabsError, Exception):
+            except Exception:
                 return {"categories": [], "authed": self.authed()}
-            out = [{"name": c.get("full_name", ""), "id": c.get("game_mask_id", "")} for c in raw]
+            out = [
+                {"name": c.get("full_name", ""), "id": c.get("game_mask_id", "")}
+                for c in raw if self._category_enabled(c) and c.get("full_name")
+            ]
+            self._cat_cache[key] = {"at_ms": self._clock(), "items": out}
             return {"categories": out, "authed": True}
+
+    def access_status(self):
+        """TikTok LIVE access. Cached ~60s to avoid hammering the API."""
+        with self._lock:
+            api = self._ensure_api(allow_browser=False)
+            if api is None:
+                return {"enabled": None, "authed": False}
+            try:
+                val = api.can_be_live()
+                self._access = val
+            except Exception:
+                val = self._access
+            return {"enabled": val, "authed": True}
 
 
 def create_app(controller, clock):
@@ -187,6 +227,12 @@ def create_app(controller, clock):
             return ("", 204)
         q = request.args.get("q", "").strip()
         return jsonify(controller.categories(q, allow_browser=False))
+
+    @app.route("/tiktok/access-status", methods=["GET", "OPTIONS"])
+    def access_status():
+        if request.method == "OPTIONS":
+            return ("", 204)
+        return jsonify(controller.access_status())
 
     @app.route("/stream/details", methods=["POST", "OPTIONS"])
     def details():
