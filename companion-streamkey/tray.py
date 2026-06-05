@@ -1,9 +1,13 @@
 """System-tray icon for the companion (pystray).
 
-The icon is generated at runtime with Pillow (a small aurora mark) so the
-build ships no binary asset. Menu: Login / Refresh, Open Dock, Open
-Releases, Start with Windows (checkable), Quit.
+The tray icon is the aurora key mark (assets/tray-64.png), bundled into the
+exe via PyInstaller --add-data and resolved frozen-or-not below. If the asset
+is missing for any reason it falls back to a drawn aurora roundel so the tray
+always has an icon. Menu: sign in, open dock, update check, releases,
+start-with-Windows (checkable), quit.
 """
+import os
+import sys
 import webbrowser
 
 import pystray
@@ -16,11 +20,15 @@ DOCK_URL = "https://aquilo.gg/dock/streamkey/"
 RELEASES_URL = "https://github.com/aquiloplays/loadout/releases"
 
 
-def _make_icon(size=64):
-    """A simple aurora roundel: violet-to-teal gradient disc with a spark."""
+def _asset(name):
+    base = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base, "assets", name)
+
+
+def _drawn_fallback(size=64):
+    """Aurora roundel, used only if the bundled key png is unavailable."""
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    # Vertical violet -> teal gradient inside a circle.
     for y in range(size):
         t = y / max(1, size - 1)
         r = int(0x7c + (0x22 - 0x7c) * t)
@@ -31,16 +39,18 @@ def _make_icon(size=64):
     ImageDraw.Draw(mask).ellipse([2, 2, size - 2, size - 2], fill=255)
     disc = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     disc.paste(img, (0, 0), mask)
-    # A small upward spark in the middle (no emoji, just a polygon).
-    s = size
-    spark = [(s * 0.50, s * 0.24), (s * 0.60, s * 0.52), (s * 0.50, s * 0.46),
-             (s * 0.40, s * 0.52)]
-    ImageDraw.Draw(disc).polygon(spark, fill=(10, 11, 18, 230))
     return disc
 
 
+def _icon_image():
+    try:
+        return Image.open(_asset("tray-64.png")).convert("RGBA")
+    except OSError:
+        return _drawn_fallback()
+
+
 def build_tray(app):
-    """app exposes: login(), open_dock(), check_update(), quit()."""
+    """app exposes: login(), check_update(manual), quit()."""
 
     def _toggle_autostart(icon, item):
         if autostart.is_enabled():
@@ -49,7 +59,7 @@ def build_tray(app):
             autostart.enable()
 
     menu = pystray.Menu(
-        pystray.MenuItem("Aquilo Streamkey " + __version__, None, enabled=False),
+        pystray.MenuItem("aquilo.gg TikTok Key Generator " + __version__, None, enabled=False),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Sign in to Streamlabs", lambda icon, item: app.login()),
         pystray.MenuItem("Open dock", lambda icon, item: webbrowser.open(DOCK_URL)),
@@ -60,5 +70,4 @@ def build_tray(app):
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Quit", lambda icon, item: app.quit()),
     )
-    icon = pystray.Icon("aquilo-streamkey", _make_icon(), "Aquilo Streamkey", menu)
-    return icon
+    return pystray.Icon("aquilo-streamkey", _icon_image(), "aquilo.gg TikTok Key Generator", menu)

@@ -1,0 +1,23 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Aquilo key">
+  <defs>
+    <linearGradient id="aur" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7c5cff"/>
+      <stop offset="0.55" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#ffb454"/>
+    </linearGradient>
+    <linearGradient id="aurStem" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#ffb454"/>
+    </linearGradient>
+  </defs>
+  <!-- stem from the bow to lower-right, with two teeth -->
+  <g fill="none" stroke="url(#aurStem)" stroke-width="22" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="120" y1="120" x2="196" y2="196"/>
+    <line x1="196" y1="196" x2="178" y2="214"/>
+    <line x1="170" y1="170" x2="150" y2="190"/>
+  </g>
+  <!-- bow: a thick aurora ring -->
+  <circle cx="100" cy="100" r="50" fill="none" stroke="url(#aur)" stroke-width="22"/>
+  <!-- bolt motif inside the bow (Boltbound tie-in) -->
+  <path d="M108 70 L84 106 L100 106 L92 130 L116 94 L100 94 Z" fill="#0a0b12"/>
+</svg>
