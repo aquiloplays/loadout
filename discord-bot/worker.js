@@ -715,7 +715,31 @@ export default {
     if (path === '/api/twitch/login') {
       return handleTwitchLogin(req, env);
     }
-    // Community-activity SSE feed (activity-do.js). GET /activity/sse is
+    // Vault Hangar: the power-armor collection earned from gifted-sub Vertibird
+    // drops. GET is public (the hangar overlay + aquilo.gg/hangar read it).
+    // The test-drop POST is token-gated so Clay can fire a drop from a button.
+    if (path === '/api/bobbleheads') {
+      const cors = { 'access-control-allow-origin': '*' };
+      const { BOBBLEHEADS } = await import('./bobbleheads.js');
+      return new Response(JSON.stringify({ ok: true, total: BOBBLEHEADS.length, catalog: BOBBLEHEADS }), { headers: { 'content-type': 'application/json', 'cache-control': 'public, max-age=300', ...cors } });
+    }
+    if (path === '/api/hangar' || path === '/api/vertibird/test-drop') {
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': '*' };
+      if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
+      const gid = env.AQUILO_VAULT_GUILD_ID || null;
+      const vb = await import('./vertibird.js');
+      if (path === '/api/hangar') {
+        const data = gid ? await vb.getHangar(env, gid) : { total: 0, owned: 0, variants: vb.POWER_ARMOR.map((p) => ({ id: p.id, name: p.name, count: 0, drops: [] })) };
+        return new Response(JSON.stringify({ ok: true, ...data, catalog: vb.POWER_ARMOR }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store', ...cors } });
+      }
+      // test-drop (token-gated)
+      const want = String(env.STREAMDECK_TOKEN || env.SCRATCH_ADMIN_TOKEN || '').trim();
+      const got = (req.headers.get('x-streamdeck-token') || new URL(req.url).searchParams.get('token') || '').trim();
+      if (!want || got !== want) return new Response(JSON.stringify({ ok: false, error: 'unauthorized' }), { status: 401, headers: { 'content-type': 'application/json', ...cors } });
+      let body = {}; try { body = await req.json(); } catch { /* empty */ }
+      const r = gid ? await vb.dropPowerArmor(env, gid, { gifter: body.gifter || 'Test drop', tier: body.tier || 1, count: body.count || 1 }) : { drops: [] };
+      return new Response(JSON.stringify({ ok: true, ...r }), { headers: { 'content-type': 'application/json', ...cors } });
+    }    // Community-activity SSE feed (activity-do.js). GET /activity/sse is
     // the public EventSource stream; POST /activity/publish is the
     // internal HMAC-gated producer endpoint (also reachable in-process
     // via publishActivity()).

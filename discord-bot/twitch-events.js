@@ -674,6 +674,15 @@ export async function handleSubscriptionGift(env, payload) {
     isAnon:           !!ev.is_anonymous,
   });
   const post = await dispatchEmbed(env, gid, 'gift', embed);
+  // Vertibird power-armor drop: one crate per gifted sub onto the stream
+  // overlay + the Vault Hangar. Best-effort; never blocks the gift flow.
+  try {
+    const { dropPowerArmor } = await import('./vertibird.js');
+    await dropPowerArmor(env, gid, {
+      gifter: ev.is_anonymous ? 'An anonymous gifter' : ev.user_name,
+      tier: ev.tier, count: Number(ev.total) || 1,
+    });
+  } catch (e) { console.warn('[vertibird] drop', e?.message || e); }
   // Gifter bonus, 20% of recipient bolt reward per gift, scaled by total.
   // Anonymous gifters have no resolvable Twitch user id → skip.
   if (!ev.is_anonymous && ev.user_id) {
