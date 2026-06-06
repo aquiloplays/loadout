@@ -26,7 +26,8 @@ class App:
 
     # tray actions -------------------------------------------------------
     def login(self):
-        threading.Thread(target=self.controller.login, daemon=True).start()
+        # start_auth already runs the browser flow on its own background thread.
+        self.controller.start_auth()
 
     def check_update(self, manual=False):
         threading.Thread(target=self._do_update, args=(manual,), daemon=True).start()

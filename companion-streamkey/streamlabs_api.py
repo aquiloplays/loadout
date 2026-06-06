@@ -23,7 +23,12 @@ BASE = "https://streamlabs.com/api/v5/slobs/tiktok"
 
 
 class StreamlabsError(Exception):
-    """Raised when the slobs API returns an error payload."""
+    """Raised when the slobs API returns an error. Carries the HTTP status and
+    parsed body so the dock can map it to a friendly message."""
+    def __init__(self, message, status=None, body=None):
+        super().__init__(message)
+        self.status = status
+        self.body = body
 
 
 class StreamlabsTikTok:
@@ -44,7 +49,7 @@ class StreamlabsTikTok:
             return []
         # The API 500s on category strings longer than 25 chars.
         query = str(query)[:25]
-        r = self.s.get(f"{BASE}/info", params={"category": query}, timeout=20)
+        r = self.s.get(f"{BASE}/info", params={"category": query}, timeout=15)
         r.raise_for_status()
         data = r.json()
         cats = list(data.get("categories", []))
@@ -65,12 +70,16 @@ class StreamlabsTikTok:
             ("category", (None, str(category or ""))),
             ("audience_type", (None, str(audience_type or "0"))),
         )
-        r = self.s.post(f"{BASE}/stream/start", files=files, timeout=30)
-        r.raise_for_status()
-        data = r.json()
-        if "rtmp" not in data or "key" not in data:
-            # Surface the message without leaking the key (there is none here).
-            raise StreamlabsError(str(data.get("message") or data.get("error") or data))
+        r = self.s.post(f"{BASE}/stream/start", files=files, timeout=15)
+        try:
+            data = r.json()
+        except ValueError:
+            data = {}
+        # A missing key can come back as a 4xx OR a 200 with an error payload
+        # (no live access). Either way, surface status + body, never the key.
+        if not r.ok or "rtmp" not in data or "key" not in data:
+            msg = str(data.get("message") or data.get("error") or ("HTTP " + str(r.status_code)))
+            raise StreamlabsError(msg, status=r.status_code, body=data)
         self.stream_id = data.get("id")
         return data["rtmp"], data["key"]
 
@@ -78,7 +87,7 @@ class StreamlabsTikTok:
         """End the active live session. No-op (returns True) if none is set."""
         if not self.stream_id:
             return True
-        r = self.s.post(f"{BASE}/stream/{self.stream_id}/end", timeout=30)
+        r = self.s.post(f"{BASE}/stream/{self.stream_id}/end", timeout=15)
         r.raise_for_status()
         ok = bool(r.json().get("success"))
         if ok:
@@ -87,7 +96,7 @@ class StreamlabsTikTok:
 
     def get_info(self):
         """Raw slobs tiktok/info payload (account + any live-session state)."""
-        r = self.s.get(f"{BASE}/info", timeout=20)
+        r = self.s.get(f"{BASE}/info", timeout=15)
         r.raise_for_status()
         return r.json()
 

@@ -28,9 +28,34 @@ import webbrowser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse, parse_qs
 
+import subprocess
+import sys
+
 import requests
 
+from logsetup import log
+
 AUTH_DATA_URL = "https://streamlabs.com/api/v5/slobs/auth/data"
+# The most recent login URL, surfaced for a tray "copy login URL" fallback.
+LAST_AUTH_URL = ""
+
+
+def open_url(url):
+    """Open a URL in the default browser, PyInstaller-safe with fallbacks."""
+    try:
+        if webbrowser.open(url):
+            return True
+    except Exception:
+        pass
+    try:
+        if os.name == "nt":
+            os.startfile(url)  # type: ignore[attr-defined]
+            return True
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.Popen([opener, url])
+        return True
+    except Exception:
+        return False
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) StreamlabsDesktop/1.20.4 Chrome/122.0.6261.156 "
@@ -86,7 +111,7 @@ def token_is_valid(token):
         r = requests.get(
             "https://streamlabs.com/api/v5/slobs/tiktok/info",
             headers={"user-agent": USER_AGENT, "authorization": f"Bearer {token}"},
-            timeout=15,
+            timeout=8,
         )
         return r.status_code == 200
     except requests.RequestException:
@@ -163,7 +188,8 @@ class _PkceFlow:
 
         return H
 
-    def run(self, timeout=300):
+    def run(self, timeout=300, on_open=None):
+        global LAST_AUTH_URL
         port = self._free_port()
         server = HTTPServer(("127.0.0.1", port), self._handler())
         threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -173,12 +199,22 @@ class _PkceFlow:
             f"&origin=slobs&port={port}"
             f"&code_challenge={self.code_challenge}&code_flow=true"
         )
-        webbrowser.open(auth_url)
+        LAST_AUTH_URL = auth_url
+        opened = open_url(auth_url)
+        log(f"auth: browser opened={opened}, awaiting callback on port {port}")
+        if on_open:
+            try:
+                on_open(auth_url, opened)
+            except Exception:
+                pass
         completed = self._done.wait(timeout=timeout)
+        log("auth: OAuth callback received" if completed else "auth: login timed out")
         threading.Thread(target=server.shutdown, daemon=True).start()
         if not completed or not self._auth_code:
             return None
-        return self._exchange(self._auth_code)
+        tok = self._exchange(self._auth_code)
+        log("auth: token exchange " + ("ok" if tok else "failed"))
+        return tok
 
     def _exchange(self, code):
         headers = {
@@ -208,9 +244,9 @@ class _PkceFlow:
         return (data.get("data") or {}).get("oauth_token")
 
 
-def login_via_browser(timeout=300):
+def login_via_browser(timeout=300, on_open=None):
     """Run the PKCE browser flow and return an oauth_token, or None."""
-    return _PkceFlow().run(timeout=timeout)
+    return _PkceFlow().run(timeout=timeout, on_open=on_open)
 
 
 def get_token(force=False, allow_browser=True):
