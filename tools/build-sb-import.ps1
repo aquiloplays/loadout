@@ -12,7 +12,7 @@
 # Inline C# (Execute Code) is SubAction type 99999. byteCode is base64(UTF-8(source)).
 [CmdletBinding()]
 param(
-    [string]$Version = "0.1.0"
+    [string]$Version = "0.3.0"
 )
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -291,6 +291,22 @@ $actions += New-InlineCSharpAction -Name "Open Loadout Onboarding" -Group "Loado
     -Code (Read-CSharp "08-open-onboarding.cs") -Triggers @() `
     -Description "Right-click and Run Now to re-open the onboarding wizard."
 
+# Aquilo Relay - 4s timer poll of the worker relay; republishes overlay and
+# activity events onto the local Aquilo Bus (ws 7470) for OBS overlays.
+$relayTimerId = New-GuidStr
+$actions += New-InlineCSharpAction -Name "Aquilo Relay" -Group "Loadout" `
+    -Code (Read-CSharp "aquilo-relay.cs") `
+    -Triggers @( (New-Trigger -Type $EVT_TIMED -Extra @{ timerId = $relayTimerId }) ) `
+    -Description "4s poll of the Loadout relay; republishes overlay events onto the Aquilo Bus (ws 7470)."
+
+# Scratch Tamper - executes a bounded scratch-off control tamper. Externally
+# triggered: wire a Streamer.bot WebSocket Client to ws://127.0.0.1:7470 and
+# call this action on a scratch.tamper bus message, mapping actionKey /
+# durationSec / viewer / body onto its args. Safe to Run Now for testing.
+$actions += New-InlineCSharpAction -Name "Loadout: Scratch Tamper" -Group "Loadout" `
+    -Code (Read-CSharp "scratch-tamper.cs") -Triggers @() `
+    -Description "Bounded scratch-off control tamper (invert mouse, swap WASD, force jump, etc). Triggered by a scratch.tamper bus message via a WebSocket Client; auto-reverts and never wedges input. See SCRATCH-OFF-STREAMERBOT.md."
+
 # ------------------------------------------------------------------------------
 # Bundle
 # ------------------------------------------------------------------------------
@@ -301,6 +317,21 @@ $commands = @(
     (New-Command -CommandId $cmdSuiteId       -Name "Loadout: !loadout"     -Command "!loadout"     -GrantType 0 -GlobalCooldown 10)
 )
 
+# Version stamp + action manifest. SB shows meta.name + meta.version as
+# "Loadout v<Version> installed"; the manifest below is an extra top-level key
+# (ignored by SB's importer) that the /tools page and release notes read to
+# show exactly which actions a given bundle ships.
+$manifest = [ordered]@{
+    product        = "Loadout for Streamer.bot"
+    packageVersion = $Version
+    group          = "Loadout"
+    generatedBy    = "tools/build-sb-import.ps1"
+    actionCount    = $actions.Count
+    actions        = @($actions | ForEach-Object { $_.name })
+    commands       = @($commands | ForEach-Object { $_.command })
+    includes       = @("core-suite", "aquilo-relay", "scratch-tamper")
+}
+
 $bundle = [ordered]@{
     meta = [ordered]@{
         name           = "Loadout"
@@ -310,6 +341,7 @@ $bundle = [ordered]@{
         autoRunAction  = $null
         minimumVersion = $null
     }
+    manifest = $manifest
     data = [ordered]@{
         actions          = $actions
         queues           = @()
@@ -323,6 +355,17 @@ $bundle = [ordered]@{
                 enabled         = $true
                 repeat          = $true
                 interval        = 60
+                randomInterval  = $false
+                upperInterval   = 0
+                lines           = 0
+                counter         = 0
+            },
+            [ordered]@{
+                id              = $relayTimerId
+                name            = "Aquilo Relay (4s)"
+                enabled         = $true
+                repeat          = $true
+                interval        = 4
                 randomInterval  = $false
                 upperInterval   = 0
                 lines           = 0
