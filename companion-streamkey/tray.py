@@ -14,6 +14,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 import autostart
+import shortcut
 from _version import __version__
 
 DOCK_URL = "https://aquilo.gg/dock/streamkey/"
@@ -50,13 +51,41 @@ def _icon_image():
 
 
 def build_tray(app):
-    """app exposes: login(), check_update(manual), quit()."""
+    """app exposes: login(), check_update(manual), quit(), notify(title, body)."""
 
     def _toggle_autostart(icon, item):
         if autostart.is_enabled():
             autostart.disable()
         else:
             autostart.enable()
+
+    def _install_shortcut(icon, item):
+        """Drop a Desktop + Start-menu .lnk for the companion so the user
+        can right-click -> Pin to taskbar. The actual pin step has to be
+        manual on Win 11; we pop Explorer with the new file selected so
+        the menu is one right-click away.
+        """
+        result = shortcut.install()
+        title = "Shortcut installed" if result["ok"] else "Couldn't install shortcut"
+        if result["ok"]:
+            body = (
+                "Desktop + Start-menu shortcuts created.\n"
+                "Right-click 'Aquilo TikTok Key' on the Desktop -> Pin to taskbar."
+            )
+        else:
+            body = "; ".join(result["errors"]) or "Unknown error - check the log."
+        # icon.notify is a Windows balloon; falls through silently if
+        # the host doesn't support balloons.
+        try:
+            icon.notify(body, title)
+        except Exception:
+            pass
+        # Best-effort console / log message too so headless / no-balloon
+        # users still see the outcome.
+        try:
+            app.notify(title, body)
+        except (AttributeError, Exception):
+            pass
 
     menu = pystray.Menu(
         pystray.MenuItem("aquilo.gg TikTok Key Generator " + __version__, None, enabled=False),
@@ -65,6 +94,7 @@ def build_tray(app):
         pystray.MenuItem("Open dock", lambda icon, item: webbrowser.open(DOCK_URL)),
         pystray.MenuItem("Check for updates", lambda icon, item: app.check_update(manual=True)),
         pystray.MenuItem("Downloads / releases", lambda icon, item: webbrowser.open(RELEASES_URL)),
+        pystray.MenuItem("Install desktop / taskbar shortcut", _install_shortcut),
         pystray.MenuItem("Start with Windows", _toggle_autostart,
                          checked=lambda item: autostart.is_enabled()),
         pystray.Menu.SEPARATOR,

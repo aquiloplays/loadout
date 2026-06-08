@@ -19,14 +19,24 @@ def main():
         "--onefile", "--windowed",
         "--name", NAME,
         "--icon", "assets/key.ico",
-        # Extract next to the exe instead of %TEMP%. Some Windows setups
-        # (AV/policy interference) silently block writes inside the user TEMP
-        # tree, so PyInstaller drops a _MEI* folder but never lands the DLLs,
-        # then LoadLibrary("python311.dll") fails. Extracting beside the exe
-        # avoids that path entirely.
-        "--runtime-tmpdir", ".",
+        # Extract under %LOCALAPPDATA% so the bootloader never has to write
+        # into a launch-context CWD it might not own. Earlier we used "."
+        # but that resolves to whatever CWD the bootloader inherits, which
+        # for launches from HKCU\Run, a pinned .lnk without WorkingDirectory,
+        # or the Task Scheduler watchdog is C:\WINDOWS\system32 -- not
+        # writable for normal users, so PyInstaller dies with
+        # "Could not create temporary directory!". PyInstaller's bootloader
+        # expands env-var refs in this string via ExpandEnvironmentStringsW
+        # on Windows. %LOCALAPPDATA% also sidesteps the original %TEMP%
+        # bug (some setups silently block DLL writes under user TEMP),
+        # so this one path is robust against both failure modes.
+        "--runtime-tmpdir", r"%LOCALAPPDATA%\AquiloStreamkey\runtime",
         # Bundle the tray icon; tray.py resolves it via sys._MEIPASS.
         "--add-data", "assets/tray-64.png;assets",
+        # Bundle the .ico too — shortcut.py reads it when writing the
+        # Desktop/Start-menu .lnk so the pinned taskbar icon is the
+        # aurora key mark, not the generic python window.
+        "--add-data", "assets/key.ico;assets",
         # pystray's Windows backend + PIL plugins are pulled in dynamically.
         "--hidden-import", "pystray._win32",
         "--hidden-import", "PIL._tkinter_finder",
