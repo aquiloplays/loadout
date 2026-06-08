@@ -38,33 +38,45 @@ jobs:
       - name: Smoke-test the built exe
         shell: pwsh
         run: |
-          # Launch the exe, poll /healthz for up to 30s, fail the build if it
-          # never responds. Catches PyInstaller bootloader failures, missing
-          # hidden imports, broken DLL dependencies, and bad runtime-tmpdir
-          # config BEFORE we publish a release.
-          $exe = "dist\AquiloStreamkey.exe"
+          # Launch the exe twice, fail the build if either launch context can't
+          # bring /healthz up: (A) normal CWD == project dir, and (B) CWD set
+          # to %WINDIR%\system32 which is what HKCU\Run, a pinned .lnk without
+          # WorkingDirectory, and the Task Scheduler watchdog inherit. (B) is
+          # the case that v0.2.5 silently regressed on with --runtime-tmpdir=.
+          # so the smoke test must exercise it.
+          $exe = (Resolve-Path "dist\AquiloStreamkey.exe").Path
           if (-not (Test-Path $exe)) { throw "Missing $exe after build" }
-          $p = Start-Process $exe -PassThru
-          $ok = $false
-          for ($i = 1; $i -le 30; $i++) {
-            Start-Sleep -Seconds 1
+          function Try-Launch($label, $cwd) {
+            Write-Host "=== smoke: $label  (cwd=$cwd) ==="
+            $psi = New-Object System.Diagnostics.ProcessStartInfo
+            $psi.FileName = $exe
+            $psi.UseShellExecute = $false
+            $psi.WorkingDirectory = $cwd
+            $p = [System.Diagnostics.Process]::Start($psi)
+            $ok = $false
+            for ($i = 1; $i -le 30; $i++) {
+              Start-Sleep -Seconds 1
+              try {
+                $r = Invoke-WebRequest "http://127.0.0.1:7480/healthz" -UseBasicParsing -TimeoutSec 2
+                if ($r.StatusCode -eq 200) {
+                  Write-Host "  OK after ${i}s: $($r.Content)"
+                  $ok = $true; break
+                }
+              } catch { Write-Host "  [t=${i}s] no http yet" }
+              if ($p.HasExited) { Write-Host "  process exited code=$($p.ExitCode) after ${i}s"; break }
+            }
             try {
-              $r = Invoke-WebRequest "http://127.0.0.1:7480/healthz" -UseBasicParsing -TimeoutSec 2
-              if ($r.StatusCode -eq 200) {
-                Write-Host "smoke OK after ${i}s: $($r.Content)"
-                $ok = $true; break
-              }
-            } catch { Write-Host "[t=${i}s] no http yet" }
+              $d = Invoke-WebRequest "http://127.0.0.1:7480/debug/diag" -UseBasicParsing -TimeoutSec 3
+              Write-Host "  diag: $($d.Content)"
+            } catch {}
+            Get-Process -Name AquiloStreamkey -ErrorAction SilentlyContinue | Stop-Process -Force
+            Start-Sleep -Seconds 1
+            return $ok
           }
-          # Pull diag for the build log even if smoke passed; great when CI
-          # ever flakes and we need to compare env between runs.
-          try {
-            $d = Invoke-WebRequest "http://127.0.0.1:7480/debug/diag" -UseBasicParsing -TimeoutSec 3
-            Write-Host "diag: $($d.Content)"
-          } catch {}
-          try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
-          Get-Process -Name AquiloStreamkey -ErrorAction SilentlyContinue | Stop-Process -Force
-          if (-not $ok) { throw "Smoke test failed: companion never answered /healthz" }
+          $okA = Try-Launch "A normal CWD" (Get-Location).Path
+          $okB = Try-Launch "B system32 CWD (regression guard for v0.2.5 bug)" "C:\Windows\System32"
+          if (-not $okA) { throw "Smoke A failed: companion never answered /healthz with project CWD" }
+          if (-not $okB) { throw "Smoke B failed: bootloader cannot run when CWD is not writable (System32). Check --runtime-tmpdir in build.py." }
 
       - name: Create release
         uses: softprops/action-gh-release@v2
