@@ -33,7 +33,38 @@ jobs:
         run: python build.py
 
       - name: Smoke-import modules
-        run: python -c "import streamlabs_api, token_retriever, local_server, updater, autostart, _version; print('import ok', _version.__version__)"
+        run: python -c "import streamlabs_api, token_retriever, local_server, updater, autostart, diag, watchdog_task, _version; print('import ok', _version.__version__)"
+
+      - name: Smoke-test the built exe
+        shell: pwsh
+        run: |
+          # Launch the exe, poll /healthz for up to 30s, fail the build if it
+          # never responds. Catches PyInstaller bootloader failures, missing
+          # hidden imports, broken DLL dependencies, and bad runtime-tmpdir
+          # config BEFORE we publish a release.
+          $exe = "dist\AquiloStreamkey.exe"
+          if (-not (Test-Path $exe)) { throw "Missing $exe after build" }
+          $p = Start-Process $exe -PassThru
+          $ok = $false
+          for ($i = 1; $i -le 30; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+              $r = Invoke-WebRequest "http://127.0.0.1:7480/healthz" -UseBasicParsing -TimeoutSec 2
+              if ($r.StatusCode -eq 200) {
+                Write-Host "smoke OK after ${i}s: $($r.Content)"
+                $ok = $true; break
+              }
+            } catch { Write-Host "[t=${i}s] no http yet" }
+          }
+          # Pull diag for the build log even if smoke passed; great when CI
+          # ever flakes and we need to compare env between runs.
+          try {
+            $d = Invoke-WebRequest "http://127.0.0.1:7480/debug/diag" -UseBasicParsing -TimeoutSec 3
+            Write-Host "diag: $($d.Content)"
+          } catch {}
+          try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
+          Get-Process -Name AquiloStreamkey -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $ok) { throw "Smoke test failed: companion never answered /healthz" }
 
       - name: Create release
         uses: softprops/action-gh-release@v2
