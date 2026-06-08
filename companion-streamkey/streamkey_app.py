@@ -9,9 +9,11 @@ import threading
 import time
 
 import autostart
+import diag
 import local_server
 import token_retriever as tok
 import updater
+from logsetup import log
 from _version import __version__
 
 
@@ -79,8 +81,20 @@ class App:
         self._icon.run()
 
 
+def _boot_banner():
+    """Dump every env detail any future "doesn't work" report would need."""
+    log(f"==== Aquilo Streamkey {__version__} boot ====")
+    try:
+        snap = diag.collect(controller=None, port=local_server.PORT)
+        for line in diag.banner_lines(snap):
+            log(line)
+    except Exception as e:  # noqa: BLE001
+        log(f"boot diag collect failed: {e}", "warning")
+
+
 def main():
     print(f"Aquilo Streamkey companion {__version__} starting (tray).")
+    _boot_banner()
     App().run()
 
 

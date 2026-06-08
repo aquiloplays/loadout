@@ -35,6 +35,7 @@ import time
 import requests
 from flask import Flask, jsonify, request
 
+import diag
 import token_retriever as tok
 from logsetup import log, tail
 from streamlabs_api import StreamlabsTikTok, StreamlabsError
@@ -363,6 +364,10 @@ def create_app(controller, clock):
     @app.route("/debug/log", methods=["GET", "OPTIONS"])
     def debug_log():
         return opt() if request.method == "OPTIONS" else jsonify({"ok": True, "log": tail(140)})
+
+    @app.route("/debug/diag", methods=["GET", "OPTIONS"])
+    def debug_diag():
+        return opt() if request.method == "OPTIONS" else jsonify({"ok": True, "diag": diag.collect(controller, PORT)})
 
     return app
 

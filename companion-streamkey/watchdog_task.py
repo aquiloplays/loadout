@@ -1,0 +1,97 @@
+"""Task Scheduler watchdog: relaunch the companion if it dies.
+
+Registers a single per-user task `AquiloStreamkeyWatchdog` that fires every
+two minutes. The task runs a tiny VBScript (silent, no flashing console)
+which:
+
+  1. Checks whether AquiloStreamkey.exe is in the running process list.
+  2. If not, starts it again.
+
+A two-minute cadence means a crash recovers within ~120s, but if the exe is
+unrecoverable (DLL load error dialog stuck on screen) the user only sees the
+respawn every two minutes, not in a tight loop. They can disable it from the
+tray menu ("Auto-restart on crash").
+
+We pair the watchdog with [[autostart]]: enabling Start with Windows also
+turns the watchdog on; disabling it turns the watchdog off. They share one
+toggle so there is no confusing two-switch state.
+
+No-op cleanly off Windows so CI imports do not raise.
+"""
+import os
+import subprocess
+import sys
+
+TASK_NAME = "AquiloStreamkeyWatchdog"
+
+
+def _exe_path():
+    if getattr(sys, "frozen", False):
+        return sys.executable
+    return os.path.abspath(sys.argv[0])
+
+
+def _vbs_path():
+    base = os.environ.get("APPDATA") or os.path.expanduser("~")
+    d = os.path.join(base, "AquiloStreamkey")
+    os.makedirs(d, exist_ok=True)
+    return os.path.join(d, "watchdog.vbs")
+
+
+def _write_vbs(exe):
+    """VBS body that respawns the exe if no AquiloStreamkey process is running."""
+    # WMI Win32_Process check picks up both the bootloader and the Python
+    # child, so a stuck bootloader (dialog up) is still "alive" and we
+    # do not pile up extra instances.
+    body = (
+        'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")\r\n'
+        'Set procs = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name=\'AquiloStreamkey.exe\'")\r\n'
+        'If procs.Count = 0 Then\r\n'
+        '  Set sh = CreateObject("WScript.Shell")\r\n'
+        f'  sh.Run """{exe}""", 0, False\r\n'
+        'End If\r\n'
+    )
+    path = _vbs_path()
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(body)
+    return path
+
+
+def _schtasks(*args):
+    """Run schtasks.exe with /F where applicable; capture output for the log."""
+    cp = subprocess.run(
+        ["schtasks.exe", *args],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    return cp.returncode, (cp.stdout or "") + (cp.stderr or "")
+
+
+def is_enabled():
+    if sys.platform != "win32":
+        return False
+    rc, _ = _schtasks("/Query", "/TN", TASK_NAME)
+    return rc == 0
+
+
+def enable():
+    if sys.platform != "win32":
+        return False
+    exe = _exe_path()
+    vbs = _write_vbs(exe)
+    # /SC MINUTE /MO 2 = every 2 minutes; /RL LIMITED runs as current user
+    # (no admin), /IT keeps it interactive so the spawned exe sees the user
+    # desktop (tray icon, dialogs, etc.); /F overwrites any prior entry.
+    cmd = f'wscript.exe "{vbs}"'
+    rc, out = _schtasks(
+        "/Create", "/TN", TASK_NAME, "/SC", "MINUTE", "/MO", "2",
+        "/TR", cmd, "/RL", "LIMITED", "/IT", "/F",
+    )
+    return rc == 0
+
+
+def disable():
+    if sys.platform != "win32":
+        return False
+    rc, _ = _schtasks("/Delete", "/TN", TASK_NAME, "/F")
+    return rc == 0
