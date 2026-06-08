@@ -42,14 +42,15 @@ def _write_vbs(exe):
     """VBS body that respawns the exe if no AquiloStreamkey process is running."""
     # WMI Win32_Process check picks up both the bootloader and the Python
     # child, so a stuck bootloader (dialog up) is still "alive" and we
-    # do not pile up extra instances.
+    # do not pile up extra instances. Use \n in source + text-mode write
+    # so Windows translates to \r\n once (\r\n in source would become \r\r\n).
     body = (
-        'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")\r\n'
-        'Set procs = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name=\'AquiloStreamkey.exe\'")\r\n'
-        'If procs.Count = 0 Then\r\n'
-        '  Set sh = CreateObject("WScript.Shell")\r\n'
-        f'  sh.Run """{exe}""", 0, False\r\n'
-        'End If\r\n'
+        'Set wmi = GetObject("winmgmts:\\\\.\\root\\cimv2")\n'
+        'Set procs = wmi.ExecQuery("SELECT * FROM Win32_Process WHERE Name=\'AquiloStreamkey.exe\'")\n'
+        'If procs.Count = 0 Then\n'
+        '  Set sh = CreateObject("WScript.Shell")\n'
+        f'  sh.Run """{exe}""", 0, False\n'
+        'End If\n'
     )
     path = _vbs_path()
     with open(path, "w", encoding="utf-8") as f:
