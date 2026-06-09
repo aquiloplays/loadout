@@ -141,18 +141,20 @@
   // ════════════════════════════════════════════════════════════
 
   const reel = $('reel');
-  const slidesParam = (params.get('slides') || 'sf,loadout,rotation')
+  const slidesParam = (params.get('slides') || 'streamkey,streamfusion,rotation,patron')
     .split(',').map(s => s.trim()).filter(Boolean);
 
-  // Per-slide dwell. SF gets the longest because chat needs a beat
-  // to scroll; rotation reads fast.
+  // Per-slide dwell. Streamkey + SF show form/chat UIs that read
+  // quickly; rotation gets longer so the SLS2 video has time to
+  // breathe; patron is long enough to read all five perks.
   const DWELL = {
-    sf:       12000,
-    loadout:  10000,
-    rotation:  9000,
+    streamkey:     9000,
+    streamfusion: 10000,
+    rotation:     12000,
+    patron:       12000,
   };
   const order = slidesParam.filter(id => DWELL.hasOwnProperty(id));
-  if (order.length === 0) order.push('sf');
+  if (order.length === 0) order.push('streamkey');
 
   // Preload every iframe at boot. data-src -> src so each slide is
   // already animating by the time its turn comes up — no "first
@@ -178,12 +180,14 @@
     });
   }
 
-  // Scale each iframe to fit its slide-screen container. The iframe
-  // renders at its fixed natural size (data-fixed-w x data-fixed-h)
-  // and is then `scale()`-transformed to fit. Recomputes when the
-  // container resizes (orientation flip, OBS resize).
+  // Scale each iframe to fit its container. Container can be a
+  // `.slide-screen` (full-slide iframe) or a `.slide-popout` (the
+  // rotation widget over the SLS2 video). Both carry data-fixed-w
+  // and data-fixed-h with the iframe's natural design size; we
+  // scale via transform so the iframe always fits its box without
+  // a horizontal/vertical scrollbar.
   function fitFrames() {
-    document.querySelectorAll('.slide-screen[data-fixed-w]').forEach(el => {
+    document.querySelectorAll('[data-fixed-w][data-fixed-h]').forEach(el => {
       const fw = parseInt(el.getAttribute('data-fixed-w'), 10) || 0;
       const fh = parseInt(el.getAttribute('data-fixed-h'), 10) || 0;
       const iframe = el.querySelector('iframe.demo-frame');
@@ -202,6 +206,63 @@
       fit();
       new ResizeObserver(fit).observe(el);
     });
+  }
+
+  // Pull the live patron list from the supporter-wall endpoint. CORS
+  // is enabled on the worker; if the fetch fails we just show "join
+  // now and be first" as a friendly fallback. The endpoint can also
+  // return `pending:true` while warming up — we treat that as empty.
+  const PATRON_CAP = 12; // visible names; the count line shows the full total
+  async function loadPatrons() {
+    const gridEl  = $('patron-grid');
+    const countEl = $('patron-count');
+    if (!gridEl || !countEl) return;
+    try {
+      const res = await fetch('https://aquilo.gg/api/community/supporter-wall', {
+        cache: 'no-store',
+        credentials: 'omit',
+      });
+      if (!res.ok) throw new Error('supporter-wall ' + res.status);
+      const data = await res.json();
+      const list = Array.isArray(data && data.supporters) ? data.supporters : [];
+      renderPatrons(list, gridEl, countEl);
+    } catch (err) {
+      console.warn('[starting-soon] patron fetch failed:', err);
+      renderPatrons([], gridEl, countEl);
+    }
+  }
+  function renderPatrons(list, gridEl, countEl) {
+    gridEl.innerHTML = '';
+    countEl.textContent = list.length
+      ? (list.length + ' patron' + (list.length === 1 ? '' : 's'))
+      : 'be the first';
+    if (!list.length) {
+      const empty = document.createElement('span');
+      empty.className = 'patron-pill patron-pill--loading';
+      empty.textContent = 'be patron #1 at join.aquilo.gg';
+      gridEl.appendChild(empty);
+      return;
+    }
+    list.slice(0, PATRON_CAP).forEach((p, i) => {
+      const pill = document.createElement('span');
+      pill.className = 'patron-pill';
+      // Stagger entrance for a polished cascade.
+      pill.style.animationDelay = (i * 40) + 'ms';
+      const dot = document.createElement('span');
+      dot.className = 'patron-pill-dot';
+      const name = document.createElement('span');
+      name.textContent = p.username || ('Supporter ' + ((p.discordId || '').slice(-4) || '?'));
+      pill.appendChild(dot);
+      pill.appendChild(name);
+      gridEl.appendChild(pill);
+    });
+    if (list.length > PATRON_CAP) {
+      const more = document.createElement('span');
+      more.className = 'patron-pill';
+      more.style.animationDelay = (PATRON_CAP * 40) + 'ms';
+      more.textContent = '+' + (list.length - PATRON_CAP) + ' more';
+      gridEl.appendChild(more);
+    }
   }
 
   // Rotation engine. Sets the [data-active] on the reel root; CSS
@@ -240,6 +301,7 @@
   // Kick the reel.
   preloadFrames();
   fitFrames();
+  loadPatrons();
   setActive(order[0]);
   schedule(DWELL[order[0]] || 10000);
 

@@ -504,9 +504,10 @@ html, body {
   pointer-events: none;
   will-change: opacity, transform;
 }
-.reel[data-active='sf']       .slide[data-slide='sf'],
-.reel[data-active='loadout']  .slide[data-slide='loadout'],
-.reel[data-active='rotation'] .slide[data-slide='rotation'] {
+.reel[data-active='streamkey']    .slide[data-slide='streamkey'],
+.reel[data-active='streamfusion'] .slide[data-slide='streamfusion'],
+.reel[data-active='rotation']     .slide[data-slide='rotation'],
+.reel[data-active='patron']       .slide[data-slide='patron'] {
   opacity: 1;
   transform: scale(1) translateY(0);
 }
@@ -596,12 +597,313 @@ html, body {
               box-shadow 320ms var(--ld-ease-out);
   will-change: width;
 }
-.reel[data-active='sf']       .reel-dot[data-target='sf'],
-.reel[data-active='loadout']  .reel-dot[data-target='loadout'],
-.reel[data-active='rotation'] .reel-dot[data-target='rotation'] {
+.reel[data-active='streamkey']    .reel-dot[data-target='streamkey'],
+.reel[data-active='streamfusion'] .reel-dot[data-target='streamfusion'],
+.reel[data-active='rotation']     .reel-dot[data-target='rotation'],
+.reel[data-active='patron']       .reel-dot[data-target='patron'] {
   width: 28px;
   background: var(--ld-grad-brand);
   box-shadow: 0 0 12px rgba(110, 224, 192, 0.55);
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Slide: Rotation pop-out over Slay the Spire 2 gameplay video
+   ════════════════════════════════════════════════════════════════
+   The slide-screen plays the SLS2 video full-bleed. The rotation
+   widget iframe sits as a small framed popout in the bottom-right
+   corner — matching what an OBS overlay actually looks like in
+   practice while the streamer plays. A subtle dark gradient tint
+   keeps the popout readable over any gameplay frame. */
+.slide-screen--bgvideo {
+  position: relative;
+  background: #050816;
+}
+.slide-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* The video has no audio (muted attribute) but we tag it for
+     clarity. autoplay+loop+muted+playsinline is the cross-browser
+     incantation that actually plays in CEF. */
+}
+.slide-video-tint {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.45) 100%),
+    radial-gradient(80% 60% at 80% 80%, rgba(0,0,0,0.45) 0%, transparent 60%);
+}
+.slide-popout {
+  position: absolute;
+  /* Bottom-right corner, with a comfortable inset so the chrome
+     edge of the popout stays visually anchored. Dimensions are
+     a fraction of the slide-screen so it scales with orientation. */
+  right: 4%;
+  bottom: 8%;
+  width: 38%;
+  aspect-ratio: 540 / 320;
+  max-width: 460px;
+  min-width: 180px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(8, 10, 20, 0.55);
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(154, 130, 255, 0.45),
+    0 0 28px rgba(124, 92, 255, 0.35);
+  isolation: isolate;
+  animation: popoutBreathe 5s var(--ld-ease-out) infinite alternate;
+}
+.slide-popout::before {
+  /* Subtle brand stripe so the popout reads as an "Aquilo" overlay. */
+  content: "";
+  position: absolute;
+  top: 0; left: 12px; right: 12px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, transparent, var(--ld-accent), var(--ld-cyan), transparent);
+  z-index: 3;
+}
+.slide-popout iframe.demo-frame {
+  position: absolute;
+  top: 0; left: 0;
+}
+@keyframes popoutBreathe {
+  0%   { box-shadow: 0 18px 44px rgba(0,0,0,0.55), 0 0 0 1px rgba(154,130,255,0.35), 0 0 18px rgba(124,92,255,0.25); }
+  100% { box-shadow: 0 18px 44px rgba(0,0,0,0.55), 0 0 0 1px rgba(154,130,255,0.55), 0 0 36px rgba(124,92,255,0.4); }
+}
+.slide-game-chip {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(8, 10, 20, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: var(--ld-text-soft);
+  z-index: 2;
+}
+.slide-game-dot {
+  width: 8px; height: 8px;
+  border-radius: 999px;
+  background: var(--ld-win);
+  box-shadow: 0 0 8px var(--ld-win);
+  animation: livePulse 1.6s ease-in-out infinite;
+}
+@keyframes livePulse {
+  0%, 100% { opacity: 0.6; }
+  50%      { opacity: 1;   }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Slide: Patron wall + perks + Patreon CTA
+   ════════════════════════════════════════════════════════════════ */
+.slide-screen--patron {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 18px;
+  padding: 22px 24px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(124, 92, 255, 0.18) 0%, transparent 60%),
+    radial-gradient(100% 70% at 100% 100%, rgba(110, 224, 192, 0.1) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(22, 25, 41, 0.92) 0%, rgba(12, 13, 22, 0.94) 100%);
+}
+
+.patron-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(124, 92, 255, 0.1) 0%, rgba(124, 92, 255, 0) 50%),
+    rgba(8, 10, 20, 0.5);
+  border: 1px solid rgba(154, 130, 255, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  isolation: isolate;
+}
+.patron-card-head { display: flex; flex-direction: column; gap: 4px; }
+.patron-eyebrow {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2.8px;
+  color: var(--ld-accent-2);
+}
+.patron-price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.patron-price-amt {
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: -1.5px;
+  line-height: 1;
+  background: var(--ld-grad-brand);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.patron-price-int {
+  font-size: 14px;
+  color: var(--ld-muted);
+  font-weight: 600;
+}
+.patron-desc {
+  font-size: 13px;
+  color: var(--ld-muted);
+  line-height: 1.45;
+}
+
+.patron-perks {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ld-text-soft);
+  line-height: 1.45;
+}
+.patron-perks li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.perk-chk {
+  flex: 0 0 auto;
+  width: 18px; height: 18px;
+  border-radius: 999px;
+  background: rgba(91, 255, 149, 0.16);
+  border: 1px solid rgba(91, 255, 149, 0.4);
+  color: var(--ld-win);
+  font-size: 11px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  margin-top: 1px;
+}
+
+.patron-cta {
+  margin-top: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--ld-accent) 0%, var(--ld-accent-3) 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  box-shadow:
+    0 12px 28px rgba(124, 92, 255, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  position: relative;
+  overflow: hidden;
+}
+.patron-cta::after {
+  /* Slow shine sweep. */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.4) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: ctaShine 4s ease-in-out infinite;
+}
+@keyframes ctaShine {
+  0%   { transform: translateX(-120%); }
+  60%  { transform: translateX(120%);  }
+  100% { transform: translateX(120%);  }
+}
+.patron-cta-arrow {
+  font-size: 18px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+/* Patron wall: rounded surface with the live patron grid. */
+.patron-wall {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: rgba(8, 10, 20, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+  min-height: 0;
+}
+.patron-wall-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.patron-wall-label {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  color: var(--ld-muted);
+}
+.patron-wall-count {
+  font-family: var(--ld-mono);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--ld-cyan);
+  text-shadow: 0 0 10px rgba(110, 224, 192, 0.45);
+}
+.patron-wall-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-content: flex-start;
+  overflow: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.patron-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(154, 130, 255, 0.18) 0%, rgba(154, 130, 255, 0.08) 100%);
+  border: 1px solid rgba(154, 130, 255, 0.3);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ld-text);
+  letter-spacing: 0.1px;
+  animation: pillIn 480ms var(--ld-ease-spring) both;
+}
+@keyframes pillIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+.patron-pill--loading {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: var(--ld-dim);
+  animation: none;
+}
+.patron-pill .patron-pill-dot {
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--ld-grad-brand);
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -647,6 +949,33 @@ body[data-orientation="vertical"] .reel-tag-host {
 }
 body[data-orientation="vertical"] .slide-blurb {
   font-size: clamp(15px, 1.6vmin, 18px);
+}
+
+/* Vertical: stack the patron card and wall into one column so the
+   perks stay readable instead of squeezing to a sliver. */
+body[data-orientation="vertical"] .slide-screen--patron {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, auto) minmax(0, 1fr);
+  padding: 28px 32px;
+  gap: 22px;
+}
+body[data-orientation="vertical"] .patron-price-amt { font-size: 56px; }
+body[data-orientation="vertical"] .patron-perks { font-size: 16px; }
+body[data-orientation="vertical"] .patron-cta { font-size: 17px; padding: 14px 22px; }
+body[data-orientation="vertical"] .patron-pill { font-size: 14px; padding: 8px 14px; }
+body[data-orientation="vertical"] .patron-wall-count { font-size: 15px; }
+
+/* Vertical: popout grows a touch since the slide-screen is taller
+   and a tiny popout would get lost against the gameplay. */
+body[data-orientation="vertical"] .slide-popout {
+  width: 48%;
+  max-width: 520px;
+  right: 5%;
+  bottom: 6%;
+}
+body[data-orientation="vertical"] .slide-game-chip {
+  font-size: 14px;
+  padding: 8px 14px;
 }
 
 /* prefers-reduced-motion: drop the long ambient loops, keep slide
