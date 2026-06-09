@@ -74,18 +74,46 @@
 
     <!-- ── Header column ──────────────────────────────────────── -->
     <header class="header">
-      <!-- aquilo.gg wordmark + bolt. SVG so it stays crisp at any
-           OBS source size; falls back to the PNG if the SVG fails
-           to load (CEF/CSP edge case). -->
+      <!-- aquilo.gg brand: inline bird mark + gradient wordmark.
+           Matches the site Nav (src/components/Nav.tsx on aquilo-site),
+           so the overlay's hero brand reads as the same identity a
+           viewer sees on aquilo.gg. Inline SVG so it stays crisp at
+           any OBS source size and never depends on a network image. -->
       <div class="brand-logo" id="brand">
         <div class="brand-logo-glow" aria-hidden="true"></div>
-        <img
-          src="https://aquilo.gg/aquilo-logo.svg"
-          onerror="this.onerror=null;this.src='https://aquilo.gg/aquilo-logo.png'"
-          alt="aquilo.gg"
-          class="brand-logo-img"
-          loading="eager"
-          decoding="async">
+        <svg class="brand-mark" viewBox="0 0 1024 1024" aria-hidden="true">
+          <defs>
+            <linearGradient id="ss-bird-g" x1="240" y1="220" x2="800" y2="840" gradientUnits="userSpaceOnUse">
+              <stop offset="0"    stop-color="#a98fff"/>
+              <stop offset="0.45" stop-color="#7c5cff"/>
+              <stop offset="0.8"  stop-color="#6ee0c0"/>
+              <stop offset="1"    stop-color="#5bff95"/>
+            </linearGradient>
+            <radialGradient id="ss-bird-bg" cx="0.5" cy="0.38" r="0.9">
+              <stop offset="0"    stop-color="#1e2236"/>
+              <stop offset="0.55" stop-color="#11131c"/>
+              <stop offset="1"    stop-color="#080910"/>
+            </radialGradient>
+            <radialGradient id="ss-bird-glow" cx="0.5" cy="0.5" r="0.5">
+              <stop offset="0"    stop-color="#7c5cff" stop-opacity="0.6"/>
+              <stop offset="0.62" stop-color="#7c5cff" stop-opacity="0.15"/>
+              <stop offset="1"    stop-color="#7c5cff" stop-opacity="0"/>
+            </radialGradient>
+            <linearGradient id="ss-bird-ring" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#9a82ff"/>
+              <stop offset="1" stop-color="#5bff95"/>
+            </linearGradient>
+          </defs>
+          <rect x="6" y="6" width="1012" height="1012" rx="238" fill="url(#ss-bird-bg)"/>
+          <circle cx="512" cy="512" r="332" fill="url(#ss-bird-glow)"/>
+          <path d="M512 408 C 538 480 542 612 512 786 C 482 612 486 480 512 408 Z" fill="url(#ss-bird-g)"/>
+          <path d="M505 452 C 410 408 290 366 180 318 C 268 432 372 492 498 520 Z" fill="url(#ss-bird-g)"/>
+          <path d="M519 452 C 614 408 734 366 844 318 C 756 432 652 492 526 520 Z" fill="url(#ss-bird-g)"/>
+          <rect x="6" y="6" width="1012" height="1012" rx="238" fill="none" stroke="url(#ss-bird-ring)" stroke-width="5" opacity="0.55"/>
+        </svg>
+        <span class="brand-word">
+          <span class="brand-word-name">aquilo</span><span class="brand-word-tld">.gg</span>
+        </span>
       </div>
 
       <h1 class="headline" id="headline">

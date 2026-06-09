@@ -284,44 +284,80 @@ html, body {
   flex: 0 0 auto;
 }
 
-/* Brand logo. The actual aquilo.gg wordmark sits above the headline.
-   It's a chunky 3D pixel-art design with its own outline + green
-   gradient, so the surrounding chrome is intentionally restrained:
-   a soft drop-shadow for depth, a subtle radial glow behind it that
-   matches the rest of the scene's aurora, and a slow float. The
-   logo already carries the brand identity — no need to add stroke or
-   halo treatments that compete with it. */
+/* Brand logo. Matches the aquilo.gg site Nav: inline rounded-square
+   bird mark on the left, gradient "aquilo.gg" wordmark on the right.
+   Sits above STARTING SOON, gently floats, and has a soft aurora
+   glow tied into the rest of the scene's background language. */
 .brand-logo {
   position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 16px;
   isolation: isolate;
   animation: brandFloat 6s var(--ld-ease-out) infinite alternate;
   will-change: transform;
 }
-.brand-logo-img {
+.brand-mark {
   display: block;
-  /* Sized so the logo reads at a glance but never crowds the
-     headline. Aspect ratio is roughly 2.13:1 (1340x630), so at
-     280px wide it lands around 132px tall. */
-  width: clamp(220px, 26vmin, 340px);
-  height: auto;
-  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.6));
+  /* Sized to read clearly without crowding the headline. The mark
+     is square (1024x1024 viewBox) so width === height. */
+  width:  clamp(64px, 9vmin, 110px);
+  height: clamp(64px, 9vmin, 110px);
   position: relative;
   z-index: 1;
+  filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.55));
+}
+.brand-word {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: baseline;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  font-size: clamp(28px, 4vmin, 52px);
+  filter: drop-shadow(0 4px 12px rgba(124, 92, 255, 0.35));
+}
+.brand-word-name {
+  /* Animated brand gradient — same 4-stop violet → pink → green →
+     violet sweep that .gradient-text uses on aquilo.gg, panning over
+     8s. background-clip:text means the gradient only shows through
+     the glyph shapes (no bleed past the text). */
+  background: linear-gradient(
+    120deg,
+    #7c5cff 0%,
+    #ff5daa 35%,
+    #5bff95 70%,
+    #7c5cff 100%
+  );
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: brandGradientPan 8s ease-in-out infinite;
+  will-change: background-position;
+}
+@keyframes brandGradientPan {
+  0%, 100% { background-position: 0%   50%; }
+  50%      { background-position: 100% 50%; }
+}
+.brand-word-tld {
+  color: rgba(203, 213, 225, 0.85);
+  margin-left: 1px;
 }
 .brand-logo-glow {
-  /* Soft aurora wash directly behind the logo. Kept low-contrast so
-     it doesn't fight the logo's own gradient — just hints at depth. */
+  /* Soft purple-to-teal wash behind the brand — ties the brand into
+     the scene's aurora language without competing with the mark. */
   position: absolute;
-  inset: -15% -5%;
+  inset: -25% -15%;
   border-radius: 50%;
   background:
-    radial-gradient(60% 50% at 50% 55%,
-      rgba(91, 255, 149, 0.18) 0%,
-      rgba(110, 224, 192, 0.12) 40%,
-      transparent 75%);
+    radial-gradient(55% 55% at 35% 50%,
+      rgba(124, 92, 255, 0.32) 0%,
+      rgba(110, 224, 192, 0.16) 45%,
+      transparent 78%);
   filter: blur(28px);
   z-index: 0;
   animation: logoGlow 6s ease-in-out infinite alternate;
