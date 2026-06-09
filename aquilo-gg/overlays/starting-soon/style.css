@@ -217,86 +217,65 @@ html, body {
   flex: 0 0 auto;
 }
 
-/* Brand pill. Animated gradient stroke (a 1px conic-gradient border
-   that gently rotates) gives a "live" feel without flashing. */
-.brand-pill {
+/* Brand logo. The actual aquilo.gg wordmark sits above the headline.
+   It's a chunky 3D pixel-art design with its own outline + green
+   gradient, so the surrounding chrome is intentionally restrained:
+   a soft drop-shadow for depth, a subtle radial glow behind it that
+   matches the rest of the scene's aurora, and a slow float. The
+   logo already carries the brand identity — no need to add stroke or
+   halo treatments that compete with it. */
+.brand-logo {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 22px;
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 50%),
-    rgba(10, 11, 22, 0.7);
-  box-shadow:
-    0 12px 30px rgba(0,0,0,0.45),
-    inset 0 1px 0 rgba(255,255,255,0.06);
+  justify-content: center;
   isolation: isolate;
   animation: brandFloat 6s var(--ld-ease-out) infinite alternate;
   will-change: transform;
 }
-.brand-pill::before {
-  /* The pill's actual border. A 1px transparent edge sits OVER the
-     stroke layer so the stroke shows only on the rim. */
-  content: '';
-  position: absolute; inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06));
-  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
-          mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-  pointer-events: none;
+.brand-logo-img {
+  display: block;
+  /* Sized so the logo reads at a glance but never crowds the
+     headline. Aspect ratio is roughly 2.13:1 (1340x630), so at
+     280px wide it lands around 132px tall. */
+  width: clamp(220px, 26vmin, 340px);
+  height: auto;
+  filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.6));
+  position: relative;
+  z-index: 1;
 }
-.brand-stroke {
-  /* Slowly rotating conic gradient that brightens the rim on its
-     pass-through. Sits behind the pill content (z below) and is
-     clipped by the pill's overflow: hidden via the ::after mask. */
-  position: absolute; inset: -1px;
-  border-radius: inherit;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0%,
-    rgba(154, 130, 255, 0.7) 18%,
-    rgba(110, 224, 192, 0.7) 30%,
-    transparent 45%,
-    transparent 100%);
-  -webkit-mask:
-    linear-gradient(#000 0 0) padding-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-  padding: 1px;
-  opacity: 0.85;
-  animation: brandRim 7s linear infinite;
-  will-change: transform;
+.brand-logo-glow {
+  /* Soft aurora wash directly behind the logo. Kept low-contrast so
+     it doesn't fight the logo's own gradient — just hints at depth. */
+  position: absolute;
+  inset: -15% -5%;
+  border-radius: 50%;
+  background:
+    radial-gradient(60% 50% at 50% 55%,
+      rgba(91, 255, 149, 0.18) 0%,
+      rgba(110, 224, 192, 0.12) 40%,
+      transparent 75%);
+  filter: blur(28px);
+  z-index: 0;
+  animation: logoGlow 6s ease-in-out infinite alternate;
+  will-change: opacity, transform;
 }
-@keyframes brandRim { to { transform: rotate(360deg); } }
+@keyframes logoGlow {
+  0%   { opacity: 0.7; transform: scale(1);    }
+  100% { opacity: 1;   transform: scale(1.06); }
+}
 @keyframes brandFloat {
   0%   { transform: translateY(0); }
   100% { transform: translateY(-5px); }
 }
-.brand-bolt { display: inline-flex; filter: drop-shadow(0 0 10px rgba(154,130,255,0.7)); position: relative; z-index: 1; }
-.brand-word {
-  position: relative; z-index: 1;
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: 4px;
-  text-transform: lowercase;
-  background: var(--ld-grad-brand);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-}
-.brand-dot { color: #5bff95; -webkit-text-fill-color: #5bff95; }
 
-/* Headline. Gradient-text letters with a long shimmer sweep; the
-   whole word breathes (scale 1 -> 1.006) every 7s for life. The
-   shimmer animation is on the inner overlay element so the
-   gradient text never repaints — only the shimmer transforms. */
+/* Headline. Gradient-text letters with a bright band that sweeps
+   THROUGH the glyph shapes (not the headline rectangle). The trick:
+   one big linear-gradient on each letter span with a bright stop in
+   the middle, background-size 240% wide, background-position animated
+   from 100% -> -50%. background-clip:text means the shine only ever
+   appears inside letter outlines — never bleeds past the text into
+   the surrounding area. */
 .headline {
   position: relative;
   font-weight: 900;
@@ -316,39 +295,34 @@ html, body {
   100% { transform: scale(1.008); }
 }
 .headline-text { display: inline-block; }
-/* Per-letter gradient. Keeping the gradient on each span (not the
-   H1) avoids the background-clip-on-parent inheritance trap. */
 .headline-text > span {
   display: inline-block;
-  background: linear-gradient(180deg, #ffffff 0%, #d8dce6 70%, #b8becd 100%);
+  background: linear-gradient(110deg,
+    #ffffff 0%,
+    #d8dce6 38%,
+    #ffffff 45%,
+    #6ee0c0 50%,
+    #ffffff 55%,
+    #d8dce6 62%,
+    #b8becd 100%);
+  background-size: 240% 100%;
+  background-position: 100% 0;
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
+  animation: headlineShine 5.5s ease-in-out infinite;
+  will-change: background-position;
+}
+@keyframes headlineShine {
+  0%   { background-position: 100% 0; }
+  55%  { background-position: -60% 0; }
+  100% { background-position: -60% 0; }
 }
 .headline-gap {
   width: 0.45em;
   background: none !important;
-}
-.headline-shimmer {
-  position: absolute; inset: 0;
-  pointer-events: none;
-  background: linear-gradient(110deg,
-    transparent 35%,
-    rgba(255,255,255,0.35) 47%,
-    rgba(110,224,192,0.55) 50%,
-    rgba(255,255,255,0.35) 53%,
-    transparent 65%);
-  mix-blend-mode: overlay;
-  opacity: 0.85;
-  transform: translateX(-120%);
-  animation: shimmerSweep 6s ease-in-out infinite;
-  will-change: transform;
-}
-@keyframes shimmerSweep {
-  0%   { transform: translateX(-120%); }
-  65%  { transform: translateX(120%);  }
-  100% { transform: translateX(120%);  }
+  animation: none !important;
 }
 
 .kicker {
@@ -507,29 +481,39 @@ html, body {
 .reel[data-active='streamkey']    .slide[data-slide='streamkey'],
 .reel[data-active='streamfusion'] .slide[data-slide='streamfusion'],
 .reel[data-active='rotation']     .slide[data-slide='rotation'],
+.reel[data-active='loadout']      .slide[data-slide='loadout'],
 .reel[data-active='patron']       .slide[data-slide='patron'] {
   opacity: 1;
   transform: scale(1) translateY(0);
 }
 
-/* macOS-style window chrome. Dots + product title + URL. */
+/* Slide chrome. A subtle browser-frame look without the macOS
+   traffic-light dots — title on the left, optional inline pill
+   (used by the rotation preset indicator), URL on the right. */
 .slide-chrome {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 4px 8px;
+  gap: 10px;
+  padding: 4px 6px 10px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
-.dot { width: 11px; height: 11px; border-radius: 999px; box-shadow: 0 0 8px rgba(0,0,0,0.4); }
-.dot-r { background: #ff5f56; }
-.dot-y { background: #ffbd2e; }
-.dot-g { background: #27c93f; }
 .chrome-title {
-  margin-left: 12px;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.4px;
   color: var(--ld-text-soft);
+}
+.chrome-pill {
+  font-family: var(--ld-mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ld-cyan);
+  background: rgba(110, 224, 192, 0.1);
+  border: 1px solid rgba(110, 224, 192, 0.3);
+  border-radius: 999px;
+  padding: 2px 10px;
+  letter-spacing: 0.2px;
+  transition: background 320ms var(--ld-ease-out), color 320ms var(--ld-ease-out);
 }
 .chrome-url {
   margin-left: auto;
@@ -600,6 +584,7 @@ html, body {
 .reel[data-active='streamkey']    .reel-dot[data-target='streamkey'],
 .reel[data-active='streamfusion'] .reel-dot[data-target='streamfusion'],
 .reel[data-active='rotation']     .reel-dot[data-target='rotation'],
+.reel[data-active='loadout']      .reel-dot[data-target='loadout'],
 .reel[data-active='patron']       .reel-dot[data-target='patron'] {
   width: 28px;
   background: var(--ld-grad-brand);
@@ -907,6 +892,97 @@ html, body {
 }
 
 /* ════════════════════════════════════════════════════════════════
+   Slide: Loadout, the Streamer.bot comparison
+   ════════════════════════════════════════════════════════════════
+   Two screenshots side by side with a brand-gradient arrow between
+   them. The "before" gets a desaturated treatment so the "after"
+   pops; the after image gets a subtle brand glow. Both images are
+   constrained with object-fit: contain so they always sit centred
+   inside their figure without cropping. */
+.slide-screen--compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 18px;
+  padding: 22px 24px;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(124, 92, 255, 0.16) 0%, transparent 60%),
+    radial-gradient(100% 70% at 100% 100%, rgba(110, 224, 192, 0.14) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(22, 25, 41, 0.92) 0%, rgba(12, 13, 22, 0.94) 100%);
+}
+.compare-side {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  min-height: 0;
+  height: 100%;
+  background: rgba(8, 10, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  isolation: isolate;
+}
+.compare-side--before {
+  /* Slight desaturation so the "after" pops more. */
+  filter: saturate(0.7) brightness(0.85);
+}
+.compare-side--after {
+  border-color: rgba(154, 130, 255, 0.45);
+  box-shadow:
+    0 16px 36px rgba(0, 0, 0, 0.5),
+    0 0 28px rgba(124, 92, 255, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  animation: compareAfterBreathe 5s var(--ld-ease-out) infinite alternate;
+  will-change: box-shadow;
+}
+@keyframes compareAfterBreathe {
+  0%   { box-shadow: 0 16px 36px rgba(0,0,0,0.5), 0 0 20px rgba(124,92,255,0.22), inset 0 1px 0 rgba(255,255,255,0.07); }
+  100% { box-shadow: 0 16px 36px rgba(0,0,0,0.5), 0 0 38px rgba(124,92,255,0.42), inset 0 1px 0 rgba(255,255,255,0.10); }
+}
+.compare-tag {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--ld-muted);
+}
+.compare-tag--after {
+  background: rgba(154, 130, 255, 0.18);
+  border-color: rgba(154, 130, 255, 0.4);
+  color: var(--ld-accent-2);
+}
+.compare-shot {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100% - 36px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.6);
+}
+/* Arrow column. SVG with the brand gradient, gently pulsing. */
+.compare-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 0 14px rgba(110, 224, 192, 0.5));
+  animation: compareArrowPulse 2.4s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+@keyframes compareArrowPulse {
+  0%, 100% { transform: translateX(0)   scale(1);    opacity: 0.85; }
+  50%      { transform: translateX(6px) scale(1.06); opacity: 1;    }
+}
+
+/* ════════════════════════════════════════════════════════════════
    Orientation: vertical (1080x1920)
    ════════════════════════════════════════════════════════════════ */
 
@@ -976,6 +1052,21 @@ body[data-orientation="vertical"] .slide-popout {
 body[data-orientation="vertical"] .slide-game-chip {
   font-size: 14px;
   padding: 8px 14px;
+}
+
+/* Vertical: stack the Loadout comparison into a column (Streamer.bot
+   above, arrow rotated downward, Loadout below). Two huge side-by-
+   side images would each get squeezed to a sliver on portrait. */
+body[data-orientation="vertical"] .slide-screen--compare {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto minmax(0, 1fr);
+  padding: 22px;
+}
+body[data-orientation="vertical"] .compare-arrow {
+  transform: rotate(90deg);
+}
+body[data-orientation="vertical"] .compare-tag {
+  font-size: 11px;
 }
 
 /* prefers-reduced-motion: drop the long ambient loops, keep slide

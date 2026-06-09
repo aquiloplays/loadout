@@ -71,31 +71,27 @@
 
     <!-- ── Header column ──────────────────────────────────────── -->
     <header class="header">
-      <div class="brand-pill" id="brand">
-        <span class="brand-stroke" aria-hidden="true"></span>
-        <span class="brand-bolt" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="22" height="22">
-            <defs>
-              <linearGradient id="boltGrad" x1="0" x2="1" y1="0" y2="1">
-                <stop offset="0"   stop-color="#9a82ff"/>
-                <stop offset=".55" stop-color="#6ee0c0"/>
-                <stop offset="1"   stop-color="#5bff95"/>
-              </linearGradient>
-            </defs>
-            <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="url(#boltGrad)"/>
-          </svg>
-        </span>
-        <span class="brand-word">aquilo<span class="brand-dot">.</span>gg</span>
+      <!-- aquilo.gg wordmark + bolt. SVG so it stays crisp at any
+           OBS source size; falls back to the PNG if the SVG fails
+           to load (CEF/CSP edge case). -->
+      <div class="brand-logo" id="brand">
+        <div class="brand-logo-glow" aria-hidden="true"></div>
+        <img
+          src="https://aquilo.gg/aquilo-logo.svg"
+          onerror="this.onerror=null;this.src='https://aquilo.gg/aquilo-logo.png'"
+          alt="aquilo.gg"
+          class="brand-logo-img"
+          loading="eager"
+          decoding="async">
       </div>
 
       <h1 class="headline" id="headline">
-        <span class="headline-shimmer" aria-hidden="true"></span>
         <span class="headline-text" id="headline-text">
           <span>S</span><span>T</span><span>A</span><span>R</span><span>T</span><span>I</span><span>N</span><span>G</span><span class="headline-gap"> </span><span>S</span><span>O</span><span>O</span><span>N</span>
         </span>
       </h1>
 
-      <p class="kicker" id="kicker">loading tonight's stream&hellip;</p>
+      <p class="kicker" id="kicker">Get free streaming tools at aquilo.gg, join our community!</p>
 
       <div class="tonight" id="tonight" hidden>
         <span class="tonight-eyebrow">TONIGHT</span>
@@ -115,7 +111,6 @@
         <!-- Slide: TikTok Stream Key Pusher ────────────────── -->
         <article class="slide" data-slide="streamkey">
           <div class="slide-chrome">
-            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
             <span class="chrome-title">TikTok Stream Key Pusher</span>
             <span class="chrome-url">aquilo.gg/dock/streamkey</span>
           </div>
@@ -135,7 +130,6 @@
         <!-- Slide: StreamFusion OBS Chat Dock ──────────────── -->
         <article class="slide" data-slide="streamfusion">
           <div class="slide-chrome">
-            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
             <span class="chrome-title">StreamFusion (OBS)</span>
             <span class="chrome-url">aquilo.gg/dock/streamfusion-chat</span>
           </div>
@@ -152,16 +146,21 @@
           </div>
         </article>
 
-        <!-- Slide: Rotation pop-out overlay over SLS2 video ── -->
-        <!-- The slide-screen plays a Slay the Spire 2 gameplay
-             loop full-bleed; the rotation widget iframe is
-             positioned as a small popout in the bottom-right
-             so viewers see what the overlay looks like in
-             practice while a streamer plays. -->
+        <!-- Slide: Rotation pop-out overlay over SLS2 video ──
+             The slide-screen plays a Slay the Spire 2 gameplay
+             loop full-bleed. The rotation widget pops out in the
+             bottom-right, sub-cycling through its layout variants
+             (rich card + queue + lyrics → minimal pill → vertical)
+             every few seconds so viewers see the breadth of the
+             widget without leaving the slide.
+
+             The popout iframe's src is filled in by main.js so
+             we can sub-cycle and respect ?spotifySync= for live
+             Spotify data. -->
         <article class="slide slide--composed" data-slide="rotation">
           <div class="slide-chrome">
-            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
             <span class="chrome-title">Rotation, OBS pop-out overlay</span>
+            <span class="chrome-pill" id="rotation-preset-pill">layout: square</span>
             <span class="chrome-url">aquilo.gg/rotation</span>
           </div>
           <div class="slide-screen slide-screen--bgvideo">
@@ -170,9 +169,8 @@
               autoplay loop muted playsinline preload="auto"
               aria-hidden="true"></video>
             <div class="slide-video-tint" aria-hidden="true"></div>
-            <div class="slide-popout" data-fixed-w="540" data-fixed-h="320">
-              <iframe class="demo-frame"
-                data-src="https://widget.aquilo.gg/rotation/widget?preview=1&amp;preset=square&amp;queue=1&amp;lyrics=1"
+            <div class="slide-popout" id="rotation-popout" data-fixed-w="540" data-fixed-h="320">
+              <iframe class="demo-frame" id="rotation-iframe"
                 title="Rotation Spotify widget"
                 loading="eager"
                 style="color-scheme: dark; background: transparent;"
@@ -188,10 +186,48 @@
           </div>
         </article>
 
+        <!-- Slide: Loadout, Streamer.bot upgrade comparison ── -->
+        <article class="slide slide--compare" data-slide="loadout">
+          <div class="slide-chrome">
+            <span class="chrome-title">Loadout, the complete Streamer.bot suite</span>
+            <span class="chrome-url">aquilo.gg/loadout</span>
+          </div>
+          <div class="slide-screen slide-screen--compare">
+            <figure class="compare-side compare-side--before">
+              <span class="compare-tag compare-tag--before">YOUR STREAMER.BOT TODAY</span>
+              <img class="compare-shot"
+                src="https://aquilo.gg/images/loadout-sb/og-image.png"
+                alt="Streamer.bot dashboard"
+                loading="eager" decoding="async">
+            </figure>
+            <div class="compare-arrow" aria-hidden="true">
+              <svg viewBox="0 0 64 24" width="64" height="24">
+                <defs>
+                  <linearGradient id="cmpArrow" x1="0" x2="1" y1="0" y2="0">
+                    <stop offset="0"  stop-color="#9a82ff"/>
+                    <stop offset=".55" stop-color="#6ee0c0"/>
+                    <stop offset="1"  stop-color="#5bff95"/>
+                  </linearGradient>
+                </defs>
+                <path d="M2 12 H54 M44 4 L60 12 L44 20" fill="none" stroke="url(#cmpArrow)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <figure class="compare-side compare-side--after">
+              <span class="compare-tag compare-tag--after">WITH LOADOUT</span>
+              <img class="compare-shot"
+                src="https://aquilo.gg/images/loadout/hero.png"
+                alt="Loadout, the complete Streamer.bot suite"
+                loading="eager" decoding="async">
+            </figure>
+          </div>
+          <div class="slide-blurb">
+            <strong>Turn your Streamer.bot into Loadout.</strong> 24 modules, every overlay, one import. Configures Streamer.bot for you.
+          </div>
+        </article>
+
         <!-- Slide: Patron wall + perks + Patreon CTA ──────── -->
         <article class="slide slide--patron" data-slide="patron">
           <div class="slide-chrome">
-            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
             <span class="chrome-title">Become a Patron</span>
             <span class="chrome-url">join.aquilo.gg</span>
           </div>
@@ -243,6 +279,7 @@
         <button class="reel-dot" data-target="streamkey"    aria-label="TikTok stream key pusher"></button>
         <button class="reel-dot" data-target="streamfusion" aria-label="StreamFusion"></button>
         <button class="reel-dot" data-target="rotation"     aria-label="Rotation"></button>
+        <button class="reel-dot" data-target="loadout"      aria-label="Loadout vs Streamer.bot"></button>
         <button class="reel-dot" data-target="patron"       aria-label="Become a Patron"></button>
       </div>
     </section>

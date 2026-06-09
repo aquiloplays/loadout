@@ -57,16 +57,24 @@
   }
 
   // ── Kicker / tonight chip ───────────────────────────────────
+  // Kicker copy is FIXED (per stream brief): "Get free streaming
+  // tools at aquilo.gg, join our community!" The schedule-derived
+  // show name only populates the Tonight chip below; we don't
+  // touch the kicker on schedule resolution anymore.
+  const KICKER_DEFAULT = 'Get free streaming tools at aquilo.gg, join our community!';
   const kickerEl       = $('kicker');
   const tonightEl      = $('tonight');
   const tonightLabelEl = $('tonight-label');
-  function setKicker(text) { if (kickerEl) kickerEl.textContent = text; }
+  function setKicker(text) { if (kickerEl) kickerEl.textContent = text || KICKER_DEFAULT; }
   function setTonight(label) {
     if (!tonightLabelEl || !tonightEl) return;
     if (!label) { tonightEl.hidden = true; return; }
     tonightLabelEl.textContent = label;
     tonightEl.hidden = false;
   }
+  // Ensure the default kicker shows on first paint (covers the
+  // case where loadSchedule's fallback path isn't taken).
+  setKicker(KICKER_DEFAULT);
 
   // ── Schedule fetch ──────────────────────────────────────────
   const skipSchedule  = params.get('schedule') === '0';
@@ -84,7 +92,6 @@
       const data = await res.json();
       const next = data && data.nextStream;
       const label = manualSubtitle || (next && next.label) || '';
-      setKicker('tonight on aquilo.gg');
       if (label) setTonight(label);
     } catch (err) {
       console.warn('[starting-soon] schedule fetch failed:', err);
@@ -92,15 +99,8 @@
     }
   }
   function applyManualOrDefault() {
-    if (manualSubtitle) {
-      setKicker('tonight on aquilo.gg');
-      setTonight(manualSubtitle);
-    } else if (demo) {
-      setKicker('tonight on aquilo.gg');
-      setTonight('Featured Run');
-    } else {
-      setKicker('loadout up, stream starts shortly');
-    }
+    if (manualSubtitle) setTonight(manualSubtitle);
+    else if (demo)      setTonight('Featured Run');
   }
   loadSchedule();
 
@@ -141,20 +141,85 @@
   // ════════════════════════════════════════════════════════════
 
   const reel = $('reel');
-  const slidesParam = (params.get('slides') || 'streamkey,streamfusion,rotation,patron')
+  const slidesParam = (params.get('slides') || 'streamkey,streamfusion,rotation,loadout,patron')
     .split(',').map(s => s.trim()).filter(Boolean);
 
   // Per-slide dwell. Streamkey + SF show form/chat UIs that read
-  // quickly; rotation gets longer so the SLS2 video has time to
-  // breathe; patron is long enough to read all five perks.
+  // quickly; rotation gets the longest so its popout can sub-cycle
+  // through two layout variants while the SLS2 video plays; loadout
+  // gets a calm read for the before/after comparison; patron leaves
+  // time to scan all five perks.
   const DWELL = {
     streamkey:     9000,
     streamfusion: 10000,
-    rotation:     12000,
+    rotation:     14000,
+    loadout:      11000,
     patron:       12000,
   };
   const order = slidesParam.filter(id => DWELL.hasOwnProperty(id));
   if (order.length === 0) order.push('streamkey');
+
+  // ── Rotation widget URL + preset sub-cycle ──────────────────
+  // The rotation widget reads ?sync=<key> to bind to a streamer's
+  // own config + Spotify tokens. Clay's sync key is private (it
+  // would let anyone tail his rotation), so the starting-soon
+  // overlay accepts it as ?spotifySync= on its OWN URL and forwards
+  // it here. With no sync key we fall back to ?preview=1 (mocked
+  // playback that still looks polished). The popout sub-cycles
+  // between layout variants every few seconds during the rotation
+  // slide so viewers see the widget's range, not just one look.
+  const spotifySync = params.get('spotifySync') || params.get('sync') || '';
+  function rotationUrl(variantQs) {
+    const base = 'https://widget.aquilo.gg/rotation/widget';
+    const qs = spotifySync
+      ? ('sync=' + encodeURIComponent(spotifySync) + '&' + variantQs)
+      : ('preview=1&' + variantQs);
+    return base + '?' + qs;
+  }
+  // Visible layout variants. Each one is a distinct look:
+  //   square    rich card with queue + lyrics
+  //   minimal   stripped card, just the now-playing track
+  //   compact   queue-only horizontal sliver
+  // The widget interprets ?queue= and ?lyrics= as feature toggles
+  // (in preview/demo contexts), and the data-fixed-w/h on the
+  // popout determines the iframe's design surface so the layout
+  // reads at the intended aspect.
+  const ROTATION_VARIANTS = [
+    { id: 'square',  label: 'layout: square',  qs: 'queue=1&lyrics=1', fw: 540, fh: 320 },
+    { id: 'minimal', label: 'layout: minimal', qs: 'queue=0&lyrics=0', fw: 480, fh: 240 },
+    { id: 'compact', label: 'layout: compact', qs: 'queue=1&lyrics=0', fw: 640, fh: 200 },
+  ];
+  const ROTATION_SUB_MS = 5000;
+  const rotationIframe   = $('rotation-iframe');
+  const rotationPopout   = $('rotation-popout');
+  const rotationPresetEl = $('rotation-preset-pill');
+  let rotationSubIdx = 0;
+  let rotationSubTimer = null;
+  function applyRotationVariant(idx) {
+    const v = ROTATION_VARIANTS[idx % ROTATION_VARIANTS.length];
+    if (!v || !rotationIframe || !rotationPopout) return;
+    rotationPopout.setAttribute('data-fixed-w', String(v.fw));
+    rotationPopout.setAttribute('data-fixed-h', String(v.fh));
+    const newSrc = rotationUrl(v.qs);
+    // Only reload the iframe if the URL actually changed — keeps
+    // the first variant from re-mounting on every active-slide swap.
+    if (rotationIframe.src !== newSrc) rotationIframe.src = newSrc;
+    if (rotationPresetEl) rotationPresetEl.textContent = v.label;
+    // Re-fit because data-fixed-w/h changed.
+    fitOne(rotationPopout);
+  }
+  function startRotationSub() {
+    clearInterval(rotationSubTimer);
+    applyRotationVariant(rotationSubIdx);
+    rotationSubTimer = setInterval(() => {
+      rotationSubIdx = (rotationSubIdx + 1) % ROTATION_VARIANTS.length;
+      applyRotationVariant(rotationSubIdx);
+    }, ROTATION_SUB_MS);
+  }
+  function stopRotationSub() {
+    clearInterval(rotationSubTimer);
+    rotationSubTimer = null;
+  }
 
   // Preload every iframe at boot. data-src -> src so each slide is
   // already animating by the time its turn comes up — no "first
@@ -186,25 +251,26 @@
   // and data-fixed-h with the iframe's natural design size; we
   // scale via transform so the iframe always fits its box without
   // a horizontal/vertical scrollbar.
+  function fitOne(el) {
+    if (!el) return;
+    const fw = parseInt(el.getAttribute('data-fixed-w'), 10) || 0;
+    const fh = parseInt(el.getAttribute('data-fixed-h'), 10) || 0;
+    const iframe = el.querySelector('iframe.demo-frame');
+    if (!fw || !fh || !iframe) return;
+    iframe.style.width  = fw + 'px';
+    iframe.style.height = fh + 'px';
+    iframe.style.transformOrigin = '0 0';
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) return;
+    const s = Math.min(r.width / fw, r.height / fh);
+    iframe.style.left = (r.width  / 2 - (fw * s) / 2) + 'px';
+    iframe.style.top  = (r.height / 2 - (fh * s) / 2) + 'px';
+    iframe.style.transform = `scale(${s.toFixed(4)})`;
+  }
   function fitFrames() {
     document.querySelectorAll('[data-fixed-w][data-fixed-h]').forEach(el => {
-      const fw = parseInt(el.getAttribute('data-fixed-w'), 10) || 0;
-      const fh = parseInt(el.getAttribute('data-fixed-h'), 10) || 0;
-      const iframe = el.querySelector('iframe.demo-frame');
-      if (!fw || !fh || !iframe) return;
-      iframe.style.width  = fw + 'px';
-      iframe.style.height = fh + 'px';
-      iframe.style.transformOrigin = '0 0';
-      const fit = () => {
-        const r = el.getBoundingClientRect();
-        if (r.width <= 0 || r.height <= 0) return;
-        const s = Math.min(r.width / fw, r.height / fh);
-        iframe.style.left = (r.width  / 2 - (fw * s) / 2) + 'px';
-        iframe.style.top  = (r.height / 2 - (fh * s) / 2) + 'px';
-        iframe.style.transform = `scale(${s.toFixed(4)})`;
-      };
-      fit();
-      new ResizeObserver(fit).observe(el);
+      fitOne(el);
+      new ResizeObserver(() => fitOne(el)).observe(el);
     });
   }
 
@@ -272,6 +338,8 @@
   let advanceTimer = null;
   function setActive(id) {
     reel.setAttribute('data-active', id);
+    if (id === 'rotation') startRotationSub();
+    else                   stopRotationSub();
   }
   function advance() {
     activeIdx = (activeIdx + 1) % order.length;
@@ -300,6 +368,10 @@
 
   // Kick the reel.
   preloadFrames();
+  // Initialise the rotation popout with its first variant BEFORE
+  // fitFrames runs so the iframe already has a src + the popout
+  // has correct data-fixed-w/h to scale against.
+  applyRotationVariant(0);
   fitFrames();
   loadPatrons();
   setActive(order[0]);
