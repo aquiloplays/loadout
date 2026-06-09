@@ -1,29 +1,29 @@
 /*
  * aquilo.gg — Starting Soon overlay.
  *
- * Responsibilities:
- *   - Orientation switch. ?orientation=vertical|horizontal overrides;
- *     otherwise auto-detect from the viewport (portrait → vertical).
- *   - Headline / kicker / countdown / tonight chip population.
- *   - Schedule fetch from aquilo.gg/api/schedule (uses `nextStream`
- *     for label + startsAt; no auth, public endpoint). Falls back to
- *     ?countdownTo= + ?subtitle= if the fetch errors.
- *   - Drifting bolt particle injection.
- *   - Marquee track build + doubling (so the scroll never seams).
+ * Responsibilities (no countdown, no marquee — premium polish pass):
+ *   - Orientation switch. ?orientation= overrides; otherwise the
+ *     viewport's aspect ratio decides.
+ *   - Headline letter rendering (so an overridden title still gets
+ *     the per-letter gradient + wave-free shimmer).
+ *   - Demo reel: preload every iframe at boot, scale each fixed-
+ *     design iframe to fit its slide screen, cycle slides on a
+ *     per-slide DWELL clock with a clean cross-fade.
+ *   - Drifting bolt particles with depth (smaller = slower = blurrier).
+ *   - Tonight chip fed from aquilo.gg/api/schedule (`nextStream.label`).
  *   - Optional Aquilo Bus live config swap, compatible with the
- *     existing lobby.config kind so a streamer can reuse their
- *     existing Streamer.bot publish action.
+ *     lobby overlay's `lobby.config` event kind.
  *
- * No external libraries; CEF on Windows is the deployment target so
- * we stay vanilla and small.
+ * Vanilla JS only — runs inside OBS's CEF without a build step,
+ * same convention as every other overlay in this folder.
  */
 (() => {
+  'use strict';
+
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(location.search);
 
   // ── Orientation ──────────────────────────────────────────────
-  // Param wins; otherwise: ?vertical=1, then aspect-ratio detect.
-  // OBS sizes the canvas before paint, so window.inner* is reliable.
   const orientParam = (params.get('orientation') || '').toLowerCase();
   let orientation = 'horizontal';
   if (orientParam === 'vertical' || orientParam === 'portrait') {
@@ -37,35 +37,22 @@
   }
   document.body.setAttribute('data-orientation', orientation);
 
-  // ── Headline ─────────────────────────────────────────────────
-  // Per-letter wave staggers via --i so the animation reads as a
-  // wave even when the title has been overridden to something other
-  // than "STARTING SOON".
+  // ── Headline render ─────────────────────────────────────────
   const headlineText = $('headline-text');
   const customTitle = params.get('title');
   if (customTitle) renderHeadline(customTitle.toUpperCase());
-  else staggerExistingLetters();
 
   function renderHeadline(text) {
     headlineText.innerHTML = '';
-    let i = 0;
     for (const ch of text) {
       const span = document.createElement('span');
       if (ch === ' ') {
         span.className = 'headline-gap';
-        span.textContent = ' ';
+        span.textContent = ' ';
       } else {
         span.textContent = ch;
-        span.style.setProperty('--i', String(i++));
       }
       headlineText.appendChild(span);
-    }
-  }
-  function staggerExistingLetters() {
-    let i = 0;
-    for (const span of headlineText.children) {
-      if (span.classList.contains('headline-gap')) continue;
-      span.style.setProperty('--i', String(i++));
     }
   }
 
@@ -73,10 +60,7 @@
   const kickerEl       = $('kicker');
   const tonightEl      = $('tonight');
   const tonightLabelEl = $('tonight-label');
-  function setKicker(text) {
-    if (!kickerEl) return;
-    kickerEl.textContent = text;
-  }
+  function setKicker(text) { if (kickerEl) kickerEl.textContent = text; }
   function setTonight(label) {
     if (!tonightLabelEl || !tonightEl) return;
     if (!label) { tonightEl.hidden = true; return; }
@@ -84,44 +68,13 @@
     tonightEl.hidden = false;
   }
 
-  // ── Countdown ───────────────────────────────────────────────
-  const cdEl    = $('countdown');
-  const cdHourEl = $('cd-h');
-  const cdMinEl  = $('cd-m');
-  const cdSecEl  = $('cd-s');
-  let countdownTarget = null;
-
-  function setCountdown(target) {
-    countdownTarget = Number.isFinite(target) ? target : null;
-    if (cdEl) cdEl.hidden = countdownTarget === null;
-    tickCountdown();
-  }
-  function tickCountdown() {
-    if (countdownTarget === null) return;
-    const remaining = Math.max(0, countdownTarget - Date.now());
-    const total = Math.floor(remaining / 1000);
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    const s = total % 60;
-    if (cdHourEl) cdHourEl.textContent = String(h).padStart(2, '0');
-    if (cdMinEl)  cdMinEl.textContent  = String(m).padStart(2, '0');
-    if (cdSecEl)  cdSecEl.textContent  = String(s).padStart(2, '0');
-  }
-  setInterval(tickCountdown, 250);
-
   // ── Schedule fetch ──────────────────────────────────────────
-  // The widget runs from widget.aquilo.gg, so api.aquilo.gg is a
-  // cross-origin fetch — CORS is enabled on the worker public API.
-  const skipSchedule = params.get('schedule') === '0';
-  const demo = params.get('demo') === '1';
-  const manualCountdownTo = params.get('countdownTo');
-  const manualSubtitle    = params.get('subtitle');
+  const skipSchedule  = params.get('schedule') === '0';
+  const demo          = params.get('demo') === '1';
+  const manualSubtitle = params.get('subtitle');
 
   async function loadSchedule() {
-    if (skipSchedule) {
-      applyManualOrDefault();
-      return;
-    }
+    if (skipSchedule) { applyManualOrDefault(); return; }
     try {
       const res = await fetch('https://aquilo.gg/api/schedule', {
         cache: 'no-store',
@@ -130,30 +83,15 @@
       if (!res.ok) throw new Error('schedule ' + res.status);
       const data = await res.json();
       const next = data && data.nextStream;
-      if (!next || typeof next.startsAt !== 'number') {
-        applyManualOrDefault();
-        return;
-      }
-      const target = manualCountdownTo
-        ? Date.parse(manualCountdownTo)
-        : next.startsAt;
-      setCountdown(Number.isFinite(target) ? target : next.startsAt);
-      const label = manualSubtitle || next.label || '';
-      setKicker(label ? 'tonight on aquilo.gg' : 'starting up the loadout');
-      setTonight(label);
+      const label = manualSubtitle || (next && next.label) || '';
+      setKicker('tonight on aquilo.gg');
+      if (label) setTonight(label);
     } catch (err) {
       console.warn('[starting-soon] schedule fetch failed:', err);
       applyManualOrDefault();
     }
   }
   function applyManualOrDefault() {
-    if (manualCountdownTo) {
-      const t = Date.parse(manualCountdownTo);
-      if (Number.isFinite(t)) setCountdown(t);
-    } else if (demo) {
-      // 7-minute fake countdown for local previews.
-      setCountdown(Date.now() + 7 * 60 * 1000);
-    }
     if (manualSubtitle) {
       setKicker('tonight on aquilo.gg');
       setTonight(manualSubtitle);
@@ -167,84 +105,148 @@
   loadSchedule();
 
   // ── Drifting bolts ──────────────────────────────────────────
-  // Fewer on vertical (narrower viewport) so they don't crowd. JS
-  // builds them once at load; per-bolt CSS vars handle variety.
+  // Reduced from earlier passes; depth-of-field via per-bolt
+  // size/blur/alpha so the field feels layered, not noisy.
   const boltsHost = $('bolts');
-  const BOLT_COUNT = orientation === 'vertical' ? 14 : 22;
+  const BOLT_COUNT = orientation === 'vertical' ? 8 : 12;
   for (let i = 0; i < BOLT_COUNT; i++) {
     const b = document.createElement('span');
     b.className = 'bolt';
-    const size  = 18 + Math.random() * 36;        // 18–54px
-    const dur   = 11 + Math.random() * 9;         // 11–20s
-    const delay = -Math.random() * dur;           // start mid-cycle
-    const x     = Math.random() * 100;            // %
-    const rot   = -20 + Math.random() * 40;       // -20…+20deg
-    const alpha = 0.35 + Math.random() * 0.45;    // 0.35–0.8
+    // 18-58 px range, biased smaller for depth.
+    const depth = Math.pow(Math.random(), 1.4);          // 0..1, weighted small
+    const size  = 18 + depth * 40;
+    // Smaller (farther) bolts: longer dur, softer, dimmer.
+    const dur   = 22 - depth * 9;                        // 13-22s
+    const delay = -Math.random() * dur;                  // start mid-cycle
+    const x     = Math.random() * 100;                   // %
+    const drift = (Math.random() * 80) - 40;             // -40..+40px lateral wander
+    const rot   = -18 + Math.random() * 36;              // -18..+18deg
+    const alpha = 0.25 + depth * 0.45;                   // 0.25-0.7
+    const glow  = 6 + depth * 16;                        // 6-22px drop-shadow
+    const soft  = (1 - depth) * 1.6;                     // 0-1.6px blur on far bolts
     b.style.setProperty('--size',  size + 'px');
     b.style.setProperty('--dur',   dur + 's');
     b.style.setProperty('--delay', delay + 's');
     b.style.setProperty('--x',     x + '%');
+    b.style.setProperty('--drift', drift + 'px');
     b.style.setProperty('--rot',   rot + 'deg');
     b.style.setProperty('--alpha', String(alpha));
+    b.style.setProperty('--glow',  glow + 'px');
+    b.style.setProperty('--soft',  soft.toFixed(2) + 'px');
     boltsHost.appendChild(b);
   }
 
-  // ── Marquee ─────────────────────────────────────────────────
-  // The track is doubled (...items, ...items) and translated -50%
-  // so the loop seam is invisible. Streamers can override via
-  // ?marquee=A,B,C — empty entries are dropped.
-  const marqueeTrack = $('marquee-track');
-  const customMarquee = (params.get('marquee') || '')
-    .split(',').map(s => s.trim()).filter(Boolean);
-  const defaultMarquee = [
-    'aquilo.gg',
-    '!ready to mark yourself in the crew',
-    'subs = 5 push-ups',
-    '!sr from T2/T3 subs',
-    '!tip $10 = 25 push-ups',
-    'TikTok 1k+ hits the supporter board',
-    'cheers 100+ count too',
-    'follow / sub for the next loadout',
-    'aquilo.gg/loadout, OBS overlays + economy',
-    'aquilo.gg/streamfusion, one window for all your chats',
-    'aquilo.gg/rotation, Spotify on stream',
-  ];
-  const items = customMarquee.length ? customMarquee : defaultMarquee;
+  // ════════════════════════════════════════════════════════════
+  // Demo reel
+  // ════════════════════════════════════════════════════════════
 
-  function renderMarqueeItem(text) {
-    // Treat "key: rest" as a kbd-styled chip + label.
-    const wrap = document.createElement('span');
-    wrap.className = 'marquee-item';
-    const dot = document.createElement('span');
-    dot.className = 'marquee-dot';
-    wrap.appendChild(dot);
-    const colonIdx = text.indexOf(':');
-    if (colonIdx > 0 && colonIdx < 24) {
-      const key = document.createElement('span');
-      key.className = 'marquee-key';
-      key.textContent = text.slice(0, colonIdx).trim();
-      const rest = document.createElement('span');
-      rest.textContent = text.slice(colonIdx + 1).trim();
-      wrap.appendChild(key);
-      wrap.appendChild(rest);
-    } else {
-      const span = document.createElement('span');
-      span.textContent = text;
-      wrap.appendChild(span);
-    }
-    return wrap;
+  const reel = $('reel');
+  const slidesParam = (params.get('slides') || 'sf,loadout,rotation')
+    .split(',').map(s => s.trim()).filter(Boolean);
+
+  // Per-slide dwell. SF gets the longest because chat needs a beat
+  // to scroll; rotation reads fast.
+  const DWELL = {
+    sf:       12000,
+    loadout:  10000,
+    rotation:  9000,
+  };
+  const order = slidesParam.filter(id => DWELL.hasOwnProperty(id));
+  if (order.length === 0) order.push('sf');
+
+  // Preload every iframe at boot. data-src -> src so each slide is
+  // already animating by the time its turn comes up — no "first
+  // frame blank" tax. Same-origin iframes also get a small style
+  // injection to hide their own dev/debug badges; cross-origin
+  // throws on access, which we swallow (StreamFusion + rotation
+  // widget don't surface dev badges anyway).
+  function preloadFrames() {
+    document.querySelectorAll('iframe.demo-frame[data-src]').forEach(f => {
+      const src = f.getAttribute('data-src');
+      if (src && !f.src) f.src = src;
+      f.addEventListener('load', () => {
+        try {
+          const doc = f.contentDocument;
+          if (!doc) return;
+          const style = doc.createElement('style');
+          style.textContent = '.dev-status,#devStatus,.dev{display:none!important}';
+          doc.head.appendChild(style);
+        } catch {
+          // cross-origin frame, expected
+        }
+      }, { once: true });
+    });
   }
-  function buildMarquee() {
-    marqueeTrack.innerHTML = '';
-    // Double the items so the -50% scroll keyframe lands on a copy.
-    for (const t of items) marqueeTrack.appendChild(renderMarqueeItem(t));
-    for (const t of items) marqueeTrack.appendChild(renderMarqueeItem(t));
+
+  // Scale each iframe to fit its slide-screen container. The iframe
+  // renders at its fixed natural size (data-fixed-w x data-fixed-h)
+  // and is then `scale()`-transformed to fit. Recomputes when the
+  // container resizes (orientation flip, OBS resize).
+  function fitFrames() {
+    document.querySelectorAll('.slide-screen[data-fixed-w]').forEach(el => {
+      const fw = parseInt(el.getAttribute('data-fixed-w'), 10) || 0;
+      const fh = parseInt(el.getAttribute('data-fixed-h'), 10) || 0;
+      const iframe = el.querySelector('iframe.demo-frame');
+      if (!fw || !fh || !iframe) return;
+      iframe.style.width  = fw + 'px';
+      iframe.style.height = fh + 'px';
+      iframe.style.transformOrigin = '0 0';
+      const fit = () => {
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0 || r.height <= 0) return;
+        const s = Math.min(r.width / fw, r.height / fh);
+        iframe.style.left = (r.width  / 2 - (fw * s) / 2) + 'px';
+        iframe.style.top  = (r.height / 2 - (fh * s) / 2) + 'px';
+        iframe.style.transform = `scale(${s.toFixed(4)})`;
+      };
+      fit();
+      new ResizeObserver(fit).observe(el);
+    });
   }
-  buildMarquee();
+
+  // Rotation engine. Sets the [data-active] on the reel root; CSS
+  // attribute selectors swap which slide is visible. The dots
+  // morph their width via the same data-active.
+  let activeIdx = 0;
+  let advanceTimer = null;
+  function setActive(id) {
+    reel.setAttribute('data-active', id);
+  }
+  function advance() {
+    activeIdx = (activeIdx + 1) % order.length;
+    const next = order[activeIdx];
+    setActive(next);
+    schedule(DWELL[next] || 10000);
+  }
+  function schedule(ms) {
+    clearTimeout(advanceTimer);
+    advanceTimer = setTimeout(advance, ms);
+  }
+
+  // Click on a dot to jump and reset the dwell timer. Pointer
+  // events work in the preview; OBS browser sources are
+  // non-interactive by default, so this is purely a dev aid.
+  document.querySelectorAll('.reel-dot[data-target]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-target');
+      const idx = order.indexOf(target);
+      if (idx < 0) return;
+      activeIdx = idx;
+      setActive(target);
+      schedule(DWELL[target] || 10000);
+    });
+  });
+
+  // Kick the reel.
+  preloadFrames();
+  fitFrames();
+  setActive(order[0]);
+  schedule(DWELL[order[0]] || 10000);
 
   // ── Optional Aquilo Bus subscription ────────────────────────
-  // Reuses the existing `lobby.config` event kind from the lobby
-  // overlay so a streamer can drive both with one publisher.
+  // Reuses the existing `lobby.config` kind for live overrides
+  // (title, subtitle). countdownTo is ignored — there's no
+  // countdown in this overlay anymore.
   const busUrl = params.get('bus');
   const secret = params.get('secret') || '';
   if (busUrl) {
@@ -264,12 +266,8 @@
         let msg; try { msg = JSON.parse(e.data); } catch { return; }
         if (!msg || msg.kind !== 'lobby.config') return;
         const d = msg.data || {};
-        if (typeof d.title       === 'string' && d.title)       renderHeadline(d.title.toUpperCase());
-        if (typeof d.subtitle    === 'string')                  setTonight(d.subtitle);
-        if (typeof d.countdownTo === 'string' && d.countdownTo) {
-          const t = Date.parse(d.countdownTo);
-          if (Number.isFinite(t)) setCountdown(t);
-        }
+        if (typeof d.title    === 'string' && d.title)    renderHeadline(d.title.toUpperCase());
+        if (typeof d.subtitle === 'string')               setTonight(d.subtitle);
       };
       ws.onclose = () => {
         setTimeout(connect, backoff);

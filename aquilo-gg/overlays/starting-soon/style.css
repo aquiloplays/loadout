@@ -1,21 +1,25 @@
 /*
  * aquilo.gg — Starting Soon overlay.
  *
- * One stylesheet, two orientations. The body carries
- * `data-orientation="horizontal" | "vertical"`; layout knobs (column
- * gap, headline size, countdown size, marquee height) reflow on the
- * attribute. Everything else (colors, glass surfaces, animations) is
- * shared so the brand reads identically across both formats.
+ * Premium-polish pass. The brief was "as amazing and as smooth as
+ * possible," so the file is organised around two principles:
  *
- * Layered backdrop: deep radial → conic aurora → perspective grid →
- * drifting bolts → vignette. Each layer breathes on its own clock so
- * a viewer parked on the screen for 5 minutes never sees the same
- * frame twice but never sees a hard cut either.
+ *   (1) Layered depth, each band on its own slow clock so the
+ *       scene feels alive without any single element shouting.
+ *       Aurora drifts, grain breathes, bolts rise, headline
+ *       shimmers, reel slides spring-in. Nothing strobes.
  *
- * Brand language follows loadout-design.css (violet → cyan → green
- * gradient, glass-on-dark, Apple-style easing). Animations cap at
- * roughly 16s for the long ambient loops and well under 1.6s for
- * any per-element movement.
+ *   (2) GPU-friendly motion. Only `transform` and `opacity` are
+ *       animated; `will-change` is set only on actively moving
+ *       layers; `contain: paint/layout/style` isolates the heavy
+ *       layers so a paint in one doesn't invalidate another.
+ *       Backdrop-filter is used sparingly (each one is a new
+ *       stacking context and a real frame-time cost).
+ *
+ * Layout reflows between the two stream formats via
+ * `body[data-orientation="horizontal"|"vertical"]`. Brand language
+ * is identical across formats; the orientation override only
+ * adjusts proportions and the demo-reel size.
  */
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -31,82 +35,126 @@ html, body {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Backdrop stack
+   Backdrop stack (z-index 0..4). Stage is z-index 10+.
    ════════════════════════════════════════════════════════════════ */
 
-/* Deep base gradient. Sets the "night sky" tone the rest of the
-   layers sit on. */
+/* Deep base. Sets the night-sky tone. */
 .bg-deep {
   position: fixed; inset: 0; z-index: 0;
   background:
     radial-gradient(80% 60% at 50% 100%, #1a0e34 0%, transparent 70%),
     radial-gradient(60% 40% at 50% 0%,   #0d1632 0%, transparent 70%),
     linear-gradient(180deg, #060814 0%, #0a0b18 60%, #060814 100%);
+  contain: layout style paint;
 }
 
-/* Aurora. Three large blurred radial blobs, each on its own
-   animation clock so they drift through one another. Cheaper than
-   a rotating blurred conic-gradient (which pegs the GPU on 1920x1080
-   CEF). Each blob is a fixed-position element with `will-change:
-   transform` so it stays on its own compositor layer. */
+/* Aurora. Five large radial blobs, each on an independent drift
+   so the colour field never repeats. Each blob is `position:
+   absolute` with a single radial-gradient background and its own
+   animation — that lets the compositor keep them on independent
+   GPU layers instead of repainting one giant element. */
 .bg-aurora {
   position: fixed; inset: 0; z-index: 1;
   pointer-events: none;
-  background:
-    radial-gradient(40% 30% at 25% 35%, rgba(124, 92, 255, 0.55) 0%, transparent 70%),
-    radial-gradient(35% 30% at 70% 60%, rgba(110, 224, 192, 0.45) 0%, transparent 70%),
-    radial-gradient(35% 30% at 45% 80%, rgba(91, 255, 149, 0.4)  0%, transparent 70%),
-    radial-gradient(30% 25% at 85% 20%, rgba(154, 130, 255, 0.4) 0%, transparent 70%);
-  filter: blur(50px) saturate(135%);
-  opacity: 0.85;
+  filter: blur(60px) saturate(135%);
   mix-blend-mode: screen;
-  animation: auroraDrift 18s ease-in-out infinite alternate;
-  will-change: transform, opacity;
+  opacity: 0.92;
+  contain: layout style paint;
 }
-@keyframes auroraDrift {
-  0%   { transform: translate3d(-2%, -1%, 0) scale(1);    opacity: 0.75; }
-  50%  { transform: translate3d( 1%,  2%, 0) scale(1.06); opacity: 1;    }
-  100% { transform: translate3d( 2%, -1%, 0) scale(1.02); opacity: 0.85; }
+.aurora-blob {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform, opacity;
+  /* Each blob is sized in vmin so the same composition reads on
+     either orientation. */
+}
+.aurora-blob--a {
+  width: 70vmin; height: 70vmin;
+  top: -10%; left: -8%;
+  background: radial-gradient(circle, rgba(124, 92, 255, 0.7) 0%, transparent 65%);
+  animation: blobDrift 24s ease-in-out infinite alternate;
+}
+.aurora-blob--b {
+  width: 60vmin; height: 60vmin;
+  top: 30%; left: 55%;
+  background: radial-gradient(circle, rgba(110, 224, 192, 0.6) 0%, transparent 65%);
+  animation: blobDrift 28s ease-in-out -6s infinite alternate-reverse;
+}
+.aurora-blob--c {
+  width: 50vmin; height: 50vmin;
+  top: 60%; left: 8%;
+  background: radial-gradient(circle, rgba(91, 255, 149, 0.55) 0%, transparent 65%);
+  animation: blobDrift 22s ease-in-out -10s infinite alternate;
+}
+.aurora-blob--d {
+  width: 55vmin; height: 55vmin;
+  top: -5%; left: 60%;
+  background: radial-gradient(circle, rgba(154, 130, 255, 0.55) 0%, transparent 65%);
+  animation: blobDrift 30s ease-in-out -14s infinite alternate-reverse;
+}
+.aurora-blob--e {
+  /* Warm accent low-right, a touch of amber to break the all-cool
+     palette and add depth. Brand-adjacent (matches the dot-g window
+     dot below). */
+  width: 40vmin; height: 40vmin;
+  top: 70%; left: 70%;
+  background: radial-gradient(circle, rgba(255, 184, 108, 0.28) 0%, transparent 65%);
+  animation: blobDrift 26s ease-in-out -4s infinite alternate;
+}
+@keyframes blobDrift {
+  0%   { transform: translate3d( 0%,  0%, 0) scale(1);    opacity: 0.7; }
+  50%  { transform: translate3d( 6%, -4%, 0) scale(1.12); opacity: 1;   }
+  100% { transform: translate3d(-4%,  6%, 0) scale(0.96); opacity: 0.8; }
 }
 
-/* Perspective grid. Static lines plus a vertical sweep that runs once
-   every 9s — gives the impression of horizon depth without nausea. */
+/* Perspective grid. Static lines + a soft vertical sweep every 9s. */
 .bg-grid {
   position: fixed; inset: 0; z-index: 2;
   background-image:
-    linear-gradient(to right,  rgba(154, 130, 255, 0.07) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(154, 130, 255, 0.07) 1px, transparent 1px);
-  background-size: 64px 64px;
+    linear-gradient(to right,  rgba(154, 130, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(154, 130, 255, 0.06) 1px, transparent 1px);
+  background-size: 72px 72px;
   mask-image:
-    radial-gradient(circle at 50% 55%, rgba(0,0,0,1) 25%, rgba(0,0,0,0.4) 70%, transparent 100%);
+    radial-gradient(circle at 50% 55%, rgba(0,0,0,1) 30%, rgba(0,0,0,0.35) 70%, transparent 100%);
   -webkit-mask-image:
-    radial-gradient(circle at 50% 55%, rgba(0,0,0,1) 25%, rgba(0,0,0,0.4) 70%, transparent 100%);
-  opacity: 0.9;
+    radial-gradient(circle at 50% 55%, rgba(0,0,0,1) 30%, rgba(0,0,0,0.35) 70%, transparent 100%);
+  opacity: 0.85;
+  contain: layout style paint;
 }
 .bg-grid::after {
   content: "";
   position: absolute;
   left: 0; right: 0;
-  height: 32%;
-  background: linear-gradient(180deg,
-    transparent 0%,
-    rgba(124, 92, 255, 0.18) 50%,
-    transparent 100%);
+  height: 26%;
+  background: linear-gradient(180deg, transparent, rgba(124, 92, 255, 0.14), transparent);
   mix-blend-mode: screen;
   animation: gridSweep 9s var(--ld-ease-out) infinite;
-  pointer-events: none;
+  will-change: transform, opacity;
 }
 @keyframes gridSweep {
-  0%   { top: -32%; opacity: 0; }
+  0%   { transform: translateY(-130%); opacity: 0; }
   30%  { opacity: 1; }
   70%  { opacity: 1; }
-  100% { top: 100%; opacity: 0; }
+  100% { transform: translateY(420%);  opacity: 0; }
+}
+
+/* Film grain. SVG fractal noise baked as a data URI, faintly
+   visible across the whole scene — the trick that takes a clean
+   gradient render and makes it feel "shot through a lens." Kept
+   at low opacity so it's a texture, not a layer. */
+.bg-grain {
+  position: fixed; inset: 0; z-index: 3;
+  pointer-events: none;
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  background-size: 220px 220px;
 }
 
 /* Drifting bolts. JS injects N <span class="bolt"> elements with
-   per-element CSS vars for stagger. The bolt is an SVG mask so the
-   brand gradient bleeds through (cheaper than an inline SVG-per-bolt
-   and animates smoother on CEF). */
+   per-bolt CSS vars for size, depth, drift duration, x-position,
+   alpha. Smaller bolts move slower and blurrier — a depth-of-
+   field hint without truly rendering DOF. */
 .bg-bolts {
   position: fixed; inset: 0; z-index: 3;
   pointer-events: none;
@@ -121,35 +169,31 @@ html, body {
   background: linear-gradient(160deg, #9a82ff 0%, #6ee0c0 55%, #5bff95 100%);
   -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M13 2 4 14h6l-1 8 9-12h-6l1-8z' fill='black'/></svg>") center/contain no-repeat;
           mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M13 2 4 14h6l-1 8 9-12h-6l1-8z' fill='black'/></svg>") center/contain no-repeat;
-  filter: drop-shadow(0 0 12px rgba(154, 130, 255, 0.55));
+  filter: drop-shadow(0 0 var(--glow, 10px) rgba(154, 130, 255, 0.55))
+          blur(var(--soft, 0px));
   opacity: 0;
-  animation:
-    boltRise var(--dur, 14s) linear var(--delay, 0s) infinite,
-    boltWobble calc(var(--dur, 14s) * 0.5) ease-in-out var(--delay, 0s) infinite alternate;
+  will-change: transform, opacity;
+  animation: boltRise var(--dur, 18s) linear var(--delay, 0s) infinite;
 }
 @keyframes boltRise {
-  0%   { transform: translateY(0)     rotate(var(--rot, -8deg)); opacity: 0; }
-  10%  { opacity: var(--alpha, 0.7); }
-  90%  { opacity: var(--alpha, 0.7); }
-  100% { transform: translateY(-115vh) rotate(calc(var(--rot, -8deg) + 12deg)); opacity: 0; }
-}
-@keyframes boltWobble {
-  from { margin-left: -10px; }
-  to   { margin-left:  10px; }
+  0%   { transform: translate3d(0, 0,            0) rotate(var(--rot, -8deg)); opacity: 0; }
+  10%  { opacity: var(--alpha, 0.55); }
+  90%  { opacity: var(--alpha, 0.55); }
+  100% { transform: translate3d(var(--drift, 0px), -115vh, 0) rotate(calc(var(--rot, -8deg) + 14deg)); opacity: 0; }
 }
 
-/* Vignette + scanline tint. Pulls the edges down so the wordmark
-   stays anchored even on bright monitors. */
+/* Vignette. Pulls the corners down so the centre column stays
+   anchored even on bright monitors. */
 .bg-vignette {
   position: fixed; inset: 0; z-index: 4;
   pointer-events: none;
   background:
-    radial-gradient(70% 60% at 50% 55%, transparent 40%, rgba(0,0,0,0.6) 100%),
-    linear-gradient(180deg, rgba(0,0,0,0.2) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.35) 100%);
+    radial-gradient(72% 60% at 50% 50%, transparent 38%, rgba(0,0,0,0.55) 100%),
+    linear-gradient(180deg, rgba(0,0,0,0.22) 0%, transparent 28%, transparent 72%, rgba(0,0,0,0.35) 100%);
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Stage (shared)
+   Stage
    ════════════════════════════════════════════════════════════════ */
 
 .stage {
@@ -159,33 +203,84 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 6vmin 5vmin 11vmin;
+  padding: 4vmin 5vmin 4vmin;
+  gap: 3vmin;
 }
 
-/* ── Brand pill ──────────────────────────────────────────────── */
+/* ── Header column ───────────────────────────────────────────── */
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.6vmin;
+  text-align: center;
+  flex: 0 0 auto;
+}
+
+/* Brand pill. Animated gradient stroke (a 1px conic-gradient border
+   that gently rotates) gives a "live" feel without flashing. */
 .brand-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 12px;
   padding: 10px 22px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 999px;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 50%),
-    rgba(10, 11, 22, 0.65);
-  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
-  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
-  box-shadow: 0 12px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.05);
-  animation: brandFloat 5s var(--ld-ease-out) infinite alternate;
+    rgba(10, 11, 22, 0.7);
+  box-shadow:
+    0 12px 30px rgba(0,0,0,0.45),
+    inset 0 1px 0 rgba(255,255,255,0.06);
+  isolation: isolate;
+  animation: brandFloat 6s var(--ld-ease-out) infinite alternate;
+  will-change: transform;
 }
+.brand-pill::before {
+  /* The pill's actual border. A 1px transparent edge sits OVER the
+     stroke layer so the stroke shows only on the rim. */
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06));
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+          mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+}
+.brand-stroke {
+  /* Slowly rotating conic gradient that brightens the rim on its
+     pass-through. Sits behind the pill content (z below) and is
+     clipped by the pill's overflow: hidden via the ::after mask. */
+  position: absolute; inset: -1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    rgba(154, 130, 255, 0.7) 18%,
+    rgba(110, 224, 192, 0.7) 30%,
+    transparent 45%,
+    transparent 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  padding: 1px;
+  opacity: 0.85;
+  animation: brandRim 7s linear infinite;
+  will-change: transform;
+}
+@keyframes brandRim { to { transform: rotate(360deg); } }
 @keyframes brandFloat {
   0%   { transform: translateY(0); }
-  100% { transform: translateY(-6px); }
+  100% { transform: translateY(-5px); }
 }
-.brand-bolt { display: inline-flex; filter: drop-shadow(0 0 10px rgba(154,130,255,0.7)); }
+.brand-bolt { display: inline-flex; filter: drop-shadow(0 0 10px rgba(154,130,255,0.7)); position: relative; z-index: 1; }
 .brand-word {
+  position: relative; z-index: 1;
   font-size: 16px;
   font-weight: 800;
   letter-spacing: 4px;
@@ -198,217 +293,103 @@ html, body {
 }
 .brand-dot { color: #5bff95; -webkit-text-fill-color: #5bff95; }
 
-/* ── Headline ────────────────────────────────────────────────── */
+/* Headline. Gradient-text letters with a long shimmer sweep; the
+   whole word breathes (scale 1 -> 1.006) every 7s for life. The
+   shimmer animation is on the inner overlay element so the
+   gradient text never repaints — only the shimmer transforms. */
 .headline {
   position: relative;
-  margin-top: 5vmin;
   font-weight: 900;
   letter-spacing: -0.04em;
   line-height: 0.95;
   text-align: center;
   white-space: nowrap;
-  /* Big enough to dominate either orientation; sized in vmin so
-     it scales identically in both. */
-  font-size: clamp(64px, 12vmin, 200px);
+  font-size: clamp(64px, 10.5vmin, 180px);
   color: #ffffff;
   isolation: isolate;
-  /* The drop-shadow lands on the letters specifically (not their
-     bounding box) because the H1 itself has no background — only the
-     inner letter spans do. Using filter instead of text-shadow keeps
-     the gradient-text glow tight to glyph edges. */
-  filter: drop-shadow(0 6px 28px rgba(124, 92, 255, 0.35));
+  filter: drop-shadow(0 6px 28px rgba(124, 92, 255, 0.32));
+  animation: headlineBreathe 7s var(--ld-ease-out) infinite alternate;
+  will-change: transform;
+}
+@keyframes headlineBreathe {
+  0%   { transform: scale(1);     }
+  100% { transform: scale(1.008); }
 }
 .headline-text { display: inline-block; }
-/* Each letter carries the gradient + background-clip:text. Putting
-   it on the spans (rather than the H1) means inheritance to children
-   isn't an issue, and per-letter wave animation can transform the
-   gradient surface independently — letters never desync from their
-   fill. */
+/* Per-letter gradient. Keeping the gradient on each span (not the
+   H1) avoids the background-clip-on-parent inheritance trap. */
 .headline-text > span {
   display: inline-block;
-  background: linear-gradient(180deg, #ffffff 0%, #c5c9d4 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #d8dce6 70%, #b8becd 100%);
   background-clip: text;
   -webkit-background-clip: text;
   color: transparent;
   -webkit-text-fill-color: transparent;
-  animation: letterWave 3.6s var(--ld-ease-out) infinite;
-  animation-delay: calc(var(--i, 0) * 90ms);
 }
 .headline-gap {
   width: 0.45em;
-  animation: none !important;
   background: none !important;
 }
-@keyframes letterWave {
-  0%, 70%, 100% { transform: translateY(0); }
-  35%           { transform: translateY(-10px); }
-}
-/* Shimmer band sweeps across the headline once every 4s. */
 .headline-shimmer {
-  position: absolute;
-  inset: 0;
+  position: absolute; inset: 0;
   pointer-events: none;
   background: linear-gradient(110deg,
-    transparent 30%,
-    rgba(255,255,255,0.45) 45%,
-    rgba(110,224,192,0.65) 50%,
-    rgba(255,255,255,0.45) 55%,
-    transparent 70%);
+    transparent 35%,
+    rgba(255,255,255,0.35) 47%,
+    rgba(110,224,192,0.55) 50%,
+    rgba(255,255,255,0.35) 53%,
+    transparent 65%);
   mix-blend-mode: overlay;
   opacity: 0.85;
   transform: translateX(-120%);
-  animation: shimmerSweep 4.2s var(--ld-ease-out) infinite;
-  /* Clip the shimmer to the headline glyphs so it shines through
-     letters, not the surrounding rectangle. */
-  -webkit-mask: linear-gradient(#000, #000);
-          mask: linear-gradient(#000, #000);
+  animation: shimmerSweep 6s ease-in-out infinite;
+  will-change: transform;
 }
 @keyframes shimmerSweep {
   0%   { transform: translateX(-120%); }
-  60%  { transform: translateX(120%);  }
+  65%  { transform: translateX(120%);  }
   100% { transform: translateX(120%);  }
 }
 
-/* ── Kicker (subtitle / show name) ──────────────────────────── */
 .kicker {
-  margin-top: 2vmin;
-  font-size: clamp(16px, 2.2vmin, 28px);
+  font-size: clamp(16px, 2vmin, 26px);
   font-weight: 500;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.4px;
   color: var(--ld-muted);
-  max-width: 80vw;
   opacity: 0.95;
-  animation: kickerFade 2s var(--ld-ease-out) both;
-}
-@keyframes kickerFade {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 0.95; transform: translateY(0); }
 }
 
-/* ── Pulse rings behind the countdown ───────────────────────── */
-.rings {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 0; height: 0;
-  pointer-events: none;
-  z-index: -1;
-}
-.ring {
-  position: absolute;
-  top: 0; left: 0;
-  width: 0; height: 0;
-  border: 2px solid rgba(154, 130, 255, 0.45);
-  border-radius: 999px;
-  transform: translate(-50%, -50%);
-  animation: ringPulse 3.6s var(--ld-ease-out) infinite;
-}
-.ring:nth-child(2) { animation-delay: 1.2s; border-color: rgba(110, 224, 192, 0.45); }
-.ring:nth-child(3) { animation-delay: 2.4s; border-color: rgba(91, 255, 149, 0.45); }
-@keyframes ringPulse {
-  0%   { width: 100px; height: 100px; opacity: 0.7; }
-  100% { width: 900px; height: 900px; opacity: 0;   }
-}
-
-/* ── Countdown ───────────────────────────────────────────────── */
-.countdown {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-top: 6vmin;
-}
-.countdown[hidden] { display: none; }
-.cd-cell {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width:  clamp(96px,  13vmin, 180px);
-  height: clamp(96px,  13vmin, 180px);
-  border-radius: var(--ld-radius-lg);
-  background:
-    radial-gradient(120% 80% at 50% 0%, rgba(124, 92, 255, 0.18) 0%, transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 50%),
-    rgba(10, 11, 22, 0.7);
-  border: 1px solid rgba(255,255,255,0.10);
-  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
-  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
-  box-shadow:
-    0 20px 48px rgba(0,0,0,0.55),
-    inset 0 1px 0 rgba(255,255,255,0.07);
-  isolation: isolate;
-}
-.cd-cell::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 14px; right: 14px;
-  height: 2px;
-  border-radius: 0 0 2px 2px;
-  background: linear-gradient(90deg,
-    transparent 0%, var(--ld-accent) 25%, var(--ld-accent-2) 50%, var(--ld-accent) 75%, transparent 100%);
-  opacity: 0.9;
-}
-.cd-num {
-  font-family: var(--ld-mono);
-  font-size: clamp(48px, 8vmin, 96px);
-  font-weight: 800;
-  letter-spacing: -2px;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  background: linear-gradient(180deg, #ffffff 0%, #b0b5c2 100%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-}
-.cd-lbl {
-  margin-top: 8px;
-  font-size: clamp(9px, 1.1vmin, 12px);
-  font-weight: 800;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  color: var(--ld-muted);
-}
-.cd-sep {
-  font-size: clamp(40px, 7vmin, 84px);
-  font-weight: 800;
-  color: var(--ld-accent);
-  margin-top: -2vmin;
-  filter: drop-shadow(0 0 10px rgba(124, 92, 255, 0.7));
-  animation: cdSepPulse 1s ease-in-out infinite;
-}
-@keyframes cdSepPulse {
-  0%, 100% { opacity: 0.45; transform: scale(0.95); }
-  50%      { opacity: 1;    transform: scale(1.05); }
-}
-
-/* ── Tonight chip ────────────────────────────────────────────── */
+/* Tonight chip. Sits just below the kicker. Glass + brand-tinted
+   stroke + soft glow + slow breath. */
 .tonight {
-  margin-top: 6vmin;
   display: inline-flex;
   align-items: center;
-  gap: 14px;
-  padding: 12px 22px;
+  gap: 12px;
+  padding: 11px 22px;
   border-radius: 999px;
   background:
-    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 50%),
-    rgba(10, 11, 22, 0.65);
-  border: 1px solid rgba(154, 130, 255, 0.35);
-  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
-  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
-  box-shadow: 0 12px 32px rgba(0,0,0,0.45),
-              0 0 28px rgba(124, 92, 255, 0.25),
-              inset 0 1px 0 rgba(255,255,255,0.07);
-  animation: tonightIn 700ms var(--ld-ease-spring) both;
+    linear-gradient(180deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 50%),
+    rgba(10, 11, 22, 0.7);
+  border: 1px solid rgba(154, 130, 255, 0.4);
+  box-shadow:
+    0 14px 32px rgba(0,0,0,0.45),
+    0 0 24px rgba(124, 92, 255, 0.22),
+    inset 0 1px 0 rgba(255,255,255,0.07);
+  animation: tonightIn 700ms var(--ld-ease-spring) both,
+             tonightBreathe 6s var(--ld-ease-out) 700ms infinite alternate;
+  will-change: transform, box-shadow;
 }
 .tonight[hidden] { display: none; }
 @keyframes tonightIn {
-  from { opacity: 0; transform: translateY(10px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0)    scale(1);    }
+  from { opacity: 0; transform: translateY(8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)   scale(1);    }
+}
+@keyframes tonightBreathe {
+  0%   { box-shadow: 0 14px 32px rgba(0,0,0,0.45), 0 0 18px rgba(124,92,255,0.18), inset 0 1px 0 rgba(255,255,255,0.07); }
+  100% { box-shadow: 0 14px 32px rgba(0,0,0,0.45), 0 0 32px rgba(124,92,255,0.36), inset 0 1px 0 rgba(255,255,255,0.10); }
 }
 .tonight-eyebrow {
-  font-size: clamp(10px, 1.2vmin, 13px);
+  font-size: clamp(10px, 1.1vmin, 12px);
   font-weight: 900;
   letter-spacing: 3px;
   color: var(--ld-accent-2);
@@ -420,90 +401,225 @@ html, body {
   box-shadow: 0 0 12px rgba(110, 224, 192, 0.8);
 }
 .tonight-label {
-  font-size: clamp(14px, 1.8vmin, 22px);
+  font-size: clamp(14px, 1.7vmin, 22px);
   font-weight: 700;
   color: var(--ld-text);
   letter-spacing: 0.2px;
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Marquee
+   Demo reel
    ════════════════════════════════════════════════════════════════ */
-.marquee {
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  z-index: 20;
-  padding: 14px 0;
-  background:
-    linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.55) 60%);
-  overflow: hidden;
-  mask-image:        linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 6%, #000 94%, transparent 100%);
-}
-.marquee::before {
-  content: "";
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 1px;
-  background: linear-gradient(90deg, transparent 0%, var(--ld-accent-line) 50%, transparent 100%);
-}
-.marquee-track {
+
+.reel {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  max-width: min(1280px, 86vw);
   display: flex;
-  gap: 48px;
-  white-space: nowrap;
-  width: max-content;
-  animation: marqueeScroll 32s linear infinite;
-  will-change: transform;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  isolation: isolate;
 }
-@keyframes marqueeScroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-.marquee-item {
+
+/* "LIVE TOOL DEMO" tag floating above the reel chrome. Pure label,
+   not interactive. */
+.reel-tag {
+  align-self: center;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--ld-muted);
-  letter-spacing: 0.4px;
-}
-.marquee-item .marquee-key {
-  font-family: var(--ld-mono);
-  font-weight: 800;
-  color: var(--ld-text);
-  background: rgba(124, 92, 255, 0.18);
-  border: 1px solid var(--ld-accent-line);
-  padding: 2px 10px;
-  border-radius: 6px;
-}
-.marquee-item .marquee-dot {
-  width: 6px; height: 6px;
+  padding: 5px 14px;
   border-radius: 999px;
+  background: rgba(10, 11, 22, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+}
+.reel-tag-eyebrow {
   background: var(--ld-grad-brand);
-  opacity: 0.8;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+.reel-tag-host {
+  color: var(--ld-dim);
+  font-weight: 700;
+  letter-spacing: 1.8px;
+}
+
+/* The stage holds all slides stacked; only the active one is
+   opacity:1. Layout is absolute inside a flex-fit parent. */
+.reel-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border-radius: var(--ld-radius-lg);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.04) 0%, rgba(255,255,255,0) 35%),
+    rgba(8, 10, 20, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.55),
+    0 0 1px rgba(154, 130, 255, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  isolation: isolate;
+  contain: layout style paint;
+}
+/* Brand stripe at the top edge of the reel frame. */
+.reel-stage::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 18px; right: 18px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--ld-accent) 20%,
+    var(--ld-accent-2) 50%,
+    var(--ld-cyan) 80%,
+    transparent 100%);
+  opacity: 0.9;
+  z-index: 5;
+}
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 14px 18px 16px;
+  gap: 10px;
+  opacity: 0;
+  transform: scale(0.98) translateY(6px);
+  transition:
+    opacity 520ms var(--ld-ease-out),
+    transform 640ms var(--ld-ease-spring);
+  pointer-events: none;
+  will-change: opacity, transform;
+}
+.reel[data-active='sf']       .slide[data-slide='sf'],
+.reel[data-active='loadout']  .slide[data-slide='loadout'],
+.reel[data-active='rotation'] .slide[data-slide='rotation'] {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+
+/* macOS-style window chrome. Dots + product title + URL. */
+.slide-chrome {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.dot { width: 11px; height: 11px; border-radius: 999px; box-shadow: 0 0 8px rgba(0,0,0,0.4); }
+.dot-r { background: #ff5f56; }
+.dot-y { background: #ffbd2e; }
+.dot-g { background: #27c93f; }
+.chrome-title {
+  margin-left: 12px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--ld-text-soft);
+}
+.chrome-url {
+  margin-left: auto;
+  font-family: var(--ld-mono);
+  font-size: 12px;
+  color: var(--ld-dim);
+  padding: 4px 10px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 6px;
+  letter-spacing: 0.2px;
+}
+
+/* Slide screen. Holds the scaled iframe. */
+.slide-screen {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #050816;
+  /* Soft inner glow tinted to the brand. */
+  box-shadow:
+    inset 0 0 0 1px rgba(154, 130, 255, 0.18),
+    inset 0 0 30px rgba(124, 92, 255, 0.10);
+}
+.slide-screen iframe.demo-frame {
+  position: absolute;
+  top: 0; left: 0;
+  border: 0;
+  background: transparent;
+  /* width/height/transform are set from JS to scale the fixed
+     design surface to fit the slide screen. */
+}
+
+.slide-blurb {
+  text-align: center;
+  font-size: clamp(13px, 1.6vmin, 17px);
+  color: var(--ld-muted);
+  letter-spacing: 0.1px;
+}
+.slide-blurb strong {
+  color: var(--ld-text);
+  font-weight: 700;
+}
+
+/* Slide dots. Inactive = tiny circle; active = wide pill with
+   brand gradient. Morph is `transition: width` for a clean
+   shape-change feel. */
+.reel-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.reel-dot {
+  appearance: none;
+  width: 8px; height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  cursor: pointer;
+  transition: width 360ms var(--ld-ease-spring),
+              background 320ms var(--ld-ease-out),
+              box-shadow 320ms var(--ld-ease-out);
+  will-change: width;
+}
+.reel[data-active='sf']       .reel-dot[data-target='sf'],
+.reel[data-active='loadout']  .reel-dot[data-target='loadout'],
+.reel[data-active='rotation'] .reel-dot[data-target='rotation'] {
+  width: 28px;
+  background: var(--ld-grad-brand);
+  box-shadow: 0 0 12px rgba(110, 224, 192, 0.55);
 }
 
 /* ════════════════════════════════════════════════════════════════
    Orientation: vertical (1080x1920)
    ════════════════════════════════════════════════════════════════ */
+
 body[data-orientation="vertical"] .stage {
-  padding: 14vmin 6vmin 16vmin;
-  justify-content: flex-start;
-}
-body[data-orientation="vertical"] .brand-pill {
-  padding: 12px 26px;
+  padding: 8vmin 5vmin 6vmin;
+  gap: 5vmin;
 }
 body[data-orientation="vertical"] .brand-word {
   font-size: 18px;
   letter-spacing: 5px;
 }
 body[data-orientation="vertical"] .headline {
-  /* Stack the two words on vertical so each one gets the full width
-     without overflowing. JS adds a <br> via headline-gap, here the
-     gap collapses and the words wrap. */
-  margin-top: 14vmin;
-  font-size: clamp(72px, 16vmin, 200px);
+  /* Stack to two lines (STARTING / SOON) — wrap relies on the
+     headline-gap span becoming block. */
+  font-size: clamp(72px, 15vmin, 200px);
   white-space: normal;
   line-height: 0.9;
 }
@@ -513,51 +629,32 @@ body[data-orientation="vertical"] .headline-gap {
   height: 0;
 }
 body[data-orientation="vertical"] .kicker {
-  margin-top: 4vmin;
-  font-size: clamp(20px, 2.8vmin, 32px);
-}
-body[data-orientation="vertical"] .countdown {
-  margin-top: 10vmin;
-  gap: 10px;
-}
-body[data-orientation="vertical"] .cd-cell {
-  /* Phones are tall, so cells can afford to be chunky. */
-  width:  clamp(120px, 22vmin, 240px);
-  height: clamp(120px, 22vmin, 240px);
-}
-body[data-orientation="vertical"] .cd-num {
-  font-size: clamp(56px, 14vmin, 120px);
-}
-body[data-orientation="vertical"] .cd-sep {
-  font-size: clamp(48px, 12vmin, 100px);
+  font-size: clamp(20px, 2.6vmin, 32px);
 }
 body[data-orientation="vertical"] .tonight {
-  margin-top: 8vmin;
-  padding: 14px 24px;
+  padding: 13px 24px;
 }
 body[data-orientation="vertical"] .tonight-label {
-  font-size: clamp(18px, 2.4vmin, 28px);
+  font-size: clamp(18px, 2.2vmin, 28px);
 }
-body[data-orientation="vertical"] .marquee {
-  padding: 18px 0;
+body[data-orientation="vertical"] .reel {
+  max-width: 96vw;
 }
-body[data-orientation="vertical"] .marquee-item {
-  font-size: 22px;
+body[data-orientation="vertical"] .reel-tag-eyebrow,
+body[data-orientation="vertical"] .reel-tag-host {
+  font-size: 11px;
+  letter-spacing: 3px;
 }
-body[data-orientation="vertical"] .ring {
-  /* Rings get tighter on vertical so they don't bleed off the sides. */
-  animation-name: ringPulseVert;
-}
-@keyframes ringPulseVert {
-  0%   { width: 120px; height: 120px; opacity: 0.65; }
-  100% { width: 700px; height: 700px; opacity: 0;    }
+body[data-orientation="vertical"] .slide-blurb {
+  font-size: clamp(15px, 1.6vmin, 18px);
 }
 
-/* Respect prefers-reduced-motion for the long ambient loops. The
-   wordmark wave and countdown pulse stay because they're the visible
-   "is this still alive" signal; the big aurora rotation flattens. */
+/* prefers-reduced-motion: drop the long ambient loops, keep slide
+   transitions + headline shimmer because those are the signal
+   that the overlay is alive. */
 @media (prefers-reduced-motion: reduce) {
-  .bg-aurora, .bg-grid::after, .bolt, .ring, .headline-shimmer, .marquee-track {
+  .aurora-blob, .bg-grid::after, .bolt, .brand-stroke, .brand-pill, .headline {
     animation: none !important;
   }
+  .tonight { animation: tonightIn 700ms var(--ld-ease-spring) both !important; }
 }
