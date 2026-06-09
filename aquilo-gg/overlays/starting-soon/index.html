@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>aquilo.gg, Starting Soon</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  aquilo.gg "Starting Soon" stream scene.
+
+  ONE OBS browser source for both horizontal and vertical streams.
+  Layout swaps via the `orientation` query param (or auto-detect from
+  the viewport aspect ratio):
+
+    Horizontal (1920x1080)
+      https://widget.aquilo.gg/overlays/starting-soon/
+    Vertical (1080x1920, TikTok / YouTube Shorts)
+      https://widget.aquilo.gg/overlays/starting-soon/?orientation=vertical
+
+  Optional URL params:
+    title         big headline (default "STARTING SOON")
+    subtitle      kicker line under the headline (default schedule label)
+    countdownTo   ISO datetime to count down to. If absent, the overlay
+                  fetches the next stream from aquilo.gg/api/schedule.
+    schedule      "0" to skip the schedule fetch (manual title only).
+    marquee       comma-separated marquee items (overrides defaults).
+    bus           Aquilo Bus WebSocket URL. Optional, used for live
+                  config swaps via `lobby.config` (compatible with the
+                  existing lobby overlay's config kind).
+    secret        Aquilo Bus shared secret.
+    demo          1 to fake a countdown + show label when no schedule
+                  endpoint is reachable (for local previews).
+
+  The overlay is fully self-contained: aurora backdrop + drifting
+  bolts + animated wordmark + countdown + tonight card + scrolling
+  marquee. No iframes, no third-party fetches beyond the schedule
+  endpoint, so a flaky CDN can't blank the source.
+-->
+<link rel="stylesheet" href="../_shared/loadout-design.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-orientation="horizontal">
+
+  <!-- ════════════════════════════════════════════════════════════
+       Backdrop layers. Stacked z-order, each one paints a different
+       part of the depth: deep gradient, conic aurora, perspective
+       grid, drifting bolts, vignette.
+       ════════════════════════════════════════════════════════ -->
+  <div class="bg-deep"   aria-hidden="true"></div>
+  <div class="bg-aurora" aria-hidden="true"></div>
+  <div class="bg-grid"   aria-hidden="true"></div>
+  <div class="bg-bolts"  aria-hidden="true" id="bolts"></div>
+  <div class="bg-vignette" aria-hidden="true"></div>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Stage. Centered column that the layout reflows between
+       orientations. Brand → headline → countdown → tonight chip.
+       ════════════════════════════════════════════════════════ -->
+  <main class="stage" id="stage">
+
+    <div class="brand-pill" id="brand">
+      <span class="brand-bolt" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="22" height="22">
+          <defs>
+            <linearGradient id="boltGrad" x1="0" x2="1" y1="0" y2="1">
+              <stop offset="0"   stop-color="#9a82ff"/>
+              <stop offset=".55" stop-color="#6ee0c0"/>
+              <stop offset="1"   stop-color="#5bff95"/>
+            </linearGradient>
+          </defs>
+          <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="url(#boltGrad)"/>
+        </svg>
+      </span>
+      <span class="brand-word">aquilo<span class="brand-dot">.</span>gg</span>
+    </div>
+
+    <!-- Wordmark. Each letter is its own span so the wave animation
+         can stagger per-letter. JS leaves the text in place if a
+         streamer overrides via ?title=. -->
+    <h1 class="headline" id="headline" data-text="STARTING SOON">
+      <span class="headline-shimmer" aria-hidden="true"></span>
+      <span class="headline-text" id="headline-text">
+        <span>S</span><span>T</span><span>A</span><span>R</span><span>T</span><span>I</span><span>N</span><span>G</span><span class="headline-gap"> </span><span>S</span><span>O</span><span>O</span><span>N</span>
+      </span>
+    </h1>
+
+    <p class="kicker" id="kicker">loading tonight's stream&hellip;</p>
+
+    <!-- Pulse rings behind the countdown for some breathing motion. -->
+    <div class="rings" aria-hidden="true">
+      <span class="ring"></span>
+      <span class="ring"></span>
+      <span class="ring"></span>
+    </div>
+
+    <div class="countdown" id="countdown" hidden>
+      <div class="cd-cell"><span class="cd-num" id="cd-h">00</span><span class="cd-lbl">hours</span></div>
+      <span class="cd-sep">:</span>
+      <div class="cd-cell"><span class="cd-num" id="cd-m">00</span><span class="cd-lbl">min</span></div>
+      <span class="cd-sep">:</span>
+      <div class="cd-cell"><span class="cd-num" id="cd-s">00</span><span class="cd-lbl">sec</span></div>
+    </div>
+
+    <!-- Tonight's show card. Populated from /api/schedule, hidden
+         until the fetch resolves so we don't flash a placeholder. -->
+    <div class="tonight" id="tonight" hidden>
+      <span class="tonight-eyebrow">TONIGHT</span>
+      <span class="tonight-sep" aria-hidden="true"></span>
+      <span class="tonight-label" id="tonight-label">&nbsp;</span>
+    </div>
+
+  </main>
+
+  <!-- ════════════════════════════════════════════════════════════
+       Marquee. Bottom-anchored scroll strip with social handles,
+       chat commands, and perks. Two copies of the track so the
+       scroll never shows a seam.
+       ════════════════════════════════════════════════════════ -->
+  <footer class="marquee" id="marquee" aria-hidden="true">
+    <div class="marquee-track" id="marquee-track">
+      <!-- main.js populates this -->
+    </div>
+  </footer>
+
+  <script src="../_shared/theme.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
