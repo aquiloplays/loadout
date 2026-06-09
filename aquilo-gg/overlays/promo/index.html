@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout, Promo Cycle Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Loadout promo overlay. ONE OBS browser source that cycles through
+  aquilo.gg's product demos (StreamFusion, Loadout overlay gallery,
+  Rotation widget) plus a perks card listing on-stream rewards
+  (Sub = 5 Push-Ups, T2/T3 Sub = !sr, !tip = $10 = 25 Push-Ups).
+
+  A persistent supporter board strip at the bottom adds chips for
+  qualifying events (no big-takeover slide, printerbot handles the
+  hero shout-outs):
+    Subs (any tier) + resubs
+    Gifted subs (sender + count)
+    Cheers >= 100 bits
+    TikTok gifts >= 1000 coins
+    Tips (!tip)
+
+  A running push-up tally lives on the strip: +5 per sub, +2.5 per
+  tip dollar (so $10 = 25 push-ups). Persists across reloads via
+  localStorage; reset with ?resetTally=1 in the URL.
+
+  Drop into OBS (Browser Source) at 720x520:
+    https://aquilo.gg/overlays/promo/?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
+
+  Useful query params:
+    bus         WebSocket URL of the local Aquilo Bus
+    secret      Shared secret from %APPDATA%\Aquilo\bus-secret.txt
+    slides      comma list to include (default: hero,sf,loadout,rotation,perks)
+    demo        1 to synthesize events so the supporter board cycles
+                with no bus running (also auto-engages when no bus
+                connects within 10s)
+    width       canvas width in px (default 720)
+    height      canvas height in px (default 520)
+    resetTally  1 zeros the push-up tally on load
+-->
+<link rel="stylesheet" href="../_shared/loadout-design.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="root" class="promo" data-active="hero">
+
+    <!-- ════════════════════════════════════════════════════════════
+         Slide stage. Every slide is pre-rendered and stacked; the
+         active one fades in via [data-active]. Iframe slides preload
+         their content at boot so they're already animating by the
+         time they rotate in (no "first frame is blank" tax).
+         ════════════════════════════════════════════════════════ -->
+    <div class="stage" id="stage">
+
+      <!-- Slide 0: aquilo.gg hero. Pure HTML, no iframe. -->
+      <section class="slide slide-hero" data-slide="hero">
+        <div class="hero-aurora" aria-hidden="true"></div>
+        <div class="hero-content">
+          <div class="hero-mark">
+            <span class="hero-bolt" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="44" height="44"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="url(#bg)"/><defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#9a82ff"/><stop offset=".55" stop-color="#6ee0c0"/><stop offset="1" stop-color="#5bff95"/></linearGradient></defs></svg>
+            </span>
+            <span class="hero-word">aquilo<span class="hero-dot">.</span>gg</span>
+          </div>
+          <p class="hero-tag">Streamer tools, built for chat.</p>
+          <p class="hero-url">aquilo.gg</p>
+        </div>
+      </section>
+
+      <!-- Slide 1: StreamFusion live demo. -->
+      <section class="slide slide-frame" data-slide="sf">
+        <div class="frame-chrome">
+          <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+          <span class="frame-title">StreamFusion</span>
+          <span class="frame-url">aquilo.gg/streamfusion</span>
+        </div>
+        <div class="frame-stage" data-fixed-w="1240" data-fixed-h="760">
+          <iframe
+            class="demo-frame"
+            data-src="https://aquilo.gg/sf-demo/index.html"
+            title="StreamFusion live demo"
+            loading="eager"
+            style="color-scheme: dark;"></iframe>
+        </div>
+        <div class="frame-blurb">All your chats. One app. One window.</div>
+      </section>
+
+      <!-- Slide 2: Loadout. Sub-cycle of three OBS overlays running in
+           demo mode (the real overlays from this same repo). Sub-slide
+           rotates every 7s. -->
+      <section class="slide slide-loadout" data-slide="loadout">
+        <div class="frame-chrome">
+          <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+          <span class="frame-title">Loadout</span>
+          <span class="frame-url">aquilo.gg/loadout</span>
+        </div>
+        <div class="loadout-cycle" id="loadoutCycle">
+          <div class="loadout-tile" data-sub="check-in" data-fixed-w="610" data-fixed-h="190">
+            <iframe class="demo-frame" data-src="../check-in/?debug=1&demo=1" title="Check-in card" loading="eager" style="color-scheme: dark;"></iframe>
+            <div class="sub-label">Check-In Card</div>
+          </div>
+          <div class="loadout-tile" data-sub="hypetrain" data-fixed-w="450" data-fixed-h="215">
+            <iframe class="demo-frame" data-src="../hypetrain/?debug=1&demo=1" title="Hype train" loading="eager" style="color-scheme: dark;"></iframe>
+            <div class="sub-label">Hype Train</div>
+          </div>
+          <div class="loadout-tile" data-sub="bolts" data-fixed-w="1280" data-fixed-h="720">
+            <iframe class="demo-frame" data-src="../bolts/?debug=1&demo=1" title="Bolts leaderboard" loading="eager" style="color-scheme: dark;"></iframe>
+            <div class="sub-label">Bolts Economy</div>
+          </div>
+        </div>
+        <div class="frame-blurb">Overlays, mini-games, economy. Drop in once.</div>
+      </section>
+
+      <!-- Slide 3: Rotation widget preview. -->
+      <section class="slide slide-frame" data-slide="rotation">
+        <div class="frame-chrome">
+          <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+          <span class="frame-title">Rotation</span>
+          <span class="frame-url">aquilo.gg/rotation</span>
+        </div>
+        <div class="frame-stage rotation-stage" data-fixed-w="540" data-fixed-h="320">
+          <iframe
+            class="demo-frame"
+            data-src="https://widget.aquilo.gg/rotation/widget?preview=1&preset=square&queue=1&lyrics=1"
+            title="Rotation widget preview"
+            loading="eager"
+            style="color-scheme: dark;"></iframe>
+        </div>
+        <div class="frame-blurb">Spotify on stream. Chat-driven song requests.</div>
+      </section>
+
+      <!-- Slide 4: Perks card. Pure HTML. -->
+      <section class="slide slide-perks" data-slide="perks">
+        <div class="perks-head">
+          <span class="perks-eyebrow">Tonight's rewards</span>
+          <h2 class="perks-title">Push the streamer.</h2>
+        </div>
+        <ul class="perks-list">
+          <li class="perk">
+            <span class="perk-key">Sub</span>
+            <span class="perk-arrow">/</span>
+            <span class="perk-val">5 Push-Ups</span>
+          </li>
+          <li class="perk">
+            <span class="perk-key">Sub T2 / T3</span>
+            <span class="perk-arrow">/</span>
+            <span class="perk-val">!sr Song Request</span>
+          </li>
+          <li class="perk">
+            <span class="perk-key">!tip</span>
+            <span class="perk-arrow">/</span>
+            <span class="perk-val">$10 = 25 Push-Ups</span>
+          </li>
+        </ul>
+        <div class="perks-foot">Cheers 100+ bits, gifts, TikTok 1k+ all hit the board.</div>
+      </section>
+
+    </div>
+
+    <!-- ════════════════════════════════════════════════════════════
+         Supporter board strip. Push-up tally on the left, rolling
+         chips on the right.
+         ════════════════════════════════════════════════════════ -->
+    <div class="board" id="board">
+      <div class="board-tally" id="tally">
+        <span class="tally-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="currentColor"/></svg>
+        </span>
+        <span class="tally-num" id="tallyNum">0</span>
+        <span class="tally-unit">push-ups</span>
+      </div>
+      <div class="board-track" id="track"></div>
+    </div>
+
+    <!-- Dev status, only visible in demo mode. -->
+    <div class="dev" id="dev" hidden></div>
+  </div>
+
+  <script src="../_shared/theme.js"></script>
+  <script src="../_shared/tiktok-gifts.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
