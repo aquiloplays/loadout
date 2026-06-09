@@ -104,37 +104,252 @@
   }
   loadSchedule();
 
-  // ── Drifting bolts ──────────────────────────────────────────
-  // Reduced from earlier passes; depth-of-field via per-bolt
-  // size/blur/alpha so the field feels layered, not noisy.
-  const boltsHost = $('bolts');
-  const BOLT_COUNT = orientation === 'vertical' ? 8 : 12;
-  for (let i = 0; i < BOLT_COUNT; i++) {
-    const b = document.createElement('span');
-    b.className = 'bolt';
-    // 18-58 px range, biased smaller for depth.
-    const depth = Math.pow(Math.random(), 1.4);          // 0..1, weighted small
-    const size  = 18 + depth * 40;
-    // Smaller (farther) bolts: longer dur, softer, dimmer.
-    const dur   = 22 - depth * 9;                        // 13-22s
-    const delay = -Math.random() * dur;                  // start mid-cycle
-    const x     = Math.random() * 100;                   // %
-    const drift = (Math.random() * 80) - 40;             // -40..+40px lateral wander
-    const rot   = -18 + Math.random() * 36;              // -18..+18deg
-    const alpha = 0.25 + depth * 0.45;                   // 0.25-0.7
-    const glow  = 6 + depth * 16;                        // 6-22px drop-shadow
-    const soft  = (1 - depth) * 1.6;                     // 0-1.6px blur on far bolts
-    b.style.setProperty('--size',  size + 'px');
-    b.style.setProperty('--dur',   dur + 's');
-    b.style.setProperty('--delay', delay + 's');
-    b.style.setProperty('--x',     x + '%');
-    b.style.setProperty('--drift', drift + 'px');
-    b.style.setProperty('--rot',   rot + 'deg');
-    b.style.setProperty('--alpha', String(alpha));
-    b.style.setProperty('--glow',  glow + 'px');
-    b.style.setProperty('--soft',  soft.toFixed(2) + 'px');
-    boltsHost.appendChild(b);
+  // ════════════════════════════════════════════════════════════
+  // Live chat-bubble stream
+  // ════════════════════════════════════════════════════════════
+  // Replaces the earlier bolt particles. Every incoming chat message
+  // (from Streamer.bot, or the Aquilo Bus, or demo mode) spawns a
+  // glass bubble that drifts up from the bottom with depth-of-field
+  // (smaller bubbles slower + blurrier + dimmer). The visible cap
+  // keeps a spam burst from carpeting the screen.
+
+  const chatHost = $('chat-stream');
+  const CHAT_MAX_VISIBLE = orientation === 'vertical' ? 8 : 12;
+  const CHAT_PLATFORM_LABELS = { tw: 'T', yt: 'Y', kk: 'K', tt: '♪' };
+  // De-dupe within a short window so a SB-side echo doesn't double-
+  // post the same message. Keyed by `<platform>:<user>:<text>`.
+  const recentChatKeys = new Map();
+  const CHAT_DEDUPE_MS = 4000;
+
+  function pruneOldBubbles() {
+    // Remove any bubble that's been around longer than its animation.
+    while (chatHost.children.length > CHAT_MAX_VISIBLE) {
+      const old = chatHost.firstElementChild;
+      if (!old) break;
+      old.remove();
+    }
   }
+
+  function spawnChatBubble(payload) {
+    if (!chatHost) return;
+    const text = (payload && payload.message) ? String(payload.message).trim() : '';
+    const user = (payload && payload.user)    ? String(payload.user).trim()    : '';
+    if (!text || !user) return;
+    const platform = String(payload.platform || 'tw').toLowerCase();
+    const plat = ['tw','yt','kk','tt'].includes(platform) ? platform : 'tw';
+
+    // Dedupe.
+    const key = plat + ':' + user.toLowerCase() + ':' + text.toLowerCase();
+    const now = Date.now();
+    if (recentChatKeys.has(key) && now - recentChatKeys.get(key) < CHAT_DEDUPE_MS) return;
+    recentChatKeys.set(key, now);
+    if (recentChatKeys.size > 200) {
+      // Sweep stale entries occasionally so the map doesn't grow forever.
+      for (const [k, t] of recentChatKeys) {
+        if (now - t > CHAT_DEDUPE_MS * 2) recentChatKeys.delete(k);
+      }
+    }
+
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble';
+    bubble.setAttribute('data-plat', plat);
+
+    // Depth-of-field. Smaller depth = farther = slower + dimmer +
+    // softer. Bias toward foreground so the chat is readable.
+    const depth = 0.4 + Math.random() * 0.6;       // 0.4..1.0
+    const fontSize = 12 + depth * 6;               // 12..18px
+    const dur   = 22 - depth * 8;                  // 14..22s rise time
+    const x     = 8 + Math.random() * 84;          // 8..92% (avoid edges)
+    const alpha = 0.55 + depth * 0.35;             // 0.55..0.9
+    const soft  = (1 - depth) * 1.4;               // 0..1.4px blur
+
+    bubble.style.setProperty('--font-size', fontSize.toFixed(1) + 'px');
+    bubble.style.setProperty('--dur',   dur.toFixed(1) + 's');
+    bubble.style.setProperty('--x',     x.toFixed(1) + '%');
+    bubble.style.setProperty('--alpha', alpha.toFixed(2));
+    bubble.style.setProperty('--soft',  soft.toFixed(2) + 'px');
+    bubble.style.setProperty('--depth', depth.toFixed(2));
+    if (payload.color) bubble.style.setProperty('--user-color', payload.color);
+
+    const platBadge = document.createElement('span');
+    platBadge.className = 'chat-bubble-plat';
+    platBadge.textContent = CHAT_PLATFORM_LABELS[plat] || '?';
+    bubble.appendChild(platBadge);
+
+    const userEl = document.createElement('span');
+    userEl.className = 'chat-bubble-user';
+    userEl.textContent = user;
+    bubble.appendChild(userEl);
+
+    const msgEl = document.createElement('span');
+    msgEl.className = 'chat-bubble-msg';
+    // Trim long messages so a single 500-char message doesn't blow
+    // out the bubble width. Bubble already truncates with ellipsis
+    // via CSS, but a hard cap stops the JS-side text node from
+    // doing real work for nothing.
+    msgEl.textContent = text.length > 160 ? text.slice(0, 158) + '…' : text;
+    bubble.appendChild(msgEl);
+
+    chatHost.appendChild(bubble);
+    bubble.addEventListener('animationend', () => bubble.remove(), { once: true });
+    pruneOldBubbles();
+  }
+
+  // ── Streamer.bot WebSocket connection ────────────────────────
+  // SB serves a WebSocket on 127.0.0.1:8080 by default. Handshake:
+  //   server → Hello { authentication: { required, salt, challenge } }
+  //   client → Authenticate { authentication: <sha256 hash> }  (if required)
+  //   server → ok
+  //   client → Subscribe { events: { Twitch:['ChatMessage'], ... } }
+  // We only need ChatMessage; the dock/sf-direct.js code does the
+  // full * subscription, but that's overkill for an ambient overlay.
+  //
+  // Streamers with non-default SB ports/passwords can override via:
+  //   ?sbHost=127.0.0.1  ?sbPort=8080  ?sbPass=secret
+  const sbHost = params.get('sbHost') || '127.0.0.1';
+  const sbPort = params.get('sbPort') || '8080';
+  const sbPass = params.get('sbPass') || '';
+  let sbConnected = false;
+  let sbBackoff = 1000;
+  let sbWs = null;
+
+  function sbAuthenticate(ws, auth) {
+    const enc = new TextEncoder();
+    const h = (s) => crypto.subtle.digest('SHA-256', enc.encode(s)).then(buf =>
+      btoa(String.fromCharCode.apply(null, new Uint8Array(buf))));
+    h(sbPass + auth.salt)
+      .then(h1 => h(h1 + auth.challenge))
+      .then(hash => {
+        try { ws.send(JSON.stringify({ request: 'Authenticate', id: 'starting-soon-auth', authentication: hash })); }
+        catch { sbSubscribe(ws); }
+      })
+      .catch(() => sbSubscribe(ws));
+  }
+  function sbSubscribe(ws) {
+    try {
+      ws.send(JSON.stringify({
+        request: 'Subscribe',
+        id: 'starting-soon-sub',
+        events: {
+          Twitch:  ['ChatMessage'],
+          YouTube: ['Message'],
+          Kick:    ['ChatMessage'],
+        },
+      }));
+    } catch {}
+  }
+  function sbParseChat(d) {
+    // SB envelope: { event: { source, type }, data: { user, message, ... } }
+    if (!d || !d.event || !d.data) return null;
+    const src  = String(d.event.source || '').toLowerCase();
+    const type = String(d.event.type   || '').toLowerCase();
+    if (type !== 'chatmessage' && type !== 'message') return null;
+    const plat = src === 'twitch' ? 'tw' : src === 'youtube' ? 'yt' : src === 'kick' ? 'kk' : null;
+    if (!plat) return null;
+    const data = d.data;
+    const u = data.user || {};
+    const m = data.message || {};
+    return {
+      platform: plat,
+      user:     u.displayName || u.name || u.login || u.username || 'viewer',
+      color:    u.color || null,
+      message:  m.message || m.text || data.text || data.content || '',
+    };
+  }
+  function connectSB() {
+    if (sbWs) return;
+    let ws;
+    try { ws = new WebSocket('ws://' + sbHost + ':' + sbPort + '/'); }
+    catch { setTimeout(connectSB, sbBackoff); sbBackoff = Math.min(sbBackoff * 1.8, 20000); return; }
+    sbWs = ws;
+    ws.onopen = () => { sbBackoff = 1000; };
+    ws.onmessage = (e) => {
+      let d; try { d = JSON.parse(e.data); } catch { return; }
+      // Handshake handling.
+      if (d.request === 'Hello' || (d.event === undefined && d.authentication)) {
+        if (d.authentication && d.authentication.required && sbPass) sbAuthenticate(ws, d.authentication);
+        else                                                          sbSubscribe(ws);
+        return;
+      }
+      if (d.status === 'ok' && d.id === 'starting-soon-auth') { sbSubscribe(ws); return; }
+      if (d.status === 'ok' && d.id === 'starting-soon-sub')  { sbConnected = true; stopDemoChat(); return; }
+      // Actual events.
+      const env = sbParseChat(d);
+      if (env) spawnChatBubble(env);
+    };
+    ws.onerror = () => {};
+    ws.onclose = () => {
+      sbConnected = false;
+      sbWs = null;
+      setTimeout(connectSB, sbBackoff);
+      sbBackoff = Math.min(sbBackoff * 1.8, 20000);
+    };
+  }
+
+  // ── Demo chat fallback ───────────────────────────────────────
+  // If SB never connects (no SB running, viewing the overlay
+  // standalone, etc), synthesize chat every few seconds so the
+  // ambient layer is never empty. Stops as soon as a real SB
+  // subscription succeeds.
+  const DEMO_USERS = [
+    { name: 'pixelpaige',   plat: 'tw' },
+    { name: 'KaiOnAir',     plat: 'tw' },
+    { name: 'JustCallScope',plat: 'tw' },
+    { name: 'NeonFalcon',   plat: 'yt' },
+    { name: 'sora_42',      plat: 'yt' },
+    { name: 'wraith.tv',    plat: 'kk' },
+    { name: 'kelpie',       plat: 'tt' },
+    { name: 'astra',        plat: 'tt' },
+    { name: 'DraconicKing', plat: 'tw' },
+    { name: 'forge',        plat: 'tw' },
+    { name: 'lyric',        plat: 'yt' },
+    { name: 'jett',         plat: 'kk' },
+  ];
+  const DEMO_MESSAGES = [
+    'hyped for tonight',
+    'let\'s gooo',
+    'first time catching you live!',
+    'GLHF',
+    'aquilo.gg looks clean',
+    'rotation widget is sick',
+    'how does the loadout import work?',
+    '!sr a banger pls',
+    'time to lock in',
+    'just got here, what we playing?',
+    'loving the overlays',
+    'streamfusion dock = chef\'s kiss',
+    'subbed via patreon ✓',
+    'PogU',
+    'KEKW',
+    'when does it start',
+    'tea + chair, ready',
+  ];
+  let demoTimer = null;
+  function rand(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+  function startDemoChat() {
+    if (demoTimer || sbConnected) return;
+    const fire = () => {
+      if (sbConnected) { stopDemoChat(); return; }
+      const u = rand(DEMO_USERS);
+      spawnChatBubble({ platform: u.plat, user: u.name, message: rand(DEMO_MESSAGES) });
+      demoTimer = setTimeout(fire, 1800 + Math.random() * 2600);
+    };
+    demoTimer = setTimeout(fire, 800);
+  }
+  function stopDemoChat() {
+    if (demoTimer) { clearTimeout(demoTimer); demoTimer = null; }
+  }
+
+  // Kick off the SB connection. The Aquilo Bus connection at the
+  // bottom of this file ALSO funnels chat into spawnChatBubble when
+  // it sees `chat.message` events, so a streamer with both bus +
+  // SB running gets one bubble per message either way (de-duped by
+  // the spawnChatBubble keyed window).
+  connectSB();
+  // Demo kicks in after 4s if no SB subscription completes — long
+  // enough to let a healthy SB handshake finish, short enough that
+  // a streamer testing standalone sees activity quickly.
+  setTimeout(() => { if (!sbConnected) startDemoChat(); }, 4000);
 
   // ════════════════════════════════════════════════════════════
   // Demo reel
@@ -378,9 +593,12 @@
   schedule(DWELL[order[0]] || 10000);
 
   // ── Optional Aquilo Bus subscription ────────────────────────
-  // Reuses the existing `lobby.config` kind for live overrides
-  // (title, subtitle). countdownTo is ignored — there's no
-  // countdown in this overlay anymore.
+  // Reuses `lobby.config` for live overrides (title, subtitle) and
+  // also feeds `chat.message` events into the bubble stream — so
+  // streamers running the Loadout DLL get multi-platform chat
+  // (TikTok included) even without direct SB / TikFinity wiring.
+  // Bus de-dupes against the SB feed via spawnChatBubble's keyed
+  // window, so connecting both sources doesn't double-post.
   const busUrl = params.get('bus');
   const secret = params.get('secret') || '';
   if (busUrl) {
@@ -394,14 +612,35 @@
       ws.onopen = () => {
         backoff = 1000;
         ws.send(JSON.stringify({ v: 1, kind: 'hello',     client: 'overlay-starting-soon' }));
-        ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: ['lobby.*'] }));
+        ws.send(JSON.stringify({ v: 1, kind: 'subscribe', kinds: ['lobby.*', 'chat.message'] }));
       };
       ws.onmessage = (e) => {
         let msg; try { msg = JSON.parse(e.data); } catch { return; }
-        if (!msg || msg.kind !== 'lobby.config') return;
-        const d = msg.data || {};
-        if (typeof d.title    === 'string' && d.title)    renderHeadline(d.title.toUpperCase());
-        if (typeof d.subtitle === 'string')               setTonight(d.subtitle);
+        if (!msg || !msg.kind) return;
+        if (msg.kind === 'lobby.config') {
+          const d = msg.data || {};
+          if (typeof d.title    === 'string' && d.title)    renderHeadline(d.title.toUpperCase());
+          if (typeof d.subtitle === 'string')               setTonight(d.subtitle);
+          return;
+        }
+        if (msg.kind === 'chat.message') {
+          const d = msg.data || {};
+          // The Loadout bus normalises chat into a flat shape.
+          // Platform aliases: 'twitch' → tw, etc., matching the
+          // SB envelope so the bubble styling stays consistent.
+          const platMap = { twitch: 'tw', youtube: 'yt', kick: 'kk', tiktok: 'tt' };
+          spawnChatBubble({
+            platform: platMap[String(d.platform || '').toLowerCase()] || 'tw',
+            user:     d.user || d.username || '',
+            color:    d.color || null,
+            message:  d.text || d.message || '',
+          });
+          // Bus is live — stop the demo loop and treat the bus as
+          // an authoritative source (same as SB).
+          sbConnected = true;
+          stopDemoChat();
+          return;
+        }
       };
       ws.onclose = () => {
         setTimeout(connect, backoff);

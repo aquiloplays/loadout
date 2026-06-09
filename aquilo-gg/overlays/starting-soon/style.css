@@ -151,35 +151,102 @@ html, body {
   background-size: 220px 220px;
 }
 
-/* Drifting bolts. JS injects N <span class="bolt"> elements with
-   per-bolt CSS vars for size, depth, drift duration, x-position,
-   alpha. Smaller bolts move slower and blurrier — a depth-of-
-   field hint without truly rendering DOF. */
-.bg-bolts {
-  position: fixed; inset: 0; z-index: 3;
+/* Live chat-bubble stream. JS spawns a `.chat-bubble` for every
+   real chat message coming in over Streamer.bot (or the Aquilo Bus,
+   or demo mode), and the bubble drifts up from below — same depth
+   field as the old bolt particles but now the ambient decoration
+   is the chat itself. Smaller messages are positioned farther back
+   (smaller, slower, more transparent) so the eye reads the larger
+   foreground bubbles first.
+
+   The container itself sits behind the stage but in front of the
+   grid/aurora so bubbles are clearly visible without obstructing
+   the headline + demo reel. */
+.bg-chat {
+  position: fixed; inset: 0; z-index: 5;
   pointer-events: none;
   overflow: hidden;
 }
-.bolt {
+.chat-bubble {
   position: absolute;
   left: var(--x, 50%);
-  bottom: -8vmin;
-  width:  var(--size, 28px);
-  height: var(--size, 28px);
-  background: linear-gradient(160deg, #9a82ff 0%, #6ee0c0 55%, #5bff95 100%);
-  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M13 2 4 14h6l-1 8 9-12h-6l1-8z' fill='black'/></svg>") center/contain no-repeat;
-          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M13 2 4 14h6l-1 8 9-12h-6l1-8z' fill='black'/></svg>") center/contain no-repeat;
-  filter: drop-shadow(0 0 var(--glow, 10px) rgba(154, 130, 255, 0.55))
-          blur(var(--soft, 0px));
+  bottom: -14vmin;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(38vmin, 360px);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 60%),
+    rgba(10, 11, 22, calc(0.55 + var(--depth, 0.5) * 0.3));
+  border: 1px solid rgba(255, 255, 255, calc(0.06 + var(--depth, 0.5) * 0.1));
+  box-shadow:
+    0 12px 26px rgba(0, 0, 0, calc(0.3 + var(--depth, 0.5) * 0.3)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  font-size: var(--font-size, 14px);
+  font-weight: 500;
+  color: var(--ld-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  filter: blur(var(--soft, 0px));
+  transform: translate3d(-50%, 0, 0);
   opacity: 0;
   will-change: transform, opacity;
-  animation: boltRise var(--dur, 18s) linear var(--delay, 0s) infinite;
+  animation: chatRise var(--dur, 16s) linear forwards;
+  /* Self-remove after the animation finishes so JS can rotate
+     stale bubbles out cleanly — the JS pruner also enforces this
+     in case the animationend event is missed on a slow tab. */
 }
-@keyframes boltRise {
-  0%   { transform: translate3d(0, 0,            0) rotate(var(--rot, -8deg)); opacity: 0; }
-  10%  { opacity: var(--alpha, 0.55); }
-  90%  { opacity: var(--alpha, 0.55); }
-  100% { transform: translate3d(var(--drift, 0px), -115vh, 0) rotate(calc(var(--rot, -8deg) + 14deg)); opacity: 0; }
+@keyframes chatRise {
+  0%   { transform: translate3d(-50%, 0,      0); opacity: 0; }
+  8%   { transform: translate3d(-50%, -8vh,   0); opacity: var(--alpha, 0.85); }
+  92%  { transform: translate3d(-50%, calc(-100vh + 8vh), 0); opacity: var(--alpha, 0.85); }
+  100% { transform: translate3d(-50%, -115vh, 0); opacity: 0; }
+}
+/* Platform-tinted left edge so a glance at the bubble tells the
+   viewer which platform the message came from. Glow tint matches. */
+.chat-bubble::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  border-radius: 3px 0 0 3px;
+  background: var(--plat-color, var(--ld-accent));
+  box-shadow: 0 0 12px var(--plat-color, var(--ld-accent));
+  opacity: 0.85;
+}
+.chat-bubble[data-plat="tw"] { --plat-color: #9146ff; }
+.chat-bubble[data-plat="yt"] { --plat-color: #ff3b3b; }
+.chat-bubble[data-plat="kk"] { --plat-color: #53fc18; }
+.chat-bubble[data-plat="tt"] { --plat-color: #22d3ee; }
+.chat-bubble-plat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px; height: 16px;
+  flex: 0 0 auto;
+  border-radius: 4px;
+  background: var(--plat-color, var(--ld-accent));
+  color: #fff;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0;
+  /* TikTok needs a dark glyph since its accent is light cyan. */
+}
+.chat-bubble[data-plat="tt"] .chat-bubble-plat { color: #0a0b14; }
+.chat-bubble-user {
+  font-weight: 800;
+  color: var(--user-color, var(--plat-color, var(--ld-accent-2)));
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  flex: 0 0 auto;
+}
+.chat-bubble-msg {
+  color: var(--ld-text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* Drop a soft separator between user + message via padding. */
 }
 
 /* Vignette. Pulls the corners down so the centre column stays
@@ -1073,7 +1140,7 @@ body[data-orientation="vertical"] .compare-tag {
    transitions + headline shimmer because those are the signal
    that the overlay is alive. */
 @media (prefers-reduced-motion: reduce) {
-  .aurora-blob, .bg-grid::after, .bolt, .brand-stroke, .brand-pill, .headline {
+  .aurora-blob, .bg-grid::after, .chat-bubble, .brand-logo-glow, .brand-logo, .headline {
     animation: none !important;
   }
   .tonight { animation: tonightIn 700ms var(--ld-ease-spring) both !important; }
