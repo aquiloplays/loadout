@@ -335,6 +335,30 @@ stamp leaving an inked check, fist bump with impact ring, laser that
 burns a glowing hole with embers, or none. Streamer master toggle
 behavior.punchFx; duplicates never punch (nothing new to punch).
 
+Round 10 (same day):
+
+- Punch choreography pass: anticipation drop-shadows, impact flash,
+  squash-and-rebound on the puncher and stamp, paper-bit debris, ink
+  double-print ghost + droplet spray, fist wind-up with motion blur +
+  double shockwave + ✦ sparks + hairline cracks, laser charge glow +
+  molten spinning rim + smoke wisp. Per-variant WebAudio impact sounds
+  (click-thud / soft thud / wallop / zap-pop).
+- Twitch panel image: fitText shrink-to-fit on all three lines, long
+  channel names no longer run off the edge. PCShare.fitText exported
+  and selftested.
+- TikTok gift picker: customizer chips over the verified gift catalog
+  (names + coin values from the gift-jar build), plus a custom-name
+  field. trigger.tiktokGift DEFAULTS to "Heart Me" (1 coin), TikTok's
+  own check-in gesture.
+- Cross-platform card customization: TikTok/YouTube/Kick viewers link
+  through chat. Editor mints an anonymous session (POST /anon) + a
+  5-char code (GET /linkcode, unambiguous alphabet, 10 min TTL); the
+  viewer types `!link CODE` in the streamer's chat while the overlay
+  runs; the overlay relays it (POST /link, k-authed) and the worker
+  binds the session to the platform-prefixed viewer key. Editor polls
+  /me (returns anon:true until bound) and unlocks. Twitch keeps OAuth;
+  /link rejects twitch. Emote badges stay Twitch-only.
+
 Deferred to v1.1: Streamer.bot announce action on milestones (the Helix
 chat announce covers Twitch; an SB action would cover YT/Kick), Discord
 webhook digest, a dock page (moderation lives in the customizer for now),

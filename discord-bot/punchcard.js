@@ -535,7 +535,65 @@ async function sessionFrom(req, env) {
   const h = req.headers.get('authorization') || '';
   const m = /^Bearer\s+([a-f0-9]{24,64})$/i.exec(h.trim());
   if (!m) return null;
-  return kvGet(env, KEY.sess(m[1]));
+  const sess = await kvGet(env, KEY.sess(m[1]));
+  if (sess) sess._tok = m[1];
+  return sess;
+}
+
+// ── cross-platform identity linking ───────────────────────────────────
+// TikTok/YouTube/Kick viewers have no OAuth, so they prove their handle
+// by CHATTING: the editor mints an anonymous session + a short code,
+// the viewer types `!link CODE` in the streamer's chat while the
+// overlay is running, and the overlay (k-authed) reports who said it.
+// Only the real account can speak as that handle, so the binding is
+// honest. Twitch viewers keep using OAuth.
+const LINK_CODE_TTL = 600;
+
+async function handleAnonSession(env) {
+  const tok = genHex(24);
+  await kvPut(env, KEY.sess(tok), { anon: true, iat: Date.now() }, { expirationTtl: 7 * 24 * 3600 });
+  return json({ ok: true, token: tok });
+}
+
+async function handleLinkCode(req, env, url) {
+  const sess = await sessionFrom(req, env);
+  if (!sess) return json({ ok: false, error: 'login-required' }, 401);
+  if (sess.login) return json({ ok: false, error: 'already-linked', login: sess.login }, 409);
+  const ch = chanName(url.searchParams.get('ch'));
+  if (!ch) return json({ ok: false, error: 'bad-channel' }, 400);
+  // Unambiguous alphabet (no 0/O/1/I), 5 chars.
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let code = '';
+  const rnd = new Uint8Array(5);
+  crypto.getRandomValues(rnd);
+  for (const b of rnd) code += alphabet[b % alphabet.length];
+  await kvPut(env, `pc:linkcode:${code}`, { tok: sess._tok, ch }, { expirationTtl: LINK_CODE_TTL });
+  return json({ ok: true, code, expiresIn: LINK_CODE_TTL });
+}
+
+async function handleLink(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const code = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+  if (code.length < 4) return json({ ok: false, error: 'bad-code' }, 400);
+  const plat = String(body.platform || '').toLowerCase();
+  if (plat === 'twitch' || !['youtube', 'kick', 'tiktok'].includes(plat)) {
+    return json({ ok: false, error: 'platform' }, 400);
+  }
+  const vk = viewerKey(body.viewer, plat);
+  if (!vk) return json({ ok: false, error: 'bad-viewer' }, 400);
+  const rec = await kvGet(env, `pc:linkcode:${code}`);
+  if (!rec || rec.ch !== ch) return json({ ok: false, error: 'expired' }, 404);
+  const sess = await kvGet(env, KEY.sess(rec.tok));
+  if (!sess) return json({ ok: false, error: 'expired' }, 404);
+  sess.login = vk;
+  sess.display = cleanDisplay(body.display) || vk.replace(/^(yt|kk|tt):/, '');
+  sess.platform = plat;
+  delete sess.anon;
+  await kvPut(env, KEY.sess(rec.tok), sess, { expirationTtl: SESS_TTL });
+  await env.LOADOUT_BOLTS.delete(`pc:linkcode:${code}`).catch(() => {});
+  return json({ ok: true, viewer: vk });
 }
 
 // ── check-in ──────────────────────────────────────────────────────────
@@ -831,6 +889,14 @@ async function handleMe(req, env, url) {
   const ch = chanName(url.searchParams.get('ch'));
   if (!ch) return json({ ok: false, error: 'bad-channel' }, 400);
   const chan = await loadChan(env, ch);
+  // Anonymous (pre-link) session: the editor polls this until the
+  // viewer's chat `!link CODE` binds an identity.
+  if (!sess.login) {
+    return json({
+      ok: true, anon: true,
+      channel: chan ? { claimed: true, display: chan.display, rewardTitle: chan.rewardTitle } : { claimed: false },
+    });
+  }
   const user = (await kvGet(env, KEY.user(ch, sess.login))) || {};
   const emoteRec = await kvGet(env, KEY.emotes(sess.login));
   const subTier = chan ? await subTierFor(env, ch, chan, sess.login, null) : 0;
@@ -865,7 +931,7 @@ async function handleEmotes(req, env) {
 
 async function handleCardSave(req, env, body) {
   const sess = await sessionFrom(req, env);
-  if (!sess) return json({ ok: false, error: 'login-required' }, 401);
+  if (!sess || !sess.login) return json({ ok: false, error: 'login-required' }, 401);
   const ch = chanName(body.ch);
   if (!ch) return json({ ok: false, error: 'bad-channel' }, 400);
   const chan = await loadChan(env, ch);
@@ -972,6 +1038,7 @@ async function dispatch(req, env, path) {
     if (route === 'recent') return handleRecent(env, url);
     if (route === 'me') return handleMe(req, env, url);
     if (route === 'emotes') return handleEmotes(req, env);
+    if (route === 'linkcode') return handleLinkCode(req, env, url);
     if (route === 'gif') return handleGif(env, url);
     if (route === 'leaderboard') return handleLeaderboard(env, url);
     return json({ ok: false, error: 'not-found' }, 404);
@@ -986,6 +1053,8 @@ async function dispatch(req, env, path) {
   } catch { return json({ ok: false, error: 'bad-json' }, 400); }
 
   if (route === 'oauth/finish') return handleOauthFinish(env, body);
+  if (route === 'anon') return handleAnonSession(env);
+  if (route === 'link') return handleLink(env, body);
   if (route === 'checkin') return handleCheckin(env, body);
   if (route === 'reward') return handleRewardCreate(env, body);
   if (route === 'cfg') return handleCfg(env, body);
