@@ -58,28 +58,54 @@ export function withToday(days, today) {
   return { days: out.slice(Math.max(0, out.length - DAYS_CAP)), changed: true };
 }
 
-// One check-in. `user` is { t, s, b, l, d } (total, streak, best, last
-// day, dates ring); missing fields default to zero/empty. Returns the
-// next user fields plus { dup, milestone }. Never mutates inputs.
-export function advance(user, today, prevActive, mode) {
+export const FREEZE_CAP = 3;
+
+// One check-in. `user` is { t, s, b, l, d, f } (total, streak, best,
+// last day, dates ring, freezes held); missing fields default to
+// zero/empty. `prev2Active` is the channel-active day BEFORE
+// prevActive (callers compute it; only used by freezes). Returns the
+// next user fields plus { dup, milestone, freezeUsed }. Never mutates
+// inputs.
+//
+// Freezes: earned one per milestone (cap FREEZE_CAP), auto-spent to
+// bridge EXACTLY one missed day, so a single slip keeps the streak
+// alive but a long absence still resets.
+export function advance(user, today, prevActive, mode, prev2Active) {
   const u = user || {};
   const t = Number(u.t) || 0;
   const s = Number(u.s) || 0;
   const b = Number(u.b) || 0;
   const l = u.l || null;
   const d = Array.isArray(u.d) ? u.d.slice() : [];
+  let f = Math.max(0, Math.min(FREEZE_CAP, Number(u.f) || 0));
 
   if (l === today) {
-    return { t, s, b, l, d, dup: true, milestone: 0 };
+    return { t, s, b, l, d, f, dup: true, milestone: 0, freezeUsed: false };
   }
 
   const anchor = mode === 'calendar' ? yesterday(today) : prevActive;
-  const streak = (l && anchor && l === anchor) ? s + 1 : 1;
+  let streak;
+  let freezeUsed = false;
+  if (l && anchor && l === anchor) {
+    streak = s + 1;
+  } else {
+    const bridge = mode === 'calendar'
+      ? (anchor ? yesterday(anchor) : null)
+      : (prev2Active || null);
+    if (l && bridge && l === bridge && f > 0) {
+      f -= 1;
+      freezeUsed = true;
+      streak = s + 1;
+    } else {
+      streak = 1;
+    }
+  }
   const best = Math.max(b, streak);
   d.push(today);
   const dates = d.slice(Math.max(0, d.length - DATES_CAP));
   const milestone = MILESTONES.includes(streak) ? streak : 0;
-  return { t: t + 1, s: streak, b: best, l: today, d: dates, dup: false, milestone };
+  if (milestone) f = Math.min(FREEZE_CAP, f + 1);
+  return { t: t + 1, s: streak, b: best, l: today, d: dates, f, dup: false, milestone, freezeUsed };
 }
 
 // Permanent ring tier earned by BEST streak (a broken streak keeps the

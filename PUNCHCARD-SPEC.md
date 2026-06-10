@@ -277,7 +277,28 @@ Logged-out visitors get a demo playground + login CTA.
   ride the event and merge client-side. Card customization remains
   Twitch-login only.
 
-Deferred to v1.1: auto-fulfill/refund redemptions for rewards PunchCard
-created (scope already granted), Streamer.bot announce action on milestones,
-Discord webhook digest, streak freeze items, a dock page (moderation lives
-in the customizer for now).
+Retention pack (same day, round 4):
+
+- Redemption lifecycle: points-sourced check-ins carry the redemption id;
+  the worker FULFILLs on success (clears the streamer's queue) and
+  CANCELs on a duplicate (auto-refunds the points). Only legal on the
+  reward PunchCard created; channel cfg toggles autoFulfill + refundDup
+  (both default on). Card chip reads "already punched, points refunded".
+- Streak freezes: one earned per milestone, hold up to FREEZE_CAP (3),
+  auto-spent to bridge EXACTLY one missed day (active mode: the viewer's
+  last check-in equals the active day before prevActive; calendar mode:
+  two days ago). Lives in the parity-locked streak core (advance gained
+  a prev2Active arg + f/freezeUsed fields); editor shows the count.
+- Milestone chat announcements: streamer scope now includes
+  user:write:chat; when cfg.announceMilestones is on (default off) the
+  worker posts the milestone to chat as the broadcaster.
+- Leaderboard overlay widget at /punchcard/leaderboard/?ch= (public
+  read, no key): top streaks, 340px, refreshes every minute, params
+  max/title/accent, demo=1 for previews.
+- First-punch-of-day flair: the check-in that opens a new channel-active
+  day gets a "today's first punch!" chip.
+
+Deferred to v1.1: Streamer.bot announce action on milestones (the Helix
+chat announce covers Twitch; an SB action would cover YT/Kick), Discord
+webhook digest, a dock page (moderation lives in the customizer for now),
+shareable card PNG export.

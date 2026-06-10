@@ -82,7 +82,16 @@ const KEY = {
   sub: (ch, v) => `pc:sub:${ch}:${v}`,
 };
 
-const DEFAULT_CFG = { tz: 'America/New_York', rollover: 4, mode: 'active', allowCustomImg: false };
+const DEFAULT_CFG = {
+  tz: 'America/New_York', rollover: 4, mode: 'active', allowCustomImg: false,
+  // Redemption lifecycle (only effective for the reward PunchCard
+  // created, Twitch forbids touching others): fulfill on success,
+  // cancel (= refund the points) on duplicate same-day redeems.
+  autoFulfill: true, refundDup: true,
+  // Post "X hit a N day streak!" to chat as the broadcaster on
+  // milestones. Off by default: speaking as the streamer is opt-in.
+  announceMilestones: false,
+};
 const FONTS = ['inter', 'bangers', 'pressstart', 'pacifico', 'oswald', 'caveat'];
 const BG_PRESETS = ['ember', 'tide', 'violet', 'meadow', 'sunset', 'mono', 'candy', 'midnight'];
 const IMG_HOSTS = /^(media\d*\.giphy\.com|i\.giphy\.com|media\.tenor\.com|c\.tenor\.com|i\.imgur\.com)$/i;
@@ -304,6 +313,29 @@ async function subTierFor(env, ch, chan, vk, viewerId) {
   return t;
 }
 
+// Settle a redemption on Twitch: FULFILLED clears the queue, CANCELED
+// refunds the points. Only legal for the reward PunchCard created
+// (Twitch rejects PATCHes on rewards from other apps); silently false
+// on any mismatch or API error.
+async function settleRedemption(env, ch, chan, rewardId, redemptionId, status) {
+  if (!rewardId || !redemptionId || !chan.rewardId || rewardId !== chan.rewardId) return false;
+  if (!/^[a-zA-Z0-9\-]{8,64}$/.test(String(redemptionId))) return false;
+  const j = await chanHelix(env, ch, chan, '/channel_points/custom_rewards/redemptions',
+    { broadcaster_id: chan.userId, reward_id: rewardId, id: redemptionId },
+    { method: 'PATCH', body: { status } });
+  return !(j && j._error);
+}
+
+// Post to the channel's chat as the broadcaster (user:write:chat).
+// Claims that predate the scope just fail quietly.
+async function sendChat(env, ch, chan, message) {
+  const j = await chanHelix(env, ch, chan, '/chat/messages', null, {
+    method: 'POST',
+    body: { broadcaster_id: chan.userId, sender_id: chan.userId, message: String(message).slice(0, 400) },
+  });
+  return !(j && j._error);
+}
+
 // Every emote the viewer can use, snapshotted at login with their fresh
 // access token (we never store the token itself). Helix pages with a
 // cursor; cap generously, power users sub to a LOT of channels.
@@ -335,7 +367,7 @@ async function fetchUserEmotes(env, accessToken, userId) {
 // read:subscriptions powers per-viewer sub-tier card effects. Claims
 // made before it was added simply skip tier lookups (the Helix call
 // 401s and we treat the viewer as tier 0) until the streamer reconnects.
-const STREAMER_SCOPES = 'channel:read:redemptions channel:manage:redemptions channel:read:subscriptions';
+const STREAMER_SCOPES = 'channel:read:redemptions channel:manage:redemptions channel:read:subscriptions user:write:chat';
 // Lets the card editor list every emote the viewer can use (subs across
 // channels, hype train unlocks, follower emotes). Read-only.
 const VIEWER_SCOPES = 'user:read:emotes';
@@ -502,13 +534,35 @@ async function handleCheckin(env, body) {
   const { days, changed } = withToday(dayList, today);
   if (changed) await kvPut(env, KEY.days(ch), days);
   const prevActive = prevActiveDay(days, today);
+  const prev2Active = prevActive ? prevActiveDay(days, prevActive) : null;
 
-  const next = advance(user, today, prevActive, cfg.mode);
+  const next = advance(user, today, prevActive, cfg.mode, prev2Active);
   const stored = {
-    t: next.t, s: next.s, b: next.b, l: next.l, d: next.d,
+    t: next.t, s: next.s, b: next.b, l: next.l, d: next.d, f: next.f,
     display, card: user.card || null, lastTs: now,
   };
   await kvPut(env, KEY.user(ch, vk), stored);
+
+  // Redemption lifecycle: fulfill the queue entry on success, refund
+  // the points on a duplicate. Only fires for points-sourced check-ins
+  // carrying a redemption id, and only on PunchCard's own reward.
+  let refunded = false;
+  if (body.source === 'points' && body.redemptionId) {
+    if (next.dup && cfg.refundDup !== false) {
+      refunded = await settleRedemption(env, ch, chan, String(body.rewardId || ''), String(body.redemptionId), 'CANCELED');
+    } else if (!next.dup && cfg.autoFulfill !== false) {
+      await settleRedemption(env, ch, chan, String(body.rewardId || ''), String(body.redemptionId), 'FULFILLED');
+    }
+  }
+
+  // Milestone shout in chat, as the broadcaster, when opted in.
+  if (next.milestone && cfg.announceMilestones) {
+    const flair = next.milestone >= 100 ? ' 🏆' : '';
+    try {
+      await sendChat(env, ch, chan,
+        `🔥 ${display} just hit a ${next.milestone} day check-in streak!${flair} Customize your card: aquilo.gg/punchcard/card/?ch=${ch}`);
+    } catch { /* best effort */ }
+  }
 
   // Mod feed ring.
   const recent = (await kvGet(env, KEY.recent(ch))) || [];
@@ -556,6 +610,8 @@ async function handleCheckin(env, body) {
     viewer: vk, display, msg,
     streak: next.s, total: next.t, best: next.b,
     dup: next.dup, milestone: next.milestone, ring: ringFor(next.b),
+    freezeUsed: next.freezeUsed, freezes: next.f, refunded,
+    firstOfDay: changed,
     card: stored.card, avatar, subTier, msgEmotes,
     day: today, activeDays: days.length,
   });
@@ -634,6 +690,9 @@ async function handleCfg(env, body) {
   if (cfg.rollover != null) next.rollover = Math.min(12, Math.max(0, Math.floor(Number(cfg.rollover) || 0)));
   if (cfg.mode === 'active' || cfg.mode === 'calendar') next.mode = cfg.mode;
   if (typeof cfg.allowCustomImg === 'boolean') next.allowCustomImg = cfg.allowCustomImg;
+  if (typeof cfg.autoFulfill === 'boolean') next.autoFulfill = cfg.autoFulfill;
+  if (typeof cfg.refundDup === 'boolean') next.refundDup = cfg.refundDup;
+  if (typeof cfg.announceMilestones === 'boolean') next.announceMilestones = cfg.announceMilestones;
   chan.cfg = next;
   if (body.reward && typeof body.reward === 'object') {
     chan.rewardId = String(body.reward.id || '').slice(0, 64);
@@ -711,6 +770,7 @@ async function handleMe(req, env, url) {
     streak: user.s || 0, total: user.t || 0, best: user.b || 0,
     last: user.l || null, dates: user.d || [], card: user.card || null,
     ring: ringFor(user.b || 0),
+    freezes: Math.max(0, Number(user.f) || 0),
     subTier,
     hasEmotes: !!(emoteRec && emoteRec.list && emoteRec.list.length),
     channel: chan ? {
@@ -768,7 +828,13 @@ async function handleMeta(env, url) {
     // Streak rules are public-by-design: the customizer restores its
     // panel from here after a reload, and the viewer editor shows the
     // channel's day-rollover rule.
-    cfg: cfg ? { tz: cfg.tz, rollover: cfg.rollover, mode: cfg.mode, allowCustomImg: !!cfg.allowCustomImg } : null,
+    cfg: cfg ? {
+      tz: cfg.tz, rollover: cfg.rollover, mode: cfg.mode,
+      allowCustomImg: !!cfg.allowCustomImg,
+      autoFulfill: cfg.autoFulfill !== false,
+      refundDup: cfg.refundDup !== false,
+      announceMilestones: !!cfg.announceMilestones,
+    } : null,
     giphy: !!env.GIPHY_API_KEY,
   });
 }
