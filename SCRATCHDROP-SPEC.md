@@ -152,7 +152,7 @@ how real scratch tickets work and it keeps every scratch method honest.
   - **Jackpot**: seed amount + increment per losing ticket, pot rendered on the
     overlay frame, jackpot symbol in the draw, winner takes pot (pot is a label,
     prizes stay streamer-defined, e.g. "jackpot = 50k points payout").
-  - **Pity**: guaranteed win after N consecutive losses, per-channel counter.
+  - Pity timer: shipped in the QoL round, then REMOVED 2026-06-10 at Clay's call (not necessary). Do not rebuild.
   - **Golden drop rate**: chance any standard ticket upgrades at issue.
 
 ```js
