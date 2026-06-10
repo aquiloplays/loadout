@@ -913,6 +913,31 @@
     setTimeout(demoLoop, 1300 + rand() * 1500);
   }
 
+  // Customizer bridge: the aquilo.gg/gift-jar/customize/ preview embeds
+  // this overlay in an iframe and posts fire commands into it. Effects
+  // are cosmetic-only synthetic drops, same generator as demo mode.
+  window.addEventListener('message', function (e) {
+    var d = e && e.data;
+    if (!d || typeof d !== 'object') return;
+    if (d.gj === 'reset') { resetJar(); return; }
+    if (d.gj !== 'fire' || typeof d.kind !== 'string') return;
+    var user = demoName();
+    var p = d.platform || ['tw', 'yt', 'kk'][Math.floor(rand() * 3)];
+    var amt = Number(d.amount);
+    switch (d.kind) {
+      case 'sub':       onAlert({ platform: p, eventType: 'sub', user: user, tier: d.tier || '1000' }); break;
+      case 'resub':     onAlert({ platform: p, eventType: 'resub', user: user, tier: d.tier || '1000' }); break;
+      case 'bomb':      onAlert({ platform: 'tw', eventType: 'gift', isBomb: true, gifter: user, user: user, amount: amt || 10 }); break;
+      case 'bits':      onAlert({ platform: 'tw', eventType: 'cheer', user: user, amount: amt || 1000 }); break;
+      case 'member':    onAlert({ platform: 'yt', eventType: 'membership', user: user }); break;
+      case 'superchat': onAlert({ platform: 'yt', eventType: 'superchat', user: user, amount: amt || 20 }); break;
+      case 'tip':       onAlert({ platform: p, eventType: 'tip', user: user, amount: amt || 10 }); break;
+      case 'ttgift':    onAlert({ platform: 'tt', eventType: 'ttgift', user: user, amount: amt || 5, perCoin: Number(d.perCoin) || 99, giftName: d.giftName || 'Rose' }); break;
+      case 'ttsub':     onAlert({ platform: 'tt', eventType: 'sub', user: user }); break;
+      case 'follow':    onAlert({ platform: p, eventType: 'follow', user: user }); break;
+    }
+  });
+
   // ────────────────────────────────────────────────────────────────────
   // SIM + RENDER LOOPS. Physics and spawning run off a clock that does
   // not care whether requestAnimationFrame is alive (hidden tabs and
