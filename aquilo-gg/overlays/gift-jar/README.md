@@ -6,6 +6,14 @@ with real rigid-body physics (Matter.js, vendored, no CDN). Tokens
 bounce off the rim, stack, settle, and persist across OBS restarts, so
 the jar fills up over the course of a stream.
 
+Four photoreal glass jars ship with the overlay (`jarStyle=mason`
+default, plus `cookie`, `bowl`, `hex`), rendered as luma-alpha PNGs in
+`jars/` with physics walls calibrated to each piece of art; `classic`
+keeps the original procedural SVG jar. Bits drop as Twitch's official
+animated cheermote gems, frame-decoded and played inside the physics
+canvas. Platform coins carry the official brand marks (simpleicons at
+runtime, embedded fallback).
+
 ```
 https://widget.aquilo.gg/overlays/gift-jar/
 ```
@@ -23,7 +31,7 @@ https://widget.aquilo.gg/overlays/gift-jar/?demo=1
 | Twitch / YouTube / Kick sub      | platform coin (Tier 2/3 are bigger) |
 | Resub                            | platform coin |
 | Gift subs / gift bombs           | one gift box per sub, platform colored |
-| Bits / cheers                    | gem, colored by amount like bit tiers (gray, purple, green, blue, red) |
+| Bits / cheers                    | Twitch's real animated cheermote gem for the amount tier (gray, purple, green, blue, red), `bitsAnim=0` for static |
 | YouTube member                   | green star coin |
 | YouTube super chat               | blue $ coin, sized by amount |
 | YouTube super sticker            | teal star coin |
@@ -66,6 +74,9 @@ To reset the jar mid-stream: right click the source, `Interact`, press
 
 | Param       | Default   | What it does |
 | ----------- | --------- | ------------ |
+| `jarStyle`  | mason     | `mason`, `cookie`, `bowl`, `hex` (photoreal glass) or `classic` (procedural) |
+| `full`      | recycle   | what happens when the pile reaches the neck: `recycle` (oldest fade), `stop` (keep pile, keep counting), `spill` (overflow the rim), `pop` (jar erupts, jar counter ticks, fresh jar) |
+| `bitsAnim`  | 1         | animated cheermote gems for bits; `0` uses the static frame |
 | `sbHost`    | 127.0.0.1 | Streamer.bot WebSocket host |
 | `sbPort`    | 8080      | Streamer.bot WebSocket port |
 | `sbPass`    | empty     | Streamer.bot WebSocket password, if set |

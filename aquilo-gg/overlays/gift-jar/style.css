@@ -40,6 +40,35 @@ body.test-bg {
 
 #jarFront { pointer-events: none; }
 
+#jarArt {
+  position: absolute;
+  pointer-events: none;
+  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.45));
+}
+
+#counterChip .jars-badge {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 2px;
+}
+
+#counterChip .full-tag {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffc270;
+  background: rgba(255, 194, 112, 0.14);
+  border: 1px solid rgba(255, 194, 112, 0.45);
+  border-radius: 999px;
+  padding: 1px 7px;
+  margin-left: 2px;
+}
+
 /* running total chip, pinned onto the lower glass by main.js */
 #counterChip {
   position: absolute;

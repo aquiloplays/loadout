@@ -49,6 +49,9 @@
     <svg id="jarBack"></svg>
     <!-- the physics tokens -->
     <canvas id="jarCanvas"></canvas>
+    <!-- photoreal jar render (luma-alpha PNG), sits IN FRONT of tokens
+         so the glass reads as wrapping them; hidden for jarStyle=classic -->
+    <img id="jarArt" alt="" hidden>
     <!-- front glass: wall stroke, lip, streak highlights, etched label -->
     <svg id="jarFront"></svg>
     <div id="bigToast"></div>

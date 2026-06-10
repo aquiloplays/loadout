@@ -1,24 +1,28 @@
 /*
- * aquilo.gg Gift Jar overlay.
+ * aquilo.gg Gift Jar overlay, v2.
  *
  * Cross-platform support jar: every sub, resub, gift sub, cheer,
  * member, super chat, tip and TikTok gift drops a token into a glass
  * jar with real rigid-body physics (Matter.js). Tokens stack, settle,
  * sleep, and persist across OBS restarts.
  *
- * Architecture:
- *   GEOMETRY    one set of jar coordinates drives BOTH the drawn SVG
- *               glass and the Matter.js static walls, so what you see
- *               is exactly what the tokens collide with.
- *   TOKENS      pre-rendered offscreen canvases per token type (coins,
- *               gems, gift boxes, hearts). TikTok gifts use the real
- *               gift PNG straight from TikFinity.
- *   FEEDS       direct WebSocket clients for Streamer.bot (Twitch /
- *               YouTube / Kick) and TikFinity (TikTok). Same event
- *               shapes and URL params as SF's sf-direct.js, so docs
- *               and muscle memory carry over.
- *
- * No StreamFusion, no Loadout DLL, no cloud account required.
+ * v2 additions:
+ *   JAR STYLES   photoreal glass renders (mason / bowl / cookie / hex,
+ *                luma-alpha PNGs generated offline) drawn IN FRONT of
+ *                the tokens so the glass wraps them, plus the original
+ *                procedural "classic" SVG jar. Physics walls come from
+ *                per-style polylines calibrated to the art.
+ *   REAL BITS    Twitch's official animated cheermote GIFs, frame-
+ *                decoded via ImageDecoder and played in-canvas, exactly
+ *                the gems chat sees. Static frame and drawn-gem
+ *                fallbacks keep old CEF builds working.
+ *   REAL LOGOS   official brand marks fetched from simpleicons at
+ *                runtime (embedded path fallback if the CDN is down).
+ *   FULL MODES   recycle (default) / stop / spill / pop behavior when
+ *                the pile reaches the jar neck.
+ *   CONTAINMENT  velocity + spin clamps, thicker walls, and an
+ *                out-of-bounds sweep that quietly reinserts strays so
+ *                tokens can never glitch outside the glass.
  */
 (function () {
   'use strict';
@@ -40,6 +44,10 @@
     if (v == null) return dflt;
     return /^(1|true|yes|on)$/i.test(v);
   }
+  function pick(name, dflt, allowed) {
+    var v = (params.get(name) || '').toLowerCase();
+    return allowed.indexOf(v) >= 0 ? v : dflt;
+  }
 
   var cfg = {
     sbHost:    params.get('sbHost') || '127.0.0.1',
@@ -49,6 +57,9 @@
     tfPort:    num('tfPort', 21213),
     events:    (params.get('events') || 'subs,resubs,gifts,bits,members,superchats,tips,tiktok')
                  .split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean),
+    jarStyle:  pick('jarStyle', 'mason', ['classic', 'mason', 'bowl', 'cookie', 'hex']),
+    full:      pick('full', 'recycle', ['recycle', 'stop', 'spill', 'pop']),
+    bitsAnim:  flag('bitsAnim', true),
     maxItems:  clamp(num('maxItems', 140), 20, 400),
     burst:     clamp(num('burst', 30), 5, 120),
     iconScale: clamp(num('iconScale', 1), 0.4, 3),
@@ -63,7 +74,7 @@
     jarKey:    params.get('jar') || 'default',
     demo:      flag('demo', false),
     testBg:    flag('bg', false),
-    debug:     flag('debug', false)
+    debug:     clamp(num('debug', 0), 0, 2)
   };
 
   if (cfg.testBg) document.body.classList.add('test-bg');
@@ -73,8 +84,8 @@
   function catEnabled(cat) { return cfg.events.indexOf(cat) >= 0; }
 
   // ────────────────────────────────────────────────────────────────────
-  // BRAND ART. Glyph paths come from sf-icons.js (already shipped with
-  // the SF overlays), 24x24 viewbox, brand-accurate.
+  // BRAND ART. Embedded 24x24 paths (from sf-icons.js) are the instant
+  // fallback; the official simpleicons marks stream in over them.
   // ────────────────────────────────────────────────────────────────────
   var GLYPH = {
     tw: 'M11.571 4.714h1.715v5.143h-1.715zm4.715 0h1.714v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0H6zm14.571 11.143L17.143 14.57h-3.428l-3 3v-3H6.857V1.714h13.714v9.429z',
@@ -89,7 +100,6 @@
   var GEM_COLORS = ['#9aa7b8', '#a05ef0', '#1cc8a8', '#3b9bff', '#f5494f'];
 
   function shade(hex, f) {
-    // f > 0 lighten toward white, f < 0 darken toward black.
     var n = parseInt(hex.slice(1), 16);
     var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
     var t = f < 0 ? 0 : 255, a = Math.abs(f);
@@ -97,16 +107,106 @@
     return 'rgb(' + r + ',' + g + ',' + b + ')';
   }
 
+  // Official simpleicons marks, fetched as SVG text so we control the
+  // raster size (the CDN's SVGs carry no intrinsic width/height).
+  var logoImgs = Object.create(null);
+  function loadBrandLogos() {
+    var want = { tw: ['twitch', 'ffffff'], yt: ['youtube', 'ffffff'], kk: ['kick', '07210a'], tt: ['tiktok', 'ffffff'] };
+    Object.keys(want).forEach(function (p) {
+      fetch('https://cdn.simpleicons.org/' + want[p][0] + '/' + want[p][1])
+        .then(function (r) { if (!r.ok) throw 0; return r.text(); })
+        .then(function (svg) {
+          svg = svg.replace('<svg ', '<svg width="96" height="96" ');
+          var im = new Image();
+          im.onload = function () {
+            logoImgs[p] = im;
+            delete tokenCache['coin:' + p];
+            delete tokenCache['heart:' + p];
+          };
+          im.src = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
+        })
+        .catch(function () {});
+    });
+  }
+
+  function tinted(img, color, size) {
+    var c = document.createElement('canvas');
+    c.width = size; c.height = size;
+    var x = c.getContext('2d');
+    x.drawImage(img, 0, 0, size, size);
+    x.globalCompositeOperation = 'source-in';
+    x.fillStyle = color;
+    x.fillRect(0, 0, size, size);
+    return c;
+  }
+
   // ────────────────────────────────────────────────────────────────────
-  // TOKEN FACTORY. Each key renders once into a 128px offscreen canvas
-  // and is blitted scaled per frame. Keys:
-  //   coin:tw|yt|kk|tt   platform sub coin
-  //   box:tw|yt|kk|tt    gift-sub box in platform color
-  //   gem:0..4           bits gem by tier color
-  //   member             YouTube member coin (green star)
-  //   sc / ss            super chat ($) / super sticker (star)
-  //   tip                gold $ coin
-  //   heart:tw|yt|kk|tt  follow heart (opt-in)
+  // TWITCH CHEERMOTES. The official animated gems, frame-decoded once
+  // per tier and played in-canvas. Chain of fallbacks: animated frames
+  // -> static first frame <img> -> drawn gem.
+  // ────────────────────────────────────────────────────────────────────
+  var CHEER_BASE = 'https://d3aqoihi2n8ty8.cloudfront.net/actions/cheer/dark/animated/';
+  var CHEER_TIERS = [1, 100, 1000, 5000, 10000];
+  var cheerAnims = Object.create(null);
+
+  function loadCheer(tier) {
+    if (cheerAnims[tier]) return cheerAnims[tier];
+    var A = cheerAnims[tier] = { frames: [], total: 0, ready: false, img: null };
+    var url = CHEER_BASE + tier + '/4.gif';
+    var im = new Image();
+    im.src = url;
+    A.img = im;
+    if (!window.ImageDecoder || !cfg.bitsAnim) return A;
+    fetch(url)
+      .then(function (r) { if (!r.ok) throw 0; return r.arrayBuffer(); })
+      .then(function (buf) {
+        var dec = new ImageDecoder({ data: buf, type: 'image/gif' });
+        return dec.tracks.ready.then(function () {
+          var n = dec.tracks.selectedTrack.frameCount;
+          var chain = Promise.resolve();
+          for (var i = 0; i < n; i++) {
+            (function (idx) {
+              chain = chain.then(function () { return dec.decode({ frameIndex: idx }); })
+                .then(function (res) {
+                  var vf = res.image;
+                  var dur = Math.max(20, (vf.duration || 80000) / 1000);
+                  return createImageBitmap(vf).then(function (bmp) {
+                    try { vf.close(); } catch (e) {}
+                    A.total += dur;
+                    A.frames.push({ bmp: bmp, until: A.total });
+                  });
+                });
+            })(i);
+          }
+          return chain;
+        });
+      })
+      .then(function () { if (A.frames.length > 1) A.ready = true; })
+      .catch(function () {});
+    return A;
+  }
+
+  function cheerFrame(A, t) {
+    var m = t % A.total;
+    for (var i = 0; i < A.frames.length; i++) {
+      if (m < A.frames[i].until) return A.frames[i].bmp;
+    }
+    return A.frames[A.frames.length - 1].bmp;
+  }
+
+  function cheerTierFor(bits) {
+    return bits >= 10000 ? 10000 : bits >= 5000 ? 5000 : bits >= 1000 ? 1000 : bits >= 100 ? 100 : 1;
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  // TOKEN FACTORY. Pre-rendered offscreen canvases per key.
+  //   coin:tw|yt|kk|tt    platform sub coin (official mark when loaded)
+  //   box:tw|yt|kk|tt     gift-sub box in platform color
+  //   cheer:<tier>        bits, drawn-gem fallback under the cheermote
+  //   member / sc / ss    YouTube member, super chat, super sticker
+  //   tip                 gold $ coin
+  //   heart:<plat>        follow heart (opt-in)
+  //   img                 TikTok gift artwork placeholder box
   // ────────────────────────────────────────────────────────────────────
   var TOKEN_PX = 128;
   var tokenCache = Object.create(null);
@@ -137,26 +237,35 @@
     g.addColorStop(1, shade(bg, -0.30));
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(m, m, R, 0, Math.PI * 2); ctx.fill();
-    // rim
     ctx.lineWidth = 7;
     ctx.strokeStyle = shade(bg, -0.42);
     ctx.beginPath(); ctx.arc(m, m, R - 3.5, 0, Math.PI * 2); ctx.stroke();
     ctx.lineWidth = 3;
     ctx.strokeStyle = 'rgba(255,255,255,0.35)';
     ctx.beginPath(); ctx.arc(m, m, R - 9, -Math.PI * 0.92, -Math.PI * 0.28); ctx.stroke();
+
+    var gs = TOKEN_PX * 0.56;
+    var logo = opts.logoP ? logoImgs[opts.logoP] : null;
     if (opts.duotone) {
-      // TikTok treatment: cyan + red ghosts behind the white note.
-      drawGlyph(ctx, GLYPH[glyphKey], '#25f4ee', m - 3, m - 3, TOKEN_PX * 0.56);
-      drawGlyph(ctx, GLYPH[glyphKey], '#fe2c55', m + 3, m + 3, TOKEN_PX * 0.56);
-      drawGlyph(ctx, GLYPH[glyphKey], '#ffffff', m, m, TOKEN_PX * 0.56);
+      if (logo) {
+        ctx.drawImage(tinted(logo, '#25f4ee', 96), m - 3 - gs / 2, m - 3 - gs / 2, gs, gs);
+        ctx.drawImage(tinted(logo, '#fe2c55', 96), m + 3 - gs / 2, m + 3 - gs / 2, gs, gs);
+        ctx.drawImage(logo, m - gs / 2, m - gs / 2, gs, gs);
+      } else {
+        drawGlyph(ctx, GLYPH[glyphKey], '#25f4ee', m - 3, m - 3, gs);
+        drawGlyph(ctx, GLYPH[glyphKey], '#fe2c55', m + 3, m + 3, gs);
+        drawGlyph(ctx, GLYPH[glyphKey], '#ffffff', m, m, gs);
+      }
     } else if (opts.text) {
       ctx.font = '900 ' + Math.round(TOKEN_PX * 0.6) + 'px Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = glyphColor;
       ctx.fillText(opts.text, m, m + TOKEN_PX * 0.03);
-    } else {
-      drawGlyph(ctx, GLYPH[glyphKey], glyphColor, m, m, TOKEN_PX * 0.56);
+    } else if (logo) {
+      ctx.drawImage(logo, m - gs / 2, m - gs / 2, gs, gs);
+    } else if (glyphKey) {
+      drawGlyph(ctx, GLYPH[glyphKey], glyphColor, m, m, gs);
     }
     return c;
   }
@@ -174,17 +283,13 @@
     ctx.fillStyle = color; ctx.fill();
     ctx.lineWidth = 5; ctx.strokeStyle = shade(color, -0.38);
     ctx.lineJoin = 'round'; ctx.stroke();
-    // top table facet, lighter
     poly([top, right, left]);
     ctx.fillStyle = 'rgba(255,255,255,0.26)'; ctx.fill();
-    // left lower facet, darker
     poly([left, [64, 52], bot]);
     ctx.fillStyle = 'rgba(0,0,0,0.14)'; ctx.fill();
-    // ridge lines
     ctx.lineWidth = 2.5; ctx.strokeStyle = 'rgba(255,255,255,0.22)';
     ctx.beginPath(); ctx.moveTo(left[0], left[1]); ctx.lineTo(64, 52); ctx.lineTo(right[0], right[1]); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(64, 52); ctx.lineTo(bot[0], bot[1]); ctx.stroke();
-    // sparkle
     ctx.fillStyle = 'rgba(255,255,255,0.55)';
     ctx.beginPath(); ctx.arc(52, 34, 6, 0, Math.PI * 2); ctx.fill();
     return c;
@@ -201,19 +306,15 @@
       ctx.arcTo(x, y, x + w, y, r);
       ctx.closePath();
     }
-    // body
     var g = ctx.createLinearGradient(0, 52, 0, 114);
     g.addColorStop(0, color);
     g.addColorStop(1, shade(color, -0.26));
     ctx.fillStyle = g; rr(24, 52, 80, 62, 10); ctx.fill();
     ctx.lineWidth = 4; ctx.strokeStyle = shade(color, -0.4); ctx.stroke();
-    // lid
     ctx.fillStyle = shade(color, 0.18); rr(15, 34, 98, 24, 9); ctx.fill();
     ctx.strokeStyle = shade(color, -0.34); ctx.stroke();
-    // ribbon
     ctx.fillStyle = 'rgba(255,255,255,0.88)';
     ctx.fillRect(57, 34, 14, 80);
-    // bow
     ctx.beginPath(); ctx.ellipse(48, 26, 13, 9, -0.45, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(80, 26, 13, 9, 0.45, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(64, 29, 7, 0, Math.PI * 2); ctx.fill();
@@ -224,12 +325,13 @@
     if (tokenCache[key]) return tokenCache[key];
     var c = null, p = key.split(':'), kind = p[0], arg = p[1];
     if (kind === 'coin') {
-      if (arg === 'tt')      c = drawCoin(BRAND.tt, 'tt', '#fff', { duotone: true });
-      else if (arg === 'kk') c = drawCoin(BRAND.kk, 'kk', '#07210a');
-      else                   c = drawCoin(BRAND[arg] || '#777', arg, '#ffffff');
+      if (arg === 'tt')      c = drawCoin(BRAND.tt, 'tt', '#fff', { duotone: true, logoP: 'tt' });
+      else if (arg === 'kk') c = drawCoin(BRAND.kk, 'kk', '#07210a', { logoP: 'kk' });
+      else                   c = drawCoin(BRAND[arg] || '#777', arg, '#ffffff', { logoP: arg });
     }
     else if (kind === 'box')   c = drawBox(arg === 'tt' ? '#fe2c55' : (BRAND[arg] || '#e2588f'));
-    else if (kind === 'img')   c = drawBox('#fe2c55'); // TikTok gift with no art URL yet
+    else if (kind === 'img')   c = drawBox('#fe2c55');
+    else if (kind === 'cheer') c = drawGem(GEM_COLORS[gemTier(+arg || 1)]);
     else if (kind === 'gem')   c = drawGem(GEM_COLORS[+arg] || GEM_COLORS[0]);
     else if (kind === 'member')c = drawCoin('#2ba640', 'star', '#ffffff');
     else if (kind === 'sc')    c = drawCoin('#1565c0', null, '#ffffff', { text: '$' });
@@ -241,8 +343,8 @@
     return c;
   }
 
-  // TikTok gift PNGs. Loaded without crossOrigin so any CDN works; we
-  // never read pixels back, so canvas tainting is irrelevant.
+  // TikTok gift PNGs straight from TikFinity. No crossOrigin: we never
+  // read pixels back, so canvas tainting is irrelevant.
   var imgCache = Object.create(null);
   function giftImage(url) {
     if (!url) return null;
@@ -255,92 +357,187 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
+  // JAR STYLES. poly = RIGHT-side inner-cavity polyline, top to bottom,
+  // [x in W units from center, y in H units from jar top]. The art
+  // styles overlay a photoreal luma-alpha PNG in front of the tokens;
+  // their polylines are calibrated to that art. aspect is replaced by
+  // the loaded art's real proportions.
+  // ────────────────────────────────────────────────────────────────────
+  var JARS = {
+    classic: {
+      art: null, aspect: 1.32, mouth: 0.30, inset: 0.026, fullY: 0.27,
+      labelY: 0.565, chipY: 0.9725,
+      poly: [[0.30, 0.075], [0.455, 0.235], [0.455, 0.80], [0.425, 0.875], [0.36, 0.925], [0.29, 0.945]]
+    },
+    mason: {
+      art: 'jars/mason.png', aspect: 1.93, mouth: 0.285, inset: 0.030, fullY: 0.20,
+      labelY: 0.60, chipY: 0.94,
+      poly: [[0.285, 0.045], [0.34, 0.075], [0.345, 0.125], [0.43, 0.195], [0.45, 0.28], [0.45, 0.76],
+             [0.43, 0.845], [0.35, 0.895], [0.22, 0.905]]
+    },
+    bowl: {
+      art: 'jars/bowl.png', aspect: 0.94, mouth: 0.20, inset: 0.022, fullY: 0.24,
+      labelY: 0.48, chipY: 0.93,
+      arc: { cy: 0.47, rx: 0.44, ry: 0.37, mouthY: 0.115, baseY: 0.835 }
+    },
+    cookie: {
+      art: 'jars/cookie.png', aspect: 1.09, mouth: 0.30, inset: 0.026, fullY: 0.20,
+      labelY: 0.55, chipY: 0.945,
+      poly: [[0.30, 0.05], [0.39, 0.09], [0.445, 0.18], [0.455, 0.40], [0.445, 0.70], [0.41, 0.84],
+             [0.33, 0.915], [0.20, 0.93]]
+    },
+    hex: {
+      art: 'jars/hex.png', aspect: 1.78, mouth: 0.255, inset: 0.030, fullY: 0.18,
+      labelY: 0.55, chipY: 0.95,
+      poly: [[0.255, 0.05], [0.30, 0.085], [0.415, 0.16], [0.425, 0.50], [0.415, 0.83], [0.33, 0.905], [0.20, 0.925]]
+    }
+  };
+
+  var artMeta = Object.create(null);   // style -> {img, aspect}
+
+  function styleDef() { return JARS[cfg.jarStyle] || JARS.classic; }
+
+  function stylePoly(def, W, H) {
+    if (def.poly) {
+      return def.poly.map(function (p) { return [p[0] * W, p[1] * H]; });
+    }
+    // arc styles (bowl): ellipse interior from the mouth edge down to a
+    // flat base chord, since real bowls are squashed spheres with a
+    // flattened inside bottom
+    var cy = def.arc.cy * H, rx = def.arc.rx * W, ry = def.arc.ry * H;
+    var mouthY = def.arc.mouthY * H, baseY = def.arc.baseY * H;
+    var t0 = Math.acos(clamp((cy - mouthY) / ry, -1, 1));
+    var t1 = Math.acos(clamp((cy - baseY) / ry, -1, 1));
+    var pts = [];
+    var steps = 14;
+    for (var i = 0; i <= steps; i++) {
+      var t = t0 + (t1 - t0) * (i / steps);
+      pts.push([rx * Math.sin(t), cy - ry * Math.cos(t)]);
+    }
+    // flat base: walk the chord in toward center so the floor segment
+    // builder closes the bottom
+    pts.push([pts[pts.length - 1][0] * 0.45, baseY]);
+    return pts;
+  }
+
+  function loadJarArt() {
+    var def = styleDef();
+    if (!def.art) { $('jarArt').hidden = true; return; }
+    var style = cfg.jarStyle;
+    if (artMeta[style]) { applyArt(); return; }
+    var im = new Image();
+    im.onload = function () {
+      artMeta[style] = { img: im, aspect: im.naturalHeight / im.naturalWidth };
+      JARS[style].aspect = artMeta[style].aspect;
+      rebuildAndRepour();
+    };
+    im.onerror = function () {
+      // art missing or blocked: fall back to the procedural jar
+      if (cfg.jarStyle === style) {
+        cfg.jarStyle = 'classic';
+        rebuildAndRepour();
+      }
+    };
+    im.src = def.art;
+  }
+
+  function applyArt() {
+    var el = $('jarArt');
+    var def = styleDef();
+    if (!def.art || !artMeta[cfg.jarStyle]) { el.hidden = true; return; }
+    el.src = artMeta[cfg.jarStyle].img.src;
+    el.hidden = false;
+    el.style.left = (geo.cx - geo.W / 2) + 'px';
+    el.style.top = geo.top + 'px';
+    el.style.width = geo.W + 'px';
+    el.style.height = geo.H + 'px';
+  }
+
+  // ────────────────────────────────────────────────────────────────────
   // GEOMETRY + PHYSICS WORLD
   // ────────────────────────────────────────────────────────────────────
   var M = window.Matter;
   var engine = M.Engine.create({ enableSleeping: true });
   engine.gravity.y = cfg.gravity;
-  // stiffer stacks: deep piles settle without sponging into the glass
   engine.positionIterations = 10;
   engine.velocityIterations = 6;
 
   var canvas = $('jarCanvas');
   var ctx2d = canvas.getContext('2d');
-  var geo = null;          // current jar geometry
-  var walls = [];          // static bodies
-  var items = [];          // live tokens, oldest first
-  var total = 0;           // session counter (true event counts)
+  var geo = null;
+  var walls = [];
+  var funnels = [];
+  var items = [];
+  var total = 0;
+  var jarsFilled = 0;
+  var jarFull = false;
+  var popping = false;
 
   function computeGeo() {
+    var def = styleDef();
     var vw = window.innerWidth, vh = window.innerHeight;
-    var W = clamp(Math.min(vw * 0.94, vh / 1.5), 200, 980) * cfg.jarScale;
-    var H = W * 1.32;
+    var W = clamp(Math.min(vw * 0.94, (vh * 0.93) / def.aspect), 200, 1100) * cfg.jarScale;
+    var H = W * def.aspect;
     var cx = vw / 2;
     var bottom = vh - Math.max(8, vh * 0.015);
     var top = bottom - H;
-    var mw = 0.30 * W;            // mouth half-width
-    var bw = 0.455 * W;           // body half-width
-    var lipW = mw + 0.052 * W;
-    var glass = Math.max(5, 0.026 * W);
-    // inner cavity polyline, right side, top to bottom
-    var R = [
-      [mw,             top + 0.075 * H],
-      [bw,             top + 0.235 * H],
-      [bw,             top + 0.800 * H],
-      [bw - 0.030 * W, top + 0.875 * H],
-      [bw - 0.095 * W, top + 0.925 * H],
-      [bw - 0.165 * W, top + 0.945 * H]
-    ];
+    var R = stylePoly(def, W, H).map(function (p) { return [p[0], top + p[1]]; });
     return {
       vw: vw, vh: vh, W: W, H: H, cx: cx, top: top, bottom: bottom,
-      mw: mw, bw: bw, lipW: lipW, glass: glass, R: R,
-      floorY: top + 0.945 * H,
+      mw: def.mouth * W, bw: Math.max.apply(null, R.map(function (p) { return p[0]; })),
+      glass: Math.max(5, def.inset * W), R: R,
+      floorY: R[R.length - 1][1],
+      fullYabs: top + def.fullY * H,
       s: W / 520
     };
   }
 
-  function segBody(x1, y1, x2, y2, t, invisible) {
-    // A static rectangle whose INNER face lies on the segment, inset by
-    // the glass half-thickness: the SVG stroke is centered on the same
-    // polyline, so tokens must rest on the stroke's INNER edge, not its
-    // centerline, or they look sunk into the glass.
+  function segBody(x1, y1, x2, y2, t, isFunnel) {
+    // Static rectangle whose INNER face sits on the segment inset by the
+    // glass thickness, so tokens rest on the VISIBLE inner glass edge.
     var dx = x2 - x1, dy = y2 - y1;
     var len = Math.sqrt(dx * dx + dy * dy) || 1;
     var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
     var nx = dy / len, ny = -dx / len;
     var refX = midX - geo.cx, refY = midY - (geo.top + 0.5 * geo.H);
     if (nx * refX + ny * refY < 0) { nx = -nx; ny = -ny; }
-    var off = t / 2 - (invisible ? 0 : geo.glass);
-    var body = M.Bodies.rectangle(
+    var off = t / 2 - (isFunnel ? 0 : geo.glass);
+    return M.Bodies.rectangle(
       midX + nx * off, midY + ny * off, len + t, t,
       { isStatic: true, angle: Math.atan2(dy, dx), friction: 0.35, restitution: 0.05 }
     );
-    body._invisible = !!invisible;
-    return body;
   }
 
   function buildWalls() {
-    for (var i = 0; i < walls.length; i++) M.Composite.remove(engine.world, walls[i]);
-    walls = [];
-    var t = Math.max(16, 0.07 * geo.W);
+    walls.concat(funnels).forEach(function (b) { M.Composite.remove(engine.world, b); });
+    walls = []; funnels = [];
+    var t = Math.max(18, 0.075 * geo.W);
     var cx = geo.cx, R = geo.R;
-    function add(b) { walls.push(b); M.Composite.add(engine.world, b); }
-    // jar walls, both sides
+    function add(arr, b) { arr.push(b); M.Composite.add(engine.world, b); }
     for (var k = 0; k < R.length - 1; k++) {
-      add(segBody(cx + R[k][0], R[k][1], cx + R[k + 1][0], R[k + 1][1], t));
-      add(segBody(cx - R[k][0], R[k][1], cx - R[k + 1][0], R[k + 1][1], t));
+      add(walls, segBody(cx + R[k][0], R[k][1], cx + R[k + 1][0], R[k + 1][1], t));
+      add(walls, segBody(cx - R[k][0], R[k][1], cx - R[k + 1][0], R[k + 1][1], t));
     }
-    // floor
-    var fx = R[R.length - 1][0];
-    add(segBody(cx - fx, geo.floorY, cx + fx, geo.floorY, t));
-    // invisible funnel above the mouth so nothing is ever lost off-jar
+    var last = R[R.length - 1];
+    if (last[0] > 0.02 * geo.W) {
+      add(walls, segBody(cx - last[0], last[1], cx + last[0], last[1], t * 1.4));
+    }
+    // invisible funnel above the mouth: guides every drop in (removed
+    // in spill mode once the jar fills, and during a pop blast)
     var fTopX = geo.mw + 0.45 * geo.W;
-    add(segBody(cx + fTopX, -120, cx + geo.mw, R[0][1] - 4, t, true));
-    add(segBody(cx - fTopX, -120, cx - geo.mw, R[0][1] - 4, t, true));
+    add(funnels, segBody(cx + fTopX, -140, cx + geo.mw, R[0][1] - 4, t, true));
+    add(funnels, segBody(cx - fTopX, -140, cx - geo.mw, R[0][1] - 4, t, true));
+  }
+
+  function funnelsOn(on) {
+    funnels.forEach(function (b) { M.Composite.remove(engine.world, b); });
+    if (on) funnels.forEach(function (b) { M.Composite.add(engine.world, b); });
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // JAR SVG (back tint + front glass), generated from the same geometry
+  // JAR LAYERS. classic: fully procedural SVG glass. Art styles: a soft
+  // interior tint behind the tokens + the photoreal PNG in front + the
+  // etched label.
   // ────────────────────────────────────────────────────────────────────
   function pathFromPolyline(closeAcrossMouth) {
     var R = geo.R, cx = geo.cx;
@@ -357,38 +554,61 @@
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  function buildJarSvg() {
-    var g = geo, cx = g.cx;
+  function buildJarLayers() {
+    var g = geo, cx = g.cx, def = styleDef();
     var vb = '0 0 ' + g.vw + ' ' + g.vh;
     var back = $('jarBack'), front = $('jarFront');
     back.setAttribute('viewBox', vb);
     front.setAttribute('viewBox', vb);
+    var isArt = !!def.art;
 
+    var glow =
+      '<radialGradient id="glowGrad" cx="0.5" cy="0.5" r="0.5">' +
+        '<stop offset="0" style="stop-color:var(--accent)" stop-opacity="0.30"/>' +
+        '<stop offset="1" style="stop-color:var(--accent)" stop-opacity="0"/>' +
+      '</radialGradient>';
+
+    if (isArt) {
+      back.innerHTML =
+        '<defs>' + glow + '</defs>' +
+        '<ellipse cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
+        '<path d="' + pathFromPolyline(true) + '" fill="rgba(10,14,22,0.34)"/>' +
+        '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.012 * g.H) + '" rx="' + (g.bw * 0.78) + '" ry="' + (0.026 * g.H) + '" fill="rgba(0,0,0,0.25)"/>';
+      var labelArt = '';
+      if (cfg.label) {
+        labelArt =
+          '<text x="' + cx + '" y="' + (g.top + def.labelY * g.H) + '" text-anchor="middle" ' +
+          'font-family="var(--font)" font-weight="800" font-size="' + (0.07 * g.W) + '" ' +
+          'letter-spacing="' + (0.02 * g.W) + '" fill="rgba(255,255,255,0.14)" ' +
+          'style="text-shadow: 0 1px 2px rgba(0,0,0,0.4)">' + esc(String(cfg.label).toUpperCase()) + '</text>';
+      }
+      front.innerHTML = labelArt;
+      applyArt();
+      return;
+    }
+
+    $('jarArt').hidden = true;
     back.innerHTML =
       '<defs>' +
         '<linearGradient id="cavGrad" x1="0" y1="0" x2="0" y2="1">' +
           '<stop offset="0" stop-color="rgba(185,220,255,0.05)"/>' +
           '<stop offset="0.6" stop-color="rgba(150,190,235,0.09)"/>' +
           '<stop offset="1" stop-color="rgba(125,165,215,0.16)"/>' +
-        '</linearGradient>' +
-        '<radialGradient id="glowGrad" cx="0.5" cy="0.5" r="0.5">' +
-          '<stop offset="0" style="stop-color:var(--accent)" stop-opacity="0.30"/>' +
-          '<stop offset="1" style="stop-color:var(--accent)" stop-opacity="0"/>' +
-        '</radialGradient>' +
+        '</linearGradient>' + glow +
       '</defs>' +
       '<ellipse cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
       '<path d="' + pathFromPolyline(true) + '" fill="url(#cavGrad)"/>' +
       '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.012 * g.H) + '" rx="' + (g.bw * 0.82) + '" ry="' + (0.030 * g.H) + '" fill="rgba(0,0,0,0.22)"/>';
 
+    var lipW = g.mw + 0.052 * g.W;
     var labelSvg = '';
     if (cfg.label) {
       labelSvg =
-        '<text x="' + cx + '" y="' + (g.top + 0.565 * g.H) + '" text-anchor="middle" ' +
+        '<text x="' + cx + '" y="' + (g.top + def.labelY * g.H) + '" text-anchor="middle" ' +
         'font-family="var(--font)" font-weight="800" font-size="' + (0.075 * g.W) + '" ' +
         'letter-spacing="' + (0.022 * g.W) + '" fill="rgba(255,255,255,0.12)">' +
         esc(String(cfg.label).toUpperCase()) + '</text>';
     }
-
     front.innerHTML =
       '<defs>' +
         '<linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">' +
@@ -405,31 +625,29 @@
           '<stop offset="1" stop-color="rgba(255,255,255,0.015)"/>' +
         '</linearGradient>' +
       '</defs>' +
-      // faint sheen over the tokens so they read as "inside the glass"
       '<path d="' + pathFromPolyline(true) + '" fill="url(#sheenGrad)"/>' +
-      // glass wall
       '<path d="' + pathFromPolyline(false) + '" fill="none" stroke="url(#glassGrad)" ' +
         'stroke-width="' + (2 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
       '<path d="' + pathFromPolyline(false) + '" fill="none" stroke="rgba(255,255,255,0.26)" stroke-width="1.6" stroke-linejoin="round"/>' +
-      // specular streaks
       '<line x1="' + (cx - g.bw + 0.085 * g.W) + '" y1="' + (g.top + 0.30 * g.H) + '" x2="' + (cx - g.bw + 0.085 * g.W) + '" y2="' + (g.top + 0.70 * g.H) + '" ' +
         'stroke="rgba(255,255,255,0.09)" stroke-width="' + (0.05 * g.W) + '" stroke-linecap="round"/>' +
       '<line x1="' + (cx + g.bw - 0.085 * g.W) + '" y1="' + (g.top + 0.34 * g.H) + '" x2="' + (cx + g.bw - 0.085 * g.W) + '" y2="' + (g.top + 0.52 * g.H) + '" ' +
         'stroke="rgba(255,255,255,0.07)" stroke-width="' + (0.04 * g.W) + '" stroke-linecap="round"/>' +
-      // lip band
-      '<rect x="' + (cx - g.lipW) + '" y="' + g.top + '" width="' + (2 * g.lipW) + '" height="' + (0.075 * g.H) + '" rx="' + (0.028 * g.W) + '" ' +
+      '<rect x="' + (cx - lipW) + '" y="' + g.top + '" width="' + (2 * lipW) + '" height="' + (0.075 * g.H) + '" rx="' + (0.028 * g.W) + '" ' +
         'fill="url(#lipGrad)" stroke="rgba(255,255,255,0.30)" stroke-width="1.6"/>' +
-      '<line x1="' + (cx - g.lipW) + '" y1="' + (g.top + 0.078 * g.H) + '" x2="' + (cx + g.lipW) + '" y2="' + (g.top + 0.078 * g.H) + '" ' +
+      '<line x1="' + (cx - lipW) + '" y1="' + (g.top + 0.078 * g.H) + '" x2="' + (cx + lipW) + '" y2="' + (g.top + 0.078 * g.H) + '" ' +
         'style="stroke:var(--accent)" stroke-opacity="0.4" stroke-width="2"/>' +
       labelSvg;
+  }
 
-    // anchor the DOM chrome to the jar
+  function placeChrome() {
+    var def = styleDef();
     var chip = $('counterChip');
-    chip.style.left = cx + 'px';
-    chip.style.top = (g.top + 0.9725 * g.H) + 'px';
+    chip.style.left = geo.cx + 'px';
+    chip.style.top = (geo.top + def.chipY * geo.H) + 'px';
     var toast = $('bigToast');
-    toast.style.left = cx + 'px';
-    toast.style.top = Math.max(34, g.top - 46) + 'px';
+    toast.style.left = geo.cx + 'px';
+    toast.style.top = Math.max(34, geo.top - 46) + 'px';
   }
 
   function sizeCanvas() {
@@ -443,18 +661,15 @@
   // ITEMS
   // ────────────────────────────────────────────────────────────────────
   var BODY_OPTS = {
-    coin: { restitution: 0.24, shape: 'circle' },
-    box:  { restitution: 0.14, shape: 'rect' },
-    gem:  { restitution: 0.34, shape: 'gem' },
-    img:  { restitution: 0.22, shape: 'circle' }
+    coin:  { restitution: 0.24, shape: 'circle' },
+    box:   { restitution: 0.14, shape: 'rect' },
+    gem:   { restitution: 0.34, shape: 'gem' },
+    cheer: { restitution: 0.34, shape: 'gem' },
+    img:   { restitution: 0.22, shape: 'circle' }
   };
 
   function shapeFor(key) {
-    var kind = key.split(':')[0];
-    if (kind === 'box') return BODY_OPTS.box;
-    if (kind === 'gem') return BODY_OPTS.gem;
-    if (kind === 'img') return BODY_OPTS.img;
-    return BODY_OPTS.coin;
+    return BODY_OPTS[key.split(':')[0]] || BODY_OPTS.coin;
   }
 
   function makeBody(key, r, x, y) {
@@ -489,7 +704,6 @@
     M.Body.setVelocity(body, { x: (g.cx - x) * 0.002, y: 2 + rand() * 2 });
     M.Composite.add(engine.world, body);
     items.push({ body: body, k: rec.k, r: r, img: rec.i || null, dying: 0 });
-    // cap enforcement, oldest first
     var live = 0;
     for (var i = 0; i < items.length; i++) if (!items[i].dying) live++;
     for (var j = 0; live > cfg.maxItems && j < items.length; j++) {
@@ -498,7 +712,6 @@
     schedulePersist();
   }
 
-  // queued spawning so gift bombs pour instead of teleporting in
   var queue = [];
   var drainAcc = 0;
   function drainMs() { return queue.length > 60 ? 26 : queue.length > 20 ? 48 : 88; }
@@ -506,7 +719,6 @@
   function enqueue(key, r, imgUrl, n) {
     n = n || 1;
     for (var i = 0; i < n; i++) queue.push({ k: key, r: r, i: imgUrl || null });
-    // hard safety so a 10k bomb can't build an unbounded queue
     if (queue.length > 600) queue.length = 600;
   }
 
@@ -514,9 +726,29 @@
   // COUNTER, TOAST, STATUS
   // ────────────────────────────────────────────────────────────────────
   var chipEl = $('counterChip'), chipNum = $('counterNum');
+
+  function updateChip() {
+    chipNum.textContent = total.toLocaleString();
+    var old = chipEl.querySelectorAll('.jars-badge, .full-tag');
+    for (var i = 0; i < old.length; i++) old[i].remove();
+    if (jarsFilled > 0) {
+      var b = document.createElement('span');
+      b.className = 'jars-badge';
+      b.textContent = 'x' + (jarsFilled + 1);
+      b.title = 'jar number ' + (jarsFilled + 1);
+      chipEl.appendChild(b);
+    }
+    if (jarFull && cfg.full === 'stop') {
+      var f = document.createElement('span');
+      f.className = 'full-tag';
+      f.textContent = 'FULL';
+      chipEl.appendChild(f);
+    }
+  }
+
   function bumpCounter(n) {
     total += n;
-    chipNum.textContent = total.toLocaleString();
+    updateChip();
     if (cfg.counter) {
       chipEl.classList.remove('bump');
       void chipEl.offsetWidth;
@@ -557,8 +789,99 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // EVENT ROUTING. All sizes scale with the jar so a 600px source and a
-  // 1080px source look identical, just bigger.
+  // FULL-JAR BEHAVIOR. A sensor watches the settled pile height; when
+  // it crosses the style's fill line the chosen mode kicks in:
+  //   recycle  oldest tokens fade out as new ones land (the maxItems
+  //            cap, always active anyway)
+  //   stop     the jar keeps its pile; new events count but no longer
+  //            spawn tokens until the jar is reset
+  //   spill    the funnel disappears; new tokens bounce off the pile
+  //            and tumble out over the rim, despawning off-screen
+  //   pop      the jar erupts, tokens blast out of the mouth, the jar
+  //            count ticks up and a fresh jar starts filling
+  // ────────────────────────────────────────────────────────────────────
+  var fullStreak = 0;
+
+  function pileTopY() {
+    var top = Infinity, count = 0;
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.dying) continue;
+      var b = it.body;
+      if (b.speed > 1.2) continue;
+      var p = b.position;
+      if (p.y < geo.top - 20 || Math.abs(p.x - geo.cx) > geo.bw) continue;
+      count++;
+      if (p.y - it.r < top) top = p.y - it.r;
+    }
+    return count >= 12 ? top : Infinity;
+  }
+
+  function fillCheck() {
+    if (popping) return;
+    var top = pileTopY();
+    var isFull = top <= geo.fullYabs;
+    if (isFull) {
+      fullStreak++;
+      if (fullStreak >= 2 && !jarFull) {
+        jarFull = true;
+        updateChip();
+        onJarFull();
+      }
+    } else {
+      fullStreak = 0;
+      if (jarFull && top > geo.fullYabs + 0.08 * geo.H) {
+        jarFull = false;
+        if (cfg.full === 'spill') funnelsOn(true);
+        updateChip();
+      }
+    }
+  }
+
+  function onJarFull() {
+    if (cfg.full === 'stop') {
+      showToast('<b>JAR FULL</b>');
+    } else if (cfg.full === 'spill') {
+      funnelsOn(false);
+      showToast('<b>JAR FULL</b>, overflowing');
+    } else if (cfg.full === 'pop') {
+      popJar();
+    }
+  }
+
+  function popJar() {
+    if (popping) return;
+    popping = true;
+    funnelsOn(false);
+    for (var i = 0; i < items.length; i++) {
+      var b = items[i].body;
+      M.Sleeping.set(b, false);
+      M.Body.setVelocity(b, {
+        x: (b.position.x - geo.cx) * 0.06 + (rand() * 2 - 1) * 6,
+        y: -(15 + rand() * 14)
+      });
+      M.Body.setAngularVelocity(b, (rand() * 2 - 1) * 0.6);
+    }
+    jarsFilled++;
+    showToast('<b>JAR FILLED!</b> starting jar ' + (jarsFilled + 1));
+    setTimeout(function () {
+      var now = performance.now();
+      for (var i = 0; i < items.length; i++) {
+        if (!items[i].dying) items[i].dying = now;
+      }
+    }, 1700);
+    setTimeout(function () {
+      funnelsOn(true);
+      popping = false;
+      jarFull = false;
+      fullStreak = 0;
+      updateChip();
+      schedulePersist();
+    }, 2300);
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  // EVENT ROUTING
   // ────────────────────────────────────────────────────────────────────
   function S(px) { return px * geo.s * cfg.iconScale; }
 
@@ -566,7 +889,7 @@
     return bits < 100 ? 0 : bits < 1000 ? 1 : bits < 5000 ? 2 : bits < 10000 ? 3 : 4;
   }
   function gemSize(bits) {
-    return S(bits < 100 ? 13 : bits < 1000 ? 17 : bits < 5000 ? 23 : bits < 10000 ? 29 : 36);
+    return S(bits < 100 ? 14 : bits < 1000 ? 18 : bits < 5000 ? 24 : bits < 10000 ? 30 : 37);
   }
   function amtSize(a) { return S(clamp(20 + 8 * Math.log10(Math.max(a || 1, 1)), 20, 40)); }
   function ttGiftSize(perCoin) {
@@ -580,25 +903,23 @@
     return 1;
   }
 
-  // Twitch fires GiftBomb once AND GiftSub per recipient; suppress the
-  // singles for a short window so a 50 bomb is 50 boxes, not 100.
   var recentBombs = Object.create(null);
   function bombGuard(gifter) {
-    var k = String(gifter || 'anon').toLowerCase();
-    recentBombs[k] = Date.now() + 20000;
+    recentBombs[String(gifter || 'anon').toLowerCase()] = Date.now() + 20000;
   }
   function bombSuppressed(gifter) {
-    var k = String(gifter || 'anon').toLowerCase();
-    return (recentBombs[k] || 0) > Date.now();
+    return (recentBombs[String(gifter || 'anon').toLowerCase()] || 0) > Date.now();
   }
 
   function drop(cat, key, r, opts) {
     if (!catEnabled(cat)) return;
     opts = opts || {};
     var n = Math.max(1, Math.round(opts.count || 1));
-    enqueue(key, r, opts.img, Math.min(n, cfg.burst));
     bumpCounter(n);
     if (opts.toast) showToast(opts.toast);
+    // stop mode: a full jar stays exactly as it is, but keeps counting
+    if (jarFull && cfg.full === 'stop') return;
+    enqueue(key, r, opts.img, Math.min(n, cfg.burst));
   }
 
   function onAlert(a) {
@@ -624,7 +945,9 @@
       case 'cheer': {
         var bits = a.amount || 0;
         if (bits <= 0) return;
-        drop('bits', 'gem:' + gemTier(bits), gemSize(bits), {
+        var tier = cheerTierFor(bits);
+        loadCheer(tier);
+        drop('bits', 'cheer:' + tier, gemSize(bits), {
           toast: bits >= 5000 ? who + ' cheered ' + bits.toLocaleString() + ' bits' : null
         });
         break;
@@ -648,13 +971,11 @@
       case 'ttgift': {
         var per = a.perCoin || 1;
         var cnt = Math.max(1, a.amount || 1);
-        var totalCoins = per * cnt;
         drop('tiktok', 'img', ttGiftSize(per), {
-          count: Math.min(cnt, 20),
+          count: cnt,
           img: a.giftImage || null,
-          toast: totalCoins >= 1000 ? who + ' sent ' + esc(a.giftName || 'a gift') + (cnt > 1 ? ' x' + cnt : '') : null
+          toast: per * cnt >= 1000 ? who + ' sent ' + esc(a.giftName || 'a gift') + (cnt > 1 ? ' x' + cnt : '') : null
         });
-        if (cnt > 20) bumpCounter(cnt - 20);
         break;
       }
       case 'follow':
@@ -664,9 +985,7 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // STREAMER.BOT FEED (Twitch / YouTube / Kick). Hello, optional Auth,
-  // Subscribe handshake, exponential reconnect. Event field mapping
-  // mirrors sf-direct.js, which is in production across the SF overlays.
+  // STREAMER.BOT FEED (Twitch / YouTube / Kick)
   // ────────────────────────────────────────────────────────────────────
   function sbRoute(d) {
     if (!d || !d.event) return;
@@ -675,7 +994,6 @@
     var data = d.data || {};
     var plat = src === 'twitch' ? 'tw' : src === 'youtube' ? 'yt' : src === 'kick' ? 'kk' : null;
 
-    // platform-less tips (StreamElements etc. routed through SB)
     if (!plat) {
       if (type === 'tip' || type === 'donation') {
         var ud = data.user || data.donor || {};
@@ -749,7 +1067,6 @@
     }
     ws.onopen = function () {
       sbBackoff = 1000;
-      // some SB builds never send a hello when auth is off
       setTimeout(function () { if (ws.readyState === 1) subscribe(); }, 1200);
     };
     ws.onmessage = function (e) {
@@ -791,8 +1108,7 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // TIKFINITY FEED (TikTok). Streak-aware: only the streak-end gift
-  // event fires, with the full repeat count.
+  // TIKFINITY FEED (TikTok)
   // ────────────────────────────────────────────────────────────────────
   var tfBackoff = 1000;
   function connectTF() {
@@ -836,8 +1152,7 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // PERSISTENCE. The jar refills itself after an OBS restart. Radii are
-  // stored normalized to jar width so a resized source restores cleanly.
+  // PERSISTENCE
   // ────────────────────────────────────────────────────────────────────
   var PERSIST_KEY = 'aq-gift-jar:v1:' + cfg.jarKey;
   var persistTimer = 0;
@@ -858,7 +1173,7 @@
         recs.push(rec);
       }
       if (recs.length > cfg.maxItems) recs = recs.slice(recs.length - cfg.maxItems);
-      localStorage.setItem(PERSIST_KEY, JSON.stringify({ at: Date.now(), total: total, items: recs }));
+      localStorage.setItem(PERSIST_KEY, JSON.stringify({ at: Date.now(), total: total, jf: jarsFilled, items: recs }));
     } catch (e) {}
   }
   function restore() {
@@ -871,7 +1186,8 @@
       return;
     }
     total = saved.total || 0;
-    chipNum.textContent = total.toLocaleString();
+    jarsFilled = saved.jf || 0;
+    updateChip();
     for (var i = 0; i < saved.items.length && i < cfg.maxItems; i++) {
       var r = saved.items[i];
       queue.push({ k: r.k, r: Math.max(9, (r.r || 0.05) * geo.W), i: r.i || null });
@@ -883,7 +1199,12 @@
     for (var i = 0; i < items.length; i++) M.Composite.remove(engine.world, items[i].body);
     items.length = 0;
     total = 0;
-    chipNum.textContent = '0';
+    jarsFilled = 0;
+    jarFull = false;
+    fullStreak = 0;
+    popping = false;
+    if (cfg.full === 'spill') funnelsOn(true);
+    updateChip();
     try { localStorage.removeItem(PERSIST_KEY); } catch (e) {}
   }
   window.addEventListener('keydown', function (e) {
@@ -891,7 +1212,7 @@
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // DEMO MODE
+  // DEMO MODE + CUSTOMIZER BRIDGE
   // ────────────────────────────────────────────────────────────────────
   var DEMO_NAMES = ['NovaByte', 'Quietfawn', 'TTV_Wren', 'mossyhollow', 'PixelPyre', 'duskrunner', 'Kestrel77', 'glimmerjack'];
   function demoName() { return DEMO_NAMES[Math.floor(rand() * DEMO_NAMES.length)]; }
@@ -914,8 +1235,7 @@
   }
 
   // Customizer bridge: the aquilo.gg/gift-jar/customize/ preview embeds
-  // this overlay in an iframe and posts fire commands into it. Effects
-  // are cosmetic-only synthetic drops, same generator as demo mode.
+  // this overlay and posts fire commands into it. Cosmetic-only drops.
   window.addEventListener('message', function (e) {
     var d = e && e.data;
     if (!d || typeof d !== 'object') return;
@@ -939,15 +1259,13 @@
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // SIM + RENDER LOOPS. Physics and spawning run off a clock that does
-  // not care whether requestAnimationFrame is alive (hidden tabs and
-  // some CEF states throttle rAF to zero); drawing rides rAF when it
-  // is available, plus a low-rate interval fallback so the jar never
-  // freezes silently.
+  // SIM + RENDER LOOPS. Physics off a clock that survives rAF
+  // throttling; drawing rides rAF with an interval fallback.
   // ────────────────────────────────────────────────────────────────────
   var STEP = 1000 / 60;
-  var MAX_FALL = 24;          // px per step terminal velocity, prevents
-                              // small tokens tunneling through the floor
+  var MAX_FALL = 24;
+  var MAX_SIDE = 20;
+  var MAX_SPIN = 0.55;
   var lastSim = performance.now();
   var simAcc = 0;
   var sweepCounter = 0;
@@ -956,6 +1274,19 @@
   window.addEventListener('error', function (e) {
     window.__lastErr = String(e && (e.message || e.error) || 'unknown');
   });
+
+  function insideJar(x, y, r) {
+    if (y > geo.floorY + r) return false;
+    if (y > geo.top + 0.2 * geo.H && Math.abs(x - geo.cx) > geo.bw * 1.06 + r) return false;
+    return true;
+  }
+
+  function reinsert(it) {
+    M.Body.setPosition(it.body, { x: geo.cx + (rand() * 2 - 1) * geo.mw * 0.4, y: geo.top - 60 });
+    M.Body.setVelocity(it.body, { x: 0, y: 2 });
+    M.Body.setAngularVelocity(it.body, 0);
+    M.Sleeping.set(it.body, false);
+  }
 
   function simTick(now) {
     var dt = Math.min(now - lastSim, 120);
@@ -968,15 +1299,10 @@
       simAcc -= STEP;
       steps++;
     }
-    if (simAcc > STEP * 5) simAcc = 0; // hidden-tab catchup, drop the debt
+    if (simAcc > STEP * 5) simAcc = 0;
 
-    // terminal velocity clamp
-    for (var v = 0; v < items.length; v++) {
-      var vb = items[v].body;
-      if (vb.velocity.y > MAX_FALL) M.Body.setVelocity(vb, { x: vb.velocity.x, y: MAX_FALL });
-    }
+    clampAll();
 
-    // queued spawns
     drainAcc += dt;
     var dm = drainMs();
     while (drainAcc >= dm && queue.length) {
@@ -985,15 +1311,52 @@
     }
     if (!queue.length) drainAcc = 0;
 
-    // escape sweep, safety net only
-    if (++sweepCounter >= 150) {
+    if (++sweepCounter >= 90) {
       sweepCounter = 0;
-      for (var s = 0; s < items.length; s++) {
-        var b = items[s].body;
-        if (b.position.y > geo.vh + 500 && !items[s].dying) {
-          M.Body.setPosition(b, { x: geo.cx, y: -80 });
-          M.Body.setVelocity(b, { x: 0, y: 2 });
+      sweepNow();
+    }
+
+    // fill sensor rides the sim clock, immune to timer throttling
+    fillAcc += dt;
+    if (fillAcc >= 700) {
+      fillAcc = 0;
+      fillCheck();
+    }
+  }
+  var fillAcc = 0;
+
+  // hard velocity + spin clamps: fast small bodies are what tunnel
+  function clampAll() {
+    for (var v = 0; v < items.length; v++) {
+      var vb = items[v].body;
+      var vx = clamp(vb.velocity.x, -MAX_SIDE, MAX_SIDE);
+      var vy = Math.min(vb.velocity.y, MAX_FALL);
+      if (vx !== vb.velocity.x || vy !== vb.velocity.y) M.Body.setVelocity(vb, { x: vx, y: vy });
+      if (Math.abs(vb.angularVelocity) > MAX_SPIN) {
+        M.Body.setAngularVelocity(vb, clamp(vb.angularVelocity, -MAX_SPIN, MAX_SPIN));
+      }
+    }
+  }
+
+  // containment sweep: anything outside the glass goes quietly back in
+  // through the mouth (or despawns mid-flight in spill/pop modes)
+  function sweepNow() {
+    var flying = popping || (jarFull && cfg.full === 'spill');
+    for (var s = items.length - 1; s >= 0; s--) {
+      var it = items[s];
+      if (it.dying) continue;
+      var p = it.body.position;
+      if (p.y > geo.vh + 280) {
+        if (flying) {
+          M.Composite.remove(engine.world, it.body);
+          items.splice(s, 1);
+        } else {
+          reinsert(it);
         }
+        continue;
+      }
+      if (!flying && p.y > geo.top + 40 && !insideJar(p.x, p.y, it.r)) {
+        reinsert(it);
       }
     }
   }
@@ -1019,14 +1382,61 @@
       ctx2d.translate(pos.x, pos.y);
       ctx2d.rotate(it.body.angle);
       var d = it.r * 2;
-      var im = it.img ? giftImage(it.img) : null;
-      if (im && im.complete && im.naturalWidth > 0) {
-        ctx2d.drawImage(im, -it.r, -it.r, d, d);
-      } else {
+      var drawn = false;
+      if (it.k.indexOf('cheer:') === 0) {
+        var A = cheerAnims[+it.k.slice(6)];
+        if (A && A.ready && cfg.bitsAnim) {
+          var bmp = cheerFrame(A, nowMs);
+          ctx2d.drawImage(bmp, -it.r * 1.1, -it.r * 1.1, d * 1.1, d * 1.1);
+          drawn = true;
+        } else if (A && A.img && A.img.complete && A.img.naturalWidth > 0) {
+          ctx2d.drawImage(A.img, -it.r * 1.1, -it.r * 1.1, d * 1.1, d * 1.1);
+          drawn = true;
+        }
+      } else if (it.img) {
+        var im = giftImage(it.img);
+        if (im && im.complete && im.naturalWidth > 0) {
+          ctx2d.drawImage(im, -it.r, -it.r, d, d);
+          drawn = true;
+        }
+      }
+      if (!drawn) {
         ctx2d.drawImage(token(it.img ? 'box:tt' : it.k), -it.r, -it.r, d, d);
       }
       ctx2d.restore();
     }
+
+    if (cfg.debug >= 2) drawDebugWalls();
+  }
+
+  function drawDebugWalls() {
+    ctx2d.save();
+    ctx2d.lineWidth = 1.5;
+    walls.concat(funnels).forEach(function (b, idx) {
+      var vts = b.vertices;
+      ctx2d.strokeStyle = idx >= walls.length ? 'rgba(255,180,60,0.9)' : 'rgba(255,70,70,0.9)';
+      ctx2d.beginPath();
+      ctx2d.moveTo(vts[0].x, vts[0].y);
+      for (var i = 1; i < vts.length; i++) ctx2d.lineTo(vts[i].x, vts[i].y);
+      ctx2d.closePath();
+      ctx2d.stroke();
+    });
+    ctx2d.strokeStyle = 'rgba(80,255,160,0.9)';
+    ctx2d.lineWidth = 2;
+    ctx2d.beginPath();
+    var R = geo.R;
+    ctx2d.moveTo(geo.cx - R[0][0], R[0][1]);
+    for (var i2 = 1; i2 < R.length; i2++) ctx2d.lineTo(geo.cx - R[i2][0], R[i2][1]);
+    for (var j = R.length - 1; j >= 0; j--) ctx2d.lineTo(geo.cx + R[j][0], R[j][1]);
+    ctx2d.stroke();
+    // fill line
+    ctx2d.strokeStyle = 'rgba(120,200,255,0.8)';
+    ctx2d.setLineDash([6, 5]);
+    ctx2d.beginPath();
+    ctx2d.moveTo(geo.cx - geo.bw, geo.fullYabs);
+    ctx2d.lineTo(geo.cx + geo.bw, geo.fullYabs);
+    ctx2d.stroke();
+    ctx2d.restore();
   }
 
   var debugEl = null;
@@ -1035,6 +1445,8 @@
     debugEl.textContent =
       'items ' + items.length + '  queue ' + queue.length +
       '  total ' + total +
+      '  style ' + cfg.jarStyle +
+      (jarFull ? '  FULL(' + cfg.full + ')' : '') +
       '  raf ' + Math.round(performance.now() - lastDraw) + 'ms' +
       (window.__lastErr ? '  ERR ' + window.__lastErr : '');
   }
@@ -1051,7 +1463,6 @@
     requestAnimationFrame(frame);
   }
 
-  // watchdog: keeps the sim moving when rAF is throttled to nothing
   setInterval(function () {
     var now = performance.now();
     if (now - lastDraw > 350) {
@@ -1066,56 +1477,65 @@
   }, 250);
 
   // ────────────────────────────────────────────────────────────────────
-  // RESIZE. Rebuild geometry and walls, then re-pour the existing
-  // contents so the pile always matches the new jar.
+  // REBUILD + RESIZE
   // ────────────────────────────────────────────────────────────────────
+  function rebuildAndRepour() {
+    var keep = [];
+    for (var i = 0; i < items.length; i++) {
+      if (items[i].dying) continue;
+      keep.push({ k: items[i].k, rn: items[i].r / geo.W, i: items[i].img });
+    }
+    for (var j = 0; j < items.length; j++) M.Composite.remove(engine.world, items[j].body);
+    items.length = 0;
+    geo = computeGeo();
+    sizeCanvas();
+    buildWalls();
+    buildJarLayers();
+    placeChrome();
+    if (jarFull && cfg.full === 'spill') funnelsOn(false);
+    for (var k = 0; k < keep.length; k++) {
+      queue.push({ k: keep[k].k, r: Math.max(9, keep[k].rn * geo.W), i: keep[k].i });
+    }
+  }
+
   var resizeTimer = 0;
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () {
-      var keep = [];
-      for (var i = 0; i < items.length; i++) {
-        if (items[i].dying) continue;
-        keep.push({ k: items[i].k, rn: items[i].r / geo.W, i: items[i].img });
-      }
-      for (var j = 0; j < items.length; j++) M.Composite.remove(engine.world, items[j].body);
-      items.length = 0;
-      geo = computeGeo();
-      sizeCanvas();
-      buildWalls();
-      buildJarSvg();
-      for (var k = 0; k < keep.length; k++) {
-        queue.push({ k: keep[k].k, r: Math.max(9, keep[k].rn * geo.W), i: keep[k].i });
-      }
-    }, 180);
+    resizeTimer = setTimeout(rebuildAndRepour, 180);
   });
 
   window.addEventListener('beforeunload', persistNow);
 
-  // debug / Streamer.bot Execute C# hook surface
+  // debug / selftest surface
   window.GiftJar = {
     drop: function (key, n, r) { enqueue(key || 'coin:tw', S(r || 26), null, n || 1); bumpCounter(n || 1); },
     reset: resetJar,
     demoFire: demoFire,
+    pop: popJar,
     cfg: cfg,
     engine: engine,
     items: items,
     geo: function () { return geo; },
-    // deterministic hooks for selftests: spawn without the pour queue,
-    // then step the engine synchronously without waiting on wall time
+    setStyle: function (s) { if (JARS[s]) { cfg.jarStyle = s; rebuildAndRepour(); loadJarArt(); } },
+    state: function () {
+      var inWorld = 0;
+      var all = M.Composite.allBodies(engine.world);
+      for (var i = 0; i < funnels.length; i++) if (all.indexOf(funnels[i]) >= 0) inWorld++;
+      return { jarFull: jarFull, popping: popping, jarsFilled: jarsFilled, total: total,
+               funnelsActive: inWorld, items: items.length, queue: queue.length };
+    },
     spawnNow: function (key, r, n) {
       for (var i = 0; i < (n || 1); i++) spawnItem({ k: key || 'coin:tw', r: S(r || 26), i: null });
     },
     fastForward: function (ms) {
-      var t = 0;
+      var t = 0, steps = 0;
       while (t < (ms || 1000)) {
         M.Engine.update(engine, STEP);
-        for (var v = 0; v < items.length; v++) {
-          var vb = items[v].body;
-          if (vb.velocity.y > MAX_FALL) M.Body.setVelocity(vb, { x: vb.velocity.x, y: MAX_FALL });
-        }
+        clampAll();
+        if (++steps % 90 === 0) sweepNow();
         t += STEP;
       }
+      sweepNow();
       draw();
     }
   };
@@ -1126,7 +1546,11 @@
   geo = computeGeo();
   sizeCanvas();
   buildWalls();
-  buildJarSvg();
+  buildJarLayers();
+  placeChrome();
+  loadJarArt();
+  loadBrandLogos();
+  if (catEnabled('bits')) CHEER_TIERS.forEach(loadCheer);
   restore();
   statusUpdate();
   if (cfg.debug) {
@@ -1137,7 +1561,6 @@
     document.body.appendChild(debugEl);
   }
   if (cfg.demo) {
-    // opening burst so the jar reads instantly, then the steady loop
     for (var di = 0; di < 10; di++) setTimeout(demoFire, 250 + di * 320);
     setTimeout(demoLoop, 3800);
   } else {
