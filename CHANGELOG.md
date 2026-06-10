@@ -12,6 +12,18 @@ effect after `tools/install-dev.ps1` (dev install) or a tagged release.
 
 ### Added
 
+- **PowerDeck** -- new aquilo.gg product: custom Twitch bits Power-ups
+  open packs of 3 game-challenge cards live on stream (pack rip
+  animation, rarity glows, viewer inventories, !cards / !play chat
+  commands, challenge banners with timers). Repo side: the Pack
+  Workshop worker module (`discord-bot/powerdeck.js`, `pd:` keys,
+  mounted at `/api/powerdeck/`, deployed), `tools/build-powerdeck-import.ps1`
+  (SBAE bundle v1.0.0: Announce / Relay / Play Sound) and
+  POWERDECK-SPEC.md. Product pages live in aquilo-site
+  `public/powerdeck/`; the Loadout OBS dock gained a PowerDeck panel
+  (pause packs/plays, switch game, complete/skip) that ships with the
+  pending aquilo-site dock page commit.
+
 - **ChatAnnouncementsModule (DLL)** -- bus-driven chat announcements for
   game events that previously had no chat reply. Subscribes to
   `AquiloBus.LocalPublished` (catches both in-process publishes and
