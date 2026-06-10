@@ -451,6 +451,13 @@ export default {
       return handleTwitchOauthStart(req, env, token);
     }
     if (method === 'GET' && path === '/admin/twitch-oauth/callback') {
+      // PunchCard reuses this registered redirect URI; its CSRF states
+      // carry the 'pc1.' prefix and route to punchcard.js BEFORE the
+      // admin handler so the two flows never consume each other's state.
+      if ((url.searchParams.get('state') || '').startsWith('pc1.')) {
+        const { handlePunchcardOauthCallback } = await import('./punchcard.js');
+        return handlePunchcardOauthCallback(req, env);
+      }
       const { handleTwitchOauthCallback } = await import('./twitch-oauth.js');
       return handleTwitchOauthCallback(req, env);
     }
@@ -720,7 +727,15 @@ export default {
     if (path.startsWith('/api/sfdock/')) {
       const { handleSfDock } = await import('./sfdock.js');
       return handleSfDock(req, env, path);
-    }    // Vault Hangar: the power-armor collection earned from gifted-sub Vertibird
+    }
+    // PunchCard: daily check-in cards + streaks for Twitch channel point
+    // redeems, multi-tenant. Channel claims, the streak engine, viewer
+    // card storage, Giphy proxy, leaderboards. See punchcard.js.
+    if (path.startsWith('/api/punchcard/')) {
+      const { handlePunchcard } = await import('./punchcard.js');
+      return handlePunchcard(req, env, path);
+    }
+    // Vault Hangar: the power-armor collection earned from gifted-sub Vertibird
     // drops. GET is public (the hangar overlay + aquilo.gg/hangar read it).
     // The test-drop POST is token-gated so Clay can fire a drop from a button.
     if (path === '/api/bobbleheads') {
