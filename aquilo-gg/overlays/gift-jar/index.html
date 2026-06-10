@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>aquilo.gg, Gift Jar</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  aquilo.gg Gift Jar overlay.
+
+  One OBS browser source. Every sub, resub, gift sub, cheer, member,
+  super chat, tip and TikTok gift drops a token into a glass jar with
+  real rigid-body physics (Matter.js, vendored). Tokens stack, settle
+  and persist across OBS restarts, so the jar fills up over the stream.
+
+  Connects DIRECTLY to:
+    Streamer.bot WebSocket server  (Twitch / YouTube / Kick events)
+      default ws://127.0.0.1:8080, enable under Servers/Clients
+    TikFinity local WebSocket      (TikTok gifts + subs)
+      default ws://localhost:21213, on while the desktop app runs
+
+  No StreamFusion, no Loadout DLL, no cloud account needed.
+
+  URL:
+    https://widget.aquilo.gg/overlays/gift-jar/
+  Demo (fake events, no apps needed):
+    https://widget.aquilo.gg/overlays/gift-jar/?demo=1
+
+  Recommended source size: 600 x 950 (any size works, the jar fits itself).
+
+  Useful URL params (see README.md for the full table):
+    sbHost / sbPort / sbPass   Streamer.bot connection (default 127.0.0.1:8080)
+    tf=0                       disable TikFinity (default on)
+    tfPort                     TikFinity port (default 21213)
+    events=subs,gifts,bits,... which event families drop tokens
+    maxItems                   physics body cap (default 140)
+    iconScale                  multiply token sizes (default 1)
+    label                      etched jar text (default GIFTS)
+    counter=0                  hide the running total chip
+    persist=0                  do not refill the jar after a reload
+    demo=1                     fake event firehose for layout/testing
+    bg=1                       dark backdrop for testing outside OBS
+-->
+<link rel="stylesheet" href="style.css">
+<script src="../_shared/theme.js"></script>
+</head>
+<body>
+  <div id="stage" aria-hidden="true">
+    <!-- back glass: cavity tint + floor shadow, painted UNDER the tokens -->
+    <svg id="jarBack"></svg>
+    <!-- the physics tokens -->
+    <canvas id="jarCanvas"></canvas>
+    <!-- front glass: wall stroke, lip, streak highlights, etched label -->
+    <svg id="jarFront"></svg>
+    <div id="bigToast"></div>
+    <div id="counterChip" hidden>
+      <svg viewBox="0 0 24 24" class="chip-ico"><path fill="currentColor" d="M12 2a3 3 0 0 1 3 3c0 .35-.06.69-.17 1H19a2 2 0 0 1 2 2v3h-8V8h-2v3H3V8a2 2 0 0 1 2-2h4.17A3 3 0 0 1 12 2zm0 2a1 1 0 0 0 0 2h1V5a1 1 0 0 0-1-1zM3 13h8v8H5a2 2 0 0 1-2-2v-6zm10 8v-8h8v6a2 2 0 0 1-2 2h-6z"/></svg>
+      <span id="counterNum">0</span>
+    </div>
+    <div id="statusDot" hidden><span class="dot"></span><span id="statusText"></span></div>
+    <div id="demoBadge" hidden>DEMO</div>
+  </div>
+  <script src="matter.min.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

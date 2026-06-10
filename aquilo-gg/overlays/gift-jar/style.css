@@ -1,0 +1,150 @@
+/* aquilo.gg Gift Jar overlay styles.
+   The jar itself (glass, lip, label) is generated SVG so it always
+   matches the physics walls; this file only handles layout chrome. */
+
+:root {
+  --accent: #35e0c2;        /* theme.js overrides via ?accent= */
+  --accent2: #7c5cff;
+  --text: #f4f7fa;
+  --font: Inter, "Segoe UI", system-ui, sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+}
+
+body { font-family: var(--font); }
+
+/* test backdrop outside OBS (?bg=1) */
+body.test-bg {
+  background:
+    radial-gradient(1200px 700px at 50% 18%, #1d2435 0%, #0c101b 62%, #070a12 100%);
+}
+
+#stage {
+  position: fixed;
+  inset: 0;
+}
+
+#jarBack, #jarFront, #jarCanvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#jarFront { pointer-events: none; }
+
+/* running total chip, pinned onto the lower glass by main.js */
+#counterChip {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px 5px 10px;
+  border-radius: 999px;
+  background: rgba(10, 14, 22, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  z-index: 4;
+}
+
+#counterChip .chip-ico {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 65%, transparent));
+}
+
+#counterChip.bump { animation: chip-bump 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes chip-bump {
+  0%   { transform: translate(-50%, -50%) scale(1); }
+  35%  { transform: translate(-50%, -50%) scale(1.18); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* big-event toast floating up from the jar mouth */
+#bigToast {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 7px 16px;
+  border-radius: 12px;
+  background: rgba(10, 14, 22, 0.66);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.4), 0 0 18px color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+#bigToast b { color: var(--accent); }
+
+#bigToast.show { animation: toast-rise 3s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+@keyframes toast-rise {
+  0%   { opacity: 0; margin-top: 14px; }
+  10%  { opacity: 1; margin-top: 0; }
+  78%  { opacity: 1; margin-top: -26px; }
+  100% { opacity: 0; margin-top: -44px; }
+}
+
+/* connection status, bottom left, auto-hides once stable */
+#statusDot {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(10, 14, 22, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(244, 247, 250, 0.85);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  z-index: 6;
+  transition: opacity 0.6s ease;
+}
+
+#statusDot .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f0b429;
+  box-shadow: 0 0 8px #f0b429;
+}
+
+#statusDot.ok .dot { background: #2fdc9a; box-shadow: 0 0 8px #2fdc9a; }
+#statusDot.faded { opacity: 0; }
+
+#demoBadge {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent2) 24%, rgba(10, 14, 22, 0.6));
+  border: 1px solid color-mix(in srgb, var(--accent2) 55%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  z-index: 6;
+}
