@@ -40,12 +40,6 @@ body.test-bg {
 
 #jarFront { pointer-events: none; }
 
-#jarArt {
-  position: absolute;
-  pointer-events: none;
-  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.45));
-}
-
 /* the under-jar accent pool breathes very slowly so the scene never
    reads as a static image */
 .jar-breathe { animation: jar-breathe 6.5s ease-in-out infinite; }

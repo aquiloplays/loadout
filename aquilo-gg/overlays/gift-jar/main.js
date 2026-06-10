@@ -57,7 +57,6 @@
     tfPort:    num('tfPort', 21213),
     events:    (params.get('events') || 'subs,resubs,gifts,bits,members,superchats,tips,tiktok')
                  .split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean),
-    jarStyle:  pick('jarStyle', 'classic', ['classic', 'mason', 'bowl', 'cookie', 'hex']),
     full:      pick('full', 'recycle', ['recycle', 'stop', 'spill', 'pop']),
     bitsAnim:  flag('bitsAnim', true),
     maxItems:  clamp(num('maxItems', 140), 20, 400),
@@ -400,101 +399,22 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // JAR STYLES. poly = RIGHT-side inner-cavity polyline, top to bottom,
-  // [x in W units from center, y in H units from jar top]. The art
-  // styles overlay a photoreal luma-alpha PNG in front of the tokens;
-  // their polylines are calibrated to that art. aspect is replaced by
-  // the loaded art's real proportions.
+  // JAR GEOMETRY. poly = RIGHT-side inner-cavity polyline, top to
+  // bottom, [x in W units from center, y in H units from jar top]. One
+  // set of coordinates drives both the drawn glass and the physics
+  // walls.
   // ────────────────────────────────────────────────────────────────────
-  var JARS = {
-    classic: {
-      art: null, aspect: 1.34, mouth: 0.295, inset: 0.026, fullY: 0.26,
-      labelY: 0.56, chipY: 0.9725,
-      poly: [[0.295, 0.06], [0.315, 0.10], [0.45, 0.225], [0.46, 0.31], [0.46, 0.775],
-             [0.432, 0.862], [0.368, 0.917], [0.295, 0.942]]
-    },
-    mason: {
-      art: 'jars/mason.png', aspect: 1.93, mouth: 0.285, inset: 0.030, fullY: 0.20,
-      labelY: 0.60, chipY: 0.94,
-      poly: [[0.285, 0.045], [0.34, 0.075], [0.345, 0.125], [0.43, 0.195], [0.45, 0.28], [0.45, 0.76],
-             [0.43, 0.845], [0.35, 0.895], [0.22, 0.905]]
-    },
-    bowl: {
-      art: 'jars/bowl.png', aspect: 0.94, mouth: 0.20, inset: 0.022, fullY: 0.24,
-      labelY: 0.48, chipY: 0.93,
-      arc: { cy: 0.47, rx: 0.44, ry: 0.37, mouthY: 0.115, baseY: 0.835 }
-    },
-    cookie: {
-      art: 'jars/cookie.png', aspect: 1.09, mouth: 0.30, inset: 0.026, fullY: 0.20,
-      labelY: 0.55, chipY: 0.945,
-      poly: [[0.30, 0.05], [0.39, 0.09], [0.445, 0.18], [0.455, 0.40], [0.445, 0.70], [0.41, 0.84],
-             [0.33, 0.915], [0.20, 0.93]]
-    },
-    hex: {
-      art: 'jars/hex.png', aspect: 1.78, mouth: 0.255, inset: 0.030, fullY: 0.18,
-      labelY: 0.55, chipY: 0.95,
-      poly: [[0.255, 0.05], [0.30, 0.085], [0.415, 0.16], [0.425, 0.50], [0.415, 0.83], [0.33, 0.905], [0.20, 0.925]]
-    }
+  var JAR = {
+    aspect: 1.34, mouth: 0.295, inset: 0.026, fullY: 0.26,
+    labelY: 0.56, chipY: 0.9725,
+    poly: [[0.295, 0.06], [0.315, 0.10], [0.45, 0.225], [0.46, 0.31], [0.46, 0.775],
+           [0.432, 0.862], [0.368, 0.917], [0.295, 0.942]]
   };
 
-  var artMeta = Object.create(null);   // style -> {img, aspect}
-
-  function styleDef() { return JARS[cfg.jarStyle] || JARS.classic; }
+  function styleDef() { return JAR; }
 
   function stylePoly(def, W, H) {
-    if (def.poly) {
-      return def.poly.map(function (p) { return [p[0] * W, p[1] * H]; });
-    }
-    // arc styles (bowl): ellipse interior from the mouth edge down to a
-    // flat base chord, since real bowls are squashed spheres with a
-    // flattened inside bottom
-    var cy = def.arc.cy * H, rx = def.arc.rx * W, ry = def.arc.ry * H;
-    var mouthY = def.arc.mouthY * H, baseY = def.arc.baseY * H;
-    var t0 = Math.acos(clamp((cy - mouthY) / ry, -1, 1));
-    var t1 = Math.acos(clamp((cy - baseY) / ry, -1, 1));
-    var pts = [];
-    var steps = 14;
-    for (var i = 0; i <= steps; i++) {
-      var t = t0 + (t1 - t0) * (i / steps);
-      pts.push([rx * Math.sin(t), cy - ry * Math.cos(t)]);
-    }
-    // flat base: walk the chord in toward center so the floor segment
-    // builder closes the bottom
-    pts.push([pts[pts.length - 1][0] * 0.45, baseY]);
-    return pts;
-  }
-
-  function loadJarArt() {
-    var def = styleDef();
-    if (!def.art) { $('jarArt').hidden = true; return; }
-    var style = cfg.jarStyle;
-    if (artMeta[style]) { applyArt(); return; }
-    var im = new Image();
-    im.onload = function () {
-      artMeta[style] = { img: im, aspect: im.naturalHeight / im.naturalWidth };
-      JARS[style].aspect = artMeta[style].aspect;
-      rebuildAndRepour();
-    };
-    im.onerror = function () {
-      // art missing or blocked: fall back to the procedural jar
-      if (cfg.jarStyle === style) {
-        cfg.jarStyle = 'classic';
-        rebuildAndRepour();
-      }
-    };
-    im.src = def.art;
-  }
-
-  function applyArt() {
-    var el = $('jarArt');
-    var def = styleDef();
-    if (!def.art || !artMeta[cfg.jarStyle]) { el.hidden = true; return; }
-    el.src = artMeta[cfg.jarStyle].img.src;
-    el.hidden = false;
-    el.style.left = (geo.cx - geo.W / 2) + 'px';
-    el.style.top = geo.top + 'px';
-    el.style.width = geo.W + 'px';
-    el.style.height = geo.H + 'px';
+    return def.poly.map(function (p) { return [p[0] * W, p[1] * H]; });
   }
 
   // ────────────────────────────────────────────────────────────────────
@@ -658,7 +578,6 @@
     var back = $('jarBack'), front = $('jarFront');
     back.setAttribute('viewBox', vb);
     front.setAttribute('viewBox', vb);
-    var isArt = !!def.art;
 
     var glow =
       '<radialGradient id="glowGrad" cx="0.5" cy="0.5" r="0.5">' +
@@ -666,26 +585,6 @@
         '<stop offset="1" style="stop-color:var(--accent)" stop-opacity="0"/>' +
       '</radialGradient>';
 
-    if (isArt) {
-      back.innerHTML =
-        '<defs>' + glow + '</defs>' +
-        '<ellipse class="jar-breathe" cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
-        '<path d="' + roundedOutline(true) + '" fill="rgba(10,14,22,0.34)"/>' +
-        '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.012 * g.H) + '" rx="' + (g.bw * 0.78) + '" ry="' + (0.026 * g.H) + '" fill="rgba(0,0,0,0.25)"/>';
-      var labelArt = '';
-      if (cfg.label) {
-        labelArt =
-          '<text x="' + cx + '" y="' + (g.top + def.labelY * g.H) + '" text-anchor="middle" ' +
-          'font-family="var(--font)" font-weight="800" font-size="' + (0.07 * g.W) + '" ' +
-          'letter-spacing="' + (0.02 * g.W) + '" fill="rgba(255,255,255,0.14)" ' +
-          'style="text-shadow: 0 1px 2px rgba(0,0,0,0.4)">' + esc(String(cfg.label).toUpperCase()) + '</text>';
-      }
-      front.innerHTML = labelArt;
-      applyArt();
-      return;
-    }
-
-    $('jarArt').hidden = true;
     back.innerHTML =
       '<defs>' +
         '<linearGradient id="cavGrad" x1="0" y1="0" x2="0" y2="1">' +
@@ -1599,7 +1498,6 @@
     debugEl.textContent =
       'items ' + items.length + '  queue ' + queue.length +
       '  total ' + total +
-      '  style ' + cfg.jarStyle +
       (jarFull ? '  FULL(' + cfg.full + ')' : '') +
       '  raf ' + Math.round(performance.now() - lastDraw) + 'ms' +
       (window.__lastErr ? '  ERR ' + window.__lastErr : '');
@@ -1670,7 +1568,6 @@
     engine: engine,
     items: items,
     geo: function () { return geo; },
-    setStyle: function (s) { if (JARS[s]) { cfg.jarStyle = s; rebuildAndRepour(); loadJarArt(); } },
     state: function () {
       var inWorld = 0;
       var all = M.Composite.allBodies(engine.world);
@@ -1702,7 +1599,6 @@
   buildWalls();
   buildJarLayers();
   placeChrome();
-  loadJarArt();
   loadBrandLogos();
   if (catEnabled('bits')) CHEER_TIERS.forEach(loadCheer);
   restore();
