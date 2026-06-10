@@ -475,10 +475,26 @@ export async function handlePunchcardOauthCallback(req, env) {
       },
     };
     await kvPut(env, KEY.chan(login), chan);
+
+    // Zero-click onboarding: if no reward is bound yet, create the
+    // Daily Check-In reward right now with the token we just minted
+    // (or adopt an existing same-title reward). Non-affiliates and
+    // API hiccups degrade to the customizer's manual button.
+    let rewardAuto = chan.rewardId ? 'kept' : 'failed';
+    if (!chan.rewardId) {
+      try {
+        const res = await createCheckinReward(env, login, chan, {});
+        rewardAuto = res.status;
+      } catch { /* customizer button remains */ }
+    }
     const oneTime = genHex(20);
     await kvPut(env, KEY.code(oneTime), {
       kind: 'streamer',
-      payload: { login, display, k: chan.k, rewardTitle: chan.rewardTitle, rewardId: chan.rewardId, cfg: chan.cfg },
+      payload: {
+        login, display, k: chan.k,
+        rewardTitle: chan.rewardTitle, rewardId: chan.rewardId,
+        rewardAuto, cfg: chan.cfg,
+      },
     }, { expirationTtl: CODE_TTL });
     return new Response(null, {
       status: 302,
@@ -662,13 +678,19 @@ async function handleRewards(env, url) {
   return json({ ok: true, rewards });
 }
 
-async function handleRewardCreate(env, body) {
-  const ch = chanName(body.ch);
-  const chan = await authedChan(env, ch, String(body.k || ''));
-  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
-  const title = cleanDisplay(body.title) || 'Daily Check-In';
-  const cost = Math.min(1000000, Math.max(1, Number(body.cost) || 100));
-  const prompt = cleanMsg(body.prompt) || 'Check in for today! Your message shows on your card.';
+// Create (or adopt) the check-in reward on Twitch and bind it to the
+// channel. Shared by the customizer's Create button and the automatic
+// path inside the OAuth callback. Returns:
+//   { ok: true,  status: 'created'|'linked', reward }
+//   { ok: false, status: 'unavailable'|'failed', error }
+// 'linked' = a reward with the same title already existed (made by the
+// streamer or an earlier claim); we bind by id so matching and renames
+// keep working (refunds only work when the reward is ours, as before).
+async function createCheckinReward(env, ch, chan, opts = {}) {
+  const title = cleanDisplay(opts.title) || 'Daily Check-In';
+  const cost = Math.min(1000000, Math.max(1, Number(opts.cost) || 100));
+  const prompt = cleanMsg(opts.prompt) ||
+    'Check in for today! Your message shows on your card. Customize it at aquilo.gg/punchcard/card/?ch=' + ch;
   const j = await chanHelix(env, ch, chan, '/channel_points/custom_rewards',
     { broadcaster_id: chan.userId },
     { method: 'POST', body: {
@@ -682,16 +704,41 @@ async function handleRewardCreate(env, body) {
       is_max_per_user_per_stream_enabled: true,
       max_per_user_per_stream: 1,
     } });
-  if (j._error) {
-    // Surface Twitch's reason: duplicate title, not affiliate, etc.
-    return json({ ok: false, error: j.message || 'helix', status: j.status }, 502);
+  if (!j._error) {
+    const r = j.data && j.data[0];
+    if (!r) return { ok: false, status: 'failed', error: 'no-reward' };
+    chan.rewardId = r.id;
+    chan.rewardTitle = r.title;
+    await kvPut(env, KEY.chan(ch), chan);
+    return { ok: true, status: 'created', reward: { id: r.id, title: r.title, cost: r.cost } };
   }
-  const r = j.data && j.data[0];
-  if (!r) return json({ ok: false, error: 'no-reward' }, 502);
-  chan.rewardId = r.id;
-  chan.rewardTitle = r.title;
-  await kvPut(env, KEY.chan(ch), chan);
-  return json({ ok: true, reward: { id: r.id, title: r.title, cost: r.cost } });
+  if (j.status === 400 && /DUPLICATE_REWARD|duplicate/i.test(j.message || '')) {
+    const list = await chanHelix(env, ch, chan, '/channel_points/custom_rewards', { broadcaster_id: chan.userId });
+    const found = !list._error && (list.data || []).find(
+      (r) => String(r.title).trim().toLowerCase() === title.trim().toLowerCase());
+    if (found) {
+      chan.rewardId = found.id;
+      chan.rewardTitle = found.title;
+      await kvPut(env, KEY.chan(ch), chan);
+      return { ok: true, status: 'linked', reward: { id: found.id, title: found.title, cost: found.cost } };
+    }
+  }
+  if (j.status === 403) return { ok: false, status: 'unavailable', error: 'affiliate-required' };
+  return { ok: false, status: 'failed', error: j.message || 'helix' };
+}
+
+async function handleRewardCreate(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const res = await createCheckinReward(env, ch, chan, {
+    title: body.title, cost: body.cost, prompt: body.prompt,
+  });
+  if (!res.ok) {
+    // The customizer keys its "needs Affiliate" hint off status 403.
+    return json({ ok: false, error: res.error, status: res.status === 'unavailable' ? 403 : 502 }, 502);
+  }
+  return json({ ok: true, reward: res.reward, linked: res.status === 'linked' });
 }
 
 function validTz(tz) {

@@ -311,6 +311,13 @@ Round 6 (same day), discovery + cosmetics:
 - Reward hardening: created rewards set max_per_user_per_stream = 1 so
   Twitch itself blocks live double-redeems; the worker refund stays as
   the backstop for offline redeems and stream restarts.
+- Zero-click reward creation (round 7): the OAuth callback itself
+  creates the Daily Check-In reward on first claim via the shared
+  createCheckinReward helper. Duplicate titles adopt the existing
+  reward (bind by id, status 'linked'); non-affiliates degrade to the
+  chat command with a clear note (status 'unavailable'); the manual
+  Create button remains for custom titles/costs. The finish payload
+  carries rewardAuto so the customizer explains what happened.
 - Card cosmetics (all whitelisted server-side): nameFx (accent /
   gradient / animated rainbow), texture (dots / scanlines / sparkle),
   entrance animation (slide / pop / flip / drop, viewer-picked, plays
