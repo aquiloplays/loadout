@@ -1,0 +1,169 @@
+﻿{
+    "meta":  {
+                 "name":  "PowerDeck",
+                 "author":  "aquilo.gg",
+                 "version":  "1.0.0",
+                 "description":  "Bits power-ups become challenge card packs on stream. Prewired actions for chat announcements and the dock relay. Free forever at aquilo.gg/powerdeck",
+                 "autoRunAction":  null,
+                 "minimumVersion":  null
+             },
+    "manifest":  {
+                     "product":  "PowerDeck",
+                     "packageVersion":  "1.0.0",
+                     "group":  "PowerDeck",
+                     "generatedBy":  "tools/build-powerdeck-import.ps1",
+                     "actionCount":  3,
+                     "actions":  [
+                                     "PowerDeck Â· Announce",
+                                     "PowerDeck Â· Relay",
+                                     "PowerDeck Â· Play Sound"
+                                 ],
+                     "commands":  [
+
+                                  ],
+                     "includes":  [
+                                      "announce",
+                                      "relay",
+                                      "play-sound"
+                                  ]
+                 },
+    "data":  {
+                 "actions":  [
+                                 {
+                                     "id":  "ff708a1d-19b3-4f29-afeb-557cda560b20",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "PowerDeck Â· Announce",
+                                     "group":  "PowerDeck",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "PowerDeck Â· Announce",
+                                                            "description":  "Sends {message} to Twitch / YouTube / Kick chat. Invoked by the PowerDeck overlay for pack rips, card plays and !cards replies.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUmVmbGVjdGlvbjsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgc3RyaW5nIG1zZzsKICAgICAgICBpZiAoIUNQSC5UcnlHZXRBcmcoIm1lc3NhZ2UiLCBvdXQgbXNnKSB8fCBzdHJpbmcuSXNOdWxsT3JXaGl0ZVNwYWNlKG1zZykpIHJldHVybiB0cnVlOwogICAgICAgIHRyeSB7IENQSC5TZW5kTWVzc2FnZShtc2csIHRydWUpOyB9IGNhdGNoIChFeGNlcHRpb24pIHt9CiAgICAgICAgdHJ5IHsgQ1BILlNlbmRZb3VUdWJlTWVzc2FnZShtc2cpOyB9IGNhdGNoIChFeGNlcHRpb24pIHt9CiAgICAgICAgLy8gS2ljayBzZW5kIG9ubHkgZXhpc3RzIG9uIG5ld2VyIGJ1aWxkczsgY2FsbCBpdCBpZiBwcmVzZW50LgogICAgICAgIFRyeUNhbGwoIlNlbmRLaWNrTWVzc2FnZSIsIG1zZyk7CiAgICAgICAgVHJ5Q2FsbCgiS2lja1NlbmRNZXNzYWdlIiwgbXNnKTsKICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KCiAgICBwcml2YXRlIHZvaWQgVHJ5Q2FsbChzdHJpbmcgbmFtZSwgc3RyaW5nIGFyZykKICAgIHsKICAgICAgICB0cnkKICAgICAgICB7CiAgICAgICAgICAgIE1ldGhvZEluZm8gbSA9IENQSC5HZXRUeXBlKCkuR2V0TWV0aG9kKG5hbWUsIG5ldyBUeXBlW10geyB0eXBlb2Yoc3RyaW5nKSB9KTsKICAgICAgICAgICAgaWYgKG0gIT0gbnVsbCkgbS5JbnZva2UoQ1BILCBuZXcgb2JqZWN0W10geyBhcmcgfSk7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24pIHt9CiAgICB9Cn0=",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "690fb6af-ffec-46a5-88f4-58743c8a6286",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "6be5857e-df8b-4e7d-b49d-0fcda03e92c4",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "PowerDeck Â· Relay",
+                                     "group":  "PowerDeck",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "PowerDeck Â· Relay",
+                                                            "description":  "Rebroadcasts dock commands to the overlay over the SB websocket. Leave as-is; PowerDeck invokes it.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUmVmbGVjdGlvbjsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgLy8gVGhlIGRvY2sgaW52b2tlcyB0aGlzIHdpdGggcGRSZWxheSA9IGEgSlNPTiBjb21tYW5kIHN0cmluZy4KICAgICAgICAvLyBCcm9hZGNhc3RpbmcgeyJwb3dlcmRlY2siOiA8Y21kPn0gb3ZlciB0aGUgU0Igd2Vic29ja2V0IGxldHMKICAgICAgICAvLyB0aGUgb3ZlcmxheSByZWNlaXZlIGRvY2sgY29tbWFuZHMgZXZlbiB3aGVuIHRoZSBkb2NrIHJ1bnMgaW4gYQogICAgICAgIC8vIGRpZmZlcmVudCBicm93c2VyIHByb2ZpbGUgdGhhbiBPQlMuCiAgICAgICAgc3RyaW5nIHBheWxvYWQ7CiAgICAgICAgaWYgKCFDUEguVHJ5R2V0QXJnKCJwZFJlbGF5Iiwgb3V0IHBheWxvYWQpIHx8IHN0cmluZy5Jc051bGxPcldoaXRlU3BhY2UocGF5bG9hZCkpIHJldHVybiB0cnVlOwogICAgICAgIHN0cmluZyBmcmFtZSA9ICJ7XCJwb3dlcmRlY2tcIjoiICsgcGF5bG9hZCArICJ9IjsKICAgICAgICBpZiAoQnJvYWRjYXN0KCJXZWJzb2NrZXRCcm9hZGNhc3RKc29uIiwgZnJhbWUpKSByZXR1cm4gdHJ1ZTsKICAgICAgICBpZiAoQnJvYWRjYXN0KCJXZWJzb2NrZXRCcm9hZGNhc3RTdHJpbmciLCBmcmFtZSkpIHJldHVybiB0cnVlOwogICAgICAgIENQSC5Mb2dJbmZvKCJQb3dlckRlY2sgLSBSZWxheTogbm8gd2Vic29ja2V0IGJyb2FkY2FzdCBtZXRob2Qgb24gdGhpcyBTQiBidWlsZC4iKTsKICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KCiAgICBwcml2YXRlIGJvb2wgQnJvYWRjYXN0KHN0cmluZyBuYW1lLCBzdHJpbmcgZnJhbWUpCiAgICB7CiAgICAgICAgdHJ5CiAgICAgICAgewogICAgICAgICAgICBNZXRob2RJbmZvIG0gPSBDUEguR2V0VHlwZSgpLkdldE1ldGhvZChuYW1lLCBuZXcgVHlwZVtdIHsgdHlwZW9mKHN0cmluZykgfSk7CiAgICAgICAgICAgIGlmIChtICE9IG51bGwpIHsgbS5JbnZva2UoQ1BILCBuZXcgb2JqZWN0W10geyBmcmFtZSB9KTsgcmV0dXJuIHRydWU7IH0KICAgICAgICB9CiAgICAgICAgY2F0Y2ggKEV4Y2VwdGlvbikge30KICAgICAgICByZXR1cm4gZmFsc2U7CiAgICB9Cn0=",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "9a9e355c-d7bc-4fb4-b8df-a8ea27ff1ca5",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "6ee68f35-2f7e-43a8-8cde-d2e859918b7f",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "PowerDeck Â· Play Sound",
+                                     "group":  "PowerDeck",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "PowerDeck Â· Play Sound",
+                                                            "description":  "Plays {soundPath} or the fallback path inside the code on pack opens. Optional.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uSU87CgpwdWJsaWMgY2xhc3MgQ1BISW5saW5lCnsKICAgIHB1YmxpYyBib29sIEV4ZWN1dGUoKQogICAgewogICAgICAgIC8vIFBvd2VyRGVjayBpbnZva2VzIHRoaXMgb24gcGFjayBvcGVucyB3aGVuIGEgc291bmQgYWN0aW9uIGlzIHNldAogICAgICAgIC8vIGluIHRoZSBjdXN0b21pemVyLiBFaXRoZXIgcGFzcyBzb3VuZFBhdGggYXMgYW4gYWN0aW9uIGFyZ3VtZW50LAogICAgICAgIC8vIG9yIGVkaXQgdGhlIGZhbGxiYWNrIGJlbG93IHRvIGEgLndhdi8ubXAzIG9uIHRoaXMgUEMuCiAgICAgICAgc3RyaW5nIGZhbGxiYWNrID0gQCIiOwogICAgICAgIHN0cmluZyBwYXRoOwogICAgICAgIGlmICghQ1BILlRyeUdldEFyZygic291bmRQYXRoIiwgb3V0IHBhdGgpIHx8IHN0cmluZy5Jc051bGxPcldoaXRlU3BhY2UocGF0aCkpIHBhdGggPSBmYWxsYmFjazsKICAgICAgICBpZiAoc3RyaW5nLklzTnVsbE9yV2hpdGVTcGFjZShwYXRoKSB8fCAhRmlsZS5FeGlzdHMocGF0aCkpCiAgICAgICAgewogICAgICAgICAgICBDUEguTG9nSW5mbygiUG93ZXJEZWNrIC0gUGxheSBTb3VuZDogbm8gc291bmRQYXRoIGFyZyBhbmQgbm8gZmFsbGJhY2sgc2V0OyBlZGl0IHRoaXMgYWN0aW9uLiIpOwogICAgICAgICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICB9CiAgICAgICAgdHJ5IHsgQ1BILlBsYXlTb3VuZChwYXRoLCAxZiwgdHJ1ZSk7IH0gY2F0Y2ggKEV4Y2VwdGlvbikgeyB0cnkgeyBDUEguUGxheVNvdW5kKHBhdGgpOyB9IGNhdGNoIChFeGNlcHRpb24pIHt9IH0KICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KfQ==",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "c385d69c-ac77-409d-9959-776f9913c023",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 }
+                             ],
+                 "queues":  [
+
+                            ],
+                 "commands":  [
+
+                              ],
+                 "websocketServers":  [
+
+                                      ],
+                 "websocketClients":  [
+
+                                      ],
+                 "timers":  [
+
+                            ]
+             },
+    "version":  23,
+    "exportedFrom":  "1.0.4",
+    "minimumVersion":  "1.0.0-alpha.1"
+}

@@ -735,6 +735,14 @@ export default {
       const { handlePunchcard } = await import('./punchcard.js');
       return handlePunchcard(req, env, path);
     }
+    // PowerDeck Pack Workshop: community registry for custom challenge
+    // card packs (create/update via edit keys, public gallery, fetch by
+    // unguessable id). Pure distribution layer; running overlays cache
+    // packs locally and never depend on it live. See powerdeck.js.
+    if (path.startsWith('/api/powerdeck/')) {
+      const { handlePowerdeck } = await import('./powerdeck.js');
+      return handlePowerdeck(req, env, path);
+    }
     // Vault Hangar: the power-armor collection earned from gifted-sub Vertibird
     // drops. GET is public (the hangar overlay + aquilo.gg/hangar read it).
     // The test-drop POST is token-gated so Clay can fire a drop from a button.
