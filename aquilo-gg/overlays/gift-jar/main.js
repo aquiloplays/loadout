@@ -536,20 +536,29 @@
     };
   }
 
-  function segBody(x1, y1, x2, y2, t, isFunnel) {
+  function segBody(x1, y1, x2, y2, t, opts) {
     // Static rectangle whose INNER face sits on the segment inset by the
     // glass thickness, so tokens rest on the VISIBLE inner glass edge.
+    // Funnels take the same inset so they land flush with the wall face:
+    // any ledge at the mouth becomes a perch for small tokens.
     var dx = x2 - x1, dy = y2 - y1;
     var len = Math.sqrt(dx * dx + dy * dy) || 1;
     var midX = (x1 + x2) / 2, midY = (y1 + y2) / 2;
     var nx = dy / len, ny = -dx / len;
     var refX = midX - geo.cx, refY = midY - (geo.top + 0.5 * geo.H);
     if (nx * refX + ny * refY < 0) { nx = -nx; ny = -ny; }
-    var off = t / 2 - (isFunnel ? 0 : geo.glass);
-    return M.Bodies.rectangle(
+    var off = t / 2 - geo.glass;
+    var body = M.Bodies.rectangle(
       midX + nx * off, midY + ny * off, len + t, t,
-      { isStatic: true, angle: Math.atan2(dy, dx), friction: 0.35, restitution: 0.05 }
+      {
+        isStatic: true,
+        angle: Math.atan2(dy, dx),
+        friction: (opts && opts.friction != null) ? opts.friction : 0.35,
+        restitution: 0.05,
+        chamfer: (opts && opts.chamfer) ? { radius: Math.min(10, t * 0.22) } : null
+      }
     );
+    return body;
   }
 
   function buildWalls() {
@@ -559,18 +568,36 @@
     var cx = geo.cx, R = geo.R;
     function add(arr, b) { arr.push(b); M.Composite.add(engine.world, b); }
     for (var k = 0; k < R.length - 1; k++) {
-      add(walls, segBody(cx + R[k][0], R[k][1], cx + R[k + 1][0], R[k + 1][1], t));
-      add(walls, segBody(cx - R[k][0], R[k][1], cx - R[k + 1][0], R[k + 1][1], t));
+      var ax = R[k][0], ay = R[k][1];
+      if (k === 0) {
+        // segBody overhangs both ends by t/2 to seal joints; above the
+        // mouth there is no joint, only a shelf for tokens to perch on,
+        // so pull the top of the first segment in by exactly that much
+        var ddx = R[1][0] - R[0][0], ddy = R[1][1] - R[0][1];
+        var dl = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+        ax += ddx / dl * (t / 2);
+        ay += ddy / dl * (t / 2);
+      }
+      add(walls, segBody(cx + ax, ay, cx + R[k + 1][0], R[k + 1][1], t));
+      add(walls, segBody(cx - ax, ay, cx - R[k + 1][0], R[k + 1][1], t));
     }
     var last = R[R.length - 1];
     if (last[0] > 0.02 * geo.W) {
       add(walls, segBody(cx - last[0], last[1], cx + last[0], last[1], t * 1.4));
     }
     // invisible funnel above the mouth: guides every drop in (removed
-    // in spill mode once the jar fills, and during a pop blast)
-    var fTopX = geo.mw + 0.45 * geo.W;
-    add(funnels, segBody(cx + fTopX, -140, cx + geo.mw, R[0][1] - 4, t, true));
-    add(funnels, segBody(cx - fTopX, -140, cx - geo.mw, R[0][1] - 4, t, true));
+    // in spill mode once the jar fills, and during a pop blast). The
+    // lower end continues a short way ALONG the wall's first segment,
+    // so funnel face and wall face form one continuous chute whatever
+    // the jar shape (bowls widen right below the mouth), and the funnel
+    // is near-frictionless so nothing can perch on it.
+    var d0x = R[1][0] - R[0][0], d0y = R[1][1] - R[0][1];
+    var d0l = Math.sqrt(d0x * d0x + d0y * d0y) || 1;
+    var fTopX = R[0][0] + 0.45 * geo.W;
+    var fEndX = R[0][0] + d0x / d0l * t * 0.6;
+    var fEndY = R[0][1] + d0y / d0l * t * 0.6;
+    add(funnels, segBody(cx + fTopX, -140, cx + fEndX, fEndY, t, { friction: 0.02, chamfer: true }));
+    add(funnels, segBody(cx - fTopX, -140, cx - fEndX, fEndY, t, { friction: 0.02, chamfer: true }));
   }
 
   function funnelsOn(on) {
@@ -893,7 +920,9 @@
   var fullStreak = 0;
 
   function pileTopY() {
-    var top = Infinity, count = 0;
+    // 4th-highest settled token, not the single highest: one or two
+    // strays perched on a rim must never read as a full jar
+    var tops = [];
     for (var i = 0; i < items.length; i++) {
       var it = items[i];
       if (it.dying) continue;
@@ -901,10 +930,11 @@
       if (b.speed > 1.2) continue;
       var p = b.position;
       if (p.y < geo.top - 20 || Math.abs(p.x - geo.cx) > geo.bw) continue;
-      count++;
-      if (p.y - it.r < top) top = p.y - it.r;
+      tops.push(p.y - it.r);
     }
-    return count >= 12 ? top : Infinity;
+    if (tops.length < 12) return Infinity;
+    tops.sort(function (a, b2) { return a - b2; });
+    return tops[3];
   }
 
   function fillCheck() {
@@ -1445,16 +1475,19 @@
   }
 
   // containment sweep: anything outside the glass goes quietly back in
-  // through the mouth (or despawns mid-flight in spill/pop modes)
+  // through the mouth (or despawns mid-flight in spill/pop modes), and
+  // tokens arching across the mouth get a jostle so bridges collapse
   function sweepNow() {
     var flying = popping || (jarFull && cfg.full === 'spill');
+    var mouthY = geo.R[0][1];
     for (var s = items.length - 1; s >= 0; s--) {
       var it = items[s];
       if (it.dying) continue;
-      var p = it.body.position;
+      var b = it.body;
+      var p = b.position;
       if (p.y > geo.vh + 280) {
         if (flying) {
-          M.Composite.remove(engine.world, it.body);
+          M.Composite.remove(engine.world, b);
           items.splice(s, 1);
         } else {
           reinsert(it);
@@ -1463,6 +1496,21 @@
       }
       if (!flying && p.y > geo.top + 40 && !insideJar(p.x, p.y, it.r)) {
         reinsert(it);
+        continue;
+      }
+      // arch breaker: settled at or above the mouth line two sweeps in
+      // a row means a token bridge formed across the opening; shake it
+      // loose (two strikes so a token mid-roll is left alone)
+      if (!flying && p.y - it.r < mouthY && b.speed < 0.5) {
+        if (it._arch) {
+          it._arch = 0;
+          M.Sleeping.set(b, false);
+          M.Body.setVelocity(b, { x: (rand() * 2 - 1) * 2.5, y: 3 + rand() * 2 });
+        } else {
+          it._arch = 1;
+        }
+      } else {
+        it._arch = 0;
       }
     }
   }
