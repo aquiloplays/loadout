@@ -298,7 +298,26 @@ Retention pack (same day, round 4):
 - First-punch-of-day flair: the check-in that opens a new channel-active
   day gets a "today's first punch!" chip.
 
+Round 5 (same day): shareable streak card PNG export (pc-share.js, 1200x400
+banner, editor download button, CORS-safe CDNs, taint-rejecting fallback).
+
+Round 6 (same day), discovery + cosmetics:
+
+- Editor discovery: opt-in first-check-in chat welcome with the editor
+  link (cfg.announceWelcome), "make yours · aquilo.gg/punchcard" brand
+  hint on uncustomized cards (look.editorHint, streamer toggle), and a
+  downloadable 320x100 Twitch About-panel image (PCShare.panel) in the
+  customizer.
+- Reward hardening: created rewards set max_per_user_per_stream = 1 so
+  Twitch itself blocks live double-redeems; the worker refund stays as
+  the backstop for offline redeems and stream restarts.
+- Card cosmetics (all whitelisted server-side): nameFx (accent /
+  gradient / animated rainbow), texture (dots / scanlines / sparkle),
+  entrance animation (slide / pop / flip / drop, viewer-picked, plays
+  on the overlay), avatarShape (circle / squircle / hex), custom streak
+  icon emoji, and a holo foil sweep that saves any time but only
+  RENDERS once the gold ring (100 day best) is earned.
+
 Deferred to v1.1: Streamer.bot announce action on milestones (the Helix
 chat announce covers Twitch; an SB action would cover YT/Kick), Discord
-webhook digest, a dock page (moderation lives in the customizer for now),
-shareable card PNG export.
+webhook digest, a dock page (moderation lives in the customizer for now).

@@ -91,6 +91,9 @@ const DEFAULT_CFG = {
   // Post "X hit a N day streak!" to chat as the broadcaster on
   // milestones. Off by default: speaking as the streamer is opt-in.
   announceMilestones: false,
+  // Welcome a viewer's FIRST-ever check-in with the card editor link,
+  // the moment they are most likely to go customize. Same opt-in rule.
+  announceWelcome: false,
 };
 const FONTS = ['inter', 'bangers', 'pressstart', 'pacifico', 'oswald', 'caveat'];
 const BG_PRESETS = ['ember', 'tide', 'violet', 'meadow', 'sunset', 'mono', 'candy', 'midnight'];
@@ -169,6 +172,15 @@ export function sanitizeCard(raw, allowCustom) {
       a: raw.emote.a ? 1 : 0,
     };
   }
+  // Cosmetics. Everything whitelisted; junk falls back to defaults.
+  out.nameFx = ['none', 'accent', 'gradient', 'rainbow'].includes(raw.nameFx) ? raw.nameFx : 'none';
+  out.texture = ['none', 'dots', 'scan', 'sparkle'].includes(raw.texture) ? raw.texture : 'none';
+  out.anim = ['slide', 'pop', 'flip', 'drop'].includes(raw.anim) ? raw.anim : 'slide';
+  out.avatarShape = ['circle', 'squircle', 'hex'].includes(raw.avatarShape) ? raw.avatarShape : 'circle';
+  out.flame = String(raw.flame || '').slice(0, 4);
+  // Holo is a PREFERENCE; the renderer only shows it once the viewer's
+  // best streak has earned the gold ring, so saving it early is fine.
+  out.holo = !!raw.holo;
   if (kind === 'preset') {
     out.bg.preset = BG_PRESETS.includes(bg.preset) ? bg.preset : 'midnight';
   } else if (kind === 'solid') {
@@ -555,14 +567,18 @@ async function handleCheckin(env, body) {
     }
   }
 
-  // Milestone shout in chat, as the broadcaster, when opted in.
-  if (next.milestone && cfg.announceMilestones) {
-    const flair = next.milestone >= 100 ? ' 🏆' : '';
-    try {
+  // Chat shouts as the broadcaster, when opted in: first-ever check-in
+  // gets the editor link (peak curiosity moment), milestones get hype.
+  try {
+    if (!next.dup && next.t === 1 && cfg.announceWelcome) {
+      await sendChat(env, ch, chan,
+        `👊 Welcome to the punch club, ${display}! Make your check-in card yours: aquilo.gg/punchcard/card/?ch=${ch}`);
+    } else if (next.milestone && cfg.announceMilestones) {
+      const flair = next.milestone >= 100 ? ' 🏆' : '';
       await sendChat(env, ch, chan,
         `🔥 ${display} just hit a ${next.milestone} day check-in streak!${flair} Customize your card: aquilo.gg/punchcard/card/?ch=${ch}`);
-    } catch { /* best effort */ }
-  }
+    }
+  } catch { /* best effort */ }
 
   // Mod feed ring.
   const recent = (await kvGet(env, KEY.recent(ch))) || [];
@@ -660,6 +676,11 @@ async function handleRewardCreate(env, body) {
       is_user_input_required: true,
       background_color: '#FF6AB5',
       is_global_cooldown_enabled: false,
+      // Twitch itself blocks a second redeem while live; the worker's
+      // dup-refund stays as the backstop for offline redeems and
+      // stream restarts.
+      is_max_per_user_per_stream_enabled: true,
+      max_per_user_per_stream: 1,
     } });
   if (j._error) {
     // Surface Twitch's reason: duplicate title, not affiliate, etc.
@@ -693,6 +714,7 @@ async function handleCfg(env, body) {
   if (typeof cfg.autoFulfill === 'boolean') next.autoFulfill = cfg.autoFulfill;
   if (typeof cfg.refundDup === 'boolean') next.refundDup = cfg.refundDup;
   if (typeof cfg.announceMilestones === 'boolean') next.announceMilestones = cfg.announceMilestones;
+  if (typeof cfg.announceWelcome === 'boolean') next.announceWelcome = cfg.announceWelcome;
   chan.cfg = next;
   if (body.reward && typeof body.reward === 'object') {
     chan.rewardId = String(body.reward.id || '').slice(0, 64);
@@ -834,6 +856,7 @@ async function handleMeta(env, url) {
       autoFulfill: cfg.autoFulfill !== false,
       refundDup: cfg.refundDup !== false,
       announceMilestones: !!cfg.announceMilestones,
+      announceWelcome: !!cfg.announceWelcome,
     } : null,
     giphy: !!env.GIPHY_API_KEY,
   });
