@@ -6,13 +6,17 @@ with real rigid-body physics (Matter.js, vendored, no CDN). Tokens
 bounce off the rim, stack, settle, and persist across OBS restarts, so
 the jar fills up over the course of a stream.
 
-Four photoreal glass jars ship with the overlay (`jarStyle=mason`
-default, plus `cookie`, `bowl`, `hex`), rendered as luma-alpha PNGs in
-`jars/` with physics walls calibrated to each piece of art; `classic`
-keeps the original procedural SVG jar. Bits drop as Twitch's official
-animated cheermote gems, frame-decoded and played inside the physics
-canvas. Platform coins carry the official brand marks (simpleicons at
-runtime, embedded fallback).
+Five jar styles ship with the overlay. The default `classic` is the
+signature vector glass jar (smooth blown-glass outline, layered glass
+strokes, accent caustic, breathing under-glow); `mason`, `cookie`,
+`bowl` and `hex` are photoreal renders (luma-alpha PNGs in `jars/`)
+with physics walls calibrated to each piece of art. Bits drop as
+Twitch's official animated cheermote gems, frame-decoded and played
+inside the physics canvas. Platform coins carry the official brand
+marks (simpleicons at runtime, embedded fallback), and TikTok gifts
+fall as their real artwork, both live (TikFinity URLs, with a built-in
+catalog fallback) and in demo mode (16 verified popular gifts from
+Rose to Universe).
 
 ```
 https://widget.aquilo.gg/overlays/gift-jar/
@@ -74,7 +78,7 @@ To reset the jar mid-stream: right click the source, `Interact`, press
 
 | Param       | Default   | What it does |
 | ----------- | --------- | ------------ |
-| `jarStyle`  | mason     | `mason`, `cookie`, `bowl`, `hex` (photoreal glass) or `classic` (procedural) |
+| `jarStyle`  | classic   | `classic` (signature vector glass) or photoreal `mason`, `cookie`, `bowl`, `hex` |
 | `full`      | recycle   | what happens when the pile reaches the neck: `recycle` (oldest fade), `stop` (keep pile, keep counting), `spill` (overflow the rim), `pop` (jar erupts, jar counter ticks, fresh jar) |
 | `bitsAnim`  | 1         | animated cheermote gems for bits; `0` uses the static frame |
 | `sbHost`    | 127.0.0.1 | Streamer.bot WebSocket host |

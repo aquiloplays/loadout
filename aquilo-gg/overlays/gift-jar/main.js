@@ -57,7 +57,7 @@
     tfPort:    num('tfPort', 21213),
     events:    (params.get('events') || 'subs,resubs,gifts,bits,members,superchats,tips,tiktok')
                  .split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean),
-    jarStyle:  pick('jarStyle', 'mason', ['classic', 'mason', 'bowl', 'cookie', 'hex']),
+    jarStyle:  pick('jarStyle', 'classic', ['classic', 'mason', 'bowl', 'cookie', 'hex']),
     full:      pick('full', 'recycle', ['recycle', 'stop', 'spill', 'pop']),
     bitsAnim:  flag('bitsAnim', true),
     maxItems:  clamp(num('maxItems', 140), 20, 400),
@@ -356,6 +356,49 @@
     return im;
   }
 
+  // Real TikTok gift artwork for demo mode and for live events that
+  // arrive without a picture URL. Canonical webcast CDN paths, each
+  // verified serving image/webp at build time (2026-06). w = demo
+  // pick weight, c = coin value.
+  var TT_CDN = 'https://p16-webcast.tiktokcdn.com/img/';
+  var DEMO_GIFTS = [
+    { n: 'Rose',           c: 1,     w: 26, i: TT_CDN + 'maliva/webcast-va/eba3a9bb85c33e017f3648eaf88d7189~tplv-obj.webp' },
+    { n: 'TikTok',         c: 1,     w: 12, i: TT_CDN + 'maliva/webcast-va/802a21ae29f9fae5abe3693de9f874bd~tplv-obj.webp' },
+    { n: 'Heart Me',       c: 1,     w: 8,  i: TT_CDN + 'maliva/webcast-va/d56945782445b0b8c8658ed44f894c7b~tplv-obj.webp' },
+    { n: 'Ice Cream Cone', c: 1,     w: 8,  i: TT_CDN + 'maliva/webcast-va/968820bc85e274713c795a6aef3f7c67~tplv-obj.webp' },
+    { n: 'GG',             c: 1,     w: 10, i: TT_CDN + 'maliva/webcast-va/3f02fa9594bd1495ff4e8aa5ae265eef~tplv-obj.webp' },
+    { n: 'Finger Heart',   c: 5,     w: 12, i: TT_CDN + 'maliva/webcast-va/a4c4dc437fd3a6632aba149769491f49.png~tplv-obj.webp' },
+    { n: 'Perfume',        c: 20,    w: 7,  i: TT_CDN + 'maliva/webcast-va/20b8f61246c7b6032777bb81bf4ee055~tplv-obj.webp' },
+    { n: 'Doughnut',       c: 30,    w: 7,  i: TT_CDN + 'maliva/webcast-va/4e7ad6bdf0a1d860c538f38026d4e812~tplv-obj.webp' },
+    { n: 'Hand Hearts',    c: 100,   w: 5,  i: TT_CDN + 'maliva/webcast-va/6cd022271dc4669d182cad856384870f~tplv-obj.webp' },
+    { n: 'Confetti',       c: 100,   w: 5,  i: TT_CDN + 'maliva/webcast-va/cb4e11b3834e149f08e1cdcc93870b26~tplv-obj.webp' },
+    { n: 'Corgi',          c: 299,   w: 4,  i: TT_CDN + 'maliva/webcast-va/148eef0884fdb12058d1c6897d1e02b9~tplv-obj.webp' },
+    { n: 'Swan',           c: 699,   w: 3,  i: TT_CDN + 'maliva/webcast-va/97a26919dbf6afe262c97e22a83f4bf1~tplv-obj.webp' },
+    { n: 'Galaxy',         c: 1000,  w: 3,  i: TT_CDN + 'alisg/webcast-sg/resource/823002ec1a76a2fd10c52c08943793e9.png~tplv-obj.webp' },
+    { n: 'Fireworks',      c: 1088,  w: 2,  i: TT_CDN + 'alisg/webcast-sg/resource/2b36de0ed2fc89c41fcc2d48309b1808.png~tplv-obj.webp' },
+    { n: 'Lion',           c: 29999, w: 1,  i: TT_CDN + 'maliva/webcast-va/resource/44818035acbbe673514caa600755268c.png~tplv-obj.webp' },
+    { n: 'Universe',       c: 44999, w: 1,  i: TT_CDN + 'maliva/webcast-va/b13105782e8bf8fbefaa83b7af413cee~tplv-obj.webp' }
+  ];
+  var giftIndex = Object.create(null);
+  (function () {
+    for (var i = 0; i < DEMO_GIFTS.length; i++) {
+      giftIndex[DEMO_GIFTS[i].n.toLowerCase().replace(/[^a-z0-9]+/g, '')] = DEMO_GIFTS[i];
+    }
+  })();
+  function giftByName(name) {
+    return giftIndex[String(name || '').toLowerCase().replace(/[^a-z0-9]+/g, '')] || null;
+  }
+  function pickDemoGift() {
+    var sum = 0, i;
+    for (i = 0; i < DEMO_GIFTS.length; i++) sum += DEMO_GIFTS[i].w;
+    var roll = rand() * sum;
+    for (i = 0; i < DEMO_GIFTS.length; i++) {
+      roll -= DEMO_GIFTS[i].w;
+      if (roll <= 0) return DEMO_GIFTS[i];
+    }
+    return DEMO_GIFTS[0];
+  }
+
   // ────────────────────────────────────────────────────────────────────
   // JAR STYLES. poly = RIGHT-side inner-cavity polyline, top to bottom,
   // [x in W units from center, y in H units from jar top]. The art
@@ -365,9 +408,10 @@
   // ────────────────────────────────────────────────────────────────────
   var JARS = {
     classic: {
-      art: null, aspect: 1.32, mouth: 0.30, inset: 0.026, fullY: 0.27,
-      labelY: 0.565, chipY: 0.9725,
-      poly: [[0.30, 0.075], [0.455, 0.235], [0.455, 0.80], [0.425, 0.875], [0.36, 0.925], [0.29, 0.945]]
+      art: null, aspect: 1.34, mouth: 0.295, inset: 0.026, fullY: 0.26,
+      labelY: 0.56, chipY: 0.9725,
+      poly: [[0.295, 0.06], [0.315, 0.10], [0.45, 0.225], [0.46, 0.31], [0.46, 0.775],
+             [0.432, 0.862], [0.368, 0.917], [0.295, 0.942]]
     },
     mason: {
       art: 'jars/mason.png', aspect: 1.93, mouth: 0.285, inset: 0.030, fullY: 0.20,
@@ -548,6 +592,33 @@
     return d;
   }
 
+  // The drawn outline rounds every interior corner with a quadratic so
+  // the glass reads as blown, not welded. Rounding radius stays inside
+  // the glass stroke, so the physics polyline still matches what you
+  // see.
+  function roundedOutline(closeAcrossMouth) {
+    var R = geo.R, cx = geo.cx;
+    var pts = [];
+    for (var i = 0; i < R.length; i++) pts.push([cx - R[i][0], R[i][1]]);
+    for (var j = R.length - 1; j >= 0; j--) pts.push([cx + R[j][0], R[j][1]]);
+    var rBase = 0.055 * geo.W;
+    var d = 'M ' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+    for (var k = 1; k < pts.length - 1; k++) {
+      var P = pts[k], A = pts[k - 1], B = pts[k + 1];
+      var d1x = P[0] - A[0], d1y = P[1] - A[1];
+      var l1 = Math.sqrt(d1x * d1x + d1y * d1y) || 1;
+      var d2x = B[0] - P[0], d2y = B[1] - P[1];
+      var l2 = Math.sqrt(d2x * d2x + d2y * d2y) || 1;
+      var r = Math.min(rBase, l1 * 0.42, l2 * 0.42);
+      d += ' L ' + (P[0] - d1x / l1 * r).toFixed(1) + ' ' + (P[1] - d1y / l1 * r).toFixed(1) +
+           ' Q ' + P[0].toFixed(1) + ' ' + P[1].toFixed(1) +
+           ' '   + (P[0] + d2x / l2 * r).toFixed(1) + ' ' + (P[1] + d2y / l2 * r).toFixed(1);
+    }
+    d += ' L ' + pts[pts.length - 1][0].toFixed(1) + ' ' + pts[pts.length - 1][1].toFixed(1);
+    if (closeAcrossMouth) d += ' Z';
+    return d;
+  }
+
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -571,8 +642,8 @@
     if (isArt) {
       back.innerHTML =
         '<defs>' + glow + '</defs>' +
-        '<ellipse cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
-        '<path d="' + pathFromPolyline(true) + '" fill="rgba(10,14,22,0.34)"/>' +
+        '<ellipse class="jar-breathe" cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
+        '<path d="' + roundedOutline(true) + '" fill="rgba(10,14,22,0.34)"/>' +
         '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.012 * g.H) + '" rx="' + (g.bw * 0.78) + '" ry="' + (0.026 * g.H) + '" fill="rgba(0,0,0,0.25)"/>';
       var labelArt = '';
       if (cfg.label) {
@@ -591,16 +662,22 @@
     back.innerHTML =
       '<defs>' +
         '<linearGradient id="cavGrad" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0" stop-color="rgba(185,220,255,0.05)"/>' +
-          '<stop offset="0.6" stop-color="rgba(150,190,235,0.09)"/>' +
-          '<stop offset="1" stop-color="rgba(125,165,215,0.16)"/>' +
-        '</linearGradient>' + glow +
+          '<stop offset="0" stop-color="rgba(190,224,255,0.045)"/>' +
+          '<stop offset="0.55" stop-color="rgba(152,194,238,0.085)"/>' +
+          '<stop offset="0.86" stop-color="rgba(128,170,222,0.15)"/>' +
+          '<stop offset="1" stop-color="rgba(120,164,218,0.19)"/>' +
+        '</linearGradient>' +
+        '<radialGradient id="causticGrad" cx="0.5" cy="0.5" r="0.5">' +
+          '<stop offset="0" style="stop-color:var(--accent)" stop-opacity="0.13"/>' +
+          '<stop offset="1" style="stop-color:var(--accent)" stop-opacity="0"/>' +
+        '</radialGradient>' + glow +
       '</defs>' +
-      '<ellipse cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
-      '<path d="' + pathFromPolyline(true) + '" fill="url(#cavGrad)"/>' +
+      '<ellipse class="jar-breathe" cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
+      '<path d="' + roundedOutline(true) + '" fill="url(#cavGrad)"/>' +
+      '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.05 * g.H) + '" rx="' + (g.bw * 0.74) + '" ry="' + (0.085 * g.H) + '" fill="url(#causticGrad)"/>' +
       '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.012 * g.H) + '" rx="' + (g.bw * 0.82) + '" ry="' + (0.030 * g.H) + '" fill="rgba(0,0,0,0.22)"/>';
 
-    var lipW = g.mw + 0.052 * g.W;
+    var lipW = g.mw + 0.055 * g.W;
     var labelSvg = '';
     if (cfg.label) {
       labelSvg =
@@ -612,31 +689,44 @@
     front.innerHTML =
       '<defs>' +
         '<linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0" stop-color="rgba(255,255,255,0.34)"/>' +
-          '<stop offset="0.5" stop-color="rgba(255,255,255,0.13)"/>' +
-          '<stop offset="1" stop-color="rgba(255,255,255,0.30)"/>' +
+          '<stop offset="0" stop-color="rgba(255,255,255,0.38)"/>' +
+          '<stop offset="0.45" stop-color="rgba(235,244,255,0.13)"/>' +
+          '<stop offset="0.8" stop-color="rgba(255,255,255,0.20)"/>' +
+          '<stop offset="1" stop-color="rgba(255,255,255,0.33)"/>' +
         '</linearGradient>' +
         '<linearGradient id="lipGrad" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0" stop-color="rgba(255,255,255,0.16)"/>' +
+          '<stop offset="0" stop-color="rgba(255,255,255,0.20)"/>' +
           '<stop offset="1" stop-color="rgba(255,255,255,0.05)"/>' +
         '</linearGradient>' +
         '<linearGradient id="sheenGrad" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0" stop-color="rgba(255,255,255,0.07)"/>' +
-          '<stop offset="1" stop-color="rgba(255,255,255,0.015)"/>' +
+          '<stop offset="0" stop-color="rgba(255,255,255,0.065)"/>' +
+          '<stop offset="0.5" stop-color="rgba(255,255,255,0.02)"/>' +
+          '<stop offset="1" stop-color="rgba(255,255,255,0.04)"/>' +
         '</linearGradient>' +
       '</defs>' +
-      '<path d="' + pathFromPolyline(true) + '" fill="url(#sheenGrad)"/>' +
-      '<path d="' + pathFromPolyline(false) + '" fill="none" stroke="url(#glassGrad)" ' +
+      // interior sheen over the tokens
+      '<path d="' + roundedOutline(true) + '" fill="url(#sheenGrad)"/>' +
+      // soft outer halo so the glass has body against any scene
+      '<path d="' + roundedOutline(false) + '" fill="none" stroke="rgba(255,255,255,0.05)" ' +
+        'stroke-width="' + (4.2 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+      // the glass wall itself
+      '<path d="' + roundedOutline(false) + '" fill="none" stroke="url(#glassGrad)" ' +
         'stroke-width="' + (2 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
-      '<path d="' + pathFromPolyline(false) + '" fill="none" stroke="rgba(255,255,255,0.26)" stroke-width="1.6" stroke-linejoin="round"/>' +
-      '<line x1="' + (cx - g.bw + 0.085 * g.W) + '" y1="' + (g.top + 0.30 * g.H) + '" x2="' + (cx - g.bw + 0.085 * g.W) + '" y2="' + (g.top + 0.70 * g.H) + '" ' +
-        'stroke="rgba(255,255,255,0.09)" stroke-width="' + (0.05 * g.W) + '" stroke-linecap="round"/>' +
-      '<line x1="' + (cx + g.bw - 0.085 * g.W) + '" y1="' + (g.top + 0.34 * g.H) + '" x2="' + (cx + g.bw - 0.085 * g.W) + '" y2="' + (g.top + 0.52 * g.H) + '" ' +
-        'stroke="rgba(255,255,255,0.07)" stroke-width="' + (0.04 * g.W) + '" stroke-linecap="round"/>' +
-      '<rect x="' + (cx - lipW) + '" y="' + g.top + '" width="' + (2 * lipW) + '" height="' + (0.075 * g.H) + '" rx="' + (0.028 * g.W) + '" ' +
-        'fill="url(#lipGrad)" stroke="rgba(255,255,255,0.30)" stroke-width="1.6"/>' +
-      '<line x1="' + (cx - lipW) + '" y1="' + (g.top + 0.078 * g.H) + '" x2="' + (cx + lipW) + '" y2="' + (g.top + 0.078 * g.H) + '" ' +
-        'style="stroke:var(--accent)" stroke-opacity="0.4" stroke-width="2"/>' +
+      '<path d="' + roundedOutline(false) + '" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1.5" stroke-linejoin="round"/>' +
+      // specular streaks, one long pull left, one short echo right
+      '<line x1="' + (cx - g.bw + 0.082 * g.W) + '" y1="' + (g.top + 0.27 * g.H) + '" x2="' + (cx - g.bw + 0.082 * g.W) + '" y2="' + (g.top + 0.72 * g.H) + '" ' +
+        'stroke="rgba(255,255,255,0.10)" stroke-width="' + (0.048 * g.W) + '" stroke-linecap="round"/>' +
+      '<line x1="' + (cx - g.bw + 0.082 * g.W) + '" y1="' + (g.top + 0.77 * g.H) + '" x2="' + (cx - g.bw + 0.082 * g.W) + '" y2="' + (g.top + 0.84 * g.H) + '" ' +
+        'stroke="rgba(255,255,255,0.08)" stroke-width="' + (0.034 * g.W) + '" stroke-linecap="round"/>' +
+      '<line x1="' + (cx + g.bw - 0.082 * g.W) + '" y1="' + (g.top + 0.32 * g.H) + '" x2="' + (cx + g.bw - 0.082 * g.W) + '" y2="' + (g.top + 0.52 * g.H) + '" ' +
+        'stroke="rgba(255,255,255,0.07)" stroke-width="' + (0.036 * g.W) + '" stroke-linecap="round"/>' +
+      // two-band lip: thin bead over the main band
+      '<rect x="' + (cx - lipW * 0.94) + '" y="' + (g.top - 0.006 * g.H) + '" width="' + (2 * lipW * 0.94) + '" height="' + (0.022 * g.H) + '" rx="' + (0.011 * g.H) + '" ' +
+        'fill="rgba(255,255,255,0.13)" stroke="rgba(255,255,255,0.30)" stroke-width="1.4"/>' +
+      '<rect x="' + (cx - lipW) + '" y="' + (g.top + 0.018 * g.H) + '" width="' + (2 * lipW) + '" height="' + (0.054 * g.H) + '" rx="' + (0.022 * g.W) + '" ' +
+        'fill="url(#lipGrad)" stroke="rgba(255,255,255,0.28)" stroke-width="1.5"/>' +
+      '<line x1="' + (cx - lipW) + '" y1="' + (g.top + 0.074 * g.H) + '" x2="' + (cx + lipW) + '" y2="' + (g.top + 0.074 * g.H) + '" ' +
+        'style="stroke:var(--accent)" stroke-opacity="0.45" stroke-width="2"/>' +
       labelSvg;
   }
 
@@ -1126,12 +1216,17 @@
         var midStreak = Number(data.giftType) === 1 &&
           (data.repeatEnd === false || data.repeatEnd === 0 || data.repeatEnd === 'false');
         if (midStreak) return;
+        var liveArt = data.giftPictureUrl || data.giftImage || data.pictureUrl || data.imageUrl || '';
+        if (!liveArt) {
+          var known = giftByName(data.giftName);
+          if (known) liveArt = known.i;
+        }
         onAlert({
           platform: 'tt', eventType: 'ttgift', user: user,
           amount: Number(data.repeatCount || data.giftCount || 1),
           perCoin: Number(data.diamondCount || data.giftCost || 1),
           giftName: data.giftName || 'Gift',
-          giftImage: data.giftPictureUrl || data.giftImage || data.pictureUrl || data.imageUrl || ''
+          giftImage: liveArt
         });
         return;
       }
@@ -1222,7 +1317,11 @@
     if (roll < 0.22)      onAlert({ platform: ['tw', 'yt', 'kk'][Math.floor(rand() * 3)], eventType: 'sub', user: user, tier: rand() < 0.2 ? '3000' : rand() < 0.45 ? '2000' : '1000' });
     else if (roll < 0.38) onAlert({ platform: 'tw', eventType: 'cheer', user: user, amount: [100, 250, 500, 1000, 5000, 10000][Math.floor(rand() * 6)] });
     else if (roll < 0.52) onAlert({ platform: 'tw', eventType: 'gift', isBomb: true, gifter: user, user: user, amount: [1, 3, 5, 10, 20][Math.floor(rand() * 5)] });
-    else if (roll < 0.64) onAlert({ platform: 'tt', eventType: 'ttgift', user: user, amount: Math.ceil(rand() * 8), perCoin: [1, 5, 99, 500, 2999][Math.floor(rand() * 5)], giftName: 'Rose' });
+    else if (roll < 0.64) {
+      var g = pickDemoGift();
+      var cnt = g.c <= 5 ? Math.ceil(rand() * 10) : g.c <= 100 ? Math.ceil(rand() * 3) : 1;
+      onAlert({ platform: 'tt', eventType: 'ttgift', user: user, amount: cnt, perCoin: g.c, giftName: g.n, giftImage: g.i });
+    }
     else if (roll < 0.74) onAlert({ platform: 'yt', eventType: 'membership', user: user });
     else if (roll < 0.84) onAlert({ platform: 'yt', eventType: 'superchat', user: user, amount: [2, 5, 10, 50, 100][Math.floor(rand() * 5)] });
     else if (roll < 0.92) onAlert({ platform: 'tt', eventType: 'sub', user: user });
@@ -1252,7 +1351,14 @@
       case 'member':    onAlert({ platform: 'yt', eventType: 'membership', user: user }); break;
       case 'superchat': onAlert({ platform: 'yt', eventType: 'superchat', user: user, amount: amt || 20 }); break;
       case 'tip':       onAlert({ platform: p, eventType: 'tip', user: user, amount: amt || 10 }); break;
-      case 'ttgift':    onAlert({ platform: 'tt', eventType: 'ttgift', user: user, amount: amt || 5, perCoin: Number(d.perCoin) || 99, giftName: d.giftName || 'Rose' }); break;
+      case 'ttgift': {
+        var bg = d.giftName ? giftByName(d.giftName) : pickDemoGift();
+        onAlert({ platform: 'tt', eventType: 'ttgift', user: user, amount: amt || 5,
+          perCoin: Number(d.perCoin) || (bg ? bg.c : 99),
+          giftName: d.giftName || (bg ? bg.n : 'Rose'),
+          giftImage: d.img || (bg ? bg.i : '') });
+        break;
+      }
       case 'ttsub':     onAlert({ platform: 'tt', eventType: 'sub', user: user }); break;
       case 'follow':    onAlert({ platform: p, eventType: 'follow', user: user }); break;
     }

@@ -46,6 +46,14 @@ body.test-bg {
   filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.45));
 }
 
+/* the under-jar accent pool breathes very slowly so the scene never
+   reads as a static image */
+.jar-breathe { animation: jar-breathe 6.5s ease-in-out infinite; }
+@keyframes jar-breathe {
+  0%, 100% { opacity: 0.72; }
+  50%      { opacity: 1; }
+}
+
 #counterChip .jars-badge {
   font-size: 11px;
   font-weight: 800;
