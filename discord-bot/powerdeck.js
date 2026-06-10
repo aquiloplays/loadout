@@ -113,6 +113,9 @@ function sanitizePack(input) {
   const pack = {
     game, name, by, desc,
     emoji: cleanEmoji(input.emoji, '🃏'),
+    // Steam app id: lets clients render the game's library/capsule art
+    // straight off the public Steam CDN. Numeric only, never a URL.
+    steam: Math.max(0, Math.min(99999999, parseInt(input.steam, 10) || 0)),
     cards,
     ver: Math.max(1, Number(input.ver) || 1),
   };
@@ -146,6 +149,7 @@ function summarize(id, rec) {
     by: rec.pack.by,
     desc: rec.pack.desc || '',
     emoji: rec.pack.emoji || '🃏',
+    steam: rec.pack.steam | 0,
     cards: rec.pack.cards.length,
     uses: rec.uses | 0,
     updated: rec.updated,

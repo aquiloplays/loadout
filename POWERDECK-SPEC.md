@@ -251,6 +251,26 @@ zero page errors.
    if parallel sessions are dirty).
 3. Loadout repo: spec + builder + bundle artifacts via _commit_mine.py.
 
+## v1.1 (shipped same day)
+
+- **Realistic booster wrapper**: crimped heat-seal strips, vertical foil
+  banding, side-curvature shading, embossed brand, specular sweep, and
+  the game's Steam library portrait on the pack face (public Steam CDN
+  by app id, emoji emblem fallback for non-Steam games). Built-ins
+  carry `steam` ids; workshop packs accept a validated numeric `steam`
+  field (never a URL) and the gallery shows capsule art.
+- **Physics-based opening**: tension shake, the foil top tears off as a
+  tumbling rigid body (gravity + spin + drag), metallic scraps flutter
+  down, the spent wrapper drops away, and cards eject from the pack on
+  springs with overshoot before their 3D flip.
+- **Golden packs**: `pack.goldenChance` (default 5%) upgrades a
+  purchase to a gold-foil wrapper with boosted weights and a guaranteed
+  epic+. Demo loop and customizer have golden test fires.
+- **Pity meter pill** on the overlay when the epic+ guarantee is within
+  3 packs; `!packs` reply now includes pull odds percentages.
+- Countdown rings pulse in the final 10 seconds; timed-card audit
+  (every `timed` is a real duration).
+
 ## Out of scope for v1 (roadmap)
 
 - Cloud inventory sync + viewer-facing "my cards" page.
