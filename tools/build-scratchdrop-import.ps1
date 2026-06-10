@@ -17,7 +17,7 @@
 #   + a copy of the .sb.txt into aquilo-site\public\scratchdrop\ for download
 [CmdletBinding()]
 param(
-    [string]$Version = "1.0.0",
+    [string]$Version = "1.1.0",
     [string]$SitePublic = "C:\Users\bishe\Desktop\aquilo-site\public\scratchdrop"
 )
 $ErrorActionPreference = "Stop"
@@ -238,6 +238,84 @@ public class CPHInline
 }
 '@
 
+$CS_GETEMOTES = @'
+using System;
+using System.Net;
+using System.Reflection;
+using System.Text;
+
+public class CPHInline
+{
+    // Fetches this channel's native Twitch emotes (subscriber, follower,
+    // bits-tier) from Helix using Streamer.bot's OWN broadcaster auth,
+    // then broadcasts the raw Helix JSON back over the websocket as a
+    // {"scratchdrop":{"kind":"emotes",...}} frame. The ScratchDrop
+    // customizer invokes this and listens for the frame; no ScratchDrop
+    // server is involved and the token never leaves this PC.
+    public bool Execute()
+    {
+        string nonce; CPH.TryGetArg("req", out nonce);
+        string bid; CPH.TryGetArg("broadcasterId", out bid);
+        string clientId = GetProp("TwitchClientId");
+        string token = GetProp("TwitchOAuthToken");
+        if (string.IsNullOrWhiteSpace(bid)) bid = GetProp("TwitchBroadcasterId");
+        if (string.IsNullOrWhiteSpace(clientId) || string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(bid))
+        {
+            Broadcast("{\"scratchdrop\":{\"kind\":\"emotes\",\"req\":\"" + J(nonce) + "\",\"error\":\"no-twitch-auth\"}}");
+            return true;
+        }
+        try
+        {
+            ServicePointManager.SecurityProtocol = ServicePointManager.SecurityProtocol | SecurityProtocolType.Tls12;
+            using (WebClient wc = new WebClient())
+            {
+                wc.Headers["Client-Id"] = clientId;
+                wc.Headers["Authorization"] = "Bearer " + token;
+                wc.Encoding = Encoding.UTF8;
+                string json = wc.DownloadString("https://api.twitch.tv/helix/chat/emotes?broadcaster_id=" + Uri.EscapeDataString(bid));
+                Broadcast("{\"scratchdrop\":{\"kind\":\"emotes\",\"req\":\"" + J(nonce) + "\",\"helix\":" + json + "}}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Broadcast("{\"scratchdrop\":{\"kind\":\"emotes\",\"req\":\"" + J(nonce) + "\",\"error\":\"" + J(ex.Message) + "\"}}");
+        }
+        return true;
+    }
+
+    private string GetProp(string name)
+    {
+        try
+        {
+            PropertyInfo p = CPH.GetType().GetProperty(name);
+            if (p != null)
+            {
+                object v = p.GetValue(CPH, null);
+                if (v != null) return v.ToString();
+            }
+        }
+        catch (Exception) {}
+        return "";
+    }
+
+    private void Broadcast(string frame)
+    {
+        try
+        {
+            MethodInfo m = CPH.GetType().GetMethod("WebsocketBroadcastJson", new Type[] { typeof(string) });
+            if (m == null) m = CPH.GetType().GetMethod("WebsocketBroadcastString", new Type[] { typeof(string) });
+            if (m != null) m.Invoke(CPH, new object[] { frame });
+        }
+        catch (Exception) {}
+    }
+
+    private string J(string s)
+    {
+        return (s == null ? "" : s).Replace("\\", "\\\\").Replace("\"", "\\\"");
+    }
+}
+'@
+
 # ------------------------------------------------------------------------------
 # Bundle
 # ------------------------------------------------------------------------------
@@ -251,7 +329,9 @@ $actions = @(
     (New-InlineCSharpAction -Name "ScratchDrop · Discord Webhook" -Code $CS_WEBHOOK `
         -Description "Posts {message} to a Discord webhook ({webhookUrl} arg or the fallback inside the code)."),
     (New-InlineCSharpAction -Name "ScratchDrop · Relay" -Code $CS_RELAY `
-        -Description "Rebroadcasts dock commands to the overlay over the SB websocket. Leave as-is; ScratchDrop invokes it.")
+        -Description "Rebroadcasts dock commands to the overlay over the SB websocket. Leave as-is; ScratchDrop invokes it."),
+    (New-InlineCSharpAction -Name "ScratchDrop · Get Emotes" -Code $CS_GETEMOTES `
+        -Description "Sends this channel's native Twitch emotes (sub/follower/bits) to the ScratchDrop customizer, fetched with your own Twitch auth. Leave as-is; ScratchDrop invokes it.")
 )
 
 $manifest = [ordered]@{
@@ -262,7 +342,7 @@ $manifest = [ordered]@{
     actionCount    = $actions.Count
     actions        = @($actions | ForEach-Object { $_.name })
     commands       = @()
-    includes       = @("announce", "award-vip", "play-sound", "discord-webhook", "relay")
+    includes       = @("announce", "award-vip", "play-sound", "discord-webhook", "relay", "get-emotes")
 }
 
 $bundle = [ordered]@{

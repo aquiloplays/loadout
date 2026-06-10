@@ -2,23 +2,24 @@
     "meta":  {
                  "name":  "ScratchDrop",
                  "author":  "aquilo.gg",
-                 "version":  "1.0.0",
+                 "version":  "1.1.0",
                  "description":  "Scratch-off tickets on stream. Prewired actions for announcements, prizes and the dock relay. Free forever at aquilo.gg/scratchdrop",
                  "autoRunAction":  null,
                  "minimumVersion":  null
              },
     "manifest":  {
                      "product":  "ScratchDrop",
-                     "packageVersion":  "1.0.0",
+                     "packageVersion":  "1.1.0",
                      "group":  "ScratchDrop",
                      "generatedBy":  "tools/build-scratchdrop-import.ps1",
-                     "actionCount":  5,
+                     "actionCount":  6,
                      "actions":  [
                                      "ScratchDrop Â· Announce",
                                      "ScratchDrop Â· Award VIP",
                                      "ScratchDrop Â· Play Sound",
                                      "ScratchDrop Â· Discord Webhook",
-                                     "ScratchDrop Â· Relay"
+                                     "ScratchDrop Â· Relay",
+                                     "ScratchDrop Â· Get Emotes"
                                  ],
                      "commands":  [
 
@@ -28,13 +29,14 @@
                                       "award-vip",
                                       "play-sound",
                                       "discord-webhook",
-                                      "relay"
+                                      "relay",
+                                      "get-emotes"
                                   ]
                  },
     "data":  {
                  "actions":  [
                                  {
-                                     "id":  "98817c50-9522-49c0-a482-d8e3455793a9",
+                                     "id":  "ab311c9f-cfb3-4841-853e-b1e8ac9abe8a",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -60,7 +62,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "957666e4-5fd5-42a9-85f0-d8509d9bc36b",
+                                                            "id":  "565e2310-1081-4cc7-9407-dfa5bcd08ff8",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -73,7 +75,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "5c0e1319-87f4-4145-aebf-34b76680972d",
+                                     "id":  "1b2bf66d-22b1-4208-8bcc-fbcba508821a",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -99,7 +101,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "1fd5eb3a-dfe0-40aa-a72e-c99d93df88af",
+                                                            "id":  "1bc211bb-2457-4749-ac90-d549246c7925",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -112,7 +114,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "8e19f068-4192-4f58-942b-4ea9761a3d55",
+                                     "id":  "bc8b1a0b-dd95-4bcb-a900-731beff1ec25",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -138,7 +140,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "ddf0c1a6-7eae-4f4a-9d5a-fcd1a72b1bca",
+                                                            "id":  "ce2e017c-c9eb-45ab-997b-49fe33f2a6d0",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -151,7 +153,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "d7a29d43-bd99-4f7c-b87b-10374fef9760",
+                                     "id":  "f398b3dc-e4bc-4c8a-a94c-8e0646bfd022",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -177,7 +179,7 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "0e1d4595-439c-403d-a738-f130fb7b4b11",
+                                                            "id":  "054fef3a-4593-4517-a5e4-0bc9b165ff32",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
@@ -190,7 +192,7 @@
                                                          ]
                                  },
                                  {
-                                     "id":  "707cceab-6104-4c37-8a9b-08eeb4fad43b",
+                                     "id":  "ea250de0-b65b-4def-ad93-63bfc51bf16f",
                                      "queue":  "00000000-0000-0000-0000-000000000000",
                                      "enabled":  true,
                                      "excludeFromHistory":  false,
@@ -216,7 +218,46 @@
                                                             "delayStart":  false,
                                                             "saveResultToVariable":  false,
                                                             "saveToVariable":  "",
-                                                            "id":  "96b3b62a-fb51-44c9-ab55-8a5e7d48ab52",
+                                                            "id":  "495406bc-4fa1-48f0-94ef-6c75c48fa0d7",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "1c5f423f-859e-4d27-869a-2fc0e01c4a3a",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "ScratchDrop Â· Get Emotes",
+                                     "group":  "ScratchDrop",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "ScratchDrop Â· Get Emotes",
+                                                            "description":  "Sends this channel\u0027s native Twitch emotes (sub/follower/bits) to the ScratchDrop customizer, fetched with your own Twitch auth. Leave as-is; ScratchDrop invokes it.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uTmV0Owp1c2luZyBTeXN0ZW0uUmVmbGVjdGlvbjsKdXNpbmcgU3lzdGVtLlRleHQ7CgpwdWJsaWMgY2xhc3MgQ1BISW5saW5lCnsKICAgIC8vIEZldGNoZXMgdGhpcyBjaGFubmVsJ3MgbmF0aXZlIFR3aXRjaCBlbW90ZXMgKHN1YnNjcmliZXIsIGZvbGxvd2VyLAogICAgLy8gYml0cy10aWVyKSBmcm9tIEhlbGl4IHVzaW5nIFN0cmVhbWVyLmJvdCdzIE9XTiBicm9hZGNhc3RlciBhdXRoLAogICAgLy8gdGhlbiBicm9hZGNhc3RzIHRoZSByYXcgSGVsaXggSlNPTiBiYWNrIG92ZXIgdGhlIHdlYnNvY2tldCBhcyBhCiAgICAvLyB7InNjcmF0Y2hkcm9wIjp7ImtpbmQiOiJlbW90ZXMiLC4uLn19IGZyYW1lLiBUaGUgU2NyYXRjaERyb3AKICAgIC8vIGN1c3RvbWl6ZXIgaW52b2tlcyB0aGlzIGFuZCBsaXN0ZW5zIGZvciB0aGUgZnJhbWU7IG5vIFNjcmF0Y2hEcm9wCiAgICAvLyBzZXJ2ZXIgaXMgaW52b2x2ZWQgYW5kIHRoZSB0b2tlbiBuZXZlciBsZWF2ZXMgdGhpcyBQQy4KICAgIHB1YmxpYyBib29sIEV4ZWN1dGUoKQogICAgewogICAgICAgIHN0cmluZyBub25jZTsgQ1BILlRyeUdldEFyZygicmVxIiwgb3V0IG5vbmNlKTsKICAgICAgICBzdHJpbmcgYmlkOyBDUEguVHJ5R2V0QXJnKCJicm9hZGNhc3RlcklkIiwgb3V0IGJpZCk7CiAgICAgICAgc3RyaW5nIGNsaWVudElkID0gR2V0UHJvcCgiVHdpdGNoQ2xpZW50SWQiKTsKICAgICAgICBzdHJpbmcgdG9rZW4gPSBHZXRQcm9wKCJUd2l0Y2hPQXV0aFRva2VuIik7CiAgICAgICAgaWYgKHN0cmluZy5Jc051bGxPcldoaXRlU3BhY2UoYmlkKSkgYmlkID0gR2V0UHJvcCgiVHdpdGNoQnJvYWRjYXN0ZXJJZCIpOwogICAgICAgIGlmIChzdHJpbmcuSXNOdWxsT3JXaGl0ZVNwYWNlKGNsaWVudElkKSB8fCBzdHJpbmcuSXNOdWxsT3JXaGl0ZVNwYWNlKHRva2VuKSB8fCBzdHJpbmcuSXNOdWxsT3JXaGl0ZVNwYWNlKGJpZCkpCiAgICAgICAgewogICAgICAgICAgICBCcm9hZGNhc3QoIntcInNjcmF0Y2hkcm9wXCI6e1wia2luZFwiOlwiZW1vdGVzXCIsXCJyZXFcIjpcIiIgKyBKKG5vbmNlKSArICJcIixcImVycm9yXCI6XCJuby10d2l0Y2gtYXV0aFwifX0iKTsKICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQogICAgICAgIHRyeQogICAgICAgIHsKICAgICAgICAgICAgU2VydmljZVBvaW50TWFuYWdlci5TZWN1cml0eVByb3RvY29sID0gU2VydmljZVBvaW50TWFuYWdlci5TZWN1cml0eVByb3RvY29sIHwgU2VjdXJpdHlQcm90b2NvbFR5cGUuVGxzMTI7CiAgICAgICAgICAgIHVzaW5nIChXZWJDbGllbnQgd2MgPSBuZXcgV2ViQ2xpZW50KCkpCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIHdjLkhlYWRlcnNbIkNsaWVudC1JZCJdID0gY2xpZW50SWQ7CiAgICAgICAgICAgICAgICB3Yy5IZWFkZXJzWyJBdXRob3JpemF0aW9uIl0gPSAiQmVhcmVyICIgKyB0b2tlbjsKICAgICAgICAgICAgICAgIHdjLkVuY29kaW5nID0gRW5jb2RpbmcuVVRGODsKICAgICAgICAgICAgICAgIHN0cmluZyBqc29uID0gd2MuRG93bmxvYWRTdHJpbmcoImh0dHBzOi8vYXBpLnR3aXRjaC50di9oZWxpeC9jaGF0L2Vtb3Rlcz9icm9hZGNhc3Rlcl9pZD0iICsgVXJpLkVzY2FwZURhdGFTdHJpbmcoYmlkKSk7CiAgICAgICAgICAgICAgICBCcm9hZGNhc3QoIntcInNjcmF0Y2hkcm9wXCI6e1wia2luZFwiOlwiZW1vdGVzXCIsXCJyZXFcIjpcIiIgKyBKKG5vbmNlKSArICJcIixcImhlbGl4XCI6IiArIGpzb24gKyAifX0iKTsKICAgICAgICAgICAgfQogICAgICAgIH0KICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIGV4KQogICAgICAgIHsKICAgICAgICAgICAgQnJvYWRjYXN0KCJ7XCJzY3JhdGNoZHJvcFwiOntcImtpbmRcIjpcImVtb3Rlc1wiLFwicmVxXCI6XCIiICsgSihub25jZSkgKyAiXCIsXCJlcnJvclwiOlwiIiArIEooZXguTWVzc2FnZSkgKyAiXCJ9fSIpOwogICAgICAgIH0KICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KCiAgICBwcml2YXRlIHN0cmluZyBHZXRQcm9wKHN0cmluZyBuYW1lKQogICAgewogICAgICAgIHRyeQogICAgICAgIHsKICAgICAgICAgICAgUHJvcGVydHlJbmZvIHAgPSBDUEguR2V0VHlwZSgpLkdldFByb3BlcnR5KG5hbWUpOwogICAgICAgICAgICBpZiAocCAhPSBudWxsKQogICAgICAgICAgICB7CiAgICAgICAgICAgICAgICBvYmplY3QgdiA9IHAuR2V0VmFsdWUoQ1BILCBudWxsKTsKICAgICAgICAgICAgICAgIGlmICh2ICE9IG51bGwpIHJldHVybiB2LlRvU3RyaW5nKCk7CiAgICAgICAgICAgIH0KICAgICAgICB9CiAgICAgICAgY2F0Y2ggKEV4Y2VwdGlvbikge30KICAgICAgICByZXR1cm4gIiI7CiAgICB9CgogICAgcHJpdmF0ZSB2b2lkIEJyb2FkY2FzdChzdHJpbmcgZnJhbWUpCiAgICB7CiAgICAgICAgdHJ5CiAgICAgICAgewogICAgICAgICAgICBNZXRob2RJbmZvIG0gPSBDUEguR2V0VHlwZSgpLkdldE1ldGhvZCgiV2Vic29ja2V0QnJvYWRjYXN0SnNvbiIsIG5ldyBUeXBlW10geyB0eXBlb2Yoc3RyaW5nKSB9KTsKICAgICAgICAgICAgaWYgKG0gPT0gbnVsbCkgbSA9IENQSC5HZXRUeXBlKCkuR2V0TWV0aG9kKCJXZWJzb2NrZXRCcm9hZGNhc3RTdHJpbmciLCBuZXcgVHlwZVtdIHsgdHlwZW9mKHN0cmluZykgfSk7CiAgICAgICAgICAgIGlmIChtICE9IG51bGwpIG0uSW52b2tlKENQSCwgbmV3IG9iamVjdFtdIHsgZnJhbWUgfSk7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24pIHt9CiAgICB9CgogICAgcHJpdmF0ZSBzdHJpbmcgSihzdHJpbmcgcykKICAgIHsKICAgICAgICByZXR1cm4gKHMgPT0gbnVsbCA/ICIiIDogcykuUmVwbGFjZSgiXFwiLCAiXFxcXCIpLlJlcGxhY2UoIlwiIiwgIlxcXCIiKTsKICAgIH0KfQ==",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "0a88ea19-7ba4-4bb4-84e2-8c71824ed571",
                                                             "weight":  0,
                                                             "type":  99999,
                                                             "parentId":  null,
