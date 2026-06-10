@@ -57,6 +57,9 @@
     tfPort:    num('tfPort', 21213),
     events:    (params.get('events') || 'subs,resubs,gifts,bits,members,superchats,tips,tiktok')
                  .split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean),
+    jarStyle:  pick('jarStyle', 'classic', ['classic', 'bowl', 'hex', 'potion', 'vase']),
+    discord:   params.get('discord') || '',
+    recap:     flag('recap', !!params.get('discord')),
     full:      pick('full', 'recycle', ['recycle', 'stop', 'spill', 'pop']),
     bitsAnim:  flag('bitsAnim', true),
     maxItems:  clamp(num('maxItems', 140), 20, 400),
@@ -342,14 +345,26 @@
     return c;
   }
 
-  // TikTok gift PNGs straight from TikFinity. No crossOrigin: we never
-  // read pixels back, so canvas tainting is irrelevant.
+  // TikTok gift PNGs straight from TikFinity. Loaded WITH crossOrigin
+  // (their CDN sends ACAO *) so the canvas stays readable for the
+  // stream recap GIF; if a regional CDN refuses CORS we retry plain
+  // and quietly give up on recap capture instead of breaking the art.
   var imgCache = Object.create(null);
   function giftImage(url) {
     if (!url) return null;
     if (imgCache[url]) return imgCache[url];
     var im = new Image();
     im.decoding = 'async';
+    im.crossOrigin = 'anonymous';
+    im.onerror = function () {
+      if (im._retried) return;
+      im._retried = true;
+      var plain = new Image();
+      plain.decoding = 'async';
+      plain.src = url;
+      imgCache[url] = plain;
+      rec.tainted = true;
+    };
     im.src = url;
     imgCache[url] = im;
     return im;
@@ -399,22 +414,65 @@
   }
 
   // ────────────────────────────────────────────────────────────────────
-  // JAR GEOMETRY. poly = RIGHT-side inner-cavity polyline, top to
-  // bottom, [x in W units from center, y in H units from jar top]. One
-  // set of coordinates drives both the drawn glass and the physics
-  // walls.
+  // JAR SHAPES. Five vessels, all drawn by the same vector glass
+  // renderer. poly = RIGHT-side inner-cavity polyline, top to bottom,
+  // [x in W units from center, y in H units from jar top]; arc shapes
+  // (bowl) generate their polyline from an ellipse with a flat base.
+  // One set of coordinates drives both the drawn glass and the physics
+  // walls. cornerR controls how blown vs crisp the outline reads; lip
+  // is 'band' (canning jar collar) or 'ring' (bare rolled rim).
   // ────────────────────────────────────────────────────────────────────
-  var JAR = {
-    aspect: 1.34, mouth: 0.295, inset: 0.026, fullY: 0.26,
-    labelY: 0.56, chipY: 0.9725,
-    poly: [[0.295, 0.06], [0.315, 0.10], [0.45, 0.225], [0.46, 0.31], [0.46, 0.775],
-           [0.432, 0.862], [0.368, 0.917], [0.295, 0.942]]
+  var JARS = {
+    classic: {
+      aspect: 1.34, mouth: 0.295, inset: 0.026, fullY: 0.26,
+      labelY: 0.56, chipY: 0.9725, cornerR: 0.055, lip: 'band',
+      poly: [[0.295, 0.06], [0.315, 0.10], [0.45, 0.225], [0.46, 0.31], [0.46, 0.775],
+             [0.432, 0.862], [0.368, 0.917], [0.295, 0.942]]
+    },
+    bowl: {
+      aspect: 1.0, mouth: 0.23, inset: 0.022, fullY: 0.26,
+      labelY: 0.52, chipY: 0.945, cornerR: 0.03, lip: 'ring',
+      arc: { cy: 0.50, rx: 0.455, ry: 0.42, mouthY: 0.14, baseY: 0.87 }
+    },
+    hex: {
+      aspect: 1.42, mouth: 0.27, inset: 0.026, fullY: 0.22,
+      labelY: 0.55, chipY: 0.9725, cornerR: 0.015, lip: 'band', facets: true,
+      poly: [[0.27, 0.05], [0.295, 0.09], [0.435, 0.185], [0.45, 0.34], [0.45, 0.70],
+             [0.435, 0.82], [0.30, 0.92], [0.22, 0.935]]
+    },
+    potion: {
+      aspect: 1.32, mouth: 0.18, inset: 0.022, fullY: 0.34,
+      labelY: 0.62, chipY: 0.955, cornerR: 0.065, lip: 'ring',
+      poly: [[0.18, 0.045], [0.185, 0.20], [0.30, 0.30], [0.41, 0.42], [0.455, 0.56],
+             [0.44, 0.70], [0.37, 0.83], [0.27, 0.90], [0.16, 0.925]]
+    },
+    vase: {
+      aspect: 1.52, mouth: 0.24, inset: 0.022, fullY: 0.24,
+      labelY: 0.58, chipY: 0.94, cornerR: 0.07, lip: 'ring',
+      poly: [[0.24, 0.04], [0.205, 0.12], [0.195, 0.21], [0.27, 0.33], [0.36, 0.45],
+             [0.41, 0.56], [0.405, 0.66], [0.355, 0.78], [0.27, 0.86], [0.15, 0.895]]
+    }
   };
 
-  function styleDef() { return JAR; }
+  function styleDef() { return JARS[cfg.jarStyle] || JARS.classic; }
 
   function stylePoly(def, W, H) {
-    return def.poly.map(function (p) { return [p[0] * W, p[1] * H]; });
+    if (def.poly) {
+      return def.poly.map(function (p) { return [p[0] * W, p[1] * H]; });
+    }
+    // ellipse interior from the mouth edge down to a flat base chord
+    var cy = def.arc.cy * H, rx = def.arc.rx * W, ry = def.arc.ry * H;
+    var mouthY = def.arc.mouthY * H, baseY = def.arc.baseY * H;
+    var t0 = Math.acos(clamp((cy - mouthY) / ry, -1, 1));
+    var t1 = Math.acos(clamp((cy - baseY) / ry, -1, 1));
+    var pts = [];
+    var steps = 14;
+    for (var i = 0; i <= steps; i++) {
+      var t = t0 + (t1 - t0) * (i / steps);
+      pts.push([rx * Math.sin(t), cy - ry * Math.cos(t)]);
+    }
+    pts.push([pts[pts.length - 1][0] * 0.45, baseY]);
+    return pts;
   }
 
   // ────────────────────────────────────────────────────────────────────
@@ -548,7 +606,7 @@
     var pts = [];
     for (var i = 0; i < R.length; i++) pts.push([cx - R[i][0], R[i][1]]);
     for (var j = R.length - 1; j >= 0; j--) pts.push([cx + R[j][0], R[j][1]]);
-    var rBase = 0.055 * geo.W;
+    var rBase = (styleDef().cornerR || 0.055) * geo.W;
     var d = 'M ' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
     for (var k = 1; k < pts.length - 1; k++) {
       var P = pts[k], A = pts[k - 1], B = pts[k + 1];
@@ -604,6 +662,7 @@
       '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.012 * g.H) + '" rx="' + (g.bw * 0.82) + '" ry="' + (0.030 * g.H) + '" fill="rgba(0,0,0,0.22)"/>';
 
     var lipW = g.mw + 0.055 * g.W;
+    var mouthAbsY = g.R[0][1];
     var labelSvg = '';
     if (cfg.label) {
       labelSvg =
@@ -612,6 +671,42 @@
         'letter-spacing="' + (0.022 * g.W) + '" fill="rgba(255,255,255,0.12)">' +
         esc(String(cfg.label).toUpperCase()) + '</text>';
     }
+
+    // lip treatments: 'band' is the canning-jar collar, 'ring' is a bare
+    // rolled rim that suits bowls, flasks and vases
+    var lipSvg;
+    if (def.lip === 'ring') {
+      var rrx = g.R[0][0] * 1.14 + g.glass;
+      var rry = Math.max(7, 0.020 * g.H);
+      lipSvg =
+        '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + rrx + '" ry="' + rry + '" ' +
+          'fill="none" stroke="url(#glassGrad)" stroke-width="' + (1.5 * g.glass) + '"/>' +
+        '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + rrx + '" ry="' + rry + '" ' +
+          'fill="none" stroke="rgba(255,255,255,0.30)" stroke-width="1.4"/>' +
+        '<path d="M ' + (cx - rrx) + ' ' + mouthAbsY + ' A ' + rrx + ' ' + rry + ' 0 0 0 ' + (cx + rrx) + ' ' + mouthAbsY + '" ' +
+          'fill="none" style="stroke:var(--accent)" stroke-opacity="0.45" stroke-width="2"/>';
+    } else {
+      lipSvg =
+        '<rect x="' + (cx - lipW * 0.94) + '" y="' + (g.top - 0.006 * g.H) + '" width="' + (2 * lipW * 0.94) + '" height="' + (0.022 * g.H) + '" rx="' + (0.011 * g.H) + '" ' +
+          'fill="rgba(255,255,255,0.13)" stroke="rgba(255,255,255,0.30)" stroke-width="1.4"/>' +
+        '<rect x="' + (cx - lipW) + '" y="' + (g.top + 0.018 * g.H) + '" width="' + (2 * lipW) + '" height="' + (0.054 * g.H) + '" rx="' + (0.022 * g.W) + '" ' +
+          'fill="url(#lipGrad)" stroke="rgba(255,255,255,0.28)" stroke-width="1.5"/>' +
+        '<line x1="' + (cx - lipW) + '" y1="' + (g.top + 0.074 * g.H) + '" x2="' + (cx + lipW) + '" y2="' + (g.top + 0.074 * g.H) + '" ' +
+          'style="stroke:var(--accent)" stroke-opacity="0.45" stroke-width="2"/>';
+    }
+
+    // hex jars show their facet edges; everyone gets a little sparkle
+    var extraSvg = '';
+    if (def.facets) {
+      extraSvg +=
+        '<line x1="' + (cx - g.bw * 0.5) + '" y1="' + (g.top + 0.20 * g.H) + '" x2="' + (cx - g.bw * 0.5) + '" y2="' + (g.top + 0.80 * g.H) + '" ' +
+          'stroke="rgba(255,255,255,0.05)" stroke-width="1.5"/>' +
+        '<line x1="' + (cx + g.bw * 0.5) + '" y1="' + (g.top + 0.20 * g.H) + '" x2="' + (cx + g.bw * 0.5) + '" y2="' + (g.top + 0.80 * g.H) + '" ' +
+          'stroke="rgba(255,255,255,0.05)" stroke-width="1.5"/>';
+    }
+    extraSvg +=
+      '<circle cx="' + (cx - g.bw * 0.52) + '" cy="' + (g.top + 0.185 * g.H) + '" r="2.4" fill="rgba(255,255,255,0.5)"/>' +
+      '<circle cx="' + (cx + g.bw * 0.48) + '" cy="' + (g.top + 0.245 * g.H) + '" r="1.8" fill="rgba(255,255,255,0.38)"/>';
     front.innerHTML =
       '<defs>' +
         '<linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">' +
@@ -646,14 +741,9 @@
         'stroke="rgba(255,255,255,0.08)" stroke-width="' + (0.034 * g.W) + '" stroke-linecap="round"/>' +
       '<line x1="' + (cx + g.bw - 0.082 * g.W) + '" y1="' + (g.top + 0.32 * g.H) + '" x2="' + (cx + g.bw - 0.082 * g.W) + '" y2="' + (g.top + 0.52 * g.H) + '" ' +
         'stroke="rgba(255,255,255,0.07)" stroke-width="' + (0.036 * g.W) + '" stroke-linecap="round"/>' +
-      // two-band lip: thin bead over the main band
-      '<rect x="' + (cx - lipW * 0.94) + '" y="' + (g.top - 0.006 * g.H) + '" width="' + (2 * lipW * 0.94) + '" height="' + (0.022 * g.H) + '" rx="' + (0.011 * g.H) + '" ' +
-        'fill="rgba(255,255,255,0.13)" stroke="rgba(255,255,255,0.30)" stroke-width="1.4"/>' +
-      '<rect x="' + (cx - lipW) + '" y="' + (g.top + 0.018 * g.H) + '" width="' + (2 * lipW) + '" height="' + (0.054 * g.H) + '" rx="' + (0.022 * g.W) + '" ' +
-        'fill="url(#lipGrad)" stroke="rgba(255,255,255,0.28)" stroke-width="1.5"/>' +
-      '<line x1="' + (cx - lipW) + '" y1="' + (g.top + 0.074 * g.H) + '" x2="' + (cx + lipW) + '" y2="' + (g.top + 0.074 * g.H) + '" ' +
-        'style="stroke:var(--accent)" stroke-opacity="0.45" stroke-width="2"/>' +
-      labelSvg;
+      lipSvg + extraSvg + labelSvg;
+
+    buildLayerCache();
   }
 
   function placeChrome() {
@@ -771,6 +861,7 @@
       chipEl.classList.add('bump');
     }
     schedulePersist();
+    scheduleCapture();
   }
 
   var toastTimer = 0;
@@ -1021,6 +1112,8 @@
       return;
     }
 
+    if (type === 'streamoffline') { finishRecap('offline'); return; }
+    if (type === 'streamonline') { recapReset(); return; }
     if (type === 'follow' || type === 'followed' || type === 'channelfollow' || type === 'newfollower') {
       var uf = data.user || data.follower || {};
       return onAlert({ platform: plat, eventType: 'follow', user: uf.displayName || data.displayName || data.user_name || 'someone' });
@@ -1218,6 +1311,177 @@
     }
   }
 
+  // ────────────────────────────────────────────────────────────────────
+  // STREAM RECAP. With a Discord webhook configured (?discord=, URL
+  // encoded) the overlay snapshots the jar as it fills (settled, at
+  // most one frame per 30s, only when the total changed). On stream
+  // end (Streamer.bot StreamOffline, the customizer test button, or G
+  // in OBS Interact) the session renders into a looping timelapse GIF
+  // and posts to the webhook; with ?recap=1 and no webhook it downloads
+  // instead.
+  // ────────────────────────────────────────────────────────────────────
+  var rec = {
+    frames: [], w: 0, h: 0, lastCap: 0, lastTotal: -1, start: 0,
+    minGap: cfg.demo ? 9000 : 30000, busy: false, posting: false, tainted: false
+  };
+  var layerCache = { back: null, front: null, stamp: 0 };
+  var recCanvas = document.createElement('canvas');
+
+  function accentVal() {
+    return (getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#35e0c2').trim();
+  }
+
+  function svgLayerImg(el, cb) {
+    var s = new XMLSerializer().serializeToString(el);
+    s = s.replace(/var\(--accent\)/g, accentVal()).replace(/var\(--font\)/g, 'Inter, sans-serif');
+    s = s.replace('<svg', '<svg width="' + geo.vw + '" height="' + geo.vh + '"');
+    var url = URL.createObjectURL(new Blob([s], { type: 'image/svg+xml' }));
+    var im = new Image();
+    im.onload = function () { URL.revokeObjectURL(url); cb(im); };
+    im.onerror = function () { URL.revokeObjectURL(url); cb(null); };
+    im.src = url;
+  }
+
+  function buildLayerCache() {
+    if (!cfg.recap) return;
+    var stamp = ++layerCache.stamp;
+    svgLayerImg($('jarBack'), function (im) { if (stamp === layerCache.stamp) layerCache.back = im; });
+    svgLayerImg($('jarFront'), function (im) { if (stamp === layerCache.stamp) layerCache.front = im; });
+  }
+
+  function captureFrame(delay) {
+    if (!cfg.recap || rec.tainted || !window.__gifenc) return;
+    if (!layerCache.back || !layerCache.front) return;
+    if (!rec.w) {
+      rec.w = 240;
+      rec.h = Math.min(420, Math.round(240 * geo.vh / geo.vw));
+    }
+    recCanvas.width = rec.w; recCanvas.height = rec.h;
+    var c = recCanvas.getContext('2d');
+    var grd = c.createLinearGradient(0, 0, 0, rec.h);
+    grd.addColorStop(0, '#131826');
+    grd.addColorStop(1, '#070a12');
+    c.fillStyle = grd;
+    c.fillRect(0, 0, rec.w, rec.h);
+    var sc = rec.w / geo.vw;
+    var dh = geo.vh * sc;
+    var dy = rec.h - dh;
+    c.drawImage(layerCache.back, 0, dy, rec.w, dh);
+    c.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, dy, rec.w, dh);
+    c.drawImage(layerCache.front, 0, dy, rec.w, dh);
+    c.font = '800 13px Inter, sans-serif';
+    c.textAlign = 'center';
+    c.fillStyle = 'rgba(244,247,250,0.92)';
+    c.shadowColor = 'rgba(0,0,0,0.6)'; c.shadowBlur = 4;
+    c.fillText(total.toLocaleString(), rec.w / 2, rec.h - 8);
+    c.shadowBlur = 0;
+    var px;
+    try { px = c.getImageData(0, 0, rec.w, rec.h); }
+    catch (e) { rec.tainted = true; return; }
+    var G = window.__gifenc;
+    var palette = G.quantize(px.data, 128);
+    rec.frames.push({ index: G.applyPalette(px.data, palette), palette: palette, delay: delay || 220 });
+    if (!rec.start) rec.start = Date.now();
+    rec.lastCap = performance.now();
+    rec.lastTotal = total;
+    if (rec.frames.length > 150) {
+      // long stream: thin to every other frame and slow the cadence
+      rec.frames = rec.frames.filter(function (_, i) { return i % 2 === 0; });
+      rec.minGap = Math.min(rec.minGap * 2, 480000);
+    }
+  }
+
+  var capTimer = 0;
+  function scheduleCapture() {
+    if (!cfg.recap || rec.busy || rec.posting) return;
+    if (total === rec.lastTotal) return;
+    if (performance.now() - rec.lastCap < rec.minGap) return;
+    rec.busy = true;
+    clearTimeout(capTimer);
+    capTimer = setTimeout(function () {
+      rec.busy = false;
+      captureFrame();
+    }, 2400);
+  }
+
+  function fmtDur(ms) {
+    var m = Math.round(ms / 60000);
+    if (m < 60) return m + 'm';
+    return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+  }
+
+  function endCardFrame() {
+    captureFrame(1600);
+    if (!rec.frames.length) return;
+    var c = recCanvas.getContext('2d');
+    c.fillStyle = 'rgba(7,10,18,0.55)';
+    c.fillRect(0, 0, rec.w, rec.h);
+    c.textAlign = 'center';
+    c.fillStyle = '#f4f7fa';
+    c.font = '800 26px Inter, sans-serif';
+    c.fillText(total.toLocaleString(), rec.w / 2, rec.h / 2 - 14);
+    c.font = '700 12px Inter, sans-serif';
+    c.fillStyle = 'rgba(244,247,250,0.85)';
+    c.fillText('drops this stream', rec.w / 2, rec.h / 2 + 6);
+    if (rec.start) {
+      c.fillStyle = 'rgba(244,247,250,0.6)';
+      c.font = '600 11px Inter, sans-serif';
+      c.fillText(fmtDur(Date.now() - rec.start), rec.w / 2, rec.h / 2 + 24);
+    }
+    c.fillStyle = accentVal();
+    c.font = '700 10px Inter, sans-serif';
+    c.fillText('aquilo.gg/gift-jar', rec.w / 2, rec.h - 10);
+    var px = c.getImageData(0, 0, rec.w, rec.h);
+    var G = window.__gifenc;
+    var palette = G.quantize(px.data, 128);
+    rec.frames.push({ index: G.applyPalette(px.data, palette), palette: palette, delay: 2600 });
+  }
+
+  function recapReset() {
+    rec.frames = [];
+    rec.w = 0; rec.h = 0;
+    rec.lastCap = 0; rec.lastTotal = -1; rec.start = 0;
+    rec.minGap = 30000; rec.posting = false; rec.busy = false;
+  }
+
+  function finishRecap(reason) {
+    if (!cfg.recap || rec.posting || !window.__gifenc) return;
+    endCardFrame();
+    if (rec.frames.length < 4) return;
+    rec.posting = true;
+    rec.frames[0].delay = 700;
+    var G = window.__gifenc;
+    var gif = G.GIFEncoder();
+    for (var i = 0; i < rec.frames.length; i++) {
+      var f = rec.frames[i];
+      gif.writeFrame(f.index, rec.w, rec.h, { palette: f.palette, delay: f.delay });
+    }
+    gif.finish();
+    var blob = new Blob([gif.bytes()], { type: 'image/gif' });
+    if (cfg.discord) {
+      var fd = new FormData();
+      fd.append('payload_json', JSON.stringify({
+        username: 'Gift Jar',
+        content: '**' + total.toLocaleString() + ' drops** landed in the jar this stream' +
+          (rec.start ? ' (' + fmtDur(Date.now() - rec.start) + ')' : '') + '.'
+      }));
+      fd.append('files[0]', blob, 'gift-jar-recap.gif');
+      fetch(cfg.discord, { method: 'POST', body: fd })
+        .then(function (r) {
+          if (r.ok) { showToast('recap posted to Discord'); recapReset(); }
+          else { rec.posting = false; showToast('Discord rejected the recap (' + r.status + ')'); }
+        })
+        .catch(function () { rec.posting = false; showToast('recap post failed'); });
+    } else {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'gift-jar-recap.gif';
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+      recapReset();
+    }
+  }
+
   function resetJar() {
     queue.length = 0;
     for (var i = 0; i < items.length; i++) M.Composite.remove(engine.world, items[i].body);
@@ -1233,6 +1497,7 @@
   }
   window.addEventListener('keydown', function (e) {
     if (e.key === 'r' || e.key === 'R') resetJar();
+    if (e.key === 'g' || e.key === 'G') finishRecap('manual');
   });
 
   // ────────────────────────────────────────────────────────────────────
@@ -1268,6 +1533,7 @@
     var d = e && e.data;
     if (!d || typeof d !== 'object') return;
     if (d.gj === 'reset') { resetJar(); return; }
+    if (d.gj === 'recap') { finishRecap('manual'); return; }
     if (d.gj !== 'fire' || typeof d.kind !== 'string') return;
     var user = demoName();
     var p = d.platform || ['tw', 'yt', 'kk'][Math.floor(rand() * 3)];
@@ -1568,6 +1834,10 @@
     engine: engine,
     items: items,
     geo: function () { return geo; },
+    setStyle: function (s) { if (JARS[s]) { cfg.jarStyle = s; rebuildAndRepour(); } },
+    recap: finishRecap,
+    captureNow: function () { captureFrame(); return rec.frames.length; },
+    rec: rec,
     state: function () {
       var inWorld = 0;
       var all = M.Composite.allBodies(engine.world);

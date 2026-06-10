@@ -33,6 +33,21 @@ STYLES = {
                "rim clearly visible at the very top, rounded shoulders, completely empty, nothing inside, "
                "pristine clear empty glass, isolated on a solid pure black studio backdrop"),
     "hex":    "a tall hexagonal glass apothecary jar with flat glass facets and an open top",
+    # stylized, deliberately NON-photoreal concepts for review
+    "flat":    ("flat vector illustration of a tall glass jar with an open mouth, minimal clean geometric "
+                "shapes, smooth subtle gradients, soft teal and indigo glass tones, modern game UI asset, "
+                "crisp edges, 2D digital illustration, no text, no labels, completely empty, "
+                "isolated on a solid pure black background"),
+    "cel":     ("cel shaded cartoon illustration of a glass jar with an open top, bold clean dark outlines, "
+                "two-tone flat shading, playful rounded proportions, bright teal glass highlights, sticker "
+                "art style, 2D animation asset, no text, completely empty, "
+                "isolated on a solid pure black background"),
+    "lowpoly": ("stylized low poly 3D render of a glass jar with an open top, faceted triangular surfaces, "
+                "soft gradient lighting in teal and violet, clean game asset, flat shaded facets, "
+                "no text, completely empty, isolated on a solid pure black background"),
+    "neon":    ("glassmorphism neon outline icon of a glass jar with an open top, glowing teal and violet "
+                "rim light strokes, translucent frosted glass body, minimal futuristic stream overlay asset, "
+                "soft bloom, no text, completely empty, isolated on a solid pure black background"),
 }
 
 CANDIDATES = 2

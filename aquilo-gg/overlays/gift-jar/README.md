@@ -6,8 +6,10 @@ with real rigid-body physics (Matter.js, vendored, no CDN). Tokens
 bounce off the rim, stack, settle, and persist across OBS restarts, so
 the jar fills up over the course of a stream.
 
-The jar is the signature vector glass: smooth blown-glass outline,
-layered glass strokes, accent caustic, breathing under-glow. Bits drop
+Five jar shapes, all in the signature vector glass style (smooth
+blown-glass outline, layered strokes, accent caustic, breathing
+under-glow): `classic` canning jar (default), round `bowl`, faceted
+`hex`, round-bottom `potion` flask, and a curved `vase`. Bits drop
 as Twitch's official animated cheermote gems, frame-decoded and played
 inside the physics canvas. Platform coins carry the official brand
 marks (simpleicons at runtime, embedded fallback), and TikTok gifts
@@ -75,6 +77,9 @@ To reset the jar mid-stream: right click the source, `Interact`, press
 
 | Param       | Default   | What it does |
 | ----------- | --------- | ------------ |
+| `jarStyle`  | classic   | jar shape: `classic`, `bowl`, `hex`, `potion`, `vase`, all vector glass |
+| `discord`   | empty     | Discord webhook URL (encoded); enables the stream recap GIF post |
+| `recap`     | auto      | force the recap recorder on/off; defaults on when `discord` is set, `recap=1` alone downloads the GIF instead of posting |
 | `full`      | recycle   | what happens when the pile reaches the neck: `recycle` (oldest fade), `stop` (keep pile, keep counting), `spill` (overflow the rim), `pop` (jar erupts, jar counter ticks, fresh jar) |
 | `bitsAnim`  | 1         | animated cheermote gems for bits; `0` uses the static frame |
 | `sbHost`    | 127.0.0.1 | Streamer.bot WebSocket host |
@@ -98,6 +103,18 @@ To reset the jar mid-stream: right click the source, `Interact`, press
 | `demo`      | 0         | fake event firehose for testing/layout |
 | `bg`        | 0         | dark backdrop when testing outside OBS |
 | `accent`    | 35e0c2    | hex, glow + chip accent (shared theme.js knob) |
+
+## Stream recap GIF
+
+Add `?discord=<your webhook URL>` (URL-encoded) and the overlay records
+the night: it snapshots the jar whenever new drops settle (at most one
+frame per 30s, thinning automatically on long streams) and when the
+stream ends it posts a looping timelapse GIF, running total ticking up,
+final-count end card included, straight to that channel. Stream end is
+detected from Streamer.bot's Twitch StreamOffline event; you can also
+trigger it manually with `G` in OBS Interact. With `recap=1` and no
+webhook the GIF downloads locally instead. Frames capture at 240px wide
+so a full night stays comfortably under Discord's upload limit.
 
 ## Notes
 

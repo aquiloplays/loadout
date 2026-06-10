@@ -60,6 +60,12 @@
     <div id="demoBadge" hidden>DEMO</div>
   </div>
   <script src="matter.min.js"></script>
+  <script type="module">
+    // gifenc powers the stream-recap GIF; loaded as a module and handed
+    // to the classic-script world. Recap quietly disables if it fails.
+    import { GIFEncoder, quantize, applyPalette } from './gifenc.esm.js';
+    window.__gifenc = { GIFEncoder: GIFEncoder, quantize: quantize, applyPalette: applyPalette };
+  </script>
   <script src="main.js"></script>
 </body>
 </html>
