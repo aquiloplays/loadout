@@ -129,7 +129,15 @@ function imgUrlOk(raw, allowCustom) {
   if (IMG_HOSTS.test(u.hostname)) return true;
   return !!allowCustom;
 }
-function sanitizeCard(raw, allowCustom) {
+function clampInt(v, min, max, dflt) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return dflt;
+  return Math.min(max, Math.max(min, Math.round(n)));
+}
+
+// Exported for pc-selftest.mjs: image-host allowlisting and placement
+// clamping are the security/abuse edges of card saves.
+export function sanitizeCard(raw, allowCustom) {
   if (!raw || typeof raw !== 'object') return null;
   const bg = raw.bg && typeof raw.bg === 'object' ? raw.bg : {};
   const kind = ['preset', 'solid', 'gradient', 'gif', 'img'].includes(bg.kind) ? bg.kind : 'preset';
@@ -149,6 +157,13 @@ function sanitizeCard(raw, allowCustom) {
   } else {
     if (!imgUrlOk(bg.url, allowCustom)) return { error: 'bad-image-url' };
     out.bg.url = String(bg.url).slice(0, 500);
+    // GIF/image placement, viewer-tuned in the card editor and applied
+    // verbatim by pc-card.js: focal point, zoom, scrim darkness, layout.
+    out.bg.posX = clampInt(bg.posX, 0, 100, 50);
+    out.bg.posY = clampInt(bg.posY, 0, 100, 50);
+    out.bg.zoom = clampInt(bg.zoom, 100, 220, 100);
+    out.bg.dim = clampInt(bg.dim, 0, 100, 75);
+    out.bg.layout = (bg.layout === 'left' || bg.layout === 'right') ? bg.layout : 'full';
   }
   return out;
 }
