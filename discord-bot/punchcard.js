@@ -78,6 +78,8 @@ const KEY = {
   oauth: (s) => `pc:oauth:${s}`,
   av: (l) => `pc:av:${l}`,
   gif: (h) => `pc:gif:${h}`,
+  emotes: (l) => `pc:emotes:${l}`,
+  sub: (ch, v) => `pc:sub:${ch}:${v}`,
 };
 
 const DEFAULT_CFG = { tz: 'America/New_York', rollover: 4, mode: 'active', allowCustomImg: false };
@@ -106,11 +108,12 @@ function chanName(s) {
 // YouTube/Kick chat command check-ins.
 function viewerKey(login, platform) {
   const plat = String(platform || 'twitch').toLowerCase();
-  let v = String(login || '').trim().toLowerCase().replace(/[^a-z0-9_\-]/g, '').slice(0, 40);
+  let v = String(login || '').trim().toLowerCase().replace(/[^a-z0-9_\-.]/g, '').slice(0, 40);
   if (!v) return null;
   if (plat === 'youtube') return 'yt:' + v;
   if (plat === 'kick') return 'kk:' + v;
-  return /^[a-z0-9_]{2,25}$/.test(v) ? v : null;
+  if (plat === 'tiktok') return 'tt:' + v;
+  return /^[a-z0-9_]{2,25}$/.test(v.replace(/\./g, '')) ? v.replace(/\./g, '') : null;
 }
 function cleanDisplay(s) {
   return String(s || '').replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 40);
@@ -147,6 +150,16 @@ export function sanitizeCard(raw, allowCustom) {
     font: FONTS.includes(raw.font) ? raw.font : 'inter',
     emoji: String(raw.emoji || '').slice(0, 4),
   };
+  // Twitch emote badge from the viewer's own emote set (picked in the
+  // editor). Render-side builds the CDN URL from the id; ids are plain
+  // tokens so a strict pattern is enough.
+  if (raw.emote && typeof raw.emote === 'object' && /^[a-zA-Z0-9_\-]{1,100}$/.test(String(raw.emote.i || ''))) {
+    out.emote = {
+      i: String(raw.emote.i),
+      n: cleanDisplay(raw.emote.n).slice(0, 30),
+      a: raw.emote.a ? 1 : 0,
+    };
+  }
   if (kind === 'preset') {
     out.bg.preset = BG_PRESETS.includes(bg.preset) ? bg.preset : 'midnight';
   } else if (kind === 'solid') {
@@ -252,19 +265,80 @@ async function chanHelix(env, ch, chan, path, params, opts = {}) {
   return { _error: true, status: 401, message: 'channel-token-expired' };
 }
 
-// Twitch avatar via the channel's token, KV-cached a day. Best effort.
-async function avatarFor(env, ch, chan, login) {
-  if (!login || !/^[a-z0-9_]{2,25}$/.test(login)) return null;
+// Twitch avatar + numeric id via the channel's token, KV-cached a day.
+// Best effort: null fields just mean the card uses the initials avatar
+// and tier effects are skipped.
+async function userInfoFor(env, ch, chan, login) {
+  if (!login || !/^[a-z0-9_]{2,25}$/.test(login)) return { url: null, id: null };
   const cached = await kvGet(env, KEY.av(login));
-  if (cached && cached.url !== undefined) return cached.url;
+  if (cached && cached.url !== undefined && 'id' in cached) return cached;
   const j = await chanHelix(env, ch, chan, '/users', { login });
-  const url = (!j._error && j.data && j.data[0] && j.data[0].profile_image_url) || null;
-  try { await kvPut(env, KEY.av(login), { url }, { expirationTtl: 24 * 3600 }); } catch { /* best effort */ }
-  return url;
+  const u = (!j._error && j.data && j.data[0]) || null;
+  const info = { url: (u && u.profile_image_url) || null, id: (u && u.id) || null };
+  try { await kvPut(env, KEY.av(login), info, { expirationTtl: 24 * 3600 }); } catch { /* best effort */ }
+  return info;
+}
+
+// Sub tier (0..3) of a viewer on the channel, via the channel's token.
+// Cached 8h. Returns 0 when not subbed; ALSO 0 (uncached) when the claim
+// predates the channel:read:subscriptions scope, so old claims degrade
+// to no tier effects instead of erroring.
+async function subTierFor(env, ch, chan, vk, viewerId) {
+  if (!vk || vk.includes(':')) return 0;
+  const cached = await kvGet(env, KEY.sub(ch, vk));
+  if (cached && cached.t !== undefined) return cached.t;
+  let id = viewerId && /^\d{1,20}$/.test(String(viewerId)) ? String(viewerId) : null;
+  if (!id) {
+    const info = await userInfoFor(env, ch, chan, vk);
+    id = info.id;
+  }
+  if (!id) return 0;
+  const j = await chanHelix(env, ch, chan, '/subscriptions', { broadcaster_id: chan.userId, user_id: id });
+  if (j && j._error) {
+    if (j.status === 401 || j.status === 403) return 0;   // missing scope: skip cache
+    return 0;
+  }
+  const d = j && j.data && j.data[0];
+  const t = d ? Math.max(1, Math.min(3, Math.round(Number(d.tier) / 1000) || 1)) : 0;
+  try { await kvPut(env, KEY.sub(ch, vk), { t }, { expirationTtl: 8 * 3600 }); } catch { /* best effort */ }
+  return t;
+}
+
+// Every emote the viewer can use, snapshotted at login with their fresh
+// access token (we never store the token itself). Helix pages with a
+// cursor; cap generously, power users sub to a LOT of channels.
+async function fetchUserEmotes(env, accessToken, userId) {
+  const out = [];
+  let cursor = '';
+  for (let page = 0; page < 12 && out.length < 900; page++) {
+    const u = new URL('https://api.twitch.tv/helix/chat/emotes/user');
+    u.searchParams.set('user_id', userId);
+    if (cursor) u.searchParams.set('after', cursor);
+    let r;
+    try {
+      r = await fetch(u.toString(), {
+        headers: { 'Authorization': 'Bearer ' + accessToken, 'Client-Id': env.TWITCH_CLIENT_ID },
+      });
+    } catch { break; }
+    if (!r.ok) break;     // 401 = pre-scope login; editor offers a re-login
+    const j = await r.json();
+    for (const e of (j.data || [])) {
+      if (e && e.id && e.name) out.push({ i: e.id, n: e.name, a: (e.format || []).includes('animated') ? 1 : 0 });
+    }
+    cursor = (j.pagination && j.pagination.cursor) || '';
+    if (!cursor) break;
+  }
+  return out;
 }
 
 // ── OAuth ─────────────────────────────────────────────────────────────
-const STREAMER_SCOPES = 'channel:read:redemptions channel:manage:redemptions';
+// read:subscriptions powers per-viewer sub-tier card effects. Claims
+// made before it was added simply skip tier lookups (the Helix call
+// 401s and we treat the viewer as tier 0) until the streamer reconnects.
+const STREAMER_SCOPES = 'channel:read:redemptions channel:manage:redemptions channel:read:subscriptions';
+// Lets the card editor list every emote the viewer can use (subs across
+// channels, hype train unlocks, follower emotes). Read-only.
+const VIEWER_SCOPES = 'user:read:emotes';
 
 async function handleOauthStart(env, url) {
   if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) {
@@ -280,7 +354,7 @@ async function handleOauthStart(env, url) {
   a.searchParams.set('client_id', env.TWITCH_CLIENT_ID);
   a.searchParams.set('redirect_uri', callbackUrl(env));
   a.searchParams.set('response_type', 'code');
-  a.searchParams.set('scope', mode === 'streamer' ? STREAMER_SCOPES : '');
+  a.searchParams.set('scope', mode === 'streamer' ? STREAMER_SCOPES : VIEWER_SCOPES);
   a.searchParams.set('state', state);
   // Streamers must pick the right (broadcaster) account; viewers should
   // not be nagged with a consent screen on every login.
@@ -368,7 +442,15 @@ export async function handlePunchcardOauthCallback(req, env) {
     });
   }
 
-  // Viewer login: mint a session, hand it over via one-time code.
+  // Viewer login: snapshot their usable emotes with the fresh token
+  // (the token itself is never stored), then mint a session and hand it
+  // over via one-time code.
+  try {
+    const emotes = await fetchUserEmotes(env, tok.access_token, String(me.id));
+    if (emotes.length) {
+      await kvPut(env, KEY.emotes(login), { ts: Date.now(), list: emotes }, { expirationTtl: 30 * 24 * 3600 });
+    }
+  } catch { /* editor offers re-login when absent */ }
   const sessTok = genHex(24);
   await kvPut(env, KEY.sess(sessTok), { login, display, avatar, iat: Date.now() }, { expirationTtl: SESS_TTL });
   const oneTime = genHex(20);
@@ -442,13 +524,40 @@ async function handleCheckin(env, body) {
     await kvPut(env, KEY.lb(ch), { updated: now, top: top.slice(0, LB_CAP) });
   }
 
-  const avatar = vk.includes(':') ? null : await avatarFor(env, ch, chan, vk);
+  // Twitch-only enrichment: avatar, sub tier (card effects), and the
+  // viewer's own emotes matched against their message words so the card
+  // renders them inline. Non-Twitch platforms carry their avatar in the
+  // event itself; the overlay merges it client-side.
+  let avatar = null;
+  let subTier = 0;
+  let msgEmotes = [];
+  if (!vk.includes(':')) {
+    const info = await userInfoFor(env, ch, chan, vk);
+    avatar = info.url;
+    subTier = await subTierFor(env, ch, chan, vk, body.viewerId || info.id);
+    if (msg) {
+      const rec = await kvGet(env, KEY.emotes(vk));
+      if (rec && Array.isArray(rec.list) && rec.list.length) {
+        const byName = new Map(rec.list.map((e) => [e.n, e]));
+        const seen = new Set();
+        for (const w of msg.split(/\s+/)) {
+          const e = byName.get(w);
+          if (e && !seen.has(w)) {
+            seen.add(w);
+            msgEmotes.push(e);
+            if (msgEmotes.length >= 12) break;
+          }
+        }
+      }
+    }
+  }
   return json({
     ok: true,
     viewer: vk, display, msg,
     streak: next.s, total: next.t, best: next.b,
     dup: next.dup, milestone: next.milestone, ring: ringFor(next.b),
-    card: stored.card, avatar, day: today, activeDays: days.length,
+    card: stored.card, avatar, subTier, msgEmotes,
+    day: today, activeDays: days.length,
   });
 }
 
@@ -547,7 +656,7 @@ async function handleRecent(env, url) {
 // streamer. Accept both shapes verbatim after a strict pattern check.
 function modViewerKey(raw) {
   const v = String(raw || '').trim().toLowerCase();
-  return /^(yt:|kk:)?[a-z0-9_\-]{2,40}$/.test(v) ? v : null;
+  return /^(yt:|kk:|tt:)?[a-z0-9_\-.]{2,40}$/.test(v) ? v : null;
 }
 
 async function handleMod(env, body) {
@@ -594,17 +703,34 @@ async function handleMe(req, env, url) {
   if (!ch) return json({ ok: false, error: 'bad-channel' }, 400);
   const chan = await loadChan(env, ch);
   const user = (await kvGet(env, KEY.user(ch, sess.login))) || {};
+  const emoteRec = await kvGet(env, KEY.emotes(sess.login));
+  const subTier = chan ? await subTierFor(env, ch, chan, sess.login, null) : 0;
   return json({
     ok: true,
     login: sess.login, display: sess.display, avatar: sess.avatar,
     streak: user.s || 0, total: user.t || 0, best: user.b || 0,
     last: user.l || null, dates: user.d || [], card: user.card || null,
     ring: ringFor(user.b || 0),
+    subTier,
+    hasEmotes: !!(emoteRec && emoteRec.list && emoteRec.list.length),
     channel: chan ? {
       claimed: true, display: chan.display, rewardTitle: chan.rewardTitle,
       allowCustomImg: !!(chan.cfg && chan.cfg.allowCustomImg),
     } : { claimed: false },
   });
+}
+
+// The viewer's snapshotted emote set for the editor's badge picker.
+async function handleEmotes(req, env) {
+  const sess = await sessionFrom(req, env);
+  if (!sess) return json({ ok: false, error: 'login-required' }, 401);
+  const rec = await kvGet(env, KEY.emotes(sess.login));
+  if (!rec || !Array.isArray(rec.list) || !rec.list.length) {
+    // Logged in before the emotes scope existed (or fetch failed):
+    // a fresh login re-snapshots.
+    return json({ ok: true, emotes: [], needsRelogin: true });
+  }
+  return json({ ok: true, emotes: rec.list, ts: rec.ts });
 }
 
 async function handleCardSave(req, env, body) {
@@ -708,6 +834,7 @@ async function dispatch(req, env, path) {
     if (route === 'rewards') return handleRewards(env, url);
     if (route === 'recent') return handleRecent(env, url);
     if (route === 'me') return handleMe(req, env, url);
+    if (route === 'emotes') return handleEmotes(req, env);
     if (route === 'gif') return handleGif(env, url);
     if (route === 'leaderboard') return handleLeaderboard(env, url);
     return json({ ok: false, error: 'not-found' }, 404);

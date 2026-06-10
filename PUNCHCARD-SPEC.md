@@ -254,7 +254,30 @@ Logged-out visitors get a demo playground + login CTA.
 7. pc-selftest.mjs green
 8. commit both repos, push site, deploy worker
 
+## 10. Shipped after v1 (same day)
+
+- Viewer GIF/image placement: card.bg gains posX/posY (focal point), zoom
+  (100-220, transform-scale from the focal origin), dim (0-100 scrim
+  opacity), layout (full | left | right mask fade). Old cards render with
+  v1 defaults.
+- Emote badges + inline message emotes: viewer OAuth scope is now
+  user:read:emotes; the worker snapshots the viewer's full usable emote
+  set at login (pc:emotes:<login>, token never stored), the editor offers
+  it as a searchable badge picker, and check-ins match message words
+  against the set so cards render the viewer's own emotes inline.
+- Sub tier card effects: streamer scope now includes
+  channel:read:subscriptions; check-ins resolve the viewer's tier
+  (pc:sub:<ch>:<v>, 8h cache) and cards layer T1 silver / T2 gold /
+  T3 iridescent sheens (streamer toggle look.subFx). Claims made before
+  the scope was added degrade to tier 0 until reconnect.
+- Multi-platform: TikFinity leg in pc-connect (comments feed the chat
+  command, named streak-end gifts can count as the daily punch via
+  trigger.tiktokGift); platform-prefixed identities (yt:/kk:/tt:);
+  platform chips via the shared sf-icons.js sprite; non-Twitch avatars
+  ride the event and merge client-side. Card customization remains
+  Twitch-login only.
+
 Deferred to v1.1: auto-fulfill/refund redemptions for rewards PunchCard
 created (scope already granted), Streamer.bot announce action on milestones,
 Discord webhook digest, streak freeze items, a dock page (moderation lives
-in the customizer for now), TikTok via TikFinity gift-as-checkin.
+in the customizer for now).
