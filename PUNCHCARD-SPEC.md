@@ -325,6 +325,19 @@ Round 6 (same day), discovery + cosmetics:
   icon emoji, and a holo foil sweep that saves any time but only
   RENDERS once the gold ring (100 day best) is earned.
 
+Round 9 (same day): the punch moment. After the card's entrance, the
+viewer's chosen punch lands on it: card recoil, an impact thunk
+(WebAudio), and a persistent punched hole. PCCard.punch(el, variant)
+returns the impact ms so the overlay syncs sound and milestone confetti
+to the hit. Variants (viewer cosmetic `punch`, whitelisted server-side,
+default classic): classic mechanical puncher with a flying chad, rubber
+stamp leaving an inked check, fist bump with impact ring, laser that
+burns a glowing hole with embers, or none. Streamer master toggle
+behavior.punchFx; duplicates never punch (nothing new to punch).
+
 Deferred to v1.1: Streamer.bot announce action on milestones (the Helix
 chat announce covers Twitch; an SB action would cover YT/Kick), Discord
-webhook digest, a dock page (moderation lives in the customizer for now).
+webhook digest, a dock page (moderation lives in the customizer for now),
+punch-strip progression (a 7-slot week strip on the card where the live
+punch fills the next hole), seasonal punch skins (snowflake stamp,
+pumpkin puncher).

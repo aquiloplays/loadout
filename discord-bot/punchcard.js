@@ -173,6 +173,7 @@ export function sanitizeCard(raw, allowCustom) {
     };
   }
   // Cosmetics. Everything whitelisted; junk falls back to defaults.
+  out.punch = ['classic', 'stamp', 'fist', 'laser', 'none'].includes(raw.punch) ? raw.punch : 'classic';
   out.nameFx = ['none', 'accent', 'gradient', 'rainbow'].includes(raw.nameFx) ? raw.nameFx : 'none';
   out.texture = ['none', 'dots', 'scan', 'sparkle'].includes(raw.texture) ? raw.texture : 'none';
   out.anim = ['slide', 'pop', 'flip', 'drop'].includes(raw.anim) ? raw.anim : 'slide';
