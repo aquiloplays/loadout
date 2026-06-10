@@ -1,0 +1,251 @@
+﻿{
+    "meta":  {
+                 "name":  "ScratchDrop",
+                 "author":  "aquilo.gg",
+                 "version":  "1.0.0",
+                 "description":  "Scratch-off tickets on stream. Prewired actions for announcements, prizes and the dock relay. Free forever at aquilo.gg/scratchdrop",
+                 "autoRunAction":  null,
+                 "minimumVersion":  null
+             },
+    "manifest":  {
+                     "product":  "ScratchDrop",
+                     "packageVersion":  "1.0.0",
+                     "group":  "ScratchDrop",
+                     "generatedBy":  "tools/build-scratchdrop-import.ps1",
+                     "actionCount":  5,
+                     "actions":  [
+                                     "ScratchDrop Â· Announce",
+                                     "ScratchDrop Â· Award VIP",
+                                     "ScratchDrop Â· Play Sound",
+                                     "ScratchDrop Â· Discord Webhook",
+                                     "ScratchDrop Â· Relay"
+                                 ],
+                     "commands":  [
+
+                                  ],
+                     "includes":  [
+                                      "announce",
+                                      "award-vip",
+                                      "play-sound",
+                                      "discord-webhook",
+                                      "relay"
+                                  ]
+                 },
+    "data":  {
+                 "actions":  [
+                                 {
+                                     "id":  "98817c50-9522-49c0-a482-d8e3455793a9",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "ScratchDrop Â· Announce",
+                                     "group":  "ScratchDrop",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "ScratchDrop Â· Announce",
+                                                            "description":  "Sends {message} to Twitch / YouTube / Kick chat. Invoked by the ScratchDrop overlay for ticket announcements.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUmVmbGVjdGlvbjsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgc3RyaW5nIG1zZzsKICAgICAgICBpZiAoIUNQSC5UcnlHZXRBcmcoIm1lc3NhZ2UiLCBvdXQgbXNnKSB8fCBzdHJpbmcuSXNOdWxsT3JXaGl0ZVNwYWNlKG1zZykpIHJldHVybiB0cnVlOwogICAgICAgIHRyeSB7IENQSC5TZW5kTWVzc2FnZShtc2csIHRydWUpOyB9IGNhdGNoIChFeGNlcHRpb24pIHt9CiAgICAgICAgdHJ5IHsgQ1BILlNlbmRZb3VUdWJlTWVzc2FnZShtc2cpOyB9IGNhdGNoIChFeGNlcHRpb24pIHt9CiAgICAgICAgLy8gS2ljayBzZW5kIG9ubHkgZXhpc3RzIG9uIG5ld2VyIGJ1aWxkczsgY2FsbCBpdCBpZiBwcmVzZW50LgogICAgICAgIFRyeUNhbGwoIlNlbmRLaWNrTWVzc2FnZSIsIG1zZyk7CiAgICAgICAgVHJ5Q2FsbCgiS2lja1NlbmRNZXNzYWdlIiwgbXNnKTsKICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KCiAgICBwcml2YXRlIHZvaWQgVHJ5Q2FsbChzdHJpbmcgbmFtZSwgc3RyaW5nIGFyZykKICAgIHsKICAgICAgICB0cnkKICAgICAgICB7CiAgICAgICAgICAgIE1ldGhvZEluZm8gbSA9IENQSC5HZXRUeXBlKCkuR2V0TWV0aG9kKG5hbWUsIG5ldyBUeXBlW10geyB0eXBlb2Yoc3RyaW5nKSB9KTsKICAgICAgICAgICAgaWYgKG0gIT0gbnVsbCkgbS5JbnZva2UoQ1BILCBuZXcgb2JqZWN0W10geyBhcmcgfSk7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24pIHt9CiAgICB9Cn0=",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "957666e4-5fd5-42a9-85f0-d8509d9bc36b",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "5c0e1319-87f4-4145-aebf-34b76680972d",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "ScratchDrop Â· Award VIP",
+                                     "group":  "ScratchDrop",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "ScratchDrop Â· Award VIP",
+                                                            "description":  "Grants Twitch VIP to {user} (falls back to a mod call-out in chat). Point a prize\u0027s action at this.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUmVmbGVjdGlvbjsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgc3RyaW5nIHVzZXI7CiAgICAgICAgaWYgKCFDUEguVHJ5R2V0QXJnKCJ1c2VyIiwgb3V0IHVzZXIpIHx8IHN0cmluZy5Jc051bGxPcldoaXRlU3BhY2UodXNlcikpIHJldHVybiB0cnVlOwogICAgICAgIGJvb2wgZ3JhbnRlZCA9IGZhbHNlOwogICAgICAgIHRyeQogICAgICAgIHsKICAgICAgICAgICAgTWV0aG9kSW5mbyBtID0gQ1BILkdldFR5cGUoKS5HZXRNZXRob2QoIlR3aXRjaEFkZFZpcCIsIG5ldyBUeXBlW10geyB0eXBlb2Yoc3RyaW5nKSB9KTsKICAgICAgICAgICAgaWYgKG0gIT0gbnVsbCkgeyBtLkludm9rZShDUEgsIG5ldyBvYmplY3RbXSB7IHVzZXIgfSk7IGdyYW50ZWQgPSB0cnVlOyB9CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24pIHt9CiAgICAgICAgdHJ5CiAgICAgICAgewogICAgICAgICAgICBpZiAoZ3JhbnRlZCkgQ1BILlNlbmRNZXNzYWdlKCJTY3JhdGNoRHJvcDogIiArIHVzZXIgKyAiIGlzIG5vdyBhIFZJUCEiLCB0cnVlKTsKICAgICAgICAgICAgZWxzZSBDUEguU2VuZE1lc3NhZ2UoIlNjcmF0Y2hEcm9wOiAiICsgdXNlciArICIgd29uIFZJUCAtIG1vZHMsIGdyYW50IGl0IHdoZW4geW91IGNhbiEiLCB0cnVlKTsKICAgICAgICB9CiAgICAgICAgY2F0Y2ggKEV4Y2VwdGlvbikge30KICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KfQ==",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "1fd5eb3a-dfe0-40aa-a72e-c99d93df88af",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "8e19f068-4192-4f58-942b-4ea9761a3d55",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "ScratchDrop Â· Play Sound",
+                                     "group":  "ScratchDrop",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "ScratchDrop Â· Play Sound",
+                                                            "description":  "Plays {soundPath} or the fallback path inside the code. Point a prize\u0027s action at this.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uSU87CgpwdWJsaWMgY2xhc3MgQ1BISW5saW5lCnsKICAgIHB1YmxpYyBib29sIEV4ZWN1dGUoKQogICAgewogICAgICAgIC8vIEVpdGhlciBwYXNzIHNvdW5kUGF0aCBhcyBhbiBhY3Rpb24gYXJndW1lbnQsIG9yIGVkaXQgdGhlCiAgICAgICAgLy8gZmFsbGJhY2sgYmVsb3cgdG8gYSAud2F2Ly5tcDMgb24gdGhpcyBQQy4KICAgICAgICBzdHJpbmcgZmFsbGJhY2sgPSBAIiI7CiAgICAgICAgc3RyaW5nIHBhdGg7CiAgICAgICAgaWYgKCFDUEguVHJ5R2V0QXJnKCJzb3VuZFBhdGgiLCBvdXQgcGF0aCkgfHwgc3RyaW5nLklzTnVsbE9yV2hpdGVTcGFjZShwYXRoKSkgcGF0aCA9IGZhbGxiYWNrOwogICAgICAgIGlmIChzdHJpbmcuSXNOdWxsT3JXaGl0ZVNwYWNlKHBhdGgpIHx8ICFGaWxlLkV4aXN0cyhwYXRoKSkKICAgICAgICB7CiAgICAgICAgICAgIENQSC5Mb2dJbmZvKCJTY3JhdGNoRHJvcCAtIFBsYXkgU291bmQ6IG5vIHNvdW5kUGF0aCBhcmcgYW5kIG5vIGZhbGxiYWNrIHNldDsgZWRpdCB0aGlzIGFjdGlvbi4iKTsKICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQogICAgICAgIHRyeSB7IENQSC5QbGF5U291bmQocGF0aCwgMWYsIHRydWUpOyB9IGNhdGNoIChFeGNlcHRpb24pIHsgdHJ5IHsgQ1BILlBsYXlTb3VuZChwYXRoKTsgfSBjYXRjaCAoRXhjZXB0aW9uKSB7fSB9CiAgICAgICAgcmV0dXJuIHRydWU7CiAgICB9Cn0=",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "ddf0c1a6-7eae-4f4a-9d5a-fcd1a72b1bca",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "d7a29d43-bd99-4f7c-b87b-10374fef9760",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "ScratchDrop Â· Discord Webhook",
+                                     "group":  "ScratchDrop",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "ScratchDrop Â· Discord Webhook",
+                                                            "description":  "Posts {message} to a Discord webhook ({webhookUrl} arg or the fallback inside the code).",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uTmV0Owp1c2luZyBTeXN0ZW0uVGV4dDsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgLy8gRWl0aGVyIHBhc3Mgd2ViaG9va1VybCBhcyBhbiBhY3Rpb24gYXJndW1lbnQsIG9yIHBhc3RlIHlvdXIKICAgICAgICAvLyBEaXNjb3JkIHdlYmhvb2sgVVJMIGludG8gdGhlIGZhbGxiYWNrIGJlbG93LgogICAgICAgIHN0cmluZyBmYWxsYmFjayA9IEAiIjsKICAgICAgICBzdHJpbmcgdXJsOwogICAgICAgIGlmICghQ1BILlRyeUdldEFyZygid2ViaG9va1VybCIsIG91dCB1cmwpIHx8IHN0cmluZy5Jc051bGxPcldoaXRlU3BhY2UodXJsKSkgdXJsID0gZmFsbGJhY2s7CiAgICAgICAgc3RyaW5nIG1zZzsKICAgICAgICBDUEguVHJ5R2V0QXJnKCJtZXNzYWdlIiwgb3V0IG1zZyk7CiAgICAgICAgaWYgKHN0cmluZy5Jc051bGxPcldoaXRlU3BhY2UodXJsKSB8fCBzdHJpbmcuSXNOdWxsT3JXaGl0ZVNwYWNlKG1zZykpCiAgICAgICAgewogICAgICAgICAgICBDUEguTG9nSW5mbygiU2NyYXRjaERyb3AgLSBEaXNjb3JkIFdlYmhvb2s6IHNldCB3ZWJob29rVXJsIChhcmcgb3IgZmFsbGJhY2spIGFuZCBtZXNzYWdlLiIpOwogICAgICAgICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICB9CiAgICAgICAgdHJ5CiAgICAgICAgewogICAgICAgICAgICBzdHJpbmcgZXNjID0gbXNnLlJlcGxhY2UoIlxcIiwgIlxcXFwiKS5SZXBsYWNlKCJcIiIsICJcXFwiIikuUmVwbGFjZSgiXG4iLCAiXFxuIikuUmVwbGFjZSgiXHIiLCAiIik7CiAgICAgICAgICAgIHN0cmluZyBib2R5ID0gIntcImNvbnRlbnRcIjpcIiIgKyBlc2MgKyAiXCJ9IjsKICAgICAgICAgICAgdXNpbmcgKFdlYkNsaWVudCB3YyA9IG5ldyBXZWJDbGllbnQoKSkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgd2MuSGVhZGVyc1tIdHRwUmVxdWVzdEhlYWRlci5Db250ZW50VHlwZV0gPSAiYXBwbGljYXRpb24vanNvbiI7CiAgICAgICAgICAgICAgICB3Yy5FbmNvZGluZyA9IEVuY29kaW5nLlVURjg7CiAgICAgICAgICAgICAgICB3Yy5VcGxvYWRTdHJpbmcodXJsLCAiUE9TVCIsIGJvZHkpOwogICAgICAgICAgICB9CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24gZXgpIHsgQ1BILkxvZ0luZm8oIlNjcmF0Y2hEcm9wIHdlYmhvb2sgZmFpbGVkOiAiICsgZXguTWVzc2FnZSk7IH0KICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KfQ==",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "0e1d4595-439c-403d-a738-f130fb7b4b11",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "707cceab-6104-4c37-8a9b-08eeb4fad43b",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "ScratchDrop Â· Relay",
+                                     "group":  "ScratchDrop",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "ScratchDrop Â· Relay",
+                                                            "description":  "Rebroadcasts dock commands to the overlay over the SB websocket. Leave as-is; ScratchDrop invokes it.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uUmVmbGVjdGlvbjsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgLy8gVGhlIGRvY2sgaW52b2tlcyB0aGlzIHdpdGggc2RSZWxheSA9IGEgSlNPTiBjb21tYW5kIHN0cmluZy4KICAgICAgICAvLyBCcm9hZGNhc3RpbmcgeyJzY3JhdGNoZHJvcCI6IDxjbWQ+fSBvdmVyIHRoZSBTQiB3ZWJzb2NrZXQgbGV0cwogICAgICAgIC8vIHRoZSBvdmVybGF5IHJlY2VpdmUgZG9jayBjb21tYW5kcyBldmVuIHdoZW4gdGhlIGRvY2sgcnVucyBpbiBhCiAgICAgICAgLy8gZGlmZmVyZW50IGJyb3dzZXIgcHJvZmlsZSB0aGFuIE9CUy4KICAgICAgICBzdHJpbmcgcGF5bG9hZDsKICAgICAgICBpZiAoIUNQSC5UcnlHZXRBcmcoInNkUmVsYXkiLCBvdXQgcGF5bG9hZCkgfHwgc3RyaW5nLklzTnVsbE9yV2hpdGVTcGFjZShwYXlsb2FkKSkgcmV0dXJuIHRydWU7CiAgICAgICAgc3RyaW5nIGZyYW1lID0gIntcInNjcmF0Y2hkcm9wXCI6IiArIHBheWxvYWQgKyAifSI7CiAgICAgICAgaWYgKEJyb2FkY2FzdCgiV2Vic29ja2V0QnJvYWRjYXN0SnNvbiIsIGZyYW1lKSkgcmV0dXJuIHRydWU7CiAgICAgICAgaWYgKEJyb2FkY2FzdCgiV2Vic29ja2V0QnJvYWRjYXN0U3RyaW5nIiwgZnJhbWUpKSByZXR1cm4gdHJ1ZTsKICAgICAgICBDUEguTG9nSW5mbygiU2NyYXRjaERyb3AgLSBSZWxheTogbm8gd2Vic29ja2V0IGJyb2FkY2FzdCBtZXRob2Qgb24gdGhpcyBTQiBidWlsZC4iKTsKICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KCiAgICBwcml2YXRlIGJvb2wgQnJvYWRjYXN0KHN0cmluZyBuYW1lLCBzdHJpbmcgZnJhbWUpCiAgICB7CiAgICAgICAgdHJ5CiAgICAgICAgewogICAgICAgICAgICBNZXRob2RJbmZvIG0gPSBDUEguR2V0VHlwZSgpLkdldE1ldGhvZChuYW1lLCBuZXcgVHlwZVtdIHsgdHlwZW9mKHN0cmluZykgfSk7CiAgICAgICAgICAgIGlmIChtICE9IG51bGwpIHsgbS5JbnZva2UoQ1BILCBuZXcgb2JqZWN0W10geyBmcmFtZSB9KTsgcmV0dXJuIHRydWU7IH0KICAgICAgICB9CiAgICAgICAgY2F0Y2ggKEV4Y2VwdGlvbikge30KICAgICAgICByZXR1cm4gZmFsc2U7CiAgICB9Cn0=",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "96b3b62a-fb51-44c9-ab55-8a5e7d48ab52",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 }
+                             ],
+                 "queues":  [
+
+                            ],
+                 "commands":  [
+
+                              ],
+                 "websocketServers":  [
+
+                                      ],
+                 "websocketClients":  [
+
+                                      ],
+                 "timers":  [
+
+                            ]
+             },
+    "version":  23,
+    "exportedFrom":  "1.0.4",
+    "minimumVersion":  "1.0.0-alpha.1"
+}
