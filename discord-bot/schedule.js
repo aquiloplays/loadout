@@ -32,20 +32,18 @@ const DEFAULT_SCHEDULE = {
   tz: 'America/New_York',
   updatedAt: 0,
   updatedBy: null,
-  // 2026-06-03 schedule update (Clay): simplified to 4 streamed days.
-  // Triple-C (Crowd Control Campaign) Sun + Fri; Wed = Variety Night;
-  // Sat = Community Night; Mon/Tue/Thu = no scheduled stream (off, null
-  // start). Dad Game Sunday removed. The Triple-C campaign game (Fallout
-  // 4 to start) is set via /web/admin/triple-c/set and shown dynamically
-  // on the embed; the day `label` stays the show name.
+  // Schedule v4 (2026-06-11, Clay's final): Fallout 4 Crowd Control
+  // Chaos Mon/Wed/Fri, Community Votes Night Sun/Tue/Thu/Sat (game
+  // picked night by night by community vote; pool managed on
+  // aquilo.gg/admin). The Rotation slot is retired.
   days: [
-    { dow: 0, label: 'Featured Run',    kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
-    { dow: 1, label: 'Fallout 4 CC: Chaos Workout Challenge', kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 2, label: 'Featured Run',    kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
-    { dow: 3, label: 'Fallout 4 CC: Chaos Workout Challenge', kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 4, label: 'Featured Run',    kind: 'rotation',  startLocal: '22:30', endLocal: '00:30' },
-    { dow: 5, label: 'Fallout 4 CC: Chaos Workout Challenge', kind: 'fo4cc', startLocal: '22:30', endLocal: '00:30' },
-    { dow: 6, label: 'Community Night', kind: 'community', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 0, label: 'Community Votes Night',         kind: 'community', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 1, label: 'Fallout 4 Crowd Control Chaos', kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 2, label: 'Community Votes Night',         kind: 'community', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 3, label: 'Fallout 4 Crowd Control Chaos', kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 4, label: 'Community Votes Night',         kind: 'community', startLocal: '22:30', endLocal: '00:30' },
+    { dow: 5, label: 'Fallout 4 Crowd Control Chaos', kind: 'fo4cc',     startLocal: '22:30', endLocal: '00:30' },
+    { dow: 6, label: 'Community Votes Night',         kind: 'community', startLocal: '22:30', endLocal: '00:30' },
   ],
 };
 

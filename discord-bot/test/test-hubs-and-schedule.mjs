@@ -158,9 +158,9 @@ console.log('- getPublicSchedule: shape + CN winner');
     SCHEDULE_CHANNEL_ID: '1507973920282640485',
     POLL_CHANNEL_ID:     '1508318930845044786',
   };
-  // No saved sched, so load returns defaults. 2026-06-03 v3 final:
-  // Mon/Wed/Fri = Fallout 4 CC (fixed), Sun/Tue/Thu = Rotation (admin
-  // pick, none in test env -> null game), Sat = Community Night (vote).
+  // No saved sched, so load returns defaults. 2026-06-11 v4:
+  // Mon/Wed/Fri = Fallout 4 Crowd Control Chaos (fixed),
+  // Sun/Tue/Thu/Sat = Community Votes Night (per-night vote).
   const r1 = await getPublicSchedule(env, GUILD);
   assert(r1.ok, 'ok:true');
   eq(r1.guildId, GUILD, 'guildId echoed');
@@ -173,19 +173,20 @@ console.log('- getPublicSchedule: shape + CN winner');
   // Mon/Wed/Fri are Fallout 4 CC (fixed show).
   const mon = r1.days.find(d => d.weekday === 'monday');
   eq(mon.slot, 'fo4cc', 'monday slot=fo4cc');
-  eq(mon.game?.name, 'Fallout 4 CC: Chaos Workout Challenge', 'monday game = FO4 CC');
+  eq(mon.game?.name, 'Fallout 4 Crowd Control Chaos', 'monday game = FO4 CC');
   eq(mon.status, 'scheduled', 'monday status=scheduled');
   const wed = r1.days.find(d => d.weekday === 'wednesday');
   eq(wed.slot, 'fo4cc', 'wednesday slot=fo4cc');
   const fri = r1.days.find(d => d.weekday === 'friday');
   eq(fri.slot, 'fo4cc', 'friday slot=fo4cc');
-  // Sun/Tue/Thu are Rotation (no admin pick in test env -> null game).
+  // Sun/Tue/Thu are Community Votes Nights too (v4), no winner seeded
+  // in the test env so they read as open votes.
   const sun = r1.days.find(d => d.weekday === 'sunday');
-  eq(sun.slot, 'rotation', 'sunday slot=rotation');
-  eq(sun.game, null, 'sunday no rotation pick yet');
-  eq(sun.status, 'scheduled', 'sunday status=scheduled');
+  eq(sun.slot, 'cn', 'sunday slot=cn');
+  eq(sun.game, null, 'sunday no winner yet');
+  eq(sun.status, 'vote-open', 'sunday status=vote-open');
   const thu = r1.days.find(d => d.weekday === 'thursday');
-  eq(thu.slot, 'rotation', 'thursday slot=rotation');
+  eq(thu.slot, 'cn', 'thursday slot=cn');
 
   // Now seed a CN winner + read again. Winner has a Steam URL →
   // store='steam'.

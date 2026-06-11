@@ -4,10 +4,11 @@
 // Rotation pick, the per-night override layers, and the Fallout 4 CC
 // thumbnail. It replaces triple-c.js / dad-sunday.js.
 //
-// Schedule v3 final structure:
-//   Sun / Tue / Thu -> Rotation slot (admin-picked, one game for all three)
-//   Mon / Wed / Fri -> Fallout 4 CC: Chaos Workout Challenge (fixed)
-//   Sat             -> Community Night (7-game pool)
+// Schedule v4 structure (2026-06-11): the Rotation slot is RETIRED,
+//   Mon / Wed / Fri       -> Fallout 4 Crowd Control Chaos (fixed)
+//   Sun / Tue / Thu / Sat -> Community Votes Night (per-night vote)
+// The rotation helpers stay for old overrides + the admin dropdown;
+// getFo4cc + the per-date override layer are what v4 still uses.
 //
 // KV:
 //   rotation:current:<g>        { gameSlug, name, artUrl, setUtc, setBy }
@@ -29,7 +30,7 @@ const DATE_KEY = (g, iso) => `schedule:override:${g}:${iso}`;
 const THUMB_KEY = (g) => `fo4cc:thumbnail:${g}`;
 
 const FO4_APPID = 377160;
-export const FO4CC_SHOW_NAME = 'Fallout 4 CC: Chaos Workout Challenge';
+export const FO4CC_SHOW_NAME = 'Fallout 4 Crowd Control Chaos';
 const steamHeader = (appId) => `https://cdn.cloudflare.steamstatic.com/steam/apps/${appId}/header.jpg`;
 
 // The 23-game rotation pool (Hollow Knight de-duped). appId drives the
