@@ -271,6 +271,26 @@ zero page errors.
 - Countdown rings pulse in the final 10 seconds; timed-card audit
   (every `timed` is a real duration).
 
+## v1.2 (collection economy, same day)
+
+- **Crafting**: `!craft <card>` melts N copies (default 3, configurable)
+  of one card into a random card of the next rarity up from the same
+  pack. Engine-local, no backend.
+- **Gifting**: `!giftcard <viewer> <card>` transfers a card. Recipients
+  resolve through an in-memory seen-in-chat map (plus inventory display
+  names), so typos and never-seen names fail politely instead of
+  stranding cards.
+- **Welcome pack**: optional `chat.first` trigger (off by default)
+  grants a free pack on a viewer's first-ever message, once ever.
+- **`!toppulls`**: stream leaderboard of legendary/epic pulls from
+  history.
+- Landing hero bakes a multi-pack config and the demo loop rotates
+  through enabled packs, showing off the Steam art wrappers.
+- `prefers-reduced-motion` now forces calm fx automatically.
+- Customizer grafts newly added default triggers into saved configs
+  (arrays replace on merge, so old saves would otherwise never see
+  new trigger types).
+
 ## Out of scope for v1 (roadmap)
 
 - Cloud inventory sync + viewer-facing "my cards" page.
