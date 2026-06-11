@@ -148,6 +148,8 @@ function sanitizeState(input) {
       here: cleanText(join.here, 24),
       tagLabel: cleanText(join.tagLabel, 24),
     },
+    banned: (Array.isArray(input.banned) ? input.banned : []).slice(0, 50)
+      .map((b) => cleanText(b, 40)).filter(Boolean),
     party,
     queue,
   };
@@ -202,6 +204,7 @@ export async function handlePartyup(req, env, path) {
       return json({ ok: true, room: rec.pub, updatedAt: rec.updatedAt || 0 });
     }
     const pub = JSON.parse(JSON.stringify(rec.pub));
+    delete pub.banned;   // the ban list is the streamer's business, not the viewers'
     for (const e of [...(pub.party || []), ...(pub.queue || [])]) {
       delete e.ids;
       if (!pub.tagsPublic) delete e.tag;

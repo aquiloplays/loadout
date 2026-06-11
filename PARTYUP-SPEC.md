@@ -161,6 +161,25 @@ classification, cfg round trip, customizer + dock + live + landing boot).
 - Customizer: one-click game presets (Fortnite/THE FINALS/Among Us/...)
   setting party size + game name + tag label.
 
+## v1.3 (same day)
+
+- Every chat command is a CSV with aliases: `join.command` ("!join,
+  !play"), `leaveCommand`, `hereCommand` ("!here, !ready" by default),
+  `tagCommand`, `posCommand` ("!q, !queue, !position, !spot" by
+  default, doubles as the mod prefix). First entry is what the overlay
+  and replies display; the old hard-coded aliases moved into the
+  defaults so they can be removed when another bot owns the word.
+- Streamer.bot action hooks: `sb.onPick` / `sb.onStart` fire any
+  existing SB action by name (DoAction with users + count args) at the
+  pick and party-start moments. No bundle needed.
+- Draft reveal shows the picked viewers' avatars next to their names
+  (pick/fill toasts now carry entries, not just names).
+- `picks.vipTickets`: extra raffle tickets for VIPs (default 0).
+- Dock: BANNED TONIGHT card with one-click Unban (ban list rides
+  status + keyed room snapshots, stripped from the public read), and a
+  stats line (games tonight + avg min/game).
+- Open/close chimes on the overlay.
+
 ## Ship checklist
 
 1. Loadout: `discord-bot/partyup.js` (owned) + `worker.js` mount (anchored
