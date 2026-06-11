@@ -453,3 +453,165 @@ export async function verifyChannel(env, channelId) {
   return { ok: true, channelId, remaining: arr.length, nonPinned,
     clean: nonPinned === 0 };
 }
+
+// ── Visibility gate: non-Members see ONLY the keep channel ─────────────
+// Clay's 2026-06-11 directive: anyone WITHOUT the ⭐ Member role sees
+// exactly one channel (#rules, which carries the ✅ Verify button that
+// grants Member). Mechanism: every channel/category a role-less member
+// could currently view gets a merged @everyone VIEW deny + Member VIEW
+// allow; the keep channel gets an explicit @everyone VIEW allow.
+//
+// Channels ALREADY hidden from @everyone (patron / staff / 18+ / vault /
+// any future role-gated area) are not touched, so their tighter gating
+// survives. All writes are single-row upserts via
+// PUT /channels/:id/permissions/:target with allow/deny merged from the
+// channel's CURRENT overwrite, never a wholesale permission_overwrites
+// replacement, so menu-channel send-locks and bot user overwrites
+// survive re-runs. Idempotent: a second run reports every row skipped.
+
+const VIEW_CHANNEL = 1n << 10n;          // 0x400
+const READ_MSG_HISTORY = 1n << 16n;      // 0x10000
+const ADMINISTRATOR = 1n << 3n;          // 0x8
+
+function overwriteRow(ch, id) {
+  const o = (ch.permission_overwrites || []).find(x => String(x.id) === String(id));
+  return { allow: BigInt(o?.allow || '0'), deny: BigInt(o?.deny || '0'), exists: !!o };
+}
+
+// Would a member with NO roles see this channel? Guild-level @everyone
+// permissions -> the channel's own @everyone overwrite (deny, then
+// allow). Category overwrites do NOT cascade in the permission
+// algorithm, so per-channel state is the only thing that matters.
+function rolelessCanView(ch, guildId, everyoneBase) {
+  const { allow, deny } = overwriteRow(ch, guildId);
+  const eff = (everyoneBase & ~deny) | allow;
+  return (eff & VIEW_CHANNEL) === VIEW_CHANNEL;
+}
+
+// Classify every channel: keep / gate-target / already-hidden. Also
+// reports whether the bot identities would still SEE gated channels
+// (admin bypass or an explicit overwrite is required once @everyone
+// VIEW is denied, because role-level guild perms are stripped by the
+// @everyone deny unless re-allowed at the channel).
+export async function planVisibilityGate(env, guildId, keepChannelId, memberRoleId) {
+  if (!env?.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
+  if (!keepChannelId) return { ok: false, error: 'keep-channel-required' };
+
+  const chRes = await dfetch(env, `/guilds/${guildId}/channels`);
+  if (!chRes.ok) return { ok: false, error: 'guild-channels-failed', status: chRes.status };
+  const channels = await chRes.json();
+  const rlRes = await dfetch(env, `/guilds/${guildId}/roles`);
+  if (!rlRes.ok) return { ok: false, error: 'guild-roles-failed', status: rlRes.status };
+  const roles = await rlRes.json();
+
+  const everyoneBase = BigInt(roles.find(r => String(r.id) === String(guildId))?.permissions || '0');
+  const memberRole = roles.find(r => String(r.id) === String(memberRoleId)) || null;
+
+  const bots = [];
+  for (const bid of [env.DISCORD_APP_ID, LOADOUT_BOT_USER_ID].filter(Boolean)) {
+    const mr = await dfetch(env, `/guilds/${guildId}/members/${bid}`);
+    if (!mr.ok) { bots.push({ id: bid, present: false }); continue; }
+    const m = await mr.json();
+    let perms = everyoneBase;
+    for (const rid of m.roles || []) {
+      const ro = roles.find(r => String(r.id) === String(rid));
+      if (ro) perms |= BigInt(ro.permissions || '0');
+    }
+    bots.push({ id: bid, present: true, roleIds: m.roles || [],
+      admin: (perms & ADMINISTRATOR) === ADMINISTRATOR });
+  }
+
+  const targets = [], alreadyHidden = [];
+  let keep = null;
+  for (const c of channels) {
+    const base = { id: c.id, name: c.name || '(unnamed)', type: c.type,
+      parent_id: c.parent_id || null };
+    if (String(c.id) === String(keepChannelId)) {
+      keep = { ...base, visibleNow: rolelessCanView(c, guildId, everyoneBase) };
+      continue;
+    }
+    if (rolelessCanView(c, guildId, everyoneBase)) targets.push(base);
+    else alreadyHidden.push(base);
+  }
+
+  return { ok: true, guildId, keepChannelId,
+    everyoneHasGuildView: (everyoneBase & VIEW_CHANNEL) === VIEW_CHANNEL,
+    everyoneIsAdmin: (everyoneBase & ADMINISTRATOR) === ADMINISTRATOR,
+    memberRole: memberRole ? { id: memberRole.id, name: memberRole.name } : null,
+    roles: roles.map(r => ({ id: r.id, name: r.name, managed: !!r.managed,
+      admin: (BigInt(r.permissions || '0') & ADMINISTRATOR) === ADMINISTRATOR })),
+    bots, keep, targets, alreadyHidden };
+}
+
+// Merge-upsert one overwrite row (role type 0 / member type 1) on one
+// channel. allowAdd/denyAdd are bit masks; a bit never lands on both
+// sides. No-op (and no API call) when the row already matches.
+async function putOverwriteMerged(env, channelId, targetId, type, current, allowAdd, denyAdd) {
+  const wantAllow = (current.allow | allowAdd) & ~denyAdd;
+  const wantDeny = (current.deny | denyAdd) & ~allowAdd;
+  if (current.exists && wantAllow === current.allow && wantDeny === current.deny) {
+    return { changed: false, ok: true };
+  }
+  const r = await dfetch(env, `/channels/${channelId}/permissions/${targetId}`, {
+    method: 'PUT',
+    body: JSON.stringify({ type, allow: wantAllow.toString(), deny: wantDeny.toString() }),
+  });
+  return { changed: true, ok: r.ok || r.status === 204, status: r.status };
+}
+
+// Gate (or keep-open) ONE channel.
+// opts: { keep, memberRoleId, extraAllowRoleIds: [], extraAllowUserIds: [] }
+export async function gateChannelVisibility(env, guildId, channelId, opts = {}) {
+  if (!env?.DISCORD_BOT_TOKEN) return { ok: false, error: 'no-bot-token' };
+  const cr = await dfetch(env, `/channels/${channelId}`);
+  if (!cr.ok) return { ok: false, channelId, error: 'channel-fetch-failed', status: cr.status };
+  const ch = await cr.json();
+  const applied = [], skipped = [], errors = [];
+
+  async function apply(label, targetId, type, allowAdd, denyAdd) {
+    const r = await putOverwriteMerged(env, channelId, targetId, type,
+      overwriteRow(ch, targetId), allowAdd, denyAdd);
+    if (!r.ok) errors.push({ target: label, status: r.status });
+    else (r.changed ? applied : skipped).push(label);
+  }
+
+  if (opts.keep) {
+    // The ONE public channel: explicit @everyone VIEW + HISTORY allow
+    // (robust even if guild-level @everyone perms are tightened later).
+    await apply('@everyone:allow-view', guildId, 0, VIEW_CHANNEL | READ_MSG_HISTORY, 0n);
+  } else {
+    await apply('@everyone:deny-view', guildId, 0, 0n, VIEW_CHANNEL);
+    if (opts.memberRoleId) {
+      await apply('member:allow-view', opts.memberRoleId, 0, VIEW_CHANNEL, 0n);
+    }
+    for (const rid of opts.extraAllowRoleIds || []) {
+      await apply(`role:${rid}:allow-view`, rid, 0, VIEW_CHANNEL, 0n);
+    }
+    for (const uid of opts.extraAllowUserIds || []) {
+      await apply(`user:${uid}:allow-view`, uid, 1, VIEW_CHANNEL, 0n);
+    }
+  }
+
+  return { ok: errors.length === 0, channelId, name: ch.name || '', applied, skipped, errors };
+}
+
+// Re-derive role-less visibility for the whole guild. ok === true means
+// the keep channel is the ONLY thing a non-Member can see.
+export async function verifyVisibilityGate(env, guildId, keepChannelId) {
+  const chRes = await dfetch(env, `/guilds/${guildId}/channels`);
+  if (!chRes.ok) return { ok: false, error: 'guild-channels-failed', status: chRes.status };
+  const channels = await chRes.json();
+  const rlRes = await dfetch(env, `/guilds/${guildId}/roles`);
+  if (!rlRes.ok) return { ok: false, error: 'guild-roles-failed', status: rlRes.status };
+  const roles = await rlRes.json();
+  const everyoneBase = BigInt(roles.find(r => String(r.id) === String(guildId))?.permissions || '0');
+
+  const leaks = [];
+  let keepVisible = false;
+  for (const c of channels) {
+    const vis = rolelessCanView(c, guildId, everyoneBase);
+    if (String(c.id) === String(keepChannelId)) { keepVisible = vis; continue; }
+    if (vis) leaks.push({ id: c.id, name: c.name || '(unnamed)', type: c.type });
+  }
+  return { ok: keepVisible && leaks.length === 0, keepChannelId, keepVisible, leaks };
+}

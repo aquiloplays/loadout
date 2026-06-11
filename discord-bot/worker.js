@@ -5194,6 +5194,28 @@ async function handleDiscordCleanup(req, env, path) {
       count: r.count, parts: r.parts, truncated: r.truncated, sample: (r.messages || []).slice(0, 3) }, 200);
     return jsonResp(r, 404);
   }
+  // Visibility gate: non-Members see ONLY the keep channel (#rules).
+  // Same KV token gate as the cleanup modes; the local driver
+  // tools/discord-visibility-gate.mjs sequences one channel per call.
+  if (mode === 'gate-plan') {
+    const r = await cleanup.planVisibilityGate(env, guildId,
+      url.searchParams.get('keep') || '', url.searchParams.get('member') || '');
+    return jsonResp(r, r.ok ? 200 : 400);
+  }
+  if (mode === 'gate') {
+    if (!channelId) return jsonResp({ ok: false, error: 'channel required' }, 400);
+    const r = await cleanup.gateChannelVisibility(env, guildId, channelId, {
+      keep: url.searchParams.get('keep') === '1',
+      memberRoleId: url.searchParams.get('member') || '',
+      extraAllowRoleIds: (url.searchParams.get('extraRoles') || '').split(',').filter(Boolean),
+      extraAllowUserIds: (url.searchParams.get('extraUsers') || '').split(',').filter(Boolean),
+    });
+    return jsonResp(r, r.ok ? 200 : 400);
+  }
+  if (mode === 'gate-verify') {
+    const r = await cleanup.verifyVisibilityGate(env, guildId, url.searchParams.get('keep') || '');
+    return jsonResp(r, 200);
+  }
   return jsonResp({ ok: false, error: 'unknown-mode' }, 400);
 }
 
