@@ -389,6 +389,17 @@ and the hold extends 1.2s. Chip precedence: dup > milestone >
 firstEver > freezeUsed > firstOfDay. Local mode and the demo derive it
 the same way.
 
+Round 13 (2026-06-11): viewer check-in sounds. pc-sounds.js is a
+WebAudio synth bank of meme-ARCHETYPE SFX (airhorn, sad trombone, deep
+boom, bonk, ta-da, 8-bit power-up, arcade coin, boing, record scratch,
+drumroll, pew pew, clown honk + chime/none), original synthesis only,
+no copyrighted recordings or melodies, nothing hosted. card.sound is a
+whitelisted cosmetic; the editor previews each; the overlay plays the
+viewer's pick on their check-in (milestone fanfare layers after), and
+the streamer's audio settings always win including a new
+audio.viewerSounds master toggle. Catalog entries can later carry
+{ url } for licensed files instead of { synth }.
+
 Deferred to v1.1: Streamer.bot announce action on milestones (the Helix
 chat announce covers Twitch; an SB action would cover YT/Kick), Discord
 webhook digest, a dock page (moderation lives in the customizer for now),

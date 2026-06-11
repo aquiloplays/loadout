@@ -174,6 +174,11 @@ export function sanitizeCard(raw, allowCustom) {
   }
   // Cosmetics. Everything whitelisted; junk falls back to defaults.
   out.punch = ['classic', 'stamp', 'fist', 'laser', 'none'].includes(raw.punch) ? raw.punch : 'classic';
+  // Check-in sound: keys of the synthesized bank in pc-sounds.js. The
+  // overlay's audio settings (enabled/volume/viewerSounds) always win.
+  out.sound = ['chime', 'airhorn', 'sadtrombone', 'boom', 'bonk', 'tada', 'powerup',
+    'coin', 'boing', 'scratch', 'drumroll', 'laser', 'honk', 'none'].includes(raw.sound)
+    ? raw.sound : 'chime';
   // Earned-badge selection (cap 3). Keys are whitelisted only; whether
   // a badge actually RENDERS is decided at display time against the
   // viewer's server-side stats, so selections can never fake a badge.
