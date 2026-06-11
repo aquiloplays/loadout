@@ -4641,7 +4641,7 @@ async function handleCountingProvisionShameRole(req, env, path) {
 
 // ── /admin/post-embed/:guildId (HMAC) ─────────────────────────────
 // Generic admin embed-post helper. Body:
-//   { channelId, embeds: [...], components?: [...], content? }
+//   { channelId, embeds: [...], components?: [...], content?, poll? }
 // Posts verbatim to channelId as the bot. Useful for one-shot
 // admin posts (explainer embeds, announcements, etc.) without
 // adding a dedicated endpoint per use case. allowed_mentions
@@ -4668,7 +4668,12 @@ async function handlePostEmbed(req, env, path) {
   if (typeof opts.content === 'string') payload.content = opts.content;
   if (Array.isArray(opts.embeds))       payload.embeds = opts.embeds;
   if (Array.isArray(opts.components))   payload.components = opts.components;
-  if (!payload.content && !payload.embeds && !payload.components) {
+  // Native Discord poll passthrough (API v10 poll object: question,
+  // answers[].poll_media, duration in hours, allow_multiselect).
+  // Forwarded verbatim; Discord enforces the shape and its caps
+  // (10 answers per poll, 55 chars per answer, 300 per question).
+  if (opts.poll && typeof opts.poll === 'object') payload.poll = opts.poll;
+  if (!payload.content && !payload.embeds && !payload.components && !payload.poll) {
     return jsonResp({ ok: false, error: 'empty-payload' }, 400);
   }
   const r = await fetch(
