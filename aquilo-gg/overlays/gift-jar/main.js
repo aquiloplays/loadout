@@ -58,6 +58,7 @@
     events:    (params.get('events') || 'subs,resubs,gifts,bits,members,superchats,tips,tiktok')
                  .split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean),
     jarStyle:  pick('jarStyle', 'classic', ['classic', 'bowl', 'hex', 'potion', 'vase']),
+    wall:      pick('wall', 'glass', ['glass', 'glow']),
     discord:   params.get('discord') || '',
     recap:     flag('recap', !!params.get('discord')),
     full:      pick('full', 'recycle', ['recycle', 'stop', 'spill', 'pop']),
@@ -588,25 +589,11 @@
   // interior tint behind the tokens + the photoreal PNG in front + the
   // etched label.
   // ────────────────────────────────────────────────────────────────────
-  function pathFromPolyline(closeAcrossMouth) {
-    var R = geo.R, cx = geo.cx;
-    var d = 'M ' + (cx - R[0][0]).toFixed(1) + ' ' + R[0][1].toFixed(1);
-    for (var i = 1; i < R.length; i++) d += ' L ' + (cx - R[i][0]).toFixed(1) + ' ' + R[i][1].toFixed(1);
-    for (var j = R.length - 1; j >= 0; j--)  d += ' L ' + (cx + R[j][0]).toFixed(1) + ' ' + R[j][1].toFixed(1);
-    if (closeAcrossMouth) d += ' Z';
-    return d;
-  }
-
-  // The drawn outline rounds every interior corner with a quadratic so
-  // the glass reads as blown, not welded. Rounding radius stays inside
-  // the glass stroke, so the physics polyline still matches what you
-  // see.
-  function roundedOutline(closeAcrossMouth) {
-    var R = geo.R, cx = geo.cx;
-    var pts = [];
-    for (var i = 0; i < R.length; i++) pts.push([cx - R[i][0], R[i][1]]);
-    for (var j = R.length - 1; j >= 0; j--) pts.push([cx + R[j][0], R[j][1]]);
-    var rBase = (styleDef().cornerR || 0.055) * geo.W;
+  // Quadratic corner rounding over an arbitrary point chain. The drawn
+  // outline uses it so the glass reads as blown, not welded; rounding
+  // stays inside the glass stroke, so the physics polyline still
+  // matches what you see.
+  function roundPath(pts, rBase, close) {
     var d = 'M ' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
     for (var k = 1; k < pts.length - 1; k++) {
       var P = pts[k], A = pts[k - 1], B = pts[k + 1];
@@ -620,8 +607,35 @@
            ' '   + (P[0] + d2x / l2 * r).toFixed(1) + ' ' + (P[1] + d2y / l2 * r).toFixed(1);
     }
     d += ' L ' + pts[pts.length - 1][0].toFixed(1) + ' ' + pts[pts.length - 1][1].toFixed(1);
-    if (closeAcrossMouth) d += ' Z';
+    if (close) d += ' Z';
     return d;
+  }
+
+  function roundedOutline(closeAcrossMouth) {
+    var R = geo.R, cx = geo.cx;
+    var pts = [];
+    for (var i = 0; i < R.length; i++) pts.push([cx - R[i][0], R[i][1]]);
+    for (var j = R.length - 1; j >= 0; j--) pts.push([cx + R[j][0], R[j][1]]);
+    return roundPath(pts, (styleDef().cornerR || 0.055) * geo.W, closeAcrossMouth);
+  }
+
+  // A specular streak that FOLLOWS the wall instead of cutting straight
+  // through it: wall polyline points inside [y0..y1], pulled inward.
+  function wallStreak(side, y0, y1, inset) {
+    var R = geo.R, cx = geo.cx, pts = [];
+    var ya = geo.top + y0 * geo.H, yb = geo.top + y1 * geo.H;
+    for (var i = 0; i < R.length; i++) {
+      if (R[i][1] < ya || R[i][1] > yb) continue;
+      pts.push([cx + side * (R[i][0] - inset * geo.W), R[i][1]]);
+    }
+    if (pts.length < 2) {
+      var x = cx + side * (geo.bw - inset * geo.W);
+      pts = [[x, ya], [x, yb]];
+    } else {
+      pts.unshift([pts[0][0], Math.min(pts[0][1], ya + 1)]);
+      pts.push([pts[pts.length - 1][0], Math.max(pts[pts.length - 1][1], yb - 1)]);
+    }
+    return roundPath(pts, 0.09 * geo.W, false);
   }
 
   function esc(s) {
@@ -636,84 +650,86 @@
     var back = $('jarBack'), front = $('jarFront');
     back.setAttribute('viewBox', vb);
     front.setAttribute('viewBox', vb);
+    var isGlow = cfg.wall === 'glow';
+    var mouthAbsY = g.R[0][1];
+    var mouthHW = g.R[0][0];
+    var mouthRy = clamp(mouthHW * 0.17, 6, 0.026 * g.H);
 
-    var glow =
+    var glowDefs =
       '<radialGradient id="glowGrad" cx="0.5" cy="0.5" r="0.5">' +
-        '<stop offset="0" style="stop-color:var(--accent)" stop-opacity="0.30"/>' +
+        '<stop offset="0" style="stop-color:var(--accent)" stop-opacity="' + (isGlow ? '0.45' : '0.30') + '"/>' +
         '<stop offset="1" style="stop-color:var(--accent)" stop-opacity="0"/>' +
       '</radialGradient>';
+
+    // ── BACK: interior tint, depth shading, caustic, far rim, motes ──
+    var motes = '';
+    var motePos = [[-0.22, 0.30, 2.0], [0.12, 0.44, 1.5], [-0.32, 0.56, 1.7], [0.30, 0.63, 1.4]];
+    for (var mi = 0; mi < motePos.length; mi++) {
+      motes +=
+        '<circle class="gj-mote" style="animation-delay:' + (mi * 2.7) + 's" ' +
+        'cx="' + (cx + motePos[mi][0] * g.bw) + '" cy="' + (g.top + motePos[mi][1] * g.H) + '" r="' + motePos[mi][2] + '" ' +
+        'fill="' + (isGlow ? 'var(--accent)' : 'rgba(255,255,255,1)') + '" opacity="' + (isGlow ? '0.30' : '0.13') + '"/>';
+    }
 
     back.innerHTML =
       '<defs>' +
         '<linearGradient id="cavGrad" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0" stop-color="rgba(190,224,255,0.045)"/>' +
-          '<stop offset="0.55" stop-color="rgba(152,194,238,0.085)"/>' +
-          '<stop offset="0.86" stop-color="rgba(128,170,222,0.15)"/>' +
-          '<stop offset="1" stop-color="rgba(120,164,218,0.19)"/>' +
+          (isGlow
+            ? '<stop offset="0" stop-color="rgba(10,14,24,0.30)"/>' +
+              '<stop offset="0.85" stop-color="rgba(8,12,22,0.46)"/>' +
+              '<stop offset="1" stop-color="rgba(8,12,22,0.55)"/>'
+            : '<stop offset="0" stop-color="rgba(190,224,255,0.045)"/>' +
+              '<stop offset="0.55" stop-color="rgba(152,194,238,0.085)"/>' +
+              '<stop offset="0.86" stop-color="rgba(128,170,222,0.15)"/>' +
+              '<stop offset="1" stop-color="rgba(120,164,218,0.19)"/>') +
+        '</linearGradient>' +
+        '<linearGradient id="cavSide" x1="0" y1="0" x2="1" y2="0">' +
+          '<stop offset="0" stop-color="rgba(8,12,22,0.10)"/>' +
+          '<stop offset="0.18" stop-color="rgba(8,12,22,0)"/>' +
+          '<stop offset="0.82" stop-color="rgba(8,12,22,0)"/>' +
+          '<stop offset="1" stop-color="rgba(8,12,22,0.10)"/>' +
         '</linearGradient>' +
         '<radialGradient id="causticGrad" cx="0.5" cy="0.5" r="0.5">' +
-          '<stop offset="0" style="stop-color:var(--accent)" stop-opacity="0.13"/>' +
+          '<stop offset="0" style="stop-color:var(--accent)" stop-opacity="' + (isGlow ? '0.24' : '0.13') + '"/>' +
           '<stop offset="1" style="stop-color:var(--accent)" stop-opacity="0"/>' +
-        '</radialGradient>' + glow +
+        '</radialGradient>' + glowDefs +
       '</defs>' +
       '<ellipse class="jar-breathe" cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
       '<path d="' + roundedOutline(true) + '" fill="url(#cavGrad)"/>' +
+      '<path d="' + roundedOutline(true) + '" fill="url(#cavSide)"/>' +
       '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.05 * g.H) + '" rx="' + (g.bw * 0.74) + '" ry="' + (0.085 * g.H) + '" fill="url(#causticGrad)"/>' +
+      // the far rim of the opening, seen through the mouth: instant depth
+      '<ellipse cx="' + cx + '" cy="' + (mouthAbsY + mouthRy * 0.55) + '" rx="' + (mouthHW * 0.96) + '" ry="' + mouthRy + '" ' +
+        'fill="rgba(140,180,230,0.05)" stroke="' + (isGlow ? 'var(--accent)' : 'rgba(255,255,255,1)') + '" ' +
+        'stroke-opacity="' + (isGlow ? '0.30' : '0.11') + '" stroke-width="1.4"/>' +
+      motes +
       '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.012 * g.H) + '" rx="' + (g.bw * 0.82) + '" ry="' + (0.030 * g.H) + '" fill="rgba(0,0,0,0.22)"/>';
 
+    // ── FRONT ────────────────────────────────────────────────────────
     var lipW = g.mw + 0.055 * g.W;
-    var mouthAbsY = g.R[0][1];
     var labelSvg = '';
     if (cfg.label) {
-      labelSvg =
-        '<text x="' + cx + '" y="' + (g.top + def.labelY * g.H) + '" text-anchor="middle" ' +
-        'font-family="var(--font)" font-weight="800" font-size="' + (0.075 * g.W) + '" ' +
-        'letter-spacing="' + (0.022 * g.W) + '" fill="rgba(255,255,255,0.12)">' +
-        esc(String(cfg.label).toUpperCase()) + '</text>';
+      var ly = g.top + def.labelY * g.H;
+      var lcommon = 'x="' + cx + '" text-anchor="middle" font-family="var(--font)" font-weight="800" ' +
+        'font-size="' + (0.075 * g.W) + '" letter-spacing="' + (0.022 * g.W) + '"';
+      if (isGlow) {
+        labelSvg = '<text ' + lcommon + ' y="' + ly + '" style="fill:var(--accent)" fill-opacity="0.26">' +
+          esc(String(cfg.label).toUpperCase()) + '</text>';
+      } else {
+        // engraved: a dark pass a hair low, a light pass on top
+        labelSvg =
+          '<text ' + lcommon + ' y="' + (ly + 1.4) + '" fill="rgba(6,9,16,0.38)">' + esc(String(cfg.label).toUpperCase()) + '</text>' +
+          '<text ' + lcommon + ' y="' + ly + '" fill="rgba(255,255,255,0.14)">' + esc(String(cfg.label).toUpperCase()) + '</text>';
+      }
     }
 
-    // lip treatments: 'band' is the canning-jar collar, 'ring' is a bare
-    // rolled rim that suits bowls, flasks and vases
-    var lipSvg;
-    if (def.lip === 'ring') {
-      var rrx = g.R[0][0] * 1.14 + g.glass;
-      var rry = Math.max(7, 0.020 * g.H);
-      lipSvg =
-        '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + rrx + '" ry="' + rry + '" ' +
-          'fill="none" stroke="url(#glassGrad)" stroke-width="' + (1.5 * g.glass) + '"/>' +
-        '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + rrx + '" ry="' + rry + '" ' +
-          'fill="none" stroke="rgba(255,255,255,0.30)" stroke-width="1.4"/>' +
-        '<path d="M ' + (cx - rrx) + ' ' + mouthAbsY + ' A ' + rrx + ' ' + rry + ' 0 0 0 ' + (cx + rrx) + ' ' + mouthAbsY + '" ' +
-          'fill="none" style="stroke:var(--accent)" stroke-opacity="0.45" stroke-width="2"/>';
-    } else {
-      lipSvg =
-        '<rect x="' + (cx - lipW * 0.94) + '" y="' + (g.top - 0.006 * g.H) + '" width="' + (2 * lipW * 0.94) + '" height="' + (0.022 * g.H) + '" rx="' + (0.011 * g.H) + '" ' +
-          'fill="rgba(255,255,255,0.13)" stroke="rgba(255,255,255,0.30)" stroke-width="1.4"/>' +
-        '<rect x="' + (cx - lipW) + '" y="' + (g.top + 0.018 * g.H) + '" width="' + (2 * lipW) + '" height="' + (0.054 * g.H) + '" rx="' + (0.022 * g.W) + '" ' +
-          'fill="url(#lipGrad)" stroke="rgba(255,255,255,0.28)" stroke-width="1.5"/>' +
-        '<line x1="' + (cx - lipW) + '" y1="' + (g.top + 0.074 * g.H) + '" x2="' + (cx + lipW) + '" y2="' + (g.top + 0.074 * g.H) + '" ' +
-          'style="stroke:var(--accent)" stroke-opacity="0.45" stroke-width="2"/>';
-    }
-
-    // hex jars show their facet edges; everyone gets a little sparkle
-    var extraSvg = '';
-    if (def.facets) {
-      extraSvg +=
-        '<line x1="' + (cx - g.bw * 0.5) + '" y1="' + (g.top + 0.20 * g.H) + '" x2="' + (cx - g.bw * 0.5) + '" y2="' + (g.top + 0.80 * g.H) + '" ' +
-          'stroke="rgba(255,255,255,0.05)" stroke-width="1.5"/>' +
-        '<line x1="' + (cx + g.bw * 0.5) + '" y1="' + (g.top + 0.20 * g.H) + '" x2="' + (cx + g.bw * 0.5) + '" y2="' + (g.top + 0.80 * g.H) + '" ' +
-          'stroke="rgba(255,255,255,0.05)" stroke-width="1.5"/>';
-    }
-    extraSvg +=
-      '<circle cx="' + (cx - g.bw * 0.52) + '" cy="' + (g.top + 0.185 * g.H) + '" r="2.4" fill="rgba(255,255,255,0.5)"/>' +
-      '<circle cx="' + (cx + g.bw * 0.48) + '" cy="' + (g.top + 0.245 * g.H) + '" r="1.8" fill="rgba(255,255,255,0.38)"/>';
-    front.innerHTML =
+    var frontDefs =
       '<defs>' +
         '<linearGradient id="glassGrad" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0" stop-color="rgba(255,255,255,0.38)"/>' +
-          '<stop offset="0.45" stop-color="rgba(235,244,255,0.13)"/>' +
-          '<stop offset="0.8" stop-color="rgba(255,255,255,0.20)"/>' +
-          '<stop offset="1" stop-color="rgba(255,255,255,0.33)"/>' +
+          '<stop offset="0" stop-color="rgba(255,255,255,0.40)"/>' +
+          '<stop offset="0.45" stop-color="rgba(228,240,255,0.13)"/>' +
+          '<stop offset="0.8" stop-color="rgba(244,250,255,0.21)"/>' +
+          '<stop offset="1" stop-color="rgba(255,255,255,0.35)"/>' +
         '</linearGradient>' +
         '<linearGradient id="lipGrad" x1="0" y1="0" x2="0" y2="1">' +
           '<stop offset="0" stop-color="rgba(255,255,255,0.20)"/>' +
@@ -724,25 +740,130 @@
           '<stop offset="0.5" stop-color="rgba(255,255,255,0.02)"/>' +
           '<stop offset="1" stop-color="rgba(255,255,255,0.04)"/>' +
         '</linearGradient>' +
-      '</defs>' +
-      // interior sheen over the tokens
-      '<path d="' + roundedOutline(true) + '" fill="url(#sheenGrad)"/>' +
-      // soft outer halo so the glass has body against any scene
-      '<path d="' + roundedOutline(false) + '" fill="none" stroke="rgba(255,255,255,0.05)" ' +
-        'stroke-width="' + (4.2 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
-      // the glass wall itself
-      '<path d="' + roundedOutline(false) + '" fill="none" stroke="url(#glassGrad)" ' +
-        'stroke-width="' + (2 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
-      '<path d="' + roundedOutline(false) + '" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1.5" stroke-linejoin="round"/>' +
-      // specular streaks, one long pull left, one short echo right
-      '<line x1="' + (cx - g.bw + 0.082 * g.W) + '" y1="' + (g.top + 0.27 * g.H) + '" x2="' + (cx - g.bw + 0.082 * g.W) + '" y2="' + (g.top + 0.72 * g.H) + '" ' +
-        'stroke="rgba(255,255,255,0.10)" stroke-width="' + (0.048 * g.W) + '" stroke-linecap="round"/>' +
-      '<line x1="' + (cx - g.bw + 0.082 * g.W) + '" y1="' + (g.top + 0.77 * g.H) + '" x2="' + (cx - g.bw + 0.082 * g.W) + '" y2="' + (g.top + 0.84 * g.H) + '" ' +
-        'stroke="rgba(255,255,255,0.08)" stroke-width="' + (0.034 * g.W) + '" stroke-linecap="round"/>' +
-      '<line x1="' + (cx + g.bw - 0.082 * g.W) + '" y1="' + (g.top + 0.32 * g.H) + '" x2="' + (cx + g.bw - 0.082 * g.W) + '" y2="' + (g.top + 0.52 * g.H) + '" ' +
-        'stroke="rgba(255,255,255,0.07)" stroke-width="' + (0.036 * g.W) + '" stroke-linecap="round"/>' +
-      lipSvg + extraSvg + labelSvg;
+        '<linearGradient id="shimmerGrad" x1="0" y1="0" x2="1" y2="0">' +
+          '<stop offset="0" stop-color="rgba(255,255,255,0)"/>' +
+          '<stop offset="0.5" stop-color="rgba(255,255,255,0.055)"/>' +
+          '<stop offset="1" stop-color="rgba(255,255,255,0)"/>' +
+        '</linearGradient>' +
+        '<clipPath id="cavClip"><path d="' + roundedOutline(true) + '"/></clipPath>' +
+        (isGlow ? '<filter id="gjBlur" x="-40%" y="-40%" width="180%" height="180%">' +
+          '<feGaussianBlur stdDeviation="' + Math.max(4, g.glass * 0.9) + '"/></filter>' : '') +
+      '</defs>';
 
+    var html = frontDefs;
+
+    if (isGlow) {
+      // ── neon energy walls: layered accent strokes, pulsing halo ───
+      var oPath = roundedOutline(false);
+      html +=
+        '<g class="gj-pulse" filter="url(#gjBlur)">' +
+          '<path d="' + oPath + '" fill="none" style="stroke:var(--accent)" stroke-opacity="0.55" ' +
+            'stroke-width="' + (2.6 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+        '</g>' +
+        '<path d="' + oPath + '" fill="none" style="stroke:var(--accent)" stroke-opacity="0.95" ' +
+          'stroke-width="' + Math.max(3, 0.9 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+        '<path d="' + oPath + '" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="1.6" stroke-linejoin="round"/>' +
+        // mouth ring in the same energy treatment
+        '<g class="gj-pulse" filter="url(#gjBlur)">' +
+          '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + (mouthHW * 1.08) + '" ry="' + mouthRy + '" ' +
+            'fill="none" style="stroke:var(--accent)" stroke-opacity="0.5" stroke-width="' + (2.0 * g.glass) + '"/>' +
+        '</g>' +
+        '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + (mouthHW * 1.08) + '" ry="' + mouthRy + '" ' +
+          'fill="none" style="stroke:var(--accent)" stroke-opacity="0.9" stroke-width="' + Math.max(2.5, 0.7 * g.glass) + '"/>' +
+        '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + (mouthHW * 1.08) + '" ry="' + mouthRy + '" ' +
+          'fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.2"/>';
+      if (def.facets) {
+        html +=
+          '<line class="gj-pulse2" x1="' + (cx - g.bw * 0.5) + '" y1="' + (g.top + 0.20 * g.H) + '" x2="' + (cx - g.bw * 0.5) + '" y2="' + (g.top + 0.80 * g.H) + '" ' +
+            'style="stroke:var(--accent)" stroke-opacity="0.16" stroke-width="1.5"/>' +
+          '<line class="gj-pulse2" x1="' + (cx + g.bw * 0.5) + '" y1="' + (g.top + 0.20 * g.H) + '" x2="' + (cx + g.bw * 0.5) + '" y2="' + (g.top + 0.80 * g.H) + '" ' +
+            'style="stroke:var(--accent)" stroke-opacity="0.16" stroke-width="1.5"/>';
+      }
+      html +=
+        '<circle class="gj-pulse2" cx="' + (cx - g.bw * 0.52) + '" cy="' + (g.top + 0.185 * g.H) + '" r="2.4" style="fill:var(--accent)" fill-opacity="0.8"/>' +
+        '<circle class="gj-pulse2" cx="' + (cx + g.bw * 0.48) + '" cy="' + (g.top + 0.245 * g.H) + '" r="1.8" style="fill:var(--accent);animation-delay:1.1s" fill-opacity="0.6"/>' +
+        labelSvg;
+    } else {
+      // ── pushed glass: halo, body, inner thickness, crisp edge, wall-
+      // following streaks, drifting shimmer, per-shape jewelry ────────
+      var oPath2 = roundedOutline(false);
+      html +=
+        '<path d="' + roundedOutline(true) + '" fill="url(#sheenGrad)"/>' +
+        '<g clip-path="url(#cavClip)">' +
+          '<rect class="gj-shimmer" x="' + (-0.6 * g.W) + '" y="' + (g.top - 0.05 * g.H) + '" width="' + (0.55 * g.W) + '" height="' + (1.1 * g.H) + '" ' +
+            'fill="url(#shimmerGrad)" transform="skewX(-14)"/>' +
+        '</g>' +
+        '<path d="' + oPath2 + '" fill="none" stroke="rgba(255,255,255,0.05)" ' +
+          'stroke-width="' + (4.2 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+        '<path d="' + oPath2 + '" fill="none" stroke="url(#glassGrad)" ' +
+          'stroke-width="' + (2 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+        '<path d="' + oPath2 + '" fill="none" stroke="rgba(235,245,255,0.07)" ' +
+          'stroke-width="' + (0.9 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+        '<path d="' + oPath2 + '" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1.5" stroke-linejoin="round"/>' +
+        '<path d="' + wallStreak(-1, 0.26, 0.72, 0.075) + '" fill="none" stroke="rgba(255,255,255,0.10)" ' +
+          'stroke-width="' + (0.046 * g.W) + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="' + wallStreak(-1, 0.76, 0.85, 0.075) + '" fill="none" stroke="rgba(255,255,255,0.08)" ' +
+          'stroke-width="' + (0.032 * g.W) + '" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="' + wallStreak(1, 0.30, 0.52, 0.075) + '" fill="none" stroke="rgba(255,255,255,0.07)" ' +
+          'stroke-width="' + (0.034 * g.W) + '" stroke-linecap="round" stroke-linejoin="round"/>';
+
+      if (def.lip === 'ring') {
+        var rrx = mouthHW * 1.14 + g.glass;
+        var rry = Math.max(7, 0.020 * g.H);
+        html +=
+          '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + rrx + '" ry="' + rry + '" ' +
+            'fill="none" stroke="url(#glassGrad)" stroke-width="' + (1.5 * g.glass) + '"/>' +
+          '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + rrx + '" ry="' + rry + '" ' +
+            'fill="none" stroke="rgba(255,255,255,0.30)" stroke-width="1.4"/>' +
+          '<path d="M ' + (cx - rrx) + ' ' + mouthAbsY + ' A ' + rrx + ' ' + rry + ' 0 0 0 ' + (cx + rrx) + ' ' + mouthAbsY + '" ' +
+            'fill="none" style="stroke:var(--accent)" stroke-opacity="0.45" stroke-width="2"/>';
+      } else {
+        html +=
+          '<rect x="' + (cx - lipW * 0.94) + '" y="' + (g.top - 0.006 * g.H) + '" width="' + (2 * lipW * 0.94) + '" height="' + (0.022 * g.H) + '" rx="' + (0.011 * g.H) + '" ' +
+            'fill="rgba(255,255,255,0.13)" stroke="rgba(255,255,255,0.30)" stroke-width="1.4"/>' +
+          '<rect x="' + (cx - lipW) + '" y="' + (g.top + 0.018 * g.H) + '" width="' + (2 * lipW) + '" height="' + (0.054 * g.H) + '" rx="' + (0.022 * g.W) + '" ' +
+            'fill="url(#lipGrad)" stroke="rgba(255,255,255,0.28)" stroke-width="1.5"/>' +
+          '<line x1="' + (cx - lipW) + '" y1="' + (g.top + 0.074 * g.H) + '" x2="' + (cx + lipW) + '" y2="' + (g.top + 0.074 * g.H) + '" ' +
+            'style="stroke:var(--accent)" stroke-opacity="0.45" stroke-width="2"/>';
+      }
+
+      // per-shape jewelry
+      if (def.facets) {
+        html +=
+          '<line x1="' + (cx - g.bw * 0.5) + '" y1="' + (g.top + 0.20 * g.H) + '" x2="' + (cx - g.bw * 0.5) + '" y2="' + (g.top + 0.80 * g.H) + '" ' +
+            'stroke="rgba(255,255,255,0.05)" stroke-width="1.5"/>' +
+          '<line x1="' + (cx + g.bw * 0.5) + '" y1="' + (g.top + 0.20 * g.H) + '" x2="' + (cx + g.bw * 0.5) + '" y2="' + (g.top + 0.80 * g.H) + '" ' +
+            'stroke="rgba(255,255,255,0.05)" stroke-width="1.5"/>';
+      }
+      if (cfg.jarStyle === 'bowl') {
+        // equator reflection arc at the widest point
+        html += '<path d="M ' + (cx - g.bw * 0.92) + ' ' + (g.top + 0.50 * g.H) + ' A ' + (g.bw * 0.92) + ' ' + (0.07 * g.H) + ' 0 0 0 ' + (cx + g.bw * 0.92) + ' ' + (g.top + 0.50 * g.H) + '" ' +
+          'fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="2"/>';
+      }
+      if (cfg.jarStyle === 'potion') {
+        // collar ring where the neck meets the bulb
+        html += '<ellipse cx="' + cx + '" cy="' + (g.top + 0.215 * g.H) + '" rx="' + (0.20 * g.W) + '" ry="' + (0.012 * g.H) + '" ' +
+          'fill="none" stroke="rgba(255,255,255,0.13)" stroke-width="1.6"/>';
+      }
+      if (cfg.jarStyle === 'vase') {
+        // foot ring
+        html += '<ellipse cx="' + cx + '" cy="' + (g.floorY + 0.012 * g.H) + '" rx="' + (0.17 * g.W) + '" ry="' + (0.011 * g.H) + '" ' +
+          'fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.6"/>';
+      }
+
+      // glints: two dots and one four-point star
+      var sx = cx - g.bw * 0.52, sy = g.top + 0.185 * g.H, ss = 0.018 * g.W;
+      html +=
+        '<circle cx="' + (cx + g.bw * 0.48) + '" cy="' + (g.top + 0.245 * g.H) + '" r="1.8" fill="rgba(255,255,255,0.38)"/>' +
+        '<circle cx="' + (cx - g.bw * 0.40) + '" cy="' + (g.top + 0.66 * g.H) + '" r="1.5" fill="rgba(255,255,255,0.30)"/>' +
+        '<path d="M ' + sx + ' ' + (sy - ss) + ' Q ' + sx + ' ' + sy + ' ' + (sx + ss) + ' ' + sy +
+          ' Q ' + sx + ' ' + sy + ' ' + sx + ' ' + (sy + ss) +
+          ' Q ' + sx + ' ' + sy + ' ' + (sx - ss) + ' ' + sy +
+          ' Q ' + sx + ' ' + sy + ' ' + sx + ' ' + (sy - ss) + ' Z" fill="rgba(255,255,255,0.5)"/>' +
+        labelSvg;
+    }
+
+    front.innerHTML = html;
     buildLayerCache();
   }
 

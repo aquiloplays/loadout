@@ -48,6 +48,28 @@ body.test-bg {
   50%      { opacity: 1; }
 }
 
+/* dust motes drifting inside the glass */
+.gj-mote { animation: gj-float 12s ease-in-out infinite alternate; }
+@keyframes gj-float {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-16px); }
+}
+
+/* a soft band of light sweeping across the glass every so often */
+.gj-shimmer { animation: gj-shimmer 13s linear infinite; }
+@keyframes gj-shimmer {
+  0%   { transform: translateX(0) skewX(-14deg); }
+  100% { transform: translateX(190vw) skewX(-14deg); }
+}
+
+/* neon wall pulse (wall=glow) */
+.gj-pulse { animation: gj-pulse 3.2s ease-in-out infinite; }
+.gj-pulse2 { animation: gj-pulse 2.4s ease-in-out infinite; }
+@keyframes gj-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
+}
+
 #counterChip .jars-badge {
   font-size: 11px;
   font-weight: 800;
