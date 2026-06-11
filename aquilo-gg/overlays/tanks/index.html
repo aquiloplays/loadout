@@ -48,6 +48,8 @@
     sky=1                      paint a sky (testing outside OBS)
     test=1                     anyone may use !tank start/end, TB hooks logged
     demo=1                     endless bot match for layout/preview
+    hint=0                     hide the browser-only "armed and waiting" card
+                               (it never shows inside OBS either way)
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -227,6 +229,49 @@
     text-shadow: 0 2px 10px rgba(0,0,0,.7);
   }
 
+  /* ── idle hint (browser-only, never shown inside OBS) ───────── */
+  #idleCard {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) scale(.97);
+    width: 430px;
+    background: var(--card);
+    border: 1px solid var(--bdr);
+    border-radius: 18px;
+    padding: 20px 22px 18px;
+    text-align: center;
+    box-shadow: 0 20px 70px rgba(0,0,0,.5);
+    backdrop-filter: blur(10px);
+    opacity: 0; visibility: hidden;
+    transition: opacity .4s var(--ease), transform .4s var(--ease), visibility 0s .4s;
+  }
+  #idleCard.show {
+    opacity: 1; visibility: visible;
+    transform: translate(-50%, -50%) scale(1);
+    transition: opacity .4s var(--ease), transform .4s var(--ease);
+  }
+  #idleTitle {
+    font-size: 28px; font-weight: 900; letter-spacing: 1.5px;
+    background: linear-gradient(100deg, var(--acc), var(--acc2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  #idleArmed {
+    font-size: 14.5px; font-weight: 800; margin-top: 4px;
+  }
+  #idleArmed .pulse-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--acc); margin-right: 7px; vertical-align: 1px;
+    animation: dotPulse 1.8s ease-in-out infinite;
+  }
+  #idleHow {
+    font-size: 13px; font-weight: 600; opacity: .8; margin-top: 10px; line-height: 1.55;
+  }
+  #idleHow b { color: var(--acc); font-weight: 800; }
+  #idleConn {
+    font-size: 12px; font-weight: 700; opacity: .65; margin-top: 12px;
+    padding-top: 11px; border-top: 1px solid var(--bdr);
+  }
+  #idleBrowser { font-size: 11.5px; font-weight: 600; opacity: .5; margin-top: 5px; }
+
   /* ── toasts ─────────────────────────────────────────────────── */
   #toast {
     position: absolute; bottom: 7%; left: 50%;
@@ -305,6 +350,17 @@
       <div id="vicLabel">WINNER</div>
       <div id="vicName"></div>
       <div id="vicSub"></div>
+    </div>
+
+    <div id="idleCard">
+      <div id="idleTitle">TANK BATTLE</div>
+      <div id="idleArmed"><span class="pulse-dot"></span>armed · waiting for a redemption</div>
+      <div id="idleHow">
+        a viewer redeems the channel point reward to open the lobby<br>
+        <b>!join</b> grabs a seat · <b>!shoot 45 80</b> fires on your turn
+      </div>
+      <div id="idleConn"></div>
+      <div id="idleBrowser">this card only shows outside OBS · add <b>?demo=1</b> to watch bots battle</div>
     </div>
 
     <div id="toast"></div>

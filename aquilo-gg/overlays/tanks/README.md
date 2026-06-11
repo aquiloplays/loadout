@@ -78,6 +78,7 @@ sudden death doubles all damage so matches always end.
 | `test` | `0` | anyone may use `!tank` commands, for dry runs |
 | `demo` | `0` | endless bot matches, for layout previews |
 | `dot` | `1` | connection status pill when Streamer.bot is unreachable |
+| `hint` | `1` | "armed and waiting" card while idle. Only ever shows in a normal browser tab, never inside OBS or Streamlabs (detected via user agent), so the overlay stays invisible on stream between battles. `hint=0` hides it everywhere |
 
 Shared theming knobs from `_shared/theme.js` also work: `accent`, `accent2`,
 `text`, `font`, `fontScale`, `scale`, `opacity`, `offsetX`, `offsetY`.

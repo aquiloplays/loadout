@@ -49,8 +49,13 @@
     demo:      flag('demo', false),
     test:      flag('test', false),
     sky:       flag('sky', flag('demo', false)),
-    dot:       flag('dot', true)
+    dot:       flag('dot', true),
+    hint:      flag('hint', true)
   };
+  // OBS / Streamlabs browser sources identify themselves in the UA. The
+  // idle hint card only ever shows in a real browser tab, so the overlay
+  // stays perfectly invisible between battles on stream.
+  const IN_OBS = /OBS|Streamlabs|SLOBS/i.test(navigator.userAgent);
   if (cfg.demo && params.get('lobby') == null) cfg.lobbySecs = 7;
 
   // ──────────────────────────────────────────────────────────────────
@@ -110,6 +115,7 @@
   const elRing = $('lobbyRingFill'), elCount = $('lobbyCount');
   const elVic = $('victory'), elVicName = $('vicName'), elVicSub = $('vicSub'), elVicLabel = $('vicLabel'), elVicCrown = $('vicCrown');
   const elToast = $('toast'), elStatus = $('statusDot'), elStatusText = $('statusText');
+  const elIdleCard = $('idleCard'), elIdleConn = $('idleConn');
   if (cfg.demo) $('demoBadge').hidden = false;
   if (cfg.test) $('testBadge').hidden = false;
 
@@ -423,6 +429,7 @@
     elLobbyFoot.innerHTML = 'type <b>!join</b> to enter · battle starts when full';
     elHud.classList.remove('show');
     elLobby.classList.add('show');
+    refreshIdleCard();
     addPlayer(env, false);
     AU.pop();
     say('TANK BATTLE is live! Type !join to grab a seat (' + (cfg.maxPlayers - 1) + ' open)');
@@ -664,6 +671,7 @@
     projectile = null;
     deathQueue = [];
     if (cfg.demo) st.demoNext = nowMs() + 5200;
+    refreshIdleCard();
   }
 
   function forceEnd(byName) {
@@ -895,7 +903,17 @@
   }
 
   const bootAt = nowMs();
+  function refreshIdleCard() {
+    const show = cfg.hint && !IN_OBS && !cfg.demo && st.phase === 'idle';
+    elIdleCard.classList.toggle('show', show);
+    if (show) {
+      elIdleConn.textContent = sbConnected
+        ? 'Streamer.bot connected · channel points armed'
+        : 'Streamer.bot not detected · start its WebSocket server (127.0.0.1:' + cfg.sbPort + ')';
+    }
+  }
   function statusUpdate() {
+    refreshIdleCard();
     if (!cfg.dot || cfg.demo) { elStatus.hidden = true; return; }
     if (sbConnected) { elStatus.hidden = true; return; }
     if (nowMs() - bootAt < 6000) { elStatus.hidden = true; return; }
@@ -1500,5 +1518,6 @@
   connectSB();
   connectTF();
   updateWind();
+  refreshIdleCard();
   requestAnimationFrame(frame);
 })();
