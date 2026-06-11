@@ -137,6 +137,30 @@ classification, cfg round trip, customizer + dock + live + landing boot).
   multipart payload_json so the webhook POST needs no CORS preflight).
 - Paid boosts that cannot land (queue closed/full) now get a chat reply.
 
+## v1.2 (same day)
+
+- Avatars on all four platforms: TikTok/YouTube (and Kick when present)
+  ride in on the chat events; Twitch resolves lazily via decapi.me with
+  a 7-day localStorage cache (`pu-avatars-v1`, 400-entry cap); gradient
+  initial-circle fallback; corner platform badge. `appearance.avatars`
+  toggle. Worker allowlists avatar hosts (jtvnw/ggpht/googleusercontent/
+  tiktokcdn/kick) so snapshots cannot smuggle arbitrary URLs.
+- Platform-id profiles: `join.idCommands` CSV makes `!steam`, `!epic`,
+  `!embark`, ... chat commands that save to a persistent directory
+  (`pu-ids-v1`, survives night resets, reattaches on next `!join`).
+  Dock lists every id under the name; Copy gamertags includes them.
+  Snapshots always carry tags+ids; the worker strips ids from public
+  reads (tags follow `tagsPublic`) and `GET /room?key=` unlocks the
+  full snapshot for the remote dock.
+- Minimized bar: dock "Minimize/Expand" (cmd kind `mini`), mod commands
+  `!q mini` / `!q max`. The panel collapses to title + OPEN/CLOSED pill
+  + one info line (count + join command, or "Queue closed right now").
+  Persists across reloads.
+- `random` selection mode: pure uniform pull, tickets and priority
+  ignored (raffle stays the weighted one).
+- Customizer: one-click game presets (Fortnite/THE FINALS/Among Us/...)
+  setting party size + game name + tag label.
+
 ## Ship checklist
 
 1. Loadout: `discord-bot/partyup.js` (owned) + `worker.js` mount (anchored

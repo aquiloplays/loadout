@@ -61,13 +61,15 @@ const ROOM_TTL_S = 7 * 24 * 3600;
 const CMD_TTL_S = 600;
 const CMD_CAP = 30;
 const PHASES = ['idle', 'ready', 'playing'];
-const MODES = ['fifo', 'raffle', 'fair'];
+const MODES = ['fifo', 'raffle', 'fair', 'random'];
 const PLATS = ['tw', 'yt', 'kk', 'tt', 'xx'];
 const CMD_KINDS = [
   'open', 'close', 'pick', 'start', 'reroll', 'requeue', 'ready',
   'skip', 'punt', 'ban', 'unban', 'add', 'size', 'mode', 'clear', 'resetNight',
-  'recap',
+  'recap', 'mini',
 ];
+// avatar URLs must come off a known platform CDN
+const AVATAR_RE = /^https:\/\/[a-z0-9.-]+\.(jtvnw\.net|ggpht\.com|googleusercontent\.com|tiktokcdn[a-z0-9.-]*\.com|kick\.com)\//;
 
 // ---------------------------------------------------------------------------
 // Sanitization. Snapshots render inside other people's browsers (the
@@ -98,6 +100,21 @@ function sanitizeEntry(e, withReady) {
     played: int(e.played, 0, 99, 0),
   };
   if (e.tag) out.tag = cleanText(e.tag, 40);
+  if (e.avatar && AVATAR_RE.test(String(e.avatar)) && String(e.avatar).length <= 300) {
+    out.avatar = String(e.avatar);
+  }
+  if (e.ids && typeof e.ids === 'object') {
+    const ids = {};
+    let n = 0;
+    for (const k of Object.keys(e.ids)) {
+      const kk = String(k).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
+      const v = cleanText(e.ids[k], 60);
+      if (kk.length < 2 || !v) continue;
+      ids[kk] = v;
+      if (++n >= 8) break;
+    }
+    if (n) out.ids = ids;
+  }
   if (e.pos !== undefined) out.pos = int(e.pos, 1, 999, 1);
   if (withReady) {
     out.ready = pick(e.ready, ['pending', 'ok', 'miss'], 'ok');
@@ -115,6 +132,8 @@ function sanitizeState(input) {
   const pub = {
     v: 1,
     open: !!input.open,
+    mini: !!input.mini,
+    tagsPublic: !!input.tagsPublic,
     phase: pick(input.phase, PHASES, 'idle'),
     title: cleanText(input.title, 60) || 'COMMUNITY NIGHT',
     game: cleanText(input.game, 50),
@@ -146,6 +165,7 @@ function sanitizeCmd(input) {
   if (p.tag !== undefined) payload.tag = cleanText(p.tag, 40);
   if (p.n !== undefined) payload.n = int(p.n, 1, 15, 3);
   if (p.m !== undefined) payload.m = pick(p.m, MODES, 'fifo');
+  if (p.on !== undefined) payload.on = !!p.on;
   return { cmd: { kind, payload } };
 }
 
@@ -169,13 +189,24 @@ export async function handlePartyup(req, env, path) {
   const url = new URL(req.url);
   const route = path.replace(/^\/api\/partyup/, '') || '/';
 
-  // ---- GET /room?room= (public: the live page + dock fallback) -------
+  // ---- GET /room?room=[&key=] (live page + remote dock) ---------------
+  // Public read strips platform ids (and tags unless the streamer shows
+  // them); the room key unlocks the full snapshot for the remote dock.
   if (req.method === 'GET' && route === '/room') {
     const id = String(url.searchParams.get('room') || '').toLowerCase().trim();
     if (!ROOM_RE.test(id)) return json({ ok: false, error: 'bad-room' }, 400);
     const rec = await kvGet(env, KEY.room(id));
     if (!rec || !rec.pub) return json({ ok: false, error: 'not-found' }, 404);
-    return jsonCached({ ok: true, room: rec.pub, updatedAt: rec.updatedAt || 0 }, 3);
+    const key = String(url.searchParams.get('key') || '').toLowerCase().trim();
+    if (key && KEY_RE.test(key) && rec.keyHash === (await sha256Hex(key))) {
+      return json({ ok: true, room: rec.pub, updatedAt: rec.updatedAt || 0 });
+    }
+    const pub = JSON.parse(JSON.stringify(rec.pub));
+    for (const e of [...(pub.party || []), ...(pub.queue || [])]) {
+      delete e.ids;
+      if (!pub.tagsPublic) delete e.tag;
+    }
+    return jsonCached({ ok: true, room: pub, updatedAt: rec.updatedAt || 0 }, 3);
   }
 
   // ---- POST /snapshot (overlay pushes state) --------------------------
