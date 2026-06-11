@@ -72,6 +72,8 @@
     gravity:   clamp(num('gravity', 1), 0.2, 3),
     bounce:    clamp(num('bounce', 1), 0, 2.5),
     label:     params.get('label') != null ? params.get('label') : 'GIFTS',
+    title:     params.get('title') || '',
+    goal:      clamp(num('goal', 0), 0, 100000000),
     counter:   flag('counter', true),
     status:    flag('status', true),
     persist:   flag('persist', true),
@@ -937,6 +939,10 @@
         labelSvg;
     }
 
+    // rim flash overlay: invisible until a drop lands
+    html += '<path id="gjFlash" d="' + roundedOutline(false) + '" fill="none" style="stroke:var(--accent)" ' +
+      'stroke-width="' + (1.7 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>';
+
     front.innerHTML = html;
 
     // frosted mode diffuses everything behind the wall with a real
@@ -957,9 +963,27 @@
     var chip = $('counterChip');
     chip.style.left = geo.cx + 'px';
     chip.style.top = (geo.top + def.chipY * geo.H) + 'px';
+    var title = $('jarTitle');
+    if (cfg.title) {
+      title.hidden = false;
+      title.textContent = cfg.title;
+      title.style.left = geo.cx + 'px';
+      title.style.top = Math.max(26, geo.top - 42) + 'px';
+    } else {
+      title.hidden = true;
+    }
+    var bar = $('goalBar');
+    if (cfg.goal > 0) {
+      bar.hidden = false;
+      bar.style.left = geo.cx + 'px';
+      bar.style.width = (0.56 * geo.W) + 'px';
+      bar.style.top = Math.min(geo.vh - 13, geo.bottom + 7) + 'px';
+    } else {
+      bar.hidden = true;
+    }
     var toast = $('bigToast');
     toast.style.left = geo.cx + 'px';
-    toast.style.top = Math.max(34, geo.top - 46) + 'px';
+    toast.style.top = Math.max(cfg.title ? 64 : 34, geo.top - (cfg.title ? 88 : 46)) + 'px';
   }
 
   function sizeCanvas() {
@@ -1074,8 +1098,18 @@
 
   function updateChip() {
     chipNum.textContent = total.toLocaleString();
-    var old = chipEl.querySelectorAll('.jars-badge, .full-tag');
+    var old = chipEl.querySelectorAll('.jars-badge, .full-tag, .goal-part');
     for (var i = 0; i < old.length; i++) old[i].remove();
+    if (cfg.goal > 0) {
+      var gp = document.createElement('span');
+      gp.className = 'goal-part';
+      gp.textContent = '/ ' + cfg.goal.toLocaleString();
+      chipEl.appendChild(gp);
+      var fill = $('goalFill');
+      var pct = clamp((total / cfg.goal) * 100, 0, 100);
+      fill.style.width = pct + '%';
+      fill.classList.toggle('done', total >= cfg.goal);
+    }
     if (jarsFilled > 0) {
       var b = document.createElement('span');
       b.className = 'jars-badge';
@@ -1091,10 +1125,29 @@
     }
   }
 
+  var lastFlash = 0;
+  function rimFlash() {
+    var f = document.getElementById('gjFlash');
+    if (!f) return;
+    var now = performance.now();
+    if (now - lastFlash < 260) return;
+    lastFlash = now;
+    f.classList.remove('hit');
+    void f.getBoundingClientRect();
+    f.classList.add('hit');
+  }
+
   function bumpCounter(n) {
+    var before = total;
     total += n;
     updateChip();
     jarWake();
+    rimFlash();
+    burst(5);
+    if (cfg.goal > 0 && before < cfg.goal && total >= cfg.goal) {
+      showToast('<b>GOAL REACHED!</b>');
+      burst(44);
+    }
     if (cfg.counter) {
       chipEl.classList.remove('bump');
       void chipEl.offsetWidth;
@@ -1113,6 +1166,25 @@
     t.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 3100);
+    burst(16);
+  }
+
+  // celebration sparks rising out of the mouth, drawn over the tokens
+  var sparks = [];
+  function burst(n) {
+    var my = geo.R[0][1];
+    for (var i = 0; i < n; i++) {
+      sparks.push({
+        x: geo.cx + (rand() * 2 - 1) * geo.mw * 0.9,
+        y: my - 4 - rand() * 12,
+        vx: (rand() * 2 - 1) * 6.5,
+        vy: -(2.5 + rand() * 6.5),
+        r: 1.4 + rand() * 2.2,
+        life: 1,
+        white: rand() < 0.45
+      });
+    }
+    if (sparks.length > 220) sparks.splice(0, sparks.length - 220);
   }
 
   var sbConnected = false, tfConnected = false, statusFade = 0;
@@ -1988,6 +2060,21 @@
       ctx2d.restore();
     }
 
+    if (sparks.length) {
+      var ac = accentVal();
+      for (var sp = sparks.length - 1; sp >= 0; sp--) {
+        var s = sparks[sp];
+        s.vy += 0.22; s.x += s.vx; s.y += s.vy; s.life -= 0.028;
+        if (s.life <= 0) { sparks.splice(sp, 1); continue; }
+        ctx2d.globalAlpha = Math.max(0, s.life);
+        ctx2d.fillStyle = s.white ? '#ffffff' : ac;
+        ctx2d.beginPath();
+        ctx2d.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx2d.fill();
+      }
+      ctx2d.globalAlpha = 1;
+    }
+
     if (cfg.debug >= 2) drawDebugWalls();
   }
 
@@ -2151,6 +2238,13 @@
   } else {
     connectSB();
     connectTF();
+  }
+  // Customizer "Send test to OBS" ping (placement check on the live source):
+  // the shared listener flashes the frame; we add a short burst of demo drops.
+  if (window.AquiloTest) {
+    window.AquiloTest.onTest(function () {
+      for (var ti = 0; ti < 6; ti++) setTimeout(demoFire, 200 + ti * 300);
+    });
   }
   requestAnimationFrame(frame);
 })();

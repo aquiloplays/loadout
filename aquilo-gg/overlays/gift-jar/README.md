@@ -98,6 +98,8 @@ To reset the jar mid-stream: right click the source, `Interact`, press
 | `gravity`   | 1         | drop speed feel |
 | `bounce`    | 1         | restitution multiplier, 0 = dead drop, 2 = bouncy |
 | `label`     | GIFTS     | etched text on the glass, `label=` for none |
+| `title`     | empty     | floating header pill above the jar (accent border + glow) |
+| `goal`      | 0         | drop goal: chip shows `n / goal`, a slim accent progress bar runs under the jar, and reaching it fires a toast + spark burst (bar turns gold) |
 | `counter`   | 1         | running total chip on the jar |
 | `status`    | 1         | connection pill bottom-left |
 | `persist`   | 1         | refill the jar after a reload |
