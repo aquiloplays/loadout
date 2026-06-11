@@ -488,16 +488,12 @@ export async function buildLineupEmbed(env, guildId) {
 
   const fields = [
     {
-      name: '💪 Fallout 4 CC: Chaos Workout Challenge · Mon · Wed · Fri',
+      name: '💪 Fallout 4 Crowd Control Chaos · Mon · Wed · Fri',
       value: fo4cc?.name ? '**Locked in every M/W/F**' : '_TBA_',
     },
     {
-      name: '🔁 Featured Run · Sun · Tue · Thu',
-      value: rotation?.name ? `**${rotation.name}**` : '_Picked weekly by Clay_',
-    },
-    {
-      name: '🏆 Community Night · Sat',
-      value: cn?.name ? `**${cn.name}**` : '_Decided by the Wednesday to Friday vote_',
+      name: '🏆 Community Votes Night · Sun · Tue · Thu · Sat',
+      value: cn?.name ? `**${cn.name}** won the latest vote` : '_Each night picked by community vote_',
     },
   ];
   const embed = {

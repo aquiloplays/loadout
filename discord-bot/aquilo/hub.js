@@ -274,11 +274,11 @@ export async function handleHubButton(env, data, ctx) {
   }
 
   if (action === 'poll_post') {
-    // Schedule rev 2026-05-14: Saturday is the only Community Night.
-    // If today is Saturday, target today; otherwise target this week's
-    // upcoming Saturday so the streamer can preview without waiting.
+    // Schedule rev 2026-06-11: Sun/Tue/Thu/Sat are Community Votes
+    // Nights. If today is one, target today; otherwise target the
+    // next upcoming CVN so the streamer can preview without waiting.
     const { weekday } = getETInfo();
-    const cnDays = ['saturday'];
+    const cnDays = ['sunday', 'tuesday', 'thursday', 'saturday'];
     let target = cnDays.includes(weekday) ? weekday : null;
     if (!target) {
       const order = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];

@@ -797,6 +797,13 @@ export default {
     if (path === '/rotation/current' || path === '/rotation/pool') {
       return handleRotationPublic(req, env, path);
     }
+    // One-shot site -> bot sync: mirror the aquilo.gg-managed games
+    // catalog (games:v1 KV, community pool) into the D1 games table
+    // the CN polls draw from, then refresh the pinned schedule embed.
+    // HMAC: per-guild secret or the site-admin secret (verifyAdminAuth).
+    if (method === 'POST' && path.startsWith('/admin/aquilo/site-sync/')) {
+      return handleAquiloSiteSync(req, env, path);
+    }
     if (path === '/vote-hub/lineup') {
       return handleLineupPublic(req, env);
     }
@@ -4690,6 +4697,36 @@ async function handlePostEmbed(req, env, path) {
   const m = await r.json();
   return jsonResp({ ok: true, channelId, messageId: String(m?.id || ''),
                     via: auth.via }, 200);
+}
+
+// ── /admin/aquilo/site-sync/:guildId (HMAC) ──────────────────
+// Mirrors the aquilo.gg-managed games catalog into D1 and refreshes
+// the pinned weekly schedule embed. The site's admin games/schedule
+// editors ping this after every save so add/remove on the admin page
+// updates the vote pool + Discord without touching the bot.
+async function handleAquiloSiteSync(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  try {
+    const { syncSiteGamesToD1 } = await import('./site-games-sync.js');
+    const sync = await syncSiteGamesToD1(env, guildId);
+    let scheduleMsgId = null;
+    let scheduleError = null;
+    try {
+      const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
+      scheduleMsgId = await postOrRefreshSchedule(env, guildId);
+    } catch (e) {
+      scheduleError = String(e?.message || e);
+    }
+    return jsonResp({ ok: true, ...sync, scheduleRefreshed: !!scheduleMsgId,
+                      ...(scheduleError ? { scheduleError } : {}), via: auth.via }, 200);
+  } catch (e) {
+    return jsonResp({ ok: false, error: String(e?.message || e) }, 500);
+  }
 }
 
 // ── /admin/checkin-v2/test-post/:guildId (HMAC) ───────────────────

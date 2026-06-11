@@ -3,9 +3,10 @@
 // per (poll, user). Replacing on revote means there's no double-counting.
 //
 // Lifecycle:
-//   - Cron fires hourly. At 6 PM ET on Wed/Fri/Sat, postCnPoll posts a
-//     fresh poll message in POLL_CHANNEL_ID and resets the schedule's CN
-//     winners (only on Wednesday, the first CN of the week).
+//   - postCnPoll posts a fresh poll message in the bound poll channel
+//     for a Community Votes Night (Sun/Tue/Thu/Sat, hub button or admin
+//     triggered) and resets the schedule's CN winners on Sunday, the
+//     first CVN of the week.
 //   - Cross-week winner exclusion: this week's previous CN winners are
 //     filtered out before the candidate set is built. Week boundary is
 //     Sunday 00:00 ET (approximated with UTC midnight of the calendar
@@ -153,10 +154,10 @@ export async function postCnPoll(env, dayOfWeek) {
   const open = await getOpenPoll(env, guildId);
   if (open) return { skipped: 'open_poll_exists', pollId: open.id };
 
-  // Saturday is the one Community Night per week (schedule rev 2026-05-14).
-  // Reset previous winner on each new CN post so the schedule embed shows
-  // "TBD" for the upcoming week.
-  if (dayOfWeek === 'saturday') {
+  // Sun/Tue/Thu/Sat are Community Votes Nights (schedule rev 2026-06-11).
+  // Sunday opens the week, so posting Sunday's poll resets last week's
+  // winners and the schedule embed shows "TBD" for the new week.
+  if (dayOfWeek === 'sunday') {
     try { await resetWeeklyCnWinners(env, guildId); }
     catch (e) { console.error('[poll] reset weekly winners', e?.message || e); }
   }
