@@ -59,6 +59,8 @@
                  .split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean),
     jarStyle:  pick('jarStyle', 'classic', ['classic', 'bowl', 'hex', 'potion', 'vase']),
     wall:      pick('wall', 'glass', ['glass', 'frosted', 'crystal', 'glow']),
+    slide:     pick('slide', 'off', ['off', 'down', 'left', 'right']),
+    idleSecs:  clamp(num('idleSecs', 30), 3, 3600),
     discord:   params.get('discord') || '',
     recap:     flag('recap', !!params.get('discord')),
     full:      pick('full', 'recycle', ['recycle', 'stop', 'spill', 'pop']),
@@ -1014,6 +1016,7 @@
     M.Body.setVelocity(body, { x: (g.cx - x) * 0.002, y: 2 + rand() * 2 });
     M.Composite.add(engine.world, body);
     items.push({ body: body, k: rec.k, r: r, img: rec.i || null, dying: 0 });
+    lastActivity = performance.now();
     var live = 0;
     for (var i = 0; i < items.length; i++) if (!items[i].dying) live++;
     for (var j = 0; live > cfg.maxItems && j < items.length; j++) {
@@ -1035,6 +1038,38 @@
   // ────────────────────────────────────────────────────────────────────
   // COUNTER, TOAST, STATUS
   // ────────────────────────────────────────────────────────────────────
+  // ────────────────────────────────────────────────────────────────────
+  // SLIDE-AWAY. With ?slide=down|left|right the whole jar glides off
+  // screen after idleSecs without a drop and glides back the moment
+  // something lands. The physics never moves, only the painted stage,
+  // so a gift arriving mid-slide still falls exactly into the jar.
+  // ────────────────────────────────────────────────────────────────────
+  var stageEl = $('stage');
+  var jarHidden = false;
+  var lastActivity = performance.now();
+  var wakeHoldUntil = 0;
+
+  function slideVector() {
+    if (cfg.slide === 'left')  return 'translateX(' + (-(geo.cx + geo.W / 2 + 90)) + 'px)';
+    if (cfg.slide === 'right') return 'translateX(' + (geo.vw - geo.cx + geo.W / 2 + 90) + 'px)';
+    return 'translateY(' + (geo.vh - geo.top + 70) + 'px)';
+  }
+
+  function jarWake() {
+    lastActivity = performance.now();
+    if (cfg.slide === 'off' || !jarHidden) return;
+    jarHidden = false;
+    stageEl.style.transform = '';
+    // hold the pour until the jar is back on screen
+    wakeHoldUntil = performance.now() + 500;
+  }
+
+  function jarSleep() {
+    if (cfg.slide === 'off' || jarHidden) return;
+    jarHidden = true;
+    stageEl.style.transform = slideVector();
+  }
+
   var chipEl = $('counterChip'), chipNum = $('counterNum');
 
   function updateChip() {
@@ -1059,6 +1094,7 @@
   function bumpCounter(n) {
     total += n;
     updateChip();
+    jarWake();
     if (cfg.counter) {
       chipEl.classList.remove('bump');
       void chipEl.offsetWidth;
@@ -1178,6 +1214,7 @@
   function popJar() {
     if (popping) return;
     popping = true;
+    jarWake();
     funnelsOn(false);
     for (var i = 0; i < items.length; i++) {
       var b = items[i].body;
@@ -1699,6 +1736,7 @@
   }
 
   function resetJar() {
+    jarWake();
     queue.length = 0;
     for (var i = 0; i < items.length; i++) M.Composite.remove(engine.world, items[i].body);
     items.length = 0;
@@ -1820,13 +1858,22 @@
 
     clampAll();
 
-    drainAcc += dt;
-    var dm = drainMs();
-    while (drainAcc >= dm && queue.length) {
-      drainAcc -= dm;
-      spawnItem(queue.shift());
+    // pour pauses while the jar slides back on screen
+    if (now >= wakeHoldUntil) {
+      drainAcc += dt;
+      var dm = drainMs();
+      while (drainAcc >= dm && queue.length) {
+        drainAcc -= dm;
+        spawnItem(queue.shift());
+      }
+      if (!queue.length) drainAcc = 0;
     }
-    if (!queue.length) drainAcc = 0;
+
+    // slide away once nothing has happened for a while
+    if (cfg.slide !== 'off' && !jarHidden && !popping && !queue.length &&
+        now - lastActivity > cfg.idleSecs * 1000) {
+      jarSleep();
+    }
 
     if (++sweepCounter >= 90) {
       sweepCounter = 0;
@@ -2027,6 +2074,8 @@
     buildJarLayers();
     placeChrome();
     if (jarFull && cfg.full === 'spill') funnelsOn(false);
+    // dimensions changed: re-park with the new geometry if hidden
+    if (jarHidden) stageEl.style.transform = slideVector();
     for (var k = 0; k < keep.length; k++) {
       queue.push({ k: keep[k].k, r: Math.max(9, keep[k].rn * geo.W), i: keep[k].i });
     }

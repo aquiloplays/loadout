@@ -29,6 +29,9 @@ body.test-bg {
 #stage {
   position: fixed;
   inset: 0;
+  /* slide-away mode glides the whole stage off screen and back */
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 
 #jarBack, #jarFront, #jarCanvas {

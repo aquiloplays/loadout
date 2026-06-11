@@ -79,6 +79,8 @@ To reset the jar mid-stream: right click the source, `Interact`, press
 | ----------- | --------- | ------------ |
 | `jarStyle`  | classic   | jar shape: `classic`, `bowl`, `hex`, `potion`, `vase`, all vector glass |
 | `wall`      | glass     | wall material: `glass`, `frosted` (etched grain + real backdrop diffusion), `crystal` (cut edges, iridescent rim, prism glints), `glow` (pulsing accent light with a circulating spark) |
+| `slide`     | off       | slide-away when idle: `down`, `left` or `right`; the jar glides off screen after `idleSecs` without a drop and glides back the moment something lands |
+| `idleSecs`  | 30        | seconds of quiet before the jar slides away |
 | `discord`   | empty     | Discord webhook URL (encoded); enables the stream recap GIF post |
 | `recap`     | auto      | force the recap recorder on/off; defaults on when `discord` is set, `recap=1` alone downloads the GIF instead of posting |
 | `full`      | recycle   | what happens when the pile reaches the neck: `recycle` (oldest fade), `stop` (keep pile, keep counting), `spill` (overflow the rim), `pop` (jar erupts, jar counter ticks, fresh jar) |
