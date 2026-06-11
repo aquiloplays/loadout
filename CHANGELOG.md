@@ -12,6 +12,16 @@ effect after `tools/install-dev.ps1` (dev install) or a tagged release.
 
 ### Added
 
+- **Hangman (new product)** -- chat hangman with real stakes at
+  aquilo.gg/hangman. A viewer redeems a channel point reward (or
+  !hangman) and goes on the gallows: their Twitch avatar hangs as the
+  head, wrong guesses from chat draw the body, and a loss fires a 60s
+  chat timeout via the new "Hangman · Timeout" Streamer.bot action
+  (tools/build-hangman-import.ps1 -> streamerbot/hangman-import.*).
+  Overlay deploys from aquilo-widget overlays/hangman (mirrored under
+  aquilo-gg/overlays/hangman, pure-logic core selftested 64/64);
+  landing + customizer in aquilo-site public/hangman.
+
 - **PowerDeck** -- new aquilo.gg product: custom Twitch bits Power-ups
   open packs of 3 game-challenge cards live on stream (pack rip
   animation, rarity glows, viewer inventories, !cards / !play chat

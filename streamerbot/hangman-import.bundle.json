@@ -1,0 +1,128 @@
+﻿{
+    "meta":  {
+                 "name":  "Hangman",
+                 "author":  "aquilo.gg",
+                 "version":  "1.0.0",
+                 "description":  "Hangman on stream: the loser eats a chat timeout. Prewired timeout + announce actions for the overlay. Free forever at aquilo.gg/hangman",
+                 "autoRunAction":  null,
+                 "minimumVersion":  null
+             },
+    "manifest":  {
+                     "product":  "Hangman",
+                     "packageVersion":  "1.0.0",
+                     "group":  "Hangman",
+                     "generatedBy":  "tools/build-hangman-import.ps1",
+                     "actionCount":  2,
+                     "actions":  [
+                                     "Hangman Â· Timeout",
+                                     "Hangman Â· Announce"
+                                 ],
+                     "commands":  [
+
+                                  ],
+                     "includes":  [
+                                      "timeout",
+                                      "announce"
+                                  ]
+                 },
+    "data":  {
+                 "actions":  [
+                                 {
+                                     "id":  "b4fcf2fc-c27b-4724-a716-e4d8dda3df42",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Hangman Â· Timeout",
+                                     "group":  "Hangman",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Hangman Â· Timeout",
+                                                            "description":  "Times out {user} for {duration}s with {reason}. Invoked by the Hangman overlay when a player loses; mods and the broadcaster get a chat note instead.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwoKcHVibGljIGNsYXNzIENQSElubGluZQp7CiAgICBwdWJsaWMgYm9vbCBFeGVjdXRlKCkKICAgIHsKICAgICAgICAvLyBJbnZva2VkIGJ5IHRoZSBIYW5nbWFuIG92ZXJsYXkgd2hlbiBhIHBsYXllciBsb3NlczoKICAgICAgICAvLyAgIGFyZ3M6IHVzZXIgKGxvZ2luKSwgdXNlcklkLCBkdXJhdGlvbiAoc2Vjb25kcyksIHJlYXNvbgogICAgICAgIHN0cmluZyB1c2VyOwogICAgICAgIGlmICghQ1BILlRyeUdldEFyZygidXNlciIsIG91dCB1c2VyKSB8fCBzdHJpbmcuSXNOdWxsT3JXaGl0ZVNwYWNlKHVzZXIpKSByZXR1cm4gdHJ1ZTsKICAgICAgICBzdHJpbmcgZHVyUzsgQ1BILlRyeUdldEFyZygiZHVyYXRpb24iLCBvdXQgZHVyUyk7CiAgICAgICAgaW50IGR1cjsgaWYgKCFpbnQuVHJ5UGFyc2UoZHVyUywgb3V0IGR1cikgfHwgZHVyIDwgMSkgZHVyID0gNjA7CiAgICAgICAgaWYgKGR1ciA+IDEyMDk2MDApIGR1ciA9IDEyMDk2MDA7IC8vIFR3aXRjaCBtYXg6IDIgd2Vla3MKICAgICAgICBzdHJpbmcgcmVhc29uOwogICAgICAgIGlmICghQ1BILlRyeUdldEFyZygicmVhc29uIiwgb3V0IHJlYXNvbikgfHwgc3RyaW5nLklzTnVsbE9yV2hpdGVTcGFjZShyZWFzb24pKQogICAgICAgICAgICByZWFzb24gPSAiTG9zdCBhIGdhbWUgb2YgSGFuZ21hbiI7CgogICAgICAgIGJvb2wgb2sgPSBmYWxzZTsKICAgICAgICB0cnkgeyBvayA9IENQSC5Ud2l0Y2hUaW1lb3V0VXNlcih1c2VyLCBkdXIsIHJlYXNvbik7IH0KICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIGV4KSB7IENQSC5Mb2dJbmZvKCJIYW5nbWFuIHRpbWVvdXQgZmFpbGVkOiAiICsgZXguTWVzc2FnZSk7IH0KICAgICAgICBpZiAoIW9rKQogICAgICAgIHsKICAgICAgICAgICAgLy8gTW9kcyBhbmQgdGhlIGJyb2FkY2FzdGVyIGNhbm5vdCBiZSB0aW1lZCBvdXQgYnkgVHdpdGNoLgogICAgICAgICAgICB0cnkgeyBDUEguU2VuZE1lc3NhZ2UoIkhhbmdtYW46ICIgKyB1c2VyICsgIiB3YWxrcyBmcmVlLCB0aGUgZ2FsbG93cyBoYXZlIG5vIHBvd2VyIG92ZXIgdGhlbS4iLCB0cnVlKTsgfQogICAgICAgICAgICBjYXRjaCAoRXhjZXB0aW9uKSB7fQogICAgICAgIH0KICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KfQ==",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "d79cdeab-8d93-459c-a199-6007f9141702",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 },
+                                 {
+                                     "id":  "c2a40d6a-e1d8-4e54-ad73-34adad60d2dc",
+                                     "queue":  "00000000-0000-0000-0000-000000000000",
+                                     "enabled":  true,
+                                     "excludeFromHistory":  false,
+                                     "excludeFromPending":  false,
+                                     "name":  "Hangman Â· Announce",
+                                     "group":  "Hangman",
+                                     "alwaysRun":  false,
+                                     "randomAction":  false,
+                                     "concurrent":  false,
+                                     "triggers":  [
+
+                                                  ],
+                                     "subActions":  [
+                                                        {
+                                                            "name":  "Hangman Â· Announce",
+                                                            "description":  "Sends {message} to Twitch chat. Invoked by the Hangman overlay for game start, win and lose announcements.",
+                                                            "references":  [
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                                                                               "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                                                                           ],
+                                                            "byteCode":  "dXNpbmcgU3lzdGVtOwoKcHVibGljIGNsYXNzIENQSElubGluZQp7CiAgICBwdWJsaWMgYm9vbCBFeGVjdXRlKCkKICAgIHsKICAgICAgICAvLyBJbnZva2VkIGJ5IHRoZSBIYW5nbWFuIG92ZXJsYXkgZm9yIGdhbWUgc3RhcnQgLyB3aW4gLyBsb3NlIGxpbmVzLgogICAgICAgIHN0cmluZyBtc2c7CiAgICAgICAgaWYgKCFDUEguVHJ5R2V0QXJnKCJtZXNzYWdlIiwgb3V0IG1zZykgfHwgc3RyaW5nLklzTnVsbE9yV2hpdGVTcGFjZShtc2cpKSByZXR1cm4gdHJ1ZTsKICAgICAgICB0cnkgeyBDUEguU2VuZE1lc3NhZ2UobXNnLCB0cnVlKTsgfSBjYXRjaCAoRXhjZXB0aW9uKSB7fQogICAgICAgIHJldHVybiB0cnVlOwogICAgfQp9",
+                                                            "precompile":  false,
+                                                            "delayStart":  false,
+                                                            "saveResultToVariable":  false,
+                                                            "saveToVariable":  "",
+                                                            "id":  "89971f84-3327-4948-b07b-1496e95f04b7",
+                                                            "weight":  0,
+                                                            "type":  99999,
+                                                            "parentId":  null,
+                                                            "enabled":  true,
+                                                            "index":  0
+                                                        }
+                                                    ],
+                                     "collapsedGroups":  [
+
+                                                         ]
+                                 }
+                             ],
+                 "queues":  [
+
+                            ],
+                 "commands":  [
+
+                              ],
+                 "websocketServers":  [
+
+                                      ],
+                 "websocketClients":  [
+
+                                      ],
+                 "timers":  [
+
+                            ]
+             },
+    "version":  23,
+    "exportedFrom":  "1.0.4",
+    "minimumVersion":  "1.0.0-alpha.1"
+}

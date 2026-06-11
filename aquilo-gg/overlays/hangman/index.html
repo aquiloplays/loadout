@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>aquilo.gg, Hangman</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  aquilo.gg Hangman overlay.
+
+  A viewer redeems a channel point reward (or types !hangman) and goes
+  on the gallows. Their Twitch profile picture hangs as the head; every
+  wrong letter draws another body part. Solve the word in time, or eat
+  a 60 second chat timeout fired through Streamer.bot.
+
+  Connects DIRECTLY to the Streamer.bot WebSocket server
+  (default ws://127.0.0.1:8080, enable under Servers/Clients).
+  The timeout + chat replies use two actions from the import bundle
+  at aquilo.gg/hangman (Hangman · Timeout, Hangman · Announce).
+
+  URL:
+    https://widget.aquilo.gg/overlays/hangman/
+  Demo (fake games, no apps needed):
+    https://widget.aquilo.gg/overlays/hangman/?demo=1
+
+  Recommended source size: 900 x 380.
+
+  Useful URL params (see README.md for the full table):
+    sbHost / sbPort / sbPass   Streamer.bot connection (default 127.0.0.1:8080)
+    reward=hangman             reward title match (substring), reward=0 disables
+    cmd=!hangman               chat command, cmd=0 disables
+    who=everyone               who may use the command: everyone/subs/vips/mods
+    lives=6                    wrong guesses allowed (3-6)
+    secs=120                   time limit per game
+    cd=30                      cooldown between games
+    to=60                      chat timeout seconds on a loss, to=0 disables
+    say=start,win,lose         chat announcements, say=0 silences
+    cats=games,animals,...     built-in categories to draw from
+    words=a,b,c                custom words (use the customizer)
+    customOnly=1               only use custom words
+    sound=0 / vol=60           sounds
+    demo=1                     fake game loop for layout/testing
+    bg=1                       dark backdrop for testing outside OBS
+
+  OBS Interact keys: T = test game (nothing fires), X = cancel game.
+-->
+<link rel="stylesheet" href="style.css">
+<script src="../_shared/theme.js"></script>
+</head>
+<body>
+  <div id="stage" aria-hidden="true">
+    <div id="card" data-state="idle">
+      <div id="timebar"><i id="timefill"></i></div>
+      <header id="hd">
+        <div class="player">
+          <span class="ava"><img id="pAva" alt=""><span id="pInit">?</span></span>
+          <span class="who"><b id="pName">Hangman</b><span id="pSub">is on the gallows</span></span>
+        </div>
+        <div class="meta">
+          <span class="chip cat" id="catChip"></span>
+          <span class="chip time" id="timeChip">2:00</span>
+        </div>
+      </header>
+      <div id="bd">
+        <svg id="gal" viewBox="0 0 230 250" aria-hidden="true">
+          <g class="frame">
+            <path class="wood" d="M14 240 H146"/>
+            <path class="wood" d="M44 240 V16"/>
+            <path class="wood" d="M40 16 H160"/>
+            <path class="wood thin" d="M44 56 L84 16"/>
+          </g>
+          <path class="rope" d="M160 16 V40"/>
+          <circle class="noose" cx="160" cy="45" r="5"/>
+          <g id="fig">
+            <g id="part-head" class="part">
+              <circle id="avaRing" cx="160" cy="73" r="23"/>
+              <clipPath id="avaClip"><circle cx="160" cy="73" r="21"/></clipPath>
+              <image id="avaImg" x="139" y="52" width="42" height="42" clip-path="url(#avaClip)" preserveAspectRatio="xMidYMid slice"/>
+              <text id="avaText" x="160" y="80" text-anchor="middle">?</text>
+              <g id="deadFace" style="display:none">
+                <path d="M148 66 L156 74 M156 66 L148 74"/>
+                <path d="M164 66 L172 74 M172 66 L164 74"/>
+                <path d="M151 86 Q160 79 169 86"/>
+              </g>
+            </g>
+            <path id="part-torso" class="part limb" pathLength="100" d="M160 96 V152"/>
+            <path id="part-armL" class="part limb" pathLength="100" d="M160 108 L135 136"/>
+            <path id="part-armR" class="part limb" pathLength="100" d="M160 108 L185 136"/>
+            <path id="part-legL" class="part limb" pathLength="100" d="M160 152 L139 192"/>
+            <path id="part-legR" class="part limb" pathLength="100" d="M160 152 L181 192"/>
+          </g>
+        </svg>
+        <div id="board">
+          <div id="word"></div>
+          <div id="missRow">
+            <span class="lbl">misses</span>
+            <span id="missLetters"></span>
+            <span id="pips"></span>
+          </div>
+          <div id="hintLine">type a letter in chat &middot; <b>!solve word</b> to go for it</div>
+        </div>
+      </div>
+      <div id="banner"><b id="bannerTitle"></b><span id="bannerSub"></span></div>
+    </div>
+    <div id="toast" hidden></div>
+    <div id="statusDot" hidden><span class="dot"></span><span id="statusText"></span></div>
+    <div id="demoBadge" hidden>DEMO</div>
+    <canvas id="fx"></canvas>
+  </div>
+  <script src="words.js"></script>
+  <script src="hangman-core.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
