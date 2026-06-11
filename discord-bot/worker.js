@@ -804,6 +804,12 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/aquilo/site-sync/')) {
       return handleAquiloSiteSync(req, env, path);
     }
+    // Cover-art finder: for community-pool games with no Steam art,
+    // ask Claude (web_search) for official cover art, validate it,
+    // write it into games:v1, then mirror to D1 + refresh the embed.
+    if (method === 'POST' && path.startsWith('/admin/aquilo/find-game-art/')) {
+      return handleAquiloFindGameArt(req, env, path);
+    }
     if (path === '/vote-hub/lineup') {
       return handleLineupPublic(req, env);
     }
@@ -4724,6 +4730,36 @@ async function handleAquiloSiteSync(req, env, path) {
     }
     return jsonResp({ ok: true, ...sync, scheduleRefreshed: !!scheduleMsgId,
                       ...(scheduleError ? { scheduleError } : {}), via: auth.via }, 200);
+  } catch (e) {
+    return jsonResp({ ok: false, error: String(e?.message || e) }, 500);
+  }
+}
+
+// ── /admin/aquilo/find-game-art/:guildId (HMAC) ──────────────
+// "Use Claude to find it": fills headerUrl for community-pool games
+// that have no Steam page (see game-art-finder.js), then re-syncs the
+// D1 vote pool and refreshes the pinned weekly schedule embed so the
+// new art shows up everywhere at once.
+async function handleAquiloFindGameArt(req, env, path) {
+  const parts = path.split('/').filter(Boolean);
+  const guildId = parts[3];
+  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
+  const body = await req.text();
+  const auth = await verifyAdminAuth(req, env, guildId, body);
+  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  try {
+    const { findMissingGameArt } = await import('./game-art-finder.js');
+    const art = await findMissingGameArt(env, guildId);
+    let synced = null;
+    if (art.updated) {
+      const { syncSiteGamesToD1 } = await import('./site-games-sync.js');
+      synced = await syncSiteGamesToD1(env, guildId);
+      try {
+        const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
+        await postOrRefreshSchedule(env, guildId);
+      } catch { /* hourly cron will catch up */ }
+    }
+    return jsonResp({ ok: true, ...art, synced, via: auth.via }, 200);
   } catch (e) {
     return jsonResp({ ok: false, error: String(e?.message || e) }, 500);
   }
