@@ -359,6 +359,27 @@ Round 10 (same day):
   /me (returns anon:true until bound) and unlocks. Twitch keeps OAuth;
   /link rejects twitch. Emote badges stay Twitch-only.
 
+Round 11 (same day), earned badges:
+
+- Stats accumulate per (channel, viewer) from real events the overlay
+  reports via POST /stat (k-authed): gift subs (EventSub
+  channel.subscription.gift carries cumulative_total, authoritative
+  when present; SB gift events otherwise), bits (channel.cheer or SB
+  Cheer; bits:read added to STREAMER_SCOPES for new claims), TikTok
+  gift coins + biggest single gift (name + coins), and the viewer's
+  best like total in one stream (TikFinity like events, posted at most
+  once per 30s per viewer).
+- Badge catalog (PCEngine.badges, tiers reuse the ring ladder):
+  Sub Gifter 1/5/20/100 · Cheerleader 100/1k/10k/100k · TikTok Patron
+  99/999/9999/49999 coins · Big Spender (wears the gift NAME)
+  99/999/9999/29999 · Like Storm 100/1k/5k/20k.
+- Viewers pick up to 3 in the editor's Badges panel (locked ones show
+  the unlock threshold + progress). Selection is whitelisted server
+  side but EARNING is enforced at render: resolve(stats, selection)
+  only returns badges the stats actually support, so stale or forged
+  selections cannot fake a badge. Chips render under the message with
+  tier-colored borders (aurora = animated-gradient border).
+
 Deferred to v1.1: Streamer.bot announce action on milestones (the Helix
 chat announce covers Twitch; an SB action would cover YT/Kick), Discord
 webhook digest, a dock page (moderation lives in the customizer for now),

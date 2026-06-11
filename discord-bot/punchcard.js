@@ -174,6 +174,13 @@ export function sanitizeCard(raw, allowCustom) {
   }
   // Cosmetics. Everything whitelisted; junk falls back to defaults.
   out.punch = ['classic', 'stamp', 'fist', 'laser', 'none'].includes(raw.punch) ? raw.punch : 'classic';
+  // Earned-badge selection (cap 3). Keys are whitelisted only; whether
+  // a badge actually RENDERS is decided at display time against the
+  // viewer's server-side stats, so selections can never fake a badge.
+  if (Array.isArray(raw.badges)) {
+    const known = ['gifter', 'cheer', 'coins', 'biggift', 'likes'];
+    out.badges = [...new Set(raw.badges.filter((b) => known.includes(b)))].slice(0, 3);
+  }
   out.nameFx = ['none', 'accent', 'gradient', 'rainbow'].includes(raw.nameFx) ? raw.nameFx : 'none';
   out.texture = ['none', 'dots', 'scan', 'sparkle'].includes(raw.texture) ? raw.texture : 'none';
   out.anim = ['slide', 'pop', 'flip', 'drop'].includes(raw.anim) ? raw.anim : 'slide';
@@ -380,7 +387,7 @@ async function fetchUserEmotes(env, accessToken, userId) {
 // read:subscriptions powers per-viewer sub-tier card effects. Claims
 // made before it was added simply skip tier lookups (the Helix call
 // 401s and we treat the viewer as tier 0) until the streamer reconnects.
-const STREAMER_SCOPES = 'channel:read:redemptions channel:manage:redemptions channel:read:subscriptions user:write:chat';
+const STREAMER_SCOPES = 'channel:read:redemptions channel:manage:redemptions channel:read:subscriptions user:write:chat bits:read';
 // Lets the card editor list every emote the viewer can use (subs across
 // channels, hype train unlocks, follower emotes). Read-only.
 const VIEWER_SCOPES = 'user:read:emotes';
@@ -626,7 +633,7 @@ async function handleCheckin(env, body) {
   const next = advance(user, today, prevActive, cfg.mode, prev2Active);
   const stored = {
     t: next.t, s: next.s, b: next.b, l: next.l, d: next.d, f: next.f,
-    display, card: user.card || null, lastTs: now,
+    display, card: user.card || null, stats: user.stats || undefined, lastTs: now,
   };
   await kvPut(env, KEY.user(ch, vk), stored);
 
@@ -703,9 +710,47 @@ async function handleCheckin(env, body) {
     dup: next.dup, milestone: next.milestone, ring: ringFor(next.b),
     freezeUsed: next.freezeUsed, freezes: next.f, refunded,
     firstOfDay: changed,
-    card: stored.card, avatar, subTier, msgEmotes,
+    card: stored.card, stats: stored.stats || null, avatar, subTier, msgEmotes,
     day: today, activeDays: days.length,
   });
+}
+
+// ── badge stats ───────────────────────────────────────────────────────
+// Real support events, reported by the overlay as they happen: gift
+// subs, bits, TikTok gift coins (+ biggest single gift), and the
+// viewer's best like total in one stream. Accumulates on the user
+// record; badges derive from these at render time.
+async function handleStat(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const vk = viewerKey(body.viewer, body.platform);
+  if (!vk) return json({ ok: false, error: 'bad-viewer' }, 400);
+  const kind = String(body.kind || '');
+  const value = Math.max(0, Math.min(10000000, Math.floor(Number(body.value) || 0)));
+  if (!value) return json({ ok: false, error: 'bad-value' }, 400);
+
+  const user = (await kvGet(env, KEY.user(ch, vk))) || { t: 0, s: 0, b: 0, l: null, d: [] };
+  const st = user.stats || {};
+  if (kind === 'giftsub') {
+    const cumulative = Math.max(0, Math.floor(Number(body.meta && body.meta.cumulative) || 0));
+    // EventSub's cumulative_total is authoritative when present.
+    st.gifted = Math.max((Number(st.gifted) || 0) + value, cumulative);
+  } else if (kind === 'bits') {
+    st.bits = (Number(st.bits) || 0) + value;
+  } else if (kind === 'ttgift') {
+    st.coins = (Number(st.coins) || 0) + value;
+    const name = cleanDisplay(body.meta && body.meta.giftName) || 'Gift';
+    if (!st.bigGift || value > (Number(st.bigGift.c) || 0)) st.bigGift = { n: name.slice(0, 30), c: value };
+  } else if (kind === 'ttlike') {
+    st.likesBest = Math.max(Number(st.likesBest) || 0, value);
+  } else {
+    return json({ ok: false, error: 'bad-kind' }, 400);
+  }
+  user.stats = st;
+  if (!user.display) user.display = cleanDisplay(body.display) || vk;
+  await kvPut(env, KEY.user(ch, vk), user);
+  return json({ ok: true, stats: st });
 }
 
 // ── streamer routes ───────────────────────────────────────────────────
@@ -907,6 +952,7 @@ async function handleMe(req, env, url) {
     last: user.l || null, dates: user.d || [], card: user.card || null,
     ring: ringFor(user.b || 0),
     freezes: Math.max(0, Number(user.f) || 0),
+    stats: user.stats || null,
     subTier,
     hasEmotes: !!(emoteRec && emoteRec.list && emoteRec.list.length),
     channel: chan ? {
@@ -1055,6 +1101,7 @@ async function dispatch(req, env, path) {
   if (route === 'oauth/finish') return handleOauthFinish(env, body);
   if (route === 'anon') return handleAnonSession(env);
   if (route === 'link') return handleLink(env, body);
+  if (route === 'stat') return handleStat(env, body);
   if (route === 'checkin') return handleCheckin(env, body);
   if (route === 'reward') return handleRewardCreate(env, body);
   if (route === 'cfg') return handleCfg(env, body);
