@@ -117,6 +117,26 @@ ready timeout + autofill + consequences, ban/punt/clear/night reset,
 serialize round trip, chat grammar incl. mod commands, reward/bits/gift
 classification, cfg round trip, customizer + dock + live + landing boot).
 
+## v1.1 (same day)
+
+- Fix: auto-fill can no longer re-pick a viewer who just missed the ready
+  check (the `hold` consequence + thin queues looped the same AFK viewer
+  forever); the seat stays open instead (`state.missedThisRound`).
+- Fix: reroll now excludes the just-returned party from the re-pick
+  (FIFO rerolls previously selected the same people), topping up from
+  them only when the queue has nobody else. Punt re-appends so
+  same-millisecond ties still land behind everyone.
+- Live page: sticky "YOU ARE UP" banner with vibration + title flash
+  when your find-me name hits a pending ready check; per-position wait
+  estimate.
+- Wait estimates: `gameStarts` ring buffer, `avgGameMin()` in the
+  overlay footer + snapshots (worker sanitizes to one decimal).
+- Discord night recap: `recap.webhook` config; the overlay posts a
+  games/players embed on Twitch StreamOffline (once per games-count)
+  or on demand from the dock/customizer (`recap` command kind,
+  multipart payload_json so the webhook POST needs no CORS preflight).
+- Paid boosts that cannot land (queue closed/full) now get a chat reply.
+
 ## Ship checklist
 
 1. Loadout: `discord-bot/partyup.js` (owned) + `worker.js` mount (anchored

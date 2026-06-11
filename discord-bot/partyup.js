@@ -66,6 +66,7 @@ const PLATS = ['tw', 'yt', 'kk', 'tt', 'xx'];
 const CMD_KINDS = [
   'open', 'close', 'pick', 'start', 'reroll', 'requeue', 'ready',
   'skip', 'punt', 'ban', 'unban', 'add', 'size', 'mode', 'clear', 'resetNight',
+  'recap',
 ];
 
 // ---------------------------------------------------------------------------
@@ -121,6 +122,7 @@ function sanitizeState(input) {
     partySize: int(input.partySize, 1, 15, 3),
     count: int(input.count, 0, 999, queue.length),
     games: int(input.games, 0, 9999, 0),
+    avgGameMin: Math.round(Math.max(0, Math.min(999, Number(input.avgGameMin) || 0)) * 10) / 10,
     join: {
       chat: cleanText(join.chat, 24),
       reward: cleanText(join.reward, 60),
