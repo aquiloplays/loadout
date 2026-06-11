@@ -70,6 +70,22 @@ body.test-bg {
   50%      { opacity: 1; }
 }
 
+/* a spark of energy circulating the vessel outline (wall=glow) */
+.gj-dash { animation: gj-dash 5.5s linear infinite; }
+@keyframes gj-dash {
+  to { stroke-dashoffset: -100; }
+}
+
+/* frosted wall mode: diffuse everything behind the glass */
+#frostGlass {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  backdrop-filter: blur(2.6px) saturate(1.06);
+  -webkit-backdrop-filter: blur(2.6px) saturate(1.06);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 #counterChip .jars-badge {
   font-size: 11px;
   font-weight: 800;

@@ -48,6 +48,18 @@ STYLES = {
     "neon":    ("glassmorphism neon outline icon of a glass jar with an open top, glowing teal and violet "
                 "rim light strokes, translucent frosted glass body, minimal futuristic stream overlay asset, "
                 "soft bloom, no text, completely empty, isolated on a solid pure black background"),
+    "stained": ("stained glass window illustration of a tall jar with an open mouth, bold black lead lines, "
+                "luminous jewel-tone teal violet and amber glass panels, flat 2D decorative art, symmetrical, "
+                "completely empty vessel, no text, isolated on a solid pure black background"),
+    "pixel":   ("16-bit pixel art sprite of a large glass jar with an open top, clean dithered shading, "
+                "teal glass highlights, dark outline, crisp chunky pixels, retro game asset, completely "
+                "empty, no text, isolated on a solid pure black background"),
+    "holo":    ("holographic wireframe projection of a glass jar with an open top, glowing cyan grid mesh "
+                "lines, sci-fi HUD hologram style, semi transparent volumetric glow, scanline shimmer, "
+                "completely empty, no text, dark void background"),
+    "paper":   ("layered papercraft illustration of a glass jar with an open mouth, cut paper edges with "
+                "soft drop shadows, teal indigo and cream paper layers, cozy handcrafted flat design, "
+                "completely empty, no text, isolated on a solid pure black background"),
 }
 
 CANDIDATES = 2

@@ -58,7 +58,7 @@
     events:    (params.get('events') || 'subs,resubs,gifts,bits,members,superchats,tips,tiktok')
                  .split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean),
     jarStyle:  pick('jarStyle', 'classic', ['classic', 'bowl', 'hex', 'potion', 'vase']),
-    wall:      pick('wall', 'glass', ['glass', 'glow']),
+    wall:      pick('wall', 'glass', ['glass', 'frosted', 'crystal', 'glow']),
     discord:   params.get('discord') || '',
     recap:     flag('recap', !!params.get('discord')),
     full:      pick('full', 'recycle', ['recycle', 'stop', 'spill', 'pop']),
@@ -616,7 +616,9 @@
     var pts = [];
     for (var i = 0; i < R.length; i++) pts.push([cx - R[i][0], R[i][1]]);
     for (var j = R.length - 1; j >= 0; j--) pts.push([cx + R[j][0], R[j][1]]);
-    return roundPath(pts, (styleDef().cornerR || 0.055) * geo.W, closeAcrossMouth);
+    var cr = styleDef().cornerR || 0.055;
+    if (cfg.wall === 'crystal') cr = Math.min(cr, 0.02);   // cut, not blown
+    return roundPath(pts, cr * geo.W, closeAcrossMouth);
   }
 
   // A specular streak that FOLLOWS the wall instead of cutting straight
@@ -651,6 +653,8 @@
     back.setAttribute('viewBox', vb);
     front.setAttribute('viewBox', vb);
     var isGlow = cfg.wall === 'glow';
+    var isCrystal = cfg.wall === 'crystal';
+    var isFrosted = cfg.wall === 'frosted';
     var mouthAbsY = g.R[0][1];
     var mouthHW = g.R[0][0];
     var mouthRy = clamp(mouthHW * 0.17, 6, 0.026 * g.H);
@@ -694,10 +698,24 @@
           '<stop offset="1" style="stop-color:var(--accent)" stop-opacity="0"/>' +
         '</radialGradient>' + glowDefs +
       '</defs>' +
-      '<ellipse class="jar-breathe" cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
+      '<g id="gjGlowGrp" opacity="0.55">' +
+        '<ellipse class="jar-breathe" cx="' + cx + '" cy="' + (g.bottom + 4) + '" rx="' + (0.62 * g.W) + '" ry="' + (0.05 * g.H) + '" fill="url(#glowGrad)"/>' +
+      '</g>' +
       '<path d="' + roundedOutline(true) + '" fill="url(#cavGrad)"/>' +
       '<path d="' + roundedOutline(true) + '" fill="url(#cavSide)"/>' +
-      '<ellipse cx="' + cx + '" cy="' + (g.floorY - 0.05 * g.H) + '" rx="' + (g.bw * 0.74) + '" ry="' + (0.085 * g.H) + '" fill="url(#causticGrad)"/>' +
+      // soft light falling in through the mouth
+      (isGlow ? '' :
+        '<defs><clipPath id="rayClip"><path d="' + roundedOutline(true) + '"/></clipPath>' +
+        '<linearGradient id="rayGrad" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0" stop-color="rgba(255,255,255,0.06)"/>' +
+          '<stop offset="1" stop-color="rgba(255,255,255,0)"/>' +
+        '</linearGradient></defs>' +
+        '<g clip-path="url(#rayClip)">' +
+          '<path d="M ' + (cx - mouthHW) + ' ' + mouthAbsY + ' L ' + (cx + mouthHW) + ' ' + mouthAbsY +
+          ' L ' + (cx + mouthHW * 1.55) + ' ' + (mouthAbsY + 0.42 * g.H) +
+          ' L ' + (cx - mouthHW * 1.55) + ' ' + (mouthAbsY + 0.42 * g.H) + ' Z" fill="url(#rayGrad)"/>' +
+        '</g>') +
+      '<ellipse id="gjCaustic" opacity="0.55" cx="' + cx + '" cy="' + (g.floorY - 0.05 * g.H) + '" rx="' + (g.bw * 0.74) + '" ry="' + (0.085 * g.H) + '" fill="url(#causticGrad)"/>' +
       // the far rim of the opening, seen through the mouth: instant depth
       '<ellipse cx="' + cx + '" cy="' + (mouthAbsY + mouthRy * 0.55) + '" rx="' + (mouthHW * 0.96) + '" ry="' + mouthRy + '" ' +
         'fill="rgba(140,180,230,0.05)" stroke="' + (isGlow ? 'var(--accent)' : 'rgba(255,255,255,1)') + '" ' +
@@ -748,6 +766,16 @@
         '<clipPath id="cavClip"><path d="' + roundedOutline(true) + '"/></clipPath>' +
         (isGlow ? '<filter id="gjBlur" x="-40%" y="-40%" width="180%" height="180%">' +
           '<feGaussianBlur stdDeviation="' + Math.max(4, g.glass * 0.9) + '"/></filter>' : '') +
+        (isCrystal ?
+          '<linearGradient id="irisGrad" x1="0" y1="0" x2="1" y2="1">' +
+            '<stop offset="0" stop-color="rgba(124,232,255,0.85)"/>' +
+            '<stop offset="0.35" stop-color="rgba(184,156,255,0.85)"/>' +
+            '<stop offset="0.7" stop-color="rgba(255,154,213,0.85)"/>' +
+            '<stop offset="1" stop-color="rgba(124,232,255,0.85)"/>' +
+          '</linearGradient>' : '') +
+        (isFrosted ?
+          '<filter id="gjFrostN"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" stitchTiles="stitch"/>' +
+          '<feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0.22 0.22 0.22 0 0"/></filter>' : '') +
       '</defs>';
 
     var html = frontDefs;
@@ -780,8 +808,47 @@
             'style="stroke:var(--accent)" stroke-opacity="0.16" stroke-width="1.5"/>';
       }
       html +=
+        // a spark circulating the outline
+        '<path class="gj-dash" d="' + oPath + '" pathLength="100" fill="none" stroke="rgba(255,255,255,0.9)" ' +
+          'stroke-width="2.4" stroke-linecap="round" stroke-dasharray="9 91"/>' +
         '<circle class="gj-pulse2" cx="' + (cx - g.bw * 0.52) + '" cy="' + (g.top + 0.185 * g.H) + '" r="2.4" style="fill:var(--accent)" fill-opacity="0.8"/>' +
         '<circle class="gj-pulse2" cx="' + (cx + g.bw * 0.48) + '" cy="' + (g.top + 0.245 * g.H) + '" r="1.8" style="fill:var(--accent);animation-delay:1.1s" fill-opacity="0.6"/>' +
+        labelSvg;
+    } else if (isCrystal) {
+      // ── cut crystal: iridescent edges, facet shards, prism glints ──
+      var oP3 = roundedOutline(false);
+      var shardPts = [g.R[1], g.R[Math.floor(g.R.length / 2)], g.R[g.R.length - 2]];
+      var shards = '';
+      for (var sh = 0; sh < shardPts.length; sh++) {
+        var sp = shardPts[sh];
+        shards +=
+          '<line x1="' + (cx - sp[0] * 0.96) + '" y1="' + sp[1] + '" x2="' + (cx - sp[0] * 0.52) + '" y2="' + (sp[1] + 0.16 * g.H) + '" ' +
+            'stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>' +
+          '<line x1="' + (cx + sp[0] * 0.96) + '" y1="' + sp[1] + '" x2="' + (cx + sp[0] * 0.52) + '" y2="' + (sp[1] + 0.16 * g.H) + '" ' +
+            'stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>';
+      }
+      var px1 = cx - g.bw * 0.62, py1 = g.top + 0.16 * g.H;
+      var px2 = cx + g.bw * 0.58, py2 = g.top + 0.22 * g.H;
+      html +=
+        '<path d="' + roundedOutline(true) + '" fill="url(#sheenGrad)"/>' +
+        shards +
+        '<path d="' + oP3 + '" fill="none" stroke="rgba(184,156,255,0.10)" ' +
+          'stroke-width="' + (3.6 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+        '<path d="' + oP3 + '" fill="none" stroke="url(#irisGrad)" ' +
+          'stroke-width="' + (1.7 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+        '<path d="' + oP3 + '" fill="none" stroke="rgba(255,255,255,0.38)" stroke-width="1.4" stroke-linejoin="round"/>' +
+        '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + (mouthHW * 1.1) + '" ry="' + mouthRy + '" ' +
+          'fill="none" stroke="url(#irisGrad)" stroke-width="' + Math.max(3, 0.8 * g.glass) + '"/>' +
+        '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + (mouthHW * 1.1) + '" ry="' + mouthRy + '" ' +
+          'fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>' +
+        // prism glints
+        '<path d="M ' + px1 + ' ' + py1 + ' l 9 4 l -7 7 Z" fill="rgba(124,232,255,0.5)"/>' +
+        '<path d="M ' + px2 + ' ' + py2 + ' l -8 3 l 6 6 Z" fill="rgba(255,154,213,0.45)"/>' +
+        '<path d="M ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H - 0.018 * g.W) +
+          ' Q ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H) + ' ' + (cx - g.bw * 0.5 + 0.018 * g.W) + ' ' + (g.top + 0.185 * g.H) +
+          ' Q ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H) + ' ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H + 0.018 * g.W) +
+          ' Q ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H) + ' ' + (cx - g.bw * 0.5 - 0.018 * g.W) + ' ' + (g.top + 0.185 * g.H) +
+          ' Q ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H) + ' ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H - 0.018 * g.W) + ' Z" fill="rgba(255,255,255,0.55)"/>' +
         labelSvg;
     } else {
       // ── pushed glass: halo, body, inner thickness, crisp edge, wall-
@@ -789,17 +856,22 @@
       var oPath2 = roundedOutline(false);
       html +=
         '<path d="' + roundedOutline(true) + '" fill="url(#sheenGrad)"/>' +
+        (isFrosted ?
+          // grain etched into the frost
+          '<g clip-path="url(#cavClip)" opacity="0.5">' +
+            '<rect x="' + (cx - g.bw) + '" y="' + g.top + '" width="' + (2 * g.bw) + '" height="' + g.H + '" filter="url(#gjFrostN)"/>' +
+          '</g>' : '') +
         '<g clip-path="url(#cavClip)">' +
           '<rect class="gj-shimmer" x="' + (-0.6 * g.W) + '" y="' + (g.top - 0.05 * g.H) + '" width="' + (0.55 * g.W) + '" height="' + (1.1 * g.H) + '" ' +
             'fill="url(#shimmerGrad)" transform="skewX(-14)"/>' +
         '</g>' +
-        '<path d="' + oPath2 + '" fill="none" stroke="rgba(255,255,255,0.05)" ' +
+        '<path d="' + oPath2 + '" fill="none" stroke="rgba(255,255,255,' + (isFrosted ? '0.09' : '0.05') + ')" ' +
           'stroke-width="' + (4.2 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
         '<path d="' + oPath2 + '" fill="none" stroke="url(#glassGrad)" ' +
-          'stroke-width="' + (2 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
-        '<path d="' + oPath2 + '" fill="none" stroke="rgba(235,245,255,0.07)" ' +
+          'stroke-width="' + ((isFrosted ? 2.4 : 2) * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
+        '<path d="' + oPath2 + '" fill="none" stroke="rgba(235,245,255,' + (isFrosted ? '0.12' : '0.07') + ')" ' +
           'stroke-width="' + (0.9 * g.glass) + '" stroke-linejoin="round" stroke-linecap="round"/>' +
-        '<path d="' + oPath2 + '" fill="none" stroke="rgba(255,255,255,0.28)" stroke-width="1.5" stroke-linejoin="round"/>' +
+        '<path d="' + oPath2 + '" fill="none" stroke="rgba(255,255,255,' + (isFrosted ? '0.36' : '0.28') + ')" stroke-width="1.5" stroke-linejoin="round"/>' +
         '<path d="' + wallStreak(-1, 0.26, 0.72, 0.075) + '" fill="none" stroke="rgba(255,255,255,0.10)" ' +
           'stroke-width="' + (0.046 * g.W) + '" stroke-linecap="round" stroke-linejoin="round"/>' +
         '<path d="' + wallStreak(-1, 0.76, 0.85, 0.075) + '" fill="none" stroke="rgba(255,255,255,0.08)" ' +
@@ -864,6 +936,17 @@
     }
 
     front.innerHTML = html;
+
+    // frosted mode diffuses everything behind the wall with a real
+    // backdrop blur, clipped to the vessel silhouette
+    var fd = $('frostGlass');
+    if (isFrosted) {
+      fd.hidden = false;
+      fd.style.clipPath = 'path("' + roundedOutline(true) + '")';
+    } else {
+      fd.hidden = true;
+    }
+
     buildLayerCache();
   }
 
@@ -1051,6 +1134,18 @@
   function fillCheck() {
     if (popping) return;
     var top = pileTopY();
+
+    // the under-glow and floor caustic breathe brighter as the jar
+    // fills, so a busy night visibly charges the vessel up
+    var frac = 0;
+    if (top !== Infinity) {
+      frac = clamp((geo.floorY - top) / Math.max(1, geo.floorY - geo.fullYabs), 0, 1);
+    }
+    var gg = $('gjGlowGrp');
+    if (gg) gg.setAttribute('opacity', (0.55 + 0.45 * frac).toFixed(2));
+    var gc = $('gjCaustic');
+    if (gc) gc.setAttribute('opacity', (0.55 + 0.45 * frac).toFixed(2));
+
     var isFull = top <= geo.fullYabs;
     if (isFull) {
       fullStreak++;
