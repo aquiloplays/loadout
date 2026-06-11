@@ -12,6 +12,19 @@ effect after `tools/install-dev.ps1` (dev install) or a tagged release.
 
 ### Added
 
+- **Tank Battle (new overlay)** -- chat-played artillery duel at
+  widget.aquilo.gg/overlays/tanks/. A channel point redemption (any
+  reward title containing "tank", or exact ?reward=) opens the lobby,
+  up to 3 more viewers grab seats with !join (Twitch/YouTube/Kick via
+  Streamer.bot, TikTok via TikFinity), then tanks paradrop onto
+  generated terrain and take turns: !shoot <angle 0-180> [power 10-100].
+  Projectile physics with per-turn wind, pixel-destructible terrain
+  (canvas + solid-mask carve), knockback, fall damage, CPU fill for
+  lonely lobbies, afk elimination, sudden death from round 9, WebAudio
+  sfx, demo/test modes, Worker-driven background tick so hidden tabs
+  never freeze. Deploys from aquilo-widget overlays/tanks (mirrored
+  under aquilo-gg/overlays/tanks).
+
 - **Hangman (new product)** -- chat hangman with real stakes at
   aquilo.gg/hangman. A viewer redeems a channel point reward (or
   !hangman) and goes on the gallows: their Twitch avatar hangs as the

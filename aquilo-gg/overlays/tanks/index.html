@@ -1,0 +1,317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>aquilo.gg, Tank Battle</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  aquilo.gg Tank Battle overlay.
+
+  Worms-style artillery duel played BY CHAT, on stream. A viewer redeems
+  a Twitch channel point reward to open the lobby, up to 3 more viewers
+  grab a seat with !join (Twitch, YouTube, Kick via Streamer.bot and
+  TikTok via TikFinity). When the lobby fills, or the countdown runs
+  out, tanks paradrop onto randomly generated terrain and take turns:
+
+      !shoot 45        fire at 45 degrees (0 = right, 90 = up, 180 = left)
+      !shoot 45 80     same, with power 80 (10-100, default 70)
+
+  Real projectile physics (gravity + per-turn wind), pixel-destructible
+  terrain, knockback, fall damage, sudden death. Last tank standing wins.
+
+  Connects DIRECTLY to:
+    Streamer.bot WebSocket server  (chat + channel point redemptions)
+      default ws://127.0.0.1:8080, enable under Servers/Clients
+    TikFinity local WebSocket      (TikTok chat can join + shoot)
+      default ws://localhost:21213, on while the desktop app runs
+
+  No StreamFusion, no Loadout DLL, no cloud account needed.
+
+  URL:
+    https://widget.aquilo.gg/overlays/tanks/
+  Demo (bots play a full match on loop, no apps needed):
+    https://widget.aquilo.gg/overlays/tanks/?demo=1
+
+  Recommended source size: 1920 x 1080, full canvas.
+
+  Useful URL params (see README.md for the full table):
+    sbHost / sbPort / sbPass   Streamer.bot connection (default 127.0.0.1:8080)
+    tf=0 / tfPort              TikFinity toggle + port (default on, 21213)
+    reward=Tank%20Battle       exact reward title (default: any title with "tank")
+    lobby=60   turn=45         lobby + turn countdowns, seconds
+    players=4  hp=100          seats (2-4) and tank health
+    wind=28                    max wind strength (0 disables wind)
+    cpu=0                      do not fill a lonely lobby with a CPU tank
+    theme=grass                terrain: grass, desert, snow, void
+    vol=55                     sound volume 0-100 (0 mutes)
+    announce=1                 post turn prompts into Twitch chat via SB
+    sky=1                      paint a sky (testing outside OBS)
+    test=1                     anyone may use !tank start/end, TB hooks logged
+    demo=1                     endless bot match for layout/preview
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap">
+<script src="../_shared/theme.js"></script>
+<script src="../_shared/platform-icons.js"></script>
+<style>
+  :root {
+    --acc:  var(--accent,  #2de2c5);
+    --acc2: var(--accent2, #7b5cff);
+    --txt:  var(--text,    #f4f7fb);
+    --card: rgba(12, 15, 22, 0.84);
+    --bdr:  rgba(255, 255, 255, 0.10);
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  html, body {
+    margin: 0; width: 100%; height: 100%;
+    background: transparent; overflow: hidden;
+  }
+  body {
+    font-family: var(--font, 'Inter', system-ui, sans-serif);
+    color: var(--txt);
+    pointer-events: none;
+    font-feature-settings: 'tnum' 1, 'cv11' 1;
+  }
+  #stage { position: fixed; inset: 0; }
+  #game {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    display: block; object-fit: contain;
+  }
+
+  /* ── top-center HUD: turn banner + timer + wind ─────────────── */
+  #hud {
+    position: absolute; top: 3.2%; left: 50%;
+    transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    opacity: 0; transition: opacity .35s var(--ease);
+  }
+  #hud.show { opacity: 1; }
+  #banner {
+    background: var(--card);
+    border: 1px solid var(--bdr);
+    border-radius: 14px;
+    padding: 10px 22px 11px;
+    text-align: center;
+    box-shadow: 0 8px 32px rgba(0,0,0,.45), 0 0 0 1px rgba(0,0,0,.25);
+    backdrop-filter: blur(8px);
+    transition: transform .3s var(--ease);
+  }
+  #banner.pulse { animation: bannerPop .42s var(--ease); }
+  @keyframes bannerPop {
+    0% { transform: scale(.92); } 55% { transform: scale(1.04); } 100% { transform: scale(1); }
+  }
+  #bannerMain {
+    font-size: 30px; font-weight: 900; letter-spacing: .4px;
+    line-height: 1.15; white-space: nowrap;
+  }
+  #bannerMain .pname { color: var(--acc); }
+  #banner.danger #bannerMain { color: #ff5c5c; }
+  #bannerSub {
+    font-size: 14.5px; font-weight: 600; opacity: .82; margin-top: 2px;
+    white-space: nowrap;
+  }
+  #bannerSub b { color: var(--acc); font-weight: 800; }
+  #hudRow { display: flex; align-items: center; gap: 10px; }
+  #turnBarWrap {
+    width: 300px; height: 6px; border-radius: 3px;
+    background: rgba(255,255,255,.14); overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,.4);
+  }
+  #turnBar {
+    height: 100%; width: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, var(--acc), var(--acc2));
+  }
+  #windChip {
+    display: flex; align-items: center; gap: 6px;
+    background: var(--card); border: 1px solid var(--bdr);
+    border-radius: 99px; padding: 3px 12px 3px 9px;
+    font-size: 13px; font-weight: 800; letter-spacing: .5px;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
+  }
+  #windArrow { display: inline-block; transition: transform .4s var(--ease); font-size: 15px; }
+
+  /* ── lobby card ─────────────────────────────────────────────── */
+  #lobby {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -54%) scale(.94);
+    width: 470px;
+    background: var(--card);
+    border: 1px solid var(--bdr);
+    border-radius: 20px;
+    padding: 22px 24px 20px;
+    box-shadow: 0 24px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.3);
+    backdrop-filter: blur(10px);
+    opacity: 0; visibility: hidden;
+    transition: opacity .4s var(--ease), transform .4s var(--ease), visibility 0s .4s;
+  }
+  #lobby.show {
+    opacity: 1; visibility: visible;
+    transform: translate(-50%, -54%) scale(1);
+    transition: opacity .4s var(--ease), transform .4s var(--ease);
+  }
+  #lobbyHead { display: flex; align-items: center; justify-content: space-between; }
+  #lobbyTitle {
+    font-size: 34px; font-weight: 900; letter-spacing: 1.5px;
+    background: linear-gradient(100deg, var(--acc), var(--acc2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  #lobbySub { font-size: 13px; font-weight: 600; opacity: .75; margin-top: -2px; }
+  #lobbySub b { color: var(--acc); }
+  #lobbyRing { position: relative; width: 64px; height: 64px; flex: none; }
+  #lobbyRing svg { transform: rotate(-90deg); }
+  #lobbyRing .track { stroke: rgba(255,255,255,.13); }
+  #lobbyRing .fill  { stroke: var(--acc); transition: stroke-dashoffset .95s linear; }
+  #lobbyCount {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font-size: 21px; font-weight: 900;
+  }
+  #slots { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; }
+  .slot {
+    display: flex; align-items: center; gap: 11px;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.07);
+    border-radius: 12px; padding: 9px 13px;
+    transition: border-color .3s var(--ease), background .3s var(--ease);
+  }
+  .slot .pnum {
+    width: 30px; height: 30px; border-radius: 9px; flex: none;
+    display: grid; place-items: center;
+    font-size: 13px; font-weight: 900; color: #0b0e14;
+  }
+  .slot .pname { font-size: 17px; font-weight: 800; flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .slot.empty .pname { opacity: .42; font-weight: 600; animation: slotPulse 2.2s ease-in-out infinite; }
+  @keyframes slotPulse { 0%,100% { opacity: .42; } 50% { opacity: .8; } }
+  .slot img.picon { width: 16px; height: 16px; flex: none; opacity: .9; }
+  .slot .cpuTag {
+    font-size: 10px; font-weight: 900; letter-spacing: 1px;
+    background: rgba(255,255,255,.14); border-radius: 5px; padding: 2px 6px;
+  }
+  .slot.filled { border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.085); }
+  .slot.filled.pop { animation: slotPop .45s var(--ease); }
+  @keyframes slotPop { 0% { transform: scale(.96); } 55% { transform: scale(1.025); } 100% { transform: scale(1); } }
+  #lobbyFoot {
+    margin-top: 15px; text-align: center;
+    font-size: 13.5px; font-weight: 700; opacity: .85; letter-spacing: .2px;
+  }
+  #lobbyFoot b { color: var(--acc); font-weight: 900; }
+
+  /* ── victory splash ─────────────────────────────────────────── */
+  #victory {
+    position: absolute; top: 42%; left: 50%;
+    transform: translate(-50%, -50%) scale(.8);
+    text-align: center;
+    opacity: 0; visibility: hidden;
+    transition: opacity .5s var(--ease), transform .5s var(--ease), visibility 0s .5s;
+  }
+  #victory.show {
+    opacity: 1; visibility: visible;
+    transform: translate(-50%, -50%) scale(1);
+    transition: opacity .5s var(--ease), transform .5s var(--ease);
+  }
+  #vicCrown { font-size: 54px; line-height: 1; filter: drop-shadow(0 6px 18px rgba(0,0,0,.5)); }
+  #vicLabel {
+    font-size: 22px; font-weight: 900; letter-spacing: 8px; opacity: .9;
+    text-shadow: 0 2px 12px rgba(0,0,0,.7);
+  }
+  #vicName {
+    font-size: 64px; font-weight: 900; letter-spacing: 1px; line-height: 1.1;
+    display: flex; align-items: center; justify-content: center; gap: 16px;
+    text-shadow: 0 4px 0 rgba(0,0,0,.35), 0 10px 40px rgba(0,0,0,.6);
+  }
+  #vicName img { width: 40px; height: 40px; }
+  #vicSub {
+    font-size: 16px; font-weight: 700; opacity: .85; margin-top: 6px;
+    text-shadow: 0 2px 10px rgba(0,0,0,.7);
+  }
+
+  /* ── toasts ─────────────────────────────────────────────────── */
+  #toast {
+    position: absolute; bottom: 7%; left: 50%;
+    transform: translate(-50%, 14px);
+    background: var(--card); border: 1px solid var(--bdr);
+    border-radius: 99px; padding: 8px 18px;
+    font-size: 14.5px; font-weight: 700;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5);
+    opacity: 0; transition: opacity .3s var(--ease), transform .3s var(--ease);
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+  #toast b { color: var(--acc); }
+
+  /* ── badges + status ────────────────────────────────────────── */
+  .corner-badge {
+    position: absolute; top: 14px; left: 14px;
+    font-size: 11px; font-weight: 900; letter-spacing: 1.5px;
+    background: rgba(255, 92, 92, .16); color: #ff8a8a;
+    border: 1px solid rgba(255, 92, 92, .4);
+    border-radius: 6px; padding: 3px 8px;
+  }
+  .corner-badge.test { background: rgba(255,176,46,.16); color: #ffc566; border-color: rgba(255,176,46,.4); }
+  #statusDot {
+    position: absolute; bottom: 12px; left: 14px;
+    display: flex; align-items: center; gap: 7px;
+    font-size: 11.5px; font-weight: 700; opacity: .85;
+    background: var(--card); border: 1px solid var(--bdr);
+    border-radius: 99px; padding: 4px 11px 4px 8px;
+  }
+  #statusDot .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #ff5c5c; animation: dotPulse 1.6s ease-in-out infinite;
+  }
+  @keyframes dotPulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+  <div id="stage" aria-hidden="true">
+    <canvas id="game" width="1920" height="1080"></canvas>
+
+    <div id="hud">
+      <div id="banner">
+        <div id="bannerMain"></div>
+        <div id="bannerSub"></div>
+      </div>
+      <div id="hudRow">
+        <div id="turnBarWrap"><div id="turnBar"></div></div>
+        <div id="windChip"><span id="windArrow">→</span><span id="windText">WIND 0</span></div>
+      </div>
+    </div>
+
+    <div id="lobby">
+      <div id="lobbyHead">
+        <div>
+          <div id="lobbyTitle">TANK BATTLE</div>
+          <div id="lobbySub"></div>
+        </div>
+        <div id="lobbyRing">
+          <svg width="64" height="64" viewBox="0 0 64 64">
+            <circle class="track" cx="32" cy="32" r="27" fill="none" stroke-width="5"></circle>
+            <circle class="fill" id="lobbyRingFill" cx="32" cy="32" r="27" fill="none"
+                    stroke-width="5" stroke-linecap="round"
+                    stroke-dasharray="169.6" stroke-dashoffset="0"></circle>
+          </svg>
+          <div id="lobbyCount"></div>
+        </div>
+      </div>
+      <div id="slots"></div>
+      <div id="lobbyFoot"></div>
+    </div>
+
+    <div id="victory">
+      <div id="vicCrown">👑</div>
+      <div id="vicLabel">WINNER</div>
+      <div id="vicName"></div>
+      <div id="vicSub"></div>
+    </div>
+
+    <div id="toast"></div>
+    <div id="demoBadge" class="corner-badge" hidden>DEMO</div>
+    <div id="testBadge" class="corner-badge test" hidden>TEST</div>
+    <div id="statusDot" hidden><span class="dot"></span><span id="statusText"></span></div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>
