@@ -291,6 +291,31 @@ zero page errors.
   (arrays replace on merge, so old saves would otherwise never see
   new trigger types).
 
+## v1.3 (the physical update)
+
+- **Cellophane rip**: the pack now wears a transparent plastic skin
+  (light streaks, wrinkle creases, a loose pull tab). Ripping tears it
+  into 3 irregular shreds that flutter and ball up as they fall
+  (flutter + crumple physics), with plastic crinkle SFX during the
+  grip and tear. The foil top tears along a randomized jagged line and
+  the body keeps the complementary bite marks.
+- **TCG card faces**: cards are layered like physical cards: rarity
+  metal frame with bevels, name plate with emoji badge, framed art
+  window with glass highlight, type line with a rarity gem, text box,
+  and footer (timer / brand). Print grain over everything.
+- **Real game art**: the art window shows the game's artwork: Steam
+  header for Steam games, plus verified stable URLs for Fortnite
+  (fortnite-api), Minecraft (minecraft.net key art), VALORANT
+  (valorant-api map splash) and League (Data Dragon splash). Emblems
+  remain the graceful fallback (Steam's CDN blocks scripted UAs, so
+  art always preloads through Image() before swapping in).
+- **Workshop card art picker**: every card row has an art button
+  opening a picker with three sources: Giphy search (via the existing
+  worker proxy), 7TV + BTTV global emotes, or an uploaded photo
+  (cover-cropped to 128px webp and inlined into the pack as a data
+  URL, no hosting). Worker validates art against a strict CDN host
+  allowlist or a 20KB inline cap; pack size limit raised to 560KB.
+
 ## Out of scope for v1 (roadmap)
 
 - Cloud inventory sync + viewer-facing "my cards" page.

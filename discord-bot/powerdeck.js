@@ -79,6 +79,24 @@ function cleanEmoji(s, fallback) {
   const v = String(s == null ? '' : s).trim().slice(0, 8);
   return v || fallback;
 }
+// Per-card art: a tiny inline image (uploads, downscaled client-side)
+// or an https URL on a known image CDN. Never an arbitrary URL: these
+// render inside other people's overlays.
+const ART_HOSTS = /^(media\d*\.giphy\.com|i\.giphy\.com|cdn\.7tv\.app|cdn\.betterttv\.net|cdn\.frankerfacez\.com|static-cdn\.jtvnw\.net|cdn\.cloudflare\.steamstatic\.com|ddragon\.leagueoflegends\.com|media\.valorant-api\.com|fortnite-api\.com|www\.minecraft\.net)$/i;
+const ART_DATA_MAX = 20000;
+function cleanArt(input) {
+  const s = String(input == null ? '' : input).trim();
+  if (!s) return '';
+  if (/^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(s)) {
+    return s.length <= ART_DATA_MAX ? s : '';
+  }
+  if (s.length > 600) return '';
+  try {
+    const u = new URL(s);
+    if (u.protocol === 'https:' && ART_HOSTS.test(u.hostname)) return s;
+  } catch {}
+  return '';
+}
 function sanitizePack(input) {
   if (!input || typeof input !== 'object') return { error: 'bad-pack' };
   const game = cleanText(input.game, 40);
@@ -101,14 +119,17 @@ function sanitizePack(input) {
     let id = String(c.id || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 16);
     if (!id || seen.has(id)) id = 'c' + (i + 1).toString(36) + genHex(2);
     seen.add(id);
-    cards.push({
+    const card = {
       id,
       name: cname,
       text,
       rarity: RARITIES.includes(c.rarity) ? c.rarity : 'common',
       emoji: cleanEmoji(c.emoji, '🃏'),
       timed: Math.max(0, Math.min(7200, Number(c.timed) || 0)),
-    });
+    };
+    const art = cleanArt(c.art);
+    if (art) card.art = art;
+    cards.push(card);
   }
   const pack = {
     game, name, by, desc,
@@ -119,7 +140,8 @@ function sanitizePack(input) {
     cards,
     ver: Math.max(1, Number(input.ver) || 1),
   };
-  if (JSON.stringify(pack).length > 24 * 1024) return { error: 'pack-too-big' };
+  // Roomy enough for 24 cards each carrying a ~20KB inline upload.
+  if (JSON.stringify(pack).length > 560 * 1024) return { error: 'pack-too-big' };
   return { pack };
 }
 
