@@ -73,3 +73,12 @@ Posted via `discord-bot/tools/post-schedule-poll.mjs` (worker
 - Threshold logic: play-along night requires the 3 (or 2 for
   Nightreign) committed players; otherwise the slot falls back to
   watch-vote winner, then to Fallout 4 Crowd Control Chaos.
+
+NOTE: aquilo-site ALREADY has a schedule vote scaffold to extend, not
+replace: `useScheduleData()` exposes `vote.active`/`vote.kind`,
+HomeScheduleStrip renders a "Cast your vote" CTA to
+`/schedule/variety` and `/schedule/community`, and
+`src/lib/schedulePublic.ts` has week/vote-pending plumbing (see
+SCHEDULE-SYSTEM-DESIGN.md in aquilo-site). The new watch-vs-play
+mechanic should slot into that system; the missing pieces are the
+play-opt-in roster + the 3-player (Nightreign 2) threshold.
