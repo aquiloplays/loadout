@@ -743,6 +743,14 @@ export default {
       const { handlePowerdeck } = await import('./powerdeck.js');
       return handlePowerdeck(req, env, path);
     }
+    // PartyUp room sync: the community night queue's viewer live page +
+    // remote dock commands (claim-on-first-snapshot capability rooms, pu:
+    // keys on LOADOUT_BOLTS). A running stream never depends on it; no
+    // room configured = fully local product. See partyup.js.
+    if (path.startsWith('/api/partyup/')) {
+      const { handlePartyup } = await import('./partyup.js');
+      return handlePartyup(req, env, path);
+    }
     // Overlay test ping: a product customizer on aquilo.gg fires a
     // placement test at the streamer's LIVE OBS browser source. The
     // customizer appends pair=<token> to generated overlay URLs, POSTs
