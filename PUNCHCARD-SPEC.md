@@ -380,6 +380,15 @@ Round 11 (same day), earned badges:
   selections cannot fake a badge. Chips render under the message with
   tier-colored borders (aurora = animated-gradient border).
 
+Round 12 (same day): first-ever celebration. checkin returns firstEver
+(!dup && total === 1, driven by the persisted total so it fires exactly
+once per viewer per channel; a reset streak is 1 again but the total
+never goes back). Cards wear a WELCOME corner ribbon + gradient
+"first ever punch, welcome!" chip, confetti pops on the punch impact,
+and the hold extends 1.2s. Chip precedence: dup > milestone >
+firstEver > freezeUsed > firstOfDay. Local mode and the demo derive it
+the same way.
+
 Deferred to v1.1: Streamer.bot announce action on milestones (the Helix
 chat announce covers Twitch; an SB action would cover YT/Kick), Discord
 webhook digest, a dock page (moderation lives in the customizer for now),

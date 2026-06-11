@@ -710,6 +710,10 @@ async function handleCheckin(env, body) {
     dup: next.dup, milestone: next.milestone, ring: ringFor(next.b),
     freezeUsed: next.freezeUsed, freezes: next.f, refunded,
     firstOfDay: changed,
+    // First check-in EVER for this viewer on this channel. Driven by
+    // the persisted total, so it fires exactly once in a lifetime
+    // (a reset streak is 1 again, but the total never goes back).
+    firstEver: !next.dup && next.t === 1,
     card: stored.card, stats: stored.stats || null, avatar, subTier, msgEmotes,
     day: today, activeDays: days.length,
   });
