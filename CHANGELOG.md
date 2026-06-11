@@ -23,7 +23,11 @@ effect after `tools/install-dev.ps1` (dev install) or a tagged release.
   lonely lobbies, afk elimination, sudden death from round 9, WebAudio
   sfx, demo/test modes, Worker-driven background tick so hidden tabs
   never freeze. Deploys from aquilo-widget overlays/tanks (mirrored
-  under aquilo-gg/overlays/tanks).
+  under aquilo-gg/overlays/tanks). Same-day v2: shot-follow camera
+  (tracks the shell, holds on impact, cam=0 off), lighter default
+  terrain in the bottom quarter of the frame (ground=50-90), sky
+  backdrop never defaults on inside OBS, browser-only idle card
+  (armed/waiting + SB status, hint=0 off).
 
 - **Hangman (new product)** -- chat hangman with real stakes at
   aquilo.gg/hangman. A viewer redeems a channel point reward (or

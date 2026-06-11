@@ -30,6 +30,10 @@
   const pick = (k, d, list) => { const v = (params.get(k) || '').toLowerCase(); return list.indexOf(v) >= 0 ? v : d; };
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+  // OBS / Streamlabs browser sources identify themselves in the UA. Used
+  // to keep the stream layer minimal: no sky backdrop, no idle hint card.
+  const IN_OBS = /OBS|Streamlabs|SLOBS/i.test(navigator.userAgent);
+
   const cfg = {
     sbHost:    params.get('sbHost') || '127.0.0.1',
     sbPort:    num('sbPort', 8080),
@@ -48,14 +52,17 @@
     announce:  flag('announce', false),
     demo:      flag('demo', false),
     test:      flag('test', false),
-    sky:       flag('sky', flag('demo', false)),
+    // sky backdrop: only for browser viewing. Never defaults on inside
+    // OBS (even with demo=1) so the broadcast underneath stays visible.
+    sky:       flag('sky', flag('demo', false) && !IN_OBS),
     dot:       flag('dot', true),
-    hint:      flag('hint', true)
+    hint:      flag('hint', true),
+    cam:       flag('cam', true),
+    // mean terrain surface as % of screen height (bigger = lower hills =
+    // less of the broadcast covered). 74 keeps the action in roughly the
+    // bottom quarter of the frame.
+    ground:    clamp(num('ground', 74), 50, 90) / 100
   };
-  // OBS / Streamlabs browser sources identify themselves in the UA. The
-  // idle hint card only ever shows in a real browser tab, so the overlay
-  // stays perfectly invisible between battles on stream.
-  const IN_OBS = /OBS|Streamlabs|SLOBS/i.test(navigator.userAgent);
   if (cfg.demo && params.get('lobby') == null) cfg.lobbySecs = 7;
 
   // ──────────────────────────────────────────────────────────────────
@@ -235,19 +242,23 @@
 
   function genTerrain() {
     const hm = new Float32Array(W);
-    let h = H * rand(0.58, 0.70), slope = 0;
+    // hills hug the bottom of the frame: the walk is fenced into a band
+    // around cfg.ground so the broadcast above stays uncovered
+    const bandLo = H * Math.max(0.50, cfg.ground - 0.12);
+    const bandHi = H * Math.min(0.93, cfg.ground + 0.14);
+    let h = H * (cfg.ground + rand(-0.05, 0.03)), slope = 0;
     const layers = [];
-    for (let i = 0; i < 3; i++) layers.push({ amp: rand(30, 90), wl: rand(300, 820), ph: rand(0, TAU) });
+    for (let i = 0; i < 3; i++) layers.push({ amp: rand(26, 70), wl: rand(300, 820), ph: rand(0, TAU) });
     for (let x = 0; x < W; x++) {
       slope += rand(-0.16, 0.16);
       slope *= 0.985;
       slope = clamp(slope, -1.25, 1.25);
       h += slope;
-      if (h < H * 0.42) { h = H * 0.42; slope = Math.abs(slope) * 0.4; }
-      if (h > H * 0.86) { h = H * 0.86; slope = -Math.abs(slope) * 0.4; }
+      if (h < bandLo) { h = bandLo; slope = Math.abs(slope) * 0.4; }
+      if (h > bandHi) { h = bandHi; slope = -Math.abs(slope) * 0.4; }
       let y = h;
       for (const L of layers) y += Math.sin(x / L.wl * TAU + L.ph) * L.amp * 0.22;
-      hm[x] = clamp(y, H * 0.34, H * 0.9);
+      hm[x] = clamp(y, H * 0.5, H * 0.93);
     }
     // two smoothing passes so tanks sit nicely
     for (let pass = 0; pass < 2; pass++) {
@@ -266,7 +277,7 @@
     }
     // paint
     Tx.clearRect(0, 0, W, H);
-    const grad = Tx.createLinearGradient(0, H * 0.34, 0, H);
+    const grad = Tx.createLinearGradient(0, H * 0.5, 0, H);
     grad.addColorStop(0, TH.dirtTop);
     grad.addColorStop(1, TH.dirtBot);
     Tx.fillStyle = grad;
@@ -281,7 +292,7 @@
     Tx.save();
     Tx.globalCompositeOperation = 'source-atop';
     for (let i = 0; i < 1100; i++) {
-      const x = rand(0, W), y = rand(H * 0.4, H);
+      const x = rand(0, W), y = rand(H * 0.55, H);
       Tx.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,.10)' : 'rgba(255,255,255,.05)';
       Tx.fillRect(x, y, rand(2, 9), rand(1.5, 3.5));
     }
@@ -357,11 +368,41 @@
     fade: 0, fadeT: 0,
     shake: 0,
     slotX: [], activator: null,
-    winner: null, result: '',
+    winner: null, result: '', camFocus: null,
     demoNext: cfg.demo ? nowMs() + 1200 : 0,
     demoJoins: []
   };
   const cur = () => players[st.turn] || null;
+
+  // ──────────────────────────────────────────────────────────────────
+  // CAMERA (follows the shot, holds on the impact, eases back out)
+  // ──────────────────────────────────────────────────────────────────
+  const cam = { x: W / 2, y: H / 2, z: 1 };
+  function camSnapHome() { cam.x = W / 2; cam.y = H / 2; cam.z = 1; }
+  function camUpdate(dt) {
+    let tx = W / 2, ty = H / 2, tz = 1;
+    if (cfg.cam) {
+      const p = cur();
+      if (st.phase === 'flight' && projectile) {
+        // pull back for sky-high mortar arcs so the shell never out-runs the view
+        tz = projectile.y < 150 ? 1 : 1.22;
+        tx = projectile.x + projectile.vx * 0.08;
+        ty = projectile.y + projectile.vy * 0.05;
+      } else if (st.phase === 'windup' && p) {
+        tz = 1.18; tx = p.x; ty = p.y - 50;
+      } else if (st.phase === 'settle' && st.camFocus) {
+        tz = 1.24; tx = st.camFocus.x; ty = st.camFocus.y;
+      } else if (st.phase === 'victory' && st.winner) {
+        tz = 1.28; tx = st.winner.x; ty = st.winner.y - 60;
+      }
+    }
+    cam.z += (tz - cam.z) * Math.min(1, 3.2 * dt);
+    const vw = W / cam.z, vh = H / cam.z;
+    tx = clamp(tx, vw / 2, W - vw / 2);
+    ty = clamp(ty, vh / 2, H - vh / 2);
+    cam.x += (tx - cam.x) * Math.min(1, 4.5 * dt);
+    cam.y += (ty - cam.y) * Math.min(1, 4.5 * dt);
+  }
 
   // ──────────────────────────────────────────────────────────────────
   // EFFECTS
@@ -417,8 +458,10 @@
   function openLobby(env) {
     if (st.phase !== 'idle') { toast('<b>' + esc(env.name) + '</b> a battle is already running'); return false; }
     genTerrain();
+    camSnapHome();
     players = []; wrecks = []; particles = []; rings = []; floaters = []; deathQueue = [];
     projectile = null;
+    st.camFocus = null;
     st.phase = 'lobby';
     st.turn = -1; st.round = 1; st.sudden = false; st.dmgMult = 1;
     st.winner = null; st.fadeT = 1; st.lastTickSec = -1;
@@ -552,6 +595,7 @@
     st.deadline = nowMs() + cfg.turnSecs * 1000;
     st.lastTickSec = -1;
     st.shot = null;
+    st.camFocus = null;
     elTurnWrap.style.opacity = 1;
     const nm = '<span class="pname" style="color:' + p.col.main + '">' + esc(p.name) + '</span>';
     setBanner(nm + (st.sudden ? ' · SUDDEN DEATH' : "'S TURN"),
@@ -589,6 +633,7 @@
 
   function explode(ex, ey, r, maxDmg, directTank) {
     carve(ex, ey, r);
+    st.camFocus = { x: ex, y: ey };
     burst(ex, ey, r > 50);
     st.shake = Math.max(st.shake, r > 50 ? 22 : 15);
     AU.boom(r > 50);
@@ -1041,6 +1086,7 @@
     const t = nowMs();
     st.fade += clamp(st.fadeT - st.fade, -dt * 1.6, dt * 1.6);
     st.shake = Math.max(0, st.shake - st.shake * 6 * dt);
+    camUpdate(dt);
 
     if (st.phase !== 'idle') tankPhysics(dt);
 
@@ -1360,8 +1406,13 @@
       sg.addColorStop(0.7, '#1d2c4a');
       sg.addColorStop(1, '#2a3c5e');
       cx.fillStyle = sg;
-      cx.fillRect(0, 0, W, H);
+      cx.fillRect(-st.shake - 2, -st.shake - 2, W + 2 * st.shake + 4, H + 2 * st.shake + 4);
     }
+
+    // shot-follow camera: world layer pans/zooms, HUD stays screen-space
+    cx.translate(W / 2, H / 2);
+    cx.scale(cam.z, cam.z);
+    cx.translate(-cam.x, -cam.y);
 
     cx.drawImage(T, 0, 0);
 
@@ -1505,6 +1556,8 @@
         current: cur() ? cur().name : null,
         players: players.map(p => ({ name: p.name, hp: p.hp, alive: p.alive, x: Math.round(p.x), y: Math.round(p.y), cpu: !!p.cpu, airborne: p.airborne || p.chute })),
         carves: carveCount, projectile: !!projectile,
+        cam: { x: Math.round(cam.x), y: Math.round(cam.y), z: +cam.z.toFixed(2) },
+        groundAvgY: Math.round(players.reduce((a, p) => a + p.y, 0) / (players.length || 1)),
         sb: sbConnected, tf: tfConnected
       };
     },

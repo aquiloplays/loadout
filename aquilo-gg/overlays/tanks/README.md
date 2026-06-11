@@ -72,9 +72,11 @@ sudden death doubles all damage so matches always end.
 | `wind` | `28` | max wind strength, `0` disables wind |
 | `cpu` | `1` | fill a lonely lobby with a CPU tank |
 | `theme` | `grass` | terrain look: `grass`, `desert`, `snow`, `void` |
+| `ground` | `74` | mean terrain surface as % of screen height (50-90). Bigger = lower hills = more of your broadcast visible. 74 keeps the action in roughly the bottom quarter |
+| `cam` | `1` | shot-follow camera: pushes in on the shooter, tracks the shell, holds on the impact, eases back out. `cam=0` for a fixed full-field view |
 | `vol` | `55` | sound volume 0-100, `0` mutes |
 | `announce` | `0` | post lobby/turn/win prompts into Twitch chat via SB |
-| `sky` | off (`1` in demo) | paint a sky behind the terrain, for testing outside OBS |
+| `sky` | off | paint a sky behind the terrain. Defaults on for `demo=1` in a normal browser only, never inside OBS/Streamlabs, so the broadcast underneath always shows through |
 | `test` | `0` | anyone may use `!tank` commands, for dry runs |
 | `demo` | `0` | endless bot matches, for layout previews |
 | `dot` | `1` | connection status pill when Streamer.bot is unreachable |
