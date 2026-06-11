@@ -743,6 +743,15 @@ export default {
       const { handlePowerdeck } = await import('./powerdeck.js');
       return handlePowerdeck(req, env, path);
     }
+    // Overlay test ping: a product customizer on aquilo.gg fires a
+    // placement test at the streamer's LIVE OBS browser source. The
+    // customizer appends pair=<token> to generated overlay URLs, POSTs
+    // /send; the overlay polls /pending and flashes a placement frame or
+    // runs its demo. See overlay-test.js.
+    if (path.startsWith('/api/overlay-test/')) {
+      const { handleOverlayTest } = await import('./overlay-test.js');
+      return handleOverlayTest(req, env, path);
+    }
     // Vault Hangar: the power-armor collection earned from gifted-sub Vertibird
     // drops. GET is public (the hangar overlay + aquilo.gg/hangar read it).
     // The test-drop POST is token-gated so Clay can fire a drop from a button.
