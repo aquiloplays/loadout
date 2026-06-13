@@ -31,7 +31,6 @@
 // event id; without dedupe a stream.online retry would re-post the
 // embed.
 
-import { postLiveEmbed, markStreamOffline } from './twitch-live.js';
 import {
   isTwitchConfigured,
   hasTwitchUserAuth,
@@ -132,14 +131,13 @@ export async function handleEventSubWebhook(req, env, ctx) {
     // ACK fast, handlers run via waitUntil so slow Discord posts
     // can't push us past Twitch's 10-sec timeout.
     if (subType === 'stream.online' && broadcasterId) {
-      // Single work unit: postLiveEmbed, twitch-live.js's edit-in-place
-      // lifecycle card on the existing `live` binding. Clay handles the
-      // "going live" announce via this same lifecycle card; the bigger
-      // separate announce embed was removed to avoid double-firing.
-      ctx.waitUntil(postLiveEmbed(env, broadcasterId).catch(e =>
-        console.warn('[twitch-eventsub] postLiveEmbed', e?.message || e)));
-      // 2026-05-29 sprint, dynamic dashboard embed in the
-      // live-status-embed binding (defaults to 1507973917350957067).
+      // The live-now dashboard post (live-status-embed, defaults to
+      // 1507973917350957067) IS the "going live" announcement: it
+      // @-mentions the Stream Pings role once, then refreshes viewer
+      // count per-minute. The older edit-in-place lifecycle card
+      // (twitch-live.js postLiveEmbed) targeted the SAME channel and
+      // was retired to stop the double-post, all going-live behaviour
+      // lives in the dashboard now.
       ctx.waitUntil((async () => {
         try {
           const { handleStreamOnline } = await import('./live-status-embed.js');
@@ -147,19 +145,20 @@ export async function handleEventSubWebhook(req, env, ctx) {
         } catch (e) { console.warn('[twitch-eventsub] live-status online', e?.message || e); }
       })());
     } else if (subType === 'stream.offline' && broadcasterId) {
-      // markStreamOffline edits the lifecycle card AND clears state;
-      // we capture the state BEFORE that so the summary embed can
-      // surface peak viewers + duration even after cleanup.
+      // The dashboard post is DELETED on offline + the latest VOD is
+      // dropped in the videos channel (handleStreamOffline). The
+      // separate "stream ended" summary still fires for the
+      // stream-notifications binding if one is bound (no-ops otherwise).
+      // lifecycleState is best-effort, only present if the retired
+      // twitch-live.js card happens to have left state behind.
       ctx.waitUntil((async () => {
         let lifecycleState = null;
         try {
           lifecycleState = await env.LOADOUT_BOLTS.get(`twitch:live:state:${broadcasterId}`, { type: 'json' });
         } catch { /* ignore */ }
-        await markStreamOffline(env, broadcasterId).catch(e =>
-          console.warn('[twitch-eventsub] markStreamOffline', e?.message || e));
         await handleStreamEndedSummary(env, payload, { getStreamInfo, getUserById }, lifecycleState)
           .catch(e => console.warn('[twitch-eventsub] handleStreamEndedSummary', e?.message || e));
-        // 2026-05-29 sprint, also tear down the dashboard embed.
+        // Delete the live dashboard post + drop the VOD.
         try {
           const { handleStreamOffline } = await import('./live-status-embed.js');
           await handleStreamOffline(env, broadcasterId);

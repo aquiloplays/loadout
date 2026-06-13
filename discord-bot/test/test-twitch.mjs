@@ -183,17 +183,17 @@ console.log('- EventSub webhook: notification + replay swallow');
   });
   const r1 = await handleEventSubWebhook(make(), env, ctx);
   eq(r1.status, 204, 'first delivery → 204');
-  // stream.online schedules TWO work units:
-  //   1. twitch-live.js edit-in-place lifecycle card (postLiveEmbed)
-  //   2. live-status-embed.js dashboard handler (per-minute refresh)
-  // The bigger announce embed was removed, Clay's lifecycle card IS
-  // the going-live notif; the dashboard is a separate refreshing
-  // surface in 1507973917350957067.
-  eq(calls.length, 2, 'two waitUntil queued (lifecycle + dashboard)');
+  // stream.online schedules ONE work unit: the live-status-embed
+  // dashboard handler. It IS the going-live notification, it @-mentions
+  // the Stream Pings role once on post then refreshes viewer count
+  // per-minute. The older twitch-live.js lifecycle card (postLiveEmbed)
+  // targeted the SAME channel (1507973917350957067) and was retired to
+  // stop the double-post.
+  eq(calls.length, 1, 'one waitUntil queued (dashboard)');
   // Replay, same message-id. Should be swallowed without scheduling.
   const r2 = await handleEventSubWebhook(make(), env, ctx);
   eq(r2.status, 200, 'replay → 200');
-  eq(calls.length, 2, 'no extra waitUntil on replay');
+  eq(calls.length, 1, 'no extra waitUntil on replay');
 }
 
 console.log('- EventSub webhook: revocation acks 200');

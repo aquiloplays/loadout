@@ -18,12 +18,23 @@
 //     hypeTrain?: { level, percent, expiresUtc }, updatedUtc
 //   }
 
-import { getStreamInfo, getUserById } from './twitch-helix.js';
+import { getStreamInfo, getUserById, getRecentVod } from './twitch-helix.js';
 import { resolveTwitchLogin } from './twitch-login-resolver.js';
 import { getChannelBinding } from './channel-bindings.js';
 
 const DEFAULT_CHANNEL_ID = '1507973917350957067';
 const KEY = (g) => `live-status-embed:${g}`;
+// Role pinged once on go-live + channel the VOD drops in. Both fall back
+// to the live ids if the env vars aren't set (e.g. pre-redeploy).
+const STREAM_PING_ROLE_ID = (env) => String(env.STREAM_PING_ROLE_ID || '1507973871872114709').trim();
+const VOD_CHANNEL_ID      = (env) => String(env.VOD_CHANNEL_ID      || '1507973921851576462').trim();
+// VOD-drop lifecycle. On stream.offline we arm a pending record and the
+// per-minute cron retries getRecentVod until the recording is ready
+// (Twitch often isn't done processing the instant the stream ends) or
+// the retry window lapses.
+const VOD_PENDING_KEY = (g)  => `twitch:vod-pending:${g}`;
+const VOD_POSTED_KEY  = (id) => `twitch:vod-posted:${id}`;
+const VOD_RETRY_WINDOW_MS = 20 * 60 * 1000;   // give up posting after 20m
 // Embed cache TTL, Discord caches embed images by URL; cache-bust
 // query bumps every minute so the thumbnail re-fetches.
 
@@ -84,6 +95,35 @@ function buildEmbed({ stream, login, hypeTrain }) {
   return { embeds: [embed], components };
 }
 
+// VOD-drop embed posted to the videos channel after a stream ends.
+function buildVodEmbed(vod, login) {
+  const thumb = (vod.thumbnail_url || '')
+    .replace('%{width}', '1280').replace('%{height}', '720')
+    .replace('{width}',  '1280').replace('{height}', '720');
+  const createdSec = vod.created_at ? Math.floor(Date.parse(vod.created_at) / 1000) : null;
+  // Twitch duration is e.g. "3h21m4s", space it out for readability.
+  const dur = (vod.duration || '').replace(/([a-z])(?=\d)/gi, '$1 ');
+  const fields = [];
+  if (dur)        fields.push({ name: '⏱ Duration', value: dur, inline: true });
+  if (createdSec) fields.push({ name: '📅 Streamed', value: `<t:${createdSec}:D>`, inline: true });
+  const embed = {
+    title: (vod.title || 'Past Broadcast').slice(0, 256),
+    url: vod.url || (login ? `https://twitch.tv/${login}/videos` : undefined),
+    description: '📼 The VOD from the last stream is up, catch anything you missed.',
+    color: 0x9146FF,
+    image: thumb ? { url: thumb } : undefined,
+    fields: fields.length ? fields : undefined,
+    footer: { text: login ? `twitch.tv/${login}` : 'Twitch' },
+    timestamp: vod.created_at || undefined,
+  };
+  const components = vod.url
+    ? [{ type: 1, components: [
+        { type: 2, style: 5, label: 'Watch VOD', url: vod.url, emoji: { name: '📺' } },
+      ] }]
+    : undefined;
+  return { embeds: [embed], ...(components ? { components } : {}) };
+}
+
 async function discordPost(env, channelId, payload) {
   const r = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
     method: 'POST',
@@ -140,6 +180,13 @@ export async function handleStreamOnline(env, broadcasterId) {
   if (!stream) return { ok: false, error: 'stream-offline' };
   const login = await loginFor(env, broadcasterId);
   const payload = buildEmbed({ stream, login });
+  // The role @-mention lives ONLY on the first POST so going live pings
+  // the role once. Refresh PATCHes reuse `payload` (no content field), so
+  // Discord leaves the original text in place and never re-notifies.
+  const pingRoleId = STREAM_PING_ROLE_ID(env);
+  const postPayload = pingRoleId
+    ? { ...payload, content: `<@&${pingRoleId}>`, allowed_mentions: { roles: [pingRoleId] } }
+    : payload;
 
   // Idempotent: if KV already tracks a message, PATCH instead of POST.
   const existing = await env.LOADOUT_BOLTS.get(KEY(guildId), { type: 'json' });
@@ -156,7 +203,7 @@ export async function handleStreamOnline(env, broadcasterId) {
     await env.LOADOUT_BOLTS.delete(KEY(guildId));
   }
 
-  const r = await discordPost(env, channelId, payload);
+  const r = await discordPost(env, channelId, postPayload);
   if (!r.ok) return { ok: false, error: 'post-failed', ...r };
   const rec = {
     messageId:    r.msg.id,
@@ -176,8 +223,13 @@ export async function refreshLiveStatusEmbed(env) {
   if (!env.DISCORD_BOT_TOKEN) return { ok: true, skipped: 'no-bot-token' };
   const guildId = await activeGuildId(env);
   if (!guildId) return { ok: true, skipped: 'no-guild' };
+  // VOD drop runs every tick, independent of the dashboard embed: once
+  // the stream ends the dashboard KV is gone, but a pending-VOD record
+  // may still be waiting for Twitch to finish the recording. Cheap (one
+  // KV read) and no-ops fast when nothing is pending.
+  const vod = await tryPostPendingVod(env).catch(e => ({ ok: false, error: String(e?.message || e) }));
   const rec = await env.LOADOUT_BOLTS.get(KEY(guildId), { type: 'json' });
-  if (!rec?.messageId) return { ok: true, skipped: 'no-tracked-embed' };
+  if (!rec?.messageId) return { ok: true, skipped: 'no-tracked-embed', vod };
 
   const stream = await getStreamInfo(env, rec.broadcasterId);
   if (!stream) {
@@ -247,8 +299,84 @@ export async function handleStreamOffline(env, broadcasterId) {
   const guildId = await activeGuildId(env);
   if (!guildId) return { ok: true, skipped: 'no-guild' };
   const rec = await env.LOADOUT_BOLTS.get(KEY(guildId), { type: 'json' });
-  if (!rec?.messageId) return { ok: true, skipped: 'no-tracked-embed' };
-  await discordDelete(env, rec.channelId, rec.messageId);
-  await env.LOADOUT_BOLTS.delete(KEY(guildId));
-  return { ok: true, action: 'deleted', messageId: rec.messageId };
+
+  // Arm the VOD-drop BEFORE deleting the dashboard so the per-minute cron
+  // can post the VOD once Twitch finishes processing it (the recording
+  // usually isn't ready the instant stream.offline fires). The pending
+  // record carries the stream start so we can tell this stream's VOD
+  // apart from an older one. Self-expiring KV TTL is a backstop in case
+  // the cron path is ever disabled.
+  if (VOD_CHANNEL_ID(env)) {
+    await env.LOADOUT_BOLTS.put(VOD_PENDING_KEY(guildId), JSON.stringify({
+      broadcasterId,
+      startedAtIso: rec?.startedAtIso || null,
+      deadlineUtc:  Date.now() + VOD_RETRY_WINDOW_MS,
+    }), { expirationTtl: Math.ceil(VOD_RETRY_WINDOW_MS / 1000) + 120 });
+  }
+
+  // Delete the live dashboard post (the "going live" message goes away
+  // when the stream ends).
+  let deleted = false;
+  if (rec?.messageId) {
+    await discordDelete(env, rec.channelId, rec.messageId);
+    await env.LOADOUT_BOLTS.delete(KEY(guildId));
+    deleted = true;
+  }
+
+  // Best-effort immediate VOD attempt, the archive is often already
+  // available; if not, the per-minute cron keeps retrying.
+  const vod = await tryPostPendingVod(env).catch(() => null);
+  return { ok: true, action: deleted ? 'deleted' : 'no-embed',
+    messageId: rec?.messageId || null, vod };
+}
+
+// Post the pending stream's VOD to the videos channel, with retry. Reads
+// the pending record armed by handleStreamOffline; no-ops when nothing is
+// pending. Returns a status the cron logs. Self-clears on success, on a
+// confirmed duplicate, or once the retry window lapses.
+export async function tryPostPendingVod(env) {
+  if (!env.DISCORD_BOT_TOKEN) return { ok: true, skipped: 'no-bot-token' };
+  const guildId = await activeGuildId(env);
+  if (!guildId) return { ok: true, skipped: 'no-guild' };
+  const pend = await env.LOADOUT_BOLTS.get(VOD_PENDING_KEY(guildId), { type: 'json' });
+  if (!pend) return { ok: true, skipped: 'no-pending' };
+
+  // Retry window lapsed (VOD storage off, or processing never finished).
+  if (pend.deadlineUtc && Date.now() > pend.deadlineUtc) {
+    await env.LOADOUT_BOLTS.delete(VOD_PENDING_KEY(guildId));
+    return { ok: true, action: 'gave-up', reason: 'deadline' };
+  }
+  const vodChannelId = VOD_CHANNEL_ID(env);
+  if (!vodChannelId) {
+    await env.LOADOUT_BOLTS.delete(VOD_PENDING_KEY(guildId));
+    return { ok: true, skipped: 'no-vod-channel' };
+  }
+
+  const vod = await getRecentVod(env, pend.broadcasterId).catch(() => null);
+  if (!vod) return { ok: true, action: 'waiting', reason: 'no-vod-yet' };
+
+  // Make sure this is the just-ended stream's VOD, not a leftover from a
+  // previous broadcast: its created_at should be at/after the stream
+  // start (with a 10-min grace). If it's older, keep waiting for the
+  // right one to finish processing.
+  if (pend.startedAtIso) {
+    const floor = Date.parse(pend.startedAtIso) - 10 * 60_000;
+    if (Number.isFinite(floor) && Date.parse(vod.created_at || '') < floor) {
+      return { ok: true, action: 'waiting', reason: 'vod-older-than-stream' };
+    }
+  }
+
+  // Dedupe so a retry (or a missed-offline re-fire) can't double-post.
+  const dedupeKey = VOD_POSTED_KEY(vod.id);
+  if (await env.LOADOUT_BOLTS.get(dedupeKey)) {
+    await env.LOADOUT_BOLTS.delete(VOD_PENDING_KEY(guildId));
+    return { ok: true, action: 'already-posted', vodId: vod.id };
+  }
+
+  const login = await loginFor(env, pend.broadcasterId);
+  const r = await discordPost(env, vodChannelId, buildVodEmbed(vod, login));
+  if (!r.ok) return { ok: false, error: 'vod-post-failed', ...r };
+  await env.LOADOUT_BOLTS.put(dedupeKey, '1', { expirationTtl: 7 * 24 * 60 * 60 });
+  await env.LOADOUT_BOLTS.delete(VOD_PENDING_KEY(guildId));
+  return { ok: true, action: 'posted', vodId: vod.id, messageId: r.msg.id };
 }

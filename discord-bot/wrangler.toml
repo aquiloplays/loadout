@@ -113,6 +113,16 @@ CLIPS_CHANNEL_ID = "1507973908089802945"       # 📸│media-and-clips
 # EventSub posts an embed here that's refreshed on each :17 cron tick
 # (and switched to "stream ended" copy on stream.offline).
 LIVE_CHANNEL_ID = ""
+# Role @-mentioned when the stream goes live. The live-now dashboard post
+# pings it ONCE on go-live (editing the embed on refresh never re-pings).
+# Empty disables the ping. Falls back to the hardcoded id in
+# live-status-embed.js if unset.
+STREAM_PING_ROLE_ID = "1507973871872114709"    # Stream Pings role
+# Twitch VOD drop target. When the stream ends, the bot posts the latest
+# archive VOD here (retried for a few minutes until Twitch finishes the
+# recording). Empty disables VOD posting. Requires "Store past
+# broadcasts" enabled on the Twitch channel or no VOD will ever exist.
+VOD_CHANNEL_ID = "1507973921851576462"         # 🎬│videos
 # Weekly recap target — Sunday 8pm ET cron posts a single styled
 # embed here summarising the past 7 days. Empty = no-op.
 RECAP_CHANNEL_ID = ""

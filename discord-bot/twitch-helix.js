@@ -253,6 +253,22 @@ export async function getRecentClips(env, broadcasterId, startedAtIso) {
   return j.data;
 }
 
+// Returns the broadcaster's most-recent ARCHIVE video (a past-broadcast
+// VOD) or null. Used by the stream-offline path to drop the VOD link in
+// the videos channel. `type=archive` filters out highlights/uploads;
+// `sort=time` + `first=1` gives just the newest. null when VOD storage
+// is off (no archives exist) or Twitch isn't configured.
+export async function getRecentVod(env, broadcasterId) {
+  const j = await helixFetch(env, '/videos', {
+    user_id: broadcasterId,
+    type:    'archive',
+    sort:    'time',
+    first:   1,
+  });
+  if (!j || !Array.isArray(j.data) || j.data.length === 0) return null;
+  return j.data[0];
+}
+
 // ── EventSub subscriptions ────────────────────────────────────────
 //
 // Create a subscription for a given (type, condition) pair. Idempotent
