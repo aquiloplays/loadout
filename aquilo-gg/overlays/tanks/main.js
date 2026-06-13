@@ -47,7 +47,7 @@
     hp:        clamp(Math.round(num('hp', 100)), 20, 999),
     windMax:   clamp(num('wind', 28), 0, 100),
     cpuFill:   flag('cpu', true),
-    theme:     pick('theme', 'grass', ['grass', 'desert', 'snow', 'void']),
+    theme:     pick('theme', 'grass', ['grass', 'desert', 'snow', 'void', 'lava']),
     vol:       clamp(num('vol', 55), 0, 100),
     announce:  flag('announce', false),
     demo:      flag('demo', false),
@@ -61,7 +61,23 @@
     // mean terrain surface as % of screen height (bigger = lower hills =
     // less of the broadcast covered). 74 keeps the action in roughly the
     // bottom quarter of the frame.
-    ground:    clamp(num('ground', 74), 50, 90) / 100
+    ground:    clamp(num('ground', 74), 50, 90) / 100,
+    // spectator strikes: bits / TikTok diamonds buy battlefield events
+    strikes:   flag('strikes', true),
+    windCost:    clamp(num('windCost', 20), 1, 1e6),
+    crateCost:   clamp(num('crateCost', 100), 1, 1e6),
+    strikeCost:  clamp(num('strikeCost', 300), 1, 1e6),
+    barrageCost: clamp(num('barrageCost', 1000), 1, 1e6),
+    crateHeal:   clamp(Math.round(num('crateHeal', 25)), 1, 200),
+    // arsenal: special shots per player per match
+    nukes:     clamp(Math.round(num('nukes', 1)), 0, 5),
+    digs:      clamp(Math.round(num('digs', 1)), 0, 5),
+    // neutral supply crates that drop between rounds
+    roundCrates: flag('crates', true),
+    // Streamer.bot action fired on victory (winAction=0 disables)
+    winAction: (() => { const v = params.get('winAction'); if (v === '0' || v === 'off') return ''; return v || 'Tanks · Winner'; })(),
+    // Discord webhook for a match recap embed
+    discord:   params.get('discord') || ''
   };
   if (cfg.demo && params.get('lobby') == null) cfg.lobbySecs = 7;
 
@@ -87,7 +103,8 @@
     grass:  { dirtTop: '#6b4a2e', dirtBot: '#332012', cap: '#54c14e', capHi: '#8fe06a', bedrock: '#1b1410', chunk: ['#6b4a2e', '#4a3220', '#54c14e'] },
     desert: { dirtTop: '#cda35f', dirtBot: '#7a5a2c', cap: '#e9cd86', capHi: '#f7e3ad', bedrock: '#4a3a1d', chunk: ['#cda35f', '#a37c3f', '#e9cd86'] },
     snow:   { dirtTop: '#aebed2', dirtBot: '#5d6f8a', cap: '#ffffff', capHi: '#ffffff', bedrock: '#3a4456', chunk: ['#dfe8f2', '#aebed2', '#ffffff'] },
-    void:   { dirtTop: '#3b2f6e', dirtBot: '#171228', cap: '#2de2c5', capHi: '#9af3e3', bedrock: '#0d0a18', chunk: ['#3b2f6e', '#272050', '#2de2c5'] }
+    void:   { dirtTop: '#3b2f6e', dirtBot: '#171228', cap: '#2de2c5', capHi: '#9af3e3', bedrock: '#0d0a18', chunk: ['#3b2f6e', '#272050', '#2de2c5'] },
+    lava:   { dirtTop: '#5c4a44', dirtBot: '#241a16', cap: '#8a6a5a', capHi: '#b08a73', bedrock: '#7a1d04', chunk: ['#5c4a44', '#3a2c26', '#ff7b2e'], lava: true }
   };
   const TH = THEMES[cfg.theme];
   const CPU_NAMES = ['RUSTY', 'VOLT', 'SPROCKET', 'PISTON'];
@@ -210,6 +227,10 @@
       tick()      { tone(1180, 0.045, 'square', 0.1); },
       dud()       { tone(220, 0.18, 'sawtooth', 0.2, 110); },
       sting()     { tone(196, 0.3, 'sawtooth', 0.4, 98); tone(98, 0.5, 'sawtooth', 0.4, 49, 0.18); },
+      siren()     { for (let i = 0; i < 3; i++) tone(880, 0.34, 'square', 0.16, 440, i * 0.38); },
+      chime()     { tone(784, 0.16, 'triangle', 0.3, null, 0); tone(1175, 0.3, 'triangle', 0.3, null, 0.12); },
+      rumble()    { noise(0.5, 0.4, 320, 90); },
+      sizzle()    { noise(0.3, 0.25, 4200, 1800); },
       fanfare()   { [523, 659, 784, 1047].forEach((f, i) => { tone(f, 0.38, 'triangle', 0.4, null, i * 0.13); tone(f / 2, 0.38, 'sine', 0.25, null, i * 0.13); }); }
     };
   })();
@@ -310,9 +331,20 @@
     Tx.beginPath();
     for (let x = 0; x <= W; x += 3) { const y = hm[clamp(x, 0, W - 1)] - 3; x === 0 ? Tx.moveTo(x, y) : Tx.lineTo(x, y); }
     Tx.stroke();
-    // bedrock strip
-    Tx.fillStyle = TH.bedrock;
-    Tx.fillRect(0, H - BEDROCK, W, BEDROCK);
+    // bedrock strip (molten lava on the lava theme)
+    if (TH.lava) {
+      const lg = Tx.createLinearGradient(0, H - BEDROCK, 0, H);
+      lg.addColorStop(0, '#ffd24a');
+      lg.addColorStop(0.4, '#ff6a1f');
+      lg.addColorStop(1, '#7a1d04');
+      Tx.fillStyle = lg;
+      Tx.fillRect(0, H - BEDROCK, W, BEDROCK);
+      Tx.fillStyle = 'rgba(255,247,210,.9)';
+      Tx.fillRect(0, H - BEDROCK, W, 2);
+    } else {
+      Tx.fillStyle = TH.bedrock;
+      Tx.fillRect(0, H - BEDROCK, W, BEDROCK);
+    }
     carveCount = 0;
   }
 
@@ -356,6 +388,21 @@
   let floaters = [];                // damage numbers
   let projectile = null;
   let deathQueue = [];              // tanks waiting for their death boom
+  let bombs = [];                   // airstrike / barrage shells
+  let crates = [];                  // falling supply crates
+  let drill = null;                 // active !dig tunnel bore
+  const strikeQ = [];               // queued spectator strikes
+  let nextStrikeAt = 0, lastWindNudge = 0;
+
+  // reigning champion, persisted across sessions (consecutive win streak)
+  let champ = null;
+  try { champ = JSON.parse(localStorage.getItem('tanks-champ') || 'null'); } catch (e) {}
+  function saveChamp(w) {
+    if (!w) return;
+    if (champ && champ.name === w.name) champ.wins++;
+    else champ = { name: w.name, plat: w.plat, wins: 1 };
+    try { localStorage.setItem('tanks-champ', JSON.stringify(champ)); } catch (e) {}
+  }
 
   const st = {
     phase: 'idle',                  // idle lobby starting aim windup flight settle between victory cancel
@@ -369,8 +416,9 @@
     shake: 0,
     slotX: [], activator: null,
     winner: null, result: '', camFocus: null,
+    recapSent: false, shotsFired: 0,
     demoNext: cfg.demo ? nowMs() + 1200 : 0,
-    demoJoins: []
+    demoJoins: [], demoStrikeAt: 0
   };
   const cur = () => players[st.turn] || null;
 
@@ -388,6 +436,12 @@
         tz = projectile.y < 150 ? 1 : 1.22;
         tx = projectile.x + projectile.vx * 0.08;
         ty = projectile.y + projectile.vy * 0.05;
+      } else if (st.phase === 'flight' && drill) {
+        tz = 1.3; tx = drill.x; ty = drill.y;
+      } else if (bombs.length) {
+        // frame the lowest incoming bomb so chat sees the strike land
+        const b = bombs.reduce((a, c) => (c.y > a.y ? c : a));
+        tz = 1.06; tx = b.x; ty = clamp(b.y + 80, H / 2, H);
       } else if (st.phase === 'windup' && p) {
         tz = 1.18; tx = p.x; ty = p.y - 50;
       } else if (st.phase === 'settle' && st.camFocus) {
@@ -460,16 +514,20 @@
     genTerrain();
     camSnapHome();
     players = []; wrecks = []; particles = []; rings = []; floaters = []; deathQueue = [];
+    bombs = []; crates = []; drill = null; strikeQ.length = 0;
     projectile = null;
     st.camFocus = null;
     st.phase = 'lobby';
     st.turn = -1; st.round = 1; st.sudden = false; st.dmgMult = 1;
     st.winner = null; st.fadeT = 1; st.lastTickSec = -1;
+    st.recapSent = false; st.shotsFired = 0;
     st.activator = env;
     st.slotX = slotPositions(cfg.maxPlayers);
     st.deadline = nowMs() + cfg.lobbySecs * 1000;
     elLobbySub.innerHTML = 'redeemed by <b>' + esc(env.name) + '</b>';
-    elLobbyFoot.innerHTML = 'type <b>!join</b> to enter · battle starts when full';
+    elLobbyFoot.innerHTML = champ
+      ? 'defending champ <b>' + esc(champ.name) + '</b> · ' + champ.wins + '-win streak · type <b>!join</b>'
+      : 'type <b>!join</b> to enter · battle starts when full';
     elHud.classList.remove('show');
     elLobby.classList.add('show');
     refreshIdleCard();
@@ -490,7 +548,8 @@
       col: COLORS[i], x, y: -50, vx: 0, vy: 130,
       hp: cfg.hp, alive: true, airborne: true, chute: true,
       fallFrom: -50, barrel: x < W / 2 ? 60 : 120, targetBarrel: x < W / 2 ? 60 : 120,
-      skips: 0, flash: 0, tilt: 0
+      skips: 0, flash: 0, tilt: 0, burn: 0,
+      nukes: cfg.nukes, digs: cfg.digs
     });
     AU.pop();
     renderSlots(i);
@@ -582,6 +641,10 @@
         AU.sting();
         toast('<b>SUDDEN DEATH</b> · double damage');
       }
+      // a fresh supply crate parachutes in to fight over (aiming target)
+      if (cfg.roundCrates && crates.filter(c => c.kind === 'bonus').length < 2 && Math.random() < 0.6) {
+        crates.push({ kind: 'bonus', x: rand(W * 0.15, W * 0.85), y: -50, vy: 90, landed: false });
+      }
     }
     st.turn = idx;
     st.wind = cfg.windMax > 0 ? Math.round(rand(-cfg.windMax, cfg.windMax)) : 0;
@@ -591,6 +654,20 @@
 
   function beginAim() {
     const p = cur();
+    // lava hazard: a tank resting in the molten channel burns at turn start
+    if (TH.lava && !p.airborne && !p.chute && surfaceTopAt(p.x) >= H - BEDROCK - 2) {
+      const dmg = Math.round(12 * st.dmgMult);
+      p.hp -= dmg; p.flash = 1;
+      AU.sizzle();
+      floater(p.x, p.y - 80, '-' + dmg + ' BURN', '#ff7b2e', true);
+      for (let i = 0; i < 10; i++) particles.push({ type: 'spark', x: p.x + rand(-16, 16), y: p.y, vx: rand(-60, 60), vy: -rand(120, 320), g: 380, age: 0, life: rand(0.3, 0.7), size: rand(2, 3.4), color: Math.random() < 0.5 ? '#ffd24a' : '#ff6a1f' });
+      if (p.hp <= 0) {
+        p.hp = 0; p.alive = false; deathQueue.push(p);
+        st.result = '<b>' + esc(p.name) + '</b> sank into the lava';
+        st.phase = 'settle'; st.settleClear = 0;
+        return;
+      }
+    }
     st.phase = 'aim';
     st.deadline = nowMs() + cfg.turnSecs * 1000;
     st.lastTickSec = -1;
@@ -598,24 +675,41 @@
     st.camFocus = null;
     elTurnWrap.style.opacity = 1;
     const nm = '<span class="pname" style="color:' + p.col.main + '">' + esc(p.name) + '</span>';
-    setBanner(nm + (st.sudden ? ' · SUDDEN DEATH' : "'S TURN"),
-      p.cpu ? 'computing trajectory…' : 'type <b>!shoot 45</b> · with power: <b>!shoot 45 80</b>', st.sudden);
+    let sub;
+    if (p.cpu) sub = 'computing trajectory…';
+    else {
+      sub = 'type <b>!shoot 45</b> · with power: <b>!shoot 45 80</b>';
+      const ars = [];
+      if (p.nukes > 0) ars.push('<b>!nuke</b> ×' + p.nukes);
+      if (p.digs > 0) ars.push('<b>!dig</b> ×' + p.digs);
+      if (ars.length) sub += ' · ' + ars.join(' · ');
+    }
+    setBanner(nm + (st.sudden ? ' · SUDDEN DEATH' : "'S TURN"), sub, st.sudden);
     if (p.cpu) st.cpuAt = nowMs() + rand(1400, 2900);
     else say('@' + p.name + ' you are up! !shoot <angle 0-180>, optional power: !shoot 60 85');
   }
 
-  function handleShoot(p, angle, power) {
+  function handleShoot(p, angle, power, weapon) {
     if (st.phase !== 'aim' || !p || p !== cur() || !p.alive) return;
+    weapon = weapon || 'shell';
+    if (weapon === 'nuke') {
+      if (p.nukes <= 0) { toast('<b>' + esc(p.name) + '</b> no nukes left · use <b>!shoot</b>'); return; }
+      p.nukes--;
+    } else if (weapon === 'dig') {
+      if (p.digs <= 0) { toast('<b>' + esc(p.name) + '</b> no digs left · use <b>!shoot</b>'); return; }
+      p.digs--;
+    }
     angle = clamp(Math.round(angle), 0, 180);
     power = clamp(Math.round(power == null || isNaN(power) ? 70 : power), 10, 100);
     p.skips = 0;
-    st.shot = { angle, power };
+    st.shot = { angle, power, weapon };
     p.targetBarrel = angle;
     st.phase = 'windup';
     st.windupAt = nowMs();
     elTurnWrap.style.opacity = 0;
     const nm = '<span class="pname" style="color:' + p.col.main + '">' + esc(p.name) + '</span>';
-    setBanner(nm + ' FIRES', 'angle <b>' + angle + '°</b> · power <b>' + power + '</b>');
+    const verb = weapon === 'nuke' ? ' GOES NUCLEAR' : weapon === 'dig' ? ' DRILLS' : ' FIRES';
+    setBanner(nm + verb, 'angle <b>' + angle + '°</b> · power <b>' + power + '</b>');
   }
 
   function spawnProjectile() {
@@ -624,9 +718,10 @@
     const dx = Math.cos(rad), dy = -Math.sin(rad);
     const bx = p.x + dx * 34, by = p.y - 27 + dy * 34;
     const v = 240 + 9.2 * s.power;
-    projectile = { x: bx, y: by, vx: dx * v, vy: dy * v, born: nowMs(), trail: [], cleared: false, shooter: p };
+    projectile = { x: bx, y: by, vx: dx * v, vy: dy * v, born: nowMs(), trail: [], cleared: false, shooter: p, weapon: s.weapon || 'shell' };
     muzzleFx(bx, by, dx, dy);
-    st.shake = Math.max(st.shake, 5);
+    st.shake = Math.max(st.shake, s.weapon === 'nuke' ? 9 : 5);
+    st.shotsFired++;
     AU.fire();
     st.phase = 'flight';
   }
@@ -692,9 +787,12 @@
         elVicName.appendChild(ic);
       }
       elVicName.appendChild(span);
-      elVicSub.textContent = 'last tank standing · gg';
+      if (!winner.cpu) saveChamp(winner);
+      const streak = champ && champ.name === winner.name ? champ.wins : 1;
+      elVicSub.textContent = streak > 1 ? 'last tank standing · ' + streak + '-win streak 👑' : 'last tank standing · gg';
       AU.fanfare();
-      say('@' + winner.name + ' wins the TANK BATTLE! gg');
+      say('@' + winner.name + ' wins the TANK BATTLE!' + (streak > 1 ? ' (' + streak + '-win streak)' : '') + ' gg');
+      fireWinAction(winner, streak);
     } else {
       elVicCrown.textContent = '💥';
       elVicLabel.textContent = 'DRAW';
@@ -705,6 +803,50 @@
       AU.boom(true);
     }
     elVic.classList.add('show');
+    sendRecap(winner);
+  }
+
+  // fire a Streamer.bot action on victory so the streamer can wire bolts,
+  // a shoutout, anything, without touching this overlay.
+  function fireWinAction(winner, streak) {
+    if (!cfg.winAction || !sbWS || sbWS.readyState !== 1) return;
+    try {
+      sbWS.send(JSON.stringify({
+        request: 'DoAction',
+        id: 'tanks-win',
+        action: { name: cfg.winAction },
+        args: { winner: winner.name, platform: winner.plat, streak: streak, round: st.round }
+      }));
+    } catch (e) {}
+  }
+
+  // optional Discord webhook: a tidy match-recap embed with final standings
+  function sendRecap(winner) {
+    if (!cfg.discord || st.recapSent) return;
+    st.recapSent = true;
+    const order = players.slice().sort((a, b) => (b.alive - a.alive) || (b.hp - a.hp));
+    const medal = ['🥇', '🥈', '🥉', '4️⃣'];
+    const standings = order.map((p, i) =>
+      (medal[i] || '•') + ' **' + p.name + '**' + (p.cpu ? ' (CPU)' : '') +
+      ' — ' + (p.alive ? p.hp + ' hp' : 'KO')).join('\n');
+    const embed = {
+      title: '🛡️ Tank Battle' + (winner ? ' — ' + winner.name + ' wins!' : ' — draw'),
+      description: standings,
+      color: winner ? 0x2de2c5 : 0xff5c5c,
+      fields: [
+        { name: 'Rounds', value: String(st.round), inline: true },
+        { name: 'Shots fired', value: String(st.shotsFired), inline: true },
+        { name: 'Craters', value: String(carveCount), inline: true }
+      ],
+      footer: { text: 'aquilo.gg/tanks' }
+    };
+    try {
+      fetch(cfg.discord, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'Tank Battle', embeds: [embed] })
+      }).catch(() => {});
+    } catch (e) {}
   }
 
   function resetIdle() {
@@ -715,6 +857,7 @@
     elHud.classList.remove('show');
     projectile = null;
     deathQueue = [];
+    bombs = []; crates = []; drill = null; strikeQ.length = 0;
     if (cfg.demo) st.demoNext = nowMs() + 5200;
     refreshIdleCard();
   }
@@ -773,7 +916,7 @@
   function onChat(env) {
     const text = String(env.text || '').trim();
     if (!text.startsWith('!')) return;
-    const m = text.match(/^!(join|shoot|fire|tank)/i);
+    const m = text.match(/^!(join|shoot|fire|nuke|dig|tank)/i);
     if (!m) return;
     const cmdWord = m[1].toLowerCase();
     const rest = text.slice(m[0].length);
@@ -785,13 +928,14 @@
       return;
     }
 
-    if (cmdWord === 'shoot' || cmdWord === 'fire') {
+    if (cmdWord === 'shoot' || cmdWord === 'fire' || cmdWord === 'nuke' || cmdWord === 'dig') {
       const p = players.find(q => q.key === env.key);
       if (!p) return;
+      const weapon = cmdWord === 'nuke' ? 'nuke' : cmdWord === 'dig' ? 'dig' : 'shell';
       const nums = rest.match(/-?\d+/g);
       if (st.phase === 'aim' && p === cur()) {
-        if (!nums) { toast('<b>' + esc(p.name) + '</b> add an angle: <b>!shoot 45</b>'); return; }
-        handleShoot(p, parseInt(nums[0], 10), nums[1] != null ? parseInt(nums[1], 10) : null);
+        if (!nums) { toast('<b>' + esc(p.name) + '</b> add an angle: <b>!' + cmdWord + ' 45</b>'); return; }
+        handleShoot(p, parseInt(nums[0], 10), nums[1] != null ? parseInt(nums[1], 10) : null, weapon);
       }
       return;
     }
@@ -848,6 +992,16 @@
       return;
     }
 
+    // bits → spectator strike. SB delivers bits on the Cheer event and also
+    // tags ChatMessage with a bits count; take whichever carries a value.
+    if (type === 'cheer' || type === 'bits') {
+      const u = data.user || {};
+      const bits = Number(data.bits || data.amount || (data.message && data.message.bits) || 0);
+      const nm = u.displayName || u.display_name || u.name || data.displayName || 'someone';
+      if (bits > 0) spendCoins(bits, nm, 'tw');
+      return;
+    }
+
     if (type !== 'chatmessage' && type !== 'message') return;
     const plat = src === 'twitch' ? 'tw' : src === 'youtube' ? 'yt' : src === 'kick' ? 'kk' : null;
     if (!plat) return;
@@ -865,6 +1019,9 @@
         else if (bn === 'moderator' && role < 3) role = 3;
       }
     }
+    // bits attached to a normal chat line (Twitch delivers cheers this way too)
+    const inlineBits = Number((msg && msg.bits) || data.bits || 0);
+    if (inlineBits > 0) spendCoins(inlineBits, name, plat);
     onChat({ plat, name, key: plat + ':' + login, role, text: String(text) });
   }
 
@@ -881,7 +1038,7 @@
         ws.send(JSON.stringify({
           request: 'Subscribe', id: 'tanks-sub',
           events: {
-            Twitch:  ['ChatMessage', 'RewardRedemption'],
+            Twitch:  ['ChatMessage', 'RewardRedemption', 'Cheer'],
             YouTube: ['Message'],
             Kick:    ['ChatMessage']
           }
@@ -933,9 +1090,18 @@
     ws.onmessage = (e) => {
       let d; try { d = JSON.parse(e.data); } catch (x) { return; }
       const ev = String(d.event || d.type || '').toLowerCase();
-      if (ev !== 'chat') return;
       const data = d.data || {};
       const name = data.nickname || data.uniqueId || 'viewer';
+      // TikTok gift → spectator strike (diamond value × repeat count = coins)
+      if (ev === 'gift') {
+        const per = Number(data.diamondCount || data.diamond_count || data.giftValue || 1) || 1;
+        const reps = Number(data.repeatCount || data.repeat_count || 1) || 1;
+        // streaks fire repeatedly; only settle up when the combo ends
+        if (data.repeatEnd === false || data.giftType === 1 && data.repeatEnd === false) return;
+        spendCoins(per * reps, name, 'tt');
+        return;
+      }
+      if (ev !== 'chat') return;
       const key = 'tt:' + String(data.uniqueId || name).toLowerCase();
       onChat({ plat: 'tt', name, key, role: 1, text: String(data.comment || '') });
     };
@@ -1051,6 +1217,20 @@
       pr.y += pr.vy * sdt;
       if (pr.x < -90 || pr.x > W + 90 || pr.y > H + 60) { loseShell(); return; }
       if (!pr.cleared && dist(pr.x, pr.y, pr.shooter.x, pr.shooter.y - 27) > 46) pr.cleared = true;
+      // bonus supply crate hit: pops for a bigger boom + heals the shooter
+      const crateHit = pr.cleared ? crates.find(c => c.kind === 'bonus' && c.landed && dist(pr.x, pr.y, c.x, c.y - 12) < 30) : null;
+      if (crateHit) {
+        crates.splice(crates.indexOf(crateHit), 1);
+        if (pr.shooter.alive) {
+          pr.shooter.hp = Math.min(cfg.hp, pr.shooter.hp + 20);
+          floater(pr.shooter.x, pr.shooter.y - 92, '+20', '#56e39f', true);
+        }
+        const report = explode(pr.x, pr.y, SHELL_R + 18, MAX_DMG + 10, null);
+        AU.chime();
+        st.result = '<b>' + esc(pr.shooter.name) + '</b> cracked a supply crate!';
+        projectile = null; st.phase = 'settle'; st.settleClear = 0;
+        return;
+      }
       // direct hit on a tank
       let hitTank = null;
       for (const t of players) {
@@ -1059,7 +1239,16 @@
         if (dist(pr.x, pr.y, t.x, t.y - 16) < 23) { hitTank = t; break; }
       }
       if (hitTank || solidAt(pr.x, pr.y)) {
-        const report = explode(pr.x, pr.y, SHELL_R, MAX_DMG, hitTank);
+        if (pr.weapon === 'dig') {
+          // bore a tunnel along the trajectory instead of detonating
+          const len = Math.hypot(pr.vx, pr.vy) || 1;
+          drill = { x: pr.x, y: pr.y, dx: pr.vx / len, dy: pr.vy / len, steps: 0, hit: new Set() };
+          AU.rumble();
+          projectile = null;
+          return;
+        }
+        const big = pr.weapon === 'nuke';
+        const report = explode(pr.x, pr.y, big ? SHELL_R * 2 : SHELL_R, big ? Math.round(MAX_DMG * 1.3) : MAX_DMG, hitTank);
         st.result = describeShot(report, false);
         projectile = null;
         st.phase = 'settle';
@@ -1071,12 +1260,163 @@
     if (pr.trail.length > 22) pr.trail.pop();
   }
 
+  // !dig drill: bores a narrow tunnel through terrain following the shot's
+  // heading, grazing tanks it passes, then fizzles. Escape / repositioning.
+  function drillPhysics() {
+    if (!drill) return;
+    const STEP = 7, R = 15, MAX = 70;
+    for (let s = 0; s < 3 && drill; s++) {
+      drill.x += drill.dx * STEP;
+      drill.y += drill.dy * STEP;
+      drill.steps++;
+      carve(drill.x, drill.y, R);
+      dustFx(drill.x, drill.y);
+      for (const t of players) {
+        if (!t.alive || drill.hit.has(t.key)) continue;
+        if (dist(drill.x, drill.y, t.x, t.y - 16) < 26) {
+          drill.hit.add(t.key);
+          const dmg = Math.round(10 * st.dmgMult);
+          t.hp -= dmg; t.flash = 1;
+          floater(t.x, t.y - 78, '-' + dmg, '#ffc66e', false);
+          if (!t.airborne) { t.airborne = true; t.fallFrom = t.y; }
+          if (t.hp <= 0) { t.hp = 0; t.alive = false; deathQueue.push(t); }
+        }
+      }
+      const out = drill.x < 0 || drill.x > W || drill.y > H - BEDROCK || drill.y < 0;
+      if (drill.steps >= MAX || out) {
+        st.camFocus = { x: drill.x, y: drill.y };
+        st.result = '<b>' + esc((cur() && cur().name) || 'a tank') + '</b> tunnelled through';
+        drill = null;
+        st.phase = 'settle';
+        st.settleClear = 0;
+        return;
+      }
+    }
+  }
+
   function loseShell() {
     projectile = null;
     st.result = describeShot(null, true);
     AU.dud();
     st.phase = 'settle';
     st.settleClear = 0;
+  }
+
+  // ──────────────────────────────────────────────────────────────────
+  // SPECTATOR STRIKES (bits / TikTok gifts buy battlefield events)
+  // ──────────────────────────────────────────────────────────────────
+  const inMatch = () => ['aim', 'windup', 'flight', 'settle', 'between'].indexOf(st.phase) >= 0;
+
+  // map a coin amount (bits, or TikTok diamonds) to the best tier it affords
+  function spendCoins(coins, byName, plat) {
+    if (!cfg.strikes || !inMatch()) return;
+    coins = Math.max(0, Math.round(coins));
+    let kind = null;
+    if (coins >= cfg.barrageCost) kind = 'barrage';
+    else if (coins >= cfg.strikeCost) kind = 'strike';
+    else if (coins >= cfg.crateCost) kind = 'crate';
+    else if (coins >= cfg.windCost) kind = 'wind';
+    if (kind) queueStrike(kind, byName, plat);
+  }
+
+  function queueStrike(kind, byName, plat) {
+    if (!cfg.strikes || !inMatch()) return;
+    strikeQ.push({ kind, by: byName || 'someone', plat: plat || 'tw' });
+  }
+
+  function processStrike(s) {
+    const live = aliveTanks();
+    if (!live.length) return;
+    const who = '<b>' + esc(s.by) + '</b>';
+    if (s.kind === 'wind') {
+      if (nowMs() - lastWindNudge < 4000 || cfg.windMax <= 0) return;
+      lastWindNudge = nowMs();
+      st.wind = Math.round((Math.random() < 0.5 ? -1 : 1) * rand(cfg.windMax * 0.6, cfg.windMax));
+      updateWind();
+      AU.chime();
+      toast(who + ' shifted the <b>wind</b>');
+    } else if (s.kind === 'crate') {
+      const target = live.reduce((a, b) => (b.hp < a.hp ? b : a));
+      crates.push({ kind: 'heal', x: clamp(target.x, 40, W - 40), y: -50, vy: 90, targetKey: target.key, landed: false, by: s.by });
+      AU.siren();
+      toast(who + ' airdropped a <b>care package</b>');
+    } else if (s.kind === 'strike') {
+      const target = live.reduce((a, b) => (b.hp > a.hp ? b : a));   // punish the leader
+      dropBomb(clamp(target.x + rand(-30, 30), 30, W - 30), s.by);
+      AU.siren();
+      toast(who + ' called an <b>airstrike</b> on ' + esc(target.name));
+    } else if (s.kind === 'barrage') {
+      const n = randi(4, 5);
+      for (let i = 0; i < n; i++) dropBomb(rand(W * 0.12, W * 0.88), s.by, i * 0.18);
+      AU.siren();
+      toast(who + ' unleashed a <b>BARRAGE</b>');
+    }
+  }
+
+  function dropBomb(x, by, delay) {
+    bombs.push({ x, y: -60 - rand(0, 120), vx: st.wind * 0.6, vy: 120, born: nowMs(), wait: (delay || 0) * 1000, trail: [], by });
+  }
+
+  function bombPhysics(dt) {
+    const t = nowMs();
+    for (let i = bombs.length - 1; i >= 0; i--) {
+      const b = bombs[i];
+      if (t - b.born < b.wait) continue;       // staggered barrage release
+      const speed = Math.hypot(b.vx, b.vy);
+      const steps = Math.max(1, Math.ceil(speed * dt / 3));
+      const sdt = dt / steps;
+      let done = false;
+      for (let s = 0; s < steps; s++) {
+        b.vy += G * 0.7 * sdt;
+        b.vx += st.wind * 1.4 * sdt;
+        b.x += b.vx * sdt;
+        b.y += b.vy * sdt;
+        let hit = null;
+        for (const tk of players) {
+          if (!tk.alive) continue;
+          if (dist(b.x, b.y, tk.x, tk.y - 16) < 24) { hit = tk; break; }
+        }
+        if (b.y > 0 && (hit || solidAt(b.x, b.y))) {
+          explode(b.x, b.y, SHELL_R - 4, 34, hit);
+          done = true; break;
+        }
+        if (b.y > H + 40) { done = true; break; }
+      }
+      if (done) { bombs.splice(i, 1); continue; }
+      b.trail.unshift({ x: b.x, y: b.y });
+      if (b.trail.length > 10) b.trail.pop();
+    }
+  }
+
+  function cratePhysics(dt) {
+    for (let i = crates.length - 1; i >= 0; i--) {
+      const c = crates[i];
+      if (c.landed) continue;
+      c.vy = Math.min(c.vy + 240 * dt, 260);
+      c.y += c.vy * dt;
+      const ground = surfaceTopAt(c.x);
+      const tgt = c.kind === 'heal' ? players.find(p => p.key === c.targetKey && p.alive) : null;
+      const landY = tgt ? Math.min(ground, tgt.y) : ground;
+      if (c.y >= landY) {
+        c.y = landY;
+        dustFx(c.x, c.y);
+        if (c.kind === 'heal') {
+          // heal the intended tank, or the nearest survivor if it died en route
+          let h = tgt;
+          if (!h) { const live = aliveTanks(); h = live.length ? live.reduce((a, b) => (Math.abs(b.x - c.x) < Math.abs(a.x - c.x) ? b : a)) : null; }
+          if (h) {
+            h.hp = Math.min(cfg.hp, h.hp + cfg.crateHeal);
+            h.flash = 0;
+            floater(h.x, h.y - 92, '+' + cfg.crateHeal, '#56e39f', true);
+            AU.chime();
+          }
+          crates.splice(i, 1);
+        } else {
+          c.landed = true;     // bonus crate sits as an aiming target
+          AU.pop();
+        }
+      }
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────
@@ -1088,7 +1428,15 @@
     st.shake = Math.max(0, st.shake - st.shake * 6 * dt);
     camUpdate(dt);
 
-    if (st.phase !== 'idle') tankPhysics(dt);
+    if (st.phase !== 'idle') {
+      tankPhysics(dt);
+      if (bombs.length) bombPhysics(dt);
+      if (crates.length) cratePhysics(dt);
+      // drain queued spectator strikes when the field is between actions
+      if (strikeQ.length && (st.phase === 'aim' || st.phase === 'between') && !projectile && !drill) {
+        processStrike(strikeQ.shift());
+      }
+    }
 
     switch (st.phase) {
       case 'lobby': {
@@ -1112,6 +1460,8 @@
         if (sec !== st.lastTickSec) { st.lastTickSec = sec; if (sec <= 5 && sec > 0) AU.tick(); }
         const p = cur();
         if (!p) break;
+        // a spectator strike (airstrike/barrage) just took out the active tank
+        if (!p.alive) { elTurnWrap.style.opacity = 0; st.phase = 'settle'; st.settleClear = 0; break; }
         if (p.cpu && t >= st.cpuAt) { cpuFire(p); break; }
         if (remain <= 0) {
           p.skips++;
@@ -1136,10 +1486,11 @@
         break;
       }
       case 'flight':
-        projectilePhysics(dt);
+        if (projectile) projectilePhysics(dt);
+        else if (drill) drillPhysics();
         break;
       case 'settle': {
-        const busy = players.some(q => (q.alive || deathQueue.includes(q)) && (q.airborne || q.chute)) || projectile;
+        const busy = players.some(q => (q.alive || deathQueue.includes(q)) && (q.airborne || q.chute)) || projectile || drill || bombs.length || crates.some(c => !c.landed);
         if (busy) { st.settleClear = 0; break; }
         if (deathQueue.length) {
           if (!st.settleClear) st.settleClear = t + 420;
@@ -1184,6 +1535,16 @@
         addPlayer(j.env, true);
       }
     }
+    // demo: throw the occasional spectator strike so previews show the chaos
+    if (cfg.demo && inMatch()) {
+      if (!st.demoStrikeAt) st.demoStrikeAt = t + rand(4000, 8000);
+      else if (t >= st.demoStrikeAt) {
+        const kinds = ['wind', 'crate', 'strike', 'strike', 'barrage'];
+        const names = ['bitLord', 'tikfan_22', 'NeonFalcon', 'wraith_tv'];
+        queueStrike(kinds[randi(0, kinds.length - 1)], names[randi(0, names.length - 1)], Math.random() < 0.5 ? 'tt' : 'tw');
+        st.demoStrikeAt = t + rand(5000, 10000);
+      }
+    } else if (!cfg.demo) st.demoStrikeAt = 0;
 
     // barrels ease toward their target angle
     for (const p of players) p.barrel += (p.targetBarrel - p.barrel) * Math.min(1, 10 * dt);
@@ -1324,9 +1685,11 @@
     cx.save();
     cx.font = '800 15px Inter, system-ui, sans-serif';
     const icon = !p.cpu && ICONS[p.plat];
+    const isChamp = champ && !p.cpu && champ.name === p.name;
     const cpuW = p.cpu ? 30 : 0;
+    const crownW = isChamp ? 18 : 0;
     const tw = cx.measureText(label).width;
-    const w = tw + (icon ? 21 : 0) + cpuW + 18, h = 24;
+    const w = tw + (icon ? 21 : 0) + cpuW + crownW + 18, h = 24;
     const px = p.x - w / 2, py = p.y - 70;
     cx.fillStyle = 'rgba(8,10,16,.74)';
     rr(cx, px, py, w, h, 8); cx.fill();
@@ -1340,6 +1703,11 @@
     cx.fillStyle = '#fff';
     cx.textBaseline = 'middle';
     cx.fillText(label, tx0, py + h / 2 + 1);
+    // reigning champion wears a crown on their plate
+    if (isChamp) {
+      cx.font = '13px Inter, system-ui, sans-serif';
+      cx.fillText('👑', px + w - 17, py + h / 2 + 1);
+    }
     if (p.cpu) {
       cx.font = '900 10px Inter, system-ui, sans-serif';
       cx.fillStyle = 'rgba(255,255,255,.75)';
@@ -1392,6 +1760,50 @@
     cx.restore();
   }
 
+  function drawCrate(c) {
+    const heal = c.kind === 'heal';
+    cx.save();
+    cx.translate(c.x, c.y);
+    // parachute while still falling
+    if (!c.landed) {
+      cx.strokeStyle = 'rgba(255,255,255,.6)'; cx.lineWidth = 1.5;
+      cx.beginPath();
+      cx.moveTo(-13, -16); cx.lineTo(-20, -50);
+      cx.moveTo(13, -16); cx.lineTo(20, -50);
+      cx.moveTo(0, -16); cx.lineTo(0, -54);
+      cx.stroke();
+      cx.fillStyle = heal ? '#56e39f' : '#e9b35a';
+      cx.beginPath();
+      cx.moveTo(-26, -50); cx.quadraticCurveTo(0, -86, 26, -50); cx.quadraticCurveTo(0, -60, -26, -50);
+      cx.closePath(); cx.fill();
+    } else {
+      // gentle pulse so a bonus target reads as "shoot me"
+      const pu = 0.5 + 0.5 * Math.sin(nowMs() / 260);
+      cx.shadowColor = 'rgba(233,179,90,.9)';
+      cx.shadowBlur = 8 + pu * 10;
+    }
+    const w = 30, y0 = -28;
+    cx.fillStyle = heal ? '#2f8f63' : '#7a5a32';
+    rr(cx, -w / 2, y0, w, 28, 4); cx.fill();
+    cx.fillStyle = heal ? '#56e39f' : '#c79248';
+    rr(cx, -w / 2 + 2, y0 + 2, w - 4, 24, 3); cx.fill();
+    cx.shadowBlur = 0;
+    if (heal) {
+      cx.fillStyle = '#fff';
+      cx.fillRect(-3, y0 + 5, 6, 18);
+      cx.fillRect(-9, y0 + 11, 18, 6);
+    } else {
+      cx.strokeStyle = 'rgba(80,52,20,.8)'; cx.lineWidth = 2;
+      cx.beginPath(); cx.moveTo(-w / 2, y0 + 6); cx.lineTo(w / 2, y0 + 22);
+      cx.moveTo(-w / 2, y0 + 22); cx.lineTo(w / 2, y0 + 6); cx.stroke();
+      cx.font = '900 13px Inter, system-ui, sans-serif';
+      cx.fillStyle = '#fff4d8'; cx.textAlign = 'center'; cx.textBaseline = 'middle';
+      cx.fillText('★', 0, y0 + 14);
+      cx.textAlign = 'left';
+    }
+    cx.restore();
+  }
+
   function draw() {
     cx.clearRect(0, 0, W, H);
     if (st.fade <= 0.004 && st.phase === 'idle') return;
@@ -1416,7 +1828,29 @@
 
     cx.drawImage(T, 0, 0);
 
+    // animated lava shimmer over the molten strip
+    if (TH.lava) {
+      const tt = nowMs() / 600;
+      cx.save();
+      cx.globalAlpha = st.fade * (0.35 + 0.12 * Math.sin(tt));
+      const lg = cx.createLinearGradient(0, H - BEDROCK, 0, H);
+      lg.addColorStop(0, 'rgba(255,210,74,.9)');
+      lg.addColorStop(1, 'rgba(255,106,31,0)');
+      cx.fillStyle = lg;
+      cx.fillRect(0, H - BEDROCK, W, BEDROCK);
+      cx.globalAlpha = st.fade * 0.5;
+      cx.fillStyle = '#fff7d2';
+      for (let i = 0; i < 7; i++) {
+        const x = (i * 271 + tt * 40) % W;
+        cx.fillRect(x, H - BEDROCK - 1, 28, 2);
+      }
+      cx.restore();
+    }
+
     for (const wk of wrecks) drawTank({ ...wk, barrel: 90, flash: 0, airborne: false, chute: false, plat: 'tw', cpu: false, name: '', col: wk.col }, true);
+
+    // landed bonus crates sit on the terrain as aiming targets
+    for (const c of crates) drawCrate(c);
 
     const active = cur();
     if ((st.phase === 'aim' || st.phase === 'windup') && active && !active.cpu) drawProtractor(active);
@@ -1449,6 +1883,37 @@
       cx.beginPath(); cx.arc(pr.x, pr.y, 11, 0, TAU); cx.fill();
       cx.fillStyle = '#3a3325';
       cx.beginPath(); cx.arc(pr.x, pr.y, 4.4, 0, TAU); cx.fill();
+    }
+
+    // incoming spectator bombs
+    for (const b of bombs) {
+      if (nowMs() - b.born < b.wait) continue;
+      for (let i = 0; i < b.trail.length; i++) {
+        const q = b.trail[i], f = 1 - i / b.trail.length;
+        cx.globalAlpha = st.fade * f * 0.4;
+        cx.fillStyle = '#ff9b4a';
+        cx.beginPath(); cx.arc(q.x, q.y, 2.6 * f + 0.6, 0, TAU); cx.fill();
+      }
+      cx.globalAlpha = st.fade;
+      cx.save();
+      cx.translate(b.x, b.y);
+      cx.rotate(Math.atan2(b.vy, b.vx) + Math.PI / 2);
+      cx.fillStyle = '#1c1f27';
+      rr(cx, -4, -9, 8, 18, 3); cx.fill();
+      cx.fillStyle = '#ff5c5c';
+      cx.beginPath(); cx.moveTo(-4, 7); cx.lineTo(0, 13); cx.lineTo(4, 7); cx.closePath(); cx.fill();
+      cx.fillStyle = '#cdd3dd';
+      cx.fillRect(-4, -9, 8, 3);
+      cx.restore();
+    }
+
+    // active !dig drill head
+    if (drill) {
+      cx.globalAlpha = st.fade;
+      const g = cx.createRadialGradient(drill.x, drill.y, 0, drill.x, drill.y, 16);
+      g.addColorStop(0, '#ffe1a0'); g.addColorStop(1, 'rgba(255,150,40,0)');
+      cx.fillStyle = g;
+      cx.beginPath(); cx.arc(drill.x, drill.y, 16, 0, TAU); cx.fill();
     }
 
     // particles
@@ -1550,18 +2015,24 @@
     chat(name, text, plat, role) {
       onChat({ plat: plat || 'tw', name, key: (plat || 'tw') + ':' + String(name).toLowerCase(), role: role || 1, text });
     },
+    cheer(bits, name) { spendCoins(bits || cfg.strikeCost, name || 'bitLord', 'tw'); },
+    gift(coins, name) { spendCoins(coins || cfg.crateCost, name || 'tikfan', 'tt'); },
+    strike(kind, name) { queueStrike(kind || 'strike', name || 'tester', 'tw'); },
     snap() {
       return {
         phase: st.phase, round: st.round, wind: st.wind, sudden: st.sudden,
         current: cur() ? cur().name : null,
-        players: players.map(p => ({ name: p.name, hp: p.hp, alive: p.alive, x: Math.round(p.x), y: Math.round(p.y), cpu: !!p.cpu, airborne: p.airborne || p.chute })),
-        carves: carveCount, projectile: !!projectile,
+        players: players.map(p => ({ name: p.name, hp: p.hp, alive: p.alive, x: Math.round(p.x), y: Math.round(p.y), cpu: !!p.cpu, airborne: p.airborne || p.chute, nukes: p.nukes, digs: p.digs })),
+        carves: carveCount, projectile: !!projectile, drill: !!drill,
+        bombs: bombs.length, crates: crates.map(c => ({ kind: c.kind, landed: !!c.landed })),
+        strikeQ: strikeQ.length, champ: champ,
         cam: { x: Math.round(cam.x), y: Math.round(cam.y), z: +cam.z.toFixed(2) },
         groundAvgY: Math.round(players.reduce((a, p) => a + p.y, 0) / (players.length || 1)),
         sb: sbConnected, tf: tfConnected
       };
     },
     solid(x, y) { return solidAt(x, y); },
+    clearChamp() { champ = null; try { localStorage.removeItem('tanks-champ'); } catch (e) {} },
     end() { forceEnd(); }
   };
 

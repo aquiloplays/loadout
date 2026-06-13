@@ -46,9 +46,32 @@ No reward yet? The broadcaster or a mod can open a lobby any time with
 | --- | --- | --- |
 | viewer | `!join` | take a seat while the lobby is open |
 | seated player | `!shoot <angle> [power]` | fire on your turn (`!fire` works too) |
+| seated player | `!nuke <angle> [power]` | once-per-match double-radius shell |
+| seated player | `!dig <angle> [power]` | once-per-match tunnelling drill (bores terrain, light damage) |
 | broadcaster / mod | `!tank` | open a lobby without a redemption |
 | broadcaster / mod | `!tank start` | start now with the current seats |
 | broadcaster / mod | `!tank end` | abort the current battle |
+
+## Spectator strikes (whole chat plays)
+
+Viewers who aren't seated still shape the battle by spending **bits** (Twitch)
+or **gifts** (TikTok diamonds). The amount picks the biggest tier it affords:
+
+| spend (default) | event |
+| --- | --- |
+| `20+` | **wind shift** — scrambles the wind for the next shot |
+| `100+` | **care package** — parachutes a heal onto the lowest-HP tank |
+| `300+` | **airstrike** — drops a bomb on whoever's currently leading |
+| `1000+` | **barrage** — 4-5 bombs rain across the field |
+
+Neutral **supply crates** also parachute in between rounds: shoot one for a
+bigger blast and a +20 heal. All thresholds are tunable (see params).
+
+On victory the overlay fires a Streamer.bot action (`Tanks · Winner` by
+default) with the winner name/platform/streak as arguments, so you can wire
+bolts, a shoutout, or anything else without touching the overlay. Point
+`?discord=` at a webhook for an automatic match-recap embed. The reigning
+champion keeps a 👑 crown and win-streak count across matches.
 
 Rules baked in: the redeemer is always P1 and shoots first. If the lobby
 countdown ends with nobody else seated, a CPU tank rolls in so the
@@ -71,9 +94,16 @@ sudden death doubles all damage so matches always end.
 | `hp` | `100` | tank health |
 | `wind` | `28` | max wind strength, `0` disables wind |
 | `cpu` | `1` | fill a lonely lobby with a CPU tank |
-| `theme` | `grass` | terrain look: `grass`, `desert`, `snow`, `void` |
+| `theme` | `grass` | terrain look: `grass`, `desert`, `snow`, `void`, `lava` (molten floor burns tanks that fall in) |
 | `ground` | `74` | mean terrain surface as % of screen height (50-90). Bigger = lower hills = more of your broadcast visible. 74 keeps the action in roughly the bottom quarter |
 | `cam` | `1` | shot-follow camera: pushes in on the shooter, tracks the shell, holds on the impact, eases back out. `cam=0` for a fixed full-field view |
+| `strikes` | `1` | spectator bits/gifts trigger battlefield events (`strikes=0` disables) |
+| `windCost` / `crateCost` / `strikeCost` / `barrageCost` | `20` / `100` / `300` / `1000` | bits-or-diamonds thresholds for each strike tier |
+| `crateHeal` | `25` | hp a care package restores |
+| `nukes` / `digs` | `1` / `1` | special shots each player gets per match (`0` removes one) |
+| `crates` | `1` | neutral supply crates drop between rounds as aiming targets (`crates=0` off) |
+| `winAction` | `Tanks · Winner` | Streamer.bot action fired on victory (`winAction=0` disables) |
+| `discord` | empty | Discord webhook URL for a match-recap embed |
 | `vol` | `55` | sound volume 0-100, `0` mutes |
 | `announce` | `0` | post lobby/turn/win prompts into Twitch chat via SB |
 | `sky` | off | paint a sky behind the terrain. Defaults on for `demo=1` in a normal browser only, never inside OBS/Streamlabs, so the broadcast underneath always shows through |

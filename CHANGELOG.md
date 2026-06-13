@@ -27,7 +27,19 @@ effect after `tools/install-dev.ps1` (dev install) or a tagged release.
   (tracks the shell, holds on impact, cam=0 off), lighter default
   terrain in the bottom quarter of the frame (ground=50-90), sky
   backdrop never defaults on inside OBS, browser-only idle card
-  (armed/waiting + SB status, hint=0 off).
+  (armed/waiting + SB status, hint=0 off). Same-day v3: spectator
+  strikes -- non-seated viewers spend bits (Twitch Cheer) or TikTok
+  gifts on battlefield events tiered by amount (20 wind shift / 100
+  care package on lowest HP / 300 airstrike on the leader / 1000
+  4-5 bomb barrage; all costs tunable). Per-match arsenal: !nuke
+  (double radius) and !dig (bores a tunnel through terrain, light
+  graze damage). Neutral supply crates parachute in between rounds
+  as aiming targets (+20 heal on a hit). New lava theme with a
+  molten floor that burns tanks that fall in. Reigning champion
+  keeps a crown + win streak across matches (localStorage). On
+  victory: Streamer.bot DoAction (winAction, default "Tanks ·
+  Winner") with winner/platform/streak args + optional Discord
+  match-recap embed (?discord=).
 
 - **Hangman (new product)** -- chat hangman with real stakes at
   aquilo.gg/hangman. A viewer redeems a channel point reward (or
