@@ -503,10 +503,15 @@
   function computeGeo() {
     var def = styleDef();
     var vw = window.innerWidth, vh = window.innerHeight;
-    var W = clamp(Math.min(vw * 0.94, (vh * 0.93) / def.aspect), 200, 1100) * cfg.jarScale;
+    // reserve headroom for the title pill + toast lane and footroom for
+    // the goal bar so the chrome never collides with the glass
+    var headroom = cfg.title ? 100 : 50;
+    var footroom = cfg.goal > 0 ? 24 : 10;
+    var budget = Math.max(120, vh - headroom - footroom - 12);
+    var W = clamp(Math.min(vw * 0.94, budget / def.aspect), 200, 1100) * cfg.jarScale;
     var H = W * def.aspect;
     var cx = vw / 2;
-    var bottom = vh - Math.max(8, vh * 0.015);
+    var bottom = vh - Math.max(8, vh * 0.015) - footroom;
     var top = bottom - H;
     var R = stylePoly(def, W, H).map(function (p) { return [p[0], top + p[1]]; });
     return {
@@ -635,13 +640,45 @@
       pts.push([cx + side * (R[i][0] - inset * geo.W), R[i][1]]);
     }
     if (pts.length < 2) {
-      var x = cx + side * (geo.bw - inset * geo.W);
+      var x = cx + side * (wallXAt((y0 + y1) / 2) - inset * geo.W);
       pts = [[x, ya], [x, yb]];
-    } else {
-      pts.unshift([pts[0][0], Math.min(pts[0][1], ya + 1)]);
-      pts.push([pts[pts.length - 1][0], Math.max(pts[pts.length - 1][1], yb - 1)]);
     }
     return roundPath(pts, 0.09 * geo.W, false);
+  }
+
+  // inner-wall x (in W units from center) at a given height fraction,
+  // linearly interpolated along the polyline; keeps decorations ON the
+  // glass instead of floating beside narrow necks
+  function wallXAt(yFrac) {
+    var R = geo.R;
+    var y = geo.top + yFrac * geo.H;
+    if (y <= R[0][1]) return R[0][0];
+    for (var i = 0; i < R.length - 1; i++) {
+      if (y >= R[i][1] && y <= R[i + 1][1]) {
+        var t = (y - R[i][1]) / Math.max(1, R[i + 1][1] - R[i][1]);
+        return R[i][0] + (R[i + 1][0] - R[i][0]) * t;
+      }
+    }
+    return R[R.length - 1][0];
+  }
+
+  // a point sitting just inside the wall at height fraction yFrac, on
+  // side -1 (left) / +1 (right), pulled in by insetFrac of W. Every
+  // glint/seam rides this so nothing floats beside a narrow neck.
+  function innerPt(yFrac, side, insetFrac) {
+    return [
+      geo.cx + side * Math.max(6, wallXAt(yFrac) - insetFrac * geo.W),
+      geo.top + yFrac * geo.H
+    ];
+  }
+
+  // a small four-point sparkle centered at x,y with radius s
+  function fourStar(x, y, s, fill) {
+    return '<path d="M ' + x + ' ' + (y - s) +
+      ' Q ' + x + ' ' + y + ' ' + (x + s) + ' ' + y +
+      ' Q ' + x + ' ' + y + ' ' + x + ' ' + (y + s) +
+      ' Q ' + x + ' ' + y + ' ' + (x - s) + ' ' + y +
+      ' Q ' + x + ' ' + y + ' ' + x + ' ' + (y - s) + ' Z" fill="' + fill + '"/>';
   }
 
   function esc(s) {
@@ -811,28 +848,26 @@
           '<line class="gj-pulse2" x1="' + (cx + g.bw * 0.5) + '" y1="' + (g.top + 0.20 * g.H) + '" x2="' + (cx + g.bw * 0.5) + '" y2="' + (g.top + 0.80 * g.H) + '" ' +
             'style="stroke:var(--accent)" stroke-opacity="0.16" stroke-width="1.5"/>';
       }
+      var glowDotA = innerPt(0.185, -1, 0.05);
+      var glowDotB = innerPt(0.245, 1, 0.05);
       html +=
         // a spark circulating the outline
         '<path class="gj-dash" d="' + oPath + '" pathLength="100" fill="none" stroke="rgba(255,255,255,0.9)" ' +
           'stroke-width="2.4" stroke-linecap="round" stroke-dasharray="9 91"/>' +
-        '<circle class="gj-pulse2" cx="' + (cx - g.bw * 0.52) + '" cy="' + (g.top + 0.185 * g.H) + '" r="2.4" style="fill:var(--accent)" fill-opacity="0.8"/>' +
-        '<circle class="gj-pulse2" cx="' + (cx + g.bw * 0.48) + '" cy="' + (g.top + 0.245 * g.H) + '" r="1.8" style="fill:var(--accent);animation-delay:1.1s" fill-opacity="0.6"/>' +
+        '<circle class="gj-pulse2" cx="' + glowDotA[0] + '" cy="' + glowDotA[1] + '" r="2.4" style="fill:var(--accent)" fill-opacity="0.8"/>' +
+        '<circle class="gj-pulse2" cx="' + glowDotB[0] + '" cy="' + glowDotB[1] + '" r="1.8" style="fill:var(--accent);animation-delay:1.1s" fill-opacity="0.6"/>' +
         labelSvg;
     } else if (isCrystal) {
       // ── cut crystal: iridescent edges, facet shards, prism glints ──
       var oP3 = roundedOutline(false);
-      var shardPts = [g.R[1], g.R[Math.floor(g.R.length / 2)], g.R[g.R.length - 2]];
-      var shards = '';
-      for (var sh = 0; sh < shardPts.length; sh++) {
-        var sp = shardPts[sh];
-        shards +=
-          '<line x1="' + (cx - sp[0] * 0.96) + '" y1="' + sp[1] + '" x2="' + (cx - sp[0] * 0.52) + '" y2="' + (sp[1] + 0.16 * g.H) + '" ' +
-            'stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>' +
-          '<line x1="' + (cx + sp[0] * 0.96) + '" y1="' + sp[1] + '" x2="' + (cx + sp[0] * 0.52) + '" y2="' + (sp[1] + 0.16 * g.H) + '" ' +
-            'stroke="rgba(255,255,255,0.07)" stroke-width="1.5"/>';
-      }
-      var px1 = cx - g.bw * 0.62, py1 = g.top + 0.16 * g.H;
-      var px2 = cx + g.bw * 0.58, py2 = g.top + 0.22 * g.H;
+      // facet seams that run WITH the wall contour at fixed insets, a
+      // clean cut-glass read, never random diagonals
+      var shards =
+        '<path d="' + wallStreak(-1, 0.30, 0.80, 0.13) + '" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="' + wallStreak( 1, 0.30, 0.80, 0.13) + '" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="' + wallStreak(-1, 0.36, 0.72, 0.26) + '" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="' + wallStreak( 1, 0.36, 0.72, 0.26) + '" fill="none" stroke="rgba(255,255,255,0.04)" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>';
+      var pa = innerPt(0.205, 1, 0.055), pb = innerPt(0.50, -1, 0.06), pStar = innerPt(0.31, -1, 0.05);
       html +=
         '<path d="' + roundedOutline(true) + '" fill="url(#sheenGrad)"/>' +
         shards +
@@ -845,14 +880,10 @@
           'fill="none" stroke="url(#irisGrad)" stroke-width="' + Math.max(3, 0.8 * g.glass) + '"/>' +
         '<ellipse cx="' + cx + '" cy="' + mouthAbsY + '" rx="' + (mouthHW * 1.1) + '" ry="' + mouthRy + '" ' +
           'fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="1.2"/>' +
-        // prism glints
-        '<path d="M ' + px1 + ' ' + py1 + ' l 9 4 l -7 7 Z" fill="rgba(124,232,255,0.5)"/>' +
-        '<path d="M ' + px2 + ' ' + py2 + ' l -8 3 l 6 6 Z" fill="rgba(255,154,213,0.45)"/>' +
-        '<path d="M ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H - 0.018 * g.W) +
-          ' Q ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H) + ' ' + (cx - g.bw * 0.5 + 0.018 * g.W) + ' ' + (g.top + 0.185 * g.H) +
-          ' Q ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H) + ' ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H + 0.018 * g.W) +
-          ' Q ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H) + ' ' + (cx - g.bw * 0.5 - 0.018 * g.W) + ' ' + (g.top + 0.185 * g.H) +
-          ' Q ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H) + ' ' + (cx - g.bw * 0.5) + ' ' + (g.top + 0.185 * g.H - 0.018 * g.W) + ' Z" fill="rgba(255,255,255,0.55)"/>' +
+        // prism glints, anchored on the wall
+        '<path d="M ' + pa[0] + ' ' + pa[1] + ' l 9 4 l -7 7 Z" fill="rgba(124,232,255,0.5)"/>' +
+        '<path d="M ' + pb[0] + ' ' + pb[1] + ' l -8 3 l 6 6 Z" fill="rgba(255,154,213,0.45)"/>' +
+        fourStar(pStar[0], pStar[1], 0.018 * g.W, 'rgba(255,255,255,0.55)') +
         labelSvg;
     } else {
       // ── pushed glass: halo, body, inner thickness, crisp edge, wall-
@@ -927,15 +958,14 @@
           'fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.6"/>';
       }
 
-      // glints: two dots and one four-point star
-      var sx = cx - g.bw * 0.52, sy = g.top + 0.185 * g.H, ss = 0.018 * g.W;
+      // glints riding the actual wall, never floating beside a neck
+      var gStar = innerPt(0.185, -1, 0.05);
+      var gDotA = innerPt(0.245, 1, 0.05);
+      var gDotB = innerPt(0.66, -1, 0.05);
       html +=
-        '<circle cx="' + (cx + g.bw * 0.48) + '" cy="' + (g.top + 0.245 * g.H) + '" r="1.8" fill="rgba(255,255,255,0.38)"/>' +
-        '<circle cx="' + (cx - g.bw * 0.40) + '" cy="' + (g.top + 0.66 * g.H) + '" r="1.5" fill="rgba(255,255,255,0.30)"/>' +
-        '<path d="M ' + sx + ' ' + (sy - ss) + ' Q ' + sx + ' ' + sy + ' ' + (sx + ss) + ' ' + sy +
-          ' Q ' + sx + ' ' + sy + ' ' + sx + ' ' + (sy + ss) +
-          ' Q ' + sx + ' ' + sy + ' ' + (sx - ss) + ' ' + sy +
-          ' Q ' + sx + ' ' + sy + ' ' + sx + ' ' + (sy - ss) + ' Z" fill="rgba(255,255,255,0.5)"/>' +
+        '<circle cx="' + gDotA[0] + '" cy="' + gDotA[1] + '" r="1.8" fill="rgba(255,255,255,0.38)"/>' +
+        '<circle cx="' + gDotB[0] + '" cy="' + gDotB[1] + '" r="1.5" fill="rgba(255,255,255,0.30)"/>' +
+        fourStar(gStar[0], gStar[1], 0.018 * g.W, 'rgba(255,255,255,0.5)') +
         labelSvg;
     }
 
@@ -963,12 +993,14 @@
     var chip = $('counterChip');
     chip.style.left = geo.cx + 'px';
     chip.style.top = (geo.top + def.chipY * geo.H) + 'px';
+    // chrome lives in reserved lanes (see computeGeo headroom/footroom):
+    // toast on top, then the title pill, then the jar; goal bar below.
     var title = $('jarTitle');
     if (cfg.title) {
       title.hidden = false;
       title.textContent = cfg.title;
       title.style.left = geo.cx + 'px';
-      title.style.top = Math.max(26, geo.top - 42) + 'px';
+      title.style.top = Math.max(22, geo.top - 32) + 'px';
     } else {
       title.hidden = true;
     }
@@ -977,13 +1009,13 @@
       bar.hidden = false;
       bar.style.left = geo.cx + 'px';
       bar.style.width = (0.56 * geo.W) + 'px';
-      bar.style.top = Math.min(geo.vh - 13, geo.bottom + 7) + 'px';
+      bar.style.top = Math.min(geo.vh - 13, geo.bottom + 9) + 'px';
     } else {
       bar.hidden = true;
     }
     var toast = $('bigToast');
     toast.style.left = geo.cx + 'px';
-    toast.style.top = Math.max(cfg.title ? 64 : 34, geo.top - (cfg.title ? 88 : 46)) + 'px';
+    toast.style.top = Math.max(20, geo.top - (cfg.title ? 76 : 40)) + 'px';
   }
 
   function sizeCanvas() {
