@@ -2037,8 +2037,51 @@
   };
 
   // ──────────────────────────────────────────────────────────────────
+  // CUSTOMIZER PREVIEW BRIDGE (postMessage from aquilo.gg/tanks/customize)
+  // The customizer iframes this overlay and posts {tb:...} commands so the
+  // streamer can trigger a match / strikes in the live preview.
+  // ──────────────────────────────────────────────────────────────────
+  let previewSeq = 0;
+  window.addEventListener('message', (e) => {
+    const d = e.data;
+    if (!d || typeof d !== 'object' || d.tb == null) return;
+    AU.ensure();
+    switch (String(d.tb)) {
+      case 'redeem': {
+        const names = ['PixelPaige', 'KaiOnAir', 'NeonFalcon', 'wraith_tv'];
+        openLobby({ plat: 'tw', name: d.name || names[randi(0, names.length - 1)], key: 'preview:host' });
+        break;
+      }
+      case 'join': {
+        previewSeq++;
+        const plats = ['tw', 'tt', 'yt'];
+        onChat({ plat: d.plat || plats[previewSeq % 3], name: d.name || ('viewer' + previewSeq), key: 'preview:' + previewSeq, role: 1, text: '!join' });
+        break;
+      }
+      case 'fill':
+        for (let i = 0; i < cfg.maxPlayers - 1; i++) {
+          onChat({ plat: ['tw', 'tt', 'yt'][i % 3], name: 'viewer' + (++previewSeq), key: 'preview:' + previewSeq, role: 1, text: '!join' });
+        }
+        break;
+      case 'strike':
+        queueStrike(d.kind || 'strike', d.by || 'a viewer', d.plat || (Math.random() < 0.5 ? 'tt' : 'tw'));
+        break;
+      case 'start': forceStart(); break;
+      case 'reset': forceEnd(); break;
+    }
+  });
+
+  // ──────────────────────────────────────────────────────────────────
   // BOOT
   // ──────────────────────────────────────────────────────────────────
+  // "Send test to OBS" from the customizer: test-listener.js paints the
+  // placement frame; this hook adds an overlay-native confirmation toast.
+  if (window.AquiloTest && typeof window.AquiloTest.onTest === 'function') {
+    window.AquiloTest.onTest(() => {
+      toast('test ping received · Tank Battle is wired');
+      AU.pop();
+    });
+  }
   connectSB();
   connectTF();
   updateWind();
