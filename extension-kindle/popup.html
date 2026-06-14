@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  :root {
+    --bg: #0a0b12; --surf: #11131c; --surf2: #161929; --bdr: #1f2233;
+    --txt: #f3f4fb; --mut: #94a3b8; --mut2: #cbd5e1;
+    --violet: #9a82ff; --teal: #22d3ee; --green: #5bff95; --red: #ff6b6b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    width: 320px; background: var(--bg); color: var(--txt);
+    font-family: "Segoe UI", -apple-system, system-ui, sans-serif; padding: 14px;
+  }
+  .head { display: flex; align-items: center; gap: 9px; }
+  .mark { width: 26px; height: 26px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--violet), var(--teal) 55%, var(--green)); }
+  .title { font-weight: 800; font-size: 13px; }
+  .sub { font-size: 10px; color: var(--mut); }
+  .card { background: var(--surf); border: 1px solid var(--bdr); border-radius: 11px; padding: 11px; margin-top: 12px; }
+  .row { display: flex; justify-content: space-between; font-size: 12px; }
+  .row + .row { margin-top: 6px; }
+  .k { color: var(--mut); } .v { font-weight: 700; }
+  .status { margin-top: 8px; font-size: 11px; color: var(--teal); min-height: 14px; }
+  .err { color: var(--red); }
+  label { display: block; font-size: 11px; color: var(--mut2); margin-bottom: 4px; }
+  input {
+    width: 100%; background: var(--surf2); border: 1px solid var(--bdr); border-radius: 8px;
+    color: var(--txt); font: inherit; font-size: 12px; padding: 7px 9px;
+  }
+  input:focus { outline: none; border-color: var(--violet); }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  button {
+    flex: 1; cursor: pointer; border: 1px solid var(--bdr); background: var(--surf2);
+    color: var(--txt); border-radius: 9px; padding: 9px; font: inherit; font-weight: 700; font-size: 12px;
+  }
+  button.primary { border-color: rgba(154,130,255,0.45);
+    background: linear-gradient(180deg, rgba(154,130,255,0.3), rgba(154,130,255,0.1)); }
+  button:disabled { opacity: 0.55; cursor: default; }
+  .hint { margin-top: 8px; font-size: 10px; color: var(--mut); line-height: 1.5; }
+  a { color: var(--violet); text-decoration: none; }
+  .saved { font-size: 10px; color: var(--green); margin-left: 6px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="mark"></div>
+    <div>
+      <div class="title">Kindle Vault Sync</div>
+      <div class="sub">Owner-only. Syncs to aquilo.gg/vault</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row"><span class="k">Last sync</span><span class="v" id="lastSync">never</span></div>
+    <div class="row"><span class="k">Highlights</span><span class="v" id="count">0</span></div>
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="card">
+    <label for="secret">Ingest secret <span class="saved hidden" id="secretSaved">saved</span></label>
+    <input id="secret" type="password" placeholder="Paste your VAULT_INGEST_SECRET" autocomplete="off" />
+    <label for="hour" style="margin-top:9px;">Daily sync hour (local 0-23)</label>
+    <input id="hour" type="number" min="0" max="23" placeholder="4" />
+    <div class="hint">The secret is the same hex set as the worker's VAULT_INGEST_SECRET. Stored only in this browser profile, never sent anywhere except signed ingest requests.</div>
+  </div>
+
+  <div class="actions">
+    <button id="save">Save</button>
+    <button id="sync" class="primary">Sync now</button>
+  </div>
+  <div class="hint" style="text-align:center;"><a id="vault" href="#">Open Vault dashboard</a></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
