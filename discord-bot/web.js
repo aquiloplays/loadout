@@ -166,6 +166,7 @@ const ROUTES = new Set([
   'referral/attribute',
   'admin/snapshot',
   'admin/panel-test',           // POST {_owner, action, ...}, owner-only panel test harness (isolated test:* state, dry-run tampers)
+  'admin/vault/api',            // POST {_owner, action, ...}, Knowledge Vault (Kindle + PDF highlights). See vault.js
   'admin/config',
   'admin/active-guild',
   'admin/clear-binding',
@@ -320,6 +321,11 @@ export async function handleWeb(req, env) {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       const { handlePanelTest } = await import('./panel-test.js');
       return handlePanelTest(env, guildId, discordId, body);
+    }
+    if (route === 'admin/vault/api') {
+      if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
+      const { handleVaultApi } = await import('./vault.js');
+      return handleVaultApi(env, body);
     }
     if (route === 'admin/tickets/list') {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);

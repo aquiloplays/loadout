@@ -226,6 +226,14 @@ export default {
       const { handleTikFinityEvent } = await import('./tikfinity.js');
       return handleTikFinityEvent(req, env);
     }
+    // Knowledge Vault: Kindle companion ingest (machine-to-worker,
+    // HMAC-gated by VAULT_INGEST_SECRET). The phase-3 tray app scrapes
+    // read.amazon.com/notebook and batch-pushes highlights here. Owner
+    // dashboard reads go through the /web/admin/vault/api dispatcher.
+    if (method === 'POST' && path === '/vault/kindle/ingest') {
+      const { handleKindleIngest } = await import('./vault.js');
+      return handleKindleIngest(req, env);
+    }
     // PrinterBot Discord webhook, Clay's receipt-style image
     // generator posts directly into a dedicated channel. We create
     // a channel-scoped Discord webhook once + persist the URL at
