@@ -1305,6 +1305,19 @@ export default {
             } catch (e) { console.warn('[cron] pre-stream ping', e?.message || e); }
           })());
         }
+        // Knowledge Vault daily digest. At the top of every hour, fire
+        // the owner's daily review push if the configured send hour
+        // matches (default 13 UTC = 8am ET, adjustable in /vault/settings).
+        // runDailyDigest self-gates on the hour + a per-day sent marker,
+        // so it delivers at most one push per day.
+        if (mm === 0) {
+          ctx.waitUntil((async () => {
+            try {
+              const { runDailyDigest } = await import('./vault.js');
+              await runDailyDigest(env);
+            } catch (e) { console.warn('[cron] vault daily digest', e?.message || e); }
+          })());
+        }
         // Hourly work below is the OLD :17 schedule, only runs when
         // the current minute is 17 to preserve the original cadence.
         if (mm !== 17) {

@@ -95,14 +95,25 @@ function mapPdf(r) {
 }
 
 // ── settings (KV) ──────────────────────────────────────────────────────
+// digestCount: 3..10 highlights per daily push.
+// mode: 'spaced' (due-first spaced repetition) or 'random' (weighted random).
+// sendHourUtc: 0..23, the UTC hour the daily push fires (default 13 = 8am ET).
 async function getSettings(env, userId) {
   let s = null;
   try { s = await env.LOADOUT_BOLTS.get('vault:settings:' + userId, { type: 'json' }); } catch { /* ignore */ }
-  return { digestCount: Math.min(10, Math.max(3, Number(s?.digestCount) || 5)) };
+  return {
+    digestCount: Math.min(10, Math.max(3, Number(s?.digestCount) || 5)),
+    mode: s?.mode === 'random' ? 'random' : 'spaced',
+    sendHourUtc: Number.isInteger(s?.sendHourUtc) ? Math.min(23, Math.max(0, s.sendHourUtc)) : 13,
+  };
 }
 async function setSettings(env, userId, patch) {
   const cur = await getSettings(env, userId);
-  const next = { digestCount: Math.min(10, Math.max(3, Number(patch?.digestCount) || cur.digestCount)) };
+  const next = {
+    digestCount: Math.min(10, Math.max(3, Number(patch?.digestCount) || cur.digestCount)),
+    mode: patch?.mode === 'random' || patch?.mode === 'spaced' ? patch.mode : cur.mode,
+    sendHourUtc: Number.isInteger(patch?.sendHourUtc) ? Math.min(23, Math.max(0, patch.sendHourUtc)) : cur.sendHourUtc,
+  };
   try { await env.LOADOUT_BOLTS.put('vault:settings:' + userId, JSON.stringify(next)); } catch { /* ignore */ }
   return next;
 }
@@ -122,6 +133,7 @@ export async function handleVaultApi(env, body) {
       case 'export':      return await actExport(env, userId, body);
       case 'settings-get':return json({ ok: true, settings: await getSettings(env, userId) });
       case 'settings-set':return json({ ok: true, settings: await setSettings(env, userId, body) });
+      case 'daily-batch': return await actDailyBatch(env, userId);
       case 'highlight-add':return await actHighlightAdd(env, userId, body);
       case 'pdf-list':    return await actPdfList(env, userId);
       case 'pdf-create':  return await actPdfCreate(env, userId, body);
@@ -454,4 +466,86 @@ export async function handleKindleIngest(req, env) {
     if (res?.meta?.changes) inserted++; else skipped++;
   }
   return json({ ok: true, inserted, skipped });
+}
+
+// ── Daily digest (push notification, replaces the email path) ──────────
+function dateKeyUtc(now) {
+  const d = new Date(now);
+  return d.getUTCFullYear() + '-' + String(d.getUTCMonth() + 1).padStart(2, '0') + '-' + String(d.getUTCDate()).padStart(2, '0');
+}
+
+// Pick N highlights for review. 'spaced' favors items that are due (or
+// overdue, or never seen); 'random' is a flat weighted shuffle. PDF
+// highlights only enter the pool when flagged "add to daily review".
+async function pickHighlights(env, userId, n, mode) {
+  const now = Date.now();
+  const kindle = (await fetchAllKindle(env, userId)).map(mapKindle);
+  const pdf = (await fetchAllPdfHl(env, userId)).map(mapPdf).filter((it) => it.inReview);
+  const pool = kindle.concat(pdf);
+  if (!pool.length) return [];
+  const scored = pool.map((it) => {
+    if (mode === 'random') return { it, score: Math.random() };
+    const due = !it.nextReviewAt || it.nextReviewAt <= now;
+    const overdue = it.nextReviewAt ? Math.max(0, now - it.nextReviewAt) / DAY_MS : 30;
+    const unseen = it.reviewCount === 0 ? 10 : 0;
+    return { it, score: (due ? 100 : 0) + overdue + unseen + Math.random() * 5 };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, Math.max(1, n)).map((s) => s.it);
+}
+
+// Today's batch persists in KV (TTL 48h) so every notification tap and
+// every /vault/daily visit shows the SAME set until tomorrow's build.
+async function buildDailyBatch(env, userId) {
+  const settings = await getSettings(env, userId);
+  const date = dateKeyUtc(Date.now());
+  const key = `vault:daily:${userId}:${date}`;
+  let batch = null;
+  try { batch = await env.LOADOUT_BOLTS.get(key, { type: 'json' }); } catch { /* ignore */ }
+  if (batch && Array.isArray(batch.items)) return batch;
+  const items = await pickHighlights(env, userId, settings.digestCount, settings.mode);
+  batch = { date, items, count: items.length, firstTitle: items[0]?.sourceTitle || '', builtAt: Date.now() };
+  try { await env.LOADOUT_BOLTS.put(key, JSON.stringify(batch), { expirationTtl: 48 * 3600 }); } catch { /* ignore */ }
+  return batch;
+}
+
+async function actDailyBatch(env, userId) {
+  const batch = await buildDailyBatch(env, userId);
+  return json({ ok: true, date: batch.date, items: batch.items || [] });
+}
+
+// Cron entrypoint. Builds today's batch and pushes ONE notification to
+// the owner's subscribed devices via the existing /api/push/external
+// bridge (firePush). Idempotent: gated on the configured UTC send hour
+// plus a per-day "sent" marker, so calling it from both the hourly tick
+// and the 0 13 cron never double-fires. No tag is passed, so it stays
+// push-only (no Discord DM duplicate) and lands only on the owner's subs.
+export async function runDailyDigest(env) {
+  const userId = OWNER_ID;
+  const settings = await getSettings(env, userId);
+  const now = Date.now();
+  if (new Date(now).getUTCHours() !== settings.sendHourUtc) return { ok: false, reason: 'not-the-hour' };
+  const date = dateKeyUtc(now);
+  const sentKey = `vault:daily-sent:${userId}:${date}`;
+  let already = null;
+  try { already = await env.LOADOUT_BOLTS.get(sentKey); } catch { /* ignore */ }
+  if (already) return { ok: false, reason: 'already-sent' };
+  const batch = await buildDailyBatch(env, userId);
+  // Mark sent first so a push failure can't loop-retry all hour.
+  try { await env.LOADOUT_BOLTS.put(sentKey, '1', { expirationTtl: 48 * 3600 }); } catch { /* ignore */ }
+  if (!batch.items || batch.items.length === 0) return { ok: false, reason: 'no-highlights' };
+  try {
+    const { firePush } = await import('./push.js');
+    const pushed = await firePush(env, {
+      kind: 'vaultDaily',
+      title: `${batch.count} highlight${batch.count === 1 ? '' : 's'} ready to review`,
+      body: batch.firstTitle ? `Starting with ${batch.firstTitle}` : 'Open your daily review',
+      url: 'https://aquilo.gg/vault/daily',
+      audience: { kind: 'user', userIds: [userId] },
+    });
+    return { ok: true, count: batch.count, sent: pushed?.sent ?? null };
+  } catch (e) {
+    console.warn('[vault] daily push failed', e?.message || e);
+    return { ok: false, reason: 'push-failed' };
+  }
 }
