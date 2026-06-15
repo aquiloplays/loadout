@@ -52,6 +52,20 @@ jobs:
             npx wrangler d1 execute aquilo_bot_db --remote --file="$f" || true
           done
 
+      - name: Ensure R2 buckets exist
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Create any R2 buckets referenced in wrangler.toml. If they
+          # already exist, wrangler returns a non-zero exit which we
+          # ignore. New buckets added to wrangler.toml are picked up
+          # automatically by adding their name to this list.
+          for bucket in aquilo-overlay-references; do
+            echo "Ensuring R2 bucket: $bucket"
+            npx wrangler r2 bucket create "$bucket" || true
+          done
+
       - name: Deploy worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
