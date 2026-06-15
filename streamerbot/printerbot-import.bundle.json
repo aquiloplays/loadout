@@ -1,0 +1,182 @@
+{
+    "meta": {
+        "name": "PrinterBot",
+        "author": "aquiloplays",
+        "version": "1.0.0",
+        "description": "Thermal-print receipts for stream gifts (TikTok / Twitch / YouTube / Kick) with a Discord channel mirror. Includes the Heart Me filter.",
+        "autoRunAction": null,
+        "minimumVersion": null
+    },
+    "manifest": {
+        "product": "PrinterBot",
+        "packageVersion": "1.0.0",
+        "group": "PrinterBot",
+        "generatedBy": "streamerbot/build-printerbot-bundle.py",
+        "actionCount": 4,
+        "actions": [
+            "PrinterBot - Print Receipt",
+            "PrinterBot - Discord Relay",
+            "PrinterBot - TikTok Gift Print",
+            "PrinterBot - Twitch Gift Print"
+        ],
+        "commands": [],
+        "includes": [
+            "print",
+            "discord",
+            "tiktok",
+            "twitch"
+        ]
+    },
+    "data": {
+        "actions": [
+            {
+                "id": "5f4a6c2e-9b1d-4f7e-b3a0-7e6f1c2d8a21",
+                "queue": "00000000-0000-0000-0000-000000000000",
+                "enabled": true,
+                "excludeFromHistory": false,
+                "excludeFromPending": false,
+                "name": "PrinterBot - Print Receipt",
+                "group": "PrinterBot",
+                "alwaysRun": false,
+                "randomAction": false,
+                "concurrent": false,
+                "triggers": [],
+                "subActions": [
+                    {
+                        "name": "PrinterBot - Print Receipt",
+                        "description": "Renders the receipt PNG via Loadout.dll PrinterBotEntry and pushes it to the thermal printer. Sets %printedImagePath% for the Discord relay step. Invoked by the per-source router actions; not triggered directly.",
+                        "references": [
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                        ],
+                        "byteCode": "Ly8gUHJpbnRlckJvdCAtIFJlbmRlciArIFRoZXJtYWwgUHJpbnQKLy8gUmVuZGVycyB0aGUgcmVjZWlwdCBQTkcgdmlhIHRoZSBjb25maWd1cmVkIHJlbmRlcmVyIGFuZCBwdXNoZXMgaXQKLy8gdG8gdGhlIHRoZXJtYWwgcHJpbnRlci4gU2V0cyAlcHJpbnRlZEltYWdlUGF0aCUgZm9yIHRoZSByZWxheSBzdGVwCi8vIHRvIHBpY2sgdXAuIFRoZSBhY3R1YWwgcmVuZGVyL3ByaW50IGlzIGRlbGVnYXRlZCB0byBQcmludGVyQm90RW50cnkKLy8gaW4gdGhlIGxvYWRlZCBMb2Fkb3V0LmRsbCAod2hpY2ggYWxyZWFkeSBoYW5kbGVzIHRoZSByZWNlaXB0IGxheW91dAovLyArIEVTQy9QT1MgZnJhbWluZyk7IHRoaXMgc3R1YiBqdXN0IGJyaWRnZXMgdGhlIFNCIGFyZ3MgaW50byBpdC4KdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYzsKdXNpbmcgU3lzdGVtLklPOwp1c2luZyBTeXN0ZW0uUmVmbGVjdGlvbjsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgcHJpdmF0ZSBzdGF0aWMgVHlwZSBfZW50cnk7CgogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgdHJ5CiAgICAgICAgewogICAgICAgICAgICBpZiAoX2VudHJ5ID09IG51bGwpCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIHZhciBkbGwgPSBQYXRoLkNvbWJpbmUoQXBwRG9tYWluLkN1cnJlbnREb21haW4uQmFzZURpcmVjdG9yeSwgImRhdGEiLCAiTG9hZG91dCIsICJMb2Fkb3V0LmRsbCIpOwogICAgICAgICAgICAgICAgaWYgKCFGaWxlLkV4aXN0cyhkbGwpKSB7IENQSC5Mb2dXYXJuKCJbUHJpbnRlckJvdF0gRExMIG1pc3NpbmcsIHJlbmRlciBza2lwcGVkLiIpOyByZXR1cm4gdHJ1ZTsgfQogICAgICAgICAgICAgICAgX2VudHJ5ID0gQXNzZW1ibHkuTG9hZEZyb20oZGxsKS5HZXRUeXBlKCJMb2Fkb3V0LlByaW50ZXJCb3RFbnRyeSIpOwogICAgICAgICAgICAgICAgaWYgKF9lbnRyeSA9PSBudWxsKSB7IENQSC5Mb2dXYXJuKCJbUHJpbnRlckJvdF0gUHJpbnRlckJvdEVudHJ5IHR5cGUgbm90IGZvdW5kLiIpOyByZXR1cm4gdHJ1ZTsgfQogICAgICAgICAgICB9CiAgICAgICAgICAgIHZhciByZW5kZXIgPSBfZW50cnkuR2V0TWV0aG9kKCJSZW5kZXJBbmRQcmludCIsIEJpbmRpbmdGbGFncy5QdWJsaWMgfCBCaW5kaW5nRmxhZ3MuU3RhdGljKTsKICAgICAgICAgICAgaWYgKHJlbmRlciA9PSBudWxsKSB7IENQSC5Mb2dXYXJuKCJbUHJpbnRlckJvdF0gUmVuZGVyQW5kUHJpbnQgbWV0aG9kIG5vdCBmb3VuZC4iKTsgcmV0dXJuIHRydWU7IH0KICAgICAgICAgICAgdmFyIHJlc3VsdCA9IHJlbmRlci5JbnZva2UobnVsbCwgbmV3IG9iamVjdFtdIHsgQ1BILCAoSURpY3Rpb25hcnk8c3RyaW5nLCBvYmplY3Q+KWFyZ3MgfSkgYXMgc3RyaW5nOwogICAgICAgICAgICBpZiAoIXN0cmluZy5Jc051bGxPckVtcHR5KHJlc3VsdCkpCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIENQSC5TZXRBcmd1bWVudCgicHJpbnRlZEltYWdlUGF0aCIsIHJlc3VsdCk7CiAgICAgICAgICAgIH0KICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQogICAgICAgIGNhdGNoIChFeGNlcHRpb24gZXgpCiAgICAgICAgewogICAgICAgICAgICBDUEguTG9nRXJyb3IoIltQcmludGVyQm90XSBSZW5kZXIvcHJpbnQgZmFpbGVkOiAiICsgZXguTWVzc2FnZSk7CiAgICAgICAgICAgIHJldHVybiB0cnVlOwogICAgICAgIH0KICAgIH0KfQo=",
+                        "precompile": false,
+                        "delayStart": false,
+                        "saveResultToVariable": false,
+                        "saveToVariable": "",
+                        "id": "5f4a6c2e-9b1d-4f7e-b3a0-7e6f1c2d8a22",
+                        "weight": 0,
+                        "type": 99999,
+                        "parentId": null,
+                        "enabled": true,
+                        "index": 0
+                    }
+                ],
+                "collapsedGroups": []
+            },
+            {
+                "id": "5f4a6c2e-9b1d-4f7e-b3a0-7e6f1c2d8a31",
+                "queue": "00000000-0000-0000-0000-000000000000",
+                "enabled": true,
+                "excludeFromHistory": false,
+                "excludeFromPending": false,
+                "name": "PrinterBot - Discord Relay",
+                "group": "PrinterBot",
+                "alwaysRun": false,
+                "randomAction": false,
+                "concurrent": false,
+                "triggers": [],
+                "subActions": [
+                    {
+                        "name": "PrinterBot - Discord Relay",
+                        "description": "POSTs %printedImagePath% + caption to the Loadout Worker's /printerbot/discord-relay endpoint (multipart). The Worker mirrors the receipt to Discord using the bot token; SB never sees it. Fail-open. Set the PRINTERBOT_RELAY_SECRET global var before first use.",
+                        "references": [
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                        ],
+                        "byteCode": "Ly8gUHJpbnRlckJvdCAtIERpc2NvcmQgUmVsYXkKLy8gUG9zdHMgdGhlIHJlbmRlcmVkIHJlY2VpcHQgUE5HIChwYXRoIHBpY2tlZCB1cCBmcm9tICVwcmludGVkSW1hZ2VQYXRoJQovLyBhcmcsIHNldCBieSAiUHJpbnRlckJvdCAtIFByaW50IFJlY2VpcHQiKSB0byB0aGUgTG9hZG91dCBXb3JrZXIncwovLyAvcHJpbnRlcmJvdC9kaXNjb3JkLXJlbGF5IGVuZHBvaW50LiBUaGUgV29ya2VyIGZhbnMgaXQgb3V0IHRvIGEKLy8gZml4ZWQgRGlzY29yZCBjaGFubmVsIHVzaW5nIHRoZSBib3QgdG9rZW4gYWxyZWFkeSBjb25maWd1cmVkIHRoZXJlOwovLyBTQiBpdHNlbGYgbmV2ZXIgc2VlcyB0aGUgYm90IHRva2VuLiBBdXRoIHZpYSBzaGFyZWQgc2VjcmV0IGluCi8vIHgtcHJpbnRlcmJvdC1zZWNyZXQgaGVhZGVyICh2YWx1ZSA9ICVQUklOVEVSQk9UX1JFTEFZX1NFQ1JFVCUKLy8gZ2xvYmFsIHZhciwgc2V0IG9uY2UgYnkgdGhlIG9wZXJhdG9yKS4KLy8KLy8gRmFpbC1vcGVuOiBhbnkgZmFpbHVyZSBpcyBsb2dnZWQgKyBzd2FsbG93ZWQgc28gdGhlIHRoZXJtYWwtcHJpbnQKLy8gcGlwZWxpbmUgbmV2ZXIgYmxvY2tzIG9uIGEgRGlzY29yZCBvdXRhZ2UuCnVzaW5nIFN5c3RlbTsKdXNpbmcgU3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWM7CnVzaW5nIFN5c3RlbS5JTzsKdXNpbmcgU3lzdGVtLk5ldDsKdXNpbmcgU3lzdGVtLlRleHQ7CgpwdWJsaWMgY2xhc3MgQ1BISW5saW5lCnsKICAgIHB1YmxpYyBib29sIEV4ZWN1dGUoKQogICAgewogICAgICAgIHRyeQogICAgICAgIHsKICAgICAgICAgICAgc3RyaW5nIGltYWdlUGF0aDsKICAgICAgICAgICAgaWYgKCFDUEguVHJ5R2V0QXJnKCJwcmludGVkSW1hZ2VQYXRoIiwgb3V0IGltYWdlUGF0aCkgfHwgc3RyaW5nLklzTnVsbE9yV2hpdGVTcGFjZShpbWFnZVBhdGgpKQogICAgICAgICAgICB7CiAgICAgICAgICAgICAgICBDUEguTG9nRGVidWcoIltQcmludGVyQm90XSBEaXNjb3JkIHJlbGF5OiBubyBwcmludGVkSW1hZ2VQYXRoLCBza2lwcGluZy4iKTsKICAgICAgICAgICAgICAgIHJldHVybiB0cnVlOwogICAgICAgICAgICB9CiAgICAgICAgICAgIGlmICghRmlsZS5FeGlzdHMoaW1hZ2VQYXRoKSkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgQ1BILkxvZ0RlYnVnKCJbUHJpbnRlckJvdF0gRGlzY29yZCByZWxheTogZmlsZSBtaXNzaW5nIGF0ICIgKyBpbWFnZVBhdGgpOwogICAgICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgICAgIH0KCiAgICAgICAgICAgIC8vIENhcHRpb246ICJAdmlld2VyIHNlbnQgR2lmdE5hbWUiIGJ5IGRlZmF1bHQuIFB1bGwgZnJvbQogICAgICAgICAgICAvLyB3aGF0ZXZlciB0aGUgdXBzdHJlYW0gdHJpZ2dlciBnYXZlIHVzIChUaWtGaW5pdHkgdXNlcwogICAgICAgICAgICAvLyB1bmlxdWVJZCAvIG5pY2tuYW1lLCBUd2l0Y2ggdXNlcyB1c2VyL3VzZXJOYW1lKS4KICAgICAgICAgICAgc3RyaW5nIHVzZXIgPSAiIjsKICAgICAgICAgICAgQ1BILlRyeUdldEFyZygidW5pcXVlSWQiLCBvdXQgdXNlcik7CiAgICAgICAgICAgIGlmIChzdHJpbmcuSXNOdWxsT3JFbXB0eSh1c2VyKSkgQ1BILlRyeUdldEFyZygibmlja25hbWUiLCBvdXQgdXNlcik7CiAgICAgICAgICAgIGlmIChzdHJpbmcuSXNOdWxsT3JFbXB0eSh1c2VyKSkgQ1BILlRyeUdldEFyZygidXNlciIsIG91dCB1c2VyKTsKICAgICAgICAgICAgaWYgKHN0cmluZy5Jc051bGxPckVtcHR5KHVzZXIpKSBDUEguVHJ5R2V0QXJnKCJ1c2VyTmFtZSIsIG91dCB1c2VyKTsKICAgICAgICAgICAgaWYgKHN0cmluZy5Jc051bGxPckVtcHR5KHVzZXIpKSB1c2VyID0gInZpZXdlciI7CiAgICAgICAgICAgIHN0cmluZyBnaWZ0OwogICAgICAgICAgICBpZiAoIUNQSC5UcnlHZXRBcmcoImdpZnRfbmFtZSIsIG91dCBnaWZ0KSB8fCBzdHJpbmcuSXNOdWxsT3JFbXB0eShnaWZ0KSkgZ2lmdCA9ICJhIGdpZnQiOwogICAgICAgICAgICBzdHJpbmcgY2FwdGlvbiA9ICJAIiArIHVzZXIgKyAiIHNlbnQgIiArIGdpZnQ7CgogICAgICAgICAgICBzdHJpbmcgcmVsYXlTZWNyZXQgPSAoc3RyaW5nKUNQSC5HZXRHbG9iYWxWYXI8c3RyaW5nPigiUFJJTlRFUkJPVF9SRUxBWV9TRUNSRVQiLCB0cnVlKTsKICAgICAgICAgICAgaWYgKHN0cmluZy5Jc051bGxPckVtcHR5KHJlbGF5U2VjcmV0KSkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgLy8gQWxsb3cgcGVyLWFjdGlvbiBhcmcgb3ZlcnJpZGUgdG9vLCBzbyB0aGUgZ2xvYmFsIHZhcgogICAgICAgICAgICAgICAgLy8gY2FuIHN0YXkgdW5zZXQgb24gdGVzdCByaWdzLgogICAgICAgICAgICAgICAgQ1BILlRyeUdldEFyZygiUFJJTlRFUkJPVF9SRUxBWV9TRUNSRVQiLCBvdXQgcmVsYXlTZWNyZXQpOwogICAgICAgICAgICB9CiAgICAgICAgICAgIGlmIChzdHJpbmcuSXNOdWxsT3JFbXB0eShyZWxheVNlY3JldCkpCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIENQSC5Mb2dXYXJuKCJbUHJpbnRlckJvdF0gRGlzY29yZCByZWxheTogUFJJTlRFUkJPVF9SRUxBWV9TRUNSRVQgbm90IHNldCwgc2tpcHBpbmcuIik7CiAgICAgICAgICAgICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgc3RyaW5nIHVybCA9IChzdHJpbmcpQ1BILkdldEdsb2JhbFZhcjxzdHJpbmc+KCJQUklOVEVSQk9UX1JFTEFZX1VSTCIsIHRydWUpOwogICAgICAgICAgICBpZiAoc3RyaW5nLklzTnVsbE9yRW1wdHkodXJsKSkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgdXJsID0gImh0dHBzOi8vbG9hZG91dC1kaXNjb3JkLmFxdWlsby5nZy9wcmludGVyYm90L2Rpc2NvcmQtcmVsYXkiOwogICAgICAgICAgICB9CgogICAgICAgICAgICAvLyBCdWlsZCBtdWx0aXBhcnQvZm9ybS1kYXRhIGJvZHkgYnkgaGFuZC4gU0Igc2hpcHMgLk5FVCA0LngKICAgICAgICAgICAgLy8gc28gSHR0cENsaWVudCBpcyBmaW5lIGJ1dCBXZWJSZXF1ZXN0IGtlZXBzIHRoZSBhY3Rpb24KICAgICAgICAgICAgLy8gZGVwZW5kZW5jeS1mcmVlLgogICAgICAgICAgICBzdHJpbmcgYm91bmRhcnkgPSAiLS0tLVByaW50ZXJCb3RSZWxheSIgKyBHdWlkLk5ld0d1aWQoKS5Ub1N0cmluZygiTiIpOwogICAgICAgICAgICBieXRlW10gYm9keTsKICAgICAgICAgICAgdXNpbmcgKHZhciBtcyA9IG5ldyBNZW1vcnlTdHJlYW0oKSkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgQXBwZW5kKG1zLCAiLS0iICsgYm91bmRhcnkgKyAiXHJcbiIpOwogICAgICAgICAgICAgICAgQXBwZW5kKG1zLCAiQ29udGVudC1EaXNwb3NpdGlvbjogZm9ybS1kYXRhOyBuYW1lPVwiY2FwdGlvblwiXHJcblxyXG4iKTsKICAgICAgICAgICAgICAgIEFwcGVuZChtcywgY2FwdGlvbiArICJcclxuIik7CgogICAgICAgICAgICAgICAgQXBwZW5kKG1zLCAiLS0iICsgYm91bmRhcnkgKyAiXHJcbiIpOwogICAgICAgICAgICAgICAgQXBwZW5kKG1zLCAiQ29udGVudC1EaXNwb3NpdGlvbjogZm9ybS1kYXRhOyBuYW1lPVwiaW1hZ2VcIjsgZmlsZW5hbWU9XCIiICsgUGF0aC5HZXRGaWxlTmFtZShpbWFnZVBhdGgpICsgIlwiXHJcbiIpOwogICAgICAgICAgICAgICAgQXBwZW5kKG1zLCAiQ29udGVudC1UeXBlOiBpbWFnZS9wbmdcclxuXHJcbiIpOwogICAgICAgICAgICAgICAgbXMuV3JpdGUoRmlsZS5SZWFkQWxsQnl0ZXMoaW1hZ2VQYXRoKSwgMCwgKGludCluZXcgRmlsZUluZm8oaW1hZ2VQYXRoKS5MZW5ndGgpOwogICAgICAgICAgICAgICAgQXBwZW5kKG1zLCAiXHJcbi0tIiArIGJvdW5kYXJ5ICsgIi0tXHJcbiIpOwogICAgICAgICAgICAgICAgYm9keSA9IG1zLlRvQXJyYXkoKTsKICAgICAgICAgICAgfQoKICAgICAgICAgICAgU2VydmljZVBvaW50TWFuYWdlci5TZWN1cml0eVByb3RvY29sIHw9IFNlY3VyaXR5UHJvdG9jb2xUeXBlLlRsczEyOwogICAgICAgICAgICB2YXIgcmVxID0gKEh0dHBXZWJSZXF1ZXN0KVdlYlJlcXVlc3QuQ3JlYXRlKHVybCk7CiAgICAgICAgICAgIHJlcS5NZXRob2QgPSAiUE9TVCI7CiAgICAgICAgICAgIHJlcS5Db250ZW50VHlwZSA9ICJtdWx0aXBhcnQvZm9ybS1kYXRhOyBib3VuZGFyeT0iICsgYm91bmRhcnk7CiAgICAgICAgICAgIHJlcS5IZWFkZXJzWyJ4LXByaW50ZXJib3Qtc2VjcmV0Il0gPSByZWxheVNlY3JldDsKICAgICAgICAgICAgcmVxLlVzZXJBZ2VudCA9ICJsb2Fkb3V0LXByaW50ZXJib3Qtc2IvMS4wIjsKICAgICAgICAgICAgcmVxLkNvbnRlbnRMZW5ndGggPSBib2R5Lkxlbmd0aDsKICAgICAgICAgICAgdXNpbmcgKHZhciBycyA9IHJlcS5HZXRSZXF1ZXN0U3RyZWFtKCkpIHJzLldyaXRlKGJvZHksIDAsIGJvZHkuTGVuZ3RoKTsKICAgICAgICAgICAgdHJ5CiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIHVzaW5nICh2YXIgcmVzcCA9IChIdHRwV2ViUmVzcG9uc2UpcmVxLkdldFJlc3BvbnNlKCkpCiAgICAgICAgICAgICAgICB7CiAgICAgICAgICAgICAgICAgICAgQ1BILkxvZ0RlYnVnKCJbUHJpbnRlckJvdF0gRGlzY29yZCByZWxheTogIiArIChpbnQpcmVzcC5TdGF0dXNDb2RlKTsKICAgICAgICAgICAgICAgIH0KICAgICAgICAgICAgfQogICAgICAgICAgICBjYXRjaCAoV2ViRXhjZXB0aW9uIHdleCkKICAgICAgICAgICAgewogICAgICAgICAgICAgICAgLy8gRmFpbC1vcGVuOiBsb2cgKyBtb3ZlIG9uLiBOZXZlciBlY2hvIHRoZSBzZWNyZXQuCiAgICAgICAgICAgICAgICBDUEguTG9nV2FybigiW1ByaW50ZXJCb3RdIERpc2NvcmQgcmVsYXkgSFRUUCBlcnJvcjogIiArIHdleC5NZXNzYWdlKTsKICAgICAgICAgICAgfQogICAgICAgIH0KICAgICAgICBjYXRjaCAoRXhjZXB0aW9uIGV4KQogICAgICAgIHsKICAgICAgICAgICAgQ1BILkxvZ1dhcm4oIltQcmludGVyQm90XSBEaXNjb3JkIHJlbGF5IGZhaWxlZDogIiArIGV4Lk1lc3NhZ2UpOwogICAgICAgIH0KICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KCiAgICBwcml2YXRlIHN0YXRpYyB2b2lkIEFwcGVuZChNZW1vcnlTdHJlYW0gbXMsIHN0cmluZyBzKQogICAgewogICAgICAgIHZhciBieXRlcyA9IEVuY29kaW5nLlVURjguR2V0Qnl0ZXMocyk7CiAgICAgICAgbXMuV3JpdGUoYnl0ZXMsIDAsIGJ5dGVzLkxlbmd0aCk7CiAgICB9Cn0K",
+                        "precompile": false,
+                        "delayStart": false,
+                        "saveResultToVariable": false,
+                        "saveToVariable": "",
+                        "id": "5f4a6c2e-9b1d-4f7e-b3a0-7e6f1c2d8a32",
+                        "weight": 0,
+                        "type": 99999,
+                        "parentId": null,
+                        "enabled": true,
+                        "index": 0
+                    }
+                ],
+                "collapsedGroups": []
+            },
+            {
+                "id": "5f4a6c2e-9b1d-4f7e-b3a0-7e6f1c2d8a01",
+                "queue": "00000000-0000-0000-0000-000000000000",
+                "enabled": true,
+                "excludeFromHistory": false,
+                "excludeFromPending": false,
+                "name": "PrinterBot - TikTok Gift Print",
+                "group": "PrinterBot",
+                "alwaysRun": false,
+                "randomAction": false,
+                "concurrent": false,
+                "triggers": [],
+                "subActions": [
+                    {
+                        "name": "PrinterBot - TikTok Gift Print",
+                        "description": "TikTok gift router: filters to the allow-list (incl. Heart Me), then calls Print Receipt + Discord Relay. Gift events ONLY; like events are explicitly excluded. Wire TikFinity / TikTok Gift triggers here.",
+                        "references": [
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                        ],
+                        "byteCode": "Ly8gUHJpbnRlckJvdCAtIFRpa1RvayBHaWZ0IFByaW50IHJvdXRlcgovLyBUcmlnZ2VyZWQgb24gZXZlcnkgVGlrVG9rIGdpZnQgKFRpa0Zpbml0eS9TQiBuYXRpdmUpLiBGaWx0ZXJzIHRvIGEKLy8ga25vd24gYWxsb3ctbGlzdCBvZiBnaWZ0IG5hbWVzIGJlZm9yZSBkZWxlZ2F0aW5nIHRvIHRoZSBzaGFyZWQKLy8gIlByaW50ZXJCb3QgLSBQcmludCBSZWNlaXB0IiBzdWItYWN0aW9uLiBIZWFydCBNZSBpcyB0aGUgbGF0ZXN0Ci8vIGFkZGl0aW9uOyBUaWtUb2sgaXRzZWxmIGVuZm9yY2VzIDEgSGVhcnQgTWUgLyB2aWV3ZXIgLyBzdHJlYW0gc28gbm8KLy8gcGVyLXVzZXIgY29vbGRvd24gaXMgbmVlZGVkIGhlcmUuCi8vCi8vIElNUE9SVEFOVDogb25seSBmaXJlcyBmb3IgYWN0dWFsIEdJRlQgZXZlbnRzLiBGcmVlIGhlYXJ0IHRhcHMgKHRoZQovLyAibGlrZSIgZXZlbnQpIHJlYWNoIFNCIGFzIGEgZGlmZmVyZW50IHRyaWdnZXIgKFRpa1RvayBMaWtlIC8KLy8gVGlrRmluaXR5ICdsaWtlJyk7IHRoaXMgYWN0aW9uJ3MgdHJpZ2dlcnMgYXJlIGdpZnQtb25seSwgQU5EIHdlCi8vIGRvdWJsZS1jaGVjayB0aGUgZXZlbnQgbmFtZSBpbiBjb2RlIHNvIGEgbWlzLXdpcmVkIHRyaWdnZXIgY2FuJ3QKLy8gcHJvbW90ZSBsaWtlcyBpbnRvIHByaW50cy4KdXNpbmcgU3lzdGVtOwp1c2luZyBTeXN0ZW0uQ29sbGVjdGlvbnMuR2VuZXJpYzsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgLy8gQWxsb3ctbGlzdCBvZiBUaWtUb2sgZ2lmdCBuYW1lcyB0aGF0IHByaW50LiBLZWVwIHRoaXMgbGlzdCBpbgogICAgLy8gc3luYyB3aXRoIGFxdWlsby1nZy9vdmVybGF5cy9fc2hhcmVkL3Rpa3Rvay1naWZ0cy5qcyBhbmQgdGhlCiAgICAvLyBnaWZ0LWphciBvdmVybGF5LiBOYW1lcyBhcmUgbWF0Y2hlZCBjYXNlL3NwYWNlL3B1bmN0IGluc2Vuc2l0aXZlLgogICAgcHJpdmF0ZSBzdGF0aWMgcmVhZG9ubHkgSGFzaFNldDxzdHJpbmc+IEFsbG93ZWRHaWZ0cyA9IG5ldyBIYXNoU2V0PHN0cmluZz4oU3RyaW5nQ29tcGFyZXIuT3JkaW5hbElnbm9yZUNhc2UpCiAgICB7CiAgICAgICAgImhlYXJ0IG1lIiwKICAgICAgICAicm9zZSIsCiAgICAgICAgInRpa3RvayIsCiAgICAgICAgImdnIiwKICAgICAgICAiaWNlIGNyZWFtIGNvbmUiLAogICAgICAgICJmaW5nZXIgaGVhcnQiLAogICAgICAgICJwZXJmdW1lIiwKICAgICAgICAiZG91Z2hudXQiLAogICAgICAgICJwYXBlciBjcmFuZSIsCiAgICAgICAgInJvc2EiLAogICAgICAgICJjYXAiLAogICAgICAgICJ0ZWFtIGJyYWNlbGV0IiwKICAgICAgICAiZnJpZW5kc2hpcCBuZWNrbGFjZSIsCiAgICAgICAgImJpcnRoZGF5IGNha2UiLAogICAgICAgICJsb3ZlIGJhbmciLAogICAgICAgICJnYWxheHkiLAogICAgICAgICJyb2NrZXQiLAogICAgICAgICJkcmFtYSBxdWVlbiIsCiAgICAgICAgImxpb24iLAogICAgICAgICJ1bml2ZXJzZSIsCiAgICB9OwoKICAgIHByaXZhdGUgc3RhdGljIHN0cmluZyBOb3JtKHN0cmluZyBzKQogICAgewogICAgICAgIGlmIChzdHJpbmcuSXNOdWxsT3JFbXB0eShzKSkgcmV0dXJuICIiOwogICAgICAgIHZhciBsb3dlciA9IHMuVG9Mb3dlckludmFyaWFudCgpLlRyaW0oKTsKICAgICAgICB2YXIgc2IgPSBuZXcgU3lzdGVtLlRleHQuU3RyaW5nQnVpbGRlcihsb3dlci5MZW5ndGgpOwogICAgICAgIGJvb2wgbGFzdFNwYWNlID0gZmFsc2U7CiAgICAgICAgZm9yZWFjaCAodmFyIGMgaW4gbG93ZXIpCiAgICAgICAgewogICAgICAgICAgICBpZiAoYyA9PSAnXycgfHwgYyA9PSAnLScgfHwgYyA9PSAnLicgfHwgY2hhci5Jc1doaXRlU3BhY2UoYykpCiAgICAgICAgICAgIHsKICAgICAgICAgICAgICAgIGlmICghbGFzdFNwYWNlKSB7IHNiLkFwcGVuZCgnICcpOyBsYXN0U3BhY2UgPSB0cnVlOyB9CiAgICAgICAgICAgIH0KICAgICAgICAgICAgZWxzZSB7IHNiLkFwcGVuZChjKTsgbGFzdFNwYWNlID0gZmFsc2U7IH0KICAgICAgICB9CiAgICAgICAgcmV0dXJuIHNiLlRvU3RyaW5nKCkuVHJpbSgpOwogICAgfQoKICAgIHB1YmxpYyBib29sIEV4ZWN1dGUoKQogICAgewogICAgICAgIC8vIEhhcmQgZ2F0ZTogbXVzdCBiZSBhIGdpZnQgZXZlbnQsIG5ldmVyIGEgbGlrZS4gVGlrRmluaXR5IHVzZXMKICAgICAgICAvLyBldmVudCA9ICJnaWZ0IjsgbmF0aXZlIFNCIFRpa1RvayBpbnRlZ3JhdGlvbiB1c2VzIGFyZwogICAgICAgIC8vICJldmVudFR5cGUiID0gImdpZnQiIG9yICJsaWtlIi4gUmVqZWN0IGFueXRoaW5nIGVsc2UuCiAgICAgICAgc3RyaW5nIGV2dCA9ICIiOwogICAgICAgIGlmIChhcmdzLkNvbnRhaW5zS2V5KCJldmVudCIpKSBldnQgPSAoYXJnc1siZXZlbnQiXSA/PyAiIikuVG9TdHJpbmcoKTsKICAgICAgICBpZiAoc3RyaW5nLklzTnVsbE9yRW1wdHkoZXZ0KSAmJiBhcmdzLkNvbnRhaW5zS2V5KCJldmVudFR5cGUiKSkgZXZ0ID0gKGFyZ3NbImV2ZW50VHlwZSJdID8/ICIiKS5Ub1N0cmluZygpOwogICAgICAgIGlmICghc3RyaW5nLklzTnVsbE9yRW1wdHkoZXZ0KSAmJiAhZXZ0LkVxdWFscygiZ2lmdCIsIFN0cmluZ0NvbXBhcmlzb24uT3JkaW5hbElnbm9yZUNhc2UpKQogICAgICAgIHsKICAgICAgICAgICAgLy8gQW55dGhpbmcgdGhhdCBpc24ndCBhbiBleHBsaWNpdCBnaWZ0IGV2ZW50IChsaWtlcywgZm9sbG93cywKICAgICAgICAgICAgLy8gam9pbnMsIHNoYXJlcykgaXMgYSBuby1vcCBmb3IgdGhlIHByaW50ZXIuCiAgICAgICAgICAgIHJldHVybiB0cnVlOwogICAgICAgIH0KCiAgICAgICAgc3RyaW5nIGdpZnROYW1lID0gIiI7CiAgICAgICAgaWYgKGFyZ3MuQ29udGFpbnNLZXkoImdpZnROYW1lIikpICAgICBnaWZ0TmFtZSA9IChhcmdzWyJnaWZ0TmFtZSJdICAgICA/PyAiIikuVG9TdHJpbmcoKTsKICAgICAgICBpZiAoc3RyaW5nLklzTnVsbE9yRW1wdHkoZ2lmdE5hbWUpICYmIGFyZ3MuQ29udGFpbnNLZXkoImdpZnQiKSkgICAgIGdpZnROYW1lID0gKGFyZ3NbImdpZnQiXSAgICAgPz8gIiIpLlRvU3RyaW5nKCk7CiAgICAgICAgaWYgKHN0cmluZy5Jc051bGxPckVtcHR5KGdpZnROYW1lKSAmJiBhcmdzLkNvbnRhaW5zS2V5KCJnaWZ0TGFiZWwiKSkgZ2lmdE5hbWUgPSAoYXJnc1siZ2lmdExhYmVsIl0gPz8gIiIpLlRvU3RyaW5nKCk7CgogICAgICAgIHZhciBub3JtID0gTm9ybShnaWZ0TmFtZSk7CiAgICAgICAgaWYgKHN0cmluZy5Jc051bGxPckVtcHR5KG5vcm0pKQogICAgICAgIHsKICAgICAgICAgICAgQ1BILkxvZ0RlYnVnKCJbUHJpbnRlckJvdF0gVGlrVG9rIGdpZnQgZXZlbnQgd2l0aCBubyBuYW1lLCBza2lwcGluZy4iKTsKICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQoKICAgICAgICBpZiAoIUFsbG93ZWRHaWZ0cy5Db250YWlucyhub3JtKSkKICAgICAgICB7CiAgICAgICAgICAgIENQSC5Mb2dEZWJ1ZygiW1ByaW50ZXJCb3RdIFRpa1RvayBnaWZ0ICciICsgZ2lmdE5hbWUgKyAiJyBub3QgaW4gcHJpbnQgYWxsb3ctbGlzdC4iKTsKICAgICAgICAgICAgcmV0dXJuIHRydWU7CiAgICAgICAgfQoKICAgICAgICAvLyBSb3V0ZSBpbnRvIHRoZSBzaGFyZWQgcHJpbnQgYWN0aW9uLiBUaGUgcmVuZGVyIHN0ZXAgcGlja3MgdXAKICAgICAgICAvLyB1c2VyL2dpZnQgYXJncyBmcm9tIENQSC5HZXRBcmcuCiAgICAgICAgQ1BILlNldEFyZ3VtZW50KCJzb3VyY2UiLCAidGlrdG9rIik7CiAgICAgICAgQ1BILlNldEFyZ3VtZW50KCJnaWZ0X25hbWUiLCBnaWZ0TmFtZSk7CiAgICAgICAgQ1BILlJ1bkFjdGlvbigiUHJpbnRlckJvdCAtIFByaW50IFJlY2VpcHQiLCBmYWxzZSk7CiAgICAgICAgLy8gRGlzY29yZCBtaXJyb3IgcnVucyBhZnRlciBwcmludCBvbiB0aGUgc2FtZSBjaGFpbiB2aWEgdGhlCiAgICAgICAgLy8gZ3JvdXAncyBSdW4gQWN0aW9uIC0+IERpc2NvcmQgUmVsYXkgc3ViLWFjdGlvbi4KICAgICAgICBDUEguUnVuQWN0aW9uKCJQcmludGVyQm90IC0gRGlzY29yZCBSZWxheSIsIGZhbHNlKTsKICAgICAgICByZXR1cm4gdHJ1ZTsKICAgIH0KfQo=",
+                        "precompile": false,
+                        "delayStart": false,
+                        "saveResultToVariable": false,
+                        "saveToVariable": "",
+                        "id": "5f4a6c2e-9b1d-4f7e-b3a0-7e6f1c2d8a02",
+                        "weight": 0,
+                        "type": 99999,
+                        "parentId": null,
+                        "enabled": true,
+                        "index": 0
+                    }
+                ],
+                "collapsedGroups": []
+            },
+            {
+                "id": "5f4a6c2e-9b1d-4f7e-b3a0-7e6f1c2d8a11",
+                "queue": "00000000-0000-0000-0000-000000000000",
+                "enabled": true,
+                "excludeFromHistory": false,
+                "excludeFromPending": false,
+                "name": "PrinterBot - Twitch Gift Print",
+                "group": "PrinterBot",
+                "alwaysRun": false,
+                "randomAction": false,
+                "concurrent": false,
+                "triggers": [],
+                "subActions": [
+                    {
+                        "name": "PrinterBot - Twitch Gift Print",
+                        "description": "Twitch/YouTube/Kick gift/sub/cheer router: calls Print Receipt + Discord Relay. Wire your existing gift triggers here.",
+                        "references": [
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll"
+                        ],
+                        "byteCode": "Ly8gUHJpbnRlckJvdCAtIFR3aXRjaCBHaWZ0IC8gQ2hlZXIgLyBTdWIgUHJpbnQgcm91dGVyCi8vIEhhbmQtb2ZmIGZvciBUd2l0Y2ggZ2lmdHN1Yi9jaGVlci9zdWIgdHJpZ2dlcnMuIFNldHMgdGhlIHNvdXJjZSArCi8vIGdpZnRfbmFtZSBhcmdzIHRoZW4gZGVsZWdhdGVzIHRvIHRoZSBzaGFyZWQgcHJpbnQgKyBEaXNjb3JkIHJlbGF5Ci8vIGFjdGlvbnMuIEV4aXN0aW5nIHRyaWdnZXIgY29uZmlnIChUd2l0Y2ggR2lmdFN1YiwgQ2hlZXIsIFN1Yikgc3RheXMKLy8gcG9pbnRlZCBhdCB0aGlzIGFjdGlvbjsgdGhlIEhlYXJ0IE1lIHdvcmsgaXMgVGlrVG9rLW9ubHkuCnVzaW5nIFN5c3RlbTsKCnB1YmxpYyBjbGFzcyBDUEhJbmxpbmUKewogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgc3RyaW5nIGxhYmVsID0gIiI7CiAgICAgICAgaWYgKGFyZ3MuQ29udGFpbnNLZXkoInRyaWdnZXJOYW1lIikpIGxhYmVsID0gKGFyZ3NbInRyaWdnZXJOYW1lIl0gPz8gIiIpLlRvU3RyaW5nKCk7CiAgICAgICAgQ1BILlNldEFyZ3VtZW50KCJzb3VyY2UiLCAidHdpdGNoIik7CiAgICAgICAgQ1BILlNldEFyZ3VtZW50KCJnaWZ0X25hbWUiLCBzdHJpbmcuSXNOdWxsT3JFbXB0eShsYWJlbCkgPyAiZ2lmdCIgOiBsYWJlbCk7CiAgICAgICAgQ1BILlJ1bkFjdGlvbigiUHJpbnRlckJvdCAtIFByaW50IFJlY2VpcHQiLCBmYWxzZSk7CiAgICAgICAgQ1BILlJ1bkFjdGlvbigiUHJpbnRlckJvdCAtIERpc2NvcmQgUmVsYXkiLCBmYWxzZSk7CiAgICAgICAgcmV0dXJuIHRydWU7CiAgICB9Cn0K",
+                        "precompile": false,
+                        "delayStart": false,
+                        "saveResultToVariable": false,
+                        "saveToVariable": "",
+                        "id": "5f4a6c2e-9b1d-4f7e-b3a0-7e6f1c2d8a12",
+                        "weight": 0,
+                        "type": 99999,
+                        "parentId": null,
+                        "enabled": true,
+                        "index": 0
+                    }
+                ],
+                "collapsedGroups": []
+            }
+        ],
+        "queues": [],
+        "commands": [],
+        "websocketServers": [],
+        "websocketClients": [],
+        "timers": []
+    },
+    "version": 23,
+    "exportedFrom": "1.0.4",
+    "minimumVersion": "1.0.0-alpha.1"
+}

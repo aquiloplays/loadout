@@ -50,6 +50,14 @@ compatibility_date = "2025-09-01"
 #                              shim and the worker. The legacy
 #                              x-counting-secret header is still
 #                              accepted alongside this for back-compat.
+#   PRINTERBOT_RELAY_SECRET    shared secret for the SB -> Worker
+#                              receipt mirror at /printerbot/discord-relay.
+#                              SB passes it in x-printerbot-secret; the
+#                              Worker uses DISCORD_BOT_TOKEN to post the
+#                              receipt PNG into the Discord channel.
+#                              Without it the relay endpoint returns
+#                              503 and the thermal pipeline continues
+#                              uninterrupted (fail-open).
 
 [vars]
 # Public env. Per-guild secrets are stored in KV, not here.
@@ -147,6 +155,11 @@ COMMUNITY_CHAT_CHANNELS_JSON = "[\"1507973904164061194\",\"1507973939937280131\"
 LFG_CHANNEL_ID = "1507973931372646490"         # 🧩│looking-for-game
 # Temporary-VC: clicking this voice channel spins up a fresh ephemeral VC.
 TEMP_VC_PARENT_ID = "1507973944026595388"      # ➕│join to create
+# PrinterBot Discord mirror: the channel where the Worker re-posts
+# every thermal-printed receipt PNG. Override per-call by passing
+# channel_id in the relay's multipart body. Defaults inside
+# printerbot-relay.js if both this var and the body field are empty.
+PRINTERBOT_DISCORD_CHANNEL_ID = "1508871768817795082"
 
 [[kv_namespaces]]
 binding = "LOADOUT_BOLTS"
@@ -191,6 +204,17 @@ class_name = "OverlayBroadcaster"
 name = "ACTIVITY_DO"
 class_name = "ActivityBroadcaster"
 
+# Aquilo Overlay Composer reference images. The builder lets Clay (and
+# later all streamers) upload a screenshot of their existing OBS scene as
+# a background reference layer, snap-to-edges enabled. 4 MB cap enforced
+# in overlay-canvas.js. Bucket needs to exist before deploy:
+#   wrangler r2 bucket create aquilo-overlay-references
+# If unset the upload route returns 503 with `r2-not-wired` so the rest
+# of the system keeps working.
+[[r2_buckets]]
+binding = "OVERLAY_REFERENCES"
+bucket_name = "aquilo-overlay-references"
+
 [[migrations]]
 tag = "v1-aquilo-overlay-do"
 new_sqlite_classes = ["OverlayBroadcaster"]
@@ -212,19 +236,4 @@ new_classes = ["ActivityBroadcaster"]
 # Aquilo-bot hourly tasks (CN poll lifecycle, daily prompts, T-or-T,
 # countdown, spotlight, recap, vote-reminders, weekly leaderboard,
 # trivia, achievements, birthday DMs, streak sweep) piggyback on the
-# :23 tick alongside Clash. The aquilo handler is idempotent by KV
-# marker, so the fact that :23 fires once per hour at the "wrong"
-# minute is fine — the per-task hour checks gate everything.
-#
-# Cloudflare's account caps this Worker at 4 cron triggers (the free-
-# plan ceiling on this account); the aquilo half-hourly model in the
-# old standalone worker was "minute===0 → hourly, minute===30 → queue
-# cleanup". Folding into :23 keeps the hourly path (still once per
-# hour) and shifts the 12:30 AM ET queue cleanup to 1:23 AM ET — a
-# cosmetic 30-min lag on a post-stream message cleanup.
-[triggers]
-crons = ["* * * * *", "23 * * * *", "0 1 * * *", "0 2 * * *"]
-
-# Public route: hosted by aquilo.gg. Self-hosters can either set their own
-# route here or leave the default *.workers.dev URL after `wrangler deploy`.
-# routes = [{ pattern = "loadout-discord.aquilo.gg/*", zone_name = "aquilo.gg" }]
+# :23 tick alongside Clash. The aquilo handle

@@ -244,6 +244,17 @@ export default {
     if (method === 'GET' && path.startsWith('/admin/printerbot/webhook-url/')) {
       return handlePrinterBotWebhookUrl(req, env, path);
     }
+    // Streamer.bot PrinterBot pipeline mirror. The SB print action
+    // calls this with the rendered receipt PNG + caption; we re-post
+    // the image into a fixed Discord channel using the bot token so
+    // viewers can scroll the receipt feed in chat too. Shared-secret
+    // gated via x-printerbot-secret (PRINTERBOT_RELAY_SECRET); the
+    // bot token never leaves the Worker. Fail-open: returns 200 even
+    // if Discord rejects so SB never hangs on the after-print hook.
+    if (method === 'POST' && path === '/printerbot/discord-relay') {
+      const { handlePrinterBotDiscordRelay } = await import('./printerbot-relay.js');
+      return handlePrinterBotDiscordRelay(req, env);
+    }
     // DESTRUCTIVE, wipes user-facing economy + progression for a guild.
     // Requires body { confirm: "yes-i-mean-it" } so a misfire can't
     // nuke the data. See reset-user-data.js for the wiped/preserved
@@ -767,6 +778,34 @@ export default {
     if (path.startsWith('/api/overlay-test/')) {
       const { handleOverlayTest } = await import('./overlay-test.js');
       return handleOverlayTest(req, env, path);
+    }
+    // Aquilo Overlay Composer (internal codename: overlay-canvas).
+    // One unified OBS browser source loads every widget from /overlays/canvas
+    // and pulls the layout JSON from here. Owner-only PUT, public read,
+    // tier-limited (free 5/5, t1 15/15, t2+ unlimited). Reuses the
+    // ActivityBroadcaster DO for SSE, no new EventSub subs created.
+    if (path.startsWith('/api/overlay-canvas/')) {
+      const { handleOverlayCanvas } = await import('./overlay-canvas.js');
+      return handleOverlayCanvas(req, env, ctx, url);
+    }
+    // Cam-border: owner-configurable webcam border overlay backend.
+    // Public GET /config/:id (with DEFAULT_CONFIG fallback), owner-only
+    // PUT, owner test-publish, and SSE that piggybacks on the existing
+    // ActivityBroadcaster fanout. No new EventSub subs created.
+    if (path.startsWith('/api/cam-border/')) {
+      const { handleCamBorder } = await import('./cam-border.js');
+      return handleCamBorder(req, env, ctx, url);
+    }
+    // Aquilo Scene Themer (free tool). One OBS scene, many themed source
+    // groups, the active group is swapped by the current Twitch category.
+    // Owner saves a mapping config on the site, Streamer.bot polls
+    // /active/:broadcaster every 10s and uses SetSceneItemEnabled to show
+    // the right group. Tier-limited (free 5, t1 15, t2+ unlimited + custom
+    // OBS ops). channel.update EventSub dispatches into scene-themer.js
+    // for instant webhook swaps; see twitch-eventsub.js dispatcher.
+    if (path.startsWith('/api/scene-themer/')) {
+      const { handleSceneThemer } = await import('./scene-themer.js');
+      return handleSceneThemer(req, env, ctx, url);
     }
     // Vault Hangar: the power-armor collection earned from gifted-sub Vertibird
     // drops. GET is public (the hangar overlay + aquilo.gg/hangar read it).
@@ -1316,6 +1355,20 @@ export default {
               const { runDailyDigest } = await import('./vault.js');
               await runDailyDigest(env);
             } catch (e) { console.warn('[cron] vault daily digest', e?.message || e); }
+          })());
+        }
+        // Aquilo Kitchen weekly pick. Same minute-tick piggyback as the
+        // vault digest (Cloudflare caps this worker at 4 cron triggers).
+        // runWeeklyKitchenPick self-gates on the configured UTC day +
+        // hour (default Sunday 14:00 UTC = 10am ET in EDT) and a per-week
+        // sent KV marker, so it picks recipes + fires ONE push at most
+        // once per week.
+        if (mm === 0) {
+          ctx.waitUntil((async () => {
+            try {
+              const { runWeeklyKitchenPick } = await import('./kitchen.js');
+              await runWeeklyKitchenPick(env);
+            } catch (e) { console.warn('[cron] kitchen weekly pick', e?.message || e); }
           })());
         }
         // Hourly work below is the OLD :17 schedule, only runs when
@@ -6809,7 +6862,7 @@ function buildDigestEmbed(p) {
       }
     ],
     footer: {
-      text: `Loadout · ${new Date(p.weekStartedUtc || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → ${new Date(p.weekEndedUtc || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
-    }
+      text: `Loadout · ${new Date(p.weekStartedUtc || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → ${new Date(p.weekEndedUtc || Date.now()).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`,
+    },
   };
 }
