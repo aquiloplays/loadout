@@ -1,0 +1,221 @@
+/*
+ * Aurora theme for aquilo-site. Mirrors the palette + type stack used in
+ * aquilo-gg/loadout/style.css and the WPF Loadout DLL UI so the three
+ * surfaces stay in visual sync. If you change a colour here, also patch
+ * aquilo-gg/loadout/style.css and src/Loadout.Core/UI/Styles.xaml.
+ */
+
+:root {
+  --bg: #0a0b12;
+  --surface: #11131c;
+  --surface-2: #161929;
+  --surface-3: #1f2233;
+  --border: #1f2233;
+  --text: #ffffff;
+  --muted: #94a3b8;
+  --accent: #7c5cff;
+  --accent-hi: #9a82ff;
+  --tt: #5bff95;
+  --gold: #f0b429;
+  --pink: #ff5da2;
+  --danger: #ff5d6c;
+  --grad: linear-gradient(135deg, #9a82ff 0%, #5bff95 100%);
+  --grad-warm: linear-gradient(135deg, #f55d44 0%, #ffcd3c 100%);
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Geist', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 16px;
+  line-height: 1.55;
+  min-height: 100vh;
+  background-image:
+    radial-gradient(1200px 800px at 10% -10%, rgba(124, 92, 255, 0.18), transparent 60%),
+    radial-gradient(900px 700px at 100% 0%, rgba(91, 255, 149, 0.10), transparent 60%),
+    radial-gradient(1000px 800px at 50% 100%, rgba(255, 93, 162, 0.08), transparent 60%);
+  background-attachment: fixed;
+}
+
+a { color: var(--accent); text-decoration: none; transition: color .15s; }
+a:hover { color: var(--accent-hi); }
+code, pre { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; }
+
+.container {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 20px 80px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+.card + .card { margin-top: 16px; }
+
+.card-accent {
+  background: linear-gradient(180deg, rgba(124, 92, 255, 0.10), rgba(91, 255, 149, 0.04));
+  border-color: rgba(124, 92, 255, 0.35);
+}
+
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+h1 { font-size: 28px; line-height: 1.2; margin-bottom: 8px; }
+h2 { font-size: 20px; line-height: 1.3; margin-bottom: 8px; }
+h3 { font-size: 16px; line-height: 1.3; margin-bottom: 6px; font-weight: 600; }
+p  { margin-bottom: 10px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform .08s, background .15s, border-color .15s;
+}
+.btn:hover { background: var(--surface-3); border-color: var(--accent); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--grad);
+  color: #0a0b12;
+  border-color: transparent;
+}
+.btn-primary:hover { filter: brightness(1.08); background: var(--grad); }
+
+.btn-ghost {
+  background: transparent;
+  border-color: var(--border);
+}
+.btn-danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.btn-danger:hover { background: rgba(255, 93, 108, 0.08); }
+
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.row-spread { justify-content: space-between; }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+}
+.pill-ok    { background: rgba(91, 255, 149, 0.14); color: var(--tt); border-color: rgba(91, 255, 149, 0.3); }
+.pill-wait  { background: rgba(240, 180, 41, 0.14); color: var(--gold); border-color: rgba(240, 180, 41, 0.3); }
+.pill-bad   { background: rgba(255, 93, 108, 0.14); color: var(--danger); border-color: rgba(255, 93, 108, 0.3); }
+
+.url-box {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.url-box input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+}
+.url-box input:focus { outline: 2px solid var(--accent); }
+
+.checkbox-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.checkbox-row + .checkbox-row { margin-top: 8px; }
+.checkbox-row input[type="checkbox"] { margin-top: 3px; width: 18px; height: 18px; accent-color: var(--accent); }
+.checkbox-row strong { display: block; margin-bottom: 2px; }
+
+.step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--grad);
+  color: #0a0b12;
+  font-weight: 800;
+  margin-right: 10px;
+}
+
+.faq-item summary {
+  cursor: pointer;
+  padding: 12px 0;
+  font-weight: 600;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::before { content: '+'; color: var(--accent); font-weight: 800; }
+.faq-item[open] summary::before { content: '-'; }
+.faq-item + .faq-item { border-top: 1px solid var(--border); }
+.faq-item p { padding-bottom: 12px; color: var(--muted); }
+
+.notice {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.notice-ok   { background: rgba(91, 255, 149, 0.08); border: 1px solid rgba(91, 255, 149, 0.3); color: var(--tt); }
+.notice-bad  { background: rgba(255, 93, 108, 0.08); border: 1px solid rgba(255, 93, 108, 0.3); color: var(--danger); }
+.notice-wait { background: rgba(240, 180, 41, 0.08); border: 1px solid rgba(240, 180, 41, 0.3); color: var(--gold); }
+
+.event-list {
+  margin-top: 10px;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+}
+.event-list .ev { padding: 4px 0; border-bottom: 1px dashed var(--border); }
+.event-list .ev:last-child { border-bottom: 0; }
+
+/* Mobile tweaks: keep the wizard breathable on a narrow phone. */
+@media (max-width: 600px) {
+  .container { padding: 16px 12px 60px; }
+  h1 { font-size: 24px; }
+  .url-box { flex-direction: column; }
+  .url-box .btn { width: 100%; }
+  .row { gap: 6px; }
+}
