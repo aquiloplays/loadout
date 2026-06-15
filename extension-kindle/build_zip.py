@@ -12,7 +12,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(ROOT, "dist")
 OUT = os.path.join(OUT_DIR, "aquilo-kindle-extension.zip")
 
-INCLUDE = ["manifest.json", "background.js", "content.js", "popup.html", "popup.js"]
+INCLUDE = ["manifest.json", "background.js", "kindle-scraper.js", "content.js", "popup.html", "popup.js"]
 INCLUDE_DIRS = ["icons"]
 
 

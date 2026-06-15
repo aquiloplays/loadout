@@ -28,7 +28,7 @@
   "content_scripts": [
     {
       "matches": ["https://read.amazon.com/notebook*"],
-      "js": ["content.js"],
+      "js": ["kindle-scraper.js", "content.js"],
       "run_at": "document_idle"
     }
   ]
