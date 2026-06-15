@@ -1591,6 +1591,23 @@
       var ev = String(d.event || d.type || d.action || '').toLowerCase();
       var data = d.data || d;
       var user = data.nickname || (data.user && data.user.nickname) || data.uniqueId || 'viewer';
+
+      // Noisy TikFinity events that must NEVER drop a token. 'member' in
+      // TikFinity-speak is the viewer JOIN event (someone entered the
+      // stream), not a TikTok subscription, the v2 routing folded it in
+      // with 'subscribe' and any busy live stream overflowed the jar from
+      // joins alone. Likes, chat, shares and social pings get the same
+      // explicit early-return so future TikFinity event renames cannot
+      // creep back in through the catch-all paths.
+      if (ev === 'member' || ev === 'join' || ev === 'roomuser' ||
+          ev === 'viewerjoin' || ev === 'roomenter' || ev === 'enter' ||
+          ev === 'like' || ev === 'likes' ||
+          ev === 'chat' || ev === 'comment' || ev === 'message' ||
+          ev === 'share' || ev === 'social' || ev === 'streamend' ||
+          ev === 'connect' || ev === 'disconnect') {
+        return;
+      }
+
       if (ev === 'gift') {
         var midStreak = Number(data.giftType) === 1 &&
           (data.repeatEnd === false || data.repeatEnd === 0 || data.repeatEnd === 'false');
@@ -1609,7 +1626,7 @@
         });
         return;
       }
-      if (ev === 'subscribe' || ev === 'subscription' || ev === 'member') {
+      if (ev === 'subscribe' || ev === 'subscription') {
         onAlert({ platform: 'tt', eventType: 'sub', user: user });
         return;
       }
