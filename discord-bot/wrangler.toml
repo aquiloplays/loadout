@@ -236,4 +236,19 @@ new_classes = ["ActivityBroadcaster"]
 # Aquilo-bot hourly tasks (CN poll lifecycle, daily prompts, T-or-T,
 # countdown, spotlight, recap, vote-reminders, weekly leaderboard,
 # trivia, achievements, birthday DMs, streak sweep) piggyback on the
-# :23 tick alongside Clash. The aquilo handle
+# :23 tick alongside Clash. The aquilo handler is idempotent by KV
+# marker, so the fact that :23 fires once per hour at the "wrong"
+# minute is fine — the per-task hour checks gate everything.
+#
+# Cloudflare's account caps this Worker at 4 cron triggers (the free-
+# plan ceiling on this account); the aquilo half-hourly model in the
+# old standalone worker was "minute===0 → hourly, minute===30 → queue
+# cleanup". Folding into :23 keeps the hourly path (still once per
+# hour) and shifts the 12:30 AM ET queue cleanup to 1:23 AM ET — a
+# cosmetic 30-min lag on a post-stream message cleanup.
+[triggers]
+crons = ["* * * * *", "23 * * * *", "0 1 * * *", "0 2 * * *"]
+
+# Public route: hosted by aquilo.gg. Self-hosters can either set their own
+# route here or leave the default *.workers.dev URL after `wrangler deploy`.
+# routes = [{ pattern = "loadout-discord.aquilo.gg/*", zone_name = "aquilo.gg" }]

@@ -776,6 +776,14 @@ export default {
       const { handleSfDock } = await import('./sfdock.js');
       return handleSfDock(req, env, path);
     }
+    // Aquilo Dock backend (the unified per-user control panel). Public
+    // registry read, owner-only state read + toggle + layout writes.
+    // D1 table dock_user_state is lazily created on first hit.
+    // See dock.js for the registry + tier-slot model.
+    if (path.startsWith('/api/dock/')) {
+      const { handleDock } = await import('./dock.js');
+      return handleDock(req, env, ctx, url);
+    }
     // PunchCard: daily check-in cards + streaks for Twitch channel point
     // redeems, multi-tenant. Channel claims, the streak engine, viewer
     // card storage, Giphy proxy, leaderboards. See punchcard.js.
@@ -6895,3 +6903,4 @@ function buildDigestEmbed(p) {
     },
   };
 }
+

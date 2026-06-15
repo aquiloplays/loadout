@@ -1,0 +1,82 @@
+{
+    "meta": {
+        "name": "Aquilo Scene Themer",
+        "author": "aquiloplays",
+        "version": "1.0.0",
+        "description": "Polls aquilo.gg for the active scene group based on your current Twitch category, toggles OBS source group visibility. Configure mappings at https://aquilo.gg/scene-themer.",
+        "autoRunAction": null,
+        "minimumVersion": null
+    },
+    "manifest": {
+        "product": "Aquilo Scene Themer for Streamer.bot",
+        "packageVersion": "1.0.0",
+        "group": "Aquilo",
+        "generatedBy": "streamerbot/build-scene-themer-bundle.js",
+        "actionCount": 1,
+        "actions": [
+            "Aquilo Scene Themer Poll"
+        ],
+        "commands": [],
+        "includes": [
+            "scene-themer-poll"
+        ]
+    },
+    "data": {
+        "actions": [
+            {
+                "id": "afaad87b-13a0-422f-8cf4-5d341c1a0619",
+                "queue": "00000000-0000-0000-0000-000000000000",
+                "enabled": true,
+                "excludeFromHistory": true,
+                "excludeFromPending": true,
+                "name": "Aquilo Scene Themer Poll",
+                "group": "Aquilo",
+                "alwaysRun": false,
+                "randomAction": false,
+                "concurrent": false,
+                "triggers": [
+                    {
+                        "id": "b50f31ad-d0ed-4442-8c02-485134c1344e",
+                        "type": 701,
+                        "enabled": true,
+                        "exclusions": []
+                    }
+                ],
+                "subActions": [
+                    {
+                        "name": "Aquilo Scene Themer: poll + apply",
+                        "description": "GET /api/scene-themer/active/<broadcaster>, toggles ObsSetSourceVisibility for each group.",
+                        "references": [
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\mscorlib.dll",
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.dll",
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Core.dll",
+                            "C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\System.Web.Extensions.dll"
+                        ],
+                        "byteCode": "Ly8gQXF1aWxvIFNjZW5lIFRoZW1lciAtIHBvbGwgKyBhcHBseS4KLy8KLy8gSGl0cyB0aGUgd29ya2VyJ3MgL2FwaS9zY2VuZS10aGVtZXIvYWN0aXZlLzxicm9hZGNhc3Rlcj4gZW5kcG9pbnQgZXZlcnkKLy8gMTAgc2Vjb25kcyAodGltZXIgdHJpZ2dlciBjb25maWd1cmVkIGF0IGltcG9ydCkuIFJlYWRzIHsgb2ssIHNjZW5lLAovLyBncm91cCwgY3VzdG9tT3BzIH0sIHRoZW4gdXNlcyBDUEguT2JzU2V0U291cmNlVmlzaWJpbGl0eSB0byBzaG93IHRoZQovLyBhY3RpdmUgZ3JvdXAgaW5zaWRlIHRoZSBjb25maWd1cmVkIHNjZW5lIGFuZCBoaWRlIGV2ZXJ5IHNpYmxpbmcgZ3JvdXAKLy8gZGVjbGFyZWQgaW4gdGhlIGJ1bmRsZS4gQmVzdC1lZmZvcnQsIGFsbCBmYWlsdXJlcyBsb2cgYSB3YXJuaW5nIGFuZAovLyByZXR1cm4gZmFsc2Ugc28gU0Igc2tpcHMgdGhlIHRpY2sgd2l0aG91dCBhZmZlY3RpbmcgdGhlIHJ1bm5pbmcgc3RyZWFtLgovLwovLyBDdXN0b21pemUgdGhlIEJST0FEQ0FTVEVSIGFuZCBTQ0VORSBjb25zdHMgYmVsb3cgaWYgeW91IGVkaXQgdGhpcyBmaWxlCi8vIGFmdGVyIGltcG9ydC4gVGhlIHdlYiBidWlsZGVyIGJha2VzIHRoZSByaWdodCB2YWx1ZXMgaW4gYnkgZGVmYXVsdC4KCnVzaW5nIFN5c3RlbTsKdXNpbmcgU3lzdGVtLklPOwp1c2luZyBTeXN0ZW0uTmV0Owp1c2luZyBTeXN0ZW0uV2ViLlNjcmlwdC5TZXJpYWxpemF0aW9uOwoKcHVibGljIGNsYXNzIENQSElubGluZQp7CiAgICBwcml2YXRlIGNvbnN0IHN0cmluZyBCcm9hZGNhc3RlciA9ICI5OTEwOTk2MjMiOyAgICAvLyBwcm9kaWdhbHR0dgogICAgcHJpdmF0ZSBjb25zdCBzdHJpbmcgU2NlbmVOYW1lICAgPSAiR2FtZSI7CiAgICBwcml2YXRlIGNvbnN0IHN0cmluZyBXb3JrZXJCYXNlICA9ICJodHRwczovL2xvYWRvdXQtZGlzY29yZC5hcXVpbG9wbGF5cy53b3JrZXJzLmRldiI7CgogICAgLy8gVGhlIGZ1bGwgbGlzdCBvZiBzb3VyY2UgZ3JvdXBzIHRoZSBidW5kbGUga25vd3MgYWJvdXQuIFRoZSBhY3RpdmUKICAgIC8vIG9uZSBpcyBzaG93biwgYWxsIG90aGVycyBpbiB0aGlzIGxpc3QgYXJlIGhpZGRlbi4gRWRpdCB0aGlzIGxpc3QgdG8KICAgIC8vIG1hdGNoIHRoZSBPQlMgc291cmNlIGdyb3VwcyBpbnNpZGUgeW91ciBTY2VuZS4KICAgIHByaXZhdGUgc3RhdGljIHJlYWRvbmx5IHN0cmluZ1tdIEFsbEdyb3VwcyA9IG5ldyBzdHJpbmdbXSB7CiAgICAgICAgInRoZW1lX2RlZmF1bHQiLCAidGhlbWVfZmFsbG91dCIsICJ0aGVtZV9lbGRlbl9yaW5nIiwKICAgIH07CgogICAgcHVibGljIGJvb2wgRXhlY3V0ZSgpCiAgICB7CiAgICAgICAgdHJ5CiAgICAgICAgewogICAgICAgICAgICBTZXJ2aWNlUG9pbnRNYW5hZ2VyLlNlY3VyaXR5UHJvdG9jb2wgfD0gU2VjdXJpdHlQcm90b2NvbFR5cGUuVGxzMTI7CiAgICAgICAgICAgIHZhciB1cmwgPSBXb3JrZXJCYXNlICsgIi9hcGkvc2NlbmUtdGhlbWVyL2FjdGl2ZS8iICsgQnJvYWRjYXN0ZXI7CiAgICAgICAgICAgIHZhciByZXEgPSAoSHR0cFdlYlJlcXVlc3QpV2ViUmVxdWVzdC5DcmVhdGUodXJsKTsKICAgICAgICAgICAgcmVxLk1ldGhvZCA9ICJHRVQiOwogICAgICAgICAgICByZXEuVGltZW91dCA9IDUwMDA7CiAgICAgICAgICAgIHJlcS5Vc2VyQWdlbnQgPSAiYXF1aWxvLXNjZW5lLXRoZW1lci1zYi8xIjsKCiAgICAgICAgICAgIHN0cmluZyBib2R5OwogICAgICAgICAgICB1c2luZyAodmFyIHJlc3AgPSAoSHR0cFdlYlJlc3BvbnNlKXJlcS5HZXRSZXNwb25zZSgpKQogICAgICAgICAgICB1c2luZyAodmFyIHMgPSByZXNwLkdldFJlc3BvbnNlU3RyZWFtKCkpCiAgICAgICAgICAgIHVzaW5nICh2YXIgciA9IG5ldyBTdHJlYW1SZWFkZXIocykpIHsgYm9keSA9IHIuUmVhZFRvRW5kKCk7IH0KCiAgICAgICAgICAgIHZhciBzZXIgPSBuZXcgSmF2YVNjcmlwdFNlcmlhbGl6ZXIoKTsKICAgICAgICAgICAgdmFyIGQgPSBzZXIuRGVzZXJpYWxpemU8U3lzdGVtLkNvbGxlY3Rpb25zLkdlbmVyaWMuRGljdGlvbmFyeTxzdHJpbmcsIG9iamVjdD4+KGJvZHkpOwogICAgICAgICAgICBpZiAoZCA9PSBudWxsKSByZXR1cm4gZmFsc2U7CgogICAgICAgICAgICBvYmplY3Qgb2tPYmo7IGQuVHJ5R2V0VmFsdWUoIm9rIiwgb3V0IG9rT2JqKTsKICAgICAgICAgICAgaWYgKG9rT2JqID09IG51bGwgfHwgIShib29sKW9rT2JqKSByZXR1cm4gZmFsc2U7CgogICAgICAgICAgICBzdHJpbmcgc2NlbmUgPSBTY2VuZU5hbWU7CiAgICAgICAgICAgIG9iamVjdCBzY2VuZU9iajsgaWYgKGQuVHJ5R2V0VmFsdWUoInNjZW5lIiwgb3V0IHNjZW5lT2JqKSAmJiBzY2VuZU9iaiAhPSBudWxsKSBzY2VuZSA9IHNjZW5lT2JqLlRvU3RyaW5nKCk7CiAgICAgICAgICAgIG9iamVjdCBncm91cE9iajsgZC5UcnlHZXRWYWx1ZSgiZ3JvdXAiLCBvdXQgZ3JvdXBPYmopOwogICAgICAgICAgICBzdHJpbmcgYWN0aXZlR3JvdXAgPSBncm91cE9iaiAhPSBudWxsID8gZ3JvdXBPYmouVG9TdHJpbmcoKSA6ICIiOwoKICAgICAgICAgICAgZm9yZWFjaCAoc3RyaW5nIGcgaW4gQWxsR3JvdXBzKQogICAgICAgICAgICB7CiAgICAgICAgICAgICAgICBib29sIHZpc2libGUgPSAoZyA9PSBhY3RpdmVHcm91cCk7CiAgICAgICAgICAgICAgICB0cnkgeyBDUEguT2JzU2V0U291cmNlVmlzaWJpbGl0eShzY2VuZSwgZywgdmlzaWJsZSk7IH0KICAgICAgICAgICAgICAgIGNhdGNoIChFeGNlcHRpb24gZXgpIHsgQ1BILkxvZ1dhcm4oIlthcXVpbG8tc2NlbmUtdGhlbWVyXSB0b2dnbGUgIiArIGcgKyAiOiAiICsgZXguTWVzc2FnZSk7IH0KICAgICAgICAgICAgfQogICAgICAgICAgICByZXR1cm4gdHJ1ZTsKICAgICAgICB9CiAgICAgICAgY2F0Y2ggKEV4Y2VwdGlvbiBleCkKICAgICAgICB7CiAgICAgICAgICAgIENQSC5Mb2dXYXJuKCJbYXF1aWxvLXNjZW5lLXRoZW1lcl0gcG9sbCBmYWlsZWQ6ICIgKyBleC5NZXNzYWdlKTsKICAgICAgICAgICAgcmV0dXJuIGZhbHNlOwogICAgICAgIH0KICAgIH0KfQo=",
+                        "precompile": false,
+                        "delayStart": false,
+                        "saveResultToVariable": false,
+                        "saveToVariable": "",
+                        "id": "672251f5-01c1-4d07-b3ae-951cf5e65eda",
+                        "weight": 0,
+                        "type": 99999,
+                        "parentId": null,
+                        "enabled": true,
+                        "index": 0
+                    }
+                ],
+                "collapsedGroups": []
+            }
+        ],
+        "timers": [
+            {
+                "id": "b50f31ad-d0ed-4442-8c02-485134c1344e",
+                "name": "Aquilo Scene Themer Tick",
+                "enabled": true,
+                "intervalSeconds": 10,
+                "onlyWhenLive": false,
+                "actionId": "afaad87b-13a0-422f-8cf4-5d341c1a0619"
+            }
+        ]
+    }
+}
