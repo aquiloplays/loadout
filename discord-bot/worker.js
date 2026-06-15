@@ -49,6 +49,10 @@ export { OverlayBroadcaster } from './aquilo/worker.js';
 // Community-activity SSE fan-out DO (activity-do.js). Bound as
 // ACTIVITY_DO; see wrangler.toml [[migrations]] v2-activity-do.
 export { ActivityBroadcaster } from './activity-do.js';
+// TTS per-broadcaster SSE fan-out DO (tts-do.js). Bound as TTS_DO; see
+// wrangler.toml [[migrations]] v3-tts-do. Drives the OBS overlay at
+// aquilo.gg/overlays/tts-feed.
+export { TtsBroadcaster } from './tts-do.js';
 
 // Discord interaction "claim" command custom handler, defined here rather
 // than commands.js because it touches the claim KV and cross-cuts the
@@ -1304,6 +1308,56 @@ export default {
     if (method === 'GET' && path.startsWith('/character/avatar/')) {
       const { handleCharacterAvatar } = await import('./character.js');
       return handleCharacterAvatar(req, env, path);
+    }
+
+    // ── Aquilo Punchcard TTS pipeline ────────────────────────────
+    // Streamer-configurable text-to-speech for punchcard check-ins,
+    // !checkin chat commands, follow events with messages, and the
+    // "Check In With Message" channel point redemption. Provider key
+    // is AES-GCM encrypted at rest (tts.js deriveAesKey). Per-broadcaster
+    // SSE drives the OBS overlay at aquilo.gg/overlays/tts-feed.
+    if (method === 'GET'  && path.startsWith('/api/tts/settings/')) {
+      const { handleTtsSettingsRead } = await import('./tts.js');
+      return handleTtsSettingsRead(req, env, path);
+    }
+    if (method === 'POST' && path.startsWith('/api/tts/settings/')) {
+      const { handleTtsSettingsWrite } = await import('./tts.js');
+      return handleTtsSettingsWrite(req, env, path);
+    }
+    if (method === 'POST' && path === '/api/tts/generate') {
+      const { handleTtsGenerate } = await import('./tts.js');
+      return handleTtsGenerate(req, env);
+    }
+    if (method === 'POST' && path === '/api/tts/preview') {
+      const { handleTtsPreview } = await import('./tts.js');
+      return handleTtsPreview(req, env);
+    }
+    if (method === 'GET'  && path.startsWith('/api/tts/audio/')) {
+      const { handleTtsAudio } = await import('./tts.js');
+      return handleTtsAudio(req, env, path);
+    }
+    if (method === 'GET'  && path.startsWith('/api/tts/events/')) {
+      const { handleTtsEventsSse } = await import('./tts.js');
+      return handleTtsEventsSse(req, env, path);
+    }
+
+    // ── Twitch channel point reward auto-create ──────────────────
+    // Per-product registry in rewards.js. Three products wired for
+    // v1 (punchcard-checkin, tts-say, hangman-start); the other seven
+    // surface in the admin UI but return 'product-coming-soon' from
+    // create. Reward IDs persist in KV so the EventSub redemption
+    // handler can dispatch to the right product.
+    if (method === 'GET'  && path === '/api/twitch/reward-registry') {
+      const { handleRewardRegistry } = await import('./rewards.js');
+      return handleRewardRegistry(req, env);
+    }
+    if (method === 'POST' && path === '/api/twitch/create-reward') {
+      const { handleCreateReward } = await import('./rewards.js');
+      return handleCreateReward(req, env);
+    }
+    if (method === 'POST' && path === '/api/twitch/delete-reward') {
+      const { handleDeleteReward } = await import('./rewards.js');
+      return handleDeleteReward(req, env);
     }
 
     // Aquilo-bot fold-in HTTP routes. Returns null when none of the
