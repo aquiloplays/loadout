@@ -222,9 +222,38 @@ export default {
     // attach custom headers but can't sign HMAC. Routes through the
     // same gifter aggregator as the Streamer.bot path. See
     // tikfinity.js for the body schema.
+    //
+    // Two flavours of /tikfinity/event coexist:
+    //   1. ?key=<personalised-key>  routes to the per-user pipeline
+    //      managed by tikfinity-keys.js. This is the path the
+    //      /tikfinity-setup wizard hands to streamers.
+    //   2. no key  falls through to the legacy single-shared-secret
+    //      flow handled by tikfinity.js (still used by Clay's main
+    //      installation until it migrates).
     if (method === 'POST' && path === '/tikfinity/event') {
+      const u0 = new URL(req.url);
+      if (u0.searchParams.get('key')) {
+        const { handleKeyedEvent } = await import('./tikfinity-keys.js');
+        return handleKeyedEvent(req, env);
+      }
       const { handleTikFinityEvent } = await import('./tikfinity.js');
       return handleTikFinityEvent(req, env);
+    }
+    // TikFinity setup wizard backing API. All three routes are HMAC-
+    // gated through the site (x-aquilo-web-{ts,sig}) and owner-only
+    // in v1. The owner check lives inside tikfinity-keys.js so v2
+    // can relax it in one place. See tikfinity-keys.js.
+    if (path === '/api/tikfinity/key') {
+      const { handleKeyApi } = await import('./tikfinity-keys.js');
+      return handleKeyApi(req, env);
+    }
+    if (method === 'GET' && path === '/api/tikfinity/recent') {
+      const { handleRecentApi } = await import('./tikfinity-keys.js');
+      return handleRecentApi(req, env);
+    }
+    if (method === 'POST' && path === '/api/tikfinity/test-fire') {
+      const { handleTestFire } = await import('./tikfinity-keys.js');
+      return handleTestFire(req, env);
     }
     // Knowledge Vault: Kindle companion ingest (machine-to-worker,
     // HMAC-gated by VAULT_INGEST_SECRET). The phase-3 tray app scrapes
