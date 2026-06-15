@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Loadout.Discord;
 using Loadout.Host;
 using Loadout.Identity;
@@ -42,9 +43,41 @@ namespace Loadout
                 // edits into the local ViewerProfileStore.
                 DiscordProfileBridge.Instance.Start();
 
-                SbBridge.Instance.LogInfo("[Loadout] Booted. Settings: " + SettingsManager.Instance.SettingsPath);
+                // Structured boot banner — makes "is Loadout actually
+                // running?" obvious from the SB log without opening any UI.
+                // Each line is intentionally short so it survives SB's log
+                // truncation on long sessions. Format mirrors a typical
+                // service-startup summary so streamers comparing notes
+                // recognize the shape.
+                var s = SettingsManager.Instance.Current;
+                int enabledModules = 0;
+                foreach (var p in typeof(Settings.ModulesConfig).GetProperties())
+                    if (p.PropertyType == typeof(bool) && p.GetValue(s.Modules) is bool b && b) enabledModules++;
+                var platforms = new System.Collections.Generic.List<string>();
+                if (s.Platforms.Twitch)  platforms.Add("twitch");
+                if (s.Platforms.TikTok)  platforms.Add("tiktok");
+                if (s.Platforms.YouTube) platforms.Add("youtube");
+                if (s.Platforms.Kick)    platforms.Add("kick");
+                SbBridge.Instance.LogInfo("[Loadout] ======== Loadout v" + (s.SuiteVersion ?? "?") + " booted ========");
+                SbBridge.Instance.LogInfo("[Loadout]   Settings:   " + SettingsManager.Instance.SettingsPath);
+                SbBridge.Instance.LogInfo("[Loadout]   Onboarding: " + (s.OnboardingDone ? "done" : "PENDING — wizard opening"));
+                SbBridge.Instance.LogInfo("[Loadout]   Platforms:  " + (platforms.Count == 0 ? "none enabled" : string.Join(", ", platforms))
+                    + (s.Platforms.UseBotAccount ? " (sending as BOT account)" : " (sending as broadcaster)"));
+                SbBridge.Instance.LogInfo("[Loadout]   Modules:    " + enabledModules + " enabled");
+                SbBridge.Instance.LogInfo("[Loadout]   Patreon:    " + Patreon.Entitlements.CurrentTierDisplay());
+                SbBridge.Instance.LogInfo("[Loadout]   Quiet mode: " + (s.ChatNoise.QuietMode ? "ON (chat sends muted)" : "off"));
+                SbBridge.Instance.LogInfo("[Loadout]   Dry-run:    " + (s.DryRun ? "ON (no actual sends)" : "off"));
+                SbBridge.Instance.LogInfo("[Loadout]   Block list: " + (s.ChatNoise.BlockedUsers?.Count ?? 0) + " entries");
+                SbBridge.Instance.LogInfo("[Loadout]   Bus:        ws://127.0.0.1:7470/aquilo/bus/ ("
+                    + (Bus.AquiloBus.Instance.IsRunning ? "running" : "stopped") + ")");
+                SbBridge.Instance.LogInfo("[Loadout] =====================================================");
 
-                if (!SettingsManager.Instance.Current.OnboardingDone)
+                // Push a status snapshot to any already-connected dock /
+                // customizer so their pills + toggles initialize without
+                // waiting for a request.
+                try { Modules.DockCommandBridge.PublishStatus(); } catch { }
+
+                if (!s.OnboardingDone)
                     LoadoutHost.OpenOnboarding();
                 return true;
             }
@@ -90,6 +123,49 @@ namespace Loadout
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine("[Loadout] Tick: " + ex);
+            }
+        }
+
+        /// <summary>
+        /// Verification path for the auto-message ("timed messages") pipeline.
+        /// Bypasses the activity / broadcaster-pause / interval gates and
+        /// sends the first enabled timed message right now via the same
+        /// MultiPlatformSender + CphPlatformSender path the real timer
+        /// uses. Returns the platform mask (as int) actually written to,
+        /// or 0 when nothing went out (no enabled platform, none connected,
+        /// rate-limited, or no enabled message configured).
+        ///
+        /// SB-side trigger: add an inline-C# action that calls
+        ///     LoadoutEntry.TestTimedMessageNow(cph);
+        /// and bind it to a chat command (e.g. !timer-test) or a Manual
+        /// Trigger button. The result is also logged to the SB log so it
+        /// shows up in the Loadout console without needing a return path.
+        /// </summary>
+        public static int TestTimedMessageNow(object cph)
+        {
+            try
+            {
+                if (!SbBridge.Instance.IsBound) Boot(cph);
+                var s = SettingsManager.Instance.Current;
+                var due = s.Timers.Messages.FirstOrDefault(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Message));
+                if (due == null)
+                {
+                    SbBridge.Instance.LogInfo("[Loadout] TestTimedMessageNow: no enabled timed message configured.");
+                    return 0;
+                }
+                var sender = new MultiPlatformSender(CphPlatformSender.Instance);
+                var target = due.Platforms.AsMask;
+                if (target == PlatformMask.None) target = s.Platforms.AsMask;
+                var sent = sender.Send(target, due.Message, s.Platforms);
+                SbBridge.Instance.LogInfo("[Loadout] TestTimedMessageNow: sent=" + sent + " text=" + (due.Message?.Length ?? 0) + "ch");
+                Util.EventStats.Instance.Hit("timer.test", "TestTimedMessageNow");
+                return (int)sent;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] TestTimedMessageNow: " + ex);
+                try { SbBridge.Instance.LogError("[Loadout] TestTimedMessageNow failed: " + ex.Message); } catch { }
+                return 0;
             }
         }
 
@@ -169,80 +245,4 @@ namespace Loadout
         public static string SettingsPath()
         {
             try { return SettingsManager.Instance.SettingsPath ?? ""; }
-            catch { return ""; }
-        }
-
-        // -------------------- Patreon --------------------
-
-        public static string PatreonTier()
-        {
-            try { return Patreon.Entitlements.CurrentTierDisplay(); }
-            catch { return "Free"; }
-        }
-
-        public static bool PatreonStartSignIn()
-        {
-            try
-            {
-                _ = Patreon.PatreonClient.Instance.StartSignInAsync();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine("[Loadout] PatreonStartSignIn: " + ex);
-                return false;
-            }
-        }
-
-        public static bool PatreonSignOut()
-        {
-            try { Patreon.PatreonClient.Instance.SignOut(); return true; }
-            catch { return false; }
-        }
-
-        // -------------------- Quiet mode --------------------
-
-        public static bool ToggleQuiet()
-        {
-            try
-            {
-                bool now = false;
-                SettingsManager.Instance.Mutate(s =>
-                {
-                    s.ChatNoise.QuietMode = !s.ChatNoise.QuietMode;
-                    now = s.ChatNoise.QuietMode;
-                });
-                SettingsManager.Instance.SaveNow();
-                return now;
-            }
-            catch { return false; }
-        }
-
-        public static bool IsQuiet()
-        {
-            try { return SettingsManager.Instance.Current.ChatNoise.QuietMode; }
-            catch { return false; }
-        }
-
-        /// <summary>
-        /// Force a reload from disk so a hand-edited settings.json takes effect
-        /// without restarting Streamer.bot. Same effect as restarting SB but
-        /// without the disconnect.
-        /// </summary>
-        public static bool ReloadSettings()
-        {
-            try
-            {
-                var folder = SettingsManager.Instance.DataFolder;
-                SettingsManager.Instance.SaveNow();        // flush any pending writes first
-                SettingsManager.Instance.Initialize(folder); // re-read from disk
-                return true;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine("[Loadout] ReloadSettings: " + ex);
-                return false;
-            }
-        }
-    }
-}
+            catch 

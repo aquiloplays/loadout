@@ -19,7 +19,7 @@ namespace Loadout.Modules
     public sealed class TimedMessagesModule : IEventModule
     {
         // Sliding window of recent chat message timestamps for the activity gate.
-        // Bounded — older entries roll off as we sample.
+        // Bounded - older entries roll off as we sample.
         private readonly LinkedList<DateTime> _recentChats = new LinkedList<DateTime>();
         private const int RecentChatsWindowMinutes = 30;
 
@@ -31,15 +31,50 @@ namespace Loadout.Modules
         {
             if (ctx.Kind != "chat") return;
 
-            // Treat any chat as activity. Broadcaster-typed chat additionally arms
-            // the cooldown that pauses timers right after the streamer talks.
+            // Broadcaster-typed chat arms the cooldown that pauses timers
+            // right after the streamer talks. This runs EVEN when the
+            // broadcaster ambient-ignore flag is set, the pause gate is
+            // the whole point of watching their messages.
+            //
+            // EXCEPTION: when the bot sends through the broadcaster
+            // account (UseBotAccount == false) every auto-message we
+            // emit comes back through here labeled "broadcaster". Arming
+            // the pause on our own echo creates a feedback loop that
+            // delays the next message for BroadcasterPauseSec for no
+            // reason. We detect the echo by matching the last message
+            // we just sent and skip the pause arm.
+            if (string.Equals(ctx.UserType, "broadcaster", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!IsOurOwnEcho(ctx.Message))
+                    _lastBroadcasterMessageUtc = DateTime.UtcNow;
+            }
+
+            // Activity gate: count VIEWER chat. Broadcaster lines are
+            // excluded under ambient-ignore so the streamer narrating an
+            // empty room doesn't convince the timers the room is active.
+            // Also drop our own echo when ambient-ignore is OFF so the
+            // auto-message itself never inflates the activity count.
+            if (ctx.SuppressAmbient) return;
+            if (string.Equals(ctx.UserType, "broadcaster", StringComparison.OrdinalIgnoreCase)
+                && IsOurOwnEcho(ctx.Message)) return;
             lock (_recentChats)
             {
                 _recentChats.AddLast(DateTime.UtcNow);
                 Trim();
             }
-            if (string.Equals(ctx.UserType, "broadcaster", StringComparison.OrdinalIgnoreCase))
-                _lastBroadcasterMessageUtc = DateTime.UtcNow;
+        }
+
+        // Echo-detect window: SB chat echo usually lands within ~3s of
+        // send; we keep the marker for 10s for safety on slow hosts.
+        private string _lastSentText;
+        private DateTime _lastSentUtc = DateTime.MinValue;
+        private const int EchoMatchWindowSec = 10;
+
+        private bool IsOurOwnEcho(string incoming)
+        {
+            if (string.IsNullOrEmpty(_lastSentText) || string.IsNullOrEmpty(incoming)) return false;
+            if ((DateTime.UtcNow - _lastSentUtc).TotalSeconds > EchoMatchWindowSec) return false;
+            return string.Equals(_lastSentText.Trim(), incoming.Trim(), StringComparison.Ordinal);
         }
 
         public void OnTick()
@@ -54,73 +89,32 @@ namespace Loadout.Modules
             var target = due.Platforms.AsMask;
             if (target == PlatformMask.None) target = s.Platforms.AsMask;
 
-            sender.Send(target, due.Message, s.Platforms);
+            var sent = sender.Send(target, due.Message, s.Platforms);
 
-            _lastFiredUtc = DateTime.UtcNow;
-        }
-
-        private TimedMessage SelectNextMessage(LoadoutSettings s)
-        {
-            var now = DateTime.UtcNow;
-
-            // Global broadcaster pause: streamer just talked, so hold off.
-            if (s.Timers.BroadcasterPauseSec > 0 &&
-                (now - _lastBroadcasterMessageUtc).TotalSeconds < s.Timers.BroadcasterPauseSec)
-                return null;
-
-            // Global sequence interval: one message per IntervalMinutes.
-            var interval = Math.Max(1, s.Timers.IntervalMinutes);
-            if ((now - _lastFiredUtc).TotalMinutes < interval)
-                return null;
-
-            // Activity gate: chat must have had MinChatMessages in the last
-            // MinChatWindowMinutes — keeps us from yelling into an empty room.
-            var window = TimeSpan.FromMinutes(Math.Max(1, s.Timers.MinChatWindowMinutes));
-            if (ChatCountIn(window) < s.Timers.MinChatMessages)
-                return null;
-
-            // Per-game profile group filter (unchanged behavior).
-            var p = GameProfilesModule.ActiveProfile;
-            string[] activeGroups = null;
-            if (p != null && !string.IsNullOrEmpty(p.ActiveTimerGroups))
-                activeGroups = p.ActiveTimerGroups.Split(',')
-                    .Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).ToArray();
-
-            IEnumerable<TimedMessage> source = s.Timers.Messages
-                .Where(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Message));
-            if (activeGroups != null && activeGroups.Length > 0)
-                source = source.Where(t => activeGroups.Contains(t.Group ?? "Default", StringComparer.OrdinalIgnoreCase));
-
-            var list = source.ToList();
-            if (list.Count == 0) return null;
-
-            // Sequential pick: cycle through in order; wrap when we hit the end.
-            var msg = list[_seqIndex % list.Count];
-            _seqIndex = (_seqIndex + 1) % list.Count;
-            return msg;
-        }
-
-        private int ChatCountIn(TimeSpan window)
-        {
-            lock (_recentChats)
+            if (sent == PlatformMask.None)
             {
-                Trim();
-                var cutoff = DateTime.UtcNow - window;
-                int count = 0;
-                for (var node = _recentChats.Last; node != null; node = node.Previous)
-                {
-                    if (node.Value < cutoff) break;
-                    count++;
-                }
-                return count;
+                // Nothing actually went out (no enabled+connected platform,
+                // every limiter at cap, or platform-cap is 0). Rolling the
+                // cooldown forward here would silently swallow the message
+                // and skip it in the rotation, the user-visible symptom is
+                // "timers never fire". Leave _lastFiredUtc + _seqIndex
+                // alone so the next tick retries with the same message.
+                Util.EventStats.Instance.Hit("timer.noop", nameof(TimedMessagesModule));
+                try { Sb.SbBridge.Instance.LogInfo("[Loadout] Timed message skipped, no eligible platform: " + Truncate(due.Message, 60)); } catch { }
+                return;
             }
-        }
 
-        private void Trim()
-        {
-            var cutoff = DateTime.UtcNow - TimeSpan.FromMinutes(RecentChatsWindowMinutes);
-            while (_recentChats.First != null && _recentChats.First.Value < cutoff)
-                _recentChats.RemoveFirst();
-        }
-    }
-}
+            // Remember what we just sent so the echo-detect filter in
+            // OnEvent can ignore our own broadcaster-account echo (and
+            // not arm the broadcaster pause against ourselves).
+            _lastSentText = due.Message;
+            _lastSentUtc  = DateTime.UtcNow;
+
+            // Advance the sequence cursor ONLY on a real send; selection
+            // intentionally re-reads the same message on retry ticks.
+            AdvanceSequence(s);
+
+            // Report to EventStats so the Health tab + OBS dock see the
+            // timer fire. Using "timer.fired" as the kind matches the
+            // domain-event naming the dock filters off.
+            Util.EventStats.Instance.Hit("timer.fired", nameof(TimedMessagesModule));
