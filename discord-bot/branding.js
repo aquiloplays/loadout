@@ -23,7 +23,7 @@ const DEFAULTS = Object.freeze({
   brandName:              'aquilo.gg',
   siteUrl:                'https://aquilo.gg',
   accentColor:            0xF47FFF,
-  welcomeBackdropUrl:     'https://aquilo.gg/sprites/welcome/aquilo-welcome-card.png?v=2',
+  welcomeBackdropUrl:     'https://aquilo.gg/sprites/brand/aquilo-bird.png',
   checkinDefaultImageUrl: 'https://aquilo.gg/sprites/checkin/default-card.png',
 });
 

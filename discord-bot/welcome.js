@@ -20,11 +20,11 @@
 //                                    quick succession only triggers once)
 
 const BRAND_ACCENT_COLOR = 0xF47FFF;  // Aquilo pink
-// Default static welcome backdrop hosted on aquilo.gg. The aquilo-site
-// session can swap this URL at any time; per-guild override possible
-// via the welcome-cfg KV record.
+// Default welcome image hosted on aquilo.gg. The aquilo brand bird mark
+// (white bird on aurora gradient). Per-guild override possible via the
+// welcome-cfg KV record.
 const DEFAULT_BACKDROP_URL =
-  'https://aquilo.gg/sprites/welcome/aquilo-welcome-card.png';
+  'https://aquilo.gg/sprites/brand/aquilo-bird.png';
 
 async function loadCfg(env, guildId) {
   return env.LOADOUT_BOLTS.get(`guild:welcome-cfg:${guildId}`, { type: 'json' });
