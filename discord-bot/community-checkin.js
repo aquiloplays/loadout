@@ -860,7 +860,8 @@ export async function handleCheckinComposeSubmit(env, data) {
   }
   if (!env.GIPHY_API_KEY) {
     return { type: 4, data: {
-      content: '⚠️ GIF search isn\'t available, `GIPHY_API_KEY` is not set on the worker.',
+      // Same neutral copy as the per-server check-in flow.
+      content: 'GIF search is offline right now. Try again later.',
       flags: 64,
     } };
   }

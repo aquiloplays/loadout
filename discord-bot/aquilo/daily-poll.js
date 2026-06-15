@@ -139,13 +139,13 @@ export async function runDailyPoll(env) {
 // Vote button click. custom_id format: tot:vote:<pollId>:<a|b>
 export async function handleDailyPollVote(env, data) {
   const parts = (data.data?.custom_id || '').split(':');
-  if (parts.length !== 4) return ephemeral('Bad vote button.');
+  if (parts.length !== 4) return ephemeral('That vote button expired. Hit the latest poll.');
   const pollId = parseInt(parts[2], 10);
   const choice = parts[3];
-  if (!pollId || !['a','b'].includes(choice)) return ephemeral('Bad vote button.');
+  if (!pollId || !['a','b'].includes(choice)) return ephemeral('That vote button expired. Hit the latest poll.');
 
   const poll = await env.DB.prepare('SELECT * FROM daily_polls WHERE id = ?').bind(pollId).first();
-  if (!poll) return ephemeral('Poll not found.');
+  if (!poll) return ephemeral('Looks like that poll has closed. Check the latest one.');
   if (poll.closed_at) return ephemeral('🔒 Voting closed for this one.');
 
   const userId = data.member?.user?.id || data.user?.id;

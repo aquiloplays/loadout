@@ -288,13 +288,13 @@ export async function closeCnPoll(env, ctx) {
 // custom_id format: vote:<pollId>:<gameId>
 export async function handleVoteClick(env, data) {
   const parts = (data.data?.custom_id || '').split(':');
-  if (parts.length !== 3) return ephemeral('Bad vote button.');
+  if (parts.length !== 3) return ephemeral('That vote button expired. Hit the latest poll.');
   const pollId = parseInt(parts[1], 10);
   const gameId = parseInt(parts[2], 10);
-  if (!pollId || !gameId) return ephemeral('Bad vote button.');
+  if (!pollId || !gameId) return ephemeral('That vote button expired. Hit the latest poll.');
 
   const poll = await env.DB.prepare('SELECT * FROM polls WHERE id = ?').bind(pollId).first();
-  if (!poll) return ephemeral('Poll not found.');
+  if (!poll) return ephemeral('Looks like that poll has closed. Check the latest one.');
   if (poll.closed_at) return ephemeral('🔒 Voting has closed for this poll.');
 
   const userId = data.member?.user?.id || data.user?.id;

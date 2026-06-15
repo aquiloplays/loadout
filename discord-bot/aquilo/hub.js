@@ -236,7 +236,7 @@ export async function refreshHubMessage(env) {
 // channel. Also stashes the new message_id in KV so cron + the 🔄
 // button can edit it in place going forward (status panel auto-refresh).
 export async function handleHubCommand(data, env) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const channelId = data.channel_id;
   if (!channelId) return ephemeral('Could not resolve channel id.');
 
@@ -257,7 +257,7 @@ export async function handleHubCommand(data, env) {
 // Component dispatcher for any button starting "aquilo:". `ctx` is forwarded
 // from worker.js so closeCnPoll can use ctx.waitUntil for the patron DM batch.
 export async function handleHubButton(env, data, ctx) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const parts = (data.data?.custom_id || '').split(':');
   const action = parts[1];
 

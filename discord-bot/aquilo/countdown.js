@@ -211,7 +211,7 @@ export async function refreshCountdown(env) {
 // rich embed). Each is independent, partial success is fine.
 export async function initCountdown(env) {
   if (!env.COUNTDOWN_VC_ID && !env.COUNTDOWN_CHANNEL_ID) {
-    return ephemeral('Set at least one of COUNTDOWN_VC_ID or COUNTDOWN_CHANNEL_ID in wrangler.toml first.');
+    return ephemeral('The countdown isn\'t configured yet. Ping the streamer to finish setup.');
   }
 
   const lines = [];

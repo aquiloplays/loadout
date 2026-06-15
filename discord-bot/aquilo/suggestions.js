@@ -46,7 +46,7 @@ export async function handleSuggestCommand(data, env) {
 // ---- Hub button: "Review Suggestions" ---------------------------------
 
 export async function reviewSuggestions(env, data) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const guildId = await ensureBootstrap(env);
   const { results } = await env.DB.prepare(
     `SELECT id, user_id, game_name, reason, created_at FROM game_suggestions
@@ -80,7 +80,7 @@ export async function reviewSuggestions(env, data) {
 
 // Component handler: sug:approve:<id> or sug:dismiss:<id>
 export async function handleSuggestionAction(env, data) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const parts = (data.data?.custom_id || '').split(':');
   const action = parts[1];
   const id = parseInt(parts[2], 10);

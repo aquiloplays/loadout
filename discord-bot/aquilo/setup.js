@@ -39,7 +39,7 @@ const HUMAN = {
 // ---- /setup slash command -> overview ----------------------------------
 
 export async function handleSetupCommand(data, env) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const guildId = data.guild_id;
   if (!guildId) return ephemeral('Use this command in a server, not a DM.');
   const cfg = await getGuildConfig(env, guildId);
@@ -182,7 +182,7 @@ export async function advancedModal(env, guildId) {
 // ---- Section button dispatch -------------------------------------------
 
 export async function handleSetupButton(env, data) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const action = (data.data?.custom_id || '').split(':')[1];
   const guildId = data.guild_id;
 

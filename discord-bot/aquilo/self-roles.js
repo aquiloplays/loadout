@@ -150,11 +150,11 @@ async function _postOrRefreshInternal(env, guildId) {
 
 // Hub button: post (or edit-in-place) the public roles message.
 export async function postOrRefreshSelfRolesMessage(env, data) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const guildId = await ensureBootstrap(env);
   const r = await _postOrRefreshInternal(env, guildId);
   if (!r.ok) {
-    if (r.error === 'roles-channel-not-set') return ephemeral('Set ROLES_CHANNEL_ID in wrangler.toml first.');
+    if (r.error === 'roles-channel-not-set') return ephemeral('Self-roles channel isn\'t configured yet. Ping the streamer to finish setup.');
     return ephemeral('Failed: ' + r.error);
   }
   const verb = r.action === 'edited' ? 'Refreshed' : 'Posted';
@@ -168,7 +168,7 @@ export async function postSelfRolesAdmin(env, guildId) {
 
 // Hub button: ephemeral list of currently-configured self-roles.
 export async function listSelfRolesEphemeral(env, data) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const guildId = await ensureBootstrap(env);
   const roles = await listSelfRoles(env, guildId);
   if (!roles.length) return ephemeral('No self-roles configured yet.');

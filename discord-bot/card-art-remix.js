@@ -120,7 +120,7 @@ async function gatherCandidates(apiKey, cardId) {
 // updates via webhook).
 export async function handleCardArtRemixCommand(env, interaction) {
   if (!env.GIPHY_API_KEY) {
-    return ephemeral('GIPHY_API_KEY is not set on the worker. Cannot remix.');
+    return ephemeral('Art remix is offline right now. Try again later.');
   }
   const userId = interaction?.member?.user?.id || interaction?.user?.id;
   if (!userId) return ephemeral('No user id on interaction.');

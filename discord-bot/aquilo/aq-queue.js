@@ -257,7 +257,7 @@ export async function handleQueueButton(env, data, guildId) {
   }
 
   if (action === 'next') {
-    if (!isAdmin(data)) return ephemeral('Admin only.');
+    if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
     if (q.entries.length === 0) return ephemeral('Queue is empty.');
     const next = q.entries.shift();
     await saveQueue(env, guildId, q);

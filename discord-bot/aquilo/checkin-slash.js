@@ -65,10 +65,12 @@ export async function handleCheckinSearchSubmit(env, data) {
   const userId = data?.member?.user?.id || data?.user?.id;
   if (!userId) return ephemeral('Couldn\'t identify you. Try /checkin again.');
   if (!env.GIPHY_API_KEY) {
-    return ephemeral('⚠️ GIF search isn\'t available, `GIPHY_API_KEY` isn\'t set on the worker.');
+    // Internal: GIPHY_API_KEY is unset. User-facing copy stays neutral so
+    // we don't leak environment-variable names into Discord.
+    return ephemeral('GIF search is offline right now. Try again later.');
   }
   const q = (getModalField(data, 'q') || '').trim();
-  if (!q) return ephemeral('Empty search.');
+  if (!q) return ephemeral('Give me a word to search for, like "coffee" or "victory dance".');
 
   // Giphy /v1/gifs/search, request 5 results, fixed_height for the
   // ephemeral preview embeds. Rating g/pg keeps the picker safe for

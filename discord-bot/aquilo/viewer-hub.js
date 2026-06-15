@@ -56,7 +56,7 @@ function buildViewerHubPayload() {
 // the admin clicked in. If a previous viewer hub message exists in a
 // different channel, deletes it so we don't leave a stale one behind.
 export async function postOrMoveViewerHub(env, data) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const channelId = data.channel_id;
   if (!channelId) return ephemeral('Could not resolve channel id.');
 

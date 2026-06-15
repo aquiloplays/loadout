@@ -152,7 +152,7 @@ export async function handleTicketTypeRemoveSubmit(env, data) {
 }
 
 export async function listTicketTypesEphemeral(env, data) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const guildId = await ensureBootstrap(env);
   const c = await getTicketConfig(env, guildId);
   const types = await listTicketTypes(env, guildId);
@@ -199,7 +199,7 @@ function buildPanelPayload(config, types) {
 }
 
 export async function postTicketPanel(env, data) {
-  if (!isAdmin(data)) return ephemeral('Admin only.');
+  if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
   const guildId = await ensureBootstrap(env);
   const config = await getTicketConfig(env, guildId);
   if (!config.staff_role_id) {

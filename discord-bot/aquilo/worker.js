@@ -663,10 +663,10 @@ async function handleAppCommand(data, env, ctx) {
     case 'shop':           return handleShopCommand(data, env);
     // Admin-only authoring commands for trivia + shop.
     case 'trivia-add':
-      if (!isAdmin(data)) return ephemeral('Admin only.');
+      if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
       return { type: 9, data: triviaEditModal().data };
     case 'shop-add':
-      if (!isAdmin(data)) return ephemeral('Admin only.');
+      if (!isAdmin(data)) return ephemeral('Sorry, this one is admin-only.');
       return { type: 9, data: shopEditModal().data };
     // Rotation song-pre-queue commands (per-role limits via SR_ROLE_LIMITS_JSON).
     case 'sr-add':         return handleSrAdd(env, data);
@@ -768,7 +768,7 @@ async function handleAnnounceCommand(data, env) {
   // STAFF_ROLE_ID is enforced *in addition to* any Discord-level command perms.
   const memberRoles = data.member?.roles || [];
   if (env.STAFF_ROLE_ID && !memberRoles.includes(env.STAFF_ROLE_ID)) {
-    return { type: RESP_CHAT, data: { content: 'You don\'t have permission to use this.', flags: FLAG_EPHEMERAL } };
+    return { type: RESP_CHAT, data: { content: 'Sorry, this one is admin-only. Ping a mod if you think that\'s wrong.', flags: FLAG_EPHEMERAL } };
   }
   const opts = parseOpts(data.data?.options);
   try {
