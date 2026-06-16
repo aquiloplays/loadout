@@ -62,7 +62,12 @@ public class CPHInline
             string url = (string)CPH.GetGlobalVar<string>("PRINTERBOT_RELAY_URL", true);
             if (string.IsNullOrEmpty(url))
             {
-                url = "https://loadout-discord.aquilo.gg/printerbot/discord-relay";
+                // Default to the live Worker host. The loadout-discord.aquilo.gg
+                // custom domain is not configured (NXDOMAIN), so the canonical
+                // reachable endpoint is the workers.dev URL. Operators who set
+                // up the custom domain can override via the PRINTERBOT_RELAY_URL
+                // global var.
+                url = "https://loadout-discord.aquiloplays.workers.dev/printerbot/discord-relay";
             }
 
             // Build multipart/form-data body by hand. SB ships .NET 4.x
