@@ -51,6 +51,7 @@ import { earn, getWallet } from './wallet.js';
 import { creditPack } from './cards-packs.js';
 import { recordMilestone } from './referrals.js';
 import { getBranding } from './branding.js';
+import { BOLTBOUND_VISIBLE } from './feature-flags.js';
 
 // ── Constants ──────────────────────────────────────────────────────
 
@@ -59,9 +60,13 @@ export const ONBOARD_BONUS_PACK  = 'bolt';
 
 // Stable interest keys, same set used by the multi-select component
 // values, the KV role-map shape, and the admin status table.
+// Boltbound hidden 2026-06-16 via BOLTBOUND_VISIBLE (feature-flags.js); the
+// interest is filtered out of the picker while the flag is off.
 export const INTERESTS = Object.freeze([
   { key: 'gamenight',  label: '🎮 Game Night',        description: 'Weekly community game sessions' },
-  { key: 'boltbound',  label: '🃏 Boltbound',         description: 'Async card battler' },
+  ...(BOLTBOUND_VISIBLE
+    ? [{ key: 'boltbound', label: '🃏 Boltbound', description: 'Async card battler' }]
+    : []),
   { key: 'boardgames', label: '♟️ Board games',       description: 'Chess, checkers, connect4' },
   { key: 'watching',   label: '👀 Just watching',     description: 'Stream notifications only' },
   { key: 'art',        label: '🎨 Art-only',          description: 'Art channels + drops' },
@@ -554,7 +559,7 @@ async function viewComplete(env, guildId, userId, state, grantInfo) {
       description:
         grantLine +
         `\n\nWallet: **${w.balance || 0} bolts**.\n\n` +
-        `Next up: try \`/checkin\` for today, browse the cards with \`/boltbound\`, ` +
+        `Next up: try \`/checkin\` for today, ` +
         `or just hang out and watch the stream. Welcome to ${brand.brandName}.`,
       color: brand.accentColor,
     }],

@@ -3,6 +3,24 @@
 Reproducible record of the best-practice permission bitfield applied
 to the Aquilo Staff (mod) role on Discord.
 
+## Boltbound hidden (2026-06-16)
+
+Boltbound is hidden behind `BOLTBOUND_VISIBLE` (default `false`, set in
+`discord-bot/wrangler.toml` `[vars]` and read via `feature-flags.js`). The
+`/boltbound` slash command is filtered out of `commands-spec.js` while the
+flag is off, so the deployed worker stops serving it. Discord still shows the
+previously-registered command until the command list is re-published.
+
+After this deploy, bulk re-register so the stale `/boltbound` command is
+overwritten (the PUT replaces the whole command set):
+
+- Standalone Node: `APP_ID=... BOT_TOKEN=... node discord-bot/register-commands.js`
+  (add `GUILD_ID=...` for instant per-guild registration)
+- Or from the bound install: `POST /admin/register-commands/:guildId`
+
+To bring Boltbound back: set `BOLTBOUND_VISIBLE=true`, redeploy, then
+re-register again (with `BOLTBOUND_VISIBLE=true` in the register shell too).
+
 ## Target role
 
 - Role name: Aquilo Staff

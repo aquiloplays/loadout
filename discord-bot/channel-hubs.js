@@ -22,6 +22,7 @@
 
 import { getChannelBinding } from './channel-bindings.js';
 import { getBranding } from './branding.js';
+import { BOLTBOUND_VISIBLE } from './feature-flags.js';
 
 const HUB_MSG_KEY = (key, g) => `${key}:hub-msg:${g}`;
 
@@ -81,14 +82,17 @@ const HUBS = Object.freeze({
     title: '🎮 Play',
     color: 0x3a82ff,
     channelHints: ['play', 'games'],
+    // Boltbound hidden 2026-06-16 via BOLTBOUND_VISIBLE (feature-flags.js).
     description:
       'Every gameplay surface, one hub. Tap any tile to open it.\n\n' +
-      '• **Boltbound**, async card battler\n' +
+      (BOLTBOUND_VISIBLE ? '• **Boltbound**, async card battler\n' : '') +
       '• **Quick games**, coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko\n' +
       '• **Loadout**, wallet, daily, profile',
     rows: () => [
       [
-        { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Boltbound',     custom_id: 'play:boltbound' },
+        ...(BOLTBOUND_VISIBLE
+          ? [{ type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Boltbound', custom_id: 'play:boltbound' }]
+          : []),
         { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Quick games',   custom_id: 'play:quick' },
         { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Loadout',       custom_id: 'play:rpg' },
       ],
@@ -408,6 +412,8 @@ export async function handlePlayHubComponent(env, data) {
   const site = brand.siteUrl || 'https://aquilo.gg';
 
   if (action === 'boltbound') {
+    // Boltbound hidden 2026-06-16, unhide via BOLTBOUND_VISIBLE=true.
+    if (!BOLTBOUND_VISIBLE) return eph("Boltbound is taking a break for now. It'll be back later.");
     // Pull a tiny inline read so the menu shows real per-user state.
     let collectionLine = '';
     let activeLine = '';

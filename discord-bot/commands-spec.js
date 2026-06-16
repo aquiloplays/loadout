@@ -23,7 +23,9 @@ const TYPE_SUBCOMMAND       = 1;
 const TYPE_SUBCOMMAND_GROUP = 2;
 const TYPE_BOOLEAN          = 5;
 
-export const COMMANDS = [
+import { BOLTBOUND_VISIBLE } from './feature-flags.js';
+
+const ALL_COMMANDS = [
   {
     name: 'loadout-claim', description: '(server admins) Bind this server to a Loadout install',
     options: [
@@ -903,3 +905,11 @@ export const COMMANDS = [
     ],
   },
 ];
+
+// Boltbound hidden 2026-06-16, unhide via BOLTBOUND_VISIBLE=true (see
+// feature-flags.js). Filtered from the published list so a slash-command
+// re-register drops /boltbound from Discord. Re-register after toggling:
+// node discord-bot/register-commands.js, or POST /admin/register-commands/:guildId.
+export const COMMANDS = ALL_COMMANDS.filter(
+  (c) => BOLTBOUND_VISIBLE || c.name !== 'boltbound',
+);

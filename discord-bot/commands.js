@@ -34,6 +34,7 @@ import { dispatchAquiloInteraction } from './aquilo/worker.js';
 // Character + pet system, pixel-art identity + tamagotchi.
 // Boltbound, async card-battler. See CARD-GAME-DESIGN.md.
 import { handleBoltboundCommand, handleBoltboundComponent } from './cards.js';
+import { boltboundVisible } from './feature-flags.js';
 // Bolts-denominated quick games (blackjack/roulette/wheel/hilo/mines/
 // plinko/crash), shares games-quick.js with the website + Twitch panel.
 import { handlePlayCommand, handlePlayComponent } from './quickgames-command.js';
@@ -346,6 +347,10 @@ export async function handleInteraction(req, env, body, ctx) {
 
     case 'boltbound':
       // Async card-battler. See CARD-GAME-DESIGN.md.
+      // Boltbound hidden 2026-06-16, unhide via BOLTBOUND_VISIBLE=true.
+      if (!boltboundVisible(env)) {
+        return reply("Boltbound is taking a break for now. It'll be back later.");
+      }
       return json(await handleBoltboundCommand(env, data, userId, userName));
 
     case 'play':

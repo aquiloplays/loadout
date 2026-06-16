@@ -62,6 +62,9 @@ compatibility_date = "2025-09-01"
 [vars]
 # Public env. Per-guild secrets are stored in KV, not here.
 ALLOW_ANY_GUILD = "true"   # set to "false" to lock down to specific guild IDs
+# Boltbound hidden 2026-06-16 (community is going all-in on Fallout). Set to
+# "true" + redeploy + re-register slash commands to bring Boltbound back.
+BOLTBOUND_VISIBLE = "false"
 DISCORD_APP_ID = "1500849448866025573"
 # Primary Aquilo guild ID. Used as the default/active guild across the
 # schedule embeds, stream pings, vote hub, lineup, and admin HMAC auth.
