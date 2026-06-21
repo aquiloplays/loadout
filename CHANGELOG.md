@@ -12,57 +12,6 @@ effect after `tools/install-dev.ps1` (dev install) or a tagged release.
 
 ### Added
 
-- **Tank Battle (new overlay)** -- chat-played artillery duel at
-  widget.aquilo.gg/overlays/tanks/. A channel point redemption (any
-  reward title containing "tank", or exact ?reward=) opens the lobby,
-  up to 3 more viewers grab seats with !join (Twitch/YouTube/Kick via
-  Streamer.bot, TikTok via TikFinity), then tanks paradrop onto
-  generated terrain and take turns: !shoot <angle 0-180> [power 10-100].
-  Projectile physics with per-turn wind, pixel-destructible terrain
-  (canvas + solid-mask carve), knockback, fall damage, CPU fill for
-  lonely lobbies, afk elimination, sudden death from round 9, WebAudio
-  sfx, demo/test modes, Worker-driven background tick so hidden tabs
-  never freeze. Deploys from aquilo-widget overlays/tanks (mirrored
-  under aquilo-gg/overlays/tanks). Same-day v2: shot-follow camera
-  (tracks the shell, holds on impact, cam=0 off), lighter default
-  terrain in the bottom quarter of the frame (ground=50-90), sky
-  backdrop never defaults on inside OBS, browser-only idle card
-  (armed/waiting + SB status, hint=0 off). Same-day v3: spectator
-  strikes -- non-seated viewers spend bits (Twitch Cheer) or TikTok
-  gifts on battlefield events tiered by amount (20 wind shift / 100
-  care package on lowest HP / 300 airstrike on the leader / 1000
-  4-5 bomb barrage; all costs tunable). Per-match arsenal: !nuke
-  (double radius) and !dig (bores a tunnel through terrain, light
-  graze damage). Neutral supply crates parachute in between rounds
-  as aiming targets (+20 heal on a hit). New lava theme with a
-  molten floor that burns tanks that fall in. Reigning champion
-  keeps a crown + win streak across matches (localStorage). On
-  victory: Streamer.bot DoAction (winAction, default "Tanks ·
-  Winner") with winner/platform/streak args + optional Discord
-  match-recap embed (?discord=).
-
-- **Hangman (new product)** -- chat hangman with real stakes at
-  aquilo.gg/hangman. A viewer redeems a channel point reward (or
-  !hangman) and goes on the gallows: their Twitch avatar hangs as the
-  head, wrong guesses from chat draw the body, and a loss fires a 60s
-  chat timeout via the new "Hangman · Timeout" Streamer.bot action
-  (tools/build-hangman-import.ps1 -> streamerbot/hangman-import.*).
-  Overlay deploys from aquilo-widget overlays/hangman (mirrored under
-  aquilo-gg/overlays/hangman, pure-logic core selftested 64/64);
-  landing + customizer in aquilo-site public/hangman.
-
-- **PowerDeck** -- new aquilo.gg product: custom Twitch bits Power-ups
-  open packs of 3 game-challenge cards live on stream (pack rip
-  animation, rarity glows, viewer inventories, !cards / !play chat
-  commands, challenge banners with timers). Repo side: the Pack
-  Workshop worker module (`discord-bot/powerdeck.js`, `pd:` keys,
-  mounted at `/api/powerdeck/`, deployed), `tools/build-powerdeck-import.ps1`
-  (SBAE bundle v1.0.0: Announce / Relay / Play Sound) and
-  POWERDECK-SPEC.md. Product pages live in aquilo-site
-  `public/powerdeck/`; the Loadout OBS dock gained a PowerDeck panel
-  (pause packs/plays, switch game, complete/skip) that ships with the
-  pending aquilo-site dock page commit.
-
 - **ChatAnnouncementsModule (DLL)** -- bus-driven chat announcements for
   game events that previously had no chat reply. Subscribes to
   `AquiloBus.LocalPublished` (catches both in-process publishes and
