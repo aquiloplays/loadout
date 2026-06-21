@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loadout, Roulette Vote Overlay</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!--
+  Viewer-facing vote card for Game Interactions roulette actions.
+  Renders only while a vote is open; idle = fully transparent.
+
+  Drop into OBS (1920x1080 browser source, full canvas):
+
+    https://aquilo.gg/overlays/roulette?bus=ws://127.0.0.1:7470&secret=YOUR_SECRET
+
+  Required:
+    bus, secret  - same as the other Loadout overlays
+
+  Optional:
+    pos     - "c" center (default) | "tc" top-center | "bc" bottom-center
+    accent  - hex without # for the bar/timer accent (default aurora)
+    title   - headline override (default "CHAT DECIDES")
+    debug   - "1" self-runs a demo vote loop for preview / customizer
+-->
+<link rel="stylesheet" href="../_shared/loadout-design.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-pos="c">
+  <div id="root" class="idle">
+    <div class="panel">
+      <div class="head">
+        <span class="headline" id="headline">CHAT DECIDES</span>
+        <span class="timer" id="timer"></span>
+      </div>
+      <div class="options" id="options"></div>
+      <div class="hint" id="hint">type the number in chat to vote</div>
+    </div>
+  </div>
+  <script src="../_shared/theme.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>

@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Rotation Fallout preset preview</title>
+<style>
+  /* Preview-only standalone render. No live widget code touched. */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #15171c; }
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: "Courier New", monospace; }
+
+  .widget {
+    position: relative;
+    width: 500px;
+    height: 600px;
+    overflow: hidden;
+    border-radius: 18px;
+    --fg: #5bff95;
+    --fg-dim: #2f8f57;
+    --bg0: #020806;
+    --bg1: #06160d;
+    --accent: #ffd100;
+    --accent2: #4ea3ff;
+    --frame: #0c2415;
+    --label-bg: #0a1c11;
+    --font-head: "Courier New", monospace;
+    --font-body: "Courier New", monospace;
+    color: var(--fg);
+    background: radial-gradient(120% 90% at 50% 40%, var(--bg1) 0%, var(--bg0) 80%);
+  }
+
+  /* ── Pip-Boy ─────────────────────────────────────────── */
+  .widget[data-variant="pipboy"] {
+    --fg: #5bff95; --fg-dim: #2c8a52; --bg0: #010604; --bg1: #06170d;
+    --frame: #11331e; --label-bg: #0b2113;
+    border: 10px solid var(--frame);
+    box-shadow: inset 0 0 90px rgba(0,0,0,0.85), inset 0 0 24px rgba(91,255,149,0.10), 0 18px 50px rgba(0,0,0,0.6);
+  }
+  /* ── Vault-Tec ───────────────────────────────────────── */
+  .widget[data-variant="vault"] {
+    --fg: #f6efd9; --fg-dim: #c9bd8f; --bg0: #0b1c33; --bg1: #163459;
+    --accent: #ffd100; --accent2: #2f6bd4; --frame: #ffd100; --label-bg: #0b1c33;
+    --font-head: Arial, Helvetica, sans-serif;
+    background: linear-gradient(160deg, #163459 0%, #0b1c33 100%);
+    border: 10px solid #ffd100;
+    box-shadow: inset 0 0 0 4px #0b1c33, 0 18px 50px rgba(0,0,0,0.6);
+  }
+  /* ── Wasteland radio ─────────────────────────────────── */
+  .widget[data-variant="wasteland"] {
+    --fg: #e9dcba; --fg-dim: #b8893b; --bg0: #120d08; --bg1: #211710;
+    --accent: #c0392b; --accent2: #b8893b; --frame: #b8893b;
+    --font-head: Georgia, "Times New Roman", serif;
+    background: radial-gradient(120% 100% at 50% 0%, #271b12 0%, #120d08 75%);
+    border: 9px solid #b8893b;
+    box-shadow: inset 0 0 0 3px #120d08, inset 0 0 60px rgba(0,0,0,0.7), 0 18px 50px rgba(0,0,0,0.6);
+  }
+
+  /* CRT curvature + scanlines (gated by reduced-motion for flicker only) */
+  .scan {
+    position: absolute; inset: 0; pointer-events: none; z-index: 40;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,0.18) 0px, rgba(0,0,0,0.18) 1px, transparent 1px, transparent 3px);
+    mix-blend-mode: multiply; opacity: 0.55;
+  }
+  .widget[data-variant="vault"] .scan { opacity: 0.25; }
+  .vignette {
+    position: absolute; inset: 0; pointer-events: none; z-index: 41;
+    background: radial-gradient(120% 100% at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%);
+    border-radius: 18px;
+  }
+  .glow { position:absolute; inset:0; pointer-events:none; z-index:5;
+    box-shadow: inset 0 0 50px rgba(91,255,149,0.07); }
+  .widget[data-variant="vault"] .glow,
+  .widget[data-variant="wasteland"] .glow { box-shadow: none; }
+  @keyframes flick { 0%,97%{opacity:1} 98%{opacity:0.82} 100%{opacity:1} }
+  @media (prefers-reduced-motion: no-preference) {
+    .screen { animation: flick 5.5s infinite steps(1); }
+  }
+
+  .screen { position: absolute; inset: 0; z-index: 10; padding: 26px 24px 22px; display: flex; flex-direction: column; }
+
+  /* Label tabs / corner rivets */
+  .tab { position: absolute; z-index: 30; font-family: var(--font-head); font-size: 10px; letter-spacing: 2px;
+    background: var(--label-bg); color: var(--fg); padding: 3px 9px; border: 1px solid var(--fg-dim); border-radius: 3px; }
+  .widget[data-variant="vault"] .tab { background: #ffd100; color: #0b1c33; border-color:#0b1c33; font-weight: 800; }
+  .widget[data-variant="wasteland"] .tab { background:#120d08; color:#b8893b; border-color:#b8893b; }
+  .tab.tl { top: -1px; left: 22px; }
+  .tab.tr { top: -1px; right: 22px; }
+  .tab.bl { bottom: -1px; left: 22px; }
+  .rivet { position:absolute; width:9px; height:9px; border-radius:50%; z-index:31;
+    background: radial-gradient(circle at 35% 30%, #d7e8dd, #1b3a26 70%); }
+  .widget[data-variant="vault"] .rivet { background: radial-gradient(circle at 35% 30%, #fff3b0, #b89400 70%); }
+  .widget[data-variant="wasteland"] .rivet { background: radial-gradient(circle at 35% 30%, #f0d9a8, #6b4d23 70%); }
+  .rivet.a{top:8px;left:8px}.rivet.b{top:8px;right:8px}.rivet.c{bottom:8px;left:8px}.rivet.d{bottom:8px;right:8px}
+
+  /* Header */
+  .head { display:flex; align-items:center; justify-content:space-between; }
+  .brand { display:flex; align-items:center; gap:10px; }
+  .logo { width: 34px; height: 34px; flex: 0 0 auto; }
+  .brand-txt { line-height:1.1; }
+  .brand-1 { font-family: var(--font-head); font-size: 13px; letter-spacing: 3px; font-weight: 800; }
+  .brand-2 { font-size: 9px; letter-spacing: 2px; color: var(--fg-dim); }
+  .status { font-size: 10px; letter-spacing: 2px; display:flex; align-items:center; gap:6px; }
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .dot.live { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .dot.off { background: var(--fg-dim); }
+
+  .rule { height: 2px; margin: 16px 0; background: linear-gradient(90deg, var(--fg) 0%, transparent 100%); opacity:0.5; }
+  .widget[data-variant="vault"] .rule { background: #ffd100; opacity:0.9; }
+  .widget[data-variant="wasteland"] .rule { background: linear-gradient(90deg, #b8893b, transparent); }
+
+  .section-label { font-family: var(--font-head); font-size: 11px; letter-spacing: 4px; color: var(--fg-dim); margin-bottom: 10px; }
+  .widget[data-variant="vault"] .section-label { color:#ffd100; }
+
+  /* Now playing block */
+  .np { display:flex; gap:16px; align-items:center; }
+  .art { width: 120px; height: 120px; flex:0 0 auto; border: 2px solid var(--fg-dim); border-radius: 6px; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.35); }
+  .meta { min-width:0; flex:1; }
+  .cursor { color: var(--accent); }
+  .widget[data-variant="pipboy"] .cursor { color: var(--fg); }
+  .title { font-size: 22px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; line-height:1.12;
+    white-space: normal; overflow: hidden; }
+  .artist { margin-top: 8px; font-size: 14px; letter-spacing: 2px; color: var(--fg-dim); text-transform: uppercase; }
+  .album { margin-top: 4px; font-size: 11px; letter-spacing: 2px; color: var(--fg-dim); }
+
+  /* progress */
+  .prog-wrap { margin-top: 22px; }
+  .dots { font-size: 16px; letter-spacing: 2px; word-break: break-all; }
+  .bar { height: 12px; border: 2px solid var(--fg-dim); border-radius: 3px; overflow:hidden; background: rgba(0,0,0,0.4); }
+  .bar > i { display:block; height:100%; width: 42%; background: var(--fg); }
+  .widget[data-variant="vault"] .bar > i { background:#ffd100; }
+  .widget[data-variant="wasteland"] .bar > i { background:#c0392b; }
+  .times { display:flex; justify-content: space-between; margin-top:7px; font-size: 12px; letter-spacing:2px; color: var(--fg-dim); }
+
+  /* queue */
+  .q-row { display:flex; align-items:center; gap:10px; padding: 9px 0; border-bottom: 1px dashed var(--fg-dim); }
+  .q-row:last-child{ border-bottom:none; }
+  .q-n { font-family: var(--font-head); font-size: 13px; width: 26px; color: var(--fg-dim); }
+  .q-t { flex:1; font-size: 13px; letter-spacing:1px; text-transform: uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .q-by { font-size: 10px; letter-spacing:1px; color: var(--fg-dim); }
+
+  /* idle */
+  .center { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+  .big { font-family: var(--font-head); font-size: 30px; letter-spacing: 5px; font-weight: 800; }
+  .sub { margin-top: 14px; font-size: 13px; letter-spacing: 1px; color: var(--fg-dim); max-width: 320px; }
+  .blink { animation: bl 1.1s steps(1) infinite; }
+  @keyframes bl { 50% { opacity: 0; } }
+
+  /* approve / reject banners */
+  .banner { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:14px; }
+  .sigil { width: 92px; height: 92px; }
+  .banner .big2 { font-family: var(--font-head); font-size: 26px; letter-spacing: 4px; font-weight: 800; }
+  .banner.ok .big2 { color: var(--accent); }
+  .widget[data-variant="pipboy"] .banner.ok .big2 { color: var(--fg); }
+  .banner.no .big2 { color: #ff5a4d; }
+  .banner .line { font-size: 13px; letter-spacing:1px; color: var(--fg-dim); max-width: 340px; }
+  .footer { margin-top: auto; padding-top: 14px; font-size: 10px; letter-spacing: 3px; color: var(--fg-dim); display:flex; justify-content:space-between; }
+
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+  <div class="widget" id="w" data-variant="pipboy" data-state="nowplaying">
+    <span class="rivet a"></span><span class="rivet b"></span><span class="rivet c"></span><span class="rivet d"></span>
+    <span class="tab tl" id="tab1">ROBCO INDUSTRIES</span>
+    <span class="tab tr" id="tab2">PIPBOY 3000</span>
+    <span class="tab bl" id="tab3">AUDIO / MUSIC</span>
+
+    <div class="screen">
+      <div class="head">
+        <div class="brand">
+          <span class="logo" id="logo"></span>
+          <div class="brand-txt">
+            <div class="brand-1" id="brand1">ROTATION DECK</div>
+            <div class="brand-2" id="brand2">SPOTIFY UPLINK // STABLE</div>
+          </div>
+        </div>
+        <div class="status"><span class="dot live" id="sdot"></span><span id="stext">ON AIR</span></div>
+      </div>
+      <div class="rule"></div>
+
+      <!-- NOW PLAYING -->
+      <div id="s-nowplaying">
+        <div class="section-label">NOW PLAYING</div>
+        <div class="np">
+          <div class="art" id="art"></div>
+          <div class="meta">
+            <div class="title"><span class="cursor">&gt;&gt;&gt;&gt;&gt;</span> ATOM BOMB BABY</div>
+            <div class="artist">THE FIVE STARS</div>
+            <div class="album">REQUESTED BY VAULTDWELLER_07</div>
+          </div>
+        </div>
+        <div class="prog-wrap">
+          <div class="dots" id="np-dots"></div>
+          <div class="bar"><i></i></div>
+          <div class="times"><span>1:47</span><span>4:12</span></div>
+        </div>
+      </div>
+
+      <!-- IDLE -->
+      <div id="s-idle" class="hidden" style="flex:1; display:flex; flex-direction:column;">
+        <div class="section-label">ROTATION DECK</div>
+        <div class="center">
+          <div class="big">AWAITING REQUEST<span class="blink">_</span></div>
+          <div class="sub">Deck is warm and the needle is parked. Drop a <b>!song</b> in chat to spin one up.</div>
+        </div>
+      </div>
+
+      <!-- QUEUE -->
+      <div id="s-queue" class="hidden">
+        <div class="section-label">NOW PLAYING</div>
+        <div class="np" style="margin-bottom:6px;">
+          <div class="art" id="art2" style="width:78px;height:78px;"></div>
+          <div class="meta">
+            <div class="title" style="font-size:18px;"><span class="cursor">&gt;&gt;</span> ATOM BOMB BABY</div>
+            <div class="artist" style="font-size:12px;">THE FIVE STARS</div>
+          </div>
+        </div>
+        <div class="bar" style="margin:4px 0 16px;"><i></i></div>
+        <div class="section-label">UP NEXT // ROTATION DECK</div>
+        <div class="q-row"><span class="q-n">01</span><span class="q-t">I Dont Want To Set The World On Fire</span><span class="q-by">@nukacola</span></div>
+        <div class="q-row"><span class="q-n">02</span><span class="q-t">Crawl Out Through The Fallout</span><span class="q-by">@sole_survivor</span></div>
+        <div class="q-row"><span class="q-n">03</span><span class="q-t">Way Back Home</span><span class="q-by">@mr_handy</span></div>
+      </div>
+
+      <!-- APPROVED -->
+      <div id="s-approved" class="hidden" style="flex:1; display:flex; flex-direction:column;">
+        <div class="section-label">REQUEST TERMINAL</div>
+        <div class="banner ok">
+          <span class="sigil" id="sigil-ok"></span>
+          <div class="big2">REQUEST APPROVED</div>
+          <div class="line"><b>@vaultdweller_07</b> dropped a track into the deck. Loading <b>ATOM BOMB BABY</b> into the rotation.</div>
+        </div>
+      </div>
+
+      <!-- REJECTED -->
+      <div id="s-rejected" class="hidden" style="flex:1; display:flex; flex-direction:column;">
+        <div class="section-label">REQUEST TERMINAL</div>
+        <div class="banner no">
+          <span class="sigil" id="sigil-no"></span>
+          <div class="big2">REQUEST DENIED</div>
+          <div class="line">No clean version found for that one. Try another, or keep it radio friendly for the wasteland.</div>
+        </div>
+      </div>
+
+      <div class="footer"><span id="f1">ROTATION // AQUILO.GG</span><span id="f2">CH 76.0 FM</span></div>
+    </div>
+
+    <div class="glow"></div>
+    <div class="scan"></div>
+    <div class="vignette"></div>
+  </div>
+
+<script>
+  // Procedural icons.
+  function holotape(c){ return `<svg viewBox="0 0 100 100" width="100%" height="100%"><rect x="10" y="22" width="80" height="56" rx="7" fill="none" stroke="${c}" stroke-width="3"/><circle cx="35" cy="50" r="11" fill="none" stroke="${c}" stroke-width="3"/><circle cx="65" cy="50" r="11" fill="none" stroke="${c}" stroke-width="3"/><circle cx="35" cy="50" r="3" fill="${c}"/><circle cx="65" cy="50" r="3" fill="${c}"/><rect x="40" y="30" width="20" height="6" rx="2" fill="${c}"/></svg>`; }
+  function vinyl(c){ return `<svg viewBox="0 0 100 100" width="100%" height="100%"><circle cx="50" cy="50" r="40" fill="none" stroke="${c}" stroke-width="3"/><circle cx="50" cy="50" r="30" fill="none" stroke="${c}" stroke-width="1"/><circle cx="50" cy="50" r="20" fill="none" stroke="${c}" stroke-width="1"/><circle cx="50" cy="50" r="9" fill="${c}"/><circle cx="50" cy="50" r="3" fill="#000"/></svg>`; }
+  function vaultboy(c,b){ return `<svg viewBox="0 0 100 100" width="100%" height="100%"><circle cx="50" cy="34" r="18" fill="${c}"/><rect x="34" y="50" width="32" height="34" rx="9" fill="${c}"/><rect x="60" y="40" width="9" height="20" rx="4" fill="${c}"/><circle cx="69" cy="38" r="7" fill="${c}"/><path d="M44 32 q6 6 12 0" stroke="${b}" stroke-width="2.5" fill="none"/><circle cx="44" cy="30" r="2.4" fill="${b}"/><circle cx="56" cy="30" r="2.4" fill="${b}"/></svg>`; }
+  function cog(c){ let p=''; for(let i=0;i<10;i++){const a=i*36*Math.PI/180;p+=`<rect x="47" y="6" width="6" height="13" transform="rotate(${i*36} 50 50)" fill="${c}"/>`;} return `<svg viewBox="0 0 100 100" width="100%" height="100%">${p}<circle cx="50" cy="50" r="33" fill="none" stroke="${c}" stroke-width="5"/><circle cx="50" cy="50" r="11" fill="none" stroke="${c}" stroke-width="5"/></svg>`; }
+  function dial(c){ return `<svg viewBox="0 0 100 100" width="100%" height="100%"><circle cx="50" cy="50" r="34" fill="none" stroke="${c}" stroke-width="3"/>${Array.from({length:12}).map((_,i)=>`<rect x="49" y="18" width="2" height="8" transform="rotate(${i*30} 50 50)" fill="${c}"/>`).join('')}<line x1="50" y1="50" x2="72" y2="36" stroke="${c}" stroke-width="3"/><circle cx="50" cy="50" r="4" fill="${c}"/></svg>`; }
+  function check(c){ return `<svg viewBox="0 0 100 100" width="100%" height="100%"><circle cx="50" cy="50" r="42" fill="none" stroke="${c}" stroke-width="5"/><path d="M30 52 L45 67 L72 36" fill="none" stroke="${c}" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>`; }
+  function cross(c){ return `<svg viewBox="0 0 100 100" width="100%" height="100%"><circle cx="50" cy="50" r="42" fill="none" stroke="${c}" stroke-width="5"/><path d="M36 36 L64 64 M64 36 L36 64" stroke="${c}" stroke-width="7" stroke-linecap="round"/></svg>`; }
+
+  const VARIANTS = {
+    pipboy: { fg:'#5bff95', tabs:['ROBCO INDUSTRIES','PIPBOY 3000','AUDIO / MUSIC'], brand1:'ROTATION DECK', brand2:'SPOTIFY UPLINK // STABLE', status:'ON AIR', f1:'ROTATION // AQUILO.GG', f2:'CH 76.0 FM', art: c=>holotape(c), logo: c=>cog(c), okIcon:'#5bff95', noIcon:'#ff5a4d' },
+    vault:  { fg:'#ffd100', tabs:['VAULT-TEC','VAULT 76 RADIO','BROADCAST'], brand1:'VAULT 76 RADIO', brand2:'ROTATION // PREPARED FOR THE FUTURE', status:'BROADCASTING', f1:'VAULT-TEC // AQUILO.GG', f2:'CH 76.0 FM', art: c=>vaultboy('#ffd100','#0b1c33'), logo: c=>vaultboy('#ffd100','#0b1c33'), okIcon:'#ffd100', noIcon:'#ff7a6a' },
+    wasteland:{ fg:'#e9dcba', tabs:['GALAXY NEWS RADIO','THREE DOG SPINS','ON AIR'], brand1:'GALAXY NEWS', brand2:'RADIO // ROTATION HOUR', status:'ON AIR', f1:'G.N.R. // AQUILO.GG', f2:'CH 76.0 FM', art: c=>vinyl('#b8893b'), logo: c=>dial('#b8893b'), okIcon:'#b8893b', noIcon:'#c0392b' },
+  };
+
+  function dotbar(filled,total,c){ let s=''; for(let i=0;i<total;i++) s+= i<filled ? '●' : '○'; return s; }
+
+  function render(){
+    const p = new URLSearchParams(location.search);
+    const v = p.get('v') || 'pipboy';
+    const s = p.get('s') || 'nowplaying';
+    const w = document.getElementById('w');
+    w.dataset.variant = v; w.dataset.state = s;
+    const cfg = VARIANTS[v];
+    document.getElementById('tab1').textContent = cfg.tabs[0];
+    document.getElementById('tab2').textContent = cfg.tabs[1];
+    document.getElementById('tab3').textContent = cfg.tabs[2];
+    document.getElementById('brand1').textContent = cfg.brand1;
+    document.getElementById('brand2').textContent = cfg.brand2;
+    document.getElementById('stext').textContent = cfg.status;
+    document.getElementById('f1').textContent = cfg.f1;
+    document.getElementById('f2').textContent = cfg.f2;
+    document.getElementById('logo').innerHTML = cfg.logo(cfg.fg);
+    const artHtml = cfg.art(cfg.fg);
+    document.getElementById('art').innerHTML = artHtml;
+    document.getElementById('art2').innerHTML = artHtml;
+    document.getElementById('np-dots').innerHTML = dotbar(7,18,cfg.fg);
+    document.getElementById('sigil-ok').innerHTML = check(cfg.okIcon);
+    document.getElementById('sigil-no').innerHTML = cross(cfg.noIcon);
+    // idle status dot off
+    const sdot = document.getElementById('sdot');
+    sdot.className = 'dot ' + (s==='idle' ? 'off' : 'live');
+    if (s==='idle') document.getElementById('stext').textContent = 'STANDBY';
+    // show/hide states
+    for (const st of ['nowplaying','idle','queue','approved','rejected']) {
+      document.getElementById('s-'+st).classList.toggle('hidden', st!==s);
+    }
+  }
+  render();
+</script>
+</body>
+</html>

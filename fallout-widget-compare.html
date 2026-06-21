@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; margin:0; padding:0; }
+  body { background:#0c0e12; font-family: "Courier New", monospace; color:#cfe9d8; padding: 30px 34px 36px; }
+  h1 { font-size: 22px; letter-spacing: 4px; color:#5bff95; }
+  .sub { font-size: 12px; letter-spacing:2px; color:#7c9a88; margin-top:6px; margin-bottom: 26px; }
+  .grid { display:flex; gap:34px; align-items:flex-start; }
+  .col { width: 500px; }
+  .cap { font-size: 13px; letter-spacing:3px; margin-bottom: 12px; color:#cfe9d8; }
+  .cap b { color:#5bff95; }
+  iframe { width:500px; height:600px; border:0; display:block; }
+  .note { font-size: 11px; letter-spacing:1px; color:#7c9a88; margin-top:10px; line-height:1.5; }
+</style>
+</head>
+<body>
+  <h1>ROTATION // FALLOUT PRESET VARIANTS</h1>
+  <div class="sub">Preview only. Now-playing state shown. widget.aquilo.gg/rotation, 500 x 600 canonical sample.</div>
+  <div class="grid">
+    <div class="col">
+      <div class="cap"><b>1.</b> PIP-BOY PURE</div>
+      <iframe src="fallout-widget-preview.html?v=pipboy&s=nowplaying"></iframe>
+      <div class="note">CRT terminal, Pip-Boy green only. RobCo bezel + scanlines.</div>
+    </div>
+    <div class="col">
+      <div class="cap"><b>2.</b> VAULT-TEC BROADCAST</div>
+      <iframe src="fallout-widget-preview.html?v=vault&s=nowplaying"></iframe>
+      <div class="note">Vault yellow + blue corporate. Vault 76 Radio framing.</div>
+    </div>
+    <div class="col">
+      <div class="cap"><b>3.</b> WASTELAND RADIO</div>
+      <iframe src="fallout-widget-preview.html?v=wasteland&s=nowplaying"></iframe>
+      <div class="note">Galaxy News Radio deco. Brass, cream, atomic red.</div>
+    </div>
+  </div>
+</body>
+</html>

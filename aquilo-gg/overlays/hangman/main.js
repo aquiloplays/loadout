@@ -823,4 +823,31 @@
     restore();
     connectSB();
   }
+
+  // Customizer "Send test to OBS" ping (placement check on the live
+  // source): one-shot test vignette, never interrupts a real game and
+  // never fires SB actions (test:true games are inert by design).
+  if (window.AquiloTest) {
+    window.AquiloTest.onTest(function () {
+      if (cfg.demo) return;
+      if (game && game.status === 'playing' && !game.test) return;
+      cancelGame(true);
+      var p = DEMO_PLAYERS[demoN % DEMO_PLAYERS.length]; demoN++;
+      var player = { id: 'demo', login: '', name: p.name };
+      if (!startGame(player, { test: true })) return;
+      applyAvatar('https://i.pravatar.cc/100?img=' + p.img, player);
+      var hit = function () {
+        if (!game || game.status !== 'playing') return;
+        for (var i = 0; i < game.word.length; i++) {
+          var c = game.word.charAt(i);
+          if (c >= 'A' && c <= 'Z' && game.hits.indexOf(c) < 0) { applyResult(Core.guessLetter(game, c)); return; }
+        }
+      };
+      setTimeout(hit, 1600);
+      setTimeout(hit, 3200);
+      setTimeout(function () {
+        if (game && game.test && game.status === 'playing') applyResult(Core.guessWord(game, game.word));
+      }, 4800);
+    });
+  }
 })();

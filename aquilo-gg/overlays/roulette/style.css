@@ -1,0 +1,151 @@
+:root {
+  --bg: transparent;
+  --text: var(--ld-text);
+  --muted: var(--ld-muted);
+  --accent: var(--roulette-accent, var(--ld-accent));
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--ld-stack);
+  font-feature-settings: "ss01", "cv11";
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Full-canvas anchor. The panel positions off body[data-pos]. */
+#root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  transition: opacity .4s ease;
+}
+body[data-pos="c"]  #root { align-items: center; }
+body[data-pos="tc"] #root { align-items: flex-start; padding-top: 6vh; }
+body[data-pos="bc"] #root { align-items: flex-end;  padding-bottom: 6vh; }
+#root.idle { opacity: 0; }
+
+.panel {
+  min-width: 460px;
+  max-width: 640px;
+  padding: 26px 30px 20px;
+  background: var(--ld-glass-tint), var(--ld-glass-bg);
+  border: 1px solid var(--ld-border);
+  border-radius: var(--ld-radius-md);
+  backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  -webkit-backdrop-filter: blur(var(--ld-blur)) saturate(var(--ld-saturate));
+  box-shadow: var(--ld-shadow-soft), var(--ld-shadow-rim);
+  transform: translateY(14px) scale(0.97);
+  transition: transform .45s var(--ld-ease-spring);
+  position: relative;
+}
+#root:not(.idle) .panel { transform: translateY(0) scale(1); }
+/* Aurora hairline along the top edge, same accent treatment the
+   counter pills use. */
+.panel::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 22px; right: 22px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 30%, var(--ld-accent-2) 50%, var(--accent) 70%, transparent 100%);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.headline {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+}
+.timer {
+  font-size: 26px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  min-width: 56px;
+  text-align: right;
+}
+.timer.urgent { color: var(--ld-gold); animation: pulse 0.8s ease infinite; }
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
+}
+
+.option {
+  padding: 9px 0;
+  border-top: 1px solid color-mix(in srgb, var(--ld-border) 60%, transparent);
+}
+.option:first-child { border-top: 0; }
+.option-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+.option-name { font-weight: 700; }
+.option-name .num {
+  display: inline-block;
+  min-width: 26px; height: 26px;
+  margin-right: 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--text);
+  font-size: 14px;
+  text-align: center;
+  line-height: 24px;
+}
+.option-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--muted);
+  font-size: 15px;
+}
+.option-bar {
+  height: 9px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  overflow: hidden;
+}
+.option-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, var(--accent) 0%, var(--ld-accent-2) 100%);
+  transition: width .35s ease-out;
+}
+
+/* Winner state */
+.option.winner .option-name { color: var(--ld-gold); }
+.option.winner .num {
+  background: color-mix(in srgb, var(--ld-gold) 30%, transparent);
+  border-color: var(--ld-gold);
+}
+.option.winner .option-fill {
+  background: linear-gradient(90deg, var(--ld-gold) 0%, var(--ld-accent-2) 100%);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--ld-gold) 60%, transparent);
+}
+.option.loser { opacity: 0.4; }
+
+.hint {
+  margin-top: 14px;
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+  text-align: center;
+  text-transform: uppercase;
+}
