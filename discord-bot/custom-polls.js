@@ -568,15 +568,20 @@ export const VARIETY_POLL = Object.freeze({
   title:        'Variety Night, pick the game',
   subtitle:     'Vote for the next Variety Night game. Streams Wed. CC icon = Crowd Control supported (crowdcontrol.live).',
   compositeKey: 'variety',
-  // 2026-06-03: the final 7-game Variety pool, matching games:v1. BALL x
-  // PIT + Vampire Crawlers removed (Clay). (CC) = Crowd Control supported.
+  // 2026-06 (Batch C3): the final 9-game Variety pool, matching games:v1.
+  // Retro Rewind moved to Dad Game Sunday (C2); the sim/cozy titles that
+  // used to live here (waterpark, paralives, supermarket, pws2, hf2,
+  // roadside) are dad-sunday games now. Retro Rewind out, Burgie's Cozy
+  // Kitchen in. (CC) = Crowd Control supported.
   options: [
-    { value: 'climbing',    label: 'A Difficult Game About Climbing' },
-    { value: 'megabonk',    label: 'Megabonk (CC)' },
-    { value: 'flip_master', label: 'Flip Master' },
-    { value: 'sts2',        label: 'Slay the Spire 2 (CC)' },
-    { value: 'cloverpit',   label: 'CloverPit' },
-    { value: 'balatro',     label: 'Balatro' },
-    { value: 'burgie',      label: "Burgie's Cozy Kitchen" },
+    { value: 'climbing',         label: 'A Difficult Game About Climbing' },
+    { value: 'ballxpit',         label: 'BALL x PIT' },
+    { value: 'megabonk',         label: 'Megabonk (CC)' },
+    { value: 'flip_master',      label: 'Flip Master' },
+    { value: 'sts2',             label: 'Slay the Spire 2 (CC)' },
+    { value: 'cloverpit',        label: 'CloverPit' },
+    { value: 'balatro',          label: 'Balatro' },
+    { value: 'vampire_crawlers', label: 'Vampire Crawlers (CC)' },
+    { value: 'burgie',           label: "Burgie's Cozy Kitchen" },
   ],
 });

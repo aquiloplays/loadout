@@ -49,10 +49,23 @@ export const LOSS_LINES = [
 // ── Builders ───────────────────────────────────────────────────────────
 const T = (body, actionKey, durationSec, weight = 10) => ({ kind: 'tamper', body, actionKey, durationSec, weight });
 const C = (body, durationSec = 0, weight = 10) => ({ kind: 'challenge', body, durationSec, weight });
+// `P` = CrowdPlay reward. The scratch handler hits the worker's
+// /web/crowdplay/scratch-fire endpoint to dispatch one specific effect on
+// the active game. `effectId` is the manifest id we want fired (use null
+// for "let the panel pick" - the streamer's choice from a curated list).
+// `body` is the body line shown on the ticket.
+const P = (body, effectId = null, weight = 8) => ({ kind: 'crowdplay', body, effectId, weight });
+// `V` = CrowdPlay vote opener. Bigger prize: scratcher opens a new vote
+// round, gets credited as the sponsor on the OBS overlay.
+const V = (body, weight = 5) => ({ kind: 'crowdplay-vote', body, weight });
 
 // ── Per-game pools ─────────────────────────────────────────────────────
 export const POOLS = {
   generic: [
+    // CrowdPlay reward tier - works across all 30 supported games. The
+    // scratch handler resolves these to the live game's manifest.
+    P('You picked the lock. Open a CrowdPlay vote round.', null, 7),
+    V('JACKPOT. Open the next vote, the whole chat plays.', 4),
     C('Pose for the stream. Hold it 10 seconds.', 10),
     C('Do 5 push-ups off camera. Chat counts.', 0),
     C('Pick the worst dialogue option at the next prompt.', 0),

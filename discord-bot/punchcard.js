@@ -174,11 +174,15 @@ export function sanitizeCard(raw, allowCustom) {
   }
   // Cosmetics. Everything whitelisted; junk falls back to defaults.
   out.punch = ['classic', 'stamp', 'fist', 'laser', 'none'].includes(raw.punch) ? raw.punch : 'classic';
-  // Check-in sound: keys of the synthesized bank in pc-sounds.js. The
-  // overlay's audio settings (enabled/volume/viewerSounds) always win.
-  out.sound = ['chime', 'airhorn', 'sadtrombone', 'boom', 'bonk', 'tada', 'powerup',
-    'coin', 'boing', 'scratch', 'drumroll', 'laser', 'honk', 'none'].includes(raw.sound)
-    ? raw.sound : 'chime';
+  // Check-in sound: a synth-bank key from pc-sounds.js, or c:<id> for
+  // a sound in the channel's streamer-curated library. The overlay's
+  // audio settings (enabled/volume/viewerSounds) always win, and an
+  // id that has been removed from the library simply resolves to the
+  // chime at check-in time.
+  const SOUND_KEYS = ['chime', 'airhorn', 'sadtrombone', 'boom', 'bonk', 'tada', 'powerup',
+    'coin', 'boing', 'scratch', 'drumroll', 'laser', 'honk', 'none'];
+  out.sound = SOUND_KEYS.includes(raw.sound) ? raw.sound
+    : (/^c:[a-f0-9]{8,16}$/.test(String(raw.sound || '')) ? String(raw.sound) : 'chime');
   // Earned-badge selection (cap 3). Keys are whitelisted only; whether
   // a badge actually RENDERS is decided at display time against the
   // viewer's server-side stats, so selections can never fake a badge.
@@ -722,6 +726,136 @@ async function handleCheckin(env, body) {
     card: stored.card, stats: stored.stats || null, avatar, subTier, msgEmotes,
     day: today, activeDays: days.length,
   });
+}
+
+// ── channel sound library ─────────────────────────────────────────────
+// Streamer-curated check-in sounds, two inflows: direct upload (the
+// streamer owns the licensing, same arrangement as every alert-sound
+// uploader) and Freesound.org search restricted to Creative Commons 0,
+// where adopting COPIES the file into our KV so nothing hotlinks at
+// runtime. Audio is served from /api/punchcard/sound/<ch>/<id> with a
+// day of edge cache. Caps: 8 sounds per channel, 300KB each, ~20s.
+const SOUND_CAP = 8;
+const SOUND_MAX_BYTES = 300 * 1024;
+const SND_KEY = (ch, id) => `pc:snd:${ch}:${id}`;
+
+function sniffAudio(bytes) {
+  if (bytes.length > 2 && bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return 'audio/mpeg'; // ID3
+  if (bytes.length > 1 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) return 'audio/mpeg';             // MPEG frame
+  if (bytes.length > 3 && bytes[0] === 0x4f && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) return 'audio/ogg'; // OggS
+  if (bytes.length > 3 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) return 'audio/wav'; // RIFF
+  return null;
+}
+
+async function storeChannelSound(env, ch, chan, name, bytes) {
+  if ((chan.sounds || []).length >= SOUND_CAP) return { error: 'library-full' };
+  if (!bytes || bytes.length < 128) return { error: 'empty' };
+  if (bytes.length > SOUND_MAX_BYTES) return { error: 'too-large' };
+  const type = sniffAudio(bytes);
+  if (!type) return { error: 'not-audio' };
+  const id = genHex(6);
+  await env.LOADOUT_BOLTS.put(SND_KEY(ch, id), bytes.buffer, {
+    metadata: { type },
+  });
+  chan.sounds = (chan.sounds || []).concat([{ id, name: cleanDisplay(name).slice(0, 30) || 'Sound' }]);
+  await kvPut(env, KEY.chan(ch), chan);
+  return { id, name: chan.sounds[chan.sounds.length - 1].name, type };
+}
+
+async function handleSoundAdd(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  let bytes;
+  try {
+    const b64 = String(body.data || '').replace(/^data:[^,]*,/, '');
+    const bin = atob(b64);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } catch { return json({ ok: false, error: 'bad-data' }, 400); }
+  const res = await storeChannelSound(env, ch, chan, body.name, bytes);
+  if (res.error) return json({ ok: false, error: res.error }, 400);
+  return json({ ok: true, sound: { id: res.id, name: res.name }, sounds: chan.sounds });
+}
+
+async function handleSoundRemove(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const id = String(body.id || '');
+  chan.sounds = (chan.sounds || []).filter((s) => s.id !== id);
+  await kvPut(env, KEY.chan(ch), chan);
+  await env.LOADOUT_BOLTS.delete(SND_KEY(ch, id)).catch(() => {});
+  return json({ ok: true, sounds: chan.sounds });
+}
+
+// GET /api/punchcard/sound/<ch>/<id>: the audio itself. Public read
+// (ids are unguessable enough and the content is streamer-approved).
+async function handleSoundServe(env, path) {
+  const m = /^\/api\/punchcard\/sound\/([a-z0-9_]{2,25})\/([a-f0-9]{8,16})$/.exec(path);
+  if (!m) return json({ ok: false, error: 'not-found' }, 404);
+  const { value, metadata } = await env.LOADOUT_BOLTS.getWithMetadata(SND_KEY(m[1], m[2]), { type: 'arrayBuffer' });
+  if (!value) return json({ ok: false, error: 'not-found' }, 404);
+  return new Response(value, {
+    headers: {
+      'content-type': (metadata && metadata.type) || 'audio/mpeg',
+      'cache-control': 'public, max-age=86400',
+      'access-control-allow-origin': '*',
+    },
+  });
+}
+
+// Freesound.org, Creative Commons 0 only. Search returns candidates
+// with their own preview URLs (played directly in the customizer);
+// adopt fetches the HQ preview server-side and stores it as a channel
+// sound. Requires FREESOUND_API_KEY (free registration).
+async function handleSoundSearch(env, url) {
+  const ch = chanName(url.searchParams.get('ch'));
+  const chan = await authedChan(env, ch, String(url.searchParams.get('k') || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  if (!env.FREESOUND_API_KEY) return json({ ok: false, error: 'no-freesound' }, 501);
+  const q = String(url.searchParams.get('q') || '').slice(0, 60).trim();
+  if (!q) return json({ ok: false, error: 'empty' }, 400);
+  const fs = new URL('https://freesound.org/apiv2/search/text/');
+  fs.searchParams.set('query', q);
+  fs.searchParams.set('filter', 'license:"Creative Commons 0" duration:[0.2 TO 12]');
+  fs.searchParams.set('fields', 'id,name,previews,duration,username');
+  fs.searchParams.set('page_size', '15');
+  fs.searchParams.set('token', env.FREESOUND_API_KEY);
+  const r = await fetch(fs.toString());
+  if (!r.ok) return json({ ok: false, error: 'freesound-' + r.status }, 502);
+  const j = await r.json();
+  const results = (j.results || []).map((s) => ({
+    fsId: s.id,
+    name: String(s.name || '').slice(0, 40),
+    by: String(s.username || '').slice(0, 30),
+    duration: Math.round((s.duration || 0) * 10) / 10,
+    preview: s.previews && (s.previews['preview-lq-mp3'] || s.previews['preview-hq-mp3']),
+  })).filter((s) => s.preview);
+  return json({ ok: true, results });
+}
+
+async function handleSoundAdopt(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  if (!env.FREESOUND_API_KEY) return json({ ok: false, error: 'no-freesound' }, 501);
+  const fsId = Math.floor(Number(body.fsId) || 0);
+  if (!fsId) return json({ ok: false, error: 'bad-id' }, 400);
+  const info = await fetch(`https://freesound.org/apiv2/sounds/${fsId}/?fields=name,previews,license&token=${env.FREESOUND_API_KEY}`);
+  if (!info.ok) return json({ ok: false, error: 'freesound-' + info.status }, 502);
+  const meta = await info.json();
+  if (!/creativecommons\.org\/publicdomain\/zero/.test(String(meta.license || ''))) {
+    return json({ ok: false, error: 'not-cc0' }, 400);
+  }
+  const previewUrl = meta.previews && (meta.previews['preview-hq-mp3'] || meta.previews['preview-lq-mp3']);
+  if (!previewUrl) return json({ ok: false, error: 'no-preview' }, 502);
+  const audio = await fetch(previewUrl);
+  if (!audio.ok) return json({ ok: false, error: 'fetch-failed' }, 502);
+  const buf = new Uint8Array(await audio.arrayBuffer());
+  const res = await storeChannelSound(env, ch, chan, body.name || meta.name, buf);
+  if (res.error) return json({ ok: false, error: res.error }, 400);
+  return json({ ok: true, sound: { id: res.id, name: res.name }, sounds: chan.sounds });
 }
 
 // ── badge stats ───────────────────────────────────────────────────────

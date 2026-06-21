@@ -481,10 +481,18 @@ async function pickFromPool(env, gameSlug, extra = {}) {
       : { outcome: 'challenge', outcomeData: { poolId: null, body: 'Pose for the stream for 10 seconds.', durationSec: 10 } };
   }
   return {
-    outcome: pick.kind, // 'challenge' | 'tamper'
+    outcome: pick.kind, // 'challenge' | 'tamper' | 'crowdplay' | 'crowdplay-vote'
     outcomeData: {
       poolId: pick.id, body: pick.body, durationSec: pick.duration_sec || 0,
       actionKey: pick.action_key || null,
+      // crowdplay-effect pool rows store the manifest effectId in action_key
+      // since the schema doesn't have a dedicated column - the column is
+      // already nullable + string-typed and only meaningful for tampers.
+      // Per-kind interpretation:
+      //   tamper:   action_key = Streamer.bot action_key
+      //   crowdplay: action_key = manifest effect id (null = panel picks)
+      //   crowdplay-vote: action_key ignored
+      effectId: pick.kind === 'crowdplay' ? (pick.action_key || null) : null,
       ...(extra.workout ? { workout: true } : {}),
     },
   };
@@ -1014,7 +1022,54 @@ async function emitHitFire(env, row, forced) {
     };
     await publishActivity(env, { kind: 'scratch.challenge', ...payload }).catch(() => {});
     await enqueueOverlay(env, { type: 'scratch_challenge', bus_kind: 'scratch.challenge', ...payload, ts }).catch(() => {});
+  } else if (row.outcome === 'crowdplay' || row.outcome === 'crowdplay-vote') {
+    // CROSS-PRODUCT: scratch win → CrowdPlay fire or vote open. We push
+    // an event into crowdplay:pending (the same KV the engine drains on
+    // its relay tick), so it integrates with the live engine via the
+    // existing path - no separate transport.
+    const payload = {
+      ticketId: row.id, viewer: row.user_name || null, gameSlug: row.game_slug,
+      body: od.body, effectId: od.effectId || null, forced: !!forced,
+    };
+    await publishActivity(env, { kind: `scratch.${row.outcome}`, ...payload }).catch(() => {});
+    await enqueueCrowdplayFromScratch(env, row, od).catch(() => {});
+    // Also drop on the overlay bus so the OBS overlay can announce
+    // "Scratch jackpot - VIEWER opens the next round!" alongside the
+    // CrowdPlay sponsor banner.
+    await enqueueOverlay(env, {
+      type: row.outcome === 'crowdplay-vote' ? 'crowdplay_vote_opened' : 'crowdplay_fire',
+      bus_kind: `scratch.${row.outcome}`, ...payload, ts,
+    }).catch(() => {});
   }
+}
+
+// Push an event into the CrowdPlay pending queue (the engine drains this
+// on its 4s relay tick). We reuse the same KV the engine's worker side
+// uses for force-fire / open-round events.
+async function enqueueCrowdplayFromScratch(env, row, od) {
+  if (!env || !env.LOADOUT_BOLTS) return;
+  const K_PENDING = 'crowdplay:pending';
+  let prev = null;
+  try { prev = await env.LOADOUT_BOLTS.get(K_PENDING, { type: 'json' }); }
+  catch { prev = null; }
+  prev = prev || { events: [] };
+  const id = 'sx_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+  if (row.outcome === 'crowdplay' && od.effectId) {
+    prev.events.push({
+      kind: 'force-fire', effectId: od.effectId, source: 'scratch',
+      viewer: row.user_name || null, _id: id, _at: Date.now(),
+    });
+  } else if (row.outcome === 'crowdplay-vote') {
+    prev.events.push({
+      kind: 'open-round',
+      sponsor: { user: row.user_name || 'viewer', source: 'scratch' },
+      _id: id, _at: Date.now(),
+    });
+  }
+  if (prev.events.length > 500) prev.events.splice(0, prev.events.length - 500);
+  try {
+    await env.LOADOUT_BOLTS.put(K_PENDING, JSON.stringify(prev), { expirationTtl: 300 });
+  } catch { /* swallow */ }
 }
 
 // ── Admin content layer: merge + CRUD (games / challenges / tampers) ────
@@ -1331,8 +1386,9 @@ weight 5 to 12. challenge entries have actionKey null and durationSec 0 unless t
   const d = db(env);
   const validKeys = new Set(STREAMER_BOT_ACTIONS.map((a) => a.action_key));
   let inserted = 0, i = 0;
+  const ALLOWED_KINDS = new Set(['challenge', 'tamper', 'crowdplay', 'crowdplay-vote']);
   for (const e of arr) {
-    if (!e || (e.kind !== 'challenge' && e.kind !== 'tamper') || !e.body) continue;
+    if (!e || !ALLOWED_KINDS.has(e.kind) || !e.body) continue;
     let actionKey = e.kind === 'tamper' ? (e.actionKey || null) : null;
     if (e.kind === 'tamper' && (!actionKey || !validKeys.has(actionKey))) actionKey = 'random_keys';
     const id = `op_${slug}_g${i++}_${now().toString(36)}`;

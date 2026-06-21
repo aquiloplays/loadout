@@ -54,6 +54,12 @@ const ROLE_BUTTON_MAP = {
   'guild:role:youtube':   { idKey: 'role_youtube',   label: 'YouTube Pings' },
   'guild:role:event':     { idKey: 'role_event',     label: 'Event Pings'   },
   'guild:role:gamenight': { idKey: 'role_gamenight', label: 'Game Night'    },
+  // Platform + nuke roles for the Fallout server (Aquilo's Vault). Generic:
+  // only fire on guilds whose guild:cfg id-map has these keys.
+  'guild:role:pc':          { idKey: 'role_pc',          label: 'PC'          },
+  'guild:role:playstation': { idKey: 'role_playstation', label: 'PlayStation' },
+  'guild:role:xbox':        { idKey: 'role_xbox',        label: 'Xbox'        },
+  'guild:role:nuke':        { idKey: 'role_nuke',        label: 'Nuke Runs'   },
 };
 
 const RESP_CHAT     = 4;

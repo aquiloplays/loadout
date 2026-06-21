@@ -6644,9 +6644,11 @@ async function handleGuildBuild(req, env, path) {
   const token = env.DISCORD_BOT_TOKEN;
   if (!token) return new Response('DISCORD_BOT_TOKEN missing', { status: 503 });
 
-  const { SERVER_SPEC } = await import('./server-spec.js');
+  const specMod = await import('./server-spec.js');
   const { applyServerSpec } = await import('./guild-builder.js');
-  const result = await applyServerSpec(token, guildId, SERVER_SPEC, { apply });
+  // Branch: the dedicated Fallout server (Aquilo's Vault) uses its own spec.
+  const spec = guildId === '1516302043352928336' ? specMod.FALLOUT_SPEC : specMod.SERVER_SPEC;
+  const result = await applyServerSpec(token, guildId, spec, { apply });
   return new Response(JSON.stringify(result, null, 2), {
     status: result.ok ? 200 : 207,
     headers: { 'content-type': 'application/json' },
@@ -6661,8 +6663,10 @@ async function handleGuildFinalize(req, env, path) {
   if (!auth.ok) return new Response('bad signature', { status: 401 });
   const token = env.DISCORD_BOT_TOKEN;
   if (!token) return new Response('DISCORD_BOT_TOKEN missing', { status: 503 });
-  const { applyPhase2 } = await import('./guild-builder.js');
-  const result = await applyPhase2(token, guildId, env.LOADOUT_BOLTS);
+  const gb = await import('./guild-builder.js');
+  // Branch: the Fallout server finalizes with its own themed phase-2.
+  const phase2 = guildId === '1516302043352928336' ? gb.applyFalloutPhase2 : gb.applyPhase2;
+  const result = await phase2(token, guildId, env.LOADOUT_BOLTS);
   return new Response(JSON.stringify(result, null, 2), {
     status: result.ok ? 200 : 207,
     headers: { 'content-type': 'application/json' },

@@ -164,6 +164,20 @@ export async function handleEventSubWebhook(req, env, ctx) {
           await handleStreamOffline(env, broadcasterId);
         } catch (e) { console.warn('[twitch-eventsub] live-status offline', e?.message || e); }
       })());
+    } else if (subType === "channel.update" && broadcasterId) {
+      // Scene Themer reacts to category changes: persist the new category
+      // for /api/scene-themer/active polling, and push to the optional
+      // webhook so SB swaps are instant rather than up-to-10s. Best-effort,
+      // never blocks ack.
+      ctx.waitUntil((async () => {
+        try {
+          const { handleChannelUpdate } = await import("./scene-themer.js");
+          const r = await handleChannelUpdate(env, payload);
+          if (r && !r.ok) console.warn("[twitch-eventsub] scene-themer channel.update", r);
+        } catch (e) {
+          console.warn("[twitch-eventsub] scene-themer channel.update threw:", e?.message || e);
+        }
+      })());
     } else if (subType && EVENT_TYPE_HANDLERS[subType]) {
       // All other typed events route through the twitch-events.js
       // dispatch table. Each handler is itself defensive, null guild,
@@ -234,6 +248,13 @@ function buildWantTypes(broadcasterId) {
     //, Stream lifecycle (app token, no scope).
     { type: 'stream.online',  version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: false },
     { type: 'stream.offline', version: '1', condition: { broadcaster_user_id: broadcasterId }, userToken: false },
+    //, Channel update v2 (app token, no scope). Powers Scene Themer:
+    //   every time the streamer changes their category from the Twitch
+    //   dashboard, this fires and scene-themer.js swaps the active source
+    //   group via the configured webhook (and updates the cached state
+    //   for the SB poll fallback). v1 was retired in 2023; v2 returns
+    //   category_id + category_name in event payload.
+    { type: 'channel.update', version: '2', condition: { broadcaster_user_id: broadcasterId }, userToken: false },
     //, Channel.follow v2 (USER token, moderator:read:followers).
     { type: 'channel.follow', version: '2',
       condition: { broadcaster_user_id: broadcasterId, moderator_user_id: broadcasterId },

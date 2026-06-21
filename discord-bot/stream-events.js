@@ -34,22 +34,18 @@ function gid(env, guildId) {
 }
 
 // Resolve the game (name + art) showing on a given schedule day.
-//   fo4cc     -> Fallout 4 CC (fixed M/W/F show)
-//   rotation  -> the admin-picked rotation game (Sun/Tue/Thu)
-//   community -> the stored community-vote winner (Sat)
+//   fixed     → the locked-in Triple-C campaign game
+//   variety   → the stored variety-vote winner
+//   community → the stored community-vote winner
 async function gameForDay(env, guildId, kind) {
   try {
-    if (kind === 'fo4cc') {
-      const { getFo4cc } = await import('./schedule-rotation.js');
-      const c = await getFo4cc(env, guildId);
+    if (kind === 'fixed') {
+      const { getCurrentTripleC } = await import('./triple-c.js');
+      const c = await getCurrentTripleC(env, guildId);
       return { name: c?.name || null, art: c?.artUrl || null };
     }
-    if (kind === 'rotation' || kind === 'fixed') {
-      const { getCurrentRotation } = await import('./schedule-rotation.js');
-      const c = await getCurrentRotation(env, guildId);
-      return { name: c?.name || null, art: c?.artUrl || null };
-    }
-    const w = await env.LOADOUT_BOLTS.get(`vote-hub:winner:${guildId}:cn`, { type: 'json' });
+    const winnerKind = kind === 'variety' ? 'variety' : 'cn';
+    const w = await env.LOADOUT_BOLTS.get(`vote-hub:winner:${guildId}:${winnerKind}`, { type: 'json' });
     return { name: w?.name || null, art: w?.art_url || null };
   } catch {
     return { name: null, art: null };

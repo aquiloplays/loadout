@@ -22,9 +22,15 @@ const PREMIUM_GROUPS = {
 // of pledge tier (wired into computeAccess by the owner-always bypass).
 const OWNER_EMAILS = new Set(['bisherclay@gmail.com']);
 
+// The Aquilo campaign. Pledges to OTHER creators' Patreon campaigns must
+// not unlock our premium features, so we filter memberships by this id.
+// Keep in sync with patreon-auth.js / patreon-proxy.worker.js. Overridable
+// via env.PATREON_CAMPAIGN_ID.
+const AQUILO_CAMPAIGN_ID = '3410750';
+
 const PATREON_IDENTITY_URL =
   'https://www.patreon.com/api/oauth2/v2/identity' +
-  '?include=memberships&fields[member]=currently_entitled_amount_cents,patron_status&fields[user]=email';
+  '?include=memberships,memberships.campaign&fields[member]=currently_entitled_amount_cents,patron_status&fields[user]=email';
 
 function centsToTier(cents) {
   if (cents >= 1000) return 't3';
@@ -41,7 +47,7 @@ async function sha256Hex(s) {
 // Fetch identity + the max active entitled cents from Patreon using the
 // visitor's access token. Returns { userId, email, cents } or null on
 // failure (expired token, network, no email scope, etc.).
-async function fetchPatreonEntitlement(accessToken) {
+async function fetchPatreonEntitlement(accessToken, campaignId) {
   let res;
   try {
     res = await fetch(PATREON_IDENTITY_URL, { headers: { Authorization: 'Bearer ' + accessToken } });
@@ -51,10 +57,15 @@ async function fetchPatreonEntitlement(accessToken) {
   try { j = await res.json(); } catch { return null; }
   const userId = String(j?.data?.id || '');
   const email = String(j?.data?.attributes?.email || '').toLowerCase().trim();
+  const wantCampaign = String(campaignId || AQUILO_CAMPAIGN_ID);
   let cents = 0;
   for (const m of (j?.included || [])) {
     if (m.type !== 'member') continue;
     if (m.attributes?.patron_status !== 'active_patron') continue;
+    // Only count pledges on OUR campaign: a $5 pledge to some other
+    // creator must not unlock Aquilo premium.
+    const memberCampaign = String(m.relationships?.campaign?.data?.id || '');
+    if (memberCampaign !== wantCampaign) continue;
     const c = Number(m.attributes?.currently_entitled_amount_cents || 0);
     if (c > cents) cents = c;
   }
@@ -72,10 +83,7 @@ function computeAccess(ent) {
   const allowed = BASE_PRESETS.slice();
   const premiumUnlocked = [];
   for (const [group, def] of Object.entries(PREMIUM_GROUPS)) {
-    // Owner is always entitled to every premium group, regardless of pledge
-    // tier (a campaign owner often has a $0 entitled amount on their own
-    // campaign).
-    const unlocked = owner || ent.cents >= def.minCents;
+    const unlocked = ent.cents >= def.minCents;
     if (unlocked) { allowed.push(...def.presets); premiumUnlocked.push(group); }
   }
   return { ok: true, tier, owner, cents: ent.cents, allowed, premiumUnlocked };
@@ -90,12 +98,14 @@ export async function getWidgetPresetAccess(env, accessToken) {
     return { ...FREE(), reason: 'no-token' };
   }
   let ent = null;
-  const cacheKey = 'patreon:tier:tok:' + (await sha256Hex(accessToken)).slice(0, 40);
+  // v2 cache namespace: entries cached before campaign-scoping landed were
+  // over-permissive (counted pledges to any campaign), so ignore them.
+  const cacheKey = 'patreon:tier:tok:v2:' + (await sha256Hex(accessToken)).slice(0, 40);
   try {
     ent = await env.LOADOUT_BOLTS.get(cacheKey, { type: 'json' });
   } catch { /* ignore */ }
   if (!ent) {
-    ent = await fetchPatreonEntitlement(accessToken);
+    ent = await fetchPatreonEntitlement(accessToken, (env && env.PATREON_CAMPAIGN_ID) || AQUILO_CAMPAIGN_ID);
     if (ent) {
       try {
         const payload = JSON.stringify(ent);
