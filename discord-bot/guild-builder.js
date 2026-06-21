@@ -46,7 +46,7 @@ export async function applyServerSpec(token, guildId, spec, { apply = false } = 
     guildId,
     categories: { created: [], kept: [], errors: [] },
     channels:   { created: [], kept: [], retyped: [], reparented: [], errors: [] },
-    roles:      { created: [], kept: [], errors: [] },
+    roles:      { created: [], kept: [], updated: [], errors: [] },
     noted_extras: { channels: [], roles: [] },
   };
 
@@ -80,6 +80,30 @@ export async function applyServerSpec(token, guildId, spec, { apply = false } = 
     if (existing) {
       roleIdByName[rspec.name] = existing.id;
       report.roles.kept.push({ name: rspec.name, id: existing.id });
+      // Reconcile permissions onto an already-existing role. We ONLY
+      // consider roles whose spec explicitly declares a `permissions`
+      // grant (the mod roles), and only when the live bitfield differs.
+      // Roles left at the '0' channel-overwrite baseline, and any perms
+      // an admin granted by hand, are therefore never clobbered. This is
+      // what actually heals a mod role that was created before it had
+      // permissions: the create path below never runs for it again.
+      if (rspec.permissions != null) {
+        const want = String(rspec.permissions);
+        const have = String(existing.permissions ?? '');
+        if (have !== want) {
+          if (!apply) {
+            report.roles.updated.push({ name: rspec.name, id: existing.id, permissions: want, dryRun: true });
+          } else {
+            const patch = await dapi(token, 'PATCH', `/guilds/${guildId}/roles/${existing.id}`, { permissions: want });
+            if (!patch.ok) {
+              report.roles.errors.push({ name: rspec.name, action: 'perms', status: patch.status, body: patch.raw.slice(0, 200) });
+            } else {
+              report.roles.updated.push({ name: rspec.name, id: existing.id, permissions: want });
+              await sleep(250);
+            }
+          }
+        }
+      }
       continue;
     }
     if (!apply) {
@@ -91,7 +115,7 @@ export async function applyServerSpec(token, guildId, spec, { apply = false } = 
       color: rspec.color || 0,
       hoist: !!rspec.hoist,
       mentionable: !!rspec.mentionable,
-      permissions: '0',  // baseline, explicit grants happen via channel overwrites
+      permissions: String(rspec.permissions ?? '0'),  // optional per-role grant; '0' baseline (channel overwrites otherwise)
     });
     if (!create.ok) {
       report.roles.errors.push({ name: rspec.name, status: create.status, body: create.raw.slice(0, 200) });
@@ -431,6 +455,132 @@ export async function applyPhase2(token, guildId, kv) {
         ids,
         builtUtc: Date.now(),
       }));
+      report.kv.push('guild:cfg:' + guildId);
+    } catch (e) {
+      report.errors.push({ what: 'kv-write', message: String(e.message || e) });
+    }
+  }
+
+  report.ids = ids;
+  if (report.errors.length) report.ok = false;
+  return report;
+}
+
+
+// ── PHASE 2 (Fallout theme) — dedicated "Aquilo's Vault" server ─────────
+//
+// Separate from applyPhase2 so the main Aquilo server's finalize stays
+// byte-for-byte unchanged. OPEN server (no verify gate): only the staff
+// category is hidden, a few feed channels are made read-only, and platform
+// + ping self-assign buttons are posted in #roles. Writes the same
+// guild:cfg id-map shape so the role-button handler + temp-VC resolve.
+export async function applyFalloutPhase2(token, guildId, kv) {
+  const report = { ok: true, guildId, permissions: [], messages: [], kv: [], errors: [] };
+
+  const inv = await dapi(token, 'GET', `/guilds/${guildId}/channels`);
+  const roles = await dapi(token, 'GET', `/guilds/${guildId}/roles`);
+  if (!inv.ok || !roles.ok) {
+    return { ...report, ok: false, error: 'fetch-inventory-failed' };
+  }
+  const chByName = new Map(inv.body.map(c => [normName(c.name), c]));
+  const rlByName = new Map(roles.body.map(r => [normName(r.name), r]));
+  const channelId = (name) => chByName.get(normName(name))?.id || null;
+  const roleId    = (name) => rlByName.get(normName(name))?.id || null;
+
+  const ids = {
+    everyone:          roles.body.find(r => r.name === '@everyone')?.id,
+    role_owner:        roleId('👑 Overseer'),
+    role_mod:          roleId('🛡️ Vault-Tec Staff'),
+    role_bots:         roleId('🤖 Vault-Tec AI'),
+    role_patron:       roleId('💎 Patron'),
+    role_pc:           roleId('🖥️ PC'),
+    role_playstation:  roleId('🎮 PlayStation'),
+    role_xbox:         roleId('❎ Xbox'),
+    role_stream:       roleId('📣 Stream Pings'),
+    role_nuke:         roleId('☢️ Nuke Runs'),
+    role_event:        roleId('🗳️ Event Pings'),
+    role_gamenight:    roleId('🎮 Game Night'),
+    cat_voice:         channelId('╭- 🔊 voice -'),
+    cat_staff:         channelId('╭- 🛡️ staff -'),
+    ch_rules:          channelId('🫡│vault-rules'),
+    ch_announcements:  channelId('📣│announcements'),
+    ch_roles:          channelId('🎭│roles'),
+    ch_live_now:       channelId('🔴│live-now'),
+    ch_schedule:       channelId('📅│schedule'),
+    ch_fo76_news:      channelId('📰│fo76-news'),
+    ch_support:        channelId('🛠️│support'),
+    ch_vault_game:     channelId('🎮│vault-game'),
+    vc_join_to_create: channelId('➕│join to create'),
+    vc_afk:            channelId('😴│AFK at the Whitespring'),
+  };
+
+  const allowView = String(PERM_VIEW_CHANNEL | PERM_SEND_MESSAGES | PERM_ADD_REACTIONS | PERM_READ_MSG_HIST);
+  const allowViewReadOnly = String(PERM_VIEW_CHANNEL | PERM_READ_MSG_HIST);
+  const denyView = String(PERM_VIEW_CHANNEL);
+  const denySend = String(PERM_SEND_MESSAGES);
+  const role = (id) => ({ id, type: 0 });
+
+  async function setPerms(label, catId, overwrites) {
+    if (!catId) { report.errors.push({ what: label, error: 'category-missing' }); return; }
+    const r = await dapi(token, 'PATCH', `/channels/${catId}`, { permission_overwrites: overwrites });
+    if (!r.ok) report.errors.push({ what: 'perm-' + label, status: r.status, body: r.raw.slice(0, 200) });
+    else report.permissions.push(label);
+    await sleep(250);
+  }
+
+  // Staff category: hidden from everyone except Officer / Overseer.
+  if (ids.cat_staff) {
+    await setPerms('staff', ids.cat_staff, [
+      { ...role(ids.everyone),   allow: '0', deny: denyView },
+      { ...role(ids.role_mod),   allow: allowView, deny: '0' },
+      { ...role(ids.role_owner), allow: allowView, deny: '0' },
+    ]);
+  }
+
+  // Read-only feed channels (bot / staff post; members read).
+  for (const [label, cid] of [
+    ['vault-rules',   ids.ch_rules],
+    ['announcements', ids.ch_announcements],
+    ['live-now',      ids.ch_live_now],
+    ['schedule',      ids.ch_schedule],
+    ['fo76-news',     ids.ch_fo76_news],
+  ]) {
+    if (!cid) continue;
+    const r = await dapi(token, 'PATCH', `/channels/${cid}`, {
+      permission_overwrites: [
+        { ...role(ids.everyone), allow: allowViewReadOnly, deny: denySend },
+      ],
+    });
+    if (!r.ok) report.errors.push({ what: 'ro-' + label, status: r.status, body: r.raw.slice(0, 200) });
+    else report.permissions.push('readonly-' + label);
+    await sleep(250);
+  }
+
+  // Self-assign platform + ping buttons in #roles.
+  if (ids.ch_roles) {
+    const r = await dapi(token, 'POST', `/channels/${ids.ch_roles}/messages`, {
+      content: '**Pick your platform** — Fallout 76 has no crossplay, so this helps you find squads — **and your pings.** Toggle a button to add/remove a role.',
+      components: [
+        { type: 1, components: [
+          { type: 2, style: 1, label: '🖥️ PC',          custom_id: 'guild:role:pc' },
+          { type: 2, style: 1, label: '🎮 PlayStation', custom_id: 'guild:role:playstation' },
+          { type: 2, style: 1, label: '❎ Xbox',        custom_id: 'guild:role:xbox' },
+        ] },
+        { type: 1, components: [
+          { type: 2, style: 2, label: '📣 Stream',     custom_id: 'guild:role:stream' },
+          { type: 2, style: 2, label: '☢️ Nuke Runs',  custom_id: 'guild:role:nuke' },
+          { type: 2, style: 2, label: '🗳️ Events',     custom_id: 'guild:role:event' },
+          { type: 2, style: 2, label: '🎮 Game Night', custom_id: 'guild:role:gamenight' },
+        ] },
+      ],
+    });
+    if (!r.ok) report.errors.push({ what: 'roles-message', status: r.status, body: r.raw.slice(0, 200) });
+    else report.messages.push({ ch: 'roles', id: r.body.id });
+  }
+
+  if (kv) {
+    try {
+      await kv.put(`guild:cfg:${guildId}`, JSON.stringify({ ids, builtUtc: Date.now() }));
       report.kv.push('guild:cfg:' + guildId);
     } catch (e) {
       report.errors.push({ what: 'kv-write', message: String(e.message || e) });
