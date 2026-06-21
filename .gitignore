@@ -25,7 +25,7 @@ Thumbs.db
 # Test output
 TestResults/
 
-# Loadout — never commit user data dumps
+# Loadout: never commit user data dumps
 data-dump/
 *.loadout-backup.zip
 
@@ -38,3 +38,34 @@ node_modules/
 
 # Local sprite preview output (tools/preview-character.mjs)
 tools/preview/
+tools/_gen/
+
+# generated art working dirs (Replicate raw candidates)
+_jar_art/
+_deadline_art/
+
+# Generated art + screenshots dumped at repo root (scratch, regenerable).
+# Root-anchored so real tracked assets under assets/, aquilo-site/, etc. are untouched.
+/*.png
+/*.webp
+/*.gif
+
+# Python art-tooling caches
+__pycache__/
+*.pyc
+
+# Local scratch: preview/screenshot output, KV backups, Claude project config
+.hm-shots/
+.sk-shots/
+.checkin-preview/
+kv-backups/
+.claude/
+
+# Secrets + local-only config (never commit). Covers *.local such as
+# discord-bot/.fallout-admin-secret.local
+*.local
+
+# KV backups + local runtime/test state (regenerable, never commit)
+.kv-backups/
+discord-bot/gear-worn-state.json
+discord-bot/mount-test.txt
