@@ -25,6 +25,9 @@ namespace Loadout.Modules
             switch (ctx.Kind)
             {
                 case "chat":
+                    // Broadcaster ambient-ignore: the streamer shouldn't
+                    // climb their own top-chatter / VIP-rotation stats.
+                    if (ctx.SuppressAmbient) return;
                     EngagementTracker.Instance.TrackChat(platform, ctx.User);
                     return;
                 case "sub":

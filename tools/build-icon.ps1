@@ -7,10 +7,13 @@
 #   • Dark rounded square tile with a radial gradient (warm-dark ->
 #     deep-near-black) so it lifts from any background
 #   • Soft violet glow disc behind the mark
-#   • Lightning bolt: multi-stop linear gradient violet -> teal-green
-#     (#a98fff -> #7c5cff -> #6ee0c0 -> #5bff95) — the signature
-#     aquilo "purple lights up green when it hits"
-#   • White highlight wedge on the upper half of the bolt for depth
+#   • Loadout slot grid: 3 columns x 2 rows of equipment slots, with
+#     the top-center slot "equipped" (violet -> green aurora gradient
+#     fill + white selection dot). Top-row slots stroke in violet,
+#     bottom-row in teal-green — the signature aquilo aurora colour
+#     pair, but as discrete slots rather than a bolt so the icon
+#     reads as "your loadout panel" and doesn't collide with
+#     StreamFusion's bolt-on-disc design.
 #   • Subtle violet->green gradient hairline ring on the tile edge
 #
 # Output:
@@ -118,13 +121,14 @@ function New-LoadoutBitmap([int]$size) {
     $sheenBrush.Dispose()
 
     # ===== Violet glow disc ==========================================
-    # SVG: circle cx=512 cy=516 r=338, radial #7c5cff @ alphas
-    # 0.62 -> 0.16 -> 0 at edge.
+    # SVG: circle cx=512 cy=512 r=338, radial #7c5cff @ alphas
+    # 0.62 -> 0.16 -> 0 at edge. Centered on canvas to match the
+    # centered slot grid below.
     $glowPath = New-Object System.Drawing.Drawing2D.GraphicsPath
     $glowR = 338.0 * $s
-    $glowPath.AddEllipse((512.0 * $s - $glowR), (516.0 * $s - $glowR), ($glowR * 2), ($glowR * 2))
+    $glowPath.AddEllipse((512.0 * $s - $glowR), (512.0 * $s - $glowR), ($glowR * 2), ($glowR * 2))
     $glowBrush = New-Object System.Drawing.Drawing2D.PathGradientBrush($glowPath)
-    $glowBrush.CenterPoint = New-Object System.Drawing.PointF((512.0 * $s), (516.0 * $s))
+    $glowBrush.CenterPoint = New-Object System.Drawing.PointF((512.0 * $s), (512.0 * $s))
     $glowBrush.CenterColor = [System.Drawing.Color]::FromArgb(158, 0x7C, 0x5C, 0xFF)
     $glowBrush.SurroundColors = @([System.Drawing.Color]::FromArgb(0, 0x7C, 0x5C, 0xFF))
     $glowBlend = New-Object System.Drawing.Drawing2D.ColorBlend(3)
@@ -139,92 +143,144 @@ function New-LoadoutBitmap([int]$size) {
     $glowBrush.Dispose()
     $glowPath.Dispose()
 
-    # ===== Lightning bolt path =======================================
-    # SVG: M624 150 L360 562 L516 562 L404 876 L664 462 L508 462 Z
-    $boltPath = New-Object System.Drawing.Drawing2D.GraphicsPath
-    $bp = @(
-        (New-Object System.Drawing.PointF((624.0 * $s), (150.0 * $s))),
-        (New-Object System.Drawing.PointF((360.0 * $s), (562.0 * $s))),
-        (New-Object System.Drawing.PointF((516.0 * $s), (562.0 * $s))),
-        (New-Object System.Drawing.PointF((404.0 * $s), (876.0 * $s))),
-        (New-Object System.Drawing.PointF((664.0 * $s), (462.0 * $s))),
-        (New-Object System.Drawing.PointF((508.0 * $s), (462.0 * $s)))
-    )
-    $boltPath.AddPolygon($bp)
+    # ===== Loadout slot grid =========================================
+    # SVG: 3x2 grid of equipment slots, centered on the canvas (512,512).
+    # Top-center is "equipped" with an aurora gradient fill + glow +
+    # white selection dot. Other slots are hollow strokes (top row
+    # violet, bottom row teal-green).
+    #
+    # SVG coords (matches assets/Loadout.svg):
+    #   Empty slots: 200x200 rect, r=42, stroke-width=14
+    #     TL (150,302)  TR (674,302)
+    #     BL (150,542)  BM (412,542)  BR (674,542)
+    #   Equipped slot: 240x240 rect at (392,282), r=50
+    #     Selection dot at (512,402) r=32
+    #
+    # At very small sizes (16/24) we collapse the grid to 3 horizontal
+    # bars with one accented so the icon stays readable.
+    if ($size -le 24) {
+        # Tiny-size variant: 3 stacked bars across the middle, middle
+        # one fully aurora-coloured to act as the focal indicator.
+        $barW = $size * 0.65
+        $barH = $size * 0.10
+        $barX = ($size - $barW) / 2.0
+        $barGap = $size * 0.07
+        $barY0 = ($size - ($barH * 3 + $barGap * 2)) / 2.0
 
-    # ----- Soft violet halo behind the bolt (the SVG `filter=blur` copy)
-    # Only at sizes where the blur would actually read (>=64).
-    if ($size -ge 64) {
-        $haloBmp = New-Object System.Drawing.Bitmap($size, $size)
-        $hg = [System.Drawing.Graphics]::FromImage($haloBmp)
-        $hg.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-        $hg.Clear([System.Drawing.Color]::Transparent)
-        $haloBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(230, 0x8A, 0x72, 0xFF))
-        $hg.FillPath($haloBrush, $boltPath)
-        $haloBrush.Dispose()
-        $hg.Dispose()
-        # A cheap one-pass blur: draw the halo bitmap a few times with
-        # slight offsets at low opacity. Not a true Gaussian, but at the
-        # icon sizes the eye can't tell the difference and we avoid
-        # pulling in System.Windows.Media.Effects from a script.
-        $radius = [int][Math]::Max(1, $size * 0.018)
-        $passAlpha = 0.18
-        $img = [System.Drawing.Imaging.ImageAttributes]::new()
-        $cm = [System.Drawing.Imaging.ColorMatrix]::new()
-        $cm.Matrix33 = $passAlpha
-        $img.SetColorMatrix($cm)
-        for ($dx = -$radius; $dx -le $radius; $dx += [int][Math]::Max(1, $radius / 2)) {
-            for ($dy = -$radius; $dy -le $radius; $dy += [int][Math]::Max(1, $radius / 2)) {
-                $destRect = New-Object System.Drawing.Rectangle($dx, $dy, $size, $size)
-                $g.DrawImage($haloBmp, $destRect, 0, 0, $size, $size,
-                    [System.Drawing.GraphicsUnit]::Pixel, $img)
-            }
-        }
-        $img.Dispose()
-        $haloBmp.Dispose()
+        $barRect = New-Object System.Drawing.RectangleF([single]$barX, [single]$barY0, [single]$barW, [single]$barH)
+        $barBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+            $barRect,
+            [System.Drawing.Color]::FromArgb(255, 0xA9, 0x8F, 0xFF),
+            [System.Drawing.Color]::FromArgb(255, 0x5B, 0xFF, 0x95),
+            [System.Drawing.Drawing2D.LinearGradientMode]::Horizontal)
+
+        # Top bar (violet outline)
+        $topBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(220, 0x9A, 0x82, 0xFF))
+        $g.FillRectangle($topBrush, [single]$barX, [single]$barY0, [single]$barW, [single]$barH)
+        $topBrush.Dispose()
+        # Middle bar (active - aurora gradient)
+        $midY = $barY0 + ($barH + $barGap)
+        $midRect = New-Object System.Drawing.RectangleF([single]$barX, [single]$midY, [single]$barW, [single]$barH)
+        $midBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+            $midRect,
+            [System.Drawing.Color]::FromArgb(255, 0xA9, 0x8F, 0xFF),
+            [System.Drawing.Color]::FromArgb(255, 0x5B, 0xFF, 0x95),
+            [System.Drawing.Drawing2D.LinearGradientMode]::Horizontal)
+        $g.FillRectangle($midBrush, $midRect)
+        $midBrush.Dispose()
+        # Bottom bar (teal-green outline)
+        $botY = $barY0 + 2 * ($barH + $barGap)
+        $botBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(220, 0x5B, 0xFF, 0x95))
+        $g.FillRectangle($botBrush, [single]$barX, [single]$botY, [single]$barW, [single]$barH)
+        $botBrush.Dispose()
+        $barBrush.Dispose()
     }
+    else {
+        # Full grid render.
+        $slotW = 200.0 * $s
+        $slotH = 200.0 * $s
+        $slotR = 42.0 * $s
+        $stroke = [single][Math]::Max(2.0, 14.0 * $s)
 
-    # ----- Bolt fill with the signature gradient -----------------
-    # SVG: linear from (300,150) -> (700,880), stops:
-    #   0    #a98fff
-    #   0.42 #7c5cff
-    #   0.78 #6ee0c0
-    #   1    #5bff95
-    $gradRect = New-Object System.Drawing.RectangleF(
-        (300.0 * $s), (150.0 * $s),
-        (400.0 * $s), (730.0 * $s))
-    $boltBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
-        $gradRect,
-        [System.Drawing.Color]::FromArgb(255, 0xA9, 0x8F, 0xFF),
-        [System.Drawing.Color]::FromArgb(255, 0x5B, 0xFF, 0x95),
-        [System.Drawing.Drawing2D.LinearGradientMode]::ForwardDiagonal)
-    $boltBlend = New-Object System.Drawing.Drawing2D.ColorBlend(4)
-    $boltBlend.Colors = @(
-        [System.Drawing.Color]::FromArgb(255, 0xA9, 0x8F, 0xFF),
-        [System.Drawing.Color]::FromArgb(255, 0x7C, 0x5C, 0xFF),
-        [System.Drawing.Color]::FromArgb(255, 0x6E, 0xE0, 0xC0),
-        [System.Drawing.Color]::FromArgb(255, 0x5B, 0xFF, 0x95)
-    )
-    $boltBlend.Positions = @(0.0, 0.42, 0.78, 1.0)
-    $boltBrush.InterpolationColors = $boltBlend
-    $g.FillPath($boltBrush, $boltPath)
-    $boltBrush.Dispose()
+        # ---- Equipped slot (top middle) ----------------------------
+        $eqX = 392.0 * $s; $eqY = 282.0 * $s; $eqW = 240.0 * $s; $eqH = 240.0 * $s; $eqR = 50.0 * $s
+        $eqPath = New-Object System.Drawing.Drawing2D.GraphicsPath
+        Add-RoundedRect $eqPath ([single]$eqX) ([single]$eqY) ([single]$eqW) ([single]$eqH) ([single]$eqR)
 
-    # ----- White highlight wedge on the upper part of the bolt -----
-    # SVG: M624 150 L360 562 L516 562 L508 462 Z, white @ 0.16
-    if ($size -ge 32) {
-        $hiPath = New-Object System.Drawing.Drawing2D.GraphicsPath
-        $hp = @(
-            (New-Object System.Drawing.PointF((624.0 * $s), (150.0 * $s))),
-            (New-Object System.Drawing.PointF((360.0 * $s), (562.0 * $s))),
-            (New-Object System.Drawing.PointF((516.0 * $s), (562.0 * $s))),
-            (New-Object System.Drawing.PointF((508.0 * $s), (462.0 * $s)))
-        )
-        $hiPath.AddPolygon($hp)
-        $hiBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(41, 255, 255, 255))
-        $g.FillPath($hiBrush, $hiPath)
-        $hiBrush.Dispose()
-        $hiPath.Dispose()
+        # Glow halo behind the equipped slot (sizes >=64 only).
+        if ($size -ge 64) {
+            $haloBmp = New-Object System.Drawing.Bitmap($size, $size)
+            $hg = [System.Drawing.Graphics]::FromImage($haloBmp)
+            $hg.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+            $hg.Clear([System.Drawing.Color]::Transparent)
+            $haloBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(200, 0x7C, 0x5C, 0xFF))
+            $hg.FillPath($haloBrush, $eqPath)
+            $haloBrush.Dispose()
+            $hg.Dispose()
+            $radius = [int][Math]::Max(1, $size * 0.025)
+            $img = [System.Drawing.Imaging.ImageAttributes]::new()
+            $cm = [System.Drawing.Imaging.ColorMatrix]::new()
+            $cm.Matrix33 = 0.14
+            $img.SetColorMatrix($cm)
+            for ($dx = -$radius; $dx -le $radius; $dx += [int][Math]::Max(1, $radius / 2)) {
+                for ($dy = -$radius; $dy -le $radius; $dy += [int][Math]::Max(1, $radius / 2)) {
+                    $destRect = New-Object System.Drawing.Rectangle($dx, $dy, $size, $size)
+                    $g.DrawImage($haloBmp, $destRect, 0, 0, $size, $size,
+                        [System.Drawing.GraphicsUnit]::Pixel, $img)
+                }
+            }
+            $img.Dispose()
+            $haloBmp.Dispose()
+        }
+
+        # Equipped fill - aurora gradient.
+        $eqRect = New-Object System.Drawing.RectangleF([single]$eqX, [single]$eqY, [single]$eqW, [single]$eqH)
+        $eqBrush = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
+            $eqRect,
+            [System.Drawing.Color]::FromArgb(255, 0xA9, 0x8F, 0xFF),
+            [System.Drawing.Color]::FromArgb(255, 0x5B, 0xFF, 0x95),
+            [System.Drawing.Drawing2D.LinearGradientMode]::ForwardDiagonal)
+        $g.FillPath($eqBrush, $eqPath)
+        $eqBrush.Dispose()
+        # Equipped white border ring for emphasis.
+        $eqPen = New-Object System.Drawing.Pen(
+            [System.Drawing.Color]::FromArgb(220, 255, 255, 255),
+            [single][Math]::Max(2.0, 10.0 * $s))
+        $g.DrawPath($eqPen, $eqPath)
+        $eqPen.Dispose()
+        $eqPath.Dispose()
+
+        # ---- Empty slots (5 of them) -------------------------------
+        function Add-EmptySlot([single]$x, [single]$y, [int]$colorRgb) {
+            $p = New-Object System.Drawing.Drawing2D.GraphicsPath
+            Add-RoundedRect $p $x $y $slotW $slotH $slotR
+            $col = [System.Drawing.Color]::FromArgb(
+                220,
+                (($colorRgb -shr 16) -band 0xFF),
+                (($colorRgb -shr 8) -band 0xFF),
+                ($colorRgb -band 0xFF))
+            $pen = New-Object System.Drawing.Pen($col, $stroke)
+            $g.DrawPath($pen, $p)
+            $pen.Dispose()
+            $p.Dispose()
+        }
+
+        # Top row left + right (violet) — y=302
+        Add-EmptySlot ([single](150.0 * $s)) ([single](302.0 * $s)) 0x9A82FF
+        Add-EmptySlot ([single](674.0 * $s)) ([single](302.0 * $s)) 0x9A82FF
+        # Bottom row (teal-green) — y=542
+        Add-EmptySlot ([single](150.0 * $s)) ([single](542.0 * $s)) 0x5BFF95
+        Add-EmptySlot ([single](412.0 * $s)) ([single](542.0 * $s)) 0x5BFF95
+        Add-EmptySlot ([single](674.0 * $s)) ([single](542.0 * $s)) 0x5BFF95
+
+        # ---- Selection dot inside the equipped slot ----------------
+        # Equipped slot center: x = 392 + 240/2 = 512; y = 282 + 240/2 = 402.
+        $dotR = 32.0 * $s
+        $dotX = (512.0 * $s) - $dotR
+        $dotY = (402.0 * $s) - $dotR
+        $dotBrush = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(235, 255, 255, 255))
+        $g.FillEllipse($dotBrush, [single]$dotX, [single]$dotY, [single]($dotR * 2), [single]($dotR * 2))
+        $dotBrush.Dispose()
     }
 
     # ===== Ring border (violet -> green hairline) ====================

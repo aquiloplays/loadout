@@ -75,14 +75,30 @@ namespace Loadout.Platforms
                 var mi = _cph.GetType().GetMethod(method, BindingFlags.Public | BindingFlags.Instance);
                 if (mi == null) return;
 
-                // SendMessage signatures vary by SB version: (string), (string, bool), (string, bool, bool).
-                // We try the simplest first.
+                // SendMessage signatures vary by SB version:
+                //   (string)
+                //   (string, bool useBot)
+                //   (string, bool useBot, bool fallback)
+                // We pick the richest overload available so the
+                // bot-vs-broadcaster toggle takes effect when the host
+                // supports it. Only Twitch + YouTube currently honor
+                // the bot bit; Kick's SendMessage is broadcaster-only.
+                bool useBot = false;
+                if (platform == PlatformMask.Twitch || platform == PlatformMask.YouTube)
+                {
+                    try
+                    {
+                        useBot = SettingsManager.Instance.Current?.Platforms?.UseBotAccount == true;
+                    }
+                    catch { useBot = false; }
+                }
+
                 var parameters = mi.GetParameters();
                 object[] args = parameters.Length switch
                 {
                     1 => new object[] { message },
-                    2 => new object[] { message, false },
-                    3 => new object[] { message, false, false },
+                    2 => new object[] { message, useBot },
+                    3 => new object[] { message, useBot, true },  // 3rd arg = fallback to broadcaster
                     _ => null
                 };
                 if (args != null) mi.Invoke(_cph, args);

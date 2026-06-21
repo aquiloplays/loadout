@@ -31,6 +31,10 @@ namespace Loadout.Modules
         {
             if (ctx.Kind != "chat") return;
             if (!SettingsManager.Instance.Current.Modules.ChatVelocity) return;
+            // Broadcaster ambient-ignore: hype detection measures the
+            // AUDIENCE — the streamer's own typing (or the bot's output
+            // routed through the broadcaster account) shouldn't trip it.
+            if (ctx.SuppressAmbient) return;
             lock (_msgTimes)
             {
                 _msgTimes.AddLast(DateTime.UtcNow);

@@ -70,7 +70,10 @@
                      Avoids fragile pack:// URI resolution in plugin-loaded DLLs. -->
                 <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                     <Image x:Name="HeaderLogo"
-                           Width="40" Height="40" Margin="0 0 14 0" />
+                           Width="40" Height="40" Margin="0 0 14 0"
+                           RenderOptions.BitmapScalingMode="Fant"
+                           SnapsToDevicePixels="True"
+                           UseLayoutRounding="True" />
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="Loadout" Style="{StaticResource Wordmark}"
                                    Foreground="{StaticResource Brush.Brand.Gradient}" />
@@ -117,12 +120,9 @@
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="160" />
+                                <ColumnDefinition Width="200" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <!-- "Search:" prefix label (replaces the prior 🔍 emoji per
-                                 the "no emoji as visual assets" rule). Pixel/SVG search
-                                 icons can be wired here later via Resources/ if/when the
-                                 settings window grows a custom icon set. -->
                             <TextBlock Grid.Column="0" Text="Search:" FontSize="11"
                                        Foreground="{StaticResource Brush.Fg.Muted}"
                                        VerticalAlignment="Center" Margin="0 0 6 0" />
@@ -130,11 +130,48 @@
                                      BorderThickness="0" Background="Transparent"
                                      Foreground="{StaticResource Brush.Fg.Primary}"
                                      VerticalAlignment="Center" FontSize="12"
-                                     ToolTip="Filter sidebar tabs by name. Esc to clear."
+                                     ToolTip="Filter tabs by name AND card content. Esc to clear, Enter to jump to the first match."
                                      TextChanged="TxtTabSearch_TextChanged"
                                      KeyDown="TxtTabSearch_KeyDown" />
+                            <TextBlock Grid.Column="2" x:Name="TxtTabSearchCount" Text=""
+                                       FontSize="10" Foreground="{StaticResource Brush.Fg.Muted}"
+                                       VerticalAlignment="Center" Margin="6 0 0 0" />
                         </Grid>
                     </Border>
+                    <!-- Search results popup — shows inline deep-link
+                         entries when the query matches a card title /
+                         tooltip / control label, so the user doesn't
+                         have to guess which tab their query landed on. -->
+                    <Popup x:Name="SearchResultsPopup" PlacementTarget="{Binding ElementName=TxtTabSearch}"
+                           Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                        <Border Background="{StaticResource Brush.Bg.Surface3}"
+                                BorderBrush="{StaticResource Brush.Border}" BorderThickness="1"
+                                CornerRadius="6" Padding="6" Width="320" MaxHeight="380">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl x:Name="SearchResultsList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Background="Transparent" BorderThickness="0"
+                                                    HorizontalContentAlignment="Stretch"
+                                                    Padding="8 6" Cursor="Hand"
+                                                    Click="SearchResultClicked"
+                                                    Tag="{Binding TabIndex}">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding TabLabel}"
+                                                               FontWeight="Bold" FontSize="11"
+                                                               Foreground="{StaticResource Brush.Accent}" />
+                                                    <TextBlock Text="{Binding Match}"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource Brush.Fg.Primary}"
+                                                               TextWrapping="Wrap" />
+                                                </StackPanel>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </Popup>
                     <Button Content="Variables" Style="{StaticResource SecondaryButton}"
                             Margin="0 0 8 0" Click="BtnVariables_Click"
                             ToolTip="Quick reference of {user}, {tier}, {bits}, etc. for any template field." />
@@ -204,6 +241,8 @@
                                 <TextBlock Text="Behaviour" Style="{StaticResource H2}" />
                                 <CheckBox x:Name="ChkQuickDryRun"   Content="Dry-run mode (log what would have been sent without actually posting)" Style="{StaticResource ToggleSwitch}" Margin="0 6 0 0" />
                                 <CheckBox x:Name="ChkQuickQuietMode" Content="Quiet mode (chat-side replies silenced; overlays still update)" Style="{StaticResource ToggleSwitch}" Margin="0 6 0 0" />
+                                <CheckBox x:Name="ChkQuickBotAccount" Content="Send chat as the bot account (instead of the broadcaster)" Style="{StaticResource ToggleSwitch}" Margin="0 6 0 0"
+                                          ToolTip="Mirrors Platforms -> 'Send chat as the bot account'. Twitch + YouTube; needs a bot account connected in Streamer.bot. Falls back to the broadcaster when the bot isn't available." />
                             </StackPanel>
                         </Border>
 
@@ -338,6 +377,13 @@
                                 <CheckBox x:Name="ChkYouTube" Content="YouTube"  Style="{StaticResource ToggleRow}" />
                                 <CheckBox x:Name="ChkKick"    Content="Kick"     Style="{StaticResource ToggleRow}" />
 
+                                <CheckBox x:Name="ChkUseBotAccount"
+                                          Content="Send chat as the bot account (instead of the broadcaster)"
+                                          Style="{StaticResource ToggleSwitch}" Margin="0 14 0 0"
+                                          ToolTip="Requires a bot account connected in Streamer.bot. Falls back to the broadcaster if the bot isn't available." />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0 4 0 0"
+                                           Text="Affects Twitch and YouTube. Kick's SB integration is broadcaster-only." />
+
                                 <Grid Margin="0 14 0 4">
                                     <TextBlock Text="TikTok send action (optional)" Style="{StaticResource H2}" />
                                     <Button HorizontalAlignment="Right" Content="TikFinity setup guide" Style="{StaticResource SecondaryButton}"
@@ -418,10 +464,17 @@
 
                                 <TextBlock Text="WALLET &amp; TOP VIEWER" Style="{StaticResource H3}" />
                                 <CheckBox x:Name="ModBolts"    Content="Bolts wallet"           Style="{StaticResource ToggleSwitch}" />
+                                <!-- Dungeon module toggle — ARCHIVED 2026-06-08. Hidden but kept
+                                     to keep the bound settings.json field round-tripping. -->
                                 <CheckBox x:Name="ModDungeon"  Content="Dungeon Crawler + Duel" Style="{StaticResource ToggleSwitch}"
+                                          Visibility="Collapsed"
                                           ToolTip="Chat-driven party adventure (!dungeon / !join) + 1v1 duels (!duel). Heroes persist between streams in dungeon-heroes.json; viewers manage gear via the Loadout Discord bot." />
                                 <CheckBox x:Name="ModLoyalty"  Content="Legacy loyalty wallet"  Style="{StaticResource ToggleSwitch}" />
-                                <CheckBox x:Name="ModApex"     Content="Apex top viewer"        Style="{StaticResource ToggleSwitch}" />
+                                <!-- Apex toggle — ARCHIVED 2026-06-08. Hidden but kept so
+                                     existing settings.json fields round-trip without a
+                                     migration. -->
+                                <CheckBox x:Name="ModApex"     Content="Apex top viewer"        Style="{StaticResource ToggleSwitch}"
+                                          Visibility="Collapsed" />
                                 <CheckBox x:Name="ModCheckIn"  Content="Daily check-in"         Style="{StaticResource ToggleSwitch}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1">
@@ -789,7 +842,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource Card}">
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
                             <StackPanel>
                                 <TextBlock Text="Cooldowns (seconds)" Style="{StaticResource H2}" />
                                 <Grid Margin="0 4 0 0">
@@ -809,6 +862,27 @@
                                                Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 8 12 0" />
                                     <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtCounterAckEveryN" Width="120" HorizontalAlignment="Left" Margin="0 6 0 0" />
                                 </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <TextBlock Text="Block list — ignore messages from these users" Style="{StaticResource H2}" />
+                                <TextBlock Style="{StaticResource Muted}" Margin="0 0 0 8" TextWrapping="Wrap">
+                                    Chat from any handle below is dropped before Loadout sees it -- no welcomes, no counters, no info commands, nothing.
+                                    Use this for Nightbot, StreamElements, Moobot, etc. so they don't accidentally trip your reactions.
+                                    One handle per line, no leading @. A trailing * is a prefix wildcard ("streamlabs*" hits all Streamlabs variants).
+                                </TextBlock>
+                                <TextBox x:Name="TxtBlockedUsers" AcceptsReturn="True" Height="120"
+                                         TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto"
+                                         FontFamily="Consolas, monospace" />
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0 6 0 0" TextWrapping="Wrap"
+                                           Text="Bot/broadcaster sub/follow/raid events ARE still counted -- only chat messages are filtered." />
+
+                                <CheckBox x:Name="ChkIgnoreBroadcaster"
+                                          Content="Ignore the broadcaster's own chat (welcomes, bolt earns, top-chatter, hype detection)"
+                                          Style="{StaticResource ToggleSwitch}" Margin="0 12 0 0"
+                                          ToolTip="On by default. The streamer's messages stop counting as audience activity, and the bot's own output (when sent through the broadcaster account) can't feed back into trackers. Broadcaster COMMANDS (!died, !uptime, tampers) still work, and the timed-messages pause-when-streamer-talks gate still sees them." />
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -1050,13 +1124,18 @@
                     <DataGrid Grid.Row="3" x:Name="GrdCounters" AutoGenerateColumns="False" CanUserAddRows="False"
                               SelectionMode="Single" SelectionUnit="FullRow">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Name (chat token)"      Binding="{Binding Name,           UpdateSourceTrigger=PropertyChanged}" Width="140" />
-                            <DataGridTextColumn Header="Display"                Binding="{Binding Display,        UpdateSourceTrigger=PropertyChanged}" Width="140" />
-                            <DataGridTextColumn Header="Emoji"                  Binding="{Binding Emoji,          UpdateSourceTrigger=PropertyChanged}" Width="60" />
-                            <DataGridTextColumn Header="Value"                  Binding="{Binding Value,          UpdateSourceTrigger=PropertyChanged}" Width="70" />
-                            <DataGridTextColumn Header="Modify roles (csv)"     Binding="{Binding ModifyRoles,    UpdateSourceTrigger=PropertyChanged}" Width="160" />
-                            <DataGridTextColumn Header="Response template"      Binding="{Binding ResponseTemplate,UpdateSourceTrigger=PropertyChanged}" Width="*" />
-                            <DataGridCheckBoxColumn Header="Reset/stream"       Binding="{Binding ResetEachStream}" Width="80" />
+                            <DataGridTextColumn Header="Name (chat token)"      Binding="{Binding Name,             UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                            <DataGridTextColumn Header="Display"                Binding="{Binding Display,          UpdateSourceTrigger=PropertyChanged}" Width="120" />
+                            <DataGridTextColumn Header="Emoji"                  Binding="{Binding Emoji,            UpdateSourceTrigger=PropertyChanged}" Width="60" />
+                            <DataGridTextColumn Header="Value"                  Binding="{Binding Value,            UpdateSourceTrigger=PropertyChanged}" Width="60" />
+                            <DataGridTextColumn Header="+1 command"             Binding="{Binding IncrementCommand, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                            <DataGridTextColumn Header="-1 command"             Binding="{Binding DecrementCommand, UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                            <DataGridTextColumn Header="Reset command"          Binding="{Binding ResetCommand,     UpdateSourceTrigger=PropertyChanged}" Width="110" />
+                            <DataGridTextColumn Header="Color (hex)"            Binding="{Binding Color,            UpdateSourceTrigger=PropertyChanged}" Width="80" />
+                            <DataGridTextColumn Header="Modify roles (csv)"     Binding="{Binding ModifyRoles,      UpdateSourceTrigger=PropertyChanged}" Width="140" />
+                            <DataGridTextColumn Header="Response template"      Binding="{Binding ResponseTemplate, UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                            <DataGridCheckBoxColumn Header="Hidden"             Binding="{Binding Hidden}"               Width="60" />
+                            <DataGridCheckBoxColumn Header="Reset/stream"       Binding="{Binding ResetEachStream}"      Width="80" />
                         </DataGrid.Columns>
                     </DataGrid>
                     <TextBlock Grid.Row="3" x:Name="TxtCountersEmpty"
@@ -1073,6 +1152,145 @@
                         <Button Content="Reset to 0"   Style="{StaticResource SecondaryButton}" Click="BtnCounterReset_Click" />
                     </StackPanel>
                 </Grid>
+            </TabItem>
+
+            <!-- Game Interactions: chat commands / channel-points / TikTok
+                 gifts trigger keyboard + mouse via Win32 SendInput.
+                 Off by default — streamer opts in after adding actions. -->
+            <TabItem Style="{StaticResource SidebarNavTabItem}">
+                <TabItem.Header>
+                    <StackPanel Orientation="Horizontal">
+                        <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Games}" Margin="0 0 10 0" />
+                        <TextBlock Text="Game Interactions" VerticalAlignment="Center" />
+                    </StackPanel>
+                </TabItem.Header>
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="32 28" MaxWidth="1100">
+                        <TextBlock Text="Game Interactions" Style="{StaticResource H1}" />
+                        <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 16">
+                            Wire chat commands, channel-point redemptions, and TikTok gifts to keyboard / mouse inputs.
+                            Inputs target whatever window has focus, so set the foreground guard below to your game's
+                            title (substring match) before going live, or chat keys will leak into Discord/OBS.
+                        </TextBlock>
+
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <CheckBox x:Name="ChkGameInteractionsEnabled"
+                                          Content="Master toggle — viewer-controls the game"
+                                          Style="{StaticResource ToggleSwitch}" />
+                                <CheckBox x:Name="ChkGameInteractionsDryRun"
+                                          Content="Dry-run — log every action without sending real input"
+                                          Style="{StaticResource ToggleSwitch}" Margin="0 6 0 0" />
+                                <Grid Margin="0 12 0 0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="220" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Target window (substring):"
+                                               Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 0 8 0" />
+                                    <Grid Grid.Row="0" Grid.Column="1">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0" x:Name="TxtGameInteractionsWindow"
+                                                 ToolTip="Case-insensitive substring of the foreground window title required for any action to fire. e.g. 'Fallout4' / 'Counter-Strike'. Empty = fire regardless of focus (dangerous)." />
+                                        <Button  Grid.Column="1" Content="Detect" Style="{StaticResource SecondaryButton}"
+                                                 Click="BtnGiDetectWindow_Click" Margin="6 0 0 0"
+                                                 ToolTip="Hides this window for 2 seconds, captures the foreground window's title, and prefills it here. Click Detect, then click on your game." />
+                                    </Grid>
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Cooldown multiplier:"
+                                               Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 8 8 0" />
+                                    <TextBox  Grid.Row="1" Grid.Column="1" x:Name="TxtGameInteractionsCdMult"
+                                              Width="100" HorizontalAlignment="Left" Margin="0 6 0 0"
+                                              ToolTip="Multiplies every action's CooldownGlobalSec + CooldownPerUserSec. 1 = exact, 2 = half as often, 0.5 = twice as fast." />
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Max actions / second:"
+                                               Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="0 8 8 0" />
+                                    <TextBox  Grid.Row="2" Grid.Column="1" x:Name="TxtGameInteractionsMaxRate"
+                                              Width="100" HorizontalAlignment="Left" Margin="0 6 0 0"
+                                              ToolTip="Channel-wide rate limit. Some games crash when mashed; 6/sec is safe for most." />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0 4 0 6" TextWrapping="Wrap">
+                            Trigger kinds: <Run FontWeight="Bold">command</Run> (chat !word), <Run FontWeight="Bold">channelPoint</Run> (Twitch reward title), <Run FontWeight="Bold">tiktokGift</Run> (gift name + min coins).
+                            Action types: <Run FontWeight="Bold">key</Run> (e.g. "W", "Ctrl+S"), <Run FontWeight="Bold">mouseClick</Run> / <Run FontWeight="Bold">mouseMove</Run> / <Run FontWeight="Bold">scroll</Run>, <Run FontWeight="Bold">controller</Run> (ViGEm gamepad), <Run FontWeight="Bold">sequence</Run> (DSL: <Run FontFamily="Consolas">W:2s; pad:A; pause:500</Run>), <Run FontWeight="Bold">chain</Run>, <Run FontWeight="Bold">roulette</Run>, <Run FontWeight="Bold">obs-scene</Run> / <Run FontWeight="Bold">obs-source</Run>, <Run FontWeight="Bold">sb-action</Run>.
+                        </TextBlock>
+
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 14">
+                            <StackPanel>
+                                <Grid>
+                                    <TextBlock Text="Virtual controller (ViGEm)" Style="{StaticResource H2}" />
+                                    <Border x:Name="PillVigem" Style="{StaticResource Pill}" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtVigemStatus" Text="not checked" FontSize="11"
+                                                   Foreground="{StaticResource Brush.Fg.Muted}" />
+                                    </Border>
+                                </Grid>
+                                <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0 6 0 6" TextWrapping="Wrap">
+                                    Lets chat fire <Run FontWeight="Bold">controller</Run> actions (A / B / X / Y / LB / RB / LT / RT / D-pad / sticks) against any game that reads an Xbox controller — including titles where SendInput keyboard doesn't work (some anti-cheat protected games still accept gamepad input).
+                                    Two pieces:
+                                    1) the kernel driver MSI, and
+                                    2) the .NET wrapper DLL dropped into your Loadout data folder.
+                                </TextBlock>
+                                <StackPanel Orientation="Horizontal" Margin="0 4 0 0">
+                                    <Button Content="Check driver"           Style="{StaticResource SecondaryButton}" Click="BtnVigemCheck_Click"   Margin="0 0 8 0" />
+                                    <Button Content="Open driver install page" Style="{StaticResource SecondaryButton}" Click="BtnVigemDriver_Click" Margin="0 0 8 0"
+                                            ToolTip="Opens the ViGEm Bus Driver releases page in your browser. Download + install the latest MSI, then click Check driver." />
+                                    <Button Content="Open data folder"       Style="{StaticResource SecondaryButton}" Click="BtnVigemDataFolder_Click"
+                                            ToolTip="Drop Nefarius.ViGEm.Client.dll here so Loadout can find it on next boot." />
+                                </StackPanel>
+                                <TextBlock x:Name="TxtVigemError" Style="{StaticResource Muted}" FontSize="11"
+                                           Margin="0 6 0 0" TextWrapping="Wrap" Visibility="Collapsed" />
+                            </StackPanel>
+                        </Border>
+                        <DataGrid x:Name="GrdGameInteractions" AutoGenerateColumns="False" CanUserAddRows="False"
+                                  SelectionMode="Single" SelectionUnit="FullRow" MinHeight="240">
+                            <DataGrid.Columns>
+                                <DataGridCheckBoxColumn Header="On"             Binding="{Binding Enabled}"            Width="40" />
+                                <DataGridTextColumn     Header="Name"           Binding="{Binding Name,            UpdateSourceTrigger=PropertyChanged}" Width="140" />
+                                <DataGridTextColumn     Header="Trigger kind"   Binding="{Binding TriggerKind,     UpdateSourceTrigger=PropertyChanged}" Width="100" />
+                                <DataGridTextColumn     Header="Trigger value"  Binding="{Binding TriggerValue,    UpdateSourceTrigger=PropertyChanged}" Width="140" />
+                                <DataGridTextColumn     Header="Roles"          Binding="{Binding AllowedRoles,    UpdateSourceTrigger=PropertyChanged}" Width="110" />
+                                <DataGridTextColumn     Header="Min coins"      Binding="{Binding TikTokMinCoins,  UpdateSourceTrigger=PropertyChanged}" Width="70" />
+                                <DataGridTextColumn     Header="CD global"      Binding="{Binding CooldownGlobalSec, UpdateSourceTrigger=PropertyChanged}" Width="70" />
+                                <DataGridTextColumn     Header="CD/user"        Binding="{Binding CooldownPerUserSec,UpdateSourceTrigger=PropertyChanged}" Width="70" />
+                                <DataGridTextColumn     Header="Action"         Binding="{Binding ActionType,      UpdateSourceTrigger=PropertyChanged}" Width="90" />
+                                <DataGridTextColumn     Header="Keys / sequence" Binding="{Binding Keys,           UpdateSourceTrigger=PropertyChanged}" Width="160" />
+                                <DataGridTextColumn     Header="Hold (ms)"      Binding="{Binding HoldMs,          UpdateSourceTrigger=PropertyChanged}" Width="70" />
+                                <DataGridTextColumn     Header="Repeat"         Binding="{Binding Repeat,          UpdateSourceTrigger=PropertyChanged}" Width="60" />
+                                <DataGridTextColumn     Header="Probability"    Binding="{Binding Probability,     UpdateSourceTrigger=PropertyChanged}" Width="80" />
+                                <DataGridTextColumn     Header="Ack template"   Binding="{Binding AckTemplate,     UpdateSourceTrigger=PropertyChanged}" Width="*" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <StackPanel Orientation="Horizontal" Margin="0 10 0 0">
+                            <Button Content="Add action"     Style="{StaticResource PrimaryButton}"   Click="BtnGiAdd_Click"      Margin="0 0 8 0" />
+                            <Button Content="Remove"         Style="{StaticResource SecondaryButton}" Click="BtnGiRemove_Click"   Margin="0 0 8 0" />
+                            <Button Content="Test selected"  Style="{StaticResource SecondaryButton}" Click="BtnGiTest_Click"   Margin="0 0 8 0"
+                                    ToolTip="Fires the highlighted action exactly once via the same code path as a live trigger. Respects DryRun. Won't fire if your foreground-window guard blocks it." />
+                            <Button Content="Open sandbox"   Style="{StaticResource SecondaryButton}" Click="BtnGiSandbox_Click" Margin="0 0 8 0"
+                                    ToolTip="Open a focus-receiver window. Click it then 'Test selected' to verify your action without a real game running." />
+                            <Button Content="Twitch reward"  Style="{StaticResource SecondaryButton}" Click="BtnGiTwitchReward_Click" Margin="0 0 8 0"
+                                    ToolTip="For channelPoint-trigger rows: checks whether a Twitch reward with the trigger's title exists, and creates it (500 points) if your Streamer.bot version supports reward creation." />
+                            <TextBlock Text="Template:" Style="{StaticResource Muted}" VerticalAlignment="Center" Margin="14 0 6 0" />
+                            <ComboBox  x:Name="CmbGameTemplate" Width="240" VerticalAlignment="Center"
+                                       ToolTip="Pick a popular game to bulk-add a starter pack of actions. Existing rows are kept; templates only append. After applying, edit the rows to match your remapped keys." />
+                            <Button Content="Add from template" Style="{StaticResource SecondaryButton}" Click="BtnGiAddTemplate_Click" Margin="8 0 0 0" />
+                            <Border Width="1" Background="{StaticResource Brush.Border}" Margin="14 4 14 4" />
+                            <Button Content="Export..."         Style="{StaticResource SecondaryButton}" Click="BtnGiExport_Click" Margin="0 0 6 0"
+                                    ToolTip="Save the action list to a JSON file you can share with another streamer." />
+                            <Button Content="Import..."         Style="{StaticResource SecondaryButton}" Click="BtnGiImport_Click"
+                                    ToolTip="Append actions from a JSON file. Existing rows are kept." />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource Muted}" FontSize="11" Margin="0 6 0 0" TextWrapping="Wrap"
+                                   x:Name="TxtGameTemplateHint" />
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- ============ WALLET / TOP VIEWER ============ -->
@@ -1453,14 +1671,12 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Dungeon Crawler + Duel game card. Chat-driven
-                             party adventure that runs on the bus. Full
-                             overlay lives at /overlays/dungeon. The DLL
-                             owns hero state in dungeon-heroes.json so
-                             every viewer's character persists between
-                             streams; the Discord bot exposes /inventory,
-                             /equip, /shop, etc. for off-stream RPG. -->
-                        <Border Style="{StaticResource Card}" Margin="14 0 0 0">
+                        <!-- Dungeon Crawler + Duel game card — ARCHIVED 2026-06-08.
+                             Hidden from the UI; the source files stay in the DLL
+                             so existing HeroState records (used by Boltbound + the
+                             Discord hero sync) keep round-tripping. Reveal by
+                             removing Visibility="Collapsed" if you need it back. -->
+                        <Border Style="{StaticResource Card}" Margin="14 0 0 0" Visibility="Collapsed">
                             <StackPanel>
                                 <TextBlock Text="Dungeon Crawler + Duel" Style="{StaticResource H2}" />
                                 <TextBlock Style="{StaticResource Muted}" TextWrapping="Wrap" Margin="0 0 0 8">
@@ -1541,7 +1757,12 @@
                 </ScrollViewer>
             </TabItem>
 
-            <TabItem Style="{StaticResource SidebarNavTabItem}">
+            <!-- Apex tab — ARCHIVED 2026-06-08. The whole tab is hidden;
+                 ApexModule is also dropped from RegisterDefaultModules so
+                 the runtime stops processing apex.* events. ApexState +
+                 the per-game store stay on disk so re-enabling later
+                 doesn't lose history. -->
+            <TabItem Style="{StaticResource SidebarNavTabItem}" Visibility="Collapsed">
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
                         <Path Style="{StaticResource Icon}" Data="{StaticResource IconGeo.Apex}" Margin="0 0 10 0" />
@@ -3301,13 +3522,10 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Dungeon Crawler + Duel: full-canvas (1920×1080) overlay
-                             for the !dungeon / !join / !duel game. Four states
-                             (recruit / adventure / loot reveal / duel panel)
-                             switch on bus events. Send test fires a synthetic
-                             party run end-to-end; Send duel test fires a
-                             two-character skirmish. -->
-                        <Border Style="{StaticResource Card}" Margin="0 0 0 10">
+                        <!-- Dungeon Crawler + Duel overlay card — ARCHIVED 2026-06-08.
+                             Hidden from the UI alongside the Dungeon settings card.
+                             Reveal by removing Visibility="Collapsed" if needed. -->
+                        <Border Style="{StaticResource Card}" Margin="0 0 0 10" Visibility="Collapsed">
                             <StackPanel>
                                 <Grid Margin="0 0 0 8">
                                     <StackPanel Orientation="Horizontal">

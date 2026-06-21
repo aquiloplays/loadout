@@ -61,14 +61,18 @@ namespace Loadout.Sb
                 _modules.Add(new CcCoinTrackerModule());
                 _modules.Add(new SubAnniversaryModule());
                 _modules.Add(new BoltsModule());
-                _modules.Add(new ApexModule());
+                // ApexModule — ARCHIVED 2026-06-08. Kept on disk
+                // (ApexState + per-game stores) but unregistered so
+                // apex.* bus events no longer fire and !apex doesn't
+                // respond. Re-add this line to revive.
                 _modules.Add(new GameTrackerModule());
                 _modules.Add(new ClipsModule());
                 _modules.Add(new BoltsShopModule());
-                // DungeonModule wires !dungeon / !join / !duel. Owns its
-                // own per-game state (DungeonGameStore) and publishes
-                // dungeon.* / duel.* bus events the OBS overlay reads.
-                _modules.Add(new DungeonModule());
+                // DungeonModule — ARCHIVED 2026-06-08. The DLL still
+                // carries DungeonGameStore + HeroState because Boltbound
+                // (champion class) and the Discord hero sync read those
+                // records. But the chat-game module itself is no longer
+                // registered: !dungeon / !join / !duel are dead in chat.
                 // NowPlayingModule caches rotation.song.playing payloads
                 // and serves !song. Register before CommandsBroadcaster so
                 // !song shows up in the published commands.list snapshot.
@@ -97,6 +101,11 @@ namespace Loadout.Sb
                 // Sends via MultiPlatformSender -> rate-limited per
                 // platform, fans out to every enabled chat.
                 _modules.Add(new ChatAnnouncementsModule());
+                // GameInteractionsModule — chat/channel-point/TikTok-gift
+                // triggers fan out to keyboard/mouse via SendInput. Master
+                // toggle is GameInteractionsConfig.Enabled (off by default
+                // — registering here is harmless when disabled).
+                _modules.Add(new GameInteractionsModule());
                 // Last - just publishes the canonical command list to the bus
                 // for the "Available commands" overlay. Must come AFTER every
                 // module that contributes commands so the snapshot it builds
@@ -114,6 +123,33 @@ namespace Loadout.Sb
             Util.EventStats.Instance.Increment(kind);
 
             var ctx = EventContext.From(kind, args);
+
+            // Chat block list — drop messages from configured bots /
+            // ignored users BEFORE any module sees them. Applies to
+            // chat events only (so a sub/follow/raid from a "bot"
+            // account still credits). Settings.ChatNoise.BlockedUsers
+            // is the source of truth; match is case-insensitive on the
+            // bare handle, trailing "*" acts as a wildcard.
+            if (kind == "chat" && IsBlockedUser(ctx.User))
+            {
+                Util.EventStats.Instance.Increment("chat.blocked");
+                return;
+            }
+
+            // Broadcaster ambient-ignore — the streamer's own chat (and
+            // the bot's output when it sends through the broadcaster
+            // account) shouldn't trigger welcomes, earn bolts, count
+            // toward top-chatter / hype detection, etc. We FLAG rather
+            // than drop: command modules ignore the flag so !commands
+            // from the broadcaster keep working, and TimedMessages
+            // still sees the event for its talk-pause gate.
+            if (kind == "chat" &&
+                string.Equals(ctx.UserType, "broadcaster", StringComparison.OrdinalIgnoreCase) &&
+                SettingsManager.Instance.Current?.ChatNoise?.IgnoreBroadcasterChat == true)
+            {
+                ctx.SuppressAmbient = true;
+            }
+
             List<IEventModule> snapshot;
             lock (_modules) snapshot = new List<IEventModule>(_modules);
 
@@ -125,6 +161,33 @@ namespace Loadout.Sb
                     Util.ErrorLog.Write(m.GetType().Name + ".OnEvent[" + kind + "]", ex);
                 }
             }
+        }
+
+        private static bool IsBlockedUser(string user)
+        {
+            if (string.IsNullOrWhiteSpace(user)) return false;
+            var blocked = SettingsManager.Instance.Current?.ChatNoise?.BlockedUsers;
+            if (blocked == null || blocked.Count == 0) return false;
+            var u = user.TrimStart('@').ToLowerInvariant();
+            for (int i = 0; i < blocked.Count; i++)
+            {
+                var pattern = blocked[i];
+                if (string.IsNullOrWhiteSpace(pattern)) continue;
+                var p = pattern.Trim().TrimStart('@').ToLowerInvariant();
+                if (p.Length == 0) continue;
+                if (p.EndsWith("*"))
+                {
+                    var prefix = p.Substring(0, p.Length - 1);
+                    // Ignore lone "*" (would block everyone) - use Quiet
+                    // mode for that. Require at least 2 prefix chars so
+                    // a typo like "a*" doesn't nuke everyone whose name
+                    // starts with A.
+                    if (prefix.Length < 2) continue;
+                    if (u.StartsWith(prefix)) return true;
+                }
+                else if (u == p) return true;
+            }
+            return false;
         }
 
         /// <summary>
@@ -159,6 +222,11 @@ namespace Loadout.Sb
         public string UserType    { get; private set; }      // viewer | sub | vip | mod | broadcaster
         public string Message     { get; private set; }
         public IDictionary<string, object> Raw { get; private set; }
+        // Set by the dispatcher for broadcaster chat when
+        // ChatNoise.IgnoreBroadcasterChat is on. Ambient modules
+        // (welcomes / bolt earns / engagement / velocity / recap
+        // counts) skip flagged events; command modules ignore the flag.
+        public bool SuppressAmbient { get; set; }
 
         public static EventContext From(string kind, IDictionary<string, object> raw)
         {

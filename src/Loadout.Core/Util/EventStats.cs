@@ -31,6 +31,29 @@ namespace Loadout.Util
 
         public DateTime SinceUtc { get; } = DateTime.UtcNow;
 
+        // Rolling buffer of the most recent (kind, module, ts) triples,
+        // capped small. The tray-icon hover balloon renders the last 3
+        // so "what just happened?" is a glance away.
+        private readonly LinkedList<RecentHit> _recent = new LinkedList<RecentHit>();
+        private const int RecentBufferCap = 12;
+        public sealed class RecentHit
+        {
+            public string Kind   { get; set; }
+            public string Module { get; set; }
+            public DateTime Ts   { get; set; }
+        }
+        public List<RecentHit> RecentSnapshot(int n)
+        {
+            lock (_lock)
+            {
+                var list = new List<RecentHit>(System.Math.Min(n, _recent.Count));
+                int taken = 0;
+                for (var node = _recent.Last; node != null && taken < n; node = node.Previous, taken++)
+                    list.Add(node.Value);
+                return list;
+            }
+        }
+
         public void Increment(string kind)
         {
             if (string.IsNullOrEmpty(kind)) return;
@@ -41,10 +64,16 @@ namespace Loadout.Util
         }
 
         /// <summary>Record that <paramref name="module"/> took action in
-        /// response to a <paramref name="kind"/> event.</summary>
+        /// response to a <paramref name="kind"/> event. Also publishes a
+        /// <c>loadout.module.activity</c> event on the local Aquilo Bus
+        /// so the OBS dock / customizer / future tooling can render a
+        /// live "what just fired" stream without sniffing every
+        /// domain-specific event kind individually.</summary>
         public void Hit(string kind, string module)
         {
             if (string.IsNullOrEmpty(kind) || string.IsNullOrEmpty(module)) return;
+            int count;
+            int totalForModule;
             lock (_lock)
             {
                 if (!_moduleCounts.TryGetValue(kind, out var inner))
@@ -52,8 +81,35 @@ namespace Loadout.Util
                     inner = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
                     _moduleCounts[kind] = inner;
                 }
-                inner[module] = (inner.TryGetValue(module, out var v) ? v : 0) + 1;
+                count = (inner.TryGetValue(module, out var v) ? v : 0) + 1;
+                inner[module] = count;
+
+                // Lifetime count per module = sum across all kinds it has acted on.
+                totalForModule = 0;
+                foreach (var byKind in _moduleCounts.Values)
+                    if (byKind.TryGetValue(module, out var sub)) totalForModule += sub;
+
+                // Push to the rolling recent-hits buffer.
+                _recent.AddLast(new RecentHit { Kind = kind, Module = module, Ts = DateTime.UtcNow });
+                while (_recent.Count > RecentBufferCap) _recent.RemoveFirst();
             }
+
+            // Fire-and-forget broadcast. The bus has its own threadpool
+            // for serialization + fan-out; we never block the dispatcher
+            // here. If the bus isn't running yet (early boot) Publish
+            // silently no-ops, which is fine.
+            try
+            {
+                Loadout.Bus.AquiloBus.Instance.Publish("loadout.module.activity", new
+                {
+                    kind,
+                    module,
+                    count,                              // count for this (kind, module)
+                    moduleTotal = totalForModule,       // lifetime count across all kinds
+                    ts = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                });
+            }
+            catch { /* never let a dock-feed publish kill module work */ }
         }
 
         public Dictionary<string, int> Snapshot()

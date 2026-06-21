@@ -47,6 +47,9 @@ namespace Loadout.Modules
                 case "superChat":_superChats++; return;
                 case "raid":     _raidsReceived.Add(ctx.User + " (" + ctx.Get<int>("viewers", 0) + ")"); return;
                 case "chat":
+                    // Broadcaster ambient-ignore: recap's top-chatter
+                    // list is about the audience, not the host.
+                    if (ctx.SuppressAmbient) return;
                     if (!string.IsNullOrEmpty(ctx.User))
                         _chatCounts.AddOrUpdate(ctx.User, 1, (_, v) => v + 1);
                     return;

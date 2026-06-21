@@ -54,7 +54,12 @@ namespace Loadout.Modules
         {
             if (ctx.Kind != "chat") return;
             var s = SettingsManager.Instance.Current;
-            if (!s.Modules.Clips || !s.Clips.Enabled) return;
+            // EITHER toggle treats Clips as on. The Modules-tab master
+            // and the Clips-tab "!clip enabled" used to AND together,
+            // which surprised streamers who flipped one and saw the
+            // module reported off. The two toggles are paired in the
+            // Settings window so they stay synchronized going forward.
+            if (!s.Modules.Clips && !s.Clips.Enabled) return;
 
             var msg = (ctx.Message ?? "").Trim();
             if (msg.Length < 2 || msg[0] != '!') return;

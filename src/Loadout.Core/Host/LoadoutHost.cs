@@ -30,6 +30,11 @@ namespace Loadout.Host
         private static bool _started;
         private static bool _ownsApp;
         private static Modules.PanelBridgeModule _panelBridge;
+        private static System.IO.FileSystemWatcher _triggerWatcher;
+        // Sentinel filename the dock-shortcut launcher drops in the data
+        // folder. Kept short + lowercase + no spaces so the .ps1 / .vbs
+        // wrapper can write it with the same literal we read here.
+        public const string TriggerFileName = "open-settings.trigger";
 
         public static Dispatcher UiDispatcher
         {
@@ -59,6 +64,19 @@ namespace Loadout.Host
                 // command and the compact overlay's now-playing card.
                 Bus.AquiloBus.Instance.RegisterHandler("rotation.song.playing", BridgeBusToDispatcher);
                 Bus.AquiloBus.Instance.RegisterHandler("rotation.song.queued",  BridgeBusToDispatcher);
+
+                // aquilo.gg overlay customizer page <-> local DLL.
+                // Customizer reads loadout.overlay.snapshot.request to
+                // populate controls, writes loadout.overlay.update to
+                // mutate settings.json + republish a loadout.overlay.config
+                // event for live overlay updates.
+                Modules.OverlayCustomizeBridge.Register();
+
+                // OBS dock write-path: counter bumps, quiet/module
+                // toggles, chat sends, Game-Interactions pause, and
+                // arbitrary SB action runs — all the dock's buttons
+                // route through this one whitelisted dispatcher.
+                Modules.DockCommandBridge.Register();
 
                 var ready = new ManualResetEventSlim(false);
                 _uiThread = new Thread(() =>
@@ -131,6 +149,15 @@ namespace Loadout.Host
                 // (%APPDATA%\Aquilo\panel-bridge.json) is present.
                 _panelBridge = Modules.PanelBridgeModule.StartIfConfigured();
 
+                // Shortcut-trigger watcher. The dock .lnk drops a sentinel
+                // file (open-settings.trigger) into the data folder; we
+                // pop the Settings window on the UI thread and delete
+                // the file. Works whether SB is already running (the
+                // already-booted DLL sees the file) OR not (we check
+                // for the file on initial boot too). One-click "open
+                // SB + Loadout" UX without a separate launcher exe.
+                StartTriggerWatcher();
+
                 // Hook process exit so the tray icon (a WinForms NotifyIcon)
                 // gets disposed before the CLR tears down the AppDomain. If we
                 // don't, SB's exit can race with our background UI thread and
@@ -156,6 +183,80 @@ namespace Loadout.Host
         private static void OnProcessExit(object sender, EventArgs e)
         {
             try { Shutdown(); } catch { /* swallow - we're exiting anyway */ }
+        }
+
+        /// <summary>
+        /// Watches the data folder for a sentinel file
+        /// (<see cref="TriggerFileName"/>) and pops the Settings window
+        /// when it appears. The dock shortcut's launcher script touches
+        /// this file before / instead of starting SB, so a single click
+        /// reliably opens Settings whether the DLL was already running
+        /// or just cold-booted.
+        ///
+        /// We also process the file once on startup in case it landed
+        /// before the watcher was wired (race: launcher writes the
+        /// file, then SB starts, then the DLL boots — without this we'd
+        /// miss the trigger).
+        /// </summary>
+        private static void StartTriggerWatcher()
+        {
+            try
+            {
+                var folder = Settings.SettingsManager.Instance.DataFolder;
+                if (string.IsNullOrEmpty(folder)) return;
+                try { System.IO.Directory.CreateDirectory(folder); } catch { }
+
+                // Handle a trigger that was dropped before the DLL booted.
+                var existing = System.IO.Path.Combine(folder, TriggerFileName);
+                if (System.IO.File.Exists(existing))
+                {
+                    HandleTriggerAndDelete(existing);
+                }
+
+                _triggerWatcher = new System.IO.FileSystemWatcher(folder, TriggerFileName)
+                {
+                    NotifyFilter = System.IO.NotifyFilters.FileName |
+                                   System.IO.NotifyFilters.CreationTime |
+                                   System.IO.NotifyFilters.LastWrite,
+                    EnableRaisingEvents = true
+                };
+                _triggerWatcher.Created += (_, evt) => HandleTriggerAndDelete(evt.FullPath);
+                _triggerWatcher.Changed += (_, evt) => HandleTriggerAndDelete(evt.FullPath);
+            }
+            catch (Exception ex)
+            {
+                Util.ErrorLog.Write("StartTriggerWatcher", ex);
+            }
+        }
+
+        private static void HandleTriggerAndDelete(string path)
+        {
+            // Hop to the UI thread before opening Settings — the
+            // FileSystemWatcher fires on a thread-pool thread.
+            try
+            {
+                _dispatcher?.BeginInvoke(new Action(() =>
+                {
+                    try { OpenSettings(); }
+                    catch (Exception ex) { Util.ErrorLog.Write("Trigger.OpenSettings", ex); }
+                }));
+            }
+            catch { /* dispatcher gone, fall through to cleanup */ }
+            // Delete the trigger so we don't refire on every Changed
+            // notification. Retry a couple of times in case the
+            // launcher's write handle isn't closed yet.
+            for (int i = 0; i < 3; i++)
+            {
+                try
+                {
+                    if (System.IO.File.Exists(path)) System.IO.File.Delete(path);
+                    break;
+                }
+                catch
+                {
+                    try { System.Threading.Thread.Sleep(80); } catch { }
+                }
+            }
         }
 
         private static void OnUpdateAvailable(object sender, UpdateAvailableEventArgs e)
@@ -247,6 +348,7 @@ namespace Loadout.Host
                 //   4. Shut down the dispatcher.
                 try { UpdateChecker.Instance.Stop(); } catch { }
                 try { _panelBridge?.Dispose(); _panelBridge = null; } catch { }
+                try { _triggerWatcher?.Dispose(); _triggerWatcher = null; } catch { }
 
                 try
                 {

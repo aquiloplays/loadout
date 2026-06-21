@@ -29,6 +29,9 @@ namespace Loadout.Modules
             var s = SettingsManager.Instance.Current;
             if (!s.Modules.ContextWelcomes || !s.Welcomes.Enabled) return;
             if (string.IsNullOrEmpty(ctx.User)) return;
+            // Broadcaster ambient-ignore: never welcome the streamer
+            // to their own channel.
+            if (ctx.SuppressAmbient) return;
 
             var key = ctx.Platform.ToShortName() + ":" + ctx.User.ToLowerInvariant();
             if (_seenThisSession.Contains(key)) return;

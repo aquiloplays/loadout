@@ -240,6 +240,148 @@ namespace Loadout.Sb
             catch { return false; }
         }
 
+        /// <summary>
+        /// Create a Twitch channel-point reward via whatever creation
+        /// method this SB version exposes. Returns null on success,
+        /// the sentinel "not-supported" when no creation method exists
+        /// on this CPH build, or an error message otherwise.
+        ///
+        /// Note: rewards created through SB's app credentials are the
+        /// only ones SB can later update/pause — which is exactly what
+        /// we want for Game Interactions triggers.
+        /// </summary>
+        public string TwitchCreateReward(string title, int cost, string prompt)
+        {
+            if (_cph == null) return "Streamer.bot not bound — run the Loadout: Boot action first";
+            if (string.IsNullOrWhiteSpace(title)) return "empty reward title";
+            var candidates = new[]
+            {
+                "TwitchCreateReward",
+                "TwitchCreateCustomReward",
+                "CreateCustomReward",
+                "CreateReward"
+            };
+            foreach (var name in candidates)
+            {
+                // Richest signature first so prompt text lands when supported.
+                var mi4 = _cphType.GetMethod(name, new[] { typeof(string), typeof(int), typeof(string), typeof(bool) });
+                if (mi4 != null)
+                {
+                    try { mi4.Invoke(_cph, new object[] { title, cost, prompt ?? "", true }); return null; }
+                    catch (Exception ex) { return Unwrap(ex); }
+                }
+                var mi3 = _cphType.GetMethod(name, new[] { typeof(string), typeof(int), typeof(string) });
+                if (mi3 != null)
+                {
+                    try { mi3.Invoke(_cph, new object[] { title, cost, prompt ?? "" }); return null; }
+                    catch (Exception ex) { return Unwrap(ex); }
+                }
+                var mi2 = _cphType.GetMethod(name, new[] { typeof(string), typeof(int) });
+                if (mi2 != null)
+                {
+                    try { mi2.Invoke(_cph, new object[] { title, cost }); return null; }
+                    catch (Exception ex) { return Unwrap(ex); }
+                }
+            }
+            return "not-supported";
+        }
+
+        private static string Unwrap(Exception ex)
+            => (ex is System.Reflection.TargetInvocationException tie ? tie.InnerException ?? tie : ex).Message;
+
+        /// <summary>
+        /// Names of every action defined in Streamer.bot, sorted. Empty
+        /// list when CPH isn't bound or this SB version lacks
+        /// GetActions(). Used by the OBS dock's run-action autocomplete.
+        /// </summary>
+        public System.Collections.Generic.List<string> GetActionNames()
+        {
+            var result = new System.Collections.Generic.List<string>();
+            if (_cph == null) return result;
+            try
+            {
+                var mi = _cphType.GetMethod("GetActions", Type.EmptyTypes);
+                if (mi == null) return result;
+                var actions = mi.Invoke(_cph, null) as System.Collections.IEnumerable;
+                if (actions == null) return result;
+                foreach (var a in actions)
+                {
+                    if (a == null) continue;
+                    var nameProp = a.GetType().GetProperty("Name");
+                    var name = nameProp?.GetValue(a) as string;
+                    if (!string.IsNullOrWhiteSpace(name)) result.Add(name);
+                }
+                result.Sort(StringComparer.OrdinalIgnoreCase);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] GetActions failed: " + ex.Message);
+            }
+            return result;
+        }
+
+        /// <summary>Switch the active scene on the configured OBS
+        /// connection (0 = primary). Returns false if CPH isn't bound
+        /// or the host doesn't expose ObsSetScene on this version.</summary>
+        public bool ObsSetScene(string sceneName, int connection = 0)
+        {
+            if (_cph == null || string.IsNullOrEmpty(sceneName)) return false;
+            try
+            {
+                // CPH.ObsSetScene has signatures (string), (string, int).
+                var mi2 = _cphType.GetMethod("ObsSetScene", new[] { typeof(string), typeof(int) });
+                if (mi2 != null) { mi2.Invoke(_cph, new object[] { sceneName, connection }); return true; }
+                var mi1 = _cphType.GetMethod("ObsSetScene", new[] { typeof(string) });
+                if (mi1 != null) { mi1.Invoke(_cph, new object[] { sceneName }); return true; }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] ObsSetScene failed: " + ex.Message);
+                return false;
+            }
+        }
+
+        /// <summary>Toggle a source's visibility on a given scene. When
+        /// <paramref name="visible"/> is null, toggles the current value.</summary>
+        public bool ObsSetSourceVisibility(string scene, string source, bool? visible, int connection = 0)
+        {
+            if (_cph == null || string.IsNullOrEmpty(scene) || string.IsNullOrEmpty(source)) return false;
+            try
+            {
+                // Prefer the explicit setter when a value is supplied;
+                // toggle via the host's own ObsSourceToggle when null.
+                if (visible.HasValue)
+                {
+                    var mi = _cphType.GetMethod("ObsSetSourceVisibility",
+                        new[] { typeof(string), typeof(string), typeof(bool), typeof(int) });
+                    if (mi != null)
+                    { mi.Invoke(_cph, new object[] { scene, source, visible.Value, connection }); return true; }
+                    var mi3 = _cphType.GetMethod("ObsSetSourceVisibility",
+                        new[] { typeof(string), typeof(string), typeof(bool) });
+                    if (mi3 != null)
+                    { mi3.Invoke(_cph, new object[] { scene, source, visible.Value }); return true; }
+                }
+                else
+                {
+                    var miT = _cphType.GetMethod("ObsSourceToggle",
+                        new[] { typeof(string), typeof(string), typeof(int) });
+                    if (miT != null)
+                    { miT.Invoke(_cph, new object[] { scene, source, connection }); return true; }
+                    var miT2 = _cphType.GetMethod("ObsSourceToggle",
+                        new[] { typeof(string), typeof(string) });
+                    if (miT2 != null)
+                    { miT2.Invoke(_cph, new object[] { scene, source }); return true; }
+                }
+                return false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] ObsSetSourceVisibility failed: " + ex.Message);
+                return false;
+            }
+        }
+
         // -------------------- Internal helpers --------------------
 
         private bool InvokeBool(string method, bool fallback)

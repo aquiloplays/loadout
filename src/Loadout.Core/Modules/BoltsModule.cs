@@ -66,7 +66,11 @@ namespace Loadout.Modules
                     // pool's already warm the moment the streamer flips
                     // SlotsUseTwitchEmotes on.
                     TwitchEmoteCache.Instance.Harvest(ctx);
-                    EarnChat(ctx, s);
+                    // Broadcaster ambient-ignore: no per-message earns
+                    // for the streamer (or the bot's own output when it
+                    // sends as the broadcaster). Commands still work —
+                    // the broadcaster can !coinflip etc. as usual.
+                    if (!ctx.SuppressAmbient) EarnChat(ctx, s);
                     HandleChatCommands(ctx, s);
                     return;
                 case "sub":

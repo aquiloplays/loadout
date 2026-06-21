@@ -69,7 +69,10 @@
                          Replaces the prior ⚡ emoji per the "no emoji as
                          visual assets" rule. -->
                     <Image x:Name="HeaderLogo"
-                           Width="32" Height="32" Margin="0 0 10 0" VerticalAlignment="Center" />
+                           Width="32" Height="32" Margin="0 0 10 0" VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="Fant"
+                           SnapsToDevicePixels="True"
+                           UseLayoutRounding="True" />
                     <StackPanel VerticalAlignment="Center">
                         <TextBlock Text="L O A D O U T" FontSize="22" FontWeight="Bold" />
                         <TextBlock Text="Your stream's command deck" Style="{StaticResource Muted}" Margin="0 -2 0 0" />
@@ -170,7 +173,10 @@
                         <CheckBox x:Name="ChkHype"      Content="Hype train — cross-platform fuel from Twitch + TikTok + YouTube + Kick" Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ChkSubRaid"   Content="Sub raid train — 3+/6+/10+/20+ in 60s detection"             Style="{StaticResource ToggleRow}" />
                         <CheckBox x:Name="ChkSubAnniv"  Content="Sub anniversary milestones — auto-celebrate 3/6/12/24+ mo"   Style="{StaticResource ToggleRow}" />
-                        <CheckBox x:Name="ChkApex"      Content="Apex — top-viewer mode with cross-platform damage"           Style="{StaticResource ToggleRow}" />
+                        <!-- Apex — ARCHIVED 2026-06-08. Hidden so new
+                             streamers can't opt in to an archived feature. -->
+                        <CheckBox x:Name="ChkApex"      Content="Apex — top-viewer mode with cross-platform damage"           Style="{StaticResource ToggleRow}"
+                                  Visibility="Collapsed" />
                         <CheckBox x:Name="ChkFirstWords" Content="First-words celebration — Twitch + YouTube native"          Style="{StaticResource ToggleRow}" />
 
                         <!-- ─── Off-stream + integrations ─── -->

@@ -39,6 +39,28 @@ namespace Loadout.Settings
         private SettingsManager() { }
 
         /// <summary>
+        /// Loadout.dll's assembly version, formatted as "MAJOR.MINOR.PATCH".
+        /// Single source of truth = the csproj &lt;Version&gt; element, which
+        /// AssemblyInfo.cs synthesizes into the assembly at build time.
+        /// Used to stamp <see cref="LoadoutSettings.SuiteVersion"/> on
+        /// every settings load so the tray + boot banner track the DLL.
+        /// </summary>
+        public static string AssemblyVersionString()
+        {
+            try
+            {
+                var v = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                if (v == null) return "0.0.0";
+                // Build/Revision are usually 0 for our releases; trim them
+                // off so the display reads "1.10.0" not "1.10.0.0".
+                if (v.Build < 0 && v.Revision < 0) return v.Major + "." + v.Minor;
+                if (v.Revision <= 0) return v.Major + "." + v.Minor + "." + Math.Max(0, v.Build);
+                return v.ToString();
+            }
+            catch { return "0.0.0"; }
+        }
+
+        /// <summary>
         /// Initialize with a custom data folder. Defaults to %APPDATA%\Loadout if null.
         /// </summary>
         public void Initialize(string dataFolder = null)
@@ -142,6 +164,33 @@ namespace Loadout.Settings
                 }
                 s.SchemaVersion = 2;
             }
+            // v3: June 2026 — seed the new starter-pack custom commands
+            // (waddup / hello / hug / hype / raid / specs / sens / etc.)
+            // into existing installs that had an empty Custom list, AND
+            // append any specific command names that are still missing so
+            // an existing install picks up new defaults without losing
+            // customizations. Never overwrites a command the streamer
+            // already has under the same name.
+            if (s.SchemaVersion < 3)
+            {
+                if (s.InfoCommands != null)
+                {
+                    if (s.InfoCommands.Custom == null)
+                        s.InfoCommands.Custom = new System.Collections.Generic.List<CustomCommand>();
+                    var seedDefaults = new LoadoutSettings().InfoCommands.Custom;
+                    var existingNames = new System.Collections.Generic.HashSet<string>(
+                        StringComparer.OrdinalIgnoreCase);
+                    foreach (var c in s.InfoCommands.Custom)
+                        if (!string.IsNullOrWhiteSpace(c?.Name)) existingNames.Add(c.Name.Trim());
+                    foreach (var def in seedDefaults)
+                    {
+                        if (def == null || string.IsNullOrWhiteSpace(def.Name)) continue;
+                        if (existingNames.Contains(def.Name)) continue;
+                        s.InfoCommands.Custom.Add(def);
+                    }
+                }
+                s.SchemaVersion = 3;
+            }
             // Add future migrations here, each gated on the next version.
         }
 
@@ -160,6 +209,14 @@ namespace Loadout.Settings
                 var loaded = JsonConvert.DeserializeObject<LoadoutSettings>(json, _jsonSettings);
                 loaded = loaded ?? new LoadoutSettings();
                 MigrateSchema(loaded);
+                // SuiteVersion is a display value sourced from the DLL,
+                // not a user-editable setting. The original default of
+                // "0.1.0" got persisted on first install and never
+                // refreshed when the DLL upgraded — so the tray label,
+                // boot banner, and Settings header all showed a stale
+                // version forever. Re-stamp on every load so the field
+                // tracks the assembly, then WriteToDisk persists it.
+                loaded.SuiteVersion = AssemblyVersionString();
                 return loaded;
             }
             catch (Exception ex)

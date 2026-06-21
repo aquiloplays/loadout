@@ -15,9 +15,14 @@ namespace Loadout.Settings
         // rebalance never re-applies on subsequent launches. Migrations
         // only touch fields still at their previous default — anything
         // the streamer customized survives.
-        // Current = 2 (May 2026 economy rebalance — halved bolt rates).
-        public int    SchemaVersion   { get; set; } = 2;
-        public string SuiteVersion    { get; set; } = "0.1.0";
+        // Current = 3 (June 2026 — seed starter-pack custom commands).
+        public int    SchemaVersion   { get; set; } = 3;
+        // Default is informational only — SettingsManager.LoadFromDisk
+        // stamps this with the running DLL's actual assembly version on
+        // every load, so the value persisted to disk always reflects
+        // the binary the streamer is running, not whatever was current
+        // when their settings.json was first created.
+        public string SuiteVersion    { get; set; } = "1.10.0";
         public bool   OnboardingDone  { get; set; } = false;
         public string BroadcasterName { get; set; } = "";
 
@@ -67,6 +72,289 @@ namespace Loadout.Settings
         public ViewerProfilesConfig ViewerProfiles { get; set; } = new ViewerProfilesConfig();
         public DungeonConfig       Dungeon       { get; set; } = new DungeonConfig();
         public ChatAnnouncementsConfig ChatAnnouncements { get; set; } = new ChatAnnouncementsConfig();
+        public GameInteractionsConfig  GameInteractions  { get; set; } = new GameInteractionsConfig();
+    }
+
+    /// <summary>
+    /// "Crowd Control"-style game interactions. Viewers fire keyboard /
+    /// mouse / controller inputs against the streamer's active game via
+    /// chat commands, Twitch channel-point redemptions, or TikTok gifts.
+    ///
+    /// Each <see cref="GameAction"/> binds a trigger (a !command, a
+    /// channel-point reward name, or a TikTok gift name) to an input
+    /// action (key press, key combo, mouse click / move, sequence DSL).
+    /// Cooldowns, role gates, probability rolls, and a foreground-window
+    /// guard keep the streamer from getting their game spammed or
+    /// having a key leak into Discord while the game is unfocused.
+    ///
+    /// Inputs are sent via Win32 SendInput so they target whatever
+    /// window has focus — same as a real keypress. Mouse coords are
+    /// relative-to-current by default; absolute pixel mode is opt-in.
+    /// </summary>
+    public class GameInteractionsConfig
+    {
+        // Master kill-switch. Off by default — a fresh install should
+        // never auto-arm a system that types into the streamer's game.
+        public bool Enabled { get; set; } = false;
+
+        // When set, every action checks the foreground window's title
+        // against this substring (case-insensitive). If it doesn't
+        // match, the action logs and skips - so a typo'd !crouch when
+        // OBS is focused doesn't paste "c" into the scene name. Empty
+        // = fire regardless of foreground window (matches Crowd
+        // Control's default behavior).
+        public string TargetWindowTitle { get; set; } = "";
+
+        // Multiplies every action's CooldownGlobalSec + CooldownPerUserSec.
+        // 1.0 = exact values, 0.5 = twice as fast, 2.0 = half as often.
+        // Useful for "panic mode" during raids without editing each row.
+        public double GlobalCooldownMultiplier { get; set; } = 1.0;
+
+        // When true, every action logs what it WOULD do without sending
+        // any actual input. Pair with the Settings -> Game interactions
+        // Test button to validate a setup before going live.
+        public bool DryRun { get; set; } = false;
+
+        // Safety: skip every action while the stream is offline.
+        // Tracked via SB's streamOnline / streamOffline events.
+        // Default ON because a chat "!flash" hitting your game while
+        // you're configuring scenes pre-stream is a worse experience
+        // than a viewer's command silently doing nothing.
+        public bool RequireStreamOnline { get; set; } = true;
+
+        // Per-platform send rate guard. SendInput is fast enough to
+        // mash a key 100x/sec, which crashes some games; this caps
+        // total actions fired per second across ALL viewers / triggers.
+        // 0 = unlimited (use at your own risk).
+        public int MaxActionsPerSecond { get; set; } = 6;
+
+        // Per-viewer rate cap — independent of cooldowns. Limits a
+        // single chatter to <N> fires per <Window> seconds across ALL
+        // actions, so one viewer with the bolts to spare can't
+        // monopolize chaos. 0 = unlimited.
+        public int MaxActionsPerViewerWindow { get; set; } = 5;
+        public int MaxActionsPerViewerWindowSec { get; set; } = 60;
+
+        public List<GameAction> Actions { get; set; } = new List<GameAction>();
+
+        // --- Multi-game profile switcher (June 2026) ----------------------
+        // When enabled, the module polls the foreground window every
+        // ProfilePollSec seconds and swaps the active action set + the
+        // TargetWindowTitle to the first matching profile. Lets a
+        // streamer keep "Fortnite", "CS2", and "Minecraft" configs
+        // around and never manually flip between them.
+        //
+        // The default (un-named) <see cref="Actions"/> list above is
+        // the FALLBACK when no profile's window-match hits.
+        public bool ProfileAutoSwitch { get; set; } = false;
+        public int  ProfilePollSec    { get; set; } = 3;
+        public List<GameInteractionProfile> Profiles { get; set; } = new List<GameInteractionProfile>();
+    }
+
+    /// <summary>
+    /// One named game-interactions profile. <see cref="WindowMatch"/> is
+    /// a substring of the foreground window's title that triggers a
+    /// swap; first match wins. Actions are completely independent from
+    /// the global fallback list so e.g. !jump can mean "press Space"
+    /// in one game and "press Z" in another.
+    ///
+    /// Distinct from the older <see cref="GameProfile"/> used by
+    /// GameProfilesModule for per-Twitch-category welcome / timer
+    /// overrides — different problem, different shape.
+    /// </summary>
+    public class GameInteractionProfile
+    {
+        public string Name        { get; set; } = "";
+        public string WindowMatch { get; set; } = "";   // substring of foreground title
+        public List<GameAction> Actions { get; set; } = new List<GameAction>();
+    }
+
+    /// <summary>
+    /// One trigger -> action binding. Triggers are matched by
+    /// <see cref="TriggerKind"/> + <see cref="TriggerValue"/>; actions
+    /// are dispatched by <see cref="ActionType"/> + the typed payload
+    /// fields (keys / mouse coords / sequence DSL).
+    /// </summary>
+    public class GameAction
+    {
+        public bool   Enabled       { get; set; } = true;
+        // Display name for the Settings table + chat ack template.
+        public string Name          { get; set; } = "";
+
+        // --- Trigger ---------------------------------------------------
+        // "command"        — chat !command (TriggerValue = "jump" or "!jump")
+        // "channelPoint"   — Twitch reward title (case-insensitive)
+        // "tiktokGift"     — TikTok gift name (case-insensitive)
+        public string TriggerKind   { get; set; } = "command";
+        public string TriggerValue  { get; set; } = "";
+
+        // For "tiktokGift": only fire if the gift's coin value is at
+        // least this. 0 = any gift, 50 = roses+ only, 500 = mid-tier+, etc.
+        public int    TikTokMinCoins { get; set; } = 0;
+
+        // For "command": CSV of roles allowed to invoke.
+        // "everyone" / "*" / empty = anyone. Otherwise: broadcaster, mod, vip, sub, viewer.
+        public string AllowedRoles  { get; set; } = "everyone";
+
+        // --- Cooldowns -------------------------------------------------
+        // 0 = no cooldown. Mods + broadcaster bypass per-user (not global).
+        public int    CooldownGlobalSec  { get; set; } = 0;
+        public int    CooldownPerUserSec { get; set; } = 0;
+        // Per-role per-user overrides. Format: "role:seconds" pairs.
+        //   { "sub": 10, "vip": 5, "mod": 0 }
+        // The viewer's highest-priority matching role wins:
+        //   broadcaster > mod > vip > sub > viewer
+        // Missing role = fall back to CooldownPerUserSec.
+        // "0" for a role explicitly removes their cooldown.
+        // Lets a streamer ship "free for subs, 30s viewers" without two rows.
+        public System.Collections.Generic.Dictionary<string, int> CooldownOverrides { get; set; }
+            = new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+
+        // Same shape but multiplies BoltsCost per role. "vip": 0.5 = half
+        // price. "sub": 0 = free. Default (missing) = 1.0 = full price.
+        public System.Collections.Generic.Dictionary<string, double> CostMultipliers { get; set; }
+            = new System.Collections.Generic.Dictionary<string, double>(System.StringComparer.OrdinalIgnoreCase);
+
+        // --- Action ----------------------------------------------------
+        // "key"           — Press <see cref="Keys"/> as a combo (e.g. "Ctrl+S", "W").
+        //                   Held for <see cref="HoldMs"/>; repeated <see cref="Repeat"/> times.
+        // "mouseClick"    — Click <see cref="MouseButton"/>.
+        // "mouseMove"     — Move mouse by (X,Y) per MouseMode.
+        // "scroll"        — Wheel <see cref="ScrollDelta"/> (positive = up).
+        // "sequence"      — Multi-step macro; see <see cref="Sequence"/>.
+        // "controller"    — Reserved for ViGEm-backed virtual gamepad
+        //                   (future); v1 logs and skips so a config
+        //                   referencing it doesn't crash.
+        // "sb-action"     — Run a Streamer.bot action by its action id;
+        //                   delegates to the existing SbBridge.RunAction.
+        public string ActionType { get; set; } = "key";
+
+        // For "key" / "sequence": "W", "Ctrl+S", "Shift+F1".
+        public string Keys       { get; set; } = "";
+        // How long each key is held down (milliseconds). 50 = a normal
+        // tap; 2000 = a 2-second hold (forward-walk for 2s in most games).
+        public int    HoldMs     { get; set; } = 50;
+        public int    Repeat     { get; set; } = 1;
+        public int    RepeatDelayMs { get; set; } = 50;
+
+        // Mouse-specific
+        public string MouseButton { get; set; } = "left";      // left | right | middle
+        public int    MouseX      { get; set; } = 0;
+        public int    MouseY      { get; set; } = 0;
+        public string MouseMode   { get; set; } = "relative";  // relative | absolute | current
+        public int    ScrollDelta { get; set; } = 0;
+
+        // Sequence DSL — semicolon-separated steps, each one of:
+        //   "W:2000ms"        hold W for 2 seconds
+        //   "Space"           tap Space (HoldMs default)
+        //   "Ctrl+S:50ms"     combo hold
+        //   "pause:500ms"     wait 500ms
+        //   "click:left"      left-click at current pos
+        //   "move:50,-20"     move mouse by (50, -20)
+        //   "scroll:-3"       scroll down 3 notches
+        // Empty = unused (set ActionType != "sequence" or leave blank).
+        public string Sequence    { get; set; } = "";
+
+        // --- Polish ----------------------------------------------------
+        // 0..1. Probability the action actually fires per trigger.
+        // 1 = always, 0.5 = coin-flip, 0 = never (silent disable).
+        public double Probability { get; set; } = 1.0;
+
+        // Optional chat acknowledgement. Empty = silent. Placeholders:
+        //   {user} {name} {keys} {gift} {coins}
+        public string AckTemplate { get; set; } = "";
+
+        // For "sb-action": the SB action id (GUID). Otherwise ignored.
+        public string SbActionId  { get; set; } = "";
+
+        // For ActionType = "roulette":
+        // Chat votes between child action NAMES over RouletteWindowSec.
+        // Semicolon-separated NAMES of other GameActions in the same
+        // list. Each viewer can vote once during the window via:
+        //   1 / 2 / 3 / ... (digit)
+        //   <option-name>   (full match, case-insensitive)
+        // The winner fires when the window closes; ties resolve to the
+        // earliest cast vote. Useful for "chat decides what !chaos does".
+        public string RouletteOptions   { get; set; } = "";
+        public int    RouletteWindowSec { get; set; } = 30;
+        // Optional chat announcement at vote start. Placeholders:
+        //   {user} {window} {options}
+        public string RouletteOpenTemplate { get; set; } =
+            "🎰 Voting open {window}s: reply with the number to pick — {options}";
+
+        // For ActionType = "chain":
+        // Each step is "actionName" (matches another GameAction.Name in the
+        // same list) optionally followed by ":delayMs". Steps run on a
+        // thread one after the other. Children skip their own gates so
+        // a chain doesn't need to re-bill bolts / re-check cooldowns on
+        // every step — the parent's gates apply once at the trigger.
+        // Example:  "panic:0; reload:300; jump:200; flash:500"
+        public string ChainSteps { get; set; } = "";
+
+        // For ActionType = "controller":
+        // Acts on a virtual Xbox 360 gamepad via ViGEm. Driver must be
+        // installed (see Settings -> Game interactions -> Controller).
+        //
+        // ControllerKind:
+        //   "button"  — tap ControllerButton for HoldMs (A / B / X / Y /
+        //               LB / RB / Start / Back / DPadUp / DPadDown /
+        //               DPadLeft / DPadRight / LS / RS)
+        //   "trigger" — pull LT or RT to ControllerValue (0..255), hold
+        //   "stick"   — push L or R stick to (StickX, StickY), -1..1
+        public string ControllerKind   { get; set; } = "button";
+        public string ControllerButton { get; set; } = "";
+        public string ControllerTrigger { get; set; } = "RT";    // RT | LT
+        public int    ControllerValue   { get; set; } = 255;     // trigger pressure 0..255
+        public string ControllerStick   { get; set; } = "L";     // L | R
+        public double StickX            { get; set; } = 0;       // -1..1
+        public double StickY            { get; set; } = 0;       // -1..1
+
+        // For "obs-scene" / "obs-source" action types ------------------
+        // Scene to switch to (obs-scene) OR scene that hosts the source
+        // (obs-source). Empty = no-op.
+        public string ObsScene    { get; set; } = "";
+        // Source name (obs-source only). Empty = no-op.
+        public string ObsSource   { get; set; } = "";
+        // Source visibility. "show" / "hide" / "toggle". Default toggle.
+        public string ObsVisibility { get; set; } = "toggle";
+        // OBS connection index (Streamer.bot supports multiple). 0 = primary.
+        public int    ObsConnection { get; set; } = 0;
+
+        // --- Bolts cost gate (June 2026) -------------------------------
+        // Charge the viewer this many bolts to fire the action. 0 = free.
+        // Debited from the viewer's wallet BEFORE the action runs; if
+        // they can't cover the cost the action is skipped and the
+        // FailAckTemplate is sent (if set). Mods + broadcaster bypass
+        // by default — flip ChargePrivilegedRoles on to bill them too.
+        public int    BoltsCost     { get; set; } = 0;
+        // Apply BoltsCost even when a channel-point or TikTok-gift
+        // trigger fires (those viewers already paid). Default false:
+        // bolts cost only applies to chat-command triggers.
+        public bool   ChargeOnAllTriggers { get; set; } = false;
+        // Charge mods + broadcaster too. Default false (they typically
+        // use commands for testing and shouldn't be billed).
+        public bool   ChargePrivilegedRoles { get; set; } = false;
+        // Optional chat reply when the viewer can't cover the cost.
+        // Placeholders: {user} {cost} {balance} {emoji}
+        public string FailAckTemplate { get; set; } = "";
+
+        // Override for GameInteractionsConfig.RequireStreamOnline. When
+        // true, this specific action fires even while the stream is
+        // offline. Useful for setup-time test commands (broadcaster +
+        // mods only normally).
+        public bool   AllowOffline { get; set; } = false;
+
+        // Optional .wav file to play synchronously before / after the
+        // input. Empty = silent. Plays via System.Media.SoundPlayer so
+        // it doesn't need an audio library; only WAV is supported.
+        // Volume is whatever the file is recorded at; OBS-side mixing
+        // can attenuate the application audio source.
+        public string AudioCuePath { get; set; } = "";
+        // "before" (play, wait for finish, then input) or "after" or
+        // "parallel" (kick off sound + input concurrently). Default
+        // "parallel" so a 1-second sound effect doesn't add latency
+        // to a fast keypress.
+        public string AudioCueWhen { get; set; } = "parallel";
     }
 
     /// <summary>
@@ -88,12 +376,13 @@ namespace Loadout.Settings
     {
         // Master kill-switch.
         public bool Enabled                  { get; set; } = true;
-        // Per-event toggles -- all default ON because the events they
-        // cover currently have NO chat reply at all (the dungeon/duel
-        // lifecycle was overlay-only before this module).
-        public bool DungeonRecruiting        { get; set; } = true;
-        public bool DungeonCompleted         { get; set; } = true;
-        public bool DuelCompleted            { get; set; } = true;
+        // Per-event toggles. Dungeon + duel announcements default OFF
+        // since the DungeonModule is archived — no events ever publish.
+        // Fields kept so existing settings.json files round-trip without
+        // a migration bump.
+        public bool DungeonRecruiting        { get; set; } = false;
+        public bool DungeonCompleted         { get; set; } = false;
+        public bool DuelCompleted            { get; set; } = false;
         // Mini-game big-win celebration -- OFF by default to avoid
         // double-announcing on top of BoltsModule's own game responses.
         public bool MinigameBigWins          { get; set; } = false;
@@ -294,6 +583,13 @@ namespace Loadout.Settings
         // "loadoutTikTokMessage" CPH global var.
         public string TikTokSendActionName { get; set; } = "";
 
+        // When true, outgoing Twitch chat goes through CPH's bot-account
+        // SendMessage overload (asBot:true) so messages post as the
+        // configured bot account instead of the broadcaster. Requires the
+        // streamer to have a bot account connected in Streamer.bot. Falls
+        // back to broadcaster send if the bot account isn't connected.
+        public bool UseBotAccount { get; set; } = false;
+
         [JsonIgnore]
         public PlatformMask AsMask
         {
@@ -346,6 +642,7 @@ namespace Loadout.Settings
         public bool GameTracker        { get; set; } = true;   // free, on by default
         public bool Clips              { get; set; } = false;
         public bool Dungeon            { get; set; } = false;
+        public bool GameInteractions   { get; set; } = false;
     }
 
     public class AlertsConfig
@@ -777,12 +1074,94 @@ namespace Loadout.Settings
         // Seconds the overlay stays visible after a trigger when
         // ShowOnTriggerOnly is on.
         public int  HideAfterSeconds { get; set; } = 6;
+        // Counter overlay layout. "stack" = vertical list (default),
+        // "row" = horizontal pill row, "grid" = 2-column grid.
+        public string Layout { get; set; } = "stack";
+        // Accent hex (no #) for the counter pill background. Empty = use
+        // overlay default theme accent. Per-counter Color overrides this.
+        public string Accent { get; set; } = "";
+
+        // --- New customizer knobs (June 2026) ---------------------------
+        // Bump animation length (ms) when a counter changes. 0 = no
+        // animation. Higher = more conspicuous reaction.
+        public int    BumpDurationMs { get; set; } = 600;
+        // Render the per-counter emoji next to the value. Disabling
+        // makes the overlay reads as a clean number-only badge.
+        public bool   ShowEmojis     { get; set; } = true;
+        // Corner radius (px) of each counter pill. 0 = sharp square,
+        // 999 = pill. Lets a streamer match the rest of their UI.
+        public int    CornerRadiusPx { get; set; } = 12;
+        // Counter pill background alpha (0-100). 0 = pills disappear
+        // (text floats), 100 = fully solid.
+        public int    BgOpacity      { get; set; } = 60;
+        // Show a small +N / -N delta chip next to the value for ~1s
+        // after each change. Reads as "wait, did that just change?".
+        public bool   ShowDeltaChip  { get; set; } = true;
+        // Font weight for the value digits. 400 normal, 700 bold, 800 heavy.
+        public int    ValueFontWeight { get; set; } = 700;
 
         public List<Counter> Counters { get; set; } = new List<Counter>
         {
-            new Counter { Name = "deaths", Display = "Deaths", Emoji = "💀", Value = 0 },
-            new Counter { Name = "wins",   Display = "Wins",   Emoji = "🏆", Value = 0 }
+            new Counter
+            {
+                Name = "deaths", Display = "Deaths", Emoji = "💀", Value = 0,
+                IncrementCommand = "!died",
+                DecrementCommand = "!undied",
+                ResetCommand     = "!resetdeaths",
+                Color = "ef4444"
+            },
+            new Counter
+            {
+                Name = "wins", Display = "Wins", Emoji = "🏆", Value = 0,
+                IncrementCommand = "!gg",
+                DecrementCommand = "",
+                ResetCommand     = "!resetwins",
+                Color = "f59e0b"
+            }
         };
+
+        // Combo commands — one chat trigger fires N counter mutations.
+        // Lets a streamer define things like "every death adds +1 to the
+        // deaths counter AND +10 to the push-ups penalty counter" without
+        // needing two manual commands. Checked BEFORE the per-counter
+        // alias / primary command path in CountersModule so the combo
+        // takes precedence when both would match the same word.
+        public List<CounterCombo> Combos { get; set; } = new List<CounterCombo>();
+    }
+
+    /// <summary>
+    /// A single chat trigger that mutates multiple counters in one shot.
+    /// Role-gated; optional chat acknowledgement with {user} / {actions}
+    /// placeholders. Matched on the bare token (case-insensitive); leading
+    /// '!' is optional in <see cref="Command"/>.
+    /// </summary>
+    public class CounterCombo
+    {
+        // Chat trigger. "!died" and "died" both match the typed "!died".
+        public string Command { get; set; } = "";
+        // CSV of roles allowed to invoke (broadcaster always passes).
+        public string ModifyRoles { get; set; } = "broadcaster,mod";
+        // Optional chat ack on success. Empty = silent (the per-counter
+        // bus events still fire so overlays react). Placeholders:
+        //   {user}    — invoker handle
+        //   {actions} — comma-joined "Display: value" of each mutated counter
+        public string AckTemplate { get; set; } = "";
+        public List<CounterAction> Actions { get; set; } = new List<CounterAction>();
+    }
+
+    /// <summary>
+    /// One mutation step inside a <see cref="CounterCombo"/>. Targets a
+    /// counter by name (case-insensitive); ignored if no counter with
+    /// that name exists, so removing a counter doesn't break the combo.
+    /// </summary>
+    public class CounterAction
+    {
+        public string CounterName { get; set; } = "";
+        // Op = "add" -> Value = signed delta (positive or negative).
+        //      "set" -> Value = absolute new value.
+        //      "reset" -> Value ignored, counter goes to 0.
+        public string Op    { get; set; } = "add";
+        public int    Value { get; set; } = 0;
     }
 
     public class Counter
@@ -801,6 +1180,31 @@ namespace Loadout.Settings
         public string ModifyRoles { get; set; } = "broadcaster,mod";
         // Resets each new stream (we detect via ObsStreamingStarted later).
         public bool   ResetEachStream { get; set; } = false;
+
+        // Aliases — extra commands that perform a fixed action on this
+        // counter. The main "!<Name>" command always works (show / set /
+        // +N / -N / reset). These give the streamer punchier one-shots:
+        //   !died      -> deaths +1
+        //   !gg        -> wins   +1
+        //   !resetdeaths -> deaths reset
+        // Empty = no alias. Aliases respect the same ModifyRoles gate.
+        public string IncrementCommand { get; set; } = "";
+        public string DecrementCommand { get; set; } = "";
+        public string ResetCommand     { get; set; } = "";
+        // Per-counter pill color (hex without #). Empty = use the
+        // counters overlay's default theme accent or CountersConfig.Accent.
+        public string Color { get; set; } = "";
+        // Optional minimum / maximum the counter can hit. Stored as
+        // nullable so existing settings.json files (no Min/Max field)
+        // deserialize to "no cap" instead of accidentally clamping at 0
+        // — Newtonsoft fills missing ints with 0, which would break
+        // deaths counters that need to swing through 0.
+        public int? MinValue { get; set; } = null;
+        public int? MaxValue { get; set; } = null;
+        // When true the counter is excluded from the overlay (still shows
+        // in chat). Useful for an internal counter you track but don't
+        // want on stream.
+        public bool Hidden { get; set; } = false;
     }
 
     public class CheckInConfig
@@ -823,6 +1227,24 @@ namespace Loadout.Settings
         public bool   ShowPatreonFlair { get; set; } = true;
         public bool   ShowSubFlair     { get; set; } = true;
         public bool   ShowVipModFlair  { get; set; } = true;
+
+        // --- New customizer knobs (June 2026) ---------------------------
+        // Total seconds the check-in card stays on screen before fading.
+        // 0 = persistent (no auto-hide).
+        public int    DisplaySeconds   { get; set; } = 12;
+        // Accent hex (no #). Empty = use the global OverlayTheme accent.
+        public string Accent           { get; set; } = "";
+        // Card corner radius (px).
+        public int    CornerRadiusPx   { get; set; } = 16;
+        // Card background alpha (0-100). Drops with the background dim
+        // for a translucent look that works over any scene.
+        public int    BgOpacity        { get; set; } = 86;
+        // Show the rotating stats row beneath the username. Off = only
+        // the avatar + display name + flairs render.
+        public bool   ShowStatsRow     { get; set; } = true;
+        // Replace the username with the gamer-tag for the current
+        // active platform when the viewer has one set in their profile.
+        public bool   ShowGamerTag     { get; set; } = false;
     }
 
     public class PatreonSupportersConfig
@@ -864,7 +1286,29 @@ namespace Loadout.Settings
         public string GamerTagsCommand { get; set; } = "!gamertags";
         public Dictionary<string, string> GamerTags { get; set; } = new Dictionary<string, string>();
 
-        public List<CustomCommand> Custom { get; set; } = new List<CustomCommand>();
+        // Common chat commands every channel ends up wanting. These ship
+        // as a starter pack so a fresh install has more than just the
+        // built-ins; the streamer can edit/delete any line in Settings.
+        // Onboarding seeds the same set when InfoCommands is enabled.
+        public List<CustomCommand> Custom { get; set; } = new List<CustomCommand>
+        {
+            new CustomCommand { Name = "waddup",   Response = "WADDUP {user}! 👋 welcome in." },
+            new CustomCommand { Name = "hello",    Response = "Hey {user}! Glad you're here 💜" },
+            new CustomCommand { Name = "hug",      Response = "{user} sends a big hug 🤗" },
+            new CustomCommand { Name = "hype",     Response = "🚀 LET'S GOOO 🚀" },
+            new CustomCommand { Name = "raid",     Response = "Thanks for the raid {rest}! Welcome raiders 💜" },
+            new CustomCommand { Name = "specs",    Response = "PC specs: edit this in Settings -> Info commands -> Custom (!specs)." },
+            new CustomCommand { Name = "sens",     Response = "Sens: edit this in Settings -> Info commands -> Custom (!sens)." },
+            new CustomCommand { Name = "schedule", Response = "Stream schedule: edit this in Settings -> Info commands -> Custom (!schedule)." },
+            new CustomCommand { Name = "merch",    Response = "Merch link: edit this in Settings -> Info commands -> Custom (!merch)." },
+            new CustomCommand { Name = "donate",   Response = "Support the stream: edit this in Settings -> Info commands -> Custom (!donate)." },
+            new CustomCommand { Name = "youtube",  Response = "YouTube: edit this in Settings -> Info commands -> Your socials." },
+            new CustomCommand { Name = "tiktok",   Response = "TikTok: edit this in Settings -> Info commands -> Your socials." },
+            new CustomCommand { Name = "twitter",  Response = "Twitter/X: edit this in Settings -> Info commands -> Your socials." },
+            new CustomCommand { Name = "rules",    Response = "Be cool, be kind, no spoilers. Have fun 💜" },
+            new CustomCommand { Name = "prime",    Response = "Twitch Prime subs are FREE every month! Use yours on the channel 💜" },
+            new CustomCommand { Name = "bot",      Response = "I run Loadout for Streamer.bot — full suite, one import. https://aquilo.gg/tools" }
+        };
     }
 
     public class CustomCommand
@@ -888,6 +1332,21 @@ namespace Loadout.Settings
             new Goal { Name = "Bit goal", Kind = "bits",      Target = 5000, Current = 0, Enabled = false },
             new Goal { Name = "Followers", Kind = "followers", Target = 1000, Current = 0, Enabled = false }
         };
+
+        // --- Customizer knobs (June 2026) -------------------------------
+        // Visual style of the progress bar. "filled" = solid fill,
+        // "striped" = animated diagonal stripes, "glow" = subtle pulse.
+        public string BarStyle      { get; set; } = "filled";   // filled | striped | glow
+        // Render the numeric "X / Y" + percentage text on each goal row.
+        public bool   ShowNumbers   { get; set; } = true;
+        // Display goals as horizontal bars (default) or vertical thermometers.
+        public string Orientation   { get; set; } = "horizontal"; // horizontal | vertical
+        // Bar corner radius (px). 0 = sharp, 999 = pill.
+        public int    CornerRadiusPx { get; set; } = 999;
+        // Bar accent hex (no #). Empty = aurora gradient.
+        public string Accent        { get; set; } = "";
+        // Celebrate when a goal hits 100%: brief confetti + ring flash.
+        public bool   CelebrateOnReach { get; set; } = true;
     }
 
     public class Goal
@@ -906,6 +1365,42 @@ namespace Loadout.Settings
         public bool QuietMode             { get; set; } = false;
         // Loadout will not send more than this many messages/minute, total.
         public int  MaxChatPerMinute      { get; set; } = 30;
+
+        // Block list - chat events from any handle in this list are
+        // dropped before any module sees them. Used to ignore Nightbot /
+        // StreamElements / Moobot / other bots that would otherwise
+        // trigger welcomes, counters, info commands, etc. Match is
+        // case-insensitive on the user handle WITHOUT the leading @.
+        // Wildcards: a trailing "*" matches any suffix
+        // ("streamlabs*" hits "streamlabs", "streamlabsBot", etc.).
+        // Comma- or newline-separated when edited in Settings; stored
+        // here as a normalized list.
+        public List<string> BlockedUsers { get; set; } = new List<string>
+        {
+            "nightbot",
+            "streamelements",
+            "moobot",
+            "streamlabs",
+            "wizebot",
+            "sery_bot",
+            "soundalerts",
+            "fossabot"
+        };
+
+        // Ignore the broadcaster's own chat for AMBIENT processing —
+        // welcomes, first-chatter style celebrations, per-message bolt
+        // earns, engagement tracking (top chatter), chat-velocity hype
+        // detection, and recap chat counts. Default ON: the streamer
+        // talking shouldn't make them their own top chatter, earn them
+        // bolts, or trip hype detection — and when Loadout sends chat
+        // through the broadcaster account, this also stops the bot's
+        // own output from feeding back into those trackers.
+        //
+        // Deliberately NOT a full block: the broadcaster's COMMANDS
+        // (!died, !uptime, mod tampers, game actions) still work, and
+        // the timed-messages "pause after the streamer talks" gate
+        // still sees their messages.
+        public bool IgnoreBroadcasterChat { get; set; } = true;
 
         // Per-area chat output. Disable any of these and the underlying module
         // still runs - overlays, persistence, bus events all keep working.

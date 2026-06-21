@@ -118,3 +118,95 @@ namespace Loadout.Modules
             // timer fire. Using "timer.fired" as the kind matches the
             // domain-event naming the dock filters off.
             Util.EventStats.Instance.Hit("timer.fired", nameof(TimedMessagesModule));
+
+            _lastFiredUtc = DateTime.UtcNow;
+        }
+
+        private static string Truncate(string s, int max)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Length <= max ? s : s.Substring(0, max) + "...";
+        }
+
+        private TimedMessage SelectNextMessage(LoadoutSettings s)
+        {
+            var now = DateTime.UtcNow;
+
+            // Global broadcaster pause: streamer just talked, so hold off.
+            if (s.Timers.BroadcasterPauseSec > 0 &&
+                (now - _lastBroadcasterMessageUtc).TotalSeconds < s.Timers.BroadcasterPauseSec)
+                return null;
+
+            // Global sequence interval: one message per IntervalMinutes.
+            var interval = Math.Max(1, s.Timers.IntervalMinutes);
+            if ((now - _lastFiredUtc).TotalMinutes < interval)
+                return null;
+
+            // Activity gate: chat must have had MinChatMessages in the last
+            // MinChatWindowMinutes — keeps us from yelling into an empty room.
+            var window = TimeSpan.FromMinutes(Math.Max(1, s.Timers.MinChatWindowMinutes));
+            if (ChatCountIn(window) < s.Timers.MinChatMessages)
+                return null;
+
+            // Per-game profile group filter (unchanged behavior).
+            var p = GameProfilesModule.ActiveProfile;
+            string[] activeGroups = null;
+            if (p != null && !string.IsNullOrEmpty(p.ActiveTimerGroups))
+                activeGroups = p.ActiveTimerGroups.Split(',')
+                    .Select(x => x.Trim()).Where(x => !string.IsNullOrEmpty(x)).ToArray();
+
+            IEnumerable<TimedMessage> source = s.Timers.Messages
+                .Where(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Message));
+            if (activeGroups != null && activeGroups.Length > 0)
+                source = source.Where(t => activeGroups.Contains(t.Group ?? "Default", StringComparer.OrdinalIgnoreCase));
+
+            var list = source.ToList();
+            if (list.Count == 0) return null;
+
+            // Sequential pick: peek at the current cursor. We DO NOT
+            // advance here, the cursor only moves once OnTick confirms
+            // sender.Send returned a non-empty platform mask. That keeps
+            // a rate-limited or disconnected tick from silently burning
+            // a message in the rotation. AdvanceSequence below handles
+            // the increment + wrap once the send commits.
+            _lastSelectionListCount = list.Count;
+            return list[_seqIndex % list.Count];
+        }
+
+        // Cached so AdvanceSequence wraps against the same list size the
+        // tick just selected from (in case settings mutate between
+        // selection + advance, which the lock-free design tolerates).
+        private int _lastSelectionListCount;
+
+        private void AdvanceSequence(LoadoutSettings s)
+        {
+            var count = _lastSelectionListCount;
+            if (count <= 0) count = s.Timers.Messages.Count(t => t.Enabled && !string.IsNullOrWhiteSpace(t.Message));
+            if (count <= 0) return;
+            _seqIndex = (_seqIndex + 1) % count;
+        }
+
+        private int ChatCountIn(TimeSpan window)
+        {
+            lock (_recentChats)
+            {
+                Trim();
+                var cutoff = DateTime.UtcNow - window;
+                int count = 0;
+                for (var node = _recentChats.Last; node != null; node = node.Previous)
+                {
+                    if (node.Value < cutoff) break;
+                    count++;
+                }
+                return count;
+            }
+        }
+
+        private void Trim()
+        {
+            var cutoff = DateTime.UtcNow - TimeSpan.FromMinutes(RecentChatsWindowMinutes);
+            while (_recentChats.First != null && _recentChats.First.Value < cutoff)
+                _recentChats.RemoveFirst();
+        }
+    }
+}

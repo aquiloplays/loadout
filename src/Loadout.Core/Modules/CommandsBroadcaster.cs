@@ -202,7 +202,8 @@ namespace Loadout.Modules
             }
 
             // ------ Clip ------
-            if (s.Modules.Clips && s.Clips != null && s.Clips.Enabled)
+            // Either-toggle semantics, matches ClipsModule's runtime gate.
+            if (s.Clips != null && (s.Modules.Clips || s.Clips.Enabled))
             {
                 var cmd = s.Clips.Command ?? "!clip";
                 if (!cmd.StartsWith("!")) cmd = "!" + cmd;

@@ -48,6 +48,10 @@ namespace Loadout.UI
                     var bmp = new System.Windows.Media.Imaging.BitmapImage();
                     bmp.BeginInit();
                     bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    // Decode at near-render size so WPF doesn't bilinear-
+                    // shrink 1024 -> 32 on every layout pass (produced
+                    // visible jaggies on the slot-grid icon).
+                    bmp.DecodePixelWidth = 96;
                     bmp.StreamSource = s;
                     bmp.EndInit();
                     bmp.Freeze();

@@ -50,6 +50,7 @@ namespace Loadout.UI
         private readonly ObservableCollection<ChannelPointMapping> _channelPoints = new ObservableCollection<ChannelPointMapping>();
         private readonly ObservableCollection<WalletRow>        _wallets        = new ObservableCollection<WalletRow>();
         private readonly ObservableCollection<BoltsShopItem>    _shopItems      = new ObservableCollection<BoltsShopItem>();
+        private readonly ObservableCollection<GameAction>       _gameActions    = new ObservableCollection<GameAction>();
         // !socials + !gamertags rows. PlatformLinkRow is a simple
         // {Platform, Link} POCO so the DataGrid binding is trivial;
         // saved/loaded as Dictionary<string,string> on the settings.
@@ -65,6 +66,25 @@ namespace Loadout.UI
                 if (sb != null) sb.Begin(this);
             }
             catch { Opacity = 1; }
+            // Ctrl+F focuses the tab search box from anywhere in the
+            // window. PreviewKeyDown so we beat any focused child
+            // that might also bind Ctrl+F (e.g. a DataGrid that adds
+            // its own find shortcut on newer .NET targets).
+            PreviewKeyDown += SettingsWindow_PreviewKeyDown;
+        }
+
+        private void SettingsWindow_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.F &&
+                System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
+            {
+                if (TxtTabSearch != null)
+                {
+                    TxtTabSearch.Focus();
+                    TxtTabSearch.SelectAll();
+                }
+                e.Handled = true;
+            }
         }
 
         private SettingsWindow()
@@ -163,6 +183,7 @@ namespace Loadout.UI
             if (TxtQuickBroadcaster   != null) TxtQuickBroadcaster.Text   = s.BroadcasterName ?? "";
             if (ChkQuickDryRun        != null) ChkQuickDryRun.IsChecked   = s.DryRun;
             if (ChkQuickQuietMode     != null) ChkQuickQuietMode.IsChecked= s.ChatNoise?.QuietMode == true;
+            if (ChkQuickBotAccount    != null) ChkQuickBotAccount.IsChecked = s.Platforms?.UseBotAccount == true;
             if (ChkQuickAlerts        != null) ChkQuickAlerts.IsChecked   = s.Modules.Alerts;
             if (ChkQuickWelcomes      != null) ChkQuickWelcomes.IsChecked = s.Modules.ContextWelcomes;
             if (ChkQuickBolts         != null) ChkQuickBolts.IsChecked    = s.Modules.Bolts;
@@ -197,6 +218,17 @@ namespace Loadout.UI
             Pair(ChkQuickRecap,     ModRecap);
             Pair(ChkQuickCheckin,   ModCheckIn);
             Pair(ChkQuickQuietMode, ChkQuietMode);
+            Pair(ChkQuickBotAccount, ChkUseBotAccount);
+
+            // Modules-tab master ↔ feature-tab "Enabled" toggle. Without
+            // this, a streamer could enable "!clip enabled" in the
+            // Clips tab and see Clips reported "Off" on the Health tab
+            // (because ClipsModule gates on BOTH s.Modules.Clips AND
+            // s.Clips.Enabled). Pair-ing keeps the runtime gate happy
+            // and makes Health match what the user thinks they did.
+            // Only Clips currently has this dual-surface pattern; if
+            // other modules grow it, add Pair() calls here.
+            Pair(ModClips, ChkClipsEnabled);
 
             if (TxtQuickBroadcaster != null && TxtBroadcaster != null)
             {
@@ -266,10 +298,20 @@ namespace Loadout.UI
         }
 
         // ── Sidebar tab search ───────────────────────────────────────────
-        // Filters MainTabs.Items by header text. Section divider tabs
-        // (the all-caps SETUP / DATA / OVERLAYS labels) stay visible
-        // since they're zero-height anyway and dropping them would
-        // cluster the matched items confusingly.
+        // Filters MainTabs.Items by header text AND tab body content
+        // (H1/H2/H3 titles, every TextBlock, every Tooltip). A streamer
+        // who types "block" finds the Quiet-mode tab because the
+        // block-list textarea description contains "block"; typing
+        // "patreon" finds both Setup AND the Patreon tab. Section
+        // divider tabs (SETUP / DATA / OVERLAYS) stay visible since
+        // they're zero-height labels.
+        //
+        // Cache: walking the visual+logical tree for every TextBlock /
+        // Tooltip is cheap once but happens on EVERY keystroke. The
+        // cache keys on the TabItem reference; invalidated only by tab
+        // structure changes (which Loadout doesn't do at runtime).
+        private readonly Dictionary<TabItem, string> _tabSearchCache = new Dictionary<TabItem, string>();
+
         private void TxtTabSearch_TextChanged(object sender, TextChangedEventArgs e)
         {
             ApplyTabFilter(TxtTabSearch?.Text ?? "");
@@ -280,6 +322,26 @@ namespace Loadout.UI
             {
                 if (TxtTabSearch != null) TxtTabSearch.Text = "";
                 e.Handled = true;
+                return;
+            }
+            // Enter jumps to the first match — handy when the search
+            // narrows to a single tab the user wants to dive into.
+            if (e.Key == System.Windows.Input.Key.Enter || e.Key == System.Windows.Input.Key.Return)
+            {
+                if (MainTabs != null)
+                {
+                    for (int i = 0; i < MainTabs.Items.Count; i++)
+                    {
+                        if (MainTabs.Items[i] is TabItem ti &&
+                            ti.Visibility == Visibility.Visible &&
+                            !IsSectionTab(ti))
+                        {
+                            MainTabs.SelectedIndex = i;
+                            break;
+                        }
+                    }
+                }
+                e.Handled = true;
             }
         }
         private void ApplyTabFilter(string query)
@@ -288,22 +350,48 @@ namespace Loadout.UI
             var q = (query ?? "").Trim().ToLowerInvariant();
             int firstVisibleIdx = -1;
             int currentIdx = -1;
+            int matchCount = 0;
+            int totalCount = 0;
             for (int i = 0; i < MainTabs.Items.Count; i++)
             {
                 var item = MainTabs.Items[i] as TabItem;
                 if (item == null) continue;
-                // Section-divider tabs use the SidebarNavSectionHeader
-                // style and are always visible; they're not selectable.
-                var styleKey = (item.Style?.ToString() ?? "");
-                bool isSection = styleKey.IndexOf("SidebarNavSectionHeader", StringComparison.OrdinalIgnoreCase) >= 0;
-                if (isSection)
+                if (IsSectionTab(item))
                 {
                     item.Visibility = Visibility.Visible;
                     continue;
                 }
-                bool match = q.Length == 0 || ExtractTabHeaderText(item).ToLowerInvariant().Contains(q);
+                totalCount++;
+                bool match;
+                if (q.Length == 0)
+                {
+                    match = true;
+                }
+                else
+                {
+                    // Header text is cheap and updates more often (no
+                    // realized-tree dependency) — try it first.
+                    var headerText = ExtractTabHeaderText(item).ToLowerInvariant();
+                    match = headerText.Contains(q);
+                    if (!match)
+                    {
+                        // Fall back to the deep cache. Built lazily on
+                        // first miss so a streamer who only ever searches
+                        // by tab name never pays the walk cost.
+                        if (!_tabSearchCache.TryGetValue(item, out var deepText))
+                        {
+                            deepText = BuildTabSearchIndex(item).ToLowerInvariant();
+                            _tabSearchCache[item] = deepText;
+                        }
+                        match = deepText.Contains(q);
+                    }
+                }
                 item.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
-                if (match && firstVisibleIdx < 0) firstVisibleIdx = i;
+                if (match)
+                {
+                    matchCount++;
+                    if (firstVisibleIdx < 0) firstVisibleIdx = i;
+                }
                 if (item.IsSelected) currentIdx = i;
             }
             // If the currently-selected tab got hidden, jump to the
@@ -313,6 +401,118 @@ namespace Loadout.UI
                 && firstVisibleIdx >= 0)
             {
                 MainTabs.SelectedIndex = firstVisibleIdx;
+            }
+            // Match-count pill — "5/27" gives a quick gauge of how
+            // narrow the query is. Empty query collapses the label.
+            if (TxtTabSearchCount != null)
+            {
+                if (q.Length == 0) TxtTabSearchCount.Text = "";
+                else if (matchCount == 0) TxtTabSearchCount.Text = "no matches";
+                else TxtTabSearchCount.Text = matchCount + "/" + totalCount;
+            }
+            // Inline results popup. Stays closed for very short queries
+            // (1-char) where it'd just be noise.
+            RefreshSearchResults(q);
+        }
+
+        // Inline search results popup — surfaces one deep-link entry
+        // per matching tab so the user can jump straight to it without
+        // first picking from the sidebar. Each entry shows: the tab
+        // label + a 60-char excerpt from the indexed content showing
+        // where the match lives.
+        private void RefreshSearchResults(string q)
+        {
+            if (SearchResultsPopup == null || SearchResultsList == null) return;
+            if (string.IsNullOrEmpty(q) || q.Length < 2)
+            {
+                SearchResultsPopup.IsOpen = false;
+                return;
+            }
+            var results = new System.Collections.Generic.List<object>();
+            for (int i = 0; i < MainTabs.Items.Count; i++)
+            {
+                if (!(MainTabs.Items[i] is TabItem item) || IsSectionTab(item)) continue;
+                if (item.Visibility != Visibility.Visible) continue;
+                if (!_tabSearchCache.TryGetValue(item, out var deep))
+                {
+                    deep = BuildTabSearchIndex(item).ToLowerInvariant();
+                    _tabSearchCache[item] = deep;
+                }
+                int idx = deep.IndexOf(q);
+                if (idx < 0) continue;
+                int start = System.Math.Max(0, idx - 30);
+                int len   = System.Math.Min(deep.Length - start, q.Length + 60);
+                var excerpt = deep.Substring(start, len).Replace('\n', ' ').Trim();
+                if (start > 0) excerpt = "…" + excerpt;
+                if (start + len < deep.Length) excerpt = excerpt + "…";
+                results.Add(new
+                {
+                    TabIndex = i,
+                    TabLabel = ExtractTabHeaderText(item).Trim(),
+                    Match    = excerpt
+                });
+                if (results.Count >= 15) break;
+            }
+            SearchResultsList.ItemsSource = results;
+            SearchResultsPopup.IsOpen = results.Count > 0;
+        }
+
+        private void SearchResultClicked(object sender, RoutedEventArgs e)
+        {
+            if (sender is Button b && b.Tag is int idx &&
+                idx >= 0 && idx < MainTabs.Items.Count)
+            {
+                MainTabs.SelectedIndex = idx;
+            }
+            if (SearchResultsPopup != null) SearchResultsPopup.IsOpen = false;
+        }
+        private static bool IsSectionTab(TabItem item)
+        {
+            var styleKey = item.Style?.ToString() ?? "";
+            return styleKey.IndexOf("SidebarNavSectionHeader", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+        /// <summary>
+        /// One-shot text index for a TabItem: header text + every
+        /// TextBlock under the content tree + every Tooltip we can
+        /// reach. Visited via the visual+logical tree so collapsed
+        /// content (a tab that's never been selected) still gets
+        /// indexed. Called lazily on first search miss for that tab.
+        /// </summary>
+        private static string BuildTabSearchIndex(TabItem item)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append(ExtractTabHeaderText(item));
+            sb.Append(' ');
+            CollectSearchableText(item.Content as System.Windows.DependencyObject, sb);
+            return sb.ToString();
+        }
+        private static void CollectSearchableText(System.Windows.DependencyObject d, System.Text.StringBuilder sb)
+        {
+            if (d == null) return;
+            // Tooltip — many Loadout controls expose what they do via
+            // tooltip rather than visible label. Indexing tooltips
+            // means typing "shoutout" or "raid" finds the Clips card
+            // that mentions them in passing.
+            if (d is FrameworkElement fe && fe.ToolTip is string ttStr && !string.IsNullOrEmpty(ttStr))
+            { sb.Append(' '); sb.Append(ttStr); }
+            switch (d)
+            {
+                case TextBlock tb when !string.IsNullOrEmpty(tb.Text):
+                    sb.Append(' '); sb.Append(tb.Text); break;
+                case System.Windows.Controls.CheckBox cb when cb.Content is string cs:
+                    sb.Append(' '); sb.Append(cs); break;
+                case System.Windows.Controls.Button btn when btn.Content is string bs:
+                    sb.Append(' '); sb.Append(bs); break;
+                case System.Windows.Documents.Run run when !string.IsNullOrEmpty(run.Text):
+                    sb.Append(' '); sb.Append(run.Text); break;
+            }
+            int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(d);
+            for (int i = 0; i < n; i++)
+                CollectSearchableText(System.Windows.Media.VisualTreeHelper.GetChild(d, i), sb);
+            if (d is FrameworkElement felem)
+            {
+                foreach (var child in System.Windows.LogicalTreeHelper.GetChildren(felem))
+                    if (child is System.Windows.DependencyObject cd) CollectSearchableText(cd, sb);
             }
         }
         private static string ExtractTabHeaderText(TabItem item)
@@ -451,6 +651,14 @@ namespace Loadout.UI
                     var bmp = new System.Windows.Media.Imaging.BitmapImage();
                     bmp.BeginInit();
                     bmp.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    // Decode straight to a small render-sized bitmap rather
+                    // than holding the full 1024x1024 master in memory and
+                    // letting WPF bilinear-shrink it at every layout pass.
+                    // 128 covers a 40px Image on a 2× DPI display + headroom
+                    // for the Onboarding window's 32px version. Without this,
+                    // the icon's sharp grid lines + selection dot rendered
+                    // with visible jaggies.
+                    bmp.DecodePixelWidth = 128;
                     bmp.StreamSource = s;
                     bmp.EndInit();
                     bmp.Freeze();
@@ -498,6 +706,8 @@ namespace Loadout.UI
                     if (s.Bolts           == null) s.Bolts           = new BoltsConfig();
                     if (s.ChatNoise       == null) s.ChatNoise       = new ChatNoiseConfig();
                     if (s.Apex            == null) s.Apex            = new ApexConfig();
+                    if (s.GameInteractions == null) s.GameInteractions = new GameInteractionsConfig();
+                    if (s.GameInteractions.Actions == null) s.GameInteractions.Actions = new System.Collections.Generic.List<GameAction>();
                     if (s.RotationIntegration == null) s.RotationIntegration = new RotationIntegrationConfig();
                     if (s.Clips           == null) s.Clips           = new ClipsConfig();
                     if (s.FollowBatch     == null) s.FollowBatch     = new FollowBatchConfig();
@@ -585,6 +795,41 @@ namespace Loadout.UI
             foreach (var c in s.Counters.Counters) _counters.Add(c);
             GrdCounters.ItemsSource = _counters;
 
+            // Game Interactions
+            if (GrdGameInteractions != null)
+            {
+                _gameActions.Clear();
+                if (s.GameInteractions?.Actions != null)
+                    foreach (var a in s.GameInteractions.Actions) _gameActions.Add(a);
+                GrdGameInteractions.ItemsSource = _gameActions;
+            }
+            if (ChkGameInteractionsEnabled != null) ChkGameInteractionsEnabled.IsChecked = s.GameInteractions?.Enabled == true;
+            if (ChkGameInteractionsDryRun  != null) ChkGameInteractionsDryRun.IsChecked  = s.GameInteractions?.DryRun  == true;
+            if (TxtGameInteractionsWindow  != null) TxtGameInteractionsWindow.Text       = s.GameInteractions?.TargetWindowTitle ?? "";
+            if (TxtGameInteractionsCdMult  != null) TxtGameInteractionsCdMult.Text       = (s.GameInteractions?.GlobalCooldownMultiplier ?? 1.0).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (TxtGameInteractionsMaxRate != null) TxtGameInteractionsMaxRate.Text      = (s.GameInteractions?.MaxActionsPerSecond ?? 6).ToString();
+            if (CmbGameTemplate != null && CmbGameTemplate.Items.Count == 0)
+            {
+                // Populate the template dropdown once. Tag holds the
+                // template Key; SelectionChanged drives the hint label.
+                foreach (var t in Loadout.Games.Interactions.GameInteractionTemplates.All)
+                {
+                    var item = new ComboBoxItem { Content = t.Label, Tag = t.Key };
+                    CmbGameTemplate.Items.Add(item);
+                }
+                CmbGameTemplate.SelectedIndex = 0;
+                CmbGameTemplate.SelectionChanged += (_, __) => RefreshGameTemplateHint();
+                RefreshGameTemplateHint();
+            }
+            // Initial ViGEm probe (Reset+Initialize so reopening Settings
+            // after a driver install picks the new state up).
+            try
+            {
+                Loadout.Games.Interactions.ViGEmBridge.Initialize();
+                RefreshVigemStatus();
+            }
+            catch { /* never block settings load on this */ }
+
             // Counters overlay behavior
             if (TxtCountersOpacity   != null) TxtCountersOpacity.Text   = s.Counters.Opacity.ToString();
             if (TxtCountersHideAfter != null) TxtCountersHideAfter.Text = s.Counters.HideAfterSeconds.ToString();
@@ -617,6 +862,401 @@ namespace Loadout.UI
         {
             _counters.Add(new Counter { Name = "newcounter", Display = "New counter", Value = 0 });
             GrdCounters.SelectedItem = _counters[_counters.Count - 1];
+        }
+
+        // --- Game Interactions ---------------------------------------
+        private void BtnGiAdd_Click(object sender, RoutedEventArgs e)
+        {
+            _gameActions.Add(new GameAction
+            {
+                Enabled = true,
+                Name = "New action",
+                TriggerKind = "command",
+                TriggerValue = "panic",
+                ActionType = "key",
+                Keys = "F1",
+                HoldMs = 50,
+                Repeat = 1,
+                AllowedRoles = "mod,broadcaster",
+                CooldownGlobalSec = 5,
+                Probability = 1.0
+            });
+            GrdGameInteractions.SelectedItem = _gameActions[_gameActions.Count - 1];
+        }
+        private void BtnGiRemove_Click(object sender, RoutedEventArgs e)
+        {
+            if (GrdGameInteractions.SelectedItem is GameAction a && ConfirmRemove("action")) _gameActions.Remove(a);
+        }
+        private void BtnGiTest_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(GrdGameInteractions.SelectedItem is GameAction a))
+            {
+                MessageBox.Show("Pick an action first.", "Loadout", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            try
+            {
+                // Use the live config so the foreground-window guard +
+                // DryRun toggle the streamer just set apply to the test.
+                var s = SettingsManager.Instance.Current;
+                Loadout.Modules.GameInteractionsModule.FireAction(a, null, s.GameInteractions);
+            }
+            catch (Exception ex)
+            {
+                Util.ErrorLog.Write("BtnGiTest", ex);
+                MessageBox.Show("Test failed:\n\n" + ex.Message, "Loadout",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        // --- ViGEm controller setup -----------------------------------
+        private void BtnVigemCheck_Click(object sender, RoutedEventArgs e)
+        {
+            // Reset so we re-probe from a clean state — the streamer
+            // might have JUST installed the driver or dropped the lib.
+            Loadout.Games.Interactions.ViGEmBridge.Reset();
+            Loadout.Games.Interactions.ViGEmBridge.Initialize();
+            RefreshVigemStatus();
+        }
+        private void BtnVigemDriver_Click(object sender, RoutedEventArgs e)
+        {
+            try { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                  { FileName = "https://github.com/nefarius/ViGEmBus/releases", UseShellExecute = true }); }
+            catch (Exception ex) { Util.ErrorLog.Write("BtnVigemDriver", ex); }
+        }
+        private void BtnVigemDataFolder_Click(object sender, RoutedEventArgs e)
+        {
+            try { System.Diagnostics.Process.Start("explorer.exe", SettingsManager.Instance.DataFolder); }
+            catch (Exception ex) { Util.ErrorLog.Write("BtnVigemDataFolder", ex); }
+        }
+        private void RefreshVigemStatus()
+        {
+            if (TxtVigemStatus == null) return;
+            var status = Loadout.Games.Interactions.ViGEmBridge.Status;
+            switch (status)
+            {
+                case "ok":
+                    TxtVigemStatus.Text = "ready · Xbox 360 virtual controller online";
+                    TxtVigemStatus.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Success");
+                    PillVigem.Style = (Style)FindResource("PillSuccess");
+                    TxtVigemError.Visibility = Visibility.Collapsed;
+                    break;
+                case "lib-missing":
+                    TxtVigemStatus.Text = "wrapper DLL missing";
+                    TxtVigemStatus.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Fg.Muted");
+                    PillVigem.Style = (Style)FindResource("Pill");
+                    TxtVigemError.Text = "Download Nefarius.ViGEm.Client.dll (from the NuGet package on github.com/nefarius/Nefarius.ViGEm.Client) and drop it in your Loadout data folder. Then click Check driver again.";
+                    TxtVigemError.Visibility = Visibility.Visible;
+                    break;
+                case "driver-missing":
+                    TxtVigemStatus.Text = "driver not installed";
+                    TxtVigemStatus.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Fg.Muted");
+                    PillVigem.Style = (Style)FindResource("Pill");
+                    TxtVigemError.Text = "Wrapper DLL loaded but the ViGEm Bus Driver isn't installed. Open the driver install page, run the MSI, and reboot if prompted. Detail: " +
+                        Loadout.Games.Interactions.ViGEmBridge.LastErrorMessage;
+                    TxtVigemError.Visibility = Visibility.Visible;
+                    break;
+                default:
+                    TxtVigemStatus.Text = "not checked";
+                    TxtVigemStatus.Foreground = (System.Windows.Media.Brush)FindResource("Brush.Fg.Muted");
+                    PillVigem.Style = (Style)FindResource("Pill");
+                    TxtVigemError.Visibility = Visibility.Collapsed;
+                    break;
+            }
+        }
+
+        private void BtnGiTwitchReward_Click(object sender, RoutedEventArgs e)
+        {
+            if (!(GrdGameInteractions.SelectedItem is GameAction a))
+            {
+                MessageBox.Show("Pick an action row first.", "Loadout",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            if (!string.Equals(a.TriggerKind, "channelPoint", StringComparison.OrdinalIgnoreCase))
+            {
+                MessageBox.Show(
+                    "This button is for channel-point trigger rows.\n\n" +
+                    "Set the action's Trigger kind to \"channelPoint\" and its Trigger value to the reward title you want, then click again.",
+                    "Loadout — Twitch reward",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var title = (a.TriggerValue ?? "").Trim();
+            if (title.Length == 0)
+            {
+                MessageBox.Show("The action's Trigger value is empty — that's the reward title to create.",
+                    "Loadout — Twitch reward", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            try
+            {
+                // 1. Already exists? TwitchGetRewards covers rewards from
+                //    every client, so a dashboard-created reward counts.
+                var existing = Loadout.Platforms.CphPlatformSender.Instance.GetTwitchRewardTitles();
+                foreach (var t in existing)
+                {
+                    if (string.Equals(t, title, StringComparison.OrdinalIgnoreCase))
+                    {
+                        MessageBox.Show(
+                            "A reward titled \"" + title + "\" already exists on your channel — this action will fire when it's redeemed. Nothing to create.",
+                            "Loadout — Twitch reward",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+                        return;
+                    }
+                }
+
+                // 2. Try to create it through SB.
+                var err = Loadout.Sb.SbBridge.Instance.TwitchCreateReward(
+                    title, 500, "Fires the '" + (a.Name ?? title) + "' game action via Loadout.");
+                if (err == null)
+                {
+                    MessageBox.Show(
+                        "Created Twitch reward \"" + title + "\" at 500 points.\n\n" +
+                        "Adjust the cost, cooldown, and color in your Twitch dashboard (Creator Dashboard → Viewer Rewards → Channel Points). Redeeming it fires this action.",
+                        "Loadout — Twitch reward created",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else if (err == "not-supported")
+                {
+                    try { Clipboard.SetText(title); } catch { }
+                    MessageBox.Show(
+                        "Your Streamer.bot version doesn't expose reward creation, so Loadout can't create it for you.\n\n" +
+                        "The reward title has been copied to your clipboard:\n    " + title + "\n\n" +
+                        "Create it manually: Twitch Creator Dashboard → Viewer Rewards → Channel Points → Add New Custom Reward, and paste the title. The match is by title (case-insensitive), so it must be exact.",
+                        "Loadout — create the reward manually",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("Reward creation failed:\n\n" + err,
+                        "Loadout — Twitch reward", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                Util.ErrorLog.Write("BtnGiTwitchReward", ex);
+                MessageBox.Show("Reward check failed:\n\n" + ex.Message,
+                    "Loadout", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnGiSandbox_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var win = new SandboxWindow { Owner = this };
+                win.Show();
+            }
+            catch (Exception ex)
+            {
+                Util.ErrorLog.Write("BtnGiSandbox", ex);
+                MessageBox.Show("Couldn't open the sandbox:\n\n" + ex.Message, "Loadout",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnGiExport_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dlg = new Microsoft.Win32.SaveFileDialog
+                {
+                    Title = "Export Game Interactions",
+                    FileName = "loadout-game-actions.json",
+                    Filter = "JSON|*.json"
+                };
+                if (dlg.ShowDialog() != true) return;
+                // Schema-versioned export. "schema" stays at v1 for
+                // backwards compatibility; "loadoutVersion" + "exportedBy"
+                // let an import-time migration step recognise which
+                // DLL produced the file and offer the right field-rename
+                // chain. A streamer importing a v0.9-era file on v1.10+
+                // sees a one-shot prompt explaining what was renamed.
+                var payload = new
+                {
+                    schema         = "loadout.gameactions/v1",
+                    loadoutVersion = SettingsManager.AssemblyVersionString(),
+                    exported       = DateTime.UtcNow.ToString("o"),
+                    actions        = _gameActions.ToList()
+                };
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(
+                    payload, Newtonsoft.Json.Formatting.Indented);
+                System.IO.File.WriteAllText(dlg.FileName, json);
+                ShowSavedHint("Exported " + _gameActions.Count + " action(s) to " + System.IO.Path.GetFileName(dlg.FileName));
+            }
+            catch (Exception ex)
+            {
+                Util.ErrorLog.Write("BtnGiExport", ex);
+                MessageBox.Show("Export failed:\n\n" + ex.Message, "Loadout",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void BtnGiImport_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var dlg = new Microsoft.Win32.OpenFileDialog
+                {
+                    Title = "Import Game Interactions",
+                    Filter = "JSON|*.json"
+                };
+                if (dlg.ShowDialog() != true) return;
+                var json = System.IO.File.ReadAllText(dlg.FileName);
+                // Two acceptable shapes: { schema, actions: [...] } from
+                // our own Export, OR a bare array [...] for hand-edited
+                // / shared-via-paste configs.
+                Newtonsoft.Json.Linq.JArray arr = null;
+                string fileSchema = null;
+                string fileVersion = null;
+                try
+                {
+                    var token = Newtonsoft.Json.Linq.JToken.Parse(json);
+                    if (token.Type == Newtonsoft.Json.Linq.JTokenType.Array)
+                        arr = (Newtonsoft.Json.Linq.JArray)token;
+                    else
+                    {
+                        fileSchema  = token.Value<string>("schema");
+                        fileVersion = token.Value<string>("loadoutVersion");
+                        if (token["actions"] is Newtonsoft.Json.Linq.JArray inner) arr = inner;
+                    }
+                }
+                catch { arr = null; }
+                if (arr == null)
+                {
+                    MessageBox.Show("Couldn't read that file — expected a JSON array of actions or {actions:[...]} shape.",
+                        "Loadout", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Schema check. Future Loadout versions might bump to v2
+                // with renamed fields; today's only known schema is v1.
+                // An unknown schema gets a confirmation prompt with the
+                // version string so the streamer can decide whether to
+                // proceed with a best-effort import.
+                if (!string.IsNullOrEmpty(fileSchema) &&
+                    !string.Equals(fileSchema, "loadout.gameactions/v1", StringComparison.OrdinalIgnoreCase))
+                {
+                    var msg = "This file uses schema \"" + fileSchema + "\"" +
+                              (string.IsNullOrEmpty(fileVersion) ? "" : " (exported by Loadout " + fileVersion + ")") +
+                              ".\n\nThe current Loadout version expects \"loadout.gameactions/v1\".\n\n" +
+                              "Import anyway? Unknown fields will be ignored.";
+                    if (MessageBox.Show(msg, "Loadout - schema mismatch",
+                            MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                        return;
+                }
+                var imported = arr.ToObject<List<GameAction>>();
+                if (imported == null || imported.Count == 0)
+                {
+                    ShowSavedHint("Import: no actions in file.");
+                    return;
+                }
+                foreach (var a in imported)
+                {
+                    if (a == null) continue;
+                    _gameActions.Add(a);
+                }
+                ShowSavedHint("Imported " + imported.Count + " action(s). Existing rows kept.");
+            }
+            catch (Exception ex)
+            {
+                Util.ErrorLog.Write("BtnGiImport", ex);
+                MessageBox.Show("Import failed:\n\n" + ex.Message, "Loadout",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void BtnGiDetectWindow_Click(object sender, RoutedEventArgs e)
+        {
+            // Drop our own window out of foreground so we capture the
+            // streamer's game (or whatever they click on next). Then
+            // poll the foreground for 4 seconds; the first non-Loadout
+            // / non-Settings window we see wins.
+            var btn = sender as Button;
+            if (btn != null) btn.IsEnabled = false;
+            var prevTopmost = this.Topmost;
+            this.Topmost = false;
+            this.WindowState = System.Windows.WindowState.Minimized;
+            try
+            {
+                var detected = await System.Threading.Tasks.Task.Run(() =>
+                {
+                    System.Threading.Thread.Sleep(500);
+                    var deadline = DateTime.UtcNow.AddSeconds(4);
+                    while (DateTime.UtcNow < deadline)
+                    {
+                        var fg = Loadout.Games.Interactions.NativeInput.ForegroundWindowTitle();
+                        if (!string.IsNullOrWhiteSpace(fg) &&
+                            fg.IndexOf("Loadout", StringComparison.OrdinalIgnoreCase) < 0 &&
+                            fg.IndexOf("Settings", StringComparison.OrdinalIgnoreCase) < 0)
+                            return fg;
+                        System.Threading.Thread.Sleep(150);
+                    }
+                    return Loadout.Games.Interactions.NativeInput.ForegroundWindowTitle();
+                });
+                this.WindowState = System.Windows.WindowState.Normal;
+                this.Activate();
+                if (TxtGameInteractionsWindow != null && !string.IsNullOrWhiteSpace(detected))
+                {
+                    // Strip the leading game-title prefix if it's the
+                    // whole title (some games append "- Steam" etc.).
+                    var simplified = detected.Trim();
+                    var dashIdx = simplified.IndexOf(" - ");
+                    if (dashIdx > 4) simplified = simplified.Substring(0, dashIdx);
+                    var result = MessageBox.Show(
+                        "Detected window: \"" + detected + "\"\n\nUse \"" + simplified + "\" as the target?\n\nClick No to use the full title verbatim.",
+                        "Loadout - detect game",
+                        MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                    if (result == MessageBoxResult.Yes)       TxtGameInteractionsWindow.Text = simplified;
+                    else if (result == MessageBoxResult.No)   TxtGameInteractionsWindow.Text = detected;
+                }
+            }
+            finally
+            {
+                this.Topmost = prevTopmost;
+                if (btn != null) btn.IsEnabled = true;
+            }
+        }
+
+        private void RefreshGameTemplateHint()
+        {
+            if (TxtGameTemplateHint == null || CmbGameTemplate == null) return;
+            var item = CmbGameTemplate.SelectedItem as ComboBoxItem;
+            var key  = item?.Tag as string;
+            var tpl  = System.Array.Find(
+                Loadout.Games.Interactions.GameInteractionTemplates.All,
+                t => string.Equals(t.Key, key, StringComparison.OrdinalIgnoreCase));
+            TxtGameTemplateHint.Text = tpl != null ? tpl.Description : "";
+        }
+
+        private void BtnGiAddTemplate_Click(object sender, RoutedEventArgs e)
+        {
+            var item = CmbGameTemplate?.SelectedItem as ComboBoxItem;
+            var key  = item?.Tag as string;
+            if (string.IsNullOrEmpty(key)) return;
+            var tpl  = System.Array.Find(
+                Loadout.Games.Interactions.GameInteractionTemplates.All,
+                t => string.Equals(t.Key, key, StringComparison.OrdinalIgnoreCase));
+            if (tpl == null) return;
+
+            // Apply the window-title hint only when the field is empty —
+            // never overwrite a streamer's existing custom value.
+            if (TxtGameInteractionsWindow != null &&
+                string.IsNullOrWhiteSpace(TxtGameInteractionsWindow.Text) &&
+                !string.IsNullOrEmpty(tpl.WindowHint))
+            {
+                TxtGameInteractionsWindow.Text = tpl.WindowHint;
+            }
+
+            var added = 0;
+            foreach (var a in tpl.Build())
+            {
+                _gameActions.Add(a);
+                added++;
+            }
+            ShowSavedHint("Added " + added + " action(s) from " + tpl.Label + ". Edit rows to match your keybinds, then Save.");
         }
         private void BtnCounterRemove_Click(object sender, RoutedEventArgs e)
         {
@@ -904,6 +1544,7 @@ namespace Loadout.UI
             ChkYouTube.IsChecked = s.Platforms.YouTube;
             ChkKick.IsChecked    = s.Platforms.Kick;
             TxtTikTokSendAction.Text = s.Platforms.TikTokSendActionName ?? "";
+            if (ChkUseBotAccount != null) ChkUseBotAccount.IsChecked = s.Platforms.UseBotAccount;
 
             CmbChannel.SelectedIndex = string.Equals(s.Updates.Channel, "beta", StringComparison.OrdinalIgnoreCase) ? 1 : 0;
             ChkAutoCheckUpdates.IsChecked = s.Updates.AutoCheck;
@@ -987,6 +1628,13 @@ namespace Loadout.UI
             TxtInfoCooldown.Text       = s.ChatNoise.InfoCommandCooldownSec.ToString();
             TxtCounterAckCooldown.Text = s.ChatNoise.CounterAckCooldownSec.ToString();
             TxtCounterAckEveryN.Text   = s.ChatNoise.CounterAckEveryN.ToString();
+            if (TxtBlockedUsers != null)
+            {
+                TxtBlockedUsers.Text = (s.ChatNoise.BlockedUsers != null && s.ChatNoise.BlockedUsers.Count > 0)
+                    ? string.Join(Environment.NewLine, s.ChatNoise.BlockedUsers)
+                    : "";
+            }
+            if (ChkIgnoreBroadcaster != null) ChkIgnoreBroadcaster.IsChecked = s.ChatNoise.IgnoreBroadcasterChat;
 
             // Bolts
             TxtBoltsName.Text         = s.Bolts.DisplayName ?? "";
@@ -1164,6 +1812,7 @@ namespace Loadout.UI
                 s.Platforms.YouTube = ChkYouTube.IsChecked == true;
                 s.Platforms.Kick    = ChkKick.IsChecked    == true;
                 s.Platforms.TikTokSendActionName = (TxtTikTokSendAction.Text ?? "").Trim();
+                s.Platforms.UseBotAccount        = ChkUseBotAccount?.IsChecked == true;
 
                 s.Updates.Channel      = ((ComboBoxItem)CmbChannel.SelectedItem)?.Tag?.ToString() ?? "stable";
                 s.Updates.AutoCheck    = ChkAutoCheckUpdates.IsChecked == true;
@@ -1255,9 +1904,40 @@ namespace Loadout.UI
                 if (int.TryParse(TxtInfoCooldown.Text, out iv)       && iv >= 0) s.ChatNoise.InfoCommandCooldownSec = iv;
                 if (int.TryParse(TxtCounterAckCooldown.Text, out iv) && iv >= 0) s.ChatNoise.CounterAckCooldownSec  = iv;
                 if (int.TryParse(TxtCounterAckEveryN.Text, out iv)   && iv >= 0) s.ChatNoise.CounterAckEveryN        = iv;
+                if (TxtBlockedUsers != null)
+                {
+                    var raw = TxtBlockedUsers.Text ?? "";
+                    var lines = raw.Split(new[] { '\r', '\n', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                    var cleaned = new List<string>();
+                    var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var line in lines)
+                    {
+                        var t = line.Trim().TrimStart('@');
+                        if (t.Length == 0) continue;
+                        if (seen.Add(t)) cleaned.Add(t);
+                    }
+                    s.ChatNoise.BlockedUsers = cleaned;
+                }
+                if (ChkIgnoreBroadcaster != null)
+                    s.ChatNoise.IgnoreBroadcasterChat = ChkIgnoreBroadcaster.IsChecked == true;
 
                 // Counters / supporters
                 s.Counters.Counters = _counters.ToList();
+
+                // Game Interactions
+                if (s.GameInteractions == null) s.GameInteractions = new GameInteractionsConfig();
+                s.GameInteractions.Actions = _gameActions.ToList();
+                if (ChkGameInteractionsEnabled != null) s.GameInteractions.Enabled = ChkGameInteractionsEnabled.IsChecked == true;
+                if (ChkGameInteractionsDryRun  != null) s.GameInteractions.DryRun  = ChkGameInteractionsDryRun.IsChecked  == true;
+                if (TxtGameInteractionsWindow  != null) s.GameInteractions.TargetWindowTitle = (TxtGameInteractionsWindow.Text ?? "").Trim();
+                if (TxtGameInteractionsCdMult != null && double.TryParse(TxtGameInteractionsCdMult.Text,
+                        System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var giCdMult) && giCdMult > 0)
+                    s.GameInteractions.GlobalCooldownMultiplier = giCdMult;
+                if (TxtGameInteractionsMaxRate != null && int.TryParse(TxtGameInteractionsMaxRate.Text, out var giMaxRate) && giMaxRate >= 0)
+                    s.GameInteractions.MaxActionsPerSecond = giMaxRate;
+                // Master Modules.GameInteractions flag mirrors the
+                // per-config Enabled — single source of truth in UI.
+                s.Modules.GameInteractions = s.GameInteractions.Enabled;
                 if (int.TryParse(TxtCountersOpacity?.Text,   out iv) && iv >= 0 && iv <= 100) s.Counters.Opacity = iv;
                 if (int.TryParse(TxtCountersHideAfter?.Text, out iv) && iv >= 1)              s.Counters.HideAfterSeconds = iv;
                 s.Counters.ShowOnTriggerOnly = ChkCountersOnTrigger?.IsChecked == true;
@@ -1758,8 +2438,10 @@ namespace Loadout.UI
                 ("Goals",               s.Modules.Goals,              "IconGeo.Goals"),
                 ("Counters",            s.Modules.Counters,           "IconGeo.Counters"),
                 ("Bolts wallet",        s.Modules.Bolts,              "IconGeo.Bolts"),
-                ("Dungeon Crawler",     s.Modules.Dungeon,            "IconGeo.Games"),
-                ("Apex (top viewer)",   s.Modules.Apex,               "IconGeo.Apex"),
+                // Dungeon — ARCHIVED 2026-06-08; module unregistered.
+                // Apex — ARCHIVED 2026-06-08. Removed from the Health
+                // tab; the entry stayed misleading after the module
+                // was unregistered.
                 ("Daily check-in",      s.Modules.DailyCheckIn,       "IconGeo.CheckIn"),
                 ("Stream recap",        s.Modules.StreamRecap,        "IconGeo.Recap"),
                 ("Discord live status", s.Modules.DiscordLiveStatus,  "IconGeo.Discord"),
@@ -1773,7 +2455,7 @@ namespace Loadout.UI
                 ("VIP rotation",        s.Modules.VipRotation,        "IconGeo.Vip"),
                 ("CC coins",            s.Modules.CcCoinTracker,      "IconGeo.CcCoin"),
                 ("Webhook inbox",       s.Modules.WebhookInbox,       "IconGeo.Webhooks"),
-                ("Clips",               s.Modules.Clips,              "IconGeo.Clips"),
+                ("Clips",               (s.Modules.Clips || (s.Clips?.Enabled ?? false)), "IconGeo.Clips"),
                 ("Channel points",      s.ChannelPoints?.Enabled ?? false, "IconGeo.ChannelPoints"),
                 ("Game profiles",       s.GameProfiles?.Enabled ?? false,  "IconGeo.GameProfiles"),
             };

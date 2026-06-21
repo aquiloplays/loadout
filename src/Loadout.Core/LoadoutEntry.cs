@@ -245,4 +245,80 @@ namespace Loadout
         public static string SettingsPath()
         {
             try { return SettingsManager.Instance.SettingsPath ?? ""; }
-            catch 
+            catch { return ""; }
+        }
+
+        // -------------------- Patreon --------------------
+
+        public static string PatreonTier()
+        {
+            try { return Patreon.Entitlements.CurrentTierDisplay(); }
+            catch { return "Free"; }
+        }
+
+        public static bool PatreonStartSignIn()
+        {
+            try
+            {
+                _ = Patreon.PatreonClient.Instance.StartSignInAsync();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] PatreonStartSignIn: " + ex);
+                return false;
+            }
+        }
+
+        public static bool PatreonSignOut()
+        {
+            try { Patreon.PatreonClient.Instance.SignOut(); return true; }
+            catch { return false; }
+        }
+
+        // -------------------- Quiet mode --------------------
+
+        public static bool ToggleQuiet()
+        {
+            try
+            {
+                bool now = false;
+                SettingsManager.Instance.Mutate(s =>
+                {
+                    s.ChatNoise.QuietMode = !s.ChatNoise.QuietMode;
+                    now = s.ChatNoise.QuietMode;
+                });
+                SettingsManager.Instance.SaveNow();
+                return now;
+            }
+            catch { return false; }
+        }
+
+        public static bool IsQuiet()
+        {
+            try { return SettingsManager.Instance.Current.ChatNoise.QuietMode; }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Force a reload from disk so a hand-edited settings.json takes effect
+        /// without restarting Streamer.bot. Same effect as restarting SB but
+        /// without the disconnect.
+        /// </summary>
+        public static bool ReloadSettings()
+        {
+            try
+            {
+                var folder = SettingsManager.Instance.DataFolder;
+                SettingsManager.Instance.SaveNow();        // flush any pending writes first
+                SettingsManager.Instance.Initialize(folder); // re-read from disk
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("[Loadout] ReloadSettings: " + ex);
+                return false;
+            }
+        }
+    }
+}

@@ -1,38 +1,89 @@
 <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!--
+    Loadout logomark, June 2026.
+
+    Differentiates from StreamFusion (same family, same aurora gradient,
+    bolt-on-disc glyph) by swapping the bolt for a six-slot equipment grid
+    with one slot "equipped". The grid reads as "your loadout panel" at
+    every size:
+      - 16px favicon: a row of three white blocks with one accented
+      - 256px taskbar: clean grid + brand colours
+      - 1024px asset: full ring + glow + grid
+    Aurora gradient + the dark inner disc are retained so the icon still
+    sits inside the wider Aquilo brand family.
+  -->
   <defs>
-    <linearGradient id="bolt" x1="300" y1="150" x2="700" y2="880" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#a98fff"/>
-      <stop offset="0.42" stop-color="#7c5cff"/>
-      <stop offset="0.78" stop-color="#6ee0c0"/>
-      <stop offset="1" stop-color="#5bff95"/>
-    </linearGradient>
     <radialGradient id="bg" cx="0.5" cy="0.38" r="0.9">
-      <stop offset="0" stop-color="#1e2236"/>
+      <stop offset="0"    stop-color="#1e2236"/>
       <stop offset="0.55" stop-color="#11131c"/>
-      <stop offset="1" stop-color="#080910"/>
+      <stop offset="1"    stop-color="#080910"/>
     </radialGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#7c5cff" stop-opacity="0.62"/>
-      <stop offset="0.62" stop-color="#7c5cff" stop-opacity="0.16"/>
-      <stop offset="1" stop-color="#7c5cff" stop-opacity="0"/>
+    <radialGradient id="glow" cx="0.5" cy="0.55" r="0.55">
+      <stop offset="0"    stop-color="#7c5cff" stop-opacity="0.55"/>
+      <stop offset="0.6"  stop-color="#5bff95" stop-opacity="0.10"/>
+      <stop offset="1"    stop-color="#7c5cff" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="ring" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#9a82ff"/>
       <stop offset="1" stop-color="#5bff95"/>
     </linearGradient>
+    <linearGradient id="slot-active" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a98fff"/>
+      <stop offset="1" stop-color="#5bff95"/>
+    </linearGradient>
     <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1024" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="0"   stop-color="#ffffff" stop-opacity="0.10"/>
       <stop offset="0.4" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
-    <filter id="blur" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="30"/>
+    <filter id="slotGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14"/>
     </filter>
   </defs>
+
+  <!-- Rounded-square card chrome (kept identical to the prior icon so
+       the brand "shape" is unchanged - only the glyph swaps). -->
   <rect x="6" y="6" width="1012" height="1012" rx="238" fill="url(#bg)"/>
   <rect x="6" y="6" width="1012" height="1012" rx="238" fill="url(#sheen)"/>
-  <circle cx="512" cy="516" r="338" fill="url(#glow)"/>
-  <path d="M624 150 L360 562 L516 562 L404 876 L664 462 L508 462 Z" fill="#8a72ff" filter="url(#blur)" opacity="0.9"/>
-  <path d="M624 150 L360 562 L516 562 L404 876 L664 462 L508 462 Z" fill="url(#bolt)"/>
-  <path d="M624 150 L360 562 L516 562 L508 462 Z" fill="#ffffff" opacity="0.16"/>
-  <rect x="6" y="6" width="1012" height="1012" rx="238" fill="none" stroke="url(#ring)" stroke-width="5" opacity="0.55"/>
+  <circle cx="512" cy="512" r="360" fill="url(#glow)"/>
+
+  <!--
+    Loadout slot grid. 3 columns x 2 rows = 6 inventory slots, centered
+    on the canvas at (512, 512).
+    Empty slots: 200x200, gap 42, rounded 42.
+    Equipped (top center) slot: 240x240, rounded 50, so it visually
+    "lifts" 20px above + below the rest of the top row.
+    Top row: left x=150, equipped x=392 (centered on x=512),
+             right x=674, empties at y=302, equipped at y=282.
+    Bottom row: left x=150, mid x=412, right x=674, all at y=542.
+    Geometric center is (512, 512) which lines up with the glow disc.
+  -->
+  <g>
+    <!-- Top row -->
+    <rect x="150" y="302" width="200" height="200" rx="42"
+          fill="none" stroke="#9a82ff" stroke-width="14" opacity="0.85"/>
+    <!-- Equipped (top middle) -->
+    <rect x="392" y="282" width="240" height="240" rx="50"
+          fill="url(#slot-active)" filter="url(#slotGlow)" opacity="0.95"/>
+    <rect x="392" y="282" width="240" height="240" rx="50"
+          fill="none" stroke="#ffffff" stroke-width="10" opacity="0.85"/>
+    <rect x="674" y="302" width="200" height="200" rx="42"
+          fill="none" stroke="#9a82ff" stroke-width="14" opacity="0.85"/>
+
+    <!-- Bottom row -->
+    <rect x="150" y="542" width="200" height="200" rx="42"
+          fill="none" stroke="#5bff95" stroke-width="14" opacity="0.85"/>
+    <rect x="412" y="542" width="200" height="200" rx="42"
+          fill="none" stroke="#5bff95" stroke-width="14" opacity="0.85"/>
+    <rect x="674" y="542" width="200" height="200" rx="42"
+          fill="none" stroke="#5bff95" stroke-width="14" opacity="0.85"/>
+
+    <!-- Indicator dot inside the equipped slot - centered at (512, 402)
+         (equipped slot's own center). Reads as "selected" and gives
+         the icon a focal highlight at small sizes. -->
+    <circle cx="512" cy="402" r="32" fill="#ffffff" opacity="0.92"/>
+  </g>
+
+  <!-- Outer brand ring -->
+  <rect x="6" y="6" width="1012" height="1012" rx="238" fill="none"
+        stroke="url(#ring)" stroke-width="5" opacity="0.55"/>
 </svg>
