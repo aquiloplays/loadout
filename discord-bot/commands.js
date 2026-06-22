@@ -23,20 +23,17 @@
 //   9 MODAL, open a modal popup
 
 import { renderLoadoutCommand, handleComponent, handleModal } from './loadout-menu.js';
-import { handleBet, handleBetAutocomplete } from './bet.js';
-import { renderHubCommand, handleHubComponent, handleHubModal } from './hub-menu.js';
 import { renderAdminCommand, handleAdminComponent } from './admin-menu.js';
 import { handleSchedule, handleGames } from './schedule.js';
 import { handleQueueSlash } from './queue.js';
 // Aquilo-bot fold-in. Single dispatcher that owns the aquilo command
 // family, see discord-bot/aquilo/worker.js dispatchAquiloInteraction.
 import { dispatchAquiloInteraction } from './aquilo/worker.js';
-// Character + pet system, pixel-art identity + tamagotchi.
-// Boltbound, async card-battler. See CARD-GAME-DESIGN.md.
-import { handleBoltboundCommand, handleBoltboundComponent } from './cards.js';
-// Bolts-denominated quick games (blackjack/roulette/wheel/hilo/mines/
-// plinko/crash), shares games-quick.js with the website + Twitch panel.
-import { handlePlayCommand, handlePlayComponent } from './quickgames-command.js';
+// NOTE (Bolts economy sunset 2026-06): the /bet (sports betting),
+// /boltbound (card-battler) and /play (quick games) command imports
+// were removed here. The Boltbound files (cards*.js, boltbound-*.js)
+// stay on disk for a future revival but are no longer wired into the
+// dispatch graph, so esbuild no longer bundles them.
 
 const TYPE_PING                = 1;
 const TYPE_APPLICATION_CMD     = 2;
@@ -56,7 +53,7 @@ const ACK_PONG = { type: RESP_PONG };
 // with Loadout's viewer hub. See BOT-CONSOLIDATION-STATUS.md.
 const AQUILO_COMPONENT_PREFIXES = [
   'vote:', 'queue:', 'aquilo:', 'notify:', 'tot:', 'sug:', 'roles:',
-  'setup:', 'vh:', 'passport:', 'trivia:', 'shop:', 'ticket:',
+  'setup:', 'vh:', 'passport:', 'trivia:', 'ticket:',
   // /checkin gif picker, see aquilo/checkin-slash.js
   'aqci:',
 ];
@@ -117,14 +114,6 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleCheckinHubComponent } = await import('./channel-hubs.js');
       return json(await handleCheckinHubComponent(env, data));
     }
-    if (cid.startsWith('bolts:'))     {
-      const { handleBoltsHubComponent } = await import('./channel-hubs.js');
-      return json(await handleBoltsHubComponent(env, data));
-    }
-    if (cid.startsWith('play:'))      {
-      const { handlePlayHubComponent } = await import('./channel-hubs.js');
-      return json(await handlePlayHubComponent(env, data));
-    }
     if (cid.startsWith('ach:'))       {
       const { handleAchievementsHubComponent } = await import('./channel-hubs.js');
       return json(await handleAchievementsHubComponent(env, data));
@@ -142,10 +131,7 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleSetupComponent } = await import('./setup-wizard.js');
       return json(await handleSetupComponent(env, data));
     }
-    if (cid.startsWith('hub:'))       return handleHubComponent(data, env);
     if (cid.startsWith('admin:'))     return handleAdminComponent(data, env, ctx);
-    if (cid.startsWith('boltbound:')) return json(await handleBoltboundComponent(env, data));
-    if (cid.startsWith('qg:'))        return handlePlayComponent(env, data);
     if (cid.startsWith('gm:')) {
       const { handleGamesMenuComponent } = await import('./games-menu.js');
       return json(await handleGamesMenuComponent(data, env, ctx));
@@ -170,12 +156,6 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleSupportTicketComponent } = await import('./support-tickets.js');
       return json(await handleSupportTicketComponent(data, env));
     }
-    if (cid.startsWith('ca:rmx:pick:')) {
-      // /admin card-art remix, candidate-picker select. See
-      // card-art-remix.js. The select value is the candidate index.
-      const { handleCardArtRemixSelect } = await import('./card-art-remix.js');
-      return json(await handleCardArtRemixSelect(env, data));
-    }
     // Aquilo-bot fold-in: every aquilo component custom_id is
     // namespaced (vote:*, queue:*, aquilo:*, notify:*, tot:*, sug:*,
     // roles:*, setup:*, vh:*, passport:*, trivia:*, shop:*,
@@ -186,20 +166,16 @@ export async function handleInteraction(req, env, body, ctx) {
     return handleComponent(data, env);
   }
   if (data.type === TYPE_AUTOCOMPLETE) {
-    // Autocomplete for /bet sports place's `game` option. Routed by
-    // command name; other commands fall through with empty choices.
-    const cmd = (data.data?.name || '').toLowerCase();
-    if (cmd === 'bet') {
-      return json(await handleBetAutocomplete(env, data.data?.options || []));
-    }
+    // No autocomplete-backed commands remain after the Bolts economy
+    // sunset (the only one was /bet sports place). Fall through with
+    // empty choices for any stale client still sending autocomplete.
     return json({ type: 8, data: { choices: [] } });
   }
   if (data.type === TYPE_MODAL_SUBMIT) {
-    // Route hub-originated modals to their dedicated handler.
-    // Aquilo-bot modals use a bare `modal:*` prefix; Loadout's
-    // viewer hub modals use `hub:modal:*`, the two don't collide.
+    // Aquilo-bot modals use a bare `modal:*` prefix. (The Loadout
+    // viewer-hub `hub:modal:*` route was removed with the Bolts
+    // economy sunset — /hub was the wallet/stocks/sports hub.)
     const cid = data.data?.custom_id || '';
-    if (cid.startsWith('hub:modal:')) return handleHubModal(data, env);
     // LFG hub create modal, bare modal:lfg-* prefix, claimed here
     // before the generic modal:* aquilo route.
     if (cid.startsWith('modal:lfg-')) {
@@ -210,12 +186,6 @@ export async function handleInteraction(req, env, body, ctx) {
     if (cid.startsWith('st:submit:')) {
       const { handleSupportTicketModal } = await import('./support-tickets.js');
       return json(await handleSupportTicketModal(data, env));
-    }
-    // Phase-1 channel-hub modal submits, claimed before the
-    // generic modal:* aquilo route, same as the LFG modal.
-    if (cid === 'modal:bolts-transfer') {
-      const { handleBoltsTransferModal } = await import('./channel-hubs.js');
-      return json(await handleBoltsTransferModal(env, data));
     }
     if (cid.startsWith('modal:'))     return dispatchAquiloInteraction(data, env, ctx);
     if (cid.startsWith('tempvc:')) {
@@ -250,40 +220,19 @@ export async function handleInteraction(req, env, body, ctx) {
 
   switch (cmd) {
     case 'loadout':
-      // Main menu, auto-creates the wallet (so first-time users see
-      // 0 bolts rather than an error) and surfaces the link button if
-      // they haven't connected a stream identity yet.
+      // Slimmed profile menu (Bolts economy sunset). Opens the
+      // ephemeral profile editor (bio / pic / pronouns / socials /
+      // gamer tags). See loadout-menu.js.
       return json(await renderLoadoutCommand(env, guild, userId, userName));
 
-
-    case 'bet':
-      // Sports betting, subcommand-group dispatch in bet.js.
-      return json(await handleBet(env, guild, userId, userName, data.data?.options || []));
-
-    case 'hub':
-      // Viewer-facing hub entry point.
-      return json(await renderHubCommand(env, guild, userId));
-
-    case 'admin': {
+    case 'admin':
       // Admin-side hub. MANAGE_GUILD enforced by Discord via the
       // command's default_member_permissions; an extra in-handler
       // check would only fire if Discord changed its enforcement
       // model, so we trust the platform here.
-      //
-      // Subcommand-group dispatch, only `card-art remix` lives
-      // here today. Bare /admin (no subcommand) falls through to
-      // the legacy hub renderer.
-      const opts = data.data?.options || [];
-      const grp  = opts.find(o => o.type === 2);
-      if (grp?.name === 'card-art') {
-        const sub = (grp.options || []).find(o => o.type === 1);
-        if (sub?.name === 'remix') {
-          const { handleCardArtRemixCommand } = await import('./card-art-remix.js');
-          return json(await handleCardArtRemixCommand(env, data));
-        }
-      }
+      // (The Boltbound `card-art` subcommand-group was removed with
+      // the economy sunset; bare /admin renders the hub.)
       return json(await renderAdminCommand());
-    }
 
     case 'twitch-event': {
       // Per-event-type routing + on/off toggle. See twitch-events.js
@@ -343,17 +292,9 @@ export async function handleInteraction(req, env, body, ctx) {
       // subcommands); join / leave are anyone.
       return json(await handleQueueSlash(env, guild, data));
 
-
-    case 'boltbound':
-      // Async card-battler. See CARD-GAME-DESIGN.md.
-      return json(await handleBoltboundCommand(env, data, userId, userName));
-
-    case 'play':
-      // Bolts quick games. Single source of truth for game logic is
-      // games-quick.js, the website + Twitch panel call the same
-      // exports. Stateful games (blackjack/hilo/mines) drive their
-      // continuation through button components routed by 'qg:' prefix.
-      return handlePlayCommand(env, data, guild, userId, userName);
+    // NOTE: /boltbound (card-battler) and /play (Bolts quick games)
+    // were unregistered with the Bolts economy sunset. Stale clients
+    // fall through to the default "unknown command" reply below.
 
     case 'voice': {
       // B7, temp voice channels. /voice creates a personal VC + moves
@@ -480,12 +421,14 @@ export async function handleInteraction(req, env, body, ctx) {
     // Fallthrough for legacy granular commands. We don't publish these
     // anymore but Discord caches client-side, so a stale entry might
     // still appear in someone's autocomplete. Send them to the menu.
-    case 'balance': case 'gift': case 'daily': case 'leaderboard':
+    // (`gift` is NOT listed here — it's a live command, the Patreon
+    // fan-to-fan gifting CTA handled above.)
+    case 'balance': case 'daily': case 'leaderboard':
     case 'coinflip': case 'dice': case 'link': case 'help':
     case 'profile': case 'profile-set-bio': case 'profile-set-pfp':
     case 'profile-set-pronouns': case 'profile-set-social':
     case 'profile-set-gamertag': case 'profile-clear':
-      return reply('💡 We replaced the individual commands with a single menu, run **/loadout** instead.');
+      return reply('💡 Those individual commands are gone. Run **/loadout** for your profile or **/passport** for your full profile.');
 
     default:
       return reply('Unknown command: ' + cmd);

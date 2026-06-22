@@ -1,6 +1,6 @@
 // Daily trivia. Cron at 4 PM ET posts a question to #engagement with
-// 2-4 multiple-choice buttons; first correct click wins X Bolts + the
-// round closes. Question pool is streamer-curated via the admin hub
+// 2-4 multiple-choice buttons; first correct click wins + the round
+// closes. Question pool is streamer-curated via the admin hub
 // "🧠 Edit Trivia" modal.
 //
 // State model:
@@ -9,7 +9,7 @@
 //
 // Public API:
 //   runTriviaCron(env)                   -> post today's question
-//   handleTriviaClick(env, data)         -> button: validate, award, close
+//   handleTriviaClick(env, data)         -> button: validate, close
 //   triviaEditModal()                    -> hub modal to add questions
 //   handleTriviaEditSubmit(env, data)    -> save submitted question
 
@@ -21,7 +21,7 @@ import {
 import { bump, bumpAndAnnounce } from './achievements.js';
 import { tickStreak } from './streak.js';
 
-const TRIVIA_BOLTS = 50;
+// (Bolts economy sunset: removed TRIVIA_BOLTS + bolt award)
 
 export async function runTriviaCron(env) {
   if (!env?.DB || !env.ENGAGEMENT_CHANNEL_ID) return;
@@ -60,7 +60,7 @@ export async function runTriviaCron(env) {
   const embed = {
     color: COLOR_POLL,
     title: '🧠 Daily Trivia',
-    description: `**${q.question}**\n\nFirst correct answer wins **${TRIVIA_BOLTS} Bolts**.`,
+    description: `**${q.question}**\n\nFirst correct answer wins!`,
     footer: { text: 'Round ' + roundId + ' · resets daily at 4 PM ET' }
   };
   const components = [row(...opts.map((o, i) =>
@@ -80,7 +80,7 @@ export async function runTriviaCron(env) {
   }
 }
 
-/** Button click, validate answer, award Bolts on first-correct. */
+/** Button click, validate answer, close the round on first-correct. */
 export async function handleTriviaClick(env, data) {
   const id = data?.data?.custom_id || '';
   const [, roundIdStr, correctFlag] = id.split(':');
@@ -111,16 +111,7 @@ export async function handleTriviaClick(env, data) {
     return ephemeral('Beaten to it, someone else just answered.');
   }
 
-  // Award Bolts via Loadout cross-bot endpoint.
-  if (env.LOADOUT_BOLT_API && env.LOADOUT_BOLT_API_SECRET) {
-    try {
-      await fetch(env.LOADOUT_BOLT_API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-loadout-bolt-secret': env.LOADOUT_BOLT_API_SECRET },
-        body: JSON.stringify({ user_id: userId, amount: TRIVIA_BOLTS, reason: 'trivia' }),
-      });
-    } catch (e) { console.error('[trivia] bolts grant failed', e?.message || e); }
-  }
+  // (Bolts economy sunset: removed bolt award POST block)
 
   // Streak + achievements.
   try { await tickStreak(env, round.guild_id, userId); } catch {}
@@ -133,7 +124,7 @@ export async function handleTriviaClick(env, data) {
         embeds: [{
           color: 0x43A047,
           title: '🧠 Daily Trivia, solved',
-          description: `<@${userId}> got it. +${TRIVIA_BOLTS} Bolts.\n\nNew round tomorrow at 4 PM ET.`,
+          description: `<@${userId}> got it.\n\nNew round tomorrow at 4 PM ET.`,
           timestamp: new Date().toISOString()
         }],
         components: []
@@ -141,7 +132,7 @@ export async function handleTriviaClick(env, data) {
     } catch (e) { console.error('[trivia] edit failed', e?.message || e); }
   }
 
-  return ephemeral(`✅ Correct! +${TRIVIA_BOLTS} Bolts.`);
+  return ephemeral('✅ Correct!');
 }
 
 // ---- Hub modal: add a trivia question -------------------------------

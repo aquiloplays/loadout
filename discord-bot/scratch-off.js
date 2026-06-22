@@ -30,7 +30,20 @@
 import { publishActivity } from './activity-do.js';
 import { getChannelGame, getStreamInfo } from './twitch-helix.js';
 import { enqueueOverlay } from './ext-engage.js';
-import { discordPostMessage } from './bolts-feed.js';
+// (Bolts economy sunset: bolts-feed.js was deleted; its tiny Discord
+// message-post helper is inlined below as `discordPostMessage`.)
+async function discordPostMessage(env, channelId, payload) {
+  if (!channelId || !env.DISCORD_BOT_TOKEN) return null;
+  return fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN,
+      'Content-Type': 'application/json',
+      'User-Agent': 'loadout-discord scratch-off',
+    },
+    body: JSON.stringify(payload),
+  });
+}
 import { STREAMER_BOT_ACTIONS, LOSS_LINES, POOLS } from './scratch-challenges.js';
 
 // ── Tunables ───────────────────────────────────────────────────────────

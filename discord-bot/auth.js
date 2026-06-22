@@ -50,6 +50,36 @@ export async function verifyGatewaySig(req, env, body) {
   return { ok: false };
 }
 
+// ── Per-guild sync secret (registration / HMAC key store) ─────────
+//
+// Relocated here from the (now-removed) wallet.js when the Bolts
+// economy was sunset. These are pure infrastructure: the claim /
+// register flow + the non-currency /sync/* sub-routes (voice-state
+// forwarding, profile edits) authenticate the Loadout DLL against the
+// secret stored at `secret:<guildId>`. They have nothing to do with
+// wallets, so they survive the economy removal.
+//
+// KV layout:
+//   secret:<guildId>  -> { secret, registeredUtc, ownerStreamerName }
+
+export async function setSecret(env, guildId, secret, ownerName) {
+  const key = `secret:${guildId}`;
+  const existing = await env.LOADOUT_BOLTS.get(key, { type: 'json' });
+  // First-time registration is free. Re-registration requires the existing
+  // secret to be presented in HMAC, validated by the route handler.
+  const payload = {
+    secret,
+    ownerStreamerName: ownerName || (existing?.ownerStreamerName ?? ''),
+    registeredUtc: existing?.registeredUtc || Date.now()
+  };
+  await env.LOADOUT_BOLTS.put(key, JSON.stringify(payload));
+}
+
+export async function getSecret(env, guildId) {
+  const key = `secret:${guildId}`;
+  return await env.LOADOUT_BOLTS.get(key, { type: 'json' });
+}
+
 // HMAC-SHA-256 verification for /sync/:guildId calls. Loadout-side, not
 // Discord, so we keep using WebCrypto directly here.
 export async function verifyHmac(secret, ts, body, hexSig) {

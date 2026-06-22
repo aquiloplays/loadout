@@ -22,18 +22,16 @@
 //     cutoff. Miss → 0, unless they hold a streak shield (a
 //     'discord'-type entry in streak-freeze.js), in which case the
 //     shield is consumed and the streak is preserved.
-//   • Daily bonuses are made AVAILABLE TO COLLECT, not auto-granted.
-//     /web/checkin/bonus/collect drains the queue.
+//   • (Bolts economy sunset: the daily/streak bonus payout queue has
+//     been removed. Check-in records the streak only, no currency.)
 //
 // KV layout (all on LOADOUT_BOLTS):
 //   community-checkin:<g>:<u>, streak state
 //     { streak, longest, lastDayEt, total, lastUtc, lastSurface }
 //   checkin-card:<g>:<u>, site-controlled embed customisation
 //     { imageUrl, accentColor?, headline?, subtitle?, updatedUtc }
-//   community-checkin-bonus:<g>:<u>, queue of unclaimed bonuses
-//     { pending: [{ id, kind, amount, label, grantedUtc }] }
 
-import { earn, getWallet } from './wallet.js';
+// (Bolts economy sunset: removed wallet/economy-pace/cards-packs import)
 import { consumeFreeze, getFreezes } from './streak-freeze.js';
 import { getCheckinChannel } from './admin-menu.js';
 import { emitProgressionEvent } from './progression/event-bus.js';
@@ -41,19 +39,14 @@ import { publishActivity } from './activity-do.js';
 
 const STATE_KEY = (g, u) => `community-checkin:${g}:${u}`;
 const CARD_KEY  = (g, u) => `checkin-card:${g}:${u}`;
-const QUEUE_KEY = (g, u) => `community-checkin-bonus:${g}:${u}`;
 
-// Daily payout, base bolts the user can claim once per day after
-// checking in. v2 rebalance (2026-05): paced through economy-pace.js
-// so retunes are a single edit. v1 was 5 base / 5-15-50 streak;
-// v2 is 2 base / 3-8-25 streak (slower wallet growth, milestone
-// moments still feel ceremonial). See docs/ECONOMY_PACE.md.
-import { paceBolts as _paceBolts, paceMilestone as _paceMilestone } from './economy-pace.js';
-export const DAILY_BASE_BOLTS = _paceBolts(5);   // → 2
+// (Bolts economy sunset: removed wallet/economy-pace/cards-packs import)
+// Streak milestone day-list retained for the celebratory check-in
+// message + activity pulse (no currency bonus attached anymore).
 export const STREAK_MILESTONES = [
-  { day: 7,   amount: _paceMilestone(5),  label: '7-day streak!'   },   // → 3
-  { day: 30,  amount: _paceMilestone(15), label: '30-day streak!'  },   // → 8
-  { day: 100, amount: _paceMilestone(50), label: '100-day streak!' },   // → 25
+  { day: 7,   label: '7-day streak!'   },
+  { day: 30,  label: '30-day streak!'  },
+  { day: 100, label: '100-day streak!' },
 ];
 
 // Brand defaults. Per-guild overrides via branding.js (getBranding);
@@ -186,27 +179,9 @@ export async function putCard(env, guildId, userId, card) {
   return { ok: true, card: next };
 }
 
-async function loadQueue(env, guildId, userId) {
-  return (await env.LOADOUT_BOLTS.get(QUEUE_KEY(guildId, userId), { type: 'json' }))
-    || { pending: [] };
-}
-async function saveQueue(env, guildId, userId, q) {
-  await env.LOADOUT_BOLTS.put(QUEUE_KEY(guildId, userId), JSON.stringify(q));
-}
-
-function bonusId(kind, day, salt) {
-  return kind + '-' + day + (salt ? '-' + salt : '');
-}
-
-async function enqueueBonus(env, guildId, userId, bonus) {
-  const q = await loadQueue(env, guildId, userId);
-  // De-dup by id, re-firing the same bonus on a same-day retry
-  // shouldn't double-pay.
-  if (q.pending.some(b => b.id === bonus.id)) return q;
-  q.pending.push(bonus);
-  await saveQueue(env, guildId, userId, q);
-  return q;
-}
+// (Bolts economy sunset: removed bonus-queue machinery — loadQueue/
+// saveQueue/bonusId/enqueueBonus. Check-in + streak persist with no
+// currency payout.)
 
 // ── Discord-side helpers ───────────────────────────────────────────────
 function avatarUrl(userId, avatarHash) {
@@ -457,7 +432,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
   const composedMessage = String(opts.message || '').trim();
   // Discord renders `> text` as a blockquote with a coloured left
   // rail, visually quotes the user's typed message and lifts it
-  // above the streak/XP/bolts pills. Sits at the top of the
+  // above the streak line. Sits at the top of the
   // description (right under the author header). Per Clay's spec
   // (quote-style + italicized + near author).
   if (composedMessage) lines.push(`> _${composedMessage.slice(0, 300)}_`);
@@ -499,7 +474,7 @@ async function postCheckinEmbed(env, guildId, userId, state, card, member, isFir
 // Returns:
 //   {
 //     ok, alreadyToday, streak, longest, freezeUsed,
-//     pendingBonusCount, embed: { posted, channelId?, messageId?, reason? },
+//     embed: { posted, channelId?, messageId?, reason? },
 //     firstTimeNoCard,
 //   }
 //
@@ -518,14 +493,12 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
   // Same-day idempotency. Both surfaces can call freely; only the
   // first call of the ET day does work.
   if (prev?.lastDayEt === today) {
-    const q = await loadQueue(env, guildId, userId);
     return {
       ok: true,
       alreadyToday: true,
       streak:  prev.streak,
       longest: prev.longest,
       freezeUsed: false,
-      pendingBonusCount: q.pending.length,
       embed: { posted: false, reason: 'already-today' },
       firstTimeNoCard: false,
     };
@@ -566,34 +539,17 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
   };
   await saveState(env, guildId, userId, state);
 
-  // Enqueue the daily bonus + any milestone hit today. The user
-  // collects these from the website via /web/checkin/bonus/collect.
-  await enqueueBonus(env, guildId, userId, {
-    id:         bonusId('daily', today),
-    kind:       'daily',
-    amount:     DAILY_BASE_BOLTS,
-    label:      'Daily check-in bolts',
-    grantedUtc: now,
-  });
-  for (const m of STREAK_MILESTONES) {
-    if (nextStreak === m.day) {
-      await enqueueBonus(env, guildId, userId, {
-        id:         bonusId('streak-' + m.day, today),
-        kind:       'milestone',
-        amount:     m.amount,
-        label:      m.label,
-        grantedUtc: now,
-      });
-    }
-  }
+  // (Bolts economy sunset: removed daily + streak-milestone bonus
+  // enqueue. Streak is still tracked; milestone days still drive the
+  // celebratory message + XP + activity pulse below.)
 
   // XP grant, fire through the progression event bus so the daily
   // check-in XP (table key 'daily.claimed' = 20 XP, daily cap 20) +
   // any streak-milestone XP land on the user's XP record. Event-bus
   // dedup is keyed on meta.id so a same-day re-call doesn't double-
   // grant. Fire-and-forget; a failed grant must never roll back the
-  // check-in. Streak XP is intentionally separate from the bolt
-  // milestones, the XP table has 'daily.streak.{7,30,100}' tuned by
+  // check-in. Streak XP is driven off the milestone days, the XP
+  // table has 'daily.streak.{7,30,100}' tuned by
   // PROGRESSION-SYSTEM-DESIGN.md §4.2.
   try {
     await emitProgressionEvent(env, {
@@ -623,7 +579,7 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
   }).catch(() => {});
 
   // Post the embed (best-effort, a failure here doesn't roll back
-  // the check-in itself; the user still got their streak + bonuses).
+  // the check-in itself; the user still got their streak).
   // opts { message, gifUrl } come from the /checkin compose flow
   // and bake the user's message + chosen GIF directly into the card.
   const member = await fetchMemberInfo(env, guildId, userId);
@@ -641,43 +597,24 @@ export async function recordCheckin(env, guildId, userId, source = 'web', opts =
     } catch { /* non-fatal */ }
   }
 
-  // ✨ Very-rare Voltaic lucky-drop on each successful daily check-in
-  // (seeded on the ET-day so a user can't re-roll within the same
-  // day). When it hits, the pack lands in their pending-packs queue
-  //, opened the next time they play Boltbound. Non-fatal: any
-  // failure here doesn't roll back the check-in itself.
-  let luckyVoltaic = null;
-  try {
-    const { rollVoltaicLuckyDrop } = await import('./cards-packs.js');
-    luckyVoltaic = await rollVoltaicLuckyDrop(
-      env, guildId, userId, 'checkin', `checkin:${today}`
-    );
-  } catch { /* non-fatal */ }
+  // (Bolts economy sunset: removed the Voltaic lucky-pack drop roll —
+  // depended on the deleted cards-packs.js module.)
 
-  const q = await loadQueue(env, guildId, userId);
   return {
     ok: true,
     alreadyToday: false,
     streak:  state.streak,
     longest: state.longest,
     freezeUsed,
-    pendingBonusCount: q.pending.length,
     embed,
     firstTimeNoCard,
-    // Present only on the rare lottery win. Site/Discord reply can
-    // surface a "you got a Voltaic pack!" celebration, the pack is
-    // already in their pending queue and opens via the existing
-    // Boltbound pack-open flow.
-    luckyVoltaic: luckyVoltaic ? { id: luckyVoltaic.id, packType: 'voltaic' } : null,
   };
 }
 
-// Read-only status for the website's "you can check in" / "X bonuses
-// to collect" notifications.
+// Read-only status for the website's "you can check in" notification.
 export async function getStatus(env, guildId, userId) {
   const state = await loadState(env, guildId, userId);
   const card  = await getCard(env, guildId, userId);
-  const queue = await loadQueue(env, guildId, userId);
   const freezes = await getFreezes(env, guildId, userId);
   const today = todayET();
   return {
@@ -689,44 +626,16 @@ export async function getStatus(env, guildId, userId) {
     lastCheckinUtc: state?.lastUtc || 0,
     todayEt: today,
     card,                                  // null when user hasn't customised yet
-    pendingBonuses: queue.pending,         // full list (id+kind+amount+label+grantedUtc)
+    pendingBonuses: [],                    // (Bolts economy sunset: no payouts to collect)
     streakShields: freezes.discord || 0,   // 'discord'-type freezes = check-in shields
   };
 }
 
-// Collect one bonus by id, or all if bonusId === 'all'. Credits the
-// wallet and removes from the queue. Idempotent, collecting an
-// already-collected id returns { ok:true, alreadyCollected:true }.
+// (Bolts economy sunset: the daily/streak bonus queue is gone, so
+// there's nothing to collect. Kept as an exported no-op so callers
+// (web route) keep their import + a stable response shape.)
 export async function collectBonus(env, guildId, userId, claimId) {
-  const queue = await loadQueue(env, guildId, userId);
-  if (!queue.pending.length) {
-    return { ok: true, collected: [], balance: (await getWallet(env, guildId, userId)).balance };
-  }
-
-  const toCollect = (claimId === 'all')
-    ? queue.pending.slice()
-    : queue.pending.filter(b => b.id === claimId);
-  if (toCollect.length === 0) {
-    return { ok: true, alreadyCollected: true, balance: (await getWallet(env, guildId, userId)).balance };
-  }
-
-  let totalCredited = 0;
-  for (const b of toCollect) {
-    await earn(env, guildId, userId, b.amount, 'community-checkin:' + b.id);
-    totalCredited += b.amount;
-  }
-  // Drop collected items from the queue.
-  queue.pending = queue.pending.filter(b => !toCollect.some(c => c.id === b.id));
-  await saveQueue(env, guildId, userId, queue);
-
-  const w = await getWallet(env, guildId, userId);
-  return {
-    ok: true,
-    collected: toCollect.map(b => ({ id: b.id, kind: b.kind, amount: b.amount, label: b.label })),
-    totalCredited,
-    balance: w.balance || 0,
-    remaining: queue.pending.length,
-  };
+  return { ok: true, collected: [], totalCredited: 0, remaining: 0 };
 }
 
 // ── Discord /checkin slash command ─────────────────────────────────────
@@ -736,7 +645,7 @@ export async function collectBonus(env, guildId, userId, claimId) {
 // live in aquilo/checkin-slash.js (the duplicate /checkin entry).
 // Flow:
 //   1. /checkin → runs the unified recordCheckin (streak / freeze /
-//      bonus queue / posted embed / referral milestone / Voltaic roll).
+//      posted embed / referral milestone).
 //   2. If the embed posted to the bound channel, stash the
 //      {channelId, messageId} under `aqci:card:<g>:<u>:<dateET>` so
 //      the existing aqci:pick handler in aquilo/checkin-slash.js can
@@ -826,8 +735,8 @@ export function handleCheckinCommand(env, data) {
     return { type: 4, data: { content: 'Run this in a server.', flags: 64 } };
   }
   // Open the compose modal. recordCheckin doesn't fire until the
-  // user picks a GIF (handleCheckinPickSubmit) so the streak / bolts
-  // / XP only credit ONCE the full compose flow completes.
+  // user picks a GIF (handleCheckinPickSubmit) so the streak / XP
+  // only credit ONCE the full compose flow completes.
   return {
     type: 9, // APPLICATION_MODAL
     data: {
@@ -966,8 +875,8 @@ export async function handleCheckinPickSubmit(env, data) {
   const message = stashed.message || '';
   const today   = todayET();
 
-  // recordCheckin runs the unified flow: streak / freeze / bolts queue
-  // / XP grants / referral milestone / Voltaic roll / embed post.
+  // recordCheckin runs the unified flow: streak / freeze /
+  // XP grants / referral milestone / embed post.
   // opts { message, gifUrl } get baked into the embed by
   // postCheckinEmbed (image + first description line).
   const r = await recordCheckin(env, guildId, userId, 'discord', {
@@ -981,9 +890,9 @@ export async function handleCheckinPickSubmit(env, data) {
       r.embed.channelId, r.embed.messageId);
   } else if (r.alreadyToday) {
     // Same-day re-pick: PATCH the existing card with the new GIF +
-    // (replace) the message line. No streak/bolt double-credit
+    // (replace) the message line. No streak double-credit
     // because recordCheckin's alreadyToday branch already returned
-    // without re-running the rewards path.
+    // without re-running the streak path.
     const existing = await loadCardPointer(env, guildId, userId, today);
     if (existing?.channelId && existing?.messageId) {
       try {
@@ -1033,16 +942,9 @@ export async function handleCheckinPickSubmit(env, data) {
   const lines = [];
   if (r.alreadyToday) {
     lines.push(`✅ Already checked in today. Card updated with the new GIF${message ? ' + message' : ''}. **${r.streak}-day** streak going strong.`);
-    if (r.pendingBonusCount) {
-      lines.push(`🎁 **${r.pendingBonusCount}** unclaimed bonus${r.pendingBonusCount > 1 ? 'es' : ''}, collect on aquilo.gg/profile.`);
-    }
   } else {
     lines.push(`✅ Checked in! **${r.streak}-day** streak.`);
     if (r.freezeUsed)    lines.push('❄ A **Streak Shield** saved your streak, one shield consumed.');
-    if (r.luckyVoltaic)  lines.push('⚡ **JACKPOT**, a **Voltaic pack** dropped! Open it via `/boltbound`.');
-    if (r.pendingBonusCount) {
-      lines.push(`🎁 **${r.pendingBonusCount}** bonus${r.pendingBonusCount > 1 ? 'es' : ''} ready to collect on aquilo.gg/profile.`);
-    }
     if (r.firstTimeNoCard) {
       lines.push(`✨ First time? Customise your check-in card at aquilo.gg${CUSTOMISE_PATH}.`);
     }

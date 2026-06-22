@@ -15,29 +15,19 @@
 //
 // Streak break protection: if `delta` > 1 day, we call the
 // loadout-discord Worker's POST /streak-freeze/consume (HMAC-gated by
-// LOADOUT_BOLT_API_SECRET, the same secret aquilo-bot already uses to
-// credit bolts) with type='discord'. If a freeze is consumed, the
-// streak is preserved as if no miss occurred.
-//
-// Reward: base 5 bolts per check-in + tiered streak-milestone bonuses
-// (+5 at day 7, +10 at day 30, +25 at day 100). Calibrated to be
-// noticeable but not abusable, a daily picture post should feel
-// rewarded, not lucrative.
+// LOADOUT_BOLT_API_SECRET) with type='discord'. If a freeze is
+// consumed, the streak is preserved as if no miss occurred.
 //
 // Confirmation: ✅ reaction on the user's message. Mirrors counting.js
-// (no chat spam in a busy channel).
+// (no chat spam in a busy channel). Milestone days (7 / 30 / 100) get a
+// celebratory chat callout.
 
 import { discordFetch } from './util.js';
 import { ensureBootstrap } from './bootstrap.js';
-import { applyBolts } from './bolts.js';
+// (Bolts economy sunset: removed bolts.js import / bolt award)
 
 const KV_TABLE_INIT = 'checkin:table_initialized:v1';
-const REWARD_BASE = 5;
-const STREAK_MILESTONES = [
-  { day: 7,   bonus: 5 },
-  { day: 30,  bonus: 10 },
-  { day: 100, bonus: 25 },
-];
+const STREAK_MILESTONES = [7, 30, 100];
 
 function todayET(date = new Date()) {
   // Same shape as streak.js's todayET so the two daily-streak systems
@@ -190,14 +180,10 @@ async function getBoundCheckinChannel(env, guildId) {
   return channelId;
 }
 
-function milestoneBonus(streak) {
-  // Award the highest milestone bonus whose day-target == today's
-  // streak (so a user hits the bonus exactly once per milestone, not
-  // every day past it).
-  for (const m of STREAK_MILESTONES) {
-    if (streak === m.day) return m.bonus;
-  }
-  return 0;
+function isMilestone(streak) {
+  // True when today's streak lands exactly on a milestone day (so the
+  // celebration fires once per milestone, not every day past it).
+  return STREAK_MILESTONES.includes(streak);
 }
 
 // ---- Message handler (called from POST /counting/message fan-out) ------
@@ -287,26 +273,22 @@ export async function handleCheckinMessage(env, payload) {
     ).bind(current, longest, today, total, guildId, userId).run();
   }
 
-  // Bolts payout: base + any streak milestone bonus this day.
-  const bonus = milestoneBonus(current);
-  const reward = REWARD_BASE + bonus;
-  await applyBolts(env, guildId, userId, reward, 'discord-checkin:streak-' + current);
+  // (Bolts economy sunset: removed bolt payout computation + award)
+  const milestone = isMilestone(current);
 
   // ✅ reaction.
   try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '✅'); }
   catch (e) { console.warn('[checkin] react failed', e?.message || e); }
 
-  // Milestone DM-able callout. Reaction is the silent default; we only
+  // Milestone callout. Reaction is the silent default; we only
   // surface a chat message on milestone days or when a freeze just
   // saved the streak (those are events the user should actually see).
-  if (bonus > 0 || freezeUsed) {
+  if (milestone || freezeUsed) {
     let msg;
     if (freezeUsed) {
-      msg = '❄ <@' + userId + '> a **Streak Freeze** saved your **' + current + '-day** Discord check-in streak! ' +
-            '+' + reward + ' bolts.';
+      msg = '❄ <@' + userId + '> a **Streak Freeze** saved your **' + current + '-day** Discord check-in streak!';
     } else {
-      msg = '🎉 <@' + userId + '> hit **day ' + current + '** of your Discord check-in streak! ' +
-            '+' + reward + ' bolts (base ' + REWARD_BASE + ' + milestone ' + bonus + ').';
+      msg = '🎉 <@' + userId + '> hit **day ' + current + '** of your Discord check-in streak!';
     }
     try {
       await discordFetch(env, '/channels/' + encodeURIComponent(payload.channel_id) + '/messages', {
@@ -325,7 +307,6 @@ export async function handleCheckinMessage(env, payload) {
     ok: true,
     streak: current,
     longest,
-    reward,
     freeze_used: freezeUsed,
   };
 }

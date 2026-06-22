@@ -1,6 +1,6 @@
 // Returning-member re-engagement. Records "last seen" timestamps from
 // any interaction the bot handles; once-per-user welcome-back DM after
-// 30+ days of absence, with a 50 Bolts gift.
+// 30+ days of absence.
 //
 // Public API:
 //   touchSeen(env, guildId, userId)     -> update last_seen (fire and forget)
@@ -9,7 +9,7 @@
 import { getETInfo, discordFetch } from './util.js';
 
 const RETURN_THRESHOLD_DAYS = 30;
-const RETURN_BOLTS = 50;
+// (Bolts economy sunset: removed RETURN_BOLTS + returning bolt grant)
 
 /** Bump the last_seen timestamp for this user. Cheap upsert. */
 export async function touchSeen(env, guildId, userId) {
@@ -65,16 +65,7 @@ export async function runReturningCron(env) {
       'UPDATE last_seen SET dm_sent_at = datetime(\'now\') WHERE guild_id = ? AND user_id = ?'
     ).bind(r.guild_id, r.user_id).run();
 
-    // Credit Bolts.
-    if (env.LOADOUT_BOLT_API && env.LOADOUT_BOLT_API_SECRET) {
-      try {
-        await fetch(env.LOADOUT_BOLT_API, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-loadout-bolt-secret': env.LOADOUT_BOLT_API_SECRET },
-          body: JSON.stringify({ user_id: r.user_id, amount: RETURN_BOLTS, reason: 'return' }),
-        });
-      } catch (e) { console.error('[returning] bolts grant failed', e?.message || e); }
-    }
+    // (Bolts economy sunset: removed returning bolt grant POST block)
   }
 }
 
@@ -91,8 +82,8 @@ async function sendReturnDM(env, userId) {
       body: JSON.stringify({
         content:
           '🌩️ **Welcome back to Aquilo!**\n\n' +
-          `It's been a while, here's a returning-storm bonus of **${RETURN_BOLTS} Bolts**.\n` +
-          'Catch up: run `/passport` for your streak, `/loadout` for your wallet, and the viewer hub for what to do next.'
+          "It's been a while, good to see you again.\n" +
+          'Catch up: run `/passport` for your streak, and the viewer hub for what to do next.'
       })
     });
   } catch (e) {

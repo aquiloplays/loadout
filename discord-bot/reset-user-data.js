@@ -28,7 +28,9 @@
 // Returns per-prefix counts so the admin tooling can show what got
 // wiped, plus a list of any error reasons.
 
-import { resetAllWallets } from './wallet.js';
+// (Bolts economy sunset: wallet.js was deleted. Any lingering wallet:*
+// KV records are now hard-deleted via deletePrefix below rather than
+// zeroed via the old resetAllWallets helper.)
 
 const KEY_LIMIT = 1000;
 const MAX_PAGES = 50;   // 50 × 1000 = 50k per prefix, enough for any
@@ -70,20 +72,11 @@ export async function resetUserData(env, guildId, opts = {}) {
 
   const summary = {};
 
-  // wallets, use the existing resetAllWallets so links[] is preserved
-  // and the on-disk shape stays canonical. Returns the count of
-  // wallets cleared rather than deleted; the KV records remain but
-  // are zeroed.
-  try {
-    const cleared = await resetAllWallets(env, guildId);
-    summary['wallet:'] = { reset: cleared, mode: 'zeroed-preserved-links' };
-  } catch (e) {
-    summary['wallet:'] = { error: String(e?.message || e) };
-  }
-
-  // Hard-delete the per-user progression + streak records. Anything
-  // recreated by the user's next interaction starts fresh.
+  // Hard-delete the per-user progression + streak records (plus any
+  // leftover Bolts-economy wallet records). Anything recreated by the
+  // user's next interaction starts fresh.
   for (const prefix of [
+    `wallet:${guildId}:`,
     `community-checkin:${guildId}:`,
     `community-checkin-bonus:${guildId}:`,
     `freeze:${guildId}:`,

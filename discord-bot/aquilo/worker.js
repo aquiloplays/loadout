@@ -106,12 +106,10 @@ import {
   runTriviaCron, handleTriviaClick,
   triviaEditModal, handleTriviaEditSubmit
 } from './trivia.js';
-import {
-  handleShopCommand, handleShopBuyClick,
-  shopEditModal, handleShopEditSubmit
-} from './shop.js';
 import { maybeWelcome } from './welcome.js';
 import { tickAsync as streakTick } from './streak.js';
+// (Bolts economy sunset: the Bolts shop (./shop.js) import + dispatch
+// were removed.)
 import {
   trackClipMessage, refreshClipReactions, postClipOfTheWeek
 } from './clipoftheweek.js';
@@ -229,25 +227,8 @@ export async function handleAquiloHttp(req, env, ctx, url) {
     }
   }
 
-  // Gateway-forwarded GUILD_MEMBER_UPDATE, drives booster perks.
-  // Payload (slim): { guild_id, user, premium_since, roles }
-  if (method === 'POST' && path === '/member/updated') {
-    if (!env.AQUILO_GATEWAY_SECRET && !env.COUNTING_WEBHOOK_SECRET) {
-      return json({ error: 'gateway secret unset' }, 503);
-    }
-    const bodyText = await req.text();
-    const auth = await verifyGatewaySig(req, env, bodyText);
-    if (!auth.ok) return json({ error: 'unauthorized' }, 401);
-    let payload;
-    try { payload = JSON.parse(bodyText); } catch { return json({ error: 'bad_json' }, 400); }
-    try {
-      const { handleMemberUpdated } = await import('../boosters.js');
-      const result = await handleMemberUpdated(env, payload);
-      return json({ ok: true, booster: result, via: auth.via });
-    } catch (e) {
-      return json({ error: String(e.message || e) }, 500);
-    }
-  }
+  // (Bolts economy sunset: the GUILD_MEMBER_UPDATE → booster-perks
+  // route /member/updated was removed — boosters.js was deleted.)
 
   // Gateway-forwarded VOICE_STATE_UPDATE, drives temp-VC create/cleanup.
   // Payload (slim): { guild_id, channel_id, user_id, session_id }
@@ -660,14 +641,11 @@ async function handleAppCommand(data, env, ctx) {
       }
       return handlePassportCommand(data, env);
     case 'birthday':       return handleBirthdayCommand(data, env);
-    case 'shop':           return handleShopCommand(data, env);
-    // Admin-only authoring commands for trivia + shop.
+    // (Bolts economy sunset: /shop + /shop-add were removed.)
+    // Admin-only authoring command for trivia.
     case 'trivia-add':
       if (!isAdmin(data)) return ephemeral('Admin only.');
       return { type: 9, data: triviaEditModal().data };
-    case 'shop-add':
-      if (!isAdmin(data)) return ephemeral('Admin only.');
-      return { type: 9, data: shopEditModal().data };
     // Rotation song-pre-queue commands (per-role limits via SR_ROLE_LIMITS_JSON).
     case 'sr-add':         return handleSrAdd(env, data);
     case 'sr-list':        return handleSrList(env, data);
@@ -727,7 +705,7 @@ async function handleComponent(data, env, ctx) {
   // v3 buttons.
   if (id.startsWith('passport:')) return handlePassportButton(env, data);
   if (id.startsWith('trivia:'))   return handleTriviaClick(env, data);
-  if (id.startsWith('shop:'))     return handleShopBuyClick(env, data);
+  // (Bolts economy sunset: the shop: buy-button route was removed.)
   if (id.startsWith('ticket:'))   return handleTicketComponent(env, data);
   if (id === 'aqci:search')          return handleCheckinSearchButton();
   if (id.startsWith('aqci:pick:'))   return handleCheckinPickButton(env, data);
@@ -752,7 +730,7 @@ async function handleModalSubmit(data, env, ctx) {
   if (id === 'modal:setup_advanced')  return handleSetupAdvancedSubmit(env, data);
   // v3 modals.
   if (id === 'modal:trivia_edit')     return handleTriviaEditSubmit(env, data);
-  if (id === 'modal:shop_edit')       return handleShopEditSubmit(env, data);
+  // (Bolts economy sunset: the modal:shop_edit route was removed.)
   if (id === 'modal:vh_suggest')      return handleViewerSuggestSubmit(env, data);
   if (id === 'modal:vh_sr_add')       return handleViewerSrAddSubmit(env, data);
   if (id === 'modal:vh_sr_remove')    return handleViewerSrRemoveSubmit(env, data);

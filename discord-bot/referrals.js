@@ -14,18 +14,18 @@
 //
 // Milestone semantics: each referee can only credit their referrer
 // ONCE. The first milestone (whichever fires first, Patreon-link or
-// first community check-in) pays out + locks the record. Subsequent
+// first community check-in) records + locks the record. Subsequent
 // milestones for the same referee are no-ops.
 //
-// Reward (single Patreon tier, no scaling per Clay):
-//   • 50 bolts
-//   • 1 'bolt' Boltbound pack
+// (Bolts economy sunset: the milestone reward — 50 bolts + 1 'bolt'
+// Boltbound pack — has been removed. The funnel still records the
+// attribution + milestone for stats; there's no currency payout.)
 //
 // Anti-abuse:
 //   • Self-referral: refused at attribute time.
 //   • Double-attribution: first attribution wins; subsequent calls
 //     for the same referee return { ok: false, error: 'already-attributed' }.
-//   • Double-payout: protected by the milestoneFiredUtc stamp on the
+//   • Double-record: protected by the milestoneFiredUtc stamp on the
 //     referee record.
 //
 // KV layout (all on LOADOUT_BOLTS):
@@ -39,13 +39,9 @@
 //                                       history: [...] }  (capped to 50)
 //
 // `count` is # referees attributed; `paid` is # referees whose first
-// milestone has fired (and thus paid the reward).
+// milestone has fired (retained field name; no longer a payout count).
 
-import { earn } from './wallet.js';
-import { creditPack } from './cards-packs.js';
-
-export const REFERRAL_REWARD_BOLTS = 50;
-export const REFERRAL_REWARD_PACK  = 'bolt';
+// (Bolts economy sunset: removed wallet/economy-pace/cards-packs import)
 
 const CODE_KEY_BY_USER = (g, u) => `referral:code-by-user:${g}:${u}`;
 const CODE_KEY_BY_CODE = (g, c) => `referral:user-by-code:${g}:${c}`;
@@ -152,37 +148,36 @@ export async function attributeFromInvite(env, guildId, refereeId, inviteCode) {
   return recordAttribution(env, guildId, refereeId, refCode);
 }
 
-// ── Milestone payout ───────────────────────────────────────────────────
+// ── Milestone record ───────────────────────────────────────────────────
 // Called by milestone-firing call sites (the community-checkin first
 // success, the Patreon-link handler). If the referee is attributed AND
-// no prior milestone has fired, credits the referrer with the reward
-// and stamps the referee record so future milestones don't double-pay.
+// no prior milestone has fired, records the milestone against the
+// referrer and stamps the referee record so future milestones don't
+// double-fire.
 //
-// Returns { paid: bool, reason?: string, referrerId?: string,
-//           reward?: { bolts, pack } }.
+// (Bolts economy sunset: the currency + pack payout has been removed.
+// The referral funnel still records the attribution + milestone for
+// stats/history; there's just no wallet credit anymore. The `paid`
+// flag is retained in the return shape for callers — it now means
+// "milestone recorded for the first time", not "currency paid out".)
+//
+// Returns { paid: bool, reason?: string, referrerId?: string }.
 export async function recordMilestone(env, guildId, refereeId, kind) {
   if (!guildId || !refereeId || !kind) return { paid: false, reason: 'bad-args' };
   const rec = await getRefereeRecord(env, guildId, refereeId);
   if (!rec) return { paid: false, reason: 'not-attributed' };
-  if (rec.milestoneFiredUtc) return { paid: false, reason: 'already-paid', referrerId: rec.referrerId };
+  if (rec.milestoneFiredUtc) return { paid: false, reason: 'already-recorded', referrerId: rec.referrerId };
 
-  // Pay the referrer.
-  await earn(env, guildId, rec.referrerId, REFERRAL_REWARD_BOLTS,
-             `referral:milestone:${kind}:${refereeId}`);
-  const pack = await creditPack(env, guildId, rec.referrerId, REFERRAL_REWARD_PACK,
-                                `referral:milestone:${kind}:${refereeId}`);
-
-  // Stamp referee → no future double-pay.
+  // Stamp referee → no future double-fire.
   rec.milestoneFiredUtc = Date.now();
   rec.milestoneKind     = kind;
   await env.LOADOUT_BOLTS.put(REFEREE_KEY(guildId, refereeId), JSON.stringify(rec));
 
-  // Update referrer's stats.
+  // Update referrer's stats (attribution credit only, no payout).
   const stats = await getReferrerStats(env, guildId, rec.referrerId);
   stats.paid += 1;
   stats.history.push({
     refereeId, kind, ts: rec.milestoneFiredUtc,
-    reward: { bolts: REFERRAL_REWARD_BOLTS, pack: REFERRAL_REWARD_PACK },
   });
   stats.lastUtc = rec.milestoneFiredUtc;
   await putReferrerStats(env, guildId, rec.referrerId, stats);
@@ -190,7 +185,6 @@ export async function recordMilestone(env, guildId, refereeId, kind) {
   return {
     paid: true,
     referrerId: rec.referrerId,
-    reward: { bolts: REFERRAL_REWARD_BOLTS, pack: REFERRAL_REWARD_PACK, packCreditOk: !!pack?.ok },
   };
 }
 
@@ -211,9 +205,9 @@ export async function handleReferralCommand(env, data) {
     '',
     `📊  **Referrals so far:**`,
     `   • ${stats.count} member${stats.count === 1 ? '' : 's'} signed up with your code`,
-    `   • ${stats.paid} hit a milestone → you earned **${stats.paid * REFERRAL_REWARD_BOLTS} bolts** + **${stats.paid} pack${stats.paid === 1 ? '' : 's'}**`,
+    `   • ${stats.paid} reached a milestone (linked Patreon or did their first check-in)`,
     '',
-    `_Each referred member who links their Patreon OR does their first daily check-in earns you **${REFERRAL_REWARD_BOLTS} bolts** + **1 Boltbound pack**._`,
+    `_Share your link to bring new members into the community, they reach a milestone when they link their Patreon OR do their first daily check-in._`,
   ];
   return { type: 4, data: { content: lines.join('\n'), flags: 64 } };
 }

@@ -1,19 +1,14 @@
 // Counting game. Players type 1, 2, 3, 4... in COUNTING_CHANNEL_ID.
-// Each correct count gets a small bolt reward; the reward multiplier
-// scales by floor(count / 100). Any wrong number, non-number, or same
-// user counting twice in a row resets the count to 0, the offender
-// gets a temporary "fail" role + a bolt deduction.
+// Any wrong number, non-number, or same user counting twice in a row
+// resets the count to 0, the offender gets a temporary "fail" role.
 //
 // Discord MESSAGE_CREATE events arrive here from aquilo-presence (the
 // gateway keeper), forwarded as POST /counting/message with the shared
 // COUNTING_WEBHOOK_SECRET in the x-counting-secret header.
-//
-// Bolts are awarded/deducted via the Loadout discord-bot worker's
-// /counting/award-bolts endpoint, auth'd by LOADOUT_BOLT_API_SECRET.
 
 import { discordFetch } from './util.js';
 import { ensureBootstrap } from './bootstrap.js';
-import { applyBolts } from './bolts.js';
+// (Bolts economy sunset: removed bolts.js import / bolt award)
 
 const KV_STATE          = (gid) => 'counting:' + gid;
 const KV_FAIL_EXPIRY    = 'counting:fail_expiry';
@@ -23,8 +18,6 @@ const KV_CHAN_TIMEOUT   = 'counting:channel_timeouts';   // [{ guild_id, channel
 const NAN_STRIKES_TTL_S = 24 * 60 * 60;   // strikes decay after 24h of no offences
 const CHAN_TIMEOUT_MIN  = 60;
 
-const DEFAULT_BASE_REWARD     = 1;
-const DEFAULT_FAIL_PENALTY    = 10;
 // 24 h default per Clay 2026-05-27, the embarrassment IS the
 // punishment; long enough that the shame role visibly persists on
 // their profile even if they don't visit Discord that day, short
@@ -467,7 +460,7 @@ export async function handleCountingMessage(env, payload) {
   const content = (payload.content || '').trim();
 
   // ── L8 split: distinguish "not a whole number" (warn/timeout, no
-  //   chain break) from "wrong whole number" (chain break + penalty).
+  //   chain break) from "wrong whole number" (chain break).
   //   • !isWholeNumber → just-not-a-number; warn 1st, timeout 2nd
   //   • isWholeNumber + (wrong value || same user) → real chain break
   const isWholeNumber = /^[0-9]+$/.test(content) && !/^0[0-9]+/.test(content);
@@ -483,23 +476,11 @@ export async function handleCountingMessage(env, payload) {
   const ok = num === expected && !sameUser;
 
   if (ok) {
-    // SUCCESS: react, reward, update state.
+    // SUCCESS: react, update state.
     try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '✅'); }
     catch (e) { console.warn('[counting] react ok failed', e?.message || e); }
 
-    // v2 economy rebalance (2026-05): drip semantic instead of
-    // per-count. Old: 1 bolt per count × floor(num/100)+1 multiplier
-    //, so 100 counts could mint 100+ bolts. New: 1 bolt at every
-    // multiple of 5, +1 extra at multiples of 25, +5 extra at
-    // multiples of 100 (the 100-celebrate milestone). A 100-count
-    // run now mints ~30 bolts instead of ~150. The reward variable
-    // is reported in the response, so 0 is a valid "right number,
-    // no drip" outcome the UI still shows.
-    let reward = 0;
-    if (num % 5 === 0)   reward += 1;
-    if (num % 25 === 0)  reward += 1;
-    if (num % 100 === 0) reward += 5;
-    if (reward > 0) await applyBolts(env, guildId, userId, reward, 'counting:' + num);
+    // (Bolts economy sunset: removed bolt reward computation + award)
 
     state.current = num;
     state.last_user_id = userId;
@@ -519,18 +500,18 @@ export async function handleCountingMessage(env, payload) {
     if (num % 100 === 0) {
       try {
         await postChat(env, payload.channel_id, {
-          content: '🎉 **' + num + '!** +' + reward + ' bolts, keep the chain going.'
+          content: '🎉 **' + num + '!** Keep the chain going.'
         });
       } catch {}
     }
 
     await saveState(env, guildId, state);
-    return { ok: true, count: num, reward };
+    return { ok: true, count: num };
   }
 
   // ── Per-user warning gate (Clay 2026-05-28) ──────────────────────
   // First wrong WHOLE number in a 24h window → soft callout, chain
-  // stays at state.current, NO role + NO bolt penalty. Other users
+  // stays at state.current, NO role. Other users
   // can keep counting from where it was. The warned user's strike
   // is tracked in KV with a 24h TTL; second wrong within the window
   // falls through to the full fail flow below.
@@ -562,16 +543,13 @@ export async function handleCountingMessage(env, payload) {
   // through to the existing chain-break path.
   try { await env.STATE.delete(warnKey); } catch { /* ignore */ }
 
-  // FAIL: react, penalize, assign fail role, reset.
+  // FAIL: react, assign fail role, reset.
   try { await reactToMessage(env, payload.channel_id, _msgIdOf(payload), '❌'); }
   catch (e) { console.warn('[counting] react fail failed', e?.message || e); }
 
-  const failPenalty = parseInt(env.COUNTING_FAIL_PENALTY || String(DEFAULT_FAIL_PENALTY), 10) || DEFAULT_FAIL_PENALTY;
+  // (Bolts economy sunset: removed bolt penalty computation + award)
   const failDuration = await getFailDurationMin(env, guildId);
   const failRoleId   = await getFailRoleId(env, guildId);
-
-  // Negative amount → applyVaultDelta clamps balance at 0, so this is safe.
-  await applyBolts(env, guildId, userId, -failPenalty, 'counting:fail_at:' + state.current);
 
   // Assign the fail role (e.g. "I CAN'T COUNT") for failDuration
   // minutes. addMemberRole is idempotent (Discord PUT) and
@@ -598,7 +576,7 @@ export async function handleCountingMessage(env, payload) {
   try {
     await postChat(env, payload.channel_id, {
       content: '💥 <@' + userId + '> broke the chain at **' + state.current + '**, ' + reasonText + '.\n' +
-               '🪙 −' + failPenalty + ' bolts · ⏳ ' +
+               '⏳ ' +
                (failRoleId ? `**I CAN'T COUNT** role for ${durationLabel}` : `fail cooldown ${durationLabel}`) +
                ' · count resets to **1**.'
     });

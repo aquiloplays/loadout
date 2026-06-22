@@ -101,7 +101,7 @@ export async function buildPassportEmbed(env, guildId, userId) {
     color: PASSPORT_COLOR,
     title: '🪪 Aquilo Passport',
     description: lines.join('\n').slice(0, 4096),
-    footer: { text: 'Run /loadout for Bolts / hero / shop · /birthday set to add your date' },
+    footer: { text: 'Run /passport any time · /birthday set to add your date' },
     timestamp: new Date().toISOString()
   };
 }

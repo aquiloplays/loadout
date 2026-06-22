@@ -9,7 +9,12 @@
 import { json } from './ext-shared.js';
 import { resolveTwitchLoginById } from './ext-loadout.js';
 import { verifyBitsReceipt } from './auth.js';
-import { spend } from './wallet.js';
+// (Bolts economy sunset 2026-06: the wallet.js `spend` import was
+// removed. The dungeon-skip bolts-debit path in skipCooldown is gone;
+// the Bits-receipt path is kept. NB: the panel bridge as a whole is no
+// longer wired into ext.js — only dungeonCooldownState is still imported
+// by ext-mod.js — but the file stays on disk with the DLL dungeon
+// surface intact for a future revival.)
 
 // How long a pushed state stays "live". KV's own expirationTtl floors
 // at 60s; the tighter window is enforced here off the stored ts, so
@@ -221,16 +226,8 @@ export async function skipCooldown(env, guildId, userId, payload, req) {
     ) {
       return json({ error: 'bad-payment' }, 402);
     }
-  // Path 2: bolts debit.
-  } else if (body && body.bolts === true) {
-    const r = await spend(env, guildId, userId, SKIP_BOLTS_COST, 'dungeon-skip-cooldown');
-    if (!r || !r.ok) {
-      return json({
-        error: 'insufficient-bolts',
-        balance: r ? r.balance : 0,
-        cost: SKIP_BOLTS_COST,
-      }, 402);
-    }
+  // (Bolts economy sunset: the bolts-debit payment path was removed.
+  // Only the Bits-receipt path above remains.)
   } else {
     return json({ error: 'choose-payment' }, 400);
   }

@@ -1,46 +1,25 @@
-// /web/*, site → bot RPC for the aquilo.gg minigames page.
+// /web/*, site → bot RPC for the aquilo.gg site.
 //
 // aquilo-site's Pages Functions own the Patreon auth (aq_link cookie +
-// per-session webSig CSRF token). When a logged-in patron clicks
-// "Daily" / "Coinflip" / "Dice" on the website, the site Pages
-// Function verifies the cookie, then HMAC-signs a request here. We
-// trust the discordId the site claims as long as the HMAC verifies.
-//
-// Routes:
-//   POST /web/wallet      { discordId, guildId }                  -> wallet snapshot
-//   POST /web/daily       { discordId, guildId }                  -> daily claim
-//   POST /web/coinflip    { discordId, guildId, bet }             -> { won, payout, balance }
-//   POST /web/dice        { discordId, guildId, bet, target }     -> { won, roll, payout, balance }
+// per-session webSig CSRF token). When a logged-in patron triggers an
+// action on the website, the site Pages Function verifies the cookie,
+// then HMAC-signs a request here. We trust the discordId the site
+// claims as long as the HMAC verifies.
 //
 // All POST so the HMAC body is always present and the signing
 // scheme is uniform. HMAC = SHA-256 over `ts + "\n" + body`,
 // hex-encoded. Headers: x-aquilo-web-ts, x-aquilo-web-sig. 5-min
 // timestamp skew. Mirrors the /sync/:guildId scheme exactly.
 //
-// games.js is the single source of truth for daily / coinflip /
-// dice, same code path that Discord's /loadout and the Twitch
-// panel's /ext/daily already use. No surface drift possible.
+// (Bolts economy sunset 2026-06: the wallet / daily / coinflip / dice /
+// quick-games / sports-betting / banner / spire / aether routes that used
+// to live here have been removed along with their backing modules.)
 
-import { coinflip, dice, daily } from './games.js';
-import {
-  cooldownCheck, cooldownTouch,
-  blackjackStart, blackjackHit, blackjackStand,
-  roulette, wheel,
-  hiloStart, hiloGuess, hiloCashout,
-  minesStart, minesReveal, minesCashout,
-  plinko,
-  quickGamesSnapshot,
-} from './games-quick.js';
-import { getWallet, applyVaultDelta } from './wallet.js';
+// (Bolts economy sunset 2026-06: games.js / games-quick.js / wallet.js /
+// bet.js imports removed — coinflip/dice/daily, quick games, wallet, and
+// sports betting are gone.)
 import { recordStat } from './recap.js';
 import { verifyHmac } from './auth.js';
-import {
-  publicSportsSnapshot,
-  readGamesCache,
-  refreshGamesCache,
-  runPlaceJson,
-  getUserBetsPublic,
-} from './bet.js';
 import {
   snapshotQueue,
   openQueue,
@@ -49,14 +28,11 @@ import {
   notifyQueueOpened,
 } from './queue.js';
 import { handleAdminWeb } from './admin-web.js';
-import { routeBoltbound, isBoltboundRoute } from './cards-web.js';
-import { routeBoard, isBoardRoute } from './boardgames-web.js';
+// (Bolts economy sunset 2026-06: cards-web.js / boardgames-web.js imports
+// removed — Boltbound + board games are dormant and must not be bundled.)
 
 const ROUTES = new Set([
-  'wallet',
-  'daily',
-  'coinflip',
-  'dice',
+  // (Bolts economy sunset 2026-06: wallet / daily / coinflip / dice routes removed)
   // Community-chat reactions surface, see aquilo/community-chat.js
   // for the storage + Discord REST wiring. /web/chat/recent returns
   // the ringbuffer enriched with per-message reactions (native
@@ -97,34 +73,15 @@ const ROUTES = new Set([
   // the PWA can switch between channels instead of being capped at
   // the COMMUNITY_CHAT_CHANNELS_JSON allow-list.
   'chat/channels',
-  // 2026-05 expansion, quick bolts games. Stateful games (blackjack,
-  // hilo, mines) split into start/play/cashout sub-routes so the bot
-  // can persist hand state across calls without re-deriving it from
-  // the client. quick/snapshot is the page-load read that surfaces
-  // any in-progress hand + the per-viewer cooldown window.
-  'quick/snapshot',
-  'blackjack/start',
-  'blackjack/hit',
-  'blackjack/stand',
-  'roulette',
-  'wheel',
-  'hilo/start',
-  'hilo/guess',
-  'hilo/cashout',
-  'mines/start',
-  'mines/reveal',
-  'mines/cashout',
-  'plinko',
-  'bet/snapshot',
-  'bet/place',
+  // (Bolts economy sunset 2026-06: quick bolts games removed —
+  // quick/snapshot, blackjack/*, roulette, wheel, hilo/*, mines/*, plinko.)
+  // (Bolts economy sunset 2026-06: sports betting removed — bet/snapshot, bet/place.)
   'queues/snapshot',
   'queues/open',
   'queues/close',
   'queues/close-night',
-  // Banners + Banner Wars (2026-05-29). 5-25 player alliances + weekly
-  // bracketed war state. Site UI was scaffolded with greyed-out
-  // buttons; these endpoints light up the flow. See banners.js +
-  // banner-wars.js.
+  // (Bolts economy sunset 2026-06: Banners + Banner Wars routes removed —
+  // banner founding cost bolts.)
   // 2026-05-29, UI-live unblockers. MVPs land worker endpoints for
   // four features whose site UI shipped against stubs.
   'play/supporters/hall',
@@ -132,36 +89,17 @@ const ROUTES = new Set([
   'play/patron-of-month/current',
   'play/patron-of-month/history',
   'play/patron-of-month/opt-out',
-  'play/dust/snapshot',
-  'play/dust/disenchant',
-  'play/dust/craft',
-  'play/drops/active',
-  'play/drops/upcoming',
-  'stream/bonus-state',
+  // (Bolts economy sunset: Boltbound dust-crafting (play/dust/*) and
+  // card-pack drops (play/drops/*) routes were removed.)
+  // (Bolts economy sunset 2026-06: stream/bonus-state removed — economy multipliers.)
   'play/cosmetics/me',
-  'play/cards/back/list',
-  'play/cards/back/set',
-  'play/banner/me',
-  'play/banner/browse',
-  'play/banner/create',
-  'play/banner/join',
-  'play/banner/leave',
-  'play/banner/kick',
-  'play/war/active',
-  'play/war/declare',
-  'play/war/raid',
+  // (Bolts economy sunset 2026-06: play/banner/* + play/war/* routes removed)
   // New-viewer funnel, referral attribution. /me returns the
   // caller's stable referral code + bring-in stats; /attribute is
   // what the site POSTs after Patreon-link to record (refereeId,
-  // refCode). Reward payout (50 Bolts + 1 'bolt' pack to the
-  // referrer) fires via recordMilestone('first-game') from the
-  // noteFirstGame helper, hooked into routeDaily / routeCoinflip /
-  // routeDice below, first daily/coinflip/dice on an attributed
-  // user pays out, then stamps the referee record so subsequent
-  // plays are no-ops. A future quests.js port can fire additional
-  // milestone kinds (first-checkin, patreon-link, …) without
-  // colliding, recordMilestone is gated on milestoneFiredUtc, not
-  // on the kind.
+  // refCode). (Bolts economy sunset 2026-06: the first-game milestone
+  // payout that used to fire from the game routes is gone; the
+  // patreon-link milestone still fires from routeQuestMarkPatreonLinked.)
   'referral/me',
   'referral/attribute',
   'admin/snapshot',
@@ -180,7 +118,7 @@ const ROUTES = new Set([
   'checkin',                 // POST, record today's check-in
   'checkin/status',          // POST, read streak + card + pending bonuses
   'checkin/card',            // POST, upsert the user's embed card config
-  'checkin/bonus/collect',   // POST, claim one bonus (or 'all')
+  // (Bolts economy sunset 2026-06: checkin/bonus/collect removed — bonus payout was removed)
   // Stream check-in card (on-stream "I'm here" card; stream-checkin.js).
   // Separate from the daily check-in above, D1-backed customization +
   // entitlement-gated cosmetics + the OBS overlay trigger.
@@ -200,21 +138,12 @@ const ROUTES = new Set([
   'cards/skin',              // POST, { cardId, gifUrl } → set the user's skin
   'cards/skin/clear',        // POST, { cardId }         → clear it
   'cards/skins',             // POST, {}                 → { skins: { cardId: url } }
-  // Seasonal Spire (Boltbound solo roguelike). Spec: discord-bot/spire.js.
-  'play/spire/season',       // POST, current month's theme + reward preview + countdown
-  'play/spire/run/me',       // POST, active run state (or { active: null })
-  'play/spire/run/start',    // POST, start a new run (snapshots active deck)
-  'play/spire/run/result',   // POST, { floor, won } record floor outcome
-  'play/spire/run/abandon',  // POST, abandon active run
-  'play/spire/run/floor',    // POST, { floor } returns the NPC + decks for that floor's match
-  'play/spire/leaderboard',  // POST, { limit? } monthly clears + total clear count
+  // (Bolts economy sunset 2026-06: Seasonal Spire routes removed —
+  // Boltbound-deck roguelike riding with the dormant Boltbound surface.)
   // New-viewer funnel, referrals + onboarding quest.
   'referral/me',             // POST, my code + stats
   'referral/attribute',      // POST, record that this user was referred by CODE
-  // Aether economy (aether.js), D1 ledger, spendable premium currency.
-  'aether/balance',          // POST, { discordId, guildId } → balance + lifetime totals
-  'aether/spend',            // POST, { amount, reason? } → debit (insufficient-aether on overdraw)
-  'aether/history',          // POST, { limit? } → newest-first transaction ledger
+  // (Bolts economy sunset 2026-06: Aether economy routes removed — premium currency.)
   'quest/snapshot',          // POST, checklist with claim state
   'quest/claim',             // POST, claim one step (or 'all')
   'quest/mark-patreon-linked', // POST, flip the patreon-linked completion flag (called by site after OAuth)
@@ -259,7 +188,8 @@ export async function handleWeb(req, env) {
 
   const url = new URL(req.url);
   const route = url.pathname.replace(/^\/web\//, '').replace(/\/+$/, '');
-  if (!ROUTES.has(route) && !isBoltboundRoute(route) && !isBoardRoute(route)) return json({ error: 'not-found' }, 404);
+  // (Bolts economy sunset 2026-06: Boltbound + board route prefix checks removed.)
+  if (!ROUTES.has(route)) return json({ error: 'not-found' }, 404);
 
   // Read body once; verify HMAC against the raw bytes; only then parse.
   const bodyText = await req.text();
@@ -292,8 +222,7 @@ export async function handleWeb(req, env) {
   }
 
   try {
-    if (route === 'wallet') return await routeWallet(env, guildId, discordId);
-    if (route === 'daily')  return await routeDaily(env, guildId, discordId);
+    // (Bolts economy sunset 2026-06: wallet + daily dispatch removed)
     if (route === 'chat/recent')  return await routeChatRecent(env, discordId, body);
     if (route === 'chat/react')   return await routeChatReact(env, discordId, body);
     if (route === 'chat/unreact') return await routeChatUnreact(env, discordId, body);
@@ -369,23 +298,8 @@ export async function handleWeb(req, env) {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
       return await routeDockStreamkeySave(env, discordId, body);
     }
-    if (route === 'coinflip') return await routeCoinflip(env, guildId, discordId, body);
-    if (route === 'dice')   return await routeDice(env, guildId, discordId, body);
-    if (route === 'quick/snapshot')     return await routeQuickSnapshot(env, guildId, discordId);
-    if (route === 'blackjack/start')    return await routeBlackjackStart(env, guildId, discordId, body);
-    if (route === 'blackjack/hit')      return await routeBlackjackHit(env, guildId, discordId);
-    if (route === 'blackjack/stand')    return await routeBlackjackStand(env, guildId, discordId);
-    if (route === 'roulette')           return await routeRoulette(env, guildId, discordId, body);
-    if (route === 'wheel')              return await routeWheel(env, guildId, discordId, body);
-    if (route === 'hilo/start')         return await routeHiloStart(env, guildId, discordId, body);
-    if (route === 'hilo/guess')         return await routeHiloGuess(env, guildId, discordId, body);
-    if (route === 'hilo/cashout')       return await routeHiloCashout(env, guildId, discordId);
-    if (route === 'mines/start')        return await routeMinesStart(env, guildId, discordId, body);
-    if (route === 'mines/reveal')       return await routeMinesReveal(env, guildId, discordId, body);
-    if (route === 'mines/cashout')      return await routeMinesCashout(env, guildId, discordId);
-    if (route === 'plinko')             return await routePlinko(env, guildId, discordId, body);
-    if (route === 'bet/snapshot') return await routeBetSnapshot(env, guildId, discordId);
-    if (route === 'bet/place')    return await routeBetPlace(env, guildId, discordId, body);
+    // (Bolts economy sunset 2026-06: coinflip / dice / quick games
+    // (blackjack/roulette/wheel/hilo/mines/plinko) / sports betting dispatch removed)
     if (route === 'queues/snapshot') return await routeQueuesSnapshot(env, guildId, body);
     if (route === 'queues/open') {
       if (!ownerCheck(body)) return json({ error: 'forbidden' }, 403);
@@ -403,7 +317,7 @@ export async function handleWeb(req, env) {
     if (route === 'checkin')               return await routeCommunityCheckin(env, guildId, discordId);
     if (route === 'checkin/status')        return await routeCommunityCheckinStatus(env, guildId, discordId);
     if (route === 'checkin/card')          return await routeCommunityCheckinCard(env, guildId, discordId, body);
-    if (route === 'checkin/bonus/collect') return await routeCommunityCheckinBonusCollect(env, guildId, discordId, body);
+    // (Bolts economy sunset 2026-06: checkin/bonus/collect dispatch removed — bonus payout was removed)
     if (route === 'checkin/card/me')       return await routeStreamCheckinCardMe(env, guildId, discordId);
     if (route === 'checkin/card/save')     return await routeStreamCheckinCardSave(env, guildId, discordId, body);
     if (route === 'checkin/show')          return await routeStreamCheckinShow(env, guildId, discordId, body);
@@ -413,41 +327,21 @@ export async function handleWeb(req, env) {
     if (route === 'cards/skin')            return await routeCardsSkinSet(env, guildId, discordId, body);
     if (route === 'cards/skin/clear')      return await routeCardsSkinClear(env, guildId, discordId, body);
     if (route === 'cards/skins')           return await routeCardsSkinList(env, guildId, discordId);
-    if (route === 'play/spire/season')      return await routeSpireSeason(env);
-    if (route === 'play/spire/run/me')      return await routeSpireRunMe(env, discordId);
-    if (route === 'play/spire/run/start')   return await routeSpireRunStart(env, guildId, discordId);
-    if (route === 'play/spire/run/result')  return await routeSpireRunResult(env, guildId, discordId, body);
-    if (route === 'play/spire/run/abandon') return await routeSpireRunAbandon(env, guildId, discordId);
-    if (route === 'play/spire/run/floor')   return await routeSpireRunFloor(env, discordId, body);
-    if (route === 'play/spire/leaderboard') return await routeSpireLeaderboard(env, body);
+    // (Bolts economy sunset 2026-06: Seasonal Spire dispatch removed — Boltbound-deck roguelike)
     if (route === 'play/supporters/hall')         return await routeSupportersHall(env);
     if (route === 'play/supporters/opt-out')      return await routeSupportersOptOut(env, discordId, body);
     if (route === 'play/patron-of-month/current') return await routePatronCurrent(env);
     if (route === 'play/patron-of-month/history') return await routePatronHistory(env, body);
     if (route === 'play/patron-of-month/opt-out') return await routePatronOptOut(env, discordId, body);
-    if (route === 'play/dust/snapshot')           return await routeDustSnapshot(env, guildId, discordId);
-    if (route === 'play/dust/disenchant')         return await routeDustDisenchant(env, guildId, discordId, body);
-    if (route === 'play/dust/craft')              return await routeDustCraft(env, guildId, discordId, body);
-    if (route === 'play/drops/active')            return await routeDropsActive(env);
-    if (route === 'play/drops/upcoming')          return await routeDropsUpcoming(env, body);
-    if (route === 'stream/bonus-state')           return await routeStreamBonusState(env);
+    // (Bolts economy sunset 2026-06: Boltbound dust (play/dust/*) +
+    // drops (play/drops/*) + card-back cosmetics (play/cards/back/*)
+    // dispatch removed — all Boltbound surfaces.
+    // stream/bonus-state dispatch removed — economy multipliers.)
     if (route === 'play/cosmetics/me')            return await routeCosmeticsMe(env, discordId);
-    if (route === 'play/cards/back/list')         return await routeCardBackList(env, discordId);
-    if (route === 'play/cards/back/set')          return await routeCardBackSet(env, discordId, body);
-    if (route === 'play/banner/me')        return await routeBannerMe(env, guildId, discordId);
-    if (route === 'play/banner/browse')    return await routeBannerBrowse(env, guildId, body);
-    if (route === 'play/banner/create')    return await routeBannerCreate(env, guildId, discordId, body);
-    if (route === 'play/banner/join')      return await routeBannerJoin(env, guildId, discordId, body);
-    if (route === 'play/banner/leave')     return await routeBannerLeave(env, guildId, discordId);
-    if (route === 'play/banner/kick')      return await routeBannerKick(env, guildId, discordId, body);
-    if (route === 'play/war/active')       return await routeWarActive(env, guildId, discordId);
-    if (route === 'play/war/declare')      return await routeWarDeclare(env, guildId, discordId, body);
-    if (route === 'play/war/raid')         return await routeWarRaid(env, guildId, discordId, body);
+    // (Bolts economy sunset 2026-06: play/banner/* + play/war/* dispatch removed)
     if (route === 'referral/me')              return await routeReferralMe(env, guildId, discordId);
     if (route === 'referral/attribute')       return await routeReferralAttribute(env, guildId, discordId, body);
-    if (route === 'aether/balance')           return await routeAetherBalance(env, guildId, discordId);
-    if (route === 'aether/spend')             return await routeAetherSpend(env, guildId, discordId, body);
-    if (route === 'aether/history')           return await routeAetherHistory(env, guildId, discordId, body);
+    // (Bolts economy sunset 2026-06: aether/* dispatch removed — premium currency)
     if (route === 'quest/snapshot')           return await routeQuestSnapshot(env, guildId, discordId);
     if (route === 'quest/claim')              return await routeQuestClaim(env, guildId, discordId, body);
     if (route === 'quest/mark-patreon-linked') return await routeQuestMarkPatreonLinked(env, guildId, discordId);
@@ -459,8 +353,7 @@ export async function handleWeb(req, env) {
     if (route === 'setup/branding')   return await routeSetupBranding(env, guildId, body);
     if (route === 'chat/send')        return await routeChatSend(env, guildId, discordId, body);
     if (route === 'chat/relay/recent') return await routeChatRelayRecent(env, guildId, discordId, body);
-    if (isBoltboundRoute(route))           return await routeBoltbound(env, guildId, discordId, route, body);
-    if (isBoardRoute(route))               return await routeBoard(env, route, guildId, discordId, body);
+    // (Bolts economy sunset 2026-06: Boltbound + board route dispatch removed)
   } catch (e) {
     return json({ error: 'server', message: String((e && e.message) || e) }, 500);
   }
@@ -535,174 +428,16 @@ export async function routePresenceFeed(env) {
   return json({ ok: true, presences: out });
 }
 
-async function routeWallet(env, guildId, userId) {
-  const w = await getWallet(env, guildId, userId);
-  return json({
-    ok: true,
-    wallet: {
-      balance: w.balance || 0,
-      lifetimeEarned: w.lifetimeEarned || 0,
-      lifetimeSpent: w.lifetimeSpent || 0,
-      dailyStreak: w.dailyStreak || 0,
-      lastDailyUtc: w.lastDailyUtc || 0,
-      lastDailyEtDate: w.lastDailyEtDate || null,
-    },
-  });
-}
-
-// Fire-and-forget "you've played a game" hook for the onboarding
-// quest. Called from every game-play route; idempotent (markGamePlayed
-// is just a KV put). Wrapped in a catch so a quest-module failure
-// can't break the actual game route.
-async function noteGamePlayed(env, guildId, userId) {
-  try {
-    const { markGamePlayed } = await import('./quests.js');
-    await markGamePlayed(env, guildId, userId);
-  } catch { /* idle */ }
-}
-
-// Sibling to noteGamePlayed: fire the referral-funnel milestone for
-// the user's first wallet-touching activity. recordMilestone is
-// idempotent on the referee's milestoneFiredUtc stamp, so calling
-// on every play is safe, only the first one for an attributed
-// user actually pays anything out (50 Bolts + 1 'bolt' pack to the
-// referrer). Forward-compatible with quests.js firing additional
-// milestone kinds; they're gated on the same stamp, not on the kind.
-async function noteFirstGame(env, guildId, userId) {
-  try {
-    const { recordMilestone } = await import('./referrals.js');
-    await recordMilestone(env, guildId, userId, 'first-game');
-  } catch (e) {
-    console.warn('[referrals] first-game milestone fire failed:', (e && e.message) || e);
-  }
-}
-
-async function routeDaily(env, guildId, userId) {
-  await noteGamePlayed(env, guildId, userId);
-  const r = await daily(env, guildId, userId);
-  if (r.won) {
-    // games_won bumps on a successful daily so the recap card's
-    // "won X today" field reflects Daily claims too. bolts_earned
-    // separately tracks the bolts the claim added.
-    await recordStat(env, guildId, userId, {
-      bolts_earned: r.payout || 0,
-      games_won: 1,
-    });
-    await noteFirstGame(env, guildId, userId);
-  }
-  // Surface the post-claim wallet so the UI doesn't need a follow-up
-  // round trip.
-  const w = await getWallet(env, guildId, userId);
-  return json({
-    ok: r.won,
-    error: r.won ? undefined : 'already-claimed',
-    explanation: r.explanation,
-    payout: r.payout || 0,
-    streak: r.streak || w.dailyStreak || 0,
-    balance: w.balance || 0,
-  });
-}
-
-async function routeCoinflip(env, guildId, userId, body) {
-  await noteGamePlayed(env, guildId, userId);
-  const bet = Number(body && body.bet);
-  if (!Number.isFinite(bet) || bet <= 0) {
-    return json({ ok: false, error: 'bad-bet', explanation: 'Bet must be a positive number.' }, 400);
-  }
-  const cd = await cooldownCheck(env, userId);
-  if (!cd.ok) return json({ ...cd, ok: false, explanation: cd.message }, 429);
-  const r = await coinflip(env, guildId, userId, bet);
-  if (typeof r.payout !== 'number') {
-    return json({ ok: false, error: 'rejected', explanation: r.explanation || 'Couldn\'t place that bet.' }, 400);
-  }
-  if (r.won) await recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
-  else await recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
-  await noteFirstGame(env, guildId, userId);
-  const w = await getWallet(env, guildId, userId);
-  const cooldownUntil = await cooldownTouch(env, userId);
-  return json({
-    ok: true,
-    won: r.won,
-    payout: r.payout,
-    balance: w.balance || 0,
-    explanation: r.explanation,
-    cooldownUntil,
-  });
-}
+// (Bolts economy sunset 2026-06: routeWallet, noteGamePlayed, noteFirstGame,
+// routeDaily, and routeCoinflip removed — wallet + daily + coinflip economy.)
 
 // ── Stocks ────────────────────────────────────────────────────────────
 // Mirror the panel's read pattern (catalog + per-ticker price + tiny
 // recent-history slice for sparklines), plus the caller's holdings +
 // balance so the trade panel can render position size & cost basis.
 
-// ── Sports betting ────────────────────────────────────────────────────
-// Snapshot pulls the public games list (~48h window) and the caller's
-// active + recent-history bets. /web/bet/place runs the same runPlace
-// flow Discord's /bet sports place uses; settlement still happens via
-// the existing :23 cron tick (betCronTick).
-
-async function routeBetSnapshot(env, guildId, userId) {
-  let games = await readGamesCache(env);
-  if (games.length === 0) games = await refreshGamesCache(env);
-  const [bets, wallet] = await Promise.all([
-    getUserBetsPublic(env, guildId, userId),
-    getWallet(env, guildId, userId),
-  ]);
-  // 48h pre-game window only -- same slice the panel surfaces.
-  const cutoff = Date.now() + 48 * 60 * 60 * 1000;
-  const upcoming = games.filter((g) => g && g.state === 'pre' && (g.startUtc || 0) <= cutoff);
-  return json({
-    ok: true,
-    games: upcoming,
-    active: Array.isArray(bets.active) ? bets.active : [],
-    history: Array.isArray(bets.history) ? bets.history.slice(-20).reverse() : [],
-    balance: wallet.balance || 0,
-  });
-}
-
-async function routeBetPlace(env, guildId, userId, body) {
-  // Parlay payload: { kind:'parlay', bolts, legs:[{game, kind, side}] }.
-  // Solo payload: { gameId, kind?, side, bolts }.
-  const kind = String((body && body.kind) || 'moneyline').toLowerCase();
-  const bolts = Number(body && body.bolts);
-  if (!Number.isFinite(bolts) || bolts <= 0) {
-    return json({ ok: false, error: 'bad-bolts', message: 'Bolts must be a positive number.' }, 400);
-  }
-  if (kind === 'parlay') {
-    const legs = Array.isArray(body && body.legs) ? body.legs : [];
-    if (legs.length < 2) {
-      return json({ ok: false, error: 'too-few-legs', message: 'A parlay needs at least 2 legs.' }, 400);
-    }
-    const r = await runPlaceJson(env, guildId, userId, {
-      kind: 'parlay',
-      bolts: Math.floor(bolts),
-      legs,
-    });
-    return json(r, r.ok ? 200 : 400);
-  }
-  // Solo bet, same validation as before but kind-aware.
-  const gameId = String(body && body.gameId || '').trim();
-  const side = String(body && body.side || '').toLowerCase();
-  if (!gameId) return json({ ok: false, error: 'bad-game', message: 'Pick a game.' }, 400);
-  if (kind === 'moneyline' || kind === 'spread') {
-    if (side !== 'home' && side !== 'away') {
-      return json({ ok: false, error: 'bad-side', message: 'Side must be home or away.' }, 400);
-    }
-  } else if (kind === 'total') {
-    if (side !== 'over' && side !== 'under') {
-      return json({ ok: false, error: 'bad-side', message: 'Side must be over or under.' }, 400);
-    }
-  } else {
-    return json({ ok: false, error: 'bad-kind', message: 'kind must be moneyline, spread, total, or parlay.' }, 400);
-  }
-  const r = await runPlaceJson(env, guildId, userId, {
-    game: gameId,
-    kind,
-    side,
-    bolts: Math.floor(bolts),
-  });
-  return json(r, r.ok ? 200 : 400);
-}
+// (Bolts economy sunset 2026-06: Sports betting removed —
+// routeBetSnapshot + routeBetPlace deleted.)
 
 // ── Queue (Community / Variety Night) ─────────────────────────────────
 
@@ -743,37 +478,7 @@ async function routeQueuesCloseNight(env, guildId) {
 }
 
 
-async function routeDice(env, guildId, userId, body) {
-  await noteGamePlayed(env, guildId, userId);
-  const bet = Number(body && body.bet);
-  const target = Number(body && body.target);
-  if (!Number.isFinite(bet) || bet <= 0) {
-    return json({ ok: false, error: 'bad-bet', explanation: 'Bet must be a positive number.' }, 400);
-  }
-  if (!Number.isInteger(target) || target < 1 || target > 6) {
-    return json({ ok: false, error: 'bad-target', explanation: 'Target must be 1-6.' }, 400);
-  }
-  const cd = await cooldownCheck(env, userId);
-  if (!cd.ok) return json({ ...cd, ok: false, explanation: cd.message }, 429);
-  const r = await dice(env, guildId, userId, bet, target);
-  if (typeof r.payout !== 'number') {
-    return json({ ok: false, error: 'rejected', explanation: r.explanation || 'Couldn\'t place that bet.' }, 400);
-  }
-  if (r.won) await recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
-  else await recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
-  await noteFirstGame(env, guildId, userId);
-  const w = await getWallet(env, guildId, userId);
-  const cooldownUntil = await cooldownTouch(env, userId);
-  return json({
-    ok: true,
-    won: r.won,
-    roll: r.roll,
-    payout: r.payout,
-    balance: w.balance || 0,
-    explanation: r.explanation,
-    cooldownUntil,
-  });
-}
+// (Bolts economy sunset 2026-06: routeDice removed — dice economy game.)
 
 
 // ── /web/referral/*, new-viewer funnel ─────────────────────────────
@@ -833,170 +538,13 @@ async function routeReferralAttribute(env, guildId, discordId, body) {
 //   anniversary AND that year hasn't been claimed.
 //   Returns: { ok, granted, years?, reward?, reason? }
 //
-// ── /web/aether/*, Aether economy ledger ────────────────────────────
-async function routeAetherBalance(env, guildId, discordId) {
-  const { getAetherBalance } = await import('./aether.js');
-  const r = await getAetherBalance(env, guildId, discordId);
-  return json(r, r.ok ? 200 : 400);
-}
+// (Bolts economy sunset 2026-06: Aether economy ledger removed —
+// routeAetherBalance / routeAetherSpend / routeAetherHistory deleted.)
 
-async function routeAetherSpend(env, guildId, discordId, body) {
-  const amount = Math.floor(Number(body && body.amount) || 0);
-  if (amount <= 0) return json({ ok: false, error: 'bad-amount' }, 400);
-  const { spendAether } = await import('./aether.js');
-  const r = await spendAether(env, guildId, discordId, amount,
-    String((body && body.reason) || 'spend'));
-  return json(r, r.ok ? 200 : (r.error === 'insufficient-aether' ? 402 : 400));
-}
-
-async function routeAetherHistory(env, guildId, discordId, body) {
-  const { getAetherHistory } = await import('./aether.js');
-  const r = await getAetherHistory(env, guildId, discordId, body && body.limit);
-  return json(r, r.ok ? 200 : 400);
-}
-
-// ── Quick bolts games (2026-05) ──────────────────────────────────────
-//
-// Shared protocol for blackjack/roulette/wheel/hilo/mines/plinko/crash:
-//   - Start actions touch the per-viewer cooldown (cooldownTouch())
-//     so the next quick-game play is gated.
-//   - Mid-hand actions (hit, reveal, guess) do NOT touch the cooldown
-//, once you're in a hand the pace is yours.
-//   - All handlers attach `cooldownUntil` (ms-epoch, 0 = clear) on
-//     terminal responses so the UI can render an accurate countdown
-//     without an extra round-trip.
-//   - games_won/games_lost recap stats fire on terminal results so
-//     the panel's win-rate field aggregates the new games with
-//     coinflip + dice.
-
-function applyRecap(env, guildId, userId, r) {
-  if (typeof r.payout !== 'number') return;
-  if (r.payout > 0) recordStat(env, guildId, userId, { games_won: 1, bolts_earned: r.payout });
-  else if (r.payout < 0) recordStat(env, guildId, userId, { games_lost: 1, bolts_spent: -r.payout });
-}
-
-async function routeQuickSnapshot(env, guildId, userId) {
-  const r = await quickGamesSnapshot(env, guildId, userId);
-  return json(r);
-}
-
-async function routeBlackjackStart(env, guildId, userId, body) {
-  const bet = Number(body && body.bet);
-  const cd = await cooldownCheck(env, userId);
-  if (!cd.ok) return json({ ...cd, ok: false }, 429);
-  const r = await blackjackStart(env, guildId, userId, bet);
-  if (!r.ok) return json(r, 400);
-  if (r.phase === 'done') {
-    applyRecap(env, guildId, userId, r);
-    r.cooldownUntil = await cooldownTouch(env, userId);
-  } else {
-    // Cooldown still arms on hand-start so people can't spam-start &
-    // surrender to dodge the wait.
-    r.cooldownUntil = await cooldownTouch(env, userId);
-  }
-  return json(r);
-}
-
-async function routeBlackjackHit(env, guildId, userId) {
-  const r = await blackjackHit(env, guildId, userId);
-  if (!r.ok) return json(r, 400);
-  if (r.phase === 'done') applyRecap(env, guildId, userId, r);
-  return json(r);
-}
-
-async function routeBlackjackStand(env, guildId, userId) {
-  const r = await blackjackStand(env, guildId, userId);
-  if (!r.ok) return json(r, 400);
-  if (r.phase === 'done') applyRecap(env, guildId, userId, r);
-  return json(r);
-}
-
-async function routeRoulette(env, guildId, userId, body) {
-  const bet = Number(body && body.bet);
-  const pick = body && body.pick;
-  const cd = await cooldownCheck(env, userId);
-  if (!cd.ok) return json({ ...cd, ok: false }, 429);
-  const r = await roulette(env, guildId, userId, bet, pick);
-  if (!r.ok) return json(r, 400);
-  applyRecap(env, guildId, userId, r);
-  r.cooldownUntil = await cooldownTouch(env, userId);
-  return json(r);
-}
-
-async function routeWheel(env, guildId, userId, body) {
-  const bet = Number(body && body.bet);
-  const risk = body && body.risk;
-  const cd = await cooldownCheck(env, userId);
-  if (!cd.ok) return json({ ...cd, ok: false }, 429);
-  const r = await wheel(env, guildId, userId, bet, risk);
-  if (!r.ok) return json(r, 400);
-  applyRecap(env, guildId, userId, r);
-  r.cooldownUntil = await cooldownTouch(env, userId);
-  return json(r);
-}
-
-async function routeHiloStart(env, guildId, userId, body) {
-  const bet = Number(body && body.bet);
-  const cd = await cooldownCheck(env, userId);
-  if (!cd.ok) return json({ ...cd, ok: false }, 429);
-  const r = await hiloStart(env, guildId, userId, bet);
-  if (!r.ok) return json(r, 400);
-  r.cooldownUntil = await cooldownTouch(env, userId);
-  return json(r);
-}
-
-async function routeHiloGuess(env, guildId, userId, body) {
-  const guess = String((body && body.guess) || '').toLowerCase();
-  const r = await hiloGuess(env, guildId, userId, guess);
-  if (!r.ok) return json(r, 400);
-  if (r.phase === 'done') applyRecap(env, guildId, userId, r);
-  return json(r);
-}
-
-async function routeHiloCashout(env, guildId, userId) {
-  const r = await hiloCashout(env, guildId, userId);
-  if (!r.ok) return json(r, 400);
-  applyRecap(env, guildId, userId, r);
-  return json(r);
-}
-
-async function routeMinesStart(env, guildId, userId, body) {
-  const bet = Number(body && body.bet);
-  const bombs = Number(body && body.bombs);
-  const cd = await cooldownCheck(env, userId);
-  if (!cd.ok) return json({ ...cd, ok: false }, 429);
-  const r = await minesStart(env, guildId, userId, bet, bombs);
-  if (!r.ok) return json(r, 400);
-  r.cooldownUntil = await cooldownTouch(env, userId);
-  return json(r);
-}
-
-async function routeMinesReveal(env, guildId, userId, body) {
-  const tile = Number(body && body.tile);
-  const r = await minesReveal(env, guildId, userId, tile);
-  if (!r.ok) return json(r, 400);
-  if (r.phase === 'done') applyRecap(env, guildId, userId, r);
-  return json(r);
-}
-
-async function routeMinesCashout(env, guildId, userId) {
-  const r = await minesCashout(env, guildId, userId);
-  if (!r.ok) return json(r, 400);
-  applyRecap(env, guildId, userId, r);
-  return json(r);
-}
-
-async function routePlinko(env, guildId, userId, body) {
-  const bet = Number(body && body.bet);
-  const risk = body && body.risk;
-  const cd = await cooldownCheck(env, userId);
-  if (!cd.ok) return json({ ...cd, ok: false }, 429);
-  const r = await plinko(env, guildId, userId, bet, risk);
-  if (!r.ok) return json(r, 400);
-  applyRecap(env, guildId, userId, r);
-  r.cooldownUntil = await cooldownTouch(env, userId);
-  return json(r);
-}
+// (Bolts economy sunset 2026-06: Quick bolts games removed — applyRecap,
+// routeQuickSnapshot, routeBlackjack{Start,Hit,Stand}, routeRoulette,
+// routeWheel, routeHilo{Start,Guess,Cashout}, routeMines{Start,Reveal,Cashout},
+// and routePlinko deleted.)
 
 // ── Community-chat reactions ─────────────────────────────────────────
 //
@@ -1519,122 +1067,13 @@ async function routeCardsSkinList() {
   }, 410);
 }
 
-// ── Seasonal Spire, thin wrappers over spire.js helpers ──────────
+// (Bolts economy sunset 2026-06: Seasonal Spire web wrappers removed —
+// routeSpireSeason / routeSpireRunMe / routeSpireRunStart / routeSpireRunResult /
+// routeSpireRunAbandon / routeSpireRunFloor / routeSpireLeaderboard deleted.)
 
-async function routeSpireSeason(env) {
-  const { getSeasonView } = await import('./spire.js');
-  const view = await getSeasonView(env);
-  return json({ ok: true, season: view });
-}
-
-async function routeSpireRunMe(env, discordId) {
-  const { getRunView } = await import('./spire.js');
-  const view = await getRunView(env, discordId);
-  return json({ ok: true, run: view });
-}
-
-async function routeSpireRunStart(env, guildId, discordId) {
-  const { startRun } = await import('./spire.js');
-  const r = await startRun(env, guildId, discordId);
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeSpireRunResult(env, guildId, discordId, body) {
-  const floor = parseInt(body?.floor, 10);
-  if (!Number.isFinite(floor) || floor < 1 || floor > 10) {
-    return json({ ok: false, error: 'bad-floor' }, 400);
-  }
-  const { recordResult } = await import('./spire.js');
-  const r = await recordResult(env, guildId, discordId, {
-    floor,
-    won:           !!body?.won,
-    finalSnapshot: body?.finalSnapshot || null,
-  });
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeSpireRunAbandon(env, guildId, discordId) {
-  const { abandonRun } = await import('./spire.js');
-  const r = await abandonRun(env, guildId, discordId);
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeSpireRunFloor(env, discordId, body) {
-  const floor = parseInt(body?.floor, 10);
-  if (!Number.isFinite(floor)) return json({ ok: false, error: 'bad-floor' }, 400);
-  const { getActiveRun, currentSeason, buildSpireFloorMatch } = await import('./spire.js');
-  const season = await currentSeason(env);
-  const run    = await getActiveRun(env, discordId, season.id);
-  if (!run) return json({ ok: false, error: 'no-active-run' }, 400);
-  if (floor !== run.current_floor) {
-    return json({ ok: false, error: 'floor-mismatch', expected: run.current_floor }, 400);
-  }
-  const view = await buildSpireFloorMatch(env, discordId, run);
-  return json({ ok: true, floorMatch: view });
-}
-
-async function routeSpireLeaderboard(env, body) {
-  const { getLeaderboard } = await import('./spire.js');
-  const r = await getLeaderboard(env, { limit: body?.limit });
-  return json({ ok: true, leaderboard: r });
-}
-
-// ── Banners + Banner Wars (2026-05-29) ────────────────────────────
-//
-// MVP backend behind the site-side scaffolded UI. Thin web wrappers
-// over banners.js + banner-wars.js, the heavy logic stays in the
-// modules so a future Discord-slash front-end can reuse it.
-
-async function routeBannerMe(env, guildId, userId) {
-  const { getMyBanner } = await import('./banners.js');
-  return json(await getMyBanner(env, guildId, userId));
-}
-
-async function routeBannerBrowse(env, guildId, body) {
-  const { browseBanners } = await import('./banners.js');
-  return json(await browseBanners(env, guildId, { limit: body?.limit }));
-}
-
-async function routeBannerCreate(env, guildId, userId, body) {
-  const { createBanner } = await import('./banners.js');
-  const r = await createBanner(env, guildId, userId, body || {});
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeBannerJoin(env, guildId, userId, body) {
-  const { joinBanner } = await import('./banners.js');
-  const r = await joinBanner(env, guildId, userId, body || {});
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeBannerLeave(env, guildId, userId) {
-  const { leaveBanner } = await import('./banners.js');
-  const r = await leaveBanner(env, guildId, userId);
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeBannerKick(env, guildId, userId, body) {
-  const { kickFromBanner } = await import('./banners.js');
-  const r = await kickFromBanner(env, guildId, userId, body || {});
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeWarActive(env, guildId, userId) {
-  const { getActiveWar } = await import('./banner-wars.js');
-  return json(await getActiveWar(env, guildId, userId));
-}
-
-async function routeWarDeclare(env, guildId, userId, body) {
-  const { declareWar } = await import('./banner-wars.js');
-  const r = await declareWar(env, guildId, userId, body || {});
-  return json(r, r.ok ? 200 : 400);
-}
-
-async function routeWarRaid(env, guildId, userId, body) {
-  const { recordRaid } = await import('./banner-wars.js');
-  const r = await recordRaid(env, guildId, userId, body || {});
-  return json(r, r.ok ? 200 : 400);
-}
+// (Bolts economy sunset 2026-06: Banners + Banner Wars web wrappers removed —
+// routeBanner{Me,Browse,Create,Join,Leave,Kick} + routeWar{Active,Declare,Raid}
+// deleted; banner founding cost bolts.)
 
 // ── UI-live unblockers (2026-05-29) ──────────────────────────────
 // MVP web wrappers for features whose site UI shipped against stubs.
@@ -1659,51 +1098,14 @@ async function routePatronOptOut(env, userId, body) {
   const { setPatronOptOut } = await import('./patron-of-month.js');
   return json(await setPatronOptOut(env, userId, !!body?.optOut));
 }
-async function routeDustSnapshot(env, guildId, userId) {
-  const { getDust, DUST_DISENCHANT_BY_RARITY, DUST_CRAFT_BY_RARITY } = await import('./cards-dust.js');
-  const d = await getDust(env, guildId, userId);
-  return json({ ok: true, ...d,
-                disenchantTable: DUST_DISENCHANT_BY_RARITY,
-                craftTable:      DUST_CRAFT_BY_RARITY });
-}
-async function routeDustDisenchant(env, guildId, userId, body) {
-  const { disenchant } = await import('./cards-dust.js');
-  const r = await disenchant(env, guildId, userId,
-    String(body?.cardId || ''), { force: !!body?.force });
-  return json(r, r.ok ? 200 : 400);
-}
-async function routeDustCraft(env, guildId, userId, body) {
-  const { craft } = await import('./cards-dust.js');
-  const r = await craft(env, guildId, userId, String(body?.cardId || ''));
-  return json(r, r.ok ? 200 : 400);
-}
-async function routeDropsActive(env) {
-  const { getActiveDrop } = await import('./cards-drops.js');
-  return json(await getActiveDrop(env));
-}
-async function routeDropsUpcoming(env, body) {
-  const { getUpcomingDrops } = await import('./cards-drops.js');
-  return json(await getUpcomingDrops(env, { limit: body?.limit }));
-}
-
-async function routeStreamBonusState(env) {
-  const { isStreamLive, _consts } = await import('./stream-bonus.js');
-  const live = await isStreamLive(env);
-  return json({ ok: true, live, multipliers: _consts });
-}
+// (Bolts economy sunset 2026-06: routeDustSnapshot/Disenchant/Craft
+// (cards-dust.js), routeDropsActive/Upcoming (cards-drops.js),
+// routeCardBackList/Set (card-backs-animated.js) and routeStreamBonusState
+// (stream-bonus.js) were removed — all Boltbound/economy surfaces.)
 
 async function routeCosmeticsMe(env, userId) {
   const { getCosmeticsForUser } = await import('./monthly-cosmetic-grant.js');
   return json(await getCosmeticsForUser(env, userId));
-}
-async function routeCardBackList(env, userId) {
-  const { listCardBacksForUser } = await import('./card-backs-animated.js');
-  return json(await listCardBacksForUser(env, userId));
-}
-async function routeCardBackSet(env, userId, body) {
-  const { setCardBackForUser } = await import('./card-backs-animated.js');
-  const r = await setCardBackForUser(env, userId, body || {});
-  return json(r, r.ok ? 200 : 400);
 }
 
 // /web/cards/suggest-art-terms, DEPRECATED 2026-05-30 alongside the
@@ -1720,13 +1122,8 @@ async function routeCardsSuggestArtTerms(env, body) {
   return json({ ...r, deprecated: true }, r.ok ? 200 : 400);
 }
 
-async function routeCommunityCheckinBonusCollect(env, guildId, discordId, body) {
-  // POST { discordId, guildId, bonusId: '<id>' | 'all' }
-  const id = String((body && body.bonusId) || 'all');
-  const { collectBonus } = await import('./community-checkin.js');
-  const r = await collectBonus(env, guildId, discordId, id);
-  return json(r, r.ok ? 200 : 400);
-}
+// (Bolts economy sunset 2026-06: routeCommunityCheckinBonusCollect removed —
+// the check-in bonus payout was removed; plain check-in routes stay.)
 
 // Web-bridge implicit Patreon-link signal.
 //

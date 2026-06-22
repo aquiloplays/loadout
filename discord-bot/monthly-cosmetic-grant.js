@@ -28,16 +28,10 @@ export const MONTHLY_COSMETICS = Object.freeze([
 
 const BY_SEASON = Object.fromEntries(MONTHLY_COSMETICS.map(c => [c.themeSeason, c]));
 
-async function activeSeasonSlug(env) {
-  // Best-effort lookup via the spire module. If unavailable, derive from
-  // calendar month (Jan = ember-court, Feb = aurora-spire, etc.)
-  try {
-    const spire = await import('./spire.js');
-    if (spire.getActiveSeason) {
-      const s = await spire.getActiveSeason(env);
-      if (s?.slug) return s.slug;
-    }
-  } catch { /* fall through */ }
+async function activeSeasonSlug(_env) {
+  // (Bolts economy sunset: the spire.js season lookup was dropped — Spire
+  // rides with the dormant Boltbound surface. We now derive the season
+  // purely from the calendar month, which was always the fallback.)
   const order = MONTHLY_COSMETICS.map(c => c.themeSeason);
   return order[new Date().getUTCMonth() % order.length];
 }

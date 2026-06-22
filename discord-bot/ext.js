@@ -23,32 +23,19 @@
 // this resolver is the single chokepoint the merge will hook into.
 
 import { verifyTwitchExtJwt } from './auth.js';
-import { getWallet, leaderboard } from './wallet.js';
-import { daily } from './games.js';
-import { loadHero, attackOf, defenseOf, CLASSES } from './hero-state.js';
 import { handleRotation, ingestRotation } from './rotation.js';
 import { recordStat, getRecap, isStreamLive } from './recap.js';
 import { handleTier1 } from './ext-tier1.js';
 import { handleEngage } from './ext-engage.js';
-import {
-  ingestDllState,
-  panelBridgeState,
-  enqueuePanelCmd,
-  drainDllCommands,
-  skipCooldown,
-  dungeonCooldownState,
-} from './ext-panelbridge.js';
-import {
-  rollLootBox,
-  readLootBoxCatalog,
-  rollLootBoxFree,
-  freeLootBoxState,
-  drainLootBoxGrants,
-  stampPresence,
-} from './ext-lootbox.js';
 import { startPanelPatreonLink } from './ext-patreon-link.js';
 import { handleExtMod } from './ext-mod.js';
-import { routeBoltbound, isBoltboundRoute } from './cards-web.js';
+// (Bolts economy sunset 2026-06: the Twitch-panel economy surfaces were
+// unwired here — wallet/hero/daily/leaderboard (wallet.js, games.js,
+// hero-state.js), the dungeon/minigame/duel DLL panel-bridge
+// (ext-panelbridge.js), loot boxes (ext-lootbox.js), quick games
+// (ext-quick.js), sports bets (ext-bets.js) and Boltbound (cards-web.js).
+// The non-currency panel — check-in, recap, schedule, queues, VODs/goals/
+// patron-corner, cheer emotes, mod tools, rotation, Patreon link — stays.)
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -92,25 +79,15 @@ export async function handleExt(req, env, ctx) {
   if (!twId) return json({ error: 'no-identity' }, 400);
   const userId = resolveLoadoutUserId(twId);
 
-  // Stamp viewer presence so community loot-box grants know who's
-  // currently watching with the panel open. Fire-and-forget, every
-  // /ext/* request keeps the 5-min TTL alive, ageing out viewers
-  // who close the panel.
-  const presencePromise = stampPresence(env, guildId, userId);
-  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(presencePromise);
-
   try {
-    if (req.method === 'GET' && route === 'hero') return await extHero(env, guildId, userId);
-    if (req.method === 'GET' && route === 'wallet') return await extWallet(env, guildId, userId);
-    if (req.method === 'POST' && route === 'daily') return await extDaily(env, guildId, userId);
+    // (Bolts economy sunset: the hero / wallet / daily / leaderboard /
+    // dungeon / minigame / duel / lootbox / quick / bets / boltbound
+    // panel routes were removed.)
     if (req.method === 'POST' && route === 'checkin') {
       return await extCheckin(env, guildId, userId, req);
     }
     if (req.method === 'GET' && route === 'checkin/card') {
       return await extCheckinCard(env, guildId, twId);
-    }
-    if (req.method === 'GET' && route === 'leaderboard') {
-      return await extLeaderboard(env, guildId, userId, url.searchParams.get('type'));
     }
     if (req.method === 'GET' && route === 'recap') return await extRecap(env, guildId, userId);
     if (req.method === 'GET' && route === 'schedule') {
@@ -130,69 +107,14 @@ export async function handleExt(req, env, ctx) {
     if (route === 'cheer') {
       return await handleEngage(env, guildId, userId, route, req);
     }
-    if (route === 'dungeon/state') return await panelBridgeState(env, 'dungeon');
-    if (route === 'minigame/state') return await panelBridgeState(env, 'minigame');
-    if (route === 'duel/state') return await panelBridgeState(env, 'duel');
-    if (route === 'dungeon/cooldown') return await dungeonCooldownState(env);
-    if (req.method === 'GET' && route === 'lootbox/catalog') {
-      return await readLootBoxCatalog(env);
-    }
-    if (req.method === 'POST' && route === 'lootbox/roll') {
-      return await rollLootBox(env, guildId, userId, req, ctx);
-    }
-    if (req.method === 'GET' && route === 'lootbox/grants') {
-      return await drainLootBoxGrants(env, guildId, userId);
-    }
-    if (req.method === 'GET' && route === 'lootbox/free-state') {
-      return await freeLootBoxState(env, guildId, userId, req);
-    }
-    if (req.method === 'POST' && route === 'lootbox/free-roll') {
-      return await rollLootBoxFree(env, guildId, userId, req);
-    }
     if (req.method === 'GET' && route === 'patreon/link-start') {
       return await startPanelPatreonLink(env, payload, req);
-    }
-    if (req.method === 'POST' && route === 'dungeon/cmd') {
-      return await enqueuePanelCmd(env, 'dungeon', payload, req);
-    }
-    if (req.method === 'POST' && route === 'minigame/cmd') {
-      return await enqueuePanelCmd(env, 'minigame', payload, req);
-    }
-    if (req.method === 'POST' && route === 'dungeon/skip-cooldown') {
-      return await skipCooldown(env, guildId, userId, payload, req);
     }
     if (route.indexOf('mod/') === 0) {
       return await handleExtMod(env, guildId, payload, req, ctx, route.slice(4));
     }
     if (route.indexOf('rotation/') === 0) {
       return await handleRotation(env, guildId, userId, route.slice(9), req);
-    }
-    // Quick-bolts games on the panel (blackjack/roulette/wheel/hilo/mines/
-    // plinko/crash). Identity is tw:<twId>; same wallet + same engine as
-    // the website surface. See ext-quick.js.
-    if (route.indexOf('quick/') === 0) {
-      const { isExtQuickRoute, handleExtQuick } = await import('./ext-quick.js');
-      if (isExtQuickRoute(route)) {
-        return await handleExtQuick(env, guildId, userId, req, route);
-      }
-    }
-    // Sports betting on the panel, moneyline/spread/total/parlay,
-    // same engine as the website + Discord. See ext-bets.js.
-    if (route.indexOf('bets/') === 0) {
-      const { isExtBetsRoute, handleExtBets } = await import('./ext-bets.js');
-      if (isExtBetsRoute(route)) {
-        return await handleExtBets(env, guildId, userId, req, route);
-      }
-    }
-    if (isBoltboundRoute(route)) {
-      // Twitch panel surface for Boltbound. Same backend as the website
-      // (cards-web.js routes); identity is tw:<twId> so panel viewers
-      // get their own collection / decks / matches.
-      let body = null;
-      if (req.method === 'POST') {
-        try { body = await req.json(); } catch { body = {}; }
-      }
-      return await routeBoltbound(env, guildId, userId, route, body, { cors: true });
     }
     return json({ error: 'not-found' }, 404);
   } catch (e) {
@@ -210,8 +132,9 @@ export async function handleRelay(req, env) {
   const url = new URL(req.url);
   const path = url.pathname.replace(/\/+$/, '');
   if (path === '/relay/ingest') return ingestRotation(req, env);
-  if (path === '/relay/dll-ingest') return ingestDllState(req, env);
-  if (path === '/relay/dll-pending') return drainDllCommands(req, env);
+  // (Bolts economy sunset: the /relay/dll-ingest + /relay/dll-pending
+  // DLL panel-bridge relay routes were removed — ext-panelbridge.js
+  // drove the dungeon/minigame game state.)
   if (path !== '/relay/pending') {
     return json({ error: 'not-found' }, 404);
   }
@@ -245,57 +168,9 @@ export async function handleRelay(req, env) {
   return json({ triggers });
 }
 
-async function extHero(env, guildId, userId) {
-  const hero = await loadHero(env, guildId, userId);
-  const cls = CLASSES[hero.className] || null;
-
-  // Resolve equipped slot -> item id into display name + glyph via the bag.
-  const bagById = {};
-  for (const it of hero.bag || []) bagById[it.id] = it;
-  const equipped = [];
-  for (const [slot, id] of Object.entries(hero.equipped || {})) {
-    const it = bagById[id];
-    equipped.push({ slot, name: it ? it.name : String(id), glyph: it ? it.glyph || '' : '' });
-  }
-
-  return json({
-    hero: {
-      className: hero.className || '',
-      classMeta: cls ? { name: cls.name, glyph: cls.glyph } : null,
-      level: hero.level || 1,
-      xp: hero.xp || 0,
-      hpMax: hero.hpMax || 0,
-      hpCurrent: hero.hpCurrent || 0,
-      atk: attackOf(hero),
-      def: defenseOf(hero),
-      equipped,
-      bagCount: (hero.bag || []).length,
-      dungeonsSurvived: hero.dungeonsSurvived || 0,
-      bossesSlain: hero.bossesSlain || 0,
-    },
-  });
-}
-
-async function extWallet(env, guildId, userId) {
-  const w = await getWallet(env, guildId, userId);
-  return json({
-    wallet: {
-      balance: w.balance || 0,
-      lifetimeEarned: w.lifetimeEarned || 0,
-      dailyStreak: w.dailyStreak || 0,
-      lastDailyUtc: w.lastDailyUtc || 0,
-    },
-  });
-}
-
-async function extDaily(env, guildId, userId) {
-  const result = await daily(env, guildId, userId);
-  if (result && result.won) {
-    await recordStat(env, guildId, userId, { bolts_earned: result.payout || 0 });
-  }
-  const w = await getWallet(env, guildId, userId);
-  return json({ result, balance: w.balance || 0 });
-}
+// (Bolts economy sunset: extHero / extWallet / extDaily / extLeaderboard
+// were removed — they exercised the deleted hero-state.js / wallet.js /
+// games.js modules.)
 
 // GET /ext/recap, rolling-window recap stats for the "Your last
 // session" panel card. isLiveNow gates the card (hidden while live).
@@ -315,34 +190,6 @@ async function extRecap(env, guildId, userId) {
     streak,
     stats: recap.stats,
   });
-}
-
-async function extLeaderboard(env, guildId, userId, type) {
-  if (type === 'checkin') return extCheckinLeaderboard(env, guildId, userId);
-
-  // type=bolts (default), rank by wallet balance.
-  // Big limit: leaderboard() lists every wallet key regardless, so the
-  // limit only sizes the returned slice, 5000 makes the caller's rank
-  // accurate without extra KV reads.
-  const all = await leaderboard(env, guildId, 5000);
-
-  // Public top list: only entries with a linked public handle, mirrors
-  // the privacy rule of the existing /leaderboard/:guildId route.
-  const top = [];
-  for (const e of all) {
-    if (top.length >= 10) break;
-    const handle = ((e.w.links || [])[0] || {}).username;
-    if (handle) top.push({ name: handle, balance: e.w.balance || 0 });
-  }
-
-  let youRank = 0;
-  let youBalance = 0;
-  const idx = all.findIndex((e) => e.userId === userId);
-  if (idx >= 0) {
-    youRank = idx + 1;
-    youBalance = all[idx].w.balance || 0;
-  }
-  return json({ type: 'bolts', top, you: { rank: youRank, balance: youBalance } });
 }
 
 // ---- Daily check-in -----------------------------------------------------

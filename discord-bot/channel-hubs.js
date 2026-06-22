@@ -47,59 +47,23 @@ const HUBS = Object.freeze({
     color: 0x42c97a,
     channelHints: ['check-in', 'checkin', 'daily'],
     description:
-      'Check in once a day for **bolts** + a streak.\n\n' +
+      'Check in once a day to build a streak.\n\n' +
       '• Tap **Check in now** to log today and pick a GIF for your card\n' +
       '• **My streak** shows your current run',
     footer: '/checkin still works if you prefer typing.',
-    // Daily-bonus button removed 2026-05-27 per Clay, bolts are
-    // already covered by `Check in now`, so the dedicated button
-    // was redundant. The checkin:daily action handler stays in
-    // handleCheckinHubComponent for backward compat with any cached
-    // button on stale messages, it now just hints at the merged UX.
     buttons: () => [
       { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Check in now',  custom_id: 'checkin:run'    },
       { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'My streak',     custom_id: 'checkin:streak' },
     ],
   },
-  bolts: {
-    title: '💰 Bolts',
-    color: 0xe6c474,
-    channelHints: ['bolts', 'economy', 'wallet'],
-    description:
-      'Bolts are the cross-platform currency. Earn from daily check-in, games, raids, gifting and more.\n\n' +
-      '• **Check balance**, current + lifetime\n' +
-      '• **Transfer bolts**, send to another viewer\n' +
-      '• **Wallet history**, recent earn / spend events',
-    footer: '/loadout has the same surface as this hub.',
-    buttons: () => [
-      { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Check balance',   custom_id: 'bolts:balance' },
-      { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Transfer bolts',  custom_id: 'bolts:transfer' },
-      { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Wallet history',  custom_id: 'bolts:history' },
-    ],
-  },
-  play: {
-    title: '🎮 Play',
-    color: 0x3a82ff,
-    channelHints: ['play', 'games'],
-    description:
-      'Every gameplay surface, one hub. Tap any tile to open it.\n\n' +
-      '• **Boltbound**, async card battler\n' +
-      '• **Quick games**, coinflip / dice / blackjack / roulette / wheel / hilo / mines / plinko\n' +
-      '• **Loadout**, wallet, daily, profile',
-    rows: () => [
-      [
-        { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Boltbound',     custom_id: 'play:boltbound' },
-        { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Quick games',   custom_id: 'play:quick' },
-        { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: 'Loadout',       custom_id: 'play:rpg' },
-      ],
-    ],
-  },
+  // (Bolts economy sunset 2026-06: the `bolts` (wallet) and `play`
+  // (Boltbound + quick games) hubs were removed from the catalogue.)
   achievements: {
     title: '🏆 Achievements',
     color: 0xff9d6c,
     channelHints: ['achievement', 'milestone'],
     description:
-      'Climb the ladder. Achievements grant XP + the level-tier roles (Apprentice / Veteran / Elite / Mythic).\n\n' +
+      'Climb the ladder. Achievements grant XP.\n\n' +
       '• **My achievements**, what you\'ve unlocked\n' +
       '• **Catalogue**, what\'s out there to chase\n' +
       '• **Top XP**, leaderboard',
@@ -296,309 +260,15 @@ export async function handleCheckinHubComponent(env, data) {
     }
   }
   if (action === 'daily') {
-    return eph('Tap **Check in now** above, it covers the daily bolts grant in one shot.');
+    return eph('Tap **Check in now** above to log today\'s check-in.');
   }
   return eph('Unknown check-in action: ' + cid);
 }
 
-
-// bolts:*
-export async function handleBoltsHubComponent(env, data) {
-  const cid = data.data?.custom_id || '';
-  const action = cid.split(':')[1];
-  const userId = data.member?.user?.id || data.user?.id;
-  const guildId = data.guild_id;
-  if (!userId || !guildId) return eph('Run this in a server.');
-  const { getWallet } = await import('./wallet.js');
-
-  if (action === 'balance') {
-    const w = await getWallet(env, guildId, userId);
-    return ephEmbed({
-      title: '💰 Wallet',
-      description:
-        `Balance: **${(w.balance || 0).toLocaleString()}** bolts\n` +
-        `Lifetime earned: ${(w.lifetimeEarned || 0).toLocaleString()}\n` +
-        `Lifetime spent: ${(w.lifetimeSpent || 0).toLocaleString()}\n` +
-        (w.dailyStreak ? `Daily streak: **${w.dailyStreak}**` : ''),
-      color: 0xe6c474,
-    });
-  }
-  if (action === 'transfer') {
-    return {
-      type: RESP_MODAL,
-      data: {
-        custom_id: 'modal:bolts-transfer',
-        title: 'Transfer bolts',
-        components: [
-          {
-            type: COMPONENT_ROW,
-            components: [{
-              type: COMPONENT_TEXT_INPUT, custom_id: 'recipient',
-              label: 'Recipient (Discord ID or @mention)',
-              style: TEXT_INPUT_SHORT, required: true,
-              min_length: 5, max_length: 50,
-              placeholder: 'e.g. 209640265063006208',
-            }],
-          },
-          {
-            type: COMPONENT_ROW,
-            components: [{
-              type: COMPONENT_TEXT_INPUT, custom_id: 'amount',
-              label: 'Amount',
-              style: TEXT_INPUT_SHORT, required: true,
-              min_length: 1, max_length: 9,
-              placeholder: '100',
-            }],
-          },
-        ],
-      },
-    };
-  }
-  if (action === 'history') {
-    const w = await getWallet(env, guildId, userId);
-    return ephEmbed({
-      title: '📜 Wallet history',
-      description:
-        (w.lastEarnUtc ? `Last earn: <t:${Math.floor(w.lastEarnUtc / 1000)}:R> · ${w.lastEarnReason || ''}\n` : '') +
-        '_(Full history coming in a follow-up, use the website for now.)_',
-      color: 0xe6c474,
-    });
-  }
-  return eph('Unknown bolts action: ' + cid);
-}
-
-// Modal submit for transfer.
-export async function handleBoltsTransferModal(env, data) {
-  const userId = data.member?.user?.id || data.user?.id;
-  const guildId = data.guild_id;
-  if (!userId || !guildId) return eph('Run this in a server.');
-  let recipient = '', amount = '';
-  for (const row of (data.data?.components || [])) {
-    for (const c of (row.components || [])) {
-      if (c.custom_id === 'recipient') recipient = String(c.value || '').trim();
-      if (c.custom_id === 'amount')    amount    = String(c.value || '').trim();
-    }
-  }
-  // Accept either bare snowflake or <@id>/<@!id> mention.
-  const m = recipient.match(/^<@!?(\d{5,25})>$|^(\d{5,25})$/);
-  const toId = m ? (m[1] || m[2]) : null;
-  if (!toId) return eph('❌ Recipient must be a Discord ID or @mention.');
-  const n = parseInt(amount, 10);
-  if (!Number.isFinite(n) || n <= 0) return eph('❌ Amount must be a positive integer.');
-  if (toId === userId) return eph('❌ Can\'t transfer to yourself.');
-  try {
-    const { transfer } = await import('./wallet.js');
-    const r = await transfer(env, guildId, userId, toId, n);
-    if (!r.ok) return eph('❌ ' + (r.error || 'transfer-failed'));
-    return eph(`✅ Sent **${n}** bolts to <@${toId}>. New balance: **${r.fromBalance}**.`);
-  } catch (e) {
-    return eph('❌ ' + (e?.message || e));
-  }
-}
-
-// play:*, six surfaces, each opens a real ephemeral submenu
-// (deep web links + in-Discord actions where they make sense).
-// No "use /<command>" punts.
-export async function handlePlayHubComponent(env, data) {
-  const cid = data.data?.custom_id || '';
-  const action = cid.split(':')[1];
-  const userId = data.member?.user?.id || data.user?.id;
-  const guildId = data.guild_id;
-  const brand = await getBranding(env, guildId);
-  const site = brand.siteUrl || 'https://aquilo.gg';
-
-  if (action === 'boltbound') {
-    // Pull a tiny inline read so the menu shows real per-user state.
-    let collectionLine = '';
-    let activeLine = '';
-    try {
-      const { getCollection } = await import('./cards-state.js');
-      const col = await getCollection(env, guildId, userId).catch(() => null);
-      if (col && Array.isArray(col.cards)) {
-        collectionLine = `\n📚 Collection: **${col.cards.length}** card${col.cards.length === 1 ? '' : 's'}`;
-      }
-    } catch { /* idle */ }
-    try {
-      const { getActiveMatch } = await import('./cards-state.js');
-      const m = await getActiveMatch(env, guildId, userId).catch(() => null);
-      if (m?.matchId || m?.id) {
-        const matchId = String(m.matchId || m.id);
-        activeLine = `\n⚔ Active match: \`${matchId.slice(0, 8)}\``;
-      }
-    } catch { /* idle */ }
-    return {
-      type: RESP_CHAT,
-      data: {
-        embeds: [{
-          title: '🃏 Boltbound',
-          description:
-            'Async card battler, collect cards, build decks, battle other viewers.' +
-            collectionLine + activeLine,
-          color: 0x3a82ff,
-        }],
-        components: [{
-          type: COMPONENT_ROW,
-          components: [
-            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Play on aquilo.gg', url: `${site}/play/boltbound/` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'My collection',     url: `${site}/play/boltbound/collection/` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Daily challenge',   url: `${site}/play/boltbound/daily/` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,      label: 'Leaderboard',       url: `${site}/play/boltbound/leaderboard/` },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Claim daily pack',  custom_id: 'play:boltbound-daily' },
-          ],
-        }],
-        flags: FLAG_EPHEMERAL,
-      },
-    };
-  }
-  if (action === 'boltbound-daily') {
-    // Wire straight into the existing daily-pack flow (slash command
-    // /boltbound daily). No slash round-trip, call the underlying
-    // function directly.
-    try {
-      const { claimDailyFreePack } = await import('./cards-packs.js');
-      const r = await claimDailyFreePack(env, guildId, userId);
-      if (!r || !r.ok) {
-        return eph(`❌ ${r?.error === 'already-claimed' ? 'Already claimed today, come back tomorrow.' : (r?.error || 'daily-claim-failed')}`);
-      }
-      return eph(`🎁 Claimed today's free **Common Pack**. Open via aquilo.gg/play/boltbound/.`);
-    } catch (e) {
-      return eph('❌ ' + (e?.message || e));
-    }
-  }
-
-  if (action === 'quick') {
-    // Stateless quick games (coinflip / dice / roulette / wheel /
-    // plinko / crash) run INLINE, tap the button, the worker
-    // resolves the round using the existing games / games-quick
-    // helpers, and replies ephemeral. Stateful games (blackjack /
-    // hilo / mines) need turn-by-turn UI; for now they keep the
-    // single "Play on aquilo.gg" fallback link until the full
-    // multi-step Discord flow lands in phase 2.
-    const { getWallet } = await import('./wallet.js');
-    const w = await getWallet(env, guildId, userId).catch(() => ({ balance: 0 }));
-    return {
-      type: RESP_CHAT,
-      data: {
-        embeds: [{
-          title: '🎰 Quick games',
-          description:
-            `Wallet: **${(w.balance || 0).toLocaleString()}** bolts.\n` +
-            `Each round costs **10** bolts (phase-1 fixed stake). ` +
-            `Tap a game to play inline; result lands in this ephemeral.`,
-          color: 0x3a82ff,
-        }],
-        components: [
-          { type: COMPONENT_ROW, components: [
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🪙 Coinflip',  custom_id: 'play:quick-game:coinflip' },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🎲 Dice',      custom_id: 'play:quick-game:dice' },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🟢 Roulette',  custom_id: 'play:quick-game:roulette' },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🎡 Wheel',     custom_id: 'play:quick-game:wheel' },
-          ]},
-          { type: COMPONENT_ROW, components: [
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: '🟡 Plinko',    custom_id: 'play:quick-game:plinko' },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Stateful games on aquilo.gg', url: `${site}/play/` },
-          ]},
-        ],
-        flags: FLAG_EPHEMERAL,
-      },
-    };
-  }
-  // Stateless quick-game player: vault-style fixed-stake one-shot.
-  if (action === 'quick-game') {
-    const game = parts[2];
-    const STAKE = 10;
-    try {
-      const { coinflip, dice } = await import('./games.js');
-      const { roulette, wheel, plinko } = await import('./games-quick.js');
-      const { getWallet } = await import('./wallet.js');
-      const w = await getWallet(env, guildId, userId);
-      if ((w.balance || 0) < STAKE) {
-        return eph(`❌ Need **${STAKE}** bolts to play. You have ${(w.balance || 0).toLocaleString()}.`);
-      }
-      let r;
-      if (game === 'coinflip') r = await coinflip(env, guildId, userId, STAKE);
-      else if (game === 'dice')      r = await dice(env, guildId, userId, STAKE, 1);                       // bet on 1
-      else if (game === 'roulette')  r = await roulette(env, guildId, userId, STAKE, { kind: 'red' });    // red bet
-      else if (game === 'wheel')     r = await wheel(env, guildId, userId, STAKE, 'low');
-      else if (game === 'plinko')    r = await plinko(env, guildId, userId, STAKE, 'low');
-      else return eph('Unknown quick game: ' + game);
-
-      if (!r || (r.ok === false)) {
-        return eph('❌ ' + (r?.error || r?.explanation || 'round-failed'));
-      }
-      const w2 = await getWallet(env, guildId, userId);
-      const won = (r.won === true) || (typeof r.payout === 'number' && r.payout > 0);
-      const verdict = won ? `🎉 **Won +${r.payout || 0} bolts**` : `💸 **Lost ${STAKE} bolts**`;
-      const detail = r.explanation || r.message || '';
-      return ephEmbed({
-        title: `🎰 ${game.charAt(0).toUpperCase() + game.slice(1)}`,
-        description: `${verdict}\n${detail ? `_${detail}_\n` : ''}Balance: **${(w2.balance || 0).toLocaleString()}** bolts.`,
-        color: won ? 0x42c97a : 0x6a7488,
-      }, {
-        // Quick-replay button, same stake, same game.
-        components: [{
-          type: COMPONENT_ROW,
-          components: [
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY,   label: 'Play again', custom_id: `play:quick-game:${game}` },
-            { type: COMPONENT_BUTTON, style: BTN_SECONDARY, label: '← Back to games', custom_id: 'play:quick' },
-          ],
-        }],
-      });
-    } catch (e) {
-      return eph('❌ ' + (e?.message || e));
-    }
-  }
-
-
-  if (action === 'rpg') {
-    // The Loadout RPG surface, wallet / inventory / kit / daily.
-    // These all live in the existing /loadout slash command's
-    // menu. Surface their web equivalents directly + inline
-    // wallet snapshot.
-    let walletLine = '';
-    try {
-      const { getWallet } = await import('./wallet.js');
-      const w = await getWallet(env, guildId, userId);
-      walletLine = `\n💰 **${(w.balance || 0).toLocaleString()}** bolts · daily streak **${w.dailyStreak || 0}**`;
-    } catch { /* idle */ }
-    return {
-      type: RESP_CHAT,
-      data: {
-        embeds: [{
-          title: '🎲 RPG · Loadout',
-          description: 'Wallet · inventory · kit · daily.' + walletLine,
-          color: 0xe6c474,
-        }],
-        components: [{
-          type: COMPONENT_ROW,
-          components: [
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Open Loadout',  url: `${site}/play/` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Inventory',     url: `${site}/play/inventory/` },
-            { type: COMPONENT_BUTTON, style: BTN_LINK,    label: 'Shop',          url: `${site}/play/shop/` },
-            { type: COMPONENT_BUTTON, style: BTN_PRIMARY, label: 'Claim daily',   custom_id: 'play:rpg-daily' },
-          ],
-        }],
-        flags: FLAG_EPHEMERAL,
-      },
-    };
-  }
-  if (action === 'rpg-daily') {
-    try {
-      const { daily } = await import('./games.js');
-      const r = await daily(env, guildId, userId);
-      if (!r.won) {
-        return eph(`❌ ${r.explanation || 'Already claimed today.'}`);
-      }
-      const { getWallet } = await import('./wallet.js');
-      const w = await getWallet(env, guildId, userId);
-      return eph(`💰 Daily claimed, **+${r.payout}** bolts (streak ${r.streak}). Balance: **${(w.balance || 0).toLocaleString()}**.`);
-    } catch (e) {
-      return eph('❌ ' + (e?.message || e));
-    }
-  }
-
-  return eph('Unknown play action: ' + cid);
-}
+// (Bolts economy sunset 2026-06: handleBoltsHubComponent,
+// handleBoltsTransferModal and handlePlayHubComponent were removed —
+// they fronted the wallet, Boltbound, and quick-games surfaces that
+// imported wallet.js / cards-*.js / games*.js.)
 
 // ach:*
 export async function handleAchievementsHubComponent(env, data) {
@@ -617,13 +287,7 @@ export async function handleAchievementsHubComponent(env, data) {
       const x = await readXpDisplay(env, userId);
       xpLine = `**L${x.level}** · ${x.xp.toLocaleString()} XP · ${x.pct}% to L${x.nextLevel}`;
     } catch { /* idle */ }
-    try {
-      const { tiersForLevel } = await import('./level-tier-roles.js');
-      const { readXpDisplay } = await import('./progression/xp.js');
-      const x = await readXpDisplay(env, userId).catch(() => null);
-      const tiers = x ? tiersForLevel(x.level) : [];
-      tierLine = tiers.length ? `\n🏅 Tiers: ${tiers.join(' · ')}` : '\n🏅 Tiers: _none yet (L5 unlocks Apprentice)_';
-    } catch { /* idle */ }
+    // (Bolts economy sunset: the level-tier-roles lookup was removed.)
     try {
       const { readAchievementsDisplay } = await import('./progression/achievements.js');
       const ach = await readAchievementsDisplay(env, userId).catch(() => null);

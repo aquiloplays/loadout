@@ -51,47 +51,25 @@ function row(...children) {
 // The pinned message payload. Keep it stable, re-posts reuse the
 // same shape so subscribers/embed-cache stays consistent.
 export function pinnedMessage() {
+  // (Bolts economy sunset 2026-06: the Boltbound / Clash / Quick-games /
+  // Campaign / Pet / Hero / Character / Shop / Hub buttons were removed —
+  // all economy or Boltbound surfaces. The menu now surfaces the
+  // surviving non-currency entries: the Loadout profile + Top gifters.)
   return {
     embeds: [{
-      title: '🎮 Aquilo Games',
+      title: '🎮 Aquilo',
       description: [
-        'Welcome to the games hub. Each button opens its own private window, only you see it.',
+        'Each button opens its own private window, only you see it.',
         '',
-        '🃏 **Boltbound**, async card battler with weekly drafts.',
-        '⚔️ **Clash**, communal town builder + raids.',
-        '🎲 **Quick games**, blackjack, hilo, mines, dice, bet Bolts.',
-        '📜 **Campaign**, AI-DM\'d one-shot D&D with friends.',
-        '🐱 **Pet**, Patreon cosmetic pet + tamagotchi care loop.',
-        '',
-        '🦸 **Hero / Character**, class, gear, profile.',
-        '🛒 **Shop**, spend Bolts on cosmetics + buffs.',
-        '🌐 **Hub**, viewer leaderboards + stocks + bets.',
+        '💼 **Loadout**, your profile, bio, pic, pronouns, socials, gamer tags.',
+        '🏆 **Top gifters**, the rolling 30-day sub-gift / TikTok-gift / cheer leaders.',
       ].join('\n'),
       color: 0x7c5cff,
       footer: { text: 'Tap a button, your menu opens privately.' },
     }],
     components: [
-      // Row 1, flagship games (primary style)
-      row(
-        button('🃏 Boltbound',      'gm:boltbound',  STYLE_PRIMARY),
-        button('⚔️ Clash',          'gm:clash',      STYLE_PRIMARY),
-        button('🎲 Quick games',    'gm:play',       STYLE_PRIMARY),
-      ),
-      // Row 2, narrative + sim
-      row(
-        button('📜 Campaign',       'gm:campaign',   STYLE_SUCCESS),
-        button('🐱 Pet',            'gm:pet',        STYLE_SUCCESS),
-      ),
-      // Row 3, character + economy
-      row(
-        button('🦸 Hero',           'gm:hero',       STYLE_SECONDARY),
-        button('👤 Character',      'gm:character',  STYLE_SECONDARY),
-        button('🛒 Shop',           'gm:shop',       STYLE_SECONDARY),
-      ),
-      // Row 4, supporting hubs
       row(
         button('💼 Loadout',        'gm:loadout',    STYLE_SECONDARY),
-        button('🌐 Hub',            'gm:hub',        STYLE_SECONDARY),
         button('🏆 Top gifters',    'gm:topgifters', STYLE_SECONDARY),
       ),
     ],
@@ -133,26 +111,14 @@ export async function handleGamesMenuComponent(data, env, ctx) {
 
   try {
     switch (key) {
-      case 'boltbound': {
-        const { handleBoltboundCommand } = await import('./cards.js');
-        const r = await handleBoltboundCommand(env, blankData, userId, userName);
-        return forceEphemeral(r);
-      }
-      case 'play': {
-        const { handlePlayCommand } = await import('./quickgames-command.js');
-        const r = await handlePlayCommand(env, blankData, guildId, userId, userName);
-        return forceEphemeral(r);
-      }
+      // (Bolts economy sunset: the boltbound / play / hub cases — and the
+      // clash / campaign / pet / hero / character / shop buttons — were
+      // removed. Only the non-currency surfaces remain.)
       case 'loadout': {
-        // Loadout's home menu, wallet / daily / games / profile.
-        // Viewers navigate inside via lo:* buttons.
+        // Loadout's slimmed profile menu. Viewers navigate inside via
+        // lo:* buttons.
         const { renderLoadoutCommand } = await import('./loadout-menu.js');
         const r = await renderLoadoutCommand(env, guildId, userId, userName);
-        return forceEphemeral(r);
-      }
-      case 'hub': {
-        const { renderHubCommand } = await import('./hub.js');
-        const r = await renderHubCommand(env, guildId, userId);
         return forceEphemeral(r);
       }
       case 'topgifters': {

@@ -34,7 +34,7 @@ function buildViewerHubPayload() {
     title: '🎮 Aquilo · Viewer Commands',
     description:
       'Tap a button for what you want to do, no need to remember slash commands.\n\n' +
-      '🎲 **Encounter**, roll a random event and gain/lose a few bolts (10-min cooldown)\n' +
+      '🎲 **Encounter**, roll a random event (10-min cooldown)\n' +
       '💡 **Suggest a Game**, propose a new game for community-night rotation\n' +
       '🎵 **Add Song**, drop a track in the pre-stream music queue\n' +
       '📋 **My Songs**, see your own pre-queued songs (only you can see this)\n' +

@@ -9,11 +9,10 @@
 // (KV extcd:<action>:<guild>:<userId>) to absorb double-taps; deeper
 // gameplay caps (per-day spend/train/gift) are deferred to a config pass.
 
-import { getWallet, transfer } from './wallet.js';
-import { getProfile } from './profiles.js';
-import { recordStat } from './recap.js';
-
-import { json, debounced } from './ext-shared.js';
+// (Bolts economy sunset 2026-06: the wallet.js / recap.js / profiles.js /
+// ext-shared.js imports were removed along with the panel economy
+// routes. This module now only exposes the Twitch token + login
+// resolution helpers used by ext-tier1.js / ext-mod.js.)
 
 // Twitch app token (client-credentials, cached), used to resolve a
 // gift recipient's login name to a numeric id, and reused by the

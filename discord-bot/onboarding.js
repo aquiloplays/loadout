@@ -24,7 +24,7 @@
 //   4. pwa          how-to install the PWA → Next
 //   5. age18        18+ self-grant age gate → Next
 //   6. tour         a key-channels embed → Finish
-//   7. complete     bonus grant (idempotent) + recordMilestone for
+//   7. complete     mark complete (idempotent) + recordMilestone for
 //                    referral funnel
 //
 // State machine, every transition writes through, so a user who
@@ -47,15 +47,12 @@
 //                                    welcome embed (so re-posts can
 //                                    delete the old one)
 
-import { earn, getWallet } from './wallet.js';
-import { creditPack } from './cards-packs.js';
+// (Bolts economy sunset: removed wallet/economy-pace/cards-packs import)
 import { recordMilestone } from './referrals.js';
 import { getBranding } from './branding.js';
 
 // ── Constants ──────────────────────────────────────────────────────
-
-export const ONBOARD_BONUS_BOLTS = 100;
-export const ONBOARD_BONUS_PACK  = 'bolt';
+// (Bolts economy sunset: removed ONBOARD_BONUS_BOLTS / ONBOARD_BONUS_PACK)
 
 // Stable interest keys, same set used by the multi-select component
 // values, the KV role-map shape, and the admin status table.
@@ -240,24 +237,21 @@ export async function grantRolesForInterests(env, guildId, userId, interestKeys)
   return { granted, skipped };
 }
 
-// ── Completion: bonus + funnel ─────────────────────────────────────
+// ── Completion: funnel + referral milestone ────────────────────────
 
-// Idempotent: grants ONBOARD_BONUS_BOLTS + 1 'bolt' pack ONCE per
-// user. Subsequent calls are no-ops + report { alreadyGranted: true }.
-// Also fires recordMilestone('onboard') for the referral funnel, // also idempotent (referrals.js gates on milestoneFiredUtc per
-// referee), so a re-run after the user was later attributed still
-// pays the referrer once.
+// Idempotent: marks onboarding complete ONCE per user. Subsequent
+// calls are no-ops + report { alreadyGranted: true }.
+// Also fires recordMilestone('onboard') for the referral funnel, also
+// idempotent (referrals.js gates on milestoneFiredUtc per referee),
+// so a re-run after the user was later attributed still records the
+// referrer's milestone once.
+//
+// (Bolts economy sunset: the completion bonus — ONBOARD_BONUS_BOLTS +
+// 1 'bolt' pack — has been removed. `bonusGranted` is retained purely
+// as the "onboarding complete" flag the state machine gates on.)
 export async function completeOnboarding(env, guildId, userId, state) {
   if (state.bonusGranted) {
-    return { alreadyGranted: true, bolts: 0, pack: null };
-  }
-  await earn(env, guildId, userId, ONBOARD_BONUS_BOLTS, 'onboarding:complete');
-  let packCreditOk = false;
-  try {
-    const r = await creditPack(env, guildId, userId, ONBOARD_BONUS_PACK, 'onboarding:complete');
-    packCreditOk = !!r?.ok;
-  } catch (e) {
-    console.warn('[onboard] pack credit failed', e?.message || e);
+    return { alreadyGranted: true };
   }
   state.bonusGranted = true;
   state.completedAt  = Date.now();
@@ -278,9 +272,6 @@ export async function completeOnboarding(env, guildId, userId, state) {
 
   return {
     alreadyGranted: false,
-    bolts: ONBOARD_BONUS_BOLTS,
-    pack: ONBOARD_BONUS_PACK,
-    packCreditOk,
   };
 }
 
@@ -299,8 +290,7 @@ export async function buildWelcomeEmbed(env, guildId) {
         `Get oriented in 60 seconds:\n\n` +
         `• 🎮 Pick the channels + pings you want to see\n` +
         `• 🔗 Link your Twitch + Patreon (optional, unlocks perks)\n` +
-        `• 🗺 Quick tour of where things live\n\n` +
-        `Finish to grab **${ONBOARD_BONUS_BOLTS} bolts** + a starter pack.`,
+        `• 🗺 Quick tour of where things live`,
       color: brand.accentColor,
       thumbnail: { url: brand.welcomeBackdropUrl },
       footer: { text: 'You can run /onboard any time to resume.' },
@@ -326,7 +316,7 @@ async function viewWelcome(env, guildId) {
     embeds: [{
       title: `👋 Welcome to ${brand.brandName}!`,
       description:
-        `A few quick steps. Finish to grab **${ONBOARD_BONUS_BOLTS} bolts** + a starter pack.\n\n` +
+        `A few quick steps to get you settled in.\n\n` +
         `1. Pick your interests\n` +
         `2. Link Twitch + Patreon\n` +
         `3. Quick tour of key channels\n` +
@@ -543,18 +533,17 @@ async function viewTour(env, guildId) {
 
 async function viewComplete(env, guildId, userId, state, grantInfo) {
   const brand = await getBranding(env, guildId);
-  const w = await getWallet(env, guildId, userId).catch(() => ({ balance: 0 }));
+  // (Bolts economy sunset: no starter bonus / wallet balance to show.)
   const grantLine = grantInfo.alreadyGranted
-    ? '_You\'d already claimed your starter bonus, nothing extra granted this run._'
-    : `🎁 **+${grantInfo.bolts} bolts** + 1 Boltbound **${grantInfo.pack}** pack landed in your wallet.`;
+    ? '_You\'d already finished onboarding, nothing changed this run._'
+    : '🎉 All set, you\'re fully onboarded.';
   return {
     flags: FLAG_EPHEMERAL,
     embeds: [{
       title: '🏁 You\'re onboarded!',
       description:
         grantLine +
-        `\n\nWallet: **${w.balance || 0} bolts**.\n\n` +
-        `Next up: try \`/checkin\` for today, browse the cards with \`/boltbound\`, ` +
+        `\n\nNext up: try \`/checkin\` for today, ` +
         `or just hang out and watch the stream. Welcome to ${brand.brandName}.`,
       color: brand.accentColor,
     }],

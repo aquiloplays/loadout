@@ -19,9 +19,11 @@
 //   GET  /community/challenge/history  last 20 archives
 //
 // On completion: Discord celebratory embed posted to the community
-// channel (resolved via sf-community.js binding). Top contributors
-// (5 by count) receive a small bolts reward, flat, single-tier
-// (no Patreon scaling per project constraint).
+// channel (resolved via sf-community.js binding), naming the top
+// contributors (5 by count).
+// (Bolts economy sunset: the small bolts reward to the top
+// contributors has been removed; the challenge is now a shared
+// community goal + leaderboard with no currency payout.)
 
 import { getActiveGuildId } from './aquilo/config.js';
 
@@ -308,10 +310,12 @@ async function postNewChallengeEmbed(env, challenge) {
     color: 0x7C5CFF,
     title: `${challenge.icon || '🎯'} New community challenge, ${challenge.name}`,
     description: challenge.description,
+    // (Bolts economy sunset: dropped the bolt-reward field; the
+    // challenge is now a shared community goal with a leaderboard,
+    // no currency payout.)
     fields: [
       { name: 'Goal', value: `0 / ${challenge.target.toLocaleString()}`, inline: true },
       { name: 'Ends', value: `<t:${Math.floor(challenge.expiresUtc / 1000)}:R>`, inline: true },
-      { name: 'Reward', value: `${challenge.reward.bolts.toLocaleString()} bolts to the top ${challenge.reward.top} contributors`, inline: false },
     ],
     timestamp: new Date().toISOString(),
     footer: { text: 'aquilo.gg, community challenge' },
@@ -336,7 +340,7 @@ async function postCompletionEmbed(env, challenge) {
       ? `🎉 Community challenge complete, ${challenge.name}`
       : `⏰ Community challenge ended, ${challenge.name}`,
     description: wonIt
-      ? `The community hit **${challenge.progress.toLocaleString()} / ${challenge.target.toLocaleString()}**. Bolts going out to the top contributors.`
+      ? `The community hit **${challenge.progress.toLocaleString()} / ${challenge.target.toLocaleString()}**. Shout-out to the top contributors below!`
       : `Final tally: **${challenge.progress.toLocaleString()} / ${challenge.target.toLocaleString()}**. New challenge starting now.`,
     fields: [
       { name: 'Top contributors', value: lines.join('\n') },
@@ -362,24 +366,13 @@ async function usernameFor(env, userId) {
   } catch { return `Player ${String(userId).slice(-4)}`; }
 }
 
+// (Bolts economy sunset: the top-contributor payout — template bolts
+// split evenly across the top finishers via wallet.js earn — has been
+// removed. Kept as a no-op so the completion call sites stay intact;
+// the challenge still tracks contributions + posts the celebratory
+// embed naming the top contributors, just with no currency reward.)
 async function rewardTopContributors(env, challenge) {
-  const top = topContributors(challenge, challenge.reward?.top || 5);
-  if (!top.length) return;
-  // Reward = template bolts split evenly across top contributors.
-  const split = Math.floor((challenge.reward?.bolts || 0) / top.length);
-  if (split <= 0) return;
-  // Wallets are per-guild; we use the active guild as the home guild
-  // for the credit. Best-effort, wallet earns are non-fatal here.
-  const guildId = await getActiveGuildId(env);
-  if (!guildId) return;
-  try {
-    const { earn } = await import('./wallet.js');
-    for (const c of top) {
-      try {
-        await earn(env, guildId, c.userId, split, `community-challenge:${challenge.id}`);
-      } catch { /* non-fatal per-user */ }
-    }
-  } catch { /* wallet module shape may differ; non-fatal */ }
+  return;
 }
 
 // ── HTTP dispatcher ───────────────────────────────────────────────

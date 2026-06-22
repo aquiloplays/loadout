@@ -1,7 +1,6 @@
 // Welcome ritual, fires once per (guild, user) the first time we see
-// them act. Posts a celebratory card in #engagement, grants 100 starter
-// Bolts via Loadout's award-bolts endpoint, and unlocks the "First Light"
-// achievement.
+// them act. Posts a celebratory card in #engagement and unlocks the
+// "First Light" achievement.
 //
 // Trigger surface: any handler that wants to mark "this user is now
 // active", viewer-hub clicks, /suggest, /sr-add, first count, first
@@ -13,7 +12,7 @@
 import { postChannelMessage, discordFetch, COLOR_SCHEDULE } from './util.js';
 import { bumpAndAnnounce } from './achievements.js';
 
-const STARTER_BOLTS = 100;
+// (Bolts economy sunset: removed STARTER_BOLTS + starter-bolt grant)
 
 /**
  * Best-effort welcome ritual. Returns { welcomed: true } on first call
@@ -40,34 +39,9 @@ export async function maybeWelcome(env, guildId, userId, member = null) {
   try { await bumpAndAnnounce(env, guildId, userId, 'first_light'); }
   catch (e) { console.error('[welcome] achievement bump failed', e?.message || e); }
 
-  // 2) Credit 100 starter Bolts via Loadout's cross-bot endpoint.
-  // /counting/award-bolts is the receiver, it requires the
-  // x-counting-secret header and a guild_id in the body. The header
-  // name + missing guild_id were a long-standing silent fail
-  // (boltsCredited stayed false; the welcome card downgraded to the
-  // no-bolts copy without surfacing the failure to the user).
-  let boltsCredited = false;
-  if (env.LOADOUT_BOLT_API && env.LOADOUT_BOLT_API_SECRET) {
-    try {
-      const resp = await fetch(env.LOADOUT_BOLT_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-counting-secret': env.LOADOUT_BOLT_API_SECRET,
-        },
-        body: JSON.stringify({
-          guild_id: guildId,
-          user_id: userId,
-          amount: STARTER_BOLTS,
-          reason: 'welcome',
-        }),
-      });
-      boltsCredited = resp.ok;
-      if (!resp.ok) console.error('[welcome] bolts grant failed', resp.status, await resp.text());
-    } catch (e) { console.error('[welcome] bolts grant exception', e?.message || e); }
-  }
+  // (Bolts economy sunset: removed starter-bolt grant POST block)
 
-  // 3) Post welcome card in #engagement.
+  // 2) Post welcome card in #engagement.
   if (env.ENGAGEMENT_CHANNEL_ID) {
     try {
       const username = member?.user?.global_name ||
@@ -81,12 +55,9 @@ export async function maybeWelcome(env, guildId, userId, member = null) {
       const lines = [
         `🌩️ **Welcome to Aquilo, ${username}!**`,
         '',
-        boltsCredited
-          ? `You've been credited **${STARTER_BOLTS} starter Bolts**, run \`/loadout\` to claim your daily, peek the shop, or flip a coin.`
-          : `Run \`/loadout\` to set up your hero and start earning Bolts.`,
-        '',
-        '✨ React to this message with the storm emoji to say hi.',
         '🪪 Run `/passport` any time to see your streak + achievements.',
+        '🎲 Try `/encounter` for a random roll, or use the viewer hub.',
+        '✨ React to this message with the storm emoji to say hi.',
         '🎵 Add songs to the next stream via the viewer hub.',
         '',
         `Welcome to the storm. _<@${userId}>_`,
@@ -118,5 +89,5 @@ export async function maybeWelcome(env, guildId, userId, member = null) {
     }
   }
 
-  return { welcomed: true, bolts_credited: boltsCredited };
+  return { welcomed: true };
 }

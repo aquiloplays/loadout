@@ -1,6 +1,6 @@
 // Birthday tracker. `/birthday set MM-DD` saves a date (no year, privacy);
-// daily cron at 10 AM ET posts a callout in #engagement and drops 100
-// Bolts for everyone whose birthday is today.
+// daily cron at 10 AM ET posts a callout in #engagement for everyone
+// whose birthday is today.
 //
 // Public API:
 //   handleBirthdayCommand(data, env)   -> /birthday set | clear | show
@@ -12,7 +12,7 @@ import {
 } from './util.js';
 import { bumpAndAnnounce } from './achievements.js';
 
-const BDAY_BONUS_BOLTS = 100;
+// (Bolts economy sunset: removed BDAY_BONUS_BOLTS + bolt grant)
 
 export async function handleBirthdayCommand(data, env) {
   const sub = getSubcommand(data);
@@ -78,7 +78,7 @@ export async function runBirthdayCron(env) {
     '',
     `Today's birthdays: ${mentions}`,
     '',
-    `Everyone celebrated gets **${BDAY_BONUS_BOLTS} Bolts** on the house, check your wallet with \`/loadout\`.`,
+    `Wish them a happy birthday! 🎉`,
   ];
 
   try {
@@ -91,27 +91,7 @@ export async function runBirthdayCron(env) {
     return;
   }
 
-  // Credit Bolts via Loadout's cross-bot endpoint.
-  if (env.LOADOUT_BOLT_API && env.LOADOUT_BOLT_API_SECRET) {
-    for (const r of results) {
-      try {
-        await fetch(env.LOADOUT_BOLT_API, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-loadout-bolt-secret': env.LOADOUT_BOLT_API_SECRET,
-          },
-          body: JSON.stringify({
-            user_id: r.user_id,
-            amount: BDAY_BONUS_BOLTS,
-            reason: 'birthday',
-          }),
-        });
-      } catch (e) {
-        console.error('[birthdays] bolts grant failed for', r.user_id, e?.message || e);
-      }
-    }
-  }
+  // (Bolts economy sunset: removed per-user bolt grant POST loop)
 }
 
 // ---- helpers -----------------------------------------------------------

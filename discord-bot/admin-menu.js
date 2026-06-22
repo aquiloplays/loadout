@@ -25,21 +25,11 @@
 //                                kept routable so any old message components don't 500)
 //   admin:bolts:bind/clear   -- same
 
-import {
-  bindTickerBoard,
-  unbindTickerBoard,
-  getTickerBoardForGuild,
-  getCatalog,
-  getPrice,
-  fetchYahooStockPrice,
-} from './stocks.js';
-import { readGamesCache, fetchLeague } from './bet.js';
-import {
-  bindBoltsFeed,
-  getBoltsFeed,
-  clearBoltsFeed,
-  buildDigestEmbed,
-} from './bolts-feed.js';
+// (Bolts economy sunset 2026-06: the stocks.js / bet.js / bolts-feed.js
+// imports — and the sports-feed / stocks-ticker / bolts-feed channel
+// bindings + health checks + pipe tests they powered — were removed.
+// The admin dashboard now manages only the non-currency check-in
+// channel binding.)
 
 const RESP_CHAT            = 4;
 const RESP_DEFER_UPDATE    = 6;
@@ -61,7 +51,6 @@ const STYLE_LINK       = 5;
 // embeds that wouldn't render usefully in those.
 const CHANNEL_TYPES_TEXT = [0, 5];
 
-const SPORTS_CHANNEL_KEY  = (guildId) => 'sports:channel:guild:' + guildId;
 const CHECKIN_CHANNEL_KEY = (guildId) => 'checkin:channel:guild:' + guildId;
 
 function json(obj) {
@@ -71,29 +60,8 @@ function json(obj) {
   });
 }
 
-async function getSportsChannel(env, guildId) {
-  try {
-    return await env.LOADOUT_BOLTS.get(SPORTS_CHANNEL_KEY(guildId), { type: 'json' });
-  } catch { return null; }
-}
-
-async function setSportsChannel(env, guildId, channelId) {
-  // Preserve knownGameIds across re-binds so the cron doesn't re-announce
-  // games it already mentioned (avoids "welcome to LIVE" spam after an
-  // admin moves the feed to a different channel).
-  const existing = await getSportsChannel(env, guildId);
-  const knownGameIds = (existing && Array.isArray(existing.knownGameIds))
-    ? existing.knownGameIds
-    : [];
-  await env.LOADOUT_BOLTS.put(
-    SPORTS_CHANNEL_KEY(guildId),
-    JSON.stringify({ channelId, knownGameIds, boundAt: Date.now() }),
-  );
-}
-
-async function clearSportsChannel(env, guildId) {
-  try { await env.LOADOUT_BOLTS.delete(SPORTS_CHANNEL_KEY(guildId)); } catch { /* idle */ }
-}
+// (Bolts economy sunset: the sports-feed channel binding helpers
+// getSportsChannel / setSportsChannel / clearSportsChannel were removed.)
 
 // Discord pic/gif check-in channel binding. Read by aquilo-bot's
 // checkin.js (filter incoming MESSAGE_CREATE forwards) AND by
@@ -221,34 +189,7 @@ async function runHealthChecks(env, guildId) {
 
   // Cron presence is hardcoded in wrangler.toml; we re-affirm so admins
   // know the schedules are configured even if they can't see the toml.
-  checks.push({ ok: true, label: 'Hourly crons', detail: '`:17` stocks · `:23` sports + bolts-feed' });
-
-  await tryCheck('Stock catalog', async () => {
-    const cat = await getCatalog(env);
-    const n = (cat && cat.tickers && cat.tickers.length) || 0;
-    if (n === 0) throw new Error('catalog empty -- run /admin web to seed');
-    // Sample one price to confirm the catalog is actually populated with
-    // fresh data, not just a stale shell.
-    const sample = cat.tickers[0];
-    const rec = await getPrice(env, sample.ticker);
-    const priced = rec && rec.price ? ' · sample ' + sample.ticker + '=' + rec.price : ' · no prices yet';
-    return n + ' tickers' + priced;
-  });
-
-  await tryCheck('Sports games cache', async () => {
-    const games = await readGamesCache(env);
-    const n = (games && games.length) || 0;
-    if (n === 0) return 'empty (cron has not run yet or no games in window)';
-    // games entries have a .date ISO field
-    return n + ' games loaded';
-  });
-
-  await tryCheck('Team registry', async () => {
-    const reg = await env.LOADOUT_BOLTS.get('sports:teams:registry', { type: 'json' });
-    const n = (reg && Array.isArray(reg) && reg.length) || 0;
-    if (n === 0) throw new Error('not yet seeded -- runs on first :23 cron tick');
-    return n + ' teams indexed';
-  });
+  checks.push({ ok: true, label: 'Hourly crons', detail: '`:23` community tasks · `:17` Twitch/roster' });
 
   await tryCheck('Discord bot token', async () => {
     if (!env.DISCORD_BOT_TOKEN) throw new Error('not configured');
@@ -261,18 +202,13 @@ async function runHealthChecks(env, guildId) {
     return 'configured (' + pk.length + ' chars)';
   });
 
-  // Per-guild binding presence echoed back here as health signal, since
-  // an unbound feed isn't surfaced anywhere else as "not configured."
+  // Per-guild binding presence echoed back here as a health signal.
   if (guildId) {
-    const sports  = await getSportsChannel(env, guildId);
-    const stocks  = await getTickerBoardForGuild(env, guildId);
-    const bolts   = await getBoltsFeed(env, guildId);
     const checkin = await getCheckinChannel(env, guildId);
-    const boundCount = [sports, stocks, bolts, checkin].filter(Boolean).length;
     checks.push({
-      ok: boundCount > 0,
-      label: 'Channel bindings (this guild)',
-      detail: boundCount + ' of 4 bound',
+      ok: !!checkin,
+      label: 'Check-in channel binding (this guild)',
+      detail: checkin ? 'bound' : 'not bound',
     });
   }
 
@@ -294,9 +230,6 @@ function manualChecklist() {
 }
 
 async function setupView(env, guildId) {
-  const sports  = await getSportsChannel(env, guildId);
-  const stocks  = await getTickerBoardForGuild(env, guildId);
-  const bolts   = await getBoltsFeed(env, guildId);
   const checkin = await getCheckinChannel(env, guildId);
 
   const checks = await runHealthChecks(env, guildId);
@@ -304,32 +237,25 @@ async function setupView(env, guildId) {
 
   const description =
     '**📡 Channel bindings**\n' +
-    bindLine('🏈', 'Sports feed',   sports)  + '\n' +
-    bindLine('📈', 'Stocks ticker', stocks)  + '\n' +
-    bindLine('⚡', 'Bolts feed',    bolts)   + '\n' +
     bindLine('📸', 'Check-in',      checkin) + '\n\n' +
     '**💚 Integration health**\n' +
     checkLines.join('\n') + '\n\n' +
     '**📋 Manual checklist** (bot can\'t verify; surface here so nothing slips)\n' +
     manualChecklist();
 
-  // Status view: read-only dashboard + clears + nav buttons. The
-  // editable channel selects live in a separate "Edit" view because
-  // 4 selects + 4 clears + nav exceeds Discord's 5-row message limit.
+  // Status view: read-only dashboard + clear + nav buttons. The
+  // editable channel select lives in a separate "Edit" view.
   return {
     embeds: [{
       title: '🔧 Setup & Status',
       description,
       color: 0x9a82ff,
-      footer: { text: 'Click "Edit bindings" to pick channels; clears are one click each.' },
+      footer: { text: 'Click "Edit bindings" to pick the check-in channel.' },
     }],
     components: [
       {
         type: COMPONENT_ROW,
         components: [
-          { type: COMPONENT_BUTTON, style: STYLE_DANGER, label: '🛑 Clear sports',  custom_id: 'admin:setup:clr:sports',  disabled: !sports  },
-          { type: COMPONENT_BUTTON, style: STYLE_DANGER, label: '🛑 Clear stocks',  custom_id: 'admin:setup:clr:stocks',  disabled: !stocks  },
-          { type: COMPONENT_BUTTON, style: STYLE_DANGER, label: '🛑 Clear bolts',   custom_id: 'admin:setup:clr:bolts',   disabled: !bolts   },
           { type: COMPONENT_BUTTON, style: STYLE_DANGER, label: '🛑 Clear check-in', custom_id: 'admin:setup:clr:checkin', disabled: !checkin },
         ],
       },
@@ -338,7 +264,6 @@ async function setupView(env, guildId) {
         components: [
           { type: COMPONENT_BUTTON, style: STYLE_SECONDARY, label: '◀ Back',           custom_id: 'admin:home' },
           { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '✏ Edit bindings',  custom_id: 'admin:setup:edit' },
-          { type: COMPONENT_BUTTON, style: STYLE_PRIMARY,   label: '🧪 Run pipe tests', custom_id: 'admin:setup:pipetest' },
         ],
       },
     ],
@@ -350,57 +275,20 @@ async function setupView(env, guildId) {
 // admin:setup:sel:<feed>; the handler binds and re-renders the status
 // view so admins see the new state immediately.
 async function editBindingsView(env, guildId) {
-  const sports  = await getSportsChannel(env, guildId);
-  const stocks  = await getTickerBoardForGuild(env, guildId);
-  const bolts   = await getBoltsFeed(env, guildId);
   const checkin = await getCheckinChannel(env, guildId);
 
   return {
     embeds: [{
       title: '✏ Edit channel bindings',
       description:
-        'Pick a channel from any dropdown to bind that feed. The bot needs ' +
-        '**View + Send Messages + Embed Links** in the chosen channel (plus ' +
-        '**Add Reactions** for the check-in channel). Updates take effect ' +
-        'within ~5 minutes for the check-in feed (presence-service poll) and ' +
-        'immediately for the rest.\n\n' +
-        bindLine('🏈', 'Sports feed',   sports)  + '\n' +
-        bindLine('📈', 'Stocks ticker', stocks)  + '\n' +
-        bindLine('⚡', 'Bolts feed',    bolts)   + '\n' +
+        'Pick a channel from the dropdown to bind the daily check-in feed. ' +
+        'The bot needs **View + Send Messages + Embed Links + Add Reactions** ' +
+        'in the chosen channel. Updates take effect within ~5 minutes ' +
+        '(presence-service poll).\n\n' +
         bindLine('📸', 'Check-in',      checkin),
       color: 0x9a82ff,
     }],
     components: [
-      {
-        type: COMPONENT_ROW,
-        components: [{
-          type: COMPONENT_CHANNEL_SEL,
-          custom_id: 'admin:setup:sel:sports',
-          placeholder: '🏈 Bind sports feed channel...',
-          channel_types: CHANNEL_TYPES_TEXT,
-          min_values: 1, max_values: 1,
-        }],
-      },
-      {
-        type: COMPONENT_ROW,
-        components: [{
-          type: COMPONENT_CHANNEL_SEL,
-          custom_id: 'admin:setup:sel:stocks',
-          placeholder: '📈 Bind stocks ticker channel...',
-          channel_types: CHANNEL_TYPES_TEXT,
-          min_values: 1, max_values: 1,
-        }],
-      },
-      {
-        type: COMPONENT_ROW,
-        components: [{
-          type: COMPONENT_CHANNEL_SEL,
-          custom_id: 'admin:setup:sel:bolts',
-          placeholder: '⚡ Bind bolts feed channel...',
-          channel_types: CHANNEL_TYPES_TEXT,
-          min_values: 1, max_values: 1,
-        }],
-      },
       {
         type: COMPONENT_ROW,
         components: [{
@@ -441,67 +329,9 @@ function withTimeout(promise, ms, label) {
   ]);
 }
 
-async function pipeStocks(env) {
-  // Pull catalog so we test the same data path production uses.
-  // Falls back to AAPL if catalog is empty -- the pipe test still
-  // proves Yahoo is reachable.
-  const cat = await getCatalog(env);
-  const t = (cat && cat.tickers && cat.tickers[0]) || { ticker: 'AAPL', sourceRef: 'AAPL', name: 'Apple Inc.' };
-  const sym = t.sourceRef || t.ticker;
-  const price = await fetchYahooStockPrice(sym);
-  if (typeof price !== 'number') throw new Error('Yahoo returned no usable price for ' + sym);
-  return sym + ' = $' + price.toFixed(2);
-}
-
-async function pipeSports(env) {
-  // NFL scoreboard -- always returns something, even in off-season.
-  const events = await fetchLeague('football', 'nfl');
-  if (!Array.isArray(events)) throw new Error('ESPN response shape wrong');
-  return 'NFL scoreboard: ' + events.length + ' event(s)';
-}
-
-async function pipeBoltsCompute(env, guildId) {
-  // Compute the digest WITHOUT posting it. Proves KV reads + digest
-  // assembly work end-to-end without sending a test message anywhere.
-  const embed = await buildDigestEmbed(env, guildId);
-  if (!embed || !embed.description) throw new Error('digest embed missing description');
-  // Approximate work done: leaderboard fetch + totals scan. Surface the
-  // embed size as a one-glance "did we actually build something" signal.
-  return 'digest built (' + embed.description.length + ' chars)';
-}
-
-async function pipeChannelReach(env, guildId) {
-  // Verify each bound feed channel is still visible to the bot. Uses
-  // GET /channels/{id} -- 200 = bot can see it (VIEW_CHANNEL), 404 =
-  // channel was deleted, 403 = bot lost perms. Deliberately NO test
-  // message posted -- channel spam would be worse than the bug we're
-  // catching.
-  const sports = await getSportsChannel(env, guildId);
-  const stocks = await getTickerBoardForGuild(env, guildId);
-  const bolts  = await getBoltsFeed(env, guildId);
-  const bindings = [
-    { label: 'sports', channelId: sports && sports.channelId },
-    { label: 'stocks', channelId: stocks && stocks.channelId },
-    { label: 'bolts',  channelId: bolts  && bolts.channelId  },
-  ].filter((b) => b.channelId);
-  if (bindings.length === 0) return 'no bindings to check';
-  if (!env.DISCORD_BOT_TOKEN) throw new Error('DISCORD_BOT_TOKEN missing');
-  const results = [];
-  for (const b of bindings) {
-    const res = await fetch(
-      'https://discord.com/api/v10/channels/' + encodeURIComponent(b.channelId),
-      { headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN } },
-    );
-    if (res.ok)        results.push(b.label + ':visible');
-    else if (res.status === 404) results.push(b.label + ':deleted');
-    else if (res.status === 403) results.push(b.label + ':no-view');
-    else               results.push(b.label + ':http' + res.status);
-  }
-  // Any non-"visible" result is a failure for the overall pipe.
-  const bad = results.filter((r) => !r.endsWith(':visible'));
-  if (bad.length) throw new Error(bad.join(', '));
-  return results.join(', ');
-}
+// (Bolts economy sunset: pipeStocks / pipeSports / pipeBoltsCompute /
+// pipeChannelReach were removed — they exercised the deleted
+// stocks.js / bet.js / bolts-feed.js data paths.)
 
 async function pipeKvRoundtrip(env) {
   const key = 'pipetest:rt:' + Date.now() + ':' + Math.random().toString(36).slice(2, 8);
@@ -529,14 +359,12 @@ async function runOnePipe(label, fn) {
 // Discord results view consumes, so any future check we add lands on
 // both surfaces at once.
 export async function runAllPipes(env, guildId) {
-  // Run in parallel so the slowest pipe sets the total elapsed, not the sum.
+  // (Bolts economy sunset: pipes 1-4 — Stocks/Sports/Bolts-feed/economy
+  // channel-binding reach — were removed. Only the generic KV round-trip
+  // remains.)
   const t0 = Date.now();
   const results = await Promise.all([
-    runOnePipe('1. Stocks (Yahoo)',           () => pipeStocks(env)),
-    runOnePipe('2. Sports (ESPN)',            () => pipeSports(env)),
-    runOnePipe('3. Bolts-feed digest',        () => pipeBoltsCompute(env, guildId)),
-    runOnePipe('4. Channel-binding reach',    () => pipeChannelReach(env, guildId)),
-    runOnePipe('5. KV round-trip',            () => pipeKvRoundtrip(env)),
+    runOnePipe('KV round-trip', () => pipeKvRoundtrip(env)),
   ]);
   return { results, totalMs: Date.now() - t0 };
 }
@@ -683,32 +511,19 @@ export async function handleAdminComponent(data, env, ctx) {
   }
 
   // Channel-select binds. data.values[0] is the chosen channelId.
+  // (Bolts economy sunset: only the check-in feed binding remains;
+  // sports/stocks/bolts feed binds were removed.)
   if (segs[0] === 'setup' && segs[1] === 'sel') {
     const feed = segs[2];
     const chosen = values[0];
     if (!chosen) {
       return json({ type: RESP_UPDATE_MESSAGE, data: errorView('No channel chosen.') });
     }
-    if (feed === 'sports') {
-      await setSportsChannel(env, guildId, chosen);
-    } else if (feed === 'stocks') {
-      const r = await bindTickerBoard(env, guildId, chosen);
-      if (!r.ok) {
-        return json({ type: RESP_UPDATE_MESSAGE, data: errorView('Stocks bind failed: ' + (r.reason || 'unknown')) });
-      }
-    } else if (feed === 'bolts') {
-      const r = await bindBoltsFeed(env, guildId, chosen);
-      if (!r.ok) {
-        return json({ type: RESP_UPDATE_MESSAGE, data: errorView('Bolts bind failed: ' + (r.reason || 'unknown')) });
-      }
-    } else if (feed === 'checkin') {
+    if (feed === 'checkin') {
       // The Discord pic/gif check-in. Just stores the channel id;
       // aquilo-bot's checkin.js polls this binding via the public
       // /checkin-channel/:guildId endpoint and aquilo-presence does
       // the same to know which channel to forward MESSAGE_CREATE for.
-      // Channel-perm validation deferred to first use -- if the bot
-      // can't see/post in the channel, the pipe-tests channel-reach
-      // check will surface it on the next dashboard refresh.
       await setCheckinChannel(env, guildId, chosen);
     } else {
       return json({ type: RESP_UPDATE_MESSAGE, data: errorView('Unknown feed: ' + feed) });
@@ -719,40 +534,13 @@ export async function handleAdminComponent(data, env, ctx) {
   // Clears
   if (segs[0] === 'setup' && segs[1] === 'clr') {
     const feed = segs[2];
-    if (feed === 'sports')       await clearSportsChannel(env, guildId);
-    else if (feed === 'stocks')  await unbindTickerBoard(env, guildId);
-    else if (feed === 'bolts')   await clearBoltsFeed(env, guildId);
-    else if (feed === 'checkin') await clearCheckinChannel(env, guildId);
+    if (feed === 'checkin') await clearCheckinChannel(env, guildId);
     else return json({ type: RESP_UPDATE_MESSAGE, data: errorView('Unknown feed: ' + feed) });
     return json({ type: RESP_UPDATE_MESSAGE, data: await setupView(env, guildId) });
   }
 
-  // ---- Legacy routes (kept so older messages don't 500) ----
-  // These bind to the channel /admin was run from. New flow uses channel
-  // selects above; these stay routable until any pre-existing dashboards
-  // age out of users' message history.
-  if (segs[0] === 'stocks' && segs.length === 1) {
-    return json({ type: RESP_UPDATE_MESSAGE, data: await setupView(env, guildId) });
-  }
-  if (segs[0] === 'sports' && segs[1] === 'bind') {
-    if (!channelId) return json({ type: RESP_UPDATE_MESSAGE, data: errorView("Couldn't read channel.") });
-    await setSportsChannel(env, guildId, channelId);
-    return json({ type: RESP_UPDATE_MESSAGE, data: await setupView(env, guildId) });
-  }
-  if (segs[0] === 'sports' && segs[1] === 'clear') {
-    await clearSportsChannel(env, guildId);
-    return json({ type: RESP_UPDATE_MESSAGE, data: await setupView(env, guildId) });
-  }
-  if (segs[0] === 'bolts' && segs[1] === 'bind') {
-    if (!channelId) return json({ type: RESP_UPDATE_MESSAGE, data: errorView("Couldn't read channel.") });
-    const r = await bindBoltsFeed(env, guildId, channelId);
-    if (!r.ok) return json({ type: RESP_UPDATE_MESSAGE, data: errorView('Bind failed: ' + (r.reason || 'unknown error')) });
-    return json({ type: RESP_UPDATE_MESSAGE, data: await setupView(env, guildId) });
-  }
-  if (segs[0] === 'bolts' && segs[1] === 'clear') {
-    await clearBoltsFeed(env, guildId);
-    return json({ type: RESP_UPDATE_MESSAGE, data: await setupView(env, guildId) });
-  }
+  // (Bolts economy sunset: the legacy bind-to-current-channel routes for
+  // sports / stocks / bolts feeds were removed.)
 
   return json({ type: RESP_DEFER_UPDATE });
 }

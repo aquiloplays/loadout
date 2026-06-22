@@ -19,13 +19,14 @@ const HANDLE_INDEX_KEY = (safe) => `pprofile:handle:${safe}`;
 // New features add one line here + an export of getStatsFor in their
 // module. The progression layer is the only thing that knows about
 // the union.
-const FEATURE_ORDER = [
-  { feature: 'boltbound', importPath: '../cards-state.js' },
-  { feature: 'board',     importPath: '../boardgames-engine.js' },
-  { feature: 'quick',     importPath: '../games-quick.js' },
-  { feature: 'bet',       importPath: '../bet.js' },
-  { feature: 'wallet',    importPath: '../wallet.js' },
-];
+// (Bolts economy sunset 2026-06: every feature stats-source here was an
+// economy/Boltbound module — cards-state.js (Boltbound), boardgames-
+// engine.js, games-quick.js, bet.js, wallet.js — all deleted or unwired.
+// The list is now empty; the public profile still renders XP /
+// achievements / badges from the progression imports above. The
+// aggregator below tolerates an empty list (returns no feature cards).
+// Re-add lines here if a non-currency feature ships a getStatsFor hook.)
+const FEATURE_ORDER = [];
 
 function freshProfile(userId) {
   return {

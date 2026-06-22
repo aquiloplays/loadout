@@ -32,8 +32,9 @@ import {
 } from './lfg.js';
 import { getChannelBinding } from './channel-bindings.js';
 import { getBranding } from './branding.js';
-import { preferredHeroImageUrl } from './character.js';
-import { loadHero } from './hero-state.js';
+// (Bolts economy sunset: the character.js / hero-state.js imports were
+// removed — the LFG ping no longer decorates with a hero class/avatar.
+// The XP level (progression/xp.js) is non-currency and stays.)
 import { readXpDisplay } from './progression/xp.js';
 
 const RESP_CHAT          = 4;
@@ -430,20 +431,13 @@ async function postEnrichedLfgPing(env, guildId, userId, userName, lfg, notes) {
     || env.LFG_CHANNEL_ID
     || env.ENGAGEMENT_CHANNEL_ID;
   if (!channelId || !env.DISCORD_BOT_TOKEN) return;
-  // Hero + level lookups are best-effort, if any one fails we still
-  // post the ping with reduced detail.
-  let hero = null;
+  // Level lookup is best-effort; if it fails we still post the ping
+  // with reduced detail.
   let xp = null;
-  let avatarUrl = null;
-  try { hero = await loadHero(env, guildId, userId); } catch { /* idle */ }
   try { xp = await readXpDisplay(env, userId); } catch { /* idle */ }
-  try { avatarUrl = await preferredHeroImageUrl(env, guildId, userId, hero?.lookVersion || 0); }
-  catch { /* idle */ }
 
-  const cls = hero?.className || hero?.class || null;
-  const lv  = xp?.level || hero?.level || null;
+  const lv  = xp?.level || null;
   const subline = [
-    cls ? `🧑 ${cls.charAt(0).toUpperCase() + cls.slice(1)}` : null,
     lv  ? `L${lv}` : null,
   ].filter(Boolean).join(' · ');
 
@@ -455,7 +449,6 @@ async function postEnrichedLfgPing(env, guildId, userId, userName, lfg, notes) {
       (notes ? `\n**Notes**\n${notes}\n` : '') +
       `\nid: \`${lfg.id}\``,
     color: 0x7c5cff,
-    thumbnail: avatarUrl ? { url: avatarUrl } : undefined,
     footer: { text: 'Tap Join below or run /lfg join id:' + lfg.id },
     timestamp: new Date(lfg.createdUtc).toISOString(),
   };

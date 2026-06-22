@@ -99,36 +99,10 @@ export async function isWatchtowerActive(env) {
   return (await isStreamLive(env)).live;
 }
 
-export async function liveAccrueWatchtowerBoltsTick(env, guildId) {
-  const live = await isStreamLive(env);
-  if (!live.live) return { ok: true, skipped: 'not-live' };
-  const { earn } = await import('./wallet.js');
-  let cursor, granted = 0;
-  for (let i = 0; i < 6; i++) {
-    const page = await env.LOADOUT_BOLTS.list({
-      prefix: `wallet:${guildId}:`, cursor, limit: 1000,
-    });
-    for (const k of (page.keys || [])) {
-      const userId = k.name.slice(`wallet:${guildId}:`.length);
-      try {
-        // Per-minute dedup via stamp on wallet record.
-        const w = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
-        if (!w) continue;
-        const last = w.lastWatchtowerTickUtc || 0;
-        const now  = Date.now();
-        if (now - last < 50_000) continue;
-        await earn(env, guildId, userId, WATCHTOWER_BOLT_PER_MINUTE,
-                   'watchtower:live');
-        w.lastWatchtowerTickUtc = now;
-        await env.LOADOUT_BOLTS.put(k.name, JSON.stringify(w));
-        granted += WATCHTOWER_BOLT_PER_MINUTE;
-      } catch { /* swallow */ }
-    }
-    if (page.list_complete || !page.cursor) break;
-    cursor = page.cursor;
-  }
-  return { ok: true, granted };
-}
+// (Bolts economy sunset 2026-06: liveAccrueWatchtowerBoltsTick was
+// removed — it imported wallet.js `earn` to pay passive bolts/min to
+// every online viewer while live. The Watchtower live-flag
+// (isWatchtowerActive) stays for the renderer glow.)
 
 export const _consts = {
   AETHER_PER_MINUTE, AETHER_VIEWER_BONUS,

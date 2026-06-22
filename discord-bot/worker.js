@@ -32,9 +32,8 @@
 //                                      /sync/:guildId/games to republish on
 //                                      the local Aquilo Bus.
 
-import { verifyDiscordSignature, verifyHmac } from './auth.js';
+import { verifyDiscordSignature, verifyHmac, getSecret, setSecret } from './auth.js';
 import { handleInteraction } from './commands.js';
-import { applySnapshot, readSnapshot, getSecret, setSecret, applyVaultDelta, resetAllWallets, leaderboard } from './wallet.js';
 import { readSince as readProfilesSince } from './profiles.js';
 import { COMMANDS } from './commands-spec.js';
 import { handleExt, handleRelay } from './ext.js';
@@ -124,13 +123,6 @@ export default {
       return new Response('loadout-discord ok', { status: 200, headers: { 'content-type': 'text/plain' } });
     }
 
-    // Public leaderboard for a guild, read-only, no auth. Filters out
-    // wallets with no linked public platform so Discord-only users
-    // don't get surfaced on the open web.
-    if (method === 'GET' && path.startsWith('/leaderboard/')) {
-      return handlePublicLeaderboard(req, env, path);
-    }
-
     if (method === 'POST' && path === '/interactions') {
       return handleDiscordInteractions(req, env, ctx);
     }
@@ -140,12 +132,6 @@ export default {
     if (method === 'GET'  && path.startsWith('/claim/') && path.endsWith('/status')) return claimStatus(req, env, path);
     if (path.startsWith('/sync/'))                                   return handleSync(req, env, path);
     if (path.startsWith('/tips/'))                                   return handleTip(req, env, path);
-
-    // aquilo-bot counting game integration. Awards/deducts bolts when a
-    // viewer correctly counts (or breaks the chain) in the counting
-    // channel. Auth: shared secret in X-Counting-Secret header
-    // (set as LOADOUT_BOLT_API_SECRET on both workers).
-    if (method === 'POST' && path === '/counting/award-bolts')       return handleCountingAward(req, env);
 
     // Streak Freeze cross-Worker consume/read. aquilo-bot's Discord
     // pic/gif check-in handler calls these when a streak-break is
@@ -201,19 +187,9 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/onboarding/ensure-roles/')) {
       return handleOnboardingEnsureRoles(req, env, path);
     }
-    // Level-tier roles (Apprentice/Veteran/Elite/Mythic), create
-    // the four roles + map them in KV. Idempotent. See
-    // level-tier-roles.js for the threshold spec.
-    if (method === 'POST' && path.startsWith('/admin/level-tier-roles/ensure/')) {
-      return handleLevelTierRolesEnsure(req, env, path);
-    }
-    // One-time-per-guild backfill: walk every pxp:* record and
-    // grant tier roles to anyone who has already crossed the
-    // threshold. Idempotent via a KV marker; pass `{ force: true }`
-    // to re-scan.
-    if (method === 'POST' && path.startsWith('/admin/level-tier-roles/backfill/')) {
-      return handleLevelTierRolesBackfill(req, env, path);
-    }
+    // (Removed with the Bolts economy sunset: the
+    // /admin/level-tier-roles/{ensure,backfill} routes — level-tier
+    // roles were part of the economy/progression reward layer.)
     // Streamer.bot webhook for gifter/cheer/tip events. HMAC scheme
     // is verified inside the handler against STREAMERBOT_WEBHOOK_SECRET.
     // See gifter-roles.js for the body schema.
@@ -259,14 +235,8 @@ export default {
       const { handleTestFire } = await import('./tikfinity-keys.js');
       return handleTestFire(req, env);
     }
-    // Knowledge Vault: Kindle companion ingest (machine-to-worker,
-    // HMAC-gated by VAULT_INGEST_SECRET). The phase-3 tray app scrapes
-    // read.amazon.com/notebook and batch-pushes highlights here. Owner
-    // dashboard reads go through the /web/admin/vault/api dispatcher.
-    if (method === 'POST' && path === '/vault/kindle/ingest') {
-      const { handleKindleIngest } = await import('./vault.js');
-      return handleKindleIngest(req, env);
-    }
+    // (Removed with the Bolts economy sunset: the Knowledge Vault
+    // Kindle ingest route /vault/kindle/ingest — vault.js was deleted.)
     // PrinterBot Discord webhook, Clay's receipt-style image
     // generator posts directly into a dedicated channel. We create
     // a channel-scoped Discord webhook once + persist the URL at
@@ -503,48 +473,15 @@ export default {
       return handleTwitchOauthStart(req, env, token);
     }
     if (method === 'GET' && path === '/admin/twitch-oauth/callback') {
-      // PunchCard reuses this registered redirect URI; its CSRF states
-      // carry the 'pc1.' prefix and route to punchcard.js BEFORE the
-      // admin handler so the two flows never consume each other's state.
-      if ((url.searchParams.get('state') || '').startsWith('pc1.')) {
-        const { handlePunchcardOauthCallback } = await import('./punchcard.js');
-        return handlePunchcardOauthCallback(req, env);
-      }
+      // (PunchCard reused this registered redirect URI via a 'pc1.'
+      // CSRF-state prefix; removed with the economy sunset.)
       const { handleTwitchOauthCallback } = await import('./twitch-oauth.js');
       return handleTwitchOauthCallback(req, env);
     }
-    // Global Boltbound card-art defaults, bulk-set used by the
-    // backfill script. KV-token-gated so the local script can call
-    // without HMAC signing. Same one-shot consumption pattern as
-    // _clay-batch / _rewards-bootstrap. Self-destructs on first hit.
-    if (method === 'POST' && path.startsWith('/admin/_card-art-bulk-set/')) {
-      return handleCardArtBulkSetBootstrap(req, env, path);
-    }
-    // Iterating slice of the Giphy backfill, operator calls this in
-    // a curl loop with ?offset=N&limit=K. KV-token NOT consumed per
-    // call (so the loop can drive many requests); the operator
-    // deletes the token after they're done. The token-vs-empty check
-    // is the only gate on this endpoint.
-    if (method === 'POST' && path.startsWith('/admin/_card-art-backfill/')) {
-      return handleCardArtBackfillSlice(req, env, path);
-    }
-    // Backup every global-card-art:* entry to
-    // global-card-art-backup-gifs-<date>:* before the pixel-art
-    // overhaul overwrites them. KV-token NOT consumed (re-runnable
-    // if interrupted). Skip-if-backup-already-exists keeps it
-    // idempotent. Returns { copied, skipped, total }.
-    if (method === 'POST' && path.startsWith('/admin/_card-art-backup/')) {
-      return handleCardArtBackup(req, env, path);
-    }
-    // 2026-05-29: Clay went all-in on pixel art, axing the Giphy
-    // backfill as the default render layer. This endpoint wipes the
-    // entire global-card-art:* prefix in one call. The dated backup
-    // (global-card-art-backup-gifs-2026-05-29:*) is left intact so
-    // the audit trail survives. Token NOT self-destructed, repeats
-    // are idempotent (a second run hits an empty prefix and reports 0).
-    if (method === 'POST' && path.startsWith('/admin/_card-art-wipe/')) {
-      return handleCardArtWipe(req, env, path);
-    }
+    // (Bolts economy sunset: the Boltbound card-art bootstrap routes
+    // /admin/_card-art-{bulk-set,backfill,backup,wipe} were unwired —
+    // Boltbound is dormant; cards-global-art.js / card-art-backfill.js
+    // stay on disk but are no longer bundled.)
     // Diagnostic: validate the stored Twitch user token. Returns the
     // login + user_id + actual granted scopes. Use when EventSub
     // create fails with `twitch-error 401` to confirm scope coverage.
@@ -568,24 +505,9 @@ export default {
         path.startsWith('/admin/_twitch-prune/')) {
       return handleTwitchPrune(req, env, path);
     }
-    // Post the backfill summary embed to the admin hub channel.
-    // KV-token gated, self-destructing, Clay re-mints when he wants
-    // a fresh snapshot.
-    if (method === 'POST' && path.startsWith('/admin/_card-art-summary/')) {
-      return handleCardArtSummaryBootstrap(req, env, path);
-    }
-    // List every global card-art default, used by the run-summary
-    // step + Clay's spot-check. HMAC-gated.
-    if (method === 'GET' && path === '/admin/card-art/list') {
-      return handleCardArtList(req, env);
-    }
-    // Single-card global set/clear, used by /admin card-art remix.
-    if (method === 'POST' && path === '/admin/card-art/set') {
-      return handleCardArtSet(req, env);
-    }
-    if (method === 'POST' && path === '/admin/card-art/clear') {
-      return handleCardArtClear(req, env);
-    }
+    // (Bolts economy sunset: the Boltbound card-art admin routes
+    // /admin/_card-art-summary + /admin/card-art/{list,set,clear} were
+    // unwired with the dormant Boltbound surface.)
     // Post or refresh the pinned Games-Menu message in #games
     // (channel defaults to 1507973935973531808 for the Aquilo guild,
     // can be overridden via body {channelId}). Idempotent, uses
@@ -788,13 +710,8 @@ export default {
       const { handleDock } = await import('./dock.js');
       return handleDock(req, env, ctx, url);
     }
-    // PunchCard: daily check-in cards + streaks for Twitch channel point
-    // redeems, multi-tenant. Channel claims, the streak engine, viewer
-    // card storage, Giphy proxy, leaderboards. See punchcard.js.
-    if (path.startsWith('/api/punchcard/')) {
-      const { handlePunchcard } = await import('./punchcard.js');
-      return handlePunchcard(req, env, path);
-    }
+    // (Removed with the Bolts economy sunset: the PunchCard API
+    // /api/punchcard/* — punchcard.js was deleted.)
     // PowerDeck Pack Workshop: community registry for custom challenge
     // card packs (create/update via edit keys, public gallery, fetch by
     // unguessable id). Pure distribution layer; running overlays cache
@@ -983,12 +900,8 @@ export default {
     if (method === 'POST' && path.startsWith('/admin/_quest-trace/')) {
       return handleQuestTrace(req, env, path);
     }
-    // Public read-only sports snapshot for the panel's Sports tab, the
-    // 48h upcoming-games slice with optional moneyline odds.
-    if (method === 'GET' && path === '/sports/public') {
-      const { publicSportsSnapshot } = await import('./bet.js');
-      return publicSportsSnapshot(env);
-    }
+    // (Removed with the Bolts economy sunset: the public sports-betting
+    // snapshot route /sports/public — bet.js was deleted.)
 
     // Public read-only schedule snapshot for aquilo.gg + (later) the
     // panel's Schedule tab. Composes schedule:v1 + games:v1 +
@@ -1177,33 +1090,14 @@ export default {
       const { handleFriendsRoute } = await import('./friends.js');
       return handleFriendsRoute(req, env, path);
     }
-    // Daily Quests, cross-game rotating quest set (HMAC-gated writes,
-    // public GET for today's rotation). See daily-quests.js.
-    if (path.startsWith('/web/quests/')) {
-      const { handleQuestsRoute } = await import('./daily-quests.js');
-      return handleQuestsRoute(req, env, path);
-    }
-    // Trash-talk emotes, per-match emote ring buffer + rate limit.
-    // POST is HMAC-gated; GET feed is public. See boltbound-emotes.js.
-    if (path === '/web/boltbound/emote' || path.startsWith('/web/boltbound/emote/feed/')) {
-      const { handleEmoteRoute } = await import('./boltbound-emotes.js');
-      return handleEmoteRoute(req, env, path);
-    }
-    // Replay reactions + comments, extends the existing Boltbound
-    // replays surface with a social layer. See boltbound-replays-rx.js.
-    if (path.startsWith('/web/boltbound/replays/') && (
-        path.endsWith('/react') || path.endsWith('/comment') ||
-        path.endsWith('/reactions') || path.endsWith('/comments'))) {
-      const { handleReplayRxRoute } = await import('./boltbound-replays-rx.js');
-      return handleReplayRxRoute(req, env, path);
-    }
-    // Spire Maps, Slay-the-Spire branching path layer per run.
-    // 4 endpoints dispatched by handleSpireMapRoute: POST /generate,
-    // GET /me/:runId, POST /advance, POST /resolve. See spire-map.js.
-    if (path.startsWith('/web/spire-map/')) {
-      const { handleSpireMapRoute } = await import('./spire-map.js');
-      return handleSpireMapRoute(req, env, path);
-    }
+    // (Removed with the Bolts economy sunset: the Daily Quests routes
+    // /web/quests/* — daily-quests.js was deleted. Boltbound web routes
+    // /web/boltbound/* were unwired — the card game is dormant, its
+    // files stay on disk but are no longer bundled.)
+    // (Bolts economy sunset: the Spire routes /web/spire-map/* were
+    // unwired. Spire is a Boltbound-deck roguelike — it snapshots the
+    // player's Boltbound deck — so it rides with the dormant Boltbound
+    // surface. spire*.js stay on disk but are no longer bundled.)
     // F3, Community activity feed (public GET)
     if (path === '/community/feed') {
       const { handleCommunityFeedRoute } = await import('./activity-feed.js');
@@ -1293,24 +1187,11 @@ export default {
       return handleSfQueueRemove(req, env);
     }
 
-    // Character paper-doll render endpoint. Public read; ETag/
-    // cache-control tied to ?v=<lookVersion> so Discord embeds
-    // re-fetch after a customisation change. See character.js.
-    if (method === 'GET' && path.startsWith('/character/render/')) {
-      const { handleCharacterRender } = await import('./character.js');
-      return handleCharacterRender(req, env, path);
-    }
+    // (Removed with the Bolts economy sunset: the character paper-doll
+    // render + avatar routes /character/render/* and /character/avatar/*
+    // — character.js was deleted.)
 
-    // User-uploaded hero avatar, public read. Stored in KV with
-    // contentType metadata; route streams the bytes back. Cache pinned
-    // to ?v=<uploadedAt>. See character.js handleCharacterAvatar.
-    // Path shape: /character/avatar/<userId>(.bin|.png|.jpg|...)
-    if (method === 'GET' && path.startsWith('/character/avatar/')) {
-      const { handleCharacterAvatar } = await import('./character.js');
-      return handleCharacterAvatar(req, env, path);
-    }
-
-    // ── Aquilo Punchcard TTS pipeline ────────────────────────────
+    // ── Aquilo TTS pipeline ──────────────────────────────────────
     // Streamer-configurable text-to-speech for punchcard check-ins,
     // !checkin chat commands, follow events with messages, and the
     // "Check In With Message" channel point redemption. Provider key
@@ -1341,24 +1222,9 @@ export default {
       return handleTtsEventsSse(req, env, path);
     }
 
-    // ── Twitch channel point reward auto-create ──────────────────
-    // Per-product registry in rewards.js. Three products wired for
-    // v1 (punchcard-checkin, tts-say, hangman-start); the other seven
-    // surface in the admin UI but return 'product-coming-soon' from
-    // create. Reward IDs persist in KV so the EventSub redemption
-    // handler can dispatch to the right product.
-    if (method === 'GET'  && path === '/api/twitch/reward-registry') {
-      const { handleRewardRegistry } = await import('./rewards.js');
-      return handleRewardRegistry(req, env);
-    }
-    if (method === 'POST' && path === '/api/twitch/create-reward') {
-      const { handleCreateReward } = await import('./rewards.js');
-      return handleCreateReward(req, env);
-    }
-    if (method === 'POST' && path === '/api/twitch/delete-reward') {
-      const { handleDeleteReward } = await import('./rewards.js');
-      return handleDeleteReward(req, env);
-    }
+    // (Removed with the Bolts economy sunset: the Twitch channel-point
+    // reward auto-create routes /api/twitch/{reward-registry,
+    // create-reward,delete-reward} — rewards.js was deleted.)
 
     // Aquilo-bot fold-in HTTP routes. Returns null when none of the
     // aquilo routes match so we fall through to the final 404.
@@ -1404,25 +1270,8 @@ export default {
             await refreshLiveStatusEmbed(env);
           } catch (e) { console.warn('[cron] live-status refresh', e?.message || e); }
         })());
-        // Stream-bonus accrual, Aether + Watchtower per-minute ticks.
-        // Both no-op when Clay isn't live (isStreamLive read inside).
-        // Independent waitUntil per call so a slow KV list on one
-        // doesn't block the other.
-        const activeGuildId = String(env.AQUILO_VAULT_GUILD_ID || '').trim();
-        if (activeGuildId) {
-          ctx.waitUntil((async () => {
-            try {
-              const { liveAccrueAetherTick } = await import('./stream-bonus.js');
-              await liveAccrueAetherTick(env, activeGuildId);
-            } catch (e) { console.warn('[cron] aether tick', e?.message || e); }
-          })());
-          ctx.waitUntil((async () => {
-            try {
-              const { liveAccrueWatchtowerBoltsTick } = await import('./stream-bonus.js');
-              await liveAccrueWatchtowerBoltsTick(env, activeGuildId);
-            } catch (e) { console.warn('[cron] watchtower tick', e?.message || e); }
-          })());
-        }
+        // (Removed with the Bolts economy sunset: the per-minute
+        // Aether + Watchtower-bolts stream-bonus accrual ticks.)
         // 30-minute pre-stream ping. Opt-in via STREAM_PING_CHANNEL, // the helper no-ops (and we skip the import) when it's unset,
         // so this stays cheap on the every-minute trigger. A per-event
         // KV marker guarantees exactly one ping per stream.
@@ -1435,19 +1284,8 @@ export default {
             } catch (e) { console.warn('[cron] pre-stream ping', e?.message || e); }
           })());
         }
-        // Knowledge Vault daily digest. At the top of every hour, fire
-        // the owner's daily review push if the configured send hour
-        // matches (default 13 UTC = 8am ET, adjustable in /vault/settings).
-        // runDailyDigest self-gates on the hour + a per-day sent marker,
-        // so it delivers at most one push per day.
-        if (mm === 0) {
-          ctx.waitUntil((async () => {
-            try {
-              const { runDailyDigest } = await import('./vault.js');
-              await runDailyDigest(env);
-            } catch (e) { console.warn('[cron] vault daily digest', e?.message || e); }
-          })());
-        }
+        // (Removed with the Bolts economy sunset: the Knowledge Vault
+        // daily-digest cron — vault.js was deleted.)
         // Aquilo Kitchen weekly pick. Same minute-tick piggyback as the
         // vault digest (Cloudflare caps this worker at 4 cron triggers).
         // runWeeklyKitchenPick self-gates on the configured UTC day +
@@ -1533,13 +1371,11 @@ export default {
           }
         })());
       } else if (event.cron === '23 * * * *') {
-        const { betCronTick } = await import('./bet.js');
-        ctx.waitUntil(betCronTick(env));
-        // Bolts-feed digest piggybacks on the :23 tick, no extra cron
-        // slot needed in wrangler.toml. Independent waitUntil so a
-        // failure in one doesn't cancel the other.
-        const { boltsFeedCronTick } = await import('./bolts-feed.js');
-        ctx.waitUntil(boltsFeedCronTick(env));
+        // (Removed with the Bolts economy sunset: the :23 sports-bet
+        // settlement (bet.js) + bolts-feed digest (bolts-feed.js) ticks.
+        // The non-currency :23 work — aquilo fold-in, gifter roles,
+        // polls, ticket sweep, vote-hub, schedule — runs in the
+        // separate `if (event.cron === '23 * * * *')` block below.)
       } else if (event.cron === '0 1 * * *' || event.cron === '0 2 * * *') {
         // Queue auto-open at 9 PM ET on variety/community nights.
         // autoOpenIfDue is idempotent + bails if conditions aren't met.
@@ -1562,29 +1398,9 @@ export default {
             }
           })());
         }
-        // Daily-quests rotation pre-warm. Piggybacks on this :01 UTC
-        // cron because CF caps the worker at 4 cron triggers. The 1h
-        // delay vs intended 00:00 UTC reset is cosmetic, getRotation
-        // is lazy + idempotent so the first request after midnight
-        // computes the new day's set if the cron hasn't yet.
-        ctx.waitUntil((async () => {
-          try {
-            const { dailyResetCron } = await import('./daily-quests.js');
-            const r = await dailyResetCron(env);
-            if (r?.ok) console.log('[cron] daily-quests:', r.dayKey, 'warmed', r.warmed, 'ids');
-            else console.warn('[cron] daily-quests:', r?.error);
-          } catch (e) { console.warn('[cron] daily-quests', e?.message || e); }
-        })());
-        // RET-4, Boltbound ranked monthly season close. Piggybacks on
-        // this daily 0 1 * * * cron (CF 4-cron ceiling); self-gates to
-        // the 1st of the month + a per-season KV marker.
-        ctx.waitUntil((async () => {
-          try {
-            const { rankedSeasonCron } = await import('./boltbound-ranked.js');
-            const r = await rankedSeasonCron(env);
-            if (r?.ok && r.settled) console.log('[cron] ranked season close:', r.season, 'settled', r.settled);
-          } catch (e) { console.warn('[cron] ranked season', e?.message || e); }
-        })());
+        // (Removed with the Bolts economy sunset: the daily-quests
+        // rotation pre-warm (daily-quests.js, deleted) and the Boltbound
+        // ranked monthly season-close (boltbound-ranked.js, unwired).)
         // Mirror the stream schedule into Discord guild scheduled
         // events (idempotent, skips dateKeys already created). See
         // stream-events.js.
@@ -1608,22 +1424,9 @@ export default {
         // delay on a post-stream message cleanup, fine.
         const { aquiloScheduledTick } = await import('./aquilo/worker.js');
         ctx.waitUntil(aquiloScheduledTick(event, env, ctx));
-        // Consolidated daily-bonus push, first :23 tick at/after
-        // 13 UTC fires the once-per-day PWA notification to
-        // subscribers reminding them that boltbound free pack,
-        // loadout daily, check-in, and daily missions are all
-        // claimable again. KV-marker dedupe means only one fires
-        // per UTC day even though the cron runs hourly.
-        const { dailyBonusCronTick } = await import('./daily-bonus-push.js');
-        ctx.waitUntil(dailyBonusCronTick(env));
-        // Board-game async forfeit sweep, any correspondence match
-        // whose 24h per-move deadline elapsed gets resolved to the
-        // opponent (wager goes with the win). On-read paths in
-        // boardgames-engine.js also catch expired matches when a
-        // player actively loads them; this sweep is the safety net
-        // for games no one is watching.
-        const { cronSweepExpiredMatches } = await import('./boardgames-engine.js');
-        ctx.waitUntil(cronSweepExpiredMatches(env));
+        // (Removed with the Bolts economy sunset: the consolidated
+        // daily-bonus PWA push (daily-bonus-push.js) and the board-game
+        // async forfeit sweep (boardgames-engine.js) — both deleted.)
         // Gifter roles, rebuilds top-3 membership per category from
         // the rolling 30d buckets + trims old buckets. KV-marker
         // gated to once per UTC day so the hourly :23 firing doesn't
@@ -1678,18 +1481,9 @@ export default {
             console.warn('[cron] support-tickets auto-close', e?.message || e);
           }
         })());
-        // Seasonal Spire monthly rotation. Piggybacked on :23; the
-        // helper is gated by a `spire:rotate:last-month` KV marker so
-        // re-running mid-month is a no-op. Logs the rotation outcome.
-        ctx.waitUntil((async () => {
-          try {
-            const { rotateSeasonIfNeeded } = await import('./spire.js');
-            const r = await rotateSeasonIfNeeded(env);
-            if (r?.rotated) console.log('[cron] spire rotate', JSON.stringify(r));
-          } catch (e) {
-            console.warn('[cron] spire rotate', e?.message || e);
-          }
-        })());
+        // (Bolts economy sunset: the seasonal Spire monthly-rotation
+        // cron was unwired — Spire rides with the dormant Boltbound
+        // surface.)
         // Unified vote-hub phase transitions, runs hourly, re-renders
         // the hub embed on phase change. See vote-hub.js.
         const guildIdForVoteHub = env.AQUILO_VAULT_GUILD_ID;
@@ -1729,143 +1523,6 @@ export default {
     }
   },
 };
-
-// ---- /leaderboard/:guildId (public, read-only) ---------------------------
-// Returns the top-N wallets for a guild, filtered to viewers who have
-// linked at least one public platform handle (twitch/youtube/etc). The
-// goal is community-facing "top contributors" surfaces, Discord-only
-// users haven't opted in to public identification, so we omit them.
-//
-// Response shape:
-//   {
-//     guildId: "1504103035951906883",
-//     updatedAt: 1700000000000,
-//     entries: [
-//       { rank: 1, display: "MidnightWolf", platform: "twitch", balance: 12450, lifetimeEarned: 25000 },
-//       ...
-//     ]
-//   }
-//
-// Cached server-side in KV for 60s so a busy homepage doesn't churn
-// the wallet:* list-and-fetch on every page view.
-
-const LEADERBOARD_CORS = {
-  'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET',
-  'access-control-allow-headers': 'content-type',
-  'cache-control': 'public, max-age=60',
-};
-
-async function handlePublicLeaderboard(req, env, path) {
-  // path = /leaderboard/<guildId>
-  const guildId = path.split('/')[2] || '';
-  if (!/^\d{5,25}$/.test(guildId)) {
-    return jsonCors({ error: 'guildId must be a numeric Discord snowflake' }, 400);
-  }
-
-  const url = new URL(req.url);
-  const limit = Math.min(
-    25,
-    Math.max(1, parseInt(url.searchParams.get('limit') || '10', 10) || 10)
-  );
-
-  // Server-side cache, leaderboard is the same for everyone, no point
-  // recomputing per request.
-  const cacheKey = `leaderboard-cache:${guildId}`;
-  try {
-    const cached = await env.LOADOUT_BOLTS.get(cacheKey, { type: 'json' });
-    if (cached && cached.updatedAt && Date.now() - cached.updatedAt < 60_000) {
-      // Trim to the requested limit even if the cache holds more.
-      const out = { ...cached, entries: cached.entries.slice(0, limit) };
-      return jsonCors(out, 200);
-    }
-  } catch {
-    /* fall through to recompute */
-  }
-
-  try {
-    // Fetch up to top 50 by raw balance, then filter and trim.
-    const top = await leaderboard(env, guildId, 50);
-    const filtered = top.filter(
-      ({ w }) =>
-        w &&
-        Array.isArray(w.links) &&
-        w.links.some(l => l && l.platform && l.username)
-    );
-    const entries = filtered.slice(0, limit).map(({ w }, i) => {
-      const primary =
-        (w.links || []).find(l => l && l.platform === 'twitch') ||
-        (w.links || []).find(l => l && l.platform && l.username) ||
-        null;
-      return {
-        rank: i + 1,
-        display: primary?.username || 'Viewer',
-        platform: primary?.platform || null,
-        balance: Number(w.balance || 0),
-        lifetimeEarned: Number(w.lifetimeEarned || 0),
-      };
-    });
-
-    const payload = {
-      guildId,
-      updatedAt: Date.now(),
-      entries,
-    };
-
-    // Cache for 2x the freshness window so a stampede doesn't all
-    // recompute at exactly 60s. Lazy refresh, first request after
-    // expiry rebuilds and overwrites.
-    try {
-      await env.LOADOUT_BOLTS.put(cacheKey, JSON.stringify(payload), {
-        expirationTtl: 300,
-      });
-    } catch {
-      /* non-fatal */
-    }
-
-    return jsonCors(payload, 200);
-  } catch (err) {
-    return jsonCors({ error: 'leaderboard failed', detail: String(err) }, 500);
-  }
-}
-
-function jsonCors(body, status) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json', ...LEADERBOARD_CORS },
-  });
-}
-
-// ---- /counting/award-bolts (aquilo-bot → Loadout) ----------------------
-// Counting-game integration. aquilo-bot calls here on each successful
-// count (positive amount) or fail (negative amount). Same wallet
-// primitive as the Vault integration, applyVaultDelta handles the
-// balance clamp at 0 and tracks lifetimeEarned/Spent correctly.
-//
-// Auth: shared secret in X-Counting-Secret header, set as
-// LOADOUT_BOLT_API_SECRET on this worker (and the same value on
-// aquilo-bot's wrangler secret of the same name).
-async function handleCountingAward(req, env) {
-  const expected = env.LOADOUT_BOLT_API_SECRET;
-  if (!expected) return new Response('counting endpoint not provisioned', { status: 503 });
-  const got = req.headers.get('x-counting-secret');
-  if (got !== expected) return new Response('bad secret', { status: 401 });
-
-  let body;
-  try { body = await req.json(); } catch { return new Response('bad json', { status: 400 }); }
-
-  const guildId = String(body.guildId || body.guild_id || '');
-  const userId  = String(body.userId  || body.user_id  || '');
-  const amount  = Number(body.amount);
-  const reason  = String(body.reason || 'counting');
-
-  if (!guildId || !userId || !Number.isFinite(amount)) {
-    return new Response('guildId, userId, integer amount required', { status: 400 });
-  }
-
-  const { wallet, was_new } = await applyVaultDelta(env, guildId, userId, Math.trunc(amount), reason);
-  return json({ ok: true, balance: wallet.balance, was_new });
-}
 
 // ---- /interactions ------------------------------------------------------
 
@@ -3595,118 +3252,6 @@ async function handleMcRoleDelete(req, env, path) {
   return jsonResp(r, r.ok ? 200 : 400);
 }
 
-// ── /admin/_card-art-bulk-set/:token (KV-token, self-destructing) ─
-//
-// Used by tools/backfill-card-art.mjs to write the global-art map for
-// all cards in a single trip. Auth = one-shot KV bootstrap token
-// (`bootstrap-card-art-token`). Self-destructs on first hit; if the
-// run partially fails the operator regenerates a fresh token + retries
-// only the unset cards (default behaviour is skip-already-set unless
-// body opts.force=true).
-//
-// Body (JSON):
-//   { items: [{ cardId, url, searchTerm?, contentLength?, source? }, ...],
-//     force?: boolean }
-//
-// Returns { ok, set, skipped, failed: [...] }.
-async function handleCardArtBulkSetBootstrap(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-bulk-set',':token']
-  const token = parts[2];
-  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
-  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-token').catch(() => null);
-  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
-  await env.LOADOUT_BOLTS.delete('bootstrap-card-art-token').catch(() => {});
-
-  let opts = {};
-  const body = await req.text();
-  if (body) {
-    try { opts = JSON.parse(body) || {}; }
-    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
-  }
-  const items = Array.isArray(opts.items) ? opts.items : [];
-  if (!items.length) return jsonResp({ ok: false, error: 'items-required' }, 400);
-  const { bulkSetGlobalArt } = await import('./cards-global-art.js');
-  const r = await bulkSetGlobalArt(env, items, { force: !!opts.force });
-  return jsonResp(r, r.ok ? 200 : 400);
-}
-
-// ── /admin/_card-art-backfill/:token (KV-token, repeatable) ────
-//
-// Slice processor. Body (optional JSON):
-//   { offset?: number, limit?: number, force?: boolean }
-// Default limit is 25 (card-art-backfill.js DEFAULT_LIMIT). The
-// token gate compares against KV `bootstrap-card-art-backfill-token`
-// but does NOT consume it on success, operator runs many slices in
-// a loop, then deletes the token themselves once `done: true`.
-async function handleCardArtBackfillSlice(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-backfill',':token']
-  const token = parts[2];
-  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
-  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-backfill-token').catch(() => null);
-  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
-  let opts = {};
-  const body = await req.text();
-  if (body) {
-    try { opts = JSON.parse(body) || {}; }
-    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
-  }
-  const url = new URL(req.url);
-  if (url.searchParams.has('offset')) opts.offset = parseInt(url.searchParams.get('offset'), 10);
-  if (url.searchParams.has('limit'))  opts.limit  = parseInt(url.searchParams.get('limit'),  10);
-  if (url.searchParams.has('force'))  opts.force  = url.searchParams.get('force') === '1';
-  const { runCardArtBackfillSlice } = await import('./card-art-backfill.js');
-  const r = await runCardArtBackfillSlice(env, opts);
-  return jsonResp(r, r.ok ? 200 : 400);
-}
-
-// ── /admin/_card-art-backup/:token (KV-token, repeatable) ────────
-//
-// Snapshots every global-card-art:* entry to
-// global-card-art-backup-gifs-<date>:* so the pixel-art overhaul
-// can overwrite the live map without losing the Giphy GIF assignments.
-// Idempotent, skips entries that already have a backup record.
-async function handleCardArtBackup(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-backup',':token']
-  const token = parts[2];
-  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
-  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-backup-token').catch(() => null);
-  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
-
-  let opts = {};
-  const body = await req.text();
-  if (body) {
-    try { opts = JSON.parse(body) || {}; }
-    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
-  }
-  const dateTag = String(opts.dateTag || new Date().toISOString().slice(0, 10));   // YYYY-MM-DD
-  const backupPrefix = `global-card-art-backup-gifs-${dateTag}:`;
-  const sourcePrefix = 'global-card-art:';
-
-  let cursor;
-  let copied = 0, skipped = 0, scanned = 0, failed = 0;
-  for (let i = 0; i < 12; i++) {
-    const page = await env.LOADOUT_BOLTS.list({ prefix: sourcePrefix, cursor });
-    for (const k of (page.keys || [])) {
-      scanned++;
-      const cardId = String(k.name || '').slice(sourcePrefix.length);
-      const backupKey = backupPrefix + cardId;
-      // Skip if already backed up under this dateTag.
-      const existing = await env.LOADOUT_BOLTS.get(backupKey);
-      if (existing) { skipped++; continue; }
-      const src = await env.LOADOUT_BOLTS.get(k.name);
-      if (!src) { failed++; continue; }
-      try {
-        await env.LOADOUT_BOLTS.put(backupKey, src);
-        copied++;
-      } catch (e) { failed++; }
-    }
-    if (page.list_complete || !page.cursor) break;
-    cursor = page.cursor;
-  }
-  return jsonResp({ ok: true, dateTag, scanned, copied, skipped, failed,
-                    sourcePrefix, backupPrefix });
-}
-
 // ── /admin/_twitch-token-validate/:token + /admin/_twitch-setup-debug/:token
 //
 // Diagnostics for the 2026-05-29 EventSub fail-everything case.
@@ -3835,188 +3380,6 @@ async function handleTwitchPrune(req, env, path) {
   return jsonResp(out);
 }
 
-// ── /admin/_card-art-wipe/:token (KV-token, idempotent) ──────────
-//
-// Wipes every global-card-art:* entry. Clay's directive (2026-05-29)
-// after going all-in on pixel art, the Giphy backfill is no longer
-// the render default. Keeps the dated backup under
-// global-card-art-backup-gifs-<date>:* (different prefix) untouched
-// for the audit trail.
-//
-// IMPORTANT: also fixed a latent bug, the earlier `listAllGlobalArt`
-// in cards-global-art.js did 515 sequential KV reads on every
-// /web/boltbound/state call, which is what was breaking the live
-// Boltbound bootstrap once the Giphy backfill loaded the prefix.
-// The fn is now parallelised at 20-concurrency; this wipe + parallel
-// listing together restore the bootstrap. Token NOT self-destructed
-//, a second call is a no-op.
-async function handleCardArtWipe(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-wipe',':token']
-  const token = parts[2];
-  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
-  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-wipe-token').catch(() => null);
-  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
-
-  const { bulkDeleteAllGlobalArt } = await import('./cards-global-art.js');
-  const r = await bulkDeleteAllGlobalArt(env);
-  return jsonResp({ ok: true, deleted: r.deleted, pages: r.pages,
-                    sourcePrefix: 'global-card-art:',
-                    note: 'backup at global-card-art-backup-gifs-* prefix is untouched' });
-}
-
-// ── /admin/_card-art-summary/:token (KV-token, one-shot) ─────────
-//
-// Posts a Boltbound card-art backfill summary embed to the admin
-// hub channel (defaults to env.AQUILO_ADMIN_HUB_CHANNEL_ID, can be
-// overridden via body {channelId}). Self-destructing token.
-//
-// Embed shape:
-//   • Totals, backfilled / catalogue / coverage %
-//   • Source breakdown, giphy / manual-remix / other
-//   • Top-N (default 20) sample rows: cardName → preview thumb url
-//
-// Body (optional JSON): { channelId?, sampleSize? }
-async function handleCardArtSummaryBootstrap(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','_card-art-summary',':token']
-  const token = parts[2];
-  if (!token) return jsonResp({ ok: false, error: 'token required' }, 400);
-  const stored = await env.LOADOUT_BOLTS.get('bootstrap-card-art-summary-token').catch(() => null);
-  if (!stored || stored !== token) return jsonResp({ ok: false, error: 'bad-token' }, 401);
-  await env.LOADOUT_BOLTS.delete('bootstrap-card-art-summary-token').catch(() => {});
-
-  let opts = {};
-  const body = await req.text();
-  if (body) {
-    try { opts = JSON.parse(body) || {}; }
-    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
-  }
-  const channelId = String(opts.channelId || env.AQUILO_ADMIN_HUB_CHANNEL_ID || '').trim();
-  if (!channelId) return jsonResp({ ok: false, error: 'no-channel-id' }, 400);
-  if (!env.DISCORD_BOT_TOKEN) return jsonResp({ ok: false, error: 'no-bot-token' }, 503);
-  const sampleSize = Math.max(1, Math.min(20, parseInt(opts.sampleSize || 20, 10) || 20));
-
-  const { CARDS } = await import('./cards-content.js');
-  const totalCatalogue = Object.keys(CARDS).length;
-
-  // Walk the full global-card-art KV prefix to collect records (not
-  // just URLs, we want source + searchTerm + cardName).
-  const records = [];
-  let cursor;
-  for (let i = 0; i < 12; i++) {
-    const page = await env.LOADOUT_BOLTS.list({ prefix: 'global-card-art:', cursor });
-    for (const k of (page.keys || [])) {
-      const cardId = String(k.name || '').slice('global-card-art:'.length);
-      const rec = await env.LOADOUT_BOLTS.get(k.name, { type: 'json' });
-      if (rec?.memeGifUrl) {
-        records.push({
-          cardId,
-          cardName: CARDS[cardId]?.name || cardId,
-          url:        rec.memeGifUrl,
-          searchTerm: rec.searchTerm || null,
-          source:     rec.source     || null,
-          updatedAt:  rec.updatedAt  || null,
-        });
-      }
-    }
-    if (page.list_complete || !page.cursor) break;
-    cursor = page.cursor;
-  }
-
-  const totalBackfilled = records.length;
-  const missingCount    = Math.max(0, totalCatalogue - totalBackfilled);
-  const coveragePct     = totalCatalogue
-    ? (totalBackfilled / totalCatalogue * 100).toFixed(1)
-    : '0.0';
-
-  const sources = {};
-  for (const r of records) {
-    const s = r.source || 'unknown';
-    sources[s] = (sources[s] || 0) + 1;
-  }
-  const sourceLines = Object.entries(sources)
-    .sort((a, b) => b[1] - a[1])
-    .map(([s, n]) => `\`${s}\`: ${n}`)
-    .join(' · ') || 'none';
-
-  // Sample, pick the most recent N (rough proxy for "freshest" choices).
-  const sample = [...records]
-    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-    .slice(0, sampleSize);
-  const sampleLines = sample.map((r, i) =>
-    `${i + 1}. **${r.cardName}** \`${r.cardId}\`\n   ↳ term: \`${r.searchTerm || '?'}\` · [preview](${r.url})`
-  ).join('\n');
-
-  const embed = {
-    title: '🎴 Boltbound card-art backfill, summary',
-    color: 0x9b6cff,
-    description:
-      `**${totalBackfilled} / ${totalCatalogue}** cards have global default art.  ` +
-      `Coverage: **${coveragePct}%** · Missing: **${missingCount}**`,
-    fields: [
-      { name: 'By source',       value: sourceLines, inline: false },
-      { name: `Sample (latest ${sample.length})`, value: sampleLines.slice(0, 1024) || '-', inline: false },
-    ],
-    footer: { text: 'Mismatches? /admin card-art remix card-id:<id> shows 5 fresh candidates.' },
-    timestamp: new Date().toISOString(),
-  };
-
-  // Post to the configured channel via bot REST.
-  const postUrl = `https://discord.com/api/v10/channels/${channelId}/messages`;
-  const r = await fetch(postUrl, {
-    method:  'POST',
-    headers: { Authorization: 'Bot ' + env.DISCORD_BOT_TOKEN, 'content-type': 'application/json' },
-    body:    JSON.stringify({ embeds: [embed] }),
-  });
-  if (!r.ok) {
-    const text = await r.text();
-    return jsonResp({ ok: false, error: 'discord-' + r.status, body: text.slice(0, 400) }, 502);
-  }
-  const msg = await r.json();
-  return jsonResp({
-    ok: true,
-    channelId,
-    messageId: msg?.id || null,
-    totalBackfilled, totalCatalogue, missingCount, coveragePct,
-    sources,
-  });
-}
-
-// ── /admin/card-art/list (HMAC, read) ────────────────────────────
-async function handleCardArtList(req, env) {
-  const body = '';
-  const auth = await verifyAdminAuth(req, env, '', body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
-  const { listAllGlobalArt } = await import('./cards-global-art.js');
-  const map = await listAllGlobalArt(env);
-  return jsonResp({ ok: true, count: Object.keys(map).length, globalArt: map, via: auth.via });
-}
-
-// ── /admin/card-art/set (HMAC) ───────────────────────────────────
-async function handleCardArtSet(req, env) {
-  const body = await req.text();
-  const auth = await verifyAdminAuth(req, env, '', body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
-  let opts = {};
-  try { opts = body ? JSON.parse(body) : {}; }
-  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
-  const { setGlobalArt } = await import('./cards-global-art.js');
-  const r = await setGlobalArt(env, opts.cardId, opts);
-  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
-}
-
-// ── /admin/card-art/clear (HMAC) ─────────────────────────────────
-async function handleCardArtClear(req, env) {
-  const body = await req.text();
-  const auth = await verifyAdminAuth(req, env, '', body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
-  let opts = {};
-  try { opts = body ? JSON.parse(body) : {}; }
-  catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
-  const { clearGlobalArt } = await import('./cards-global-art.js');
-  const r = await clearGlobalArt(env, opts.cardId);
-  return jsonResp({ ...r, via: auth.via }, r.ok ? 200 : 400);
-}
-
 // ── /admin/counting/clear-shame-role/:guildId (HMAC) ─────────────
 //
 // Scans the guild's member list, finds anyone with the shame role
@@ -4070,52 +3433,6 @@ async function handleOnboardingEnsureRoles(req, env, path) {
     const status = r.error === 'roles-fetch-failed' ? 502 : 400;
     return jsonResp({ ...r, via: auth.via }, status);
   }
-  return jsonResp({ ...r, via: auth.via }, 200);
-}
-
-// ── /admin/level-tier-roles/ensure/:guildId (HMAC) ────────────────
-//
-// Create the four level-tier roles (Apprentice/Veteran/Elite/Mythic)
-// + persist the {key:roleId} map at `level-tier-roles:<g>`.
-// Idempotent, reuses existing roles when name OR mapped-id matches.
-async function handleLevelTierRolesEnsure(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','level-tier-roles','ensure',':g']
-  const guildId = parts[3];
-  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
-  const body = await req.text();
-  const auth = await verifyAdminAuth(req, env, guildId, body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
-
-  const { ensureLevelTierRoles } = await import('./level-tier-roles.js');
-  const r = await ensureLevelTierRoles(env, guildId);
-  if (!r.ok) {
-    const status = r.error === 'roles-fetch-failed' ? 502 : 400;
-    return jsonResp({ ...r, via: auth.via }, status);
-  }
-  return jsonResp({ ...r, via: auth.via }, 200);
-}
-
-// ── /admin/level-tier-roles/backfill/:guildId (HMAC) ──────────────
-//
-// One-time-per-guild grant pass: for every pxp:<userId> record,
-// grant the tier roles the user has already earned. Idempotent
-// (KV marker, pass `{ force: true }` body to re-scan).
-async function handleLevelTierRolesBackfill(req, env, path) {
-  const parts = path.split('/').filter(Boolean);   // ['admin','level-tier-roles','backfill',':g']
-  const guildId = parts[3];
-  if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
-  const body = await req.text();
-  const auth = await verifyAdminAuth(req, env, guildId, body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
-
-  let opts = {};
-  if (body) {
-    try { opts = JSON.parse(body) || {}; }
-    catch { return jsonResp({ ok: false, error: 'bad-json' }, 400); }
-  }
-  const { backfillLevelTierRoles } = await import('./level-tier-roles.js');
-  const r = await backfillLevelTierRoles(env, guildId, opts);
-  if (!r.ok) return jsonResp({ ...r, via: auth.via }, 400);
   return jsonResp({ ...r, via: auth.via }, 200);
 }
 

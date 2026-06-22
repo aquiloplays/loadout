@@ -22,14 +22,14 @@
 // shout-out with no payout if not linked).
 
 import { getRecentClips, isTwitchConfigured } from './twitch-helix.js';
-import { earn } from './wallet.js';
+// (Bolts economy sunset: the wallet.js `earn` import + Clip-of-the-Week
+// bolt reward were removed; the shout-out post + 🏆 reaction stay.)
 import { getChannelBinding } from './channel-bindings.js';
 
 const POSTED_KEY  = (b) => `clips:posted:${b}`;
 const POSTED_CAP  = 500;
 const POLL_TICK_KEY = (b) => `clips:poll-tick:${b}`;     // round-robin counter when offline
 const LAST_WEEKLY_KEY = (b) => `clips:weekly:last-week:${b}`;
-const CLIP_REWARD_BOLTS = 250;
 
 function startedAtIsoForWindow(daysBack) {
   const d = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000);
@@ -228,21 +228,17 @@ export async function postClipOfTheWeekCron(env) {
     return { skipped: 'no-net-positive-clip', week };
   }
 
-  // Reward the creator if we can resolve their wallet via the
-  // twitch link record. Best-effort; failing to resolve isn't a
-  // hard error, the embed still posts.
+  // Resolve the creator to a Discord user (if linked) so we can
+  // @-mention them in the shout-out. Best-effort; failing to resolve
+  // isn't a hard error, the embed still posts. (Bolts economy sunset:
+  // the bolts payout to the clipper was removed; the recognition post
+  // stays.)
   let rewardedDiscordId = null;
-  let rewardedBolts = 0;
   if (best.creatorName) {
     try {
-      const resolved = await resolveTwitchLinkToDiscord(env, best.creatorName);
-      if (resolved) {
-        await earn(env, env.AQUILO_VAULT_GUILD_ID, resolved, CLIP_REWARD_BOLTS, 'clip-of-the-week');
-        rewardedDiscordId = resolved;
-        rewardedBolts = CLIP_REWARD_BOLTS;
-      }
+      rewardedDiscordId = await resolveTwitchLinkToDiscord(env, best.creatorName);
     } catch (e) {
-      console.warn('[twitch-clips] reward failed', e?.message || e);
+      console.warn('[twitch-clips] creator resolve failed', e?.message || e);
     }
   }
 
@@ -254,8 +250,8 @@ export async function postClipOfTheWeekCron(env) {
     `${best.url || ''}`,
     '',
     rewardedDiscordId
-      ? `🎁 <@${rewardedDiscordId}> earned **${rewardedBolts}** bolts for this clip!`
-      : `(Link your Twitch account on aquilo.gg to claim future Clip-of-the-Week rewards.)`,
+      ? `🎉 Congrats <@${rewardedDiscordId}> on Clip of the Week!`
+      : `(Link your Twitch account on aquilo.gg to get tagged for future Clip-of-the-Week shout-outs.)`,
   ];
   await discordRest(env, 'POST', `/channels/${clipsChannelId}/messages`, {
     content: lines.join('\n'),
@@ -268,7 +264,7 @@ export async function postClipOfTheWeekCron(env) {
   return {
     ok: true, week, clipId: best.clipId,
     creator: best.creatorName, net: best.net,
-    rewardedDiscordId, rewardedBolts,
+    rewardedDiscordId,
   };
 }
 

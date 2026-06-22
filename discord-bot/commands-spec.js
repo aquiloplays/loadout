@@ -33,7 +33,7 @@ export const COMMANDS = [
   },
   {
     name: 'loadout',
-    description: 'Open the Loadout menu, wallet, hero, bag, shop, daily, gift, profile, more',
+    description: 'Open your Loadout profile, bio, pic, pronouns, socials, gamer tags',
     // Hidden from viewer autocomplete (Clay 2026-05-28), viewers
     // reach the Loadout main menu via the pinned games menu in #games.
     default_member_permissions: '0',
@@ -139,8 +139,6 @@ export const COMMANDS = [
               { name: 'Support tickets',       value: 'tickets' },
               { name: 'Join-to-create voice',  value: 'temp-vc' },
               { name: 'Welcome embed',         value: 'welcome' },
-              { name: 'Booster perks',         value: 'booster' },
-              { name: 'Boltbound card game',   value: 'boltbound' },
               { name: 'Referrals + onboarding',value: 'referrals' },
             ] },
           { type: TYPE_STRING, name: 'state', description: 'on or off', required: true,
@@ -155,7 +153,7 @@ export const COMMANDS = [
         type: TYPE_SUBCOMMAND, name: 'bind',
         description: 'Restrict a slash command to a single channel (add channel to its allow-list)',
         options: [
-          { type: TYPE_STRING,  name: 'command', description: 'Command name (e.g. checkin, play, boltbound)', required: true },
+          { type: TYPE_STRING,  name: 'command', description: 'Command name (e.g. checkin, queue, lfg)', required: true },
           { type: 7,            name: 'channel', description: 'Channel where this command is allowed', required: true },
         ],
       },
@@ -206,85 +204,17 @@ export const COMMANDS = [
       },
     ],
   },
-  {
-    // Sports betting. Subcommand group so future expansion (e.g. esports,
-    // prop bets) slots in cleanly under /bet <group> <subcommand>.
-    name: 'bet',
-    description: 'Bolts-denominated sports betting',
-    // Admin-only, viewers reach betting via /hub on the menu.
-    default_member_permissions: '0',
-    options: [
-      {
-        type: TYPE_SUBCOMMAND_GROUP, name: 'sports',
-        description: 'Bet on NFL / NBA / MLB / NHL games',
-        options: [
-          {
-            type: TYPE_SUBCOMMAND, name: 'list',
-            description: 'List upcoming games across the four leagues',
-          },
-          {
-            type: TYPE_SUBCOMMAND, name: 'place',
-            description: 'Place a bet on a game',
-            options: [
-              // autocomplete pulls from the cached scoreboard so viewers
-              // don't have to copy the gameId out of /bet sports list.
-              { type: TYPE_STRING,  name: 'game',  description: 'Pick an upcoming game', required: true, autocomplete: true },
-              { type: TYPE_STRING,  name: 'side',  description: 'home or away', required: true,
-                choices: [
-                  { name: 'home', value: 'home' },
-                  { name: 'away', value: 'away' },
-                ],
-              },
-              { type: TYPE_INTEGER, name: 'bolts', description: 'Stake, capped at 10% of wallet', required: true, min_value: 1 },
-            ],
-          },
-          {
-            type: TYPE_SUBCOMMAND, name: 'active',
-            description: 'Show your open bets',
-          },
-          {
-            type: TYPE_SUBCOMMAND, name: 'history',
-            description: 'Show your last 20 settled bets',
-          },
-        ],
-      },
-    ],
-  },
-  {
-    // Viewer hub, entry point with category buttons (Loadout, Stocks,
-    // Sports, Profile, Help). The Loadout game menu stays at /loadout;
-    // this is the broader "everything Aquilo" surface.
-    name: 'hub',
-    description: 'Open the Aquilo hub, Loadout, Stocks, Sports, Profile',
-    default_member_permissions: '0',
-  },
+  // NOTE (Bolts economy sunset 2026-06): the /bet (sports betting) and
+  // /hub (viewer wallet/stocks/sports hub) commands were removed here.
   {
     // Admin-side hub. MANAGE_GUILD only via Discord's
     // default_member_permissions; the existing /loadout-claim stays in
     // place as the dedicated bind-code command.
+    // (The Boltbound `card-art` subcommand-group was removed with the
+    // economy sunset.)
     name: 'admin',
     description: '(server admins) Admin hub for Loadout install + tools',
     default_member_permissions: '32', // MANAGE_GUILD
-    options: [
-      {
-        // Boltbound card-art tools. The auto-backfill assigns a default
-        // meme GIF to every card based on suggestArtTerms output; this
-        // remix subcommand lets Clay fix any mismatch he spots.
-        type: TYPE_SUBCOMMAND_GROUP, name: 'card-art',
-        description: 'Boltbound card-art admin (global default GIFs)',
-        options: [
-          {
-            type: TYPE_SUBCOMMAND, name: 'remix',
-            description: 'Re-search Giphy for a card; pick from 5 candidates',
-            options: [
-              { type: TYPE_STRING, name: 'card-id',
-                description: 'Card id (e.g. champ.warrior, leg.solara)',
-                required: true },
-            ],
-          },
-        ],
-      },
-    ],
   },
   {
     // Twitch event embed routing. Per-event-type channel overrides
@@ -648,258 +578,5 @@ export const COMMANDS = [
     name: 'trivia-add',
     description: '(admin) Add a trivia question to the daily rotation',
     default_member_permissions: '8192',     // MANAGE_MESSAGES
-  },
-  {
-    // Boltbound, async card-battler. See CARD-GAME-DESIGN.md.
-    // Phase 1 surface is command-driven (one slash per turn) so the
-    // 24h-per-turn async pace works cleanly inside Discord's
-    // stateless interaction model. Web + Twitch surfaces (Phase 2)
-    // get the click-to-target UI on top of the same backend.
-    name: 'boltbound',
-    default_member_permissions: '0',
-    description: 'Boltbound, collect cards, build decks, battle other viewers',
-    options: [
-      { type: TYPE_SUBCOMMAND, name: 'status',      description: 'Your Boltbound profile + collection summary' },
-      { type: TYPE_SUBCOMMAND, name: 'packs',       description: 'List your pending packs' },
-      { type: TYPE_SUBCOMMAND, name: 'open',
-        description: 'Open a pending pack',
-        options: [
-          { type: TYPE_STRING, name: 'id', description: 'Pack id (first 8 chars are enough)', required: true },
-        ],
-      },
-      { type: TYPE_SUBCOMMAND, name: 'buy',
-        description: 'Buy a pack with Bolts',
-        options: [
-          { type: TYPE_STRING, name: 'pack', description: 'Pack SKU', required: true,
-            choices: [{ name: 'Bolt Pack (250 Bolts)', value: 'bolt' }],
-          },
-        ],
-      },
-      { type: TYPE_SUBCOMMAND, name: 'daily',       description: 'Claim today\'s free Common Pack' },
-      { type: TYPE_SUBCOMMAND, name: 'collection',
-        description: 'Show your card collection',
-        options: [
-          { type: TYPE_STRING, name: 'rarity', description: 'Filter by rarity', required: false,
-            choices: [
-              { name: 'common',    value: 'common' },
-              { name: 'uncommon',  value: 'uncommon' },
-              { name: 'rare',      value: 'rare' },
-              { name: 'legendary', value: 'legendary' },
-            ],
-          },
-        ],
-      },
-      // ── Decks ─────────────────────────────────────────────────────
-      {
-        type: TYPE_SUBCOMMAND_GROUP, name: 'deck',
-        description: 'Manage your decks',
-        options: [
-          { type: TYPE_SUBCOMMAND, name: 'list', description: 'List your saved decks' },
-          { type: TYPE_SUBCOMMAND, name: 'show',
-            description: 'Show a deck\'s card list',
-            options: [
-              { type: TYPE_STRING, name: 'deck', description: 'Deck id (omit for active)', required: false },
-            ],
-          },
-          { type: TYPE_SUBCOMMAND, name: 'active',
-            description: 'Set your active deck',
-            options: [
-              { type: TYPE_STRING, name: 'deck', description: 'Deck id (from /boltbound deck list)', required: true },
-            ],
-          },
-          { type: TYPE_SUBCOMMAND, name: 'rebuild',
-            description: 'Auto-build a starter deck from your collection',
-          },
-        ],
-      },
-      // ── Play ──────────────────────────────────────────────────────
-      {
-        type: TYPE_SUBCOMMAND_GROUP, name: 'play',
-        description: 'Start a match',
-        options: [
-          { type: TYPE_SUBCOMMAND, name: 'npc',
-            description: 'Battle an NPC opponent',
-            options: [
-              { type: TYPE_STRING, name: 'archetype', description: 'Bot archetype (random if blank)', required: false,
-                choices: [
-                  { name: 'aggro',    value: 'aggro' },
-                  { name: 'control',  value: 'control' },
-                  { name: 'midrange', value: 'midrange' },
-                  { name: 'tribal',   value: 'tribal' },
-                  { name: 'burn',     value: 'burn' },
-                  { name: 'swarm',    value: 'swarm' },
-                ],
-              },
-            ],
-          },
-          { type: TYPE_SUBCOMMAND, name: 'queue',
-            description: 'Drop into the PvP queue for this channel',
-          },
-          { type: TYPE_SUBCOMMAND, name: 'challenge',
-            description: 'Challenge another viewer directly',
-            options: [
-              { type: TYPE_USER, name: 'user', description: 'Who to challenge', required: true },
-            ],
-          },
-          { type: TYPE_SUBCOMMAND, name: 'accept',
-            description: 'Accept a pending challenge from someone',
-            options: [
-              { type: TYPE_USER, name: 'user', description: 'Who challenged you', required: true },
-            ],
-          },
-        ],
-      },
-      // ── Turn actions ──────────────────────────────────────────────
-      { type: TYPE_SUBCOMMAND, name: 'match', description: 'Show your current match state' },
-      { type: TYPE_SUBCOMMAND, name: 'mulligan',
-        description: 'Mulligan your starting hand',
-        options: [
-          { type: TYPE_STRING, name: 'keep', description: 'CSV of hand indices to KEEP (e.g. 0,2,3, blank keeps none)', required: false },
-        ],
-      },
-      { type: TYPE_SUBCOMMAND, name: 'move',
-        description: 'Play a card from your hand',
-        options: [
-          { type: TYPE_INTEGER, name: 'card',   description: 'Hand index (see /boltbound match)', required: true, min_value: 0 },
-          { type: TYPE_STRING,  name: 'target', description: 'Target uid for cards that need one (e.g. m3, oppHero, selfHero)', required: false },
-        ],
-      },
-      { type: TYPE_SUBCOMMAND, name: 'attack',
-        description: 'Attack with one of your minions',
-        options: [
-          { type: TYPE_STRING, name: 'attacker', description: 'Your minion uid (e.g. m3)', required: true },
-          { type: TYPE_STRING, name: 'target',   description: 'Defender uid (e.g. m5) or "hero"', required: true },
-        ],
-      },
-      { type: TYPE_SUBCOMMAND, name: 'end-turn',  description: 'End your turn' },
-      { type: TYPE_SUBCOMMAND, name: 'concede',   description: 'Concede the current match' },
-      { type: TYPE_SUBCOMMAND, name: 'log',       description: 'Show your last 10 matches' },
-      { type: TYPE_SUBCOMMAND, name: 'leaderboard', description: 'Top trophies (global)' },
-      { type: TYPE_SUBCOMMAND, name: 'challenges',  description: 'See pending direct challenges to you' },
-      // CR-1: recycle → fragments → craft
-      { type: TYPE_SUBCOMMAND, name: 'fragments',
-        description: 'Show your fragment balance + recycle/craft prices',
-      },
-      { type: TYPE_SUBCOMMAND, name: 'recycle',
-        description: 'Recycle owned cards into fragments',
-        options: [
-          { type: TYPE_STRING,  name: 'card',  description: 'Card id (from /boltbound collection)', required: true },
-          { type: TYPE_INTEGER, name: 'count', description: 'How many to recycle (default 1)', required: false, min_value: 1 },
-        ],
-      },
-      { type: TYPE_SUBCOMMAND, name: 'craft',
-        description: 'Craft a pack from fragments',
-        options: [
-          { type: TYPE_STRING, name: 'pack', description: 'Pack to craft', required: true,
-            choices: [
-              { name: 'Common Pack (100 frags)',  value: 'common' },
-              { name: 'Bolt Pack (400 frags)',    value: 'bolt' },
-              { name: 'Voltaic Pack (1500 frags)', value: 'voltaic' },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-  {
-    // Bolts-denominated quick games, the same games the website
-    // exposes at /play (blackjack, roulette, wheel, hi-lo, mines,
-    // plinko). One subcommand per game. Stateful games
-    // (blackjack, hi-lo, mines) attach action buttons to the response
-    // for continuation; single-shots resolve inline.
-    //
-    // NOTE: Loadout bot token is invalid at the time of writing so
-    // slash registration is blocked. This entry is ready to publish
-    // the moment the token is rotated.
-    name: 'play',
-    description: 'Play a quick-bolts game, blackjack, roulette, wheel, hi-lo, mines, plinko',
-    default_member_permissions: '0',
-    options: [
-      {
-        type: TYPE_SUBCOMMAND, name: 'blackjack',
-        description: 'Standard blackjack, natural pays 3:2, dealer stands on 17',
-        options: [
-          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'roulette',
-        description: 'Spin the wheel, pick a color, parity, range, or a specific number',
-        options: [
-          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
-          {
-            type: TYPE_STRING, name: 'pick', description: 'red, black, even, odd, low, high, or a number 0-36',
-            required: true,
-            choices: [
-              { name: 'red (2×)',    value: 'red' },
-              { name: 'black (2×)',  value: 'black' },
-              { name: 'even (2×)',   value: 'even' },
-              { name: 'odd (2×)',    value: 'odd' },
-              { name: 'low 1-18 (2×)',  value: 'low' },
-              { name: 'high 19-36 (2×)', value: 'high' },
-              // Bare-number bets accepted as a free-text fallback via
-              // /play roulette pick:17, but Discord doesn't let us
-              // mix free-text with choices when choices is present.
-              // For number bets, use /play roulette-number instead
-              // (added below as a separate subcommand).
-            ],
-          },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'roulette-number',
-        description: 'Roulette, bet on a specific number 0-36 (pays 36×)',
-        options: [
-          { type: TYPE_INTEGER, name: 'bet',    description: 'Bolts to wager', required: true, min_value: 1 },
-          { type: TYPE_INTEGER, name: 'number', description: 'Number 0-36',   required: true, min_value: 0, max_value: 36 },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'wheel',
-        description: 'Multiplier wheel, low risk = safer, high risk = jackpot',
-        options: [
-          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
-          {
-            type: TYPE_STRING, name: 'risk', description: 'Risk tier (default medium)', required: false,
-            choices: [
-              { name: 'low',    value: 'low' },
-              { name: 'medium', value: 'medium' },
-              { name: 'high',   value: 'high' },
-            ],
-          },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'hilo',
-        description: 'Higher-or-lower, keep guessing to grow the multiplier; cash out anytime',
-        options: [
-          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'mines',
-        description: 'Reveal tiles without hitting a bomb, cash out anytime',
-        options: [
-          { type: TYPE_INTEGER, name: 'bet',   description: 'Bolts to wager', required: true, min_value: 1 },
-          { type: TYPE_INTEGER, name: 'bombs', description: 'Bombs hidden in the 5×5 grid (1-24, default 3)',
-            required: false, min_value: 1, max_value: 24 },
-        ],
-      },
-      {
-        type: TYPE_SUBCOMMAND, name: 'plinko',
-        description: 'Drop a ball through pegs, bucket multiplier pays out',
-        options: [
-          { type: TYPE_INTEGER, name: 'bet', description: 'Bolts to wager', required: true, min_value: 1 },
-          {
-            type: TYPE_STRING, name: 'risk', description: 'Risk tier (default medium)', required: false,
-            choices: [
-              { name: 'low',    value: 'low' },
-              { name: 'medium', value: 'medium' },
-              { name: 'high',   value: 'high' },
-            ],
-          },
-        ],
-      },
-    ],
   },
 ];

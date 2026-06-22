@@ -42,7 +42,12 @@
 //   • cheer cap: caller's choice; default is no cap (bits cost money,
 //     a 10k-bit cheer is intended to reward 1000 bolts)
 
-import { applyVaultDelta } from './wallet.js';
+// (Bolts economy sunset 2026-06: the wallet.js applyVaultDelta import +
+// the per-event bolt payouts were removed. This module now grants ONLY
+// the sub-tier Discord roles (Twitch Sub / T2 / T3, 30-day expiry) and
+// posts the rewards-feed celebration embeds — the non-currency half of
+// the feature. grantBolts is kept as a no-op so the per-event handler
+// flow is otherwise unchanged.)
 import { getChannelBinding } from './channel-bindings.js';
 
 // ── Reward catalogue ────────────────────────────────────────────
@@ -222,14 +227,12 @@ export async function sweepExpiredRewardRoles(env) {
 
 // ── Grant primitives ────────────────────────────────────────────
 
-async function grantBolts(env, guildId, userId, amount, reason) {
-  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, reason: 'no-amount' };
-  try {
-    const r = await applyVaultDelta(env, guildId, userId, Math.trunc(amount), reason);
-    return { ok: true, amount: Math.trunc(amount), newBalance: r?.wallet?.balance };
-  } catch (e) {
-    return { ok: false, reason: 'wallet-error', error: e?.message || String(e) };
-  }
+// (Bolts economy sunset: this is now a no-op. The per-event handlers
+// still call it so their control flow is unchanged, but no currency is
+// minted — they proceed to grant the sub-tier role + post the feed
+// embed regardless.)
+async function grantBolts(_env, _guildId, _userId, _amount, _reason) {
+  return { ok: true, amount: 0 };
 }
 
 async function grantSubRoleWithExpiry(env, guildId, userId, tier) {
@@ -307,8 +310,7 @@ async function handleFollowReward(env, guildId, aquiloId, twitchUserId, ev) {
   // Lifetime anti-abuse flag.
   const flag = await env.LOADOUT_BOLTS.get(KV_FOLLOW_FLAG(twitchUserId)).catch(() => null);
   if (flag) return { ok: true, action: 'skipped-already-rewarded' };
-  const grant = await grantBolts(env, guildId, aquiloId, FOLLOW_BOLTS, 'twitch:follow');
-  if (!grant.ok) return { ok: false, reason: grant.reason, error: grant.error };
+  await grantBolts(env, guildId, aquiloId, FOLLOW_BOLTS, 'twitch:follow');
   await env.LOADOUT_BOLTS.put(KV_FOLLOW_FLAG(twitchUserId), '1');
   // Durable per-user entitlement record (stream check-in card badges).
   try {
@@ -317,25 +319,23 @@ async function handleFollowReward(env, guildId, aquiloId, twitchUserId, ev) {
   } catch { /* entitlement record best-effort */ }
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.userName || 'New follower' },
-    description: `📡 Followed on Twitch → <@${aquiloId}> earned **+${FOLLOW_BOLTS}** bolts.`,
+    description: `📡 <@${aquiloId}> followed on Twitch — welcome!`,
     footer: { text: 'First follow only · refollowing later doesn\'t re-trigger' },
   });
-  return { ok: true, action: 'granted', granted: [{ bolts: FOLLOW_BOLTS }], embed };
+  return { ok: true, action: 'granted', granted: [], embed };
 }
 
 async function handleSubReward(env, guildId, aquiloId, twitchUserId, ev, isResub) {
   const tier = String(ev.tier || '1000');
-  const base = SUB_BOLTS[tier] || SUB_BOLTS['1000'];
-  // Resub multiplier: 1 + 0.05 * months, capped at 2x.
-  let multiplier = 1;
+  // (Bolts economy sunset: the resub bolt multiplier math was dropped;
+  // `months` is kept only for the celebration message.)
   let months = 0;
   if (isResub) {
     months = Number(ev.cumulativeMonths || ev.streakMonths || 0);
-    multiplier = Math.min(RESUB_MULT_CAP, 1 + RESUB_MONTH_MULTIPLIER * months);
   }
-  const bolts = Math.round(base * multiplier);
-  const grant = await grantBolts(env, guildId, aquiloId, bolts, isResub ? 'twitch:resub' : 'twitch:sub');
-  if (!grant.ok) return { ok: false, reason: grant.reason };
+  // (Bolts payout removed; the sub-tier role grant below is the
+  // surviving reward.)
+  await grantBolts(env, guildId, aquiloId, 0, isResub ? 'twitch:resub' : 'twitch:sub');
   try {
     const { recordSubEntitlement } = await import('./stream-checkin.js');
     await recordSubEntitlement(env, guildId, aquiloId, tier);
@@ -343,66 +343,58 @@ async function handleSubReward(env, guildId, aquiloId, twitchUserId, ev, isResub
   const role = await grantSubRoleWithExpiry(env, guildId, aquiloId, tier);
   const tierLabel = tier === '2000' ? 'Tier 2' : tier === '3000' ? 'Tier 3' : 'Tier 1';
   const desc = isResub
-    ? `💜 **Resub at ${tierLabel}** (${months} months) → <@${aquiloId}> earned **+${bolts}** bolts (×${multiplier.toFixed(2)}).`
-    : `🌟 **New ${tierLabel} sub** → <@${aquiloId}> earned **+${bolts}** bolts + the **${ROLE_TIER_NAME[tier]}** role for 30 days.`;
+    ? `💜 **Resub at ${tierLabel}** (${months} months) → <@${aquiloId}> keeps the **${ROLE_TIER_NAME[tier]}** role for 30 days.`
+    : `🌟 **New ${tierLabel} sub** → <@${aquiloId}> gets the **${ROLE_TIER_NAME[tier]}** role for 30 days.`;
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.userName || 'Subscriber' },
     description: desc,
   });
-  return { ok: true, action: 'granted', granted: [{ bolts, role: role.ok ? role.roleId : null }], embed };
+  return { ok: true, action: 'granted', granted: [{ role: role.ok ? role.roleId : null }], embed };
 }
 
 async function handleGiftGivenReward(env, guildId, aquiloId, twitchUserId, ev) {
-  // Bonus = 20% of recipient's bolt reward. For community gifts
-  // (total > 1), aggregate across the whole bomb.
+  // (Bolts payout removed; the gift-entitlement record — which drives
+  // stream check-in card badges — and the feed shout-out stay.)
   const tier = String(ev.tier || '1000');
-  const perRecipient = SUB_BOLTS[tier] || SUB_BOLTS['1000'];
   const count = Math.max(1, Number(ev.total) || 1);
-  const bonus = Math.round(perRecipient * GIFT_GIVER_BONUS_PCT * count);
-  const grant = await grantBolts(env, guildId, aquiloId, bonus, 'twitch:gift-given');
-  if (!grant.ok) return { ok: false, reason: grant.reason };
+  await grantBolts(env, guildId, aquiloId, 0, 'twitch:gift-given');
   try {
     const { addGiftEntitlement } = await import('./stream-checkin.js');
     await addGiftEntitlement(env, guildId, aquiloId, count);
   } catch { /* entitlement record best-effort */ }
   const desc = count > 1
-    ? `🎁 **Gifted ${count} ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} subs** → <@${aquiloId}> earned **+${bonus}** bolts (20% gift bonus).`
-    : `🎁 **Gifted a ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} sub** → <@${aquiloId}> earned **+${bonus}** bolts (20% gift bonus).`;
+    ? `🎁 <@${aquiloId}> **gifted ${count} ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} subs** — thank you!`
+    : `🎁 <@${aquiloId}> **gifted a ${tier === '3000' ? 'Tier 3' : tier === '2000' ? 'Tier 2' : 'Tier 1'} sub** — thank you!`;
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.userName || 'Gifter' },
     description: desc,
   });
-  return { ok: true, action: 'granted', granted: [{ bolts: bonus }], embed };
+  return { ok: true, action: 'granted', granted: [], embed };
 }
 
 async function handleCheerReward(env, guildId, aquiloId, twitchUserId, ev) {
   const bits = Math.max(0, Number(ev.bits) || 0);
-  const bolts = Math.floor(bits / 10);
-  if (bolts <= 0) return { ok: true, action: 'skipped-zero' };
-  const grant = await grantBolts(env, guildId, aquiloId, bolts, 'twitch:cheer');
-  if (!grant.ok) return { ok: false, reason: grant.reason };
+  if (bits <= 0) return { ok: true, action: 'skipped-zero' };
+  // (Bolts payout removed; the cheer-entitlement record + shout-out stay.)
+  await grantBolts(env, guildId, aquiloId, 0, 'twitch:cheer');
   try {
     const { addCheerEntitlement } = await import('./stream-checkin.js');
     await addCheerEntitlement(env, guildId, aquiloId, bits);
   } catch { /* entitlement record best-effort */ }
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.userName || 'Cheerer' },
-    description: `💎 **Cheered ${bits.toLocaleString()} bits** → <@${aquiloId}> earned **+${bolts.toLocaleString()}** bolts.`,
+    description: `💎 <@${aquiloId}> **cheered ${bits.toLocaleString()} bits** — thank you!`,
   });
-  return { ok: true, action: 'granted', granted: [{ bolts }], embed };
+  return { ok: true, action: 'granted', granted: [], embed };
 }
 
 async function handleRaidLeaderReward(env, guildId, aquiloId, twitchUserId, ev) {
-  // Per-raider rewards skipped, channel.raid payload only includes
-  // the raider (broadcaster) id + viewer count, not individual viewer
-  // Twitch ids. Leader gets the +1000 bolts.
-  const grant = await grantBolts(env, guildId, aquiloId, RAID_LEADER_BOLTS, 'twitch:raid-leader');
-  if (!grant.ok) return { ok: false, reason: grant.reason };
+  // (Bolts payout removed; the raid shout-out stays.)
+  await grantBolts(env, guildId, aquiloId, 0, 'twitch:raid-leader');
   const viewers = Number(ev.viewers || 0);
   const embed = await postRewardEmbed(env, guildId, {
     author: { name: ev.fromBroadcasterName || 'Raider' },
-    description: `⚔️ **Raided with ${viewers.toLocaleString()} viewer${viewers === 1 ? '' : 's'}** → <@${aquiloId}> earned **+${RAID_LEADER_BOLTS}** bolts (raid-leader bonus).`,
-    footer: { text: 'Per-raider bonuses unavailable, Twitch doesn\'t share individual raider ids' },
+    description: `⚔️ <@${aquiloId}> **raided with ${viewers.toLocaleString()} viewer${viewers === 1 ? '' : 's'}** — thanks for the raid!`,
   });
-  return { ok: true, action: 'granted', granted: [{ bolts: RAID_LEADER_BOLTS }], embed };
+  return { ok: true, action: 'granted', granted: [], embed };
 }
