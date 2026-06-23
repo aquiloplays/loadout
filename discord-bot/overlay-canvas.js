@@ -738,6 +738,9 @@ export async function handleOverlayCanvas(request, env, ctx, url) {
         'channel-point-redeem', 'chat', 'chat-hype',
         'hype-train-begin', 'hype-train-progress', 'hype-train-end',
         'metric-update', 'tangia', 'printerbot', 'hangar-drop',
+        // Builder -> live overlay control channel (e.g. outline toggle).
+        // Carries a payload like { outline: true }; not a stream event.
+        'composer-control',
       ]);
       const type = String(body.type || '').toLowerCase();
       if (!allowedTypes.has(type)) {
