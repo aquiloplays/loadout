@@ -473,8 +473,13 @@ export default {
       return handleTwitchOauthStart(req, env, token);
     }
     if (method === 'GET' && path === '/admin/twitch-oauth/callback') {
-      // (PunchCard reused this registered redirect URI via a 'pc1.'
-      // CSRF-state prefix; removed with the economy sunset.)
+      // PunchCard reuses this registered redirect URI; its CSRF states
+      // carry the 'pc1.' prefix and route to punchcard.js BEFORE the
+      // admin handler so the two flows never consume each other's state.
+      if ((url.searchParams.get('state') || '').startsWith('pc1.')) {
+        const { handlePunchcardOauthCallback } = await import('./punchcard.js');
+        return handlePunchcardOauthCallback(req, env);
+      }
       const { handleTwitchOauthCallback } = await import('./twitch-oauth.js');
       return handleTwitchOauthCallback(req, env);
     }
@@ -710,8 +715,15 @@ export default {
       const { handleDock } = await import('./dock.js');
       return handleDock(req, env, ctx, url);
     }
-    // (Removed with the Bolts economy sunset: the PunchCard API
-    // /api/punchcard/* — punchcard.js was deleted.)
+    // PunchCard: daily check-in cards + streaks for Twitch channel point
+    // redeems, multi-tenant. Channel claims, the streak engine, viewer
+    // card storage, Giphy proxy, leaderboards. See punchcard.js. (Kept
+    // through the economy sunset: self-contained, uses the LOADOUT_BOLTS
+    // KV only for its own pc:* keys, no Bolts-economy dependency.)
+    if (path.startsWith('/api/punchcard/')) {
+      const { handlePunchcard } = await import('./punchcard.js');
+      return handlePunchcard(req, env, path);
+    }
     // PowerDeck Pack Workshop: community registry for custom challenge
     // card packs (create/update via edit keys, public gallery, fetch by
     // unguessable id). Pure distribution layer; running overlays cache
