@@ -194,6 +194,19 @@ export function sanitizeCard(raw, allowCustom) {
   // Holo is a PREFERENCE; the renderer only shows it once the viewer's
   // best streak has earned the gold ring, so saving it early is fine.
   out.holo = !!raw.holo;
+  // Voice (TTS): opt-in spoken check-in, only persisted when ON so a
+  // disabled card simply carries no tts and the overlay stays silent.
+  // Voice keys mirror PCTTS.STYLES in pc-tts.js; the optional custom
+  // line is length-capped here and re-sanitized (links + profanity) at
+  // speak time by the overlay, exactly like the on-card message.
+  if (raw.tts && typeof raw.tts === 'object' && raw.tts.on) {
+    const ttsVoices = ['default', 'deep', 'bright', 'announcer', 'robot', 'chipmunk'];
+    out.tts = {
+      on: true,
+      voice: ttsVoices.includes(raw.tts.voice) ? raw.tts.voice : 'default',
+      say: String(raw.tts.say || '').slice(0, 120),
+    };
+  }
   if (kind === 'preset') {
     out.bg.preset = BG_PRESETS.includes(bg.preset) ? bg.preset : 'midnight';
   } else if (kind === 'solid') {
