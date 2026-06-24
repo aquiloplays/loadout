@@ -200,10 +200,12 @@ export function sanitizeCard(raw, allowCustom) {
   out.punch = ['classic', 'stamp', 'fist', 'laser', 'none'].includes(raw.punch) ? raw.punch : 'classic';
   // Check-in sound: keys of the synthesized bank in pc-sounds.js. The
   // overlay's audio settings (enabled/volume/viewerSounds) always win.
-  out.sound = ['chime', 'airhorn', 'sadtrombone', 'boom', 'bonk', 'tada', 'powerup',
+  // Synth-bank key, the channel's custom-sound id ('c:<hex>'), or chime.
+  const SND_BANK = ['chime', 'airhorn', 'sadtrombone', 'boom', 'bonk', 'tada', 'powerup',
     'coin', 'boing', 'scratch', 'drumroll', 'laser', 'honk',
-    'sparkle', 'zap', 'levelup', 'bell', 'glitch', 'pop', 'wobble', 'siren', 'none'].includes(raw.sound)
-    ? raw.sound : 'chime';
+    'sparkle', 'zap', 'levelup', 'bell', 'glitch', 'pop', 'wobble', 'siren', 'none'];
+  out.sound = SND_BANK.includes(raw.sound) ? raw.sound
+    : (/^c:[a-f0-9]{8,16}$/.test(String(raw.sound || '')) ? String(raw.sound) : 'chime');
   // Earned-badge selection (cap 3). Keys are whitelisted only; whether
   // a badge actually RENDERS is decided at display time against the
   // viewer's server-side stats, so selections can never fake a badge.
@@ -1121,6 +1123,8 @@ async function handleMeta(env, url) {
       ttsCensor: cfg.ttsCensor || '',
     } : null,
     giphy: !!env.GIPHY_API_KEY,
+    freesound: !!env.FREESOUND_API_KEY,
+    sounds: chan ? (chan.sounds || []) : [],
   });
 }
 
@@ -1345,6 +1349,107 @@ async function handlePunchcardTts(req, env, url) {
   return new Response(bytes, { status: 200, headers: { ...base, 'content-length': String(total) } });
 }
 
+// ── custom channel sounds (Freesound adopt + uploads) ─────────────────
+// The streamer builds a small library of real audio clips; viewers pick
+// from it (card.sound = 'c:<id>') alongside the synth bank. Bytes live in
+// KV; the overlay plays /api/punchcard/sound/<ch>/<id>.
+const SOUND_CAP = 12;
+const SOUND_MAX_BYTES = 350 * 1024;
+const SND_KEY = (ch, id) => `pc:snd:${ch}:${id}`;
+function sniffAudio(bytes) {
+  if (bytes.length > 2 && bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) return 'audio/mpeg';
+  if (bytes.length > 1 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) return 'audio/mpeg';
+  if (bytes.length > 3 && bytes[0] === 0x4f && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) return 'audio/ogg';
+  if (bytes.length > 3 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) return 'audio/wav';
+  return null;
+}
+async function storeChannelSound(env, ch, chan, name, bytes) {
+  if ((chan.sounds || []).length >= SOUND_CAP) return { error: 'library-full' };
+  if (!bytes || bytes.length < 128) return { error: 'empty' };
+  if (bytes.length > SOUND_MAX_BYTES) return { error: 'too-large' };
+  const type = sniffAudio(bytes);
+  if (!type) return { error: 'not-audio' };
+  const id = genHex(6);
+  await env.LOADOUT_BOLTS.put(SND_KEY(ch, id), bytes.buffer, { metadata: { type } });
+  chan.sounds = (chan.sounds || []).concat([{ id, name: cleanDisplay(name).slice(0, 30) || 'Sound' }]);
+  await kvPut(env, KEY.chan(ch), chan);
+  return { id, name: chan.sounds[chan.sounds.length - 1].name, type };
+}
+async function handleSoundRemove(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const id = String(body.id || '');
+  chan.sounds = (chan.sounds || []).filter((s) => s.id !== id);
+  await kvPut(env, KEY.chan(ch), chan);
+  await env.LOADOUT_BOLTS.delete(SND_KEY(ch, id)).catch(() => {});
+  return json({ ok: true, sounds: chan.sounds });
+}
+// GET /api/punchcard/sound/<ch>/<id>: the audio itself (public, CORS).
+async function handleSoundServe(env, path) {
+  const m = /^\/api\/punchcard\/sound\/([a-z0-9_]{2,25})\/([a-f0-9]{8,16})$/.exec(path);
+  if (!m) return json({ ok: false, error: 'not-found' }, 404);
+  const { value, metadata } = await env.LOADOUT_BOLTS.getWithMetadata(SND_KEY(m[1], m[2]), { type: 'arrayBuffer' });
+  if (!value) return json({ ok: false, error: 'not-found' }, 404);
+  return new Response(value, {
+    headers: {
+      'content-type': (metadata && metadata.type) || 'audio/mpeg',
+      'cache-control': 'public, max-age=86400',
+      'access-control-allow-origin': '*',
+    },
+  });
+}
+// Freesound.org, CC0 only. Search returns candidates with their own
+// preview URLs (auditioned in the customizer); adopt fetches the HQ
+// preview server-side and stores it. Needs FREESOUND_API_KEY (free).
+async function handleSoundSearch(env, url) {
+  const ch = chanName(url.searchParams.get('ch'));
+  const chan = await authedChan(env, ch, String(url.searchParams.get('k') || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  if (!env.FREESOUND_API_KEY) return json({ ok: false, error: 'no-freesound' }, 501);
+  const q = String(url.searchParams.get('q') || '').slice(0, 60).trim();
+  if (!q) return json({ ok: false, error: 'empty' }, 400);
+  const fs = new URL('https://freesound.org/apiv2/search/text/');
+  fs.searchParams.set('query', q);
+  fs.searchParams.set('filter', 'license:"Creative Commons 0" duration:[0.2 TO 12]');
+  fs.searchParams.set('fields', 'id,name,previews,duration,username');
+  fs.searchParams.set('page_size', '18');
+  fs.searchParams.set('token', env.FREESOUND_API_KEY);
+  const r = await fetch(fs.toString());
+  if (!r.ok) return json({ ok: false, error: 'freesound-' + r.status }, 502);
+  const j = await r.json();
+  const results = (j.results || []).map((s) => ({
+    fsId: s.id,
+    name: String(s.name || '').slice(0, 40),
+    by: String(s.username || '').slice(0, 30),
+    duration: Math.round((s.duration || 0) * 10) / 10,
+    preview: s.previews && (s.previews['preview-lq-mp3'] || s.previews['preview-hq-mp3']),
+  })).filter((s) => s.preview);
+  return json({ ok: true, results });
+}
+async function handleSoundAdopt(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  if (!env.FREESOUND_API_KEY) return json({ ok: false, error: 'no-freesound' }, 501);
+  const fsId = Math.floor(Number(body.fsId) || 0);
+  if (!fsId) return json({ ok: false, error: 'bad-id' }, 400);
+  const info = await fetch(`https://freesound.org/apiv2/sounds/${fsId}/?fields=name,previews,license&token=${env.FREESOUND_API_KEY}`);
+  if (!info.ok) return json({ ok: false, error: 'freesound-' + info.status }, 502);
+  const meta = await info.json();
+  if (!/creativecommons\.org\/publicdomain\/zero/.test(String(meta.license || ''))) {
+    return json({ ok: false, error: 'not-cc0' }, 400);
+  }
+  const previewUrl = meta.previews && (meta.previews['preview-hq-mp3'] || meta.previews['preview-lq-mp3']);
+  if (!previewUrl) return json({ ok: false, error: 'no-preview' }, 502);
+  const audio = await fetch(previewUrl);
+  if (!audio.ok) return json({ ok: false, error: 'fetch-failed' }, 502);
+  const buf = new Uint8Array(await audio.arrayBuffer());
+  const res = await storeChannelSound(env, ch, chan, body.name || meta.name, buf);
+  if (res.error) return json({ ok: false, error: res.error }, 400);
+  return json({ ok: true, sound: { id: res.id, name: res.name }, sounds: chan.sounds });
+}
+
 // ── dispatcher ────────────────────────────────────────────────────────
 export async function handlePunchcard(req, env, path) {
   try {
@@ -1372,6 +1477,8 @@ async function dispatch(req, env, path) {
     if (route === 'gif') return handleGif(env, url);
     if (route === 'tts') return handlePunchcardTts(req, env, url);
     if (route === 'stats') return handleStats(env, url);
+    if (route.indexOf('sound/') === 0) return handleSoundServe(env, path);
+    if (route === 'sound-search') return handleSoundSearch(env, url);
     if (route === 'leaderboard') return handleLeaderboard(env, url);
     return json({ ok: false, error: 'not-found' }, 404);
   }
@@ -1395,5 +1502,7 @@ async function dispatch(req, env, path) {
   if (route === 'card') return handleCardSave(req, env, body);
   if (route === 'streaklookup') return handleStreakLookup(env, body);
   if (route === 'recap') return handleRecap(env, body);
+  if (route === 'sound-adopt') return handleSoundAdopt(env, body);
+  if (route === 'sound-remove') return handleSoundRemove(env, body);
   return json({ ok: false, error: 'not-found' }, 404);
 }
