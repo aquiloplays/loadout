@@ -1088,26 +1088,19 @@ async function handleGif(env, url) {
 // Viewer voice (TTS). The overlay/editor call this; the TTS Monster API
 // key never leaves the worker. We generate speech and hand back a public
 // audio URL the browser plays directly — which works in the OBS browser
-// source, where the Web Speech API has no installed voices. Voice keys
-// match PCTTS.STYLES (pc-tts.js) + sanitizeCard's tts whitelist; the map
-// to TTS Monster voice ids lives here so the frontend stays voice-agnostic.
-const TTS_VOICES = {
-  default: '5dbb63c3-1179-4704-90cf-8dbe0d9b33ab',   // Mentor
-  deep: '87537bb9-71e1-481a-87fc-5ffc805a152b',       // Titan
-  bright: '80c6bb8b-c573-44c3-9843-0f2ed9a75afe',     // Stella
-  announcer: 'e237c3fc-0f56-4fbc-9333-a891c1e55abc',  // Herald
-  robot: 'e8a18685-00fd-4798-aa3d-50424f8de7e6',      // Circuit
-  chipmunk: '604168da-f156-450b-8794-e89175abdcd4',   // Kawaii
-};
+// source, where the Web Speech API has no installed voices. Every redeem
+// uses ONE voice by design (the streamer's call): TTS Monster's "Brian
+// Robot", the only Brian on the roster. The card's tts.voice is ignored;
+// to restore per-viewer voices, map it back to voice ids here.
+const TTS_VOICE = '0993f688-6719-4cf6-9769-fee7b77b1df5'; // Brian Robot
 async function handlePunchcardTts(req, env, url) {
   if (!env.TTS_MONSTER_KEY) return json({ ok: false, error: 'no-tts' }, 501);
   const text = cleanMsg(url.searchParams.get('text') || '');
   if (!text) return json({ ok: false, error: 'empty' }, 400);
-  const vkey = String(url.searchParams.get('voice') || 'default');
-  const voiceId = TTS_VOICES[vkey] || TTS_VOICES.default;
+  const voiceId = TTS_VOICE;
 
-  // Cache by (voice,text): identical lines reuse the clip, never re-bill.
-  const cacheKey = KEY.tts((await sha256Hex(vkey + '|' + text)).slice(0, 40));
+  // Cache by text (single voice): identical lines reuse the clip, no re-bill.
+  const cacheKey = KEY.tts((await sha256Hex(voiceId + '|' + text)).slice(0, 40));
   const hit = await kvGet(env, cacheKey);
   if (hit && hit.url) return json({ ok: true, url: hit.url, cached: true });
 
