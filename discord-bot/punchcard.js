@@ -66,6 +66,10 @@ const RECENT_CAP = 30;
 const LB_CAP = 50;
 const BLOCK_CAP = 500;
 const MIN_CHECKIN_GAP_MS = 5000;
+// Total-check-in milestones (loyalty, independent of streak) + the moods a
+// viewer can tag their check-in with (keys mirror pc-engine MOODS).
+const TOTAL_MILESTONES = [50, 100, 250, 365, 500, 750, 1000, 1500, 2000, 3000, 5000];
+const MOOD_KEYS = ['grinding', 'chilling', 'hyped', 'sleepy', 'locked', 'rough', 'celebrating', 'hi'];
 
 const KEY = {
   chan: (ch) => `pc:chan:${ch}`,
@@ -87,6 +91,7 @@ const KEY = {
   stats: (ch) => `pc:stats:${ch}`,
   lbs: (ch, season) => `pc:lbs:${ch}:${season}`,
   scd: (ch, v) => `pc:scd:${ch}:${v}`,
+  mood: (ch, day) => `pc:mood:${ch}:${day}`,
 };
 
 const DEFAULT_CFG = {
@@ -229,6 +234,10 @@ export function sanitizeCard(raw, allowCustom) {
   // plays from here for the streamer's max-length window.
   const ss = Number(raw.soundStart);
   if (isFinite(ss) && ss > 0) out.soundStart = Math.min(600, Math.round(ss * 100) / 100);
+  // Mood/status tag shown on the card: a preset key (tallied) or a short custom one.
+  if (typeof raw.mood === 'string' && raw.mood) {
+    out.mood = MOOD_KEYS.includes(raw.mood) ? raw.mood : cleanDisplay(raw.mood).slice(0, 20);
+  }
   // Earned-badge selection (cap 3). Keys are whitelisted only; whether
   // a badge actually RENDERS is decided at display time against the
   // viewer's server-side stats, so selections can never fake a badge.
@@ -701,11 +710,32 @@ async function handleCheckin(env, body) {
   const prev2Active = prevActive ? prevActiveDay(days, prevActive) : null;
 
   const next = advance(user, today, prevActive, cfg.mode, prev2Active);
+  // Loyalty moments independent of the streak: total-check-in milestones and
+  // the 1-year-since-first anniversary (firstTs tracked from the first ever).
+  const firstTs = next.t === 1 ? now : (user.firstTs || 0);
+  let totalMilestone = 0, anniversary = 0;
+  if (!next.dup) {
+    if (TOTAL_MILESTONES.includes(next.t)) totalMilestone = next.t;
+    if (firstTs) {
+      const years = Math.floor((now - firstTs) / 31536000000);   // 365 days
+      if (years >= 1 && years > (user.annivYear || 0)) anniversary = years;
+    }
+  }
   const stored = {
     t: next.t, s: next.s, b: next.b, l: next.l, d: next.d, f: next.f,
     display, card: user.card || null, stats: user.stats || undefined, lastTs: now,
+    firstTs: firstTs || undefined,
+    annivYear: anniversary || user.annivYear || undefined,
   };
   await kvPut(env, KEY.user(ch, vk), stored);
+
+  // Per-day mood tally (preset moods only) — the room's vibe for the streamer.
+  if (!next.dup && stored.card && MOOD_KEYS.includes(stored.card.mood)) {
+    const mk = KEY.mood(ch, today);
+    const tally = (await kvGet(env, mk)) || {};
+    tally[stored.card.mood] = (tally[stored.card.mood] || 0) + 1;
+    await kvPut(env, mk, tally, { expirationTtl: 172800 });
+  }
 
   // First of the day, via the streamer's "1st" reward (body.first): the
   // first redeemer each day earns the 👑 crown; later "1st" redeemers
@@ -734,7 +764,11 @@ async function handleCheckin(env, body) {
   // check-in: crown > first-ever welcome > milestone > generic reply.
   try {
     let posted = false;
-    if (crown && cfg.announceFirst) {
+    if (anniversary && cfg.announceMilestones) {
+      await sendChat(env, ch, chan,
+        `🎂 ${display} just hit ${anniversary} ${anniversary === 1 ? 'YEAR' : 'YEARS'} of check-ins! 🎉 aquilo.gg/punchcard/card/?ch=${ch}`);
+      posted = true;
+    } else if (crown && cfg.announceFirst) {
       await sendChat(env, ch, chan,
         `👑 ${display} is FIRST in today — day ${next.s} of the streak! aquilo.gg/punchcard/card/?ch=${ch}`);
       posted = true;
@@ -746,6 +780,10 @@ async function handleCheckin(env, body) {
       const flair = next.milestone >= 100 ? ' 🏆' : '';
       await sendChat(env, ch, chan,
         `🔥 ${display} just hit a ${next.milestone} day check-in streak!${flair} Customize your card: aquilo.gg/punchcard/card/?ch=${ch}`);
+      posted = true;
+    } else if (totalMilestone && cfg.announceMilestones) {
+      await sendChat(env, ch, chan,
+        `🎉 ${display} just logged their ${totalMilestone}th check-in! aquilo.gg/punchcard/card/?ch=${ch}`);
       posted = true;
     }
     if (!posted && !next.dup && cfg.checkinReply) {
@@ -794,10 +832,13 @@ async function handleCheckin(env, body) {
   }
 
   // Discord: post the big moments to the streamer's configured webhook.
-  if (!next.dup && cfg.discordWebhook && (next.milestone || next.t === 1)) {
-    await postDiscord(cfg.discordWebhook, next.milestone
-      ? `🔥 **${cleanDisplay(display)}** hit a **${next.milestone}-day** check-in streak!`
-      : `👋 **${cleanDisplay(display)}** checked in for the first time!`);
+  if (!next.dup && cfg.discordWebhook && (next.milestone || anniversary || totalMilestone || next.t === 1)) {
+    let dline;
+    if (anniversary) dline = `🎂 **${cleanDisplay(display)}** hit **${anniversary} ${anniversary === 1 ? 'year' : 'years'}** of check-ins! 🎉`;
+    else if (next.milestone) dline = `🔥 **${cleanDisplay(display)}** hit a **${next.milestone}-day** check-in streak!`;
+    else if (totalMilestone) dline = `🎉 **${cleanDisplay(display)}** logged their **${totalMilestone}th** check-in!`;
+    else dline = `👋 **${cleanDisplay(display)}** checked in for the first time!`;
+    await postDiscord(cfg.discordWebhook, dline);
   }
 
   // Twitch-only enrichment: avatar, sub tier (card effects), and the
@@ -833,7 +874,7 @@ async function handleCheckin(env, body) {
     streak: next.s, total: next.t, best: next.b,
     dup: next.dup, milestone: next.milestone, ring: ringFor(next.b),
     freezeUsed: next.freezeUsed, freezes: next.f, refunded,
-    firstOfDay: changed, crown, rank: lbRank,
+    firstOfDay: changed, crown, rank: lbRank, totalMilestone, anniversary,
     // First check-in EVER for this viewer on this channel. Driven by
     // the persisted total, so it fires exactly once in a lifetime
     // (a reset streak is 1 again, but the total never goes back).
@@ -1247,6 +1288,7 @@ async function handleStats(env, url) {
     const d = new Date(Date.parse(today + 'T00:00:00Z') - i * 86400000).toISOString().slice(0, 10);
     series.push({ day: d, count: dmap[d] || 0 });
   }
+  const moods = (await kvGet(env, KEY.mood(ch, today))) || {};
   return json({
     ok: true,
     totalCheckins: st.total || 0,
@@ -1254,6 +1296,7 @@ async function handleStats(env, url) {
     activeDays: daysList.length,
     today: dmap[today] || 0,
     series,
+    moods,
     topStreaks: (lb.top || []).slice(0, 10).map((e) => ({ display: e.display, streak: e.s, total: e.t })),
   });
 }
