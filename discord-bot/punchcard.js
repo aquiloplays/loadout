@@ -80,6 +80,8 @@ const KEY = {
   gif: (h) => `pc:gif:${h}`,
   emotes: (l) => `pc:emotes:${l}`,
   sub: (ch, v) => `pc:sub:${ch}:${v}`,
+  tts: (h) => `pc:tts:${h}`,
+  ttsrl: (ip) => `pc:ttsrl:${ip}`,
 };
 
 const DEFAULT_CFG = {
@@ -1083,6 +1085,52 @@ async function handleGif(env, url) {
   return json({ ok: true, gifs });
 }
 
+// Viewer voice (TTS). The overlay/editor call this; the TTS Monster API
+// key never leaves the worker. We generate speech and hand back a public
+// audio URL the browser plays directly — which works in the OBS browser
+// source, where the Web Speech API has no installed voices. Voice keys
+// match PCTTS.STYLES (pc-tts.js) + sanitizeCard's tts whitelist; the map
+// to TTS Monster voice ids lives here so the frontend stays voice-agnostic.
+const TTS_VOICES = {
+  default: '5dbb63c3-1179-4704-90cf-8dbe0d9b33ab',   // Mentor
+  deep: '87537bb9-71e1-481a-87fc-5ffc805a152b',       // Titan
+  bright: '80c6bb8b-c573-44c3-9843-0f2ed9a75afe',     // Stella
+  announcer: 'e237c3fc-0f56-4fbc-9333-a891c1e55abc',  // Herald
+  robot: 'e8a18685-00fd-4798-aa3d-50424f8de7e6',      // Circuit
+  chipmunk: '604168da-f156-450b-8794-e89175abdcd4',   // Kawaii
+};
+async function handlePunchcardTts(req, env, url) {
+  if (!env.TTS_MONSTER_KEY) return json({ ok: false, error: 'no-tts' }, 501);
+  const text = cleanMsg(url.searchParams.get('text') || '');
+  if (!text) return json({ ok: false, error: 'empty' }, 400);
+  const vkey = String(url.searchParams.get('voice') || 'default');
+  const voiceId = TTS_VOICES[vkey] || TTS_VOICES.default;
+
+  // Cache by (voice,text): identical lines reuse the clip, never re-bill.
+  const cacheKey = KEY.tts((await sha256Hex(vkey + '|' + text)).slice(0, 40));
+  const hit = await kvGet(env, cacheKey);
+  if (hit && hit.url) return json({ ok: true, url: hit.url, cached: true });
+
+  // Light per-IP rate limit so the public endpoint can't be spun to burn
+  // credits. Cache hits above are free and never reach here.
+  const ip = req.headers.get('cf-connecting-ip') || '0';
+  const rlKey = KEY.ttsrl(ip);
+  const n = Number(await kvGet(env, rlKey)) || 0;
+  if (n >= 40) return json({ ok: false, error: 'rate' }, 429);
+  await kvPut(env, rlKey, n + 1, { expirationTtl: 60 });
+
+  const resp = await fetch('https://api.console.tts.monster/generate', {
+    method: 'POST',
+    headers: { 'Authorization': env.TTS_MONSTER_KEY, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ voice_id: voiceId, message: text }),
+  });
+  if (!resp.ok) return json({ ok: false, error: 'tts-' + resp.status }, 502);
+  const j = await resp.json().catch(() => ({}));
+  if (!j || !j.url) return json({ ok: false, error: 'tts-no-url' }, 502);
+  await kvPut(env, cacheKey, { url: j.url }, { expirationTtl: 86400 });
+  return json({ ok: true, url: j.url });
+}
+
 // ── dispatcher ────────────────────────────────────────────────────────
 export async function handlePunchcard(req, env, path) {
   try {
@@ -1108,6 +1156,7 @@ async function dispatch(req, env, path) {
     if (route === 'emotes') return handleEmotes(req, env);
     if (route === 'linkcode') return handleLinkCode(req, env, url);
     if (route === 'gif') return handleGif(env, url);
+    if (route === 'tts') return handlePunchcardTts(req, env, url);
     if (route === 'leaderboard') return handleLeaderboard(env, url);
     return json({ ok: false, error: 'not-found' }, 404);
   }
