@@ -1450,6 +1450,69 @@ async function handleSoundAdopt(env, body) {
   return json({ ok: true, sound: { id: res.id, name: res.name }, sounds: chan.sounds });
 }
 
+// ── meme soundboard (MyInstants search + adopt-by-URL) ────────────────
+// No API key needed. Search scrapes the MyInstants results page; adopt
+// fetches the clip server-side and stores it like any channel sound.
+function miDecode(s) {
+  return String(s).replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').trim();
+}
+async function handleSoundMyinstants(env, url) {
+  const ch = chanName(url.searchParams.get('ch'));
+  const chan = await authedChan(env, ch, String(url.searchParams.get('k') || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const q = String(url.searchParams.get('q') || '').slice(0, 60).trim();
+  if (!q) return json({ ok: false, error: 'empty' }, 400);
+  let html;
+  try {
+    const r = await fetch('https://www.myinstants.com/en/search/?name=' + encodeURIComponent(q), {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)', 'Accept-Language': 'en' },
+    });
+    if (!r.ok) return json({ ok: false, error: 'search-' + r.status }, 502);
+    html = await r.text();
+  } catch { return json({ ok: false, error: 'search-failed' }, 502); }
+  const paths = [];
+  const reU = /play\('(\/media\/sounds\/[^']+)'/g;
+  let m; while ((m = reU.exec(html)) && paths.length < 30) paths.push(m[1]);
+  const names = [];
+  const reN = /instant-link[^>]*>([^<]+)<\/a>/g;
+  let n; while ((n = reN.exec(html)) && names.length < 30) names.push(n[1]);
+  const results = paths.map((p, i) => ({
+    name: miDecode(names[i] || 'Sound').slice(0, 40),
+    url: 'https://www.myinstants.com' + p,
+  })).slice(0, 24);
+  return json({ ok: true, results });
+}
+// Only https, no IP/localhost hosts (basic SSRF guard); bytes capped on store.
+function safeRemoteAudioUrl(raw) {
+  let u;
+  try { u = new URL(String(raw || '')); } catch { return null; }
+  if (u.protocol !== 'https:') return null;
+  const h = u.hostname.toLowerCase();
+  if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.internal')) return null;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return null;
+  if (h.indexOf(':') !== -1) return null;
+  return u.toString();
+}
+async function handleSoundAdoptUrl(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const url = safeRemoteAudioUrl(body.url);
+  if (!url) return json({ ok: false, error: 'bad-url' }, 400);
+  let audio;
+  try {
+    audio = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; PunchCard/1.0)', 'Referer': 'https://www.myinstants.com/' } });
+  } catch { return json({ ok: false, error: 'fetch-failed' }, 502); }
+  if (!audio.ok) return json({ ok: false, error: 'fetch-' + audio.status }, 502);
+  const len = Number(audio.headers.get('content-length') || 0);
+  if (len && len > SOUND_MAX_BYTES) return json({ ok: false, error: 'too-large' }, 400);
+  const buf = new Uint8Array(await audio.arrayBuffer());
+  const res = await storeChannelSound(env, ch, chan, body.name || 'Sound', buf);
+  if (res.error) return json({ ok: false, error: res.error }, 400);
+  return json({ ok: true, sound: { id: res.id, name: res.name }, sounds: chan.sounds });
+}
+
 // ── dispatcher ────────────────────────────────────────────────────────
 export async function handlePunchcard(req, env, path) {
   try {
@@ -1479,6 +1542,7 @@ async function dispatch(req, env, path) {
     if (route === 'stats') return handleStats(env, url);
     if (route.indexOf('sound/') === 0) return handleSoundServe(env, path);
     if (route === 'sound-search') return handleSoundSearch(env, url);
+    if (route === 'sound-mi') return handleSoundMyinstants(env, url);
     if (route === 'leaderboard') return handleLeaderboard(env, url);
     return json({ ok: false, error: 'not-found' }, 404);
   }
@@ -1503,6 +1567,7 @@ async function dispatch(req, env, path) {
   if (route === 'streaklookup') return handleStreakLookup(env, body);
   if (route === 'recap') return handleRecap(env, body);
   if (route === 'sound-adopt') return handleSoundAdopt(env, body);
+  if (route === 'sound-url') return handleSoundAdoptUrl(env, body);
   if (route === 'sound-remove') return handleSoundRemove(env, body);
   return json({ ok: false, error: 'not-found' }, 404);
 }
