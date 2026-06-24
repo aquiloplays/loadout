@@ -183,15 +183,18 @@ export function sanitizeCard(raw, allowCustom) {
     font: FONTS.includes(raw.font) ? raw.font : 'inter',
     emoji: String(raw.emoji || '').slice(0, 4),
   };
-  // Twitch emote badge from the viewer's own emote set (picked in the
-  // editor). Render-side builds the CDN URL from the id; ids are plain
-  // tokens so a strict pattern is enough.
-  if (raw.emote && typeof raw.emote === 'object' && /^[a-zA-Z0-9_\-]{1,100}$/.test(String(raw.emote.i || ''))) {
-    out.emote = {
-      i: String(raw.emote.i),
-      n: cleanDisplay(raw.emote.n).slice(0, 30),
-      a: raw.emote.a ? 1 : 0,
-    };
+  // Check-in emote (bursts like confetti on stream), picked in the editor
+  // from the viewer's Twitch emotes or global 7TV. Render-side builds the
+  // CDN URL from the id + src; ids are plain tokens so a pattern is enough.
+  if (raw.emote && typeof raw.emote === 'object') {
+    const is7tv = raw.emote.src === '7tv';
+    const eid = String(raw.emote.i || '');
+    const idOk = is7tv ? /^[a-zA-Z0-9]{1,40}$/.test(eid) : /^[a-zA-Z0-9_\-]{1,100}$/.test(eid);
+    if (idOk) {
+      out.emote = { i: eid, n: cleanDisplay(raw.emote.n).slice(0, 30) };
+      if (is7tv) out.emote.src = '7tv';
+      else out.emote.a = raw.emote.a ? 1 : 0;
+    }
   }
   // Cosmetics. Everything whitelisted; junk falls back to defaults.
   out.punch = ['classic', 'stamp', 'fist', 'laser', 'none'].includes(raw.punch) ? raw.punch : 'classic';
