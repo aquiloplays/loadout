@@ -94,6 +94,10 @@ const DEFAULT_CFG = {
   // Let viewers search the meme soundboard for their OWN check-in sound
   // (card.sound = 'u:<myinstants-url>'), not just the streamer's library.
   viewerSoundSearch: false,
+  // Cap (seconds) on how long a viewer/custom sound plays (0 = no cap), and
+  // the sound that plays when a viewer hasn't picked their own.
+  maxSoundSec: 0,
+  defaultSound: 'chime',
   // Redemption lifecycle (only effective for the reward PunchCard
   // created, Twitch forbids touching others): fulfill on success,
   // cancel (= refund the points) on duplicate same-day redeems.
@@ -213,6 +217,10 @@ export function sanitizeCard(raw, allowCustom) {
     : (/^c:[a-f0-9]{8,16}$/.test(rawSnd) ? rawSnd
       : (/^u:https:\/\/www\.myinstants\.com\/media\/sounds\/[\w%.\-/]{1,120}$/.test(rawSnd) ? rawSnd
         : 'chime'));
+  // Viewer-chosen start offset (seconds) into a longer sound; the overlay
+  // plays from here for the streamer's max-length window.
+  const ss = Number(raw.soundStart);
+  if (isFinite(ss) && ss > 0) out.soundStart = Math.min(600, Math.round(ss * 100) / 100);
   // Earned-badge selection (cap 3). Keys are whitelisted only; whether
   // a badge actually RENDERS is decided at display time against the
   // viewer's server-side stats, so selections can never fake a badge.
@@ -974,6 +982,8 @@ async function handleCfg(env, body) {
   if (typeof cfg.checkinReplyMsg === 'string') next.checkinReplyMsg = cfg.checkinReplyMsg.slice(0, 200);
   if (typeof cfg.ttsCensor === 'string') next.ttsCensor = cfg.ttsCensor.slice(0, 2000);
   if (typeof cfg.viewerSoundSearch === 'boolean') next.viewerSoundSearch = cfg.viewerSoundSearch;
+  if (typeof cfg.maxSoundSec === 'number') next.maxSoundSec = Math.max(0, Math.min(30, Math.round(cfg.maxSoundSec)));
+  if (typeof cfg.defaultSound === 'string' && /^(c:[a-f0-9]{8,16}|[a-z]{2,12})$/.test(cfg.defaultSound)) next.defaultSound = cfg.defaultSound;
   chan.cfg = next;
   if (body.reward && typeof body.reward === 'object') {
     chan.rewardId = String(body.reward.id || '').slice(0, 64);
@@ -1130,6 +1140,8 @@ async function handleMeta(env, url) {
       checkinReplyMsg: cfg.checkinReplyMsg || '',
       ttsCensor: cfg.ttsCensor || '',
       viewerSoundSearch: !!cfg.viewerSoundSearch,
+      maxSoundSec: Number(cfg.maxSoundSec) || 0,
+      defaultSound: cfg.defaultSound || 'chime',
     } : null,
     giphy: !!env.GIPHY_API_KEY,
     freesound: !!env.FREESOUND_API_KEY,
