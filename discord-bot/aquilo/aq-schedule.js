@@ -1,14 +1,18 @@
-// Stream schedule v4 (rev 2026-06-11): two shows.
-//   Mon / Wed / Fri       -> Fallout 4 Crowd Control Chaos (fixed)
-//   Sun / Tue / Thu / Sat -> Community Votes Night (per-night community
-//                            vote; the game pool is managed on
-//                            aquilo.gg/admin and mirrored into D1 by
-//                            site-games-sync.js)
-// The Rotation slot is retired (Sun/Tue/Thu used to be admin-picked);
-// Variety Night, Dad Game Sunday, and Triple-C stay removed. Per-day
-// games resolve DYNAMICALLY so the embed + site never drift. A one-shot
-// per-date override (schedule:override:<ISO>) wins over the show's
-// default for any single night, so any CVN can still be hand-pinned.
+// Stream schedule v5 (rev 2026-06-24): two shows.
+//   Sun / Mon / Wed / Fri -> Crowd Control playthrough ("Triple-C"). The
+//                            current campaign game is admin-selectable on
+//                            aquilo.gg/admin (KV triple-c:current:<g>);
+//                            defaults to Fallout 4. One game at a time,
+//                            swapped when Clay finishes it.
+//   Tue / Thu / Sat       -> Community Night. The game is picked AT RANDOM
+//                            each week from the community pool (games:v1,
+//                            pool 'community', managed on aquilo.gg/admin),
+//                            a different game per night, stable Sun-Sat,
+//                            re-rolled weekly. No more per-night voting.
+// Per-day games resolve DYNAMICALLY so the embed + site never drift. A
+// one-shot per-date override (schedule:override:<ISO>, admin-set on
+// aquilo.gg) wins over the show default for any single night, so any
+// night can still be hand-pinned.
 
 import {
   postChannelMessage, editChannelMessage, discordFetch, COLOR_SCHEDULE, cap, getETInfo
@@ -16,10 +20,10 @@ import {
 import { broadcastOverlayUpdate } from './overlay-do.js';
 import { gameSlug } from './today-game.js';
 
-// Fixed weekly rotation, Sun -> Sat. `dow` drives per-day override +
+// Fixed weekly cadence, Sun -> Sat. `dow` drives per-day override +
 // date resolution; `kind` drives the public slot enum + game source.
 const WEEKLY = [
-  { day: 'sunday',    dow: 0, kind: 'community' },
+  { day: 'sunday',    dow: 0, kind: 'fo4cc'     },
   { day: 'monday',    dow: 1, kind: 'fo4cc'     },
   { day: 'tuesday',   dow: 2, kind: 'community' },
   { day: 'wednesday', dow: 3, kind: 'fo4cc'     },
@@ -44,27 +48,90 @@ function isoForDow(targetDow) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 
+// Default Crowd Control campaign game, used until an owner picks one on
+// aquilo.gg/admin. Self-contained (no triple-c.js / pool dependency) so a
+// missing pool can never break the schedule embed.
+const FO4_APPID = 377160;
+const CC_DEFAULT = {
+  name: 'Fallout 4',
+  artUrl: `https://cdn.cloudflare.steamstatic.com/steam/apps/${FO4_APPID}/header.jpg`,
+  store: `https://store.steampowered.com/app/${FO4_APPID}/`,
+};
+
+// Deterministic per-week PRNG so the random community pick is stable
+// Sun-Sat (the embed + site + overlay all compute the SAME game for a
+// given night) yet re-rolls automatically every week.
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function seededShuffle(arr, seed) {
+  const rng = mulberry32(seed >>> 0);
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    const tmp = a[i]; a[i] = a[j]; a[j] = tmp;
+  }
+  return a;
+}
+// YYYYMMDD (int) of this ET week's Sunday — the per-week shuffle seed.
+function weekSeedET() {
+  const et = getETInfo();
+  const curDow = DOW_INDEX[et.weekday] ?? 0;
+  const d = new Date(Date.UTC(et.year, et.month - 1, et.day, 12) - curDow * 86400000);
+  return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+}
+
+// This week's random community-night game for `dow`. Reads the
+// aquilo.gg-managed community pool (games:v1, pool 'community'), shuffles
+// it deterministically by week, and hands each community night a distinct
+// game by its position in the week. Returns { name, artUrl, store } or
+// null when the pool is empty.
+async function weeklyCommunityPick(env, guildId, dow) {
+  let cat = null;
+  try { cat = await env.LOADOUT_BOLTS.get(`games:v1:${guildId}`, { type: 'json' }); }
+  catch { /* fall through */ }
+  const pool = (cat && Array.isArray(cat.items) ? cat.items : [])
+    .filter((g) => g && g.name && Array.isArray(g.pools) && g.pools.includes('community'));
+  if (pool.length === 0) return null;
+  const communityDows = WEEKLY.filter((s) => s.kind === 'community').map((s) => s.dow);
+  const idx = communityDows.indexOf(dow);
+  const shuffled = seededShuffle(pool, weekSeedET());
+  const g = shuffled[(idx < 0 ? 0 : idx) % shuffled.length];
+  const art = g.headerUrl || g.capsuleUrl || null;
+  return { name: g.name, artUrl: art, store: g.storeUrl || storeFromArtUrl(art) };
+}
+
 // Resolve a day's game from the authoritative source for its kind.
 // Order: per-date one-shot override -> show default. Returns
-// { name, artUrl, store, voteCompleted?, override? } or null.
+// { name, artUrl, store, override? } or null.
 async function resolveSlotGame(env, guildId, kind, sched, dow, dayName) {
-  // 1. One-shot per-date override (any night).
+  // 1. One-shot per-date override (any night, admin-set on aquilo.gg).
   try {
     const { getDateOverride } = await import('../schedule-rotation.js');
     const ov = await getDateOverride(env, guildId, isoForDow(dow));
     if (ov && ov.name) {
-      return { name: ov.name, artUrl: ov.artUrl || null, store: storeFromArtUrl(ov.artUrl), override: true };
+      return { name: ov.name, artUrl: ov.artUrl || null, store: ov.store || storeFromArtUrl(ov.artUrl), override: true };
     }
   } catch { /* optional */ }
 
   if (kind === 'fo4cc') {
+    // Triple-C: the current Crowd Control campaign game, admin-swappable
+    // on aquilo.gg/admin (KV triple-c:current:<g>). Defaults to Fallout 4.
     try {
-      const { getFo4cc } = await import('../schedule-rotation.js');
-      const c = await getFo4cc(env, guildId);
-      return { name: c.name, artUrl: c.artUrl || null, store: c.store || storeFromArtUrl(c.artUrl) };
-    } catch { return null; }
+      const cur = await env.LOADOUT_BOLTS.get(`triple-c:current:${guildId}`, { type: 'json' });
+      if (cur && cur.name) {
+        return { name: cur.name, artUrl: cur.artUrl || null, store: cur.store || storeFromArtUrl(cur.artUrl) };
+      }
+    } catch { /* fall through to default */ }
+    return { ...CC_DEFAULT };
   }
   if (kind === 'rotation') {
+    // Retired slot; keep the old resolution so a stray payload still renders.
     try {
       const { getCurrentRotation } = await import('../schedule-rotation.js');
       const c = await getCurrentRotation(env, guildId, dow);
@@ -73,21 +140,9 @@ async function resolveSlotGame(env, guildId, kind, sched, dow, dayName) {
     return null;
   }
   if (kind === 'community') {
-    // Per-night winner first: cn_winners is keyed by weekday name and
-    // closeCnPoll writes whichever night was voted, so each Community
-    // Votes Night carries its own game. The single vote-hub winner key
-    // predates per-night votes and only ever described Saturday, so it
-    // stays a Saturday-only fallback.
-    let w = (sched.cn_winners && sched.cn_winners[dayName]) || null;
-    if ((!w || !w.name) && dayName === 'saturday') {
-      try { w = await env.LOADOUT_BOLTS.get(`vote-hub:winner:${guildId}:cn`, { type: 'json' }); }
-      catch { /* fall through */ }
-    }
-    if (w && w.name) {
-      const art = w.art_url || w.artUrl || null;
-      return { name: w.name, artUrl: art, store: storeFromArtUrl(art), voteCompleted: true };
-    }
-    return null;
+    // Random weekly pick from the community pool (per-night distinct,
+    // stable Sun-Sat, auto re-rolls weekly). A per-date override above wins.
+    return await weeklyCommunityPick(env, guildId, dow);
   }
   return null;
 }
@@ -118,16 +173,16 @@ async function saveSchedule(env, guildId, sched) {
 
 const TIME_LABEL = '10:30 PM-12:30 AM ET';
 const SLOT_META = {
-  'fo4cc':     { emoji: '💪', show: 'Fallout 4 Crowd Control Chaos' },
+  'fo4cc':     { emoji: '🎮', show: 'Crowd Control' },
   // Retired slot; kept so an old payload or override can still render.
   'rotation':  { emoji: '🔁', show: 'Featured Run' },
-  'community': { emoji: '🏆', show: 'Community Votes Night' },
+  'community': { emoji: '🎲', show: 'Community Night' },
 };
 
 async function buildSchedulePayload(env, guildId, sched) {
   const headerEmbed = {
     title: '📅 Aquilo · Weekly Stream Schedule',
-    description: 'Fallout 4 Crowd Control Chaos Mon/Wed/Fri, Community Votes Night Sun/Tue/Thu/Sat. Tap **Vote** in <#' + (sched.poll_channel_id || '') + "> to pick each night's game.",
+    description: 'Crowd Control playthrough **Sun / Mon / Wed / Fri**, Community Night **Tue / Thu / Sat**. The community game is picked at random each week. All shows **' + TIME_LABEL + '**.',
     color: COLOR_SCHEDULE,
   };
 
@@ -135,23 +190,16 @@ async function buildSchedulePayload(env, guildId, sched) {
   for (const slot of WEEKLY) {
     const meta = SLOT_META[slot.kind] || { emoji: '📺', show: cap(slot.kind) };
     const game = await resolveSlotGame(env, guildId, slot.kind, sched, slot.dow, slot.day);
-    const isVoted = slot.kind === 'community';
     let desc;
     if (game && game.name && game.name !== meta.show) {
       desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n**${game.name}**`;
     } else if (game && game.name) {
       desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}`;
-    } else if (isVoted) {
-      desc = `${meta.emoji} **${meta.show} · vote in progress** · ${TIME_LABEL}\n_Tap **Vote** in <#${sched.poll_channel_id || ''}>._`;
     } else {
       desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n_Game picked weekly._`;
     }
     const embed = { title: cap(slot.day), description: desc, color: COLOR_SCHEDULE };
-    const art = game && game.artUrl;
-    if (art) {
-      if (game.voteCompleted) embed.image = { url: art };
-      else embed.thumbnail = { url: art };
-    }
+    if (game && game.artUrl) embed.thumbnail = { url: game.artUrl };
     dayEmbeds.push(embed);
   }
 
@@ -165,13 +213,11 @@ export async function getPublicSchedule(env, guildId) {
   const days = [];
   for (const slot of WEEKLY) {
     const game = await resolveSlotGame(env, guildId, slot.kind, sched, slot.dow, slot.day);
-    const isVoted = slot.kind === 'community';
-    const status = isVoted ? (game ? 'vote-completed' : 'vote-open') : 'scheduled';
     days.push({
       weekday: slot.day,
       slot:    PUBLIC_SLOT[slot.kind] || 'stream',
       game,
-      status,
+      status:  'scheduled',
       times:   { startEt: '22:30', endEt: '00:30' },
     });
   }
