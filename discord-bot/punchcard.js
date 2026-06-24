@@ -1099,29 +1099,42 @@ async function handlePunchcardTts(req, env, url) {
   if (!text) return json({ ok: false, error: 'empty' }, 400);
   const voiceId = TTS_VOICE;
 
-  // Cache by text (single voice): identical lines reuse the clip, no re-bill.
+  // Resolve the clip URL, cached by text so identical lines never re-bill.
   const cacheKey = KEY.tts((await sha256Hex(voiceId + '|' + text)).slice(0, 40));
+  let clipUrl = null;
   const hit = await kvGet(env, cacheKey);
-  if (hit && hit.url) return json({ ok: true, url: hit.url, cached: true });
+  if (hit && hit.url) clipUrl = hit.url;
+  if (!clipUrl) {
+    // Light per-IP rate limit on the billable generate path; cache hits
+    // are free and skip it.
+    const ip = req.headers.get('cf-connecting-ip') || '0';
+    const rlKey = KEY.ttsrl(ip);
+    const n = Number(await kvGet(env, rlKey)) || 0;
+    if (n >= 40) return json({ ok: false, error: 'rate' }, 429);
+    await kvPut(env, rlKey, n + 1, { expirationTtl: 60 });
+    const resp = await fetch('https://api.console.tts.monster/generate', {
+      method: 'POST',
+      headers: { 'Authorization': env.TTS_MONSTER_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voice_id: voiceId, message: text }),
+    });
+    if (!resp.ok) return json({ ok: false, error: 'tts-' + resp.status }, 502);
+    const j = await resp.json().catch(() => ({}));
+    if (!j || !j.url) return json({ ok: false, error: 'tts-no-url' }, 502);
+    clipUrl = j.url;
+    await kvPut(env, cacheKey, { url: clipUrl }, { expirationTtl: 86400 });
+  }
 
-  // Light per-IP rate limit so the public endpoint can't be spun to burn
-  // credits. Cache hits above are free and never reach here.
-  const ip = req.headers.get('cf-connecting-ip') || '0';
-  const rlKey = KEY.ttsrl(ip);
-  const n = Number(await kvGet(env, rlKey)) || 0;
-  if (n >= 40) return json({ ok: false, error: 'rate' }, 429);
-  await kvPut(env, rlKey, n + 1, { expirationTtl: 60 });
-
-  const resp = await fetch('https://api.console.tts.monster/generate', {
-    method: 'POST',
-    headers: { 'Authorization': env.TTS_MONSTER_KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ voice_id: voiceId, message: text }),
+  // Stream the audio back ourselves. The TTS Monster CDN blocks browser
+  // requests (CORS / hotlink) and serves application/octet-stream, so a
+  // direct <audio src> from the OBS overlay stalls. Proxying gives the
+  // browser proper audio/wav + our CORS headers, and the worker can reach
+  // the CDN fine.
+  const clip = await fetch(clipUrl);
+  if (!clip.ok) return json({ ok: false, error: 'clip-' + clip.status }, 502);
+  return new Response(clip.body, {
+    status: 200,
+    headers: { ...CORS, 'content-type': 'audio/wav', 'cache-control': 'public, max-age=86400' },
   });
-  if (!resp.ok) return json({ ok: false, error: 'tts-' + resp.status }, 502);
-  const j = await resp.json().catch(() => ({}));
-  if (!j || !j.url) return json({ ok: false, error: 'tts-no-url' }, 502);
-  await kvPut(env, cacheKey, { url: j.url }, { expirationTtl: 86400 });
-  return json({ ok: true, url: j.url });
 }
 
 // ── dispatcher ────────────────────────────────────────────────────────
