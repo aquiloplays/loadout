@@ -1124,17 +1124,33 @@ async function handlePunchcardTts(req, env, url) {
     await kvPut(env, cacheKey, { url: clipUrl }, { expirationTtl: 86400 });
   }
 
-  // Stream the audio back ourselves. The TTS Monster CDN blocks browser
-  // requests (CORS / hotlink) and serves application/octet-stream, so a
-  // direct <audio src> from the OBS overlay stalls. Proxying gives the
-  // browser proper audio/wav + our CORS headers, and the worker can reach
-  // the CDN fine.
+  // Serve the audio ourselves. The TTS Monster CDN blocks browser requests
+  // (CORS / hotlink) and serves application/octet-stream, so a direct
+  // <audio src> from the OBS overlay stalls. The worker can reach the CDN
+  // fine; we buffer the clip and answer with audio/wav + CORS + byte-range
+  // support — the last part matters, because a media element issues Range
+  // requests and stalls (readyState 0) against a 200-only response.
   const clip = await fetch(clipUrl);
   if (!clip.ok) return json({ ok: false, error: 'clip-' + clip.status }, 502);
-  return new Response(clip.body, {
-    status: 200,
-    headers: { ...CORS, 'content-type': 'audio/wav', 'cache-control': 'public, max-age=86400' },
-  });
+  const bytes = await clip.arrayBuffer();
+  const total = bytes.byteLength;
+  const base = { ...CORS, 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'cache-control': 'public, max-age=86400' };
+  const range = req.headers.get('range');
+  if (range) {
+    const m = /bytes=(\d*)-(\d*)/.exec(range);
+    let start = m && m[1] ? parseInt(m[1], 10) : 0;
+    let end = m && m[2] ? parseInt(m[2], 10) : total - 1;
+    if (!Number.isFinite(start)) start = 0;
+    if (!Number.isFinite(end) || end >= total) end = total - 1;
+    if (start > end || start >= total) {
+      return new Response(null, { status: 416, headers: { ...base, 'content-range': `bytes */${total}` } });
+    }
+    return new Response(bytes.slice(start, end + 1), {
+      status: 206,
+      headers: { ...base, 'content-range': `bytes ${start}-${end}/${total}`, 'content-length': String(end - start + 1) },
+    });
+  }
+  return new Response(bytes, { status: 200, headers: { ...base, 'content-length': String(total) } });
 }
 
 // ── dispatcher ────────────────────────────────────────────────────────
