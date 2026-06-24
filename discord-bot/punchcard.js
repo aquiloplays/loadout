@@ -198,7 +198,8 @@ export function sanitizeCard(raw, allowCustom) {
   // Check-in sound: keys of the synthesized bank in pc-sounds.js. The
   // overlay's audio settings (enabled/volume/viewerSounds) always win.
   out.sound = ['chime', 'airhorn', 'sadtrombone', 'boom', 'bonk', 'tada', 'powerup',
-    'coin', 'boing', 'scratch', 'drumroll', 'laser', 'honk', 'none'].includes(raw.sound)
+    'coin', 'boing', 'scratch', 'drumroll', 'laser', 'honk',
+    'sparkle', 'zap', 'levelup', 'bell', 'glitch', 'pop', 'wobble', 'siren', 'none'].includes(raw.sound)
     ? raw.sound : 'chime';
   // Earned-badge selection (cap 3). Keys are whitelisted only; whether
   // a badge actually RENDERS is decided at display time against the
@@ -211,9 +212,8 @@ export function sanitizeCard(raw, allowCustom) {
   out.texture = ['none', 'dots', 'scan', 'sparkle', 'grid', 'noise'].includes(raw.texture) ? raw.texture : 'none';
   out.anim = ['slide', 'pop', 'flip', 'drop', 'zoom'].includes(raw.anim) ? raw.anim : 'slide';
   out.avatarShape = ['circle', 'squircle', 'hex', 'star'].includes(raw.avatarShape) ? raw.avatarShape : 'circle';
-  // Card frame/border style + a small corner sticker emoji.
+  // Card frame/border style.
   out.frame = ['none', 'gold', 'neon', 'retro', 'holo'].includes(raw.frame) ? raw.frame : 'none';
-  out.sticker = String(raw.sticker || '').slice(0, 8);
   out.flame = String(raw.flame || '').slice(0, 4);
   // Holo is a PREFERENCE; the renderer only shows it once the viewer's
   // best streak has earned the gold ring, so saving it early is fine.
