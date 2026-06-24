@@ -82,6 +82,7 @@ const KEY = {
   sub: (ch, v) => `pc:sub:${ch}:${v}`,
   tts: (h) => `pc:tts:${h}`,
   ttsrl: (ip) => `pc:ttsrl:${ip}`,
+  srl: (ip) => `pc:srl:${ip}`,
   first: (ch, day) => `pc:first:${ch}:${day}`,
   stats: (ch) => `pc:stats:${ch}`,
   lbs: (ch, season) => `pc:lbs:${ch}:${season}`,
@@ -90,6 +91,9 @@ const KEY = {
 
 const DEFAULT_CFG = {
   tz: 'America/New_York', rollover: 4, mode: 'active', allowCustomImg: false,
+  // Let viewers search the meme soundboard for their OWN check-in sound
+  // (card.sound = 'u:<myinstants-url>'), not just the streamer's library.
+  viewerSoundSearch: false,
   // Redemption lifecycle (only effective for the reward PunchCard
   // created, Twitch forbids touching others): fulfill on success,
   // cancel (= refund the points) on duplicate same-day redeems.
@@ -204,8 +208,11 @@ export function sanitizeCard(raw, allowCustom) {
   const SND_BANK = ['chime', 'airhorn', 'sadtrombone', 'boom', 'bonk', 'tada', 'powerup',
     'coin', 'boing', 'scratch', 'drumroll', 'laser', 'honk',
     'sparkle', 'zap', 'levelup', 'bell', 'glitch', 'pop', 'wobble', 'siren', 'none'];
+  const rawSnd = String(raw.sound || '');
   out.sound = SND_BANK.includes(raw.sound) ? raw.sound
-    : (/^c:[a-f0-9]{8,16}$/.test(String(raw.sound || '')) ? String(raw.sound) : 'chime');
+    : (/^c:[a-f0-9]{8,16}$/.test(rawSnd) ? rawSnd
+      : (/^u:https:\/\/www\.myinstants\.com\/media\/sounds\/[\w%.\-/]{1,120}$/.test(rawSnd) ? rawSnd
+        : 'chime'));
   // Earned-badge selection (cap 3). Keys are whitelisted only; whether
   // a badge actually RENDERS is decided at display time against the
   // viewer's server-side stats, so selections can never fake a badge.
@@ -966,6 +973,7 @@ async function handleCfg(env, body) {
   if (typeof cfg.checkinReply === 'boolean') next.checkinReply = cfg.checkinReply;
   if (typeof cfg.checkinReplyMsg === 'string') next.checkinReplyMsg = cfg.checkinReplyMsg.slice(0, 200);
   if (typeof cfg.ttsCensor === 'string') next.ttsCensor = cfg.ttsCensor.slice(0, 2000);
+  if (typeof cfg.viewerSoundSearch === 'boolean') next.viewerSoundSearch = cfg.viewerSoundSearch;
   chan.cfg = next;
   if (body.reward && typeof body.reward === 'object') {
     chan.rewardId = String(body.reward.id || '').slice(0, 64);
@@ -1121,6 +1129,7 @@ async function handleMeta(env, url) {
       checkinReply: !!cfg.checkinReply,
       checkinReplyMsg: cfg.checkinReplyMsg || '',
       ttsCensor: cfg.ttsCensor || '',
+      viewerSoundSearch: !!cfg.viewerSoundSearch,
     } : null,
     giphy: !!env.GIPHY_API_KEY,
     freesound: !!env.FREESOUND_API_KEY,
@@ -1457,9 +1466,21 @@ function miDecode(s) {
   return String(s).replace(/&amp;/g, '&').replace(/&#39;/g, "'").replace(/&quot;/g, '"')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').trim();
 }
-async function handleSoundMyinstants(env, url) {
+async function handleSoundMyinstants(req, env, url) {
   const ch = chanName(url.searchParams.get('ch'));
-  const chan = await authedChan(env, ch, String(url.searchParams.get('k') || ''));
+  const k = String(url.searchParams.get('k') || '');
+  let chan = k ? await authedChan(env, ch, k) : null;   // streamer (keyed)
+  if (!chan) {
+    // Viewer mode: allowed only if the streamer enabled it; rate-limited.
+    const c = await loadChan(env, ch);
+    if (c && c.cfg && c.cfg.viewerSoundSearch) {
+      const ip = (req && req.headers.get('cf-connecting-ip')) || 'anon';
+      const n = Number(await env.LOADOUT_BOLTS.get(KEY.srl(ip)) || 0);
+      if (n >= 30) return json({ ok: false, error: 'rate' }, 429);
+      await env.LOADOUT_BOLTS.put(KEY.srl(ip), String(n + 1), { expirationTtl: 60 });
+      chan = c;
+    }
+  }
   if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
   const q = String(url.searchParams.get('q') || '').slice(0, 60).trim();
   if (!q) return json({ ok: false, error: 'empty' }, 400);
@@ -1542,7 +1563,7 @@ async function dispatch(req, env, path) {
     if (route === 'stats') return handleStats(env, url);
     if (route.indexOf('sound/') === 0) return handleSoundServe(env, path);
     if (route === 'sound-search') return handleSoundSearch(env, url);
-    if (route === 'sound-mi') return handleSoundMyinstants(env, url);
+    if (route === 'sound-mi') return handleSoundMyinstants(req, env, url);
     if (route === 'leaderboard') return handleLeaderboard(env, url);
     return json({ ok: false, error: 'not-found' }, 404);
   }
