@@ -481,6 +481,20 @@ export async function handleOverlayCanvas(request, env, ctx, url) {
       });
     }
 
+    // GET /api/overlay-canvas/public  (public gallery — no auth)
+    // Lists layouts the owner marked visibility=public, newest first.
+    if (path === '/api/overlay-canvas/public' && method === 'GET') {
+      await ensureSchema(env);
+      const rs = env.DB
+        ? await env.DB.prepare(
+            `SELECT id, label, widget_count, forked_from, published_at, updated_at`
+            + ` FROM overlay_canvas_layouts WHERE visibility = 'public'`
+            + ` ORDER BY COALESCE(published_at, updated_at) DESC LIMIT 100`,
+          ).all()
+        : { results: [] };
+      return json({ ok: true, layouts: rs.results || [] });
+    }
+
     // GET /api/overlay-canvas/layouts (owner-only)
     if (path === '/api/overlay-canvas/layouts' && method === 'GET') {
       const who = await requireOwner(env, request, '');
