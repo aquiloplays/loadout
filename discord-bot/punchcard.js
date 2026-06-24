@@ -1099,12 +1099,13 @@ async function handlePunchcardTts(req, env, url) {
   if (!text) return json({ ok: false, error: 'empty' }, 400);
   const voiceId = TTS_VOICE;
 
-  // Resolve the clip URL, cached by text so identical lines never re-bill.
-  const cacheKey = KEY.tts((await sha256Hex(voiceId + '|' + text)).slice(0, 40));
-  let clipUrl = null;
-  const hit = await kvGet(env, cacheKey);
-  if (hit && hit.url) clipUrl = hit.url;
-  if (!clipUrl) {
+  // Cache the rendered audio BYTES by text, so identical lines never
+  // re-bill AND the media element's multiple range requests all serve
+  // from KV instead of re-fetching the clip each time. ('wav' marker keeps
+  // these distinct from the earlier URL-cache entries.)
+  const cacheKey = KEY.tts((await sha256Hex(voiceId + '|wav|' + text)).slice(0, 40));
+  let bytes = await env.LOADOUT_BOLTS.get(cacheKey, { type: 'arrayBuffer' });
+  if (!bytes) {
     // Light per-IP rate limit on the billable generate path; cache hits
     // are free and skip it.
     const ip = req.headers.get('cf-connecting-ip') || '0';
@@ -1120,19 +1121,18 @@ async function handlePunchcardTts(req, env, url) {
     if (!resp.ok) return json({ ok: false, error: 'tts-' + resp.status }, 502);
     const j = await resp.json().catch(() => ({}));
     if (!j || !j.url) return json({ ok: false, error: 'tts-no-url' }, 502);
-    clipUrl = j.url;
-    await kvPut(env, cacheKey, { url: clipUrl }, { expirationTtl: 86400 });
+    // The TTS Monster CDN blocks browser requests (CORS / hotlink) and
+    // serves application/octet-stream, so a direct <audio src> stalls.
+    // Fetch the clip server-side once and cache the bytes.
+    const clip = await fetch(j.url);
+    if (!clip.ok) return json({ ok: false, error: 'clip-' + clip.status }, 502);
+    bytes = await clip.arrayBuffer();
+    await env.LOADOUT_BOLTS.put(cacheKey, bytes, { expirationTtl: 86400 });
   }
 
-  // Serve the audio ourselves. The TTS Monster CDN blocks browser requests
-  // (CORS / hotlink) and serves application/octet-stream, so a direct
-  // <audio src> from the OBS overlay stalls. The worker can reach the CDN
-  // fine; we buffer the clip and answer with audio/wav + CORS + byte-range
-  // support — the last part matters, because a media element issues Range
-  // requests and stalls (readyState 0) against a 200-only response.
-  const clip = await fetch(clipUrl);
-  if (!clip.ok) return json({ ok: false, error: 'clip-' + clip.status }, 502);
-  const bytes = await clip.arrayBuffer();
+  // Answer with audio/wav + CORS + byte-range support — the range part
+  // matters because a media element issues Range requests and stalls
+  // (readyState 0) against a 200-only response.
   const total = bytes.byteLength;
   const base = { ...CORS, 'content-type': 'audio/wav', 'accept-ranges': 'bytes', 'cache-control': 'public, max-age=86400' };
   const range = req.headers.get('range');
