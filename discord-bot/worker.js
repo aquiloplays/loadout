@@ -1298,6 +1298,18 @@ export default {
         }
         // (Removed with the Bolts economy sunset: the Knowledge Vault
         // daily-digest cron — vault.js was deleted.)
+        // Community-night "change the game" vote: nominate → vote →
+        // resolve phase ticks. ET-hour gated + idempotent per-date; cheap
+        // early-out (one KV read) when disabled, which is the default.
+        // See cn-change-vote.js.
+        if (env.AQUILO_VAULT_GUILD_ID) {
+          ctx.waitUntil((async () => {
+            try {
+              const { tickCnVote } = await import('./cn-change-vote.js');
+              await tickCnVote(env);
+            } catch (e) { console.warn('[cron] cn-change-vote', e?.message || e); }
+          })());
+        }
         // Aquilo Kitchen weekly pick. Same minute-tick piggyback as the
         // vault digest (Cloudflare caps this worker at 4 cron triggers).
         // runWeeklyKitchenPick self-gates on the configured UTC day +

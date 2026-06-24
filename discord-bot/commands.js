@@ -94,6 +94,12 @@ export async function handleInteraction(req, env, body, ctx) {
       const { handleLfgHubComponent } = await import('./lfg-hub.js');
       return json(await handleLfgHubComponent(env, data));
     }
+    if (cid.startsWith('cnvote:'))    {
+      // Community-night "change the game" vote: the nomination
+      // string-select (cnvote:nom:<ISO>). See cn-change-vote.js.
+      const { handleCnVoteComponent } = await import('./cn-change-vote.js');
+      return json(await handleCnVoteComponent(env, data));
+    }
     if (cid.startsWith('cnv:'))       {
       // Legacy CN vote menu, retired in favour of `vh:` below, but
       // kept dispatching so stale-button clicks on un-swept old

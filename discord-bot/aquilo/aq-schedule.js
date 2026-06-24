@@ -89,9 +89,10 @@ function weekSeedET() {
 // This week's random community-night game for `dow`. Reads the
 // aquilo.gg-managed community pool (games:v1, pool 'community'), shuffles
 // it deterministically by week, and hands each community night a distinct
-// game by its position in the week. Returns { name, artUrl, store } or
-// null when the pool is empty.
-async function weeklyCommunityPick(env, guildId, dow) {
+// game by its position in the week. Returns { gameId, name, artUrl, store }
+// or null when the pool is empty. Exported so the community change-vote
+// (cn-change-vote.js) can show + offer "keep the random pick".
+export async function weeklyCommunityPick(env, guildId, dow) {
   let cat = null;
   try { cat = await env.LOADOUT_BOLTS.get(`games:v1:${guildId}`, { type: 'json' }); }
   catch { /* fall through */ }
@@ -103,7 +104,7 @@ async function weeklyCommunityPick(env, guildId, dow) {
   const shuffled = seededShuffle(pool, weekSeedET());
   const g = shuffled[(idx < 0 ? 0 : idx) % shuffled.length];
   const art = g.headerUrl || g.capsuleUrl || null;
-  return { name: g.name, artUrl: art, store: g.storeUrl || storeFromArtUrl(art) };
+  return { gameId: g.id, name: g.name, artUrl: art, store: g.storeUrl || storeFromArtUrl(art) };
 }
 
 // Resolve a day's game from the authoritative source for its kind.
