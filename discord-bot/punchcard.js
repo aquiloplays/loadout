@@ -82,6 +82,10 @@ const KEY = {
   sub: (ch, v) => `pc:sub:${ch}:${v}`,
   tts: (h) => `pc:tts:${h}`,
   ttsrl: (ip) => `pc:ttsrl:${ip}`,
+  first: (ch, day) => `pc:first:${ch}:${day}`,
+  stats: (ch) => `pc:stats:${ch}`,
+  lbs: (ch, season) => `pc:lbs:${ch}:${season}`,
+  scd: (ch, v) => `pc:scd:${ch}:${v}`,
 };
 
 const DEFAULT_CFG = {
@@ -96,9 +100,20 @@ const DEFAULT_CFG = {
   // Welcome a viewer's FIRST-ever check-in with the card editor link,
   // the moment they are most likely to go customize. Same opt-in rule.
   announceWelcome: false,
+  // Shout the day's FIRST check-in (the 👑 crown, driven by the streamer's
+  // "1st" reward) in chat.
+  announceFirst: false,
+  // A chat line on each regular check-in (the special ones above take
+  // precedence so a check-in never double-posts). Template vars:
+  // {name} {streak} {total} {best}.
+  checkinReply: false,
+  checkinReplyMsg: '',
+  // Extra words bleeped from TTS, on top of the built-in profanity/slur
+  // block. Comma or newline separated.
+  ttsCensor: '',
 };
 const FONTS = ['inter', 'bangers', 'pressstart', 'pacifico', 'oswald', 'caveat'];
-const BG_PRESETS = ['ember', 'tide', 'violet', 'meadow', 'sunset', 'mono', 'candy', 'midnight'];
+const BG_PRESETS = ['ember', 'tide', 'violet', 'meadow', 'sunset', 'mono', 'candy', 'midnight', 'aurora', 'lava', 'ocean', 'gold', 'rose'];
 const IMG_HOSTS = /^(media\d*\.giphy\.com|i\.giphy\.com|media\.tenor\.com|c\.tenor\.com|i\.imgur\.com)$/i;
 
 function siteOrigin(env) {
@@ -134,6 +149,10 @@ function cleanDisplay(s) {
 }
 function cleanMsg(s) {
   return String(s || '').replace(/[\x00-\x1f\x7f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+// {name}/{streak}/{total}/{best}-style template fill for chat lines.
+function fillTemplate(t, vars) {
+  return String(t || '').replace(/\{(\w+)\}/g, (m, k) => (vars[k] != null ? String(vars[k]) : m)).slice(0, 400);
 }
 function hexColor(s, fallback) {
   const v = String(s || '').trim();
@@ -188,10 +207,13 @@ export function sanitizeCard(raw, allowCustom) {
     const known = ['gifter', 'cheer', 'coins', 'biggift', 'likes'];
     out.badges = [...new Set(raw.badges.filter((b) => known.includes(b)))].slice(0, 3);
   }
-  out.nameFx = ['none', 'accent', 'gradient', 'rainbow'].includes(raw.nameFx) ? raw.nameFx : 'none';
-  out.texture = ['none', 'dots', 'scan', 'sparkle'].includes(raw.texture) ? raw.texture : 'none';
-  out.anim = ['slide', 'pop', 'flip', 'drop'].includes(raw.anim) ? raw.anim : 'slide';
-  out.avatarShape = ['circle', 'squircle', 'hex'].includes(raw.avatarShape) ? raw.avatarShape : 'circle';
+  out.nameFx = ['none', 'accent', 'gradient', 'rainbow', 'glow'].includes(raw.nameFx) ? raw.nameFx : 'none';
+  out.texture = ['none', 'dots', 'scan', 'sparkle', 'grid', 'noise'].includes(raw.texture) ? raw.texture : 'none';
+  out.anim = ['slide', 'pop', 'flip', 'drop', 'zoom'].includes(raw.anim) ? raw.anim : 'slide';
+  out.avatarShape = ['circle', 'squircle', 'hex', 'star'].includes(raw.avatarShape) ? raw.avatarShape : 'circle';
+  // Card frame/border style + a small corner sticker emoji.
+  out.frame = ['none', 'gold', 'neon', 'retro', 'holo'].includes(raw.frame) ? raw.frame : 'none';
+  out.sticker = String(raw.sticker || '').slice(0, 8);
   out.flame = String(raw.flame || '').slice(0, 4);
   // Holo is a PREFERENCE; the renderer only shows it once the viewer's
   // best streak has earned the gold ring, so saving it early is fine.
@@ -657,6 +679,17 @@ async function handleCheckin(env, body) {
   };
   await kvPut(env, KEY.user(ch, vk), stored);
 
+  // First of the day, via the streamer's "1st" reward (body.first): the
+  // first redeemer each day earns the 👑 crown; later "1st" redeemers
+  // still check in but don't get it.
+  let crown = false;
+  if (body.first && !next.dup) {
+    const fk = KEY.first(ch, today);
+    const had = await kvGet(env, fk);
+    if (!had) { await kvPut(env, fk, { v: vk, display, ts: now }, { expirationTtl: 172800 }); crown = true; }
+    else if (had.v === vk) crown = true;
+  }
+
   // Redemption lifecycle: fulfill the queue entry on success, refund
   // the points on a duplicate. Only fires for points-sourced check-ins
   // carrying a redemption id, and only on PunchCard's own reward.
@@ -669,16 +702,28 @@ async function handleCheckin(env, body) {
     }
   }
 
-  // Chat shouts as the broadcaster, when opted in: first-ever check-in
-  // gets the editor link (peak curiosity moment), milestones get hype.
+  // Chat shouts as the broadcaster, when opted in. At most one line per
+  // check-in: crown > first-ever welcome > milestone > generic reply.
   try {
-    if (!next.dup && next.t === 1 && cfg.announceWelcome) {
+    let posted = false;
+    if (crown && cfg.announceFirst) {
+      await sendChat(env, ch, chan,
+        `👑 ${display} is FIRST in today — day ${next.s} of the streak! aquilo.gg/punchcard/card/?ch=${ch}`);
+      posted = true;
+    } else if (!next.dup && next.t === 1 && cfg.announceWelcome) {
       await sendChat(env, ch, chan,
         `👊 Welcome to the punch club, ${display}! Make your check-in card yours: aquilo.gg/punchcard/card/?ch=${ch}`);
+      posted = true;
     } else if (next.milestone && cfg.announceMilestones) {
       const flair = next.milestone >= 100 ? ' 🏆' : '';
       await sendChat(env, ch, chan,
         `🔥 ${display} just hit a ${next.milestone} day check-in streak!${flair} Customize your card: aquilo.gg/punchcard/card/?ch=${ch}`);
+      posted = true;
+    }
+    if (!posted && !next.dup && cfg.checkinReply) {
+      await sendChat(env, ch, chan, fillTemplate(
+        cfg.checkinReplyMsg || '🔥 {name} checked in — day {streak}!',
+        { name: display, streak: next.s, total: next.t, best: next.b }));
     }
   } catch { /* best effort */ }
 
@@ -694,6 +739,28 @@ async function handleCheckin(env, body) {
     top.push({ v: vk, display, s: next.s, t: next.t });
     top.sort((a, b2) => (b2.s - a.s) || (b2.t - a.t));
     await kvPut(env, KEY.lb(ch), { updated: now, top: top.slice(0, LB_CAP) });
+  }
+
+  // Stats counters (streamer dashboard) + monthly season board (ranked by
+  // check-in count this month, fresh competition vs the all-time streaks).
+  if (!next.dup) {
+    const st = (await kvGet(env, KEY.stats(ch))) || { total: 0, unique: 0, days: {} };
+    st.total = (st.total || 0) + 1;
+    if (next.t === 1) st.unique = (st.unique || 0) + 1;   // first-ever = new puncher
+    st.days = st.days || {};
+    st.days[today] = (st.days[today] || 0) + 1;
+    const dk = Object.keys(st.days).sort();
+    while (dk.length > 45) delete st.days[dk.shift()];
+    await kvPut(env, KEY.stats(ch), st);
+
+    const season = today.slice(0, 7);   // YYYY-MM
+    const sb = (await kvGet(env, KEY.lbs(ch, season))) || { top: [] };
+    const stop = sb.top || [];
+    const mine = stop.find((e) => e && e.v === vk);
+    if (mine) { mine.c = (mine.c || 0) + 1; mine.display = display; }
+    else stop.push({ v: vk, display, c: 1 });
+    stop.sort((a, b2) => (b2.c - a.c));
+    await kvPut(env, KEY.lbs(ch, season), { updated: now, top: stop.slice(0, LB_CAP) }, { expirationTtl: 5616000 });
   }
 
   // Twitch-only enrichment: avatar, sub tier (card effects), and the
@@ -729,7 +796,7 @@ async function handleCheckin(env, body) {
     streak: next.s, total: next.t, best: next.b,
     dup: next.dup, milestone: next.milestone, ring: ringFor(next.b),
     freezeUsed: next.freezeUsed, freezes: next.f, refunded,
-    firstOfDay: changed,
+    firstOfDay: changed, crown,
     // First check-in EVER for this viewer on this channel. Driven by
     // the persisted total, so it fires exactly once in a lifetime
     // (a reset streak is 1 again, but the total never goes back).
@@ -890,6 +957,10 @@ async function handleCfg(env, body) {
   if (typeof cfg.refundDup === 'boolean') next.refundDup = cfg.refundDup;
   if (typeof cfg.announceMilestones === 'boolean') next.announceMilestones = cfg.announceMilestones;
   if (typeof cfg.announceWelcome === 'boolean') next.announceWelcome = cfg.announceWelcome;
+  if (typeof cfg.announceFirst === 'boolean') next.announceFirst = cfg.announceFirst;
+  if (typeof cfg.checkinReply === 'boolean') next.checkinReply = cfg.checkinReply;
+  if (typeof cfg.checkinReplyMsg === 'string') next.checkinReplyMsg = cfg.checkinReplyMsg.slice(0, 200);
+  if (typeof cfg.ttsCensor === 'string') next.ttsCensor = cfg.ttsCensor.slice(0, 2000);
   chan.cfg = next;
   if (body.reward && typeof body.reward === 'object') {
     chan.rewardId = String(body.reward.id || '').slice(0, 64);
@@ -1041,6 +1112,10 @@ async function handleMeta(env, url) {
       refundDup: cfg.refundDup !== false,
       announceMilestones: !!cfg.announceMilestones,
       announceWelcome: !!cfg.announceWelcome,
+      announceFirst: !!cfg.announceFirst,
+      checkinReply: !!cfg.checkinReply,
+      checkinReplyMsg: cfg.checkinReplyMsg || '',
+      ttsCensor: cfg.ttsCensor || '',
     } : null,
     giphy: !!env.GIPHY_API_KEY,
   });
@@ -1049,14 +1124,99 @@ async function handleMeta(env, url) {
 async function handleLeaderboard(env, url) {
   const ch = chanName(url.searchParams.get('ch'));
   if (!ch) return json({ ok: false, error: 'bad-channel' }, 400);
-  const lb = (await kvGet(env, KEY.lb(ch))) || { top: [] };
   const days = (await kvGet(env, KEY.days(ch))) || [];
+  // ?season=1 → this month's board, ranked by check-in count (fresh
+  // competition vs the all-time streak board).
+  if (url.searchParams.get('season')) {
+    const chan = await loadChan(env, ch);
+    const cfg = { ...DEFAULT_CFG, ...(chan && chan.cfg) };
+    const season = dayIdx(Date.now(), cfg.tz, cfg.rollover).slice(0, 7);
+    const sb = (await kvGet(env, KEY.lbs(ch, season))) || { top: [] };
+    return json({
+      ok: true, season,
+      top: (sb.top || []).map((e) => ({ login: e.v, display: e.display, count: e.c })),
+      activeDays: days.length, updated: sb.updated || 0,
+    });
+  }
+  const lb = (await kvGet(env, KEY.lb(ch))) || { top: [] };
   return json({
     ok: true,
     top: (lb.top || []).map((e) => ({ login: e.v, display: e.display, streak: e.s, total: e.t })),
-    activeDays: days.length,
-    updated: lb.updated || 0,
+    activeDays: days.length, updated: lb.updated || 0,
   });
+}
+
+// !streak chat command: the overlay detects the word + relays it here;
+// we look the viewer up and post their streak to chat as the broadcaster.
+// Per-viewer 30s cooldown so it can't be spammed.
+async function handleStreakLookup(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const vk = viewerKey(body.viewer, body.platform);
+  if (!vk) return json({ ok: false, error: 'bad-viewer' }, 400);
+  const cd = KEY.scd(ch, vk);
+  if (await kvGet(env, cd)) return json({ ok: true, cooled: true });
+  await kvPut(env, cd, 1, { expirationTtl: 30 });
+  const display = cleanDisplay(body.display) || vk;
+  const user = await kvGet(env, KEY.user(ch, vk));
+  if (!user || !user.t) {
+    await sendChat(env, ch, chan, `@${display} you haven't checked in yet — redeem "${chan.rewardTitle || 'Daily Check-In'}" to start a streak!`);
+    return json({ ok: true });
+  }
+  const lb = (await kvGet(env, KEY.lb(ch))) || { top: [] };
+  const rank = (lb.top || []).findIndex((e) => e && e.v === vk);
+  const rankStr = rank >= 0 ? ` · #${rank + 1} on the board` : '';
+  await sendChat(env, ch, chan, `🔥 @${display} — ${user.s} day streak (best ${user.b}, ${user.t} total)${rankStr}`);
+  return json({ ok: true });
+}
+
+// Streamer stats for the customizer dashboard.
+async function handleStats(env, url) {
+  const ch = chanName(url.searchParams.get('ch'));
+  const chan = await authedChan(env, ch, String(url.searchParams.get('k') || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const st = (await kvGet(env, KEY.stats(ch))) || { total: 0, unique: 0, days: {} };
+  const lb = (await kvGet(env, KEY.lb(ch))) || { top: [] };
+  const daysList = (await kvGet(env, KEY.days(ch))) || [];
+  const cfg = { ...DEFAULT_CFG, ...chan.cfg };
+  const today = dayIdx(Date.now(), cfg.tz, cfg.rollover);
+  const dmap = st.days || {};
+  const series = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(Date.parse(today + 'T00:00:00Z') - i * 86400000).toISOString().slice(0, 10);
+    series.push({ day: d, count: dmap[d] || 0 });
+  }
+  return json({
+    ok: true,
+    totalCheckins: st.total || 0,
+    uniqueViewers: st.unique || 0,
+    activeDays: daysList.length,
+    today: dmap[today] || 0,
+    series,
+    topStreaks: (lb.top || []).slice(0, 10).map((e) => ({ display: e.display, streak: e.s, total: e.t })),
+  });
+}
+
+// Post a one-line weekly recap to chat (customizer button or, later, a cron).
+async function handleRecap(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  const st = (await kvGet(env, KEY.stats(ch))) || { total: 0, unique: 0, days: {} };
+  const cfg = { ...DEFAULT_CFG, ...chan.cfg };
+  const today = dayIdx(Date.now(), cfg.tz, cfg.rollover);
+  const dmap = st.days || {};
+  let week = 0;
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(Date.parse(today + 'T00:00:00Z') - i * 86400000).toISOString().slice(0, 10);
+    week += dmap[d] || 0;
+  }
+  const lb = (await kvGet(env, KEY.lb(ch))) || { top: [] };
+  const leader = (lb.top || [])[0];
+  const leadStr = leader ? ` Top streak: ${leader.display} (${leader.s} days).` : '';
+  const ok = await sendChat(env, ch, chan, `📊 PunchCard this week: ${week} check-ins from ${st.unique || 0} total punchers.${leadStr} Keep the streaks alive — aquilo.gg/punchcard/card/?ch=${ch}`);
+  return json({ ok });
 }
 
 async function handleGif(env, url) {
@@ -1092,10 +1252,39 @@ async function handleGif(env, url) {
 // uses ONE voice by design (the streamer's call): TTS Monster's "Brian
 // Robot", the only Brian on the roster. The card's tts.voice is ignored;
 // to restore per-viewer voices, map it back to voice ids here.
+// Words bleeped from TTS before generation. The on-card message is
+// already profanity-masked, but TTS is spoken ALOUD, so this is a hard
+// server-side gate (can't be bypassed) that also covers slurs. Streamers
+// add their own via cfg.ttsCensor. Whole-word, case-insensitive, optional
+// trailing 's'; matches are dropped from the spoken line.
+const TTS_BLOCK_DEFAULT = [
+  'fuck', 'shit', 'bitch', 'cunt', 'asshole', 'dick', 'piss', 'bastard',
+  'slut', 'whore', 'cock', 'pussy', 'tits', 'wanker', 'bollocks', 'twat',
+  'nigger', 'nigga', 'faggot', 'fag', 'retard', 'tranny', 'spic', 'chink',
+  'kike', 'dyke', 'coon', 'wetback', 'gook', 'beaner',
+];
+function censorForTts(text, extra) {
+  const list = TTS_BLOCK_DEFAULT.concat(
+    String(extra || '').split(/[\n,]/).map((s) => s.trim().toLowerCase()).filter(Boolean));
+  let s = String(text || '');
+  for (const w of list) {
+    if (!w) continue;
+    const esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    s = s.replace(new RegExp('\\b' + esc + 's?\\b', 'gi'), ' ');
+  }
+  return s.replace(/\s+/g, ' ').trim();
+}
 const TTS_VOICE = '0993f688-6719-4cf6-9769-fee7b77b1df5'; // Brian Robot
 async function handlePunchcardTts(req, env, url) {
   if (!env.TTS_MONSTER_KEY) return json({ ok: false, error: 'no-tts' }, 501);
-  const text = cleanMsg(url.searchParams.get('text') || '');
+  let text = cleanMsg(url.searchParams.get('text') || '');
+  if (!text) return json({ ok: false, error: 'empty' }, 400);
+  // Server-side censor: built-in profanity + slurs, plus the channel's
+  // extra words — applied here so it can't be bypassed client-side.
+  const censCh = chanName(url.searchParams.get('ch'));
+  let extraCensor = '';
+  if (censCh) { const c = await loadChan(env, censCh); if (c && c.cfg && c.cfg.ttsCensor) extraCensor = c.cfg.ttsCensor; }
+  text = censorForTts(text, extraCensor);
   if (!text) return json({ ok: false, error: 'empty' }, 400);
   const voiceId = TTS_VOICE;
 
@@ -1179,6 +1368,7 @@ async function dispatch(req, env, path) {
     if (route === 'linkcode') return handleLinkCode(req, env, url);
     if (route === 'gif') return handleGif(env, url);
     if (route === 'tts') return handlePunchcardTts(req, env, url);
+    if (route === 'stats') return handleStats(env, url);
     if (route === 'leaderboard') return handleLeaderboard(env, url);
     return json({ ok: false, error: 'not-found' }, 404);
   }
@@ -1200,5 +1390,7 @@ async function dispatch(req, env, path) {
   if (route === 'cfg') return handleCfg(env, body);
   if (route === 'mod') return handleMod(env, body);
   if (route === 'card') return handleCardSave(req, env, body);
+  if (route === 'streaklookup') return handleStreakLookup(env, body);
+  if (route === 'recap') return handleRecap(env, body);
   return json({ ok: false, error: 'not-found' }, 404);
 }
