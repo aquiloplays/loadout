@@ -244,7 +244,7 @@ export function sanitizeCard(raw, allowCustom) {
   // line is length-capped here and re-sanitized (links + profanity) at
   // speak time by the overlay, exactly like the on-card message.
   if (raw.tts && typeof raw.tts === 'object' && raw.tts.on) {
-    const ttsVoices = ['default', 'deep', 'bright', 'announcer', 'robot', 'chipmunk'];
+    const ttsVoices = ['default', 'deep', 'bright', 'announcer', 'robot', 'chipmunk', 'gravel', 'whisper', 'chef', 'kraken'];
     out.tts = {
       on: true,
       voice: ttsVoices.includes(raw.tts.voice) ? raw.tts.voice : 'default',
@@ -753,11 +753,13 @@ async function handleCheckin(env, body) {
   await kvPut(env, KEY.recent(ch), recent.slice(0, RECENT_CAP));
 
   // Leaderboard upsert (current streak, total tiebreak).
+  let lbRank = 0;
   if (!next.dup) {
     const lb = (await kvGet(env, KEY.lb(ch))) || { top: [] };
     const top = (lb.top || []).filter((e) => e && e.v !== vk);
     top.push({ v: vk, display, s: next.s, t: next.t });
     top.sort((a, b2) => (b2.s - a.s) || (b2.t - a.t));
+    lbRank = top.findIndex((e) => e.v === vk) + 1;   // 1-based; 0 = unranked
     await kvPut(env, KEY.lb(ch), { updated: now, top: top.slice(0, LB_CAP) });
   }
 
@@ -781,6 +783,13 @@ async function handleCheckin(env, body) {
     else stop.push({ v: vk, display, c: 1 });
     stop.sort((a, b2) => (b2.c - a.c));
     await kvPut(env, KEY.lbs(ch, season), { updated: now, top: stop.slice(0, LB_CAP) }, { expirationTtl: 5616000 });
+  }
+
+  // Discord: post the big moments to the streamer's configured webhook.
+  if (!next.dup && cfg.discordWebhook && (next.milestone || next.t === 1)) {
+    await postDiscord(cfg.discordWebhook, next.milestone
+      ? `🔥 **${cleanDisplay(display)}** hit a **${next.milestone}-day** check-in streak!`
+      : `👋 **${cleanDisplay(display)}** checked in for the first time!`);
   }
 
   // Twitch-only enrichment: avatar, sub tier (card effects), and the
@@ -816,7 +825,7 @@ async function handleCheckin(env, body) {
     streak: next.s, total: next.t, best: next.b,
     dup: next.dup, milestone: next.milestone, ring: ringFor(next.b),
     freezeUsed: next.freezeUsed, freezes: next.f, refunded,
-    firstOfDay: changed, crown,
+    firstOfDay: changed, crown, rank: lbRank,
     // First check-in EVER for this viewer on this channel. Driven by
     // the persisted total, so it fires exactly once in a lifetime
     // (a reset streak is 1 again, but the total never goes back).
@@ -984,6 +993,7 @@ async function handleCfg(env, body) {
   if (typeof cfg.viewerSoundSearch === 'boolean') next.viewerSoundSearch = cfg.viewerSoundSearch;
   if (typeof cfg.maxSoundSec === 'number') next.maxSoundSec = Math.max(0, Math.min(30, Math.round(cfg.maxSoundSec)));
   if (typeof cfg.defaultSound === 'string' && /^(c:[a-f0-9]{8,16}|[a-z]{2,12})$/.test(cfg.defaultSound)) next.defaultSound = cfg.defaultSound;
+  if (typeof cfg.discordWebhook === 'string') next.discordWebhook = (cfg.discordWebhook === '' || validDiscordWebhook(cfg.discordWebhook)) ? cfg.discordWebhook : (next.discordWebhook || '');
   chan.cfg = next;
   if (body.reward && typeof body.reward === 'object') {
     chan.rewardId = String(body.reward.id || '').slice(0, 64);
@@ -1142,6 +1152,7 @@ async function handleMeta(env, url) {
       viewerSoundSearch: !!cfg.viewerSoundSearch,
       maxSoundSec: Number(cfg.maxSoundSec) || 0,
       defaultSound: cfg.defaultSound || 'chime',
+      hasDiscord: !!cfg.discordWebhook,
     } : null,
     giphy: !!env.GIPHY_API_KEY,
     freesound: !!env.FREESOUND_API_KEY,
@@ -1302,7 +1313,21 @@ function censorForTts(text, extra) {
   }
   return s.replace(/\s+/g, ' ').trim();
 }
-const TTS_VOICE = '0993f688-6719-4cf6-9769-fee7b77b1df5'; // Brian Robot
+const TTS_VOICE = '0993f688-6719-4cf6-9769-fee7b77b1df5'; // Brian Robot (default)
+// Sub-pickable TTS Monster voices (free tier). Keys match pc-tts.js STYLES
+// + sanitizeCard's ttsVoices whitelist — change all three together.
+const TTS_VOICES = {
+  default: '0993f688-6719-4cf6-9769-fee7b77b1df5',   // Brian Robot
+  deep: '87537bb9-71e1-481a-87fc-5ffc805a152b',       // Titan
+  bright: '80c6bb8b-c573-44c3-9843-0f2ed9a75afe',     // Stella
+  announcer: 'e237c3fc-0f56-4fbc-9333-a891c1e55abc',  // Herald
+  robot: 'e8a18685-00fd-4798-aa3d-50424f8de7e6',      // Circuit
+  chipmunk: '604168da-f156-450b-8794-e89175abdcd4',   // Kawaii
+  gravel: '8312e7dd-cb15-4d9f-9d51-035209413b7a',     // Gravel
+  whisper: 'a33aa2c5-47f9-4882-a192-d7aa6a0c0efd',    // Whisper
+  chef: '01f69a26-0759-44e4-b317-cdbcb26b26c0',       // Chef
+  kraken: '7cbd44df-08ac-4234-bc95-836e0ae6b22c',     // Tentacle
+};
 async function handlePunchcardTts(req, env, url) {
   if (!env.TTS_MONSTER_KEY) return json({ ok: false, error: 'no-tts' }, 501);
   let text = cleanMsg(url.searchParams.get('text') || '');
@@ -1314,7 +1339,7 @@ async function handlePunchcardTts(req, env, url) {
   if (censCh) { const c = await loadChan(env, censCh); if (c && c.cfg && c.cfg.ttsCensor) extraCensor = c.cfg.ttsCensor; }
   text = censorForTts(text, extraCensor);
   if (!text) return json({ ok: false, error: 'empty' }, 400);
-  const voiceId = TTS_VOICE;
+  const voiceId = TTS_VOICES[url.searchParams.get('voice')] || TTS_VOICE;
 
   // Cache the rendered audio BYTES by text, so identical lines never
   // re-bill AND the media element's multiple range requests all serve
@@ -1546,6 +1571,35 @@ async function handleSoundAdoptUrl(env, body) {
   return json({ ok: true, sound: { id: res.id, name: res.name }, sounds: chan.sounds });
 }
 
+// ── Discord webhook (milestone posts + leaderboard share) ─────────────
+function validDiscordWebhook(u) {
+  return /^https:\/\/(discord|discordapp)\.com\/api\/webhooks\/\d+\/[\w-]+$/.test(String(u || ''));
+}
+async function postDiscord(url, content) {
+  if (!validDiscordWebhook(url)) return false;
+  try {
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: String(content).slice(0, 1900), allowed_mentions: { parse: [] } }),
+    });
+    return r.ok;
+  } catch { return false; }
+}
+async function handleDiscordBoard(env, body) {
+  const ch = chanName(body.ch);
+  const chan = await authedChan(env, ch, String(body.k || ''));
+  if (!chan) return json({ ok: false, error: 'unauthorized' }, 403);
+  if (!chan.cfg || !chan.cfg.discordWebhook) return json({ ok: false, error: 'no-webhook' }, 400);
+  const lb = (await kvGet(env, KEY.lb(ch))) || { top: [] };
+  const top = (lb.top || []).slice(0, 10);
+  if (!top.length) return json({ ok: false, error: 'empty' }, 400);
+  const medal = ['🥇', '🥈', '🥉'];
+  const lines = top.map((e, i) => `${medal[i] || (i + 1) + '.'} **${cleanDisplay(e.display || e.v)}** — ${e.s}-day streak`);
+  const ok = await postDiscord(chan.cfg.discordWebhook, `**🏆 ${cleanDisplay(chan.display || ch)} check-in leaderboard**\n` + lines.join('\n'));
+  return json({ ok });
+}
+
 // ── dispatcher ────────────────────────────────────────────────────────
 export async function handlePunchcard(req, env, path) {
   try {
@@ -1602,5 +1656,6 @@ async function dispatch(req, env, path) {
   if (route === 'sound-adopt') return handleSoundAdopt(env, body);
   if (route === 'sound-url') return handleSoundAdoptUrl(env, body);
   if (route === 'sound-remove') return handleSoundRemove(env, body);
+  if (route === 'discord-board') return handleDiscordBoard(env, body);
   return json({ ok: false, error: 'not-found' }, 404);
 }
