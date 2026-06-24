@@ -3700,10 +3700,15 @@ async function handleOneShotRefreshSchedule(req, env, path) {
   if (!got || got !== expected) return new Response('bad token', { status: 401 });
   // Burn the token before side-effects so a partial failure can't be retried.
   await env.LOADOUT_BOLTS.delete('refresh-schedule-token');
+  // ?fresh=1 wipes old/duplicate schedule embeds + reposts one clean pinned
+  // copy; otherwise edit the existing pinned message in place.
+  const fresh = u.searchParams.get('fresh') === '1';
   try {
-    const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
-    const messageId = await postOrRefreshSchedule(env, guildId);
-    return new Response(JSON.stringify({ ok: true, messageId }),
+    const mod = await import('./aquilo/aq-schedule.js');
+    const messageId = fresh
+      ? await mod.freshRepostSchedule(env, guildId)
+      : await mod.postOrRefreshSchedule(env, guildId);
+    return new Response(JSON.stringify({ ok: true, messageId, fresh }),
       { status: 200, headers: { 'content-type': 'application/json' } });
   } catch (e) {
     return new Response(JSON.stringify({ ok: false, error: String(e?.message || e) }),

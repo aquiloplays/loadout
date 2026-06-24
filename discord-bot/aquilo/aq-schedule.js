@@ -284,6 +284,40 @@ export async function postOrRefreshSchedule(env, guildId) {
   return msg.id;
 }
 
+// Wipe EVERY bot-authored schedule embed in the bound channel (old +
+// current + any duplicates), drop the stale CN-winner cache, then post ONE
+// fresh, pinned schedule. Use when the schedule channel changes or an old
+// schedule post needs clearing out. After this, the hourly cron +
+// postOrRefreshSchedule keep it edited-in-place on every change.
+export async function freshRepostSchedule(env, guildId) {
+  const b = await bindings(env, guildId);
+  const channelId = b.schedule;
+  if (!channelId) { console.warn('[aq-schedule] freshRepost: no schedule channel bound'); return null; }
+
+  const isScheduleEmbed = (m) =>
+    Array.isArray(m?.embeds) &&
+    m.embeds.some((e) => typeof e?.title === 'string' && /Weekly Stream Schedule/i.test(e.title));
+  try {
+    const msgs = await discordFetch(env, '/channels/' + encodeURIComponent(channelId) + '/messages?limit=50');
+    for (const m of (Array.isArray(msgs) ? msgs : [])) {
+      if (m?.author?.bot && isScheduleEmbed(m)) {
+        try {
+          await discordFetch(env,
+            '/channels/' + encodeURIComponent(channelId) + '/messages/' + encodeURIComponent(m.id),
+            { method: 'DELETE' });
+        } catch (e) { console.warn('[aq-schedule] freshRepost delete', e?.message || e); }
+      }
+    }
+  } catch (e) { console.warn('[aq-schedule] freshRepost list', e?.message || e); }
+
+  const sched = await loadSchedule(env, guildId);
+  sched.channel_id = channelId;
+  sched.message_id = null;   // force a fresh post (the old ones are gone)
+  sched.cn_winners = {};     // drop leftover winners from the retired vote model
+  await saveSchedule(env, guildId, sched);
+  return await postOrRefreshSchedule(env, guildId);
+}
+
 // Called from poll.js when a CN poll closes.
 export async function updateScheduleForWinner(env, guildId, dayOfWeek, winnerName, winnerArtUrl) {
   const sched = await loadSchedule(env, guildId);

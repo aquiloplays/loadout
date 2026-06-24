@@ -43,6 +43,8 @@ const DEFAULT_CONFIG = {
   voteHourEt: 18,
   resolveHourEt: 22,
   maxBallot: 8,
+  channelId: null,   // override: post the vote here instead of the bound poll/vote channel
+  pingRoleId: null,  // optional: role to @mention when nominations open
 };
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -156,19 +158,20 @@ async function openNominations(env, guildId, iso, dow, cfg) {
   const { weeklyCommunityPick } = await import('./aquilo/aq-schedule.js');
   const auto = await weeklyCommunityPick(env, guildId, dow);
   const pool = await readPool(env, guildId);
-  const channelId = await resolveChannel(env, guildId);
+  const channelId = cfg.channelId || await resolveChannel(env, guildId);
   if (!auto || pool.length === 0 || !channelId) {
     await setState(env, guildId, iso, { phase: 'skipped', dow, reason: 'no-auto-or-channel' });
     return;
   }
 
+  const ping = cfg.pingRoleId ? `<@&${cfg.pingRoleId}> ` : '';
   const options = pool.slice(0, 25).map((g) => ({ label: g.name.slice(0, 100), value: g.id }));
   const payload = {
     content:
-      `🎲 **Community Night** — tonight's random pick is **${auto.name}**.\n` +
+      `${ping}🎲 **Community Night** — tonight's random pick is **${auto.name}**.\n` +
       `Want something else? Nominate up to **3** games below. The top picks go to a vote at ` +
       `${fmtHour(cfg.voteHourEt)}, and if one wins (≥ ${cfg.minVotes} votes) it replaces tonight's game.`,
-    allowed_mentions: { parse: [] },
+    allowed_mentions: cfg.pingRoleId ? { parse: [], roles: [String(cfg.pingRoleId)] } : { parse: [] },
     components: [{
       type: 1,
       components: [{
