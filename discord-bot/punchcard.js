@@ -98,6 +98,14 @@ const DEFAULT_CFG = {
   // the sound that plays when a viewer hasn't picked their own.
   maxSoundSec: 0,
   defaultSound: 'chime',
+  // Pool of default sounds; the overlay plays a random one per check-in for
+  // un-customized viewers (falls back to defaultSound, then chime).
+  defaultSounds: [],
+  // Card-render perks the overlay pulls live (and the editor reads to show
+  // frame locks): bigger sub cards, streak-gated frames, top-3 rank flair.
+  subBiggerCards: false,
+  streakUnlocks: false,
+  rankFlair: false,
   // Redemption lifecycle (only effective for the reward PunchCard
   // created, Twitch forbids touching others): fulfill on success,
   // cancel (= refund the points) on duplicate same-day redeems.
@@ -993,7 +1001,16 @@ async function handleCfg(env, body) {
   if (typeof cfg.viewerSoundSearch === 'boolean') next.viewerSoundSearch = cfg.viewerSoundSearch;
   if (typeof cfg.maxSoundSec === 'number') next.maxSoundSec = Math.max(0, Math.min(30, Math.round(cfg.maxSoundSec)));
   if (typeof cfg.defaultSound === 'string' && /^(c:[a-f0-9]{8,16}|[a-z]{2,12})$/.test(cfg.defaultSound)) next.defaultSound = cfg.defaultSound;
+  if (Array.isArray(cfg.defaultSounds)) {
+    next.defaultSounds = cfg.defaultSounds
+      .filter((v) => typeof v === 'string' && /^(c:[a-f0-9]{8,16}|[a-z]{2,12})$/.test(v))
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .slice(0, 12);
+  }
   if (typeof cfg.discordWebhook === 'string') next.discordWebhook = (cfg.discordWebhook === '' || validDiscordWebhook(cfg.discordWebhook)) ? cfg.discordWebhook : (next.discordWebhook || '');
+  if (typeof cfg.subBiggerCards === 'boolean') next.subBiggerCards = cfg.subBiggerCards;
+  if (typeof cfg.streakUnlocks === 'boolean') next.streakUnlocks = cfg.streakUnlocks;
+  if (typeof cfg.rankFlair === 'boolean') next.rankFlair = cfg.rankFlair;
   chan.cfg = next;
   if (body.reward && typeof body.reward === 'object') {
     chan.rewardId = String(body.reward.id || '').slice(0, 64);
@@ -1152,7 +1169,11 @@ async function handleMeta(env, url) {
       viewerSoundSearch: !!cfg.viewerSoundSearch,
       maxSoundSec: Number(cfg.maxSoundSec) || 0,
       defaultSound: cfg.defaultSound || 'chime',
+      defaultSounds: Array.isArray(cfg.defaultSounds) ? cfg.defaultSounds : [],
       hasDiscord: !!cfg.discordWebhook,
+      subBiggerCards: !!cfg.subBiggerCards,
+      streakUnlocks: !!cfg.streakUnlocks,
+      rankFlair: !!cfg.rankFlair,
     } : null,
     giphy: !!env.GIPHY_API_KEY,
     freesound: !!env.FREESOUND_API_KEY,
