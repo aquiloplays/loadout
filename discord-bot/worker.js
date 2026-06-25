@@ -3799,8 +3799,23 @@ async function handlePrinterBotSetup(req, env, path) {
   const guildId = parts[3];
   if (!guildId) return jsonResp({ ok: false, error: 'guildId required' }, 400);
   const body = await req.text();
+  // Auth: site HMAC, OR a one-shot operator-armed KV token (printerbot-
+  // setup-token) so setup can run from the CLI without the site secret.
+  // The token self-burns on use; same trust model as refresh-schedule-token.
+  let via = '';
   const auth = await verifyAdminAuth(req, env, guildId, body);
-  if (!auth.ok) return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+  if (auth.ok) {
+    via = auth.via;
+  } else {
+    const tok = new URL(req.url).searchParams.get('token') || '';
+    const expected = await env.LOADOUT_BOLTS.get('printerbot-setup-token');
+    if (expected && tok && tok === expected) {
+      await env.LOADOUT_BOLTS.delete('printerbot-setup-token');
+      via = 'one-shot-token';
+    } else {
+      return jsonResp({ ok: false, error: 'unauthorized' }, 401);
+    }
+  }
 
   let opts = {};
   if (body) {
@@ -3818,9 +3833,9 @@ async function handlePrinterBotSetup(req, env, path) {
       r.error === 'webhooks-list-failed' || r.error === 'create-failed'
         ? (Number(r.status) || 502)
         : 400;
-    return jsonResp({ ...r, via: auth.via }, status);
+    return jsonResp({ ...r, via }, status);
   }
-  return jsonResp({ ...r, via: auth.via }, 200);
+  return jsonResp({ ...r, via }, 200);
 }
 
 // ── /admin/printerbot/webhook-url/:guildId (HMAC, read) ───────────
