@@ -41,7 +41,10 @@ import diag
 import obs_ws
 import presets
 import session_watchdog
+import settings as user_settings
+import token_health
 import token_retriever as tok
+import webhook
 from logsetup import log, tail
 from streamlabs_api import StreamlabsTikTok, StreamlabsError
 from _version import __version__
@@ -110,6 +113,14 @@ class Controller:
         self._watchdog = session_watchdog.SessionWatchdog(
             controller=self, notify=lambda t, b: self._notify(t, b),
         )
+        # Stream stats accumulated during a Go Live so we can include them
+        # in the end-of-stream Discord post (and other consumers later).
+        self._stream_stats = {"startedAt": 0, "peakViewers": 0, "recoveryCount": 0, "title": ""}
+        # Token-health background watcher (probes Streamlabs token every 12h
+        # and tray-balloons on first failure so the user re-auths BEFORE Go
+        # Live time, not during).
+        self._token_health = token_health.Watcher(notify=lambda t, b: self._notify(t, b))
+        self._token_health.start()
 
     # -- auth (never blocks a request) ------------------------------------
     def _client(self):
@@ -245,6 +256,32 @@ class Controller:
             self._watchdog.start()
         except Exception as e:  # noqa: BLE001
             log(f"watchdog start failed: {str(e)[:120]}", "warning")
+        # Track stats for the end-of-stream webhook and reset on a fresh
+        # Go Live (a recover_session keeps the existing startedAt so the
+        # duration includes the gap; only a brand-new start() resets it).
+        if _record_preset:
+            with self._lock:
+                self._stream_stats = {
+                    "startedAt": self._clock(),
+                    "peakViewers": 0,
+                    "recoveryCount": 0,
+                    "title": self.details.get("title", ""),
+                }
+        else:
+            with self._lock:
+                self._stream_stats["recoveryCount"] = self._stream_stats.get("recoveryCount", 0) + 1
+        # Fire the Discord webhook (best-effort; failure does not fail Go Live).
+        if _record_preset:
+            try:
+                webhook.send_start(
+                    user_settings.load(),
+                    title=self.details.get("title", ""),
+                    category_name=self._category_display_name(),
+                    mature=self.details.get("matureContent", False),
+                    started_at_ms=self._stream_stats["startedAt"],
+                )
+            except Exception as e:  # noqa: BLE001
+                log(f"webhook start failed: {str(e)[:120]}", "warning")
         return {"ok": True, **out}
 
     def _category_display_name(self):
@@ -315,13 +352,35 @@ class Controller:
         if api is None:
             with self._lock:
                 self.live = False
+            self._send_end_webhook()
             return True
         ok = api.end()                      # 15s timeout, not under lock
         if ok:
             with self._lock:
                 self.live = False
                 self.creds = None
+        self._send_end_webhook()
         return ok
+
+    def _send_end_webhook(self):
+        """Fire the Discord end-of-stream embed with duration + peak +
+        recovery count. Best-effort; logged but never raised."""
+        with self._lock:
+            stats = dict(self._stream_stats)
+            self._stream_stats = {"startedAt": 0, "peakViewers": 0, "recoveryCount": 0, "title": ""}
+        duration_s = 0
+        if stats.get("startedAt"):
+            duration_s = max(0, int((self._clock() - stats["startedAt"]) / 1000))
+        try:
+            webhook.send_end(
+                user_settings.load(),
+                title=stats.get("title", ""),
+                duration_s=duration_s,
+                peak_viewers=stats.get("peakViewers", 0),
+                recovery_count=stats.get("recoveryCount", 0),
+            )
+        except Exception as e:  # noqa: BLE001
+            log(f"webhook end failed: {str(e)[:120]}", "warning")
 
     def _discover_aitum_output(self):
         """Ask Aitum for its outputs and pick the TikTok-shaped one. Result
@@ -503,6 +562,18 @@ class Controller:
             if not ok: out["ok"] = False
             return ok
 
+        # Token health: cheap read of last probe state (background watcher
+        # actively re-probes every 12h). A failing probe means the user has
+        # to re-auth via the tray before Go Live will work.
+        th = token_health.status()
+        token_ok = th.get("ok")
+        if token_ok is None:
+            add("Streamlabs token", True, None, {"note": "not probed yet"})
+        else:
+            add("Streamlabs token", bool(token_ok),
+                None if token_ok else (th.get("reason") or "token rejected"),
+                {"lastProbe": th.get("at"), "consecutiveFailures": th.get("consecutiveFailures")})
+
         configs = aitum_writer.find_configs()
         add("aitum.json found", bool(configs), None if configs else "no aitum.json under obs-studio profiles", {"paths": configs})
 
@@ -562,6 +633,11 @@ class Controller:
                 title = src.get("title") or title
             except Exception:
                 pass
+        # Track peak viewers across the session for the end-of-stream webhook.
+        if live and viewers:
+            with self._lock:
+                if viewers > self._stream_stats.get("peakViewers", 0):
+                    self._stream_stats["peakViewers"] = viewers
         return {"live": live, "viewers": viewers, "title": title,
                 "category": category, "matureContent": mature, "authed": self.authed()}
 
@@ -718,6 +794,23 @@ def create_app(controller, clock):
         except Exception as e:  # noqa: BLE001
             log(f"presets/go: unexpected error: {str(e)[:160]}", "error")
             return jsonify({"ok": False, "error": "go_failed", "message": str(e)[:160]}), 502
+
+    @app.route("/settings", methods=["GET", "POST", "OPTIONS"])
+    def settings_handler():
+        if request.method == "OPTIONS": return opt()
+        if request.method == "POST":
+            return jsonify(user_settings.update(request.get_json(silent=True) or {}))
+        return jsonify({"ok": True, "settings": user_settings.load()})
+
+    @app.route("/webhook/test", methods=["POST", "OPTIONS"])
+    def webhook_test():
+        if request.method == "OPTIONS": return opt()
+        return jsonify(webhook.send_test(user_settings.load()))
+
+    @app.route("/token/probe", methods=["POST", "OPTIONS"])
+    def token_probe_handler():
+        if request.method == "OPTIONS": return opt()
+        return jsonify(token_health.probe(clock))
 
     @app.route("/tiktok/access-status", methods=["GET", "OPTIONS"])
     def access_status():
