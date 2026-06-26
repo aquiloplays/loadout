@@ -207,13 +207,106 @@ def ensure_reload_helper_profile():
     return _safe_session(run)
 
 
+def push_creds_and_reload(stream_server, stream_key, configs=None):
+    """The ONLY way to reliably get a fresh stream_key into Aitum.
+
+    The naive sequence (write file -> bounce profiles) loses the write,
+    because Aitum's on-switch-away handler dumps its in-memory cache (the
+    STALE creds) back to disk, overwriting whatever we just wrote.
+    Empirically verified: stream_key file edit survived the bounce when
+    written AFTER the switch-away, but was overwritten when written before.
+
+    Correct order:
+      1. SetCurrentProfile -> helper. Aitum dumps its cached creds to the
+         user-profile aitum.json (overwriting any pre-write we'd done,
+         which is why writing first is futile). 0.7s settle.
+      2. update_tiktok(stream_server, stream_key) writes the fresh creds.
+         Aitum is on the helper profile now; it isn't watching user's file
+         and can't undo our edit. ~0.3s settle.
+      3. SetCurrentProfile -> back to user. Aitum loads user/aitum.json
+         from disk, picks up our fresh creds, caches them. 0.7s settle.
+
+    Returns {ok, writeOk, verified, files, outputs, reason, elapsedMs,
+    method, currentProfile} -- everything Controller needs for /aitum/status.
+    """
+    # Lazy import keeps obs_ws importable in CI without aitum_writer's deps.
+    import aitum_writer
+
+    def run(s):
+        t0 = time.time()
+        pl = s.request("GetProfileList")
+        if not pl.get("ok"):
+            return {"ok": False, "reason": "GetProfileList failed: " + str(pl.get("reason"))}
+        data = pl["data"]
+        current = data.get("currentProfileName")
+        all_profiles = data.get("profiles", []) or []
+
+        if current == RELOAD_PROFILE_NAME:
+            recover_to = next((p for p in all_profiles if p != current), None)
+            if not recover_to:
+                return {"ok": False, "reason": f"only profile is the helper '{current}'; can't recover"}
+            s.request("SetCurrentProfile", {"profileName": recover_to}, timeout=8)
+            time.sleep(0.7)
+            current = recover_to
+
+        if RELOAD_PROFILE_NAME in all_profiles and current != RELOAD_PROFILE_NAME:
+            other = RELOAD_PROFILE_NAME
+            method = "persistent-helper"
+        else:
+            other = next((p for p in all_profiles if p != current and p != RELOAD_PROFILE_NAME), None)
+            if other:
+                method = "existing-profile"
+            else:
+                cr = s.request("CreateProfile", {"profileName": RELOAD_PROFILE_NAME}, timeout=8)
+                if not cr.get("ok"):
+                    return {"ok": False, "reason": "CreateProfile failed: " + str(cr.get("reason"))}
+                time.sleep(0.7)
+                other = RELOAD_PROFILE_NAME
+                method = "created-helper"
+
+        # 1. Switch away. Aitum dumps its stale cache to user/aitum.json.
+        sw1 = s.request("SetCurrentProfile", {"profileName": other}, timeout=8)
+        if not sw1.get("ok"):
+            return {"ok": False, "reason": f"SetCurrentProfile({other}) failed: " + str(sw1.get("reason"))}
+        time.sleep(0.7)
+
+        # 2. NOW write the fresh creds. Aitum can't undo this -- it's on the helper.
+        try:
+            w = aitum_writer.update_tiktok(stream_server, stream_key, configs)
+        except Exception as e:  # noqa: BLE001
+            # Try to put the user back on their profile anyway.
+            s.request("SetCurrentProfile", {"profileName": current}, timeout=8)
+            return {"ok": False, "reason": f"file write error: {str(e)[:120]}"}
+        time.sleep(0.3)
+
+        # 3. Switch back. Aitum loads user/aitum.json -> picks up our creds.
+        sw2 = s.request("SetCurrentProfile", {"profileName": current}, timeout=8)
+        if not sw2.get("ok"):
+            return {"ok": False, "reason": f"SetCurrentProfile(back to {current}) failed; OBS may be on '{other}'", "writeOk": w.get("ok"), "verified": w.get("verified")}
+        time.sleep(0.7)
+
+        return {
+            "ok": bool(w.get("ok") and w.get("verified")),
+            "writeOk": bool(w.get("ok")),
+            "verified": bool(w.get("verified")),
+            "files": len(w.get("files", [])),
+            "outputs": w.get("outputs", 0),
+            "method": method,
+            "currentProfile": current,
+            "elapsedMs": int((time.time() - t0) * 1000),
+            "reason": (w.get("errors") or [None])[0] if not w.get("ok") else None,
+        }
+
+    return _safe_session(run)
+
+
 def force_aitum_reload(session=None):
-    """Force Aitum to re-read aitum.json from disk. Aitum has no in-API
-    reload primitive; empirically the ONLY trigger that works is an OBS
-    profile change (stop_output + start_output, start_all_streams cycles,
-    and start_output with stream_server/stream_key overrides ALL silently
-    use cached creds). So we bounce profiles: switch to a helper, sleep
-    long enough that OBS does not coalesce the two calls, switch back.
+    """Force Aitum to re-read aitum.json from disk WITHOUT writing creds.
+
+    Use this for the manual-refresh path (tray menu or /aitum/refresh)
+    when the user's file is already correct and we just need Aitum to
+    notice. For the credential-push path, use push_creds_and_reload
+    which writes the file mid-bounce so Aitum's save can't overwrite it.
 
     Sleep timing is calibrated: shorter than ~0.5s and OBS coalesces the
     two SetCurrentProfile calls into a no-op. With 0.6s sleeps Aitum's

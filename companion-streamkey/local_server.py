@@ -266,10 +266,15 @@ class Controller:
         return chosen, None
 
     def _push_to_aitum(self, url, key, auto_start=False):
-        """Write fresh creds to every TikTok output across every aitum.json,
-        force Aitum to reload from disk via the OBS profile-bounce, then
-        (optionally) start the output. Each step's outcome is recorded so
-        /aitum/status surfaces exactly which link in the chain failed."""
+        """Foolproof Aitum credential push. The critical detail is that
+        the file write must happen MID-BOUNCE (after switching away from
+        the user profile, before switching back), because Aitum dumps its
+        cached creds to disk on switch-away, overwriting any pre-bounce
+        write. push_creds_and_reload encapsulates that sequence.
+
+        Each step's outcome is recorded in self._aitum_last.steps so
+        /aitum/status surfaces exactly which link in the chain failed.
+        """
         steps = []
         def step(name, ok, reason=None, extra=None):
             entry = {"step": name, "ok": bool(ok)}
@@ -284,31 +289,15 @@ class Controller:
                   "files": 0, "outputs": 0, "outputName": None,
                   "reason": None, "steps": steps}
 
-        # 1) Write the file + verify the new key landed.
-        try:
-            w = aitum_writer.update_tiktok(url, key)
-        except Exception as e:  # noqa: BLE001
-            step("write", False, f"write error: {str(e)[:120]}")
-            result["reason"] = steps[-1].get("reason")
-            self._record_aitum(result)
-            return result
-        result["writeOk"] = bool(w.get("ok"))
-        result["verified"] = bool(w.get("verified"))
-        result["files"] = len(w.get("files", []))
-        result["outputs"] = w.get("outputs", 0)
-        if not step("write", w.get("ok"), w.get("error") or (w.get("errors") or [None])[0],
-                    {"files": result["files"], "outputs": result["outputs"], "verified": result["verified"]}):
-            result["reason"] = steps[-1].get("reason") or "write failed"
-            self._record_aitum(result)
-            return result
-
-        # 2) Resolve the Aitum output name (handles user-renamed outputs).
+        # 1) Discover the output name BEFORE the bounce. After the bounce
+        # Aitum's cache has the new file contents, but the name field is
+        # whatever it cached -- discovering now gives us the user's last
+        # known display name so stop/start_output target the right one.
         out_name, name_reason = self._discover_aitum_output()
         result["outputName"] = out_name
         step("discover_output", bool(out_name and not name_reason), name_reason, {"name": out_name})
 
-        # 3) Stop the output if it's currently running. Aitum returns success
-        # even if it wasn't streaming, so this is always safe.
+        # 2) Stop the output if running. Safe always (Aitum no-ops if idle).
         try:
             stop_r = obs_ws.aitum_stop_output(out_name)
             result["stopOk"] = bool(stop_r.get("ok"))
@@ -317,32 +306,38 @@ class Controller:
             result["stopOk"] = False
             step("stop_output", False, f"stop error: {str(e)[:120]}")
 
-        # 4) THE foolproof reload primitive: OBS profile-bounce so Aitum
-        # re-reads aitum.json from disk. Aitum has no in-API reload, and
-        # start_output without this step would just use stale cached creds.
+        # 3) Profile-bounce-with-mid-write. This is the only sequence that
+        # both writes our key AND survives Aitum's on-switch-away save.
         time.sleep(0.2)
         try:
-            reload_r = obs_ws.force_aitum_reload()
-            result["reloadOk"] = bool(reload_r.get("ok"))
-            step("force_reload", reload_r.get("ok"), reload_r.get("reason"),
-                 {"method": reload_r.get("method")})
+            push = obs_ws.push_creds_and_reload(url, key)
         except Exception as e:  # noqa: BLE001
-            result["reloadOk"] = False
-            step("force_reload", False, f"reload error: {str(e)[:120]}")
-
-        if not result["reloadOk"]:
-            result["reason"] = "Aitum did not pick up new key (profile reload failed). New key is on disk; restart OBS to load it."
+            step("push_creds_and_reload", False, f"push error: {str(e)[:120]}")
+            result["reason"] = steps[-1].get("reason")
+            self._record_aitum(result)
+            return result
+        result["writeOk"] = bool(push.get("writeOk"))
+        result["verified"] = bool(push.get("verified"))
+        result["reloadOk"] = bool(push.get("ok"))
+        result["files"] = push.get("files", 0)
+        result["outputs"] = push.get("outputs", 0)
+        step("push_creds_and_reload", push.get("ok"), push.get("reason"),
+             {"method": push.get("method"), "elapsedMs": push.get("elapsedMs"),
+              "writeOk": result["writeOk"], "verified": result["verified"],
+              "outputs": result["outputs"]})
+        if not push.get("ok"):
+            result["reason"] = push.get("reason") or "credential push failed"
             self._record_aitum(result)
             return result
 
-        # Give the plugin a moment to re-init after the profile bounce.
-        time.sleep(0.6)
+        # Let the plugin settle after the profile bounce before starting.
+        time.sleep(0.4)
 
         if not auto_start:
             self._record_aitum(result)
             return result
 
-        # 5) Start the output. Aitum now has the fresh creds.
+        # 4) Start the output. Aitum now has the fresh creds in cache.
         try:
             start_r = obs_ws.aitum_start_output(out_name)
             result["startOk"] = bool(start_r.get("ok"))
@@ -356,9 +351,7 @@ class Controller:
             self._record_aitum(result)
             return result
 
-        # 6) Verify the output really did go active (Aitum returns success
-        # for start_output even when the underlying encoder fails, so we
-        # have to peek at get_outputs).
+        # 5) Verify the output really did go active.
         time.sleep(0.5)
         try:
             outs_r = obs_ws.aitum_get_outputs()
