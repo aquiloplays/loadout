@@ -207,17 +207,6 @@ def ensure_reload_helper_profile():
     return _safe_session(run)
 
 
-def push_creds_and_reload_for(platform, stream_server, stream_key, configs=None):
-    """Platform-aware variant of push_creds_and_reload. `platform` is one of
-    'tiktok' (default) or 'youtube' -- routes the write through
-    aitum_writer.update_destination so YouTube outputs use the YouTube
-    matcher. Same bounce + verify sequence as the TikTok-only path."""
-    import aitum_writer
-    return _push_with_writer(
-        lambda: aitum_writer.update_destination(platform, stream_server, stream_key, configs),
-    )
-
-
 def push_creds_and_reload(stream_server, stream_key, configs=None):
     """The ONLY way to reliably get a fresh stream_key into Aitum.
 
@@ -242,15 +231,7 @@ def push_creds_and_reload(stream_server, stream_key, configs=None):
     """
     # Lazy import keeps obs_ws importable in CI without aitum_writer's deps.
     import aitum_writer
-    return _push_with_writer(
-        lambda: aitum_writer.update_tiktok(stream_server, stream_key, configs),
-    )
 
-
-def _push_with_writer(writer_fn):
-    """Shared bounce sequence parameterized by which writer to call mid-bounce.
-    See push_creds_and_reload for the long explanation of why the write
-    has to happen between the two SetCurrentProfile calls."""
     def run(s):
         t0 = time.time()
         pl = s.request("GetProfileList")
@@ -291,7 +272,7 @@ def _push_with_writer(writer_fn):
 
         # 2. NOW write the fresh creds. Aitum can't undo this -- it's on the helper.
         try:
-            w = writer_fn()
+            w = aitum_writer.update_tiktok(stream_server, stream_key, configs)
         except Exception as e:  # noqa: BLE001
             # Try to put the user back on their profile anyway.
             s.request("SetCurrentProfile", {"profileName": current}, timeout=8)

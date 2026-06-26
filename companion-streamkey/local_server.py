@@ -45,7 +45,6 @@ import settings as user_settings
 import token_health
 import token_retriever as tok
 import webhook
-import youtube_controller
 from logsetup import log, tail
 from streamlabs_api import StreamlabsTikTok, StreamlabsError
 from _version import __version__
@@ -122,10 +121,6 @@ class Controller:
         # Live time, not during).
         self._token_health = token_health.Watcher(notify=lambda t, b: self._notify(t, b))
         self._token_health.start()
-        # YouTube companion: parallel platform with its own OAuth + broadcast
-        # lifecycle. Lives alongside (not inside) Controller so the TikTok
-        # plumbing stays focused on the slobs path.
-        self.youtube = youtube_controller.YouTubeController(clock=self._clock)
 
     # -- auth (never blocks a request) ------------------------------------
     def _client(self):
@@ -555,64 +550,6 @@ class Controller:
                     "discoveredOutputName": getattr(self, "_aitum_output_name", None),
                     "last": dict(self._aitum_last)}
 
-    def youtube_go_live(self, title, description, privacy, category_id, made_for_kids):
-        """Create the YouTube broadcast + stream, push the fresh key into
-        Aitum's YouTube output (separate Aitum output from TikTok's), and
-        return a dict matching the shape /youtube/go expects."""
-        r = self.youtube.start(title=title, description=description,
-                                privacy=privacy, category_id=category_id,
-                                made_for_kids=made_for_kids)
-        if not r.get("ok"):
-            return r
-        # Persist this run's metadata as the YouTube 'last used' so next
-        # session can pre-fill the dock fields.
-        try:
-            user_settings.update({
-                "ytLastTitle": title or "",
-                "ytLastDescription": description or "",
-                "ytLastCategoryId": category_id or "",
-                "ytLastPrivacy": privacy or "public",
-                "ytLastMadeForKids": bool(made_for_kids),
-            })
-        except Exception:
-            pass
-        # Push the YouTube RTMP URL + key into Aitum's YouTube output using
-        # the same foolproof profile-bounce path as TikTok.
-        out_name = (user_settings.load().get("aitumYouTubeOutputName") or "YouTube Output").strip()
-        # YouTube returns the ingestion URL as a base (e.g. rtmp://a.rtmp.youtube.com/live2)
-        # and a separate streamName, which Aitum expects as the URL + key.
-        push = {"writeOk": False, "verified": False, "startOk": None, "reason": None}
-        try:
-            p = obs_ws.push_creds_and_reload_for("youtube", r["url"], r["key"])
-            push.update({"writeOk": p.get("writeOk"), "verified": p.get("verified"),
-                         "reloadOk": p.get("ok"), "files": p.get("files", 0),
-                         "outputs": p.get("outputs", 0), "reason": p.get("reason"),
-                         "method": p.get("method")})
-        except Exception as e:  # noqa: BLE001
-            push["reason"] = f"push error: {str(e)[:120]}"
-        # Start the YouTube Aitum output so encoding begins.
-        if push.get("reloadOk"):
-            time.sleep(0.4)
-            try:
-                s = obs_ws.aitum_start_output(out_name)
-                push["startOk"] = bool(s.get("ok"))
-                if not s.get("ok"):
-                    push["reason"] = s.get("reason") or "start_output failed"
-            except Exception as e:  # noqa: BLE001
-                push["startOk"] = False
-                push["reason"] = f"start error: {str(e)[:120]}"
-        r["aitum"] = push
-        return r
-
-    def youtube_end(self):
-        """Stop Aitum's YouTube output + transition the broadcast to complete."""
-        out_name = (user_settings.load().get("aitumYouTubeOutputName") or "YouTube Output").strip()
-        try:
-            obs_ws.aitum_stop_output(out_name)
-        except Exception:
-            pass
-        return self.youtube.end()
-
     def aitum_preflight(self):
         """Probe every link in the chain so the dock can show readiness BEFORE
         the user clicks Go Live. Read-only; never starts a stream."""
@@ -874,53 +811,6 @@ def create_app(controller, clock):
     def token_probe_handler():
         if request.method == "OPTIONS": return opt()
         return jsonify(token_health.probe(clock))
-
-    @app.route("/youtube/status", methods=["GET", "OPTIONS"])
-    def youtube_status():
-        if request.method == "OPTIONS": return opt()
-        return jsonify(controller.youtube.status())
-
-    @app.route("/youtube/auth", methods=["POST", "OPTIONS"])
-    def youtube_auth():
-        if request.method == "OPTIONS": return opt()
-        return jsonify(controller.youtube.start_auth())
-
-    @app.route("/youtube/signout", methods=["POST", "OPTIONS"])
-    def youtube_signout():
-        if request.method == "OPTIONS": return opt()
-        import youtube_oauth
-        youtube_oauth.clear_token()
-        return jsonify({"ok": True})
-
-    @app.route("/youtube/categories", methods=["GET", "OPTIONS"])
-    def youtube_categories():
-        if request.method == "OPTIONS": return opt()
-        return jsonify(controller.youtube.categories(region=request.args.get("region", "US")))
-
-    @app.route("/youtube/go", methods=["POST", "OPTIONS"])
-    def youtube_go():
-        if request.method == "OPTIONS": return opt()
-        b = request.get_json(silent=True) or {}
-        try:
-            return jsonify(controller.youtube_go_live(
-                title=b.get("title", ""),
-                description=b.get("description", ""),
-                privacy=b.get("privacy", "public"),
-                category_id=b.get("categoryId") or None,
-                made_for_kids=bool(b.get("madeForKids")),
-            ))
-        except Exception as e:  # noqa: BLE001
-            log(f"youtube/go: unexpected error: {str(e)[:160]}", "error")
-            return jsonify({"ok": False, "reason": str(e)[:200]}), 502
-
-    @app.route("/youtube/end", methods=["POST", "OPTIONS"])
-    def youtube_end():
-        if request.method == "OPTIONS": return opt()
-        try:
-            return jsonify(controller.youtube_end())
-        except Exception as e:  # noqa: BLE001
-            log(f"youtube/end: unexpected error: {str(e)[:160]}", "error")
-            return jsonify({"ok": False, "reason": str(e)[:200]}), 502
 
     @app.route("/tiktok/access-status", methods=["GET", "OPTIONS"])
     def access_status():
