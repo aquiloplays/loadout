@@ -39,6 +39,8 @@ import aitum_writer
 import category_cache
 import diag
 import obs_ws
+import presets
+import session_watchdog
 import token_retriever as tok
 from logsetup import log, tail
 from streamlabs_api import StreamlabsTikTok, StreamlabsError
@@ -101,6 +103,13 @@ class Controller:
         # Aitum auto-push state surfaced via /debug/diag + /aitum/status.
         self._aitum_last = {"at": None, "ok": None, "outputs": 0, "files": 0,
                              "started": None, "reason": None}
+        # Long-stream watchdog: started after a successful start(), stopped
+        # by end() or explicit recovery exhaustion. Notifier is wired by the
+        # App during boot so tray balloons can fire from the watchdog thread.
+        self._notify = lambda title, body: None
+        self._watchdog = session_watchdog.SessionWatchdog(
+            controller=self, notify=lambda t, b: self._notify(t, b),
+        )
 
     # -- auth (never blocks a request) ------------------------------------
     def _client(self):
@@ -192,7 +201,7 @@ class Controller:
             }
             return dict(self.details)
 
-    def start(self, title, category, mature, refreshed_at):
+    def start(self, title, category, mature, refreshed_at, _record_preset=True):
         if title and len(str(title)) > self.TITLE_MAX:
             raise StreamlabsError(f"Title is over the {self.TITLE_MAX} character TikTok limit.")
         self.set_details(title, category, mature)
@@ -209,6 +218,7 @@ class Controller:
         with self._lock:
             self.creds = {"url": url, "key": key, "id": api.stream_id, "refreshedAt": refreshed_at}
             self.live = True
+            self._last_audience = audience
             out = dict(self.creds)
         log("start: live session created ok")
         # Push credentials into Aitum + auto-start its output so the user
@@ -216,10 +226,84 @@ class Controller:
         # logged and surfaced via /aitum/status but does NOT fail Go Live.
         aitum = self._push_to_aitum(url, key, auto_start=True)
         out["aitum"] = aitum
+        # Remember this Go Live so the tray menu can offer a Repeat Last.
+        # `start()` is also called by recover_session; that path passes
+        # _record_preset=False so a recovery doesn't churn the "last" slot.
+        if _record_preset:
+            try:
+                presets.record_last(
+                    self.details.get("title", ""),
+                    {"id": self.details.get("category", ""),
+                     "name": self._category_display_name()},
+                    self.details.get("matureContent", False),
+                    self._clock,
+                )
+            except Exception as e:  # noqa: BLE001
+                log(f"presets: record_last failed: {str(e)[:120]}", "warning")
+        # Long-stream watchdog watches for TikTok dropping the session.
+        try:
+            self._watchdog.start()
+        except Exception as e:  # noqa: BLE001
+            log(f"watchdog start failed: {str(e)[:120]}", "warning")
         return {"ok": True, **out}
+
+    def _category_display_name(self):
+        """Best-effort: turn the cached category id into the display name
+        Aitum/dock will recognize on next quick-go-live."""
+        cid = self.details.get("category", "")
+        if not cid:
+            return ""
+        for entry in (self._cat_cache or {}).values():
+            for c in entry.get("items", []):
+                if c.get("id") == cid:
+                    return c.get("name", "")
+        # Fall back to the disk index (covers a fresh-companion case where
+        # the in-memory cache hasn't been hit for this category yet).
+        try:
+            snap = category_cache.load()
+            for c in snap.get("items", []):
+                if c.get("id") == cid:
+                    return c.get("name", "")
+        except Exception:
+            pass
+        return ""
+
+    def recover_session(self):
+        """Re-create a dropped TikTok session reusing the last title /
+        category / mature setting. Called by SessionWatchdog. Skips
+        preset 'last' recording so we don't churn the slot during retries."""
+        with self._lock:
+            details = dict(self.details)
+        try:
+            return self.start(details.get("title", ""), details.get("category", ""),
+                              details.get("matureContent", False), self._clock(),
+                              _record_preset=False)
+        except StreamlabsError as e:
+            return {"ok": False, "reason": f"streamlabs: {str(e)[:160]}"}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "reason": str(e)[:160]}
+
+    def quick_go_live(self, preset_name):
+        """Fire Go Live from a saved preset. Returns the same shape as
+        /stream/start does."""
+        if preset_name and preset_name.lower() == "__last__":
+            p = presets.get_last()
+        else:
+            p = presets.find(preset_name)
+        if not p:
+            return {"ok": False, "reason": f"preset {preset_name!r} not found"}
+        cat = p.get("category") or {}
+        return self.start(p.get("title", ""), cat.get("id", ""),
+                          p.get("matureContent", False), self._clock())
 
     def end(self):
         api = self._api
+        # User explicitly clicked End -> stop the watchdog so it doesn't
+        # interpret the deliberate session close as a TikTok-side drop.
+        try:
+            self._watchdog.stop()
+        except Exception:
+            pass
         # Stop Aitum's TikTok output first so the broadcast actually ends
         # at the encoder. Best-effort; failures are logged.
         try:
@@ -601,6 +685,39 @@ def create_app(controller, clock):
     @app.route("/aitum/preflight", methods=["GET", "OPTIONS"])
     def aitum_preflight():
         return opt() if request.method == "OPTIONS" else jsonify(controller.aitum_preflight())
+
+    @app.route("/presets", methods=["GET", "OPTIONS"])
+    def presets_list():
+        if request.method == "OPTIONS": return opt()
+        return jsonify({"ok": True, "presets": presets.list_presets(), "last": presets.get_last()})
+
+    @app.route("/presets/save", methods=["POST", "OPTIONS"])
+    def presets_save():
+        if request.method == "OPTIONS": return opt()
+        b = request.get_json(silent=True) or {}
+        return jsonify(presets.save(
+            b.get("name"), b.get("title"), b.get("category"),
+            b.get("matureContent"), clock,
+        ))
+
+    @app.route("/presets/delete", methods=["POST", "OPTIONS"])
+    def presets_delete():
+        if request.method == "OPTIONS": return opt()
+        b = request.get_json(silent=True) or {}
+        return jsonify(presets.remove(b.get("name")))
+
+    @app.route("/presets/go", methods=["POST", "OPTIONS"])
+    def presets_go():
+        if request.method == "OPTIONS": return opt()
+        b = request.get_json(silent=True) or {}
+        try:
+            return jsonify(controller.quick_go_live(b.get("name")))
+        except StreamlabsError as e:
+            code, message, status = friendly_error(e)
+            return jsonify({"ok": False, "error": code, "message": message}), status
+        except Exception as e:  # noqa: BLE001
+            log(f"presets/go: unexpected error: {str(e)[:160]}", "error")
+            return jsonify({"ok": False, "error": "go_failed", "message": str(e)[:160]}), 502
 
     @app.route("/tiktok/access-status", methods=["GET", "OPTIONS"])
     def access_status():

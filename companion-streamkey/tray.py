@@ -14,6 +14,7 @@ import pystray
 from PIL import Image, ImageDraw
 
 import autostart
+import presets
 import shortcut
 from _version import __version__
 
@@ -115,9 +116,62 @@ def build_tray(app):
         except Exception:
             pass
 
+    def _go_with_preset(name):
+        """Run preset Go Live on a background thread so pystray's menu
+        callback doesn't block while Streamlabs + Aitum sequence runs."""
+        def runner():
+            try:
+                r = app.controller.quick_go_live(name)
+                if r.get("ok"):
+                    body = f"TikTok session created ({name})"
+                    a = r.get("aitum") or {}
+                    if a.get("active"): body += "; Aitum streaming."
+                    elif a.get("startOk"): body += "; Aitum started."
+                    elif a.get("writeOk"): body += "; Aitum config updated, start it manually."
+                else:
+                    body = r.get("reason") or r.get("message") or "Go Live failed."
+                try: app._icon.notify(body, "Quick Go Live")
+                except Exception: pass
+            except Exception as e:  # noqa: BLE001
+                try: app._icon.notify(f"Quick Go Live error: {str(e)[:160]}", "Quick Go Live")
+                except Exception: pass
+        import threading as _t
+        _t.Thread(target=runner, daemon=True).start()
+
+    def _quick_menu():
+        """Build the Quick Go Live submenu dynamically each render so saved
+        presets show up without restarting the tray. pystray re-evaluates
+        the lambda every time the menu opens."""
+        items = []
+        last = None
+        try:
+            last = presets.get_last()
+            saved = presets.list_presets()
+        except Exception:
+            saved = []
+        if last and (last.get("title") or last.get("category", {}).get("name")):
+            label_title = (last.get("title") or "(no title)")[:30]
+            label_cat = last.get("category", {}).get("name") or "Other"
+            items.append(pystray.MenuItem(
+                f"Repeat last: {label_title} / {label_cat}",
+                lambda icon, item: _go_with_preset("__last__"),
+            ))
+        if items and saved:
+            items.append(pystray.Menu.SEPARATOR)
+        for p in saved:
+            name = p.get("name", "")
+            def make_cb(n):
+                return lambda icon, item: _go_with_preset(n)
+            label = name[:36]
+            items.append(pystray.MenuItem(label, make_cb(name)))
+        if not items:
+            items.append(pystray.MenuItem("(no presets yet; save one from the dock)", None, enabled=False))
+        return pystray.Menu(*items)
+
     menu = pystray.Menu(
         pystray.MenuItem("aquilo.gg TikTok Key Generator " + __version__, None, enabled=False),
         pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Quick Go Live", _quick_menu()),
         pystray.MenuItem("Sign in to Streamlabs", lambda icon, item: app.login()),
         pystray.MenuItem("Open dock", lambda icon, item: webbrowser.open(DOCK_URL)),
         pystray.MenuItem("Check for updates", lambda icon, item: app.check_update(manual=True)),

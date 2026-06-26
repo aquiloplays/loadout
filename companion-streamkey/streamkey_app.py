@@ -103,6 +103,15 @@ class App:
         # import of the rest of the package does not require a display.
         import tray
         self._icon = tray.build_tray(self)
+        # Let the controller's session watchdog surface drop / recovery
+        # events as tray balloons. icon.notify is a no-op on hosts that
+        # don't support balloons; falls back to log lines.
+        def notify(title, body):
+            try:
+                self._icon.notify(body, title)
+            except Exception:
+                log(f"notify ({title}): {body}")
+        self.controller._notify = notify
         self._icon.run()
 
 
