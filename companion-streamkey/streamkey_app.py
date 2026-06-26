@@ -34,6 +34,10 @@ class App:
     def check_update(self, manual=False):
         threading.Thread(target=self._do_update, args=(manual,), daemon=True).start()
 
+    def refresh_categories(self):
+        """Background sweep so the tray menu does not block on a 5-10s sweep."""
+        threading.Thread(target=self.controller.refresh_categories, daemon=True).start()
+
     def quit(self):
         if self._icon is not None:
             self._icon.stop()

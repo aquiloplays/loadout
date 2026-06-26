@@ -35,6 +35,7 @@ import time
 import requests
 from flask import Flask, jsonify, request
 
+import category_cache
 import diag
 import token_retriever as tok
 from logsetup import log, tail
@@ -87,6 +88,13 @@ class Controller:
         self._browser_opened = False
         self._last_error = None
         self._auth_thread = None
+        # Background sweeper keeps the on-disk category index fresh so the
+        # dock autocomplete is instant even when the user has been offline
+        # for a while. See [[category_cache]].
+        self._cat_refresher = category_cache.Refresher(
+            get_api=self._client, clock=self._clock,
+        )
+        self._cat_refresher.start()
 
     # -- auth (never blocks a request) ------------------------------------
     def _client(self):
@@ -233,23 +241,49 @@ class Controller:
                 "category": category, "matureContent": mature, "authed": self.authed()}
 
     def categories(self, query):
-        key = (query or "").strip().lower()
-        with self._lock:
-            hit = self._cat_cache.get(key)
-            if hit and (self._clock() - hit["at_ms"]) < self.CAT_TTL_MS:
-                return {"categories": hit["items"], "authed": True, "cached": True}
+        """Substring-search the persistent disk index first (instant), only
+        hit the live API as a fallback for queries the index has not seen.
+        Live results are merged back into the index so future hits are
+        instant too."""
+        q = (query or "").strip()
+        if not q:
+            return {"categories": [], "authed": self.authed()}
+        snap = category_cache.load()
+        hits = category_cache.search(snap, q)
+        if hits:
+            return {"categories": hits, "authed": self.authed(), "source": "index"}
         api = self._client()
         if api is None:
-            return {"categories": [], "authed": False}
+            return {"categories": [], "authed": False, "source": "index"}
         try:
-            raw = api.search_categories(query)      # not under lock
+            raw = api.search_categories(q)
         except Exception:
-            return {"categories": [], "authed": self.authed()}
+            return {"categories": [], "authed": self.authed(), "source": "live"}
         out = [{"name": c.get("full_name", ""), "id": c.get("game_mask_id", "")}
                for c in raw if c.get("full_name")]
-        with self._lock:
-            self._cat_cache[key] = {"at_ms": self._clock(), "items": out}
-        return {"categories": out, "authed": True}
+        if out:
+            try:
+                category_cache.save(category_cache.merge(snap, out, self._clock))
+            except Exception as e:  # noqa: BLE001
+                log(f"categories: merge-into-index failed: {str(e)[:120]}", "warning")
+        return {"categories": out, "authed": True, "source": "live"}
+
+    def refresh_categories(self):
+        """Manual sweep, used by /categories/refresh + the tray menu."""
+        api = self._client()
+        if api is None:
+            return {"ok": False, "authed": False, "message": "Sign in first."}
+        try:
+            snap = category_cache.sweep(api, self._clock)
+            return {"ok": True, "count": len(snap.get("items", [])),
+                    "updatedAt": snap.get("updatedAt")}
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "authed": True, "message": str(e)[:160]}
+
+    def categories_status(self):
+        snap = category_cache.load()
+        return {"count": len(snap.get("items", [])),
+                "updatedAt": snap.get("updatedAt")}
 
     def access_status(self):
         api = self._client()
@@ -306,6 +340,14 @@ def create_app(controller, clock):
     @app.route("/categories", methods=["GET", "OPTIONS"])
     def categories():
         return opt() if request.method == "OPTIONS" else jsonify(controller.categories(request.args.get("q", "").strip()))
+
+    @app.route("/categories/refresh", methods=["POST", "OPTIONS"])
+    def categories_refresh():
+        return opt() if request.method == "OPTIONS" else jsonify(controller.refresh_categories())
+
+    @app.route("/categories/status", methods=["GET", "OPTIONS"])
+    def categories_status():
+        return opt() if request.method == "OPTIONS" else jsonify(controller.categories_status())
 
     @app.route("/tiktok/access-status", methods=["GET", "OPTIONS"])
     def access_status():

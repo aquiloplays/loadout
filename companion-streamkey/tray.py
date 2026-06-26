@@ -87,12 +87,25 @@ def build_tray(app):
         except (AttributeError, Exception):
             pass
 
+    def _refresh_categories(icon, item):
+        """Force a TikTok category sweep so the dock autocomplete is current.
+        The background refresher does this daily; this is the on-demand path."""
+        try:
+            app.refresh_categories()
+            try:
+                icon.notify("Refreshing TikTok categories in the background.", "Categories")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     menu = pystray.Menu(
         pystray.MenuItem("aquilo.gg TikTok Key Generator " + __version__, None, enabled=False),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Sign in to Streamlabs", lambda icon, item: app.login()),
         pystray.MenuItem("Open dock", lambda icon, item: webbrowser.open(DOCK_URL)),
         pystray.MenuItem("Check for updates", lambda icon, item: app.check_update(manual=True)),
+        pystray.MenuItem("Refresh TikTok categories", _refresh_categories),
         pystray.MenuItem("Downloads / releases", lambda icon, item: webbrowser.open(RELEASES_URL)),
         pystray.MenuItem("Install desktop / taskbar shortcut", _install_shortcut),
         pystray.MenuItem("Start with Windows", _toggle_autostart,
