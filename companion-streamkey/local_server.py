@@ -35,8 +35,10 @@ import time
 import requests
 from flask import Flask, jsonify, request
 
+import aitum_writer
 import category_cache
 import diag
+import obs_ws
 import token_retriever as tok
 from logsetup import log, tail
 from streamlabs_api import StreamlabsTikTok, StreamlabsError
@@ -72,6 +74,7 @@ class Controller:
 
     TITLE_MAX = 32                 # TikTok caps the live title at 32 chars
     CAT_TTL_MS = 60 * 60 * 1000
+    AITUM_OUTPUT_NAME = "TikTok Output"   # Aitum's default; overridable later
 
     def __init__(self, clock=None):
         self._lock = threading.Lock()
@@ -95,6 +98,9 @@ class Controller:
             get_api=self._client, clock=self._clock,
         )
         self._cat_refresher.start()
+        # Aitum auto-push state surfaced via /debug/diag + /aitum/status.
+        self._aitum_last = {"at": None, "ok": None, "outputs": 0, "files": 0,
+                             "started": None, "reason": None}
 
     # -- auth (never blocks a request) ------------------------------------
     def _client(self):
@@ -205,10 +211,23 @@ class Controller:
             self.live = True
             out = dict(self.creds)
         log("start: live session created ok")
+        # Push credentials into Aitum + auto-start its output so the user
+        # never has to paste a key into Aitum. Best-effort: any failure is
+        # logged and surfaced via /aitum/status but does NOT fail Go Live.
+        aitum = self._push_to_aitum(url, key, auto_start=True)
+        out["aitum"] = aitum
         return {"ok": True, **out}
 
     def end(self):
         api = self._api
+        # Stop Aitum's TikTok output first so the broadcast actually ends
+        # at the encoder. Best-effort; failures are logged.
+        try:
+            r = obs_ws.aitum_stop_output(self.AITUM_OUTPUT_NAME)
+            if not r.get("ok"):
+                log(f"end: aitum stop_output: {r.get('reason')}", "warning")
+        except Exception as e:  # noqa: BLE001
+            log(f"end: aitum stop_output error: {str(e)[:120]}", "warning")
         if api is None:
             with self._lock:
                 self.live = False
@@ -219,6 +238,58 @@ class Controller:
                 self.live = False
                 self.creds = None
         return ok
+
+    def _push_to_aitum(self, url, key, auto_start=False):
+        """Write the new creds into every TikTok-shaped Aitum output, then
+        (optionally) start that output via obs-websocket. Updates
+        self._aitum_last and returns a dict the dock can render.
+        """
+        result = {"writeOk": False, "startOk": None, "files": 0, "outputs": 0, "reason": None}
+        try:
+            w = aitum_writer.update_tiktok(url, key)
+            result["writeOk"] = bool(w.get("ok"))
+            result["files"] = len(w.get("files", []))
+            result["outputs"] = w.get("outputs", 0)
+            if not w.get("ok") and w.get("error"):
+                result["reason"] = w["error"]
+        except Exception as e:  # noqa: BLE001
+            result["reason"] = f"aitum write error: {str(e)[:120]}"
+            log(result["reason"], "warning")
+
+        if auto_start and result["writeOk"]:
+            try:
+                r = obs_ws.aitum_start_output(self.AITUM_OUTPUT_NAME)
+                result["startOk"] = bool(r.get("ok"))
+                if not r.get("ok"):
+                    result["reason"] = r.get("reason") or "start_output failed"
+                    log(f"aitum start_output failed: {result['reason']}", "warning")
+            except Exception as e:  # noqa: BLE001
+                result["startOk"] = False
+                result["reason"] = f"aitum start error: {str(e)[:120]}"
+                log(result["reason"], "warning")
+
+        with self._lock:
+            self._aitum_last = {
+                "at": self._clock(),
+                "ok": result["writeOk"],
+                "outputs": result["outputs"],
+                "files": result["files"],
+                "started": result["startOk"],
+                "reason": result["reason"],
+            }
+        return result
+
+    def push_to_aitum(self):
+        """Manual re-push of whatever credentials we currently hold."""
+        with self._lock:
+            creds = dict(self.creds) if self.creds else None
+        if not creds:
+            return {"ok": False, "reason": "no active credentials; go live first"}
+        return self._push_to_aitum(creds["url"], creds["key"], auto_start=False)
+
+    def aitum_status(self):
+        with self._lock:
+            return {"outputName": self.AITUM_OUTPUT_NAME, "last": dict(self._aitum_last)}
 
     def status(self):
         api = self._client()
@@ -348,6 +419,14 @@ def create_app(controller, clock):
     @app.route("/categories/status", methods=["GET", "OPTIONS"])
     def categories_status():
         return opt() if request.method == "OPTIONS" else jsonify(controller.categories_status())
+
+    @app.route("/aitum/push", methods=["POST", "OPTIONS"])
+    def aitum_push():
+        return opt() if request.method == "OPTIONS" else jsonify(controller.push_to_aitum())
+
+    @app.route("/aitum/status", methods=["GET", "OPTIONS"])
+    def aitum_status():
+        return opt() if request.method == "OPTIONS" else jsonify(controller.aitum_status())
 
     @app.route("/tiktok/access-status", methods=["GET", "OPTIONS"])
     def access_status():

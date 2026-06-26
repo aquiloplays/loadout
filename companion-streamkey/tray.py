@@ -99,6 +99,22 @@ def build_tray(app):
         except Exception:
             pass
 
+    def _push_to_aitum(icon, item):
+        """Re-push the active TikTok credentials into Aitum's config (handy
+        if the auto-push at Go Live missed or you opened OBS afterward)."""
+        try:
+            r = app.controller.push_to_aitum()
+            if r.get("writeOk"):
+                msg = f"Updated {r.get('outputs', 0)} output(s) in Aitum config."
+            else:
+                msg = r.get("reason") or "Nothing to push (no active credentials?)"
+            try:
+                icon.notify(msg, "Aitum push")
+            except Exception:
+                pass
+        except Exception:
+            pass
+
     menu = pystray.Menu(
         pystray.MenuItem("aquilo.gg TikTok Key Generator " + __version__, None, enabled=False),
         pystray.Menu.SEPARATOR,
@@ -106,6 +122,7 @@ def build_tray(app):
         pystray.MenuItem("Open dock", lambda icon, item: webbrowser.open(DOCK_URL)),
         pystray.MenuItem("Check for updates", lambda icon, item: app.check_update(manual=True)),
         pystray.MenuItem("Refresh TikTok categories", _refresh_categories),
+        pystray.MenuItem("Push key to Aitum now", _push_to_aitum),
         pystray.MenuItem("Downloads / releases", lambda icon, item: webbrowser.open(RELEASES_URL)),
         pystray.MenuItem("Install desktop / taskbar shortcut", _install_shortcut),
         pystray.MenuItem("Start with Windows", _toggle_autostart,

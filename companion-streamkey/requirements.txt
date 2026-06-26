@@ -5,3 +5,7 @@ requests>=2.32.0
 pystray>=0.19.5
 Pillow>=10.0.0
 packaging>=24.0
+# Sends CallVendorRequest to obs-websocket so Aitum picks up new TikTok
+# stream keys + auto-starts its output. Lazy-imported in obs_ws.py so the
+# rest of the companion still loads if the wheel is missing.
+websocket-client>=1.7.0

@@ -48,6 +48,9 @@ def collect(controller=None, port=7480):
     cat_snap = _safe(lambda: __import__("category_cache").load(), {"items": [], "updatedAt": None})
     cat_count = len(cat_snap.get("items", []) if isinstance(cat_snap, dict) else [])
     cat_updated = cat_snap.get("updatedAt") if isinstance(cat_snap, dict) else None
+    aitum_configs = _safe(lambda: __import__("aitum_writer").find_configs(), [])
+    aitum_configs_n = len(aitum_configs if isinstance(aitum_configs, list) else [])
+    obs_port, _, obs_ws_enabled = _safe(lambda: __import__("obs_ws")._load_obs_ws_config(), (4455, "", False))
 
     diag = {
         "version": __version__,
@@ -68,6 +71,9 @@ def collect(controller=None, port=7480):
         "watchdogEnabled": watchdog_on,
         "categoriesCount": cat_count,
         "categoriesUpdatedAt": cat_updated,
+        "aitumConfigsFound": aitum_configs_n,
+        "obsWebSocketPort": obs_port,
+        "obsWebSocketEnabled": obs_ws_enabled,
     }
     if controller is not None:
         diag["authed"] = _safe(controller.authed, False)
@@ -80,5 +86,6 @@ def banner_lines(diag):
     """Format a diag dict as one log line per field for the boot banner."""
     keys = ["version", "python", "platform", "frozen", "meipass", "runtimeTmpdir",
             "exe", "cwd", "configDir", "logPath", "tempEnv", "port", "portInUse",
-            "autostartEnabled", "watchdogEnabled", "categoriesCount", "categoriesUpdatedAt"]
+            "autostartEnabled", "watchdogEnabled", "categoriesCount", "categoriesUpdatedAt",
+            "aitumConfigsFound", "obsWebSocketEnabled", "obsWebSocketPort"]
     return [f"boot {k}={diag.get(k)!r}" for k in keys if k in diag]
