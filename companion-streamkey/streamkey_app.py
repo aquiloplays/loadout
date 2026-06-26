@@ -11,6 +11,7 @@ import time
 import autostart
 import diag
 import local_server
+import obs_ws
 import token_retriever as tok
 import updater
 from logsetup import log
@@ -69,6 +70,22 @@ class App:
         except OSError:
             pass
 
+    def _ensure_reload_helper(self):
+        """Pre-create the OBS profile we bounce to when forcing Aitum to
+        reload aitum.json from disk. Doing this once at startup means
+        per-Go-Live reloads are just two SetCurrentProfile calls (no
+        CreateProfile + RemoveProfile cost). Best-effort: failures are
+        logged but not fatal -- force_aitum_reload will fall back to
+        creating the helper on demand."""
+        try:
+            r = obs_ws.ensure_reload_helper_profile()
+            if r.get("ok"):
+                log(f"obs-ws: reload helper profile ready (created={r.get('created')})")
+            else:
+                log(f"obs-ws: reload helper not ready: {r.get('reason')}", "warning")
+        except Exception as e:  # noqa: BLE001
+            log(f"obs-ws: helper setup error: {str(e)[:120]}", "warning")
+
     def run(self):
         # Local server (daemon) so the dock can reach it immediately.
         threading.Thread(
@@ -77,6 +94,10 @@ class App:
         self._first_run_autostart()
         # Auto-update check shortly after launch (non-blocking).
         threading.Timer(3.0, lambda: self._do_update(False)).start()
+        # Pre-create the Aitum reload helper profile in the background so
+        # the first Go Live doesn't pay the CreateProfile cost. Runs after
+        # a brief delay so we don't race OBS startup.
+        threading.Timer(5.0, lambda: threading.Thread(target=self._ensure_reload_helper, daemon=True).start()).start()
 
         # Tray on the main thread (blocks). Imported here so a headless CI
         # import of the rest of the package does not require a display.

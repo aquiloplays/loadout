@@ -182,17 +182,53 @@ def aitum_get_outputs():
     return {"ok": True, "outputs": r["data"].get("outputs", [])}
 
 
-def force_aitum_reload(session=None):
-    """Force Aitum to re-read aitum.json from disk. Aitum has no in-API
-    reload primitive; the only known trigger is an OBS profile change, so
-    we create a transient profile, switch to it, switch back, then delete
-    it. Returns a {'ok', 'reason', 'method', 'currentProfile'} dict.
+def ensure_reload_helper_profile():
+    """Make sure the persistent OBS profile we use for force-reload bounces
+    exists. Called once at companion startup so per-Go-Live reloads can be
+    just two SetCurrentProfile calls (no CreateProfile + RemoveProfile cost,
+    saves ~1-1.5s per Go Live).
 
-    Accepts an existing session for the multi-call sequence; opens its own
-    if None. Tolerates partial state from prior failed reloads (a leftover
-    AquiloStreamkeyReload profile is reused / deleted).
+    Idempotent: returns ok if the helper already exists. The profile sticks
+    around between sessions on purpose; cleaning it up every shutdown would
+    re-introduce the create/delete latency.
     """
     def run(s):
+        pl = s.request("GetProfileList")
+        if not pl.get("ok"):
+            return {"ok": False, "reason": "GetProfileList failed: " + str(pl.get("reason"))}
+        profiles = pl["data"].get("profiles", []) or []
+        if RELOAD_PROFILE_NAME in profiles:
+            return {"ok": True, "created": False}
+        cr = s.request("CreateProfile", {"profileName": RELOAD_PROFILE_NAME}, timeout=8)
+        if not cr.get("ok"):
+            return {"ok": False, "reason": "CreateProfile failed: " + str(cr.get("reason"))}
+        time.sleep(0.6)  # OBS needs a moment to finalize before next call
+        return {"ok": True, "created": True}
+    return _safe_session(run)
+
+
+def force_aitum_reload(session=None):
+    """Force Aitum to re-read aitum.json from disk. Aitum has no in-API
+    reload primitive; empirically the ONLY trigger that works is an OBS
+    profile change (stop_output + start_output, start_all_streams cycles,
+    and start_output with stream_server/stream_key overrides ALL silently
+    use cached creds). So we bounce profiles: switch to a helper, sleep
+    long enough that OBS does not coalesce the two calls, switch back.
+
+    Sleep timing is calibrated: shorter than ~0.5s and OBS coalesces the
+    two SetCurrentProfile calls into a no-op. With 0.6s sleeps Aitum's
+    cache is reliably refreshed; total bounce is ~1.7s. The visible OBS
+    UI flash during that window is unavoidable.
+
+    Prefers a pre-created persistent RELOAD_PROFILE_NAME helper (created
+    by ensure_reload_helper_profile at startup) so we avoid CreateProfile
+    + RemoveProfile costs. Falls back to any existing user profile, or
+    creates the helper on demand if missing.
+
+    Returns {'ok', 'reason', 'method', 'currentProfile', 'elapsedMs'}.
+    """
+    def run(s):
+        t0 = time.time()
         pl = s.request("GetProfileList")
         if not pl.get("ok"):
             return {"ok": False, "reason": "GetProfileList failed: " + str(pl.get("reason"))}
@@ -200,41 +236,47 @@ def force_aitum_reload(session=None):
         current = data.get("currentProfileName")
         all_profiles = data.get("profiles", []) or []
 
-        # Prefer switching to an existing other profile (faster, no create/delete).
-        other = next((p for p in all_profiles if p != current and p != RELOAD_PROFILE_NAME), None)
-        method = "existing-profile"
-        temp_created = False
+        # If the current profile is somehow the helper (prior reload left us
+        # stranded), switch to any other profile first or create+switch to
+        # one so the rest of the bounce makes sense.
+        if current == RELOAD_PROFILE_NAME:
+            recover_to = next((p for p in all_profiles if p != current), None)
+            if not recover_to:
+                return {"ok": False, "reason": f"only profile is the helper '{current}'; can't recover"}
+            s.request("SetCurrentProfile", {"profileName": recover_to}, timeout=8)
+            time.sleep(0.6)
+            current = recover_to
 
-        if not other:
-            # Single-profile setup: create a transient one, reuse if leftover.
-            if RELOAD_PROFILE_NAME not in all_profiles:
+        # Prefer the persistent helper for predictable behavior; fall back
+        # to any other existing profile if helper is missing.
+        if RELOAD_PROFILE_NAME in all_profiles and current != RELOAD_PROFILE_NAME:
+            other = RELOAD_PROFILE_NAME
+            method = "persistent-helper"
+        else:
+            other = next((p for p in all_profiles if p != current and p != RELOAD_PROFILE_NAME), None)
+            if other:
+                method = "existing-profile"
+            else:
+                # No suitable profile and no helper. Create the helper now;
+                # subsequent reloads will hit the persistent-helper path.
                 cr = s.request("CreateProfile", {"profileName": RELOAD_PROFILE_NAME}, timeout=8)
                 if not cr.get("ok"):
                     return {"ok": False, "reason": "CreateProfile failed: " + str(cr.get("reason"))}
-                temp_created = True
-                # OBS takes ~half a second to finalize a profile create. If we
-                # SetCurrentProfile too quickly the profile isn't in the index
-                # yet and the switch fails with a generic "request failed".
                 time.sleep(0.6)
-            other = RELOAD_PROFILE_NAME
-            method = "temp-profile"
+                other = RELOAD_PROFILE_NAME
+                method = "created-helper"
 
-        try:
-            sw1 = s.request("SetCurrentProfile", {"profileName": other}, timeout=8)
-            if not sw1.get("ok"):
-                return {"ok": False, "reason": f"SetCurrentProfile({other}) failed: " + str(sw1.get("reason"))}
-            time.sleep(0.8)
-            sw2 = s.request("SetCurrentProfile", {"profileName": current}, timeout=8)
-            if not sw2.get("ok"):
-                # Worst-case: we left the user on the temp profile. Surface loudly.
-                return {"ok": False, "reason": f"SetCurrentProfile(back to {current}) failed; OBS may be on '{other}'"}
-            time.sleep(0.8)
-        finally:
-            if temp_created:
-                # Best-effort cleanup. Switching back may have left the temp around.
-                s.request("RemoveProfile", {"profileName": RELOAD_PROFILE_NAME}, timeout=8)
+        sw1 = s.request("SetCurrentProfile", {"profileName": other}, timeout=8)
+        if not sw1.get("ok"):
+            return {"ok": False, "reason": f"SetCurrentProfile({other}) failed: " + str(sw1.get("reason"))}
+        time.sleep(0.6)
+        sw2 = s.request("SetCurrentProfile", {"profileName": current}, timeout=8)
+        if not sw2.get("ok"):
+            return {"ok": False, "reason": f"SetCurrentProfile(back to {current}) failed; OBS may be on '{other}'"}
+        time.sleep(0.6)
 
-        return {"ok": True, "method": method, "currentProfile": current}
+        return {"ok": True, "method": method, "currentProfile": current,
+                "elapsedMs": int((time.time() - t0) * 1000)}
 
     if session is not None:
         return run(session)
