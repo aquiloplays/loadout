@@ -33,7 +33,7 @@ jobs:
         run: python build.py
 
       - name: Smoke-import modules
-        run: python -c "import streamlabs_api, token_retriever, local_server, updater, autostart, diag, watchdog_task, category_cache, aitum_writer, obs_ws, presets, session_watchdog, settings, webhook, token_health, youtube_oauth, youtube_api, youtube_controller, _version; print('import ok', _version.__version__)"
+        run: python -c "import streamlabs_api, token_retriever, local_server, updater, autostart, diag, watchdog_task, category_cache, aitum_writer, obs_ws, presets, session_watchdog, settings, webhook, token_health, _version; print('import ok', _version.__version__)"
 
       - name: Smoke-test the built exe
         shell: pwsh
