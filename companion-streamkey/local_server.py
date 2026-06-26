@@ -239,57 +239,234 @@ class Controller:
                 self.creds = None
         return ok
 
+    def _discover_aitum_output(self):
+        """Ask Aitum for its outputs and pick the TikTok-shaped one. Result
+        is cached on self so we only round-trip once per process unless the
+        cache is invalidated (output not found anymore)."""
+        cached = getattr(self, "_aitum_output_name", None)
+        r = obs_ws.aitum_get_outputs()
+        if not r.get("ok"):
+            return cached or self.AITUM_OUTPUT_NAME, r.get("reason")
+        outs = r.get("outputs", [])
+        stream_outs = [o for o in outs if (o.get("type") == "stream")]
+        # Prefer cached name if it still exists.
+        if cached and any(o.get("name") == cached for o in stream_outs):
+            return cached, None
+        # Prefer one whose name says tiktok / tt; otherwise first stream output.
+        def score(o):
+            n = (o.get("name") or "").lower()
+            if "tiktok" in n: return 0
+            if "tt" in n.split(): return 1
+            return 2
+        stream_outs.sort(key=score)
+        if not stream_outs:
+            return cached or self.AITUM_OUTPUT_NAME, "no stream-type output in Aitum"
+        chosen = stream_outs[0]["name"]
+        self._aitum_output_name = chosen
+        return chosen, None
+
     def _push_to_aitum(self, url, key, auto_start=False):
-        """Write the new creds into every TikTok-shaped Aitum output, then
-        (optionally) start that output via obs-websocket. Updates
-        self._aitum_last and returns a dict the dock can render.
-        """
-        result = {"writeOk": False, "startOk": None, "files": 0, "outputs": 0, "reason": None}
+        """Write fresh creds to every TikTok output across every aitum.json,
+        force Aitum to reload from disk via the OBS profile-bounce, then
+        (optionally) start the output. Each step's outcome is recorded so
+        /aitum/status surfaces exactly which link in the chain failed."""
+        steps = []
+        def step(name, ok, reason=None, extra=None):
+            entry = {"step": name, "ok": bool(ok)}
+            if reason: entry["reason"] = reason
+            if extra: entry["extra"] = extra
+            steps.append(entry)
+            log(f"aitum: {name} ok={bool(ok)} reason={reason or ''} extra={extra or ''}")
+            return ok
+
+        result = {"writeOk": False, "verified": False, "reloadOk": None,
+                  "stopOk": None, "startOk": None, "active": None,
+                  "files": 0, "outputs": 0, "outputName": None,
+                  "reason": None, "steps": steps}
+
+        # 1) Write the file + verify the new key landed.
         try:
             w = aitum_writer.update_tiktok(url, key)
-            result["writeOk"] = bool(w.get("ok"))
-            result["files"] = len(w.get("files", []))
-            result["outputs"] = w.get("outputs", 0)
-            if not w.get("ok") and w.get("error"):
-                result["reason"] = w["error"]
         except Exception as e:  # noqa: BLE001
-            result["reason"] = f"aitum write error: {str(e)[:120]}"
-            log(result["reason"], "warning")
+            step("write", False, f"write error: {str(e)[:120]}")
+            result["reason"] = steps[-1].get("reason")
+            self._record_aitum(result)
+            return result
+        result["writeOk"] = bool(w.get("ok"))
+        result["verified"] = bool(w.get("verified"))
+        result["files"] = len(w.get("files", []))
+        result["outputs"] = w.get("outputs", 0)
+        if not step("write", w.get("ok"), w.get("error") or (w.get("errors") or [None])[0],
+                    {"files": result["files"], "outputs": result["outputs"], "verified": result["verified"]}):
+            result["reason"] = steps[-1].get("reason") or "write failed"
+            self._record_aitum(result)
+            return result
 
-        if auto_start and result["writeOk"]:
-            try:
-                r = obs_ws.aitum_start_output(self.AITUM_OUTPUT_NAME)
-                result["startOk"] = bool(r.get("ok"))
-                if not r.get("ok"):
-                    result["reason"] = r.get("reason") or "start_output failed"
-                    log(f"aitum start_output failed: {result['reason']}", "warning")
-            except Exception as e:  # noqa: BLE001
-                result["startOk"] = False
-                result["reason"] = f"aitum start error: {str(e)[:120]}"
-                log(result["reason"], "warning")
+        # 2) Resolve the Aitum output name (handles user-renamed outputs).
+        out_name, name_reason = self._discover_aitum_output()
+        result["outputName"] = out_name
+        step("discover_output", bool(out_name and not name_reason), name_reason, {"name": out_name})
 
+        # 3) Stop the output if it's currently running. Aitum returns success
+        # even if it wasn't streaming, so this is always safe.
+        try:
+            stop_r = obs_ws.aitum_stop_output(out_name)
+            result["stopOk"] = bool(stop_r.get("ok"))
+            step("stop_output", stop_r.get("ok"), stop_r.get("reason"))
+        except Exception as e:  # noqa: BLE001
+            result["stopOk"] = False
+            step("stop_output", False, f"stop error: {str(e)[:120]}")
+
+        # 4) THE foolproof reload primitive: OBS profile-bounce so Aitum
+        # re-reads aitum.json from disk. Aitum has no in-API reload, and
+        # start_output without this step would just use stale cached creds.
+        time.sleep(0.2)
+        try:
+            reload_r = obs_ws.force_aitum_reload()
+            result["reloadOk"] = bool(reload_r.get("ok"))
+            step("force_reload", reload_r.get("ok"), reload_r.get("reason"),
+                 {"method": reload_r.get("method")})
+        except Exception as e:  # noqa: BLE001
+            result["reloadOk"] = False
+            step("force_reload", False, f"reload error: {str(e)[:120]}")
+
+        if not result["reloadOk"]:
+            result["reason"] = "Aitum did not pick up new key (profile reload failed). New key is on disk; restart OBS to load it."
+            self._record_aitum(result)
+            return result
+
+        # Give the plugin a moment to re-init after the profile bounce.
+        time.sleep(0.6)
+
+        if not auto_start:
+            self._record_aitum(result)
+            return result
+
+        # 5) Start the output. Aitum now has the fresh creds.
+        try:
+            start_r = obs_ws.aitum_start_output(out_name)
+            result["startOk"] = bool(start_r.get("ok"))
+            step("start_output", start_r.get("ok"), start_r.get("reason"))
+        except Exception as e:  # noqa: BLE001
+            result["startOk"] = False
+            step("start_output", False, f"start error: {str(e)[:120]}")
+
+        if not result["startOk"]:
+            result["reason"] = "Aitum did not start the output. Open Aitum and click Start manually."
+            self._record_aitum(result)
+            return result
+
+        # 6) Verify the output really did go active (Aitum returns success
+        # for start_output even when the underlying encoder fails, so we
+        # have to peek at get_outputs).
+        time.sleep(0.5)
+        try:
+            outs_r = obs_ws.aitum_get_outputs()
+            if outs_r.get("ok"):
+                match = next((o for o in outs_r.get("outputs", []) if o.get("name") == out_name), None)
+                result["active"] = bool(match and match.get("active"))
+                step("verify_active", result["active"], None if result["active"] else f"output '{out_name}' did not become active")
+            else:
+                step("verify_active", False, outs_r.get("reason"))
+        except Exception as e:  # noqa: BLE001
+            step("verify_active", False, f"verify error: {str(e)[:120]}")
+
+        if result["active"] is False:
+            result["reason"] = "Aitum accepted start but the output did not go active. Check Aitum's status."
+
+        self._record_aitum(result)
+        return result
+
+    def _record_aitum(self, result):
         with self._lock:
             self._aitum_last = {
                 "at": self._clock(),
-                "ok": result["writeOk"],
-                "outputs": result["outputs"],
-                "files": result["files"],
-                "started": result["startOk"],
-                "reason": result["reason"],
+                "ok": bool(result.get("writeOk") and result.get("verified")
+                           and result.get("reloadOk") and
+                           (result.get("startOk") in (None, True)) and
+                           (result.get("active") in (None, True))),
+                "writeOk": result.get("writeOk"),
+                "verified": result.get("verified"),
+                "reloadOk": result.get("reloadOk"),
+                "stopOk": result.get("stopOk"),
+                "startOk": result.get("startOk"),
+                "active": result.get("active"),
+                "outputs": result.get("outputs"),
+                "files": result.get("files"),
+                "outputName": result.get("outputName"),
+                "reason": result.get("reason"),
+                "steps": list(result.get("steps") or []),
             }
-        return result
 
     def push_to_aitum(self):
-        """Manual re-push of whatever credentials we currently hold."""
+        """Manual re-push of whatever credentials we currently hold. Does
+        the full foolproof sequence (write -> reload -> start) so the user
+        gets the same one-click experience as a fresh Go Live."""
         with self._lock:
             creds = dict(self.creds) if self.creds else None
         if not creds:
             return {"ok": False, "reason": "no active credentials; go live first"}
-        return self._push_to_aitum(creds["url"], creds["key"], auto_start=False)
+        return self._push_to_aitum(creds["url"], creds["key"], auto_start=True)
 
     def aitum_status(self):
         with self._lock:
-            return {"outputName": self.AITUM_OUTPUT_NAME, "last": dict(self._aitum_last)}
+            return {"defaultOutputName": self.AITUM_OUTPUT_NAME,
+                    "discoveredOutputName": getattr(self, "_aitum_output_name", None),
+                    "last": dict(self._aitum_last)}
+
+    def aitum_preflight(self):
+        """Probe every link in the chain so the dock can show readiness BEFORE
+        the user clicks Go Live. Read-only; never starts a stream."""
+        out = {"ok": True, "checks": []}
+        def add(name, ok, reason=None, extra=None):
+            entry = {"name": name, "ok": bool(ok)}
+            if reason: entry["reason"] = reason
+            if extra: entry["extra"] = extra
+            out["checks"].append(entry)
+            if not ok: out["ok"] = False
+            return ok
+
+        configs = aitum_writer.find_configs()
+        add("aitum.json found", bool(configs), None if configs else "no aitum.json under obs-studio profiles", {"paths": configs})
+
+        port, _pw, ws_enabled = obs_ws._load_obs_ws_config()
+        add("obs-websocket enabled", ws_enabled, None if ws_enabled else "enable in OBS -> Tools -> WebSocket Server Settings", {"port": port})
+
+        if not ws_enabled:
+            return out
+
+        # Vendor probe (proves OBS is up + Aitum loaded)
+        v = obs_ws.aitum_get_outputs()
+        add("Aitum vendor responds", v.get("ok"), v.get("reason"))
+        if not v.get("ok"):
+            return out
+
+        outs = v.get("outputs", [])
+        stream_outs = [o for o in outs if o.get("type") == "stream"]
+        add("Aitum stream output exists", bool(stream_outs),
+            None if stream_outs else "no stream-type output configured in Aitum")
+        if stream_outs:
+            name, reason = self._discover_aitum_output()
+            add("TikTok output discoverable", bool(name and not reason), reason, {"name": name})
+
+        # File contains a matching TikTok-shaped output
+        if configs:
+            try:
+                import json as _json
+                tiktok_in_file = False
+                for c in configs:
+                    with open(c, "r", encoding="utf-8") as f:
+                        d = _json.load(f)
+                    for o in d.get("outputs", []) or []:
+                        if isinstance(o, dict) and aitum_writer._is_tiktok_output(o):
+                            tiktok_in_file = True
+                            break
+                add("TikTok output in aitum.json", tiktok_in_file,
+                    None if tiktok_in_file else "aitum.json has no output whose URL contains 'tiktok'")
+            except Exception as e:  # noqa: BLE001
+                add("TikTok output in aitum.json", False, f"parse error: {str(e)[:120]}")
+
+        return out
 
     def status(self):
         api = self._client()
@@ -427,6 +604,10 @@ def create_app(controller, clock):
     @app.route("/aitum/status", methods=["GET", "OPTIONS"])
     def aitum_status():
         return opt() if request.method == "OPTIONS" else jsonify(controller.aitum_status())
+
+    @app.route("/aitum/preflight", methods=["GET", "OPTIONS"])
+    def aitum_preflight():
+        return opt() if request.method == "OPTIONS" else jsonify(controller.aitum_preflight())
 
     @app.route("/tiktok/access-status", methods=["GET", "OPTIONS"])
     def access_status():
