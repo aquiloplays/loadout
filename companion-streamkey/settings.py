@@ -26,6 +26,20 @@ DEFAULTS = {
     "discordWebhookUrl": "",
     "tiktokLiveUrl": "",
     "discordPings": True,
+    # YouTube integration -- user-provided Google Cloud OAuth Client ID
+    # (NOT a secret; safe to ship in plain text). Empty disables the path.
+    "googleClientId": "",
+    # YouTube Aitum output name. Defaults match what Aitum auto-names a
+    # YouTube destination when added through its UI; overridable per-user.
+    "aitumYouTubeOutputName": "YouTube Output",
+    # Per-platform last-used metadata for the YouTube card (mirrors how
+    # presets cache TikTok title/category). Stored alongside everything
+    # else so YouTube category persists across companion restarts.
+    "ytLastTitle": "",
+    "ytLastDescription": "",
+    "ytLastCategoryId": "",
+    "ytLastPrivacy": "public",
+    "ytLastMadeForKids": False,
 }
 
 

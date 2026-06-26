@@ -61,6 +61,29 @@ def _is_tiktok_output(out):
     return False
 
 
+def _is_youtube_output(out):
+    """Match an output to the YouTube destination by URL or name. YouTube
+    ingest URLs look like rtmp://a.rtmp.youtube.com/live2 (multiple regional
+    hosts), or rtmps://a.rtmps.youtube.com/live2."""
+    if out.get("type") != "stream":
+        return False
+    url = (out.get("stream_server") or "").lower()
+    name = (out.get("name") or "").lower()
+    if "youtube.com" in url or "ytlive" in url:
+        return True
+    if "youtube" in name or re.search(r"\byt\b", name):
+        return True
+    return False
+
+
+def _matcher_for(platform):
+    """Resolve a platform key to its output-matcher predicate."""
+    if platform == "youtube":
+        return _is_youtube_output
+    # Default keeps existing TikTok callers working without per-call changes.
+    return _is_tiktok_output
+
+
 def _apply(out, stream_server, stream_key):
     """Update the credentials in the output AND its nested video_encoders."""
     changed = False
@@ -82,10 +105,14 @@ def _apply(out, stream_server, stream_key):
     return changed
 
 
-def _verify(path, stream_server, stream_key):
-    """Read the file back and confirm every TikTok output has the new key.
+def _verify(path, stream_server, stream_key, match_fn=None):
+    """Read the file back and confirm every matching output has the new key.
     Catches the case where the write succeeded but OBS / Aitum / another
-    process raced us and overwrote the file. Returns (ok, mismatches)."""
+    process raced us and overwrote the file. Returns (ok, mismatches).
+
+    Defaults to TikTok matcher for backward compatibility with the
+    original update_tiktok call sites that don't pass match_fn."""
+    match = match_fn or _is_tiktok_output
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -93,7 +120,7 @@ def _verify(path, stream_server, stream_key):
         return False, [f"reread {path}: {e}"]
     bad = []
     for i, out in enumerate(data.get("outputs", []) or []):
-        if not (isinstance(out, dict) and _is_tiktok_output(out)):
+        if not (isinstance(out, dict) and match(out)):
             continue
         if out.get("stream_key") != stream_key:
             bad.append(f"outputs[{i}].stream_key mismatch")
@@ -109,6 +136,14 @@ def _verify(path, stream_server, stream_key):
     return (not bad), bad
 
 
+def update_destination(platform, stream_server, stream_key, configs=None, retries=2):
+    """Generic platform-aware variant. `platform` is 'tiktok' (default) or
+    'youtube' -- selects which outputs to rewrite. Same atomic write + verify
+    pattern as update_tiktok."""
+    match = _matcher_for(platform)
+    return _update(match, stream_server, stream_key, configs=configs, retries=retries)
+
+
 def update_tiktok(stream_server, stream_key, configs=None, retries=2):
     """Write `stream_server` + `stream_key` into every TikTok output across
     every aitum.json found. Re-reads each updated file to confirm the new
@@ -119,6 +154,11 @@ def update_tiktok(stream_server, stream_key, configs=None, retries=2):
     which is what /stream/start usually returns since the URL is stable per
     user even when the key rotates.
     """
+    return _update(_is_tiktok_output, stream_server, stream_key, configs=configs, retries=retries)
+
+
+def _update(match_fn, stream_server, stream_key, configs=None, retries=2):
+    """Shared core for update_tiktok and update_destination."""
     configs = configs if configs is not None else find_configs()
     if not configs:
         return {"ok": False, "files": [], "outputs": 0, "verified": False,
@@ -142,13 +182,13 @@ def update_tiktok(stream_server, stream_key, configs=None, retries=2):
             file_changed = False
             file_outputs = 0
             for out in outs:
-                if isinstance(out, dict) and _is_tiktok_output(out):
+                if isinstance(out, dict) and match_fn(out):
                     if _apply(out, stream_server, stream_key):
                         file_outputs += 1
                         file_changed = True
             if not file_changed:
                 # File already in sync; treat as success-no-op.
-                ok, _ = _verify(path, stream_server, stream_key)
+                ok, _ = _verify(path, stream_server, stream_key, match_fn=match_fn)
                 if ok:
                     break  # nothing to do
                 # If not in sync but no fields detected as changed, the file
@@ -167,7 +207,7 @@ def update_tiktok(stream_server, stream_key, configs=None, retries=2):
                 except OSError:
                     pass
                 continue
-            ok, bad = _verify(path, stream_server, stream_key)
+            ok, bad = _verify(path, stream_server, stream_key, match_fn=match_fn)
             if ok:
                 outputs_touched += file_outputs
                 files_touched.append(path)
