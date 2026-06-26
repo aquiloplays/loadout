@@ -1523,8 +1523,11 @@ export default {
           // Minecraft embed without a manual trigger.
           ctx.waitUntil((async () => {
             try {
-              const { postOrRefreshSchedule } = await import('./aquilo/aq-schedule.js');
-              await postOrRefreshSchedule(env, guildIdForVoteHub);
+              const mod = await import('./aquilo/aq-schedule.js');
+              // Sunday: re-post a fresh schedule for the new week (once);
+              // otherwise edit the pinned embed in place.
+              const reset = await mod.maybeWeeklyReset(env, guildIdForVoteHub);
+              if (!reset) await mod.postOrRefreshSchedule(env, guildIdForVoteHub);
             } catch (e) {
               console.warn('[cron] schedule-embed', e?.message || e);
             }

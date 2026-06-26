@@ -86,6 +86,20 @@ function weekSeedET() {
   return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
 }
 
+// Calendar date of `dow` (0=Sun..6=Sat) in the CURRENT ET week (anchored to
+// this week's Sunday) as a short "Mon D" label. The week + the random
+// community picks roll over every Sunday.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function weekDateOf(dow) {
+  const et = getETInfo();
+  const curDow = DOW_INDEX[et.weekday] ?? 0;
+  return new Date(Date.UTC(et.year, et.month - 1, et.day, 12) - curDow * 86400000 + dow * 86400000);
+}
+function weekDateLabel(dow) {
+  const d = weekDateOf(dow);
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
 // This week's random community-night game for `dow`. Reads the
 // aquilo.gg-managed community pool (games:v1, pool 'community'), shuffles
 // it deterministically by week, and hands each community night a distinct
@@ -182,8 +196,10 @@ const SLOT_META = {
 
 async function buildSchedulePayload(env, guildId, sched) {
   const headerEmbed = {
-    title: '📅 Aquilo · Weekly Stream Schedule',
-    description: 'Crowd Control playthrough **Sun / Mon / Wed / Fri**, Community Night **Tue / Thu / Sat**. The community game is picked at random each week. All shows **' + TIME_LABEL + '**.',
+    title: `📅 Aquilo · Weekly Stream Schedule`,
+    description:
+      `🗓️ **Week of ${weekDateLabel(0)} – ${weekDateLabel(6)}** · refreshes every Sunday\n` +
+      'Crowd Control playthrough **Sun / Mon / Wed / Fri**, Community Night **Tue / Thu / Sat** (a Crowd Control game picked at random each week). All shows **' + TIME_LABEL + '**.',
     color: COLOR_SCHEDULE,
   };
 
@@ -199,7 +215,7 @@ async function buildSchedulePayload(env, guildId, sched) {
     } else {
       desc = `${meta.emoji} **${meta.show}** · ${TIME_LABEL}\n_Game picked weekly._`;
     }
-    const embed = { title: cap(slot.day), description: desc, color: COLOR_SCHEDULE };
+    const embed = { title: `${cap(slot.day)} · ${weekDateLabel(slot.dow)}`, description: desc, color: COLOR_SCHEDULE };
     if (game && game.artUrl) embed.thumbnail = { url: game.artUrl };
     dayEmbeds.push(embed);
   }
@@ -316,6 +332,21 @@ export async function freshRepostSchedule(env, guildId) {
   sched.cn_winners = {};     // drop leftover winners from the retired vote model
   await saveSchedule(env, guildId, sched);
   return await postOrRefreshSchedule(env, guildId);
+}
+
+// Once per ET week (Sunday), re-post a FRESH pinned schedule for the new
+// week — new dates + freshly re-rolled random community games. KV-marker
+// gated per week-Sunday so it fires exactly once. Returns true if it reset.
+// Called from the hourly cron; the rest of the week it edits in place.
+export async function maybeWeeklyReset(env, guildId) {
+  let et;
+  try { et = getETInfo(); } catch { return false; }
+  if (et.weekday !== 'sunday') return false;
+  const key = `schedule:weekly-reset:${guildId}:${weekSeedET()}`;
+  try { if (await env.STATE.get(key)) return false; } catch { /* proceed */ }
+  await freshRepostSchedule(env, guildId);
+  try { await env.STATE.put(key, String(Date.now()), { expirationTtl: 8 * 86400 }); } catch { /* best-effort */ }
+  return true;
 }
 
 // Called from poll.js when a CN poll closes.
