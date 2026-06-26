@@ -100,6 +100,8 @@ const DEFAULT_CFG = {
   // the sound that plays when a viewer hasn't picked their own.
   maxSoundSec: 0,
   defaultSound: 'chime',
+  // Read EVERY check-in aloud (not just viewers who opted in on their card).
+  ttsAll: false,
   // Pool of default sounds; the overlay plays a random one per check-in for
   // un-customized viewers (falls back to defaultSound, then chime).
   defaultSounds: [],
@@ -1026,6 +1028,7 @@ async function handleCfg(env, body) {
   if (typeof cfg.ttsCensor === 'string') next.ttsCensor = cfg.ttsCensor.slice(0, 2000);
   if (typeof cfg.viewerSoundSearch === 'boolean') next.viewerSoundSearch = cfg.viewerSoundSearch;
   if (typeof cfg.maxSoundSec === 'number') next.maxSoundSec = Math.max(0, Math.min(30, Math.round(cfg.maxSoundSec)));
+  if (typeof cfg.ttsAll === 'boolean') next.ttsAll = cfg.ttsAll;
   if (typeof cfg.defaultSound === 'string' && /^(c:[a-f0-9]{8,16}|[a-z]{2,12})$/.test(cfg.defaultSound)) next.defaultSound = cfg.defaultSound;
   if (Array.isArray(cfg.defaultSounds)) {
     next.defaultSounds = cfg.defaultSounds
@@ -1194,6 +1197,7 @@ async function handleMeta(env, url) {
       ttsCensor: cfg.ttsCensor || '',
       viewerSoundSearch: !!cfg.viewerSoundSearch,
       maxSoundSec: Number(cfg.maxSoundSec) || 0,
+      ttsAll: !!cfg.ttsAll,
       defaultSound: cfg.defaultSound || 'chime',
       defaultSounds: Array.isArray(cfg.defaultSounds) ? cfg.defaultSounds : [],
       hasDiscord: !!cfg.discordWebhook,
